@@ -43,9 +43,11 @@ export const VOID_PREMINE_PURPOSE_VAULT_TARGET_V1 = Object.freeze({
 const BPS_DENOMINATOR = 10_000n;
 const MAX_SPREAD_BPS = 5_000;
 const MAX_CONFIRMATIONS = 1_000_000;
+const MAX_BITCOIN_VOUT = 0xffff_ffff;
 const MAX_ATOMIC_VALUE = (1n << 128n) - 1n;
 const MAX_STDIN_BYTES = 65_536;
 const SHA256_ID = /^sha256:[0-9a-f]{64}$/;
+const HEX_64 = /^[0-9a-f]{64}$/;
 
 function plainObject(value, label) {
   if (!value || typeof value !== "object" || Array.isArray(value)) {
@@ -98,6 +100,25 @@ export function canonicalJson(value) {
   return JSON.stringify(canonicalize(value));
 }
 
+function contentId(value) {
+  return (
+    "sha256:" +
+    crypto.createHash("sha256").update(canonicalJson(value)).digest("hex")
+  );
+}
+
+function sourceSaleIdentityPayload(settlement) {
+  return {
+    schema: "void.btc_void.source_sale_receipt.v1",
+    direction: settlement.direction,
+    bitcoin_funding_txid: settlement.bitcoin_funding_txid,
+    bitcoin_funding_vout: settlement.bitcoin_funding_vout,
+    void_settlement_receipt_id: settlement.void_settlement_receipt_id,
+    btc_received_sats: settlement.btc_received_sats,
+    void_sold_atomic: settlement.void_sold_atomic,
+  };
+}
+
 export function validatePurposeVaultTargetV1() {
   const target = structuredClone(VOID_PREMINE_PURPOSE_VAULT_TARGET_V1);
   const amounts = target.amounts_void;
@@ -146,6 +167,9 @@ function normalizeRequest(raw) {
       "source_sale_id",
       "direction",
       "status",
+      "bitcoin_funding_txid",
+      "bitcoin_funding_vout",
+      "void_settlement_receipt_id",
       "btc_received_sats",
       "void_sold_atomic",
       "observed_bitcoin_confirmations",
@@ -159,7 +183,10 @@ function normalizeRequest(raw) {
     "policy",
   );
 
-  if (typeof settlement.source_sale_id !== "string" || !SHA256_ID.test(settlement.source_sale_id)) {
+  if (
+    typeof settlement.source_sale_id !== "string" ||
+    !SHA256_ID.test(settlement.source_sale_id)
+  ) {
     throw new Error("settlement.source_sale_id must be a canonical sha256 identity");
   }
   if (settlement.direction !== "btc_to_void") {
@@ -167,6 +194,26 @@ function normalizeRequest(raw) {
   }
   if (settlement.status !== "settled") {
     throw new Error("BTC proceeds are not bid-eligible before terminal settlement");
+  }
+  if (
+    typeof settlement.bitcoin_funding_txid !== "string" ||
+    !HEX_64.test(settlement.bitcoin_funding_txid)
+  ) {
+    throw new Error("settlement.bitcoin_funding_txid must be lowercase hex64");
+  }
+  const bitcoinFundingVout = integer(
+    settlement.bitcoin_funding_vout,
+    "settlement.bitcoin_funding_vout",
+    0,
+    MAX_BITCOIN_VOUT,
+  );
+  if (
+    typeof settlement.void_settlement_receipt_id !== "string" ||
+    !SHA256_ID.test(settlement.void_settlement_receipt_id)
+  ) {
+    throw new Error(
+      "settlement.void_settlement_receipt_id must be a canonical sha256 identity",
+    );
   }
 
   const btcReceived = atomic(
@@ -208,18 +255,31 @@ function normalizeRequest(raw) {
     throw new Error("Bitcoin network-fee reserve exhausts sale proceeds");
   }
 
+  const normalizedSettlement = {
+    source_sale_id: settlement.source_sale_id,
+    direction: settlement.direction,
+    status: settlement.status,
+    bitcoin_funding_txid: settlement.bitcoin_funding_txid,
+    bitcoin_funding_vout: bitcoinFundingVout,
+    void_settlement_receipt_id: settlement.void_settlement_receipt_id,
+    btc_received_sats: btcReceived.toString(),
+    void_sold_atomic: voidSold.toString(),
+    observed_bitcoin_confirmations: observedConfirmations,
+    required_bitcoin_confirmations: requiredConfirmations,
+  };
+  const expectedSourceSaleId = contentId(
+    sourceSaleIdentityPayload(normalizedSettlement),
+  );
+  if (normalizedSettlement.source_sale_id !== expectedSourceSaleId) {
+    throw new Error(
+      "settlement.source_sale_id does not match canonical settled-sale content",
+    );
+  }
+
   return {
     request: {
       schema: request.schema,
-      settlement: {
-        source_sale_id: settlement.source_sale_id,
-        direction: settlement.direction,
-        status: settlement.status,
-        btc_received_sats: btcReceived.toString(),
-        void_sold_atomic: voidSold.toString(),
-        observed_bitcoin_confirmations: observedConfirmations,
-        required_bitcoin_confirmations: requiredConfirmations,
-      },
+      settlement: normalizedSettlement,
       policy: {
         minimum_spread_bps: minimumSpreadBps,
         bitcoin_network_fee_reserve_sats: networkFeeReserve.toString(),
@@ -248,9 +308,14 @@ export function deriveBtcVoidBuybackLotV1(raw) {
     throw new Error("BTC reserve classification does not conserve sale proceeds");
   }
 
+  const buybackLotId = contentId({
+    schema: "void.btc_void.buyback_lot_identity.v1",
+    source_sale_id: normalized.request.settlement.source_sale_id,
+  });
   const plan = {
     schema: "void.btc_void.buyback_lot_plan.v1",
     marker: VOID_BTC_VOID_MARKET_MAKER_RESERVE_POLICY_V1,
+    buyback_lot_id: buybackLotId,
     market: {
       pair: "BTC_VOID",
       bitcoin_asset: "native_btc",
@@ -289,9 +354,11 @@ export function deriveBtcVoidBuybackLotV1(raw) {
       reacquired_void_destination: "btc_void_market_vault",
     },
     lifecycle: {
+      source_sale_content_address_verified: true,
       pending_or_unconfirmed_btc_bid_eligible: false,
       settled_confirmed_btc_bid_eligible: true,
       duplicate_source_sale_creates_second_lot: false,
+      conflicting_source_sale_plan_requires_hold: true,
       unused_bid_budget_remains_market_reserve: true,
       completed_buyback_returns_void_to_market_inventory: true,
       opening_bid_requires_existing_confirmed_btc_or_first_confirmed_sale: true,
@@ -312,9 +379,7 @@ export function deriveBtcVoidBuybackLotV1(raw) {
 
   return Object.freeze({
     ...plan,
-    buyback_lot_id:
-      "sha256:" +
-      crypto.createHash("sha256").update(canonicalJson(plan)).digest("hex"),
+    buyback_lot_plan_id: contentId(plan),
   });
 }
 

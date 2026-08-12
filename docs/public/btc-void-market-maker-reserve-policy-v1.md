@@ -26,7 +26,7 @@ are unknown fields and fail closed.
 
 ## Sale-to-buyback cycle
 
-Each terminally settled BTC-to-VOID sale creates one content-addressed buyback lot:
+Each terminally settled BTC-to-VOID sale creates one source-bound buyback lot:
 
 1. BTC that is pending, reorg-exposed, refundable, or below the required
    confirmation count is not bid-eligible.
@@ -38,6 +38,17 @@ Each terminally settled BTC-to-VOID sale creates one content-addressed buyback l
 5. The difference remains market-owned spread equity.
 6. When the buyback lot fills, reacquired VOID returns to
    `BTCVoidMarketVault` and may be sold again through a new atomic settlement.
+
+The `source_sale_id` is the SHA-256 identity of the exact immutable sale
+content: direction, native Bitcoin funding transaction ID and output index,
+Chain-2050 settlement-receipt ID, BTC received, and VOID sold. Altering any of
+those fields while reusing the ID fails closed. Including the Bitcoin outpoint
+prevents two distinct equal-amount sales from collapsing into one identity.
+The stable `buyback_lot_id` is derived only from that verified source-sale
+identity, so policy or later confirmation-observation changes cannot create a
+second lot identity for one sale. `buyback_lot_plan_id` separately addresses
+the complete derived plan, including confirmation evidence, spread, and
+fee-reserve policy.
 
 Without an already funded native-BTC market reserve, the pool cannot truthfully
 publish a funded bid before it receives BTC. In that bootstrap mode, the first
@@ -95,7 +106,9 @@ floors; it cannot weaken pending settlements or active buyback lots.
 
 - Buy VOID presale inventory and receipts never enter this market.
 - Only native BTC and native Chain-2050 VOID are supported.
-- A source sale ID creates at most one buyback lot.
+- A verified source sale ID maps to exactly one stable buyback-lot ID.
+- A different plan ID for an already journaled lot ID is a conflict and must
+  return `HOLD`; it must never replace or add to the accepted lot budget.
 - Open lot budgets cannot be double-reserved across reverse swaps.
 - Shutdown stops new quotes while preserving settlement and refund capability.
 - There is no leverage, borrowing, lending, margin, or unsecured credit.
@@ -104,6 +117,9 @@ floors; it cannot weaken pending settlements or active buyback lots.
   transaction construction, broadcast, reserve mutation, or fund movement.
 
 The V1 tool derives a deterministic buyback-lot plan from already-settled input.
-Durable lot journals, aggregate reserve snapshots, executable quote binding,
+It proves source-content binding and stable lot identity but does not persist
+first acceptance. A later durable lot journal must enforce create-once
+`buyback_lot_id` insertion and reject a conflicting `buyback_lot_plan_id` before
+any reserve mutation. Aggregate reserve snapshots, executable quote binding,
 atomic fill settlement, and public receipts remain separately reviewed
 implementation gates.

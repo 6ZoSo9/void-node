@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 
 import assert from "node:assert/strict";
+import crypto from "node:crypto";
 import fs from "node:fs";
 
 import {
@@ -10,29 +11,52 @@ import {
   validatePurposeVaultTargetV1,
 } from "../tools/void-btc-void-market-maker-reserve-policy-v1.mjs";
 
+function contentId(value) {
+  return (
+    "sha256:" +
+    crypto.createHash("sha256").update(canonicalJson(value)).digest("hex")
+  );
+}
+
+function sourceSaleId(settlement) {
+  return contentId({
+    schema: "void.btc_void.source_sale_receipt.v1",
+    direction: settlement.direction,
+    bitcoin_funding_txid: settlement.bitcoin_funding_txid,
+    bitcoin_funding_vout: settlement.bitcoin_funding_vout,
+    void_settlement_receipt_id: settlement.void_settlement_receipt_id,
+    btc_received_sats: settlement.btc_received_sats,
+    void_sold_atomic: settlement.void_sold_atomic,
+  });
+}
+
 function request(overrides = {}) {
-  const base = {
-    schema: "void.btc_void.reserve_recycling_request.v1",
+  const baseSettlement = {
+    direction: "btc_to_void",
+    status: "settled",
+    bitcoin_funding_txid: "11".repeat(32),
+    bitcoin_funding_vout: 1,
+    void_settlement_receipt_id: "sha256:" + "22".repeat(32),
+    btc_received_sats: "1000000",
+    void_sold_atomic: "2000000",
+    observed_bitcoin_confirmations: 6,
+    required_bitcoin_confirmations: 6,
+  };
+  const { source_sale_id: suppliedSourceSaleId, ...settlementOverrides } =
+    overrides.settlement || {};
+  const settlement = { ...baseSettlement, ...settlementOverrides };
+  return {
+    schema: overrides.schema || "void.btc_void.reserve_recycling_request.v1",
+    ...overrides,
     settlement: {
-      source_sale_id:
-        "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-      direction: "btc_to_void",
-      status: "settled",
-      btc_received_sats: "1000000",
-      void_sold_atomic: "2000000",
-      observed_bitcoin_confirmations: 6,
-      required_bitcoin_confirmations: 6,
+      source_sale_id: suppliedSourceSaleId || sourceSaleId(settlement),
+      ...settlement,
     },
     policy: {
       minimum_spread_bps: 200,
       bitcoin_network_fee_reserve_sats: "10000",
+      ...(overrides.policy || {}),
     },
-  };
-  return {
-    ...base,
-    ...overrides,
-    settlement: { ...base.settlement, ...(overrides.settlement || {}) },
-    policy: { ...base.policy, ...(overrides.policy || {}) },
   };
 }
 
@@ -118,8 +142,10 @@ assert.ok(
     BigInt(lot.source.settlement.btc_received_sats),
 );
 assert.equal(lot.lifecycle.pending_or_unconfirmed_btc_bid_eligible, false);
+assert.equal(lot.lifecycle.source_sale_content_address_verified, true);
 assert.equal(lot.lifecycle.settled_confirmed_btc_bid_eligible, true);
 assert.equal(lot.lifecycle.duplicate_source_sale_creates_second_lot, false);
+assert.equal(lot.lifecycle.conflicting_source_sale_plan_requires_hold, true);
 assert.equal(lot.lifecycle.completed_buyback_returns_void_to_market_inventory, true);
 assert.equal(
   lot.lifecycle.opening_bid_requires_existing_confirmed_btc_or_first_confirmed_sale,
@@ -138,9 +164,18 @@ assert.deepEqual(lot.authority, {
   funds_moved: false,
 });
 assert.match(lot.buyback_lot_id, /^sha256:[0-9a-f]{64}$/);
+assert.match(lot.buyback_lot_plan_id, /^sha256:[0-9a-f]{64}$/);
+assert.equal(
+  lot.source.settlement.source_sale_id,
+  "sha256:6869f35cc3aab56c98e18510522b68ca4deab9aa9201c0aca0036d33f8996f80",
+);
 assert.equal(
   lot.buyback_lot_id,
-  "sha256:a4d2c13a02f1849f93c670ea2660ac22a4da6a088983ab9e7e75ce45ce80fadb",
+  "sha256:7fa7b77ef3f9d51b310bb1bc586dca43f50607b1bc5f56ff0c7904a13b90bd77",
+);
+assert.equal(
+  lot.buyback_lot_plan_id,
+  "sha256:ffd04506e0baa2ec4bc47f066690852e1ffdb7363f7c703711c29a6ec3024eff",
 );
 
 const nativePairOnlyExample = deriveBtcVoidBuybackLotV1(
@@ -177,7 +212,50 @@ assert.equal(canonicalJson({ z: 1, a: 2 }), '{"a":2,"z":1}');
 assert.notEqual(
   deriveBtcVoidBuybackLotV1(
     request({ settlement: { btc_received_sats: "1000001" } }),
-  ).buyback_lot_id,
+  ).buyback_lot_plan_id,
+  lot.buyback_lot_plan_id,
+);
+
+const sameSaleDifferentPolicy = deriveBtcVoidBuybackLotV1(
+  request({ policy: { minimum_spread_bps: 300 } }),
+);
+assert.equal(sameSaleDifferentPolicy.buyback_lot_id, lot.buyback_lot_id);
+assert.notEqual(
+  sameSaleDifferentPolicy.buyback_lot_plan_id,
+  lot.buyback_lot_plan_id,
+);
+assert.throws(
+  () =>
+    deriveBtcVoidBuybackLotV1(
+      request({
+        settlement: {
+          source_sale_id: original.settlement.source_sale_id,
+          btc_received_sats: "2000000",
+        },
+      }),
+    ),
+  /does not match canonical settled-sale content/,
+);
+const sameSaleLaterConfirmationEvidence = deriveBtcVoidBuybackLotV1(
+  request({ settlement: { observed_bitcoin_confirmations: 7 } }),
+);
+assert.equal(
+  sameSaleLaterConfirmationEvidence.buyback_lot_id,
+  lot.buyback_lot_id,
+);
+assert.notEqual(
+  sameSaleLaterConfirmationEvidence.buyback_lot_plan_id,
+  lot.buyback_lot_plan_id,
+);
+const distinctSaleSameAmounts = deriveBtcVoidBuybackLotV1(
+  request({ settlement: { bitcoin_funding_txid: "33".repeat(32) } }),
+);
+assert.notEqual(
+  distinctSaleSameAmounts.source.settlement.source_sale_id,
+  lot.source.settlement.source_sale_id,
+);
+assert.notEqual(
+  distinctSaleSameAmounts.buyback_lot_id,
   lot.buyback_lot_id,
 );
 
@@ -227,6 +305,27 @@ assert.throws(
 assert.throws(
   () =>
     deriveBtcVoidBuybackLotV1(
+      request({ settlement: { bitcoin_funding_txid: "AA".repeat(32) } }),
+    ),
+  /lowercase hex64/,
+);
+assert.throws(
+  () =>
+    deriveBtcVoidBuybackLotV1(
+      request({ settlement: { bitcoin_funding_vout: 0x1_0000_0000 } }),
+    ),
+  /integer range/,
+);
+assert.throws(
+  () =>
+    deriveBtcVoidBuybackLotV1(
+      request({ settlement: { void_settlement_receipt_id: "not-a-digest" } }),
+    ),
+  /canonical sha256 identity/,
+);
+assert.throws(
+  () =>
+    deriveBtcVoidBuybackLotV1(
       request({ settlement: { btc_received_sats: 1000000 } }),
     ),
   /canonical decimal string/,
@@ -270,6 +369,8 @@ for (const expected of [
   "No USD",
   "100 VOID for 1 BTC",
   "automatic_ops_treasury_sweep_sats: 0",
+  "buyback_lot_plan_id",
+  "Bitcoin outpoint",
   "creates the first buyback budget",
   "separately approved native-BTC seed",
   "no leverage",
@@ -316,6 +417,10 @@ process.stdout.write(
     btc_void_market_vault_void: "10000000",
     ops_treasury_target_void: "5000000",
     confirmed_btc_recycled_to_bid_reserve: true,
+    source_sale_content_address_verified: true,
+    source_sale_id: lot.source.settlement.source_sale_id,
+    buyback_lot_id: lot.buyback_lot_id,
+    buyback_lot_plan_id: lot.buyback_lot_plan_id,
     source_sale_btc_sats: lot.source.settlement.btc_received_sats,
     buyback_budget_sats: lot.buyback_lot.maximum_btc_out_sats,
     lower_effective_buyback_price: true,
