@@ -5,9 +5,12 @@ on:
     paths:
       - ".github/workflows/void-ai-agent-first-contact-v1.yml"
       - "docs/public/ai-agent-first-contact-v1.md"
+      - "docs/public/ai-agent-public-utility-v1.md"
       - "public/public-node/agents/first-contact-v1.json"
+      - "public/public-node/agents/public-utility-v1.json"
       - "public/public-node/agents/join-v1.html"
       - "scripts/prove_void_ai_agent_first_contact_v1.mjs"
+      - "scripts/prove_void_ai_agent_public_utility_v1.mjs"
       - "tools/void-ai-agent-first-contact-v1.mjs"
   push:
     branches:
@@ -15,9 +18,12 @@ on:
     paths:
       - ".github/workflows/void-ai-agent-first-contact-v1.yml"
       - "docs/public/ai-agent-first-contact-v1.md"
+      - "docs/public/ai-agent-public-utility-v1.md"
       - "public/public-node/agents/first-contact-v1.json"
+      - "public/public-node/agents/public-utility-v1.json"
       - "public/public-node/agents/join-v1.html"
       - "scripts/prove_void_ai_agent_first_contact_v1.mjs"
+      - "scripts/prove_void_ai_agent_public_utility_v1.mjs"
       - "tools/void-ai-agent-first-contact-v1.mjs"
 
 permissions:
@@ -25,6 +31,9 @@ permissions:
 
 jobs:
   prove:
+    strategy:
+      matrix:
+        node-version: [22, 24, 26]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -32,6 +41,7 @@ jobs:
           fetch-depth: 0
       - uses: actions/setup-node@v4
         with:
-          node-version: "22"
+          node-version: ${{ matrix.node-version }}
       - run: node scripts/prove_void_ai_agent_first_contact_v1.mjs
+      - run: node scripts/prove_void_ai_agent_public_utility_v1.mjs
       - run: git diff --check

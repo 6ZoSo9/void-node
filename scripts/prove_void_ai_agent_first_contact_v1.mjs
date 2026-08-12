@@ -6,13 +6,27 @@ import { join } from "node:path";
 import { spawn } from "node:child_process";
 
 const ROOT = process.cwd();
-const BOUNDARY = [
+const ORIGINAL_BOUNDARY = [
   ".github/workflows/void-ai-agent-first-contact-v1.yml",
   "docs/public/ai-agent-first-contact-v1.md",
   "public/public-node/agents/first-contact-v1.json",
   "public/public-node/agents/join-v1.html",
   "scripts/prove_void_ai_agent_first_contact_v1.mjs",
   "tools/void-ai-agent-first-contact-v1.mjs"
+];
+const COMPOSITION_BOUNDARY = [
+  ".github/workflows/void-ai-agent-first-contact-v1.yml",
+  ".github/workflows/void-ai-agent-public-utility-v1.yml",
+  "docs/public/ai-agent-first-contact-v1.md",
+  "docs/public/ai-agent-public-utility-v1.md",
+  "public/public-node/agents/first-contact-v1.json",
+  "public/public-node/agents/public-utility-v1.json",
+  "scripts/prove_void_ai_agent_first_contact_v1.mjs",
+  "scripts/prove_void_ai_agent_public_utility_v1.mjs",
+  "tools/void-ai-agent-first-contact-v1.mjs",
+];
+const ALLOWED_BOUNDARY = [
+  ...new Set([...ORIGINAL_BOUNDARY, ...COMPOSITION_BOUNDARY]),
 ];
 const AUTHENTICITY_ROUTE = "/.well-known/void-network-authenticity.json";
 const MANIFEST_PATH = join(
@@ -27,8 +41,15 @@ const CLIENT_PATH = join(
   ROOT,
   "tools/void-ai-agent-first-contact-v1.mjs",
 );
+const PUBLIC_UTILITY_PATH = join(
+  ROOT,
+  "public/public-node/agents/public-utility-v1.json",
+);
 
 const manifest = JSON.parse(await readFile(MANIFEST_PATH, "utf8"));
+const publicUtility = JSON.parse(
+  await readFile(PUBLIC_UTILITY_PATH, "utf8"),
+);
 assert.equal(manifest.marker, "VOID_AI_AGENT_FIRST_CONTACT_V1");
 assert.equal(manifest.protocol, "void-ai-agent-first-contact");
 assert.equal(manifest.version, "1");
@@ -37,6 +58,16 @@ assert.equal(manifest.network.name, "VOID Mainnet-0");
 assert.equal(manifest.network.chain_id, 2050);
 assert.equal(manifest.connection_mode, "read_only");
 assert.equal(manifest.entrypoints.official_authenticity, AUTHENTICITY_ROUTE);
+assert.equal(
+  manifest.entrypoints.public_utility,
+  "/public-node/agents/public-utility-v1.json",
+);
+assert.equal(
+  manifest.verification.required_checks.includes(
+    "public_utility_catalog_loaded",
+  ),
+  true,
+);
 assert.equal(manifest.honesty.paid_work_promised, false);
 assert.equal(manifest.honesty.work_credit_earning_promised, false);
 assert.equal(manifest.honesty.mutation_authority_granted, false);
@@ -83,6 +114,7 @@ assert.equal(
 
 const fixtures = new Map([
   [manifest.entrypoints.first_contact, manifest],
+  [manifest.entrypoints.public_utility, publicUtility],
   [
     manifest.entrypoints.well_known_discovery,
     {
@@ -134,6 +166,32 @@ const fixtures = new Map([
   ],
 ]);
 
+const CROSS_ORIGIN_MANIFEST_PATH =
+  "/public-node/agents/first-contact-cross-origin-fixture-v1.json";
+fixtures.set(CROSS_ORIGIN_MANIFEST_PATH, {
+  ...manifest,
+  entrypoints: {
+    ...manifest.entrypoints,
+    public_utility: "//127.0.0.1:9/cross-origin.json",
+  },
+});
+
+const OVERSIZED_MANIFEST_PATH =
+  "/public-node/agents/first-contact-oversized-fixture-v1.json";
+const OVERSIZED_UTILITY_PATH =
+  "/public-node/agents/public-utility-oversized-fixture-v1.json";
+fixtures.set(OVERSIZED_MANIFEST_PATH, {
+  ...manifest,
+  entrypoints: {
+    ...manifest.entrypoints,
+    public_utility: OVERSIZED_UTILITY_PATH,
+  },
+});
+fixtures.set(OVERSIZED_UTILITY_PATH, {
+  marker: "VOID_AI_AGENT_PUBLIC_UTILITY_V1",
+  padding: "x".repeat(65_536),
+});
+
 const server = createServer((request, response) => {
   if (request.method !== "GET") {
     response.writeHead(405, {
@@ -168,15 +226,11 @@ await new Promise((resolve, reject) => {
   server.listen(0, "127.0.0.1", resolve);
 });
 
-try {
-  const address = server.address();
-  assert.equal(typeof address, "object");
-  const baseUrl = `http://127.0.0.1:${address.port}`;
-
-  const result = await new Promise((resolve, reject) => {
+async function runClient(args) {
+  return new Promise((resolve, reject) => {
     const child = spawn(
       process.execPath,
-      [CLIENT_PATH, "--base-url", baseUrl],
+      [CLIENT_PATH, ...args],
       {
         cwd: ROOT,
         stdio: ["ignore", "pipe", "pipe"],
@@ -197,6 +251,14 @@ try {
       resolve({ code, stdout, stderr });
     });
   });
+}
+
+try {
+  const address = server.address();
+  assert.equal(typeof address, "object");
+  const baseUrl = `http://127.0.0.1:${address.port}`;
+
+  const result = await runClient(["--base-url", baseUrl]);
 
   assert.equal(result.code, 0, result.stderr);
   const report = JSON.parse(result.stdout);
@@ -208,6 +270,25 @@ try {
   assert.equal(report.connection_mode, "read_only");
   assert.equal(report.official_network_verified, true);
   assert.equal(Object.values(report.checks).every(Boolean), true);
+  assert.equal(report.checks.public_utility_catalog_loaded, true);
+  assert.equal(report.useful_public_resources.length, 3);
+  assert.deepEqual(
+    report.useful_public_resources.map((entry) => entry.id),
+    [
+      "first_contact",
+      "capability_honesty",
+      "datanet_replication_receipt",
+    ],
+  );
+  assert.equal(
+    report.useful_public_resources.every(
+      (entry) =>
+        entry.catalog_observed_by_client === true &&
+        entry.runtime_observed === false,
+    ),
+    true,
+  );
+  assert.equal(report.responses.public_utility.status, 200);
   assert.equal(report.authority.mutation_authority_granted, false);
   assert.equal(report.authority.wallet_accessed, false);
   assert.equal(report.authority.credentials_accessed, false);
@@ -225,6 +306,56 @@ try {
       action.id.includes("work_credit"),
     ),
     false,
+  );
+  assert.equal(
+    report.next_actions.some(
+      (action) => action.id === "inspect_public_utility",
+    ),
+    true,
+  );
+
+  const crossOrigin = await runClient([
+    "--base-url",
+    baseUrl,
+    "--manifest-path",
+    CROSS_ORIGIN_MANIFEST_PATH,
+  ]);
+  assert.equal(crossOrigin.code, 2, crossOrigin.stderr);
+  const crossOriginReport = JSON.parse(crossOrigin.stdout);
+  assert.equal(
+    crossOriginReport.checks.public_utility_catalog_loaded,
+    false,
+  );
+  assert.match(
+    crossOriginReport.responses.public_utility.error,
+    /invalid public path/,
+  );
+
+  const oversized = await runClient([
+    "--base-url",
+    baseUrl,
+    "--manifest-path",
+    OVERSIZED_MANIFEST_PATH,
+  ]);
+  assert.equal(oversized.code, 2, oversized.stderr);
+  const oversizedReport = JSON.parse(oversized.stdout);
+  assert.equal(
+    oversizedReport.checks.public_utility_catalog_loaded,
+    false,
+  );
+  assert.match(
+    oversizedReport.responses.public_utility.error,
+    /response exceeds 65536 bytes/,
+  );
+
+  const unsafeBaseUrl = await runClient([
+    "--base-url",
+    "http://example.invalid",
+  ]);
+  assert.equal(unsafeBaseUrl.code, 78, unsafeBaseUrl.stderr);
+  assert.match(
+    unsafeBaseUrl.stderr,
+    /HTTPS or loopback HTTP/,
   );
 } finally {
   await new Promise((resolve) => server.close(resolve));
@@ -277,26 +408,24 @@ const workingBoundary = [
     ).map((line) => line.slice(3)),
   ),
 ].sort();
-const expectedBoundary = [...BOUNDARY].sort();
 const outsideBoundary = workingBoundary.filter(
-  (path) => !BOUNDARY.includes(path),
+  (path) => !ALLOWED_BOUNDARY.includes(path),
 );
 assert.deepEqual(
   outsideBoundary,
   [],
-  "working tree contains a change outside the six-file lane",
+  "working tree contains a change outside the composition lane",
 );
 
 let boundaryVerificationMode = "working_tree";
 let boundaryIntroductionCommit = null;
 
-if (
-  workingBoundary.length === expectedBoundary.length &&
-  workingBoundary.every(
-    (path, index) => path === expectedBoundary[index],
-  )
-) {
-  assert.deepEqual(workingBoundary, expectedBoundary);
+if (workingBoundary.length > 0) {
+  assert.deepEqual(
+    workingBoundary,
+    [...COMPOSITION_BOUNDARY].sort(),
+    "working tree does not match the exact composition boundary",
+  );
 } else {
   const introductionCommits = await gitLines([
     "log",
@@ -328,7 +457,7 @@ if (
 
   assert.deepEqual(
     introducedBoundary,
-    expectedBoundary,
+    [...ORIGINAL_BOUNDARY].sort(),
     "the introduction commit did not add the exact six-file lane",
   );
   boundaryVerificationMode =
@@ -354,5 +483,7 @@ console.log("get_only_client=true");
 console.log("paid_work_promised=false");
 console.log("work_credit_earning_promised=false");
 console.log("mutation_authority_granted=false");
-console.log("boundary_file_count=6");
+console.log("public_utility_catalog_loaded=true");
+console.log("useful_public_resource_count=3");
+console.log("composition_boundary_file_count=9");
 console.log("VOID_AI_AGENT_FIRST_CONTACT_KIT_V1_PROOF_EXACT_GREEN");

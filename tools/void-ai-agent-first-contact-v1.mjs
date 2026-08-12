@@ -5,6 +5,7 @@ const MARKER = "VOID_AI_AGENT_FIRST_CONTACT_CLIENT_V1";
 const DEFAULT_BASE_URL = "http://127.0.0.1:4100";
 const DEFAULT_MANIFEST_PATH = "/public-node/agents/first-contact-v1.json";
 const DEFAULT_TIMEOUT_MS = 8000;
+const MAX_RESPONSE_BYTES = 65_536;
 
 function parseArgs(argv) {
   const result = {
@@ -54,8 +55,14 @@ function parseArgs(argv) {
 
 function normalizeBaseUrl(value) {
   const url = new URL(value);
-  if (!["http:", "https:"].includes(url.protocol)) {
-    throw new Error("base URL must use http or https");
+  const loopback = ["localhost", "127.0.0.1", "::1", "[::1]"].includes(
+    url.hostname.toLowerCase(),
+  );
+  if (url.username || url.password) {
+    throw new Error("base URL credentials are forbidden");
+  }
+  if (url.protocol !== "https:" && !(url.protocol === "http:" && loopback)) {
+    throw new Error("base URL must use HTTPS or loopback HTTP");
   }
   url.pathname = url.pathname.replace(/\/+$/, "");
   url.search = "";
@@ -64,10 +71,60 @@ function normalizeBaseUrl(value) {
 }
 
 function joinUrl(baseUrl, path) {
-  if (typeof path !== "string" || !path.startsWith("/")) {
+  if (
+    typeof path !== "string" ||
+    !path.startsWith("/") ||
+    path.startsWith("//") ||
+    path.includes("?") ||
+    path.includes("#") ||
+    path.split("/").some((segment) => segment === "." || segment === "..")
+  ) {
     throw new Error(`invalid public path: ${String(path)}`);
   }
-  return new URL(path, `${baseUrl}/`).toString();
+  const base = new URL(`${baseUrl}/`);
+  const resolved = new URL(path, base);
+  if (resolved.origin !== base.origin || resolved.username || resolved.password) {
+    throw new Error(`cross-origin public path forbidden: ${String(path)}`);
+  }
+  return resolved.toString();
+}
+
+async function readBoundedText(response) {
+  const declaredLength = response.headers.get("content-length");
+  if (
+    declaredLength !== null &&
+    Number.isFinite(Number(declaredLength)) &&
+    Number(declaredLength) > MAX_RESPONSE_BYTES
+  ) {
+    throw new Error(`response exceeds ${MAX_RESPONSE_BYTES} bytes`);
+  }
+  if (response.body === null) return "";
+
+  const reader = response.body.getReader();
+  const chunks = [];
+  let total = 0;
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      total += value.byteLength;
+      if (total > MAX_RESPONSE_BYTES) {
+        await reader.cancel();
+        throw new Error(`response exceeds ${MAX_RESPONSE_BYTES} bytes`);
+      }
+      chunks.push(value);
+    }
+  } finally {
+    reader.releaseLock();
+  }
+
+  const bytes = new Uint8Array(total);
+  let offset = 0;
+  for (const chunk of chunks) {
+    bytes.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  return new TextDecoder("utf-8", { fatal: true }).decode(bytes);
 }
 
 async function fetchJson(baseUrl, path, timeoutMs) {
@@ -83,7 +140,7 @@ async function fetchJson(baseUrl, path, timeoutMs) {
       redirect: "error",
       signal: controller.signal,
     });
-    const text = await response.text();
+    const text = await readBoundedText(response);
     let body = null;
     let parseError = null;
     if (text.length > 0) {
@@ -93,10 +150,16 @@ async function fetchJson(baseUrl, path, timeoutMs) {
         parseError = String(error?.message ?? error);
       }
     }
+    const contentType = response.headers.get("content-type");
+    const mediaType = contentType?.split(";", 1)[0].trim().toLowerCase();
     return {
-      ok: response.ok && body !== null && parseError === null,
+      ok:
+        response.ok &&
+        body !== null &&
+        parseError === null &&
+        mediaType === "application/json",
       status: response.status,
-      content_type: response.headers.get("content-type"),
+      content_type: contentType,
       body,
       body_bytes: Buffer.byteLength(text),
       parse_error: parseError,
@@ -134,6 +197,63 @@ function bindingConsistent(manifest, discovery, authenticity) {
     Number.isInteger(expectedChainId) &&
     combined.includes(String(expectedChainId));
   return nameMatch && chainMatch;
+}
+
+function usefulPublicResources(manifest, publicUtility) {
+  const catalog = publicUtility?.body;
+  if (
+    !publicUtility?.ok ||
+    catalog?.marker !== "VOID_AI_AGENT_PUBLIC_UTILITY_V1" ||
+    catalog?.contract !== "void-ai-agent-first-contact-public-utility/1" ||
+    catalog?.network?.name !== manifest?.network?.name ||
+    catalog?.network?.chain_id !== manifest?.network?.chain_id ||
+    catalog?.network?.identity !== manifest?.network?.identity ||
+    catalog?.integration?.first_contact_manifest !== manifest?.entrypoints?.first_contact ||
+    catalog?.integration?.advertised_from_first_contact !== true ||
+    catalog?.integration?.runtime_observed !== false ||
+    catalog?.controls?.anonymous_read_allowed !== true ||
+    catalog?.controls?.mutation_authority_granted !== false ||
+    catalog?.controls?.paid_work_advertised !== false ||
+    catalog?.controls?.earning_advertised !== false ||
+    catalog?.limits?.max_catalog_bytes !== MAX_RESPONSE_BYTES ||
+    !Number.isInteger(catalog?.limits?.max_entries) ||
+    catalog.limits.max_entries < 1 ||
+    !Array.isArray(catalog?.entries) ||
+    catalog.entries.length < 1 ||
+    catalog.entries.length > catalog?.limits?.max_entries
+  ) {
+    return [];
+  }
+
+  const resources = catalog.entries.flatMap((entry) => {
+    try {
+      joinUrl("https://void.invalid", entry?.path);
+    } catch {
+      return [];
+    }
+    if (
+      !entry.path.startsWith("/public-node/") ||
+      entry.http_method !== "GET" ||
+      entry.media_type !== "application/json" ||
+      entry.access !== "anonymous" ||
+      entry.authority !== "read_only" ||
+      entry.same_origin !== true ||
+      entry.runtime_observed !== false ||
+      typeof entry.id !== "string" ||
+      typeof entry.purpose !== "string"
+    ) {
+      return [];
+    }
+    return [{
+      id: entry.id,
+      purpose: entry.purpose,
+      path: entry.path,
+      mode: "anonymous_read_only",
+      catalog_observed_by_client: true,
+      runtime_observed: false,
+    }];
+  });
+  return resources.length === catalog.entries.length ? resources : [];
 }
 
 function normalizedKey(value) {
@@ -231,8 +351,16 @@ function observedCommercialSignals(capabilities) {
   };
 }
 
-function nextActions(manifest, checks, commercial) {
+function nextActions(manifest, checks, commercial, resources) {
   const actions = [];
+  if (checks.public_utility_catalog_loaded) {
+    actions.push({
+      id: "inspect_public_utility",
+      path: manifest.entrypoints.public_utility,
+      mode: "anonymous_read_only",
+      resource_count: resources.length,
+    });
+  }
   if (checks.capabilities_loaded) {
     actions.push({
       id: "inspect_capabilities",
@@ -293,14 +421,24 @@ async function main() {
     return fetchJson(baseUrl, path, options.timeoutMs);
   };
 
-  const [discovery, authenticity, authentication, capabilities, intake] =
+  const [
+    discovery,
+    authenticity,
+    authentication,
+    capabilities,
+    intake,
+    publicUtility,
+  ] =
     await Promise.all([
       fetchEntry("well_known_discovery"),
       fetchEntry("official_authenticity"),
       fetchEntry("authentication"),
       fetchEntry("capabilities"),
       fetchEntry("agent_intake"),
+      fetchEntry("public_utility"),
     ]);
+
+  const resources = usefulPublicResources(manifest, publicUtility);
 
   const checks = {
     first_contact_manifest_reachable:
@@ -316,6 +454,7 @@ async function main() {
     authentication_contract_found: authentication.ok,
     capabilities_loaded: capabilities.ok,
     agent_intake_reachable: intake.ok,
+    public_utility_catalog_loaded: resources.length > 0,
   };
 
   const officialNetworkVerified =
@@ -330,6 +469,7 @@ async function main() {
     checks.network_binding_consistent,
     checks.authentication_contract_found,
     checks.capabilities_loaded,
+    checks.public_utility_catalog_loaded,
   ].every(Boolean);
 
   const commercial = observedCommercialSignals(capabilities);
@@ -346,9 +486,10 @@ async function main() {
     network: manifest?.network ?? null,
     checks,
     observed_capabilities: commercial,
+    useful_public_resources: resources,
     next_actions:
       firstContact.ok
-        ? nextActions(manifest, checks, commercial)
+        ? nextActions(manifest, checks, commercial, resources)
         : [],
     responses: {
       first_contact: {
@@ -374,6 +515,11 @@ async function main() {
       agent_intake: {
         status: intake.status,
         body_bytes: intake.body_bytes,
+      },
+      public_utility: {
+        status: publicUtility.status,
+        body_bytes: publicUtility.body_bytes,
+        error: publicUtility.error ?? null,
       },
     },
     authority: {

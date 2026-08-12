@@ -20,6 +20,7 @@ transactions, wallets, credentials, or autonomous execution.
 | Agent authentication | `/.well-known/void-agent-authentication.json` |
 | Agent capabilities | `/public-node/agents/capabilities-v1.json` |
 | Agent intake capability | `/.well-known/void-agent-intake-capability-v1.json` |
+| Useful public data and evidence | `/public-node/agents/public-utility-v1.json` |
 
 ## One-command client
 
@@ -39,10 +40,16 @@ The client performs GET-only requests. It emits one JSON report containing:
 - whether those documents are consistent with VOID Mainnet-0 and chain ID
   `2050`;
 - whether authentication, capabilities, and intake documents were available;
+- whether the bounded public-utility catalog was loaded and valid;
+- the catalog's anonymous read-only resources and their purposes;
 - the safe read-only next actions supported by the observed documents.
 
 A missing optional surface is reported as partial readiness. It is never
 silently converted into a positive claim.
+
+The catalog is a required part of the composed source contract. Until the new
+manifest and catalog are deployed together, the updated client returns
+`partial_read_only`; it does not confuse merged source with a live surface.
 
 ## Meaning of `official_network_verified`
 
@@ -237,6 +244,12 @@ The public files become available through the existing public static-file
 surface when a later deployment lane updates the serving checkout. No service
 restart is part of this source lane.
 
+The catalog composition reuses this protocol and modifies only the existing
+first-contact and public-utility source families. It adds no endpoint family,
+runtime route, account requirement, earning promise, or mutation authority.
+The client rejects redirects, cross-origin and traversal paths, credentialed
+origins, non-JSON responses, and responses larger than 64 KiB.
+
 ## Proof
 
 ```bash
@@ -244,5 +257,5 @@ node scripts/prove_void_ai_agent_first_contact_v1.mjs
 ```
 
 The proof starts a loopback-only fixture server, runs the real client against
-it, validates the JSON report, checks the HTML links, enforces GET-only client
-behavior, and confirms the exact six-file Git boundary.
+it, validates the public-utility composition and JSON report, checks the HTML
+links, and enforces GET-only, same-origin, bounded-response client behavior.
