@@ -29,9 +29,12 @@ Both audits must be fresh by file modification time and by every embedded
 `observed_at_epoch`. The default maximum age is 300 seconds.
 
 Every config, rollout, and audit input must be a regular non-symlink file
-between 2 bytes and 4 MiB. The verifier enforces this bound before loading or
-parsing JSON so an oversized or non-regular evidence path returns `HOLD` rather
-than consuming unbounded memory.
+between 2 bytes and 4 MiB. The verifier opens each path once with symlink
+following disabled and nonblocking I/O, validates the opened descriptor with
+`fstat`, and reads only that descriptor into a buffer capped at 4 MiB plus one
+detection byte. A size, modification-time, or change-time movement during the
+read returns `HOLD`. Oversized, replaced, growing, symlink, FIFO, and other
+non-regular evidence therefore cannot bypass the bound or block the verifier.
 
 The final rollout is strictly reproduced:
 

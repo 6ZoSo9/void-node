@@ -52,7 +52,10 @@ function clone(value) {
 }
 
 function run(command, args, options = {}) {
-  const result = spawnSync(command, args, { encoding: "utf8" });
+  const result = spawnSync(command, args, {
+    encoding: "utf8",
+    timeout: options.timeoutMs,
+  });
   if (!options.allowFailure && result.status !== 0) {
     throw new Error(
       command + " failed (" + result.status + "): " + result.stderr + "\n" + result.stdout,
@@ -556,6 +559,12 @@ try {
     "tools",
     "void-node-fleet-runtime-stability-verification-v1.mjs",
   );
+  const toolSource = readFileSync(tool, "utf8");
+  assert.match(toolSource, /openSync\([\s\S]*O_NOFOLLOW[\s\S]*O_NONBLOCK/);
+  assert.match(toolSource, /fstatSync\(descriptor, \{ bigint: true \}\)/);
+  assert.match(toolSource, /Buffer\.alloc\(expectedBytes \+ 1\)/);
+  assert.match(toolSource, /readSync\(\s*descriptor,/);
+  assert.doesNotMatch(toolSource, /lstatSync|readFileSync\(path/);
   const cli = run(process.execPath, [
     tool,
     "--config", configPath,
@@ -646,6 +655,21 @@ try {
   assert.notEqual(linkedConfig.status, 0);
   assert.match(linkedConfig.stderr, /must be a regular non-symlink file/);
   assert.match(linkedConfig.stderr, /"outcome":"HOLD"/);
+
+  const fifoConfigPath = join(root, "fifo-config.json");
+  const mkfifo = spawnSync("mkfifo", [fifoConfigPath], { encoding: "utf8" });
+  assert.equal(mkfifo.status, 0, mkfifo.stderr);
+  const fifoConfig = run(process.execPath, [
+    tool,
+    "--config", fifoConfigPath,
+    "--final-rollout", rolloutPath,
+    "--final-audit", finalAuditPath,
+    "--verification-audit", verificationPath,
+  ], { allowFailure: true, timeoutMs: 2_000 });
+  assert.notEqual(fifoConfig.error?.code, "ETIMEDOUT", "FIFO input must not block");
+  assert.notEqual(fifoConfig.status, 0);
+  assert.match(fifoConfig.stderr, /must be a regular non-symlink file/);
+  assert.match(fifoConfig.stderr, /"outcome":"HOLD"/);
 
   const unknownOption = run(process.execPath, [
     tool,

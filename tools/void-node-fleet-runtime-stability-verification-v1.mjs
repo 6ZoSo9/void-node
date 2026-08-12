@@ -1,6 +1,14 @@
 #!/usr/bin/env node
 import { createHash } from "node:crypto";
-import { chmodSync, lstatSync, readFileSync, statSync, writeFileSync } from "node:fs";
+import {
+  chmodSync,
+  closeSync,
+  constants as fsConstants,
+  fstatSync,
+  openSync,
+  readSync,
+  writeFileSync,
+} from "node:fs";
 import { homedir } from "node:os";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -105,32 +113,72 @@ function expandHome(value) {
   return value;
 }
 
-function assertFreshPath(path, label, maxAgeSeconds) {
-  const ageSeconds = (Date.now() - statSync(path).mtimeMs) / 1000;
-  if (ageSeconds < -5) fail(label + " file timestamp is in the future");
-  if (ageSeconds > maxAgeSeconds) {
-    fail(label + " file is stale (" + Math.floor(ageSeconds) + "s old)");
+function readJson(path, label, maxAgeSeconds = null) {
+  let descriptor = -1;
+  if (typeof fsConstants.O_NOFOLLOW !== "number" ||
+      typeof fsConstants.O_NONBLOCK !== "number") {
+    fail("safe evidence-file open flags are unavailable on this platform");
   }
-}
-
-function readJson(path, label) {
-  let metadata;
   try {
-    metadata = lstatSync(path);
-  } catch (error) {
-    fail(label + " file cannot be inspected: " + String(error?.message || error));
-  }
-  if (!metadata.isFile()) fail(label + " must be a regular non-symlink file");
-  if (metadata.size < 2 || metadata.size > MAX_EVIDENCE_FILE_BYTES) {
-    fail(
-      label + " file must contain 2.." + MAX_EVIDENCE_FILE_BYTES +
-      " bytes before JSON parsing",
+    descriptor = openSync(
+      path,
+      fsConstants.O_RDONLY | fsConstants.O_NOFOLLOW | fsConstants.O_NONBLOCK,
     );
-  }
-  try {
-    return JSON.parse(readFileSync(path, "utf8"));
   } catch (error) {
-    fail(label + " is not valid JSON: " + String(error?.message || error));
+    if (error?.code === "ELOOP") {
+      fail(label + " must be a regular non-symlink file");
+    }
+    fail(label + " file cannot be opened safely: " + String(error?.message || error));
+  }
+
+  try {
+    const before = fstatSync(descriptor, { bigint: true });
+    if (!before.isFile()) fail(label + " must be a regular non-symlink file");
+    if (before.size < 2n || before.size > BigInt(MAX_EVIDENCE_FILE_BYTES)) {
+      fail(
+        label + " file must contain 2.." + MAX_EVIDENCE_FILE_BYTES +
+        " bytes before JSON parsing",
+      );
+    }
+    if (maxAgeSeconds !== null) {
+      const ageSeconds = (Date.now() - Number(before.mtimeNs) / 1_000_000) / 1000;
+      if (ageSeconds < -5) fail(label + " file timestamp is in the future");
+      if (ageSeconds > maxAgeSeconds) {
+        fail(label + " file is stale (" + Math.floor(ageSeconds) + "s old)");
+      }
+    }
+
+    const expectedBytes = Number(before.size);
+    const buffer = Buffer.alloc(expectedBytes + 1);
+    let bytesRead = 0;
+    while (bytesRead < buffer.length) {
+      const count = readSync(
+        descriptor,
+        buffer,
+        bytesRead,
+        buffer.length - bytesRead,
+        bytesRead,
+      );
+      if (count === 0) break;
+      bytesRead += count;
+    }
+    const after = fstatSync(descriptor, { bigint: true });
+    if (bytesRead !== expectedBytes || after.dev !== before.dev ||
+        after.ino !== before.ino || after.size !== before.size ||
+        after.mtimeNs !== before.mtimeNs || after.ctimeNs !== before.ctimeNs) {
+      fail(label + " file changed while being read");
+    }
+
+    try {
+      return JSON.parse(buffer.toString("utf8", 0, bytesRead));
+    } catch (error) {
+      fail(label + " is not valid JSON: " + String(error?.message || error));
+    }
+  } catch (error) {
+    if (error?.name === "VoidFleetRuntimeStabilityVerificationError") throw error;
+    fail(label + " file cannot be read safely: " + String(error?.message || error));
+  } finally {
+    closeSync(descriptor);
   }
 }
 
@@ -474,18 +522,19 @@ function main() {
   if (finalAuditPath === verificationAuditPath) {
     fail("final and verification audits must be distinct files");
   }
-  for (const [path, label] of [
-    [finalRolloutPath, "final rollout"],
-    [finalAuditPath, "final audit"],
-    [verificationAuditPath, "verification audit"],
-  ]) {
-    assertFreshPath(path, label, args.maxEvidenceAgeSeconds);
-  }
   const output = buildRuntimeStabilityVerificationV1({
     configInput: readJson(configPath, "config"),
-    finalRollout: readJson(finalRolloutPath, "final rollout"),
-    finalAudit: readJson(finalAuditPath, "final audit"),
-    verificationAudit: readJson(verificationAuditPath, "verification audit"),
+    finalRollout: readJson(
+      finalRolloutPath,
+      "final rollout",
+      args.maxEvidenceAgeSeconds,
+    ),
+    finalAudit: readJson(finalAuditPath, "final audit", args.maxEvidenceAgeSeconds),
+    verificationAudit: readJson(
+      verificationAuditPath,
+      "verification audit",
+      args.maxEvidenceAgeSeconds,
+    ),
     minimumStabilitySeconds: args.minimumStabilitySeconds,
     maxEvidenceAgeSeconds: args.maxEvidenceAgeSeconds,
   });
