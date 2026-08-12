@@ -88,6 +88,7 @@ function processNode(
   headTransitionEpoch,
   processStartEpoch,
   observedAtEpoch,
+  processInvocationId = sha256(`${name}:${processStartEpoch}`).slice(0, 32),
 ) {
   const delta = processStartEpoch - headTransitionEpoch;
   const processMatchesCurrent = processCommit === sourceSha && processTree === sourceTree;
@@ -109,6 +110,7 @@ function processNode(
     process_executable_node: true,
     process_identity_stable: true,
     head_transition_epoch: headTransitionEpoch,
+    process_invocation_id: processInvocationId,
     process_start_epoch: processStartEpoch,
     observed_at_epoch: observedAtEpoch,
     health_ok: true,
@@ -235,6 +237,7 @@ function restartReceipt(configInput, baseline, nodeName, source, postRestartNode
     runtime_transition_proven: true,
     post_restart_identity: {
       marker: VOID_NODE_FLEET_PROCESS_RESTART_POST_RESTART_IDENTITY_V1,
+      process_invocation_id: postRestartNode.process_invocation_id,
       process_start_epoch: postRestartNode.process_start_epoch,
       process_source_commit: postRestartNode.process_source_commit,
       process_source_tree: postRestartNode.process_source_tree,
@@ -370,6 +373,10 @@ try {
   assert.equal(advancedNimo.state.completed[0].old_process_tree, fromTree);
   assert.equal(advancedNimo.state.completed[0].new_process_commit, sourceSha);
   assert.equal(advancedNimo.state.completed[0].new_process_tree, sourceTree);
+  assert.notEqual(
+    advancedNimo.state.completed[0].new_process_invocation_id,
+    advancedNimo.state.completed[0].old_process_invocation_id,
+  );
   const validatedState1 = validateRolloutStateV1(advancedNimo.state, config);
   assert.equal(assessRolloutStateV1(validatedState1, validatedCurrentNimo).next_node, "alienware");
 
@@ -496,6 +503,20 @@ try {
     ),
     /does not match the exact rollout source/,
     "post-restart identity tamper",
+  );
+  const repeatedInvocationIdentity = clone(nimoRestart);
+  repeatedInvocationIdentity.post_restart_identity.process_invocation_id =
+    repeatedInvocationIdentity.plan.old_process_invocation_id;
+  expectThrow(
+    () => validateSuccessfulRestartReceiptV1(
+      repeatedInvocationIdentity,
+      nimoSource,
+      validatedState0,
+      config,
+      "nimo",
+    ),
+    /new process invocation/,
+    "same invocation ID restart receipt",
   );
   const unreceiptedRestart = clone(currentNimo);
   unreceiptedRestart.nodes[1].process_start_epoch += 1;

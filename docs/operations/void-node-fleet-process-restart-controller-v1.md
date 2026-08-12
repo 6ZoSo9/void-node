@@ -77,8 +77,8 @@ For the selected node, the controller brackets and requires:
 - the stale process commit resolves to its claimed tree, is an ancestor of the
   converged source, differs from that source, and exactly matches both the
   freshness receipt and the immutable `/version.process_source` envelope;
-- the same stale process start epoch and source transition epoch recorded by
-  the freshness audit;
+- the same stale systemd invocation ID, process start epoch, and source
+  transition epoch recorded by the freshness audit;
 - green numeric-loopback health and readiness with zero readiness gap; and
 - the configured live connected-peer floor.
 
@@ -129,7 +129,8 @@ Applied use requires exact byte-for-byte echoes of:
 - restart plan ID;
 - node name;
 - old/source-convergence SHA;
-- current target/source SHA; and
+- current target/source SHA;
+- old process systemd invocation ID; and
 - old process start epoch.
 
 Whitespace padding and case changes are rejected.
@@ -149,6 +150,7 @@ node tools/void-node-fleet-process-restart-controller-v1.mjs \
   --confirm-node nimo \
   --confirm-from-sha '<exact old source SHA>' \
   --confirm-source-sha '<exact current source SHA>' \
+  --confirm-old-process-invocation-id '<exact old process invocation ID>' \
   --confirm-old-process-start-epoch '<exact old process start epoch>'
 ```
 
@@ -167,15 +169,17 @@ mutation, package command, build command, cleanup, or fallback restart.
 
 After the command, the controller performs bounded read-only polling for up to
 30 seconds by default (`--postcheck-seconds`, range 5..120). This is not an
-operation retry. Success requires a new process start epoch, the same exact
-source commit/tree and reflog transition, `PROCESS_SOURCE_ALIGNED`, a new
+operation retry. Success requires a different exact systemd invocation ID, a
+non-regressing process start epoch, the same exact source commit/tree and
+reflog transition, `PROCESS_SOURCE_ALIGNED`, a new
 process identity envelope bound to that current source, clean source, exact
 launcher identity, green health/readiness, and restored connected-peer floor.
 
 Every successful applied receipt includes a closed
 `VOID_NODE_FLEET_PROCESS_RESTART_POST_RESTART_IDENTITY_V1` object containing the
 exact process start epoch and process-source commit/tree observed by that
-postcheck. Downstream rollout evidence must match all three fields exactly; a
+postcheck, plus the exact systemd invocation ID. Downstream rollout evidence
+must match all four fields exactly; a
 later crash recovery or unreceipted restart cannot be substituted for the
 controller-observed transition.
 
