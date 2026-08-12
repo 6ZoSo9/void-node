@@ -237,6 +237,70 @@ await expectRejectAsync(
 assert.equal(recordFetchCount, 0);
 assert.equal(manifestFetchCount, 0);
 
+let leaseRecordFetchCount = 0;
+let leaseManifestFetchCount = 0;
+await expectRejectAsync(
+  () =>
+    composeVoidP2pUdpSwarmRoutesFromAuthorizedDiscoveryV1({
+      observerAuthorization: authorization,
+      releaseRoot,
+      authenticatedDiscoverySources: [observer(sourceA), observer(sourceB)],
+      localNodeId: local.nodeId,
+      nowMs: NOW,
+      signedRecordId: {},
+      locatorMirrors: [],
+      discovery: {
+        generated_at: new Date(NOW).toISOString(),
+        expires_at: new Date(NOW + 2 * 60 * 60_000).toISOString(),
+        observations: [],
+      },
+      async fetchRecordBytes() {
+        leaseRecordFetchCount += 1;
+        return Buffer.from("{}");
+      },
+      async fetchManifestBytes() {
+        leaseManifestFetchCount += 1;
+        return Buffer.from("{}");
+      },
+    }),
+  /lease exceeds observer authorization/,
+);
+assert.equal(leaseRecordFetchCount, 0);
+assert.equal(leaseManifestFetchCount, 0);
+
+let staleRecordFetchCount = 0;
+let staleManifestFetchCount = 0;
+await expectRejectAsync(
+  () =>
+    composeVoidP2pUdpSwarmRoutesFromAuthorizedDiscoveryV1({
+      observerAuthorization: authorization,
+      releaseRoot,
+      authenticatedDiscoverySources: [observer(sourceA), observer(sourceB)],
+      localNodeId: local.nodeId,
+      nowMs: NOW,
+      signedRecordId: {},
+      locatorMirrors: [],
+      discovery: {
+        generated_at: new Date(NOW).toISOString(),
+        expires_at: new Date(NOW + 10 * 60_000).toISOString(),
+        observations: [
+          { observed_at: new Date(NOW - 60_000).toISOString() },
+        ],
+      },
+      async fetchRecordBytes() {
+        staleRecordFetchCount += 1;
+        return Buffer.from("{}");
+      },
+      async fetchManifestBytes() {
+        staleManifestFetchCount += 1;
+        return Buffer.from("{}");
+      },
+    }),
+  /observation falls outside observer authorization/,
+);
+assert.equal(staleRecordFetchCount, 0);
+assert.equal(staleManifestFetchCount, 0);
+
 const oneSignerAuthorization = buildAuthorization({
   root: releaseRoot,
   observers: [observer(sourceA), observer(sourceB)],
