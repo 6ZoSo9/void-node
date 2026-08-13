@@ -22,9 +22,18 @@ const RUNTIME_V1 = new Set([
   "src/p2p/udp_swarm_node_runtime_mount_v1.ts",
   "src/p2p/udp_swarm_public_relay_introduction_collector_v1.ts",
 ]);
+const SEALED_AGENT_SDK_DISTRIBUTION_V1 = new Set([
+  "integrations/agents/void-agent-sdk-v1/LICENSE",
+  "integrations/agents/void-agent-sdk-v1/README.md",
+  "integrations/agents/void-agent-sdk-v1/cli.mjs",
+  "integrations/agents/void-agent-sdk-v1/index.mjs",
+  "integrations/agents/void-agent-sdk-v1/integrity.json",
+  "integrations/agents/void-agent-sdk-v1/package.json",
+]);
 const PROOFS = [
-  "node --import tsx scripts/prove_void_p2p_udp_swarm_node_runtime_mount_v1.ts",
-  "node --import tsx scripts/prove_void_p2p_udp_swarm_public_relay_introduction_collector_v1.ts",
+  "scripts/prove_void_p2p_udp_swarm_node_runtime_mount_v1.ts",
+  "scripts/prove_void_p2p_udp_swarm_public_relay_introduction_collector_v1.ts",
+  "scripts/prove_void_agent_sdk_release_pack_v1.mjs",
 ];
 
 const fail = (m) => { const e = new Error(m); e.name = "VoidFleetAtomicCutoverError"; throw e; };
@@ -60,20 +69,26 @@ const write0600 = (f, v) => { const fd = openSync(f, "wx", 0o600); try { writeFi
 export function validateTransitionPolicyV1(node) {
   const paths = node?.comparison?.changed_paths;
   if (!Array.isArray(paths)) fail("changed-path evidence missing");
-  const runtime = [];
+  const runtime = [], sealedSdk = [];
   for (const p of paths) {
     if (
       ["package.json", "package-lock.json", "Dockerfile", ".nvmrc"].includes(p) ||
       p.startsWith("tsconfig") || p.startsWith("contracts/") || p.startsWith("config/") ||
-      p.startsWith("integrations/") || (p.startsWith("ops/") && !p.startsWith("ops/coordination/")) ||
+      (p.startsWith("integrations/") && !SEALED_AGENT_SDK_DISTRIBUTION_V1.has(p)) ||
+      (p.startsWith("ops/") && !p.startsWith("ops/coordination/")) ||
       (p.startsWith("scripts/") && !p.startsWith("scripts/prove_"))
     ) fail(`broader deployment required by ${p}`);
+    if (SEALED_AGENT_SDK_DISTRIBUTION_V1.has(p)) sealedSdk.push(p);
     if (p.startsWith("src/")) {
       if (!RUNTIME_V1.has(p)) fail(`unreviewed runtime path ${p}`);
       runtime.push(p);
     }
   }
-  return { changed_path_count: paths.length, runtime_core_paths: runtime.sort() };
+  return {
+    changed_path_count: paths.length,
+    runtime_core_paths: runtime.sort(),
+    sealed_agent_sdk_distribution_files: sealedSdk.sort(),
+  };
 }
 
 function liveScript(n) {
@@ -135,13 +150,15 @@ function stageScript(n, stage) {
 repo=${repo}; stage=${s}; tmp="$(mktemp -d)"; trap 'rm -rf "$tmp"' EXIT
 head="$(git -C "$stage" rev-parse HEAD 2>/dev/null||true)"
 branch="$(git -C "$stage" symbolic-ref --short -q HEAD 2>/dev/null||true)"
-status="$(git -C "$stage" status --porcelain=v1 2>/dev/null||printf __ERR__)"
 common="$(git -C "$stage" rev-parse --path-format=absolute --git-common-dir 2>/dev/null||true)"
 live_common="$(git -C "$repo" rev-parse --path-format=absolute --git-common-dir 2>/dev/null||true)"
 nm=0; test -e "$stage/node_modules"&&nm=1
-p0=0; (cd "$stage"&&${PROOFS[0]}) >"$tmp/0" 2>&1&&p0=1
-p1=0; (cd "$stage"&&${PROOFS[1]}) >"$tmp/1" 2>&1&&p1=1
-printf 'head\t%s\nbranch\t%s\nstatus\t%s\ncommon\t%s\nlive_common\t%s\nnm\t%s\np0\t%s\np1\t%s\n' "$head" "$branch" "$(printf %s "$status"|base64 -w0)" "$common" "$live_common" "$nm" "$p0" "$p1"
+runner="$repo/node_modules/.bin/tsx"; tx=0; test -x "$runner"&&tx=1
+p0=0; test "$tx" -eq 1&&(cd "$stage"&&"$runner" ${PROOFS[0]}) >"$tmp/0" 2>&1&&p0=1
+p1=0; test "$tx" -eq 1&&(cd "$stage"&&"$runner" ${PROOFS[1]}) >"$tmp/1" 2>&1&&p1=1
+p2=0; (cd "$stage"&&node ${PROOFS[2]}) >"$tmp/2" 2>&1&&p2=1
+status="$(git -C "$stage" status --porcelain=v1 2>/dev/null||printf __ERR__)"
+printf 'head\t%s\nbranch\t%s\nstatus\t%s\ncommon\t%s\nlive_common\t%s\nnm\t%s\ntx\t%s\np0\t%s\np1\t%s\np2\t%s\n' "$head" "$branch" "$(printf %s "$status"|base64 -w0)" "$common" "$live_common" "$nm" "$tx" "$p0" "$p1" "$p2"
 `;
 }
 
@@ -149,10 +166,12 @@ export function parseStageInspectionV1(out) {
   const f = fields(out), status = Buffer.from(f.get("status") || "", "base64").toString("utf8");
   return { head: f.get("head") || "", branch: f.get("branch") || "", dirty_count: status === "" ? 0 : -1,
     common: f.get("common") || "", live_common: f.get("live_common") || "", node_modules: f.get("nm") === "1",
-    proof0: f.get("p0") === "1", proof1: f.get("p1") === "1" };
+    proof_runner: f.get("tx") === "1", proof0: f.get("p0") === "1", proof1: f.get("p1") === "1",
+    proof2: f.get("p2") === "1" };
 }
 export function validateStageInspectionV1(s, target) {
-  if (s.head !== target || s.branch !== "" || s.dirty_count !== 0 || !s.node_modules || !s.proof0 || !s.proof1 ||
+  if (s.head !== target || s.branch !== "" || s.dirty_count !== 0 || s.node_modules || !s.proof_runner ||
+      !s.proof0 || !s.proof1 || !s.proof2 ||
       !s.common || resolve(s.common) !== resolve(s.live_common)) fail("stage is not exact detached proof-green target");
   return true;
 }
@@ -169,7 +188,14 @@ export function buildCutoverPlanV1(c, facts, policy, stagePath, live, stage) {
     plan_id_sha256: digest(privatePlan), audit_id_sha256: facts.audit_id_sha256, node: c.node.name,
     from_sha: facts.from_sha, target_sha: facts.to_sha, old_process_invocation_id: live.old_process_invocation_id,
     transition: policy,
-    stage: { detached_exact_target: true, p2p_runtime_mount_green: stage.proof0, relay_collector_green: stage.proof1 },
+    stage: {
+      detached_exact_target: true,
+      stage_node_modules_present: stage.node_modules,
+      live_checkout_tsx_runner: stage.proof_runner,
+      p2p_runtime_mount_green: stage.proof0,
+      relay_collector_green: stage.proof1,
+      agent_sdk_release_pack_green: stage.proof2,
+    },
     required_order: ["quiesce_selected_service", "exact_fast_forward_to_target", "start_selected_service_once", "prove_new_process_identity_and_health"],
     mutation_authority_granted: false, automatic_retry: false, automatic_rollback: false, next_node_automatic: false,
     authority: {

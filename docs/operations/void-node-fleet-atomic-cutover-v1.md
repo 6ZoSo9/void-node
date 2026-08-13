@@ -27,16 +27,28 @@ The planner requires:
 5. the running process identity is still bound to the audited old source SHA;
 6. a detached clean staged worktree at the exact target, sharing the live
    repository's Git common directory; and
-7. both reviewed target proofs pass:
+7. all three reviewed target proofs pass:
    - `scripts/prove_void_p2p_udp_swarm_node_runtime_mount_v1.ts`
    - `scripts/prove_void_p2p_udp_swarm_public_relay_introduction_collector_v1.ts`
+   - `scripts/prove_void_agent_sdk_release_pack_v1.mjs`
+
+The two TypeScript proofs run against the detached target through the existing
+executable `node_modules/.bin/tsx` in the live checkout. The stage itself must
+not contain or create `node_modules`; all three proofs must leave it clean.
 
 ## Transition boundary
 
 V1 rejects any transition containing:
 
 - `package.json`, `package-lock.json`, `Dockerfile`, `.nvmrc`, or `tsconfig*`;
-- `contracts/**`, `config/**`, or `integrations/**`;
+- `contracts/**` or `config/**`;
+- `integrations/**` except the exact sealed Agent SDK distribution:
+  - `integrations/agents/void-agent-sdk-v1/LICENSE`
+  - `integrations/agents/void-agent-sdk-v1/README.md`
+  - `integrations/agents/void-agent-sdk-v1/cli.mjs`
+  - `integrations/agents/void-agent-sdk-v1/index.mjs`
+  - `integrations/agents/void-agent-sdk-v1/integrity.json`
+  - `integrations/agents/void-agent-sdk-v1/package.json`
 - `ops/**` outside `ops/coordination/**`;
 - non-proof `scripts/**`; or
 - any changed `src/**` path except:
@@ -45,6 +57,8 @@ V1 rejects any transition containing:
 
 Nimo may have zero remaining `src/**` delta if those reviewed files already
 exist at its current source head.
+
+No other Agent SDK path and no other `integrations/**` path is accepted.
 
 ## Output
 

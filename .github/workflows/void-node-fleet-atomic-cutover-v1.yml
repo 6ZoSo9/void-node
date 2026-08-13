@@ -11,6 +11,13 @@ on:
       - "tools/void-node-fleet-source-convergence-v1.mjs"
       - "tools/void-node-fleet-process-freshness-audit-v1.mjs"
       - "tools/void-node-fleet-process-restart-controller-v1.mjs"
+      - "scripts/prove_void_agent_sdk_release_pack_v1.mjs"
+      - "integrations/agents/void-agent-sdk-v1/LICENSE"
+      - "integrations/agents/void-agent-sdk-v1/README.md"
+      - "integrations/agents/void-agent-sdk-v1/cli.mjs"
+      - "integrations/agents/void-agent-sdk-v1/index.mjs"
+      - "integrations/agents/void-agent-sdk-v1/integrity.json"
+      - "integrations/agents/void-agent-sdk-v1/package.json"
   push:
     branches: [main]
     paths:
@@ -22,6 +29,13 @@ on:
       - "tools/void-node-fleet-source-convergence-v1.mjs"
       - "tools/void-node-fleet-process-freshness-audit-v1.mjs"
       - "tools/void-node-fleet-process-restart-controller-v1.mjs"
+      - "scripts/prove_void_agent_sdk_release_pack_v1.mjs"
+      - "integrations/agents/void-agent-sdk-v1/LICENSE"
+      - "integrations/agents/void-agent-sdk-v1/README.md"
+      - "integrations/agents/void-agent-sdk-v1/cli.mjs"
+      - "integrations/agents/void-agent-sdk-v1/index.mjs"
+      - "integrations/agents/void-agent-sdk-v1/integrity.json"
+      - "integrations/agents/void-agent-sdk-v1/package.json"
 
 permissions:
   contents: read
@@ -56,5 +70,6 @@ jobs:
         run: |
           node scripts/prove_void_node_fleet_source_convergence_v1.mjs
           node scripts/prove_void_node_fleet_process_restart_controller_v1.mjs
+          node scripts/prove_void_agent_sdk_release_pack_v1.mjs
       - name: Diff hygiene
         run: git diff --check
