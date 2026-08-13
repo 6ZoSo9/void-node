@@ -1,0 +1,47 @@
+name: VOID BTC-VOID atomic settlement state invariants v1
+
+on:
+  pull_request:
+    paths:
+      - "tools/void-btc-void-atomic-settlement-state-invariants-v1.mjs"
+      - "scripts/prove_void_btc_void_atomic_settlement_state_invariants_v1.mjs"
+      - "docs/public/btc-void-atomic-settlement-state-invariants-v1.md"
+      - ".github/workflows/void-btc-void-atomic-settlement-state-invariants-v1.yml"
+  push:
+    branches: [main]
+    paths:
+      - "tools/void-btc-void-atomic-settlement-state-invariants-v1.mjs"
+      - "scripts/prove_void_btc_void_atomic_settlement_state_invariants_v1.mjs"
+      - "docs/public/btc-void-atomic-settlement-state-invariants-v1.md"
+      - ".github/workflows/void-btc-void-atomic-settlement-state-invariants-v1.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: void-btc-void-atomic-settlement-state-invariants-v1-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  proof:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: ${{ matrix.node }}
+      - name: Check syntax
+        run: |
+          node --check tools/void-btc-void-atomic-settlement-state-invariants-v1.mjs
+          node --check scripts/prove_void_btc_void_atomic_settlement_state_invariants_v1.mjs
+      - name: Prove state invariants
+        run: node scripts/prove_void_btc_void_atomic_settlement_state_invariants_v1.mjs
+      - name: Diff hygiene
+        run: git diff --check
