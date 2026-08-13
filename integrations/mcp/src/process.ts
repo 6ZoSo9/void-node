@@ -25,10 +25,6 @@ export interface CommandRunner {
   run(spec: CommandSpec): Promise<CommandResult>;
 }
 
-function byteLength(chunks: readonly Buffer[]): number {
-  return chunks.reduce((total, chunk) => total + chunk.byteLength, 0);
-}
-
 export class BoundedCommandRunner implements CommandRunner {
   async run(spec: CommandSpec): Promise<CommandResult> {
     return await new Promise<CommandResult>((resolve, reject) => {
@@ -41,6 +37,8 @@ export class BoundedCommandRunner implements CommandRunner {
       });
       const stdout: Buffer[] = [];
       const stderr: Buffer[] = [];
+      let stdoutBytes = 0;
+      let stderrBytes = 0;
       let terminalError: Error | null = null;
       let timedOut = false;
 
@@ -58,24 +56,32 @@ export class BoundedCommandRunner implements CommandRunner {
       }, spec.timeoutMs);
 
       child.stdout.on("data", (chunk: Buffer) => {
-        stdout.push(Buffer.from(chunk));
-        if (byteLength(stdout) > spec.maxStdoutBytes) {
+        if (terminalError) return;
+        const nextBytes = stdoutBytes + chunk.byteLength;
+        if (nextBytes > spec.maxStdoutBytes) {
           terminate(
             new Error(
               `subprocess stdout exceeded ${spec.maxStdoutBytes} bytes`,
             ),
           );
+          return;
         }
+        stdout.push(Buffer.from(chunk));
+        stdoutBytes = nextBytes;
       });
       child.stderr.on("data", (chunk: Buffer) => {
-        stderr.push(Buffer.from(chunk));
-        if (byteLength(stderr) > spec.maxStderrBytes) {
+        if (terminalError) return;
+        const nextBytes = stderrBytes + chunk.byteLength;
+        if (nextBytes > spec.maxStderrBytes) {
           terminate(
             new Error(
               `subprocess stderr exceeded ${spec.maxStderrBytes} bytes`,
             ),
           );
+          return;
         }
+        stderr.push(Buffer.from(chunk));
+        stderrBytes = nextBytes;
       });
       child.on("error", (error) => {
         terminate(error);
