@@ -8,6 +8,7 @@ import { fileURLToPath } from 'node:url';
 import {
   dataView,
   fetchDataNetStatusV1,
+  loadDataNetViewV1,
   validateDataNetStatusV1,
 } from '../public/void-app-wave1-v1/assets/js/data-live.js';
 
@@ -27,6 +28,7 @@ const DATA_PATH = path.join(
 
 const canonical = JSON.parse(fs.readFileSync(STATUS_PATH, 'utf8'));
 const clone = (value) => JSON.parse(JSON.stringify(value));
+const encoder = new TextEncoder();
 
 const valid = validateDataNetStatusV1(canonical);
 assert.equal(valid.marker, 'VOID_DATANET_FIELD_REPLICATION_STATUS_CARD_V1');
@@ -68,8 +70,33 @@ expectReject(
   /proof summary is not public-safe/,
 );
 
+const makeBody = (chunks, hooks = {}) => ({
+  getReader() {
+    let index = 0;
+    let cancelled = false;
+    return {
+      async read() {
+        hooks.onRead?.(index);
+        if (cancelled || index >= chunks.length) return { done: true, value: undefined };
+        const value = chunks[index];
+        index += 1;
+        return { done: false, value };
+      },
+      async cancel(reason) {
+        cancelled = true;
+        hooks.onCancel?.(reason);
+      },
+      releaseLock() {
+        hooks.onRelease?.();
+      },
+    };
+  },
+});
+
 const makeResponse = ({
   body = JSON.stringify(canonical),
+  chunks,
+  hooks,
   ok = true,
   status = 200,
   redirected = false,
@@ -86,9 +113,7 @@ const makeResponse = ({
       return contentLength === undefined ? null : String(contentLength);
     },
   },
-  async text() {
-    return body;
-  },
+  body: makeBody(chunks ?? [encoder.encode(body)], hooks),
 });
 
 let request;
@@ -136,12 +161,38 @@ await assert.rejects(
   /size limit/,
 );
 
+let streamedReads = 0;
+let streamedCancelled = false;
 await assert.rejects(
   () => fetchDataNetStatusV1({
     origin: 'https://void.example',
-    fetchImpl: async () => makeResponse({ body: `${'x'.repeat(131073)}` }),
+    fetchImpl: async () => makeResponse({
+      chunks: [
+        new Uint8Array(65536),
+        new Uint8Array(65536),
+        new Uint8Array(1),
+        encoder.encode(JSON.stringify(canonical)),
+      ],
+      hooks: {
+        onRead: () => { streamedReads += 1; },
+        onCancel: () => { streamedCancelled = true; },
+      },
+    }),
   }),
   /size limit/,
+);
+assert.equal(streamedReads, 3, 'stream must stop immediately after crossing 128 KiB');
+assert.equal(streamedCancelled, true, 'over-limit stream must be cancelled');
+
+await assert.rejects(
+  () => fetchDataNetStatusV1({
+    origin: 'https://void.example',
+    fetchImpl: async () => ({
+      ...makeResponse(),
+      body: null,
+    }),
+  }),
+  /not stream-readable/,
 );
 
 const markerMismatch = clone(canonical);
@@ -176,6 +227,42 @@ for (const forbidden of [
 ]) {
   assert.equal(dataSource.includes(forbidden), false, `forbidden browser authority: ${forbidden}`);
 }
+assert.doesNotMatch(dataSource, /response\.text\(\)/, 'unbounded full-body buffering must remain absent');
+assert.match(dataSource, /response\?\.body\?\.getReader\?\.\(\)/);
+assert.equal((dataSource.match(/new MutationObserver/g) ?? []).length, 1);
+assert.equal((dataSource.match(/observer\.observe\(viewRoot, \{ childList: true \}\)/g) ?? []).length, 1);
+assert.doesNotMatch(dataSource, /addEventListener\(['"]hashchange['"]/);
+assert.doesNotMatch(dataSource, /setTimeout\(loadDataNet/);
+
+const savedDocument = globalThis.document;
+const savedLocation = globalThis.location;
+try {
+  globalThis.location = { hash: '#/data' };
+  globalThis.document = {
+    querySelector(selector) {
+      return selector === '[data-datanet-view]' ? {} : null;
+    },
+    querySelectorAll() {
+      return [];
+    },
+  };
+
+  let automaticRequests = 0;
+  const loaded = await loadDataNetViewV1({
+    origin: 'https://void.example',
+    fetchImpl: async () => {
+      automaticRequests += 1;
+      return makeResponse();
+    },
+  });
+  assert.equal(loaded, true);
+  assert.equal(automaticRequests, 1, 'one rendered Data view activation must issue exactly one GET');
+} finally {
+  if (savedDocument === undefined) delete globalThis.document;
+  else globalThis.document = savedDocument;
+  if (savedLocation === undefined) delete globalThis.location;
+  else globalThis.location = savedLocation;
+}
 
 console.log('VOID_APP_DATANET_READONLY_V1_GREEN');
 console.log(`verified_bytes=${valid.field_result.verified_bytes}`);
@@ -184,4 +271,6 @@ console.log('request_method=GET');
 console.log('same_origin_only=true');
 console.log('credentials=omit');
 console.log('redirects=rejected');
+console.log('stream_limit_bytes=131072');
+console.log('automatic_requests_per_render=1');
 console.log('mutation_authority=false');
