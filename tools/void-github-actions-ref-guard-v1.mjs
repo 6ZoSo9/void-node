@@ -4,6 +4,7 @@ import { pathToFileURL } from 'node:url';
 
 export const MARKER = 'VOID_GITHUB_ACTIONS_REF_GUARD_V1';
 const UNPARSED_USES_REF = '<unparsed-uses-syntax>';
+const NON_REGULAR_ACTION_MANIFEST = '<non-regular-action-manifest>';
 
 function git(cwd, args, { allowFailure = false } = {}) {
   const result = spawnSync('git', args, {
@@ -53,6 +54,17 @@ function readGitFile(cwd, commit, path) {
   const result = git(cwd, ['show', `${commit}:${path}`], { allowFailure: true });
   if (result.status !== 0) return '';
   return result.stdout;
+}
+
+function readGitMode(cwd, commit, path) {
+  if (!path) return null;
+  const result = git(cwd, ['ls-tree', '-z', commit, '--', path], { allowFailure: true });
+  if (result.status !== 0 || result.stdout.length === 0) return null;
+  const record = result.stdout.split('\0', 1)[0];
+  const metadataEnd = record.indexOf('\t');
+  if (metadataEnd === -1) throw new Error('malformed git ls-tree output');
+  const [mode] = record.slice(0, metadataEnd).split(' ');
+  return mode || null;
 }
 
 function indentation(line) {
@@ -329,6 +341,10 @@ function isAuditedActionPath(path) {
   return /(?:^|\/)action\.ya?ml$/i.test(path);
 }
 
+function isActionManifestPath(path) {
+  return Boolean(path) && /(?:^|\/)action\.ya?ml$/i.test(path);
+}
+
 export function auditActionRefDelta({ cwd = process.cwd(), base, head }) {
   const baseSha = resolveCommit(cwd, base);
   const headSha = resolveCommit(cwd, head);
@@ -346,6 +362,23 @@ export function auditActionRefDelta({ cwd = process.cwd(), base, head }) {
     const headPath = change.newPath;
     if (!isAuditedActionPath(headPath)) continue;
     const basePath = isAuditedActionPath(rawBasePath) ? rawBasePath : null;
+    const headMode = readGitMode(cwd, headSha, headPath);
+    if (isActionManifestPath(headPath) && headMode !== '100644' && headMode !== '100755') {
+      newMutableRefs.push({
+        path: headPath,
+        line: 1,
+        uses: NON_REGULAR_ACTION_MANIFEST,
+        kind: 'non_regular_action_manifest',
+      });
+      changed.push({
+        status: change.status,
+        base_path: basePath,
+        head_path: headPath,
+        head_uses_refs: 0,
+        head_mutable_refs: 1,
+      });
+      continue;
+    }
     const baseEntries = extractUsesRefs(readGitFile(cwd, baseSha, basePath));
     const headEntries = extractUsesRefs(readGitFile(cwd, headSha, headPath));
     const baseMutable = mutableCounts(baseEntries);

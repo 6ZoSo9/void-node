@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
-import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, writeFileSync, rmSync, symlinkSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, dirname, resolve } from 'node:path';
 import { spawnSync } from 'node:child_process';
@@ -209,6 +209,23 @@ try {
     const result = auditActionRefDelta({ cwd: fixture.repo, base: fixture.base, head: fixture.head });
     assert.equal(result.decision, 'HOLD');
     assert.equal(result.new_mutable_refs.some((x) => x.path === '.github/actions/local/action.yml' && x.uses === 'actions/setup-node@v4'), true);
+  }
+
+  {
+    const fixture = makeRepo({}, {});
+    repos.push(fixture.repo);
+    write(fixture.repo, '.github/workflows/a.yml', 'jobs:\n  t:\n    steps:\n      - uses: ./.github/actions/local\n');
+    write(fixture.repo, 'ci/evil.yml', 'name: linked\nruns:\n  using: composite\n  steps:\n    - uses: actions/setup-node@v4\n');
+    mkdirSync(join(fixture.repo, '.github/actions/local'), { recursive: true });
+    symlinkSync('../../../ci/evil.yml', join(fixture.repo, '.github/actions/local/action.yml'));
+    const linkedHead = commit(fixture.repo, 'add symlinked action manifest');
+    const result = auditActionRefDelta({ cwd: fixture.repo, base: fixture.head, head: linkedHead });
+    assert.equal(result.decision, 'HOLD');
+    assert.equal(result.new_mutable_refs.some((x) =>
+      x.path === '.github/actions/local/action.yml' &&
+      x.uses === '<non-regular-action-manifest>' &&
+      x.kind === 'non_regular_action_manifest'
+    ), true);
   }
 
   {
