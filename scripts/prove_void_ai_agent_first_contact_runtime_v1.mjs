@@ -26,7 +26,7 @@ const BOUNDARY = [
 
 const EXPECTED_ASSETS = {
   "public/public-node/agents/first-contact-v1.json":
-    "202fe8a100be97c7601fa4bc1b04d9364e113b31f2435ab98809065de17de89e",
+    "553488c69c148f039252964ca6828fdbef61bab8592c25909fa2832ba54bc6be",
   "public/public-node/agents/join-v1.html":
     "a5d4801c5354246e9f0fd85d36f0159bee970c6469d06b4deb0921bfd7db0450",
 };
