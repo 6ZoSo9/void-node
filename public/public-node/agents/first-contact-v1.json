@@ -1,6 +1,6 @@
 {
   "client": {
-    "cold_start_curl_command": "test -n \"$VOID_PUBLIC_ORIGIN\" && curl --disable --proto '=https' --max-redirs 0 --fail --silent --show-error --max-time 8 --max-filesize 65536 --header 'Accept: application/json' \"${VOID_PUBLIC_ORIGIN%/}/public-node/agents/first-contact-v1.json\"",
+    "cold_start_curl_command": "test -n \"$VOID_PUBLIC_ORIGIN\" && curl --disable --noproxy '*' --proto '=https' --max-redirs 0 --fail --silent --show-error --max-time 8 --max-filesize 65536 --header 'Accept: application/json' \"${VOID_PUBLIC_ORIGIN%/}/public-node/agents/first-contact-v1.json\"",
     "example_command": "node tools/void-ai-agent-first-contact-v1.mjs --base-url http://127.0.0.1:4100 --pretty",
     "http_methods": [
       "GET"
@@ -28,7 +28,7 @@
     "work_credit_earning_promised": false
   },
   "marker": "VOID_AI_AGENT_FIRST_CONTACT_V1",
-  "manifest_fingerprint_sha256": "c9f3317ceaab0eced1bf93bded57929c261fa3e69016f9f2f931a93cc252e477",
+  "manifest_fingerprint_sha256": "12e6bbf67444eba7e03fa54a127b1f7956471ca07affc8f357984ad968f0347a",
   "network": {
     "chain_id": 2050,
     "identity": "mainnet0",

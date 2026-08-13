@@ -9,9 +9,9 @@ const DEFAULT_TIMEOUT_MS = 8000;
 const MAX_RESPONSE_BYTES = 65_536;
 const MAX_COLD_START_NETWORK_REQUESTS = 8;
 const COLD_START_CURL_COMMAND =
-  "test -n \"$VOID_PUBLIC_ORIGIN\" && curl --disable --proto '=https' --max-redirs 0 --fail --silent --show-error --max-time 8 --max-filesize 65536 --header 'Accept: application/json' \"${VOID_PUBLIC_ORIGIN%/}/public-node/agents/first-contact-v1.json\"";
+  "test -n \"$VOID_PUBLIC_ORIGIN\" && curl --disable --noproxy '*' --proto '=https' --max-redirs 0 --fail --silent --show-error --max-time 8 --max-filesize 65536 --header 'Accept: application/json' \"${VOID_PUBLIC_ORIGIN%/}/public-node/agents/first-contact-v1.json\"";
 const REVIEWED_FIRST_CONTACT_MANIFEST_FINGERPRINT_SHA256 =
-  "c9f3317ceaab0eced1bf93bded57929c261fa3e69016f9f2f931a93cc252e477";
+  "12e6bbf67444eba7e03fa54a127b1f7956471ca07affc8f357984ad968f0347a";
 const OFFICIAL_NETWORK = {
   name: "VOID Mainnet-0",
   chain_id: 2050,
