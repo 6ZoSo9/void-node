@@ -314,10 +314,37 @@ const renderChecklist = (items) => {
   });
 };
 
+const renderChecklistMessage = (title, detail, status = 'HOLD') => {
+  const list = document.querySelector('[data-validate-checklist]');
+  if (!list) return;
+  list.replaceChildren();
+  const row = document.createElement('div');
+  row.className = 'activity-row';
+  const copy = document.createElement('div');
+  copy.className = 'activity-copy';
+  const strong = document.createElement('strong');
+  strong.textContent = title;
+  const small = document.createElement('small');
+  small.textContent = detail;
+  copy.append(strong, small);
+  const value = document.createElement('div');
+  value.className = 'activity-value';
+  value.textContent = status;
+  row.append(copy, value);
+  list.append(row);
+};
+
 const setLoading = () => {
   setChip('info', 'Checking policy');
   setText('[data-validate-state-title]', 'Reading public validator readiness');
   setText('[data-validate-summary]', 'No admission claim is made until the exact public-safe matrix validates.');
+  setText('[data-validate-min-stake]', '—');
+  for (const selector of ['[data-validate-registration]', '[data-validate-intake]', '[data-validate-stake-lock]', '[data-validate-admission]']) setText(selector, 'HOLD');
+  renderChecklistMessage(
+    'Refreshing readiness evidence',
+    'Previous validated values are withheld until the new public matrix validates.',
+    'HOLD',
+  );
 };
 
 const setError = (error) => {
@@ -326,24 +353,11 @@ const setError = (error) => {
   setText('[data-validate-summary]', 'The public matrix could not be validated. No cached or inferred admission state is shown.');
   setText('[data-validate-min-stake]', '—');
   for (const selector of ['[data-validate-registration]', '[data-validate-intake]', '[data-validate-stake-lock]', '[data-validate-admission]']) setText(selector, 'HOLD');
-  const list = document.querySelector('[data-validate-checklist]');
-  if (list) {
-    list.replaceChildren();
-    const row = document.createElement('div');
-    row.className = 'activity-row';
-    const copy = document.createElement('div');
-    copy.className = 'activity-copy';
-    const strong = document.createElement('strong');
-    strong.textContent = 'Readiness evidence unavailable';
-    const small = document.createElement('small');
-    small.textContent = error instanceof Error ? error.message : 'Validation failed';
-    copy.append(strong, small);
-    const value = document.createElement('div');
-    value.className = 'activity-value';
-    value.textContent = 'HOLD';
-    row.append(copy, value);
-    list.append(row);
-  }
+  renderChecklistMessage(
+    'Readiness evidence unavailable',
+    error instanceof Error ? error.message : 'Validation failed',
+    'HOLD',
+  );
 };
 
 const applySnapshot = (snapshot) => {
