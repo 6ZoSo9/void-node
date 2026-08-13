@@ -53,6 +53,10 @@ const POST_MERGE_CONTRACT_INTEGRITY_REPAIR_BOUNDARY = [
   "scripts/prove_void_ai_agent_public_utility_v1.mjs",
   "tools/void-ai-agent-first-contact-v1.mjs",
 ];
+const FIRST_CONTACT_MANIFEST_INTEGRITY_REPAIR_BOUNDARY = [
+  "scripts/prove_void_ai_agent_first_contact_v1.mjs",
+  "tools/void-ai-agent-first-contact-v1.mjs",
+];
 const ALLOWED_BOUNDARY = [
   ...new Set([...ORIGINAL_BOUNDARY, ...COMPOSITION_BOUNDARY]),
 ];
@@ -274,6 +278,23 @@ const fixtures = new Map([
   [publicUtility.entries[2].path, datanetReceipt],
   [manifest.entrypoints.agent_intake, agentIntakeCapability],
 ]);
+
+const OPEN_SCHEMA_FIRST_CONTACT_PATH =
+  "/public-node/agents/first-contact-open-schema-v1.json";
+fixtures.set(OPEN_SCHEMA_FIRST_CONTACT_PATH, {
+  ...manifest,
+  unreviewed_extension: true,
+});
+
+const ELEVATED_FIRST_CONTACT_PATH =
+  "/public-node/agents/first-contact-elevated-authority-v1.json";
+fixtures.set(ELEVATED_FIRST_CONTACT_PATH, {
+  ...manifest,
+  honesty: {
+    ...manifest.honesty,
+    mutation_authority_granted: true,
+  },
+});
 
 const CROSS_ORIGIN_MANIFEST_PATH =
   "/public-node/agents/first-contact-cross-origin-fixture-v1.json";
@@ -692,6 +713,39 @@ try {
     true,
   );
 
+  for (const manifestPath of [
+    OPEN_SCHEMA_FIRST_CONTACT_PATH,
+    ELEVATED_FIRST_CONTACT_PATH,
+  ]) {
+    const invalidFirstContact = await runClient([
+      "--base-url",
+      baseUrl,
+      "--manifest-path",
+      manifestPath,
+    ]);
+    assert.equal(
+      invalidFirstContact.code,
+      2,
+      invalidFirstContact.stderr,
+    );
+    const invalidFirstContactReport = JSON.parse(
+      invalidFirstContact.stdout,
+    );
+    assert.equal(
+      invalidFirstContactReport.checks.first_contact_manifest_reachable,
+      false,
+    );
+    assert.equal(invalidFirstContactReport.status, "partial_read_only");
+    assert.equal(invalidFirstContactReport.network, null);
+    assert.equal(invalidFirstContactReport.verification_semantics, null);
+    assert.deepEqual(invalidFirstContactReport.next_actions, []);
+    assert.equal(
+      invalidFirstContactReport.responses.public_utility_resources
+        .total_network_requests,
+      1,
+    );
+  }
+
   const wrongResourceMarker = await runClient([
     "--base-url",
     baseUrl,
@@ -839,9 +893,13 @@ try {
     crossOriginReport.checks.public_utility_catalog_loaded,
     false,
   );
+  assert.equal(
+    crossOriginReport.checks.first_contact_manifest_reachable,
+    false,
+  );
   assert.match(
     crossOriginReport.responses.public_utility.error,
-    /invalid public path/,
+    /manifest entrypoint missing/,
   );
 
   const oversized = await runClient([
@@ -873,9 +931,13 @@ try {
     normalizedPathReport.checks.public_utility_catalog_loaded,
     false,
   );
+  assert.equal(
+    normalizedPathReport.checks.first_contact_manifest_reachable,
+    false,
+  );
   assert.match(
     normalizedPathReport.responses.public_utility.error,
-    /cross-origin public path forbidden/,
+    /manifest entrypoint missing/,
   );
 
   for (const manifestPath of [
@@ -974,6 +1036,7 @@ if (workingBoundary.length > 0) {
     COMPOSITION_PROOF_REPAIR_BOUNDARY,
     PUBLIC_UTILITY_RESOURCE_OBSERVATION_REPAIR_BOUNDARY,
     POST_MERGE_CONTRACT_INTEGRITY_REPAIR_BOUNDARY,
+    FIRST_CONTACT_MANIFEST_INTEGRITY_REPAIR_BOUNDARY,
   ].some(
     (boundary) =>
       JSON.stringify(workingBoundary) ===

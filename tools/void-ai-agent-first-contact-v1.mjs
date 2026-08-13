@@ -13,6 +13,66 @@ const OFFICIAL_NETWORK = {
   chain_id: 2050,
   identity: "mainnet0",
 };
+const FIRST_CONTACT_TOP_LEVEL_KEYS = [
+  "client",
+  "connection_mode",
+  "entrypoints",
+  "honesty",
+  "marker",
+  "network",
+  "next_steps",
+  "protocol",
+  "purpose",
+  "source",
+  "status",
+  "verification",
+  "version",
+];
+const FIRST_CONTACT_CLIENT_KEYS = [
+  "example_command",
+  "http_methods",
+  "output",
+  "repository_path",
+];
+const FIRST_CONTACT_ENTRYPOINT_KEYS = [
+  "agent_intake",
+  "authentication",
+  "capabilities",
+  "first_contact",
+  "join_page",
+  "official_authenticity",
+  "public_utility",
+  "well_known_discovery",
+];
+const FIRST_CONTACT_HONESTY_KEYS = [
+  "credential_required_for_first_contact",
+  "mutation_authority_granted",
+  "paid_work_promised",
+  "policy",
+  "wallet_required",
+  "work_credit_earning_promised",
+];
+const FIRST_CONTACT_SOURCE_KEYS = [
+  "base_commit",
+  "generated_by",
+  "repository",
+];
+const FIRST_CONTACT_VERIFICATION_KEYS = [
+  "optional_checks",
+  "required_checks",
+  "semantics",
+];
+const FIRST_CONTACT_NEXT_STEP_KEYS = ["id", "path", "requires"];
+const REQUIRED_FIRST_CONTACT_CHECKS = [
+  "first_contact_manifest_reachable",
+  "discovery_reachable",
+  "official_authenticity_reachable",
+  "network_binding_consistent",
+  "authentication_contract_found",
+  "capabilities_loaded",
+  "public_utility_catalog_loaded",
+  "public_utility_resources_observed",
+];
 const PUBLIC_UTILITY_TOP_LEVEL_KEYS = [
   "contract",
   "controls",
@@ -151,6 +211,101 @@ function joinUrl(baseUrl, path) {
     throw new Error(`cross-origin public path forbidden: ${String(path)}`);
   }
   return resolved.toString();
+}
+
+function sameArray(actual, expected) {
+  return (
+    Array.isArray(actual) &&
+    actual.length === expected.length &&
+    actual.every((value, index) => value === expected[index])
+  );
+}
+
+function safeEntrypoint(path, extension) {
+  if (
+    typeof path !== "string" ||
+    !path.endsWith(`.${extension}`) ||
+    !/^\/(?:\.well-known|public-node)\/[A-Za-z0-9._/-]+$/.test(path)
+  ) {
+    return false;
+  }
+  try {
+    joinUrl("https://void.invalid", path);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function firstContactManifestValid(manifest) {
+  if (
+    !hasExactKeys(manifest, FIRST_CONTACT_TOP_LEVEL_KEYS) ||
+    manifest.marker !== "VOID_AI_AGENT_FIRST_CONTACT_V1" ||
+    manifest.protocol !== "void-ai-agent-first-contact" ||
+    manifest.version !== "1" ||
+    manifest.status !== "public_read_only" ||
+    manifest.connection_mode !== "read_only" ||
+    !isBoundedString(manifest.purpose, 256) ||
+    !hasExactKeys(manifest.network, ["chain_id", "identity", "name"]) ||
+    manifest.network.name !== OFFICIAL_NETWORK.name ||
+    manifest.network.chain_id !== OFFICIAL_NETWORK.chain_id ||
+    manifest.network.identity !== OFFICIAL_NETWORK.identity ||
+    !hasExactKeys(manifest.client, FIRST_CONTACT_CLIENT_KEYS) ||
+    !sameArray(manifest.client.http_methods, ["GET"]) ||
+    manifest.client.output !== "application/json" ||
+    manifest.client.repository_path !==
+      "tools/void-ai-agent-first-contact-v1.mjs" ||
+    !isBoundedString(manifest.client.example_command, 512) ||
+    !hasExactKeys(manifest.entrypoints, FIRST_CONTACT_ENTRYPOINT_KEYS) ||
+    !hasExactKeys(manifest.honesty, FIRST_CONTACT_HONESTY_KEYS) ||
+    manifest.honesty.credential_required_for_first_contact !== false ||
+    manifest.honesty.mutation_authority_granted !== false ||
+    manifest.honesty.paid_work_promised !== false ||
+    manifest.honesty.wallet_required !== false ||
+    manifest.honesty.work_credit_earning_promised !== false ||
+    !isBoundedString(manifest.honesty.policy, 256) ||
+    !hasExactKeys(manifest.source, FIRST_CONTACT_SOURCE_KEYS) ||
+    manifest.source.repository !== "6ZoSo9/void-node" ||
+    manifest.source.generated_by !== "void-ai-agent-first-contact-kit-v1" ||
+    !/^[0-9a-f]{40}$/.test(manifest.source.base_commit) ||
+    !hasExactKeys(manifest.verification, FIRST_CONTACT_VERIFICATION_KEYS) ||
+    !sameArray(
+      manifest.verification.required_checks,
+      REQUIRED_FIRST_CONTACT_CHECKS,
+    ) ||
+    !sameArray(manifest.verification.optional_checks, [
+      "agent_intake_reachable",
+    ]) ||
+    !isBoundedString(manifest.verification.semantics, 512) ||
+    !Array.isArray(manifest.next_steps) ||
+    manifest.next_steps.length !== 4
+  ) {
+    return false;
+  }
+
+  for (const [key, path] of Object.entries(manifest.entrypoints)) {
+    if (!safeEntrypoint(path, key === "join_page" ? "html" : "json")) {
+      return false;
+    }
+  }
+
+  const nextStepIds = new Set();
+  for (const step of manifest.next_steps) {
+    if (
+      !hasExactKeys(step, FIRST_CONTACT_NEXT_STEP_KEYS) ||
+      typeof step.id !== "string" ||
+      !/^[a-z0-9]+(?:_[a-z0-9]+)*$/.test(step.id) ||
+      nextStepIds.has(step.id) ||
+      !safeEntrypoint(step.path, "json") ||
+      !Array.isArray(step.requires) ||
+      step.requires.length !== 1 ||
+      typeof step.requires[0] !== "string"
+    ) {
+      return false;
+    }
+    nextStepIds.add(step.id);
+  }
+  return true;
 }
 
 async function readBoundedText(response) {
@@ -804,7 +959,9 @@ async function main() {
     options.timeoutMs,
   );
   const manifest = firstContact.body;
-  const entrypoints = manifest?.entrypoints ?? {};
+  const manifestValid =
+    firstContact.ok === true && firstContactManifestValid(manifest);
+  const entrypoints = manifestValid ? manifest.entrypoints : {};
 
   const fetchEntry = async (key) => {
     const path = entrypoints[key];
@@ -867,9 +1024,7 @@ async function main() {
   const agentIntakeValid = agentIntakeContractValid(intake);
 
   const checks = {
-    first_contact_manifest_reachable:
-      firstContact.ok &&
-      manifest?.marker === "VOID_AI_AGENT_FIRST_CONTACT_V1",
+    first_contact_manifest_reachable: manifestValid,
     discovery_reachable: discovery.ok,
     official_authenticity_reachable: authenticity.ok,
     network_binding_consistent:
@@ -918,13 +1073,13 @@ async function main() {
     connection_mode: "read_only",
     official_network_verified: officialNetworkVerified,
     verification_semantics:
-      manifest?.verification?.semantics ?? null,
-    network: manifest?.network ?? null,
+      manifestValid ? manifest.verification.semantics : null,
+    network: manifestValid ? manifest.network : null,
     checks,
     observed_capabilities: commercial,
     useful_public_resources: resources,
     next_actions:
-      firstContact.ok
+      manifestValid
         ? nextActions(manifest, checks, commercial, resources)
         : [],
     responses: {
