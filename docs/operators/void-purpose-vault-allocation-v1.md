@@ -26,33 +26,42 @@ holder.
 | **Total current supply reconciled** | **333,333,333** |
 
 The former 126,000 VOID unexplained bucket is now fully reconciled. The
-validator onboarding path funded 126 bootstrap validators at 1,000 VOID each
+historical bootstrap onboarding path funded 126 validators at 1,000 VOID each
 through `VoidTreasury -> OpsTreasury -> candidate -> UpgradeStaking`. The live
 upgrade-track staking contract at
 `0x77DFEedD19A4741f299C902AD5bBe0DE917a9e59` holds exactly 126,000 VOID and its
 retained transfer history matches that live balance.
 
-Machine-readable current custody is pinned in
+That historical 1,000-VOID bootstrap amount is not the intended Mainnet-0
+validator stake target. `docs/mainnet0/VALIDATOR_POLICY.md` locks the minimum
+validator self-stake at 10,000 VOID. For the existing 126 bootstrap validators,
+the aggregate validator stake target is therefore 1,260,000 VOID. Relative to
+the current 126,000 VOID stake, the validator allocation is 1,134,000 VOID below
+that target. This document records the target delta only; it does not authorize
+or select a live top-up mechanism.
+
+Machine-readable current custody and validator target arithmetic are pinned in
 `ops/mainnet/mainnet0-premine-allocation.current.json`.
 
 ## Exact target
 
 | Custody purpose | Target VOID |
 | --- | ---: |
-| Core `VoidTreasury` reserve | 308,207,333 |
+| Core `VoidTreasury` reserve | 307,073,333 |
 | `PresaleInventoryVault` | 10,000,000 |
 | `BTCVoidMarketVault` | 10,000,000 |
 | `OpsTreasury` | 5,000,000 |
-| Bootstrap validator stake in `UpgradeStaking` | 126,000 |
+| Validator stake target: 126 × 10,000 VOID | 1,260,000 |
 | **Total premine** | **333,333,333** |
 
-Relative to the reconciled current custody, the three future purpose allocations
-remain unfunded: 10,000,000 VOID for presale inventory, 10,000,000 VOID for the
-BTC/VOID market inventory, and 5,000,000 VOID for OpsTreasury. If and only if
-those exact final vaults and authorities are separately reviewed and approved,
-the total 25,000,000 VOID target delta would come from `VoidTreasury`, leaving
-the target core reserve at 308,207,333 VOID. The existing 126,000 VOID bootstrap
-validator stake requires no additional allocation.
+Relative to the reconciled current custody, four future target deltas remain:
+10,000,000 VOID for presale inventory, 10,000,000 VOID for BTC/VOID market
+inventory, 5,000,000 VOID for OpsTreasury, and 1,134,000 VOID to bring the
+existing 126-validator bootstrap stake allocation from 126,000 VOID to the
+10,000-VOID-per-validator policy target. The combined future target delta is
+26,134,000 VOID. If and only if the exact final vaults, staking/top-up mechanism,
+and authorities are separately reviewed and approved, those deltas would come
+from `VoidTreasury`, leaving the target core reserve at 307,073,333 VOID.
 
 Historical Buy VOID execution artifacts are not automatically counted as
 current custody. The current canonical Chain-2050 state reconciles its entire
@@ -81,8 +90,11 @@ LLC's off-chain business cash. Market BTC is not automatically swept into
 operations.
 
 The validator `UpgradeStaking` allocation is stake backing for the bootstrap
-validator set. It is not presale inventory, market inventory, or an operating
-wallet, and it must not be counted as free treasury liquidity.
+validator set. The current 126,000 VOID is reconciled live custody, but the
+policy target for 126 validators is 1,260,000 VOID. Neither the current stake nor
+the 1,134,000 VOID target shortfall is presale inventory, market inventory, or
+an operating-wallet balance, and neither may be counted as free treasury
+liquidity.
 
 The core `VoidTreasury` remains the long-term reserve and administrative source
 for separately reviewed allocations. A source plan, pull request, or merge does
@@ -95,7 +107,15 @@ authority. Immediately before any transfer plan is constructed, current
 Chain-2050 balances must be reread and compared with
 `ops/mainnet/mainnet0-premine-allocation.current.json`. Each transfer amount is
 the verified target minus the verified current balance of that exact final
-vault; an operator must not blindly resend a historical target amount.
+vault or stake bucket; an operator must not blindly resend a historical target
+amount.
+
+Validator top-up is a separate value-bearing gate. Before any validator stake
+movement, the exact target validators, destination staking contract or migration
+path, per-validator resulting stake, withdrawal/recovery semantics, signer
+policy, and post-state proof must be reviewed. This document does not assume
+that sending 1,134,000 VOID directly to the current `UpgradeStaking` contract is
+the correct implementation.
 
 Funding becomes eligible only after the final vault identity, Chain-2050
 binding, bytecode or implementation digest, signer policy, recovery path, and
@@ -113,9 +133,9 @@ to invent another purpose.
 
 ## Authority boundary
 
-No wallet, signer, transaction, treasury transfer, or fund movement is authorized
-by this document. Contract deployment, address binding, signer policy, bytecode
-review, transaction construction, signing, broadcast, and post-state evidence
-remain separate gates under ZoSo's explicit authority.
+No wallet, signer, transaction, treasury transfer, validator top-up, or fund
+movement is authorized by this document. Contract deployment, address binding,
+signer policy, bytecode review, transaction construction, signing, broadcast,
+and post-state evidence remain separate gates under ZoSo's explicit authority.
 
 `PROTECT THE CORE`.
