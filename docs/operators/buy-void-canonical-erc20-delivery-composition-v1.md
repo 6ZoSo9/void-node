@@ -4,99 +4,87 @@ Marker: `VOID_BUY_VOID_CANONICAL_ERC20_DELIVERY_COMPOSITION_V1`
 
 ## Decision
 
-The canonical Buy VOID parent runtime must align presale fulfillment with the
-canonical Mainnet-0 premine asset: `VoidToken` on Chain 2050.
+The canonical Buy VOID parent must align fulfillment with the Mainnet-0
+`VoidToken` ERC-20 asset on Chain 2050.
 
-This source change does **not** activate fulfillment, fund a wallet, sign or
+This source change does not activate fulfillment, fund a wallet, sign or
 broadcast a transaction, restart a service, or move VOID.
 
-## Evidence that required the correction
+## Asset correction
 
-The live premine reconciliation proved that the entire current
-333,333,333-VOID supply is `VoidToken` custody:
+The premine is held as `VoidToken` custody, while the earlier bounded canary
+delivery stack used native Chain-2050 value.
 
-- `VoidTreasury`: 333,207,333 VOID;
-- validator upgrade-track staking: 126,000 VOID;
-- unreconciled current supply: 0 VOID.
+The repository therefore retains both the canonical ERC-20
+`VoidToken.transfer(...)` implementation and the earlier native-value canary
+implementation. The native implementation is not the canonical parent delivery
+path.
 
-The configured Buy VOID fulfillment wallet separately held about 2 native
-Chain-2050 units and 0 `VoidToken`. Its native delivery limit and inventory
-reservation limit were both 2 VOID in the six-decimal fulfillment-unit domain.
-That is consistent with a bounded native canary, not custody of the
-10,000,000-VOID presale inventory.
+## Canonical parent composition: retained but unmounted
 
-Repository source already contains two delivery families:
+The canonical ERC-20 delivery implementation is retained in:
 
-1. `buy_void_delivery_sign_broadcast_adapter_v1.ts`, which constructs an ERC-20
-   `VoidToken.transfer(...)` transaction with transaction value zero; and
-2. `buy_void_native_delivery_sign_broadcast_adapter_v1.ts`, which sends native
-   Chain-2050 value.
+```text
+src/economic/buy_void_delivery_runtime_integration_v1.ts
+```
 
-Before this correction, `buy_void_runtime_integration_v1.ts` parent-mounted the
-native delivery, native receipt, and native execution runtimes. It also mounted
-the generic bounded orchestrator, whose default execution dependency is the
-native execution runtime.
+The parent deliberately does **not** import or mount that runtime yet.
 
-## Canonical parent composition
+Current parent truth is:
 
-The canonical parent now imports the existing ERC-20
-`buy_void_delivery_runtime_integration_v1.ts`.
+```text
+canonical_delivery_asset=void_token_erc20
+delivery_runtime_source_retained=true
+delivery_runtime_parent_mounted=false
+canonical_delivery_runtime_parent_mounted=false
+canonical_delivery_execution_ready=false
+canonical_delivery_execution_held=true
+presale_inventory_funding_ready=false
+```
 
-The parent does not mount:
+Accordingly, the parent exposes neither the canonical delivery status route nor
+the canonical delivery command route. Operators must not treat the ERC-20
+runtime as mounted before the readiness gates are closed.
 
-- native delivery runtime;
-- native delivery receipt runtime;
-- native execution runtime;
-- bounded auto-fulfillment orchestrator runtime; or
-- opaque prepared-transaction execution runtime.
+The parent also does not mount native delivery, native receipt, native
+execution, bounded auto-fulfillment, native transaction preparation, or opaque
+prepared-transaction execution.
 
-Those source modules remain in the repository for focused canary, rehearsal,
-reconciliation, and compatibility proofs. Removing them from the canonical
-parent does not delete or silently rewrite their individual contracts.
+## Legacy canary reservation
 
-The canonical ERC-20 delivery runtime remains:
+The legacy production canary candidate-reservation CLI depended on the parent
+`run_crash_consistent_saga_stage` action and crash-saga status projection.
 
-- loopback-only;
-- disabled by default;
-- server-policy controlled;
-- prepared-attempt bound;
-- exact-confirmation gated;
-- submission-guard protected;
-- raw-signed-transaction non-persisting; and
-- incapable of receiving caller-supplied private keys, mnemonics, signers, or
-  RPC URLs.
+That parent action is intentionally absent from the canonical composition.
+Rather than reconnecting a native-canary mutation path, the reservation CLI is
+explicitly retired/held for the canonical ERC-20 transition.
 
-## Deliberate funding HOLD
+## Remaining canonical gates
 
-This change is an asset-alignment correction, not a claim that the complete
-automatic presale path is ready to receive the 10,000,000-VOID inventory.
+Before canonical ERC-20 execution can be mounted, the parent must have
+server-controlled, exact-green answers for the remaining execution dependencies,
+including:
 
-Two server-controlled bridges remain missing from the canonical automatic saga:
+- canonical signer/broadcaster dependency bootstrap;
+- exact fulfillment-unit to token-atom semantics;
+- an ERC-20 transaction-preparation bridge; and
+- an ERC-20 receipt-reconciliation bridge validating the confirmed
+  `VoidToken.Transfer` before terminal closeout.
 
-1. an ERC-20 transaction-preparation bridge that binds the canonical
-   `VoidToken` contract, recipient, amount, nonce, and fee policy before opaque
-   custody/signing; and
-2. an ERC-20 receipt-reconciliation bridge that verifies the confirmed
-   `VoidToken.Transfer` delivery before terminal closeout.
+Those gates are independent. Closing one does not imply the others are ready.
 
-The existing saga preparation documentation and implementation are
-native-value-specific. The existing native receipt reconciler is likewise
-native-delivery-specific. Therefore the parent status reports:
+## Funding HOLD
 
-- `erc20_transaction_preparation_bridge_ready: false`;
-- `erc20_receipt_reconciliation_bridge_ready: false`; and
-- `presale_inventory_funding_ready: false`.
+`presale_inventory_funding_ready=false` remains the source of truth.
 
-The separate 2-VOID native canary limit is not widened by this change.
+No presale inventory should be funded into an execution path until the
+canonical ERC-20 dependency, preparation, reconciliation, and runtime activation
+gates are separately reviewed and authorized.
 
 ## Authority boundary
 
-No live service configuration is changed here. No production environment
-variable, wallet credential, private key, signer, broadcaster, transaction,
-treasury balance, presale inventory balance, validator stake, BTC reserve, or
-runtime process is mutated.
-
-Funding the presale inventory remains a later separately reviewed value-bearing
-gate after the ERC-20 preparation and receipt bridges are exact-green.
+No production environment variable, wallet credential, private key, signer,
+broadcaster, transaction, treasury balance, presale inventory balance, validator
+stake, BTC reserve, or runtime process is mutated by this composition change.
 
 `PROTECT THE CORE`
