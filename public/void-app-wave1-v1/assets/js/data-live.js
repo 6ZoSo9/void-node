@@ -50,6 +50,88 @@ const SAFETY_KEYS = [
   'tailnet_ips_redacted',
 ];
 
+const PROOF_SUMMARY_KEYS = [
+  'boundaries',
+  'bounded_report',
+  'dangerous_authorities_enabled',
+  'doc_source_path',
+  'private_details_redacted',
+  'proof_sha256',
+  'public_html_path',
+  'public_json_path',
+  'public_safe',
+  'source_bundle_sha256',
+  'status',
+];
+
+const PROOF_BOUNDARY_KEYS = [
+  'absolute_paths_published',
+  'hostnames_published',
+  'private_bundle_published',
+  'public_mutation_route_enabled',
+  'raw_receipts_published',
+  'runtime_public_write_enabled',
+  'static_public_file_published_by_pr',
+  'tailnet_urls_published',
+];
+
+const PROOF_BOUNDED_REPORT_KEYS = [
+  'artifacts_observed',
+  'field_report_bounded',
+  'total_candidates_observed',
+  'truncated',
+];
+
+const PROOF_AUTHORITY_KEYS = [
+  'automatic_rewards',
+  'ledger_write',
+  'public_mutation_route',
+  'secret_handling',
+  'validator_admission',
+  'wallet_movement',
+  'wc_settlement',
+];
+
+const RUNBOOK_KEYS = [
+  'dangerous_authorities_enabled',
+  'doc_source_path',
+  'private_tailnet_details_redacted',
+  'public_html_path',
+  'public_json_path',
+  'status',
+];
+
+const SERVE_UPDATE_KEYS = [
+  'dangerous_paths_touched',
+  'enabled_authorities',
+  'field_mirror_serve_command',
+  'field_runner_marker',
+  'proof_date',
+  'roundtrip_verifier_marker',
+  'safe_serve_marker',
+  'serves_public_directory_only',
+  'source_serve_command',
+  'status',
+  'summary',
+  'tailnet_addresses_redacted',
+  'verified_mirror_sha256',
+];
+
+const SERVE_UPDATE_AUTHORITY_KEYS = [
+  'ledger_write',
+  'public_mutation_route',
+  'validator_admission',
+  'wallet_movement',
+  'wc_settlement',
+];
+
+const SEALED_COMMITS_KEYS = [
+  'field_object_roundtrip_verifier',
+  'tailnet_diagnostics',
+];
+
+const SEALED_COMMIT_ENTRY_KEYS = ['main', 'pr', 'tag'];
+
 const isPlainObject = (value) => (
   value !== null
   && typeof value === 'object'
@@ -76,11 +158,24 @@ const isSha256Hex = (value) => (
   typeof value === 'string' && /^[0-9a-f]{64}$/.test(value)
 );
 
-const requireFalseAuthorityMap = (value) => {
-  if (!isPlainObject(value)) return false;
-  const keys = Object.keys(value);
-  return keys.length > 0 && keys.every((key) => value[key] === false);
-};
+const isBoundedString = (value, max) => (
+  typeof value === 'string' && value.length > 0 && value.length <= max
+);
+
+const requireExactFalseAuthorityMap = (value, keys) => (
+  hasExactKeys(value, keys) && keys.every((key) => value[key] === false)
+);
+
+const isSealedCommitEntry = (value) => (
+  hasExactKeys(value, SEALED_COMMIT_ENTRY_KEYS)
+  && typeof value.main === 'string'
+  && /^[0-9a-f]{8}$/.test(value.main)
+  && Number.isSafeInteger(value.pr)
+  && value.pr > 0
+  && value.pr <= 1_000_000_000
+  && isBoundedString(value.tag, 200)
+  && /^ckpt-[a-z0-9-]+$/.test(value.tag)
+);
 
 export function validateDataNetStatusV1(value) {
   if (!hasExactKeys(value, TOP_LEVEL_KEYS)) {
@@ -177,45 +272,102 @@ export function validateDataNetStatusV1(value) {
   }
 
   const proofSummary = value.proof_bundle_public_summary_v1;
+  const proofBoundaries = proofSummary?.boundaries;
+  const boundedReport = proofSummary?.bounded_report;
   if (
-    !isPlainObject(proofSummary)
+    !hasExactKeys(proofSummary, PROOF_SUMMARY_KEYS)
+    || !hasExactKeys(proofBoundaries, PROOF_BOUNDARY_KEYS)
+    || proofBoundaries.absolute_paths_published !== false
+    || proofBoundaries.hostnames_published !== false
+    || proofBoundaries.private_bundle_published !== false
+    || proofBoundaries.public_mutation_route_enabled !== false
+    || proofBoundaries.raw_receipts_published !== false
+    || proofBoundaries.runtime_public_write_enabled !== false
+    || proofBoundaries.static_public_file_published_by_pr !== true
+    || proofBoundaries.tailnet_urls_published !== false
+    || !hasExactKeys(boundedReport, PROOF_BOUNDED_REPORT_KEYS)
+    || !Number.isSafeInteger(boundedReport.artifacts_observed)
+    || boundedReport.artifacts_observed < 0
+    || boundedReport.artifacts_observed > 100_000
+    || boundedReport.field_report_bounded !== true
+    || !Number.isSafeInteger(boundedReport.total_candidates_observed)
+    || boundedReport.total_candidates_observed < boundedReport.artifacts_observed
+    || boundedReport.total_candidates_observed > 1_000_000
+    || boundedReport.truncated !== true
     || proofSummary.status !== 'green'
     || proofSummary.public_safe !== true
     || proofSummary.private_details_redacted !== true
+    || proofSummary.doc_source_path !== 'docs/public/datanet-field-replication-proof-bundle-public-summary-v1.md'
+    || !isSafePublicPath(
+      proofSummary.public_html_path,
+      'field-replication-proof-bundle-public-summary-v1.html'
+    )
+    || !isSafePublicPath(
+      proofSummary.public_json_path,
+      'field-replication-proof-bundle-public-summary-v1.json'
+    )
     || !isSha256Hex(proofSummary.proof_sha256)
     || !isSha256Hex(proofSummary.source_bundle_sha256)
-    || !requireFalseAuthorityMap(proofSummary.dangerous_authorities_enabled)
+    || !requireExactFalseAuthorityMap(
+      proofSummary.dangerous_authorities_enabled,
+      PROOF_AUTHORITY_KEYS
+    )
   ) {
-    throw new Error('DataNet proof summary is not public-safe');
+    throw new Error('DataNet proof summary is not exact public-safe evidence');
   }
 
   const runbook = value.safe_serve_runbook_discovery_v1;
   if (
-    !isPlainObject(runbook)
+    !hasExactKeys(runbook, RUNBOOK_KEYS)
     || runbook.status !== 'green'
     || runbook.private_tailnet_details_redacted !== true
-    || !requireFalseAuthorityMap(runbook.dangerous_authorities_enabled)
+    || runbook.doc_source_path !== 'docs/public/datanet-field-replication-safe-serve-runbook-v1.md'
+    || !isSafePublicPath(
+      runbook.public_html_path,
+      'field-replication-safe-serve-runbook-v1.html'
+    )
+    || !isSafePublicPath(
+      runbook.public_json_path,
+      'field-replication-safe-serve-runbook-v1.json'
+    )
+    || !requireExactFalseAuthorityMap(
+      runbook.dangerous_authorities_enabled,
+      PROOF_AUTHORITY_KEYS
+    )
   ) {
     throw new Error('DataNet safe-serve runbook boundary is invalid');
   }
 
   const serveUpdate = value.safe_serve_update_v1;
   if (
-    !isPlainObject(serveUpdate)
+    !hasExactKeys(serveUpdate, SERVE_UPDATE_KEYS)
     || serveUpdate.status !== 'green'
     || serveUpdate.dangerous_paths_touched !== false
     || serveUpdate.serves_public_directory_only !== true
     || serveUpdate.tailnet_addresses_redacted !== true
-    || !requireFalseAuthorityMap(serveUpdate.enabled_authorities)
+    || serveUpdate.field_mirror_serve_command !== 'npm run public-node:serve -- --port 8089'
+    || serveUpdate.source_serve_command !== 'npm run public-node:serve -- --port 8088'
+    || serveUpdate.field_runner_marker !== 'VOID_DATANET_FIELD_REPLICATION_RUNNER_V1_GREEN'
+    || serveUpdate.roundtrip_verifier_marker !== 'VOID_DATANET_FIELD_OBJECT_ROUNDTRIP_V1_GREEN'
+    || serveUpdate.safe_serve_marker !== 'VOID_PUBLIC_NODE_SAFE_SERVE_V1_READY'
+    || typeof serveUpdate.proof_date !== 'string'
+    || !/^\d{4}-\d{2}-\d{2}$/.test(serveUpdate.proof_date)
+    || !Number.isFinite(Date.parse(`${serveUpdate.proof_date}T00:00:00Z`))
+    || !isBoundedString(serveUpdate.summary, 4096)
+    || !requireExactFalseAuthorityMap(
+      serveUpdate.enabled_authorities,
+      SERVE_UPDATE_AUTHORITY_KEYS
+    )
     || !isSha256Hex(serveUpdate.verified_mirror_sha256)
   ) {
     throw new Error('DataNet safe-serve evidence is invalid');
   }
 
+  const sealedCommits = value.sealed_commits;
   if (
-    !isPlainObject(value.sealed_commits)
-    || !isPlainObject(value.sealed_commits.field_object_roundtrip_verifier)
-    || !isPlainObject(value.sealed_commits.tailnet_diagnostics)
+    !hasExactKeys(sealedCommits, SEALED_COMMITS_KEYS)
+    || !isSealedCommitEntry(sealedCommits.field_object_roundtrip_verifier)
+    || !isSealedCommitEntry(sealedCommits.tailnet_diagnostics)
   ) {
     throw new Error('DataNet sealed commit evidence is invalid');
   }
