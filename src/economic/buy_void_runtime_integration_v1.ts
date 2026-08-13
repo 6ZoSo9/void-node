@@ -28,6 +28,14 @@ import {
 export const VOID_BUY_VOID_RUNTIME_INTEGRATION_V1 =
   "VOID_BUY_VOID_RUNTIME_INTEGRATION_V1";
 
+export const VOID_BUY_VOID_STANDALONE_NATIVE_SAGA_REFERENCE_V1 = {
+  command_symbol: "handleBuyVoidCrashConsistentSagaRuntimeCommandV1",
+  status_symbol: "buyVoidCrashConsistentSagaRuntimeStatusV1",
+  legacy_status_key: "crash_consistent_saga_runtime",
+  source_retained: true,
+  parent_mounted: false,
+} as const;
+
 export const VOID_BUY_VOID_CANONICAL_DELIVERY_COMPOSITION_V1 = {
   asset_mode: "void_token_erc20",
   delivery_runtime_marker:
