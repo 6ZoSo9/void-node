@@ -5,6 +5,8 @@ import { pathToFileURL } from "node:url";
 
 export const VOID_BTC_VOID_ATOMIC_SETTLEMENT_STATE_INVARIANTS_V1 =
   "VOID_BTC_VOID_ATOMIC_SETTLEMENT_STATE_INVARIANTS_V1";
+export const BITCOIN_MAX_MONEY_SATOSHIS_V1 = "2100000000000000";
+export const VOID_MAX_SUPPLY_ATOMS_V1 = "666666666000000000000000000";
 
 const TRACE_SCHEMA = "void.btc_void.atomic_settlement_trace.v1";
 const CONTRACT_SCHEMA = "void.btc_void.atomic_settlement_contract.v1";
@@ -113,6 +115,14 @@ function positiveDecimal(value, label) {
   return BigInt(value);
 }
 
+function boundedPositiveDecimal(value, label, maximum, maximumLabel) {
+  const parsed = positiveDecimal(value, label);
+  if (parsed > BigInt(maximum)) {
+    throw new Error(`${label} exceeds ${maximumLabel}`);
+  }
+  return parsed;
+}
+
 function validateContract(raw) {
   const contract = exactKeys(
     structuredClone(raw),
@@ -149,8 +159,18 @@ function validateContract(raw) {
   }
   sha256Id(contract.quote_id, "contract.quote_id");
   sha256Id(contract.reserve_snapshot_id, "contract.reserve_snapshot_id");
-  positiveDecimal(contract.bitcoin_amount_satoshis, "contract.bitcoin_amount_satoshis");
-  positiveDecimal(contract.void_amount_atoms, "contract.void_amount_atoms");
+  boundedPositiveDecimal(
+    contract.bitcoin_amount_satoshis,
+    "contract.bitcoin_amount_satoshis",
+    BITCOIN_MAX_MONEY_SATOSHIS_V1,
+    "Bitcoin MAX_MONEY",
+  );
+  boundedPositiveDecimal(
+    contract.void_amount_atoms,
+    "contract.void_amount_atoms",
+    VOID_MAX_SUPPLY_ATOMS_V1,
+    "VOID maximum supply",
+  );
   if (typeof contract.hashlock_sha256 !== "string" || !HEX64.test(contract.hashlock_sha256)) {
     throw new Error("contract.hashlock_sha256 must be lowercase hex64");
   }
@@ -269,6 +289,7 @@ export function evaluateBtcVoidAtomicSettlementTraceV1(raw) {
     invariants: {
       official_pair_native_btc_native_void_only: true,
       native_integer_amounts_bound: true,
+      native_amounts_within_chain_supply_limits: true,
       regtest_and_isolated_chain_2050_only: true,
       asymmetric_refund_safety_margin_proven: true,
       transitions_fail_closed: true,

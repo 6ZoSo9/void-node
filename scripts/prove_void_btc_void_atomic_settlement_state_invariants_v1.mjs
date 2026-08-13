@@ -5,7 +5,9 @@ import crypto from "node:crypto";
 import fs from "node:fs";
 
 import {
+  BITCOIN_MAX_MONEY_SATOSHIS_V1,
   VOID_BTC_VOID_ATOMIC_SETTLEMENT_STATE_INVARIANTS_V1,
+  VOID_MAX_SUPPLY_ATOMS_V1,
   canonicalJson,
   evaluateBtcVoidAtomicSettlementTraceV1,
 } from "../tools/void-btc-void-atomic-settlement-state-invariants-v1.mjs";
@@ -101,6 +103,47 @@ assert.notEqual(
   evaluateBtcVoidAtomicSettlementTraceV1(differentBitcoinAmount).evaluation_id,
   baseline.evaluation_id,
 );
+
+const differentVoidAmount = trace("BTC_TO_VOID", happyTransitions, {
+  void_amount_atoms: "500000000001",
+});
+assert.notEqual(
+  differentVoidAmount.contract.contract_id,
+  trace().contract.contract_id,
+);
+assert.notEqual(
+  evaluateBtcVoidAtomicSettlementTraceV1(differentVoidAmount).evaluation_id,
+  baseline.evaluation_id,
+);
+
+const maximumAmounts = evaluateBtcVoidAtomicSettlementTraceV1(
+  trace("BTC_TO_VOID", happyTransitions, {
+    bitcoin_amount_satoshis: BITCOIN_MAX_MONEY_SATOSHIS_V1,
+    void_amount_atoms: VOID_MAX_SUPPLY_ATOMS_V1,
+  }),
+);
+assert.equal(
+  maximumAmounts.invariants.native_amounts_within_chain_supply_limits,
+  true,
+);
+for (const [field, maximum, label] of [
+  [
+    "bitcoin_amount_satoshis",
+    BITCOIN_MAX_MONEY_SATOSHIS_V1,
+    "Bitcoin MAX_MONEY",
+  ],
+  ["void_amount_atoms", VOID_MAX_SUPPLY_ATOMS_V1, "VOID maximum supply"],
+]) {
+  assert.throws(
+    () =>
+      evaluateBtcVoidAtomicSettlementTraceV1(
+        trace("BTC_TO_VOID", happyTransitions, {
+          [field]: (BigInt(maximum) + 1n).toString(),
+        }),
+      ),
+    new RegExp(`exceeds ${label}`),
+  );
+}
 
 for (const [field, value] of [
   ["bitcoin_amount_satoshis", "0"],
@@ -243,7 +286,7 @@ process.stdout.write(
     {
       marker: `${VOID_BTC_VOID_ATOMIC_SETTLEMENT_STATE_INVARIANTS_V1}_PROOF_GREEN`,
       status: "PASS",
-      assertions: 50,
+      assertions: 55,
       btc_to_void_evaluation_id: baseline.evaluation_id,
       refund_terminal: refunded.final_phase,
       authority: baseline.authority,

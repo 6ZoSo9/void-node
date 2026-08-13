@@ -16,6 +16,8 @@ Every accepted contract binds:
 - `bitcoin_regtest` and `isolated_chain_2050_test_v1` on Chain ID 2050;
 - exact quote and reserve-snapshot identities;
 - positive canonical integer amounts in satoshis and native VOID atoms;
+- hard amount ceilings of 2,100,000,000,000,000 satoshis (Bitcoin
+  `MAX_MONEY`) and 666,666,666 × 10^18 native VOID atoms (maximum supply);
 - one SHA-256 hashlock; and
 - asymmetric refund horizons with an explicit minimum safety margin.
 
@@ -48,7 +50,10 @@ post-terminal event fails closed.
 Both native amounts are part of the content-addressed contract. Changing even
 one satoshi or one VOID atom changes the contract and evaluation identities;
 zero, signed, fractional, exponent, and non-canonical leading-zero quantities
-are rejected before any transition is evaluated.
+are rejected before any transition is evaluated. Amounts above Bitcoin
+`MAX_MONEY` or the complete VOID maximum supply are also rejected, so a
+synthetic settlement can never claim more native inventory than either chain
+can contain.
 
 ## Authority boundary
 
