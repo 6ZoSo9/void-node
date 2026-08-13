@@ -56,6 +56,8 @@ for (const marker of [
   "native_receipt_parent_mounted: false",
   "native_execution_parent_mounted: false",
   "bounded_auto_fulfillment_orchestrator_parent_mounted: false",
+  "crash_consistent_saga_parent_mounted: false",
+  "native_transaction_preparation_parent_mounted: false",
   "opaque_prepared_transaction_execution_parent_mounted: false",
   "erc20_transaction_preparation_bridge_ready: false",
   "erc20_receipt_reconciliation_bridge_ready: false",
@@ -86,11 +88,24 @@ for (const forbiddenParentImport of [
   'import "./buy_void_native_delivery_receipt_runtime_v1.js";',
   'import "./buy_void_native_execution_runtime_v1.js";',
   'from "./buy_void_bounded_auto_fulfillment_orchestrator_runtime_v1.js"',
+  'from "./buy_void_crash_consistent_saga_runtime_v1.js"',
   'from "./buy_void_saga_execute_prepared_transaction_runtime_v1.js"',
 ]) {
   need(
     !moduleText.includes(forbiddenParentImport),
     `forbidden canonical parent import retained: ${forbiddenParentImport}`,
+  );
+}
+
+for (const forbiddenParentMarker of [
+  "VOID_BUY_VOID_CRASH_CONSISTENT_SAGA_RUNTIME_ACTION_V1",
+  "buyVoidCrashConsistentSagaRuntimeStatusV1",
+  "handleBuyVoidCrashConsistentSagaRuntimeCommandV1",
+  "crash_consistent_saga_runtime:",
+]) {
+  need(
+    !moduleText.includes(forbiddenParentMarker),
+    `native preparation saga remains parent-reachable: ${forbiddenParentMarker}`,
   );
 }
 
@@ -144,5 +159,7 @@ console.log("VOID_BUY_VOID_RUNTIME_INTEGRATION_GUARD_V1_GREEN");
 console.log("canonical_delivery_asset=void_token_erc20");
 console.log("native_parent_mounts=0");
 console.log("bounded_orchestrator_parent_mount=0");
+console.log("crash_saga_parent_mount=0");
+console.log("native_transaction_preparation_parent_mount=0");
 console.log("opaque_prepared_transaction_execution_parent_mount=0");
 console.log("presale_inventory_funding_ready=0");
