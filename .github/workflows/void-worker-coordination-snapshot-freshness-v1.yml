@@ -1,0 +1,56 @@
+name: VOID Worker Coordination Snapshot Freshness V1
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/void-worker-coordination-snapshot-freshness-v1.yml"
+      - "docs/operations/void-worker-coordination-snapshot-freshness-v1.md"
+      - "ops/coordination/worker-coordination-state-v3.json"
+      - "ops/coordination/worker-roster-v1.json"
+      - "scripts/prove_void_worker_coordination_snapshot_freshness_v1.mjs"
+      - "tools/void-worker-coordination-snapshot-freshness-v1.mjs"
+      - "tools/void-worker-coordination-v3.mjs"
+  push:
+    branches:
+      - main
+    paths:
+      - ".github/workflows/void-worker-coordination-snapshot-freshness-v1.yml"
+      - "docs/operations/void-worker-coordination-snapshot-freshness-v1.md"
+      - "ops/coordination/worker-coordination-state-v3.json"
+      - "ops/coordination/worker-roster-v1.json"
+      - "scripts/prove_void_worker_coordination_snapshot_freshness_v1.mjs"
+      - "tools/void-worker-coordination-snapshot-freshness-v1.mjs"
+      - "tools/void-worker-coordination-v3.mjs"
+
+permissions:
+  contents: read
+
+jobs:
+  prove:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        node:
+          - "22"
+          - "24"
+          - "26"
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version: ${{ matrix.node }}
+      - name: Syntax
+        run: |
+          node --check tools/void-worker-coordination-snapshot-freshness-v1.mjs
+          node --check scripts/prove_void_worker_coordination_snapshot_freshness_v1.mjs
+      - name: Prove snapshot freshness boundary
+        run: node scripts/prove_void_worker_coordination_snapshot_freshness_v1.mjs
+      - name: Validate checked-in base coordination
+        run: |
+          node tools/void-worker-coordination-v3.mjs validate \
+            --output "$RUNNER_TEMP/void-worker-coordination-v3.json"
+          test -s "$RUNNER_TEMP/void-worker-coordination-v3.json"
