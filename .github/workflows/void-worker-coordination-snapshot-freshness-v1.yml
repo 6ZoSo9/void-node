@@ -1,32 +1,25 @@
-name: VOID Worker Coordination Snapshot Freshness V1
+name: VOID Worker Coordination Snapshot Freshness v1
 
 on:
   pull_request:
     paths:
       - ".github/workflows/void-worker-coordination-snapshot-freshness-v1.yml"
-      - "docs/operations/void-worker-coordination-snapshot-freshness-v1.md"
-      - "ops/coordination/worker-coordination-state-v3.json"
-      - "ops/coordination/worker-live-dispatch-policy-v1.json"
-      - "ops/coordination/worker-roster-v1.json"
-      - "scripts/prove_void_worker_coordination_live_dispatch_v1.mjs"
-      - "scripts/prove_void_worker_coordination_snapshot_freshness_v1.mjs"
-      - "tools/void-worker-coordination-live-dispatch-v1.mjs"
+      - "ops/coordination/**"
       - "tools/void-worker-coordination-snapshot-freshness-v1.mjs"
-      - "tools/void-worker-coordination-v3.mjs"
+      - "tools/void-worker-coordination-live-dispatch-v1.mjs"
+      - "scripts/prove_void_worker_coordination_snapshot_freshness_v1.mjs"
+      - "scripts/prove_void_worker_coordination_live_dispatch_v1.mjs"
   push:
     branches:
       - main
     paths:
       - ".github/workflows/void-worker-coordination-snapshot-freshness-v1.yml"
-      - "docs/operations/void-worker-coordination-snapshot-freshness-v1.md"
-      - "ops/coordination/worker-coordination-state-v3.json"
-      - "ops/coordination/worker-live-dispatch-policy-v1.json"
-      - "ops/coordination/worker-roster-v1.json"
-      - "scripts/prove_void_worker_coordination_live_dispatch_v1.mjs"
-      - "scripts/prove_void_worker_coordination_snapshot_freshness_v1.mjs"
-      - "tools/void-worker-coordination-live-dispatch-v1.mjs"
+      - "ops/coordination/**"
       - "tools/void-worker-coordination-snapshot-freshness-v1.mjs"
-      - "tools/void-worker-coordination-v3.mjs"
+      - "tools/void-worker-coordination-live-dispatch-v1.mjs"
+      - "scripts/prove_void_worker_coordination_snapshot_freshness_v1.mjs"
+      - "scripts/prove_void_worker_coordination_live_dispatch_v1.mjs"
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -34,33 +27,25 @@ permissions:
 jobs:
   prove:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
     strategy:
       fail-fast: false
       matrix:
-        node:
-          - "22"
-          - "24"
-          - "26"
+        node_major: [22, 24, 26]
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
         with:
-          persist-credentials: false
-      - uses: actions/setup-node@v6
-        with:
-          node-version: ${{ matrix.node }}
-      - name: Syntax
+          node-version: ${{ matrix.node_major }}
+      - name: Syntax check
         run: |
-          node --check tools/void-worker-coordination-live-dispatch-v1.mjs
           node --check tools/void-worker-coordination-snapshot-freshness-v1.mjs
-          node --check scripts/prove_void_worker_coordination_live_dispatch_v1.mjs
+          node --check tools/void-worker-coordination-live-dispatch-v1.mjs
           node --check scripts/prove_void_worker_coordination_snapshot_freshness_v1.mjs
-      - name: Prove snapshot freshness boundary
+          node --check scripts/prove_void_worker_coordination_live_dispatch_v1.mjs
+          node --check scripts/prove_void_worker_coordination_v3.mjs
+      - name: Prove snapshot freshness
         run: node scripts/prove_void_worker_coordination_snapshot_freshness_v1.mjs
-      - name: Prove 15-worker live dispatch contract
+      - name: Prove live dispatch
         run: node scripts/prove_void_worker_coordination_live_dispatch_v1.mjs
-      - name: Validate checked-in base coordination
-        run: |
-          node tools/void-worker-coordination-v3.mjs validate \
-            --output "$RUNNER_TEMP/void-worker-coordination-v3.json"
-          test -s "$RUNNER_TEMP/void-worker-coordination-v3.json"
+      - name: Prove complete Coordination V3 wall
+        run: node scripts/prove_void_worker_coordination_v3.mjs
