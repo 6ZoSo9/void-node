@@ -87,6 +87,28 @@ assert.doesNotMatch(validateSource, /method:\s*['"](?:POST|PUT|PATCH|DELETE)['"]
 assert.doesNotMatch(validateSource, /window\.ethereum|eth_sendTransaction|eth_sendRawTransaction|personal_sign|wallet_requestPermissions/);
 assert.doesNotMatch(validateSource, /\/validator\/submit|\/stake\/lock|\/validator-set\/write/);
 
+const loadingStart = validateSource.indexOf('const setLoading = () => {');
+const loadingEnd = validateSource.indexOf('\n\nconst setError =', loadingStart);
+assert.notEqual(loadingStart, -1, 'setLoading must exist');
+assert.notEqual(loadingEnd, -1, 'setLoading must have a bounded source slice');
+const loadingSource = validateSource.slice(loadingStart, loadingEnd);
+assert.match(loadingSource, /setText\('\[data-validate-min-stake\]', '—'\)/);
+for (const marker of [
+  '[data-validate-registration]',
+  '[data-validate-intake]',
+  '[data-validate-stake-lock]',
+  '[data-validate-admission]',
+]) {
+  assert.match(loadingSource, new RegExp(marker.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
+}
+assert.match(loadingSource, /setText\(selector, 'HOLD'\)/);
+assert.match(loadingSource, /Refreshing readiness evidence/);
+assert.match(loadingSource, /Previous validated values are withheld until the new public matrix validates\./);
+assert.match(
+  validateSource,
+  /const serial = \+\+requestSerial;\s*setLoading\(\);\s*try \{\s*const response = await fetch/s,
+);
+
 console.log('VOID_APP_VALIDATOR_READONLY_V1_PROOF_GREEN');
 console.log('same_origin_get_only=1');
 console.log('bounded_response_bytes=131072');
@@ -97,3 +119,4 @@ console.log('stake_lock_enabled=0');
 console.log('active_validator_admission_enabled=0');
 console.log('wallet_connect_enabled=0');
 console.log('validator_set_write_enabled=0');
+console.log('refresh_stale_values_withheld=1');
