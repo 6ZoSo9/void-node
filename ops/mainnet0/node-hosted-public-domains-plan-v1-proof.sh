@@ -9,8 +9,21 @@ test -f "$DOC"
 
 grep -Fq 'VOID_NODE_HOSTED_PUBLIC_DOMAINS_PLAN_V1' "$DOC"
 
-grep -Fq 'voidchain.io' "$DOC"
-grep -Fq 'nullfeed.io' "$DOC"
+grep -Fq -- '- `voidchain.org`' "$DOC"
+grep -Fq -- '- `nullfeed.org`' "$DOC"
+grep -Fq '### voidchain.org' "$DOC"
+grep -Fq '`voidchain.org` is the canonical public VOID Network / VOID Chain identity domain.' "$DOC"
+grep -Fq '### nullfeed.org' "$DOC"
+grep -Fq '`nullfeed.org` is the canonical NullFeed / DataNet media identity domain.' "$DOC"
+
+if grep -Fq 'voidchain.io' "$DOC"; then
+  echo "HOLD: retired voidchain.io identity remains in public-domain plan" >&2
+  exit 1
+fi
+if grep -Fq 'nullfeed.io' "$DOC"; then
+  echo "HOLD: retired nullfeed.io identity remains in public-domain plan" >&2
+  exit 1
+fi
 
 grep -Fq 'Domains are names. Nodes are the host.' "$DOC"
 grep -Fq 'They must point to VOID node-hosted services.' "$DOC"
@@ -46,8 +59,10 @@ grep -Fq 'private JSON-RPC exposure' "$DOC"
 
 grep -Fq 'Public domain promotion must not outrun node-hosted proof.' "$DOC"
 
-echo "domain_voidchain_io_declared=true"
-echo "domain_nullfeed_io_declared=true"
+echo "domain_voidchain_org_declared=true"
+echo "domain_nullfeed_org_declared=true"
+echo "retired_voidchain_io_absent=true"
+echo "retired_nullfeed_io_absent=true"
 echo "domains_are_dns_identity_only=true"
 echo "node_hosted_required=true"
 echo "paid_hosting_required=false"
