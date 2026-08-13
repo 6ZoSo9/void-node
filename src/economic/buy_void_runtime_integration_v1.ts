@@ -15,11 +15,6 @@ import {
   type BuyVoidPipelineCoordinatorDecisionV1,
 } from "./buy_void_pipeline_coordinator_v1.js";
 import {
-  VOID_BUY_VOID_CRASH_CONSISTENT_SAGA_RUNTIME_ACTION_V1,
-  buyVoidCrashConsistentSagaRuntimeStatusV1,
-  handleBuyVoidCrashConsistentSagaRuntimeCommandV1,
-} from "./buy_void_crash_consistent_saga_runtime_v1.js";
-import {
   VOID_BUY_VOID_SAGA_BROADCAST_RECONCILIATION_RUNTIME_ACTION_V1,
   buyVoidSagaBroadcastReconciliationRuntimeStatusV1,
   handleBuyVoidSagaBroadcastReconciliationRuntimeCommandV1,
@@ -42,6 +37,8 @@ export const VOID_BUY_VOID_CANONICAL_DELIVERY_COMPOSITION_V1 = {
   native_receipt_parent_mounted: false,
   native_execution_parent_mounted: false,
   bounded_auto_fulfillment_orchestrator_parent_mounted: false,
+  crash_consistent_saga_parent_mounted: false,
+  native_transaction_preparation_parent_mounted: false,
   opaque_prepared_transaction_execution_parent_mounted: false,
   erc20_transaction_preparation_bridge_ready: false,
   erc20_receipt_reconciliation_bridge_ready: false,
@@ -72,6 +69,8 @@ export const VOID_BUY_VOID_RUNTIME_INTEGRATION_AUTHORITY_V1 = {
   native_receipt_parent_mounted: false,
   native_execution_parent_mounted: false,
   bounded_auto_fulfillment_orchestrator_parent_mounted: false,
+  crash_consistent_saga_parent_mounted: false,
+  native_transaction_preparation_parent_mounted: false,
   opaque_prepared_transaction_execution_parent_mounted: false,
   private_broadcaster_inspection_ipc_possible: false,
   private_broadcaster_submission_ipc_possible_when_explicitly_enabled: false,
@@ -229,7 +228,6 @@ function responseStatus(decision: BuyVoidPipelineCoordinatorDecisionV1): number 
 function supportedActionsV1(): string[] {
   return [
     ...Object.keys(VOID_BUY_VOID_PIPELINE_CONFIRMATIONS_V1),
-    VOID_BUY_VOID_CRASH_CONSISTENT_SAGA_RUNTIME_ACTION_V1,
     VOID_BUY_VOID_SAGA_BROADCAST_RECONCILIATION_RUNTIME_ACTION_V1,
     VOID_BUY_VOID_SAGA_TERMINAL_CLOSEOUT_RUNTIME_ACTION_V1,
   ];
@@ -255,8 +253,6 @@ export function buyVoidRuntimeStatusV1(): Record<string, unknown> {
       ...VOID_BUY_VOID_CANONICAL_DELIVERY_COMPOSITION_V1,
       runtime_status: buyVoidDeliveryRuntimeStatusV1(),
     },
-    crash_consistent_saga_runtime:
-      buyVoidCrashConsistentSagaRuntimeStatusV1(),
     saga_broadcast_reconciliation_runtime:
       buyVoidSagaBroadcastReconciliationRuntimeStatusV1(),
     saga_terminal_closeout_runtime:
@@ -308,17 +304,6 @@ export function handleBuyVoidRuntimeCommandV1(
       forbidden_key: forbiddenKey,
       max_input_nesting_depth: MAX_INPUT_NESTING_DEPTH,
     });
-  }
-
-  if (
-    String((body as any).action || "") ===
-    VOID_BUY_VOID_CRASH_CONSISTENT_SAGA_RUNTIME_ACTION_V1
-  ) {
-    return handleBuyVoidCrashConsistentSagaRuntimeCommandV1(
-      req,
-      res,
-      { root_dir: buyVoidRuntimeRootDirV1() },
-    );
   }
 
   if (
