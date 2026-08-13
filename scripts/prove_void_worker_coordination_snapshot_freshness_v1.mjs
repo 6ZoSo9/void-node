@@ -32,8 +32,18 @@ assert.equal(matching.main_anchor_matches, true);
 assert.equal(matching.main_refresh_required, false);
 assert.equal(matching.live_refresh_required_before_mutation, true);
 assert.equal(matching.snapshot.lifecycle_scope, "point_in_time_only");
+assert.equal(matching.snapshot.worker_capacity_scope, "nominal_roster_only");
 assert.equal(matching.snapshot.main_sha, state.main_sha);
 assert.equal(matching.observed_main_sha, state.main_sha);
+assert.equal(matching.worker_execution_report_evidence_required, true);
+assert.equal(
+  matching.live_plan_workers_not_modeled_by_snapshot_require_external_evidence,
+  true,
+);
+assert.deepEqual(
+  matching.snapshot_worker_ids_requiring_live_execution_evidence,
+  roster.workers.map((worker) => worker.id).sort((a, b) => a.localeCompare(b)),
+);
 assert.equal(matching.authority_granted, false);
 assert.equal(matching.source_mutation_authorized, false);
 assert.equal(matching.runtime_mutation_authorized, false);
@@ -43,8 +53,16 @@ assert.equal(Object.isFrozen(matching), true);
 assert.equal(Object.isFrozen(matching.snapshot), true);
 assert.equal(Object.isFrozen(matching.canonical_prs_requiring_live_reread), true);
 assert.equal(Object.isFrozen(matching.live_facts_required_before_mutation), true);
+assert.equal(
+  Object.isFrozen(matching.snapshot_worker_ids_requiring_live_execution_evidence),
+  true,
+);
 assert.equal(matching.live_facts_required_before_mutation.includes("current_main"), true);
 assert.equal(matching.live_facts_required_before_mutation.includes("recent_writes"), true);
+assert.equal(
+  matching.live_facts_required_before_mutation.includes("worker_execution_report_evidence"),
+  true,
+);
 assert.equal(matching.live_facts_required_before_mutation.includes("v1_collision_evidence"), true);
 assert.equal(matching.tracking_issues_requiring_live_reread.includes(1182), true);
 assert.equal(
@@ -68,6 +86,11 @@ assert.deepEqual(
   stale.tracking_issues_requiring_live_reread,
   matching.tracking_issues_requiring_live_reread,
 );
+assert.deepEqual(
+  stale.snapshot_worker_ids_requiring_live_execution_evidence,
+  matching.snapshot_worker_ids_requiring_live_execution_evidence,
+);
+assert.equal(stale.worker_execution_report_evidence_required, true);
 assert.equal(stale.authority_granted, false);
 
 assert.throws(
@@ -89,6 +112,9 @@ console.log(`matching_outcome=${matching.outcome}`);
 console.log(`stale_outcome=${stale.outcome}`);
 console.log(`canonical_pr_rereads=${matching.canonical_prs_requiring_live_reread.length}`);
 console.log(`tracking_issue_rereads=${matching.tracking_issues_requiring_live_reread.length}`);
+console.log(`snapshot_worker_evidence_rereads=${matching.snapshot_worker_ids_requiring_live_execution_evidence.length}`);
+console.log("worker_capacity_scope=nominal_roster_only");
+console.log("worker_execution_report_evidence_required=true");
 console.log("live_refresh_required_before_mutation=true");
 console.log("point_in_time_lifecycle_only=true");
 console.log("source_mutation_authorized=false");

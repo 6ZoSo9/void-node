@@ -20,6 +20,7 @@ const LIVE_FACTS_REQUIRED = Object.freeze([
   "reviews_checks",
   "tracking_issue_state",
   "recent_writes",
+  "worker_execution_report_evidence",
   "v1_collision_evidence",
 ]);
 
@@ -65,6 +66,9 @@ export function assessCoordinationSnapshotFreshnessV1(roster, state, observedMai
 
   const trackingIssues = [...new Set(state.lanes.flatMap((lane) => lane.tracking_issues))]
     .sort((a, b) => a - b);
+  const snapshotWorkerIds = roster.workers
+    .map((worker) => worker.id)
+    .sort((a, b) => a.localeCompare(b));
 
   return deepFreeze({
     marker: MARKER,
@@ -76,6 +80,7 @@ export function assessCoordinationSnapshotFreshnessV1(roster, state, observedMai
       updated_at: state.updated_at,
       plan_issue: state.plan_issue,
       lifecycle_scope: "point_in_time_only",
+      worker_capacity_scope: "nominal_roster_only",
     },
     observed_main_sha: observedMainSha,
     main_anchor_matches: mainAnchorMatches,
@@ -84,6 +89,9 @@ export function assessCoordinationSnapshotFreshnessV1(roster, state, observedMai
     live_facts_required_before_mutation: [...LIVE_FACTS_REQUIRED],
     canonical_prs_requiring_live_reread: canonicalPrRereads,
     tracking_issues_requiring_live_reread: trackingIssues,
+    worker_execution_report_evidence_required: true,
+    snapshot_worker_ids_requiring_live_execution_evidence: snapshotWorkerIds,
+    live_plan_workers_not_modeled_by_snapshot_require_external_evidence: true,
     snapshot_lane_count: base.lane_count,
     snapshot_worker_count: base.worker_count,
     source_mutation_authorized: false,
