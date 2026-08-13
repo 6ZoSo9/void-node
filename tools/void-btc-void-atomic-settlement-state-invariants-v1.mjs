@@ -125,6 +125,8 @@ function validateContract(raw) {
       "void_network_identity",
       "quote_id",
       "reserve_snapshot_id",
+      "bitcoin_amount_satoshis",
+      "void_amount_atoms",
       "hashlock_sha256",
       "bitcoin_refund_horizon_seconds",
       "void_refund_horizon_seconds",
@@ -147,6 +149,8 @@ function validateContract(raw) {
   }
   sha256Id(contract.quote_id, "contract.quote_id");
   sha256Id(contract.reserve_snapshot_id, "contract.reserve_snapshot_id");
+  positiveDecimal(contract.bitcoin_amount_satoshis, "contract.bitcoin_amount_satoshis");
+  positiveDecimal(contract.void_amount_atoms, "contract.void_amount_atoms");
   if (typeof contract.hashlock_sha256 !== "string" || !HEX64.test(contract.hashlock_sha256)) {
     throw new Error("contract.hashlock_sha256 must be lowercase hex64");
   }
@@ -256,6 +260,7 @@ export function evaluateBtcVoidAtomicSettlementTraceV1(raw) {
     applied_event_ids: appliedEventIds,
     invariants: {
       official_pair_native_btc_native_void_only: true,
+      native_integer_amounts_bound: true,
       regtest_and_isolated_chain_2050_only: true,
       asymmetric_refund_safety_margin_proven: true,
       transitions_fail_closed: true,

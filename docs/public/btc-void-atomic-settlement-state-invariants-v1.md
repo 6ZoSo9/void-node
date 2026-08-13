@@ -15,6 +15,7 @@ Every accepted contract binds:
 - direction `BTC_TO_VOID` or `VOID_TO_BTC`;
 - `bitcoin_regtest` and `isolated_chain_2050_test_v1` on Chain ID 2050;
 - exact quote and reserve-snapshot identities;
+- positive canonical integer amounts in satoshis and native VOID atoms;
 - one SHA-256 hashlock; and
 - asymmetric refund horizons with an explicit minimum safety margin.
 
@@ -42,6 +43,11 @@ an already-applied event is idempotent and leaves the evaluation identity
 unchanged. A different event, stale `from_phase`, skipped phase, changed
 receipt, unknown field, wrong network identity, unsafe refund ordering, or
 post-terminal event fails closed.
+
+Both native amounts are part of the content-addressed contract. Changing even
+one satoshi or one VOID atom changes the contract and evaluation identities;
+zero, signed, fractional, exponent, and non-canonical leading-zero quantities
+are rejected before any transition is evaluated.
 
 ## Authority boundary
 

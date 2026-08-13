@@ -24,6 +24,8 @@ function makeContract(direction = "BTC_TO_VOID", overrides = {}) {
     void_network_identity: "isolated_chain_2050_test_v1",
     quote_id: `sha256:${"11".repeat(32)}`,
     reserve_snapshot_id: `sha256:${"22".repeat(32)}`,
+    bitcoin_amount_satoshis: "125000",
+    void_amount_atoms: "500000000000",
     hashlock_sha256: "33".repeat(32),
     bitcoin_refund_horizon_seconds: direction === "BTC_TO_VOID" ? "7200" : "3600",
     void_refund_horizon_seconds: direction === "BTC_TO_VOID" ? "3600" : "7200",
@@ -74,6 +76,7 @@ for (const direction of ["BTC_TO_VOID", "VOID_TO_BTC"]) {
   assert.equal(result.final_phase, "SETTLED");
   assert.equal(result.terminal, true);
   assert.equal(result.applied_event_ids.length, 7);
+  assert.equal(result.invariants.native_integer_amounts_bound, true);
   assert.equal(result.authority.transaction_constructed, false);
   assert.equal(result.authority.executable_inventory_reserved, false);
   assert.ok(Object.isFrozen(result));
@@ -86,6 +89,32 @@ const replay = evaluateBtcVoidAtomicSettlementTraceV1(replayTrace);
 const baseline = evaluateBtcVoidAtomicSettlementTraceV1(trace());
 assert.equal(replay.evaluation_id, baseline.evaluation_id);
 assert.equal(replay.applied_event_ids.length, 7);
+
+const differentBitcoinAmount = trace("BTC_TO_VOID", happyTransitions, {
+  bitcoin_amount_satoshis: "125001",
+});
+assert.notEqual(
+  differentBitcoinAmount.contract.contract_id,
+  trace().contract.contract_id,
+);
+assert.notEqual(
+  evaluateBtcVoidAtomicSettlementTraceV1(differentBitcoinAmount).evaluation_id,
+  baseline.evaluation_id,
+);
+
+for (const [field, value] of [
+  ["bitcoin_amount_satoshis", "0"],
+  ["void_amount_atoms", "0"],
+  ["bitcoin_amount_satoshis", "0125000"],
+  ["void_amount_atoms", "5e11"],
+]) {
+  assert.throws(
+    () => evaluateBtcVoidAtomicSettlementTraceV1(trace("BTC_TO_VOID", happyTransitions, {
+      [field]: value,
+    })),
+    /positive canonical decimal string/,
+  );
+}
 
 const refunded = evaluateBtcVoidAtomicSettlementTraceV1(
   trace("BTC_TO_VOID", [
@@ -203,7 +232,7 @@ process.stdout.write(
     {
       marker: `${VOID_BTC_VOID_ATOMIC_SETTLEMENT_STATE_INVARIANTS_V1}_PROOF_GREEN`,
       status: "PASS",
-      assertions: 41,
+      assertions: 49,
       btc_to_void_evaluation_id: baseline.evaluation_id,
       refund_terminal: refunded.final_phase,
       authority: baseline.authority,
