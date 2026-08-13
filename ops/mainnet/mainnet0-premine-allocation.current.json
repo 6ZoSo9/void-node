@@ -1,0 +1,86 @@
+{
+  "marker": "VOID_MAINNET0_PREMINE_ALLOCATION_CURRENT_V1",
+  "status": "reconciled",
+  "chain_id": 2050,
+  "observed_block": 37371,
+  "void_token": "0x470075B85352Eb86F7d089FB9ba88945f12AAd94",
+  "decimals": 18,
+  "total_supply_void": "333333333",
+  "total_supply_atomic": "333333333000000000000000000",
+  "current_nonzero_holders": [
+    {
+      "label": "VoidTreasury",
+      "address": "0x554eCc7be6f0b7cC3d1c578c2BB848e535c02514",
+      "balance_void": "333207333",
+      "balance_atomic": "333207333000000000000000000",
+      "classification": "core_treasury_custody"
+    },
+    {
+      "label": "UpgradeStaking",
+      "address": "0x77DFEedD19A4741f299C902AD5bBe0DE917a9e59",
+      "balance_void": "126000",
+      "balance_atomic": "126000000000000000000000",
+      "classification": "bootstrap_validator_stake"
+    }
+  ],
+  "observed_zero_balances": [
+    {
+      "label": "OpsTreasury",
+      "address": "0xf0D64c62A87034e1838dB8ec1e2e33666814E7D9"
+    },
+    {
+      "label": "ValidatorSet",
+      "address": "0x4b3F78e86b0427F750938e7B022d98aA4275F2f7"
+    },
+    {
+      "label": "EmissionsController",
+      "address": "0x72B2DEaD8cE4728a1F3b800F96502A7acE091b81"
+    },
+    {
+      "label": "RewardEngine",
+      "address": "0xE2670614aB3caB77999847F3FD2fF6Fc34fe2292"
+    },
+    {
+      "label": "BuyVoidFulfillmentWallet",
+      "address": "0xc884f631c3881b8b672bfcbf019c856146cd7f73"
+    }
+  ],
+  "validator_reconciliation": {
+    "seed_stake_void": "1000",
+    "bootstrap_validator_count": 126,
+    "expected_bootstrap_stake_void": "126000",
+    "upgrade_staking_live_balance_void": "126000",
+    "matches_expected_bootstrap_stake": true
+  },
+  "retained_transfer_log_reconciliation": {
+    "event_count": 259,
+    "log_errors": [],
+    "event_history_complete_for_current_state": true,
+    "void_treasury_lifetime_in_void": "333333333",
+    "void_treasury_lifetime_out_void": "126000",
+    "upgrade_staking_lifetime_in_void": "126000",
+    "upgrade_staking_lifetime_out_void": "0",
+    "ops_treasury_lifetime_in_void": "126000",
+    "ops_treasury_lifetime_out_void": "126000"
+  },
+  "invariants": {
+    "nonzero_holder_sum_void": "333333333",
+    "nonzero_holder_sum_matches_total_supply": true,
+    "unreconciled_void": "0"
+  },
+  "future_target_reference": "docs/operators/void-purpose-vault-allocation-v1.md",
+  "tracking_issue": 1267,
+  "authority": {
+    "accounting_record_only": true,
+    "wallet_access": false,
+    "signing": false,
+    "transaction_construction": false,
+    "transaction_broadcast": false,
+    "money_movement": false
+  },
+  "notes": [
+    "This file records current canonical Chain-2050 custody, not historical operational artifacts from other or superseded runtime states.",
+    "The 126,000 VOID previously described as distributed or unreconciled is fully reconciled as bootstrap validator stake held by the validator upgrade-track staking contract.",
+    "Funding targets are allocations, not transfer authority. Any live treasury movement remains separately reviewed and explicitly authorized."
+  ]
+}
