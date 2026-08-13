@@ -67,7 +67,51 @@ expectReject(
 );
 expectReject(
   (value) => { value.proof_bundle_public_summary_v1.dangerous_authorities_enabled.ledger_write = true; },
-  /proof summary is not public-safe/,
+  /proof summary is not exact public-safe evidence/,
+);
+expectReject(
+  (value) => { value.proof_bundle_public_summary_v1.extra = true; },
+  /proof summary is not exact public-safe evidence/,
+);
+expectReject(
+  (value) => { value.proof_bundle_public_summary_v1.boundaries.extra = false; },
+  /proof summary is not exact public-safe evidence/,
+);
+expectReject(
+  (value) => { value.proof_bundle_public_summary_v1.bounded_report.extra = 0; },
+  /proof summary is not exact public-safe evidence/,
+);
+expectReject(
+  (value) => { value.proof_bundle_public_summary_v1.dangerous_authorities_enabled.extra = false; },
+  /proof summary is not exact public-safe evidence/,
+);
+expectReject(
+  (value) => { value.safe_serve_runbook_discovery_v1.extra = true; },
+  /safe-serve runbook boundary is invalid/,
+);
+expectReject(
+  (value) => { value.safe_serve_runbook_discovery_v1.dangerous_authorities_enabled.extra = false; },
+  /safe-serve runbook boundary is invalid/,
+);
+expectReject(
+  (value) => { value.safe_serve_update_v1.extra = true; },
+  /safe-serve evidence is invalid/,
+);
+expectReject(
+  (value) => { value.safe_serve_update_v1.enabled_authorities.extra = false; },
+  /safe-serve evidence is invalid/,
+);
+expectReject(
+  (value) => { value.sealed_commits.extra = {}; },
+  /sealed commit evidence is invalid/,
+);
+expectReject(
+  (value) => { value.sealed_commits.field_object_roundtrip_verifier.extra = true; },
+  /sealed commit evidence is invalid/,
+);
+expectReject(
+  (value) => { value.sealed_commits.tailnet_diagnostics.main = '0'.repeat(40); },
+  /sealed commit evidence is invalid/,
 );
 
 const makeBody = (chunks, hooks = {}) => ({
