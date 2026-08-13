@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 
@@ -47,6 +48,7 @@ const CONTROL_KEYS = [
 const ENTRY_KEYS = [
   "access",
   "authority",
+  "canonical_sha256",
   "http_method",
   "id",
   "kind",
@@ -62,6 +64,25 @@ const ENTRY_KEYS = [
 
 async function readJson(path) {
   return JSON.parse(await readFile(new URL(path, `file://${ROOT}/`), "utf8"));
+}
+
+function canonicalJson(value) {
+  if (Array.isArray(value)) {
+    return `[${value.map((entry) => canonicalJson(entry)).join(",")}]`;
+  }
+  if (value !== null && typeof value === "object") {
+    return `{${Object.keys(value)
+      .sort()
+      .map((key) => `${JSON.stringify(key)}:${canonicalJson(value[key])}`)
+      .join(",")}}`;
+  }
+  return JSON.stringify(value);
+}
+
+function canonicalSha256(value) {
+  return createHash("sha256")
+    .update(canonicalJson(value), "utf8")
+    .digest("hex");
 }
 
 function markerPresent(document, marker) {
@@ -152,6 +173,7 @@ for (const entry of catalog.entries) {
   assert.equal(typeof entry.purpose, "string");
   assert.ok(entry.purpose.length > 0 && entry.purpose.length <= 256);
   assert.match(entry.required_marker, /^[A-Z0-9_]+$/);
+  assert.match(entry.canonical_sha256, /^[0-9a-f]{64}$/);
   validatePublicJsonPath(entry.path);
   assert.equal(entry.repository_path, `public${entry.path}`);
   assert.equal(entry.media_type, "application/json");
@@ -165,6 +187,11 @@ for (const entry of catalog.entries) {
   if (!catalogOnly) {
     const source = await readJson(entry.repository_path);
     assert.equal(markerPresent(source, entry.required_marker), true, `marker missing for ${entry.id}`);
+    assert.equal(
+      canonicalSha256(source),
+      entry.canonical_sha256,
+      `canonical source digest mismatch for ${entry.id}`,
+    );
   }
 }
 

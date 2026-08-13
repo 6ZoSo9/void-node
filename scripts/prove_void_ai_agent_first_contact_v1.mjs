@@ -60,6 +60,12 @@ const FIRST_CONTACT_MANIFEST_INTEGRITY_REPAIR_BOUNDARY = [
   "scripts/prove_void_ai_agent_first_contact_runtime_v1.mjs",
   "tools/void-ai-agent-first-contact-v1.mjs",
 ];
+const PUBLIC_UTILITY_PROVENANCE_BOUNDARY = [
+  "public/public-node/agents/public-utility-v1.json",
+  "scripts/prove_void_ai_agent_first_contact_v1.mjs",
+  "scripts/prove_void_ai_agent_public_utility_v1.mjs",
+  "tools/void-ai-agent-first-contact-v1.mjs",
+];
 const ALLOWED_BOUNDARY = [
   ...new Set([...ORIGINAL_BOUNDARY, ...COMPOSITION_BOUNDARY]),
 ];
@@ -124,6 +130,12 @@ function intakeFingerprint(value) {
     .digest("hex");
 }
 
+function canonicalSha256(value) {
+  return createHash("sha256")
+    .update(canonicalJson(value), "utf8")
+    .digest("hex");
+}
+
 const REVIEWED_FIRST_CONTACT_MANIFEST_FINGERPRINT_SHA256 =
   "ed56951c1bc043911ede167dc2cddbab38af62f069d07638dc1825d7e936f413";
 const COLD_START_CURL_COMMAND =
@@ -151,6 +163,13 @@ const datanetReceipt = JSON.parse(
     "utf8",
   ),
 );
+for (const entry of publicUtility.entries) {
+  assert.match(entry.canonical_sha256, /^[0-9a-f]{64}$/);
+  const source = JSON.parse(
+    await readFile(join(ROOT, entry.repository_path), "utf8"),
+  );
+  assert.equal(canonicalSha256(source), entry.canonical_sha256);
+}
 assert.equal(manifest.marker, "VOID_AI_AGENT_FIRST_CONTACT_V1");
 assert.equal(manifest.protocol, "void-ai-agent-first-contact");
 assert.equal(manifest.version, "1");
@@ -606,6 +625,9 @@ const BUDGET_EXHAUSTION_RESOURCE_PATHS = [
   "/public-node/agents/budget-resource-b-v1.json",
   "/public-node/datanet/budget-resource-c-v1.json",
 ];
+const BUDGET_EXHAUSTION_RESOURCE_DOCUMENTS = publicUtility.entries.map(
+  (entry) => ({ marker: entry.required_marker }),
+);
 fixtures.set(BUDGET_EXHAUSTION_MANIFEST_PATH, {
   ...manifest,
   entrypoints: {
@@ -619,12 +641,13 @@ fixtures.set(BUDGET_EXHAUSTION_UTILITY_PATH, {
     ...entry,
     path: BUDGET_EXHAUSTION_RESOURCE_PATHS[index],
     repository_path: `public${BUDGET_EXHAUSTION_RESOURCE_PATHS[index]}`,
+    canonical_sha256: canonicalSha256(
+      BUDGET_EXHAUSTION_RESOURCE_DOCUMENTS[index],
+    ),
   })),
 });
 for (const [index, path] of BUDGET_EXHAUSTION_RESOURCE_PATHS.entries()) {
-  fixtures.set(path, {
-    marker: publicUtility.entries[index].required_marker,
-  });
+  fixtures.set(path, BUDGET_EXHAUSTION_RESOURCE_DOCUMENTS[index]);
 }
 
 let fixtureOverrides = new Map();
@@ -735,6 +758,8 @@ try {
     report.useful_public_resources.every(
       (entry) =>
         entry.catalog_observed_by_client === true &&
+        entry.canonical_sha256_verified === true &&
+        entry.observed_canonical_sha256 === entry.canonical_sha256 &&
         entry.runtime_observed === true &&
         entry.document !== null,
     ),
@@ -866,6 +891,37 @@ try {
   assert.equal(
     rejectedResource.observation_error,
     "required_marker_not_observed",
+  );
+
+  const tamperedReceipt = await runClient(
+    ["--base-url", baseUrl],
+    [
+      [
+        publicUtility.entries[2].path,
+        { ...datanetReceipt, unreviewed_extension: true },
+      ],
+    ],
+  );
+  assert.equal(tamperedReceipt.code, 2, tamperedReceipt.stderr);
+  const tamperedReceiptReport = JSON.parse(tamperedReceipt.stdout);
+  assert.equal(
+    tamperedReceiptReport.checks.public_utility_catalog_loaded,
+    true,
+  );
+  assert.equal(
+    tamperedReceiptReport.checks.public_utility_resources_observed,
+    false,
+  );
+  const digestRejectedReceipt =
+    tamperedReceiptReport.useful_public_resources.find(
+      (resource) => resource.id === "datanet_replication_receipt",
+    );
+  assert.equal(digestRejectedReceipt.runtime_observed, false);
+  assert.equal(digestRejectedReceipt.canonical_sha256_verified, false);
+  assert.equal(digestRejectedReceipt.document, null);
+  assert.equal(
+    digestRejectedReceipt.observation_error,
+    "canonical_sha256_mismatch",
   );
 
   const exhaustedBudget = await runClient(
@@ -1152,6 +1208,7 @@ if (workingBoundary.length > 0) {
     PUBLIC_UTILITY_RESOURCE_OBSERVATION_REPAIR_BOUNDARY,
     POST_MERGE_CONTRACT_INTEGRITY_REPAIR_BOUNDARY,
     FIRST_CONTACT_MANIFEST_INTEGRITY_REPAIR_BOUNDARY,
+    PUBLIC_UTILITY_PROVENANCE_BOUNDARY,
   ].some(
     (boundary) =>
       JSON.stringify(workingBoundary) ===

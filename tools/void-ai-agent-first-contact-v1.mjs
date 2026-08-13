@@ -119,6 +119,7 @@ const PUBLIC_UTILITY_CONTROL_KEYS = [
 const PUBLIC_UTILITY_ENTRY_KEYS = [
   "access",
   "authority",
+  "canonical_sha256",
   "http_method",
   "id",
   "kind",
@@ -518,6 +519,12 @@ function canonicalJson(value) {
   return JSON.stringify(value);
 }
 
+function canonicalSha256(value) {
+  return createHash("sha256")
+    .update(canonicalJson(value), "utf8")
+    .digest("hex");
+}
+
 function agentIntakeFingerprintValid(contract) {
   if (
     contract === null ||
@@ -750,6 +757,8 @@ function usefulPublicResources(manifest, publicUtility) {
       !isPublicJsonPath(entry?.path) ||
       paths.has(entry.path) ||
       entry.repository_path !== `public${entry.path}` ||
+      typeof entry?.canonical_sha256 !== "string" ||
+      !/^[0-9a-f]{64}$/.test(entry.canonical_sha256) ||
       typeof entry?.required_marker !== "string" ||
       !/^[A-Z0-9_]+$/.test(entry.required_marker) ||
       entry.http_method !== "GET" ||
@@ -772,6 +781,7 @@ function usefulPublicResources(manifest, publicUtility) {
       mode: "anonymous_read_only",
       catalog_observed_by_client: true,
       required_marker: entry.required_marker,
+      canonical_sha256: entry.canonical_sha256,
       runtime_observed: false,
     }];
   });
@@ -812,21 +822,31 @@ async function observeUsefulPublicResources(
         }
       }
 
-      const runtimeObserved =
+      const markerObserved =
         response.ok === true &&
         markerPresent(response.body, resource.required_marker);
+      const observedCanonicalSha256 = response.ok
+        ? canonicalSha256(response.body)
+        : null;
+      const canonicalSha256Verified =
+        observedCanonicalSha256 === resource.canonical_sha256;
+      const runtimeObserved = markerObserved && canonicalSha256Verified;
       return {
         ...resource,
         http_status: response.status,
         body_bytes: response.body_bytes,
         response_reused: responseReused,
+        observed_canonical_sha256: observedCanonicalSha256,
+        canonical_sha256_verified: canonicalSha256Verified,
         runtime_observed: runtimeObserved,
         observation_error: runtimeObserved
           ? null
           : response.error ??
             response.parse_error ??
             (response.ok
-              ? "required_marker_not_observed"
+              ? markerObserved
+                ? "canonical_sha256_mismatch"
+                : "required_marker_not_observed"
               : "public_utility_resource_unavailable"),
         document: runtimeObserved ? response.body : null,
       };
