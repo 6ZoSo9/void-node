@@ -9,6 +9,7 @@ import readline from "node:readline/promises";
 import {fileURLToPath, pathToFileURL} from "node:url";
 
 const MARKER="VOID_NODE_RELEASE_UPDATE_V1";
+const HEALTH_RESPONSE_MAX_BYTES=64*1024;
 function fail(m,code=1){console.error(`ERROR: ${m}`);process.exit(code);}
 function say(m=""){console.log(m);}
 function shaBuffer(b){return crypto.createHash("sha256").update(b).digest("hex");}
@@ -81,6 +82,23 @@ async function downloadAsset(a,dest,allowFile){
   const digest=shaBuffer(b);if(digest!==a.sha256)fail(`asset checksum mismatch for ${a.name}`);
   fs.writeFileSync(dest,b,{mode:a.name.endsWith(".sh")?0o755:0o644});
 }
+function healthLimit(o,name,fallback,min,max){
+  if(!o.testAllowFile||process.env[name]===undefined)return fallback;
+  const value=Number(process.env[name]);
+  if(!Number.isSafeInteger(value)||value<min||value>max)fail(`invalid ${name}`);
+  return value;
+}
+async function readBoundedHealthJson(response){
+  if(!response.body)throw new Error("health response body unavailable");
+  const reader=response.body.getReader(),chunks=[];let bytes=0;
+  for(;;){
+    const {done,value}=await reader.read();if(done)break;if(!value)continue;
+    bytes+=value.byteLength;
+    if(bytes>HEALTH_RESPONSE_MAX_BYTES){await reader.cancel();throw new Error("health response exceeds size limit");}
+    chunks.push(Buffer.from(value));
+  }
+  return JSON.parse(Buffer.concat(chunks,bytes).toString("utf8"));
+}
 function parseArgs(){
   const argv=process.argv.slice(2);const command=argv.shift()||"help";const o={command,channel:"",installRoot:"",binDir:"",yes:false,allowDowngrade:false,allowCandidate:false,restartIfRunning:false,healthUrl:"",healthCommand:"",testAllowFile:false,skipAttestation:false};
   for(let i=0;i<argv.length;i++){
@@ -104,9 +122,13 @@ async function confirm(o,message){if(o.yes)return; if(!process.stdin.isTTY)fail(
 async function healthCheck(o){
   if(o.healthCommand){if(!o.testAllowFile&&process.env.VOID_NODE_UPDATE_ALLOW_HEALTH_COMMAND!=="1")fail("--health-command is test/operator-only");return childProcess.spawnSync("bash",["-lc",o.healthCommand],{stdio:"inherit"}).status===0;}
   if(!o.healthUrl)return true;
-  for(let i=0;i<30;i++){
-    try{const ac=new AbortController();const t=setTimeout(()=>ac.abort(),3000);const r=await fetch(o.healthUrl,{signal:ac.signal});clearTimeout(t);if(r.ok){const j=await r.json();if(j?.ready===true&&Number(j?.gap)===0&&Number(j?.txroot_live)===1)return true;}}catch{}
-    await new Promise(r=>setTimeout(r,1000));
+  const attempts=healthLimit(o,"VOID_NODE_UPDATE_TEST_HEALTH_ATTEMPTS",30,1,30);
+  const timeoutMs=healthLimit(o,"VOID_NODE_UPDATE_TEST_HEALTH_TIMEOUT_MS",3000,50,3000);
+  const retryDelayMs=healthLimit(o,"VOID_NODE_UPDATE_TEST_HEALTH_RETRY_DELAY_MS",1000,0,1000);
+  for(let i=0;i<attempts;i++){
+    const ac=new AbortController(),t=setTimeout(()=>ac.abort(),timeoutMs);
+    try{const r=await fetch(o.healthUrl,{signal:ac.signal});if(r.ok){const j=await readBoundedHealthJson(r);if(j?.ready===true&&Number(j?.gap)===0&&Number(j?.txroot_live)===1)return true;}}catch{}finally{clearTimeout(t);}
+    if(i+1<attempts&&retryDelayMs>0)await new Promise(r=>setTimeout(r,retryDelayMs));
   }
   return false;
 }
