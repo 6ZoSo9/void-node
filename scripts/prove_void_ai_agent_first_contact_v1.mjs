@@ -125,9 +125,9 @@ function intakeFingerprint(value) {
 }
 
 const REVIEWED_FIRST_CONTACT_MANIFEST_FINGERPRINT_SHA256 =
-  "466c2aed00827f7815315eef1957af7576b72d01e361b44150ce77ab88ea0d7e";
+  "c9f3317ceaab0eced1bf93bded57929c261fa3e69016f9f2f931a93cc252e477";
 const COLD_START_CURL_COMMAND =
-  "test -n \"$VOID_PUBLIC_ORIGIN\" && curl --proto '=https' --max-redirs 0 --fail --silent --show-error --max-time 8 --max-filesize 65536 --header 'Accept: application/json' \"${VOID_PUBLIC_ORIGIN%/}/public-node/agents/first-contact-v1.json\"";
+  "test -n \"$VOID_PUBLIC_ORIGIN\" && curl --disable --proto '=https' --max-redirs 0 --fail --silent --show-error --max-time 8 --max-filesize 65536 --header 'Accept: application/json' \"${VOID_PUBLIC_ORIGIN%/}/public-node/agents/first-contact-v1.json\"";
 
 assert.equal(
   intakeFingerprint(manifest),
@@ -180,6 +180,16 @@ assert.equal(manifest.honesty.work_credit_earning_promised, false);
 assert.equal(manifest.honesty.mutation_authority_granted, false);
 assert.deepEqual(manifest.client.http_methods, ["GET"]);
 assert.equal(manifest.client.cold_start_curl_command, COLD_START_CURL_COMMAND);
+assert.match(
+  COLD_START_CURL_COMMAND,
+  /&& curl --disable --proto '=https'/,
+  "curl must disable ambient config before every other curl option",
+);
+assert.doesNotMatch(
+  COLD_START_CURL_COMMAND,
+  /(?:^|\s)--config(?:\s|=|$)/,
+  "cold start must not load an explicit curl config",
+);
 
 const clientSource = await readFile(CLIENT_PATH, "utf8");
 for (const forbidden of [
