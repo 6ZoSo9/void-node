@@ -16,10 +16,14 @@ deploy anything.
 
 ## Requirements
 
-- Node.js 22.x
+- Node.js 22.x, 24.x, or 26.x
 - no npm dependencies
 - HTTPS for non-loopback clearweb origins
 - HTTP is accepted only for loopback or `.onion` origins
+
+The release workflow proves the SDK, CLI, integrity manifest, and package dry-run
+independently on Node.js 22, 24, and 26. Unsupported Node majors are not part of
+the reviewed runtime contract.
 
 ## CLI
 
