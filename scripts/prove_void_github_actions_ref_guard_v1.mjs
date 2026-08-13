@@ -57,6 +57,34 @@ const blockScalar = extractUsesRefs('steps:\n  - run: |\n      echo "uses: actio
 assert.equal(blockScalar.length, 1);
 assert.equal(blockScalar[0].ref, './local');
 
+const inlineQuotedNoise = extractUsesRefs('steps:\n  - run: echo "{ uses: actions/checkout@v4 }"\n');
+assert.equal(inlineQuotedNoise.length, 0);
+
+const alternateSyntax = extractUsesRefs(
+  'steps:\n' +
+  '  - "uses": actions/checkout@v4\n' +
+  "  - 'uses': actions/setup-node@v4\n" +
+  '  - "u\\u0073es": actions/cache@v4\n' +
+  '  - { uses: actions/upload-artifact@v4 }\n' +
+  '  - { "uses": "actions/download-artifact@v4" }\n',
+);
+assert.deepEqual(
+  alternateSyntax.map((entry) => entry.ref),
+  [
+    'actions/checkout@v4',
+    'actions/setup-node@v4',
+    'actions/cache@v4',
+    'actions/upload-artifact@v4',
+    'actions/download-artifact@v4',
+  ],
+);
+assert.equal(alternateSyntax.every((entry) => entry.mutable), true);
+
+const ambiguousUses = extractUsesRefs('steps:\n  - uses:\n');
+assert.equal(ambiguousUses.length, 1);
+assert.equal(ambiguousUses[0].kind, 'unparsed_uses_syntax');
+assert.equal(ambiguousUses[0].mutable, true);
+
 const repos = [];
 try {
   {
@@ -120,6 +148,44 @@ try {
     const fixture = makeRepo({}, { '.github/workflows/a.yml': 'jobs:\n  t:\n    steps:\n      - uses: docker://alpine:3.20\n' });
     repos.push(fixture.repo);
     assert.equal(auditActionRefDelta({ cwd: fixture.repo, base: fixture.base, head: fixture.head }).decision, 'HOLD');
+  }
+
+  for (const [name, content, expectedUses] of [
+    ['double-quoted key', 'jobs:\n  t:\n    steps:\n      - "uses": actions/setup-node@v4\n', 'actions/setup-node@v4'],
+    ['single-quoted key', "jobs:\n  t:\n    steps:\n      - 'uses': actions/setup-node@v4\n", 'actions/setup-node@v4'],
+    ['escaped quoted key', 'jobs:\n  t:\n    steps:\n      - "u\\u0073es": actions/setup-node@v4\n', 'actions/setup-node@v4'],
+    ['flow mapping', 'jobs:\n  t:\n    steps:\n      - { uses: actions/setup-node@v4 }\n', 'actions/setup-node@v4'],
+    ['quoted flow mapping', 'jobs:\n  t:\n    steps:\n      - { "uses": "actions/setup-node@v4" }\n', 'actions/setup-node@v4'],
+  ]) {
+    const fixture = makeRepo({}, { '.github/workflows/a.yml': content });
+    repos.push(fixture.repo);
+    const result = auditActionRefDelta({ cwd: fixture.repo, base: fixture.base, head: fixture.head });
+    assert.equal(result.decision, 'HOLD', name);
+    assert.equal(result.new_mutable_refs[0].uses, expectedUses, name);
+  }
+
+  {
+    const quotedLegacy = 'jobs:\n  t:\n    steps:\n      - "uses": actions/checkout@v4\n';
+    const fixture = makeRepo({ '.github/workflows/a.yml': quotedLegacy }, { '.github/workflows/a.yml': quotedLegacy + '      - run: echo ok\n' });
+    repos.push(fixture.repo);
+    const result = auditActionRefDelta({ cwd: fixture.repo, base: fixture.base, head: fixture.head });
+    assert.equal(result.decision, 'GREEN');
+    assert.equal(result.legacy_mutable_refs_observed, 1);
+  }
+
+  {
+    const fixture = makeRepo({}, { '.github/workflows/a.yml': 'jobs:\n  t:\n    steps:\n      - uses:\n' });
+    repos.push(fixture.repo);
+    const result = auditActionRefDelta({ cwd: fixture.repo, base: fixture.base, head: fixture.head });
+    assert.equal(result.decision, 'HOLD');
+    assert.equal(result.new_mutable_refs[0].kind, 'unparsed_uses_syntax');
+  }
+
+  {
+    const flowPinned = `jobs:\n  t:\n    steps:\n      - { "uses": "actions/checkout@${'f'.repeat(40)}" }\n`;
+    const fixture = makeRepo({}, { '.github/workflows/a.yml': flowPinned });
+    repos.push(fixture.repo);
+    assert.equal(auditActionRefDelta({ cwd: fixture.repo, base: fixture.base, head: fixture.head }).decision, 'GREEN');
   }
 
   const toolPath = resolve(dirname(fileURLToPath(import.meta.url)), '../tools/void-github-actions-ref-guard-v1.mjs');
