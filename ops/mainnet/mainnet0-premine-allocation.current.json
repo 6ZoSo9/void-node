@@ -20,7 +20,7 @@
       "address": "0x77DFEedD19A4741f299C902AD5bBe0DE917a9e59",
       "balance_void": "126000",
       "balance_atomic": "126000000000000000000000",
-      "classification": "bootstrap_validator_stake"
+      "classification": "bootstrap_validator_stake_current"
     }
   ],
   "observed_zero_balances": [
@@ -46,11 +46,17 @@
     }
   ],
   "validator_reconciliation": {
-    "seed_stake_void": "1000",
+    "historical_bootstrap_stake_per_validator_void": "1000",
     "bootstrap_validator_count": 126,
-    "expected_bootstrap_stake_void": "126000",
+    "historical_bootstrap_stake_total_void": "126000",
     "upgrade_staking_live_balance_void": "126000",
-    "matches_expected_bootstrap_stake": true
+    "live_balance_matches_historical_bootstrap_total": true,
+    "locked_policy_minimum_validator_self_stake_void": "10000",
+    "validator_target_total_void": "1260000",
+    "validator_target_shortfall_void": "1134000",
+    "target_formula": "126 * 10000 = 1260000",
+    "shortfall_formula": "1260000 - 126000 = 1134000",
+    "target_is_transfer_authority": false
   },
   "retained_transfer_log_reconciliation": {
     "event_count": 259,
@@ -68,7 +74,18 @@
     "nonzero_holder_sum_matches_total_supply": true,
     "unreconciled_void": "0"
   },
+  "future_target_allocations": {
+    "presale_inventory_void": "10000000",
+    "btc_void_market_inventory_void": "10000000",
+    "ops_treasury_void": "5000000",
+    "validator_stake_target_total_void": "1260000",
+    "validator_stake_current_void": "126000",
+    "validator_stake_remaining_delta_void": "1134000",
+    "combined_future_treasury_delta_void": "26134000",
+    "target_core_void_treasury_reserve_void": "307073333"
+  },
   "future_target_reference": "docs/operators/void-purpose-vault-allocation-v1.md",
+  "validator_policy_reference": "docs/mainnet0/VALIDATOR_POLICY.md",
   "tracking_issue": 1267,
   "authority": {
     "accounting_record_only": true,
@@ -76,11 +93,15 @@
     "signing": false,
     "transaction_construction": false,
     "transaction_broadcast": false,
+    "validator_top_up": false,
     "money_movement": false
   },
   "notes": [
-    "This file records current canonical Chain-2050 custody, not historical operational artifacts from other or superseded runtime states.",
-    "The 126,000 VOID previously described as distributed or unreconciled is fully reconciled as bootstrap validator stake held by the validator upgrade-track staking contract.",
+    "This file records current canonical Chain-2050 custody separately from future allocation targets.",
+    "The 126,000 VOID previously described as distributed or unreconciled is fully reconciled as historical bootstrap validator stake held by the validator upgrade-track staking contract.",
+    "The historical 1,000 VOID per bootstrap validator is below the locked Mainnet-0 minimum validator self-stake policy of 10,000 VOID.",
+    "For 126 validators, the intended aggregate validator target is 1,260,000 VOID, leaving a 1,134,000 VOID target shortfall from current staking custody.",
+    "The shortfall is an accounting target only; this record does not authorize a direct transfer to UpgradeStaking or any other live staking mutation.",
     "Funding targets are allocations, not transfer authority. Any live treasury movement remains separately reviewed and explicitly authorized."
   ]
 }
