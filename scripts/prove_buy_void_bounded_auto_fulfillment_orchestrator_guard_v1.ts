@@ -90,25 +90,36 @@ for (const forbidden of [
 }
 
 for (const marker of [
+  'from "./buy_void_bounded_auto_fulfillment_orchestrator_runtime_v1.js"',
   "buyVoidBoundedAutoFulfillmentOrchestratorRuntimeStatusV1",
   "handleBuyVoidBoundedAutoFulfillmentOrchestratorRuntimeCommandV1",
   "VOID_BUY_VOID_BOUNDED_AUTO_FULFILLMENT_ORCHESTRATOR_RUNTIME_ACTION_V1",
-  "bounded_auto_fulfillment_orchestrator",
 ]) {
   assert.equal(
     integration.includes(marker),
-    true,
-    `integration missing ${marker}`,
+    false,
+    `canonical integration still mounts bounded orchestrator authority: ${marker}`,
   );
 }
+assert.equal(
+  integration.includes(
+    "bounded_auto_fulfillment_orchestrator_parent_mounted: false",
+  ),
+  true,
+);
+assert.equal(
+  integration.includes('asset_mode: "void_token_erc20"'),
+  true,
+);
 
 console.log(
   "VOID_BUY_VOID_BOUNDED_AUTO_FULFILLMENT_ORCHESTRATOR_GUARD_V1_GREEN",
 );
 console.log("exact_lane_file_count=8");
-console.log("parent_pipeline_authority_unchanged=1");
+console.log("orchestrator_source_retained=1");
+console.log("orchestrator_parent_mounted=0");
 console.log("orchestrator_runtime_apply=0");
-console.log("money_moving_runtimes_unchanged=1");
+console.log("canonical_parent_delivery=void_token_erc20");
 console.log("background_loop=0");
 console.log("startup_execution=0");
 console.log("service_restart=0");
