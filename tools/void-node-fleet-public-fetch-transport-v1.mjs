@@ -1,180 +1,63 @@
 #!/usr/bin/env node
-import { createHash } from 'node:crypto';
-import { chmodSync, existsSync, readFileSync, statSync, writeFileSync } from 'node:fs';
-import { homedir } from 'node:os';
-import { resolve } from 'node:path';
-import { spawnSync } from 'node:child_process';
-import { fileURLToPath } from 'node:url';
+import {createHash} from 'node:crypto';
+import {chmodSync,existsSync,readFileSync,statSync,writeFileSync} from 'node:fs';
+import {homedir} from 'node:os';
+import {resolve} from 'node:path';
+import {spawnSync} from 'node:child_process';
+import {fileURLToPath} from 'node:url';
 
-export const VOID_NODE_FLEET_PUBLIC_FETCH_TRANSPORT_V1 = 'VOID_NODE_FLEET_PUBLIC_FETCH_TRANSPORT_V1';
-export const VOID_NODE_FLEET_PUBLIC_FETCH_TRANSPORT_PLAN_V1 = 'VOID_NODE_FLEET_PUBLIC_FETCH_TRANSPORT_PLAN_V1';
-export const VOID_NODE_FLEET_PUBLIC_FETCH_TRANSPORT_APPLY_V1 = 'VOID_NODE_FLEET_PUBLIC_FETCH_TRANSPORT_APPLY_V1';
-export const PUBLIC_FETCH_REMOTE_V1 = 'void-public-fetch';
-export const PUBLIC_FETCH_URL_V1 = 'https://github.com/6ZoSo9/void-node.git';
-export const PUBLIC_PUSH_URL_V1 = '/dev/null';
-export const CANONICAL_ORIGIN_REPOSITORY_V1 = '6ZoSo9/void-node';
-export const CANONICAL_ORIGIN_FETCH_URLS_V1 = Object.freeze([
-  'https://github.com/6ZoSo9/void-node.git',
-  'https://github.com/6ZoSo9/void-node',
-  'git@github.com:6ZoSo9/void-node.git',
-  'git@github.com:6ZoSo9/void-node',
-  'ssh://git@github.com/6ZoSo9/void-node.git',
-  'ssh://git@github.com/6ZoSo9/void-node',
+export const VOID_NODE_FLEET_PUBLIC_FETCH_TRANSPORT_V1='VOID_NODE_FLEET_PUBLIC_FETCH_TRANSPORT_V1';
+export const VOID_NODE_FLEET_PUBLIC_FETCH_TRANSPORT_PLAN_V1='VOID_NODE_FLEET_PUBLIC_FETCH_TRANSPORT_PLAN_V1';
+export const VOID_NODE_FLEET_PUBLIC_FETCH_TRANSPORT_APPLY_V1='VOID_NODE_FLEET_PUBLIC_FETCH_TRANSPORT_APPLY_V1';
+export const PUBLIC_FETCH_REMOTE_V1='void-public-fetch';
+export const PUBLIC_FETCH_URL_V1='https://github.com/6ZoSo9/void-node.git';
+export const PUBLIC_PUSH_URL_V1='/dev/null';
+export const CANONICAL_ORIGIN_REPOSITORY_V1='6ZoSo9/void-node';
+export const CANONICAL_ORIGIN_FETCH_URLS_V1=Object.freeze([
+ 'https://github.com/6ZoSo9/void-node.git','https://github.com/6ZoSo9/void-node',
+ 'git@github.com:6ZoSo9/void-node.git','git@github.com:6ZoSo9/void-node',
+ 'ssh://git@github.com/6ZoSo9/void-node.git','ssh://git@github.com/6ZoSo9/void-node',
 ]);
+const ORIGIN_SET=new Set(CANONICAL_ORIGIN_FETCH_URLS_V1), SHA40=/^[0-9a-f]{40}$/, SHA64=/^[0-9a-f]{64}$/, MAX=4*1024*1024;
+function fail(m,mut=false){const e=new Error(m);e.name='VoidFleetPublicFetchTransportError';e.mutationAttempted=mut;throw e;}
+function stable(v){if(Array.isArray(v))return`[${v.map(stable).join(',')}]`;if(v&&typeof v==='object')return`{${Object.keys(v).sort().map(k=>`${JSON.stringify(k)}:${stable(v[k])}`).join(',')}}`;return JSON.stringify(v);}
+function hash(v){return createHash('sha256').update(Buffer.isBuffer(v)?v:Buffer.from(typeof v==='string'?v:stable(v))).digest('hex');}
+function pathArg(v,l){if(typeof v!=='string'||!v||/[^\x20-\x7e]/.test(v))fail(`${l} must be a non-empty printable string`);if(v!=='.'&&v!=='~'&&!/^\.\.?\//.test(v)&&!/^~\//.test(v)&&!v.startsWith('/'))fail(`${l} must be a local filesystem path`);return v;}
+function expand(v){return v==='~'?homedir():v.startsWith('~/')?resolve(homedir(),v.slice(2)):resolve(v);}
+function run(repo,args){const r=spawnSync('git',['-C',repo,...args],{encoding:'utf8',timeout:10000,maxBuffer:MAX,env:{...process.env,GIT_TERMINAL_PROMPT:'0',GIT_OPTIONAL_LOCKS:'0'}});return{ok:r.status===0&&!r.error,status:r.status,stdout:r.stdout??'',stderr:r.stderr??'',error:r.error};}
+function must(repo,args,label){const r=run(repo,args);if(!r.ok)fail(`${label} failed`);return r.stdout;}
+function lines(s){return s.split(/\r?\n/).filter(Boolean);}
+function cfg(repo,key,local=true){const a=['config'];if(local)a.push('--local');a.push('--get-all',key);const r=run(repo,a);if(r.status===1&&!r.error)return[];if(!r.ok)fail(`unable to read ${key}`);return lines(r.stdout);}
+function dig(a){return hash(a.map(v=>`${v.length}:${v}`).join('\n'));}
+function effective(repo,remote){const r=run(repo,['remote','get-url','--all',remote]);if(r.status===2&&!r.error)return[];if(!r.ok)fail(`unable to resolve effective fetch URL for ${remote}`);return lines(r.stdout);}
+function prospective(repo){const r=run(repo,['ls-remote','--get-url',PUBLIC_FETCH_URL_V1]);if(!r.ok)fail('unable to resolve prospective public fetch URL');return lines(r.stdout);}
+function status(repo){const r=run(repo,['status','--porcelain=v1','-z','--untracked-files=all']);if(!r.ok)fail('unable to inspect worktree status');return{sha:hash(Buffer.from(r.stdout)),count:r.stdout? r.stdout.split('\0').filter(Boolean).length:0};}
+function index(repo){const p=resolve(must(repo,['rev-parse','--absolute-git-dir'],'resolve git dir').trim(),'index');if(!existsSync(p))fail('repository index is missing');const s=statSync(p);if(!s.isFile()||s.size>MAX*8)fail('repository index is invalid');return hash(readFileSync(p));}
+function inProgress(repo){const d=must(repo,['rev-parse','--absolute-git-dir'],'resolve git dir').trim();return['index.lock','MERGE_HEAD','CHERRY_PICK_HEAD','REVERT_HEAD','rebase-merge','rebase-apply','sequencer'].some(n=>existsSync(resolve(d,n)));}
+function refs(repo){return hash(must(repo,['for-each-ref','--format=%(refname)%00%(objectname)%00%(symref)'],'inspect refs'));}
+function assertOrigin(stored,eff){if(stored.length!==1)fail(`origin must have exactly one canonical ${CANONICAL_ORIGIN_REPOSITORY_V1} fetch URL`);if(!ORIGIN_SET.has(stored[0]))fail(`origin does not identify canonical ${CANONICAL_ORIGIN_REPOSITORY_V1}`);if(eff.length!==1||!ORIGIN_SET.has(eff[0]))fail(`origin effective fetch URL does not identify canonical ${CANONICAL_ORIGIN_REPOSITORY_V1}`);}
+function assertProspective(a){if(a.length!==1||a[0]!==PUBLIC_FETCH_URL_V1)fail('public fetch URL is rewritten by Git configuration');}
+function assertLocal(repo,lf,lp){if(stable(cfg(repo,`remote.${PUBLIC_FETCH_REMOTE_V1}.url`,false))!==stable(lf)||stable(cfg(repo,`remote.${PUBLIC_FETCH_REMOTE_V1}.pushurl`,false))!==stable(lp))fail('dedicated remote has non-local configuration');}
+function dedicated(lf,lp,ef){if(!lf.length&&!lp.length&&!ef.length)return'MISSING';return lf.length===1&&lf[0]===PUBLIC_FETCH_URL_V1&&lp.length===1&&lp[0]===PUBLIC_PUSH_URL_V1&&ef.length===1&&ef[0]===PUBLIC_FETCH_URL_V1?'ALIGNED':'MISCONFIGURED';}
 
-const SHA40_RE = /^[0-9a-f]{40}$/;
-const SHA64_RE = /^[0-9a-f]{64}$/;
-const MAX_OUTPUT_BYTES = 4 * 1024 * 1024;
-const CANONICAL_ORIGIN_FETCH_URL_SET_V1 = new Set(CANONICAL_ORIGIN_FETCH_URLS_V1);
-
-function fail(message, mutationAttempted = false) {
-  const error = new Error(message);
-  error.name = 'VoidFleetPublicFetchTransportError';
-  error.mutationAttempted = mutationAttempted;
-  throw error;
+export function inspectRepositoryTransportV1(input){
+ const repo=expand(pathArg(input,'repo')),inside=run(repo,['rev-parse','--is-inside-work-tree']);if(!inside.ok||inside.stdout.trim()!=='true')fail('repo is not a Git working tree');if(inProgress(repo))fail('a Git operation is in progress');
+ const br=run(repo,['symbolic-ref','--short','-q','HEAD']);if(br.status===1&&!br.error)fail('repo must be on exact main');if(!br.ok||br.stdout.trim()!=='main')fail('repo must be on exact main');
+ const head=must(repo,['rev-parse','HEAD'],'inspect head').trim(),tree=must(repo,['rev-parse','HEAD^{tree}'],'inspect tree').trim();if(!SHA40.test(head)||!SHA40.test(tree))fail('repo head/tree identity is invalid');
+ const of=cfg(repo,'remote.origin.url'),oe=effective(repo,'origin'),op=cfg(repo,'remote.origin.pushurl');assertOrigin(of,oe);
+ const df=cfg(repo,`remote.${PUBLIC_FETCH_REMOTE_V1}.url`),dp=cfg(repo,`remote.${PUBLIC_FETCH_REMOTE_V1}.pushurl`);assertLocal(repo,df,dp);const de=df.length?effective(repo,PUBLIC_FETCH_REMOTE_V1):[],pp=prospective(repo);assertProspective(pp);
+ const st=status(repo);return Object.freeze({repo,branch:'main',head,tree,worktree_status_sha256:st.sha,dirty_count:st.count,index_sha256:index(repo),refs_sha256:refs(repo),canonical_origin_required:true,origin_repository:CANONICAL_ORIGIN_REPOSITORY_V1,origin_fetch_count:of.length,origin_fetch_sha256:dig(of),origin_effective_fetch_count:oe.length,origin_effective_fetch_sha256:dig(oe),origin_push_count:op.length,origin_push_sha256:dig(op),prospective_public_fetch_count:pp.length,prospective_public_fetch_sha256:dig(pp),dedicated_fetch_count:df.length,dedicated_fetch_sha256:dig(df),dedicated_effective_fetch_count:de.length,dedicated_effective_fetch_sha256:dig(de),dedicated_push_count:dp.length,dedicated_push_sha256:dig(dp),dedicated_state:dedicated(df,dp,de)});
 }
-
-function stableJson(value) {
-  if (Array.isArray(value)) return `[${value.map(stableJson).join(',')}]`;
-  if (value && typeof value === 'object') {
-    return `{${Object.keys(value).sort().map((key) => `${JSON.stringify(key)}:${stableJson(value[key])}`).join(',')}}`;
-  }
-  return JSON.stringify(value);
-}
-
-function sha256(value) {
-  const bytes = Buffer.isBuffer(value) ? value : Buffer.from(typeof value === 'string' ? value : stableJson(value));
-  return createHash('sha256').update(bytes).digest('hex');
-}
-
-function exactString(value, label) {
-  if (typeof value !== 'string' || value.length === 0) fail(`${label} must be a non-empty string`);
-  if (/[^\x20-\x7e]/.test(value)) fail(`${label} contains non-ASCII or control characters`);
-  return value;
-}
-
-function safePath(value, label) {
-  const path = exactString(value, label);
-  if (path !== '.' && path !== '~' && !path.startsWith('./') && !path.startsWith('../') && !path.startsWith('~/') && !path.startsWith('/')) {
-    fail(`${label} must be a local filesystem path`);
-  }
-  return path;
-}
-
-function expandPath(value) {
-  if (value === '~') return homedir();
-  if (value.startsWith('~/')) return resolve(homedir(), value.slice(2));
-  return resolve(value);
-}
-
-function run(repo, args, options = {}) {
-  const result = spawnSync('git', ['-C', repo, ...args], {
-    encoding: 'utf8',
-    timeout: options.timeoutMs ?? 10_000,
-    maxBuffer: MAX_OUTPUT_BYTES,
-    env: { ...process.env, GIT_TERMINAL_PROMPT: '0', GIT_OPTIONAL_LOCKS: '0' },
-  });
-  return {
-    ok: result.status === 0 && !result.error,
-    status: result.status,
-    stdout: result.stdout ?? '',
-    stderr: result.stderr ?? '',
-    error: result.error ? String(result.error.message || result.error) : '',
-  };
-}
-
-function requiredRun(repo, args, label) {
-  const result = run(repo, args);
-  if (!result.ok) fail(`${label} failed`);
-  return result.stdout;
-}
-
-function lines(stdout) {
-  return stdout.split(/\r?\n/).filter((line) => line.length > 0);
-}
-
-function configValues(repo, key, localOnly = true) {
-  const args = ['config'];
-  if (localOnly) args.push('--local');
-  args.push('--get-all', key);
-  const result = run(repo, args);
-  if (result.status === 1 && !result.error) return [];
-  if (!result.ok) fail(`unable to read ${key}`);
-  return lines(result.stdout);
-}
-
-function digestStrings(values) {
-  return sha256(values.map((value) => `${value.length}:${value}`).join('\n'));
-}
-
-function effectiveRemoteFetchUrls(repo, remote) {
-  const result = run(repo, ['remote', 'get-url', '--all', remote]);
-  if (result.status === 2 && !result.error) return [];
-  if (!result.ok) fail(`unable to resolve effective fetch URL for ${remote}`);
-  return lines(result.stdout);
-}
-
-function prospectivePublicFetchUrls(repo) {
-  const result = run(repo, ['ls-remote', '--get-url', PUBLIC_FETCH_URL_V1]);
-  if (!result.ok) fail('unable to resolve prospective public fetch URL');
-  return lines(result.stdout);
-}
-
-function worktreeStatus(repo) {
-  const result = run(repo, ['status', '--porcelain=v1', '-z', '--untracked-files=all']);
-  if (!result.ok) fail('unable to inspect worktree status');
-  const bytes = Buffer.from(result.stdout, 'utf8');
-  const dirtyCount = result.stdout.length === 0 ? 0 : result.stdout.split('\0').filter(Boolean).length;
-  return { digest: sha256(bytes), dirty_count: dirtyCount };
-}
-
-function indexDigest(repo) {
-  const gitDir = requiredRun(repo, ['rev-parse', '--absolute-git-dir'], 'resolve git dir').trim();
-  const indexPath = resolve(gitDir, 'index');
-  if (!existsSync(indexPath)) fail('repository index is missing');
-  const stat = statSync(indexPath);
-  if (!stat.isFile()) fail('repository index is not a regular file');
-  if (stat.size > MAX_OUTPUT_BYTES * 8) fail('repository index is unexpectedly large');
-  return sha256(readFileSync(indexPath));
-}
-
-function operationInProgress(repo) {
-  const gitDir = requiredRun(repo, ['rev-parse', '--absolute-git-dir'], 'resolve git dir').trim();
-  const blockers = ['index.lock', 'MERGE_HEAD', 'CHERRY_PICK_HEAD', 'REVERT_HEAD', 'rebase-merge', 'rebase-apply', 'sequencer'];
-  return blockers.some((name) => existsSync(resolve(gitDir, name)));
-}
-
-function refsDigest(repo) {
-  const output = requiredRun(repo, ['for-each-ref', '--format=%(refname)%00%(objectname)%00%(symref)'], 'inspect refs');
-  return sha256(output);
-}
-
-function assertCanonicalOriginFetchV1(stored, effective) {
-  if (stored.length !== 1) fail(`origin must have exactly one canonical ${CANONICAL_ORIGIN_REPOSITORY_V1} fetch URL`);
-  if (!CANONICAL_ORIGIN_FETCH_URL_SET_V1.has(stored[0])) fail(`origin does not identify canonical ${CANONICAL_ORIGIN_REPOSITORY_V1}`);
-  if (effective.length !== 1 || !CANONICAL_ORIGIN_FETCH_URL_SET_V1.has(effective[0])) {
-    fail(`origin effective fetch URL does not identify canonical ${CANONICAL_ORIGIN_REPOSITORY_V1}`);
-  }
-}
-
-function assertProspectivePublicFetchV1(effective) {
-  if (effective.length !== 1 || effective[0] !== PUBLIC_FETCH_URL_V1) {
-    fail('public fetch URL is rewritten by Git configuration');
-  }
-}
-
-function assertDedicatedConfigIsLocalV1(repo, localFetch, localPush) {
-  const allFetch = configValues(repo, `remote.${PUBLIC_FETCH_REMOTE_V1}.url`, false);
-  const allPush = configValues(repo, `remote.${PUBLIC_FETCH_REMOTE_V1}.pushurl`, false);
-  if (stableJson(allFetch) !== stableJson(localFetch) || stableJson(allPush) !== stableJson(localPush)) {
-    fail('dedicated remote has non-local configuration');
-  }
-}
-
-function classifyDedicatedRemote(fetchValues, pushValues, effectiveValues) {
-  if (fetchValues.length === 0 && pushValues.length === 0 && effectiveValues.length === 0) return 'MISSING';
-  if (
-    fetchValues.length === 1 && fetchValues[0] === PUBLIC_FETCH_URL_V1 &&
-    pushValues.length === 1 && pushValues[0] === PUBLIC_PUSH_URL_V1 &&
-    effectiveValues.length === 1 && effectiveValues[0] === PUBLIC_FETCH_URL_V1
-  ) return 'ALIGN²È="25tì(€½¹ÍĞÁ…å±½…€ôì(€€€µ…É­•ÈèY=%}9=}1Q}AU	1%}Q!}QI9MA=IQ}A19}XÄ°(€€€É•µ½Ñ•}¹…µ”èAU	1%}Q!}I5=Q}XÄ°(€€€™•Ñ¡}ÕÉ°èAU	1%}Q!}UI1}XÄ°(€€€ÁÕÍ¡}ÕÉ°èAU	1%}AUM!}UI1}XÄ°(€ôì(€™½È€¡½¹ÍĞ­•ä½˜­•åÌ¤Á…å±½…‘m­•åt€ôÍ¹…ÁÍ¡½Ñm­•åtì(€Á…å±½…¹½Á•É…Ñ¥½¸€ô€½¹™¥ÕÉ•}‘•‘¥…Ñ•‘}™•Ñ¡}É•µ½Ñ•}½¹±äœì(€É•ÑÕÉ¸Á…å±½…ì)ô()•áÁ½ÉĞ™Õ¹Ñ¥½¸‰Õ¥±‘QÉ…¹ÍÁ½ÉÑA±…¹XÄ¡Í¹…ÁÍ¡½Ğ¤ì(€½¹ÍĞÁ…å±½…€ôÁ±…¹A…å±½…¡Í¹…ÁÍ¡½Ğ¤ì(€É•ÑÕÉ¸=‰©•Ğ¹™É••é”¡ì€¸¸¹Á…å±½…°Á±…¹}¥‘}Í¡„ÈÔØèÍ¡„ÈÔØ¡Á…å±½…¤°µÕÑ…Ñ¥½¹}É•ÅÕ¥É•èÍ¹…ÁÍ¡½Ğ¹‘•‘¥…Ñ•‘}ÍÑ…Ñ”€„ôô€1%9œô¤ì)ô()™Õ¹Ñ¥½¸¥¹Ù…É¥…¹ÑY¥•Ü¡Í¹…ÁÍ¡½Ğ¤ì(€É•ÑÕÉ¸ì(€€€‰É…¹ èÍ¹…ÁÍ¡½Ğ¹‰É…¹ °(€€€¡•…èÍ¹…ÁÍ¡½Ğ¹¡•…°(€€€ÑÉ•”èÍ¹…ÁÍ¡½Ğ¹ÑÉ•”°(€€€İ½É­ÑÉ••}ÍÑ…ÑÕÍ}Í¡„ÈÔØèÍ¹…ÁÍ¡½Ğ¹İ½É­ÑÉ••}ÍÑ…ÑÕÍ}Í¡„ÈÔØ°(€€€‘¥ÉÑå}½Õ¹ĞèÍ¹…ÁÍ¡½Ğ¹‘¥ÉÑå}½Õ¹Ğ°(€€€¥¹‘•á}Í¡„ÈÔØèÍ¹…ÁÍ¡½Ğ¹¥¹‘•á}Í¡„ÈÔØ°(€€€É•™Í}Í¡„ÈÔØèÍ¹…ÁÍ¡½Ğ¹É•™Í}Í¡„ÈÔØ°(€€€…¹½¹¥…±}½É¥¥¹}É•ÅÕ¥É•èÍ¹…ÁÍ¡½Ğ¹…¹½¹¥…±}½É¥¥¹}É•ÅÕ¥É•°(€€€½É¥¥¹}É•Á½Í¥Ñ½ÉäèÍ¹…ÁÍ¡½Ğ¹½É¥¥¹}É•Á½Í¥Ñ½Éä°(€€€½É¥¥¹}™•Ñ¡}½Õ¹ĞèÍ¹…ÁÍ¡½Ğ¹½É¥¥¹}™•Ñ¡}½Õ¹Ğ°(€€€½É¥¥¹}™•Ñ¡}Í¡„ÈÔØèÍ¹…ÁÍ¡½Ğ¹½É¥¥¹}™•Ñ¡}Í¡„ÈÔØ°(€€€½É¥¥¹}•™™•Ñ¥Ù•}™•Ñ¡}½Õ¹ĞèÍ¹…ÁÍ¡½Ğ¹½É¥¥¹}•™™•Ñ¥Ù•}™•Ñ¡}½Õ¹Ğ°(€€€½É¥¥¹}•™™•Ñ¥Ù•}™•Ñ¡}Í¡„ÈÔØèÍ¹…ÁÍ¡½Ğ¹½É¥¥¹}•™™•Ñ¥Ù•}™•Ñ¡}Í¡„ÈÔØ°(€€€½É¥¥¹}ÁÕÍ¡}½Õ¹ĞèÍ¹…ÁÍ¡½Ğ¹½É¥¥¹}ÁÕÍ¡}½Õ¹Ğ°(€€€½É¥¥¹}ÁÕÍ¡}Í¡„ÈÔØèÍ¹…ÁÍ¡½Ğ¹½É¥¥¹}ÁÕÍ¡}Í¡„ÈÔØ°(€€€ÁÉ½ÍÁ•Ñ¥Ù•}ÁÕ‰±¥}™•Ñ¡}½Õ¹ĞèÍ¹…ÁÍ¡½Ğ¹ÁÉ½ÍÁ•Ñ¥Ù•}ÁÕ‰±¥}™•Ñ¡}½Õ¹Ğ°(€€€ÁÉ½ÍÁ•Ñ¥Ù•}ÁÕ‰±¥}™•Ñ¡}Í¡„ÈÔØèÍ¹…ÁÍ¡½Ğ¹ÁÉ½ÍÁ•Ñ¥Ù•}ÁÕ‰±¥}™•Ñ¡}Í¡„ÈÔØ°(€ôì)ô()•áÁ½ÉĞ™Õ¹Ñ¥½¸…ÁÁ±åQÉ…¹ÍÁ½ÉÑA±…¹XÄ¡É•Á½%¹ÁÕĞ°•áÁ•Ñ•‘A±…¹%¤ì(€¥˜€ …M!ØÑ}I¹Ñ•ÍĞ¡MÑÉ¥¹œ¡•áÁ•Ñ•‘A±…¹%€üü€œœ¤¤¤™…¥° •áÁ•Ñ•Á±…¸%µÕÍĞ‰”±½İ•É…Í”€ØĞµ¡•àœ¤ì(€½¹ÍĞ‰•™½É”€ô¥¹ÍÁ•ÑI•Á½Í¥Ñ½ÉåQÉ…¹ÍÁ½ÉÑXÄ¡É•Á½%¹ÁÕĞ¤ì(€½¹ÍĞÁ±…¸€ô‰Õ¥±‘QÉ…¹ÍÁ½ÉÑA±…¹XÄ¡‰•™½É”¤ì(€¥˜€¡Á±…¸¹Á±…¹}¥‘}Í¡„ÈÔØ€„ôô•áÁ•Ñ•‘A±…¹%¤™…¥° ÑÉ…¹ÍÁ½ÉĞÁ±…¸¡…¹•‰•™½É”…ÁÁ±äœ¤ì((€¥˜€ …Á±…¸¹µÕÑ…Ñ¥½¹}É•ÅÕ¥É•¤ì(€€€É•ÑÕÉ¸=‰©•Ğ¹™É••é”¡ì½ÕÑ½µ”è€1Ie}1%9œ°Á±…¸°µÕÑ…Ñ¥½¹}…ÑÑ•µÁÑ•è™…±Í”°µÕÑ…Ñ¥½¹}ÍÕ••‘•èÑÉÕ”°…™Ñ•Èè‰•™½É”ô¤ì(€ô((€½¹ÍĞ™¥ÉÍĞ€ôÉÕ¸¡‰•™½É”¹É•Á¼°l½¹™¥œœ°€œ´µ±½…°œ°€œ´µÉ•Á±…”µ…±°œ°É•µ½Ñ”¸‘íAU	1%}Q!}I5=Q}XÅô¹ÕÉ±€°AU	1%}Q!}UI1}XÅt¤ì(€¥˜€ …™¥ÉÍĞ¹½¬¤™…¥° ™…¥±•Ñ¼Í•Ğ‘•‘¥…Ñ•™•Ñ UI0ìµÕÑ…Ñ¥½¸½ÕÑ½µ”¥ÌÕ¹•ÉÑ…¥¸…¹…ÕÑ½µ…Ñ¥ŒÉ•ÑÉä¥Ì™½É‰¥‘‘•¸œ°ÑÉÕ”¤ì(€½¹ÍĞÍ•½¹€ôÉÕ¸¡‰•™½É”¹É•Á¼°l½¹™¥œœ°€œ´µ±½…°œ°€œ´µÉ•Á±…”µ…±°œ°É•µ½Ñ”¸‘íAU	1%}Q!}I5=Q}XÅô¹ÁÕÍ¡ÕÉ±€°AU	1%}AUM!}UI1}XÅt¤ì(€¥˜€ …Í•½¹¹½¬¤™…¥° ™…¥±•Ñ¼Í•Ğ‘•‘¥…Ñ•ÁÕÍ UI0ìÁ…ÉÑ¥…°‘•‘¥…Ñ•µÉ•µ½Ñ”½¹™¥œµ…ä•á¥ÍĞ…¹É•ÅÕ¥É•Ì™É•Í ¥¹ÍÁ•Ñ¥½¸œ°ÑÉÕ”¤ì((€½¹ÍĞ…™Ñ•È€ô¥¹ÍÁ•ÑI•Á½Í¥Ñ½ÉåQÉ…¹ÍÁ½ÉÑXÄ¡‰•™½É”¹É•Á¼¤ì(€¥˜€¡ÍÑ…‰±•)Í½¸¡¥¹Ù…É¥…¹ÑY¥•Ü¡…™Ñ•È¤¤€„ôôÍÑ…‰±•)Í½¸¡¥¹Ù…É¥…¹ÑY¥•Ü¡‰•™½É”¤¤¤™…¥° É•Á½Í¥Ñ½Éä¥¹Ù…É¥…¹Ğ¡…¹•‘ÕÉ¥¹œ‘•‘¥…Ñ•É•µ½Ñ”½¹™¥ÕÉ…Ñ¥½¸œ°ÑÉÕ”¤ì(€¥˜€¡…™Ñ•È¹‘•‘¥…Ñ•‘}ÍÑ…Ñ”€„ôô€1%9œ¤™…¥° ‘•‘¥…Ñ•É•µ½Ñ”‘¥¹½ĞÉ•… •á…Ğ…±¥¹•ÍÑ…Ñ”œ°ÑÉÕ”¤ì((€É•ÑÕÉ¸=‰©•Ğ¹™É••é”¡ì½ÕÑ½µ”è€QI9MA=IQ}=9%UIœ°Á±…¸°µÕÑ…Ñ¥½¹}…ÑÑ•µÁÑ•èÑÉÕ”°µÕÑ…Ñ¥½¹}ÍÕ••‘•èÑÉÕ”°…™Ñ•Èô¤ì)ô()™Õ¹Ñ¥½¸ÁÕ‰±¥A±…¸¡Á±…¸¤ì(€É•ÑÕÉ¸ì(€€€µ…É­•ÈèÁ±…¸¹µ…É­•È°(€€€Á±…¹}¥‘}Í¡„ÈÔØèÁ±…¸¹Á±…¹}¥‘}Í¡„ÈÔØ°(€€€É•µ½Ñ•}¹…µ”èÁ±…¸¹É•µ½Ñ•}¹…µ”°(€€€™•Ñ¡}ÕÉ°èÁ±…¸¹™•Ñ¡}ÕÉ°°(€€€ÁÕÍ¡}ÕÉ°èÁ±…¸¹ÁÕÍ¡}ÕÉ°°(€€€‰É…¹ èÁ±…¸¹‰É…¹ °(€€€¡•…èÁ±…¸¹¡•…°(€€€ÑÉ•”èÁ±…¸¹ÑÉ•”°(€€€‘¥ÉÑå}½Õ¹ĞèÁ±…¸¹‘¥ÉÑå}½Õ¹Ğ°(€€€…¹½¹¥…±}½É¥¥¹}É•ÅÕ¥É•èÁ±…¸¹…¹½¹¥…±}½É¥¥¹}É•ÅÕ¥É•°(€€€½É¥¥¹}É•Á½Í¥Ñ½ÉäèÁ±…¸¹½É¥¥¹}É•Á½Í¥Ñ½Éä°(€€€‘•‘¥…Ñ•‘}ÍÑ…Ñ”èÁ±…¸¹‘•‘¥…Ñ•‘}ÍÑ…Ñ”°(€€€µÕÑ…Ñ¥½¹}É•ÅÕ¥É•èÁ±…¸¹µÕÑ…Ñ¥½¹}É•ÅÕ¥É•°(€€€½Á•É…Ñ¥½¸èÁ±…¸¹½Á•É…Ñ¥½¸°(€ôì)ô()™Õ¹Ñ¥½¸…ÕÑ¡½É¥ÑåMÑ…Ñ”¡½Ù•ÉÉ¥‘•Ì€ôíô¤ì(€É•ÑÕÉ¸ì(€€€¥Ñ}½¹™¥}µÕÑ…Ñ¥½¹}…ÑÑ•µÁÑ•è™…±Í”°(€€€¥Ñ}™•Ñ è™…±Í”°(€€€¥Ñ}ÁÕ±°è™…±Í”°(€€€¡•­½ÕĞè™…±Í”°(€€€É•Í•Ğè™…±Í”°(€€€µ•É”è™…±Í”°(€€€‰Õ¥±è™…±Í”°(€€€Á…­…•}¥¹ÍÑ…±°è™…±Í”°(€€€Í•ÉÙ¥•}µÕÑ…Ñ¥½¸è™…±Í”°(€€€ÉÕ¹Ñ¥µ•}µÕÑ…Ñ¥½¸è™…±Í”°(€€€¹•Ñİ½É­}½¹™¥ÕÉ…Ñ¥½¸è™…±Í”°(€€€É•‘•¹Ñ¥…±}É•…è™…±Í”°(€€€İ…±±•Ñ}½É}Í¥¹•Èè™…±Í”°(€€€İ½É­}É•‘¥Ñ}½É}Ù…±¥‘…Ñ½É}µÕÑ…Ñ¥½¸è™…±Í”°(€€€ÑÉ…¹Í…Ñ¥½¸è™…±Í”°(€€€ÑÉ•…ÍÕÉå}½É}±¥ÅÕ¥‘¥Ñäè™…±Í”°(€€€™Õ¹‘Í}µ½Ù•è™…±Í”°(€€€€¸¸¹½Ù•ÉÉ¥‘•Ì°(€ôì)ô()™Õ¹Ñ¥½¸•µ¥Ğ¡Ù…±Õ”°½ÕÑÁÕÑA…Ñ €ô€œœ¤ì(€½¹ÍĞ©Í½¸€ô€‘í)M=8¹ÍÑÉ¥¹¥™ä¡Ù…±Õ”°¹Õ±°°€È¥õq¹€ì(€¥˜€¡½ÕÑÁÕÑA…Ñ ¤ì(€€€½¹ÍĞÁ…Ñ €ô•áÁ…¹‘A…Ñ ¡Í…™•A…Ñ ¡½ÕÑÁÕÑA…Ñ °€½ÕÑÁÕĞœ¤¤ì(€€€İÉ¥Ñ•¥±•Må¹Œ¡Á…Ñ °©Í½¸°ì•¹½‘¥¹œè€ÕÑ˜àœ°µ½‘”è€Á¼ØÀÀ°™±…œè€İàœô¤ì(€€€¡µ½‘Må¹Œ¡Á…Ñ °€Á¼ØÀÀ¤ì(€ô(€ÁÉ½•ÍÌ¹ÍÑ‘½ÕĞ¹İÉ¥Ñ”¡©Í½¸¤ì)ô()™Õ¹Ñ¥½¸Ù…±Õ•™Ñ•È¡…ÉØ°¥¹‘•à°±…‰•°¤ì(€½¹ÍĞÙ…±Õ”€ô…ÉÙm¥¹‘•à€¬€Åtì(€¥˜€ …Ù…±Õ”ñğÙ…±Õ”¹ÍÑ…ÉÑÍ]¥Ñ  œ´´œ¤¤™…¥°¡€‘í±…‰•±ôÉ•ÅÕ¥É•Ì„Ù…±Õ•€¤ì(€É•ÑÕÉ¸Ù…±Õ”ì)ô()™Õ¹Ñ¥½¸Á…ÉÍ•ÉÌ¡…ÉØ¤ì(€½¹ÍĞ½ÕĞ€ôìÉ•Á¼è€œœ°½ÕÑÁÕĞè€œœ°…ÁÁ±äè™…±Í”°½¹™¥Éµ=Á•É…Ñ¥½¸è€œœ°½¹™¥ÉµA±…¹%è€œœôì(€™½È€¡±•Ğ¤€ô€Àì¤€ğ…ÉØ¹±•¹Ñ ì¤€¬ô€Ä¤ì(€€€½¹ÍĞ…Éœ€ô…ÉÙm¥tì(€€€¥˜€¡…Éœ€ôôô€œ´µÉ•Á¼œ¤½ÕĞ¹É•Á¼€ôÙ…±Õ•™Ñ•È¡…ÉØ°¤¬¬°…Éœ¤ì(€€€•±Í”¥˜€¡…Éœ€ôôô€œ´µ½ÕÑÁÕĞœ¤½ÕĞ¹½ÕÑÁÕĞ€ôÙ…±Õ•™Ñ•È¡…ÉØ°¤¬¬°…Éœ¤ì(€€€•±Í”¥˜€¡…Éœ€ôôô€œ´µ…ÁÁ±äœ¤½ÕĞ¹…ÁÁ±ä€ôÑÉÕ”ì(€€€•±Í”¥˜€¡…Éœ€ôôô€œ´µ½¹™¥É´µ½Á•É…Ñ¥½¸œ¤½ÕĞ¹½¹™¥Éµ=Á•É…Ñ¥½¸€ôÙ…±Õ•™Ñ•È¡…ÉØ°¤¬¬°…Éœ¤ì(€€€•±Í”¥˜€¡…Éœ€ôôô€œ´µ½¹™¥É´µÁ±…¸µ¥œ¤½ÕĞ¹½¹™¥ÉµA±…¹%€ôÙ…±Õ•™Ñ•È¡…ÉØ°¤¬¬°…Éœ¤ì(€€€•±Í”¥˜€¡…Éœ€ôôô€œ´µ¡•±Àœ¤ì(€€€€€½¹Í½±”¹±½œ UÍ…”è¹½‘”Ñ½½±Ì½Ù½¥µ¹½‘”µ™±••ĞµÁÕ‰±¥Œµ™•Ñ µÑÉ…¹ÍÁ½ÉĞµØÄ¹µ©Ì€´µÉ•Á¼AQ l´µ½ÕÑÁÕĞAQ!tl´µ…ÁÁ±ä€´µ½¹™¥É´µ½Á•É…Ñ¥½¸Y=%}9=}1Q}AU	1%}Q!}QI9MA=IQ}AA1e}XÄ€´µ½¹™¥É´µÁ±…¸µ¥M!ÈÔÙtœ¤ì(€€€€€ÁÉ½•ÍÌ¹•á¥Ğ À¤ì(€€€ô•±Í”™…¥°¡Õ¹­¹½İ¸…ÉÕµ•¹Ğè€‘í…Éõ€¤ì(€ô(€¥˜€ …½ÕĞ¹É•Á¼¤™…¥° œ´µÉ•Á¼¥ÌÉ•ÅÕ¥É•œ¤ì(€É•ÑÕÉ¸½ÕĞì)ô()™Õ¹Ñ¥½¸µ…¥¸ ¤ì(€ÑÉäì(€€€½¹ÍĞ…ÉÌ€ôÁ…ÉÍ•ÉÌ¡ÁÉ½•ÍÌ¹…ÉØ¹Í±¥” È¤¤ì(€€€½¹ÍĞÍ¹…ÁÍ¡½Ğ€ô¥¹ÍÁ•ÑI•Á½Í¥Ñ½ÉåQÉ…¹ÍÁ½ÉÑXÄ¡…ÉÌ¹É•Á¼¤ì(€€€½¹ÍĞÁ±…¸€ô‰Õ¥±‘QÉ…¹ÍÁ½ÉÑA±…¹XÄ¡Í¹…ÁÍ¡½Ğ¤ì(€€€¥˜€ ……ÉÌ¹…ÁÁ±ä¤ì(€€€€€•µ¥Ğ¡ì(€€€€€€€µ…É­•ÈèY=%}9=}1Q}AU	1%}Q!}QI9MA=IQ}XÄ°(€€€€€€€Ù•ÉÍ¥½¸è€Ä°(€€€€€€€½ÕÑ½µ”èÁ±…¸¹µÕÑ…Ñ¥½¹}É•ÅÕ¥É•€ü€Ie}Q=}AA1dœ€è€1Ie}1%9œ°(€€€€€€€Á±…¸èÁÕ‰±¥A±…¸¡Á±…¸¤°(€€€€€€€É•…Í½¹Ìèmt°(€€€€€€€µÕÑ…Ñ¥½¹}…ÑÑ•µÁÑ•è™…±Í”°(€€€€€€€…ÕÑ½µ…Ñ¥}É•ÑÉäè™…±Í”°(€€€€€€€É•ÅÕ¥É•‘}½¹™¥Éµ…Ñ¥½¹}µ…É­•ÈèY=%}9=}1Q}AU	1%}Q!}QI9MA=IQ}AA1e}XÄ°(€€€€€€€…ÕÑ¡½É¥Ñäè…ÕÑ¡½É¥ÑåMÑ…Ñ” ¤°(€€€€€ô°…ÉÌ¹½ÕÑÁÕĞ¤ì(€€€€€É•ÑÕÉ¸ì(€€€ô(€€€¥˜€¡…ÉÌ¹½¹™¥Éµ=Á•É…Ñ¥½¸€„ôôY=%}9=}1Q}AU	1%}Q!}QI9MA=IQ}AA1e}XÄ¤™…¥° •á…Ğ½Á•É…Ñ¥½¸½¹™¥Éµ…Ñ¥½¸µ¥Íµ…Ñ œ¤ì(€€€¥˜€¡…ÉÌ¹½¹™¥ÉµA±…¹%€„ôôÁ±…¸¹Á±…¹}¥‘}Í¡„ÈÔØ¤™…¥° •á…ĞÁ±…¸%½¹™¥Éµ…Ñ¥½¸µ¥Íµ…Ñ œ¤ì(€€€½¹ÍĞÉ•ÍÕ±Ğ€ô…ÁÁ±åQÉ…¹ÍÁ½ÉÑA±…¹XÄ¡…ÉÌ¹É•Á¼°…ÉÌ¹½¹™¥ÉµA±…¹%¤ì(€€€•µ¥Ğ¡ì(€€€€€µ…É­•ÈèY=%}9=}1Q}AU	1%}Q!}QI9MA=IQ}XÄ°(€€€€€Ù•ÉÍ¥½¸è€Ä°(€€€€€½ÕÑ½µ”èÉ•ÍÕ±Ğ¹½ÕÑ½µ”°(€€€€€Á±…¸èÁÕ‰±¥A±…¸¡É•ÍÕ±Ğ¹Á±…¸¤°(€€€€€É•…Í½¹Ìèmt°(€€€€€µÕÑ…Ñ¥½¹}…ÑÑ•µÁÑ•èÉ•ÍÕ±Ğ¹µÕÑ…Ñ¥½¹}…ÑÑ•µÁÑ•°(€€€€€µÕÑ…Ñ¥½¹}ÍÕ••‘•èÉ•ÍÕ±Ğ¹µÕÑ…Ñ¥½¹}ÍÕ••‘•°(€€€€€…ÕÑ½µ…Ñ¥}É•ÑÉäè™…±Í”°(€€€€€…ÕÑ¡½É¥Ñäè…ÕÑ¡½É¥ÑåMÑ…Ñ”¡ì¥Ñ}½¹™¥}µÕÑ…Ñ¥½¹}…ÑÑ•µÁÑ•èÉ•ÍÕ±Ğ¹µÕÑ…Ñ¥½¹}…ÑÑ•µÁÑ•ô¤°(€€€ô°…ÉÌ¹½ÕÑÁÕĞ¤ì(€ô…Ñ €¡•ÉÉ½È¤ì(€€€½¹ÍĞµÕÑ…Ñ¥½¹ÑÑ•µÁÑ•€ô•ÉÉ½Èü¹µÕÑ…Ñ¥½¹ÑÑ•µÁÑ•€ôôôÑÉÕ”ì(€€€•µ¥Ğ¡ì(€€€€€µ…É­•ÈèY=%}9=}1Q}AU	1%}Q!}QI9MA=IQ}XÄ°(€€€€€Ù•ÉÍ¥½¸è€Ä°(€€€€€½ÕÑ½µ”è€!=1œ°(€€€€€•ÉÉ½ÈèMÑÉ¥¹œ¡•ÉÉ½Èü¹µ•ÍÍ…”ñğ•ÉÉ½È¤°(€€€€€µÕÑ…Ñ¥½¹}…ÑÑ•µÁÑ•èµÕÑ…Ñ¥½¹ÑÑ•µÁÑ•°(€€€€€…ÕÑ½µ…Ñ¥}É•ÑÉäè™…±Í”°(€€€€€…ÕÑ¡½É¥Ñäè…ÕÑ¡½É¥ÑåMÑ…Ñ”¡ì¥Ñ}½¹™¥}µÕÑ…Ñ¥½¹}…ÑÑ•µÁÑ•èµÕÑ…Ñ¥½¹ÑÑ•µÁÑ•ô¤°(€€€ô¤ì(€€€ÁÉ½•ÍÌ¹•á¥Ñ½‘”€ô€Èì(€ô)ô()¥˜€¡ÁÉ½•ÍÌ¹…ÉÙlÅt€˜˜É•Í½±Ù”¡ÁÉ½•ÍÌ¹…ÉÙlÅt¤€ôôô™¥±•UI1Q½A…Ñ ¡¥µÁ½ÉĞ¹µ•Ñ„¹ÕÉ°¤¤µ…¥¸ ¤ì(
+const KEYS=['branch','head','tree','worktree_status_sha256','dirty_count','index_sha256','refs_sha256','canonical_origin_required','origin_repository','origin_fetch_count','origin_fetch_sha256','origin_effective_fetch_count','origin_effective_fetch_sha256','origin_push_count','origin_push_sha256','prospective_public_fetch_count','prospective_public_fetch_sha256','dedicated_fetch_count','dedicated_fetch_sha256','dedicated_effective_fetch_count','dedicated_effective_fetch_sha256','dedicated_push_count','dedicated_push_sha256','dedicated_state'];
+function payload(s){const p={marker:VOID_NODE_FLEET_PUBLIC_FETCH_TRANSPORT_PLAN_V1,remote_name:PUBLIC_FETCH_REMOTE_V1,fetch_url:PUBLIC_FETCH_URL_V1,push_url:PUBLIC_PUSH_URL_V1};for(const k of KEYS)p[k]=s[k];p.operation='configure_dedicated_fetch_remote_only';return p;}
+export function buildTransportPlanV1(s){const p=payload(s);return Object.freeze({...p,plan_id_sha256:hash(p),mutation_required:s.dedicated_state!=='ALIGNED'});}
+function invariant(s){const o={};for(const k of KEYS.slice(0,17))o[k]=s[k];return o;}
+export function applyTransportPlanV1(input,id){if(!SHA64.test(String(id??'')))fail('expected plan ID must be lowercase 64-hex');const before=inspectRepositoryTransportV1(input),plan=buildTransportPlanV1(before);if(plan.plan_id_sha256!==id)fail('transport plan changed before apply');if(!plan.mutation_required)return Object.freeze({outcome:'ALREADY_ALIGNED',plan,mutation_attempted:false,mutation_succeeded:true,after:before});
+ const a=run(before.repo,['config','--local','--replace-all',`remote.${PUBLIC_FETCH_REMOTE_V1}.url`,PUBLIC_FETCH_URL_V1]);if(!a.ok)fail('failed to set dedicated fetch URL; mutation outcome is uncertain and automatic retry is forbidden',true);const b=run(before.repo,['config','--local','--replace-all',`remote.${PUBLIC_FETCH_REMOTE_V1}.pushurl`,PUBLIC_PUSH_URL_V1]);if(!b.ok)fail('failed to set dedicated push URL; partial dedicated-remote config may exist and requires fresh inspection',true);
+ const after=inspectRepositoryTransportV1(before.repo);if(stable(invariant(after))!==stable(invariant(before)))fail('repository invariant changed during dedicated remote configuration',true);if(after.dedicated_state!=='ALIGNED')fail('dedicated remote did not reach exact aligned state',true);return Object.freeze({outcome:'TRANSPORT_CONFIGURED',plan,mutation_attempted:true,mutation_succeeded:true,after});}
+function pub(p){return{marker:p.marker,plan_id_sha256:p.plan_id_sha256,remote_name:p.remote_name,fetch_url:p.fetch_url,push_url:p.push_url,branch:p.branch,head:p.head,tree:p.tree,dirty_count:p.dirty_count,canonical_origin_required:p.canonical_origin_required,origin_repository:p.origin_repository,dedicated_state:p.dedicated_state,mutation_required:p.mutation_required,operation:p.operation};}
+function auth(x={}){return{git_config_mutation_attempted:false,git_fetch:false,git_pull:false,checkout:false,reset:false,merge:false,build:false,package_install:false,service_mutation:false,runtime_mutation:false,network_configuration:false,credential_read:false,wallet_or_signer:false,work_credit_or_validator_mutation:false,transaction:false,treasury_or_liquidity:false,funds_moved:false,...x};}
+function emit(v,out=''){const j=`${JSON.stringify(v,null,2)}\n`;if(out){const p=expand(pathArg(out,'output'));writeFileSync(p,j,{encoding:'utf8',mode:0o600,flag:'wx'});chmodSync(p,0o600);}process.stdout.write(j);}
+function args(v){const o={repo:'',output:'',apply:false,confirmOperation:'',confirmPlanId:''};for(let i=0;i<v.length;i++){const a=v[i],n=()=>{const x=v[++i];if(!x||x.startsWith('--'))fail(`${a} requires a value`);return x;};if(a==='--repo')o.repo=n();else if(a==='--output')o.output=n();else if(a==='--apply')o.apply=true;else if(a==='--confirm-operation')o.confirmOperation=n();else if(a==='--confirm-plan-id')o.confirmPlanId=n();else if(a==='--help'){console.log('Usage: node tools/void-node-fleet-public-fetch-transport-v1.mjs --repo PATH [--output PATH] [--apply --confirm-operation VOID_NODE_FLEET_PUBLIC_FETCH_TRANSPORT_APPLY_V1 --confirm-plan-id SHA256]');process.exit(0);}else fail(`unknown argument: ${a}`);}if(!o.repo)fail('--repo is required');return o;}
+function main(){try{const a=args(process.argv.slice(2)),s=inspectRepositoryTransportV1(a.repo),p=buildTransportPlanV1(s);if(!a.apply){emit({marker:VOID_NODE_FLEET_PUBLIC_FETCH_TRANSPORT_V1,version:1,outcome:p.mutation_required?'READY_TO_APPLY':'ALREADY_ALIGNED',plan:pub(p),reasons:[],mutation_attempted:false,automatic_retry:false,required_confirmation_marker:VOID_NODE_FLEET_PUBLIC_FETCH_TRANSPORT_APPLY_V1,authority:auth()},a.output);return;}if(a.confirmOperation!==VOID_NODE_FLEET_PUBLIC_FETCH_TRANSPORT_APPLY_V1)fail('exact operation confirmation mismatch');if(a.confirmPlanId!==p.plan_id_sha256)fail('exact plan ID confirmation mismatch');const r=applyTransportPlanV1(a.repo,a.confirmPlanId);emit({marker:VOID_NODE_FLEET_PUBLIC_FETCH_TRANSPORT_V1,version:1,outcome:r.outcome,plan:pub(r.plan),reasons:[],mutation_attempted:r.mutation_attempted,mutation_succeeded:r.mutation_succeeded,automatic_retry:false,authority:auth({git_config_mutation_attempted:r.mutation_attempted})},a.output);}catch(e){const m=e?.mutationAttempted===true;emit({marker:VOID_NODE_FLEET_PUBLIC_FETCH_TRANSPORT_V1,version:1,outcome:'HOLD',error:String(e?.message||e),mutation_attempted:m,automatic_retry:false,authority:auth({git_config_mutation_attempted:m})});process.exitCode=2;}}
+if(process.argv[1]&&resolve(process.argv[1])===fileURLToPath(import.meta.url))main();
