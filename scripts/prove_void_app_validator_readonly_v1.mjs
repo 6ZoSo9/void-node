@@ -81,6 +81,8 @@ assert.match(validateSource, /MAX_VALIDATE_RESPONSE_BYTES\s*=\s*128\s*\*\s*1024/
 assert.match(validateSource, /data-validate-view/);
 assert.match(validateSource, /data-validate-refresh/);
 assert.match(validateSource, /No validator authority/);
+assert.match(validateSource, /finally\s*\{\s*reader\.releaseLock\(\);\s*\}/);
+assert.doesNotMatch(validateSource, /\bcatch\s*\{\s*\}/);
 assert.doesNotMatch(validateSource, /method:\s*['"](?:POST|PUT|PATCH|DELETE)['"]/);
 assert.doesNotMatch(validateSource, /window\.ethereum|eth_sendTransaction|eth_sendRawTransaction|personal_sign|wallet_requestPermissions/);
 assert.doesNotMatch(validateSource, /\/validator\/submit|\/stake\/lock|\/validator-set\/write/);
