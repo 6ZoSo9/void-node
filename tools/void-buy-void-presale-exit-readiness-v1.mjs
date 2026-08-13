@@ -13,6 +13,7 @@ export const VOID_BUY_VOID_PRESALE_EXIT_READINESS_AUTHORITY_V1 =
   });
 
 const SAFE_POOL_ID = /^[A-Za-z0-9._:-]{1,160}$/;
+const MAX_AMOUNT_DECIMAL_DIGITS = 78;
 const SNAPSHOT_KEYS = Object.freeze([
   "available_void_units",
   "committed_void_units",
@@ -39,7 +40,12 @@ function fail(reason) {
 }
 
 function parseNonNegativeInteger(value) {
-  if (typeof value !== "string" || !/^(0|[1-9][0-9]*)$/.test(value)) {
+  if (
+    typeof value !== "string" ||
+    value.length === 0 ||
+    value.length > MAX_AMOUNT_DECIMAL_DIGITS ||
+    !/^(0|[1-9][0-9]*)$/.test(value)
+  ) {
     return null;
   }
   try {
@@ -92,6 +98,9 @@ export function classifyBuyVoidPresaleExitReadinessV1(snapshot) {
   }
   if (committed > capacity || available > capacity || committed + available !== capacity) {
     return fail("inventory_accounting_mismatch");
+  }
+  if ((committed === 0n) !== (snapshot.reservation_count === 0)) {
+    return fail("reservation_count_committed_mismatch");
   }
   if (snapshot.sold_out !== (available === 0n)) {
     return fail("sold_out_flag_mismatch");

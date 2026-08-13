@@ -62,6 +62,33 @@ for (const invalid of [
   assert.equal(held.accept_new_requests, false);
 }
 
+for (const amountField of [
+  "pool_capacity_void_units",
+  "committed_void_units",
+  "available_void_units",
+]) {
+  const held = classifyBuyVoidPresaleExitReadinessV1(
+    snapshot({ [amountField]: "9".repeat(79) }),
+  );
+  assert.equal(held.ok, false);
+  assert.equal(held.status, "HOLD");
+  assert.equal(held.reason, "inventory_amount_invalid");
+}
+
+for (const invalid of [
+  snapshot({ reservation_count: 0 }),
+  snapshot({
+    committed_void_units: "0",
+    available_void_units: "10000000000000",
+    reservation_count: 1,
+  }),
+]) {
+  const held = classifyBuyVoidPresaleExitReadinessV1(invalid);
+  assert.equal(held.ok, false);
+  assert.equal(held.status, "HOLD");
+  assert.equal(held.reason, "reservation_count_committed_mismatch");
+}
+
 assert.deepEqual(open.authority, VOID_BUY_VOID_PRESALE_EXIT_READINESS_AUTHORITY_V1);
 assert.equal(Object.isFrozen(open), true);
 assert.equal(Object.isFrozen(open.authority), true);
@@ -79,6 +106,8 @@ console.log("closed_policy_rejects_requests=1");
 console.log("disabled_intake_holds=1");
 console.log("accounting_drift_holds=1");
 console.log("unknown_fields_hold=1");
+console.log("oversized_amounts_hold=1");
+console.log("reservation_count_mismatch_holds=1");
 console.log("request_intake_mutation=0");
 console.log("inventory_mutation=0");
 console.log("wallet_or_signer_access=0");
