@@ -1,0 +1,59 @@
+name: VOID Worker Exploration Extension V1
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/void-worker-exploration-extension-v1.yml"
+      - "docs/operations/void-worker-exploration-extension-v1.md"
+      - "ops/coordination/worker-exploration-extension-v1.json"
+      - "ops/coordination/worker-roster-v1.json"
+      - "ops/coordination/worker-coordination-state-v3.json"
+      - "scripts/prove_void_worker_exploration_extension_v1.mjs"
+      - "tools/void-worker-exploration-extension-v1.mjs"
+      - "tools/void-worker-coordination-v3.mjs"
+  push:
+    branches:
+      - main
+    paths:
+      - ".github/workflows/void-worker-exploration-extension-v1.yml"
+      - "docs/operations/void-worker-exploration-extension-v1.md"
+      - "ops/coordination/worker-exploration-extension-v1.json"
+      - "ops/coordination/worker-roster-v1.json"
+      - "ops/coordination/worker-coordination-state-v3.json"
+      - "scripts/prove_void_worker_exploration_extension_v1.mjs"
+      - "tools/void-worker-exploration-extension-v1.mjs"
+      - "tools/void-worker-coordination-v3.mjs"
+
+permissions:
+  contents: read
+
+jobs:
+  prove:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        node:
+          - "22"
+          - "24"
+          - "26"
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version: ${{ matrix.node }}
+      - name: Syntax and JSON
+        run: |
+          node --check tools/void-worker-exploration-extension-v1.mjs
+          node --check scripts/prove_void_worker_exploration_extension_v1.mjs
+          node -e 'JSON.parse(require("node:fs").readFileSync("ops/coordination/worker-exploration-extension-v1.json", "utf8"))'
+      - name: Prove exploration extension
+        run: node scripts/prove_void_worker_exploration_extension_v1.mjs
+      - name: Validate checked-in extension
+        run: |
+          node tools/void-worker-exploration-extension-v1.mjs validate \
+            --output "$RUNNER_TEMP/void-worker-exploration-extension-v1.json"
+          test -s "$RUNNER_TEMP/void-worker-exploration-extension-v1.json"
