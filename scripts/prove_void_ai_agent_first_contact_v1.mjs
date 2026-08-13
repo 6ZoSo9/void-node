@@ -48,6 +48,7 @@ const PUBLIC_UTILITY_RESOURCE_OBSERVATION_REPAIR_BOUNDARY = [
 const POST_MERGE_CONTRACT_INTEGRITY_REPAIR_BOUNDARY = [
   "public/public-node/agents/first-contact-v1.json",
   "scripts/prove_void_ai_agent_first_contact_v1.mjs",
+  "scripts/prove_void_ai_agent_first_contact_runtime_control_flow_repair_v1.mjs",
   "scripts/prove_void_ai_agent_public_utility_v1.mjs",
   "tools/void-ai-agent-first-contact-v1.mjs",
 ];
