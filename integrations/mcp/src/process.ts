@@ -45,6 +45,8 @@ export class BoundedCommandRunner implements CommandRunner {
       const terminate = (error: Error): void => {
         if (terminalError) return;
         terminalError = error;
+        child.stdout.destroy();
+        child.stderr.destroy();
         child.kill("SIGKILL");
       };
 
