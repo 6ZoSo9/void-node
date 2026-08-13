@@ -9,6 +9,7 @@ const MARKER = "VOID_BUY_VOID_CRASH_CONSISTENT_SAGA_SERVER_POLICY_V1";
 const USDC = "0x6666666666666666666666666666666666666666";
 const RECEIVE = "0x8888888888888888888888888888888888888888";
 const WALLET = "0x4444444444444444444444444444444444444444";
+const POOL_ID = "void-presale-mainnet0-v1";
 
 function configuredEnv(): NodeJS.ProcessEnv {
   return {
@@ -28,6 +29,8 @@ function configuredEnv(): NodeJS.ProcessEnv {
       "1",
     [VOID_BUY_VOID_CRASH_CONSISTENT_SAGA_SERVER_POLICY_ENVS_V1.inventory_policy_version]:
       "proof-policy-v1",
+    [VOID_BUY_VOID_CRASH_CONSISTENT_SAGA_SERVER_POLICY_ENVS_V1.pool_id]:
+      POOL_ID,
     [VOID_BUY_VOID_CRASH_CONSISTENT_SAGA_SERVER_POLICY_ENVS_V1.pool_capacity_void_units]:
       "10000000",
     [VOID_BUY_VOID_CRASH_CONSISTENT_SAGA_SERVER_POLICY_ENVS_V1.max_reservation_void_units]:
@@ -50,6 +53,7 @@ function changedStableValue(name: string): string {
   if (name === names.rate_void_units_numerator) return "3";
   if (name === names.rate_void_units_denominator) return "2";
   if (name === names.inventory_policy_version) return "proof-policy-v2";
+  if (name === names.pool_id) return "void-presale-mainnet0-v2";
   if (name === names.pool_capacity_void_units) return "11000000";
   if (name === names.max_reservation_void_units) return "4000000";
   if (name === names.fulfillment_wallet_address) {
@@ -93,7 +97,7 @@ function main(): void {
   });
   assert.deepEqual(policy.inventory_policy, {
     inventory_reservation_enabled: true,
-    pool_id: "void-fixed-price-pool-v1",
+    pool_id: POOL_ID,
     inventory_policy_version: "proof-policy-v1",
     pool_capacity_void_units: "10000000",
     max_reservation_void_units: "5000000",
@@ -104,6 +108,7 @@ function main(): void {
     chain_id: "2050",
     fulfillment_wallet_allowlist: [WALLET],
   });
+  assert.equal(policy.public_summary.pool_id, POOL_ID);
 
   for (const value of Object.values(policy.fingerprints)) {
     assert.match(value, /^[0-9a-f]{64}$/);
@@ -143,6 +148,7 @@ function main(): void {
     VOID_BUY_VOID_CRASH_CONSISTENT_SAGA_SERVER_POLICY_ENVS_V1.rate_void_units_numerator,
     VOID_BUY_VOID_CRASH_CONSISTENT_SAGA_SERVER_POLICY_ENVS_V1.rate_void_units_denominator,
     VOID_BUY_VOID_CRASH_CONSISTENT_SAGA_SERVER_POLICY_ENVS_V1.inventory_policy_version,
+    VOID_BUY_VOID_CRASH_CONSISTENT_SAGA_SERVER_POLICY_ENVS_V1.pool_id,
     VOID_BUY_VOID_CRASH_CONSISTENT_SAGA_SERVER_POLICY_ENVS_V1.pool_capacity_void_units,
     VOID_BUY_VOID_CRASH_CONSISTENT_SAGA_SERVER_POLICY_ENVS_V1.max_reservation_void_units,
     VOID_BUY_VOID_CRASH_CONSISTENT_SAGA_SERVER_POLICY_ENVS_V1.fulfillment_wallet_address,
@@ -174,6 +180,7 @@ function main(): void {
   console.log(`${MARKER}_PROOF_GREEN`);
   console.log("caller_policy_input=false");
   console.log("stable_policy_fingerprint_bound=true");
+  console.log("server_controlled_pool_id_fingerprint_bound=true");
   console.log("dynamic_chain_head_changes_stable_fingerprint=false");
   console.log("wallet_signing_broadcast_money=false");
 }

@@ -84,6 +84,24 @@ jobs:
           test -f dist/index.js
           test -f dist/wal/wal_v1.js
           cmp -s src/wal/wal_v1.js dist/wal/wal_v1.js
+          for key in \
+            VOID_QUARANTINE_HOT_RUNTIME \
+            VOID_DISABLE_WRAPPER_STORM \
+            VOID_DISABLE_TERMINAL_SAVEBLOCK \
+            VOID_DISABLE_TERMINAL_SAVEBLOCK_V2 \
+            VOID_DISABLE_TXROOT_CORE_BUCKET \
+            VOID_DISABLE_TXROOT_HEADER_NOOP \
+            VOID_DISABLE_EARLY_WRAPPER_FAMILY \
+            VOID_DISABLE_DEDUPE_TRUTHFIX_FORENSICS \
+            VOID_DISABLE_SAVEBLOCK_TAIL \
+            VOID_DISABLE_FINALIZE_WAL_COMMIT \
+            VOID_TXROOT_OBSERVER_DISABLE \
+            VOID_TXROOT_FORENSICS_STICKY_DISABLE \
+            VOID_DISABLE_DRIFT \
+            VOID_DRIFT_DISABLE
+          do
+            grep -Fx "${key}=1" .env
+          done
           grep -F 'wallet_key_generated=false' /tmp/void-clone-run-prepare.txt
           grep -F 'validator_key_generated=false' /tmp/void-clone-run-prepare.txt
           grep -F 'treasury_key_generated=false' /tmp/void-clone-run-prepare.txt
@@ -131,7 +149,9 @@ jobs:
           grep -E '"ready"|ready' "$READY"
           cat "$READY"
 
-          sleep 5
+          # The historical saveBlock wrapper fight emitted its throttled rewrap
+          # report at roughly the one-minute boundary. Stay alive past it.
+          sleep 70
           if ! kill -0 "$PID" 2>/dev/null; then
             cat "$LOG" >&2
             exit 1
@@ -140,6 +160,14 @@ jobs:
           test -s "$READY_AFTER_GRACE"
           grep -E '"ready"|ready' "$READY_AFTER_GRACE"
           if grep -F 'ERR_MODULE_NOT_FOUND' "$LOG"; then
+            cat "$LOG" >&2
+            exit 1
+          fi
+          if grep -F '[terminal-saveblock-v2] rewrapped live store.saveBlock' "$LOG"; then
+            cat "$LOG" >&2
+            exit 1
+          fi
+          if grep -F 'Cannot assign to read only property' "$LOG"; then
             cat "$LOG" >&2
             exit 1
           fi

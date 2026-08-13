@@ -1,46 +1,57 @@
 {
   "github_repository": "6ZoSo9/void-node",
   "marker": "VOID_ACTIVE_LANE_RESERVATION_POLICY_V1",
-  "reserved_exact_branches": [
+  "reserved_exact_branches": [],
+  "retired_exact_reservations": [
     {
       "branch": "feat/authenticated-paid-work-submission-operator-review-decision-v1",
-      "reason": "active operator-review decision recovery lane"
+      "reason": "active operator-review decision recovery lane",
+      "retired_reason": "no_matching_remote_branch_or_open_pr_on_2026-08-12"
     },
     {
       "branch": "feat/authenticated-paid-work-submission-review-queue-handoff-v1",
-      "reason": "review-queue handoff lane"
+      "reason": "review-queue handoff lane",
+      "retired_reason": "no_matching_remote_branch_or_open_pr_on_2026-08-12"
     },
     {
       "branch": "feat/void-ai-agent-first-contact-kit-v1",
-      "reason": "reserved first-contact kit lane"
+      "reason": "reserved first-contact kit lane",
+      "retired_reason": "no_matching_remote_branch_or_open_pr_on_2026-08-12"
     },
     {
       "branch": "feat/void-ai-agent-first-contact-runtime-v1",
-      "reason": "reserved first-contact runtime lane"
+      "reason": "reserved first-contact runtime lane",
+      "retired_reason": "no_matching_remote_branch_or_open_pr_on_2026-08-12"
     },
     {
       "branch": "feat/void-datanet-paid-read-quote-v1",
-      "reason": "reserved paid DataNet quote lane"
+      "reason": "reserved paid DataNet quote lane",
+      "retired_reason": "no_matching_remote_branch_or_open_pr_on_2026-08-12"
     },
     {
       "branch": "feat/void-datanet-paid-read-quote-public-discovery-v1",
-      "reason": "reserved paid DataNet public-discovery lane"
+      "reason": "reserved paid DataNet public-discovery lane",
+      "retired_reason": "no_matching_remote_branch_or_open_pr_on_2026-08-12"
     },
     {
       "branch": "ops/tor-stage1-mcp-onion-live-deployment-v1",
-      "reason": "active Tor MCP onion deployment lane"
+      "reason": "active Tor MCP onion deployment lane",
+      "retired_reason": "no_matching_remote_branch_or_open_pr_on_2026-08-12"
     },
     {
       "branch": "parallel/external-agent-paid-work-authenticated-submission-execution-candidate-v1",
-      "reason": "authenticated-submission execution lane"
+      "reason": "authenticated-submission execution lane",
+      "retired_reason": "merged_pr_840"
     },
     {
       "branch": "parallel/external-agent-paid-work-operator-controlled-authenticated-submission-live-canary-prerequisite-v1",
-      "reason": "authenticated-submission live-canary prerequisite lane"
+      "reason": "authenticated-submission live-canary prerequisite lane",
+      "retired_reason": "merged_pr_841"
     },
     {
       "branch": "parallel/external-agent-paid-work-operator-controlled-authenticated-submission-live-canary-v1",
-      "reason": "authenticated-submission live-canary lane"
+      "reason": "authenticated-submission live-canary lane",
+      "retired_reason": "merged_pr_844"
     }
   ],
   "reserved_families": [
@@ -100,6 +111,31 @@
       "pattern": "^void-network-release"
     }
   ],
+  "coordination_severity": {
+    "marker": "VOID_COORDINATION_SEVERITY_V2",
+    "version": 2,
+    "default_overlap": "advisory",
+    "default_reservation": "advisory",
+    "hard_reason_prefixes": [
+      "canonical_main_forbidden",
+      "branch_checked_out",
+      "local_branch_exists",
+      "open_pr_exists:",
+      "origin_branch_exists",
+      "worktree_path_exists"
+    ],
+    "sensitive_path_patterns": [
+      "^contracts/",
+      "^src/chain/",
+      "^src/consensus/",
+      "^src/node_core\\.ts$",
+      "^ops/(?!coordination/)",
+      "(^|[/._-])(?:private[-_]?chain2050|buy[-_]?void|treasury|wallet|signer|validator|consensus|work[-_]?credit|wc)([/._-]|$)"
+    ],
+    "sensitive_branch_patterns": [
+      "(^|[/._-])(?:private[-_]?chain2050|buy[-_]?void|treasury|wallet|signer|validator|consensus|work[-_]?credit|wc|deployment|restart)([/._-]|$)"
+    ]
+  },
   "runtime_evidence_pattern": "(^|[/._-])(?:runtime|proof|canary|live|release|deployment|receipt|seal|checkpoint|smoke|forensic|evidence)([/._-]|$)",
   "version": 1
 }

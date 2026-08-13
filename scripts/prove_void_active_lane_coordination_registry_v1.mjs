@@ -1,12 +1,13 @@
 #!/usr/bin/env node
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
   POLICY_MARKER,
   REGISTRY_MARKER,
+  SEVERITY_MARKER,
   assessCandidate,
   canonicalJson,
   collectChangedPaths,
@@ -38,7 +39,37 @@ const policy = {
       label: "MCP family",
       pattern: "(^|[/._-])mcp([/._-]|$)",
     },
+    {
+      id: "buy-void",
+      label: "Buy VOID family",
+      pattern: "buy-void",
+    },
   ],
+  coordination_severity: {
+    marker: SEVERITY_MARKER,
+    version: 2,
+    default_overlap: "advisory",
+    default_reservation: "advisory",
+    hard_reason_prefixes: [
+      "canonical_main_forbidden",
+      "branch_checked_out",
+      "local_branch_exists",
+      "open_pr_exists:",
+      "origin_branch_exists",
+      "worktree_path_exists",
+    ],
+    sensitive_path_patterns: [
+      "^contracts/",
+      "^src/chain/",
+      "^src/consensus/",
+      "^src/node_core\\.ts$",
+      "^ops/(?!coordination/)",
+      "(^|[/._-])(?:private[-_]?chain2050|buy[-_]?void|treasury|wallet|signer|validator|consensus|work[-_]?credit|wc)([/._-]|$)",
+    ],
+    sensitive_branch_patterns: [
+      "(^|[/._-])(?:private[-_]?chain2050|buy[-_]?void|treasury|wallet|signer|validator|consensus|work[-_]?credit|wc|deployment|restart)([/._-]|$)",
+    ],
+  },
   runtime_evidence_pattern:
     "(^|[/._-])(?:runtime|proof|canary|live|release)([/._-]|$)",
 };
@@ -46,16 +77,28 @@ const policy = {
 validatePolicy(policy);
 const compiled = compilePolicy(policy);
 
+const repositoryPolicy = JSON.parse(readFileSync(
+  new URL("../ops/coordination/active-lane-reservations-v1.json", import.meta.url),
+  "utf8",
+));
+validatePolicy(repositoryPolicy);
+assert.equal(repositoryPolicy.reserved_exact_branches.length, 0);
+assert.equal(repositoryPolicy.retired_exact_reservations.length, 10);
+assert.deepEqual(
+  repositoryPolicy.retired_exact_reservations
+    .filter((item) => item.retired_reason.startsWith("merged_pr_"))
+    .map((item) => item.retired_reason)
+    .sort(),
+  ["merged_pr_840", "merged_pr_841", "merged_pr_844"],
+);
+
 for (const safe of [
   "feat/void-operator-webhook-receiver-v1",
   "feat/buy-void-bounded-auto-fulfillment-orchestrator-v1",
   "feat/agent-paid-work-lifecycle-dry-run-executor-v1",
 ]) {
-  assert.deepEqual(
-    familyMatches(safe, compiled).map((item) => item.id),
-    [],
-    `${safe} must not be classified as Tor`,
-  );
+  const ids = familyMatches(safe, compiled).map((item) => item.id);
+  assert.equal(ids.includes("tor"), false, `${safe} must not be classified as Tor`);
 }
 assert.deepEqual(
   familyMatches("ops/tor-stage1-v1", compiled).map((item) => item.id),
@@ -103,7 +146,7 @@ assert.equal(worktrees[1].branch, "feat/example-v1");
 assert.equal(worktrees[2].detached, true);
 
 const safeCandidate = assessCandidate({
-  branch: "ops/void-active-lane-coordination-registry-v1",
+  branch: "feat/void-active-lane-coordination-registry-v1",
   worktreePath: "/repo-coordination",
   localBranches: {},
   originBranches: {},
@@ -114,9 +157,24 @@ const safeCandidate = assessCandidate({
   pathExists: false,
 });
 assert.equal(safeCandidate.collision_free, true);
+assert.equal(safeCandidate.decision, "CLEAR");
+assert.equal(safeCandidate.hard_stop, false);
+assert.equal(safeCandidate.proceed_allowed, true);
+assert.equal(safeCandidate.priority_fallthrough_allowed, true);
+assert.equal(safeCandidate.exploration_allowed, true);
 assert.deepEqual(safeCandidate.reasons, []);
 assert.deepEqual(safeCandidate.planned_paths, []);
 assert.deepEqual(safeCandidate.path_collisions, []);
+
+const familyCandidate = assessCandidate({
+  branch: "feat/void-agent-mcp-bridge-v1",
+  worktreePath: "/repo-mcp",
+  compiledPolicy: compiled,
+});
+assert.equal(familyCandidate.collision_free, false);
+assert.equal(familyCandidate.decision, "PROCEED_WITH_ADVISORY");
+assert.equal(familyCandidate.hard_stop, false);
+assert.ok(familyCandidate.advisory_reasons.includes("reserved_family:mcp"));
 
 const activePathClaims = [
   {
@@ -154,8 +212,13 @@ const pathCollision = assessCandidate({
   activePathClaims,
 });
 assert.equal(pathCollision.collision_free, false);
+assert.equal(pathCollision.decision, "PROCEED_WITH_ADVISORY");
+assert.equal(pathCollision.hard_stop, false);
 assert.ok(pathCollision.reasons.includes("planned_path_overlap"));
+assert.ok(pathCollision.advisory_reasons.includes("nominal_path_overlap"));
 assert.equal(pathCollision.path_collisions.length, 2);
+assert.equal(pathCollision.advisory_path_collisions.length, 2);
+assert.equal(pathCollision.hard_path_collisions.length, 0);
 assert.equal(pathCollision.path_metadata_complete, true);
 
 const incompletePathMetadata = assessCandidate({
@@ -167,9 +230,60 @@ const incompletePathMetadata = assessCandidate({
   pathMetadataComplete: false,
 });
 assert.equal(incompletePathMetadata.collision_free, false);
+assert.equal(incompletePathMetadata.decision, "PROCEED_WITH_ADVISORY");
+assert.equal(incompletePathMetadata.hard_stop, false);
 assert.ok(
-  incompletePathMetadata.reasons.includes("planned_path_metadata_incomplete"),
+  incompletePathMetadata.advisory_reasons.includes("planned_path_metadata_incomplete"),
 );
+
+const sensitiveOverlap = assessCandidate({
+  branch: "fix/chain-safety-v1",
+  worktreePath: "/repo-chain-safety",
+  compiledPolicy: compiled,
+  candidatePaths: ["src/chain/block.ts"],
+  activePathClaims: [{
+    path: "src/chain/block.ts",
+    source: "open_pr",
+    branch: "fix/other-chain-v1",
+    worktree_path: "",
+    pr_number: 124,
+  }],
+});
+assert.equal(sensitiveOverlap.collision_free, false);
+assert.equal(sensitiveOverlap.decision, "HARD_STOP");
+assert.equal(sensitiveOverlap.hard_stop, true);
+assert.equal(sensitiveOverlap.proceed_allowed, false);
+assert.equal(sensitiveOverlap.priority_fallthrough_allowed, true);
+assert.equal(sensitiveOverlap.exploration_allowed, true);
+assert.ok(sensitiveOverlap.hard_reasons.includes("sensitive_path_overlap"));
+assert.equal(sensitiveOverlap.hard_path_collisions.length, 1);
+
+const sensitiveIncomplete = assessCandidate({
+  branch: "fix/chain-incomplete-v1",
+  worktreePath: "/repo-chain-incomplete",
+  compiledPolicy: compiled,
+  candidatePaths: ["contracts/VoidTreasury.sol"],
+  pathMetadataComplete: false,
+});
+assert.equal(sensitiveIncomplete.decision, "HARD_STOP");
+assert.equal(sensitiveIncomplete.proceed_allowed, false);
+assert.equal(sensitiveIncomplete.priority_fallthrough_allowed, true);
+assert.equal(sensitiveIncomplete.exploration_allowed, true);
+assert.ok(
+  sensitiveIncomplete.hard_reasons.includes("planned_path_metadata_incomplete"),
+);
+
+const sensitiveFamily = assessCandidate({
+  branch: "fix/buy-void-receipt-v1",
+  worktreePath: "/repo-buy-void",
+  compiledPolicy: compiled,
+});
+assert.equal(sensitiveFamily.decision, "HARD_STOP");
+assert.equal(sensitiveFamily.branch_sensitive, true);
+assert.equal(sensitiveFamily.proceed_allowed, false);
+assert.equal(sensitiveFamily.priority_fallthrough_allowed, true);
+assert.equal(sensitiveFamily.exploration_allowed, true);
+assert.ok(sensitiveFamily.hard_reasons.includes("reserved_family:buy-void"));
 
 const collisions = assessCandidate({
   branch: "feat/reserved-v1",
@@ -185,6 +299,11 @@ const collisions = assessCandidate({
   pathExists: true,
 });
 assert.equal(collisions.collision_free, false);
+assert.equal(collisions.decision, "HARD_STOP");
+assert.equal(collisions.hard_stop, true);
+assert.equal(collisions.proceed_allowed, false);
+assert.equal(collisions.priority_fallthrough_allowed, true);
+assert.equal(collisions.exploration_allowed, true);
 for (const expected of [
   "branch_checked_out",
   "exact_reservation:test reservation",
@@ -195,6 +314,31 @@ for (const expected of [
 ]) {
   assert.ok(collisions.reasons.includes(expected), expected);
 }
+for (const expected of [
+  "branch_checked_out",
+  "local_branch_exists",
+  "open_pr_exists:#999",
+  "origin_branch_exists",
+  "worktree_path_exists",
+]) {
+  assert.ok(collisions.hard_reasons.includes(expected), expected);
+}
+assert.ok(collisions.advisory_reasons.includes("exact_reservation:test reservation"));
+
+assert.throws(
+  () => validatePolicy({ ...policy, reserved_exact_branches: "untrusted" }),
+  /reserved_exact_branches must be an array/,
+);
+assert.throws(
+  () => compilePolicy({
+    ...policy,
+    coordination_severity: {
+      ...policy.coordination_severity,
+      sensitive_path_patterns: ["("],
+    },
+  }),
+  /invalid sensitive_path_patterns regex/,
+);
 
 const temp = mkdtempSync(join(tmpdir(), "void-active-lane-proof-"));
 try {
@@ -237,9 +381,20 @@ try {
 }
 
 assert.equal(REGISTRY_MARKER, "VOID_ACTIVE_LANE_COORDINATION_REGISTRY_V1");
+assert.equal(SEVERITY_MARKER, "VOID_COORDINATION_SEVERITY_V2");
 console.log("token_aware_tor_regression_green=true");
 console.log("candidate_collision_guard_green=true");
 console.log("planned_path_overlap_guard_green=true");
+console.log("nominal_overlap_advisory_green=true");
+console.log("family_reservation_advisory_green=true");
+console.log("sensitive_overlap_hard_stop_green=true");
+console.log("candidate_local_red_fallthrough_green=true");
+console.log("candidate_local_red_exploration_green=true");
+console.log("untrustworthy_policy_hold_green=true");
+console.log("retired_exact_reservation_audit_green=true");
+console.log("incomplete_metadata_risk_weighting_green=true");
+console.log("priority_fallthrough_green=true");
+console.log("exploration_permission_green=true");
 console.log("changed_path_enumeration_green=true");
 console.log("worktree_porcelain_parser_green=true");
 console.log("canonical_output_green=true");

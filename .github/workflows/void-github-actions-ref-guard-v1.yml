@@ -1,0 +1,46 @@
+name: VOID GitHub Actions reference guard v1
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/**'
+      - 'tools/void-github-actions-ref-guard-v1.mjs'
+      - 'scripts/prove_void_github_actions_ref_guard_v1.mjs'
+
+permissions:
+  contents: read
+
+jobs:
+  guard:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      BASE_SHA: ${{ github.event.pull_request.base.sha }}
+      HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+      BASE_REPO: ${{ github.event.pull_request.base.repo.full_name }}
+      HEAD_REPO: ${{ github.event.pull_request.head.repo.full_name }}
+    steps:
+      - name: Materialize exact base and head without external actions
+        shell: bash
+        run: |
+          set -euo pipefail
+          git init .
+          git remote add base "https://github.com/${BASE_REPO}.git"
+          git remote add head "https://github.com/${HEAD_REPO}.git"
+          git fetch --no-tags --depth=1 base "${BASE_SHA}"
+          git fetch --no-tags --depth=1 head "${HEAD_SHA}"
+          git checkout --detach "${HEAD_SHA}"
+          test "$(git rev-parse HEAD)" = "${HEAD_SHA}"
+          git cat-file -e "${BASE_SHA}^{commit}"
+
+      - name: Syntax
+        run: |
+          set -euo pipefail
+          node --check tools/void-github-actions-ref-guard-v1.mjs
+          node --check scripts/prove_void_github_actions_ref_guard_v1.mjs
+
+      - name: Focused proof
+        run: node scripts/prove_void_github_actions_ref_guard_v1.mjs
+
+      - name: Guard workflow delta
+        run: node tools/void-github-actions-ref-guard-v1.mjs --base "${BASE_SHA}" --head "${HEAD_SHA}"

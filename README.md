@@ -156,7 +156,7 @@ make public-beta-preflight
 make wc-wallet-proof
 ```
 
-See the [self-hosted beta CI plan](ops/SELF_HOSTED_BETA_CI_PLAN.md) and the [refined tracked raw empty-catches public discovery index](docs/public/refined-tracked-raw-empty-catches-public-discovery-index-v1.md).
+See the [retired self-hosted beta CI record](ops/SELF_HOSTED_BETA_CI_PLAN.md) and the [refined tracked raw empty-catches public discovery index](docs/public/refined-tracked-raw-empty-catches-public-discovery-index-v1.md).
 
 ## Documentation
 
