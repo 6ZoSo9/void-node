@@ -3,6 +3,7 @@ import { spawnSync } from 'node:child_process';
 import { pathToFileURL } from 'node:url';
 
 export const MARKER = 'VOID_GITHUB_ACTIONS_REF_GUARD_V1';
+const UNPARSED_USES_REF = '<unparsed-uses-syntax>';
 
 function git(cwd, args, { allowFailure = false } = {}) {
   const result = spawnSync('git', args, {
@@ -59,10 +60,175 @@ function indentation(line) {
   return match ? match[0].replace(/\t/g, '        ').length : 0;
 }
 
-function parseUsesValue(line) {
-  const match = line.match(/^\s*(?:-\s*)?uses\s*:\s*(?:"([^"]+)"|'([^']+)'|([^\s#]+))/);
-  if (!match) return null;
-  return (match[1] ?? match[2] ?? match[3] ?? '').trim();
+function skipSpace(line, index) {
+  let cursor = index;
+  while (cursor < line.length && /[ \t]/.test(line[cursor])) cursor += 1;
+  return cursor;
+}
+
+function parseQuotedScalar(line, index) {
+  const quote = line[index];
+  let value = '';
+  let cursor = index + 1;
+  const escapes = {
+    '0': '\0',
+    a: '\x07',
+    b: '\b',
+    t: '\t',
+    n: '\n',
+    v: '\v',
+    f: '\f',
+    r: '\r',
+    e: '\x1b',
+    ' ': ' ',
+    '"': '"',
+    '/': '/',
+    '\\': '\\',
+    N: '\u0085',
+    _: '\u00a0',
+    L: '\u2028',
+    P: '\u2029',
+  };
+
+  while (cursor < line.length) {
+    const ch = line[cursor];
+    if (quote === "'") {
+      if (ch === "'") {
+        if (line[cursor + 1] === "'") {
+          value += "'";
+          cursor += 2;
+          continue;
+        }
+        return { value, end: cursor + 1, closed: true };
+      }
+      value += ch;
+      cursor += 1;
+      continue;
+    }
+
+    if (ch === '"') return { value, end: cursor + 1, closed: true };
+    if (ch !== '\\') {
+      value += ch;
+      cursor += 1;
+      continue;
+    }
+
+    const escape = line[cursor + 1];
+    if (escape === 'x' || escape === 'u' || escape === 'U') {
+      const width = escape === 'x' ? 2 : escape === 'u' ? 4 : 8;
+      const digits = line.slice(cursor + 2, cursor + 2 + width);
+      if (digits.length !== width || !/^[0-9a-fA-F]+$/.test(digits)) {
+        return { value, end: line.length, closed: false };
+      }
+      const codePoint = Number.parseInt(digits, 16);
+      try {
+        value += String.fromCodePoint(codePoint);
+      } catch {
+        return { value, end: line.length, closed: false };
+      }
+      cursor += 2 + width;
+      continue;
+    }
+    if (!Object.hasOwn(escapes, escape)) {
+      return { value, end: line.length, closed: false };
+    }
+    value += escapes[escape];
+    cursor += 2;
+  }
+  return { value, end: line.length, closed: false };
+}
+
+function parseMappingKeyAt(line, index) {
+  let cursor = skipSpace(line, index);
+  if (line[cursor] === '?') cursor = skipSpace(line, cursor + 1);
+  if (cursor >= line.length || line[cursor] === '#') return null;
+
+  let key;
+  if (line[cursor] === '"' || line[cursor] === "'") {
+    const parsed = parseQuotedScalar(line, cursor);
+    if (!parsed.closed) return { key: parsed.value, colon: null, ambiguous: true };
+    key = parsed.value;
+    cursor = parsed.end;
+  } else {
+    const match = line.slice(cursor).match(/^([^\s:#,{}\[\]]+)/);
+    if (!match) return null;
+    key = match[1];
+    cursor += match[1].length;
+  }
+
+  cursor = skipSpace(line, cursor);
+  if (line[cursor] !== ':') {
+    return { key, colon: null, ambiguous: key === 'uses' };
+  }
+  return { key, colon: cursor, ambiguous: false };
+}
+
+function parseUsesValueAt(line, colon) {
+  let cursor = skipSpace(line, colon + 1);
+  if (cursor >= line.length || line[cursor] === '#' || line[cursor] === ',' || line[cursor] === '}') {
+    return null;
+  }
+
+  if (line[cursor] === '"' || line[cursor] === "'") {
+    const parsed = parseQuotedScalar(line, cursor);
+    if (!parsed.closed || parsed.value.length === 0) return null;
+    return parsed.value.trim();
+  }
+
+  const start = cursor;
+  while (cursor < line.length && !/[\s#,}\]]/.test(line[cursor])) cursor += 1;
+  const value = line.slice(start, cursor).trim();
+  return value.length > 0 ? value : null;
+}
+
+function flowMappingStarts(line) {
+  const starts = [];
+  let quote = null;
+  let escaped = false;
+  for (let index = 0; index < line.length; index += 1) {
+    const ch = line[index];
+    if (quote === '"') {
+      if (escaped) {
+        escaped = false;
+        continue;
+      }
+      if (ch === '\\') {
+        escaped = true;
+        continue;
+      }
+      if (ch === '"') quote = null;
+      continue;
+    }
+    if (quote === "'") {
+      if (ch === "'" && line[index + 1] === "'") {
+        index += 1;
+        continue;
+      }
+      if (ch === "'") quote = null;
+      continue;
+    }
+    if (ch === '#') break;
+    if (ch === '"' || ch === "'") {
+      quote = ch;
+      continue;
+    }
+    if (ch === '{' || ch === ',') starts.push(index + 1);
+  }
+  return starts;
+}
+
+function usesEntryFromCandidate(line, index, lineNumber) {
+  const key = parseMappingKeyAt(line, index);
+  if (!key || key.key !== 'uses') return null;
+  if (key.colon === null || key.ambiguous) {
+    return { line: lineNumber, ref: UNPARSED_USES_REF, kind: 'unparsed_uses_syntax', mutable: true };
+  }
+  const ref = parseUsesValueAt(line, key.colon);
+  if (!ref) {
+    return { line: lineNumber, ref: UNPARSED_USES_REF, kind: 'unparsed_uses_syntax', mutable: true };
+  }
+  const classification = classifyUsesRef(ref);
+  return { line: lineNumber, ref, ...classification };
 }
 
 export function classifyUsesRef(ref) {
@@ -103,10 +269,17 @@ export function extractUsesRefs(text) {
     }
 
     if (trimmed === '' || trimmed.startsWith('#')) continue;
-    const ref = parseUsesValue(line);
-    if (!ref) continue;
-    const classification = classifyUsesRef(ref);
-    entries.push({ line: index + 1, ref, ...classification });
+
+    let blockStart = skipSpace(line, 0);
+    if (line[blockStart] === '-') blockStart = skipSpace(line, blockStart + 1);
+    const candidateStarts = [blockStart, ...flowMappingStarts(line)];
+    const seenStarts = new Set();
+    for (const start of candidateStarts) {
+      if (seenStarts.has(start)) continue;
+      seenStarts.add(start);
+      const entry = usesEntryFromCandidate(line, start, index + 1);
+      if (entry) entries.push(entry);
+    }
   }
   return entries;
 }
@@ -114,7 +287,7 @@ export function extractUsesRefs(text) {
 function mutableCounts(entries) {
   const counts = new Map();
   for (const entry of entries) {
-    if (!entry.mutable) continue;
+    if (!entry.mutable || entry.kind === 'unparsed_uses_syntax') continue;
     counts.set(entry.ref, (counts.get(entry.ref) ?? 0) + 1);
   }
   return counts;
@@ -143,6 +316,10 @@ export function auditActionRefDelta({ cwd = process.cwd(), base, head }) {
     legacyMutableRefsObserved += [...baseMutable.values()].reduce((sum, n) => sum + n, 0);
     for (const entry of headEntries) {
       if (!entry.mutable) continue;
+      if (entry.kind === 'unparsed_uses_syntax') {
+        newMutableRefs.push({ path: headPath, line: entry.line, uses: entry.ref, kind: entry.kind });
+        continue;
+      }
       const occurrence = (seenHead.get(entry.ref) ?? 0) + 1;
       seenHead.set(entry.ref, occurrence);
       if (occurrence > (baseMutable.get(entry.ref) ?? 0)) {
