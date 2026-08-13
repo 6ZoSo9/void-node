@@ -5,6 +5,8 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { spawnSync } from 'node:child_process';
 import {
+  CANONICAL_ORIGIN_FETCH_URLS_V1,
+  CANONICAL_ORIGIN_REPOSITORY_V1,
   PUBLIC_FETCH_REMOTE_V1,
   PUBLIC_FETCH_URL_V1,
   PUBLIC_PUSH_URL_V1,
@@ -25,7 +27,7 @@ function git(repo, ...args) {
   return run(repo, 'git', args).stdout.trim();
 }
 
-function makeRepo() {
+function makeRepo(originUrl = 'git@github.com:6ZoSo9/void-node.git') {
   const repo = mkdtempSync(join(tmpdir(), 'void-public-fetch-proof-'));
   git(repo, 'init', '-q', '-b', 'main');
   git(repo, 'config', 'user.name', 'VOID Proof');
@@ -33,7 +35,7 @@ function makeRepo() {
   writeFileSync(join(repo, 'tracked.txt'), 'base\n');
   git(repo, 'add', '--', 'tracked.txt');
   git(repo, 'commit', '-q', '-m', 'base');
-  git(repo, 'remote', 'add', 'origin', 'git@github.com:6ZoSo9/void-node.git');
+  git(repo, 'remote', 'add', 'origin', originUrl);
   git(repo, 'config', '--local', 'remote.origin.pushurl', 'ssh://git@github.com/6ZoSo9/void-node.git');
   writeFileSync(join(repo, 'tracked.txt'), 'dirty-worktree\n');
   writeFileSync(join(repo, 'untracked.txt'), 'untracked\n');
@@ -49,6 +51,8 @@ function invariant(snapshot) {
     dirty_count: snapshot.dirty_count,
     index_sha256: snapshot.index_sha256,
     refs_sha256: snapshot.refs_sha256,
+    canonical_origin_required: snapshot.canonical_origin_required,
+    origin_repository: snapshot.origin_repository,
     origin_fetch_count: snapshot.origin_fetch_count,
     origin_fetch_sha256: snapshot.origin_fetch_sha256,
     origin_push_count: snapshot.origin_push_count,
@@ -56,11 +60,20 @@ function invariant(snapshot) {
   };
 }
 
+function assertNoDedicatedRemote(repo) {
+  const fetch = run(repo, 'git', ['config', '--local', '--get-all', `remote.${PUBLIC_FETCH_REMOTE_V1}.url`], 1);
+  const push = run(repo, 'git', ['config', '--local', '--get-all', `remote.${PUBLIC_FETCH_REMOTE_V1}.pushurl`], 1);
+  assert.equal(fetch.stdout, '');
+  assert.equal(push.stdout, '');
+}
+
 const repos = [];
 try {
   const repo = makeRepo();
   repos.push(repo);
   const before = inspectRepositoryTransportV1(repo);
+  assert.equal(before.canonical_origin_required, true);
+  assert.equal(before.origin_repository, CANONICAL_ORIGIN_REPOSITORY_V1);
   assert.equal(before.dedicated_state, 'MISSING');
   assert.equal(before.dirty_count, 2);
   const plan = buildTransportPlanV1(before);
@@ -102,6 +115,36 @@ try {
   git(detachedRepo, 'checkout', '--detach', '-q');
   assert.throws(() => inspectRepositoryTransportV1(detachedRepo), /exact main/);
 
+  for (const canonicalOrigin of CANONICAL_ORIGIN_FETCH_URLS_V1) {
+    const canonicalRepo = makeRepo(canonicalOrigin);
+    repos.push(canonicalRepo);
+    const snapshot = inspectRepositoryTransportV1(canonicalRepo);
+    assert.equal(snapshot.canonical_origin_required, true);
+    assert.equal(snapshot.origin_repository, CANONICAL_ORIGIN_REPOSITORY_V1);
+  }
+
+  const foreignRepo = makeRepo('git@github.com:someone-else/not-void-node.git');
+  repos.push(foreignRepo);
+  assert.throws(() => inspectRepositoryTransportV1(foreignRepo), /canonical 6ZoSo9\/void-node/);
+  assertNoDedicatedRemote(foreignRepo);
+
+  const alternateHostRepo = makeRepo('https://example.invalid/6ZoSo9/void-node.git');
+  repos.push(alternateHostRepo);
+  assert.throws(() => inspectRepositoryTransportV1(alternateHostRepo), /canonical 6ZoSo9\/void-node/);
+  assertNoDedicatedRemote(alternateHostRepo);
+
+  const mixedRepo = makeRepo();
+  repos.push(mixedRepo);
+  git(mixedRepo, 'config', '--local', '--add', 'remote.origin.url', 'https://example.invalid/other/repo.git');
+  assert.throws(() => inspectRepositoryTransportV1(mixedRepo), /exactly one canonical 6ZoSo9\/void-node/);
+  assertNoDedicatedRemote(mixedRepo);
+
+  const duplicateCanonicalRepo = makeRepo();
+  repos.push(duplicateCanonicalRepo);
+  git(duplicateCanonicalRepo, 'config', '--local', '--add', 'remote.origin.url', PUBLIC_FETCH_URL_V1);
+  assert.throws(() => inspectRepositoryTransportV1(duplicateCanonicalRepo), /exactly one canonical 6ZoSo9\/void-node/);
+  assertNoDedicatedRemote(duplicateCanonicalRepo);
+
   const cliRepo = makeRepo();
   repos.push(cliRepo);
   const tool = new URL('../tools/void-node-fleet-public-fetch-transport-v1.mjs', import.meta.url).pathname;
@@ -110,6 +153,8 @@ try {
   assert.equal(dry.stdout.includes('git@github.com'), false);
   assert.equal(dry.stdout.includes('example.invalid'), false);
   assert.equal(dryResult.outcome, 'READY_TO_APPLY');
+  assert.equal(dryResult.plan.canonical_origin_required, true);
+  assert.equal(dryResult.plan.origin_repository, CANONICAL_ORIGIN_REPOSITORY_V1);
   assert.equal(dryResult.mutation_attempted, false);
   assert.equal(dryResult.authority.git_fetch, false);
   assert.equal(dryResult.authority.service_mutation, false);
@@ -146,6 +191,9 @@ try {
   console.log('remote_name=void-public-fetch');
   console.log('fetch_url=https://github.com/6ZoSo9/void-node.git');
   console.log('push_url=/dev/null');
+  console.log('canonical_origin_required=true');
+  console.log('foreign_origin_rejected=true');
+  console.log('mixed_origin_rejected=true');
   console.log('dirty_worktree_preserved=true');
   console.log('origin_preserved=true');
   console.log('refs_preserved=true');
