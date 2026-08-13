@@ -1,0 +1,55 @@
+name: VOID App validator read-only v1
+
+on:
+  pull_request:
+    paths:
+      - "public/void-app-wave1-v1/assets/js/home-live.js"
+      - "public/void-app-wave1-v1/assets/js/validate-live.js"
+      - "public/public-node/validators/mainnet0-validator-candidate-readiness-matrix-hold-v1.json"
+      - "docs/public/void-app-validator-readonly-v1.md"
+      - "scripts/prove_void_app_validator_readonly_v1.mjs"
+      - ".github/workflows/void-app-validator-readonly-v1.yml"
+  push:
+    branches: [main]
+    paths:
+      - "public/void-app-wave1-v1/assets/js/home-live.js"
+      - "public/void-app-wave1-v1/assets/js/validate-live.js"
+      - "public/public-node/validators/mainnet0-validator-candidate-readiness-matrix-hold-v1.json"
+      - "docs/public/void-app-validator-readonly-v1.md"
+      - "scripts/prove_void_app_validator_readonly_v1.mjs"
+      - ".github/workflows/void-app-validator-readonly-v1.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: void-app-validator-readonly-v1-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  proof:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: ${{ matrix.node }}
+      - name: Syntax
+        run: |
+          node --check public/void-app-wave1-v1/assets/js/home-live.js
+          node --check public/void-app-wave1-v1/assets/js/validate-live.js
+          node --check scripts/prove_void_app_validator_readonly_v1.mjs
+      - name: Validator read-only proof
+        run: node scripts/prove_void_app_validator_readonly_v1.mjs
+      - name: Site-theme regression
+        run: node scripts/prove_void_app_site_theme_v1.mjs
+      - name: Diff hygiene
+        run: git diff --check
