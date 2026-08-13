@@ -1,4 +1,5 @@
 import { views } from './views.js';
+import { dataView } from './data-live.js';
 
 const root = document.getElementById('view-root');
 const overlay = document.getElementById('overlay');
@@ -38,7 +39,7 @@ function syncNavigation(route) {
 
 function render() {
   const route = currentRoute();
-  root.innerHTML = views[route]();
+  root.innerHTML = route === 'data' ? dataView() : views[route]();
   syncNavigation(route);
   document.title = `${route[0].toUpperCase()}${route.slice(1)} — VOID App Shell`;
   root.querySelectorAll('[data-demo-toast]').forEach((button) => {
