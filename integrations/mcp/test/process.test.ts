@@ -63,3 +63,30 @@ test("does not retain descendant stderr after a terminal output-limit transition
     },
   );
 });
+
+test("settles promptly after a terminal transition when a descendant holds stdout open", async () => {
+  const runner = new BoundedCommandRunner();
+  const descendant = "setTimeout(() => {}, 5_000);";
+  const parent = [
+    "const { spawn } = require('node:child_process');",
+    `spawn(process.execPath, ['-e', ${JSON.stringify(descendant)}], { stdio: ['ignore', 'inherit', 'ignore'] });`,
+    "process.stdout.write('XX');",
+    "setInterval(() => {}, 10_000);",
+  ].join("");
+  const startedAt = Date.now();
+
+  await assert.rejects(
+    runner.run({
+      ...baseSpec(["-e", parent]),
+      timeoutMs: 4_000,
+      maxStdoutBytes: 1,
+    }),
+    /subprocess stdout exceeded 1 bytes/,
+  );
+
+  const elapsedMs = Date.now() - startedAt;
+  assert.ok(
+    elapsedMs < 2_500,
+    `terminal subprocess rejection waited ${elapsedMs}ms for descendant-held stdout`,
+  );
+});
