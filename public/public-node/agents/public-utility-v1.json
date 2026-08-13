@@ -19,7 +19,7 @@
   "limits": {
     "max_catalog_bytes": 65536,
     "max_entries": 8,
-    "max_requests_per_cold_start": 4,
+    "max_requests_per_cold_start": 8,
     "minimum_poll_interval_ms": 60000
   },
   "controls": {
