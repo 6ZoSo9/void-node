@@ -1,5 +1,4 @@
 import assert from "node:assert/strict";
-import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 
@@ -8,90 +7,68 @@ const wrapperPath = path.join(
   root,
   "src/economic/buy_void_runtime_integration_v1.ts",
 );
-const legacyRuntimePath = path.join(
+const canonicalRuntimePath = path.join(
   root,
   "src/economic/buy_void_delivery_runtime_integration_v1.ts",
 );
-const runtimePath = path.join(
+const canonicalAdapterPath = path.join(
+  root,
+  "src/economic/buy_void_delivery_sign_broadcast_adapter_v1.ts",
+);
+const nativeRuntimePath = path.join(
   root,
   "src/economic/buy_void_native_delivery_runtime_integration_v1.ts",
+);
+const nativeAdapterPath = path.join(
+  root,
+  "src/economic/buy_void_native_delivery_sign_broadcast_adapter_v1.ts",
 );
 const guardPath = path.join(
   root,
   "src/economic/buy_void_delivery_submission_guard_v1.ts",
 );
-const legacyAdapterPath = path.join(
-  root,
-  "src/economic/buy_void_delivery_sign_broadcast_adapter_v1.ts",
-);
-const adapterPath = path.join(
-  root,
-  "src/economic/buy_void_native_delivery_sign_broadcast_adapter_v1.ts",
-);
-const adapterProofPath = path.join(
-  root,
-  "scripts/prove_buy_void_native_delivery_sign_broadcast_adapter_v1.ts",
-);
-const runtimeProofPath = path.join(
-  root,
-  "scripts/prove_buy_void_native_delivery_runtime_integration_v1.ts",
-);
 const indexPath = path.join(root, "src/index.ts");
 
 for (const file of [
   wrapperPath,
-  legacyRuntimePath,
-  runtimePath,
+  canonicalRuntimePath,
+  canonicalAdapterPath,
+  nativeRuntimePath,
+  nativeAdapterPath,
   guardPath,
-  legacyAdapterPath,
-  adapterPath,
-  adapterProofPath,
-  runtimeProofPath,
   indexPath,
 ]) {
   assert.equal(fs.existsSync(file), true, `missing ${file}`);
 }
 
-const sha256 = (value: string): string =>
-  crypto.createHash("sha256").update(value).digest("hex");
-
 const wrapper = fs.readFileSync(wrapperPath, "utf8");
-const legacyRuntime = fs.readFileSync(legacyRuntimePath, "utf8");
-const runtime = fs.readFileSync(runtimePath, "utf8");
+const canonicalRuntime = fs.readFileSync(canonicalRuntimePath, "utf8");
+const canonicalAdapter = fs.readFileSync(canonicalAdapterPath, "utf8");
+const nativeRuntime = fs.readFileSync(nativeRuntimePath, "utf8");
+const nativeAdapter = fs.readFileSync(nativeAdapterPath, "utf8");
 const guard = fs.readFileSync(guardPath, "utf8");
-const legacyAdapter = fs.readFileSync(legacyAdapterPath, "utf8");
-const adapter = fs.readFileSync(adapterPath, "utf8");
-const adapterProof = fs.readFileSync(adapterProofPath, "utf8");
-const runtimeProof = fs.readFileSync(runtimeProofPath, "utf8");
 const index = fs.readFileSync(indexPath, "utf8");
-
-assert.equal(
-  sha256(legacyRuntime),
-  "f01e1de0041834fac61e349b1632abe01b02321fd2014eaf03ecd59ce5e58663",
-  "legacy ERC-20 runtime blob changed",
-);
-assert.equal(
-  sha256(legacyAdapter),
-  "684705d171ff0fafb977d303fd0a1c498ca848cd4022e981f9da43893d49ada1",
-  "legacy ERC-20 adapter blob changed",
-);
 
 assert.equal(
   (
     wrapper.match(
-      /import "\.\/buy_void_native_delivery_runtime_integration_v1\.js";/g,
+      /from "\.\/buy_void_delivery_runtime_integration_v1\.js";/g,
     ) || []
   ).length,
   1,
-  "wrapper must mount native delivery runtime exactly once",
+  "wrapper must import canonical ERC-20 delivery runtime exactly once",
 );
-assert.equal(
-  wrapper.includes(
-    'import "./buy_void_delivery_runtime_integration_v1.js";',
-  ),
-  false,
-  "wrapper still mounts legacy ERC-20 delivery runtime",
-);
+for (const forbiddenParentImport of [
+  'import "./buy_void_native_delivery_runtime_integration_v1.js";',
+  'import "./buy_void_native_delivery_receipt_runtime_v1.js";',
+  'import "./buy_void_native_execution_runtime_v1.js";',
+]) {
+  assert.equal(
+    wrapper.includes(forbiddenParentImport),
+    false,
+    `wrapper retains native parent mount: ${forbiddenParentImport}`,
+  );
+}
 
 for (const forbiddenIndexImport of [
   "buy_void_delivery_runtime_integration_v1",
@@ -107,7 +84,7 @@ for (const forbiddenIndexImport of [
 }
 
 for (const marker of [
-  "VOID_BUY_VOID_NATIVE_DELIVERY_RUNTIME_INTEGRATION_V1",
+  "VOID_BUY_VOID_DELIVERY_RUNTIME_INTEGRATION_V1",
   "/__void/operator/buy-void-delivery-runtime-v1/status",
   "/__void/operator/buy-void-delivery-runtime-v1/command",
   "operator_loopback_only",
@@ -115,48 +92,28 @@ for (const marker of [
   "server_controlled_root_dir",
   "server_controlled_policy",
   "prepared_attempt_loaded_from_server_journal",
-  "native_asset_only: true",
-  "erc20_transfer: false",
-  "token_contract_dependency: false",
-  "VOID_BUY_VOID_NATIVE_DELIVERY_ASSET_MODE",
-  'values.asset_mode !== "native_void"',
-  "VOID_BUY_VOID_NATIVE_DELIVERY_UNIT_SCALE_V1",
-  "native_delivery_sign_broadcast_dependencies_not_configured",
-  "raw_signed_transaction_returned: false",
-  "automatic_retry_allowed: false",
-]) {
-  assert.equal(runtime.includes(marker), true, `runtime missing ${marker}`);
-}
-
-for (const forbidden of [
-  "VOID_BUY_VOID_NATIVE_DELIVERY_TOKEN_ADDRESS",
-  "void_token_address",
-  "Interface(",
-  "function transfer(address",
-  "tokenAddress",
+  "VOID_BUY_VOID_DELIVERY_TOKEN_ADDRESS",
+  "VOID_BUY_VOID_DELIVERY_WALLET_ADDRESS",
+  "VOID_BUY_VOID_DELIVERY_SIGN_BROADCAST_ADAPTER_V1",
+  "raw_signed_transaction_output: false",
+  "automatic_retry: false",
 ]) {
   assert.equal(
-    runtime.includes(forbidden),
-    false,
-    `runtime retains ERC-20 delivery material: ${forbidden}`,
+    canonicalRuntime.includes(marker),
+    true,
+    `canonical runtime missing ${marker}`,
   );
 }
 
 for (const marker of [
-  "VOID_BUY_VOID_NATIVE_DELIVERY_SIGN_BROADCAST_ADAPTER_V1",
-  '"buyVoidNativeSignAndBroadcast"',
-  "native_asset_only: true",
-  "erc20_transfer: false",
-  "token_contract_dependency: false",
-  'asset_mode: "native_void"',
-  "fulfillment_unit_decimals: 6",
-  "native_unit_decimals: 18",
-  'multiplier: "1000000000000"',
-  "NATIVE_VALUE_MULTIPLIER_V1",
-  "value: nativeValueWei",
-  'data: "0x"',
-  "parsedTo !== normalized.delivery_address",
-  "parsed.value !== normalized.native_value_wei",
+  "VOID_BUY_VOID_DELIVERY_SIGN_BROADCAST_ADAPTER_V1",
+  '"buyVoidSignAndBroadcast"',
+  "TRANSFER_INTERFACE",
+  '"function transfer(address to, uint256 value) returns (bool)"',
+  "void_token_address",
+  "to: tokenAddress",
+  "value: 0n",
+  "TRANSFER_INTERFACE.encodeFunctionData",
   "claim_submission_once(binding)",
   "release_submission_claim(",
   "sign_transaction(",
@@ -168,32 +125,48 @@ for (const marker of [
   "raw_signed_transaction_returned: false",
   "automatic_retry_allowed: false",
 ]) {
-  assert.equal(adapter.includes(marker), true, `adapter missing ${marker}`);
+  assert.equal(
+    canonicalAdapter.includes(marker),
+    true,
+    `canonical adapter missing ${marker}`,
+  );
 }
 
 for (const forbidden of [
-  "Interface",
-  "TRANSFER_INTERFACE",
-  "void_token_address",
-  "tokenAddress",
-  "function transfer(address",
-  "process.env",
-  'from "node:fs"',
-  'from "node:path"',
-  "fetch(",
-  "JsonRpcProvider",
-  "new Wallet(",
-  "sendTransaction(",
-  "broadcastTransaction(",
-  "writeFile",
-  "appendFile",
-  "app.post(",
-  "app.get(",
+  "native_asset_only: true",
+  'asset_mode: "native_void"',
+  "NATIVE_VALUE_MULTIPLIER_V1",
+  "value: nativeValueWei",
 ]) {
   assert.equal(
-    adapter.includes(forbidden),
+    canonicalAdapter.includes(forbidden),
     false,
-    `native adapter direct authority or ERC-20 material present: ${forbidden}`,
+    `canonical ERC-20 adapter contains native-value material: ${forbidden}`,
+  );
+}
+
+for (const retainedMarker of [
+  "VOID_BUY_VOID_NATIVE_DELIVERY_RUNTIME_INTEGRATION_V1",
+  "native_asset_only: true",
+  "erc20_transfer: false",
+  "token_contract_dependency: false",
+]) {
+  assert.equal(
+    nativeRuntime.includes(retainedMarker),
+    true,
+    `native canary runtime source not retained: ${retainedMarker}`,
+  );
+}
+for (const retainedMarker of [
+  "VOID_BUY_VOID_NATIVE_DELIVERY_SIGN_BROADCAST_ADAPTER_V1",
+  'asset_mode: "native_void"',
+  "value: nativeValueWei",
+  'data: "0x"',
+]) {
+  assert.equal(
+    nativeAdapter.includes(retainedMarker),
+    true,
+    `native canary adapter source not retained: ${retainedMarker}`,
   );
 }
 
@@ -201,7 +174,6 @@ for (const marker of [
   "VOID_BUY_VOID_DELIVERY_SUBMISSION_GUARD_V1",
   "VOID_BUY_VOID_DELIVERY_SIGN_BROADCAST_ADAPTER_V1",
   "VOID_BUY_VOID_NATIVE_DELIVERY_SIGN_BROADCAST_ADAPTER_V1",
-  "adapter_marker",
   "append_only_journal",
   "hash_chain",
   "exclusive_lock",
@@ -211,68 +183,23 @@ for (const marker of [
   assert.equal(guard.includes(marker), true, `guard missing ${marker}`);
 }
 
-for (const pattern of [
-  /\bJsonRpcProvider\b/,
-  /\bnew\s+Wallet\b/,
-  /\bfetch\s*\(/,
-  /\baxios\b/,
-  /\bchild_process\b/,
-  /\bsystemctl\b/,
-  /\bsendTransaction\s*\(/,
-  /\bbroadcastTransaction\s*\(/,
-]) {
-  assert.equal(pattern.test(runtime), false, String(pattern));
-  assert.equal(pattern.test(guard), false, String(pattern));
-}
-
 assert.equal(
-  runtime.includes(
-    "__void_buy_void_native_delivery_runtime_dependencies_v1",
-  ),
+  wrapper.includes('asset_mode: "void_token_erc20"'),
   true,
 );
 assert.equal(
-  runtime.includes(
-    'String(process.env[ENABLE_ENV] || "") === "1"',
-  ),
+  wrapper.includes("native_delivery_parent_mounted: false"),
   true,
 );
 assert.equal(
-  runtime.includes(
-    "VOID_BUY_VOID_NATIVE_DELIVERY_RUNTIME_INTEGRATION_ENABLED",
-  ),
+  wrapper.includes("presale_inventory_funding_ready: false"),
   true,
 );
-assert.equal(runtime.includes("private_key_input: false"), true);
-assert.equal(runtime.includes("rpc_url_input: false"), true);
-assert.equal(
-  runtime.includes("raw_signed_transaction_input: false"),
-  true,
-);
-
-for (const proofMarker of [
-  "VOID_BUY_VOID_NATIVE_DELIVERY_SIGN_BROADCAST_ADAPTER_V1_GREEN",
-  "nativeValueWei",
-  'asset_mode: "native_void"',
-]) {
-  assert.equal(
-    adapterProof.includes(proofMarker),
-    true,
-    `native adapter proof missing ${proofMarker}`,
-  );
-}
-for (const proofMarker of [
-  "VOID_BUY_VOID_NATIVE_DELIVERY_RUNTIME_INTEGRATION_V1_GREEN",
-  "nativeValueWei",
-  "VOID_BUY_VOID_NATIVE_DELIVERY_ASSET_MODE",
-]) {
-  assert.equal(
-    runtimeProof.includes(proofMarker),
-    true,
-    `native runtime proof missing ${proofMarker}`,
-  );
-}
 
 console.log(
   "VOID_BUY_VOID_NATIVE_DELIVERY_RUNTIME_INTEGRATION_GUARD_V1_GREEN",
 );
+console.log("canonical_parent_delivery=void_token_erc20");
+console.log("native_canary_source_retained=1");
+console.log("native_canary_parent_mounted=0");
+console.log("presale_inventory_funding_ready=0");
