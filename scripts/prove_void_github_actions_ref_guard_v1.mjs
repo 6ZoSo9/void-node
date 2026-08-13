@@ -57,6 +57,11 @@ const blockScalar = extractUsesRefs('steps:\n  - run: |\n      echo "uses: actio
 assert.equal(blockScalar.length, 1);
 assert.equal(blockScalar[0].ref, './local');
 
+const usesBlockScalar = extractUsesRefs('steps:\n  - uses: |\n      actions/checkout@v4\n');
+assert.equal(usesBlockScalar.length, 1);
+assert.equal(usesBlockScalar[0].kind, 'unparsed_uses_syntax');
+assert.equal(usesBlockScalar[0].mutable, true);
+
 const inlineQuotedNoise = extractUsesRefs('steps:\n  - run: echo "{ uses: actions/checkout@v4 }"\n');
 assert.equal(inlineQuotedNoise.length, 0);
 
@@ -179,6 +184,46 @@ try {
     const result = auditActionRefDelta({ cwd: fixture.repo, base: fixture.base, head: fixture.head });
     assert.equal(result.decision, 'HOLD');
     assert.equal(result.new_mutable_refs[0].kind, 'unparsed_uses_syntax');
+  }
+
+  {
+    const fixture = makeRepo({}, { '.github/workflows/a.yml': 'jobs:\n  t:\n    steps:\n      - uses: |\n          actions/setup-node@v4\n' });
+    repos.push(fixture.repo);
+    const result = auditActionRefDelta({ cwd: fixture.repo, base: fixture.base, head: fixture.head });
+    assert.equal(result.decision, 'HOLD');
+    assert.equal(result.new_mutable_refs[0].kind, 'unparsed_uses_syntax');
+  }
+
+  {
+    const composite = 'name: local\nruns:\n  using: composite\n  steps:\n    - uses: actions/setup-node@v4\n';
+    const fixture = makeRepo(
+      {},
+      {
+        '.github/workflows/a.yml': 'jobs:\n  t:\n    steps:\n      - uses: ./.github/actions/local\n',
+        '.github/actions/local/action.yml': composite,
+      },
+    );
+    repos.push(fixture.repo);
+    const result = auditActionRefDelta({ cwd: fixture.repo, base: fixture.base, head: fixture.head });
+    assert.equal(result.decision, 'HOLD');
+    assert.equal(result.new_mutable_refs.some((x) => x.path === '.github/actions/local/action.yml' && x.uses === 'actions/setup-node@v4'), true);
+  }
+
+  {
+    const composite = `name: local\nruns:\n  using: composite\n  steps:\n    - uses: actions/setup-node@${'1'.repeat(40)}\n`;
+    const fixture = makeRepo({}, { '.github/actions/local/action.yaml': composite });
+    repos.push(fixture.repo);
+    const result = auditActionRefDelta({ cwd: fixture.repo, base: fixture.base, head: fixture.head });
+    assert.equal(result.decision, 'GREEN');
+    assert.equal(result.changed_workflows.length, 1);
+  }
+
+  {
+    const fixture = makeRepo({}, { '.github/actions/local/helper.yml': 'steps:\n  - uses: actions/setup-node@v4\n' });
+    repos.push(fixture.repo);
+    const result = auditActionRefDelta({ cwd: fixture.repo, base: fixture.base, head: fixture.head });
+    assert.equal(result.decision, 'GREEN');
+    assert.equal(result.changed_workflows.length, 0);
   }
 
   {
