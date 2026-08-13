@@ -129,7 +129,7 @@ export function validateValidatorReadinessSnapshotV1(snapshot) {
     if (!boundedText(item.requirement, 1024) || !boundedText(item.public_evidence_expected, 1024)) {
       throw new Error(`candidate readiness item text invalid: ${expectedId}`);
     }
-    if (expectedId === 'minimum_candidate_stake_policy_awareness' && item.policy_reference_min_public_candidate_stake_policy_void !== 10000) {
+    if (expectedId === 'minimum_candidate_stake_policy_awareness' && item.policy_reference_min_public_candidate_stake_void !== 10000) {
       throw new Error('candidate readiness stake reference mismatch');
     }
   });
