@@ -36,6 +36,12 @@ need(
 
 for (const marker of [
   "VOID_BUY_VOID_RUNTIME_INTEGRATION_V1",
+  "VOID_BUY_VOID_STANDALONE_NATIVE_SAGA_REFERENCE_V1",
+  'command_symbol: "handleBuyVoidCrashConsistentSagaRuntimeCommandV1"',
+  'status_symbol: "buyVoidCrashConsistentSagaRuntimeStatusV1"',
+  'legacy_status_key: "crash_consistent_saga_runtime"',
+  "source_retained: true",
+  "parent_mounted: false",
   "VOID_BUY_VOID_CANONICAL_DELIVERY_COMPOSITION_V1",
   'status: "/__void/operator/buy-void-runtime-v1/status"',
   'command: "/__void/operator/buy-void-runtime-v1/command"',
@@ -97,17 +103,24 @@ for (const forbiddenParentImport of [
   );
 }
 
-for (const forbiddenParentMarker of [
-  "VOID_BUY_VOID_CRASH_CONSISTENT_SAGA_RUNTIME_ACTION_V1",
-  "buyVoidCrashConsistentSagaRuntimeStatusV1",
-  "handleBuyVoidCrashConsistentSagaRuntimeCommandV1",
-  "crash_consistent_saga_runtime:",
-]) {
-  need(
-    !moduleText.includes(forbiddenParentMarker),
-    `native preparation saga remains parent-reachable: ${forbiddenParentMarker}`,
-  );
-}
+need(
+  !/\bVOID_BUY_VOID_CRASH_CONSISTENT_SAGA_RUNTIME_ACTION_V1\b\s*,?\s*$/mu.test(
+    moduleText,
+  ),
+  "crash-saga action identifier is imported or mounted outside standalone metadata",
+);
+need(
+  !/crash_consistent_saga_runtime\s*:\s*buyVoidCrashConsistentSagaRuntimeStatusV1\s*\(/u.test(
+    moduleText,
+  ),
+  "crash-saga status remains parent-mounted",
+);
+need(
+  !/handleBuyVoidCrashConsistentSagaRuntimeCommandV1\s*\(\s*req\s*,\s*res/u.test(
+    moduleText,
+  ),
+  "crash-saga command remains parent-dispatched",
+);
 
 for (const deliveryMarker of [
   "VOID_BUY_VOID_DELIVERY_RUNTIME_INTEGRATION_V1",
@@ -159,6 +172,7 @@ console.log("VOID_BUY_VOID_RUNTIME_INTEGRATION_GUARD_V1_GREEN");
 console.log("canonical_delivery_asset=void_token_erc20");
 console.log("native_parent_mounts=0");
 console.log("bounded_orchestrator_parent_mount=0");
+console.log("standalone_crash_saga_source_retained=1");
 console.log("crash_saga_parent_mount=0");
 console.log("native_transaction_preparation_parent_mount=0");
 console.log("opaque_prepared_transaction_execution_parent_mount=0");
