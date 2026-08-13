@@ -7,6 +7,34 @@ provisioned, purpose-segregated vaults whose execution authority is narrower
 than their balances. It does not treat a bare hot-wallet key as unrestricted
 authority over a funded vault.
 
+## Current reconciled custody
+
+Canonical Chain-2050 custody was reconciled at block `37371` against retained
+`VoidToken.Transfer` history and live `balanceOf(...)` state. The retained log
+scan had 259 transfer events, no log errors, and matched every current live
+holder.
+
+| Current custody | VOID |
+| --- | ---: |
+| Core `VoidTreasury` | 333,207,333 |
+| Validator upgrade-track `UpgradeStaking` | 126,000 |
+| `OpsTreasury` | 0 |
+| Canonical frozen `ValidatorSet` | 0 |
+| `EmissionsController` | 0 |
+| `RewardEngine` | 0 |
+| Configured Buy VOID fulfillment wallet | 0 |
+| **Total current supply reconciled** | **333,333,333** |
+
+The former 126,000 VOID unexplained bucket is now fully reconciled. The
+validator onboarding path funded 126 bootstrap validators at 1,000 VOID each
+through `VoidTreasury -> OpsTreasury -> candidate -> UpgradeStaking`. The live
+upgrade-track staking contract at
+`0x77DFEedD19A4741f299C902AD5bBe0DE917a9e59` holds exactly 126,000 VOID and its
+retained transfer history matches that live balance.
+
+Machine-readable current custody is pinned in
+`ops/mainnet/mainnet0-premine-allocation.current.json`.
+
 ## Exact target
 
 | Custody purpose | Target VOID |
@@ -15,16 +43,22 @@ authority over a funded vault.
 | `PresaleInventoryVault` | 10,000,000 |
 | `BTCVoidMarketVault` | 10,000,000 |
 | `OpsTreasury` | 5,000,000 |
-| Previously distributed or still-unreconciled balance | 126,000 |
+| Bootstrap validator stake in `UpgradeStaking` | 126,000 |
 | **Total premine** | **333,333,333** |
 
-The transition basis is the last repository-verified snapshot of 332,207,333
-VOID in `VoidTreasury` and 1,000,000 VOID in `OpsTreasury`. Reaching the target
-would require three separately reviewed movements: 10,000,000 VOID to the
-presale inventory vault, 10,000,000 VOID to the BTC/VOID market vault, and a
-4,000,000 VOID OpsTreasury top-up. The resulting core balance would be
-308,207,333 VOID. The existing 126,000 VOID difference must be reconciled before
-any live transfer plan is eligible for approval.
+Relative to the reconciled current custody, the three future purpose allocations
+remain unfunded: 10,000,000 VOID for presale inventory, 10,000,000 VOID for the
+BTC/VOID market inventory, and 5,000,000 VOID for OpsTreasury. If and only if
+those exact final vaults and authorities are separately reviewed and approved,
+the total 25,000,000 VOID target delta would come from `VoidTreasury`, leaving
+the target core reserve at 308,207,333 VOID. The existing 126,000 VOID bootstrap
+validator stake requires no additional allocation.
+
+Historical Buy VOID execution artifacts are not automatically counted as
+current custody. The current canonical Chain-2050 state reconciles its entire
+333,333,333 VOID supply to `VoidTreasury` plus `UpgradeStaking`. Any historical
+artifact produced against a superseded or separately recovered runtime state
+must be reconciled to the canonical state before it can change this ledger.
 
 ## Purpose boundaries
 
@@ -46,18 +80,22 @@ from presale inventory, market inventory, native BTC market reserves, and the
 LLC's off-chain business cash. Market BTC is not automatically swept into
 operations.
 
+The validator `UpgradeStaking` allocation is stake backing for the bootstrap
+validator set. It is not presale inventory, market inventory, or an operating
+wallet, and it must not be counted as free treasury liquidity.
+
 The core `VoidTreasury` remains the long-term reserve and administrative source
 for separately reviewed allocations. A source plan, pull request, or merge does
 not activate a vault or authorize a transfer.
 
 ## Funding and activation gates
 
-The snapshot above is a transition basis, not live balance evidence. Immediately
-before any transfer plan is constructed, current Chain-2050 balances must be
-reconciled and the unexplained 126,000 VOID difference must be resolved. Each
-transfer amount is the verified target minus the verified current balance of
-that exact final vault; an operator must not blindly resend the historical
-target amount.
+The reconciled custody snapshot above is accounting evidence, not transfer
+authority. Immediately before any transfer plan is constructed, current
+Chain-2050 balances must be reread and compared with
+`ops/mainnet/mainnet0-premine-allocation.current.json`. Each transfer amount is
+the verified target minus the verified current balance of that exact final
+vault; an operator must not blindly resend a historical target amount.
 
 Funding becomes eligible only after the final vault identity, Chain-2050
 binding, bytecode or implementation digest, signer policy, recovery path, and
