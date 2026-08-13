@@ -66,6 +66,10 @@ const PUBLIC_UTILITY_PROVENANCE_BOUNDARY = [
   "scripts/prove_void_ai_agent_public_utility_v1.mjs",
   "tools/void-ai-agent-first-contact-v1.mjs",
 ];
+const PUBLIC_UTILITY_CANONICALIZATION_BOUNDARY = [
+  "scripts/prove_void_ai_agent_first_contact_v1.mjs",
+  "tools/void-ai-agent-first-contact-v1.mjs",
+];
 const ALLOWED_BOUNDARY = [
   ...new Set([...ORIGINAL_BOUNDARY, ...COMPOSITION_BOUNDARY]),
 ];
@@ -626,6 +630,11 @@ const BUDGET_EXHAUSTION_MANIFEST_PATH =
   "/public-node/agents/first-contact-budget-exhaustion-fixture-v1.json";
 fixtures.set(BUDGET_EXHAUSTION_MANIFEST_PATH, manifest);
 
+const RAW_JSON_FIXTURE = Symbol("raw-json-fixture");
+function rawJsonFixture(body) {
+  return { [RAW_JSON_FIXTURE]: body };
+}
+
 let fixtureOverrides = new Map();
 const server = createServer((request, response) => {
   if (request.method !== "GET") {
@@ -650,7 +659,9 @@ const server = createServer((request, response) => {
     response.end(JSON.stringify({ error: "not_found" }));
     return;
   }
-  const body = `${JSON.stringify(fixture)}\n`;
+  const body = Object.hasOwn(fixture, RAW_JSON_FIXTURE)
+    ? fixture[RAW_JSON_FIXTURE]
+    : `${JSON.stringify(fixture)}\n`;
   response.writeHead(200, {
     "content-type": "application/json; charset=utf-8",
     "content-length": Buffer.byteLength(body),
@@ -889,6 +900,50 @@ try {
   assert.equal(
     digestRejectedReceipt.observation_error,
     "canonical_sha256_mismatch",
+  );
+
+  const deeplyNestedReceiptBody =
+    `{"green_marker":"VOID_DATANET_FIELD_REPLICATION_STATUS_CARD_V1_GREEN","nested":` +
+    "[".repeat(4_000) +
+    "0" +
+    "]".repeat(4_000) +
+    "}";
+  assert.ok(
+    Buffer.byteLength(deeplyNestedReceiptBody) < 65_536,
+    "adversarial fixture must remain inside the response byte limit",
+  );
+  const deeplyNestedReceipt = await runClient(
+    ["--base-url", baseUrl],
+    [
+      [
+        publicUtility.entries[2].path,
+        rawJsonFixture(deeplyNestedReceiptBody),
+      ],
+    ],
+  );
+  assert.equal(deeplyNestedReceipt.code, 2, deeplyNestedReceipt.stderr);
+  assert.equal(deeplyNestedReceipt.stderr, "");
+  const deeplyNestedReceiptReport = JSON.parse(
+    deeplyNestedReceipt.stdout,
+  );
+  assert.equal(deeplyNestedReceiptReport.status, "partial_read_only");
+  const deeplyNestedRejectedResource =
+    deeplyNestedReceiptReport.useful_public_resources.find(
+      (resource) => resource.id === "datanet_replication_receipt",
+    );
+  assert.equal(deeplyNestedRejectedResource.runtime_observed, false);
+  assert.equal(
+    deeplyNestedRejectedResource.canonical_sha256_verified,
+    false,
+  );
+  assert.equal(
+    deeplyNestedRejectedResource.observed_canonical_sha256,
+    null,
+  );
+  assert.equal(deeplyNestedRejectedResource.document, null);
+  assert.equal(
+    deeplyNestedRejectedResource.observation_error,
+    "canonical_sha256_unavailable",
   );
 
   const forgedReceipt = {
@@ -1203,6 +1258,7 @@ if (workingBoundary.length > 0) {
     POST_MERGE_CONTRACT_INTEGRITY_REPAIR_BOUNDARY,
     FIRST_CONTACT_MANIFEST_INTEGRITY_REPAIR_BOUNDARY,
     PUBLIC_UTILITY_PROVENANCE_BOUNDARY,
+    PUBLIC_UTILITY_CANONICALIZATION_BOUNDARY,
   ].some(
     (boundary) =>
       JSON.stringify(workingBoundary) ===

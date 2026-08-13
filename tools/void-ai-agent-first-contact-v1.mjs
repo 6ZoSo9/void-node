@@ -332,9 +332,7 @@ function firstContactManifestFingerprintValid(manifest) {
   if (claimed !== REVIEWED_FIRST_CONTACT_MANIFEST_FINGERPRINT_SHA256) {
     return false;
   }
-  const computed = createHash("sha256")
-    .update(canonicalJson(withoutFingerprint), "utf8")
-    .digest("hex");
+  const computed = canonicalSha256(withoutFingerprint);
   return computed === claimed;
 }
 
@@ -522,9 +520,15 @@ function canonicalJson(value) {
 }
 
 function canonicalSha256(value) {
-  return createHash("sha256")
-    .update(canonicalJson(value), "utf8")
-    .digest("hex");
+  try {
+    const canonical = canonicalJson(value);
+    if (typeof canonical !== "string") return null;
+    return createHash("sha256")
+      .update(canonical, "utf8")
+      .digest("hex");
+  } catch {
+    return null;
+  }
 }
 
 function agentIntakeFingerprintValid(contract) {
@@ -543,9 +547,7 @@ function agentIntakeFingerprintValid(contract) {
   ) {
     return false;
   }
-  const computed = createHash("sha256")
-    .update(canonicalJson(withoutFingerprint), "utf8")
-    .digest("hex");
+  const computed = canonicalSha256(withoutFingerprint);
   return computed === claimed;
 }
 
@@ -852,7 +854,9 @@ async function observeUsefulPublicResources(
             response.parse_error ??
             (response.ok
               ? markerObserved
-                ? "canonical_sha256_mismatch"
+                ? observedCanonicalSha256 === null
+                  ? "canonical_sha256_unavailable"
+                  : "canonical_sha256_mismatch"
                 : "required_marker_not_observed"
               : "public_utility_resource_unavailable"),
         document: runtimeObserved ? response.body : null,
