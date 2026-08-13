@@ -1,0 +1,160 @@
+{
+  "marker": "VOID_WORKER_EXPLORATION_EXTENSION_V1",
+  "version": 1,
+  "base_coordination": {
+    "repository": "6ZoSo9/void-node",
+    "roster_marker": "VOID_WORKER_ROSTER_V1",
+    "state_marker": "VOID_WORKER_COORDINATION_STATE_V3",
+    "coordination_pr": 1238,
+    "branch": "feat/worker-coordination-v3-experiment-20260812",
+    "expected_head_at_creation": "45d2cd980cbbe926deb5c126f0cad4f73719b58e"
+  },
+  "doctrine": [
+    "protect_core",
+    "protect_truth",
+    "protect_sovereign"
+  ],
+  "policy": {
+    "enabled": true,
+    "idle_behavior": "bounded_exploration",
+    "max_open_exploration_issues_per_worker": 1,
+    "max_open_exploration_prs_per_worker": 1,
+    "max_candidates_per_report": 5,
+    "max_recommended_candidates": 1,
+    "candidate_score_scale_max": 5,
+    "candidate_score_threshold": 24,
+    "candidate_score_dimensions": [
+      "mission_impact",
+      "core_protection",
+      "truth_protection",
+      "sovereign_control",
+      "time_to_first_proof",
+      "reversibility",
+      "maintenance_burden"
+    ],
+    "source_mutation_requires_fresh_v1_check": true,
+    "ranked_candidate_required_before_branch": true,
+    "automatic_merge_authority": false,
+    "stale_exploration_days": 7,
+    "review_at": "2026-08-19T18:59:13.000Z",
+    "forbidden_outcomes": [
+      "duplicate_canonical_implementation",
+      "decorative_documentation_without_capability_gain",
+      "unranked_idea_spam",
+      "sensitive_operation_without_separate_authority",
+      "provider_lock_in_without_replaceable_boundary",
+      "automatic_merge_or_deployment",
+      "branch_creation_before_ranked_candidate",
+      "unbounded_open_issue_or_pr_growth"
+    ]
+  },
+  "new_workers": [
+    {
+      "id": "hopper",
+      "name": "Hopper",
+      "tracking_issue": 1239,
+      "lane_id": "operator-automation-exploration-v1",
+      "state": "ACTIVE_RESEARCH",
+      "priority": "P2",
+      "sensitive": false,
+      "primary_job": "Operator automation, portable self-hosting, reversible runbooks, and recurring-friction removal.",
+      "exploration_domains": [
+        "operator-automation",
+        "portable-tooling",
+        "recovery-usability",
+        "idempotent-controllers",
+        "self-hosting"
+      ],
+      "authority_boundary": "Read-only audit and source proposals only; no package installation, deployment, service mutation, credentials, network mutation, wallet, signer, validator, Work Credit, transaction, treasury, or funds authority."
+    },
+    {
+      "id": "lamarr",
+      "name": "Lamarr",
+      "tracking_issue": 1240,
+      "lane_id": "sovereign-security-exploration-v1",
+      "state": "ACTIVE_RESEARCH",
+      "priority": "P1",
+      "sensitive": true,
+      "primary_job": "Defensive adversarial review of security, privacy, identity, trust, recovery, and centralization boundaries.",
+      "exploration_domains": [
+        "security",
+        "privacy",
+        "identity",
+        "trust-boundaries",
+        "dependency-sovereignty",
+        "recovery"
+      ],
+      "authority_boundary": "Defensive read-only analysis and bounded source proposals only; no exploit deployment, secret access, live penetration, denial of service, release signing, network mutation, wallet, signer, validator, Work Credit, transaction, treasury, or funds authority."
+    },
+    {
+      "id": "darwin",
+      "name": "Darwin",
+      "tracking_issue": 1241,
+      "lane_id": "capability-evolution-exploration-v1",
+      "state": "ACTIVE_RESEARCH",
+      "priority": "P2",
+      "sensitive": false,
+      "primary_job": "Broad capability incubation for adoption, autonomous-agent utility, revenue readiness, resilience, and operator independence.",
+      "exploration_domains": [
+        "feature-incubation",
+        "adoption",
+        "agent-utility",
+        "revenue-readiness",
+        "resilience",
+        "replaceable-integrations"
+      ],
+      "authority_boundary": "Research and source proposals only; no deployment, credential access, release signing, wallet, signer, payment, Work Credit, validator, transaction, treasury, liquidity, or funds authority."
+    }
+  ],
+  "fallback_exploration_assignments": [
+    {
+      "worker_id": "larry",
+      "lane_id": "larry-green-exploration-v1",
+      "state": "ACTIVE_RESEARCH",
+      "priority": "P3",
+      "tracking_issue": 1182,
+      "sensitive": false,
+      "reason": "Primary SDK lane is review-required; use bounded Green exploration instead of idling.",
+      "exploration_domains": [
+        "repository-usability",
+        "sdk-ergonomics",
+        "developer-tooling",
+        "small-correctness-gaps"
+      ],
+      "authority_boundary": "Read-only gap scanning and ranked source proposals only; no deployment, credentials, wallet, signer, payment, Work Credit, validator, transaction, treasury, or funds authority."
+    },
+    {
+      "worker_id": "curly",
+      "lane_id": "curly-participant-exploration-v1",
+      "state": "ACTIVE_RESEARCH",
+      "priority": "P3",
+      "tracking_issue": 1182,
+      "sensitive": true,
+      "reason": "No concrete presale event requires mutation; explore participant onboarding, receipt clarity, and presale-exit readiness without manufacturing economic work.",
+      "exploration_domains": [
+        "participant-onboarding",
+        "receipt-usability",
+        "presale-exit-readiness",
+        "economic-honesty"
+      ],
+      "authority_boundary": "Read-only participant and receipt exploration only; no purchase execution, inventory use, wallet or signer access, transaction construction or broadcast, conversion, treasury action, or funds movement."
+    },
+    {
+      "worker_id": "moe",
+      "lane_id": "moe-network-gap-exploration-v1",
+      "state": "ACTIVE_RESEARCH",
+      "priority": "P3",
+      "tracking_issue": 1182,
+      "sensitive": true,
+      "reason": "Collector source #1231 is merged and operationally parked while the retirement stack remains frozen; explore disjoint networking reliability gaps without entering unpublished activation or blocked descendant work.",
+      "exploration_domains": [
+        "network-observability",
+        "bootstrap-resilience",
+        "transport-portability",
+        "failure-recovery",
+        "disjoint-p2p-gaps"
+      ],
+      "authority_boundary": "Read-only networking exploration and disjoint source proposals only; no blocked-lane workaround, live socket or route mutation, deployment, router, firewall, DNS, interface, credential, wallet, Work Credit, transaction, or funds authority."
+    }
+  ]
+}

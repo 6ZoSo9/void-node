@@ -520,6 +520,7 @@ export async function composeVoidP2pUdpSwarmRoutesFromVerifiedDiscoveryV1({
     record_id: bootstrap.record_id,
     manifest_id: bootstrap.manifest_id,
     discovery_id: validated.discovery.discovery_id,
+    expires_at: validated.discovery.expires_at,
     route_count: validated.routes.length,
     source_count: validated.source_count,
     relay_count: validated.relay_count,

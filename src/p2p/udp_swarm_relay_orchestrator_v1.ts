@@ -25,6 +25,9 @@ export const VOID_P2P_UDP_SWARM_RELAY_ORCHESTRATOR_AUTHORITY_V1 =
     started_outgoing_relay_stream_required_before_udp_upgrade: true,
     incoming_stream_upgrade_initiation_performed: false,
     bounded_retry_backoff_required: true,
+    atomic_runtime_route_replacement: true,
+    removed_route_retry_state_cleared: true,
+    verified_discovery_clear_restores_static_routes: true,
     relay_retirement_performed: false,
     peer_identity_exposed_in_status: false,
     router_configuration_required: false,
@@ -90,6 +93,15 @@ type RouteRuntimeV1 = {
   last_upgrade_attempt_ms: number;
 };
 
+type RouteSourceV1 = "none" | "static_environment" | "verified_discovery";
+
+type RouteStateV1 = Readonly<{
+  source: RouteSourceV1;
+  revision: number;
+  routes: readonly VoidUdpSwarmRelayOrchestrationRouteV1[];
+  runtime_by_route: Map<string, RouteRuntimeV1>;
+}>;
+
 function safeNow(nowMs: number): number {
   if (!Number.isSafeInteger(nowMs) || nowMs < 0) {
     throw new Error(
@@ -101,6 +113,65 @@ function safeNow(nowMs: number): number {
 
 function routeKey(route: VoidUdpSwarmRelayOrchestrationRouteV1): string {
   return `${route.relay_node_id}/${route.target_node_id}`;
+}
+
+function initialRouteRuntime(): RouteRuntimeV1 {
+  return {
+    last_reservation_attempt_ms: Number.NEGATIVE_INFINITY,
+    last_connect_attempt_ms: Number.NEGATIVE_INFINITY,
+    last_upgrade_attempt_ms: Number.NEGATIVE_INFINITY,
+  };
+}
+
+function canonicalRoutesForNode(
+  nodeId: string,
+  routes: readonly VoidUdpSwarmRelayOrchestrationRouteV1[],
+): readonly VoidUdpSwarmRelayOrchestrationRouteV1[] {
+  if (!Array.isArray(routes)) {
+    throw new Error("UDP swarm relay orchestration routes must be an array");
+  }
+  if (
+    routes.length > VOID_P2P_UDP_SWARM_RELAY_ORCHESTRATOR_MAX_ROUTES_V1
+  ) {
+    throw new Error(
+      "UDP swarm relay orchestration route count exceeds the bound",
+    );
+  }
+  const seen = new Set<string>();
+  const canonical = routes.map((rawRoute) => {
+    if (
+      !rawRoute ||
+      typeof rawRoute !== "object" ||
+      Array.isArray(rawRoute) ||
+      JSON.stringify(Object.keys(rawRoute).sort()) !==
+        JSON.stringify(["relay_node_id", "target_node_id"])
+    ) {
+      throw new Error("UDP swarm relay orchestration route shape is invalid");
+    }
+    const route = Object.freeze({
+      relay_node_id: rawRoute.relay_node_id,
+      target_node_id: rawRoute.target_node_id,
+    });
+    if (
+      !NODE_ID_RE.test(route.relay_node_id) ||
+      !NODE_ID_RE.test(route.target_node_id) ||
+      route.relay_node_id === route.target_node_id ||
+      route.relay_node_id === nodeId ||
+      route.target_node_id === nodeId
+    ) {
+      throw new Error(
+        "UDP swarm relay orchestration route is invalid for this node",
+      );
+    }
+    const key = routeKey(route);
+    if (seen.has(key)) {
+      throw new Error("UDP swarm relay orchestration routes must be unique");
+    }
+    seen.add(key);
+    return route;
+  });
+  canonical.sort((left, right) => routeKey(left).localeCompare(routeKey(right)));
+  return Object.freeze(canonical);
 }
 
 export function parseVoidUdpSwarmRelayOrchestrationRoutesV1(
@@ -154,8 +225,11 @@ export function parseVoidUdpSwarmRelayOrchestrationRoutesV1(
 
 export class VoidUdpSwarmRelayOrchestratorV1 {
   private timer: NodeJS.Timeout | null = null;
+  private started = false;
   private stopped = false;
-  private readonly runtimeByRoute = new Map<string, RouteRuntimeV1>();
+  private readonly initialRoutes:
+    readonly VoidUdpSwarmRelayOrchestrationRouteV1[];
+  private routeState: RouteStateV1;
   private sweepCount = 0;
   private sweepFailures = 0;
   private reservationAttempts = 0;
@@ -165,56 +239,54 @@ export class VoidUdpSwarmRelayOrchestratorV1 {
   private upgradeAttempts = 0;
   private upgradeRequests = 0;
   private upgradeRejects = 0;
+  private runtimeRouteUpdates = 0;
+  private runtimeRouteClears = 0;
+  private runtimeRouteRejects = 0;
 
   constructor(
     private readonly node: VoidUdpSwarmRelayOrchestrationNodeV1,
     readonly config: VoidUdpSwarmRelayOrchestratorConfigV1,
   ) {
-    if (
-      config.routes.length >
-      VOID_P2P_UDP_SWARM_RELAY_ORCHESTRATOR_MAX_ROUTES_V1
-    ) {
-      throw new Error(
-        "UDP swarm relay orchestration route count exceeds the bound",
-      );
-    }
     if (config.enabled && config.routes.length === 0) {
       throw new Error(
         "UDP swarm relay orchestration requires at least one exact route",
       );
     }
     if (!config.enabled && config.routes.length !== 0) {
-      throw new Error("UDP swarm relay orchestration routes require exact opt-in");
+      throw new Error(
+        "UDP swarm relay orchestration routes require exact opt-in",
+      );
     }
-    const seen = new Set<string>();
-    for (const route of config.routes) {
-      if (
-        !NODE_ID_RE.test(route.relay_node_id) ||
-        !NODE_ID_RE.test(route.target_node_id) ||
-        route.relay_node_id === route.target_node_id ||
-        route.relay_node_id === node.id ||
-        route.target_node_id === node.id
-      ) {
-        throw new Error(
-          "UDP swarm relay orchestration route is invalid for this node",
-        );
-      }
-      const key = routeKey(route);
-      if (seen.has(key)) {
-        throw new Error("UDP swarm relay orchestration routes must be unique");
-      }
-      seen.add(key);
-      this.runtimeByRoute.set(key, {
-        last_reservation_attempt_ms: Number.NEGATIVE_INFINITY,
-        last_connect_attempt_ms: Number.NEGATIVE_INFINITY,
-        last_upgrade_attempt_ms: Number.NEGATIVE_INFINITY,
-      });
-    }
+    this.initialRoutes = canonicalRoutesForNode(node.id, config.routes);
+    this.routeState = Object.freeze({
+      source: config.enabled ? "static_environment" : "none",
+      revision: 0,
+      routes: this.initialRoutes,
+      runtime_by_route: new Map(
+        this.initialRoutes.map((route) => [
+          routeKey(route),
+          initialRouteRuntime(),
+        ]),
+      ),
+    });
   }
 
   start(): void {
     if (this.stopped) throw new Error("UDP swarm relay orchestrator is stopped");
-    if (!this.config.enabled || this.timer) return;
+    if (this.started) return;
+    this.started = true;
+    this.ensureTimer();
+  }
+
+  private ensureTimer(): void {
+    if (
+      !this.started ||
+      this.stopped ||
+      this.timer ||
+      this.routeState.routes.length === 0
+    ) {
+      return;
+    }
     try {
       this.runOnce();
     } catch (error) {
@@ -232,15 +304,97 @@ export class VoidUdpSwarmRelayOrchestratorV1 {
     this.timer.unref?.();
   }
 
+  private replaceRouteState(
+    routes: readonly VoidUdpSwarmRelayOrchestrationRouteV1[],
+    source: RouteSourceV1,
+  ): Readonly<{ changed: boolean; route_count: number; revision: number }> {
+    const canonical = canonicalRoutesForNode(this.node.id, routes);
+    if ((source === "none") !== (canonical.length === 0)) {
+      throw new Error("UDP swarm relay orchestration route source is invalid");
+    }
+    const previous = this.routeState;
+    const unchanged =
+      previous.source === source &&
+      previous.routes.length === canonical.length &&
+      previous.routes.every(
+        (route, index) => routeKey(route) === routeKey(canonical[index]!),
+      );
+    if (unchanged) {
+      return Object.freeze({
+        changed: false,
+        route_count: previous.routes.length,
+        revision: previous.revision,
+      });
+    }
+
+    const nextRuntime = new Map<string, RouteRuntimeV1>();
+    for (const route of canonical) {
+      const key = routeKey(route);
+      nextRuntime.set(
+        key,
+        previous.runtime_by_route.get(key) ?? initialRouteRuntime(),
+      );
+    }
+    const next = Object.freeze({
+      source,
+      revision: previous.revision + 1,
+      routes: canonical,
+      runtime_by_route: nextRuntime,
+    });
+    this.routeState = next;
+
+    if (canonical.length === 0 && this.timer) {
+      clearInterval(this.timer);
+      this.timer = null;
+    } else {
+      this.ensureTimer();
+    }
+    return Object.freeze({
+      changed: true,
+      route_count: next.routes.length,
+      revision: next.revision,
+    });
+  }
+
+  replaceVerifiedDiscoveryRoutesV1(
+    routes: readonly VoidUdpSwarmRelayOrchestrationRouteV1[],
+  ): Readonly<{ changed: boolean; route_count: number; revision: number }> {
+    if (this.stopped) throw new Error("UDP swarm relay orchestrator is stopped");
+    try {
+      if (routes.length === 0) {
+        throw new Error("verified discovery requires at least one relay route");
+      }
+      const result = this.replaceRouteState(routes, "verified_discovery");
+      if (result.changed) this.runtimeRouteUpdates += 1;
+      return result;
+    } catch (error) {
+      this.runtimeRouteRejects += 1;
+      throw error;
+    }
+  }
+
+  clearVerifiedDiscoveryRoutesV1(): Readonly<{
+    changed: boolean;
+    route_count: number;
+    revision: number;
+  }> {
+    if (this.stopped) throw new Error("UDP swarm relay orchestrator is stopped");
+    const source = this.config.enabled ? "static_environment" : "none";
+    const result = this.replaceRouteState(this.initialRoutes, source);
+    if (result.changed) this.runtimeRouteClears += 1;
+    return result;
+  }
+
   runOnce(nowMs = Date.now()): void {
-    if (this.stopped || !this.config.enabled) return;
+    if (this.stopped || this.routeState.routes.length === 0) return;
     const now = safeNow(nowMs);
     this.sweepCount += 1;
     const relay = this.node.relaySnapshot();
     const control = this.node.udpSwarmControlSnapshot();
 
-    for (const route of this.config.routes) {
-      const runtime = this.runtimeByRoute.get(routeKey(route));
+    const routeState = this.routeState;
+    for (const route of routeState.routes) {
+      const runtime = routeState.runtime_by_route.get(routeKey(route));
       if (!runtime) {
         throw new Error("UDP swarm relay orchestration route state disappeared");
       }
@@ -326,14 +480,19 @@ export class VoidUdpSwarmRelayOrchestratorV1 {
     const activity = this.activity();
     return Object.freeze({
       marker: VOID_P2P_UDP_SWARM_RELAY_ORCHESTRATOR_V1,
-      enabled: this.config.enabled,
-      route_count: this.config.routes.length,
+      enabled: this.routeState.routes.length > 0,
+      route_count: this.routeState.routes.length,
+      route_source: this.routeState.source,
+      route_revision: this.routeState.revision,
       stopped: this.stopped,
       counters: Object.freeze({
         sweep_count: this.sweepCount,
         sweep_failures: this.sweepFailures,
         ...activity,
         upgrade_rejects: this.upgradeRejects,
+        runtime_route_updates: this.runtimeRouteUpdates,
+        runtime_route_clears: this.runtimeRouteClears,
+        runtime_route_rejects: this.runtimeRouteRejects,
       }),
       privacy: Object.freeze({
         route_identity_exposed: false,
@@ -363,6 +522,7 @@ export class VoidUdpSwarmRelayOrchestratorV1 {
   stop(): void {
     if (this.stopped) return;
     this.stopped = true;
+    this.started = false;
     if (this.timer) {
       clearInterval(this.timer);
       this.timer = null;
