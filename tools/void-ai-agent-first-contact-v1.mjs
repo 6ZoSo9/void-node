@@ -6,6 +6,7 @@ const DEFAULT_BASE_URL = "http://127.0.0.1:4100";
 const DEFAULT_MANIFEST_PATH = "/public-node/agents/first-contact-v1.json";
 const DEFAULT_TIMEOUT_MS = 8000;
 const MAX_RESPONSE_BYTES = 65_536;
+const MAX_COLD_START_NETWORK_REQUESTS = 8;
 const OFFICIAL_NETWORK = {
   name: "VOID Mainnet-0",
   chain_id: 2050,
@@ -240,6 +241,29 @@ async function fetchJson(baseUrl, path, timeoutMs) {
   }
 }
 
+function createColdStartRequestBudget() {
+  let networkRequests = 0;
+  return {
+    get networkRequests() {
+      return networkRequests;
+    },
+    async fetch(baseUrl, path, timeoutMs) {
+      if (networkRequests >= MAX_COLD_START_NETWORK_REQUESTS) {
+        return {
+          ok: false,
+          status: 0,
+          content_type: null,
+          body: null,
+          body_bytes: 0,
+          error: "cold_start_request_budget_exhausted",
+        };
+      }
+      networkRequests += 1;
+      return fetchJson(baseUrl, path, timeoutMs);
+    },
+  };
+}
+
 function bindingConsistent(manifest, discovery, authenticity) {
   const discoveryDocument = discovery?.body;
   const authenticityDocument = authenticity?.body;
@@ -293,6 +317,51 @@ function authenticationContractValid(manifest, authentication) {
     contract?.safety?.send_credentials_now === false &&
     contract?.safety?.send_signed_envelopes_now === false &&
     contract?.safety?.treat_unknown_as === "not_granted"
+  );
+}
+
+function agentIntakeContractValid(intake) {
+  const contract = intake?.body;
+  return (
+    intake?.ok === true &&
+    contract?.schema ===
+      "void-external-opportunity-agent-intake-capability-v1" &&
+    contract?.marker ===
+      "VOID_EXTERNAL_OPPORTUNITY_AGENT_INTAKE_CAPABILITY_V1" &&
+    contract?.version === 1 &&
+    contract?.capability_id ===
+      "void.external_opportunity.paper_intake.v1" &&
+    contract?.availability === "offline_static_contract" &&
+    contract?.manifest_fingerprint_sha256 ===
+      "c4e9ea03631b39962753cd7f91c198bbba1e4081c716da24e27f14a64f7bfd7a" &&
+    contract?.transport?.network_endpoint === false &&
+    contract?.transport?.network_listener === false &&
+    contract?.transport?.authentication === "none" &&
+    contract?.unsupported?.network_endpoint === true &&
+    contract?.unsupported?.network_listener === true &&
+    contract?.unsupported?.authentication_secret === true &&
+    contract?.unsupported?.provider_polling === true &&
+    contract?.unsupported?.paid_work_submission === true &&
+    contract?.unsupported?.wc_earning === true &&
+    contract?.unsupported?.wallet_or_key_access === true &&
+    contract?.unsupported?.transaction_construction === true &&
+    contract?.unsupported?.transaction_submission === true &&
+    contract?.unsupported?.runtime_mutation === true &&
+    contract?.unsupported?.service_mutation === true &&
+    contract?.unsupported?.scheduler_mutation === true &&
+    contract?.unsupported?.live_execution === true &&
+    contract?.authority?.implicit_or_scheduled_access === false &&
+    contract?.authority?.network_request === false &&
+    contract?.authority?.credential_access === false &&
+    contract?.authority?.wallet_or_key_access === false &&
+    contract?.authority?.transaction_construction === false &&
+    contract?.authority?.transaction_submission === false &&
+    contract?.authority?.runtime_mutation === false &&
+    contract?.authority?.service_mutation === false &&
+    contract?.authority?.scheduler_mutation === false &&
+    contract?.authority?.paid_work_submission === false &&
+    contract?.authority?.wc_earning === false &&
+    contract?.authority?.live_execution === false
   );
 }
 
@@ -436,7 +505,8 @@ function usefulPublicResources(manifest, publicUtility) {
     !hasExactKeys(catalog?.limits, PUBLIC_UTILITY_LIMIT_KEYS) ||
     catalog?.limits?.max_catalog_bytes !== MAX_RESPONSE_BYTES ||
     catalog?.limits?.max_entries !== 8 ||
-    catalog?.limits?.max_requests_per_cold_start !== 4 ||
+    catalog?.limits?.max_requests_per_cold_start !==
+      MAX_COLD_START_NETWORK_REQUESTS ||
     !Number.isInteger(catalog?.limits?.minimum_poll_interval_ms) ||
     catalog.limits.minimum_poll_interval_ms < 60_000 ||
     !Array.isArray(catalog?.entries) ||
@@ -482,10 +552,68 @@ function usefulPublicResources(manifest, publicUtility) {
       path: entry.path,
       mode: "anonymous_read_only",
       catalog_observed_by_client: true,
+      required_marker: entry.required_marker,
       runtime_observed: false,
     }];
   });
   return resources.length === catalog.entries.length ? resources : [];
+}
+
+function markerPresent(document, requiredMarker) {
+  return (
+    document !== null &&
+    typeof document === "object" &&
+    !Array.isArray(document) &&
+    (document.marker === requiredMarker ||
+      document.green_marker === requiredMarker)
+  );
+}
+
+async function observeUsefulPublicResources(
+  baseUrl,
+  resources,
+  responseByPath,
+  timeoutMs,
+  requestBudget,
+) {
+  let networkRequests = 0;
+  const observations = await Promise.all(
+    resources.map(async (resource) => {
+      let response = responseByPath.get(resource.path);
+      const responseReused = response !== undefined;
+      if (!response) {
+        const requestsBefore = requestBudget.networkRequests;
+        response = await requestBudget.fetch(
+          baseUrl,
+          resource.path,
+          timeoutMs,
+        );
+        if (requestBudget.networkRequests > requestsBefore) {
+          networkRequests += 1;
+        }
+      }
+
+      const runtimeObserved =
+        response.ok === true &&
+        markerPresent(response.body, resource.required_marker);
+      return {
+        ...resource,
+        http_status: response.status,
+        body_bytes: response.body_bytes,
+        response_reused: responseReused,
+        runtime_observed: runtimeObserved,
+        observation_error: runtimeObserved
+          ? null
+          : response.error ??
+            response.parse_error ??
+            (response.ok
+              ? "required_marker_not_observed"
+              : "public_utility_resource_unavailable"),
+        document: runtimeObserved ? response.body : null,
+      };
+    }),
+  );
+  return { observations, networkRequests };
 }
 
 function normalizedKey(value) {
@@ -632,7 +760,8 @@ function nextActions(manifest, checks, commercial, resources) {
 async function main() {
   const options = parseArgs(process.argv.slice(2));
   const baseUrl = normalizeBaseUrl(options.baseUrl);
-  const firstContact = await fetchJson(
+  const requestBudget = createColdStartRequestBudget();
+  const firstContact = await requestBudget.fetch(
     baseUrl,
     options.manifestPath,
     options.timeoutMs,
@@ -650,7 +779,7 @@ async function main() {
         error: `manifest entrypoint missing: ${key}`,
       };
     }
-    return fetchJson(baseUrl, path, options.timeoutMs);
+    return requestBudget.fetch(baseUrl, path, options.timeoutMs);
   };
 
   const [
@@ -670,7 +799,26 @@ async function main() {
       fetchEntry("public_utility"),
     ]);
 
-  const resources = usefulPublicResources(manifest, publicUtility);
+  const advertisedResources = usefulPublicResources(manifest, publicUtility);
+  const responseByPath = new Map(
+    [
+      [options.manifestPath, firstContact],
+      [entrypoints.well_known_discovery, discovery],
+      [entrypoints.official_authenticity, authenticity],
+      [entrypoints.authentication, authentication],
+      [entrypoints.capabilities, capabilities],
+      [entrypoints.agent_intake, intake],
+      [entrypoints.public_utility, publicUtility],
+    ].filter(([entryPath]) => typeof entryPath === "string"),
+  );
+  const resourceObservation = await observeUsefulPublicResources(
+    baseUrl,
+    advertisedResources,
+    responseByPath,
+    options.timeoutMs,
+    requestBudget,
+  );
+  const resources = resourceObservation.observations;
   const authenticationValid = authenticationContractValid(
     manifest,
     authentication,
@@ -679,6 +827,7 @@ async function main() {
     manifest,
     capabilities,
   );
+  const agentIntakeValid = agentIntakeContractValid(intake);
 
   const checks = {
     first_contact_manifest_reachable:
@@ -693,8 +842,12 @@ async function main() {
       bindingConsistent(manifest, discovery, authenticity),
     authentication_contract_found: authenticationValid,
     capabilities_loaded: capabilitiesValid,
-    agent_intake_reachable: intake.ok,
-    public_utility_catalog_loaded: resources.length > 0,
+    agent_intake_reachable: agentIntakeValid,
+    public_utility_catalog_loaded: advertisedResources.length > 0,
+    public_utility_resources_observed:
+      resources.length === advertisedResources.length &&
+      resources.length > 0 &&
+      resources.every((resource) => resource.runtime_observed === true),
   };
 
   const officialNetworkVerified =
@@ -710,6 +863,7 @@ async function main() {
     checks.authentication_contract_found,
     checks.capabilities_loaded,
     checks.public_utility_catalog_loaded,
+    checks.public_utility_resources_observed,
   ].every(Boolean);
 
   const commercial = capabilitiesValid
@@ -765,6 +919,18 @@ async function main() {
         status: publicUtility.status,
         body_bytes: publicUtility.body_bytes,
         error: publicUtility.error ?? null,
+      },
+      public_utility_resources: {
+        advertised: advertisedResources.length,
+        observed: resources.filter(
+          (resource) => resource.runtime_observed === true,
+        ).length,
+        reused_responses: resources.filter(
+          (resource) => resource.response_reused === true,
+        ).length,
+        additional_network_requests: resourceObservation.networkRequests,
+        total_network_requests: requestBudget.networkRequests,
+        maximum_total_network_requests: MAX_COLD_START_NETWORK_REQUESTS,
       },
     },
     authority: {

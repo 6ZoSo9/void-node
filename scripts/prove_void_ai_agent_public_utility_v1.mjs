@@ -117,7 +117,7 @@ exactKeys(catalog.limits, LIMIT_KEYS, "limits");
 assert.ok(Buffer.byteLength(raw) <= catalog.limits.max_catalog_bytes);
 assert.equal(catalog.limits.max_catalog_bytes, 65536);
 assert.equal(catalog.limits.max_entries, 8);
-assert.equal(catalog.limits.max_requests_per_cold_start, 4);
+assert.equal(catalog.limits.max_requests_per_cold_start, 8);
 assert.ok(catalog.limits.minimum_poll_interval_ms >= 60000);
 assert.ok(catalog.entries.length > 0 && catalog.entries.length <= catalog.limits.max_entries);
 assert.ok(catalog.entries.length <= catalog.limits.max_requests_per_cold_start);

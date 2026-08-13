@@ -36,6 +36,14 @@ const NETWORK_BINDING_REPAIR_BOUNDARY = [
 const COMPOSITION_PROOF_REPAIR_BOUNDARY = [
   "scripts/prove_void_ai_agent_first_contact_v1.mjs",
 ];
+const PUBLIC_UTILITY_RESOURCE_OBSERVATION_REPAIR_BOUNDARY = [
+  "docs/public/ai-agent-first-contact-v1.md",
+  "docs/public/ai-agent-public-utility-v1.md",
+  "public/public-node/agents/public-utility-v1.json",
+  "scripts/prove_void_ai_agent_first_contact_v1.mjs",
+  "scripts/prove_void_ai_agent_public_utility_v1.mjs",
+  "tools/void-ai-agent-first-contact-v1.mjs",
+];
 const ALLOWED_BOUNDARY = [
   ...new Set([...ORIGINAL_BOUNDARY, ...COMPOSITION_BOUNDARY]),
 ];
@@ -64,6 +72,58 @@ const publicUtility = JSON.parse(
 const capabilitiesCatalog = JSON.parse(
   await readFile(
     join(ROOT, "public/public-node/agents/capabilities-v1.json"),
+    "utf8",
+  ),
+);
+const agentIntakeCapability = {
+  schema: "void-external-opportunity-agent-intake-capability-v1",
+  marker: "VOID_EXTERNAL_OPPORTUNITY_AGENT_INTAKE_CAPABILITY_V1",
+  version: 1,
+  capability_id: "void.external_opportunity.paper_intake.v1",
+  availability: "offline_static_contract",
+  manifest_fingerprint_sha256:
+    "c4e9ea03631b39962753cd7f91c198bbba1e4081c716da24e27f14a64f7bfd7a",
+  transport: {
+    network_endpoint: false,
+    network_listener: false,
+    authentication: "none",
+  },
+  unsupported: {
+    network_endpoint: true,
+    network_listener: true,
+    authentication_secret: true,
+    provider_polling: true,
+    paid_work_submission: true,
+    wc_earning: true,
+    wallet_or_key_access: true,
+    transaction_construction: true,
+    transaction_submission: true,
+    runtime_mutation: true,
+    service_mutation: true,
+    scheduler_mutation: true,
+    live_execution: true,
+  },
+  authority: {
+    implicit_or_scheduled_access: false,
+    network_request: false,
+    credential_access: false,
+    wallet_or_key_access: false,
+    transaction_construction: false,
+    transaction_submission: false,
+    runtime_mutation: false,
+    service_mutation: false,
+    scheduler_mutation: false,
+    paid_work_submission: false,
+    wc_earning: false,
+    live_execution: false,
+  },
+};
+const datanetReceipt = JSON.parse(
+  await readFile(
+    join(
+      ROOT,
+      "public/public-node/datanet/field-replication-status-card-v1.json",
+    ),
     "utf8",
   ),
 );
@@ -202,15 +262,8 @@ const fixtures = new Map([
     },
   ],
   [manifest.entrypoints.capabilities, capabilitiesCatalog],
-  [
-    manifest.entrypoints.agent_intake,
-    {
-      marker: "VOID_EXTERNAL_OPPORTUNITY_AGENT_INTAKE_CAPABILITY_V1",
-      status: "public_read_only",
-      network: "VOID Mainnet-0",
-      chain_id: 2050,
-    },
-  ],
+  [publicUtility.entries[2].path, datanetReceipt],
+  [manifest.entrypoints.agent_intake, agentIntakeCapability],
 ]);
 
 const CROSS_ORIGIN_MANIFEST_PATH =
@@ -333,6 +386,116 @@ fixtures.set(DECOY_CAPABILITIES_PATH, {
   work_credit_earning_enabled: true,
 });
 
+const DECOY_INTAKE_MANIFEST_PATH =
+  "/public-node/agents/first-contact-decoy-intake-fixture-v1.json";
+const DECOY_INTAKE_PATH =
+  "/public-node/agents/decoy-intake-fixture-v1.json";
+const DECOY_INTAKE_UTILITY_PATH =
+  "/public-node/agents/public-utility-decoy-intake-fixture-v1.json";
+fixtures.set(DECOY_INTAKE_MANIFEST_PATH, {
+  ...manifest,
+  entrypoints: {
+    ...manifest.entrypoints,
+    first_contact: DECOY_INTAKE_MANIFEST_PATH,
+    agent_intake: DECOY_INTAKE_PATH,
+    public_utility: DECOY_INTAKE_UTILITY_PATH,
+  },
+});
+fixtures.set(DECOY_INTAKE_UTILITY_PATH, {
+  ...publicUtility,
+  integration: {
+    ...publicUtility.integration,
+    first_contact_manifest: DECOY_INTAKE_MANIFEST_PATH,
+  },
+  entries: publicUtility.entries.map((entry, index) =>
+    index === 0
+      ? {
+          ...entry,
+          path: DECOY_INTAKE_MANIFEST_PATH,
+          repository_path: `public${DECOY_INTAKE_MANIFEST_PATH}`,
+        }
+      : entry,
+  ),
+});
+fixtures.set(DECOY_INTAKE_PATH, {
+  ...agentIntakeCapability,
+  availability: "live",
+  authority: {
+    ...agentIntakeCapability.authority,
+    paid_work_submission: true,
+  },
+});
+
+const WRONG_RESOURCE_MARKER_MANIFEST_PATH =
+  "/public-node/agents/first-contact-wrong-resource-marker-fixture-v1.json";
+const WRONG_RESOURCE_MARKER_UTILITY_PATH =
+  "/public-node/agents/public-utility-wrong-resource-marker-fixture-v1.json";
+const WRONG_RESOURCE_MARKER_DATA_PATH =
+  "/public-node/datanet/wrong-resource-marker-fixture-v1.json";
+fixtures.set(WRONG_RESOURCE_MARKER_MANIFEST_PATH, {
+  ...manifest,
+  entrypoints: {
+    ...manifest.entrypoints,
+    first_contact: WRONG_RESOURCE_MARKER_MANIFEST_PATH,
+    public_utility: WRONG_RESOURCE_MARKER_UTILITY_PATH,
+  },
+});
+fixtures.set(WRONG_RESOURCE_MARKER_UTILITY_PATH, {
+  ...publicUtility,
+  integration: {
+    ...publicUtility.integration,
+    first_contact_manifest: WRONG_RESOURCE_MARKER_MANIFEST_PATH,
+  },
+  entries: publicUtility.entries.map((entry, index) =>
+    index === 0
+      ? {
+          ...entry,
+          path: WRONG_RESOURCE_MARKER_MANIFEST_PATH,
+          repository_path: `public${WRONG_RESOURCE_MARKER_MANIFEST_PATH}`,
+        }
+      : index === 2
+      ? {
+          ...entry,
+          path: WRONG_RESOURCE_MARKER_DATA_PATH,
+          repository_path: `public${WRONG_RESOURCE_MARKER_DATA_PATH}`,
+        }
+      : entry,
+  ),
+});
+fixtures.set(WRONG_RESOURCE_MARKER_DATA_PATH, {
+  marker: "VOID_DATANET_FIELD_REPLICATION_STATUS_CARD_V1_DECOY",
+});
+
+const BUDGET_EXHAUSTION_MANIFEST_PATH =
+  "/public-node/agents/first-contact-budget-exhaustion-fixture-v1.json";
+const BUDGET_EXHAUSTION_UTILITY_PATH =
+  "/public-node/agents/public-utility-budget-exhaustion-fixture-v1.json";
+const BUDGET_EXHAUSTION_RESOURCE_PATHS = [
+  "/public-node/agents/budget-resource-a-v1.json",
+  "/public-node/agents/budget-resource-b-v1.json",
+  "/public-node/datanet/budget-resource-c-v1.json",
+];
+fixtures.set(BUDGET_EXHAUSTION_MANIFEST_PATH, {
+  ...manifest,
+  entrypoints: {
+    ...manifest.entrypoints,
+    public_utility: BUDGET_EXHAUSTION_UTILITY_PATH,
+  },
+});
+fixtures.set(BUDGET_EXHAUSTION_UTILITY_PATH, {
+  ...publicUtility,
+  entries: publicUtility.entries.map((entry, index) => ({
+    ...entry,
+    path: BUDGET_EXHAUSTION_RESOURCE_PATHS[index],
+    repository_path: `public${BUDGET_EXHAUSTION_RESOURCE_PATHS[index]}`,
+  })),
+});
+for (const [index, path] of BUDGET_EXHAUSTION_RESOURCE_PATHS.entries()) {
+  fixtures.set(path, {
+    marker: publicUtility.entries[index].required_marker,
+  });
+}
+
 const server = createServer((request, response) => {
   if (request.method !== "GET") {
     response.writeHead(405, {
@@ -412,6 +575,7 @@ try {
   assert.equal(report.official_network_verified, true);
   assert.equal(Object.values(report.checks).every(Boolean), true);
   assert.equal(report.checks.public_utility_catalog_loaded, true);
+  assert.equal(report.checks.public_utility_resources_observed, true);
   assert.equal(report.useful_public_resources.length, 3);
   assert.deepEqual(
     report.useful_public_resources.map((entry) => entry.id),
@@ -425,10 +589,23 @@ try {
     report.useful_public_resources.every(
       (entry) =>
         entry.catalog_observed_by_client === true &&
-        entry.runtime_observed === false,
+        entry.runtime_observed === true &&
+        entry.document !== null,
     ),
     true,
   );
+  assert.equal(
+    report.useful_public_resources[2].document.green_marker,
+    "VOID_DATANET_FIELD_REPLICATION_STATUS_CARD_V1_GREEN",
+  );
+  assert.deepEqual(report.responses.public_utility_resources, {
+    advertised: 3,
+    observed: 3,
+    reused_responses: 2,
+    additional_network_requests: 1,
+    total_network_requests: 8,
+    maximum_total_network_requests: 8,
+  });
   assert.equal(report.responses.public_utility.status, 200);
   assert.equal(report.authority.mutation_authority_granted, false);
   assert.equal(report.authority.wallet_accessed, false);
@@ -453,6 +630,62 @@ try {
       (action) => action.id === "inspect_public_utility",
     ),
     true,
+  );
+
+  const wrongResourceMarker = await runClient([
+    "--base-url",
+    baseUrl,
+    "--manifest-path",
+    WRONG_RESOURCE_MARKER_MANIFEST_PATH,
+  ]);
+  assert.equal(wrongResourceMarker.code, 2, wrongResourceMarker.stderr);
+  const wrongResourceMarkerReport = JSON.parse(
+    wrongResourceMarker.stdout,
+  );
+  assert.equal(
+    wrongResourceMarkerReport.checks.public_utility_catalog_loaded,
+    true,
+  );
+  assert.equal(
+    wrongResourceMarkerReport.checks.public_utility_resources_observed,
+    false,
+  );
+  assert.equal(wrongResourceMarkerReport.status, "partial_read_only");
+  const rejectedResource =
+    wrongResourceMarkerReport.useful_public_resources.find(
+      (resource) => resource.path === WRONG_RESOURCE_MARKER_DATA_PATH,
+    );
+  assert.equal(rejectedResource.runtime_observed, false);
+  assert.equal(rejectedResource.document, null);
+  assert.equal(
+    rejectedResource.observation_error,
+    "required_marker_not_observed",
+  );
+
+  const exhaustedBudget = await runClient([
+    "--base-url",
+    baseUrl,
+    "--manifest-path",
+    BUDGET_EXHAUSTION_MANIFEST_PATH,
+  ]);
+  assert.equal(exhaustedBudget.code, 2, exhaustedBudget.stderr);
+  const exhaustedBudgetReport = JSON.parse(exhaustedBudget.stdout);
+  assert.equal(exhaustedBudgetReport.status, "partial_read_only");
+  assert.deepEqual(exhaustedBudgetReport.responses.public_utility_resources, {
+    advertised: 3,
+    observed: 1,
+    reused_responses: 0,
+    additional_network_requests: 1,
+    total_network_requests: 8,
+    maximum_total_network_requests: 8,
+  });
+  assert.equal(
+    exhaustedBudgetReport.useful_public_resources.filter(
+      (resource) =>
+        resource.observation_error ===
+        "cold_start_request_budget_exhausted",
+    ).length,
+    2,
   );
 
   const decoyBinding = await runClient([
@@ -496,6 +729,23 @@ try {
   assert.equal(
     decoyContractsReport.next_actions.some(
       (action) => action.id === "inspect_capabilities",
+    ),
+    false,
+  );
+
+  const decoyIntake = await runClient([
+    "--base-url",
+    baseUrl,
+    "--manifest-path",
+    DECOY_INTAKE_MANIFEST_PATH,
+  ]);
+  assert.equal(decoyIntake.code, 0, decoyIntake.stderr);
+  const decoyIntakeReport = JSON.parse(decoyIntake.stdout);
+  assert.equal(decoyIntakeReport.status, "ready_read_only");
+  assert.equal(decoyIntakeReport.checks.agent_intake_reachable, false);
+  assert.equal(
+    decoyIntakeReport.next_actions.some(
+      (action) => action.id === "inspect_agent_intake",
     ),
     false,
   );
@@ -645,6 +895,7 @@ if (workingBoundary.length > 0) {
   const recognizedRepairBoundary = [
     NETWORK_BINDING_REPAIR_BOUNDARY,
     COMPOSITION_PROOF_REPAIR_BOUNDARY,
+    PUBLIC_UTILITY_RESOURCE_OBSERVATION_REPAIR_BOUNDARY,
   ].some(
     (boundary) =>
       JSON.stringify(workingBoundary) ===
