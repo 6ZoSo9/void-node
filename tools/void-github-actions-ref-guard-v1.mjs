@@ -249,6 +249,11 @@ export function classifyUsesRef(ref) {
   return { kind: immutable ? 'remote_commit' : 'remote_mutable', mutable: !immutable };
 }
 
+function blockScalarHeaderAfterColon(line, colon) {
+  const rest = line.slice(colon + 1).trim();
+  return /^[>|][0-9+-]*\s*(?:#.*)?$/.test(rest);
+}
+
 export function extractUsesRefs(text) {
   const entries = [];
   const lines = String(text).split(/\r?\n/);
@@ -263,6 +268,20 @@ export function extractUsesRefs(text) {
       scalarIndent = null;
     }
 
+    let blockStart = skipSpace(line, 0);
+    if (line[blockStart] === '-') blockStart = skipSpace(line, blockStart + 1);
+    const blockKey = parseMappingKeyAt(line, blockStart);
+    if (blockKey?.key === 'uses' && blockKey.colon !== null && blockScalarHeaderAfterColon(line, blockKey.colon)) {
+      entries.push({
+        line: index + 1,
+        ref: UNPARSED_USES_REF,
+        kind: 'unparsed_uses_syntax',
+        mutable: true,
+      });
+      scalarIndent = indent;
+      continue;
+    }
+
     if (/^\s*[^#][^:]*:\s*[>|][0-9+-]*\s*(?:#.*)?$/.test(line)) {
       scalarIndent = indent;
       continue;
@@ -270,8 +289,6 @@ export function extractUsesRefs(text) {
 
     if (trimmed === '' || trimmed.startsWith('#')) continue;
 
-    let blockStart = skipSpace(line, 0);
-    if (line[blockStart] === '-') blockStart = skipSpace(line, blockStart + 1);
     const candidateStarts = [blockStart, ...flowMappingStarts(line)];
     const seenStarts = new Set();
     for (const start of candidateStarts) {
@@ -293,11 +310,17 @@ function mutableCounts(entries) {
   return counts;
 }
 
+function isAuditedActionPath(path) {
+  if (!path) return false;
+  if (path.startsWith('.github/workflows/')) return true;
+  return /^\.github\/actions\/(?:.+\/)?action\.ya?ml$/i.test(path);
+}
+
 export function auditActionRefDelta({ cwd = process.cwd(), base, head }) {
   const baseSha = resolveCommit(cwd, base);
   const headSha = resolveCommit(cwd, head);
   const diff = git(cwd, [
-    'diff', '--name-status', '-z', '-M', baseSha, headSha, '--', '.github/workflows',
+    'diff', '--name-status', '-z', '-M', baseSha, headSha, '--', '.github/workflows', '.github/actions',
   ]).stdout;
   const changes = parseNameStatusZ(diff);
   const changed = [];
@@ -306,8 +329,10 @@ export function auditActionRefDelta({ cwd = process.cwd(), base, head }) {
 
   for (const change of changes) {
     if (change.code === 'D') continue;
-    const basePath = change.code === 'R' ? change.oldPath : change.code === 'A' || change.code === 'C' ? null : change.oldPath;
+    const rawBasePath = change.code === 'R' ? change.oldPath : change.code === 'A' || change.code === 'C' ? null : change.oldPath;
     const headPath = change.newPath;
+    if (!isAuditedActionPath(headPath)) continue;
+    const basePath = isAuditedActionPath(rawBasePath) ? rawBasePath : null;
     const baseEntries = extractUsesRefs(readGitFile(cwd, baseSha, basePath));
     const headEntries = extractUsesRefs(readGitFile(cwd, headSha, headPath));
     const baseMutable = mutableCounts(baseEntries);
