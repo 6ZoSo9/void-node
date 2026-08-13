@@ -7,6 +7,10 @@ import { fileURLToPath } from "node:url";
 
 const ROOT = fileURLToPath(new URL("../", import.meta.url));
 const CATALOG_PATH = "public/public-node/agents/public-utility-v1.json";
+const PROVENANCE_WORKFLOW_PATHS = [
+  ".github/workflows/void-ai-agent-first-contact-v1.yml",
+  ".github/workflows/void-ai-agent-public-utility-v1.yml",
+];
 const REVIEWED_PUBLIC_UTILITY_CATALOG_SHA256 =
   "b67fe641d7ccebdb3e4626245b2895d75dd640789d29aca2544855f3d646daa2";
 const catalogOnly = process.argv.includes("--catalog-only");
@@ -165,6 +169,20 @@ assert.deepEqual(catalog.controls, {
   wallet_required: false,
   work_credit_award_active: false
 });
+
+for (const workflowPath of PROVENANCE_WORKFLOW_PATHS) {
+  const workflow = await readFile(
+    new URL(workflowPath, `file://${ROOT}/`),
+    "utf8",
+  );
+  for (const entry of catalog.entries) {
+    assert.equal(
+      workflow.split(`"${entry.repository_path}"`).length - 1,
+      2,
+      `${workflowPath} must trigger on ${entry.repository_path} for pull requests and main pushes`,
+    );
+  }
+}
 
 const ids = new Set();
 const paths = new Set();
