@@ -35,6 +35,8 @@ for (const key of [
   "VOID_BUY_VOID_NATIVE_DELIVERY_RECEIPT_RUNTIME_ENABLED",
   "VOID_BUY_VOID_NATIVE_EXECUTION_RUNTIME_ENABLED",
   "VOID_BUY_VOID_BOUNDED_AUTO_FULFILLMENT_ORCHESTRATOR_RUNTIME_ENABLED",
+  "VOID_BUY_VOID_CRASH_CONSISTENT_SAGA_RUNTIME_ENABLED",
+  "VOID_BUY_VOID_CRASH_CONSISTENT_SAGA_PREPARATION_ENABLED",
   "VOID_BUY_VOID_SAGA_EXECUTE_PREPARED_TRANSACTION_RUNTIME_ENABLED",
 ]) {
   delete process.env[key];
@@ -135,6 +137,15 @@ assert.equal(
   false,
 );
 assert.equal(
+  parentStatus.body.canonical_delivery.crash_consistent_saga_parent_mounted,
+  false,
+);
+assert.equal(
+  parentStatus.body.canonical_delivery
+    .native_transaction_preparation_parent_mounted,
+  false,
+);
+assert.equal(
   parentStatus.body.canonical_delivery
     .opaque_prepared_transaction_execution_parent_mounted,
   false,
@@ -160,6 +171,13 @@ assert.deepEqual(
     "erc20_delivery_receipt_reconciliation_bridge_not_mounted",
   ],
 );
+assert.equal(
+  Object.prototype.hasOwnProperty.call(
+    parentStatus.body,
+    "crash_consistent_saga_runtime",
+  ),
+  false,
+);
 
 const deliveryStatus = await call("GET", deliveryStatusRoute, {
   socket: { remoteAddress: "::1" },
@@ -181,18 +199,17 @@ assert.ok(
   ),
 );
 
-for (const removed of [
+const removedParentActions = [
   "run_bounded_auto_fulfillment_orchestrator",
+  "run_crash_consistent_saga_stage",
   "run_saga_execute_prepared_transaction",
-]) {
+];
+for (const removed of removedParentActions) {
   assert.equal(parentStatus.body.supported_actions.includes(removed), false);
 }
 
 process.env.VOID_BUY_VOID_RUNTIME_INTEGRATION_ENABLED = "1";
-for (const removed of [
-  "run_bounded_auto_fulfillment_orchestrator",
-  "run_saga_execute_prepared_transaction",
-]) {
+for (const removed of removedParentActions) {
   const response = await call("POST", parentCommandRoute, {
     socket: { remoteAddress: "127.0.0.1" },
     body: { action: removed },
@@ -209,4 +226,6 @@ console.log(
 );
 console.log("canonical_delivery_asset=void_token_erc20");
 console.log("native_parent_routes=0");
+console.log("crash_saga_parent_mount=0");
+console.log("native_transaction_preparation_parent_mount=0");
 console.log("presale_inventory_funding_ready=0");
