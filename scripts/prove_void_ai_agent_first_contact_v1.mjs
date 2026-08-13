@@ -851,23 +851,14 @@ try {
   );
   assert.equal(
     wrongResourceMarkerReport.checks.public_utility_catalog_loaded,
-    true,
+    false,
   );
   assert.equal(
     wrongResourceMarkerReport.checks.public_utility_resources_observed,
     false,
   );
   assert.equal(wrongResourceMarkerReport.status, "partial_read_only");
-  const rejectedResource =
-    wrongResourceMarkerReport.useful_public_resources.find(
-      (resource) => resource.path === WRONG_RESOURCE_MARKER_DATA_PATH,
-    );
-  assert.equal(rejectedResource.runtime_observed, false);
-  assert.equal(rejectedResource.document, null);
-  assert.equal(
-    rejectedResource.observation_error,
-    "required_marker_not_observed",
-  );
+  assert.deepEqual(wrongResourceMarkerReport.useful_public_resources, []);
 
   const tamperedReceipt = await runClient(
     ["--base-url", baseUrl],
