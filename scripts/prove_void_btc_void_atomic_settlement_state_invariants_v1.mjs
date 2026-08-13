@@ -192,6 +192,17 @@ assert.throws(
   /event_id content mismatch/,
 );
 
+const reusedEvidence = trace();
+reusedEvidence.events[2].evidence_id = reusedEvidence.events[1].evidence_id;
+const { event_id: ignoredReusedEvidenceId, ...reusedEvidencePayload } =
+  reusedEvidence.events[2];
+void ignoredReusedEvidenceId;
+reusedEvidence.events[2].event_id = contentId(reusedEvidencePayload);
+assert.throws(
+  () => evaluateBtcVoidAtomicSettlementTraceV1(reusedEvidence),
+  /reuses evidence_id from a different event/,
+);
+
 const unknownField = trace();
 unknownField.usd_price = "0.50";
 assert.throws(() => evaluateBtcVoidAtomicSettlementTraceV1(unknownField), /keys mismatch/);
@@ -232,7 +243,7 @@ process.stdout.write(
     {
       marker: `${VOID_BTC_VOID_ATOMIC_SETTLEMENT_STATE_INVARIANTS_V1}_PROOF_GREEN`,
       status: "PASS",
-      assertions: 49,
+      assertions: 50,
       btc_to_void_evaluation_id: baseline.evaluation_id,
       refund_terminal: refunded.final_phase,
       authority: baseline.authority,

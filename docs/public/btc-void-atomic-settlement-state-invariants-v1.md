@@ -40,7 +40,8 @@ state automatically retries.
 
 Every transition is receipt-backed and content-addressed. An exact replay of
 an already-applied event is idempotent and leaves the evaluation identity
-unchanged. A different event, stale `from_phase`, skipped phase, changed
+unchanged. A receipt identity cannot back two different transitions. A
+different event, reused receipt, stale `from_phase`, skipped phase, changed
 receipt, unknown field, wrong network identity, unsafe refund ordering, or
 post-terminal event fails closed.
 

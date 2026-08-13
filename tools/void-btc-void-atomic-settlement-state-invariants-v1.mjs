@@ -226,6 +226,7 @@ export function evaluateBtcVoidAtomicSettlementTraceV1(raw) {
   let phase = request.initial_phase;
   const appliedEventIds = [];
   const seenEvents = new Map();
+  const evidenceOwners = new Map();
   for (let index = 0; index < events.length; index += 1) {
     const event = events[index];
     const prior = seenEvents.get(event.event_id);
@@ -234,6 +235,12 @@ export function evaluateBtcVoidAtomicSettlementTraceV1(raw) {
         throw new Error(`events[${index}] reuses an event_id with changed content`);
       }
       continue;
+    }
+    const evidenceOwner = evidenceOwners.get(event.evidence_id);
+    if (evidenceOwner) {
+      throw new Error(
+        `events[${index}] reuses evidence_id from a different event`,
+      );
     }
     if (TERMINAL_PHASES.has(phase)) {
       throw new Error(`events[${index}] attempts to reopen terminal phase ${phase}`);
@@ -246,6 +253,7 @@ export function evaluateBtcVoidAtomicSettlementTraceV1(raw) {
       throw new Error(`events[${index}] transition is not allowed`);
     }
     seenEvents.set(event.event_id, event);
+    evidenceOwners.set(event.evidence_id, event.event_id);
     appliedEventIds.push(event.event_id);
     phase = event.to_phase;
   }
@@ -267,6 +275,7 @@ export function evaluateBtcVoidAtomicSettlementTraceV1(raw) {
       exact_event_replay_idempotent: true,
       terminal_states_cannot_reopen: true,
       every_transition_receipt_backed: true,
+      distinct_transitions_require_distinct_receipts: true,
       no_automatic_retry: true,
     },
     authority: {
