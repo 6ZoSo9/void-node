@@ -116,6 +116,30 @@ assert.equal(
   "sha256:871ba3b9fce15104b282cfdd78c4e46b77c46005ced6230d0a753050aacc01d5",
 );
 
+const immutableDecisionId = create.decision_id;
+const immutableJournalEntryId = create.append_entry.journal_entry_id;
+assert.equal(Object.isFrozen(create), true);
+assert.equal(Object.isFrozen(create.invariants), true);
+assert.equal(Object.isFrozen(create.authority), true);
+assert.equal(Object.isFrozen(create.append_entry), true);
+assert.equal(Object.isFrozen(create.append_entry.accepted_plan_source), true);
+assert.equal(
+  Object.isFrozen(create.append_entry.accepted_plan_source.settlement),
+  true,
+);
+assert.equal(
+  Object.isFrozen(create.append_entry.accepted_plan_source.policy),
+  true,
+);
+assert.throws(() => {
+  create.authority.funds_moved = true;
+}, TypeError);
+assert.throws(() => {
+  create.append_entry.accepted_plan_source.settlement.btc_received_sats = "1";
+}, TypeError);
+assert.equal(create.decision_id, immutableDecisionId);
+assert.equal(create.append_entry.journal_entry_id, immutableJournalEntryId);
+
 const duplicate = transition(firstPlan, [create.append_entry]);
 assert.equal(duplicate.status, "IDEMPOTENT");
 assert.equal(duplicate.reason, "exact_lot_plan_already_accepted");
@@ -307,6 +331,7 @@ for (const expected of [
   "does not persist",
   "native BTC/native VOID",
   "not live market capability",
+  "recursively immutable",
 ]) {
   assert.ok(doc.includes(expected), `journal-transition doc missing ${expected}`);
 }
@@ -316,7 +341,7 @@ process.stdout.write(
     {
       marker: VOID_BTC_VOID_BUYBACK_LOT_JOURNAL_TRANSITION_V1,
       status: "PASS",
-      assertions: 54,
+      assertions: 66,
       deterministic_first_decision_id: create.decision_id,
       exact_duplicate_status: duplicate.status,
       conflicting_plan_status: conflict.status,

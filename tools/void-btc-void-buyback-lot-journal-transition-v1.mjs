@@ -40,6 +40,14 @@ function exactKeys(value, keys, label) {
   return object;
 }
 
+function deepFreeze(value) {
+  if (!value || typeof value !== "object" || Object.isFrozen(value)) {
+    return value;
+  }
+  for (const child of Object.values(value)) deepFreeze(child);
+  return Object.freeze(value);
+}
+
 function contentId(value) {
   return (
     "sha256:" +
@@ -79,7 +87,7 @@ function entryPayload(plan) {
 
 function createEntry(plan) {
   const payload = entryPayload(plan);
-  return Object.freeze({
+  return deepFreeze({
     ...payload,
     journal_entry_id: contentId(payload),
   });
@@ -254,7 +262,7 @@ export function evaluateBtcVoidBuybackLotJournalTransitionV1(raw) {
       funds_moved: false,
     },
   };
-  return Object.freeze({ ...decision, decision_id: contentId(decision) });
+  return deepFreeze({ ...decision, decision_id: contentId(decision) });
 }
 
 async function readBoundedStdin() {

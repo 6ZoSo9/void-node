@@ -30,6 +30,11 @@ the source prerequisite for a later durable store to compare the reviewed
 pre-state and verify the committed post-state around one atomic append; this
 tool still performs no persistence.
 
+Returned decisions and any emitted `append_entry` are recursively immutable.
+In-process callers cannot mutate nested authority, invariant, or accepted-plan
+source fields after their content-derived identifiers are computed and retain a
+stale `decision_id` or `journal_entry_id` on an apparently frozen result.
+
 ## Deterministic decisions
 
 - `CREATE`: no entry exists for the candidate `buyback_lot_id`; the result
@@ -76,5 +81,6 @@ confirmation evidence, content tampering, internally inconsistent source/lot
 bindings, fabricated content-addressed accepted plan IDs, duplicate journal
 entries, unknown fields, canonical object ordering, exact ordered journal
 snapshot binding, equal-length journal substitution, journal reordering, the
-expected post-transition snapshot for create and non-create decisions, and the
-negative authority flags.
+expected post-transition snapshot for create and non-create decisions,
+recursive immutability of nested returned content, and the negative authority
+flags.
