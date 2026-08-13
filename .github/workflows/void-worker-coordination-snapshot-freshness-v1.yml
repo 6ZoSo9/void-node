@@ -6,8 +6,11 @@ on:
       - ".github/workflows/void-worker-coordination-snapshot-freshness-v1.yml"
       - "docs/operations/void-worker-coordination-snapshot-freshness-v1.md"
       - "ops/coordination/worker-coordination-state-v3.json"
+      - "ops/coordination/worker-live-dispatch-policy-v1.json"
       - "ops/coordination/worker-roster-v1.json"
+      - "scripts/prove_void_worker_coordination_live_dispatch_v1.mjs"
       - "scripts/prove_void_worker_coordination_snapshot_freshness_v1.mjs"
+      - "tools/void-worker-coordination-live-dispatch-v1.mjs"
       - "tools/void-worker-coordination-snapshot-freshness-v1.mjs"
       - "tools/void-worker-coordination-v3.mjs"
   push:
@@ -17,8 +20,11 @@ on:
       - ".github/workflows/void-worker-coordination-snapshot-freshness-v1.yml"
       - "docs/operations/void-worker-coordination-snapshot-freshness-v1.md"
       - "ops/coordination/worker-coordination-state-v3.json"
+      - "ops/coordination/worker-live-dispatch-policy-v1.json"
       - "ops/coordination/worker-roster-v1.json"
+      - "scripts/prove_void_worker_coordination_live_dispatch_v1.mjs"
       - "scripts/prove_void_worker_coordination_snapshot_freshness_v1.mjs"
+      - "tools/void-worker-coordination-live-dispatch-v1.mjs"
       - "tools/void-worker-coordination-snapshot-freshness-v1.mjs"
       - "tools/void-worker-coordination-v3.mjs"
 
@@ -45,10 +51,14 @@ jobs:
           node-version: ${{ matrix.node }}
       - name: Syntax
         run: |
+          node --check tools/void-worker-coordination-live-dispatch-v1.mjs
           node --check tools/void-worker-coordination-snapshot-freshness-v1.mjs
+          node --check scripts/prove_void_worker_coordination_live_dispatch_v1.mjs
           node --check scripts/prove_void_worker_coordination_snapshot_freshness_v1.mjs
       - name: Prove snapshot freshness boundary
         run: node scripts/prove_void_worker_coordination_snapshot_freshness_v1.mjs
+      - name: Prove 15-worker live dispatch contract
+        run: node scripts/prove_void_worker_coordination_live_dispatch_v1.mjs
       - name: Validate checked-in base coordination
         run: |
           node tools/void-worker-coordination-v3.mjs validate \
