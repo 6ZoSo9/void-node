@@ -16,6 +16,12 @@ import {
   parseVoidUdpSwarmRelayOrchestrationRoutesV1,
   type VoidUdpSwarmRelayOrchestrationRouteV1,
 } from "./udp_swarm_relay_orchestrator_v1.js";
+import {
+  VOID_P2P_UDP_SWARM_PUBLIC_RELAY_INTRODUCTION_COLLECTOR_V1,
+  VOID_P2P_UDP_SWARM_PUBLIC_RELAY_INTRODUCTION_AUTHORITY_V1,
+  VoidUdpSwarmPublicRelayIntroductionCollectorV1,
+  type VoidUdpSwarmPublicRelayIntroductionCollectorMountOptionsV1,
+} from "./udp_swarm_public_relay_introduction_collector_v1.js";
 
 export const VOID_P2P_UDP_SWARM_NODE_RUNTIME_MOUNT_V1 =
   "VOID_P2P_UDP_SWARM_NODE_RUNTIME_MOUNT_V1";
@@ -43,6 +49,9 @@ export const VOID_P2P_UDP_SWARM_NODE_RUNTIME_MOUNT_AUTHORITY_V1 =
     automatic_udp_upgrade_initiation_performed: false,
     verified_discovery_runtime_activation_supported: true,
     verified_discovery_expiry_lease_required: true,
+    public_relay_introduction_collector_supported: true,
+    public_relay_introduction_collector_auto_started: false,
+    public_relay_introduction_transport_is_authority: false,
     unverified_runtime_routes_accepted: false,
     relay_retirement_performed: false,
     router_configuration_required: false,
@@ -430,6 +439,8 @@ function addressClass(address: string | null): string | null {
 export class VoidUdpSwarmNodeRuntimeMountV1 {
   private runtime?: VoidUdpSwarmSocketRuntimeV1;
   private orchestrator?: VoidUdpSwarmRelayOrchestratorV1;
+  private publicRelayIntroductionCollector?:
+    VoidUdpSwarmPublicRelayIntroductionCollectorV1;
   private promotionTimer: NodeJS.Timeout | null = null;
   private verifiedDiscoveryExpiryTimer: NodeJS.Timeout | null = null;
   private callbacksInstalled = false;
@@ -649,6 +660,35 @@ export class VoidUdpSwarmNodeRuntimeMountV1 {
     return result;
   }
 
+  async startPublicRelayIntroductionCollectorV1(
+    options: VoidUdpSwarmPublicRelayIntroductionCollectorMountOptionsV1,
+  ): Promise<VoidUdpSwarmPublicRelayIntroductionCollectorV1> {
+    if (this.stopped) throw new Error("UDP swarm Node runtime mount is stopped");
+    if (!this.started || !this.runtime || !this.orchestrator) {
+      throw new Error("UDP swarm Node runtime mount is not active");
+    }
+    if (this.publicRelayIntroductionCollector) {
+      throw new Error("public relay introduction collector is already mounted");
+    }
+    const collector = new VoidUdpSwarmPublicRelayIntroductionCollectorV1({
+      ...options,
+      node: this.node,
+      activateVerifiedComposition: (raw) =>
+        this.activateVerifiedDiscoveryCompositionV1(raw),
+    });
+    this.publicRelayIntroductionCollector = collector;
+    try {
+      await collector.start();
+    } catch (error) {
+      if (this.publicRelayIntroductionCollector === collector) {
+        this.publicRelayIntroductionCollector = undefined;
+      }
+      collector.stop();
+      throw error;
+    }
+    return collector;
+  }
+
   private relayNodeId(sessionId: string): string {
     const session = this.runtime?.snapshot().sessions.find(
       (entry) => entry.session_id === sessionId,
@@ -731,6 +771,17 @@ export class VoidUdpSwarmNodeRuntimeMountV1 {
         expiry_lease_required: true,
         discovery_identity_exposed: false,
       }),
+      public_relay_introduction:
+        this.publicRelayIntroductionCollector?.status() ??
+        Object.freeze({
+          marker:
+            VOID_P2P_UDP_SWARM_PUBLIC_RELAY_INTRODUCTION_COLLECTOR_V1,
+          started: false,
+          stopped: this.stopped,
+          running: false,
+          authority:
+            VOID_P2P_UDP_SWARM_PUBLIC_RELAY_INTRODUCTION_AUTHORITY_V1,
+        }),
       node: Object.freeze({
         staged_candidate_count: candidates.candidates.filter((entry) =>
           mountedSessionIds.has(entry.session_id)
@@ -783,6 +834,8 @@ export class VoidUdpSwarmNodeRuntimeMountV1 {
     }
     this.verifiedDiscoveryActive = false;
     this.verifiedDiscoveryId = null;
+    this.publicRelayIntroductionCollector?.stop();
+    this.publicRelayIntroductionCollector = undefined;
     this.orchestrator?.stop();
     this.orchestrator = undefined;
     if (this.callbacksInstalled) {
