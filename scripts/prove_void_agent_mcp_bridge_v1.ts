@@ -27,6 +27,7 @@ const EXPECTED_FILES = [
   "integrations/mcp/test/bridge.test.ts",
   "integrations/mcp/test/fixtures.ts",
   "integrations/mcp/test/http.test.ts",
+  "integrations/mcp/test/process.test.ts",
   "integrations/mcp/test/protocol-compatibility.test.ts",
   "integrations/mcp/test/server.test.ts",
   "scripts/prove_void_agent_mcp_bridge_v1.ts",
