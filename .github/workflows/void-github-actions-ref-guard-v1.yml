@@ -5,6 +5,8 @@ on:
     paths:
       - '.github/workflows/**'
       - '.github/actions/**'
+      - '**/action.yml'
+      - '**/action.yaml'
       - 'tools/void-github-actions-ref-guard-v1.mjs'
       - 'scripts/prove_void_github_actions_ref_guard_v1.mjs'
 

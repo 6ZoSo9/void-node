@@ -233,7 +233,20 @@ function usesEntryFromCandidate(line, index, lineNumber) {
 
 export function classifyUsesRef(ref) {
   if (typeof ref !== 'string' || ref.length === 0) return { kind: 'invalid', mutable: true };
-  if (ref.startsWith('./') || ref === '.') return { kind: 'local', mutable: false };
+  if (ref === '.' || ref.startsWith('./')) {
+    const segments = ref.split('/');
+    const approvedLocalAction =
+      ref.startsWith('./.github/actions/') &&
+      !ref.includes('\\') &&
+      !ref.includes('//') &&
+      !ref.endsWith('/') &&
+      segments.slice(3).length > 0 &&
+      segments.slice(3).every((segment) => segment !== '' && segment !== '.' && segment !== '..');
+    return {
+      kind: approvedLocalAction ? 'local' : 'local_outside_approved_root',
+      mutable: !approvedLocalAction,
+    };
+  }
   if (ref.startsWith('docker://')) {
     const at = ref.lastIndexOf('@');
     const digest = at === -1 ? '' : ref.slice(at + 1);
@@ -313,14 +326,14 @@ function mutableCounts(entries) {
 function isAuditedActionPath(path) {
   if (!path) return false;
   if (path.startsWith('.github/workflows/')) return true;
-  return /^\.github\/actions\/(?:.+\/)?action\.ya?ml$/i.test(path);
+  return /(?:^|\/)action\.ya?ml$/i.test(path);
 }
 
 export function auditActionRefDelta({ cwd = process.cwd(), base, head }) {
   const baseSha = resolveCommit(cwd, base);
   const headSha = resolveCommit(cwd, head);
   const diff = git(cwd, [
-    'diff', '--name-status', '-z', '-M', baseSha, headSha, '--', '.github/workflows', '.github/actions',
+    'diff', '--name-status', '-z', '-M', baseSha, headSha,
   ]).stdout;
   const changes = parseNameStatusZ(diff);
   const changed = [];

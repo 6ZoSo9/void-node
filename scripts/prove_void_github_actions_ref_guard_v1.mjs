@@ -119,7 +119,9 @@ try {
     const content = `jobs:\n  call:\n    uses: owner/repo/.github/workflows/build.yml@${'d'.repeat(40)}\n  local:\n    steps:\n      - uses: ./local\n      - uses: docker://alpine@sha256:${'e'.repeat(64)}\n`;
     const fixture = makeRepo({}, { '.github/workflows/new.yml': content });
     repos.push(fixture.repo);
-    assert.equal(auditActionRefDelta({ cwd: fixture.repo, base: fixture.base, head: fixture.head }).decision, 'GREEN');
+    const result = auditActionRefDelta({ cwd: fixture.repo, base: fixture.base, head: fixture.head });
+    assert.equal(result.decision, 'HOLD');
+    assert.equal(result.new_mutable_refs.some((x) => x.uses === './local' && x.kind === 'local_outside_approved_root'), true);
   }
 
   {
@@ -210,12 +212,55 @@ try {
   }
 
   {
+    const fixture = makeRepo(
+      {},
+      {
+        '.github/workflows/a.yml': 'jobs:\n  t:\n    steps:\n      - uses: ./ci/local-action\n',
+        'ci/local-action/action.yml': `name: outside approved root\nruns:\n  using: composite\n  steps:\n    - uses: actions/setup-node@${'1'.repeat(40)}\n`,
+      },
+    );
+    repos.push(fixture.repo);
+    const result = auditActionRefDelta({ cwd: fixture.repo, base: fixture.base, head: fixture.head });
+    assert.equal(result.decision, 'HOLD');
+    assert.equal(result.new_mutable_refs.some((x) => x.path === '.github/workflows/a.yml' && x.uses === './ci/local-action' && x.kind === 'local_outside_approved_root'), true);
+  }
+
+  {
+    const fixture = makeRepo({}, { '.github/workflows/a.yml': 'jobs:\n  t:\n    steps:\n      - uses: .\n' });
+    repos.push(fixture.repo);
+    const result = auditActionRefDelta({ cwd: fixture.repo, base: fixture.base, head: fixture.head });
+    assert.equal(result.decision, 'HOLD');
+    assert.equal(result.new_mutable_refs[0].kind, 'local_outside_approved_root');
+  }
+
+  for (const localRef of [
+    './.github/actions/../outside',
+    './.github/actions/local/../../outside',
+    './.github/actions/local/',
+  ]) {
+    const fixture = makeRepo({}, { '.github/workflows/a.yml': `jobs:\n  t:\n    steps:\n      - uses: ${localRef}\n` });
+    repos.push(fixture.repo);
+    const result = auditActionRefDelta({ cwd: fixture.repo, base: fixture.base, head: fixture.head });
+    assert.equal(result.decision, 'HOLD', localRef);
+    assert.equal(result.new_mutable_refs[0].kind, 'local_outside_approved_root', localRef);
+  }
+
+  {
     const composite = `name: local\nruns:\n  using: composite\n  steps:\n    - uses: actions/setup-node@${'1'.repeat(40)}\n`;
     const fixture = makeRepo({}, { '.github/actions/local/action.yaml': composite });
     repos.push(fixture.repo);
     const result = auditActionRefDelta({ cwd: fixture.repo, base: fixture.base, head: fixture.head });
     assert.equal(result.decision, 'GREEN');
     assert.equal(result.changed_workflows.length, 1);
+  }
+
+  {
+    const composite = 'name: outside approved root\nruns:\n  using: composite\n  steps:\n    - uses: actions/setup-node@v4\n';
+    const fixture = makeRepo({}, { 'ci/local-action/action.yml': composite });
+    repos.push(fixture.repo);
+    const result = auditActionRefDelta({ cwd: fixture.repo, base: fixture.base, head: fixture.head });
+    assert.equal(result.decision, 'HOLD');
+    assert.equal(result.new_mutable_refs.some((x) => x.path === 'ci/local-action/action.yml' && x.uses === 'actions/setup-node@v4'), true);
   }
 
   {
