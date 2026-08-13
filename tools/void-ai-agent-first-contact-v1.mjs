@@ -8,8 +8,10 @@ const DEFAULT_MANIFEST_PATH = "/public-node/agents/first-contact-v1.json";
 const DEFAULT_TIMEOUT_MS = 8000;
 const MAX_RESPONSE_BYTES = 65_536;
 const MAX_COLD_START_NETWORK_REQUESTS = 8;
+const COLD_START_CURL_COMMAND =
+  "test -n \"$VOID_PUBLIC_ORIGIN\" && curl --disable --noproxy '*' --disallow-username-in-url --proto '=https' --max-redirs 0 --fail --silent --show-error --max-time 8 --max-filesize 65536 --header 'Accept: application/json' \"${VOID_PUBLIC_ORIGIN%/}/public-node/agents/first-contact-v1.json\"";
 const REVIEWED_FIRST_CONTACT_MANIFEST_FINGERPRINT_SHA256 =
-  "dc5f05b817941edc55113e066b0e89a57cf8e510510ae294f479c687a2386cae";
+  "ed56951c1bc043911ede167dc2cddbab38af62f069d07638dc1825d7e936f413";
 const OFFICIAL_NETWORK = {
   name: "VOID Mainnet-0",
   chain_id: 2050,
@@ -32,6 +34,7 @@ const FIRST_CONTACT_TOP_LEVEL_KEYS = [
   "version",
 ];
 const FIRST_CONTACT_CLIENT_KEYS = [
+  "cold_start_curl_command",
   "example_command",
   "http_methods",
   "output",
@@ -259,6 +262,7 @@ function firstContactManifestValid(manifest) {
     manifest.client.output !== "application/json" ||
     manifest.client.repository_path !==
       "tools/void-ai-agent-first-contact-v1.mjs" ||
+    manifest.client.cold_start_curl_command !== COLD_START_CURL_COMMAND ||
     !isBoundedString(manifest.client.example_command, 512) ||
     !hasExactKeys(manifest.entrypoints, FIRST_CONTACT_ENTRYPOINT_KEYS) ||
     !hasExactKeys(manifest.honesty, FIRST_CONTACT_HONESTY_KEYS) ||
