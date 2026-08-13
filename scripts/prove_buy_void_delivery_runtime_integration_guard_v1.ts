@@ -55,8 +55,8 @@ assert.equal(
       /from "\.\/buy_void_delivery_runtime_integration_v1\.js";/g,
     ) || []
   ).length,
-  1,
-  "wrapper must import canonical ERC-20 delivery runtime exactly once",
+  0,
+  "canonical parent must not import the held ERC-20 delivery runtime",
 );
 for (const forbiddenParentImport of [
   'import "./buy_void_native_delivery_runtime_integration_v1.js";',
@@ -188,6 +188,34 @@ assert.equal(
   true,
 );
 assert.equal(
+  wrapper.includes("delivery_runtime_source_retained: true"),
+  true,
+);
+assert.equal(
+  wrapper.includes("delivery_runtime_parent_mounted: false"),
+  true,
+);
+assert.equal(
+  wrapper.includes("canonical_delivery_runtime_parent_mounted: false"),
+  true,
+);
+assert.equal(
+  wrapper.includes("canonical_erc20_delivery_atomic_unit_conversion_ready: false"),
+  true,
+);
+assert.equal(
+  wrapper.includes("canonical_erc20_delivery_dependency_bootstrap_ready: false"),
+  true,
+);
+assert.equal(
+  wrapper.includes("canonical_erc20_delivery_execution_ready: false"),
+  true,
+);
+assert.equal(
+  wrapper.includes("canonical_erc20_delivery_execution_held: true"),
+  true,
+);
+assert.equal(
   wrapper.includes("native_delivery_parent_mounted: false"),
   true,
 );
@@ -200,6 +228,10 @@ console.log(
   "VOID_BUY_VOID_NATIVE_DELIVERY_RUNTIME_INTEGRATION_GUARD_V1_GREEN",
 );
 console.log("canonical_parent_delivery=void_token_erc20");
+console.log("canonical_erc20_delivery_source_retained=1");
+console.log("canonical_erc20_delivery_parent_mounted=0");
+console.log("erc20_atomic_unit_conversion_ready=0");
+console.log("canonical_delivery_dependency_bootstrap_ready=0");
 console.log("native_canary_source_retained=1");
 console.log("native_canary_parent_mounted=0");
 console.log("presale_inventory_funding_ready=0");

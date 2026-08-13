@@ -139,7 +139,7 @@ assert.doesNotMatch(
   runtimeIntegration,
   /import "\.\/buy_void_native_delivery_runtime_integration_v1\.js";/,
 );
-assert.match(
+assert.doesNotMatch(
   runtimeIntegration,
   /from "\.\/buy_void_delivery_runtime_integration_v1\.js";/,
 );

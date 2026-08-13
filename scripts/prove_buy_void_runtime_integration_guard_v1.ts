@@ -57,7 +57,15 @@ for (const marker of [
   "rpc_call: false",
   'asset_mode: "void_token_erc20"',
   "canonical_delivery_asset_void_token_erc20: true",
-  "canonical_delivery_runtime_parent_mounted: true",
+  "canonical_delivery_runtime_parent_mounted: false",
+  "delivery_runtime_source_retained: true",
+  "delivery_runtime_parent_mounted: false",
+  "canonical_erc20_delivery_dependency_bootstrap_ready: false",
+  "canonical_erc20_delivery_atomic_unit_conversion_ready: false",
+  "canonical_erc20_delivery_execution_ready: false",
+  "canonical_erc20_delivery_execution_held: true",
+  'status: "held"',
+  'reason: "canonical_erc20_execution_not_ready"',
   "native_value_delivery_parent_mounted: false",
   "native_receipt_parent_mounted: false",
   "native_execution_parent_mounted: false",
@@ -86,8 +94,8 @@ for (const marker of [
 }
 
 need(
-  /from "\.\/buy_void_delivery_runtime_integration_v1\.js";/.test(moduleText),
-  "canonical ERC-20 delivery runtime is not parent imported",
+  !/from "\.\/buy_void_delivery_runtime_integration_v1\.js";/.test(moduleText),
+  "canonical ERC-20 delivery runtime remains parent imported",
 );
 for (const forbiddenParentImport of [
   'import "./buy_void_native_delivery_runtime_integration_v1.js";',
@@ -170,6 +178,9 @@ need(workflowText.includes("--moduleResolution NodeNext"), "workflow lacks focus
 
 console.log("VOID_BUY_VOID_RUNTIME_INTEGRATION_GUARD_V1_GREEN");
 console.log("canonical_delivery_asset=void_token_erc20");
+console.log("canonical_erc20_delivery_parent_mount=0");
+console.log("erc20_atomic_unit_conversion_ready=0");
+console.log("canonical_delivery_dependency_bootstrap_ready=0");
 console.log("native_parent_mounts=0");
 console.log("bounded_orchestrator_parent_mount=0");
 console.log("standalone_crash_saga_source_retained=1");

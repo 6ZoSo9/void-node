@@ -1,10 +1,11 @@
 import path from "node:path";
 import express from "express";
-import {
-  VOID_BUY_VOID_DELIVERY_RUNTIME_INTEGRATION_V1,
-  VOID_BUY_VOID_DELIVERY_RUNTIME_ROUTES_V1,
-  buyVoidDeliveryRuntimeStatusV1,
-} from "./buy_void_delivery_runtime_integration_v1.js";
+const VOID_BUY_VOID_DELIVERY_RUNTIME_INTEGRATION_V1 =
+  "VOID_BUY_VOID_DELIVERY_RUNTIME_INTEGRATION_V1";
+const VOID_BUY_VOID_DELIVERY_RUNTIME_ROUTES_V1 = {
+  status: "/__void/operator/buy-void-delivery-runtime-v1/status",
+  command: "/__void/operator/buy-void-delivery-runtime-v1/command",
+} as const;
 import "./buy_void_confirmed_closeout_runtime_v1.js";
 import {
   VOID_BUY_VOID_PIPELINE_CONFIRMATIONS_V1,
@@ -41,6 +42,8 @@ export const VOID_BUY_VOID_CANONICAL_DELIVERY_COMPOSITION_V1 = {
   delivery_runtime_marker:
     VOID_BUY_VOID_DELIVERY_RUNTIME_INTEGRATION_V1,
   delivery_routes: VOID_BUY_VOID_DELIVERY_RUNTIME_ROUTES_V1,
+  delivery_runtime_source_retained: true,
+  delivery_runtime_parent_mounted: false,
   native_delivery_parent_mounted: false,
   native_receipt_parent_mounted: false,
   native_execution_parent_mounted: false,
@@ -50,10 +53,16 @@ export const VOID_BUY_VOID_CANONICAL_DELIVERY_COMPOSITION_V1 = {
   opaque_prepared_transaction_execution_parent_mounted: false,
   erc20_transaction_preparation_bridge_ready: false,
   erc20_receipt_reconciliation_bridge_ready: false,
+  erc20_fulfillment_unit_to_token_atom_scale_ready: false,
+  canonical_delivery_dependency_bootstrap_ready: false,
+  canonical_delivery_execution_ready: false,
+  canonical_delivery_execution_held: true,
   presale_inventory_funding_ready: false,
   funding_blockers: [
     "erc20_transaction_preparation_bridge_not_mounted",
     "erc20_delivery_receipt_reconciliation_bridge_not_mounted",
+    "erc20_fulfillment_unit_to_token_atom_scale_not_ready",
+    "canonical_delivery_dependency_bootstrap_not_ready",
   ],
 } as const;
 
@@ -72,7 +81,11 @@ export const VOID_BUY_VOID_RUNTIME_INTEGRATION_AUTHORITY_V1 = {
   background_loop: false,
   rpc_call: false,
   canonical_delivery_asset_void_token_erc20: true,
-  canonical_delivery_runtime_parent_mounted: true,
+  canonical_delivery_runtime_parent_mounted: false,
+  canonical_erc20_delivery_dependency_bootstrap_ready: false,
+  canonical_erc20_delivery_atomic_unit_conversion_ready: false,
+  canonical_erc20_delivery_execution_ready: false,
+  canonical_erc20_delivery_execution_held: true,
   native_value_delivery_parent_mounted: false,
   native_receipt_parent_mounted: false,
   native_execution_parent_mounted: false,
@@ -85,9 +98,9 @@ export const VOID_BUY_VOID_RUNTIME_INTEGRATION_AUTHORITY_V1 = {
   delegated_transaction_broadcast_possible_when_execution_runtime_enabled: false,
   delegated_money_movement_possible_when_submission_occurs: false,
   canonical_erc20_delivery_transaction_broadcast_possible_when_delivery_runtime_enabled:
-    true,
+    false,
   canonical_erc20_delivery_money_movement_possible_when_delivery_runtime_enabled:
-    true,
+    false,
   delegated_inventory_consumption_possible_when_terminal_closeout_runtime_enabled:
     true,
   delegated_public_fulfilled_projection_possible_when_terminal_closeout_runtime_enabled:
@@ -259,7 +272,23 @@ export function buyVoidRuntimeStatusV1(): Record<string, unknown> {
     coordinator_authority: VOID_BUY_VOID_PIPELINE_COORDINATOR_AUTHORITY_V1,
     canonical_delivery: {
       ...VOID_BUY_VOID_CANONICAL_DELIVERY_COMPOSITION_V1,
-      runtime_status: buyVoidDeliveryRuntimeStatusV1(),
+      runtime_status: {
+        marker: VOID_BUY_VOID_DELIVERY_RUNTIME_INTEGRATION_V1,
+        version: 1,
+        ok: true,
+        mounted: false,
+        status: "held",
+        reason: "canonical_erc20_execution_not_ready",
+        routes: VOID_BUY_VOID_DELIVERY_RUNTIME_ROUTES_V1,
+        signer_configured: false,
+        broadcaster_configured: false,
+        effective_authority: {
+          signing: false,
+          transaction_broadcast: false,
+          money_movement: false,
+          rpc_call: false,
+        },
+      },
     },
     saga_broadcast_reconciliation_runtime:
       buyVoidSagaBroadcastReconciliationRuntimeStatusV1(),

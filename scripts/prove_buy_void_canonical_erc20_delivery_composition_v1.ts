@@ -98,7 +98,7 @@ const deliveryStatusRoute =
 
 assert.equal(routes.has(`GET ${parentStatusRoute}`), true);
 assert.equal(routes.has(`POST ${parentCommandRoute}`), true);
-assert.equal(routes.has(`GET ${deliveryStatusRoute}`), true);
+assert.equal(routes.has(`GET ${deliveryStatusRoute}`), false);
 assert.equal(
   routes.has(
     "GET /__void/operator/buy-void-native-delivery-receipt-v1/status",
@@ -169,6 +169,8 @@ assert.deepEqual(
   [
     "erc20_transaction_preparation_bridge_not_mounted",
     "erc20_delivery_receipt_reconciliation_bridge_not_mounted",
+    "erc20_fulfillment_unit_to_token_atom_scale_not_ready",
+    "canonical_delivery_dependency_bootstrap_not_ready",
   ],
 );
 assert.equal(
@@ -179,24 +181,56 @@ assert.equal(
   false,
 );
 
-const deliveryStatus = await call("GET", deliveryStatusRoute, {
-  socket: { remoteAddress: "::1" },
-});
-assert.equal(deliveryStatus.status, 200);
 assert.equal(
-  deliveryStatus.body.marker,
-  "VOID_BUY_VOID_DELIVERY_RUNTIME_INTEGRATION_V1",
+  parentStatus.body.canonical_delivery.delivery_runtime_source_retained,
+  true,
 );
 assert.equal(
-  deliveryStatus.body.adapter_marker,
-  "VOID_BUY_VOID_DELIVERY_SIGN_BROADCAST_ADAPTER_V1",
+  parentStatus.body.canonical_delivery.delivery_runtime_parent_mounted,
+  false,
 );
-assert.equal(deliveryStatus.body.enabled, false);
-assert.equal(deliveryStatus.body.policy_configured, false);
-assert.ok(
-  deliveryStatus.body.policy_missing_envs.includes(
-    "VOID_BUY_VOID_DELIVERY_TOKEN_ADDRESS",
-  ),
+assert.equal(
+  parentStatus.body.canonical_delivery
+    .erc20_fulfillment_unit_to_token_atom_scale_ready,
+  false,
+);
+assert.equal(
+  parentStatus.body.canonical_delivery
+    .canonical_delivery_dependency_bootstrap_ready,
+  false,
+);
+assert.equal(
+  parentStatus.body.canonical_delivery.canonical_delivery_execution_ready,
+  false,
+);
+assert.equal(
+  parentStatus.body.canonical_delivery.canonical_delivery_execution_held,
+  true,
+);
+assert.equal(
+  parentStatus.body.canonical_delivery.runtime_status.mounted,
+  false,
+);
+assert.equal(
+  parentStatus.body.canonical_delivery.runtime_status.status,
+  "held",
+);
+assert.equal(
+  parentStatus.body.canonical_delivery.runtime_status.reason,
+  "canonical_erc20_execution_not_ready",
+);
+assert.equal(
+  parentStatus.body.canonical_delivery.runtime_status.signer_configured,
+  false,
+);
+assert.equal(
+  parentStatus.body.canonical_delivery.runtime_status.broadcaster_configured,
+  false,
+);
+assert.equal(
+  parentStatus.body.canonical_delivery.runtime_status
+    .effective_authority.transaction_broadcast,
+  false,
 );
 
 const removedParentActions = [
@@ -226,6 +260,9 @@ console.log(
 );
 console.log("canonical_delivery_asset=void_token_erc20");
 console.log("native_parent_routes=0");
+console.log("canonical_erc20_delivery_parent_mount=0");
+console.log("erc20_atomic_unit_conversion_ready=0");
+console.log("canonical_delivery_dependency_bootstrap_ready=0");
 console.log("crash_saga_parent_mount=0");
 console.log("native_transaction_preparation_parent_mount=0");
 console.log("presale_inventory_funding_ready=0");
