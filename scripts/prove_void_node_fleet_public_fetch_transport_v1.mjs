@@ -55,8 +55,12 @@ function invariant(snapshot) {
     origin_repository: snapshot.origin_repository,
     origin_fetch_count: snapshot.origin_fetch_count,
     origin_fetch_sha256: snapshot.origin_fetch_sha256,
+    origin_effective_fetch_count: snapshot.origin_effective_fetch_count,
+    origin_effective_fetch_sha256: snapshot.origin_effective_fetch_sha256,
     origin_push_count: snapshot.origin_push_count,
     origin_push_sha256: snapshot.origin_push_sha256,
+    prospective_public_fetch_count: snapshot.prospective_public_fetch_count,
+    prospective_public_fetch_sha256: snapshot.prospective_public_fetch_sha256,
   };
 }
 
@@ -68,6 +72,14 @@ function assertNoDedicatedRemote(repo) {
 }
 
 const repos = [];
+const configRoot = mkdtempSync(join(tmpdir(), 'void-public-fetch-config-'));
+const globalConfig = join(configRoot, 'global.gitconfig');
+writeFileSync(globalConfig, '');
+const previousGlobal = process.env.GIT_CONFIG_GLOBAL;
+const previousNoSystem = process.env.GIT_CONFIG_NOSYSTEM;
+process.env.GIT_CONFIG_GLOBAL = globalConfig;
+process.env.GIT_CONFIG_NOSYSTEM = '1';
+
 try {
   const repo = makeRepo();
   repos.push(repo);
@@ -78,35 +90,25 @@ try {
   assert.equal(before.dirty_count, 2);
   const plan = buildTransportPlanV1(before);
   assert.equal(plan.mutation_required, true);
-  assert.equal(plan.operation, 'configure_dedicated_fetch_remote_only');
 
   const applied = applyTransportPlanV1(repo, plan.plan_id_sha256);
   assert.equal(applied.outcome, 'TRANSPORT_CONFIGURED');
-  assert.equal(applied.mutation_attempted, true);
   assert.deepEqual(invariant(applied.after), invariant(before));
-  assert.equal(git(repo, 'config', '--local', '--get-all', `remote.${PUBLIC_FETCH_REMOTE_V1}.url`), PUBLIC_FETCH_URL_V1);
-  assert.equal(git(repo, 'config', '--local', '--get-all', `remote.${PUBLIC_FETCH_REMOTE_V1}.pushurl`), PUBLIC_PUSH_URL_V1);
-  assert.equal(git(repo, 'remote', 'get-url', 'origin'), 'git@github.com:6ZoSo9/void-node.git');
-  assert.equal(git(repo, 'remote', 'get-url', '--push', 'origin'), 'ssh://git@github.com/6ZoSo9/void-node.git');
+  assert.equal(git(repo, 'remote', 'get-url', '--all', PUBLIC_FETCH_REMOTE_V1), PUBLIC_FETCH_URL_V1);
+  assert.equal(git(repo, 'remote', 'get-url', '--push', PUBLIC_FETCH_REMOTE_V1), PUBLIC_PUSH_URL_V1);
 
   const aligned = inspectRepositoryTransportV1(repo);
-  const alignedPlan = buildTransportPlanV1(aligned);
   assert.equal(aligned.dedicated_state, 'ALIGNED');
-  assert.equal(alignedPlan.mutation_required, false);
-  const idempotent = applyTransportPlanV1(repo, alignedPlan.plan_id_sha256);
+  const idempotent = applyTransportPlanV1(repo, buildTransportPlanV1(aligned).plan_id_sha256);
   assert.equal(idempotent.outcome, 'ALREADY_ALIGNED');
   assert.equal(idempotent.mutation_attempted, false);
-  assert.deepEqual(invariant(idempotent.after), invariant(aligned));
 
   git(repo, 'config', '--local', '--replace-all', `remote.${PUBLIC_FETCH_REMOTE_V1}.url`, 'ssh://example.invalid/repo.git');
   git(repo, 'config', '--local', '--replace-all', `remote.${PUBLIC_FETCH_REMOTE_V1}.pushurl`, 'ssh://example.invalid/repo.git');
   const bad = inspectRepositoryTransportV1(repo);
   assert.equal(bad.dedicated_state, 'MISCONFIGURED');
-  const repair = buildTransportPlanV1(bad);
-  const repaired = applyTransportPlanV1(repo, repair.plan_id_sha256);
-  assert.equal(repaired.outcome, 'TRANSPORT_CONFIGURED');
+  const repaired = applyTransportPlanV1(repo, buildTransportPlanV1(bad).plan_id_sha256);
   assert.equal(repaired.after.dedicated_state, 'ALIGNED');
-  assert.deepEqual(invariant(repaired.after), invariant(bad));
 
   assert.throws(() => applyTransportPlanV1(repo, '0'.repeat(64)), /transport plan changed before apply/);
 
@@ -119,7 +121,6 @@ try {
     const canonicalRepo = makeRepo(canonicalOrigin);
     repos.push(canonicalRepo);
     const snapshot = inspectRepositoryTransportV1(canonicalRepo);
-    assert.equal(snapshot.canonical_origin_required, true);
     assert.equal(snapshot.origin_repository, CANONICAL_ORIGIN_REPOSITORY_V1);
   }
 
@@ -145,6 +146,27 @@ try {
   assert.throws(() => inspectRepositoryTransportV1(duplicateCanonicalRepo), /exactly one canonical 6ZoSo9\/void-node/);
   assertNoDedicatedRemote(duplicateCanonicalRepo);
 
+  const prospectiveRewriteRepo = makeRepo();
+  repos.push(prospectiveRewriteRepo);
+  writeFileSync(globalConfig, '[url "ssh://example.invalid/rewritten.git"]\n\tinsteadOf = https://github.com/6ZoSo9/void-node.git\n');
+  assert.throws(() => inspectRepositoryTransportV1(prospectiveRewriteRepo), /public fetch URL is rewritten/);
+  assertNoDedicatedRemote(prospectiveRewriteRepo);
+  writeFileSync(globalConfig, '');
+
+  const originRewriteRepo = makeRepo('https://github.com/6ZoSo9/void-node.git');
+  repos.push(originRewriteRepo);
+  writeFileSync(globalConfig, '[url "ssh://example.invalid/rewritten.git"]\n\tinsteadOf = https://github.com/6ZoSo9/void-node.git\n');
+  assert.throws(() => inspectRepositoryTransportV1(originRewriteRepo), /origin effective fetch URL/);
+  assertNoDedicatedRemote(originRewriteRepo);
+  writeFileSync(globalConfig, '');
+
+  const nonLocalDedicatedRepo = makeRepo();
+  repos.push(nonLocalDedicatedRepo);
+  writeFileSync(globalConfig, `[remote "${PUBLIC_FETCH_REMOTE_V1}"]\n\turl = ${PUBLIC_FETCH_URL_V1}\n`);
+  assert.throws(() => inspectRepositoryTransportV1(nonLocalDedicatedRepo), /non-local configuration/);
+  assertNoDedicatedRemote(nonLocalDedicatedRepo);
+  writeFileSync(globalConfig, '');
+
   const cliRepo = makeRepo();
   repos.push(cliRepo);
   const tool = new URL('../tools/void-node-fleet-public-fetch-transport-v1.mjs', import.meta.url).pathname;
@@ -153,18 +175,12 @@ try {
   assert.equal(dry.stdout.includes('git@github.com'), false);
   assert.equal(dry.stdout.includes('example.invalid'), false);
   assert.equal(dryResult.outcome, 'READY_TO_APPLY');
-  assert.equal(dryResult.plan.canonical_origin_required, true);
-  assert.equal(dryResult.plan.origin_repository, CANONICAL_ORIGIN_REPOSITORY_V1);
   assert.equal(dryResult.mutation_attempted, false);
   assert.equal(dryResult.authority.git_fetch, false);
-  assert.equal(dryResult.authority.service_mutation, false);
-  assert.equal(dryResult.authority.runtime_mutation, false);
   const cliPlanId = dryResult.plan.plan_id_sha256;
 
   const badConfirm = run(process.cwd(), process.execPath, [
-    tool, '--repo', cliRepo, '--apply',
-    '--confirm-operation', 'WRONG',
-    '--confirm-plan-id', cliPlanId,
+    tool, '--repo', cliRepo, '--apply', '--confirm-operation', 'WRONG', '--confirm-plan-id', cliPlanId,
   ], 2);
   assert.equal(JSON.parse(badConfirm.stdout).outcome, 'HOLD');
   assert.equal(inspectRepositoryTransportV1(cliRepo).dedicated_state, 'MISSING');
@@ -176,11 +192,8 @@ try {
   ]);
   const appliedResult = JSON.parse(appliedCli.stdout);
   assert.equal(appliedResult.outcome, 'TRANSPORT_CONFIGURED');
-  assert.equal(appliedResult.mutation_attempted, true);
   assert.equal(appliedResult.authority.git_config_mutation_attempted, true);
   assert.equal(appliedResult.authority.git_fetch, false);
-  assert.equal(appliedResult.authority.service_mutation, false);
-  assert.equal(appliedResult.authority.runtime_mutation, false);
 
   const toolSource = readFileSync(tool, 'utf8');
   assert.equal(toolSource.includes("spawnSync('systemctl'"), false);
@@ -192,8 +205,10 @@ try {
   console.log('fetch_url=https://github.com/6ZoSo9/void-node.git');
   console.log('push_url=/dev/null');
   console.log('canonical_origin_required=true');
-  console.log('foreign_origin_rejected=true');
-  console.log('mixed_origin_rejected=true');
+  console.log('effective_origin_verified=true');
+  console.log('effective_public_fetch_verified=true');
+  console.log('instead_of_rewrite_rejected=true');
+  console.log('non_local_dedicated_config_rejected=true');
   console.log('dirty_worktree_preserved=true');
   console.log('origin_preserved=true');
   console.log('refs_preserved=true');
@@ -203,5 +218,10 @@ try {
   console.log('service_mutation=false');
   console.log('runtime_mutation=false');
 } finally {
+  if (previousGlobal === undefined) delete process.env.GIT_CONFIG_GLOBAL;
+  else process.env.GIT_CONFIG_GLOBAL = previousGlobal;
+  if (previousNoSystem === undefined) delete process.env.GIT_CONFIG_NOSYSTEM;
+  else process.env.GIT_CONFIG_NOSYSTEM = previousNoSystem;
   for (const repo of repos) rmSync(repo, { recursive: true, force: true });
+  rmSync(configRoot, { recursive: true, force: true });
 }

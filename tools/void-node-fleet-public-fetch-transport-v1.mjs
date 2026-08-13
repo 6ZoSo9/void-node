@@ -72,11 +72,7 @@ function run(repo, args, options = {}) {
     encoding: 'utf8',
     timeout: options.timeoutMs ?? 10_000,
     maxBuffer: MAX_OUTPUT_BYTES,
-    env: {
-      ...process.env,
-      GIT_TERMINAL_PROMPT: '0',
-      GIT_OPTIONAL_LOCKS: '0',
-    },
+    env: { ...process.env, GIT_TERMINAL_PROMPT: '0', GIT_OPTIONAL_LOCKS: '0' },
   });
   return {
     ok: result.status === 0 && !result.error,
@@ -93,15 +89,35 @@ function requiredRun(repo, args, label) {
   return result.stdout;
 }
 
-function configValues(repo, key) {
-  const result = run(repo, ['config', '--local', '--get-all', key]);
+function lines(stdout) {
+  return stdout.split(/\r?\n/).filter((line) => line.length > 0);
+}
+
+function configValues(repo, key, localOnly = true) {
+  const args = ['config'];
+  if (localOnly) args.push('--local');
+  args.push('--get-all', key);
+  const result = run(repo, args);
   if (result.status === 1 && !result.error) return [];
   if (!result.ok) fail(`unable to read ${key}`);
-  return result.stdout.split(/\r?\n/).filter((line) => line.length > 0);
+  return lines(result.stdout);
 }
 
 function digestStrings(values) {
   return sha256(values.map((value) => `${value.length}:${value}`).join('\n'));
+}
+
+function effectiveRemoteFetchUrls(repo, remote) {
+  const result = run(repo, ['remote', 'get-url', '--all', remote]);
+  if (result.status === 2 && !result.error) return [];
+  if (!result.ok) fail(`unable to resolve effective fetch URL for ${remote}`);
+  return lines(result.stdout);
+}
+
+function prospectivePublicFetchUrls(repo) {
+  const result = run(repo, ['ls-remote', '--get-url', PUBLIC_FETCH_URL_V1]);
+  if (!result.ok) fail('unable to resolve prospective public fetch URL');
+  return lines(result.stdout);
 }
 
 function worktreeStatus(repo) {
@@ -129,308 +145,36 @@ function operationInProgress(repo) {
 }
 
 function refsDigest(repo) {
-  const output = requiredRun(
-    repo,
-    ['for-each-ref', '--format=%(refname)%00%(objectname)%00%(symref)'],
-    'inspect refs',
-  );
+  const output = requiredRun(repo, ['for-each-ref', '--format=%(refname)%00%(objectname)%00%(symref)'], 'inspect refs');
   return sha256(output);
 }
 
-function classifyDedicatedRemote(fetchValues, pushValues) {
-  if (fetchValues.length === 0 && pushValues.length === 0) return 'MISSING';
+function assertCanonicalOriginFetchV1(stored, effective) {
+  if (stored.length !== 1) fail(`origin must have exactly one canonical ${CANONICAL_ORIGIN_REPOSITORY_V1} fetch URL`);
+  if (!CANONICAL_ORIGIN_FETCH_URL_SET_V1.has(stored[0])) fail(`origin does not identify canonical ${CANONICAL_ORIGIN_REPOSITORY_V1}`);
+  if (effective.length !== 1 || !CANONICAL_ORIGIN_FETCH_URL_SET_V1.has(effective[0])) {
+    fail(`origin effective fetch URL does not identify canonical ${CANONICAL_ORIGIN_REPOSITORY_V1}`);
+  }
+}
+
+function assertProspectivePublicFetchV1(effective) {
+  if (effective.length !== 1 || effective[0] !== PUBLIC_FETCH_URL_V1) {
+    fail('public fetch URL is rewritten by Git configuration');
+  }
+}
+
+function assertDedicatedConfigIsLocalV1(repo, localFetch, localPush) {
+  const allFetch = configValues(repo, `remote.${PUBLIC_FETCH_REMOTE_V1}.url`, false);
+  const allPush = configValues(repo, `remote.${PUBLIC_FETCH_REMOTE_V1}.pushurl`, false);
+  if (stableJson(allFetch) !== stableJson(localFetch) || stableJson(allPush) !== stableJson(localPush)) {
+    fail('dedicated remote has non-local configuration');
+  }
+}
+
+function classifyDedicatedRemote(fetchValues, pushValues, effectiveValues) {
+  if (fetchValues.length === 0 && pushValues.length === 0 && effectiveValues.length === 0) return 'MISSING';
   if (
-    fetchValues.length === 1 &&
-    fetchValues[0] === PUBLIC_FETCH_URL_V1 &&
-    pushValues.length === 1 &&
-    pushValues[0] === PUBLIC_PUSH_URL_V1
-  ) return 'ALIGNED';
-  return 'MISCONFIGURED';
-}
-
-function assertCanonicalOriginFetchV1(originFetch) {
-  if (originFetch.length !== 1) {
-    fail(`origin must have exactly one canonical ${CANONICAL_ORIGIN_REPOSITORY_V1} fetch URL`);
-  }
-  if (!CANONICAL_ORIGIN_FETCH_URL_SET_V1.has(originFetch[0])) {
-    fail(`origin does not identify canonical ${CANONICAL_ORIGIN_REPOSITORY_V1}`);
-  }
-}
-
-export function inspectRepositoryTransportV1(repoInput) {
-  const repo = expandPath(safePath(repoInput, 'repo'));
-  const inside = run(repo, ['rev-parse', '--is-inside-work-tree']);
-  if (!inside.ok || inside.stdout.trim() !== 'true') fail('repo is not a Git working tree');
-  if (operationInProgress(repo)) fail('a Git operation is in progress');
-
-  const branchResult = run(repo, ['symbolic-ref', '--short', '-q', 'HEAD']);
-  if (branchResult.status === 1 && !branchResult.error) fail('repo must be on exact main');
-  if (!branchResult.ok) fail('inspect branch failed');
-  const branch = branchResult.stdout.trim();
-  if (branch !== 'main') fail('repo must be on exact main');
-
-  const head = requiredRun(repo, ['rev-parse', 'HEAD'], 'inspect head').trim();
-  const tree = requiredRun(repo, ['rev-parse', 'HEAD^{tree}'], 'inspect tree').trim();
-  if (!SHA40_RE.test(head) || !SHA40_RE.test(tree)) fail('repo head/tree identity is invalid');
-
-  const originFetch = configValues(repo, 'remote.origin.url');
-  assertCanonicalOriginFetchV1(originFetch);
-  const originPush = configValues(repo, 'remote.origin.pushurl');
-  const dedicatedFetch = configValues(repo, `remote.${PUBLIC_FETCH_REMOTE_V1}.url`);
-  const dedicatedPush = configValues(repo, `remote.${PUBLIC_FETCH_REMOTE_V1}.pushurl`);
-  const status = worktreeStatus(repo);
-
-  return Object.freeze({
-    repo,
-    branch,
-    head,
-    tree,
-    worktree_status_sha256: status.digest,
-    dirty_count: status.dirty_count,
-    index_sha256: indexDigest(repo),
-    refs_sha256: refsDigest(repo),
-    canonical_origin_required: true,
-    origin_repository: CANONICAL_ORIGIN_REPOSITORY_V1,
-    origin_fetch_count: originFetch.length,
-    origin_fetch_sha256: digestStrings(originFetch),
-    origin_push_count: originPush.length,
-    origin_push_sha256: digestStrings(originPush),
-    dedicated_fetch_count: dedicatedFetch.length,
-    dedicated_fetch_sha256: digestStrings(dedicatedFetch),
-    dedicated_push_count: dedicatedPush.length,
-    dedicated_push_sha256: digestStrings(dedicatedPush),
-    dedicated_state: classifyDedicatedRemote(dedicatedFetch, dedicatedPush),
-  });
-}
-
-function planPayload(snapshot) {
-  return {
-    marker: VOID_NODE_FLEET_PUBLIC_FETCH_TRANSPORT_PLAN_V1,
-    remote_name: PUBLIC_FETCH_REMOTE_V1,
-    fetch_url: PUBLIC_FETCH_URL_V1,
-    push_url: PUBLIC_PUSH_URL_V1,
-    branch: snapshot.branch,
-    head: snapshot.head,
-    tree: snapshot.tree,
-    worktree_status_sha256: snapshot.worktree_status_sha256,
-    dirty_count: snapshot.dirty_count,
-    index_sha256: snapshot.index_sha256,
-    refs_sha256: snapshot.refs_sha256,
-    canonical_origin_required: snapshot.canonical_origin_required,
-    origin_repository: snapshot.origin_repository,
-    origin_fetch_count: snapshot.origin_fetch_count,
-    origin_fetch_sha256: snapshot.origin_fetch_sha256,
-    origin_push_count: snapshot.origin_push_count,
-    origin_push_sha256: snapshot.origin_push_sha256,
-    dedicated_fetch_count: snapshot.dedicated_fetch_count,
-    dedicated_fetch_sha256: snapshot.dedicated_fetch_sha256,
-    dedicated_push_count: snapshot.dedicated_push_count,
-    dedicated_push_sha256: snapshot.dedicated_push_sha256,
-    dedicated_state: snapshot.dedicated_state,
-    operation: 'configure_dedicated_fetch_remote_only',
-  };
-}
-
-export function buildTransportPlanV1(snapshot) {
-  const payload = planPayload(snapshot);
-  return Object.freeze({
-    ...payload,
-    plan_id_sha256: sha256(payload),
-    mutation_required: snapshot.dedicated_state !== 'ALIGNED',
-  });
-}
-
-function invariantView(snapshot) {
-  return {
-    branch: snapshot.branch,
-    head: snapshot.head,
-    tree: snapshot.tree,
-    worktree_status_sha256: snapshot.worktree_status_sha256,
-    dirty_count: snapshot.dirty_count,
-    index_sha256: snapshot.index_sha256,
-    refs_sha256: snapshot.refs_sha256,
-    canonical_origin_required: snapshot.canonical_origin_required,
-    origin_repository: snapshot.origin_repository,
-    origin_fetch_count: snapshot.origin_fetch_count,
-    origin_fetch_sha256: snapshot.origin_fetch_sha256,
-    origin_push_count: snapshot.origin_push_count,
-    origin_push_sha256: snapshot.origin_push_sha256,
-  };
-}
-
-export function applyTransportPlanV1(repoInput, expectedPlanId) {
-  if (!SHA64_RE.test(String(expectedPlanId ?? ''))) fail('expected plan ID must be lowercase 64-hex');
-  const before = inspectRepositoryTransportV1(repoInput);
-  const plan = buildTransportPlanV1(before);
-  if (plan.plan_id_sha256 !== expectedPlanId) fail('transport plan changed before apply');
-
-  if (!plan.mutation_required) {
-    return Object.freeze({
-      outcome: 'ALREADY_ALIGNED',
-      plan,
-      mutation_attempted: false,
-      mutation_succeeded: true,
-      after: before,
-    });
-  }
-
-  const first = run(before.repo, ['config', '--local', '--replace-all', `remote.${PUBLIC_FETCH_REMOTE_V1}.url`, PUBLIC_FETCH_URL_V1]);
-  if (!first.ok) fail('failed to set dedicated fetch URL; mutation outcome is uncertain and automatic retry is forbidden', true);
-  const second = run(before.repo, ['config', '--local', '--replace-all', `remote.${PUBLIC_FETCH_REMOTE_V1}.pushurl`, PUBLIC_PUSH_URL_V1]);
-  if (!second.ok) fail('failed to set dedicated push URL; partial dedicated-remote config may exist and requires fresh inspection', true);
-
-  const after = inspectRepositoryTransportV1(before.repo);
-  if (stableJson(invariantView(after)) !== stableJson(invariantView(before))) {
-    fail('repository invariant changed during dedicated remote configuration', true);
-  }
-  if (after.dedicated_state !== 'ALIGNED') fail('dedicated remote did not reach exact aligned state', true);
-
-  return Object.freeze({
-    outcome: 'TRANSPORT_CONFIGURED',
-    plan,
-    mutation_attempted: true,
-    mutation_succeeded: true,
-    after,
-  });
-}
-
-function publicPlan(plan) {
-  return {
-    marker: plan.marker,
-    plan_id_sha256: plan.plan_id_sha256,
-    remote_name: plan.remote_name,
-    fetch_url: plan.fetch_url,
-    push_url: plan.push_url,
-    branch: plan.branch,
-    head: plan.head,
-    tree: plan.tree,
-    dirty_count: plan.dirty_count,
-    canonical_origin_required: plan.canonical_origin_required,
-    origin_repository: plan.origin_repository,
-    dedicated_state: plan.dedicated_state,
-    mutation_required: plan.mutation_required,
-    operation: plan.operation,
-  };
-}
-
-function authorityState(overrides = {}) {
-  return {
-    git_config_mutation_attempted: false,
-    git_fetch: false,
-    git_pull: false,
-    checkout: false,
-    reset: false,
-    merge: false,
-    build: false,
-    package_install: false,
-    service_mutation: false,
-    runtime_mutation: false,
-    network_configuration: false,
-    credential_read: false,
-    wallet_or_signer: false,
-    work_credit_or_validator_mutation: false,
-    transaction: false,
-    treasury_or_liquidity: false,
-    funds_moved: false,
-    ...overrides,
-  };
-}
-
-function emit(value, outputPath = '') {
-  const json = `${JSON.stringify(value, null, 2)}\n`;
-  if (outputPath) {
-    const path = expandPath(safePath(outputPath, 'output'));
-    writeFileSync(path, json, { encoding: 'utf8', mode: 0o600, flag: 'wx' });
-    chmodSync(path, 0o600);
-  }
-  process.stdout.write(json);
-}
-
-function valueAfter(argv, index, label) {
-  const value = argv[index + 1];
-  if (!value || value.startsWith('--')) fail(`${label} requires a value`);
-  return value;
-}
-
-function parseArgs(argv) {
-  const out = {
-    repo: '',
-    output: '',
-    apply: false,
-    confirmOperation: '',
-    confirmPlanId: '',
-  };
-  for (let i = 0; i < argv.length; i += 1) {
-    const arg = argv[i];
-    if (arg === '--repo') out.repo = valueAfter(argv, i++, arg);
-    else if (arg === '--output') out.output = valueAfter(argv, i++, arg);
-    else if (arg === '--apply') out.apply = true;
-    else if (arg === '--confirm-operation') out.confirmOperation = valueAfter(argv, i++, arg);
-    else if (arg === '--confirm-plan-id') out.confirmPlanId = valueAfter(argv, i++, arg);
-    else if (arg === '--help') {
-      console.log('Usage: node tools/void-node-fleet-public-fetch-transport-v1.mjs --repo PATH [--output PATH] [--apply --confirm-operation VOID_NODE_FLEET_PUBLIC_FETCH_TRANSPORT_APPLY_V1 --confirm-plan-id SHA256]');
-      process.exit(0);
-    } else fail(`unknown argument: ${arg}`);
-  }
-  if (!out.repo) fail('--repo is required');
-  return out;
-}
-
-function main() {
-  try {
-    const args = parseArgs(process.argv.slice(2));
-    const snapshot = inspectRepositoryTransportV1(args.repo);
-    const plan = buildTransportPlanV1(snapshot);
-
-    if (!args.apply) {
-      emit({
-        marker: VOID_NODE_FLEET_PUBLIC_FETCH_TRANSPORT_V1,
-        version: 1,
-        outcome: plan.mutation_required ? 'READY_TO_APPLY' : 'ALREADY_ALIGNED',
-        plan: publicPlan(plan),
-        reasons: [],
-        mutation_attempted: false,
-        automatic_retry: false,
-        required_confirmation_marker: VOID_NODE_FLEET_PUBLIC_FETCH_TRANSPORT_APPLY_V1,
-        authority: authorityState(),
-      }, args.output);
-      return;
-    }
-
-    if (args.confirmOperation !== VOID_NODE_FLEET_PUBLIC_FETCH_TRANSPORT_APPLY_V1) {
-      fail('exact operation confirmation mismatch');
-    }
-    if (args.confirmPlanId !== plan.plan_id_sha256) fail('exact plan ID confirmation mismatch');
-
-    const result = applyTransportPlanV1(args.repo, args.confirmPlanId);
-    emit({
-      marker: VOID_NODE_FLEET_PUBLIC_FETCH_TRANSPORT_V1,
-      version: 1,
-      outcome: result.outcome,
-      plan: publicPlan(result.plan),
-      reasons: [],
-      mutation_attempted: result.mutation_attempted,
-      mutation_succeeded: result.mutation_succeeded,
-      automatic_retry: false,
-      authority: authorityState({
-        git_config_mutation_attempted: result.mutation_attempted,
-      }),
-    }, args.output);
-  } catch (error) {
-    const mutationAttempted = error?.mutationAttempted === true;
-    emit({
-      marker: VOID_NODE_FLEET_PUBLIC_FETCH_TRANSPORT_V1,
-      version: 1,
-      outcome: 'HOLD',
-      error: String(error?.message || error),
-      mutation_attempted: mutationAttempted,
-      automatic_retry: false,
-      authority: authorityState({
-        git_config_mutation_attempted: mutationAttempted,
-      }),
-    });
-    process.exitCode = 2;
-  }
-}
-
-if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) main();
+    fetchValues.length === 1 && fetchValues[0] === PUBLIC_FETCH_URL_V1 &&
+    pushValues.length === 1 && pushValues[0] === PUBLIC_PUSH_URL_V1 &&
+    effectiveValues.length === 1 && effectiveValues[0] === PUBLIC_FETCH_URL_V1
+  ) return 'ALIGN²È="25tì(€½¹ÍÐÁ…å±½…€ôì(€€€µ…É­•ÈèY=%}9=}1Q}AU	1%}Q!}QI9MA=IQ}A19}XÄ°(€€€É•µ½Ñ•}¹…µ”èAU	1%}Q!}I5=Q}XÄ°(€€€™•Ñ¡}ÕÉ°èAU	1%}Q!}UI1}XÄ°(€€€ÁÕÍ¡}ÕÉ°èAU	1%}AUM!}UI1}XÄ°(€ôì(€™½È€¡½¹ÍÐ­•ä½˜­•åÌ¤Á…å±½…‘m­•åt€ôÍ¹…ÁÍ¡½Ñm­•åtì(€Á…å±½…¹½Á•É…Ñ¥½¸€ô€½¹™¥ÕÉ•}‘•‘¥…Ñ•‘}™•Ñ¡}É•µ½Ñ•}½¹±äœì(€É•ÑÕÉ¸Á…å±½…ì)ô()•áÁ½ÉÐ™Õ¹Ñ¥½¸‰Õ¥±‘QÉ…¹ÍÁ½ÉÑA±…¹XÄ¡Í¹…ÁÍ¡½Ð¤ì(€½¹ÍÐÁ…å±½…€ôÁ±…¹A…å±½…¡Í¹…ÁÍ¡½Ð¤ì(€É•ÑÕÉ¸=‰©•Ð¹™É••é”¡ì€¸¸¹Á…å±½…°Á±…¹}¥‘}Í¡„ÈÔØèÍ¡„ÈÔØ¡Á…å±½…¤°µÕÑ…Ñ¥½¹}É•ÅÕ¥É•èÍ¹…ÁÍ¡½Ð¹‘•‘¥…Ñ•‘}ÍÑ…Ñ”€„ôô€1%9œô¤ì)ô()™Õ¹Ñ¥½¸¥¹Ù…É¥…¹ÑY¥•Ü¡Í¹…ÁÍ¡½Ð¤ì(€É•ÑÕÉ¸ì(€€€‰É…¹ èÍ¹…ÁÍ¡½Ð¹‰É…¹ °(€€€¡•…èÍ¹…ÁÍ¡½Ð¹¡•…°(€€€ÑÉ•”èÍ¹…ÁÍ¡½Ð¹ÑÉ•”°(€€€Ý½É­ÑÉ••}ÍÑ…ÑÕÍ}Í¡„ÈÔØèÍ¹…ÁÍ¡½Ð¹Ý½É­ÑÉ••}ÍÑ…ÑÕÍ}Í¡„ÈÔØ°(€€€‘¥ÉÑå}½Õ¹ÐèÍ¹…ÁÍ¡½Ð¹‘¥ÉÑå}½Õ¹Ð°(€€€¥¹‘•á}Í¡„ÈÔØèÍ¹…ÁÍ¡½Ð¹¥¹‘•á}Í¡„ÈÔØ°(€€€É•™Í}Í¡„ÈÔØèÍ¹…ÁÍ¡½Ð¹É•™Í}Í¡„ÈÔØ°(€€€…¹½¹¥…±}½É¥¥¹}É•ÅÕ¥É•èÍ¹…ÁÍ¡½Ð¹…¹½¹¥…±}½É¥¥¹}É•ÅÕ¥É•°(€€€½É¥¥¹}É•Á½Í¥Ñ½ÉäèÍ¹…ÁÍ¡½Ð¹½É¥¥¹}É•Á½Í¥Ñ½Éä°(€€€½É¥¥¹}™•Ñ¡}½Õ¹ÐèÍ¹…ÁÍ¡½Ð¹½É¥¥¹}™•Ñ¡}½Õ¹Ð°(€€€½É¥¥¹}™•Ñ¡}Í¡„ÈÔØèÍ¹…ÁÍ¡½Ð¹½É¥¥¹}™•Ñ¡}Í¡„ÈÔØ°(€€€½É¥¥¹}•™™•Ñ¥Ù•}™•Ñ¡}½Õ¹ÐèÍ¹…ÁÍ¡½Ð¹½É¥¥¹}•™™•Ñ¥Ù•}™•Ñ¡}½Õ¹Ð°(€€€½É¥¥¹}•™™•Ñ¥Ù•}™•Ñ¡}Í¡„ÈÔØèÍ¹…ÁÍ¡½Ð¹½É¥¥¹}•™™•Ñ¥Ù•}™•Ñ¡}Í¡„ÈÔØ°(€€€½É¥¥¹}ÁÕÍ¡}½Õ¹ÐèÍ¹…ÁÍ¡½Ð¹½É¥¥¹}ÁÕÍ¡}½Õ¹Ð°(€€€½É¥¥¹}ÁÕÍ¡}Í¡„ÈÔØèÍ¹…ÁÍ¡½Ð¹½É¥¥¹}ÁÕÍ¡}Í¡„ÈÔØ°(€€€ÁÉ½ÍÁ•Ñ¥Ù•}ÁÕ‰±¥}™•Ñ¡}½Õ¹ÐèÍ¹…ÁÍ¡½Ð¹ÁÉ½ÍÁ•Ñ¥Ù•}ÁÕ‰±¥}™•Ñ¡}½Õ¹Ð°(€€€ÁÉ½ÍÁ•Ñ¥Ù•}ÁÕ‰±¥}™•Ñ¡}Í¡„ÈÔØèÍ¹…ÁÍ¡½Ð¹ÁÉ½ÍÁ•Ñ¥Ù•}ÁÕ‰±¥}™•Ñ¡}Í¡„ÈÔØ°(€ôì)ô()•áÁ½ÉÐ™Õ¹Ñ¥½¸…ÁÁ±åQÉ…¹ÍÁ½ÉÑA±…¹XÄ¡É•Á½%¹ÁÕÐ°•áÁ•Ñ•‘A±…¹%¤ì(€¥˜€ …M!ØÑ}I¹Ñ•ÍÐ¡MÑÉ¥¹œ¡•áÁ•Ñ•‘A±…¹%€üü€œœ¤¤¤™…¥° •áÁ•Ñ•Á±…¸%µÕÍÐ‰”±½Ý•É…Í”€ØÐµ¡•àœ¤ì(€½¹ÍÐ‰•™½É”€ô¥¹ÍÁ•ÑI•Á½Í¥Ñ½ÉåQÉ…¹ÍÁ½ÉÑXÄ¡É•Á½%¹ÁÕÐ¤ì(€½¹ÍÐÁ±…¸€ô‰Õ¥±‘QÉ…¹ÍÁ½ÉÑA±…¹XÄ¡‰•™½É”¤ì(€¥˜€¡Á±…¸¹Á±…¹}¥‘}Í¡„ÈÔØ€„ôô•áÁ•Ñ•‘A±…¹%¤™…¥° ÑÉ…¹ÍÁ½ÉÐÁ±…¸¡…¹•‰•™½É”…ÁÁ±äœ¤ì((€¥˜€ …Á±…¸¹µÕÑ…Ñ¥½¹}É•ÅÕ¥É•¤ì(€€€É•ÑÕÉ¸=‰©•Ð¹™É••é”¡ì½ÕÑ½µ”è€1Ie}1%9œ°Á±…¸°µÕÑ…Ñ¥½¹}…ÑÑ•µÁÑ•è™…±Í”°µÕÑ…Ñ¥½¹}ÍÕ••‘•èÑÉÕ”°…™Ñ•Èè‰•™½É”ô¤ì(€ô((€½¹ÍÐ™¥ÉÍÐ€ôÉÕ¸¡‰•™½É”¹É•Á¼°l½¹™¥œœ°€œ´µ±½…°œ°€œ´µÉ•Á±…”µ…±°œ°É•µ½Ñ”¸‘íAU	1%}Q!}I5=Q}XÅô¹ÕÉ±€°AU	1%}Q!}UI1}XÅt¤ì(€¥˜€ …™¥ÉÍÐ¹½¬¤™…¥° ™…¥±•Ñ¼Í•Ð‘•‘¥…Ñ•™•Ñ UI0ìµÕÑ…Ñ¥½¸½ÕÑ½µ”¥ÌÕ¹•ÉÑ…¥¸…¹…ÕÑ½µ…Ñ¥ŒÉ•ÑÉä¥Ì™½É‰¥‘‘•¸œ°ÑÉÕ”¤ì(€½¹ÍÐÍ•½¹€ôÉÕ¸¡‰•™½É”¹É•Á¼°l½¹™¥œœ°€œ´µ±½…°œ°€œ´µÉ•Á±…”µ…±°œ°É•µ½Ñ”¸‘íAU	1%}Q!}I5=Q}XÅô¹ÁÕÍ¡ÕÉ±€°AU	1%}AUM!}UI1}XÅt¤ì(€¥˜€ …Í•½¹¹½¬¤™…¥° ™…¥±•Ñ¼Í•Ð‘•‘¥…Ñ•ÁÕÍ UI0ìÁ…ÉÑ¥…°‘•‘¥…Ñ•µÉ•µ½Ñ”½¹™¥œµ…ä•á¥ÍÐ…¹É•ÅÕ¥É•Ì™É•Í ¥¹ÍÁ•Ñ¥½¸œ°ÑÉÕ”¤ì((€½¹ÍÐ…™Ñ•È€ô¥¹ÍÁ•ÑI•Á½Í¥Ñ½ÉåQÉ…¹ÍÁ½ÉÑXÄ¡‰•™½É”¹É•Á¼¤ì(€¥˜€¡ÍÑ…‰±•)Í½¸¡¥¹Ù…É¥…¹ÑY¥•Ü¡…™Ñ•È¤¤€„ôôÍÑ…‰±•)Í½¸¡¥¹Ù…É¥…¹ÑY¥•Ü¡‰•™½É”¤¤¤™…¥° É•Á½Í¥Ñ½Éä¥¹Ù…É¥…¹Ð¡…¹•‘ÕÉ¥¹œ‘•‘¥…Ñ•É•µ½Ñ”½¹™¥ÕÉ…Ñ¥½¸œ°ÑÉÕ”¤ì(€¥˜€¡…™Ñ•È¹‘•‘¥…Ñ•‘}ÍÑ…Ñ”€„ôô€1%9œ¤™…¥° ‘•‘¥…Ñ•É•µ½Ñ”‘¥¹½ÐÉ•… •á…Ð…±¥¹•ÍÑ…Ñ”œ°ÑÉÕ”¤ì((€É•ÑÕÉ¸=‰©•Ð¹™É••é”¡ì½ÕÑ½µ”è€QI9MA=IQ}=9%UIœ°Á±…¸°µÕÑ…Ñ¥½¹}…ÑÑ•µÁÑ•èÑÉÕ”°µÕÑ…Ñ¥½¹}ÍÕ••‘•èÑÉÕ”°…™Ñ•Èô¤ì)ô()™Õ¹Ñ¥½¸ÁÕ‰±¥A±…¸¡Á±…¸¤ì(€É•ÑÕÉ¸ì(€€€µ…É­•ÈèÁ±…¸¹µ…É­•È°(€€€Á±…¹}¥‘}Í¡„ÈÔØèÁ±…¸¹Á±…¹}¥‘}Í¡„ÈÔØ°(€€€É•µ½Ñ•}¹…µ”èÁ±…¸¹É•µ½Ñ•}¹…µ”°(€€€™•Ñ¡}ÕÉ°èÁ±…¸¹™•Ñ¡}ÕÉ°°(€€€ÁÕÍ¡}ÕÉ°èÁ±…¸¹ÁÕÍ¡}ÕÉ°°(€€€‰É…¹ èÁ±…¸¹‰É…¹ °(€€€¡•…èÁ±…¸¹¡•…°(€€€ÑÉ•”èÁ±…¸¹ÑÉ•”°(€€€‘¥ÉÑå}½Õ¹ÐèÁ±…¸¹‘¥ÉÑå}½Õ¹Ð°(€€€…¹½¹¥…±}½É¥¥¹}É•ÅÕ¥É•èÁ±…¸¹…¹½¹¥…±}½É¥¥¹}É•ÅÕ¥É•°(€€€½É¥¥¹}É•Á½Í¥Ñ½ÉäèÁ±…¸¹½É¥¥¹}É•Á½Í¥Ñ½Éä°(€€€‘•‘¥…Ñ•‘}ÍÑ…Ñ”èÁ±…¸¹‘•‘¥…Ñ•‘}ÍÑ…Ñ”°(€€€µÕÑ…Ñ¥½¹}É•ÅÕ¥É•èÁ±…¸¹µÕÑ…Ñ¥½¹}É•ÅÕ¥É•°(€€€½Á•É…Ñ¥½¸èÁ±…¸¹½Á•É…Ñ¥½¸°(€ôì)ô()™Õ¹Ñ¥½¸…ÕÑ¡½É¥ÑåMÑ…Ñ”¡½Ù•ÉÉ¥‘•Ì€ôíô¤ì(€É•ÑÕÉ¸ì(€€€¥Ñ}½¹™¥}µÕÑ…Ñ¥½¹}…ÑÑ•µÁÑ•è™…±Í”°(€€€¥Ñ}™•Ñ è™…±Í”°(€€€¥Ñ}ÁÕ±°è™…±Í”°(€€€¡•­½ÕÐè™…±Í”°(€€€É•Í•Ðè™…±Í”°(€€€µ•É”è™…±Í”°(€€€‰Õ¥±è™…±Í”°(€€€Á…­…•}¥¹ÍÑ…±°è™…±Í”°(€€€Í•ÉÙ¥•}µÕÑ…Ñ¥½¸è™…±Í”°(€€€ÉÕ¹Ñ¥µ•}µÕÑ…Ñ¥½¸è™…±Í”°(€€€¹•ÑÝ½É­}½¹™¥ÕÉ…Ñ¥½¸è™…±Í”°(€€€É•‘•¹Ñ¥…±}É•…è™…±Í”°(€€€Ý…±±•Ñ}½É}Í¥¹•Èè™…±Í”°(€€€Ý½É­}É•‘¥Ñ}½É}Ù…±¥‘…Ñ½É}µÕÑ…Ñ¥½¸è™…±Í”°(€€€ÑÉ…¹Í…Ñ¥½¸è™…±Í”°(€€€ÑÉ•…ÍÕÉå}½É}±¥ÅÕ¥‘¥Ñäè™…±Í”°(€€€™Õ¹‘Í}µ½Ù•è™…±Í”°(€€€€¸¸¹½Ù•ÉÉ¥‘•Ì°(€ôì)ô()™Õ¹Ñ¥½¸•µ¥Ð¡Ù…±Õ”°½ÕÑÁÕÑA…Ñ €ô€œœ¤ì(€½¹ÍÐ©Í½¸€ô€‘í)M=8¹ÍÑÉ¥¹¥™ä¡Ù…±Õ”°¹Õ±°°€È¥õq¹€ì(€¥˜€¡½ÕÑÁÕÑA…Ñ ¤ì(€€€½¹ÍÐÁ…Ñ €ô•áÁ…¹‘A…Ñ ¡Í…™•A…Ñ ¡½ÕÑÁÕÑA…Ñ °€½ÕÑÁÕÐœ¤¤ì(€€€ÝÉ¥Ñ•¥±•Må¹Œ¡Á…Ñ °©Í½¸°ì•¹½‘¥¹œè€ÕÑ˜àœ°µ½‘”è€Á¼ØÀÀ°™±…œè€Ýàœô¤ì(€€€¡µ½‘Må¹Œ¡Á…Ñ °€Á¼ØÀÀ¤ì(€ô(€ÁÉ½•ÍÌ¹ÍÑ‘½ÕÐ¹ÝÉ¥Ñ”¡©Í½¸¤ì)ô()™Õ¹Ñ¥½¸Ù…±Õ•™Ñ•È¡…ÉØ°¥¹‘•à°±…‰•°¤ì(€½¹ÍÐÙ…±Õ”€ô…ÉÙm¥¹‘•à€¬€Åtì(€¥˜€ …Ù…±Õ”ñðÙ…±Õ”¹ÍÑ…ÉÑÍ]¥Ñ  œ´´œ¤¤™…¥°¡€‘í±…‰•±ôÉ•ÅÕ¥É•Ì„Ù…±Õ•€¤ì(€É•ÑÕÉ¸Ù…±Õ”ì)ô()™Õ¹Ñ¥½¸Á…ÉÍ•ÉÌ¡…ÉØ¤ì(€½¹ÍÐ½ÕÐ€ôìÉ•Á¼è€œœ°½ÕÑÁÕÐè€œœ°…ÁÁ±äè™…±Í”°½¹™¥Éµ=Á•É…Ñ¥½¸è€œœ°½¹™¥ÉµA±…¹%è€œœôì(€™½È€¡±•Ð¤€ô€Àì¤€ð…ÉØ¹±•¹Ñ ì¤€¬ô€Ä¤ì(€€€½¹ÍÐ…Éœ€ô…ÉÙm¥tì(€€€¥˜€¡…Éœ€ôôô€œ´µÉ•Á¼œ¤½ÕÐ¹É•Á¼€ôÙ…±Õ•™Ñ•È¡…ÉØ°¤¬¬°…Éœ¤ì(€€€•±Í”¥˜€¡…Éœ€ôôô€œ´µ½ÕÑÁÕÐœ¤½ÕÐ¹½ÕÑÁÕÐ€ôÙ…±Õ•™Ñ•È¡…ÉØ°¤¬¬°…Éœ¤ì(€€€•±Í”¥˜€¡…Éœ€ôôô€œ´µ…ÁÁ±äœ¤½ÕÐ¹…ÁÁ±ä€ôÑÉÕ”ì(€€€•±Í”¥˜€¡…Éœ€ôôô€œ´µ½¹™¥É´µ½Á•É…Ñ¥½¸œ¤½ÕÐ¹½¹™¥Éµ=Á•É…Ñ¥½¸€ôÙ…±Õ•™Ñ•È¡…ÉØ°¤¬¬°…Éœ¤ì(€€€•±Í”¥˜€¡…Éœ€ôôô€œ´µ½¹™¥É´µÁ±…¸µ¥œ¤½ÕÐ¹½¹™¥ÉµA±…¹%€ôÙ…±Õ•™Ñ•È¡…ÉØ°¤¬¬°…Éœ¤ì(€€€•±Í”¥˜€¡…Éœ€ôôô€œ´µ¡•±Àœ¤ì(€€€€€½¹Í½±”¹±½œ UÍ…”è¹½‘”Ñ½½±Ì½Ù½¥µ¹½‘”µ™±••ÐµÁÕ‰±¥Œµ™•Ñ µÑÉ…¹ÍÁ½ÉÐµØÄ¹µ©Ì€´µÉ•Á¼AQ l´µ½ÕÑÁÕÐAQ!tl´µ…ÁÁ±ä€´µ½¹™¥É´µ½Á•É…Ñ¥½¸Y=%}9=}1Q}AU	1%}Q!}QI9MA=IQ}AA1e}XÄ€´µ½¹™¥É´µÁ±…¸µ¥M!ÈÔÙtœ¤ì(€€€€€ÁÉ½•ÍÌ¹•á¥Ð À¤ì(€€€ô•±Í”™…¥°¡Õ¹­¹½Ý¸…ÉÕµ•¹Ðè€‘í…Éõ€¤ì(€ô(€¥˜€ …½ÕÐ¹É•Á¼¤™…¥° œ´µÉ•Á¼¥ÌÉ•ÅÕ¥É•œ¤ì(€É•ÑÕÉ¸½ÕÐì)ô()™Õ¹Ñ¥½¸µ…¥¸ ¤ì(€ÑÉäì(€€€½¹ÍÐ…ÉÌ€ôÁ…ÉÍ•ÉÌ¡ÁÉ½•ÍÌ¹…ÉØ¹Í±¥” È¤¤ì(€€€½¹ÍÐÍ¹…ÁÍ¡½Ð€ô¥¹ÍÁ•ÑI•Á½Í¥Ñ½ÉåQÉ…¹ÍÁ½ÉÑXÄ¡…ÉÌ¹É•Á¼¤ì(€€€½¹ÍÐÁ±…¸€ô‰Õ¥±‘QÉ…¹ÍÁ½ÉÑA±…¹XÄ¡Í¹…ÁÍ¡½Ð¤ì(€€€¥˜€ ……ÉÌ¹…ÁÁ±ä¤ì(€€€€€•µ¥Ð¡ì(€€€€€€€µ…É­•ÈèY=%}9=}1Q}AU	1%}Q!}QI9MA=IQ}XÄ°(€€€€€€€Ù•ÉÍ¥½¸è€Ä°(€€€€€€€½ÕÑ½µ”èÁ±…¸¹µÕÑ…Ñ¥½¹}É•ÅÕ¥É•€ü€Ie}Q=}AA1dœ€è€1Ie}1%9œ°(€€€€€€€Á±…¸èÁÕ‰±¥A±…¸¡Á±…¸¤°(€€€€€€€É•…Í½¹Ìèmt°(€€€€€€€µÕÑ…Ñ¥½¹}…ÑÑ•µÁÑ•è™…±Í”°(€€€€€€€…ÕÑ½µ…Ñ¥}É•ÑÉäè™…±Í”°(€€€€€€€É•ÅÕ¥É•‘}½¹™¥Éµ…Ñ¥½¹}µ…É­•ÈèY=%}9=}1Q}AU	1%}Q!}QI9MA=IQ}AA1e}XÄ°(€€€€€€€…ÕÑ¡½É¥Ñäè…ÕÑ¡½É¥ÑåMÑ…Ñ” ¤°(€€€€€ô°…ÉÌ¹½ÕÑÁÕÐ¤ì(€€€€€É•ÑÕÉ¸ì(€€€ô(€€€¥˜€¡…ÉÌ¹½¹™¥Éµ=Á•É…Ñ¥½¸€„ôôY=%}9=}1Q}AU	1%}Q!}QI9MA=IQ}AA1e}XÄ¤™…¥° •á…Ð½Á•É…Ñ¥½¸½¹™¥Éµ…Ñ¥½¸µ¥Íµ…Ñ œ¤ì(€€€¥˜€¡…ÉÌ¹½¹™¥ÉµA±…¹%€„ôôÁ±…¸¹Á±…¹}¥‘}Í¡„ÈÔØ¤™…¥° •á…ÐÁ±…¸%½¹™¥Éµ…Ñ¥½¸µ¥Íµ…Ñ œ¤ì(€€€½¹ÍÐÉ•ÍÕ±Ð€ô…ÁÁ±åQÉ…¹ÍÁ½ÉÑA±…¹XÄ¡…ÉÌ¹É•Á¼°…ÉÌ¹½¹™¥ÉµA±…¹%¤ì(€€€•µ¥Ð¡ì(€€€€€µ…É­•ÈèY=%}9=}1Q}AU	1%}Q!}QI9MA=IQ}XÄ°(€€€€€Ù•ÉÍ¥½¸è€Ä°(€€€€€½ÕÑ½µ”èÉ•ÍÕ±Ð¹½ÕÑ½µ”°(€€€€€Á±…¸èÁÕ‰±¥A±…¸¡É•ÍÕ±Ð¹Á±…¸¤°(€€€€€É•…Í½¹Ìèmt°(€€€€€µÕÑ…Ñ¥½¹}…ÑÑ•µÁÑ•èÉ•ÍÕ±Ð¹µÕÑ…Ñ¥½¹}…ÑÑ•µÁÑ•°(€€€€€µÕÑ…Ñ¥½¹}ÍÕ••‘•èÉ•ÍÕ±Ð¹µÕÑ…Ñ¥½¹}ÍÕ••‘•°(€€€€€…ÕÑ½µ…Ñ¥}É•ÑÉäè™…±Í”°(€€€€€…ÕÑ¡½É¥Ñäè…ÕÑ¡½É¥ÑåMÑ…Ñ”¡ì¥Ñ}½¹™¥}µÕÑ…Ñ¥½¹}…ÑÑ•µÁÑ•èÉ•ÍÕ±Ð¹µÕÑ…Ñ¥½¹}…ÑÑ•µÁÑ•ô¤°(€€€ô°…ÉÌ¹½ÕÑÁÕÐ¤ì(€ô…Ñ €¡•ÉÉ½È¤ì(€€€½¹ÍÐµÕÑ…Ñ¥½¹ÑÑ•µÁÑ•€ô•ÉÉ½Èü¹µÕÑ…Ñ¥½¹ÑÑ•µÁÑ•€ôôôÑÉÕ”ì(€€€•µ¥Ð¡ì(€€€€€µ…É­•ÈèY=%}9=}1Q}AU	1%}Q!}QI9MA=IQ}XÄ°(€€€€€Ù•ÉÍ¥½¸è€Ä°(€€€€€½ÕÑ½µ”è€!=1œ°(€€€€€•ÉÉ½ÈèMÑÉ¥¹œ¡•ÉÉ½Èü¹µ•ÍÍ…”ñð•ÉÉ½È¤°(€€€€€µÕÑ…Ñ¥½¹}…ÑÑ•µÁÑ•èµÕÑ…Ñ¥½¹ÑÑ•µÁÑ•°(€€€€€…ÕÑ½µ…Ñ¥}É•ÑÉäè™…±Í”°(€€€€€…ÕÑ¡½É¥Ñäè…ÕÑ¡½É¥ÑåMÑ…Ñ”¡ì¥Ñ}½¹™¥}µÕÑ…Ñ¥½¹}…ÑÑ•µÁÑ•èµÕÑ…Ñ¥½¹ÑÑ•µÁÑ•ô¤°(€€€ô¤ì(€€€ÁÉ½•ÍÌ¹•á¥Ñ½‘”€ô€Èì(€ô)ô()¥˜€¡ÁÉ½•ÍÌ¹…ÉÙlÅt€˜˜É•Í½±Ù”¡ÁÉ½•ÍÌ¹…ÉÙlÅt¤€ôôô™¥±•UI1Q½A…Ñ ¡¥µÁ½ÉÐ¹µ•Ñ„¹ÕÉ°¤¤µ…¥¸ ¤ì(
