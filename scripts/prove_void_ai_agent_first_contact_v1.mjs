@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import { createServer } from "node:http";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
@@ -44,6 +45,12 @@ const PUBLIC_UTILITY_RESOURCE_OBSERVATION_REPAIR_BOUNDARY = [
   "scripts/prove_void_ai_agent_public_utility_v1.mjs",
   "tools/void-ai-agent-first-contact-v1.mjs",
 ];
+const POST_MERGE_CONTRACT_INTEGRITY_REPAIR_BOUNDARY = [
+  "public/public-node/agents/first-contact-v1.json",
+  "scripts/prove_void_ai_agent_first_contact_v1.mjs",
+  "scripts/prove_void_ai_agent_public_utility_v1.mjs",
+  "tools/void-ai-agent-first-contact-v1.mjs",
+];
 const ALLOWED_BOUNDARY = [
   ...new Set([...ORIGINAL_BOUNDARY, ...COMPOSITION_BOUNDARY]),
 ];
@@ -75,49 +82,43 @@ const capabilitiesCatalog = JSON.parse(
     "utf8",
   ),
 );
-const agentIntakeCapability = {
-  schema: "void-external-opportunity-agent-intake-capability-v1",
-  marker: "VOID_EXTERNAL_OPPORTUNITY_AGENT_INTAKE_CAPABILITY_V1",
-  version: 1,
-  capability_id: "void.external_opportunity.paper_intake.v1",
-  availability: "offline_static_contract",
-  manifest_fingerprint_sha256:
-    "c4e9ea03631b39962753cd7f91c198bbba1e4081c716da24e27f14a64f7bfd7a",
-  transport: {
-    network_endpoint: false,
-    network_listener: false,
-    authentication: "none",
-  },
-  unsupported: {
-    network_endpoint: true,
-    network_listener: true,
-    authentication_secret: true,
-    provider_polling: true,
-    paid_work_submission: true,
-    wc_earning: true,
-    wallet_or_key_access: true,
-    transaction_construction: true,
-    transaction_submission: true,
-    runtime_mutation: true,
-    service_mutation: true,
-    scheduler_mutation: true,
-    live_execution: true,
-  },
-  authority: {
-    implicit_or_scheduled_access: false,
-    network_request: false,
-    credential_access: false,
-    wallet_or_key_access: false,
-    transaction_construction: false,
-    transaction_submission: false,
-    runtime_mutation: false,
-    service_mutation: false,
-    scheduler_mutation: false,
-    paid_work_submission: false,
-    wc_earning: false,
-    live_execution: false,
-  },
-};
+const agentIntakeCapability = JSON.parse(
+  await readFile(
+    join(
+      ROOT,
+      "fixtures/external-opportunity/agent-intake-capability-v1.example.json",
+    ),
+    "utf8",
+  ),
+);
+
+function canonicalJson(value) {
+  if (Array.isArray(value)) {
+    return `[${value.map((entry) => canonicalJson(entry)).join(",")}]`;
+  }
+  if (value !== null && typeof value === "object") {
+    return `{${Object.keys(value)
+      .sort()
+      .map(
+        (key) => `${JSON.stringify(key)}:${canonicalJson(value[key])}`,
+      )
+      .join(",")}}`;
+  }
+  return JSON.stringify(value);
+}
+
+function intakeFingerprint(value) {
+  const { manifest_fingerprint_sha256: _ignored, ...withoutFingerprint } =
+    value;
+  return createHash("sha256")
+    .update(canonicalJson(withoutFingerprint), "utf8")
+    .digest("hex");
+}
+
+assert.equal(
+  intakeFingerprint(agentIntakeCapability),
+  agentIntakeCapability.manifest_fingerprint_sha256,
+);
 const datanetReceipt = JSON.parse(
   await readFile(
     join(
@@ -142,6 +143,12 @@ assert.equal(
 assert.equal(
   manifest.verification.required_checks.includes(
     "public_utility_catalog_loaded",
+  ),
+  true,
+);
+assert.equal(
+  manifest.verification.required_checks.includes(
+    "public_utility_resources_observed",
   ),
   true,
 );
@@ -426,6 +433,50 @@ fixtures.set(DECOY_INTAKE_PATH, {
   },
 });
 
+const TAMPERED_INTAKE_MANIFEST_PATH =
+  "/public-node/agents/first-contact-tampered-intake-fixture-v1.json";
+const TAMPERED_INTAKE_PATH =
+  "/public-node/agents/tampered-intake-fixture-v1.json";
+const TAMPERED_INTAKE_UTILITY_PATH =
+  "/public-node/agents/public-utility-tampered-intake-fixture-v1.json";
+fixtures.set(TAMPERED_INTAKE_MANIFEST_PATH, {
+  ...manifest,
+  entrypoints: {
+    ...manifest.entrypoints,
+    first_contact: TAMPERED_INTAKE_MANIFEST_PATH,
+    agent_intake: TAMPERED_INTAKE_PATH,
+    public_utility: TAMPERED_INTAKE_UTILITY_PATH,
+  },
+});
+fixtures.set(TAMPERED_INTAKE_UTILITY_PATH, {
+  ...publicUtility,
+  integration: {
+    ...publicUtility.integration,
+    first_contact_manifest: TAMPERED_INTAKE_MANIFEST_PATH,
+  },
+  entries: publicUtility.entries.map((entry, index) =>
+    index === 0
+      ? {
+          ...entry,
+          path: TAMPERED_INTAKE_MANIFEST_PATH,
+          repository_path: `public${TAMPERED_INTAKE_MANIFEST_PATH}`,
+        }
+      : entry,
+  ),
+});
+const tamperedIntakeCapability = {
+  ...agentIntakeCapability,
+  transport: {
+    ...agentIntakeCapability.transport,
+    invocation: "unreviewed-agent-intake-command",
+  },
+};
+assert.notEqual(
+  intakeFingerprint(tamperedIntakeCapability),
+  tamperedIntakeCapability.manifest_fingerprint_sha256,
+);
+fixtures.set(TAMPERED_INTAKE_PATH, tamperedIntakeCapability);
+
 const WRONG_RESOURCE_MARKER_MANIFEST_PATH =
   "/public-node/agents/first-contact-wrong-resource-marker-fixture-v1.json";
 const WRONG_RESOURCE_MARKER_UTILITY_PATH =
@@ -574,6 +625,13 @@ try {
   assert.equal(report.connection_mode, "read_only");
   assert.equal(report.official_network_verified, true);
   assert.equal(Object.values(report.checks).every(Boolean), true);
+  for (const requiredCheck of manifest.verification.required_checks) {
+    assert.equal(
+      report.checks[requiredCheck],
+      true,
+      `published required check not satisfied: ${requiredCheck}`,
+    );
+  }
   assert.equal(report.checks.public_utility_catalog_loaded, true);
   assert.equal(report.checks.public_utility_resources_observed, true);
   assert.equal(report.useful_public_resources.length, 3);
@@ -750,6 +808,23 @@ try {
     false,
   );
 
+  const tamperedIntake = await runClient([
+    "--base-url",
+    baseUrl,
+    "--manifest-path",
+    TAMPERED_INTAKE_MANIFEST_PATH,
+  ]);
+  assert.equal(tamperedIntake.code, 0, tamperedIntake.stderr);
+  const tamperedIntakeReport = JSON.parse(tamperedIntake.stdout);
+  assert.equal(tamperedIntakeReport.status, "ready_read_only");
+  assert.equal(tamperedIntakeReport.checks.agent_intake_reachable, false);
+  assert.equal(
+    tamperedIntakeReport.next_actions.some(
+      (action) => action.id === "inspect_agent_intake",
+    ),
+    false,
+  );
+
   const crossOrigin = await runClient([
     "--base-url",
     baseUrl,
@@ -896,6 +971,7 @@ if (workingBoundary.length > 0) {
     NETWORK_BINDING_REPAIR_BOUNDARY,
     COMPOSITION_PROOF_REPAIR_BOUNDARY,
     PUBLIC_UTILITY_RESOURCE_OBSERVATION_REPAIR_BOUNDARY,
+    POST_MERGE_CONTRACT_INTEGRITY_REPAIR_BOUNDARY,
   ].some(
     (boundary) =>
       JSON.stringify(workingBoundary) ===

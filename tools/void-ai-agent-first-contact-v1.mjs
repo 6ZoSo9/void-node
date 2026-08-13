@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { createHash } from "node:crypto";
 import process from "node:process";
 
 const MARKER = "VOID_AI_AGENT_FIRST_CONTACT_CLIENT_V1";
@@ -320,10 +321,48 @@ function authenticationContractValid(manifest, authentication) {
   );
 }
 
+function canonicalJson(value) {
+  if (Array.isArray(value)) {
+    return `[${value.map((entry) => canonicalJson(entry)).join(",")}]`;
+  }
+  if (value !== null && typeof value === "object") {
+    return `{${Object.keys(value)
+      .sort()
+      .map(
+        (key) => `${JSON.stringify(key)}:${canonicalJson(value[key])}`,
+      )
+      .join(",")}}`;
+  }
+  return JSON.stringify(value);
+}
+
+function agentIntakeFingerprintValid(contract) {
+  if (
+    contract === null ||
+    typeof contract !== "object" ||
+    Array.isArray(contract)
+  ) {
+    return false;
+  }
+  const { manifest_fingerprint_sha256: claimed, ...withoutFingerprint } =
+    contract;
+  if (
+    claimed !==
+    "c4e9ea03631b39962753cd7f91c198bbba1e4081c716da24e27f14a64f7bfd7a"
+  ) {
+    return false;
+  }
+  const computed = createHash("sha256")
+    .update(canonicalJson(withoutFingerprint), "utf8")
+    .digest("hex");
+  return computed === claimed;
+}
+
 function agentIntakeContractValid(intake) {
   const contract = intake?.body;
   return (
     intake?.ok === true &&
+    agentIntakeFingerprintValid(contract) &&
     contract?.schema ===
       "void-external-opportunity-agent-intake-capability-v1" &&
     contract?.marker ===
@@ -332,8 +371,6 @@ function agentIntakeContractValid(intake) {
     contract?.capability_id ===
       "void.external_opportunity.paper_intake.v1" &&
     contract?.availability === "offline_static_contract" &&
-    contract?.manifest_fingerprint_sha256 ===
-      "c4e9ea03631b39962753cd7f91c198bbba1e4081c716da24e27f14a64f7bfd7a" &&
     contract?.transport?.network_endpoint === false &&
     contract?.transport?.network_listener === false &&
     contract?.transport?.authentication === "none" &&
