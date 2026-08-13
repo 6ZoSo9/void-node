@@ -138,6 +138,8 @@ function canonicalSha256(value) {
 
 const REVIEWED_FIRST_CONTACT_MANIFEST_FINGERPRINT_SHA256 =
   "ed56951c1bc043911ede167dc2cddbab38af62f069d07638dc1825d7e936f413";
+const REVIEWED_PUBLIC_UTILITY_CATALOG_SHA256 =
+  "b67fe641d7ccebdb3e4626245b2895d75dd640789d29aca2544855f3d646daa2";
 const COLD_START_CURL_COMMAND =
   "test -n \"$VOID_PUBLIC_ORIGIN\" && curl --disable --noproxy '*' --disallow-username-in-url --proto '=https' --max-redirs 0 --fail --silent --show-error --max-time 8 --max-filesize 65536 --header 'Accept: application/json' \"${VOID_PUBLIC_ORIGIN%/}/public-node/agents/first-contact-v1.json\"";
 
@@ -162,6 +164,10 @@ const datanetReceipt = JSON.parse(
     ),
     "utf8",
   ),
+);
+assert.equal(
+  canonicalSha256(publicUtility),
+  REVIEWED_PUBLIC_UTILITY_CATALOG_SHA256,
 );
 for (const entry of publicUtility.entries) {
   assert.match(entry.canonical_sha256, /^[0-9a-f]{64}$/);
@@ -618,37 +624,7 @@ fixtures.set(WRONG_RESOURCE_MARKER_DATA_PATH, {
 
 const BUDGET_EXHAUSTION_MANIFEST_PATH =
   "/public-node/agents/first-contact-budget-exhaustion-fixture-v1.json";
-const BUDGET_EXHAUSTION_UTILITY_PATH =
-  "/public-node/agents/public-utility-budget-exhaustion-fixture-v1.json";
-const BUDGET_EXHAUSTION_RESOURCE_PATHS = [
-  "/public-node/agents/budget-resource-a-v1.json",
-  "/public-node/agents/budget-resource-b-v1.json",
-  "/public-node/datanet/budget-resource-c-v1.json",
-];
-const BUDGET_EXHAUSTION_RESOURCE_DOCUMENTS = publicUtility.entries.map(
-  (entry) => ({ marker: entry.required_marker }),
-);
-fixtures.set(BUDGET_EXHAUSTION_MANIFEST_PATH, {
-  ...manifest,
-  entrypoints: {
-    ...manifest.entrypoints,
-    public_utility: BUDGET_EXHAUSTION_UTILITY_PATH,
-  },
-});
-fixtures.set(BUDGET_EXHAUSTION_UTILITY_PATH, {
-  ...publicUtility,
-  entries: publicUtility.entries.map((entry, index) => ({
-    ...entry,
-    path: BUDGET_EXHAUSTION_RESOURCE_PATHS[index],
-    repository_path: `public${BUDGET_EXHAUSTION_RESOURCE_PATHS[index]}`,
-    canonical_sha256: canonicalSha256(
-      BUDGET_EXHAUSTION_RESOURCE_DOCUMENTS[index],
-    ),
-  })),
-});
-for (const [index, path] of BUDGET_EXHAUSTION_RESOURCE_PATHS.entries()) {
-  fixtures.set(path, BUDGET_EXHAUSTION_RESOURCE_DOCUMENTS[index]);
-}
+fixtures.set(BUDGET_EXHAUSTION_MANIFEST_PATH, manifest);
 
 let fixtureOverrides = new Map();
 const server = createServer((request, response) => {
@@ -924,26 +900,53 @@ try {
     "canonical_sha256_mismatch",
   );
 
-  const exhaustedBudget = await runClient(
+  const forgedReceipt = {
+    ...datanetReceipt,
+    unreviewed_extension: true,
+  };
+  const forgedCatalog = structuredClone(publicUtility);
+  forgedCatalog.entries[2].canonical_sha256 =
+    canonicalSha256(forgedReceipt);
+  const forgedCatalogAndReceipt = await runClient(
     ["--base-url", baseUrl],
     [
-      [
-        manifest.entrypoints.public_utility,
-        fixtures.get(BUDGET_EXHAUSTION_UTILITY_PATH),
-      ],
-      ...BUDGET_EXHAUSTION_RESOURCE_PATHS.map((path) => [
-        path,
-        fixtures.get(path),
-      ]),
+      [manifest.entrypoints.public_utility, forgedCatalog],
+      [publicUtility.entries[2].path, forgedReceipt],
     ],
   );
+  assert.equal(
+    forgedCatalogAndReceipt.code,
+    2,
+    forgedCatalogAndReceipt.stderr,
+  );
+  const forgedCatalogAndReceiptReport =
+    JSON.parse(forgedCatalogAndReceipt.stdout);
+  assert.equal(
+    forgedCatalogAndReceiptReport.checks.public_utility_catalog_loaded,
+    false,
+  );
+  assert.equal(
+    forgedCatalogAndReceiptReport.checks.public_utility_resources_observed,
+    false,
+  );
+  assert.deepEqual(
+    forgedCatalogAndReceiptReport.useful_public_resources,
+    [],
+  );
+
+  const exhaustedBudget = await runClient([
+    "--base-url",
+    baseUrl,
+    "--manifest-path",
+    BUDGET_EXHAUSTION_MANIFEST_PATH,
+  ]);
   assert.equal(exhaustedBudget.code, 2, exhaustedBudget.stderr);
   const exhaustedBudgetReport = JSON.parse(exhaustedBudget.stdout);
   assert.equal(exhaustedBudgetReport.status, "partial_read_only");
   assert.deepEqual(exhaustedBudgetReport.responses.public_utility_resources, {
     advertised: 3,
-    observed: 1,
-    reused_responses: 0,
+    observed: 2,
+    reused_responses: 1,
     additional_network_requests: 1,
     total_network_requests: 8,
     maximum_total_network_requests: 8,
@@ -954,7 +957,7 @@ try {
         resource.observation_error ===
         "cold_start_request_budget_exhausted",
     ).length,
-    2,
+    1,
   );
 
   const decoyBinding = await runClient(

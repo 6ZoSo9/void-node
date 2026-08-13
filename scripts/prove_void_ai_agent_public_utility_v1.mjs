@@ -7,6 +7,8 @@ import { fileURLToPath } from "node:url";
 
 const ROOT = fileURLToPath(new URL("../", import.meta.url));
 const CATALOG_PATH = "public/public-node/agents/public-utility-v1.json";
+const REVIEWED_PUBLIC_UTILITY_CATALOG_SHA256 =
+  "b67fe641d7ccebdb3e4626245b2895d75dd640789d29aca2544855f3d646daa2";
 const catalogOnly = process.argv.includes("--catalog-only");
 const TOP_LEVEL_KEYS = [
   "contract",
@@ -115,6 +117,11 @@ function validatePublicJsonPath(path) {
 
 const raw = await readFile(new URL(CATALOG_PATH, `file://${ROOT}/`), "utf8");
 const catalog = JSON.parse(raw);
+assert.equal(
+  canonicalSha256(catalog),
+  REVIEWED_PUBLIC_UTILITY_CATALOG_SHA256,
+  "reviewed catalog digest mismatch",
+);
 
 exactKeys(catalog, TOP_LEVEL_KEYS, "catalog");
 assert.equal(catalog.contract, "void-ai-agent-first-contact-public-utility/1");
