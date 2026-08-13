@@ -1,0 +1,307 @@
+{
+  "marker": "VOID_WORKER_LIVE_DISPATCH_POLICY_V1",
+  "version": 1,
+  "repository": "6ZoSo9/void-node",
+  "plan_issue": 1182,
+  "composition": {
+    "base_worker_ids": [
+      "ren",
+      "larry",
+      "curly",
+      "moe",
+      "satoshi",
+      "turing",
+      "ada",
+      "grace",
+      "shannon"
+    ],
+    "exploration_extension_worker_ids": [
+      "hopper",
+      "lamarr",
+      "darwin"
+    ],
+    "supplemental_worker_ids": [
+      "dijkstra",
+      "katherine",
+      "keller"
+    ],
+    "expected_worker_count": 15
+  },
+  "reevaluation": {
+    "interval_minutes": 30,
+    "execution_evidence_max_age_minutes": 30,
+    "stale_exploration_days": 7,
+    "continuous_execution_guaranteed": false,
+    "external_worker_invocation_required": true,
+    "no_unassigned_worker_when_evaluated": true
+  },
+  "noise_budget": {
+    "max_open_exploration_issues_per_worker": 1,
+    "max_open_exploration_prs_per_worker": 1,
+    "ranked_candidate_required_before_branch": true,
+    "source_mutation_requires_fresh_collision_check": true,
+    "automatic_issue_or_pr_creation": false,
+    "automatic_merge_authority": false
+  },
+  "universal_fallback": {
+    "lane_id": "repository-evidence-refresh-v1",
+    "priority": "P3",
+    "sensitive": false,
+    "tracking_issue": 1182,
+    "exploration_domains": [
+      "current-main-refresh",
+      "open-pr-refresh",
+      "review-check-refresh",
+      "recent-write-refresh",
+      "collision-evidence-refresh"
+    ],
+    "authority_boundary": "Read-only repository and coordination evidence refresh only. No branch, issue, pull-request, merge, deployment, service, credential, wallet, signer, Work Credit, validator, transaction, treasury, liquidity, or funds mutation is authorized."
+  },
+  "workers": [
+    {
+      "id": "ren",
+      "name": "Ren",
+      "cohort": "coordinator",
+      "tracking_issue": 1182,
+      "fallback_lane_id": "ren-coordination-triage-v1",
+      "fallback_priority": "P2",
+      "sensitive": false,
+      "exploration_domains": [
+        "coordination-truth",
+        "repository-triage",
+        "capability-prioritization",
+        "integration-gaps"
+      ],
+      "authority_boundary": "Read-only coordination, repository triage, and ranked integration-gap research only. No merge, deployment, service, credential, wallet, signer, Work Credit, validator, transaction, treasury, liquidity, or funds authority."
+    },
+    {
+      "id": "larry",
+      "name": "Larry",
+      "cohort": "stooges",
+      "tracking_issue": 1182,
+      "fallback_lane_id": "larry-integration-exploration-v1",
+      "fallback_priority": "P2",
+      "sensitive": false,
+      "exploration_domains": [
+        "integration",
+        "ci-correctness",
+        "release-hygiene",
+        "repository-usability"
+      ],
+      "authority_boundary": "Read-only integration, CI, release, and repository-usability research only. No required-check weakening, package publication, merge, deployment, credential, wallet, signer, transaction, treasury, or funds authority."
+    },
+    {
+      "id": "curly",
+      "name": "Curly",
+      "cohort": "stooges",
+      "tracking_issue": 1182,
+      "fallback_lane_id": "curly-participant-exploration-v1",
+      "fallback_priority": "P3",
+      "sensitive": true,
+      "exploration_domains": [
+        "participant-onboarding",
+        "receipt-usability",
+        "presale-exit-readiness",
+        "economic-honesty"
+      ],
+      "authority_boundary": "Read-only participant, receipt, and presale-exit research only. No purchase execution, inventory use, wallet or signer access, transaction construction or broadcast, conversion, treasury action, liquidity action, or funds movement."
+    },
+    {
+      "id": "moe",
+      "name": "Moe",
+      "cohort": "stooges",
+      "tracking_issue": 1005,
+      "fallback_lane_id": "moe-network-gap-exploration-v1",
+      "fallback_priority": "P2",
+      "sensitive": true,
+      "exploration_domains": [
+        "network-observability",
+        "bootstrap-resilience",
+        "transport-portability",
+        "failure-recovery"
+      ],
+      "authority_boundary": "Read-only networking and bootstrap-gap research outside frozen or occupied paths. No socket, route, router, firewall, DNS, interface, deployment, credential, wallet, Work Credit, transaction, treasury, or funds mutation."
+    },
+    {
+      "id": "satoshi",
+      "name": "Satoshi",
+      "cohort": "specialist",
+      "tracking_issue": 1182,
+      "fallback_lane_id": "satoshi-market-invariant-research-v1",
+      "fallback_priority": "P2",
+      "sensitive": true,
+      "exploration_domains": [
+        "btc-void-invariants",
+        "reserve-accounting",
+        "settlement-prerequisites",
+        "market-proof-gaps"
+      ],
+      "authority_boundary": "Read-only native BTC/VOID market, reserve, and settlement-prerequisite research only. No wallet, signer, liquidity funding, market activation, transaction construction or broadcast, treasury action, or funds movement."
+    },
+    {
+      "id": "turing",
+      "name": "Turing",
+      "cohort": "specialist",
+      "tracking_issue": 1182,
+      "fallback_lane_id": "turing-agent-utility-research-v1",
+      "fallback_priority": "P2",
+      "sensitive": false,
+      "exploration_domains": [
+        "agent-discovery",
+        "first-contact-truth",
+        "capability-negotiation",
+        "outside-agent-usability"
+      ],
+      "authority_boundary": "Read-only AI-agent discovery, First Contact, capability-truth, and usability research only. No credential issuance, paid-work dispatch, Work Credit mutation, wallet, signer, transaction, deployment, or funds authority."
+    },
+    {
+      "id": "ada",
+      "name": "Ada",
+      "cohort": "experimental",
+      "tracking_issue": 1243,
+      "fallback_lane_id": "ada-coordination-truth-research-v1",
+      "fallback_priority": "P1",
+      "sensitive": false,
+      "exploration_domains": [
+        "coordination-freshness",
+        "dependency-graphs",
+        "worker-liveness",
+        "capability-gates"
+      ],
+      "authority_boundary": "Read-only coordination freshness, dependency, liveness, and gate research only. No scheduler invocation, issue or pull-request automation, merge, deployment, credential, wallet, signer, Work Credit, validator, transaction, or funds authority."
+    },
+    {
+      "id": "grace",
+      "name": "Grace",
+      "cohort": "experimental",
+      "tracking_issue": 1237,
+      "fallback_lane_id": "grace-ci-evidence-research-v1",
+      "fallback_priority": "P2",
+      "sensitive": false,
+      "exploration_domains": [
+        "ci-topology",
+        "workflow-fanout",
+        "runner-cost-evidence",
+        "required-check-coverage"
+      ],
+      "authority_boundary": "Read-only CI topology, fan-out, cost, and coverage research only. No workflow deletion, required-check weakening, billing mutation, secret access, deployment, merge, transaction, treasury, or funds authority."
+    },
+    {
+      "id": "shannon",
+      "name": "Shannon",
+      "cohort": "experimental",
+      "tracking_issue": 1005,
+      "fallback_lane_id": "shannon-acceptance-truth-research-v1",
+      "fallback_priority": "P1",
+      "sensitive": true,
+      "exploration_domains": [
+        "runtime-evidence",
+        "external-acceptance",
+        "tracking-integrity",
+        "evidence-binding"
+      ],
+      "authority_boundary": "Read-only runtime, acceptance, tracking, and evidence-binding research only. No deployment, restart, network mutation, credential, wallet, signer, Work Credit, validator, transaction, treasury, liquidity, or funds authority."
+    },
+    {
+      "id": "hopper",
+      "name": "Hopper",
+      "cohort": "experimental",
+      "tracking_issue": 1239,
+      "fallback_lane_id": "hopper-operator-automation-research-v1",
+      "fallback_priority": "P2",
+      "sensitive": false,
+      "exploration_domains": [
+        "operator-automation",
+        "portable-tooling",
+        "recovery-usability",
+        "idempotent-controllers"
+      ],
+      "authority_boundary": "Read-only operator-friction, portability, recovery, and idempotent-controller research only. No package installation, deployment, service, credential, network, wallet, signer, validator, Work Credit, transaction, treasury, or funds mutation."
+    },
+    {
+      "id": "lamarr",
+      "name": "Lamarr",
+      "cohort": "experimental",
+      "tracking_issue": 1240,
+      "fallback_lane_id": "lamarr-sovereign-security-research-v1",
+      "fallback_priority": "P1",
+      "sensitive": true,
+      "exploration_domains": [
+        "security",
+        "privacy",
+        "identity",
+        "trust-boundaries",
+        "dependency-sovereignty"
+      ],
+      "authority_boundary": "Defensive read-only security, privacy, identity, trust, and sovereignty research only. No exploit deployment, secret access, live penetration, denial of service, release signing, network, wallet, signer, validator, transaction, treasury, or funds mutation."
+    },
+    {
+      "id": "darwin",
+      "name": "Darwin",
+      "cohort": "experimental",
+      "tracking_issue": 1241,
+      "fallback_lane_id": "darwin-capability-evolution-research-v1",
+      "fallback_priority": "P2",
+      "sensitive": false,
+      "exploration_domains": [
+        "feature-incubation",
+        "adoption",
+        "agent-utility",
+        "revenue-readiness",
+        "resilience"
+      ],
+      "authority_boundary": "Read-only capability-incubation, adoption, agent-utility, revenue-readiness, and resilience research only. No deployment, credential, release signing, wallet, signer, payment, Work Credit, validator, transaction, treasury, liquidity, or funds authority."
+    },
+    {
+      "id": "dijkstra",
+      "name": "Dijkstra",
+      "cohort": "experimental",
+      "tracking_issue": 1244,
+      "fallback_lane_id": "dijkstra-state-machine-research-v1",
+      "fallback_priority": "P1",
+      "sensitive": false,
+      "exploration_domains": [
+        "state-machines",
+        "concurrency",
+        "idempotence",
+        "timers",
+        "partial-failure"
+      ],
+      "authority_boundary": "Read-only state-machine, concurrency, idempotence, timer, and partial-failure research outside active Red lanes. No live fault injection, deployment, service, credential, wallet, signer, validator, Work Credit, transaction, treasury, or funds mutation."
+    },
+    {
+      "id": "katherine",
+      "name": "Katherine",
+      "cohort": "experimental",
+      "tracking_issue": 1245,
+      "fallback_lane_id": "katherine-arithmetic-invariant-research-v1",
+      "fallback_priority": "P1",
+      "sensitive": true,
+      "exploration_domains": [
+        "units",
+        "rounding",
+        "conservation",
+        "supply-accounting",
+        "economic-invariants"
+      ],
+      "authority_boundary": "Read-only arithmetic, denomination, rounding, conservation, supply, and economic-invariant research only. No wallet, signer, balance credential, payment, market activation, liquidity, treasury, validator, Work Credit, transaction, or funds mutation."
+    },
+    {
+      "id": "keller",
+      "name": "Keller",
+      "cohort": "experimental",
+      "tracking_issue": 1246,
+      "fallback_lane_id": "keller-participant-usability-research-v1",
+      "fallback_priority": "P2",
+      "sensitive": false,
+      "exploration_domains": [
+        "accessibility",
+        "participant-usability",
+        "onboarding",
+        "error-states",
+        "truthful-interface-copy"
+      ],
+      "authority_boundary": "Read-only participant accessibility, usability, onboarding, error-state, and truthful-interface research only. No WordPress apply, deployment, credential, account creation, paid-work dispatch, Work Credit, wallet, signer, validator, transaction, treasury, liquidity, or funds mutation."
+    }
+  ]
+}
