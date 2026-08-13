@@ -20,11 +20,13 @@ const POLICY_PATH = path.join(
   ROOT,
   "ops/coordination/worker-live-dispatch-policy-v1.json",
 );
-const EVALUATED_AT = "2026-08-13T08:30:00.000Z";
-const FRESH_AT = "2026-08-13T08:15:00.000Z";
-const STALE_RUNNING_AT = "2026-08-13T07:59:59.000Z";
-const FRESH_FALLBACK_AT = "2026-08-12T12:00:00.000Z";
-const STALE_FALLBACK_AT = "2026-08-01T12:00:00.000Z";
+const PROOF_NOW_MS = Date.now();
+const EVALUATED_AT = new Date(PROOF_NOW_MS).toISOString();
+const FRESH_AT = new Date(PROOF_NOW_MS - 15 * 60_000).toISOString();
+const STALE_RUNNING_AT = new Date(PROOF_NOW_MS - 30 * 60_000 - 1_000).toISOString();
+const FRESH_FALLBACK_AT = new Date(PROOF_NOW_MS - 20 * 60 * 60_000).toISOString();
+const STALE_FALLBACK_AT = new Date(PROOF_NOW_MS - 12 * 24 * 60 * 60_000).toISOString();
+const NEXT_REEVALUATION_AT = new Date(PROOF_NOW_MS + 30 * 60_000).toISOString();
 
 function clone(value) {
   return structuredClone(value);
@@ -226,7 +228,7 @@ assert.deepEqual(result.composition.worker_ids, expectedWorkerIds);
 assert.equal(result.worker_count, 15);
 assert.equal(result.dispatch_count, 15);
 assert.equal(result.reevaluation_interval_minutes, 30);
-assert.equal(result.next_reevaluation_at, "2026-08-13T09:00:00.000Z");
+assert.equal(result.next_reevaluation_at, NEXT_REEVALUATION_AT);
 assert.deepEqual(result.workers_without_dispatch, []);
 assert.equal(result.no_unassigned_worker_when_evaluated, true);
 assert.equal(result.continuous_execution_guaranteed, false);
@@ -248,8 +250,13 @@ assert.deepEqual(
 const dispatchById = new Map(result.dispatches.map((dispatch) => [dispatch.worker_id, dispatch]));
 assert.equal(dispatchById.get("ren").decision, "CONTINUE_PRIMARY");
 assert.equal(dispatchById.get("ren").execution_evidence_fresh, true);
+assert.equal(dispatchById.get("ren").primary_next_action, "Continue the exact active coordination review.");
 assert.equal(dispatchById.get("larry").decision, "TAKE_PRIMARY_NEXT_ACTION");
 assert.equal(dispatchById.get("larry").requires_existing_authority, true);
+assert.equal(
+  dispatchById.get("larry").primary_next_action,
+  "Revalidate and take the already-authorized bounded repair.",
+);
 assert.equal(dispatchById.get("curly").decision, "CONTINUE_BOUNDED_FALLBACK_RESEARCH");
 assert.equal(dispatchById.get("curly").fallback_used, true);
 assert.equal(dispatchById.get("moe").decision, "RUN_UNIVERSAL_EVIDENCE_REFRESH");
@@ -259,6 +266,10 @@ assert.equal(dispatchById.get("turing").execution_evidence_fresh, false);
 assert.equal(dispatchById.get("ada").decision, "CONTINUE_BOUNDED_FALLBACK_RESEARCH");
 assert.equal(dispatchById.get("grace").decision, "CONTINUE_BOUNDED_FALLBACK_RESEARCH");
 assert.equal(dispatchById.get("lamarr").decision, "TAKE_PRIMARY_NEXT_ACTION");
+assert.equal(
+  dispatchById.get("lamarr").primary_next_action,
+  "Produce the first evidence-backed defensive report.",
+);
 assert.equal(dispatchById.get("dijkstra").decision, "BEGIN_BOUNDED_FALLBACK_RESEARCH");
 assert.equal(dispatchById.get("katherine").decision, "CONTINUE_PRIMARY");
 assert.equal(dispatchById.get("keller").decision, "CONTINUE_BOUNDED_FALLBACK_RESEARCH");
@@ -277,6 +288,20 @@ reorderedEvidence.workers.reverse();
 const reorderedResult = evaluateWorkerLiveDispatchV1(policyRaw, reorderedEvidence);
 assert.equal(reorderedResult.evaluation_id, result.evaluation_id);
 assert.deepEqual(reorderedResult.dispatches, result.dispatches);
+
+{
+  const changedAction = evidence();
+  const larry = changedAction.workers.find((worker) => worker.id === "larry");
+  larry.primary.next_action = "Take a different separately-authorized bounded repair.";
+  const changedActionResult = evaluateWorkerLiveDispatchV1(policyRaw, changedAction);
+  const changedLarry = changedActionResult.dispatches.find((dispatch) => dispatch.worker_id === "larry");
+  assert.equal(
+    changedLarry.primary_next_action,
+    "Take a different separately-authorized bounded repair.",
+  );
+  assert.notEqual(changedLarry.dispatch_id, dispatchById.get("larry").dispatch_id);
+  assert.notEqual(changedActionResult.evaluation_id, result.evaluation_id);
+}
 
 {
   const bad = clone(policyRaw);
@@ -352,8 +377,26 @@ assert.deepEqual(reorderedResult.dispatches, result.dispatches);
 
 {
   const bad = evidence();
+  bad.evaluated_at = "2000-01-01T00:00:00.000Z";
+  expectRejected(
+    () => evaluateWorkerLiveDispatchV1(policyRaw, bad),
+    /evidence packet is expired relative to trusted current time/,
+  );
+}
+
+{
+  const bad = evidence();
+  bad.evaluated_at = new Date(Date.now() + 60_000).toISOString();
+  expectRejected(
+    () => evaluateWorkerLiveDispatchV1(policyRaw, bad),
+    /must not be in the future relative to trusted current time/,
+  );
+}
+
+{
+  const bad = evidence();
   bad.workers.find((worker) => worker.id === "ren").primary.execution_evidence_at =
-    "2026-08-13T08:31:00.000Z";
+    new Date(PROOF_NOW_MS + 60_000).toISOString();
   expectRejected(
     () => evaluateWorkerLiveDispatchV1(policyRaw, bad),
     /must not be in the future/,
@@ -399,6 +442,8 @@ console.log("no_unassigned_worker_when_evaluated=true");
 console.log("reevaluation_interval_minutes=30");
 console.log(`next_reevaluation_at=${result.next_reevaluation_at}`);
 console.log("execution_evidence_max_age_minutes=30");
+console.log("trusted_current_time_expiry_enforced=true");
+console.log("actionable_next_action_bound_to_dispatch_id=true");
 console.log("continuous_execution_guaranteed=false");
 console.log("external_worker_invocation_required=true");
 console.log("automatic_issue_or_pr_creation=false");

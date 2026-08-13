@@ -460,7 +460,7 @@ function validateFallbackEvidence(fallback, label, evaluatedAtMs) {
   );
 }
 
-function validateEvidence(raw, policy) {
+function validateEvidence(raw, policy, trustedNowMs) {
   const evidence = structuredClone(raw);
   requireExactKeys(evidence, EVIDENCE_KEYS, "evidence");
   if (evidence.marker !== EVIDENCE_MARKER) {
@@ -470,6 +470,15 @@ function validateEvidence(raw, policy) {
   if (evidence.repository !== policy.repository) fail("evidence.repository mismatch");
   if (evidence.plan_issue !== policy.plan_issue) fail("evidence.plan_issue mismatch");
   const evaluatedAtMs = requireIsoTimestamp(evidence.evaluated_at, "evidence.evaluated_at");
+  if (evaluatedAtMs > trustedNowMs) {
+    fail("evidence.evaluated_at must not be in the future relative to trusted current time");
+  }
+  const evidenceExpiresAtMs =
+    evaluatedAtMs + policy.reevaluation.interval_minutes * 60_000;
+  if (!Number.isSafeInteger(evidenceExpiresAtMs)) fail("evidence expiry time overflow");
+  if (evidenceExpiresAtMs <= trustedNowMs) {
+    fail("evidence packet is expired relative to trusted current time");
+  }
   requireSha(evidence.observed_main_sha, "evidence.observed_main_sha");
   if (!Array.isArray(evidence.workers)) fail("evidence.workers must be an array");
 
@@ -659,6 +668,7 @@ function chooseDispatch({ worker, workerEvidence, executionEvidenceMs, fallbackP
     ...selected,
     primary_state: primary.state,
     primary_collision: primary.collision,
+    primary_next_action: primary.next_action,
     execution_evidence_fresh: executionEvidenceFresh,
     execution_evidence_age_minutes:
       executionAgeMinutes === null ? null : Number(executionAgeMinutes.toFixed(3)),
@@ -673,9 +683,12 @@ function chooseDispatch({ worker, workerEvidence, executionEvidenceMs, fallbackP
 
 export function evaluateWorkerLiveDispatchV1(policyRaw, evidenceRaw) {
   const policy = validateWorkerLiveDispatchPolicyV1(policyRaw);
+  const trustedNowMs = Date.now();
+  if (!Number.isSafeInteger(trustedNowMs)) fail("trusted current time is invalid");
   const { evidence, evaluatedAtMs, normalized, policyById } = validateEvidence(
     evidenceRaw,
     policy,
+    trustedNowMs,
   );
   const nextReevaluationMs =
     evaluatedAtMs + policy.reevaluation.interval_minutes * 60_000;
