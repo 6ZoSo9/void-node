@@ -240,6 +240,54 @@ export function validateDataNetStatusV1(value) {
   });
 }
 
+async function readBoundedResponseText(response) {
+  const reader = response?.body?.getReader?.();
+  if (!reader || typeof reader.read !== 'function') {
+    throw new Error('DataNet response body is not stream-readable');
+  }
+
+  const chunks = [];
+  let total = 0;
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      if (!(value instanceof Uint8Array)) {
+        throw new Error('DataNet response stream yielded invalid bytes');
+      }
+      total += value.byteLength;
+      if (total > MAX_RESPONSE_BYTES) {
+        try {
+          await reader.cancel?.('DataNet response exceeds the size limit');
+        } catch {
+          // The size violation remains authoritative even if cancellation itself fails.
+        }
+        throw new Error('DataNet response exceeds the size limit');
+      }
+      chunks.push(value);
+    }
+  } finally {
+    try {
+      reader.releaseLock?.();
+    } catch {
+      // Releasing the reader is cleanup only and must not replace validation truth.
+    }
+  }
+
+  const bytes = new Uint8Array(total);
+  let offset = 0;
+  for (const chunk of chunks) {
+    bytes.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+
+  try {
+    return new TextDecoder('utf-8', { fatal: true }).decode(bytes);
+  } catch {
+    throw new Error('DataNet response is not valid UTF-8');
+  }
+}
+
 export async function fetchDataNetStatusV1({
   fetchImpl = globalThis.fetch,
   origin = globalThis.location?.origin ?? 'http://localhost',
@@ -289,15 +337,18 @@ export async function fetchDataNetStatusV1({
       }
     }
 
-    const contentLength = Number(response.headers?.get?.('content-length'));
-    if (Number.isFinite(contentLength) && contentLength > MAX_RESPONSE_BYTES) {
-      throw new Error('DataNet response exceeds the size limit');
+    const contentLengthHeader = response.headers?.get?.('content-length');
+    if (contentLengthHeader !== null && contentLengthHeader !== undefined) {
+      const contentLength = Number(contentLengthHeader);
+      if (!Number.isSafeInteger(contentLength) || contentLength < 0) {
+        throw new Error('DataNet response has an invalid content length');
+      }
+      if (contentLength > MAX_RESPONSE_BYTES) {
+        throw new Error('DataNet response exceeds the size limit');
+      }
     }
 
-    const text = await response.text();
-    if (new TextEncoder().encode(text).byteLength > MAX_RESPONSE_BYTES) {
-      throw new Error('DataNet response exceeds the size limit');
-    }
+    const text = await readBoundedResponseText(response);
 
     let parsed;
     try {
@@ -501,42 +552,38 @@ const applyStatus = (snapshot) => {
   );
 };
 
-async function loadDataNet() {
-  if (currentRoute() !== 'data') return;
-  if (!document.querySelector('[data-datanet-view]')) return;
+export async function loadDataNetViewV1(fetchOptions = {}) {
+  if (currentRoute() !== 'data') return false;
+  if (!document.querySelector('[data-datanet-view]')) return false;
 
   const serial = ++requestSerial;
   setLoading();
 
   try {
-    const snapshot = await fetchDataNetStatusV1();
-    if (serial !== requestSerial) return;
+    const snapshot = await fetchDataNetStatusV1(fetchOptions);
+    if (serial !== requestSerial) return false;
     applyStatus(snapshot);
+    return true;
   } catch (error) {
-    if (serial !== requestSerial) return;
+    if (serial !== requestSerial) return false;
     setError(error instanceof Error ? error.message : 'Request failed');
+    return false;
   }
 }
 
 if (typeof document !== 'undefined' && typeof window !== 'undefined') {
   document.addEventListener('click', (event) => {
     if (!event.target.closest('[data-datanet-refresh]')) return;
-    loadDataNet();
+    void loadDataNetViewV1();
   });
 
   const viewRoot = document.getElementById('view-root');
   if (viewRoot) {
     const observer = new MutationObserver(() => {
       if (currentRoute() === 'data' && viewRoot.querySelector('[data-datanet-view]')) {
-        queueMicrotask(loadDataNet);
+        queueMicrotask(() => { void loadDataNetViewV1(); });
       }
     });
     observer.observe(viewRoot, { childList: true });
   }
-
-  window.addEventListener('hashchange', () => {
-    if (currentRoute() === 'data') setTimeout(loadDataNet, 0);
-  });
-
-  setTimeout(loadDataNet, 0);
 }
