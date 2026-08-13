@@ -16,18 +16,28 @@ The v1 classifier accepts these `uses:` forms without a finding:
 
 Tags, branches, dynamic expressions, malformed remote references, Docker tags, and other non-digest Docker references are mutable for this policy.
 
+## YAML syntax boundary
+
+The guard recognizes the workflow `uses` mapping key in ordinary block mappings, single- or double-quoted keys, escaped double-quoted keys that decode to `uses`, and flow mappings such as `{ uses: owner/action@ref }`. Quoted scalar action references are decoded before classification.
+
+This matters because YAML representations such as `"uses": actions/checkout@v4`, `'uses': actions/checkout@v4`, or `{ uses: actions/checkout@v4 }` are semantically capable of expressing the same mapping key as bare `uses:`. They must not bypass mutable-reference accounting merely by changing YAML presentation.
+
+If a line is recognized as a `uses` mapping key but its value cannot be parsed into one bounded scalar reference, the guard reports `unparsed_uses_syntax` and holds the change rather than silently ignoring it. Ambiguous `uses` syntax is not grandfathered.
+
+YAML block-scalar bodies such as `run: |` remain ignored so shell text containing the word `uses:` is not misclassified as workflow syntax. Quoted inline text containing flow-looking text is likewise not interpreted as a mapping.
+
 ## Delta semantics
 
 For each added, modified, or renamed file under `.github/workflows/`, the tool extracts `uses:` references from the exact base and head commits. It compares mutable-reference multiplicity per workflow file:
 
-- a legacy mutable reference that remains unchanged does not block the PR;
+- a legacy mutable reference that remains unchanged does not block the PR, including a recognized quoted-key legacy reference;
 - removing or replacing a mutable reference with an immutable pin is allowed;
 - adding another occurrence of a grandfathered mutable reference is blocked;
 - adding a different mutable reference is blocked;
+- adding mutable references through quoted keys, escaped quoted keys, or flow mappings is blocked;
+- ambiguous or unparsed `uses` syntax is blocked rather than grandfathered;
 - a pure rename preserves the old file's baseline; and
 - a copied/new workflow receives no grandfathered baseline.
-
-YAML block-scalar bodies such as `run: |` are ignored so shell text containing the word `uses:` is not misclassified as workflow syntax.
 
 ## Operation
 

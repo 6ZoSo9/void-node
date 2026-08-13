@@ -1,0 +1,264 @@
+/*
+ * VOID App shared site theme v1.
+ * Visual source of truth: ops/public/voidchain-org-wordpress-home-v1.html.
+ * This file is imported last so existing and future views inherit one product skin
+ * without changing route behavior or authority.
+ */
+
+body {
+  background: var(--void-bg-canvas);
+  font-family: var(--void-font-mono);
+}
+
+body::before {
+  background-image:
+    linear-gradient(var(--void-grid-line) 1px, transparent 1px),
+    linear-gradient(90deg, var(--void-grid-line) 1px, transparent 1px);
+  background-size: var(--void-grid-size) var(--void-grid-size);
+  mask-image: none;
+}
+
+h1, h2, h3, h4,
+button, input, select, textarea {
+  font-family: var(--void-font-mono);
+}
+
+h1, h2, h3 { letter-spacing: -0.04em; }
+.eyebrow { color: var(--void-text-muted); }
+
+.prototype-banner {
+  background: var(--void-surface-1);
+  border-bottom-color: var(--void-border-default);
+  color: var(--void-text-muted);
+}
+
+.app-header {
+  background: rgba(5, 5, 6, 0.96);
+  border-bottom-color: var(--void-border-default);
+  backdrop-filter: none;
+}
+
+.brand { border-right-color: var(--void-border-default); }
+.brand-glyph {
+  color: var(--void-text-primary);
+  filter: none;
+}
+.brand-product { border-left-color: var(--void-border-default); }
+
+.sidebar {
+  background: rgba(11, 11, 14, 0.96);
+  border-right-color: var(--void-border-default);
+}
+
+.context-chip,
+.icon-button,
+.account-control,
+.nav-item,
+.utility-link,
+.button,
+.surface,
+.status-chip,
+.kpi,
+.alert,
+.activity-icon,
+.empty-state__icon,
+.segmented-control,
+.segmented-control button,
+.input,
+.select,
+.textarea,
+.table-wrap,
+.drawer,
+.sheet,
+.toast,
+.notification-card,
+.balance-tile,
+.health-card {
+  border-radius: 0;
+  box-shadow: none;
+}
+
+.context-chip {
+  background: var(--void-surface-1);
+  border-color: var(--void-border-default);
+}
+.context-chip:hover {
+  background: var(--void-surface-3);
+  border-color: var(--void-border-strong);
+}
+
+.icon-button:hover,
+.account-control:hover {
+  background: var(--void-surface-1);
+  border-color: var(--void-border-default);
+}
+
+.account-avatar {
+  border-radius: 0;
+  background: var(--void-text-primary);
+  color: var(--void-text-inverse);
+}
+
+.has-indicator .indicator {
+  background: var(--void-text-primary);
+  border-color: var(--void-bg-canvas);
+}
+
+.nav-item,
+.utility-link {
+  border-radius: 0;
+}
+.nav-item:hover,
+.utility-link:hover {
+  background: var(--void-surface-1);
+  color: var(--void-text-primary);
+}
+.nav-item[aria-current="page"] {
+  background: var(--void-surface-1);
+  border-color: var(--void-border-default);
+  color: var(--void-text-primary);
+}
+.nav-item[aria-current="page"]::before {
+  background: var(--void-text-primary);
+  box-shadow: none;
+}
+.nav-item[aria-current="page"] .nav-icon {
+  color: var(--void-text-primary);
+}
+
+.review-tag {
+  border: 1px solid var(--void-border-default);
+  border-radius: 0;
+  background: transparent;
+  color: var(--void-text-muted);
+}
+
+.button { border-color: var(--void-border-default); }
+.button:hover { transform: none; }
+.button--primary {
+  border-color: #efeff1;
+  background: #efeff1;
+  color: #080809;
+  box-shadow: none;
+}
+.button--primary:hover { background: #ffffff; }
+.button--secondary {
+  border-color: var(--void-border-strong);
+  background: transparent;
+  color: var(--void-text-primary);
+}
+.button--secondary:hover { background: var(--void-surface-1); }
+.button--tertiary {
+  border-color: transparent;
+  background: transparent;
+  color: var(--void-text-secondary);
+}
+.button--danger {
+  border-color: var(--void-danger);
+  background: transparent;
+  color: var(--void-danger);
+}
+
+.surface {
+  border-color: var(--void-border-default);
+  background: rgba(11, 11, 14, 0.90);
+  box-shadow: none;
+}
+.surface--quiet { background: rgba(11, 11, 14, 0.70); }
+.surface--accent {
+  border-color: var(--void-border-strong);
+  box-shadow: none;
+}
+
+.hero-surface::after { display: none; }
+.hero-aside {
+  border-left-color: var(--void-border-default);
+  background: rgba(3, 3, 4, 0.72);
+}
+.page-header__copy p,
+.hero-content p { color: var(--void-text-secondary); }
+
+.status-chip {
+  border-color: var(--void-border-default);
+  background: transparent;
+  color: var(--void-text-secondary);
+}
+.status-chip--positive {
+  border-color: var(--void-positive);
+  background: transparent;
+  color: var(--void-positive);
+}
+.status-chip--warning {
+  border-color: var(--void-warning);
+  background: transparent;
+  color: var(--void-warning);
+}
+.status-chip--info {
+  border-color: var(--void-border-strong);
+  background: transparent;
+  color: var(--void-text-secondary);
+}
+.status-dot,
+.status-dot--positive,
+.status-dot--warning { box-shadow: none; }
+
+.kpi,
+.activity-icon,
+.alert,
+.segmented-control,
+.input,
+.select,
+.textarea,
+.table-wrap {
+  border-color: var(--void-border-default);
+  background: rgba(3, 3, 4, 0.56);
+}
+
+.activity-icon,
+.empty-state__icon {
+  color: var(--void-text-primary);
+}
+.empty-state__icon {
+  border-color: var(--void-border-default);
+  background: var(--void-surface-1);
+}
+
+.segmented-control button[aria-pressed="true"] {
+  background: var(--void-text-primary);
+  color: var(--void-text-inverse);
+  box-shadow: none;
+}
+
+.input::placeholder,
+.textarea::placeholder { color: var(--void-text-muted); }
+
+th {
+  background: var(--void-bg-subtle);
+  color: var(--void-text-muted);
+}
+td { color: var(--void-text-secondary); }
+
+.overlay {
+  background: rgba(0, 0, 0, 0.72);
+  backdrop-filter: none;
+}
+.drawer,
+.sheet {
+  background: var(--void-surface-overlay);
+  border-color: var(--void-border-default);
+  box-shadow: none;
+}
+
+.skeleton {
+  border-radius: 0;
+  background: rgba(242, 242, 244, 0.08);
+}
+
+::selection {
+  background: rgba(242, 242, 244, 0.18);
+  color: var(--void-text-primary);
+}
+
+:focus-visible {
+  outline-color: var(--void-text-primary);
+}
