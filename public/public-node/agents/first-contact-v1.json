@@ -1,5 +1,6 @@
 {
   "client": {
+    "cold_start_curl_command": "test -n \"$VOID_PUBLIC_ORIGIN\" && curl --proto '=https' --max-redirs 0 --fail --silent --show-error --max-time 8 --max-filesize 65536 --header 'Accept: application/json' \"${VOID_PUBLIC_ORIGIN%/}/public-node/agents/first-contact-v1.json\"",
     "example_command": "node tools/void-ai-agent-first-contact-v1.mjs --base-url http://127.0.0.1:4100 --pretty",
     "http_methods": [
       "GET"
@@ -27,7 +28,7 @@
     "work_credit_earning_promised": false
   },
   "marker": "VOID_AI_AGENT_FIRST_CONTACT_V1",
-  "manifest_fingerprint_sha256": "dc5f05b817941edc55113e066b0e89a57cf8e510510ae294f479c687a2386cae",
+  "manifest_fingerprint_sha256": "466c2aed00827f7815315eef1957af7576b72d01e361b44150ce77ab88ea0d7e",
   "network": {
     "chain_id": 2050,
     "identity": "mainnet0",

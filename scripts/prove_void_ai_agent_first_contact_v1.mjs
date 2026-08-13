@@ -125,7 +125,9 @@ function intakeFingerprint(value) {
 }
 
 const REVIEWED_FIRST_CONTACT_MANIFEST_FINGERPRINT_SHA256 =
-  "dc5f05b817941edc55113e066b0e89a57cf8e510510ae294f479c687a2386cae";
+  "466c2aed00827f7815315eef1957af7576b72d01e361b44150ce77ab88ea0d7e";
+const COLD_START_CURL_COMMAND =
+  "test -n \"$VOID_PUBLIC_ORIGIN\" && curl --proto '=https' --max-redirs 0 --fail --silent --show-error --max-time 8 --max-filesize 65536 --header 'Accept: application/json' \"${VOID_PUBLIC_ORIGIN%/}/public-node/agents/first-contact-v1.json\"";
 
 assert.equal(
   intakeFingerprint(manifest),
@@ -177,6 +179,7 @@ assert.equal(manifest.honesty.paid_work_promised, false);
 assert.equal(manifest.honesty.work_credit_earning_promised, false);
 assert.equal(manifest.honesty.mutation_authority_granted, false);
 assert.deepEqual(manifest.client.http_methods, ["GET"]);
+assert.equal(manifest.client.cold_start_curl_command, COLD_START_CURL_COMMAND);
 
 const clientSource = await readFile(CLIENT_PATH, "utf8");
 for (const forbidden of [
