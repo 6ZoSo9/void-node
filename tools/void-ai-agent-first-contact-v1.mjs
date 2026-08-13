@@ -8,6 +8,8 @@ const DEFAULT_MANIFEST_PATH = "/public-node/agents/first-contact-v1.json";
 const DEFAULT_TIMEOUT_MS = 8000;
 const MAX_RESPONSE_BYTES = 65_536;
 const MAX_COLD_START_NETWORK_REQUESTS = 8;
+const REVIEWED_FIRST_CONTACT_MANIFEST_FINGERPRINT_SHA256 =
+  "dc5f05b817941edc55113e066b0e89a57cf8e510510ae294f479c687a2386cae";
 const OFFICIAL_NETWORK = {
   name: "VOID Mainnet-0",
   chain_id: 2050,
@@ -19,6 +21,7 @@ const FIRST_CONTACT_TOP_LEVEL_KEYS = [
   "entrypoints",
   "honesty",
   "marker",
+  "manifest_fingerprint_sha256",
   "network",
   "next_steps",
   "protocol",
@@ -240,6 +243,7 @@ function safeEntrypoint(path, extension) {
 function firstContactManifestValid(manifest) {
   if (
     !hasExactKeys(manifest, FIRST_CONTACT_TOP_LEVEL_KEYS) ||
+    !firstContactManifestFingerprintValid(manifest) ||
     manifest.marker !== "VOID_AI_AGENT_FIRST_CONTACT_V1" ||
     manifest.protocol !== "void-ai-agent-first-contact" ||
     manifest.version !== "1" ||
@@ -306,6 +310,25 @@ function firstContactManifestValid(manifest) {
     nextStepIds.add(step.id);
   }
   return true;
+}
+
+function firstContactManifestFingerprintValid(manifest) {
+  if (
+    manifest === null ||
+    typeof manifest !== "object" ||
+    Array.isArray(manifest)
+  ) {
+    return false;
+  }
+  const { manifest_fingerprint_sha256: claimed, ...withoutFingerprint } =
+    manifest;
+  if (claimed !== REVIEWED_FIRST_CONTACT_MANIFEST_FINGERPRINT_SHA256) {
+    return false;
+  }
+  const computed = createHash("sha256")
+    .update(canonicalJson(withoutFingerprint), "utf8")
+    .digest("hex");
+  return computed === claimed;
 }
 
 async function readBoundedText(response) {

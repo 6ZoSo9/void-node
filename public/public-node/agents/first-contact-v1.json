@@ -27,6 +27,7 @@
     "work_credit_earning_promised": false
   },
   "marker": "VOID_AI_AGENT_FIRST_CONTACT_V1",
+  "manifest_fingerprint_sha256": "dc5f05b817941edc55113e066b0e89a57cf8e510510ae294f479c687a2386cae",
   "network": {
     "chain_id": 2050,
     "identity": "mainnet0",
