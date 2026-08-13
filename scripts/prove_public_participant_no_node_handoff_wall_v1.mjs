@@ -102,6 +102,12 @@ assert.equal(
   sourceComposition.includes("VOID_PUBLIC_PARTICIPANT_NO_NODE_HANDOFF_V1"),
   true,
 );
+assert.equal(
+  sourceComposition.includes("VOID_PUBLIC_PARTICIPANT_HANDOFF_HELPER_V1"),
+  true,
+);
+assert.equal(sourceComposition.includes("PUBLIC_HTTPS_BASE"), false);
+assert.equal(sourceComposition.includes("COORDINATOR_NODE_ID"), false);
 
 const coordinatorNodeId = "c".repeat(32);
 const dataset = Buffer.from(
@@ -371,6 +377,9 @@ try {
 
   const participantResponse = await fetch(`${base}/participant`);
   assert.equal(participantResponse.status, 200);
+  const participantCsp = participantResponse.headers.get("content-security-policy") || "";
+  assert.match(participantCsp, /script-src 'self'/);
+  assert.match(participantCsp, /connect-src 'self'/);
   const participant = await participantResponse.text();
   for (const forbidden of [
     ">zoso<",
@@ -380,6 +389,8 @@ try {
     "wcRunnerToggleInput",
     'action="/wc-proof-demo/generate"',
     "localStorage.setItem",
+    "PUBLIC_HTTPS_BASE",
+    "COORDINATOR_NODE_ID",
   ]) {
     assert.equal(participant.includes(forbidden), false, forbidden);
   }
@@ -388,10 +399,56 @@ try {
     "Earn Work Credits without running a VOID node",
     "/download/void-public-earn-no-node-client-v1.mjs",
     "/__void/public-participant/status.json",
+    "/__void/public-participant/handoff-v1.js",
+    "YOUR_ACCOUNT",
     "No participant account directory or arbitrary balance lookup",
   ]) {
     assert.equal(participant.includes(required), true, required);
   }
+
+  const handoffScriptResponse = await fetch(
+    `${base}/__void/public-participant/handoff-v1.js`,
+  );
+  assert.equal(handoffScriptResponse.status, 200);
+  assert.equal(
+    handoffScriptResponse.headers.get("x-void-marker"),
+    "VOID_PUBLIC_PARTICIPANT_HANDOFF_HELPER_V1",
+  );
+  const handoffScript = await handoffScriptResponse.text();
+  for (const required of [
+    "VOID_PUBLIC_PARTICIPANT_HANDOFF_HELPER_V1",
+    "window.location.origin",
+    "/__void/public-participant/status.json",
+    "getReader",
+    "MAX_STATUS_BYTES",
+    "credentials: 'omit'",
+    "redirect: 'error'",
+    "referrerPolicy: 'no-referrer'",
+    "coordinator_node_id",
+    "--coordinator-base",
+    "--coordinator-node-id",
+    "YOUR_ACCOUNT",
+    "textContent",
+  ]) {
+    assert.equal(handoffScript.includes(required), true, required);
+  }
+  for (const forbidden of [
+    "PUBLIC_HTTPS_BASE",
+    "COORDINATOR_NODE_ID",
+    "innerHTML",
+    "localStorage",
+    "sessionStorage",
+  ]) {
+    assert.equal(handoffScript.includes(forbidden), false, forbidden);
+  }
+  assert.equal(
+    (
+      await fetch(
+        `${base}/__void/public-participant/handoff-v1.js?unexpected=1`,
+      )
+    ).status,
+    400,
+  );
 
   const publicStatusResponse = await fetch(
     `${base}/__void/public-participant/status.json`,
@@ -568,6 +625,9 @@ try {
   console.log("public_balance_lookup_exposed=false");
   console.log("client_balance_requests=0");
   console.log("client_status_account_queries=0");
+  console.log("participant_unresolved_origin_placeholders=0");
+  console.log("participant_handoff_helper=same_origin_bounded_status");
+  console.log("participant_copy_ready_handoff=green");
   console.log("claim_route=bounded_post");
   console.log("submit_route=capability_bound_post");
   console.log("canonical_accounting=submit_response");
