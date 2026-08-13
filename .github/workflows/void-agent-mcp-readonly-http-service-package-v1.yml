@@ -11,8 +11,6 @@ on:
       - "ops/systemd/void-agent-mcp-readonly-http-v1.env.example"
       - "ops/deploy_void_agent_mcp_readonly_http_service_v1.py"
       - "scripts/prove_void_agent_mcp_readonly_http_service_package_v1.mjs"
-      - "integrations/mcp/**"
-      - "scripts/prove_void_agent_mcp_bridge_v1.ts"
   push:
     paths:
       - ".github/workflows/void-agent-mcp-readonly-http-service-package-v1.yml"
@@ -23,8 +21,6 @@ on:
       - "ops/systemd/void-agent-mcp-readonly-http-v1.env.example"
       - "ops/deploy_void_agent_mcp_readonly_http_service_v1.py"
       - "scripts/prove_void_agent_mcp_readonly_http_service_package_v1.mjs"
-      - "integrations/mcp/**"
-      - "scripts/prove_void_agent_mcp_bridge_v1.ts"
 
 permissions:
   contents: read
