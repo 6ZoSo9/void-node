@@ -40,13 +40,55 @@ node tools/void_public_earn_no_node_client_v1.mjs identity
 
 The executor node ID is the first 32 lowercase hexadecimal characters of the SHA-256 digest of the exact public-key PEM, matching `nodeIdFromPubPEM`.
 
+## Discover the coordinator node ID safely
+
+A participant should not have to transcribe the coordinator node ID by hand from the public status JSON. Set the trusted Public Earn gateway origin once, then derive the exact coordinator node ID from the sanitized participant-status contract with a bounded, redirect-refusing read:
+
+```bash
+PUBLIC_HTTPS_BASE='https://PUBLIC-EARN-GATEWAY'
+COORDINATOR_NODE_ID="$(
+  node --input-type=module - "$PUBLIC_HTTPS_BASE" <<'NODE'
+const base = process.argv[2];
+const response = await fetch(
+  new URL('/__void/public-participant/status.json', base),
+  {
+    method: 'GET',
+    redirect: 'manual',
+    signal: AbortSignal.timeout(7000),
+  },
+);
+if (response.status >= 300 && response.status < 400) {
+  throw new Error(`participant status redirect refused: HTTP ${response.status}`);
+}
+if (!response.ok) {
+  throw new Error(`participant status unavailable: HTTP ${response.status}`);
+}
+const text = await response.text();
+if (Buffer.byteLength(text, 'utf8') > 65536) {
+  throw new Error('participant status exceeds 65536 bytes');
+}
+const status = JSON.parse(text);
+if (status?.marker !== 'VOID_PUBLIC_PARTICIPANT_NO_NODE_HANDOFF_V1') {
+  throw new Error('participant status marker mismatch');
+}
+const nodeId = String(status?.coordinator_node_id || '');
+if (!/^[0-9a-f]{32}$/.test(nodeId)) {
+  throw new Error('participant status coordinator node ID unavailable');
+}
+process.stdout.write(nodeId);
+NODE
+)"
+```
+
+This discovery step reads only the public sanitized participant status. It does not claim work, submit a result, create or inspect an account directory, access a wallet, or mutate Work Credits. Keep `PUBLIC_HTTPS_BASE` explicitly bound to the gateway origin you intended to trust; the no-node client still verifies that `/health` reports the same coordinator node ID before it will proceed.
+
 ## Check availability
 
 ```bash
 node tools/void_public_earn_no_node_client_v1.mjs status \
   --account outside-user-1 \
-  --coordinator-base https://PUBLIC-EARN-GATEWAY \
-  --coordinator-node-id 32-lowercase-hex
+  --coordinator-base "$PUBLIC_HTTPS_BASE" \
+  --coordinator-node-id "$COORDINATOR_NODE_ID"
 ```
 
 The client rejects a gateway whose `/health` node ID does not equal the explicitly trusted coordinator node ID.
@@ -56,8 +98,8 @@ The client rejects a gateway whose `/health` node ID does not equal the explicit
 ```bash
 node tools/void_public_earn_no_node_client_v1.mjs run \
   --account outside-user-1 \
-  --coordinator-base https://PUBLIC-EARN-GATEWAY \
-  --coordinator-node-id 32-lowercase-hex
+  --coordinator-base "$PUBLIC_HTTPS_BASE" \
+  --coordinator-node-id "$COORDINATOR_NODE_ID"
 ```
 
 The command performs exactly one bounded attempt:
