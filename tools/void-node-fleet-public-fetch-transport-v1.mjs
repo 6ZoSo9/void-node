@@ -12,10 +12,20 @@ export const VOID_NODE_FLEET_PUBLIC_FETCH_TRANSPORT_APPLY_V1 = 'VOID_NODE_FLEET_
 export const PUBLIC_FETCH_REMOTE_V1 = 'void-public-fetch';
 export const PUBLIC_FETCH_URL_V1 = 'https://github.com/6ZoSo9/void-node.git';
 export const PUBLIC_PUSH_URL_V1 = '/dev/null';
+export const CANONICAL_ORIGIN_REPOSITORY_V1 = '6ZoSo9/void-node';
+export const CANONICAL_ORIGIN_FETCH_URLS_V1 = Object.freeze([
+  'https://github.com/6ZoSo9/void-node.git',
+  'https://github.com/6ZoSo9/void-node',
+  'git@github.com:6ZoSo9/void-node.git',
+  'git@github.com:6ZoSo9/void-node',
+  'ssh://git@github.com/6ZoSo9/void-node.git',
+  'ssh://git@github.com/6ZoSo9/void-node',
+]);
 
 const SHA40_RE = /^[0-9a-f]{40}$/;
 const SHA64_RE = /^[0-9a-f]{64}$/;
 const MAX_OUTPUT_BYTES = 4 * 1024 * 1024;
+const CANONICAL_ORIGIN_FETCH_URL_SET_V1 = new Set(CANONICAL_ORIGIN_FETCH_URLS_V1);
 
 function fail(message, mutationAttempted = false) {
   const error = new Error(message);
@@ -138,6 +148,15 @@ function classifyDedicatedRemote(fetchValues, pushValues) {
   return 'MISCONFIGURED';
 }
 
+function assertCanonicalOriginFetchV1(originFetch) {
+  if (originFetch.length !== 1) {
+    fail(`origin must have exactly one canonical ${CANONICAL_ORIGIN_REPOSITORY_V1} fetch URL`);
+  }
+  if (!CANONICAL_ORIGIN_FETCH_URL_SET_V1.has(originFetch[0])) {
+    fail(`origin does not identify canonical ${CANONICAL_ORIGIN_REPOSITORY_V1}`);
+  }
+}
+
 export function inspectRepositoryTransportV1(repoInput) {
   const repo = expandPath(safePath(repoInput, 'repo'));
   const inside = run(repo, ['rev-parse', '--is-inside-work-tree']);
@@ -149,13 +168,14 @@ export function inspectRepositoryTransportV1(repoInput) {
   if (!branchResult.ok) fail('inspect branch failed');
   const branch = branchResult.stdout.trim();
   if (branch !== 'main') fail('repo must be on exact main');
+
   const head = requiredRun(repo, ['rev-parse', 'HEAD'], 'inspect head').trim();
   const tree = requiredRun(repo, ['rev-parse', 'HEAD^{tree}'], 'inspect tree').trim();
   if (!SHA40_RE.test(head) || !SHA40_RE.test(tree)) fail('repo head/tree identity is invalid');
 
   const originFetch = configValues(repo, 'remote.origin.url');
+  assertCanonicalOriginFetchV1(originFetch);
   const originPush = configValues(repo, 'remote.origin.pushurl');
-  if (originFetch.length < 1) fail('origin fetch URL is missing');
   const dedicatedFetch = configValues(repo, `remote.${PUBLIC_FETCH_REMOTE_V1}.url`);
   const dedicatedPush = configValues(repo, `remote.${PUBLIC_FETCH_REMOTE_V1}.pushurl`);
   const status = worktreeStatus(repo);
@@ -169,6 +189,8 @@ export function inspectRepositoryTransportV1(repoInput) {
     dirty_count: status.dirty_count,
     index_sha256: indexDigest(repo),
     refs_sha256: refsDigest(repo),
+    canonical_origin_required: true,
+    origin_repository: CANONICAL_ORIGIN_REPOSITORY_V1,
     origin_fetch_count: originFetch.length,
     origin_fetch_sha256: digestStrings(originFetch),
     origin_push_count: originPush.length,
@@ -194,6 +216,8 @@ function planPayload(snapshot) {
     dirty_count: snapshot.dirty_count,
     index_sha256: snapshot.index_sha256,
     refs_sha256: snapshot.refs_sha256,
+    canonical_origin_required: snapshot.canonical_origin_required,
+    origin_repository: snapshot.origin_repository,
     origin_fetch_count: snapshot.origin_fetch_count,
     origin_fetch_sha256: snapshot.origin_fetch_sha256,
     origin_push_count: snapshot.origin_push_count,
@@ -225,6 +249,8 @@ function invariantView(snapshot) {
     dirty_count: snapshot.dirty_count,
     index_sha256: snapshot.index_sha256,
     refs_sha256: snapshot.refs_sha256,
+    canonical_origin_required: snapshot.canonical_origin_required,
+    origin_repository: snapshot.origin_repository,
     origin_fetch_count: snapshot.origin_fetch_count,
     origin_fetch_sha256: snapshot.origin_fetch_sha256,
     origin_push_count: snapshot.origin_push_count,
@@ -279,6 +305,8 @@ function publicPlan(plan) {
     head: plan.head,
     tree: plan.tree,
     dirty_count: plan.dirty_count,
+    canonical_origin_required: plan.canonical_origin_required,
+    origin_repository: plan.origin_repository,
     dedicated_state: plan.dedicated_state,
     mutation_required: plan.mutation_required,
     operation: plan.operation,
