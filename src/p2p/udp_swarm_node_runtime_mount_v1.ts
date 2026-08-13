@@ -9,9 +9,28 @@ import {
   VoidUdpSwarmSocketRuntimeV1,
   type VoidUdpSwarmSocketFamilyV1,
 } from "./udp_swarm_socket_runtime_v1.js";
+import {
+  VOID_P2P_UDP_SWARM_RELAY_ORCHESTRATOR_MAX_ROUTES_V1,
+  VOID_P2P_UDP_SWARM_RELAY_ORCHESTRATOR_V1,
+  VoidUdpSwarmRelayOrchestratorV1,
+  parseVoidUdpSwarmRelayOrchestrationRoutesV1,
+  type VoidUdpSwarmRelayOrchestrationRouteV1,
+} from "./udp_swarm_relay_orchestrator_v1.js";
+import {
+  VOID_P2P_UDP_SWARM_PUBLIC_RELAY_INTRODUCTION_COLLECTOR_V1,
+  VOID_P2P_UDP_SWARM_PUBLIC_RELAY_INTRODUCTION_AUTHORITY_V1,
+  VoidUdpSwarmPublicRelayIntroductionCollectorV1,
+  type VoidUdpSwarmPublicRelayIntroductionCollectorMountOptionsV1,
+} from "./udp_swarm_public_relay_introduction_collector_v1.js";
 
 export const VOID_P2P_UDP_SWARM_NODE_RUNTIME_MOUNT_V1 =
   "VOID_P2P_UDP_SWARM_NODE_RUNTIME_MOUNT_V1";
+
+export const VOID_P2P_UDP_SWARM_VERIFIED_DISCOVERY_COMPOSITION_MARKER_V1 =
+  "void_p2p_udp_swarm_verified_discovery_composition_v1";
+
+export const VOID_P2P_UDP_SWARM_VERIFIED_DISCOVERY_MAX_LEASE_MS_V1 =
+  10 * 60_000;
 
 export const VOID_P2P_UDP_SWARM_NODE_RUNTIME_MOUNT_AUTHORITY_V1 =
   Object.freeze({
@@ -27,6 +46,13 @@ export const VOID_P2P_UDP_SWARM_NODE_RUNTIME_MOUNT_AUTHORITY_V1 =
     public_status_observed_endpoint_exposed: false,
     automatic_relay_reservation_performed: false,
     automatic_relay_connection_performed: false,
+    automatic_udp_upgrade_initiation_performed: false,
+    verified_discovery_runtime_activation_supported: true,
+    verified_discovery_expiry_lease_required: true,
+    public_relay_introduction_collector_supported: true,
+    public_relay_introduction_collector_auto_started: false,
+    public_relay_introduction_transport_is_authority: false,
+    unverified_runtime_routes_accepted: false,
     relay_retirement_performed: false,
     router_configuration_required: false,
     port_forward_required: false,
@@ -47,6 +73,8 @@ export type VoidUdpSwarmNodeRuntimeEnvironmentV1 = Readonly<{
   bind_host: string;
   bind_port: number;
   allow_nonpublic_endpoints: boolean;
+  orchestration_enabled: boolean;
+  orchestration_routes: readonly VoidUdpSwarmRelayOrchestrationRouteV1[];
 }>;
 
 type NodeIdentityV1 = Readonly<{
@@ -63,6 +91,205 @@ type ReadonlyRouteAppV1 = Readonly<{
     }) => unknown,
   ) => unknown;
 }>;
+
+const VERIFIED_DISCOVERY_RESULT_KEYS_V1 = Object.freeze([
+  "marker",
+  "record_id",
+  "manifest_id",
+  "discovery_id",
+  "expires_at",
+  "route_count",
+  "source_count",
+  "relay_count",
+  "target_count",
+  "relay_failure_domain_count",
+  "n_minus_one_relay_coverage_verified",
+  "environment",
+  "transport_is_authority",
+  "wallet_signer_validator_wc_money_authority",
+  "network_io_implemented",
+  "environment_mutation_performed",
+  "launcher_activation_performed",
+  "deployment_performed",
+  "service_restart_performed",
+].sort());
+
+const VERIFIED_DISCOVERY_ENVIRONMENT_KEYS_V1 = Object.freeze([
+  "VOID_P2P_UDP_SWARM_ORCHESTRATION_ENABLED",
+  "VOID_P2P_UDP_SWARM_ORCHESTRATION_ROUTES",
+].sort());
+
+type UnknownRecordV1 = Record<string, unknown>;
+
+export type VoidUdpSwarmVerifiedDiscoveryActivationV1 = Readonly<{
+  discovery_id: string;
+  expires_at_ms: number;
+  routes: readonly VoidUdpSwarmRelayOrchestrationRouteV1[];
+}>;
+
+function exactRecord(
+  value: unknown,
+  keys: readonly string[],
+  label: string,
+): UnknownRecordV1 {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    throw new Error(`${label} must be an object`);
+  }
+  const record = value as UnknownRecordV1;
+  if (JSON.stringify(Object.keys(record).sort()) !== JSON.stringify(keys)) {
+    throw new Error(`${label} keys mismatch`);
+  }
+  return record;
+}
+
+function boundedPositiveInteger(
+  value: unknown,
+  maximum: number,
+  label: string,
+): number {
+  if (
+    !Number.isSafeInteger(value) ||
+    Number(value) < 1 ||
+    Number(value) > maximum
+  ) {
+    throw new Error(`${label} is outside its bound`);
+  }
+  return Number(value);
+}
+
+export function parseVoidUdpSwarmVerifiedDiscoveryActivationV1(
+  raw: unknown,
+  localNodeId: string,
+  nowMs = Date.now(),
+): VoidUdpSwarmVerifiedDiscoveryActivationV1 {
+  if (!Number.isSafeInteger(nowMs) || nowMs < 0) {
+    throw new Error("verified discovery activation time is invalid");
+  }
+  if (!/^[0-9a-f]{32}$/.test(localNodeId)) {
+    throw new Error("verified discovery activation local node ID is invalid");
+  }
+  const result = exactRecord(
+    raw,
+    VERIFIED_DISCOVERY_RESULT_KEYS_V1,
+    "verified discovery composition result",
+  );
+  if (!Object.isFrozen(result)) {
+    throw new Error("verified discovery composition result must be frozen");
+  }
+  const environment = exactRecord(
+    result.environment,
+    VERIFIED_DISCOVERY_ENVIRONMENT_KEYS_V1,
+    "verified discovery orchestration environment",
+  );
+  if (!Object.isFrozen(environment)) {
+    throw new Error(
+      "verified discovery orchestration environment must be frozen",
+    );
+  }
+  if (
+    result.marker !==
+      VOID_P2P_UDP_SWARM_VERIFIED_DISCOVERY_COMPOSITION_MARKER_V1 ||
+    !/^voidpbr2_[0-9a-f]{64}$/.test(String(result.record_id || "")) ||
+    !/^voidpbm1_[0-9a-f]{64}$/.test(String(result.manifest_id || "")) ||
+    !/^voidpud1_[0-9a-f]{64}$/.test(String(result.discovery_id || ""))
+  ) {
+    throw new Error("verified discovery composition identity is invalid");
+  }
+  if (
+    result.n_minus_one_relay_coverage_verified !== true ||
+    result.transport_is_authority !== false ||
+    result.wallet_signer_validator_wc_money_authority !== 0 ||
+    result.network_io_implemented !== false ||
+    result.environment_mutation_performed !== false ||
+    result.launcher_activation_performed !== false ||
+    result.deployment_performed !== false ||
+    result.service_restart_performed !== false
+  ) {
+    throw new Error("verified discovery composition authority boundary changed");
+  }
+  if (
+    environment.VOID_P2P_UDP_SWARM_ORCHESTRATION_ENABLED !== "1" ||
+    typeof environment.VOID_P2P_UDP_SWARM_ORCHESTRATION_ROUTES !== "string"
+  ) {
+    throw new Error("verified discovery orchestration contract is invalid");
+  }
+
+  const expiresAtText = String(result.expires_at || "");
+  const expiresAtMs = Date.parse(expiresAtText);
+  if (
+    !Number.isFinite(expiresAtMs) ||
+    new Date(expiresAtMs).toISOString() !== expiresAtText ||
+    expiresAtMs <= nowMs ||
+    expiresAtMs - nowMs >
+      VOID_P2P_UDP_SWARM_VERIFIED_DISCOVERY_MAX_LEASE_MS_V1
+  ) {
+    throw new Error("verified discovery activation lease is invalid or expired");
+  }
+
+  const routes = parseVoidUdpSwarmRelayOrchestrationRoutesV1(
+    environment.VOID_P2P_UDP_SWARM_ORCHESTRATION_ROUTES,
+  );
+  const routeCount = boundedPositiveInteger(
+    result.route_count,
+    VOID_P2P_UDP_SWARM_RELAY_ORCHESTRATOR_MAX_ROUTES_V1,
+    "route count",
+  );
+  const sourceCount = boundedPositiveInteger(
+    result.source_count,
+    32,
+    "source count",
+  );
+  const relayCount = boundedPositiveInteger(
+    result.relay_count,
+    VOID_P2P_UDP_SWARM_RELAY_ORCHESTRATOR_MAX_ROUTES_V1,
+    "relay count",
+  );
+  const targetCount = boundedPositiveInteger(
+    result.target_count,
+    VOID_P2P_UDP_SWARM_RELAY_ORCHESTRATOR_MAX_ROUTES_V1,
+    "target count",
+  );
+  const failureDomainCount = boundedPositiveInteger(
+    result.relay_failure_domain_count,
+    VOID_P2P_UDP_SWARM_RELAY_ORCHESTRATOR_MAX_ROUTES_V1,
+    "relay failure-domain count",
+  );
+  const exactRelayCount = new Set(
+    routes.map((route) => route.relay_node_id),
+  ).size;
+  const exactTargetCount = new Set(
+    routes.map((route) => route.target_node_id),
+  ).size;
+  if (
+    routeCount !== routes.length ||
+    routeCount < 2 ||
+    sourceCount < 2 ||
+    relayCount < 2 ||
+    relayCount !== exactRelayCount ||
+    relayCount > routeCount ||
+    targetCount !== exactTargetCount ||
+    targetCount > routeCount ||
+    failureDomainCount < 2 ||
+    failureDomainCount > relayCount
+  ) {
+    throw new Error("verified discovery composition counts are inconsistent");
+  }
+  if (
+    routes.some(
+      (route) =>
+        route.relay_node_id === localNodeId ||
+        route.target_node_id === localNodeId,
+    )
+  ) {
+    throw new Error("verified discovery contains a local or self route");
+  }
+
+  return Object.freeze({
+    discovery_id: String(result.discovery_id),
+    expires_at_ms: expiresAtMs,
+    routes,
+  });
+}
 
 function exactFlag(
   env: EnvironmentV1,
@@ -144,6 +371,24 @@ export function readVoidUdpSwarmNodeRuntimeEnvironmentV1(
     throw new Error("VOID_P2P_UDP_SWARM_BIND_HOST does not match the UDP family");
   }
   const bindPort = boundedPort(env.VOID_P2P_UDP_SWARM_BIND_PORT, 0);
+  const orchestrationEnabled = exactFlag(
+    env,
+    "VOID_P2P_UDP_SWARM_ORCHESTRATION_ENABLED",
+  );
+  const orchestrationRoutes = parseVoidUdpSwarmRelayOrchestrationRoutesV1(
+    env.VOID_P2P_UDP_SWARM_ORCHESTRATION_ROUTES,
+  );
+  if (orchestrationEnabled && !enabled) {
+    throw new Error("UDP swarm relay orchestration requires the UDP runtime");
+  }
+  if (orchestrationEnabled && orchestrationRoutes.length === 0) {
+    throw new Error(
+      "UDP swarm relay orchestration requires at least one exact route",
+    );
+  }
+  if (!orchestrationEnabled && orchestrationRoutes.length !== 0) {
+    throw new Error("UDP swarm relay orchestration routes require exact opt-in");
+  }
 
   const relayPublicEndpoint =
     String(env.VOID_P2P_UDP_SWARM_RELAY_ENDPOINT || "").trim() || null;
@@ -178,6 +423,8 @@ export function readVoidUdpSwarmNodeRuntimeEnvironmentV1(
     bind_host: bindHost,
     bind_port: bindPort,
     allow_nonpublic_endpoints: allowNonpublicEndpoints,
+    orchestration_enabled: orchestrationEnabled,
+    orchestration_routes: orchestrationRoutes,
   });
 }
 
@@ -191,7 +438,11 @@ function addressClass(address: string | null): string | null {
 
 export class VoidUdpSwarmNodeRuntimeMountV1 {
   private runtime?: VoidUdpSwarmSocketRuntimeV1;
+  private orchestrator?: VoidUdpSwarmRelayOrchestratorV1;
+  private publicRelayIntroductionCollector?:
+    VoidUdpSwarmPublicRelayIntroductionCollectorV1;
   private promotionTimer: NodeJS.Timeout | null = null;
+  private verifiedDiscoveryExpiryTimer: NodeJS.Timeout | null = null;
   private callbacksInstalled = false;
   private installedProbeCallback?: Node["onUdpSwarmProbeAction"];
   private installedDirectOfferCallback?: Node["onUdpSwarmDirectUpgradeOffer"];
@@ -204,6 +455,12 @@ export class VoidUdpSwarmNodeRuntimeMountV1 {
   private candidatePromotions = 0;
   private candidatePromotionRejects = 0;
   private runtimeErrors = 0;
+  private verifiedDiscoveryActive = false;
+  private verifiedDiscoveryId: string | null = null;
+  private verifiedDiscoveryActivations = 0;
+  private verifiedDiscoveryClears = 0;
+  private verifiedDiscoveryExpiryClears = 0;
+  private verifiedDiscoveryRejects = 0;
 
   constructor(
     private readonly node: Node,
@@ -224,6 +481,10 @@ export class VoidUdpSwarmNodeRuntimeMountV1 {
     if (this.node.id !== this.identity.nodeId) {
       throw new Error("UDP swarm Node runtime identity does not match the Node");
     }
+    const orchestrator = new VoidUdpSwarmRelayOrchestratorV1(this.node, {
+      enabled: this.config.orchestration_enabled,
+      routes: this.config.orchestration_routes,
+    });
 
     const runtime = new VoidUdpSwarmSocketRuntimeV1({
       localNodeId: this.identity.nodeId,
@@ -302,7 +563,130 @@ export class VoidUdpSwarmNodeRuntimeMountV1 {
       }
     }, 100);
     this.promotionTimer.unref?.();
+    this.orchestrator = orchestrator;
+    orchestrator.start();
     this.started = true;
+  }
+
+  activateVerifiedDiscoveryCompositionV1(
+    raw: unknown,
+  ): Readonly<{
+    changed: boolean;
+    route_count: number;
+    revision: number;
+    discovery_id: string;
+  }> {
+    if (this.stopped) throw new Error("UDP swarm Node runtime mount is stopped");
+    if (!this.started || !this.runtime || !this.orchestrator) {
+      throw new Error("UDP swarm Node runtime mount is not active");
+    }
+
+    const nowMs = Date.now();
+    let activation: VoidUdpSwarmVerifiedDiscoveryActivationV1;
+    try {
+      activation = parseVoidUdpSwarmVerifiedDiscoveryActivationV1(
+        raw,
+        this.node.id,
+        nowMs,
+      );
+    } catch (error) {
+      this.verifiedDiscoveryRejects += 1;
+      throw error;
+    }
+
+    let replacement: Readonly<{
+      changed: boolean;
+      route_count: number;
+      revision: number;
+    }>;
+    try {
+      replacement = this.orchestrator.replaceVerifiedDiscoveryRoutesV1(
+        activation.routes,
+      );
+    } catch (error) {
+      this.verifiedDiscoveryRejects += 1;
+      throw error;
+    }
+
+    if (this.verifiedDiscoveryExpiryTimer) {
+      clearTimeout(this.verifiedDiscoveryExpiryTimer);
+      this.verifiedDiscoveryExpiryTimer = null;
+    }
+    this.verifiedDiscoveryActive = true;
+    this.verifiedDiscoveryId = activation.discovery_id;
+    this.verifiedDiscoveryActivations += 1;
+    const expectedDiscoveryId = activation.discovery_id;
+    const delayMs = Math.max(1, activation.expires_at_ms - Date.now());
+    this.verifiedDiscoveryExpiryTimer = setTimeout(() => {
+      this.verifiedDiscoveryExpiryTimer = null;
+      if (
+        this.stopped ||
+        !this.verifiedDiscoveryActive ||
+        this.verifiedDiscoveryId !== expectedDiscoveryId
+      ) return;
+      try {
+        const cleared = this.clearVerifiedDiscoveryCompositionV1();
+        if (cleared.changed) this.verifiedDiscoveryExpiryClears += 1;
+      } catch (error) {
+        void error;
+        this.runtimeErrors += 1;
+      }
+    }, delayMs);
+    this.verifiedDiscoveryExpiryTimer.unref?.();
+
+    return Object.freeze({
+      ...replacement,
+      discovery_id: activation.discovery_id,
+    });
+  }
+
+  clearVerifiedDiscoveryCompositionV1(): Readonly<{
+    changed: boolean;
+    route_count: number;
+    revision: number;
+  }> {
+    if (this.stopped) throw new Error("UDP swarm Node runtime mount is stopped");
+    if (!this.started || !this.runtime || !this.orchestrator) {
+      throw new Error("UDP swarm Node runtime mount is not active");
+    }
+    if (this.verifiedDiscoveryExpiryTimer) {
+      clearTimeout(this.verifiedDiscoveryExpiryTimer);
+      this.verifiedDiscoveryExpiryTimer = null;
+    }
+    const result = this.orchestrator.clearVerifiedDiscoveryRoutesV1();
+    if (this.verifiedDiscoveryActive) this.verifiedDiscoveryClears += 1;
+    this.verifiedDiscoveryActive = false;
+    this.verifiedDiscoveryId = null;
+    return result;
+  }
+
+  async startPublicRelayIntroductionCollectorV1(
+    options: VoidUdpSwarmPublicRelayIntroductionCollectorMountOptionsV1,
+  ): Promise<VoidUdpSwarmPublicRelayIntroductionCollectorV1> {
+    if (this.stopped) throw new Error("UDP swarm Node runtime mount is stopped");
+    if (!this.started || !this.runtime || !this.orchestrator) {
+      throw new Error("UDP swarm Node runtime mount is not active");
+    }
+    if (this.publicRelayIntroductionCollector) {
+      throw new Error("public relay introduction collector is already mounted");
+    }
+    const collector = new VoidUdpSwarmPublicRelayIntroductionCollectorV1({
+      ...options,
+      node: this.node,
+      activateVerifiedComposition: (raw) =>
+        this.activateVerifiedDiscoveryCompositionV1(raw),
+    });
+    this.publicRelayIntroductionCollector = collector;
+    try {
+      await collector.start();
+    } catch (error) {
+      if (this.publicRelayIntroductionCollector === collector) {
+        this.publicRelayIntroductionCollector = undefined;
+      }
+      collector.stop();
+      throw error;
+    }
+    return collector;
   }
 
   private relayNodeId(sessionId: string): string {
@@ -349,6 +733,7 @@ export class VoidUdpSwarmNodeRuntimeMountV1 {
     const mountedSessionIds = new Set(
       runtime?.sessions.map((entry) => entry.session_id) ?? [],
     );
+    const orchestrationActivity = this.orchestrator?.activity();
     return Object.freeze({
       marker: VOID_P2P_UDP_SWARM_NODE_RUNTIME_MOUNT_V1,
       enabled: this.config.enabled,
@@ -375,6 +760,28 @@ export class VoidUdpSwarmNodeRuntimeMountV1 {
         rejected_oversize_datagram_count:
           runtime?.rejected_oversize_datagram_count ?? 0,
       }),
+      orchestration: this.orchestrator?.status() ?? Object.freeze({
+        marker: VOID_P2P_UDP_SWARM_RELAY_ORCHESTRATOR_V1,
+        enabled: false,
+        route_count: 0,
+        stopped: this.stopped,
+      }),
+      verified_discovery: Object.freeze({
+        active: this.verifiedDiscoveryActive,
+        expiry_lease_required: true,
+        discovery_identity_exposed: false,
+      }),
+      public_relay_introduction:
+        this.publicRelayIntroductionCollector?.status() ??
+        Object.freeze({
+          marker:
+            VOID_P2P_UDP_SWARM_PUBLIC_RELAY_INTRODUCTION_COLLECTOR_V1,
+          started: false,
+          stopped: this.stopped,
+          running: false,
+          authority:
+            VOID_P2P_UDP_SWARM_PUBLIC_RELAY_INTRODUCTION_AUTHORITY_V1,
+        }),
       node: Object.freeze({
         staged_candidate_count: candidates.candidates.filter((entry) =>
           mountedSessionIds.has(entry.session_id)
@@ -392,13 +799,25 @@ export class VoidUdpSwarmNodeRuntimeMountV1 {
         candidate_promotions: this.candidatePromotions,
         candidate_promotion_rejects: this.candidatePromotionRejects,
         runtime_errors: this.runtimeErrors,
+        verified_discovery_activations: this.verifiedDiscoveryActivations,
+        verified_discovery_clears: this.verifiedDiscoveryClears,
+        verified_discovery_expiry_clears: this.verifiedDiscoveryExpiryClears,
+        verified_discovery_rejects: this.verifiedDiscoveryRejects,
       }),
       privacy: Object.freeze({
         peer_identity_exposed: false,
         observed_endpoint_exposed: false,
         node_private_key_exposed: false,
       }),
-      authority: VOID_P2P_UDP_SWARM_NODE_RUNTIME_MOUNT_AUTHORITY_V1,
+      authority: Object.freeze({
+        ...VOID_P2P_UDP_SWARM_NODE_RUNTIME_MOUNT_AUTHORITY_V1,
+        automatic_relay_reservation_performed:
+          (orchestrationActivity?.reservation_requests ?? 0) > 0,
+        automatic_relay_connection_performed:
+          (orchestrationActivity?.connect_requests ?? 0) > 0,
+        automatic_udp_upgrade_initiation_performed:
+          (orchestrationActivity?.upgrade_requests ?? 0) > 0,
+      }),
     });
   }
 
@@ -409,6 +828,16 @@ export class VoidUdpSwarmNodeRuntimeMountV1 {
       clearInterval(this.promotionTimer);
       this.promotionTimer = null;
     }
+    if (this.verifiedDiscoveryExpiryTimer) {
+      clearTimeout(this.verifiedDiscoveryExpiryTimer);
+      this.verifiedDiscoveryExpiryTimer = null;
+    }
+    this.verifiedDiscoveryActive = false;
+    this.verifiedDiscoveryId = null;
+    this.publicRelayIntroductionCollector?.stop();
+    this.publicRelayIntroductionCollector = undefined;
+    this.orchestrator?.stop();
+    this.orchestrator = undefined;
     if (this.callbacksInstalled) {
       if (this.node.onUdpSwarmProbeAction === this.installedProbeCallback) {
         this.node.onUdpSwarmProbeAction = undefined;
