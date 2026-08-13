@@ -2,15 +2,19 @@ import {
   VOID_LIVE_CANONICAL_CHAIN_STATE_API_RESPONSE_QUORUM_CERTIFICATE_CANONICAL_SIGNER_SET_BOUNDARY_AUDIT_V1_GREEN,
   evaluateVoidLiveCanonicalChainStateApiResponseQuorumCertificateCanonicalSignerSetBoundaryV1,
   voidLiveCanonicalChainStateApiResponseQuorumCertificateCanonicalSignerSetBindingPayloadV1,
-} from '../src/chain/block';
+} from '../src/chain/block.js';
 
-const assertAccepted = (
-  result: ReturnType<typeof evaluateVoidLiveCanonicalChainStateApiResponseQuorumCertificateCanonicalSignerSetBoundaryV1>,
-): void => {
+type CanonicalSignerSetResult = ReturnType<
+  typeof evaluateVoidLiveCanonicalChainStateApiResponseQuorumCertificateCanonicalSignerSetBoundaryV1
+>;
+
+function assertAccepted(
+  result: CanonicalSignerSetResult,
+): asserts result is Extract<CanonicalSignerSetResult, { accepted: true }> {
   if (result.accepted !== true) {
     throw new Error(`expected canonical signer set to be accepted, got ${JSON.stringify(result)}`);
   }
-};
+}
 
 const assertRejected = (
   result: ReturnType<typeof evaluateVoidLiveCanonicalChainStateApiResponseQuorumCertificateCanonicalSignerSetBoundaryV1>,

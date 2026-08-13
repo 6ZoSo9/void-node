@@ -1,4 +1,4 @@
-import { SegStore } from "../src/chain/seg_store"
+import { SegStore } from "../src/chain/seg_store.js"
 
 // runtime-only shape; we don't need the Block type here
 type Block = { number: number; [k: string]: any }

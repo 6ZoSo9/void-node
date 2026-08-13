@@ -1,0 +1,223 @@
+{
+  "marker": "VOID_WORKER_ROSTER_V1",
+  "version": 1,
+  "experiment": {
+    "id": "void-worker-expansion-20260812",
+    "status": "active",
+    "started_at": "2026-08-12T18:27:40.000Z",
+    "new_worker_ids": [
+      "ada",
+      "grace",
+      "shannon"
+    ],
+    "review_after_completed_lanes": 3,
+    "stop_conditions": [
+      "duplicate_canonical_implementation",
+      "repeated_red_boundary_entry",
+      "decorative_churn_without_capability_gain",
+      "unbounded_ci_cost_growth",
+      "authority_boundary_violation"
+    ]
+  },
+  "workers": [
+    {
+      "id": "ren",
+      "name": "Ren",
+      "cohort": "coordinator",
+      "status": "active",
+      "experimental": false,
+      "primary_job": "Repository coordination, capability prioritization, bounded integration, and operator sequencing.",
+      "allowed_lane_families": [
+        "coordination",
+        "repository-triage",
+        "runtime-rollout"
+      ],
+      "excluded_authority": [
+        "credentials",
+        "wallets",
+        "signers",
+        "funds",
+        "validator-activation-without-separate-authorization"
+      ],
+      "max_active_lanes": 1,
+      "max_parked_lanes": 1
+    },
+    {
+      "id": "larry",
+      "name": "Larry",
+      "cohort": "stooges",
+      "status": "active",
+      "experimental": false,
+      "primary_job": "General capability closure, SDK/tooling compatibility, and useful Green fall-through work.",
+      "allowed_lane_families": [
+        "agent-sdk",
+        "tooling",
+        "repository-usability"
+      ],
+      "excluded_authority": [
+        "deployment",
+        "credentials",
+        "wallets",
+        "signers",
+        "funds"
+      ],
+      "max_active_lanes": 1,
+      "max_parked_lanes": 1
+    },
+    {
+      "id": "curly",
+      "name": "Curly",
+      "cohort": "stooges",
+      "status": "active",
+      "experimental": false,
+      "primary_job": "Buy VOID presale correctness, fulfillment durability, reconciliation, and receipt honesty when concrete events exist.",
+      "allowed_lane_families": [
+        "buy-void",
+        "presale",
+        "fulfillment"
+      ],
+      "excluded_authority": [
+        "wallet-use-without-separate-authorization",
+        "transaction-broadcast-without-separate-authorization",
+        "funds"
+      ],
+      "max_active_lanes": 1,
+      "max_parked_lanes": 1
+    },
+    {
+      "id": "moe",
+      "name": "Moe",
+      "cohort": "stooges",
+      "status": "active",
+      "experimental": false,
+      "primary_job": "P2P, UDP Swarm, relay continuity, bootstrap discovery, and networking reliability.",
+      "allowed_lane_families": [
+        "p2p",
+        "udp-swarm",
+        "bootstrap",
+        "relay"
+      ],
+      "excluded_authority": [
+        "router-mutation",
+        "firewall-mutation",
+        "deployment-without-separate-authorization",
+        "credentials",
+        "funds"
+      ],
+      "max_active_lanes": 1,
+      "max_parked_lanes": 2
+    },
+    {
+      "id": "satoshi",
+      "name": "Satoshi",
+      "cohort": "specialist",
+      "status": "active",
+      "experimental": false,
+      "primary_job": "Native BTC/VOID market design, deterministic quote/reserve logic, and atomic-settlement prerequisites.",
+      "allowed_lane_families": [
+        "btc-void",
+        "market",
+        "settlement-design"
+      ],
+      "excluded_authority": [
+        "wallets",
+        "signers",
+        "liquidity-funding",
+        "transaction-broadcast",
+        "funds"
+      ],
+      "max_active_lanes": 1,
+      "max_parked_lanes": 1
+    },
+    {
+      "id": "turing",
+      "name": "Turing",
+      "cohort": "specialist",
+      "status": "active",
+      "experimental": false,
+      "primary_job": "AI-agent discovery, First Contact, capability honesty, and bounded agent participation.",
+      "allowed_lane_families": [
+        "ai-agent",
+        "first-contact",
+        "public-utility"
+      ],
+      "excluded_authority": [
+        "credential-issuance-without-separate-authorization",
+        "paid-work-dispatch",
+        "work-credit-mutation",
+        "wallets",
+        "funds"
+      ],
+      "max_active_lanes": 1,
+      "max_parked_lanes": 1
+    },
+    {
+      "id": "ada",
+      "name": "Ada",
+      "cohort": "experimental",
+      "status": "active",
+      "experimental": true,
+      "primary_job": "Semantic dependency graphs, lane lifecycle, WIP enforcement, and capability-gate coordination.",
+      "allowed_lane_families": [
+        "coordination",
+        "dependency-graph",
+        "capability-gates"
+      ],
+      "excluded_authority": [
+        "deployment",
+        "credentials",
+        "wallets",
+        "signers",
+        "funds"
+      ],
+      "max_active_lanes": 1,
+      "max_parked_lanes": 1
+    },
+    {
+      "id": "grace",
+      "name": "Grace",
+      "cohort": "experimental",
+      "status": "active",
+      "experimental": true,
+      "primary_job": "GitHub Actions topology, focused-versus-integration CI classification, and evidence-based cost reduction.",
+      "allowed_lane_families": [
+        "ci",
+        "workflow-topology",
+        "build-efficiency"
+      ],
+      "excluded_authority": [
+        "required-check-removal-without-review",
+        "billing-settings",
+        "credentials",
+        "deployment",
+        "funds"
+      ],
+      "max_active_lanes": 1,
+      "max_parked_lanes": 1
+    },
+    {
+      "id": "shannon",
+      "name": "Shannon",
+      "cohort": "experimental",
+      "status": "active",
+      "experimental": true,
+      "primary_job": "Runtime and external-acceptance truth, exact evidence binding, and tracking-state integrity.",
+      "allowed_lane_families": [
+        "acceptance",
+        "runtime-evidence",
+        "tracking-integrity"
+      ],
+      "excluded_authority": [
+        "deployment",
+        "service-restart",
+        "network-mutation",
+        "credentials",
+        "wallets",
+        "signers",
+        "funds"
+      ],
+      "max_active_lanes": 1,
+      "max_parked_lanes": 1
+    }
+  ]
+}

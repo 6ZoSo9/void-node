@@ -15,6 +15,7 @@
     "first_contact": "/public-node/agents/first-contact-v1.json",
     "join_page": "/public-node/agents/join-v1.html",
     "official_authenticity": "/.well-known/void-network-authenticity.json",
+    "public_utility": "/public-node/agents/public-utility-v1.json",
     "well_known_discovery": "/.well-known/void-agent-discovery.json"
   },
   "honesty": {
@@ -26,12 +27,20 @@
     "work_credit_earning_promised": false
   },
   "marker": "VOID_AI_AGENT_FIRST_CONTACT_V1",
+  "manifest_fingerprint_sha256": "dc5f05b817941edc55113e066b0e89a57cf8e510510ae294f479c687a2386cae",
   "network": {
     "chain_id": 2050,
     "identity": "mainnet0",
     "name": "VOID Mainnet-0"
   },
   "next_steps": [
+    {
+      "id": "inspect_public_utility",
+      "path": "/public-node/agents/public-utility-v1.json",
+      "requires": [
+        "public_utility_catalog_loaded"
+      ]
+    },
     {
       "id": "inspect_capabilities",
       "path": "/public-node/agents/capabilities-v1.json",
@@ -72,7 +81,9 @@
       "official_authenticity_reachable",
       "network_binding_consistent",
       "authentication_contract_found",
-      "capabilities_loaded"
+      "capabilities_loaded",
+      "public_utility_catalog_loaded",
+      "public_utility_resources_observed"
     ],
     "semantics": "official_network_verified means the official discovery and authenticity documents are reachable and consistent with the declared VOID Mainnet-0 identity. It does not claim independent cryptographic signature revalidation."
   },

@@ -1,40 +1,42 @@
 :root {
   color-scheme: dark;
 
-  --void-bg-canvas: #07090d;
-  --void-bg-subtle: #0a0e14;
-  --void-surface-1: #0d121a;
-  --void-surface-2: #111923;
-  --void-surface-3: #172230;
-  --void-surface-raised: #1b2737;
-  --void-surface-overlay: rgba(8, 12, 18, 0.94);
+  /* Canonical public-site palette: ops/public/voidchain-org-wordpress-home-v1.html */
+  --void-bg-canvas: #050506;
+  --void-bg-subtle: #030304;
+  --void-surface-1: #0b0b0e;
+  --void-surface-2: #0b0b0e;
+  --void-surface-3: #101014;
+  --void-surface-raised: #131318;
+  --void-surface-overlay: rgba(5, 5, 6, 0.96);
 
-  --void-border-subtle: rgba(181, 205, 233, 0.09);
-  --void-border-default: rgba(181, 205, 233, 0.16);
-  --void-border-strong: rgba(181, 205, 233, 0.28);
+  --void-border-subtle: #2a2a31;
+  --void-border-default: #2a2a31;
+  --void-border-strong: #50505a;
 
-  --void-text-primary: #f4f7fb;
-  --void-text-secondary: #b8c2cf;
-  --void-text-muted: #788697;
-  --void-text-inverse: #071014;
+  --void-text-primary: #f2f2f4;
+  --void-text-secondary: #c8c8cf;
+  --void-text-muted: #9898a3;
+  --void-text-inverse: #080809;
 
-  --void-accent-cyan: #4ce5df;
-  --void-accent-cyan-strong: #85fff9;
-  --void-accent-violet: #9d88ff;
-  --void-accent-blue: #62a8ff;
-  --void-positive: #59e391;
-  --void-warning: #f5c85b;
-  --void-danger: #ff718f;
-  --void-info: #63b3ff;
+  /* Brand accents stay nearly monochrome; state colors remain semantic only. */
+  --void-accent-cyan: #f2f2f4;
+  --void-accent-cyan-strong: #ffffff;
+  --void-accent-violet: #9898a3;
+  --void-accent-blue: #c8c8cf;
+  --void-positive: #91b39b;
+  --void-warning: #c4aa72;
+  --void-danger: #c08b95;
+  --void-info: #9dabbc;
 
-  --void-accent-cyan-soft: rgba(76, 229, 223, 0.10);
-  --void-accent-violet-soft: rgba(157, 136, 255, 0.12);
-  --void-positive-soft: rgba(89, 227, 145, 0.10);
-  --void-warning-soft: rgba(245, 200, 91, 0.10);
-  --void-danger-soft: rgba(255, 113, 143, 0.11);
+  --void-accent-cyan-soft: rgba(242, 242, 244, 0.06);
+  --void-accent-violet-soft: rgba(152, 152, 163, 0.08);
+  --void-positive-soft: rgba(145, 179, 155, 0.10);
+  --void-warning-soft: rgba(196, 170, 114, 0.10);
+  --void-danger-soft: rgba(192, 139, 149, 0.10);
 
-  --void-font-sans: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-  --void-font-mono: "SFMono-Regular", Consolas, "Liberation Mono", ui-monospace, monospace;
+  --void-font-sans: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  --void-font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
 
   --void-text-11: 0.6875rem;
   --void-text-12: 0.75rem;
@@ -65,15 +67,18 @@
   --void-space-16: 4rem;
   --void-space-20: 5rem;
 
-  --void-radius-1: 0.375rem;
-  --void-radius-2: 0.625rem;
-  --void-radius-3: 0.875rem;
-  --void-radius-4: 1.25rem;
-  --void-radius-pill: 999px;
+  --void-radius-1: 0;
+  --void-radius-2: 0;
+  --void-radius-3: 0;
+  --void-radius-4: 0;
+  --void-radius-pill: 0;
 
-  --void-shadow-1: 0 1px 0 rgba(255, 255, 255, 0.025), 0 12px 28px rgba(0, 0, 0, 0.20);
-  --void-shadow-2: 0 1px 0 rgba(255, 255, 255, 0.035), 0 24px 60px rgba(0, 0, 0, 0.35);
-  --void-glow-cyan: 0 0 0 1px rgba(76, 229, 223, 0.08), 0 0 28px rgba(76, 229, 223, 0.05);
+  --void-shadow-1: none;
+  --void-shadow-2: none;
+  --void-glow-cyan: none;
+
+  --void-grid-size: 32px;
+  --void-grid-line: rgba(255, 255, 255, 0.027);
 
   --void-duration-fast: 120ms;
   --void-duration-base: 180ms;

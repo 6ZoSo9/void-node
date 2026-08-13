@@ -77,6 +77,11 @@ import * as __SegStoreMod from "./chain/seg_store.js";
 // compat: tsx is exposing seg_store.ts as default-only; pull ctor from default object
 const SegStore: any = ((__SegStoreMod as any).SegStore || (__SegStoreMod as any).default || __SegStoreMod);
 import { Node } from "./node_core.js";
+import {
+  createVoidUdpSwarmNodeRuntimeMountV1,
+  readVoidUdpSwarmNodeRuntimeEnvironmentV1,
+  registerVoidUdpSwarmNodeRuntimeReadonlyRouteV1,
+} from "./p2p/udp_swarm_node_runtime_mount_v1.js";
 import * as __blockMod from "./chain/block.js";
 const blockHash: any = ((__blockMod as any).blockHash || ((__blockMod as any).default && (__blockMod as any).default.blockHash));
 import { buildAllKidx, buildKidxForJsonl, queryKidx } from "./util/kidx.js";
@@ -344,11 +349,31 @@ async function __main__() {
 
   /* ---------- boot node ---------- */
   const kp = loadKeypair(KEY_PATH); // { privateKey, publicKey, nodeId, pubPEM }
-  const node = new Node(P2P_PORT, kp, { allowEmptyBlocks: ALLOW_EMPTY_BLOCKS });
+  const udpSwarmRuntimeConfig =
+    readVoidUdpSwarmNodeRuntimeEnvironmentV1(process.env);
+  const node = new Node(P2P_PORT, kp, {
+    allowEmptyBlocks: ALLOW_EMPTY_BLOCKS,
+    relayServer: udpSwarmRuntimeConfig.relay_server_enabled,
+    udpSwarmRelayEndpoint:
+      udpSwarmRuntimeConfig.relay_public_endpoint ?? undefined,
+    udpSwarmAllowNonPublicEndpoint:
+      udpSwarmRuntimeConfig.allow_nonpublic_endpoints,
+  });
 // [ADD] expose live node globally for shims/bridges
 ;(globalThis as any).__void_node = node; (globalThis as any).node = node; (globalThis as any).VOID_NODE = node;
 console.log("[shim] published global node (post-construct)");
   await node.start();
+  let udpSwarmNodeRuntimeMount;
+  try {
+    udpSwarmNodeRuntimeMount = await createVoidUdpSwarmNodeRuntimeMountV1({
+      node,
+      identity: kp,
+      config: udpSwarmRuntimeConfig,
+    });
+  } catch (error) {
+    node.stop();
+    throw error;
+  }
 
   // Optional: if Node exposes onSealed, wire it (harmless if absent)
   if ("onSealed" in (((globalThis as any).__void_node || (globalThis as any).node) as any)) {
@@ -393,6 +418,10 @@ console.log("[shim] published global node (post-construct)");
   /* ----------------------------- HTTP ----------------------------- */
 
 const app = express();
+registerVoidUdpSwarmNodeRuntimeReadonlyRouteV1(
+  app,
+  udpSwarmNodeRuntimeMount,
+);
 
 // === wc-mutation-containment-v1 BEGIN ===
 ;(() => {
@@ -18550,11 +18579,19 @@ small{color:#94a3b8}
     async function __voidWriteBuyVoidOperatorEventV1(event:any){
       const fs = await import("node:fs");
       const path = await import("node:path");
+      const { withBuyVoidTerminalCloseoutRequestLockV1 } = await import(
+        "./economic/buy_void_terminal_closeout_request_lock_v1.js"
+      );
       const dir = String(process.env.VOID_BUY_REQUEST_DIR || ".runtime/public-buy-void-requests-v1");
       fs.mkdirSync(dir, { recursive: true });
-      fs.appendFileSync(path.join(dir, "operator-events.jsonl"), JSON.stringify(event) + "\n");
-      fs.writeFileSync(path.join(dir, "operator-event-" + event.request_id + "-" + event.marked_at_ms + ".json"), JSON.stringify(event, null, 2));
-      return { ok:true, dir };
+      return withBuyVoidTerminalCloseoutRequestLockV1(
+        { request_dir: dir, request_id: String(event?.request_id || "") },
+        () => {
+          fs.appendFileSync(path.join(dir, "operator-events.jsonl"), JSON.stringify(event) + "\n");
+          fs.writeFileSync(path.join(dir, "operator-event-" + event.request_id + "-" + event.marked_at_ms + ".json"), JSON.stringify(event, null, 2));
+          return { ok:true, dir };
+        },
+      );
     }
 
     // VOID_BUY_VOID_OPERATOR_QUEUE_APPLY_EVENTS_V1
@@ -28758,7 +28795,7 @@ if (process.env.VOID_DISABLE_FINALIZE_WAL_COMMIT !== "1" && process.env.VOID_SAV
           Symbol.for("__void_forensics_wrapped_v7"),
         ];
         for (const s of syms){
-          try { (fn as any)[s] = true; } catch (err) { voidIndexEmptyCatchVisibilityWindow27001_27900V1("27555:29", err); }
+          if ((fn as any)[s] !== true) (fn as any)[s] = true;
         }
 
         // Common flags used by trampolines/wrappers (best-effort; harmless if unused)
@@ -43214,6 +43251,18 @@ try {
     return g.__void_http_app || g.app || null;
   }
 
+  function processSourceIdentity(){
+    const marker = String(process.env.VOID_PROCESS_SOURCE_IDENTITY_MARKER || "");
+    const commit = String(process.env.VOID_PROCESS_SOURCE_COMMIT || "");
+    const tree = String(process.env.VOID_PROCESS_SOURCE_TREE || "");
+    const branch = String(process.env.VOID_PROCESS_SOURCE_BRANCH || "");
+    const bound = marker === "VOID_NODE_PROCESS_SOURCE_IDENTITY_V1" &&
+      /^[0-9a-f]{40}$/.test(commit) && /^[0-9a-f]{40}$/.test(tree) && branch === "main";
+    return bound
+      ? { marker, commit, tree, branch, immutable: true }
+      : { marker: "", commit: "", tree: "", branch: "", immutable: false };
+  }
+
   function localVersion(){
     try{
       const cp = require("child_process");
@@ -43236,7 +43285,8 @@ try {
         protocol_version: Number(process.env.VOID_PROTOCOL_VERSION || process.env.PROTO_VERSION || 1),
         channel: String(process.env.VOID_UPDATE_CHANNEL || process.env.UPDATE_CHANNEL || "stable"),
         build_time: String(process.env.VOID_BUILD_TIME || ""),
-        git_commit: String(process.env.VOID_GIT_COMMIT || sh("git rev-parse --short=12 HEAD") || "")
+        git_commit: String(process.env.VOID_GIT_COMMIT || sh("git rev-parse --short=12 HEAD") || ""),
+        process_source: processSourceIdentity()
       };
     }catch{
       return {
@@ -43244,7 +43294,8 @@ try {
         protocol_version: Number(process.env.VOID_PROTOCOL_VERSION || process.env.PROTO_VERSION || 1),
         channel: String(process.env.VOID_UPDATE_CHANNEL || process.env.UPDATE_CHANNEL || "stable"),
         build_time: String(process.env.VOID_BUILD_TIME || ""),
-        git_commit: String(process.env.VOID_GIT_COMMIT || "")
+        git_commit: String(process.env.VOID_GIT_COMMIT || ""),
+        process_source: processSourceIdentity()
       };
     }
   }
@@ -76355,6 +76406,18 @@ if (process.env.VOID_DISABLE_EARLY_WRAPPER_FAMILY !== "1") (function ProposerCom
         }
       };
 
+      const processSourceIdentity = () => {
+        const marker = String(process.env.VOID_PROCESS_SOURCE_IDENTITY_MARKER || "");
+        const commit = String(process.env.VOID_PROCESS_SOURCE_COMMIT || "");
+        const tree = String(process.env.VOID_PROCESS_SOURCE_TREE || "");
+        const branch = String(process.env.VOID_PROCESS_SOURCE_BRANCH || "");
+        const bound = marker === "VOID_NODE_PROCESS_SOURCE_IDENTITY_V1" &&
+          /^[0-9a-f]{40}$/.test(commit) && /^[0-9a-f]{40}$/.test(tree) && branch === "main";
+        return bound
+          ? { marker, commit, tree, branch, immutable: true }
+          : { marker: "", commit: "", tree: "", branch: "", immutable: false };
+      };
+
       const versionInfo = () => {
         const pkg = readJson(path.join(process.cwd(), "package.json")) || {};
         const protocol = Number(process.env.VOID_PROTOCOL_VERSION || process.env.PROTO_VERSION || 1);
@@ -76373,6 +76436,7 @@ if (process.env.VOID_DISABLE_EARLY_WRAPPER_FAMILY !== "1") (function ProposerCom
             platform: process.platform,
             arch: process.arch,
           },
+          process_source: processSourceIdentity(),
           p2p: {
             advertiseHost:
               process.env.VOID_P2P_ADVERTISE_HOST ||

@@ -1,0 +1,37 @@
+name: VOID P2P UDP swarm relay orchestrator v1
+
+on:
+  pull_request:
+    paths:
+      - '.env.example'
+      - 'src/p2p/udp_swarm_node_runtime_mount_v1.ts'
+      - 'src/p2p/udp_swarm_relay_orchestrator_v1.ts'
+      - 'scripts/prove_void_p2p_udp_swarm_relay_orchestrator_v1.ts'
+      - 'docs/public/void-p2p-udp-swarm-relay-orchestrator-v1.md'
+      - 'docs/public/void-p2p-udp-swarm-node-runtime-mount-v1.md'
+      - '.github/workflows/void-p2p-udp-swarm-relay-orchestrator-v1.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  prove:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        node-version: [22.x, 24.x, 26.x]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: npm
+      - run: npm ci
+      - run: npx --no-install tsx scripts/prove_void_p2p_udp_swarm_relay_orchestrator_v1.ts
+      - run: npx --no-install tsx scripts/prove_void_p2p_udp_swarm_node_runtime_mount_v1.ts
+      - run: npm run typecheck
+      - run: npm run build
+      - run: git diff --check

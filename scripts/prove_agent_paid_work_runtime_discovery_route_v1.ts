@@ -276,8 +276,8 @@ const advertisedRoutePairs = [
 ] as const;
 
 assertCondition(
-  voidAiAgentDiscoveryRuntimeRoutesV1.length === 12,
-  "AI-agent discovery runtime route table must contain twelve routes",
+  voidAiAgentDiscoveryRuntimeRoutesV1.length === 13,
+  "AI-agent discovery runtime route table must contain thirteen routes",
 );
 
 for (const [route, relativePath] of advertisedRoutePairs) {
