@@ -640,7 +640,10 @@ async function buildSnapshot(account: string): Promise<Record<string, unknown>> 
         redundancy: nonNegative(totals.redundancy_wc),
       },
       last_credit: {
+        present: lastCredit !== null,
         available: lastCredit !== null && lastCreditAmount !== null,
+        invalid_numeric_evidence:
+          lastCredit !== null && lastCreditAmount === null,
         amount: lastCreditAmount,
         amount_display: displayNumber(lastCreditAmount),
         task_class: lastCredit ? lastCreditTask : null,
