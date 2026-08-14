@@ -37,6 +37,7 @@ canonical_delivery_asset=void_token_erc20
 delivery_runtime_source_retained=true
 delivery_runtime_parent_mounted=false
 canonical_delivery_runtime_parent_mounted=false
+canonical_delivery_dependency_bootstrap_ready=true
 canonical_delivery_execution_ready=false
 canonical_delivery_execution_held=true
 presale_inventory_funding_ready=false
@@ -61,30 +62,29 @@ explicitly retired/held for the canonical ERC-20 transition.
 
 ## Remaining canonical gates
 
-Before canonical ERC-20 execution can be mounted, the parent still needs a
-server-controlled, exact-green canonical signer/broadcaster dependency bootstrap.
+The canonical signer/broadcaster dependency-bootstrap **source** gate is now
+closed. The parent imports only a pure metadata integration gate and reports
+`canonical_delivery_dependency_bootstrap_ready=true`.
 
-The ERC-20 transaction-preparation source gate is now closed. The merged planner
-constructs exact `VoidToken.transfer(...)` calldata with transaction value zero,
-uses a pending nonce, bounds gas and fee planning, accounts for native balance as
-gas-only, and uses read-only loopback RPC with both inactivity and total
-wall-clock deadlines. It remains parent-unmounted and has no wallet, signing,
-broadcast, or money-movement authority.
+The parent does not import, instantiate, or invoke the value-bearing bootstrap,
+signer, broadcaster, transport, or delivery runtime. The canonical delivery
+runtime remains parent-unmounted, signer and broadcaster configuration remain
+absent, and execution remains held.
 
 Closed source gates now include exact 6-decimal fulfillment-unit to 18-decimal
-token-atom scaling, the standalone ERC-20 transaction-preparation planner, and a
-standalone read-only ERC-20 receipt reconciler that requires the exact confirmed
-`VoidToken.Transfer` event. The planner and reconciler remain parent-unmounted,
-and the reconciler performs no terminal closeout.
+token-atom scaling, the standalone ERC-20 transaction-preparation planner, the
+exact-transfer receipt reconciler, and the reviewed dependency composition.
+The remaining prerequisite before any runtime mount is a separately reviewed
+server-controlled runtime-activation and production-configuration gate.
 
 ## Funding HOLD
 
 `presale_inventory_funding_ready=false` remains the source of truth.
 
 No presale inventory should be funded into an execution path until the
-remaining canonical dependency-bootstrap and runtime-activation gates are
-separately reviewed and authorized. The preparation and reconciliation source
-gates being closed does not authorize funding or execution.
+remaining canonical runtime-activation and production-configuration gates are
+separately reviewed and authorized. Closing every source gate does not
+authorize funding or execution.
 
 ## Authority boundary
 

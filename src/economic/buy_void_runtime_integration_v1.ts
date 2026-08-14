@@ -8,6 +8,10 @@ const VOID_BUY_VOID_DELIVERY_RUNTIME_ROUTES_V1 = {
 } as const;
 import "./buy_void_confirmed_closeout_runtime_v1.js";
 import {
+  VOID_BUY_VOID_ERC20_DELIVERY_DEPENDENCY_BOOTSTRAP_INTEGRATION_GATE_V1,
+  VOID_BUY_VOID_ERC20_DELIVERY_DEPENDENCY_BOOTSTRAP_INTEGRATION_V1,
+} from "./buy_void_erc20_delivery_dependency_bootstrap_integration_gate_v1.js";
+import {
   VOID_BUY_VOID_PIPELINE_CONFIRMATIONS_V1,
   VOID_BUY_VOID_PIPELINE_COORDINATOR_AUTHORITY_V1,
   runBuyVoidPipelineCommandV1,
@@ -54,12 +58,16 @@ export const VOID_BUY_VOID_CANONICAL_DELIVERY_COMPOSITION_V1 = {
   erc20_transaction_preparation_bridge_ready: true,
   erc20_receipt_reconciliation_bridge_ready: true,
   erc20_fulfillment_unit_to_token_atom_scale_ready: true,
-  canonical_delivery_dependency_bootstrap_ready: false,
+  dependency_bootstrap_integration_gate:
+    VOID_BUY_VOID_ERC20_DELIVERY_DEPENDENCY_BOOTSTRAP_INTEGRATION_V1,
+  canonical_delivery_dependency_bootstrap_ready:
+    VOID_BUY_VOID_ERC20_DELIVERY_DEPENDENCY_BOOTSTRAP_INTEGRATION_V1
+      .canonical_delivery_dependency_bootstrap_ready,
   canonical_delivery_execution_ready: false,
   canonical_delivery_execution_held: true,
   presale_inventory_funding_ready: false,
   funding_blockers: [
-    "canonical_delivery_dependency_bootstrap_not_ready",
+    "canonical_delivery_runtime_activation_not_ready",
   ],
 } as const;
 
@@ -79,7 +87,11 @@ export const VOID_BUY_VOID_RUNTIME_INTEGRATION_AUTHORITY_V1 = {
   rpc_call: false,
   canonical_delivery_asset_void_token_erc20: true,
   canonical_delivery_runtime_parent_mounted: false,
-  canonical_erc20_delivery_dependency_bootstrap_ready: false,
+  canonical_erc20_delivery_dependency_bootstrap_integration_gate_marker:
+    VOID_BUY_VOID_ERC20_DELIVERY_DEPENDENCY_BOOTSTRAP_INTEGRATION_GATE_V1,
+  canonical_erc20_delivery_dependency_bootstrap_ready:
+    VOID_BUY_VOID_ERC20_DELIVERY_DEPENDENCY_BOOTSTRAP_INTEGRATION_V1
+      .canonical_delivery_dependency_bootstrap_ready,
   canonical_erc20_delivery_atomic_unit_conversion_ready: true,
   canonical_erc20_delivery_execution_ready: false,
   canonical_erc20_delivery_execution_held: true,
