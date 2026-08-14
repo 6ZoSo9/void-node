@@ -7,6 +7,7 @@ import { spawnSync } from 'node:child_process';
 import {
   CANONICAL_ORIGIN_FETCH_URLS_V1,
   CANONICAL_ORIGIN_REPOSITORY_V1,
+  FORBIDDEN_GIT_REPOSITORY_ENV_V1,
   PUBLIC_FETCH_REMOTE_V1,
   PUBLIC_FETCH_URL_V1,
   PUBLIC_PUSH_URL_V1,
@@ -21,6 +22,29 @@ function run(cwd, command, args, expected = 0) {
   if (result.error) throw result.error;
   assert.equal(result.status, expected, `${command} ${args.join(' ')}\n${result.stdout}\n${result.stderr}`);
   return result;
+}
+
+function runWithEnv(cwd, command, args, envOverrides, expected = 0) {
+  const result = spawnSync(command, args, {
+    cwd,
+    encoding: 'utf8',
+    env: { ...process.env, ...envOverrides },
+  });
+  if (result.error) throw result.error;
+  assert.equal(result.status, expected, `${command} ${args.join(' ')}\n${result.stdout}\n${result.stderr}`);
+  return result;
+}
+
+function withProcessEnv(name, value, fn) {
+  const had = Object.prototype.hasOwnProperty.call(process.env, name);
+  const previous = process.env[name];
+  process.env[name] = value;
+  try {
+    return fn();
+  } finally {
+    if (had) process.env[name] = previous;
+    else delete process.env[name];
+  }
 }
 
 function git(repo, ...args) {
@@ -106,6 +130,31 @@ try {
   const plan = buildTransportPlanV1(before);
   assert.equal(plan.repository_identity_sha256, before.repository_identity_sha256);
   assert.equal(plan.mutation_required, true);
+
+  const envRepoA = makeRepo();
+  const envRepoB = makeRepo();
+  repos.push(envRepoA, envRepoB);
+  const envRepoBGitDir = git(envRepoB, 'rev-parse', '--absolute-git-dir');
+  const repositorySelectionValues = new Map([
+    ['GIT_DIR', envRepoBGitDir],
+    ['GIT_WORK_TREE', envRepoB],
+    ['GIT_INDEX_FILE', join(envRepoBGitDir, 'index')],
+    ['GIT_COMMON_DIR', envRepoBGitDir],
+    ['GIT_OBJECT_DIRECTORY', join(envRepoBGitDir, 'objects')],
+    ['GIT_ALTERNATE_OBJECT_DIRECTORIES', join(envRepoBGitDir, 'objects')],
+    ['GIT_NAMESPACE', 'void-public-fetch-proof'],
+  ]);
+  assert.deepEqual([...repositorySelectionValues.keys()], [...FORBIDDEN_GIT_REPOSITORY_ENV_V1]);
+  for (const [name, value] of repositorySelectionValues) {
+    withProcessEnv(name, value, () => {
+      assert.throws(
+        () => inspectRepositoryTransportV1(envRepoA),
+        /Git repository-selection environment is not allowed/,
+      );
+    });
+  }
+  assertNoDedicatedRemote(envRepoA);
+  assertNoDedicatedRemote(envRepoB);
 
   const cloneA = makeRepo();
   repos.push(cloneA);
@@ -227,6 +276,47 @@ try {
   const cliRepo = makeRepo();
   repos.push(cliRepo);
   const tool = new URL('../tools/void-node-fleet-public-fetch-transport-v1.mjs', import.meta.url).pathname;
+
+  const redirectedCliRepoA = makeRepo();
+  const redirectedCliRepoB = makeRepo();
+  repos.push(redirectedCliRepoA, redirectedCliRepoB);
+  const redirectedGitDir = git(redirectedCliRepoB, 'rev-parse', '--absolute-git-dir');
+  const redirectedDryOutput = join(configRoot, 'cli-git-dir-redirection-dry.json');
+  const redirectedDry = runWithEnv(
+    process.cwd(),
+    process.execPath,
+    [tool, '--repo', redirectedCliRepoA, '--output', redirectedDryOutput],
+    { GIT_DIR: redirectedGitDir },
+    2,
+  );
+  const redirectedDryResult = JSON.parse(redirectedDry.stdout);
+  assert.equal(redirectedDryResult.outcome, 'HOLD');
+  assert.equal(redirectedDryResult.mutation_attempted, false);
+  assert.match(redirectedDryResult.error, /Git repository-selection environment is not allowed: GIT_DIR/);
+  assert.equal(existsSync(redirectedDryOutput), false);
+  assertNoDedicatedRemote(redirectedCliRepoA);
+  assertNoDedicatedRemote(redirectedCliRepoB);
+
+  const redirectedApplyPlanId = buildTransportPlanV1(inspectRepositoryTransportV1(redirectedCliRepoA)).plan_id_sha256;
+  const redirectedApplyOutput = join(configRoot, 'cli-git-dir-redirection-apply.json');
+  const redirectedApply = runWithEnv(
+    process.cwd(),
+    process.execPath,
+    [
+      tool, '--repo', redirectedCliRepoA, '--output', redirectedApplyOutput, '--apply',
+      '--confirm-operation', VOID_NODE_FLEET_PUBLIC_FETCH_TRANSPORT_APPLY_V1,
+      '--confirm-plan-id', redirectedApplyPlanId,
+    ],
+    { GIT_DIR: redirectedGitDir },
+    2,
+  );
+  const redirectedApplyResult = JSON.parse(redirectedApply.stdout);
+  assert.equal(redirectedApplyResult.outcome, 'HOLD');
+  assert.equal(redirectedApplyResult.mutation_attempted, false);
+  assert.match(redirectedApplyResult.error, /Git repository-selection environment is not allowed: GIT_DIR/);
+  assert.equal(existsSync(redirectedApplyOutput), false);
+  assertNoDedicatedRemote(redirectedCliRepoA);
+  assertNoDedicatedRemote(redirectedCliRepoB);
 
   const unsafeDryOutput = join(cliRepo, 'unsafe-dry-run.json');
   const unsafeDry = run(process.cwd(), process.execPath, [tool, '--repo', cliRepo, '--output', unsafeDryOutput], 2);
@@ -361,6 +451,10 @@ syncBuiltinESMExports();
   console.log('effective_public_fetch_verified=true');
   console.log('instead_of_rewrite_rejected=true');
   console.log('non_local_dedicated_config_rejected=true');
+  console.log('git_repository_selection_environment_rejected=true');
+  console.log('git_dir_redirection_dry_run_rejected=true');
+  console.log('git_dir_redirection_apply_rejected=true');
+  console.log('two_repository_redirection_no_config_write=true');
   console.log('selected_worktree_identity_bound=true');
   console.log('cross_clone_plan_reuse_rejected=true');
   console.log('unchanged_repository_plan_identity_stable=true');
