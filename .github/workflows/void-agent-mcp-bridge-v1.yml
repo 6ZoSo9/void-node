@@ -109,7 +109,7 @@ jobs:
           forbidden='VOID_MCP_BASE_REF: $'
           forbidden+='{{ github.event.pull_request.base.sha }}'
           ! grep -F "$forbidden" "$workflow"
-          grep -F 'printf '\''VOID_MCP_BASE_REF=%s\n'\''' "$workflow"
+          grep -F 'VOID_MCP_BASE_REF=%s' "$workflow"
 
       - name: Typecheck, build, and test both protocol eras
         run: npm --prefix integrations/mcp run check
