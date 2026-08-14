@@ -379,6 +379,53 @@ try {
   });
 }
 
+const prematureCloseServer = http.createServer((request, response) => {
+  request.resume();
+  request.on("end", () => {
+    response.writeHead(200, {
+      "content-type": "application/json",
+    });
+    response.flushHeaders();
+    response.write('{"jsonrpc":"2.0","id":1,"result":"0x');
+    setTimeout(() => response.socket?.destroy(), 20);
+  });
+});
+await new Promise<void>((resolve, reject) => {
+  prematureCloseServer.once("error", reject);
+  prematureCloseServer.listen(0, "127.0.0.1", resolve);
+});
+try {
+  const prematureCloseAddress = prematureCloseServer.address();
+  assert.ok(prematureCloseAddress && typeof prematureCloseAddress === "object");
+  const prematureCloseDecision =
+    await planBuyVoidNativeExecutionNonceFeeV1({
+      ...basePolicy,
+      rpc_url: `http://127.0.0.1:${prematureCloseAddress.port}/rpc`,
+      request_timeout_ms: 1_000,
+    });
+  assert.equal(prematureCloseDecision.ok, false);
+  if (!("reason" in prematureCloseDecision)) {
+    throw new Error("premature response close must hold");
+  }
+  assert.equal(prematureCloseDecision.reason, "rpc_call_failed");
+  assert.ok(
+    ["response_aborted", "response_error"].includes(
+      String(prematureCloseDecision.detail?.error_code || ""),
+    ),
+    "post-header response failure must be contained as transport HOLD",
+  );
+  assert.deepEqual(prematureCloseDecision.rpc_methods_used, ["eth_chainId"]);
+  assert.equal(prematureCloseDecision.mutation_performed, false);
+  assert.equal(prematureCloseDecision.signing_performed, false);
+  assert.equal(prematureCloseDecision.transaction_broadcast_performed, false);
+} finally {
+  await new Promise<void>((resolve, reject) =>
+    prematureCloseServer.close((error) =>
+      error ? reject(error) : resolve(),
+    ),
+  );
+}
+
 console.log(
   "VOID_BUY_VOID_NATIVE_EXECUTION_NONCE_FEE_PLANNER_V1_GREEN",
 );
@@ -390,6 +437,7 @@ console.log("latest_sufficient_pending_insufficient_hold=1");
 console.log("rpc_inactivity_timeout_enforced=1");
 console.log("rpc_total_deadline_enforced=1");
 console.log("slow_drip_total_deadline_hold=1");
+console.log("premature_response_close_hold=1");
 console.log("fee_source=eth_gasPrice_bounded_multiplier");
 console.log("balance_preflight=1");
 console.log("loopback_http_only=1");
