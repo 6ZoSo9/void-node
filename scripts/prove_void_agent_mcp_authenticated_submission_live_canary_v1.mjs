@@ -278,7 +278,7 @@ async function main() {
     "integrations/mcp/dist/src/stdio.js",
     "tools/void-agent-mcp-authenticated-submission-live-canary-v1.mjs",
     "accepted_for_review: true",
-    "private_temp_cleanup_completed",
+    "private_temp_cleanup_completed=${result.state.private_temp_cleanup_completed}",
     "payment_executed: false",
     "work_credit_ledger_written: false",
     "void_settled: false",
