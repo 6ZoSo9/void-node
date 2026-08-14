@@ -3,7 +3,15 @@ import path from "node:path";
 export const VOID_APP_DATANET_READONLY_ADAPTER_V1 =
   "VOID_APP_DATANET_READONLY_ADAPTER_V1";
 
-export const VOID_APP_DATANET_READONLY_ROUTE_FILES_V1 = new Map([
+type VoidAppDataNetReadonlyRouteFileV1 = Readonly<{
+  relative: readonly string[];
+  contentType: string;
+}>;
+
+export const VOID_APP_DATANET_READONLY_ROUTE_FILES_V1 = new Map<
+  string,
+  VoidAppDataNetReadonlyRouteFileV1
+>([
   [
     "/public-node/datanet/field-replication-status-card-v1.json",
     {
@@ -25,7 +33,7 @@ export const VOID_APP_DATANET_READONLY_ROUTE_FILES_V1 = new Map([
       contentType: "application/json",
     },
   ],
-] as const);
+]);
 
 function isLoopback(req: any): boolean {
   const raw = String(
