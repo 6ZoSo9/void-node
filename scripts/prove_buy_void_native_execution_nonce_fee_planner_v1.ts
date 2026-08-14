@@ -304,6 +304,81 @@ try {
   );
 }
 
+let slowDripChunks = 0;
+const slowDripServer = http.createServer((request, response) => {
+  request.resume();
+  request.on("end", () => {
+    response.writeHead(200, {
+      "content-type": "application/json",
+    });
+    const responseBody = JSON.stringify({
+      jsonrpc: "2.0",
+      id: 1,
+      result: "0x802",
+    });
+    let offset = 0;
+    const interval = setInterval(() => {
+      if (offset >= responseBody.length) {
+        clearInterval(interval);
+        response.end();
+        return;
+      }
+      response.write(responseBody.slice(offset, offset + 1));
+      offset += 1;
+      slowDripChunks += 1;
+    }, 20);
+    response.on("close", () => clearInterval(interval));
+  });
+});
+await new Promise<void>((resolve, reject) => {
+  slowDripServer.once("error", reject);
+  slowDripServer.listen(0, "127.0.0.1", resolve);
+});
+try {
+  const slowDripAddress = slowDripServer.address();
+  assert.ok(slowDripAddress && typeof slowDripAddress === "object");
+  const requestTimeoutMs = 120;
+  const startedAtMs = Date.now();
+  const slowDripDecision =
+    await planBuyVoidNativeExecutionNonceFeeV1({
+      ...basePolicy,
+      rpc_url: `http://127.0.0.1:${slowDripAddress.port}/rpc`,
+      request_timeout_ms: requestTimeoutMs,
+    });
+  const elapsedMs = Date.now() - startedAtMs;
+  assert.equal(slowDripDecision.ok, false);
+  if (!("reason" in slowDripDecision)) {
+    throw new Error("slow-drip RPC response must hold");
+  }
+  assert.equal(slowDripDecision.reason, "rpc_call_failed");
+  assert.equal(
+    String(slowDripDecision.detail?.error_code || ""),
+    "request_total_deadline_exceeded",
+  );
+  assert.deepEqual(slowDripDecision.rpc_methods_used, ["eth_chainId"]);
+  assert.ok(
+    slowDripChunks >= 2,
+    "fixture must keep the socket active before total deadline",
+  );
+  assert.ok(
+    elapsedMs >= requestTimeoutMs - 40,
+    `total deadline fired too early: ${elapsedMs}ms`,
+  );
+  assert.ok(
+    elapsedMs < requestTimeoutMs + 1_000,
+    `slow-drip response exceeded total deadline bound: ${elapsedMs}ms`,
+  );
+  assert.equal(slowDripDecision.mutation_performed, false);
+  assert.equal(slowDripDecision.signing_performed, false);
+  assert.equal(slowDripDecision.transaction_broadcast_performed, false);
+} finally {
+  await new Promise<void>((resolve, reject) => {
+    slowDripServer.close((error) =>
+      error ? reject(error) : resolve(),
+    );
+  });
+}
+
 console.log(
   "VOID_BUY_VOID_NATIVE_EXECUTION_NONCE_FEE_PLANNER_V1_GREEN",
 );
@@ -312,6 +387,9 @@ console.log("pending_nonce_source=eth_getTransactionCount_pending");
 console.log("execution_state=pending");
 console.log("balance_state=pending");
 console.log("latest_sufficient_pending_insufficient_hold=1");
+console.log("rpc_inactivity_timeout_enforced=1");
+console.log("rpc_total_deadline_enforced=1");
+console.log("slow_drip_total_deadline_hold=1");
 console.log("fee_source=eth_gasPrice_bounded_multiplier");
 console.log("balance_preflight=1");
 console.log("loopback_http_only=1");
