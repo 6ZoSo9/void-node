@@ -55,7 +55,11 @@ globalThis.fetch = async (url, options = {}) => {
     return await new Promise((resolve, reject) => {
       const signal = options?.signal;
       if (signal?.aborted) return reject(abortError());
-      signal?.addEventListener('abort', () => reject(abortError()), { once: true });
+      const keepAlive = setInterval(() => {}, 1000);
+      signal?.addEventListener('abort', () => {
+        clearInterval(keepAlive);
+        reject(abortError());
+      }, { once: true });
     });
   }
   const headers = { get(name) {
@@ -117,16 +121,9 @@ const statusSnippet = extractHeredoc(
 for (const required of [pinnedCommit, expectedGitBlobSha1, 'KELLER_REPOLESS_ORIGIN_INTEGRITY_FOCUSED_GREEN']) {
   assert.equal(markdown.includes(required), true, `guide binding missing: ${required}`);
 }
-assert.equal(
-  markdown.includes('/download/void-public-earn-no-node-client-v1.mjs'),
-  false,
-  'guide must not execute client bytes selected by Public Earn gateway',
-);
+assert.equal(markdown.includes('/download/void-public-earn-no-node-client-v1.mjs'), false, 'guide must not execute client bytes selected by Public Earn gateway');
 
-const pinnedBytes = execFileSync('git', ['show', `${pinnedCommit}:${clientRel}`], {
-  cwd: repo,
-  maxBuffer: 2 * 1024 * 1024,
-});
+const pinnedBytes = execFileSync('git', ['show', `${pinnedCommit}:${clientRel}`], { cwd: repo, maxBuffer: 2 * 1024 * 1024 });
 const currentBytes = fs.readFileSync(clientPath);
 assert.equal(gitBlobSha1(pinnedBytes), expectedGitBlobSha1, 'pinned commit client blob mismatch');
 assert.equal(gitBlobSha1(currentBytes), expectedGitBlobSha1, 'current canonical client drifted from guide pin');
@@ -198,46 +195,23 @@ for (let index = 0; index < admittedOrigins.length; index += 1) {
 }
 
 const tamperedOut = path.join(root, 'tampered-out.mjs');
-let run = runSnippet({
-  script: downloadScript,
-  preload,
-  args: ['https://public.example', tamperedOut],
-  env: { VOID_TEST_BODY_FILE: tamperedBody },
-});
+let run = runSnippet({ script: downloadScript, preload, args: ['https://public.example', tamperedOut], env: { VOID_TEST_BODY_FILE: tamperedBody } });
 assert.notEqual(run.status, 0, 'tampered client unexpectedly installed');
 assertAbsent(tamperedOut, 'tampered client file created');
 
 const oversizedOut = path.join(root, 'oversized-out.mjs');
-run = runSnippet({
-  script: downloadScript,
-  preload,
-  args: ['https://public.example', oversizedOut],
-  env: { VOID_TEST_BODY_FILE: oversizedBody, VOID_TEST_NO_CONTENT_LENGTH: '1' },
-});
+run = runSnippet({ script: downloadScript, preload, args: ['https://public.example', oversizedOut], env: { VOID_TEST_BODY_FILE: oversizedBody, VOID_TEST_NO_CONTENT_LENGTH: '1' } });
 assert.notEqual(run.status, 0, 'streamed oversized client unexpectedly installed');
 assertAbsent(oversizedOut, 'oversized client file created');
 
 const declaredOut = path.join(root, 'declared-out.mjs');
-run = runSnippet({
-  script: downloadScript,
-  preload,
-  args: ['https://public.example', declaredOut],
-  env: {
-    VOID_TEST_BODY_FILE: canonicalBody,
-    VOID_TEST_DECLARED_LENGTH: String(1024 * 1024 + 1),
-  },
-});
+run = runSnippet({ script: downloadScript, preload, args: ['https://public.example', declaredOut], env: { VOID_TEST_BODY_FILE: canonicalBody, VOID_TEST_DECLARED_LENGTH: String(1024 * 1024 + 1) } });
 assert.notEqual(run.status, 0, 'declared oversized client unexpectedly installed');
 assertAbsent(declaredOut, 'declared oversized client file created');
 
 for (const mode of ['redirect', 'nonstream']) {
   const output = path.join(root, `${mode}-out.mjs`);
-  run = runSnippet({
-    script: downloadScript,
-    preload,
-    args: ['https://public.example', output],
-    env: { VOID_TEST_BODY_FILE: canonicalBody, VOID_TEST_FETCH_MODE: mode },
-  });
+  run = runSnippet({ script: downloadScript, preload, args: ['https://public.example', output], env: { VOID_TEST_BODY_FILE: canonicalBody, VOID_TEST_FETCH_MODE: mode } });
   assert.notEqual(run.status, 0, `${mode} client source unexpectedly succeeded`);
   assertAbsent(output, `${mode} client source created file`);
 }
@@ -245,84 +219,38 @@ for (const mode of ['redirect', 'nonstream']) {
 const existingOut = path.join(root, 'existing.mjs');
 const existingLog = path.join(root, 'existing.log');
 fs.writeFileSync(existingOut, 'keep-me', { mode: 0o600 });
-run = runSnippet({
-  script: downloadScript,
-  preload,
-  args: ['https://public.example', existingOut],
-  env: { VOID_TEST_BODY_FILE: canonicalBody, VOID_TEST_FETCH_LOG: existingLog },
-});
+run = runSnippet({ script: downloadScript, preload, args: ['https://public.example', existingOut], env: { VOID_TEST_BODY_FILE: canonicalBody, VOID_TEST_FETCH_LOG: existingLog } });
 assert.notEqual(run.status, 0, 'existing output unexpectedly overwritten');
 assert.equal(fetchCount(existingLog), 0, 'existing output should fail before fetch');
 assert.equal(fs.readFileSync(existingOut, 'utf8'), 'keep-me', 'existing output changed');
 
 const statusBody = path.join(root, 'participant-status.json');
-fs.writeFileSync(statusBody, JSON.stringify({
-  marker: 'VOID_PUBLIC_PARTICIPANT_NO_NODE_HANDOFF_V1',
-  coordinator_node_id: coordinatorNodeId,
-}));
-for (const origin of [
-  'https://public.example',
-  'http://127.0.0.1:8082',
-  'http://10.1.2.3:8082',
-  'http://peer.ts.net:8082',
-]) {
+fs.writeFileSync(statusBody, JSON.stringify({ marker: 'VOID_PUBLIC_PARTICIPANT_NO_NODE_HANDOFF_V1', coordinator_node_id: coordinatorNodeId }));
+for (const origin of ['https://public.example', 'http://127.0.0.1:8082', 'http://10.1.2.3:8082', 'http://peer.ts.net:8082']) {
   const log = path.join(root, `status-ok-${crypto.randomBytes(4).toString('hex')}.log`);
-  run = runSnippet({
-    script: statusScript,
-    preload,
-    args: [origin],
-    env: { VOID_TEST_BODY_FILE: statusBody, VOID_TEST_FETCH_LOG: log },
-  });
+  run = runSnippet({ script: statusScript, preload, args: [origin], env: { VOID_TEST_BODY_FILE: statusBody, VOID_TEST_FETCH_LOG: log } });
   assert.equal(run.status, 0, `status origin failed: ${origin}\n${run.stderr}`);
   assert.equal(run.stdout, coordinatorNodeId, 'status coordinator ID mismatch');
   assert.equal(fetchCount(log), 1, 'status fetch count mismatch');
 }
-for (const origin of [
-  'http://public.example',
-  'http://172.32.1.2',
-  'http://100.128.1.2',
-  'http://[::1]:8082',
-  'https://user@public.example',
-  'https://public.example/path',
-]) {
+for (const origin of ['http://public.example', 'http://172.32.1.2', 'http://100.128.1.2', 'http://[::1]:8082', 'https://user@public.example', 'https://public.example/path']) {
   const log = path.join(root, `status-hold-${crypto.randomBytes(4).toString('hex')}.log`);
-  run = runSnippet({
-    script: statusScript,
-    preload,
-    args: [origin],
-    env: { VOID_TEST_BODY_FILE: statusBody, VOID_TEST_FETCH_LOG: log },
-  });
+  run = runSnippet({ script: statusScript, preload, args: [origin], env: { VOID_TEST_BODY_FILE: statusBody, VOID_TEST_FETCH_LOG: log } });
   assert.notEqual(run.status, 0, `unsafe status origin unexpectedly succeeded: ${origin}`);
   assert.equal(fetchCount(log), 0, `unsafe status origin fetched: ${origin}`);
 }
 
 const statusOversized = path.join(root, 'participant-status-oversized.json');
 fs.writeFileSync(statusOversized, Buffer.alloc(65537, 0x20));
-run = runSnippet({
-  script: statusScript,
-  preload,
-  args: ['https://public.example'],
-  env: { VOID_TEST_BODY_FILE: statusOversized, VOID_TEST_NO_CONTENT_LENGTH: '1' },
-});
+run = runSnippet({ script: statusScript, preload, args: ['https://public.example'], env: { VOID_TEST_BODY_FILE: statusOversized, VOID_TEST_NO_CONTENT_LENGTH: '1' } });
 assert.notEqual(run.status, 0, 'oversized participant status unexpectedly succeeded');
 for (const mode of ['redirect', 'nonstream']) {
-  run = runSnippet({
-    script: statusScript,
-    preload,
-    args: ['https://public.example'],
-    env: { VOID_TEST_BODY_FILE: statusBody, VOID_TEST_FETCH_MODE: mode },
-  });
+  run = runSnippet({ script: statusScript, preload, args: ['https://public.example'], env: { VOID_TEST_BODY_FILE: statusBody, VOID_TEST_FETCH_MODE: mode } });
   assert.notEqual(run.status, 0, `${mode} participant status unexpectedly succeeded`);
 }
 
 const deadlineStarted = Date.now();
-run = runSnippet({
-  script: statusScript,
-  preload,
-  args: ['https://public.example'],
-  env: { VOID_TEST_BODY_FILE: statusBody, VOID_TEST_FETCH_MODE: 'hang' },
-  timeoutMs: 12_000,
-});
+run = runSnippet({ script: statusScript, preload, args: ['https://public.example'], env: { VOID_TEST_BODY_FILE: statusBody, VOID_TEST_FETCH_MODE: 'hang' }, timeoutMs: 12_000 });
 const deadlineElapsed = Date.now() - deadlineStarted;
 assert.notEqual(run.status, 0, 'hung participant status unexpectedly succeeded');
 assert.equal(run.signal, null, 'proof harness killed deadline test instead of snippet settling');
