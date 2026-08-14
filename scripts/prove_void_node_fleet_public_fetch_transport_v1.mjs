@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { cpSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { spawnSync } from 'node:child_process';
@@ -42,8 +42,16 @@ function makeRepo(originUrl = 'git@github.com:6ZoSo9/void-node.git') {
   return repo;
 }
 
+function cloneRepoAtDifferentPath(sourceRepo) {
+  const destination = mkdtempSync(join(tmpdir(), 'void-public-fetch-proof-clone-'));
+  rmSync(destination, { recursive: true, force: true });
+  cpSync(sourceRepo, destination, { recursive: true });
+  return destination;
+}
+
 function invariant(snapshot) {
   return {
+    repository_identity_sha256: snapshot.repository_identity_sha256,
     branch: snapshot.branch,
     head: snapshot.head,
     tree: snapshot.tree,
@@ -84,12 +92,32 @@ try {
   const repo = makeRepo();
   repos.push(repo);
   const before = inspectRepositoryTransportV1(repo);
+  assert.match(before.repository_identity_sha256, /^[0-9a-f]{64}$/);
   assert.equal(before.canonical_origin_required, true);
   assert.equal(before.origin_repository, CANONICAL_ORIGIN_REPOSITORY_V1);
   assert.equal(before.dedicated_state, 'MISSING');
   assert.equal(before.dirty_count, 2);
   const plan = buildTransportPlanV1(before);
+  assert.equal(plan.repository_identity_sha256, before.repository_identity_sha256);
   assert.equal(plan.mutation_required, true);
+
+  const cloneA = makeRepo();
+  repos.push(cloneA);
+  const cloneB = cloneRepoAtDifferentPath(cloneA);
+  repos.push(cloneB);
+  const cloneASnapshot = inspectRepositoryTransportV1(cloneA);
+  const cloneBSnapshot = inspectRepositoryTransportV1(cloneB);
+  assert.equal(cloneASnapshot.head, cloneBSnapshot.head);
+  assert.equal(cloneASnapshot.tree, cloneBSnapshot.tree);
+  assert.equal(cloneASnapshot.worktree_status_sha256, cloneBSnapshot.worktree_status_sha256);
+  assert.equal(cloneASnapshot.index_sha256, cloneBSnapshot.index_sha256);
+  assert.equal(cloneASnapshot.refs_sha256, cloneBSnapshot.refs_sha256);
+  assert.notEqual(cloneASnapshot.repository_identity_sha256, cloneBSnapshot.repository_identity_sha256);
+  const cloneAPlan = buildTransportPlanV1(cloneASnapshot);
+  const cloneBPlan = buildTransportPlanV1(cloneBSnapshot);
+  assert.notEqual(cloneAPlan.plan_id_sha256, cloneBPlan.plan_id_sha256);
+  assert.throws(() => applyTransportPlanV1(cloneB, cloneAPlan.plan_id_sha256), /transport plan changed before apply/);
+  assertNoDedicatedRemote(cloneB);
 
   const applied = applyTransportPlanV1(repo, plan.plan_id_sha256);
   assert.equal(applied.outcome, 'TRANSPORT_CONFIGURED');
@@ -174,6 +202,8 @@ try {
   const dryResult = JSON.parse(dry.stdout);
   assert.equal(dry.stdout.includes('git@github.com'), false);
   assert.equal(dry.stdout.includes('example.invalid'), false);
+  assert.equal(dry.stdout.includes(cliRepo), false);
+  assert.match(dryResult.plan.repository_identity_sha256, /^[0-9a-f]{64}$/);
   assert.equal(dryResult.outcome, 'READY_TO_APPLY');
   assert.equal(dryResult.mutation_attempted, false);
   assert.equal(dryResult.authority.git_fetch, false);
@@ -209,6 +239,8 @@ try {
   console.log('effective_public_fetch_verified=true');
   console.log('instead_of_rewrite_rejected=true');
   console.log('non_local_dedicated_config_rejected=true');
+  console.log('selected_worktree_identity_bound=true');
+  console.log('cross_clone_plan_reuse_rejected=true');
   console.log('dirty_worktree_preserved=true');
   console.log('origin_preserved=true');
   console.log('refs_preserved=true');
