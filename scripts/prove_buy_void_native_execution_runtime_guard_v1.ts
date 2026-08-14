@@ -178,6 +178,10 @@ for (const marker of [
   "eth_getBalance",
   'execution_state_tag: "pending"',
   "request_total_deadline_exceeded",
+  'response.on("aborted"',
+  'response.on("error"',
+  'response_aborted',
+  'response_error',
 ]) {
   assert.equal(planner.includes(marker), true, `planner missing ${marker}`);
 }
@@ -195,6 +199,16 @@ assert.match(
   plannerProof,
   /request_total_deadline_exceeded/,
   "native focused proof must bind exact total-deadline transport error",
+);
+assert.match(
+  plannerProof,
+  /premature_response_close_hold=1/,
+  "native focused proof must exercise post-header premature response close",
+);
+assert.match(
+  plannerProof,
+  /response_aborted|response_error/,
+  "native focused proof must bind response-level failure to transport HOLD",
 );
 assert.doesNotMatch(planner, /eth_sendRawTransaction/);
 assert.doesNotMatch(runtime, /eth_sendRawTransaction/);
@@ -267,6 +281,8 @@ assert.match(docs, /eth_getBalance` with block tag `pending`/);
 assert.doesNotMatch(docs, /eth_getBalance` with block tag `latest`/);
 assert.match(docs, /total wall-clock deadline/);
 assert.match(docs, /Continuous slow response traffic cannot extend one planner RPC/);
+assert.match(docs, /Response-level `aborted` and `error` events/);
+assert.match(docs, /partial JSON/);
 
 console.log(
   "VOID_BUY_VOID_NATIVE_EXECUTION_RUNTIME_GUARD_V1_GREEN",
@@ -281,6 +297,7 @@ console.log("read_only_rpc_method_count=4");
 console.log("execution_state=pending");
 console.log("balance_state=pending");
 console.log("rpc_total_deadline_enforced=1");
+console.log("response_stream_error_contained=1");
 console.log("startup_execution=0");
 console.log("automatic_retry=0");
 console.log("receipt_wait=0");
