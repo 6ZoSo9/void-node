@@ -39,7 +39,19 @@ function repositoryPaths(repo){
  const common=realpathSync(must(repo,['rev-parse','--path-format=absolute','--git-common-dir'],'resolve git common dir').trim());
  return {top_level:top,git_dir:dir,git_common_dir:common};
 }
-function repositoryIdentity(repo){return hash(repositoryPaths(repo));}
+function filesystemObjectIdentity(path,label){
+ const s=statSync(path,{bigint:true});
+ if(!s.isDirectory())fail(`${label} must resolve to a directory`);
+ return {device:s.dev.toString(10),inode:s.ino.toString(10),birthtime_ns:s.birthtimeNs.toString(10)};
+}
+function repositoryIdentity(repo){
+ const paths=repositoryPaths(repo);
+ return hash({
+  top_level:{path:paths.top_level,...filesystemObjectIdentity(paths.top_level,'repository top level')},
+  git_dir:{path:paths.git_dir,...filesystemObjectIdentity(paths.git_dir,'repository git dir')},
+  git_common_dir:{path:paths.git_common_dir,...filesystemObjectIdentity(paths.git_common_dir,'repository git common dir')},
+ });
+}
 function index(repo){const p=resolve(gitDir(repo),'index');if(!existsSync(p))fail('repository index is missing');const s=statSync(p);if(!s.isFile()||s.size>MAX*8)fail('repository index is invalid');return hash(readFileSync(p));}
 function inProgress(repo){const d=gitDir(repo);return['index.lock','MERGE_HEAD','CHERRY_PICK_HEAD','REVERT_HEAD','rebase-merge','rebase-apply','sequencer'].some(n=>existsSync(resolve(d,n)));}
 function refs(repo){return hash(must(repo,['for-each-ref','--format=%(refname)%00%(objectname)%00%(symref)'],'inspect refs'));}
