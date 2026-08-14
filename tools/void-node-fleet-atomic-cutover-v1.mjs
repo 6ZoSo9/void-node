@@ -159,11 +159,11 @@ head="$(git -C "$stage" rev-parse HEAD 2>/dev/null||true)"
 branch="$(git -C "$stage" symbolic-ref --short -q HEAD 2>/dev/null||true)"
 common="$(git -C "$stage" rev-parse --path-format=absolute --git-common-dir 2>/dev/null||true)"
 live_common="$(git -C "$repo" rev-parse --path-format=absolute --git-common-dir 2>/dev/null||true)"
-nm=0; test -e "$stage/node_modules"&&nm=1
 runner="$repo/node_modules/.bin/tsx"; tx=0; test -x "$runner"&&tx=1
 p0=0; test "$tx" -eq 1&&(cd "$stage"&&"$runner" ${PROOFS[0]}) >"$tmp/0" 2>&1&&p0=1
 p1=0; test "$tx" -eq 1&&(cd "$stage"&&"$runner" ${PROOFS[1]}) >"$tmp/1" 2>&1&&p1=1
 p2=0; (cd "$stage"&&node ${PROOFS[2]}) >"$tmp/2" 2>&1&&p2=1
+nm=0; test -e "$stage/node_modules"&&nm=1
 status="$(git -C "$stage" status --porcelain=v1 2>/dev/null||printf __ERR__)"
 printf 'head\t%s\nbranch\t%s\nstatus\t%s\ncommon\t%s\nlive_common\t%s\nnm\t%s\ntx\t%s\np0\t%s\np1\t%s\np2\t%s\n' "$head" "$branch" "$(printf %s "$status"|base64 -w0)" "$common" "$live_common" "$nm" "$tx" "$p0" "$p1" "$p2"
 `;
