@@ -14,13 +14,20 @@ export const
     prerequisite_source_truth: {
       canonical_delivery_dependency_bootstrap_ready: true,
       erc20_transaction_preparation_execution_state_ready: true,
+      erc20_execution_composition_ready: true,
+      caller_supplied_transaction_plan_forbidden: true,
+      canonical_erc20_receipt_to_record_confirmed_ready: true,
+      existing_terminal_closeout_reused: true,
+      canonical_planner_policy_validator_reused: true,
+      max_amount_fulfillment_unit_domain_bound: true,
+      confirmation_count_saga_domain_preflight_ready: true,
     },
 
     canonical_delivery_runtime_activation_configuration_contract_ready: true,
     canonical_delivery_runtime_activation_ready: false,
     production_configuration_values_verified: false,
     production_credential_binding_ready: false,
-    canonical_delivery_runtime_parent_mounted: false,
+    canonical_delivery_runtime_parent_mounted: true,
     canonical_delivery_execution_ready: false,
     canonical_delivery_execution_held: true,
     presale_inventory_funding_ready: false,
@@ -28,12 +35,12 @@ export const
     current_parent_blocker:
       "canonical_delivery_runtime_activation_not_ready",
     next_gate:
-      "erc20_durable_prepared_transaction_composition",
+      "production_credential_binding_and_dependency_injection_authorization",
 
     runtime_source_path:
       "src/economic/buy_void_delivery_runtime_integration_v1.ts",
-    transaction_preparation_planner_source_path:
-      "src/economic/buy_void_erc20_transaction_preparation_planner_v1.ts",
+    execution_composition_source_path:
+      "src/economic/buy_void_erc20_execution_composition_v1.ts",
     dependency_bootstrap_source_path:
       "src/economic/buy_void_erc20_delivery_dependency_bootstrap_v1.ts",
     parent_source_path:
@@ -44,9 +51,7 @@ export const
         "VOID_BUY_VOID_DELIVERY_RUNTIME_INTEGRATION_ENABLED",
       enable_value: "1",
       root_dir_env: "VOID_BUY_VOID_RUNTIME_DIR",
-      planner_rpc_env:
-        "VOID_BUY_VOID_NATIVE_CHAIN2050_RPC_URL",
-      policy_envs: [
+      required_policy_envs: [
         "VOID_BUY_VOID_DELIVERY_CHAIN_ID",
         "VOID_BUY_VOID_DELIVERY_TOKEN_ADDRESS",
         "VOID_BUY_VOID_DELIVERY_WALLET_ADDRESS",
@@ -54,41 +59,77 @@ export const
         "VOID_BUY_VOID_DELIVERY_MAX_GAS_LIMIT",
         "VOID_BUY_VOID_DELIVERY_MAX_FEE_PER_GAS_WEI",
         "VOID_BUY_VOID_DELIVERY_MAX_PRIORITY_FEE_PER_GAS_WEI",
+        "VOID_BUY_VOID_ERC20_EXECUTION_RPC_URL",
+        "VOID_BUY_VOID_DELIVERY_GAS_LIMIT_MULTIPLIER_BPS",
+        "VOID_BUY_VOID_DELIVERY_FEE_MULTIPLIER_BPS",
+        "VOID_BUY_VOID_DELIVERY_MIN_CONFIRMATIONS",
       ],
-      fixed_planner_gas_limit_multiplier_bps: "12000",
-      fixed_planner_fee_multiplier_bps: "12000",
-      canonical_delivery_action: "plan_erc20_delivery",
-      caller_input_keys: [
-        "action",
-        "attempt_id",
+      optional_transport_envs: [
+        "VOID_BUY_VOID_DELIVERY_RPC_TIMEOUT_MS",
+        "VOID_BUY_VOID_DELIVERY_RPC_MAX_RESPONSE_BYTES",
       ],
-      server_derived_transaction_plan_required: true,
-      caller_supplied_transaction_plan_forbidden: true,
-      coherent_pending_planner_required: true,
-      direct_sign_broadcast_apply_allowed: false,
-      durable_prepared_transaction_composition_ready: false,
+      dependency_global:
+        "__void_buy_void_delivery_runtime_dependencies_v1",
       fixed_signer_credential_id:
         "buy-void-native-fulfillment-wallet-v1",
+      canonical_delivery_action: "sign_and_broadcast",
+      exact_confirmation: "buyVoidSignAndBroadcast",
       server_controlled_policy: true,
       server_controlled_root_dir: true,
+      server_derived_transaction_plan: true,
+      caller_supplied_transaction_plan: false,
       operator_loopback_only: true,
+      durable_submission_guard_required: true,
+      durable_wallet_nonce_reservation_required: true,
+      signed_hash_custody_required: true,
+      write_ahead_broadcast_intent_required: true,
+      receipt_reconciliation_required: true,
+      canonical_record_confirmed_required: true,
+      existing_terminal_closeout_reused: true,
+      signer_dependency_injected: true,
+      broadcaster_dependency_injected: true,
       automatic_retry: false,
-      receipt_wait: false,
       background_loop: false,
     },
 
+    amount_unit_contract: {
+      max_amount_env:
+        "VOID_BUY_VOID_DELIVERY_MAX_AMOUNT_UNITS",
+      max_amount_unit_domain:
+        "fulfillment_units_6_decimal",
+      fulfillment_unit_decimals: 6,
+      token_atom_decimals: 18,
+      token_atom_multiplier: "1000000000000",
+      max_amount_must_not_exceed_saga_pool_capacity: true,
+      max_amount_must_not_exceed_saga_reservation_cap: true,
+      integer_only_conversion: true,
+      rounding: false,
+    },
+
+    receipt_confirmation_domain_contract: {
+      reconciler_observation_domain:
+        "decimal_string_bigint",
+      generic_saga_max_confirmations: "1000000",
+      preflight_before_record_confirmed: true,
+      confirmation_1000000_allowed: true,
+      confirmation_above_1000000_held: true,
+      confirmation_above_safe_integer_held: true,
+      partial_confirmed_state_mutation_allowed: false,
+    },
+
     activation_preconditions: {
+      enable_flag_required: true,
+      exact_policy_configuration_required: true,
+      dependency_injection_required: true,
+      fixed_systemd_credential_required_when_signing: true,
+      loopback_chain2050_rpc_required: true,
+      explicit_per_action_confirmation_required: true,
       server_derived_transaction_plan_required: true,
-      caller_supplied_transaction_plan_forbidden: true,
-      durable_wallet_nonce_reservation_required: true,
-      live_pre_sign_nonce_revalidation_required: true,
-      opaque_signed_transaction_custody_required: true,
-      crash_recoverable_prepared_binding_required: true,
-      confirmed_erc20_receipt_terminal_closeout_required: true,
-      production_configuration_verification_required_after_composition: true,
-      fixed_systemd_credential_verification_required_after_composition: true,
+      durable_nonce_and_preparation_custody_required: true,
+      crash_reconciliation_required: true,
+      erc20_receipt_to_terminal_closeout_required: true,
+      production_configuration_verification_required: true,
       parent_mount_separately_authorized: true,
-      inventory_funding_separately_authorized: true,
     },
 
     authority: {

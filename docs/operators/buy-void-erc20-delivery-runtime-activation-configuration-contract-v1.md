@@ -1,148 +1,85 @@
-# Buy VOID ERC-20 delivery runtime activation/configuration contract v1
+# Buy VOID ERC-20 delivery runtime activation configuration contract v1
 
-## Status
+Marker: `VOID_BUY_VOID_ERC20_DELIVERY_RUNTIME_ACTIVATION_CONFIGURATION_CONTRACT_V1`
 
-`HOLD_RUNTIME_ACTIVATION`.
+## Source boundary
 
-The source configuration contract is ready, but production runtime activation is
-not. The V90 execution-order review found that the retained canonical delivery
-runtime accepted nonce/gas/fee transaction-plan material from its loopback HTTP
-request body. Configuration cannot make caller-selected execution material
-server-authoritative.
+The canonical ERC-20 execution-composition source is now a prerequisite of any later activation. The retained delivery runtime no longer accepts a caller-supplied nonce/gas/fee transaction plan. It delegates to the server-controlled execution-composition layer, which derives the exact `VoidToken.transfer(...)` transaction through the coherent `pending` planner, durably reserves the wallet nonce, persists signed-hash custody before broadcast, uses the existing saga write-ahead broadcast-intent boundary, reconciles exact ERC-20 receipts into canonical `record_confirmed`, and leaves terminal inventory/public closeout to the existing saga closeout implementation.
 
-This lane removes that reachable source defect before any production wiring.
+The next source gate parent-mounts this already-reviewed runtime while leaving it disabled. That source composition does not enable production execution, inject signer/broadcaster dependencies, inspect a credential, fund presale inventory, or authorize a transaction.
 
-## Runtime behavior after V90 repair
+## Required production configuration contract
 
-The retained route remains:
+In addition to the existing delivery chain/token/wallet/amount/gas/fee caps, a later production configuration must provide the server-controlled loopback ERC-20 RPC URL, gas-limit multiplier, fee multiplier, and receipt confirmation depth. Optional bounded RPC timeout/response-size controls retain fail-closed defaults.
 
-```text
-GET  /__void/operator/buy-void-delivery-runtime-v1/status
-POST /__void/operator/buy-void-delivery-runtime-v1/command
-```
+The configuration is not considered verified merely because these environment-variable names exist in source. Production values and the fixed systemd credential binding remain separate operator-evidence gates.
 
-The command is now read-only planning only.
+## Execution ordering
 
-Exact action:
+The disabled parent mount must continue proving:
 
-```text
-plan_erc20_delivery
-```
+- caller transaction plans are forbidden;
+- planning uses coherent `pending` state;
+- overlapping use of the same pending wallet nonce fails closed;
+- the exact signed transaction hash and server-derived plan are recoverable before broadcast;
+- a crash after possible provider acceptance never causes automatic rebroadcast;
+- receipt presence can repair a missing broadcast projection without asserting a broadcast before evidence exists;
+- the full ERC-20 receipt reconciler validates the canonical `Transfer` and confirmation stability;
+- canonical `record_confirmed` is written before the saga advances to `receipt_confirmed`; and
+- the existing terminal closeout remains the sole inventory/public closeout implementation.
 
-Exact caller keys:
-
-```text
-action
-attempt_id
-```
-
-Any caller-supplied `plan`, `transaction_plan`, `nonce`, `gas_limit`,
-`max_fee_per_gas_wei`, `max_priority_fee_per_gas_wei`, `apply`, or any other
-extra command field is rejected before RPC planning.
-
-The runtime loads the reserved attempt from the server-controlled journal and
-calls the merged coherent-pending ERC-20 planner. The planner is therefore the
-only source of nonce/gas/fee transaction-plan material exposed by this route.
-
-The route performs no filesystem mutation, signing, transaction broadcast,
-submission-guard claim, pipeline outcome write, inventory mutation, or money
-movement.
-
-## Planner policy
-
-Production planning requires the existing server-controlled delivery caps:
+## Current truth
 
 ```text
-VOID_BUY_VOID_DELIVERY_CHAIN_ID
-VOID_BUY_VOID_DELIVERY_TOKEN_ADDRESS
-VOID_BUY_VOID_DELIVERY_WALLET_ADDRESS
-VOID_BUY_VOID_DELIVERY_MAX_AMOUNT_UNITS
-VOID_BUY_VOID_DELIVERY_MAX_GAS_LIMIT
-VOID_BUY_VOID_DELIVERY_MAX_FEE_PER_GAS_WEI
-VOID_BUY_VOID_DELIVERY_MAX_PRIORITY_FEE_PER_GAS_WEI
+erc20_execution_composition_ready=true
+canonical_delivery_runtime_activation_ready=false
+production_configuration_values_verified=false
+production_credential_binding_ready=false
+canonical_delivery_runtime_parent_mounted=true
+canonical_delivery_execution_ready=false
+presale_inventory_funding_ready=false
 ```
 
-The planner reuses the existing numeric-loopback Chain-2050 RPC setting:
-
-```text
-VOID_BUY_VOID_NATIVE_CHAIN2050_RPC_URL
-```
-
-and fixed source-reviewed safety multipliers:
-
-```text
-gas_limit_multiplier_bps=12000
-fee_multiplier_bps=12000
-```
-
-The operator still controls hard gas/fee/amount caps. The fixed multipliers avoid
-creating another production fee-policy surface solely for this transition.
-
-The runtime remains disabled unless:
-
-```text
-VOID_BUY_VOID_DELIVERY_RUNTIME_INTEGRATION_ENABLED=1
-```
-
-and its root remains server-controlled through:
-
-```text
-VOID_BUY_VOID_RUNTIME_DIR
-```
-
-Neither should be changed merely because this source repair merges.
-
-## What this closes
-
-This repair proves an activated copy of this retained route cannot sign or
-broadcast a transaction whose nonce/gas/fee plan originated in the request
-body.
-
-It also makes the next missing capability explicit:
-
-```text
-erc20_durable_prepared_transaction_composition
-```
-
-## What remains before activation
-
-The existing native prepared-transaction stack already provides the primitives
-that must be reused:
-
-- wallet-scoped durable nonce reservation;
-- concurrent-attempt collision safety;
-- live pre-sign nonce revalidation and nonce-drift HOLD;
-- opaque external signing custody;
-- crash-recoverable signed-transaction binding;
-- submit-once / inspect-only broadcast reconciliation;
-- canonical execution/broadcast journals; and
-- terminal saga closeout.
-
-Those records are currently native-transaction-shaped. The next implementation
-must generalize/compose them for the exact ERC-20 transaction envelope:
-
-```text
-to    = VoidToken
-value = 0
-data  = transfer(delivery_address, token_amount_atoms)
-```
-
-with the coherent-pending preparation fingerprint bound into the durable
-reservation/custody record.
-
-Only after that composition is exact-green should the sequence continue to:
-
-1. production configuration verification;
-2. production credential binding verification;
-3. separately authorized parent/runtime mount; and
-4. independently authorized presale inventory funding.
+After the disabled parent mount, the next operations gates are credential key-to-wallet evidence and separately authorized dependency injection/runtime enablement. Inventory funding remains an independent later value-bearing gate.
 
 ## Authority boundary
 
-This source lane does not deploy, restart, mount, enable, or configure a live
-service. It does not read credential contents, access a wallet, sign, broadcast,
-fund inventory, mutate treasury/liquidity, or move funds.
+Source, proof, documentation, and CI only. This lane changes source composition so the child is parent-mounted, but performs no deployment, live service restart, production credential read, wallet/private-key access, live RPC, signing, transaction broadcast, inventory funding, treasury/liquidity action, or funds movement.
 
-`PROTECT THE CORE`.
-`PROTECT THE TRUTH`.
-`FINISH THE CAPABILITY BEFORE ACTIVATION`.
+## Current-main reconciliation after #1287
+
+This lane is reconciled on top of source `main` `ddb50ddfd74f048bb98a17ef2cdf554963dc4a5c`. It preserves
+#1287's operator-facing configuration truth: a fully populated environment is
+not considered configured merely because values are non-empty. The execution
+composition reuses the canonical ERC-20 planner policy validator before runtime
+status can expose RPC/signing readiness.
+
+### Amount unit domain
+
+`VOID_BUY_VOID_DELIVERY_MAX_AMOUNT_UNITS` is explicitly denominated in the
+canonical **6-decimal fulfillment-unit** domain. The ERC-20 transfer remains an
+exact integer conversion into 18-decimal VoidToken atoms:
+
+```text
+fulfillment_unit_decimals=6
+token_atom_decimals=18
+token_atom_multiplier=1000000000000
+rounding=false
+```
+
+The configured delivery maximum must not exceed either the saga inventory pool
+capacity or the saga maximum reservation, which are in the same fulfillment
+unit domain. An 18-decimal atom value such as `10^21` therefore cannot be
+silently interpreted as a fulfillment-unit cap when the reviewed reservation
+cap is `10^9`.
+
+### Receipt confirmation domain
+
+The receipt reconciler retains decimal-string/BigInt confirmation truth. The
+existing generic saga accepts `receipt_confirmed.confirmations` only through
+1,000,000. The composition therefore fails closed **before canonical
+`record_confirmed`** whenever the observed count is above 1,000,000. Exact
+1,000,000 is accepted; 1,000,001 and values above the JavaScript safe-integer
+range are held without confirmed-state mutation.
+
+This source closure mounts only the disabled child route in the canonical parent. It still does not inject value-bearing dependencies, read production credentials, enable execution, fund presale inventory, sign or broadcast a live transaction, or move funds.

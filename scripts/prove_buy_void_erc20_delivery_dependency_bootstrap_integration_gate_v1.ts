@@ -121,7 +121,7 @@ for (const marker of [
   'status: "source_ready"',
   "canonical_delivery_dependency_bootstrap_ready: true",
   "erc20_transaction_preparation_execution_state_ready: true",
-  "canonical_delivery_runtime_parent_mounted: false",
+  "canonical_delivery_runtime_parent_mounted: true",
   "canonical_delivery_execution_ready: false",
   "canonical_delivery_execution_held: true",
   "production_credential_binding_ready: false",
@@ -199,8 +199,8 @@ const deliveryCommandRoute =
   "/__void/operator/buy-void-delivery-runtime-v1/command";
 
 assert.equal(routes.has(`GET ${parentStatusRoute}`), true);
-assert.equal(routes.has(`GET ${deliveryStatusRoute}`), false);
-assert.equal(routes.has(`POST ${deliveryCommandRoute}`), false);
+assert.equal(routes.has(`GET ${deliveryStatusRoute}`), true);
+assert.equal(routes.has(`POST ${deliveryCommandRoute}`), true);
 
 const status = await call("GET", parentStatusRoute, {
   socket: { remoteAddress: "127.0.0.1" },
@@ -235,14 +235,16 @@ assert.equal(
   canonical.dependency_bootstrap_integration_gate.authority.credential_read,
   false,
 );
-assert.equal(canonical.delivery_runtime_parent_mounted, false);
+assert.equal(canonical.delivery_runtime_parent_mounted, true);
 assert.equal(canonical.canonical_delivery_execution_ready, false);
 assert.equal(canonical.canonical_delivery_execution_held, true);
 assert.equal(canonical.presale_inventory_funding_ready, false);
 assert.deepEqual(canonical.funding_blockers, [
   "canonical_delivery_runtime_activation_not_ready",
 ]);
-assert.equal(canonical.runtime_status.mounted, false);
+assert.equal(canonical.runtime_status.mounted, true);
+assert.equal(canonical.runtime_status.enabled, false);
+assert.equal(canonical.runtime_status.policy_configured, false);
 assert.equal(canonical.runtime_status.signer_configured, false);
 assert.equal(canonical.runtime_status.broadcaster_configured, false);
 assert.equal(
@@ -266,7 +268,7 @@ console.log(
 );
 console.log("canonical_delivery_dependency_bootstrap_ready=1");
 console.log("erc20_transaction_preparation_execution_state_ready=1");
-console.log("canonical_delivery_runtime_parent_mounted=0");
+console.log("canonical_delivery_runtime_parent_mounted=1");
 console.log("canonical_delivery_execution_ready=0");
 console.log("production_credential_read=0");
 console.log("signing=0");

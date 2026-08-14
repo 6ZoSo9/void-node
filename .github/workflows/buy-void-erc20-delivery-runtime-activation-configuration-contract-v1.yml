@@ -4,13 +4,12 @@ on:
   pull_request:
     paths:
       - "src/economic/buy_void_erc20_delivery_runtime_activation_configuration_contract_v1.ts"
+      - "src/economic/buy_void_erc20_execution_composition_v1.ts"
       - "scripts/prove_buy_void_erc20_delivery_runtime_activation_configuration_contract_v1.ts"
+      - "scripts/prove_buy_void_erc20_execution_composition_v1.ts"
       - "docs/operators/buy-void-erc20-delivery-runtime-activation-configuration-contract-v1.md"
       - ".github/workflows/buy-void-erc20-delivery-runtime-activation-configuration-contract-v1.yml"
       - "src/economic/buy_void_delivery_runtime_integration_v1.ts"
-      - "scripts/prove_buy_void_delivery_runtime_integration_v1.ts"
-      - "scripts/prove_buy_void_delivery_runtime_integration_guard_v1.ts"
-      - "src/economic/buy_void_erc20_transaction_preparation_planner_v1.ts"
       - "src/economic/buy_void_erc20_delivery_dependency_bootstrap_v1.ts"
       - "src/economic/buy_void_native_fulfillment_wallet_credential_signer_v1.ts"
       - "src/economic/buy_void_erc20_delivery_dependency_bootstrap_integration_gate_v1.ts"
@@ -19,13 +18,12 @@ on:
     branches: [main]
     paths:
       - "src/economic/buy_void_erc20_delivery_runtime_activation_configuration_contract_v1.ts"
+      - "src/economic/buy_void_erc20_execution_composition_v1.ts"
       - "scripts/prove_buy_void_erc20_delivery_runtime_activation_configuration_contract_v1.ts"
+      - "scripts/prove_buy_void_erc20_execution_composition_v1.ts"
       - "docs/operators/buy-void-erc20-delivery-runtime-activation-configuration-contract-v1.md"
       - ".github/workflows/buy-void-erc20-delivery-runtime-activation-configuration-contract-v1.yml"
       - "src/economic/buy_void_delivery_runtime_integration_v1.ts"
-      - "scripts/prove_buy_void_delivery_runtime_integration_v1.ts"
-      - "scripts/prove_buy_void_delivery_runtime_integration_guard_v1.ts"
-      - "src/economic/buy_void_erc20_transaction_preparation_planner_v1.ts"
       - "src/economic/buy_void_erc20_delivery_dependency_bootstrap_v1.ts"
       - "src/economic/buy_void_native_fulfillment_wallet_credential_signer_v1.ts"
       - "src/economic/buy_void_erc20_delivery_dependency_bootstrap_integration_gate_v1.ts"
@@ -38,7 +36,7 @@ jobs:
   prove:
     name: prove (Node ${{ matrix.node }})
     runs-on: ubuntu-24.04
-    timeout-minutes: 20
+    timeout-minutes: 24
     strategy:
       fail-fast: false
       matrix:
@@ -56,12 +54,16 @@ jobs:
           cache: npm
       - name: Install locked dependencies
         run: npm ci --ignore-scripts --no-audit --no-fund
-      - name: Prove V90 activation/configuration source contract
+      - name: Prove activation configuration source contract
         run: npx --no-install tsx scripts/prove_buy_void_erc20_delivery_runtime_activation_configuration_contract_v1.ts
-      - name: Prove server-derived runtime plan and direct-apply HOLD
+      - name: Prove execution composition source
+        run: npx --no-install tsx scripts/prove_buy_void_erc20_execution_composition_v1.ts
+      - name: Prove delivery runtime status and request authority
         run: npx --no-install tsx scripts/prove_buy_void_delivery_runtime_integration_v1.ts
-      - name: Preserve coherent-pending ERC20 planner
+      - name: Preserve coherent-pending planner
         run: npx --no-install tsx scripts/prove_buy_void_erc20_transaction_preparation_planner_v1.ts
+      - name: Preserve ERC20 receipt reconciler
+        run: npx --no-install tsx scripts/prove_buy_void_erc20_delivery_receipt_reconciler_v1.ts
       - name: Preserve dependency bootstrap integration gate
         run: npx --no-install tsx scripts/prove_buy_void_erc20_delivery_dependency_bootstrap_integration_gate_v1.ts
       - name: Preserve dependency composition
@@ -86,17 +88,15 @@ jobs:
             --allowSyntheticDefaultImports \
             --downlevelIteration \
             --skipLibCheck \
-            scripts/prove_buy_void_erc20_delivery_runtime_activation_configuration_contract_v1.ts \
-            scripts/prove_buy_void_delivery_runtime_integration_v1.ts
+            src/economic/buy_void_erc20_execution_composition_v1.ts \
+            src/economic/buy_void_delivery_runtime_integration_v1.ts \
+            scripts/prove_buy_void_delivery_runtime_integration_v1.ts \
+            scripts/prove_buy_void_erc20_execution_composition_v1.ts \
+            scripts/prove_buy_void_erc20_delivery_runtime_activation_configuration_contract_v1.ts
       - name: Typecheck repository
         run: npm run typecheck
       - name: Build repository
         run: npm run build
       - name: Diff hygiene
-        shell: bash
-        run: |
-          BASE_SHA="${{ github.event.pull_request.base.sha }}"
-          if [ -z "$BASE_SHA" ]; then
-            BASE_SHA="${{ github.event.before }}"
-          fi
-          git diff --check "$BASE_SHA..HEAD"
+        if: github.event_name == 'pull_request'
+        run: git diff --check "${{ github.event.pull_request.base.sha }}..HEAD"
