@@ -7,6 +7,7 @@ import os from "node:os";
 import path from "node:path";
 import { spawn } from "node:child_process";
 import { once } from "node:events";
+import vm from "node:vm";
 
 const repo = process.cwd();
 const adapterPath = path.join(repo, "ops/public/public-seed-adapter-v1.mjs");
@@ -429,6 +430,7 @@ try {
     "--coordinator-node-id",
     "YOUR_ACCOUNT",
     "textContent",
+    "isPrivateHttpHost",
   ]) {
     assert.equal(handoffScript.includes(required), true, required);
   }
@@ -467,6 +469,103 @@ try {
   );
   assert.equal(publicStatus.boundaries.account_directory, false);
   assert.equal(publicStatus.boundaries.arbitrary_balance_lookup, false);
+
+  async function executeHandoffOrigin(origin, snapshot = publicStatus) {
+    const nodes = new Map([
+      ["participantHandoffStatus", { textContent: "" }],
+      ["participantStatusCommand", { textContent: "" }],
+      ["participantRunCommand", { textContent: "" }],
+    ]);
+    const datasetState = {};
+    let fetchCount = 0;
+    let lastFetch = null;
+    const context = {
+      window: { location: { origin } },
+      document: {
+        getElementById: (id) => nodes.get(id) || null,
+        documentElement: { dataset: datasetState },
+      },
+      URL,
+      TextDecoder,
+      AbortController,
+      setTimeout,
+      clearTimeout,
+      fetch: async (resource, options) => {
+        fetchCount += 1;
+        lastFetch = { resource: String(resource), options };
+        return new Response(JSON.stringify(snapshot), {
+          status: 200,
+          headers: { "content-type": "application/json; charset=utf-8" },
+        });
+      },
+    };
+
+    vm.runInNewContext(handoffScript, context, { timeout: 1000 });
+    for (let attempt = 0; attempt < 200; attempt += 1) {
+      if (datasetState.voidParticipantHandoff) break;
+      await new Promise((resolve) => setTimeout(resolve, 1));
+    }
+    assert.ok(
+      datasetState.voidParticipantHandoff,
+      `handoff did not reach terminal state for ${origin}`,
+    );
+    return {
+      fetchCount,
+      lastFetch,
+      state: datasetState.voidParticipantHandoff,
+      statusText: nodes.get("participantHandoffStatus").textContent,
+      statusCommand: nodes.get("participantStatusCommand").textContent,
+      runCommand: nodes.get("participantRunCommand").textContent,
+    };
+  }
+
+  const acceptedOrigins = [
+    "https://public.example",
+    "https://public.example:8443",
+    "http://localhost:8082",
+    "http://127.0.0.1:8082",
+    "http://127.0.0.2:8082",
+    "http://10.2.3.4:8082",
+    "http://172.16.0.1:8082",
+    "http://172.31.255.254:8082",
+    "http://192.168.1.2:8082",
+    "http://100.64.0.1:8082",
+    "http://100.127.255.254:8082",
+    "http://worker.ts.net:8082",
+  ];
+  for (const origin of acceptedOrigins) {
+    const result = await executeHandoffOrigin(origin);
+    assert.equal(result.fetchCount, 1, origin);
+    assert.equal(result.lastFetch.resource, "/__void/public-participant/status.json");
+    assert.equal(result.lastFetch.options.method, "GET");
+    assert.equal(result.lastFetch.options.credentials, "omit");
+    assert.equal(result.lastFetch.options.redirect, "error");
+    assert.equal(result.lastFetch.options.referrerPolicy, "no-referrer");
+    assert.equal(result.state, "available", origin);
+    assert.match(result.statusCommand, new RegExp(`--coordinator-base '${origin.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}'`));
+    assert.match(result.runCommand, new RegExp(`--coordinator-base '${origin.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}'`));
+    assert.match(result.statusCommand, new RegExp(`--coordinator-node-id ${coordinatorNodeId}`));
+    assert.match(result.runCommand, new RegExp(`--coordinator-node-id ${coordinatorNodeId}`));
+  }
+
+  const rejectedOrigins = [
+    "http://public.example",
+    "http://8.8.8.8:8082",
+    "http://172.32.0.1:8082",
+    "http://100.63.255.255:8082",
+    "http://100.128.0.1:8082",
+    "ftp://public.example",
+    "not-an-origin",
+    "http://user:pass@localhost:8082",
+  ];
+  for (const origin of rejectedOrigins) {
+    const result = await executeHandoffOrigin(origin);
+    assert.equal(result.fetchCount, 0, origin);
+    assert.equal(result.state, "hold", origin);
+    assert.match(result.statusText, /^HOLD — /);
+    assert.equal(result.statusCommand, "HOLD: coordinator identity not verified.");
+    assert.equal(result.runCommand, "HOLD: coordinator identity not verified.");
+  }
 
   assert.equal(
     (await fetch(`${base}/wc/public-earning-pilot-v1/status`)).status,
@@ -627,6 +726,8 @@ try {
   console.log("client_status_account_queries=0");
   console.log("participant_unresolved_origin_placeholders=0");
   console.log("participant_handoff_helper=same_origin_bounded_status");
+  console.log("participant_origin_policy_matrix=green");
+  console.log("participant_public_http_status_fetches=0");
   console.log("participant_copy_ready_handoff=green");
   console.log("claim_route=bounded_post");
   console.log("submit_route=capability_bound_post");
