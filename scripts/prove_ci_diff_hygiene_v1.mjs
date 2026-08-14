@@ -63,12 +63,20 @@ for (const relative of WORKFLOWS) {
   const source = readFileSync(path.join(ROOT, relative), "utf8");
   assert.match(source, /fetch-depth:\s*1\b/, `${relative}: exact shallow checkout depth missing`);
   assert.ok(
+    source.includes("repository: ${{ github.event.pull_request.head.repo.full_name || github.repository }}"),
+    `${relative}: exact head repository binding missing`,
+  );
+  assert.ok(
     source.includes("ref: ${{ github.event.pull_request.head.sha || github.sha }}"),
     `${relative}: exact PR-head/current-SHA checkout missing`,
   );
   assert.ok(source.includes("persist-credentials: false"), `${relative}: credentials persisted`);
   assert.ok(source.includes("scripts/ci_diff_hygiene_v1.sh"), `${relative}: helper not dependency-bound`);
   assert.ok(source.includes("bash scripts/ci_diff_hygiene_v1.sh"), `${relative}: helper not invoked`);
+  assert.ok(
+    source.includes("CI_DIFF_BASE_REMOTE: ${{ github.server_url }}/${{ github.repository }}.git"),
+    `${relative}: base-repository fetch binding missing`,
+  );
   assert.ok(!source.includes("git diff --check \"${{ github.event.pull_request.base.sha }}..HEAD\""), `${relative}: stale direct diff retained`);
 }
 
@@ -94,16 +102,19 @@ try {
   const cleanHead = commits.at(-1);
   const pushBefore = commits.at(-2);
 
-  const remote = path.join(FIXTURE, "remote.git");
+  const remote = path.join(FIXTURE, "base-remote.git");
   git(FIXTURE, "clone", "--bare", source, remote);
   git(remote, "config", "uploadpack.allowReachableSHA1InWant", "true");
+  const baseRemote = `file://${remote}`;
 
   const deepRunner = makeShallowRunner(remote, cleanHead, "deep-runner");
   assert.equal(run("git", ["cat-file", "-e", `${deepBase}^{commit}`], { cwd: deepRunner }).status, 128);
+  git(deepRunner, "remote", "set-url", "origin", "file:///definitely-not-the-base-repository");
   const deepResult = invokeHelper(deepRunner, {
     CI_DIFF_EVENT_NAME: "pull_request",
     CI_DIFF_PR_BASE_SHA: deepBase,
     CI_DIFF_CURRENT_SHA: cleanHead,
+    CI_DIFF_BASE_REMOTE: baseRemote,
   });
   assert.equal(deepResult.status, 0, deepResult.stderr);
   assert.match(deepResult.stdout, /VOID_CI_DIFF_HYGIENE_V1_GREEN/);
@@ -113,6 +124,7 @@ try {
     CI_DIFF_EVENT_NAME: "pull_request",
     CI_DIFF_PR_BASE_SHA: "f".repeat(40),
     CI_DIFF_CURRENT_SHA: cleanHead,
+    CI_DIFF_BASE_REMOTE: baseRemote,
   });
   assert.equal(missingResult.status, 2);
   assert.match(missingResult.stderr, /base_commit_unavailable/);
@@ -121,15 +133,18 @@ try {
     CI_DIFF_EVENT_NAME: "pull_request",
     CI_DIFF_PR_BASE_SHA: deepBase,
     CI_DIFF_CURRENT_SHA: pushBefore,
+    CI_DIFF_BASE_REMOTE: baseRemote,
   });
   assert.equal(mismatchedCheckout.status, 2);
   assert.match(mismatchedCheckout.stderr, /checkout_not_exact_current/);
 
   const pushRunner = makeShallowRunner(remote, cleanHead, "push-runner");
+  git(pushRunner, "remote", "set-url", "origin", "file:///definitely-not-the-base-repository");
   const pushResult = invokeHelper(pushRunner, {
     CI_DIFF_EVENT_NAME: "push",
     CI_DIFF_PUSH_BEFORE_SHA: pushBefore,
     CI_DIFF_CURRENT_SHA: cleanHead,
+    CI_DIFF_BASE_REMOTE: baseRemote,
   });
   assert.equal(pushResult.status, 0, pushResult.stderr);
   assert.match(pushResult.stdout, /event=push/);
@@ -139,13 +154,14 @@ try {
   git(source, "add", "fixture.txt");
   git(source, "commit", "-m", "bad-whitespace");
   const badHead = git(source, "rev-parse", "HEAD");
-  git(source, "push", `file://${remote}`, `HEAD:refs/heads/bad-whitespace`);
+  git(source, "push", baseRemote, `HEAD:refs/heads/bad-whitespace`);
 
   const badRunner = makeShallowRunner(remote, badHead, "bad-runner");
   const badResult = invokeHelper(badRunner, {
     CI_DIFF_EVENT_NAME: "pull_request",
     CI_DIFF_PR_BASE_SHA: deepBase,
     CI_DIFF_CURRENT_SHA: badHead,
+    CI_DIFF_BASE_REMOTE: baseRemote,
   });
   assert.notEqual(badResult.status, 0);
   assert.match(`${badResult.stdout}\n${badResult.stderr}`, /trailing whitespace/);
@@ -153,6 +169,7 @@ try {
   const unsupported = invokeHelper(deepRunner, {
     CI_DIFF_EVENT_NAME: "workflow_dispatch",
     CI_DIFF_CURRENT_SHA: cleanHead,
+    CI_DIFF_BASE_REMOTE: baseRemote,
   });
   assert.equal(unsupported.status, 2);
   assert.match(unsupported.stderr, /unsupported_event/);
@@ -163,6 +180,7 @@ try {
 console.log("VOID_CI_DIFF_HYGIENE_V1_PROOF_GREEN");
 console.log(`workflow_count=${WORKFLOWS.length}`);
 console.log("deep_old_pr_base_recovered=true");
+console.log("base_repo_fetch_independent_of_head_origin=true");
 console.log("missing_base_fail_closed=true");
 console.log("exact_head_required=true");
 console.log("push_before_supported=true");
