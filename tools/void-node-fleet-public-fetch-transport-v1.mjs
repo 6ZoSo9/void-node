@@ -1,0 +1,107 @@
+#!/usr/bin/env node
+import {createHash} from 'node:crypto';
+import {closeSync,existsSync,fchmodSync,openSync,readFileSync,realpathSync,statSync,writeFileSync} from 'node:fs';
+import {homedir} from 'node:os';
+import {basename,dirname,isAbsolute,relative,resolve,sep} from 'node:path';
+import {spawnSync} from 'node:child_process';
+import {fileURLToPath} from 'node:url';
+
+export const VOID_NODE_FLEET_PUBLIC_FETCH_TRANSPORT_V1='VOID_NODE_FLEET_PUBLIC_FETCH_TRANSPORT_V1';
+export const VOID_NODE_FLEET_PUBLIC_FETCH_TRANSPORT_PLAN_V1='VOID_NODE_FLEET_PUBLIC_FETCH_TRANSPORT_PLAN_V1';
+export const VOID_NODE_FLEET_PUBLIC_FETCH_TRANSPORT_APPLY_V1='VOID_NODE_FLEET_PUBLIC_FETCH_TRANSPORT_APPLY_V1';
+export const PUBLIC_FETCH_REMOTE_V1='void-public-fetch';
+export const PUBLIC_FETCH_URL_V1='https://github.com/6ZoSo9/void-node.git';
+export const PUBLIC_PUSH_URL_V1='/dev/null';
+export const CANONICAL_ORIGIN_REPOSITORY_V1='6ZoSo9/void-node';
+export const CANONICAL_ORIGIN_FETCH_URLS_V1=Object.freeze([
+ 'https://github.com/6ZoSo9/void-node.git','https://github.com/6ZoSo9/void-node',
+ 'git@github.com:6ZoSo9/void-node.git','git@github.com:6ZoSo9/void-node',
+ 'ssh://git@github.com/6ZoSo9/void-node.git','ssh://git@github.com/6ZoSo9/void-node',
+]);
+const ORIGIN_SET=new Set(CANONICAL_ORIGIN_FETCH_URLS_V1), SHA40=/^[0-9a-f]{40}$/, SHA64=/^[0-9a-f]{64}$/, MAX=4*1024*1024;
+function fail(m,mut=false){const e=new Error(m);e.name='VoidFleetPublicFetchTransportError';e.mutationAttempted=mut;throw e;}
+function stable(v){if(Array.isArray(v))return`[${v.map(stable).join(',')}]`;if(v&&typeof v==='object')return`{${Object.keys(v).sort().map(k=>`${JSON.stringify(k)}:${stable(v[k])}`).join(',')}}`;return JSON.stringify(v);}
+function hash(v){return createHash('sha256').update(Buffer.isBuffer(v)?v:Buffer.from(typeof v==='string'?v:stable(v))).digest('hex');}
+function pathArg(v,l){if(typeof v!=='string'||!v||/[^\x20-\x7e]/.test(v))fail(`${l} must be a non-empty printable string`);if(v!=='.'&&v!=='~'&&!/^\.\.?\//.test(v)&&!/^~\//.test(v)&&!v.startsWith('/'))fail(`${l} must be a local filesystem path`);return v;}
+function expand(v){return v==='~'?homedir():v.startsWith('~/')?resolve(homedir(),v.slice(2)):resolve(v);}
+function run(repo,args){const r=spawnSync('git',['-C',repo,...args],{encoding:'utf8',timeout:10000,maxBuffer:MAX,env:{...process.env,GIT_TERMINAL_PROMPT:'0',GIT_OPTIONAL_LOCKS:'0'}});return{ok:r.status===0&&!r.error,status:r.status,stdout:r.stdout??'',stderr:r.stderr??'',error:r.error};}
+function must(repo,args,label){const r=run(repo,args);if(!r.ok)fail(`${label} failed`);return r.stdout;}
+function lines(s){return s.split(/\r?\n/).filter(Boolean);}
+function cfg(repo,key,local=true){const a=['config'];if(local)a.push('--local');a.push('--get-all',key);const r=run(repo,a);if(r.status===1&&!r.error)return[];if(!r.ok)fail(`unable to read ${key}`);return lines(r.stdout);}
+function dig(a){return hash(a.map(v=>`${v.length}:${v}`).join('\n'));}
+function effective(repo,remote){const r=run(repo,['remote','get-url','--all',remote]);if(r.status===2&&!r.error)return[];if(!r.ok)fail(`unable to resolve effective fetch URL for ${remote}`);return lines(r.stdout);}
+function prospective(repo){const r=run(repo,['ls-remote','--get-url',PUBLIC_FETCH_URL_V1]);if(!r.ok)fail('unable to resolve prospective public fetch URL');return lines(r.stdout);}
+function status(repo){const r=run(repo,['status','--porcelain=v1','-z','--untracked-files=all']);if(!r.ok)fail('unable to inspect worktree status');return{sha:hash(Buffer.from(r.stdout)),count:r.stdout?r.stdout.split('\0').filter(Boolean).length:0};}
+function gitDir(repo){return must(repo,['rev-parse','--absolute-git-dir'],'resolve git dir').trim();}
+function repositoryPaths(repo){
+ const top=realpathSync(must(repo,['rev-parse','--show-toplevel'],'resolve repository top level').trim());
+ const dir=realpathSync(gitDir(repo));
+ const common=realpathSync(must(repo,['rev-parse','--path-format=absolute','--git-common-dir'],'resolve git common dir').trim());
+ return {top_level:top,git_dir:dir,git_common_dir:common};
+}
+function repositoryIdentity(repo){return hash(repositoryPaths(repo));}
+function index(repo){const p=resolve(gitDir(repo),'index');if(!existsSync(p))fail('repository index is missing');const s=statSync(p);if(!s.isFile()||s.size>MAX*8)fail('repository index is invalid');return hash(readFileSync(p));}
+function inProgress(repo){const d=gitDir(repo);return['index.lock','MERGE_HEAD','CHERRY_PICK_HEAD','REVERT_HEAD','rebase-merge','rebase-apply','sequencer'].some(n=>existsSync(resolve(d,n)));}
+function refs(repo){return hash(must(repo,['for-each-ref','--format=%(refname)%00%(objectname)%00%(symref)'],'inspect refs'));}
+function assertOrigin(stored,eff){if(stored.length!==1)fail(`origin must have exactly one canonical ${CANONICAL_ORIGIN_REPOSITORY_V1} fetch URL`);if(!ORIGIN_SET.has(stored[0]))fail(`origin does not identify canonical ${CANONICAL_ORIGIN_REPOSITORY_V1}`);if(eff.length!==1||!ORIGIN_SET.has(eff[0]))fail(`origin effective fetch URL does not identify canonical ${CANONICAL_ORIGIN_REPOSITORY_V1}`);}
+function assertProspective(a){if(a.length!==1||a[0]!==PUBLIC_FETCH_URL_V1)fail('public fetch URL is rewritten by Git configuration');}
+function assertLocal(repo,lf,lp){if(stable(cfg(repo,`remote.${PUBLIC_FETCH_REMOTE_V1}.url`,false))!==stable(lf)||stable(cfg(repo,`remote.${PUBLIC_FETCH_REMOTE_V1}.pushurl`,false))!==stable(lp))fail('dedicated remote has non-local configuration');}
+function dedicated(lf,lp,ef){if(!lf.length&&!lp.length&&!ef.length)return'MISSING';return lf.length===1&&lf[0]===PUBLIC_FETCH_URL_V1&&lp.length===1&&lp[0]===PUBLIC_PUSH_URL_V1&&ef.length===1&&ef[0]===PUBLIC_FETCH_URL_V1?'ALIGNED':'MISCONFIGURED';}
+function within(root,target){const r=relative(root,target);return r===''||(!r.startsWith(`..${sep}`)&&r!=='..'&&!isAbsolute(r));}
+export function prepareEvidenceOutputPathV1(repoInput,outputInput){
+ if(!outputInput)return'';
+ const repo=expand(pathArg(repoInput,'repo'));
+ const requested=expand(pathArg(outputInput,'output'));
+ const parent=dirname(requested);
+ let realParent;
+ try{realParent=realpathSync(parent);}catch{fail('output parent must exist and be resolvable before repository mutation');}
+ if(!statSync(realParent).isDirectory())fail('output parent must be a directory');
+ const target=resolve(realParent,basename(requested));
+ const paths=repositoryPaths(repo);
+ if(within(paths.top_level,target)||within(paths.git_dir,target)||within(paths.git_common_dir,target))fail('output path must be outside selected worktree and Git administrative directories');
+ return target;
+}
+function reserveEvidenceOutputV1(repoInput,outputInput){
+ const path=prepareEvidenceOutputPathV1(repoInput,outputInput);
+ if(!path)return null;
+ let fd;
+ try{fd=openSync(path,'wx',0o600);fchmodSync(fd,0o600);}catch(e){fail(`unable to reserve create-only output receipt: ${String(e?.message||e)}`);}
+ return {path,fd};
+}
+
+export function inspectRepositoryTransportV1(input){
+ const repo=expand(pathArg(input,'repo')),inside=run(repo,['rev-parse','--is-inside-work-tree']);if(!inside.ok||inside.stdout.trim()!=='true')fail('repo is not a Git working tree');if(inProgress(repo))fail('a Git operation is in progress');
+ const br=run(repo,['symbolic-ref','--short','-q','HEAD']);if(br.status===1&&!br.error)fail('repo must be on exact main');if(!br.ok||br.stdout.trim()!=='main')fail('repo must be on exact main');
+ const head=must(repo,['rev-parse','HEAD'],'inspect head').trim(),tree=must(repo,['rev-parse','HEAD^{tree}'],'inspect tree').trim();if(!SHA40.test(head)||!SHA40.test(tree))fail('repo head/tree identity is invalid');
+ const of=cfg(repo,'remote.origin.url'),oe=effective(repo,'origin'),op=cfg(repo,'remote.origin.pushurl');assertOrigin(of,oe);
+ const df=cfg(repo,`remote.${PUBLIC_FETCH_REMOTE_V1}.url`),dp=cfg(repo,`remote.${PUBLIC_FETCH_REMOTE_V1}.pushurl`);assertLocal(repo,df,dp);const de=df.length?effective(repo,PUBLIC_FETCH_REMOTE_V1):[],pp=prospective(repo);assertProspective(pp);
+ const st=status(repo);return Object.freeze({repo,repository_identity_sha256:repositoryIdentity(repo),branch:'main',head,tree,worktree_status_sha256:st.sha,dirty_count:st.count,index_sha256:index(repo),refs_sha256:refs(repo),canonical_origin_required:true,origin_repository:CANONICAL_ORIGIN_REPOSITORY_V1,origin_fetch_count:of.length,origin_fetch_sha256:dig(of),origin_effective_fetch_count:oe.length,origin_effective_fetch_sha256:dig(oe),origin_push_count:op.length,origin_push_sha256:dig(op),prospective_public_fetch_count:pp.length,prospective_public_fetch_sha256:dig(pp),dedicated_fetch_count:df.length,dedicated_fetch_sha256:dig(df),dedicated_effective_fetch_count:de.length,dedicated_effective_fetch_sha256:dig(de),dedicated_push_count:dp.length,dedicated_push_sha256:dig(dp),dedicated_state:dedicated(df,dp,de)});
+}
+const KEYS=['repository_identity_sha256','branch','head','tree','worktree_status_sha256','dirty_count','index_sha256','refs_sha256','canonical_origin_required','origin_repository','origin_fetch_count','origin_fetch_sha256','origin_effective_fetch_count','origin_effective_fetch_sha256','origin_push_count','origin_push_sha256','prospective_public_fetch_count','prospective_public_fetch_sha256','dedicated_fetch_count','dedicated_fetch_sha256','dedicated_effective_fetch_count','dedicated_effective_fetch_sha256','dedicated_push_count','dedicated_push_sha256','dedicated_state'];
+function payload(s){const p={marker:VOID_NODE_FLEET_PUBLIC_FETCH_TRANSPORT_PLAN_V1,remote_name:PUBLIC_FETCH_REMOTE_V1,fetch_url:PUBLIC_FETCH_URL_V1,push_url:PUBLIC_PUSH_URL_V1};for(const k of KEYS)p[k]=s[k];p.operation='configure_dedicated_fetch_remote_only';return p;}
+export function buildTransportPlanV1(s){const p=payload(s);return Object.freeze({...p,plan_id_sha256:hash(p),mutation_required:s.dedicated_state!=='ALIGNED'});}
+function invariant(s){const o={};for(const k of KEYS.slice(0,18))o[k]=s[k];return o;}
+export function applyTransportPlanV1(input,id){if(!SHA64.test(String(id??'')))fail('expected plan ID must be lowercase 64-hex');const before=inspectRepositoryTransportV1(input),plan=buildTransportPlanV1(before);if(plan.plan_id_sha256!==id)fail('transport plan changed before apply');if(!plan.mutation_required)return Object.freeze({outcome:'ALREADY_ALIGNED',plan,mutation_attempted:false,mutation_succeeded:true,after:before});
+ const a=run(before.repo,['config','--local','--replace-all',`remote.${PUBLIC_FETCH_REMOTE_V1}.url`,PUBLIC_FETCH_URL_V1]);if(!a.ok)fail('failed to set dedicated fetch URL; mutation outcome is uncertain and automatic retry is forbidden',true);const b=run(before.repo,['config','--local','--replace-all',`remote.${PUBLIC_FETCH_REMOTE_V1}.pushurl`,PUBLIC_PUSH_URL_V1]);if(!b.ok)fail('failed to set dedicated push URL; partial dedicated-remote config may exist and requires fresh inspection',true);
+ const after=inspectRepositoryTransportV1(before.repo);if(stable(invariant(after))!==stable(invariant(before)))fail('repository invariant changed during dedicated remote configuration',true);if(after.dedicated_state!=='ALIGNED')fail('dedicated remote did not reach exact aligned state',true);return Object.freeze({outcome:'TRANSPORT_CONFIGURED',plan,mutation_attempted:true,mutation_succeeded:true,after});}
+function pub(p){return{marker:p.marker,plan_id_sha256:p.plan_id_sha256,repository_identity_sha256:p.repository_identity_sha256,remote_name:p.remote_name,fetch_url:p.fetch_url,push_url:p.push_url,branch:p.branch,head:p.head,tree:p.tree,dirty_count:p.dirty_count,canonical_origin_required:p.canonical_origin_required,origin_repository:p.origin_repository,dedicated_state:p.dedicated_state,mutation_required:p.mutation_required,operation:p.operation};}
+function auth(x={}){return{git_config_mutation_attempted:false,git_fetch:false,git_pull:false,checkout:false,reset:false,merge:false,build:false,package_install:false,service_mutation:false,runtime_mutation:false,network_configuration:false,credential_read:false,wallet_or_signer:false,work_credit_or_validator_mutation:false,transaction:false,treasury_or_liquidity:false,funds_moved:false,...x};}
+function emit(v,out=null){const j=`${JSON.stringify(v,null,2)}\n`;if(out){writeFileSync(out.fd,j,{encoding:'utf8'});closeSync(out.fd);out.fd=null;}process.stdout.write(j);}
+function args(v){const o={repo:'',output:'',apply:false,confirmOperation:'',confirmPlanId:''};for(let i=0;i<v.length;i++){const a=v[i],n=()=>{const x=v[++i];if(!x||x.startsWith('--'))fail(`${a} requires a value`);return x;};if(a==='--repo')o.repo=n();else if(a==='--output')o.output=n();else if(a==='--apply')o.apply=true;else if(a==='--confirm-operation')o.confirmOperation=n();else if(a==='--confirm-plan-id')o.confirmPlanId=n();else if(a==='--help'){console.log('Usage: node tools/void-node-fleet-public-fetch-transport-v1.mjs --repo PATH [--output PATH] [--apply --confirm-operation VOID_NODE_FLEET_PUBLIC_FETCH_TRANSPORT_APPLY_V1 --confirm-plan-id SHA256]');process.exit(0);}else fail(`unknown argument: ${a}`);}if(!o.repo)fail('--repo is required');return o;}
+function main(){
+ let out=null;
+ try{
+  const a=args(process.argv.slice(2)),s=inspectRepositoryTransportV1(a.repo),p=buildTransportPlanV1(s);
+  out=reserveEvidenceOutputV1(s.repo,a.output);
+  if(!a.apply){emit({marker:VOID_NODE_FLEET_PUBLIC_FETCH_TRANSPORT_V1,version:1,outcome:p.mutation_required?'READY_TO_APPLY':'ALREADY_ALIGNED',plan:pub(p),reasons:[],mutation_attempted:false,automatic_retry:false,required_confirmation_marker:VOID_NODE_FLEET_PUBLIC_FETCH_TRANSPORT_APPLY_V1,authority:auth()},out);return;}
+  if(a.confirmOperation!==VOID_NODE_FLEET_PUBLIC_FETCH_TRANSPORT_APPLY_V1)fail('exact operation confirmation mismatch');
+  if(a.confirmPlanId!==p.plan_id_sha256)fail('exact plan ID confirmation mismatch');
+  const r=applyTransportPlanV1(a.repo,a.confirmPlanId);
+  emit({marker:VOID_NODE_FLEET_PUBLIC_FETCH_TRANSPORT_V1,version:1,outcome:r.outcome,plan:pub(r.plan),reasons:[],mutation_attempted:r.mutation_attempted,mutation_succeeded:r.mutation_succeeded,automatic_retry:false,authority:auth({git_config_mutation_attempted:r.mutation_attempted})},out);
+ }catch(e){
+  const m=e?.mutationAttempted===true,result={marker:VOID_NODE_FLEET_PUBLIC_FETCH_TRANSPORT_V1,version:1,outcome:'HOLD',error:String(e?.message||e),mutation_attempted:m,automatic_retry:false,authority:auth({git_config_mutation_attempted:m})};
+  try{emit(result,out);}catch{if(out?.fd!=null){try{closeSync(out.fd);}catch(closeError){void closeError;}out.fd=null;}process.stdout.write(`${JSON.stringify(result,null,2)}\n`);}
+  process.exitCode=2;
+ }finally{if(out?.fd!=null){try{closeSync(out.fd);}catch(closeError){void closeError;}out.fd=null;}}
+}
+if(process.argv[1]&&resolve(process.argv[1])===fileURLToPath(import.meta.url))main();
