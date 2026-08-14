@@ -20,11 +20,79 @@ This client replaces those loopback dependencies with a private local identity a
 - A public immutable representation of the server-selected DataNet dataset
 - No local VOID repository, node process, P2P listener, HTTP listener, or inbound port
 
-The repository copy is used for development and proofing. A release may distribute the single `.mjs` client directly.
+The repository copy is used for development and proofing. Participants can download the single `.mjs` client directly from the trusted Public Earn gateway and run it from any ordinary local directory.
+
+## Download the single client file
+
+Choose the Public Earn gateway origin you intend to trust. The gateway publishes the same no-node client used by the browser `/participant` handoff at `/download/void-public-earn-no-node-client-v1.mjs`.
+
+The bounded download below refuses redirects, enforces a 7-second total deadline, reads at most 1 MiB, and creates the local client file only after the complete response has passed those checks:
+
+```bash
+PUBLIC_HTTPS_BASE='https://PUBLIC-EARN-GATEWAY'
+CLIENT_FILE='./void-public-earn-no-node-client-v1.mjs'
+
+node --input-type=module - "$PUBLIC_HTTPS_BASE" "$CLIENT_FILE" <<'NODE'
+import { writeFile } from 'node:fs/promises';
+
+const [base, output] = process.argv.slice(2);
+const maxBytes = 1024 * 1024;
+const controller = new AbortController();
+const timer = setTimeout(() => controller.abort(), 7000);
+timer.unref?.();
+
+try {
+  const response = await fetch(
+    new URL('/download/void-public-earn-no-node-client-v1.mjs', base),
+    {
+      method: 'GET',
+      redirect: 'manual',
+      signal: controller.signal,
+    },
+  );
+  if (response.status >= 300 && response.status < 400) {
+    throw new Error(`client download redirect refused: HTTP ${response.status}`);
+  }
+  if (response.status !== 200) {
+    throw new Error(`client download unavailable: HTTP ${response.status}`);
+  }
+  const declaredRaw = response.headers.get('content-length');
+  if (declaredRaw) {
+    const declared = Number(declaredRaw);
+    if (!Number.isSafeInteger(declared) || declared < 1 || declared > maxBytes) {
+      throw new Error(`client download content-length refused: ${declaredRaw}`);
+    }
+  }
+  if (!response.body) {
+    throw new Error('client download response body unavailable');
+  }
+
+  const chunks = [];
+  let total = 0;
+  for await (const chunk of response.body) {
+    const bytes = Buffer.from(chunk);
+    total += bytes.length;
+    if (total > maxBytes) {
+      controller.abort();
+      throw new Error(`client download exceeds ${maxBytes} bytes`);
+    }
+    chunks.push(bytes);
+  }
+  if (total < 1) {
+    throw new Error('client download was empty');
+  }
+  await writeFile(output, Buffer.concat(chunks), { flag: 'wx', mode: 0o700 });
+} finally {
+  clearTimeout(timer);
+}
+NODE
+```
+
+`flag: 'wx'` refuses to overwrite an existing local file. If you intentionally want a fresh copy, remove or rename the old local client first and rerun the bounded download.
 
 ## Identity
 
-The first run creates a stable Ed25519 executor identity under:
+The first client run creates a stable Ed25519 executor identity under:
 
 ```text
 ~/.local/state/void/public-earn-no-node-client-v1/identity/
@@ -35,47 +103,73 @@ The state directory is mode `0700`. The private key, public key, identity record
 Show or create the identity without contacting a coordinator:
 
 ```bash
-node tools/void_public_earn_no_node_client_v1.mjs identity
+node "$CLIENT_FILE" identity
 ```
 
 The executor node ID is the first 32 lowercase hexadecimal characters of the SHA-256 digest of the exact public-key PEM, matching `nodeIdFromPubPEM`.
 
 ## Discover the coordinator node ID safely
 
-A participant should not have to transcribe the coordinator node ID by hand from the public status JSON. Set the trusted Public Earn gateway origin once, then derive the exact coordinator node ID from the sanitized participant-status contract with a bounded, redirect-refusing read:
+A participant should not have to transcribe the coordinator node ID by hand from the public status JSON. With the trusted Public Earn gateway origin already selected above, derive the exact coordinator node ID from the sanitized participant-status contract with a bounded, redirect-refusing read:
 
 ```bash
-PUBLIC_HTTPS_BASE='https://PUBLIC-EARN-GATEWAY'
 COORDINATOR_NODE_ID="$(
   node --input-type=module - "$PUBLIC_HTTPS_BASE" <<'NODE'
 const base = process.argv[2];
-const response = await fetch(
-  new URL('/__void/public-participant/status.json', base),
-  {
-    method: 'GET',
-    redirect: 'manual',
-    signal: AbortSignal.timeout(7000),
-  },
-);
-if (response.status >= 300 && response.status < 400) {
-  throw new Error(`participant status redirect refused: HTTP ${response.status}`);
+const maxBytes = 65536;
+const controller = new AbortController();
+const timer = setTimeout(() => controller.abort(), 7000);
+timer.unref?.();
+
+try {
+  const response = await fetch(
+    new URL('/__void/public-participant/status.json', base),
+    {
+      method: 'GET',
+      redirect: 'manual',
+      signal: controller.signal,
+    },
+  );
+  if (response.status >= 300 && response.status < 400) {
+    throw new Error(`participant status redirect refused: HTTP ${response.status}`);
+  }
+  if (!response.ok) {
+    throw new Error(`participant status unavailable: HTTP ${response.status}`);
+  }
+  const declaredRaw = response.headers.get('content-length');
+  if (declaredRaw) {
+    const declared = Number(declaredRaw);
+    if (!Number.isSafeInteger(declared) || declared < 1 || declared > maxBytes) {
+      throw new Error(`participant status content-length refused: ${declaredRaw}`);
+    }
+  }
+  if (!response.body) {
+    throw new Error('participant status response body unavailable');
+  }
+
+  const chunks = [];
+  let total = 0;
+  for await (const chunk of response.body) {
+    const bytes = Buffer.from(chunk);
+    total += bytes.length;
+    if (total > maxBytes) {
+      controller.abort();
+      throw new Error(`participant status exceeds ${maxBytes} bytes`);
+    }
+    chunks.push(bytes);
+  }
+  const status = JSON.parse(Buffer.concat(chunks).toString('utf8'));
+  if (status?.marker !== 'VOID_PUBLIC_PARTICIPANT_NO_NODE_HANDOFF_V1') {
+    throw new Error('participant status marker mismatch');
+  }
+  const nodeId = String(status?.coordinator_node_id || '');
+  if (!/^[0-9a-f]{32}$/.test(nodeId)) {
+    throw new Error('participant status coordinator node ID unavailable');
+  }
+  process.stdout.write(nodeId);
+} finally {
+  clearTimeout(timer);
 }
-if (!response.ok) {
-  throw new Error(`participant status unavailable: HTTP ${response.status}`);
-}
-const text = await response.text();
-if (Buffer.byteLength(text, 'utf8') > 65536) {
-  throw new Error('participant status exceeds 65536 bytes');
-}
-const status = JSON.parse(text);
-if (status?.marker !== 'VOID_PUBLIC_PARTICIPANT_NO_NODE_HANDOFF_V1') {
-  throw new Error('participant status marker mismatch');
-}
-const nodeId = String(status?.coordinator_node_id || '');
-if (!/^[0-9a-f]{32}$/.test(nodeId)) {
-  throw new Error('participant status coordinator node ID unavailable');
-}
-process.stdout.write(nodeId);
 NODE
 )"
 ```
@@ -85,7 +179,7 @@ This discovery step reads only the public sanitized participant status. It does 
 ## Check availability
 
 ```bash
-node tools/void_public_earn_no_node_client_v1.mjs status \
+node "$CLIENT_FILE" status \
   --account outside-user-1 \
   --coordinator-base "$PUBLIC_HTTPS_BASE" \
   --coordinator-node-id "$COORDINATOR_NODE_ID"
@@ -96,7 +190,7 @@ The client rejects a gateway whose `/health` node ID does not equal the explicit
 ## Claim, work, and earn
 
 ```bash
-node tools/void_public_earn_no_node_client_v1.mjs run \
+node "$CLIENT_FILE" run \
   --account outside-user-1 \
   --coordinator-base "$PUBLIC_HTTPS_BASE" \
   --coordinator-node-id "$COORDINATOR_NODE_ID"
@@ -123,7 +217,7 @@ The client never accepts `--dataset-id`, `--input-hash`, `--task`, or `--award`.
 The client first uses a sanitized dataset URL template published by `public_claim` status when available. It also supports an operator-published explicit template:
 
 ```bash
-node tools/void_public_earn_no_node_client_v1.mjs run \
+node "$CLIENT_FILE" run \
   --account outside-user-1 \
   --coordinator-base https://PUBLIC-EARN-GATEWAY \
   --coordinator-node-id 32-lowercase-hex \
@@ -144,6 +238,8 @@ A pending ticket is deleted only after:
 - capability consumption,
 - exact signed job and receipt verification,
 - and a canonical redeemable balance increase of exactly 3 WC.
+
+The current public earning protocol does not yet provide participant-readable recovery for the narrower case where the coordinator durably accepts and credits the submission but the HTTP success response is lost before the client receives it. In that case the participant must treat the outcome as HOLD rather than inventing a new submission identity or assuming success. This limitation is tracked separately from the repo-less onboarding instructions here.
 
 ## Security boundary
 
@@ -177,7 +273,7 @@ The client enforces:
 
 ## Proof
 
-Run the deterministic local proof:
+Repository developers can run the deterministic local proof from a VOID source checkout:
 
 ```bash
 node --experimental-strip-types \
