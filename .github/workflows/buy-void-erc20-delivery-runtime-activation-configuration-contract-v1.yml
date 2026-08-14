@@ -5,6 +5,7 @@ on:
     paths:
       - "src/economic/buy_void_erc20_delivery_runtime_activation_configuration_contract_v1.ts"
       - "src/economic/buy_void_erc20_execution_composition_v1.ts"
+      - "src/economic/buy_void_erc20_execution_composition_nonstrict_compat_v1.d.ts"
       - "scripts/prove_buy_void_erc20_delivery_runtime_activation_configuration_contract_v1.ts"
       - "scripts/prove_buy_void_erc20_execution_composition_v1.ts"
       - "docs/operators/buy-void-erc20-delivery-runtime-activation-configuration-contract-v1.md"
@@ -19,6 +20,7 @@ on:
     paths:
       - "src/economic/buy_void_erc20_delivery_runtime_activation_configuration_contract_v1.ts"
       - "src/economic/buy_void_erc20_execution_composition_v1.ts"
+      - "src/economic/buy_void_erc20_execution_composition_nonstrict_compat_v1.d.ts"
       - "scripts/prove_buy_void_erc20_delivery_runtime_activation_configuration_contract_v1.ts"
       - "scripts/prove_buy_void_erc20_execution_composition_v1.ts"
       - "docs/operators/buy-void-erc20-delivery-runtime-activation-configuration-contract-v1.md"
@@ -83,6 +85,7 @@ jobs:
             --downlevelIteration \
             --skipLibCheck \
             src/economic/buy_void_erc20_execution_composition_v1.ts \
+            src/economic/buy_void_erc20_execution_composition_nonstrict_compat_v1.d.ts \
             scripts/prove_buy_void_erc20_execution_composition_v1.ts \
             scripts/prove_buy_void_erc20_delivery_runtime_activation_configuration_contract_v1.ts
       - name: Typecheck repository
