@@ -10,7 +10,7 @@ The reference tool consumes one closed JSON request on stdin and emits one conte
 node tools/void-btc-void-quote-math-v1.mjs --pretty < request.json
 ~~~
 
-Amounts, reserves, and reserve floors are canonical decimal strings. BTC uses satoshis; VOID uses canonical Chain-2050 atomic units. The two bounded basis-point policy fields are JSON safe integers. Floating-point values, scientific notation, signs, leading zeroes, unknown fields, unsupported directions, and values above the unsigned 128-bit V1 envelope fail closed.
+Amounts, reserves, and reserve floors are canonical decimal strings. BTC uses satoshis; VOID uses canonical Chain-2050 atomic units. The two bounded basis-point policy fields are JSON safe integers. Floating-point values, scientific notation, signs, leading zeroes, unknown fields, and unsupported directions fail closed. Every BTC-denominated amount, reserve, and floor is capped at Bitcoin `MAX_MONEY` (`2,100,000,000,000,000` satoshis); every VOID-denominated value is capped at the complete `666,666,666 × 10^18` atomic-unit supply. Exact ceilings are valid inputs, while one unit above either ceiling fails before quote derivation. Post-quote input reserves must remain within the same native ceiling.
 
 ## Formula
 
