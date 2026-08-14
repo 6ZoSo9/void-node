@@ -16,6 +16,7 @@ on:
       - "scripts/prove_buy_void_delivery_runtime_integration_guard_v1.ts"
       - "docs/operators/buy-void-canonical-erc20-delivery-composition-v1.md"
       - "docs/operators/buy-void-erc20-delivery-dependency-bootstrap-v1.md"
+      - "scripts/ci_diff_hygiene_v1.sh"
       - ".github/workflows/buy-void-erc20-delivery-dependency-bootstrap-integration-gate-v1.yml"
   push:
     branches: [main]
@@ -33,6 +34,7 @@ on:
       - "scripts/prove_buy_void_delivery_runtime_integration_guard_v1.ts"
       - "docs/operators/buy-void-canonical-erc20-delivery-composition-v1.md"
       - "docs/operators/buy-void-erc20-delivery-dependency-bootstrap-v1.md"
+      - "scripts/ci_diff_hygiene_v1.sh"
       - ".github/workflows/buy-void-erc20-delivery-dependency-bootstrap-integration-gate-v1.yml"
 
 permissions:
@@ -51,7 +53,8 @@ jobs:
       - name: Checkout
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
         with:
-          fetch-depth: 2
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 1
           persist-credentials: false
       - name: Setup Node
         uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
@@ -92,4 +95,9 @@ jobs:
       - name: Build repository
         run: npm run build
       - name: Diff hygiene
-        run: git diff --check "${{ github.event.pull_request.base.sha }}..HEAD"
+        env:
+          CI_DIFF_EVENT_NAME: ${{ github.event_name }}
+          CI_DIFF_PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          CI_DIFF_PUSH_BEFORE_SHA: ${{ github.event.before }}
+          CI_DIFF_CURRENT_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: bash scripts/ci_diff_hygiene_v1.sh
