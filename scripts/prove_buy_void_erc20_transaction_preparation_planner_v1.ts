@@ -285,6 +285,51 @@ try {
   });
 }
 
+const prematureCloseServer = http.createServer((request, response) => {
+  request.resume();
+  request.on("end", () => {
+    response.writeHead(200, {
+      "content-type": "application/json",
+    });
+    response.flushHeaders();
+    response.write('{"jsonrpc":"2.0","id":1,"result":"0x');
+    setTimeout(() => response.socket?.destroy(), 20);
+  });
+});
+await new Promise<void>((resolve, reject) => {
+  prematureCloseServer.once("error", reject);
+  prematureCloseServer.listen(0, "127.0.0.1", resolve);
+});
+try {
+  const prematureCloseAddress = prematureCloseServer.address();
+  assert.ok(prematureCloseAddress && typeof prematureCloseAddress === "object");
+  const prematureCloseDecision =
+    await runBuyVoidErc20TransactionPreparationPlannerV1({
+      attempt: attempt(),
+      policy: {
+        ...policy(),
+        rpc_url: `http://127.0.0.1:${prematureCloseAddress.port}/`,
+        request_timeout_ms: 1_000,
+      },
+    });
+  assert.equal(prematureCloseDecision.ok, false);
+  if (!("reason" in prematureCloseDecision)) {
+    throw new Error("premature response close must hold");
+  }
+  assert.equal(String(prematureCloseDecision.reason), "rpc_call_failed");
+  assert.deepEqual(prematureCloseDecision.rpc_methods_used, ["eth_chainId"]);
+  assert.equal(prematureCloseDecision.mutation_performed, false);
+  assert.equal(prematureCloseDecision.signing_performed, false);
+  assert.equal(prematureCloseDecision.transaction_broadcast_performed, false);
+  assert.equal(prematureCloseDecision.money_movement_performed, false);
+} finally {
+  await new Promise<void>((resolve, reject) =>
+    prematureCloseServer.close((error) =>
+      error ? reject(error) : resolve(),
+    ),
+  );
+}
+
 async function expectHeld(
   reason: string,
   options: {
@@ -453,6 +498,7 @@ console.log("gas_estimate_bound=true");
 console.log("gas_only_native_balance_accounting=true");
 console.log("rpc_inactivity_timeout_enforced=true");
 console.log("rpc_total_deadline_enforced=true");
+console.log("premature_response_close_hold=1");
 console.log("mutation_performed=false");
 console.log("wallet_access=false");
 console.log("signing_performed=false");
