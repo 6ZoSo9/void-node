@@ -56,6 +56,18 @@ for (const marker of [
   "raw_signed_transaction_output: false",
   "automatic_retry: false",
   "receipt_wait: false",
+  "erc20_transfer: true",
+  "fulfillment_unit_decimals: 6",
+  "token_atom_decimals: 18",
+  "integer_only_unit_conversion: true",
+  "rounding: false",
+  "VOID_BUY_VOID_ERC20_DELIVERY_UNIT_SCALE_V1",
+  'multiplier: "1000000000000"',
+  "ERC20_TOKEN_ATOM_MULTIPLIER_V1 = 1_000_000_000_000n",
+  "UINT256_MAX_V1",
+  "tokenAmountAtoms",
+  "void_delivery_token_amount_atoms_out_of_range",
+  "token_amount_atoms: tokenAmountAtoms.toString()",
   "claim_submission_once",
   "release_submission_claim",
   "releaseClaimForDefinitiveNotBroadcast",
@@ -87,6 +99,10 @@ for (const forbidden of [
   "app.post(",
   "app.get(",
   "(error as Error)?.message",
+  "Math.round(",
+  "Math.floor(",
+  "Math.ceil(",
+  "parseFloat(",
 ]) {
   need(!moduleText.includes(forbidden), `direct authority present: ${forbidden}`);
 }
@@ -123,6 +139,20 @@ need(
 need(
   proofText.includes("Wallet.createRandom()"),
   "proof does not use an ephemeral synthetic signer",
+);
+need(
+  moduleText.includes(
+    'TRANSFER_INTERFACE.encodeFunctionData("transfer", [',
+  ) &&
+    moduleText.includes("deliveryAddress,") &&
+    moduleText.includes("tokenAmountAtoms,"),
+  "ERC-20 transfer calldata is not atom-scaled",
+);
+need(
+  proofText.includes("erc20_unit_scale_vector_count=") &&
+    proofText.includes("erc20_uint256_overflow_rejected=true") &&
+    proofText.includes("erc20_rounding=false"),
+  "proof lacks exact unit-scale, uint256-bound, or rounding coverage",
 );
 need(
   proofText.includes("synthetic-definitive-no-submission-v1") &&
