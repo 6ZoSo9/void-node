@@ -24,7 +24,9 @@ The planner permits exactly:
 - `eth_estimateGas` for the exact zero-value token transfer;
 - `eth_getBalance`.
 
-The RPC URL is server-controlled loopback HTTP only.
+The RPC URL is server-controlled loopback HTTP only. The built-in HTTP transport keeps socket-inactivity protection and also enforces a total wall-clock deadline from request start through complete response-body consumption. Incoming response bytes do not reset that total deadline, and every terminal path clears it exactly once.
+
+The focused proof exercises the real built-in transport against a local slow-drip HTTP server that emits bytes more frequently than the inactivity timeout. The planner must still terminate fail closed within the configured total deadline.
 
 ## Fail-closed bindings
 

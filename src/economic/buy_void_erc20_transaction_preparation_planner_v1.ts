@@ -412,10 +412,16 @@ function createHttpTransport(
 
     return await new Promise((resolve, reject) => {
       const url = new URL(policy.rpc_url);
+      const requestStartedAtMs = Date.now();
       let settled = false;
+      let totalDeadline: ReturnType<typeof setTimeout> | null = null;
       const finish = (error: Error | null, value?: unknown) => {
         if (settled) return;
         settled = true;
+        if (totalDeadline !== null) {
+          clearTimeout(totalDeadline);
+          totalDeadline = null;
+        }
         if (error) reject(error);
         else resolve(value);
       };
@@ -496,6 +502,19 @@ function createHttpTransport(
         );
       });
       request.on("error", (error) => finish(error));
+      totalDeadline = setTimeout(
+        () => {
+          request.destroy(
+            new Error(
+              "erc20_transaction_preparation_rpc_total_deadline_exceeded",
+            ),
+          );
+        },
+        Math.max(
+          0,
+          policy.request_timeout_ms - (Date.now() - requestStartedAtMs),
+        ),
+      );
       request.end(body);
     });
   };

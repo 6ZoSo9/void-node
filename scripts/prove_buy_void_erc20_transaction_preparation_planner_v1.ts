@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import * as http from "node:http";
 import {
   Interface,
 } from "ethers";
@@ -206,6 +207,82 @@ assert.equal(planned.signing_performed, false);
 assert.equal(planned.transaction_broadcast_performed, false);
 assert.equal(planned.money_movement_performed, false);
 
+let slowDripChunks = 0;
+const slowDripServer = http.createServer((request, response) => {
+  request.resume();
+  request.on("end", () => {
+    response.writeHead(200, {
+      "content-type": "application/json",
+    });
+    const responseBody = JSON.stringify({
+      jsonrpc: "2.0",
+      id: 1,
+      result: "0x802",
+    });
+    let offset = 0;
+    const interval = setInterval(() => {
+      if (offset >= responseBody.length) {
+        clearInterval(interval);
+        response.end();
+        return;
+      }
+      response.write(responseBody.slice(offset, offset + 1));
+      offset += 1;
+      slowDripChunks += 1;
+    }, 20);
+    response.on("close", () => clearInterval(interval));
+  });
+});
+await new Promise<void>((resolve, reject) => {
+  slowDripServer.once("error", reject);
+  slowDripServer.listen(0, "127.0.0.1", resolve);
+});
+try {
+  const address = slowDripServer.address();
+  assert.ok(address && typeof address === "object");
+  const requestTimeoutMs = 120;
+  const startedAtMs = Date.now();
+  const slowDripDecision =
+    await runBuyVoidErc20TransactionPreparationPlannerV1({
+      attempt: attempt(),
+      policy: {
+        ...policy(),
+        rpc_url: `http://127.0.0.1:${address.port}/`,
+        request_timeout_ms: requestTimeoutMs,
+      },
+    });
+  const elapsedMs = Date.now() - startedAtMs;
+  assert.equal(slowDripDecision.ok, false);
+  if (!("reason" in slowDripDecision)) {
+    throw new Error("slow-drip RPC response must hold");
+  }
+  assert.equal(String(slowDripDecision.reason), "rpc_call_failed");
+  assert.deepEqual(slowDripDecision.rpc_methods_used, ["eth_chainId"]);
+  assert.ok(
+    slowDripChunks >= 2,
+    "fixture must keep the socket active before total deadline",
+  );
+  assert.ok(
+    elapsedMs >= requestTimeoutMs - 40,
+    `total deadline fired too early: ${elapsedMs}ms`,
+  );
+  assert.ok(
+    elapsedMs < requestTimeoutMs + 1_000,
+    `slow-drip response exceeded total deadline bound: ${elapsedMs}ms`,
+  );
+  assert.equal(slowDripDecision.mutation_performed, false);
+  assert.equal(slowDripDecision.signing_performed, false);
+  assert.equal(slowDripDecision.transaction_broadcast_performed, false);
+  assert.equal(slowDripDecision.money_movement_performed, false);
+} finally {
+  await new Promise<void>((resolve, reject) => {
+    slowDripServer.close((error) => {
+      if (error) reject(error);
+      else resolve();
+    });
+  });
+}
+
 async function expectHeld(
   reason: string,
   options: {
@@ -324,6 +401,8 @@ console.log("pending_nonce_required=true");
 console.log("exact_transfer_calldata=true");
 console.log("gas_estimate_bound=true");
 console.log("gas_only_native_balance_accounting=true");
+console.log("rpc_inactivity_timeout_enforced=true");
+console.log("rpc_total_deadline_enforced=true");
 console.log("mutation_performed=false");
 console.log("wallet_access=false");
 console.log("signing_performed=false");
