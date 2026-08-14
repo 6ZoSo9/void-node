@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import {
+  Interface,
   Transaction,
   Wallet,
 } from "ethers";
@@ -7,6 +8,7 @@ import {
   VOID_BUY_VOID_DELIVERY_SIGN_BROADCAST_ADAPTER_V1,
   VOID_BUY_VOID_DELIVERY_SIGN_BROADCAST_AUTHORITY_V1,
   VOID_BUY_VOID_DELIVERY_SIGN_BROADCAST_CONFIRMATION_V1,
+  VOID_BUY_VOID_ERC20_DELIVERY_UNIT_SCALE_V1,
   runBuyVoidDeliverySignBroadcastV1,
   type BuyVoidDeliverySignBroadcastDecisionV1,
   type BuyVoidDeliverySignBroadcastDependenciesV1,
@@ -24,7 +26,12 @@ const wallet = Wallet.createRandom();
 const otherWallet = Wallet.createRandom();
 const recipient = Wallet.createRandom().address.toLowerCase();
 const token = Wallet.createRandom().address.toLowerCase();
-const amount = 50_000_000_000_000_000_000n;
+const amount = 2_500_000_000n;
+const transferInterface = new Interface([
+  "function transfer(address to, uint256 value) returns (bool)",
+]);
+const unitMultiplier = 1_000_000_000_000n;
+const uint256Max = (1n << 256n) - 1n;
 const attemptId = "1".repeat(64);
 const placeholderHash = `0x${"2".repeat(64)}`;
 
@@ -49,6 +56,7 @@ const plan: BuyVoidDeliveryTransactionPlanV1 = {
 
 function attemptWithHash(
   transactionHash: string,
+  voidAmountUnits: bigint = amount,
 ): BuyVoidExecutionAttemptStateV1 {
   return {
     reservation: {
@@ -67,7 +75,7 @@ function attemptWithHash(
       unsigned_instruction: {
         payment_transaction_hash: `0x${"6".repeat(64)}`,
         delivery_address: recipient,
-        void_amount_units: amount.toString(),
+        void_amount_units: voidAmountUnits.toString(),
       } as any,
       signing_authorized_by_this_module: false,
       transaction_broadcast_authorized_by_this_module: false,
@@ -82,7 +90,7 @@ function attemptWithHash(
       void_delivery_tx_hash: transactionHash,
       fulfillment_wallet: wallet.address.toLowerCase(),
       delivery_address: recipient,
-      void_amount_units: amount.toString(),
+      void_amount_units: voidAmountUnits.toString(),
       transaction_binding_fingerprint: "7".repeat(64),
       signed_transaction_persisted: false,
       raw_transaction_persisted: false,
@@ -104,6 +112,70 @@ const initialDry = await runBuyVoidDeliverySignBroadcastV1({
 if ("reason" in initialDry) throw new Error(initialDry.reason);
 assert.equal(initialDry.ok, true);
 assert.equal(initialDry.status, "dry_run");
+
+assert.deepEqual(VOID_BUY_VOID_ERC20_DELIVERY_UNIT_SCALE_V1, {
+  fulfillment_unit_decimals: 6,
+  token_atom_decimals: 18,
+  multiplier: "1000000000000",
+});
+assert.equal(
+  VOID_BUY_VOID_DELIVERY_SIGN_BROADCAST_AUTHORITY_V1.erc20_transfer,
+  true,
+);
+assert.equal(
+  VOID_BUY_VOID_DELIVERY_SIGN_BROADCAST_AUTHORITY_V1
+    .integer_only_unit_conversion,
+  true,
+);
+assert.equal(
+  VOID_BUY_VOID_DELIVERY_SIGN_BROADCAST_AUTHORITY_V1.rounding,
+  false,
+);
+
+const unitScaleVectors = [
+  [1n, 1_000_000_000_000n],
+  [1_000_000n, 1_000_000_000_000_000_000n],
+  [2_500_000_000n, 2_500_000_000_000_000_000_000n],
+  [10_000_000_000_000n, 10_000_000_000_000_000_000_000_000n],
+] as const;
+for (const [units, expectedAtoms] of unitScaleVectors) {
+  const vector = await runBuyVoidDeliverySignBroadcastV1({
+    attempt: attemptWithHash(placeholderHash, units),
+    policy: {
+      ...policy,
+      max_void_amount_units: units.toString(),
+    },
+    plan,
+  });
+  if ("reason" in vector) throw new Error(vector.reason);
+  const decoded = transferInterface.decodeFunctionData(
+    "transfer",
+    vector.transaction_plan.data,
+  );
+  assert.equal(String(decoded[0]).toLowerCase(), recipient);
+  assert.equal(decoded[1], expectedAtoms);
+  assert.equal(expectedAtoms, units * unitMultiplier);
+}
+
+const overflowUnits = uint256Max / unitMultiplier + 1n;
+const overflowDecision = await runBuyVoidDeliverySignBroadcastV1({
+  attempt: attemptWithHash(placeholderHash, overflowUnits),
+  policy: {
+    ...policy,
+    max_void_amount_units: overflowUnits.toString(),
+  },
+  plan,
+});
+assert.equal("reason" in overflowDecision, true);
+if (!("reason" in overflowDecision)) {
+  throw new Error("uint256 overflow must fail closed");
+}
+assert.equal(
+  overflowDecision.reason,
+  "void_delivery_token_amount_atoms_out_of_range",
+);
+assert.equal(overflowDecision.signing_performed, false);
+assert.equal(overflowDecision.broadcast_call_performed, false);
 
 const referenceRaw = await wallet.signTransaction(
   initialDry.transaction_plan,
@@ -428,3 +500,9 @@ function applyInput(
 }
 
 console.log("VOID_BUY_VOID_DELIVERY_SIGN_BROADCAST_ADAPTER_V1_GREEN");
+console.log(`erc20_unit_scale_vector_count=${unitScaleVectors.length}`);
+console.log("fulfillment_unit_decimals=6");
+console.log("token_atom_decimals=18");
+console.log("erc20_unit_scale_multiplier=1000000000000");
+console.log("erc20_uint256_overflow_rejected=true");
+console.log("erc20_rounding=false");

@@ -22,6 +22,14 @@ function startAdversarialHealthServer(tmp){
   if(!fs.existsSync(portFile)){child.kill("SIGTERM");fail("adversarial health server did not start");}
   return {child,url:`http://127.0.0.1:${fs.readFileSync(portFile,"utf8")}/ready`};
 }
+function startTypedHealthServer(tmp){
+  const portFile=path.join(tmp,"typed-health-port"),countFile=path.join(tmp,"typed-health-count"),serverFile=path.join(tmp,"typed-health-server.mjs");
+  fs.writeFileSync(serverFile,`import fs from "node:fs";\nimport http from "node:http";\nconst responses=[\n  {ready:true,gap:null,txroot_live:1},\n  {ready:true,gap:"0",txroot_live:1},\n  {ready:true,gap:0,txroot_live:true},\n  {ready:true,gap:0,txroot_live:"1"},\n  {ready:true,gap:0,txroot_live:1},\n];\nlet requests=0;\nconst server=http.createServer((_req,res)=>{\n  requests++;\n  fs.writeFileSync(process.argv[3],String(requests));\n  res.writeHead(200,{"content-type":"application/json"});\n  res.end(JSON.stringify(responses[Math.min(requests-1,responses.length-1)]));\n});\nserver.listen(0,"127.0.0.1",()=>fs.writeFileSync(process.argv[2],String(server.address().port)));\nprocess.on("SIGTERM",()=>server.close(()=>process.exit(0)));\n`);
+  const child=childProcess.spawn(process.execPath,[serverFile,portFile,countFile],{stdio:["ignore","ignore","inherit"]});
+  const deadline=Date.now()+5000;while(!fs.existsSync(portFile)&&Date.now()<deadline){if(child.exitCode!==null)fail("typed health server exited before listen");sleepSync(25);}
+  if(!fs.existsSync(portFile)){child.kill("SIGTERM");fail("typed health server did not start");}
+  return {child,countFile,url:`http://127.0.0.1:${fs.readFileSync(portFile,"utf8")}/ready`};
+}
 function build(root,out,version,epoch){run("node",["tools/build-public-release-v1.mjs","--out",out,"--version",version,"--source-date-epoch",String(epoch)],{cwd:root});}
 function manifest(out){return JSON.parse(fs.readFileSync(path.join(out,"void-node-release-manifest.json"),"utf8"));}
 function channel(root,out,version,tag){run("node",["tools/build-public-release-channel-v1.mjs","--manifest",path.join(out,"void-node-release-manifest.json"),"--checksums",path.join(out,"SHA256SUMS"),"--base-url",pathToFileURL(out+path.sep).toString(),"--release-tag",tag,"--out",path.join(out,"stable-v1.json"),"--test-allow-file"],{cwd:root});run("node",["tools/build-public-release-channel-v1.mjs","--verify",path.join(out,"stable-v1.json"),"--test-allow-file"],{cwd:root});}
@@ -76,6 +84,15 @@ try{
     if(versionAt(installRoot)!==v2)fail(`bounded health rollback failed; current=${versionAt(installRoot)}`);
     pass("oversized-and-stalled-health-body-bounded-rollback");
   }finally{adversarial.child.kill("SIGTERM");}
+  const typed=startTypedHealthServer(tmp);
+  try{
+    const typedApply=run(managerPath,["update","apply","--channel",path.join(out4,"stable-v1.json"),"--install-root",installRoot,"--bin-dir",binDir,"--test-allow-file","--skip-attestation","--yes","--health-url",typed.url],{env:{...e,VOID_NODE_UPDATE_TEST_HEALTH_ATTEMPTS:"5",VOID_NODE_UPDATE_TEST_HEALTH_TIMEOUT_MS:"300",VOID_NODE_UPDATE_TEST_HEALTH_RETRY_DELAY_MS:"0"},capture:true,allowFail:true});
+    const requests=Number(fs.readFileSync(typed.countFile,"utf8"));
+    if(typeof typedApply!=="string")fail(`strict typed health apply failed after ${requests} requests`);
+    if(requests!==5)fail(`wrong-typed health evidence accepted after ${requests} requests`);
+    if(versionAt(installRoot)!==v4)fail(`strict typed health acceptance failed; current=${versionAt(installRoot)}`);
+    pass("wrong-typed-health-evidence-rejected");
+  }finally{typed.child.kill("SIGTERM");}
   run(managerPath,["verify"],{env:e});
   run("bash",[path.join(installRoot,"current","install-void-node-v1.sh"),"uninstall","--install-root",installRoot,"--bin-dir",binDir,"--yes","--purge"],{env:e});
   if(fs.existsSync(installRoot)||fs.existsSync(managerPath))fail("uninstall left update-wall artifacts");pass("uninstall-purge-after-update-chain");

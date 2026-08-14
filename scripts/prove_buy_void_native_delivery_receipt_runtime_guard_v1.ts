@@ -34,8 +34,12 @@ const importNeedle =
   'import "./buy_void_native_delivery_receipt_runtime_v1.js";';
 assert.equal(
   integration.split(importNeedle).length - 1,
-  1,
-  "receipt runtime must be mounted exactly once",
+  0,
+  "native receipt runtime must not be canonical-parent mounted",
+);
+assert.match(
+  integration,
+  /native_receipt_parent_mounted: false/,
 );
 
 for (const marker of [
@@ -128,7 +132,8 @@ for (const statement of [
 }
 
 console.log("marker=VOID_BUY_VOID_NATIVE_DELIVERY_RECEIPT_RUNTIME_GUARD_V1");
-console.log("runtime_mount_count=1");
+console.log("runtime_source_retained=1");
+console.log("runtime_parent_mount_count=0");
 console.log("operator_loopback_only=1");
 console.log("dry_run_while_disabled=1");
 console.log("apply_confirmation_before_io=1");

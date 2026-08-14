@@ -127,7 +127,7 @@ async function healthCheck(o){
   const retryDelayMs=healthLimit(o,"VOID_NODE_UPDATE_TEST_HEALTH_RETRY_DELAY_MS",1000,0,1000);
   for(let i=0;i<attempts;i++){
     const ac=new AbortController(),t=setTimeout(()=>ac.abort(),timeoutMs);
-    try{const r=await fetch(o.healthUrl,{signal:ac.signal});if(r.ok){const j=await readBoundedHealthJson(r);if(j?.ready===true&&Number(j?.gap)===0&&Number(j?.txroot_live)===1)return true;}}catch{}finally{clearTimeout(t);}
+    try{const r=await fetch(o.healthUrl,{signal:ac.signal});if(r.ok){const j=await readBoundedHealthJson(r);if(j?.ready===true&&j?.gap===0&&j?.txroot_live===1)return true;}}catch{}finally{clearTimeout(t);}
     if(i+1<attempts&&retryDelayMs>0)await new Promise(r=>setTimeout(r,retryDelayMs));
   }
   return false;
