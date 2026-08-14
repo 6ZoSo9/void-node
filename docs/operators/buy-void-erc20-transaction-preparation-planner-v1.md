@@ -26,9 +26,9 @@ The planner permits exactly:
 
 Nonce selection, gas estimation, and spendability are deliberately bound to one coherent `pending` execution-state perspective. A plan cannot combine a pending nonce with a latest-state balance. The successful evidence contract reports `execution_state=pending`, and that state tag is included in the preparation fingerprint.
 
-The RPC URL is server-controlled loopback HTTP only. The built-in HTTP transport keeps socket-inactivity protection and also enforces a total wall-clock deadline from request start through complete response-body consumption. Incoming response bytes do not reset that total deadline, and every terminal path clears it exactly once.
+The RPC URL is server-controlled loopback HTTP only. The built-in HTTP transport keeps socket-inactivity protection and also enforces a total wall-clock deadline from request start through complete response-body consumption. Incoming response bytes do not reset that total deadline, and every terminal path clears it exactly once. Response-level `aborted`/`error` events after headers are also contained by the same settlement boundary, so a peer that sends partial JSON and closes the socket produces a fail-closed planner HOLD rather than an unhandled process exception.
 
-The focused proof exercises the real built-in transport against a local slow-drip HTTP server that emits bytes more frequently than the inactivity timeout. The planner must still terminate fail closed within the configured total deadline.
+The focused proof exercises the real built-in transport against a local slow-drip HTTP server that emits bytes more frequently than the inactivity timeout. The planner must still terminate fail closed within the configured total deadline. A second real loopback fixture sends headers plus partial JSON and destroys the socket; that path must also settle as HOLD without crashing the process.
 
 ## Fail-closed bindings
 
