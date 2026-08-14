@@ -25,6 +25,7 @@ for (const marker of [
   'const STATUS_ROUTE = "/__void/ui/wave4-earn-v1/status.json"',
   'const ACCOUNT_PATTERN = /^[A-Za-z0-9._:-]{1,128}$/',
   'const HISTORY_LIMIT = 5',
+  'typeof raw === "number" && Number.isFinite(raw)',
   'value === "127.0.0.1"',
   'value === "::1"',
   'method !== "GET" && method !== "HEAD"',
@@ -87,6 +88,75 @@ for (const forbidden of [
   }
 }
 
+const finiteNumberMatch = moduleSource.match(
+  /function finiteNumber\(raw: unknown\): number \| null \{\n([\s\S]*?)\n\}/
+);
+
+if (!finiteNumberMatch) {
+  fail("strict finiteNumber implementation not found");
+}
+
+const parseFiniteNumber = new Function(
+  "raw",
+  finiteNumberMatch[1]
+) as (raw: unknown) => number | null;
+
+for (const wrongType of [
+  null,
+  false,
+  true,
+  "0",
+  "1.5",
+  "",
+  [],
+  {},
+]) {
+  if (parseFiniteNumber(wrongType) !== null) {
+    fail(`wrong-typed numeric evidence accepted: ${JSON.stringify(wrongType)}`);
+  }
+}
+
+for (const [raw, expected] of [
+  [0, 0],
+  [1.5, 1.5],
+  [-2, -2],
+] as const) {
+  if (parseFiniteNumber(raw) !== expected) {
+    fail(`valid finite numeric evidence rejected: ${raw}`);
+  }
+}
+
+for (const nonFinite of [
+  Number.NaN,
+  Number.POSITIVE_INFINITY,
+  Number.NEGATIVE_INFINITY,
+]) {
+  if (parseFiniteNumber(nonFinite) !== null) {
+    fail("non-finite numeric evidence accepted");
+  }
+}
+
+for (const failOpen of [
+  "nonNegative(runner.jobs_last_hour) ?? 0",
+  "nonNegative(production.count) ?? 0",
+  "nonNegative(totals.total_wc) ?? 0",
+  "nonNegative(totals.publish_wc) ?? 0",
+  "nonNegative(totals.verify_wc) ?? 0",
+  "nonNegative(totals.redundancy_wc) ?? 0",
+]) {
+  if (moduleSource.includes(failOpen)) {
+    fail(`numeric evidence still defaults unavailable input to zero: ${failOpen}`);
+  }
+}
+
+if (
+  !moduleSource.includes(
+    "available: lastCredit !== null && lastCreditAmount !== null"
+  )
+) {
+  fail("last-credit availability is not bound to a valid numeric amount");
+}
+
 const frontendFetches = client.split("fetch(").length - 1;
 
 if (frontendFetches !== 1) {
@@ -100,6 +170,10 @@ for (const marker of [
   "credentials: 'same-origin'",
   "AbortSignal.timeout(7000)",
   "snapshot.marker !== EARN_MARKER",
+  "typeof value === 'number' && Number.isFinite(value)",
+  "typeof source?.status === 'number'",
+  "typeof item?.reward_wc === 'number'",
+  "typeof availableWork.network_need_score === 'number'",
   "data-earn-account-form",
   "data-earn-jobs-list",
   "data-earn-receipts-list",
@@ -128,6 +202,54 @@ for (const forbidden of [
 ]) {
   if (client.includes(forbidden)) {
     fail(`frontend contains forbidden direct source or mutation marker: ${forbidden}`);
+  }
+}
+
+const formatNumberMatch = client.match(
+  /const formatNumber = \(value\) => \{\n([\s\S]*?)\n\};/
+);
+
+if (!formatNumberMatch) {
+  fail("strict client formatNumber implementation not found");
+}
+
+const formatFiniteNumber = new Function(
+  "value",
+  formatNumberMatch[1]
+) as (value: unknown) => string;
+
+for (const wrongType of [
+  null,
+  false,
+  true,
+  "0",
+  "1.5",
+  "",
+  [],
+  {},
+]) {
+  if (formatFiniteNumber(wrongType) !== "—") {
+    fail(`client rendered wrong-typed numeric evidence: ${JSON.stringify(wrongType)}`);
+  }
+}
+
+for (const [raw, expected] of [
+  [0, "0"],
+  [1.5, "1.5"],
+] as const) {
+  if (formatFiniteNumber(raw) !== expected) {
+    fail(`client rejected valid finite numeric evidence: ${raw}`);
+  }
+}
+
+for (const failOpen of [
+  "const number = Number(value);",
+  "Number.isFinite(Number(item?.reward_wc))",
+  "Number.isFinite(Number(availableWork.network_need_score))",
+  "const status = Number(source?.status ?? 0);",
+]) {
+  if (client.includes(failOpen)) {
+    fail(`client numeric coercion remains: ${failOpen}`);
   }
 }
 
@@ -295,7 +417,7 @@ const wave2 = JSON.parse(
   read("docs/public/void-ui-wave2-home-readonly-v1/source-manifest.json")
 );
 const wave3 = JSON.parse(
-  read("docs/public/void-ui-wave3-wallet-readonly-v1/source-manifest.json")
+  read("docs/public/void-ui-wave3-wallet_readonly_v1/source-manifest.json")
 );
 
 if (
