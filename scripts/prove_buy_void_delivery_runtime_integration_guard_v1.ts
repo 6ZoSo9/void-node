@@ -110,6 +110,9 @@ for (const marker of [
   '"buyVoidSignAndBroadcast"',
   "TRANSFER_INTERFACE",
   '"function transfer(address to, uint256 value) returns (bool)"',
+  "VOID_BUY_VOID_ERC20_DELIVERY_UNIT_SCALE_V1",
+  "ERC20_TOKEN_ATOM_MULTIPLIER_V1",
+  "tokenAmountAtoms",
   "void_token_address",
   "to: tokenAddress",
   "value: 0n",
@@ -200,7 +203,7 @@ assert.equal(
   true,
 );
 assert.equal(
-  wrapper.includes("canonical_erc20_delivery_atomic_unit_conversion_ready: false"),
+  wrapper.includes("canonical_erc20_delivery_atomic_unit_conversion_ready: true"),
   true,
 );
 assert.equal(
@@ -230,7 +233,7 @@ console.log(
 console.log("canonical_parent_delivery=void_token_erc20");
 console.log("canonical_erc20_delivery_source_retained=1");
 console.log("canonical_erc20_delivery_parent_mounted=0");
-console.log("erc20_atomic_unit_conversion_ready=0");
+console.log("erc20_atomic_unit_conversion_ready=1");
 console.log("canonical_delivery_dependency_bootstrap_ready=0");
 console.log("native_canary_source_retained=1");
 console.log("native_canary_parent_mounted=0");
