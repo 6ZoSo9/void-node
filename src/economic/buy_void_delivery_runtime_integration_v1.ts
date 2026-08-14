@@ -388,7 +388,7 @@ export async function handleBuyVoidDeliveryRuntimeCommandV1(
   }
 
   const policy = plannerPolicyState();
-  if (!policy.configured) {
+  if ("missing_envs" in policy) {
     return res.status(503).json({
       marker:
         VOID_BUY_VOID_DELIVERY_RUNTIME_INTEGRATION_V1,
