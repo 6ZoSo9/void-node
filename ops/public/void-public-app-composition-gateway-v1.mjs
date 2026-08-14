@@ -646,7 +646,6 @@ const publicNodeCompatScript = String.raw`(() => {
           : unavailable
             ? 'Status unavailable'
             : 'Status degraded';
-
       replaceExact('Loading public status…', publicStatusText);
       replaceExact('Loading readiness…', readinessText);
       replaceExact('Loading sanitized public status', 'Live sanitized public status');
@@ -809,6 +808,23 @@ const publicParticipantHandoffScript = String.raw`(() => {
     '  --coordinator-node-id ' + nodeId,
   ].join('\n');
 
+  const isPrivateHttpHost = (hostname) => {
+    const host = String(hostname || '').trim().toLowerCase();
+    if (host === 'localhost' || host === '127.0.0.1' || host === '::1') {
+      return true;
+    }
+    if (host.endsWith('.ts.net')) return true;
+    const match = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/.exec(host);
+    if (!match) return false;
+    const octets = match.slice(1).map(Number);
+    if (octets.some((value) => value < 0 || value > 255)) return false;
+    if (octets[0] === 10 || octets[0] === 127) return true;
+    if (octets[0] === 192 && octets[1] === 168) return true;
+    if (octets[0] === 172 && octets[1] >= 16 && octets[1] <= 31) return true;
+    if (octets[0] === 100 && octets[1] >= 64 && octets[1] <= 127) return true;
+    return false;
+  };
+
   const run = async () => {
     const origin = String(window.location.origin || '');
     let parsedOrigin;
@@ -818,14 +834,16 @@ const publicParticipantHandoffScript = String.raw`(() => {
       setHold('browser origin is invalid');
       return;
     }
+    const privateHttp =
+      parsedOrigin.protocol === 'http:' && isPrivateHttpHost(parsedOrigin.hostname);
     if (
       parsedOrigin.origin !== origin
-      || !['http:', 'https:'].includes(parsedOrigin.protocol)
+      || (parsedOrigin.protocol !== 'https:' && !privateHttp)
       || parsedOrigin.username
       || parsedOrigin.password
       || /[\s']/u.test(origin)
     ) {
-      setHold('browser origin is not safe for a shell command');
+      setHold('browser origin is not permitted by the no-node client transport policy');
       return;
     }
 
