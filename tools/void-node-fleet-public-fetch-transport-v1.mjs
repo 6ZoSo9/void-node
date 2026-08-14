@@ -18,13 +18,18 @@ export const CANONICAL_ORIGIN_FETCH_URLS_V1=Object.freeze([
  'git@github.com:6ZoSo9/void-node.git','git@github.com:6ZoSo9/void-node',
  'ssh://git@github.com/6ZoSo9/void-node.git','ssh://git@github.com/6ZoSo9/void-node',
 ]);
+export const FORBIDDEN_GIT_REPOSITORY_ENV_V1=Object.freeze([
+ 'GIT_DIR','GIT_WORK_TREE','GIT_INDEX_FILE','GIT_COMMON_DIR',
+ 'GIT_OBJECT_DIRECTORY','GIT_ALTERNATE_OBJECT_DIRECTORIES','GIT_NAMESPACE',
+]);
 const ORIGIN_SET=new Set(CANONICAL_ORIGIN_FETCH_URLS_V1), SHA40=/^[0-9a-f]{40}$/, SHA64=/^[0-9a-f]{64}$/, MAX=4*1024*1024;
 function fail(m,mut=false){const e=new Error(m);e.name='VoidFleetPublicFetchTransportError';e.mutationAttempted=mut;throw e;}
 function stable(v){if(Array.isArray(v))return`[${v.map(stable).join(',')}]`;if(v&&typeof v==='object')return`{${Object.keys(v).sort().map(k=>`${JSON.stringify(k)}:${stable(v[k])}`).join(',')}}`;return JSON.stringify(v);}
 function hash(v){return createHash('sha256').update(Buffer.isBuffer(v)?v:Buffer.from(typeof v==='string'?v:stable(v))).digest('hex');}
 function pathArg(v,l){if(typeof v!=='string'||!v||/[^\x20-\x7e]/.test(v))fail(`${l} must be a non-empty printable string`);if(v!=='.'&&v!=='~'&&!/^\.\.?\//.test(v)&&!/^~\//.test(v)&&!v.startsWith('/'))fail(`${l} must be a local filesystem path`);return v;}
 function expand(v){return v==='~'?homedir():v.startsWith('~/')?resolve(homedir(),v.slice(2)):resolve(v);}
-function run(repo,args){const r=spawnSync('git',['-C',repo,...args],{encoding:'utf8',timeout:10000,maxBuffer:MAX,env:{...process.env,GIT_TERMINAL_PROMPT:'0',GIT_OPTIONAL_LOCKS:'0'}});return{ok:r.status===0&&!r.error,status:r.status,stdout:r.stdout??'',stderr:r.stderr??'',error:r.error};}
+function assertGitRepositoryEnvironmentV1(){const present=FORBIDDEN_GIT_REPOSITORY_ENV_V1.filter(k=>process.env[k]!==undefined);if(present.length)fail(`Git repository-selection environment is not allowed: ${present.join(',')}`);}
+function run(repo,args){assertGitRepositoryEnvironmentV1();const r=spawnSync('git',['-C',repo,...args],{encoding:'utf8',timeout:10000,maxBuffer:MAX,env:{...process.env,GIT_TERMINAL_PROMPT:'0',GIT_OPTIONAL_LOCKS:'0'}});return{ok:r.status===0&&!r.error,status:r.status,stdout:r.stdout??'',stderr:r.stderr??'',error:r.error};}
 function must(repo,args,label){const r=run(repo,args);if(!r.ok)fail(`${label} failed`);return r.stdout;}
 function lines(s){return s.split(/\r?\n/).filter(Boolean);}
 function cfg(repo,key,local=true){const a=['config'];if(local)a.push('--local');a.push('--get-all',key);const r=run(repo,a);if(r.status===1&&!r.error)return[];if(!r.ok)fail(`unable to read ${key}`);return lines(r.stdout);}
@@ -61,6 +66,7 @@ function assertLocal(repo,lf,lp){if(stable(cfg(repo,`remote.${PUBLIC_FETCH_REMOT
 function dedicated(lf,lp,ef){if(!lf.length&&!lp.length&&!ef.length)return'MISSING';return lf.length===1&&lf[0]===PUBLIC_FETCH_URL_V1&&lp.length===1&&lp[0]===PUBLIC_PUSH_URL_V1&&ef.length===1&&ef[0]===PUBLIC_FETCH_URL_V1?'ALIGNED':'MISCONFIGURED';}
 function within(root,target){const r=relative(root,target);return r===''||(!r.startsWith(`..${sep}`)&&r!=='..'&&!isAbsolute(r));}
 export function prepareEvidenceOutputPathV1(repoInput,outputInput){
+ assertGitRepositoryEnvironmentV1();
  if(!outputInput)return'';
  const repo=expand(pathArg(repoInput,'repo'));
  const requested=expand(pathArg(outputInput,'output'));
@@ -82,6 +88,7 @@ function reserveEvidenceOutputV1(repoInput,outputInput){
 }
 
 export function inspectRepositoryTransportV1(input){
+ assertGitRepositoryEnvironmentV1();
  const repo=expand(pathArg(input,'repo')),inside=run(repo,['rev-parse','--is-inside-work-tree']);if(!inside.ok||inside.stdout.trim()!=='true')fail('repo is not a Git working tree');if(inProgress(repo))fail('a Git operation is in progress');
  const br=run(repo,['symbolic-ref','--short','-q','HEAD']);if(br.status===1&&!br.error)fail('repo must be on exact main');if(!br.ok||br.stdout.trim()!=='main')fail('repo must be on exact main');
  const head=must(repo,['rev-parse','HEAD'],'inspect head').trim(),tree=must(repo,['rev-parse','HEAD^{tree}'],'inspect tree').trim();if(!SHA40.test(head)||!SHA40.test(tree))fail('repo head/tree identity is invalid');
