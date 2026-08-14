@@ -16,13 +16,16 @@ accepted_for_review=true
 
 It does not mean payment, provider selection, quote acceptance, work dispatch, work execution, Work Credit issuance, WC ledger mutation, WC-to-VOID settlement, wallet or signer access, transaction broadcast, runtime mutation, deployment, or Buy VOID fulfillment occurred.
 
-The completed state, completion receipt, and CLI also report:
+The completed state and CLI report:
 
 ```text
 private_temp_cleanup_completed=true|false
+completion_receipt_published=true|false
 ```
 
-`false` does **not** revoke or rewrite a fully validated remote `accepted_for_review` result. It means the bridge could not prove deletion of its local private submission-temp directory after that remote result was already known. The canary preserves that cleanup truth without exposing the private temp path or token-file path, does not retry the submission, and does not claim the retained local artifact was cleaned up. Any later local cleanup/recovery is a separate operator action.
+`private_temp_cleanup_completed=false` does **not** revoke or rewrite a fully validated remote `accepted_for_review` result. It means the bridge could not prove deletion of its local private submission-temp directory after that remote result was already known. The canary preserves that cleanup truth without exposing the private temp path or token-file path, does not retry the submission, and does not claim the retained local artifact was cleaned up. Any later local cleanup/recovery is a separate operator action.
+
+`completion_receipt_published=false` likewise does **not** rewrite a fully validated remote acceptance into `held`. It means the accepted/completed state was durably recorded, but the later create-only publication of `completion-receipt-v1.json` did not complete. The canary performs no automatic resubmission, does not overwrite a pre-existing receipt path, and does not claim that a completion receipt exists. Recovery of that local evidence artifact is a separate operator action. A completion receipt that exists records `completion_receipt_published=true`.
 
 ## Two-stage state machine
 
@@ -75,9 +78,9 @@ node tools/void-agent-mcp-authenticated-submission-live-canary-v1.mjs execute \
   --confirm confirmVoidAgentMcpAuthenticatedSubmissionLiveCanaryV1
 ```
 
-The harness writes `attempting` state before opening the submission-capable MCP session. The maximum submission attempt count is one. A timeout, transport failure, malformed response, or other ambiguous result moves the run to `held`; the same state directory cannot be retried automatically.
+The harness writes `attempting` state before opening the submission-capable MCP session. The maximum submission attempt count is one. A timeout, transport failure, malformed response, or other ambiguous result before validated acceptance moves the run to `held`; the same state directory cannot be retried automatically.
 
-After a fully validated remote acceptance, a later private-temp cleanup failure does not change `accepted_for_review=true`. Instead the run completes once, records `private_temp_cleanup_completed=false` in its private state and completion receipt, prints the same bounded flag in the CLI result, and performs no automatic retry.
+After a fully validated remote acceptance, later local evidence failures do not change `accepted_for_review=true`. A private-temp cleanup failure records `private_temp_cleanup_completed=false`. A completion-receipt publication failure leaves the run `completed` with `completion_receipt_published=false`. Neither condition causes an automatic submission retry.
 
 ## Gateway boundary
 
@@ -93,7 +96,7 @@ The preparation probe requires:
 
 The raw token is never an MCP argument. The token value is read only by the existing paid-work client from the owner-private file. The harness does not print or persist the token value or token-file path. State and receipts are mode `0600`; state directories are mode `0700`.
 
-Cleanup evidence is boolean only. The canary does not print or persist the bridge private-temp path when cleanup fails.
+Cleanup and completion-receipt publication evidence are bounded booleans only. The canary does not print or persist the bridge private-temp path when cleanup fails.
 
 ## CI and proof
 
@@ -104,6 +107,8 @@ npm --prefix integrations/mcp run build
 node scripts/prove_void_agent_mcp_authenticated_submission_live_canary_v1.mjs
 ```
 
-CI uses only a loopback fixture. It executes the real MCP stdio server, the official MCP client, the deterministic materializer, and the hardened paid-work client. It performs exactly one authenticated `POST` to the loopback fixture and no external network submission, credential mutation, payment, work execution, WC write, settlement, service restart, or deployment.
+CI uses only loopback and synthetic fixtures. It executes the real MCP stdio server, the official MCP client, the deterministic materializer, and the hardened paid-work client. It performs no external network submission, credential mutation, payment, work execution, WC write, settlement, service restart, or deployment.
 
-The proof also injects a synthetic already-accepted MCP result with `private_temp_cleanup_completed=false` and requires the canary to preserve that value through completed state and completion receipt, keep the submission attempt count at one, refuse a second execution from the completed state, and keep token/path material out of persisted evidence.
+The proof injects a synthetic already-accepted MCP result with `private_temp_cleanup_completed=false` and requires the canary to preserve that value through completed state and completion receipt, keep the submission attempt count at one, refuse a second execution from the completed state, and keep token/path material out of persisted evidence.
+
+The proof also pre-creates `completion-receipt-v1.json`, performs exactly one accepted loopback submission, and requires the canary to remain durably `completed` with `accepted_for_review=true` and `completion_receipt_published=false`. The pre-existing receipt file must remain unchanged, the CLI must report the false publication fact, a second execution must be rejected before another submit, and no token or private-temp path may be disclosed.
