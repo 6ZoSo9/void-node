@@ -19,6 +19,10 @@ const dependencyPath = path.join(
   root,
   "src/economic/buy_void_erc20_delivery_dependency_bootstrap_v1.ts",
 );
+const signerPath = path.join(
+  root,
+  "src/economic/buy_void_native_fulfillment_wallet_credential_signer_v1.ts",
+);
 const dependencyGatePath = path.join(
   root,
   "src/economic/buy_void_erc20_delivery_dependency_bootstrap_integration_gate_v1.ts",
@@ -32,6 +36,7 @@ for (const file of [
   contractPath,
   runtimePath,
   dependencyPath,
+  signerPath,
   dependencyGatePath,
   parentPath,
 ]) {
@@ -41,6 +46,7 @@ for (const file of [
 const contractSource = fs.readFileSync(contractPath, "utf8");
 const runtimeSource = fs.readFileSync(runtimePath, "utf8");
 const dependencySource = fs.readFileSync(dependencyPath, "utf8");
+const signerSource = fs.readFileSync(signerPath, "utf8");
 const dependencyGateSource = fs.readFileSync(dependencyGatePath, "utf8");
 const parentSource = fs.readFileSync(parentPath, "utf8");
 const contract =
@@ -140,7 +146,7 @@ assert.equal(
 );
 
 for (const marker of [
-  `"${contract.runtime_configuration_contract.fixed_signer_credential_id}"`,
+  "VOID_BUY_VOID_NATIVE_FULFILLMENT_WALLET_CREDENTIAL_ID_V1",
   "fixed_systemd_credential_id_reused_when_signing: true",
   "credential_read_deferred_until_sign_transaction: true",
   "exact_erc20_unsigned_transaction_revalidated_before_credential_read: true",
@@ -156,6 +162,36 @@ for (const marker of [
     `dependency contract drift: ${marker}`,
   );
 }
+
+assert.equal(
+  signerSource.includes(
+    "VOID_BUY_VOID_NATIVE_FULFILLMENT_WALLET_CREDENTIAL_ID_V1",
+  ),
+  true,
+);
+assert.equal(
+  signerSource.includes(
+    `"${contract.runtime_configuration_contract.fixed_signer_credential_id}"`,
+  ),
+  true,
+  "fixed signer credential identity drift",
+);
+assert.equal(
+  signerSource.includes("systemd_credential_only: true"),
+  true,
+);
+assert.equal(
+  signerSource.includes("fixed_credential_id: true"),
+  true,
+);
+assert.equal(
+  signerSource.includes("environment_private_key: false"),
+  true,
+);
+assert.equal(
+  signerSource.includes("request_private_key: false"),
+  true,
+);
 
 assert.equal(
   dependencyGateSource.includes(
