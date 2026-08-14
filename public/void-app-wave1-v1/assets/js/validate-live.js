@@ -1,4 +1,5 @@
-export const VALIDATE_ENDPOINT = '/public-node/validators/mainnet0-validator-candidate-readiness-matrix-hold-v1.json';
+export const VALIDATE_ENDPOINT = '/app/assets/data/mainnet0-validator-candidate-readiness-matrix-hold-v1.json';
+export const VALIDATE_SOURCE_ROUTE = '/public-node/validators/mainnet0-validator-candidate-readiness-matrix-hold-v1.json';
 export const VALIDATE_MARKER = 'VOID_MAINNET0_VALIDATOR_CANDIDATE_READINESS_MATRIX_HOLD_V1';
 export const MAX_VALIDATE_RESPONSE_BYTES = 128 * 1024;
 
@@ -99,7 +100,7 @@ export function validateValidatorReadinessSnapshotV1(snapshot) {
   if (snapshot.marker !== VALIDATE_MARKER) throw new Error('validator readiness marker mismatch');
   if (snapshot.version !== 1) throw new Error('validator readiness version mismatch');
   if (snapshot.status !== 'sealed_public_safe_read_only_candidate_readiness_matrix') throw new Error('validator readiness status mismatch');
-  if (snapshot.route !== VALIDATE_ENDPOINT) throw new Error('validator readiness route mismatch');
+  if (snapshot.route !== VALIDATE_SOURCE_ROUTE) throw new Error('validator readiness route mismatch');
   if (!boundedText(snapshot.source_previous_lane_root_final_seal_route, 512)) throw new Error('validator readiness source route invalid');
   if (!boundedText(snapshot.source_previous_lane_root_final_seal_marker, 256)) throw new Error('validator readiness source marker invalid');
 

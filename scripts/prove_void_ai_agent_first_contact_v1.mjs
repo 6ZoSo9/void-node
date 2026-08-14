@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import { createServer } from "node:http";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
@@ -44,6 +45,21 @@ const PUBLIC_UTILITY_RESOURCE_OBSERVATION_REPAIR_BOUNDARY = [
   "scripts/prove_void_ai_agent_public_utility_v1.mjs",
   "tools/void-ai-agent-first-contact-v1.mjs",
 ];
+const POST_MERGE_CONTRACT_INTEGRITY_REPAIR_BOUNDARY = [
+  "public/public-node/agents/first-contact-v1.json",
+  "scripts/prove_void_ai_agent_first_contact_v1.mjs",
+  "scripts/prove_void_ai_agent_first_contact_runtime_control_flow_repair_v1.mjs",
+  "scripts/prove_void_ai_agent_first_contact_runtime_v1.mjs",
+  "scripts/prove_void_ai_agent_public_utility_v1.mjs",
+  "tools/void-ai-agent-first-contact-v1.mjs",
+];
+const FIRST_CONTACT_MANIFEST_INTEGRITY_REPAIR_BOUNDARY = [
+  "public/public-node/agents/first-contact-v1.json",
+  "scripts/prove_void_ai_agent_first_contact_v1.mjs",
+  "scripts/prove_void_ai_agent_first_contact_runtime_control_flow_repair_v1.mjs",
+  "scripts/prove_void_ai_agent_first_contact_runtime_v1.mjs",
+  "tools/void-ai-agent-first-contact-v1.mjs",
+];
 const ALLOWED_BOUNDARY = [
   ...new Set([...ORIGINAL_BOUNDARY, ...COMPOSITION_BOUNDARY]),
 ];
@@ -75,49 +91,57 @@ const capabilitiesCatalog = JSON.parse(
     "utf8",
   ),
 );
-const agentIntakeCapability = {
-  schema: "void-external-opportunity-agent-intake-capability-v1",
-  marker: "VOID_EXTERNAL_OPPORTUNITY_AGENT_INTAKE_CAPABILITY_V1",
-  version: 1,
-  capability_id: "void.external_opportunity.paper_intake.v1",
-  availability: "offline_static_contract",
-  manifest_fingerprint_sha256:
-    "c4e9ea03631b39962753cd7f91c198bbba1e4081c716da24e27f14a64f7bfd7a",
-  transport: {
-    network_endpoint: false,
-    network_listener: false,
-    authentication: "none",
-  },
-  unsupported: {
-    network_endpoint: true,
-    network_listener: true,
-    authentication_secret: true,
-    provider_polling: true,
-    paid_work_submission: true,
-    wc_earning: true,
-    wallet_or_key_access: true,
-    transaction_construction: true,
-    transaction_submission: true,
-    runtime_mutation: true,
-    service_mutation: true,
-    scheduler_mutation: true,
-    live_execution: true,
-  },
-  authority: {
-    implicit_or_scheduled_access: false,
-    network_request: false,
-    credential_access: false,
-    wallet_or_key_access: false,
-    transaction_construction: false,
-    transaction_submission: false,
-    runtime_mutation: false,
-    service_mutation: false,
-    scheduler_mutation: false,
-    paid_work_submission: false,
-    wc_earning: false,
-    live_execution: false,
-  },
-};
+const agentIntakeCapability = JSON.parse(
+  await readFile(
+    join(
+      ROOT,
+      "fixtures/external-opportunity/agent-intake-capability-v1.example.json",
+    ),
+    "utf8",
+  ),
+);
+
+function canonicalJson(value) {
+  if (Array.isArray(value)) {
+    return `[${value.map((entry) => canonicalJson(entry)).join(",")}]`;
+  }
+  if (value !== null && typeof value === "object") {
+    return `{${Object.keys(value)
+      .sort()
+      .map(
+        (key) => `${JSON.stringify(key)}:${canonicalJson(value[key])}`,
+      )
+      .join(",")}}`;
+  }
+  return JSON.stringify(value);
+}
+
+function intakeFingerprint(value) {
+  const { manifest_fingerprint_sha256: _ignored, ...withoutFingerprint } =
+    value;
+  return createHash("sha256")
+    .update(canonicalJson(withoutFingerprint), "utf8")
+    .digest("hex");
+}
+
+const REVIEWED_FIRST_CONTACT_MANIFEST_FINGERPRINT_SHA256 =
+  "ed56951c1bc043911ede167dc2cddbab38af62f069d07638dc1825d7e936f413";
+const COLD_START_CURL_COMMAND =
+  "test -n \"$VOID_PUBLIC_ORIGIN\" && curl --disable --noproxy '*' --disallow-username-in-url --proto '=https' --max-redirs 0 --fail --silent --show-error --max-time 8 --max-filesize 65536 --header 'Accept: application/json' \"${VOID_PUBLIC_ORIGIN%/}/public-node/agents/first-contact-v1.json\"";
+
+assert.equal(
+  intakeFingerprint(manifest),
+  REVIEWED_FIRST_CONTACT_MANIFEST_FINGERPRINT_SHA256,
+);
+assert.equal(
+  manifest.manifest_fingerprint_sha256,
+  REVIEWED_FIRST_CONTACT_MANIFEST_FINGERPRINT_SHA256,
+);
+
+assert.equal(
+  intakeFingerprint(agentIntakeCapability),
+  agentIntakeCapability.manifest_fingerprint_sha256,
+);
 const datanetReceipt = JSON.parse(
   await readFile(
     join(
@@ -145,10 +169,39 @@ assert.equal(
   ),
   true,
 );
+assert.equal(
+  manifest.verification.required_checks.includes(
+    "public_utility_resources_observed",
+  ),
+  true,
+);
 assert.equal(manifest.honesty.paid_work_promised, false);
 assert.equal(manifest.honesty.work_credit_earning_promised, false);
 assert.equal(manifest.honesty.mutation_authority_granted, false);
 assert.deepEqual(manifest.client.http_methods, ["GET"]);
+assert.equal(manifest.client.cold_start_curl_command, COLD_START_CURL_COMMAND);
+assert.equal(
+  COLD_START_CURL_COMMAND.includes(
+    "&& curl --disable --noproxy '*' --disallow-username-in-url --proto '=https'",
+  ),
+  true,
+  "curl must disable ambient config, proxy routing, and URL userinfo before transport options",
+);
+assert.equal(
+  COLD_START_CURL_COMMAND.split("--noproxy '*'").length - 1,
+  1,
+  "cold start must bypass every ambient proxy exactly once",
+);
+assert.equal(
+  COLD_START_CURL_COMMAND.split("--disallow-username-in-url").length - 1,
+  1,
+  "cold start must reject URL-embedded credentials exactly once",
+);
+assert.doesNotMatch(
+  COLD_START_CURL_COMMAND,
+  /(?:^|\s)--config(?:\s|=|$)/,
+  "cold start must not load an explicit curl config",
+);
 
 const clientSource = await readFile(CLIENT_PATH, "utf8");
 for (const forbidden of [
@@ -265,6 +318,40 @@ const fixtures = new Map([
   [publicUtility.entries[2].path, datanetReceipt],
   [manifest.entrypoints.agent_intake, agentIntakeCapability],
 ]);
+
+const OPEN_SCHEMA_FIRST_CONTACT_PATH =
+  "/public-node/agents/first-contact-open-schema-v1.json";
+fixtures.set(OPEN_SCHEMA_FIRST_CONTACT_PATH, {
+  ...manifest,
+  unreviewed_extension: true,
+});
+
+const ELEVATED_FIRST_CONTACT_PATH =
+  "/public-node/agents/first-contact-elevated-authority-v1.json";
+fixtures.set(ELEVATED_FIRST_CONTACT_PATH, {
+  ...manifest,
+  honesty: {
+    ...manifest.honesty,
+    mutation_authority_granted: true,
+  },
+});
+
+const RECOMPUTED_FORGED_FIRST_CONTACT_PATH =
+  "/public-node/agents/first-contact-recomputed-forgery-v1.json";
+const recomputedForgedFirstContact = {
+  ...manifest,
+  purpose: "Unreviewed replacement First Contact policy.",
+};
+recomputedForgedFirstContact.manifest_fingerprint_sha256 =
+  intakeFingerprint(recomputedForgedFirstContact);
+assert.notEqual(
+  recomputedForgedFirstContact.manifest_fingerprint_sha256,
+  REVIEWED_FIRST_CONTACT_MANIFEST_FINGERPRINT_SHA256,
+);
+fixtures.set(
+  RECOMPUTED_FORGED_FIRST_CONTACT_PATH,
+  recomputedForgedFirstContact,
+);
 
 const CROSS_ORIGIN_MANIFEST_PATH =
   "/public-node/agents/first-contact-cross-origin-fixture-v1.json";
@@ -426,6 +513,50 @@ fixtures.set(DECOY_INTAKE_PATH, {
   },
 });
 
+const TAMPERED_INTAKE_MANIFEST_PATH =
+  "/public-node/agents/first-contact-tampered-intake-fixture-v1.json";
+const TAMPERED_INTAKE_PATH =
+  "/public-node/agents/tampered-intake-fixture-v1.json";
+const TAMPERED_INTAKE_UTILITY_PATH =
+  "/public-node/agents/public-utility-tampered-intake-fixture-v1.json";
+fixtures.set(TAMPERED_INTAKE_MANIFEST_PATH, {
+  ...manifest,
+  entrypoints: {
+    ...manifest.entrypoints,
+    first_contact: TAMPERED_INTAKE_MANIFEST_PATH,
+    agent_intake: TAMPERED_INTAKE_PATH,
+    public_utility: TAMPERED_INTAKE_UTILITY_PATH,
+  },
+});
+fixtures.set(TAMPERED_INTAKE_UTILITY_PATH, {
+  ...publicUtility,
+  integration: {
+    ...publicUtility.integration,
+    first_contact_manifest: TAMPERED_INTAKE_MANIFEST_PATH,
+  },
+  entries: publicUtility.entries.map((entry, index) =>
+    index === 0
+      ? {
+          ...entry,
+          path: TAMPERED_INTAKE_MANIFEST_PATH,
+          repository_path: `public${TAMPERED_INTAKE_MANIFEST_PATH}`,
+        }
+      : entry,
+  ),
+});
+const tamperedIntakeCapability = {
+  ...agentIntakeCapability,
+  transport: {
+    ...agentIntakeCapability.transport,
+    invocation: "unreviewed-agent-intake-command",
+  },
+};
+assert.notEqual(
+  intakeFingerprint(tamperedIntakeCapability),
+  tamperedIntakeCapability.manifest_fingerprint_sha256,
+);
+fixtures.set(TAMPERED_INTAKE_PATH, tamperedIntakeCapability);
+
 const WRONG_RESOURCE_MARKER_MANIFEST_PATH =
   "/public-node/agents/first-contact-wrong-resource-marker-fixture-v1.json";
 const WRONG_RESOURCE_MARKER_UTILITY_PATH =
@@ -496,6 +627,7 @@ for (const [index, path] of BUDGET_EXHAUSTION_RESOURCE_PATHS.entries()) {
   });
 }
 
+let fixtureOverrides = new Map();
 const server = createServer((request, response) => {
   if (request.method !== "GET") {
     response.writeHead(405, {
@@ -509,7 +641,9 @@ const server = createServer((request, response) => {
     request.url ?? "/",
     "http://127.0.0.1",
   ).pathname;
-  const fixture = fixtures.get(route);
+  const fixture = fixtureOverrides.has(route)
+    ? fixtureOverrides.get(route)
+    : fixtures.get(route);
   if (!fixture) {
     response.writeHead(404, {
       "content-type": "application/json; charset=utf-8",
@@ -530,7 +664,8 @@ await new Promise((resolve, reject) => {
   server.listen(0, "127.0.0.1", resolve);
 });
 
-async function runClient(args) {
+async function runClient(args, overrides = []) {
+  fixtureOverrides = new Map(overrides);
   return new Promise((resolve, reject) => {
     const child = spawn(
       process.execPath,
@@ -550,8 +685,12 @@ async function runClient(args) {
     child.stderr.on("data", (chunk) => {
       stderr += chunk;
     });
-    child.once("error", reject);
+    child.once("error", (error) => {
+      fixtureOverrides = new Map();
+      reject(error);
+    });
     child.once("close", (code) => {
+      fixtureOverrides = new Map();
       resolve({ code, stdout, stderr });
     });
   });
@@ -574,6 +713,13 @@ try {
   assert.equal(report.connection_mode, "read_only");
   assert.equal(report.official_network_verified, true);
   assert.equal(Object.values(report.checks).every(Boolean), true);
+  for (const requiredCheck of manifest.verification.required_checks) {
+    assert.equal(
+      report.checks[requiredCheck],
+      true,
+      `published required check not satisfied: ${requiredCheck}`,
+    );
+  }
   assert.equal(report.checks.public_utility_catalog_loaded, true);
   assert.equal(report.checks.public_utility_resources_observed, true);
   assert.equal(report.useful_public_resources.length, 3);
@@ -632,12 +778,72 @@ try {
     true,
   );
 
-  const wrongResourceMarker = await runClient([
-    "--base-url",
-    baseUrl,
-    "--manifest-path",
-    WRONG_RESOURCE_MARKER_MANIFEST_PATH,
-  ]);
+  for (const manifestPath of [
+    OPEN_SCHEMA_FIRST_CONTACT_PATH,
+    ELEVATED_FIRST_CONTACT_PATH,
+    RECOMPUTED_FORGED_FIRST_CONTACT_PATH,
+  ]) {
+    const invalidFirstContact = await runClient([
+      "--base-url",
+      baseUrl,
+      "--manifest-path",
+      manifestPath,
+    ]);
+    assert.equal(
+      invalidFirstContact.code,
+      2,
+      invalidFirstContact.stderr,
+    );
+    const invalidFirstContactReport = JSON.parse(
+      invalidFirstContact.stdout,
+    );
+    assert.equal(
+      invalidFirstContactReport.checks.first_contact_manifest_reachable,
+      false,
+    );
+    assert.equal(invalidFirstContactReport.status, "partial_read_only");
+    assert.equal(invalidFirstContactReport.network, null);
+    assert.equal(invalidFirstContactReport.verification_semantics, null);
+    assert.deepEqual(invalidFirstContactReport.next_actions, []);
+    assert.equal(
+      invalidFirstContactReport.responses.public_utility_resources
+        .total_network_requests,
+      1,
+    );
+  }
+
+  const wrongResourceMarker = await runClient(
+    ["--base-url", baseUrl],
+    [
+      [
+        manifest.entrypoints.public_utility,
+        {
+          ...fixtures.get(WRONG_RESOURCE_MARKER_UTILITY_PATH),
+          integration: {
+            ...fixtures.get(WRONG_RESOURCE_MARKER_UTILITY_PATH)
+              .integration,
+            first_contact_manifest: manifest.entrypoints.first_contact,
+          },
+          entries: fixtures
+            .get(WRONG_RESOURCE_MARKER_UTILITY_PATH)
+            .entries.map((entry, index) =>
+              index === 0
+                ? {
+                    ...entry,
+                    path: manifest.entrypoints.first_contact,
+                    repository_path:
+                      "public/public-node/agents/first-contact-v1.json",
+                  }
+                : entry,
+            ),
+        },
+      ],
+      [
+        WRONG_RESOURCE_MARKER_DATA_PATH,
+        fixtures.get(WRONG_RESOURCE_MARKER_DATA_PATH),
+      ],
+    ],
+  );
   assert.equal(wrongResourceMarker.code, 2, wrongResourceMarker.stderr);
   const wrongResourceMarkerReport = JSON.parse(
     wrongResourceMarker.stdout,
@@ -662,12 +868,19 @@ try {
     "required_marker_not_observed",
   );
 
-  const exhaustedBudget = await runClient([
-    "--base-url",
-    baseUrl,
-    "--manifest-path",
-    BUDGET_EXHAUSTION_MANIFEST_PATH,
-  ]);
+  const exhaustedBudget = await runClient(
+    ["--base-url", baseUrl],
+    [
+      [
+        manifest.entrypoints.public_utility,
+        fixtures.get(BUDGET_EXHAUSTION_UTILITY_PATH),
+      ],
+      ...BUDGET_EXHAUSTION_RESOURCE_PATHS.map((path) => [
+        path,
+        fixtures.get(path),
+      ]),
+    ],
+  );
   assert.equal(exhaustedBudget.code, 2, exhaustedBudget.stderr);
   const exhaustedBudgetReport = JSON.parse(exhaustedBudget.stdout);
   assert.equal(exhaustedBudgetReport.status, "partial_read_only");
@@ -688,12 +901,19 @@ try {
     2,
   );
 
-  const decoyBinding = await runClient([
-    "--base-url",
-    baseUrl,
-    "--manifest-path",
-    DECOY_BINDING_MANIFEST_PATH,
-  ]);
+  const decoyBinding = await runClient(
+    ["--base-url", baseUrl],
+    [
+      [
+        manifest.entrypoints.well_known_discovery,
+        fixtures.get(DECOY_DISCOVERY_PATH),
+      ],
+      [
+        manifest.entrypoints.official_authenticity,
+        fixtures.get(DECOY_AUTHENTICITY_PATH),
+      ],
+    ],
+  );
   assert.equal(decoyBinding.code, 2, decoyBinding.stderr);
   const decoyBindingReport = JSON.parse(decoyBinding.stdout);
   assert.equal(decoyBindingReport.official_network_verified, false);
@@ -702,12 +922,19 @@ try {
     false,
   );
 
-  const decoyContracts = await runClient([
-    "--base-url",
-    baseUrl,
-    "--manifest-path",
-    DECOY_CONTRACT_MANIFEST_PATH,
-  ]);
+  const decoyContracts = await runClient(
+    ["--base-url", baseUrl],
+    [
+      [
+        manifest.entrypoints.authentication,
+        fixtures.get(DECOY_AUTHENTICATION_PATH),
+      ],
+      [
+        manifest.entrypoints.capabilities,
+        fixtures.get(DECOY_CAPABILITIES_PATH),
+      ],
+    ],
+  );
   assert.equal(decoyContracts.code, 2, decoyContracts.stderr);
   const decoyContractsReport = JSON.parse(decoyContracts.stdout);
   assert.equal(decoyContractsReport.status, "partial_read_only");
@@ -733,18 +960,31 @@ try {
     false,
   );
 
-  const decoyIntake = await runClient([
-    "--base-url",
-    baseUrl,
-    "--manifest-path",
-    DECOY_INTAKE_MANIFEST_PATH,
-  ]);
+  const decoyIntake = await runClient(
+    ["--base-url", baseUrl],
+    [[manifest.entrypoints.agent_intake, fixtures.get(DECOY_INTAKE_PATH)]],
+  );
   assert.equal(decoyIntake.code, 0, decoyIntake.stderr);
   const decoyIntakeReport = JSON.parse(decoyIntake.stdout);
   assert.equal(decoyIntakeReport.status, "ready_read_only");
   assert.equal(decoyIntakeReport.checks.agent_intake_reachable, false);
   assert.equal(
     decoyIntakeReport.next_actions.some(
+      (action) => action.id === "inspect_agent_intake",
+    ),
+    false,
+  );
+
+  const tamperedIntake = await runClient(
+    ["--base-url", baseUrl],
+    [[manifest.entrypoints.agent_intake, fixtures.get(TAMPERED_INTAKE_PATH)]],
+  );
+  assert.equal(tamperedIntake.code, 0, tamperedIntake.stderr);
+  const tamperedIntakeReport = JSON.parse(tamperedIntake.stdout);
+  assert.equal(tamperedIntakeReport.status, "ready_read_only");
+  assert.equal(tamperedIntakeReport.checks.agent_intake_reachable, false);
+  assert.equal(
+    tamperedIntakeReport.next_actions.some(
       (action) => action.id === "inspect_agent_intake",
     ),
     false,
@@ -762,17 +1002,24 @@ try {
     crossOriginReport.checks.public_utility_catalog_loaded,
     false,
   );
+  assert.equal(
+    crossOriginReport.checks.first_contact_manifest_reachable,
+    false,
+  );
   assert.match(
     crossOriginReport.responses.public_utility.error,
-    /invalid public path/,
+    /manifest entrypoint missing/,
   );
 
-  const oversized = await runClient([
-    "--base-url",
-    baseUrl,
-    "--manifest-path",
-    OVERSIZED_MANIFEST_PATH,
-  ]);
+  const oversized = await runClient(
+    ["--base-url", baseUrl],
+    [
+      [
+        manifest.entrypoints.public_utility,
+        fixtures.get(OVERSIZED_UTILITY_PATH),
+      ],
+    ],
+  );
   assert.equal(oversized.code, 2, oversized.stderr);
   const oversizedReport = JSON.parse(oversized.stdout);
   assert.equal(
@@ -796,21 +1043,28 @@ try {
     normalizedPathReport.checks.public_utility_catalog_loaded,
     false,
   );
+  assert.equal(
+    normalizedPathReport.checks.first_contact_manifest_reachable,
+    false,
+  );
   assert.match(
     normalizedPathReport.responses.public_utility.error,
-    /cross-origin public path forbidden/,
+    /manifest entrypoint missing/,
   );
 
-  for (const manifestPath of [
-    OPEN_SCHEMA_MANIFEST_PATH,
-    DUPLICATE_ID_MANIFEST_PATH,
+  for (const utilityPath of [
+    OPEN_SCHEMA_UTILITY_PATH,
+    DUPLICATE_ID_UTILITY_PATH,
   ]) {
-    const invalidSchema = await runClient([
-      "--base-url",
-      baseUrl,
-      "--manifest-path",
-      manifestPath,
-    ]);
+    const invalidSchema = await runClient(
+      ["--base-url", baseUrl],
+      [
+        [
+          manifest.entrypoints.public_utility,
+          fixtures.get(utilityPath),
+        ],
+      ],
+    );
     assert.equal(invalidSchema.code, 2, invalidSchema.stderr);
     const invalidSchemaReport = JSON.parse(invalidSchema.stdout);
     assert.equal(
@@ -896,6 +1150,8 @@ if (workingBoundary.length > 0) {
     NETWORK_BINDING_REPAIR_BOUNDARY,
     COMPOSITION_PROOF_REPAIR_BOUNDARY,
     PUBLIC_UTILITY_RESOURCE_OBSERVATION_REPAIR_BOUNDARY,
+    POST_MERGE_CONTRACT_INTEGRITY_REPAIR_BOUNDARY,
+    FIRST_CONTACT_MANIFEST_INTEGRITY_REPAIR_BOUNDARY,
   ].some(
     (boundary) =>
       JSON.stringify(workingBoundary) ===

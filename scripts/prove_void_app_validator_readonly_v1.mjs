@@ -7,15 +7,21 @@ import {
   MAX_VALIDATE_RESPONSE_BYTES,
   VALIDATE_ENDPOINT,
   VALIDATE_MARKER,
+  VALIDATE_SOURCE_ROUTE,
   readBoundedValidatorJsonV1,
   validateValidatorReadinessSnapshotV1,
 } from '../public/void-app-wave1-v1/assets/js/validate-live.js';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const fixturePath = path.join(root, 'public/public-node/validators/mainnet0-validator-candidate-readiness-matrix-hold-v1.json');
+const appFixturePath = path.join(root, 'public/void-app-wave1-v1/assets/data/mainnet0-validator-candidate-readiness-matrix-hold-v1.json');
+const foundationPath = path.join(root, 'src/ui/void_app_wave1_foundation_v1.ts');
 const validatePath = path.join(root, 'public/void-app-wave1-v1/assets/js/validate-live.js');
 const homePath = path.join(root, 'public/void-app-wave1-v1/assets/js/home-live.js');
-const fixture = JSON.parse(fs.readFileSync(fixturePath, 'utf8'));
+const fixtureSource = fs.readFileSync(fixturePath, 'utf8');
+const appFixtureSource = fs.readFileSync(appFixturePath, 'utf8');
+const foundationSource = fs.readFileSync(foundationPath, 'utf8');
+const fixture = JSON.parse(fixtureSource);
 const validateSource = fs.readFileSync(validatePath, 'utf8');
 const homeSource = fs.readFileSync(homePath, 'utf8');
 
@@ -26,9 +32,16 @@ const reject = (mutator) => {
   assert.throws(() => validateValidatorReadinessSnapshotV1(value));
 };
 
+assert.equal(appFixtureSource, fixtureSource, 'App-local readiness matrix must remain byte-identical to canonical public source');
+assert.equal(VALIDATE_ENDPOINT, '/app/assets/data/mainnet0-validator-candidate-readiness-matrix-hold-v1.json');
+assert.equal(VALIDATE_SOURCE_ROUTE, '/public-node/validators/mainnet0-validator-candidate-readiness-matrix-hold-v1.json');
+assert.match(foundationSource, /const ROUTE_PREFIX = "\/app";/);
+assert.match(foundationSource, /"void-app-wave1-v1"/);
+assert.match(foundationSource, /express\.static\(shellDir/);
+
 const validated = validateValidatorReadinessSnapshotV1(fixture);
 assert.equal(validated.marker, VALIDATE_MARKER);
-assert.equal(validated.route, VALIDATE_ENDPOINT);
+assert.equal(validated.route, VALIDATE_SOURCE_ROUTE);
 assert.equal(validated.candidate_readiness.minimum_public_candidate_stake_policy_void, 10000);
 assert.equal(validated.candidate_readiness.matrix_item_count, 8);
 assert.equal(validated.candidate_readiness.matrix_items.length, 8);
@@ -111,6 +124,8 @@ assert.match(
 
 console.log('VOID_APP_VALIDATOR_READONLY_V1_PROOF_GREEN');
 console.log('same_origin_get_only=1');
+console.log('loopback_app_origin_matrix_route=1');
+console.log('canonical_matrix_mirror_byte_identical=1');
 console.log('bounded_response_bytes=131072');
 console.log('candidate_requirements=8');
 console.log('minimum_candidate_stake_policy_void=10000');

@@ -53,6 +53,11 @@ async function main(): Promise<void> {
   mkdirPrivate(path.join(custodyStore, "records"));
 
   const socketPath = path.join(socketDir, "broadcaster.sock");
+  const durabilityRoot = path.join(root, "durability");
+  assert.equal(
+    path.resolve(durabilityRoot).startsWith(`${path.resolve(root)}${path.sep}`),
+    true,
+  );
   const signerFingerprint = sha256("composition-proof-signer");
   const wallet = new Wallet(`0x${"1".repeat(64)}`);
   const delivery = `0x${"2".repeat(40)}`;
@@ -196,6 +201,7 @@ async function main(): Promise<void> {
         chain_transport: {
           submit_rpc_transport: submitRpcTransport,
           read_transport: readTransport,
+          durability_root_dir: durabilityRoot,
         },
       },
     );
@@ -271,6 +277,7 @@ async function main(): Promise<void> {
 
   await composed.service.stop();
   fs.rmSync(root, { recursive: true, force: true });
+  assert.equal(fs.existsSync(durabilityRoot), false);
 
   assert.deepEqual(
     VOID_BUY_VOID_PREPARED_TRANSACTION_BROADCASTER_CHAIN2050_COMPOSITION_AUTHORITY_V1,
@@ -304,6 +311,8 @@ async function main(): Promise<void> {
   console.log("composition_factory_transaction_broadcast=false");
   console.log("synthetic_service_start=true");
   console.log("synthetic_submit_calls=1");
+  console.log("synthetic_durability_root=temp_scoped");
+  console.log("synthetic_durability_root_removed=true");
   console.log("duplicate_submit_resubmission=false");
   console.log("synthetic_confirmed_inspection=true");
   console.log("raw_signed_transaction_application_visibility=false");
