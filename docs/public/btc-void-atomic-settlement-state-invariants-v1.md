@@ -37,8 +37,15 @@ RESERVED -> HASH_BOUND -> SOURCE_FUNDED -> SOURCE_CONFIRMED
 ```
 
 Bounded terminal alternatives are `EXPIRED`, `REFUNDED`, `HELD`, and
-`CANCELLED_BEFORE_FUNDING`. A terminal state cannot reopen and no terminal
-state automatically retries.
+`CANCELLED_BEFORE_FUNDING`. Before the counterparty lock exists, only an
+explicit source-native-asset refund can reach `REFUNDED`. After both native
+assets are locked, the shorter-horizon counterparty asset must first produce a
+role-bound receipt and enter the nonterminal `REFUND_PENDING_SOURCE` state.
+A distinct source-native-asset refund receipt is then required to reach terminal
+`REFUNDED`. For BTC-to-VOID these roles bind respectively to native VOID and
+native BTC; for VOID-to-BTC they bind respectively to native BTC and native
+VOID. One receipt can never resolve both positions. A terminal state cannot reopen
+and no terminal state automatically retries.
 
 Every transition is receipt-backed and content-addressed. An exact replay of
 an already-applied event is idempotent and leaves the evaluation identity
