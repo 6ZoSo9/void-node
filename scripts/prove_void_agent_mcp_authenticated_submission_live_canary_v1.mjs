@@ -20,6 +20,7 @@ import {
   executeCanary,
   normalizeGatewayBaseUrl,
   prepareCanary,
+  runCli,
   sha256,
   validateCanaryInput,
 } from "../tools/void-agent-mcp-authenticated-submission-live-canary-v1.mjs";
@@ -107,7 +108,7 @@ function authorityDenied() {
   };
 }
 
-async function startGateway() {
+async function startGateway(options = {}) {
   const metrics = {
     discovery_gets: 0,
     route_gets: 0,
@@ -157,6 +158,9 @@ async function startGateway() {
           admission: { decision: "accepted_for_review" },
           authority: authorityDenied(),
         };
+        if (typeof options.beforeSubmissionResponse === "function") {
+          options.beforeSubmissionResponse();
+        }
         response.writeHead(202, {
           "content-type": "application/json",
           "x-void-agent-paid-work-submission-route": "v1",
@@ -424,6 +428,78 @@ async function main() {
     assert.equal(cleanupFalseCalls, 1);
     scanForSecret(cleanupStateDirectory, [TOKEN, tokenPath]);
 
+    const cliCleanupInputPath = path.join(root, "input-cli-cleanup-false.json");
+    const cliCleanupInput = canaryInput("cli-cleanup-false-v1");
+    const cliNow = Date.now();
+    cliCleanupInput.created_at_utc = new Date(cliNow).toISOString().replace(/\.\d{3}Z$/, "Z");
+    cliCleanupInput.expires_at_utc = new Date(cliNow + 15 * 60_000).toISOString().replace(/\.\d{3}Z$/, "Z");
+    writePrivateJson(cliCleanupInputPath, cliCleanupInput);
+    const cliCleanupStateDirectory = path.join(root, "state-cli-cleanup-false");
+    const cliTempRoot = path.join(root, "mcp-tmp-cli-cleanup-false");
+    fs.mkdirSync(cliTempRoot, { mode: 0o700 });
+    fs.chmodSync(cliTempRoot, 0o700);
+    const priorTmpdir = process.env.TMPDIR;
+    let cliGateway = null;
+    let cliCleanupSubmissionPosts = 0;
+    let cliCleanupOutputVerified = false;
+    try {
+      process.env.TMPDIR = cliTempRoot;
+      cliGateway = await startGateway({
+        beforeSubmissionResponse: () => {
+          fs.chmodSync(cliTempRoot, 0o500);
+        },
+      });
+      const prepareArgs = [
+        "prepare",
+        "--repo-root", ROOT,
+        "--base-url", cliGateway.baseUrl,
+        "--input", cliCleanupInputPath,
+        "--state-dir", cliCleanupStateDirectory,
+      ];
+      const executeArgs = [
+        "execute",
+        "--repo-root", ROOT,
+        "--base-url", cliGateway.baseUrl,
+        "--input", cliCleanupInputPath,
+        "--state-dir", cliCleanupStateDirectory,
+        "--token-file", tokenPath,
+        "--allow-live-submit",
+        "--confirm", CONFIRMATION,
+      ];
+      const cliPrepared = await runCli(prepareArgs);
+      assert.equal(cliPrepared.exitCode, 0);
+      assert.match(cliPrepared.output, new RegExp(`${MARKER}=PREPARED`));
+      const cliCompleted = await runCli(executeArgs);
+      assert.equal(cliCompleted.exitCode, 0);
+      assert.match(cliCompleted.output, /private_temp_cleanup_completed=false(?:\n|$)/);
+      assert.equal(cliCompleted.output.includes(TOKEN), false);
+      assert.equal(cliCompleted.output.includes(tokenPath), false);
+      assert.equal(cliCompleted.output.includes(cliTempRoot), false);
+      const cliState = readJson(path.join(cliCleanupStateDirectory, "state-v1.json"));
+      const cliReceipt = readJson(path.join(cliCleanupStateDirectory, "completion-receipt-v1.json"));
+      assert.equal(cliState.status, "completed");
+      assert.equal(cliState.private_temp_cleanup_completed, false);
+      assert.equal(cliReceipt.private_temp_cleanup_completed, false);
+      cliCleanupSubmissionPosts = cliGateway.metrics.submission_posts;
+      assert.equal(cliCleanupSubmissionPosts, 1);
+      await expectReject(
+        async () => await runCli(executeArgs),
+        /fresh prepared state/,
+      );
+      assert.equal(cliGateway.metrics.submission_posts, 1);
+      scanForSecret(cliCleanupStateDirectory, [TOKEN, tokenPath, cliTempRoot]);
+      cliCleanupOutputVerified = true;
+    } finally {
+      if (priorTmpdir === undefined) delete process.env.TMPDIR;
+      else process.env.TMPDIR = priorTmpdir;
+      try {
+        fs.chmodSync(cliTempRoot, 0o700);
+      } catch {
+        // Best-effort proof cleanup only; outer temp-root removal remains authoritative.
+      }
+      if (cliGateway) await cliGateway.close();
+    }
+
     const ambiguousInputPath = path.join(root, "input-ambiguous.json");
     writePrivateJson(ambiguousInputPath, canaryInput("ambiguous-v1"));
     const ambiguousStateDirectory = path.join(root, "state-ambiguous");
@@ -513,6 +589,9 @@ async function main() {
       private_temp_cleanup_failure_preserved: cleanupFalse.state.private_temp_cleanup_completed === false,
       cleanup_failure_submission_attempt_count: cleanupFalseCalls,
       cleanup_failure_no_retry: cleanupFalseCalls === 1,
+      cleanup_failure_cli_output_verified: cliCleanupOutputVerified,
+      cleanup_failure_cli_submission_attempt_count: cliCleanupSubmissionPosts,
+      cleanup_failure_cli_no_retry: cliCleanupSubmissionPosts === 1,
       ambiguous_result_held: held.status === "held",
       automatic_retry: false,
       raw_token_printed: false,
