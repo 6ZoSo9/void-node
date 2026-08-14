@@ -832,6 +832,12 @@ async function ensureActivationJournalRecord(
     );
   }
   const activeEpoch = BigInt(activation.epoch);
+  if (activeEpoch > 1n && lines.length === 0) {
+    hold(
+      "invalid_activation_journal",
+      "activation journal history is required after epoch 1",
+    );
+  }
   if (tornTail !== null) {
     if (
       exactMatches !== 0 ||
