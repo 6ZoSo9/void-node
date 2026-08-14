@@ -28,6 +28,7 @@ assert.deepEqual(
     expected_chain_id: 2050,
     server_controlled_rpc_url: true,
     loopback_http_only: true,
+    execution_state_tag: "pending",
     read_only_rpc_methods: [
       "eth_chainId",
       "eth_getTransactionCount",
@@ -79,6 +80,7 @@ assert.equal(
 );
 assert.equal(planned.status, "planned");
 assert.equal(planned.pending_nonce, 7);
+assert.equal(planned.execution_state, "pending");
 assert.equal(planned.observed_gas_price_wei, "2000000000");
 assert.equal(
   planned.computed_max_fee_per_gas_wei,
@@ -109,7 +111,7 @@ assert.deepEqual(
   planned.rpc_methods_used,
 );
 assert.deepEqual(calls[1].params, [wallet, "pending"]);
-assert.deepEqual(calls[3].params, [wallet, "latest"]);
+assert.deepEqual(calls[3].params, [wallet, "pending"]);
 assert.equal(
   JSON.stringify(planned).includes(basePolicy.rpc_url),
   false,
@@ -187,6 +189,50 @@ assert.equal(
   "fulfillment_wallet_balance_insufficient",
 );
 
+const requiredMaximum =
+  1_000_000_000_000_000_000n + 21_000n * 2_400_000_000n;
+const latestSufficientPendingInsufficientCalls: BuyVoidNativeExecutionPlannerRpcCallV1[] = [];
+const latestSufficientPendingInsufficient =
+  await planBuyVoidNativeExecutionNonceFeeV1(
+    basePolicy,
+    async (call) => {
+      latestSufficientPendingInsufficientCalls.push({
+        ...call,
+        params: [...call.params],
+      });
+      let result: string;
+      if (call.method === "eth_chainId") result = "0x802";
+      else if (call.method === "eth_getTransactionCount") result = "0x7";
+      else if (call.method === "eth_gasPrice") result = "0x77359400";
+      else if (call.method === "eth_getBalance") {
+        const stateTag = String(call.params[1] || "");
+        result = stateTag === "pending"
+          ? `0x${(requiredMaximum - 1n).toString(16)}`
+          : `0x${(requiredMaximum + 1n).toString(16)}`;
+      } else {
+        throw new Error(`unexpected method ${call.method}`);
+      }
+      return {
+        ok: true,
+        result,
+        provider_submission_id: "",
+        http_status: 200,
+      };
+    },
+  );
+assert.equal(latestSufficientPendingInsufficient.ok, false);
+if (!("reason" in latestSufficientPendingInsufficient)) {
+  throw new Error("mixed-state fixture must hold");
+}
+assert.equal(
+  latestSufficientPendingInsufficient.reason,
+  "fulfillment_wallet_balance_insufficient",
+);
+assert.deepEqual(
+  latestSufficientPendingInsufficientCalls.at(-1)?.params,
+  [wallet, "pending"],
+);
+
 const serverCalls: Array<{
   id: number;
   method: string;
@@ -238,6 +284,7 @@ try {
   assert.equal(live.ok, true);
   if ("reason" in live) throw new Error(String(live.reason));
   assert.equal(live.pending_nonce, 2);
+  assert.equal(live.execution_state, "pending");
   assert.deepEqual(
     serverCalls.map((call) => call.method),
     [
@@ -247,6 +294,8 @@ try {
       "eth_getBalance",
     ],
   );
+  assert.deepEqual(serverCalls[1].params, [wallet, "pending"]);
+  assert.deepEqual(serverCalls[3].params, [wallet, "pending"]);
 } finally {
   await new Promise<void>((resolve, reject) =>
     server.close((error) =>
@@ -260,6 +309,9 @@ console.log(
 );
 console.log("read_only_rpc_method_count=4");
 console.log("pending_nonce_source=eth_getTransactionCount_pending");
+console.log("execution_state=pending");
+console.log("balance_state=pending");
+console.log("latest_sufficient_pending_insufficient_hold=1");
 console.log("fee_source=eth_gasPrice_bounded_multiplier");
 console.log("balance_preflight=1");
 console.log("loopback_http_only=1");
