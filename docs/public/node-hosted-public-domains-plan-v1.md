@@ -64,6 +64,7 @@ Current public seed URL:
 
 ```text
 https://zoso-alienware-aurora-r7.taila47fd.ts.net
+```
 
 This remains the verified public node-hosted seed until custom-domain DNS and HTTPS are proven.
 

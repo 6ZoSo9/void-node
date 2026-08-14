@@ -35,10 +35,24 @@ export const VOID_BUY_VOID_DELIVERY_SIGN_BROADCAST_AUTHORITY_V1 = {
   raw_signed_transaction_output: false,
   automatic_retry: false,
   receipt_wait: false,
+  erc20_transfer: true,
+  fulfillment_unit_decimals: 6,
+  token_atom_decimals: 18,
+  integer_only_unit_conversion: true,
+  rounding: false,
   signing: true,
   transaction_broadcast: true,
   money_movement: true,
 } as const;
+
+export const VOID_BUY_VOID_ERC20_DELIVERY_UNIT_SCALE_V1 = {
+  fulfillment_unit_decimals: 6,
+  token_atom_decimals: 18,
+  multiplier: "1000000000000",
+} as const;
+
+const ERC20_TOKEN_ATOM_MULTIPLIER_V1 = 1_000_000_000_000n;
+const UINT256_MAX_V1 = (1n << 256n) - 1n;
 
 const ADDRESS = /^0x[0-9a-f]{40}$/;
 const HASH = /^0x[0-9a-f]{64}$/;
@@ -221,6 +235,7 @@ type NormalizedV1 = {
   delivery_address: string;
   void_token_address: string;
   void_amount_units: bigint;
+  token_amount_atoms: bigint;
   transaction_plan: BuyVoidDeliveryUnsignedTransactionV1;
   transaction_plan_fingerprint_sha256: string;
 };
@@ -453,6 +468,14 @@ function normalizeInput(
     });
   }
 
+  const tokenAmountAtoms = amount * ERC20_TOKEN_ATOM_MULTIPLIER_V1;
+  if (tokenAmountAtoms <= 0n || tokenAmountAtoms > UINT256_MAX_V1) {
+    return held("void_delivery_token_amount_atoms_out_of_range", {
+      attempt_id: attemptId,
+      expected_transaction_hash: expectedHash,
+    });
+  }
+
   const nonceValue = parseInteger(input?.plan?.nonce);
   const nonce = nonceValue === null ? null : safeNumber(nonceValue);
   const gasLimit = parseInteger(input?.plan?.gas_limit);
@@ -511,7 +534,7 @@ function normalizeInput(
 
   const data = TRANSFER_INTERFACE.encodeFunctionData("transfer", [
     deliveryAddress,
-    amount,
+    tokenAmountAtoms,
   ]);
   const transactionPlan: BuyVoidDeliveryUnsignedTransactionV1 = {
     type: 2,
@@ -536,6 +559,9 @@ function normalizeInput(
     token_address: tokenAddress,
     delivery_address: deliveryAddress,
     void_amount_units: amount.toString(),
+    token_amount_atoms: tokenAmountAtoms.toString(),
+    unit_scale_multiplier:
+      VOID_BUY_VOID_ERC20_DELIVERY_UNIT_SCALE_V1.multiplier,
     calldata: data,
   });
 
@@ -546,6 +572,7 @@ function normalizeInput(
     delivery_address: deliveryAddress,
     void_token_address: tokenAddress,
     void_amount_units: amount,
+    token_amount_atoms: tokenAmountAtoms,
     transaction_plan: transactionPlan,
     transaction_plan_fingerprint_sha256: fingerprint,
   };

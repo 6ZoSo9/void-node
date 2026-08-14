@@ -125,7 +125,9 @@ function intakeFingerprint(value) {
 }
 
 const REVIEWED_FIRST_CONTACT_MANIFEST_FINGERPRINT_SHA256 =
-  "dc5f05b817941edc55113e066b0e89a57cf8e510510ae294f479c687a2386cae";
+  "ed56951c1bc043911ede167dc2cddbab38af62f069d07638dc1825d7e936f413";
+const COLD_START_CURL_COMMAND =
+  "test -n \"$VOID_PUBLIC_ORIGIN\" && curl --disable --noproxy '*' --disallow-username-in-url --proto '=https' --max-redirs 0 --fail --silent --show-error --max-time 8 --max-filesize 65536 --header 'Accept: application/json' \"${VOID_PUBLIC_ORIGIN%/}/public-node/agents/first-contact-v1.json\"";
 
 assert.equal(
   intakeFingerprint(manifest),
@@ -177,6 +179,29 @@ assert.equal(manifest.honesty.paid_work_promised, false);
 assert.equal(manifest.honesty.work_credit_earning_promised, false);
 assert.equal(manifest.honesty.mutation_authority_granted, false);
 assert.deepEqual(manifest.client.http_methods, ["GET"]);
+assert.equal(manifest.client.cold_start_curl_command, COLD_START_CURL_COMMAND);
+assert.equal(
+  COLD_START_CURL_COMMAND.includes(
+    "&& curl --disable --noproxy '*' --disallow-username-in-url --proto '=https'",
+  ),
+  true,
+  "curl must disable ambient config, proxy routing, and URL userinfo before transport options",
+);
+assert.equal(
+  COLD_START_CURL_COMMAND.split("--noproxy '*'").length - 1,
+  1,
+  "cold start must bypass every ambient proxy exactly once",
+);
+assert.equal(
+  COLD_START_CURL_COMMAND.split("--disallow-username-in-url").length - 1,
+  1,
+  "cold start must reject URL-embedded credentials exactly once",
+);
+assert.doesNotMatch(
+  COLD_START_CURL_COMMAND,
+  /(?:^|\s)--config(?:\s|=|$)/,
+  "cold start must not load an explicit curl config",
+);
 
 const clientSource = await readFile(CLIENT_PATH, "utf8");
 for (const forbidden of [

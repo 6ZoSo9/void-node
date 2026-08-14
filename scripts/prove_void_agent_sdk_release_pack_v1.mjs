@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { createHash } from "node:crypto";
+import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 
 import {
@@ -13,6 +14,33 @@ import {
 
 function assertCondition(condition, message) {
   if (!condition) throw new Error(message);
+}
+
+function assertExactObjectKeys(value, expectedKeys, label) {
+  assertCondition(
+    value !== null && typeof value === "object" && !Array.isArray(value),
+    `${label} must be an object`,
+  );
+  const actual = Object.keys(value).sort();
+  const expected = [...expectedKeys].sort();
+  assertCondition(
+    JSON.stringify(actual) === JSON.stringify(expected),
+    `${label} keys mismatch`,
+  );
+}
+
+function expectSyncReject(label, operation, expectedFragment) {
+  try {
+    operation();
+  } catch (error) {
+    const message = String(error?.message ?? error);
+    assertCondition(
+      message.includes(expectedFragment),
+      `${label} rejected for wrong reason: ${message}`,
+    );
+    return;
+  }
+  throw new Error(`expected rejection: ${label}`);
 }
 
 async function expectReject(label, operation, expectedFragment) {
@@ -38,6 +66,51 @@ const packageRoot = path.join(root, "integrations/agents/void-agent-sdk-v1");
 const wellKnownPath = "/.well-known/void-agent-discovery.json";
 const canonicalPath = "/public-node/agents/discovery-v1.json";
 const catalogPath = "/public-node/agents/capability-negotiation-v1.json";
+const supportedNodeMajors = [22, 24, 26];
+const reviewedSourceMain = "f439a8f2150ed52403d69e4820f4ba29c8f69c0b";
+const manifestTopLevelKeys = [
+  "marker",
+  "version",
+  "package",
+  "package_version",
+  "reviewed_source_main",
+  "supported_node_majors",
+  "files",
+  "authority",
+];
+const manifestFileNames = [
+  "LICENSE",
+  "README.md",
+  "cli.mjs",
+  "index.mjs",
+  "package.json",
+];
+const manifestAuthorityKeys = [
+  "credentials_access",
+  "authentication",
+  "mutation",
+  "request_submission",
+  "payment_execution",
+  "work_credit_write",
+  "wallet_or_signer_access",
+  "transaction_broadcast",
+  "deployment",
+  "money_movement",
+];
+const packagedFileNames = [
+  "index.mjs",
+  "cli.mjs",
+  "README.md",
+  "LICENSE",
+  "integrity.json",
+];
+const commitShaPattern = /^[0-9a-f]{40}$/;
+const sha256Pattern = /^[0-9a-f]{64}$/;
+const runtimeNodeMajor = Number.parseInt(process.versions.node.split(".")[0], 10);
+assertCondition(
+  supportedNodeMajors.includes(runtimeNodeMajor),
+  `proof_runtime_node_major_unsupported:${runtimeNodeMajor}`,
+);
 
 const wellKnown = {
   marker: "VOID_AI_AGENT_WELL_KNOWN_ENTRYPOINT_V1",
@@ -327,14 +400,162 @@ await expectReject(
   "report_id_mismatch",
 );
 
+const packageJson = JSON.parse(
+  fs.readFileSync(path.join(packageRoot, "package.json"), "utf8"),
+);
+const repositoryPackageJson = JSON.parse(
+  fs.readFileSync(path.join(root, "package.json"), "utf8"),
+);
 const manifest = JSON.parse(
   fs.readFileSync(path.join(packageRoot, "integrity.json"), "utf8"),
 );
-assertCondition(
-  manifest.marker === "VOID_AGENT_SDK_RELEASE_MANIFEST_V1",
-  "integrity marker mismatch",
+
+function validateReleaseManifestShapeV1(candidate) {
+  assertExactObjectKeys(
+    candidate,
+    manifestTopLevelKeys,
+    "integrity manifest",
+  );
+  assertCondition(
+    candidate.marker === "VOID_AGENT_SDK_RELEASE_MANIFEST_V1",
+    "integrity marker mismatch",
+  );
+  assertCondition(candidate.version === 1, "integrity version mismatch");
+  assertCondition(
+    candidate.package === "@void-network/agent-sdk" &&
+      candidate.package === packageJson.name,
+    "integrity package identity mismatch",
+  );
+  assertCondition(
+    candidate.package_version === "0.1.0" &&
+      candidate.package_version === packageJson.version,
+    "integrity package version mismatch",
+  );
+  assertCondition(
+    typeof candidate.reviewed_source_main === "string" &&
+      commitShaPattern.test(candidate.reviewed_source_main),
+    "reviewed_source_main syntax mismatch",
+  );
+  assertCondition(
+    candidate.reviewed_source_main === reviewedSourceMain,
+    "reviewed_source_main binding mismatch",
+  );
+  assertCondition(
+    JSON.stringify(candidate.supported_node_majors) ===
+      JSON.stringify(supportedNodeMajors),
+    "integrity supported Node majors mismatch",
+  );
+
+  assertExactObjectKeys(
+    candidate.files,
+    manifestFileNames,
+    "integrity manifest files",
+  );
+  for (const relative of manifestFileNames) {
+    const expected = candidate.files[relative];
+    assertExactObjectKeys(
+      expected,
+      ["bytes", "sha256"],
+      `integrity file ${relative}`,
+    );
+    assertCondition(
+      Number.isSafeInteger(expected.bytes) && expected.bytes > 0,
+      `integrity file ${relative} byte count invalid`,
+    );
+    assertCondition(
+      typeof expected.sha256 === "string" &&
+        sha256Pattern.test(expected.sha256),
+      `integrity file ${relative} SHA-256 invalid`,
+    );
+  }
+
+  assertExactObjectKeys(
+    candidate.authority,
+    manifestAuthorityKeys,
+    "integrity authority",
+  );
+  for (const key of manifestAuthorityKeys) {
+    assertCondition(
+      candidate.authority[key] === false,
+      `integrity authority ${key} must be false`,
+    );
+  }
+}
+
+validateReleaseManifestShapeV1(manifest);
+
+const extraTopLevelField = clone(manifest);
+extraTopLevelField.unreviewed = false;
+expectSyncReject(
+  "extra manifest field",
+  () => validateReleaseManifestShapeV1(extraTopLevelField),
+  "integrity manifest keys mismatch",
 );
-for (const [relative, expected] of Object.entries(manifest.files)) {
+
+const missingFileBinding = clone(manifest);
+delete missingFileBinding.files["package.json"];
+expectSyncReject(
+  "missing manifest file",
+  () => validateReleaseManifestShapeV1(missingFileBinding),
+  "integrity manifest files keys mismatch",
+);
+
+const extraFileBinding = clone(manifest);
+extraFileBinding.files["unreviewed.txt"] = {
+  bytes: 1,
+  sha256: "00".repeat(32),
+};
+expectSyncReject(
+  "extra manifest file",
+  () => validateReleaseManifestShapeV1(extraFileBinding),
+  "integrity manifest files keys mismatch",
+);
+
+const missingAuthorityField = clone(manifest);
+delete missingAuthorityField.authority.deployment;
+expectSyncReject(
+  "missing authority field",
+  () => validateReleaseManifestShapeV1(missingAuthorityField),
+  "integrity authority keys mismatch",
+);
+
+const elevatedAuthority = clone(manifest);
+elevatedAuthority.authority.money_movement = true;
+expectSyncReject(
+  "elevated authority",
+  () => validateReleaseManifestShapeV1(elevatedAuthority),
+  "integrity authority money_movement must be false",
+);
+
+const staleReviewedSource = clone(manifest);
+staleReviewedSource.reviewed_source_main = "0".repeat(40);
+expectSyncReject(
+  "stale reviewed source",
+  () => validateReleaseManifestShapeV1(staleReviewedSource),
+  "reviewed_source_main binding mismatch",
+);
+
+const reviewedCommit = spawnSync(
+  "git",
+  ["-C", root, "cat-file", "-e", `${reviewedSourceMain}^{commit}`],
+  { encoding: "utf8" },
+);
+assertCondition(
+  reviewedCommit.status === 0 && !reviewedCommit.error,
+  "reviewed_source_main commit unavailable",
+);
+const reviewedAncestor = spawnSync(
+  "git",
+  ["-C", root, "merge-base", "--is-ancestor", reviewedSourceMain, "HEAD"],
+  { encoding: "utf8" },
+);
+assertCondition(
+  reviewedAncestor.status === 0 && !reviewedAncestor.error,
+  "reviewed_source_main is not an ancestor of HEAD",
+);
+
+for (const relative of manifestFileNames) {
+  const expected = manifest.files[relative];
   const bytes = fs.readFileSync(path.join(packageRoot, relative));
   assertCondition(bytes.length === expected.bytes, `byte mismatch: ${relative}`);
   assertCondition(
@@ -342,15 +563,19 @@ for (const [relative, expected] of Object.entries(manifest.files)) {
     `SHA-256 mismatch: ${relative}`,
   );
 }
-assertCondition(
-  Object.values(manifest.authority).every((value) => value === false),
-  "integrity manifest exceeded authority boundary",
-);
 
-const packageJson = JSON.parse(
-  fs.readFileSync(path.join(packageRoot, "package.json"), "utf8"),
+assertCondition(
+  JSON.stringify(packageJson.files) === JSON.stringify(packagedFileNames),
+  "SDK package files contract mismatch",
 );
-assertCondition(packageJson.engines.node === ">=22 <23", "Node engine mismatch");
+assertCondition(
+  packageJson.engines.node === repositoryPackageJson.engines.node,
+  "SDK Node engine diverged from repository contract",
+);
+assertCondition(
+  packageJson.engines.node === "^22.0.0 || ^24.0.0 || ^26.0.0",
+  "Node engine mismatch",
+);
 assertCondition(packageJson.dependencies === undefined, "runtime dependencies added");
 assertCondition(packageJson.devDependencies === undefined, "dev dependencies added");
 
@@ -377,6 +602,10 @@ console.log(`report_id=${report.report_id}`);
 console.log(`granted_capabilities=${report.negotiation.granted.length}`);
 console.log(`not_granted_capabilities=${report.negotiation.not_granted.length}`);
 console.log(`integrity_files=${Object.keys(manifest.files).length}`);
+console.log(`reviewed_source_main=${manifest.reviewed_source_main}`);
+console.log("integrity_schema_closed=true");
+console.log(`runtime_node_major=${runtimeNodeMajor}`);
+console.log("supported_node_majors=22,24,26");
 console.log("zero_dependencies=true");
 console.log("same_origin_only=true");
 console.log("redirects_rejected=true");

@@ -102,7 +102,7 @@ assert.equal(
 const assets = new Map([
   [
     "public/public-node/agents/first-contact-v1.json",
-    "96eb4f80f64af72be33bdd606f404f39f718accf138c1d02f32aa8e33089a24f",
+    "553488c69c148f039252964ca6828fdbef61bab8592c25909fa2832ba54bc6be",
   ],
   [
     "public/public-node/agents/join-v1.html",
