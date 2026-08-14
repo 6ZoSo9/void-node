@@ -47,16 +47,18 @@ export function createDataNetRequestOwnerV1({
     throw new Error('DataNet request owner requires fetch');
   }
 
-  let activeController = null;
+  let activeRequest = null;
 
   const abort = (reason = 'DataNet request superseded') => {
-    const controller = activeController;
-    activeController = null;
-    if (controller && !controller.signal.aborted) {
-      controller.abort(new Error(reason));
-      return true;
+    const request = activeRequest;
+    activeRequest = null;
+    if (!request) return false;
+
+    request.detachSourceAbort();
+    if (!request.controller.signal.aborted) {
+      request.controller.abort(new Error(reason));
     }
-    return false;
+    return true;
   };
 
   const fetch = async (input, init = {}) => {
@@ -66,24 +68,30 @@ export function createDataNetRequestOwnerV1({
 
     abort('DataNet request superseded');
     const controller = new AbortController();
-    activeController = controller;
-    const detachSourceAbort = forwardAbort(init?.signal, controller);
+    const request = {
+      controller,
+      detachSourceAbort: forwardAbort(init?.signal, controller),
+    };
+    activeRequest = request;
 
     try {
       return await fetchImpl(input, {
         ...init,
         signal: controller.signal,
       });
-    } finally {
-      detachSourceAbort();
-      if (activeController === controller) activeController = null;
+    } catch (error) {
+      if (activeRequest === request) {
+        activeRequest = null;
+        request.detachSourceAbort();
+      }
+      throw error;
     }
   };
 
   return Object.freeze({
     fetch,
     abort,
-    hasActiveRequest: () => activeController !== null && !activeController.signal.aborted,
+    hasActiveRequest: () => activeRequest !== null && !activeRequest.controller.signal.aborted,
   });
 }
 
