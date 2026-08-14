@@ -20,7 +20,7 @@ The repository therefore retains both the canonical ERC-20
 implementation. The native implementation is not the canonical parent delivery
 path.
 
-## Canonical parent composition: retained but unmounted
+## Canonical parent composition: mounted but disabled
 
 The canonical ERC-20 delivery implementation is retained in:
 
@@ -28,15 +28,15 @@ The canonical ERC-20 delivery implementation is retained in:
 src/economic/buy_void_delivery_runtime_integration_v1.ts
 ```
 
-The parent deliberately does **not** import or mount that runtime yet.
+The parent now imports the canonical delivery runtime so its loopback-only status/command routes are present, while production keeps the delivery enable flag at `0` and no signer/broadcaster dependencies are injected.
 
 Current parent truth is:
 
 ```text
 canonical_delivery_asset=void_token_erc20
 delivery_runtime_source_retained=true
-delivery_runtime_parent_mounted=false
-canonical_delivery_runtime_parent_mounted=false
+delivery_runtime_parent_mounted=true
+canonical_delivery_runtime_parent_mounted=true
 canonical_delivery_dependency_bootstrap_ready=true
 erc20_transaction_preparation_execution_state_ready=true
 canonical_delivery_execution_ready=false
@@ -44,9 +44,7 @@ canonical_delivery_execution_held=true
 presale_inventory_funding_ready=false
 ```
 
-Accordingly, the parent exposes neither the canonical delivery status route nor
-the canonical delivery command route. Operators must not treat the ERC-20
-runtime as mounted before the readiness gates are closed.
+Accordingly, the parent exposes the canonical delivery status/command routes only on the existing loopback operator surface. With `VOID_BUY_VOID_DELIVERY_RUNTIME_INTEGRATION_ENABLED=0` and no dependency injection, the mounted child reports no RPC/signing/broadcast/money authority.
 
 The parent also does not mount native delivery, native receipt, native
 execution, bounded auto-fulfillment, native transaction preparation, or opaque
@@ -67,10 +65,7 @@ The canonical signer/broadcaster dependency-bootstrap **source** gate is now
 closed. The parent imports only a pure metadata integration gate and reports
 `canonical_delivery_dependency_bootstrap_ready=true`.
 
-The parent does not import, instantiate, or invoke the value-bearing bootstrap,
-signer, broadcaster, transport, or delivery runtime. The canonical delivery
-runtime remains parent-unmounted, signer and broadcaster configuration remain
-absent, and execution remains held.
+The parent still does not import, instantiate, or invoke the value-bearing bootstrap, signer, broadcaster, or transport. Only the already-reviewed delivery runtime is parent-mounted; signer and broadcaster configuration remain absent, the production enable flag remains `0`, and execution remains held.
 
 Merged PR #1282 closes the transaction-preparation execution-state gate.
 Both queue-sensitive planners now bind nonce selection and spendability to
@@ -87,7 +82,7 @@ funding_blockers=[
 ]
 ```
 
-Runtime activation and production configuration remain later independent gates.
+Credential binding, dependency injection, runtime enablement, and inventory funding remain later independent gates.
 
 ## Funding HOLD
 
