@@ -326,10 +326,24 @@ const parentSource = fs.readFileSync(
   ),
   "utf8",
 );
+const integrationGateSource = fs.readFileSync(
+  path.join(
+    process.cwd(),
+    "src",
+    "economic",
+    "buy_void_erc20_delivery_dependency_bootstrap_integration_gate_v1.ts",
+  ),
+  "utf8",
+);
 assert.match(
   parentSource,
-  /canonical_delivery_dependency_bootstrap_ready:\s*false/,
+  /buy_void_erc20_delivery_dependency_bootstrap_integration_gate_v1\.js/,
 );
+assert.match(
+  integrationGateSource,
+  /canonical_delivery_dependency_bootstrap_ready:\s*true/,
+);
+assert.match(integrationGateSource, /status:\s*"source_ready"/);
 assert.doesNotMatch(
   parentSource,
   /from "\.\/buy_void_erc20_delivery_dependency_bootstrap_v1\.js"/,
@@ -387,4 +401,4 @@ console.log("valid_sign_transaction_invoked=false");
 console.log("valid_broadcast_dependency_invoked=false");
 console.log("real_transaction_broadcast=false");
 console.log("canonical_parent_mount=false");
-console.log("canonical_dependency_bootstrap_readiness_flipped=false");
+console.log("canonical_dependency_bootstrap_readiness_flipped=true");

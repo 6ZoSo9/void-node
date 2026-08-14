@@ -27,6 +27,15 @@ const transactionPreparationPlannerText = fs.readFileSync(
   ),
   "utf8",
 );
+const dependencyBootstrapGateText = fs.readFileSync(
+  path.join(
+    root,
+    "src",
+    "economic",
+    "buy_void_erc20_delivery_dependency_bootstrap_integration_gate_v1.ts",
+  ),
+  "utf8",
+);
 const workflowText = fs.readFileSync(
   path.join(root, ".github", "workflows", "buy-void-runtime-integration-v1.yml"),
   "utf8",
@@ -69,7 +78,11 @@ for (const marker of [
   "canonical_delivery_runtime_parent_mounted: false",
   "delivery_runtime_source_retained: true",
   "delivery_runtime_parent_mounted: false",
-  "canonical_erc20_delivery_dependency_bootstrap_ready: false",
+  "VOID_BUY_VOID_ERC20_DELIVERY_DEPENDENCY_BOOTSTRAP_INTEGRATION_GATE_V1",
+  "VOID_BUY_VOID_ERC20_DELIVERY_DEPENDENCY_BOOTSTRAP_INTEGRATION_V1",
+  "canonical_erc20_delivery_dependency_bootstrap_ready:",
+  "erc20_transaction_preparation_execution_state_ready:",
+  "canonical_erc20_transaction_preparation_execution_state_ready:",
   "canonical_erc20_delivery_atomic_unit_conversion_ready: true",
   "canonical_erc20_delivery_execution_ready: false",
   "canonical_erc20_delivery_execution_held: true",
@@ -99,6 +112,29 @@ for (const marker of [
 ]) {
   need(moduleText.includes(marker), `missing runtime marker: ${marker}`);
 }
+
+for (const marker of [
+  "erc20_transaction_preparation_execution_state_ready: true",
+  '"canonical_delivery_runtime_activation_not_ready"',
+  "next_funding_blocker:",
+]) {
+  need(
+    dependencyBootstrapGateText.includes(marker),
+    `missing planner execution-state HOLD marker: ${marker}`,
+  );
+}
+need(
+  transactionPreparationPlannerText.includes(
+    'execution_state_tag: "pending"',
+  ),
+  "planner execution-state contract must remain pending",
+);
+need(
+  !transactionPreparationPlannerText.includes(
+    '[policy.fulfillment_wallet_address, "latest"]',
+  ),
+  "planner must not regress to latest-state balance preflight",
+);
 
 need(
   !moduleText.includes(
@@ -238,7 +274,8 @@ console.log("canonical_delivery_asset=void_token_erc20");
 console.log("canonical_erc20_delivery_parent_mount=0");
 console.log("erc20_atomic_unit_conversion_ready=1");
 console.log("erc20_transaction_preparation_bridge_ready=1");
-console.log("canonical_delivery_dependency_bootstrap_ready=0");
+console.log("erc20_transaction_preparation_execution_state_ready=1");
+console.log("canonical_delivery_dependency_bootstrap_ready=1");
 console.log("native_parent_mounts=0");
 console.log("bounded_orchestrator_parent_mount=0");
 console.log("standalone_crash_saga_source_retained=1");
