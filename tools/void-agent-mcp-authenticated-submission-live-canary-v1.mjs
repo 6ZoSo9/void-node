@@ -556,6 +556,7 @@ function validateSubmissionResult(value, prepared, expectNew) {
   assertCondition(interpretation.accepted_for_review === true, "submission was not accepted for review");
   assertCondition(interpretation.conflicting_duplicate === false, "submission returned a conflicting duplicate");
   if (expectNew) assertCondition(interpretation.duplicate === false, "live canary expected a new submission but received a duplicate");
+  assertCondition(typeof interpretation.private_temp_cleanup_completed === "boolean", "submission cleanup evidence is missing");
   for (const key of [
     "payment_executed", "paid_work_execution_started", "work_dispatched", "work_credit_awarded",
     "work_credit_ledger_written", "void_settled",
@@ -569,6 +570,7 @@ function validateSubmissionResult(value, prepared, expectNew) {
     accepted_for_review: true,
     duplicate: interpretation.duplicate === true,
     conflicting_duplicate: false,
+    private_temp_cleanup_completed: interpretation.private_temp_cleanup_completed,
     receipt_id: typeof value.client_result.receipt_id === "string" ? value.client_result.receipt_id : null,
     client_http_status: value.client_result.http_status,
   };
@@ -623,6 +625,7 @@ export async function executeCanary(options) {
       accepted_for_review: true,
       duplicate: interpretation.duplicate,
       conflicting_duplicate: false,
+      private_temp_cleanup_completed: interpretation.private_temp_cleanup_completed,
       receipt_id: interpretation.receipt_id,
       client_http_status: interpretation.client_http_status,
       hold_reason: null,
@@ -639,6 +642,7 @@ export async function executeCanary(options) {
       accepted_for_review: true,
       duplicate: interpretation.duplicate,
       conflicting_duplicate: false,
+      private_temp_cleanup_completed: interpretation.private_temp_cleanup_completed,
       receipt_id: interpretation.receipt_id,
       client_http_status: interpretation.client_http_status,
       network_submission_performed: true,
@@ -760,6 +764,7 @@ export async function runCli(argv) {
       "accepted_for_review=true",
       `duplicate=${result.state.duplicate}`,
       "conflicting_duplicate=false",
+      `private_temp_cleanup_completed=${result.state.private_temp_cleanup_completed}`,
       "submission_attempt_count=1",
       "automatic_retry=false",
       "payment_execution=false",
