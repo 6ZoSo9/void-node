@@ -45,3 +45,43 @@ The next source-to-operations gate is production configuration/credential eviden
 ## Authority boundary
 
 Source, proof, documentation, and CI only. No deployment, runtime mount, service start, production environment read, credential read, wallet/private-key access, live RPC, live signing, transaction broadcast, inventory funding, treasury/liquidity action, or funds movement is performed by this contract.
+
+## Current-main reconciliation after #1287
+
+This lane is reconciled on top of source `main` `ddb50ddfd74f048bb98a17ef2cdf554963dc4a5c`. It preserves
+#1287's operator-facing configuration truth: a fully populated environment is
+not considered configured merely because values are non-empty. The execution
+composition reuses the canonical ERC-20 planner policy validator before runtime
+status can expose RPC/signing readiness.
+
+### Amount unit domain
+
+`VOID_BUY_VOID_DELIVERY_MAX_AMOUNT_UNITS` is explicitly denominated in the
+canonical **6-decimal fulfillment-unit** domain. The ERC-20 transfer remains an
+exact integer conversion into 18-decimal VoidToken atoms:
+
+```text
+fulfillment_unit_decimals=6
+token_atom_decimals=18
+token_atom_multiplier=1000000000000
+rounding=false
+```
+
+The configured delivery maximum must not exceed either the saga inventory pool
+capacity or the saga maximum reservation, which are in the same fulfillment
+unit domain. An 18-decimal atom value such as `10^21` therefore cannot be
+silently interpreted as a fulfillment-unit cap when the reviewed reservation
+cap is `10^9`.
+
+### Receipt confirmation domain
+
+The receipt reconciler retains decimal-string/BigInt confirmation truth. The
+existing generic saga accepts `receipt_confirmed.confirmations` only through
+1,000,000. The composition therefore fails closed **before canonical
+`record_confirmed`** whenever the observed count is above 1,000,000. Exact
+1,000,000 is accepted; 1,000,001 and values above the JavaScript safe-integer
+range are held without confirmed-state mutation.
+
+This source closure still does not mount the canonical parent, verify production
+configuration, read production credentials, fund presale inventory, sign or
+broadcast a live transaction, or move funds.

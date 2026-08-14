@@ -26,6 +26,37 @@ assert.equal(contract.canonical_delivery_runtime_parent_mounted, false);
 assert.equal(contract.canonical_delivery_execution_ready, false);
 assert.equal(contract.presale_inventory_funding_ready, false);
 assert.equal(contract.next_gate, "production_configuration_verification_and_runtime_mount_authorization");
+assert.equal(
+  contract.amount_unit_contract.max_amount_unit_domain,
+  "fulfillment_units_6_decimal",
+);
+assert.equal(
+  contract.amount_unit_contract.fulfillment_unit_decimals,
+  6,
+);
+assert.equal(
+  contract.amount_unit_contract.token_atom_decimals,
+  18,
+);
+assert.equal(
+  contract.amount_unit_contract.token_atom_multiplier,
+  "1000000000000",
+);
+assert.equal(
+  contract.amount_unit_contract
+    .max_amount_must_not_exceed_saga_reservation_cap,
+  true,
+);
+assert.equal(
+  contract.receipt_confirmation_domain_contract
+    .generic_saga_max_confirmations,
+  "1000000",
+);
+assert.equal(
+  contract.receipt_confirmation_domain_contract
+    .preflight_before_record_confirmed,
+  true,
+);
 
 const runtime = read(contract.runtime_source_path);
 const composition = read(contract.execution_composition_source_path);
@@ -39,14 +70,35 @@ for (const env of contract.runtime_configuration_contract.required_policy_envs) 
 for (const marker of [
   "server_derived_transaction_plan: true",
   "caller_supplied_transaction_plan: false",
-  '"plan"',
+  "canonical_planner_policy_validation_required: true",
   "durable_nonce_reservation_required: true",
   "signed_hash_custody_required: true",
   "saga_write_ahead_broadcast_intent_required: true",
   "erc20_receipt_reconciliation_required: true",
   "canonical_record_confirmed_required: true",
   "existing_terminal_closeout_reused: true",
-]) assert.equal(runtime.includes(marker), true, `runtime contract drift: ${marker}`);
+  "const ALLOWED_INPUT_KEYS = new Set([",
+]) {
+  assert.equal(
+    runtime.includes(marker),
+    true,
+    `runtime contract drift: ${marker}`,
+  );
+}
+for (const allowedKey of [
+  "action",
+  "attempt_id",
+  "apply",
+  "confirmation",
+]) {
+  assert.equal(
+    runtime.includes(`"${allowedKey}"`),
+    true,
+    `runtime allowlist missing ${allowedKey}`,
+  );
+}
+assert.doesNotMatch(runtime, /^\s*"plan",\s*$/m);
+assert.doesNotMatch(runtime, /^\s*"transaction_plan",\s*$/m);
 assert.equal(runtime.includes("const plan = (body as any).plan"), false);
 assert.equal(runtime.includes("submission_idempotency_key: (body as any)"), false);
 for (const marker of [
@@ -61,6 +113,35 @@ for (const marker of [
   "existing_saga_terminal_closeout_reused: true",
 ]) assert.equal(composition.includes(marker), true, `composition contract drift: ${marker}`);
 assert.equal(composition.includes("runBuyVoidErc20TransactionPreparationPlannerV1"), true);
+assert.equal(
+  composition.includes(
+    "validateBuyVoidErc20TransactionPreparationPlannerPolicyV1",
+  ),
+  true,
+);
+assert.equal(
+  composition.includes(
+    "erc20_execution_max_amount_exceeds_saga_fulfillment_unit_cap",
+  ),
+  true,
+);
+assert.equal(
+  composition.includes(
+    "erc20_receipt_confirmation_count_out_of_saga_range",
+  ),
+  true,
+);
+const confirmationPreflight = composition.indexOf(
+  "erc20_receipt_confirmation_count_out_of_saga_range",
+);
+const recordConfirmed = composition.indexOf(
+  'action: "record_confirmed"',
+);
+assert.ok(
+  confirmationPreflight >= 0 &&
+    recordConfirmed > confirmationPreflight,
+  "confirmation range must be held before canonical record_confirmed",
+);
 assert.equal(composition.includes("runBuyVoidErc20DeliveryReceiptReconcilerV1"), true);
 assert.equal(composition.includes('action: "record_confirmed"'), true);
 assert.equal(composition.includes("runSagaSupervisorTickV1"), true);
@@ -78,6 +159,10 @@ for (const [key, value] of Object.entries(contract.authority)) {
 console.log("VOID_BUY_VOID_ERC20_DELIVERY_RUNTIME_ACTIVATION_CONFIGURATION_CONTRACT_V1_PROOF_GREEN");
 console.log("erc20_execution_composition_ready=1");
 console.log("caller_supplied_transaction_plan=0");
+console.log("canonical_planner_policy_validator_reused=1");
+console.log("max_amount_unit_domain=fulfillment_units_6_decimal");
+console.log("token_atom_multiplier=1000000000000");
+console.log("confirmation_range_preflight_before_record_confirmed=1");
 console.log("runtime_activation_performed=0");
 console.log("production_configuration_values_verified=0");
 console.log("production_credential_binding_ready=0");

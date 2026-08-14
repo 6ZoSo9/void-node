@@ -18,6 +18,9 @@ export const
       caller_supplied_transaction_plan_forbidden: true,
       canonical_erc20_receipt_to_record_confirmed_ready: true,
       existing_terminal_closeout_reused: true,
+      canonical_planner_policy_validator_reused: true,
+      max_amount_fulfillment_unit_domain_bound: true,
+      confirmation_count_saga_domain_preflight_ready: true,
     },
 
     canonical_delivery_runtime_activation_configuration_contract_ready: true,
@@ -87,6 +90,31 @@ export const
       broadcaster_dependency_injected: true,
       automatic_retry: false,
       background_loop: false,
+    },
+
+    amount_unit_contract: {
+      max_amount_env:
+        "VOID_BUY_VOID_DELIVERY_MAX_AMOUNT_UNITS",
+      max_amount_unit_domain:
+        "fulfillment_units_6_decimal",
+      fulfillment_unit_decimals: 6,
+      token_atom_decimals: 18,
+      token_atom_multiplier: "1000000000000",
+      max_amount_must_not_exceed_saga_pool_capacity: true,
+      max_amount_must_not_exceed_saga_reservation_cap: true,
+      integer_only_conversion: true,
+      rounding: false,
+    },
+
+    receipt_confirmation_domain_contract: {
+      reconciler_observation_domain:
+        "decimal_string_bigint",
+      generic_saga_max_confirmations: "1000000",
+      preflight_before_record_confirmed: true,
+      confirmation_1000000_allowed: true,
+      confirmation_above_1000000_held: true,
+      confirmation_above_safe_integer_held: true,
+      partial_confirmed_state_mutation_allowed: false,
     },
 
     activation_preconditions: {

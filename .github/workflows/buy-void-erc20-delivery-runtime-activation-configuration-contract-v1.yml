@@ -5,7 +5,6 @@ on:
     paths:
       - "src/economic/buy_void_erc20_delivery_runtime_activation_configuration_contract_v1.ts"
       - "src/economic/buy_void_erc20_execution_composition_v1.ts"
-      - "src/economic/buy_void_erc20_execution_composition_nonstrict_compat_v1.d.ts"
       - "scripts/prove_buy_void_erc20_delivery_runtime_activation_configuration_contract_v1.ts"
       - "scripts/prove_buy_void_erc20_execution_composition_v1.ts"
       - "docs/operators/buy-void-erc20-delivery-runtime-activation-configuration-contract-v1.md"
@@ -20,7 +19,6 @@ on:
     paths:
       - "src/economic/buy_void_erc20_delivery_runtime_activation_configuration_contract_v1.ts"
       - "src/economic/buy_void_erc20_execution_composition_v1.ts"
-      - "src/economic/buy_void_erc20_execution_composition_nonstrict_compat_v1.d.ts"
       - "scripts/prove_buy_void_erc20_delivery_runtime_activation_configuration_contract_v1.ts"
       - "scripts/prove_buy_void_erc20_execution_composition_v1.ts"
       - "docs/operators/buy-void-erc20-delivery-runtime-activation-configuration-contract-v1.md"
@@ -60,6 +58,12 @@ jobs:
         run: npx --no-install tsx scripts/prove_buy_void_erc20_delivery_runtime_activation_configuration_contract_v1.ts
       - name: Prove execution composition source
         run: npx --no-install tsx scripts/prove_buy_void_erc20_execution_composition_v1.ts
+      - name: Prove delivery runtime status and request authority
+        run: npx --no-install tsx scripts/prove_buy_void_delivery_runtime_integration_v1.ts
+      - name: Preserve coherent-pending planner
+        run: npx --no-install tsx scripts/prove_buy_void_erc20_transaction_preparation_planner_v1.ts
+      - name: Preserve ERC20 receipt reconciler
+        run: npx --no-install tsx scripts/prove_buy_void_erc20_delivery_receipt_reconciler_v1.ts
       - name: Preserve dependency bootstrap integration gate
         run: npx --no-install tsx scripts/prove_buy_void_erc20_delivery_dependency_bootstrap_integration_gate_v1.ts
       - name: Preserve dependency composition
@@ -85,7 +89,8 @@ jobs:
             --downlevelIteration \
             --skipLibCheck \
             src/economic/buy_void_erc20_execution_composition_v1.ts \
-            src/economic/buy_void_erc20_execution_composition_nonstrict_compat_v1.d.ts \
+            src/economic/buy_void_delivery_runtime_integration_v1.ts \
+            scripts/prove_buy_void_delivery_runtime_integration_v1.ts \
             scripts/prove_buy_void_erc20_execution_composition_v1.ts \
             scripts/prove_buy_void_erc20_delivery_runtime_activation_configuration_contract_v1.ts
       - name: Typecheck repository

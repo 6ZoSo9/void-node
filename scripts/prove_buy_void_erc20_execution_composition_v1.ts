@@ -66,8 +66,72 @@ const env: NodeJS.ProcessEnv = {
   VOID_BUY_VOID_CRASH_CONSISTENT_SAGA_MAX_RESERVATION_VOID_UNITS: "1000000000",
   VOID_BUY_VOID_NATIVE_DELIVERY_WALLET_ADDRESS: wallet.address,
 };
+const invalidPolicyCases: Array<{
+  override: Record<string, string>;
+  reasonIncludes: string;
+}> = [
+  {
+    override: {
+      VOID_BUY_VOID_ERC20_EXECUTION_RPC_URL:
+        "https://127.0.0.1:8545/",
+    },
+    reasonIncludes: "rpc_url_must_be_loopback_http",
+  },
+  {
+    override: {
+      VOID_BUY_VOID_DELIVERY_WALLET_ADDRESS: "0x1234",
+      VOID_BUY_VOID_NATIVE_DELIVERY_WALLET_ADDRESS: "0x1234",
+    },
+    reasonIncludes: "address",
+  },
+  {
+    override: {
+      VOID_BUY_VOID_DELIVERY_TOKEN_ADDRESS: "0x1234",
+    },
+    reasonIncludes: "erc20_execution_address_policy_invalid",
+  },
+  {
+    override: {
+      VOID_BUY_VOID_DELIVERY_GAS_LIMIT_MULTIPLIER_BPS: "9999",
+    },
+    reasonIncludes: "invalid_erc20_transaction_preparation_policy",
+  },
+  {
+    override: {
+      VOID_BUY_VOID_DELIVERY_FEE_MULTIPLIER_BPS: "50001",
+    },
+    reasonIncludes: "invalid_erc20_transaction_preparation_policy",
+  },
+  {
+    override: {
+      VOID_BUY_VOID_DELIVERY_MIN_CONFIRMATIONS: "1001",
+    },
+    reasonIncludes: "receipt_min_confirmations_invalid",
+  },
+  {
+    override: {
+      VOID_BUY_VOID_DELIVERY_MAX_AMOUNT_UNITS:
+        "1000000000000000000000",
+    },
+    reasonIncludes:
+      "max_amount_exceeds_saga_fulfillment_unit_cap",
+  },
+];
+for (const testCase of invalidPolicyCases) {
+  const decision =
+    readBuyVoidErc20ExecutionCompositionPolicyV1({
+      ...env,
+      ...testCase.override,
+    });
+  assert.equal(decision.ok, false);
+  if (decision.ok !== false) {
+    throw new Error("invalid policy fixture unexpectedly configured");
+  }
+  assert.match(decision.reason, new RegExp(testCase.reasonIncludes));
+}
+
 const policyDecision = readBuyVoidErc20ExecutionCompositionPolicyV1(env);
-if (!policyDecision.ok) throw new Error(policyDecision.reason);
+if (policyDecision.ok === false) throw new Error(policyDecision.reason);
 const policy = policyDecision.policy;
 assert.equal(policy.planner_policy.rpc_url, "http://127.0.0.1:8545/");
 assert.equal(policy.saga_policy.execution_policy.max_attempts_per_payment, 1);
@@ -143,7 +207,7 @@ const inventory = reserveBuyVoidInventoryV1({
   apply: true,
   now_ms: nowBase + 100,
 });
-if (!inventory.ok) throw new Error(inventory.reason);
+if (inventory.ok === false) throw new Error(inventory.reason);
 assert.equal(inventory.reservation.reserved_void_units, amountUnits);
 
 const reserved = reserveBuyVoidExecutionAttemptV1({
@@ -281,14 +345,80 @@ const deliveryReceipt = {
   }],
 };
 let receiptCalls = 0;
+let deliveryHead = 102n;
 const receiptTransport = async ({ method }: any) => {
   receiptCalls += 1;
   if (method === "eth_chainId") return "0x802";
   if (method === "eth_getTransactionReceipt") return structuredClone(deliveryReceipt);
-  if (method === "eth_blockNumber") return "0x66";
+  if (method === "eth_blockNumber") return `0x${deliveryHead.toString(16)}`;
   throw new Error(`unexpected receipt method ${method}`);
 };
 
+deliveryHead = 100n + 1_000_001n - 1n;
+const overSagaRange =
+  await runBuyVoidErc20ExecutionCompositionV1({
+    root_dir: root,
+    attempt_id: attemptId,
+    apply: true,
+    confirmation:
+      VOID_BUY_VOID_ERC20_EXECUTION_COMPOSITION_CONFIRMATION_V1,
+    policy,
+    dependencies: {
+      receipt_transport: receiptTransport,
+      planner_transport: plannerTransport,
+      now_ms: () => nowBase + 600,
+    },
+  });
+assert.equal(overSagaRange.ok, false);
+if (overSagaRange.ok !== false) {
+  throw new Error("1,000,001 confirmation fixture unexpectedly applied");
+}
+assert.equal(
+  overSagaRange.reason,
+  "erc20_receipt_confirmation_count_out_of_saga_range",
+);
+let heldAttempt = readBuyVoidExecutionAttemptV1({
+  root_dir: root,
+  attempt_id: attemptId,
+});
+assert.ok(heldAttempt);
+assert.equal(heldAttempt?.confirmation, null);
+assert.notEqual(heldAttempt?.status, "confirmed");
+assert.equal(broadcasterCalls, 1);
+
+deliveryHead =
+  100n + BigInt(Number.MAX_SAFE_INTEGER) + 1n - 1n;
+const aboveSafeInteger =
+  await runBuyVoidErc20ExecutionCompositionV1({
+    root_dir: root,
+    attempt_id: attemptId,
+    apply: true,
+    confirmation:
+      VOID_BUY_VOID_ERC20_EXECUTION_COMPOSITION_CONFIRMATION_V1,
+    policy,
+    dependencies: {
+      receipt_transport: receiptTransport,
+      planner_transport: plannerTransport,
+      now_ms: () => nowBase + 650,
+    },
+  });
+assert.equal(aboveSafeInteger.ok, false);
+if (aboveSafeInteger.ok !== false) {
+  throw new Error("above-safe-integer confirmation fixture unexpectedly applied");
+}
+assert.equal(
+  aboveSafeInteger.reason,
+  "erc20_receipt_confirmation_count_out_of_saga_range",
+);
+heldAttempt = readBuyVoidExecutionAttemptV1({
+  root_dir: root,
+  attempt_id: attemptId,
+});
+assert.equal(heldAttempt?.confirmation, null);
+assert.notEqual(heldAttempt?.status, "confirmed");
+assert.equal(broadcasterCalls, 1);
+
+deliveryHead = 100n + 1_000_000n - 1n;
 const recovered = await runBuyVoidErc20ExecutionCompositionV1({
   root_dir: root,
   attempt_id: attemptId,
@@ -298,17 +428,23 @@ const recovered = await runBuyVoidErc20ExecutionCompositionV1({
   dependencies: {
     receipt_transport: receiptTransport,
     planner_transport: plannerTransport,
-    now_ms: () => nowBase + 600,
+    now_ms: () => nowBase + 800,
   },
 });
 assert.equal(recovered.ok, true);
 assert.equal(recovered.status, "reconciled_confirmed");
 assert.equal(recovered.next_stage, "terminal_closeout");
 assert.equal(broadcasterCalls, 1, "crash recovery must not rebroadcast");
-assert.ok(receiptCalls >= 5, "presence + full stability reconciliation must execute");
-const confirmedAttempt = readBuyVoidExecutionAttemptV1({ root_dir: root, attempt_id: attemptId });
+assert.ok(receiptCalls >= 9, "range holds + final stability reconciliation must execute");
+const confirmedAttempt = readBuyVoidExecutionAttemptV1({
+  root_dir: root,
+  attempt_id: attemptId,
+});
 assert.equal(confirmedAttempt?.status, "confirmed");
-assert.equal(confirmedAttempt?.prepared?.void_delivery_tx_hash, lastBroadcastHash);
+assert.equal(
+  confirmedAttempt?.prepared?.void_delivery_tx_hash,
+  lastBroadcastHash,
+);
 
 const terminalReady = await runBuyVoidErc20ExecutionCompositionV1({
   root_dir: root,
@@ -327,7 +463,29 @@ const runtimeSource = fs.readFileSync(
 );
 assert.match(runtimeSource, /server_derived_transaction_plan:\s*true/);
 assert.match(runtimeSource, /caller_supplied_transaction_plan:\s*false/);
-assert.match(runtimeSource, /"plan"/);
+assert.match(
+  runtimeSource,
+  /const ALLOWED_INPUT_KEYS = new Set\(\[/,
+);
+for (const allowedKey of [
+  "action",
+  "attempt_id",
+  "apply",
+  "confirmation",
+]) {
+  assert.match(
+    runtimeSource,
+    new RegExp(`"${allowedKey}"`),
+  );
+}
+assert.doesNotMatch(
+  runtimeSource,
+  /^\s*"plan",\s*$/m,
+);
+assert.doesNotMatch(
+  runtimeSource,
+  /^\s*"transaction_plan",\s*$/m,
+);
 assert.doesNotMatch(runtimeSource, /const plan = \(body as any\)\.plan/);
 assert.doesNotMatch(runtimeSource, /submission_idempotency_key:\s*\(body as any\)/);
 
@@ -341,6 +499,12 @@ console.log(`receipt_rpc_calls=${receiptCalls}`);
 console.log("caller_supplied_transaction_plan=false");
 console.log("crash_recovery_rebroadcast=false");
 console.log("terminal_closeout_reused=true");
+console.log("canonical_planner_policy_validator_reused=true");
+console.log("max_amount_unit_domain=fulfillment_units_6_decimal");
+console.log("token_atom_multiplier=1000000000000");
+console.log("confirmation_1000000_accepted=true");
+console.log("confirmation_1000001_held_before_confirmed_mutation=true");
+console.log("confirmation_above_safe_integer_held_before_confirmed_mutation=true");
 console.log("production_runtime_activation=false");
 console.log("production_wallet_use=false");
 console.log("production_rpc_calls=0");

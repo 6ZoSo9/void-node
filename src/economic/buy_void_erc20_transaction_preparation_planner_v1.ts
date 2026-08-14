@@ -390,6 +390,54 @@ function normalizePolicy(
   };
 }
 
+export type BuyVoidErc20TransactionPreparationPlannerPolicyValidationV1 =
+  | {
+      ok: true;
+      policy_fingerprint_sha256: string;
+      rpc_url_fingerprint_sha256: string;
+    }
+  | {
+      ok: false;
+      reason: string;
+      rpc_url_fingerprint_sha256: string | null;
+    };
+
+export function validateBuyVoidErc20TransactionPreparationPlannerPolicyV1(
+  input: BuyVoidErc20TransactionPreparationPlannerPolicyV1,
+): BuyVoidErc20TransactionPreparationPlannerPolicyValidationV1 {
+  const normalized = normalizePolicy(input);
+  if (normalized.ok === false) {
+    return {
+      ok: false,
+      reason: normalized.reason,
+      rpc_url_fingerprint_sha256: normalized.fingerprint,
+    };
+  }
+
+  const policy = normalized.policy;
+  const material = [
+    `chain_id=2050`,
+    `rpc_url=${policy.rpc_url}`,
+    `fulfillment_wallet_address=${policy.fulfillment_wallet_address}`,
+    `void_token_address=${policy.void_token_address}`,
+    `max_void_amount_units=${policy.max_void_amount_units.toString()}`,
+    `gas_limit_multiplier_bps=${policy.gas_limit_multiplier_bps.toString()}`,
+    `max_gas_limit=${policy.max_gas_limit.toString()}`,
+    `fee_multiplier_bps=${policy.fee_multiplier_bps.toString()}`,
+    `max_fee_per_gas_wei=${policy.max_fee_per_gas_wei.toString()}`,
+    `max_priority_fee_per_gas_wei=${policy.max_priority_fee_per_gas_wei.toString()}`,
+    `request_timeout_ms=${policy.request_timeout_ms}`,
+    `max_response_bytes=${policy.max_response_bytes}`,
+  ].join("\n");
+
+  return {
+    ok: true,
+    policy_fingerprint_sha256: sha256Hex(material),
+    rpc_url_fingerprint_sha256:
+      policy.rpc_url_fingerprint_sha256,
+  };
+}
+
 function createHttpTransport(
   policy: Readonly<NormalizedPolicyV1>,
 ): BuyVoidErc20TransactionPreparationPlannerTransportV1 {

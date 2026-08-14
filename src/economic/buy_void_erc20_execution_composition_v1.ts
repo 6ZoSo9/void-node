@@ -5,6 +5,7 @@ import path from "node:path";
 import { Transaction } from "ethers";
 import {
   runBuyVoidErc20TransactionPreparationPlannerV1,
+  validateBuyVoidErc20TransactionPreparationPlannerPolicyV1,
   type BuyVoidErc20TransactionPreparationPlannerPolicyV1,
   type BuyVoidErc20TransactionPreparationPlannerTransportV1,
   type BuyVoidErc20TransactionPreparationPlanReadyV1,
@@ -16,6 +17,7 @@ import {
 } from "./buy_void_erc20_delivery_receipt_reconciler_v1.js";
 import {
   runBuyVoidDeliverySignBroadcastV1,
+  VOID_BUY_VOID_ERC20_DELIVERY_UNIT_SCALE_V1,
   type BuyVoidDeliveryBroadcasterV1,
   type BuyVoidDeliverySignerV1,
   type BuyVoidDeliveryTransactionPlanV1,
@@ -112,7 +114,7 @@ const DELIVERY_POLICY_ENVS = {
     "VOID_BUY_VOID_DELIVERY_MAX_PRIORITY_FEE_PER_GAS_WEI",
 } as const;
 
-const SOURCE_FLOOR_MAIN = "293fbaff1af28df9d0dd0a2510cc11e172ff99f9";
+const SOURCE_FLOOR_MAIN = "ddb50ddfd74f048bb98a17ef2cdf554963dc4a5c";
 const COMPOSITION_ROOT = "buy-void-erc20-execution-composition-v1";
 const NONCE_SCHEMA = "void_buy_void_erc20_nonce_reservation_v1";
 const NONCE_INDEX_SCHEMA = "void_buy_void_erc20_nonce_attempt_index_v1";
@@ -123,6 +125,8 @@ const ADDRESS = /^0x[0-9a-f]{40}$/;
 const DECIMAL = /^(0|[1-9][0-9]*)$/;
 const MAX_JSON_BYTES = 512 * 1024;
 const LEASE_TTL_MS = 30_000;
+const MAX_SAGA_CONFIRMATIONS = 1_000_000n;
+const UINT256_MAX = (1n << 256n) - 1n;
 
 export type BuyVoidErc20ExecutionCompositionPolicyV1 = {
   planner_policy: BuyVoidErc20TransactionPreparationPlannerPolicyV1;
@@ -384,7 +388,7 @@ export function readBuyVoidErc20ExecutionCompositionPolicyV1(
   if (values.chain_id !== "2050") return policyHeld("erc20_execution_chain_id_mismatch");
 
   const saga = readBuyVoidCrashConsistentSagaServerPolicyV1(env);
-  if (!saga.ok) {
+  if (saga.ok === false) {
     return policyHeld(
       `erc20_execution_saga_policy_held:${saga.reason}`,
       saga.missing_envs,
@@ -427,12 +431,90 @@ export function readBuyVoidErc20ExecutionCompositionPolicyV1(
     ...(timeout ? { request_timeout_ms: timeout } : {}),
     ...(maxResponse ? { max_response_bytes: maxResponse } : {}),
   };
+  const plannerValidation =
+    validateBuyVoidErc20TransactionPreparationPlannerPolicyV1(
+      plannerPolicy,
+    );
+  if (plannerValidation.ok === false) {
+    return policyHeld(
+      `erc20_execution_planner_policy_held:${plannerValidation.reason}`,
+      [],
+      {
+        planner_validation_reason: plannerValidation.reason,
+      },
+    );
+  }
+
+  const deliveryMinConfirmations = positiveDecimal(
+    values.min_confirmations,
+  );
+  if (
+    !deliveryMinConfirmations ||
+    BigInt(deliveryMinConfirmations) > 1_000n
+  ) {
+    return policyHeld(
+      "erc20_execution_receipt_min_confirmations_invalid",
+      [],
+      {
+        min_confirmations: values.min_confirmations,
+        maximum: "1000",
+      },
+    );
+  }
+
+  const maxDeliveryUnits = BigInt(values.max_void_amount_units);
+  const sagaPoolCapacity = BigInt(
+    saga.policy.inventory_policy.pool_capacity_void_units,
+  );
+  const sagaMaxReservation = BigInt(
+    saga.policy.inventory_policy.max_reservation_void_units,
+  );
+  const tokenAtomMultiplier = BigInt(
+    VOID_BUY_VOID_ERC20_DELIVERY_UNIT_SCALE_V1.multiplier,
+  );
+  if (
+    maxDeliveryUnits > sagaPoolCapacity ||
+    maxDeliveryUnits > sagaMaxReservation
+  ) {
+    return policyHeld(
+      "erc20_execution_max_amount_exceeds_saga_fulfillment_unit_cap",
+      [],
+      {
+        max_amount_unit_domain: "fulfillment_units_6_decimal",
+        fulfillment_unit_decimals:
+          VOID_BUY_VOID_ERC20_DELIVERY_UNIT_SCALE_V1
+            .fulfillment_unit_decimals,
+        token_atom_decimals:
+          VOID_BUY_VOID_ERC20_DELIVERY_UNIT_SCALE_V1
+            .token_atom_decimals,
+        token_atom_multiplier:
+          VOID_BUY_VOID_ERC20_DELIVERY_UNIT_SCALE_V1.multiplier,
+        max_void_amount_units: maxDeliveryUnits.toString(),
+        saga_max_reservation_void_units:
+          sagaMaxReservation.toString(),
+        saga_pool_capacity_void_units:
+          sagaPoolCapacity.toString(),
+      },
+    );
+  }
+  if (maxDeliveryUnits * tokenAtomMultiplier > UINT256_MAX) {
+    return policyHeld(
+      "erc20_execution_max_amount_token_atom_overflow",
+      [],
+      {
+        max_amount_unit_domain: "fulfillment_units_6_decimal",
+        token_atom_multiplier:
+          VOID_BUY_VOID_ERC20_DELIVERY_UNIT_SCALE_V1.multiplier,
+      },
+    );
+  }
+
   const receiptPolicy: BuyVoidErc20DeliveryReceiptReconcilerPolicyV1 = {
     enabled: true,
     chain_id: "2050",
     rpc_url: values.rpc_url,
     void_token_address: token,
-    min_confirmations: values.min_confirmations,
+    min_confirmations: deliveryMinConfirmations,
     fulfillment_wallet_allowlist: [wallet],
     ...(timeout ? { request_timeout_ms: timeout } : {}),
     ...(maxResponse ? { max_response_bytes: maxResponse } : {}),
@@ -456,6 +538,8 @@ export function readBuyVoidErc20ExecutionCompositionPolicyV1(
   } as BuyVoidErc20ExecutionCompositionPolicyV1;
   policy.policy_fingerprint_sha256 = fingerprint({
     planner_policy: plannerPolicy,
+    planner_policy_fingerprint_sha256:
+      plannerValidation.policy_fingerprint_sha256,
     receipt_policy: receiptPolicy,
     sign_broadcast_policy: signPolicy,
     saga_policy_fingerprint: saga.policy.fingerprints.combined_policy_sha256,
@@ -1313,7 +1397,7 @@ async function prepareStage(input: {
       ? { transport: input.dependencies.planner_transport }
       : {}),
   });
-  if (!firstPlan.ok) {
+  if (firstPlan.ok === false) {
     return held("prepare", input.apply, firstPlan.reason, {
       attempt_id: attemptId,
       detail: firstPlan.detail,
@@ -1368,7 +1452,7 @@ async function prepareStage(input: {
       ? { transport: input.dependencies.planner_transport }
       : {}),
   });
-  if (!revalidated.ok) {
+  if (revalidated.ok === false) {
     return held("prepare", true, `erc20_pre_sign_revalidation_held:${revalidated.reason}`, {
       attempt_id: attemptId,
       mutation_performed: true,
@@ -1517,6 +1601,16 @@ function pipelineOutcomeCommand(
   return null;
 }
 
+type BroadcastDecisionBoxV1 = {
+  value: BuyVoidDeliverySignBroadcastDecisionV1 | null;
+};
+
+function readBroadcastDecision(
+  box: BroadcastDecisionBoxV1,
+): BuyVoidDeliverySignBroadcastDecisionV1 | null {
+  return box.value;
+}
+
 function sagaBroadcastResult(
   decision: BuyVoidDeliverySignBroadcastDecisionV1,
   attemptId: string,
@@ -1623,7 +1717,7 @@ async function broadcastStage(input: {
       ? { transport: input.dependencies.planner_transport }
       : {}),
   });
-  if (!revalidated.ok) {
+  if (revalidated.ok === false) {
     return held("broadcast", true, `erc20_pre_sign_revalidation_held:${revalidated.reason}`, {
       attempt_id: attemptId,
       saga_id: sagaResult.saga_id,
@@ -1643,7 +1737,9 @@ async function broadcastStage(input: {
     });
   }
 
-  let decision: BuyVoidDeliverySignBroadcastDecisionV1 | null = null;
+  const decisionBox: BroadcastDecisionBoxV1 = {
+    value: null,
+  };
   let moneyMovement = false;
   try {
     const nowMs = safeNow(input.dependencies.now_ms?.());
@@ -1662,7 +1758,7 @@ async function broadcastStage(input: {
         sagaResult.saga.ACTION_CONFIRMATIONS.execute_prepared_transaction,
       adapters: {
         execute_prepared_transaction: async () => {
-          decision = await runBuyVoidDeliverySignBroadcastV1({
+          const decision = await runBuyVoidDeliverySignBroadcastV1({
             apply: true,
             confirmation: "buyVoidSignAndBroadcast",
             submission_idempotency_key: submissionKey(input.preparation),
@@ -1675,8 +1771,10 @@ async function broadcastStage(input: {
               broadcaster: input.dependencies.broadcaster!,
             },
           });
+          decisionBox.value = decision;
           moneyMovement =
-            !("reason" in decision) && decision.status === "broadcast_accepted";
+            decision.ok === true &&
+            decision.status === "broadcast_accepted";
           await input.dependencies.fault_inject?.(
             "after_external_outcome_before_projection",
           );
@@ -1701,13 +1799,15 @@ async function broadcastStage(input: {
       attempt_id: attemptId,
       saga_id: sagaResult.saga_id,
       mutation_performed: true,
-      signing_performed: decision !== null,
+      signing_performed:
+        readBroadcastDecision(decisionBox) !== null,
       transaction_broadcast_performed: moneyMovement,
       money_movement_performed: moneyMovement,
       reconciliation_required: moneyMovement || text(sagaResult.store.recover(sagaResult.saga_id)?.state?.state) === "broadcast_intent_committed",
     });
   }
 
+  const decision = readBroadcastDecision(decisionBox);
   if (!decision) {
     return held("broadcast", true, "erc20_broadcast_decision_missing", {
       attempt_id: attemptId,
@@ -1715,7 +1815,7 @@ async function broadcastStage(input: {
       reconciliation_required: true,
     });
   }
-  if ("reason" in decision) {
+  if (decision.ok === false) {
     return held("broadcast", true, decision.reason, {
       attempt_id: attemptId,
       saga_id: sagaResult.saga_id,
@@ -1969,6 +2069,7 @@ async function reconcileStage(input: {
     });
   }
 
+  let canonicalBroadcastProjectionMutated = false;
   let currentAttempt = readBuyVoidExecutionAttemptV1({
     root_dir: input.root_dir,
     attempt_id: attemptId,
@@ -2023,7 +2124,11 @@ async function reconcileStage(input: {
       confirmation: VOID_BUY_VOID_PIPELINE_CONFIRMATIONS_V1.record_broadcast_accepted,
       now_ms: safeNow(input.dependencies.now_ms?.()),
     });
-    pipelineApplied(accepted, "erc20_receipt_presence_broadcast_projection_held");
+    pipelineApplied(
+      accepted,
+      "erc20_receipt_presence_broadcast_projection_held",
+    );
+    canonicalBroadcastProjectionMutated = true;
     currentAttempt = readBuyVoidExecutionAttemptV1({
       root_dir: input.root_dir,
       attempt_id: attemptId,
@@ -2042,7 +2147,7 @@ async function reconcileStage(input: {
       : {}),
   });
 
-  if (!receipt.ok) {
+  if (receipt.ok === false) {
     if (currentAttempt.broadcast && state !== "broadcast_accepted" && input.apply) {
       const providerId = currentAttempt.broadcast.provider_submission_id || "canonical-broadcast-projection";
       const advanced = await appendBroadcastAcceptedSagaProjection({
@@ -2072,6 +2177,53 @@ async function reconcileStage(input: {
       detail: receipt.detail,
     });
   }
+
+  let observedConfirmations: bigint;
+  try {
+    observedConfirmations = BigInt(
+      receipt.observed_confirmation_count,
+    );
+  } catch {
+    return held(
+      "reconcile",
+      input.apply,
+      "erc20_receipt_confirmation_count_invalid",
+      {
+        attempt_id: attemptId,
+        saga_id: sagaResult.saga_id,
+        mutation_performed:
+          canonicalBroadcastProjectionMutated,
+        reconciliation_required: true,
+      },
+    );
+  }
+  if (
+    observedConfirmations < 1n ||
+    observedConfirmations > MAX_SAGA_CONFIRMATIONS
+  ) {
+    return held(
+      "reconcile",
+      input.apply,
+      "erc20_receipt_confirmation_count_out_of_saga_range",
+      {
+        attempt_id: attemptId,
+        saga_id: sagaResult.saga_id,
+        mutation_performed:
+          canonicalBroadcastProjectionMutated,
+        reconciliation_required: true,
+        detail: {
+          observed_confirmation_count:
+            receipt.observed_confirmation_count,
+          maximum_saga_confirmations:
+            MAX_SAGA_CONFIRMATIONS.toString(),
+          canonical_record_confirmed_performed: false,
+          saga_receipt_confirmed_performed: false,
+        },
+      },
+    );
+  }
+  const observedConfirmationsNumber =
+    Number(observedConfirmations);
 
   if (!input.apply) {
     return {
@@ -2175,7 +2327,7 @@ async function reconcileStage(input: {
           transaction_hash: receipt.transaction_hash,
           block_number: receipt.receipt_block_number,
           block_hash: receipt.receipt_block_hash,
-          confirmations: Number(receipt.observed_confirmation_count),
+          confirmations: observedConfirmationsNumber,
           receipt_status: 1,
         },
       }),

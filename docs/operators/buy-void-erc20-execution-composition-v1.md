@@ -42,3 +42,18 @@ All RPC and signing/broadcast behavior in the proof is local/injected synthetic 
 ## Authority boundary
 
 This is source/proof/docs/CI only. Runtime route mounting remains false at the canonical parent. No deployment, service activation, production credential access, live wallet use, live RPC, live transaction signing/broadcast, inventory funding, treasury/liquidity action, or funds movement is authorized or performed.
+
+## Reconciliation invariants
+
+- The planner's canonical pure policy validator is reused; no second permissive
+  "non-empty means configured" policy contract exists in this composition.
+- `VOID_BUY_VOID_DELIVERY_MAX_AMOUNT_UNITS` is 6-decimal fulfillment-unit
+  accounting and is bounded by the saga's same-domain pool/reservation caps.
+- VoidToken transfer atoms remain exact `fulfillment_units × 10^12`; no
+  rounding is permitted.
+- Receipt confirmation counts remain BigInt decimal truth until a preflight
+  proves they fit the existing saga domain `1..1,000,000`.
+- The preflight occurs before `record_confirmed`; over-range observations
+  cannot create a confirmed execution journal ahead of saga state.
+- The compile-time-only ambient module overload shim is retired. Ordinary
+  explicit discriminant checks carry the real source types.
