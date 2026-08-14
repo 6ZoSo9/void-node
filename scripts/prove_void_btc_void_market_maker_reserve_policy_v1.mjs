@@ -5,7 +5,9 @@ import crypto from "node:crypto";
 import fs from "node:fs";
 
 import {
+  BITCOIN_MAX_MONEY_SATOSHIS_V1,
   VOID_BTC_VOID_V1_MINIMUM_SPREAD_BPS,
+  VOID_MAX_SUPPLY_ATOMS_V1,
   VOID_PREMINE_PURPOSE_VAULT_TARGET_V1,
   canonicalJson,
   deriveBtcVoidBuybackLotV1,
@@ -275,6 +277,50 @@ assert.equal(
   nativePairOnlyExample.buyback_lot.target_void_atomic,
   "100000000000000000000",
 );
+
+const nativeSupplyCeilings = deriveBtcVoidBuybackLotV1(
+  request({
+    settlement: {
+      btc_received_sats: BITCOIN_MAX_MONEY_SATOSHIS_V1,
+      void_sold_atomic: VOID_MAX_SUPPLY_ATOMS_V1,
+    },
+    policy: {
+      bitcoin_network_fee_reserve_sats: "0",
+    },
+  }),
+);
+assert.equal(
+  nativeSupplyCeilings.source.settlement.btc_received_sats,
+  BITCOIN_MAX_MONEY_SATOSHIS_V1,
+);
+assert.equal(
+  nativeSupplyCeilings.source.settlement.void_sold_atomic,
+  VOID_MAX_SUPPLY_ATOMS_V1,
+);
+for (const [field, maximum, error] of [
+  [
+    "btc_received_sats",
+    BITCOIN_MAX_MONEY_SATOSHIS_V1,
+    /exceeds Bitcoin MAX_MONEY/,
+  ],
+  [
+    "void_sold_atomic",
+    VOID_MAX_SUPPLY_ATOMS_V1,
+    /exceeds VOID maximum supply/,
+  ],
+]) {
+  assert.throws(
+    () =>
+      deriveBtcVoidBuybackLotV1(
+        request({
+          settlement: {
+            [field]: (BigInt(maximum) + 1n).toString(),
+          },
+        }),
+      ),
+    error,
+  );
+}
 
 const reordered = {
   policy: structuredClone(original.policy),
