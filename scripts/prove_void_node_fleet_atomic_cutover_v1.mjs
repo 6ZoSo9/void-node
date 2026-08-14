@@ -73,6 +73,13 @@ const stage=parseStageInspectionV1([
   `head\t${TARGET}`,"branch\t","status\t","common\t/tmp/live/.git","live_common\t/tmp/live/.git","nm\t0","tx\t1","p0\t1","p1\t1","p2\t1",
 ].join("\n"));
 assert.equal(validateStageInspectionV1(stage,TARGET),true);
+const postProofCreatedNodeModules=parseStageInspectionV1([
+  `head\t${TARGET}`,"branch\t","status\t","common\t/tmp/live/.git","live_common\t/tmp/live/.git","nm\t1","tx\t1","p0\t1","p1\t1","p2\t1",
+].join("\n"));
+assert.throws(
+  ()=>validateStageInspectionV1(postProofCreatedNodeModules,TARGET),
+  /stage is not exact detached proof-green target/,
+);
 for(const invalid of [
   { ...stage, node_modules:true },
   { ...stage, proof_runner:false },
@@ -98,6 +105,12 @@ assert.deepEqual(plan.authority,{
 assert.match(plan.plan_id_sha256,/^[0-9a-f]{64}$/);
 
 const source=await import("node:fs").then(m=>m.readFileSync(new URL("../tools/void-node-fleet-atomic-cutover-v1.mjs",import.meta.url),"utf8"));
+const proof2Index=source.indexOf('p2=0; (cd "$stage"&&node');
+const postProofNodeModulesIndex=source.indexOf('nm=0; test -e "$stage/node_modules"&&nm=1');
+const stageStatusIndex=source.indexOf('status="$(git -C "$stage" status');
+assert.ok(proof2Index>=0);
+assert.ok(postProofNodeModulesIndex>proof2Index);
+assert.ok(stageStatusIndex>postProofNodeModulesIndex);
 assert.doesNotMatch(source,/systemctl\s+--user\s+(?:stop|start|restart)/);
 assert.doesNotMatch(source,/merge\s+--ff-only|git\s+(?:pull|reset|checkout)/);
 assert.doesNotMatch(source,/--apply|confirm-operation/);
