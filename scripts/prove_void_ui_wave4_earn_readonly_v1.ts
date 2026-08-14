@@ -149,12 +149,14 @@ for (const failOpen of [
   }
 }
 
-if (
-  !moduleSource.includes(
-    "available: lastCredit !== null && lastCreditAmount !== null"
-  )
-) {
-  fail("last-credit availability is not bound to a valid numeric amount");
+for (const marker of [
+  "present: lastCredit !== null",
+  "available: lastCredit !== null && lastCreditAmount !== null",
+  "lastCredit !== null && lastCreditAmount === null",
+]) {
+  if (!moduleSource.includes(marker)) {
+    fail(`last-credit evidence-state marker missing: ${marker}`);
+  }
 }
 
 const frontendFetches = client.split("fetch(").length - 1;
@@ -174,6 +176,9 @@ for (const marker of [
   "typeof source?.status === 'number'",
   "typeof item?.reward_wc === 'number'",
   "typeof availableWork.network_need_score === 'number'",
+  "lastCredit.invalid_numeric_evidence === true",
+  "lastCredit.present === true",
+  "Credit amount unavailable",
   "data-earn-account-form",
   "data-earn-jobs-list",
   "data-earn-receipts-list",
