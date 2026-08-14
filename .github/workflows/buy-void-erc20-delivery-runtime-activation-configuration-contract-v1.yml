@@ -9,6 +9,7 @@ on:
       - ".github/workflows/buy-void-erc20-delivery-runtime-activation-configuration-contract-v1.yml"
       - "src/economic/buy_void_delivery_runtime_integration_v1.ts"
       - "src/economic/buy_void_erc20_delivery_dependency_bootstrap_v1.ts"
+      - "src/economic/buy_void_native_fulfillment_wallet_credential_signer_v1.ts"
       - "src/economic/buy_void_erc20_delivery_dependency_bootstrap_integration_gate_v1.ts"
       - "src/economic/buy_void_runtime_integration_v1.ts"
   push:
@@ -20,6 +21,7 @@ on:
       - ".github/workflows/buy-void-erc20-delivery-runtime-activation-configuration-contract-v1.yml"
       - "src/economic/buy_void_delivery_runtime_integration_v1.ts"
       - "src/economic/buy_void_erc20_delivery_dependency_bootstrap_v1.ts"
+      - "src/economic/buy_void_native_fulfillment_wallet_credential_signer_v1.ts"
       - "src/economic/buy_void_erc20_delivery_dependency_bootstrap_integration_gate_v1.ts"
       - "src/economic/buy_void_runtime_integration_v1.ts"
 
