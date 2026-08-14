@@ -93,7 +93,36 @@ assert.equal(owner.hasActiveRequest(), true);
 overlap.records[1].resolve({ request: 2 });
 assert.deepEqual(await second, { request: 2 });
 await assert.rejects(first, /superseded/);
+assert.equal(
+  owner.hasActiveRequest(),
+  true,
+  'ownership must survive response headers so a still-streaming body stays cancellable',
+);
+assert.equal(owner.abort('test cleanup after response'), true);
 assert.equal(owner.hasActiveRequest(), false);
+
+const bodyPhaseHarness = pendingFetchHarness();
+const bodyPhaseOwner = createDataNetRequestOwnerV1({
+  fetchImpl: bodyPhaseHarness.fetchImpl,
+  origin: 'https://void.example',
+});
+const headersOnly = bodyPhaseOwner.fetch(DATANET_URL);
+await Promise.resolve();
+bodyPhaseHarness.records[0].resolve({ phase: 'headers-returned-body-not-consumed' });
+assert.deepEqual(await headersOnly, { phase: 'headers-returned-body-not-consumed' });
+assert.equal(bodyPhaseOwner.hasActiveRequest(), true);
+const bodyPhaseSignal = bodyPhaseHarness.records[0].signal;
+const bodyReplacement = bodyPhaseOwner.fetch(DATANET_URL);
+void bodyReplacement.catch(() => {});
+await Promise.resolve();
+assert.equal(
+  bodyPhaseSignal.aborted,
+  true,
+  'replacement must abort the prior request even after its response headers resolved',
+);
+bodyPhaseHarness.records[1].resolve({ request: 'replacement' });
+assert.deepEqual(await bodyReplacement, { request: 'replacement' });
+assert.equal(bodyPhaseOwner.abort('test cleanup after body-phase replacement'), true);
 
 const deadlineHarness = pendingFetchHarness();
 const deadlineOwner = createDataNetRequestOwnerV1({
@@ -102,17 +131,20 @@ const deadlineOwner = createDataNetRequestOwnerV1({
 });
 const deadline = new AbortController();
 const deadlineRequest = deadlineOwner.fetch(DATANET_URL, { signal: deadline.signal });
-void deadlineRequest.catch(() => {});
 await Promise.resolve();
+deadlineHarness.records[0].resolve({ phase: 'headers-returned' });
+assert.deepEqual(await deadlineRequest, { phase: 'headers-returned' });
+assert.equal(deadlineOwner.hasActiveRequest(), true);
 deadline.abort(new Error('caller total deadline'));
-await assert.rejects(deadlineRequest, /caller total deadline/);
-assert.equal(deadlineHarness.records[0].aborted, true);
+await Promise.resolve();
 assert.equal(
-  deadlineHarness.records[0].signal === deadline.signal,
-  false,
-  'request owner must preserve caller deadline through a linked signal',
+  deadlineHarness.records[0].signal.aborted,
+  true,
+  'caller deadline must continue forwarding after response headers resolve',
 );
+assert.match(String(deadlineHarness.records[0].signal.reason?.message), /caller total deadline/);
 assert.equal(deadlineOwner.hasActiveRequest(), false);
+assert.equal(deadlineOwner.abort('deadline cleanup'), true);
 
 const unmountHarness = pendingFetchHarness();
 const unmountOwner = createDataNetRequestOwnerV1({
@@ -251,6 +283,7 @@ assert.doesNotMatch(ownerSource, /credentials|wallet|signer|Work Credit|transact
 console.log('VOID_APP_DATANET_REQUEST_OWNER_V1_GREEN');
 console.log('max_concurrent_datanet_requests=1');
 console.log('superseded_request_aborted=true');
+console.log('body_phase_supersession_aborted=true');
 console.log('caller_deadline_signal_preserved=true');
 console.log('route_unmount_aborts=true');
 console.log('non_datanet_fetch_passthrough=true');
