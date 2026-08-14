@@ -60,6 +60,16 @@ const FIRST_CONTACT_MANIFEST_INTEGRITY_REPAIR_BOUNDARY = [
   "scripts/prove_void_ai_agent_first_contact_runtime_v1.mjs",
   "tools/void-ai-agent-first-contact-v1.mjs",
 ];
+const PUBLIC_UTILITY_PROVENANCE_BOUNDARY = [
+  "public/public-node/agents/public-utility-v1.json",
+  "scripts/prove_void_ai_agent_first_contact_v1.mjs",
+  "scripts/prove_void_ai_agent_public_utility_v1.mjs",
+  "tools/void-ai-agent-first-contact-v1.mjs",
+];
+const PUBLIC_UTILITY_CANONICALIZATION_BOUNDARY = [
+  "scripts/prove_void_ai_agent_first_contact_v1.mjs",
+  "tools/void-ai-agent-first-contact-v1.mjs",
+];
 const ALLOWED_BOUNDARY = [
   ...new Set([...ORIGINAL_BOUNDARY, ...COMPOSITION_BOUNDARY]),
 ];
@@ -124,8 +134,16 @@ function intakeFingerprint(value) {
     .digest("hex");
 }
 
+function canonicalSha256(value) {
+  return createHash("sha256")
+    .update(canonicalJson(value), "utf8")
+    .digest("hex");
+}
+
 const REVIEWED_FIRST_CONTACT_MANIFEST_FINGERPRINT_SHA256 =
   "ed56951c1bc043911ede167dc2cddbab38af62f069d07638dc1825d7e936f413";
+const REVIEWED_PUBLIC_UTILITY_CATALOG_SHA256 =
+  "b67fe641d7ccebdb3e4626245b2895d75dd640789d29aca2544855f3d646daa2";
 const COLD_START_CURL_COMMAND =
   "test -n \"$VOID_PUBLIC_ORIGIN\" && curl --disable --noproxy '*' --disallow-username-in-url --proto '=https' --max-redirs 0 --fail --silent --show-error --max-time 8 --max-filesize 65536 --header 'Accept: application/json' \"${VOID_PUBLIC_ORIGIN%/}/public-node/agents/first-contact-v1.json\"";
 
@@ -151,6 +169,17 @@ const datanetReceipt = JSON.parse(
     "utf8",
   ),
 );
+assert.equal(
+  canonicalSha256(publicUtility),
+  REVIEWED_PUBLIC_UTILITY_CATALOG_SHA256,
+);
+for (const entry of publicUtility.entries) {
+  assert.match(entry.canonical_sha256, /^[0-9a-f]{64}$/);
+  const source = JSON.parse(
+    await readFile(join(ROOT, entry.repository_path), "utf8"),
+  );
+  assert.equal(canonicalSha256(source), entry.canonical_sha256);
+}
 assert.equal(manifest.marker, "VOID_AI_AGENT_FIRST_CONTACT_V1");
 assert.equal(manifest.protocol, "void-ai-agent-first-contact");
 assert.equal(manifest.version, "1");
@@ -599,32 +628,11 @@ fixtures.set(WRONG_RESOURCE_MARKER_DATA_PATH, {
 
 const BUDGET_EXHAUSTION_MANIFEST_PATH =
   "/public-node/agents/first-contact-budget-exhaustion-fixture-v1.json";
-const BUDGET_EXHAUSTION_UTILITY_PATH =
-  "/public-node/agents/public-utility-budget-exhaustion-fixture-v1.json";
-const BUDGET_EXHAUSTION_RESOURCE_PATHS = [
-  "/public-node/agents/budget-resource-a-v1.json",
-  "/public-node/agents/budget-resource-b-v1.json",
-  "/public-node/datanet/budget-resource-c-v1.json",
-];
-fixtures.set(BUDGET_EXHAUSTION_MANIFEST_PATH, {
-  ...manifest,
-  entrypoints: {
-    ...manifest.entrypoints,
-    public_utility: BUDGET_EXHAUSTION_UTILITY_PATH,
-  },
-});
-fixtures.set(BUDGET_EXHAUSTION_UTILITY_PATH, {
-  ...publicUtility,
-  entries: publicUtility.entries.map((entry, index) => ({
-    ...entry,
-    path: BUDGET_EXHAUSTION_RESOURCE_PATHS[index],
-    repository_path: `public${BUDGET_EXHAUSTION_RESOURCE_PATHS[index]}`,
-  })),
-});
-for (const [index, path] of BUDGET_EXHAUSTION_RESOURCE_PATHS.entries()) {
-  fixtures.set(path, {
-    marker: publicUtility.entries[index].required_marker,
-  });
+fixtures.set(BUDGET_EXHAUSTION_MANIFEST_PATH, manifest);
+
+const RAW_JSON_FIXTURE = Symbol("raw-json-fixture");
+function rawJsonFixture(body) {
+  return { [RAW_JSON_FIXTURE]: body };
 }
 
 let fixtureOverrides = new Map();
@@ -651,7 +659,9 @@ const server = createServer((request, response) => {
     response.end(JSON.stringify({ error: "not_found" }));
     return;
   }
-  const body = `${JSON.stringify(fixture)}\n`;
+  const body = Object.hasOwn(fixture, RAW_JSON_FIXTURE)
+    ? fixture[RAW_JSON_FIXTURE]
+    : `${JSON.stringify(fixture)}\n`;
   response.writeHead(200, {
     "content-type": "application/json; charset=utf-8",
     "content-length": Buffer.byteLength(body),
@@ -735,6 +745,8 @@ try {
     report.useful_public_resources.every(
       (entry) =>
         entry.catalog_observed_by_client === true &&
+        entry.canonical_sha256_verified === true &&
+        entry.observed_canonical_sha256 === entry.canonical_sha256 &&
         entry.runtime_observed === true &&
         entry.document !== null,
     ),
@@ -850,44 +862,137 @@ try {
   );
   assert.equal(
     wrongResourceMarkerReport.checks.public_utility_catalog_loaded,
-    true,
+    false,
   );
   assert.equal(
     wrongResourceMarkerReport.checks.public_utility_resources_observed,
     false,
   );
   assert.equal(wrongResourceMarkerReport.status, "partial_read_only");
-  const rejectedResource =
-    wrongResourceMarkerReport.useful_public_resources.find(
-      (resource) => resource.path === WRONG_RESOURCE_MARKER_DATA_PATH,
-    );
-  assert.equal(rejectedResource.runtime_observed, false);
-  assert.equal(rejectedResource.document, null);
-  assert.equal(
-    rejectedResource.observation_error,
-    "required_marker_not_observed",
-  );
+  assert.deepEqual(wrongResourceMarkerReport.useful_public_resources, []);
 
-  const exhaustedBudget = await runClient(
+  const tamperedReceipt = await runClient(
     ["--base-url", baseUrl],
     [
       [
-        manifest.entrypoints.public_utility,
-        fixtures.get(BUDGET_EXHAUSTION_UTILITY_PATH),
+        publicUtility.entries[2].path,
+        { ...datanetReceipt, unreviewed_extension: true },
       ],
-      ...BUDGET_EXHAUSTION_RESOURCE_PATHS.map((path) => [
-        path,
-        fixtures.get(path),
-      ]),
     ],
   );
+  assert.equal(tamperedReceipt.code, 2, tamperedReceipt.stderr);
+  const tamperedReceiptReport = JSON.parse(tamperedReceipt.stdout);
+  assert.equal(
+    tamperedReceiptReport.checks.public_utility_catalog_loaded,
+    true,
+  );
+  assert.equal(
+    tamperedReceiptReport.checks.public_utility_resources_observed,
+    false,
+  );
+  const digestRejectedReceipt =
+    tamperedReceiptReport.useful_public_resources.find(
+      (resource) => resource.id === "datanet_replication_receipt",
+    );
+  assert.equal(digestRejectedReceipt.runtime_observed, false);
+  assert.equal(digestRejectedReceipt.canonical_sha256_verified, false);
+  assert.equal(digestRejectedReceipt.document, null);
+  assert.equal(
+    digestRejectedReceipt.observation_error,
+    "canonical_sha256_mismatch",
+  );
+
+  const deeplyNestedReceiptBody =
+    `{"green_marker":"VOID_DATANET_FIELD_REPLICATION_STATUS_CARD_V1_GREEN","nested":` +
+    "[".repeat(4_000) +
+    "0" +
+    "]".repeat(4_000) +
+    "}";
+  assert.ok(
+    Buffer.byteLength(deeplyNestedReceiptBody) < 65_536,
+    "adversarial fixture must remain inside the response byte limit",
+  );
+  const deeplyNestedReceipt = await runClient(
+    ["--base-url", baseUrl],
+    [
+      [
+        publicUtility.entries[2].path,
+        rawJsonFixture(deeplyNestedReceiptBody),
+      ],
+    ],
+  );
+  assert.equal(deeplyNestedReceipt.code, 2, deeplyNestedReceipt.stderr);
+  assert.equal(deeplyNestedReceipt.stderr, "");
+  const deeplyNestedReceiptReport = JSON.parse(
+    deeplyNestedReceipt.stdout,
+  );
+  assert.equal(deeplyNestedReceiptReport.status, "partial_read_only");
+  const deeplyNestedRejectedResource =
+    deeplyNestedReceiptReport.useful_public_resources.find(
+      (resource) => resource.id === "datanet_replication_receipt",
+    );
+  assert.equal(deeplyNestedRejectedResource.runtime_observed, false);
+  assert.equal(
+    deeplyNestedRejectedResource.canonical_sha256_verified,
+    false,
+  );
+  assert.equal(
+    deeplyNestedRejectedResource.observed_canonical_sha256,
+    null,
+  );
+  assert.equal(deeplyNestedRejectedResource.document, null);
+  assert.equal(
+    deeplyNestedRejectedResource.observation_error,
+    "canonical_sha256_unavailable",
+  );
+
+  const forgedReceipt = {
+    ...datanetReceipt,
+    unreviewed_extension: true,
+  };
+  const forgedCatalog = structuredClone(publicUtility);
+  forgedCatalog.entries[2].canonical_sha256 =
+    canonicalSha256(forgedReceipt);
+  const forgedCatalogAndReceipt = await runClient(
+    ["--base-url", baseUrl],
+    [
+      [manifest.entrypoints.public_utility, forgedCatalog],
+      [publicUtility.entries[2].path, forgedReceipt],
+    ],
+  );
+  assert.equal(
+    forgedCatalogAndReceipt.code,
+    2,
+    forgedCatalogAndReceipt.stderr,
+  );
+  const forgedCatalogAndReceiptReport =
+    JSON.parse(forgedCatalogAndReceipt.stdout);
+  assert.equal(
+    forgedCatalogAndReceiptReport.checks.public_utility_catalog_loaded,
+    false,
+  );
+  assert.equal(
+    forgedCatalogAndReceiptReport.checks.public_utility_resources_observed,
+    false,
+  );
+  assert.deepEqual(
+    forgedCatalogAndReceiptReport.useful_public_resources,
+    [],
+  );
+
+  const exhaustedBudget = await runClient([
+    "--base-url",
+    baseUrl,
+    "--manifest-path",
+    BUDGET_EXHAUSTION_MANIFEST_PATH,
+  ]);
   assert.equal(exhaustedBudget.code, 2, exhaustedBudget.stderr);
   const exhaustedBudgetReport = JSON.parse(exhaustedBudget.stdout);
   assert.equal(exhaustedBudgetReport.status, "partial_read_only");
   assert.deepEqual(exhaustedBudgetReport.responses.public_utility_resources, {
     advertised: 3,
-    observed: 1,
-    reused_responses: 0,
+    observed: 2,
+    reused_responses: 1,
     additional_network_requests: 1,
     total_network_requests: 8,
     maximum_total_network_requests: 8,
@@ -898,7 +1003,7 @@ try {
         resource.observation_error ===
         "cold_start_request_budget_exhausted",
     ).length,
-    2,
+    1,
   );
 
   const decoyBinding = await runClient(
@@ -1152,6 +1257,8 @@ if (workingBoundary.length > 0) {
     PUBLIC_UTILITY_RESOURCE_OBSERVATION_REPAIR_BOUNDARY,
     POST_MERGE_CONTRACT_INTEGRITY_REPAIR_BOUNDARY,
     FIRST_CONTACT_MANIFEST_INTEGRITY_REPAIR_BOUNDARY,
+    PUBLIC_UTILITY_PROVENANCE_BOUNDARY,
+    PUBLIC_UTILITY_CANONICALIZATION_BOUNDARY,
   ].some(
     (boundary) =>
       JSON.stringify(workingBoundary) ===
