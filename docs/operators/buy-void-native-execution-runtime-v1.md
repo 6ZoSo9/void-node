@@ -111,6 +111,12 @@ The nonce and spendability checks therefore use one coherent `pending` execution
 
 The RPC URL is server controlled and must be loopback HTTP. Redirects, proxies,
 credentials in URLs, non-loopback hosts, and arbitrary methods are rejected.
+The built-in transport keeps the socket-inactivity timeout and also enforces a
+separate total wall-clock deadline from request start through complete response
+body consumption. Continuous slow response traffic cannot extend one planner RPC
+past the configured `request_timeout_ms`; timeout, total-deadline, size-limit,
+and normal terminal paths all settle through the same exactly-once completion
+boundary.
 
 The type-2 transaction fee plan is:
 
@@ -127,7 +133,7 @@ The planner holds when:
 - gas limit exceeds its cap;
 - the wallet's pending balance cannot cover the VOID value plus maximum gas cost.
 
-The focused proof includes a latest-sufficient / pending-insufficient fixture and requires HOLD, so preceding pending spends cannot be ignored.
+The focused proof includes a latest-sufficient / pending-insufficient fixture and requires HOLD, so preceding pending spends cannot be ignored. It also exercises the real built-in HTTP transport against a continuously active slow-drip response and requires a total-deadline HOLD within the configured bound.
 
 The raw RPC URL is not returned. Only its SHA-256 fingerprint is exposed.
 
