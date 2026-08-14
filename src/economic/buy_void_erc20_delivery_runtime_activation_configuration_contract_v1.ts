@@ -28,10 +28,12 @@ export const
     current_parent_blocker:
       "canonical_delivery_runtime_activation_not_ready",
     next_gate:
-      "production_configuration_verification_and_runtime_mount_authorization",
+      "erc20_durable_prepared_transaction_composition",
 
     runtime_source_path:
       "src/economic/buy_void_delivery_runtime_integration_v1.ts",
+    transaction_preparation_planner_source_path:
+      "src/economic/buy_void_erc20_transaction_preparation_planner_v1.ts",
     dependency_bootstrap_source_path:
       "src/economic/buy_void_erc20_delivery_dependency_bootstrap_v1.ts",
     parent_source_path:
@@ -42,6 +44,8 @@ export const
         "VOID_BUY_VOID_DELIVERY_RUNTIME_INTEGRATION_ENABLED",
       enable_value: "1",
       root_dir_env: "VOID_BUY_VOID_RUNTIME_DIR",
+      planner_rpc_env:
+        "VOID_BUY_VOID_NATIVE_CHAIN2050_RPC_URL",
       policy_envs: [
         "VOID_BUY_VOID_DELIVERY_CHAIN_ID",
         "VOID_BUY_VOID_DELIVERY_TOKEN_ADDRESS",
@@ -51,33 +55,40 @@ export const
         "VOID_BUY_VOID_DELIVERY_MAX_FEE_PER_GAS_WEI",
         "VOID_BUY_VOID_DELIVERY_MAX_PRIORITY_FEE_PER_GAS_WEI",
       ],
-      dependency_global:
-        "__void_buy_void_delivery_runtime_dependencies_v1",
+      fixed_planner_gas_limit_multiplier_bps: "12000",
+      fixed_planner_fee_multiplier_bps: "12000",
+      canonical_delivery_action: "plan_erc20_delivery",
+      caller_input_keys: [
+        "action",
+        "attempt_id",
+      ],
+      server_derived_transaction_plan_required: true,
+      caller_supplied_transaction_plan_forbidden: true,
+      coherent_pending_planner_required: true,
+      direct_sign_broadcast_apply_allowed: false,
+      durable_prepared_transaction_composition_ready: false,
       fixed_signer_credential_id:
         "buy-void-native-fulfillment-wallet-v1",
-      canonical_delivery_action: "sign_and_broadcast",
-      exact_confirmation: "buyVoidSignAndBroadcast",
       server_controlled_policy: true,
       server_controlled_root_dir: true,
       operator_loopback_only: true,
-      durable_submission_guard_required: true,
-      signer_dependency_injected: true,
-      broadcaster_dependency_injected: true,
       automatic_retry: false,
       receipt_wait: false,
       background_loop: false,
     },
 
     activation_preconditions: {
-      enable_flag_required: true,
-      exact_policy_configuration_required: true,
-      dependency_injection_required: true,
-      fixed_systemd_credential_required_when_signing: true,
-      loopback_chain2050_rpc_required: true,
-      explicit_per_action_confirmation_required: true,
-      durable_submission_guard_required: true,
-      production_configuration_verification_required: true,
+      server_derived_transaction_plan_required: true,
+      caller_supplied_transaction_plan_forbidden: true,
+      durable_wallet_nonce_reservation_required: true,
+      live_pre_sign_nonce_revalidation_required: true,
+      opaque_signed_transaction_custody_required: true,
+      crash_recoverable_prepared_binding_required: true,
+      confirmed_erc20_receipt_terminal_closeout_required: true,
+      production_configuration_verification_required_after_composition: true,
+      fixed_systemd_credential_verification_required_after_composition: true,
       parent_mount_separately_authorized: true,
+      inventory_funding_separately_authorized: true,
     },
 
     authority: {

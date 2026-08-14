@@ -1,12 +1,9 @@
 import assert from "node:assert/strict";
 import fs from "node:fs";
+import http from "node:http";
 import os from "node:os";
 import path from "node:path";
-import {
-  Interface,
-  Transaction,
-  Wallet,
-} from "ethers";
+import { Wallet } from "ethers";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import {
   claimBuyVoidFulfillmentJournalV1,
@@ -20,16 +17,12 @@ import type {
   BuyVoidRequestV1,
 } from "../src/economic/buy_void_auto_fulfillment_v1.js";
 import {
-  prepareBuyVoidExecutionTransactionV1,
   readBuyVoidExecutionAttemptV1,
   reserveBuyVoidExecutionAttemptV1,
 } from "../src/economic/buy_void_execution_attempt_journal_v1.js";
 import {
   buyVoidDeliverySubmissionGuardPathsV1,
 } from "../src/economic/buy_void_delivery_submission_guard_v1.js";
-import {
-  VOID_BUY_VOID_ERC20_DELIVERY_UNIT_SCALE_V1,
-} from "../src/economic/buy_void_delivery_sign_broadcast_adapter_v1.js";
 
 const routes = new Map<string, Function>();
 const app: any = {
@@ -43,7 +36,7 @@ const app: any = {
 (globalThis as any).__void_http_app = app;
 
 const root = fs.mkdtempSync(
-  path.join(os.tmpdir(), "void-buy-delivery-runtime-v1-"),
+  path.join(os.tmpdir(), "void-buy-delivery-runtime-v90-"),
 );
 process.env.VOID_BUY_VOID_RUNTIME_DIR = root;
 delete process.env
@@ -56,11 +49,10 @@ for (const key of [
   "VOID_BUY_VOID_DELIVERY_MAX_GAS_LIMIT",
   "VOID_BUY_VOID_DELIVERY_MAX_FEE_PER_GAS_WEI",
   "VOID_BUY_VOID_DELIVERY_MAX_PRIORITY_FEE_PER_GAS_WEI",
+  "VOID_BUY_VOID_NATIVE_CHAIN2050_RPC_URL",
 ]) {
   delete process.env[key];
 }
-delete (globalThis as any)
-  .__void_buy_void_delivery_runtime_dependencies_v1;
 
 function responseHarness() {
   let sentValue: { status: number; body: any } | null = null;
@@ -112,7 +104,7 @@ const moduleFile = thisFile.endsWith(".ts")
     );
 await import(
   pathToFileURL(moduleFile).href +
-    `?delivery-runtime-proof=${Date.now()}`
+    `?delivery-runtime-v90-proof=${Date.now()}`
 );
 await new Promise((resolve) => setTimeout(resolve, 400));
 
@@ -133,20 +125,23 @@ const disabledStatus = await call("GET", statusRoute, {
 assert.equal(disabledStatus.status, 200);
 assert.equal(disabledStatus.body.enabled, false);
 assert.equal(disabledStatus.body.policy_configured, false);
-assert.equal(disabledStatus.body.signer_configured, false);
 assert.equal(
-  disabledStatus.body.effective_authority.signing,
-  false,
+  disabledStatus.body.server_derived_transaction_plan,
+  true,
 );
 assert.equal(
-  disabledStatus.body.effective_authority
-    .transaction_broadcast,
+  disabledStatus.body.direct_sign_broadcast_apply_allowed,
+  false,
+);
+assert.equal(disabledStatus.body.effective_authority.signing, false);
+assert.equal(
+  disabledStatus.body.effective_authority.transaction_broadcast,
   false,
 );
 
 const disabledCommand = await call("POST", commandRoute, {
   socket: { remoteAddress: "::1" },
-  body: { action: "sign_and_broadcast" },
+  body: { action: "plan_erc20_delivery" },
 });
 assert.equal(disabledCommand.status, 503);
 assert.equal(
@@ -159,31 +154,14 @@ const recipient = Wallet.createRandom().address.toLowerCase();
 const token = Wallet.createRandom().address.toLowerCase();
 const receive = Wallet.createRandom().address.toLowerCase();
 const usdc = Wallet.createRandom().address.toLowerCase();
-const amount = "50000000";
 const paymentTx = `0x${"a".repeat(64)}`;
 const transferTopic =
   "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef";
 const topic = (address: string): string =>
   `0x${"0".repeat(24)}${address.slice(2)}`;
 
-process.env
-  .VOID_BUY_VOID_DELIVERY_RUNTIME_INTEGRATION_ENABLED = "1";
-process.env.VOID_BUY_VOID_DELIVERY_CHAIN_ID = "2050";
-process.env.VOID_BUY_VOID_DELIVERY_TOKEN_ADDRESS = token;
-process.env.VOID_BUY_VOID_DELIVERY_WALLET_ADDRESS =
-  wallet.address;
-process.env.VOID_BUY_VOID_DELIVERY_MAX_AMOUNT_UNITS =
-  "1000000000";
-process.env.VOID_BUY_VOID_DELIVERY_MAX_GAS_LIMIT =
-  "100000";
-process.env.VOID_BUY_VOID_DELIVERY_MAX_FEE_PER_GAS_WEI =
-  "3000000000";
-process.env
-  .VOID_BUY_VOID_DELIVERY_MAX_PRIORITY_FEE_PER_GAS_WEI =
-  "2000000000";
-
 const request: BuyVoidRequestV1 = {
-  request_id: "buyvoid_delivery_runtime_v1",
+  request_id: "buyvoid_delivery_runtime_v90",
   source_chain: "base",
   tx_hash: paymentTx,
   delivery_address: recipient,
@@ -239,7 +217,7 @@ const claimed = claimBuyVoidFulfillmentJournalV1({
   request,
   verified_payment_event: verified.event,
   policy: fulfillmentPolicy,
-  now_ms: 1_701_700_000_000,
+  now_ms: 1_701_800_000_000,
 });
 if ("reason" in claimed) throw new Error(claimed.reason);
 
@@ -253,98 +231,312 @@ const reserved = reserveBuyVoidExecutionAttemptV1({
   root_dir: root,
   intent: claimed.intent,
   policy: executionPolicy,
-  now_ms: 1_701_700_100_000,
+  now_ms: 1_701_800_100_000,
 });
 if ("reason" in reserved) throw new Error(reserved.reason);
+const attemptId =
+  reserved.attempt.reservation.attempt_id;
 
-const transferInterface = new Interface([
-  "function transfer(address to, uint256 value) returns (bool)",
-]);
-const plan = {
-  chain_id: 2050,
-  nonce: 7,
-  gas_limit: 65000,
-  max_fee_per_gas_wei: 2_000_000_000,
-  max_priority_fee_per_gas_wei: 1_000_000_000,
-};
-const tokenAmountAtoms =
-  BigInt(amount) *
-  BigInt(VOID_BUY_VOID_ERC20_DELIVERY_UNIT_SCALE_V1.multiplier);
-assert.equal(
-  VOID_BUY_VOID_ERC20_DELIVERY_UNIT_SCALE_V1.fulfillment_unit_decimals,
-  6,
-);
-assert.equal(
-  VOID_BUY_VOID_ERC20_DELIVERY_UNIT_SCALE_V1.token_atom_decimals,
-  18,
-);
+const rpcCalls: Array<{ method: string; params: unknown[] }> = [];
+const rpcServer = http.createServer((req, res) => {
+  const chunks: Buffer[] = [];
+  req.on("data", (chunk: Buffer) => chunks.push(chunk));
+  req.on("end", () => {
+    const payload = JSON.parse(
+      Buffer.concat(chunks).toString("utf8"),
+    );
+    rpcCalls.push({
+      method: String(payload.method || ""),
+      params: Array.isArray(payload.params)
+        ? payload.params
+        : [],
+    });
 
-const unsigned = {
-  type: 2,
-  chainId: 2050n,
-  nonce: 7,
-  gasLimit: 65000n,
-  maxFeePerGas: 2_000_000_000n,
-  maxPriorityFeePerGas: 1_000_000_000n,
-  to: token,
-  value: 0n,
-  data: transferInterface.encodeFunctionData("transfer", [
-    recipient,
-    tokenAmountAtoms,
-  ]),
-};
-const referenceRaw = await wallet.signTransaction(unsigned);
-const expectedHash = Transaction.from(referenceRaw).hash;
-assert.ok(expectedHash);
-const decodedReferenceTransfer = transferInterface.decodeFunctionData(
-  "transfer",
-  unsigned.data,
-);
-assert.equal(
-  decodedReferenceTransfer[1],
-  BigInt(amount) * 1_000_000_000_000n,
-);
+    let result = "0x0";
+    switch (payload.method) {
+      case "eth_chainId":
+        result = "0x802";
+        break;
+      case "eth_getTransactionCount":
+        assert.deepEqual(payload.params, [
+          wallet.address.toLowerCase(),
+          "pending",
+        ]);
+        result = "0x7";
+        break;
+      case "eth_gasPrice":
+        result = "0x3b9aca00";
+        break;
+      case "eth_estimateGas": {
+        assert.equal(payload.params?.[1], "pending");
+        const tx = payload.params?.[0];
+        assert.equal(
+          String(tx?.from || "").toLowerCase(),
+          wallet.address.toLowerCase(),
+        );
+        assert.equal(
+          String(tx?.to || "").toLowerCase(),
+          token,
+        );
+        assert.equal(tx?.value, "0x0");
+        assert.equal(
+          String(tx?.data || "").slice(0, 10).toLowerCase(),
+          "0xa9059cbb",
+        );
+        result = "0xc350";
+        break;
+      }
+      case "eth_getBalance":
+        assert.deepEqual(payload.params, [
+          wallet.address.toLowerCase(),
+          "pending",
+        ]);
+        result = "0xde0b6b3a7640000";
+        break;
+      default:
+        throw new Error(`unexpected rpc method ${payload.method}`);
+    }
 
-const prepared = prepareBuyVoidExecutionTransactionV1({
-  root_dir: root,
-  attempt_id: reserved.attempt.reservation.attempt_id,
-  intent: claimed.intent,
-  policy: executionPolicy,
-  transaction: {
-    chain_id: 2050,
-    transaction_hash: expectedHash,
-    from_address: wallet.address,
-    to_address: recipient,
-    amount_units: amount,
-  },
-  now_ms: 1_701_700_200_000,
+    res.statusCode = 200;
+    res.setHeader("content-type", "application/json");
+    res.end(JSON.stringify({
+      jsonrpc: "2.0",
+      id: payload.id,
+      result,
+    }));
+  });
 });
-if ("reason" in prepared) throw new Error(prepared.reason);
-const attemptId = prepared.attempt.reservation.attempt_id;
+await new Promise<void>((resolve, reject) => {
+  rpcServer.once("error", reject);
+  rpcServer.listen(0, "127.0.0.1", resolve);
+});
+const address = rpcServer.address();
+assert.ok(address && typeof address === "object");
 
-const configuredNoDeps = await call("GET", statusRoute, {
+process.env
+  .VOID_BUY_VOID_DELIVERY_RUNTIME_INTEGRATION_ENABLED = "1";
+
+const validPlannerEnvironment: Record<string, string> = {
+  VOID_BUY_VOID_DELIVERY_CHAIN_ID: "2050",
+  VOID_BUY_VOID_DELIVERY_TOKEN_ADDRESS: token,
+  VOID_BUY_VOID_DELIVERY_WALLET_ADDRESS: wallet.address,
+  VOID_BUY_VOID_DELIVERY_MAX_AMOUNT_UNITS: "1000000000",
+  VOID_BUY_VOID_DELIVERY_MAX_GAS_LIMIT: "100000",
+  VOID_BUY_VOID_DELIVERY_MAX_FEE_PER_GAS_WEI: "3000000000",
+  VOID_BUY_VOID_DELIVERY_MAX_PRIORITY_FEE_PER_GAS_WEI:
+    "1000000000",
+  VOID_BUY_VOID_NATIVE_CHAIN2050_RPC_URL:
+    `http://127.0.0.1:${address.port}/`,
+};
+
+function setPlannerEnvironment(
+  overrides: Record<string, string> = {},
+): void {
+  for (const [key, value] of Object.entries({
+    ...validPlannerEnvironment,
+    ...overrides,
+  })) {
+    process.env[key] = value;
+  }
+}
+
+async function proveInvalidPlannerEnvironment(
+  overrides: Record<string, string>,
+  expectedReason: string,
+): Promise<void> {
+  setPlannerEnvironment(overrides);
+  const callsBefore = rpcCalls.length;
+  const status = await call("GET", statusRoute, {
+    socket: { remoteAddress: "127.0.0.1" },
+  });
+  assert.equal(status.status, 200);
+  assert.equal(status.body.enabled, true);
+  assert.equal(status.body.policy_configured, false);
+  assert.equal(
+    status.body.policy_validation_reason,
+    expectedReason,
+  );
+  assert.equal(status.body.effective_authority.rpc_call, false);
+  assert.equal(status.body.effective_authority.signing, false);
+  assert.equal(
+    status.body.effective_authority.transaction_broadcast,
+    false,
+  );
+  assert.equal(status.body.effective_authority.money_movement, false);
+  assert.equal(rpcCalls.length, callsBefore);
+}
+
+await proveInvalidPlannerEnvironment(
+  { VOID_BUY_VOID_DELIVERY_CHAIN_ID: "2051" },
+  "invalid_erc20_transaction_preparation_chain_id",
+);
+await proveInvalidPlannerEnvironment(
+  {
+    VOID_BUY_VOID_NATIVE_CHAIN2050_RPC_URL:
+      `https://127.0.0.1:${address.port}/`,
+  },
+  "rpc_url_must_be_loopback_http",
+);
+await proveInvalidPlannerEnvironment(
+  { VOID_BUY_VOID_DELIVERY_WALLET_ADDRESS: "0x1234" },
+  "invalid_fulfillment_wallet_address",
+);
+await proveInvalidPlannerEnvironment(
+  { VOID_BUY_VOID_DELIVERY_TOKEN_ADDRESS: "0x1234" },
+  "invalid_void_token_address",
+);
+await proveInvalidPlannerEnvironment(
+  { VOID_BUY_VOID_DELIVERY_MAX_AMOUNT_UNITS: "not-a-number" },
+  "invalid_erc20_transaction_preparation_policy",
+);
+await proveInvalidPlannerEnvironment(
+  { VOID_BUY_VOID_DELIVERY_MAX_GAS_LIMIT: "0" },
+  "invalid_erc20_transaction_preparation_policy",
+);
+await proveInvalidPlannerEnvironment(
+  { VOID_BUY_VOID_DELIVERY_MAX_FEE_PER_GAS_WEI: "0" },
+  "invalid_erc20_transaction_preparation_policy",
+);
+await proveInvalidPlannerEnvironment(
+  {
+    VOID_BUY_VOID_DELIVERY_MAX_PRIORITY_FEE_PER_GAS_WEI:
+      "4000000000",
+  },
+  "invalid_erc20_transaction_preparation_policy",
+);
+
+setPlannerEnvironment();
+
+const configured = await call("GET", statusRoute, {
   socket: { remoteAddress: "127.0.0.1" },
 });
-assert.equal(configuredNoDeps.status, 200);
-assert.equal(configuredNoDeps.body.enabled, true);
-assert.equal(configuredNoDeps.body.policy_configured, true);
-assert.equal(configuredNoDeps.body.signer_configured, false);
+assert.equal(configured.status, 200);
+assert.equal(configured.body.enabled, true);
+assert.equal(configured.body.policy_configured, true);
 assert.equal(
-  configuredNoDeps.body.effective_authority.signing,
+  configured.body.action,
+  "plan_erc20_delivery",
+);
+assert.equal(
+  configured.body.runtime_mode,
+  "read_only_erc20_planning_hold",
+);
+assert.equal(
+  configured.body.planner_execution_state,
+  "pending",
+);
+assert.equal(
+  configured.body.planner_gas_limit_multiplier_bps,
+  "12000",
+);
+assert.equal(
+  configured.body.planner_fee_multiplier_bps,
+  "12000",
+);
+assert.equal(configured.body.effective_authority.rpc_call, true);
+assert.equal(configured.body.effective_authority.signing, false);
+assert.equal(
+  configured.body.effective_authority.transaction_broadcast,
   false,
 );
+assert.equal(configured.body.effective_authority.money_movement, false);
 
-const dry = await call("POST", commandRoute, {
+const planned = await call("POST", commandRoute, {
   socket: { remoteAddress: "127.0.0.1" },
   body: {
-    action: "sign_and_broadcast",
+    action: "plan_erc20_delivery",
     attempt_id: attemptId,
-    plan,
   },
 });
-assert.equal(dry.status, 200);
-assert.equal(dry.body.decision.status, "dry_run");
-assert.equal(dry.body.decision.signing_performed, false);
+assert.equal(planned.status, 200);
+assert.equal(planned.body.ok, true);
+assert.equal(planned.body.status, "planned");
+assert.equal(planned.body.server_derived_transaction_plan, true);
+assert.equal(planned.body.caller_supplied_transaction_plan, false);
+assert.equal(
+  planned.body.direct_sign_broadcast_apply_allowed,
+  false,
+);
+assert.equal(
+  planned.body.durable_prepared_transaction_composition_ready,
+  false,
+);
+assert.equal(planned.body.planner.execution_state, "pending");
+assert.equal(planned.body.planner.pending_nonce, 7);
+assert.equal(
+  planned.body.transaction_plan.chain_id,
+  "2050",
+);
+assert.equal(planned.body.transaction_plan.nonce, 7);
+assert.equal(
+  planned.body.transaction_plan.gas_limit,
+  "60000",
+);
+assert.equal(
+  planned.body.transaction_plan.max_fee_per_gas_wei,
+  "1200000000",
+);
+assert.equal(
+  planned.body.transaction_plan.max_priority_fee_per_gas_wei,
+  "1000000000",
+);
+assert.match(
+  planned.body.preparation_fingerprint_sha256,
+  /^[0-9a-f]{64}$/,
+);
+assert.deepEqual(
+  rpcCalls.map((entry) => entry.method),
+  [
+    "eth_chainId",
+    "eth_getTransactionCount",
+    "eth_gasPrice",
+    "eth_estimateGas",
+    "eth_getBalance",
+  ],
+);
+
+const callsAfterPlan = rpcCalls.length;
+for (const [key, value] of [
+  ["plan", { nonce: 99 }],
+  ["transaction_plan", { nonce: 99 }],
+  ["nonce", 99],
+  ["gas_limit", "21000"],
+  ["max_fee_per_gas_wei", "1"],
+  ["max_priority_fee_per_gas_wei", "1"],
+  ["apply", true],
+] as const) {
+  const rejected = await call("POST", commandRoute, {
+    socket: { remoteAddress: "127.0.0.1" },
+    body: {
+      action: "plan_erc20_delivery",
+      attempt_id: attemptId,
+      [key]: value,
+    },
+  });
+  assert.equal(rejected.status, 400);
+  assert.equal(
+    rejected.body.error,
+    "caller_supplied_runtime_material_forbidden",
+  );
+  assert.equal(rejected.body.forbidden_key, key);
+  assert.equal(rejected.body.signing_performed, false);
+  assert.equal(
+    rejected.body.transaction_broadcast_performed,
+    false,
+  );
+  assert.equal(rejected.body.money_movement_performed, false);
+}
+assert.equal(rpcCalls.length, callsAfterPlan);
+
+const attemptAfter = readBuyVoidExecutionAttemptV1({
+  root_dir: root,
+  attempt_id: attemptId,
+});
+assert.ok(attemptAfter);
+assert.equal(attemptAfter.status, "reserved");
+assert.equal(Boolean(attemptAfter.prepared), false);
+assert.equal(Boolean(attemptAfter.broadcast), false);
+assert.equal(Boolean(attemptAfter.confirmation), false);
 assert.equal(
   fs.existsSync(
     buyVoidDeliverySubmissionGuardPathsV1(root).journal_file,
@@ -352,174 +544,26 @@ assert.equal(
   false,
 );
 
-const missingDependencies = await call("POST", commandRoute, {
-  socket: { remoteAddress: "127.0.0.1" },
-  body: {
-    action: "sign_and_broadcast",
-    attempt_id: attemptId,
-    plan,
-    apply: true,
-    confirmation: "buyVoidSignAndBroadcast",
-    submission_idempotency_key: "8".repeat(64),
-  },
+await new Promise<void>((resolve, reject) => {
+  rpcServer.close((error) =>
+    error ? reject(error) : resolve(),
+  );
 });
-assert.equal(missingDependencies.status, 503);
-assert.equal(
-  missingDependencies.body.error,
-  "delivery_sign_broadcast_dependencies_not_configured",
-);
-
-(globalThis as any)
-  .__void_buy_void_delivery_runtime_dependencies_v1 = {
-  signer: {
-    async get_address() {
-      return wallet.address;
-    },
-    async sign_transaction(transaction: any) {
-      return wallet.signTransaction(transaction);
-    },
-  },
-  broadcaster: {
-    async broadcast_signed_transaction(
-      rawSignedTransaction: string,
-    ) {
-      assert.equal(
-        Transaction.from(rawSignedTransaction).hash,
-        expectedHash,
-      );
-      return {
-        accepted: true,
-        transaction_hash: expectedHash,
-        provider_submission_id: "synthetic-provider-1",
-        submission_may_have_occurred: true,
-      };
-    },
-  },
-};
-
-const configured = await call("GET", statusRoute, {
-  socket: { remoteAddress: "127.0.0.1" },
-});
-assert.equal(configured.body.signer_configured, true);
-assert.equal(
-  configured.body.effective_authority.signing,
-  true,
-);
-assert.equal(
-  configured.body.effective_authority
-    .transaction_broadcast,
-  true,
-);
-
-const wrongConfirmation = await call("POST", commandRoute, {
-  socket: { remoteAddress: "127.0.0.1" },
-  body: {
-    action: "sign_and_broadcast",
-    attempt_id: attemptId,
-    plan,
-    apply: true,
-    confirmation: "wrong",
-    submission_idempotency_key: "8".repeat(64),
-  },
-});
-assert.equal(wrongConfirmation.status, 428);
-assert.equal(
-  wrongConfirmation.body.decision.reason,
-  "explicit_confirmation_required",
-);
-
-const accepted = await call("POST", commandRoute, {
-  socket: { remoteAddress: "127.0.0.1" },
-  body: {
-    action: "sign_and_broadcast",
-    attempt_id: attemptId,
-    plan,
-    apply: true,
-    confirmation: "buyVoidSignAndBroadcast",
-    submission_idempotency_key: "8".repeat(64),
-  },
-});
-assert.equal(accepted.status, 200);
-assert.equal(
-  accepted.body.decision.status,
-  "broadcast_accepted",
-);
-assert.equal(
-  accepted.body.decision.transaction_hash,
-  expectedHash,
-);
-assert.equal(accepted.body.pipeline_recording.status, "applied");
-assert.equal(
-  accepted.body.raw_signed_transaction_returned,
-  false,
-);
-const acceptedBodyJson = JSON.stringify(
-  accepted.body,
-  (_key, value) =>
-    typeof value === "bigint" ? value.toString(10) : value,
-);
-assert.equal(
-  acceptedBodyJson.includes(referenceRaw),
-  false,
-);
-
-const state = readBuyVoidExecutionAttemptV1({
-  root_dir: root,
-  attempt_id: attemptId,
-});
-assert.equal(state?.status, "broadcast");
-assert.equal(
-  state?.broadcast?.void_delivery_tx_hash,
-  expectedHash,
-);
-
-const duplicate = await call("POST", commandRoute, {
-  socket: { remoteAddress: "127.0.0.1" },
-  body: {
-    action: "sign_and_broadcast",
-    attempt_id: attemptId,
-    plan,
-    apply: true,
-    confirmation: "buyVoidSignAndBroadcast",
-    submission_idempotency_key: "8".repeat(64),
-  },
-});
-assert.equal(duplicate.status, 400);
-assert.equal(
-  duplicate.body.decision.reason,
-  "prepared_execution_attempt_required",
-);
-
-const rootOverride = await call("POST", commandRoute, {
-  socket: { remoteAddress: "127.0.0.1" },
-  body: {
-    action: "sign_and_broadcast",
-    attempt_id: attemptId,
-    plan,
-    root_dir: "/tmp/attacker",
-  },
-});
-assert.equal(rootOverride.status, 400);
-assert.equal(
-  rootOverride.body.error,
-  "forbidden_execution_material",
-);
-assert.equal(rootOverride.body.forbidden_key, "root_dir");
-
-const secretInput = await call("POST", commandRoute, {
-  socket: { remoteAddress: "127.0.0.1" },
-  body: {
-    action: "sign_and_broadcast",
-    attempt_id: attemptId,
-    plan,
-    nested: { private_key: "forbidden" },
-  },
-});
-assert.equal(secretInput.status, 400);
-assert.equal(secretInput.body.forbidden_key, "private_key");
-
-assert.equal(routes.has(`GET ${commandRoute}`), false);
+fs.rmSync(root, { recursive: true, force: true });
 
 console.log(
   "VOID_BUY_VOID_DELIVERY_RUNTIME_INTEGRATION_V1_GREEN",
 );
+console.log("server_derived_transaction_plan=1");
+console.log("caller_supplied_transaction_plan=0");
+console.log("planner_execution_state=pending");
+console.log("planner_rpc_method_count=5");
+console.log("invalid_nonempty_policy_status_hold=1");
+console.log("invalid_policy_rpc_authority=0");
+console.log("canonical_policy_validator_reused=1");
+console.log("direct_sign_broadcast_apply_allowed=0");
+console.log("durable_prepared_transaction_composition_ready=0");
+console.log("mutation_performed=0");
+console.log("signing=0");
+console.log("transaction_broadcast=0");
+console.log("money_movement=0");

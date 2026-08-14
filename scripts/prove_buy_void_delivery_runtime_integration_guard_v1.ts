@@ -11,6 +11,10 @@ const canonicalRuntimePath = path.join(
   root,
   "src/economic/buy_void_delivery_runtime_integration_v1.ts",
 );
+const plannerPath = path.join(
+  root,
+  "src/economic/buy_void_erc20_transaction_preparation_planner_v1.ts",
+);
 const canonicalAdapterPath = path.join(
   root,
   "src/economic/buy_void_delivery_sign_broadcast_adapter_v1.ts",
@@ -32,6 +36,7 @@ const indexPath = path.join(root, "src/index.ts");
 for (const file of [
   wrapperPath,
   canonicalRuntimePath,
+  plannerPath,
   canonicalAdapterPath,
   nativeRuntimePath,
   nativeAdapterPath,
@@ -43,6 +48,7 @@ for (const file of [
 
 const wrapper = fs.readFileSync(wrapperPath, "utf8");
 const canonicalRuntime = fs.readFileSync(canonicalRuntimePath, "utf8");
+const planner = fs.readFileSync(plannerPath, "utf8");
 const canonicalAdapter = fs.readFileSync(canonicalAdapterPath, "utf8");
 const nativeRuntime = fs.readFileSync(nativeRuntimePath, "utf8");
 const nativeAdapter = fs.readFileSync(nativeAdapterPath, "utf8");
@@ -69,7 +75,6 @@ for (const forbiddenParentImport of [
     `wrapper retains native parent mount: ${forbiddenParentImport}`,
   );
 }
-
 for (const forbiddenIndexImport of [
   "buy_void_delivery_runtime_integration_v1",
   "buy_void_native_delivery_runtime_integration_v1",
@@ -91,10 +96,17 @@ for (const marker of [
   "disabled_by_default",
   "server_controlled_root_dir",
   "server_controlled_policy",
-  "prepared_attempt_loaded_from_server_journal",
-  "VOID_BUY_VOID_DELIVERY_TOKEN_ADDRESS",
-  "VOID_BUY_VOID_DELIVERY_WALLET_ADDRESS",
-  "VOID_BUY_VOID_DELIVERY_SIGN_BROADCAST_ADAPTER_V1",
+  "reserved_attempt_loaded_from_server_journal",
+  "server_derived_transaction_plan: true",
+  "caller_supplied_transaction_plan: false",
+  "coherent_pending_planner_required: true",
+  "read_only_planner_rpc_when_enabled: true",
+  "direct_sign_broadcast_apply_allowed: false",
+  "durable_prepared_transaction_composition_ready: false",
+  '"plan_erc20_delivery"',
+  '"VOID_BUY_VOID_NATIVE_CHAIN2050_RPC_URL"',
+  "runBuyVoidErc20TransactionPreparationPlannerV1",
+  '"caller_supplied_runtime_material_forbidden"',
   "raw_signed_transaction_output: false",
   "automatic_retry: false",
 ]) {
@@ -104,6 +116,44 @@ for (const marker of [
     `canonical runtime missing ${marker}`,
   );
 }
+
+for (const retiredDirectRuntimeMarker of [
+  "runBuyVoidDeliverySignBroadcastV1",
+  "createBuyVoidDeliverySubmissionGuardV1",
+  "__void_buy_void_delivery_runtime_dependencies_v1",
+  'action: "sign_and_broadcast"',
+]) {
+  assert.equal(
+    canonicalRuntime.includes(retiredDirectRuntimeMarker),
+    false,
+    `direct sign/broadcast runtime path retained: ${retiredDirectRuntimeMarker}`,
+  );
+}
+
+for (const marker of [
+  "VOID_BUY_VOID_ERC20_TRANSACTION_PREPARATION_PLANNER_V1",
+  'execution_state_tag: "pending"',
+  '"eth_getTransactionCount"',
+  '"eth_estimateGas"',
+  '"eth_getBalance"',
+  '[policy.fulfillment_wallet_address, "pending"]',
+]) {
+  assert.equal(
+    planner.includes(marker),
+    true,
+    `coherent pending planner missing ${marker}`,
+  );
+}
+const estimateStart = planner.indexOf(
+  'const estimateResponse = await call("eth_estimateGas", [',
+);
+const estimateEnd = planner.indexOf("]);", estimateStart);
+assert.ok(estimateStart >= 0 && estimateEnd > estimateStart);
+assert.equal(
+  planner.slice(estimateStart, estimateEnd + 3)
+    .includes('"pending"'),
+  true,
+);
 
 for (const marker of [
   "VOID_BUY_VOID_DELIVERY_SIGN_BROADCAST_ADAPTER_V1",
@@ -131,20 +181,7 @@ for (const marker of [
   assert.equal(
     canonicalAdapter.includes(marker),
     true,
-    `canonical adapter missing ${marker}`,
-  );
-}
-
-for (const forbidden of [
-  "native_asset_only: true",
-  'asset_mode: "native_void"',
-  "NATIVE_VALUE_MULTIPLIER_V1",
-  "value: nativeValueWei",
-]) {
-  assert.equal(
-    canonicalAdapter.includes(forbidden),
-    false,
-    `canonical ERC-20 adapter contains native-value material: ${forbidden}`,
+    `future durable ERC-20 adapter missing ${marker}`,
   );
 }
 
@@ -203,7 +240,9 @@ assert.equal(
   true,
 );
 assert.equal(
-  wrapper.includes("canonical_erc20_delivery_atomic_unit_conversion_ready: true"),
+  wrapper.includes(
+    "canonical_erc20_delivery_atomic_unit_conversion_ready: true",
+  ),
   true,
 );
 assert.equal(
@@ -235,6 +274,10 @@ console.log(
 console.log("canonical_parent_delivery=void_token_erc20");
 console.log("canonical_erc20_delivery_source_retained=1");
 console.log("canonical_erc20_delivery_parent_mounted=0");
+console.log("server_derived_transaction_plan=1");
+console.log("caller_supplied_transaction_plan=0");
+console.log("direct_sign_broadcast_apply_allowed=0");
+console.log("durable_prepared_transaction_composition_ready=0");
 console.log("erc20_atomic_unit_conversion_ready=1");
 console.log("canonical_delivery_dependency_bootstrap_ready=1");
 console.log("native_canary_source_retained=1");

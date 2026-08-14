@@ -227,12 +227,27 @@ for (const deliveryMarker of [
   "VOID_BUY_VOID_DELIVERY_RUNTIME_INTEGRATION_V1",
   "VOID_BUY_VOID_DELIVERY_TOKEN_ADDRESS",
   "VOID_BUY_VOID_DELIVERY_WALLET_ADDRESS",
-  "VOID_BUY_VOID_DELIVERY_SIGN_BROADCAST_ADAPTER_V1",
-  '"buyVoidSignAndBroadcast"',
+  "VOID_BUY_VOID_ERC20_TRANSACTION_PREPARATION_PLANNER_V1",
+  '"plan_erc20_delivery"',
+  "server_derived_transaction_plan: true",
+  "caller_supplied_transaction_plan: false",
+  "direct_sign_broadcast_apply_allowed: false",
+  "durable_prepared_transaction_composition_ready: false",
 ]) {
   need(
     deliveryRuntimeText.includes(deliveryMarker),
     `canonical delivery runtime missing ${deliveryMarker}`,
+  );
+}
+for (const forbiddenDeliveryRuntimeMarker of [
+  "runBuyVoidDeliverySignBroadcastV1",
+  "createBuyVoidDeliverySubmissionGuardV1",
+  "__void_buy_void_delivery_runtime_dependencies_v1",
+  'action: "sign_and_broadcast"',
+]) {
+  need(
+    !deliveryRuntimeText.includes(forbiddenDeliveryRuntimeMarker),
+    `canonical delivery runtime retains direct sign/broadcast path: ${forbiddenDeliveryRuntimeMarker}`,
   );
 }
 
@@ -276,6 +291,10 @@ console.log("erc20_atomic_unit_conversion_ready=1");
 console.log("erc20_transaction_preparation_bridge_ready=1");
 console.log("erc20_transaction_preparation_execution_state_ready=1");
 console.log("canonical_delivery_dependency_bootstrap_ready=1");
+console.log("server_derived_transaction_plan=1");
+console.log("caller_supplied_transaction_plan=0");
+console.log("direct_sign_broadcast_apply_allowed=0");
+console.log("durable_prepared_transaction_composition_ready=0");
 console.log("native_parent_mounts=0");
 console.log("bounded_orchestrator_parent_mount=0");
 console.log("standalone_crash_saga_source_retained=1");

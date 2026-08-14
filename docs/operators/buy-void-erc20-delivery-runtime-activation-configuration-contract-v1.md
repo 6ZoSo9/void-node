@@ -1,115 +1,148 @@
-# Buy VOID ERC-20 delivery runtime activation configuration contract v1
+# Buy VOID ERC-20 delivery runtime activation/configuration contract v1
 
-Marker: `VOID_BUY_VOID_ERC20_DELIVERY_RUNTIME_ACTIVATION_CONFIGURATION_CONTRACT_V1`
+## Status
 
-## Purpose
+`HOLD_RUNTIME_ACTIVATION`.
 
-Define the exact source contract that a later canonical Buy VOID ERC-20 delivery
-runtime activation must satisfy without activating, mounting, configuring, or
-executing the runtime in this lane.
+The source configuration contract is ready, but production runtime activation is
+not. The V90 execution-order review found that the retained canonical delivery
+runtime accepted nonce/gas/fee transaction-plan material from its loopback HTTP
+request body. Configuration cannot make caller-selected execution material
+server-authoritative.
 
-Merged source already establishes:
+This lane removes that reachable source defect before any production wiring.
 
-- `canonical_delivery_dependency_bootstrap_ready=true`;
-- `erc20_transaction_preparation_execution_state_ready=true`;
-- canonical asset `void_token_erc20` on Chain 2050; and
-- canonical delivery runtime still parent-unmounted and execution-held.
+## Runtime behavior after V90 repair
 
-This contract is the next source boundary. It does **not** claim that production
-configuration values or credentials are currently present.
-
-## Exact server-controlled runtime configuration contract
-
-A later activation must use the existing delivery runtime and its existing
-server-owned configuration surface:
-
-- enable flag: `VOID_BUY_VOID_DELIVERY_RUNTIME_INTEGRATION_ENABLED=1`;
-- runtime root: `VOID_BUY_VOID_RUNTIME_DIR`;
-- policy:
-  - `VOID_BUY_VOID_DELIVERY_CHAIN_ID`;
-  - `VOID_BUY_VOID_DELIVERY_TOKEN_ADDRESS`;
-  - `VOID_BUY_VOID_DELIVERY_WALLET_ADDRESS`;
-  - `VOID_BUY_VOID_DELIVERY_MAX_AMOUNT_UNITS`;
-  - `VOID_BUY_VOID_DELIVERY_MAX_GAS_LIMIT`;
-  - `VOID_BUY_VOID_DELIVERY_MAX_FEE_PER_GAS_WEI`;
-  - `VOID_BUY_VOID_DELIVERY_MAX_PRIORITY_FEE_PER_GAS_WEI`;
-- injected dependency object:
-  `__void_buy_void_delivery_runtime_dependencies_v1`; and
-- fixed signer credential identity:
-  `buy-void-native-fulfillment-wallet-v1`.
-
-The existing runtime requires enablement, complete policy configuration, and
-injected signer/broadcaster dependencies before its effective signing,
-broadcast, or money-movement authority becomes true.
-
-## Preserved runtime safety contract
-
-The activation contract preserves the existing controls:
-
-- loopback operator surface only;
-- root directory and policy remain server controlled;
-- prepared attempts come from the server journal;
-- exact per-action confirmation is required;
-- durable submission guard is required;
-- signer and broadcaster are injected rather than supplied by a request;
-- no private key, mnemonic, RPC URL, policy object, root directory, or raw
-  signed transaction is accepted from request input;
-- no automatic retry;
-- no background loop; and
-- no receipt wait in the sign/broadcast runtime.
-
-The ERC-20 dependency bootstrap additionally preserves deferred systemd
-credential access, pre-credential transaction revalidation, post-signature
-transaction revalidation, loopback Chain-2050 broadcasting, total RPC deadline,
-and no automatic resubmission.
-
-## Truth boundary after this lane
-
-This lane sets only a **source-contract** fact:
+The retained route remains:
 
 ```text
-canonical_delivery_runtime_activation_configuration_contract_ready=true
+GET  /__void/operator/buy-void-delivery-runtime-v1/status
+POST /__void/operator/buy-void-delivery-runtime-v1/command
 ```
 
-It deliberately keeps:
+The command is now read-only planning only.
+
+Exact action:
 
 ```text
-canonical_delivery_runtime_activation_ready=false
-production_configuration_values_verified=false
-production_credential_binding_ready=false
-canonical_delivery_runtime_parent_mounted=false
-canonical_delivery_execution_ready=false
-presale_inventory_funding_ready=false
+plan_erc20_delivery
 ```
 
-The current parent blocker remains:
+Exact caller keys:
 
 ```text
-canonical_delivery_runtime_activation_not_ready
+action
+attempt_id
 ```
 
-That blocker must not be removed merely because the source contract exists.
-The next gate must verify the actual production configuration/binding intended
-for activation and separately authorize the parent mount. This lane does not
-read those production values or credentials.
+Any caller-supplied `plan`, `transaction_plan`, `nonce`, `gas_limit`,
+`max_fee_per_gas_wei`, `max_priority_fee_per_gas_wei`, `apply`, or any other
+extra command field is rejected before RPC planning.
 
-## Verification
+The runtime loads the reserved attempt from the server-controlled journal and
+calls the merged coherent-pending ERC-20 planner. The planner is therefore the
+only source of nonce/gas/fee transaction-plan material exposed by this route.
 
-The focused proof binds this source contract to the actual merged delivery
-runtime, ERC-20 dependency bootstrap, dependency-bootstrap integration gate, and
-canonical parent source. It fails if the env names, dependency global, fixed
-credential identity, authority requirements, prerequisite readiness, parent
-HOLD, or no-side-effect contract drift.
+The route performs no filesystem mutation, signing, transaction broadcast,
+submission-guard claim, pipeline outcome write, inventory mutation, or money
+movement.
 
-The Node 22/24/26 workflow also reruns the existing dependency-bootstrap,
-canonical composition/execution-HOLD, runtime-guard, repository typecheck, and
-build walls.
+## Planner policy
+
+Production planning requires the existing server-controlled delivery caps:
+
+```text
+VOID_BUY_VOID_DELIVERY_CHAIN_ID
+VOID_BUY_VOID_DELIVERY_TOKEN_ADDRESS
+VOID_BUY_VOID_DELIVERY_WALLET_ADDRESS
+VOID_BUY_VOID_DELIVERY_MAX_AMOUNT_UNITS
+VOID_BUY_VOID_DELIVERY_MAX_GAS_LIMIT
+VOID_BUY_VOID_DELIVERY_MAX_FEE_PER_GAS_WEI
+VOID_BUY_VOID_DELIVERY_MAX_PRIORITY_FEE_PER_GAS_WEI
+```
+
+The planner reuses the existing numeric-loopback Chain-2050 RPC setting:
+
+```text
+VOID_BUY_VOID_NATIVE_CHAIN2050_RPC_URL
+```
+
+and fixed source-reviewed safety multipliers:
+
+```text
+gas_limit_multiplier_bps=12000
+fee_multiplier_bps=12000
+```
+
+The operator still controls hard gas/fee/amount caps. The fixed multipliers avoid
+creating another production fee-policy surface solely for this transition.
+
+The runtime remains disabled unless:
+
+```text
+VOID_BUY_VOID_DELIVERY_RUNTIME_INTEGRATION_ENABLED=1
+```
+
+and its root remains server-controlled through:
+
+```text
+VOID_BUY_VOID_RUNTIME_DIR
+```
+
+Neither should be changed merely because this source repair merges.
+
+## What this closes
+
+This repair proves an activated copy of this retained route cannot sign or
+broadcast a transaction whose nonce/gas/fee plan originated in the request
+body.
+
+It also makes the next missing capability explicit:
+
+```text
+erc20_durable_prepared_transaction_composition
+```
+
+## What remains before activation
+
+The existing native prepared-transaction stack already provides the primitives
+that must be reused:
+
+- wallet-scoped durable nonce reservation;
+- concurrent-attempt collision safety;
+- live pre-sign nonce revalidation and nonce-drift HOLD;
+- opaque external signing custody;
+- crash-recoverable signed-transaction binding;
+- submit-once / inspect-only broadcast reconciliation;
+- canonical execution/broadcast journals; and
+- terminal saga closeout.
+
+Those records are currently native-transaction-shaped. The next implementation
+must generalize/compose them for the exact ERC-20 transaction envelope:
+
+```text
+to    = VoidToken
+value = 0
+data  = transfer(delivery_address, token_amount_atoms)
+```
+
+with the coherent-pending preparation fingerprint bound into the durable
+reservation/custody record.
+
+Only after that composition is exact-green should the sequence continue to:
+
+1. production configuration verification;
+2. production credential binding verification;
+3. separately authorized parent/runtime mount; and
+4. independently authorized presale inventory funding.
 
 ## Authority boundary
 
-This lane performs no production environment read or mutation, credential read,
-filesystem write, runtime route mount, service start/restart, wallet access,
-RPC call, signing, broadcasting, inventory funding, treasury/liquidity action,
-or funds movement.
+This source lane does not deploy, restart, mount, enable, or configure a live
+service. It does not read credential contents, access a wallet, sign, broadcast,
+fund inventory, mutate treasury/liquidity, or move funds.
 
-`PROTECT THE CORE`. `PROTECT THE TRUTH`.
+`PROTECT THE CORE`.
+`PROTECT THE TRUTH`.
+`FINISH THE CAPABILITY BEFORE ACTIVATION`.
