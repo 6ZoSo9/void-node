@@ -740,6 +740,123 @@ async function truncateAndSyncFile(
   }
 }
 
+async function readClosedActivationGeneration(
+  stateDir: string,
+  activation: VoidP2pTrustPolicyActivationRecordV1,
+  label: string,
+): Promise<VoidP2pSignedTrustPolicyEnvelopeV1> {
+  const generationDir = path.join(
+    stateDir,
+    "generations",
+    activation.generation,
+  );
+  let generationInfo;
+  try {
+    generationInfo = await lstat(generationDir);
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") {
+      return hold(
+        "invalid_activation_journal",
+        `${label} retained generation is missing`,
+      );
+    }
+    throw error;
+  }
+  if (!generationInfo.isDirectory() || generationInfo.isSymbolicLink()) {
+    hold(
+      "invalid_activation_journal",
+      `${label} retained generation must be a real directory`,
+    );
+  }
+
+  const readClosedJson = async (
+    filename: string,
+  ): Promise<Readonly<{ raw: string; value: unknown }>> => {
+    const pathname = path.join(generationDir, filename);
+    let info;
+    try {
+      info = await lstat(pathname);
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === "ENOENT") {
+        return hold(
+          "invalid_activation_journal",
+          `${label} retained ${filename} is missing`,
+        );
+      }
+      throw error;
+    }
+    if (!info.isFile() || info.isSymbolicLink()) {
+      hold(
+        "invalid_activation_journal",
+        `${label} retained ${filename} must be a regular file`,
+      );
+    }
+    const raw = await readFile(pathname, "utf8");
+    try {
+      return Object.freeze({ raw, value: JSON.parse(raw) as unknown });
+    } catch {
+      return hold(
+        "invalid_activation_journal",
+        `${label} retained ${filename} is not valid JSON`,
+      );
+    }
+  };
+
+  const closedActivation = await readClosedJson("activation.json");
+  const parsedActivation = parseVoidP2pTrustPolicyActivationRecordV1(
+    closedActivation.value,
+    `${label}.activation`,
+  );
+  const activationCanonical = canonicalVoidP2pTrustJsonV1(
+    activation as unknown as JsonValue,
+  );
+  if (
+    closedActivation.raw !== `${activationCanonical}\n` ||
+    canonicalVoidP2pTrustJsonV1(
+      parsedActivation as unknown as JsonValue,
+    ) !== activationCanonical
+  ) {
+    hold(
+      "invalid_activation_journal",
+      `${label} does not exactly match its retained activation.json`,
+    );
+  }
+
+  const closedEnvelope = await readClosedJson("policy-envelope.json");
+  const envelope = parseVoidP2pSignedTrustPolicyEnvelopeV1(
+    closedEnvelope.value,
+  );
+  const envelopeCanonical = canonicalVoidP2pTrustJsonV1(
+    envelope as unknown as JsonValue,
+  );
+  if (closedEnvelope.raw !== `${envelopeCanonical}\n`) {
+    hold(
+      "invalid_activation_journal",
+      `${label} retained policy envelope is not canonical`,
+    );
+  }
+  const policyCanonical = canonicalVoidP2pTrustJsonV1(
+    envelope.policy as unknown as JsonValue,
+  );
+  if (
+    envelope.policy.network_id !== activation.network_id ||
+    envelope.policy.epoch !== activation.epoch ||
+    sha256Hex(policyCanonical) !== activation.policy_sha256 ||
+    sha256Hex(envelopeCanonical) !== activation.envelope_sha256 ||
+    canonicalVoidP2pTrustJsonV1(
+      envelope.signatures.map((signature) => signature.key_id) as unknown as JsonValue,
+    ) !== canonicalVoidP2pTrustJsonV1(
+      activation.signer_key_ids as unknown as JsonValue,
+    )
+  ) {
+    hold(
+      "invalid_activation_journal",
+      `${label} does not match its retained signed policy envelope`,
+    );
+  }
+  return envelope;
+}
+
 async function ensureActivationJournalRecord(
   stateDir: string,
   activation: VoidP2pTrustPolicyActivationRecordV1,
@@ -747,6 +864,11 @@ async function ensureActivationJournalRecord(
   const journalPath = path.join(stateDir, "activation.ndjson");
   const expected = canonicalVoidP2pTrustJsonV1(
     activation as unknown as JsonValue,
+  );
+  const activeEnvelope = await readClosedActivationGeneration(
+    stateDir,
+    activation,
+    "active activation",
   );
   let raw = "";
   try {
@@ -772,6 +894,7 @@ async function ensureActivationJournalRecord(
 
   const lines = completeRaw ? completeRaw.slice(0, -1).split("\n") : [];
   let previousEpoch = 0n;
+  let previousPolicySha256: string | undefined;
   let exactMatches = 0;
   for (const [index, line] of lines.entries()) {
     let parsedValue: unknown;
@@ -809,7 +932,31 @@ async function ensureActivationJournalRecord(
         "activation journal epochs must be strictly increasing",
       );
     }
+    const durableEnvelope = await readClosedActivationGeneration(
+      stateDir,
+      parsed,
+      `activation journal line ${index + 1}`,
+    );
+    if (index === 0) {
+      if (
+        epoch !== 1n ||
+        durableEnvelope.policy.previous_policy_sha256 !== undefined
+      ) {
+        hold(
+          "invalid_activation_journal",
+          "activation journal must begin with the retained genesis policy",
+        );
+      }
+    } else if (
+      durableEnvelope.policy.previous_policy_sha256 !== previousPolicySha256
+    ) {
+      hold(
+        "invalid_activation_journal",
+        `activation journal line ${index + 1} breaks the retained policy predecessor chain`,
+      );
+    }
     previousEpoch = epoch;
+    previousPolicySha256 = parsed.policy_sha256;
     if (line === expected) exactMatches += 1;
     else if (parsed.epoch === activation.epoch) {
       hold(
@@ -837,6 +984,20 @@ async function ensureActivationJournalRecord(
       "invalid_activation_journal",
       "activation journal history is required after epoch 1",
     );
+  }
+  if (exactMatches === 0) {
+    if (
+      activeEpoch === 1n
+        ? lines.length !== 0 ||
+          activeEnvelope.policy.previous_policy_sha256 !== undefined
+        : previousPolicySha256 === undefined ||
+          activeEnvelope.policy.previous_policy_sha256 !== previousPolicySha256
+    ) {
+      hold(
+        "invalid_activation_journal",
+        "active generation does not extend the retained journal predecessor chain",
+      );
+    }
   }
   if (tornTail !== null) {
     if (
