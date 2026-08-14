@@ -285,6 +285,75 @@ try {
   });
 }
 
+
+async function runErc20MimeFixture(contentType: string) {
+  const fixtureServer = http.createServer((request, response) => {
+    const chunks: Buffer[] = [];
+    request.on("data", (chunk: Buffer) => chunks.push(chunk));
+    request.on("end", () => {
+      const body = JSON.parse(Buffer.concat(chunks).toString("utf8"));
+      response.statusCode = 200;
+      response.setHeader("content-type", contentType);
+      const resultByMethod: Record<string, string> = {
+        eth_chainId: "0x802",
+        eth_getTransactionCount: "0x7",
+        eth_gasPrice: "0x64",
+        eth_estimateGas: "0xc350",
+        eth_getBalance: "0x989680",
+      };
+      response.end(JSON.stringify({
+        jsonrpc: "2.0",
+        id: body.id,
+        result: resultByMethod[body.method],
+      }));
+    });
+  });
+  await new Promise<void>((resolve, reject) => {
+    fixtureServer.once("error", reject);
+    fixtureServer.listen(0, "127.0.0.1", resolve);
+  });
+  try {
+    const address = fixtureServer.address();
+    assert.ok(address && typeof address === "object");
+    return await runBuyVoidErc20TransactionPreparationPlannerV1({
+      attempt: attempt(),
+      policy: {
+        ...policy(),
+        rpc_url: `http://127.0.0.1:${address.port}/rpc`,
+        request_timeout_ms: 1_000,
+      },
+    });
+  } finally {
+    await new Promise<void>((resolve, reject) =>
+      fixtureServer.close((error) =>
+        error ? reject(error) : resolve(),
+      ),
+    );
+  }
+}
+
+const erc20ParameterizedJson = await runErc20MimeFixture(
+  "Application/JSON; charset=UTF-8",
+);
+assert.equal(erc20ParameterizedJson.ok, true);
+
+for (const deceptiveMime of [
+  "application/jsonp",
+  "text/plain; profile=application/json",
+]) {
+  const decision = await runErc20MimeFixture(deceptiveMime);
+  assert.equal(decision.ok, false);
+  if (!("reason" in decision)) {
+    throw new Error("deceptive ERC20 MIME fixture must hold");
+  }
+  assert.equal(String(decision.reason), "rpc_call_failed");
+  assert.deepEqual(decision.rpc_methods_used, ["eth_chainId"]);
+  assert.equal(decision.mutation_performed, false);
+  assert.equal(decision.signing_performed, false);
+  assert.equal(decision.transaction_broadcast_performed, false);
+  assert.equal(decision.money_movement_performed, false);
+}
+
 const prematureCloseServer = http.createServer((request, response) => {
   request.resume();
   request.on("end", () => {
@@ -499,6 +568,8 @@ console.log("gas_only_native_balance_accounting=true");
 console.log("rpc_inactivity_timeout_enforced=true");
 console.log("rpc_total_deadline_enforced=true");
 console.log("premature_response_close_hold=1");
+console.log("exact_json_media_type_enforced=true");
+console.log("deceptive_json_content_type_rejected=true");
 console.log("mutation_performed=false");
 console.log("wallet_access=false");
 console.log("signing_performed=false");

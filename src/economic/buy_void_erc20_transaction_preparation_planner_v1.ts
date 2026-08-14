@@ -475,8 +475,11 @@ function createHttpTransport(
             }
             const contentType = String(
               response.headers["content-type"] || "",
-            ).toLowerCase();
-            if (!contentType.includes("application/json")) {
+            )
+              .toLowerCase()
+              .split(";", 1)[0]
+              ?.trim() || "";
+            if (contentType !== "application/json") {
               finish(
                 new Error("erc20_transaction_preparation_response_not_json"),
               );

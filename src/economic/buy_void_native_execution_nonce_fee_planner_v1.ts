@@ -448,8 +448,11 @@ export function createBuyVoidNativeExecutionPlannerHttpTransportV1():
             const httpStatus = Number(response.statusCode || 0);
             const contentType = String(
               response.headers["content-type"] || "",
-            ).toLowerCase();
-            if (!contentType.includes("application/json")) {
+            )
+              .toLowerCase()
+              .split(";", 1)[0]
+              ?.trim() || "";
+            if (contentType !== "application/json") {
               finish({
                 ok: false,
                 error_code: "response_content_type_invalid",

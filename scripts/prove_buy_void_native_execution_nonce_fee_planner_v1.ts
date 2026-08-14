@@ -379,6 +379,69 @@ try {
   });
 }
 
+
+async function runNativeMimeFixture(
+  contentType: string,
+  requestId: number,
+) {
+  const fixtureServer = http.createServer((request, response) => {
+    const chunks: Buffer[] = [];
+    request.on("data", (chunk: Buffer) => chunks.push(chunk));
+    request.on("end", () => {
+      const body = JSON.parse(Buffer.concat(chunks).toString("utf8"));
+      response.statusCode = 200;
+      response.setHeader("content-type", contentType);
+      response.end(JSON.stringify({
+        jsonrpc: "2.0",
+        id: body.id,
+        result: "0x802",
+      }));
+    });
+  });
+  await new Promise<void>((resolve, reject) => {
+    fixtureServer.once("error", reject);
+    fixtureServer.listen(0, "127.0.0.1", resolve);
+  });
+  try {
+    const address = fixtureServer.address();
+    assert.ok(address && typeof address === "object");
+    const transport =
+      createBuyVoidNativeExecutionPlannerHttpTransportV1();
+    return await transport({
+      rpc_url: `http://127.0.0.1:${address.port}/rpc`,
+      method: "eth_chainId",
+      params: [],
+      request_id: requestId,
+      request_timeout_ms: 1_000,
+      max_response_bytes: 65_536,
+    });
+  } finally {
+    await new Promise<void>((resolve, reject) =>
+      fixtureServer.close((error) =>
+        error ? reject(error) : resolve(),
+      ),
+    );
+  }
+}
+
+const nativeParameterizedJson = await runNativeMimeFixture(
+  "Application/JSON; charset=UTF-8",
+  71,
+);
+assert.equal(nativeParameterizedJson.ok, true);
+
+for (const deceptiveMime of [
+  "application/jsonp",
+  "text/plain; profile=application/json",
+]) {
+  const decision = await runNativeMimeFixture(deceptiveMime, 72);
+  assert.equal(decision.ok, false);
+  if (!("error_code" in decision)) {
+    throw new Error("deceptive native MIME fixture must hold");
+  }
+  assert.equal(decision.error_code, "response_content_type_invalid");
+}
+
 const prematureCloseServer = http.createServer((request, response) => {
   request.resume();
   request.on("end", () => {
@@ -438,6 +501,8 @@ console.log("rpc_inactivity_timeout_enforced=1");
 console.log("rpc_total_deadline_enforced=1");
 console.log("slow_drip_total_deadline_hold=1");
 console.log("premature_response_close_hold=1");
+console.log("exact_json_media_type_enforced=1");
+console.log("deceptive_json_content_type_rejected=1");
 console.log("fee_source=eth_gasPrice_bounded_multiplier");
 console.log("balance_preflight=1");
 console.log("loopback_http_only=1");
