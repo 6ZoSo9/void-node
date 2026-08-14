@@ -92,16 +92,28 @@ assert.equal(
 );
 
 const parent = buyVoidRuntimeStatusV1();
-assert.ok(
+assert.equal(
   (parent.supported_actions as string[]).includes(
     VOID_BUY_VOID_SAGA_EXECUTE_PREPARED_TRANSACTION_RUNTIME_ACTION_V1,
   ),
+  false,
 );
-assert.ok(parent.saga_execute_prepared_transaction_runtime);
+assert.equal(
+  Object.prototype.hasOwnProperty.call(
+    parent,
+    "saga_execute_prepared_transaction_runtime",
+  ),
+  false,
+);
+assert.equal(
+  (parent.canonical_delivery as any)
+    .opaque_prepared_transaction_execution_parent_mounted,
+  false,
+);
 assert.equal(
   (parent.authority as any)
     .delegated_transaction_broadcast_possible_when_execution_runtime_enabled,
-  true,
+  false,
 );
 assert.equal((parent.authority as any).transaction_broadcast, false);
 
@@ -421,7 +433,9 @@ assert.equal(inspectCalls, 0);
 console.log(
   "VOID_BUY_VOID_SAGA_EXECUTE_PREPARED_TRANSACTION_RUNTIME_V1_PROOF_GREEN",
 );
-console.log("parent_runtime_action_registered=true");
+console.log("standalone_execute_runtime_source_retained=true");
+console.log("canonical_parent_execute_mount=false");
+console.log("canonical_parent_execute_dispatch=false");
 console.log("operator_loopback_only=true");
 console.log("server_controlled_root_dir=true");
 console.log("server_controlled_broadcaster_socket=true");
