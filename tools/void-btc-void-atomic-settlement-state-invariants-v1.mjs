@@ -42,17 +42,21 @@ const TRANSITIONS = Object.freeze({
   }),
   SOURCE_FUNDED: Object.freeze({
     CONFIRM_SOURCE_FUNDING: "SOURCE_CONFIRMED",
-    OBSERVE_REFUND: "REFUNDED",
+    OBSERVE_SOURCE_REFUND: "REFUNDED",
     HOLD: "HELD",
   }),
   SOURCE_CONFIRMED: Object.freeze({
     OBSERVE_COUNTERPARTY_LOCK: "COUNTERPARTY_LOCKED",
-    OBSERVE_REFUND: "REFUNDED",
+    OBSERVE_SOURCE_REFUND: "REFUNDED",
     HOLD: "HELD",
   }),
   COUNTERPARTY_LOCKED: Object.freeze({
     OBSERVE_PREIMAGE_REVEAL: "PREIMAGE_REVEALED",
-    OBSERVE_REFUND: "REFUNDED",
+    OBSERVE_COUNTERPARTY_REFUND: "REFUND_PENDING_SOURCE",
+    HOLD: "HELD",
+  }),
+  REFUND_PENDING_SOURCE: Object.freeze({
+    OBSERVE_SOURCE_REFUND: "REFUNDED",
     HOLD: "HELD",
   }),
   PREIMAGE_REVEALED: Object.freeze({
@@ -203,7 +207,7 @@ function validateContract(raw) {
   return contract;
 }
 
-function validateEvent(raw, index, contractId) {
+function validateEvent(raw, index, contract) {
   const label = `events[${index}]`;
   const event = exactKeys(
     structuredClone(raw),
@@ -213,13 +217,31 @@ function validateEvent(raw, index, contractId) {
       "event_type",
       "from_phase",
       "to_phase",
+      "refund_asset_role",
       "evidence_id",
       "event_id",
     ],
     label,
   );
   if (event.schema !== EVENT_SCHEMA) throw new Error(`${label}.schema mismatch`);
-  if (event.contract_id !== contractId) throw new Error(`${label}.contract_id mismatch`);
+  if (event.contract_id !== contract.contract_id) {
+    throw new Error(`${label}.contract_id mismatch`);
+  }
+  const sourceRefundRole =
+    contract.direction === "BTC_TO_VOID" ? "SOURCE_NATIVE_BTC" : "SOURCE_NATIVE_VOID";
+  const counterpartyRefundRole =
+    contract.direction === "BTC_TO_VOID"
+      ? "COUNTERPARTY_NATIVE_VOID"
+      : "COUNTERPARTY_NATIVE_BTC";
+  const expectedRefundRole =
+    event.event_type === "OBSERVE_SOURCE_REFUND"
+      ? sourceRefundRole
+      : event.event_type === "OBSERVE_COUNTERPARTY_REFUND"
+        ? counterpartyRefundRole
+        : "NOT_A_REFUND";
+  if (event.refund_asset_role !== expectedRefundRole) {
+    throw new Error(`${label}.refund_asset_role mismatch`);
+  }
   sha256Id(event.evidence_id, `${label}.evidence_id`);
   const { event_id: suppliedId, ...payload } = event;
   if (suppliedId !== contentId(payload)) throw new Error(`${label}.event_id content mismatch`);
@@ -240,7 +262,7 @@ export function evaluateBtcVoidAtomicSettlementTraceV1(raw) {
   if (request.events.length > MAX_EVENTS) throw new Error("events exceeds the v1 limit");
   const contract = validateContract(request.contract);
   const events = request.events.map((event, index) =>
-    validateEvent(event, index, contract.contract_id),
+    validateEvent(event, index, contract),
   );
 
   let phase = request.initial_phase;
@@ -297,6 +319,8 @@ export function evaluateBtcVoidAtomicSettlementTraceV1(raw) {
       terminal_states_cannot_reopen: true,
       every_transition_receipt_backed: true,
       distinct_transitions_require_distinct_receipts: true,
+      refund_receipts_bind_explicit_native_asset_roles: true,
+      both_locked_refund_requires_both_asset_resolutions: true,
       no_automatic_retry: true,
     },
     authority: {
