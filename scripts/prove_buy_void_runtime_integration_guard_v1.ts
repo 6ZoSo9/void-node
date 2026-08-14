@@ -74,10 +74,9 @@ for (const marker of [
   "native_transaction_preparation_parent_mounted: false",
   "opaque_prepared_transaction_execution_parent_mounted: false",
   "erc20_transaction_preparation_bridge_ready: false",
-  "erc20_receipt_reconciliation_bridge_ready: false",
+  "erc20_receipt_reconciliation_bridge_ready: true",
   "presale_inventory_funding_ready: false",
   '"erc20_transaction_preparation_bridge_not_mounted"',
-  '"erc20_delivery_receipt_reconciliation_bridge_not_mounted"',
   'remote === "127.0.0.1"',
   'remote === "::1"',
   'remote === "::ffff:127.0.0.1"',
@@ -98,6 +97,12 @@ need(
     '"erc20_fulfillment_unit_to_token_atom_scale_not_ready"',
   ),
   "resolved ERC-20 unit-scale blocker remains in funding blockers",
+);
+need(
+  !moduleText.includes(
+    '"erc20_delivery_receipt_reconciliation_bridge_not_mounted"',
+  ),
+  "resolved ERC-20 receipt-reconciliation blocker remains in funding blockers",
 );
 need(
   !/from "\.\/buy_void_delivery_runtime_integration_v1\.js";/.test(moduleText),

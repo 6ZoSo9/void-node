@@ -66,12 +66,11 @@ server-controlled, exact-green answers for the remaining execution dependencies,
 including:
 
 - canonical signer/broadcaster dependency bootstrap;
-- exact fulfillment-unit to token-atom semantics;
-- an ERC-20 transaction-preparation bridge; and
-- an ERC-20 receipt-reconciliation bridge validating the confirmed
-  `VoidToken.Transfer` before terminal closeout.
+- an ERC-20 transaction-preparation bridge.
 
 Those gates are independent. Closing one does not imply the others are ready.
+
+Closed source gates now include exact 6-decimal fulfillment-unit to 18-decimal token-atom scaling and a standalone read-only ERC-20 receipt reconciler that requires the exact confirmed `VoidToken.Transfer` event. The reconciler remains parent-unmounted and performs no terminal closeout.
 
 ## Funding HOLD
 

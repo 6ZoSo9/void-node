@@ -158,7 +158,7 @@ assert.equal(
 assert.equal(
   parentStatus.body.canonical_delivery
     .erc20_receipt_reconciliation_bridge_ready,
-  false,
+  true,
 );
 assert.equal(
   parentStatus.body.canonical_delivery.presale_inventory_funding_ready,
@@ -168,7 +168,6 @@ assert.deepEqual(
   parentStatus.body.canonical_delivery.funding_blockers,
   [
     "erc20_transaction_preparation_bridge_not_mounted",
-    "erc20_delivery_receipt_reconciliation_bridge_not_mounted",
     "canonical_delivery_dependency_bootstrap_not_ready",
   ],
 );
