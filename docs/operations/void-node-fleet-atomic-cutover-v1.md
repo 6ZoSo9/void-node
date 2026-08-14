@@ -25,7 +25,9 @@ A plan can be ready only when all of these remain exact:
    argv is exact: immutable process-source marker, commit/tree/main conditions,
    repo-local TSX preflight/loader, and `<repo>/src/index.ts`, with no extra
    application arguments;
-6. `/version.process_source` reproduces that immutable commit/tree/main identity;
+6. the process-source commit resolves to the claimed Git tree, remains an
+   ancestor of the checked-out source, and `/version.process_source` reproduces
+   that immutable commit/tree/main identity;
 7. a detached clean staged worktree remains at the exact target and shares the
    live repository's Git common directory before and after all target proofs; and
 8. all three reviewed target proofs pass:
