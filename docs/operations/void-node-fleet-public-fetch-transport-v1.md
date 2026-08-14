@@ -30,6 +30,24 @@ V1 therefore derives a non-secret `repository_identity_sha256` from both the can
 
 An unchanged selected repository produces a stable identity and plan. Two otherwise byte/state-identical clones at different filesystem locations produce different plan IDs, and replacing a repository with a state-identical copy at the same canonical path also changes the identity. Applying a confirmed plan to either another clone or a same-path replacement therefore fails before any dedicated-remote mutation.
 
+## Git repository-selection environment boundary
+
+`--repo` must identify the repository that every Git inspection and local config write actually uses. Git environment variables can otherwise override or partially redirect that selection even when commands use `git -C <repo>`.
+
+V1 therefore fails closed before Git inspection or evidence-output reservation when any of these repository-selection/scope variables are present in the caller environment:
+
+- `GIT_DIR`;
+- `GIT_WORK_TREE`;
+- `GIT_INDEX_FILE`;
+- `GIT_COMMON_DIR`;
+- `GIT_OBJECT_DIRECTORY`;
+- `GIT_ALTERNATE_OBJECT_DIRECTORIES`; or
+- `GIT_NAMESPACE`.
+
+The tool reports only the variable names, never their values. It does not silently scrub them because a caller that intentionally selected a different repository/index/object namespace should first return to a normal shell and collect fresh evidence rather than have that ambient state ignored.
+
+This boundary deliberately does **not** disable ordinary Git configuration discovery. Global/system configuration remains visible so the existing `url.<base>.insteadOf` and inherited non-local-remote checks continue to detect effective URL redirection. The deterministic proof uses two repositories to show that `GIT_DIR` redirection makes both dry-run and confirmed apply HOLD before receipt creation or `void-public-fetch` mutation, and it exercises every listed environment variable through the direct inspection API.
+
 ## Effective dedicated fetch boundary
 
 The dedicated remote must be locally owned by this tool. A `remote.void-public-fetch.url` or `pushurl` inherited from non-local Git configuration is rejected rather than silently combined with the local configuration this tool manages.
@@ -58,7 +76,7 @@ This boundary applies to both dry-run and apply. A dry-run receipt cannot make t
 
 Dry run is the default and performs no Git or repository mutation. When `--output` is supplied, it may create one mode-0600 evidence file only at a validated outside-repository path.
 
-The repository must be an ordinary working tree on exact branch `main`, with no merge/rebase/cherry-pick/revert/sequencer/index-lock operation in progress and with the canonical repository prerequisite above satisfied. A dirty worktree is allowed because the tool does not touch tracked or untracked files; exact selected-worktree identity, status/index/ref evidence, and repository content identity are bound into the plan instead.
+The repository must be an ordinary working tree on exact branch `main`, with no merge/rebase/cherry-pick/revert/sequencer/index-lock operation in progress, no forbidden repository-selection Git environment, and with the canonical repository prerequisite above satisfied. A dirty worktree is allowed because the tool does not touch tracked or untracked files; exact selected-worktree identity, status/index/ref evidence, and repository content identity are bound into the plan instead.
 
 The result is `READY_TO_APPLY` when the dedicated remote is absent or misconfigured, or `ALREADY_ALIGNED` when its stored and effective fetch URL plus push URL are all exact.
 
@@ -70,7 +88,7 @@ Apply is bounded to the dedicated remote's local fetch and push configuration. A
 
 ## Paste-safe operator journey
 
-The intended operator journey is dry-run evidence first, then one exact confirmation if mutation is required, then a read-only post-state check. Run this from a shell that can execute the checked-in repository tool:
+The intended operator journey is dry-run evidence first, then one exact confirmation if mutation is required, then a read-only post-state check. Run this from a normal shell whose Git repository-selection environment is unset; if such ambient variables are present, the checked-in tool returns `HOLD` before creating evidence or touching Git config.
 
 ```bash
 set -euo pipefail
@@ -141,4 +159,4 @@ Run the deterministic proof with:
 node scripts/prove_void_node_fleet_public_fetch_transport_v1.mjs
 ```
 
-The proof uses temporary Git repositories and an isolated temporary Git global-config file only. It covers canonical HTTPS and SSH origins; foreign/alternate-host/mixed/duplicate-origin rejection; origin and prospective-public-fetch `insteadOf` rewrite rejection; inherited non-local dedicated-remote rejection; selected-worktree identity binding across filesystem paths and repository objects; stable plan identity for an unchanged clone; cross-clone and same-path replacement plan-reuse rejection; missing and misconfigured dedicated remotes; exact confirmation; dirty-worktree preservation; origin/ref/index/HEAD/tree preservation; rejection of dry-run output inside the worktree; rejection of apply output inside Git administrative state before remote mutation; rejection of a pre-existing apply receipt before remote mutation; create-only mode-0600 outside-repository dry-run/apply receipts; receipt no-overwrite behavior; a fault-injected final receipt write after successful apply that must report `mutation_attempted=true` and `mutation_succeeded=true`; the actual CLI dry-run -> confirmed apply -> aligned rerun journey; idempotent rerun; wrong-plan and wrong-confirmation rejection; detached-HEAD rejection; public origin/path redaction; and negative service/runtime/fetch authority.
+The proof uses temporary Git repositories and an isolated temporary Git global-config file only. It covers canonical HTTPS and SSH origins; foreign/alternate-host/mixed/duplicate-origin rejection; origin and prospective-public-fetch `insteadOf` rewrite rejection; inherited non-local dedicated-remote rejection; rejection of repository-selection/alternate-object Git environment, including two-repository `GIT_DIR` dry-run/apply redirection attempts; selected-worktree identity binding across filesystem paths and repository objects; stable plan identity for an unchanged clone; cross-clone and same-path replacement plan-reuse rejection; missing and misconfigured dedicated remotes; exact confirmation; dirty-worktree preservation; origin/ref/index/HEAD/tree preservation; rejection of dry-run output inside the worktree; rejection of apply output inside Git administrative state before remote mutation; rejection of a pre-existing apply receipt before remote mutation; create-only mode-0600 outside-repository dry-run/apply receipts; receipt no-overwrite behavior; a fault-injected final receipt write after successful apply that must report `mutation_attempted=true` and `mutation_succeeded=true`; the actual CLI dry-run -> confirmed apply -> aligned rerun journey; idempotent rerun; wrong-plan and wrong-confirmation rejection; detached-HEAD rejection; public origin/path redaction; and negative service/runtime/fetch authority.
