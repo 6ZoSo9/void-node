@@ -100,8 +100,8 @@ function main(){
   emit({marker:VOID_NODE_FLEET_PUBLIC_FETCH_TRANSPORT_V1,version:1,outcome:r.outcome,plan:pub(r.plan),reasons:[],mutation_attempted:r.mutation_attempted,mutation_succeeded:r.mutation_succeeded,automatic_retry:false,authority:auth({git_config_mutation_attempted:r.mutation_attempted})},out);
  }catch(e){
   const m=e?.mutationAttempted===true,result={marker:VOID_NODE_FLEET_PUBLIC_FETCH_TRANSPORT_V1,version:1,outcome:'HOLD',error:String(e?.message||e),mutation_attempted:m,automatic_retry:false,authority:auth({git_config_mutation_attempted:m})};
-  try{emit(result,out);}catch{if(out?.fd!=null){try{closeSync(out.fd);}catch{}out.fd=null;}process.stdout.write(`${JSON.stringify(result,null,2)}\n`);}
+  try{emit(result,out);}catch{if(out?.fd!=null){try{closeSync(out.fd);}catch(closeError){void closeError;}out.fd=null;}process.stdout.write(`${JSON.stringify(result,null,2)}\n`);}
   process.exitCode=2;
- }finally{if(out?.fd!=null){try{closeSync(out.fd);}catch{}out.fd=null;}}
+ }finally{if(out?.fd!=null){try{closeSync(out.fd);}catch(closeError){void closeError;}out.fd=null;}}
 }
 if(process.argv[1]&&resolve(process.argv[1])===fileURLToPath(import.meta.url))main();
