@@ -85,7 +85,11 @@ export function createBuyVoidErc20Chain2050TotalDeadlineHttpTransportV1():
 
       return await new Promise<BuyVoidNativeChain2050JsonRpcCallResultV1>((resolve) => {
         let settled = false;
-        let sent = false;
+        // A mutating RPC becomes reconciliation-only once its transport attempt
+        // crosses this boundary; later socket evidence must never make it retry-safe.
+        let sent = input.method === "eth_sendRawTransaction";
+        let responseReceived = false;
+        let responseStatus: number | null = null;
         let deadlineExpired = false;
         let tooLarge = false;
         let timer: ReturnType<typeof setTimeout> | null = null;
@@ -106,15 +110,28 @@ export function createBuyVoidErc20Chain2050TotalDeadlineHttpTransportV1():
           headers: { "content-type": "application/json", "content-length": String(Buffer.byteLength(body, "utf8")) },
         }, (res) => {
           const status = Number(res.statusCode || 0);
-          if (status !== 200) { res.resume(); finish(held(input, "erc20_chain2050_transport_http_status_not_ok", sent, true, status || null)); return; }
+          responseReceived = true;
+          responseStatus = status || null;
+          if (status !== 200) {
+            res.destroy();
+            finish(held(input, "erc20_chain2050_transport_http_status_not_ok", sent, true, responseStatus));
+            return;
+          }
           if (!String(res.headers["content-type"] || "").toLowerCase().includes("application/json")) {
-            res.resume(); finish(held(input, "erc20_chain2050_transport_response_not_json", sent, true, 200)); return;
+            res.destroy();
+            finish(held(input, "erc20_chain2050_transport_response_not_json", sent, true, 200));
+            return;
           }
           const chunks: Buffer[] = [];
           let total = 0;
           res.on("data", (chunk: Buffer) => {
             total += chunk.length;
-            if (total > rpc.max_bytes) { tooLarge = true; req.destroy(new Error("response_too_large")); return; }
+            if (total > rpc.max_bytes) {
+              tooLarge = true;
+              res.destroy();
+              finish(held(input, failCode(), sent, true, 200));
+              return;
+            }
             chunks.push(chunk);
           });
           res.on("error", () => finish(held(input, failCode(), sent, true, 200)));
@@ -140,7 +157,9 @@ export function createBuyVoidErc20Chain2050TotalDeadlineHttpTransportV1():
           });
         });
         req.on("finish", () => { sent = true; });
-        req.on("error", () => finish(held(input, failCode(), sent)));
+        req.on("error", () =>
+          finish(held(input, failCode(), sent, responseReceived, responseStatus)),
+        );
         req.setTimeout(rpc.timeout_ms, () => req.destroy(new Error("request_inactivity_timeout")));
         timer = setTimeout(() => { deadlineExpired = true; req.destroy(new Error("total_deadline_exceeded")); }, rpc.timeout_ms);
         req.end(body);

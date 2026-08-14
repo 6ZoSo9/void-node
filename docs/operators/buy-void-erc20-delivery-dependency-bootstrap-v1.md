@@ -52,10 +52,14 @@ both:
 - socket inactivity timeout; and
 - one total wall-clock deadline through complete response-body consumption.
 
-The total deadline is not reset by slow-drip response bytes. Response bytes and
-request size are bounded, the RPC URL is loopback HTTP only, and the only
-methods accepted by this transport are `eth_chainId` and
-`eth_sendRawTransaction`.
+The total deadline is not reset by slow-drip response bytes. A terminal HTTP
+status or Content-Type rejection destroys the response before the caller is
+settled, so clearing the deadline cannot leave a rejected slow-drip socket
+alive. Once an `eth_sendRawTransaction` transport attempt begins, failures are
+conservatively reported as possibly submitted for reconciliation rather than
+made retry-safe. Response bytes and request size are bounded, the RPC URL is
+loopback HTTP only, and the only methods accepted by this transport are
+`eth_chainId` and `eth_sendRawTransaction`.
 
 The broadcaster independently parses the signed transaction before delegation
 and requires Chain 2050, the exact canonical token target, zero native value,
@@ -78,8 +82,10 @@ The focused proof:
 - invokes the broadcaster only with malformed local bytes and proves rejection
   happens before any chain probe or submission;
 - does not invoke a valid signing or valid broadcast path;
-- runs only a read-only `eth_chainId` slow-drip loopback response against the
-  built-in transport and requires the total deadline to terminate it; and
+- runs only read-only `eth_chainId` loopback fixtures against the built-in
+  transport, requiring the total deadline to terminate a 200/JSON slow drip;
+- proves non-200 and wrong-Content-Type slow-drip responses are rejected and
+  their underlying connections close within the configured bound; and
 - proves the canonical parent still reports
   `canonical_delivery_dependency_bootstrap_ready=false` and does not import
   this source module.

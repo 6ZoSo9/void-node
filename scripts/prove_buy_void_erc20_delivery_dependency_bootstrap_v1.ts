@@ -172,6 +172,12 @@ try {
     "error_code" in result ? result.error_code : "",
     "erc20_chain2050_transport_total_deadline_exceeded",
   );
+  assert.equal("request_sent" in result ? result.request_sent : false, true);
+  assert.equal(
+    "response_received" in result ? result.response_received : false,
+    true,
+  );
+  assert.equal("http_status" in result ? result.http_status : null, 200);
   assert.ok(slowDripChunks >= 2);
   assert.ok(elapsed >= timeoutMs - 40);
   assert.ok(elapsed < timeoutMs + 1_000);
@@ -183,6 +189,94 @@ try {
     });
   });
 }
+
+async function proveRejectedResponseClosesV1(
+  statusCode: number,
+  contentType: string,
+  expectedErrorCode: string,
+  requestId: number,
+): Promise<void> {
+  let responseStarted = false;
+  let responseClosedResolve: (() => void) | null = null;
+  const responseClosed = new Promise<void>((resolve) => {
+    responseClosedResolve = resolve;
+  });
+  const server = http.createServer((request, response) => {
+    request.resume();
+    request.on("end", () => {
+      responseStarted = true;
+      response.writeHead(statusCode, { "content-type": contentType });
+      response.write(" ");
+      const interval = setInterval(() => response.write(" "), 20);
+      response.on("close", () => {
+        clearInterval(interval);
+        responseClosedResolve?.();
+      });
+    });
+  });
+
+  await new Promise<void>((resolve, reject) => {
+    server.once("error", reject);
+    server.listen(0, "127.0.0.1", resolve);
+  });
+  try {
+    const address = server.address();
+    assert.ok(address && typeof address === "object");
+    const timeoutMs = 120;
+    const transport =
+      createBuyVoidErc20Chain2050TotalDeadlineHttpTransportV1();
+    const result = await transport.call({
+      rpc_url: `http://127.0.0.1:${address.port}/`,
+      method: "eth_chainId",
+      params: [],
+      request_id: requestId,
+      request_timeout_ms: timeoutMs,
+      max_response_bytes: 65_536,
+    });
+    assert.equal(result.ok, false);
+    assert.equal(
+      "error_code" in result ? result.error_code : "",
+      expectedErrorCode,
+    );
+    assert.equal("request_sent" in result ? result.request_sent : false, true);
+    assert.equal(
+      "response_received" in result ? result.response_received : false,
+      true,
+    );
+    assert.equal(
+      "http_status" in result ? result.http_status : null,
+      statusCode,
+    );
+    assert.equal(responseStarted, true);
+    const closedWithinBound = await Promise.race([
+      responseClosed.then(() => true),
+      new Promise<boolean>((resolve) =>
+        setTimeout(() => resolve(false), timeoutMs + 1_000),
+      ),
+    ]);
+    assert.equal(closedWithinBound, true);
+  } finally {
+    await new Promise<void>((resolve, reject) => {
+      server.close((error) => {
+        if (error) reject(error);
+        else resolve();
+      });
+    });
+  }
+}
+
+await proveRejectedResponseClosesV1(
+  503,
+  "application/json",
+  "erc20_chain2050_transport_http_status_not_ok",
+  92,
+);
+await proveRejectedResponseClosesV1(
+  200,
+  "text/plain",
+  "erc20_chain2050_transport_response_not_json",
+  93,
+);
 
 const parentSource = fs.readFileSync(
   path.join(
