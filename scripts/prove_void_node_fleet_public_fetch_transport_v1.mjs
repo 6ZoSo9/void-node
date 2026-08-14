@@ -279,6 +279,43 @@ try {
   assert.equal(git(cliRepo, 'remote', 'get-url', '--all', PUBLIC_FETCH_REMOTE_V1), PUBLIC_FETCH_URL_V1);
   assert.equal(git(cliRepo, 'remote', 'get-url', '--push', PUBLIC_FETCH_REMOTE_V1), PUBLIC_PUSH_URL_V1);
 
+  const receiptFailureRepo = makeRepo();
+  repos.push(receiptFailureRepo);
+  const receiptFailurePlanId = buildTransportPlanV1(inspectRepositoryTransportV1(receiptFailureRepo)).plan_id_sha256;
+  const receiptFaultModule = join(configRoot, 'fail-final-receipt-write.mjs');
+  writeFileSync(receiptFaultModule, `
+import fs from 'node:fs';
+import { syncBuiltinESMExports } from 'node:module';
+const originalWriteSync = fs.writeSync;
+let injected = false;
+fs.writeSync = function (...args) {
+  if (!injected && typeof args[0] === 'number') {
+    injected = true;
+    const error = new Error('proof injected final receipt write failure');
+    error.code = 'ENOSPC';
+    throw error;
+  }
+  return originalWriteSync.apply(fs, args);
+};
+syncBuiltinESMExports();
+`);
+  const receiptFailureOutput = join(configRoot, 'cli-post-apply-receipt-failure.json');
+  const receiptFailureCli = run(process.cwd(), process.execPath, [
+    '--import', receiptFaultModule,
+    tool, '--repo', receiptFailureRepo, '--output', receiptFailureOutput, '--apply',
+    '--confirm-operation', VOID_NODE_FLEET_PUBLIC_FETCH_TRANSPORT_APPLY_V1,
+    '--confirm-plan-id', receiptFailurePlanId,
+  ], 2);
+  const receiptFailureResult = JSON.parse(receiptFailureCli.stdout);
+  assert.equal(receiptFailureResult.outcome, 'HOLD');
+  assert.equal(receiptFailureResult.mutation_attempted, true);
+  assert.equal(receiptFailureResult.mutation_succeeded, true);
+  assert.equal(receiptFailureResult.authority.git_config_mutation_attempted, true);
+  assert.match(receiptFailureResult.error, /post-apply evidence receipt failed after transport configuration; fresh inspection required/);
+  assert.match(receiptFailureResult.error, /proof injected final receipt write failure/);
+  assert.equal(inspectRepositoryTransportV1(receiptFailureRepo).dedicated_state, 'ALIGNED');
+  assertPrivateReceipt(receiptFailureOutput, receiptFailureResult);
+
   const alignedOutput = join(configRoot, 'cli-aligned-result.json');
   const alignedCli = run(process.cwd(), process.execPath, [tool, '--repo', cliRepo, '--output', alignedOutput]);
   const alignedResult = JSON.parse(alignedCli.stdout);
@@ -306,6 +343,8 @@ try {
   console.log('unsafe_worktree_output_rejected=true');
   console.log('unsafe_git_dir_output_rejected=true');
   console.log('preexisting_apply_output_rejected_before_mutation=true');
+  console.log('post_apply_receipt_failure_truth_preserved=true');
+  console.log('post_apply_receipt_failure_requires_fresh_inspection=true');
   console.log('operator_receipt_mode_0600=true');
   console.log('operator_receipt_create_only=true');
   console.log('operator_cli_journey_proven=true');
