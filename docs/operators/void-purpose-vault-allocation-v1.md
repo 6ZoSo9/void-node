@@ -63,20 +63,74 @@ existing 126-validator bootstrap stake allocation from 126,000 VOID to the
 and authorities are separately reviewed and approved, those deltas would come
 from `VoidTreasury`, leaving the target core reserve at 307,073,333 VOID.
 
-Historical Buy VOID execution artifacts are not automatically counted as
-current custody. The current canonical Chain-2050 state reconciles its entire
-333,333,333 VOID supply to `VoidTreasury` plus `UpgradeStaking`. Any historical
-artifact produced against a superseded or separately recovered runtime state
-must be reconciled to the canonical state before it can change this ledger.
+## Historical Buy VOID owner-test and recovery accounting
+
+Historical Buy VOID execution artifacts are chronology evidence, not additional
+current custody. The retained canonical Chain-2050 state already reconciles the
+entire 333,333,333 VOID supply to `VoidTreasury` plus `UpgradeStaking`.
+
+The owner confirmed on 2026-08-14 that the two historical fulfillment episodes
+were VOID operator/test canaries, not third-party customer purchases:
+
+1. **Legacy 25 USDC / 2,500 VOID test family**
+   - the Ethereum USDC payment is proven;
+   - the historical 2,500-VOID delivery is proven;
+   - the owner classifies the episode as `SUPERSEDED_BY_RECOVERY`;
+   - current customer liability is zero; and
+   - no refund or current-canonical re-delivery is due.
+
+2. **Guarded 102.46 VOID test family**
+   - the Base 25.24-USDC payment for 50.48 VOID is proven;
+   - the Ethereum 25.99-USDC payment for 51.98 VOID is proven;
+   - both historical VOID deliveries are proven;
+   - the owner classifies the episode as `SUPERSEDED_BY_RECOVERY`;
+   - current customer liability is zero; and
+   - no refund or current-canonical re-delivery is due.
+
+The deduplicated historical external-delivery amount is 2,602.46 VOID. It is
+retained as cross-recovery test history only. It contributes zero VOID to the
+current supply equation and reserves zero current presale capacity. No automatic
+re-fulfillment is authorized or required by these historical test records.
+
+## Fresh presale liability and capacity evidence
+
+A read-only operator packet captured at `2026-08-14T09:35:55Z` bound the
+effective Buy VOID fulfillment-wallet public address, reread Chain-2050 at block
+37371, and independently reproduced the runtime sale-state calculation from the
+authoritative request/operator ledgers.
+
+The packet proved:
+
+| Current Buy VOID accounting | Value |
+| --- | ---: |
+| Gross presale inventory | 10,000,000 VOID |
+| Current `payment_verified` reserved inventory | 2 VOID |
+| Exact remaining uncommitted inventory | 9,999,998 VOID |
+| Verified/raised USDC represented by that reservation | 1 USDC |
+| Sold out | false |
+
+The runtime sale state matches the authoritative ledgers exactly. The effective
+fulfillment wallet `0xc884f631c3881b8b672bfcbf019c856146cd7f73`
+was bound from the public systemd environment and held 0 VOID at the fixed
+snapshot. Every named balance in the packet summed exactly to the
+333,333,333-VOID total supply. The historical delivery receipts are absent from
+the retained current Chain-2050 RPC, consistent with their superseded recovery
+classification.
+
+The packet and owner disposition together close issue #1267's accounting-evidence
+boundary. They do not authorize a reservation write, fulfillment, funding,
+transaction, or any other economic mutation.
 
 ## Purpose boundaries
 
 `PresaleInventoryVault` is the complete finite Buy VOID inventory. It may serve
 only the 10,000,000 VOID, $0.50-per-VOID, buy-only presale under verified
 payment, duplicate protection, exact buyer binding, append-only allocation,
-and terminal fulfillment receipt rules. It is not a trading wallet. Formal
-presale closeout permanently disables new intake and fulfillment; the presale
-wallet is never reused as the BTC/VOID market wallet.
+and terminal fulfillment receipt rules. Current uncommitted capacity is
+9,999,998 VOID at the evidence snapshot above; it must be recomputed from
+authoritative live state before any later value-bearing action. It is not a
+trading wallet. Formal presale closeout permanently disables new intake and
+fulfillment; the presale wallet is never reused as the BTC/VOID market wallet.
 
 `BTCVoidMarketVault` is separate post-presale native VOID inventory for exactly
 one official market pair: native BTC/native Chain-2050 VOID. It has no USDC,
@@ -134,7 +188,8 @@ to invent another purpose.
 ## Authority boundary
 
 No wallet, signer, transaction, treasury transfer, validator top-up, or fund
-movement is authorized by this document. Contract deployment, address binding,
+movement is authorized by this document. No reservation write or automatic
+re-fulfillment is authorized either. Contract deployment, address binding,
 signer policy, bytecode review, transaction construction, signing, broadcast,
 and post-state evidence remain separate gates under ZoSo's explicit authority.
 

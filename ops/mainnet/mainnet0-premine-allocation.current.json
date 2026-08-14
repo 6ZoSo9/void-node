@@ -3,10 +3,18 @@
   "status": "reconciled",
   "chain_id": 2050,
   "observed_block": 37371,
+  "observed_block_hash": "0xe254ecdee2702154d915ca9d5894ef6693f6efb07fdcb789a24ed3a39b455865",
   "void_token": "0x470075B85352Eb86F7d089FB9ba88945f12AAd94",
   "decimals": 18,
   "total_supply_void": "333333333",
   "total_supply_atomic": "333333333000000000000000000",
+  "reconciliation_scope": {
+    "current_chain_custody": "reconciled",
+    "validator_bootstrap": "reconciled",
+    "historical_buy_void": "reconciled_owner_test_canaries_superseded_by_recovery",
+    "presale_liability": "reconciled_runtime_sale_state",
+    "issue_1267_evidence_complete": true
+  },
   "current_nonzero_holders": [
     {
       "label": "VoidTreasury",
@@ -69,10 +77,120 @@
     "ops_treasury_lifetime_in_void": "126000",
     "ops_treasury_lifetime_out_void": "126000"
   },
+  "historical_buy_void_reconciliation": {
+    "classification": "cross_recovery_owner_test_canary_history_not_current_chain_custody",
+    "owner_disposition_recorded_on": "2026-08-14",
+    "canonical_retained_history_contains_listed_external_delivery_txs": false,
+    "canonical_current_chain_external_buy_void_distribution_void": "0",
+    "artifacts": [
+      {
+        "sequence": 1,
+        "family": "legacy_25_usdc_2500_void_test",
+        "classification": "owner_test_canary_superseded_by_recovery",
+        "payment_proven": true,
+        "payment_network": "ethereum",
+        "payment_asset": "ethereum_native_usdc",
+        "payment_amount_usdc": "25",
+        "void_amount": "2500",
+        "historical_delivery_proven": true,
+        "owner_test_canary": true,
+        "disposition": "SUPERSEDED_BY_RECOVERY",
+        "current_customer_liability": false,
+        "refund_due": false,
+        "current_canonical_redelivery_due": false,
+        "present_in_current_canonical_retained_history": false,
+        "automatic_refulfillment_authorized": false
+      },
+      {
+        "sequence": 2,
+        "family": "guarded_102_46_void_test",
+        "classification": "owner_test_canary_superseded_by_recovery",
+        "payment_proven": true,
+        "void_amount": "102.46",
+        "historical_delivery_proven": true,
+        "owner_test_canary": true,
+        "disposition": "SUPERSEDED_BY_RECOVERY",
+        "current_customer_liability": false,
+        "refund_due": false,
+        "current_canonical_redelivery_due": false,
+        "present_in_current_canonical_retained_history": false,
+        "automatic_refulfillment_authorized": false,
+        "payment_components": [
+          {
+            "source_chain": "base",
+            "payment_amount_usdc": "25.24",
+            "quoted_void": "50.48",
+            "payment_proven": true,
+            "sender_delivery_binding_proven": true,
+            "request_id": "buyvoid_mq421r14_573c3952"
+          },
+          {
+            "source_chain": "ethereum",
+            "payment_amount_usdc": "25.99",
+            "quoted_void": "51.98",
+            "payment_proven": true,
+            "sender_delivery_binding_proven": true,
+            "request_id": "buyvoid_mq421r7b_1664ac2c"
+          }
+        ]
+      }
+    ],
+    "historical_external_delivery_artifact_total_void": "2602.46",
+    "historical_payment_proven_external_delivery_void": "2602.46",
+    "historical_owner_test_canary_void": "2602.46",
+    "historical_unresolved_customer_obligation_void": "0",
+    "current_customer_liability_void": "0",
+    "historical_test_capacity_reservation_void": "0",
+    "historical_artifact_amount_added_to_current_supply_conservation_void": "0",
+    "automatic_refulfillment_authorized": false,
+    "issue_1267_historical_obligation_gate_closed": true
+  },
+  "presale_liability_reconciliation": {
+    "evidence_capture_utc": "2026-08-14T09:35:55Z",
+    "gross_presale_inventory_target_void": "10000000",
+    "current_public_policy_price_usd_per_void": "0.50",
+    "current_sale_state_inventory_accounting_source": "payment_verified_operator_events",
+    "runtime_payment_verified_reserved_void": "2",
+    "runtime_remaining_void": "9999998",
+    "runtime_raised_usdc": "1",
+    "runtime_sold_out": false,
+    "runtime_request_count": 1,
+    "runtime_submitted_tx_count": 1,
+    "runtime_verified_usdc_total": "1",
+    "runtime_verified_void_total": "2",
+    "runtime_sale_state_matches_authoritative_ledgers": true,
+    "historical_owner_test_canary_capacity_reservation_void": "0",
+    "historical_unresolved_customer_obligation_void": "0",
+    "exact_remaining_uncommitted_presale_capacity_void": "9999998",
+    "status": "reconciled",
+    "automatic_reservation_authorized": false,
+    "automatic_refulfillment_authorized": false,
+    "issue_1267_evidence_complete": true
+  },
+  "operator_evidence_snapshot": {
+    "captured_at_utc": "2026-08-14T09:35:55Z",
+    "chain_id": 2050,
+    "block_number": 37371,
+    "block_hash": "0xe254ecdee2702154d915ca9d5894ef6693f6efb07fdcb789a24ed3a39b455865",
+    "effective_buy_void_fulfillment_wallet": "0xc884f631c3881b8b672bfcbf019c856146cd7f73",
+    "effective_buy_void_fulfillment_wallet_balance_void": "0",
+    "named_balance_sum_void": "333333333",
+    "named_balance_sum_matches_total_supply": true,
+    "sale_state_matches_authoritative_ledgers": true,
+    "historical_chain2050_receipt_queries_complete": true,
+    "historical_delivery_receipts_present_in_current_rpc": false,
+    "collection_error_count": 0,
+    "wallet_access": false,
+    "signing": false,
+    "transaction_broadcast": false,
+    "funds_movement": false
+  },
   "invariants": {
     "nonzero_holder_sum_void": "333333333",
     "nonzero_holder_sum_matches_total_supply": true,
-    "unreconciled_void": "0"
+    "unreconciled_void": "0",
+    "historical_superseded_delivery_added_to_current_supply_sum_void": "0",
+    "current_canonical_supply_conservation_preserved": true
   },
   "future_target_allocations": {
     "presale_inventory_void": "10000000",
@@ -94,14 +212,19 @@
     "transaction_construction": false,
     "transaction_broadcast": false,
     "validator_top_up": false,
+    "presale_reservation_write": false,
+    "automatic_refulfillment": false,
     "money_movement": false
   },
   "notes": [
-    "This file records current canonical Chain-2050 custody separately from future allocation targets.",
+    "This file records current canonical Chain-2050 custody separately from historical owner-test recovery history, current presale liability, and future allocation targets.",
     "The 126,000 VOID previously described as distributed or unreconciled is fully reconciled as historical bootstrap validator stake held by the validator upgrade-track staking contract.",
+    "The two historical Buy VOID fulfillment episodes totaling 2,602.46 VOID are owner-confirmed test canaries, payment-proven and delivery-proven, and classified SUPERSEDED_BY_RECOVERY; they create no current customer liability, refund duty, re-delivery duty, or current presale capacity reservation.",
+    "The current authoritative sale state reserves 2 VOID from one verified 1-USDC request and leaves exactly 9,999,998 VOID uncommitted at the evidence snapshot.",
+    "Historical cross-recovery test deliveries are not present in retained current Chain-2050 receipt history and do not alter current 333,333,333-VOID supply conservation.",
     "The historical 1,000 VOID per bootstrap validator is below the locked Mainnet-0 minimum validator self-stake policy of 10,000 VOID.",
     "For 126 validators, the intended aggregate validator target is 1,260,000 VOID, leaving a 1,134,000 VOID target shortfall from current staking custody.",
-    "The shortfall is an accounting target only; this record does not authorize a direct transfer to UpgradeStaking or any other live staking mutation.",
+    "The validator shortfall is an accounting target only; this record does not authorize a direct transfer to UpgradeStaking or any other live staking mutation.",
     "Funding targets are allocations, not transfer authority. Any live treasury movement remains separately reviewed and explicitly authorized."
   ]
 }
