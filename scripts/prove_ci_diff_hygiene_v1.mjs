@@ -1,0 +1,171 @@
+#!/usr/bin/env node
+
+import assert from "node:assert/strict";
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import path from "node:path";
+import { spawnSync } from "node:child_process";
+import { fileURLToPath } from "node:url";
+
+const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+const HELPER = path.join(ROOT, "scripts", "ci_diff_hygiene_v1.sh");
+const WORKFLOWS = [
+  ".github/workflows/buy-void-erc20-transaction-preparation-planner-v1.yml",
+  ".github/workflows/buy-void-erc20-delivery-receipt-reconciler-v1.yml",
+  ".github/workflows/buy-void-erc20-delivery-dependency-bootstrap-v1.yml",
+  ".github/workflows/buy-void-erc20-delivery-dependency-bootstrap-integration-gate-v1.yml",
+  ".github/workflows/buy-void-delivery-runtime-integration-v1.yml",
+  ".github/workflows/buy-void-erc20-delivery-runtime-activation-configuration-contract-v1.yml",
+];
+
+function run(command, args, options = {}) {
+  return spawnSync(command, args, {
+    cwd: options.cwd,
+    env: { ...process.env, ...(options.env ?? {}) },
+    encoding: "utf8",
+  });
+}
+
+function must(command, args, options = {}) {
+  const result = run(command, args, options);
+  assert.equal(
+    result.status,
+    0,
+    `${command} ${args.join(" ")} failed\nstdout=${result.stdout}\nstderr=${result.stderr}`,
+  );
+  return result.stdout.trim();
+}
+
+function git(cwd, ...args) {
+  return must("git", args, { cwd });
+}
+
+function write(cwd, relative, text) {
+  writeFileSync(path.join(cwd, relative), text, "utf8");
+}
+
+function invokeHelper(cwd, env) {
+  return run("bash", [HELPER], { cwd, env });
+}
+
+function makeShallowRunner(remote, sha, name) {
+  const runner = path.join(FIXTURE, name);
+  git(FIXTURE, "init", runner);
+  git(runner, "remote", "add", "origin", `file://${remote}`);
+  git(runner, "fetch", "--no-tags", "--depth=1", "origin", sha);
+  git(runner, "checkout", "--detach", "FETCH_HEAD");
+  assert.equal(git(runner, "rev-parse", "HEAD"), sha);
+  assert.equal(git(runner, "rev-list", "--count", "HEAD"), "1");
+  return runner;
+}
+
+for (const relative of WORKFLOWS) {
+  const source = readFileSync(path.join(ROOT, relative), "utf8");
+  assert.match(source, /fetch-depth:\s*1\b/, `${relative}: exact shallow checkout depth missing`);
+  assert.ok(
+    source.includes("ref: ${{ github.event.pull_request.head.sha || github.sha }}"),
+    `${relative}: exact PR-head/current-SHA checkout missing`,
+  );
+  assert.ok(source.includes("persist-credentials: false"), `${relative}: credentials persisted`);
+  assert.ok(source.includes("scripts/ci_diff_hygiene_v1.sh"), `${relative}: helper not dependency-bound`);
+  assert.ok(source.includes("bash scripts/ci_diff_hygiene_v1.sh"), `${relative}: helper not invoked`);
+  assert.ok(!source.includes("git diff --check \"${{ github.event.pull_request.base.sha }}..HEAD\""), `${relative}: stale direct diff retained`);
+}
+
+const FIXTURE = mkdtempSync(path.join(tmpdir(), "void-ci-diff-hygiene-v1-"));
+try {
+  const source = path.join(FIXTURE, "source");
+  git(FIXTURE, "init", "-b", "main", source);
+  git(source, "config", "user.email", "proof@example.invalid");
+  git(source, "config", "user.name", "VOID CI proof");
+
+  write(source, "fixture.txt", "base\n");
+  git(source, "add", "fixture.txt");
+  git(source, "commit", "-m", "base");
+  const deepBase = git(source, "rev-parse", "HEAD");
+
+  const commits = [];
+  for (let i = 1; i <= 6; i += 1) {
+    write(source, "fixture.txt", `base\nclean-${i}\n`);
+    git(source, "add", "fixture.txt");
+    git(source, "commit", "-m", `clean-${i}`);
+    commits.push(git(source, "rev-parse", "HEAD"));
+  }
+  const cleanHead = commits.at(-1);
+  const pushBefore = commits.at(-2);
+
+  const remote = path.join(FIXTURE, "remote.git");
+  git(FIXTURE, "clone", "--bare", source, remote);
+  git(remote, "config", "uploadpack.allowReachableSHA1InWant", "true");
+
+  const deepRunner = makeShallowRunner(remote, cleanHead, "deep-runner");
+  assert.equal(run("git", ["cat-file", "-e", `${deepBase}^{commit}`], { cwd: deepRunner }).status, 128);
+  const deepResult = invokeHelper(deepRunner, {
+    CI_DIFF_EVENT_NAME: "pull_request",
+    CI_DIFF_PR_BASE_SHA: deepBase,
+    CI_DIFF_CURRENT_SHA: cleanHead,
+  });
+  assert.equal(deepResult.status, 0, deepResult.stderr);
+  assert.match(deepResult.stdout, /VOID_CI_DIFF_HYGIENE_V1_GREEN/);
+  assert.equal(run("git", ["cat-file", "-e", `${deepBase}^{commit}`], { cwd: deepRunner }).status, 0);
+
+  const missingResult = invokeHelper(deepRunner, {
+    CI_DIFF_EVENT_NAME: "pull_request",
+    CI_DIFF_PR_BASE_SHA: "f".repeat(40),
+    CI_DIFF_CURRENT_SHA: cleanHead,
+  });
+  assert.equal(missingResult.status, 2);
+  assert.match(missingResult.stderr, /base_commit_unavailable/);
+
+  const mismatchedCheckout = invokeHelper(deepRunner, {
+    CI_DIFF_EVENT_NAME: "pull_request",
+    CI_DIFF_PR_BASE_SHA: deepBase,
+    CI_DIFF_CURRENT_SHA: pushBefore,
+  });
+  assert.equal(mismatchedCheckout.status, 2);
+  assert.match(mismatchedCheckout.stderr, /checkout_not_exact_current/);
+
+  const pushRunner = makeShallowRunner(remote, cleanHead, "push-runner");
+  const pushResult = invokeHelper(pushRunner, {
+    CI_DIFF_EVENT_NAME: "push",
+    CI_DIFF_PUSH_BEFORE_SHA: pushBefore,
+    CI_DIFF_CURRENT_SHA: cleanHead,
+  });
+  assert.equal(pushResult.status, 0, pushResult.stderr);
+  assert.match(pushResult.stdout, /event=push/);
+
+  git(source, "checkout", "-b", "bad-whitespace", deepBase);
+  write(source, "fixture.txt", "base\ntrailing-space   \n");
+  git(source, "add", "fixture.txt");
+  git(source, "commit", "-m", "bad-whitespace");
+  const badHead = git(source, "rev-parse", "HEAD");
+  git(source, "push", `file://${remote}`, `HEAD:refs/heads/bad-whitespace`);
+
+  const badRunner = makeShallowRunner(remote, badHead, "bad-runner");
+  const badResult = invokeHelper(badRunner, {
+    CI_DIFF_EVENT_NAME: "pull_request",
+    CI_DIFF_PR_BASE_SHA: deepBase,
+    CI_DIFF_CURRENT_SHA: badHead,
+  });
+  assert.notEqual(badResult.status, 0);
+  assert.match(`${badResult.stdout}\n${badResult.stderr}`, /trailing whitespace/);
+
+  const unsupported = invokeHelper(deepRunner, {
+    CI_DIFF_EVENT_NAME: "workflow_dispatch",
+    CI_DIFF_CURRENT_SHA: cleanHead,
+  });
+  assert.equal(unsupported.status, 2);
+  assert.match(unsupported.stderr, /unsupported_event/);
+} finally {
+  rmSync(FIXTURE, { recursive: true, force: true });
+}
+
+console.log("VOID_CI_DIFF_HYGIENE_V1_PROOF_GREEN");
+console.log(`workflow_count=${WORKFLOWS.length}`);
+console.log("deep_old_pr_base_recovered=true");
+console.log("missing_base_fail_closed=true");
+console.log("exact_head_required=true");
+console.log("push_before_supported=true");
+console.log("whitespace_defect_still_fails=true");
+console.log("persist_credentials=false");
+console.log("diff_hygiene_skipped=false");
