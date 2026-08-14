@@ -422,6 +422,16 @@ export function createBuyVoidNativeExecutionPlannerHttpTransportV1():
         (response) => {
           const chunks: Buffer[] = [];
           let total = 0;
+          const responseFailure = (errorCode: string) => {
+            finish({
+              ok: false,
+              error_code: errorCode,
+              provider_submission_id: "",
+              http_status: Number(response.statusCode || 0),
+            });
+          };
+          response.on("aborted", () => responseFailure("response_aborted"));
+          response.on("error", () => responseFailure("response_error"));
 
           response.on("data", (chunk: Buffer) => {
             total += chunk.length;
