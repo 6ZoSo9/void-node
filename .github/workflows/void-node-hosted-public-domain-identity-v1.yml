@@ -1,0 +1,52 @@
+name: VOID node-hosted public domain identity v1
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/void-node-hosted-public-domain-identity-v1.yml'
+      - 'docs/public/node-hosted-public-domains-plan-v1.md'
+      - 'docs/site/nullfeed/index.html'
+      - 'docs/site/voidchain/index.html'
+      - 'ops/mainnet0/node-hosted-public-domains-plan-v1-proof.sh'
+  push:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/void-node-hosted-public-domain-identity-v1.yml'
+      - 'docs/public/node-hosted-public-domains-plan-v1.md'
+      - 'docs/site/nullfeed/index.html'
+      - 'docs/site/voidchain/index.html'
+      - 'ops/mainnet0/node-hosted-public-domains-plan-v1-proof.sh'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: void-node-hosted-public-domain-identity-v1-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  prove:
+    name: prove
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Checkout exact source head
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Check proof syntax
+        run: bash -n ops/mainnet0/node-hosted-public-domains-plan-v1-proof.sh
+
+      - name: Prove public-domain identity surfaces
+        run: bash ops/mainnet0/node-hosted-public-domains-plan-v1-proof.sh
+
+      - name: Working-tree diff hygiene
+        run: git diff --check
+
+      - name: Pull-request committed-range diff hygiene
+        if: github.event_name == 'pull_request'
+        run: git diff --check "${{ github.event.pull_request.base.sha }}...HEAD"
