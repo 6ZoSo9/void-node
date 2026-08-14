@@ -4,6 +4,7 @@ on:
   pull_request:
     paths:
       - ".github/workflows/void-ai-agent-public-utility-v1.yml"
+      - ".github/workflows/void-ai-agent-provenance-unfiltered-v1.yml"
       - "docs/public/ai-agent-public-utility-v1.md"
       - "docs/public/ai-agent-first-contact-v1.md"
       - "public/public-node/agents/public-utility-v1.json"
@@ -18,6 +19,7 @@ on:
       - main
     paths:
       - ".github/workflows/void-ai-agent-public-utility-v1.yml"
+      - ".github/workflows/void-ai-agent-provenance-unfiltered-v1.yml"
       - "docs/public/ai-agent-public-utility-v1.md"
       - "docs/public/ai-agent-first-contact-v1.md"
       - "public/public-node/agents/public-utility-v1.json"

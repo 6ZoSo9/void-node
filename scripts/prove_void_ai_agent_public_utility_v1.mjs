@@ -11,6 +11,8 @@ const PROVENANCE_WORKFLOW_PATHS = [
   ".github/workflows/void-ai-agent-first-contact-v1.yml",
   ".github/workflows/void-ai-agent-public-utility-v1.yml",
 ];
+const UNFILTERED_PROVENANCE_WORKFLOW_PATH =
+  ".github/workflows/void-ai-agent-provenance-unfiltered-v1.yml";
 const REVIEWED_PUBLIC_UTILITY_CATALOG_SHA256 =
   "b67fe641d7ccebdb3e4626245b2895d75dd640789d29aca2544855f3d646daa2";
 const catalogOnly = process.argv.includes("--catalog-only");
@@ -182,6 +184,29 @@ for (const workflowPath of PROVENANCE_WORKFLOW_PATHS) {
       `${workflowPath} must trigger on ${entry.repository_path} for pull requests and main pushes`,
     );
   }
+}
+
+const unfilteredProvenanceWorkflow = await readFile(
+  new URL(UNFILTERED_PROVENANCE_WORKFLOW_PATH, `file://${ROOT}/`),
+  "utf8",
+);
+assert.match(unfilteredProvenanceWorkflow, /^  pull_request:\s*$/m);
+assert.match(unfilteredProvenanceWorkflow, /^  push:\s*$/m);
+assert.match(unfilteredProvenanceWorkflow, /^      - main\s*$/m);
+assert.equal(
+  /^\s+paths(?:-ignore)?:\s*$/m.test(unfilteredProvenanceWorkflow),
+  false,
+  "unfiltered provenance workflow must not use paths or paths-ignore",
+);
+for (const proofPath of [
+  "scripts/prove_void_ai_agent_first_contact_v1.mjs",
+  "scripts/prove_void_ai_agent_public_utility_v1.mjs",
+]) {
+  assert.equal(
+    unfilteredProvenanceWorkflow.split(`node ${proofPath}`).length - 1,
+    1,
+    `unfiltered provenance workflow must invoke ${proofPath} exactly once`,
+  );
 }
 
 const ids = new Set();
