@@ -204,7 +204,7 @@ const confirmed = await runBuyVoidErc20DeliveryReceiptReconcilerV1({
   transport: baseTransport.transport,
 });
 assert.equal(confirmed.ok, true);
-if (!confirmed.ok) throw new Error(confirmed.reason);
+if ("reason" in confirmed) throw new Error(confirmed.reason);
 assert.equal(confirmed.status, "confirmed");
 assert.equal(confirmed.delivery_confirmed, true);
 assert.equal(confirmed.void_token_address, token);
