@@ -74,11 +74,11 @@
     "docs/public/void-ui-wave4-earn-readonly-v1/README.md": "5706290385ee81c47042e8133ef0831ae003c3bbd189a4c845ab7aa186c2911b",
     "docs/public/void-ui-wave4-earn-readonly-v1/VISUAL_APPROVAL.md": "eca316b11d1280868f5c41501f152e83024a03e05ce1e10a607d0445f9c8cd95",
     "public/void-app-wave1-v1/assets/css/views.css": "c50e89a9ec72bf12be07c0b9db396f291799ebf4eab4aa860f8c3751a9612fb6",
-    "public/void-app-wave1-v1/assets/js/earn-live.js": "f3df832a2164c8eec9840573e2c4d8f14d878152452a45154fb2cfb548e5790e",
+    "public/void-app-wave1-v1/assets/js/earn-live.js": "06221e0633e35c396aaa3d9dcbe3e4ad0dd5db8a095a9ff4e2e1432b542bdc49",
     "public/void-app-wave1-v1/assets/js/views.js": "b357d91134aff2d5b9ce5fc95c4db61ac8d6eafa91cb01272328952182e635fe",
     "public/void-app-wave1-v1/index.html": "25949a5916387ddac9dde69720222db38bc0de28483cc74d156138b11dee61c4",
     "src/ui/void_app_wave3_wallet_readonly_v1.ts": "e4d64da7c0749c11066b2115c636ca14ac6aed9f0cd2ccf62a65d967266e88e4",
-    "src/ui/void_app_wave4_earn_readonly_v1.ts": "4133d33e2295e5401a256619d78ccc1124c7ddf32cc3ea5d18549614604cc360"
+    "src/ui/void_app_wave4_earn_readonly_v1.ts": "dc6eaa35b2024fd4ad0fcbf62ecec2308d9ceb60383006ea02b0807b857c2300"
   },
   "repository_hashes_refreshed_after_visual_approval": true,
   "repository_hashes_refreshed_date": "2026-07-15",
