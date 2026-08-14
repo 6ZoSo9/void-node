@@ -78,7 +78,20 @@ export function createBuyVoidErc20Chain2050TotalDeadlineHttpTransportV1():
       }
       const rpc = policy(input);
       if (!rpc) return held(input, "erc20_chain2050_transport_rpc_policy_invalid");
-      const body = JSON.stringify({ jsonrpc: "2.0", id: input.request_id, method: input.method, params: input.params });
+      let body: string | undefined;
+      try {
+        body = JSON.stringify({
+          jsonrpc: "2.0",
+          id: input.request_id,
+          method: input.method,
+          params: input.params,
+        });
+      } catch {
+        return held(input, "erc20_chain2050_transport_request_json_invalid");
+      }
+      if (typeof body !== "string") {
+        return held(input, "erc20_chain2050_transport_request_json_invalid");
+      }
       if (Buffer.byteLength(body, "utf8") > MAX_REQUEST_BYTES) {
         return held(input, "erc20_chain2050_transport_request_too_large");
       }
@@ -117,7 +130,10 @@ export function createBuyVoidErc20Chain2050TotalDeadlineHttpTransportV1():
             finish(held(input, "erc20_chain2050_transport_http_status_not_ok", sent, true, responseStatus));
             return;
           }
-          if (!String(res.headers["content-type"] || "").toLowerCase().includes("application/json")) {
+          const contentType = String(res.headers["content-type"] || "")
+            .toLowerCase()
+            .split(";", 1)[0]?.trim() || "";
+          if (contentType !== "application/json") {
             res.destroy();
             finish(held(input, "erc20_chain2050_transport_response_not_json", sent, true, 200));
             return;

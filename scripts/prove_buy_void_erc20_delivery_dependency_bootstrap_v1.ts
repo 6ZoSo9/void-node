@@ -122,11 +122,30 @@ assert.equal(
   "erc20_delivery_dependency_bootstrap_disabled",
 );
 
+const requestJsonHeld =
+  await createBuyVoidErc20Chain2050TotalDeadlineHttpTransportV1().call({
+    rpc_url: unusedRpcUrl,
+    method: "eth_chainId",
+    params: [1n] as any,
+    request_id: 90,
+    request_timeout_ms: 1_000,
+    max_response_bytes: 65_536,
+  });
+assert.equal(requestJsonHeld.ok, false);
+assert.equal(
+  "error_code" in requestJsonHeld ? requestJsonHeld.error_code : "",
+  "erc20_chain2050_transport_request_json_invalid",
+);
+assert.equal(requestJsonHeld.request_sent, false);
+assert.equal(requestJsonHeld.response_received, false);
+
 let slowDripChunks = 0;
 const slowDripServer = http.createServer((request, response) => {
   request.resume();
   request.on("end", () => {
-    response.writeHead(200, { "content-type": "application/json" });
+    response.writeHead(200, {
+      "content-type": "Application/JSON; charset=UTF-8",
+    });
     const payload = JSON.stringify({
       jsonrpc: "2.0",
       id: 91,
@@ -195,6 +214,7 @@ async function proveRejectedResponseClosesV1(
   contentType: string,
   expectedErrorCode: string,
   requestId: number,
+  maxResponseBytes = 65_536,
 ): Promise<void> {
   let responseStarted = false;
   let responseClosedResolve: (() => void) | null = null;
@@ -231,7 +251,7 @@ async function proveRejectedResponseClosesV1(
       params: [],
       request_id: requestId,
       request_timeout_ms: timeoutMs,
-      max_response_bytes: 65_536,
+      max_response_bytes: maxResponseBytes,
     });
     assert.equal(result.ok, false);
     assert.equal(
@@ -276,6 +296,25 @@ await proveRejectedResponseClosesV1(
   "text/plain",
   "erc20_chain2050_transport_response_not_json",
   93,
+);
+await proveRejectedResponseClosesV1(
+  200,
+  "application/jsonp",
+  "erc20_chain2050_transport_response_not_json",
+  94,
+);
+await proveRejectedResponseClosesV1(
+  200,
+  "text/plain; profile=application/json",
+  "erc20_chain2050_transport_response_not_json",
+  95,
+);
+await proveRejectedResponseClosesV1(
+  200,
+  "application/json",
+  "erc20_chain2050_transport_response_too_large",
+  96,
+  1,
 );
 
 const parentSource = fs.readFileSync(
@@ -340,6 +379,10 @@ console.log("composition_time_transaction_broadcast=false");
 console.log("composition_time_money_movement=false");
 console.log("precredential_erc20_validation=true");
 console.log("rpc_total_deadline_enforced=true");
+console.log("request_json_failure_held_before_socket=true");
+console.log("exact_json_media_type_enforced=true");
+console.log("deceptive_json_content_type_rejected=true");
+console.log("oversized_rpc_response_destroyed=true");
 console.log("valid_sign_transaction_invoked=false");
 console.log("valid_broadcast_dependency_invoked=false");
 console.log("real_transaction_broadcast=false");
