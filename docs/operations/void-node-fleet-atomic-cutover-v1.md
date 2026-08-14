@@ -5,72 +5,87 @@ Marker: `VOID_NODE_FLEET_ATOMIC_CUTOVER_V1`
 ## Purpose
 
 Provide a fail-closed, read-only planner for a future one-node fleet cutover.
-
-The current `void-node-live.service` is rooted directly at `~/dev/void-node`,
-and the live process serves `/app/` static files from that checkout. A normal
-source fast-forward can therefore change participant-facing files while the old
-process is still running.
-
-V1 does **not** perform that mutation. It proves whether one selected node has
-enough exact evidence to request a separate cutover authorization.
+The live `void-node-live.service` process may execute source from the same checkout
+that serves participant-facing files, so source and process identity must remain
+exact across the entire staging proof interval. V1 produces evidence only; it
+never performs the cutover.
 
 ## Required evidence
 
-The planner requires:
+A plan can be ready only when all of these remain exact:
 
-1. a fresh full-fleet `VOID_NODE_FLEET_DRIFT_AUDIT_V1` with the exact configured
-   node set/order and no `HOLD`;
-2. the selected node is a clean, healthy, ready, live-peered convergence
-   candidate;
-3. remote `main` still equals the audited target;
-4. the selected node's exact Git remote matches the coordinator remote;
-5. the running process identity is still bound to the audited old source SHA;
-6. a detached clean staged worktree at the exact target, sharing the live
-   repository's Git common directory; and
-7. all three reviewed target proofs pass:
+1. a fresh full-fleet `VOID_NODE_FLEET_DRIFT_AUDIT_V1` for the exact configured
+   node set/order with no `HOLD`;
+2. the selected node is clean, healthy, ready, and above its connected-peer floor;
+3. canonical remote `main` equals the audited target both before and after the
+   detached-stage proof interval;
+4. the selected node's Git remote still matches the coordinator remote;
+5. the running MainPID is bound to the configured repository for both local and
+   SSH nodes, its executable is Node/Node.js, and its complete checked-in launcher
+   argv is exact: immutable process-source marker, commit/tree/main conditions,
+   repo-local TSX preflight/loader, and `<repo>/src/index.ts`, with no extra
+   application arguments;
+6. `/version.process_source` reproduces that immutable commit/tree/main identity;
+7. a detached clean staged worktree remains at the exact target and shares the
+   live repository's Git common directory before and after all target proofs; and
+8. all three reviewed target proofs pass:
    - `scripts/prove_void_p2p_udp_swarm_node_runtime_mount_v1.ts`
    - `scripts/prove_void_p2p_udp_swarm_public_relay_introduction_collector_v1.ts`
-   - `scripts/prove_void_agent_sdk_release_pack_v1.mjs`
+   - `scripts/prove_void_agent_sdk_release_pack_v1.mjs`.
 
-The two TypeScript proofs run against the detached target through the existing
-executable `node_modules/.bin/tsx` in the live checkout. The stage itself must
-not contain or create `node_modules`; all three proofs must leave it clean.
+The two TypeScript proofs execute through the existing live-checkout
+`node_modules/.bin/tsx`. The detached stage must not contain or create
+`node_modules`, and all proofs must leave it clean.
+
+## Proof-interval stability boundary
+
+The planner deliberately brackets the potentially long detached-stage proof
+interval. It samples canonical remote `main` and the selected live process before
+the proofs, reruns both checks afterward, and refuses to combine evidence across a
+race. The live source HEAD, remote binding, process invocation, process cwd,
+Node executable, complete launcher argv, process-source identity, health,
+readiness, and peer floor must still be valid; the process identity digest must
+be unchanged.
+
+The stage is similarly bracketed. Its HEAD, detached-branch state, Git common
+directory, and live-common-directory relationship are recorded before the proofs
+and re-read afterward. Any target movement, attachment to a branch, common-dir
+change, ignored `node_modules` creation, dirty worktree, or failed proof returns
+`HOLD` rather than a ready plan.
+
+This prevents a remote-main advance, service restart/source replacement, wrong
+SSH checkout, spoofed partial argv, or concurrent stage checkout from being
+combined with stale pre-proof evidence.
 
 ## Transition boundary
 
-V1 uses an explicit default-deny admission policy. Only the following exact
-deployed-pin-to-target paths may differ:
+V1 uses an explicit default-deny admission policy. Only these exact
+reviewed deployed-pin-to-target paths may differ:
 
-- reviewed support/evidence files:
+- reviewed support/evidence:
   - `.ci/VCL_LICENSE.txt`
   - `LICENSE`
   - `ops/coordination/worker-coordination-state-v3.json`
   - `public/void-app-wave1-v1/assets/css/site-theme.css`
   - `scripts/prove_void_p2p_udp_swarm_public_relay_introduction_collector_v1.ts`
   - `tools/void-worker-coordination-v3.mjs`
-- the exact sealed Agent SDK distribution:
+- exact sealed Agent SDK distribution:
   - `integrations/agents/void-agent-sdk-v1/LICENSE`
   - `integrations/agents/void-agent-sdk-v1/README.md`
   - `integrations/agents/void-agent-sdk-v1/cli.mjs`
   - `integrations/agents/void-agent-sdk-v1/index.mjs`
   - `integrations/agents/void-agent-sdk-v1/integrity.json`
   - `integrations/agents/void-agent-sdk-v1/package.json`
-- the two reviewed runtime files:
+- reviewed runtime:
   - `src/p2p/udp_swarm_node_runtime_mount_v1.ts`
-  - `src/p2p/udp_swarm_public_relay_introduction_collector_v1.ts`
+  - `src/p2p/udp_swarm_public_relay_introduction_collector_v1.ts`.
 
-Every other path is rejected, including unknown root files, `release/**`,
-unknown top-level directories, extra `public/**` or `tools/**` paths, and
-unlisted files within an otherwise reviewed family. A future target that changes
-the admitted set requires a separately reviewed source update before the
-planner can return ready.
-
-Nimo may have zero remaining runtime-file delta if the two reviewed files
-already exist at its current source head.
+Every other path is rejected. A future target whose deployed-pin delta exceeds
+this set needs separately reviewed source before this planner can return ready.
 
 ## Output
 
-Example dry run:
+Example:
 
 ```bash
 node tools/void-node-fleet-atomic-cutover-v1.mjs \
@@ -81,48 +96,39 @@ node tools/void-node-fleet-atomic-cutover-v1.mjs \
   --output "$HOME/.config/void-node-fleet-atomic-cutover-nimo-plan-v1.json"
 ```
 
-A green plan has:
+A green plan reports:
 
 ```text
 outcome=READY_FOR_SEPARATE_CUTOVER_AUTHORIZATION
 mutation_authority_granted=false
+remote_main_stable=true
+live_process_identity_stable=true
+stage_identity_stable=true
 ```
 
-The deterministic plan ID privately binds the SSH/repository/stage/service/remote
-configuration, audit ID, old/target SHAs, old process invocation, process-source
-tree, and reviewed path policy. The public plan omits those private transport and
-path details.
+The private plan identity binds the config, audit ID, old/target SHAs, exact old
+process invocation/tree/identity, stage path, remote binding, and reviewed path
+policy. The public receipt omits private host/path transport details.
 
-The plan records the only acceptable later operation order:
+The only acceptable later operation order is recorded as:
 
 1. quiesce the selected service;
 2. exact fast-forward to the confirmed target;
 3. start that same service once; and
 4. prove a new process identity plus health/readiness/peer restoration.
 
-This source lane does not implement or invoke those operations.
-
-## Fleet order
-
-Based on the current observed fleet state, the intended later order is:
-
-```text
-Nimo -> Precision -> Alienware
-```
-
-A fresh full-fleet audit is required between node cutovers. The planner never
-continues automatically to another node.
+This source lane does not implement or invoke those operations. A fresh full-fleet
+audit remains required between separately authorized node cutovers.
 
 ## Authority boundary
 
-This v1 planner may only read Git/systemd/process/loopback evidence, run isolated
-stage proofs, and optionally create one mode-0600 plan file.
+V1 may read Git/systemd/process/loopback evidence, run isolated stage proofs, and
+optionally create one mode-`0600` plan file. It does not fetch, merge, checkout,
+or reset a live node; stop/start/restart a service; install packages; build;
+edit service definitions; change networking; access credentials, wallets, or
+signers; mutate validators or Work Credits; construct/broadcast a transaction;
+or move funds.
 
-It never fetches/merges/checks out/resets a live node, stops/starts/restarts a
-service, installs packages, builds, edits service definitions, changes network
-configuration, accesses credentials/wallets/signers, mutates validators or Work
-Credits, constructs/broadcasts a transaction, or moves funds.
-
-Any live cutover remains a separate explicit operator gate.
+Any real cutover remains a separate explicit operator gate.
 
 `PROTECT THE CORE`. `PROTECT THE TRUTH`. `PROTECT THE SOVEREIGN`.
