@@ -17,6 +17,10 @@ execution attempt has exact, final confirmed evidence of the intended
 A successful decision requires all of the following to agree exactly:
 
 - Chain ID `2050`;
+- one exact execution-attempt ID across reservation, prepared transaction, and
+  broadcast observation;
+- the reservation's canonical fulfillment-intent fingerprint plus exact payment
+  and request keys;
 - the execution attempt's prepared and broadcast transaction hash;
 - receipt success status;
 - receipt `from` = the allowlisted fulfillment wallet;

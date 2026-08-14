@@ -8,8 +8,13 @@ on:
       - "docs/operators/buy-void-canonical-erc20-delivery-composition-v1.md"
       - "scripts/prove_buy_void_erc20_delivery_receipt_reconciler_v1.ts"
       - "scripts/prove_buy_void_canonical_erc20_delivery_composition_v1.ts"
+      - "scripts/prove_buy_void_canonical_erc20_execution_hold_v1.ts"
       - "scripts/prove_buy_void_runtime_integration_guard_v1.ts"
+      - "src/economic/buy_void_auto_fulfillment_v1.ts"
+      - "src/economic/buy_void_delivery_sign_broadcast_adapter_v1.ts"
       - "src/economic/buy_void_erc20_delivery_receipt_reconciler_v1.ts"
+      - "src/economic/buy_void_execution_attempt_journal_v1.ts"
+      - "src/economic/buy_void_fulfillment_journal_v1.ts"
       - "src/economic/buy_void_runtime_integration_v1.ts"
   push:
     branches: [main]
@@ -19,8 +24,13 @@ on:
       - "docs/operators/buy-void-canonical-erc20-delivery-composition-v1.md"
       - "scripts/prove_buy_void_erc20_delivery_receipt_reconciler_v1.ts"
       - "scripts/prove_buy_void_canonical_erc20_delivery_composition_v1.ts"
+      - "scripts/prove_buy_void_canonical_erc20_execution_hold_v1.ts"
       - "scripts/prove_buy_void_runtime_integration_guard_v1.ts"
+      - "src/economic/buy_void_auto_fulfillment_v1.ts"
+      - "src/economic/buy_void_delivery_sign_broadcast_adapter_v1.ts"
       - "src/economic/buy_void_erc20_delivery_receipt_reconciler_v1.ts"
+      - "src/economic/buy_void_execution_attempt_journal_v1.ts"
+      - "src/economic/buy_void_fulfillment_journal_v1.ts"
       - "src/economic/buy_void_runtime_integration_v1.ts"
 
 permissions:

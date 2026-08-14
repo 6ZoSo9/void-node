@@ -8,6 +8,9 @@ import {
   runBuyVoidErc20DeliveryReceiptReconcilerV1,
   type BuyVoidErc20DeliveryReceiptRpcTransportV1,
 } from "../src/economic/buy_void_erc20_delivery_receipt_reconciler_v1.js";
+import {
+  buyVoidExecutionAttemptIntentFingerprintV1,
+} from "../src/economic/buy_void_execution_attempt_journal_v1.js";
 
 const wallet = Wallet.createRandom().address.toLowerCase();
 const recipient = Wallet.createRandom().address.toLowerCase();
@@ -17,6 +20,13 @@ const txHash = `0x${"1".repeat(64)}`;
 const blockHash = `0x${"2".repeat(64)}`;
 const amountUnits = 2_500_000_000n;
 const amountAtoms = amountUnits * 1_000_000_000_000n;
+const attemptId = "a".repeat(64);
+const paymentKey = "b".repeat(64);
+const requestKey = "c".repeat(64);
+const canonicalPaymentIdentity =
+  "voidpay1:ethereum:0x" + "d".repeat(64) + ":0";
+const requestId = "request-erc20-receipt-v1";
+const instructionId = "e".repeat(64);
 
 const transferInterface = new Interface([
   "event Transfer(address indexed from, address indexed to, uint256 value)",
@@ -24,40 +34,83 @@ const transferInterface = new Interface([
 const transferEvent = transferInterface.getEvent("Transfer");
 if (!transferEvent) throw new Error("Transfer event unavailable");
 
+function unsignedInstruction() {
+  return {
+    schema: "void_buy_void_unsigned_fulfillment_instruction_v1",
+    marker: "VOID_BUY_VOID_AUTO_FULFILLMENT_V1",
+    instruction_id: instructionId,
+    request_id: requestId,
+    canonical_payment_identity: canonicalPaymentIdentity,
+    source_chain: "ethereum",
+    payment_transaction_hash: `0x${"d".repeat(64)}`,
+    payment_log_index: "0",
+    confirmed_block_number: "10",
+    confirmation_count: "10",
+    payment_usdc_units: "25000000",
+    delivery_address: recipient,
+    void_amount_units: amountUnits.toString(),
+    signing_authorized: false,
+    transaction_broadcast_authorized: false,
+    automatic_execution_authorized: false,
+  } as const;
+}
+
+function intent() {
+  return {
+    schema: "void_buy_void_fulfillment_journal_intent_v1",
+    marker: "VOID_BUY_VOID_FULFILLMENT_JOURNAL_V1",
+    created_at_ms: 1,
+    payment_key_sha256: paymentKey,
+    request_key_sha256: requestKey,
+    claim: {
+      schema: "void_buy_void_fulfillment_claim_v1",
+      marker: "VOID_BUY_VOID_AUTO_FULFILLMENT_V1",
+      canonical_payment_identity: canonicalPaymentIdentity,
+      canonical_payment_identity_sha256: "4".repeat(64),
+      request_id: requestId,
+      decision_fingerprint: "5".repeat(64),
+      instruction_id: instructionId,
+      unsigned_instruction: unsignedInstruction(),
+      status: "claimed",
+    },
+    verification_binding: {
+      source_chain: "ethereum",
+      payment_transaction_hash: `0x${"d".repeat(64)}`,
+      payment_log_index: "0",
+      confirmed_block_number: "10",
+      confirmation_count_at_claim: "10",
+      usdc_contract: other,
+      payer_address: other,
+      receive_address: wallet,
+      delivery_address: recipient,
+      payment_usdc_units: "25000000",
+      requested_usdc_units: "25000000",
+      quoted_void_units: amountUnits.toString(),
+    },
+    signing_authorized: false,
+    transaction_broadcast_authorized: false,
+    money_movement_authorized: false,
+  } as any;
+}
+
 function attempt() {
+  const fulfillmentIntent = intent();
   return {
     reservation: {
       schema: "void_buy_void_execution_attempt_reservation_v1",
       marker: "VOID_BUY_VOID_EXECUTION_ATTEMPT_JOURNAL_V1",
-      attempt_id: "a".repeat(64),
+      attempt_id: attemptId,
       attempt_number: 1,
       reserved_at_ms: 1,
-      payment_key_sha256: "b".repeat(64),
-      request_key_sha256: "c".repeat(64),
-      canonical_payment_identity: "voidpay1:ethereum:0x" + "d".repeat(64) + ":0",
-      request_id: "request-erc20-receipt-v1",
-      instruction_id: "e".repeat(64),
-      intent_fingerprint: "f".repeat(64),
+      payment_key_sha256: paymentKey,
+      request_key_sha256: requestKey,
+      canonical_payment_identity: canonicalPaymentIdentity,
+      request_id: requestId,
+      instruction_id: instructionId,
+      intent_fingerprint:
+        buyVoidExecutionAttemptIntentFingerprintV1(fulfillmentIntent),
       max_attempts_per_payment: 1,
-      unsigned_instruction: {
-        schema: "void_buy_void_unsigned_fulfillment_instruction_v1",
-        marker: "VOID_BUY_VOID_AUTO_FULFILLMENT_V1",
-        instruction_id: "e".repeat(64),
-        request_id: "request-erc20-receipt-v1",
-        canonical_payment_identity:
-          "voidpay1:ethereum:0x" + "d".repeat(64) + ":0",
-        source_chain: "ethereum",
-        payment_transaction_hash: `0x${"d".repeat(64)}`,
-        payment_log_index: "0",
-        confirmed_block_number: "10",
-        confirmation_count: "10",
-        payment_usdc_units: "25000000",
-        delivery_address: recipient,
-        void_amount_units: amountUnits.toString(),
-        signing_authorized: false,
-        transaction_broadcast_authorized: false,
-        automatic_execution_authorized: false,
-      },
+      unsigned_instruction: fulfillmentIntent.claim.unsigned_instruction,
       signing_authorized_by_this_module: false,
       transaction_broadcast_authorized_by_this_module: false,
       money_movement_authorized_by_this_module: false,
@@ -65,7 +118,7 @@ function attempt() {
     prepared: {
       schema: "void_buy_void_execution_prepared_transaction_v1",
       marker: "VOID_BUY_VOID_EXECUTION_ATTEMPT_JOURNAL_V1",
-      attempt_id: "a".repeat(64),
+      attempt_id: attemptId,
       prepared_at_ms: 2,
       chain_id: "2050",
       void_delivery_tx_hash: txHash,
@@ -80,7 +133,7 @@ function attempt() {
     broadcast: {
       schema: "void_buy_void_execution_broadcast_observation_v1",
       marker: "VOID_BUY_VOID_EXECUTION_ATTEMPT_JOURNAL_V1",
-      attempt_id: "a".repeat(64),
+      attempt_id: attemptId,
       observed_at_ms: 3,
       void_delivery_tx_hash: txHash,
       provider_submission_id: "synthetic",
@@ -91,23 +144,6 @@ function attempt() {
     postbroadcast_failure: null,
     confirmation: null,
     status: "broadcast",
-  } as any;
-}
-
-function intent() {
-  return {
-    schema: "void_buy_void_fulfillment_journal_intent_v1",
-    marker: "VOID_BUY_VOID_FULFILLMENT_JOURNAL_V1",
-    intent_id: "2".repeat(64),
-    created_at_ms: 1,
-    claim: {
-      ...attempt().reservation,
-      status: "claimed",
-      unsigned_instruction: attempt().reservation.unsigned_instruction,
-    },
-    signing_authorized: false,
-    transaction_broadcast_authorized: false,
-    money_movement_authorized: false,
   } as any;
 }
 
@@ -286,6 +322,66 @@ async function expectRevalidationHeld(
   assert.equal(decision.money_movement_performed, false);
 }
 
+async function expectBindingHeld(
+  expectedReason: string,
+  attemptValue: ReturnType<typeof attempt>,
+  intentValue: ReturnType<typeof intent> = intent(),
+) {
+  const synthetic = transportFor(receipt());
+  const decision = await runBuyVoidErc20DeliveryReceiptReconcilerV1({
+    attempt: attemptValue,
+    intent: intentValue,
+    policy: policy(),
+    transport: synthetic.transport,
+  });
+  assert.equal(decision.ok, false);
+  if (decision.ok) throw new Error("expected binding HOLD");
+  assert.equal(decision.reason, expectedReason);
+  assert.deepEqual(synthetic.calls, []);
+  assert.equal(decision.mutation_performed, false);
+  assert.equal(decision.signing_performed, false);
+  assert.equal(decision.transaction_broadcast_performed, false);
+  assert.equal(decision.money_movement_performed, false);
+}
+
+const wrongPreparedAttempt = attempt();
+wrongPreparedAttempt.prepared.attempt_id = "6".repeat(64);
+await expectBindingHeld(
+  "execution_attempt_identity_binding_mismatch",
+  wrongPreparedAttempt,
+);
+
+const wrongBroadcastAttempt = attempt();
+wrongBroadcastAttempt.broadcast.attempt_id = "7".repeat(64);
+await expectBindingHeld(
+  "execution_attempt_identity_binding_mismatch",
+  wrongBroadcastAttempt,
+);
+
+const wrongIntentFingerprintAttempt = attempt();
+wrongIntentFingerprintAttempt.reservation.intent_fingerprint = "8".repeat(64);
+await expectBindingHeld(
+  "fulfillment_intent_attempt_binding_mismatch",
+  wrongIntentFingerprintAttempt,
+);
+
+const wrongPaymentKeyIntent = intent();
+wrongPaymentKeyIntent.payment_key_sha256 = "9".repeat(64);
+await expectBindingHeld(
+  "fulfillment_intent_attempt_binding_mismatch",
+  attempt(),
+  wrongPaymentKeyIntent,
+);
+
+const wrongClaimSchemaIntent = intent();
+wrongClaimSchemaIntent.claim.schema =
+  "void_buy_void_execution_attempt_reservation_v1";
+await expectBindingHeld(
+  "fulfillment_intent_attempt_binding_mismatch",
+  attempt(),
+  wrongClaimSchemaIntent,
+);
+
 await expectHeld(
   "delivery_receipt_token_contract_mismatch",
   { ...receipt(), to: other },
@@ -368,6 +464,16 @@ assert.deepEqual(disabledTransport.calls, []);
 
 assert.equal(
   VOID_BUY_VOID_ERC20_DELIVERY_RECEIPT_RECONCILER_AUTHORITY_V1
+    .exact_execution_attempt_identity_required,
+  true,
+);
+assert.equal(
+  VOID_BUY_VOID_ERC20_DELIVERY_RECEIPT_RECONCILER_AUTHORITY_V1
+    .exact_fulfillment_intent_fingerprint_required,
+  true,
+);
+assert.equal(
+  VOID_BUY_VOID_ERC20_DELIVERY_RECEIPT_RECONCILER_AUTHORITY_V1
     .exact_void_token_transfer_required,
   true,
 );
@@ -405,6 +511,8 @@ assert.equal(
 console.log("VOID_BUY_VOID_ERC20_DELIVERY_RECEIPT_RECONCILER_V1_PROOF_GREEN");
 console.log("chain_id=2050");
 console.log("transfer_event_required=true");
+console.log("exact_execution_attempt_identity=true");
+console.log("exact_fulfillment_intent_fingerprint=true");
 console.log("exact_token_contract=true");
 console.log("exact_from_wallet=true");
 console.log("exact_to_delivery_address=true");

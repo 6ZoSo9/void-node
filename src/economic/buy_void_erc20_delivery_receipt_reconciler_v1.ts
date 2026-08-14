@@ -5,12 +5,18 @@ import {
   getAddress,
   id,
 } from "ethers";
-import type {
-  BuyVoidExecutionAttemptStateV1,
+import {
+  VOID_BUY_VOID_EXECUTION_ATTEMPT_JOURNAL_V1,
+  buyVoidExecutionAttemptIntentFingerprintV1,
+  type BuyVoidExecutionAttemptStateV1,
 } from "./buy_void_execution_attempt_journal_v1.js";
-import type {
-  BuyVoidFulfillmentJournalIntentV1,
+import {
+  VOID_BUY_VOID_FULFILLMENT_JOURNAL_V1,
+  type BuyVoidFulfillmentJournalIntentV1,
 } from "./buy_void_fulfillment_journal_v1.js";
+import {
+  VOID_BUY_VOID_AUTO_FULFILLMENT_V1,
+} from "./buy_void_auto_fulfillment_v1.js";
 import {
   VOID_BUY_VOID_ERC20_DELIVERY_UNIT_SCALE_V1,
 } from "./buy_void_delivery_sign_broadcast_adapter_v1.js";
@@ -30,6 +36,8 @@ export const VOID_BUY_VOID_ERC20_DELIVERY_RECEIPT_RECONCILER_AUTHORITY_V1 = {
     "eth_blockNumber",
   ],
   exact_void_token_transfer_required: true,
+  exact_execution_attempt_identity_required: true,
+  exact_fulfillment_intent_fingerprint_required: true,
   exact_token_contract_required: true,
   exact_fulfillment_wallet_from_required: true,
   exact_delivery_address_to_required: true,
@@ -150,6 +158,7 @@ type ReceiptStabilityBindingV1 = {
 
 const ADDRESS = /^0x[0-9a-f]{40}$/;
 const HASH = /^0x[0-9a-f]{64}$/;
+const SHA256 = /^[0-9a-f]{64}$/;
 const HEX_QUANTITY = /^0x(?:0|[1-9a-f][0-9a-f]*)$/i;
 const DEFAULT_TIMEOUT_MS = 5_000;
 const MAX_TIMEOUT_MS = 30_000;
@@ -463,10 +472,12 @@ function validateAttemptIntent(
   intent: BuyVoidFulfillmentJournalIntentV1,
   policy: NormalizedPolicyV1,
 ): { ok: true; token_amount_atoms: bigint } | { ok: false; reason: string } {
+  const reservation = attempt?.reservation;
   const prepared = attempt?.prepared;
   const broadcast = attempt?.broadcast;
   if (
     attempt?.status !== "broadcast" ||
+    !reservation ||
     !prepared ||
     !broadcast ||
     attempt.failure ||
@@ -474,6 +485,24 @@ function validateAttemptIntent(
     attempt.confirmation
   ) {
     return { ok: false, reason: "execution_attempt_not_reconcilable" };
+  }
+  const attemptId = String(reservation.attempt_id || "");
+  if (
+    reservation.schema !==
+      "void_buy_void_execution_attempt_reservation_v1" ||
+    reservation.marker !== VOID_BUY_VOID_EXECUTION_ATTEMPT_JOURNAL_V1 ||
+    !SHA256.test(attemptId) ||
+    prepared.schema !== "void_buy_void_execution_prepared_transaction_v1" ||
+    prepared.marker !== VOID_BUY_VOID_EXECUTION_ATTEMPT_JOURNAL_V1 ||
+    prepared.attempt_id !== attemptId ||
+    broadcast.schema !== "void_buy_void_execution_broadcast_observation_v1" ||
+    broadcast.marker !== VOID_BUY_VOID_EXECUTION_ATTEMPT_JOURNAL_V1 ||
+    broadcast.attempt_id !== attemptId
+  ) {
+    return {
+      ok: false,
+      reason: "execution_attempt_identity_binding_mismatch",
+    };
   }
   if (
     normalizeHash(prepared.void_delivery_tx_hash) === "" ||
@@ -492,14 +521,21 @@ function validateAttemptIntent(
   if (
     !intent ||
     intent.schema !== "void_buy_void_fulfillment_journal_intent_v1" ||
+    intent.marker !== VOID_BUY_VOID_FULFILLMENT_JOURNAL_V1 ||
+    intent.claim?.schema !== "void_buy_void_fulfillment_claim_v1" ||
+    intent.claim?.marker !== VOID_BUY_VOID_AUTO_FULFILLMENT_V1 ||
     intent.claim?.status !== "claimed" ||
     intent.signing_authorized !== false ||
     intent.transaction_broadcast_authorized !== false ||
     intent.money_movement_authorized !== false ||
+    intent.payment_key_sha256 !== reservation.payment_key_sha256 ||
+    intent.request_key_sha256 !== reservation.request_key_sha256 ||
+    reservation.intent_fingerprint !==
+      buyVoidExecutionAttemptIntentFingerprintV1(intent) ||
     intent.claim.canonical_payment_identity !==
-      attempt.reservation.canonical_payment_identity ||
-    intent.claim.request_id !== attempt.reservation.request_id ||
-    intent.claim.instruction_id !== attempt.reservation.instruction_id ||
+      reservation.canonical_payment_identity ||
+    intent.claim.request_id !== reservation.request_id ||
+    intent.claim.instruction_id !== reservation.instruction_id ||
     normalizeAddress(intent.claim.unsigned_instruction.delivery_address) !==
       normalizeAddress(prepared.delivery_address) ||
     String(intent.claim.unsigned_instruction.void_amount_units) !==
