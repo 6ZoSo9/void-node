@@ -6,7 +6,12 @@ on:
       - "public/void-app-wave1-v1/assets/js/app.js"
       - "public/void-app-wave1-v1/assets/js/data-live.js"
       - "public/public-node/datanet/field-replication-status-card-v1.json"
+      - "public/public-node/datanet/field-replication-status-card-v1.html"
+      - "public/public-node/datanet/index.json"
+      - "src/ui/void_app_wave1_foundation_v1.ts"
+      - "src/ui/void_app_datanet_readonly_adapter_v1.cjs"
       - "scripts/prove_void_app_datanet_readonly_v1.mjs"
+      - "scripts/prove_void_app_datanet_local_origin_v1.mjs"
       - ".github/workflows/void-app-datanet-readonly-v1.yml"
   push:
     branches: [main]
@@ -14,7 +19,12 @@ on:
       - "public/void-app-wave1-v1/assets/js/app.js"
       - "public/void-app-wave1-v1/assets/js/data-live.js"
       - "public/public-node/datanet/field-replication-status-card-v1.json"
+      - "public/public-node/datanet/field-replication-status-card-v1.html"
+      - "public/public-node/datanet/index.json"
+      - "src/ui/void_app_wave1_foundation_v1.ts"
+      - "src/ui/void_app_datanet_readonly_adapter_v1.cjs"
       - "scripts/prove_void_app_datanet_readonly_v1.mjs"
+      - "scripts/prove_void_app_datanet_local_origin_v1.mjs"
       - ".github/workflows/void-app-datanet-readonly-v1.yml"
 
 permissions:
@@ -41,6 +51,10 @@ jobs:
         run: |
           node --check public/void-app-wave1-v1/assets/js/app.js
           node --check public/void-app-wave1-v1/assets/js/data-live.js
+          node --check src/ui/void_app_datanet_readonly_adapter_v1.cjs
           node --check scripts/prove_void_app_datanet_readonly_v1.mjs
+          node --check scripts/prove_void_app_datanet_local_origin_v1.mjs
       - name: Prove read-only DataNet view
         run: node scripts/prove_void_app_datanet_readonly_v1.mjs
+      - name: Prove local App origin integration
+        run: node scripts/prove_void_app_datanet_local_origin_v1.mjs
