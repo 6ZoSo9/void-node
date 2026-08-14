@@ -1,5 +1,7 @@
 import path from "node:path";
 
+require("./void_app_datanet_readonly_adapter_v1.cjs");
+
 const G: any = globalThis as any;
 const INSTALL_MARK = "__void_app_wave1_foundation_v1";
 const ROUTE_PREFIX = "/app";
