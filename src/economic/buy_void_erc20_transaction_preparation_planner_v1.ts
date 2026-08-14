@@ -446,6 +446,16 @@ function createHttpTransport(
         (response) => {
           const chunks: Buffer[] = [];
           let total = 0;
+          response.on("aborted", () => {
+            finish(
+              new Error("erc20_transaction_preparation_response_aborted"),
+            );
+          });
+          response.on("error", () => {
+            finish(
+              new Error("erc20_transaction_preparation_response_error"),
+            );
+          });
           response.on("data", (chunk: Buffer) => {
             total += chunk.length;
             if (total > policy.max_response_bytes) {
