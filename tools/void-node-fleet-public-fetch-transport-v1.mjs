@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import {createHash} from 'node:crypto';
-import {closeSync,existsSync,fchmodSync,openSync,readFileSync,realpathSync,statSync,writeFileSync} from 'node:fs';
+import {closeSync,existsSync,fchmodSync,ftruncateSync,fsyncSync,openSync,readFileSync,realpathSync,statSync,writeSync} from 'node:fs';
 import {homedir} from 'node:os';
 import {basename,dirname,isAbsolute,relative,resolve,sep} from 'node:path';
 import {spawnSync} from 'node:child_process';
@@ -86,10 +86,21 @@ export function applyTransportPlanV1(input,id){if(!SHA64.test(String(id??'')))fa
  const after=inspectRepositoryTransportV1(before.repo);if(stable(invariant(after))!==stable(invariant(before)))fail('repository invariant changed during dedicated remote configuration',true);if(after.dedicated_state!=='ALIGNED')fail('dedicated remote did not reach exact aligned state',true);return Object.freeze({outcome:'TRANSPORT_CONFIGURED',plan,mutation_attempted:true,mutation_succeeded:true,after});}
 function pub(p){return{marker:p.marker,plan_id_sha256:p.plan_id_sha256,repository_identity_sha256:p.repository_identity_sha256,remote_name:p.remote_name,fetch_url:p.fetch_url,push_url:p.push_url,branch:p.branch,head:p.head,tree:p.tree,dirty_count:p.dirty_count,canonical_origin_required:p.canonical_origin_required,origin_repository:p.origin_repository,dedicated_state:p.dedicated_state,mutation_required:p.mutation_required,operation:p.operation};}
 function auth(x={}){return{git_config_mutation_attempted:false,git_fetch:false,git_pull:false,checkout:false,reset:false,merge:false,build:false,package_install:false,service_mutation:false,runtime_mutation:false,network_configuration:false,credential_read:false,wallet_or_signer:false,work_credit_or_validator_mutation:false,transaction:false,treasury_or_liquidity:false,funds_moved:false,...x};}
-function emit(v,out=null){const j=`${JSON.stringify(v,null,2)}\n`;if(out){writeFileSync(out.fd,j,{encoding:'utf8'});closeSync(out.fd);out.fd=null;}process.stdout.write(j);}
+function writeEvidenceReceiptV1(out,j){
+ const bytes=Buffer.from(j,'utf8');
+ ftruncateSync(out.fd,0);
+ let offset=0;
+ while(offset<bytes.length){
+  const written=writeSync(out.fd,bytes,offset,bytes.length-offset,offset);
+  if(!Number.isInteger(written)||written<=0)throw new Error('evidence receipt write made no progress');
+  offset+=written;
+ }
+ fsyncSync(out.fd);
+}
+function emit(v,out=null){const j=`${JSON.stringify(v,null,2)}\n`;if(out){writeEvidenceReceiptV1(out,j);closeSync(out.fd);out.fd=null;}process.stdout.write(j);}
 function args(v){const o={repo:'',output:'',apply:false,confirmOperation:'',confirmPlanId:''};for(let i=0;i<v.length;i++){const a=v[i],n=()=>{const x=v[++i];if(!x||x.startsWith('--'))fail(`${a} requires a value`);return x;};if(a==='--repo')o.repo=n();else if(a==='--output')o.output=n();else if(a==='--apply')o.apply=true;else if(a==='--confirm-operation')o.confirmOperation=n();else if(a==='--confirm-plan-id')o.confirmPlanId=n();else if(a==='--help'){console.log('Usage: node tools/void-node-fleet-public-fetch-transport-v1.mjs --repo PATH [--output PATH] [--apply --confirm-operation VOID_NODE_FLEET_PUBLIC_FETCH_TRANSPORT_APPLY_V1 --confirm-plan-id SHA256]');process.exit(0);}else fail(`unknown argument: ${a}`);}if(!o.repo)fail('--repo is required');return o;}
 function main(){
- let out=null;
+ let out=null,mutationAttempted=false,mutationSucceeded=false;
  try{
   const a=args(process.argv.slice(2)),s=inspectRepositoryTransportV1(a.repo),p=buildTransportPlanV1(s);
   out=reserveEvidenceOutputV1(s.repo,a.output);
@@ -97,9 +108,15 @@ function main(){
   if(a.confirmOperation!==VOID_NODE_FLEET_PUBLIC_FETCH_TRANSPORT_APPLY_V1)fail('exact operation confirmation mismatch');
   if(a.confirmPlanId!==p.plan_id_sha256)fail('exact plan ID confirmation mismatch');
   const r=applyTransportPlanV1(a.repo,a.confirmPlanId);
+  mutationAttempted=r.mutation_attempted===true;
+  mutationSucceeded=mutationAttempted&&r.mutation_succeeded===true;
   emit({marker:VOID_NODE_FLEET_PUBLIC_FETCH_TRANSPORT_V1,version:1,outcome:r.outcome,plan:pub(r.plan),reasons:[],mutation_attempted:r.mutation_attempted,mutation_succeeded:r.mutation_succeeded,automatic_retry:false,authority:auth({git_config_mutation_attempted:r.mutation_attempted})},out);
  }catch(e){
-  const m=e?.mutationAttempted===true,result={marker:VOID_NODE_FLEET_PUBLIC_FETCH_TRANSPORT_V1,version:1,outcome:'HOLD',error:String(e?.message||e),mutation_attempted:m,automatic_retry:false,authority:auth({git_config_mutation_attempted:m})};
+  const m=mutationAttempted||e?.mutationAttempted===true;
+  const succeeded=mutationAttempted&&mutationSucceeded;
+  const detail=String(e?.message||e);
+  const error=succeeded?`post-apply evidence receipt failed after transport configuration; fresh inspection required: ${detail}`:detail;
+  const result={marker:VOID_NODE_FLEET_PUBLIC_FETCH_TRANSPORT_V1,version:1,outcome:'HOLD',error,mutation_attempted:m,mutation_succeeded:succeeded,automatic_retry:false,authority:auth({git_config_mutation_attempted:m})};
   try{emit(result,out);}catch{if(out?.fd!=null){try{closeSync(out.fd);}catch(closeError){void closeError;}out.fd=null;}process.stdout.write(`${JSON.stringify(result,null,2)}\n`);}
   process.exitCode=2;
  }finally{if(out?.fd!=null){try{closeSync(out.fd);}catch(closeError){void closeError;}out.fd=null;}}
