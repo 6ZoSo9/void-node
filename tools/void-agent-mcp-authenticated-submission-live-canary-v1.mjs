@@ -593,6 +593,7 @@ export async function executeCanary(options) {
   updateState(context.stateDirectory, attempting);
   const sessionFactory = options.sessionFactory ?? createOfficialMcpSession;
   let session;
+  let acceptedTerminal = null;
   try {
     session = await sessionFactory({
       repoRoot: context.repoRoot,
@@ -626,11 +627,13 @@ export async function executeCanary(options) {
       duplicate: interpretation.duplicate,
       conflicting_duplicate: false,
       private_temp_cleanup_completed: interpretation.private_temp_cleanup_completed,
+      completion_receipt_published: false,
       receipt_id: interpretation.receipt_id,
       client_http_status: interpretation.client_http_status,
       hold_reason: null,
     };
     updateState(context.stateDirectory, completed);
+    acceptedTerminal = { context, state: completed, receipt: null, result };
     const receipt = {
       marker: COMPLETION_RECEIPT_MARKER,
       version: 1,
@@ -643,6 +646,7 @@ export async function executeCanary(options) {
       duplicate: interpretation.duplicate,
       conflicting_duplicate: false,
       private_temp_cleanup_completed: interpretation.private_temp_cleanup_completed,
+      completion_receipt_published: true,
       receipt_id: interpretation.receipt_id,
       client_http_status: interpretation.client_http_status,
       network_submission_performed: true,
@@ -663,8 +667,15 @@ export async function executeCanary(options) {
     };
     assertCondition(!canonicalJson(receipt).includes(tokenFile), "completion receipt disclosed token-file path");
     writeExclusiveJson(path.join(context.stateDirectory, COMPLETION_RECEIPT_FILE), receipt);
-    return { context, state: completed, receipt, result };
+    const published = {
+      ...completed,
+      updated_at_utc: new Date(options.now?.() ?? Date.now()).toISOString(),
+      completion_receipt_published: true,
+    };
+    updateState(context.stateDirectory, published);
+    return { context, state: published, receipt, result };
   } catch (error) {
+    if (acceptedTerminal) return acceptedTerminal;
     const held = {
       ...attempting,
       status: "held",
@@ -765,6 +776,7 @@ export async function runCli(argv) {
       `duplicate=${result.state.duplicate}`,
       "conflicting_duplicate=false",
       `private_temp_cleanup_completed=${result.state.private_temp_cleanup_completed}`,
+      `completion_receipt_published=${result.state.completion_receipt_published}`,
       "submission_attempt_count=1",
       "automatic_retry=false",
       "payment_execution=false",
