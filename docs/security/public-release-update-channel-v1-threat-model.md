@@ -48,8 +48,7 @@ to a stable manager outside the mutable `current` pointer, with a verified
 control-updater copy refreshed atomically by the installer. It checks for
 rollback artifacts before delegating to `current`, keeping journal recovery
 reachable when interruption has already exposed a legacy rollback target.
-Poisoned or unexplained staging artifacts fail closed before canonical pointer
-mutation.
+Poisoned or unexplained staging artifacts fail closed before canonical pointer mutation.
 
 ### Privilege or authority expansion
 
