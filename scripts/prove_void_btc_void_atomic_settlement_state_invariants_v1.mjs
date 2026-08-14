@@ -37,13 +37,33 @@ function makeContract(direction = "BTC_TO_VOID", overrides = {}) {
   return { ...payload, contract_id: contentId(payload) };
 }
 
-function makeEvent(contractId, eventType, fromPhase, toPhase, evidenceByte) {
+function makeEvent(
+  contractId,
+  direction,
+  eventType,
+  fromPhase,
+  toPhase,
+  evidenceByte,
+) {
+  const sourceRefundRole =
+    direction === "BTC_TO_VOID" ? "SOURCE_NATIVE_BTC" : "SOURCE_NATIVE_VOID";
+  const counterpartyRefundRole =
+    direction === "BTC_TO_VOID"
+      ? "COUNTERPARTY_NATIVE_VOID"
+      : "COUNTERPARTY_NATIVE_BTC";
+  const refundAssetRole =
+    eventType === "OBSERVE_SOURCE_REFUND"
+      ? sourceRefundRole
+      : eventType === "OBSERVE_COUNTERPARTY_REFUND"
+        ? counterpartyRefundRole
+        : "NOT_A_REFUND";
   const payload = {
     schema: "void.btc_void.atomic_settlement_event.v1",
     contract_id: contractId,
     event_type: eventType,
     from_phase: fromPhase,
     to_phase: toPhase,
+    refund_asset_role: refundAssetRole,
     evidence_id: `sha256:${evidenceByte.repeat(64)}`,
   };
   return { ...payload, event_id: contentId(payload) };
@@ -66,7 +86,7 @@ function trace(direction = "BTC_TO_VOID", transitions = happyTransitions, overri
     contract,
     initial_phase: "RESERVED",
     events: transitions.map(([type, from, to, byte]) =>
-      makeEvent(contract.contract_id, type, from, to, byte),
+      makeEvent(contract.contract_id, direction, type, from, to, byte),
     ),
   };
 }
@@ -163,11 +183,109 @@ const refunded = evaluateBtcVoidAtomicSettlementTraceV1(
   trace("BTC_TO_VOID", [
     ["BIND_HASHLOCK", "RESERVED", "HASH_BOUND", "a"],
     ["OBSERVE_SOURCE_FUNDING", "HASH_BOUND", "SOURCE_FUNDED", "b"],
-    ["OBSERVE_REFUND", "SOURCE_FUNDED", "REFUNDED", "c"],
+    ["OBSERVE_SOURCE_REFUND", "SOURCE_FUNDED", "REFUNDED", "c"],
   ]),
 );
 assert.equal(refunded.final_phase, "REFUNDED");
 assert.equal(refunded.terminal, true);
+
+function bothLockedRefundTransitions(complete = true) {
+  const transitions = [
+    ["BIND_HASHLOCK", "RESERVED", "HASH_BOUND", "a"],
+    ["OBSERVE_SOURCE_FUNDING", "HASH_BOUND", "SOURCE_FUNDED", "b"],
+    ["CONFIRM_SOURCE_FUNDING", "SOURCE_FUNDED", "SOURCE_CONFIRMED", "c"],
+    ["OBSERVE_COUNTERPARTY_LOCK", "SOURCE_CONFIRMED", "COUNTERPARTY_LOCKED", "d"],
+    [
+      "OBSERVE_COUNTERPARTY_REFUND",
+      "COUNTERPARTY_LOCKED",
+      "REFUND_PENDING_SOURCE",
+      "2",
+    ],
+  ];
+  if (complete) {
+    transitions.push([
+      "OBSERVE_SOURCE_REFUND",
+      "REFUND_PENDING_SOURCE",
+      "REFUNDED",
+      "3",
+    ]);
+  }
+  return transitions;
+}
+
+for (const direction of ["BTC_TO_VOID", "VOID_TO_BTC"]) {
+  const partialTrace = trace(direction, bothLockedRefundTransitions(false));
+  const partial = evaluateBtcVoidAtomicSettlementTraceV1(partialTrace);
+  assert.equal(partial.final_phase, "REFUND_PENDING_SOURCE");
+  assert.equal(partial.terminal, false);
+  assert.equal(partial.applied_event_ids.length, 5);
+  assert.equal(
+    partial.invariants.both_locked_refund_requires_both_asset_resolutions,
+    true,
+  );
+
+  const completedTrace = trace(direction, bothLockedRefundTransitions());
+  const completed = evaluateBtcVoidAtomicSettlementTraceV1(completedTrace);
+  assert.equal(completed.final_phase, "REFUNDED");
+  assert.equal(completed.terminal, true);
+  assert.equal(completed.applied_event_ids.length, 6);
+
+  const replayedTrace = structuredClone(completedTrace);
+  replayedTrace.events.splice(5, 0, structuredClone(replayedTrace.events[4]));
+  assert.equal(
+    evaluateBtcVoidAtomicSettlementTraceV1(replayedTrace).evaluation_id,
+    completed.evaluation_id,
+  );
+
+  const reusedRefundReceipt = structuredClone(completedTrace);
+  reusedRefundReceipt.events[5].evidence_id =
+    reusedRefundReceipt.events[4].evidence_id;
+  const { event_id: ignoredRefundReceiptId, ...reusedRefundPayload } =
+    reusedRefundReceipt.events[5];
+  void ignoredRefundReceiptId;
+  reusedRefundReceipt.events[5].event_id = contentId(reusedRefundPayload);
+  assert.throws(
+    () => evaluateBtcVoidAtomicSettlementTraceV1(reusedRefundReceipt),
+    /reuses evidence_id from a different event/,
+  );
+
+  const wrongRole = structuredClone(partialTrace);
+  wrongRole.events[4].refund_asset_role =
+    direction === "BTC_TO_VOID"
+      ? "SOURCE_NATIVE_BTC"
+      : "SOURCE_NATIVE_VOID";
+  const { event_id: ignoredWrongRoleId, ...wrongRolePayload } = wrongRole.events[4];
+  void ignoredWrongRoleId;
+  wrongRole.events[4].event_id = contentId(wrongRolePayload);
+  assert.throws(
+    () => evaluateBtcVoidAtomicSettlementTraceV1(wrongRole),
+    /refund_asset_role mismatch/,
+  );
+}
+
+assert.throws(
+  () =>
+    evaluateBtcVoidAtomicSettlementTraceV1(
+      trace("BTC_TO_VOID", [
+        ["BIND_HASHLOCK", "RESERVED", "HASH_BOUND", "a"],
+        ["OBSERVE_SOURCE_FUNDING", "HASH_BOUND", "SOURCE_FUNDED", "b"],
+        ["CONFIRM_SOURCE_FUNDING", "SOURCE_FUNDED", "SOURCE_CONFIRMED", "c"],
+        [
+          "OBSERVE_COUNTERPARTY_LOCK",
+          "SOURCE_CONFIRMED",
+          "COUNTERPARTY_LOCKED",
+          "d",
+        ],
+        [
+          "OBSERVE_SOURCE_REFUND",
+          "COUNTERPARTY_LOCKED",
+          "REFUNDED",
+          "2",
+        ],
+      ]),
+    ),
+  /transition is not allowed/,
+);
 
 const cancelled = evaluateBtcVoidAtomicSettlementTraceV1(
   trace("VOID_TO_BTC", [
@@ -286,7 +404,7 @@ process.stdout.write(
     {
       marker: `${VOID_BTC_VOID_ATOMIC_SETTLEMENT_STATE_INVARIANTS_V1}_PROOF_GREEN`,
       status: "PASS",
-      assertions: 55,
+      assertions: 76,
       btc_to_void_evaluation_id: baseline.evaluation_id,
       refund_terminal: refunded.final_phase,
       authority: baseline.authority,
