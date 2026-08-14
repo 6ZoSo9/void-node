@@ -1,3 +1,4 @@
+import './data-request-owner.js';
 import { views } from './views.js';
 import { dataView } from './data-live.js';
 
