@@ -61,25 +61,30 @@ explicitly retired/held for the canonical ERC-20 transition.
 
 ## Remaining canonical gates
 
-Before canonical ERC-20 execution can be mounted, the parent must have
-server-controlled, exact-green answers for the remaining execution dependencies,
-including:
+Before canonical ERC-20 execution can be mounted, the parent still needs a
+server-controlled, exact-green canonical signer/broadcaster dependency bootstrap.
 
-- canonical signer/broadcaster dependency bootstrap;
-- exact fulfillment-unit to token-atom semantics;
-- an ERC-20 transaction-preparation bridge; and
-- an ERC-20 receipt-reconciliation bridge validating the confirmed
-  `VoidToken.Transfer` before terminal closeout.
+The ERC-20 transaction-preparation source gate is now closed. The merged planner
+constructs exact `VoidToken.transfer(...)` calldata with transaction value zero,
+uses a pending nonce, bounds gas and fee planning, accounts for native balance as
+gas-only, and uses read-only loopback RPC with both inactivity and total
+wall-clock deadlines. It remains parent-unmounted and has no wallet, signing,
+broadcast, or money-movement authority.
 
-Those gates are independent. Closing one does not imply the others are ready.
+Closed source gates now include exact 6-decimal fulfillment-unit to 18-decimal
+token-atom scaling, the standalone ERC-20 transaction-preparation planner, and a
+standalone read-only ERC-20 receipt reconciler that requires the exact confirmed
+`VoidToken.Transfer` event. The planner and reconciler remain parent-unmounted,
+and the reconciler performs no terminal closeout.
 
 ## Funding HOLD
 
 `presale_inventory_funding_ready=false` remains the source of truth.
 
 No presale inventory should be funded into an execution path until the
-canonical ERC-20 dependency, preparation, reconciliation, and runtime activation
-gates are separately reviewed and authorized.
+remaining canonical dependency-bootstrap and runtime-activation gates are
+separately reviewed and authorized. The preparation and reconciliation source
+gates being closed does not authorize funding or execution.
 
 ## Authority boundary
 
