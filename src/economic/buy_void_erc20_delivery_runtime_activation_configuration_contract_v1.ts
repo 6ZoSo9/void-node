@@ -27,7 +27,7 @@ export const
     canonical_delivery_runtime_activation_ready: false,
     production_configuration_values_verified: false,
     production_credential_binding_ready: false,
-    canonical_delivery_runtime_parent_mounted: false,
+    canonical_delivery_runtime_parent_mounted: true,
     canonical_delivery_execution_ready: false,
     canonical_delivery_execution_held: true,
     presale_inventory_funding_ready: false,
@@ -35,7 +35,7 @@ export const
     current_parent_blocker:
       "canonical_delivery_runtime_activation_not_ready",
     next_gate:
-      "production_configuration_verification_and_runtime_mount_authorization",
+      "production_credential_binding_and_dependency_injection_authorization",
 
     runtime_source_path:
       "src/economic/buy_void_delivery_runtime_integration_v1.ts",

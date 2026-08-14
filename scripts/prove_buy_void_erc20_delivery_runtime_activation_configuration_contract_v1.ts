@@ -22,10 +22,10 @@ assert.equal(contract.prerequisite_source_truth.existing_terminal_closeout_reuse
 assert.equal(contract.canonical_delivery_runtime_activation_ready, false);
 assert.equal(contract.production_configuration_values_verified, false);
 assert.equal(contract.production_credential_binding_ready, false);
-assert.equal(contract.canonical_delivery_runtime_parent_mounted, false);
+assert.equal(contract.canonical_delivery_runtime_parent_mounted, true);
 assert.equal(contract.canonical_delivery_execution_ready, false);
 assert.equal(contract.presale_inventory_funding_ready, false);
-assert.equal(contract.next_gate, "production_configuration_verification_and_runtime_mount_authorization");
+assert.equal(contract.next_gate, "production_credential_binding_and_dependency_injection_authorization");
 assert.equal(
   contract.amount_unit_contract.max_amount_unit_domain,
   "fulfillment_units_6_decimal",
@@ -148,10 +148,13 @@ assert.equal(composition.includes("runSagaSupervisorTickV1"), true);
 
 assert.equal(dependency.includes("fixed_systemd_credential_id_reused_when_signing: true"), true);
 assert.equal(signer.includes(`"${contract.runtime_configuration_contract.fixed_signer_credential_id}"`), true);
-assert.equal(parent.includes("canonical_delivery_runtime_parent_mounted: false"), true);
+assert.equal(parent.includes("canonical_delivery_runtime_parent_mounted: true"), true);
 assert.equal(parent.includes("canonical_delivery_execution_ready: false"), true);
 assert.equal(parent.includes("presale_inventory_funding_ready: false"), true);
-assert.doesNotMatch(parent, /(?:import|from)\s+["']\.\/buy_void_delivery_runtime_integration_v1\.js["']/);
+assert.match(
+  parent,
+  /from "\.\/buy_void_delivery_runtime_integration_v1\.js";/,
+);
 
 for (const [key, value] of Object.entries(contract.authority)) {
   assert.equal(key === "source_only_contract" ? value : !value, true, `authority mismatch ${key}`);
@@ -166,7 +169,7 @@ console.log("confirmation_range_preflight_before_record_confirmed=1");
 console.log("runtime_activation_performed=0");
 console.log("production_configuration_values_verified=0");
 console.log("production_credential_binding_ready=0");
-console.log("canonical_delivery_runtime_parent_mounted=0");
+console.log("canonical_delivery_runtime_parent_mounted=1");
 console.log("canonical_delivery_execution_ready=0");
 console.log("presale_inventory_funding_ready=0");
 console.log("money_movement=0");

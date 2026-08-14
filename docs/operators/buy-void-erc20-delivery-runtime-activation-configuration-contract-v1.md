@@ -6,7 +6,7 @@ Marker: `VOID_BUY_VOID_ERC20_DELIVERY_RUNTIME_ACTIVATION_CONFIGURATION_CONTRACT_
 
 The canonical ERC-20 execution-composition source is now a prerequisite of any later activation. The retained delivery runtime no longer accepts a caller-supplied nonce/gas/fee transaction plan. It delegates to the server-controlled execution-composition layer, which derives the exact `VoidToken.transfer(...)` transaction through the coherent `pending` planner, durably reserves the wallet nonce, persists signed-hash custody before broadcast, uses the existing saga write-ahead broadcast-intent boundary, reconciles exact ERC-20 receipts into canonical `record_confirmed`, and leaves terminal inventory/public closeout to the existing saga closeout implementation.
 
-This closes a source sequencing defect only. It does not mount the canonical delivery runtime in the parent, enable a production service, inspect a production credential, fund presale inventory, or authorize a transaction.
+The next source gate parent-mounts this already-reviewed runtime while leaving it disabled. That source composition does not enable production execution, inject signer/broadcaster dependencies, inspect a credential, fund presale inventory, or authorize a transaction.
 
 ## Required production configuration contract
 
@@ -16,7 +16,7 @@ The configuration is not considered verified merely because these environment-va
 
 ## Execution ordering
 
-Before a parent mount can be considered, source must continue proving:
+The disabled parent mount must continue proving:
 
 - caller transaction plans are forbidden;
 - planning uses coherent `pending` state;
@@ -35,16 +35,16 @@ erc20_execution_composition_ready=true
 canonical_delivery_runtime_activation_ready=false
 production_configuration_values_verified=false
 production_credential_binding_ready=false
-canonical_delivery_runtime_parent_mounted=false
+canonical_delivery_runtime_parent_mounted=true
 canonical_delivery_execution_ready=false
 presale_inventory_funding_ready=false
 ```
 
-The next source-to-operations gate is production configuration/credential evidence followed by a separately authorized parent-mount decision. Inventory funding remains an independent later value-bearing gate.
+After the disabled parent mount, the next operations gates are credential key-to-wallet evidence and separately authorized dependency injection/runtime enablement. Inventory funding remains an independent later value-bearing gate.
 
 ## Authority boundary
 
-Source, proof, documentation, and CI only. No deployment, runtime mount, service start, production environment read, credential read, wallet/private-key access, live RPC, live signing, transaction broadcast, inventory funding, treasury/liquidity action, or funds movement is performed by this contract.
+Source, proof, documentation, and CI only. This lane changes source composition so the child is parent-mounted, but performs no deployment, live service restart, production credential read, wallet/private-key access, live RPC, signing, transaction broadcast, inventory funding, treasury/liquidity action, or funds movement.
 
 ## Current-main reconciliation after #1287
 
@@ -82,6 +82,4 @@ existing generic saga accepts `receipt_confirmed.confirmations` only through
 1,000,000 is accepted; 1,000,001 and values above the JavaScript safe-integer
 range are held without confirmed-state mutation.
 
-This source closure still does not mount the canonical parent, verify production
-configuration, read production credentials, fund presale inventory, sign or
-broadcast a live transaction, or move funds.
+This source closure mounts only the disabled child route in the canonical parent. It still does not inject value-bearing dependencies, read production credentials, enable execution, fund presale inventory, sign or broadcast a live transaction, or move funds.
