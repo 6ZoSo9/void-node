@@ -45,7 +45,9 @@ Only these read-only JSON-RPC methods are permitted:
 - `eth_blockNumber`.
 
 The built-in HTTP transport accepts loopback HTTP only and enforces bounded
-request/response sizes and a bounded timeout.
+request/response sizes. It applies both a socket-inactivity timeout and a total
+wall-clock deadline from request start through complete response-body
+consumption, using the configured `request_timeout_ms` bound.
 
 ## Output
 
