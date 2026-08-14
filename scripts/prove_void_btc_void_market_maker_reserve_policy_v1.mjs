@@ -597,6 +597,13 @@ for (const expected of [
     `workflow must contain exactly one ${expected}`,
   );
 }
+assert.equal(
+  workflowDoc.split(
+    '      - "tools/void-btc-void-atomic-settlement-state-invariants-v1.mjs"',
+  ).length - 1,
+  2,
+  "reserve-policy workflow must track its imported native-ceiling source",
+);
 assert.doesNotMatch(
   workflowDoc,
   /uses:\s+actions\/(?:checkout|setup-node)@v\d+/,
