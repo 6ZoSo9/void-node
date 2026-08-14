@@ -61,7 +61,7 @@ const liveOutput=(overrides={})=>{
     `repo_real\t${overrides.repo_real??repo}`,`head\t${overrides.head??OLD}`,`branch\t${overrides.branch??"main"}`,"status\t",
     "remote\thttps://github.com/6ZoSo9/void-node.git","shallow\tfalse","active\tactive",`pid\t${overrides.pid??4242}`,
     `inv\t${overrides.inv??INV}`,`cwd\t${overrides.cwd??repo}`,`exe\t${exe}`,`argv\t${b64(args.join("\n"))}`,
-    `pc\t${overrides.pc??OLD}`,`pt\t${overrides.pt??TREE}`,`pb\t${overrides.pb??"main"}`,
+    `pc\t${overrides.pc??OLD}`,`pt\t${overrides.pt??TREE}`,`pb\t${overrides.pb??"main"}`,`prt\t${overrides.prt??TREE}`,`pa\t${overrides.pa??1}`,
     `health\t${b64({ok:true})}`,`ready\t${b64({ready:true,gap:0,txroot_live:1})}`,`version\t${b64(version)}`,
     `peer\t${b64({connected:[{},{}]})}`,
   ].join("\n");
@@ -78,6 +78,8 @@ assert.throws(()=>validateLiveInspectionV1(parseLiveInspectionV1(liveOutput({cwd
 assert.throws(()=>validateLiveInspectionV1(parseLiveInspectionV1(liveOutput({exe:"/usr/bin/python3",argv:argv("/tmp/live","/usr/bin/python3")})),ssh,OLD),/live process\/source/);
 assert.throws(()=>validateLiveInspectionV1(parseLiveInspectionV1(liveOutput({argv:argv().slice(0,-1)})),ssh,OLD),/live process\/source/);
 assert.throws(()=>validateLiveInspectionV1(parseLiveInspectionV1(liveOutput({version:{process_source:{marker:"VOID_NODE_PROCESS_SOURCE_IDENTITY_V1",commit:TARGET,tree:TREE,branch:"main",immutable:true}}})),ssh,OLD),/live process\/source/);
+assert.throws(()=>validateLiveInspectionV1(parseLiveInspectionV1(liveOutput({prt:TARGET})),ssh,OLD),/live process\/source/);
+assert.throws(()=>validateLiveInspectionV1(parseLiveInspectionV1(liveOutput({pa:0})),ssh,OLD),/live process\/source/);
 
 const before=parseLiveInspectionV1(liveOutput());
 const after=parseLiveInspectionV1(liveOutput());
@@ -127,6 +129,8 @@ console.log("planner_read_only=1");
 console.log("full_fleet_audit_required=1");
 console.log("live_process_identity_required=1");
 console.log("remote_ssh_process_identity_exact=1");
+console.log("process_source_git_object_bound=1");
+console.log("process_source_ancestor_bound=1");
 console.log("proof_interval_live_identity_stable=1");
 console.log("proof_interval_remote_main_stable=1");
 console.log("stage_identity_bracketed=1");
