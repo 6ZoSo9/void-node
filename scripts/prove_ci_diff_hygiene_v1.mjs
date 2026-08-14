@@ -80,6 +80,10 @@ for (const relative of WORKFLOWS) {
     `${relative}: shared adversarial proof not self-enforced`,
   );
   assert.ok(
+    source.includes("CI_DIFF_PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}"),
+    `${relative}: event-base diagnostic binding missing`,
+  );
+  assert.ok(
     source.includes("CI_DIFF_CHECKOUT_SHA: ${{ github.sha }}"),
     `${relative}: integration checkout identity missing`,
   );
@@ -108,156 +112,120 @@ try {
   git(source, "config", "user.email", "proof@example.invalid");
   git(source, "config", "user.name", "VOID CI proof");
 
-  write(source, "fixture.txt", "base\n");
-  git(source, "add", "fixture.txt");
-  git(source, "commit", "-m", "base");
-  const deepBase = git(source, "rev-parse", "HEAD");
+  write(source, "contract.txt", "v1\n");
+  git(source, "add", "contract.txt");
+  git(source, "commit", "-m", "base-v1");
+  const staleEventBase = git(source, "rev-parse", "HEAD");
 
-  const commits = [];
-  for (let i = 1; i <= 6; i += 1) {
-    write(source, "fixture.txt", `base\nclean-${i}\n`);
-    git(source, "add", "fixture.txt");
-    git(source, "commit", "-m", `clean-${i}`);
-    commits.push(git(source, "rev-parse", "HEAD"));
-  }
-  const cleanHead = commits.at(-1);
-  const pushBefore = commits.at(-2);
+  write(source, "contract.txt", "v2\n");
+  git(source, "add", "contract.txt");
+  git(source, "commit", "-m", "integration-base-v2");
+  const integrationBase = git(source, "rev-parse", "HEAD");
+
+  git(source, "checkout", "-b", "feature", staleEventBase);
+  write(source, "feature.txt", "clean-feature\n");
+  git(source, "add", "feature.txt");
+  git(source, "commit", "-m", "feature-head");
+  const featureHead = git(source, "rev-parse", "HEAD");
+
+  git(source, "checkout", "-b", "integration", integrationBase);
+  git(source, "merge", "--no-ff", "feature", "-m", "synthetic-pr-merge");
+  const integrationMerge = git(source, "rev-parse", "HEAD");
+  const integrationParents = git(source, "show", "-s", "--format=%P", integrationMerge).split(" ");
+  assert.deepEqual(integrationParents, [integrationBase, featureHead]);
+
+  git(source, "checkout", "-b", "bad-feature", integrationBase);
+  write(source, "bad.txt", "trailing-space   \n");
+  git(source, "add", "bad.txt");
+  git(source, "commit", "-m", "bad-whitespace");
+  const badHead = git(source, "rev-parse", "HEAD");
+  git(source, "checkout", "-b", "bad-integration", integrationBase);
+  git(source, "merge", "--no-ff", "bad-feature", "-m", "synthetic-bad-pr-merge");
+  const badIntegration = git(source, "rev-parse", "HEAD");
+
+  git(source, "checkout", "-b", "push-line", integrationBase);
+  write(source, "push.txt", "clean-push\n");
+  git(source, "add", "push.txt");
+  git(source, "commit", "-m", "push-head");
+  const pushHead = git(source, "rev-parse", "HEAD");
 
   const remote = path.join(FIXTURE, "base-remote.git");
   git(FIXTURE, "clone", "--bare", source, remote);
   git(remote, "config", "uploadpack.allowReachableSHA1InWant", "true");
-  const baseRemote = `file://${remote}`;
+  const remoteUrl = `file://${remote}`;
 
-  const deepRunner = makeShallowRunner(remote, cleanHead, "deep-runner");
-  assert.equal(run("git", ["cat-file", "-e", `${deepBase}^{commit}`], { cwd: deepRunner }).status, 128);
-  git(deepRunner, "remote", "set-url", "origin", "file:///definitely-not-the-base-repository");
-  const deepResult = invokeHelper(deepRunner, {
+  const staleRunner = makeShallowRunner(remote, integrationMerge, "stale-event-base-runner");
+  assert.equal(run("git", ["cat-file", "-e", `${integrationBase}^{commit}`], { cwd: staleRunner }).status, 128);
+  assert.equal(run("git", ["cat-file", "-e", `${featureHead}^{commit}`], { cwd: staleRunner }).status, 128);
+  git(staleRunner, "remote", "set-url", "origin", "file:///definitely-not-the-base-repository");
+  const staleResult = invokeHelper(staleRunner, {
     CI_DIFF_EVENT_NAME: "pull_request",
-    CI_DIFF_PR_BASE_SHA: deepBase,
-    CI_DIFF_CURRENT_SHA: cleanHead,
-    CI_DIFF_CHECKOUT_SHA: cleanHead,
-    CI_DIFF_BASE_REMOTE: baseRemote,
-    CI_DIFF_HEAD_REMOTE: baseRemote,
+    CI_DIFF_PR_BASE_SHA: staleEventBase,
+    CI_DIFF_CURRENT_SHA: featureHead,
+    CI_DIFF_CHECKOUT_SHA: integrationMerge,
+    CI_DIFF_BASE_REMOTE: remoteUrl,
+    CI_DIFF_HEAD_REMOTE: remoteUrl,
   });
-  assert.equal(deepResult.status, 0, deepResult.stderr);
-  assert.match(deepResult.stdout, /VOID_CI_DIFF_HYGIENE_V1_GREEN/);
-  assert.equal(run("git", ["cat-file", "-e", `${deepBase}^{commit}`], { cwd: deepRunner }).status, 0);
+  assert.equal(staleResult.status, 0, staleResult.stderr);
+  assert.match(staleResult.stdout, new RegExp(`base_sha=${integrationBase}`));
+  assert.match(staleResult.stdout, new RegExp(`event_base_sha=${staleEventBase}`));
+  assert.match(staleResult.stdout, /integration_base_from_checkout=true/);
+  assert.match(staleResult.stdout, /event_base_matches_integration_base=false/);
+  assert.match(staleResult.stdout, /product_checkout_preserved=true/);
+  assert.equal(git(staleRunner, "rev-parse", "HEAD"), integrationMerge);
 
-  const missingResult = invokeHelper(deepRunner, {
+  const wrongHead = invokeHelper(staleRunner, {
     CI_DIFF_EVENT_NAME: "pull_request",
-    CI_DIFF_PR_BASE_SHA: "f".repeat(40),
-    CI_DIFF_CURRENT_SHA: cleanHead,
-    CI_DIFF_CHECKOUT_SHA: cleanHead,
-    CI_DIFF_BASE_REMOTE: baseRemote,
-    CI_DIFF_HEAD_REMOTE: baseRemote,
+    CI_DIFF_PR_BASE_SHA: staleEventBase,
+    CI_DIFF_CURRENT_SHA: staleEventBase,
+    CI_DIFF_CHECKOUT_SHA: integrationMerge,
+    CI_DIFF_BASE_REMOTE: remoteUrl,
+    CI_DIFF_HEAD_REMOTE: remoteUrl,
   });
-  assert.equal(missingResult.status, 2);
-  assert.match(missingResult.stderr, /base_commit_unavailable/);
+  assert.equal(wrongHead.status, 2);
+  assert.match(wrongHead.stderr, /checkout_pr_head_mismatch/);
 
-  const mismatchedCheckout = invokeHelper(deepRunner, {
+  const missingBaseRunner = makeShallowRunner(remote, integrationMerge, "missing-base-runner");
+  const missingBase = invokeHelper(missingBaseRunner, {
     CI_DIFF_EVENT_NAME: "pull_request",
-    CI_DIFF_PR_BASE_SHA: deepBase,
-    CI_DIFF_CURRENT_SHA: cleanHead,
-    CI_DIFF_CHECKOUT_SHA: pushBefore,
-    CI_DIFF_BASE_REMOTE: baseRemote,
-    CI_DIFF_HEAD_REMOTE: baseRemote,
+    CI_DIFF_PR_BASE_SHA: staleEventBase,
+    CI_DIFF_CURRENT_SHA: featureHead,
+    CI_DIFF_CHECKOUT_SHA: integrationMerge,
+    CI_DIFF_BASE_REMOTE: "file:///definitely-not-the-base-repository",
+    CI_DIFF_HEAD_REMOTE: remoteUrl,
   });
-  assert.equal(mismatchedCheckout.status, 2);
-  assert.match(mismatchedCheckout.stderr, /checkout_not_exact_event_state/);
+  assert.equal(missingBase.status, 2);
+  assert.match(missingBase.stderr, /base_commit_unavailable/);
 
-  const pushRunner = makeShallowRunner(remote, cleanHead, "push-runner");
-  git(pushRunner, "remote", "set-url", "origin", "file:///definitely-not-the-base-repository");
-  const pushResult = invokeHelper(pushRunner, {
-    CI_DIFF_EVENT_NAME: "push",
-    CI_DIFF_PUSH_BEFORE_SHA: pushBefore,
-    CI_DIFF_CURRENT_SHA: cleanHead,
-    CI_DIFF_CHECKOUT_SHA: cleanHead,
-    CI_DIFF_BASE_REMOTE: baseRemote,
-  });
-  assert.equal(pushResult.status, 0, pushResult.stderr);
-  assert.match(pushResult.stdout, /event=push/);
-
-  git(source, "checkout", "-b", "bad-whitespace", deepBase);
-  write(source, "fixture.txt", "base\ntrailing-space   \n");
-  git(source, "add", "fixture.txt");
-  git(source, "commit", "-m", "bad-whitespace");
-  const badHead = git(source, "rev-parse", "HEAD");
-  git(source, "push", baseRemote, `HEAD:refs/heads/bad-whitespace`);
-
-  const badRunner = makeShallowRunner(remote, badHead, "bad-runner");
+  const badRunner = makeShallowRunner(remote, badIntegration, "bad-runner");
   const badResult = invokeHelper(badRunner, {
     CI_DIFF_EVENT_NAME: "pull_request",
-    CI_DIFF_PR_BASE_SHA: deepBase,
+    CI_DIFF_PR_BASE_SHA: staleEventBase,
     CI_DIFF_CURRENT_SHA: badHead,
-    CI_DIFF_CHECKOUT_SHA: badHead,
-    CI_DIFF_BASE_REMOTE: baseRemote,
-    CI_DIFF_HEAD_REMOTE: baseRemote,
+    CI_DIFF_CHECKOUT_SHA: badIntegration,
+    CI_DIFF_BASE_REMOTE: remoteUrl,
+    CI_DIFF_HEAD_REMOTE: remoteUrl,
   });
   assert.notEqual(badResult.status, 0);
   assert.match(`${badResult.stdout}\n${badResult.stderr}`, /trailing whitespace/);
 
-  // Adversarial integration fixture: the branch head is individually coherent,
-  // but a newer event base changes a contract that makes the merged integration
-  // state incompatible. Product checks must therefore stay on the normal PR
-  // merge checkout rather than being switched to the raw head merely to make
-  // committed-range hygiene available.
-  const integrationSource = path.join(FIXTURE, "integration-source");
-  git(FIXTURE, "init", "-b", "main", integrationSource);
-  git(integrationSource, "config", "user.email", "proof@example.invalid");
-  git(integrationSource, "config", "user.name", "VOID CI proof");
-  write(integrationSource, "contract.txt", "v1\n");
-  git(integrationSource, "add", "contract.txt");
-  git(integrationSource, "commit", "-m", "integration-base");
-  const integrationBase0 = git(integrationSource, "rev-parse", "HEAD");
-
-  git(integrationSource, "checkout", "-b", "feature", integrationBase0);
-  write(integrationSource, "feature.txt", "requires=v1\n");
-  git(integrationSource, "add", "feature.txt");
-  git(integrationSource, "commit", "-m", "feature-head");
-  const featureHead = git(integrationSource, "rev-parse", "HEAD");
-  assert.equal(readFileSync(path.join(integrationSource, "contract.txt"), "utf8"), "v1\n");
-  assert.equal(readFileSync(path.join(integrationSource, "feature.txt"), "utf8"), "requires=v1\n");
-
-  git(integrationSource, "checkout", "main");
-  write(integrationSource, "contract.txt", "v2\n");
-  git(integrationSource, "add", "contract.txt");
-  git(integrationSource, "commit", "-m", "event-base-v2");
-  const eventBase = git(integrationSource, "rev-parse", "HEAD");
-
-  git(integrationSource, "checkout", "-b", "integration", eventBase);
-  git(integrationSource, "merge", "--no-ff", "feature", "-m", "synthetic-pr-merge");
-  const integrationMerge = git(integrationSource, "rev-parse", "HEAD");
-  assert.equal(readFileSync(path.join(integrationSource, "contract.txt"), "utf8"), "v2\n");
-  assert.equal(readFileSync(path.join(integrationSource, "feature.txt"), "utf8"), "requires=v1\n");
-  assert.notEqual(
-    readFileSync(path.join(integrationSource, "contract.txt"), "utf8").trim(),
-    readFileSync(path.join(integrationSource, "feature.txt"), "utf8").trim().replace("requires=", ""),
-    "integration fixture must prove head-only green can become integration-incompatible",
-  );
-
-  const integrationRemote = path.join(FIXTURE, "integration-remote.git");
-  git(FIXTURE, "clone", "--bare", integrationSource, integrationRemote);
-  git(integrationRemote, "config", "uploadpack.allowReachableSHA1InWant", "true");
-  const integrationRemoteUrl = `file://${integrationRemote}`;
-  const integrationRunner = makeShallowRunner(integrationRemote, integrationMerge, "integration-runner");
-  assert.equal(run("git", ["cat-file", "-e", `${featureHead}^{commit}`], { cwd: integrationRunner }).status, 128);
-  const integrationResult = invokeHelper(integrationRunner, {
-    CI_DIFF_EVENT_NAME: "pull_request",
-    CI_DIFF_PR_BASE_SHA: eventBase,
-    CI_DIFF_CURRENT_SHA: featureHead,
-    CI_DIFF_CHECKOUT_SHA: integrationMerge,
-    CI_DIFF_BASE_REMOTE: integrationRemoteUrl,
-    CI_DIFF_HEAD_REMOTE: integrationRemoteUrl,
+  const pushRunner = makeShallowRunner(remote, pushHead, "push-runner");
+  const pushResult = invokeHelper(pushRunner, {
+    CI_DIFF_EVENT_NAME: "push",
+    CI_DIFF_PUSH_BEFORE_SHA: integrationBase,
+    CI_DIFF_CURRENT_SHA: pushHead,
+    CI_DIFF_CHECKOUT_SHA: pushHead,
+    CI_DIFF_BASE_REMOTE: remoteUrl,
   });
-  assert.equal(integrationResult.status, 0, integrationResult.stderr);
-  assert.match(integrationResult.stdout, /product_checkout_preserved=true/);
-  assert.equal(git(integrationRunner, "rev-parse", "HEAD"), integrationMerge);
+  assert.equal(pushResult.status, 0, pushResult.stderr);
+  assert.match(pushResult.stdout, /event=push/);
+  assert.match(pushResult.stdout, /integration_base_from_checkout=false/);
 
-  const unsupported = invokeHelper(deepRunner, {
+  const unsupported = invokeHelper(pushRunner, {
     CI_DIFF_EVENT_NAME: "workflow_dispatch",
-    CI_DIFF_CURRENT_SHA: cleanHead,
-    CI_DIFF_CHECKOUT_SHA: cleanHead,
-    CI_DIFF_BASE_REMOTE: baseRemote,
+    CI_DIFF_CURRENT_SHA: pushHead,
+    CI_DIFF_CHECKOUT_SHA: pushHead,
+    CI_DIFF_BASE_REMOTE: remoteUrl,
   });
   assert.equal(unsupported.status, 2);
   assert.match(unsupported.stderr, /unsupported_event/);
@@ -267,7 +235,9 @@ try {
 
 console.log("VOID_CI_DIFF_HYGIENE_V1_PROOF_GREEN");
 console.log(`workflow_count=${WORKFLOWS.length}`);
-console.log("deep_old_pr_base_recovered=true");
+console.log("stale_event_base_ignored_for_range=true");
+console.log("integration_base_derived_from_checkout=true");
+console.log("checkout_pr_head_identity_bound=true");
 console.log("base_repo_fetch_independent_of_head_origin=true");
 console.log("missing_base_fail_closed=true");
 console.log("merge_integration_checkout_preserved=true");
