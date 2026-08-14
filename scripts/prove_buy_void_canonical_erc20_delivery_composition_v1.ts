@@ -153,12 +153,17 @@ assert.equal(
 assert.equal(
   parentStatus.body.canonical_delivery
     .erc20_transaction_preparation_bridge_ready,
-  false,
+  true,
+);
+assert.equal(
+  parentStatus.body.canonical_delivery
+    .erc20_transaction_preparation_execution_state_ready,
+  true,
 );
 assert.equal(
   parentStatus.body.canonical_delivery
     .erc20_receipt_reconciliation_bridge_ready,
-  false,
+  true,
 );
 assert.equal(
   parentStatus.body.canonical_delivery.presale_inventory_funding_ready,
@@ -167,9 +172,7 @@ assert.equal(
 assert.deepEqual(
   parentStatus.body.canonical_delivery.funding_blockers,
   [
-    "erc20_transaction_preparation_bridge_not_mounted",
-    "erc20_delivery_receipt_reconciliation_bridge_not_mounted",
-    "canonical_delivery_dependency_bootstrap_not_ready",
+    "canonical_delivery_runtime_activation_not_ready",
   ],
 );
 assert.equal(
@@ -196,6 +199,32 @@ assert.equal(
 assert.equal(
   parentStatus.body.canonical_delivery
     .canonical_delivery_dependency_bootstrap_ready,
+  true,
+);
+assert.equal(
+  parentStatus.body.canonical_delivery
+    .dependency_bootstrap_integration_gate.marker,
+  "VOID_BUY_VOID_ERC20_DELIVERY_DEPENDENCY_BOOTSTRAP_INTEGRATION_GATE_V1",
+);
+assert.equal(
+  parentStatus.body.canonical_delivery
+    .dependency_bootstrap_integration_gate.status,
+  "source_ready",
+);
+assert.equal(
+  parentStatus.body.canonical_delivery
+    .dependency_bootstrap_integration_gate
+    .erc20_transaction_preparation_execution_state_ready,
+  true,
+);
+assert.equal(
+  parentStatus.body.canonical_delivery
+    .dependency_bootstrap_integration_gate.next_funding_blocker,
+  "canonical_delivery_runtime_activation_not_ready",
+);
+assert.equal(
+  parentStatus.body.canonical_delivery
+    .dependency_bootstrap_integration_gate.authority.credential_read,
   false,
 );
 assert.equal(
@@ -261,7 +290,9 @@ console.log("canonical_delivery_asset=void_token_erc20");
 console.log("native_parent_routes=0");
 console.log("canonical_erc20_delivery_parent_mount=0");
 console.log("erc20_atomic_unit_conversion_ready=1");
-console.log("canonical_delivery_dependency_bootstrap_ready=0");
+console.log("erc20_transaction_preparation_bridge_ready=1");
+console.log("erc20_transaction_preparation_execution_state_ready=1");
+console.log("canonical_delivery_dependency_bootstrap_ready=1");
 console.log("crash_saga_parent_mount=0");
 console.log("native_transaction_preparation_parent_mount=0");
 console.log("presale_inventory_funding_ready=0");
