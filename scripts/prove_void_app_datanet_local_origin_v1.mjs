@@ -11,19 +11,20 @@ import { fetchDataNetStatusV1 } from '../public/void-app-wave1-v1/assets/js/data
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const FOUNDATION_PATH = path.join(ROOT, 'src', 'ui', 'void_app_wave1_foundation_v1.ts');
-const ADAPTER_PATH = path.join(ROOT, 'src', 'ui', 'void_app_datanet_readonly_adapter_v1.cjs');
+const ADAPTER_SOURCE_PATH = path.join(ROOT, 'src', 'ui', 'void_app_datanet_readonly_adapter_v1.cts');
+const ADAPTER_RUNTIME_PATH = path.join(ROOT, 'dist', 'ui', 'void_app_datanet_readonly_adapter_v1.cjs');
 const STATUS_ROUTE = '/public-node/datanet/field-replication-status-card-v1.json';
 const HTML_ROUTE = '/public-node/datanet/field-replication-status-card-v1.html';
 const INDEX_ROUTE = '/public-node/datanet/index.json';
 const EXPECTED_MARKER = 'VOID_APP_DATANET_READONLY_ADAPTER_V1';
 
 const foundationSource = fs.readFileSync(FOUNDATION_PATH, 'utf8');
-const adapterSource = fs.readFileSync(ADAPTER_PATH, 'utf8');
+const adapterSource = fs.readFileSync(ADAPTER_SOURCE_PATH, 'utf8');
 
 assert.equal(
   foundationSource.split('require("./void_app_datanet_readonly_adapter_v1.cjs");').length - 1,
   1,
-  'App foundation must load the DataNet adapter exactly once',
+  'App foundation must load the packaged DataNet adapter exactly once',
 );
 assert.match(foundationSource, /const ROUTE_PREFIX = "\/app"/);
 assert.match(foundationSource, /express\.static\(shellDir/);
@@ -48,6 +49,11 @@ for (const forbidden of [
 assert.match(adapterSource, /method !== "GET" && method !== "HEAD"/);
 assert.match(adapterSource, /error: "method_not_allowed"/);
 assert.match(adapterSource, /read_only: true/);
+assert.equal(
+  fs.existsSync(ADAPTER_RUNTIME_PATH),
+  true,
+  'packaged DataNet adapter missing from dist; run npm run build before this proof',
+);
 
 const handlers = [];
 const previousApp = globalThis.__void_http_app;
@@ -58,7 +64,7 @@ globalThis.__void_http_app = {
 };
 
 const require = createRequire(import.meta.url);
-const adapter = require(ADAPTER_PATH);
+const adapter = require(ADAPTER_RUNTIME_PATH);
 
 if (previousApp === undefined) delete globalThis.__void_http_app;
 else globalThis.__void_http_app = previousApp;
@@ -171,6 +177,7 @@ assert.equal(outsideBody?.error, 'not_found');
 console.log('VOID_APP_DATANET_LOCAL_ORIGIN_V1_GREEN');
 console.log('app_origin_status_card_http=200');
 console.log('same_origin_adapter=true');
+console.log('packaged_runtime_adapter=true');
 console.log('loopback_only=true');
 console.log('methods=GET,HEAD');
 console.log('public_mutation=false');
