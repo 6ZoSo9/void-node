@@ -13,6 +13,7 @@
     "validator_bootstrap": "reconciled",
     "historical_buy_void": "reconciled_owner_test_canaries_superseded_by_recovery",
     "presale_liability": "reconciled_runtime_sale_state",
+    "wc_void_premine_allocation": "reserved_target_not_funded",
     "issue_1267_evidence_complete": true
   },
   "current_nonzero_holders": [
@@ -195,12 +196,15 @@
   "future_target_allocations": {
     "presale_inventory_void": "10000000",
     "btc_void_market_inventory_void": "10000000",
+    "wc_void_liquidity_vault_void": "9800000",
+    "wc_relayer_support_reserve_void": "200000",
+    "wc_total_reserved_void": "10000000",
     "ops_treasury_void": "5000000",
     "validator_stake_target_total_void": "1260000",
     "validator_stake_current_void": "126000",
     "validator_stake_remaining_delta_void": "1134000",
-    "combined_future_treasury_delta_void": "26134000",
-    "target_core_void_treasury_reserve_void": "307073333"
+    "combined_future_treasury_delta_void": "36134000",
+    "target_core_void_treasury_reserve_void": "297073333"
   },
   "future_target_reference": "docs/operators/void-purpose-vault-allocation-v1.md",
   "validator_policy_reference": "docs/mainnet0/VALIDATOR_POLICY.md",
@@ -212,6 +216,8 @@
     "transaction_construction": false,
     "transaction_broadcast": false,
     "validator_top_up": false,
+    "wc_void_liquidity_funding": false,
+    "wc_relayer_support_funding": false,
     "presale_reservation_write": false,
     "automatic_refulfillment": false,
     "money_movement": false
@@ -225,6 +231,9 @@
     "The historical 1,000 VOID per bootstrap validator is below the locked Mainnet-0 minimum validator self-stake policy of 10,000 VOID.",
     "For 126 validators, the intended aggregate validator target is 1,260,000 VOID, leaving a 1,134,000 VOID target shortfall from current staking custody.",
     "The validator shortfall is an accounting target only; this record does not authorize a direct transfer to UpgradeStaking or any other live staking mutation.",
+    "Exactly 9,800,000 VOID is reserved from the premine target for the VOID side of the future WC/VOID liquidity system and exactly 200,000 VOID is reserved for bounded WC relayer/support use; the combined 10,000,000 VOID remains physically in VoidTreasury until separately authorized funding gates are satisfied.",
+    "The WC reserve records native VOID allocation only; Work Credits remain accounting units under the WC system and are not premine tokens.",
+    "Neither WC bucket receives automatic treasury refills; any later increase requires a new explicit allocation decision.",
     "Funding targets are allocations, not transfer authority. Any live treasury movement remains separately reviewed and explicitly authorized."
   ]
 }

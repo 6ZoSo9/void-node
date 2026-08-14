@@ -47,21 +47,30 @@ Machine-readable current custody and validator target arithmetic are pinned in
 
 | Custody purpose | Target VOID |
 | --- | ---: |
-| Core `VoidTreasury` reserve | 307,073,333 |
+| Core `VoidTreasury` reserve | 297,073,333 |
 | `PresaleInventoryVault` | 10,000,000 |
 | `BTCVoidMarketVault` | 10,000,000 |
+| `WCVoidLiquidityVault` | 9,800,000 |
+| `WCRelayerSupportReserve` | 200,000 |
 | `OpsTreasury` | 5,000,000 |
 | Validator stake target: 126 × 10,000 VOID | 1,260,000 |
 | **Total premine** | **333,333,333** |
 
-Relative to the reconciled current custody, four future target deltas remain:
+Relative to the reconciled current custody, six future target deltas remain:
 10,000,000 VOID for presale inventory, 10,000,000 VOID for BTC/VOID market
-inventory, 5,000,000 VOID for OpsTreasury, and 1,134,000 VOID to bring the
-existing 126-validator bootstrap stake allocation from 126,000 VOID to the
-10,000-VOID-per-validator policy target. The combined future target delta is
-26,134,000 VOID. If and only if the exact final vaults, staking/top-up mechanism,
-and authorities are separately reviewed and approved, those deltas would come
-from `VoidTreasury`, leaving the target core reserve at 307,073,333 VOID.
+inventory, 9,800,000 VOID for the VOID side of the WC/VOID liquidity system,
+200,000 VOID for the bounded WC relayer/support reserve, 5,000,000 VOID for
+OpsTreasury, and 1,134,000 VOID to bring the existing 126-validator bootstrap
+stake allocation from 126,000 VOID to the 10,000-VOID-per-validator policy
+target. The combined future target delta is 36,134,000 VOID. If and only if the
+exact final vaults, pool/settlement mechanism, staking/top-up mechanism, and
+authorities are separately reviewed and approved, those deltas would come from
+`VoidTreasury`, leaving the target core reserve at 297,073,333 VOID.
+
+The WC allocation is a premine reservation of native VOID only. Work Credits
+remain accounting units issued under the WC system; this target does not premine
+WC, create WC balances, change WC issuance, set or change a conversion rate, or
+activate a liquidity pool.
 
 ## Historical Buy VOID owner-test and recovery accounting
 
@@ -138,21 +147,38 @@ USDT, wrapped-BTC, fiat-oracle, bridge-custody, leverage, lending, or unsecured
 credit authority. Its operating capability is limited to reviewed native
 cross-chain atomic-settlement and reserve-accounting contracts.
 
+`WCVoidLiquidityVault` reserves exactly 9,800,000 premine VOID for the native
+VOID side of a future WC/VOID liquidity or settlement mechanism. The reservation
+is purpose-locked accounting, not a live pool. It grants no WC minting, WC ledger
+mutation, redemption, pricing, swap, signer, treasury, transaction, or market
+activation authority. The final pool/settlement design, contract identity,
+ratio/pricing rules, abuse controls, signer policy, and funding transaction all
+remain separate reviewed gates.
+
+`WCRelayerSupportReserve` reserves exactly 200,000 premine VOID for bounded WC
+ecosystem relayer/support use. It is not general OpsTreasury inventory and may
+not be silently redirected to presale, BTC/VOID market making, validator stake,
+or unrelated operating expenses. It receives no automatic treasury refill;
+any later increase requires a new explicit allocation decision.
+
 `OpsTreasury` is the funded network-native operating reserve. It is separate
-from presale inventory, market inventory, native BTC market reserves, and the
-LLC's off-chain business cash. Market BTC is not automatically swept into
-operations.
+from presale inventory, market inventory, the WC/VOID liquidity allocation, the
+WC relayer/support reserve, native BTC market reserves, and the LLC's off-chain
+business cash. Market BTC is not automatically swept into operations.
 
 The validator `UpgradeStaking` allocation is stake backing for the bootstrap
 validator set. The current 126,000 VOID is reconciled live custody, but the
 policy target for 126 validators is 1,260,000 VOID. Neither the current stake nor
-the 1,134,000 VOID target shortfall is presale inventory, market inventory, or
-an operating-wallet balance, and neither may be counted as free treasury
-liquidity.
+the 1,134,000 VOID target shortfall is presale inventory, market inventory, WC
+liquidity/support inventory, or an operating-wallet balance, and neither may be
+counted as free treasury liquidity.
 
 The core `VoidTreasury` remains the long-term reserve and administrative source
-for separately reviewed allocations. A source plan, pull request, or merge does
-not activate a vault or authorize a transfer.
+for separately reviewed allocations. The 10,000,000-VOID WC reservation is no
+longer free core reserve in the target accounting even though the tokens remain
+physically in `VoidTreasury` until a separately authorized funding event. A
+source plan, pull request, or merge does not activate a vault or authorize a
+transfer.
 
 ## Funding and activation gates
 
@@ -171,6 +197,13 @@ policy, and post-state proof must be reviewed. This document does not assume
 that sending 1,134,000 VOID directly to the current `UpgradeStaking` contract is
 the correct implementation.
 
+WC/VOID funding is also a separate value-bearing gate. Before any of the
+9,800,000-VOID liquidity allocation or 200,000-VOID relayer/support reserve is
+moved, the exact destination identities, WC accounting relationship, settlement
+or liquidity mechanism, signer/recovery policy, spending limits, and post-state
+proof must be reviewed. Neither bucket may be funded merely because this source
+allocation exists.
+
 Funding becomes eligible only after the final vault identity, Chain-2050
 binding, bytecode or implementation digest, signer policy, recovery path, and
 execution restrictions are reviewed. A negligible canary transfer must produce
@@ -181,14 +214,17 @@ through a refill-driven operating schedule.
 Funding does not activate use. Presale inventory remains unusable until Buy VOID
 activation. BTC/VOID market inventory remains unusable until the presale is
 formally closed, Buy VOID intake is permanently retired, and the market runtime
-is separately approved. OpsTreasury use remains limited to separately approved
-operating expenses. A funded balance is not authority for an operational signer
-to invent another purpose.
+is separately approved. WC/VOID liquidity and WC relayer/support inventory
+remain unusable until their own separately reviewed activation/authority gates
+are satisfied. OpsTreasury use remains limited to separately approved operating
+expenses. A funded balance is not authority for an operational signer to invent
+another purpose.
 
 ## Authority boundary
 
 No wallet, signer, transaction, treasury transfer, validator top-up, or fund
-movement is authorized by this document. No reservation write or automatic
+movement is authorized by this document. No WC issuance, WC ledger mutation,
+WC/VOID pool activation, WC relayer spending, reservation write, or automatic
 re-fulfillment is authorized either. Contract deployment, address binding,
 signer policy, bytecode review, transaction construction, signing, broadcast,
 and post-state evidence remain separate gates under ZoSo's explicit authority.

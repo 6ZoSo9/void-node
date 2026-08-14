@@ -12,9 +12,11 @@ export const VOID_PREMINE_PURPOSE_VAULT_TARGET_V1 = Object.freeze({
   schema: "void.premine.purpose_vault_target.v1",
   marker: "VOID_PREMINE_PURPOSE_VAULT_TARGET_V1",
   amounts_void: Object.freeze({
-    core_void_treasury: "307073333",
+    core_void_treasury: "297073333",
     presale_inventory_vault: "10000000",
     btc_void_market_vault: "10000000",
+    wc_void_liquidity_vault: "9800000",
+    wc_relayer_support_reserve: "200000",
     ops_treasury: "5000000",
     validator_stake_target: "1260000",
     total_premine: "333333333",
@@ -25,9 +27,11 @@ export const VOID_PREMINE_PURPOSE_VAULT_TARGET_V1 = Object.freeze({
     reconciled_validator_stake: "126000",
     planned_presale_inventory_funding: "10000000",
     planned_btc_void_market_funding: "10000000",
+    planned_wc_void_liquidity_funding: "9800000",
+    planned_wc_relayer_support_funding: "200000",
     planned_ops_treasury_funding: "5000000",
     planned_validator_stake_delta: "1134000",
-    combined_future_treasury_delta: "26134000",
+    combined_future_treasury_delta: "36134000",
   }),
   funding_readiness: Object.freeze({
     current_balance_reconciliation_required: true,
@@ -138,6 +142,8 @@ export function validatePurposeVaultTargetV1() {
     BigInt(amounts.core_void_treasury) +
     BigInt(amounts.presale_inventory_vault) +
     BigInt(amounts.btc_void_market_vault) +
+    BigInt(amounts.wc_void_liquidity_vault) +
+    BigInt(amounts.wc_relayer_support_reserve) +
     BigInt(amounts.ops_treasury) +
     BigInt(amounts.validator_stake_target);
   if (allocated !== BigInt(amounts.total_premine)) {
@@ -158,9 +164,23 @@ export function validatePurposeVaultTargetV1() {
   ) {
     throw new Error("validator stake transition does not reach its target");
   }
+  if (
+    BigInt(transition.planned_wc_void_liquidity_funding) !==
+    BigInt(amounts.wc_void_liquidity_vault)
+  ) {
+    throw new Error("WC/VOID liquidity transition does not reach its target");
+  }
+  if (
+    BigInt(transition.planned_wc_relayer_support_funding) !==
+    BigInt(amounts.wc_relayer_support_reserve)
+  ) {
+    throw new Error("WC relayer/support transition does not reach its target");
+  }
   const futureTreasuryDelta =
     BigInt(transition.planned_presale_inventory_funding) +
     BigInt(transition.planned_btc_void_market_funding) +
+    BigInt(transition.planned_wc_void_liquidity_funding) +
+    BigInt(transition.planned_wc_relayer_support_funding) +
     BigInt(transition.planned_ops_treasury_funding) +
     BigInt(transition.planned_validator_stake_delta);
   if (futureTreasuryDelta !== BigInt(transition.combined_future_treasury_delta)) {

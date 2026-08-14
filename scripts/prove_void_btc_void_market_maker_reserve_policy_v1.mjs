@@ -78,9 +78,11 @@ assert.equal(
   VOID_PREMINE_PURPOSE_VAULT_TARGET_V1.amounts_void.total_premine,
 );
 assert.deepEqual(allocation.amounts_void, {
-  core_void_treasury: "307073333",
+  core_void_treasury: "297073333",
   presale_inventory_vault: "10000000",
   btc_void_market_vault: "10000000",
+  wc_void_liquidity_vault: "9800000",
+  wc_relayer_support_reserve: "200000",
   ops_treasury: "5000000",
   validator_stake_target: "1260000",
   total_premine: "333333333",
@@ -91,9 +93,11 @@ assert.deepEqual(allocation.transition_basis_void, {
   reconciled_validator_stake: "126000",
   planned_presale_inventory_funding: "10000000",
   planned_btc_void_market_funding: "10000000",
+  planned_wc_void_liquidity_funding: "9800000",
+  planned_wc_relayer_support_funding: "200000",
   planned_ops_treasury_funding: "5000000",
   planned_validator_stake_delta: "1134000",
-  combined_future_treasury_delta: "26134000",
+  combined_future_treasury_delta: "36134000",
 });
 assert.deepEqual(allocation.funding_readiness, {
   current_balance_reconciliation_required: true,
@@ -119,13 +123,18 @@ const allocationDoc = fs.readFileSync(
 );
 for (const expected of [
   "VOID_PREMINE_PURPOSE_VAULT_TARGET_V1",
-  "307,073,333",
+  "297,073,333",
   "10,000,000",
+  "9,800,000",
+  "200,000",
   "5,000,000",
   "1,260,000",
   "1,134,000",
   "126,000",
+  "36,134,000",
   "333,333,333",
+  "WCVoidLiquidityVault",
+  "WCRelayerSupportReserve",
   "verified target delta in one controlled funding event",
   "Funding does not activate use",
   "No wallet, signer, transaction, treasury transfer, validator top-up, or fund",
@@ -162,6 +171,21 @@ assert.equal(
   allocation.amounts_void.core_void_treasury,
 );
 assert.equal(
+  allocationSnapshot.future_target_allocations.wc_void_liquidity_vault_void,
+  allocation.amounts_void.wc_void_liquidity_vault,
+);
+assert.equal(
+  allocationSnapshot.future_target_allocations.wc_relayer_support_reserve_void,
+  allocation.amounts_void.wc_relayer_support_reserve,
+);
+assert.equal(
+  allocationSnapshot.future_target_allocations.wc_total_reserved_void,
+  (
+    BigInt(allocation.amounts_void.wc_void_liquidity_vault) +
+    BigInt(allocation.amounts_void.wc_relayer_support_reserve)
+  ).toString(),
+);
+assert.equal(
   allocationSnapshot.future_target_allocations.ops_treasury_void,
   allocation.amounts_void.ops_treasury,
 );
@@ -178,6 +202,8 @@ assert.equal(
   allocation.transition_basis_void.combined_future_treasury_delta,
 );
 assert.equal(allocationSnapshot.authority.validator_top_up, false);
+assert.equal(allocationSnapshot.authority.wc_void_liquidity_funding, false);
+assert.equal(allocationSnapshot.authority.wc_relayer_support_funding, false);
 assert.equal(allocationSnapshot.authority.money_movement, false);
 
 const original = request();
@@ -554,6 +580,9 @@ process.stdout.write(
     premine_allocation_conserved: true,
     presale_inventory_vault_void: "10000000",
     btc_void_market_vault_void: "10000000",
+    wc_void_liquidity_vault_void: "9800000",
+    wc_relayer_support_reserve_void: "200000",
+    wc_total_reserved_void: "10000000",
     ops_treasury_target_void: "5000000",
     confirmed_btc_recycled_to_bid_reserve: true,
     source_sale_content_address_verified: true,
