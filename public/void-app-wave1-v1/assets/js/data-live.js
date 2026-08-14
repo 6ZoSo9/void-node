@@ -1,4 +1,5 @@
 const DATANET_ENDPOINT = '/public-node/datanet/field-replication-status-card-v1.json';
+const DATANET_HTML_ENDPOINT = '/public-node/datanet/field-replication-status-card-v1.html';
 const DATANET_MARKER = 'VOID_DATANET_FIELD_REPLICATION_STATUS_CARD_V1';
 const DATANET_GREEN_MARKER = 'VOID_DATANET_FIELD_REPLICATION_STATUS_CARD_V1_GREEN';
 const MAX_RESPONSE_BYTES = 128 * 1024;
@@ -617,7 +618,7 @@ export function dataView() {
             <div><dt>SHA-256</dt><dd class="mono" data-datanet-sha>—</dd></div>
             <div><dt>Created</dt><dd data-datanet-created>—</dd></div>
             <div><dt>Status JSON</dt><dd><a data-datanet-json-link href="${escapeHtml(DATANET_ENDPOINT)}">Open JSON</a></dd></div>
-            <div><dt>Status HTML</dt><dd><a data-datanet-html-link href="/public-node/datanet/field-replication-status-card-v1.html">Open HTML</a></dd></div>
+            <div><dt>Status HTML</dt><dd><a data-datanet-html-link href="${escapeHtml(DATANET_HTML_ENDPOINT)}">Open HTML</a></dd></div>
           </dl>
         </section>
       </div>
@@ -644,7 +645,27 @@ const setChip = (variant, text) => {
   element.textContent = text;
 };
 
+const clearDataNetEvidence = () => {
+  setText('[data-datanet-verified-bytes]', '—');
+  setText('[data-datanet-proof-count]', '—');
+  setText('[data-datanet-roundtrip]', 'HOLD');
+  setText('[data-datanet-source-node]', '—');
+  setText('[data-datanet-field-node]', '—');
+  setText('[data-datanet-network-path]', '—');
+  setText('[data-datanet-source-pull]', 'HOLD');
+  setText('[data-datanet-field-mirror]', 'HOLD');
+  setText('[data-datanet-home-verify]', 'HOLD');
+  setText('[data-datanet-sha]', '—');
+  setText('[data-datanet-created]', '—');
+
+  const jsonLink = document.querySelector('[data-datanet-json-link]');
+  const htmlLink = document.querySelector('[data-datanet-html-link]');
+  if (jsonLink) jsonLink.href = DATANET_ENDPOINT;
+  if (htmlLink) htmlLink.href = DATANET_HTML_ENDPOINT;
+};
+
 const setLoading = () => {
+  clearDataNetEvidence();
   setChip('info', 'Loading DataNet status');
   setText('[data-datanet-state-title]', 'Reading public evidence');
   setText('[data-datanet-message]', 'No cached or invented dataset state is shown.');
@@ -652,6 +673,7 @@ const setLoading = () => {
 };
 
 const setError = (message) => {
+  clearDataNetEvidence();
   setChip('warning', 'HOLD · data unavailable');
   setText('[data-datanet-state-title]', 'DataNet evidence did not validate');
   setText(
@@ -659,17 +681,6 @@ const setError = (message) => {
     'The Data view fails closed. No cached, partial, or invented values are substituted.'
   );
   setText('[data-datanet-updated]', message || 'Request failed');
-  setText('[data-datanet-verified-bytes]', '—');
-  setText('[data-datanet-proof-count]', '—');
-  setText('[data-datanet-roundtrip]', 'HOLD');
-  setText('[data-datanet-source-node]', '—');
-  setText('[data-datanet-field-node]', '—');
-  setText('[data-datanet-network-path]', '—');
-  setText('[data-datanet-source-pull]', '—');
-  setText('[data-datanet-field-mirror]', '—');
-  setText('[data-datanet-home-verify]', '—');
-  setText('[data-datanet-sha]', '—');
-  setText('[data-datanet-created]', '—');
 };
 
 const applyStatus = (snapshot) => {
