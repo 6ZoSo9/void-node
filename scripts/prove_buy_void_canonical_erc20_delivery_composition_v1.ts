@@ -169,7 +169,6 @@ assert.deepEqual(
   [
     "erc20_transaction_preparation_bridge_not_mounted",
     "erc20_delivery_receipt_reconciliation_bridge_not_mounted",
-    "erc20_fulfillment_unit_to_token_atom_scale_not_ready",
     "canonical_delivery_dependency_bootstrap_not_ready",
   ],
 );
@@ -192,7 +191,7 @@ assert.equal(
 assert.equal(
   parentStatus.body.canonical_delivery
     .erc20_fulfillment_unit_to_token_atom_scale_ready,
-  false,
+  true,
 );
 assert.equal(
   parentStatus.body.canonical_delivery
@@ -261,7 +260,7 @@ console.log(
 console.log("canonical_delivery_asset=void_token_erc20");
 console.log("native_parent_routes=0");
 console.log("canonical_erc20_delivery_parent_mount=0");
-console.log("erc20_atomic_unit_conversion_ready=0");
+console.log("erc20_atomic_unit_conversion_ready=1");
 console.log("canonical_delivery_dependency_bootstrap_ready=0");
 console.log("crash_saga_parent_mount=0");
 console.log("native_transaction_preparation_parent_mount=0");

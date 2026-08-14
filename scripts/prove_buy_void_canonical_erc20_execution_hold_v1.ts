@@ -98,7 +98,7 @@ assert.equal(
 assert.equal(
   parentStatus.body.canonical_delivery
     .erc20_fulfillment_unit_to_token_atom_scale_ready,
-  false,
+  true,
 );
 assert.equal(
   parentStatus.body.canonical_delivery
@@ -149,7 +149,7 @@ console.log(
 );
 console.log("canonical_erc20_delivery_parent_mount=0");
 console.log("dependency_bootstrap_ready=0");
-console.log("erc20_atomic_unit_conversion_ready=0");
+console.log("erc20_atomic_unit_conversion_ready=1");
 console.log("canonical_delivery_execution_ready=0");
 console.log("transaction_broadcast_reachable_from_parent=0");
 console.log("money_movement_reachable_from_parent=0");
