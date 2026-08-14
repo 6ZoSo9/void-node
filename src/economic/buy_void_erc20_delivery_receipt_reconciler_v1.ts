@@ -135,6 +135,19 @@ type NormalizedPolicyV1 = {
   max_response_bytes: number;
 };
 
+type ReceiptStabilityBindingV1 = {
+  transaction_hash: string;
+  from: string;
+  to: string;
+  block_number: bigint;
+  block_hash: string;
+  status: bigint;
+  transfer_from: string;
+  transfer_to: string;
+  transfer_value: bigint;
+  transfer_log_index: string;
+};
+
 const ADDRESS = /^0x[0-9a-f]{40}$/;
 const HASH = /^0x[0-9a-f]{64}$/;
 const HEX_QUANTITY = /^0x(?:0|[1-9a-f][0-9a-f]*)$/i;
@@ -521,6 +534,101 @@ function transferLogIndex(log: any): string {
   return hex === null ? "" : hex.toString();
 }
 
+function receiptStabilityBinding(
+  value: unknown,
+  policy: Readonly<NormalizedPolicyV1>,
+  transactionHash: string,
+): ReceiptStabilityBindingV1 | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return null;
+  }
+  const receipt = value as Record<string, any>;
+  const receiptHash = normalizeHash(receipt.transactionHash);
+  const receiptFrom = normalizeAddress(receipt.from);
+  const receiptTo = normalizeAddress(receipt.to);
+  const receiptBlock = parseHexQuantity(receipt.blockNumber);
+  const receiptBlockHash = normalizeHash(receipt.blockHash);
+  const receiptStatus = parseHexQuantity(receipt.status);
+  if (
+    receiptHash !== transactionHash ||
+    !receiptFrom ||
+    receiptTo !== policy.void_token_address ||
+    receiptBlock === null ||
+    receiptBlock <= 0n ||
+    !receiptBlockHash ||
+    receiptStatus !== 1n
+  ) {
+    return null;
+  }
+
+  const logs = Array.isArray(receipt.logs) ? receipt.logs : null;
+  if (!logs || logs.length > MAX_RECEIPT_LOGS) return null;
+
+  const transfers: Array<{
+    from: string;
+    to: string;
+    value: bigint;
+    log_index: string;
+  }> = [];
+  for (const rawLog of logs) {
+    const log = rawLog as any;
+    if (normalizeAddress(log?.address) !== policy.void_token_address) {
+      continue;
+    }
+    const topics = Array.isArray(log?.topics)
+      ? log.topics.map((topic: unknown) =>
+          String(topic || "").toLowerCase(),
+        )
+      : [];
+    if (topics[0] !== TRANSFER_TOPIC) continue;
+    const logTransactionHash = log?.transactionHash
+      ? normalizeHash(log.transactionHash)
+      : transactionHash;
+    if (logTransactionHash !== transactionHash) return null;
+    let parsed;
+    try {
+      parsed = TRANSFER_INTERFACE.parseLog({
+        topics,
+        data: String(log?.data || ""),
+      });
+    } catch {
+      parsed = null;
+    }
+    if (!parsed || parsed.name !== "Transfer") return null;
+    const from = normalizeAddress(parsed.args[0]);
+    const to = normalizeAddress(parsed.args[1]);
+    let transferValue: bigint;
+    try {
+      transferValue = BigInt(parsed.args[2]);
+    } catch {
+      return null;
+    }
+    const logIndex = transferLogIndex(log);
+    if (!from || !to || !logIndex) return null;
+    transfers.push({
+      from,
+      to,
+      value: transferValue,
+      log_index: logIndex,
+    });
+  }
+  if (transfers.length !== 1) return null;
+
+  const transfer = transfers[0];
+  return {
+    transaction_hash: receiptHash,
+    from: receiptFrom,
+    to: receiptTo,
+    block_number: receiptBlock,
+    block_hash: receiptBlockHash,
+    status: receiptStatus,
+    transfer_from: transfer.from,
+    transfer_to: transfer.to,
+    transfer_value: transfer.value,
+    transfer_log_index: transfer.log_index,
+  };
+}
+
 export async function runBuyVoidErc20DeliveryReceiptReconcilerV1(
   input: BuyVoidErc20DeliveryReceiptReconcilerInputV1,
 ): Promise<BuyVoidErc20DeliveryReceiptReconcilerDecisionV1> {
@@ -866,6 +974,54 @@ export async function runBuyVoidErc20DeliveryReceiptReconcilerV1(
         observed_confirmations: confirmations.toString(),
         required_confirmations:
           policy.min_confirmations.toString(),
+      },
+    });
+  }
+
+  const revalidationResponse = await call(
+    "eth_getTransactionReceipt",
+    [transactionHash],
+  );
+  if ("decision" in revalidationResponse) {
+    return revalidationResponse.decision;
+  }
+  const revalidated = receiptStabilityBinding(
+    revalidationResponse.value,
+    policy,
+    transactionHash,
+  );
+  if (!revalidated) {
+    return held("delivery_receipt_revalidation_invalid", {
+      attempt_id: attemptId,
+      transaction_hash: transactionHash,
+      rpc_url_fingerprint_sha256:
+        policy.rpc_url_fingerprint_sha256,
+      rpc_methods_used: methods,
+    });
+  }
+  if (
+    revalidated.transaction_hash !== receiptHash ||
+    revalidated.from !== receiptFrom ||
+    revalidated.to !== receiptTo ||
+    revalidated.block_number !== receiptBlock ||
+    revalidated.block_hash !== receiptBlockHash ||
+    revalidated.status !== receiptStatus ||
+    revalidated.transfer_from !== transfer.from ||
+    revalidated.transfer_to !== transfer.to ||
+    revalidated.transfer_value !== transfer.value ||
+    revalidated.transfer_log_index !== transfer.log_index
+  ) {
+    return held("delivery_receipt_changed_during_confirmation_window", {
+      attempt_id: attemptId,
+      transaction_hash: transactionHash,
+      rpc_url_fingerprint_sha256:
+        policy.rpc_url_fingerprint_sha256,
+      rpc_methods_used: methods,
+      detail: {
+        first_block_number: receiptBlock.toString(),
+        first_block_hash: receiptBlockHash,
+        revalidated_block_number: revalidated.block_number.toString(),
+        revalidated_block_hash: revalidated.block_hash,
       },
     });
   }

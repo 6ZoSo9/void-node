@@ -180,15 +180,21 @@ function transportFor(
   receiptValue: unknown,
   head = "0x69",
   chain = "0x802",
+  revalidationValue: unknown = receiptValue,
 ) {
   const calls: string[] = [];
+  let receiptReads = 0;
   const transport: BuyVoidErc20DeliveryReceiptRpcTransportV1 =
     async (call) => {
       calls.push(call.method);
       if (call.method === "eth_chainId") return chain;
       if (call.method === "eth_getTransactionReceipt") {
         assert.deepEqual(call.params, [txHash]);
-        return receiptValue;
+        const value = receiptReads === 0
+          ? receiptValue
+          : revalidationValue;
+        receiptReads += 1;
+        return value;
       }
       if (call.method === "eth_blockNumber") return head;
       throw new Error(`unexpected method ${call.method}`);
@@ -220,6 +226,7 @@ assert.deepEqual(baseTransport.calls, [
   "eth_chainId",
   "eth_getTransactionReceipt",
   "eth_blockNumber",
+  "eth_getTransactionReceipt",
 ]);
 assert.equal(confirmed.mutation_performed, false);
 assert.equal(confirmed.signing_performed, false);
@@ -242,6 +249,37 @@ async function expectHeld(
   assert.equal(decision.ok, false);
   if (decision.ok) throw new Error("expected held decision");
   assert.equal(decision.reason, expectedReason);
+  assert.equal(decision.mutation_performed, false);
+  assert.equal(decision.signing_performed, false);
+  assert.equal(decision.transaction_broadcast_performed, false);
+  assert.equal(decision.money_movement_performed, false);
+}
+
+async function expectRevalidationHeld(
+  expectedReason: string,
+  revalidationValue: unknown,
+) {
+  const synthetic = transportFor(
+    receipt(),
+    "0x69",
+    "0x802",
+    revalidationValue,
+  );
+  const decision = await runBuyVoidErc20DeliveryReceiptReconcilerV1({
+    attempt: attempt(),
+    intent: intent(),
+    policy: policy(),
+    transport: synthetic.transport,
+  });
+  assert.equal(decision.ok, false);
+  if (decision.ok) throw new Error("expected revalidation HOLD");
+  assert.equal(decision.reason, expectedReason);
+  assert.deepEqual(synthetic.calls, [
+    "eth_chainId",
+    "eth_getTransactionReceipt",
+    "eth_blockNumber",
+    "eth_getTransactionReceipt",
+  ]);
   assert.equal(decision.mutation_performed, false);
   assert.equal(decision.signing_performed, false);
   assert.equal(decision.transaction_broadcast_performed, false);
@@ -286,6 +324,31 @@ await expectHeld(
   receipt(),
   "0x69",
   "0x1",
+);
+
+await expectRevalidationHeld(
+  "delivery_receipt_revalidation_invalid",
+  null,
+);
+await expectRevalidationHeld(
+  "delivery_receipt_changed_during_confirmation_window",
+  {
+    ...receipt(),
+    blockHash: `0x${"3".repeat(64)}`,
+  },
+);
+await expectRevalidationHeld(
+  "delivery_receipt_changed_during_confirmation_window",
+  receipt({ amount: amountAtoms + 1n }),
+);
+const changedLogIndexReceipt = receipt();
+changedLogIndexReceipt.logs[0] = {
+  ...changedLogIndexReceipt.logs[0],
+  logIndex: "0x1",
+};
+await expectRevalidationHeld(
+  "delivery_receipt_changed_during_confirmation_window",
+  changedLogIndexReceipt,
 );
 
 const disabledTransport = transportFor(receipt());
@@ -347,6 +410,7 @@ console.log("exact_from_wallet=true");
 console.log("exact_to_delivery_address=true");
 console.log("exact_token_amount_atoms=true");
 console.log("min_confirmations_enforced=true");
+console.log("receipt_revalidation_after_confirmations=true");
 console.log("mutation_performed=false");
 console.log("signing_performed=false");
 console.log("transaction_broadcast_performed=false");
