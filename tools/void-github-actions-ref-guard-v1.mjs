@@ -5,6 +5,8 @@ import { pathToFileURL } from 'node:url';
 export const MARKER = 'VOID_GITHUB_ACTIONS_REF_GUARD_V1';
 const UNPARSED_USES_REF = '<unparsed-uses-syntax>';
 const NON_REGULAR_ACTION_MANIFEST = '<non-regular-action-manifest>';
+const MAX_LOCAL_ACTION_DEPTH = 16;
+const MAX_LOCAL_ACTION_MANIFESTS = 64;
 
 function git(cwd, args, { allowFailure = false } = {}) {
   const result = spawnSync('git', args, {
@@ -52,8 +54,7 @@ function parseNameStatusZ(raw) {
 function readGitFile(cwd, commit, path) {
   if (!path) return '';
   const result = git(cwd, ['show', `${commit}:${path}`], { allowFailure: true });
-  if (result.status !== 0) return '';
-  return result.stdout;
+  return result.status === 0 ? result.stdout : '';
 }
 
 function readGitMode(cwd, commit, path) {
@@ -83,23 +84,9 @@ function parseQuotedScalar(line, index) {
   let value = '';
   let cursor = index + 1;
   const escapes = {
-    '0': '\0',
-    a: '\x07',
-    b: '\b',
-    t: '\t',
-    n: '\n',
-    v: '\v',
-    f: '\f',
-    r: '\r',
-    e: '\x1b',
-    ' ': ' ',
-    '"': '"',
-    '/': '/',
-    '\\': '\\',
-    N: '\u0085',
-    _: '\u00a0',
-    L: '\u2028',
-    P: '\u2029',
+    '0': '\0', a: '\x07', b: '\b', t: '\t', n: '\n', v: '\v', f: '\f', r: '\r',
+    e: '\x1b', ' ': ' ', '"': '"', '/': '/', '\\': '\\', N: '\u0085', _: '\u00a0',
+    L: '\u2028', P: '\u2029',
   };
 
   while (cursor < line.length) {
@@ -132,18 +119,15 @@ function parseQuotedScalar(line, index) {
       if (digits.length !== width || !/^[0-9a-fA-F]+$/.test(digits)) {
         return { value, end: line.length, closed: false };
       }
-      const codePoint = Number.parseInt(digits, 16);
       try {
-        value += String.fromCodePoint(codePoint);
+        value += String.fromCodePoint(Number.parseInt(digits, 16));
       } catch {
         return { value, end: line.length, closed: false };
       }
       cursor += 2 + width;
       continue;
     }
-    if (!Object.hasOwn(escapes, escape)) {
-      return { value, end: line.length, closed: false };
-    }
+    if (!Object.hasOwn(escapes, escape)) return { value, end: line.length, closed: false };
     value += escapes[escape];
     cursor += 2;
   }
@@ -169,24 +153,18 @@ function parseMappingKeyAt(line, index) {
   }
 
   cursor = skipSpace(line, cursor);
-  if (line[cursor] !== ':') {
-    return { key, colon: null, ambiguous: key === 'uses' };
-  }
+  if (line[cursor] !== ':') return { key, colon: null, ambiguous: key === 'uses' };
   return { key, colon: cursor, ambiguous: false };
 }
 
 function parseUsesValueAt(line, colon) {
   let cursor = skipSpace(line, colon + 1);
-  if (cursor >= line.length || line[cursor] === '#' || line[cursor] === ',' || line[cursor] === '}') {
-    return null;
-  }
-
+  if (cursor >= line.length || line[cursor] === '#' || line[cursor] === ',' || line[cursor] === '}') return null;
   if (line[cursor] === '"' || line[cursor] === "'") {
     const parsed = parseQuotedScalar(line, cursor);
     if (!parsed.closed || parsed.value.length === 0) return null;
     return parsed.value.trim();
   }
-
   const start = cursor;
   while (cursor < line.length && !/[\s#,}\]]/.test(line[cursor])) cursor += 1;
   const value = line.slice(start, cursor).trim();
@@ -200,30 +178,18 @@ function flowMappingStarts(line) {
   for (let index = 0; index < line.length; index += 1) {
     const ch = line[index];
     if (quote === '"') {
-      if (escaped) {
-        escaped = false;
-        continue;
-      }
-      if (ch === '\\') {
-        escaped = true;
-        continue;
-      }
+      if (escaped) { escaped = false; continue; }
+      if (ch === '\\') { escaped = true; continue; }
       if (ch === '"') quote = null;
       continue;
     }
     if (quote === "'") {
-      if (ch === "'" && line[index + 1] === "'") {
-        index += 1;
-        continue;
-      }
+      if (ch === "'" && line[index + 1] === "'") { index += 1; continue; }
       if (ch === "'") quote = null;
       continue;
     }
     if (ch === '#') break;
-    if (ch === '"' || ch === "'") {
-      quote = ch;
-      continue;
-    }
+    if (ch === '"' || ch === "'") { quote = ch; continue; }
     if (ch === '{' || ch === ',') starts.push(index + 1);
   }
   return starts;
@@ -236,11 +202,8 @@ function usesEntryFromCandidate(line, index, lineNumber) {
     return { line: lineNumber, ref: UNPARSED_USES_REF, kind: 'unparsed_uses_syntax', mutable: true };
   }
   const ref = parseUsesValueAt(line, key.colon);
-  if (!ref) {
-    return { line: lineNumber, ref: UNPARSED_USES_REF, kind: 'unparsed_uses_syntax', mutable: true };
-  }
-  const classification = classifyUsesRef(ref);
-  return { line: lineNumber, ref, ...classification };
+  if (!ref) return { line: lineNumber, ref: UNPARSED_USES_REF, kind: 'unparsed_uses_syntax', mutable: true };
+  return { line: lineNumber, ref, ...classifyUsesRef(ref) };
 }
 
 export function classifyUsesRef(ref) {
@@ -254,10 +217,7 @@ export function classifyUsesRef(ref) {
       !ref.endsWith('/') &&
       segments.slice(3).length > 0 &&
       segments.slice(3).every((segment) => segment !== '' && segment !== '.' && segment !== '..');
-    return {
-      kind: approvedLocalAction ? 'local' : 'local_outside_approved_root',
-      mutable: !approvedLocalAction,
-    };
+    return { kind: approvedLocalAction ? 'local' : 'local_outside_approved_root', mutable: !approvedLocalAction };
   }
   if (ref.startsWith('docker://')) {
     const at = ref.lastIndexOf('@');
@@ -275,8 +235,7 @@ export function classifyUsesRef(ref) {
 }
 
 function blockScalarHeaderAfterColon(line, colon) {
-  const rest = line.slice(colon + 1).trim();
-  return /^[>|][0-9+-]*\s*(?:#.*)?$/.test(rest);
+  return /^[>|][0-9+-]*\s*(?:#.*)?$/.test(line.slice(colon + 1).trim());
 }
 
 export function extractUsesRefs(text) {
@@ -297,12 +256,7 @@ export function extractUsesRefs(text) {
     if (line[blockStart] === '-') blockStart = skipSpace(line, blockStart + 1);
     const blockKey = parseMappingKeyAt(line, blockStart);
     if (blockKey?.key === 'uses' && blockKey.colon !== null && blockScalarHeaderAfterColon(line, blockKey.colon)) {
-      entries.push({
-        line: index + 1,
-        ref: UNPARSED_USES_REF,
-        kind: 'unparsed_uses_syntax',
-        mutable: true,
-      });
+      entries.push({ line: index + 1, ref: UNPARSED_USES_REF, kind: 'unparsed_uses_syntax', mutable: true });
       scalarIndent = indent;
       continue;
     }
@@ -311,12 +265,11 @@ export function extractUsesRefs(text) {
       scalarIndent = indent;
       continue;
     }
-
     if (trimmed === '' || trimmed.startsWith('#')) continue;
 
-    const candidateStarts = [blockStart, ...flowMappingStarts(line)];
+    const starts = [blockStart, ...flowMappingStarts(line)];
     const seenStarts = new Set();
-    for (const start of candidateStarts) {
+    for (const start of starts) {
       if (seenStarts.has(start)) continue;
       seenStarts.add(start);
       const entry = usesEntryFromCandidate(line, start, index + 1);
@@ -326,13 +279,17 @@ export function extractUsesRefs(text) {
   return entries;
 }
 
-function mutableCounts(entries) {
+function refCounts(entries, predicate) {
   const counts = new Map();
   for (const entry of entries) {
-    if (!entry.mutable || entry.kind === 'unparsed_uses_syntax') continue;
+    if (!predicate(entry)) continue;
     counts.set(entry.ref, (counts.get(entry.ref) ?? 0) + 1);
   }
   return counts;
+}
+
+function mutableCounts(entries) {
+  return refCounts(entries, (entry) => entry.mutable && entry.kind !== 'unparsed_uses_syntax');
 }
 
 function isAuditedActionPath(path) {
@@ -345,20 +302,92 @@ function isActionManifestPath(path) {
   return Boolean(path) && /(?:^|\/)action\.ya?ml$/i.test(path);
 }
 
+function localManifestResolution(cwd, headSha, ref) {
+  const directory = ref.slice(2);
+  const candidates = [`${directory}/action.yml`, `${directory}/action.yaml`];
+  const existing = candidates
+    .map((path) => ({ path, mode: readGitMode(cwd, headSha, path) }))
+    .filter((entry) => entry.mode !== null);
+
+  if (existing.length === 0) return { ok: false, kind: 'local_action_manifest_missing', path: null };
+  if (existing.length !== 1) return { ok: false, kind: 'local_action_manifest_ambiguous', path: null };
+  const [manifest] = existing;
+  if (manifest.mode !== '100644' && manifest.mode !== '100755') {
+    return { ok: false, kind: 'non_regular_action_manifest', path: manifest.path };
+  }
+  return { ok: true, path: manifest.path };
+}
+
+function auditLocalActionDependencyClosure({ cwd, headSha, roots }) {
+  const findings = [];
+  const visited = new Set();
+  let manifestsVisited = 0;
+
+  function finding(path, line, uses, kind) {
+    findings.push({ path, line, uses, kind });
+  }
+
+  function visit(ref, origin, depth, stack) {
+    if (depth > MAX_LOCAL_ACTION_DEPTH) {
+      finding(origin.path, origin.line, ref, 'local_action_depth_exceeded');
+      return;
+    }
+
+    const resolution = localManifestResolution(cwd, headSha, ref);
+    if (!resolution.ok) {
+      finding(resolution.path ?? origin.path, origin.line, ref, resolution.kind);
+      return;
+    }
+
+    const manifestPath = resolution.path;
+    if (stack.has(manifestPath)) {
+      finding(manifestPath, 1, ref, 'local_action_cycle');
+      return;
+    }
+    if (visited.has(manifestPath)) return;
+
+    manifestsVisited += 1;
+    if (manifestsVisited > MAX_LOCAL_ACTION_MANIFESTS) {
+      finding(manifestPath, 1, ref, 'local_action_manifest_limit_exceeded');
+      return;
+    }
+
+    visited.add(manifestPath);
+    const nextStack = new Set(stack);
+    nextStack.add(manifestPath);
+    const entries = extractUsesRefs(readGitFile(cwd, headSha, manifestPath));
+    for (const entry of entries) {
+      if (entry.mutable) {
+        finding(manifestPath, entry.line, entry.ref, entry.kind);
+        continue;
+      }
+      if (entry.kind === 'local') {
+        visit(entry.ref, { path: manifestPath, line: entry.line }, depth + 1, nextStack);
+      }
+    }
+  }
+
+  for (const root of roots) visit(root.ref, root, 0, new Set());
+  return findings;
+}
+
 export function auditActionRefDelta({ cwd = process.cwd(), base, head }) {
   const baseSha = resolveCommit(cwd, base);
   const headSha = resolveCommit(cwd, head);
-  const diff = git(cwd, [
-    'diff', '--name-status', '-z', '-M', baseSha, headSha,
-  ]).stdout;
+  const diff = git(cwd, ['diff', '--name-status', '-z', '-M', baseSha, headSha]).stdout;
   const changes = parseNameStatusZ(diff);
   const changed = [];
   const newMutableRefs = [];
+  const localClosureRoots = [];
   let legacyMutableRefsObserved = 0;
 
   for (const change of changes) {
     if (change.code === 'D') continue;
-    const rawBasePath = change.code === 'R' ? change.oldPath : change.code === 'A' || change.code === 'C' ? null : change.oldPath;
+    const rawBasePath = change.code === 'R'
+      ? change.oldPath
+      : change.code === 'A' || change.code === 'C'
+        ? null
+        : change.oldPath;
     const headPath = change.newPath;
     if (!isAuditedActionPath(headPath)) continue;
     const basePath = isAuditedActionPath(rawBasePath) ? rawBasePath : null;
@@ -379,22 +408,36 @@ export function auditActionRefDelta({ cwd = process.cwd(), base, head }) {
       });
       continue;
     }
+
     const baseEntries = extractUsesRefs(readGitFile(cwd, baseSha, basePath));
     const headEntries = extractUsesRefs(readGitFile(cwd, headSha, headPath));
     const baseMutable = mutableCounts(baseEntries);
-    const seenHead = new Map();
+    const baseLocal = refCounts(baseEntries, (entry) => !entry.mutable && entry.kind === 'local');
+    const seenMutable = new Map();
+    const seenLocal = new Map();
 
     legacyMutableRefsObserved += [...baseMutable.values()].reduce((sum, n) => sum + n, 0);
+
     for (const entry of headEntries) {
-      if (!entry.mutable) continue;
-      if (entry.kind === 'unparsed_uses_syntax') {
-        newMutableRefs.push({ path: headPath, line: entry.line, uses: entry.ref, kind: entry.kind });
+      if (entry.mutable) {
+        if (entry.kind === 'unparsed_uses_syntax') {
+          newMutableRefs.push({ path: headPath, line: entry.line, uses: entry.ref, kind: entry.kind });
+          continue;
+        }
+        const occurrence = (seenMutable.get(entry.ref) ?? 0) + 1;
+        seenMutable.set(entry.ref, occurrence);
+        if (occurrence > (baseMutable.get(entry.ref) ?? 0)) {
+          newMutableRefs.push({ path: headPath, line: entry.line, uses: entry.ref, kind: entry.kind });
+        }
         continue;
       }
-      const occurrence = (seenHead.get(entry.ref) ?? 0) + 1;
-      seenHead.set(entry.ref, occurrence);
-      if (occurrence > (baseMutable.get(entry.ref) ?? 0)) {
-        newMutableRefs.push({ path: headPath, line: entry.line, uses: entry.ref, kind: entry.kind });
+
+      if (entry.kind === 'local') {
+        const occurrence = (seenLocal.get(entry.ref) ?? 0) + 1;
+        seenLocal.set(entry.ref, occurrence);
+        if (occurrence > (baseLocal.get(entry.ref) ?? 0)) {
+          localClosureRoots.push({ path: headPath, line: entry.line, ref: entry.ref });
+        }
       }
     }
 
@@ -406,6 +449,12 @@ export function auditActionRefDelta({ cwd = process.cwd(), base, head }) {
       head_mutable_refs: headEntries.filter((entry) => entry.mutable).length,
     });
   }
+
+  newMutableRefs.push(...auditLocalActionDependencyClosure({
+    cwd,
+    headSha,
+    roots: localClosureRoots,
+  }));
 
   const decision = newMutableRefs.length === 0 ? 'GREEN' : 'HOLD';
   return Object.freeze({
@@ -434,9 +483,7 @@ function parseArgs(argv) {
       const value = argv[++i];
       if (!value) throw new Error(`${arg} requires a value`);
       out[arg.slice(2)] = value;
-    } else {
-      throw new Error(`unknown argument: ${arg}`);
-    }
+    } else throw new Error(`unknown argument: ${arg}`);
   }
   if (!out.base || !out.head) throw new Error('--base and --head are required');
   return out;

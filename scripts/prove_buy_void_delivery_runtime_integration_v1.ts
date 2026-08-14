@@ -27,6 +27,9 @@ import {
 import {
   buyVoidDeliverySubmissionGuardPathsV1,
 } from "../src/economic/buy_void_delivery_submission_guard_v1.js";
+import {
+  VOID_BUY_VOID_ERC20_DELIVERY_UNIT_SCALE_V1,
+} from "../src/economic/buy_void_delivery_sign_broadcast_adapter_v1.js";
 
 const routes = new Map<string, Function>();
 const app: any = {
@@ -264,6 +267,18 @@ const plan = {
   max_fee_per_gas_wei: 2_000_000_000,
   max_priority_fee_per_gas_wei: 1_000_000_000,
 };
+const tokenAmountAtoms =
+  BigInt(amount) *
+  BigInt(VOID_BUY_VOID_ERC20_DELIVERY_UNIT_SCALE_V1.multiplier);
+assert.equal(
+  VOID_BUY_VOID_ERC20_DELIVERY_UNIT_SCALE_V1.fulfillment_unit_decimals,
+  6,
+);
+assert.equal(
+  VOID_BUY_VOID_ERC20_DELIVERY_UNIT_SCALE_V1.token_atom_decimals,
+  18,
+);
+
 const unsigned = {
   type: 2,
   chainId: 2050n,
@@ -275,12 +290,20 @@ const unsigned = {
   value: 0n,
   data: transferInterface.encodeFunctionData("transfer", [
     recipient,
-    BigInt(amount),
+    tokenAmountAtoms,
   ]),
 };
 const referenceRaw = await wallet.signTransaction(unsigned);
 const expectedHash = Transaction.from(referenceRaw).hash;
 assert.ok(expectedHash);
+const decodedReferenceTransfer = transferInterface.decodeFunctionData(
+  "transfer",
+  unsigned.data,
+);
+assert.equal(
+  decodedReferenceTransfer[1],
+  BigInt(amount) * 1_000_000_000_000n,
+);
 
 const prepared = prepareBuyVoidExecutionTransactionV1({
   root_dir: root,
