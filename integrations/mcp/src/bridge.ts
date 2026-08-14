@@ -92,6 +92,11 @@ type PreparedInternal = Readonly<{
   submissionId: string;
 }>;
 
+type PrivateTempOutcome<T> = Readonly<{
+  value: T;
+  cleanupCompleted: boolean;
+}>;
+
 function requireString(
   value: JsonValue | undefined,
   label: string,
@@ -169,6 +174,10 @@ async function requirePrivateRegularJson(
   return parseJsonObject(await readFile(file, "utf8"), label);
 }
 
+async function removePrivateTempDirectory(directory: string): Promise<void> {
+  await rm(directory, { recursive: true, force: true });
+}
+
 async function withPrivateTempDirectory<T>(
   prefix: string,
   callback: (directory: string) => Promise<T>,
@@ -178,20 +187,54 @@ async function withPrivateTempDirectory<T>(
   try {
     return await callback(directory);
   } finally {
-    await rm(directory, { recursive: true, force: true });
+    await removePrivateTempDirectory(directory);
+  }
+}
+
+async function withPrivateTempDirectoryPreservingResult<T>(
+  prefix: string,
+  callback: (directory: string) => Promise<T>,
+  cleanup: (directory: string) => Promise<void>,
+): Promise<PrivateTempOutcome<T>> {
+  const directory = await mkdtemp(path.join(os.tmpdir(), prefix));
+  await chmod(directory, 0o700);
+  let value: T;
+  try {
+    value = await callback(directory);
+  } catch (error) {
+    try {
+      await cleanup(directory);
+    } catch {
+      // Preserve the primary pre-result failure rather than replacing it.
+    }
+    throw error;
+  }
+  try {
+    await cleanup(directory);
+    return Object.freeze({ value, cleanupCompleted: true });
+  } catch {
+    return Object.freeze({ value, cleanupCompleted: false });
   }
 }
 
 export class VoidMcpBridge implements VoidMcpBridgeApi {
   readonly #config: VoidMcpConfig;
   readonly #runner: CommandRunner;
+  readonly #submissionTempDirectoryRemover: (
+    directory: string,
+  ) => Promise<void>;
 
   constructor(
     config: VoidMcpConfig,
     runner: CommandRunner = new BoundedCommandRunner(),
+    submissionTempDirectoryRemover: (
+      directory: string,
+    ) => Promise<void> = removePrivateTempDirectory,
   ) {
     this.#config = config;
     this.#runner = runner;
+    this.#submissionTempDirectoryRemover =
+      submissionTempDirectoryRemover;
   }
 
   #path(relative: string): string {
@@ -660,7 +703,7 @@ export class VoidMcpBridge implements VoidMcpBridgeApi {
     }
 
     const prepared = await this.#prepareInternal(input);
-    return await withPrivateTempDirectory(
+    const submission = await withPrivateTempDirectoryPreservingResult(
       "void-agent-mcp-submit-",
       async (directory) => {
         const requestPath = path.join(directory, "request.json");
@@ -751,6 +794,23 @@ export class VoidMcpBridge implements VoidMcpBridgeApi {
         }
         return output;
       },
+      this.#submissionTempDirectoryRemover,
     );
+
+    const interpretation = requireObject(
+      submission.value.interpretation,
+      "submission interpretation",
+    );
+    const output: BridgeJson = {
+      ...submission.value,
+      interpretation: {
+        ...interpretation,
+        private_temp_cleanup_completed: submission.cleanupCompleted,
+      },
+    };
+    if (canonicalJson(output).includes(this.#config.tokenFile)) {
+      throw new Error("token file path disclosure blocked");
+    }
+    return output;
   }
 }
