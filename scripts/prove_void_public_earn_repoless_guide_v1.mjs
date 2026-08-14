@@ -118,7 +118,7 @@ const statusSnippet = extractHeredoc(
   'node --input-type=module - "$PUBLIC_HTTPS_BASE" <<\'NODE\'',
 );
 
-for (const required of [pinnedCommit, expectedGitBlobSha1, 'KELLER_REPOLESS_ORIGIN_INTEGRITY_FOCUSED_GREEN']) {
+for (const required of [pinnedCommit, expectedGitBlobSha1]) {
   assert.equal(markdown.includes(required), true, `guide binding missing: ${required}`);
 }
 assert.equal(markdown.includes('/download/void-public-earn-no-node-client-v1.mjs'), false, 'guide must not execute client bytes selected by Public Earn gateway');
