@@ -22,6 +22,14 @@ The stored local value is not sufficient by itself. Git URL rewrite configuratio
 
 Existing `origin` push configuration remains operator-specific: the tool binds and preserves it but does not use it as repository identity and never rewrites it. Public receipts report the canonical repository identity and hashes of the stored/effective origin configuration rather than printing the operator's current origin URL.
 
+## Selected-worktree confirmation binding
+
+Repository content identity alone is not enough for an operator mutation plan because multiple canonical clones can legitimately have identical branch, HEAD/tree, refs, index, worktree status, and remote configuration. A plan prepared for one clone must not authorize local Git-config mutation in another clone merely because their content state matches.
+
+V1 therefore derives a non-secret `repository_identity_sha256` from the canonical real paths of the selected worktree top level, its absolute Git directory, and its Git common directory. The raw paths remain private to the local inspection result; the public plan carries only the digest. That digest is part of the content-addressed plan and the post-apply preservation invariant.
+
+Two otherwise byte/state-identical clones at different filesystem locations must therefore produce different plan IDs. Applying clone A's confirmed plan ID to clone B fails before any dedicated-remote mutation.
+
 ## Effective dedicated fetch boundary
 
 The dedicated remote must be locally owned by this tool. A `remote.void-public-fetch.url` or `pushurl` inherited from non-local Git configuration is rejected rather than silently combined with the local configuration this tool manages.
@@ -34,15 +42,15 @@ The stored and effective URL identities are content-addressed into the dry-run p
 
 Dry run is the default and performs no Git or repository mutation. When `--output` is supplied, it may create one local mode-0600 evidence file.
 
-The repository must be an ordinary working tree on exact branch `main`, with no merge/rebase/cherry-pick/revert/sequencer/index-lock operation in progress and with the canonical repository prerequisite above satisfied. A dirty worktree is allowed because the tool does not touch tracked or untracked files; exact status/index/ref evidence is bound into the plan instead.
+The repository must be an ordinary working tree on exact branch `main`, with no merge/rebase/cherry-pick/revert/sequencer/index-lock operation in progress and with the canonical repository prerequisite above satisfied. A dirty worktree is allowed because the tool does not touch tracked or untracked files; exact selected-worktree identity, status/index/ref evidence, and repository content identity are bound into the plan instead.
 
 The result is `READY_TO_APPLY` when the dedicated remote is absent or misconfigured, or `ALREADY_ALIGNED` when its stored and effective fetch URL plus push URL are all exact.
 
 ## Separately confirmed apply
 
-Apply requires the exact dry-run plan ID and operation marker `VOID_NODE_FLEET_PUBLIC_FETCH_TRANSPORT_APPLY_V1`. Immediately before mutation, the tool rebuilds the plan from current repository and effective-URL evidence and rejects stale confirmation.
+Apply requires the exact dry-run plan ID and operation marker `VOID_NODE_FLEET_PUBLIC_FETCH_TRANSPORT_APPLY_V1`. Immediately before mutation, the tool rebuilds the plan from current repository, selected-worktree, and effective-URL evidence and rejects stale confirmation.
 
-Apply is bounded to the dedicated remote's local fetch and push configuration. Afterward it requires exact preservation of branch, HEAD, tree, worktree-status digest, dirty count, index digest, complete ref digest, canonical origin identity, existing origin stored/effective fetch identity, existing origin push configuration, and the prospective canonical public-fetch resolution. The dedicated remote must then be exact aligned in both stored and effective fetch identity.
+Apply is bounded to the dedicated remote's local fetch and push configuration. Afterward it requires exact preservation of selected-worktree identity, branch, HEAD, tree, worktree-status digest, dirty count, index digest, complete ref digest, canonical origin identity, existing origin stored/effective fetch identity, existing origin push configuration, and the prospective canonical public-fetch resolution. The dedicated remote must then be exact aligned in both stored and effective fetch identity.
 
 ## Authority boundary
 
@@ -60,4 +68,4 @@ Run the deterministic proof with:
 node scripts/prove_void_node_fleet_public_fetch_transport_v1.mjs
 ```
 
-The proof uses temporary Git repositories and an isolated temporary Git global-config file only. It covers canonical HTTPS and SSH origins; foreign/alternate-host/mixed/duplicate-origin rejection; origin and prospective-public-fetch `insteadOf` rewrite rejection; inherited non-local dedicated-remote rejection; missing and misconfigured dedicated remotes; exact confirmation; dirty-worktree preservation; origin/ref/index/HEAD/tree preservation; idempotent rerun; wrong-plan and wrong-confirmation rejection; detached-HEAD rejection; public origin-URL redaction; and negative service/runtime/fetch authority.
+The proof uses temporary Git repositories and an isolated temporary Git global-config file only. It covers canonical HTTPS and SSH origins; foreign/alternate-host/mixed/duplicate-origin rejection; origin and prospective-public-fetch `insteadOf` rewrite rejection; inherited non-local dedicated-remote rejection; selected-worktree identity binding across byte/state-identical clones at different paths; cross-clone plan-reuse rejection; missing and misconfigured dedicated remotes; exact confirmation; dirty-worktree preservation; origin/ref/index/HEAD/tree preservation; idempotent rerun; wrong-plan and wrong-confirmation rejection; detached-HEAD rejection; public origin/path redaction; and negative service/runtime/fetch authority.
