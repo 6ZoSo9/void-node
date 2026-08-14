@@ -177,6 +177,7 @@ for (const marker of [
   "eth_gasPrice",
   "eth_getBalance",
   'execution_state_tag: "pending"',
+  "request_total_deadline_exceeded",
 ]) {
   assert.equal(planner.includes(marker), true, `planner missing ${marker}`);
 }
@@ -184,6 +185,16 @@ assert.doesNotMatch(
   planner,
   /eth_getBalance[\s\S]{0,200}"latest"/,
   "native balance preflight must not use latest state",
+);
+assert.match(
+  plannerProof,
+  /slow_drip_total_deadline_hold=1/,
+  "native focused proof must exercise total deadline under slow-drip activity",
+);
+assert.match(
+  plannerProof,
+  /request_total_deadline_exceeded/,
+  "native focused proof must bind exact total-deadline transport error",
 );
 assert.doesNotMatch(planner, /eth_sendRawTransaction/);
 assert.doesNotMatch(runtime, /eth_sendRawTransaction/);
@@ -254,6 +265,8 @@ assert.match(docs, /dry-run while execution remains disabled/);
 assert.match(docs, /one separately confirmed live canary/);
 assert.match(docs, /eth_getBalance` with block tag `pending`/);
 assert.doesNotMatch(docs, /eth_getBalance` with block tag `latest`/);
+assert.match(docs, /total wall-clock deadline/);
+assert.match(docs, /Continuous slow response traffic cannot extend one planner RPC/);
 
 console.log(
   "VOID_BUY_VOID_NATIVE_EXECUTION_RUNTIME_GUARD_V1_GREEN",
@@ -267,6 +280,7 @@ console.log("loopback_operator_only=1");
 console.log("read_only_rpc_method_count=4");
 console.log("execution_state=pending");
 console.log("balance_state=pending");
+console.log("rpc_total_deadline_enforced=1");
 console.log("startup_execution=0");
 console.log("automatic_retry=0");
 console.log("receipt_wait=0");
