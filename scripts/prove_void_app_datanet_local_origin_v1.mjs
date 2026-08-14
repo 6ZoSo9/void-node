@@ -4,15 +4,14 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import http from 'node:http';
 import path from 'node:path';
-import { createRequire } from 'node:module';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 
 import { fetchDataNetStatusV1 } from '../public/void-app-wave1-v1/assets/js/data-live.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const FOUNDATION_PATH = path.join(ROOT, 'src', 'ui', 'void_app_wave1_foundation_v1.ts');
-const ADAPTER_SOURCE_PATH = path.join(ROOT, 'src', 'ui', 'void_app_datanet_readonly_adapter_v1.cts');
-const ADAPTER_RUNTIME_PATH = path.join(ROOT, 'dist', 'ui', 'void_app_datanet_readonly_adapter_v1.cjs');
+const ADAPTER_SOURCE_PATH = path.join(ROOT, 'src', 'ui', 'void_app_datanet_readonly_adapter_v1.ts');
+const ADAPTER_RUNTIME_PATH = path.join(ROOT, 'dist', 'ui', 'void_app_datanet_readonly_adapter_v1.js');
 const STATUS_ROUTE = '/public-node/datanet/field-replication-status-card-v1.json';
 const HTML_ROUTE = '/public-node/datanet/field-replication-status-card-v1.html';
 const INDEX_ROUTE = '/public-node/datanet/index.json';
@@ -22,9 +21,14 @@ const foundationSource = fs.readFileSync(FOUNDATION_PATH, 'utf8');
 const adapterSource = fs.readFileSync(ADAPTER_SOURCE_PATH, 'utf8');
 
 assert.equal(
-  foundationSource.split('require("./void_app_datanet_readonly_adapter_v1.cjs");').length - 1,
+  foundationSource.split('from "./void_app_datanet_readonly_adapter_v1.js"').length - 1,
   1,
-  'App foundation must load the packaged DataNet adapter exactly once',
+  'App foundation must import the compiled DataNet adapter exactly once',
+);
+assert.equal(
+  foundationSource.split('mountVoidAppDataNetReadonlyAdapterV1(app);').length - 1,
+  1,
+  'App foundation must mount the DataNet adapter exactly once',
 );
 assert.match(foundationSource, /const ROUTE_PREFIX = "\/app"/);
 assert.match(foundationSource, /express\.static\(shellDir/);
@@ -52,25 +56,20 @@ assert.match(adapterSource, /read_only: true/);
 assert.equal(
   fs.existsSync(ADAPTER_RUNTIME_PATH),
   true,
-  'packaged DataNet adapter missing from dist; run npm run build before this proof',
+  'compiled DataNet adapter missing from dist; run npm run build before this proof',
 );
 
+const adapter = await import(pathToFileURL(ADAPTER_RUNTIME_PATH).href);
+assert.equal(adapter.VOID_APP_DATANET_READONLY_ADAPTER_V1, EXPECTED_MARKER);
+assert.equal(adapter.VOID_APP_DATANET_READONLY_ROUTE_FILES_V1.size, 3);
+assert.equal(typeof adapter.mountVoidAppDataNetReadonlyAdapterV1, 'function');
+
 const handlers = [];
-const previousApp = globalThis.__void_http_app;
-globalThis.__void_http_app = {
+adapter.mountVoidAppDataNetReadonlyAdapterV1({
   use(handler) {
     handlers.push(handler);
   },
-};
-
-const require = createRequire(import.meta.url);
-const adapter = require(ADAPTER_RUNTIME_PATH);
-
-if (previousApp === undefined) delete globalThis.__void_http_app;
-else globalThis.__void_http_app = previousApp;
-
-assert.equal(adapter.ROUTE_MARKER, EXPECTED_MARKER);
-assert.equal(adapter.ROUTE_FILES.size, 3);
+});
 assert.equal(handlers.length, 1, 'adapter must mount exactly one bounded middleware');
 const adapterHandler = handlers[0];
 
@@ -177,7 +176,7 @@ assert.equal(outsideBody?.error, 'not_found');
 console.log('VOID_APP_DATANET_LOCAL_ORIGIN_V1_GREEN');
 console.log('app_origin_status_card_http=200');
 console.log('same_origin_adapter=true');
-console.log('packaged_runtime_adapter=true');
+console.log('compiled_runtime_adapter=true');
 console.log('loopback_only=true');
 console.log('methods=GET,HEAD');
 console.log('public_mutation=false');
