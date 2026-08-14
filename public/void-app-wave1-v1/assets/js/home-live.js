@@ -1,3 +1,5 @@
+import './validate-live.js';
+
 const HOME_ENDPOINT = '/__void/ui/wave2/home.json';
 const HOME_MARKER = 'VOID_UI_WAVE2_HOME_READONLY_V1';
 
