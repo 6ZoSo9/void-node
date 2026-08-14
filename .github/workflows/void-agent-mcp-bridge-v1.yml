@@ -93,7 +93,12 @@ jobs:
         run: |
           set -euo pipefail
 
-          BASE_SHA="$(git rev-parse "${CI_DIFF_CHECKOUT_SHA}^1")"
+          BASE_SHA="$(
+            git cat-file -p "$CI_DIFF_CHECKOUT_SHA" \
+              | sed -n 's/^parent \([0-9a-f]\{40\}\)$/\1/p' \
+              | sed -n '1p'
+          )"
+          test -n "$BASE_SHA"
 
           mapfile -t changed < <(
             git diff --name-only "$BASE_SHA..$CI_DIFF_CURRENT_SHA"
