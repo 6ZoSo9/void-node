@@ -3,10 +3,20 @@
 import crypto from "node:crypto";
 import { pathToFileURL } from "node:url";
 
+import {
+  BITCOIN_MAX_MONEY_SATOSHIS_V1,
+  VOID_MAX_SUPPLY_ATOMS_V1,
+} from "./void-btc-void-atomic-settlement-state-invariants-v1.mjs";
+
 export const VOID_BTC_VOID_MARKET_MAKER_RESERVE_POLICY_V1 =
   "VOID_BTC_VOID_MARKET_MAKER_RESERVE_POLICY_V1";
 
 export const VOID_BTC_VOID_V1_MINIMUM_SPREAD_BPS = 100;
+
+export {
+  BITCOIN_MAX_MONEY_SATOSHIS_V1,
+  VOID_MAX_SUPPLY_ATOMS_V1,
+};
 
 export const VOID_PREMINE_PURPOSE_VAULT_TARGET_V1 = Object.freeze({
   schema: "void.premine.purpose_vault_target.v1",
@@ -283,10 +293,16 @@ function normalizeRequest(raw) {
     settlement.btc_received_sats,
     "settlement.btc_received_sats",
   );
+  if (btcReceived > BigInt(BITCOIN_MAX_MONEY_SATOSHIS_V1)) {
+    throw new Error("settlement.btc_received_sats exceeds Bitcoin MAX_MONEY");
+  }
   const voidSold = atomic(
     settlement.void_sold_atomic,
     "settlement.void_sold_atomic",
   );
+  if (voidSold > BigInt(VOID_MAX_SUPPLY_ATOMS_V1)) {
+    throw new Error("settlement.void_sold_atomic exceeds VOID maximum supply");
+  }
   const observedConfirmations = integer(
     settlement.observed_bitcoin_confirmations,
     "settlement.observed_bitcoin_confirmations",
