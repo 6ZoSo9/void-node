@@ -1,6 +1,7 @@
 import * as http from "node:http";
 import type {
   BuyVoidNativeChain2050JsonRpcCallResultV1,
+  BuyVoidNativeChain2050JsonRpcCallHeldV1,
   BuyVoidNativeChain2050JsonRpcCallV1,
   BuyVoidNativeChain2050JsonRpcTransportV1,
 } from "./buy_void_native_chain2050_broadcaster_v1.js";
@@ -54,7 +55,7 @@ function held(
   request_sent = false,
   response_received = false,
   http_status: number | null = null,
-): BuyVoidNativeChain2050JsonRpcCallResultV1 {
+): BuyVoidNativeChain2050JsonRpcCallHeldV1 {
   return {
     ok: false,
     request_sent,
