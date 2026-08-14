@@ -191,6 +191,45 @@ function exactTools(allowSubmit) {
   return { tools: names.map((name) => ({ name })) };
 }
 
+function acceptedSubmissionEnvelope(prepared, cleanupCompleted) {
+  return {
+    structuredContent: {
+      marker: "VOID_AGENT_MCP_SUBMISSION_RESULT_V1",
+      version: 1,
+      prepared: {
+        marker: "VOID_AGENT_MCP_PREPARED_SUBMISSION_V1",
+        version: 1,
+        work_order_id: prepared.work_order_id,
+        submission_id: prepared.submission_id,
+        request_sha256: prepared.request_sha256,
+        network_submission_performed: false,
+        accepted_for_review: false,
+        authority: authorityDenied(),
+      },
+      client_result: {
+        accepted_for_review: true,
+        successful_authentication: true,
+        request_sha256: prepared.request_sha256,
+        receipt_id: `voidawsi1_${sha256(`cleanup:${prepared.request_sha256}`)}`,
+        http_status: 202,
+      },
+      interpretation: {
+        accepted_for_review: true,
+        duplicate: false,
+        conflicting_duplicate: false,
+        private_temp_cleanup_completed: cleanupCompleted,
+        payment_executed: false,
+        paid_work_execution_started: false,
+        work_dispatched: false,
+        work_credit_awarded: false,
+        work_credit_ledger_written: false,
+        void_settled: false,
+      },
+      authority: authorityDenied(),
+    },
+  };
+}
+
 async function expectReject(callback, pattern) {
   let rejected = false;
   try {
@@ -239,6 +278,7 @@ async function main() {
     "integrations/mcp/dist/src/stdio.js",
     "tools/void-agent-mcp-authenticated-submission-live-canary-v1.mjs",
     "accepted_for_review: true",
+    "private_temp_cleanup_completed",
     "payment_executed: false",
     "work_credit_ledger_written: false",
     "void_settled: false",
@@ -308,11 +348,13 @@ async function main() {
     assert.equal(completed.state.accepted_for_review, true);
     assert.equal(completed.state.duplicate, false);
     assert.equal(completed.state.conflicting_duplicate, false);
-    assert.equal(completed.receipt.repo_head, prepared.state.repo_head);
-    assert.equal(completed.receipt.source_contract_sha256, prepared.state.source_contract_sha256);
+    assert.equal(completed.state.private_temp_cleanup_completed, true);
+    assert.equal(completed.receipt.private_temp_cleanup_completed, true);
     assert.equal(gateway.metrics.submission_posts, 1);
     assert.equal(gateway.metrics.authorization_exact, true);
     assert.equal(gateway.metrics.payload_hash_exact, true);
+    assert.equal(completed.receipt.repo_head, prepared.state.repo_head);
+    assert.equal(completed.receipt.source_contract_sha256, prepared.state.source_contract_sha256);
     scanForSecret(stateDirectory, [TOKEN, tokenPath]);
 
     await expectReject(
@@ -333,6 +375,54 @@ async function main() {
       /must not grant group or other permissions/,
     );
     assert.throws(() => normalizeGatewayBaseUrl("http://127.0.0.1:4100"), /general VOID node origin/);
+
+    const cleanupInputPath = path.join(root, "input-cleanup-false.json");
+    writePrivateJson(cleanupInputPath, canaryInput("cleanup-false-v1"));
+    const cleanupStateDirectory = path.join(root, "state-cleanup-false");
+    const cleanupCommon = {
+      repoRoot: ROOT,
+      baseUrl: gateway.baseUrl,
+      inputPath: cleanupInputPath,
+      stateDirectory: cleanupStateDirectory,
+      now: () => FIXED_NOW,
+    };
+    const cleanupPrepared = await prepareCanary(cleanupCommon);
+    let cleanupFalseCalls = 0;
+    const cleanupFalseSessionFactory = async ({ allowSubmit }) => ({
+      protocolVersion: "2026-07-28",
+      listTools: async () => exactTools(allowSubmit),
+      callTool: async (request) => {
+        assert.equal(request.name, "void_submit_paid_work");
+        cleanupFalseCalls += 1;
+        return acceptedSubmissionEnvelope(cleanupPrepared.state.prepared, false);
+      },
+      close: async () => {},
+    });
+    const cleanupFalse = await executeCanary({
+      ...cleanupCommon,
+      tokenFile: tokenPath,
+      allowLiveSubmit: true,
+      confirmation: CONFIRMATION,
+      sessionFactory: cleanupFalseSessionFactory,
+    });
+    assert.equal(cleanupFalseCalls, 1);
+    assert.equal(cleanupFalse.state.status, "completed");
+    assert.equal(cleanupFalse.state.accepted_for_review, true);
+    assert.equal(cleanupFalse.state.private_temp_cleanup_completed, false);
+    assert.equal(cleanupFalse.receipt.private_temp_cleanup_completed, false);
+    assert.equal(cleanupFalse.result.interpretation.private_temp_cleanup_completed, false);
+    await expectReject(
+      async () => await executeCanary({
+        ...cleanupCommon,
+        tokenFile: tokenPath,
+        allowLiveSubmit: true,
+        confirmation: CONFIRMATION,
+        sessionFactory: cleanupFalseSessionFactory,
+      }),
+      /fresh prepared state/,
+    );
+    assert.equal(cleanupFalseCalls, 1);
+    scanForSecret(cleanupStateDirectory, [TOKEN, tokenPath]);
 
     const ambiguousInputPath = path.join(root, "input-ambiguous.json");
     writePrivateJson(ambiguousInputPath, canaryInput("ambiguous-v1"));
@@ -419,6 +509,10 @@ async function main() {
       accepted_for_review: true,
       duplicate: false,
       conflicting_duplicate: false,
+      private_temp_cleanup_completed_normal: completed.state.private_temp_cleanup_completed === true,
+      private_temp_cleanup_failure_preserved: cleanupFalse.state.private_temp_cleanup_completed === false,
+      cleanup_failure_submission_attempt_count: cleanupFalseCalls,
+      cleanup_failure_no_retry: cleanupFalseCalls === 1,
       ambiguous_result_held: held.status === "held",
       automatic_retry: false,
       raw_token_printed: false,
