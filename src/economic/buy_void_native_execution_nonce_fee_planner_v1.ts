@@ -386,12 +386,18 @@ export function createBuyVoidNativeExecutionPlannerHttpTransportV1():
     }
 
     return await new Promise((resolve) => {
+      const requestStartedAtMs = Date.now();
       let settled = false;
+      let totalDeadline: ReturnType<typeof setTimeout> | null = null;
       const finish = (
         value: BuyVoidNativeExecutionPlannerRpcResultV1,
       ) => {
         if (settled) return;
         settled = true;
+        if (totalDeadline !== null) {
+          clearTimeout(totalDeadline);
+          totalDeadline = null;
+        }
         resolve(value);
       };
 
@@ -506,20 +512,32 @@ export function createBuyVoidNativeExecutionPlannerHttpTransportV1():
         request.destroy(new Error("request_timeout"));
       });
       request.on("error", (error) => {
+        const message = String((error as Error)?.message || "");
         finish({
           ok: false,
           error_code:
-            String((error as Error)?.message || "") ===
-            "response_size_limit_exceeded"
+            message === "response_size_limit_exceeded"
               ? "response_size_limit_exceeded"
-              : String((error as Error)?.message || "") ===
-                  "request_timeout"
+              : message === "request_timeout"
                 ? "request_timeout"
-                : "transport_error",
+                : message === "request_total_deadline_exceeded"
+                  ? "request_total_deadline_exceeded"
+                  : "transport_error",
           provider_submission_id: "",
           http_status: 0,
         });
       });
+      totalDeadline = setTimeout(
+        () => {
+          request.destroy(
+            new Error("request_total_deadline_exceeded"),
+          );
+        },
+        Math.max(
+          0,
+          call.request_timeout_ms - (Date.now() - requestStartedAtMs),
+        ),
+      );
       request.end(body);
     });
   };
