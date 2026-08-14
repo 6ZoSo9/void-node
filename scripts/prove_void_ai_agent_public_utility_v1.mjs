@@ -1,11 +1,20 @@
 #!/usr/bin/env node
 
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 
 const ROOT = fileURLToPath(new URL("../", import.meta.url));
 const CATALOG_PATH = "public/public-node/agents/public-utility-v1.json";
+const PROVENANCE_WORKFLOW_PATHS = [
+  ".github/workflows/void-ai-agent-first-contact-v1.yml",
+  ".github/workflows/void-ai-agent-public-utility-v1.yml",
+];
+const UNFILTERED_PROVENANCE_WORKFLOW_PATH =
+  ".github/workflows/void-ai-agent-provenance-unfiltered-v1.yml";
+const REVIEWED_PUBLIC_UTILITY_CATALOG_SHA256 =
+  "b67fe641d7ccebdb3e4626245b2895d75dd640789d29aca2544855f3d646daa2";
 const catalogOnly = process.argv.includes("--catalog-only");
 const TOP_LEVEL_KEYS = [
   "contract",
@@ -47,6 +56,7 @@ const CONTROL_KEYS = [
 const ENTRY_KEYS = [
   "access",
   "authority",
+  "canonical_sha256",
   "http_method",
   "id",
   "kind",
@@ -62,6 +72,25 @@ const ENTRY_KEYS = [
 
 async function readJson(path) {
   return JSON.parse(await readFile(new URL(path, `file://${ROOT}/`), "utf8"));
+}
+
+function canonicalJson(value) {
+  if (Array.isArray(value)) {
+    return `[${value.map((entry) => canonicalJson(entry)).join(",")}]`;
+  }
+  if (value !== null && typeof value === "object") {
+    return `{${Object.keys(value)
+      .sort()
+      .map((key) => `${JSON.stringify(key)}:${canonicalJson(value[key])}`)
+      .join(",")}}`;
+  }
+  return JSON.stringify(value);
+}
+
+function canonicalSha256(value) {
+  return createHash("sha256")
+    .update(canonicalJson(value), "utf8")
+    .digest("hex");
 }
 
 function markerPresent(document, marker) {
@@ -94,6 +123,11 @@ function validatePublicJsonPath(path) {
 
 const raw = await readFile(new URL(CATALOG_PATH, `file://${ROOT}/`), "utf8");
 const catalog = JSON.parse(raw);
+assert.equal(
+  canonicalSha256(catalog),
+  REVIEWED_PUBLIC_UTILITY_CATALOG_SHA256,
+  "reviewed catalog digest mismatch",
+);
 
 exactKeys(catalog, TOP_LEVEL_KEYS, "catalog");
 assert.equal(catalog.contract, "void-ai-agent-first-contact-public-utility/1");
@@ -138,6 +172,43 @@ assert.deepEqual(catalog.controls, {
   work_credit_award_active: false
 });
 
+for (const workflowPath of PROVENANCE_WORKFLOW_PATHS) {
+  const workflow = await readFile(
+    new URL(workflowPath, `file://${ROOT}/`),
+    "utf8",
+  );
+  for (const entry of catalog.entries) {
+    assert.equal(
+      workflow.split(`"${entry.repository_path}"`).length - 1,
+      2,
+      `${workflowPath} must trigger on ${entry.repository_path} for pull requests and main pushes`,
+    );
+  }
+}
+
+const unfilteredProvenanceWorkflow = await readFile(
+  new URL(UNFILTERED_PROVENANCE_WORKFLOW_PATH, `file://${ROOT}/`),
+  "utf8",
+);
+assert.match(unfilteredProvenanceWorkflow, /^  pull_request:\s*$/m);
+assert.match(unfilteredProvenanceWorkflow, /^  push:\s*$/m);
+assert.match(unfilteredProvenanceWorkflow, /^      - main\s*$/m);
+assert.equal(
+  /^\s+paths(?:-ignore)?:\s*$/m.test(unfilteredProvenanceWorkflow),
+  false,
+  "unfiltered provenance workflow must not use paths or paths-ignore",
+);
+for (const proofPath of [
+  "scripts/prove_void_ai_agent_first_contact_v1.mjs",
+  "scripts/prove_void_ai_agent_public_utility_v1.mjs",
+]) {
+  assert.equal(
+    unfilteredProvenanceWorkflow.split(`node ${proofPath}`).length - 1,
+    1,
+    `unfiltered provenance workflow must invoke ${proofPath} exactly once`,
+  );
+}
+
 const ids = new Set();
 const paths = new Set();
 for (const entry of catalog.entries) {
@@ -152,6 +223,7 @@ for (const entry of catalog.entries) {
   assert.equal(typeof entry.purpose, "string");
   assert.ok(entry.purpose.length > 0 && entry.purpose.length <= 256);
   assert.match(entry.required_marker, /^[A-Z0-9_]+$/);
+  assert.match(entry.canonical_sha256, /^[0-9a-f]{64}$/);
   validatePublicJsonPath(entry.path);
   assert.equal(entry.repository_path, `public${entry.path}`);
   assert.equal(entry.media_type, "application/json");
@@ -165,6 +237,11 @@ for (const entry of catalog.entries) {
   if (!catalogOnly) {
     const source = await readJson(entry.repository_path);
     assert.equal(markerPresent(source, entry.required_marker), true, `marker missing for ${entry.id}`);
+    assert.equal(
+      canonicalSha256(source),
+      entry.canonical_sha256,
+      `canonical source digest mismatch for ${entry.id}`,
+    );
   }
 }
 

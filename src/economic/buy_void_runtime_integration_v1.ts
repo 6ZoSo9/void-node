@@ -51,16 +51,14 @@ export const VOID_BUY_VOID_CANONICAL_DELIVERY_COMPOSITION_V1 = {
   crash_consistent_saga_parent_mounted: false,
   native_transaction_preparation_parent_mounted: false,
   opaque_prepared_transaction_execution_parent_mounted: false,
-  erc20_transaction_preparation_bridge_ready: false,
-  erc20_receipt_reconciliation_bridge_ready: false,
+  erc20_transaction_preparation_bridge_ready: true,
+  erc20_receipt_reconciliation_bridge_ready: true,
   erc20_fulfillment_unit_to_token_atom_scale_ready: true,
   canonical_delivery_dependency_bootstrap_ready: false,
   canonical_delivery_execution_ready: false,
   canonical_delivery_execution_held: true,
   presale_inventory_funding_ready: false,
   funding_blockers: [
-    "erc20_transaction_preparation_bridge_not_mounted",
-    "erc20_delivery_receipt_reconciliation_bridge_not_mounted",
     "canonical_delivery_dependency_bootstrap_not_ready",
   ],
 } as const;
