@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
-import { cpSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { cpSync, existsSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { spawnSync } from 'node:child_process';
@@ -204,6 +204,42 @@ try {
   const cliRepo = makeRepo();
   repos.push(cliRepo);
   const tool = new URL('../tools/void-node-fleet-public-fetch-transport-v1.mjs', import.meta.url).pathname;
+
+  const unsafeDryOutput = join(cliRepo, 'unsafe-dry-run.json');
+  const unsafeDry = run(process.cwd(), process.execPath, [tool, '--repo', cliRepo, '--output', unsafeDryOutput], 2);
+  assert.equal(JSON.parse(unsafeDry.stdout).outcome, 'HOLD');
+  assert.match(JSON.parse(unsafeDry.stdout).error, /output path must be outside selected worktree/);
+  assert.equal(existsSync(unsafeDryOutput), false);
+  assertNoDedicatedRemote(cliRepo);
+
+  const unsafeGitOutput = join(git(cliRepo, 'rev-parse', '--absolute-git-dir'), 'unsafe-apply.json');
+  const unsafePlanId = buildTransportPlanV1(inspectRepositoryTransportV1(cliRepo)).plan_id_sha256;
+  const unsafeApply = run(process.cwd(), process.execPath, [
+    tool, '--repo', cliRepo, '--output', unsafeGitOutput, '--apply',
+    '--confirm-operation', VOID_NODE_FLEET_PUBLIC_FETCH_TRANSPORT_APPLY_V1,
+    '--confirm-plan-id', unsafePlanId,
+  ], 2);
+  assert.equal(JSON.parse(unsafeApply.stdout).outcome, 'HOLD');
+  assert.match(JSON.parse(unsafeApply.stdout).error, /output path must be outside selected worktree/);
+  assert.equal(existsSync(unsafeGitOutput), false);
+  assertNoDedicatedRemote(cliRepo);
+
+  const preexistingApplyRepo = makeRepo();
+  repos.push(preexistingApplyRepo);
+  const preexistingApplyOutput = join(configRoot, 'preexisting-apply.json');
+  writeFileSync(preexistingApplyOutput, 'do-not-overwrite\n');
+  const preexistingApplyBytes = readFileSync(preexistingApplyOutput);
+  const preexistingApplyPlanId = buildTransportPlanV1(inspectRepositoryTransportV1(preexistingApplyRepo)).plan_id_sha256;
+  const preexistingApply = run(process.cwd(), process.execPath, [
+    tool, '--repo', preexistingApplyRepo, '--output', preexistingApplyOutput, '--apply',
+    '--confirm-operation', VOID_NODE_FLEET_PUBLIC_FETCH_TRANSPORT_APPLY_V1,
+    '--confirm-plan-id', preexistingApplyPlanId,
+  ], 2);
+  assert.equal(JSON.parse(preexistingApply.stdout).outcome, 'HOLD');
+  assert.match(JSON.parse(preexistingApply.stdout).error, /reserve create-only output receipt/);
+  assert.deepEqual(readFileSync(preexistingApplyOutput), preexistingApplyBytes);
+  assertNoDedicatedRemote(preexistingApplyRepo);
+
   const dryOutput = join(configRoot, 'cli-dry-run-result.json');
   const dry = run(process.cwd(), process.execPath, [tool, '--repo', cliRepo, '--output', dryOutput]);
   const dryResult = JSON.parse(dry.stdout);
@@ -267,6 +303,9 @@ try {
   console.log('non_local_dedicated_config_rejected=true');
   console.log('selected_worktree_identity_bound=true');
   console.log('cross_clone_plan_reuse_rejected=true');
+  console.log('unsafe_worktree_output_rejected=true');
+  console.log('unsafe_git_dir_output_rejected=true');
+  console.log('preexisting_apply_output_rejected_before_mutation=true');
   console.log('operator_receipt_mode_0600=true');
   console.log('operator_receipt_create_only=true');
   console.log('operator_cli_journey_proven=true');
