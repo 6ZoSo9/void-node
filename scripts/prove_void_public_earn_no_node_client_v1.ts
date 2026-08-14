@@ -126,6 +126,10 @@ assert.match(
   source,
   /VOID_PUBLIC_EARN_NO_NODE_CLIENT_V1_BEST_EFFORT_FAILURE_VISIBLE/,
 );
+assert.equal(t.safeBase("http://[::1]:8082"), "http://[::1]:8082");
+assert.equal(t.safeBase("http://[2001:db8::1]:8082"), "");
+assert.equal(t.safeBase("http://8.8.8.8:8082"), "");
+assert.equal(t.safeBase("https://public.example:8443"), "https://public.example:8443");
 
 const root = fs.mkdtempSync(path.join(os.tmpdir(), "void-public-earn-no-node-client-v1-"));
 const successState = path.join(root, "success-state");

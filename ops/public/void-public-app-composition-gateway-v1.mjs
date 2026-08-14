@@ -415,6 +415,8 @@ const HOME_MARKER = "VOID_UI_WAVE2_HOME_READONLY_V1";
 const RUNTIME_TRUTH_MARKER = "VOID_PUBLIC_APP_RUNTIME_TRUTH_WALL_V1";
 const PUBLIC_PARTICIPANT_MARKER =
   "VOID_PUBLIC_PARTICIPANT_NO_NODE_HANDOFF_V1";
+const PUBLIC_PARTICIPANT_HANDOFF_HELPER_MARKER =
+  "VOID_PUBLIC_PARTICIPANT_HANDOFF_HELPER_V1";
 const PUBLIC_EARN_HEALTH_PATH = "/health";
 const PUBLIC_EARN_GATEWAY_STATUS_PATH =
   "/__void/public-earn-gateway-v1/status.json";
@@ -428,6 +430,8 @@ const PUBLIC_EARN_CLIENT_PATH =
   "/download/void-public-earn-no-node-client-v1.mjs";
 const PUBLIC_PARTICIPANT_STATUS_PATH =
   "/__void/public-participant/status.json";
+const PUBLIC_PARTICIPANT_HANDOFF_SCRIPT_PATH =
+  "/__void/public-participant/handoff-v1.js";
 const PUBLIC_EARN_CLAIM_MAX_BODY_BYTES = 64 * 1024;
 const PUBLIC_EARN_SUBMIT_MAX_BODY_BYTES = 512 * 1024;
 const PUBLIC_EARN_MUTATION_TIMEOUT_MS = Math.max(
@@ -642,7 +646,6 @@ const publicNodeCompatScript = String.raw`(() => {
           : unavailable
             ? 'Status unavailable'
             : 'Status degraded';
-
       replaceExact('Loading public status…', publicStatusText);
       replaceExact('Loading readiness…', readinessText);
       replaceExact('Loading sanitized public status', 'Live sanitized public status');
@@ -679,6 +682,209 @@ const publicNodeCompatScript = String.raw`(() => {
   } else {
     run();
   }
+})();`;
+
+const publicParticipantHandoffScript = String.raw`(() => {
+  'use strict';
+
+  const MARKER = 'VOID_PUBLIC_PARTICIPANT_HANDOFF_HELPER_V1';
+  const STATUS_MARKER = 'VOID_PUBLIC_PARTICIPANT_NO_NODE_HANDOFF_V1';
+  const STATUS_PATH = '/__void/public-participant/status.json';
+  const MAX_STATUS_BYTES = 64 * 1024;
+  const STATUS_TIMEOUT_MS = 7000;
+  const NODE_ID_RE = /^[0-9a-f]{32}$/;
+  const EXPECTED_BOUNDARIES = [
+    'account_directory',
+    'arbitrary_balance_lookup',
+    'browser_account_state',
+    'generic_job_submit',
+    'local_operator_dashboard',
+    'money_movement',
+    'operator_mutation',
+    'participant_selected_award',
+    'participant_selected_work',
+    'validator_mutation',
+    'wallet',
+  ];
+
+  const statusNode = document.getElementById('participantHandoffStatus');
+  const statusCommandNode = document.getElementById('participantStatusCommand');
+  const runCommandNode = document.getElementById('participantRunCommand');
+  if (!statusNode || !statusCommandNode || !runCommandNode) return;
+
+  const setHold = (reason) => {
+    const detail = String(reason || 'participant status unavailable').slice(0, 240);
+    statusNode.textContent = 'HOLD — ' + detail;
+    statusCommandNode.textContent = 'HOLD: coordinator identity not verified.';
+    runCommandNode.textContent = 'HOLD: coordinator identity not verified.';
+    document.documentElement.dataset.voidParticipantHandoff = 'hold';
+  };
+
+  const exactKeys = (value, expected) => {
+    if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
+    return JSON.stringify(Object.keys(value).sort()) === JSON.stringify([...expected].sort());
+  };
+
+  const readBoundedJson = async (response) => {
+    if (!response.body || typeof response.body.getReader !== 'function') {
+      throw new Error('participant status body is not stream-readable');
+    }
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder('utf-8', { fatal: true });
+    let total = 0;
+    let text = '';
+    try {
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        const bytes = value?.byteLength || 0;
+        total += bytes;
+        if (total > MAX_STATUS_BYTES) {
+          await reader.cancel('participant status too large');
+          throw new Error('participant status exceeds 64 KiB');
+        }
+        text += decoder.decode(value, { stream: true });
+      }
+      text += decoder.decode();
+    } finally {
+      try {
+        reader.releaseLock();
+      } catch {
+        // Reader cleanup must not convert a validated HOLD into success.
+      }
+    }
+    return JSON.parse(text);
+  };
+
+  const validateStatus = (snapshot) => {
+    const topKeys = [
+      'accounting_proof',
+      'available',
+      'background_service_started',
+      'boundaries',
+      'coordinator_node_id',
+      'fixed_award_wc',
+      'generated_at',
+      'marker',
+      'methods',
+      'no_node_required',
+      'ok',
+      'routes',
+      'sources',
+      'status',
+      'task_class',
+    ];
+    if (!exactKeys(snapshot, topKeys)) throw new Error('participant status shape mismatch');
+    if (snapshot.ok !== true || snapshot.marker !== STATUS_MARKER) {
+      throw new Error('participant status marker mismatch');
+    }
+    if (snapshot.no_node_required !== true || snapshot.background_service_started !== false) {
+      throw new Error('participant status authority mismatch');
+    }
+    if (snapshot.accounting_proof !== 'capability_bound_submission_response_v1') {
+      throw new Error('participant accounting proof mismatch');
+    }
+    if (!NODE_ID_RE.test(String(snapshot.coordinator_node_id || ''))) {
+      throw new Error('coordinator node ID unavailable');
+    }
+    if (snapshot.status !== (snapshot.available === true ? 'available' : 'hold')) {
+      throw new Error('participant availability mismatch');
+    }
+    if (!exactKeys(snapshot.boundaries, EXPECTED_BOUNDARIES)) {
+      throw new Error('participant boundary shape mismatch');
+    }
+    for (const key of EXPECTED_BOUNDARIES) {
+      if (snapshot.boundaries[key] !== false) {
+        throw new Error('participant boundary elevated: ' + key);
+      }
+    }
+    return snapshot;
+  };
+
+  const command = (mode, origin, nodeId) => [
+    'node void-public-earn-no-node-client-v1.mjs ' + mode + ' \\',
+    '  --account YOUR_ACCOUNT \\',
+    "  --coordinator-base '" + origin + "' \\",
+    '  --coordinator-node-id ' + nodeId,
+  ].join('\n');
+
+  const isPrivateHttpHost = (hostname) => {
+    const rawHost = String(hostname || '').trim().toLowerCase();
+    const host = rawHost.startsWith('[') && rawHost.endsWith(']')
+      ? rawHost.slice(1, -1)
+      : rawHost;
+    if (host === 'localhost' || host === '127.0.0.1' || host === '::1') {
+      return true;
+    }
+    if (host.endsWith('.ts.net')) return true;
+    const match = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/.exec(host);
+    if (!match) return false;
+    const octets = match.slice(1).map(Number);
+    if (octets.some((value) => value < 0 || value > 255)) return false;
+    if (octets[0] === 10 || octets[0] === 127) return true;
+    if (octets[0] === 192 && octets[1] === 168) return true;
+    if (octets[0] === 172 && octets[1] >= 16 && octets[1] <= 31) return true;
+    if (octets[0] === 100 && octets[1] >= 64 && octets[1] <= 127) return true;
+    return false;
+  };
+
+  const run = async () => {
+    const origin = String(window.location.origin || '');
+    let parsedOrigin;
+    try {
+      parsedOrigin = new URL(origin);
+    } catch {
+      setHold('browser origin is invalid');
+      return;
+    }
+    const privateHttp =
+      parsedOrigin.protocol === 'http:' && isPrivateHttpHost(parsedOrigin.hostname);
+    if (
+      parsedOrigin.origin !== origin
+      || (parsedOrigin.protocol !== 'https:' && !privateHttp)
+      || parsedOrigin.username
+      || parsedOrigin.password
+      || /[\s']/u.test(origin)
+    ) {
+      setHold('browser origin is not permitted by the no-node client transport policy');
+      return;
+    }
+
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), STATUS_TIMEOUT_MS);
+    try {
+      const response = await fetch(STATUS_PATH, {
+        method: 'GET',
+        headers: { Accept: 'application/json' },
+        cache: 'no-store',
+        credentials: 'omit',
+        redirect: 'error',
+        referrerPolicy: 'no-referrer',
+        signal: controller.signal,
+      });
+      if (!response.ok) throw new Error('participant status HTTP ' + response.status);
+      const contentType = String(response.headers.get('content-type') || '').toLowerCase();
+      if (!contentType.startsWith('application/json')) {
+        throw new Error('participant status content type mismatch');
+      }
+      const snapshot = validateStatus(await readBoundedJson(response));
+      const nodeId = snapshot.coordinator_node_id;
+      statusCommandNode.textContent = command('status', origin, nodeId);
+      runCommandNode.textContent = command('run', origin, nodeId);
+      statusNode.textContent = snapshot.available === true
+        ? 'Available — commands are bound to this public origin and verified coordinator ID.'
+        : 'HOLD — commands are identity-bound, but bounded work is not currently claimable.';
+      document.documentElement.dataset.voidParticipantHandoff =
+        snapshot.available === true ? 'available' : 'hold';
+      document.documentElement.dataset.voidParticipantHandoffMarker = MARKER;
+    } catch (error) {
+      setHold(String(error?.message || error));
+    } finally {
+      clearTimeout(timeout);
+    }
+  };
+
+  run();
 })();`;
 
 const publicParticipantHtml = String.raw`<!doctype html>
@@ -724,16 +930,12 @@ const publicParticipantHtml = String.raw`<!doctype html>
 
   <section class="card">
     <h2>3. Run one bounded job</h2>
-    <pre>node void-public-earn-no-node-client-v1.mjs status \
-  --account YOUR_ACCOUNT \
-  --coordinator-base PUBLIC_HTTPS_BASE \
-  --coordinator-node-id COORDINATOR_NODE_ID
-
-node void-public-earn-no-node-client-v1.mjs run \
-  --account YOUR_ACCOUNT \
-  --coordinator-base PUBLIC_HTTPS_BASE \
-  --coordinator-node-id COORDINATOR_NODE_ID</pre>
-    <p>The account is a participant accounting identifier, not a wallet address. Work, dataset, input hash, fixed award, and expiry remain coordinator-selected.</p>
+    <p id="participantHandoffStatus" role="status">Checking sanitized participant status and coordinator identity…</p>
+    <h3>Status check</h3>
+    <pre id="participantStatusCommand">HOLD: coordinator identity not verified.</pre>
+    <h3>Claim and run one bounded job</h3>
+    <pre id="participantRunCommand">HOLD: coordinator identity not verified.</pre>
+    <p>Replace <code>YOUR_ACCOUNT</code> with your participant accounting identifier. It is not a wallet address. The public page derives this origin and the trusted coordinator node ID from bounded same-origin status; work, dataset, input hash, fixed award, and expiry remain coordinator-selected.</p>
   </section>
 
   <section class="card boundary">
@@ -753,6 +955,7 @@ node void-public-earn-no-node-client-v1.mjs run \
   </p>
   <footer>${PUBLIC_PARTICIPANT_MARKER}</footer>
 </main>
+<script src="${PUBLIC_PARTICIPANT_HANDOFF_SCRIPT_PATH}" defer></script>
 </body>
 </html>`;
 
@@ -2022,11 +2225,33 @@ const server = http.createServer(async (req, res) => {
         {
           "content-type": "text/html; charset=utf-8",
           "content-security-policy":
-            "default-src 'self'; style-src 'unsafe-inline'; " +
-            "img-src 'self' data:; object-src 'none'; base-uri 'self'; " +
-            "frame-ancestors 'none'; form-action 'none'",
+            "default-src 'self'; script-src 'self'; connect-src 'self'; " +
+            "style-src 'unsafe-inline'; img-src 'self' data:; " +
+            "object-src 'none'; base-uri 'self'; frame-ancestors 'none'; " +
+            "form-action 'none'",
         },
         publicParticipantHtml,
+        method
+      );
+    }
+
+    if (pathname === PUBLIC_PARTICIPANT_HANDOFF_SCRIPT_PATH) {
+      if (url.search) {
+        return sendJson(
+          res,
+          400,
+          { ok: false, error: "participant_handoff_query_not_allowed" },
+          method
+        );
+      }
+      return send(
+        res,
+        200,
+        {
+          "content-type": "text/javascript; charset=utf-8",
+          "x-void-marker": PUBLIC_PARTICIPANT_HANDOFF_HELPER_MARKER,
+        },
+        publicParticipantHandoffScript + "\n",
         method
       );
     }

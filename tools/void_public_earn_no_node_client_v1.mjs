@@ -97,7 +97,10 @@ function nodeIdFromPubPEM(pubPEM) {
 }
 
 function isPrivateHttpHost(hostname) {
-  const host = String(hostname || "").trim().toLowerCase();
+  const rawHost = String(hostname || "").trim().toLowerCase();
+  const host = rawHost.startsWith("[") && rawHost.endsWith("]")
+    ? rawHost.slice(1, -1)
+    : rawHost;
   if (host === "localhost" || host === "127.0.0.1" || host === "::1") {
     return true;
   }
@@ -1096,5 +1099,6 @@ export const testOnly = {
   safeAccount,
   safeNodeId,
   safeHex64,
+  safeBase,
   sha256,
 };
