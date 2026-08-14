@@ -277,13 +277,14 @@ async function main(): Promise<void> {
       value: Record<string, unknown>,
       expectedCode: string,
     ): Promise<void> => {
+      const rejectedBytes = `${canonicalVoidP2pTrustJsonV1(
+        value as unknown as Parameters<
+          typeof canonicalVoidP2pTrustJsonV1
+        >[0],
+      )}\n`;
       await writeFile(
         activationJournal,
-        `${canonicalVoidP2pTrustJsonV1(
-          value as unknown as Parameters<
-            typeof canonicalVoidP2pTrustJsonV1
-          >[0],
-        )}\n`,
+        rejectedBytes,
         { mode: 0o600 },
       );
       await expectHoldAsync(
@@ -296,6 +297,7 @@ async function main(): Promise<void> {
           }),
         expectedCode,
       );
+      assert.equal(await readFile(activationJournal, "utf8"), rejectedBytes);
     };
 
     const missingGeneration = { ...canonicalActivation };
@@ -386,6 +388,43 @@ async function main(): Promise<void> {
       peers: [{ host: "198.51.100.10", port: 4790, expected_node_id: NODE_1 }],
     });
     const secondEnvelope = signTwice(secondPolicy, key2, key3);
+    const activateThroughEpoch2 = async (name: string): Promise<string> => {
+      const fixtureStateDir = path.join(temporary, name);
+      await activateVoidP2pSignedTrustPolicyV1({
+        envelope: firstEnvelope,
+        root_set: roots,
+        options: { expected_network_id: NETWORK, now_ms: NOW },
+        state_dir: fixtureStateDir,
+      });
+      await activateVoidP2pSignedTrustPolicyV1({
+        envelope: secondEnvelope,
+        root_set: roots,
+        options: { expected_network_id: NETWORK, now_ms: NOW },
+        state_dir: fixtureStateDir,
+      });
+      return fixtureStateDir;
+    };
+    const expectJournalHoldWithoutMutation = async (
+      fixtureStateDir: string,
+      envelope: unknown,
+    ): Promise<void> => {
+      const fixtureJournal = path.join(
+        fixtureStateDir,
+        "activation.ndjson",
+      );
+      const before = await readFile(fixtureJournal, "utf8");
+      await expectHoldAsync(
+        () =>
+          activateVoidP2pSignedTrustPolicyV1({
+            envelope,
+            root_set: roots,
+            options: { expected_network_id: NETWORK, now_ms: NOW },
+            state_dir: fixtureStateDir,
+          }),
+        "invalid_activation_journal",
+      );
+      assert.equal(await readFile(fixtureJournal, "utf8"), before);
+    };
 
     const recoveryStateDir = path.join(temporary, "recovery-state");
     await activateVoidP2pSignedTrustPolicyV1({
@@ -398,17 +437,35 @@ async function main(): Promise<void> {
       recoveryStateDir,
       "activation.ndjson",
     );
-    await chmod(recoveryJournal, 0o400);
-    await assert.rejects(
-      activateVoidP2pSignedTrustPolicyV1({
+    const recoveryJournalBeforeSecondActivation = await readFile(
+      recoveryJournal,
+      "utf8",
+    );
+    if (process.getuid?.() === 0) {
+      await activateVoidP2pSignedTrustPolicyV1({
         envelope: secondEnvelope,
         root_set: roots,
         options: { expected_network_id: NETWORK, now_ms: NOW },
         state_dir: recoveryStateDir,
-      }),
-      (error: unknown) =>
-        (error as NodeJS.ErrnoException)?.code === "EACCES",
-    );
+      });
+      await writeFile(
+        recoveryJournal,
+        recoveryJournalBeforeSecondActivation,
+        { mode: 0o600 },
+      );
+    } else {
+      await chmod(recoveryJournal, 0o400);
+      await assert.rejects(
+        activateVoidP2pSignedTrustPolicyV1({
+          envelope: secondEnvelope,
+          root_set: roots,
+          options: { expected_network_id: NETWORK, now_ms: NOW },
+          state_dir: recoveryStateDir,
+        }),
+        (error: unknown) =>
+          (error as NodeJS.ErrnoException)?.code === "EACCES",
+      );
+    }
     const partiallyActivated =
       await loadActiveVoidP2pTrustPolicyV1(recoveryStateDir);
     assert(partiallyActivated);
@@ -418,7 +475,7 @@ async function main(): Promise<void> {
         .length,
       1,
     );
-    await chmod(recoveryJournal, 0o600);
+    if (process.getuid?.() !== 0) await chmod(recoveryJournal, 0o600);
     const recoveryJournalPrefix = await readFile(recoveryJournal, "utf8");
     const expectedRecoveryLine = canonicalVoidP2pTrustJsonV1(
       partiallyActivated.activation as unknown as Parameters<
@@ -559,6 +616,159 @@ async function main(): Promise<void> {
     assert.equal(loaded2.environment.VOID_P2P_EDGE_WALL_DENY_NODE_IDS, `${NODE_2},${NODE_3}`);
     assert.equal((await readFile(path.join(stateDir, "activation.ndjson"), "utf8")).trim().split("\n").length, 2);
 
+    const fakePriorStateDir = await activateThroughEpoch2(
+      "fake-prior-record-state",
+    );
+    const fakePriorJournal = path.join(
+      fakePriorStateDir,
+      "activation.ndjson",
+    );
+    const fakePriorLines = (await readFile(fakePriorJournal, "utf8"))
+      .trim()
+      .split("\n");
+    const fakePrior = JSON.parse(fakePriorLines[0]!) as Record<
+      string,
+      unknown
+    >;
+    const fakePolicySha256 = "a".repeat(64);
+    fakePrior.policy_sha256 = fakePolicySha256;
+    fakePrior.envelope_sha256 = "b".repeat(64);
+    fakePrior.generation = `${"1".padStart(40, "0")}-${fakePolicySha256}`;
+    await writeFile(
+      fakePriorJournal,
+      `${canonicalVoidP2pTrustJsonV1(
+        fakePrior as unknown as Parameters<
+          typeof canonicalVoidP2pTrustJsonV1
+        >[0]
+      )}\n${fakePriorLines[1]}\n`,
+      { mode: 0o600 },
+    );
+    await expectJournalHoldWithoutMutation(fakePriorStateDir, secondEnvelope);
+
+    const missingGenerationStateDir = await activateThroughEpoch2(
+      "missing-generation-state",
+    );
+    const missingGenerationJournal = path.join(
+      missingGenerationStateDir,
+      "activation.ndjson",
+    );
+    const missingGenerationLines = (
+      await readFile(missingGenerationJournal, "utf8")
+    ).trim().split("\n");
+    const missingGenerationRecord = JSON.parse(
+      missingGenerationLines[0]!,
+    ) as Record<string, unknown>;
+    await rm(
+      path.join(
+        missingGenerationStateDir,
+        "generations",
+        String(missingGenerationRecord.generation),
+      ),
+      { recursive: true },
+    );
+    await expectJournalHoldWithoutMutation(
+      missingGenerationStateDir,
+      secondEnvelope,
+    );
+
+    const wrongGenerationStateDir = await activateThroughEpoch2(
+      "wrong-generation-state",
+    );
+    const wrongGenerationJournal = path.join(
+      wrongGenerationStateDir,
+      "activation.ndjson",
+    );
+    const wrongGenerationLines = (
+      await readFile(wrongGenerationJournal, "utf8")
+    ).trim().split("\n");
+    const wrongGenerationRecord = JSON.parse(
+      wrongGenerationLines[0]!,
+    ) as Record<string, unknown>;
+    wrongGenerationRecord.activated_at = "2026-07-22T12:00:00.001Z";
+    await writeFile(
+      wrongGenerationJournal,
+      `${canonicalVoidP2pTrustJsonV1(
+        wrongGenerationRecord as unknown as Parameters<
+          typeof canonicalVoidP2pTrustJsonV1
+        >[0]
+      )}\n${wrongGenerationLines[1]}\n`,
+      { mode: 0o600 },
+    );
+    await expectJournalHoldWithoutMutation(
+      wrongGenerationStateDir,
+      secondEnvelope,
+    );
+
+    const symlinkGenerationStateDir = await activateThroughEpoch2(
+      "symlink-generation-state",
+    );
+    const symlinkGenerationJournal = path.join(
+      symlinkGenerationStateDir,
+      "activation.ndjson",
+    );
+    const symlinkGenerationLines = (
+      await readFile(symlinkGenerationJournal, "utf8")
+    ).trim().split("\n");
+    const symlinkPrior = JSON.parse(symlinkGenerationLines[0]!) as Record<
+      string,
+      unknown
+    >;
+    const symlinkCurrent = JSON.parse(symlinkGenerationLines[1]!) as Record<
+      string,
+      unknown
+    >;
+    const symlinkPriorDir = path.join(
+      symlinkGenerationStateDir,
+      "generations",
+      String(symlinkPrior.generation),
+    );
+    await rm(symlinkPriorDir, { recursive: true });
+    await symlink(String(symlinkCurrent.generation), symlinkPriorDir);
+    await expectJournalHoldWithoutMutation(
+      symlinkGenerationStateDir,
+      secondEnvelope,
+    );
+
+    const thirdPolicy = policy({
+      epoch: "3",
+      previous_policy_sha256: activated2.activation.policy_sha256,
+      allow_node_ids: [NODE_1],
+      deny_node_ids: [NODE_2, NODE_3],
+      peers: [
+        {
+          host: "198.51.100.10",
+          port: 4790,
+          expected_node_id: NODE_1,
+        },
+      ],
+    });
+    const thirdEnvelope = signTwice(thirdPolicy, key1, key3);
+    const brokenPredecessorStateDir = await activateThroughEpoch2(
+      "broken-predecessor-state",
+    );
+    await activateVoidP2pSignedTrustPolicyV1({
+      envelope: thirdEnvelope,
+      root_set: roots,
+      options: { expected_network_id: NETWORK, now_ms: NOW },
+      state_dir: brokenPredecessorStateDir,
+    });
+    const brokenPredecessorJournal = path.join(
+      brokenPredecessorStateDir,
+      "activation.ndjson",
+    );
+    const brokenPredecessorLines = (
+      await readFile(brokenPredecessorJournal, "utf8")
+    ).trim().split("\n");
+    await writeFile(
+      brokenPredecessorJournal,
+      `${brokenPredecessorLines[0]}\n${brokenPredecessorLines[2]}\n`,
+      { mode: 0o600 },
+    );
+    await expectJournalHoldWithoutMutation(
+      brokenPredecessorStateDir,
+      thirdEnvelope,
+    );
+
     await expectHoldAsync(
       () =>
         activateVoidP2pSignedTrustPolicyV1({
@@ -570,19 +780,11 @@ async function main(): Promise<void> {
       "policy_rollback",
     );
 
-    const epoch3Policy = policy({
-      epoch: "3",
-      previous_policy_sha256: activated2.activation.policy_sha256,
-      allow_node_ids: [NODE_1],
-      deny_node_ids: [NODE_2, NODE_3],
-      peers: [{ host: "198.51.100.10", port: 4790, expected_node_id: NODE_1 }],
-    });
-    const epoch3Envelope = signTwice(epoch3Policy, key1, key3);
     await writeFile(path.join(stateDir, "activation.lock"), "held\n", { mode: 0o600 });
     await expectHoldAsync(
       () =>
         activateVoidP2pSignedTrustPolicyV1({
-          envelope: epoch3Envelope,
+          envelope: thirdEnvelope,
           root_set: roots,
           options: { expected_network_id: NETWORK, now_ms: NOW },
           state_dir: stateDir,
