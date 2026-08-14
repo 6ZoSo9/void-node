@@ -11,7 +11,7 @@ source connection explicit and testable:
 1. select exactly one existing execution attempt by server journal ID;
 2. reconstruct the fulfillment intent, aggregate inventory reservation, and
    bounded execution plan from server-owned journals;
-3. read the chain-2050 pending nonce, gas price, and fulfillment-wallet balance
+3. read the chain-2050 pending nonce, gas price, and pending-state fulfillment-wallet balance
    through a server-controlled loopback JSON-RPC URL;
 4. build a bounded type-2 native VOID transfer plan;
 5. dry-run while execution remains disabled, without credentials, signing,
@@ -105,7 +105,9 @@ The planner permits only four JSON-RPC methods:
 - `eth_chainId`
 - `eth_getTransactionCount` with block tag `pending`
 - `eth_gasPrice`
-- `eth_getBalance` with block tag `latest`
+- `eth_getBalance` with block tag `pending`
+
+The nonce and spendability checks therefore use one coherent `pending` execution-state perspective. A plan cannot select a pending nonce while trusting a pre-pending (`latest`) balance. Successful planner evidence reports `execution_state=pending`.
 
 The RPC URL is server controlled and must be loopback HTTP. Redirects, proxies,
 credentials in URLs, non-loopback hosts, and arbitrary methods are rejected.
@@ -123,7 +125,9 @@ The planner holds when:
 - the computed max fee exceeds the server cap;
 - priority fee exceeds computed max fee;
 - gas limit exceeds its cap;
-- wallet balance cannot cover the VOID value plus maximum gas cost.
+- the wallet's pending balance cannot cover the VOID value plus maximum gas cost.
+
+The focused proof includes a latest-sufficient / pending-insufficient fixture and requires HOLD, so preceding pending spends cannot be ignored.
 
 The raw RPC URL is not returned. Only its SHA-256 fingerprint is exposed.
 
