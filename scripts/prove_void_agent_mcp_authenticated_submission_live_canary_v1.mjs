@@ -283,6 +283,7 @@ async function main() {
     "tools/void-agent-mcp-authenticated-submission-live-canary-v1.mjs",
     "accepted_for_review: true",
     "private_temp_cleanup_completed=${result.state.private_temp_cleanup_completed}",
+    "completion_receipt_published=${result.state.completion_receipt_published}",
     "payment_executed: false",
     "work_credit_ledger_written: false",
     "void_settled: false",
@@ -353,7 +354,9 @@ async function main() {
     assert.equal(completed.state.duplicate, false);
     assert.equal(completed.state.conflicting_duplicate, false);
     assert.equal(completed.state.private_temp_cleanup_completed, true);
+    assert.equal(completed.state.completion_receipt_published, true);
     assert.equal(completed.receipt.private_temp_cleanup_completed, true);
+    assert.equal(completed.receipt.completion_receipt_published, true);
     assert.equal(gateway.metrics.submission_posts, 1);
     assert.equal(gateway.metrics.authorization_exact, true);
     assert.equal(gateway.metrics.payload_hash_exact, true);
@@ -413,7 +416,9 @@ async function main() {
     assert.equal(cleanupFalse.state.status, "completed");
     assert.equal(cleanupFalse.state.accepted_for_review, true);
     assert.equal(cleanupFalse.state.private_temp_cleanup_completed, false);
+    assert.equal(cleanupFalse.state.completion_receipt_published, true);
     assert.equal(cleanupFalse.receipt.private_temp_cleanup_completed, false);
+    assert.equal(cleanupFalse.receipt.completion_receipt_published, true);
     assert.equal(cleanupFalse.result.interpretation.private_temp_cleanup_completed, false);
     await expectReject(
       async () => await executeCanary({
@@ -472,6 +477,7 @@ async function main() {
       const cliCompleted = await runCli(executeArgs);
       assert.equal(cliCompleted.exitCode, 0);
       assert.match(cliCompleted.output, /private_temp_cleanup_completed=false(?:\n|$)/);
+      assert.match(cliCompleted.output, /completion_receipt_published=true(?:\n|$)/);
       assert.equal(cliCompleted.output.includes(TOKEN), false);
       assert.equal(cliCompleted.output.includes(tokenPath), false);
       assert.equal(cliCompleted.output.includes(cliTempRoot), false);
@@ -479,7 +485,9 @@ async function main() {
       const cliReceipt = readJson(path.join(cliCleanupStateDirectory, "completion-receipt-v1.json"));
       assert.equal(cliState.status, "completed");
       assert.equal(cliState.private_temp_cleanup_completed, false);
+      assert.equal(cliState.completion_receipt_published, true);
       assert.equal(cliReceipt.private_temp_cleanup_completed, false);
+      assert.equal(cliReceipt.completion_receipt_published, true);
       cliCleanupSubmissionPosts = cliGateway.metrics.submission_posts;
       assert.equal(cliCleanupSubmissionPosts, 1);
       await expectReject(
@@ -498,6 +506,68 @@ async function main() {
         // Best-effort proof cleanup only; outer temp-root removal remains authoritative.
       }
       if (cliGateway) await cliGateway.close();
+    }
+
+    const receiptFailureInputPath = path.join(root, "input-receipt-publication-failure.json");
+    const receiptFailureInput = canaryInput("receipt-publication-failure-v1");
+    const receiptFailureNow = Date.now();
+    receiptFailureInput.created_at_utc = new Date(receiptFailureNow).toISOString().replace(/\.\d{3}Z$/, "Z");
+    receiptFailureInput.expires_at_utc = new Date(receiptFailureNow + 15 * 60_000).toISOString().replace(/\.\d{3}Z$/, "Z");
+    writePrivateJson(receiptFailureInputPath, receiptFailureInput);
+    const receiptFailureStateDirectory = path.join(root, "state-receipt-publication-failure");
+    const receiptFailureGateway = await startGateway();
+    let receiptFailureOutputVerified = false;
+    let receiptFailureExistingReceiptPreserved = false;
+    let receiptFailureSubmissionPosts = 0;
+    try {
+      const prepareArgs = [
+        "prepare",
+        "--repo-root", ROOT,
+        "--base-url", receiptFailureGateway.baseUrl,
+        "--input", receiptFailureInputPath,
+        "--state-dir", receiptFailureStateDirectory,
+      ];
+      const executeArgs = [
+        "execute",
+        "--repo-root", ROOT,
+        "--base-url", receiptFailureGateway.baseUrl,
+        "--input", receiptFailureInputPath,
+        "--state-dir", receiptFailureStateDirectory,
+        "--token-file", tokenPath,
+        "--allow-live-submit",
+        "--confirm", CONFIRMATION,
+      ];
+      const receiptFailurePrepared = await runCli(prepareArgs);
+      assert.equal(receiptFailurePrepared.exitCode, 0);
+      assert.match(receiptFailurePrepared.output, new RegExp(`${MARKER}=PREPARED`));
+      const preexistingReceiptPath = path.join(receiptFailureStateDirectory, "completion-receipt-v1.json");
+      const preexistingReceipt = { marker: "VOID_PROOF_PREEXISTING_COMPLETION_RECEIPT", sentinel: "must-not-overwrite" };
+      writePrivateJson(preexistingReceiptPath, preexistingReceipt);
+      const receiptFailureCompleted = await runCli(executeArgs);
+      assert.equal(receiptFailureCompleted.exitCode, 0);
+      assert.match(receiptFailureCompleted.output, new RegExp(`${MARKER}=PASS`));
+      assert.match(receiptFailureCompleted.output, /accepted_for_review=true(?:\n|$)/);
+      assert.match(receiptFailureCompleted.output, /completion_receipt_published=false(?:\n|$)/);
+      assert.equal(receiptFailureCompleted.output.includes(TOKEN), false);
+      assert.equal(receiptFailureCompleted.output.includes(tokenPath), false);
+      const receiptFailureState = readJson(path.join(receiptFailureStateDirectory, "state-v1.json"));
+      assert.equal(receiptFailureState.status, "completed");
+      assert.equal(receiptFailureState.accepted_for_review, true);
+      assert.equal(receiptFailureState.attempt_count, 1);
+      assert.equal(receiptFailureState.completion_receipt_published, false);
+      assert.deepEqual(readJson(preexistingReceiptPath), preexistingReceipt);
+      receiptFailureExistingReceiptPreserved = true;
+      receiptFailureSubmissionPosts = receiptFailureGateway.metrics.submission_posts;
+      assert.equal(receiptFailureSubmissionPosts, 1);
+      await expectReject(
+        async () => await runCli(executeArgs),
+        /fresh prepared state/,
+      );
+      assert.equal(receiptFailureGateway.metrics.submission_posts, 1);
+      scanForSecret(receiptFailureStateDirectory, [TOKEN, tokenPath]);
+      receiptFailureOutputVerified = true;
+    } finally {
+      await receiptFailureGateway.close();
     }
 
     const ambiguousInputPath = path.join(root, "input-ambiguous.json");
@@ -586,12 +656,17 @@ async function main() {
       duplicate: false,
       conflicting_duplicate: false,
       private_temp_cleanup_completed_normal: completed.state.private_temp_cleanup_completed === true,
+      completion_receipt_published_normal: completed.state.completion_receipt_published === true,
       private_temp_cleanup_failure_preserved: cleanupFalse.state.private_temp_cleanup_completed === false,
       cleanup_failure_submission_attempt_count: cleanupFalseCalls,
       cleanup_failure_no_retry: cleanupFalseCalls === 1,
       cleanup_failure_cli_output_verified: cliCleanupOutputVerified,
       cleanup_failure_cli_submission_attempt_count: cliCleanupSubmissionPosts,
       cleanup_failure_cli_no_retry: cliCleanupSubmissionPosts === 1,
+      completion_receipt_publication_failure_preserved: receiptFailureOutputVerified,
+      completion_receipt_publication_failure_existing_receipt_preserved: receiptFailureExistingReceiptPreserved,
+      completion_receipt_publication_failure_submission_attempt_count: receiptFailureSubmissionPosts,
+      completion_receipt_publication_failure_no_retry: receiptFailureSubmissionPosts === 1,
       ambiguous_result_held: held.status === "held",
       automatic_retry: false,
       raw_token_printed: false,
