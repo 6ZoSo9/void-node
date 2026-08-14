@@ -48,7 +48,9 @@ An optional `--output` receipt is evidence, not part of the repository mutation.
 
 The tool canonicalizes the output parent directory before use, so an outside symlink that resolves back into the worktree or Git administrative state does not bypass this rule. The parent must already exist. The receipt itself remains create-only (`wx`) and mode `0600`.
 
-When an output path is requested, the tool reserves that create-only receipt before any Git-config apply mutation. An existing/uncreatable receipt path therefore fails before the dedicated remote can change, instead of allowing a successful Git-config mutation followed by an evidence-write failure.
+When an output path is requested, the tool reserves that create-only receipt before any Git-config apply mutation. An existing or uncreatable receipt path therefore fails before the dedicated remote can change. Reservation is a path-availability and no-overwrite boundary; it does **not** claim that a later device, quota, or filesystem failure cannot occur while final evidence bytes are written after a successful Git-config mutation.
+
+If final evidence writing fails after the dedicated remote has already reached `TRANSPORT_CONFIGURED`, the CLI returns `HOLD`, truthfully preserves `mutation_attempted=true` and `mutation_succeeded=true`, and requires fresh repository inspection before any retry. The tool rewrites the reserved descriptor from offset zero and fsyncs completed receipts; if the failure permits a second write, the reserved receipt itself becomes the truthful HOLD record. If the filesystem cannot accept even that HOLD record, stdout remains the terminal truth.
 
 This boundary applies to both dry-run and apply. A dry-run receipt cannot make the status-bound plan stale by creating an untracked file inside the selected worktree, and an apply receipt cannot mutate `.git` after post-state verification has already declared repository invariants preserved. Unsafe output destinations return `HOLD` without creating the receipt or configuring the dedicated remote.
 
@@ -119,6 +121,8 @@ printf 'public_fetch_transport_postcheck=green\n'
 
 The evidence path is intentionally outside the selected repository and unique per run. `--output` is create-only and mode `0600`; it refuses to overwrite an existing receipt and rejects any destination that resolves into the worktree or Git administrative directories. The dry-run receipt contains the exact confirmation plan ID but does not print the selected filesystem path or the operator-specific `origin` URL. If the dry run returns `HOLD`, exits nonzero, or repository/configuration evidence changes before apply, stop and collect fresh evidence instead of retrying automatically.
 
+If the confirmed apply exits nonzero after reporting `mutation_attempted=true`, treat that as an **inspection-required terminal state**, not as permission to rerun the old plan. In particular, `mutation_succeeded=true` means the dedicated remote reached the reviewed aligned state even though final evidence publication failed; collect fresh `git remote get-url` and repository evidence before making another decision.
+
 This journey does not fetch from the new remote. It only proves and, after exact confirmation, configures the local fetch-only transport. Source convergence remains a later separately authorized controller operation.
 
 ## Authority boundary
@@ -127,7 +131,7 @@ This tool does not fetch, pull, checkout, reset, merge, build, install packages,
 
 The apply mode is a local Git-config mutation and therefore remains a separate operator authorization gate on real machines. A source merge of this tool does not configure any live node. Runtime rollout and service restart remain separate operations under the existing fleet controllers.
 
-If either bounded Git-config write fails, the tool does not retry automatically. The operator must inspect fresh state before another decision because a partial dedicated-remote configuration may exist. Existing `origin` is never an apply target.
+If either bounded Git-config write fails, or if post-apply evidence publication fails, the tool does not retry automatically. The operator must inspect fresh state before another decision because a partial or fully aligned dedicated-remote configuration may exist. Existing `origin` is never an apply target.
 
 ## Proof
 
@@ -137,4 +141,4 @@ Run the deterministic proof with:
 node scripts/prove_void_node_fleet_public_fetch_transport_v1.mjs
 ```
 
-The proof uses temporary Git repositories and an isolated temporary Git global-config file only. It covers canonical HTTPS and SSH origins; foreign/alternate-host/mixed/duplicate-origin rejection; origin and prospective-public-fetch `insteadOf` rewrite rejection; inherited non-local dedicated-remote rejection; selected-worktree identity binding across byte/state-identical clones at different paths; cross-clone plan-reuse rejection; missing and misconfigured dedicated remotes; exact confirmation; dirty-worktree preservation; origin/ref/index/HEAD/tree preservation; rejection of dry-run output inside the worktree; rejection of apply output inside Git administrative state before remote mutation; rejection of a pre-existing apply receipt before remote mutation; create-only mode-0600 outside-repository dry-run/apply receipts; receipt no-overwrite behavior; the actual CLI dry-run -> confirmed apply -> aligned rerun journey; idempotent rerun; wrong-plan and wrong-confirmation rejection; detached-HEAD rejection; public origin/path redaction; and negative service/runtime/fetch authority.
+The proof uses temporary Git repositories and an isolated temporary Git global-config file only. It covers canonical HTTPS and SSH origins; foreign/alternate-host/mixed/duplicate-origin rejection; origin and prospective-public-fetch `insteadOf` rewrite rejection; inherited non-local dedicated-remote rejection; selected-worktree identity binding across byte/state-identical clones at different paths; cross-clone plan-reuse rejection; missing and misconfigured dedicated remotes; exact confirmation; dirty-worktree preservation; origin/ref/index/HEAD/tree preservation; rejection of dry-run output inside the worktree; rejection of apply output inside Git administrative state before remote mutation; rejection of a pre-existing apply receipt before remote mutation; create-only mode-0600 outside-repository dry-run/apply receipts; receipt no-overwrite behavior; a fault-injected final receipt write after successful apply that must report `mutation_attempted=true` and `mutation_succeeded=true`; the actual CLI dry-run -> confirmed apply -> aligned rerun journey; idempotent rerun; wrong-plan and wrong-confirmation rejection; detached-HEAD rejection; public origin/path redaction; and negative service/runtime/fetch authority.
