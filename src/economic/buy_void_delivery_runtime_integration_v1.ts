@@ -6,6 +6,7 @@ import {
 } from "./buy_void_execution_attempt_journal_v1.js";
 import {
   runBuyVoidErc20TransactionPreparationPlannerV1,
+  validateBuyVoidErc20TransactionPreparationPlannerPolicyV1,
   VOID_BUY_VOID_ERC20_TRANSACTION_PREPARATION_PLANNER_V1,
   type BuyVoidErc20TransactionPreparationPlannerPolicyV1,
 } from "./buy_void_erc20_transaction_preparation_planner_v1.js";
@@ -92,11 +93,13 @@ type PlannerPolicyStateV1 =
         BuyVoidErc20TransactionPreparationPlannerPolicyV1;
       fingerprint_sha256: string;
       rpc_url_fingerprint_sha256: string;
+      validation_reason: null;
     }
   | {
       configured: false;
       missing_envs: string[];
       invalid_envs: string[];
+      validation_reason: string;
     };
 
 function enabled(): boolean {
@@ -135,6 +138,32 @@ function sha256(value: string): string {
     .digest("hex");
 }
 
+function invalidPolicyEnvsForReason(reason: string): string[] {
+  switch (reason) {
+    case "invalid_erc20_transaction_preparation_chain_id":
+      return [POLICY_ENVS.chain_id];
+    case "invalid_rpc_url":
+    case "rpc_url_must_be_loopback_http":
+      return [PLANNER_RPC_ENV];
+    case "invalid_fulfillment_wallet_address":
+      return [POLICY_ENVS.fulfillment_wallet_address];
+    case "invalid_void_token_address":
+      return [POLICY_ENVS.void_token_address];
+    case "invalid_erc20_transaction_preparation_policy":
+      return [
+        POLICY_ENVS.max_void_amount_units,
+        POLICY_ENVS.max_gas_limit,
+        POLICY_ENVS.max_fee_per_gas_wei,
+        POLICY_ENVS.max_priority_fee_per_gas_wei,
+      ];
+    default:
+      return [
+        ...Object.values(POLICY_ENVS),
+        PLANNER_RPC_ENV,
+      ];
+  }
+}
+
 function plannerPolicyState(): PlannerPolicyStateV1 {
   const values = Object.fromEntries(
     Object.entries(POLICY_ENVS).map(([key, env]) => [
@@ -149,16 +178,22 @@ function plannerPolicyState(): PlannerPolicyStateV1 {
     .map(([, env]) => env);
   if (!rpcUrl) missing.push(PLANNER_RPC_ENV);
 
-  const invalid: string[] = [];
-  if (values.chain_id && values.chain_id !== "2050") {
-    invalid.push(POLICY_ENVS.chain_id);
-  }
-
-  if (missing.length || invalid.length) {
+  if (missing.length) {
     return {
       configured: false,
       missing_envs: [...new Set(missing)].sort(),
-      invalid_envs: [...new Set(invalid)].sort(),
+      invalid_envs: [],
+      validation_reason: "missing_required_policy_environment",
+    };
+  }
+
+  if (values.chain_id !== "2050") {
+    return {
+      configured: false,
+      missing_envs: [],
+      invalid_envs: [POLICY_ENVS.chain_id],
+      validation_reason:
+        "invalid_erc20_transaction_preparation_chain_id",
     };
   }
 
@@ -180,28 +215,31 @@ function plannerPolicyState(): PlannerPolicyStateV1 {
         values.max_priority_fee_per_gas_wei,
     };
 
-  const fingerprintMaterial = JSON.stringify({
-    chain_id: "2050",
-    rpc_url: rpcUrl,
-    fulfillment_wallet_address:
-      values.fulfillment_wallet_address.toLowerCase(),
-    void_token_address:
-      values.void_token_address.toLowerCase(),
-    max_void_amount_units: values.max_void_amount_units,
-    gas_limit_multiplier_bps:
-      FIXED_GAS_LIMIT_MULTIPLIER_BPS,
-    max_gas_limit: values.max_gas_limit,
-    fee_multiplier_bps: FIXED_FEE_MULTIPLIER_BPS,
-    max_fee_per_gas_wei: values.max_fee_per_gas_wei,
-    max_priority_fee_per_gas_wei:
-      values.max_priority_fee_per_gas_wei,
-  });
+  const validation =
+    validateBuyVoidErc20TransactionPreparationPlannerPolicyV1(
+      plannerPolicy,
+    );
+  if (validation.ok === false) {
+    return {
+      configured: false,
+      missing_envs: [],
+      invalid_envs: [
+        ...new Set(
+          invalidPolicyEnvsForReason(validation.reason),
+        ),
+      ].sort(),
+      validation_reason: validation.reason,
+    };
+  }
 
   return {
     configured: true,
     planner_policy: plannerPolicy,
-    fingerprint_sha256: sha256(fingerprintMaterial),
-    rpc_url_fingerprint_sha256: sha256(rpcUrl),
+    fingerprint_sha256:
+      validation.policy_fingerprint_sha256,
+    rpc_url_fingerprint_sha256:
+      validation.rpc_url_fingerprint_sha256,
+    validation_reason: null,
   };
 }
 
@@ -298,6 +336,7 @@ export function buyVoidDeliveryRuntimeStatusV1():
       "missing_envs" in policy ? policy.missing_envs : [],
     policy_invalid_envs:
       "invalid_envs" in policy ? policy.invalid_envs : [],
+    policy_validation_reason: policy.validation_reason,
     policy_fingerprint_sha256:
       policy.configured ? policy.fingerprint_sha256 : null,
     planner_rpc_url_fingerprint_sha256:

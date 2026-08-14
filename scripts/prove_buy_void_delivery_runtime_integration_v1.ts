@@ -315,21 +315,97 @@ assert.ok(address && typeof address === "object");
 
 process.env
   .VOID_BUY_VOID_DELIVERY_RUNTIME_INTEGRATION_ENABLED = "1";
-process.env.VOID_BUY_VOID_DELIVERY_CHAIN_ID = "2050";
-process.env.VOID_BUY_VOID_DELIVERY_TOKEN_ADDRESS = token;
-process.env.VOID_BUY_VOID_DELIVERY_WALLET_ADDRESS =
-  wallet.address;
-process.env.VOID_BUY_VOID_DELIVERY_MAX_AMOUNT_UNITS =
-  "1000000000";
-process.env.VOID_BUY_VOID_DELIVERY_MAX_GAS_LIMIT =
-  "100000";
-process.env.VOID_BUY_VOID_DELIVERY_MAX_FEE_PER_GAS_WEI =
-  "3000000000";
-process.env
-  .VOID_BUY_VOID_DELIVERY_MAX_PRIORITY_FEE_PER_GAS_WEI =
-  "1000000000";
-process.env.VOID_BUY_VOID_NATIVE_CHAIN2050_RPC_URL =
-  `http://127.0.0.1:${address.port}/`;
+
+const validPlannerEnvironment: Record<string, string> = {
+  VOID_BUY_VOID_DELIVERY_CHAIN_ID: "2050",
+  VOID_BUY_VOID_DELIVERY_TOKEN_ADDRESS: token,
+  VOID_BUY_VOID_DELIVERY_WALLET_ADDRESS: wallet.address,
+  VOID_BUY_VOID_DELIVERY_MAX_AMOUNT_UNITS: "1000000000",
+  VOID_BUY_VOID_DELIVERY_MAX_GAS_LIMIT: "100000",
+  VOID_BUY_VOID_DELIVERY_MAX_FEE_PER_GAS_WEI: "3000000000",
+  VOID_BUY_VOID_DELIVERY_MAX_PRIORITY_FEE_PER_GAS_WEI:
+    "1000000000",
+  VOID_BUY_VOID_NATIVE_CHAIN2050_RPC_URL:
+    `http://127.0.0.1:${address.port}/`,
+};
+
+function setPlannerEnvironment(
+  overrides: Record<string, string> = {},
+): void {
+  for (const [key, value] of Object.entries({
+    ...validPlannerEnvironment,
+    ...overrides,
+  })) {
+    process.env[key] = value;
+  }
+}
+
+async function proveInvalidPlannerEnvironment(
+  overrides: Record<string, string>,
+  expectedReason: string,
+): Promise<void> {
+  setPlannerEnvironment(overrides);
+  const callsBefore = rpcCalls.length;
+  const status = await call("GET", statusRoute, {
+    socket: { remoteAddress: "127.0.0.1" },
+  });
+  assert.equal(status.status, 200);
+  assert.equal(status.body.enabled, true);
+  assert.equal(status.body.policy_configured, false);
+  assert.equal(
+    status.body.policy_validation_reason,
+    expectedReason,
+  );
+  assert.equal(status.body.effective_authority.rpc_call, false);
+  assert.equal(status.body.effective_authority.signing, false);
+  assert.equal(
+    status.body.effective_authority.transaction_broadcast,
+    false,
+  );
+  assert.equal(status.body.effective_authority.money_movement, false);
+  assert.equal(rpcCalls.length, callsBefore);
+}
+
+await proveInvalidPlannerEnvironment(
+  { VOID_BUY_VOID_DELIVERY_CHAIN_ID: "2051" },
+  "invalid_erc20_transaction_preparation_chain_id",
+);
+await proveInvalidPlannerEnvironment(
+  {
+    VOID_BUY_VOID_NATIVE_CHAIN2050_RPC_URL:
+      `https://127.0.0.1:${address.port}/`,
+  },
+  "rpc_url_must_be_loopback_http",
+);
+await proveInvalidPlannerEnvironment(
+  { VOID_BUY_VOID_DELIVERY_WALLET_ADDRESS: "0x1234" },
+  "invalid_fulfillment_wallet_address",
+);
+await proveInvalidPlannerEnvironment(
+  { VOID_BUY_VOID_DELIVERY_TOKEN_ADDRESS: "0x1234" },
+  "invalid_void_token_address",
+);
+await proveInvalidPlannerEnvironment(
+  { VOID_BUY_VOID_DELIVERY_MAX_AMOUNT_UNITS: "not-a-number" },
+  "invalid_erc20_transaction_preparation_policy",
+);
+await proveInvalidPlannerEnvironment(
+  { VOID_BUY_VOID_DELIVERY_MAX_GAS_LIMIT: "0" },
+  "invalid_erc20_transaction_preparation_policy",
+);
+await proveInvalidPlannerEnvironment(
+  { VOID_BUY_VOID_DELIVERY_MAX_FEE_PER_GAS_WEI: "0" },
+  "invalid_erc20_transaction_preparation_policy",
+);
+await proveInvalidPlannerEnvironment(
+  {
+    VOID_BUY_VOID_DELIVERY_MAX_PRIORITY_FEE_PER_GAS_WEI:
+      "4000000000",
+  },
+  "invalid_erc20_transaction_preparation_policy",
+);
+
+setPlannerEnvironment();
 
 const configured = await call("GET", statusRoute, {
   socket: { remoteAddress: "127.0.0.1" },
@@ -482,6 +558,9 @@ console.log("server_derived_transaction_plan=1");
 console.log("caller_supplied_transaction_plan=0");
 console.log("planner_execution_state=pending");
 console.log("planner_rpc_method_count=5");
+console.log("invalid_nonempty_policy_status_hold=1");
+console.log("invalid_policy_rpc_authority=0");
+console.log("canonical_policy_validator_reused=1");
 console.log("direct_sign_broadcast_apply_allowed=0");
 console.log("durable_prepared_transaction_composition_ready=0");
 console.log("mutation_performed=0");
