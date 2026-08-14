@@ -1,0 +1,85 @@
+name: Buy VOID ERC20 delivery runtime activation configuration contract v1
+
+on:
+  pull_request:
+    paths:
+      - "src/economic/buy_void_erc20_delivery_runtime_activation_configuration_contract_v1.ts"
+      - "scripts/prove_buy_void_erc20_delivery_runtime_activation_configuration_contract_v1.ts"
+      - "docs/operators/buy-void-erc20-delivery-runtime-activation-configuration-contract-v1.md"
+      - ".github/workflows/buy-void-erc20-delivery-runtime-activation-configuration-contract-v1.yml"
+      - "src/economic/buy_void_delivery_runtime_integration_v1.ts"
+      - "src/economic/buy_void_erc20_delivery_dependency_bootstrap_v1.ts"
+      - "src/economic/buy_void_native_fulfillment_wallet_credential_signer_v1.ts"
+      - "src/economic/buy_void_erc20_delivery_dependency_bootstrap_integration_gate_v1.ts"
+      - "src/economic/buy_void_runtime_integration_v1.ts"
+  push:
+    branches: [main]
+    paths:
+      - "src/economic/buy_void_erc20_delivery_runtime_activation_configuration_contract_v1.ts"
+      - "scripts/prove_buy_void_erc20_delivery_runtime_activation_configuration_contract_v1.ts"
+      - "docs/operators/buy-void-erc20-delivery-runtime-activation-configuration-contract-v1.md"
+      - ".github/workflows/buy-void-erc20-delivery-runtime-activation-configuration-contract-v1.yml"
+      - "src/economic/buy_void_delivery_runtime_integration_v1.ts"
+      - "src/economic/buy_void_erc20_delivery_dependency_bootstrap_v1.ts"
+      - "src/economic/buy_void_native_fulfillment_wallet_credential_signer_v1.ts"
+      - "src/economic/buy_void_erc20_delivery_dependency_bootstrap_integration_gate_v1.ts"
+      - "src/economic/buy_void_runtime_integration_v1.ts"
+
+permissions:
+  contents: read
+
+jobs:
+  prove:
+    name: prove (Node ${{ matrix.node }})
+    runs-on: ubuntu-24.04
+    timeout-minutes: 18
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          fetch-depth: 2
+          persist-credentials: false
+      - name: Setup Node
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: ${{ matrix.node }}
+          cache: npm
+      - name: Install locked dependencies
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Prove activation configuration source contract
+        run: npx --no-install tsx scripts/prove_buy_void_erc20_delivery_runtime_activation_configuration_contract_v1.ts
+      - name: Preserve dependency bootstrap integration gate
+        run: npx --no-install tsx scripts/prove_buy_void_erc20_delivery_dependency_bootstrap_integration_gate_v1.ts
+      - name: Preserve dependency composition
+        run: npx --no-install tsx scripts/prove_buy_void_erc20_delivery_dependency_bootstrap_v1.ts
+      - name: Preserve canonical execution HOLD
+        run: |
+          npx --no-install tsx scripts/prove_buy_void_canonical_erc20_delivery_composition_v1.ts
+          npx --no-install tsx scripts/prove_buy_void_canonical_erc20_execution_hold_v1.ts
+          npx --no-install tsx scripts/prove_buy_void_runtime_integration_guard_v1.ts
+          npx --no-install tsx scripts/prove_buy_void_delivery_runtime_integration_guard_v1.ts
+          npx --no-install tsx scripts/prove_buy_void_delivery_sign_broadcast_adapter_guard_v1.ts
+      - name: Focused TypeScript
+        run: |
+          ./node_modules/.bin/tsc \
+            --noEmit \
+            --target ES2022 \
+            --module NodeNext \
+            --moduleResolution NodeNext \
+            --lib ES2022 \
+            --types node \
+            --esModuleInterop \
+            --allowSyntheticDefaultImports \
+            --downlevelIteration \
+            --skipLibCheck \
+            scripts/prove_buy_void_erc20_delivery_runtime_activation_configuration_contract_v1.ts
+      - name: Typecheck repository
+        run: npm run typecheck
+      - name: Build repository
+        run: npm run build
+      - name: Diff hygiene
+        run: git diff --check "${{ github.event.pull_request.base.sha }}..HEAD"
