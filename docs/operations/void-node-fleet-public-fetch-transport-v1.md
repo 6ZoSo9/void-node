@@ -52,6 +52,61 @@ Apply requires the exact dry-run plan ID and operation marker `VOID_NODE_FLEET_P
 
 Apply is bounded to the dedicated remote's local fetch and push configuration. Afterward it requires exact preservation of selected-worktree identity, branch, HEAD, tree, worktree-status digest, dirty count, index digest, complete ref digest, canonical origin identity, existing origin stored/effective fetch identity, existing origin push configuration, and the prospective canonical public-fetch resolution. The dedicated remote must then be exact aligned in both stored and effective fetch identity.
 
+## Paste-safe operator journey
+
+The intended operator journey is dry-run evidence first, then one exact confirmation if mutation is required, then a read-only post-state check. Run this from a shell that can execute the checked-in repository tool:
+
+```bash
+set -euo pipefail
+
+REPO="${VOID_NODE_REPO:-$HOME/dev/void-node}"
+EVIDENCE_DIR="${XDG_STATE_HOME:-$HOME/.local/state}/void/public-fetch-transport-v1"
+mkdir -p "$EVIDENCE_DIR"
+chmod 700 "$EVIDENCE_DIR"
+STAMP="$(date -u +%Y%m%dT%H%M%SZ)-$$"
+PLAN="$EVIDENCE_DIR/plan-$STAMP.json"
+RESULT="$EVIDENCE_DIR/result-$STAMP.json"
+
+node tools/void-node-fleet-public-fetch-transport-v1.mjs \
+  --repo "$REPO" \
+  --output "$PLAN"
+
+read -r OUTCOME PLAN_ID < <(
+  node -e '
+    const fs = require("node:fs");
+    const receipt = JSON.parse(fs.readFileSync(process.argv[1], "utf8"));
+    process.stdout.write(`${receipt.outcome} ${receipt.plan.plan_id_sha256}\n`);
+  ' "$PLAN"
+)
+
+case "$OUTCOME" in
+  READY_TO_APPLY)
+    node tools/void-node-fleet-public-fetch-transport-v1.mjs \
+      --repo "$REPO" \
+      --output "$RESULT" \
+      --apply \
+      --confirm-operation VOID_NODE_FLEET_PUBLIC_FETCH_TRANSPORT_APPLY_V1 \
+      --confirm-plan-id "$PLAN_ID"
+    ;;
+  ALREADY_ALIGNED)
+    printf 'public_fetch_transport=already_aligned\n'
+    ;;
+  *)
+    printf 'HOLD: unexpected dry-run outcome: %s\n' "$OUTCOME" >&2
+    exit 2
+    ;;
+esac
+
+test "$(git -C "$REPO" remote get-url --all void-public-fetch)" = \
+  'https://github.com/6ZoSo9/void-node.git'
+test "$(git -C "$REPO" remote get-url --push void-public-fetch)" = '/dev/null'
+printf 'public_fetch_transport_postcheck=green\n'
+```
+
+The evidence path is intentionally unique per run. `--output` is create-only and mode `0600`; it refuses to overwrite an existing receipt. The dry-run receipt contains the exact confirmation plan ID but does not print the selected filesystem path or the operator-specific `origin` URL. If the dry run returns `HOLD`, exits nonzero, or repository/configuration evidence changes before apply, stop and collect fresh evidence instead of retrying automatically.
+
+This journey does not fetch from the new remote. It only proves and, after exact confirmation, configures the local fetch-only transport. Source convergence remains a later separately authorized controller operation.
+
 ## Authority boundary
 
 This tool does not fetch, pull, checkout, reset, merge, build, install packages, start/stop/restart/reload a service, call a runtime endpoint, alter firewall/router/DNS/interface state, access credentials, use wallets/signers, mutate Work Credits or validators, construct/broadcast transactions, take treasury/liquidity action, or move funds.
@@ -68,4 +123,4 @@ Run the deterministic proof with:
 node scripts/prove_void_node_fleet_public_fetch_transport_v1.mjs
 ```
 
-The proof uses temporary Git repositories and an isolated temporary Git global-config file only. It covers canonical HTTPS and SSH origins; foreign/alternate-host/mixed/duplicate-origin rejection; origin and prospective-public-fetch `insteadOf` rewrite rejection; inherited non-local dedicated-remote rejection; selected-worktree identity binding across byte/state-identical clones at different paths; cross-clone plan-reuse rejection; missing and misconfigured dedicated remotes; exact confirmation; dirty-worktree preservation; origin/ref/index/HEAD/tree preservation; idempotent rerun; wrong-plan and wrong-confirmation rejection; detached-HEAD rejection; public origin/path redaction; and negative service/runtime/fetch authority.
+The proof uses temporary Git repositories and an isolated temporary Git global-config file only. It covers canonical HTTPS and SSH origins; foreign/alternate-host/mixed/duplicate-origin rejection; origin and prospective-public-fetch `insteadOf` rewrite rejection; inherited non-local dedicated-remote rejection; selected-worktree identity binding across byte/state-identical clones at different paths; cross-clone plan-reuse rejection; missing and misconfigured dedicated remotes; exact confirmation; dirty-worktree preservation; origin/ref/index/HEAD/tree preservation; create-only mode-0600 dry-run/apply evidence receipts; receipt no-overwrite behavior; the actual CLI dry-run -> confirmed apply -> aligned rerun journey; idempotent rerun; wrong-plan and wrong-confirmation rejection; detached-HEAD rejection; public origin/path redaction; and negative service/runtime/fetch authority.
