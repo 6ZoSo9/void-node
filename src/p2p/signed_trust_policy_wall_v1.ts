@@ -727,6 +727,19 @@ async function fsyncDirectory(pathname: string): Promise<void> {
   }
 }
 
+async function truncateAndSyncFile(
+  pathname: string,
+  byteLength: number,
+): Promise<void> {
+  const handle = await open(pathname, "r+");
+  try {
+    await handle.truncate(byteLength);
+    await handle.sync();
+  } finally {
+    await handle.close();
+  }
+}
+
 async function ensureActivationJournalRecord(
   stateDir: string,
   activation: VoidP2pTrustPolicyActivationRecordV1,
@@ -749,14 +762,15 @@ async function ensureActivationJournalRecord(
     if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
   }
 
+  let completeRaw = raw;
+  let tornTail: string | null = null;
   if (raw && !raw.endsWith("\n")) {
-    hold(
-      "invalid_activation_journal",
-      "activation journal must end at a complete record boundary",
-    );
+    const lastNewline = raw.lastIndexOf("\n");
+    completeRaw = lastNewline === -1 ? "" : raw.slice(0, lastNewline + 1);
+    tornTail = raw.slice(lastNewline + 1);
   }
 
-  const lines = raw ? raw.slice(0, -1).split("\n") : [];
+  const lines = completeRaw ? completeRaw.slice(0, -1).split("\n") : [];
   let previousEpoch = 0n;
   let exactMatches = 0;
   for (const [index, line] of lines.entries()) {
@@ -817,8 +831,24 @@ async function ensureActivationJournalRecord(
       "active activation record must be the journal tail",
     );
   }
+  const activeEpoch = BigInt(activation.epoch);
+  if (tornTail !== null) {
+    if (
+      exactMatches !== 0 ||
+      previousEpoch >= activeEpoch ||
+      !expected.startsWith(tornTail)
+    ) {
+      hold(
+        "invalid_activation_journal",
+        "activation journal has an unrecoverable torn tail",
+      );
+    }
+    await truncateAndSyncFile(
+      journalPath,
+      Buffer.byteLength(completeRaw, "utf8"),
+    );
+  }
   if (exactMatches === 0) {
-    const activeEpoch = BigInt(activation.epoch);
     if (previousEpoch >= activeEpoch) {
       hold(
         "activation_journal_conflict",

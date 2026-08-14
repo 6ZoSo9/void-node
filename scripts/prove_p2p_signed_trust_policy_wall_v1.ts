@@ -419,6 +419,40 @@ async function main(): Promise<void> {
       1,
     );
     await chmod(recoveryJournal, 0o600);
+    const recoveryJournalPrefix = await readFile(recoveryJournal, "utf8");
+    const expectedRecoveryLine = canonicalVoidP2pTrustJsonV1(
+      partiallyActivated.activation as unknown as Parameters<
+        typeof canonicalVoidP2pTrustJsonV1
+      >[0],
+    );
+    await writeFile(
+      recoveryJournal,
+      `${recoveryJournalPrefix}!arbitrary-torn-tail`,
+      { mode: 0o600 },
+    );
+    await expectHoldAsync(
+      () =>
+        activateVoidP2pSignedTrustPolicyV1({
+          envelope: secondEnvelope,
+          root_set: roots,
+          options: { expected_network_id: NETWORK, now_ms: NOW },
+          state_dir: recoveryStateDir,
+        }),
+      "invalid_activation_journal",
+    );
+    assert.equal(
+      await readFile(recoveryJournal, "utf8"),
+      `${recoveryJournalPrefix}!arbitrary-torn-tail`,
+    );
+    const expectedRecoveryPrefix = expectedRecoveryLine.slice(
+      0,
+      Math.floor(expectedRecoveryLine.length / 2),
+    );
+    await writeFile(
+      recoveryJournal,
+      `${recoveryJournalPrefix}${expectedRecoveryPrefix}`,
+      { mode: 0o600 },
+    );
     const recoveredActivation =
       await activateVoidP2pSignedTrustPolicyV1({
         envelope: secondEnvelope,
@@ -433,11 +467,7 @@ async function main(): Promise<void> {
     assert.equal(recoveredJournalLines.length, 2);
     assert.equal(
       recoveredJournalLines.at(-1),
-      canonicalVoidP2pTrustJsonV1(
-        recoveredActivation.activation as unknown as Parameters<
-          typeof canonicalVoidP2pTrustJsonV1
-        >[0],
-      ),
+      expectedRecoveryLine,
     );
 
     const activated2 = await activateVoidP2pSignedTrustPolicyV1({

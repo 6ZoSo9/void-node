@@ -431,7 +431,9 @@ function readJsonObject(file: string): Record<string, any> | null {
   return parsed as Record<string, any>;
 }
 
-function intentFingerprint(intent: BuyVoidFulfillmentJournalIntentV1): string {
+export function buyVoidExecutionAttemptIntentFingerprintV1(
+  intent: BuyVoidFulfillmentJournalIntentV1,
+): string {
   return stableFingerprint({
     marker: String(intent.marker || ""),
     canonical_payment_identity: String(intent.claim?.canonical_payment_identity || ""),
@@ -448,6 +450,8 @@ function intentFingerprint(intent: BuyVoidFulfillmentJournalIntentV1): string {
     void_amount_units: String(intent.claim?.unsigned_instruction?.void_amount_units || ""),
   });
 }
+
+const intentFingerprint = buyVoidExecutionAttemptIntentFingerprintV1;
 
 function validateIntent(
   intent: BuyVoidFulfillmentJournalIntentV1,

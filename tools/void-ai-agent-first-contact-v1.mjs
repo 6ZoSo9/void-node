@@ -12,6 +12,8 @@ const COLD_START_CURL_COMMAND =
   "test -n \"$VOID_PUBLIC_ORIGIN\" && curl --disable --noproxy '*' --disallow-username-in-url --proto '=https' --max-redirs 0 --fail --silent --show-error --max-time 8 --max-filesize 65536 --header 'Accept: application/json' \"${VOID_PUBLIC_ORIGIN%/}/public-node/agents/first-contact-v1.json\"";
 const REVIEWED_FIRST_CONTACT_MANIFEST_FINGERPRINT_SHA256 =
   "ed56951c1bc043911ede167dc2cddbab38af62f069d07638dc1825d7e936f413";
+const REVIEWED_PUBLIC_UTILITY_CATALOG_SHA256 =
+  "b67fe641d7ccebdb3e4626245b2895d75dd640789d29aca2544855f3d646daa2";
 const OFFICIAL_NETWORK = {
   name: "VOID Mainnet-0",
   chain_id: 2050,
@@ -119,6 +121,7 @@ const PUBLIC_UTILITY_CONTROL_KEYS = [
 const PUBLIC_UTILITY_ENTRY_KEYS = [
   "access",
   "authority",
+  "canonical_sha256",
   "http_method",
   "id",
   "kind",
@@ -329,9 +332,7 @@ function firstContactManifestFingerprintValid(manifest) {
   if (claimed !== REVIEWED_FIRST_CONTACT_MANIFEST_FINGERPRINT_SHA256) {
     return false;
   }
-  const computed = createHash("sha256")
-    .update(canonicalJson(withoutFingerprint), "utf8")
-    .digest("hex");
+  const computed = canonicalSha256(withoutFingerprint);
   return computed === claimed;
 }
 
@@ -518,6 +519,18 @@ function canonicalJson(value) {
   return JSON.stringify(value);
 }
 
+function canonicalSha256(value) {
+  try {
+    const canonical = canonicalJson(value);
+    if (typeof canonical !== "string") return null;
+    return createHash("sha256")
+      .update(canonical, "utf8")
+      .digest("hex");
+  } catch {
+    return null;
+  }
+}
+
 function agentIntakeFingerprintValid(contract) {
   if (
     contract === null ||
@@ -534,9 +547,7 @@ function agentIntakeFingerprintValid(contract) {
   ) {
     return false;
   }
-  const computed = createHash("sha256")
-    .update(canonicalJson(withoutFingerprint), "utf8")
-    .digest("hex");
+  const computed = canonicalSha256(withoutFingerprint);
   return computed === claimed;
 }
 
@@ -689,7 +700,12 @@ function isPublicJsonPath(path) {
 
 function usefulPublicResources(manifest, publicUtility) {
   const catalog = publicUtility?.body;
+  const catalogCanonicalSha256 =
+    catalog !== null && typeof catalog === "object"
+      ? canonicalSha256(catalog)
+      : null;
   if (
+    catalogCanonicalSha256 !== REVIEWED_PUBLIC_UTILITY_CATALOG_SHA256 ||
     !publicUtility?.ok ||
     !hasExactKeys(catalog, PUBLIC_UTILITY_TOP_LEVEL_KEYS) ||
     catalog?.marker !== "VOID_AI_AGENT_PUBLIC_UTILITY_V1" ||
@@ -750,6 +766,8 @@ function usefulPublicResources(manifest, publicUtility) {
       !isPublicJsonPath(entry?.path) ||
       paths.has(entry.path) ||
       entry.repository_path !== `public${entry.path}` ||
+      typeof entry?.canonical_sha256 !== "string" ||
+      !/^[0-9a-f]{64}$/.test(entry.canonical_sha256) ||
       typeof entry?.required_marker !== "string" ||
       !/^[A-Z0-9_]+$/.test(entry.required_marker) ||
       entry.http_method !== "GET" ||
@@ -772,6 +790,7 @@ function usefulPublicResources(manifest, publicUtility) {
       mode: "anonymous_read_only",
       catalog_observed_by_client: true,
       required_marker: entry.required_marker,
+      canonical_sha256: entry.canonical_sha256,
       runtime_observed: false,
     }];
   });
@@ -812,21 +831,33 @@ async function observeUsefulPublicResources(
         }
       }
 
-      const runtimeObserved =
+      const markerObserved =
         response.ok === true &&
         markerPresent(response.body, resource.required_marker);
+      const observedCanonicalSha256 = response.ok
+        ? canonicalSha256(response.body)
+        : null;
+      const canonicalSha256Verified =
+        observedCanonicalSha256 === resource.canonical_sha256;
+      const runtimeObserved = markerObserved && canonicalSha256Verified;
       return {
         ...resource,
         http_status: response.status,
         body_bytes: response.body_bytes,
         response_reused: responseReused,
+        observed_canonical_sha256: observedCanonicalSha256,
+        canonical_sha256_verified: canonicalSha256Verified,
         runtime_observed: runtimeObserved,
         observation_error: runtimeObserved
           ? null
           : response.error ??
             response.parse_error ??
             (response.ok
-              ? "required_marker_not_observed"
+              ? markerObserved
+                ? observedCanonicalSha256 === null
+                  ? "canonical_sha256_unavailable"
+                  : "canonical_sha256_mismatch"
+                : "required_marker_not_observed"
               : "public_utility_resource_unavailable"),
         document: runtimeObserved ? response.body : null,
       };
