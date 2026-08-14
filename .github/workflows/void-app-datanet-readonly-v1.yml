@@ -5,6 +5,7 @@ on:
     paths:
       - "public/void-app-wave1-v1/assets/js/app.js"
       - "public/void-app-wave1-v1/assets/js/data-live.js"
+      - "public/void-app-wave1-v1/assets/js/data-request-owner.js"
       - "public/public-node/datanet/field-replication-status-card-v1.json"
       - "public/public-node/datanet/field-replication-status-card-v1.html"
       - "public/public-node/datanet/index.json"
@@ -12,12 +13,14 @@ on:
       - "src/ui/void_app_datanet_readonly_adapter_v1.ts"
       - "scripts/prove_void_app_datanet_readonly_v1.mjs"
       - "scripts/prove_void_app_datanet_local_origin_v1.mjs"
+      - "scripts/prove_void_app_datanet_request_owner_v1.mjs"
       - ".github/workflows/void-app-datanet-readonly-v1.yml"
   push:
     branches: [main]
     paths:
       - "public/void-app-wave1-v1/assets/js/app.js"
       - "public/void-app-wave1-v1/assets/js/data-live.js"
+      - "public/void-app-wave1-v1/assets/js/data-request-owner.js"
       - "public/public-node/datanet/field-replication-status-card-v1.json"
       - "public/public-node/datanet/field-replication-status-card-v1.html"
       - "public/public-node/datanet/index.json"
@@ -25,6 +28,7 @@ on:
       - "src/ui/void_app_datanet_readonly_adapter_v1.ts"
       - "scripts/prove_void_app_datanet_readonly_v1.mjs"
       - "scripts/prove_void_app_datanet_local_origin_v1.mjs"
+      - "scripts/prove_void_app_datanet_request_owner_v1.mjs"
       - ".github/workflows/void-app-datanet-readonly-v1.yml"
 
 permissions:
@@ -51,8 +55,10 @@ jobs:
         run: |
           node --check public/void-app-wave1-v1/assets/js/app.js
           node --check public/void-app-wave1-v1/assets/js/data-live.js
+          node --check public/void-app-wave1-v1/assets/js/data-request-owner.js
           node --check scripts/prove_void_app_datanet_readonly_v1.mjs
           node --check scripts/prove_void_app_datanet_local_origin_v1.mjs
+          node --check scripts/prove_void_app_datanet_request_owner_v1.mjs
       - name: Build compiled runtime adapter
         run: |
           npm ci --ignore-scripts --no-audit --no-fund
@@ -62,3 +68,5 @@ jobs:
         run: node scripts/prove_void_app_datanet_readonly_v1.mjs
       - name: Prove local App origin integration
         run: node scripts/prove_void_app_datanet_local_origin_v1.mjs
+      - name: Prove bounded DataNet request ownership
+        run: node scripts/prove_void_app_datanet_request_owner_v1.mjs
