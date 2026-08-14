@@ -114,8 +114,7 @@ for (const marker of [
 }
 
 for (const marker of [
-  "erc20_transaction_preparation_execution_state_ready: false",
-  '"erc20_transaction_preparation_execution_state_not_ready"',
+  "erc20_transaction_preparation_execution_state_ready: true",
   '"canonical_delivery_runtime_activation_not_ready"',
   "next_funding_blocker:",
 ]) {
@@ -126,15 +125,15 @@ for (const marker of [
 }
 need(
   transactionPreparationPlannerText.includes(
-    '[policy.fulfillment_wallet_address, "pending"]',
+    'execution_state_tag: "pending"',
   ),
-  "planner no longer selects pending nonce; update status truth atomically",
+  "planner execution-state contract must remain pending",
 );
 need(
-  transactionPreparationPlannerText.includes(
+  !transactionPreparationPlannerText.includes(
     '[policy.fulfillment_wallet_address, "latest"]',
   ),
-  "planner latest-balance defect changed; update status truth atomically",
+  "planner must not regress to latest-state balance preflight",
 );
 
 need(
@@ -275,7 +274,7 @@ console.log("canonical_delivery_asset=void_token_erc20");
 console.log("canonical_erc20_delivery_parent_mount=0");
 console.log("erc20_atomic_unit_conversion_ready=1");
 console.log("erc20_transaction_preparation_bridge_ready=1");
-console.log("erc20_transaction_preparation_execution_state_ready=0");
+console.log("erc20_transaction_preparation_execution_state_ready=1");
 console.log("canonical_delivery_dependency_bootstrap_ready=1");
 console.log("native_parent_mounts=0");
 console.log("bounded_orchestrator_parent_mount=0");

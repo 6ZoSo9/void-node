@@ -27,6 +27,7 @@ export const VOID_BUY_VOID_ERC20_TRANSACTION_PREPARATION_PLANNER_AUTHORITY_V1 = 
   transaction_value_wei: "0",
   gas_only_native_balance_accounting: true,
   pending_nonce_required: true,
+  execution_state_tag: "pending",
   server_controlled_rpc_url: true,
   loopback_http_only: true,
   read_only_rpc_methods: [
@@ -104,6 +105,7 @@ export type BuyVoidErc20TransactionPreparationPlanReadyV1 = {
   transfer_calldata_sha256: string;
   transaction_value_wei: "0";
   pending_nonce: number;
+  execution_state: "pending";
   observed_gas_price_wei: string;
   observed_estimated_gas: string;
   computed_gas_limit: string;
@@ -444,6 +446,16 @@ function createHttpTransport(
         (response) => {
           const chunks: Buffer[] = [];
           let total = 0;
+          response.on("aborted", () => {
+            finish(
+              new Error("erc20_transaction_preparation_response_aborted"),
+            );
+          });
+          response.on("error", () => {
+            finish(
+              new Error("erc20_transaction_preparation_response_error"),
+            );
+          });
           response.on("data", (chunk: Buffer) => {
             total += chunk.length;
             if (total > policy.max_response_bytes) {
@@ -463,8 +475,11 @@ function createHttpTransport(
             }
             const contentType = String(
               response.headers["content-type"] || "",
-            ).toLowerCase();
-            if (!contentType.includes("application/json")) {
+            )
+              .toLowerCase()
+              .split(";", 1)[0]
+              ?.trim() || "";
+            if (contentType !== "application/json") {
               finish(
                 new Error("erc20_transaction_preparation_response_not_json"),
               );
@@ -672,6 +687,7 @@ export async function runBuyVoidErc20TransactionPreparationPlannerV1(
       value: "0x0",
       data: transferCalldata,
     },
+    "pending",
   ]);
   if ("decision" in estimateResponse) return estimateResponse.decision;
   const observedEstimate = parseHexQuantity(estimateResponse.value);
@@ -728,7 +744,7 @@ export async function runBuyVoidErc20TransactionPreparationPlannerV1(
 
   const balanceResponse = await call(
     "eth_getBalance",
-    [policy.fulfillment_wallet_address, "latest"],
+    [policy.fulfillment_wallet_address, "pending"],
   );
   if ("decision" in balanceResponse) return balanceResponse.decision;
   const observedBalance = parseHexQuantity(balanceResponse.value);
@@ -775,6 +791,7 @@ export async function runBuyVoidErc20TransactionPreparationPlannerV1(
       `transfer_calldata_sha256=${transferCalldataSha256}`,
       `transaction_value_wei=0`,
       `pending_nonce=${pendingNonce}`,
+      `execution_state=pending`,
       `observed_gas_price_wei=${observedGasPrice.toString()}`,
       `observed_estimated_gas=${observedEstimate.toString()}`,
       `computed_gas_limit=${gasLimit.toString()}`,
@@ -800,6 +817,7 @@ export async function runBuyVoidErc20TransactionPreparationPlannerV1(
     transfer_calldata_sha256: transferCalldataSha256,
     transaction_value_wei: "0",
     pending_nonce: pendingNonce,
+    execution_state: "pending",
     observed_gas_price_wei: observedGasPrice.toString(),
     observed_estimated_gas: observedEstimate.toString(),
     computed_gas_limit: gasLimit.toString(),

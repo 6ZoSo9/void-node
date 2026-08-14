@@ -38,7 +38,7 @@ delivery_runtime_source_retained=true
 delivery_runtime_parent_mounted=false
 canonical_delivery_runtime_parent_mounted=false
 canonical_delivery_dependency_bootstrap_ready=true
-erc20_transaction_preparation_execution_state_ready=false
+erc20_transaction_preparation_execution_state_ready=true
 canonical_delivery_execution_ready=false
 canonical_delivery_execution_held=true
 presale_inventory_funding_ready=false
@@ -72,34 +72,31 @@ signer, broadcaster, transport, or delivery runtime. The canonical delivery
 runtime remains parent-unmounted, signer and broadcaster configuration remain
 absent, and execution remains held.
 
-The dependency composition being source-ready does not make transaction
-preparation execution-state-ready. Current source selects the fulfillment-wallet
-nonce from `pending`, estimates gas without an explicit reviewed pending-state
-tag, and checks native gas spendability against `latest`. A preceding pending
-transaction can therefore invalidate the selected pending queue position.
+Merged PR #1282 closes the transaction-preparation execution-state gate.
+Both queue-sensitive planners now bind nonce selection and spendability to
+`pending`, and ERC-20 gas estimation is explicitly evaluated against `pending`.
+The merged adversarial evidence also preserves total-deadline, response-error,
+and exact JSON media-type containment.
 
-Canonical status consequently retains:
+Canonical status therefore reports:
 
 ```text
-erc20_transaction_preparation_execution_state_ready=false
+erc20_transaction_preparation_execution_state_ready=true
 funding_blockers=[
-  erc20_transaction_preparation_execution_state_not_ready,
   canonical_delivery_runtime_activation_not_ready
 ]
 ```
 
-Curly's separately owned P0 planner lane must establish one coherent pending
-execution-state perspective before this blocker may be removed. Runtime
-activation and production configuration remain later gates.
+Runtime activation and production configuration remain later independent gates.
 
 ## Funding HOLD
 
 `presale_inventory_funding_ready=false` remains the source of truth.
 
 No presale inventory should be funded into an execution path until the
-planner execution-state defect is repaired and the later runtime-activation and
-production-configuration gates are separately reviewed and authorized. Closing
-the dependency source gate does not authorize funding or execution.
+remaining runtime-activation and production-configuration gates are separately
+reviewed and authorized. Closing the planner and dependency source gates does
+not authorize funding or execution.
 
 ## Authority boundary
 

@@ -120,14 +120,13 @@ for (const marker of [
   "VOID_BUY_VOID_ERC20_DELIVERY_DEPENDENCY_BOOTSTRAP_INTEGRATION_GATE_V1",
   'status: "source_ready"',
   "canonical_delivery_dependency_bootstrap_ready: true",
-  "erc20_transaction_preparation_execution_state_ready: false",
+  "erc20_transaction_preparation_execution_state_ready: true",
   "canonical_delivery_runtime_parent_mounted: false",
   "canonical_delivery_execution_ready: false",
   "canonical_delivery_execution_held: true",
   "production_credential_binding_ready: false",
   "service_activation_ready: false",
   "presale_inventory_funding_ready: false",
-  '"erc20_transaction_preparation_execution_state_not_ready"',
   '"canonical_delivery_runtime_activation_not_ready"',
   "credential_read: false",
   "rpc_call: false",
@@ -155,19 +154,17 @@ assert.equal(
   true,
 );
 
-// This gate must remain explicit while the current planner mixes the selected
-// pending nonce with a latest-state balance check and untagged gas estimation.
+// Merged #1282 closes the planner execution-state gate. Keep this
+// integration proof bound to the coherent pending-state source contract.
 assert.equal(
-  plannerSource.includes(
-    '[policy.fulfillment_wallet_address, "pending"]',
-  ),
+  plannerSource.includes('execution_state_tag: "pending"'),
   true,
 );
 assert.equal(
   plannerSource.includes(
     '[policy.fulfillment_wallet_address, "latest"]',
   ),
-  true,
+  false,
 );
 const estimateStart = plannerSource.indexOf(
   'const estimateResponse = await call("eth_estimateGas", [',
@@ -178,7 +175,7 @@ const estimateCallSource = plannerSource.slice(
   estimateStart,
   estimateEnd + 3,
 );
-assert.equal(estimateCallSource.includes('"pending"'), false);
+assert.equal(estimateCallSource.includes('"pending"'), true);
 
 const thisFile = fileURLToPath(import.meta.url);
 const runtimeModule = thisFile.endsWith(".ts")
@@ -215,7 +212,7 @@ assert.equal(canonical.asset_mode, "void_token_erc20");
 assert.equal(canonical.canonical_delivery_dependency_bootstrap_ready, true);
 assert.equal(
   canonical.erc20_transaction_preparation_execution_state_ready,
-  false,
+  true,
 );
 assert.equal(
   canonical.dependency_bootstrap_integration_gate.marker,
@@ -228,11 +225,11 @@ assert.equal(
 assert.equal(
   canonical.dependency_bootstrap_integration_gate
     .erc20_transaction_preparation_execution_state_ready,
-  false,
+  true,
 );
 assert.equal(
   canonical.dependency_bootstrap_integration_gate.next_funding_blocker,
-  "erc20_transaction_preparation_execution_state_not_ready",
+  "canonical_delivery_runtime_activation_not_ready",
 );
 assert.equal(
   canonical.dependency_bootstrap_integration_gate.authority.credential_read,
@@ -243,7 +240,6 @@ assert.equal(canonical.canonical_delivery_execution_ready, false);
 assert.equal(canonical.canonical_delivery_execution_held, true);
 assert.equal(canonical.presale_inventory_funding_ready, false);
 assert.deepEqual(canonical.funding_blockers, [
-  "erc20_transaction_preparation_execution_state_not_ready",
   "canonical_delivery_runtime_activation_not_ready",
 ]);
 assert.equal(canonical.runtime_status.mounted, false);
@@ -269,7 +265,7 @@ console.log(
   "VOID_BUY_VOID_ERC20_DELIVERY_DEPENDENCY_BOOTSTRAP_INTEGRATION_GATE_V1_PROOF_GREEN",
 );
 console.log("canonical_delivery_dependency_bootstrap_ready=1");
-console.log("erc20_transaction_preparation_execution_state_ready=0");
+console.log("erc20_transaction_preparation_execution_state_ready=1");
 console.log("canonical_delivery_runtime_parent_mounted=0");
 console.log("canonical_delivery_execution_ready=0");
 console.log("production_credential_read=0");
