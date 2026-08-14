@@ -14,6 +14,7 @@ export const VOID_BUY_VOID_NATIVE_EXECUTION_NONCE_FEE_PLANNER_AUTHORITY_V1 = {
   expected_chain_id: 2050,
   server_controlled_rpc_url: true,
   loopback_http_only: true,
+  execution_state_tag: "pending",
   read_only_rpc_methods: [
     "eth_chainId",
     "eth_getTransactionCount",
@@ -93,6 +94,7 @@ export type BuyVoidNativeExecutionNonceFeePlanReadyV1 = {
   rpc_url_fingerprint_sha256: string;
   transaction_plan: BuyVoidNativeDeliveryTransactionPlanV1;
   pending_nonce: number;
+  execution_state: "pending";
   observed_gas_price_wei: string;
   computed_max_fee_per_gas_wei: string;
   configured_priority_fee_per_gas_wei: string;
@@ -645,7 +647,7 @@ export async function planBuyVoidNativeExecutionNonceFeeV1(
     transport,
     policy,
     "eth_getBalance",
-    [policy.wallet_address, "latest"],
+    [policy.wallet_address, "pending"],
     requestId++,
     methods,
   );
@@ -713,6 +715,7 @@ export async function planBuyVoidNativeExecutionNonceFeeV1(
         policy.max_priority_fee_per_gas_wei.toString(),
     },
     pending_nonce: nonce,
+    execution_state: "pending",
     observed_gas_price_wei: gasPrice.toString(),
     computed_max_fee_per_gas_wei: multiplied.toString(),
     configured_priority_fee_per_gas_wei:
