@@ -5,6 +5,7 @@ on:
     paths:
       - ".github/workflows/void-btc-void-market-maker-reserve-policy-v1.yml"
       - "docs/operators/void-purpose-vault-allocation-v1.md"
+      - "ops/mainnet/mainnet0-premine-allocation.current.json"
       - "docs/public/btc-void-market-maker-reserve-policy-v1.md"
       - "docs/public/btc-void-native-atomic-market-v1.md"
       - "scripts/prove_void_btc_void_market_maker_reserve_policy_v1.mjs"
@@ -15,6 +16,7 @@ on:
     paths:
       - ".github/workflows/void-btc-void-market-maker-reserve-policy-v1.yml"
       - "docs/operators/void-purpose-vault-allocation-v1.md"
+      - "ops/mainnet/mainnet0-premine-allocation.current.json"
       - "docs/public/btc-void-market-maker-reserve-policy-v1.md"
       - "docs/public/btc-void-native-atomic-market-v1.md"
       - "scripts/prove_void_btc_void_market_maker_reserve_policy_v1.mjs"

@@ -207,7 +207,9 @@ assert.equal(
   true,
 );
 assert.equal(
-  wrapper.includes("canonical_erc20_delivery_dependency_bootstrap_ready: false"),
+  wrapper.includes(
+    "VOID_BUY_VOID_ERC20_DELIVERY_DEPENDENCY_BOOTSTRAP_INTEGRATION_V1",
+  ),
   true,
 );
 assert.equal(
@@ -234,7 +236,7 @@ console.log("canonical_parent_delivery=void_token_erc20");
 console.log("canonical_erc20_delivery_source_retained=1");
 console.log("canonical_erc20_delivery_parent_mounted=0");
 console.log("erc20_atomic_unit_conversion_ready=1");
-console.log("canonical_delivery_dependency_bootstrap_ready=0");
+console.log("canonical_delivery_dependency_bootstrap_ready=1");
 console.log("native_canary_source_retained=1");
 console.log("native_canary_parent_mounted=0");
 console.log("presale_inventory_funding_ready=0");

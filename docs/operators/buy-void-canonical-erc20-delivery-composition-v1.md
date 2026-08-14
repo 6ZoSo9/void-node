@@ -37,6 +37,8 @@ canonical_delivery_asset=void_token_erc20
 delivery_runtime_source_retained=true
 delivery_runtime_parent_mounted=false
 canonical_delivery_runtime_parent_mounted=false
+canonical_delivery_dependency_bootstrap_ready=true
+erc20_transaction_preparation_execution_state_ready=true
 canonical_delivery_execution_ready=false
 canonical_delivery_execution_held=true
 presale_inventory_funding_ready=false
@@ -61,25 +63,40 @@ explicitly retired/held for the canonical ERC-20 transition.
 
 ## Remaining canonical gates
 
-Before canonical ERC-20 execution can be mounted, the parent must have
-server-controlled, exact-green answers for the remaining execution dependencies,
-including:
+The canonical signer/broadcaster dependency-bootstrap **source** gate is now
+closed. The parent imports only a pure metadata integration gate and reports
+`canonical_delivery_dependency_bootstrap_ready=true`.
 
-- canonical signer/broadcaster dependency bootstrap;
-- exact fulfillment-unit to token-atom semantics;
-- an ERC-20 transaction-preparation bridge; and
-- an ERC-20 receipt-reconciliation bridge validating the confirmed
-  `VoidToken.Transfer` before terminal closeout.
+The parent does not import, instantiate, or invoke the value-bearing bootstrap,
+signer, broadcaster, transport, or delivery runtime. The canonical delivery
+runtime remains parent-unmounted, signer and broadcaster configuration remain
+absent, and execution remains held.
 
-Those gates are independent. Closing one does not imply the others are ready.
+Merged PR #1282 closes the transaction-preparation execution-state gate.
+Both queue-sensitive planners now bind nonce selection and spendability to
+`pending`, and ERC-20 gas estimation is explicitly evaluated against `pending`.
+The merged adversarial evidence also preserves total-deadline, response-error,
+and exact JSON media-type containment.
+
+Canonical status therefore reports:
+
+```text
+erc20_transaction_preparation_execution_state_ready=true
+funding_blockers=[
+  canonical_delivery_runtime_activation_not_ready
+]
+```
+
+Runtime activation and production configuration remain later independent gates.
 
 ## Funding HOLD
 
 `presale_inventory_funding_ready=false` remains the source of truth.
 
 No presale inventory should be funded into an execution path until the
-canonical ERC-20 dependency, preparation, reconciliation, and runtime activation
-gates are separately reviewed and authorized.
+remaining runtime-activation and production-configuration gates are separately
+reviewed and authorized. Closing the planner and dependency source gates does
+not authorize funding or execution.
 
 ## Authority boundary
 
