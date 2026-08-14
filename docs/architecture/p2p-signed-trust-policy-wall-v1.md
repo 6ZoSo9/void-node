@@ -150,7 +150,7 @@ state/
   current -> generations/<active-generation>
 ```
 
-Activation uses a create-exclusive lock. A complete generation is written into a private staging directory, each file is fsynced, the staging directory is renamed into `generations`, and a temporary relative symlink is atomically renamed over `current`. An append-only activation record is then fsynced.
+Activation uses a create-exclusive lock. A complete generation is written into a private staging directory, each file is fsynced, the staging directory is renamed into `generations`, and a temporary relative symlink is atomically renamed over `current`. The exact append-only activation record is then fsynced. Every later activation, including an exact-policy retry, first reconciles the authoritative current generation with the journal and refuses malformed, conflicting, duplicated, noncanonical, or out-of-order history. A failure after `current` publication is therefore recoverable: the next locked activation durably repairs the missing exact record before it can return `already_active` or advance the policy chain.
 
 Rules:
 

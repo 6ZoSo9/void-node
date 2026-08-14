@@ -3,7 +3,7 @@
 
 import assert from "node:assert/strict";
 import { generateKeyPairSync } from "node:crypto";
-import { lstat, readFile, rm, symlink, writeFile } from "node:fs/promises";
+import { chmod, lstat, readFile, rm, symlink, writeFile } from "node:fs/promises";
 import * as path from "node:path";
 import { tmpdir } from "node:os";
 import { mkdtemp } from "node:fs/promises";
@@ -302,6 +302,60 @@ async function main(): Promise<void> {
       peers: [{ host: "198.51.100.10", port: 4790, expected_node_id: NODE_1 }],
     });
     const secondEnvelope = signTwice(secondPolicy, key2, key3);
+
+    const recoveryStateDir = path.join(temporary, "recovery-state");
+    await activateVoidP2pSignedTrustPolicyV1({
+      envelope: firstEnvelope,
+      root_set: roots,
+      options: { expected_network_id: NETWORK, now_ms: NOW },
+      state_dir: recoveryStateDir,
+    });
+    const recoveryJournal = path.join(
+      recoveryStateDir,
+      "activation.ndjson",
+    );
+    await chmod(recoveryJournal, 0o400);
+    await assert.rejects(
+      activateVoidP2pSignedTrustPolicyV1({
+        envelope: secondEnvelope,
+        root_set: roots,
+        options: { expected_network_id: NETWORK, now_ms: NOW },
+        state_dir: recoveryStateDir,
+      }),
+      (error: unknown) =>
+        (error as NodeJS.ErrnoException)?.code === "EACCES",
+    );
+    const partiallyActivated =
+      await loadActiveVoidP2pTrustPolicyV1(recoveryStateDir);
+    assert(partiallyActivated);
+    assert.equal(partiallyActivated.activation.epoch, "2");
+    assert.equal(
+      (await readFile(recoveryJournal, "utf8")).trim().split("\n")
+        .length,
+      1,
+    );
+    await chmod(recoveryJournal, 0o600);
+    const recoveredActivation =
+      await activateVoidP2pSignedTrustPolicyV1({
+        envelope: secondEnvelope,
+        root_set: roots,
+        options: { expected_network_id: NETWORK, now_ms: NOW },
+        state_dir: recoveryStateDir,
+      });
+    assert.equal(recoveredActivation.already_active, true);
+    const recoveredJournalLines = (
+      await readFile(recoveryJournal, "utf8")
+    ).trim().split("\n");
+    assert.equal(recoveredJournalLines.length, 2);
+    assert.equal(
+      recoveredJournalLines.at(-1),
+      canonicalVoidP2pTrustJsonV1(
+        recoveredActivation.activation as unknown as Parameters<
+          typeof canonicalVoidP2pTrustJsonV1
+        >[0],
+      ),
+    );
+
     const activated2 = await activateVoidP2pSignedTrustPolicyV1({
       envelope: secondEnvelope,
       root_set: roots,

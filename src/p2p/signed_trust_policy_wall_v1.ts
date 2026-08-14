@@ -727,6 +727,116 @@ async function fsyncDirectory(pathname: string): Promise<void> {
   }
 }
 
+async function ensureActivationJournalRecord(
+  stateDir: string,
+  activation: VoidP2pTrustPolicyActivationRecordV1,
+): Promise<void> {
+  const journalPath = path.join(stateDir, "activation.ndjson");
+  const expected = canonicalVoidP2pTrustJsonV1(
+    activation as unknown as JsonValue,
+  );
+  let raw = "";
+  try {
+    const info = await lstat(journalPath);
+    if (!info.isFile() || info.isSymbolicLink()) {
+      hold(
+        "unsafe_activation_journal",
+        "activation journal must be a regular file",
+      );
+    }
+    raw = await readFile(journalPath, "utf8");
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+  }
+
+  if (raw && !raw.endsWith("\n")) {
+    hold(
+      "invalid_activation_journal",
+      "activation journal must end at a complete record boundary",
+    );
+  }
+
+  const lines = raw ? raw.slice(0, -1).split("\n") : [];
+  let previousEpoch = 0n;
+  let exactMatches = 0;
+  for (const [index, line] of lines.entries()) {
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(line);
+    } catch {
+      hold(
+        "invalid_activation_journal",
+        `activation journal line ${index + 1} is not valid JSON`,
+      );
+    }
+    if (
+      !isRecord(parsed) ||
+      parsed.schema !== VOID_P2P_TRUST_ACTIVATION_SCHEMA_V1 ||
+      parsed.network_id !== activation.network_id ||
+      typeof parsed.epoch !== "string" ||
+      !EPOCH_PATTERN.test(parsed.epoch)
+    ) {
+      hold(
+        "invalid_activation_journal",
+        `activation journal line ${index + 1} is not a valid activation record`,
+      );
+    }
+    const canonical = canonicalVoidP2pTrustJsonV1(
+      parsed as unknown as JsonValue,
+    );
+    if (canonical !== line) {
+      hold(
+        "invalid_activation_journal",
+        `activation journal line ${index + 1} is not canonical`,
+      );
+    }
+    const epoch = BigInt(parsed.epoch);
+    if (epoch <= previousEpoch) {
+      hold(
+        "invalid_activation_journal",
+        "activation journal epochs must be strictly increasing",
+      );
+    }
+    previousEpoch = epoch;
+    if (line === expected) exactMatches += 1;
+    else if (parsed.epoch === activation.epoch) {
+      hold(
+        "activation_journal_conflict",
+        "active epoch conflicts with its durable journal record",
+      );
+    }
+  }
+
+  if (exactMatches > 1) {
+    hold(
+      "invalid_activation_journal",
+      "active activation record appears more than once",
+    );
+  }
+  if (exactMatches === 1 && lines.at(-1) !== expected) {
+    hold(
+      "invalid_activation_journal",
+      "active activation record must be the journal tail",
+    );
+  }
+  if (exactMatches === 0) {
+    const activeEpoch = BigInt(activation.epoch);
+    if (previousEpoch >= activeEpoch) {
+      hold(
+        "activation_journal_conflict",
+        "activation journal is ahead of the active policy",
+      );
+    }
+    await appendFile(journalPath, `${expected}\n`, {
+      encoding: "utf8",
+      mode: 0o600,
+    });
+    await chmod(journalPath, 0o600);
+  }
+  await fsyncFile(journalPath);
+  await fsyncDirectory(stateDir);
+}
+
 async function writeExclusiveJson(pathname: string, value: JsonValue): Promise<void> {
   const handle = await open(pathname, "wx", 0o600);
   try {
@@ -844,6 +954,7 @@ export async function activateVoidP2pSignedTrustPolicyV1(input: Readonly<{
     const current = await readActiveRecord(stateDir);
     const newEpoch = assertEpoch(verified.policy.epoch, "policy.epoch");
     if (current) {
+      await ensureActivationJournalRecord(stateDir, current.activation);
       const currentEpoch = assertEpoch(current.activation.epoch, "activation.epoch");
       if (newEpoch < currentEpoch) {
         hold("policy_rollback", "signed policy epoch is lower than the active epoch");
@@ -911,15 +1022,7 @@ export async function activateVoidP2pSignedTrustPolicyV1(input: Readonly<{
     await symlink(path.join("generations", generation), temporaryLink);
     await rename(temporaryLink, path.join(stateDir, "current"));
     await fsyncDirectory(stateDir);
-    const journalPath = path.join(stateDir, "activation.ndjson");
-    await appendFile(
-      journalPath,
-      `${canonicalVoidP2pTrustJsonV1(activation as unknown as JsonValue)}\n`,
-      { encoding: "utf8", mode: 0o600 },
-    );
-    await chmod(journalPath, 0o600);
-    await fsyncFile(journalPath);
-    await fsyncDirectory(stateDir);
+    await ensureActivationJournalRecord(stateDir, activation);
     return Object.freeze({
       verified,
       activation,
