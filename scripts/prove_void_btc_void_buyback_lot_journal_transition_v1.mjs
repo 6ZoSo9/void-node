@@ -336,6 +336,26 @@ for (const expected of [
   assert.ok(doc.includes(expected), `journal-transition doc missing ${expected}`);
 }
 
+const workflowDoc = fs.readFileSync(
+  ".github/workflows/void-btc-void-buyback-lot-journal-transition-v1.yml",
+  "utf8",
+);
+for (const expected of [
+  "uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6",
+  "uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6",
+]) {
+  assert.equal(
+    workflowDoc.split(expected).length - 1,
+    1,
+    `workflow must contain exactly one ${expected}`,
+  );
+}
+assert.doesNotMatch(
+  workflowDoc,
+  /uses:\s+actions\/(?:checkout|setup-node)@v\d+/,
+  "workflow must not use mutable Action tags",
+);
+
 process.stdout.write(
   JSON.stringify(
     {

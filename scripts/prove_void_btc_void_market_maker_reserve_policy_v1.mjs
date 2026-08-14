@@ -78,18 +78,28 @@ assert.equal(
   VOID_PREMINE_PURPOSE_VAULT_TARGET_V1.amounts_void.total_premine,
 );
 assert.deepEqual(allocation.amounts_void, {
-  core_void_treasury: "308207333",
+  core_void_treasury: "307073333",
   presale_inventory_vault: "10000000",
   btc_void_market_vault: "10000000",
   ops_treasury: "5000000",
-  previously_distributed_or_unreconciled: "126000",
+  validator_stake_target: "1260000",
   total_premine: "333333333",
 });
-assert.equal(allocation.transition_basis_void.planned_ops_treasury_top_up, "4000000");
+assert.deepEqual(allocation.transition_basis_void, {
+  reconciled_void_treasury: "333207333",
+  reconciled_ops_treasury: "0",
+  reconciled_validator_stake: "126000",
+  planned_presale_inventory_funding: "10000000",
+  planned_btc_void_market_funding: "10000000",
+  planned_ops_treasury_funding: "5000000",
+  planned_validator_stake_delta: "1134000",
+  combined_future_treasury_delta: "26134000",
+});
 assert.deepEqual(allocation.funding_readiness, {
   current_balance_reconciliation_required: true,
-  unexplained_balance_must_be_resolved: true,
+  canonical_custody_snapshot_required: true,
   final_vault_identity_and_controls_required: true,
+  validator_target_mechanism_review_required: true,
   canary_transfer_receipt_required: true,
   full_target_delta_funded_after_gates: true,
   funding_does_not_activate_use: true,
@@ -109,17 +119,66 @@ const allocationDoc = fs.readFileSync(
 );
 for (const expected of [
   "VOID_PREMINE_PURPOSE_VAULT_TARGET_V1",
-  "308,207,333",
+  "307,073,333",
   "10,000,000",
   "5,000,000",
+  "1,260,000",
+  "1,134,000",
   "126,000",
   "333,333,333",
   "verified target delta in one controlled funding event",
   "Funding does not activate use",
-  "No wallet, signer, transaction, treasury transfer, or fund movement is authorized",
+  "No wallet, signer, transaction, treasury transfer, validator top-up, or fund",
 ]) {
   assert.ok(allocationDoc.includes(expected), `allocation doc missing ${expected}`);
 }
+
+const allocationSnapshot = JSON.parse(
+  fs.readFileSync(
+    "ops/mainnet/mainnet0-premine-allocation.current.json",
+    "utf8",
+  ),
+);
+assert.equal(
+  allocationSnapshot.marker,
+  "VOID_MAINNET0_PREMINE_ALLOCATION_CURRENT_V1",
+);
+assert.equal(allocationSnapshot.status, "reconciled");
+assert.equal(allocationSnapshot.invariants.unreconciled_void, "0");
+assert.equal(
+  allocationSnapshot.current_nonzero_holders.find(
+    ({ label }) => label === "VoidTreasury",
+  )?.balance_void,
+  allocation.transition_basis_void.reconciled_void_treasury,
+);
+assert.equal(
+  allocationSnapshot.current_nonzero_holders.find(
+    ({ label }) => label === "UpgradeStaking",
+  )?.balance_void,
+  allocation.transition_basis_void.reconciled_validator_stake,
+);
+assert.equal(
+  allocationSnapshot.future_target_allocations.target_core_void_treasury_reserve_void,
+  allocation.amounts_void.core_void_treasury,
+);
+assert.equal(
+  allocationSnapshot.future_target_allocations.ops_treasury_void,
+  allocation.amounts_void.ops_treasury,
+);
+assert.equal(
+  allocationSnapshot.future_target_allocations.validator_stake_target_total_void,
+  allocation.amounts_void.validator_stake_target,
+);
+assert.equal(
+  allocationSnapshot.future_target_allocations.validator_stake_remaining_delta_void,
+  allocation.transition_basis_void.planned_validator_stake_delta,
+);
+assert.equal(
+  allocationSnapshot.future_target_allocations.combined_future_treasury_delta_void,
+  allocation.transition_basis_void.combined_future_treasury_delta,
+);
+assert.equal(allocationSnapshot.authority.validator_top_up, false);
+assert.equal(allocationSnapshot.authority.money_movement, false);
 
 const original = request();
 const before = structuredClone(original);
@@ -480,12 +539,23 @@ const workflowDoc = fs.readFileSync(
   "utf8",
 );
 for (const expected of [
+  "uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6",
+  "uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6",
   "node --check tools/void-btc-void-market-maker-reserve-policy-v1.mjs",
   "node --check scripts/prove_void_btc_void_market_maker_reserve_policy_v1.mjs",
   "node scripts/prove_void_btc_void_market_maker_reserve_policy_v1.mjs",
 ]) {
-  assert.ok(workflowDoc.includes(expected), `workflow missing ${expected}`);
+  assert.equal(
+    workflowDoc.split(expected).length - 1,
+    1,
+    `workflow must contain exactly one ${expected}`,
+  );
 }
+assert.doesNotMatch(
+  workflowDoc,
+  /uses:\s+actions\/(?:checkout|setup-node)@v\d+/,
+  "workflow must not use mutable Action tags",
+);
 assert.equal(workflowDoc.includes("market_maker-reserve_policy"), false);
 
 process.stdout.write(

@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 
 import assert from "node:assert/strict";
+import fs from "node:fs";
 
 import {
   canonicalJson,
@@ -172,6 +173,26 @@ assert.throws(
       }),
     ),
   /(reserve-fraction limit|atomic-value range)/,
+);
+
+const workflowDoc = fs.readFileSync(
+  ".github/workflows/void-btc-void-quote-math-v1.yml",
+  "utf8",
+);
+for (const expected of [
+  "uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6",
+  "uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6",
+]) {
+  assert.equal(
+    workflowDoc.split(expected).length - 1,
+    1,
+    `workflow must contain exactly one ${expected}`,
+  );
+}
+assert.doesNotMatch(
+  workflowDoc,
+  /uses:\s+actions\/(?:checkout|setup-node)@v\d+/,
+  "workflow must not use mutable Action tags",
 );
 
 process.stdout.write(
