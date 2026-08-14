@@ -150,7 +150,7 @@ state/
   current -> generations/<active-generation>
 ```
 
-Activation uses a create-exclusive lock. A complete generation is written into a private staging directory, each file is fsynced, the staging directory is renamed into `generations`, and a temporary relative symlink is atomically renamed over `current`. An append-only activation record is then fsynced.
+Activation uses a create-exclusive lock. A complete generation is written into a private staging directory, each file is fsynced, the staging directory is renamed into `generations`, and a temporary relative symlink is atomically renamed over `current`. The exact append-only activation record is then fsynced. Every later activation, including an exact-policy retry, first reconciles the authoritative current generation with the journal and refuses malformed, conflicting, duplicated, noncanonical, or out-of-order history. Every complete journal record must exactly match the canonical `activation.json` inside its named retained generation; that generation and its activation and envelope artifacts must be real, non-symlink filesystem objects. The retained canonical envelope must reproduce the record's policy and envelope hashes, network, epoch, and signer IDs. The first retained record must be the genesis policy, and each later retained envelope must name the preceding record's policy hash through `previous_policy_sha256`. Missing retention, substituted generation metadata, or a broken retained predecessor chain therefore fails closed before journal bytes can change. If the final unterminated bytes are an exact prefix of the authoritative current activation record and every complete record and retained generation strictly precedes it, reconciliation truncates and fsyncs only that torn prefix before appending and fsyncing the complete record. Any other unterminated tail remains fail-closed. An absent or empty journal may be bootstrapped only when the active policy is epoch 1; at epoch 2 or later it is unrecoverable audit-history loss unless the complete prior lineage is independently reconstructed and validated. A failure after `current` publication is therefore recoverable only when complete prior activation history and its closed generations remain: the next locked activation durably repairs a missing or provably torn current record before it can return `already_active` or advance the policy chain.
 
 Rules:
 
@@ -159,6 +159,8 @@ Rules:
 - Reusing the active epoch with different policy content is rejected.
 - Re-activating the exact active policy is idempotent.
 - A higher epoch must name the active policy SHA-256 exactly.
+- Every journal record must be backed by its exact retained canonical generation, and retained generations must form the signed predecessor chain from epoch `1` through the active policy.
+- Insufficient retained history is a fail-closed hold; operators must not synthesize activation records to replace it.
 - The `current` pointer must be a relative symlink into the local `generations` directory.
 - Concurrent activation is rejected while the create-exclusive lock exists.
 
