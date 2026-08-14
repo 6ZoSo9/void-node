@@ -12,22 +12,28 @@ export const VOID_PREMINE_PURPOSE_VAULT_TARGET_V1 = Object.freeze({
   schema: "void.premine.purpose_vault_target.v1",
   marker: "VOID_PREMINE_PURPOSE_VAULT_TARGET_V1",
   amounts_void: Object.freeze({
-    core_void_treasury: "308207333",
+    core_void_treasury: "307073333",
     presale_inventory_vault: "10000000",
     btc_void_market_vault: "10000000",
     ops_treasury: "5000000",
-    previously_distributed_or_unreconciled: "126000",
+    validator_stake_target: "1260000",
     total_premine: "333333333",
   }),
   transition_basis_void: Object.freeze({
-    last_verified_void_treasury: "332207333",
-    last_verified_ops_treasury: "1000000",
-    planned_ops_treasury_top_up: "4000000",
+    reconciled_void_treasury: "333207333",
+    reconciled_ops_treasury: "0",
+    reconciled_validator_stake: "126000",
+    planned_presale_inventory_funding: "10000000",
+    planned_btc_void_market_funding: "10000000",
+    planned_ops_treasury_funding: "5000000",
+    planned_validator_stake_delta: "1134000",
+    combined_future_treasury_delta: "26134000",
   }),
   funding_readiness: Object.freeze({
     current_balance_reconciliation_required: true,
-    unexplained_balance_must_be_resolved: true,
+    canonical_custody_snapshot_required: true,
     final_vault_identity_and_controls_required: true,
+    validator_target_mechanism_review_required: true,
     canary_transfer_receipt_required: true,
     full_target_delta_funded_after_gates: true,
     funding_does_not_activate_use: true,
@@ -133,23 +139,35 @@ export function validatePurposeVaultTargetV1() {
     BigInt(amounts.presale_inventory_vault) +
     BigInt(amounts.btc_void_market_vault) +
     BigInt(amounts.ops_treasury) +
-    BigInt(amounts.previously_distributed_or_unreconciled);
+    BigInt(amounts.validator_stake_target);
   if (allocated !== BigInt(amounts.total_premine)) {
     throw new Error("purpose-vault target does not conserve the premine");
   }
   const transition = target.transition_basis_void;
   if (
-    BigInt(transition.last_verified_ops_treasury) +
-      BigInt(transition.planned_ops_treasury_top_up) !==
+    BigInt(transition.reconciled_ops_treasury) +
+      BigInt(transition.planned_ops_treasury_funding) !==
     BigInt(amounts.ops_treasury)
   ) {
     throw new Error("OpsTreasury transition does not reach its target");
   }
   if (
-    BigInt(transition.last_verified_void_treasury) -
-      BigInt(amounts.presale_inventory_vault) -
-      BigInt(amounts.btc_void_market_vault) -
-      BigInt(transition.planned_ops_treasury_top_up) !==
+    BigInt(transition.reconciled_validator_stake) +
+      BigInt(transition.planned_validator_stake_delta) !==
+    BigInt(amounts.validator_stake_target)
+  ) {
+    throw new Error("validator stake transition does not reach its target");
+  }
+  const futureTreasuryDelta =
+    BigInt(transition.planned_presale_inventory_funding) +
+    BigInt(transition.planned_btc_void_market_funding) +
+    BigInt(transition.planned_ops_treasury_funding) +
+    BigInt(transition.planned_validator_stake_delta);
+  if (futureTreasuryDelta !== BigInt(transition.combined_future_treasury_delta)) {
+    throw new Error("future treasury deltas do not match their combined total");
+  }
+  if (
+    BigInt(transition.reconciled_void_treasury) - futureTreasuryDelta !==
     BigInt(amounts.core_void_treasury)
   ) {
     throw new Error("VoidTreasury transition does not reach its target");
