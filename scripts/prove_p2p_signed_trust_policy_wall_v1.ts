@@ -266,6 +266,90 @@ async function main(): Promise<void> {
     });
     assert.equal(idempotent.already_active, true);
 
+    const activationJournal = path.join(stateDir, "activation.ndjson");
+    const canonicalActivationLine = (
+      await readFile(activationJournal, "utf8")
+    ).trim();
+    const canonicalActivation = JSON.parse(
+      canonicalActivationLine,
+    ) as Record<string, unknown>;
+    const expectRejectedActivationJournal = async (
+      value: Record<string, unknown>,
+      expectedCode: string,
+    ): Promise<void> => {
+      await writeFile(
+        activationJournal,
+        `${canonicalVoidP2pTrustJsonV1(
+          value as unknown as Parameters<
+            typeof canonicalVoidP2pTrustJsonV1
+          >[0],
+        )}\n`,
+        { mode: 0o600 },
+      );
+      await expectHoldAsync(
+        () =>
+          activateVoidP2pSignedTrustPolicyV1({
+            envelope: firstEnvelope,
+            root_set: roots,
+            options: { expected_network_id: NETWORK, now_ms: NOW },
+            state_dir: stateDir,
+          }),
+        expectedCode,
+      );
+    };
+
+    const missingGeneration = { ...canonicalActivation };
+    delete missingGeneration.generation;
+    await expectRejectedActivationJournal(
+      missingGeneration,
+      "missing_field",
+    );
+    await expectRejectedActivationJournal(
+      { ...canonicalActivation, unexpected: true },
+      "unexpected_field",
+    );
+    await expectRejectedActivationJournal(
+      { ...canonicalActivation, policy_sha256: "0".repeat(63) },
+      "invalid_sha256",
+    );
+    await expectRejectedActivationJournal(
+      { ...canonicalActivation, envelope_sha256: "f".repeat(63) },
+      "invalid_sha256",
+    );
+    const signerKeyIds = canonicalActivation.signer_key_ids as string[];
+    await expectRejectedActivationJournal(
+      {
+        ...canonicalActivation,
+        signer_key_ids: [signerKeyIds[0], signerKeyIds[0]],
+      },
+      "noncanonical_order",
+    );
+    await expectRejectedActivationJournal(
+      { ...canonicalActivation, threshold: 0 },
+      "invalid_activation",
+    );
+    await expectRejectedActivationJournal(
+      { ...canonicalActivation, activated_at: "not-an-instant" },
+      "invalid_time",
+    );
+    await expectRejectedActivationJournal(
+      { ...canonicalActivation, generation: "unbound-generation" },
+      "invalid_activation",
+    );
+    await expectRejectedActivationJournal(
+      { ...canonicalActivation, network_id: "other-network" },
+      "invalid_activation_journal",
+    );
+    await expectRejectedActivationJournal(
+      { ...canonicalActivation, epoch: "00" },
+      "invalid_epoch",
+    );
+    await writeFile(
+      activationJournal,
+      `${canonicalActivationLine}\n`,
+      { mode: 0o600 },
+    );
+
     const sameEpochDifferent = signTwice(
       policy({ deny_node_ids: [] }),
       key1,

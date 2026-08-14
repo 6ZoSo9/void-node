@@ -760,25 +760,23 @@ async function ensureActivationJournalRecord(
   let previousEpoch = 0n;
   let exactMatches = 0;
   for (const [index, line] of lines.entries()) {
-    let parsed: unknown;
+    let parsedValue: unknown;
     try {
-      parsed = JSON.parse(line);
+      parsedValue = JSON.parse(line);
     } catch {
       hold(
         "invalid_activation_journal",
         `activation journal line ${index + 1} is not valid JSON`,
       );
     }
-    if (
-      !isRecord(parsed) ||
-      parsed.schema !== VOID_P2P_TRUST_ACTIVATION_SCHEMA_V1 ||
-      parsed.network_id !== activation.network_id ||
-      typeof parsed.epoch !== "string" ||
-      !EPOCH_PATTERN.test(parsed.epoch)
-    ) {
+    const parsed = parseVoidP2pTrustPolicyActivationRecordV1(
+      parsedValue,
+      `activation_journal[${index}]`,
+    );
+    if (parsed.network_id !== activation.network_id) {
       hold(
         "invalid_activation_journal",
-        `activation journal line ${index + 1} is not a valid activation record`,
+        `activation journal line ${index + 1} is bound to a different network`,
       );
     }
     const canonical = canonicalVoidP2pTrustJsonV1(
@@ -847,6 +845,89 @@ async function writeExclusiveJson(pathname: string, value: JsonValue): Promise<v
   }
 }
 
+const ACTIVATION_RECORD_KEYS_V1 = [
+  "schema",
+  "network_id",
+  "epoch",
+  "policy_sha256",
+  "envelope_sha256",
+  "signer_key_ids",
+  "threshold",
+  "activated_at",
+  "generation",
+] as const;
+
+function parseVoidP2pTrustPolicyActivationRecordV1(
+  value: unknown,
+  label = "activation",
+): VoidP2pTrustPolicyActivationRecordV1 {
+  if (!isRecord(value)) hold("invalid_activation", `${label} must be an object`);
+  exactKeys(value, ACTIVATION_RECORD_KEYS_V1, label);
+  if (value.schema !== VOID_P2P_TRUST_ACTIVATION_SCHEMA_V1) {
+    hold("invalid_activation", `${label} schema mismatch`);
+  }
+  const activation: VoidP2pTrustPolicyActivationRecordV1 = Object.freeze({
+    schema: VOID_P2P_TRUST_ACTIVATION_SCHEMA_V1,
+    network_id: assertNetworkId(
+      requireString(value.network_id, `${label}.network_id`),
+      `${label}.network_id`,
+    ),
+    epoch: requireString(value.epoch, `${label}.epoch`),
+    policy_sha256: assertSha256(
+      requireString(value.policy_sha256, `${label}.policy_sha256`),
+      `${label}.policy_sha256`,
+    ),
+    envelope_sha256: assertSha256(
+      requireString(value.envelope_sha256, `${label}.envelope_sha256`),
+      `${label}.envelope_sha256`,
+    ),
+    signer_key_ids: Object.freeze(
+      requireArray(value.signer_key_ids, `${label}.signer_key_ids`).map(
+        (entry, index) => {
+          const keyId = requireString(
+            entry,
+            `${label}.signer_key_ids[${index}]`,
+          );
+          if (!KEY_ID_PATTERN.test(keyId)) {
+            hold(
+              "invalid_activation",
+              `${label} signer key ID is invalid`,
+            );
+          }
+          return keyId;
+        },
+      ),
+    ),
+    threshold: requireInteger(value.threshold, `${label}.threshold`),
+    activated_at: requireString(
+      value.activated_at,
+      `${label}.activated_at`,
+    ),
+    generation: requireString(value.generation, `${label}.generation`),
+  });
+  assertEpoch(activation.epoch, `${label}.epoch`);
+  assertIsoInstant(activation.activated_at, `${label}.activated_at`);
+  assertSortedUnique(activation.signer_key_ids, `${label}.signer_key_ids`);
+  if (
+    activation.threshold < 1 ||
+    activation.threshold > activation.signer_key_ids.length
+  ) {
+    hold(
+      "invalid_activation",
+      `${label} threshold is inconsistent with signer_key_ids`,
+    );
+  }
+  const expectedGeneration =
+    `${activation.epoch.padStart(40, "0")}-${activation.policy_sha256}`;
+  if (activation.generation !== expectedGeneration) {
+    hold(
+      "invalid_activation",
+      `${label} generation must bind epoch and policy_sha256`,
+    );
+  }
+  return activation;
+}
+
 async function readActiveRecord(stateDir: string): Promise<Readonly<{
   activation: VoidP2pTrustPolicyActivationRecordV1;
   generation_dir: string;
@@ -875,55 +956,14 @@ async function readActiveRecord(stateDir: string): Promise<Readonly<{
   if (!generationInfo.isDirectory() || generationInfo.isSymbolicLink()) {
     hold("unsafe_current_pointer", "active generation must be a real directory");
   }
-  const activationValue = await readJson(path.join(generationDir, "activation.json"));
-  if (!isRecord(activationValue)) hold("invalid_activation", "activation.json must be an object");
-  exactKeys(
-    activationValue,
-    [
-      "schema",
-      "network_id",
-      "epoch",
-      "policy_sha256",
-      "envelope_sha256",
-      "signer_key_ids",
-      "threshold",
-      "activated_at",
-      "generation",
-    ],
-    "activation",
+  const activation = parseVoidP2pTrustPolicyActivationRecordV1(
+    await readJson(path.join(generationDir, "activation.json")),
   );
-  if (activationValue.schema !== VOID_P2P_TRUST_ACTIVATION_SCHEMA_V1) {
-    hold("invalid_activation", "activation schema mismatch");
-  }
-  const activation: VoidP2pTrustPolicyActivationRecordV1 = Object.freeze({
-    schema: VOID_P2P_TRUST_ACTIVATION_SCHEMA_V1,
-    network_id: assertNetworkId(requireString(activationValue.network_id, "activation.network_id")),
-    epoch: requireString(activationValue.epoch, "activation.epoch"),
-    policy_sha256: assertSha256(requireString(activationValue.policy_sha256, "activation.policy_sha256"), "activation.policy_sha256"),
-    envelope_sha256: assertSha256(requireString(activationValue.envelope_sha256, "activation.envelope_sha256"), "activation.envelope_sha256"),
-    signer_key_ids: Object.freeze(
-      requireArray(activationValue.signer_key_ids, "activation.signer_key_ids").map((entry, index) => {
-        const keyId = requireString(entry, `activation.signer_key_ids[${index}]`);
-        if (!KEY_ID_PATTERN.test(keyId)) hold("invalid_activation", "activation signer key ID is invalid");
-        return keyId;
-      }),
-    ),
-    threshold: requireInteger(activationValue.threshold, "activation.threshold"),
-    activated_at: requireString(activationValue.activated_at, "activation.activated_at"),
-    generation: requireString(activationValue.generation, "activation.generation"),
-  });
-  assertEpoch(activation.epoch, "activation.epoch");
-  assertIsoInstant(activation.activated_at, "activation.activated_at");
-  assertSortedUnique(activation.signer_key_ids, "activation.signer_key_ids");
-  if (activation.threshold < 1 || activation.threshold > activation.signer_key_ids.length) {
-    hold("invalid_activation", "activation threshold is inconsistent with signer_key_ids");
-  }
   if (activation.generation !== path.basename(generationDir)) {
     hold("invalid_activation", "activation generation does not match current target");
   }
   return Object.freeze({ activation, generation_dir: generationDir });
 }
-
 export async function activateVoidP2pSignedTrustPolicyV1(input: Readonly<{
   envelope: unknown;
   root_set: unknown;
