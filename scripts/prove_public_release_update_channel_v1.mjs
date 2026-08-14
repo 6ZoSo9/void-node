@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import childProcess from "node:child_process";
+import crypto from "node:crypto";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -13,6 +14,7 @@ function run(c,a,opt={}){const r=childProcess.spawnSync(c,a,{cwd:opt.cwd,env:{..
 function need(rel,needles=[]){if(!fs.existsSync(rel))fail(`missing ${rel}`);const t=fs.readFileSync(rel,"utf8");for(const n of needles)if(!t.includes(n))fail(`${rel} missing ${JSON.stringify(n)}`);pass(`markers-${rel}`);return t;}
 function versionAt(root){return JSON.parse(fs.readFileSync(path.join(root,"current","BUILD-INFO.json"),"utf8")).version;}
 function previousVersion(root){return JSON.parse(fs.readFileSync(path.join(root,"previous","BUILD-INFO.json"),"utf8")).version;}
+function replaceInstalledUpdaterWithLegacy(root){const relative="bin/void-node-update",target=path.join(root,relative),legacy='#!/usr/bin/env node\\nconsole.error("LEGACY_UPDATER_HAS_NO_ROLLBACK_JOURNAL_RECOVERY");\\nprocess.exit(97);\\n';fs.writeFileSync(target,legacy);fs.chmodSync(target,0o755);const digest=crypto.createHash("sha256").update(legacy).digest("hex"),manifestPath=path.join(root,"RELEASE-CONTENTS-SHA256"),lines=fs.readFileSync(manifestPath,"utf8").trimEnd().split("\\n");let replaced=0;const next=lines.map(line=>{const match=line.match(/^([0-9a-f]{64})  (.+)$/);if(match?.[2]!==relative)return line;replaced++;return `${digest}  ${relative}`;});if(replaced!==1)fail(`legacy updater checksum replacement count=${replaced}`);fs.writeFileSync(manifestPath,next.join("\\n")+"\\n");}
 function sleepSync(ms){Atomics.wait(new Int32Array(new SharedArrayBuffer(4)),0,0,ms);}
 function startAdversarialHealthServer(tmp){
   const portFile=path.join(tmp,"health-port"),serverFile=path.join(tmp,"health-server.mjs");
@@ -40,6 +42,8 @@ need("tools/build-public-release-channel-v1.mjs",["VOID_PUBLIC_RELEASE_CHANNEL_B
 need("release/bin/void-node-update",["VOID_NODE_RELEASE_UPDATE_V1","VOID_NODE_RELEASE_ROLLBACK_TRANSACTION_V1","ROLLBACK_RECOVERED","downgrade refused","HEALTH_FAIL_ROLLBACK_BEGIN","HEALTH_RESPONSE_MAX_BYTES","health response exceeds size limit","service_started_implicitly=false"]);
 const manager=need("release/bin/void-node",["void-node update check","void-node update apply","exec \"$RELEASE_ROOT/bin/void-node-update\" rollback"]);
 need("release/portable/bin/void-node",["void-node update check","exec \"$RUNTIME_NODE\" \"$RELEASE_ROOT/bin/void-node-update\" rollback"]);
+need("ops/public/install-void-node-v1.sh",["VOID_NODE_STABLE_MANAGER_V1","$INSTALL_ROOT/control/void-node-update"]);
+need("ops/public/install-void-node-portable-runtime-v1.sh",["VOID_NODE_STABLE_MANAGER_V1","$INSTALL_ROOT/control/void-node-update"]);
 need("ops/security/public-release-update-channel-v1-proof.sh",["VOID public release update channel wall v1 proof"]);
 const workflow=need(".github/workflows/public-release-distribution-v1.yml",["public-release-update-channel-v1-proof","build-public-release-channel-v1.mjs","stable-v1.json","(cd dist-release && sha256sum --check --strict SHA256SUMS)"]);
 const checksumCwd=(workflow.match(/\(cd dist-release && sha256sum --check --strict SHA256SUMS\)/g)||[]).length;if(checksumCwd<2)fail(`expected two artifact-directory checksum checks, found ${checksumCwd}`);pass("workflow-checksum-directory-regression");
@@ -61,7 +65,8 @@ try{
   const m1=manifest(out1);
   run("bash",[path.join(out1,"install-void-node-v1.sh"),"install","--archive",path.join(out1,m1.archive),"--checksums",path.join(out1,"SHA256SUMS"),"--manifest",path.join(out1,"void-node-release-manifest.json"),"--install-root",installRoot,"--bin-dir",binDir,"--yes"],{env:e});
   if(versionAt(installRoot)!==v1)fail("initial release install mismatch");pass("initial-release-installed");
-  const managerPath=path.join(binDir,"void-node");
+  const managerPath=path.join(binDir,"void-node"),stableManagerPath=path.join(installRoot,"bin","void-node"),controlUpdaterPath=path.join(installRoot,"control","void-node-update");
+  if(fs.realpathSync(managerPath)!==stableManagerPath||!fs.existsSync(controlUpdaterPath))fail("installer did not establish the stable recovery entrypoint");pass("stable-recovery-entrypoint-installed");
   const check=run(managerPath,["update","check","--channel",path.join(out2,"stable-v1.json"),"--install-root",installRoot,"--bin-dir",binDir,"--test-allow-file"],{env:e,capture:true});
   if(!check.includes("update_available=true"))fail("update check did not report update");pass("verified-update-check");
   run(managerPath,["update","apply","--channel",path.join(out2,"stable-v1.json"),"--install-root",installRoot,"--bin-dir",binDir,"--test-allow-file","--skip-attestation","--yes"],{env:e});
@@ -110,6 +115,16 @@ try{
   const wrapperRollback=run(managerPath,["rollback"],{env:e,capture:true});
   if(!wrapperRollback.includes("ROLLBACK_GREEN")||versionAt(installRoot)!==v4||previousVersion(installRoot)!==v2)fail("manager rollback did not delegate to the exact updater transaction");
   pass("manager-rollback-delegates-to-updater-transaction");
+  const legacyRoot=fs.realpathSync(path.join(installRoot,"previous"));replaceInstalledUpdaterWithLegacy(legacyRoot);
+  const legacyInterrupted=run(managerPath,["update","rollback","--install-root",installRoot,"--bin-dir",binDir,"--test-allow-file"],{env:{...e,VOID_NODE_UPDATE_TEST_INTERRUPT_ROLLBACK_AFTER_CURRENT:"1"},capture:true,allowFail:true});
+  if(legacyInterrupted.status===0||!`${legacyInterrupted.stdout}${legacyInterrupted.stderr}`.includes("test interruption after current rollback pointer publication"))fail("legacy-target rollback interruption fixture did not stop after current publication");
+  if(fs.realpathSync(path.join(installRoot,"current"))!==legacyRoot)fail("legacy rollback target was not published before interruption");
+  const legacyRecovered=run(managerPath,["version"],{env:e,capture:true,allowFail:true});
+  if(legacyRecovered.status!==2||!`${legacyRecovered.stdout}${legacyRecovered.stderr}`.includes("ROLLBACK_RECOVERED"))fail("stable manager did not recover through the repaired control updater");
+  if(`${legacyRecovered.stdout}${legacyRecovered.stderr}`.includes("LEGACY_UPDATER_HAS_NO_ROLLBACK_JOURNAL_RECOVERY"))fail("recovery delegated to the legacy rollback target updater");
+  if(versionAt(installRoot)!==v2||previousVersion(installRoot)!==v4)fail("stable recovery did not complete the legacy-target rollback transaction");
+  for(const artifact of [".current.update-next",".previous.update-next",".rollback.update-transaction-v1.json",".rollback.update-transaction-v1.json.next"]){if(fs.existsSync(path.join(installRoot,artifact)))fail(`stable legacy recovery left artifact ${artifact}`);}
+  pass("stable-manager-recovers-interrupted-rollback-to-legacy-target");
   run(managerPath,["verify"],{env:e});
   run("bash",[path.join(installRoot,"current","install-void-node-v1.sh"),"uninstall","--install-root",installRoot,"--bin-dir",binDir,"--yes","--purge"],{env:e});
   if(fs.existsSync(installRoot)||fs.existsSync(managerPath))fail("uninstall left update-wall artifacts");pass("uninstall-purge-after-update-chain");

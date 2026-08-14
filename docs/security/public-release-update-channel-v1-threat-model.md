@@ -43,8 +43,13 @@ running service must pass the explicit readiness gate. Failure triggers an
 exact, journaled rollback to the previous release. The updater stages both
 replacement links before publishing either canonical pointer, fsyncs the
 transaction journal and each pointer transition, and recovers a detected
-interruption before accepting another command. Poisoned or unexplained staging
-artifacts fail closed before canonical pointer mutation.
+interruption before accepting another command. The installed command resolves
+to a stable manager outside the mutable `current` pointer, with a verified
+control-updater copy refreshed atomically by the installer. It checks for
+rollback artifacts before delegating to `current`, keeping journal recovery
+reachable when interruption has already exposed a legacy rollback target.
+Poisoned or unexplained staging artifacts fail closed before canonical pointer
+mutation.
 
 ### Privilege or authority expansion
 

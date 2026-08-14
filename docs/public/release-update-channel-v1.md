@@ -72,8 +72,13 @@ canonical pointer changes, and an exact durable journal makes interruption
 between the two pointer publications detectable and recoverable. On the next
 updater invocation, `VOID_NODE_RELEASE_UPDATE_V1_ROLLBACK_RECOVERED` confirms
 that the interrupted swap was completed; the requested command then stops and
-must be run again deliberately. Unexpected staging artifacts fail closed before
-an update or rollback can mutate either canonical pointer.
+must be run again deliberately. The installer keeps the user-facing manager and
+a verified updater copy under the installation root, outside the mutable
+`current` release pointer. That stable entrypoint detects rollback artifacts
+before delegating any command, so recovery remains reachable even after
+`current` has already moved to a genuinely older release whose updater predates
+the journal protocol. Unexpected staging artifacts fail closed before an update
+or rollback can mutate either canonical pointer.
 
 ## Canonical promoted channel
 
