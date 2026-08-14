@@ -61,7 +61,7 @@ for (const marker of [
   "delivery_runtime_source_retained: true",
   "delivery_runtime_parent_mounted: false",
   "canonical_erc20_delivery_dependency_bootstrap_ready: false",
-  "canonical_erc20_delivery_atomic_unit_conversion_ready: false",
+  "canonical_erc20_delivery_atomic_unit_conversion_ready: true",
   "canonical_erc20_delivery_execution_ready: false",
   "canonical_erc20_delivery_execution_held: true",
   'status: "held"',
@@ -93,6 +93,12 @@ for (const marker of [
   need(moduleText.includes(marker), `missing runtime marker: ${marker}`);
 }
 
+need(
+  !moduleText.includes(
+    '"erc20_fulfillment_unit_to_token_atom_scale_not_ready"',
+  ),
+  "resolved ERC-20 unit-scale blocker remains in funding blockers",
+);
 need(
   !/from "\.\/buy_void_delivery_runtime_integration_v1\.js";/.test(moduleText),
   "canonical ERC-20 delivery runtime remains parent imported",
@@ -179,7 +185,7 @@ need(workflowText.includes("--moduleResolution NodeNext"), "workflow lacks focus
 console.log("VOID_BUY_VOID_RUNTIME_INTEGRATION_GUARD_V1_GREEN");
 console.log("canonical_delivery_asset=void_token_erc20");
 console.log("canonical_erc20_delivery_parent_mount=0");
-console.log("erc20_atomic_unit_conversion_ready=0");
+console.log("erc20_atomic_unit_conversion_ready=1");
 console.log("canonical_delivery_dependency_bootstrap_ready=0");
 console.log("native_parent_mounts=0");
 console.log("bounded_orchestrator_parent_mount=0");

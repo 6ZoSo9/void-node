@@ -53,7 +53,7 @@ export const VOID_BUY_VOID_CANONICAL_DELIVERY_COMPOSITION_V1 = {
   opaque_prepared_transaction_execution_parent_mounted: false,
   erc20_transaction_preparation_bridge_ready: false,
   erc20_receipt_reconciliation_bridge_ready: false,
-  erc20_fulfillment_unit_to_token_atom_scale_ready: false,
+  erc20_fulfillment_unit_to_token_atom_scale_ready: true,
   canonical_delivery_dependency_bootstrap_ready: false,
   canonical_delivery_execution_ready: false,
   canonical_delivery_execution_held: true,
@@ -61,7 +61,6 @@ export const VOID_BUY_VOID_CANONICAL_DELIVERY_COMPOSITION_V1 = {
   funding_blockers: [
     "erc20_transaction_preparation_bridge_not_mounted",
     "erc20_delivery_receipt_reconciliation_bridge_not_mounted",
-    "erc20_fulfillment_unit_to_token_atom_scale_not_ready",
     "canonical_delivery_dependency_bootstrap_not_ready",
   ],
 } as const;
@@ -83,7 +82,7 @@ export const VOID_BUY_VOID_RUNTIME_INTEGRATION_AUTHORITY_V1 = {
   canonical_delivery_asset_void_token_erc20: true,
   canonical_delivery_runtime_parent_mounted: false,
   canonical_erc20_delivery_dependency_bootstrap_ready: false,
-  canonical_erc20_delivery_atomic_unit_conversion_ready: false,
+  canonical_erc20_delivery_atomic_unit_conversion_ready: true,
   canonical_erc20_delivery_execution_ready: false,
   canonical_erc20_delivery_execution_held: true,
   native_value_delivery_parent_mounted: false,
