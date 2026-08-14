@@ -4,68 +4,115 @@
 
 The client is not a validator, coordinator, wallet, miner, background daemon, or generic job submitter. It uses Node.js built-ins, creates a local Ed25519 executor identity, claims one capability-bound ticket, fetches and verifies the coordinator-selected DataNet input, signs one outbound proof bundle, submits the result, and verifies that the canonical redeemable Work Credit balance increased by exactly 3 WC.
 
-## What changed
-
-The previous public claim and participant CLIs delegated two operations to a running local VOID node:
-
-- `/wc/public-earning-pilot-v1/sign-claim`
-- `/wc/public-earning-pilot-v1/execute-local`
-
-This client replaces those loopback dependencies with a private local identity and direct one-shot work execution. It does not weaken coordinator verification. The existing public claim signature, ticket binding, result-envelope signature, capability token, outbound proof bundle, replay controls, caps, and canonical WC acceptance remain authoritative.
-
 ## Requirements
 
 - Node.js 22 or newer
-- Network access to the trusted Public Earn HTTPS gateway
+- Network access to the Public Earn coordinator origin you intend to trust
+- HTTPS for public coordinator origins; HTTP is accepted only for the same private/development host classes admitted by the canonical client
+- Network access to an immutable source mirror for the initial one-file client download
 - A public immutable representation of the server-selected DataNet dataset
 - No local VOID repository, node process, P2P listener, HTTP listener, or inbound port
 
-The repository copy is used for development and proofing. Participants can download the single `.mjs` client directly from the trusted Public Earn gateway and run it from any ordinary local directory.
+The repository copy is used for development and proofing. A repo-less participant downloads one reviewed client file, verifies its content-addressed source identity **before local file creation**, and then runs that local file from any ordinary directory.
 
-## Download the single client file
+## Trust boundary for the downloaded executable
 
-Choose the Public Earn gateway origin you intend to trust. The gateway publishes the same no-node client used by the browser `/participant` handoff at `/download/void-public-earn-no-node-client-v1.mjs`.
+The selected Public Earn gateway is **not** trusted to choose the executable client bytes. The client source below is pinned to the immutable reviewed repository commit that last changed the canonical client and to the exact Git blob identity of that file:
 
-The bounded download below refuses redirects, enforces a 7-second total deadline, reads at most 1 MiB, and creates the local client file only after the complete response has passed those checks:
+- reviewed source commit: `a8166e1539f45d333b9e83ca566e1c51efd0aa5c`
+- exact client Git blob: `99c0e081511d2ef9c19fb1d68fe0ee0298f0488d`
+- repository path: `tools/void_public_earn_no_node_client_v1.mjs`
+
+The same blob is the client present on the reviewed current source baseline for this guide. The Git blob ID is computed over the exact Git blob object (`blob <byte-length>\0<bytes>`), so altered bytes are rejected before `writeFile` or execution.
+
+This is an **immutable reviewed source/content identity**, independent of the participant-selected Public Earn gateway. It is **not** a VOID release signature and does not claim that the Git hosting provider is part of VOID consensus or constitutional authority. A future signed VOID distribution that cryptographically binds this exact standalone client can supersede this source-pinned bootstrap without weakening the participant checks below.
+
+## Download and verify the single client file
+
+Choose the Public Earn coordinator origin you intend to trust. Before **any** network request, the snippet applies the same origin-admission contract as the canonical client: public origins must use HTTPS; HTTP is accepted only for localhost/loopback, RFC1918 IPv4, CGNAT `100.64.0.0/10`, or `.ts.net` development hosts; userinfo, query strings, fragments, and non-root paths are rejected.
+
+The executable itself is fetched from the immutable reviewed source commit, not from the selected Public Earn gateway. The download refuses redirects, keeps a 7-second deadline through body consumption, reads at most 1 MiB, verifies the exact Git blob identity, and creates the local client only after all checks pass.
 
 ```bash
 PUBLIC_HTTPS_BASE='https://PUBLIC-EARN-GATEWAY'
 CLIENT_FILE='./void-public-earn-no-node-client-v1.mjs'
 
-node --input-type=module - "$PUBLIC_HTTPS_BASE" "$CLIENT_FILE" <<'NODE'
-import { writeFile } from 'node:fs/promises';
+PUBLIC_HTTPS_BASE="$(
+  node --input-type=module - "$PUBLIC_HTTPS_BASE" "$CLIENT_FILE" <<'NODE'
+import { createHash } from 'node:crypto';
+import { access, writeFile } from 'node:fs/promises';
 
-const [base, output] = process.argv.slice(2);
+const [rawBase, output] = process.argv.slice(2);
+const sourceUrl = 'https://raw.githubusercontent.com/6ZoSo9/void-node/a8166e1539f45d333b9e83ca566e1c51efd0aa5c/tools/void_public_earn_no_node_client_v1.mjs';
+const expectedGitBlobSha1 = '99c0e081511d2ef9c19fb1d68fe0ee0298f0488d';
 const maxBytes = 1024 * 1024;
+
+function isPrivateHttpHost(hostname) {
+  const host = String(hostname || '').trim().toLowerCase();
+  if (host === 'localhost' || host === '127.0.0.1' || host === '::1') return true;
+  if (host.endsWith('.ts.net')) return true;
+  const match = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/.exec(host);
+  if (!match) return false;
+  const octets = match.slice(1).map(Number);
+  if (octets.some((value) => value < 0 || value > 255)) return false;
+  if (octets[0] === 10 || octets[0] === 127) return true;
+  if (octets[0] === 192 && octets[1] === 168) return true;
+  if (octets[0] === 172 && octets[1] >= 16 && octets[1] <= 31) return true;
+  if (octets[0] === 100 && octets[1] >= 64 && octets[1] <= 127) return true;
+  return false;
+}
+
+function safeBase(raw) {
+  const value = String(raw || '').trim();
+  if (!value || value.length > 512) return '';
+  try {
+    const parsed = new URL(value);
+    const https = parsed.protocol === 'https:';
+    const privateHttp = parsed.protocol === 'http:' && isPrivateHttpHost(parsed.hostname);
+    if (!https && !privateHttp) return '';
+    if (parsed.username || parsed.password || parsed.search || parsed.hash) return '';
+    if (parsed.pathname && parsed.pathname !== '/') return '';
+    return parsed.origin;
+  } catch {
+    return '';
+  }
+}
+
+const base = safeBase(rawBase);
+if (!base) throw new Error('Public Earn coordinator origin refused');
+
+try {
+  await access(output);
+  throw new Error(`client output already exists: ${output}`);
+} catch (error) {
+  if (error?.code !== 'ENOENT') throw error;
+}
+
 const controller = new AbortController();
 const timer = setTimeout(() => controller.abort(), 7000);
 timer.unref?.();
 
 try {
-  const response = await fetch(
-    new URL('/download/void-public-earn-no-node-client-v1.mjs', base),
-    {
-      method: 'GET',
-      redirect: 'manual',
-      signal: controller.signal,
-    },
-  );
+  const response = await fetch(sourceUrl, {
+    method: 'GET',
+    redirect: 'manual',
+    signal: controller.signal,
+  });
   if (response.status >= 300 && response.status < 400) {
-    throw new Error(`client download redirect refused: HTTP ${response.status}`);
+    throw new Error(`client source redirect refused: HTTP ${response.status}`);
   }
   if (response.status !== 200) {
-    throw new Error(`client download unavailable: HTTP ${response.status}`);
+    throw new Error(`client source unavailable: HTTP ${response.status}`);
   }
+
   const declaredRaw = response.headers.get('content-length');
   if (declaredRaw) {
     const declared = Number(declaredRaw);
     if (!Number.isSafeInteger(declared) || declared < 1 || declared > maxBytes) {
-      throw new Error(`client download content-length refused: ${declaredRaw}`);
+      throw new Error(`client source content-length refused: ${declaredRaw}`);
     }
   }
-  if (!response.body) {
-    throw new Error('client download response body unavailable');
-  }
+  if (!response.body) throw new Error('client source response body unavailable');
 
   const chunks = [];
   let total = 0;
@@ -74,21 +121,46 @@ try {
     total += bytes.length;
     if (total > maxBytes) {
       controller.abort();
-      throw new Error(`client download exceeds ${maxBytes} bytes`);
+      throw new Error(`client source exceeds ${maxBytes} bytes`);
     }
     chunks.push(bytes);
   }
-  if (total < 1) {
-    throw new Error('client download was empty');
+  if (total < 1) throw new Error('client source was empty');
+
+  const body = Buffer.concat(chunks);
+  const actualGitBlobSha1 = createHash('sha1')
+    .update(Buffer.from(`blob ${body.length}\0`, 'utf8'))
+    .update(body)
+    .digest('hex');
+  if (actualGitBlobSha1 !== expectedGitBlobSha1) {
+    throw new Error(`client source identity mismatch: ${actualGitBlobSha1}`);
   }
-  await writeFile(output, Buffer.concat(chunks), { flag: 'wx', mode: 0o700 });
+
+  await writeFile(output, body, { flag: 'wx', mode: 0o700 });
+  process.stdout.write(base);
 } finally {
   clearTimeout(timer);
 }
 NODE
+)"
 ```
 
-`flag: 'wx'` refuses to overwrite an existing local file. If you intentionally want a fresh copy, remove or rename the old local client first and rerun the bounded download.
+`PUBLIC_HTTPS_BASE` is replaced with the normalized origin only after the origin policy and verified client download succeed. `flag: 'wx'` also refuses to overwrite an existing local file. If the origin is unsafe or the executable bytes do not match the pinned content identity, the command exits before creating the client file.
+
+### Origin-policy examples
+
+The pre-client policy intentionally matches the current canonical no-node client:
+
+- `https://public.example` → allowed
+- `http://127.0.0.1:8082` → allowed
+- `http://10.0.0.5:8082` → allowed
+- `http://192.168.1.5:8082` → allowed
+- `http://172.16.0.5:8082` through `172.31.x.x` → allowed
+- `http://100.64.0.5:8082` through `100.127.x.x` → allowed
+- `http://host.ts.net:8082` → allowed
+- ordinary public HTTP, `172.32/16`, `100.63/10`, `100.128/10`, userinfo, query/fragment-bearing origins, and non-root paths → refused before fetch
+
+Bracketed IPv6 HTTP follows the **current canonical client** exactly. The pinned client currently compares the URL hostname against `::1` without unbracketing it, so `http://[::1]:...` is not admitted by this repo-less bootstrap either. Use HTTPS or an admitted private IPv4/Tailscale origin until that canonical client policy changes. This guide does not silently widen the client policy.
 
 ## Identity
 
@@ -110,13 +182,48 @@ The executor node ID is the first 32 lowercase hexadecimal characters of the SHA
 
 ## Discover the coordinator node ID safely
 
-A participant should not have to transcribe the coordinator node ID by hand from the public status JSON. With the trusted Public Earn gateway origin already selected above, derive the exact coordinator node ID from the sanitized participant-status contract with a bounded, redirect-refusing read:
+A participant should not have to transcribe the coordinator node ID by hand. The discovery snippet revalidates the selected origin **before** contacting it, then reads only the sanitized participant-status contract with the same redirect refusal, 7-second deadline, and a streamed 64 KiB maximum.
 
 ```bash
 COORDINATOR_NODE_ID="$(
   node --input-type=module - "$PUBLIC_HTTPS_BASE" <<'NODE'
-const base = process.argv[2];
+const rawBase = process.argv[2];
 const maxBytes = 65536;
+
+function isPrivateHttpHost(hostname) {
+  const host = String(hostname || '').trim().toLowerCase();
+  if (host === 'localhost' || host === '127.0.0.1' || host === '::1') return true;
+  if (host.endsWith('.ts.net')) return true;
+  const match = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/.exec(host);
+  if (!match) return false;
+  const octets = match.slice(1).map(Number);
+  if (octets.some((value) => value < 0 || value > 255)) return false;
+  if (octets[0] === 10 || octets[0] === 127) return true;
+  if (octets[0] === 192 && octets[1] === 168) return true;
+  if (octets[0] === 172 && octets[1] >= 16 && octets[1] <= 31) return true;
+  if (octets[0] === 100 && octets[1] >= 64 && octets[1] <= 127) return true;
+  return false;
+}
+
+function safeBase(raw) {
+  const value = String(raw || '').trim();
+  if (!value || value.length > 512) return '';
+  try {
+    const parsed = new URL(value);
+    const https = parsed.protocol === 'https:';
+    const privateHttp = parsed.protocol === 'http:' && isPrivateHttpHost(parsed.hostname);
+    if (!https && !privateHttp) return '';
+    if (parsed.username || parsed.password || parsed.search || parsed.hash) return '';
+    if (parsed.pathname && parsed.pathname !== '/') return '';
+    return parsed.origin;
+  } catch {
+    return '';
+  }
+}
+
+const base = safeBase(rawBase);
+if (!base) throw new Error('Public Earn coordinator origin refused');
+
 const controller = new AbortController();
 const timer = setTimeout(() => controller.abort(), 7000);
 timer.unref?.();
@@ -136,6 +243,7 @@ try {
   if (!response.ok) {
     throw new Error(`participant status unavailable: HTTP ${response.status}`);
   }
+
   const declaredRaw = response.headers.get('content-length');
   if (declaredRaw) {
     const declared = Number(declaredRaw);
@@ -143,9 +251,7 @@ try {
       throw new Error(`participant status content-length refused: ${declaredRaw}`);
     }
   }
-  if (!response.body) {
-    throw new Error('participant status response body unavailable');
-  }
+  if (!response.body) throw new Error('participant status response body unavailable');
 
   const chunks = [];
   let total = 0;
@@ -158,6 +264,7 @@ try {
     }
     chunks.push(bytes);
   }
+
   const status = JSON.parse(Buffer.concat(chunks).toString('utf8'));
   if (status?.marker !== 'VOID_PUBLIC_PARTICIPANT_NO_NODE_HANDOFF_V1') {
     throw new Error('participant status marker mismatch');
@@ -174,7 +281,7 @@ NODE
 )"
 ```
 
-This discovery step reads only the public sanitized participant status. It does not claim work, submit a result, create or inspect an account directory, access a wallet, or mutate Work Credits. Keep `PUBLIC_HTTPS_BASE` explicitly bound to the gateway origin you intended to trust; the no-node client still verifies that `/health` reports the same coordinator node ID before it will proceed.
+This discovery step reads only public sanitized participant status. It does not claim work, inspect an account directory, access a wallet, or mutate Work Credits. The no-node client still verifies that `/health` reports the same explicitly trusted coordinator node ID before proceeding.
 
 ## Check availability
 
@@ -185,7 +292,7 @@ node "$CLIENT_FILE" status \
   --coordinator-node-id "$COORDINATOR_NODE_ID"
 ```
 
-The client rejects a gateway whose `/health` node ID does not equal the explicitly trusted coordinator node ID.
+The client rejects a coordinator whose `/health` node ID does not equal the explicitly trusted coordinator node ID.
 
 ## Claim, work, and earn
 
@@ -224,40 +331,36 @@ node "$CLIENT_FILE" run \
   --dataset-url-template 'https://PUBLIC-DATANET/open?dataset_id={dataset_id}'
 ```
 
-The template changes only the retrieval location. The dataset ID and expected hash still come exclusively from the signed capability ticket. The client also tries a bounded set of existing public DataNet open-by-ID route forms on the coordinator origin.
-
-A response is accepted only when the SHA-256 of the raw response or an extracted JSON content field equals the ticket's server-selected expected input hash.
+The template changes only the retrieval location. The dataset ID and expected hash still come exclusively from the signed capability ticket. A response is accepted only when the SHA-256 of the raw response or an extracted JSON content field equals the ticket's server-selected expected input hash.
 
 ## Recovery
 
 A failed dataset fetch, timeout, or rejected submission leaves the capability ticket in the private `pending/` directory. Re-running the same command with the same account, coordinator, and identity resumes that exact ticket instead of requesting another one.
 
-A pending ticket is deleted only after:
+A pending ticket is deleted only after coordinator result acceptance, capability consumption, exact signed job/receipt verification, and a canonical redeemable balance increase of exactly 3 WC.
 
-- coordinator result acceptance,
-- capability consumption,
-- exact signed job and receipt verification,
-- and a canonical redeemable balance increase of exactly 3 WC.
-
-The current public earning protocol does not yet provide participant-readable recovery for the narrower case where the coordinator durably accepts and credits the submission but the HTTP success response is lost before the client receives it. In that case the participant must treat the outcome as HOLD rather than inventing a new submission identity or assuming success. This limitation is tracked separately from the repo-less onboarding instructions here.
+The current public earning protocol does **not** yet provide participant-readable recovery for the narrower case where the coordinator durably accepts and credits the submission but the HTTP success response is lost before the client receives it. In that case the participant must treat the outcome as HOLD rather than inventing a new submission identity or assuming success. That canonical recovery seam remains a separate Work Credit-owner blocker and is deliberately not patched by this repo-less onboarding guide.
 
 ## Security boundary
 
-The client enforces:
+The repo-less path enforces:
 
-- HTTPS for public endpoints; HTTP only for loopback, private development networks, or Tailscale addresses
+- exact immutable reviewed source commit and content-addressed Git blob identity for the downloaded executable before local file creation
+- public HTTPS coordinator origins; private/development HTTP only for the canonical client's current allowlist
+- origin validation before any coordinator-origin network request
 - explicit trusted coordinator node ID
+- bounded response sizes and total deadlines
+- redirect refusal and create-only executable output
 - Ed25519 proof of executor-key possession
-- exact claim field set and deterministic JSON signing bytes
-- stable account and executor binding
 - coordinator-selected task, dataset, expected hash, award, and expiry
-- single-use capability token hash binding
+- single-use capability-token binding
 - outbound-only transport with no participant callback port
-- exact signed result-envelope fields
-- exact proof-bundle ticket, executor, job, receipt, and dataset binding
+- exact signed result/proof binding
 - private state and atomic writes
-- token reflection rejection and token redaction from terminal output and sanitized receipts
+- token reflection rejection and token redaction
 - no automatic background loop
+
+The pinned Git source identity authenticates source content independently of the Public Earn gateway. It does not grant GitHub, the gateway, or this guide runtime, wallet, validator, Work Credit, Buy VOID, treasury, or constitutional authority.
 
 ## Explicitly outside this client
 
@@ -280,17 +383,11 @@ node --experimental-strip-types \
   scripts/prove_void_public_earn_no_node_client_v1.ts
 ```
 
-The proof uses a loopback mock gateway to verify:
+The canonical client proof verifies exact Ed25519 claim/result signatures, a successful no-node `+3 WC` flow, private file modes/token non-disclosure, coordinator identity rejection, dataset hash mismatch HOLD behavior, retained-ticket recovery without a second claim, and the absence of the old loopback node routes.
 
-- exact Ed25519 claim and result signatures,
-- a successful no-node `+3 WC` flow,
-- private file modes and token non-disclosure,
-- coordinator identity rejection,
-- dataset hash mismatch HOLD behavior,
-- retained-ticket recovery without a second claim,
-- and the absence of the old loopback node routes.
+For this repo-less guide specifically, completion evidence must additionally execute the embedded origin policy and source-integrity checks: public HTTP and malformed/adjacent origins must fail before any fetch/file creation, the canonical pinned client must pass its exact Git blob check, altered bytes must fail before `writeFile`, and the existing size/deadline/redirect/create-only boundaries must remain intact.
 
-Expected marker:
+Expected canonical client marker:
 
 ```text
 VOID_PUBLIC_EARN_NO_NODE_CLIENT_V1_PROOF_EXACT_GREEN
