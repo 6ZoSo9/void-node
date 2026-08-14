@@ -158,6 +158,7 @@ assert.equal(planned.void_amount_units, amountUnits.toString());
 assert.equal(planned.token_amount_atoms, amountAtoms.toString());
 assert.equal(planned.transaction_value_wei, "0");
 assert.equal(planned.pending_nonce, 7);
+assert.equal(planned.execution_state, "pending");
 assert.equal(planned.observed_gas_price_wei, "100");
 assert.equal(planned.observed_estimated_gas, "50000");
 assert.equal(planned.computed_gas_limit, "60000");
@@ -200,8 +201,9 @@ assert.deepEqual(baseTransport.calls[3].params, [
     value: "0x0",
     data: planned.transfer_calldata,
   },
+  "pending",
 ]);
-assert.deepEqual(baseTransport.calls[4].params, [wallet, "latest"]);
+assert.deepEqual(baseTransport.calls[4].params, [wallet, "pending"]);
 assert.equal(planned.mutation_performed, false);
 assert.equal(planned.signing_performed, false);
 assert.equal(planned.transaction_broadcast_performed, false);
@@ -328,6 +330,45 @@ await expectHeld("insufficient_native_balance_for_erc20_gas", {
   transportValues: { balance: "0x89543f" },
   expectedCalls: 5,
 });
+
+const latestSufficientPendingInsufficientCalls: Array<{
+  method: string;
+  params: unknown[];
+}> = [];
+const latestSufficientPendingInsufficient =
+  await runBuyVoidErc20TransactionPreparationPlannerV1({
+    attempt: attempt(),
+    policy: policy(),
+    transport: async (call) => {
+      latestSufficientPendingInsufficientCalls.push({
+        method: call.method,
+        params: [...call.params],
+      });
+      if (call.method === "eth_chainId") return "0x802";
+      if (call.method === "eth_getTransactionCount") return "0x7";
+      if (call.method === "eth_gasPrice") return "0x64";
+      if (call.method === "eth_estimateGas") return "0xc350";
+      if (call.method === "eth_getBalance") {
+        return String(call.params[1] || "") === "pending"
+          ? "0x89543f"
+          : "0x989680";
+      }
+      throw new Error(`unexpected method ${call.method}`);
+    },
+  });
+assert.equal(latestSufficientPendingInsufficient.ok, false);
+if (!("reason" in latestSufficientPendingInsufficient)) {
+  throw new Error("mixed-state fixture must hold");
+}
+assert.equal(
+  latestSufficientPendingInsufficient.reason,
+  "insufficient_native_balance_for_erc20_gas",
+);
+assert.deepEqual(
+  latestSufficientPendingInsufficientCalls.at(-1)?.params,
+  [wallet, "pending"],
+);
+
 await expectHeld("reserved_execution_attempt_required", {
   attemptValue: attempt({ status: "prepared" }),
   expectedCalls: 0,
@@ -367,6 +408,11 @@ assert.equal(
 );
 assert.equal(
   VOID_BUY_VOID_ERC20_TRANSACTION_PREPARATION_PLANNER_AUTHORITY_V1
+    .execution_state_tag,
+  "pending",
+);
+assert.equal(
+  VOID_BUY_VOID_ERC20_TRANSACTION_PREPARATION_PLANNER_AUTHORITY_V1
     .filesystem_write,
   false,
 );
@@ -398,6 +444,10 @@ console.log("chain_id=2050");
 console.log("canonical_asset=void_token_erc20");
 console.log("transaction_value_wei=0");
 console.log("pending_nonce_required=true");
+console.log("execution_state=pending");
+console.log("gas_estimate_state=pending");
+console.log("balance_state=pending");
+console.log("latest_sufficient_pending_insufficient_hold=1");
 console.log("exact_transfer_calldata=true");
 console.log("gas_estimate_bound=true");
 console.log("gas_only_native_balance_accounting=true");
