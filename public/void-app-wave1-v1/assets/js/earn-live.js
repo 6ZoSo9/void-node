@@ -304,16 +304,23 @@ const renderEarn = (snapshot) => {
       : '—'
   );
 
+  const lastCreditInvalid =
+    lastCredit.present === true &&
+    lastCredit.available !== true &&
+    lastCredit.invalid_numeric_evidence === true;
+
   setText('[data-earn-last-hour]', rewards.total_display);
   setText(
     '[data-earn-last-credit]',
     lastCredit.available
       ? `+${lastCredit.amount_display} WC · ${lastCredit.task_label}`
-      : 'No credit recorded'
+      : lastCreditInvalid
+        ? `Credit amount unavailable · ${lastCredit.task_label || 'Useful work'}`
+        : 'No credit recorded'
   );
   setText(
     '[data-earn-last-credit-time]',
-    lastCredit.available
+    lastCredit.present === true
       ? formatTime(lastCredit.recorded_at)
       : '—'
   );
