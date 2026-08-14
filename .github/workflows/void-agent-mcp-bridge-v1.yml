@@ -68,14 +68,55 @@ jobs:
           CI_DIFF_CHECKOUT_SHA: ${{ github.sha }}
           CI_DIFF_BASE_REMOTE: ${{ github.server_url }}/${{ github.repository }}.git
           CI_DIFF_HEAD_REMOTE: ${{ github.server_url }}/${{ github.event.pull_request.head.repo.full_name || github.repository }}.git
-        run: bash scripts/ci_diff_hygiene_v1.sh
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          DIFF_EVIDENCE="$(bash scripts/ci_diff_hygiene_v1.sh)"
+          printf '%s\n' "$DIFF_EVIDENCE"
+
+          mapfile -t MCP_BASES < <(
+            printf '%s\n' "$DIFF_EVIDENCE" \
+              | sed -n 's/^base_sha=\([0-9a-f]\{40\}\)$/\1/p'
+          )
+          test "${#MCP_BASES[@]}" -eq 1
+          printf 'VOID_MCP_BASE_REF=%s\n' "${MCP_BASES[0]}" >> "$GITHUB_ENV"
+
+      - name: Prove stale event base cannot drive MCP authority
+        if: github.event_name == 'pull_request'
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          integration_base="1111111111111111111111111111111111111111"
+          stale_event_base="2222222222222222222222222222222222222222"
+          fixture="$({
+            printf 'base_sha=%s\n' "$integration_base"
+            printf 'event_base_sha=%s\n' "$stale_event_base"
+            printf 'integration_base_from_checkout=true\n'
+            printf 'event_base_matches_integration_base=false\n'
+          })"
+
+          mapfile -t fixture_bases < <(
+            printf '%s\n' "$fixture" \
+              | sed -n 's/^base_sha=\([0-9a-f]\{40\}\)$/\1/p'
+          )
+          test "${#fixture_bases[@]}" -eq 1
+          test "${fixture_bases[0]}" = "$integration_base"
+          test "${fixture_bases[0]}" != "$stale_event_base"
+
+          workflow=".github/workflows/void-agent-mcp-bridge-v1.yml"
+          forbidden='VOID_MCP_BASE_REF: $'
+          forbidden+='{{ github.event.pull_request.base.sha }}'
+          ! grep -F "$forbidden" "$workflow"
+          grep -F 'printf '\''VOID_MCP_BASE_REF=%s\n'\''' "$workflow"
 
       - name: Typecheck, build, and test both protocol eras
         run: npm --prefix integrations/mcp run check
 
       - name: Prove repository and authority boundaries
         env:
-          VOID_MCP_BASE_REF: ${{ github.event.pull_request.base.sha }}
+          VOID_MCP_EVENT_BASE_REF: ${{ github.event.pull_request.base.sha }}
         run: >-
           npx --no-install tsx
           scripts/prove_void_agent_mcp_bridge_v1.ts
