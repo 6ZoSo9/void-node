@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
-import { cpSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { cpSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { spawnSync } from 'node:child_process';
@@ -77,6 +77,12 @@ function assertNoDedicatedRemote(repo) {
   const push = run(repo, 'git', ['config', '--local', '--get-all', `remote.${PUBLIC_FETCH_REMOTE_V1}.pushurl`], 1);
   assert.equal(fetch.stdout, '');
   assert.equal(push.stdout, '');
+}
+
+function assertPrivateReceipt(path, expected) {
+  const receipt = JSON.parse(readFileSync(path, 'utf8'));
+  assert.deepEqual(receipt, expected);
+  assert.equal(statSync(path).mode & 0o777, 0o600);
 }
 
 const repos = [];
@@ -198,8 +204,10 @@ try {
   const cliRepo = makeRepo();
   repos.push(cliRepo);
   const tool = new URL('../tools/void-node-fleet-public-fetch-transport-v1.mjs', import.meta.url).pathname;
-  const dry = run(process.cwd(), process.execPath, [tool, '--repo', cliRepo]);
+  const dryOutput = join(configRoot, 'cli-dry-run-result.json');
+  const dry = run(process.cwd(), process.execPath, [tool, '--repo', cliRepo, '--output', dryOutput]);
   const dryResult = JSON.parse(dry.stdout);
+  assertPrivateReceipt(dryOutput, dryResult);
   assert.equal(dry.stdout.includes('git@github.com'), false);
   assert.equal(dry.stdout.includes('example.invalid'), false);
   assert.equal(dry.stdout.includes(cliRepo), false);
@@ -208,6 +216,12 @@ try {
   assert.equal(dryResult.mutation_attempted, false);
   assert.equal(dryResult.authority.git_fetch, false);
   const cliPlanId = dryResult.plan.plan_id_sha256;
+  const dryBytes = readFileSync(dryOutput);
+
+  const duplicateOutput = run(process.cwd(), process.execPath, [tool, '--repo', cliRepo, '--output', dryOutput], 2);
+  assert.equal(JSON.parse(duplicateOutput.stdout).outcome, 'HOLD');
+  assert.deepEqual(readFileSync(dryOutput), dryBytes);
+  assert.equal(inspectRepositoryTransportV1(cliRepo).dedicated_state, 'MISSING');
 
   const badConfirm = run(process.cwd(), process.execPath, [
     tool, '--repo', cliRepo, '--apply', '--confirm-operation', 'WRONG', '--confirm-plan-id', cliPlanId,
@@ -215,15 +229,27 @@ try {
   assert.equal(JSON.parse(badConfirm.stdout).outcome, 'HOLD');
   assert.equal(inspectRepositoryTransportV1(cliRepo).dedicated_state, 'MISSING');
 
+  const applyOutput = join(configRoot, 'cli-apply-result.json');
   const appliedCli = run(process.cwd(), process.execPath, [
-    tool, '--repo', cliRepo, '--apply',
+    tool, '--repo', cliRepo, '--output', applyOutput, '--apply',
     '--confirm-operation', VOID_NODE_FLEET_PUBLIC_FETCH_TRANSPORT_APPLY_V1,
     '--confirm-plan-id', cliPlanId,
   ]);
   const appliedResult = JSON.parse(appliedCli.stdout);
+  assertPrivateReceipt(applyOutput, appliedResult);
   assert.equal(appliedResult.outcome, 'TRANSPORT_CONFIGURED');
   assert.equal(appliedResult.authority.git_config_mutation_attempted, true);
   assert.equal(appliedResult.authority.git_fetch, false);
+  assert.equal(git(cliRepo, 'remote', 'get-url', '--all', PUBLIC_FETCH_REMOTE_V1), PUBLIC_FETCH_URL_V1);
+  assert.equal(git(cliRepo, 'remote', 'get-url', '--push', PUBLIC_FETCH_REMOTE_V1), PUBLIC_PUSH_URL_V1);
+
+  const alignedOutput = join(configRoot, 'cli-aligned-result.json');
+  const alignedCli = run(process.cwd(), process.execPath, [tool, '--repo', cliRepo, '--output', alignedOutput]);
+  const alignedResult = JSON.parse(alignedCli.stdout);
+  assertPrivateReceipt(alignedOutput, alignedResult);
+  assert.equal(alignedResult.outcome, 'ALREADY_ALIGNED');
+  assert.equal(alignedResult.mutation_attempted, false);
+  assert.equal(alignedResult.authority.git_fetch, false);
 
   const toolSource = readFileSync(tool, 'utf8');
   assert.equal(toolSource.includes("spawnSync('systemctl'"), false);
@@ -241,6 +267,9 @@ try {
   console.log('non_local_dedicated_config_rejected=true');
   console.log('selected_worktree_identity_bound=true');
   console.log('cross_clone_plan_reuse_rejected=true');
+  console.log('operator_receipt_mode_0600=true');
+  console.log('operator_receipt_create_only=true');
+  console.log('operator_cli_journey_proven=true');
   console.log('dirty_worktree_preserved=true');
   console.log('origin_preserved=true');
   console.log('refs_preserved=true');
