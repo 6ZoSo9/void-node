@@ -27,6 +27,15 @@ const transactionPreparationPlannerText = fs.readFileSync(
   ),
   "utf8",
 );
+const dependencyBootstrapGateText = fs.readFileSync(
+  path.join(
+    root,
+    "src",
+    "economic",
+    "buy_void_erc20_delivery_dependency_bootstrap_integration_gate_v1.ts",
+  ),
+  "utf8",
+);
 const workflowText = fs.readFileSync(
   path.join(root, ".github", "workflows", "buy-void-runtime-integration-v1.yml"),
   "utf8",
@@ -72,7 +81,8 @@ for (const marker of [
   "VOID_BUY_VOID_ERC20_DELIVERY_DEPENDENCY_BOOTSTRAP_INTEGRATION_GATE_V1",
   "VOID_BUY_VOID_ERC20_DELIVERY_DEPENDENCY_BOOTSTRAP_INTEGRATION_V1",
   "canonical_erc20_delivery_dependency_bootstrap_ready:",
-  "canonical_delivery_runtime_activation_not_ready",
+  "erc20_transaction_preparation_execution_state_ready:",
+  "canonical_erc20_transaction_preparation_execution_state_ready:",
   "canonical_erc20_delivery_atomic_unit_conversion_ready: true",
   "canonical_erc20_delivery_execution_ready: false",
   "canonical_erc20_delivery_execution_held: true",
@@ -102,6 +112,30 @@ for (const marker of [
 ]) {
   need(moduleText.includes(marker), `missing runtime marker: ${marker}`);
 }
+
+for (const marker of [
+  "erc20_transaction_preparation_execution_state_ready: false",
+  '"erc20_transaction_preparation_execution_state_not_ready"',
+  '"canonical_delivery_runtime_activation_not_ready"',
+  "next_funding_blocker:",
+]) {
+  need(
+    dependencyBootstrapGateText.includes(marker),
+    `missing planner execution-state HOLD marker: ${marker}`,
+  );
+}
+need(
+  transactionPreparationPlannerText.includes(
+    '[policy.fulfillment_wallet_address, "pending"]',
+  ),
+  "planner no longer selects pending nonce; update status truth atomically",
+);
+need(
+  transactionPreparationPlannerText.includes(
+    '[policy.fulfillment_wallet_address, "latest"]',
+  ),
+  "planner latest-balance defect changed; update status truth atomically",
+);
 
 need(
   !moduleText.includes(
@@ -241,6 +275,7 @@ console.log("canonical_delivery_asset=void_token_erc20");
 console.log("canonical_erc20_delivery_parent_mount=0");
 console.log("erc20_atomic_unit_conversion_ready=1");
 console.log("erc20_transaction_preparation_bridge_ready=1");
+console.log("erc20_transaction_preparation_execution_state_ready=0");
 console.log("canonical_delivery_dependency_bootstrap_ready=1");
 console.log("native_parent_mounts=0");
 console.log("bounded_orchestrator_parent_mount=0");

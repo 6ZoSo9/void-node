@@ -157,6 +157,11 @@ assert.equal(
 );
 assert.equal(
   parentStatus.body.canonical_delivery
+    .erc20_transaction_preparation_execution_state_ready,
+  false,
+);
+assert.equal(
+  parentStatus.body.canonical_delivery
     .erc20_receipt_reconciliation_bridge_ready,
   true,
 );
@@ -167,6 +172,7 @@ assert.equal(
 assert.deepEqual(
   parentStatus.body.canonical_delivery.funding_blockers,
   [
+    "erc20_transaction_preparation_execution_state_not_ready",
     "canonical_delivery_runtime_activation_not_ready",
   ],
 );
@@ -205,6 +211,17 @@ assert.equal(
   parentStatus.body.canonical_delivery
     .dependency_bootstrap_integration_gate.status,
   "source_ready",
+);
+assert.equal(
+  parentStatus.body.canonical_delivery
+    .dependency_bootstrap_integration_gate
+    .erc20_transaction_preparation_execution_state_ready,
+  false,
+);
+assert.equal(
+  parentStatus.body.canonical_delivery
+    .dependency_bootstrap_integration_gate.next_funding_blocker,
+  "erc20_transaction_preparation_execution_state_not_ready",
 );
 assert.equal(
   parentStatus.body.canonical_delivery
@@ -275,6 +292,7 @@ console.log("native_parent_routes=0");
 console.log("canonical_erc20_delivery_parent_mount=0");
 console.log("erc20_atomic_unit_conversion_ready=1");
 console.log("erc20_transaction_preparation_bridge_ready=1");
+console.log("erc20_transaction_preparation_execution_state_ready=0");
 console.log("canonical_delivery_dependency_bootstrap_ready=1");
 console.log("crash_saga_parent_mount=0");
 console.log("native_transaction_preparation_parent_mount=0");

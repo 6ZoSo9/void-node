@@ -113,6 +113,16 @@ source. It does not import or instantiate this module in the parent and does not
 configure a signer, broadcaster, credential directory, RPC URL, or submission
 guard at runtime.
 
+This source readiness is independent of transaction-preparation execution
+state. Canonical status still reports
+`erc20_transaction_preparation_execution_state_ready=false` and retains the
+explicit `erc20_transaction_preparation_execution_state_not_ready` blocker
+because the current planner mixes pending nonce selection with latest-balance
+spendability and does not explicitly bind gas estimation to the reviewed pending
+state.
+
+The separately owned coherent-pending-state planner repair must close that
+blocker before runtime activation can become the sole remaining prerequisite.
 Runtime parent mounting, production credential binding, service activation,
 execution enablement, inventory funding, and any real transaction remain later
 independent gates.

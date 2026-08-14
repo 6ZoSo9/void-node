@@ -107,6 +107,18 @@ assert.equal(
 );
 assert.equal(
   parentStatus.body.canonical_delivery
+    .erc20_transaction_preparation_execution_state_ready,
+  false,
+);
+assert.deepEqual(
+  parentStatus.body.canonical_delivery.funding_blockers,
+  [
+    "erc20_transaction_preparation_execution_state_not_ready",
+    "canonical_delivery_runtime_activation_not_ready",
+  ],
+);
+assert.equal(
+  parentStatus.body.canonical_delivery
     .dependency_bootstrap_integration_gate.status,
   "source_ready",
 );
@@ -159,6 +171,7 @@ console.log(
 );
 console.log("canonical_erc20_delivery_parent_mount=0");
 console.log("dependency_bootstrap_ready=1");
+console.log("erc20_transaction_preparation_execution_state_ready=0");
 console.log("erc20_atomic_unit_conversion_ready=1");
 console.log("canonical_delivery_execution_ready=0");
 console.log("transaction_broadcast_reachable_from_parent=0");

@@ -56,6 +56,9 @@ export const VOID_BUY_VOID_CANONICAL_DELIVERY_COMPOSITION_V1 = {
   native_transaction_preparation_parent_mounted: false,
   opaque_prepared_transaction_execution_parent_mounted: false,
   erc20_transaction_preparation_bridge_ready: true,
+  erc20_transaction_preparation_execution_state_ready:
+    VOID_BUY_VOID_ERC20_DELIVERY_DEPENDENCY_BOOTSTRAP_INTEGRATION_V1
+      .erc20_transaction_preparation_execution_state_ready,
   erc20_receipt_reconciliation_bridge_ready: true,
   erc20_fulfillment_unit_to_token_atom_scale_ready: true,
   dependency_bootstrap_integration_gate:
@@ -66,9 +69,9 @@ export const VOID_BUY_VOID_CANONICAL_DELIVERY_COMPOSITION_V1 = {
   canonical_delivery_execution_ready: false,
   canonical_delivery_execution_held: true,
   presale_inventory_funding_ready: false,
-  funding_blockers: [
-    "canonical_delivery_runtime_activation_not_ready",
-  ],
+  funding_blockers:
+    VOID_BUY_VOID_ERC20_DELIVERY_DEPENDENCY_BOOTSTRAP_INTEGRATION_V1
+      .funding_blockers,
 } as const;
 
 export const VOID_BUY_VOID_RUNTIME_INTEGRATION_ROUTES_V1 = {
@@ -92,6 +95,9 @@ export const VOID_BUY_VOID_RUNTIME_INTEGRATION_AUTHORITY_V1 = {
   canonical_erc20_delivery_dependency_bootstrap_ready:
     VOID_BUY_VOID_ERC20_DELIVERY_DEPENDENCY_BOOTSTRAP_INTEGRATION_V1
       .canonical_delivery_dependency_bootstrap_ready,
+  canonical_erc20_transaction_preparation_execution_state_ready:
+    VOID_BUY_VOID_ERC20_DELIVERY_DEPENDENCY_BOOTSTRAP_INTEGRATION_V1
+      .erc20_transaction_preparation_execution_state_ready,
   canonical_erc20_delivery_atomic_unit_conversion_ready: true,
   canonical_erc20_delivery_execution_ready: false,
   canonical_erc20_delivery_execution_held: true,

@@ -22,14 +22,19 @@ export const
       "src/economic/buy_void_erc20_chain2050_total_deadline_transport_v1.ts",
     ],
     canonical_delivery_dependency_bootstrap_ready: true,
+    erc20_transaction_preparation_execution_state_ready: false,
     canonical_delivery_runtime_parent_mounted: false,
     canonical_delivery_execution_ready: false,
     canonical_delivery_execution_held: true,
     production_credential_binding_ready: false,
     service_activation_ready: false,
     presale_inventory_funding_ready: false,
-    next_funding_blocker:
+    funding_blockers: [
+      "erc20_transaction_preparation_execution_state_not_ready",
       "canonical_delivery_runtime_activation_not_ready",
+    ],
+    next_funding_blocker:
+      "erc20_transaction_preparation_execution_state_not_ready",
     authority: {
       source_only_contract: true,
       process_environment_read: false,

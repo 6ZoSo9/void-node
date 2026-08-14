@@ -38,6 +38,7 @@ delivery_runtime_source_retained=true
 delivery_runtime_parent_mounted=false
 canonical_delivery_runtime_parent_mounted=false
 canonical_delivery_dependency_bootstrap_ready=true
+erc20_transaction_preparation_execution_state_ready=false
 canonical_delivery_execution_ready=false
 canonical_delivery_execution_held=true
 presale_inventory_funding_ready=false
@@ -71,20 +72,34 @@ signer, broadcaster, transport, or delivery runtime. The canonical delivery
 runtime remains parent-unmounted, signer and broadcaster configuration remain
 absent, and execution remains held.
 
-Closed source gates now include exact 6-decimal fulfillment-unit to 18-decimal
-token-atom scaling, the standalone ERC-20 transaction-preparation planner, the
-exact-transfer receipt reconciler, and the reviewed dependency composition.
-The remaining prerequisite before any runtime mount is a separately reviewed
-server-controlled runtime-activation and production-configuration gate.
+The dependency composition being source-ready does not make transaction
+preparation execution-state-ready. Current source selects the fulfillment-wallet
+nonce from `pending`, estimates gas without an explicit reviewed pending-state
+tag, and checks native gas spendability against `latest`. A preceding pending
+transaction can therefore invalidate the selected pending queue position.
+
+Canonical status consequently retains:
+
+```text
+erc20_transaction_preparation_execution_state_ready=false
+funding_blockers=[
+  erc20_transaction_preparation_execution_state_not_ready,
+  canonical_delivery_runtime_activation_not_ready
+]
+```
+
+Curly's separately owned P0 planner lane must establish one coherent pending
+execution-state perspective before this blocker may be removed. Runtime
+activation and production configuration remain later gates.
 
 ## Funding HOLD
 
 `presale_inventory_funding_ready=false` remains the source of truth.
 
 No presale inventory should be funded into an execution path until the
-remaining canonical runtime-activation and production-configuration gates are
-separately reviewed and authorized. Closing every source gate does not
-authorize funding or execution.
+planner execution-state defect is repaired and the later runtime-activation and
+production-configuration gates are separately reviewed and authorized. Closing
+the dependency source gate does not authorize funding or execution.
 
 ## Authority boundary
 
