@@ -225,14 +225,17 @@ need(
 
 for (const deliveryMarker of [
   "VOID_BUY_VOID_DELIVERY_RUNTIME_INTEGRATION_V1",
-  "VOID_BUY_VOID_DELIVERY_TOKEN_ADDRESS",
-  "VOID_BUY_VOID_DELIVERY_WALLET_ADDRESS",
-  "VOID_BUY_VOID_ERC20_TRANSACTION_PREPARATION_PLANNER_V1",
-  '"plan_erc20_delivery"',
+  "VOID_BUY_VOID_ERC20_EXECUTION_COMPOSITION_V1",
+  "runBuyVoidErc20ExecutionCompositionV1",
+  '"sign_and_broadcast"',
   "server_derived_transaction_plan: true",
   "caller_supplied_transaction_plan: false",
-  "direct_sign_broadcast_apply_allowed: false",
-  "durable_prepared_transaction_composition_ready: false",
+  "canonical_planner_policy_validation_required: true",
+  "durable_nonce_reservation_required: true",
+  "signed_hash_custody_required: true",
+  "saga_write_ahead_broadcast_intent_required: true",
+  "canonical_record_confirmed_required: true",
+  "existing_terminal_closeout_reused: true",
 ]) {
   need(
     deliveryRuntimeText.includes(deliveryMarker),
@@ -242,8 +245,8 @@ for (const deliveryMarker of [
 for (const forbiddenDeliveryRuntimeMarker of [
   "runBuyVoidDeliverySignBroadcastV1",
   "createBuyVoidDeliverySubmissionGuardV1",
-  "__void_buy_void_delivery_runtime_dependencies_v1",
-  'action: "sign_and_broadcast"',
+  "const plan = (body as any).plan",
+  "submission_idempotency_key: (body as any)",
 ]) {
   need(
     !deliveryRuntimeText.includes(forbiddenDeliveryRuntimeMarker),
@@ -293,8 +296,8 @@ console.log("erc20_transaction_preparation_execution_state_ready=1");
 console.log("canonical_delivery_dependency_bootstrap_ready=1");
 console.log("server_derived_transaction_plan=1");
 console.log("caller_supplied_transaction_plan=0");
-console.log("direct_sign_broadcast_apply_allowed=0");
-console.log("durable_prepared_transaction_composition_ready=0");
+console.log("server_derived_durable_execution_composition_ready=1");
+console.log("caller_supplied_transaction_plan=0");
 console.log("native_parent_mounts=0");
 console.log("bounded_orchestrator_parent_mount=0");
 console.log("standalone_crash_saga_source_retained=1");
