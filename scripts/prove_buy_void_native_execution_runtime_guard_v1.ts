@@ -94,6 +94,11 @@ assert.equal(
 );
 assert.equal(
   VOID_BUY_VOID_NATIVE_EXECUTION_NONCE_FEE_PLANNER_AUTHORITY_V1
+    .execution_state_tag,
+  "pending",
+);
+assert.equal(
+  VOID_BUY_VOID_NATIVE_EXECUTION_NONCE_FEE_PLANNER_AUTHORITY_V1
     .transaction_broadcast,
   false,
 );
@@ -171,10 +176,15 @@ for (const marker of [
   '"pending"',
   "eth_gasPrice",
   "eth_getBalance",
-  '"latest"',
+  'execution_state_tag: "pending"',
 ]) {
   assert.equal(planner.includes(marker), true, `planner missing ${marker}`);
 }
+assert.doesNotMatch(
+  planner,
+  /eth_getBalance[\s\S]{0,200}"latest"/,
+  "native balance preflight must not use latest state",
+);
 assert.doesNotMatch(planner, /eth_sendRawTransaction/);
 assert.doesNotMatch(runtime, /eth_sendRawTransaction/);
 assert.doesNotMatch(planner, /https:/);
@@ -242,6 +252,8 @@ assert.match(docs, /Remaining work before a live customer path/);
 assert.match(docs, /disabled-by-default/);
 assert.match(docs, /dry-run while execution remains disabled/);
 assert.match(docs, /one separately confirmed live canary/);
+assert.match(docs, /eth_getBalance` with block tag `pending`/);
+assert.doesNotMatch(docs, /eth_getBalance` with block tag `latest`/);
 
 console.log(
   "VOID_BUY_VOID_NATIVE_EXECUTION_RUNTIME_GUARD_V1_GREEN",
@@ -253,6 +265,8 @@ console.log("disabled_dry_run_allowed=1");
 console.log("disabled_apply_allowed=0");
 console.log("loopback_operator_only=1");
 console.log("read_only_rpc_method_count=4");
+console.log("execution_state=pending");
+console.log("balance_state=pending");
 console.log("startup_execution=0");
 console.log("automatic_retry=0");
 console.log("receipt_wait=0");
