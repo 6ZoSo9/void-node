@@ -101,6 +101,14 @@ export function validateTransitionPolicyV1(node) {
   };
 }
 
+export function selectAuditedNodeV1(audit, selectedNode) {
+  const matches = Array.isArray(audit?.nodes)
+    ? audit.nodes.filter((entry) => entry?.name === selectedNode)
+    : [];
+  if (matches.length !== 1) fail(`selected audit node ${selectedNode} is missing or ambiguous`);
+  return matches[0];
+}
+
 function liveScript(n) {
   const repo = pathExpr(n.repo), svc = q(n.service), remote = q(n.git_remote), http = q(n.http_base);
   return `set -u
@@ -115,12 +123,13 @@ show="$(systemctl --user show "$service" -p ActiveState -p MainPID -p Invocation
 active="$(printf '%s\\n' "$show"|sed -n 's/^ActiveState=//p'|tail -1)"
 pid="$(printf '%s\\n' "$show"|sed -n 's/^MainPID=//p'|tail -1)"
 inv="$(printf '%s\\n' "$show"|sed -n 's/^InvocationID=//p'|tail -1)"
-cwd=""; exe=""; argv=""; pc=""; pt=""; pb=""; prt=""; pa=0
+cwd=""; exe=""; argv_text=""; argv64=""; pc=""; pt=""; pb=""; prt=""; pa=0
 if printf '%s' "$pid"|grep -Eq '^[1-9][0-9]*$'&&test -d "/proc/$pid"; then
  cwd="$(readlink -f -- "/proc/$pid/cwd" 2>/dev/null||true)"
  exe="$(readlink -f -- "/proc/$pid/exe" 2>/dev/null||true)"
- argv="$(tr '\\0' '\\n'<"/proc/$pid/cmdline" 2>/dev/null||true)"
- a="$(printf '%s\\n' "$argv"|sed -n '3p')"; b="$(printf '%s\\n' "$argv"|sed -n '4p')"; c="$(printf '%s\\n' "$argv"|sed -n '5p')"
+ argv_text="$(tr '\\0' '\\n'<"/proc/$pid/cmdline" 2>/dev/null||true)"
+ argv64="$(base64 -w0 < "/proc/$pid/cmdline" 2>/dev/null||true)"
+ a="$(printf '%s\\n' "$argv_text"|sed -n '3p')"; b="$(printf '%s\\n' "$argv_text"|sed -n '4p')"; c="$(printf '%s\\n' "$argv_text"|sed -n '5p')"
  case "$a" in --conditions=void-process-source-commit-*) pc="\${a#--conditions=void-process-source-commit-}";; esac
  case "$b" in --conditions=void-process-source-tree-*) pt="\${b#--conditions=void-process-source-tree-}";; esac
  case "$c" in --conditions=void-process-source-branch-*) pb="\${c#--conditions=void-process-source-branch-}";; esac
@@ -133,8 +142,20 @@ health="$(curl -fsS --max-time 4 "$http/health" 2>/dev/null||true)"
 ready="$(curl -fsS --max-time 4 "$http/__void/ready.json" 2>/dev/null||true)"
 version="$(curl -fsS --max-time 4 "$http/version" 2>/dev/null||true)"
 peer="$(curl -fsS --max-time 4 "$http/p2p/peers" 2>/dev/null||curl -fsS --max-time 4 "$http/peers" 2>/dev/null||true)"
-printf 'repo_real\\t%s\\nhead\\t%s\\nbranch\\t%s\\nstatus\\t%s\\nremote\\t%s\\nshallow\\t%s\\nactive\\t%s\\npid\\t%s\\ninv\\t%s\\ncwd\\t%s\\nexe\\t%s\\nargv\\t%s\\npc\\t%s\\npt\\t%s\\npb\\t%s\\nprt\\t%s\\npa\\t%s\\nhealth\\t%s\\nready\\t%s\\nversion\\t%s\\npeer\\t%s\\n' "$repo_real" "$head" "$branch" "$(printf %s "$status"|base64 -w0)" "$remote_url" "$shallow" "$active" "$pid" "$inv" "$cwd" "$exe" "$(printf %s "$argv"|base64 -w0)" "$pc" "$pt" "$pb" "$prt" "$pa" "$(printf %s "$health"|base64 -w0)" "$(printf %s "$ready"|base64 -w0)" "$(printf %s "$version"|base64 -w0)" "$(printf %s "$peer"|base64 -w0)"
+printf 'repo_real\\t%s\\nhead\\t%s\\nbranch\\t%s\\nstatus\\t%s\\nremote\\t%s\\nshallow\\t%s\\nactive\\t%s\\npid\\t%s\\ninv\\t%s\\ncwd\\t%s\\nexe\\t%s\\nargv\\t%s\\npc\\t%s\\npt\\t%s\\npb\\t%s\\nprt\\t%s\\npa\\t%s\\nhealth\\t%s\\nready\\t%s\\nversion\\t%s\\npeer\\t%s\\n' "$repo_real" "$head" "$branch" "$(printf %s "$status"|base64 -w0)" "$remote_url" "$shallow" "$active" "$pid" "$inv" "$cwd" "$exe" "$argv64" "$pc" "$pt" "$pb" "$prt" "$pa" "$(printf %s "$health"|base64 -w0)" "$(printf %s "$ready"|base64 -w0)" "$(printf %s "$version"|base64 -w0)" "$(printf %s "$peer"|base64 -w0)"
 `;
+}
+
+function parseProcessArgvV1(value) {
+  try {
+    const bytes = Buffer.from(value || "", "base64");
+    if (bytes.length === 0 || bytes[bytes.length - 1] !== 0) return null;
+    const text = bytes.subarray(0, bytes.length - 1).toString("utf8");
+    if (text.includes("\uFFFD")) return null;
+    return text.split("\0");
+  } catch {
+    return null;
+  }
 }
 
 export function parseLiveInspectionV1(out) {
@@ -144,7 +165,7 @@ export function parseLiveInspectionV1(out) {
     repo_real: f.get("repo_real") || "", head: f.get("head") || "", branch: f.get("branch") || "", dirty_count: status === "" ? 0 : -1,
     remote_url: f.get("remote") || "", shallow: f.get("shallow") === "true", service_active: f.get("active") === "active",
     main_pid: Number(f.get("pid")) || 0, invocation_id: f.get("inv") || "", process_cwd: f.get("cwd") || "",
-    process_executable: f.get("exe") || "", process_argv: text64(f.get("argv")).split(/\r?\n/).filter(Boolean),
+    process_executable: f.get("exe") || "", process_argv: parseProcessArgvV1(f.get("argv")),
     process_source_commit: f.get("pc") || "", process_source_tree: f.get("pt") || "", process_source_branch: f.get("pb") || "",
     process_source_resolved_tree: f.get("prt") || "", process_source_ancestor_of_head: f.get("pa") === "1",
     health: h, readiness: r, version: v, peer_count: peerCount(p),
@@ -301,7 +322,7 @@ export async function main(argv=process.argv.slice(2)) {
   const raw=readJson(a.config),c=validateFleetConfigV1(raw,a.node),audit=readJson(a.audit);
   if(raw.nodes.length<3||audit.nodes?.length!==raw.nodes.length||stable(raw.nodes.map(n=>n.name))!==stable(audit.nodes.map(n=>n.name)))fail("full configured fleet audit required");
   if((Date.now()-statSync(a.audit).mtimeMs)/1000>a.maxAge)fail("audit stale");
-  const facts=validateFleetAuditV1(audit,c,a.node),policy=validateTransitionPolicyV1(facts.node);
+  const facts=validateFleetAuditV1(audit,c,a.node),auditedNode=selectAuditedNodeV1(audit,a.node),policy=validateTransitionPolicyV1(auditedNode);
   const remoteBefore=readRemoteMainV1(c);if(remoteBefore!==facts.to_sha)fail("remote main moved");
   let r=tx(c.node,liveScript(c.node));if(!r.ok)fail("live inspection failed");const liveBefore=parseLiveInspectionV1(r.stdout);validateLiveInspectionV1(liveBefore,c,facts.from_sha);
   r=tx(c.node,stageScript(c.node,a.stage),180000);if(!r.ok)fail("stage proof transport failed");const stage=parseStageInspectionV1(r.stdout);validateStageInspectionV1(stage,facts.to_sha);
