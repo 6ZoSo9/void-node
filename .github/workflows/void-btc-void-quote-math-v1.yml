@@ -7,6 +7,7 @@ on:
       - "docs/public/btc-void-quote-math-v1.md"
       - "scripts/prove_void_btc_void_quote_math_v1.mjs"
       - "tools/void-btc-void-quote-math-v1.mjs"
+      - "tools/void-btc-void-atomic-settlement-state-invariants-v1.mjs"
   push:
     branches:
       - main
@@ -15,6 +16,7 @@ on:
       - "docs/public/btc-void-quote-math-v1.md"
       - "scripts/prove_void_btc_void_quote_math_v1.mjs"
       - "tools/void-btc-void-quote-math-v1.mjs"
+      - "tools/void-btc-void-atomic-settlement-state-invariants-v1.mjs"
 
 permissions:
   contents: read
