@@ -38,27 +38,35 @@ not contain or create `node_modules`; all three proofs must leave it clean.
 
 ## Transition boundary
 
-V1 rejects any transition containing:
+V1 uses an explicit default-deny admission policy. Only the following exact
+deployed-pin-to-target paths may differ:
 
-- `package.json`, `package-lock.json`, `Dockerfile`, `.nvmrc`, or `tsconfig*`;
-- `contracts/**` or `config/**`;
-- `integrations/**` except the exact sealed Agent SDK distribution:
+- reviewed support/evidence files:
+  - `.ci/VCL_LICENSE.txt`
+  - `LICENSE`
+  - `ops/coordination/worker-coordination-state-v3.json`
+  - `public/void-app-wave1-v1/assets/css/site-theme.css`
+  - `scripts/prove_void_p2p_udp_swarm_public_relay_introduction_collector_v1.ts`
+  - `tools/void-worker-coordination-v3.mjs`
+- the exact sealed Agent SDK distribution:
   - `integrations/agents/void-agent-sdk-v1/LICENSE`
   - `integrations/agents/void-agent-sdk-v1/README.md`
   - `integrations/agents/void-agent-sdk-v1/cli.mjs`
   - `integrations/agents/void-agent-sdk-v1/index.mjs`
   - `integrations/agents/void-agent-sdk-v1/integrity.json`
   - `integrations/agents/void-agent-sdk-v1/package.json`
-- `ops/**` outside `ops/coordination/**`;
-- non-proof `scripts/**`; or
-- any changed `src/**` path except:
+- the two reviewed runtime files:
   - `src/p2p/udp_swarm_node_runtime_mount_v1.ts`
   - `src/p2p/udp_swarm_public_relay_introduction_collector_v1.ts`
 
-Nimo may have zero remaining `src/**` delta if those reviewed files already
-exist at its current source head.
+Every other path is rejected, including unknown root files, `release/**`,
+unknown top-level directories, extra `public/**` or `tools/**` paths, and
+unlisted files within an otherwise reviewed family. A future target that changes
+the admitted set requires a separately reviewed source update before the
+planner can return ready.
 
-No other Agent SDK path and no other `integrations/**` path is accepted.
+Nimo may have zero remaining runtime-file delta if the two reviewed files
+already exist at its current source head.
 
 ## Output
 

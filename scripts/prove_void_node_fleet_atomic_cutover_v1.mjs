@@ -33,14 +33,29 @@ assert.deepEqual(policy.runtime_core_paths,[
   "src/p2p/udp_swarm_public_relay_introduction_collector_v1.ts",
 ]);
 assert.deepEqual(policy.sealed_agent_sdk_distribution_files,sealedSdk);
+assert.deepEqual(policy.transition_path_class_counts,{
+  reviewed_support:6,
+  runtime_core:2,
+  sealed_agent_sdk_distribution:6,
+});
+assert.equal(
+  Object.values(policy.transition_path_class_counts).reduce((sum,count)=>sum+count,0),
+  paths.length,
+);
 assert.deepEqual(validateTransitionPolicyV1({comparison:{changed_paths:paths.filter(p=>!p.startsWith("src/"))}}).runtime_core_paths,[]);
 for(const bad of [
+  "index.ts","release/bin/void-node","unknown/deploy.sh",
+  "public/void-app-wave1-v1/assets/js/extra.js","tools/extra.mjs",
   "package.json","package-lock.json","Dockerfile","tsconfig.json","ops/install-void-node-live-user-service-v1.sh",
   "scripts/run_void_public_bootstrap_supervisor_v1.mjs","contracts/Foo.sol","config/mainnet.json","integrations/a.mjs",
   "integrations/agents/void-agent-sdk-v1/extra.mjs","integrations/agents/another-sdk/index.mjs","src/index.ts",
 ]){
-  assert.throws(()=>validateTransitionPolicyV1({comparison:{changed_paths:[...paths,bad]}}),/broader deployment|required|unreviewed runtime/);
+  assert.throws(()=>validateTransitionPolicyV1({comparison:{changed_paths:[...paths,bad]}}),/unreviewed transition path/);
 }
+assert.throws(
+  ()=>validateTransitionPolicyV1({comparison:{changed_paths:[paths[0],paths[0]]}}),
+  /changed-path evidence invalid/,
+);
 
 const c={node:{name:"precision",transport:"local",repo:"/tmp/live",service:"void-node-live.service",http_base:"http://127.0.0.1:4100",min_peers:1,expected_remote_url:"https://github.com/6ZoSo9/void-node.git",git_remote:"origin",ssh_target:null}};
 const live=parseLiveInspectionV1([
@@ -94,6 +109,8 @@ console.log("live_process_identity_required=1");
 console.log("stage_runtime_proofs=3");
 console.log(`sealed_sdk_distribution_files=${sealedSdk.length}`);
 console.log("arbitrary_integrations_allowed=0");
+console.log("transition_policy_default_deny=1");
+console.log(`reviewed_transition_paths=${paths.length}`);
 console.log("stage_node_modules_mutation_required=0");
 console.log("mutation_authority_granted=0");
 console.log("automatic_retry=0");

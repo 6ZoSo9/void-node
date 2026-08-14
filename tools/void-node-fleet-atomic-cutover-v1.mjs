@@ -18,6 +18,14 @@ const SHA40 = /^[0-9a-f]{40}$/;
 const INV = /^[0-9a-f]{32}$/;
 const NAME = /^[a-z0-9][a-z0-9._-]{0,63}$/i;
 const MAX = 4 * 1024 * 1024;
+const REVIEWED_SUPPORT_PATHS_V1 = new Set([
+  ".ci/VCL_LICENSE.txt",
+  "LICENSE",
+  "ops/coordination/worker-coordination-state-v3.json",
+  "public/void-app-wave1-v1/assets/css/site-theme.css",
+  "scripts/prove_void_p2p_udp_swarm_public_relay_introduction_collector_v1.ts",
+  "tools/void-worker-coordination-v3.mjs",
+]);
 const RUNTIME_V1 = new Set([
   "src/p2p/udp_swarm_node_runtime_mount_v1.ts",
   "src/p2p/udp_swarm_public_relay_introduction_collector_v1.ts",
@@ -69,25 +77,24 @@ const write0600 = (f, v) => { const fd = openSync(f, "wx", 0o600); try { writeFi
 export function validateTransitionPolicyV1(node) {
   const paths = node?.comparison?.changed_paths;
   if (!Array.isArray(paths)) fail("changed-path evidence missing");
-  const runtime = [], sealedSdk = [];
+  const runtime = [], sealedSdk = [], support = [], seen = new Set();
   for (const p of paths) {
-    if (
-      ["package.json", "package-lock.json", "Dockerfile", ".nvmrc"].includes(p) ||
-      p.startsWith("tsconfig") || p.startsWith("contracts/") || p.startsWith("config/") ||
-      (p.startsWith("integrations/") && !SEALED_AGENT_SDK_DISTRIBUTION_V1.has(p)) ||
-      (p.startsWith("ops/") && !p.startsWith("ops/coordination/")) ||
-      (p.startsWith("scripts/") && !p.startsWith("scripts/prove_"))
-    ) fail(`broader deployment required by ${p}`);
-    if (SEALED_AGENT_SDK_DISTRIBUTION_V1.has(p)) sealedSdk.push(p);
-    if (p.startsWith("src/")) {
-      if (!RUNTIME_V1.has(p)) fail(`unreviewed runtime path ${p}`);
-      runtime.push(p);
-    }
+    if (typeof p !== "string" || seen.has(p)) fail("changed-path evidence invalid");
+    seen.add(p);
+    if (REVIEWED_SUPPORT_PATHS_V1.has(p)) support.push(p);
+    else if (SEALED_AGENT_SDK_DISTRIBUTION_V1.has(p)) sealedSdk.push(p);
+    else if (RUNTIME_V1.has(p)) runtime.push(p);
+    else fail(`unreviewed transition path ${p}`);
   }
   return {
     changed_path_count: paths.length,
     runtime_core_paths: runtime.sort(),
     sealed_agent_sdk_distribution_files: sealedSdk.sort(),
+    transition_path_class_counts: {
+      reviewed_support: support.length,
+      runtime_core: runtime.length,
+      sealed_agent_sdk_distribution: sealedSdk.length,
+    },
   };
 }
 
