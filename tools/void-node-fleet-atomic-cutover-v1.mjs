@@ -115,7 +115,7 @@ show="$(systemctl --user show "$service" -p ActiveState -p MainPID -p Invocation
 active="$(printf '%s\\n' "$show"|sed -n 's/^ActiveState=//p'|tail -1)"
 pid="$(printf '%s\\n' "$show"|sed -n 's/^MainPID=//p'|tail -1)"
 inv="$(printf '%s\\n' "$show"|sed -n 's/^InvocationID=//p'|tail -1)"
-cwd=""; exe=""; argv=""; pc=""; pt=""; pb=""
+cwd=""; exe=""; argv=""; pc=""; pt=""; pb=""; prt=""; pa=0
 if printf '%s' "$pid"|grep -Eq '^[1-9][0-9]*$'&&test -d "/proc/$pid"; then
  cwd="$(readlink -f -- "/proc/$pid/cwd" 2>/dev/null||true)"
  exe="$(readlink -f -- "/proc/$pid/exe" 2>/dev/null||true)"
@@ -124,12 +124,16 @@ if printf '%s' "$pid"|grep -Eq '^[1-9][0-9]*$'&&test -d "/proc/$pid"; then
  case "$a" in --conditions=void-process-source-commit-*) pc="\${a#--conditions=void-process-source-commit-}";; esac
  case "$b" in --conditions=void-process-source-tree-*) pt="\${b#--conditions=void-process-source-tree-}";; esac
  case "$c" in --conditions=void-process-source-branch-*) pb="\${c#--conditions=void-process-source-branch-}";; esac
+ if printf '%s' "$pc"|grep -Eq '^[0-9a-f]{40}$'; then
+  prt="$(git -C "$repo" rev-parse "$pc^{tree}" 2>/dev/null||true)"
+  git -C "$repo" merge-base --is-ancestor "$pc" "$head" >/dev/null 2>&1&&pa=1
+ fi
 fi
 health="$(curl -fsS --max-time 4 "$http/health" 2>/dev/null||true)"
 ready="$(curl -fsS --max-time 4 "$http/__void/ready.json" 2>/dev/null||true)"
 version="$(curl -fsS --max-time 4 "$http/version" 2>/dev/null||true)"
 peer="$(curl -fsS --max-time 4 "$http/p2p/peers" 2>/dev/null||curl -fsS --max-time 4 "$http/peers" 2>/dev/null||true)"
-printf 'repo_real\\t%s\\nhead\\t%s\\nbranch\\t%s\\nstatus\\t%s\\nremote\\t%s\\nshallow\\t%s\\nactive\\t%s\\npid\\t%s\\ninv\\t%s\\ncwd\\t%s\\nexe\\t%s\\nargv\\t%s\\npc\\t%s\\npt\\t%s\\npb\\t%s\\nhealth\\t%s\\nready\\t%s\\nversion\\t%s\\npeer\\t%s\\n' "$repo_real" "$head" "$branch" "$(printf %s "$status"|base64 -w0)" "$remote_url" "$shallow" "$active" "$pid" "$inv" "$cwd" "$exe" "$(printf %s "$argv"|base64 -w0)" "$pc" "$pt" "$pb" "$(printf %s "$health"|base64 -w0)" "$(printf %s "$ready"|base64 -w0)" "$(printf %s "$version"|base64 -w0)" "$(printf %s "$peer"|base64 -w0)"
+printf 'repo_real\\t%s\\nhead\\t%s\\nbranch\\t%s\\nstatus\\t%s\\nremote\\t%s\\nshallow\\t%s\\nactive\\t%s\\npid\\t%s\\ninv\\t%s\\ncwd\\t%s\\nexe\\t%s\\nargv\\t%s\\npc\\t%s\\npt\\t%s\\npb\\t%s\\nprt\\t%s\\npa\\t%s\\nhealth\\t%s\\nready\\t%s\\nversion\\t%s\\npeer\\t%s\\n' "$repo_real" "$head" "$branch" "$(printf %s "$status"|base64 -w0)" "$remote_url" "$shallow" "$active" "$pid" "$inv" "$cwd" "$exe" "$(printf %s "$argv"|base64 -w0)" "$pc" "$pt" "$pb" "$prt" "$pa" "$(printf %s "$health"|base64 -w0)" "$(printf %s "$ready"|base64 -w0)" "$(printf %s "$version"|base64 -w0)" "$(printf %s "$peer"|base64 -w0)"
 `;
 }
 
@@ -142,6 +146,7 @@ export function parseLiveInspectionV1(out) {
     main_pid: Number(f.get("pid")) || 0, invocation_id: f.get("inv") || "", process_cwd: f.get("cwd") || "",
     process_executable: f.get("exe") || "", process_argv: text64(f.get("argv")).split(/\r?\n/).filter(Boolean),
     process_source_commit: f.get("pc") || "", process_source_tree: f.get("pt") || "", process_source_branch: f.get("pb") || "",
+    process_source_resolved_tree: f.get("prt") || "", process_source_ancestor_of_head: f.get("pa") === "1",
     health: h, readiness: r, version: v, peer_count: peerCount(p),
   };
 }
@@ -170,6 +175,7 @@ export function validateLiveInspectionV1(l, c, old) {
     resolve(l.repo_real || "/") !== repo || resolve(l.process_cwd || "/") !== repo ||
     !["node", "nodejs"].includes(basename(l.process_executable || "")) ||
     l.process_source_commit !== old || !SHA40.test(l.process_source_tree) || l.process_source_branch !== "main" ||
+    l.process_source_resolved_tree !== l.process_source_tree || l.process_source_ancestor_of_head !== true ||
     stable(l.process_argv) !== stable(expectedProcessArgvV1(l, repo)) ||
     processSource?.marker !== PROCESS_SOURCE_MARKER || processSource?.commit !== old ||
     processSource?.tree !== l.process_source_tree || processSource?.branch !== "main" || processSource?.immutable !== true ||
