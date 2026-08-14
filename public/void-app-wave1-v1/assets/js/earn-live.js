@@ -21,10 +21,8 @@ const setChip = (node, tone, label) => {
 };
 
 const formatNumber = (value) => {
-  const number = Number(value);
-
-  return Number.isFinite(number)
-    ? number.toLocaleString('en-US', {
+  return typeof value === 'number' && Number.isFinite(value)
+    ? value.toLocaleString('en-US', {
         maximumFractionDigits: 9,
       })
     : '—';
@@ -46,7 +44,10 @@ const formatTime = (value) => {
 };
 
 const sourceLabel = (source) => {
-  const status = Number(source?.status ?? 0);
+  const status =
+    typeof source?.status === 'number' && Number.isFinite(source.status)
+      ? source.status
+      : 0;
 
   return status === 200
     ? 'Available'
@@ -164,7 +165,8 @@ const renderHistory = (selector, emptySelector, items, kind) => {
     chip.className =
       `status-chip status-chip--${toneForStatus(item?.status)}`;
     chip.textContent =
-      Number.isFinite(Number(item?.reward_wc))
+      typeof item?.reward_wc === 'number' &&
+      Number.isFinite(item.reward_wc)
         ? `+${formatNumber(item.reward_wc)} WC`
         : item?.result_label || item?.status_label || 'Recorded';
 
@@ -296,8 +298,9 @@ const renderEarn = (snapshot) => {
   );
   setText(
     '[data-earn-task-need]',
-    Number.isFinite(Number(availableWork.network_need_score))
-      ? Number(availableWork.network_need_score).toFixed(2)
+    typeof availableWork.network_need_score === 'number' &&
+      Number.isFinite(availableWork.network_need_score)
+      ? availableWork.network_need_score.toFixed(2)
       : '—'
   );
 
