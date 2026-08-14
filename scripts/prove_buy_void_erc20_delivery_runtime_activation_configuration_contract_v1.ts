@@ -7,48 +7,50 @@ import {
 } from "../src/economic/buy_void_erc20_delivery_runtime_activation_configuration_contract_v1.js";
 
 const root = process.cwd();
-const contractPath = path.join(
-  root,
-  "src/economic/buy_void_erc20_delivery_runtime_activation_configuration_contract_v1.ts",
-);
-const runtimePath = path.join(
-  root,
-  "src/economic/buy_void_delivery_runtime_integration_v1.ts",
-);
-const dependencyPath = path.join(
-  root,
-  "src/economic/buy_void_erc20_delivery_dependency_bootstrap_v1.ts",
-);
-const signerPath = path.join(
-  root,
-  "src/economic/buy_void_native_fulfillment_wallet_credential_signer_v1.ts",
-);
-const dependencyGatePath = path.join(
-  root,
-  "src/economic/buy_void_erc20_delivery_dependency_bootstrap_integration_gate_v1.ts",
-);
-const parentPath = path.join(
-  root,
-  "src/economic/buy_void_runtime_integration_v1.ts",
-);
-
-for (const file of [
-  contractPath,
-  runtimePath,
-  dependencyPath,
-  signerPath,
-  dependencyGatePath,
-  parentPath,
-]) {
+const paths = {
+  contract: path.join(
+    root,
+    "src/economic/buy_void_erc20_delivery_runtime_activation_configuration_contract_v1.ts",
+  ),
+  runtime: path.join(
+    root,
+    "src/economic/buy_void_delivery_runtime_integration_v1.ts",
+  ),
+  planner: path.join(
+    root,
+    "src/economic/buy_void_erc20_transaction_preparation_planner_v1.ts",
+  ),
+  dependency: path.join(
+    root,
+    "src/economic/buy_void_erc20_delivery_dependency_bootstrap_v1.ts",
+  ),
+  signer: path.join(
+    root,
+    "src/economic/buy_void_native_fulfillment_wallet_credential_signer_v1.ts",
+  ),
+  dependencyGate: path.join(
+    root,
+    "src/economic/buy_void_erc20_delivery_dependency_bootstrap_integration_gate_v1.ts",
+  ),
+  parent: path.join(
+    root,
+    "src/economic/buy_void_runtime_integration_v1.ts",
+  ),
+};
+for (const file of Object.values(paths)) {
   assert.equal(fs.existsSync(file), true, `missing ${file}`);
 }
 
-const contractSource = fs.readFileSync(contractPath, "utf8");
-const runtimeSource = fs.readFileSync(runtimePath, "utf8");
-const dependencySource = fs.readFileSync(dependencyPath, "utf8");
-const signerSource = fs.readFileSync(signerPath, "utf8");
-const dependencyGateSource = fs.readFileSync(dependencyGatePath, "utf8");
-const parentSource = fs.readFileSync(parentPath, "utf8");
+const contractSource = fs.readFileSync(paths.contract, "utf8");
+const runtimeSource = fs.readFileSync(paths.runtime, "utf8");
+const plannerSource = fs.readFileSync(paths.planner, "utf8");
+const dependencySource = fs.readFileSync(paths.dependency, "utf8");
+const signerSource = fs.readFileSync(paths.signer, "utf8");
+const dependencyGateSource = fs.readFileSync(
+  paths.dependencyGate,
+  "utf8",
+);
+const parentSource = fs.readFileSync(paths.parent, "utf8");
 const contract =
   VOID_BUY_VOID_ERC20_DELIVERY_RUNTIME_ACTIVATION_CONFIGURATION_V1;
 
@@ -87,7 +89,7 @@ assert.equal(
 );
 assert.equal(
   contract.next_gate,
-  "production_configuration_verification_and_runtime_mount_authorization",
+  "erc20_durable_prepared_transaction_composition",
 );
 
 assert.deepEqual(
@@ -102,27 +104,60 @@ assert.deepEqual(
     "VOID_BUY_VOID_DELIVERY_MAX_PRIORITY_FEE_PER_GAS_WEI",
   ],
 );
+assert.deepEqual(
+  contract.runtime_configuration_contract.caller_input_keys,
+  ["action", "attempt_id"],
+);
+assert.equal(
+  contract.runtime_configuration_contract.planner_rpc_env,
+  "VOID_BUY_VOID_NATIVE_CHAIN2050_RPC_URL",
+);
+assert.equal(
+  contract.runtime_configuration_contract
+    .fixed_planner_gas_limit_multiplier_bps,
+  "12000",
+);
+assert.equal(
+  contract.runtime_configuration_contract
+    .fixed_planner_fee_multiplier_bps,
+  "12000",
+);
+assert.equal(
+  contract.runtime_configuration_contract
+    .canonical_delivery_action,
+  "plan_erc20_delivery",
+);
+assert.equal(
+  contract.runtime_configuration_contract
+    .server_derived_transaction_plan_required,
+  true,
+);
+assert.equal(
+  contract.runtime_configuration_contract
+    .caller_supplied_transaction_plan_forbidden,
+  true,
+);
+assert.equal(
+  contract.runtime_configuration_contract
+    .direct_sign_broadcast_apply_allowed,
+  false,
+);
 
 for (const marker of [
-  `"${contract.runtime_configuration_contract.enable_env}"`,
-  `"${contract.runtime_configuration_contract.root_dir_env}"`,
-  `"${contract.runtime_configuration_contract.dependency_global}"`,
-  ...contract.runtime_configuration_contract.policy_envs.map(
-    (value) => `"${value}"`,
-  ),
-  "server_controlled_root_dir: true",
-  "server_controlled_policy: true",
-  "operator_loopback_only: true",
-  "exact_confirmation_required: true",
-  "durable_submission_guard_required: true",
-  "signer_dependency_injected: true",
-  "broadcaster_dependency_injected: true",
-  "automatic_retry: false",
-  "receipt_wait: false",
-  "background_loop: false",
-  "signing_when_fully_enabled: true",
-  "transaction_broadcast_when_fully_enabled: true",
-  "money_movement_when_fully_enabled: true",
+  '"plan_erc20_delivery"',
+  '"VOID_BUY_VOID_NATIVE_CHAIN2050_RPC_URL"',
+  'const FIXED_GAS_LIMIT_MULTIPLIER_BPS = "12000"',
+  'const FIXED_FEE_MULTIPLIER_BPS = "12000"',
+  "runBuyVoidErc20TransactionPreparationPlannerV1",
+  "reserved_attempt_loaded_from_server_journal: true",
+  "server_derived_transaction_plan: true",
+  "caller_supplied_transaction_plan: false",
+  "coherent_pending_planner_required: true",
+  "read_only_planner_rpc_when_enabled: true",
+  "direct_sign_broadcast_apply_allowed: false",
+  "durable_prepared_transaction_composition_ready: false",
+  '"caller_supplied_runtime_material_forbidden"',
+  '"erc20_durable_prepared_transaction_composition"',
 ]) {
   assert.equal(
     runtimeSource.includes(marker),
@@ -130,18 +165,41 @@ for (const marker of [
     `runtime contract drift: ${marker}`,
   );
 }
+for (const retiredDirectPath of [
+  "runBuyVoidDeliverySignBroadcastV1",
+  "createBuyVoidDeliverySubmissionGuardV1",
+  "__void_buy_void_delivery_runtime_dependencies_v1",
+]) {
+  assert.equal(
+    runtimeSource.includes(retiredDirectPath),
+    false,
+    `unsafe direct execution path retained: ${retiredDirectPath}`,
+  );
+}
 
-assert.equal(
-  runtimeSource.includes(
-    "enabled() &&\n    policy.configured &&\n    dependencies !== null",
-  ),
-  true,
-  "effective authority must require enable + policy + dependencies",
+for (const plannerMarker of [
+  'execution_state_tag: "pending"',
+  '"eth_getTransactionCount"',
+  '"eth_estimateGas"',
+  '"eth_getBalance"',
+  '[policy.fulfillment_wallet_address, "pending"]',
+  'estimateCallSource',
+]) {
+  if (plannerMarker === "estimateCallSource") continue;
+  assert.equal(
+    plannerSource.includes(plannerMarker),
+    true,
+    `planner source drift: ${plannerMarker}`,
+  );
+}
+const estimateStart = plannerSource.indexOf(
+  'const estimateResponse = await call("eth_estimateGas", [',
 );
+const estimateEnd = plannerSource.indexOf("]);", estimateStart);
+assert.ok(estimateStart >= 0 && estimateEnd > estimateStart);
 assert.equal(
-  runtimeSource.includes(
-    `required_confirmation:\n      "${contract.runtime_configuration_contract.exact_confirmation}"`,
-  ),
+  plannerSource.slice(estimateStart, estimateEnd + 3)
+    .includes('"pending"'),
   true,
 );
 
@@ -159,29 +217,21 @@ for (const marker of [
   assert.equal(
     dependencySource.includes(marker),
     true,
-    `dependency contract drift: ${marker}`,
+    `future durable dependency contract drift: ${marker}`,
   );
 }
 
 assert.equal(
   signerSource.includes(
-    "VOID_BUY_VOID_NATIVE_FULFILLMENT_WALLET_CREDENTIAL_ID_V1",
+    `"${
+      contract.runtime_configuration_contract
+        .fixed_signer_credential_id
+    }"`,
   ),
   true,
-);
-assert.equal(
-  signerSource.includes(
-    `"${contract.runtime_configuration_contract.fixed_signer_credential_id}"`,
-  ),
-  true,
-  "fixed signer credential identity drift",
 );
 assert.equal(
   signerSource.includes("systemd_credential_only: true"),
-  true,
-);
-assert.equal(
-  signerSource.includes("fixed_credential_id: true"),
   true,
 );
 assert.equal(
@@ -213,7 +263,9 @@ assert.equal(
 );
 
 assert.equal(
-  parentSource.includes("canonical_delivery_runtime_parent_mounted: false"),
+  parentSource.includes(
+    "canonical_delivery_runtime_parent_mounted: false",
+  ),
   true,
 );
 assert.equal(
@@ -258,15 +310,16 @@ console.log(
 );
 console.log("canonical_chain_id=2050");
 console.log("canonical_asset=void_token_erc20");
-console.log("dependency_bootstrap_ready=1");
-console.log("transaction_preparation_execution_state_ready=1");
-console.log("runtime_activation_configuration_contract_ready=1");
+console.log("server_derived_transaction_plan_required=1");
+console.log("caller_supplied_transaction_plan_forbidden=1");
+console.log("direct_sign_broadcast_apply_allowed=0");
+console.log("durable_prepared_transaction_composition_ready=0");
+console.log("next_gate=erc20_durable_prepared_transaction_composition");
 console.log("production_configuration_values_verified=0");
 console.log("production_credential_binding_ready=0");
 console.log("canonical_delivery_runtime_parent_mounted=0");
 console.log("canonical_delivery_execution_ready=0");
 console.log("presale_inventory_funding_ready=0");
-console.log("runtime_activation_performed=0");
 console.log("credential_read=0");
 console.log("signing=0");
 console.log("transaction_broadcast=0");

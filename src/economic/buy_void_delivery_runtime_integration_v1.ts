@@ -2,28 +2,13 @@ import crypto from "node:crypto";
 import path from "node:path";
 import express from "express";
 import {
-  VOID_BUY_VOID_DELIVERY_SIGN_BROADCAST_ADAPTER_V1,
-  VOID_BUY_VOID_DELIVERY_SIGN_BROADCAST_AUTHORITY_V1,
-  runBuyVoidDeliverySignBroadcastV1,
-  type BuyVoidDeliveryBroadcasterV1,
-  type BuyVoidDeliverySignerV1,
-  type BuyVoidDeliverySignBroadcastDecisionV1,
-  type BuyVoidDeliverySignBroadcastPolicyV1,
-  type BuyVoidDeliveryTransactionPlanV1,
-} from "./buy_void_delivery_sign_broadcast_adapter_v1.js";
-import {
-  createBuyVoidDeliverySubmissionGuardV1,
-  VOID_BUY_VOID_DELIVERY_SUBMISSION_GUARD_V1,
-  VOID_BUY_VOID_DELIVERY_SUBMISSION_GUARD_AUTHORITY_V1,
-} from "./buy_void_delivery_submission_guard_v1.js";
-import {
   readBuyVoidExecutionAttemptV1,
 } from "./buy_void_execution_attempt_journal_v1.js";
 import {
-  VOID_BUY_VOID_PIPELINE_CONFIRMATIONS_V1,
-  runBuyVoidPipelineCommandV1,
-  type BuyVoidPipelineCoordinatorDecisionV1,
-} from "./buy_void_pipeline_coordinator_v1.js";
+  runBuyVoidErc20TransactionPreparationPlannerV1,
+  VOID_BUY_VOID_ERC20_TRANSACTION_PREPARATION_PLANNER_V1,
+  type BuyVoidErc20TransactionPreparationPlannerPolicyV1,
+} from "./buy_void_erc20_transaction_preparation_planner_v1.js";
 
 export const VOID_BUY_VOID_DELIVERY_RUNTIME_INTEGRATION_V1 =
   "VOID_BUY_VOID_DELIVERY_RUNTIME_INTEGRATION_V1";
@@ -33,19 +18,32 @@ export const VOID_BUY_VOID_DELIVERY_RUNTIME_ROUTES_V1 = {
   command: "/__void/operator/buy-void-delivery-runtime-v1/command",
 } as const;
 
+export const VOID_BUY_VOID_DELIVERY_RUNTIME_ACTION_V1 =
+  "plan_erc20_delivery";
+
 export const VOID_BUY_VOID_DELIVERY_RUNTIME_AUTHORITY_V1 = {
   operator_loopback_only: true,
   disabled_by_default: true,
+  one_request_per_command: true,
   server_controlled_root_dir: true,
   server_controlled_policy: true,
-  prepared_attempt_loaded_from_server_journal: true,
-  exact_confirmation_required: true,
-  durable_submission_guard_required: true,
-  signer_dependency_injected: true,
-  broadcaster_dependency_injected: true,
+  reserved_attempt_loaded_from_server_journal: true,
+  server_derived_transaction_plan: true,
+  caller_supplied_transaction_plan: false,
+  coherent_pending_planner_required: true,
+  read_only_planner_rpc_when_enabled: true,
+  direct_sign_broadcast_apply_allowed: false,
+  durable_prepared_transaction_composition_ready: false,
   private_key_input: false,
   mnemonic_input: false,
   rpc_url_input: false,
+  transaction_plan_input: false,
+  nonce_input: false,
+  gas_limit_input: false,
+  fee_input: false,
+  filesystem_write: false,
+  signing: false,
+  transaction_broadcast: false,
   raw_signed_transaction_input: false,
   raw_signed_transaction_persistence: false,
   raw_signed_transaction_output: false,
@@ -53,19 +51,18 @@ export const VOID_BUY_VOID_DELIVERY_RUNTIME_AUTHORITY_V1 = {
   receipt_wait: false,
   background_loop: false,
   service_restart: false,
-  signing_when_fully_enabled: true,
-  transaction_broadcast_when_fully_enabled: true,
-  money_movement_when_fully_enabled: true,
+  money_movement: false,
 } as const;
 
 const GLOBAL_MARK =
   "__void_buy_void_delivery_runtime_integration_v1";
-const GLOBAL_DEPENDENCIES =
-  "__void_buy_void_delivery_runtime_dependencies_v1";
 const ENABLE_ENV =
   "VOID_BUY_VOID_DELIVERY_RUNTIME_INTEGRATION_ENABLED";
 const ROOT_ENV = "VOID_BUY_VOID_RUNTIME_DIR";
-const JSON_LIMIT = "256kb";
+const PLANNER_RPC_ENV = "VOID_BUY_VOID_NATIVE_CHAIN2050_RPC_URL";
+const JSON_LIMIT = "64kb";
+const FIXED_GAS_LIMIT_MULTIPLIER_BPS = "12000";
+const FIXED_FEE_MULTIPLIER_BPS = "12000";
 
 const POLICY_ENVS = {
   chain_id: "VOID_BUY_VOID_DELIVERY_CHAIN_ID",
@@ -83,44 +80,23 @@ const POLICY_ENVS = {
     "VOID_BUY_VOID_DELIVERY_MAX_PRIORITY_FEE_PER_GAS_WEI",
 } as const;
 
-const FORBIDDEN_INPUT_KEYS = new Set([
-  "private_key",
-  "privatekey",
-  "mnemonic",
-  "seed",
-  "seed_phrase",
-  "raw_transaction",
-  "raw_signed_transaction",
-  "signed_transaction",
-  "signedtransaction",
-  "wallet",
-  "signer",
-  "signing_key",
-  "rpc_url",
-  "rpcurl",
-  "broadcast_url",
-  "broadcasturl",
-  "policy",
-  "root_dir",
-  "__proto__",
-  "prototype",
-  "constructor",
+const ALLOWED_INPUT_KEYS = new Set([
+  "action",
+  "attempt_id",
 ]);
 
-type ExternalDependenciesV1 = {
-  signer: BuyVoidDeliverySignerV1;
-  broadcaster: BuyVoidDeliveryBroadcasterV1;
-};
-
-type PolicyStateV1 =
+type PlannerPolicyStateV1 =
   | {
       configured: true;
-      policy: BuyVoidDeliverySignBroadcastPolicyV1;
+      planner_policy:
+        BuyVoidErc20TransactionPreparationPlannerPolicyV1;
       fingerprint_sha256: string;
+      rpc_url_fingerprint_sha256: string;
     }
   | {
       configured: false;
       missing_envs: string[];
+      invalid_envs: string[];
     };
 
 function enabled(): boolean {
@@ -152,6 +128,83 @@ export function buyVoidDeliveryRuntimeRootDirV1(): string {
   );
 }
 
+function sha256(value: string): string {
+  return crypto
+    .createHash("sha256")
+    .update(value, "utf8")
+    .digest("hex");
+}
+
+function plannerPolicyState(): PlannerPolicyStateV1 {
+  const values = Object.fromEntries(
+    Object.entries(POLICY_ENVS).map(([key, env]) => [
+      key,
+      String(process.env[env] || "").trim(),
+    ]),
+  ) as Record<keyof typeof POLICY_ENVS, string>;
+  const rpcUrl = String(process.env[PLANNER_RPC_ENV] || "").trim();
+
+  const missing = Object.entries(POLICY_ENVS)
+    .filter(([key]) => !values[key as keyof typeof POLICY_ENVS])
+    .map(([, env]) => env);
+  if (!rpcUrl) missing.push(PLANNER_RPC_ENV);
+
+  const invalid: string[] = [];
+  if (values.chain_id && values.chain_id !== "2050") {
+    invalid.push(POLICY_ENVS.chain_id);
+  }
+
+  if (missing.length || invalid.length) {
+    return {
+      configured: false,
+      missing_envs: [...new Set(missing)].sort(),
+      invalid_envs: [...new Set(invalid)].sort(),
+    };
+  }
+
+  const plannerPolicy:
+    BuyVoidErc20TransactionPreparationPlannerPolicyV1 = {
+      enabled: true,
+      chain_id: "2050",
+      rpc_url: rpcUrl,
+      fulfillment_wallet_address:
+        values.fulfillment_wallet_address,
+      void_token_address: values.void_token_address,
+      max_void_amount_units: values.max_void_amount_units,
+      gas_limit_multiplier_bps:
+        FIXED_GAS_LIMIT_MULTIPLIER_BPS,
+      max_gas_limit: values.max_gas_limit,
+      fee_multiplier_bps: FIXED_FEE_MULTIPLIER_BPS,
+      max_fee_per_gas_wei: values.max_fee_per_gas_wei,
+      max_priority_fee_per_gas_wei:
+        values.max_priority_fee_per_gas_wei,
+    };
+
+  const fingerprintMaterial = JSON.stringify({
+    chain_id: "2050",
+    rpc_url: rpcUrl,
+    fulfillment_wallet_address:
+      values.fulfillment_wallet_address.toLowerCase(),
+    void_token_address:
+      values.void_token_address.toLowerCase(),
+    max_void_amount_units: values.max_void_amount_units,
+    gas_limit_multiplier_bps:
+      FIXED_GAS_LIMIT_MULTIPLIER_BPS,
+    max_gas_limit: values.max_gas_limit,
+    fee_multiplier_bps: FIXED_FEE_MULTIPLIER_BPS,
+    max_fee_per_gas_wei: values.max_fee_per_gas_wei,
+    max_priority_fee_per_gas_wei:
+      values.max_priority_fee_per_gas_wei,
+  });
+
+  return {
+    configured: true,
+    planner_policy: plannerPolicy,
+    fingerprint_sha256: sha256(fingerprintMaterial),
+    rpc_url_fingerprint_sha256: sha256(rpcUrl),
+  };
+}
+
 function remoteAddress(req: any): string {
   return String(
     req?.socket?.remoteAddress ??
@@ -178,141 +231,44 @@ function loopbackOnly(req: any, res: any): boolean {
   return false;
 }
 
-function normalizeKey(value: unknown): string {
-  return String(value || "")
-    .trim()
-    .toLowerCase()
-    .replace(/[^a-z0-9_]/g, "");
+function directBody(value: unknown):
+  | Record<string, unknown>
+  | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return null;
+  }
+  const prototype = Object.getPrototypeOf(value);
+  if (prototype !== Object.prototype && prototype !== null) {
+    return null;
+  }
+  return value as Record<string, unknown>;
 }
 
-function findForbiddenInputKey(
-  value: unknown,
-  depth = 0,
+function invalidInputKey(
+  value: Record<string, unknown>,
 ): string | null {
-  if (!value || typeof value !== "object" || depth > 12) {
-    return null;
-  }
-
-  if (Array.isArray(value)) {
-    for (const item of value) {
-      const found = findForbiddenInputKey(item, depth + 1);
-      if (found) return found;
-    }
-    return null;
-  }
-
-  for (const [key, nested] of Object.entries(
-    value as Record<string, unknown>,
-  )) {
-    const normalized = normalizeKey(key);
-    if (FORBIDDEN_INPUT_KEYS.has(normalized)) return key;
-    const found = findForbiddenInputKey(nested, depth + 1);
-    if (found) return found;
+  for (const key of Object.keys(value)) {
+    if (!ALLOWED_INPUT_KEYS.has(key)) return key;
   }
   return null;
 }
 
-function policyState(): PolicyStateV1 {
-  const values = Object.fromEntries(
-    Object.entries(POLICY_ENVS).map(([key, env]) => [
-      key,
-      String(process.env[env] || "").trim(),
-    ]),
-  ) as Record<keyof typeof POLICY_ENVS, string>;
-
-  const missing = Object.entries(POLICY_ENVS)
-    .filter(([key]) => !values[key as keyof typeof POLICY_ENVS])
-    .map(([, env]) => env);
-
-  if (missing.length) {
-    return {
-      configured: false,
-      missing_envs: missing.sort(),
-    };
-  }
-
-  const policy: BuyVoidDeliverySignBroadcastPolicyV1 = {
-    enabled: enabled(),
-    chain_id: values.chain_id,
-    void_token_address: values.void_token_address,
-    fulfillment_wallet_address:
-      values.fulfillment_wallet_address,
-    max_void_amount_units: values.max_void_amount_units,
-    max_gas_limit: values.max_gas_limit,
-    max_fee_per_gas_wei: values.max_fee_per_gas_wei,
-    max_priority_fee_per_gas_wei:
-      values.max_priority_fee_per_gas_wei,
-  };
-
-  const fingerprint = crypto
-    .createHash("sha256")
-    .update(
-      JSON.stringify({
-        chain_id: policy.chain_id,
-        void_token_address:
-          String(policy.void_token_address).toLowerCase(),
-        fulfillment_wallet_address:
-          String(
-            policy.fulfillment_wallet_address,
-          ).toLowerCase(),
-        max_void_amount_units:
-          policy.max_void_amount_units,
-        max_gas_limit: policy.max_gas_limit,
-        max_fee_per_gas_wei:
-          policy.max_fee_per_gas_wei,
-        max_priority_fee_per_gas_wei:
-          policy.max_priority_fee_per_gas_wei,
-      }),
-    )
-    .digest("hex");
-
-  return {
-    configured: true,
-    policy,
-    fingerprint_sha256: fingerprint,
-  };
-}
-
-function externalDependencies(): ExternalDependenciesV1 | null {
-  const value = (globalThis as any)[GLOBAL_DEPENDENCIES];
-  if (
-    !value ||
-    typeof value.signer?.get_address !== "function" ||
-    typeof value.signer?.sign_transaction !== "function" ||
-    typeof value.broadcaster
-      ?.broadcast_signed_transaction !== "function"
-  ) {
-    return null;
-  }
-  return {
-    signer: value.signer,
-    broadcaster: value.broadcaster,
-  };
-}
-
 function effectiveAuthority(
-  policy: PolicyStateV1,
-  dependencies: ExternalDependenciesV1 | null,
+  policy: PlannerPolicyStateV1,
 ): Record<string, boolean> {
-  const active =
-    enabled() &&
-    policy.configured &&
-    dependencies !== null;
   return {
-    signing: active,
-    transaction_broadcast: active,
-    money_movement: active,
-    rpc_call: false,
-    private_key_input: false,
-    raw_signed_transaction_input: false,
+    rpc_call: enabled() && policy.configured,
+    signing: false,
+    transaction_broadcast: false,
+    money_movement: false,
+    filesystem_write: false,
     automatic_retry: false,
   };
 }
 
 export function buyVoidDeliveryRuntimeStatusV1():
   Record<string, unknown> {
-  const policy = policyState();
-  const dependencies = externalDependencies();
+  const policy = plannerPolicyState();
 
   return {
     marker:
@@ -326,121 +282,38 @@ export function buyVoidDeliveryRuntimeStatusV1():
     root_dir_source: String(process.env[ROOT_ENV] || "").trim()
       ? ROOT_ENV
       : "server_default",
-    action: "sign_and_broadcast",
-    required_confirmation:
-      "buyVoidSignAndBroadcast",
+    action: VOID_BUY_VOID_DELIVERY_RUNTIME_ACTION_V1,
+    allowed_request_keys: [...ALLOWED_INPUT_KEYS],
+    runtime_mode: "read_only_erc20_planning_hold",
+    planner_marker:
+      VOID_BUY_VOID_ERC20_TRANSACTION_PREPARATION_PLANNER_V1,
+    planner_execution_state: "pending",
+    planner_rpc_env: PLANNER_RPC_ENV,
+    planner_gas_limit_multiplier_bps:
+      FIXED_GAS_LIMIT_MULTIPLIER_BPS,
+    planner_fee_multiplier_bps:
+      FIXED_FEE_MULTIPLIER_BPS,
     policy_configured: policy.configured,
     policy_missing_envs:
       "missing_envs" in policy ? policy.missing_envs : [],
+    policy_invalid_envs:
+      "invalid_envs" in policy ? policy.invalid_envs : [],
     policy_fingerprint_sha256:
+      policy.configured ? policy.fingerprint_sha256 : null,
+    planner_rpc_url_fingerprint_sha256:
       policy.configured
-        ? policy.fingerprint_sha256
+        ? policy.rpc_url_fingerprint_sha256
         : null,
-    signer_configured: dependencies !== null,
-    broadcaster_configured: dependencies !== null,
-    submission_guard_configured: true,
-    adapter_marker:
-      VOID_BUY_VOID_DELIVERY_SIGN_BROADCAST_ADAPTER_V1,
-    submission_guard_marker:
-      VOID_BUY_VOID_DELIVERY_SUBMISSION_GUARD_V1,
+    server_derived_transaction_plan: true,
+    caller_supplied_transaction_plan: false,
+    direct_sign_broadcast_apply_allowed: false,
+    durable_prepared_transaction_composition_ready: false,
+    canonical_delivery_execution_ready: false,
     authority:
       VOID_BUY_VOID_DELIVERY_RUNTIME_AUTHORITY_V1,
-    adapter_authority:
-      VOID_BUY_VOID_DELIVERY_SIGN_BROADCAST_AUTHORITY_V1,
-    submission_guard_authority:
-      VOID_BUY_VOID_DELIVERY_SUBMISSION_GUARD_AUTHORITY_V1,
     effective_authority:
-      effectiveAuthority(policy, dependencies),
+      effectiveAuthority(policy),
   };
-}
-
-function responseStatus(
-  decision: BuyVoidDeliverySignBroadcastDecisionV1,
-): number {
-  if (!("reason" in decision)) return 200;
-  if (decision.status === "broadcast_unknown") return 202;
-  if (decision.reason === "explicit_confirmation_required") {
-    return 428;
-  }
-  if (
-    decision.reason.includes("already") ||
-    decision.reason.includes("conflict")
-  ) {
-    return 409;
-  }
-  if (decision.status === "not_broadcast") return 409;
-  return 400;
-}
-
-function pipelineRecordingCommand(
-  rootDir: string,
-  decision: BuyVoidDeliverySignBroadcastDecisionV1,
-): Record<string, unknown> | null {
-  if (!("reason" in decision)) {
-    if (decision.status !== "broadcast_accepted") return null;
-    return {
-      action: "record_broadcast_accepted",
-      root_dir: rootDir,
-      attempt_id: decision.attempt_id,
-      transaction_hash: decision.transaction_hash,
-      provider_submission_id:
-        decision.provider_submission_id,
-      apply: true,
-      confirmation:
-        VOID_BUY_VOID_PIPELINE_CONFIRMATIONS_V1
-          .record_broadcast_accepted,
-    };
-  }
-
-  if (decision.status === "not_broadcast") {
-    return {
-      action: "record_not_broadcast",
-      root_dir: rootDir,
-      attempt_id: decision.attempt_id,
-      transaction_hash:
-        decision.expected_transaction_hash,
-      reason_code: decision.reason,
-      provider_submission_id:
-        decision.provider_submission_id,
-      detail: decision.detail || {},
-      apply: true,
-      confirmation:
-        VOID_BUY_VOID_PIPELINE_CONFIRMATIONS_V1
-          .record_not_broadcast,
-    };
-  }
-
-  if (decision.status === "broadcast_unknown") {
-    return {
-      action: "record_broadcast_unknown",
-      root_dir: rootDir,
-      attempt_id: decision.attempt_id,
-      transaction_hash:
-        decision.expected_transaction_hash,
-      reason_code: decision.reason,
-      provider_submission_id:
-        decision.provider_submission_id,
-      apply: true,
-      confirmation:
-        VOID_BUY_VOID_PIPELINE_CONFIRMATIONS_V1
-          .record_broadcast_unknown,
-    };
-  }
-
-  return null;
-}
-
-function recordingStatus(
-  value: BuyVoidPipelineCoordinatorDecisionV1,
-): number {
-  if (!("reason" in value)) return 200;
-  if (
-    value.reason.includes("already") ||
-    value.reason.includes("duplicate")
-  ) {
-    return 200;
-  }
-  return 500;
 }
 
 export async function handleBuyVoidDeliveryRuntimeCommandV1(
@@ -458,57 +331,94 @@ export async function handleBuyVoidDeliveryRuntimeCommandV1(
         "buy_void_delivery_runtime_integration_disabled",
       enable_env: ENABLE_ENV,
       enabled: false,
+      mutation_performed: false,
+      signing_performed: false,
+      transaction_broadcast_performed: false,
+      money_movement_performed: false,
     });
   }
 
-  const body = req?.body;
-  if (!body || typeof body !== "object" || Array.isArray(body)) {
+  const body = directBody(req?.body);
+  if (!body) {
     return res.status(400).json({
       marker:
         VOID_BUY_VOID_DELIVERY_RUNTIME_INTEGRATION_V1,
       ok: false,
       error: "invalid_json_body",
+      mutation_performed: false,
+      signing_performed: false,
+      transaction_broadcast_performed: false,
+      money_movement_performed: false,
     });
   }
 
-  const forbiddenKey = findForbiddenInputKey(body);
+  const forbiddenKey = invalidInputKey(body);
   if (forbiddenKey) {
     return res.status(400).json({
       marker:
         VOID_BUY_VOID_DELIVERY_RUNTIME_INTEGRATION_V1,
       ok: false,
-      error: "forbidden_execution_material",
+      error: "caller_supplied_runtime_material_forbidden",
       forbidden_key: forbiddenKey,
+      server_derived_transaction_plan: true,
+      mutation_performed: false,
+      signing_performed: false,
+      transaction_broadcast_performed: false,
+      money_movement_performed: false,
     });
   }
 
-  if (String((body as any).action || "") !==
-      "sign_and_broadcast") {
+  if (
+    String(body.action || "") !==
+    VOID_BUY_VOID_DELIVERY_RUNTIME_ACTION_V1
+  ) {
     return res.status(400).json({
       marker:
         VOID_BUY_VOID_DELIVERY_RUNTIME_INTEGRATION_V1,
       ok: false,
       error: "invalid_delivery_action",
-      supported_actions: ["sign_and_broadcast"],
+      supported_actions: [
+        VOID_BUY_VOID_DELIVERY_RUNTIME_ACTION_V1,
+      ],
+      mutation_performed: false,
+      signing_performed: false,
+      transaction_broadcast_performed: false,
+      money_movement_performed: false,
     });
   }
 
-  const policy = policyState();
-  if ("missing_envs" in policy) {
+  const policy = plannerPolicyState();
+  if (!policy.configured) {
     return res.status(503).json({
       marker:
         VOID_BUY_VOID_DELIVERY_RUNTIME_INTEGRATION_V1,
       ok: false,
-      error: "delivery_policy_not_configured",
+      error: "delivery_planner_policy_not_configured",
       missing_envs: policy.missing_envs,
+      invalid_envs: policy.invalid_envs,
+      mutation_performed: false,
+      signing_performed: false,
+      transaction_broadcast_performed: false,
+      money_movement_performed: false,
     });
   }
 
-  const attemptId = String(
-    (body as any).attempt_id || "",
-  )
+  const attemptId = String(body.attempt_id || "")
     .trim()
     .toLowerCase();
+  if (!/^[0-9a-f]{64}$/.test(attemptId)) {
+    return res.status(400).json({
+      marker:
+        VOID_BUY_VOID_DELIVERY_RUNTIME_INTEGRATION_V1,
+      ok: false,
+      error: "invalid_attempt_id",
+      mutation_performed: false,
+      signing_performed: false,
+      transaction_broadcast_performed: false,
+      money_movement_performed: false,
+    });
+  }
+
   const rootDir = buyVoidDeliveryRuntimeRootDirV1();
   const attempt = readBuyVoidExecutionAttemptV1({
     root_dir: rootDir,
@@ -519,105 +429,65 @@ export async function handleBuyVoidDeliveryRuntimeCommandV1(
       marker:
         VOID_BUY_VOID_DELIVERY_RUNTIME_INTEGRATION_V1,
       ok: false,
-      error: "prepared_execution_attempt_not_found",
+      error: "reserved_execution_attempt_not_found",
       attempt_id: attemptId,
-    });
-  }
-
-  const plan = (body as any).plan as
-    | BuyVoidDeliveryTransactionPlanV1
-    | undefined;
-  if (!plan || typeof plan !== "object") {
-    return res.status(400).json({
-      marker:
-        VOID_BUY_VOID_DELIVERY_RUNTIME_INTEGRATION_V1,
-      ok: false,
-      error: "delivery_transaction_plan_required",
-    });
-  }
-
-  const apply = (body as any).apply === true;
-  const external = externalDependencies();
-  if (apply && !external) {
-    return res.status(503).json({
-      marker:
-        VOID_BUY_VOID_DELIVERY_RUNTIME_INTEGRATION_V1,
-      ok: false,
-      error: "delivery_sign_broadcast_dependencies_not_configured",
-      signer_configured: false,
-      broadcaster_configured: false,
       mutation_performed: false,
+      signing_performed: false,
+      transaction_broadcast_performed: false,
+      money_movement_performed: false,
     });
   }
 
-  const decision = await runBuyVoidDeliverySignBroadcastV1({
-    apply,
-    confirmation: (body as any).confirmation,
-    submission_idempotency_key:
-      (body as any).submission_idempotency_key,
-    attempt,
-    policy: policy.policy,
-    plan,
-    ...(external
-      ? {
-          dependencies: {
-            submission_guard:
-              createBuyVoidDeliverySubmissionGuardV1(
-                rootDir,
-              ),
-            signer: external.signer,
-            broadcaster: external.broadcaster,
-          },
-        }
-      : {}),
-  });
+  const planner =
+    await runBuyVoidErc20TransactionPreparationPlannerV1({
+      attempt,
+      policy: policy.planner_policy,
+    });
 
-  let pipelineRecording:
-    | BuyVoidPipelineCoordinatorDecisionV1
-    | null = null;
-  const recordingCommand = apply
-    ? pipelineRecordingCommand(rootDir, decision)
-    : null;
-
-  if (recordingCommand) {
-    pipelineRecording = runBuyVoidPipelineCommandV1(
-      recordingCommand as any,
-    );
-    const status = recordingStatus(pipelineRecording);
-    if (status !== 200) {
-      return res.status(status).json({
-        marker:
-          VOID_BUY_VOID_DELIVERY_RUNTIME_INTEGRATION_V1,
-        version: 1,
-        ok: false,
-        error: "delivery_outcome_recording_failed",
-        decision,
-        pipeline_recording: pipelineRecording,
-        reconciliation_required:
-          ("reason" in decision &&
-            decision.status === "broadcast_unknown") ||
-          (!("reason" in decision) &&
-            decision.status === "broadcast_accepted"),
-        automatic_retry_allowed: false,
-        raw_signed_transaction_returned: false,
-      });
-    }
+  if (!planner.ok) {
+    return res.status(409).json({
+      marker:
+        VOID_BUY_VOID_DELIVERY_RUNTIME_INTEGRATION_V1,
+      version: 1,
+      ok: false,
+      status: "held",
+      error: "erc20_transaction_preparation_held",
+      attempt_id: attemptId,
+      planner,
+      server_derived_transaction_plan: true,
+      caller_supplied_transaction_plan: false,
+      durable_prepared_transaction_composition_ready: false,
+      mutation_performed: false,
+      signing_performed: false,
+      transaction_broadcast_performed: false,
+      money_movement_performed: false,
+    });
   }
 
-  return res.status(responseStatus(decision)).json({
+  return res.status(200).json({
     marker:
       VOID_BUY_VOID_DELIVERY_RUNTIME_INTEGRATION_V1,
     version: 1,
-    ok: decision.ok,
-    enabled: true,
-    operator_loopback_only: true,
-    root_dir_server_controlled: true,
-    policy_server_controlled: true,
-    prepared_attempt_loaded_from_server_journal: true,
-    decision,
-    pipeline_recording: pipelineRecording,
-    raw_signed_transaction_returned: false,
-    automatic_retry_allowed: false,
+    ok: true,
+    status: "planned",
+    attempt_id: attemptId,
+    plan_origin:
+      "coherent_pending_erc20_transaction_preparation_planner_v1",
+    server_derived_transaction_plan: true,
+    caller_supplied_transaction_plan: false,
+    direct_sign_broadcast_apply_allowed: false,
+    durable_prepared_transaction_composition_ready: false,
+    canonical_delivery_execution_ready: false,
+    preparation_fingerprint_sha256:
+      planner.preparation_fingerprint_sha256,
+    transaction_plan: planner.transaction_plan,
+    planner,
+    mutation_performed: false,
+    signing_performed: false,
+    transaction_broadcast_performed: false,
+    money_movement_performed: false,
+    next_gate:
+      "erc20_durable_prepared_transaction_composition",
   });
 }
 
@@ -666,7 +536,10 @@ function mount(): void {
             error_class: String(
               error?.name || "Error",
             ).slice(0, 80),
-            automatic_retry_allowed: false,
+            mutation_performed: false,
+            signing_performed: false,
+            transaction_broadcast_performed: false,
+            money_movement_performed: false,
           });
         }
       });
