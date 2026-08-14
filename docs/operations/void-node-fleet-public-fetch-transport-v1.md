@@ -38,9 +38,23 @@ Before planning or apply, the tool resolves the canonical public HTTPS URL throu
 
 The stored and effective URL identities are content-addressed into the dry-run plan. A relevant Git configuration change between dry run and apply changes the plan and invalidates the confirmation.
 
+## Evidence-output boundary
+
+An optional `--output` receipt is evidence, not part of the repository mutation. Its destination is therefore validated **before any apply mutation** and must resolve outside all three selected-repository boundaries:
+
+- the worktree top level;
+- the absolute Git directory; and
+- the Git common directory.
+
+The tool canonicalizes the output parent directory before use, so an outside symlink that resolves back into the worktree or Git administrative state does not bypass this rule. The parent must already exist. The receipt itself remains create-only (`wx`) and mode `0600`.
+
+When an output path is requested, the tool reserves that create-only receipt before any Git-config apply mutation. An existing/uncreatable receipt path therefore fails before the dedicated remote can change, instead of allowing a successful Git-config mutation followed by an evidence-write failure.
+
+This boundary applies to both dry-run and apply. A dry-run receipt cannot make the status-bound plan stale by creating an untracked file inside the selected worktree, and an apply receipt cannot mutate `.git` after post-state verification has already declared repository invariants preserved. Unsafe output destinations return `HOLD` without creating the receipt or configuring the dedicated remote.
+
 ## Dry run
 
-Dry run is the default and performs no Git or repository mutation. When `--output` is supplied, it may create one local mode-0600 evidence file.
+Dry run is the default and performs no Git or repository mutation. When `--output` is supplied, it may create one mode-0600 evidence file only at a validated outside-repository path.
 
 The repository must be an ordinary working tree on exact branch `main`, with no merge/rebase/cherry-pick/revert/sequencer/index-lock operation in progress and with the canonical repository prerequisite above satisfied. A dirty worktree is allowed because the tool does not touch tracked or untracked files; exact selected-worktree identity, status/index/ref evidence, and repository content identity are bound into the plan instead.
 
@@ -103,7 +117,7 @@ test "$(git -C "$REPO" remote get-url --push void-public-fetch)" = '/dev/null'
 printf 'public_fetch_transport_postcheck=green\n'
 ```
 
-The evidence path is intentionally unique per run. `--output` is create-only and mode `0600`; it refuses to overwrite an existing receipt. The dry-run receipt contains the exact confirmation plan ID but does not print the selected filesystem path or the operator-specific `origin` URL. If the dry run returns `HOLD`, exits nonzero, or repository/configuration evidence changes before apply, stop and collect fresh evidence instead of retrying automatically.
+The evidence path is intentionally outside the selected repository and unique per run. `--output` is create-only and mode `0600`; it refuses to overwrite an existing receipt and rejects any destination that resolves into the worktree or Git administrative directories. The dry-run receipt contains the exact confirmation plan ID but does not print the selected filesystem path or the operator-specific `origin` URL. If the dry run returns `HOLD`, exits nonzero, or repository/configuration evidence changes before apply, stop and collect fresh evidence instead of retrying automatically.
 
 This journey does not fetch from the new remote. It only proves and, after exact confirmation, configures the local fetch-only transport. Source convergence remains a later separately authorized controller operation.
 
@@ -123,4 +137,4 @@ Run the deterministic proof with:
 node scripts/prove_void_node_fleet_public_fetch_transport_v1.mjs
 ```
 
-The proof uses temporary Git repositories and an isolated temporary Git global-config file only. It covers canonical HTTPS and SSH origins; foreign/alternate-host/mixed/duplicate-origin rejection; origin and prospective-public-fetch `insteadOf` rewrite rejection; inherited non-local dedicated-remote rejection; selected-worktree identity binding across byte/state-identical clones at different paths; cross-clone plan-reuse rejection; missing and misconfigured dedicated remotes; exact confirmation; dirty-worktree preservation; origin/ref/index/HEAD/tree preservation; create-only mode-0600 dry-run/apply evidence receipts; receipt no-overwrite behavior; the actual CLI dry-run -> confirmed apply -> aligned rerun journey; idempotent rerun; wrong-plan and wrong-confirmation rejection; detached-HEAD rejection; public origin/path redaction; and negative service/runtime/fetch authority.
+The proof uses temporary Git repositories and an isolated temporary Git global-config file only. It covers canonical HTTPS and SSH origins; foreign/alternate-host/mixed/duplicate-origin rejection; origin and prospective-public-fetch `insteadOf` rewrite rejection; inherited non-local dedicated-remote rejection; selected-worktree identity binding across byte/state-identical clones at different paths; cross-clone plan-reuse rejection; missing and misconfigured dedicated remotes; exact confirmation; dirty-worktree preservation; origin/ref/index/HEAD/tree preservation; rejection of dry-run output inside the worktree; rejection of apply output inside Git administrative state before remote mutation; rejection of a pre-existing apply receipt before remote mutation; create-only mode-0600 outside-repository dry-run/apply receipts; receipt no-overwrite behavior; the actual CLI dry-run -> confirmed apply -> aligned rerun journey; idempotent rerun; wrong-plan and wrong-confirmation rejection; detached-HEAD rejection; public origin/path redaction; and negative service/runtime/fetch authority.
