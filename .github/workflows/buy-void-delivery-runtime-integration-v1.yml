@@ -13,6 +13,7 @@ on:
       - "scripts/prove_buy_void_delivery_runtime_integration_v1.ts"
       - "scripts/prove_buy_void_erc20_execution_composition_v1.ts"
       - "scripts/prove_buy_void_delivery_runtime_integration_guard_v1.ts"
+      - "scripts/ci_diff_hygiene_v1.sh"
       - ".github/workflows/buy-void-delivery-runtime-integration-v1.yml"
   push:
     branches:
@@ -28,6 +29,7 @@ on:
       - "scripts/prove_buy_void_delivery_runtime_integration_v1.ts"
       - "scripts/prove_buy_void_erc20_execution_composition_v1.ts"
       - "scripts/prove_buy_void_delivery_runtime_integration_guard_v1.ts"
+      - "scripts/ci_diff_hygiene_v1.sh"
       - ".github/workflows/buy-void-delivery-runtime-integration-v1.yml"
 
 permissions:
@@ -47,7 +49,8 @@ jobs:
       - name: Checkout
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
         with:
-          fetch-depth: 2
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 1
           persist-credentials: false
 
       - name: Setup Node
@@ -100,4 +103,9 @@ jobs:
 
       - name: Diff hygiene
         if: github.event_name == 'pull_request'
-        run: git diff --check "${{ github.event.pull_request.base.sha }}..HEAD"
+        env:
+          CI_DIFF_EVENT_NAME: ${{ github.event_name }}
+          CI_DIFF_PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          CI_DIFF_PUSH_BEFORE_SHA: ${{ github.event.before }}
+          CI_DIFF_CURRENT_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: bash scripts/ci_diff_hygiene_v1.sh
