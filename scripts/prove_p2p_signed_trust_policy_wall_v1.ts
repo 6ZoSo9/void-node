@@ -470,6 +470,80 @@ async function main(): Promise<void> {
       expectedRecoveryLine,
     );
 
+    const missingEpoch1JournalStateDir = path.join(
+      temporary,
+      "missing-epoch1-journal-state",
+    );
+    const missingEpoch1Activation = await activateVoidP2pSignedTrustPolicyV1({
+      envelope: firstEnvelope,
+      root_set: roots,
+      options: { expected_network_id: NETWORK, now_ms: NOW },
+      state_dir: missingEpoch1JournalStateDir,
+    });
+    assert.equal(missingEpoch1Activation.activation.epoch, "1");
+    const missingEpoch1Journal = path.join(
+      missingEpoch1JournalStateDir,
+      "activation.ndjson",
+    );
+    await rm(missingEpoch1Journal);
+    const recoveredMissingEpoch1 =
+      await activateVoidP2pSignedTrustPolicyV1({
+        envelope: firstEnvelope,
+        root_set: roots,
+        options: { expected_network_id: NETWORK, now_ms: NOW },
+        state_dir: missingEpoch1JournalStateDir,
+      });
+    assert.equal(recoveredMissingEpoch1.already_active, true);
+    assert.equal(
+      (await readFile(missingEpoch1Journal, "utf8")).trim().split("\n")
+        .length,
+      1,
+    );
+
+    const lostHistoryStateDir = path.join(
+      temporary,
+      "lost-history-state",
+    );
+    await activateVoidP2pSignedTrustPolicyV1({
+      envelope: firstEnvelope,
+      root_set: roots,
+      options: { expected_network_id: NETWORK, now_ms: NOW },
+      state_dir: lostHistoryStateDir,
+    });
+    const lostHistoryActivation =
+      await activateVoidP2pSignedTrustPolicyV1({
+        envelope: secondEnvelope,
+        root_set: roots,
+        options: { expected_network_id: NETWORK, now_ms: NOW },
+        state_dir: lostHistoryStateDir,
+      });
+    assert.equal(lostHistoryActivation.activation.epoch, "2");
+    const lostHistoryJournal = path.join(
+      lostHistoryStateDir,
+      "activation.ndjson",
+    );
+    assert.equal(
+      (await readFile(lostHistoryJournal, "utf8")).trim().split("\n")
+        .length,
+      2,
+    );
+    await rm(lostHistoryJournal);
+    await expectHoldAsync(
+      () =>
+        activateVoidP2pSignedTrustPolicyV1({
+          envelope: secondEnvelope,
+          root_set: roots,
+          options: { expected_network_id: NETWORK, now_ms: NOW },
+          state_dir: lostHistoryStateDir,
+        }),
+      "invalid_activation_journal",
+    );
+    await assert.rejects(
+      readFile(lostHistoryJournal, "utf8"),
+      (error: unknown) =>
+        (error as NodeJS.ErrnoException)?.code === "ENOENT",
+    );
+
     const activated2 = await activateVoidP2pSignedTrustPolicyV1({
       envelope: secondEnvelope,
       root_set: roots,
