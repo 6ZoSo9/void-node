@@ -144,7 +144,7 @@ function plannerPolicyState(): PlannerPolicyStateV1 {
   ) as Record<keyof typeof POLICY_ENVS, string>;
   const rpcUrl = String(process.env[PLANNER_RPC_ENV] || "").trim();
 
-  const missing = Object.entries(POLICY_ENVS)
+  const missing: string[] = Object.entries(POLICY_ENVS)
     .filter(([key]) => !values[key as keyof typeof POLICY_ENVS])
     .map(([, env]) => env);
   if (!rpcUrl) missing.push(PLANNER_RPC_ENV);
