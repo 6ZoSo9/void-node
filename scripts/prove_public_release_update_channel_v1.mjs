@@ -38,7 +38,8 @@ const full=process.argv.includes("--full");
 need("release/channel/public-release-channel-v1.schema.json",["VOID_PUBLIC_RELEASE_CHANNEL_V1","rollback_on_health_failure"]);
 need("tools/build-public-release-channel-v1.mjs",["VOID_PUBLIC_RELEASE_CHANNEL_BUILDER_V1","github_attestation_required","--test-allow-file"]);
 need("release/bin/void-node-update",["VOID_NODE_RELEASE_UPDATE_V1","VOID_NODE_RELEASE_ROLLBACK_TRANSACTION_V1","ROLLBACK_RECOVERED","downgrade refused","HEALTH_FAIL_ROLLBACK_BEGIN","HEALTH_RESPONSE_MAX_BYTES","health response exceeds size limit","service_started_implicitly=false"]);
-const manager=need("release/bin/void-node",["void-node update check","void-node update apply","bin/void-node-update"]);
+const manager=need("release/bin/void-node",["void-node update check","void-node update apply","exec \"$RELEASE_ROOT/bin/void-node-update\" rollback"]);
+need("release/portable/bin/void-node",["void-node update check","exec \"$RUNTIME_NODE\" \"$RELEASE_ROOT/bin/void-node-update\" rollback"]);
 need("ops/security/public-release-update-channel-v1-proof.sh",["VOID public release update channel wall v1 proof"]);
 const workflow=need(".github/workflows/public-release-distribution-v1.yml",["public-release-update-channel-v1-proof","build-public-release-channel-v1.mjs","stable-v1.json","(cd dist-release && sha256sum --check --strict SHA256SUMS)"]);
 const checksumCwd=(workflow.match(/\(cd dist-release && sha256sum --check --strict SHA256SUMS\)/g)||[]).length;if(checksumCwd<2)fail(`expected two artifact-directory checksum checks, found ${checksumCwd}`);pass("workflow-checksum-directory-regression");
@@ -106,6 +107,9 @@ try{
   if(versionAt(installRoot)!==v2||previousVersion(installRoot)!==v4)fail("rollback recovery did not restore both exact canonical release identities");
   for(const artifact of [".current.update-next",".previous.update-next",".rollback.update-transaction-v1.json",".rollback.update-transaction-v1.json.next"]){if(fs.existsSync(path.join(installRoot,artifact)))fail(`rollback recovery left artifact ${artifact}`);}
   pass("interrupted-rollback-transaction-recovered-exactly-once");
+  const wrapperRollback=run(managerPath,["rollback"],{env:e,capture:true});
+  if(!wrapperRollback.includes("ROLLBACK_GREEN")||versionAt(installRoot)!==v4||previousVersion(installRoot)!==v2)fail("manager rollback did not delegate to the exact updater transaction");
+  pass("manager-rollback-delegates-to-updater-transaction");
   run(managerPath,["verify"],{env:e});
   run("bash",[path.join(installRoot,"current","install-void-node-v1.sh"),"uninstall","--install-root",installRoot,"--bin-dir",binDir,"--yes","--purge"],{env:e});
   if(fs.existsSync(installRoot)||fs.existsSync(managerPath))fail("uninstall left update-wall artifacts");pass("uninstall-purge-after-update-chain");

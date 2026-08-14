@@ -63,6 +63,9 @@ Otherwise the updater restores the previous verified release and restarts it.
 void-node update rollback
 ```
 
+The shorter `void-node rollback` entrypoint delegates to the same updater
+transaction rather than maintaining a second pointer-swap implementation.
+
 The previous release must pass its internal checksum manifest before the
 pointer transaction begins. Both replacement links are staged before either
 canonical pointer changes, and an exact durable journal makes interruption
