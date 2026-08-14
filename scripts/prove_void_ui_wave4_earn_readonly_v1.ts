@@ -417,7 +417,7 @@ const wave2 = JSON.parse(
   read("docs/public/void-ui-wave2-home-readonly-v1/source-manifest.json")
 );
 const wave3 = JSON.parse(
-  read("docs/public/void-ui-wave3-wallet_readonly_v1/source-manifest.json")
+  read("docs/public/void-ui-wave3-wallet-readonly-v1/source-manifest.json")
 );
 
 if (
