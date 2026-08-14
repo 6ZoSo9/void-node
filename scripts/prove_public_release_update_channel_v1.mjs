@@ -37,13 +37,13 @@ function channel(root,out,version,tag){run("node",["tools/build-public-release-c
 const full=process.argv.includes("--full");
 need("release/channel/public-release-channel-v1.schema.json",["VOID_PUBLIC_RELEASE_CHANNEL_V1","rollback_on_health_failure"]);
 need("tools/build-public-release-channel-v1.mjs",["VOID_PUBLIC_RELEASE_CHANNEL_BUILDER_V1","github_attestation_required","--test-allow-file"]);
-need("release/bin/void-node-update",["VOID_NODE_RELEASE_UPDATE_V1","downgrade refused","HEALTH_FAIL_ROLLBACK_BEGIN","HEALTH_RESPONSE_MAX_BYTES","health response exceeds size limit","service_started_implicitly=false"]);
+need("release/bin/void-node-update",["VOID_NODE_RELEASE_UPDATE_V1","VOID_NODE_RELEASE_ROLLBACK_TRANSACTION_V1","ROLLBACK_RECOVERED","downgrade refused","HEALTH_FAIL_ROLLBACK_BEGIN","HEALTH_RESPONSE_MAX_BYTES","health response exceeds size limit","service_started_implicitly=false"]);
 const manager=need("release/bin/void-node",["void-node update check","void-node update apply","bin/void-node-update"]);
 need("ops/security/public-release-update-channel-v1-proof.sh",["VOID public release update channel wall v1 proof"]);
 const workflow=need(".github/workflows/public-release-distribution-v1.yml",["public-release-update-channel-v1-proof","build-public-release-channel-v1.mjs","stable-v1.json","(cd dist-release && sha256sum --check --strict SHA256SUMS)"]);
 const checksumCwd=(workflow.match(/\(cd dist-release && sha256sum --check --strict SHA256SUMS\)/g)||[]).length;if(checksumCwd<2)fail(`expected two artifact-directory checksum checks, found ${checksumCwd}`);pass("workflow-checksum-directory-regression");
-need("docs/public/release-update-channel-v1.md",["anti-downgrade","health-gated rollback","GitHub attestation"]);
-need("docs/security/public-release-update-channel-v1-threat-model.md",["channel substitution","rollback","No service is started implicitly"]);
+need("docs/public/release-update-channel-v1.md",["anti-downgrade","journaled rollback","ROLLBACK_RECOVERED","GitHub attestation"]);
+need("docs/security/public-release-update-channel-v1-threat-model.md",["channel substitution","journaled rollback","canonical pointer mutation","No service is started implicitly"]);
 need("public/public-node/void-network/release-update-channel-v1.json",["VOID_PUBLIC_RELEASE_UPDATE_CHANNEL_STATUS_V1","guarded_lanes_activated"]);
 need("Makefile",["public-release-update-channel-v1-proof","public-release-channel-build-v1"]);
 if(!full){console.log(`${MARKER}_STATIC_GREEN`);process.exit(0);}
@@ -93,6 +93,19 @@ try{
     if(versionAt(installRoot)!==v4)fail(`strict typed health acceptance failed; current=${versionAt(installRoot)}`);
     pass("wrong-typed-health-evidence-rejected");
   }finally{typed.child.kill("SIGTERM");}
+  const poisoned=path.join(installRoot,".previous.update-next");fs.mkdirSync(poisoned);
+  const poisonedRollback=run(managerPath,["update","rollback","--install-root",installRoot,"--bin-dir",binDir,"--test-allow-file"],{env:e,capture:true,allowFail:true});
+  if(poisonedRollback.status===0||!`${poisonedRollback.stdout}${poisonedRollback.stderr}`.includes("unexpected rollback artifact"))fail("poisoned rollback staging path was not rejected");
+  if(versionAt(installRoot)!==v4||previousVersion(installRoot)!==v2)fail("poisoned staging path changed canonical release pointers");
+  fs.rmdirSync(poisoned);pass("poisoned-rollback-staging-rejected-before-pointer-mutation");
+  const interrupted=run(managerPath,["update","rollback","--install-root",installRoot,"--bin-dir",binDir,"--test-allow-file"],{env:{...e,VOID_NODE_UPDATE_TEST_INTERRUPT_ROLLBACK_AFTER_CURRENT:"1"},capture:true,allowFail:true});
+  if(interrupted.status===0||!`${interrupted.stdout}${interrupted.stderr}`.includes("test interruption after current rollback pointer publication"))fail("rollback interruption fixture did not stop after first pointer publication");
+  if(versionAt(installRoot)!==v2||previousVersion(installRoot)!==v2)fail("rollback interruption did not expose the expected detectable partial pointer state");
+  const recovered=run(managerPath,["update","rollback","--install-root",installRoot,"--bin-dir",binDir,"--test-allow-file"],{env:e,capture:true,allowFail:true});
+  if(recovered.status!==2||!`${recovered.stdout}${recovered.stderr}`.includes("ROLLBACK_RECOVERED"))fail("interrupted rollback was not recovered before command re-entry");
+  if(versionAt(installRoot)!==v2||previousVersion(installRoot)!==v4)fail("rollback recovery did not restore both exact canonical release identities");
+  for(const artifact of [".current.update-next",".previous.update-next",".rollback.update-transaction-v1.json",".rollback.update-transaction-v1.json.next"]){if(fs.existsSync(path.join(installRoot,artifact)))fail(`rollback recovery left artifact ${artifact}`);}
+  pass("interrupted-rollback-transaction-recovered-exactly-once");
   run(managerPath,["verify"],{env:e});
   run("bash",[path.join(installRoot,"current","install-void-node-v1.sh"),"uninstall","--install-root",installRoot,"--bin-dir",binDir,"--yes","--purge"],{env:e});
   if(fs.existsSync(installRoot)||fs.existsSync(managerPath))fail("uninstall left update-wall artifacts");pass("uninstall-purge-after-update-chain");

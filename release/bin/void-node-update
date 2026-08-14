@@ -10,6 +10,7 @@ import {fileURLToPath, pathToFileURL} from "node:url";
 
 const MARKER="VOID_NODE_RELEASE_UPDATE_V1";
 const HEALTH_RESPONSE_MAX_BYTES=64*1024;
+const ROLLBACK_TRANSACTION_MARKER="VOID_NODE_RELEASE_ROLLBACK_TRANSACTION_V1";
 function fail(m,code=1){console.error(`ERROR: ${m}`);process.exit(code);}
 function say(m=""){console.log(m);}
 function shaBuffer(b){return crypto.createHash("sha256").update(b).digest("hex");}
@@ -53,12 +54,51 @@ function validateChannel(j,allowFile){
 }
 function currentInfo(installRoot){const p=path.join(installRoot,"current","BUILD-INFO.json");if(!fs.existsSync(p))fail(`missing current build info: ${p}`);return readJson(p);}
 function verifyRoot(root){const sums=path.join(root,"RELEASE-CONTENTS-SHA256");if(!fs.existsSync(sums))fail(`missing internal checksums: ${sums}`);run("sha256sum",["--check","--strict","RELEASE-CONTENTS-SHA256"],{cwd:root,capture:true});}
-function swapRollback(installRoot,restart){
-  const cur=path.join(installRoot,"current"),prev=path.join(installRoot,"previous");if(!fs.lstatSync(prev).isSymbolicLink())fail("no previous release is available for rollback");
-  const oldCur=fs.realpathSync(cur),oldPrev=fs.realpathSync(prev);verifyRoot(oldPrev);
-  const n1=path.join(installRoot,".current.update-next"),n2=path.join(installRoot,".previous.update-next");
-  try{fs.unlinkSync(n1);}catch{}try{fs.unlinkSync(n2);}catch{}
-  fs.symlinkSync(oldPrev,n1);fs.renameSync(n1,cur);fs.symlinkSync(oldCur,n2);fs.renameSync(n2,prev);
+function exists(p){try{fs.lstatSync(p);return true;}catch(e){if(e?.code==="ENOENT")return false;throw e;}}
+function fsyncDirectory(p){const fd=fs.openSync(p,"r");try{fs.fsyncSync(fd);}finally{fs.closeSync(fd);}}
+function rollbackPaths(installRoot){return {cur:path.join(installRoot,"current"),prev:path.join(installRoot,"previous"),n1:path.join(installRoot,".current.update-next"),n2:path.join(installRoot,".previous.update-next"),journal:path.join(installRoot,".rollback.update-transaction-v1.json"),journalNext:path.join(installRoot,".rollback.update-transaction-v1.json.next")};}
+function pointerTarget(p,name){let st;try{st=fs.lstatSync(p);}catch(e){if(e?.code==="ENOENT")fail(`${name} release pointer is missing`);throw e;}if(!st.isSymbolicLink())fail(`${name} release pointer is not a symlink`);return fs.realpathSync(p);}
+function requireAbsent(p,name){if(exists(p))fail(`unexpected rollback artifact requires operator recovery: ${name}`);}
+function requireStagedLink(p,target,name){let st;try{st=fs.lstatSync(p);}catch(e){if(e?.code==="ENOENT")fail(`missing rollback staging link: ${name}`);throw e;}if(!st.isSymbolicLink()||fs.realpathSync(p)!==target)fail(`invalid rollback staging link: ${name}`);}
+function readRollbackJournal(paths){
+  if(!exists(paths.journal))return null;
+  const st=fs.lstatSync(paths.journal);if(!st.isFile()||st.isSymbolicLink()||st.size>8192)fail("invalid rollback transaction journal");
+  let j;try{j=JSON.parse(fs.readFileSync(paths.journal,"utf8"));}catch{fail("invalid rollback transaction journal JSON");}
+  const keys=Object.keys(j||{}).sort().join(",");
+  if(keys!=="marker,old_current,old_previous,schema_version"||j.marker!==ROLLBACK_TRANSACTION_MARKER||j.schema_version!==1||typeof j.old_current!=="string"||typeof j.old_previous!=="string"||!path.isAbsolute(j.old_current)||!path.isAbsolute(j.old_previous)||j.old_current===j.old_previous)fail("invalid rollback transaction journal contract");
+  verifyRoot(j.old_current);verifyRoot(j.old_previous);return j;
+}
+function writeRollbackJournal(installRoot,paths,journal){
+  const bytes=Buffer.from(`${JSON.stringify(journal)}\n`);const fd=fs.openSync(paths.journalNext,"wx",0o600);
+  try{fs.writeFileSync(fd,bytes);fs.fsyncSync(fd);}finally{fs.closeSync(fd);}
+  fs.renameSync(paths.journalNext,paths.journal);fsyncDirectory(installRoot);
+}
+function completeRollbackTransaction(installRoot,paths,journal,testInterrupt){
+  const current=pointerTarget(paths.cur,"current"),previous=pointerTarget(paths.prev,"previous");
+  if(current===journal.old_current&&previous===journal.old_previous){
+    requireStagedLink(paths.n1,journal.old_previous,"current");requireStagedLink(paths.n2,journal.old_current,"previous");
+    fs.renameSync(paths.n1,paths.cur);fsyncDirectory(installRoot);
+    if(testInterrupt)fail("test interruption after current rollback pointer publication");
+    fs.renameSync(paths.n2,paths.prev);fsyncDirectory(installRoot);
+  }else if(current===journal.old_previous&&previous===journal.old_previous){
+    requireAbsent(paths.n1,"current staging link");requireStagedLink(paths.n2,journal.old_current,"previous");
+    fs.renameSync(paths.n2,paths.prev);fsyncDirectory(installRoot);
+  }else if(current===journal.old_previous&&previous===journal.old_current){
+    requireAbsent(paths.n1,"current staging link");requireAbsent(paths.n2,"previous staging link");
+  }else fail("rollback transaction journal does not match canonical pointer state");
+  fs.unlinkSync(paths.journal);fsyncDirectory(installRoot);
+}
+function recoverRollbackTransaction(installRoot){
+  const paths=rollbackPaths(installRoot),journal=readRollbackJournal(paths);if(!journal)return false;
+  requireAbsent(paths.journalNext,"journal staging file");completeRollbackTransaction(installRoot,paths,journal,false);say(`${MARKER}_ROLLBACK_RECOVERED`);return true;
+}
+function requireCleanRollbackState(installRoot){const paths=rollbackPaths(installRoot);requireAbsent(paths.journal,"transaction journal");requireAbsent(paths.journalNext,"journal staging file");requireAbsent(paths.n1,"current staging link");requireAbsent(paths.n2,"previous staging link");}
+function swapRollback(installRoot,restart,testAllowFile){
+  requireCleanRollbackState(installRoot);const paths=rollbackPaths(installRoot);
+  const oldCur=pointerTarget(paths.cur,"current"),oldPrev=pointerTarget(paths.prev,"previous");verifyRoot(oldCur);verifyRoot(oldPrev);if(oldCur===oldPrev)fail("current and previous releases must be distinct");
+  fs.symlinkSync(oldPrev,paths.n1);fs.symlinkSync(oldCur,paths.n2);
+  const journal={marker:ROLLBACK_TRANSACTION_MARKER,schema_version:1,old_current:oldCur,old_previous:oldPrev};writeRollbackJournal(installRoot,paths,journal);
+  completeRollbackTransaction(installRoot,paths,journal,testAllowFile&&process.env.VOID_NODE_UPDATE_TEST_INTERRUPT_ROLLBACK_AFTER_CURRENT==="1");
   if(restart&&managerAvailable())run("systemctl",["--user","restart","void-node.service"]);
   say(`${MARKER}_ROLLBACK_GREEN`);say(`rolled_back_to=${readJson(path.join(oldPrev,"BUILD-INFO.json")).version}`);
 }
@@ -138,7 +178,8 @@ async function main(){
   if(o.command==="help"||o.command==="--help"||o.command==="-h"){
     say(`VOID node verified release updater\n\n  void-node update check --channel URL\n  void-node update apply --channel URL --yes [--allow-candidate] [--restart-if-running] [--health-url URL]\n  void-node update rollback\n\nStable apply rejects downgrades, verifies SHA-256 and GitHub attestations, never starts a stopped service, and rolls back after a failed explicit health gate.`);return;
   }
-  if(o.command==="rollback"){const active=managerAvailable()&&childProcess.spawnSync("systemctl",["--user","is-active","--quiet","void-node.service"]).status===0;swapRollback(installRoot,active);return;}
+  if(recoverRollbackTransaction(installRoot))fail("recovered interrupted rollback; re-run the requested command",2);requireCleanRollbackState(installRoot);
+  if(o.command==="rollback"){const active=managerAvailable()&&childProcess.spawnSync("systemctl",["--user","is-active","--quiet","void-node.service"]).status===0;swapRollback(installRoot,active,o.testAllowFile);return;}
   if(!o.channel)fail("--channel is required");
   const raw=await readSource(o.channel,o.testAllowFile);const channel=validateChannel(JSON.parse(raw.toString("utf8")),o.testAllowFile);const cur=currentInfo(installRoot);const cmp=compareVersion(channel.release.version,cur.version);
   say(`marker=${MARKER}`);say(`channel=${channel.channel}`);say(`current_version=${cur.version}`);say(`available_version=${channel.release.version}`);say(`update_available=${cmp>0}`);say(`downgrade=${cmp<0}`);say(`release_immutable=${channel.publication?.release_immutable===true}`);say(`release_revoked=${channel.publication?.revoked===true}`);say(`channel_frozen=${channel.policy?.channel_frozen===true}`);say("service_started_implicitly=false");say("guarded_lanes_activated=false");
@@ -166,7 +207,7 @@ async function main(){
     const healthRequired=Boolean(o.healthCommand||o.healthUrl||active);
     if(active&&!o.healthUrl&&!o.healthCommand)o.healthUrl="http://127.0.0.1:4100/__void/ready.json";
     if(healthRequired&&!(await healthCheck(o))){
-      console.error(`${MARKER}_HEALTH_FAIL_ROLLBACK_BEGIN`);swapRollback(installRoot,active&&o.restartIfRunning);fail("updated release failed health gate and was rolled back");
+      console.error(`${MARKER}_HEALTH_FAIL_ROLLBACK_BEGIN`);swapRollback(installRoot,active&&o.restartIfRunning,o.testAllowFile);fail("updated release failed health gate and was rolled back");
     }
     say(`${MARKER}_APPLY_GREEN`);say(`updated_to=${channel.release.version}`);say(`previous_version=${cur.version}`);say(`service_restarted=${active&&o.restartIfRunning}`);say("health_gate_green=true");say("service_started_implicitly=false");say("guarded_lanes_activated=false");
   }finally{fs.rmSync(tmp,{recursive:true,force:true});}

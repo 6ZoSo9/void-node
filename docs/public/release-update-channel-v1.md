@@ -18,7 +18,8 @@ health-gated rollback.
 - A stopped service stays stopped. A running service may only be restarted with
   `--restart-if-running`.
 - A restarted running service must pass the readiness health gate. Failure
-  causes an atomic health-gated rollback to the previous verified release.
+  causes a crash-recoverable, journaled rollback to the previous verified
+  release.
 - No wallet, validator, or treasury key is generated. No Buy VOID fulfillment,
   Work Credit ledger mutation, validator admission, treasury action, or
   authority transfer occurs.
@@ -63,7 +64,13 @@ void-node update rollback
 ```
 
 The previous release must pass its internal checksum manifest before the
-atomic pointer swap.
+pointer transaction begins. Both replacement links are staged before either
+canonical pointer changes, and an exact durable journal makes interruption
+between the two pointer publications detectable and recoverable. On the next
+updater invocation, `VOID_NODE_RELEASE_UPDATE_V1_ROLLBACK_RECOVERED` confirms
+that the interrupted swap was completed; the requested command then stops and
+must be run again deliberately. Unexpected staging artifacts fail closed before
+an update or rollback can mutate either canonical pointer.
 
 ## Canonical promoted channel
 

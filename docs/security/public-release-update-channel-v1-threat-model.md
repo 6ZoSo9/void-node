@@ -40,7 +40,11 @@ Applying the current version is idempotent.
 
 A stopped service is not started. Restart requires `--restart-if-running`. A
 running service must pass the explicit readiness gate. Failure triggers an
-atomic rollback to the previous release.
+exact, journaled rollback to the previous release. The updater stages both
+replacement links before publishing either canonical pointer, fsyncs the
+transaction journal and each pointer transition, and recovers a detected
+interruption before accepting another command. Poisoned or unexplained staging
+artifacts fail closed before canonical pointer mutation.
 
 ### Privilege or authority expansion
 
