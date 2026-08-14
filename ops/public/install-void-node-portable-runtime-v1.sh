@@ -60,11 +60,8 @@ for artifact in .current.update-next .previous.update-next .rollback.update-tran
 done
 if test "$recovery_required" = 1; then
   test -f "$CONTROL_UPDATER" || { printf 'ERROR: %s recovery updater is missing\n' "$MARKER" >&2; exit 1; }
-  if test -x "$CURRENT/runtime/bin/node"; then
-    exec "$CURRENT/runtime/bin/node" "$CONTROL_UPDATER" rollback --install-root "$INSTALL_ROOT"
-  fi
-  command -v node >/dev/null 2>&1 || { printf 'ERROR: %s recovery requires Node.js\n' "$MARKER" >&2; exit 1; }
-  exec node "$CONTROL_UPDATER" rollback --install-root "$INSTALL_ROOT"
+  test -x "$CURRENT/runtime/bin/node" || { printf 'ERROR: %s verified bundled recovery runtime is missing\n' "$MARKER" >&2; exit 1; }
+  exec "$CURRENT/runtime/bin/node" "$CONTROL_UPDATER" rollback --install-root "$INSTALL_ROOT"
 fi
 test -x "$CURRENT/bin/void-node" || { printf 'ERROR: %s current release manager is unavailable\n' "$MARKER" >&2; exit 1; }
 exec "$CURRENT/bin/void-node" "$@"
