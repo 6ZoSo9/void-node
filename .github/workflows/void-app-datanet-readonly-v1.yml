@@ -9,7 +9,7 @@ on:
       - "public/public-node/datanet/field-replication-status-card-v1.html"
       - "public/public-node/datanet/index.json"
       - "src/ui/void_app_wave1_foundation_v1.ts"
-      - "src/ui/void_app_datanet_readonly_adapter_v1.cjs"
+      - "src/ui/void_app_datanet_readonly_adapter_v1.cts"
       - "scripts/prove_void_app_datanet_readonly_v1.mjs"
       - "scripts/prove_void_app_datanet_local_origin_v1.mjs"
       - ".github/workflows/void-app-datanet-readonly-v1.yml"
@@ -22,7 +22,7 @@ on:
       - "public/public-node/datanet/field-replication-status-card-v1.html"
       - "public/public-node/datanet/index.json"
       - "src/ui/void_app_wave1_foundation_v1.ts"
-      - "src/ui/void_app_datanet_readonly_adapter_v1.cjs"
+      - "src/ui/void_app_datanet_readonly_adapter_v1.cts"
       - "scripts/prove_void_app_datanet_readonly_v1.mjs"
       - "scripts/prove_void_app_datanet_local_origin_v1.mjs"
       - ".github/workflows/void-app-datanet-readonly-v1.yml"
@@ -51,9 +51,13 @@ jobs:
         run: |
           node --check public/void-app-wave1-v1/assets/js/app.js
           node --check public/void-app-wave1-v1/assets/js/data-live.js
-          node --check src/ui/void_app_datanet_readonly_adapter_v1.cjs
           node --check scripts/prove_void_app_datanet_readonly_v1.mjs
           node --check scripts/prove_void_app_datanet_local_origin_v1.mjs
+      - name: Build packaged runtime adapter
+        run: |
+          npm ci --ignore-scripts --no-audit --no-fund
+          npm run build
+          test -f dist/ui/void_app_datanet_readonly_adapter_v1.cjs
       - name: Prove read-only DataNet view
         run: node scripts/prove_void_app_datanet_readonly_v1.mjs
       - name: Prove local App origin integration
