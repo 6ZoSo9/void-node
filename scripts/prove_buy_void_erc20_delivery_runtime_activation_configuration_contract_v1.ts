@@ -6,25 +6,42 @@ import {
   VOID_BUY_VOID_ERC20_DELIVERY_RUNTIME_ACTIVATION_CONFIGURATION_V1,
 } from "../src/economic/buy_void_erc20_delivery_runtime_activation_configuration_contract_v1.js";
 import {
-  readBuyVoidCrashConsistentSagaServerPolicyV1,
+  readBuyVoidCanonicalPresaleServerPolicyV1,
 } from "../src/economic/buy_void_crash_consistent_saga_server_policy_v1.js";
 
 const root = process.cwd();
 const read = (p: string) => fs.readFileSync(path.join(root, p), "utf8");
 const contract = VOID_BUY_VOID_ERC20_DELIVERY_RUNTIME_ACTIVATION_CONFIGURATION_V1;
-assert.equal(contract.marker, VOID_BUY_VOID_ERC20_DELIVERY_RUNTIME_ACTIVATION_CONFIGURATION_CONTRACT_V1);
 assert.equal(
   contract.status,
-  "source_ready_held_on_presale_invariants",
+  "presale_invariants_source_ready_held_on_activation",
 );
 assert.equal(contract.canonical_chain_id, "2050");
 assert.equal(contract.canonical_asset, "void_token_erc20");
-assert.equal(contract.prerequisite_source_truth.canonical_delivery_dependency_bootstrap_ready, true);
-assert.equal(contract.prerequisite_source_truth.erc20_transaction_preparation_execution_state_ready, true);
-assert.equal(contract.prerequisite_source_truth.erc20_execution_composition_ready, true);
-assert.equal(contract.prerequisite_source_truth.caller_supplied_transaction_plan_forbidden, true);
-assert.equal(contract.prerequisite_source_truth.canonical_erc20_receipt_to_record_confirmed_ready, true);
-assert.equal(contract.prerequisite_source_truth.existing_terminal_closeout_reused, true);
+assert.equal(
+  contract.prerequisite_source_truth.canonical_delivery_dependency_bootstrap_ready,
+  true,
+);
+assert.equal(
+  contract.prerequisite_source_truth.erc20_transaction_preparation_execution_state_ready,
+  true,
+);
+assert.equal(
+  contract.prerequisite_source_truth.erc20_execution_composition_ready,
+  true,
+);
+assert.equal(
+  contract.prerequisite_source_truth.caller_supplied_transaction_plan_forbidden,
+  true,
+);
+assert.equal(
+  contract.prerequisite_source_truth.canonical_erc20_receipt_to_record_confirmed_ready,
+  true,
+);
+assert.equal(
+  contract.prerequisite_source_truth.existing_terminal_closeout_reused,
+  true,
+);
 assert.equal(contract.canonical_delivery_runtime_activation_ready, false);
 assert.equal(contract.production_configuration_values_verified, false);
 assert.equal(contract.production_credential_binding_ready, false);
@@ -69,6 +86,15 @@ assert.equal(contract.dependency_injection_runtime_ready, false);
 assert.equal(contract.canonical_delivery_runtime_parent_mounted, true);
 assert.equal(contract.canonical_delivery_execution_ready, false);
 assert.equal(contract.presale_inventory_funding_ready, false);
+
+assert.equal(
+  contract.presale_invariant_readiness.canonical_presale_pool_id,
+  "buy-void-presale-v1",
+);
+assert.equal(
+  contract.presale_invariant_readiness.canonical_inventory_policy_version,
+  "presale-v1",
+);
 assert.equal(
   contract.presale_invariant_readiness.canonical_presale_max_void,
   "10000000",
@@ -80,38 +106,91 @@ assert.equal(
 );
 assert.equal(
   contract.presale_invariant_readiness
-    .finite_presale_cap_end_to_end_enforced,
-  false,
+    .canonical_max_reservation_fulfillment_units_6_decimal,
+  "10000000000000",
 );
 assert.equal(
-  contract.presale_invariant_readiness
-    .canonical_rate_void_units_numerator,
+  contract.presale_invariant_readiness.finite_presale_cap_end_to_end_enforced,
+  true,
+);
+assert.equal(
+  contract.presale_invariant_readiness.canonical_rate_void_units_numerator,
   "2",
 );
 assert.equal(
-  contract.presale_invariant_readiness
-    .canonical_rate_void_units_denominator,
+  contract.presale_invariant_readiness.canonical_rate_void_units_denominator,
   "1",
 );
 assert.equal(
   contract.presale_invariant_readiness.fixed_presale_rate_enforced,
+  true,
+);
+assert.equal(
+  contract.presale_invariant_readiness.reservation_ceiling_equals_total_pool,
+  true,
+);
+assert.equal(
+  contract.presale_invariant_readiness
+    .payment_admission_reservation_atomicity_ready,
+  true,
+);
+assert.equal(
+  contract.presale_invariant_readiness
+    .inventory_reservation_before_new_paid_claim,
+  true,
+);
+assert.equal(
+  contract.presale_invariant_readiness
+    .paid_unreservable_terminal_obligation_ready,
+  true,
+);
+assert.equal(
+  contract.presale_invariant_readiness
+    .confirmed_payer_without_reservation_or_obligation_allowed,
+  false,
+);
+assert.equal(
+  contract.presale_invariant_readiness
+    .no_per_buyer_purchase_throttle_below_remaining_inventory,
+  true,
+);
+assert.equal(
+  contract.presale_invariant_readiness
+    .validator_scale_purchase_10000_void_admission_ready,
+  true,
+);
+assert.equal(
+  contract.presale_invariant_readiness
+    .delivery_execution_amount_cap_separate_from_purchase_admission,
+  true,
+);
+assert.equal(
+  contract.presale_invariant_readiness.disabled_delivery_canary_max_may_be_lower,
+  true,
+);
+assert.equal(
+  contract.presale_invariant_readiness
+    .public_delivery_activation_requires_presale_capacity_max,
+  true,
+);
+assert.equal(
+  contract.production_broad_delivery_configuration_verified,
   false,
 );
 assert.deepEqual(
   [...contract.activation_readiness_blockers],
   [
-    "canonical_presale_finite_cap_not_ready",
-    "canonical_presale_fixed_rate_not_ready",
+    "production_broad_delivery_configuration_not_verified",
     "canonical_delivery_runtime_activation_not_ready",
   ],
 );
 assert.equal(
   contract.current_parent_blocker,
-  "canonical_presale_invariants_not_ready",
+  "production_broad_delivery_configuration_not_verified",
 );
 assert.equal(
   contract.next_gate,
-  "canonical_presale_invariants_source_repair",
+  "production_broad_delivery_configuration_verification",
 );
 
 const presalePolicyBase: NodeJS.ProcessEnv = {
@@ -130,34 +209,49 @@ const presalePolicyBase: NodeJS.ProcessEnv = {
   VOID_BUY_VOID_CRASH_CONSISTENT_SAGA_POOL_CAPACITY_VOID_UNITS:
     "10000000000000",
   VOID_BUY_VOID_CRASH_CONSISTENT_SAGA_MAX_RESERVATION_VOID_UNITS:
-    "2000000",
+    "10000000000000",
   VOID_BUY_VOID_NATIVE_DELIVERY_WALLET_ADDRESS:
     "0xc884f631c3881b8b672bfcbf019c856146cd7f73",
 };
 
-const noncanonicalRateAccepted =
-  readBuyVoidCrashConsistentSagaServerPolicyV1({
-    ...presalePolicyBase,
-    VOID_BUY_VOID_CRASH_CONSISTENT_SAGA_RATE_VOID_UNITS_NUMERATOR: "3",
-    VOID_BUY_VOID_CRASH_CONSISTENT_SAGA_RATE_VOID_UNITS_DENOMINATOR: "2",
-  });
-assert.equal(
-  noncanonicalRateAccepted.ok,
-  true,
-  "current saga policy must still expose the unresolved configurable-rate blocker",
-);
+const canonicalPresale =
+  readBuyVoidCanonicalPresaleServerPolicyV1(presalePolicyBase);
+assert.equal(canonicalPresale.ok, true);
 
-const aboveCanonicalCapAccepted =
-  readBuyVoidCrashConsistentSagaServerPolicyV1({
+for (const [label, overrides, reason] of [
+  [
+    "rate",
+    {
+      VOID_BUY_VOID_CRASH_CONSISTENT_SAGA_RATE_VOID_UNITS_NUMERATOR: "3",
+      VOID_BUY_VOID_CRASH_CONSISTENT_SAGA_RATE_VOID_UNITS_DENOMINATOR: "2",
+    },
+    "canonical_presale_fixed_rate_mismatch",
+  ],
+  [
+    "capacity",
+    {
+      VOID_BUY_VOID_CRASH_CONSISTENT_SAGA_POOL_CAPACITY_VOID_UNITS:
+        "10000000000001",
+    },
+    "canonical_presale_pool_capacity_mismatch",
+  ],
+  [
+    "reservation-canary",
+    {
+      VOID_BUY_VOID_CRASH_CONSISTENT_SAGA_MAX_RESERVATION_VOID_UNITS:
+        "2000000",
+    },
+    "canonical_presale_reservation_ceiling_mismatch",
+  ],
+] as const) {
+  const held = readBuyVoidCanonicalPresaleServerPolicyV1({
     ...presalePolicyBase,
-    VOID_BUY_VOID_CRASH_CONSISTENT_SAGA_POOL_CAPACITY_VOID_UNITS:
-      "10000000000001",
+    ...overrides,
   });
-assert.equal(
-  aboveCanonicalCapAccepted.ok,
-  true,
-  "current saga policy must still expose the unresolved finite-cap blocker",
-);
+  assert.equal(held.ok, false, label);
+  if (held.ok) throw new Error(`${label} unexpectedly configured`);
+  assert.equal(held.reason, reason, label);
+}
 assert.equal(
   contract.amount_unit_contract.max_amount_unit_domain,
   "fulfillment_units_6_decimal",
@@ -314,10 +408,15 @@ console.log("canonical_presale_max_void=10000000");
 console.log(
   "canonical_presale_max_fulfillment_units_6_decimal=10000000000000",
 );
-console.log("finite_presale_cap_end_to_end_enforced=0");
+console.log("finite_presale_cap_end_to_end_enforced=1");
 console.log("canonical_presale_rate=2/1");
-console.log("fixed_presale_rate_enforced=0");
-console.log("noncanonical_rate_3_2_currently_accepted=1");
-console.log("above_canonical_presale_cap_currently_accepted=1");
-console.log("next_gate=canonical_presale_invariants_source_repair");
+console.log("fixed_presale_rate_enforced=1");
+console.log("canonical_presale_reservation_ceiling=10000000000000");
+console.log("per_buyer_purchase_throttle_below_remaining_inventory=0");
+console.log("validator_scale_purchase_10000_void_admission_ready=1");
+console.log("delivery_execution_amount_cap_separate_from_purchase_admission=1");
+console.log("disabled_delivery_canary_max_may_be_lower=1");
+console.log("public_delivery_activation_requires_presale_capacity_max=1");
+console.log("production_broad_delivery_configuration_verified=0");
+console.log("next_gate=production_broad_delivery_configuration_verification");
 console.log("money_movement=0");
