@@ -12,6 +12,7 @@ export type VoidUiWave2HomeReadinessEvidenceV1 = {
   ready: boolean;
   txroot_live: 0 | 1;
   reasons: string[];
+  gap: number;
 };
 
 export type VoidUiWave2HomeOperationalEvidenceV1 = {
@@ -109,7 +110,10 @@ export function parseVoidUiWave2HomeReadinessEvidenceV1(
     typeof body.ready !== "boolean" ||
     (body.txroot_live !== 0 && body.txroot_live !== 1) ||
     !Array.isArray(body.reasons) ||
-    !body.reasons.every((reason) => typeof reason === "string")
+    !body.reasons.every((reason) => typeof reason === "string") ||
+    typeof body.gap !== "number" ||
+    !Number.isSafeInteger(body.gap) ||
+    body.gap < 0
   ) {
     return null;
   }
@@ -118,6 +122,7 @@ export function parseVoidUiWave2HomeReadinessEvidenceV1(
     ready: body.ready,
     txroot_live: body.txroot_live,
     reasons: [...body.reasons] as string[],
+    gap: body.gap,
   };
 }
 
@@ -217,7 +222,8 @@ export function evaluateVoidUiWave2HomeOperationalEvidenceV1(input: {
       parsedReadiness !== null &&
       parsedReadiness.ready === true &&
       parsedReadiness.txroot_live === 1 &&
-      parsedReadiness.reasons.length === 0,
+      parsedReadiness.reasons.length === 0 &&
+      parsedReadiness.gap === 0,
     chain_head: parsedChainHead,
     peer_count: parsedPeerCount,
   };
