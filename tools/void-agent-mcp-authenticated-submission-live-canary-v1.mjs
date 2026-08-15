@@ -194,6 +194,35 @@ function persistTerminalState(stateDirectory, value, phase, localStateFault) {
   return persistedStateEquals(stateDirectory, value);
 }
 
+function publishCompletionReceipt(stateDirectory, receipt, localReceiptFault) {
+  const resolved = path.join(stateDirectory, COMPLETION_RECEIPT_FILE);
+  let descriptor = null;
+  let createdByThisCall = false;
+  try {
+    if (typeof localReceiptFault === "function") localReceiptFault("receipt:before", receipt);
+    descriptor = fs.openSync(resolved, "wx", 0o600);
+    createdByThisCall = true;
+    fs.writeFileSync(descriptor, `${JSON.stringify(receipt, null, 2)}\n`, { encoding: "utf8" });
+    fs.closeSync(descriptor);
+    descriptor = null;
+    fs.chmodSync(resolved, 0o600);
+    if (typeof localReceiptFault === "function") localReceiptFault("receipt:after", receipt);
+  } catch {
+    // Exact readback below distinguishes a committed receipt from a failed/partial create.
+  } finally {
+    if (descriptor !== null) {
+      try { fs.closeSync(descriptor); } catch { /* best-effort descriptor cleanup */ }
+    }
+  }
+  if (!createdByThisCall) return false;
+  try {
+    const persisted = readPrivateJson(resolved, "completion receipt", MAX_STATE_BYTES).value;
+    return canonicalJson(persisted) === canonicalJson(receipt);
+  } catch {
+    return false;
+  }
+}
+
 function inheritedEnvironment() {
   return Object.fromEntries(
     Object.entries(process.env).filter((entry) => typeof entry[1] === "string"),
@@ -690,7 +719,9 @@ export async function executeCanary(options) {
       authority_all_false: true,
     };
     assertCondition(!canonicalJson(receipt).includes(tokenFile), "completion receipt disclosed token-file path");
-    writeExclusiveJson(path.join(context.stateDirectory, COMPLETION_RECEIPT_FILE), receipt);
+    if (!publishCompletionReceipt(context.stateDirectory, receipt, options.localReceiptFault)) {
+      return acceptedTerminal;
+    }
     const published = {
       ...completedPersisted,
       updated_at_utc: new Date(options.now?.() ?? Date.now()).toISOString(),
