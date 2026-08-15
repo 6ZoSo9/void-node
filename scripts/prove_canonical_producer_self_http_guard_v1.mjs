@@ -48,6 +48,7 @@ for (const token of [
   "wrapResponseBodyLifetime",
   "body_complete",
   "caller_abort",
+  'url.search === "?empty=1"',
 ]) need(runtimeGuard, token, "runtime self-http guard");
 
 for (const token of [
@@ -264,15 +265,53 @@ if (
   throw new Error("caller abort cleanup was not exactly once");
 }
 
+const alreadyAborted = fixture(
+  "already-aborted caller cleanup exactly once",
+  String.raw`
+    let calls = 0;
+    global.fetch = (input, init = {}) => {
+      calls++;
+      if (init.signal?.aborted) return Promise.reject(init.signal.reason || new Error("aborted"));
+      return Promise.resolve(new Response("unexpected"));
+    };
+    require(process.env.MODULE_PATH);
+    (async () => {
+      const caller = new AbortController();
+      caller.abort(new Error("already-stopped"));
+      let rejected = false;
+      try { await fetch("http://127.0.0.1:4100/head.txt", {signal:caller.signal}); } catch (e) { rejected = String(e).includes("already-stopped"); }
+      await new Promise(r => setTimeout(r, 80));
+      console.log(JSON.stringify({calls, rejected, state:global.__voidCanonicalSelfHttpGuardV1}));
+    })().catch(e => { console.error(e); process.exit(1); });
+  `,
+  {
+    ...canonicalEnv,
+    VOID_CANONICAL_SELF_HTTP_TIMEOUT_MS: "50",
+  },
+);
+if (
+  alreadyAborted.calls !== 1 ||
+  alreadyAborted.rejected !== true ||
+  alreadyAborted.state.inflight !== 0 ||
+  alreadyAborted.state.cleanups !== 1 ||
+  alreadyAborted.state.timedOut !== 0 ||
+  alreadyAborted.state.lastCleanupReason !== "caller_abort"
+) {
+  throw new Error("already-aborted caller leaked a slot or timeout");
+}
+
 const bypass = fixture(
-  "autoprop and external bypass",
+  "exact autoprop and external bypass",
   String.raw`
     let calls = 0;
     let release;
     global.fetch = (input, init = {}) => {
       calls++;
       const u = String(input);
-      if (u.includes("proposer.commit-direct.v2fs/commit") || u.startsWith("https://example.com/")) return Promise.resolve(new Response("ok"));
+      if (u === "http://127.0.0.1:4100/__void/metrics/proposer.commit-direct.v2fs/commit?empty=1" && String(init.method || "GET").toUpperCase() === "POST") {
+        return Promise.resolve(new Response("ok"));
+      }
+      if (u.startsWith("https://example.com/")) return Promise.resolve(new Response("ok"));
       return new Promise((resolve, reject) => {
         release = resolve;
         init.signal?.addEventListener("abort", () => reject(init.signal.reason || new Error("aborted")), {once:true});
@@ -281,12 +320,23 @@ const bypass = fixture(
     require(process.env.MODULE_PATH);
     (async () => {
       const diagnostic = fetch("http://127.0.0.1:4100/head.txt");
-      const autoprop = await fetch("http://127.0.0.1:4100/__void/metrics/proposer.commit-direct.v2fs/commit?empty=1", {method:"POST"});
+      const exact = await fetch("http://127.0.0.1:4100/__void/metrics/proposer.commit-direct.v2fs/commit?empty=1", {method:"POST"});
+      const nearMisses = [
+        ["http://127.0.0.1:4100/__void/metrics/proposer.commit-direct.v2fs/commit?empty=1&extra=1", {method:"POST"}],
+        ["http://127.0.0.1:4100/__void/metrics/proposer.commit-direct.v2fs/commit?empty=1&empty=0", {method:"POST"}],
+        ["http://127.0.0.1:4100/__void/metrics/proposer.commit-direct.v2fs/commit?empty=0", {method:"POST"}],
+        ["http://127.0.0.1:4100/__void/metrics/proposer.commit-direct.v2fs/commit", {method:"POST"}],
+        ["http://127.0.0.1:4100/__void/metrics/proposer.commit-direct.v2fs/commit?empty=1", {method:"GET"}],
+      ];
+      let limitedNearMisses = 0;
+      for (const [url, init] of nearMisses) {
+        try { await fetch(url, init); } catch (e) { if (String(e).includes("_LIMIT")) limitedNearMisses++; }
+      }
       const external = await fetch("https://example.com/ping");
       release(new Response("ok"));
       const diagnosticResponse = await diagnostic;
       await diagnosticResponse.text();
-      console.log(JSON.stringify({calls, autoprop:autoprop.status, external:external.status, state:global.__voidCanonicalSelfHttpGuardV1}));
+      console.log(JSON.stringify({calls, exact:exact.status, external:external.status, limitedNearMisses, nearMissCount:nearMisses.length, state:global.__voidCanonicalSelfHttpGuardV1}));
     })().catch(e => { console.error(e); process.exit(1); });
   `,
   {
@@ -295,11 +345,19 @@ const bypass = fixture(
     VOID_CANONICAL_SELF_HTTP_TIMEOUT_MS: "1000",
   },
 );
-if (bypass.calls !== 3 || bypass.autoprop !== 200 || bypass.external !== 200) {
-  throw new Error("autoprop or external fetch was throttled by diagnostic containment");
+if (bypass.calls !== 3 || bypass.exact !== 200 || bypass.external !== 200) {
+  throw new Error("exact autoprop or external fetch was throttled by diagnostic containment");
 }
-if (bypass.state.autopropBypass !== 1 || bypass.state.externalPassThrough !== 1 || bypass.state.inflight !== 0) {
-  throw new Error("bypass accounting or diagnostic cleanup is not exact");
+if (bypass.limitedNearMisses !== bypass.nearMissCount || bypass.nearMissCount !== 5) {
+  throw new Error("autoprop near-matches escaped ordinary diagnostic limiting");
+}
+if (
+  bypass.state.autopropBypass !== 1 ||
+  bypass.state.limited !== 5 ||
+  bypass.state.externalPassThrough !== 1 ||
+  bypass.state.inflight !== 0
+) {
+  throw new Error("exact autoprop bypass accounting or diagnostic cleanup is not exact");
 }
 
 console.log(
@@ -311,8 +369,11 @@ console.log(
     self_http_max_inflight_bounded: true,
     self_http_timeout_covers_response_body: true,
     body_cleanup_exact_once: true,
+    already_aborted_caller_exact_once: true,
     legacy_watchdog_interventions_suppressed: true,
     canonical_autoprop_exempt: true,
+    autoprop_bypass_exact_query: true,
+    autoprop_near_matches_contained: true,
     external_fetches_unaffected: true,
     noncanonical_fetches_unaffected: true,
     incident_source_bound: true,
