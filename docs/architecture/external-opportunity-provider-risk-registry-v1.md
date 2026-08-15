@@ -63,6 +63,7 @@ no credential and rejects a paper quote older than the configured maximum age.
 4. `scripts/prove_external_opportunity_provider_risk_registry_v1.ts`
    - validates the fixture
    - proves positive and negative paper classifications
+   - proves exact-threshold and one-quantum-below derived-metric behavior
    - proves stale, unknown-provider, wrong-origin, and wrong-token holds
    - proves live candidates remain blocked
 
@@ -107,6 +108,15 @@ Each provider policy defines:
 - mandatory simulation for any future live candidate
 - mandatory operator approval for any future live candidate
 - mandatory exact execution-contract allowlisting for any future live candidate
+
+Derived economic metrics are normalized to the same 12-decimal representation
+used in the decision evidence before those derived metrics are compared with
+policy thresholds. This prevents binary floating-point residue from making the
+classification contradict the metric that the decision actually publishes. An
+exact published threshold value is treated as exact-threshold evidence; a value
+one 12-decimal quantum below the threshold remains below it. Direct observation
+fields such as quote age, notional, gas cost, and slippage retain their direct
+policy comparisons.
 
 Even a candidate satisfying every numerical gate remains blocked in V1 because
 the registry schema and implementation require `live_execution_enabled=false`.
