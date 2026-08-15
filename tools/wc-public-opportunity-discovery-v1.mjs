@@ -66,18 +66,6 @@ function findObjectByMarker(value, predicate) {
   return found;
 }
 
-function findObjectAtKey(value, wantedKeys) {
-  const normalized = new Set(wantedKeys.map((key) => key.toLowerCase()));
-  let found = null;
-  walk(value, (candidate, path) => {
-    if (found || path.length === 0) return;
-    const last = path[path.length - 1]?.toLowerCase();
-    const object = asObject(candidate);
-    if (object && last && normalized.has(last)) found = object;
-  });
-  return found;
-}
-
 function findFirstScalar(value, wantedKeys, type) {
   const normalized = new Set(wantedKeys.map((key) => key.toLowerCase()));
   let found;
@@ -227,6 +215,18 @@ function directString(object, keys) {
   return null;
 }
 
+function claimRouteNoDirectAward(safety, publicClaim) {
+  return (
+    directBoolean(safety, ["public_ticket_issue"]) === true &&
+    directBoolean(safety, ["public_signed_ticket_claim"]) === true &&
+    directBoolean(safety, ["claim_server_selected_work"]) === true &&
+    directBoolean(safety, ["participant_selected_award"]) === false &&
+    directBoolean(safety, ["submission_response_canonical_accounting"]) === true &&
+    directBoolean(publicClaim, ["server_selected_work"]) === true &&
+    directBoolean(publicClaim, ["participant_selected_award"]) === false
+  );
+}
+
 function analyze(body, sourcePath, origin, expectedAwardWc, attempts) {
   const gateway = findObjectByMarker(
     body,
@@ -242,9 +242,6 @@ function analyze(body, sourcePath, origin, expectedAwardWc, attempts) {
     null;
   if (!pilot && !gateway && !publicClaim) return null;
 
-  const auditAssertions =
-    asObject(gateway?.audit_assertions) ??
-    asObject(pilot?.audit_assertions);
   const safety = asObject(gateway?.safety) ?? asObject(pilot?.safety);
 
   const coordinatorEnabled =
@@ -275,38 +272,14 @@ function analyze(body, sourcePath, origin, expectedAwardWc, attempts) {
     "httpMethod",
   ]);
   const claimPath = publicClaim ? findClaimPath(publicClaim, origin) : null;
-  const publicRoutesAwardWc =
-    directBoolean(auditAssertions, [
-      "public_routes_award_wc",
-      "public_route_can_award_wc",
-      "publicRoutesAwardWc",
-      "publicRouteCanAwardWc",
-    ]) ??
-    directBoolean(safety, [
-      "public_routes_award_wc",
-      "public_route_can_award_wc",
-      "publicRoutesAwardWc",
-      "publicRouteCanAwardWc",
-    ]) ??
-    directBoolean(gateway, [
-      "public_routes_award_wc",
-      "public_route_can_award_wc",
-      "publicRoutesAwardWc",
-      "publicRouteCanAwardWc",
-    ]) ??
-    directBoolean(pilot, [
-      "public_routes_award_wc",
-      "public_route_can_award_wc",
-      "publicRoutesAwardWc",
-      "publicRouteCanAwardWc",
-    ]);
+  const publicClaimRouteNoDirectAward = claimRouteNoDirectAward(safety, publicClaim);
 
   const gatewayCompatible = Boolean(pilot || gateway || publicClaim);
   const awardMatches = fixedAwardWc !== null && fixedAwardWc === expectedAwardWc;
   const coordinatorReady = coordinatorEnabled === true;
   const claimConfigured = Boolean(publicClaim || claimPath);
   const claimNotDisabled = claimEnabled !== false;
-  const publicAwardBoundaryConfirmed = publicRoutesAwardWc === false;
+  const publicAwardBoundaryConfirmed = publicClaimRouteNoDirectAward === true;
   const reasons = [];
   if (!pilot) reasons.push("pilot_status_missing");
   if (!coordinatorReady) reasons.push("coordinator_not_enabled");
@@ -314,8 +287,7 @@ function analyze(body, sourcePath, origin, expectedAwardWc, attempts) {
   if (!awardMatches) reasons.push("fixed_award_mismatch_or_missing");
   if (!claimConfigured) reasons.push("public_claim_not_discovered");
   if (!claimNotDisabled) reasons.push("public_claim_disabled");
-  if (publicRoutesAwardWc === true) reasons.push("unsafe_public_award_boundary");
-  else if (!publicAwardBoundaryConfirmed) reasons.push("public_award_boundary_unconfirmed");
+  if (!publicAwardBoundaryConfirmed) reasons.push("public_claim_award_boundary_unconfirmed");
   const opportunityState =
     pilot &&
     coordinatorReady &&
@@ -335,7 +307,7 @@ function analyze(body, sourcePath, origin, expectedAwardWc, attempts) {
     participant: { node_required: false, public_status_only: true, next_tool: "ops/mainnet0/wc-public-ticket-claim-v1.sh", next_document: "docs/public/wc-public-ticket-claim-v1.md" },
     pilot: { marker: pilot?.marker ?? null, coordinator_enabled: coordinatorEnabled, executor_enabled: executorEnabled, fixed_award_wc: fixedAwardWc, expected_fixed_award_wc: expectedAwardWc, fixed_award_matches: awardMatches },
     public_claim: { configured: claimConfigured, enabled: claimEnabled, method: claimMethod, path: claimPath },
-    safety: { read_only: true, http_methods_used: ["GET"], public_routes_award_wc: publicRoutesAwardWc, public_award_boundary_confirmed: publicAwardBoundaryConfirmed, public_award_boundary_safe: publicAwardBoundaryConfirmed, mutation_attempted: false, ticket_issuance_attempted: false, receipt_submission_attempted: false, wc_award_attempted: false, wallet_access_attempted: false, settlement_attempted: false },
+    safety: { read_only: true, http_methods_used: ["GET"], public_claim_route_no_direct_award: publicClaimRouteNoDirectAward, public_award_boundary_confirmed: publicAwardBoundaryConfirmed, public_award_boundary_safe: publicAwardBoundaryConfirmed, mutation_attempted: false, ticket_issuance_attempted: false, receipt_submission_attempted: false, wc_award_attempted: false, wallet_access_attempted: false, settlement_attempted: false },
     attempts: attempts.map(summarizeAttempt),
   };
 }
