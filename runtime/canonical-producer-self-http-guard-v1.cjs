@@ -49,6 +49,8 @@
     inflight: 0,
     limited: 0,
     timedOut: 0,
+    cleanups: 0,
+    lastCleanupReason: "",
     suppressedInterventions: 0,
     autopropBypass: 0,
     selfPassThrough: 0,
@@ -96,6 +98,64 @@
     return { url, method, self, autoprop, intervention };
   }
 
+  function wrapResponseBodyLifetime(response, cleanup, registerBodyCancel) {
+    if (!(response instanceof Response)) {
+      cleanup("non_response");
+      return response;
+    }
+
+    const originalBody = response.body;
+    if (!originalBody) {
+      cleanup("no_body");
+      return response;
+    }
+
+    const reader = originalBody.getReader();
+    registerBodyCancel((reason) => Promise.resolve(reader.cancel(reason)).catch(() => {}));
+
+    const guardedBody = new ReadableStream({
+      async pull(controller) {
+        try {
+          const { done, value } = await reader.read();
+          if (done) {
+            cleanup("body_complete");
+            controller.close();
+            return;
+          }
+          controller.enqueue(value);
+        } catch (err) {
+          cleanup("body_error");
+          controller.error(err);
+        }
+      },
+      async cancel(reason) {
+        try {
+          await reader.cancel(reason);
+        } finally {
+          cleanup("body_cancel");
+        }
+      },
+    });
+
+    const guardedResponse = new Response(guardedBody, {
+      status: response.status,
+      statusText: response.statusText,
+      headers: response.headers,
+    });
+
+    // Preserve fetch metadata that the Response constructor cannot set while
+    // keeping all body consumers on the guarded stream above.
+    return new Proxy(guardedResponse, {
+      get(target, prop) {
+        if (prop === "url" || prop === "redirected" || prop === "type") {
+          return Reflect.get(response, prop, response);
+        }
+        const value = Reflect.get(target, prop, target);
+        return typeof value === "function" ? value.bind(target) : value;
+      },
+    });
+  }
+
   globalThis.fetch = function voidCanonicalProducerGuardedFetch(input, init) {
     const info = requestInfo(input, init);
 
@@ -132,35 +192,60 @@
     const controller = new AbortController();
     const callerSignal = init?.signal || input?.signal;
     let callerAbort;
+    let timer;
+    let bodyCancel = null;
+    let cleaned = false;
+
+    const cleanup = (reason) => {
+      if (cleaned) return;
+      cleaned = true;
+      if (timer) clearTimeout(timer);
+      if (callerSignal && callerAbort) callerSignal.removeEventListener("abort", callerAbort);
+      state.inflight = Math.max(0, state.inflight - 1);
+      state.cleanups += 1;
+      state.lastCleanupReason = reason;
+    };
+
+    const abortAndCleanup = (reason, cleanupReason) => {
+      if (!controller.signal.aborted) controller.abort(reason);
+      if (bodyCancel) void bodyCancel(reason);
+      cleanup(cleanupReason);
+    };
 
     if (callerSignal) {
-      callerAbort = () => controller.abort(callerSignal.reason);
+      callerAbort = () => abortAndCleanup(callerSignal.reason, "caller_abort");
       if (callerSignal.aborted) callerAbort();
       else callerSignal.addEventListener("abort", callerAbort, { once: true });
     }
 
-    const timer = setTimeout(() => {
+    timer = setTimeout(() => {
       state.timedOut += 1;
-      controller.abort(new Error(`${MARKER}_TIMEOUT timeout_ms=${timeoutMs}`));
+      const reason = new Error(`${MARKER}_TIMEOUT timeout_ms=${timeoutMs}`);
+      abortAndCleanup(reason, "timeout");
     }, timeoutMs);
-
-    let cleaned = false;
-    const cleanup = () => {
-      if (cleaned) return;
-      cleaned = true;
-      clearTimeout(timer);
-      if (callerSignal && callerAbort) callerSignal.removeEventListener("abort", callerAbort);
-      state.inflight = Math.max(0, state.inflight - 1);
-    };
 
     const guardedInit = { ...(init || {}), signal: controller.signal };
     let result;
     try {
       result = originalFetch.call(globalThis, input, guardedInit);
     } catch (err) {
-      cleanup();
+      cleanup("fetch_sync_error");
       throw err;
     }
-    return Promise.resolve(result).finally(cleanup);
+
+    return Promise.resolve(result).then(
+      (response) => wrapResponseBodyLifetime(
+        response,
+        cleanup,
+        (cancel) => {
+          bodyCancel = cancel;
+          if (controller.signal.aborted) void bodyCancel(controller.signal.reason);
+        },
+      ),
+      (err) => {
+        cleanup("fetch_error");
+        throw err;
+      },
+    );
   };
 })();
