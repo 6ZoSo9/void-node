@@ -33,7 +33,7 @@ node ops/run_void_node_fleet_runtime_pin_status_v1.mjs \
 
 `--git-executable` is required. It must resolve to an executable regular file whose canonical basename is `git`. The evaluator hashes that exact executable before evaluation, uses only its canonical directory as the Git lookup `PATH`, rechecks path/SHA-256/size/device/inode afterward, and publishes the canonical path plus SHA-256 as `canonical_git_executable`. `operator_evidence_id_sha256` binds the underlying `status_id_sha256` to that Git executable identity.
 
-The implementation intentionally keeps the earlier live-canonical evaluator in `ops/void-node-fleet-runtime-pin-status-core-v1.mjs` as an internal compatibility library for existing focused proofs. Its direct CLI is **not** the canonical operator entrypoint and does not produce the reviewed-Git operator evidence binding. The only operator CLI for current-main claims is `ops/run_void_node_fleet_runtime_pin_status_v1.mjs`.
+The earlier live-canonical evaluator remains in `ops/void-node-fleet-runtime-pin-status-core-v1.mjs` only as an imported compatibility library for the focused proof surfaces. **Direct execution of that core module is disabled and fails closed before evidence classification or publication.** It emits only a `HOLD` with `reason=legacy_core_cli_disabled`; it cannot emit `CURRENT_WITH_MAIN`, `HEALTHY_INTENTIONAL_PIN`, `canonical_main_sha`, node classifications, or reviewed operator evidence. `ops/run_void_node_fleet_runtime_pin_status_v1.mjs` is the sole operator CLI for current-main/runtime-pin claims.
 
 ## Canonical Git identity and helper boundary
 
@@ -89,11 +89,12 @@ The focused proofs require at least these cases:
 - caller-controlled `GIT_EXEC_PATH` cannot invoke a fake `git-remote-https`;
 - a fake top-level `git` earlier in ambient `PATH` is not invoked;
 - operator evidence binds the reviewed Git executable canonical path/SHA-256 to the status ID;
+- direct execution of the legacy core module fails closed without success-class runtime-pin evidence;
 - repository-internal/symlink-redirected output paths are rejected;
 - valid external evidence is create-only mode `0600`; and
 - no fetch, service action, runtime mutation, or network mutation occurs.
 
-Falsification: the lane is incomplete if runtime identity comes from source `HEAD`, incoherent source/process evidence can become healthy, stale drift can become current-main truth, ambient Git configuration/TLS/helper/program selection can replace the reviewed canonical query, or optional evidence output can mutate the selected repository.
+Falsification: the lane is incomplete if runtime identity comes from source `HEAD`, incoherent source/process evidence can become healthy, stale drift can become current-main truth, ambient Git configuration/TLS/helper/program selection can replace the reviewed canonical query, the legacy core can emit operator-usable success evidence, or optional evidence output can mutate the selected repository.
 
 ## Proofs
 
