@@ -37,6 +37,28 @@ assert.equal(
   false,
 );
 assert.equal(contract.dormant_dependency_injection_source_ready, true);
+assert.equal(
+  contract.dormant_dependency_injection_requires_delivery_runtime_disabled,
+  true,
+);
+assert.equal(
+  contract.dormant_dependency_injection_required_delivery_enable_value,
+  "0",
+);
+assert.equal(
+  contract.dormant_dependency_injection_wallet_evidence_binding_required,
+  true,
+);
+assert.equal(
+  contract.runtime_configuration_contract
+    .dependency_injection_requires_delivery_runtime_enable_value,
+  "0",
+);
+assert.equal(
+  contract.runtime_configuration_contract
+    .dependency_injection_configured_wallet_must_match_evidence,
+  true,
+);
 assert.equal(contract.dependency_injection_runtime_ready, false);
 assert.equal(contract.canonical_delivery_runtime_parent_mounted, true);
 assert.equal(contract.canonical_delivery_execution_ready, false);
@@ -190,6 +212,9 @@ console.log("production_configuration_values_verified=0");
 console.log("production_credential_binding_ready=0");
 console.log("canonical_production_credential_binding_evidence_ready=1");
 console.log("dormant_dependency_injection_source_ready=1");
+console.log("dependency_injection_requires_delivery_runtime_disabled=1");
+console.log("dependency_injection_required_delivery_enable_value=0");
+console.log("dependency_injection_wallet_evidence_binding_required=1");
 console.log("dependency_injection_runtime_ready=0");
 console.log("canonical_delivery_runtime_parent_mounted=1");
 console.log("canonical_delivery_execution_ready=0");

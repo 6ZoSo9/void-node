@@ -13,6 +13,8 @@ export const VOID_BUY_VOID_ERC20_DELIVERY_DEPENDENCY_INJECTION_ENABLE_ENV_V1 =
   "VOID_BUY_VOID_ERC20_DELIVERY_DEPENDENCY_INJECTION_ENABLED";
 export const VOID_BUY_VOID_ERC20_CREDENTIAL_BINDING_EVIDENCE_ID_ENV_V1 =
   "VOID_BUY_VOID_ERC20_CREDENTIAL_BINDING_EVIDENCE_ID";
+export const VOID_BUY_VOID_ERC20_DELIVERY_RUNTIME_ENABLE_ENV_V1 =
+  "VOID_BUY_VOID_DELIVERY_RUNTIME_INTEGRATION_ENABLED";
 
 const GLOBAL_DEPENDENCIES =
   "__void_buy_void_delivery_runtime_dependencies_v1";
@@ -23,6 +25,8 @@ export const VOID_BUY_VOID_ERC20_DELIVERY_DEPENDENCY_INJECTION_AUTHORITY_V1 = {
   disabled_by_default: true,
   exact_enable_value_required: true,
   exact_credential_binding_evidence_id_required: true,
+  delivery_runtime_exact_disabled_value_required: true,
+  configured_wallet_must_match_credential_evidence: true,
   canonical_production_evidence_scoped: true,
   clone_local_credential_binding_inferred: false,
   composition_time_credential_read: false,
@@ -33,7 +37,8 @@ export const VOID_BUY_VOID_ERC20_DELIVERY_DEPENDENCY_INJECTION_AUTHORITY_V1 = {
   composition_time_money_movement: false,
   composition_time_submission_guard_write: false,
   dependency_global_write_when_enabled_and_valid: true,
-  delivery_runtime_enable_independent: true,
+  dependency_global_write_forbidden_when_delivery_runtime_not_exactly_disabled: true,
+  delivery_runtime_enable_independent: false,
   automatic_retry: false,
   background_loop: false,
 } as const;
@@ -50,6 +55,9 @@ type InjectionStatusV1 = {
     typeof VOID_BUY_VOID_ERC20_DELIVERY_DEPENDENCY_INJECTION_ENABLE_ENV_V1;
   evidence_id_env:
     typeof VOID_BUY_VOID_ERC20_CREDENTIAL_BINDING_EVIDENCE_ID_ENV_V1;
+  delivery_runtime_enable_env:
+    typeof VOID_BUY_VOID_ERC20_DELIVERY_RUNTIME_ENABLE_ENV_V1;
+  required_delivery_runtime_enable_value: "0";
   required_evidence_id_sha256: string;
   canonical_production_evidence_ready: true;
   canonical_production_wallet_address: string;
@@ -79,6 +87,9 @@ function disabledOrHeld(
       VOID_BUY_VOID_ERC20_DELIVERY_DEPENDENCY_INJECTION_ENABLE_ENV_V1,
     evidence_id_env:
       VOID_BUY_VOID_ERC20_CREDENTIAL_BINDING_EVIDENCE_ID_ENV_V1,
+    delivery_runtime_enable_env:
+      VOID_BUY_VOID_ERC20_DELIVERY_RUNTIME_ENABLE_ENV_V1,
+    required_delivery_runtime_enable_value: "0",
     required_evidence_id_sha256:
       VOID_BUY_VOID_ERC20_PRODUCTION_CREDENTIAL_BINDING_EVIDENCE_ID_V1,
     canonical_production_evidence_ready: true,
@@ -113,6 +124,19 @@ function compose(): InjectionStatusV1 {
   if (
     String(
       process.env[
+        VOID_BUY_VOID_ERC20_DELIVERY_RUNTIME_ENABLE_ENV_V1
+      ] || "",
+    ) !== "0"
+  ) {
+    return disabledOrHeld(
+      "held",
+      "delivery_runtime_exact_disabled_value_required",
+    );
+  }
+
+  if (
+    String(
+      process.env[
         VOID_BUY_VOID_ERC20_CREDENTIAL_BINDING_EVIDENCE_ID_ENV_V1
       ] || "",
     ).trim() !==
@@ -121,6 +145,22 @@ function compose(): InjectionStatusV1 {
     return disabledOrHeld(
       "held",
       "credential_binding_evidence_id_mismatch",
+    );
+  }
+
+  const configuredWallet =
+    String(process.env.VOID_BUY_VOID_DELIVERY_WALLET_ADDRESS || "")
+      .trim()
+      .toLowerCase();
+  const evidenceWallet =
+    String(
+      VOID_BUY_VOID_ERC20_PRODUCTION_CREDENTIAL_BINDING_EVIDENCE_RECORD_V1
+        .derived_wallet_address,
+    ).toLowerCase();
+  if (!configuredWallet || configuredWallet !== evidenceWallet) {
+    return disabledOrHeld(
+      "held",
+      "credential_binding_wallet_mismatch",
     );
   }
 
@@ -136,8 +176,7 @@ function compose(): InjectionStatusV1 {
     enabled: true,
     credentials_directory:
       String(process.env.CREDENTIALS_DIRECTORY || "").trim(),
-    fulfillment_wallet_address:
-      String(process.env.VOID_BUY_VOID_DELIVERY_WALLET_ADDRESS || "").trim(),
+    fulfillment_wallet_address: configuredWallet,
     void_token_address:
       String(process.env.VOID_BUY_VOID_DELIVERY_TOKEN_ADDRESS || "").trim(),
     submission_guard_root_dir:
@@ -171,6 +210,9 @@ function compose(): InjectionStatusV1 {
       VOID_BUY_VOID_ERC20_DELIVERY_DEPENDENCY_INJECTION_ENABLE_ENV_V1,
     evidence_id_env:
       VOID_BUY_VOID_ERC20_CREDENTIAL_BINDING_EVIDENCE_ID_ENV_V1,
+    delivery_runtime_enable_env:
+      VOID_BUY_VOID_ERC20_DELIVERY_RUNTIME_ENABLE_ENV_V1,
+    required_delivery_runtime_enable_value: "0",
     required_evidence_id_sha256:
       VOID_BUY_VOID_ERC20_PRODUCTION_CREDENTIAL_BINDING_EVIDENCE_ID_V1,
     canonical_production_evidence_ready: true,

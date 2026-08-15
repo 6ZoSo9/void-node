@@ -35,6 +35,9 @@ export const
     canonical_production_credential_binding_evidence:
       VOID_BUY_VOID_ERC20_PRODUCTION_CREDENTIAL_BINDING_EVIDENCE_RECORD_V1,
     dormant_dependency_injection_source_ready: true,
+    dormant_dependency_injection_requires_delivery_runtime_disabled: true,
+    dormant_dependency_injection_required_delivery_enable_value: "0",
+    dormant_dependency_injection_wallet_evidence_binding_required: true,
     dependency_injection_runtime_ready: false,
     canonical_delivery_runtime_parent_mounted: true,
     canonical_delivery_execution_ready: false,
@@ -81,6 +84,8 @@ export const
         "__void_buy_void_delivery_runtime_dependencies_v1",
       dependency_injection_enable_env:
         "VOID_BUY_VOID_ERC20_DELIVERY_DEPENDENCY_INJECTION_ENABLED",
+      dependency_injection_requires_delivery_runtime_enable_value: "0",
+      dependency_injection_configured_wallet_must_match_evidence: true,
       credential_binding_evidence_id_env:
         "VOID_BUY_VOID_ERC20_CREDENTIAL_BINDING_EVIDENCE_ID",
       required_credential_binding_evidence_id_sha256:

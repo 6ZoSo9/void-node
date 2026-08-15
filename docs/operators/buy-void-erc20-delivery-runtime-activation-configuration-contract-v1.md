@@ -37,13 +37,16 @@ production_configuration_values_verified=false
 production_credential_binding_ready=false
 canonical_production_credential_binding_evidence_ready=true
 dormant_dependency_injection_source_ready=true
+dormant_dependency_injection_requires_delivery_runtime_disabled=true
+dormant_dependency_injection_required_delivery_enable_value=0
+dormant_dependency_injection_wallet_evidence_binding_required=true
 dependency_injection_runtime_ready=false
 canonical_delivery_runtime_parent_mounted=true
 canonical_delivery_execution_ready=false
 presale_inventory_funding_ready=false
 ```
 
-Credential key-to-wallet evidence is now recorded for the canonical Precision/Mainnet-0 fulfillment wallet without inferring clone-local binding. The next operations gate is separately authorized dormant dependency injection while delivery remains disabled; runtime enablement remains later. Inventory funding remains an independent later value-bearing gate.
+Credential key-to-wallet evidence is now recorded for the canonical Precision/Mainnet-0 fulfillment wallet without inferring clone-local binding. Dormant dependency injection requires delivery enable exact `0`, the exact evidence ID, and a configured delivery wallet matching that evidence; any mismatch remains held before dependencies are populated. Runtime enablement remains a later, separately designed and authorized gate. Inventory funding remains an independent later value-bearing gate.
 
 ## Authority boundary
 

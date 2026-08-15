@@ -28,23 +28,30 @@ The content ID is an integrity identifier, not a signature.
 
 ## Dormant dependency injection
 
-Source adds an injection seam guarded by both:
+Source adds an injection seam guarded by all of these fail-closed conditions:
 
-- `VOID_BUY_VOID_ERC20_DELIVERY_DEPENDENCY_INJECTION_ENABLED=1`
-- `VOID_BUY_VOID_ERC20_CREDENTIAL_BINDING_EVIDENCE_ID=20b5201b7d0516b3a4eb538fa4ec8fc1d1c68d5d1158740a11992025a2451495`
+- `VOID_BUY_VOID_ERC20_DELIVERY_DEPENDENCY_INJECTION_ENABLED=1`;
+- `VOID_BUY_VOID_DELIVERY_RUNTIME_INTEGRATION_ENABLED=0` exactly;
+- `VOID_BUY_VOID_ERC20_CREDENTIAL_BINDING_EVIDENCE_ID=20b5201b7d0516b3a4eb538fa4ec8fc1d1c68d5d1158740a11992025a2451495`;
+- `VOID_BUY_VOID_DELIVERY_WALLET_ADDRESS` must equal the wallet derived by the
+  canonical credential-binding evidence.
 
-Without both exact values, no dependency global is populated.
+If delivery is enabled, the delivery enable value is absent/nonzero, the
+evidence ID differs, or the configured wallet differs from the evidence-bound
+wallet, no dependency global is populated.
 
-When both are present, the bootstrap validates the server-controlled policy and
-places the signer/broadcaster dependencies in
+When every dormant-injection condition is satisfied, the bootstrap validates
+the server-controlled policy and places the signer/broadcaster dependencies in
 `__void_buy_void_delivery_runtime_dependencies_v1`. Bootstrap construction does
 not read the credential, call RPC, sign, broadcast, or write the submission
 guard.
 
-The delivery runtime remains independently controlled by
-`VOID_BUY_VOID_DELIVERY_RUNTIME_INTEGRATION_ENABLED`. The next production
-staging gate must keep that value at `0`, so dependency injection alone grants
-no effective RPC, signing, broadcast, or money authority.
+This v1 injector is intentionally a **disabled staging gate**, not the later
+activation mechanism. A process started with delivery enable `1` will refuse
+dependency injection. Enabling delivery therefore requires a later separately
+reviewed/authorized activation design rather than merely flipping this staging
+flag. With delivery exact `0`, dependency injection grants no effective RPC,
+signing, broadcast, or money authority.
 
 ## Authority boundary
 

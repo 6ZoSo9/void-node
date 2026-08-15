@@ -82,7 +82,7 @@ funding_blockers=[
 ]
 ```
 
-Canonical Precision/Mainnet-0 credential binding evidence is now recorded in redacted source evidence without inferring clone-local binding. Dormant dependency injection, runtime enablement, and inventory funding remain later independent gates.
+Canonical Precision/Mainnet-0 credential binding evidence is now recorded in redacted source evidence without inferring clone-local binding. Dormant dependency injection is fail-closed to delivery enable exact `0` and requires the configured delivery wallet to match the evidence-bound wallet. Runtime enablement and inventory funding remain later independent gates.
 
 ## Funding HOLD
 
