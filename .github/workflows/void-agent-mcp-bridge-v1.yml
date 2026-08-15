@@ -76,10 +76,13 @@ jobs:
 
           printf 'VOID_MCP_BASE_REF=%s\n' "$integration_base" >> "$GITHUB_ENV"
 
-          mapfile -d '' -t MCP_CHANGED < <(
-            git diff --no-renames --name-only -z \
-              "$integration_base..$CI_DIFF_CURRENT_SHA"
-          )
+          mcp_changed_file="$(mktemp)"
+          trap 'rm -f "$mcp_changed_file"' EXIT
+          git diff --no-renames --name-only -z \
+            "$integration_base..$CI_DIFF_CURRENT_SHA" > "$mcp_changed_file"
+          mapfile -d '' -t MCP_CHANGED < "$mcp_changed_file"
+          rm -f "$mcp_changed_file"
+          trap - EXIT
 
           direct_relevant=0
           for file in "${MCP_CHANGED[@]}"
@@ -304,10 +307,13 @@ jobs:
           BASE_SHA="$VOID_MCP_BASE_REF"
           printf '%s' "$BASE_SHA" | grep -Eq '^[0-9a-f]{40}$'
 
-          mapfile -d '' -t changed < <(
-            git diff --no-renames --name-only -z \
-              "$BASE_SHA..$CI_DIFF_CURRENT_SHA"
-          )
+          changed_file_list="$(mktemp)"
+          trap 'rm -f "$changed_file_list"' EXIT
+          git diff --no-renames --name-only -z \
+            "$BASE_SHA..$CI_DIFF_CURRENT_SHA" > "$changed_file_list"
+          mapfile -d '' -t changed < "$changed_file_list"
+          rm -f "$changed_file_list"
+          trap - EXIT
 
           test "${#changed[@]}" -gt 0
 
