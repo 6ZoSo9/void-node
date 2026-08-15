@@ -56,10 +56,12 @@ async function main(): Promise<void> {
   );
 
   assert.match(homeSource, /fetchVoidUiWave2HomeSourceJsonV1/);
-  assert.match(homeSource, /parseVoidUiWave2HomeChainHeadV1/);
-  assert.match(homeSource, /parseVoidUiWave2HomePeerCountV1/);
-  assert.match(homeSource, /parsedPeerCount !== null/);
-  assert.match(homeSource, /peer_count: parsedPeerCount/);
+  assert.match(homeSource, /evaluateVoidUiWave2HomeOperationalEvidenceV1/);
+  assert.match(fetchSource, /parseVoidUiWave2HomeChainHeadV1/);
+  assert.match(fetchSource, /parseVoidUiWave2HomePeerCountV1/);
+  assert.match(fetchSource, /evaluateVoidUiWave2HomeOperationalEvidenceV1/);
+  assert.match(homeSource, /chain_head: evidence\.chain_head/);
+  assert.match(homeSource, /peer_count: evidence\.peer_count/);
   assert.match(homeSource, /resolveVoidUiWave2HomeSourceBaseV1/);
   assert.match(
     homeSource,
