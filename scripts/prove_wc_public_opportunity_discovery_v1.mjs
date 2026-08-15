@@ -36,8 +36,15 @@ function run(args) {
   });
 }
 
-async function fixture(mode, fixedAwardWc = 3) {
+async function fixture(mode, fixedAwardWc = 3, options = {}) {
   const requests = [];
+  const {
+    responseStatus = 200,
+    omitAward = false,
+    omitCoordinator = false,
+    omitBoundary = false,
+    injectMetadata = false,
+  } = options;
 
   const server = createServer((request, response) => {
     requests.push({
@@ -55,28 +62,37 @@ async function fixture(mode, fixedAwardWc = 3) {
     }
 
     if (request.url === "/__void/public-earn-gateway-v1/status.json") {
-      response.writeHead(200, { "content-type": "application/json" });
+      response.writeHead(responseStatus, { "content-type": "application/json" });
       response.end(JSON.stringify({
         marker: "VOID_PUBLIC_EARN_GATEWAY_V1",
         pilot_status: {
           marker: "VOID_WC_PUBLIC_EARNING_PILOT_V1",
-          coordinator_enabled: mode !== "hold",
+          coordinator_enabled: omitCoordinator ? undefined : mode !== "hold",
           executor_enabled: false,
-          fixed_award_wc: fixedAwardWc,
+          fixed_award_wc: omitAward ? undefined : fixedAwardWc,
         },
         public_claim: {
           enabled: mode !== "hold",
           method: "POST",
           path: "/public/earn/claim-v1",
-          fixed_award_wc: fixedAwardWc,
+          fixed_award_wc: omitAward ? undefined : fixedAwardWc,
         },
-        ...(mode === "unknown"
+        ...(mode === "unknown" || omitBoundary
           ? {}
           : {
               audit_assertions: {
                 public_routes_award_wc: false,
               },
             }),
+        ...(injectMetadata
+          ? {
+              metadata: {
+                coordinator_enabled: true,
+                fixed_award_wc: 3,
+                public_routes_award_wc: false,
+              },
+            }
+          : {}),
       }));
       return;
     }
@@ -170,6 +186,61 @@ for (const [label, wrongTypeAward] of [
     assert.equal(body.safety.wc_award_attempted, false, label);
   } finally {
     await wrongType.close();
+  }
+}
+
+for (const [label, options] of [
+  ["award_splice", { omitAward: true, injectMetadata: true }],
+  ["coordinator_splice", { omitCoordinator: true, injectMetadata: true }],
+  ["award_boundary_splice", { omitBoundary: true, injectMetadata: true }],
+]) {
+  const spliced = await fixture("available", 3, options);
+  try {
+    const result = await run([
+      "--base", spliced.base,
+      "--require-available",
+    ]);
+    assert.equal(result.code, 2, `${label}: ${result.stderr || result.stdout}`);
+    const body = JSON.parse(result.stdout);
+    assert.equal(body.opportunity_state, "hold", label);
+    assert.equal(body.safety.mutation_attempted, false, label);
+    assert.equal(body.safety.ticket_issuance_attempted, false, label);
+    assert.equal(body.safety.wc_award_attempted, false, label);
+    if (label === "award_splice") {
+      assert.equal(body.pilot.fixed_award_wc, null, label);
+      assert.equal(body.pilot.fixed_award_matches, false, label);
+    }
+    if (label === "coordinator_splice") {
+      assert.equal(body.pilot.coordinator_enabled, null, label);
+    }
+    if (label === "award_boundary_splice") {
+      assert.equal(body.safety.public_routes_award_wc, null, label);
+      assert.equal(body.safety.public_award_boundary_confirmed, false, label);
+    }
+  } finally {
+    await spliced.close();
+  }
+}
+
+for (const status of [404, 500]) {
+  const nonSuccess = await fixture("available", 3, { responseStatus: status });
+  try {
+    const result = await run([
+      "--base", nonSuccess.base,
+      "--require-available",
+    ]);
+    assert.equal(result.code, 2, `${status}: ${result.stderr || result.stdout}`);
+    const body = JSON.parse(result.stdout);
+    assert.equal(body.opportunity_state, "unavailable", String(status));
+    assert.match(body.reason, /compatible public earning gateway not discovered/u);
+    assert.equal(body.safety.mutation_attempted, false);
+    assert.equal(body.safety.ticket_issuance_attempted, false);
+    assert.equal(body.safety.wc_award_attempted, false);
+    assert.ok(body.attempts.some(
+      (entry) => entry.path === "/__void/public-earn-gateway-v1/status.json" && entry.http_status === status,
+    ));
+  } finally {
+    await nonSuccess.close();
   }
 }
 
