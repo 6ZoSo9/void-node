@@ -3,7 +3,7 @@
   "version": 1,
   "package": "@void-network/agent-sdk",
   "package_version": "0.1.0",
-  "reviewed_source_main": "f439a8f2150ed52403d69e4820f4ba29c8f69c0b",
+  "reviewed_source_main": "678c6dc33b312cfbdf597cf176c3a8be1cc1ef73",
   "supported_node_majors": [
     22,
     24,
