@@ -10,6 +10,7 @@ const DEFAULT_BASE = process.env.VOID_PUBLIC_BASE || "http://127.0.0.1:4100";
 const DEFAULT_TIMEOUT_MS = 8_000;
 const DEFAULT_EXPECTED_PEERS = 1;
 const MAX_RESPONSE_BYTES = 2 * 1024 * 1024;
+const CANCEL_SETTLE_TIMEOUT_MS = 250;
 
 const REQUIRED_PUBLIC_ROUTES = [
   "/public-node",
@@ -171,12 +172,32 @@ function routePathFromString(value) {
   return null;
 }
 
-function routeArrayAt(value, key) {
+function routeStringArrayAt(value, key) {
   if (!isPlainObject(value) || !Array.isArray(value[key])) return null;
   const routes = [];
   for (const item of value[key]) {
     const route = routePathFromString(item);
     if (!route) return null;
+    routes.push(route);
+  }
+  return [...new Set(routes)];
+}
+
+function routeRowArrayAt(value, key, requireManifestMetadata = false) {
+  if (!isPlainObject(value) || !Array.isArray(value[key])) return null;
+  const routes = [];
+  for (const item of value[key]) {
+    if (!isPlainObject(item)) return null;
+    const route = routePathFromString(item.path);
+    if (!route) return null;
+    if (
+      requireManifestMetadata &&
+      (!isNonEmptyString(item.marker) ||
+        item.safety_class !== "public_read_only" ||
+        !isNonEmptyString(item.purpose))
+    ) {
+      return null;
+    }
     routes.push(route);
   }
   return [...new Set(routes)];
@@ -275,14 +296,26 @@ function parsePeerCount(value) {
   return null;
 }
 
-function cancelBodyBestEffort(target) {
+async function settleCancellation(target) {
+  let result;
   try {
-    const result = target?.cancel?.();
-    if (result && typeof result.catch === "function") {
-      void result.catch(() => undefined);
-    }
+    result = target?.cancel?.();
   } catch (error) {
     void error;
+    return;
+  }
+  if (!result || typeof result.then !== "function") return;
+
+  let timer;
+  try {
+    await Promise.race([
+      Promise.resolve(result).catch(() => undefined),
+      new Promise((resolve) => {
+        timer = setTimeout(resolve, CANCEL_SETTLE_TIMEOUT_MS);
+      }),
+    ]);
+  } finally {
+    if (timer) clearTimeout(timer);
   }
 }
 
@@ -290,16 +323,16 @@ async function boundedResponseBody(response, maximum) {
   const contentLengthRaw = response.headers.get("content-length");
   if (contentLengthRaw !== null) {
     if (!/^\d+$/.test(contentLengthRaw)) {
-      cancelBodyBestEffort(response.body);
+      await settleCancellation(response.body);
       throw new Error("invalid_content_length");
     }
     const declared = Number(contentLengthRaw);
     if (!Number.isSafeInteger(declared) || declared < 0) {
-      cancelBodyBestEffort(response.body);
+      await settleCancellation(response.body);
       throw new Error("invalid_content_length");
     }
     if (declared > maximum) {
-      cancelBodyBestEffort(response.body);
+      await settleCancellation(response.body);
       throw new Error("response_too_large");
     }
   }
@@ -316,7 +349,7 @@ async function boundedResponseBody(response, maximum) {
       if (!(value instanceof Uint8Array)) throw new Error("response_body_invalid_chunk");
       total += value.byteLength;
       if (total > maximum) {
-        cancelBodyBestEffort(reader);
+        await settleCancellation(reader);
         throw new Error("response_too_large");
       }
       chunks.push(Buffer.from(value));
@@ -540,7 +573,7 @@ async function main() {
   );
 
   const routeIndex = await fetchJson(base, "/public-node/route-index.json", args.timeoutMs);
-  const indexRoutes = routeArrayAt(routeIndex.json, "routes");
+  const indexRoutes = routeRowArrayAt(routeIndex.json, "routes");
   const indexSensitive = sensitiveRoutes(indexRoutes);
   const routeIndexOk =
     routeIndex.ok &&
@@ -563,7 +596,10 @@ async function main() {
   );
 
   const routeManifest = await fetchJson(base, "/public-node/route-manifest.json", args.timeoutMs);
-  const manifestRoutes = routeArrayAt(routeManifest.json, "routes");
+  const manifestRoutes = routeRowArrayAt(routeManifest.json, "routes", true);
+  const manifestRouteCount = nonNegativeSafeInteger(routeManifest.json?.route_count);
+  const manifestCountMatches =
+    manifestRoutes !== null && manifestRouteCount !== null && manifestRouteCount === manifestRoutes.length;
   const manifestMissing = REQUIRED_PUBLIC_ROUTES.filter(
     (route) => !manifestRoutes?.includes(route),
   );
@@ -572,6 +608,7 @@ async function main() {
     routeManifest.ok &&
     markerAt(routeManifest.json, "VOID_PUBLIC_NODE_ROUTE_MANIFEST_V1") &&
     manifestRoutes !== null &&
+    manifestCountMatches &&
     manifestMissing.length === 0 &&
     manifestSensitive.length === 0;
   checks.push(
@@ -583,6 +620,8 @@ async function main() {
       {
         status_code: routeManifest.statusCode,
         marker_present: markerAt(routeManifest.json, "VOID_PUBLIC_NODE_ROUTE_MANIFEST_V1"),
+        route_count: manifestRouteCount,
+        route_count_matches: manifestCountMatches,
         required_route_count: REQUIRED_PUBLIC_ROUTES.length,
         missing_route_count: manifestMissing.length,
         sensitive_route_count: manifestSensitive.length,
@@ -591,7 +630,12 @@ async function main() {
   );
 
   const snapshot = await fetchJson(base, "/public-node/self-check-snapshot.json", args.timeoutMs);
-  const snapshotRoutes = routeArrayAt(snapshot.json, "routes");
+  const snapshotRoutes = routeStringArrayAt(snapshot.json, "expected_routes");
+  const snapshotExpectedRouteCount = nonNegativeSafeInteger(snapshot.json?.expected_route_count);
+  const snapshotCountMatches =
+    snapshotRoutes !== null &&
+    snapshotExpectedRouteCount !== null &&
+    snapshotExpectedRouteCount === snapshotRoutes.length;
   const snapshotMissing = REQUIRED_PUBLIC_ROUTES.filter(
     (route) => !snapshotRoutes?.includes(route),
   );
@@ -605,6 +649,7 @@ async function main() {
     snapshot.ok &&
     markerAt(snapshot.json, "VOID_PUBLIC_NODE_SELF_CHECK_SNAPSHOT_V1") &&
     snapshotRoutes !== null &&
+    snapshotCountMatches &&
     snapshotMissing.length === 0 &&
     snapshotSensitive.length === 0 &&
     snapshotPublicPostFalse;
@@ -617,6 +662,8 @@ async function main() {
       {
         status_code: snapshot.statusCode,
         marker_present: markerAt(snapshot.json, "VOID_PUBLIC_NODE_SELF_CHECK_SNAPSHOT_V1"),
+        expected_route_count: snapshotExpectedRouteCount,
+        route_count_matches: snapshotCountMatches,
         required_route_count: REQUIRED_PUBLIC_ROUTES.length,
         missing_route_count: snapshotMissing.length,
         sensitive_route_count: snapshotSensitive.length,
