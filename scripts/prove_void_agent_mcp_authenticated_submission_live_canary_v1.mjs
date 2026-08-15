@@ -283,6 +283,7 @@ async function main() {
     "tools/void-agent-mcp-authenticated-submission-live-canary-v1.mjs",
     "accepted_for_review: true",
     "private_temp_cleanup_completed=${result.state.private_temp_cleanup_completed}",
+    "completion_state_persisted=${result.state.completion_state_persisted}",
     "completion_receipt_published=${result.state.completion_receipt_published}",
     "payment_executed: false",
     "work_credit_ledger_written: false",
@@ -354,6 +355,7 @@ async function main() {
     assert.equal(completed.state.duplicate, false);
     assert.equal(completed.state.conflicting_duplicate, false);
     assert.equal(completed.state.private_temp_cleanup_completed, true);
+    assert.equal(completed.state.completion_state_persisted, true);
     assert.equal(completed.state.completion_receipt_published, true);
     assert.equal(completed.receipt.private_temp_cleanup_completed, true);
     assert.equal(completed.receipt.completion_receipt_published, true);
@@ -416,6 +418,7 @@ async function main() {
     assert.equal(cleanupFalse.state.status, "completed");
     assert.equal(cleanupFalse.state.accepted_for_review, true);
     assert.equal(cleanupFalse.state.private_temp_cleanup_completed, false);
+    assert.equal(cleanupFalse.state.completion_state_persisted, true);
     assert.equal(cleanupFalse.state.completion_receipt_published, true);
     assert.equal(cleanupFalse.receipt.private_temp_cleanup_completed, false);
     assert.equal(cleanupFalse.receipt.completion_receipt_published, true);
@@ -477,6 +480,7 @@ async function main() {
       const cliCompleted = await runCli(executeArgs);
       assert.equal(cliCompleted.exitCode, 0);
       assert.match(cliCompleted.output, /private_temp_cleanup_completed=false(?:\n|$)/);
+      assert.match(cliCompleted.output, /completion_state_persisted=true(?:\n|$)/);
       assert.match(cliCompleted.output, /completion_receipt_published=true(?:\n|$)/);
       assert.equal(cliCompleted.output.includes(TOKEN), false);
       assert.equal(cliCompleted.output.includes(tokenPath), false);
@@ -485,6 +489,7 @@ async function main() {
       const cliReceipt = readJson(path.join(cliCleanupStateDirectory, "completion-receipt-v1.json"));
       assert.equal(cliState.status, "completed");
       assert.equal(cliState.private_temp_cleanup_completed, false);
+      assert.equal(cliState.completion_state_persisted, true);
       assert.equal(cliState.completion_receipt_published, true);
       assert.equal(cliReceipt.private_temp_cleanup_completed, false);
       assert.equal(cliReceipt.completion_receipt_published, true);
@@ -547,6 +552,7 @@ async function main() {
       assert.equal(receiptFailureCompleted.exitCode, 0);
       assert.match(receiptFailureCompleted.output, new RegExp(`${MARKER}=PASS`));
       assert.match(receiptFailureCompleted.output, /accepted_for_review=true(?:\n|$)/);
+      assert.match(receiptFailureCompleted.output, /completion_state_persisted=true(?:\n|$)/);
       assert.match(receiptFailureCompleted.output, /completion_receipt_published=false(?:\n|$)/);
       assert.equal(receiptFailureCompleted.output.includes(TOKEN), false);
       assert.equal(receiptFailureCompleted.output.includes(tokenPath), false);
@@ -554,6 +560,7 @@ async function main() {
       assert.equal(receiptFailureState.status, "completed");
       assert.equal(receiptFailureState.accepted_for_review, true);
       assert.equal(receiptFailureState.attempt_count, 1);
+      assert.equal(receiptFailureState.completion_state_persisted, true);
       assert.equal(receiptFailureState.completion_receipt_published, false);
       assert.deepEqual(readJson(preexistingReceiptPath), preexistingReceipt);
       receiptFailureExistingReceiptPreserved = true;
@@ -569,6 +576,173 @@ async function main() {
     } finally {
       await receiptFailureGateway.close();
     }
+
+    const stateFailureInputPath = path.join(root, "input-completed-state-failure.json");
+    writePrivateJson(stateFailureInputPath, canaryInput("completed-state-failure-v1"));
+    const stateFailureDirectory = path.join(root, "state-completed-state-failure");
+    const stateFailureCommon = {
+      repoRoot: ROOT,
+      baseUrl: gateway.baseUrl,
+      inputPath: stateFailureInputPath,
+      stateDirectory: stateFailureDirectory,
+      now: () => FIXED_NOW,
+    };
+    const stateFailurePrepared = await prepareCanary(stateFailureCommon);
+    let stateFailureCalls = 0;
+    const stateFailureSessionFactory = async ({ allowSubmit }) => ({
+      protocolVersion: "2026-07-28",
+      listTools: async () => exactTools(allowSubmit),
+      callTool: async (request) => {
+        assert.equal(request.name, "void_submit_paid_work");
+        stateFailureCalls += 1;
+        return acceptedSubmissionEnvelope(stateFailurePrepared.state.prepared, true);
+      },
+      close: async () => {},
+    });
+    const stateFailure = await executeCanary({
+      ...stateFailureCommon,
+      tokenFile: tokenPath,
+      allowLiveSubmit: true,
+      confirmation: CONFIRMATION,
+      sessionFactory: stateFailureSessionFactory,
+      localStateFault: (phase) => {
+        if (phase === "completed:before") throw new Error("synthetic completed-state persistence failure");
+      },
+    });
+    assert.equal(stateFailureCalls, 1);
+    assert.equal(stateFailure.state.status, "completed");
+    assert.equal(stateFailure.state.accepted_for_review, true);
+    assert.equal(stateFailure.state.completion_state_persisted, false);
+    assert.equal(stateFailure.state.completion_receipt_published, false);
+    assert.equal(stateFailure.receipt, null);
+    const stateFailureDurable = readJson(path.join(stateFailureDirectory, "state-v1.json"));
+    assert.equal(stateFailureDurable.status, "attempting");
+    assert.equal(stateFailureDurable.attempt_count, 1);
+    assert.equal(fs.existsSync(path.join(stateFailureDirectory, "completion-receipt-v1.json")), false);
+    await expectReject(
+      async () => await executeCanary({
+        ...stateFailureCommon,
+        tokenFile: tokenPath,
+        allowLiveSubmit: true,
+        confirmation: CONFIRMATION,
+        sessionFactory: stateFailureSessionFactory,
+      }),
+      /fresh prepared state/,
+    );
+    assert.equal(stateFailureCalls, 1);
+    scanForSecret(stateFailureDirectory, [TOKEN, tokenPath]);
+
+    const postRenameInputPath = path.join(root, "input-post-rename-state-failure.json");
+    writePrivateJson(postRenameInputPath, canaryInput("post-rename-state-failure-v1"));
+    const postRenameDirectory = path.join(root, "state-post-rename-state-failure");
+    const postRenameCommon = {
+      repoRoot: ROOT,
+      baseUrl: gateway.baseUrl,
+      inputPath: postRenameInputPath,
+      stateDirectory: postRenameDirectory,
+      now: () => FIXED_NOW,
+    };
+    const postRenamePrepared = await prepareCanary(postRenameCommon);
+    let postRenameCalls = 0;
+    const postRenameSessionFactory = async ({ allowSubmit }) => ({
+      protocolVersion: "2026-07-28",
+      listTools: async () => exactTools(allowSubmit),
+      callTool: async (request) => {
+        assert.equal(request.name, "void_submit_paid_work");
+        postRenameCalls += 1;
+        return acceptedSubmissionEnvelope(postRenamePrepared.state.prepared, true);
+      },
+      close: async () => {},
+    });
+    const postRename = await executeCanary({
+      ...postRenameCommon,
+      tokenFile: tokenPath,
+      allowLiveSubmit: true,
+      confirmation: CONFIRMATION,
+      sessionFactory: postRenameSessionFactory,
+      localStateFault: (phase) => {
+        if (phase === "completed:after") throw new Error("synthetic throw after completed-state rename");
+      },
+    });
+    assert.equal(postRenameCalls, 1);
+    assert.equal(postRename.state.status, "completed");
+    assert.equal(postRename.state.accepted_for_review, true);
+    assert.equal(postRename.state.completion_state_persisted, true);
+    assert.equal(postRename.state.completion_receipt_published, true);
+    assert.equal(postRename.receipt.marker, COMPLETION_RECEIPT_MARKER);
+    const postRenameDurable = readJson(path.join(postRenameDirectory, "state-v1.json"));
+    assert.equal(postRenameDurable.completion_state_persisted, true);
+    assert.equal(postRenameDurable.completion_receipt_published, true);
+    await expectReject(
+      async () => await executeCanary({
+        ...postRenameCommon,
+        tokenFile: tokenPath,
+        allowLiveSubmit: true,
+        confirmation: CONFIRMATION,
+        sessionFactory: postRenameSessionFactory,
+      }),
+      /fresh prepared state/,
+    );
+    assert.equal(postRenameCalls, 1);
+    scanForSecret(postRenameDirectory, [TOKEN, tokenPath]);
+
+    const finalStateInputPath = path.join(root, "input-final-state-failure.json");
+    writePrivateJson(finalStateInputPath, canaryInput("final-state-failure-v1"));
+    const finalStateDirectory = path.join(root, "state-final-state-failure");
+    const finalStateCommon = {
+      repoRoot: ROOT,
+      baseUrl: gateway.baseUrl,
+      inputPath: finalStateInputPath,
+      stateDirectory: finalStateDirectory,
+      now: () => FIXED_NOW,
+    };
+    const finalStatePrepared = await prepareCanary(finalStateCommon);
+    let finalStateCalls = 0;
+    const finalStateSessionFactory = async ({ allowSubmit }) => ({
+      protocolVersion: "2026-07-28",
+      listTools: async () => exactTools(allowSubmit),
+      callTool: async (request) => {
+        assert.equal(request.name, "void_submit_paid_work");
+        finalStateCalls += 1;
+        return acceptedSubmissionEnvelope(finalStatePrepared.state.prepared, true);
+      },
+      close: async () => {},
+    });
+    const finalState = await executeCanary({
+      ...finalStateCommon,
+      tokenFile: tokenPath,
+      allowLiveSubmit: true,
+      confirmation: CONFIRMATION,
+      sessionFactory: finalStateSessionFactory,
+      localStateFault: (phase) => {
+        if (phase === "published:before") throw new Error("synthetic final publication-state persistence failure");
+      },
+    });
+    assert.equal(finalStateCalls, 1);
+    assert.equal(finalState.state.status, "completed");
+    assert.equal(finalState.state.accepted_for_review, true);
+    assert.equal(finalState.state.completion_receipt_published, true);
+    assert.equal(finalState.state.completion_state_persisted, false);
+    assert.equal(finalState.receipt.marker, COMPLETION_RECEIPT_MARKER);
+    assert.equal(finalState.receipt.completion_receipt_published, true);
+    const finalStateDurable = readJson(path.join(finalStateDirectory, "state-v1.json"));
+    assert.equal(finalStateDurable.status, "completed");
+    assert.equal(finalStateDurable.completion_state_persisted, true);
+    assert.equal(finalStateDurable.completion_receipt_published, false);
+    const finalStateReceipt = readJson(path.join(finalStateDirectory, "completion-receipt-v1.json"));
+    assert.equal(finalStateReceipt.completion_receipt_published, true);
+    await expectReject(
+      async () => await executeCanary({
+        ...finalStateCommon,
+        tokenFile: tokenPath,
+        allowLiveSubmit: true,
+        confirmation: CONFIRMATION,
+        sessionFactory: finalStateSessionFactory,
+      }),
+      /fresh prepared state/,
+    );
+    assert.equal(finalStateCalls, 1);
+    scanForSecret(finalStateDirectory, [TOKEN, tokenPath]);
 
     const ambiguousInputPath = path.join(root, "input-ambiguous.json");
     writePrivateJson(ambiguousInputPath, canaryInput("ambiguous-v1"));
@@ -656,6 +830,7 @@ async function main() {
       duplicate: false,
       conflicting_duplicate: false,
       private_temp_cleanup_completed_normal: completed.state.private_temp_cleanup_completed === true,
+      completion_state_persisted_normal: completed.state.completion_state_persisted === true,
       completion_receipt_published_normal: completed.state.completion_receipt_published === true,
       private_temp_cleanup_failure_preserved: cleanupFalse.state.private_temp_cleanup_completed === false,
       cleanup_failure_submission_attempt_count: cleanupFalseCalls,
@@ -667,6 +842,14 @@ async function main() {
       completion_receipt_publication_failure_existing_receipt_preserved: receiptFailureExistingReceiptPreserved,
       completion_receipt_publication_failure_submission_attempt_count: receiptFailureSubmissionPosts,
       completion_receipt_publication_failure_no_retry: receiptFailureSubmissionPosts === 1,
+      completed_state_precommit_failure_preserves_acceptance: stateFailure.state.accepted_for_review === true && stateFailure.state.completion_state_persisted === false,
+      completed_state_precommit_failure_submission_attempt_count: stateFailureCalls,
+      completed_state_precommit_failure_no_retry: stateFailureCalls === 1,
+      completed_state_postrename_readback_recognized: postRename.state.completion_state_persisted === true,
+      completed_state_postrename_submission_attempt_count: postRenameCalls,
+      final_state_failure_preserves_receipt_truth: finalState.state.completion_receipt_published === true && finalState.state.completion_state_persisted === false,
+      final_state_failure_submission_attempt_count: finalStateCalls,
+      final_state_failure_no_retry: finalStateCalls === 1,
       ambiguous_result_held: held.status === "held",
       automatic_retry: false,
       raw_token_printed: false,
