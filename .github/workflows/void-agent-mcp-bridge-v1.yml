@@ -83,7 +83,7 @@ jobs:
           printf 'VOID_MCP_BASE_REF=%s\n' "${MCP_BASES[0]}" >> "$GITHUB_ENV"
 
           mapfile -t MCP_CHANGED < <(
-            git diff --name-only "${MCP_BASES[0]}..$CI_DIFF_CURRENT_SHA"
+            git diff --no-renames --name-only "${MCP_BASES[0]}..$CI_DIFF_CURRENT_SHA"
           )
           direct_relevant=0
           for file in "${MCP_CHANGED[@]}"
@@ -144,6 +144,7 @@ jobs:
           grep -F 'VOID_MCP_BASE_REF=%s' "$workflow"
           grep -F 'VOID_MCP_DIRECT_RELEVANT=%s' "$workflow"
           grep -F "env.VOID_MCP_DIRECT_RELEVANT == '1'" "$workflow"
+          test "$(grep -c -- 'git diff --no-renames --name-only' "$workflow")" -ge 2
 
       - name: Typecheck, build, and test both protocol eras
         if: github.event_name != 'pull_request' || env.VOID_MCP_DIRECT_RELEVANT == '1'
@@ -178,7 +179,7 @@ jobs:
           test -n "$BASE_SHA"
 
           mapfile -t changed < <(
-            git diff --name-only "$BASE_SHA..$CI_DIFF_CURRENT_SHA"
+            git diff --no-renames --name-only "$BASE_SHA..$CI_DIFF_CURRENT_SHA"
           )
 
           test "${#changed[@]}" -gt 0
