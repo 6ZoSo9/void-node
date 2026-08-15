@@ -22,7 +22,7 @@
   "repository_hash_self_reference_excluded": "scripts/prove_void_ui_wave3_wallet_readonly_v1.ts",
   "repository_hashes": {
     "docs/public/void-ui-wave1-foundation-v1/source-manifest.json": "43813323f0dd9360f37e82cd04e8dc63a775e0a7cfac39ed01dc1fa20eefe29d",
-    "docs/public/void-ui-wave2-home-readonly-v1/source-manifest.json": "ca3e2a2f1bd64beb962f944bfc277e11c18fae2409ef86570e358923a39d2d29",
+    "docs/public/void-ui-wave2-home-readonly-v1/source-manifest.json": "507af1c6951dc756aaae2fbd4361f5772c7285dfd9856e8ab614279781d7f38b",
     "docs/public/void-ui-wave3-wallet-readonly-v1/ACCEPTANCE_CRITERIA.md": "cadc91f6196136e1f817088af378832f7e2f14d5e9e556cd8b8f3d4f57ff5331",
     "docs/public/void-ui-wave3-wallet-readonly-v1/ADAPTER_CONTRACT.md": "06b4c2b8f2be0177f1d9a856ed2fa055e3645414ba514fed07e289a16c7f3e46",
     "docs/public/void-ui-wave3-wallet-readonly-v1/README.md": "3ede1b145055c64685c0a918d920ddd651dfc8c46b965a7250d30f359c0ff323",
@@ -34,7 +34,8 @@
     "public/void-app-wave1-v1/assets/js/views.js": "b357d91134aff2d5b9ce5fc95c4db61ac8d6eafa91cb01272328952182e635fe",
     "public/void-app-wave1-v1/assets/js/wallet-live.js": "6a4585aa27fe4b7501ea5bafba7a9c111e099e09e1129cc4cba3ba2f31e7ac84",
     "public/void-app-wave1-v1/index.html": "25949a5916387ddac9dde69720222db38bc0de28483cc74d156138b11dee61c4",
-    "src/ui/void_app_wave2_home_readonly_v1.ts": "1f8d1b981942ffcd132f22cfa0a43c99dbb91ddf400c1447be55bfc6e1de0ec4",
+    "src/ui/void_app_wave2_home_readonly_v1.ts": "7879a34a527a52345f424534dd6ab1f2e64b49a9b7d56e68b477fa680de2797d",
+    "src/ui/void_app_wave2_home_source_fetch_v1.ts": "03951c6eb9449be67c343037b29bebc289f398e6cf61ccf91fbd460d150f094f",
     "src/ui/void_app_wave3_wallet_readonly_v1.ts": "e4d64da7c0749c11066b2115c636ca14ac6aed9f0cd2ccf62a65d967266e88e4",
     "src/ui/void_app_wave4_earn_readonly_v1.ts": "4133d33e2295e5401a256619d78ccc1124c7ddf32cc3ea5d18549614604cc360"
   },
