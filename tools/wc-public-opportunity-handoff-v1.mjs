@@ -47,6 +47,7 @@ function validNodeId(value) {
 function privateHttpHost(hostname) {
   const lower = hostname.toLowerCase();
   if (lower === "localhost" || lower === "::1" || lower.endsWith(".localhost")) return true;
+  if (lower.endsWith(".ts.net")) return true;
   if (isIP(hostname) !== 4) return false;
   const [a,b] = hostname.split(".").map(Number);
   return a === 127 || a === 10 || (a === 172 && b >= 16 && b <= 31) ||
@@ -60,7 +61,7 @@ function normalizeOrigin(raw) {
   if (url.username || url.password) throw new Error("coordinator origin must not contain credentials");
   if (url.pathname !== "/" || url.search || url.hash) throw new Error("coordinator origin must not contain path, query, or fragment");
   if (url.protocol === "http:" && !privateHttpHost(url.hostname)) {
-    throw new Error("plain HTTP is allowed only for loopback, private, or Tailscale IPv4 origins");
+    throw new Error("plain HTTP is allowed only for loopback, private, CGNAT, or .ts.net origins");
   }
   return url.origin;
 }

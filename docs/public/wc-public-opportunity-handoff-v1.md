@@ -51,6 +51,8 @@ A candidate is eligible only when the directory result reports:
 
 No eligible candidate produces `hold`. Multiple eligible candidates also produce `hold` until `--select-base` is supplied.
 
+Coordinator-origin admission intentionally matches the canonical no-node client: public coordinators require HTTPS; HTTP is allowed only for loopback, RFC1918/private IPv4, CGNAT `100.64.0.0/10`, and `.ts.net` hostnames. Adjacent public ranges remain rejected.
+
 ## Coordinator identity binding
 
 After selection, the handoff performs exactly one request:
@@ -74,7 +76,7 @@ node tools/void_public_earn_no_node_client_v1.mjs run ...
 
 Optional values include `--state-dir` and an HTTPS `--dataset-url-template` containing `{dataset_id}`.
 
-The focused contract is bound to the canonical no-node client source. A client-only interface change schedules this handoff workflow, and the proof feeds the generated `status` and `run` argv through the real client parser plus its read-only coordinator preflight contract. The proof does not execute the full client, create participant identity state, claim a ticket, or submit work.
+The focused contract is bound to the canonical no-node client source. A client-only interface change schedules this handoff workflow, and the proof feeds the generated `status` and `run` argv through the real client parser plus its read-only coordinator preflight contract. The proof also executes origin-policy parity cases for public HTTPS, loopback/private/CGNAT HTTP, `.ts.net` HTTP, and adjacent rejected public ranges. It does not execute the full client, create participant identity state, claim a ticket, or submit work.
 
 ## Safety boundary
 
@@ -86,7 +88,7 @@ The handoff validates the directory marker, directory safety contract, and selec
 node scripts/prove_wc_public_opportunity_handoff_v1.mjs
 ```
 
-The proof exercises a successful identity-bound handoff; generated-command compatibility with the canonical client parser and read-only coordinator preflight; and declared-oversize, streamed-oversize, interrupted-body, multi-candidate, no-candidate, and unsafe-directory HOLD behavior.
+The proof exercises a successful identity-bound handoff; generated-command compatibility with the canonical client parser and read-only coordinator preflight; origin-policy parity with the canonical client; and declared-oversize, streamed-oversize, interrupted-body, multi-candidate, no-candidate, and unsafe-directory HOLD behavior.
 
 Expected marker:
 

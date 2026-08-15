@@ -167,6 +167,34 @@ try {
   assert.equal(typeof canonicalClientContract.inspectCoordinator, "function");
   assert.equal(canonicalClientContract.safeBase(base), base);
 
+  const parityCases = [
+    ["https://public.example", true],
+    ["http://127.0.0.1:4100", true],
+    ["http://10.1.2.3:4100", true],
+    ["http://172.16.1.2:4100", true],
+    ["http://192.168.1.2:4100", true],
+    ["http://100.64.1.2:4100", true],
+    ["http://node.tailnet.ts.net:4100", true],
+    ["http://172.32.0.1:4100", false],
+    ["http://100.63.0.1:4100", false],
+    ["http://100.128.0.1:4100", false],
+    ["http://198.51.100.2:4100", false],
+  ];
+  for (const [origin, accepted] of parityCases) {
+    assert.equal(Boolean(canonicalClientContract.safeBase(origin)), accepted, `canonical client origin policy mismatch for ${origin}`);
+    writeFileSync(input, JSON.stringify(directory([available(origin), available("https://second.example")])), "utf8");
+    const parity = await run(["--directory-json", input, "--account", "outside-user-1", "--client-tool", client]);
+    assert.equal(parity.code, 2, parity.stderr || parity.stdout);
+    const parityBody = JSON.parse(parity.stdout);
+    if (accepted) {
+      assert.equal(parityBody.reason, "multiple_available_coordinators_require_select_base", `handoff rejected canonical-client origin ${origin}`);
+      assert.equal(parityBody.available_bases.includes(new URL(origin).origin), true, `handoff omitted accepted origin ${origin}`);
+    } else {
+      assert.match(parityBody.reason, /plain HTTP is allowed only/u, `handoff accepted canonical-client-rejected origin ${origin}`);
+    }
+  }
+  writeFileSync(input, JSON.stringify(directory([available(base), held("https://hold.example")])), "utf8");
+
   const statusParsed = canonicalClientContract.parseArgs(canonicalBody.commands.status.argv.slice(2));
   assert.equal(statusParsed.command, "status");
   assert.equal(statusParsed.options.account, "outside-user-1");
