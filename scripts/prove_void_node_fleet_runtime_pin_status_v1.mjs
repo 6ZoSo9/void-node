@@ -454,6 +454,23 @@ assert.throws(
   /id does not reproduce/,
 );
 
+const contradictoryTimelineNodes = structuredClone(pinnedProcesses.nodes);
+contradictoryTimelineNodes[0].source_to_process_start_seconds = -14;
+const contradictoryTimeline = processAudit(contradictoryTimelineNodes);
+assert.throws(
+  () => validateFleetProcessFreshnessAuditV1(contradictoryTimeline),
+  /timeline delta does not reproduce/,
+);
+
+const falseAlignedNodes = structuredClone(currentProcesses.nodes);
+falseAlignedNodes[0].head_transition_epoch = falseAlignedNodes[0].process_start_epoch + 1;
+falseAlignedNodes[0].source_to_process_start_seconds = -1;
+const falseAligned = processAudit(falseAlignedNodes);
+assert.throws(
+  () => validateFleetProcessFreshnessAuditV1(falseAligned),
+  /aligned process must start after the source transition/,
+);
+
 const toolPath = resolve(
   fileURLToPath(
     new URL("../tools/void-node-fleet-runtime-pin-status-v1.mjs", import.meta.url),
