@@ -14,6 +14,7 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { spawnSync } from "node:child_process";
 
 import {
@@ -25,6 +26,9 @@ import {
 } from "../ops/run_void_node_fleet_runtime_pin_status_v1.mjs";
 
 const REVIEWED_GIT = realpathSync("/usr/bin/git");
+const LEGACY_CORE_CLI = fileURLToPath(
+  new URL("../ops/void-node-fleet-runtime-pin-status-core-v1.mjs", import.meta.url),
+);
 
 function git(cwd, args) {
   const result = spawnSync(REVIEWED_GIT, args, {
@@ -111,6 +115,24 @@ try {
   assert.equal(bound.canonical_git_executable.sha256, identity.sha256);
   assert.match(bound.operator_evidence_id_sha256, /^[0-9a-f]{64}$/);
 
+  const legacyCore = spawnSync(process.execPath, [LEGACY_CORE_CLI, "--help"], {
+    encoding: "utf8",
+    timeout: 10_000,
+    env: process.env,
+  });
+  assert.equal(legacyCore.status, 1);
+  assert.equal(legacyCore.stdout, "");
+  const legacyCoreHold = JSON.parse(legacyCore.stderr.trim());
+  assert.equal(legacyCoreHold.marker, "VOID_NODE_FLEET_RUNTIME_PIN_STATUS_V1");
+  assert.equal(legacyCoreHold.status, "HOLD");
+  assert.equal(legacyCoreHold.reason, "legacy_core_cli_disabled");
+  assert.equal(legacyCoreHold.guard, "VOID_NODE_FLEET_RUNTIME_PIN_CORE_DIRECT_CLI_DISABLED_V1");
+  assert.match(legacyCoreHold.error, /direct core CLI is disabled/);
+  assert.equal(Object.hasOwn(legacyCoreHold, "canonical_main_sha"), false);
+  assert.equal(Object.hasOwn(legacyCoreHold, "nodes"), false);
+  assert.equal(legacyCoreHold.mutation_attempted, false);
+  assert.equal(legacyCoreHold.evidence_output_created, false);
+
   for (const key of [
     "GIT_SSH",
     "GIT_SSH_COMMAND",
@@ -138,6 +160,8 @@ try {
   console.log("ambient_path_cannot_replace_bound_git_executable=true");
   console.log("canonical_git_executable_identity_bound_in_packet=true");
   console.log("operator_evidence_id_binds_status_to_git_identity=true");
+  console.log("legacy_core_direct_cli_disabled=true");
+  console.log("legacy_core_success_class_evidence_blocked=true");
   console.log("git_trace_helper_and_loader_overrides_rejected=true");
   console.log("git_fetch_performed=false");
   console.log("service_or_runtime_mutation_performed=false");
