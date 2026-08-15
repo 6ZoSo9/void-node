@@ -7,9 +7,25 @@ DROPIN_DIR="${HOME}/.config/systemd/user/${SERVICE}.d"
 DROPIN="${DROPIN_DIR}/20-hot-runtime-quarantine.conf"
 
 # Public-clone quarantine and canonical block production are mutually exclusive.
-# Refuse before writing if the effective service or any already-installed drop-in
-# marks this service as the canonical producer.
-effective_env="$(systemctl --user show "$SERVICE" -p Environment --value 2>/dev/null || true)"
+# Service discovery itself is part of the authority check: unknown, missing, or
+# unreadable service state is not proof that the service is non-canonical.
+load_state=""
+if ! load_state="$(systemctl --user show "$SERVICE" -p LoadState --value 2>/dev/null)"; then
+  echo "${MARKER}_HOLD unable to inspect service load state for ${SERVICE}" >&2
+  exit 1
+fi
+if [ "$load_state" != "loaded" ]; then
+  echo "${MARKER}_HOLD service is not unambiguously loaded: ${SERVICE} load_state=${load_state:-<empty>}" >&2
+  exit 1
+fi
+
+# Refuse before any mkdir/write if effective environment inspection fails or if
+# the effective service is already marked as the canonical producer.
+effective_env=""
+if ! effective_env="$(systemctl --user show "$SERVICE" -p Environment --value 2>/dev/null)"; then
+  echo "${MARKER}_HOLD unable to inspect effective environment for ${SERVICE}" >&2
+  exit 1
+fi
 if printf '%s\n' "$effective_env" | tr ' ' '\n' | grep -Fxq 'VOID_CANONICAL_PRODUCER_ROLE=1'; then
   echo "${MARKER}_HOLD canonical producer role is active for ${SERVICE}" >&2
   exit 1
