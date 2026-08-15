@@ -1,3 +1,7 @@
+import {
+  VOID_BUY_VOID_ERC20_PRODUCTION_CREDENTIAL_BINDING_EVIDENCE_RECORD_V1,
+} from "./buy_void_erc20_production_credential_binding_evidence_v1.js";
+
 export const
   VOID_BUY_VOID_ERC20_DELIVERY_RUNTIME_ACTIVATION_CONFIGURATION_CONTRACT_V1 =
     "VOID_BUY_VOID_ERC20_DELIVERY_RUNTIME_ACTIVATION_CONFIGURATION_CONTRACT_V1";
@@ -27,6 +31,11 @@ export const
     canonical_delivery_runtime_activation_ready: false,
     production_configuration_values_verified: false,
     production_credential_binding_ready: false,
+    canonical_production_credential_binding_evidence_ready: true,
+    canonical_production_credential_binding_evidence:
+      VOID_BUY_VOID_ERC20_PRODUCTION_CREDENTIAL_BINDING_EVIDENCE_RECORD_V1,
+    dormant_dependency_injection_source_ready: true,
+    dependency_injection_runtime_ready: false,
     canonical_delivery_runtime_parent_mounted: true,
     canonical_delivery_execution_ready: false,
     canonical_delivery_execution_held: true,
@@ -35,7 +44,7 @@ export const
     current_parent_blocker:
       "canonical_delivery_runtime_activation_not_ready",
     next_gate:
-      "production_credential_binding_and_dependency_injection_authorization",
+      "disabled_dependency_injection_runtime_authorization",
 
     runtime_source_path:
       "src/economic/buy_void_delivery_runtime_integration_v1.ts",
@@ -70,6 +79,12 @@ export const
       ],
       dependency_global:
         "__void_buy_void_delivery_runtime_dependencies_v1",
+      dependency_injection_enable_env:
+        "VOID_BUY_VOID_ERC20_DELIVERY_DEPENDENCY_INJECTION_ENABLED",
+      credential_binding_evidence_id_env:
+        "VOID_BUY_VOID_ERC20_CREDENTIAL_BINDING_EVIDENCE_ID",
+      required_credential_binding_evidence_id_sha256:
+        "20b5201b7d0516b3a4eb538fa4ec8fc1d1c68d5d1158740a11992025a2451495",
       fixed_signer_credential_id:
         "buy-void-native-fulfillment-wallet-v1",
       canonical_delivery_action: "sign_and_broadcast",

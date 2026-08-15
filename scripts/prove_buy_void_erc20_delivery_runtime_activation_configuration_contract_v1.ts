@@ -22,10 +22,29 @@ assert.equal(contract.prerequisite_source_truth.existing_terminal_closeout_reuse
 assert.equal(contract.canonical_delivery_runtime_activation_ready, false);
 assert.equal(contract.production_configuration_values_verified, false);
 assert.equal(contract.production_credential_binding_ready, false);
+assert.equal(
+  contract.canonical_production_credential_binding_evidence_ready,
+  true,
+);
+assert.equal(
+  contract.canonical_production_credential_binding_evidence
+    .exact_wallet_binding,
+  true,
+);
+assert.equal(
+  contract.canonical_production_credential_binding_evidence
+    .interpretation.clone_local_credential_binding_inferred,
+  false,
+);
+assert.equal(contract.dormant_dependency_injection_source_ready, true);
+assert.equal(contract.dependency_injection_runtime_ready, false);
 assert.equal(contract.canonical_delivery_runtime_parent_mounted, true);
 assert.equal(contract.canonical_delivery_execution_ready, false);
 assert.equal(contract.presale_inventory_funding_ready, false);
-assert.equal(contract.next_gate, "production_credential_binding_and_dependency_injection_authorization");
+assert.equal(
+  contract.next_gate,
+  "disabled_dependency_injection_runtime_authorization",
+);
 assert.equal(
   contract.amount_unit_contract.max_amount_unit_domain,
   "fulfillment_units_6_decimal",
@@ -169,6 +188,9 @@ console.log("confirmation_range_preflight_before_record_confirmed=1");
 console.log("runtime_activation_performed=0");
 console.log("production_configuration_values_verified=0");
 console.log("production_credential_binding_ready=0");
+console.log("canonical_production_credential_binding_evidence_ready=1");
+console.log("dormant_dependency_injection_source_ready=1");
+console.log("dependency_injection_runtime_ready=0");
 console.log("canonical_delivery_runtime_parent_mounted=1");
 console.log("canonical_delivery_execution_ready=0");
 console.log("presale_inventory_funding_ready=0");

@@ -35,12 +35,15 @@ erc20_execution_composition_ready=true
 canonical_delivery_runtime_activation_ready=false
 production_configuration_values_verified=false
 production_credential_binding_ready=false
+canonical_production_credential_binding_evidence_ready=true
+dormant_dependency_injection_source_ready=true
+dependency_injection_runtime_ready=false
 canonical_delivery_runtime_parent_mounted=true
 canonical_delivery_execution_ready=false
 presale_inventory_funding_ready=false
 ```
 
-After the disabled parent mount, the next operations gates are credential key-to-wallet evidence and separately authorized dependency injection/runtime enablement. Inventory funding remains an independent later value-bearing gate.
+Credential key-to-wallet evidence is now recorded for the canonical Precision/Mainnet-0 fulfillment wallet without inferring clone-local binding. The next operations gate is separately authorized dormant dependency injection while delivery remains disabled; runtime enablement remains later. Inventory funding remains an independent later value-bearing gate.
 
 ## Authority boundary
 

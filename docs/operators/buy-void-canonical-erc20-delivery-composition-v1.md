@@ -82,7 +82,7 @@ funding_blockers=[
 ]
 ```
 
-Credential binding, dependency injection, runtime enablement, and inventory funding remain later independent gates.
+Canonical Precision/Mainnet-0 credential binding evidence is now recorded in redacted source evidence without inferring clone-local binding. Dormant dependency injection, runtime enablement, and inventory funding remain later independent gates.
 
 ## Funding HOLD
 
