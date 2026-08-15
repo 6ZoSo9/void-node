@@ -8,6 +8,7 @@ import { parseArgs } from "node:util";
 const MARKER = "VOID_WC_PUBLIC_OPPORTUNITY_HANDOFF_V1";
 const DIRECTORY_MARKER = "VOID_WC_PUBLIC_OPPORTUNITY_DIRECTORY_V1";
 const DISCOVERY_MARKER = "VOID_WC_PUBLIC_OPPORTUNITY_DISCOVERY_V1";
+const MAX_HEALTH_RESPONSE_BYTES = 64 * 1024;
 const HERE = dirname(fileURLToPath(import.meta.url));
 const DEFAULT_CLIENT = resolve(HERE, "void_public_earn_no_node_client_v1.mjs");
 
@@ -21,6 +22,7 @@ function hold(reason, extra = {}) {
     safety: {
       read_only: true,
       health_method: "GET",
+      health_response_max_bytes: MAX_HEALTH_RESPONSE_BYTES,
       client_executed: false,
       identity_created: false,
       mutation_attempted: false,
@@ -98,6 +100,56 @@ function candidates(directory) {
     .sort((a,b) => a.base.localeCompare(b.base));
 }
 
+async function readBoundedHealthText(response) {
+  const declared = response.headers.get("content-length");
+  if (declared !== null) {
+    if (!/^\d+$/u.test(declared)) throw new Error("coordinator health content-length is invalid");
+    if (BigInt(declared) > BigInt(MAX_HEALTH_RESPONSE_BYTES)) {
+      throw new Error("coordinator health response exceeds byte limit");
+    }
+  }
+  if (!response.body || typeof response.body.getReader !== "function") {
+    throw new Error("coordinator health response body is not stream-readable");
+  }
+  const reader = response.body.getReader();
+  const chunks = [];
+  let total = 0;
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      if (!(value instanceof Uint8Array)) throw new Error("coordinator health response chunk is invalid");
+      total += value.byteLength;
+      if (total > MAX_HEALTH_RESPONSE_BYTES) {
+        try {
+          await reader.cancel("coordinator health response exceeds byte limit");
+        } catch (cleanupError) {
+          void cleanupError;
+        }
+        throw new Error("coordinator health response exceeds byte limit");
+      }
+      chunks.push(value);
+    }
+  } finally {
+    try {
+      reader.releaseLock();
+    } catch (cleanupError) {
+      void cleanupError;
+    }
+  }
+  const bytes = new Uint8Array(total);
+  let offset = 0;
+  for (const chunk of chunks) {
+    bytes.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  try {
+    return new TextDecoder("utf-8", { fatal: true }).decode(bytes);
+  } catch (error) {
+    throw new Error("coordinator health returned invalid UTF-8", { cause: error });
+  }
+}
+
 async function health(base, timeoutMs) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
@@ -108,7 +160,7 @@ async function health(base, timeoutMs) {
       redirect: "error",
       signal: controller.signal,
     });
-    const text = await response.text();
+    const text = await readBoundedHealthText(response);
     let body;
     try { body = JSON.parse(text); } catch { throw new Error("coordinator health returned non-JSON"); }
     if (!response.ok) throw new Error(`coordinator health HTTP ${response.status}`);
@@ -184,6 +236,7 @@ async function main() {
     safety: {
       read_only: true,
       health_method: "GET",
+      health_response_max_bytes: MAX_HEALTH_RESPONSE_BYTES,
       directory_marker_validated: true,
       directory_safety_validated: true,
       selected_child_safety_validated: true,
