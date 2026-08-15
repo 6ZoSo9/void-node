@@ -51,7 +51,7 @@ A candidate is eligible only when the directory result reports:
 
 No eligible candidate produces `hold`. Multiple eligible candidates also produce `hold` until `--select-base` is supplied.
 
-Coordinator-origin admission intentionally matches the canonical no-node client: public coordinators require HTTPS; HTTP is allowed only for exact `localhost`, loopback IPs, RFC1918/private IPv4, CGNAT `100.64.0.0/10`, and `.ts.net` hostnames. Aliases such as `worker.localhost` and adjacent public ranges remain rejected unless the canonical client contract is separately changed and reviewed.
+Coordinator-origin admission intentionally matches the canonical no-node client: public coordinators require HTTPS; HTTP is allowed only for exact `localhost`, loopback IPs including bracketed IPv6 loopback `[::1]`, RFC1918/private IPv4, CGNAT `100.64.0.0/10`, and `.ts.net` hostnames. Aliases such as `worker.localhost`, adjacent public IPv4 ranges, and non-loopback IPv6 over HTTP remain rejected unless the canonical client contract is separately changed and reviewed.
 
 ## Coordinator identity binding
 
@@ -76,7 +76,7 @@ node tools/void_public_earn_no_node_client_v1.mjs run ...
 
 Optional values include `--state-dir` and an HTTPS `--dataset-url-template` containing `{dataset_id}`.
 
-The focused contract is bound to the canonical no-node client source. A client-only interface change schedules this handoff workflow, and the proof feeds the generated `status` and `run` argv through the real client parser plus its read-only coordinator preflight contract. The proof also executes origin-policy parity cases for public HTTPS, exact `localhost`, loopback/private/CGNAT HTTP, `.ts.net` HTTP, `worker.localhost`, and adjacent rejected public ranges. It does not execute the full client, create participant identity state, claim a ticket, or submit work.
+The focused contract is bound to the canonical no-node client source. A client-only interface change schedules this handoff workflow, and the proof feeds the generated `status` and `run` argv through the real client parser plus its read-only coordinator preflight contract. The proof also executes origin-policy parity cases for public HTTPS, exact `localhost`, bracketed IPv6 loopback `[::1]`, loopback/private/CGNAT IPv4 HTTP, `.ts.net` HTTP, `worker.localhost`, non-loopback IPv6 HTTP, and adjacent rejected public IPv4 ranges. It does not execute the full client, create participant identity state, claim a ticket, or submit work.
 
 ## Safety boundary
 
