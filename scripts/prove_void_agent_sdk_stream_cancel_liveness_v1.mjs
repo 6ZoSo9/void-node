@@ -35,6 +35,27 @@ async function expectRejectWithin(label, operation, expectedFragment, timeoutMs 
   }
 }
 
+async function expectAnyRejectBeforeDeadline(label, operation, timeoutMs = 250) {
+  let timer;
+  const result = await Promise.race([
+    Promise.resolve()
+      .then(operation)
+      .then(
+        () => ({ kind: "resolved" }),
+        (error) => ({ kind: "rejected", error }),
+      ),
+    new Promise((resolve) => {
+      timer = setTimeout(() => resolve({ kind: "timeout" }), timeoutMs);
+    }),
+  ]);
+  clearTimeout(timer);
+  assertCondition(
+    result.kind === "rejected",
+    `${label} did not fail closed before deadline: ${result.kind}`,
+  );
+  return result.error;
+}
+
 function oversizedResponse(cancelImpl) {
   let cancelCalls = 0;
   const body = new ReadableStream({
@@ -72,6 +93,25 @@ function declaredOversizedResponse(cancelImpl) {
       },
     }),
     cancelCalls: () => cancelCalls,
+  };
+}
+
+function nonStreamReadableResponse() {
+  let textCalls = 0;
+  return {
+    response: {
+      status: 200,
+      ok: true,
+      headers: new Headers({
+        "content-type": "application/json; charset=utf-8",
+      }),
+      body: null,
+      text() {
+        textCalls += 1;
+        return new Promise(() => {});
+      },
+    },
+    textCalls: () => textCalls,
   };
 }
 
@@ -130,7 +170,24 @@ assertCondition(
   `expected one declared-size cancellation attempt, got ${declaredStalledCancel.cancelCalls()}`,
 );
 
+const nonStream = nonStreamReadableResponse();
+await expectAnyRejectBeforeDeadline(
+  "non-stream-readable custom fetch response",
+  () =>
+    discoverVoidAgentV1({
+      baseUrl: "https://node.example",
+      maxResponseBytes: 1024,
+      timeoutMs: 100,
+      fetchImpl: async () => nonStream.response,
+    }),
+);
+assertCondition(
+  nonStream.textCalls() === 0,
+  `bounded SDK must reject before unbounded response.text(); text_calls=${nonStream.textCalls()}`,
+);
+
 console.log("stream_oversize_primary_error_preserved=true");
 console.log("declared_oversize_primary_error_preserved=true");
+console.log("non_stream_response_text_fallback_forbidden=true");
 console.log("oversize_cancel_attempts=3");
 console.log("VOID_AGENT_SDK_STREAM_CANCEL_LIVENESS_V1_PROOF_GREEN=true");
