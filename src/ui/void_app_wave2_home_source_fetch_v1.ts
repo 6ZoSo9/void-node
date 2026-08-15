@@ -44,6 +44,42 @@ export class VoidUiWave2HomeSnapshotBuildOwnerV1<T> {
   }
 }
 
+export function resolveVoidUiWave2HomeSourceBaseV1(
+  candidateInput: string,
+  fallback: string
+): string {
+  const candidate = String(candidateInput || fallback).trim();
+
+  try {
+    const parsed = new URL(candidate);
+    const hostname = parsed.hostname;
+    const normalizedHostname =
+      hostname.startsWith("[") && hostname.endsWith("]")
+        ? hostname.slice(1, -1)
+        : hostname;
+    const allowedHost =
+      normalizedHostname === "127.0.0.1" ||
+      normalizedHostname === "localhost" ||
+      normalizedHostname === "::1";
+
+    if (
+      parsed.protocol !== "http:" ||
+      !allowedHost ||
+      (parsed.pathname !== "/" && parsed.pathname !== "") ||
+      parsed.search ||
+      parsed.hash ||
+      parsed.username ||
+      parsed.password
+    ) {
+      return fallback;
+    }
+
+    return `${parsed.protocol}//${parsed.host}`;
+  } catch {
+    return fallback;
+  }
+}
+
 const bestEffortCancel = (
   body: ReadableStream<Uint8Array> | null,
   reason: string

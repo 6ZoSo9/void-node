@@ -2,6 +2,7 @@ import "./void_app_wave3_wallet_readonly_v1.js";
 import os from "node:os";
 import {
   fetchVoidUiWave2HomeSourceJsonV1,
+  resolveVoidUiWave2HomeSourceBaseV1,
   type VoidUiWave2HomeSourceResultV1,
   VoidUiWave2HomeSnapshotBuildOwnerV1,
 } from "./void_app_wave2_home_source_fetch_v1.js";
@@ -95,33 +96,10 @@ if (!G[INSTALL_MARK]) {
 
   const sourceBase = (): string => {
     const fallback = `http://127.0.0.1:${Number(process.env.HTTP_PORT || 4100)}`;
-    const candidate = String(
-      process.env.VOID_UI_HOME_SOURCE_BASE || fallback
-    ).trim();
-
-    try {
-      const parsed = new URL(candidate);
-      const allowedHost =
-        parsed.hostname === "127.0.0.1" ||
-        parsed.hostname === "localhost" ||
-        parsed.hostname === "::1";
-
-      if (
-        parsed.protocol !== "http:" ||
-        !allowedHost ||
-        (parsed.pathname !== "/" && parsed.pathname !== "") ||
-        parsed.search ||
-        parsed.hash ||
-        parsed.username ||
-        parsed.password
-      ) {
-        return fallback;
-      }
-
-      return `${parsed.protocol}//${parsed.host}`;
-    } catch {
-      return fallback;
-    }
+    return resolveVoidUiWave2HomeSourceBaseV1(
+      String(process.env.VOID_UI_HOME_SOURCE_BASE || fallback),
+      fallback
+    );
   };
 
   const fetchJson = async (

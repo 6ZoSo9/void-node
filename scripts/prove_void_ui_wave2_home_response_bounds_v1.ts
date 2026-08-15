@@ -7,6 +7,7 @@ import {
   VOID_UI_WAVE2_HOME_SOURCE_MAX_RESPONSE_BYTES_V1,
   VoidUiWave2HomeSnapshotBuildOwnerV1,
   fetchVoidUiWave2HomeSourceJsonV1,
+  resolveVoidUiWave2HomeSourceBaseV1,
 } from "../src/ui/void_app_wave2_home_source_fetch_v1.js";
 
 const root = process.cwd();
@@ -53,6 +54,7 @@ async function main(): Promise<void> {
   );
 
   assert.match(homeSource, /fetchVoidUiWave2HomeSourceJsonV1/);
+  assert.match(homeSource, /resolveVoidUiWave2HomeSourceBaseV1/);
   assert.match(
     homeSource,
     /snapshotBuildOwner\.getOrStart\(buildSnapshot\)/
@@ -191,6 +193,66 @@ async function main(): Promise<void> {
   assert.equal(await timeoutLike, 3);
   assert.equal(snapshotOwner.hasInFlight(), false);
 
+  const fallbackSourceBase = "http://127.0.0.1:4100";
+  const ipv6SourceBase = resolveVoidUiWave2HomeSourceBaseV1(
+    "http://[::1]:4101",
+    fallbackSourceBase
+  );
+  assert.equal(ipv6SourceBase, "http://[::1]:4101");
+  assert.equal(
+    resolveVoidUiWave2HomeSourceBaseV1(
+      "http://[2001:db8::1]:4101",
+      fallbackSourceBase
+    ),
+    fallbackSourceBase
+  );
+  assert.equal(
+    resolveVoidUiWave2HomeSourceBaseV1(
+      "http://user@[::1]:4101",
+      fallbackSourceBase
+    ),
+    fallbackSourceBase
+  );
+  assert.equal(
+    resolveVoidUiWave2HomeSourceBaseV1(
+      "http://[::1]:4101/path",
+      fallbackSourceBase
+    ),
+    fallbackSourceBase
+  );
+  assert.equal(
+    resolveVoidUiWave2HomeSourceBaseV1(
+      "http://[::1]:4101/?query=1",
+      fallbackSourceBase
+    ),
+    fallbackSourceBase
+  );
+  assert.equal(
+    resolveVoidUiWave2HomeSourceBaseV1(
+      "https://[::1]:4101",
+      fallbackSourceBase
+    ),
+    fallbackSourceBase
+  );
+
+  let ipv6FetchUrl = "";
+  const ipv6Payload = { ok: true, ipv6: true };
+  const ipv6 = await fetchVoidUiWave2HomeSourceJsonV1(
+    ipv6SourceBase,
+    "/health",
+    {
+      fetchImpl: async (
+        input: string | URL | Request
+      ): Promise<Response> => {
+        ipv6FetchUrl = String(input);
+        return new Response(JSON.stringify(ipv6Payload), { status: 200 });
+      },
+    }
+  );
+  assert.equal(ipv6FetchUrl, "http://[::1]:4101/health");
+  assert.equal(ipv6.ok, true);
+  assert.deepEqual(ipv6.body, ipv6Payload);
+
   const validPayload = { ok: true, ready: true, value: 7 };
   const validText = JSON.stringify(validPayload);
   let validRedirectMode: RequestRedirect | undefined;
@@ -321,6 +383,8 @@ async function main(): Promise<void> {
   console.log("snapshot_owner_released_after_success=true");
   console.log("snapshot_owner_released_after_failure=true");
   console.log("snapshot_owner_released_after_timeout_like_settlement=true");
+  console.log("ipv6_loopback_source_base_preserved=true");
+  console.log("non_loopback_ipv6_rejected=true");
   console.log("declared_oversize_rejected=true");
   console.log("streamed_oversize_rejected=true");
   console.log("source_deadline_through_body=true");
