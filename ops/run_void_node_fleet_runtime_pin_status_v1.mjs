@@ -203,8 +203,8 @@ export function cleanupEvidenceOutputReservationV1(reservation) {
   if (Number.isInteger(reservation.fd)) {
     try {
       closeSync(reservation.fd);
-    } catch {
-      // Preserve the primary failure; existence is checked below.
+    } catch (cleanupError) {
+      void cleanupError;
     }
     reservation.fd = null;
   }
@@ -212,7 +212,8 @@ export function cleanupEvidenceOutputReservationV1(reservation) {
     try {
       unlinkSync(reservation.path);
       return false;
-    } catch {
+    } catch (cleanupError) {
+      void cleanupError;
       return true;
     }
   }
