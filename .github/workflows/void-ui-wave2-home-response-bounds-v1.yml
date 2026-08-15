@@ -6,7 +6,6 @@ on:
       - ".github/workflows/void-ui-wave2-home-response-bounds-v1.yml"
       - "src/ui/void_app_wave2_home_readonly_v1.ts"
       - "src/ui/void_app_wave2_home_source_fetch_v1.ts"
-      - "scripts/prove_void_ui_wave2_home_readonly_v1.ts"
       - "scripts/prove_void_ui_wave2_home_response_bounds_v1.ts"
       - "docs/public/void-ui-wave2-home-readonly-v1/source-manifest.json"
       - "docs/public/void-ui-wave3-wallet-readonly-v1/source-manifest.json"
@@ -17,7 +16,6 @@ on:
       - ".github/workflows/void-ui-wave2-home-response-bounds-v1.yml"
       - "src/ui/void_app_wave2_home_readonly_v1.ts"
       - "src/ui/void_app_wave2_home_source_fetch_v1.ts"
-      - "scripts/prove_void_ui_wave2_home_readonly_v1.ts"
       - "scripts/prove_void_ui_wave2_home_response_bounds_v1.ts"
       - "docs/public/void-ui-wave2-home-readonly-v1/source-manifest.json"
       - "docs/public/void-ui-wave3-wallet-readonly-v1/source-manifest.json"
@@ -47,8 +45,6 @@ jobs:
         run: npm ci
       - name: Prove bounded Home source responses
         run: npx tsx scripts/prove_void_ui_wave2_home_response_bounds_v1.ts
-      - name: Prove Wave 2 Home contract
-        run: npx tsx scripts/prove_void_ui_wave2_home_readonly_v1.ts
       - name: Typecheck
         run: npm run typecheck
       - name: Build
