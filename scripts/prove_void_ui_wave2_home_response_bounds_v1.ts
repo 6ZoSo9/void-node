@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 
@@ -17,6 +18,11 @@ const fetchLike = (
   init?: RequestInit
 ): Promise<Response> => responseFactory(init);
 
+const sha256File = (relative: string): string =>
+  createHash("sha256")
+    .update(fs.readFileSync(path.join(root, relative)))
+    .digest("hex");
+
 async function main(): Promise<void> {
   const homeSource = fs.readFileSync(
     path.join(root, "src/ui/void_app_wave2_home_readonly_v1.ts"),
@@ -32,6 +38,54 @@ async function main(): Promise<void> {
   assert.equal(fetchSource.includes("response.text()"), false);
   assert.match(fetchSource, /redirect: "error"/);
   assert.equal(VOID_UI_WAVE2_HOME_SOURCE_MAX_RESPONSE_BYTES_V1, 128 * 1024);
+
+  const wave2ManifestPath =
+    "docs/public/void-ui-wave2-home-readonly-v1/source-manifest.json";
+  const wave3ManifestPath =
+    "docs/public/void-ui-wave3-wallet-readonly-v1/source-manifest.json";
+  const wave4ManifestPath =
+    "docs/public/void-ui-wave4-earn-readonly-v1/source-manifest.json";
+  const homeSourcePath = "src/ui/void_app_wave2_home_readonly_v1.ts";
+  const boundedFetchPath = "src/ui/void_app_wave2_home_source_fetch_v1.ts";
+
+  const wave2Manifest = JSON.parse(
+    fs.readFileSync(path.join(root, wave2ManifestPath), "utf8")
+  );
+  const wave3Manifest = JSON.parse(
+    fs.readFileSync(path.join(root, wave3ManifestPath), "utf8")
+  );
+  const wave4Manifest = JSON.parse(
+    fs.readFileSync(path.join(root, wave4ManifestPath), "utf8")
+  );
+
+  assert.equal(
+    wave2Manifest.repository_hashes?.[homeSourcePath],
+    sha256File(homeSourcePath)
+  );
+  assert.equal(
+    wave2Manifest.repository_hashes?.[boundedFetchPath],
+    sha256File(boundedFetchPath)
+  );
+  assert.equal(
+    wave3Manifest.repository_hashes?.[wave2ManifestPath],
+    sha256File(wave2ManifestPath)
+  );
+  assert.equal(
+    wave3Manifest.repository_hashes?.[homeSourcePath],
+    sha256File(homeSourcePath)
+  );
+  assert.equal(
+    wave3Manifest.repository_hashes?.[boundedFetchPath],
+    sha256File(boundedFetchPath)
+  );
+  assert.equal(
+    wave4Manifest.repository_hashes?.[wave2ManifestPath],
+    sha256File(wave2ManifestPath)
+  );
+  assert.equal(
+    wave4Manifest.repository_hashes?.[wave3ManifestPath],
+    sha256File(wave3ManifestPath)
+  );
 
   const validPayload = { ok: true, ready: true, value: 7 };
   const validText = JSON.stringify(validPayload);
@@ -162,6 +216,7 @@ async function main(): Promise<void> {
   console.log("streamed_oversize_rejected=true");
   console.log("source_deadline_through_body=true");
   console.log("redirects_rejected=true");
+  console.log("owned_integrity_chain_verified=true");
   console.log("authority_added=false");
 }
 
