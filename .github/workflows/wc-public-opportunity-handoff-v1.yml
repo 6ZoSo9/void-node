@@ -6,6 +6,7 @@ on:
       - "tools/wc-public-opportunity-handoff-v1.mjs"
       - "tools/void_public_earn_no_node_client_v1.mjs"
       - "scripts/prove_wc_public_opportunity_handoff_v1.mjs"
+      - "scripts/prove_wc_public_opportunity_handoff_cancel_liveness_v1.mjs"
       - "docs/public/wc-public-opportunity-handoff-v1.md"
       - ".github/workflows/wc-public-opportunity-handoff-v1.yml"
   push:
@@ -14,6 +15,7 @@ on:
       - "tools/wc-public-opportunity-handoff-v1.mjs"
       - "tools/void_public_earn_no_node_client_v1.mjs"
       - "scripts/prove_wc_public_opportunity_handoff_v1.mjs"
+      - "scripts/prove_wc_public_opportunity_handoff_cancel_liveness_v1.mjs"
       - "docs/public/wc-public-opportunity-handoff-v1.md"
       - ".github/workflows/wc-public-opportunity-handoff-v1.yml"
   workflow_dispatch:
@@ -47,7 +49,10 @@ jobs:
           node --check tools/wc-public-opportunity-handoff-v1.mjs
           node --check tools/void_public_earn_no_node_client_v1.mjs
           node --check scripts/prove_wc_public_opportunity_handoff_v1.mjs
+          node --check scripts/prove_wc_public_opportunity_handoff_cancel_liveness_v1.mjs
       - name: Prove bounded public opportunity handoff
-        run: node scripts/prove_wc_public_opportunity_handoff_v1.mjs
+        run: |
+          node scripts/prove_wc_public_opportunity_handoff_v1.mjs
+          node scripts/prove_wc_public_opportunity_handoff_cancel_liveness_v1.mjs
       - name: Diff hygiene
         run: git diff --check
