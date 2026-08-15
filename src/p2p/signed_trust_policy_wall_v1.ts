@@ -1161,6 +1161,39 @@ async function readActiveRecord(stateDir: string): Promise<Readonly<{
   }
   return Object.freeze({ activation, generation_dir: generationDir });
 }
+
+async function assertFreshGenesisStateV1(
+  stateDir: string,
+  generationsDir: string,
+): Promise<void> {
+  const journalPath = path.join(stateDir, "activation.ndjson");
+  try {
+    const journalInfo = await lstat(journalPath);
+    if (!journalInfo.isFile() || journalInfo.isSymbolicLink()) {
+      hold(
+        "unsafe_activation_journal",
+        "activation journal must be a regular file",
+      );
+    }
+    hold(
+      "missing_current_with_history",
+      "current pointer is missing while activation journal state remains",
+    );
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+  }
+
+  const generationEntries = await import("node:fs/promises").then(
+    ({ readdir }) => readdir(generationsDir),
+  );
+  if (generationEntries.length > 0) {
+    hold(
+      "missing_current_with_history",
+      "current pointer is missing while retained generation state remains",
+    );
+  }
+}
+
 export async function activateVoidP2pSignedTrustPolicyV1(input: Readonly<{
   envelope: unknown;
   root_set: unknown;
@@ -1213,6 +1246,7 @@ export async function activateVoidP2pSignedTrustPolicyV1(input: Readonly<{
         hold("broken_policy_chain", "new policy does not name the active policy SHA-256 as its predecessor");
       }
     } else {
+      await assertFreshGenesisStateV1(stateDir, generationsDir);
       if (newEpoch !== 1n) hold("invalid_genesis_epoch", "first activated signed policy must use epoch 1");
       if (verified.policy.previous_policy_sha256 !== undefined) {
         hold("invalid_genesis_predecessor", "epoch 1 must not declare previous_policy_sha256");
