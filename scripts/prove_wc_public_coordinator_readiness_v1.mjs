@@ -25,6 +25,29 @@ function run(args) {
   });
 }
 
+function gatewaySafety(mode) {
+  const safety = {
+    public_ticket_issue: true,
+    public_signed_ticket_claim: true,
+    public_operator_ticket_issue: false,
+    claim_executor_key_possession_required: true,
+    claim_server_selected_work: true,
+    generic_job_submit: false,
+    participant_selected_award: mode === "unsafe" ? true : false,
+    wallet_send: false,
+    wc_to_void_swap: false,
+    buy_void_fulfillment: false,
+    validator_mutation: false,
+    operator_routes_exposed: false,
+    arbitrary_balance_lookup: false,
+    submission_response_canonical_accounting: true,
+  };
+  if (mode === "missing_boundary") {
+    delete safety.submission_response_canonical_accounting;
+  }
+  return safety;
+}
+
 function gateway(mode) {
   return {
     marker: "VOID_PUBLIC_EARN_GATEWAY_V1",
@@ -34,7 +57,10 @@ function gateway(mode) {
       submit_result: "/wc/public-earning-pilot-v1/submit-result",
     },
     methods: { claim_ticket: ["POST"], submit_result: ["POST"] },
-    audit_assertions: { public_routes_award_wc: mode === "unsafe" },
+    safety: gatewaySafety(mode),
+    ...(mode === "missing_boundary"
+      ? { metadata: { submission_response_canonical_accounting: true } }
+      : {}),
   };
 }
 
@@ -116,7 +142,7 @@ async function fixture(mode) {
       }
       return json(200, gateway(mode));
     }
-    if (req.method === "GET" && req.url?.startsWith("/wc/public-earning-pilot-v1/status?")) {
+    if (req.method === "GET" && req.url === "/wc/public-earning-pilot-v1/status") {
       if (mode === "transient" && routeCounts.get(req.url) === 1) {
         return json(502, { error: "temporary_pilot_failure" });
       }
@@ -173,6 +199,7 @@ try {
   assert.equal(body.ready_for_bounded_enablement, true);
   assert.equal(body.summary.failed_checks, 0);
   assert.ok(body.summary.total_checks >= 20);
+  assert.ok(body.checks.some((entry) => entry.id === "public_claim_route_no_direct_award" && entry.pass === true));
   assert.deepEqual(body.safety.http_methods_used, ["GET"]);
   assert.equal(body.safety.mutation_attempted, false);
   assert.equal(readyFx.requests.every((x) => x.method === "GET"), true);
@@ -196,7 +223,7 @@ try {
     (entry) => entry.path === "/__void/public-earn-gateway-v1/status.json",
   );
   const pilotAttempt = body.attempts.find(
-    (entry) => entry.path.startsWith("/wc/public-earning-pilot-v1/status?"),
+    (entry) => entry.path === "/wc/public-earning-pilot-v1/status",
   );
 
   assert.equal(gatewayAttempt.attempt_count, 2);
@@ -230,7 +257,7 @@ try {
     (entry) => entry.url === "/__void/public-earn-gateway-v1/status.json",
   );
   const pilotIndex = orderedFx.requests.findIndex(
-    (entry) => entry.url?.startsWith("/wc/public-earning-pilot-v1/status?"),
+    (entry) => entry.url === "/wc/public-earning-pilot-v1/status",
   );
   const firstBoundaryIndex = orderedFx.requests.findIndex(
     (entry) => [
@@ -287,9 +314,21 @@ try {
   assert.equal(result.code, 0);
   const body = JSON.parse(result.stdout);
   assert.equal(body.readiness_state, "hold");
-  assert.ok(body.summary.failed_check_ids.includes("public_routes_cannot_award_wc"));
+  assert.ok(body.summary.failed_check_ids.includes("public_claim_route_no_direct_award"));
 } finally {
   await unsafeFx.close();
+}
+
+const missingBoundaryFx = await fixture("missing_boundary");
+try {
+  const result = await run(["--base", missingBoundaryFx.base]);
+  assert.equal(result.code, 0);
+  const body = JSON.parse(result.stdout);
+  assert.equal(body.readiness_state, "hold");
+  assert.ok(body.summary.failed_check_ids.includes("public_claim_route_no_direct_award"));
+  assert.equal(body.ready_for_bounded_enablement, false);
+} finally {
+  await missingBoundaryFx.close();
 }
 
 const invalid = await run(["--base", "ftp://invalid.example"]);
