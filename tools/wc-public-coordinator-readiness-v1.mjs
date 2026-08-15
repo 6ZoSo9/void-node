@@ -3,6 +3,7 @@ import { isIP } from "node:net";
 import { parseArgs } from "node:util";
 
 const MARKER = "VOID_WC_PUBLIC_COORDINATOR_READINESS_V1";
+const MAX_RESPONSE_BYTES = 64 * 1024;
 const ROUTES = {
   gateway: "/__void/public-earn-gateway-v1/status.json",
   pilot: "/wc/public-earning-pilot-v1/status",
@@ -94,9 +95,55 @@ function scan(v) {
   return { keys, strings };
 }
 
+function cancelBestEffort(target) {
+  if (!target || typeof target.cancel !== "function") return;
+  try {
+    const pending = target.cancel();
+    if (pending && typeof pending.catch === "function") pending.catch(() => undefined);
+  } catch (error) { void error; }
+}
+
+async function readBoundedText(response, maximum) {
+  const declaredRaw = response.headers.get("content-length");
+  if (declaredRaw !== null) {
+    const declaredText = declaredRaw.trim();
+    if (!/^(0|[1-9]\d*)$/u.test(declaredText)) {
+      cancelBestEffort(response.body);
+      throw new Error("response_content_length_invalid");
+    }
+    const declared = Number(declaredText);
+    if (!Number.isSafeInteger(declared) || declared > maximum) {
+      cancelBestEffort(response.body);
+      throw new Error("response_body_too_large");
+    }
+  }
+  if (!response.body || typeof response.body.getReader !== "function") throw new Error("response_body_unavailable");
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder("utf-8", { fatal: true });
+  let text = "";
+  let received = 0;
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      received += value.byteLength;
+      if (received > maximum) {
+        cancelBestEffort(reader);
+        throw new Error("response_body_too_large");
+      }
+      text += decoder.decode(value, { stream: true });
+    }
+    text += decoder.decode();
+    return text;
+  } finally {
+    try { reader.releaseLock(); } catch (error) { void error; }
+  }
+}
+
 async function readJsonOnce(base, path, timeoutMs) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
+  let status = null;
   try {
     const r = await fetch(new URL(path, base), {
       method: "GET",
@@ -104,7 +151,8 @@ async function readJsonOnce(base, path, timeoutMs) {
       redirect: "error",
       signal: controller.signal,
     });
-    const text = await r.text();
+    status = r.status;
+    const text = await readBoundedText(r, MAX_RESPONSE_BYTES);
     let body = null;
     let parseError = null;
 
@@ -117,14 +165,21 @@ async function readJsonOnce(base, path, timeoutMs) {
     return {
       path,
       method: "GET",
-      status: r.status,
+      status,
       json: body !== null,
       body,
       error: null,
       parse_error: parseError,
     };
   } catch (e) {
-    return { path, method: "GET", status: null, json: false, body: null, error: e?.name || "request_error" };
+    return {
+      path,
+      method: "GET",
+      status,
+      json: false,
+      body: null,
+      error: e instanceof Error ? e.message : "request_error",
+    };
   } finally {
     clearTimeout(timer);
   }
