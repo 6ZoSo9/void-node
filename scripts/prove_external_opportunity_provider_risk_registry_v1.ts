@@ -119,6 +119,70 @@ assert.equal(justBelowThreshold.metrics.net_profit_usd, 0.099999999999);
 assert.equal(justBelowThreshold.status, "recordable_paper_negative");
 assert.ok(justBelowThreshold.reasons.includes("minimum_net_profit_not_met"));
 
+const derivedOverflowRegistry: ExternalOpportunityProviderRiskRegistryV1 = {
+  ...registry,
+  providers: registry.providers.map((provider, index) =>
+    index === 0
+      ? {
+          ...provider,
+          policy: {
+            ...provider.policy,
+            max_daily_notional_usd: Number.MAX_VALUE,
+            min_net_profit_usd: 0,
+            min_net_profit_margin_bps: 0,
+          },
+        }
+      : provider,
+  ),
+};
+assert.deepEqual(
+  validateExternalOpportunityProviderRiskRegistryV1(derivedOverflowRegistry),
+  { ok: true, errors: [] },
+);
+
+const rawProtocolFeeBpsOverflow = (1 / Number.MIN_VALUE) * 10_000;
+assert.equal(Number.isFinite(rawProtocolFeeBpsOverflow), false);
+const derivedOverflow = evaluateExternalOpportunityProviderRiskV1(
+  derivedOverflowRegistry,
+  {
+    ...positiveObservation,
+    notional_usd: Number.MIN_VALUE,
+    gross_revenue_usd: 1,
+    protocol_fee_usd: 1,
+    gas_cost_usd: 0,
+    slippage_bps: 0,
+  },
+);
+assert.equal(derivedOverflow.status, "held");
+assert.equal(derivedOverflow.quote_record_authorized, false);
+assert.deepEqual(derivedOverflow.reasons, ["derived_metric_non_finite"]);
+assert.equal(
+  Object.values(derivedOverflow.metrics).every((value) => value === 0),
+  true,
+);
+
+const finiteProjectedDailyNotional = Number.MAX_VALUE / 2 + 1;
+assert.equal(Number.isFinite(finiteProjectedDailyNotional), true);
+const normalizedOverflow = evaluateExternalOpportunityProviderRiskV1(
+  derivedOverflowRegistry,
+  {
+    ...positiveObservation,
+    notional_usd: 1,
+    gross_revenue_usd: 1,
+    protocol_fee_usd: 0,
+    gas_cost_usd: 0,
+    slippage_bps: 0,
+    daily_notional_before_usd: Number.MAX_VALUE / 2,
+  },
+);
+assert.equal(normalizedOverflow.status, "held");
+assert.equal(normalizedOverflow.quote_record_authorized, false);
+assert.deepEqual(normalizedOverflow.reasons, ["derived_metric_non_finite"]);
+assert.equal(
+  Object.values(normalizedOverflow.metrics).every((value) => value === 0),
+  true,
+);
+
 const negative = evaluateExternalOpportunityProviderRiskV1(registry, {
   ...positiveObservation,
   gross_revenue_usd: 0.01,
@@ -208,6 +272,8 @@ console.log(`paper_threshold_raw_ieee_net_profit_usd=${ieeeBoundaryRawNet}`);
 console.log(`paper_threshold_metric_net_profit_usd=${exactThreshold.metrics.net_profit_usd}`);
 console.log(`paper_threshold_positive=${exactThreshold.status === "recordable_paper_positive"}`);
 console.log(`paper_just_below_threshold_negative=${justBelowThreshold.status === "recordable_paper_negative"}`);
+console.log(`derived_metric_raw_overflow_held=${derivedOverflow.status === "held"}`);
+console.log(`derived_metric_normalization_overflow_held=${normalizedOverflow.status === "held"}`);
 console.log(`paper_negative_reason_count=${negative.reasons.length}`);
 console.log(`stale_quote_held=${stale.status === "held"}`);
 console.log(
