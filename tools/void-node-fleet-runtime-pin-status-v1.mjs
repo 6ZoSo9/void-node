@@ -578,6 +578,16 @@ function validateProcessNode(node, index, seenNames) {
       node.observed_at_epoch,
       `${name}.observed_at_epoch`,
     );
+    const timelineDelta = node.process_start_epoch - node.head_transition_epoch;
+    if (timelineDelta !== node.source_to_process_start_seconds) {
+      fail(`${name}.source/process timeline delta does not reproduce`);
+    }
+    if (
+      node.process_start_epoch > node.observed_at_epoch + 5 ||
+      node.head_transition_epoch > node.observed_at_epoch + 5
+    ) {
+      fail(`${name}.source/process timeline is future-dated`);
+    }
     assertSha(node.source_head, `${name}.source_head`);
     assertSha(node.source_tree, `${name}.source_tree`);
     assertSha(node.process_source_commit, `${name}.process_source_commit`);
@@ -589,6 +599,9 @@ function validateProcessNode(node, index, seenNames) {
       fail(`${name} non-HOLD process node must have no reasons`);
     }
     if (node.classification === "PROCESS_SOURCE_ALIGNED") {
+      if (timelineDelta < 1) {
+        fail(`${name} aligned process must start after the source transition`);
+      }
       if (node.process_source_matches_current !== true) {
         fail(`${name} aligned process must match current source`);
       }
@@ -599,6 +612,9 @@ function validateProcessNode(node, index, seenNames) {
         fail(`${name} aligned process identity contradicts source identity`);
       }
     } else {
+      if (timelineDelta > -1) {
+        fail(`${name} stale process must predate the source transition`);
+      }
       if (node.process_source_matches_current !== false) {
         fail(`${name} stale process must not match current source`);
       }
