@@ -2,6 +2,7 @@ import "./void_app_wave3_wallet_readonly_v1.js";
 import os from "node:os";
 import {
   fetchVoidUiWave2HomeSourceJsonV1,
+  parseVoidUiWave2HomeChainHeadV1,
   resolveVoidUiWave2HomeSourceBaseV1,
   type VoidUiWave2HomeSourceResultV1,
   VoidUiWave2HomeSnapshotBuildOwnerV1,
@@ -127,18 +128,6 @@ if (!G[INSTALL_MARK]) {
     return { hostname, label: hostname, role: "local" };
   };
 
-  const chainHead = (body: any): number | null => {
-    const value =
-      body?.number ??
-      body?.height ??
-      body?.head ??
-      body?.latest ??
-      null;
-
-    const number = Number(value);
-    return Number.isFinite(number) ? number : null;
-  };
-
   const peerCount = (body: any): number => {
     if (Array.isArray(body)) return body.length;
     if (Array.isArray(body?.connected)) return body.connected.length;
@@ -193,7 +182,7 @@ if (!G[INSTALL_MARK]) {
       network: {
         health: operationalReady ? "healthy" : "degraded",
         ready: operationalReady,
-        chain_head: chainHead(head.body),
+        chain_head: parseVoidUiWave2HomeChainHeadV1(head.body),
         peer_count: peerCount(peers.body),
         expected_peer_count: 2,
       },

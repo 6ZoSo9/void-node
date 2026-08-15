@@ -80,6 +80,30 @@ export function resolveVoidUiWave2HomeSourceBaseV1(
   }
 }
 
+export function parseVoidUiWave2HomeChainHeadV1(
+  body: unknown
+): number | null {
+  if (body === null || typeof body !== "object" || Array.isArray(body)) {
+    return null;
+  }
+
+  const record = body as Record<string, unknown>;
+  const value =
+    record.number ??
+    record.height ??
+    record.head ??
+    record.latest ??
+    null;
+
+  return (
+    typeof value === "number" &&
+    Number.isSafeInteger(value) &&
+    value >= 0
+  )
+    ? value
+    : null;
+}
+
 const bestEffortCancel = (
   body: ReadableStream<Uint8Array> | null,
   reason: string

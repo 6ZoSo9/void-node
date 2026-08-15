@@ -7,6 +7,7 @@ import {
   VOID_UI_WAVE2_HOME_SOURCE_MAX_RESPONSE_BYTES_V1,
   VoidUiWave2HomeSnapshotBuildOwnerV1,
   fetchVoidUiWave2HomeSourceJsonV1,
+  parseVoidUiWave2HomeChainHeadV1,
   resolveVoidUiWave2HomeSourceBaseV1,
 } from "../src/ui/void_app_wave2_home_source_fetch_v1.js";
 
@@ -54,6 +55,7 @@ async function main(): Promise<void> {
   );
 
   assert.match(homeSource, /fetchVoidUiWave2HomeSourceJsonV1/);
+  assert.match(homeSource, /parseVoidUiWave2HomeChainHeadV1/);
   assert.match(homeSource, /resolveVoidUiWave2HomeSourceBaseV1/);
   assert.match(
     homeSource,
@@ -193,47 +195,53 @@ async function main(): Promise<void> {
   assert.equal(await timeoutLike, 3);
   assert.equal(snapshotOwner.hasInFlight(), false);
 
+  const validChainHeadCases: Array<[unknown, number]> = [
+    [{ number: 0 }, 0],
+    [{ number: 123 }, 123],
+    [{ height: 456 }, 456],
+    [{ head: 789 }, 789],
+    [{ latest: Number.MAX_SAFE_INTEGER }, Number.MAX_SAFE_INTEGER],
+    [{ number: null, height: 42 }, 42],
+  ];
+  for (const [body, expected] of validChainHeadCases) {
+    assert.equal(parseVoidUiWave2HomeChainHeadV1(body), expected);
+  }
+
+  const invalidChainHeadCases: unknown[] = [
+    {},
+    null,
+    [],
+    { number: null },
+    { number: "123" },
+    { number: true },
+    { number: -1 },
+    { number: 1.5 },
+    { number: Number.MAX_SAFE_INTEGER + 1 },
+    { number: Number.NaN },
+    { number: Number.POSITIVE_INFINITY },
+  ];
+  for (const body of invalidChainHeadCases) {
+    assert.equal(parseVoidUiWave2HomeChainHeadV1(body), null);
+  }
+
   const fallbackSourceBase = "http://127.0.0.1:4100";
   const ipv6SourceBase = resolveVoidUiWave2HomeSourceBaseV1(
     "http://[::1]:4101",
     fallbackSourceBase
   );
   assert.equal(ipv6SourceBase, "http://[::1]:4101");
-  assert.equal(
-    resolveVoidUiWave2HomeSourceBaseV1(
-      "http://[2001:db8::1]:4101",
+  for (const candidate of [
+    "http://[2001:db8::1]:4101",
+    "http://user@[::1]:4101",
+    "http://[::1]:4101/path",
+    "http://[::1]:4101/?query=1",
+    "https://[::1]:4101",
+  ]) {
+    assert.equal(
+      resolveVoidUiWave2HomeSourceBaseV1(candidate, fallbackSourceBase),
       fallbackSourceBase
-    ),
-    fallbackSourceBase
-  );
-  assert.equal(
-    resolveVoidUiWave2HomeSourceBaseV1(
-      "http://user@[::1]:4101",
-      fallbackSourceBase
-    ),
-    fallbackSourceBase
-  );
-  assert.equal(
-    resolveVoidUiWave2HomeSourceBaseV1(
-      "http://[::1]:4101/path",
-      fallbackSourceBase
-    ),
-    fallbackSourceBase
-  );
-  assert.equal(
-    resolveVoidUiWave2HomeSourceBaseV1(
-      "http://[::1]:4101/?query=1",
-      fallbackSourceBase
-    ),
-    fallbackSourceBase
-  );
-  assert.equal(
-    resolveVoidUiWave2HomeSourceBaseV1(
-      "https://[::1]:4101",
-      fallbackSourceBase
-    ),
-    fallbackSourceBase
-  );
+    );
+  }
 
   let ipv6FetchUrl = "";
   const ipv6Payload = { ok: true, ipv6: true };
@@ -374,15 +382,21 @@ async function main(): Promise<void> {
   const deadlineElapsed = Date.now() - deadlineStart;
   assert.equal(stalled.ok, false);
   assert.equal(deadlineObserved, true);
-  assert.ok(deadlineElapsed < 500, `deadline settled too slowly: ${deadlineElapsed}ms`);
+  assert.ok(
+    deadlineElapsed < 500,
+    `deadline settled too slowly: ${deadlineElapsed}ms`
+  );
 
   console.log("VOID_UI_WAVE2_HOME_RESPONSE_BOUNDS_V1_PROOF_GREEN");
-  console.log(`max_response_bytes=${VOID_UI_WAVE2_HOME_SOURCE_MAX_RESPONSE_BYTES_V1}`);
+  console.log(
+    `max_response_bytes=${VOID_UI_WAVE2_HOME_SOURCE_MAX_RESPONSE_BYTES_V1}`
+  );
   console.log("home_snapshot_build_coalesced=true");
   console.log(`max_active_home_source_reads=${maxActiveSourceReads}`);
   console.log("snapshot_owner_released_after_success=true");
   console.log("snapshot_owner_released_after_failure=true");
   console.log("snapshot_owner_released_after_timeout_like_settlement=true");
+  console.log("chain_head_type_and_range_strict=true");
   console.log("ipv6_loopback_source_base_preserved=true");
   console.log("non_loopback_ipv6_rejected=true");
   console.log("declared_oversize_rejected=true");
