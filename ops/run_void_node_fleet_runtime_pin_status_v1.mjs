@@ -13,14 +13,15 @@ import {
   readFreshFleetProcessAuditV1,
 } from "../tools/void-node-fleet-runtime-pin-status-v1.mjs";
 
+export const VOID_CANONICAL_REPOSITORY_URL_V1 =
+  "https://github.com/6ZoSo9/void-node.git";
+
 const SHA_RE = /^[0-9a-f]{40}$/;
 const REMOTE_RE = /^[a-z0-9][a-z0-9._-]{0,63}$/i;
 const DEFAULT_MAX_EVIDENCE_AGE_SECONDS = 300;
 const MAX_EVIDENCE_AGE_SECONDS = 86_400;
 const MAX_GIT_OUTPUT_BYTES = 1024 * 1024;
-const DEFAULT_REPO_ROOT = resolve(
-  fileURLToPath(new URL("..", import.meta.url)),
-);
+const DEFAULT_REPO_ROOT = resolve(fileURLToPath(new URL("..", import.meta.url)));
 
 const FORBIDDEN_GIT_ENV_KEYS = new Set([
   "GIT_DIR",
@@ -90,18 +91,25 @@ export function assertCanonicalEvaluationGitEnvironmentV1(env = process.env) {
   return true;
 }
 
-function runGit(repo, args) {
-  assertCanonicalEvaluationGitEnvironmentV1(process.env);
+function runGit(repo, args, env = process.env) {
   const result = spawnSync("git", ["-C", repo, ...args], {
     encoding: "utf8",
     timeout: 10_000,
     maxBuffer: MAX_GIT_OUTPUT_BYTES,
-    env: { ...process.env, GIT_TERMINAL_PROMPT: "0" },
+    env: { ...env, GIT_TERMINAL_PROMPT: "0" },
   });
   if (result.error || result.status !== 0) {
     fail("read-only canonical Git inspection failed");
   }
   return result.stdout ?? "";
+}
+
+function oneLine(value, label) {
+  const lines = String(value)
+    .split(/\r?\n/)
+    .filter((line) => line.length > 0);
+  if (lines.length !== 1) fail(`${label} must contain exactly one value`);
+  return lines[0];
 }
 
 export function parseCanonicalLsRemoteV1(stdout, expectedRef = "refs/heads/main") {
@@ -118,42 +126,87 @@ export function parseCanonicalLsRemoteV1(stdout, expectedRef = "refs/heads/main"
   return assertSha(fields[0], "live canonical main SHA");
 }
 
+export function queryCanonicalMainExplicitUrlV1({
+  canonicalUrl,
+  canonicalBranch = "main",
+  env = process.env,
+}) {
+  assertCanonicalEvaluationGitEnvironmentV1(env);
+  const url = assertString(canonicalUrl, "canonical repository URL");
+  if (canonicalBranch !== "main") fail("canonical branch must be exact main");
+  const ref = `refs/heads/${canonicalBranch}`;
+  const isolatedEnv = {
+    ...env,
+    GIT_TERMINAL_PROMPT: "0",
+    GIT_CONFIG_GLOBAL: "/dev/null",
+    GIT_CONFIG_SYSTEM: "/dev/null",
+    GIT_CONFIG_NOSYSTEM: "1",
+  };
+  const result = spawnSync("git", ["ls-remote", "--exit-code", url, ref], {
+    cwd: "/",
+    encoding: "utf8",
+    timeout: 10_000,
+    maxBuffer: MAX_GIT_OUTPUT_BYTES,
+    env: isolatedEnv,
+  });
+  if (result.error || result.status !== 0) {
+    fail("read-only explicit canonical Git inspection failed");
+  }
+  return parseCanonicalLsRemoteV1(result.stdout ?? "", ref);
+}
+
 export function sampleLiveCanonicalMainV1({
   coordinatorRepo,
   canonicalRemote,
   canonicalBranch = "main",
+  expectedCanonicalUrl = VOID_CANONICAL_REPOSITORY_URL_V1,
+  env = process.env,
 }) {
-  assertCanonicalEvaluationGitEnvironmentV1(process.env);
+  assertCanonicalEvaluationGitEnvironmentV1(env);
   const repo = realpathSync(expandHome(assertString(coordinatorRepo, "coordinator repo")));
   const remote = assertString(canonicalRemote, "canonical remote");
+  const expectedUrl = assertString(expectedCanonicalUrl, "expected canonical repository URL");
   if (!REMOTE_RE.test(remote)) fail("canonical remote name is invalid");
   if (canonicalBranch !== "main") fail("canonical branch must be exact main");
 
-  const topLevel = realpathSync(
-    runGit(repo, ["rev-parse", "--show-toplevel"]).trim(),
-  );
+  const topLevel = realpathSync(runGit(repo, ["rev-parse", "--show-toplevel"], env).trim());
   if (topLevel !== repo) {
     fail("coordinator repo must be the exact Git worktree root");
   }
 
-  const remoteUrl = runGit(repo, ["remote", "get-url", remote]).trim();
-  if (!remoteUrl || /[\r\n]/.test(remoteUrl)) {
-    fail("canonical remote URL is unavailable or ambiguous");
+  const rawRemoteUrl = oneLine(
+    runGit(
+      repo,
+      ["config", "--local", "--no-includes", "--get-all", `remote.${remote}.url`],
+      env,
+    ),
+    "stored canonical remote URL",
+  );
+  if (rawRemoteUrl !== expectedUrl) {
+    fail("stored canonical remote URL does not match reviewed VOID repository identity");
   }
 
-  const ref = `refs/heads/${canonicalBranch}`;
-  const sha = parseCanonicalLsRemoteV1(
-    runGit(repo, ["ls-remote", "--exit-code", remote, ref]),
-    ref,
+  const effectiveRemoteUrl = oneLine(
+    runGit(repo, ["remote", "get-url", remote], env),
+    "effective canonical remote URL",
   );
-  return Object.freeze({ sha, remote_url: remoteUrl });
+  if (effectiveRemoteUrl !== rawRemoteUrl) {
+    fail("ambient Git URL rewrite changes canonical remote identity");
+  }
+
+  const sha = queryCanonicalMainExplicitUrlV1({
+    canonicalUrl: expectedUrl,
+    canonicalBranch,
+    env,
+  });
+  return Object.freeze({
+    sha,
+    remote_url: rawRemoteUrl,
+    effective_remote_url: effectiveRemoteUrl,
+  });
 }
 
-export function assertCanonicalBracketV1({
-  driftCanonicalSha,
-  before,
-  after,
-}) {
+export function assertCanonicalBracketV1({ driftCanonicalSha, before, after }) {
   const driftSha = assertSha(driftCanonicalSha, "drift canonical SHA");
   const beforeSha = assertSha(before?.sha, "pre-evaluation canonical SHA");
   const afterSha = assertSha(after?.sha, "post-evaluation canonical SHA");
@@ -163,10 +216,57 @@ export function assertCanonicalBracketV1({
   if (afterSha !== beforeSha) {
     fail("canonical main changed during runtime-pin evaluation");
   }
-  if (after?.remote_url !== before?.remote_url) {
+  if (
+    after?.remote_url !== before?.remote_url ||
+    after?.effective_remote_url !== before?.effective_remote_url
+  ) {
     fail("canonical remote identity changed during runtime-pin evaluation");
   }
   return beforeSha;
+}
+
+export function evaluateRuntimePinStatusLiveCanonicalV1({
+  driftEvidence,
+  processEvidence,
+  approvedRuntimeSha,
+  coordinatorRepo,
+  expectedCanonicalUrl = VOID_CANONICAL_REPOSITORY_URL_V1,
+  env = process.env,
+  evaluatedAtEpochMs = Date.now(),
+  evidenceOutputCreated = false,
+}) {
+  assertCanonicalEvaluationGitEnvironmentV1(env);
+  const canonicalContext = {
+    coordinatorRepo,
+    canonicalRemote: driftEvidence.audit.canonical.remote,
+    canonicalBranch: driftEvidence.audit.canonical.branch,
+    expectedCanonicalUrl,
+    env,
+  };
+  const before = sampleLiveCanonicalMainV1(canonicalContext);
+  if (before.sha !== driftEvidence.audit.canonical.sha) {
+    fail("drift audit canonical main is stale relative to live canonical main");
+  }
+
+  const packet = buildFleetRuntimePinStatusV1({
+    audit: driftEvidence.audit,
+    processAudit: processEvidence.audit,
+    approvedRuntimeSha,
+    sourceAuditFileSha256: driftEvidence.file_sha256,
+    sourceAuditMtimeEpochMs: driftEvidence.mtime_epoch_ms,
+    processAuditFileSha256: processEvidence.file_sha256,
+    processAuditMtimeEpochMs: processEvidence.mtime_epoch_ms,
+    evaluatedAtEpochMs,
+    evidenceOutputCreated,
+  });
+
+  const after = sampleLiveCanonicalMainV1(canonicalContext);
+  assertCanonicalBracketV1({
+    driftCanonicalSha: driftEvidence.audit.canonical.sha,
+    before,
+    after,
+  });
+  return packet;
 }
 
 function parseArgs(argv) {
@@ -214,10 +314,7 @@ function parseArgs(argv) {
   if (!out.driftAudit) fail("--drift-audit is required");
   if (!out.processAudit) fail("--process-freshness-audit is required");
   if (!out.approvedRuntimeSha) fail("--approved-runtime-sha is required");
-  if (
-    out.maxEvidenceAgeSeconds < 1 ||
-    out.maxEvidenceAgeSeconds > MAX_EVIDENCE_AGE_SECONDS
-  ) {
+  if (out.maxEvidenceAgeSeconds < 1 || out.maxEvidenceAgeSeconds > MAX_EVIDENCE_AGE_SECONDS) {
     fail(`max evidence age must be 1..${MAX_EVIDENCE_AGE_SECONDS} seconds`);
   }
   return out;
@@ -238,51 +335,20 @@ function emitJson(packet, outputPath = "") {
 function main() {
   const args = parseArgs(process.argv.slice(2));
   assertCanonicalEvaluationGitEnvironmentV1(process.env);
-
-  const drift = readFreshFleetDriftAuditV1(
-    args.driftAudit,
-    args.maxEvidenceAgeSeconds,
-  );
+  const drift = readFreshFleetDriftAuditV1(args.driftAudit, args.maxEvidenceAgeSeconds);
   const processEvidence = readFreshFleetProcessAuditV1(
     args.processAudit,
     args.maxEvidenceAgeSeconds,
   );
-
-  const canonicalContext = {
-    coordinatorRepo: args.coordinatorRepo,
-    canonicalRemote: drift.audit.canonical.remote,
-    canonicalBranch: drift.audit.canonical.branch,
-  };
-  const before = sampleLiveCanonicalMainV1(canonicalContext);
-  if (before.sha !== drift.audit.canonical.sha) {
-    fail("drift audit canonical main is stale relative to live canonical main");
-  }
-
-  const packet = buildFleetRuntimePinStatusV1({
-    audit: drift.audit,
-    processAudit: processEvidence.audit,
+  const packet = evaluateRuntimePinStatusLiveCanonicalV1({
+    driftEvidence: drift,
+    processEvidence,
     approvedRuntimeSha: args.approvedRuntimeSha,
-    sourceAuditFileSha256: drift.file_sha256,
-    sourceAuditMtimeEpochMs: drift.mtime_epoch_ms,
-    processAuditFileSha256: processEvidence.file_sha256,
-    processAuditMtimeEpochMs: processEvidence.mtime_epoch_ms,
-    evaluatedAtEpochMs: Date.now(),
+    coordinatorRepo: args.coordinatorRepo,
     evidenceOutputCreated: Boolean(args.output),
   });
-
-  const after = sampleLiveCanonicalMainV1(canonicalContext);
-  assertCanonicalBracketV1({
-    driftCanonicalSha: drift.audit.canonical.sha,
-    before,
-    after,
-  });
-
   emitJson(packet, args.output);
-  process.exitCode = ["HOLD", "UNEXPECTED_RUNTIME_DRIFT"].includes(
-    packet.status,
-  )
-    ? 2
-    : 0;
+  process.exitCode = ["HOLD", "UNEXPECTED_RUNTIME_DRIFT"].includes(packet.status) ? 2 : 0;
 }
 
 const invokedPath = process.argv[1] ? resolve(process.argv[1]) : "";
