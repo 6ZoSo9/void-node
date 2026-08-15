@@ -11,7 +11,7 @@ export const
     marker:
       VOID_BUY_VOID_ERC20_DELIVERY_RUNTIME_ACTIVATION_CONFIGURATION_CONTRACT_V1,
     version: 1,
-    status: "source_ready",
+    status: "source_ready_held_on_presale_invariants",
     canonical_chain_id: "2050",
     canonical_asset: "void_token_erc20",
 
@@ -44,10 +44,28 @@ export const
     canonical_delivery_execution_held: true,
     presale_inventory_funding_ready: false,
 
-    current_parent_blocker:
+    presale_invariant_readiness: {
+      canonical_presale_max_void: "10000000",
+      canonical_presale_max_fulfillment_units_6_decimal:
+        "10000000000000",
+      finite_presale_cap_end_to_end_enforced: false,
+      canonical_rate_void_units_numerator: "2",
+      canonical_rate_void_units_denominator: "1",
+      fixed_presale_rate_enforced: false,
+      evidence_source_path:
+        "src/economic/buy_void_crash_consistent_saga_server_policy_v1.ts",
+    },
+
+    activation_readiness_blockers: [
+      "canonical_presale_finite_cap_not_ready",
+      "canonical_presale_fixed_rate_not_ready",
       "canonical_delivery_runtime_activation_not_ready",
+    ] as const,
+
+    current_parent_blocker:
+      "canonical_presale_invariants_not_ready",
     next_gate:
-      "disabled_dependency_injection_runtime_authorization",
+      "canonical_presale_invariants_source_repair",
 
     runtime_source_path:
       "src/economic/buy_void_delivery_runtime_integration_v1.ts",

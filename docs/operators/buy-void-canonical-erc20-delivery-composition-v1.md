@@ -78,11 +78,15 @@ Canonical status therefore reports:
 ```text
 erc20_transaction_preparation_execution_state_ready=true
 funding_blockers=[
+  canonical_presale_finite_cap_not_ready
+  canonical_presale_fixed_rate_not_ready
   canonical_delivery_runtime_activation_not_ready
 ]
 ```
 
-Canonical Precision/Mainnet-0 credential binding evidence is now recorded in redacted source evidence without inferring clone-local binding. Dormant dependency injection is fail-closed to delivery enable exact `0` and requires the configured delivery wallet to match the evidence-bound wallet. Runtime enablement and inventory funding remain later independent gates.
+Canonical Precision/Mainnet-0 credential binding evidence is recorded in redacted source evidence without inferring clone-local binding. Dormant dependency injection is fail-closed to delivery enable exact `0` and requires the configured delivery wallet to match the evidence-bound wallet.
+
+That source seam does not advance presale readiness. Before dependency-injection authorization can be treated as the sole next activation gate, canonical source must still enforce the finite 10,000,000 VOID presale maximum (10,000,000,000,000 six-decimal fulfillment units) and the fixed `2 VOID / 1 USDC` presale rate. Runtime enablement and inventory funding remain later independent gates.
 
 ## Funding HOLD
 

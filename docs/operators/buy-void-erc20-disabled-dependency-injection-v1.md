@@ -53,6 +53,21 @@ reviewed/authorized activation design rather than merely flipping this staging
 flag. With delivery exact `0`, dependency injection grants no effective RPC,
 signing, broadcast, or money authority.
 
+## Readiness truth boundary
+
+A green dormant-injection seam is not a claim that the presale is activation-ready.
+Current canonical source still has two independent P0 economic blockers:
+
+- the finite 10,000,000 VOID presale maximum is not yet enforced end-to-end as
+  an immutable 10,000,000,000,000 six-decimal fulfillment-unit ceiling; and
+- the saga/server policy still accepts arbitrary positive rate numerator and
+  denominator values instead of enforcing the fixed `2 VOID / 1 USDC` rate.
+
+Accordingly, dependency-injection authorization is **not** the sole next
+activation gate while either invariant remains unresolved. The next source
+outcome is the canonical presale-invariants repair; runtime enablement,
+inventory funding, and any value-bearing transaction remain later gates.
+
 ## Authority boundary
 
 This source lane performs no production environment mutation, restart,
