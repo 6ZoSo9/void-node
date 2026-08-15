@@ -104,10 +104,15 @@ function candidates(directory) {
     .sort((a,b) => a.base.localeCompare(b.base));
 }
 
-async function cancelResponseBody(response, reason) {
-  if (!response.body || typeof response.body.cancel !== "function") return;
+function bestEffortCancel(cancelTarget, reason) {
+  if (!cancelTarget || typeof cancelTarget.cancel !== "function") return;
   try {
-    await response.body.cancel(reason);
+    const pending = cancelTarget.cancel(reason);
+    if (pending && typeof pending.catch === "function") {
+      void pending.catch((cleanupError) => {
+        void cleanupError;
+      });
+    }
   } catch (cleanupError) {
     void cleanupError;
   }
@@ -117,11 +122,11 @@ async function readBoundedHealthText(response) {
   const declared = response.headers.get("content-length");
   if (declared !== null) {
     if (!/^\d+$/u.test(declared)) {
-      await cancelResponseBody(response, "coordinator health content-length is invalid");
+      bestEffortCancel(response.body, "coordinator health content-length is invalid");
       throw new Error("coordinator health content-length is invalid");
     }
     if (BigInt(declared) > BigInt(MAX_HEALTH_RESPONSE_BYTES)) {
-      await cancelResponseBody(response, "coordinator health response exceeds byte limit");
+      bestEffortCancel(response.body, "coordinator health response exceeds byte limit");
       throw new Error("coordinator health response exceeds byte limit");
     }
   }
@@ -138,11 +143,7 @@ async function readBoundedHealthText(response) {
       if (!(value instanceof Uint8Array)) throw new Error("coordinator health response chunk is invalid");
       total += value.byteLength;
       if (total > MAX_HEALTH_RESPONSE_BYTES) {
-        try {
-          await reader.cancel("coordinator health response exceeds byte limit");
-        } catch (cleanupError) {
-          void cleanupError;
-        }
+        bestEffortCancel(reader, "coordinator health response exceeds byte limit");
         throw new Error("coordinator health response exceeds byte limit");
       }
       chunks.push(value);
