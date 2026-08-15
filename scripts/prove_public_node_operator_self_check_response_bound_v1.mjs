@@ -38,6 +38,23 @@ function canonicalConnected(id) {
   return { id, addr: `127.0.0.1:${id === "peer-a" ? 4701 : 4702}`, listens: [], outbound: true };
 }
 
+function routeIndexRows() {
+  return REQUIRED_ROUTES.map((route, index) => ({
+    path: route,
+    marker: `VOID_PUBLIC_NODE_FIXTURE_ROUTE_${index + 1}_V1`,
+    purpose: `fixture route ${route}`,
+  }));
+}
+
+function routeManifestRows() {
+  return REQUIRED_ROUTES.map((route, index) => ({
+    path: route,
+    marker: `VOID_PUBLIC_NODE_FIXTURE_ROUTE_${index + 1}_V1`,
+    safety_class: "public_read_only",
+    purpose: `fixture route ${route}`,
+  }));
+}
+
 function readinessFixture() {
   const value = {
     ready: true,
@@ -94,27 +111,61 @@ function wellKnownFixture() {
 }
 
 function routeIndexFixture() {
-  const canonical = { marker: "VOID_PUBLIC_NODE_ROUTE_INDEX_V1", routes: REQUIRED_ROUTES };
+  const canonical = { marker: "VOID_PUBLIC_NODE_ROUTE_INDEX_V1", routes: routeIndexRows() };
+  if (mode === "route_index_primitive_row") {
+    return { ...canonical, routes: [...REQUIRED_ROUTES] };
+  }
+  if (mode === "route_index_bad_path") {
+    return { ...canonical, routes: [{ ...canonical.routes[0], path: null }, ...canonical.routes.slice(1)] };
+  }
   if (mode !== "route_index_nested_splice") return canonical;
   return { marker: "WRONG_MARKER", routes: [], metadata: canonical };
 }
 
 function routeManifestFixture() {
-  const canonical = { marker: "VOID_PUBLIC_NODE_ROUTE_MANIFEST_V1", routes: REQUIRED_ROUTES };
+  const routes = routeManifestRows();
+  const canonical = {
+    marker: "VOID_PUBLIC_NODE_ROUTE_MANIFEST_V1",
+    route_count: routes.length,
+    routes,
+  };
+  if (mode === "route_manifest_missing_metadata") {
+    const malformed = { ...routes[0] };
+    delete malformed.safety_class;
+    return { ...canonical, routes: [malformed, ...routes.slice(1)] };
+  }
+  if (mode === "route_manifest_count_mismatch") {
+    return { ...canonical, route_count: routes.length + 1 };
+  }
   if (mode !== "route_manifest_nested_splice") return canonical;
-  return { marker: "WRONG_MARKER", routes: [], metadata: canonical };
+  return { marker: "WRONG_MARKER", route_count: 0, routes: [], metadata: canonical };
 }
 
 function snapshotFixture() {
   const canonical = {
     marker: "VOID_PUBLIC_NODE_SELF_CHECK_SNAPSHOT_V1",
-    routes: REQUIRED_ROUTES,
+    expected_routes: [...REQUIRED_ROUTES],
+    expected_route_count: REQUIRED_ROUTES.length,
     policy: { public_post_endpoint: false },
   };
+  if (mode === "snapshot_legacy_routes") {
+    const { expected_routes, expected_route_count, ...rest } = canonical;
+    return { ...rest, routes: expected_routes, route_count: expected_route_count };
+  }
+  if (mode === "snapshot_count_string") {
+    return { ...canonical, expected_route_count: String(canonical.expected_route_count) };
+  }
+  if (mode === "snapshot_count_mismatch") {
+    return { ...canonical, expected_route_count: canonical.expected_route_count + 1 };
+  }
+  if (mode === "snapshot_wrong_type_route") {
+    return { ...canonical, expected_routes: [{ path: REQUIRED_ROUTES[0] }, ...REQUIRED_ROUTES.slice(1)] };
+  }
   if (mode !== "snapshot_nested_splice") return canonical;
   return {
     marker: "WRONG_MARKER",
-    routes: [],
+    expected_routes: [],
+    expected_route_count: 0,
     policy: { public_post_endpoint: true },
     metadata: canonical,
   };
@@ -308,8 +359,16 @@ try {
   for (const [selectedMode, checkId] of [
     ["well_known_nested_splice", "well_known_discovery"],
     ["route_index_nested_splice", "route_index"],
+    ["route_index_primitive_row", "route_index"],
+    ["route_index_bad_path", "route_index"],
     ["route_manifest_nested_splice", "route_manifest"],
+    ["route_manifest_missing_metadata", "route_manifest"],
+    ["route_manifest_count_mismatch", "route_manifest"],
     ["snapshot_nested_splice", "self_check_snapshot"],
+    ["snapshot_legacy_routes", "self_check_snapshot"],
+    ["snapshot_count_string", "self_check_snapshot"],
+    ["snapshot_count_mismatch", "self_check_snapshot"],
+    ["snapshot_wrong_type_route", "self_check_snapshot"],
   ]) {
     await expectHold(port, selectedMode, checkId);
   }
