@@ -1,5 +1,9 @@
 import "./void_app_wave3_wallet_readonly_v1.js";
 import os from "node:os";
+import {
+  fetchVoidUiWave2HomeSourceJsonV1,
+  type VoidUiWave2HomeSourceResultV1,
+} from "./void_app_wave2_home_source_fetch_v1.js";
 
 const G: any = globalThis as any;
 const INSTALL_MARK = "__void_app_wave2_home_readonly_v1";
@@ -7,12 +11,7 @@ const HOME_ROUTE = "/__void/ui/wave2/home.json";
 const STATUS_ROUTE = "/__void/ui/wave2-home-v1/status.json";
 const ROUTE_MARKER = "VOID_UI_WAVE2_HOME_READONLY_V1";
 
-type SourceResult = {
-  ok: boolean;
-  status: number;
-  body: any;
-  error?: string;
-};
+type SourceResult = VoidUiWave2HomeSourceResultV1;
 
 type HomeSnapshot = {
   ok: true;
@@ -124,47 +123,8 @@ if (!G[INSTALL_MARK]) {
   const fetchJson = async (
     base: string,
     route: string
-  ): Promise<SourceResult> => {
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 2500);
-    timeout.unref?.();
-
-    try {
-      const response = await fetch(`${base}${route}`, {
-        method: "GET",
-        headers: {
-          Accept: "application/json",
-          "User-Agent": "void-ui-wave2-home-readonly-v1",
-          "Cache-Control": "no-store",
-        },
-        signal: controller.signal,
-      });
-
-      const text = await response.text();
-      let body: any = null;
-
-      try {
-        body = text ? JSON.parse(text) : null;
-      } catch {
-        body = null;
-      }
-
-      return {
-        ok: response.ok,
-        status: response.status,
-        body,
-      };
-    } catch (error) {
-      return {
-        ok: false,
-        status: 0,
-        body: null,
-        error: error instanceof Error ? error.message : String(error),
-      };
-    } finally {
-      clearTimeout(timeout);
-    }
-  };
+  ): Promise<SourceResult> =>
+    fetchVoidUiWave2HomeSourceJsonV1(base, route);
 
   const nodeIdentity = (): HomeSnapshot["node"] => {
     const hostname = os.hostname();
