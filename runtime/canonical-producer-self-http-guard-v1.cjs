@@ -144,11 +144,23 @@
       controller.abort(new Error(`${MARKER}_TIMEOUT timeout_ms=${timeoutMs}`));
     }, timeoutMs);
 
-    const guardedInit = { ...(init || {}), signal: controller.signal };
-    return Promise.resolve(originalFetch.call(globalThis, input, guardedInit)).finally(() => {
+    let cleaned = false;
+    const cleanup = () => {
+      if (cleaned) return;
+      cleaned = true;
       clearTimeout(timer);
       if (callerSignal && callerAbort) callerSignal.removeEventListener("abort", callerAbort);
       state.inflight = Math.max(0, state.inflight - 1);
-    });
+    };
+
+    const guardedInit = { ...(init || {}), signal: controller.signal };
+    let result;
+    try {
+      result = originalFetch.call(globalThis, input, guardedInit);
+    } catch (err) {
+      cleanup();
+      throw err;
+    }
+    return Promise.resolve(result).finally(cleanup);
   };
 })();
