@@ -240,6 +240,7 @@ export function verifyBuyVoidErc20ProductionConfigurationV1(
   );
   const token = normalizedAddress(candidate.VOID_BUY_VOID_DELIVERY_TOKEN_ADDRESS);
   const expectedWallet = normalizedAddress(CREDENTIAL_EVIDENCE.expected_wallet_address);
+  const derivedWallet = normalizedAddress(CREDENTIAL_EVIDENCE.derived_wallet_address);
   if (!wallet || !expectedWallet || wallet !== expectedWallet) {
     return held("production_configuration_wallet_evidence_mismatch");
   }
@@ -254,6 +255,10 @@ export function verifyBuyVoidErc20ProductionConfigurationV1(
     !SHA256.test(expectedEvidenceId) ||
     CREDENTIAL_EVIDENCE.evidence_id_sha256 !== expectedEvidenceId ||
     CREDENTIAL_EVIDENCE.exact_wallet_binding !== true ||
+    !derivedWallet ||
+    derivedWallet !== expectedWallet ||
+    CREDENTIAL_EVIDENCE.credential_id !==
+      CONTRACT.runtime_configuration_contract.fixed_signer_credential_id ||
     candidate.VOID_BUY_VOID_ERC20_CREDENTIAL_BINDING_EVIDENCE_ID !==
       expectedEvidenceId
   ) {
