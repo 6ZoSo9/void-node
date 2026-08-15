@@ -571,6 +571,19 @@ async function main(): Promise<void> {
     },
     run_pipeline_command: async (command: Record<string, any>) => {
       if (command.action === "verify_reserve_and_claim") {
+        if (command.apply === true) {
+          assert.equal(
+            command.confirmation,
+            VOID_BUY_VOID_PIPELINE_CONFIRMATIONS_V1.verify_reserve_and_claim,
+          );
+        }
+        assert.deepEqual(command.inventory_policy, {
+          inventory_reservation_enabled: true,
+          pool_id: POOL_ID,
+          inventory_policy_version: "presale-v1",
+          pool_capacity_void_units: "10000000000000",
+          max_reservation_void_units: "10000000000000",
+        });
         assert.deepEqual(command.verification_policy, {
           allowed_chains: ["ethereum"],
           usdc_contract_by_chain: { ethereum: USDC },

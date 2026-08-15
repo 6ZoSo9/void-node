@@ -1391,7 +1391,7 @@ export async function handleBuyVoidCrashConsistentSagaRuntimeCommandV1(
             fulfillment_policy: serverPolicy.fulfillment_policy,
             inventory_policy: serverPolicy.inventory_policy,
             apply: true,
-            confirmation: VOID_BUY_VOID_PIPELINE_CONFIRMATIONS_V1.verify_and_claim,
+            confirmation: VOID_BUY_VOID_PIPELINE_CONFIRMATIONS_V1.verify_reserve_and_claim,
             now_ms: nowMs,
           }));
           if (!applied || applied.ok !== true || applied.status !== "applied") {
