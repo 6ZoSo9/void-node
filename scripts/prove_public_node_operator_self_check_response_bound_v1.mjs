@@ -62,9 +62,62 @@ function headFixture() {
 function peersFixture() {
   if (mode === "peer_junk_array") return { ok: true, connected: [null, false] };
   if (mode === "peer_scalar_string") return { ok: true, peer_count: "2" };
+  if (mode === "peer_ok_false") {
+    return { ok: false, connected: [canonicalConnected("peer-a"), canonicalConnected("peer-b")] };
+  }
+  if (mode === "peer_connected_wrong_type_with_scalar") {
+    return { ok: true, connected: "two", peer_count: 2 };
+  }
   if (mode === "peer_empty") return { ok: true, connected: [] };
   if (mode === "peer_legacy") return { peers: [{ id: "a" }, { id: "b" }] };
   return { ok: true, connected: [canonicalConnected("peer-a"), canonicalConnected("peer-b")] };
+}
+
+function wellKnownFixture() {
+  const canonical = {
+    marker: "VOID_PUBLIC_NODE_AGENT_DISCOVERY_V1",
+    links: {
+      public_node: "/public-node",
+      route_manifest: "/public-node/route-manifest.json",
+      self_check_snapshot: "/public-node/self-check-snapshot.json",
+      proofs: "/proofs",
+    },
+    policy: { public_routes_only: true, read_only: true, mutation: false },
+  };
+  if (mode !== "well_known_nested_splice") return canonical;
+  return {
+    marker: "WRONG_MARKER",
+    links: {},
+    policy: canonical.policy,
+    metadata: canonical,
+  };
+}
+
+function routeIndexFixture() {
+  const canonical = { marker: "VOID_PUBLIC_NODE_ROUTE_INDEX_V1", routes: REQUIRED_ROUTES };
+  if (mode !== "route_index_nested_splice") return canonical;
+  return { marker: "WRONG_MARKER", routes: [], metadata: canonical };
+}
+
+function routeManifestFixture() {
+  const canonical = { marker: "VOID_PUBLIC_NODE_ROUTE_MANIFEST_V1", routes: REQUIRED_ROUTES };
+  if (mode !== "route_manifest_nested_splice") return canonical;
+  return { marker: "WRONG_MARKER", routes: [], metadata: canonical };
+}
+
+function snapshotFixture() {
+  const canonical = {
+    marker: "VOID_PUBLIC_NODE_SELF_CHECK_SNAPSHOT_V1",
+    routes: REQUIRED_ROUTES,
+    policy: { public_post_endpoint: false },
+  };
+  if (mode !== "snapshot_nested_splice") return canonical;
+  return {
+    marker: "WRONG_MARKER",
+    routes: [],
+    policy: { public_post_endpoint: true },
+    metadata: canonical,
+  };
 }
 
 const sockets = new Set();
@@ -116,32 +169,19 @@ const server = http.createServer((req, res) => {
     return;
   }
   if (pathname === "/.well-known/void-public-node.json") {
-    smallJson(res, 200, {
-      marker: "VOID_PUBLIC_NODE_AGENT_DISCOVERY_V1",
-      links: {
-        public_node: "/public-node",
-        route_manifest: "/public-node/route-manifest.json",
-        self_check_snapshot: "/public-node/self-check-snapshot.json",
-        proofs: "/proofs",
-      },
-      policy: { public_routes_only: true, read_only: true, mutation: false },
-    });
+    smallJson(res, 200, wellKnownFixture());
     return;
   }
   if (pathname === "/public-node/route-index.json") {
-    smallJson(res, 200, { marker: "VOID_PUBLIC_NODE_ROUTE_INDEX_V1", routes: REQUIRED_ROUTES });
+    smallJson(res, 200, routeIndexFixture());
     return;
   }
   if (pathname === "/public-node/route-manifest.json") {
-    smallJson(res, 200, { marker: "VOID_PUBLIC_NODE_ROUTE_MANIFEST_V1", routes: REQUIRED_ROUTES });
+    smallJson(res, 200, routeManifestFixture());
     return;
   }
   if (pathname === "/public-node/self-check-snapshot.json") {
-    smallJson(res, 200, {
-      marker: "VOID_PUBLIC_NODE_SELF_CHECK_SNAPSHOT_V1",
-      routes: REQUIRED_ROUTES,
-      policy: { public_post_endpoint: false },
-    });
+    smallJson(res, 200, snapshotFixture());
     return;
   }
   smallJson(res, 404, { ok: false, error: "fixture_not_found", pathname });
@@ -255,9 +295,23 @@ try {
     assert.equal(checkById(result.receipt, "chain_head").observed.number, null);
   }
 
-  for (const selectedMode of ["peer_junk_array", "peer_scalar_string"]) {
+  for (const selectedMode of [
+    "peer_junk_array",
+    "peer_scalar_string",
+    "peer_ok_false",
+    "peer_connected_wrong_type_with_scalar",
+  ]) {
     const result = await expectHold(port, selectedMode, "peer_visibility");
     assert.equal(checkById(result.receipt, "peer_visibility").observed.peer_count, null);
+  }
+
+  for (const [selectedMode, checkId] of [
+    ["well_known_nested_splice", "well_known_discovery"],
+    ["route_index_nested_splice", "route_index"],
+    ["route_manifest_nested_splice", "route_manifest"],
+    ["snapshot_nested_splice", "self_check_snapshot"],
+  ]) {
+    await expectHold(port, selectedMode, checkId);
   }
 
   console.log(MARKER);
