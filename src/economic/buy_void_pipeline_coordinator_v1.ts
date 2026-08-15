@@ -348,38 +348,11 @@ function previewCommand(
 function applyVerifyAndClaim(
   command: BuyVoidVerifyAndClaimCommandV1,
 ): BuyVoidPipelineCoordinatorDecisionV1 {
-  const verified = buildBuyVoidVerifiedPaymentEventV2({
-    request: command.request,
-    receipt: command.receipt,
-    policy: command.verification_policy,
+  return held(command.action, true, "legacy_verify_and_claim_apply_retired", {
+    replacement_action: "verify_reserve_and_claim",
+    replacement_confirmation:
+      VOID_BUY_VOID_PIPELINE_CONFIRMATIONS_V1.verify_reserve_and_claim,
   });
-  if ("reason" in verified) {
-    return held(command.action, true, verified.reason, verified.detail);
-  }
-  const claim = claimBuyVoidFulfillmentJournalV1({
-    root_dir: command.root_dir,
-    request: command.request,
-    verified_payment_event: verified.event,
-    policy: command.fulfillment_policy,
-    now_ms: command.now_ms,
-  });
-  if ("reason" in claim) {
-    return held(
-      command.action,
-      true,
-      claim.reason,
-      claim.detail,
-      claim.new_claim,
-    );
-  }
-  return {
-    ok: true,
-    status: "applied",
-    action: command.action,
-    applied: true,
-    mutation_performed: true,
-    result: { verified_payment_event: verified.event, claim },
-  };
 }
 
 function applyVerifyReserveAndClaim(

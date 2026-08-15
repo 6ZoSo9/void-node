@@ -164,7 +164,7 @@ assert.equal(
   "explicit_confirmation_required",
 );
 
-const claimed = runBuyVoidPipelineCommandV1({
+const retiredClaim = runBuyVoidPipelineCommandV1({
   action: "verify_and_claim",
   apply: true,
   confirmation: VOID_BUY_VOID_PIPELINE_CONFIRMATIONS_V1.verify_and_claim,
@@ -173,6 +173,29 @@ const claimed = runBuyVoidPipelineCommandV1({
   receipt,
   verification_policy: verificationPolicy,
   fulfillment_policy: fulfillmentPolicy,
+  now_ms: 1_701_000_000_000,
+});
+assert.equal(retiredClaim.ok, false);
+assert.equal(retiredClaim.status, "held");
+assert.equal(retiredClaim.applied, true);
+assert.equal(retiredClaim.mutation_performed, false);
+assert.equal(
+  "reason" in retiredClaim && retiredClaim.reason,
+  "legacy_verify_and_claim_apply_retired",
+);
+assert.deepEqual(fs.readdirSync(root), []);
+
+const claimed = runBuyVoidPipelineCommandV1({
+  action: "verify_reserve_and_claim",
+  apply: true,
+  confirmation:
+    VOID_BUY_VOID_PIPELINE_CONFIRMATIONS_V1.verify_reserve_and_claim,
+  root_dir: root,
+  request,
+  receipt,
+  verification_policy: verificationPolicy,
+  fulfillment_policy: fulfillmentPolicy,
+  inventory_policy: inventoryPolicy,
   now_ms: 1_701_000_000_000,
 });
 if ("reason" in claimed) throw new Error(claimed.reason);
@@ -358,14 +381,16 @@ const partialRequest = {
   request_id: "buyvoid_pipeline_partial_mutation_v1",
 };
 const partialClaim = runBuyVoidPipelineCommandV1({
-  action: "verify_and_claim",
+  action: "verify_reserve_and_claim",
   apply: true,
-  confirmation: VOID_BUY_VOID_PIPELINE_CONFIRMATIONS_V1.verify_and_claim,
+  confirmation:
+    VOID_BUY_VOID_PIPELINE_CONFIRMATIONS_V1.verify_reserve_and_claim,
   root_dir: partialRoot,
   request: partialRequest,
   receipt,
   verification_policy: verificationPolicy,
   fulfillment_policy: fulfillmentPolicy,
+  inventory_policy: inventoryPolicy,
   now_ms: 1_701_000_100_000,
 });
 const partialIntent = appliedResult(partialClaim).claim.intent;
@@ -439,3 +464,4 @@ fs.rmSync(root, { recursive: true, force: true });
 
 console.log("VOID_BUY_VOID_PIPELINE_COORDINATOR_V1_GREEN");
 console.log("partial_mutation_truth_preserved=1");
+console.log("legacy_verify_and_claim_apply_retired=1");
