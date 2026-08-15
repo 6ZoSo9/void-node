@@ -368,6 +368,127 @@ async function main(): Promise<void> {
       "epoch_reuse",
     );
 
+    const sameEpochDifferentVerified = verifyVoidP2pSignedTrustPolicyV1({
+      envelope: sameEpochDifferent,
+      root_set: roots,
+      options: { expected_network_id: NETWORK, now_ms: NOW },
+    });
+    const missingCurrentStateDir = path.join(
+      temporary,
+      "missing-current-state",
+    );
+    const missingCurrentActivation = await activateVoidP2pSignedTrustPolicyV1({
+      envelope: firstEnvelope,
+      root_set: roots,
+      options: { expected_network_id: NETWORK, now_ms: NOW },
+      state_dir: missingCurrentStateDir,
+    });
+    const missingCurrentJournal = path.join(
+      missingCurrentStateDir,
+      "activation.ndjson",
+    );
+    const missingCurrentJournalBefore = await readFile(
+      missingCurrentJournal,
+      "utf8",
+    );
+    const retainedGenerationDir = path.join(
+      missingCurrentStateDir,
+      "generations",
+      missingCurrentActivation.activation.generation,
+    );
+    const rejectedGenerationDir = path.join(
+      missingCurrentStateDir,
+      "generations",
+      `${sameEpochDifferent.policy.epoch.padStart(40, "0")}-${sameEpochDifferentVerified.policy_sha256}`,
+    );
+    const missingCurrentLink = path.join(missingCurrentStateDir, "current");
+    await rm(missingCurrentLink);
+    const expectMissingCurrentHoldWithoutMutation = async (
+      envelope: unknown,
+    ): Promise<void> => {
+      await expectHoldAsync(
+        () =>
+          activateVoidP2pSignedTrustPolicyV1({
+            envelope,
+            root_set: roots,
+            options: { expected_network_id: NETWORK, now_ms: NOW },
+            state_dir: missingCurrentStateDir,
+          }),
+        "missing_current_with_history",
+      );
+      assert.equal(
+        await readFile(missingCurrentJournal, "utf8"),
+        missingCurrentJournalBefore,
+      );
+      assert.equal((await lstat(retainedGenerationDir)).isDirectory(), true);
+      await assert.rejects(
+        lstat(missingCurrentLink),
+        (error: unknown) =>
+          (error as NodeJS.ErrnoException)?.code === "ENOENT",
+      );
+    };
+    await expectMissingCurrentHoldWithoutMutation(sameEpochDifferent);
+    await assert.rejects(
+      lstat(rejectedGenerationDir),
+      (error: unknown) =>
+        (error as NodeJS.ErrnoException)?.code === "ENOENT",
+    );
+    await expectMissingCurrentHoldWithoutMutation(firstEnvelope);
+
+    const retainedOnlyStateDir = path.join(
+      temporary,
+      "missing-current-retained-generation-state",
+    );
+    const retainedOnlyActivation = await activateVoidP2pSignedTrustPolicyV1({
+      envelope: firstEnvelope,
+      root_set: roots,
+      options: { expected_network_id: NETWORK, now_ms: NOW },
+      state_dir: retainedOnlyStateDir,
+    });
+    const retainedOnlyJournal = path.join(
+      retainedOnlyStateDir,
+      "activation.ndjson",
+    );
+    const retainedOnlyCurrent = path.join(retainedOnlyStateDir, "current");
+    const retainedOnlyGeneration = path.join(
+      retainedOnlyStateDir,
+      "generations",
+      retainedOnlyActivation.activation.generation,
+    );
+    const retainedOnlyRejectedGeneration = path.join(
+      retainedOnlyStateDir,
+      "generations",
+      `${sameEpochDifferent.policy.epoch.padStart(40, "0")}-${sameEpochDifferentVerified.policy_sha256}`,
+    );
+    await rm(retainedOnlyCurrent);
+    await rm(retainedOnlyJournal);
+    await expectHoldAsync(
+      () =>
+        activateVoidP2pSignedTrustPolicyV1({
+          envelope: sameEpochDifferent,
+          root_set: roots,
+          options: { expected_network_id: NETWORK, now_ms: NOW },
+          state_dir: retainedOnlyStateDir,
+        }),
+      "missing_current_with_history",
+    );
+    assert.equal((await lstat(retainedOnlyGeneration)).isDirectory(), true);
+    await assert.rejects(
+      lstat(retainedOnlyCurrent),
+      (error: unknown) =>
+        (error as NodeJS.ErrnoException)?.code === "ENOENT",
+    );
+    await assert.rejects(
+      lstat(retainedOnlyJournal),
+      (error: unknown) =>
+        (error as NodeJS.ErrnoException)?.code === "ENOENT",
+    );
+    await assert.rejects(
+      lstat(retainedOnlyRejectedGeneration),
+      (error: unknown) =>
+        (error as NodeJS.ErrnoException)?.code === "ENOENT",
+    );
+
     const epoch2MissingLink = signTwice(policy({ epoch: "2" }), key1, key2);
     await expectHoldAsync(
       () =>
