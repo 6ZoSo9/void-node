@@ -5,7 +5,9 @@ on:
     paths:
       - ".github/workflows/void-node-fleet-runtime-pin-status-v1.yml"
       - "docs/operations/void-node-fleet-runtime-pin-status-v1.md"
+      - "ops/run_void_node_fleet_runtime_pin_status_v1.mjs"
       - "scripts/prove_void_node_fleet_runtime_pin_status_v1.mjs"
+      - "scripts/prove_void_node_fleet_runtime_pin_live_canonical_v1.mjs"
       - "tools/void-node-fleet-runtime-pin-status-v1.mjs"
       - "tools/void-node-fleet-drift-audit-v1.mjs"
       - "scripts/prove_void_node_fleet_drift_audit_v1.mjs"
@@ -42,10 +44,15 @@ jobs:
       - name: Syntax
         run: |
           node --check tools/void-node-fleet-runtime-pin-status-v1.mjs
+          node --check ops/run_void_node_fleet_runtime_pin_status_v1.mjs
           node --check scripts/prove_void_node_fleet_runtime_pin_status_v1.mjs
+          node --check scripts/prove_void_node_fleet_runtime_pin_live_canonical_v1.mjs
 
       - name: Runtime-pin process-identity truth proof
         run: node scripts/prove_void_node_fleet_runtime_pin_status_v1.mjs
+
+      - name: Live canonical-main freshness proof
+        run: node scripts/prove_void_node_fleet_runtime_pin_live_canonical_v1.mjs
 
       - name: Source-drift regression
         run: node scripts/prove_void_node_fleet_drift_audit_v1.mjs
