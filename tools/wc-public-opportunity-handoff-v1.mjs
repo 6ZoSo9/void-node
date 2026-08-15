@@ -45,11 +45,14 @@ function validNodeId(value) {
 }
 
 function privateHttpHost(hostname) {
-  const lower = hostname.toLowerCase();
-  if (lower === "localhost" || lower === "::1") return true;
-  if (lower.endsWith(".ts.net")) return true;
-  if (isIP(hostname) !== 4) return false;
-  const [a,b] = hostname.split(".").map(Number);
+  const rawHost = String(hostname || "").trim().toLowerCase();
+  const host = rawHost.startsWith("[") && rawHost.endsWith("]")
+    ? rawHost.slice(1, -1)
+    : rawHost;
+  if (host === "localhost" || host === "::1") return true;
+  if (host.endsWith(".ts.net")) return true;
+  if (isIP(host) !== 4) return false;
+  const [a,b] = host.split(".").map(Number);
   return a === 127 || a === 10 || (a === 172 && b >= 16 && b <= 31) ||
     (a === 192 && b === 168) || (a === 100 && b >= 64 && b <= 127);
 }
