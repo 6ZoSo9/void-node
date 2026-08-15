@@ -97,7 +97,11 @@ async function readBoundedText(response, label, maxBytes) {
       const chunk = Buffer.from(value);
       total += chunk.length;
       if (total > maxBytes) {
-        await reader.cancel();
+        try {
+          void reader.cancel().catch(() => undefined);
+        } catch (cancelError) {
+          void cancelError;
+        }
         fail(`${label}_body_too_large`);
       }
       chunks.push(chunk);
