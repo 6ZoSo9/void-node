@@ -57,6 +57,7 @@ exec "$NODE_BINARY" \
   --conditions="void-process-source-commit-$VOID_PROCESS_SOURCE_COMMIT" \
   --conditions="void-process-source-tree-$VOID_PROCESS_SOURCE_TREE" \
   --conditions=void-process-source-branch-main \
+  --require "$ROOT/runtime/canonical-producer-self-http-guard-v1.cjs" \
   --require "$ROOT/node_modules/tsx/dist/preflight.cjs" \
   --import "file://$ROOT/node_modules/tsx/dist/loader.mjs" \
   "$ROOT/src/index.ts"
