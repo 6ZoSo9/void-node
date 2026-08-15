@@ -4,6 +4,7 @@ on:
   pull_request:
     paths:
       - "tools/wc-public-opportunity-handoff-v1.mjs"
+      - "tools/void_public_earn_no_node_client_v1.mjs"
       - "scripts/prove_wc_public_opportunity_handoff_v1.mjs"
       - "docs/public/wc-public-opportunity-handoff-v1.md"
       - ".github/workflows/wc-public-opportunity-handoff-v1.yml"
@@ -11,6 +12,7 @@ on:
     branches: [main]
     paths:
       - "tools/wc-public-opportunity-handoff-v1.mjs"
+      - "tools/void_public_earn_no_node_client_v1.mjs"
       - "scripts/prove_wc_public_opportunity_handoff_v1.mjs"
       - "docs/public/wc-public-opportunity-handoff-v1.md"
       - ".github/workflows/wc-public-opportunity-handoff-v1.yml"
@@ -43,6 +45,7 @@ jobs:
       - name: Syntax
         run: |
           node --check tools/wc-public-opportunity-handoff-v1.mjs
+          node --check tools/void_public_earn_no_node_client_v1.mjs
           node --check scripts/prove_wc_public_opportunity_handoff_v1.mjs
       - name: Prove bounded public opportunity handoff
         run: node scripts/prove_wc_public_opportunity_handoff_v1.mjs
