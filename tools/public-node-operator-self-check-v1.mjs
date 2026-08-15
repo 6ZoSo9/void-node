@@ -152,17 +152,8 @@ function safeIso(raw) {
   return date.toISOString();
 }
 
-function collectStrings(value, output = []) {
-  if (typeof value === "string") output.push(value);
-  else if (Array.isArray(value)) {
-    for (const child of value.slice(0, 10_000)) collectStrings(child, output);
-  } else if (value && typeof value === "object") {
-    for (const [key, child] of Object.entries(value)) {
-      output.push(key);
-      collectStrings(child, output);
-    }
-  }
-  return output;
+function isPlainObject(value) {
+  return Boolean(value && typeof value === "object" && !Array.isArray(value));
 }
 
 function routePathFromString(value) {
@@ -180,32 +171,34 @@ function routePathFromString(value) {
   return null;
 }
 
-function collectRouteStrings(value) {
+function routeArrayAt(value, key) {
+  if (!isPlainObject(value) || !Array.isArray(value[key])) return null;
   const routes = [];
-  for (const item of collectStrings(value)) {
+  for (const item of value[key]) {
     const route = routePathFromString(item);
-    if (route) routes.push(route);
+    if (!route) return null;
+    routes.push(route);
   }
   return [...new Set(routes)];
 }
 
-function containsMarker(value, marker) {
-  return collectStrings(value).includes(marker);
+function linkRoutesAt(value) {
+  if (!isPlainObject(value) || !isPlainObject(value.links)) return null;
+  const routes = [];
+  for (const item of Object.values(value.links)) {
+    const route = routePathFromString(item);
+    if (!route) return null;
+    routes.push(route);
+  }
+  return [...new Set(routes)];
 }
 
-function findKeyValues(value, wanted, output = []) {
-  if (Array.isArray(value)) {
-    for (const child of value) findKeyValues(child, wanted, output);
-  } else if (value && typeof value === "object") {
-    for (const [key, child] of Object.entries(value)) {
-      if (key === wanted) output.push(child);
-      findKeyValues(child, wanted, output);
-    }
-  }
-  return output;
+function markerAt(value, marker) {
+  return isPlainObject(value) && value.marker === marker;
 }
 
 function sensitiveRoutes(routes) {
+  if (!Array.isArray(routes)) return [];
   return routes.filter((route) =>
     SENSITIVE_NAMESPACES.some(
       (prefix) =>
@@ -264,9 +257,11 @@ function isLegacyPeerArray(value) {
 
 function parsePeerCount(value) {
   if (isLegacyPeerArray(value)) return value.length;
-  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  if (!isPlainObject(value)) return null;
+  if (Object.hasOwn(value, "ok") && value.ok !== true) return null;
 
-  if (Array.isArray(value.connected)) {
+  if (Object.hasOwn(value, "connected")) {
+    if (!Array.isArray(value.connected)) return null;
     return value.connected.every(isCanonicalConnectedPeer) ? value.connected.length : null;
   }
   for (const key of ["peers", "items", "nodes"]) {
@@ -499,16 +494,22 @@ async function main() {
   );
 
   const wellKnown = await fetchJson(base, "/.well-known/void-public-node.json", args.timeoutMs);
-  const wellKnownStrings = collectStrings(wellKnown.json);
-  const wellKnownRoutes = collectRouteStrings(wellKnown.json);
+  const wellKnownRoutes = linkRoutesAt(wellKnown.json);
   const wellKnownMissing = REQUIRED_WELL_KNOWN_ROUTES.filter(
-    (route) => !wellKnownRoutes.includes(route),
+    (route) => !wellKnownRoutes?.includes(route),
   );
   const wellKnownPolicy =
-    wellKnown.json && typeof wellKnown.json === "object" ? wellKnown.json.policy : null;
+    isPlainObject(wellKnown.json) && isPlainObject(wellKnown.json.policy)
+      ? wellKnown.json.policy
+      : null;
+  const wellKnownLinks =
+    isPlainObject(wellKnown.json) && isPlainObject(wellKnown.json.links)
+      ? wellKnown.json.links
+      : null;
   const wellKnownOk =
     wellKnown.ok &&
-    containsMarker(wellKnown.json, "VOID_PUBLIC_NODE_AGENT_DISCOVERY_V1") &&
+    markerAt(wellKnown.json, "VOID_PUBLIC_NODE_AGENT_DISCOVERY_V1") &&
+    wellKnownRoutes !== null &&
     wellKnownMissing.length === 0 &&
     wellKnownPolicy?.public_routes_only === true &&
     wellKnownPolicy?.read_only === true &&
@@ -521,11 +522,16 @@ async function main() {
       wellKnown.error || "well_known_discovery_contract_mismatch",
       {
         status_code: wellKnown.statusCode,
-        marker_present: containsMarker(wellKnown.json, "VOID_PUBLIC_NODE_AGENT_DISCOVERY_V1"),
-        public_route_pointer_count: wellKnownRoutes.filter((route) => route.startsWith("/public-node")).length,
+        marker_present: markerAt(wellKnown.json, "VOID_PUBLIC_NODE_AGENT_DISCOVERY_V1"),
+        public_route_pointer_count:
+          wellKnownRoutes?.filter((route) => route.startsWith("/public-node")).length ?? null,
         required_pointer_count: REQUIRED_WELL_KNOWN_ROUTES.length,
         missing_pointer_count: wellKnownMissing.length,
-        absolute_url_pointer_count: wellKnownStrings.filter((value) => /^https?:\/\//i.test(value)).length,
+        absolute_url_pointer_count: wellKnownLinks
+          ? Object.values(wellKnownLinks).filter(
+              (value) => typeof value === "string" && /^https?:\/\//i.test(value),
+            ).length
+          : null,
         public_routes_only: wellKnownPolicy?.public_routes_only === true,
         read_only: wellKnownPolicy?.read_only === true,
         mutation_false: wellKnownPolicy?.mutation === false,
@@ -534,11 +540,12 @@ async function main() {
   );
 
   const routeIndex = await fetchJson(base, "/public-node/route-index.json", args.timeoutMs);
-  const indexRoutes = collectRouteStrings(routeIndex.json);
+  const indexRoutes = routeArrayAt(routeIndex.json, "routes");
   const indexSensitive = sensitiveRoutes(indexRoutes);
   const routeIndexOk =
     routeIndex.ok &&
-    containsMarker(routeIndex.json, "VOID_PUBLIC_NODE_ROUTE_INDEX_V1") &&
+    markerAt(routeIndex.json, "VOID_PUBLIC_NODE_ROUTE_INDEX_V1") &&
+    indexRoutes !== null &&
     indexSensitive.length === 0;
   checks.push(
     check(
@@ -548,20 +555,23 @@ async function main() {
       routeIndex.error || "route_index_contract_mismatch",
       {
         status_code: routeIndex.statusCode,
-        marker_present: containsMarker(routeIndex.json, "VOID_PUBLIC_NODE_ROUTE_INDEX_V1"),
-        route_count: indexRoutes.length,
+        marker_present: markerAt(routeIndex.json, "VOID_PUBLIC_NODE_ROUTE_INDEX_V1"),
+        route_count: indexRoutes?.length ?? null,
         sensitive_route_count: indexSensitive.length,
       },
     ),
   );
 
   const routeManifest = await fetchJson(base, "/public-node/route-manifest.json", args.timeoutMs);
-  const manifestRoutes = collectRouteStrings(routeManifest.json);
-  const manifestMissing = REQUIRED_PUBLIC_ROUTES.filter((route) => !manifestRoutes.includes(route));
+  const manifestRoutes = routeArrayAt(routeManifest.json, "routes");
+  const manifestMissing = REQUIRED_PUBLIC_ROUTES.filter(
+    (route) => !manifestRoutes?.includes(route),
+  );
   const manifestSensitive = sensitiveRoutes(manifestRoutes);
   const routeManifestOk =
     routeManifest.ok &&
-    containsMarker(routeManifest.json, "VOID_PUBLIC_NODE_ROUTE_MANIFEST_V1") &&
+    markerAt(routeManifest.json, "VOID_PUBLIC_NODE_ROUTE_MANIFEST_V1") &&
+    manifestRoutes !== null &&
     manifestMissing.length === 0 &&
     manifestSensitive.length === 0;
   checks.push(
@@ -572,7 +582,7 @@ async function main() {
       routeManifest.error || "route_manifest_contract_mismatch",
       {
         status_code: routeManifest.statusCode,
-        marker_present: containsMarker(routeManifest.json, "VOID_PUBLIC_NODE_ROUTE_MANIFEST_V1"),
+        marker_present: markerAt(routeManifest.json, "VOID_PUBLIC_NODE_ROUTE_MANIFEST_V1"),
         required_route_count: REQUIRED_PUBLIC_ROUTES.length,
         missing_route_count: manifestMissing.length,
         sensitive_route_count: manifestSensitive.length,
@@ -581,16 +591,23 @@ async function main() {
   );
 
   const snapshot = await fetchJson(base, "/public-node/self-check-snapshot.json", args.timeoutMs);
-  const snapshotRoutes = collectRouteStrings(snapshot.json);
-  const snapshotMissing = REQUIRED_PUBLIC_ROUTES.filter((route) => !snapshotRoutes.includes(route));
+  const snapshotRoutes = routeArrayAt(snapshot.json, "routes");
+  const snapshotMissing = REQUIRED_PUBLIC_ROUTES.filter(
+    (route) => !snapshotRoutes?.includes(route),
+  );
   const snapshotSensitive = sensitiveRoutes(snapshotRoutes);
-  const publicPostValues = findKeyValues(snapshot.json, "public_post_endpoint");
+  const snapshotPolicy =
+    isPlainObject(snapshot.json) && isPlainObject(snapshot.json.policy)
+      ? snapshot.json.policy
+      : null;
+  const snapshotPublicPostFalse = snapshotPolicy?.public_post_endpoint === false;
   const snapshotOk =
     snapshot.ok &&
-    containsMarker(snapshot.json, "VOID_PUBLIC_NODE_SELF_CHECK_SNAPSHOT_V1") &&
+    markerAt(snapshot.json, "VOID_PUBLIC_NODE_SELF_CHECK_SNAPSHOT_V1") &&
+    snapshotRoutes !== null &&
     snapshotMissing.length === 0 &&
     snapshotSensitive.length === 0 &&
-    publicPostValues.includes(false);
+    snapshotPublicPostFalse;
   checks.push(
     check(
       "self_check_snapshot",
@@ -599,11 +616,11 @@ async function main() {
       snapshot.error || "self_check_snapshot_contract_mismatch",
       {
         status_code: snapshot.statusCode,
-        marker_present: containsMarker(snapshot.json, "VOID_PUBLIC_NODE_SELF_CHECK_SNAPSHOT_V1"),
+        marker_present: markerAt(snapshot.json, "VOID_PUBLIC_NODE_SELF_CHECK_SNAPSHOT_V1"),
         required_route_count: REQUIRED_PUBLIC_ROUTES.length,
         missing_route_count: snapshotMissing.length,
         sensitive_route_count: snapshotSensitive.length,
-        public_post_endpoint_false: publicPostValues.includes(false),
+        public_post_endpoint_false: snapshotPublicPostFalse,
       },
     ),
   );
@@ -612,6 +629,8 @@ async function main() {
     routeIndexOk &&
     routeManifestOk &&
     snapshotOk &&
+    Array.isArray(manifestRoutes) &&
+    Array.isArray(snapshotRoutes) &&
     REQUIRED_PUBLIC_ROUTES.every(
       (route) => manifestRoutes.includes(route) && snapshotRoutes.includes(route),
     );
