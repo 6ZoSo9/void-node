@@ -17,6 +17,20 @@ function integer(v) {
   return Number.isInteger(n) ? n : null;
 }
 
+function jsonSafeInteger(v) {
+  return typeof v === "number" && Number.isSafeInteger(v) ? v : null;
+}
+
+function jsonPositiveInteger(v) {
+  const n = jsonSafeInteger(v);
+  return n !== null && n > 0 ? n : null;
+}
+
+function jsonNonNegativeInteger(v) {
+  const n = jsonSafeInteger(v);
+  return n !== null && n >= 0 ? n : null;
+}
+
 function allowHttp(host) {
   if (host === "localhost" || host === "::1" || host.endsWith(".localhost")) return true;
   if (isIP(host) !== 4) return false;
@@ -151,11 +165,6 @@ function exactMethods(v, expected) {
   return Array.isArray(v) && JSON.stringify(v) === JSON.stringify(expected);
 }
 
-function positive(v) {
-  const n = integer(v);
-  return n !== null && n > 0;
-}
-
 function check(id, pass, observed) {
   return { id, pass: Boolean(pass), observed };
 }
@@ -187,7 +196,8 @@ function checksFor(gateway, pilot, boundaries, expectedAward) {
     check("coordinator_role_enabled", p?.coordinator_enabled === true, p?.coordinator_enabled ?? null),
     check("executor_role_disabled_on_coordinator", p?.executor_enabled === false, p?.executor_enabled ?? null),
     check("fixed_award_policy",
-      Number(g?.fixed_award_wc) === expectedAward && Number(p?.fixed_award_wc) === expectedAward,
+      jsonSafeInteger(g?.fixed_award_wc) === expectedAward &&
+      jsonSafeInteger(p?.fixed_award_wc) === expectedAward,
       { gateway: g?.fixed_award_wc ?? null, pilot: p?.fixed_award_wc ?? null, expected: expectedAward }),
     check("public_claim_marker", get(p, ["public_claim", "marker"]) === "VOID_WC_PUBLIC_TICKET_CLAIM_V1",
       get(p, ["public_claim", "marker"]) ?? null),
@@ -211,19 +221,25 @@ function checksFor(gateway, pilot, boundaries, expectedAward) {
     check("money_movement_forbidden", get(p, ["public_claim", "money_movement"]) === false,
       get(p, ["public_claim", "money_movement"]) ?? null),
     check("ticket_caps_configured",
-      positive(get(p, ["caps", "account_limit"])) &&
-      positive(get(p, ["caps", "global_limit"])) &&
-      integer(get(p, ["caps", "global_active"])) !== null &&
-      integer(get(p, ["caps", "global_consumed"])) !== null,
+      jsonPositiveInteger(get(p, ["caps", "account_limit"])) !== null &&
+      jsonPositiveInteger(get(p, ["caps", "global_limit"])) !== null &&
+      jsonNonNegativeInteger(get(p, ["caps", "global_active"])) !== null &&
+      jsonNonNegativeInteger(get(p, ["caps", "global_consumed"])) !== null,
       get(p, ["caps"]) ?? null),
     check("claim_rate_caps_configured",
       get(p, ["public_claim", "one_active_ticket_per_account"]) === true &&
-      positive(get(p, ["public_claim", "max_claims_per_account_24h"])) &&
-      positive(get(p, ["public_claim", "global_active_cap"])) &&
-      positive(get(p, ["public_claim", "global_claims_per_24h"])),
+      jsonPositiveInteger(get(p, ["public_claim", "ticket_ttl_ms"])) !== null &&
+      jsonPositiveInteger(get(p, ["public_claim", "cooldown_ms"])) !== null &&
+      jsonPositiveInteger(get(p, ["public_claim", "max_claims_per_account_24h"])) !== null &&
+      jsonPositiveInteger(get(p, ["public_claim", "max_claims_per_executor_24h"])) !== null &&
+      jsonPositiveInteger(get(p, ["public_claim", "global_active_cap"])) !== null &&
+      jsonPositiveInteger(get(p, ["public_claim", "global_claims_per_24h"])) !== null,
       {
         one_active_ticket_per_account: get(p, ["public_claim", "one_active_ticket_per_account"]) ?? null,
+        ticket_ttl_ms: get(p, ["public_claim", "ticket_ttl_ms"]) ?? null,
+        cooldown_ms: get(p, ["public_claim", "cooldown_ms"]) ?? null,
         max_claims_per_account_24h: get(p, ["public_claim", "max_claims_per_account_24h"]) ?? null,
+        max_claims_per_executor_24h: get(p, ["public_claim", "max_claims_per_executor_24h"]) ?? null,
         global_active_cap: get(p, ["public_claim", "global_active_cap"]) ?? null,
         global_claims_per_24h: get(p, ["public_claim", "global_claims_per_24h"]) ?? null,
       }),
