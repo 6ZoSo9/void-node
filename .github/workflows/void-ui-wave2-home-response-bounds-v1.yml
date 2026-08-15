@@ -1,0 +1,55 @@
+name: VOID UI Wave 2 Home response bounds v1
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/void-ui-wave2-home-response-bounds-v1.yml"
+      - "src/ui/void_app_wave2_home_readonly_v1.ts"
+      - "src/ui/void_app_wave2_home_source_fetch_v1.ts"
+      - "scripts/prove_void_ui_wave2_home_readonly_v1.ts"
+      - "scripts/prove_void_ui_wave2_home_response_bounds_v1.ts"
+      - "docs/public/void-ui-wave2-home-readonly-v1/source-manifest.json"
+      - "docs/public/void-ui-wave3-wallet-readonly-v1/source-manifest.json"
+      - "docs/public/void-ui-wave4-earn-readonly-v1/source-manifest.json"
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/void-ui-wave2-home-response-bounds-v1.yml"
+      - "src/ui/void_app_wave2_home_readonly_v1.ts"
+      - "src/ui/void_app_wave2_home_source_fetch_v1.ts"
+      - "scripts/prove_void_ui_wave2_home_readonly_v1.ts"
+      - "scripts/prove_void_ui_wave2_home_response_bounds_v1.ts"
+      - "docs/public/void-ui-wave2-home-readonly-v1/source-manifest.json"
+      - "docs/public/void-ui-wave3-wallet-readonly-v1/source-manifest.json"
+      - "docs/public/void-ui-wave4-earn-readonly-v1/source-manifest.json"
+
+permissions:
+  contents: read
+
+jobs:
+  prove:
+    name: prove (Node ${{ matrix.node }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        node: ["22", "24", "26"]
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: ${{ matrix.node }}
+          cache: npm
+      - name: Install
+        run: npm ci
+      - name: Prove bounded Home source responses
+        run: npx tsx scripts/prove_void_ui_wave2_home_response_bounds_v1.ts
+      - name: Prove Wave 2 Home contract
+        run: npx tsx scripts/prove_void_ui_wave2_home_readonly_v1.ts
+      - name: Typecheck
+        run: npm run typecheck
+      - name: Build
+        run: npm run build
