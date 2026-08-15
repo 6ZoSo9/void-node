@@ -79,7 +79,16 @@ async function readBoundedText(response, label, maxBytes) {
   const declared = response.headers.get("content-length");
   if (declared !== null) {
     const parsed = Number(declared);
-    if (Number.isFinite(parsed) && parsed > maxBytes) fail(`${label}_body_too_large`);
+    if (Number.isFinite(parsed) && parsed > maxBytes) {
+      if (response.body && typeof response.body.cancel === "function") {
+        try {
+          void response.body.cancel().catch(() => undefined);
+        } catch (cancelError) {
+          void cancelError;
+        }
+      }
+      fail(`${label}_body_too_large`);
+    }
   }
   if (!response.body || typeof response.body.getReader !== "function") {
     const text = await response.text();

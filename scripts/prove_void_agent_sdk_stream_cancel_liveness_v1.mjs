@@ -55,6 +55,26 @@ function oversizedResponse(cancelImpl) {
   };
 }
 
+function declaredOversizedResponse(cancelImpl) {
+  let cancelCalls = 0;
+  const body = new ReadableStream({
+    cancel() {
+      cancelCalls += 1;
+      return cancelImpl();
+    },
+  });
+  return {
+    response: new Response(body, {
+      status: 200,
+      headers: {
+        "content-type": "application/json; charset=utf-8",
+        "content-length": "2048",
+      },
+    }),
+    cancelCalls: () => cancelCalls,
+  };
+}
+
 const stalledCancel = oversizedResponse(() => new Promise(() => {}));
 await expectRejectWithin(
   "oversized streamed body with non-settling cancellation",
@@ -91,6 +111,26 @@ assertCondition(
   `expected one rejecting cancellation attempt, got ${rejectingCancel.cancelCalls()}`,
 );
 
+const declaredStalledCancel = declaredOversizedResponse(
+  () => new Promise(() => {}),
+);
+await expectRejectWithin(
+  "declared oversized body with non-settling cancellation",
+  () =>
+    discoverVoidAgentV1({
+      baseUrl: "https://node.example",
+      maxResponseBytes: 1024,
+      timeoutMs: 100,
+      fetchImpl: async () => declaredStalledCancel.response,
+    }),
+  "well_known_discovery_body_too_large",
+);
+assertCondition(
+  declaredStalledCancel.cancelCalls() === 1,
+  `expected one declared-size cancellation attempt, got ${declaredStalledCancel.cancelCalls()}`,
+);
+
 console.log("stream_oversize_primary_error_preserved=true");
-console.log("stream_cancel_attempts=2");
+console.log("declared_oversize_primary_error_preserved=true");
+console.log("oversize_cancel_attempts=3");
 console.log("VOID_AGENT_SDK_STREAM_CANCEL_LIVENESS_V1_PROOF_GREEN=true");
