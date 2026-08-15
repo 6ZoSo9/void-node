@@ -1,16 +1,20 @@
 #!/usr/bin/env node
 import assert from "node:assert/strict";
 import { createServer } from "node:http";
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { spawn } from "node:child_process";
 
 const MARKER = "VOID_WC_PUBLIC_OPPORTUNITY_HANDOFF_V1_PROOF_GREEN";
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const TOOL = resolve(ROOT, "tools/wc-public-opportunity-handoff-v1.mjs");
+const CANONICAL_CLIENT = resolve(ROOT, "tools/void_public_earn_no_node_client_v1.mjs");
 const MAX_HEALTH_RESPONSE_BYTES = 64 * 1024;
+const PILOT_MARKER = "VOID_WC_PUBLIC_EARNING_PILOT_V1";
+const CLAIM_MARKER = "VOID_WC_PUBLIC_TICKET_CLAIM_V1";
+const STATUS_ROUTE = "/wc/public-earning-pilot-v1/status";
 
 function run(args, stdin = "") {
   return new Promise((done, fail) => {
@@ -51,6 +55,40 @@ function available(base) {
   };
 }
 function held(base) { const r = available(base); r.state = "hold"; r.pilot.coordinator_enabled = false; r.public_claim.enabled = false; return r; }
+function canonicalClientStatus() {
+  return {
+    ok: true,
+    marker: PILOT_MARKER,
+    coordinator_enabled: true,
+    executor_enabled: false,
+    fixed_award_wc: 3,
+    public_claim: {
+      marker: CLAIM_MARKER,
+      enabled: true,
+      available: true,
+      server_selected_work: true,
+      proof_of_executor_key_possession_required: true,
+      transport_mode: "outbound_bundle",
+      fixed_award_wc: 3,
+      participant_selected_dataset: false,
+      participant_selected_input_hash: false,
+      participant_selected_award: false,
+      money_movement: false,
+    },
+  };
+}
+function instrumentCanonicalClient(temp) {
+  const source = readFileSync(CANONICAL_CLIENT, "utf8");
+  const needle = "export const testOnly = {\n";
+  assert.equal(source.split(needle).length, 2, "canonical client testOnly export shape changed");
+  const instrumented = source.replace(
+    needle,
+    `${needle}  parseArgs,\n  inspectCoordinator,\n  safeBase,\n`,
+  );
+  const instrumentedPath = join(temp, "canonical-client-contract.mjs");
+  writeFileSync(instrumentedPath, instrumented, "utf8");
+  return import(`${pathToFileURL(instrumentedPath).href}?contract=${Date.now()}`);
+}
 
 const requests = [];
 const nodeId = "0123456789abcdef0123456789abcdef";
@@ -81,6 +119,11 @@ const server = createServer((req, res) => {
     res.writeHead(200, { "content-type": "application/json" });
     res.end(JSON.stringify({ ok: true, nodeId, peers: [] })); return;
   }
+  if (req.method === "GET" && req.url === STATUS_ROUTE) {
+    res.writeHead(200, { "content-type": "application/json" });
+    res.end(JSON.stringify(canonicalClientStatus()));
+    return;
+  }
   res.writeHead(404, { "content-type": "application/json" }); res.end(JSON.stringify({ error: "not_found" }));
 });
 await new Promise((resolveListen) => server.listen(0, "127.0.0.1", resolveListen));
@@ -90,10 +133,11 @@ const temp = mkdtempSync(join(tmpdir(), "void-wc-handoff-"));
 const input = join(temp, "directory.json");
 const client = join(temp, "client tool.mjs");
 const stateDir = join(temp, "state dir");
+const datasetTemplate = "https://data.example/open?id={dataset_id}";
 writeFileSync(client, "#!/usr/bin/env node\n", { mode: 0o755 });
 try {
   writeFileSync(input, JSON.stringify(directory([available(base), held("https://hold.example")])), "utf8");
-  const ready = await run(["--directory-json", input, "--account", "outside-user-1", "--client-tool", client, "--state-dir", stateDir, "--dataset-url-template", "https://data.example/open?id={dataset_id}"]);
+  const ready = await run(["--directory-json", input, "--account", "outside-user-1", "--client-tool", client, "--state-dir", stateDir, "--dataset-url-template", datasetTemplate]);
   assert.equal(ready.code, 0, ready.stderr || ready.stdout);
   const body = JSON.parse(ready.stdout);
   assert.equal(body.marker, "VOID_WC_PUBLIC_OPPORTUNITY_HANDOFF_V1");
@@ -109,6 +153,53 @@ try {
   assert.equal(body.safety.identity_created, false);
   assert.equal(body.safety.mutation_attempted, false);
   assert.deepEqual(requests, [{ method: "GET", url: "/health", mode: "valid" }]);
+
+  const canonicalReady = await run(["--directory-json", input, "--account", "outside-user-1", "--state-dir", stateDir, "--dataset-url-template", datasetTemplate]);
+  assert.equal(canonicalReady.code, 0, canonicalReady.stderr || canonicalReady.stdout);
+  const canonicalBody = JSON.parse(canonicalReady.stdout);
+  assert.equal(canonicalBody.commands.status.argv[0], "node");
+  assert.equal(canonicalBody.commands.status.argv[1], CANONICAL_CLIENT);
+  assert.equal(canonicalBody.commands.run.argv[1], CANONICAL_CLIENT);
+  assert.equal(existsSync(stateDir), false, "handoff must not create participant client state");
+
+  const { testOnly: canonicalClientContract } = await instrumentCanonicalClient(temp);
+  assert.equal(typeof canonicalClientContract.parseArgs, "function");
+  assert.equal(typeof canonicalClientContract.inspectCoordinator, "function");
+  assert.equal(canonicalClientContract.safeBase(base), base);
+
+  const statusParsed = canonicalClientContract.parseArgs(canonicalBody.commands.status.argv.slice(2));
+  assert.equal(statusParsed.command, "status");
+  assert.equal(statusParsed.options.account, "outside-user-1");
+  assert.equal(statusParsed.options["coordinator-base"], base);
+  assert.equal(statusParsed.options["coordinator-node-id"], nodeId);
+  assert.equal(statusParsed.options["state-dir"], stateDir);
+  assert.deepEqual(statusParsed.options["dataset-url-template"], []);
+
+  const runParsed = canonicalClientContract.parseArgs(canonicalBody.commands.run.argv.slice(2));
+  assert.equal(runParsed.command, "run");
+  assert.equal(runParsed.options.account, "outside-user-1");
+  assert.equal(runParsed.options["coordinator-base"], base);
+  assert.equal(runParsed.options["coordinator-node-id"], nodeId);
+  assert.equal(runParsed.options["state-dir"], stateDir);
+  assert.deepEqual(runParsed.options["dataset-url-template"], [datasetTemplate]);
+
+  requests.length = 0;
+  const syntheticIdentity = Object.freeze({ nodeId: "fedcba9876543210fedcba9876543210" });
+  const statusContext = await canonicalClientContract.inspectCoordinator(statusParsed.options, syntheticIdentity);
+  const runContext = await canonicalClientContract.inspectCoordinator(runParsed.options, syntheticIdentity);
+  assert.equal(statusContext.account, "outside-user-1");
+  assert.equal(statusContext.coordinatorBase, base);
+  assert.equal(statusContext.trustedNodeId, nodeId);
+  assert.equal(runContext.account, "outside-user-1");
+  assert.equal(runContext.coordinatorBase, base);
+  assert.equal(runContext.trustedNodeId, nodeId);
+  assert.deepEqual(requests, [
+    { method: "GET", url: "/health", mode: "valid" },
+    { method: "GET", url: STATUS_ROUTE, mode: "valid" },
+    { method: "GET", url: "/health", mode: "valid" },
+    { method: "GET", url: STATUS_ROUTE, mode: "valid" },
+  ]);
+  assert.equal(existsSync(stateDir), false, "canonical preflight contract must not create participant state");
 
   healthMode = "declared_oversize";
   const declaredOversize = await run(["--directory-json", input, "--account", "outside-user-1", "--client-tool", client]);
