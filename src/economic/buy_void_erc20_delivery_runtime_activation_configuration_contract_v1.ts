@@ -11,7 +11,7 @@ export const
     marker:
       VOID_BUY_VOID_ERC20_DELIVERY_RUNTIME_ACTIVATION_CONFIGURATION_CONTRACT_V1,
     version: 1,
-    status: "source_ready_held_on_presale_invariants",
+    status: "presale_invariants_source_ready_held_on_activation",
     canonical_chain_id: "2050",
     canonical_asset: "void_token_erc20",
 
@@ -45,27 +45,46 @@ export const
     presale_inventory_funding_ready: false,
 
     presale_invariant_readiness: {
+      canonical_presale_pool_id: "buy-void-presale-v1",
+      canonical_inventory_policy_version: "presale-v1",
       canonical_presale_max_void: "10000000",
       canonical_presale_max_fulfillment_units_6_decimal:
         "10000000000000",
-      finite_presale_cap_end_to_end_enforced: false,
+      canonical_max_reservation_fulfillment_units_6_decimal:
+        "10000000000000",
+      finite_presale_cap_end_to_end_enforced: true,
       canonical_rate_void_units_numerator: "2",
       canonical_rate_void_units_denominator: "1",
-      fixed_presale_rate_enforced: false,
+      fixed_presale_rate_enforced: true,
+      reservation_ceiling_equals_total_pool: true,
+      no_per_buyer_purchase_throttle_below_remaining_inventory: true,
+      payment_admission_reservation_atomicity_ready: true,
+      inventory_reservation_before_new_paid_claim: true,
+      paid_unreservable_terminal_obligation_ready: true,
+      confirmed_payer_without_reservation_or_obligation_allowed: false,
+      validator_scale_purchase_10000_void_admission_ready: true,
+      delivery_execution_amount_cap_separate_from_purchase_admission: true,
+      disabled_delivery_canary_max_may_be_lower: true,
+      public_delivery_activation_requires_presale_capacity_max: true,
       evidence_source_path:
         "src/economic/buy_void_crash_consistent_saga_server_policy_v1.ts",
+      payment_admission_source_path:
+        "src/economic/buy_void_pipeline_coordinator_v1.ts",
+      inventory_obligation_source_path:
+        "src/economic/buy_void_inventory_reservation_journal_v1.ts",
     },
 
+    production_broad_delivery_configuration_verified: false,
+
     activation_readiness_blockers: [
-      "canonical_presale_finite_cap_not_ready",
-      "canonical_presale_fixed_rate_not_ready",
+      "production_broad_delivery_configuration_not_verified",
       "canonical_delivery_runtime_activation_not_ready",
     ] as const,
 
     current_parent_blocker:
-      "canonical_presale_invariants_not_ready",
+      "production_broad_delivery_configuration_not_verified",
     next_gate:
-      "canonical_presale_invariants_source_repair",
+      "production_broad_delivery_configuration_verification",
 
     runtime_source_path:
       "src/economic/buy_void_delivery_runtime_integration_v1.ts",
@@ -140,6 +159,13 @@ export const
       token_atom_multiplier: "1000000000000",
       max_amount_must_not_exceed_saga_pool_capacity: true,
       max_amount_must_not_exceed_saga_reservation_cap: true,
+      canonical_presale_capacity_void_units:
+        "10000000000000",
+      canonical_presale_reservation_ceiling_void_units:
+        "10000000000000",
+      public_activation_max_amount_must_equal_presale_capacity: true,
+      disabled_canary_max_amount_may_be_lower: true,
+      public_purchase_throttle_allowed: false,
       integer_only_conversion: true,
       rounding: false,
     },
@@ -167,6 +193,9 @@ export const
       crash_reconciliation_required: true,
       erc20_receipt_to_terminal_closeout_required: true,
       production_configuration_verification_required: true,
+      canonical_presale_invariants_required: true,
+      broad_public_delivery_configuration_required: true,
+      public_delivery_amount_cap_must_equal_presale_capacity: true,
       parent_mount_separately_authorized: true,
     },
 
