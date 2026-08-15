@@ -6,6 +6,7 @@ const MARKER = "VOID_WC_PUBLIC_OPPORTUNITY_DISCOVERY_V1";
 const PILOT_MARKER = "VOID_WC_PUBLIC_EARNING_PILOT_V1";
 const DEFAULT_TIMEOUT_MS = 5000;
 const DEFAULT_EXPECTED_AWARD_WC = 3;
+const MAX_RESPONSE_BYTES = 64 * 1024;
 
 function fail(message, details = {}) {
   process.stdout.write(JSON.stringify({
@@ -45,35 +46,22 @@ function asObject(value) {
 
 function walk(value, visitor, path = []) {
   visitor(value, path);
-
   if (Array.isArray(value)) {
-    for (let index = 0; index < value.length; index += 1) {
-      walk(value[index], visitor, [...path, String(index)]);
-    }
+    for (let index = 0; index < value.length; index += 1) walk(value[index], visitor, [...path, String(index)]);
     return;
   }
-
   const object = asObject(value);
-  if (!object) {
-    return;
-  }
-
-  for (const [key, child] of Object.entries(object)) {
-    walk(child, visitor, [...path, key]);
-  }
+  if (!object) return;
+  for (const [key, child] of Object.entries(object)) walk(child, visitor, [...path, key]);
 }
 
 function findObjectByMarker(value, predicate) {
   let found = null;
   walk(value, (candidate) => {
-    if (found) {
-      return;
-    }
+    if (found) return;
     const object = asObject(candidate);
     const marker = typeof object?.marker === "string" ? object.marker : "";
-    if (object && predicate(marker, object)) {
-      found = object;
-    }
+    if (object && predicate(marker, object)) found = object;
   });
   return found;
 }
@@ -81,351 +69,189 @@ function findObjectByMarker(value, predicate) {
 function findObjectAtKey(value, wantedKeys) {
   const normalized = new Set(wantedKeys.map((key) => key.toLowerCase()));
   let found = null;
-
   walk(value, (candidate, path) => {
-    if (found || path.length === 0) {
-      return;
-    }
-
+    if (found || path.length === 0) return;
     const last = path[path.length - 1]?.toLowerCase();
     const object = asObject(candidate);
-    if (object && last && normalized.has(last)) {
-      found = object;
-    }
+    if (object && last && normalized.has(last)) found = object;
   });
-
   return found;
 }
 
 function findFirstScalar(value, wantedKeys, type) {
   const normalized = new Set(wantedKeys.map((key) => key.toLowerCase()));
   let found;
-
   walk(value, (candidate, path) => {
-    if (found !== undefined || path.length === 0) {
-      return;
-    }
-
+    if (found !== undefined || path.length === 0) return;
     const last = path[path.length - 1]?.toLowerCase();
-    if (!last || !normalized.has(last)) {
-      return;
-    }
-
+    if (!last || !normalized.has(last)) return;
     if (type === "number") {
       const number = strictEvidenceNumber(candidate);
-      if (number !== null) {
-        found = number;
-      }
+      if (number !== null) found = number;
       return;
     }
-
-    if (typeof candidate === type) {
-      found = candidate;
-    }
+    if (typeof candidate === type) found = candidate;
   });
-
   return found;
 }
 
-function findBooleanAny(value, wantedKeys) {
-  return findFirstScalar(value, wantedKeys, "boolean");
-}
+function findBooleanAny(value, wantedKeys) { return findFirstScalar(value, wantedKeys, "boolean"); }
 
 function sanitizeBase(raw) {
   let parsed;
-  try {
-    parsed = new URL(raw);
-  } catch {
-    throw new Error("base must be an absolute HTTP(S) URL");
-  }
-
-  if (!["http:", "https:"].includes(parsed.protocol)) {
-    throw new Error("base must use HTTP or HTTPS");
-  }
-
-  if (parsed.username || parsed.password) {
-    throw new Error("base must not contain credentials");
-  }
-
+  try { parsed = new URL(raw); } catch { throw new Error("base must be an absolute HTTP(S) URL"); }
+  if (!["http:", "https:"].includes(parsed.protocol)) throw new Error("base must use HTTP or HTTPS");
+  if (parsed.username || parsed.password) throw new Error("base must not contain credentials");
   return parsed.origin;
 }
 
 function normalizePath(raw, origin) {
-  if (typeof raw !== "string" || raw.length === 0) {
-    return null;
-  }
-
+  if (typeof raw !== "string" || raw.length === 0) return null;
   let parsed;
-  try {
-    parsed = new URL(raw, origin);
-  } catch {
-    return null;
-  }
-
-  if (parsed.origin !== origin) {
-    return null;
-  }
-
-  if (parsed.username || parsed.password) {
-    return null;
-  }
-
+  try { parsed = new URL(raw, origin); } catch { return null; }
+  if (parsed.origin !== origin || parsed.username || parsed.password) return null;
   const lower = `${parsed.pathname}${parsed.search}`.toLowerCase();
   const relevant = /(earn|work[-_]?credit|wc[-_/]|opportunit|gateway)/u.test(lower);
   const readSurface = /(status|gateway|discover|opportunit|public|read|index|earn)/u.test(lower);
   const forbidden = /(award|credit-account|settle|execute|submit|accept|issue|write|mutat|fulfill|activate|private|admin)/u.test(lower);
   const claimWithoutStatus = /claim/u.test(lower) && !/status|gateway|discover|opportunit/u.test(lower);
-
-  if (!relevant || !readSurface || forbidden || claimWithoutStatus) {
-    return null;
-  }
-
+  if (!relevant || !readSurface || forbidden || claimWithoutStatus) return null;
   return `${parsed.pathname}${parsed.search}`;
 }
 
 function collectDiscoveryPaths(value, origin) {
   const paths = new Set();
-
   walk(value, (candidate) => {
-    if (typeof candidate !== "string") {
-      return;
-    }
-
+    if (typeof candidate !== "string") return;
     const normalized = normalizePath(candidate, origin);
-    if (normalized) {
-      paths.add(normalized);
-    }
+    if (normalized) paths.add(normalized);
   });
-
   return [...paths];
 }
 
 function findClaimPath(value, origin) {
   let found = null;
-
   walk(value, (candidate, path) => {
-    if (found || typeof candidate !== "string") {
-      return;
-    }
-
+    if (found || typeof candidate !== "string") return;
     const key = path[path.length - 1]?.toLowerCase() ?? "";
-    if (!/(claim|ticket|intake|request|path|url|route)/u.test(key)) {
-      return;
-    }
-
+    if (!/(claim|ticket|intake|request|path|url|route)/u.test(key)) return;
     let parsed;
-    try {
-      parsed = new URL(candidate, origin);
-    } catch {
-      return;
-    }
-
-    if (parsed.origin !== origin || !/claim|ticket/u.test(parsed.pathname.toLowerCase())) {
-      return;
-    }
-
+    try { parsed = new URL(candidate, origin); } catch { return; }
+    if (parsed.origin !== origin || !/claim|ticket/u.test(parsed.pathname.toLowerCase())) return;
     found = parsed.pathname;
   });
-
   return found;
+}
+
+function cancelBestEffort(target) {
+  if (!target || typeof target.cancel !== "function") return;
+  try {
+    const pending = target.cancel();
+    if (pending && typeof pending.catch === "function") pending.catch(() => undefined);
+  } catch (error) { void error; }
+}
+
+async function readBoundedText(response, maximum) {
+  const declaredRaw = response.headers.get("content-length");
+  if (declaredRaw !== null) {
+    const declaredText = declaredRaw.trim();
+    if (!/^(0|[1-9]\d*)$/u.test(declaredText)) {
+      cancelBestEffort(response.body);
+      throw new Error("response_content_length_invalid");
+    }
+    const declared = Number(declaredText);
+    if (!Number.isSafeInteger(declared) || declared > maximum) {
+      cancelBestEffort(response.body);
+      throw new Error("response_body_too_large");
+    }
+  }
+  if (!response.body || typeof response.body.getReader !== "function") throw new Error("response_body_unavailable");
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder("utf-8", { fatal: true });
+  let text = "";
+  let received = 0;
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      received += value.byteLength;
+      if (received > maximum) {
+        cancelBestEffort(reader);
+        throw new Error("response_body_too_large");
+      }
+      text += decoder.decode(value, { stream: true });
+    }
+    text += decoder.decode();
+    return text;
+  } finally {
+    try { reader.releaseLock(); } catch (error) { void error; }
+  }
 }
 
 async function fetchJson(origin, path, timeoutMs) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
-
   try {
     const response = await fetch(new URL(path, origin), {
       method: "GET",
-      headers: {
-        accept: "application/json",
-        "user-agent": "void-wc-public-opportunity-discovery-v1",
-      },
+      headers: { accept: "application/json", "user-agent": "void-wc-public-opportunity-discovery-v1" },
       redirect: "error",
       signal: controller.signal,
     });
-
     const contentType = response.headers.get("content-type") ?? "";
-    const text = await response.text();
+    const text = await readBoundedText(response, MAX_RESPONSE_BYTES);
     let body = null;
-
     if (contentType.includes("json") || /^[\s]*[{[]/u.test(text)) {
-      try {
-        body = JSON.parse(text);
-      } catch {
-        body = null;
-      }
+      try { body = JSON.parse(text); } catch { body = null; }
     }
-
-    return {
-      path,
-      status: response.status,
-      ok: response.ok,
-      content_type: contentType.split(";", 1)[0],
-      body,
-    };
+    return { path, status: response.status, ok: response.ok, content_type: contentType.split(";", 1)[0], body };
   } catch (error) {
-    return {
-      path,
-      status: null,
-      ok: false,
-      content_type: null,
-      body: null,
-      error: error instanceof Error ? error.name : "request_error",
-    };
-  } finally {
-    clearTimeout(timer);
-  }
+    return { path, status: null, ok: false, content_type: null, body: null, error: error instanceof Error ? error.message : "request_error" };
+  } finally { clearTimeout(timer); }
 }
 
 function summarizeAttempt(attempt) {
   const marker = findFirstScalar(attempt.body, ["marker"], "string");
-  return {
-    path: attempt.path,
-    http_status: attempt.status,
-    json: attempt.body !== null,
-    marker: marker ?? null,
-    error: attempt.error ?? null,
-  };
+  return { path: attempt.path, http_status: attempt.status, json: attempt.body !== null, marker: marker ?? null, error: attempt.error ?? null };
 }
 
 function analyze(body, sourcePath, origin, expectedAwardWc, attempts) {
-  const pilot = findObjectByMarker(
-    body,
-    (marker) => marker === PILOT_MARKER,
-  );
-
-  const gateway = findObjectByMarker(
-    body,
-    (marker, object) =>
-      /PUBLIC.*EARN.*GATEWAY/u.test(marker) ||
-      Boolean(object.public_claim),
-  );
-
-  const publicClaim =
-    asObject(gateway?.public_claim) ??
-    findObjectAtKey(body, ["public_claim", "publicClaim"]);
-
-  if (!pilot && !gateway && !publicClaim) {
-    return null;
-  }
-
-  const coordinatorEnabled =
-    typeof pilot?.coordinator_enabled === "boolean"
-      ? pilot.coordinator_enabled
-      : findBooleanAny(body, ["coordinator_enabled", "coordinatorEnabled"]);
-
-  const executorEnabled =
-    typeof pilot?.executor_enabled === "boolean"
-      ? pilot.executor_enabled
-      : findBooleanAny(body, ["executor_enabled", "executorEnabled"]);
-
-  const fixedAwardWc =
-    strictEvidenceNumber(pilot?.fixed_award_wc) ??
-    strictEvidenceNumber(publicClaim?.fixed_award_wc) ??
-    findFirstScalar(body, ["fixed_award_wc", "fixedAwardWc"], "number") ??
-    null;
-
-  const claimEnabled =
-    findBooleanAny(publicClaim, [
-      "enabled",
-      "available",
-      "claim_enabled",
-      "claimEnabled",
-    ]) ??
-    findBooleanAny(body, [
-      "public_claim_enabled",
-      "publicClaimEnabled",
-      "claim_available",
-      "claimAvailable",
-    ]);
-
-  const claimMethod =
-    findFirstScalar(publicClaim, ["method", "http_method", "httpMethod"], "string") ??
-    null;
-
+  const pilot = findObjectByMarker(body, (marker) => marker === PILOT_MARKER);
+  const gateway = findObjectByMarker(body, (marker, object) => /PUBLIC.*EARN.*GATEWAY/u.test(marker) || Boolean(object.public_claim));
+  const publicClaim = asObject(gateway?.public_claim) ?? findObjectAtKey(body, ["public_claim", "publicClaim"]);
+  if (!pilot && !gateway && !publicClaim) return null;
+  const coordinatorEnabled = typeof pilot?.coordinator_enabled === "boolean" ? pilot.coordinator_enabled : findBooleanAny(body, ["coordinator_enabled", "coordinatorEnabled"]);
+  const executorEnabled = typeof pilot?.executor_enabled === "boolean" ? pilot.executor_enabled : findBooleanAny(body, ["executor_enabled", "executorEnabled"]);
+  const fixedAwardWc = strictEvidenceNumber(pilot?.fixed_award_wc) ?? strictEvidenceNumber(publicClaim?.fixed_award_wc) ?? findFirstScalar(body, ["fixed_award_wc", "fixedAwardWc"], "number") ?? null;
+  const claimEnabled = findBooleanAny(publicClaim, ["enabled", "available", "claim_enabled", "claimEnabled"]) ?? findBooleanAny(body, ["public_claim_enabled", "publicClaimEnabled", "claim_available", "claimAvailable"]);
+  const claimMethod = findFirstScalar(publicClaim, ["method", "http_method", "httpMethod"], "string") ?? null;
   const claimPath = findClaimPath(publicClaim ?? body, origin);
-
-  const publicRoutesAwardWc =
-    findBooleanAny(body, [
-      "public_routes_award_wc",
-      "public_route_can_award_wc",
-      "publicRoutesAwardWc",
-      "publicRouteCanAwardWc",
-    ]);
-
+  const publicRoutesAwardWc = findBooleanAny(body, ["public_routes_award_wc", "public_route_can_award_wc", "publicRoutesAwardWc", "publicRouteCanAwardWc"]);
   const gatewayCompatible = Boolean(pilot || gateway || publicClaim);
-  const awardMatches =
-    fixedAwardWc !== null && fixedAwardWc === expectedAwardWc;
+  const awardMatches = fixedAwardWc !== null && fixedAwardWc === expectedAwardWc;
   const coordinatorReady = coordinatorEnabled === true;
   const claimConfigured = Boolean(publicClaim || claimPath);
   const claimNotDisabled = claimEnabled !== false;
   const publicAwardBoundaryConfirmed = publicRoutesAwardWc === false;
-
   const reasons = [];
   if (!pilot) reasons.push("pilot_status_missing");
   if (!coordinatorReady) reasons.push("coordinator_not_enabled");
   if (!awardMatches) reasons.push("fixed_award_mismatch_or_missing");
   if (!claimConfigured) reasons.push("public_claim_not_discovered");
   if (!claimNotDisabled) reasons.push("public_claim_disabled");
-  if (publicRoutesAwardWc === true) {
-    reasons.push("unsafe_public_award_boundary");
-  } else if (!publicAwardBoundaryConfirmed) {
-    reasons.push("public_award_boundary_unconfirmed");
-  }
-
-  const opportunityState =
-    pilot &&
-    coordinatorReady &&
-    awardMatches &&
-    claimConfigured &&
-    claimNotDisabled &&
-    publicAwardBoundaryConfirmed
-      ? "available"
-      : "hold";
-
+  if (publicRoutesAwardWc === true) reasons.push("unsafe_public_award_boundary"); else if (!publicAwardBoundaryConfirmed) reasons.push("public_award_boundary_unconfirmed");
+  const opportunityState = pilot && coordinatorReady && awardMatches && claimConfigured && claimNotDisabled && publicAwardBoundaryConfirmed ? "available" : "hold";
   return {
     marker: MARKER,
     status: "green",
     opportunity_state: opportunityState,
-    reason: opportunityState === "available"
-      ? "bounded_public_earning_opportunity_available"
-      : reasons.join(","),
+    reason: opportunityState === "available" ? "bounded_public_earning_opportunity_available" : reasons.join(","),
     source_path: sourcePath,
     gateway_compatible: gatewayCompatible,
-    participant: {
-      node_required: false,
-      public_status_only: true,
-      next_tool: "ops/mainnet0/wc-public-ticket-claim-v1.sh",
-      next_document: "docs/public/wc-public-ticket-claim-v1.md",
-    },
-    pilot: {
-      marker: pilot?.marker ?? null,
-      coordinator_enabled: coordinatorEnabled ?? null,
-      executor_enabled: executorEnabled ?? null,
-      fixed_award_wc: fixedAwardWc,
-      expected_fixed_award_wc: expectedAwardWc,
-      fixed_award_matches: awardMatches,
-    },
-    public_claim: {
-      configured: claimConfigured,
-      enabled: claimEnabled ?? null,
-      method: claimMethod,
-      path: claimPath,
-    },
-    safety: {
-      read_only: true,
-      http_methods_used: ["GET"],
-      public_routes_award_wc: publicRoutesAwardWc ?? null,
-      public_award_boundary_confirmed: publicAwardBoundaryConfirmed,
-      public_award_boundary_safe: publicAwardBoundaryConfirmed,
-      mutation_attempted: false,
-      ticket_issuance_attempted: false,
-      receipt_submission_attempted: false,
-      wc_award_attempted: false,
-      wallet_access_attempted: false,
-      settlement_attempted: false,
-    },
+    participant: { node_required: false, public_status_only: true, next_tool: "ops/mainnet0/wc-public-ticket-claim-v1.sh", next_document: "docs/public/wc-public-ticket-claim-v1.md" },
+    pilot: { marker: pilot?.marker ?? null, coordinator_enabled: coordinatorEnabled ?? null, executor_enabled: executorEnabled ?? null, fixed_award_wc: fixedAwardWc, expected_fixed_award_wc: expectedAwardWc, fixed_award_matches: awardMatches },
+    public_claim: { configured: claimConfigured, enabled: claimEnabled ?? null, method: claimMethod, path: claimPath },
+    safety: { read_only: true, http_methods_used: ["GET"], public_routes_award_wc: publicRoutesAwardWc ?? null, public_award_boundary_confirmed: publicAwardBoundaryConfirmed, public_award_boundary_safe: publicAwardBoundaryConfirmed, mutation_attempted: false, ticket_issuance_attempted: false, receipt_submission_attempted: false, wc_award_attempted: false, wallet_access_attempted: false, settlement_attempted: false },
     attempts: attempts.map(summarizeAttempt),
   };
 }
@@ -436,141 +262,53 @@ async function main() {
       base: { type: "string" },
       path: { type: "string", multiple: true, default: [] },
       "timeout-ms": { type: "string", default: String(DEFAULT_TIMEOUT_MS) },
-      "expected-award-wc": {
-        type: "string",
-        default: String(DEFAULT_EXPECTED_AWARD_WC),
-      },
+      "expected-award-wc": { type: "string", default: String(DEFAULT_EXPECTED_AWARD_WC) },
       "require-available": { type: "boolean", default: false },
       help: { type: "boolean", short: "h", default: false },
-    },
-    allowPositionals: false,
-    strict: true,
+    }, allowPositionals: false, strict: true,
   });
-
   if (values.help) {
-    process.stdout.write(
-      "Usage: node tools/wc-public-opportunity-discovery-v1.mjs " +
-      "--base https://public-node.example " +
-      "[--path /public/earn/status] " +
-      "[--require-available]\n",
-    );
+    process.stdout.write("Usage: node tools/wc-public-opportunity-discovery-v1.mjs --base https://public-node.example [--path /public/earn/status] [--require-available]\n");
     return;
   }
-
-  if (!values.base) {
-    throw new Error("--base is required");
-  }
-
+  if (!values.base) throw new Error("--base is required");
   const origin = sanitizeBase(values.base);
   const timeoutMs = safeNumber(values["timeout-ms"]);
   const expectedAwardWc = safeNumber(values["expected-award-wc"]);
-
-  if (!timeoutMs || timeoutMs < 250 || timeoutMs > 30000) {
-    throw new Error("--timeout-ms must be between 250 and 30000");
-  }
-
-  if (expectedAwardWc === null || expectedAwardWc <= 0) {
-    throw new Error("--expected-award-wc must be positive");
-  }
-
-  const defaultCandidates = [
-    "/__void/public-earn-gateway-v1/status.json",
-    "/wc/public-earning-pilot-v1/status",
-    "/public-node/public-earn-gateway-v1.json",
-    "/public-node/work-credits/public-earn-status-v1.json",
-    "/public-node/earn/status-v1.json",
-    "/public/earn/status-v1",
-    "/public/earn/status",
-    "/wc/public/earning/status",
-    "/wc/public/status",
-  ];
-
+  if (!timeoutMs || timeoutMs < 250 || timeoutMs > 30000) throw new Error("--timeout-ms must be between 250 and 30000");
+  if (expectedAwardWc === null || expectedAwardWc <= 0) throw new Error("--expected-award-wc must be positive");
+  const defaultCandidates = ["/__void/public-earn-gateway-v1/status.json", "/wc/public-earning-pilot-v1/status", "/public-node/public-earn-gateway-v1.json", "/public-node/work-credits/public-earn-status-v1.json", "/public-node/earn/status-v1.json", "/public/earn/status-v1", "/public/earn/status", "/wc/public/earning/status", "/wc/public/status"];
   const attempts = [];
-  const discovery = await fetchJson(
-    origin,
-    "/.well-known/void-public-node.json",
-    timeoutMs,
-  );
+  const discovery = await fetchJson(origin, "/.well-known/void-public-node.json", timeoutMs);
   attempts.push(discovery);
-
   const candidates = new Set();
-
   for (const raw of values.path) {
     const normalized = normalizePath(raw, origin);
-    if (!normalized) {
-      throw new Error(`unsafe or non-read discovery path: ${raw}`);
-    }
+    if (!normalized) throw new Error(`unsafe or non-read discovery path: ${raw}`);
     candidates.add(normalized);
   }
-
   if (discovery.body) {
-    for (const path of collectDiscoveryPaths(discovery.body, origin)) {
-      candidates.add(path);
-    }
-
-    const discoveryAnalysis = analyze(
-      discovery.body,
-      discovery.path,
-      origin,
-      expectedAwardWc,
-      attempts,
-    );
+    for (const path of collectDiscoveryPaths(discovery.body, origin)) candidates.add(path);
+    const discoveryAnalysis = analyze(discovery.body, discovery.path, origin, expectedAwardWc, attempts);
     if (discoveryAnalysis) {
       process.stdout.write(JSON.stringify(discoveryAnalysis, null, 2) + "\n");
-      if (
-        values["require-available"] &&
-        discoveryAnalysis.opportunity_state !== "available"
-      ) {
-        process.exitCode = 2;
-      }
+      if (values["require-available"] && discoveryAnalysis.opportunity_state !== "available") process.exitCode = 2;
       return;
     }
   }
-
-  for (const path of defaultCandidates) {
-    candidates.add(path);
-  }
-
+  for (const path of defaultCandidates) candidates.add(path);
   for (const path of candidates) {
-    if (path === discovery.path) {
-      continue;
-    }
-
+    if (path === discovery.path) continue;
     const attempt = await fetchJson(origin, path, timeoutMs);
     attempts.push(attempt);
-
-    if (!attempt.body) {
-      continue;
-    }
-
-    const result = analyze(
-      attempt.body,
-      attempt.path,
-      origin,
-      expectedAwardWc,
-      attempts,
-    );
-
-    if (!result) {
-      continue;
-    }
-
+    if (!attempt.body) continue;
+    const result = analyze(attempt.body, attempt.path, origin, expectedAwardWc, attempts);
+    if (!result) continue;
     process.stdout.write(JSON.stringify(result, null, 2) + "\n");
-    if (
-      values["require-available"] &&
-      result.opportunity_state !== "available"
-    ) {
-      process.exitCode = 2;
-    }
+    if (values["require-available"] && result.opportunity_state !== "available") process.exitCode = 2;
     return;
   }
-
-  fail("compatible public earning gateway not discovered", {
-    base_origin: origin,
-    attempts: attempts.map(summarizeAttempt),
-  });
+  fail("compatible public earning gateway not discovered", { base_origin: origin, attempts: attempts.map(summarizeAttempt) });
 }
 
-main().catch((error) => {
-  fail(error instanceof Error ? error.message : "unexpected error");
-});
+main().catch((error) => { fail(error instanceof Error ? error.message : "unexpected error"); });
