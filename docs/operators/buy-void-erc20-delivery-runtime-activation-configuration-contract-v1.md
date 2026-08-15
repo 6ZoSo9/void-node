@@ -6,7 +6,7 @@ Marker: `VOID_BUY_VOID_ERC20_DELIVERY_RUNTIME_ACTIVATION_CONFIGURATION_CONTRACT_
 
 The canonical ERC-20 execution-composition source is now a prerequisite of any later activation. The retained delivery runtime no longer accepts a caller-supplied nonce/gas/fee transaction plan. It delegates to the server-controlled execution-composition layer, which derives the exact `VoidToken.transfer(...)` transaction through the coherent `pending` planner, durably reserves the wallet nonce, persists signed-hash custody before broadcast, uses the existing saga write-ahead broadcast-intent boundary, reconciles exact ERC-20 receipts into canonical `record_confirmed`, and leaves terminal inventory/public closeout to the existing saga closeout implementation.
 
-The next source gate parent-mounts this already-reviewed runtime while leaving it disabled. That source composition does not enable production execution, inject signer/broadcaster dependencies, inspect a credential, fund presale inventory, or authorize a transaction.
+The canonical parent now mounts this already-reviewed runtime while leaving execution disabled. Dormant signer/broadcaster dependency injection is separately fail-closed to delivery enable exact `0`. Neither source composition nor dormant injection enables production execution, inspects a credential, funds presale inventory, or authorizes a transaction.
 
 ## Required production configuration contract
 
@@ -31,16 +31,32 @@ The disabled parent mount must continue proving:
 ## Current truth
 
 ```text
+status=source_ready_held_on_presale_invariants
 erc20_execution_composition_ready=true
 canonical_delivery_runtime_activation_ready=false
 production_configuration_values_verified=false
 production_credential_binding_ready=false
+canonical_production_credential_binding_evidence_ready=true
+dormant_dependency_injection_source_ready=true
+dormant_dependency_injection_requires_delivery_runtime_disabled=true
+dormant_dependency_injection_required_delivery_enable_value=0
+dormant_dependency_injection_wallet_evidence_binding_required=true
+dependency_injection_runtime_ready=false
 canonical_delivery_runtime_parent_mounted=true
 canonical_delivery_execution_ready=false
 presale_inventory_funding_ready=false
+canonical_presale_max_void=10000000
+canonical_presale_max_fulfillment_units_6_decimal=10000000000000
+finite_presale_cap_end_to_end_enforced=false
+canonical_presale_rate=2/1
+fixed_presale_rate_enforced=false
+current_parent_blocker=canonical_presale_invariants_not_ready
+next_gate=canonical_presale_invariants_source_repair
 ```
 
-After the disabled parent mount, the next operations gates are credential key-to-wallet evidence and separately authorized dependency injection/runtime enablement. Inventory funding remains an independent later value-bearing gate.
+Credential key-to-wallet evidence is recorded for the canonical Precision/Mainnet-0 fulfillment wallet without inferring clone-local binding. Dormant dependency injection requires delivery enable exact `0`, the exact evidence ID, and a configured delivery wallet matching that evidence; any mismatch remains held before dependencies are populated.
+
+That dormant staging seam being source-green does **not** make Buy VOID activation-ready. Current source still accepts a noncanonical positive presale rate such as `3/2`, and it still accepts a pool capacity above the canonical 10,000,000 VOID maximum (10,000,000,000,000 six-decimal fulfillment units). The canonical finite-cap and fixed `2 VOID / 1 USDC` rate invariants therefore remain explicit P0 readiness blockers. Dependency-injection authorization is not the sole next gate while either invariant remains unresolved. Runtime enablement and inventory funding remain later independent gates.
 
 ## Authority boundary
 
