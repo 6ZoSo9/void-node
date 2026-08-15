@@ -32,7 +32,7 @@
     "approved_date": "2026-07-14",
     "surface": "/app/#/home",
     "receipt": "/home/zoso/void-precision-smoke/void-ui-wave2-home-visual-20260714T180144Z.txt",
-    "receipt_sha256": "964f5d6977702ed3a60f6dd7416f4845a9b3dd8d4e64cf4cbb9dadeffb237ff"
+    "receipt_sha256": "964f5d6977702ed3aa60f6dd7416f4845a9b3dd8d4e64cf4cbb9dadeffb237ff"
   },
   "payload_hashes_are_source_bundle_only": true,
   "repository_hashes": {
