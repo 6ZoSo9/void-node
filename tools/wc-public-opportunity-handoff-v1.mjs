@@ -100,11 +100,24 @@ function candidates(directory) {
     .sort((a,b) => a.base.localeCompare(b.base));
 }
 
+async function cancelResponseBody(response, reason) {
+  if (!response.body || typeof response.body.cancel !== "function") return;
+  try {
+    await response.body.cancel(reason);
+  } catch (cleanupError) {
+    void cleanupError;
+  }
+}
+
 async function readBoundedHealthText(response) {
   const declared = response.headers.get("content-length");
   if (declared !== null) {
-    if (!/^\d+$/u.test(declared)) throw new Error("coordinator health content-length is invalid");
+    if (!/^\d+$/u.test(declared)) {
+      await cancelResponseBody(response, "coordinator health content-length is invalid");
+      throw new Error("coordinator health content-length is invalid");
+    }
     if (BigInt(declared) > BigInt(MAX_HEALTH_RESPONSE_BYTES)) {
+      await cancelResponseBody(response, "coordinator health response exceeds byte limit");
       throw new Error("coordinator health response exceeds byte limit");
     }
   }
