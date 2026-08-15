@@ -74,6 +74,8 @@ node tools/void_public_earn_no_node_client_v1.mjs run ...
 
 Optional values include `--state-dir` and an HTTPS `--dataset-url-template` containing `{dataset_id}`.
 
+The focused contract is bound to the canonical no-node client source. A client-only interface change schedules this handoff workflow, and the proof feeds the generated `status` and `run` argv through the real client parser plus its read-only coordinator preflight contract. The proof does not execute the full client, create participant identity state, claim a ticket, or submit work.
+
 ## Safety boundary
 
 The handoff validates the directory marker, directory safety contract, and selected child safety contract. It uses only `GET /health` and never executes the client, creates an identity, claims a ticket, fetches work, submits a result, awards or settles WC, accesses a wallet, restarts a service, or mutates runtime data.
@@ -84,7 +86,7 @@ The handoff validates the directory marker, directory safety contract, and selec
 node scripts/prove_wc_public_opportunity_handoff_v1.mjs
 ```
 
-The proof exercises a successful identity-bound handoff plus declared-oversize, streamed-oversize, interrupted-body, multi-candidate, no-candidate, and unsafe-directory HOLD behavior.
+The proof exercises a successful identity-bound handoff; generated-command compatibility with the canonical client parser and read-only coordinator preflight; and declared-oversize, streamed-oversize, interrupted-body, multi-candidate, no-candidate, and unsafe-directory HOLD behavior.
 
 Expected marker:
 
