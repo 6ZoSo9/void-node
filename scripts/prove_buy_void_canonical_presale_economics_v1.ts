@@ -186,8 +186,8 @@ try {
     apply: true,
     now_ms: 1_702_000_000_100,
   });
+  if ("reason" in reserved) throw new Error(reserved.reason);
   assert.equal(reserved.ok, true);
-  if (!reserved.ok) throw new Error(reserved.reason);
   assert.equal(reserved.status, "reserved");
   assert.equal(
     reserved.reservation.reserved_void_units,
