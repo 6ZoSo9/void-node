@@ -83,10 +83,36 @@ function findFirstScalar(value, wantedKeys, type) {
   return found;
 }
 
+function normalizeHttpHostname(hostname) {
+  const host = String(hostname || "").trim().toLowerCase();
+  return host.startsWith("[") && host.endsWith("]")
+    ? host.slice(1, -1)
+    : host;
+}
+
+function isPrivateHttpHost(hostname) {
+  const host = normalizeHttpHostname(hostname);
+  if (host === "localhost" || host === "127.0.0.1" || host === "::1") return true;
+  if (host.endsWith(".ts.net")) return true;
+  const match = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/u.exec(host);
+  if (!match) return false;
+  const octets = match.slice(1).map(Number);
+  if (octets.some((value) => value < 0 || value > 255)) return false;
+  if (octets[0] === 10 || octets[0] === 127) return true;
+  if (octets[0] === 192 && octets[1] === 168) return true;
+  if (octets[0] === 172 && octets[1] >= 16 && octets[1] <= 31) return true;
+  if (octets[0] === 100 && octets[1] >= 64 && octets[1] <= 127) return true;
+  return false;
+}
+
 function sanitizeBase(raw) {
   let parsed;
   try { parsed = new URL(raw); } catch { throw new Error("base must be an absolute HTTP(S) URL"); }
-  if (!["http:", "https:"].includes(parsed.protocol)) throw new Error("base must use HTTP or HTTPS");
+  const publicHttps = parsed.protocol === "https:";
+  const reviewedPrivateHttp = parsed.protocol === "http:" && isPrivateHttpHost(parsed.hostname);
+  if (!publicHttps && !reviewedPrivateHttp) {
+    throw new Error("base must use public HTTPS or reviewed private/dev HTTP");
+  }
   if (parsed.username || parsed.password) throw new Error("base must not contain credentials");
   return parsed.origin;
 }
@@ -312,6 +338,11 @@ function analyze(body, sourcePath, origin, expectedAwardWc, attempts) {
   };
 }
 
+function emitResult(result, requireAvailable) {
+  process.stdout.write(JSON.stringify(result, null, 2) + "\n");
+  if (requireAvailable && result.opportunity_state !== "available") process.exitCode = 2;
+}
+
 async function main() {
   const { values } = parseArgs({
     options: {
@@ -335,6 +366,7 @@ async function main() {
   if (expectedAwardWc === null || expectedAwardWc <= 0) throw new Error("--expected-award-wc must be positive");
   const defaultCandidates = ["/__void/public-earn-gateway-v1/status.json", "/wc/public-earning-pilot-v1/status", "/public-node/public-earn-gateway-v1.json", "/public-node/work-credits/public-earn-status-v1.json", "/public-node/earn/status-v1.json", "/public/earn/status-v1", "/public/earn/status", "/wc/public/earning/status", "/wc/public/status"];
   const attempts = [];
+  let firstHold = null;
   const discovery = await fetchJson(origin, "/.well-known/void-public-node.json", timeoutMs);
   attempts.push(discovery);
   const candidates = new Set();
@@ -346,11 +378,11 @@ async function main() {
   if (discovery.ok && discovery.body) {
     for (const path of collectDiscoveryPaths(discovery.body, origin)) candidates.add(path);
     const discoveryAnalysis = analyze(discovery.body, discovery.path, origin, expectedAwardWc, attempts);
-    if (discoveryAnalysis) {
-      process.stdout.write(JSON.stringify(discoveryAnalysis, null, 2) + "\n");
-      if (values["require-available"] && discoveryAnalysis.opportunity_state !== "available") process.exitCode = 2;
+    if (discoveryAnalysis?.opportunity_state === "available") {
+      emitResult(discoveryAnalysis, values["require-available"]);
       return;
     }
+    if (discoveryAnalysis) firstHold = { body: discovery.body, path: discovery.path };
   }
   for (const path of defaultCandidates) candidates.add(path);
   for (const path of candidates) {
@@ -360,9 +392,18 @@ async function main() {
     if (!attempt.ok || !attempt.body) continue;
     const result = analyze(attempt.body, attempt.path, origin, expectedAwardWc, attempts);
     if (!result) continue;
-    process.stdout.write(JSON.stringify(result, null, 2) + "\n");
-    if (values["require-available"] && result.opportunity_state !== "available") process.exitCode = 2;
-    return;
+    if (result.opportunity_state === "available") {
+      emitResult(result, values["require-available"]);
+      return;
+    }
+    if (!firstHold) firstHold = { body: attempt.body, path: attempt.path };
+  }
+  if (firstHold) {
+    const result = analyze(firstHold.body, firstHold.path, origin, expectedAwardWc, attempts);
+    if (result) {
+      emitResult(result, values["require-available"]);
+      return;
+    }
   }
   fail("compatible public earning gateway not discovered", { base_origin: origin, attempts: attempts.map(summarizeAttempt) });
 }
