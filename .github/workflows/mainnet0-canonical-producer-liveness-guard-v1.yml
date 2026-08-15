@@ -3,6 +3,8 @@ name: Mainnet-0 Canonical Producer Liveness Guard v1
 on:
   pull_request:
     paths:
+      - "runtime/canonical-producer-self-http-guard-v1.cjs"
+      - "ops/run-void-node-live-v1.sh"
       - "ops/guard-canonical-producer-liveness-v1.sh"
       - "ops/install-void-node-live-user-service-v1.sh"
       - "ops/mainnet0/install-canonical-producer-liveness-v1.sh"
@@ -14,6 +16,8 @@ on:
     branches:
       - main
     paths:
+      - "runtime/canonical-producer-self-http-guard-v1.cjs"
+      - "ops/run-void-node-live-v1.sh"
       - "ops/guard-canonical-producer-liveness-v1.sh"
       - "ops/install-void-node-live-user-service-v1.sh"
       - "ops/mainnet0/install-canonical-producer-liveness-v1.sh"
@@ -46,4 +50,6 @@ jobs:
           bash -n ops/mainnet0/install-canonical-producer-liveness-v1.sh
           bash -n ops/mainnet0/public-node-live-runtime-quarantine-install.sh
       - name: Canonical producer liveness proof
+        env:
+          VOID_CANONICAL_SELF_HTTP_GUARD: "1"
         run: node scripts/prove_mainnet0_canonical_producer_liveness_guard_v1.mjs
