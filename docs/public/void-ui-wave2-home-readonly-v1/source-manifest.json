@@ -55,8 +55,8 @@
     "scripts/prove_void_ui_wave1_repository_foundation_v1.ts": "f0b7b3e148a5240f96407083dc53f60de2b32171e84335cd33a6ad4a5ec552cd",
     "src/index.ts": "ef66044c92d6c25d781822c89b11020bc5a838982f9249613a14b8ca59af0f53",
     "src/ui/void_app_wave1_foundation_v1.ts": "269cf9d16e7100797cebaa32247f2adb2ca701f60b78cbaa307be4dfd1a83d9b",
-    "src/ui/void_app_wave2_home_readonly_v1.ts": "590fe50e73601c88cee86534a95218be9c688363231cdfa11ea82aa53ee0df47",
-    "src/ui/void_app_wave2_home_source_fetch_v1.ts": "fe892462ec8b83e42e8f1ad84fb61bc3bb380beb65d45a76ca08ce24bc4b3751",
+    "src/ui/void_app_wave2_home_readonly_v1.ts": "099c1878faa537ed51ce35b6eef638f887f2d895b82f41ab30d405d21698fdd8",
+    "src/ui/void_app_wave2_home_source_fetch_v1.ts": "94dcf8af80dbe349f2daeb70ecd2ef5e9d9429fc0c24ee6e7abb05630132ad39",
     "src/ui/void_app_wave3_wallet_readonly_v1.ts": "e4d64da7c0749c11066b2115c636ca14ac6aed9f0cd2ccf62a65d967266e88e4",
     "src/ui/void_app_wave4_earn_readonly_v1.ts": "4133d33e2295e5401a256619d78ccc1124c7ddf32cc3ea5d18549614604cc360"
   },

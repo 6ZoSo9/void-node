@@ -104,6 +104,53 @@ export function parseVoidUiWave2HomeChainHeadV1(
     : null;
 }
 
+const hasExactKeys = (
+  value: Record<string, unknown>,
+  expected: readonly string[]
+): boolean => {
+  const actual = Object.keys(value).sort();
+  const wanted = [...expected].sort();
+  return (
+    actual.length === wanted.length &&
+    actual.every((key, index) => key === wanted[index])
+  );
+};
+
+const isVoidUiWave2HomeConnectedPeerV1 = (value: unknown): boolean => {
+  if (value === null || typeof value !== "object" || Array.isArray(value)) {
+    return false;
+  }
+
+  const record = value as Record<string, unknown>;
+  return (
+    hasExactKeys(record, ["id", "addr", "listens", "outbound"]) &&
+    typeof record.id === "string" &&
+    record.id.length > 0 &&
+    typeof record.addr === "string" &&
+    record.addr.length > 0 &&
+    Array.isArray(record.listens) &&
+    record.listens.every((listen) => typeof listen === "string") &&
+    typeof record.outbound === "boolean"
+  );
+};
+
+export function parseVoidUiWave2HomePeerCountV1(
+  body: unknown
+): number | null {
+  if (body === null || typeof body !== "object" || Array.isArray(body)) {
+    return null;
+  }
+
+  const record = body as Record<string, unknown>;
+  if (record.ok !== true || !Array.isArray(record.connected)) {
+    return null;
+  }
+
+  return record.connected.every(isVoidUiWave2HomeConnectedPeerV1)
+    ? record.connected.length
+    : null;
+}
+
 const bestEffortCancel = (
   body: ReadableStream<Uint8Array> | null,
   reason: string

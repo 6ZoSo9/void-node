@@ -3,6 +3,7 @@ import os from "node:os";
 import {
   fetchVoidUiWave2HomeSourceJsonV1,
   parseVoidUiWave2HomeChainHeadV1,
+  parseVoidUiWave2HomePeerCountV1,
   resolveVoidUiWave2HomeSourceBaseV1,
   type VoidUiWave2HomeSourceResultV1,
   VoidUiWave2HomeSnapshotBuildOwnerV1,
@@ -32,7 +33,7 @@ type HomeSnapshot = {
     health: "healthy" | "degraded";
     ready: boolean;
     chain_head: number | null;
-    peer_count: number;
+    peer_count: number | null;
     expected_peer_count: 2;
   };
   account: {
@@ -128,13 +129,6 @@ if (!G[INSTALL_MARK]) {
     return { hostname, label: hostname, role: "local" };
   };
 
-  const peerCount = (body: any): number => {
-    if (Array.isArray(body)) return body.length;
-    if (Array.isArray(body?.connected)) return body.connected.length;
-    if (Array.isArray(body?.peers)) return body.peers.length;
-    return 0;
-  };
-
   const buildSnapshot = async (): Promise<HomeSnapshot> => {
     const base = sourceBase();
 
@@ -145,11 +139,13 @@ if (!G[INSTALL_MARK]) {
       fetchJson(base, "/p2p/peers"),
     ]);
 
+    const parsedPeerCount = parseVoidUiWave2HomePeerCountV1(peers.body);
     const sourceAvailability =
       health.status === 200 &&
       ready.status === 200 &&
       head.status === 200 &&
-      peers.status === 200;
+      peers.status === 200 &&
+      parsedPeerCount !== null;
 
     const readyBody =
       ready.body !== null &&
@@ -183,7 +179,7 @@ if (!G[INSTALL_MARK]) {
         health: operationalReady ? "healthy" : "degraded",
         ready: operationalReady,
         chain_head: parseVoidUiWave2HomeChainHeadV1(head.body),
-        peer_count: peerCount(peers.body),
+        peer_count: parsedPeerCount,
         expected_peer_count: 2,
       },
       account: {

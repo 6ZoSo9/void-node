@@ -8,6 +8,7 @@ import {
   VoidUiWave2HomeSnapshotBuildOwnerV1,
   fetchVoidUiWave2HomeSourceJsonV1,
   parseVoidUiWave2HomeChainHeadV1,
+  parseVoidUiWave2HomePeerCountV1,
   resolveVoidUiWave2HomeSourceBaseV1,
 } from "../src/ui/void_app_wave2_home_source_fetch_v1.js";
 
@@ -56,6 +57,9 @@ async function main(): Promise<void> {
 
   assert.match(homeSource, /fetchVoidUiWave2HomeSourceJsonV1/);
   assert.match(homeSource, /parseVoidUiWave2HomeChainHeadV1/);
+  assert.match(homeSource, /parseVoidUiWave2HomePeerCountV1/);
+  assert.match(homeSource, /parsedPeerCount !== null/);
+  assert.match(homeSource, /peer_count: parsedPeerCount/);
   assert.match(homeSource, /resolveVoidUiWave2HomeSourceBaseV1/);
   assert.match(
     homeSource,
@@ -222,6 +226,122 @@ async function main(): Promise<void> {
   ];
   for (const body of invalidChainHeadCases) {
     assert.equal(parseVoidUiWave2HomeChainHeadV1(body), null);
+  }
+
+  const validPeerCountCases: Array<[unknown, number]> = [
+    [{ ok: true, connected: [] }, 0],
+    [
+      {
+        ok: true,
+        connected: [
+          {
+            id: "peer-a",
+            addr: "127.0.0.1:4700",
+            listens: ["127.0.0.1:4700"],
+            outbound: true,
+          },
+        ],
+        knownAddrs: ["127.0.0.1:4700"],
+      },
+      1,
+    ],
+    [
+      {
+        ok: true,
+        connected: [
+          {
+            id: "peer-a",
+            addr: "127.0.0.1:4700",
+            listens: [],
+            outbound: false,
+          },
+          {
+            id: "peer-b",
+            addr: "[::1]:4701",
+            listens: ["[::1]:4701"],
+            outbound: true,
+          },
+        ],
+        verifiedPeers: [],
+      },
+      2,
+    ],
+  ];
+  for (const [body, expected] of validPeerCountCases) {
+    assert.equal(parseVoidUiWave2HomePeerCountV1(body), expected);
+  }
+
+  const invalidPeerCountCases: unknown[] = [
+    null,
+    [],
+    {},
+    { ok: false, connected: [] },
+    { ok: true },
+    { ok: true, connected: null },
+    { ok: true, connected: "not-an-array" },
+    { ok: true, peers: [] },
+    { ok: true, connected: [null] },
+    { ok: true, connected: [false] },
+    { ok: true, connected: [{}] },
+    {
+      ok: true,
+      connected: [
+        {
+          id: "",
+          addr: "127.0.0.1:4700",
+          listens: [],
+          outbound: true,
+        },
+      ],
+    },
+    {
+      ok: true,
+      connected: [
+        {
+          id: "peer-a",
+          addr: "",
+          listens: [],
+          outbound: true,
+        },
+      ],
+    },
+    {
+      ok: true,
+      connected: [
+        {
+          id: "peer-a",
+          addr: "127.0.0.1:4700",
+          listens: [1],
+          outbound: true,
+        },
+      ],
+    },
+    {
+      ok: true,
+      connected: [
+        {
+          id: "peer-a",
+          addr: "127.0.0.1:4700",
+          listens: [],
+          outbound: "true",
+        },
+      ],
+    },
+    {
+      ok: true,
+      connected: [
+        {
+          id: "peer-a",
+          addr: "127.0.0.1:4700",
+          listens: [],
+          outbound: true,
+          unexpected: true,
+        },
+      ],
+    },
+  ];
+  for (const body of invalidPeerCountCases) {
+    assert.equal(parseVoidUiWave2HomePeerCountV1(body), null);
   }
 
   const fallbackSourceBase = "http://127.0.0.1:4100";
@@ -397,6 +517,8 @@ async function main(): Promise<void> {
   console.log("snapshot_owner_released_after_failure=true");
   console.log("snapshot_owner_released_after_timeout_like_settlement=true");
   console.log("chain_head_type_and_range_strict=true");
+  console.log("peer_count_shape_strict=true");
+  console.log("malformed_peer_evidence_withheld=true");
   console.log("ipv6_loopback_source_base_preserved=true");
   console.log("non_loopback_ipv6_rejected=true");
   console.log("declared_oversize_rejected=true");
