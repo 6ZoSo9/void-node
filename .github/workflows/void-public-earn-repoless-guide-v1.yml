@@ -1,0 +1,53 @@
+name: VOID Public Earn repo-less guide v1
+
+on:
+  pull_request:
+    paths:
+      - "docs/public/void-public-earn-no-node-client-v1.md"
+      - "tools/void_public_earn_no_node_client_v1.mjs"
+      - "scripts/prove_void_public_earn_repoless_guide_v1.mjs"
+      - "scripts/prove_void_public_earn_no_node_client_v1.ts"
+      - ".github/workflows/void-public-earn-repoless-guide-v1.yml"
+  push:
+    branches: [main]
+    paths:
+      - "docs/public/void-public-earn-no-node-client-v1.md"
+      - "tools/void_public_earn_no_node_client_v1.mjs"
+      - "scripts/prove_void_public_earn_repoless_guide_v1.mjs"
+      - "scripts/prove_void_public_earn_no_node_client_v1.ts"
+      - ".github/workflows/void-public-earn-repoless-guide-v1.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: void-public-earn-repoless-guide-v1-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  proof:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: ${{ matrix.node }}
+      - name: Syntax
+        run: |
+          node --check scripts/prove_void_public_earn_repoless_guide_v1.mjs
+          node --check tools/void_public_earn_no_node_client_v1.mjs
+          node --check scripts/prove_void_public_earn_no_node_client_v1.ts
+      - name: Prove repo-less guide
+        run: node scripts/prove_void_public_earn_repoless_guide_v1.mjs
+      - name: Regress canonical no-node client
+        run: node --experimental-strip-types scripts/prove_void_public_earn_no_node_client_v1.ts
+      - name: Diff hygiene
+        run: git diff --check
