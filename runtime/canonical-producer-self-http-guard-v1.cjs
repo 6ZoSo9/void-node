@@ -132,7 +132,6 @@
     const controller = new AbortController();
     const callerSignal = init?.signal || input?.signal;
     let callerAbort;
-    let timerFired = false;
 
     if (callerSignal) {
       callerAbort = () => controller.abort(callerSignal.reason);
@@ -141,18 +140,15 @@
     }
 
     const timer = setTimeout(() => {
-      timerFired = true;
       state.timedOut += 1;
       controller.abort(new Error(`${MARKER}_TIMEOUT timeout_ms=${timeoutMs}`));
     }, timeoutMs);
-    timer.unref?.();
 
     const guardedInit = { ...(init || {}), signal: controller.signal };
     return Promise.resolve(originalFetch.call(globalThis, input, guardedInit)).finally(() => {
       clearTimeout(timer);
       if (callerSignal && callerAbort) callerSignal.removeEventListener("abort", callerAbort);
       state.inflight = Math.max(0, state.inflight - 1);
-      void timerFired;
     });
   };
 })();
