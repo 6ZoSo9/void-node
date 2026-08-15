@@ -41,6 +41,7 @@ if [ -n "$VOID_HTTP_HOST" ]; then
 fi
 
 cat >> "$SERVICE" <<UNIT
+ExecStartPre=$ROOT/ops/guard-canonical-producer-liveness-v1.sh
 ExecStartPre=$ROOT/ops/kill-void-node-live-listeners-v1.sh
 ExecStart=$ROOT/ops/run-void-node-live-v1.sh
 Restart=always
