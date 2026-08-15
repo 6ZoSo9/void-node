@@ -216,15 +216,66 @@ function sensitiveRoutes(routes) {
   );
 }
 
+function nonNegativeSafeInteger(value) {
+  return typeof value === "number" && Number.isSafeInteger(value) && value >= 0
+    ? value
+    : null;
+}
+
+function binarySafeInteger(value) {
+  return value === 0 || value === 1 ? value : null;
+}
+
+function isNonEmptyString(value) {
+  return typeof value === "string" && value.length > 0;
+}
+
+function isLegacyPeerRecord(value) {
+  return Boolean(
+    value &&
+      typeof value === "object" &&
+      !Array.isArray(value) &&
+      isNonEmptyString(value.id),
+  );
+}
+
+function isCanonicalConnectedPeer(value) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  const keys = Object.keys(value).sort();
+  const expected = ["addr", "id", "listens", "outbound"];
+  if (keys.length !== expected.length || !keys.every((key, index) => key === expected[index])) {
+    return false;
+  }
+  return (
+    isNonEmptyString(value.id) &&
+    typeof value.addr === "string" &&
+    Array.isArray(value.listens) &&
+    value.listens.every((entry) => typeof entry === "string") &&
+    typeof value.outbound === "boolean"
+  );
+}
+
+function isLegacyPeerArray(value) {
+  return (
+    Array.isArray(value) &&
+    value.every((entry) => isNonEmptyString(entry) || isLegacyPeerRecord(entry))
+  );
+}
+
 function parsePeerCount(value) {
-  if (Array.isArray(value)) return value.length;
-  if (!value || typeof value !== "object") return null;
-  for (const key of ["peers", "connected", "items", "nodes"]) {
-    if (Array.isArray(value[key])) return value[key].length;
+  if (isLegacyPeerArray(value)) return value.length;
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+
+  if (Array.isArray(value.connected)) {
+    return value.connected.every(isCanonicalConnectedPeer) ? value.connected.length : null;
+  }
+  for (const key of ["peers", "items", "nodes"]) {
+    if (Object.hasOwn(value, key)) {
+      return isLegacyPeerArray(value[key]) ? value[key].length : null;
+    }
   }
   for (const key of ["peer_count", "peerCount", "count", "connected_count"]) {
-    const parsed = Number(value[key]);
-    if (Number.isInteger(parsed) && parsed >= 0) return parsed;
+    if (Object.hasOwn(value, key)) return nonNegativeSafeInteger(value[key]);
   }
   return null;
 }
@@ -259,9 +310,7 @@ async function boundedResponseBody(response, maximum) {
   }
 
   const reader = response.body?.getReader?.();
-  if (!reader) {
-    throw new Error("response_body_unavailable");
-  }
+  if (!reader) throw new Error("response_body_unavailable");
 
   const chunks = [];
   let total = 0;
@@ -269,9 +318,7 @@ async function boundedResponseBody(response, maximum) {
     while (true) {
       const { done, value } = await reader.read();
       if (done) break;
-      if (!(value instanceof Uint8Array)) {
-        throw new Error("response_body_invalid_chunk");
-      }
+      if (!(value instanceof Uint8Array)) throw new Error("response_body_invalid_chunk");
       total += value.byteLength;
       if (total > maximum) {
         cancelBodyBestEffort(reader);
@@ -343,13 +390,7 @@ async function fetchJson(base, pathname, timeoutMs) {
 }
 
 function check(id, pathValue, ok, reason, observed = {}) {
-  return {
-    id,
-    path: pathValue,
-    ok: Boolean(ok),
-    reason: ok ? null : reason,
-    observed,
-  };
+  return { id, path: pathValue, ok: Boolean(ok), reason: ok ? null : reason, observed };
 }
 
 async function main() {
@@ -370,20 +411,29 @@ async function main() {
     check("health", "/health", healthOk, health.error || "health_contract_mismatch", {
       status_code: health.statusCode,
       node_id_present: typeof healthValue?.nodeId === "string",
-      http_port: Number.isInteger(healthValue?.http) ? healthValue.http : null,
-      p2p_port: Number.isInteger(healthValue?.p2p) ? healthValue.p2p : null,
+      http_port: nonNegativeSafeInteger(healthValue?.http),
+      p2p_port: nonNegativeSafeInteger(healthValue?.p2p),
       peer_count: healthPeers,
     }),
   );
 
   const ready = await fetchJson(base, "/__void/ready.json", args.timeoutMs);
   const readyValue = ready.json;
+  const readyHead = nonNegativeSafeInteger(readyValue?.head);
+  const readyLastmileSeen = nonNegativeSafeInteger(readyValue?.lastmile_seen);
+  const readyGap = nonNegativeSafeInteger(readyValue?.gap);
+  const readyTxrootLive = binarySafeInteger(readyValue?.txroot_live);
+  const readyReasonsValid =
+    Array.isArray(readyValue?.reasons) &&
+    readyValue.reasons.every((reason) => typeof reason === "string");
   const readinessOk =
     ready.ok &&
     readyValue?.ready === true &&
-    Number(readyValue?.gap) === 0 &&
-    Number(readyValue?.txroot_live) === 1 &&
-    Array.isArray(readyValue?.reasons) &&
+    readyHead !== null &&
+    readyLastmileSeen !== null &&
+    readyGap === 0 &&
+    readyTxrootLive === 1 &&
+    readyReasonsValid &&
     readyValue.reasons.length === 0;
   checks.push(
     check(
@@ -394,27 +444,24 @@ async function main() {
       {
         status_code: ready.statusCode,
         ready: readyValue?.ready === true,
-        head: Number.isInteger(readyValue?.head) ? readyValue.head : null,
-        lastmile_seen: Number.isInteger(readyValue?.lastmile_seen)
-          ? readyValue.lastmile_seen
-          : null,
-        gap: Number.isFinite(Number(readyValue?.gap)) ? Number(readyValue.gap) : null,
-        txroot_live: Number.isFinite(Number(readyValue?.txroot_live))
-          ? Number(readyValue.txroot_live)
-          : null,
-        reason_count: Array.isArray(readyValue?.reasons) ? readyValue.reasons.length : null,
+        head: readyHead,
+        lastmile_seen: readyLastmileSeen,
+        gap: readyGap,
+        txroot_live: readyTxrootLive,
+        reason_count: readyReasonsValid ? readyValue.reasons.length : null,
       },
     ),
   );
 
   const head = await fetchJson(base, "/blocks/latest/number2.json", args.timeoutMs);
-  const headNumber = Number(head.json?.number);
+  const headNumber = nonNegativeSafeInteger(head.json?.number);
   const headOk =
     head.ok &&
-    Number.isInteger(headNumber) &&
-    headNumber >= 0 &&
-    (!Number.isInteger(readyValue?.head) || headNumber === readyValue.head) &&
-    (!Number.isInteger(readyValue?.lastmile_seen) || headNumber === readyValue.lastmile_seen);
+    headNumber !== null &&
+    readyHead !== null &&
+    readyLastmileSeen !== null &&
+    headNumber === readyHead &&
+    headNumber === readyLastmileSeen;
   checks.push(
     check(
       "chain_head",
@@ -423,7 +470,7 @@ async function main() {
       head.error || "chain_head_mismatch",
       {
         status_code: head.statusCode,
-        number: Number.isInteger(headNumber) ? headNumber : null,
+        number: headNumber,
         aligned_with_readiness: headOk && ready.ok,
       },
     ),
@@ -436,10 +483,7 @@ async function main() {
     peers = await fetchJson(base, peersPath, args.timeoutMs);
   }
   const peerCount = parsePeerCount(peers.json);
-  const peersOk =
-    peers.ok &&
-    Number.isInteger(peerCount) &&
-    peerCount >= args.expectedPeerCount;
+  const peersOk = peerCount !== null && peers.ok && peerCount >= args.expectedPeerCount;
   checks.push(
     check(
       "peer_visibility",
@@ -448,17 +492,13 @@ async function main() {
       peers.error || "peer_count_below_expected",
       {
         status_code: peers.statusCode,
-        peer_count: Number.isInteger(peerCount) ? peerCount : null,
+        peer_count: peerCount,
         expected_minimum: args.expectedPeerCount,
       },
     ),
   );
 
-  const wellKnown = await fetchJson(
-    base,
-    "/.well-known/void-public-node.json",
-    args.timeoutMs,
-  );
+  const wellKnown = await fetchJson(base, "/.well-known/void-public-node.json", args.timeoutMs);
   const wellKnownStrings = collectStrings(wellKnown.json);
   const wellKnownRoutes = collectRouteStrings(wellKnown.json);
   const wellKnownMissing = REQUIRED_WELL_KNOWN_ROUTES.filter(
@@ -481,18 +521,11 @@ async function main() {
       wellKnown.error || "well_known_discovery_contract_mismatch",
       {
         status_code: wellKnown.statusCode,
-        marker_present: containsMarker(
-          wellKnown.json,
-          "VOID_PUBLIC_NODE_AGENT_DISCOVERY_V1",
-        ),
-        public_route_pointer_count: wellKnownRoutes.filter((route) =>
-          route.startsWith("/public-node"),
-        ).length,
+        marker_present: containsMarker(wellKnown.json, "VOID_PUBLIC_NODE_AGENT_DISCOVERY_V1"),
+        public_route_pointer_count: wellKnownRoutes.filter((route) => route.startsWith("/public-node")).length,
         required_pointer_count: REQUIRED_WELL_KNOWN_ROUTES.length,
         missing_pointer_count: wellKnownMissing.length,
-        absolute_url_pointer_count: wellKnownStrings.filter((value) =>
-          /^https?:\/\//i.test(value),
-        ).length,
+        absolute_url_pointer_count: wellKnownStrings.filter((value) => /^https?:\/\//i.test(value)).length,
         public_routes_only: wellKnownPolicy?.public_routes_only === true,
         read_only: wellKnownPolicy?.read_only === true,
         mutation_false: wellKnownPolicy?.mutation === false,
@@ -522,15 +555,9 @@ async function main() {
     ),
   );
 
-  const routeManifest = await fetchJson(
-    base,
-    "/public-node/route-manifest.json",
-    args.timeoutMs,
-  );
+  const routeManifest = await fetchJson(base, "/public-node/route-manifest.json", args.timeoutMs);
   const manifestRoutes = collectRouteStrings(routeManifest.json);
-  const manifestMissing = REQUIRED_PUBLIC_ROUTES.filter(
-    (route) => !manifestRoutes.includes(route),
-  );
+  const manifestMissing = REQUIRED_PUBLIC_ROUTES.filter((route) => !manifestRoutes.includes(route));
   const manifestSensitive = sensitiveRoutes(manifestRoutes);
   const routeManifestOk =
     routeManifest.ok &&
@@ -545,10 +572,7 @@ async function main() {
       routeManifest.error || "route_manifest_contract_mismatch",
       {
         status_code: routeManifest.statusCode,
-        marker_present: containsMarker(
-          routeManifest.json,
-          "VOID_PUBLIC_NODE_ROUTE_MANIFEST_V1",
-        ),
+        marker_present: containsMarker(routeManifest.json, "VOID_PUBLIC_NODE_ROUTE_MANIFEST_V1"),
         required_route_count: REQUIRED_PUBLIC_ROUTES.length,
         missing_route_count: manifestMissing.length,
         sensitive_route_count: manifestSensitive.length,
@@ -556,15 +580,9 @@ async function main() {
     ),
   );
 
-  const snapshot = await fetchJson(
-    base,
-    "/public-node/self-check-snapshot.json",
-    args.timeoutMs,
-  );
+  const snapshot = await fetchJson(base, "/public-node/self-check-snapshot.json", args.timeoutMs);
   const snapshotRoutes = collectRouteStrings(snapshot.json);
-  const snapshotMissing = REQUIRED_PUBLIC_ROUTES.filter(
-    (route) => !snapshotRoutes.includes(route),
-  );
+  const snapshotMissing = REQUIRED_PUBLIC_ROUTES.filter((route) => !snapshotRoutes.includes(route));
   const snapshotSensitive = sensitiveRoutes(snapshotRoutes);
   const publicPostValues = findKeyValues(snapshot.json, "public_post_endpoint");
   const snapshotOk =
@@ -581,10 +599,7 @@ async function main() {
       snapshot.error || "self_check_snapshot_contract_mismatch",
       {
         status_code: snapshot.statusCode,
-        marker_present: containsMarker(
-          snapshot.json,
-          "VOID_PUBLIC_NODE_SELF_CHECK_SNAPSHOT_V1",
-        ),
+        marker_present: containsMarker(snapshot.json, "VOID_PUBLIC_NODE_SELF_CHECK_SNAPSHOT_V1"),
         required_route_count: REQUIRED_PUBLIC_ROUTES.length,
         missing_route_count: snapshotMissing.length,
         sensitive_route_count: snapshotSensitive.length,
@@ -606,9 +621,7 @@ async function main() {
       "route-index + route-manifest + self-check-snapshot",
       discoveryAlignmentOk,
       "public_discovery_surfaces_not_aligned",
-      {
-        required_routes_aligned: discoveryAlignmentOk,
-      },
+      { required_routes_aligned: discoveryAlignmentOk },
     ),
   );
 
@@ -633,16 +646,14 @@ async function main() {
     },
     runtime: {
       node_id: typeof healthValue?.nodeId === "string" ? healthValue.nodeId : null,
-      http_port: Number.isInteger(healthValue?.http) ? healthValue.http : null,
-      p2p_port: Number.isInteger(healthValue?.p2p) ? healthValue.p2p : null,
-      chain_head: Number.isInteger(headNumber) ? headNumber : null,
-      peer_count: Number.isInteger(peerCount) ? peerCount : null,
+      http_port: nonNegativeSafeInteger(healthValue?.http),
+      p2p_port: nonNegativeSafeInteger(healthValue?.p2p),
+      chain_head: headNumber,
+      peer_count: peerCount,
       expected_peer_count: args.expectedPeerCount,
       ready: readyValue?.ready === true,
-      gap: Number.isFinite(Number(readyValue?.gap)) ? Number(readyValue.gap) : null,
-      txroot_live: Number.isFinite(Number(readyValue?.txroot_live))
-        ? Number(readyValue.txroot_live)
-        : null,
+      gap: readyGap,
+      txroot_live: readyTxrootLive,
     },
     checks,
     safety: {
