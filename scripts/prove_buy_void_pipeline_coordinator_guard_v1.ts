@@ -40,6 +40,7 @@ for (const required of [
   "explicit_confirmation_required: true",
   'verify_and_claim: "buyVoidVerifyAndClaim"',
   'verify_reserve_and_claim: "buyVoidVerifyReserveAndClaim"',
+  "legacy_verify_and_claim_apply_retired",
   "canonical_inventory_reservation_before_new_paid_claim: true",
   "paid_unreservable_terminal_obligation_required: true",
   'record_broadcast_unknown: "buyVoidRecordBroadcastUnknown"',
@@ -103,6 +104,13 @@ const verificationPolicy = {
   receive_address_by_chain: { base: receive },
   current_block_number_by_chain: { base: 105 },
 };
+const inventoryPolicy = {
+  inventory_reservation_enabled: true,
+  pool_id: "proof-pipeline-guard-v1",
+  inventory_policy_version: "proof-pipeline-guard-v1",
+  pool_capacity_void_units: "1000000000",
+  max_reservation_void_units: "1000000000",
+};
 const executionPolicy = {
   attempt_journal_enabled: true,
   max_attempts_per_payment: 2,
@@ -111,7 +119,7 @@ const executionPolicy = {
 };
 const root = fs.mkdtempSync(path.join(os.tmpdir(), "void-buy-pipeline-guard-"));
 
-const claim = runBuyVoidPipelineCommandV1({
+const retiredClaim = runBuyVoidPipelineCommandV1({
   action: "verify_and_claim",
   apply: true,
   confirmation: VOID_BUY_VOID_PIPELINE_CONFIRMATIONS_V1.verify_and_claim,
@@ -120,6 +128,27 @@ const claim = runBuyVoidPipelineCommandV1({
   receipt,
   verification_policy: verificationPolicy,
   fulfillment_policy: fulfillmentPolicy,
+});
+assert.equal(retiredClaim.ok, false);
+assert.equal(retiredClaim.status, "held");
+assert.equal(retiredClaim.mutation_performed, false);
+assert.equal(
+  "reason" in retiredClaim && retiredClaim.reason,
+  "legacy_verify_and_claim_apply_retired",
+);
+assert.deepEqual(fs.readdirSync(root), []);
+
+const claim = runBuyVoidPipelineCommandV1({
+  action: "verify_reserve_and_claim",
+  apply: true,
+  confirmation:
+    VOID_BUY_VOID_PIPELINE_CONFIRMATIONS_V1.verify_reserve_and_claim,
+  root_dir: root,
+  request,
+  receipt,
+  verification_policy: verificationPolicy,
+  fulfillment_policy: fulfillmentPolicy,
+  inventory_policy: inventoryPolicy,
 });
 if ("reason" in claim) throw new Error(claim.reason);
 const intent = appliedResult(claim).claim.intent;
