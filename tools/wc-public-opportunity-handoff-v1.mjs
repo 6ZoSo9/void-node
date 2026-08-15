@@ -46,7 +46,7 @@ function validNodeId(value) {
 
 function privateHttpHost(hostname) {
   const lower = hostname.toLowerCase();
-  if (lower === "localhost" || lower === "::1" || lower.endsWith(".localhost")) return true;
+  if (lower === "localhost" || lower === "::1") return true;
   if (lower.endsWith(".ts.net")) return true;
   if (isIP(hostname) !== 4) return false;
   const [a,b] = hostname.split(".").map(Number);
