@@ -175,6 +175,25 @@ function updateState(stateDirectory, value) {
   return writeAtomicJson(path.join(stateDirectory, STATE_FILE), value);
 }
 
+function persistedStateEquals(stateDirectory, expected) {
+  try {
+    return canonicalJson(readState(stateDirectory)) === canonicalJson(expected);
+  } catch {
+    return false;
+  }
+}
+
+function persistTerminalState(stateDirectory, value, phase, localStateFault) {
+  try {
+    if (typeof localStateFault === "function") localStateFault(`${phase}:before`, value);
+    updateState(stateDirectory, value);
+    if (typeof localStateFault === "function") localStateFault(`${phase}:after`, value);
+  } catch {
+    // Exact readback below is authoritative. A write may throw after its rename committed.
+  }
+  return persistedStateEquals(stateDirectory, value);
+}
+
 function inheritedEnvironment() {
   return Object.fromEntries(
     Object.entries(process.env).filter((entry) => typeof entry[1] === "string"),
@@ -628,12 +647,17 @@ export async function executeCanary(options) {
       conflicting_duplicate: false,
       private_temp_cleanup_completed: interpretation.private_temp_cleanup_completed,
       completion_receipt_published: false,
+      completion_state_persisted: false,
       receipt_id: interpretation.receipt_id,
       client_http_status: interpretation.client_http_status,
       hold_reason: null,
     };
-    updateState(context.stateDirectory, completed);
     acceptedTerminal = { context, state: completed, receipt: null, result };
+    const completedPersisted = { ...completed, completion_state_persisted: true };
+    if (!persistTerminalState(context.stateDirectory, completedPersisted, "completed", options.localStateFault)) {
+      return acceptedTerminal;
+    }
+    acceptedTerminal = { context, state: completedPersisted, receipt: null, result };
     const receipt = {
       marker: COMPLETION_RECEIPT_MARKER,
       version: 1,
@@ -668,12 +692,16 @@ export async function executeCanary(options) {
     assertCondition(!canonicalJson(receipt).includes(tokenFile), "completion receipt disclosed token-file path");
     writeExclusiveJson(path.join(context.stateDirectory, COMPLETION_RECEIPT_FILE), receipt);
     const published = {
-      ...completed,
+      ...completedPersisted,
       updated_at_utc: new Date(options.now?.() ?? Date.now()).toISOString(),
       completion_receipt_published: true,
+      completion_state_persisted: false,
     };
-    updateState(context.stateDirectory, published);
-    return { context, state: published, receipt, result };
+    const publishedPersisted = { ...published, completion_state_persisted: true };
+    if (!persistTerminalState(context.stateDirectory, publishedPersisted, "published", options.localStateFault)) {
+      return { context, state: published, receipt, result };
+    }
+    return { context, state: publishedPersisted, receipt, result };
   } catch (error) {
     if (acceptedTerminal) return acceptedTerminal;
     const held = {
@@ -776,6 +804,7 @@ export async function runCli(argv) {
       `duplicate=${result.state.duplicate}`,
       "conflicting_duplicate=false",
       `private_temp_cleanup_completed=${result.state.private_temp_cleanup_completed}`,
+      `completion_state_persisted=${result.state.completion_state_persisted}`,
       `completion_receipt_published=${result.state.completion_receipt_published}`,
       "submission_attempt_count=1",
       "automatic_retry=false",
