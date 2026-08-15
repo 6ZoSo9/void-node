@@ -223,16 +223,37 @@ export function evaluateVoidUiWave2HomeOperationalEvidenceV1(input: {
   };
 }
 
-const bestEffortCancel = (
-  body: ReadableStream<Uint8Array> | null,
-  reason: string
-): void => {
-  if (!body) return;
+const awaitTeardownWithinSignal = async (
+  startTeardown: () => Promise<unknown>,
+  signal: AbortSignal
+): Promise<void> => {
+  let pending: Promise<unknown>;
   try {
-    const pending = body.cancel(reason);
-    void pending.catch(() => {});
+    pending = startTeardown();
   } catch {
     // Cleanup cannot replace the primary bounded-input result.
+    return;
+  }
+
+  const settled = pending.then(
+    () => undefined,
+    () => undefined
+  );
+  if (signal.aborted) {
+    void settled;
+    return;
+  }
+
+  let onAbort!: () => void;
+  const aborted = new Promise<void>((resolve) => {
+    onAbort = resolve;
+    signal.addEventListener("abort", onAbort, { once: true });
+  });
+
+  try {
+    await Promise.race([settled, aborted]);
+  } finally {
+    signal.removeEventListener("abort", onAbort);
   }
 };
 
@@ -244,14 +265,20 @@ const declaredLength = (response: Response): number | null => {
 };
 
 export async function readVoidUiWave2HomeBoundedTextV1(
-  response: Response
+  response: Response,
+  signal: AbortSignal
 ): Promise<string> {
   const declared = declaredLength(response);
   if (
     declared !== null &&
     declared > VOID_UI_WAVE2_HOME_SOURCE_MAX_RESPONSE_BYTES_V1
   ) {
-    bestEffortCancel(response.body, "void_ui_wave2_home_source_body_too_large");
+    if (response.body) {
+      await awaitTeardownWithinSignal(
+        () => response.body!.cancel("void_ui_wave2_home_source_body_too_large"),
+        signal
+      );
+    }
     throw new Error("source_body_too_large");
   }
 
@@ -274,14 +301,10 @@ export async function readVoidUiWave2HomeBoundedTextV1(
 
       totalBytes += value.byteLength;
       if (totalBytes > VOID_UI_WAVE2_HOME_SOURCE_MAX_RESPONSE_BYTES_V1) {
-        try {
-          const pending = reader.cancel(
-            "void_ui_wave2_home_source_body_too_large"
-          );
-          void pending.catch(() => {});
-        } catch {
-          // Cleanup cannot replace the primary bounded-input result.
-        }
+        await awaitTeardownWithinSignal(
+          () => reader.cancel("void_ui_wave2_home_source_body_too_large"),
+          signal
+        );
         throw new Error("source_body_too_large");
       }
 
@@ -325,7 +348,10 @@ export async function fetchVoidUiWave2HomeSourceJsonV1(
       signal: controller.signal,
     });
 
-    const text = await readVoidUiWave2HomeBoundedTextV1(response);
+    const text = await readVoidUiWave2HomeBoundedTextV1(
+      response,
+      controller.signal
+    );
     let body: unknown = null;
 
     try {
