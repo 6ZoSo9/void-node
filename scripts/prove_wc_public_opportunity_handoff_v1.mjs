@@ -10,6 +10,7 @@ import { spawn } from "node:child_process";
 const MARKER = "VOID_WC_PUBLIC_OPPORTUNITY_HANDOFF_V1_PROOF_GREEN";
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const TOOL = resolve(ROOT, "tools/wc-public-opportunity-handoff-v1.mjs");
+const MAX_HEALTH_RESPONSE_BYTES = 64 * 1024;
 
 function run(args, stdin = "") {
   return new Promise((done, fail) => {
@@ -53,9 +54,30 @@ function held(base) { const r = available(base); r.state = "hold"; r.pilot.coord
 
 const requests = [];
 const nodeId = "0123456789abcdef0123456789abcdef";
+let healthMode = "valid";
 const server = createServer((req, res) => {
-  requests.push({ method: req.method, url: req.url });
+  requests.push({ method: req.method, url: req.url, mode: healthMode });
   if (req.method === "GET" && req.url === "/health") {
+    if (healthMode === "declared_oversize") {
+      res.writeHead(200, {
+        "content-type": "application/json",
+        "content-length": String(MAX_HEALTH_RESPONSE_BYTES + 1),
+      });
+      res.flushHeaders();
+      return;
+    }
+    if (healthMode === "stream_oversize") {
+      res.writeHead(200, { "content-type": "application/json" });
+      res.end("x".repeat(MAX_HEALTH_RESPONSE_BYTES + 1));
+      return;
+    }
+    if (healthMode === "interrupted") {
+      res.writeHead(200, { "content-type": "application/json" });
+      res.flushHeaders();
+      res.write('{"ok":true,"nodeId":"');
+      setTimeout(() => req.socket.destroy(), 10);
+      return;
+    }
     res.writeHead(200, { "content-type": "application/json" });
     res.end(JSON.stringify({ ok: true, nodeId, peers: [] })); return;
   }
@@ -82,11 +104,30 @@ try {
   assert.equal(body.commands.run.argv.includes("run"), true);
   assert.match(body.commands.status.shell, /'[^']*client tool\.mjs'/u);
   assert.match(body.commands.status.shell, /'[^']*state dir'/u);
+  assert.equal(body.safety.health_response_max_bytes, MAX_HEALTH_RESPONSE_BYTES);
   assert.equal(body.safety.client_executed, false);
   assert.equal(body.safety.identity_created, false);
   assert.equal(body.safety.mutation_attempted, false);
-  assert.deepEqual(requests, [{ method: "GET", url: "/health" }]);
+  assert.deepEqual(requests, [{ method: "GET", url: "/health", mode: "valid" }]);
 
+  healthMode = "declared_oversize";
+  const declaredOversize = await run(["--directory-json", input, "--account", "outside-user-1", "--client-tool", client]);
+  assert.equal(declaredOversize.code, 2, declaredOversize.stderr || declaredOversize.stdout);
+  assert.equal(JSON.parse(declaredOversize.stdout).reason, "coordinator health response exceeds byte limit");
+
+  healthMode = "stream_oversize";
+  const streamedOversize = await run(["--directory-json", input, "--account", "outside-user-1", "--client-tool", client]);
+  assert.equal(streamedOversize.code, 2, streamedOversize.stderr || streamedOversize.stdout);
+  assert.equal(JSON.parse(streamedOversize.stdout).reason, "coordinator health response exceeds byte limit");
+
+  healthMode = "interrupted";
+  const interrupted = await run(["--directory-json", input, "--account", "outside-user-1", "--client-tool", client, "--health-timeout-ms", "1000"]);
+  assert.equal(interrupted.code, 2, interrupted.stderr || interrupted.stdout);
+  const interruptedBody = JSON.parse(interrupted.stdout);
+  assert.equal(interruptedBody.handoff_state, "hold");
+  assert.equal(interruptedBody.safety.mutation_attempted, false);
+
+  healthMode = "valid";
   writeFileSync(input, JSON.stringify(directory([available(base), available("https://second.example")])), "utf8");
   const multiple = await run(["--directory-json", input, "--account", "outside-user-1", "--client-tool", client]);
   assert.equal(multiple.code, 2);
