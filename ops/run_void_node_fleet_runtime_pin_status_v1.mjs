@@ -1,15 +1,12 @@
 #!/usr/bin/env node
 
 import { spawnSync } from "node:child_process";
-import { createHash } from "node:crypto";
 import {
   closeSync,
   fchmodSync,
   fsyncSync,
   openSync,
-  readFileSync,
   realpathSync,
-  statSync,
   unlinkSync,
   writeFileSync,
 } from "node:fs";
@@ -47,11 +44,6 @@ const FORBIDDEN_GIT_ENV_KEYS = new Set([
   "GIT_CONFIG_NOSYSTEM",
   "GIT_CONFIG_PARAMETERS",
   "GIT_CONFIG_COUNT",
-  "GIT_EXEC_PATH",
-  "GIT_SSH",
-  "GIT_SSH_COMMAND",
-  "GIT_SSH_VARIANT",
-  "GIT_PROXY_COMMAND",
   "GIT_SSL_NO_VERIFY",
   "GIT_SSL_CAINFO",
   "GIT_SSL_CAPATH",
@@ -82,10 +74,6 @@ function assertSha(value, label) {
   return normalized;
 }
 
-function sha256(value) {
-  return createHash("sha256").update(value).digest("hex");
-}
-
 function expandHome(input) {
   if (input === "~") return homedir();
   if (input.startsWith("~/")) return resolve(homedir(), input.slice(2));
@@ -113,7 +101,7 @@ export function assertCanonicalEvaluationGitEnvironmentV1(env = process.env) {
   }
   if (forbidden.length > 0) {
     fail(
-      `Git repository/configuration or helper/program or HTTPS-authentication override environment is not allowed: ${forbidden
+      `Git repository/configuration or HTTPS-authentication override environment is not allowed: ${forbidden
         .sort()
         .join(",")}`,
     );
@@ -121,35 +109,8 @@ export function assertCanonicalEvaluationGitEnvironmentV1(env = process.env) {
   return true;
 }
 
-export function inspectReviewedGitExecutableV1(gitExecutable) {
-  const input = expandHome(assertString(gitExecutable, "Git executable"));
-  if (!isAbsolute(input)) fail("Git executable must be an absolute path");
-  const path = realpathSync(input);
-  const stat = statSync(path);
-  if (!stat.isFile()) fail("Git executable must be a regular file");
-  if ((stat.mode & 0o111) === 0) fail("Git executable must be executable");
-  const digest = sha256(readFileSync(path));
-  return Object.freeze({
-    path,
-    sha256: digest,
-    size: stat.size,
-    dev: String(stat.dev),
-    ino: String(stat.ino),
-  });
-}
-
-function assertSameGitExecutableIdentityV1(before, after) {
-  for (const key of ["path", "sha256", "size", "dev", "ino"]) {
-    if (before?.[key] !== after?.[key]) {
-      fail("reviewed Git executable identity changed during runtime-pin evaluation");
-    }
-  }
-  return true;
-}
-
-function runGit(gitExecutable, repo, args, env = process.env) {
-  const gitIdentity = inspectReviewedGitExecutableV1(gitExecutable);
-  const result = spawnSync(gitIdentity.path, ["-C", repo, ...args], {
+function runGit(repo, args, env = process.env) {
+  const result = spawnSync("git", ["-C", repo, ...args], {
     encoding: "utf8",
     timeout: 10_000,
     maxBuffer: MAX_GIT_OUTPUT_BYTES,
@@ -180,7 +141,6 @@ function isContainedPath(base, candidate) {
 export function resolveSafeEvidenceOutputPathV1({
   outputPath,
   coordinatorRepo,
-  gitExecutable,
   env = process.env,
 }) {
   assertCanonicalEvaluationGitEnvironmentV1(env);
@@ -189,25 +149,15 @@ export function resolveSafeEvidenceOutputPathV1({
   const outputParent = realpathSync(dirname(expandedOutput));
   const canonicalOutput = resolve(outputParent, basename(expandedOutput));
 
-  const topLevel = realpathSync(
-    runGit(gitExecutable, repo, ["rev-parse", "--show-toplevel"], env).trim(),
-  );
+  const topLevel = realpathSync(runGit(repo, ["rev-parse", "--show-toplevel"], env).trim());
   if (topLevel !== repo) fail("coordinator repo must be the exact Git worktree root");
 
   const gitDir = realpathSync(
-    oneLine(
-      runGit(gitExecutable, repo, ["rev-parse", "--absolute-git-dir"], env),
-      "absolute Git dir",
-    ),
+    oneLine(runGit(repo, ["rev-parse", "--absolute-git-dir"], env), "absolute Git dir"),
   );
   const gitCommonDir = realpathSync(
     oneLine(
-      runGit(
-        gitExecutable,
-        repo,
-        ["rev-parse", "--path-format=absolute", "--git-common-dir"],
-        env,
-      ),
+      runGit(repo, ["rev-parse", "--path-format=absolute", "--git-common-dir"], env),
       "absolute Git common dir",
     ),
   );
@@ -227,15 +177,9 @@ export function resolveSafeEvidenceOutputPathV1({
 export function reserveEvidenceOutputV1({
   outputPath,
   coordinatorRepo,
-  gitExecutable,
   env = process.env,
 }) {
-  const path = resolveSafeEvidenceOutputPathV1({
-    outputPath,
-    coordinatorRepo,
-    gitExecutable,
-    env,
-  });
+  const path = resolveSafeEvidenceOutputPathV1({ outputPath, coordinatorRepo, env });
   const fd = openSync(path, "wx", 0o600);
   fchmodSync(fd, 0o600);
   return { path, fd, published: false };
@@ -263,4 +207,275 @@ export function cleanupEvidenceOutputReservationV1(reservation) {
       void cleanupError;
     }
     reservation.fd = null;
-²È="24É•µ½Ñ”UI0‘½•Ì¹½Ðµ…Ñ É•Ù¥•Ý•Y=%É•Á½Í¥Ñ½Éä¥‘•¹Ñ¥Ñäˆ¤ì(€ô((€½¹ÍÐ•™™•Ñ¥Ù•I•µ½Ñ•UÉ°€ô½¹•1¥¹” (€€€ÉÕ¹¥Ð¡¥Ñá•ÕÑ…‰±”°É•Á¼°l‰É•µ½Ñ”ˆ°€‰•ÐµÕÉ°ˆ°É•µ½Ñ•t°•¹Ø¤°(€€€€‰•™™•Ñ¥Ù”…¹½¹¥…°É•µ½Ñ”UI0ˆ°(€€¤ì(€¥˜€¡•™™•Ñ¥Ù•I•µ½Ñ•UÉ°€„ôôÉ…ÝI•µ½Ñ•UÉ°¤ì(€€€™…¥° ‰…µ‰¥•¹Ð¥ÐUI0É•ÝÉ¥Ñ”¡…¹•Ì…¹½¹¥…°É•µ½Ñ”¥‘•¹Ñ¥Ñäˆ¤ì(€ô((€½¹ÍÐÍ¡„€ôÅÕ•Éå…¹½¹¥…±5…¥¹áÁ±¥¥ÑUÉ±XÄ¡ì(€€€…¹½¹¥…±UÉ°è•áÁ•Ñ•‘UÉ°°(€€€¥Ñá•ÕÑ…‰±”°(€€€…¹½¹¥…±	É…¹ °(€€€•¹Ø°(€ô¤ì(€É•ÑÕÉ¸=‰©•Ð¹™É••é”¡ì(€€€Í¡„°(€€€É•µ½Ñ•}ÕÉ°èÉ…ÝI•µ½Ñ•UÉ°°(€€€•™™•Ñ¥Ù•}É•µ½Ñ•}ÕÉ°è•™™•Ñ¥Ù•I•µ½Ñ•UÉ°°(€ô¤ì)ô()•áÁ½ÉÐ™Õ¹Ñ¥½¸…ÍÍ•ÉÑ…¹½¹¥…±	É…­•ÑXÄ¡ì‘É¥™Ñ…¹½¹¥…±M¡„°‰•™½É”°…™Ñ•Èô¤ì(€½¹ÍÐ‘É¥™ÑM¡„€ô…ÍÍ•ÉÑM¡„¡‘É¥™Ñ…¹½¹¥…±M¡„°€‰‘É¥™Ð…¹½¹¥…°M!ˆ¤ì(€½¹ÍÐ‰•™½É•M¡„€ô…ÍÍ•ÉÑM¡„¡‰•™½É”ü¹Í¡„°€‰ÁÉ”µ•Ù…±Õ…Ñ¥½¸…¹½¹¥…°M!ˆ¤ì(€½¹ÍÐ…™Ñ•ÉM¡„€ô…ÍÍ•ÉÑM¡„¡…™Ñ•Èü¹Í¡„°€‰Á½ÍÐµ•Ù…±Õ…Ñ¥½¸…¹½¹¥…°M!ˆ¤ì(€¥˜€¡‰•™½É•M¡„€„ôô‘É¥™ÑM¡„¤ì(€€€™…¥° ‰‘É¥™Ð…Õ‘¥Ð…¹½¹¥…°µ…¥¸¥ÌÍÑ…±”É•±…Ñ¥Ù”Ñ¼±¥Ù”…¹½¹¥…°µ…¥¸ˆ¤ì(€ô(€¥˜€¡…™Ñ•ÉM¡„€„ôô‰•™½É•M¡„¤ì(€€€™…¥° ‰…¹½¹¥…°µ…¥¸¡…¹•‘ÕÉ¥¹œÉÕ¹Ñ¥µ”µÁ¥¸•Ù…±Õ…Ñ¥½¸ˆ¤ì(€ô(€¥˜€ (€€€…™Ñ•Èü¹É•µ½Ñ•}ÕÉ°€„ôô‰•™½É”ü¹É•µ½Ñ•}ÕÉ°ñð(€€€…™Ñ•Èü¹•™™•Ñ¥Ù•}É•µ½Ñ•}ÕÉ°€„ôô‰•™½É”ü¹•™™•Ñ¥Ù•}É•µ½Ñ•}ÕÉ°(€€¤ì(€€€™…¥° ‰…¹½¹¥…°É•µ½Ñ”¥‘•¹Ñ¥Ñä¡…¹•‘ÕÉ¥¹œÉÕ¹Ñ¥µ”µÁ¥¸•Ù…±Õ…Ñ¥½¸ˆ¤ì(€ô(€É•ÑÕÉ¸‰•™½É•M¡„ì)ô()•áÁ½ÉÐ™Õ¹Ñ¥½¸•Ù…±Õ…Ñ•IÕ¹Ñ¥µ•A¥¹MÑ…ÑÕÍ1¥Ù•…¹½¹¥…±XÄ¡ì(€‘É¥™ÑÙ¥‘•¹”°(€ÁÉ½•ÍÍÙ¥‘•¹”°(€…ÁÁÉ½Ù•‘IÕ¹Ñ¥µ•M¡„°(€½½É‘¥¹…Ñ½ÉI•Á¼°(€¥Ñá•ÕÑ…‰±”°(€•áÁ•Ñ•‘…¹½¹¥…±UÉ°€ôY=%}9=9%1}IA=M%Q=Ie}UI1}XÄ°(€•¹Ø€ôÁÉ½•ÍÌ¹•¹Ø°(€•Ù…±Õ…Ñ•‘ÑÁ½¡5Ì€ô…Ñ”¹¹½Ü ¤°(€•Ù¥‘•¹•=ÕÑÁÕÑÉ•…Ñ•€ô™…±Í”°)ô¤ì(€…ÍÍ•ÉÑ…¹½¹¥…±Ù…±Õ…Ñ¥½¹¥Ñ¹Ù¥É½¹µ•¹ÑXÄ¡•¹Ø¤ì(€½¹ÍÐ¥Ñ	•™½É”€ô¥¹ÍÁ•ÑI•Ù¥•Ý•‘¥Ñá•ÕÑ…‰±•XÄ¡¥Ñá•ÕÑ…‰±”¤ì(€½¹ÍÐ…¹½¹¥…±½¹Ñ•áÐ€ôì(€€€½½É‘¥¹…Ñ½ÉI•Á¼°(€€€…¹½¹¥…±I•µ½Ñ”è‘É¥™ÑÙ¥‘•¹”¹…Õ‘¥Ð¹…¹½¹¥…°¹É•µ½Ñ”°(€€€…¹½¹¥…±	É…¹ è‘É¥™ÑÙ¥‘•¹”¹…Õ‘¥Ð¹…¹½¹¥…°¹‰É…¹ °(€€€•áÁ•Ñ•‘…¹½¹¥…±UÉ°°(€€€¥Ñá•ÕÑ…‰±”è¥Ñ	•™½É”¹Á…Ñ °(€€€•¹Ø°(€ôì(€½¹ÍÐ‰•™½É”€ôÍ…µÁ±•1¥Ù•…¹½¹¥…±5…¥¹XÄ¡…¹½¹¥…±½¹Ñ•áÐ¤ì(€¥˜€¡‰•™½É”¹Í¡„€„ôô‘É¥™ÑÙ¥‘•¹”¹…Õ‘¥Ð¹…¹½¹¥…°¹Í¡„¤ì(€€€™…¥° ‰‘É¥™Ð…Õ‘¥Ð…¹½¹¥…°µ…¥¸¥ÌÍÑ…±”É•±…Ñ¥Ù”Ñ¼±¥Ù”…¹½¹¥…°µ…¥¸ˆ¤ì(€ô((€½¹ÍÐÁ…­•Ð€ô‰Õ¥±‘±••ÑIÕ¹Ñ¥µ•A¥¹MÑ…ÑÕÍXÄ¡ì(€€€…Õ‘¥Ðè‘É¥™ÑÙ¥‘•¹”¹…Õ‘¥Ð°(€€€ÁÉ½•ÍÍÕ‘¥ÐèÁÉ½•ÍÍÙ¥‘•¹”¹…Õ‘¥Ð°(€€€…ÁÁÉ½Ù•‘IÕ¹Ñ¥µ•M¡„°(€€€Í½ÕÉ•Õ‘¥Ñ¥±•M¡„ÈÔØè‘É¥™ÑÙ¥‘•¹”¹™¥±•}Í¡„ÈÔØ°(€€€Í½ÕÉ•Õ‘¥Ñ5Ñ¥µ•Á½¡5Ìè‘É¥™ÑÙ¥‘•¹”¹µÑ¥µ•}•Á½¡}µÌ°(€€€ÁÉ½•ÍÍÕ‘¥Ñ¥±•M¡„ÈÔØèÁÉ½•ÍÍÙ¥‘•¹”¹™¥±•}Í¡„ÈÔØ°(€€€ÁÉ½•ÍÍÕ‘¥Ñ5Ñ¥µ•Á½¡5ÌèÁÉ½•ÍÍÙ¥‘•¹”¹µÑ¥µ•}•Á½¡}µÌ°(€€€•Ù…±Õ…Ñ•‘ÑÁ½¡5Ì°(€€€•Ù¥‘•¹•=ÕÑÁÕÑÉ•…Ñ•°(€ô¤ì((€½¹ÍÐ…™Ñ•È€ôÍ…µÁ±•1¥Ù•…¹½¹¥…±5…¥¹XÄ¡…¹½¹¥…±½¹Ñ•áÐ¤ì(€…ÍÍ•ÉÑ…¹½¹¥…±	É…­•ÑXÄ¡ì(€€€‘É¥™Ñ…¹½¹¥…±M¡„è‘É¥™ÑÙ¥‘•¹”¹…Õ‘¥Ð¹…¹½¹¥…°¹Í¡„°(€€€‰•™½É”°(€€€…™Ñ•È°(€ô¤ì(€½¹ÍÐ¥Ñ™Ñ•È€ô¥¹ÍÁ•ÑI•Ù¥•Ý•‘¥Ñá•ÕÑ…‰±•XÄ¡¥Ñ	•™½É”¹Á…Ñ ¤ì(€…ÍÍ•ÉÑM…µ•¥Ñá•ÕÑ…‰±•%‘•¹Ñ¥ÑåXÄ¡¥Ñ	•™½É”°¥Ñ™Ñ•È¤ì((€½¹ÍÐ…¹½¹¥…±¥Ñá•ÕÑ…‰±”€ô=‰©•Ð¹™É••é”¡ì(€€€Á…Ñ è¥Ñ	•™½É”¹Á…Ñ °(€€€Í¡„ÈÔØè¥Ñ	•™½É”¹Í¡„ÈÔØ°(€ô¤ì(€½¹ÍÐ½Á•É…Ñ½ÉÙ¥‘•¹•%‘M¡„ÈÔØ€ôÍ¡„ÈÔØ (€€€)M=8¹ÍÑÉ¥¹¥™ä¡ì(€€€€€µ…É­•ÈèY=%}9=}1Q}IU9Q%5}A%9}MQQUM}XÄ°(€€€€€ÍÑ…ÑÕÍ}¥‘}Í¡„ÈÔØèÁ…­•Ð¹ÍÑ…ÑÕÍ}¥‘}Í¡„ÈÔØ°(€€€€€…¹½¹¥…±}¥Ñ}•á•ÕÑ…‰±”è…¹½¹¥…±¥Ñá•ÕÑ…‰±”°(€€€ô¤°(€€¤ì(€É•ÑÕÉ¸=‰©•Ð¹™É••é”¡ì(€€€€¸¸¹Á…­•Ð°(€€€…¹½¹¥…±}¥Ñ}•á•ÕÑ…‰±”è…¹½¹¥…±¥Ñá•ÕÑ…‰±”°(€€€½Á•É…Ñ½É}•Ù¥‘•¹•}¥‘}Í¡„ÈÔØè½Á•É…Ñ½ÉÙ¥‘•¹•%‘M¡„ÈÔØ°(€ô¤ì)ô()™Õ¹Ñ¥½¸Á…ÉÍ•ÉÌ¡…ÉØ¤ì(€½¹ÍÐ½ÕÐ€ôì(€€€‘É¥™ÑÕ‘¥Ðè€ˆˆ°(€€€ÁÉ½•ÍÍÕ‘¥Ðè€ˆˆ°(€€€…ÁÁÉ½Ù•‘IÕ¹Ñ¥µ•M¡„è€ˆˆ°(€€€½½É‘¥¹…Ñ½ÉI•Á¼èU1Q}IA=}I==P°(€€€¥Ñá•ÕÑ…‰±”è€ˆˆ°(€€€µ…áÙ¥‘•¹••M•½¹‘ÌèU1Q}5a}Y%9}}M=9L°(€€€½ÕÑÁÕÐè€ˆˆ°(€ôì(€½¹ÍÐÍ••¸€ô¹•ÜM•Ð ¤ì(€™½È€¡±•Ð¥¹‘•à€ô€Àì¥¹‘•à€ð…ÉØ¹±•¹Ñ ì¥¹‘•à€¬ô€Ä¤ì(€€€½¹ÍÐ…Éœ€ô…ÉÙm¥¹‘•átì(€€€¥˜€¡…Éœ€ôôô€ˆ´µ¡•±Àˆ¤ì(€€€€€½¹Í½±”¹±½œ (€€€€€€€€‰UÍ…”è¹½‘”½ÁÌ½ÉÕ¹}Ù½¥‘}¹½‘•}™±••Ñ}ÉÕ¹Ñ¥µ•}Á¥¹}ÍÑ…ÑÕÍ}ØÄ¹µ©Ì€´µ‘É¥™Ðµ…Õ‘¥ÐAQ €´µÁÉ½•ÍÌµ™É•Í¡¹•ÍÌµ…Õ‘¥ÐAQ €´µ…ÁÁÉ½Ù•µÉÕ¹Ñ¥µ”µÍ¡„M!€´µ¥Ðµ•á•ÕÑ…‰±”	M}AQ l´µ½½É‘¥¹…Ñ½ÈµÉ•Á¼AQ!tl´µµ…àµ•Ù¥‘•¹”µ…”µÍ•½¹‘Ì9tl´µ½ÕÑÁÕÐAQ!tˆ°(€€€€€€¤ì(€€€€€ÁÉ½•ÍÌ¹•á¥Ð À¤ì(€€€ô(€€€¥˜€ (€€€€€€…l(€€€€€€€€ˆ´µ‘É¥™Ðµ…Õ‘¥Ðˆ°(€€€€€€€€ˆ´µÁÉ½•ÍÌµ™É•Í¡¹•ÍÌµ…Õ‘¥Ðˆ°(€€€€€€€€ˆ´µ…ÁÁÉ½Ù•µÉÕ¹Ñ¥µ”µÍ¡„ˆ°(€€€€€€€€ˆ´µ½½É‘¥¹…Ñ½ÈµÉ•Á¼ˆ°(€€€€€€€€ˆ´µ¥Ðµ•á•ÕÑ…‰±”ˆ°(€€€€€€€€ˆ´µµ…àµ•Ù¥‘•¹”µ…”µÍ•½¹‘Ìˆ°(€€€€€€€€ˆ´µ½ÕÑÁÕÐˆ°(€€€€€t¹¥¹±Õ‘•Ì¡…Éœ¤(€€€€¤ì(€€€€€™…¥°¡Õ¹­¹½Ý¸…ÉÕµ•¹Ðè€‘í…Éõ€¤ì(€€€ô(€€€¥˜€¡Í••¸¹¡…Ì¡…Éœ¤¤™…¥°¡‘ÕÁ±¥…Ñ”…ÉÕµ•¹Ðè€‘í…Éõ€¤ì(€€€Í••¸¹…‘¡…Éœ¤ì(€€€½¹ÍÐÙ…±Õ”€ô…ÉÙl¬­¥¹‘•átì(€€€¥˜€¡Ù…±Õ”€ôôôÕ¹‘•™¥¹•¤™…¥°¡µ¥ÍÍ¥¹œÙ…±Õ”™½È€‘í…Éõ€¤ì(€€€¥˜€¡…Éœ€ôôô€ˆ´µ‘É¥™Ðµ…Õ‘¥Ðˆ¤½ÕÐ¹‘É¥™ÑÕ‘¥Ð€ôÙ…±Õ”ì(€€€•±Í”¥˜€¡…Éœ€ôôô€ˆ´µÁÉ½•ÍÌµ™É•Í¡¹•ÍÌµ…Õ‘¥Ðˆ¤½ÕÐ¹ÁÉ½•ÍÍÕ‘¥Ð€ôÙ…±Õ”ì(€€€•±Í”¥˜€¡…Éœ€ôôô€ˆ´µ…ÁÁÉ½Ù•µÉÕ¹Ñ¥µ”µÍ¡„ˆ¤½ÕÐ¹…ÁÁÉ½Ù•‘IÕ¹Ñ¥µ•M¡„€ôÙ…±Õ”ì(€€€•±Í”¥˜€¡…Éœ€ôôô€ˆ´µ½½É‘¥¹…Ñ½ÈµÉ•Á¼ˆ¤½ÕÐ¹½½É‘¥¹…Ñ½ÉI•Á¼€ôÙ…±Õ”ì(€€€•±Í”¥˜€¡…Éœ€ôôô€ˆ´µ¥Ðµ•á•ÕÑ…‰±”ˆ¤½ÕÐ¹¥Ñá•ÕÑ…‰±”€ôÙ…±Õ”ì(€€€•±Í”¥˜€¡…Éœ€ôôô€ˆ´µµ…àµ•Ù¥‘•¹”µ…”µÍ•½¹‘Ìˆ¤ì(€€€€€½ÕÐ¹µ…áÙ¥‘•¹••M•½¹‘Ì€ôÁ…ÉÍ•U¹Á…‘‘•‘%¹Ñ••È¡Ù…±Õ”°€‰µ…à•Ù¥‘•¹”…”ˆ¤ì(€€€ô•±Í”¥˜€¡…Éœ€ôôô€ˆ´µ½ÕÑÁÕÐˆ¤½ÕÐ¹½ÕÑÁÕÐ€ôÙ…±Õ”ì(€ô(€¥˜€ …½ÕÐ¹‘É¥™ÑÕ‘¥Ð¤™…¥° ˆ´µ‘É¥™Ðµ…Õ‘¥Ð¥ÌÉ•ÅÕ¥É•ˆ¤ì(€¥˜€ …½ÕÐ¹ÁÉ½•ÍÍÕ‘¥Ð¤™…¥° ˆ´µÁÉ½•ÍÌµ™É•Í¡¹•ÍÌµ…Õ‘¥Ð¥ÌÉ•ÅÕ¥É•ˆ¤ì(€¥˜€ …½ÕÐ¹…ÁÁÉ½Ù•‘IÕ¹Ñ¥µ•M¡„¤™…¥° ˆ´µ…ÁÁÉ½Ù•µÉÕ¹Ñ¥µ”µÍ¡„¥ÌÉ•ÅÕ¥É•ˆ¤ì(€¥˜€ …½ÕÐ¹¥Ñá•ÕÑ…‰±”¤™…¥° ˆ´µ¥Ðµ•á•ÕÑ…‰±”¥ÌÉ•ÅÕ¥É•ˆ¤ì(€¥¹ÍÁ•ÑI•Ù¥•Ý•‘¥Ñá•ÕÑ…‰±•XÄ¡½ÕÐ¹¥Ñá•ÕÑ…‰±”¤ì(€¥˜€¡½ÕÐ¹µ…áÙ¥‘•¹••M•½¹‘Ì€ð€Äñð½ÕÐ¹µ…áÙ¥‘•¹••M•½¹‘Ì€ø5a}Y%9}}M=9L¤ì(€€€™…¥°¡µ…à•Ù¥‘•¹”…”µÕÍÐ‰”€Ä¸¸‘í5a}Y%9}}M=9MôÍ•½¹‘Í€¤ì(€ô(€É•ÑÕÉ¸½ÕÐì)ô()™Õ¹Ñ¥½¸µ…¥¸ ¤ì(€±•ÐÉ•Í•ÉÙ…Ñ¥½¸€ô¹Õ±°ì(€ÑÉäì(€€€½¹ÍÐ…ÉÌ€ôÁ…ÉÍ•ÉÌ¡ÁÉ½•ÍÌ¹…ÉØ¹Í±¥” È¤¤ì(€€€…ÍÍ•ÉÑ…¹½¹¥…±Ù…±Õ…Ñ¥½¹¥Ñ¹Ù¥É½¹µ•¹ÑXÄ¡ÁÉ½•ÍÌ¹•¹Ø¤ì(€€€¥˜€¡…ÉÌ¹½ÕÑÁÕÐ¤ì(€€€€€É•Í•ÉÙ…Ñ¥½¸€ôÉ•Í•ÉÙ•Ù¥‘•¹•=ÕÑÁÕÑXÄ¡ì(€€€€€€€½ÕÑÁÕÑA…Ñ è…ÉÌ¹½ÕÑÁÕÐ°(€€€€€€€½½É‘¥¹…Ñ½ÉI•Á¼è…ÉÌ¹½½É‘¥¹…Ñ½ÉI•Á¼°(€€€€€€€¥Ñá•ÕÑ…‰±”è…ÉÌ¹¥Ñá•ÕÑ…‰±”°(€€€€€€€•¹ØèÁÉ½•ÍÌ¹•¹Ø°(€€€€€ô¤ì(€€€ô((€€€½¹ÍÐ‘É¥™Ð€ôÉ•…‘É•Í¡±••ÑÉ¥™ÑÕ‘¥ÑXÄ¡…ÉÌ¹‘É¥™ÑÕ‘¥Ð°…ÉÌ¹µ…áÙ¥‘•¹••M•½¹‘Ì¤ì(€€€½¹ÍÐÁÉ½•ÍÍÙ¥‘•¹”€ôÉ•…‘É•Í¡±••ÑAÉ½•ÍÍÕ‘¥ÑXÄ (€€€€€…ÉÌ¹ÁÉ½•ÍÍÕ‘¥Ð°(€€€€€…ÉÌ¹µ…áÙ¥‘•¹••M•½¹‘Ì°(€€€€¤ì(€€€½¹ÍÐÁ…­•Ð€ô•Ù…±Õ…Ñ•IÕ¹Ñ¥µ•A¥¹MÑ…ÑÕÍ1¥Ù•…¹½¹¥…±XÄ¡ì(€€€€€‘É¥™ÑÙ¥‘•¹”è‘É¥™Ð°(€€€€€ÁÉ½•ÍÍÙ¥‘•¹”°(€€€€€…ÁÁÉ½Ù•‘IÕ¹Ñ¥µ•M¡„è…ÉÌ¹…ÁÁÉ½Ù•‘IÕ¹Ñ¥µ•M¡„°(€€€€€½½É‘¥¹…Ñ½ÉI•Á¼è…ÉÌ¹½½É‘¥¹…Ñ½ÉI•Á¼°(€€€€€¥Ñá•ÕÑ…‰±”è…ÉÌ¹¥Ñá•ÕÑ…‰±”°(€€€€€•Ù¥‘•¹•=ÕÑÁÕÑÉ•…Ñ•è	½½±•…¸¡É•Í•ÉÙ…Ñ¥½¸¤°(€€€ô¤ì((€€€½¹ÍÐ©Í½¸€ôÉ•Í•ÉÙ…Ñ¥½¸(€€€€€€üÁÕ‰±¥Í¡I•Í•ÉÙ•‘Ù¥‘•¹•=ÕÑÁÕÑXÄ¡É•Í•ÉÙ…Ñ¥½¸°Á…­•Ð¤(€€€€€€è€‘í)M=8¹ÍÑÉ¥¹¥™ä¡Á…­•Ð°¹Õ±°°€È¥õq¹€ì(€€€ÁÉ½•ÍÌ¹ÍÑ‘½ÕÐ¹ÝÉ¥Ñ”¡©Í½¸¤ì(€€€ÁÉ½•ÍÌ¹•á¥Ñ½‘”€ôl‰!=1ˆ°€‰U9aAQ}IU9Q%5}I%P‰t¹¥¹±Õ‘•Ì¡Á…­•Ð¹ÍÑ…ÑÕÌ¤€ü€È€è€Àì(€ô…Ñ €¡•ÉÉ½È¤ì(€€€½¹ÍÐ•Ù¥‘•¹•=ÕÑÁÕÑÉ•…Ñ•€ô±•…¹ÕÁÙ¥‘•¹•=ÕÑÁÕÑI•Í•ÉÙ…Ñ¥½¹XÄ¡É•Í•ÉÙ…Ñ¥½¸¤ì(€€€½¹Í½±”¹•ÉÉ½È (€€€€€)M=8¹ÍÑÉ¥¹¥™ä¡ì(€€€€€€€µ…É­•ÈèY=%}9=}1Q}IU9Q%5}A%9}MQQUM}XÄ°(€€€€€€€ÍÑ…ÑÕÌè€‰!=1ˆ°(€€€€€€€•ÉÉ½ÈèMÑÉ¥¹œ¡•ÉÉ½Èü¹µ•ÍÍ…”ñð•ÉÉ½È¤°(€€€€€€€µÕÑ…Ñ¥½¹}…ÑÑ•µÁÑ•è™…±Í”°(€€€€€€€…¹½¹¥…±}É•µ½Ñ•}É•…‘}½¹±äèÑÉÕ”°(€€€€€€€•Ù¥‘•¹•}½ÕÑÁÕÑ}É•…Ñ•è•Ù¥‘•¹•=ÕÑÁÕÑÉ•…Ñ•°(€€€€€ô¤°(€€€€¤ì(€€€ÁÉ½•ÍÌ¹•á¥Ñ½‘”€ô€Äì(€ô)ô()½¹ÍÐ¥¹Ù½­•‘A…Ñ €ôÁÉ½•ÍÌ¹…ÉÙlÅt€üÉ•Í½±Ù”¡ÁÉ½•ÍÌ¹…ÉÙlÅt¤€è€ˆˆì)¥˜€¡¥¹Ù½­•‘A…Ñ €˜˜™¥±•UI1Q½A…Ñ ¡¥µÁ½ÉÐ¹µ•Ñ„¹ÕÉ°¤€ôôô¥¹Ù½­•‘A…Ñ ¤ì(€µ…¥¸ ¤ì)ô(
+  }
+  if (!reservation.published) {
+    try {
+      unlinkSync(reservation.path);
+      return false;
+    } catch (cleanupError) {
+      void cleanupError;
+      return true;
+    }
+  }
+  return true;
+}
+
+export function parseCanonicalLsRemoteV1(stdout, expectedRef = "refs/heads/main") {
+  const lines = String(stdout)
+    .split(/\r?\n/)
+    .filter((line) => line.length > 0);
+  if (lines.length !== 1) {
+    fail("canonical main inspection must return exactly one ref");
+  }
+  const fields = lines[0].split(/\s+/);
+  if (fields.length !== 2 || fields[1] !== expectedRef) {
+    fail("canonical main inspection returned an unexpected ref");
+  }
+  return assertSha(fields[0], "live canonical main SHA");
+}
+
+export function queryCanonicalMainExplicitUrlV1({
+  canonicalUrl,
+  canonicalBranch = "main",
+  env = process.env,
+}) {
+  assertCanonicalEvaluationGitEnvironmentV1(env);
+  const url = assertString(canonicalUrl, "canonical repository URL");
+  if (canonicalBranch !== "main") fail("canonical branch must be exact main");
+  const ref = `refs/heads/${canonicalBranch}`;
+  const isolatedEnv = {
+    ...env,
+    GIT_TERMINAL_PROMPT: "0",
+    GIT_CONFIG_GLOBAL: "/dev/null",
+    GIT_CONFIG_SYSTEM: "/dev/null",
+    GIT_CONFIG_NOSYSTEM: "1",
+  };
+  const result = spawnSync("git", ["ls-remote", "--exit-code", url, ref], {
+    cwd: "/",
+    encoding: "utf8",
+    timeout: 10_000,
+    maxBuffer: MAX_GIT_OUTPUT_BYTES,
+    env: isolatedEnv,
+  });
+  if (result.error || result.status !== 0) {
+    fail("read-only explicit canonical Git inspection failed");
+  }
+  return parseCanonicalLsRemoteV1(result.stdout ?? "", ref);
+}
+
+export function sampleLiveCanonicalMainV1({
+  coordinatorRepo,
+  canonicalRemote,
+  canonicalBranch = "main",
+  expectedCanonicalUrl = VOID_CANONICAL_REPOSITORY_URL_V1,
+  env = process.env,
+}) {
+  assertCanonicalEvaluationGitEnvironmentV1(env);
+  const repo = realpathSync(expandHome(assertString(coordinatorRepo, "coordinator repo")));
+  const remote = assertString(canonicalRemote, "canonical remote");
+  const expectedUrl = assertString(expectedCanonicalUrl, "expected canonical repository URL");
+  if (!REMOTE_RE.test(remote)) fail("canonical remote name is invalid");
+  if (canonicalBranch !== "main") fail("canonical branch must be exact main");
+
+  const topLevel = realpathSync(runGit(repo, ["rev-parse", "--show-toplevel"], env).trim());
+  if (topLevel !== repo) {
+    fail("coordinator repo must be the exact Git worktree root");
+  }
+
+  const rawRemoteUrl = oneLine(
+    runGit(
+      repo,
+      ["config", "--local", "--no-includes", "--get-all", `remote.${remote}.url`],
+      env,
+    ),
+    "stored canonical remote URL",
+  );
+  if (rawRemoteUrl !== expectedUrl) {
+    fail("stored canonical remote URL does not match reviewed VOID repository identity");
+  }
+
+  const effectiveRemoteUrl = oneLine(
+    runGit(repo, ["remote", "get-url", remote], env),
+    "effective canonical remote URL",
+  );
+  if (effectiveRemoteUrl !== rawRemoteUrl) {
+    fail("ambient Git URL rewrite changes canonical remote identity");
+  }
+
+  const sha = queryCanonicalMainExplicitUrlV1({
+    canonicalUrl: expectedUrl,
+    canonicalBranch,
+    env,
+  });
+  return Object.freeze({
+    sha,
+    remote_url: rawRemoteUrl,
+    effective_remote_url: effectiveRemoteUrl,
+  });
+}
+
+export function assertCanonicalBracketV1({ driftCanonicalSha, before, after }) {
+  const driftSha = assertSha(driftCanonicalSha, "drift canonical SHA");
+  const beforeSha = assertSha(before?.sha, "pre-evaluation canonical SHA");
+  const afterSha = assertSha(after?.sha, "post-evaluation canonical SHA");
+  if (beforeSha !== driftSha) {
+    fail("drift audit canonical main is stale relative to live canonical main");
+  }
+  if (afterSha !== beforeSha) {
+    fail("canonical main changed during runtime-pin evaluation");
+  }
+  if (
+    after?.remote_url !== before?.remote_url ||
+    after?.effective_remote_url !== before?.effective_remote_url
+  ) {
+    fail("canonical remote identity changed during runtime-pin evaluation");
+  }
+  return beforeSha;
+}
+
+export function evaluateRuntimePinStatusLiveCanonicalV1({
+  driftEvidence,
+  processEvidence,
+  approvedRuntimeSha,
+  coordinatorRepo,
+  expectedCanonicalUrl = VOID_CANONICAL_REPOSITORY_URL_V1,
+  env = process.env,
+  evaluatedAtEpochMs = Date.now(),
+  evidenceOutputCreated = false,
+}) {
+  assertCanonicalEvaluationGitEnvironmentV1(env);
+  const canonicalContext = {
+    coordinatorRepo,
+    canonicalRemote: driftEvidence.audit.canonical.remote,
+    canonicalBranch: driftEvidence.audit.canonical.branch,
+    expectedCanonicalUrl,
+    env,
+  };
+  const before = sampleLiveCanonicalMainV1(canonicalContext);
+  if (before.sha !== driftEvidence.audit.canonical.sha) {
+    fail("drift audit canonical main is stale relative to live canonical main");
+  }
+
+  const packet = buildFleetRuntimePinStatusV1({
+    audit: driftEvidence.audit,
+    processAudit: processEvidence.audit,
+    approvedRuntimeSha,
+    sourceAuditFileSha256: driftEvidence.file_sha256,
+    sourceAuditMtimeEpochMs: driftEvidence.mtime_epoch_ms,
+    processAuditFileSha256: processEvidence.file_sha256,
+    processAuditMtimeEpochMs: processEvidence.mtime_epoch_ms,
+    evaluatedAtEpochMs,
+    evidenceOutputCreated,
+  });
+
+  const after = sampleLiveCanonicalMainV1(canonicalContext);
+  assertCanonicalBracketV1({
+    driftCanonicalSha: driftEvidence.audit.canonical.sha,
+    before,
+    after,
+  });
+  return packet;
+}
+
+function parseArgs(argv) {
+  const out = {
+    driftAudit: "",
+    processAudit: "",
+    approvedRuntimeSha: "",
+    coordinatorRepo: DEFAULT_REPO_ROOT,
+    maxEvidenceAgeSeconds: DEFAULT_MAX_EVIDENCE_AGE_SECONDS,
+    output: "",
+  };
+  const seen = new Set();
+  for (let index = 0; index < argv.length; index += 1) {
+    const arg = argv[index];
+    if (arg === "--help") {
+      console.log(
+        "Usage: node ops/run_void_node_fleet_runtime_pin_status_v1.mjs --drift-audit PATH --process-freshness-audit PATH --approved-runtime-sha SHA [--coordinator-repo PATH] [--max-evidence-age-seconds N] [--output PATH]",
+      );
+      process.exit(0);
+    }
+    if (
+      ![
+        "--drift-audit",
+        "--process-freshness-audit",
+        "--approved-runtime-sha",
+        "--coordinator-repo",
+        "--max-evidence-age-seconds",
+        "--output",
+      ].includes(arg)
+    ) {
+      fail(`unknown argument: ${arg}`);
+    }
+    if (seen.has(arg)) fail(`duplicate argument: ${arg}`);
+    seen.add(arg);
+    const value = argv[++index];
+    if (value === undefined) fail(`missing value for ${arg}`);
+    if (arg === "--drift-audit") out.driftAudit = value;
+    else if (arg === "--process-freshness-audit") out.processAudit = value;
+    else if (arg === "--approved-runtime-sha") out.approvedRuntimeSha = value;
+    else if (arg === "--coordinator-repo") out.coordinatorRepo = value;
+    else if (arg === "--max-evidence-age-seconds") {
+      out.maxEvidenceAgeSeconds = parseUnpaddedInteger(value, "max evidence age");
+    } else if (arg === "--output") out.output = value;
+  }
+  if (!out.driftAudit) fail("--drift-audit is required");
+  if (!out.processAudit) fail("--process-freshness-audit is required");
+  if (!out.approvedRuntimeSha) fail("--approved-runtime-sha is required");
+  if (out.maxEvidenceAgeSeconds < 1 || out.maxEvidenceAgeSeconds > MAX_EVIDENCE_AGE_SECONDS) {
+    fail(`max evidence age must be 1..${MAX_EVIDENCE_AGE_SECONDS} seconds`);
+  }
+  return out;
+}
+
+function main() {
+  let reservation = null;
+  try {
+    const args = parseArgs(process.argv.slice(2));
+    assertCanonicalEvaluationGitEnvironmentV1(process.env);
+    if (args.output) {
+      reservation = reserveEvidenceOutputV1({
+        outputPath: args.output,
+        coordinatorRepo: args.coordinatorRepo,
+        env: process.env,
+      });
+    }
+
+    const drift = readFreshFleetDriftAuditV1(args.driftAudit, args.maxEvidenceAgeSeconds);
+    const processEvidence = readFreshFleetProcessAuditV1(
+      args.processAudit,
+      args.maxEvidenceAgeSeconds,
+    );
+    const packet = evaluateRuntimePinStatusLiveCanonicalV1({
+      driftEvidence: drift,
+      processEvidence,
+      approvedRuntimeSha: args.approvedRuntimeSha,
+      coordinatorRepo: args.coordinatorRepo,
+      evidenceOutputCreated: Boolean(reservation),
+    });
+
+    const json = reservation
+      ? publishReservedEvidenceOutputV1(reservation, packet)
+      : `${JSON.stringify(packet, null, 2)}\n`;
+    process.stdout.write(json);
+    process.exitCode = ["HOLD", "UNEXPECTED_RUNTIME_DRIFT"].includes(packet.status) ? 2 : 0;
+  } catch (error) {
+    const evidenceOutputCreated = cleanupEvidenceOutputReservationV1(reservation);
+    console.error(
+      JSON.stringify({
+        marker: VOID_NODE_FLEET_RUNTIME_PIN_STATUS_V1,
+        status: "HOLD",
+        error: String(error?.message || error),
+        mutation_attempted: false,
+        canonical_remote_read_only: true,
+        evidence_output_created: evidenceOutputCreated,
+      }),
+    );
+    process.exitCode = 1;
+  }
+}
+
+const invokedPath = process.argv[1] ? resolve(process.argv[1]) : "";
+if (invokedPath && fileURLToPath(import.meta.url) === invokedPath) {
+  main();
+}

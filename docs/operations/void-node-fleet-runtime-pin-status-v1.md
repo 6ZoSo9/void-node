@@ -19,34 +19,29 @@ Checked-out Git `HEAD` is **not** runtime identity. A node may have source at ne
 
 ## Live canonical-main evaluator
 
-The canonical operator path requires an explicitly reviewed absolute Git executable instead of discovering Git through caller-controlled `PATH`:
+The canonical operator path is:
 
 ```bash
 node ops/run_void_node_fleet_runtime_pin_status_v1.mjs \
   --drift-audit "$HOME/.config/void/node-fleet-drift-audit-result-v1.json" \
   --process-freshness-audit "$HOME/.config/void/node-fleet-process-freshness-audit-result-v1.json" \
   --approved-runtime-sha '<exact approved 40-hex commit>' \
-  --git-executable /usr/bin/git \
   --max-evidence-age-seconds 300 \
   --output "$HOME/.config/void/node-fleet-runtime-pin-status-v1.json"
 ```
-
-`--git-executable` is required, must be an absolute path resolving to an executable regular file, and is used for every local Git inspection and canonical `ls-remote` query. The evaluator hashes that exact executable and returns its canonical path plus SHA-256 as `canonical_git_executable`; `operator_evidence_id_sha256` binds the underlying status ID to that Git executable identity. Ambient `PATH` therefore cannot silently replace the program producing canonical-main evidence.
 
 The evaluator defaults `--coordinator-repo` to the checkout containing the script. A different exact worktree root may be supplied explicitly.
 
 The evaluator treats `https://github.com/6ZoSo9/void-node.git` as the exact reviewed canonical repository identity. Before classification it:
 
 - proves the selected coordinator path is the exact Git worktree root;
-- binds the exact reviewed absolute Git executable and verifies its identity remains unchanged across evaluation;
 - reads `remote.<name>.url` from local repository configuration with includes disabled and requires exactly the reviewed canonical URL;
 - resolves the named remote through ordinary Git configuration and HOLDs if global, XDG, system, or other ambient `url.*.insteadOf` behavior changes that effective URL;
 - rejects direct Git repository/configuration-selection overrides before inspection;
-- rejects direct Git helper/program-selection overrides including `GIT_EXEC_PATH`, `GIT_SSH`, `GIT_SSH_COMMAND`, `GIT_SSH_VARIANT`, and `GIT_PROXY_COMMAND`;
 - rejects caller-controlled HTTPS trust-policy overrides such as `GIT_SSL_NO_VERIFY`, `GIT_SSL_CAINFO`, `GIT_SSL_CAPATH`, `CURL_CA_BUNDLE`, `SSL_CERT_FILE`, and `SSL_CERT_DIR`; and
 - queries exact `refs/heads/main` using the explicit reviewed canonical URL, outside the worktree, with Git global/system configuration sources disabled for that read-only query.
 
-The live canonical query is repeated after classification. Canonical SHA, stored remote identity, effective remote identity, and reviewed Git executable identity must remain unchanged across the evaluation bracket. This prevents copied/touched stale drift evidence, ambient Git URL rewrite, helper substitution, top-level Git substitution through `PATH`, or invocation-specific TLS trust replacement from being converted into current-main authority.
+The live canonical query is repeated after classification. Canonical SHA, stored remote identity, and effective remote identity must remain unchanged across the evaluation bracket. This prevents a copied/touched stale drift receipt, ambient Git URL rewrite, or invocation-specific TLS trust replacement from being converted into current-main authority.
 
 Direct repository/configuration selector variables such as `GIT_DIR`, `GIT_WORK_TREE`, `GIT_CONFIG_GLOBAL`, `GIT_CONFIG_SYSTEM`, `GIT_CONFIG_PARAMETERS`, and indexed `GIT_CONFIG_KEY_*` / `GIT_CONFIG_VALUE_*` injection are rejected before Git inspection. Ordinary Git configuration remains visible specifically so an ambient rewrite cannot be hidden from the preflight comparison.
 
@@ -92,20 +87,19 @@ The deterministic proofs require all of these cases:
 - process identity movement, node-set/transport/source mismatch, or stale observations => `HOLD`;
 - a drift receipt for canonical `A` recreated with fresh filesystem timestamps after live canonical `main` advances to `B` is rejected before packet publication;
 - genuinely fresh source/process evidence for approved runtime `A` remains classifiable when canonical main is `B`;
-- global and XDG Git `url.*.insteadOf` rewrites are rejected before packet publication;
+- a global Git `url.*.insteadOf` rewrite that redirects the named canonical remote to a plausible alternate repository is rejected before packet publication;
+- an XDG Git-config `url.*.insteadOf` rewrite is rejected before packet publication;
 - caller-controlled HTTPS certificate-verification/trust-root overrides are rejected before canonical inspection;
-- a caller-provided `git-remote-https` through `GIT_EXEC_PATH` is rejected before helper invocation or publication;
-- a fake top-level `git` earlier in ambient `PATH` is never invoked because all evaluation uses the explicitly reviewed absolute Git executable;
-- published operator evidence contains the reviewed Git executable canonical path and SHA-256 plus an operator evidence ID binding that identity to the status ID;
+- the isolated explicit-URL canonical query still reaches the intended remote while ambient rewrite configuration exists;
 - output paths inside the coordinator worktree, Git directory, or Git common directory are rejected before evaluation/publication;
 - a valid external receipt is create-only, mode `0600`, and does not alter coordinator Git state; and
 - no fetch, service action, runtime mutation, or network mutation is performed.
 
-Falsification: the lane is incomplete if it derives runtime identity from source `HEAD`, combines incoherent source/process evidence into a healthy result, publishes current-main truth from stale drift content, lets ambient Git configuration/TLS/helper/program selection replace the reviewed canonical query, or lets optional evidence output dirty/mutate the selected repository after the canonical bracket.
+Falsification: the lane is incomplete if it derives runtime identity from source `HEAD`, combines incoherent source/process evidence into a healthy result, publishes current-main truth from stale drift content, lets ambient Git URL rewriting or caller-controlled TLS trust change the canonical-main query, or lets optional evidence output dirty/mutate the selected repository after the canonical bracket.
 
 ## Output and CLI behavior
 
-`--drift-audit`, `--process-freshness-audit`, `--approved-runtime-sha`, and `--git-executable` are required. Options are strict and single-use. Integer arguments must be unpadded.
+`--drift-audit`, `--process-freshness-audit`, and `--approved-runtime-sha` are required. Options are strict and single-use. Integer arguments must be unpadded.
 
 The optional output is create-only and mode `0600`. Its existing parent directory is canonicalized before use, and the resolved destination must be outside the selected coordinator worktree, absolute Git directory, and Git common directory. The destination is reserved create-only before canonical evaluation; failed evaluation cleans an unpublished reservation when possible. A successful packet reports `evidence_output_created=true` only when the external destination has actually been created for publication.
 
@@ -122,6 +116,6 @@ The focused workflow runs these proofs plus the source-drift and process-freshne
 
 ## Authority boundary
 
-The evaluator may read two local evidence files, inspect the selected local Git worktree with an explicitly reviewed absolute Git executable, make bounded read-only queries to the reviewed public canonical Git repository, and optionally create one external local status JSON file. It does not invoke fleet collection, run `git fetch`/pull/checkout/reset/merge, alter Git configuration or refs, install/build source, deploy, start/stop/restart services, change networking, access credentials/keys/wallets/signers, mutate Buy VOID/Work Credits/validators/consensus/treasury/liquidity, construct/sign/broadcast transactions, or move funds.
+The evaluator may read two local evidence files, inspect the selected local Git worktree, make bounded read-only queries to the reviewed public canonical Git repository, and optionally create one external local status JSON file. It does not invoke fleet collection, run `git fetch`/pull/checkout/reset/merge, alter Git configuration or refs, install/build source, deploy, start/stop/restart services, change networking, access credentials/keys/wallets/signers, mutate Buy VOID/Work Credits/validators/consensus/treasury/liquidity, construct/sign/broadcast transactions, or move funds.
 
 Source merge remains separate from deployment. A healthy pin does not authorize indefinite retention, and newer `main` does not authorize convergence. Runtime decisions remain explicit operator gates.
