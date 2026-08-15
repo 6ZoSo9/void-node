@@ -15,6 +15,7 @@ on:
       - "scripts/prove_wc_public_opportunity_adapter_response_contract_v1.mjs"
       - "scripts/prove_wc_public_opportunity_adapter_policy_evidence_types_v1.mjs"
       - "scripts/prove_wc_public_coordinator_readiness_v1.mjs"
+      - "scripts/prove_wc_public_coordinator_readiness_response_bounds_v1.mjs"
   push:
     branches: [main]
     paths:
@@ -30,6 +31,7 @@ on:
       - "scripts/prove_wc_public_opportunity_adapter_response_contract_v1.mjs"
       - "scripts/prove_wc_public_opportunity_adapter_policy_evidence_types_v1.mjs"
       - "scripts/prove_wc_public_coordinator_readiness_v1.mjs"
+      - "scripts/prove_wc_public_coordinator_readiness_response_bounds_v1.mjs"
 
 permissions:
   contents: read
@@ -72,6 +74,8 @@ jobs:
         run: node --check scripts/prove_wc_public_opportunity_adapter_policy_evidence_types_v1.mjs
       - name: Check coordinator readiness proof syntax
         run: node --check scripts/prove_wc_public_coordinator_readiness_v1.mjs
+      - name: Check coordinator readiness response-bounds proof syntax
+        run: node --check scripts/prove_wc_public_coordinator_readiness_response_bounds_v1.mjs
       - name: Prove strict discovery evidence typing
         run: node scripts/prove_wc_public_opportunity_discovery_v1.mjs
       - name: Prove adapter-to-discovery evidence typing
@@ -86,3 +90,5 @@ jobs:
         run: node scripts/prove_wc_public_opportunity_adapter_policy_evidence_types_v1.mjs
       - name: Prove coordinator readiness policy evidence typing
         run: node scripts/prove_wc_public_coordinator_readiness_v1.mjs
+      - name: Prove coordinator readiness response bounds
+        run: node scripts/prove_wc_public_coordinator_readiness_response_bounds_v1.mjs
