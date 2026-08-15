@@ -317,6 +317,111 @@ function readBoundedRequestBody(request, maximum) {
   });
 }
 
+function logBestEffortCancellationError(label, error) {
+  process.stderr.write(
+    `${MARKER} ${label}_response_cancel_error=${String(error)}\n`,
+  );
+}
+
+function cancelResponseBodyBestEffort(body, label) {
+  if (!body || typeof body.cancel !== "function") return;
+
+  try {
+    const cancellation = body.cancel();
+    if (cancellation && typeof cancellation.catch === "function") {
+      void cancellation.catch((error) => {
+        logBestEffortCancellationError(label, error);
+      });
+    }
+  } catch (error) {
+    logBestEffortCancellationError(label, error);
+  }
+}
+
+function cancelResponseReaderBestEffort(reader, label) {
+  if (!reader || typeof reader.cancel !== "function") return;
+
+  try {
+    const cancellation = reader.cancel();
+    if (cancellation && typeof cancellation.catch === "function") {
+      void cancellation.catch((error) => {
+        logBestEffortCancellationError(label, error);
+      });
+    }
+  } catch (error) {
+    logBestEffortCancellationError(label, error);
+  }
+}
+
+function parseDeclaredResponseLength(upstreamResponse, label) {
+  const raw = upstreamResponse.headers.get("content-length");
+  if (raw === null) return null;
+
+  if (!/^(0|[1-9][0-9]*)$/.test(raw)) {
+    cancelResponseBodyBestEffort(upstreamResponse.body, label);
+    throw new Error(`${label}_response_invalid_content_length`);
+  }
+
+  const declared = Number(raw);
+  if (!Number.isSafeInteger(declared) || declared < 0) {
+    cancelResponseBodyBestEffort(upstreamResponse.body, label);
+    throw new Error(`${label}_response_invalid_content_length`);
+  }
+
+  return declared;
+}
+
+async function readBoundedUpstreamResponseBody(
+  upstreamResponse,
+  maximum,
+  label,
+) {
+  const declared = parseDeclaredResponseLength(
+    upstreamResponse,
+    label,
+  );
+
+  if (declared !== null && declared > maximum) {
+    cancelResponseBodyBestEffort(upstreamResponse.body, label);
+    throw new Error(`${label}_response_too_large`);
+  }
+
+  const body = upstreamResponse.body;
+  if (!body) {
+    if (declared === null || declared === 0) {
+      return Buffer.alloc(0);
+    }
+    throw new Error(`${label}_response_body_unavailable`);
+  }
+
+  if (typeof body.getReader !== "function") {
+    cancelResponseBodyBestEffort(body, label);
+    throw new Error(`${label}_response_body_unavailable`);
+  }
+
+  const reader = body.getReader();
+  const chunks = [];
+  let total = 0;
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+
+    const chunk = Buffer.from(value);
+    total += chunk.length;
+
+    if (total > maximum) {
+      chunks.length = 0;
+      cancelResponseReaderBestEffort(reader, label);
+      throw new Error(`${label}_response_too_large`);
+    }
+
+    chunks.push(chunk);
+  }
+
+  return Buffer.concat(chunks, total);
+}
+
 function copyOperatorResponseHeaders(upstreamResponse) {
   const headers = {};
 
@@ -470,16 +575,11 @@ async function proxyOperatorWebhookReceiver(request, response, url) {
     },
   );
 
-  const responseBody = Buffer.from(
-    await upstreamResponse.arrayBuffer(),
+  const responseBody = await readBoundedUpstreamResponseBody(
+    upstreamResponse,
+    OPERATOR_WEBHOOK_RECEIVER_MAX_RESPONSE_BYTES,
+    "operator_webhook_receiver",
   );
-
-  if (
-    responseBody.length >
-    OPERATOR_WEBHOOK_RECEIVER_MAX_RESPONSE_BYTES
-  ) {
-    throw new Error("operator_webhook_receiver_response_too_large");
-  }
 
   bodyResponse(
     response,
@@ -650,18 +750,11 @@ async function proxyAgentPaidWorkSubmission(
       },
     );
 
-    const responseBody = Buffer.from(
-      await upstreamResponse.arrayBuffer(),
+    const responseBody = await readBoundedUpstreamResponseBody(
+      upstreamResponse,
+      AGENT_PAID_WORK_SUBMISSION_MAX_RESPONSE_BYTES,
+      "agent_paid_work_submission",
     );
-
-    if (
-      responseBody.length >
-      AGENT_PAID_WORK_SUBMISSION_MAX_RESPONSE_BYTES
-    ) {
-      throw new Error(
-        "agent_paid_work_submission_response_too_large",
-      );
-    }
 
     bodyResponse(
       response,
