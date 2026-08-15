@@ -215,6 +215,10 @@ function safeFiniteNumber(value) {
   return Number.isFinite(parsed) ? parsed : null;
 }
 
+function strictFiniteNumber(value) {
+  return typeof value === "number" && Number.isFinite(value) ? value : null;
+}
+
 // VOID_PUBLIC_EARN_GATEWAY_CAPABILITY_FORWARDING_V1
 function validatedEarnCapabilityAuthorization(value) {
   if (typeof value !== "string") return null;
@@ -394,7 +398,7 @@ function sanitizePilotStatus(value) {
     coordinator_enabled: safeBoolean(value?.coordinator_enabled),
     executor_enabled: safeBoolean(value?.executor_enabled),
     task_class: safeString(value?.task_class, 96),
-    fixed_award_wc: safeFiniteNumber(value?.fixed_award_wc),
+    fixed_award_wc: strictFiniteNumber(value?.fixed_award_wc),
     caps: {
       account_total: safeFiniteNumber(caps.account_total) ?? 0,
       account_limit:
@@ -431,7 +435,7 @@ function sanitizePilotStatus(value) {
       available: safeBoolean(publicClaim.available),
       public_route: gatewayStatus().routes.claim_ticket,
       task_class: safeString(publicClaim.task_class, 96),
-      fixed_award_wc: safeFiniteNumber(publicClaim.fixed_award_wc),
+      fixed_award_wc: strictFiniteNumber(publicClaim.fixed_award_wc),
       transport_mode: safeString(publicClaim.transport_mode, 32),
       server_selected_work: safeBoolean(publicClaim.server_selected_work),
       proof_of_executor_key_possession_required: safeBoolean(

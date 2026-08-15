@@ -4,14 +4,18 @@ on:
   pull_request:
     paths:
       - ".github/workflows/wc-public-opportunity-discovery-v1.yml"
+      - "ops/public/public-seed-adapter-v1.mjs"
       - "tools/wc-public-opportunity-discovery-v1.mjs"
       - "scripts/prove_wc_public_opportunity_discovery_v1.mjs"
+      - "scripts/prove_wc_public_opportunity_adapter_composition_v1.mjs"
   push:
     branches: [main]
     paths:
       - ".github/workflows/wc-public-opportunity-discovery-v1.yml"
+      - "ops/public/public-seed-adapter-v1.mjs"
       - "tools/wc-public-opportunity-discovery-v1.mjs"
       - "scripts/prove_wc_public_opportunity_discovery_v1.mjs"
+      - "scripts/prove_wc_public_opportunity_adapter_composition_v1.mjs"
 
 permissions:
   contents: read
@@ -32,9 +36,15 @@ jobs:
       - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
         with:
           node-version: ${{ matrix.node }}
+      - name: Check adapter source syntax
+        run: node --check ops/public/public-seed-adapter-v1.mjs
       - name: Check discovery source syntax
         run: node --check tools/wc-public-opportunity-discovery-v1.mjs
       - name: Check focused proof syntax
         run: node --check scripts/prove_wc_public_opportunity_discovery_v1.mjs
+      - name: Check adapter composition proof syntax
+        run: node --check scripts/prove_wc_public_opportunity_adapter_composition_v1.mjs
       - name: Prove strict discovery evidence typing
         run: node scripts/prove_wc_public_opportunity_discovery_v1.mjs
+      - name: Prove adapter-to-discovery evidence typing
+        run: node scripts/prove_wc_public_opportunity_adapter_composition_v1.mjs
