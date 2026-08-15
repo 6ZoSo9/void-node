@@ -1,11 +1,16 @@
 import assert from "node:assert/strict";
+import { execFileSync } from "node:child_process";
+import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 
 import {
   VOID_BUY_VOID_ERC20_PRODUCTION_CONFIGURATION_CANDIDATE_BINDING_AUTHORITY_V1,
   VOID_BUY_VOID_ERC20_PRODUCTION_CONFIGURATION_CANDIDATE_BINDING_RECORD_V1,
+  VOID_BUY_VOID_ERC20_PRODUCTION_CONFIGURATION_RECORDED_PROVENANCE_V1,
+  type BuyVoidErc20ProductionConfigurationCandidateProvenanceV1,
   verifyBuyVoidErc20ProductionConfigurationCandidateBindingV1,
+  verifyBuyVoidErc20ProductionConfigurationCandidateProvenanceV1,
 } from "../src/economic/buy_void_erc20_production_configuration_candidate_binding_v1.js";
 import {
   VOID_BUY_VOID_ERC20_DELIVERY_RUNTIME_ACTIVATION_CONFIGURATION_V1,
@@ -15,20 +20,102 @@ import {
 } from "../src/economic/buy_void_erc20_production_credential_binding_evidence_v1.js";
 
 const root = process.cwd();
-const readJson = (relativePath: string): any =>
-  JSON.parse(fs.readFileSync(path.join(root, relativePath), "utf8"));
-
 const binding =
   VOID_BUY_VOID_ERC20_PRODUCTION_CONFIGURATION_CANDIDATE_BINDING_RECORD_V1;
 const candidate = binding.candidate;
-const deployed = readJson(binding.evidence.frozen_mainnet0_deployment_path);
-const premine = readJson(binding.evidence.premine_reconciliation_path);
+
+function git(args: string[]): string {
+  return execFileSync("git", args, {
+    cwd: root,
+    encoding: "utf8",
+    stdio: ["ignore", "pipe", "pipe"],
+  }).trim();
+}
+
+function ensureCommitAvailable(commitSha: string): void {
+  try {
+    git(["cat-file", "-e", `${commitSha}^{commit}`]);
+    return;
+  } catch {
+    git(["fetch", "--no-tags", "--depth=1", "origin", commitSha]);
+  }
+  git(["cat-file", "-e", `${commitSha}^{commit}`]);
+}
+
+function readBytes(relativePath: string): Buffer {
+  return fs.readFileSync(path.join(root, relativePath));
+}
+
+function readJson(bytes: Buffer): any {
+  return JSON.parse(bytes.toString("utf8"));
+}
+
+function gitBlobSha1(bytes: Buffer): string {
+  const header = Buffer.from(`blob ${bytes.length}\0`, "utf8");
+  return crypto.createHash("sha1").update(header).update(bytes).digest("hex");
+}
+
+function treeBlobSha(treeish: string, relativePath: string): string {
+  const listing = git(["ls-tree", treeish, "--", relativePath]);
+  const match = listing.match(/^\d+\s+blob\s+([0-9a-f]{40})\t/);
+  assert.ok(match, `missing Git blob for ${relativePath} in ${treeish}`);
+  return match[1];
+}
+
+const eventBaseSha = String(process.env.BUY_VOID_PR_BASE_SHA || "").trim();
+const observedBaseCommitSha = eventBaseSha || binding.reviewed_base_commit_sha;
+assert.match(observedBaseCommitSha, /^[0-9a-f]{40}$/);
+ensureCommitAvailable(observedBaseCommitSha);
+
+const observedBaseTreeSha = git([
+  "show",
+  "-s",
+  "--format=%T",
+  observedBaseCommitSha,
+]);
+assert.match(observedBaseTreeSha, /^[0-9a-f]{40}$/);
+
+const frozenBytes = readBytes(binding.evidence.frozen_mainnet0_deployment_path);
+const premineBytes = readBytes(binding.evidence.premine_reconciliation_path);
+const frozenBaseBlobSha = treeBlobSha(
+  observedBaseCommitSha,
+  binding.evidence.frozen_mainnet0_deployment_path,
+);
+const premineBaseBlobSha = treeBlobSha(
+  observedBaseCommitSha,
+  binding.evidence.premine_reconciliation_path,
+);
+assert.equal(
+  gitBlobSha1(frozenBytes),
+  frozenBaseBlobSha,
+  "checked-out frozen deployment bytes must equal the reviewed-base Git blob",
+);
+assert.equal(
+  gitBlobSha1(premineBytes),
+  premineBaseBlobSha,
+  "checked-out premine reconciliation bytes must equal the reviewed-base Git blob",
+);
+
+const observedProvenance: BuyVoidErc20ProductionConfigurationCandidateProvenanceV1 = {
+  reviewed_base_commit_sha: observedBaseCommitSha,
+  reviewed_base_tree_sha: observedBaseTreeSha,
+  frozen_mainnet0_deployment_git_blob_sha: frozenBaseBlobSha,
+  premine_reconciliation_git_blob_sha: premineBaseBlobSha,
+};
+
+const deployed = readJson(frozenBytes);
+const premine = readJson(premineBytes);
 const credential =
   VOID_BUY_VOID_ERC20_PRODUCTION_CREDENTIAL_BINDING_EVIDENCE_RECORD_V1;
 const activation =
   VOID_BUY_VOID_ERC20_DELIVERY_RUNTIME_ACTIVATION_CONFIGURATION_V1;
 
 assert.equal(binding.reviewed_base_commit_sha, "0d74919b31790a1f14025924343176c286ab5549");
+assert.equal(binding.reviewed_base_tree_sha, "1a5693604212f48e1cc41889abce7fe2c9d7900b");
+assert.deepEqual(
+  observedProvenance,
+  VOID_BUY_VOID_ERC20_PRODUCTION_CONFIGURATION_RECORDED_PROVENANCE_V1,
+);
 assert.equal(binding.repository_candidate_binding_ready, true);
 assert.equal(binding.production_configuration_applied, false);
 assert.equal(binding.runtime_activation_authorized, false);
@@ -83,9 +170,56 @@ assert.equal(candidate.VOID_BUY_VOID_DELIVERY_CHAIN_ID, "2050");
 assert.equal(candidate.VOID_BUY_VOID_DELIVERY_MAX_AMOUNT_UNITS, "10000000000000");
 assert.equal(candidate.VOID_BUY_VOID_DELIVERY_MIN_CONFIRMATIONS, "3");
 
-const verified = verifyBuyVoidErc20ProductionConfigurationCandidateBindingV1();
+const provenanceVerified =
+  verifyBuyVoidErc20ProductionConfigurationCandidateProvenanceV1(
+    VOID_BUY_VOID_ERC20_PRODUCTION_CONFIGURATION_RECORDED_PROVENANCE_V1,
+    observedProvenance,
+  );
+assert.equal(provenanceVerified.ok, true);
+
+for (const [field, reason] of [
+  ["reviewed_base_commit_sha", "candidate_binding_reviewed_base_commit_mismatch"],
+  ["reviewed_base_tree_sha", "candidate_binding_reviewed_base_tree_mismatch"],
+  [
+    "frozen_mainnet0_deployment_git_blob_sha",
+    "candidate_binding_frozen_deployment_blob_mismatch",
+  ],
+  [
+    "premine_reconciliation_git_blob_sha",
+    "candidate_binding_premine_reconciliation_blob_mismatch",
+  ],
+] as const) {
+  const tampered = {
+    ...VOID_BUY_VOID_ERC20_PRODUCTION_CONFIGURATION_RECORDED_PROVENANCE_V1,
+    [field]: "f".repeat(40),
+  };
+  const held = verifyBuyVoidErc20ProductionConfigurationCandidateProvenanceV1(
+    tampered,
+    observedProvenance,
+  );
+  assert.equal(held.ok, false, field);
+  if (held.ok) throw new Error(`tampered provenance passed:${field}`);
+  assert.equal(held.reason, reason, field);
+}
+
+const malformedProvenance =
+  verifyBuyVoidErc20ProductionConfigurationCandidateProvenanceV1(
+    {
+      ...VOID_BUY_VOID_ERC20_PRODUCTION_CONFIGURATION_RECORDED_PROVENANCE_V1,
+      reviewed_base_commit_sha: "not-a-git-object-id",
+    },
+    observedProvenance,
+  );
+assert.equal(malformedProvenance.ok, false);
+if (malformedProvenance.ok) throw new Error("malformed provenance unexpectedly passed");
+assert.equal(
+  malformedProvenance.reason,
+  "candidate_binding_provenance_shape_invalid",
+);
+
+const verified =
+  verifyBuyVoidErc20ProductionConfigurationCandidateBindingV1(observedProvenance);
 assert.equal(verified.ok, true);
-if (!verified.ok) throw new Error(verified.reason);
 assert.equal(
   verified.status,
   "candidate_binding_verified_held_on_apply_and_activation",
@@ -110,10 +244,14 @@ assert.equal(
   verified.fulfillment_wallet_address,
   "0xc884f631c3881b8b672bfcbf019c856146cd7f73",
 );
+assert.equal(verified.reviewed_base_commit_sha, observedBaseCommitSha);
+assert.equal(verified.reviewed_base_tree_sha, observedBaseTreeSha);
+assert.equal(verified.frozen_mainnet0_deployment_git_blob_sha, frozenBaseBlobSha);
+assert.equal(verified.premine_reconciliation_git_blob_sha, premineBaseBlobSha);
 
-const repeated = verifyBuyVoidErc20ProductionConfigurationCandidateBindingV1();
+const repeated =
+  verifyBuyVoidErc20ProductionConfigurationCandidateBindingV1(observedProvenance);
 assert.equal(repeated.ok, true);
-if (!repeated.ok) throw new Error(repeated.reason);
 assert.equal(
   repeated.configuration_fingerprint_sha256,
   verified.configuration_fingerprint_sha256,
@@ -129,7 +267,11 @@ assert.equal(
 for (const [key, value] of Object.entries(
   VOID_BUY_VOID_ERC20_PRODUCTION_CONFIGURATION_CANDIDATE_BINDING_AUTHORITY_V1,
 )) {
-  const expected = ["source_only_binding", "explicit_candidate_only"].includes(key);
+  const expected = [
+    "source_only_binding",
+    "explicit_candidate_only",
+    "explicit_provenance_input_required",
+  ].includes(key);
   assert.equal(value, expected, `authority mismatch:${key}`);
 }
 
@@ -145,6 +287,12 @@ for (const forbidden of ["process.env", "fetch(", "http.request", "https.request
 }
 
 console.log("VOID_BUY_VOID_ERC20_PRODUCTION_CONFIGURATION_CANDIDATE_BINDING_V1_PROOF_GREEN");
+console.log(`reviewed_base_commit_sha=${observedBaseCommitSha}`);
+console.log(`reviewed_base_tree_sha=${observedBaseTreeSha}`);
+console.log(`frozen_mainnet0_deployment_git_blob_sha=${frozenBaseBlobSha}`);
+console.log(`premine_reconciliation_git_blob_sha=${premineBaseBlobSha}`);
+console.log("provenance_fields_executably_bound=1");
+console.log("provenance_tamper_cases_held=4");
 console.log("chain_id=2050");
 console.log("void_token_address=0x470075b85352eb86f7d089fb9ba88945f12aad94");
 console.log("fulfillment_wallet_address=0xc884f631c3881b8b672bfcbf019c856146cd7f73");

@@ -8,6 +8,7 @@ export const VOID_BUY_VOID_ERC20_PRODUCTION_CONFIGURATION_CANDIDATE_BINDING_V1 =
 export const VOID_BUY_VOID_ERC20_PRODUCTION_CONFIGURATION_CANDIDATE_BINDING_AUTHORITY_V1 = {
   source_only_binding: true,
   explicit_candidate_only: true,
+  explicit_provenance_input_required: true,
   process_environment_read: false,
   filesystem_read: false,
   filesystem_write: false,
@@ -51,6 +52,7 @@ export const VOID_BUY_VOID_ERC20_PRODUCTION_CONFIGURATION_CANDIDATE_BINDING_RECO
   version: 1,
   status: "repository_candidate_bound_held_on_apply_and_activation",
   reviewed_base_commit_sha: "0d74919b31790a1f14025924343176c286ab5549",
+  reviewed_base_tree_sha: "1a5693604212f48e1cc41889abce7fe2c9d7900b",
   evidence: {
     frozen_mainnet0_deployment_path: "ops/mainnet/void-mainnet.deployed.json",
     frozen_mainnet0_deployment_git_blob_sha:
@@ -86,23 +88,90 @@ export const VOID_BUY_VOID_ERC20_PRODUCTION_CONFIGURATION_CANDIDATE_BINDING_RECO
     VOID_BUY_VOID_ERC20_PRODUCTION_CONFIGURATION_CANDIDATE_BINDING_AUTHORITY_V1,
 } as const;
 
-export function verifyBuyVoidErc20ProductionConfigurationCandidateBindingV1() {
+export type BuyVoidErc20ProductionConfigurationCandidateProvenanceV1 = Readonly<{
+  reviewed_base_commit_sha: string;
+  reviewed_base_tree_sha: string;
+  frozen_mainnet0_deployment_git_blob_sha: string;
+  premine_reconciliation_git_blob_sha: string;
+}>;
+
+export const VOID_BUY_VOID_ERC20_PRODUCTION_CONFIGURATION_RECORDED_PROVENANCE_V1: BuyVoidErc20ProductionConfigurationCandidateProvenanceV1 = {
+  reviewed_base_commit_sha:
+    VOID_BUY_VOID_ERC20_PRODUCTION_CONFIGURATION_CANDIDATE_BINDING_RECORD_V1
+      .reviewed_base_commit_sha,
+  reviewed_base_tree_sha:
+    VOID_BUY_VOID_ERC20_PRODUCTION_CONFIGURATION_CANDIDATE_BINDING_RECORD_V1
+      .reviewed_base_tree_sha,
+  frozen_mainnet0_deployment_git_blob_sha:
+    VOID_BUY_VOID_ERC20_PRODUCTION_CONFIGURATION_CANDIDATE_BINDING_RECORD_V1
+      .evidence.frozen_mainnet0_deployment_git_blob_sha,
+  premine_reconciliation_git_blob_sha:
+    VOID_BUY_VOID_ERC20_PRODUCTION_CONFIGURATION_CANDIDATE_BINDING_RECORD_V1
+      .evidence.premine_reconciliation_git_blob_sha,
+};
+
+const GIT_SHA1 = /^[0-9a-f]{40}$/;
+
+export function verifyBuyVoidErc20ProductionConfigurationCandidateProvenanceV1(
+  recorded: Readonly<BuyVoidErc20ProductionConfigurationCandidateProvenanceV1>,
+  observed: Readonly<BuyVoidErc20ProductionConfigurationCandidateProvenanceV1>,
+): { ok: true } | { ok: false; reason: string } {
+  for (const value of [...Object.values(recorded), ...Object.values(observed)]) {
+    if (!GIT_SHA1.test(value)) {
+      return { ok: false, reason: "candidate_binding_provenance_shape_invalid" };
+    }
+  }
+  if (recorded.reviewed_base_commit_sha !== observed.reviewed_base_commit_sha) {
+    return { ok: false, reason: "candidate_binding_reviewed_base_commit_mismatch" };
+  }
+  if (recorded.reviewed_base_tree_sha !== observed.reviewed_base_tree_sha) {
+    return { ok: false, reason: "candidate_binding_reviewed_base_tree_mismatch" };
+  }
+  if (
+    recorded.frozen_mainnet0_deployment_git_blob_sha !==
+    observed.frozen_mainnet0_deployment_git_blob_sha
+  ) {
+    return { ok: false, reason: "candidate_binding_frozen_deployment_blob_mismatch" };
+  }
+  if (
+    recorded.premine_reconciliation_git_blob_sha !==
+    observed.premine_reconciliation_git_blob_sha
+  ) {
+    return { ok: false, reason: "candidate_binding_premine_reconciliation_blob_mismatch" };
+  }
+  return { ok: true };
+}
+
+function held(reason: string) {
   const binding =
     VOID_BUY_VOID_ERC20_PRODUCTION_CONFIGURATION_CANDIDATE_BINDING_RECORD_V1;
-  const decision = verifyBuyVoidErc20ProductionConfigurationV1(binding.candidate);
+  return {
+    ok: false as const,
+    status: "held" as const,
+    reason,
+    repository_candidate_binding_ready: false as const,
+    production_configuration_applied: false as const,
+    runtime_activation_authorized: false as const,
+    dependency_injection_activation_authorized: false as const,
+    inventory_funding_authorized: false as const,
+    authority: binding.authority,
+  };
+}
 
-  if (!decision.ok) {
-    return {
-      ok: false as const,
-      status: "held" as const,
-      reason: `candidate_verifier_held:${decision.reason}`,
-      repository_candidate_binding_ready: false as const,
-      production_configuration_applied: false as const,
-      runtime_activation_authorized: false as const,
-      inventory_funding_authorized: false as const,
-      authority: binding.authority,
-    };
-  }
+export function verifyBuyVoidErc20ProductionConfigurationCandidateBindingV1(
+  observedProvenance: Readonly<BuyVoidErc20ProductionConfigurationCandidateProvenanceV1>,
+) {
+  const binding =
+    VOID_BUY_VOID_ERC20_PRODUCTION_CONFIGURATION_CANDIDATE_BINDING_RECORD_V1;
+  const provenance =
+    verifyBuyVoidErc20ProductionConfigurationCandidateProvenanceV1(
+      VOID_BUY_VOID_ERC20_PRODUCTION_CONFIGURATION_RECORDED_PROVENANCE_V1,
+      observedProvenance,
+    );
+  if (provenance.ok === false) return held(provenance.reason);
+
+  const decision = verifyBuyVoidErc20ProductionConfigurationV1(binding.candidate);
+  if (decision.ok === false) return held(`candidate_verifier_held:${decision.reason}`);
 
   if (
     decision.configuration_fingerprint_sha256 !==
@@ -116,16 +185,7 @@ export function verifyBuyVoidErc20ProductionConfigurationCandidateBindingV1() {
     decision.fulfillment_wallet_address !==
       binding.expected.normalized_fulfillment_wallet_address
   ) {
-    return {
-      ok: false as const,
-      status: "held" as const,
-      reason: "candidate_binding_fingerprint_or_identity_mismatch",
-      repository_candidate_binding_ready: false as const,
-      production_configuration_applied: false as const,
-      runtime_activation_authorized: false as const,
-      inventory_funding_authorized: false as const,
-      authority: binding.authority,
-    };
+    return held("candidate_binding_fingerprint_or_identity_mismatch");
   }
 
   return {
@@ -140,6 +200,12 @@ export function verifyBuyVoidErc20ProductionConfigurationCandidateBindingV1() {
     rpc_url_fingerprint_sha256: decision.rpc_url_fingerprint_sha256,
     void_token_address: decision.void_token_address,
     fulfillment_wallet_address: decision.fulfillment_wallet_address,
+    reviewed_base_commit_sha: observedProvenance.reviewed_base_commit_sha,
+    reviewed_base_tree_sha: observedProvenance.reviewed_base_tree_sha,
+    frozen_mainnet0_deployment_git_blob_sha:
+      observedProvenance.frozen_mainnet0_deployment_git_blob_sha,
+    premine_reconciliation_git_blob_sha:
+      observedProvenance.premine_reconciliation_git_blob_sha,
     repository_candidate_binding_ready: true as const,
     production_configuration_applied: false as const,
     runtime_activation_authorized: false as const,

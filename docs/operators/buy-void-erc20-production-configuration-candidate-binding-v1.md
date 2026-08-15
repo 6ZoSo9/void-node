@@ -40,7 +40,18 @@ The binding proof requires all of these checked-in truths to agree:
 - `ops/mainnet/mainnet0-premine-allocation.current.json` independently reports the same Chain-2050 token, 18 decimals, reconciled `333333333` VOID supply, zero unreconciled VOID, and the canonical Buy VOID fulfillment wallet.
 - `src/economic/buy_void_erc20_production_credential_binding_evidence_v1.ts` binds fixed credential `buy-void-native-fulfillment-wallet-v1` to wallet `0xc884f631c3881b8b672bfcbf019c856146cd7f73` with evidence ID `20b5201b...51495`.
 
-The source record binds the reviewed base commit and the Git blob identities of the two canonical JSON evidence files so later review can distinguish this exact evidence snapshot from future revisions.
+The source record binds the exact reviewed base commit, its Git tree, and the two canonical JSON evidence blobs:
+
+```text
+reviewed_base_commit_sha=0d74919b31790a1f14025924343176c286ab5549
+reviewed_base_tree_sha=1a5693604212f48e1cc41889abce7fe2c9d7900b
+frozen_mainnet0_deployment_git_blob_sha=801271629ddc76aad016aea7114960f9d500b94b
+premine_reconciliation_git_blob_sha=df8b2939108e9066f577263e05958445fe06cfcf
+```
+
+The executable proof no longer treats those provenance values as annotations. For pull requests it independently receives GitHub's exact PR base SHA, fetches only that exact commit object when absent from the shallow checkout, derives its tree ID and both evidence blob IDs with Git, recomputes both checked-out files' Git blob hashes from their current bytes, and requires every value to match the recorded provenance before `repository_candidate_binding_ready=true` can be emitted. Main-push revalidation resolves the same reviewed base commit directly from the binding record.
+
+Adversarial fixtures independently alter the recorded base commit, base tree, frozen-deployment blob, and premine-reconciliation blob while leaving the production candidate/evidence semantics unchanged; every tamper must HOLD.
 
 ## Deterministic fingerprints
 
@@ -52,7 +63,7 @@ planner_policy_fingerprint_sha256=45902d888077b61b75d00164f5e98053ad5a32a0569d84
 configuration_fingerprint_sha256=9891cc703bd724541ace341561e3194bf356d5ac8af9d767acf7189e03174992
 ```
 
-Any drift in the token, wallet, RPC, amount ceiling, gas/fee policy, confirmation depth, transport bounds, runtime root, or credential evidence changes or invalidates the binding.
+Any drift in the token, wallet, RPC, amount ceiling, gas/fee policy, confirmation depth, transport bounds, runtime root, credential evidence, or reviewed Git provenance changes or invalidates the binding.
 
 ## Lifecycle boundary
 
@@ -70,4 +81,4 @@ After this exact candidate binding is independently reviewed and merged, promoti
 
 ## Authority boundary
 
-No process-environment read, live RPC, filesystem mutation, credential/private-key read, wallet access, signing, transaction broadcast, deployment, service restart, runtime activation, dependency-injection activation, inventory funding, validator/Work Credit mutation, treasury/liquidity action, or funds movement is performed or authorized by this packet.
+No process-environment read by the source binding, live RPC, production filesystem mutation, credential/private-key read, wallet access, signing, transaction broadcast, deployment, service restart, runtime activation, dependency-injection activation, inventory funding, validator/Work Credit mutation, treasury/liquidity action, or funds movement is performed or authorized by this packet. The proof's bounded Git reads/fetch of the exact reviewed repository commit are CI provenance verification only.
