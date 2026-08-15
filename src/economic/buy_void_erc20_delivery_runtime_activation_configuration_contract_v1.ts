@@ -11,7 +11,7 @@ export const
     marker:
       VOID_BUY_VOID_ERC20_DELIVERY_RUNTIME_ACTIVATION_CONFIGURATION_CONTRACT_V1,
     version: 1,
-    status: "presale_invariants_source_ready_held_on_activation",
+    status: "production_configuration_verified_held_on_runtime_activation",
     canonical_chain_id: "2050",
     canonical_asset: "void_token_erc20",
 
@@ -29,11 +29,26 @@ export const
 
     canonical_delivery_runtime_activation_configuration_contract_ready: true,
     canonical_delivery_runtime_activation_ready: false,
-    production_configuration_values_verified: false,
-    production_credential_binding_ready: false,
+    production_configuration_values_verified: true,
+    production_credential_binding_ready: true,
     canonical_production_credential_binding_evidence_ready: true,
     canonical_production_credential_binding_evidence:
       VOID_BUY_VOID_ERC20_PRODUCTION_CREDENTIAL_BINDING_EVIDENCE_RECORD_V1,
+    reviewed_production_configuration_binding: {
+      marker: "VOID_BUY_VOID_ERC20_PRODUCTION_CONFIGURATION_CANDIDATE_BINDING_V1",
+      source_path:
+        "src/economic/buy_void_erc20_production_configuration_candidate_binding_v1.ts",
+      reviewed_merge_commit_sha:
+        "5a66040d63225dee59fc449937fda063800d425a",
+      configuration_fingerprint_sha256:
+        "9891cc703bd724541ace341561e3194bf356d5ac8af9d767acf7189e03174992",
+      repository_candidate_binding_ready: true,
+      production_configuration_applied: false,
+      runtime_activation_authorized: false,
+      dependency_injection_activation_authorized: false,
+      inventory_funding_authorized: false,
+    },
+    production_configuration_applied: false,
     dormant_dependency_injection_source_ready: true,
     dormant_dependency_injection_requires_delivery_runtime_disabled: true,
     dormant_dependency_injection_required_delivery_enable_value: "0",
@@ -74,17 +89,16 @@ export const
         "src/economic/buy_void_inventory_reservation_journal_v1.ts",
     },
 
-    production_broad_delivery_configuration_verified: false,
+    production_broad_delivery_configuration_verified: true,
 
     activation_readiness_blockers: [
-      "production_broad_delivery_configuration_not_verified",
       "canonical_delivery_runtime_activation_not_ready",
     ] as const,
 
     current_parent_blocker:
-      "production_broad_delivery_configuration_not_verified",
+      "canonical_delivery_runtime_activation_not_ready",
     next_gate:
-      "production_broad_delivery_configuration_verification",
+      "canonical_delivery_runtime_activation",
 
     runtime_source_path:
       "src/economic/buy_void_delivery_runtime_integration_v1.ts",

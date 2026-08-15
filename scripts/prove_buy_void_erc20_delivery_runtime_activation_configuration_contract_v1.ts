@@ -6,15 +6,20 @@ import {
   VOID_BUY_VOID_ERC20_DELIVERY_RUNTIME_ACTIVATION_CONFIGURATION_V1,
 } from "../src/economic/buy_void_erc20_delivery_runtime_activation_configuration_contract_v1.js";
 import {
+  VOID_BUY_VOID_ERC20_PRODUCTION_CONFIGURATION_CANDIDATE_BINDING_RECORD_V1,
+} from "../src/economic/buy_void_erc20_production_configuration_candidate_binding_v1.js";
+import {
   readBuyVoidCanonicalPresaleServerPolicyV1,
 } from "../src/economic/buy_void_crash_consistent_saga_server_policy_v1.js";
 
 const root = process.cwd();
 const read = (p: string) => fs.readFileSync(path.join(root, p), "utf8");
 const contract = VOID_BUY_VOID_ERC20_DELIVERY_RUNTIME_ACTIVATION_CONFIGURATION_V1;
+const binding =
+  VOID_BUY_VOID_ERC20_PRODUCTION_CONFIGURATION_CANDIDATE_BINDING_RECORD_V1;
 assert.equal(
   contract.status,
-  "presale_invariants_source_ready_held_on_activation",
+  "production_configuration_verified_held_on_runtime_activation",
 );
 assert.equal(contract.canonical_chain_id, "2050");
 assert.equal(contract.canonical_asset, "void_token_erc20");
@@ -43,8 +48,9 @@ assert.equal(
   true,
 );
 assert.equal(contract.canonical_delivery_runtime_activation_ready, false);
-assert.equal(contract.production_configuration_values_verified, false);
-assert.equal(contract.production_credential_binding_ready, false);
+assert.equal(contract.production_configuration_values_verified, true);
+assert.equal(contract.production_credential_binding_ready, true);
+assert.equal(contract.production_configuration_applied, false);
 assert.equal(
   contract.canonical_production_credential_binding_evidence_ready,
   true,
@@ -57,6 +63,45 @@ assert.equal(
 assert.equal(
   contract.canonical_production_credential_binding_evidence
     .interpretation.clone_local_credential_binding_inferred,
+  false,
+);
+assert.equal(
+  contract.reviewed_production_configuration_binding.marker,
+  binding.marker,
+);
+assert.equal(
+  contract.reviewed_production_configuration_binding
+    .configuration_fingerprint_sha256,
+  binding.expected.configuration_fingerprint_sha256,
+);
+assert.equal(
+  contract.reviewed_production_configuration_binding
+    .reviewed_merge_commit_sha,
+  "5a66040d63225dee59fc449937fda063800d425a",
+);
+assert.equal(
+  contract.reviewed_production_configuration_binding
+    .repository_candidate_binding_ready,
+  true,
+);
+assert.equal(
+  contract.reviewed_production_configuration_binding
+    .production_configuration_applied,
+  false,
+);
+assert.equal(
+  contract.reviewed_production_configuration_binding
+    .runtime_activation_authorized,
+  false,
+);
+assert.equal(
+  contract.reviewed_production_configuration_binding
+    .dependency_injection_activation_authorized,
+  false,
+);
+assert.equal(
+  contract.reviewed_production_configuration_binding
+    .inventory_funding_authorized,
   false,
 );
 assert.equal(contract.dormant_dependency_injection_source_ready, true);
@@ -175,22 +220,19 @@ assert.equal(
 );
 assert.equal(
   contract.production_broad_delivery_configuration_verified,
-  false,
+  true,
 );
 assert.deepEqual(
   [...contract.activation_readiness_blockers],
-  [
-    "production_broad_delivery_configuration_not_verified",
-    "canonical_delivery_runtime_activation_not_ready",
-  ],
+  ["canonical_delivery_runtime_activation_not_ready"],
 );
 assert.equal(
   contract.current_parent_blocker,
-  "production_broad_delivery_configuration_not_verified",
+  "canonical_delivery_runtime_activation_not_ready",
 );
 assert.equal(
   contract.next_gate,
-  "production_broad_delivery_configuration_verification",
+  "canonical_delivery_runtime_activation",
 );
 
 const presalePolicyBase: NodeJS.ProcessEnv = {
@@ -392,9 +434,12 @@ console.log("canonical_planner_policy_validator_reused=1");
 console.log("max_amount_unit_domain=fulfillment_units_6_decimal");
 console.log("token_atom_multiplier=1000000000000");
 console.log("confirmation_range_preflight_before_record_confirmed=1");
-console.log("runtime_activation_performed=0");
-console.log("production_configuration_values_verified=0");
-console.log("production_credential_binding_ready=0");
+console.log("production_configuration_values_verified=1");
+console.log("production_credential_binding_ready=1");
+console.log("production_broad_delivery_configuration_verified=1");
+console.log("production_configuration_applied=0");
+console.log("reviewed_configuration_binding_marker=VOID_BUY_VOID_ERC20_PRODUCTION_CONFIGURATION_CANDIDATE_BINDING_V1");
+console.log("configuration_fingerprint_sha256=9891cc703bd724541ace341561e3194bf356d5ac8af9d767acf7189e03174992");
 console.log("canonical_production_credential_binding_evidence_ready=1");
 console.log("dormant_dependency_injection_source_ready=1");
 console.log("dependency_injection_requires_delivery_runtime_disabled=1");
@@ -402,6 +447,7 @@ console.log("dependency_injection_required_delivery_enable_value=0");
 console.log("dependency_injection_wallet_evidence_binding_required=1");
 console.log("dependency_injection_runtime_ready=0");
 console.log("canonical_delivery_runtime_parent_mounted=1");
+console.log("canonical_delivery_runtime_activation_ready=0");
 console.log("canonical_delivery_execution_ready=0");
 console.log("presale_inventory_funding_ready=0");
 console.log("canonical_presale_max_void=10000000");
@@ -417,6 +463,7 @@ console.log("validator_scale_purchase_10000_void_admission_ready=1");
 console.log("delivery_execution_amount_cap_separate_from_purchase_admission=1");
 console.log("disabled_delivery_canary_max_may_be_lower=1");
 console.log("public_delivery_activation_requires_presale_capacity_max=1");
-console.log("production_broad_delivery_configuration_verified=0");
-console.log("next_gate=production_broad_delivery_configuration_verification");
+console.log("current_parent_blocker=canonical_delivery_runtime_activation_not_ready");
+console.log("next_gate=canonical_delivery_runtime_activation");
+console.log("runtime_activation_performed=0");
 console.log("money_movement=0");
