@@ -31,7 +31,7 @@ The disabled parent mount must continue proving:
 ## Current truth
 
 ```text
-status=source_ready_held_on_presale_invariants
+status=presale_invariants_source_ready_held_on_activation
 erc20_execution_composition_ready=true
 canonical_delivery_runtime_activation_ready=false
 production_configuration_values_verified=false
@@ -45,18 +45,28 @@ dependency_injection_runtime_ready=false
 canonical_delivery_runtime_parent_mounted=true
 canonical_delivery_execution_ready=false
 presale_inventory_funding_ready=false
+canonical_presale_pool_id=buy-void-presale-v1
 canonical_presale_max_void=10000000
 canonical_presale_max_fulfillment_units_6_decimal=10000000000000
-finite_presale_cap_end_to_end_enforced=false
+canonical_presale_max_reservation_fulfillment_units_6_decimal=10000000000000
+finite_presale_cap_end_to_end_enforced=true
 canonical_presale_rate=2/1
-fixed_presale_rate_enforced=false
-current_parent_blocker=canonical_presale_invariants_not_ready
-next_gate=canonical_presale_invariants_source_repair
+fixed_presale_rate_enforced=true
+reservation_ceiling_equals_total_pool=true
+per_buyer_purchase_throttle_below_remaining_inventory=false
+validator_scale_purchase_10000_void_admission_ready=true
+delivery_execution_amount_cap_separate_from_purchase_admission=true
+public_delivery_activation_requires_presale_capacity_max=true
+production_broad_delivery_configuration_verified=false
+current_parent_blocker=production_broad_delivery_configuration_not_verified
+next_gate=production_broad_delivery_configuration_verification
 ```
 
 Credential key-to-wallet evidence is recorded for the canonical Precision/Mainnet-0 fulfillment wallet without inferring clone-local binding. Dormant dependency injection requires delivery enable exact `0`, the exact evidence ID, and a configured delivery wallet matching that evidence; any mismatch remains held before dependencies are populated.
 
-That dormant staging seam being source-green does **not** make Buy VOID activation-ready. Current source still accepts a noncanonical positive presale rate such as `3/2`, and it still accepts a pool capacity above the canonical 10,000,000 VOID maximum (10,000,000,000,000 six-decimal fulfillment units). The canonical finite-cap and fixed `2 VOID / 1 USDC` rate invariants therefore remain explicit P0 readiness blockers. Dependency-injection authorization is not the sole next gate while either invariant remains unresolved. Runtime enablement and inventory funding remain later independent gates.
+The canonical presale economics source is now fail-closed to one pool (`buy-void-presale-v1`), exactly 10000000 VOID (10000000000000 six-decimal fulfillment units), and exactly `2 VOID / 1 USDC`. The inventory reservation ceiling equals the entire presale pool, so there is **no per-buyer 2-VOID throttle** below remaining inventory. A 10,000 VOID validator-scale purchase is explicitly proven to reserve successfully.
+
+`VOID_BUY_VOID_DELIVERY_MAX_AMOUNT_UNITS` remains a separate delivery-execution safety control. A lower 2-VOID canary is allowed only while delivery is disabled; public delivery activation fails configuration unless the delivery maximum is widened to the canonical presale capacity so every admitted purchase can be fulfilled without an execution-layer throttle. Production broad-delivery configuration verification, runtime enablement, and inventory funding remain later gates.
 
 ## Authority boundary
 

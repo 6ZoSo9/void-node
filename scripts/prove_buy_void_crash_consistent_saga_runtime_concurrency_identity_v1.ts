@@ -24,7 +24,7 @@ const RECEIVE = "0x8888888888888888888888888888888888888888";
 const PAYMENT_TX = `0x${"5".repeat(64)}`;
 const PAYMENT_ID = `voidpay1:ethereum:${PAYMENT_TX}:0`;
 const VOID_UNITS = "2500000";
-const POOL_ID = "void-presale-mainnet0-v1";
+const POOL_ID = "buy-void-presale-v1";
 const RECEIPT = { proof: "concurrency-identity-v1" };
 
 function digest(value: string): string {
@@ -121,8 +121,8 @@ function makeInventory(
     delivery_address: DELIVERY,
     reserved_void_units: VOID_UNITS,
     pool_id: POOL_ID,
-    inventory_policy_version: "proof-policy-v1",
-    pool_capacity_void_units: "10000000",
+    inventory_policy_version: "presale-v1",
+    pool_capacity_void_units: "10000000000000",
   };
 }
 
@@ -218,13 +218,13 @@ function policyValues(): Record<string, string> {
     [VOID_BUY_VOID_CRASH_CONSISTENT_SAGA_SERVER_POLICY_ENVS_V1.rate_void_units_denominator]:
       "1",
     [VOID_BUY_VOID_CRASH_CONSISTENT_SAGA_SERVER_POLICY_ENVS_V1.inventory_policy_version]:
-      "proof-policy-v1",
+      "presale-v1",
     [VOID_BUY_VOID_CRASH_CONSISTENT_SAGA_SERVER_POLICY_ENVS_V1.pool_id]:
       POOL_ID,
     [VOID_BUY_VOID_CRASH_CONSISTENT_SAGA_SERVER_POLICY_ENVS_V1.pool_capacity_void_units]:
-      "10000000",
+      "10000000000000",
     [VOID_BUY_VOID_CRASH_CONSISTENT_SAGA_SERVER_POLICY_ENVS_V1.max_reservation_void_units]:
-      "5000000",
+      "10000000000000",
     [VOID_BUY_VOID_CRASH_CONSISTENT_SAGA_SERVER_POLICY_ENVS_V1.fulfillment_wallet_address]:
       WALLET,
   };

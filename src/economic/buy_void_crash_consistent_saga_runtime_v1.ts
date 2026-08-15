@@ -23,7 +23,7 @@ import {
   VOID_BUY_VOID_PIPELINE_CONFIRMATIONS_V1,
 } from "./buy_void_pipeline_coordinator_v1.js";
 import {
-  readBuyVoidCrashConsistentSagaServerPolicyV1,
+  readBuyVoidCanonicalPresaleServerPolicyV1,
   VOID_BUY_VOID_CRASH_CONSISTENT_SAGA_SERVER_POLICY_AUTHORITY_V1,
   VOID_BUY_VOID_CRASH_CONSISTENT_SAGA_SERVER_POLICY_ENVS_V1,
   type BuyVoidCrashConsistentSagaServerPolicyV1,
@@ -897,7 +897,7 @@ function responseStatus(reason: string): number {
 }
 
 export function buyVoidCrashConsistentSagaRuntimeStatusV1(): Record<string, unknown> {
-  const serverPolicy = readBuyVoidCrashConsistentSagaServerPolicyV1();
+  const serverPolicy = readBuyVoidCanonicalPresaleServerPolicyV1();
   const preparationCustodian = preparationCustodianConfiguration();
   return {
     marker: VOID_BUY_VOID_CRASH_CONSISTENT_SAGA_RUNTIME_V1,
@@ -991,7 +991,7 @@ export async function handleBuyVoidCrashConsistentSagaRuntimeCommandV1(
   const deps = dependencies(options.dependencies);
 
   try {
-    const policyDecision = readBuyVoidCrashConsistentSagaServerPolicyV1();
+    const policyDecision = readBuyVoidCanonicalPresaleServerPolicyV1();
     if (!policyDecision.ok) {
       throw new Error(`server_policy_not_configured:${policyDecision.reason}`);
     }
