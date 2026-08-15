@@ -1,0 +1,71 @@
+name: VOID node fleet runtime pin status v1
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/void-node-fleet-runtime-pin-status-v1.yml"
+      - "docs/operations/void-node-fleet-runtime-pin-status-v1.md"
+      - "ops/run_void_node_fleet_runtime_pin_status_v1.mjs"
+      - "scripts/prove_void_node_fleet_runtime_pin_status_v1.mjs"
+      - "scripts/prove_void_node_fleet_runtime_pin_live_canonical_v1.mjs"
+      - "tools/void-node-fleet-runtime-pin-status-v1.mjs"
+      - "tools/void-node-fleet-drift-audit-v1.mjs"
+      - "scripts/prove_void_node_fleet_drift_audit_v1.mjs"
+      - "tools/void-node-fleet-process-freshness-audit-v1.mjs"
+      - "scripts/prove_void_node_fleet_process_freshness_audit_v1.mjs"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: void-node-fleet-runtime-pin-status-v1-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  focused-proof:
+    name: focused proof / Node ${{ matrix.node }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: ${{ matrix.node }}
+
+      - name: Syntax
+        run: |
+          node --check tools/void-node-fleet-runtime-pin-status-v1.mjs
+          node --check ops/run_void_node_fleet_runtime_pin_status_v1.mjs
+          node --check scripts/prove_void_node_fleet_runtime_pin_status_v1.mjs
+          node --check scripts/prove_void_node_fleet_runtime_pin_live_canonical_v1.mjs
+
+      - name: Runtime-pin process-identity truth proof
+        run: node scripts/prove_void_node_fleet_runtime_pin_status_v1.mjs
+
+      - name: Live canonical-main freshness proof
+        run: node scripts/prove_void_node_fleet_runtime_pin_live_canonical_v1.mjs
+
+      - name: Source-drift regression
+        run: node scripts/prove_void_node_fleet_drift_audit_v1.mjs
+
+      - name: Process-freshness identity regression
+        run: node scripts/prove_void_node_fleet_process_freshness_audit_v1.mjs
+
+      - name: Diff hygiene
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        run: |
+          if [ -n "$BASE_REF" ]; then
+            git diff --check "origin/$BASE_REF...HEAD"
+          else
+            git diff --check HEAD^..HEAD
+          fi
