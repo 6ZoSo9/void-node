@@ -116,8 +116,8 @@ jobs:
           grep -F 'VOID_MCP_DIRECT_RELEVANT=%s' "$workflow"
           grep -F "env.VOID_MCP_DIRECT_RELEVANT == '1'" "$workflow"
           test "$(grep -c -- 'git diff --no-renames --name-only' "$workflow")" -ge 2
-          prepare_line="$(grep -nF -- '- name: Prepare and classify exact committed range' "$workflow" | cut -d: -f1)"
-          setup_line="$(grep -nF -- '- name: Use Node.js 22' "$workflow" | cut -d: -f1)"
+          prepare_line="$(grep -nF -- '- name: Prepare and classify exact committed range' "$workflow" | sed -n '1p' | cut -d: -f1)"
+          setup_line="$(grep -nF -- '- name: Use Node.js 22' "$workflow" | sed -n '1p' | cut -d: -f1)"
           test -n "$prepare_line"
           test -n "$setup_line"
           test "$prepare_line" -lt "$setup_line"
