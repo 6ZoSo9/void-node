@@ -172,6 +172,8 @@ try {
     ["http://localhost:4100", true],
     ["http://worker.localhost:4100", false],
     ["http://127.0.0.1:4100", true],
+    ["http://[::1]:4100", true],
+    ["http://[2001:db8::1]:4100", false],
     ["http://10.1.2.3:4100", true],
     ["http://172.16.1.2:4100", true],
     ["http://192.168.1.2:4100", true],
@@ -231,6 +233,50 @@ try {
   ]);
   assert.equal(existsSync(stateDir), false, "canonical preflight contract must not create participant state");
 
+  const ipv6Requests = [];
+  const ipv6Server = createServer((req, res) => {
+    ipv6Requests.push({ method: req.method, url: req.url });
+    if (req.method === "GET" && req.url === "/health") {
+      res.writeHead(200, { "content-type": "application/json" });
+      res.end(JSON.stringify({ ok: true, nodeId, peers: [] }));
+      return;
+    }
+    if (req.method === "GET" && req.url === STATUS_ROUTE) {
+      res.writeHead(200, { "content-type": "application/json" });
+      res.end(JSON.stringify(canonicalClientStatus()));
+      return;
+    }
+    res.writeHead(404, { "content-type": "application/json" });
+    res.end(JSON.stringify({ error: "not_found" }));
+  });
+  await new Promise((resolveListen, rejectListen) => {
+    ipv6Server.once("error", rejectListen);
+    ipv6Server.listen(0, "::1", resolveListen);
+  });
+  const ipv6Address = ipv6Server.address();
+  assert.ok(ipv6Address && typeof ipv6Address === "object");
+  const ipv6Base = `http://[::1]:${ipv6Address.port}`;
+  try {
+    writeFileSync(input, JSON.stringify(directory([available(ipv6Base), held("https://hold.example")])), "utf8");
+    const ipv6Ready = await run(["--directory-json", input, "--account", "outside-user-v6", "--client-tool", client]);
+    assert.equal(ipv6Ready.code, 0, ipv6Ready.stderr || ipv6Ready.stdout);
+    const ipv6Body = JSON.parse(ipv6Ready.stdout);
+    assert.equal(ipv6Body.selected.base, ipv6Base);
+    const ipv6StatusParsed = canonicalClientContract.parseArgs(ipv6Body.commands.status.argv.slice(2));
+    assert.equal(ipv6StatusParsed.options["coordinator-base"], ipv6Base);
+    const ipv6Context = await canonicalClientContract.inspectCoordinator(ipv6StatusParsed.options, syntheticIdentity);
+    assert.equal(ipv6Context.coordinatorBase, ipv6Base);
+    assert.equal(ipv6Context.trustedNodeId, nodeId);
+    assert.deepEqual(ipv6Requests, [
+      { method: "GET", url: "/health" },
+      { method: "GET", url: "/health" },
+      { method: "GET", url: STATUS_ROUTE },
+    ]);
+  } finally {
+    await new Promise((done, fail) => ipv6Server.close((error) => error ? fail(error) : done()));
+  }
+
+  writeFileSync(input, JSON.stringify(directory([available(base), held("https://hold.example")])), "utf8");
   healthMode = "declared_oversize";
   const declaredOversize = await run(["--directory-json", input, "--account", "outside-user-1", "--client-tool", client]);
   assert.equal(declaredOversize.code, 2, declaredOversize.stderr || declaredOversize.stdout);
