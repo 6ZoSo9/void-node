@@ -92,7 +92,7 @@
       self &&
       method === "POST" &&
       url.pathname === "/__void/metrics/proposer.commit-direct.v2fs/commit" &&
-      url.searchParams.get("empty") === "1";
+      url.search === "?empty=1";
     const intervention = self && method === "POST" && interventionPaths.has(url.pathname);
 
     return { url, method, self, autoprop, intervention };
@@ -119,13 +119,13 @@
           const { done, value } = await reader.read();
           if (done) {
             cleanup("body_complete");
-            controller.close();
+            try { controller.close(); } catch {}
             return;
           }
           controller.enqueue(value);
         } catch (err) {
           cleanup("body_error");
-          controller.error(err);
+          try { controller.error(err); } catch {}
         }
       },
       async cancel(reason) {
@@ -174,8 +174,8 @@
       );
     }
 
-    // Canonical block production uses this exact loopback commit route. Do not
-    // apply diagnostic concurrency/timeout controls to it.
+    // Canonical block production uses this one exact loopback request. Do not
+    // apply diagnostic concurrency/timeout controls to any broader near-match.
     if (info.autoprop) {
       state.autopropBypass += 1;
       return originalFetch.call(globalThis, input, init);
@@ -208,21 +208,23 @@
 
     const abortAndCleanup = (reason, cleanupReason) => {
       if (!controller.signal.aborted) controller.abort(reason);
-      if (bodyCancel) void bodyCancel(reason);
+      if (bodyCancel) {
+        try { void bodyCancel(reason); } catch {}
+      }
       cleanup(cleanupReason);
     };
-
-    if (callerSignal) {
-      callerAbort = () => abortAndCleanup(callerSignal.reason, "caller_abort");
-      if (callerSignal.aborted) callerAbort();
-      else callerSignal.addEventListener("abort", callerAbort, { once: true });
-    }
 
     timer = setTimeout(() => {
       state.timedOut += 1;
       const reason = new Error(`${MARKER}_TIMEOUT timeout_ms=${timeoutMs}`);
       abortAndCleanup(reason, "timeout");
     }, timeoutMs);
+
+    if (callerSignal) {
+      callerAbort = () => abortAndCleanup(callerSignal.reason, "caller_abort");
+      if (callerSignal.aborted) callerAbort();
+      else callerSignal.addEventListener("abort", callerAbort, { once: true });
+    }
 
     const guardedInit = { ...(init || {}), signal: controller.signal };
     let result;
@@ -239,7 +241,9 @@
         cleanup,
         (cancel) => {
           bodyCancel = cancel;
-          if (controller.signal.aborted) void bodyCancel(controller.signal.reason);
+          if (controller.signal.aborted) {
+            try { void bodyCancel(controller.signal.reason); } catch {}
+          }
         },
       ),
       (err) => {
