@@ -36,6 +36,16 @@ function run(args) {
   });
 }
 
+function claimSafety() {
+  return {
+    public_ticket_issue: true,
+    public_signed_ticket_claim: true,
+    claim_server_selected_work: true,
+    participant_selected_award: false,
+    submission_response_canonical_accounting: true,
+  };
+}
+
 async function fixture(mode, fixedAwardWc = 3, options = {}) {
   const requests = [];
   const {
@@ -56,12 +66,15 @@ async function fixture(mode, fixedAwardWc = 3, options = {}) {
       response.writeHead(200, { "content-type": "application/json" });
       response.end(JSON.stringify({
         marker: "VOID_PUBLIC_NODE_DISCOVERY_FIXTURE_V1",
-        public_routes_award_wc: false,
       }));
       return;
     }
 
     if (request.url === "/__void/public-earn-gateway-v1/status.json") {
+      const safety = claimSafety();
+      if (mode === "unknown" || omitBoundary) {
+        delete safety.submission_response_canonical_accounting;
+      }
       response.writeHead(responseStatus, { "content-type": "application/json" });
       response.end(JSON.stringify({
         marker: "VOID_PUBLIC_EARN_GATEWAY_V1",
@@ -76,20 +89,17 @@ async function fixture(mode, fixedAwardWc = 3, options = {}) {
           method: "POST",
           path: "/public/earn/claim-v1",
           fixed_award_wc: omitAward ? undefined : fixedAwardWc,
+          server_selected_work: true,
+          participant_selected_award: false,
         },
-        ...(mode === "unknown" || omitBoundary
-          ? {}
-          : {
-              audit_assertions: {
-                public_routes_award_wc: false,
-              },
-            }),
+        safety,
         ...(injectMetadata
           ? {
               metadata: {
                 coordinator_enabled: true,
                 fixed_award_wc: 3,
-                public_routes_award_wc: false,
+                submission_response_canonical_accounting: true,
+                participant_selected_award: false,
               },
             }
           : {}),
@@ -144,7 +154,7 @@ try {
   assert.equal(body.public_claim.path, "/public/earn/claim-v1");
   assert.equal(body.safety.read_only, true);
   assert.deepEqual(body.safety.http_methods_used, ["GET"]);
-  assert.equal(body.safety.public_routes_award_wc, false);
+  assert.equal(body.safety.public_claim_route_no_direct_award, true);
   assert.equal(body.safety.public_award_boundary_confirmed, true);
   assert.equal(body.safety.public_award_boundary_safe, true);
   assert.equal(body.safety.mutation_attempted, false);
@@ -214,7 +224,7 @@ for (const [label, options] of [
       assert.equal(body.pilot.coordinator_enabled, null, label);
     }
     if (label === "award_boundary_splice") {
-      assert.equal(body.safety.public_routes_award_wc, null, label);
+      assert.equal(body.safety.public_claim_route_no_direct_award, false, label);
       assert.equal(body.safety.public_award_boundary_confirmed, false, label);
     }
   } finally {
@@ -274,10 +284,10 @@ try {
   assert.equal(normal.code, 0, normal.stderr || normal.stdout);
   const normalBody = JSON.parse(normal.stdout);
   assert.equal(normalBody.opportunity_state, "hold");
-  assert.match(normalBody.reason, /public_award_boundary_unconfirmed/u);
+  assert.match(normalBody.reason, /public_claim_award_boundary_unconfirmed/u);
   assert.equal(normalBody.pilot.coordinator_enabled, true);
   assert.equal(normalBody.public_claim.enabled, true);
-  assert.equal(normalBody.safety.public_routes_award_wc, null);
+  assert.equal(normalBody.safety.public_claim_route_no_direct_award, false);
   assert.equal(normalBody.safety.public_award_boundary_confirmed, false);
   assert.equal(normalBody.safety.public_award_boundary_safe, false);
   assert.equal(normalBody.safety.mutation_attempted, false);
