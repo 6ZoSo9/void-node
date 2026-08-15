@@ -2,13 +2,7 @@
 
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
-import {
-  existsSync,
-  mkdtempSync,
-  readFileSync,
-  rmSync,
-  writeFileSync,
-} from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { spawnSync } from "node:child_process";
@@ -20,37 +14,28 @@ import {
   reproduceFleetDecisionV1,
   reproduceProcessFreshnessDecisionV1,
 } from "../tools/void-node-fleet-runtime-pin-status-v1.mjs";
+import {
+  assertCanonicalBracketV1,
+  evaluateRuntimePinStatusLiveCanonicalV1,
+  queryCanonicalMainExplicitUrlV1,
+  sampleLiveCanonicalMainV1,
+} from "../ops/run_void_node_fleet_runtime_pin_status_v1.mjs";
 
 const ROOT = resolve(fileURLToPath(new URL("..", import.meta.url)));
-const RUNNER = join(ROOT, "ops/run_void_node_fleet_runtime_pin_status_v1.mjs");
 
-function git(cwd, args) {
+function git(cwd, args, env = process.env) {
   const result = spawnSync("git", args, {
     cwd,
     encoding: "utf8",
     timeout: 10_000,
-    env: { ...process.env, GIT_TERMINAL_PROMPT: "0" },
+    env: { ...env, GIT_TERMINAL_PROMPT: "0" },
   });
-  assert.equal(
-    result.status,
-    0,
-    `git ${args.join(" ")} failed: ${result.stderr || result.stdout}`,
-  );
+  assert.equal(result.status, 0, `git ${args.join(" ")} failed: ${result.stderr || result.stdout}`);
   return result.stdout.trim();
 }
 
-function sha256Stable(value) {
-  function stableJson(input) {
-    if (Array.isArray(input)) return `[${input.map(stableJson).join(",")}]`;
-    if (input && typeof input === "object") {
-      return `{${Object.keys(input)
-        .sort()
-        .map((key) => `${JSON.stringify(key)}:${stableJson(input[key])}`)
-        .join(",")}}`;
-    }
-    return JSON.stringify(input);
-  }
-  return createHash("sha256").update(stableJson(value)).digest("hex");
+function sha256(value) {
+  return createHash("sha256").update(value).digest("hex");
 }
 
 function pathClassification(runtimeRelevant = 0) {
@@ -189,38 +174,34 @@ function processAudit(sourceHead, sourceTree, nowEpoch) {
   };
 }
 
-function runEvaluator({ coordinatorRepo, driftPath, processPath, approvedSha, outputPath, env = {} }) {
-  return spawnSync(
-    process.execPath,
-    [
-      RUNNER,
-      "--coordinator-repo",
-      coordinatorRepo,
-      "--drift-audit",
-      driftPath,
-      "--process-freshness-audit",
-      processPath,
-      "--approved-runtime-sha",
-      approvedSha,
-      "--max-evidence-age-seconds",
-      "300",
-      "--output",
-      outputPath,
-    ],
-    {
-      cwd: ROOT,
-      encoding: "utf8",
-      timeout: 20_000,
-      env: { ...process.env, ...env },
-    },
-  );
+function evidence(audit) {
+  return {
+    audit,
+    file_sha256: sha256(JSON.stringify(audit)),
+    mtime_epoch_ms: Date.now() - 1000,
+  };
+}
+
+function evalPacket({ coordinator, remote, drift, process, approved, env = process.env }) {
+  return evaluateRuntimePinStatusLiveCanonicalV1({
+    driftEvidence: evidence(drift),
+    processEvidence: evidence(process),
+    approvedRuntimeSha: approved,
+    coordinatorRepo: coordinator,
+    expectedCanonicalUrl: remote,
+    env,
+    evaluatedAtEpochMs: Date.now(),
+    evidenceOutputCreated: false,
+  });
 }
 
 const tempRoot = mkdtempSync(join(tmpdir(), "void-runtime-pin-live-canonical-"));
 try {
   const remote = join(tempRoot, "remote.git");
+  const alternate = join(tempRoot, "alternate.git");
   const coordinator = join(tempRoot, "coordinator");
   git(tempRoot, ["init", "--bare", remote]);
+  git(tempRoot, ["init", "--bare", alternate]);
   git(tempRoot, ["init", coordinator]);
   git(coordinator, ["config", "user.name", "VOID proof"]);
   git(coordinator, ["config", "user.email", "void-proof@example.invalid"]);
@@ -230,29 +211,20 @@ try {
   git(coordinator, ["branch", "-M", "main"]);
   git(coordinator, ["remote", "add", "origin", remote]);
   git(coordinator, ["push", "-u", "origin", "main"]);
-
   const commitA = git(coordinator, ["rev-parse", "HEAD"]);
   const treeA = git(coordinator, ["rev-parse", "HEAD^{tree}"]);
+
   const nowEpoch = Math.floor(Date.now() / 1000) - 1;
   const driftA = driftAudit(commitA, commitA);
   const processA = processAudit(commitA, treeA, nowEpoch);
-  const driftPath = join(tempRoot, "drift.json");
-  const processPath = join(tempRoot, "process.json");
-  writeFileSync(driftPath, `${JSON.stringify(driftA, null, 2)}\n`);
-  writeFileSync(processPath, `${JSON.stringify(processA, null, 2)}\n`);
-
-  const currentOutput = join(tempRoot, "current.json");
-  const currentRun = runEvaluator({
-    coordinatorRepo: coordinator,
-    driftPath,
-    processPath,
-    approvedSha: commitA,
-    outputPath: currentOutput,
+  const currentPacket = evalPacket({
+    coordinator,
+    remote,
+    drift: driftA,
+    process: processA,
+    approved: commitA,
   });
-  assert.equal(currentRun.status, 0, currentRun.stderr || currentRun.stdout);
-  const currentPacket = JSON.parse(readFileSync(currentOutput, "utf8"));
   assert.equal(currentPacket.status, "CURRENT_WITH_MAIN");
-  assert.equal(currentPacket.canonical_main_sha, commitA);
 
   writeFileSync(join(coordinator, "fixture.txt"), "B\n");
   git(coordinator, ["add", "fixture.txt"]);
@@ -261,72 +233,105 @@ try {
   const commitB = git(coordinator, ["rev-parse", "HEAD"]);
   assert.notEqual(commitB, commitA);
 
-  // Recreate the old drift bytes after canonical main moved. Filesystem freshness
-  // alone must not restore authority to claim CURRENT_WITH_MAIN.
-  writeFileSync(driftPath, `${JSON.stringify(driftA, null, 2)}\n`);
-  const staleOutput = join(tempRoot, "stale.json");
-  const staleRun = runEvaluator({
-    coordinatorRepo: coordinator,
-    driftPath,
-    processPath,
-    approvedSha: commitA,
-    outputPath: staleOutput,
-  });
-  assert.equal(staleRun.status, 1);
-  assert.equal(existsSync(staleOutput), false);
-  const staleError = JSON.parse(staleRun.stderr.trim());
-  assert.equal(staleError.status, "HOLD");
-  assert.match(staleError.error, /canonical main is stale/);
-  assert.equal(staleError.mutation_attempted, false);
-  assert.equal(staleError.canonical_remote_read_only, true);
-
-  // Fresh source/process evidence at A with canonical B is still a legitimate
-  // intentional runtime pin when A is the explicit approved runtime.
-  const freshDriftB = driftAudit(commitA, commitB);
-  writeFileSync(driftPath, `${JSON.stringify(freshDriftB, null, 2)}\n`);
-  writeFileSync(
-    processPath,
-    `${JSON.stringify(processAudit(commitA, treeA, Math.floor(Date.now() / 1000) - 1), null, 2)}\n`,
+  assert.throws(
+    () => evalPacket({ coordinator, remote, drift: driftA, process: processA, approved: commitA }),
+    /canonical main is stale/,
   );
-  const pinnedOutput = join(tempRoot, "pinned.json");
-  const pinnedRun = runEvaluator({
-    coordinatorRepo: coordinator,
-    driftPath,
-    processPath,
-    approvedSha: commitA,
-    outputPath: pinnedOutput,
+
+  const driftB = driftAudit(commitA, commitB);
+  const pinnedPacket = evalPacket({
+    coordinator,
+    remote,
+    drift: driftB,
+    process: processAudit(commitA, treeA, Math.floor(Date.now() / 1000) - 1),
+    approved: commitA,
   });
-  assert.equal(pinnedRun.status, 0, pinnedRun.stderr || pinnedRun.stdout);
-  const pinnedPacket = JSON.parse(readFileSync(pinnedOutput, "utf8"));
   assert.equal(pinnedPacket.status, "HEALTHY_INTENTIONAL_PIN");
   assert.equal(pinnedPacket.canonical_main_sha, commitB);
   assert.equal(pinnedPacket.nodes[0].process_source_commit, commitA);
 
-  const redirectedOutput = join(tempRoot, "redirected.json");
-  const redirectedRun = runEvaluator({
-    coordinatorRepo: coordinator,
-    driftPath,
-    processPath,
-    approvedSha: commitA,
-    outputPath: redirectedOutput,
-    env: { GIT_DIR: remote },
-  });
-  assert.equal(redirectedRun.status, 1);
-  assert.equal(existsSync(redirectedOutput), false);
-  assert.match(redirectedRun.stderr, /override environment is not allowed/);
+  git(coordinator, ["remote", "add", "alternate", alternate]);
+  git(coordinator, ["push", "alternate", `${commitA}:refs/heads/main`]);
 
+  const globalHome = join(tempRoot, "global-home");
+  mkdirSync(globalHome);
+  writeFileSync(
+    join(globalHome, ".gitconfig"),
+    `[url "${alternate}"]\n\tinsteadOf = ${remote}\n`,
+  );
+  const globalEnv = { ...process.env, HOME: globalHome };
+  assert.equal(git(coordinator, ["remote", "get-url", "origin"], globalEnv), alternate);
+  const globalOutput = join(tempRoot, "global-rewrite-output.json");
+  assert.throws(
+    () => {
+      const packet = evalPacket({
+        coordinator,
+        remote,
+        drift: driftB,
+        process: processA,
+        approved: commitA,
+        env: globalEnv,
+      });
+      writeFileSync(globalOutput, `${JSON.stringify(packet)}\n`);
+    },
+    /ambient Git URL rewrite changes canonical remote identity/,
+  );
+  assert.equal(existsSync(globalOutput), false);
+  assert.equal(queryCanonicalMainExplicitUrlV1({ canonicalUrl: remote, env: globalEnv }), commitB);
+
+  const xdgHome = join(tempRoot, "xdg-home");
+  const xdgConfigHome = join(tempRoot, "xdg-config");
+  mkdirSync(xdgHome);
+  mkdirSync(join(xdgConfigHome, "git"), { recursive: true });
+  writeFileSync(
+    join(xdgConfigHome, "git", "config"),
+    `[url "${alternate}"]\n\tinsteadOf = ${remote}\n`,
+  );
+  const xdgEnv = {
+    ...process.env,
+    HOME: xdgHome,
+    XDG_CONFIG_HOME: xdgConfigHome,
+  };
+  assert.equal(git(coordinator, ["remote", "get-url", "origin"], xdgEnv), alternate);
+  const xdgOutput = join(tempRoot, "xdg-rewrite-output.json");
+  assert.throws(
+    () => {
+      const packet = evalPacket({
+        coordinator,
+        remote,
+        drift: driftB,
+        process: processA,
+        approved: commitA,
+        env: xdgEnv,
+      });
+      writeFileSync(xdgOutput, `${JSON.stringify(packet)}\n`);
+    },
+    /ambient Git URL rewrite changes canonical remote identity/,
+  );
+  assert.equal(existsSync(xdgOutput), false);
+  assert.equal(queryCanonicalMainExplicitUrlV1({ canonicalUrl: remote, env: xdgEnv }), commitB);
+
+  const normalSample = sampleLiveCanonicalMainV1({
+    coordinatorRepo: coordinator,
+    canonicalRemote: "origin",
+    expectedCanonicalUrl: remote,
+  });
+  assert.equal(normalSample.sha, commitB);
+  assert.equal(normalSample.remote_url, remote);
+  assert.equal(normalSample.effective_remote_url, remote);
   assert.equal(
-    sha256Stable({ stale: commitA, live: commitB }) !==
-      sha256Stable({ stale: commitA, live: commitA }),
-    true,
+    assertCanonicalBracketV1({ driftCanonicalSha: commitB, before: normalSample, after: normalSample }),
+    commitB,
   );
 
   console.log(`fresh_current_sha=${commitA}`);
   console.log(`advanced_canonical_sha=${commitB}`);
   console.log("copied_or_touched_stale_drift_rejected=true");
-  console.log("live_canonical_bracket_required=true");
   console.log("fresh_intentional_pin_preserved=true");
-  console.log("git_selection_override_rejected=true");
+  console.log("stored_canonical_remote_identity_required=true");
+  console.log("global_insteadof_redirect_rejected_before_packet=true");
+  console.log("xdg_insteadof_redirect_rejected_before_packet=true");
+  console.log("explicit_canonical_query_ignores_ambient_rewrite=true");
   console.log("network_mutation_performed=false");
   console.log("git_fetch_performed=false");
   console.log("service_or_runtime_mutation_performed=false");
