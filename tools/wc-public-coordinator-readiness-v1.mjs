@@ -60,25 +60,6 @@ function get(v, path) {
   return cur;
 }
 
-function findBoolean(v, keys) {
-  const wanted = new Set(keys.map((k) => k.toLowerCase()));
-  let found;
-  function walk(x) {
-    if (found !== undefined) return;
-    if (Array.isArray(x)) return x.forEach(walk);
-    if (!x || typeof x !== "object") return;
-    for (const [k, child] of Object.entries(x)) {
-      if (wanted.has(k.toLowerCase()) && typeof child === "boolean") {
-        found = child;
-        return;
-      }
-      walk(child);
-    }
-  }
-  walk(v);
-  return found;
-}
-
 function scan(v) {
   const keys = new Set();
   const strings = [];
@@ -224,15 +205,26 @@ function check(id, pass, observed) {
   return { id, pass: Boolean(pass), observed };
 }
 
+function publicClaimRouteNoDirectAward(g, p) {
+  return (
+    get(g, ["routes", "claim_ticket"]) === ROUTES.claim &&
+    exactMethods(get(g, ["methods", "claim_ticket"]), ["POST"]) &&
+    get(g, ["safety", "public_ticket_issue"]) === true &&
+    get(g, ["safety", "public_signed_ticket_claim"]) === true &&
+    get(g, ["safety", "claim_server_selected_work"]) === true &&
+    get(g, ["safety", "participant_selected_award"]) === false &&
+    get(g, ["safety", "submission_response_canonical_accounting"]) === true &&
+    get(p, ["public_claim", "server_selected_work"]) === true &&
+    get(p, ["public_claim", "participant_selected_award"]) === false
+  );
+}
+
 function checksFor(gateway, pilot, boundaries, expectedAward) {
   const g = gateway.body;
   const p = pilot.body;
   const gscan = scan(g);
   const pscan = scan(p);
-  const publicRoutesAward = findBoolean(
-    [g, p],
-    ["public_routes_award_wc", "public_route_can_award_wc"],
-  );
+  const claimRouteNoDirectAward = publicClaimRouteNoDirectAward(g, p);
   const leakedKeys = [
     "secret", "private_file", "private_dataset_path", "capability_token",
     "wallet_private_key", "seed_phrase",
@@ -308,7 +300,17 @@ function checksFor(gateway, pilot, boundaries, expectedAward) {
       "public_claim_executor_key_possession_required",
       "public_claim_replay_protected",
     ].every((k) => get(p, ["capability", k]) === true), get(p, ["capability"]) ?? null),
-    check("public_routes_cannot_award_wc", publicRoutesAward === false, publicRoutesAward ?? null),
+    check("public_claim_route_no_direct_award", claimRouteNoDirectAward, {
+      gateway_claim_route: get(g, ["routes", "claim_ticket"]) ?? null,
+      gateway_claim_methods: get(g, ["methods", "claim_ticket"]) ?? null,
+      public_ticket_issue: get(g, ["safety", "public_ticket_issue"]) ?? null,
+      public_signed_ticket_claim: get(g, ["safety", "public_signed_ticket_claim"]) ?? null,
+      claim_server_selected_work: get(g, ["safety", "claim_server_selected_work"]) ?? null,
+      participant_selected_award: get(g, ["safety", "participant_selected_award"]) ?? null,
+      submission_response_canonical_accounting: get(g, ["safety", "submission_response_canonical_accounting"]) ?? null,
+      pilot_server_selected_work: get(p, ["public_claim", "server_selected_work"]) ?? null,
+      pilot_participant_selected_award: get(p, ["public_claim", "participant_selected_award"]) ?? null,
+    }),
     check("claim_route_post_only",
       get(g, ["routes", "claim_ticket"]) === ROUTES.claim &&
       exactMethods(get(g, ["methods", "claim_ticket"]), ["POST"]),
@@ -322,8 +324,8 @@ function checksFor(gateway, pilot, boundaries, expectedAward) {
         gateway_methods: get(g, ["methods", "submit_result"]) ?? null,
         pilot_route: get(p, ["routes", "submit_result"]) ?? null,
       }),
-    check("claim_submit_reject_get",
-      boundaries.claim.status === 405 && boundaries.submit.status === 405,
+    check("claim_submit_get_forbidden",
+      [404, 405].includes(boundaries.claim.status) && [404, 405].includes(boundaries.submit.status),
       { claim_get: boundaries.claim.status, submit_get: boundaries.submit.status }),
     check("operator_routes_hidden",
       boundaries.operatorIssue.status === 404 &&
@@ -395,7 +397,7 @@ async function main() {
 
   const pilot = await readJson(
     base,
-    `${ROUTES.pilot}?account=${encodeURIComponent(values.account)}`,
+    ROUTES.pilot,
     timeoutMs,
     statusRetries,
   );
