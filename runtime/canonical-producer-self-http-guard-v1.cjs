@@ -119,13 +119,21 @@
           const { done, value } = await reader.read();
           if (done) {
             cleanup("body_complete");
-            try { controller.close(); } catch {}
+            try {
+              controller.close();
+            } catch (closeErr) {
+              void closeErr;
+            }
             return;
           }
           controller.enqueue(value);
         } catch (err) {
           cleanup("body_error");
-          try { controller.error(err); } catch {}
+          try {
+            controller.error(err);
+          } catch (errorErr) {
+            void errorErr;
+          }
         }
       },
       async cancel(reason) {
@@ -209,7 +217,11 @@
     const abortAndCleanup = (reason, cleanupReason) => {
       if (!controller.signal.aborted) controller.abort(reason);
       if (bodyCancel) {
-        try { void bodyCancel(reason); } catch {}
+        try {
+          void bodyCancel(reason);
+        } catch (cancelErr) {
+          void cancelErr;
+        }
       }
       cleanup(cleanupReason);
     };
@@ -242,7 +254,11 @@
         (cancel) => {
           bodyCancel = cancel;
           if (controller.signal.aborted) {
-            try { void bodyCancel(controller.signal.reason); } catch {}
+            try {
+              void bodyCancel(controller.signal.reason);
+            } catch (cancelErr) {
+              void cancelErr;
+            }
           }
         },
       ),
