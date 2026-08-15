@@ -31,6 +31,12 @@ function safeNumber(value) {
   return Number.isFinite(number) ? number : null;
 }
 
+function strictEvidenceNumber(value) {
+  return typeof value === "number" && Number.isFinite(value)
+    ? value
+    : null;
+}
+
 function asObject(value) {
   return value && typeof value === "object" && !Array.isArray(value)
     ? value
@@ -106,7 +112,7 @@ function findFirstScalar(value, wantedKeys, type) {
     }
 
     if (type === "number") {
-      const number = safeNumber(candidate);
+      const number = strictEvidenceNumber(candidate);
       if (number !== null) {
         found = number;
       }
@@ -315,8 +321,8 @@ function analyze(body, sourcePath, origin, expectedAwardWc, attempts) {
       : findBooleanAny(body, ["executor_enabled", "executorEnabled"]);
 
   const fixedAwardWc =
-    safeNumber(pilot?.fixed_award_wc) ??
-    safeNumber(publicClaim?.fixed_award_wc) ??
+    strictEvidenceNumber(pilot?.fixed_award_wc) ??
+    strictEvidenceNumber(publicClaim?.fixed_award_wc) ??
     findFirstScalar(body, ["fixed_award_wc", "fixedAwardWc"], "number") ??
     null;
 
