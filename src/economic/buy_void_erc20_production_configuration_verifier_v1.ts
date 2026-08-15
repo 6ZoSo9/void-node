@@ -76,6 +76,7 @@ export type BuyVoidErc20ProductionConfigurationVerificationV1 =
       status: "candidate_verified_held_on_activation";
       marker: typeof VOID_BUY_VOID_ERC20_PRODUCTION_CONFIGURATION_VERIFIER_V1;
       version: 1;
+      reason?: never;
       configuration_fingerprint_sha256: string;
       planner_policy_fingerprint_sha256: string;
       rpc_url_fingerprint_sha256: string;
