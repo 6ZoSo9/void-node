@@ -3,6 +3,7 @@ import os from "node:os";
 import {
   fetchVoidUiWave2HomeSourceJsonV1,
   type VoidUiWave2HomeSourceResultV1,
+  VoidUiWave2HomeSnapshotBuildOwnerV1,
 } from "./void_app_wave2_home_source_fetch_v1.js";
 
 const G: any = globalThis as any;
@@ -65,6 +66,9 @@ if (!G[INSTALL_MARK]) {
     attempts: 0,
     mounted_at_ms: 0,
   };
+
+  const snapshotBuildOwner =
+    new VoidUiWave2HomeSnapshotBuildOwnerV1<HomeSnapshot>();
 
   const isLoopback = (req: any): boolean => {
     const raw = String(
@@ -243,6 +247,9 @@ if (!G[INSTALL_MARK]) {
     };
   };
 
+  const buildSnapshotCoalesced = (): Promise<HomeSnapshot> =>
+    snapshotBuildOwner.getOrStart(buildSnapshot);
+
   const mount = (): void => {
     const state = G[INSTALL_MARK];
     if (state.installed) return;
@@ -300,7 +307,7 @@ if (!G[INSTALL_MARK]) {
 
     app.get(HOME_ROUTE, async (_req: any, res: any) => {
       securityHeaders(res);
-      return res.status(200).json(await buildSnapshot());
+      return res.status(200).json(await buildSnapshotCoalesced());
     });
 
     app.get(STATUS_ROUTE, (_req: any, res: any) => {

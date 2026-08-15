@@ -5,6 +5,7 @@ import path from "node:path";
 
 import {
   VOID_UI_WAVE2_HOME_SOURCE_MAX_RESPONSE_BYTES_V1,
+  VoidUiWave2HomeSnapshotBuildOwnerV1,
   fetchVoidUiWave2HomeSourceJsonV1,
 } from "../src/ui/void_app_wave2_home_source_fetch_v1.js";
 
@@ -23,6 +24,24 @@ const sha256File = (relative: string): string =>
     .update(fs.readFileSync(path.join(root, relative)))
     .digest("hex");
 
+type Deferred = {
+  promise: Promise<void>;
+  resolve: () => void;
+};
+
+const deferred = (): Deferred => {
+  let resolve!: () => void;
+  const promise = new Promise<void>((done) => {
+    resolve = done;
+  });
+  return { promise, resolve };
+};
+
+const settleMicrotasks = async (): Promise<void> => {
+  await Promise.resolve();
+  await Promise.resolve();
+};
+
 async function main(): Promise<void> {
   const homeSource = fs.readFileSync(
     path.join(root, "src/ui/void_app_wave2_home_readonly_v1.ts"),
@@ -34,6 +53,11 @@ async function main(): Promise<void> {
   );
 
   assert.match(homeSource, /fetchVoidUiWave2HomeSourceJsonV1/);
+  assert.match(
+    homeSource,
+    /snapshotBuildOwner\.getOrStart\(buildSnapshot\)/
+  );
+  assert.equal((homeSource.match(/fetchJson\(base,/g) || []).length, 4);
   assert.equal(homeSource.includes("response.text()"), false);
   assert.equal(fetchSource.includes("response.text()"), false);
   assert.match(fetchSource, /redirect: "error"/);
@@ -86,6 +110,86 @@ async function main(): Promise<void> {
     wave4Manifest.repository_hashes?.[wave3ManifestPath],
     sha256File(wave3ManifestPath)
   );
+
+  const snapshotOwner = new VoidUiWave2HomeSnapshotBuildOwnerV1<number>();
+  const gates = [deferred(), deferred()];
+  let batchStarts = 0;
+  let activeSourceReads = 0;
+  let maxActiveSourceReads = 0;
+
+  const buildSyntheticSnapshot = async (): Promise<number> => {
+    const batchIndex = batchStarts++;
+    const gate = gates[batchIndex];
+    assert.ok(gate, `unexpected snapshot batch ${batchIndex}`);
+
+    const reads = Array.from({ length: 4 }, async () => {
+      activeSourceReads += 1;
+      maxActiveSourceReads = Math.max(
+        maxActiveSourceReads,
+        activeSourceReads
+      );
+      try {
+        await gate.promise;
+      } finally {
+        activeSourceReads -= 1;
+      }
+    });
+
+    await Promise.all(reads);
+    return batchIndex + 1;
+  };
+
+  const first = snapshotOwner.getOrStart(buildSyntheticSnapshot);
+  const overlappingSecond = snapshotOwner.getOrStart(buildSyntheticSnapshot);
+  const overlappingThird = snapshotOwner.getOrStart(buildSyntheticSnapshot);
+
+  assert.strictEqual(first, overlappingSecond);
+  assert.strictEqual(first, overlappingThird);
+  await settleMicrotasks();
+  assert.equal(batchStarts, 1);
+  assert.equal(activeSourceReads, 4);
+  assert.equal(maxActiveSourceReads, 4);
+  assert.equal(snapshotOwner.hasInFlight(), true);
+
+  gates[0].resolve();
+  assert.deepEqual(
+    await Promise.all([first, overlappingSecond, overlappingThird]),
+    [1, 1, 1]
+  );
+  assert.equal(activeSourceReads, 0);
+  assert.equal(snapshotOwner.hasInFlight(), false);
+
+  const fresh = snapshotOwner.getOrStart(buildSyntheticSnapshot);
+  await settleMicrotasks();
+  assert.equal(batchStarts, 2);
+  assert.equal(activeSourceReads, 4);
+  assert.equal(maxActiveSourceReads, 4);
+  gates[1].resolve();
+  assert.equal(await fresh, 2);
+  assert.equal(snapshotOwner.hasInFlight(), false);
+
+  let failedBuildStarts = 0;
+  const failed = snapshotOwner.getOrStart(async () => {
+    failedBuildStarts += 1;
+    throw new Error("synthetic_snapshot_failure");
+  });
+  const failedOverlap = snapshotOwner.getOrStart(async () => {
+    failedBuildStarts += 100;
+    return 0;
+  });
+  assert.strictEqual(failed, failedOverlap);
+  await assert.rejects(failed, /synthetic_snapshot_failure/);
+  assert.equal(failedBuildStarts, 1);
+  assert.equal(snapshotOwner.hasInFlight(), false);
+
+  const timeoutLike = snapshotOwner.getOrStart(
+    () =>
+      new Promise<number>((resolve) => {
+        setTimeout(() => resolve(3), 5);
+      })
+  );
+  assert.equal(await timeoutLike, 3);
+  assert.equal(snapshotOwner.hasInFlight(), false);
 
   const validPayload = { ok: true, ready: true, value: 7 };
   const validText = JSON.stringify(validPayload);
@@ -212,6 +316,11 @@ async function main(): Promise<void> {
 
   console.log("VOID_UI_WAVE2_HOME_RESPONSE_BOUNDS_V1_PROOF_GREEN");
   console.log(`max_response_bytes=${VOID_UI_WAVE2_HOME_SOURCE_MAX_RESPONSE_BYTES_V1}`);
+  console.log("home_snapshot_build_coalesced=true");
+  console.log(`max_active_home_source_reads=${maxActiveSourceReads}`);
+  console.log("snapshot_owner_released_after_success=true");
+  console.log("snapshot_owner_released_after_failure=true");
+  console.log("snapshot_owner_released_after_timeout_like_settlement=true");
   console.log("declared_oversize_rejected=true");
   console.log("streamed_oversize_rejected=true");
   console.log("source_deadline_through_body=true");

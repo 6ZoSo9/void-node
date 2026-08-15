@@ -18,6 +18,32 @@ type FetchOptions = {
   fetchImpl?: FetchLike;
 };
 
+export class VoidUiWave2HomeSnapshotBuildOwnerV1<T> {
+  private inFlight: Promise<T> | null = null;
+
+  getOrStart(build: () => Promise<T>): Promise<T> {
+    if (this.inFlight !== null) {
+      return this.inFlight;
+    }
+
+    let owned: Promise<T>;
+    owned = Promise.resolve()
+      .then(build)
+      .finally(() => {
+        if (this.inFlight === owned) {
+          this.inFlight = null;
+        }
+      });
+
+    this.inFlight = owned;
+    return owned;
+  }
+
+  hasInFlight(): boolean {
+    return this.inFlight !== null;
+  }
+}
+
 const bestEffortCancel = (
   body: ReadableStream<Uint8Array> | null,
   reason: string
