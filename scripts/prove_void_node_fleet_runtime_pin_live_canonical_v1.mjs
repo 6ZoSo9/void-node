@@ -2,7 +2,15 @@
 
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
-import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  statSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { spawnSync } from "node:child_process";
@@ -16,8 +24,12 @@ import {
 } from "../tools/void-node-fleet-runtime-pin-status-v1.mjs";
 import {
   assertCanonicalBracketV1,
+  assertCanonicalEvaluationGitEnvironmentV1,
   evaluateRuntimePinStatusLiveCanonicalV1,
+  publishReservedEvidenceOutputV1,
   queryCanonicalMainExplicitUrlV1,
+  reserveEvidenceOutputV1,
+  resolveSafeEvidenceOutputPathV1,
   sampleLiveCanonicalMainV1,
 } from "../ops/run_void_node_fleet_runtime_pin_status_v1.mjs";
 
@@ -311,6 +323,73 @@ try {
   assert.equal(existsSync(xdgOutput), false);
   assert.equal(queryCanonicalMainExplicitUrlV1({ canonicalUrl: remote, env: xdgEnv }), commitB);
 
+  const tlsOverrides = [
+    ["GIT_SSL_NO_VERIFY", "1"],
+    ["GIT_SSL_CAINFO", join(tempRoot, "caller-ca.pem")],
+    ["GIT_SSL_CAPATH", join(tempRoot, "caller-ca-dir")],
+    ["CURL_CA_BUNDLE", join(tempRoot, "curl-ca.pem")],
+    ["SSL_CERT_FILE", join(tempRoot, "ssl-cert.pem")],
+    ["SSL_CERT_DIR", join(tempRoot, "ssl-cert-dir")],
+  ];
+  for (const [key, value] of tlsOverrides) {
+    const tlsEnv = { ...process.env, [key]: value };
+    assert.throws(
+      () => assertCanonicalEvaluationGitEnvironmentV1(tlsEnv),
+      /HTTPS-authentication override environment is not allowed/,
+    );
+    assert.throws(
+      () =>
+        sampleLiveCanonicalMainV1({
+          coordinatorRepo: coordinator,
+          canonicalRemote: "origin",
+          expectedCanonicalUrl: remote,
+          env: tlsEnv,
+        }),
+      /HTTPS-authentication override environment is not allowed/,
+    );
+  }
+
+  const statusBeforeOutputChecks = git(coordinator, ["status", "--porcelain=v1"]);
+  const inWorktreeOutput = join(coordinator, "runtime-pin-status.json");
+  assert.throws(
+    () =>
+      resolveSafeEvidenceOutputPathV1({
+        outputPath: inWorktreeOutput,
+        coordinatorRepo: coordinator,
+      }),
+    /outside the selected coordinator worktree/,
+  );
+  assert.equal(existsSync(inWorktreeOutput), false);
+
+  const gitDir = git(coordinator, ["rev-parse", "--absolute-git-dir"]);
+  const inGitDirOutput = join(gitDir, "runtime-pin-status.json");
+  assert.throws(
+    () =>
+      resolveSafeEvidenceOutputPathV1({
+        outputPath: inGitDirOutput,
+        coordinatorRepo: coordinator,
+      }),
+    /outside the selected coordinator worktree|outside the selected Git directory/,
+  );
+  assert.equal(existsSync(inGitDirOutput), false);
+  assert.equal(git(coordinator, ["status", "--porcelain=v1"]), statusBeforeOutputChecks);
+
+  const externalEvidenceDir = join(tempRoot, "evidence");
+  mkdirSync(externalEvidenceDir);
+  const externalOutput = join(externalEvidenceDir, "runtime-pin-status.json");
+  const reservation = reserveEvidenceOutputV1({
+    outputPath: externalOutput,
+    coordinatorRepo: coordinator,
+  });
+  const publishedPacket = {
+    marker: "VOID_NODE_FLEET_RUNTIME_PIN_STATUS_EVIDENCE_OUTPUT_PROOF_V1",
+    evidence_output_created: true,
+  };
+  publishReservedEvidenceOutputV1(reservation, publishedPacket);
+  assert.deepEqual(JSON.parse(readFileSync(externalOutput, "utf8")), publishedPacket);
+  assert.equal(statSync(externalOutput).mode & 0o777, 0o600);
+  assert.equal(git(coordinator, ["status", "--porcelain=v1"]), statusBeforeOutputChecks);
+
   const normalSample = sampleLiveCanonicalMainV1({
     coordinatorRepo: coordinator,
     canonicalRemote: "origin",
@@ -332,6 +411,9 @@ try {
   console.log("global_insteadof_redirect_rejected_before_packet=true");
   console.log("xdg_insteadof_redirect_rejected_before_packet=true");
   console.log("explicit_canonical_query_ignores_ambient_rewrite=true");
+  console.log("caller_tls_trust_overrides_rejected_before_query=true");
+  console.log("repository_internal_output_paths_rejected=true");
+  console.log("external_evidence_create_only_mode_0600=true");
   console.log("network_mutation_performed=false");
   console.log("git_fetch_performed=false");
   console.log("service_or_runtime_mutation_performed=false");
