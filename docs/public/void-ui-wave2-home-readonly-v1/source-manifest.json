@@ -32,7 +32,7 @@
     "approved_date": "2026-07-14",
     "surface": "/app/#/home",
     "receipt": "/home/zoso/void-precision-smoke/void-ui-wave2-home-visual-20260714T180144Z.txt",
-    "receipt_sha256": "964f5d6977702ed3aa60f6dd7416f4845a9b3dd8d4e64cf4cbb9dadeffb237ff"
+    "receipt_sha256": "964f5d6977702ed3a60f6dd7416f4845a9b3dd8d4e64cf4cbb9dadeffb237ff"
   },
   "payload_hashes_are_source_bundle_only": true,
   "repository_hashes": {
@@ -41,7 +41,7 @@
     "docs/public/void-ui-wave2-home-readonly-v1/ADAPTER_CONTRACT.md": "f0e623daabd67a920a275f803c92f199b4acf452f6a45e5e6760bccdf9728e57",
     "docs/public/void-ui-wave2-home-readonly-v1/READINESS_HONESTY.md": "7ff731e046e970ecacf2196b57ac83506d3733b80caea3f5a577ab69ff5fa7ee",
     "docs/public/void-ui-wave2-home-readonly-v1/README.md": "3e4eb6582b0ef28ecb9f5334b75a897347fab98433a10c024c85c2b7e637feec",
-    "docs/public/void-ui-wave2-home-readonly-v1/VISUAL_APPROVAL.md": "177f4a1268fc15bc19caa53c0c5fbb298900373b5730dfb68ca49f27a186a03e5",
+    "docs/public/void-ui-wave2-home-readonly-v1/VISUAL_APPROVAL.md": "177f4a1268fc15bc19caa530c5fbb298900373b5730dfb68ca49f27a186a03e5",
     "docs/public/void-ui-wave4-earn-readonly-v1/ACCEPTANCE_CRITERIA.md": "3eb414cd5f103772128b6ac3e88def67bb509ae5bc007b721345fdef0a143940",
     "docs/public/void-ui-wave4-earn-readonly-v1/ADAPTER_CONTRACT.md": "62f344babf6209a64561bba14d1230b5822d767bb5eb85966a27eb1826bfbc99",
     "docs/public/void-ui-wave4-earn-readonly-v1/README.md": "5706290385ee81c47042e8133ef0831ae003c3bbd189a4c845ab7aa186c2911b",
