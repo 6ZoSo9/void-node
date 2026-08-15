@@ -589,10 +589,10 @@ export function evaluateExternalOpportunityProviderRiskV1(
   if (observation.notional_usd > policy.max_notional_usd) {
     policyReasons.push("notional_limit_exceeded");
   }
-  if (projectedDailyNotionalUsd > policy.max_daily_notional_usd) {
+  if (metrics.projected_daily_notional_usd > policy.max_daily_notional_usd) {
     policyReasons.push("daily_notional_limit_exceeded");
   }
-  if (protocolFeeBps > policy.max_protocol_fee_bps) {
+  if (metrics.protocol_fee_bps > policy.max_protocol_fee_bps) {
     policyReasons.push("protocol_fee_limit_exceeded");
   }
   if (observation.gas_cost_usd > policy.max_gas_cost_usd) {
@@ -601,16 +601,16 @@ export function evaluateExternalOpportunityProviderRiskV1(
   if (observation.slippage_bps > policy.max_slippage_bps) {
     policyReasons.push("slippage_limit_exceeded");
   }
-  if (netProfitUsd < policy.min_net_profit_usd) {
+  if (metrics.net_profit_usd < policy.min_net_profit_usd) {
     policyReasons.push("minimum_net_profit_not_met");
   }
-  if (netProfitMarginBps < policy.min_net_profit_margin_bps) {
+  if (metrics.net_profit_margin_bps < policy.min_net_profit_margin_bps) {
     policyReasons.push("minimum_net_profit_margin_not_met");
   }
-  if (projectedLossUsd > policy.max_loss_per_opportunity_usd) {
+  if (metrics.projected_loss_usd > policy.max_loss_per_opportunity_usd) {
     policyReasons.push("per_opportunity_loss_limit_exceeded");
   }
-  if (projectedDailyLossUsd > policy.max_daily_loss_usd) {
+  if (metrics.projected_daily_loss_usd > policy.max_daily_loss_usd) {
     policyReasons.push("daily_loss_limit_exceeded");
   }
 
