@@ -39,26 +39,39 @@ assert.deepEqual(
     reasons: [],
     gap: 0,
   }),
-  { ready: true, txroot_live: 1, reasons: [] }
+  { ready: true, txroot_live: 1, reasons: [], gap: 0 }
 );
 assert.deepEqual(
   parseVoidUiWave2HomeReadinessEvidenceV1({
     ready: false,
     txroot_live: 0,
     reasons: ["txroot_not_live"],
+    gap: 2,
   }),
-  { ready: false, txroot_live: 0, reasons: ["txroot_not_live"] }
+  { ready: false, txroot_live: 0, reasons: ["txroot_not_live"], gap: 2 }
 );
 for (const body of [
   null,
   [],
   {},
-  { ready: "true", txroot_live: 1, reasons: [] },
-  { ready: true, txroot_live: true, reasons: [] },
-  { ready: true, txroot_live: 2, reasons: [] },
-  { ready: true, txroot_live: 1 },
-  { ready: true, txroot_live: 1, reasons: "bad" },
-  { ready: true, txroot_live: 1, reasons: [false] },
+  { ready: "true", txroot_live: 1, reasons: [], gap: 0 },
+  { ready: true, txroot_live: true, reasons: [], gap: 0 },
+  { ready: true, txroot_live: 2, reasons: [], gap: 0 },
+  { ready: true, txroot_live: 1, gap: 0 },
+  { ready: true, txroot_live: 1, reasons: "bad", gap: 0 },
+  { ready: true, txroot_live: 1, reasons: [false], gap: 0 },
+  { ready: true, txroot_live: 1, reasons: [] },
+  { ready: true, txroot_live: 1, reasons: [], gap: "0" },
+  { ready: true, txroot_live: 1, reasons: [], gap: null },
+  { ready: true, txroot_live: 1, reasons: [], gap: true },
+  { ready: true, txroot_live: 1, reasons: [], gap: -1 },
+  { ready: true, txroot_live: 1, reasons: [], gap: 1.5 },
+  {
+    ready: true,
+    txroot_live: 1,
+    reasons: [],
+    gap: Number.MAX_SAFE_INTEGER + 1,
+  },
 ]) {
   assert.equal(parseVoidUiWave2HomeReadinessEvidenceV1(body), null);
 }
@@ -114,7 +127,7 @@ const result = (
 
 const canonical = {
   health: result(200, { ok: true }),
-  ready: result(200, { ready: true, txroot_live: 1, reasons: [] }),
+  ready: result(200, { ready: true, txroot_live: 1, reasons: [], gap: 0 }),
   head: result(200, { number: 123 }),
   peers: result(200, { ok: true, connected: [validPeer] }),
 };
@@ -142,9 +155,10 @@ assert.equal(failedHealth.source_available, false);
 assert.equal(failedHealth.operational_ready, false);
 
 for (const readinessBody of [
-  { ready: true, txroot_live: 1, reasons: "bad" },
-  { ready: true, txroot_live: 1, reasons: [false] },
-  { ready: "true", txroot_live: 1, reasons: [] },
+  { ready: true, txroot_live: 1, reasons: "bad", gap: 0 },
+  { ready: true, txroot_live: 1, reasons: [false], gap: 0 },
+  { ready: "true", txroot_live: 1, reasons: [], gap: 0 },
+  { ready: true, txroot_live: 1, reasons: [], gap: "0" },
 ]) {
   const malformedReady = evaluateVoidUiWave2HomeOperationalEvidenceV1({
     ...canonical,
@@ -155,9 +169,10 @@ for (const readinessBody of [
 }
 
 for (const readinessBody of [
-  { ready: false, txroot_live: 1, reasons: [] },
-  { ready: true, txroot_live: 0, reasons: [] },
-  { ready: true, txroot_live: 1, reasons: ["txroot_live!=1"] },
+  { ready: false, txroot_live: 1, reasons: [], gap: 0 },
+  { ready: true, txroot_live: 0, reasons: [], gap: 0 },
+  { ready: true, txroot_live: 1, reasons: ["txroot_live!=1"], gap: 0 },
+  { ready: true, txroot_live: 1, reasons: [], gap: 1 },
 ]) {
   const notReady = evaluateVoidUiWave2HomeOperationalEvidenceV1({
     ...canonical,
@@ -178,6 +193,8 @@ assert.equal(malformedPeers.peer_count, null);
 console.log("VOID_UI_WAVE2_HOME_EVIDENCE_TRUTH_V1_PROOF_GREEN");
 console.log("health_ok_shape_required=true");
 console.log("readiness_reasons_shape_strict=true");
+console.log("readiness_gap_shape_strict=true");
+console.log("nonzero_gap_degrades_operational_readiness=true");
 console.log("chain_head_required_for_source_availability=true");
 console.log("peer_count_shape_strict=true");
 console.log("malformed_http_200_evidence_degrades_readiness=true");
