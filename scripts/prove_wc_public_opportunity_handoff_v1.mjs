@@ -169,6 +169,8 @@ try {
 
   const parityCases = [
     ["https://public.example", true],
+    ["http://localhost:4100", true],
+    ["http://worker.localhost:4100", false],
     ["http://127.0.0.1:4100", true],
     ["http://10.1.2.3:4100", true],
     ["http://172.16.1.2:4100", true],
