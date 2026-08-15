@@ -23,6 +23,8 @@ import {
 
 export const VOID_CANONICAL_REPOSITORY_URL_V1 =
   "https://github.com/6ZoSo9/void-node.git";
+export const VOID_NODE_FLEET_RUNTIME_PIN_CORE_DIRECT_CLI_DISABLED_V1 =
+  "VOID_NODE_FLEET_RUNTIME_PIN_CORE_DIRECT_CLI_DISABLED_V1";
 
 const SHA_RE = /^[0-9a-f]{40}$/;
 const REMOTE_RE = /^[a-z0-9][a-z0-9._-]{0,63}$/i;
@@ -475,7 +477,24 @@ function main() {
   }
 }
 
+function emitDirectCoreCliDisabledV1() {
+  console.error(
+    JSON.stringify({
+      marker: VOID_NODE_FLEET_RUNTIME_PIN_STATUS_V1,
+      status: "HOLD",
+      reason: "legacy_core_cli_disabled",
+      guard: VOID_NODE_FLEET_RUNTIME_PIN_CORE_DIRECT_CLI_DISABLED_V1,
+      error:
+        "direct core CLI is disabled; use ops/run_void_node_fleet_runtime_pin_status_v1.mjs with an explicitly reviewed --git-executable",
+      mutation_attempted: false,
+      canonical_remote_read_only: true,
+      evidence_output_created: false,
+    }),
+  );
+  process.exitCode = 1;
+}
+
 const invokedPath = process.argv[1] ? resolve(process.argv[1]) : "";
 if (invokedPath && fileURLToPath(import.meta.url) === invokedPath) {
-  main();
+  emitDirectCoreCliDisabledV1();
 }
