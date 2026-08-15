@@ -165,7 +165,7 @@ function positiveIntegerV1(value: unknown): value is number {
 }
 
 function roundedV1(value: number, digits = 12): number {
-  if (!Number.isFinite(value)) return 0;
+  if (!Number.isFinite(value)) return value;
   const scale = 10 ** digits;
   return Math.round((value + Number.EPSILON) * scale) / scale;
 }
@@ -571,6 +571,26 @@ export function evaluateExternalOpportunityProviderRiskV1(
   const projectedDailyLossUsd =
     observation.daily_loss_before_usd + projectedLossUsd;
 
+  const derivedMetrics = [
+    protocolFeeBps,
+    estimatedSlippageCostUsd,
+    totalCostUsd,
+    netProfitUsd,
+    netProfitMarginBps,
+    projectedLossUsd,
+    projectedDailyNotionalUsd,
+    projectedDailyLossUsd,
+  ];
+  if (!derivedMetrics.every((value) => Number.isFinite(value))) {
+    return decisionV1(
+      observation.phase === "live_candidate" ? "live_candidate_blocked" : "held",
+      observation.provider_id,
+      ["derived_metric_non_finite"],
+      emptyMetricsV1(),
+      false,
+    );
+  }
+
   const metrics: ExternalOpportunityRiskDecisionMetricsV1 = {
     protocol_fee_bps: roundedV1(protocolFeeBps),
     estimated_slippage_cost_usd: roundedV1(estimatedSlippageCostUsd),
@@ -581,6 +601,16 @@ export function evaluateExternalOpportunityProviderRiskV1(
     projected_daily_notional_usd: roundedV1(projectedDailyNotionalUsd),
     projected_daily_loss_usd: roundedV1(projectedDailyLossUsd),
   };
+
+  if (!Object.values(metrics).every((value) => Number.isFinite(value))) {
+    return decisionV1(
+      observation.phase === "live_candidate" ? "live_candidate_blocked" : "held",
+      observation.provider_id,
+      ["derived_metric_non_finite"],
+      emptyMetricsV1(),
+      false,
+    );
+  }
 
   const policyReasons: string[] = [];
   if (observation.quote_age_ms > policy.max_quote_age_ms) {
