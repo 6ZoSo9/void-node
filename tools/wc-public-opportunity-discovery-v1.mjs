@@ -95,8 +95,6 @@ function findFirstScalar(value, wantedKeys, type) {
   return found;
 }
 
-function findBooleanAny(value, wantedKeys) { return findFirstScalar(value, wantedKeys, "boolean"); }
-
 function sanitizeBase(raw) {
   let parsed;
   try { parsed = new URL(raw); } catch { throw new Error("base must be an absolute HTTP(S) URL"); }
@@ -215,18 +213,94 @@ function summarizeAttempt(attempt) {
   return { path: attempt.path, http_status: attempt.status, json: attempt.body !== null, marker: marker ?? null, error: attempt.error ?? null };
 }
 
+function directBoolean(object, keys) {
+  for (const key of keys) {
+    if (typeof object?.[key] === "boolean") return object[key];
+  }
+  return null;
+}
+
+function directString(object, keys) {
+  for (const key of keys) {
+    if (typeof object?.[key] === "string") return object[key];
+  }
+  return null;
+}
+
 function analyze(body, sourcePath, origin, expectedAwardWc, attempts) {
-  const pilot = findObjectByMarker(body, (marker) => marker === PILOT_MARKER);
-  const gateway = findObjectByMarker(body, (marker, object) => /PUBLIC.*EARN.*GATEWAY/u.test(marker) || Boolean(object.public_claim));
-  const publicClaim = asObject(gateway?.public_claim) ?? findObjectAtKey(body, ["public_claim", "publicClaim"]);
+  const gateway = findObjectByMarker(
+    body,
+    (marker, object) => /PUBLIC.*EARN.*GATEWAY/u.test(marker) || Boolean(object.public_claim),
+  );
+  const gatewayPilot = asObject(gateway?.pilot_status);
+  const pilot =
+    (gatewayPilot?.marker === PILOT_MARKER ? gatewayPilot : null) ??
+    findObjectByMarker(body, (marker) => marker === PILOT_MARKER);
+  const publicClaim =
+    asObject(gateway?.public_claim) ??
+    asObject(pilot?.public_claim) ??
+    null;
   if (!pilot && !gateway && !publicClaim) return null;
-  const coordinatorEnabled = typeof pilot?.coordinator_enabled === "boolean" ? pilot.coordinator_enabled : findBooleanAny(body, ["coordinator_enabled", "coordinatorEnabled"]);
-  const executorEnabled = typeof pilot?.executor_enabled === "boolean" ? pilot.executor_enabled : findBooleanAny(body, ["executor_enabled", "executorEnabled"]);
-  const fixedAwardWc = strictEvidenceNumber(pilot?.fixed_award_wc) ?? strictEvidenceNumber(publicClaim?.fixed_award_wc) ?? findFirstScalar(body, ["fixed_award_wc", "fixedAwardWc"], "number") ?? null;
-  const claimEnabled = findBooleanAny(publicClaim, ["enabled", "available", "claim_enabled", "claimEnabled"]) ?? findBooleanAny(body, ["public_claim_enabled", "publicClaimEnabled", "claim_available", "claimAvailable"]);
-  const claimMethod = findFirstScalar(publicClaim, ["method", "http_method", "httpMethod"], "string") ?? null;
-  const claimPath = findClaimPath(publicClaim ?? body, origin);
-  const publicRoutesAwardWc = findBooleanAny(body, ["public_routes_award_wc", "public_route_can_award_wc", "publicRoutesAwardWc", "publicRouteCanAwardWc"]);
+
+  const auditAssertions =
+    asObject(gateway?.audit_assertions) ??
+    asObject(pilot?.audit_assertions);
+  const safety = asObject(gateway?.safety) ?? asObject(pilot?.safety);
+
+  const coordinatorEnabled =
+    typeof pilot?.coordinator_enabled === "boolean"
+      ? pilot.coordinator_enabled
+      : null;
+  const executorEnabled =
+    typeof pilot?.executor_enabled === "boolean"
+      ? pilot.executor_enabled
+      : null;
+
+  const pilotAwardWc = strictEvidenceNumber(pilot?.fixed_award_wc);
+  const claimAwardWc = strictEvidenceNumber(publicClaim?.fixed_award_wc);
+  const awardEvidenceConsistent =
+    pilotAwardWc !== null &&
+    (claimAwardWc === null || claimAwardWc === pilotAwardWc);
+  const fixedAwardWc = awardEvidenceConsistent ? pilotAwardWc : null;
+
+  const claimEnabled = directBoolean(publicClaim, [
+    "enabled",
+    "available",
+    "claim_enabled",
+    "claimEnabled",
+  ]);
+  const claimMethod = directString(publicClaim, [
+    "method",
+    "http_method",
+    "httpMethod",
+  ]);
+  const claimPath = publicClaim ? findClaimPath(publicClaim, origin) : null;
+  const publicRoutesAwardWc =
+    directBoolean(auditAssertions, [
+      "public_routes_award_wc",
+      "public_route_can_award_wc",
+      "publicRoutesAwardWc",
+      "publicRouteCanAwardWc",
+    ]) ??
+    directBoolean(safety, [
+      "public_routes_award_wc",
+      "public_route_can_award_wc",
+      "publicRoutesAwardWc",
+      "publicRouteCanAwardWc",
+    ]) ??
+    directBoolean(gateway, [
+      "public_routes_award_wc",
+      "public_route_can_award_wc",
+      "publicRoutesAwardWc",
+      "publicRouteCanAwardWc",
+    ]) ??
+    directBoolean(pilot, [
+      "public_routes_award_wc",
+      "public_route_can_award_wc",
+      "publicRoutesAwardWc",
+      "publicRouteCanAwardWc",
+    ]);
+
   const gatewayCompatible = Boolean(pilot || gateway || publicClaim);
   const awardMatches = fixedAwardWc !== null && fixedAwardWc === expectedAwardWc;
   const coordinatorReady = coordinatorEnabled === true;
@@ -236,11 +310,21 @@ function analyze(body, sourcePath, origin, expectedAwardWc, attempts) {
   const reasons = [];
   if (!pilot) reasons.push("pilot_status_missing");
   if (!coordinatorReady) reasons.push("coordinator_not_enabled");
+  if (!awardEvidenceConsistent) reasons.push("fixed_award_evidence_missing_or_conflicting");
   if (!awardMatches) reasons.push("fixed_award_mismatch_or_missing");
   if (!claimConfigured) reasons.push("public_claim_not_discovered");
   if (!claimNotDisabled) reasons.push("public_claim_disabled");
-  if (publicRoutesAwardWc === true) reasons.push("unsafe_public_award_boundary"); else if (!publicAwardBoundaryConfirmed) reasons.push("public_award_boundary_unconfirmed");
-  const opportunityState = pilot && coordinatorReady && awardMatches && claimConfigured && claimNotDisabled && publicAwardBoundaryConfirmed ? "available" : "hold";
+  if (publicRoutesAwardWc === true) reasons.push("unsafe_public_award_boundary");
+  else if (!publicAwardBoundaryConfirmed) reasons.push("public_award_boundary_unconfirmed");
+  const opportunityState =
+    pilot &&
+    coordinatorReady &&
+    awardMatches &&
+    claimConfigured &&
+    claimNotDisabled &&
+    publicAwardBoundaryConfirmed
+      ? "available"
+      : "hold";
   return {
     marker: MARKER,
     status: "green",
@@ -249,9 +333,9 @@ function analyze(body, sourcePath, origin, expectedAwardWc, attempts) {
     source_path: sourcePath,
     gateway_compatible: gatewayCompatible,
     participant: { node_required: false, public_status_only: true, next_tool: "ops/mainnet0/wc-public-ticket-claim-v1.sh", next_document: "docs/public/wc-public-ticket-claim-v1.md" },
-    pilot: { marker: pilot?.marker ?? null, coordinator_enabled: coordinatorEnabled ?? null, executor_enabled: executorEnabled ?? null, fixed_award_wc: fixedAwardWc, expected_fixed_award_wc: expectedAwardWc, fixed_award_matches: awardMatches },
-    public_claim: { configured: claimConfigured, enabled: claimEnabled ?? null, method: claimMethod, path: claimPath },
-    safety: { read_only: true, http_methods_used: ["GET"], public_routes_award_wc: publicRoutesAwardWc ?? null, public_award_boundary_confirmed: publicAwardBoundaryConfirmed, public_award_boundary_safe: publicAwardBoundaryConfirmed, mutation_attempted: false, ticket_issuance_attempted: false, receipt_submission_attempted: false, wc_award_attempted: false, wallet_access_attempted: false, settlement_attempted: false },
+    pilot: { marker: pilot?.marker ?? null, coordinator_enabled: coordinatorEnabled, executor_enabled: executorEnabled, fixed_award_wc: fixedAwardWc, expected_fixed_award_wc: expectedAwardWc, fixed_award_matches: awardMatches },
+    public_claim: { configured: claimConfigured, enabled: claimEnabled, method: claimMethod, path: claimPath },
+    safety: { read_only: true, http_methods_used: ["GET"], public_routes_award_wc: publicRoutesAwardWc, public_award_boundary_confirmed: publicAwardBoundaryConfirmed, public_award_boundary_safe: publicAwardBoundaryConfirmed, mutation_attempted: false, ticket_issuance_attempted: false, receipt_submission_attempted: false, wc_award_attempted: false, wallet_access_attempted: false, settlement_attempted: false },
     attempts: attempts.map(summarizeAttempt),
   };
 }
@@ -287,7 +371,7 @@ async function main() {
     if (!normalized) throw new Error(`unsafe or non-read discovery path: ${raw}`);
     candidates.add(normalized);
   }
-  if (discovery.body) {
+  if (discovery.ok && discovery.body) {
     for (const path of collectDiscoveryPaths(discovery.body, origin)) candidates.add(path);
     const discoveryAnalysis = analyze(discovery.body, discovery.path, origin, expectedAwardWc, attempts);
     if (discoveryAnalysis) {
@@ -301,7 +385,7 @@ async function main() {
     if (path === discovery.path) continue;
     const attempt = await fetchJson(origin, path, timeoutMs);
     attempts.push(attempt);
-    if (!attempt.body) continue;
+    if (!attempt.ok || !attempt.body) continue;
     const result = analyze(attempt.body, attempt.path, origin, expectedAwardWc, attempts);
     if (!result) continue;
     process.stdout.write(JSON.stringify(result, null, 2) + "\n");
