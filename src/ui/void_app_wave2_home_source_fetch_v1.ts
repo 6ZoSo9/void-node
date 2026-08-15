@@ -8,6 +8,19 @@ export type VoidUiWave2HomeSourceResultV1 = {
   error?: string;
 };
 
+export type VoidUiWave2HomeReadinessEvidenceV1 = {
+  ready: boolean;
+  txroot_live: 0 | 1;
+  reasons: string[];
+};
+
+export type VoidUiWave2HomeOperationalEvidenceV1 = {
+  source_available: boolean;
+  operational_ready: boolean;
+  chain_head: number | null;
+  peer_count: number | null;
+};
+
 type FetchLike = (
   input: string | URL | Request,
   init?: RequestInit
@@ -80,19 +93,44 @@ export function resolveVoidUiWave2HomeSourceBaseV1(
   }
 }
 
-export function parseVoidUiWave2HomeChainHeadV1(
+const isObjectRecord = (value: unknown): value is Record<string, unknown> =>
+  value !== null && typeof value === "object" && !Array.isArray(value);
+
+export function parseVoidUiWave2HomeHealthOkV1(body: unknown): boolean {
+  return isObjectRecord(body) && body.ok === true;
+}
+
+export function parseVoidUiWave2HomeReadinessEvidenceV1(
   body: unknown
-): number | null {
-  if (body === null || typeof body !== "object" || Array.isArray(body)) {
+): VoidUiWave2HomeReadinessEvidenceV1 | null {
+  if (!isObjectRecord(body)) return null;
+
+  if (
+    typeof body.ready !== "boolean" ||
+    (body.txroot_live !== 0 && body.txroot_live !== 1) ||
+    !Array.isArray(body.reasons) ||
+    !body.reasons.every((reason) => typeof reason === "string")
+  ) {
     return null;
   }
 
-  const record = body as Record<string, unknown>;
+  return {
+    ready: body.ready,
+    txroot_live: body.txroot_live,
+    reasons: [...body.reasons] as string[],
+  };
+}
+
+export function parseVoidUiWave2HomeChainHeadV1(
+  body: unknown
+): number | null {
+  if (!isObjectRecord(body)) return null;
+
   const value =
-    record.number ??
-    record.height ??
-    record.head ??
-    record.latest ??
+    body.number ??
+    body.height ??
+    body.head ??
+    body.latest ??
     null;
 
   return (
@@ -117,38 +155,72 @@ const hasExactKeys = (
 };
 
 const isVoidUiWave2HomeConnectedPeerV1 = (value: unknown): boolean => {
-  if (value === null || typeof value !== "object" || Array.isArray(value)) {
-    return false;
-  }
+  if (!isObjectRecord(value)) return false;
 
-  const record = value as Record<string, unknown>;
   return (
-    hasExactKeys(record, ["id", "addr", "listens", "outbound"]) &&
-    typeof record.id === "string" &&
-    record.id.length > 0 &&
-    typeof record.addr === "string" &&
-    record.addr.length > 0 &&
-    Array.isArray(record.listens) &&
-    record.listens.every((listen) => typeof listen === "string") &&
-    typeof record.outbound === "boolean"
+    hasExactKeys(value, ["id", "addr", "listens", "outbound"]) &&
+    typeof value.id === "string" &&
+    value.id.length > 0 &&
+    typeof value.addr === "string" &&
+    value.addr.length > 0 &&
+    Array.isArray(value.listens) &&
+    value.listens.every((listen) => typeof listen === "string") &&
+    typeof value.outbound === "boolean"
   );
 };
 
 export function parseVoidUiWave2HomePeerCountV1(
   body: unknown
 ): number | null {
-  if (body === null || typeof body !== "object" || Array.isArray(body)) {
+  if (!isObjectRecord(body)) return null;
+
+  if (body.ok !== true || !Array.isArray(body.connected)) {
     return null;
   }
 
-  const record = body as Record<string, unknown>;
-  if (record.ok !== true || !Array.isArray(record.connected)) {
-    return null;
-  }
-
-  return record.connected.every(isVoidUiWave2HomeConnectedPeerV1)
-    ? record.connected.length
+  return body.connected.every(isVoidUiWave2HomeConnectedPeerV1)
+    ? body.connected.length
     : null;
+}
+
+export function evaluateVoidUiWave2HomeOperationalEvidenceV1(input: {
+  health: VoidUiWave2HomeSourceResultV1;
+  ready: VoidUiWave2HomeSourceResultV1;
+  head: VoidUiWave2HomeSourceResultV1;
+  peers: VoidUiWave2HomeSourceResultV1;
+}): VoidUiWave2HomeOperationalEvidenceV1 {
+  const parsedHealthOk = parseVoidUiWave2HomeHealthOkV1(input.health.body);
+  const parsedReadiness = parseVoidUiWave2HomeReadinessEvidenceV1(
+    input.ready.body
+  );
+  const parsedChainHead = parseVoidUiWave2HomeChainHeadV1(input.head.body);
+  const parsedPeerCount = parseVoidUiWave2HomePeerCountV1(input.peers.body);
+
+  const sourceAvailable =
+    input.health.ok === true &&
+    input.health.status === 200 &&
+    parsedHealthOk === true &&
+    input.ready.ok === true &&
+    input.ready.status === 200 &&
+    parsedReadiness !== null &&
+    input.head.ok === true &&
+    input.head.status === 200 &&
+    parsedChainHead !== null &&
+    input.peers.ok === true &&
+    input.peers.status === 200 &&
+    parsedPeerCount !== null;
+
+  return {
+    source_available: sourceAvailable,
+    operational_ready:
+      sourceAvailable &&
+      parsedReadiness !== null &&
+      parsedReadiness.ready === true &&
+      parsedReadiness.txroot_live === 1 &&
+      parsedReadiness.reasons.length === 0,
+    chain_head: parsedChainHead,
+    peer_count: parsedPeerCount,
+  };
 }
 
 const bestEffortCancel = (

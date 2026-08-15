@@ -1,9 +1,8 @@
 import "./void_app_wave3_wallet_readonly_v1.js";
 import os from "node:os";
 import {
+  evaluateVoidUiWave2HomeOperationalEvidenceV1,
   fetchVoidUiWave2HomeSourceJsonV1,
-  parseVoidUiWave2HomeChainHeadV1,
-  parseVoidUiWave2HomePeerCountV1,
   resolveVoidUiWave2HomeSourceBaseV1,
   type VoidUiWave2HomeSourceResultV1,
   VoidUiWave2HomeSnapshotBuildOwnerV1,
@@ -139,33 +138,12 @@ if (!G[INSTALL_MARK]) {
       fetchJson(base, "/p2p/peers"),
     ]);
 
-    const parsedPeerCount = parseVoidUiWave2HomePeerCountV1(peers.body);
-    const sourceAvailability =
-      health.status === 200 &&
-      ready.status === 200 &&
-      head.status === 200 &&
-      peers.status === 200 &&
-      parsedPeerCount !== null;
-
-    const readyBody =
-      ready.body !== null &&
-      typeof ready.body === "object" &&
-      !Array.isArray(ready.body)
-        ? (ready.body as Record<string, unknown>)
-        : {};
-
-    const readyReasons = Array.isArray(readyBody.reasons)
-      ? readyBody.reasons.filter(
-          (reason): reason is string =>
-            typeof reason === "string" && reason.length > 0
-        )
-      : [];
-
-    const operationalReady =
-      sourceAvailability &&
-      readyBody.ready === true &&
-      readyBody.txroot_live === 1 &&
-      readyReasons.length === 0;
+    const evidence = evaluateVoidUiWave2HomeOperationalEvidenceV1({
+      health,
+      ready,
+      head,
+      peers,
+    });
 
     return {
       ok: true,
@@ -176,10 +154,10 @@ if (!G[INSTALL_MARK]) {
       source_base: base,
       node: nodeIdentity(),
       network: {
-        health: operationalReady ? "healthy" : "degraded",
-        ready: operationalReady,
-        chain_head: parseVoidUiWave2HomeChainHeadV1(head.body),
-        peer_count: parsedPeerCount,
+        health: evidence.operational_ready ? "healthy" : "degraded",
+        ready: evidence.operational_ready,
+        chain_head: evidence.chain_head,
+        peer_count: evidence.peer_count,
         expected_peer_count: 2,
       },
       account: {
