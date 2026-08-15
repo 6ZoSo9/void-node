@@ -5,12 +5,16 @@ on:
     paths:
       - "ops/public/public-earn-coordinator-composition-v1.mjs"
       - "scripts/prove_public_earn_coordinator_response_bounds_v1.mjs"
+      - "scripts/ci_diff_hygiene_v1.sh"
+      - "scripts/prove_ci_diff_hygiene_v1.mjs"
       - ".github/workflows/public-earn-coordinator-response-bounds-v1.yml"
   push:
     branches: [main]
     paths:
       - "ops/public/public-earn-coordinator-composition-v1.mjs"
       - "scripts/prove_public_earn_coordinator_response_bounds_v1.mjs"
+      - "scripts/ci_diff_hygiene_v1.sh"
+      - "scripts/prove_ci_diff_hygiene_v1.mjs"
       - ".github/workflows/public-earn-coordinator-response-bounds-v1.yml"
   workflow_dispatch:
 
@@ -38,14 +42,30 @@ jobs:
         run: |
           node --check ops/public/public-earn-coordinator-composition-v1.mjs
           node --check scripts/prove_public_earn_coordinator_response_bounds_v1.mjs
+      - name: Prove committed-range diff hygiene contract
+        if: matrix.node == '22'
+        run: node scripts/prove_ci_diff_hygiene_v1.mjs
       - name: Prove bounded coordinator responses
         run: node scripts/prove_public_earn_coordinator_response_bounds_v1.mjs
       - name: Diff hygiene (pull request)
         if: github.event_name == 'pull_request'
-        run: git diff --check "${{ github.event.pull_request.base.sha }}" HEAD
+        env:
+          CI_DIFF_EVENT_NAME: ${{ github.event_name }}
+          CI_DIFF_PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          CI_DIFF_CURRENT_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+          CI_DIFF_CHECKOUT_SHA: ${{ github.sha }}
+          CI_DIFF_BASE_REMOTE: ${{ github.server_url }}/${{ github.repository }}.git
+          CI_DIFF_HEAD_REMOTE: ${{ github.server_url }}/${{ github.event.pull_request.head.repo.full_name || github.repository }}.git
+        run: bash scripts/ci_diff_hygiene_v1.sh
       - name: Diff hygiene (push)
         if: github.event_name == 'push'
-        run: git diff --check "${{ github.event.before }}" HEAD
+        env:
+          CI_DIFF_EVENT_NAME: ${{ github.event_name }}
+          CI_DIFF_PUSH_BEFORE_SHA: ${{ github.event.before }}
+          CI_DIFF_CURRENT_SHA: ${{ github.sha }}
+          CI_DIFF_CHECKOUT_SHA: ${{ github.sha }}
+          CI_DIFF_BASE_REMOTE: ${{ github.server_url }}/${{ github.repository }}.git
+        run: bash scripts/ci_diff_hygiene_v1.sh
       - name: Diff hygiene (manual)
         if: github.event_name == 'workflow_dispatch'
         run: git diff --check HEAD^ HEAD
