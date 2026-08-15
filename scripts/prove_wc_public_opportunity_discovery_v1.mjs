@@ -36,7 +36,7 @@ function run(args) {
   });
 }
 
-async function fixture(mode) {
+async function fixture(mode, fixedAwardWc = 3) {
   const requests = [];
 
   const server = createServer((request, response) => {
@@ -62,13 +62,13 @@ async function fixture(mode) {
           marker: "VOID_WC_PUBLIC_EARNING_PILOT_V1",
           coordinator_enabled: mode !== "hold",
           executor_enabled: false,
-          fixed_award_wc: 3,
+          fixed_award_wc: fixedAwardWc,
         },
         public_claim: {
           enabled: mode !== "hold",
           method: "POST",
           path: "/public/earn/claim-v1",
-          fixed_award_wc: 3,
+          fixed_award_wc: fixedAwardWc,
         },
         ...(mode === "unknown"
           ? {}
@@ -146,6 +146,33 @@ try {
   await available.close();
 }
 
+for (const [label, wrongTypeAward] of [
+  ["string", "3"],
+  ["boolean", true],
+  ["null", null],
+]) {
+  const wrongType = await fixture("available", wrongTypeAward);
+  try {
+    const result = await run([
+      "--base", wrongType.base,
+      "--require-available",
+      "--expected-award-wc", "3",
+    ]);
+
+    assert.equal(result.code, 2, `${label}: ${result.stderr || result.stdout}`);
+    const body = JSON.parse(result.stdout);
+    assert.equal(body.opportunity_state, "hold", label);
+    assert.equal(body.pilot.fixed_award_wc, null, label);
+    assert.equal(body.pilot.fixed_award_matches, false, label);
+    assert.match(body.reason, /fixed_award_mismatch_or_missing/u, label);
+    assert.equal(body.safety.mutation_attempted, false, label);
+    assert.equal(body.safety.ticket_issuance_attempted, false, label);
+    assert.equal(body.safety.wc_award_attempted, false, label);
+  } finally {
+    await wrongType.close();
+  }
+}
+
 const hold = await fixture("hold");
 try {
   const normal = await run(["--base", hold.base]);
@@ -169,7 +196,6 @@ try {
 } finally {
   await hold.close();
 }
-
 
 const unknown = await fixture("unknown");
 try {
