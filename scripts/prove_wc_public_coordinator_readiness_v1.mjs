@@ -28,7 +28,7 @@ function run(args) {
 function gateway(mode) {
   return {
     marker: "VOID_PUBLIC_EARN_GATEWAY_V1",
-    fixed_award_wc: 3,
+    fixed_award_wc: mode === "wrong_types" ? "3" : 3,
     routes: {
       claim_ticket: "/wc/public-earning-pilot-v1/claim-ticket",
       submit_result: "/wc/public-earning-pilot-v1/submit-result",
@@ -39,13 +39,19 @@ function gateway(mode) {
 }
 
 function pilot(mode) {
-  return {
+  const value = {
     marker: "VOID_WC_PUBLIC_EARNING_PILOT_V1",
     coordinator_enabled: mode !== "disabled",
     executor_enabled: false,
     fixed_award_wc: 3,
     routes: { submit_result: "/wc/public-earning-pilot-v1/submit-result" },
-    caps: { account_total: 0, account_limit: 1, global_limit: 10, global_active: 0, global_consumed: 2 },
+    caps: {
+      account_total: 0,
+      account_limit: 1,
+      global_limit: 10,
+      global_active: 0,
+      global_consumed: 2,
+    },
     capability: {
       account_bound: true,
       executor_node_bound: true,
@@ -70,11 +76,25 @@ function pilot(mode) {
       participant_selected_award: false,
       money_movement: false,
       one_active_ticket_per_account: true,
+      ticket_ttl_ms: 900_000,
+      cooldown_ms: 900_000,
       max_claims_per_account_24h: 24,
+      max_claims_per_executor_24h: 24,
       global_active_cap: 10,
       global_claims_per_24h: 500,
     },
   };
+
+  if (mode === "wrong_types") {
+    value.fixed_award_wc = "3";
+    value.caps.account_limit = "1";
+    value.caps.global_active = false;
+    value.public_claim.ticket_ttl_ms = "900000";
+    value.public_claim.cooldown_ms = true;
+    value.public_claim.max_claims_per_executor_24h = null;
+  }
+
+  return value;
 }
 
 async function fixture(mode) {
@@ -160,7 +180,6 @@ try {
   await readyFx.close();
 }
 
-
 const transientFx = await fixture("transient");
 try {
   const result = await run([
@@ -177,8 +196,7 @@ try {
     (entry) => entry.path === "/__void/public-earn-gateway-v1/status.json",
   );
   const pilotAttempt = body.attempts.find(
-    (entry) =>
-      entry.path.startsWith("/wc/public-earning-pilot-v1/status?"),
+    (entry) => entry.path.startsWith("/wc/public-earning-pilot-v1/status?"),
   );
 
   assert.equal(gatewayAttempt.attempt_count, 2);
@@ -191,7 +209,6 @@ try {
 } finally {
   await transientFx.close();
 }
-
 
 const orderedFx = await fixture("ordered");
 try {
@@ -210,32 +227,45 @@ try {
   assert.equal(orderedFx.boundaryProbeBeforePilotStatus(), false);
 
   const gatewayIndex = orderedFx.requests.findIndex(
-    (entry) =>
-      entry.url === "/__void/public-earn-gateway-v1/status.json",
+    (entry) => entry.url === "/__void/public-earn-gateway-v1/status.json",
   );
   const pilotIndex = orderedFx.requests.findIndex(
-    (entry) =>
-      entry.url?.startsWith("/wc/public-earning-pilot-v1/status?"),
+    (entry) => entry.url?.startsWith("/wc/public-earning-pilot-v1/status?"),
   );
   const firstBoundaryIndex = orderedFx.requests.findIndex(
-    (entry) =>
-      [
-        "/wc/public-earning-pilot-v1/claim-ticket",
-        "/wc/public-earning-pilot-v1/submit-result",
-        "/wc/public-earning-pilot-v1/operator/issue",
-        "/wc/public-earning-pilot-v1/sign-claim",
-      ].includes(entry.url),
+    (entry) => [
+      "/wc/public-earning-pilot-v1/claim-ticket",
+      "/wc/public-earning-pilot-v1/submit-result",
+      "/wc/public-earning-pilot-v1/operator/issue",
+      "/wc/public-earning-pilot-v1/sign-claim",
+    ].includes(entry.url),
   );
 
   assert.ok(gatewayIndex >= 0);
   assert.ok(pilotIndex > gatewayIndex);
   assert.ok(firstBoundaryIndex > pilotIndex);
-  assert.equal(
-    orderedFx.requests.every((entry) => entry.method === "GET"),
-    true,
-  );
+  assert.equal(orderedFx.requests.every((entry) => entry.method === "GET"), true);
 } finally {
   await orderedFx.close();
+}
+
+const wrongTypesFx = await fixture("wrong_types");
+try {
+  const result = await run([
+    "--base", wrongTypesFx.base,
+    "--status-retries", "1",
+    "--require-ready",
+  ]);
+  assert.equal(result.code, 2, result.stderr || result.stdout);
+  const body = JSON.parse(result.stdout);
+  assert.equal(body.readiness_state, "hold");
+  assert.equal(body.ready_for_bounded_enablement, false);
+  assert.ok(body.summary.failed_check_ids.includes("fixed_award_policy"));
+  assert.ok(body.summary.failed_check_ids.includes("ticket_caps_configured"));
+  assert.ok(body.summary.failed_check_ids.includes("claim_rate_caps_configured"));
+  assert.equal(wrongTypesFx.requests.every((entry) => entry.method === "GET"), true);
+} finally {
+  await wrongTypesFx.close();
 }
 
 const disabledFx = await fixture("disabled");
