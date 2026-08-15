@@ -577,6 +577,59 @@ async function main() {
       await receiptFailureGateway.close();
     }
 
+    const receiptPostWriteInputPath = path.join(root, "input-receipt-postwrite-failure.json");
+    writePrivateJson(receiptPostWriteInputPath, canaryInput("receipt-postwrite-failure-v1"));
+    const receiptPostWriteDirectory = path.join(root, "state-receipt-postwrite-failure");
+    const receiptPostWriteCommon = {
+      repoRoot: ROOT,
+      baseUrl: gateway.baseUrl,
+      inputPath: receiptPostWriteInputPath,
+      stateDirectory: receiptPostWriteDirectory,
+      now: () => FIXED_NOW,
+    };
+    const receiptPostWritePrepared = await prepareCanary(receiptPostWriteCommon);
+    let receiptPostWriteCalls = 0;
+    const receiptPostWriteSessionFactory = async ({ allowSubmit }) => ({
+      protocolVersion: "2026-07-28",
+      listTools: async () => exactTools(allowSubmit),
+      callTool: async (request) => {
+        assert.equal(request.name, "void_submit_paid_work");
+        receiptPostWriteCalls += 1;
+        return acceptedSubmissionEnvelope(receiptPostWritePrepared.state.prepared, true);
+      },
+      close: async () => {},
+    });
+    const receiptPostWrite = await executeCanary({
+      ...receiptPostWriteCommon,
+      tokenFile: tokenPath,
+      allowLiveSubmit: true,
+      confirmation: CONFIRMATION,
+      sessionFactory: receiptPostWriteSessionFactory,
+      localReceiptFault: (phase) => {
+        if (phase === "receipt:after") throw new Error("synthetic throw after completion-receipt write");
+      },
+    });
+    assert.equal(receiptPostWriteCalls, 1);
+    assert.equal(receiptPostWrite.state.status, "completed");
+    assert.equal(receiptPostWrite.state.accepted_for_review, true);
+    assert.equal(receiptPostWrite.state.completion_state_persisted, true);
+    assert.equal(receiptPostWrite.state.completion_receipt_published, true);
+    assert.equal(receiptPostWrite.receipt.marker, COMPLETION_RECEIPT_MARKER);
+    const receiptPostWriteDurable = readJson(path.join(receiptPostWriteDirectory, "completion-receipt-v1.json"));
+    assert.equal(receiptPostWriteDurable.completion_receipt_published, true);
+    await expectReject(
+      async () => await executeCanary({
+        ...receiptPostWriteCommon,
+        tokenFile: tokenPath,
+        allowLiveSubmit: true,
+        confirmation: CONFIRMATION,
+        sessionFactory: receiptPostWriteSessionFactory,
+      }),
+      /fresh prepared state/,
+    );
+    assert.equal(receiptPostWriteCalls, 1);
+    scanForSecret(receiptPostWriteDirectory, [TOKEN, tokenPath]);
+
     const stateFailureInputPath = path.join(root, "input-completed-state-failure.json");
     writePrivateJson(stateFailureInputPath, canaryInput("completed-state-failure-v1"));
     const stateFailureDirectory = path.join(root, "state-completed-state-failure");
@@ -842,6 +895,9 @@ async function main() {
       completion_receipt_publication_failure_existing_receipt_preserved: receiptFailureExistingReceiptPreserved,
       completion_receipt_publication_failure_submission_attempt_count: receiptFailureSubmissionPosts,
       completion_receipt_publication_failure_no_retry: receiptFailureSubmissionPosts === 1,
+      completion_receipt_postwrite_readback_recognized: receiptPostWrite.state.completion_receipt_published === true && receiptPostWrite.state.completion_state_persisted === true,
+      completion_receipt_postwrite_submission_attempt_count: receiptPostWriteCalls,
+      completion_receipt_postwrite_no_retry: receiptPostWriteCalls === 1,
       completed_state_precommit_failure_preserves_acceptance: stateFailure.state.accepted_for_review === true && stateFailure.state.completion_state_persisted === false,
       completed_state_precommit_failure_submission_attempt_count: stateFailureCalls,
       completed_state_precommit_failure_no_retry: stateFailureCalls === 1,
