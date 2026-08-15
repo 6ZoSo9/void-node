@@ -30,36 +30,7 @@ jobs:
           fetch-depth: 1
           persist-credentials: false
 
-      - name: Use Node.js 22
-        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
-        with:
-          node-version: "22"
-          cache: npm
-          cache-dependency-path: |
-            package-lock.json
-            integrations/mcp/package-lock.json
-
-      - name: Install root proof dependencies
-        run: >-
-          npm ci
-          --ignore-scripts
-          --no-audit
-          --no-fund
-          --registry=https://registry.npmjs.org/
-
-      - name: Install pinned MCP bridge dependencies
-        run: >-
-          npm --prefix integrations/mcp ci
-          --ignore-scripts
-          --no-audit
-          --no-fund
-          --registry=https://registry.npmjs.org/
-
-      - name: Prove shallow committed-range diff hygiene contract
-        if: github.event_name == 'pull_request'
-        run: node scripts/prove_ci_diff_hygiene_v1.mjs
-
-      - name: Prepare and prove exact committed range
+      - name: Prepare and classify exact committed range
         if: github.event_name == 'pull_request'
         env:
           CI_DIFF_EVENT_NAME: ${{ github.event_name }}
@@ -145,6 +116,44 @@ jobs:
           grep -F 'VOID_MCP_DIRECT_RELEVANT=%s' "$workflow"
           grep -F "env.VOID_MCP_DIRECT_RELEVANT == '1'" "$workflow"
           test "$(grep -c -- 'git diff --no-renames --name-only' "$workflow")" -ge 2
+          prepare_line="$(grep -nF -- '- name: Prepare and classify exact committed range' "$workflow" | cut -d: -f1)"
+          setup_line="$(grep -nF -- '- name: Use Node.js 22' "$workflow" | cut -d: -f1)"
+          test -n "$prepare_line"
+          test -n "$setup_line"
+          test "$prepare_line" -lt "$setup_line"
+          test "$(grep -cF "if: github.event_name != 'pull_request' || env.VOID_MCP_DIRECT_RELEVANT == '1'" "$workflow")" -ge 5
+
+      - name: Use Node.js 22
+        if: github.event_name != 'pull_request' || env.VOID_MCP_DIRECT_RELEVANT == '1'
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            integrations/mcp/package-lock.json
+
+      - name: Install root proof dependencies
+        if: github.event_name != 'pull_request' || env.VOID_MCP_DIRECT_RELEVANT == '1'
+        run: >-
+          npm ci
+          --ignore-scripts
+          --no-audit
+          --no-fund
+          --registry=https://registry.npmjs.org/
+
+      - name: Install pinned MCP bridge dependencies
+        if: github.event_name != 'pull_request' || env.VOID_MCP_DIRECT_RELEVANT == '1'
+        run: >-
+          npm --prefix integrations/mcp ci
+          --ignore-scripts
+          --no-audit
+          --no-fund
+          --registry=https://registry.npmjs.org/
+
+      - name: Prove shallow committed-range diff hygiene contract
+        if: github.event_name == 'pull_request' && env.VOID_MCP_DIRECT_RELEVANT == '1'
+        run: node scripts/prove_ci_diff_hygiene_v1.mjs
 
       - name: Typecheck, build, and test both protocol eras
         if: github.event_name != 'pull_request' || env.VOID_MCP_DIRECT_RELEVANT == '1'
@@ -212,3 +221,4 @@ jobs:
           printf 'VOID_AGENT_MCP_BRIDGE_V1_STALE_BASE_TRIGGER_SKIP\n'
           printf 'mcp_direct_relevant=false\n'
           printf 'mcp_lane_authority_check_required=false\n'
+          printf 'dependency_install_performed=false\n'
