@@ -229,6 +229,67 @@ function parsePeerCount(value) {
   return null;
 }
 
+function cancelBodyBestEffort(target) {
+  try {
+    const result = target?.cancel?.();
+    if (result && typeof result.catch === "function") {
+      void result.catch(() => undefined);
+    }
+  } catch (error) {
+    void error;
+  }
+}
+
+async function boundedResponseBody(response, maximum) {
+  const contentLengthRaw = response.headers.get("content-length");
+  if (contentLengthRaw !== null) {
+    if (!/^\d+$/.test(contentLengthRaw)) {
+      cancelBodyBestEffort(response.body);
+      throw new Error("invalid_content_length");
+    }
+    const declared = Number(contentLengthRaw);
+    if (!Number.isSafeInteger(declared) || declared < 0) {
+      cancelBodyBestEffort(response.body);
+      throw new Error("invalid_content_length");
+    }
+    if (declared > maximum) {
+      cancelBodyBestEffort(response.body);
+      throw new Error("response_too_large");
+    }
+  }
+
+  const reader = response.body?.getReader?.();
+  if (!reader) {
+    throw new Error("response_body_unavailable");
+  }
+
+  const chunks = [];
+  let total = 0;
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      if (!(value instanceof Uint8Array)) {
+        throw new Error("response_body_invalid_chunk");
+      }
+      total += value.byteLength;
+      if (total > maximum) {
+        cancelBodyBestEffort(reader);
+        throw new Error("response_too_large");
+      }
+      chunks.push(Buffer.from(value));
+    }
+  } finally {
+    try {
+      reader.releaseLock();
+    } catch (error) {
+      void error;
+    }
+  }
+
+  return Buffer.concat(chunks, total);
+}
+
 async function fetchJson(base, pathname, timeoutMs) {
   const url = new URL(pathname, base);
   const controller = new AbortController();
@@ -243,15 +304,7 @@ async function fetchJson(base, pathname, timeoutMs) {
         "user-agent": "void-public-node-operator-self-check-v1",
       },
     });
-    const body = Buffer.from(await response.arrayBuffer());
-    if (body.length > MAX_RESPONSE_BYTES) {
-      return {
-        ok: false,
-        statusCode: response.status,
-        error: "response_too_large",
-        json: null,
-      };
-    }
+    const body = await boundedResponseBody(response, MAX_RESPONSE_BYTES);
     let json = null;
     let parseError = "";
     try {
@@ -266,10 +319,22 @@ async function fetchJson(base, pathname, timeoutMs) {
       json,
     };
   } catch (error) {
+    const message = error instanceof Error ? error.message : "";
+    const boundedError = new Set([
+      "invalid_content_length",
+      "response_too_large",
+      "response_body_unavailable",
+      "response_body_invalid_chunk",
+    ]).has(message);
     return {
       ok: false,
       statusCode: 0,
-      error: error?.name === "AbortError" ? "timeout" : "request_failed",
+      error:
+        error?.name === "AbortError"
+          ? "timeout"
+          : boundedError
+            ? message
+            : "request_failed",
       json: null,
     };
   } finally {

@@ -1,0 +1,41 @@
+name: public-node-operator-self-check-response-bound-v1
+
+on:
+  pull_request:
+    paths:
+      - "tools/public-node-operator-self-check-v1.mjs"
+      - "scripts/prove_public_node_operator_self_check_response_bound_v1.mjs"
+      - ".github/workflows/public-node-operator-self-check-response-bound-v1.yml"
+  push:
+    branches: [main]
+    paths:
+      - "tools/public-node-operator-self-check-v1.mjs"
+      - "scripts/prove_public_node_operator_self_check_response_bound_v1.mjs"
+      - ".github/workflows/public-node-operator-self-check-response-bound-v1.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  proof:
+    name: node-${{ matrix.node }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+      - name: Syntax check
+        run: |
+          node --check tools/public-node-operator-self-check-v1.mjs
+          node --check scripts/prove_public_node_operator_self_check_response_bound_v1.mjs
+      - name: Prove bounded operator self-check responses
+        run: node scripts/prove_public_node_operator_self_check_response_bound_v1.mjs
+      - name: Diff hygiene
+        run: git diff --check
