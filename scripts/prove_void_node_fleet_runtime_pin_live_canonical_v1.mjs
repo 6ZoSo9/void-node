@@ -9,6 +9,7 @@ import {
   readFileSync,
   rmSync,
   statSync,
+  symlinkSync,
   writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
@@ -34,6 +35,7 @@ import {
 } from "../ops/run_void_node_fleet_runtime_pin_status_v1.mjs";
 
 const ROOT = resolve(fileURLToPath(new URL("..", import.meta.url)));
+void ROOT;
 
 function git(cwd, args, env = process.env) {
   const result = spawnSync("git", args, {
@@ -194,7 +196,7 @@ function evidence(audit) {
   };
 }
 
-function evalPacket({ coordinator, remote, drift, process, approved, env = process.env }) {
+function evalPacket({ coordinator, remote, drift, process, approved, env = process.env, outputCreated = false }) {
   return evaluateRuntimePinStatusLiveCanonicalV1({
     driftEvidence: evidence(drift),
     processEvidence: evidence(process),
@@ -203,7 +205,7 @@ function evalPacket({ coordinator, remote, drift, process, approved, env = proce
     expectedCanonicalUrl: remote,
     env,
     evaluatedAtEpochMs: Date.now(),
-    evidenceOutputCreated: false,
+    evidenceOutputCreated: outputCreated,
   });
 }
 
@@ -372,6 +374,19 @@ try {
     /outside the selected coordinator worktree|outside the selected Git directory/,
   );
   assert.equal(existsSync(inGitDirOutput), false);
+
+  const worktreeAlias = join(tempRoot, "coordinator-alias");
+  symlinkSync(coordinator, worktreeAlias, "dir");
+  const aliasedOutput = join(worktreeAlias, "runtime-pin-status.json");
+  assert.throws(
+    () =>
+      resolveSafeEvidenceOutputPathV1({
+        outputPath: aliasedOutput,
+        coordinatorRepo: coordinator,
+      }),
+    /outside the selected coordinator worktree/,
+  );
+  assert.equal(existsSync(join(coordinator, "runtime-pin-status.json")), false);
   assert.equal(git(coordinator, ["status", "--porcelain=v1"]), statusBeforeOutputChecks);
 
   const externalEvidenceDir = join(tempRoot, "evidence");
@@ -381,12 +396,19 @@ try {
     outputPath: externalOutput,
     coordinatorRepo: coordinator,
   });
-  const publishedPacket = {
-    marker: "VOID_NODE_FLEET_RUNTIME_PIN_STATUS_EVIDENCE_OUTPUT_PROOF_V1",
-    evidence_output_created: true,
-  };
-  publishReservedEvidenceOutputV1(reservation, publishedPacket);
-  assert.deepEqual(JSON.parse(readFileSync(externalOutput, "utf8")), publishedPacket);
+  const externalPacket = evalPacket({
+    coordinator,
+    remote,
+    drift: driftB,
+    process: processAudit(commitA, treeA, Math.floor(Date.now() / 1000) - 1),
+    approved: commitA,
+    outputCreated: true,
+  });
+  assert.equal(externalPacket.evidence_output_created, true);
+  publishReservedEvidenceOutputV1(reservation, externalPacket);
+  const publishedPacket = JSON.parse(readFileSync(externalOutput, "utf8"));
+  assert.equal(publishedPacket.evidence_output_created, true);
+  assert.equal(publishedPacket.status, "HEALTHY_INTENTIONAL_PIN");
   assert.equal(statSync(externalOutput).mode & 0o777, 0o600);
   assert.equal(git(coordinator, ["status", "--porcelain=v1"]), statusBeforeOutputChecks);
 
@@ -413,7 +435,9 @@ try {
   console.log("explicit_canonical_query_ignores_ambient_rewrite=true");
   console.log("caller_tls_trust_overrides_rejected_before_query=true");
   console.log("repository_internal_output_paths_rejected=true");
+  console.log("symlinked_output_parent_cannot_redirect_into_worktree=true");
   console.log("external_evidence_create_only_mode_0600=true");
+  console.log("external_evidence_reports_created_only_after_reservation=true");
   console.log("network_mutation_performed=false");
   console.log("git_fetch_performed=false");
   console.log("service_or_runtime_mutation_performed=false");
