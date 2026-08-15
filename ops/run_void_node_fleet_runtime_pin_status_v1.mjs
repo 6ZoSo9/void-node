@@ -1,9 +1,17 @@
 #!/usr/bin/env node
 
 import { spawnSync } from "node:child_process";
-import { realpathSync, writeFileSync } from "node:fs";
+import {
+  closeSync,
+  fchmodSync,
+  fsyncSync,
+  openSync,
+  realpathSync,
+  unlinkSync,
+  writeFileSync,
+} from "node:fs";
 import { homedir } from "node:os";
-import { resolve } from "node:path";
+import { basename, dirname, isAbsolute, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import {
@@ -36,6 +44,12 @@ const FORBIDDEN_GIT_ENV_KEYS = new Set([
   "GIT_CONFIG_NOSYSTEM",
   "GIT_CONFIG_PARAMETERS",
   "GIT_CONFIG_COUNT",
+  "GIT_SSL_NO_VERIFY",
+  "GIT_SSL_CAINFO",
+  "GIT_SSL_CAPATH",
+  "CURL_CA_BUNDLE",
+  "SSL_CERT_FILE",
+  "SSL_CERT_DIR",
 ]);
 
 function fail(message) {
@@ -86,7 +100,11 @@ export function assertCanonicalEvaluationGitEnvironmentV1(env = process.env) {
     }
   }
   if (forbidden.length > 0) {
-    fail(`Git repository/configuration override environment is not allowed: ${forbidden.sort().join(",")}`);
+    fail(
+      `Git repository/configuration or HTTPS-authentication override environment is not allowed: ${forbidden
+        .sort()
+        .join(",")}`,
+    );
   }
   return true;
 }
@@ -110,6 +128,95 @@ function oneLine(value, label) {
     .filter((line) => line.length > 0);
   if (lines.length !== 1) fail(`${label} must contain exactly one value`);
   return lines[0];
+}
+
+function isContainedPath(base, candidate) {
+  const rel = relative(base, candidate);
+  return (
+    rel === "" ||
+    (rel !== ".." && !rel.startsWith(`..${sep}`) && !isAbsolute(rel))
+  );
+}
+
+export function resolveSafeEvidenceOutputPathV1({
+  outputPath,
+  coordinatorRepo,
+  env = process.env,
+}) {
+  assertCanonicalEvaluationGitEnvironmentV1(env);
+  const repo = realpathSync(expandHome(assertString(coordinatorRepo, "coordinator repo")));
+  const expandedOutput = resolve(expandHome(assertString(outputPath, "output path")));
+  const outputParent = realpathSync(dirname(expandedOutput));
+  const canonicalOutput = resolve(outputParent, basename(expandedOutput));
+
+  const topLevel = realpathSync(runGit(repo, ["rev-parse", "--show-toplevel"], env).trim());
+  if (topLevel !== repo) fail("coordinator repo must be the exact Git worktree root");
+
+  const gitDir = realpathSync(
+    oneLine(runGit(repo, ["rev-parse", "--absolute-git-dir"], env), "absolute Git dir"),
+  );
+  const gitCommonDir = realpathSync(
+    oneLine(
+      runGit(repo, ["rev-parse", "--path-format=absolute", "--git-common-dir"], env),
+      "absolute Git common dir",
+    ),
+  );
+
+  for (const [label, protectedRoot] of [
+    ["coordinator worktree", repo],
+    ["Git directory", gitDir],
+    ["Git common directory", gitCommonDir],
+  ]) {
+    if (isContainedPath(protectedRoot, canonicalOutput)) {
+      fail(`output path must be outside the selected ${label}`);
+    }
+  }
+  return canonicalOutput;
+}
+
+export function reserveEvidenceOutputV1({
+  outputPath,
+  coordinatorRepo,
+  env = process.env,
+}) {
+  const path = resolveSafeEvidenceOutputPathV1({ outputPath, coordinatorRepo, env });
+  const fd = openSync(path, "wx", 0o600);
+  fchmodSync(fd, 0o600);
+  return { path, fd, published: false };
+}
+
+export function publishReservedEvidenceOutputV1(reservation, packet) {
+  if (!reservation || reservation.published || !Number.isInteger(reservation.fd)) {
+    fail("evidence output reservation is not writable");
+  }
+  const json = `${JSON.stringify(packet, null, 2)}\n`;
+  writeFileSync(reservation.fd, json, { encoding: "utf8" });
+  fsyncSync(reservation.fd);
+  closeSync(reservation.fd);
+  reservation.fd = null;
+  reservation.published = true;
+  return json;
+}
+
+export function cleanupEvidenceOutputReservationV1(reservation) {
+  if (!reservation) return false;
+  if (Number.isInteger(reservation.fd)) {
+    try {
+      closeSync(reservation.fd);
+    } catch {
+      // Preserve the primary failure; existence is checked below.
+    }
+    reservation.fd = null;
+  }
+  if (!reservation.published) {
+    try {
+      unlinkSync(reservation.path);
+      return false;
+    } catch {
+      return true;
+    }
+  }
+  return true;
 }
 
 export function parseCanonicalLsRemoteV1(stdout, expectedRef = "refs/heads/main") {
@@ -320,42 +427,39 @@ function parseArgs(argv) {
   return out;
 }
 
-function emitJson(packet, outputPath = "") {
-  const json = `${JSON.stringify(packet, null, 2)}\n`;
-  if (outputPath) {
-    writeFileSync(expandHome(outputPath), json, {
-      encoding: "utf8",
-      mode: 0o600,
-      flag: "wx",
-    });
-  }
-  process.stdout.write(json);
-}
-
 function main() {
-  const args = parseArgs(process.argv.slice(2));
-  assertCanonicalEvaluationGitEnvironmentV1(process.env);
-  const drift = readFreshFleetDriftAuditV1(args.driftAudit, args.maxEvidenceAgeSeconds);
-  const processEvidence = readFreshFleetProcessAuditV1(
-    args.processAudit,
-    args.maxEvidenceAgeSeconds,
-  );
-  const packet = evaluateRuntimePinStatusLiveCanonicalV1({
-    driftEvidence: drift,
-    processEvidence,
-    approvedRuntimeSha: args.approvedRuntimeSha,
-    coordinatorRepo: args.coordinatorRepo,
-    evidenceOutputCreated: Boolean(args.output),
-  });
-  emitJson(packet, args.output);
-  process.exitCode = ["HOLD", "UNEXPECTED_RUNTIME_DRIFT"].includes(packet.status) ? 2 : 0;
-}
-
-const invokedPath = process.argv[1] ? resolve(process.argv[1]) : "";
-if (invokedPath && fileURLToPath(import.meta.url) === invokedPath) {
+  let reservation = null;
   try {
-    main();
+    const args = parseArgs(process.argv.slice(2));
+    assertCanonicalEvaluationGitEnvironmentV1(process.env);
+    if (args.output) {
+      reservation = reserveEvidenceOutputV1({
+        outputPath: args.output,
+        coordinatorRepo: args.coordinatorRepo,
+        env: process.env,
+      });
+    }
+
+    const drift = readFreshFleetDriftAuditV1(args.driftAudit, args.maxEvidenceAgeSeconds);
+    const processEvidence = readFreshFleetProcessAuditV1(
+      args.processAudit,
+      args.maxEvidenceAgeSeconds,
+    );
+    const packet = evaluateRuntimePinStatusLiveCanonicalV1({
+      driftEvidence: drift,
+      processEvidence,
+      approvedRuntimeSha: args.approvedRuntimeSha,
+      coordinatorRepo: args.coordinatorRepo,
+      evidenceOutputCreated: Boolean(reservation),
+    });
+
+    const json = reservation
+      ? publishReservedEvidenceOutputV1(reservation, packet)
+      : `${JSON.stringify(packet, null, 2)}\n`;
+    process.stdout.write(json);
+    process.exitCode = ["HOLD", "UNEXPECTED_RUNTIME_DRIFT"].includes(packet.status) ? 2 : 0;
   } catch (error) {
+    const evidenceOutputCreated = cleanupEvidenceOutputReservationV1(reservation);
     console.error(
       JSON.stringify({
         marker: VOID_NODE_FLEET_RUNTIME_PIN_STATUS_V1,
@@ -363,8 +467,14 @@ if (invokedPath && fileURLToPath(import.meta.url) === invokedPath) {
         error: String(error?.message || error),
         mutation_attempted: false,
         canonical_remote_read_only: true,
+        evidence_output_created: evidenceOutputCreated,
       }),
     );
     process.exitCode = 1;
   }
+}
+
+const invokedPath = process.argv[1] ? resolve(process.argv[1]) : "";
+if (invokedPath && fileURLToPath(import.meta.url) === invokedPath) {
+  main();
 }
