@@ -194,11 +194,12 @@ try {
     assert.equal(sanitized.body.fixed_award_wc, expectedAward, label);
     assert.equal(sanitized.body.public_claim.fixed_award_wc, expectedAward, label);
 
-    const discovery = await runNode(discoveryFile, [
+    const discoveryArgs = [
       "--base", base,
-      "--path", STATUS_PATH,
       "--expected-award-wc", "3",
-    ]);
+    ];
+    if (!expectedMatch) discoveryArgs.push("--path", STATUS_PATH);
+    const discovery = await runNode(discoveryFile, discoveryArgs);
     assert.equal(discovery.code, 0, `${label}: ${discovery.stderr || discovery.stdout}`);
     const result = JSON.parse(discovery.stdout);
     assert.equal(result.source_path, STATUS_PATH, label);
@@ -208,6 +209,12 @@ try {
     assert.equal(result.safety.public_award_boundary_confirmed, true, label);
     if (expectedMatch) {
       assert.equal(result.opportunity_state, "available", label);
+      assert.ok(result.attempts.some(
+        (entry) => entry.path === "/__void/public-earn-gateway-v1/status.json" && entry.http_status === 200,
+      ), label);
+      assert.ok(result.attempts.some(
+        (entry) => entry.path === STATUS_PATH && entry.http_status === 200,
+      ), label);
     } else {
       assert.equal(result.opportunity_state, "hold", label);
       assert.match(result.reason, /fixed_award_mismatch_or_missing/u, label);
@@ -220,6 +227,17 @@ try {
     assert.equal(result.safety.wallet_access_attempted, false, label);
     assert.equal(result.safety.settlement_attempted, false, label);
   }
+
+  const publicPlaintext = await runNode(discoveryFile, [
+    "--base", "http://203.0.113.10:4100",
+  ]);
+  assert.equal(publicPlaintext.code, 2, publicPlaintext.stderr || publicPlaintext.stdout);
+  const publicPlaintextBody = JSON.parse(publicPlaintext.stdout);
+  assert.equal(publicPlaintextBody.opportunity_state, "unavailable");
+  assert.match(publicPlaintextBody.reason, /public HTTPS or reviewed private\/dev HTTP/u);
+  assert.equal(publicPlaintextBody.safety.mutation_attempted, false);
+  assert.equal(publicPlaintextBody.safety.ticket_issuance_attempted, false);
+  assert.equal(publicPlaintextBody.safety.wc_award_attempted, false);
 
   fixedAwardWc = 3;
   const readiness = await runNode(readinessFile, [
