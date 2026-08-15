@@ -95,6 +95,30 @@ assert.ok(
 );
 assert.deepEqual(positive.reasons, []);
 
+const ieeeBoundaryRawNet = 0.3 - (0.005 + 0.195);
+assert.equal(ieeeBoundaryRawNet < 0.1, true);
+const exactThreshold = evaluateExternalOpportunityProviderRiskV1(registry, {
+  ...positiveObservation,
+  gross_revenue_usd: 0.3,
+  protocol_fee_usd: 0.005,
+  gas_cost_usd: 0.195,
+  slippage_bps: 0,
+});
+assert.equal(exactThreshold.metrics.net_profit_usd, 0.1);
+assert.equal(exactThreshold.status, "recordable_paper_positive");
+assert.deepEqual(exactThreshold.reasons, []);
+
+const justBelowThreshold = evaluateExternalOpportunityProviderRiskV1(registry, {
+  ...positiveObservation,
+  gross_revenue_usd: 0.299999999999,
+  protocol_fee_usd: 0.005,
+  gas_cost_usd: 0.195,
+  slippage_bps: 0,
+});
+assert.equal(justBelowThreshold.metrics.net_profit_usd, 0.099999999999);
+assert.equal(justBelowThreshold.status, "recordable_paper_negative");
+assert.ok(justBelowThreshold.reasons.includes("minimum_net_profit_not_met"));
+
 const negative = evaluateExternalOpportunityProviderRiskV1(registry, {
   ...positiveObservation,
   gross_revenue_usd: 0.01,
@@ -180,6 +204,10 @@ console.log("VOID_EXTERNAL_OPPORTUNITY_PROVIDER_RISK_REGISTRY_V1_PROOF");
 console.log(`provider_count=${registry.providers.length}`);
 console.log(`registry_validation_exact=${validation.ok}`);
 console.log(`paper_positive_net_profit_usd=${positive.metrics.net_profit_usd}`);
+console.log(`paper_threshold_raw_ieee_net_profit_usd=${ieeeBoundaryRawNet}`);
+console.log(`paper_threshold_metric_net_profit_usd=${exactThreshold.metrics.net_profit_usd}`);
+console.log(`paper_threshold_positive=${exactThreshold.status === "recordable_paper_positive"}`);
+console.log(`paper_just_below_threshold_negative=${justBelowThreshold.status === "recordable_paper_negative"}`);
 console.log(`paper_negative_reason_count=${negative.reasons.length}`);
 console.log(`stale_quote_held=${stale.status === "held"}`);
 console.log(
