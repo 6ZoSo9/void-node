@@ -660,12 +660,13 @@ async function deriveBinding(input: {
   }
   if (!input.receipt) throw new Error("claim_receipt_required");
   const preview = objectValue(await input.deps.run_pipeline_command({
-    action: "verify_and_claim",
+    action: "verify_reserve_and_claim",
     root_dir: input.root_dir,
     request: input.request,
     receipt: input.receipt,
     verification_policy: input.server_policy.verification_policy,
     fulfillment_policy: input.server_policy.fulfillment_policy,
+    inventory_policy: input.server_policy.inventory_policy,
     apply: false,
   }));
   const claim = objectValue(preview?.preview?.decision?.claim);
@@ -699,7 +700,12 @@ function assertProjection(input: {
       throw new Error("claim_binding_conflict");
     }
   }
-  if (!intent && (reservation || attempt)) throw new Error("projection_without_claim");
+  if (!intent && attempt) {
+    throw new Error("projection_without_claim");
+  }
+  if (!intent && reservation && record) {
+    throw new Error("reservation_without_claim_has_saga_anchor");
+  }
   if (reservation) {
     const projected = {
       request_id: reservation.request_id,
@@ -807,7 +813,7 @@ function recoverWithoutCreate(
 
 function delegatedConfirmation(action: string): string | null {
   if (action === "claim_payment") {
-    return VOID_BUY_VOID_PIPELINE_CONFIRMATIONS_V1.verify_and_claim;
+    return VOID_BUY_VOID_PIPELINE_CONFIRMATIONS_V1.verify_reserve_and_claim;
   }
   if (action === "reserve_execution_attempt") {
     return VOID_BUY_VOID_PIPELINE_CONFIRMATIONS_V1.reserve_execution;
@@ -1377,12 +1383,13 @@ export async function handleBuyVoidCrashConsistentSagaRuntimeCommandV1(
         );
         if (!selected) {
           const applied = objectValue(await deps.run_pipeline_command({
-            action: "verify_and_claim",
+            action: "verify_reserve_and_claim",
             root_dir: rootDir,
             request,
             receipt,
             verification_policy: serverPolicy.verification_policy,
             fulfillment_policy: serverPolicy.fulfillment_policy,
+            inventory_policy: serverPolicy.inventory_policy,
             apply: true,
             confirmation: VOID_BUY_VOID_PIPELINE_CONFIRMATIONS_V1.verify_and_claim,
             now_ms: nowMs,

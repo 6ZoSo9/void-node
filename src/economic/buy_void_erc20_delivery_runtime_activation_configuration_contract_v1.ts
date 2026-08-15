@@ -58,12 +58,20 @@ export const
       fixed_presale_rate_enforced: true,
       reservation_ceiling_equals_total_pool: true,
       no_per_buyer_purchase_throttle_below_remaining_inventory: true,
+      payment_admission_reservation_atomicity_ready: true,
+      inventory_reservation_before_new_paid_claim: true,
+      paid_unreservable_terminal_obligation_ready: true,
+      confirmed_payer_without_reservation_or_obligation_allowed: false,
       validator_scale_purchase_10000_void_admission_ready: true,
       delivery_execution_amount_cap_separate_from_purchase_admission: true,
       disabled_delivery_canary_max_may_be_lower: true,
       public_delivery_activation_requires_presale_capacity_max: true,
       evidence_source_path:
         "src/economic/buy_void_crash_consistent_saga_server_policy_v1.ts",
+      payment_admission_source_path:
+        "src/economic/buy_void_pipeline_coordinator_v1.ts",
+      inventory_obligation_source_path:
+        "src/economic/buy_void_inventory_reservation_journal_v1.ts",
     },
 
     production_broad_delivery_configuration_verified: false,

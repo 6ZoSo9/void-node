@@ -247,7 +247,7 @@ function baseDependencies(input: {
     list_inventory: () => input.inventory || [],
     list_attempts: () => input.attempts || [],
     run_pipeline_command: async (command: Record<string, any>) => {
-      assert.equal(command.action, "verify_and_claim");
+      assert.equal(command.action, "verify_reserve_and_claim");
       assert.equal(command.apply, false);
       return {
         ok: true,

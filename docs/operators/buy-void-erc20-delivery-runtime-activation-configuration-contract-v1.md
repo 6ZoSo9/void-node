@@ -109,3 +109,14 @@ existing generic saga accepts `receipt_confirmed.confirmations` only through
 range are held without confirmed-state mutation.
 
 This source closure mounts only the disabled child route in the canonical parent. It still does not inject value-bearing dependencies, read production credentials, enable execution, fund presale inventory, sign or broadcast a live transaction, or move funds.
+
+
+## Payment admission / inventory atomicity
+
+Canonical broad-sale admission now uses `verify_reserve_and_claim`: a verified payment is first evaluated against the aggregate presale reservation journal under its pool lock. A **new durable paid claim is not created until its VOID inventory reservation exists**.
+
+If a confirmed payment cannot reserve because the pool is sold out or has insufficient remaining VOID, the reservation journal records a deterministic `VOID_BUY_VOID_PAID_UNRESERVABLE_OBLIGATION_V1` terminal obligation. That record acknowledges the confirmed customer payment and binds its payment/request identity, payment transaction evidence, requested VOID, observed remaining inventory, and canonical pool policy while authorizing **no automatic retry, refund execution, alternate fulfillment execution, wallet access, signing, broadcast, or money movement**.
+
+Crash recovery is fail-closed in the opposite direction as well: if inventory reservation becomes durable before claim persistence, the reservation is deterministic/duplicate-safe and a retry can finish the same claim without consuming inventory twice.
+
+Acceptance requires adversarial near-sellout and sold-out proofs showing no confirmed payer is left without either reserved VOID or a canonical terminal reconciliation obligation.

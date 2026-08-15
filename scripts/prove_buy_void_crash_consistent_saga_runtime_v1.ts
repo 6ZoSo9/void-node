@@ -570,7 +570,7 @@ async function main(): Promise<void> {
       return result;
     },
     run_pipeline_command: async (command: Record<string, any>) => {
-      if (command.action === "verify_and_claim") {
+      if (command.action === "verify_reserve_and_claim") {
         assert.deepEqual(command.verification_policy, {
           allowed_chains: ["ethereum"],
           usdc_contract_by_chain: { ethereum: USDC },

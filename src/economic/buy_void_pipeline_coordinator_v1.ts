@@ -10,8 +10,13 @@ import {
 } from "./buy_void_verified_payment_v2.js";
 import {
   claimBuyVoidFulfillmentJournalV1,
+  previewBuyVoidFulfillmentJournalClaimV1,
   type BuyVoidFulfillmentJournalIntentV1,
 } from "./buy_void_fulfillment_journal_v1.js";
+import {
+  reserveBuyVoidInventoryV1,
+  type BuyVoidInventoryReservationPolicyV1,
+} from "./buy_void_inventory_reservation_journal_v1.js";
 import {
   prepareBuyVoidExecutionTransactionV1,
   recordBuyVoidExecutionBroadcastV1,
@@ -45,6 +50,8 @@ export const VOID_BUY_VOID_PIPELINE_COORDINATOR_AUTHORITY_V1 = {
   explicit_confirmation_required: true,
   filesystem_read_via_journals: true,
   filesystem_write_via_journals: true,
+  canonical_inventory_reservation_before_new_paid_claim: true,
+  paid_unreservable_terminal_obligation_required: true,
   rpc_call: false,
   wallet_access: false,
   signing: false,
@@ -57,6 +64,7 @@ export const VOID_BUY_VOID_PIPELINE_COORDINATOR_AUTHORITY_V1 = {
 
 export const VOID_BUY_VOID_PIPELINE_CONFIRMATIONS_V1 = {
   verify_and_claim: "buyVoidVerifyAndClaim",
+  verify_reserve_and_claim: "buyVoidVerifyReserveAndClaim",
   reserve_execution: "buyVoidReserveExecution",
   prepare_execution: "buyVoidPrepareExecution",
   record_not_broadcast: "buyVoidRecordNotBroadcast",
@@ -83,6 +91,17 @@ export type BuyVoidVerifyAndClaimCommandV1 = MutationControlV1 & {
   verification_policy: BuyVoidVerifiedPaymentPolicyV2;
   fulfillment_policy: BuyVoidAutoFulfillmentPolicyV1;
 };
+
+export type BuyVoidVerifyReserveAndClaimCommandV1 =
+  MutationControlV1 & {
+    action: "verify_reserve_and_claim";
+    root_dir: string;
+    request: BuyVoidRequestV1;
+    receipt: BuyVoidTransactionReceiptV2;
+    verification_policy: BuyVoidVerifiedPaymentPolicyV2;
+    fulfillment_policy: BuyVoidAutoFulfillmentPolicyV1;
+    inventory_policy: BuyVoidInventoryReservationPolicyV1;
+  };
 
 export type BuyVoidReserveExecutionCommandV1 = MutationControlV1 & {
   action: "reserve_execution";
@@ -159,6 +178,7 @@ export type BuyVoidRecordConfirmedCommandV1 = MutationControlV1 & {
 
 export type BuyVoidPipelineCommandV1 =
   | BuyVoidVerifyAndClaimCommandV1
+  | BuyVoidVerifyReserveAndClaimCommandV1
   | BuyVoidReserveExecutionCommandV1
   | BuyVoidPrepareExecutionCommandV1
   | BuyVoidRecordNotBroadcastCommandV1
@@ -248,6 +268,43 @@ function dryRun(
 function previewCommand(
   command: BuyVoidPipelineCommandV1,
 ): BuyVoidPipelineCoordinatorDecisionV1 {
+  if (command.action === "verify_reserve_and_claim") {
+    const verified = buildBuyVoidVerifiedPaymentEventV2({
+      request: command.request,
+      receipt: command.receipt,
+      policy: command.verification_policy,
+    });
+    if ("reason" in verified) {
+      return held(command.action, false, verified.reason, verified.detail);
+    }
+    const preview = previewBuyVoidFulfillmentJournalClaimV1({
+      root_dir: command.root_dir,
+      request: command.request,
+      verified_payment_event: verified.event,
+      policy: command.fulfillment_policy,
+      now_ms: command.now_ms,
+    });
+    if ("reason" in preview) {
+      return held(command.action, false, preview.reason, preview.detail);
+    }
+    const inventory = reserveBuyVoidInventoryV1({
+      root_dir: command.root_dir,
+      intent: preview.intent,
+      policy: command.inventory_policy,
+      apply: false,
+      now_ms: command.now_ms,
+    });
+    if ("reason" in inventory) {
+      return held(command.action, false, inventory.reason, inventory.detail);
+    }
+    return dryRun(command.action, {
+      verified_payment_event: verified.event,
+      decision: preview,
+      inventory_preview: inventory,
+      reservation_before_new_claim: true,
+    });
+  }
+
   if (command.action === "verify_and_claim") {
     const verified = buildBuyVoidVerifiedPaymentEventV2({
       request: command.request,
@@ -322,6 +379,91 @@ function applyVerifyAndClaim(
     applied: true,
     mutation_performed: true,
     result: { verified_payment_event: verified.event, claim },
+  };
+}
+
+function applyVerifyReserveAndClaim(
+  command: BuyVoidVerifyReserveAndClaimCommandV1,
+): BuyVoidPipelineCoordinatorDecisionV1 {
+  const verified = buildBuyVoidVerifiedPaymentEventV2({
+    request: command.request,
+    receipt: command.receipt,
+    policy: command.verification_policy,
+  });
+  if ("reason" in verified) {
+    return held(command.action, true, verified.reason, verified.detail);
+  }
+
+  const preview = previewBuyVoidFulfillmentJournalClaimV1({
+    root_dir: command.root_dir,
+    request: command.request,
+    verified_payment_event: verified.event,
+    policy: command.fulfillment_policy,
+    now_ms: command.now_ms,
+  });
+  if ("reason" in preview) {
+    return held(command.action, true, preview.reason, preview.detail);
+  }
+
+  const inventory = reserveBuyVoidInventoryV1({
+    root_dir: command.root_dir,
+    intent: preview.intent,
+    policy: command.inventory_policy,
+    apply: true,
+    now_ms: command.now_ms,
+  });
+  if ("reason" in inventory) {
+    const terminalObligation =
+      inventory.detail?.terminal_recovery_obligation_recorded === true;
+    return held(
+      command.action,
+      true,
+      terminalObligation
+        ? "paid_inventory_reconciliation_required"
+        : inventory.reason,
+      {
+        reservation_reason: inventory.reason,
+        ...(inventory.detail || {}),
+      },
+      terminalObligation,
+    );
+  }
+
+  const claim = claimBuyVoidFulfillmentJournalV1({
+    root_dir: command.root_dir,
+    request: command.request,
+    verified_payment_event: verified.event,
+    policy: command.fulfillment_policy,
+    now_ms: command.now_ms,
+  });
+  if ("reason" in claim) {
+    return held(
+      command.action,
+      true,
+      "claim_after_inventory_reservation_held",
+      {
+        claim_reason: claim.reason,
+        ...(claim.detail ? { claim_detail: claim.detail } : {}),
+        reservation_id: inventory.reservation.reservation_id,
+        inventory_reserved: true,
+        restart_recovery_required: true,
+      },
+      inventory.new_reservation,
+    );
+  }
+
+  return {
+    ok: true,
+    status: "applied",
+    action: command.action,
+    applied: true,
+    mutation_performed: true,
+    result: {
+      verified_payment_event: verified.event,
+      reservation: inventory,
+      claim,
+      reservation_before_new_claim: true,
+    },
   };
 }
 
@@ -596,6 +738,8 @@ export function runBuyVoidPipelineCommandV1(
     switch (command.action) {
       case "verify_and_claim":
         return applyVerifyAndClaim(command);
+      case "verify_reserve_and_claim":
+        return applyVerifyReserveAndClaim(command);
       case "reserve_execution":
         return applyReserveExecution(command);
       case "prepare_execution":

@@ -105,3 +105,15 @@ broadcaster, transaction, treasury balance, presale inventory balance, validator
 stake, BTC reserve, or runtime process is mutated by this composition change.
 
 `PROTECT THE CORE`
+
+
+### Presale customer-liability boundary
+
+```text
+payment_admission_reservation_atomicity_ready=true
+inventory_reservation_before_new_paid_claim=true
+paid_unreservable_terminal_obligation_ready=true
+confirmed_payer_without_reservation_or_obligation_allowed=false
+```
+
+The 10,000,000-VOID distribution ceiling is therefore enforced at the paid-admission boundary as well as at inventory reservation: a new paid claim follows a successful aggregate reservation, while a confirmed payment that cannot reserve receives a deterministic terminal reconciliation obligation with zero autonomous value-moving authority.

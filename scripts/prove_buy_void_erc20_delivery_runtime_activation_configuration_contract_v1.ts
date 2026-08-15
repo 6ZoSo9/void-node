@@ -131,6 +131,26 @@ assert.equal(
 );
 assert.equal(
   contract.presale_invariant_readiness
+    .payment_admission_reservation_atomicity_ready,
+  true,
+);
+assert.equal(
+  contract.presale_invariant_readiness
+    .inventory_reservation_before_new_paid_claim,
+  true,
+);
+assert.equal(
+  contract.presale_invariant_readiness
+    .paid_unreservable_terminal_obligation_ready,
+  true,
+);
+assert.equal(
+  contract.presale_invariant_readiness
+    .confirmed_payer_without_reservation_or_obligation_allowed,
+  false,
+);
+assert.equal(
+  contract.presale_invariant_readiness
     .no_per_buyer_purchase_throttle_below_remaining_inventory,
   true,
 );
