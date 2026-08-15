@@ -61,6 +61,8 @@ GET /health
 
 The response must contain `ok=true` and a 32-character lowercase hexadecimal `nodeId`. That value becomes the exact `--coordinator-node-id` passed to the no-node client. The client independently checks the same binding before status or execution.
 
+The health response is consumed as a stream with a hard 64 KiB byte ceiling. A declared or accumulated body above 64 KiB, a non-stream-readable body, invalid UTF-8, interrupted body, timeout, malformed JSON, or invalid coordinator identity produces `hold`. The configured health deadline remains active through complete body consumption; receiving HTTP headers does not end the deadline.
+
 ## Generated commands
 
 The output contains argv and shell-safe forms of:
@@ -81,6 +83,8 @@ The handoff validates the directory marker, directory safety contract, and selec
 ```bash
 node scripts/prove_wc_public_opportunity_handoff_v1.mjs
 ```
+
+The proof exercises a successful identity-bound handoff plus declared-oversize, streamed-oversize, interrupted-body, multi-candidate, no-candidate, and unsafe-directory HOLD behavior.
 
 Expected marker:
 
