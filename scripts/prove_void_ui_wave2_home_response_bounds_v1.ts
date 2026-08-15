@@ -119,6 +119,7 @@ async function main(): Promise<void> {
   assert.equal(streamedCancelled, true);
 
   let deadlineObserved = false;
+  const deadlineKeepAlive = setTimeout(() => {}, 200);
   const deadlineStart = Date.now();
   const stalled = await fetchVoidUiWave2HomeSourceJsonV1(
     "http://127.0.0.1:4100",
@@ -149,6 +150,7 @@ async function main(): Promise<void> {
       },
     }
   );
+  clearTimeout(deadlineKeepAlive);
   const deadlineElapsed = Date.now() - deadlineStart;
   assert.equal(stalled.ok, false);
   assert.equal(deadlineObserved, true);
