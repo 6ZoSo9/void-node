@@ -19,6 +19,8 @@
     process.env.VOID_CANONICAL_PRODUCER_ROLE === "1" &&
     process.env.VOID_CANONICAL_SELF_HTTP_GUARD === "1";
   const ownPort = String(process.env.HTTP_PORT || "4100");
+  const legacyObserverSuppressionEnabled =
+    process.env.VOID_CANONICAL_DISABLE_LEGACY_SELF_HTTP_OBSERVERS === "1";
 
   function boundedInt(raw, fallback, min, max) {
     const n = Number.parseInt(String(raw ?? ""), 10);
@@ -53,6 +55,7 @@
     maxInflight,
     timeoutMs,
     teardownTimeoutMs,
+    legacyObserverSuppressionEnabled,
     inflight: 0,
     limited: 0,
     timedOut: 0,
@@ -62,6 +65,14 @@
     teardownErrors: 0,
     lastTeardownError: "",
     suppressedInterventions: 0,
+    suppressedLegacyObserverFetches: 0,
+    legacyObserverSuppressions: {
+      header3_match_exporter: 0,
+      ready_watchdog: 0,
+      proposer_head_pollers: 0,
+    },
+    lastSuppressedLegacyObserver: "",
+    lastSuppressedLegacyObserverPath: "",
     autopropBypass: 0,
     selfPassThrough: 0,
     externalPassThrough: 0,
@@ -106,6 +117,67 @@
     const intervention = self && method === "POST" && interventionPaths.has(url.pathname);
 
     return { url, method, self, autoprop, intervention };
+  }
+
+  function appCallerStack() {
+    return String(new Error("caller").stack || "")
+      .split("\n")
+      .slice(1)
+      .filter(
+        (line) =>
+          !line.includes("canonical-producer-self-http-guard-v1.cjs") &&
+          !/\b(appCallerStack|classifyLegacyObserver|voidCanonicalProducerGuardedFetch)\b/.test(line),
+      )
+      .join("\n");
+  }
+
+  function classifyLegacyObserver(info) {
+    if (!legacyObserverSuppressionEnabled || !info?.self || info.method !== "GET") return "";
+
+    const path = info.url.pathname;
+    const stack = appCallerStack();
+
+    const header3Path =
+      path === "/blocks/latest/number" ||
+      /^\/blocks\/\d+\/(?:header3|txroot)$/.test(path);
+    if (header3Path && /\bselfJson\b/.test(stack) && /\bpoll\b/.test(stack)) {
+      return "header3_match_exporter";
+    }
+
+    const readyPath =
+      path === "/__void/ready.json" ||
+      path === "/head.txt" ||
+      path === "/proposer/stats";
+    if (
+      readyPath &&
+      /\bsample\b/.test(stack) &&
+      (/\bfetchJson\b/.test(stack) || /\bfetchText\b/.test(stack))
+    ) {
+      return "ready_watchdog";
+    }
+
+    if (path === "/head.txt") {
+      const firstAppFrame = stack.split("\n").find(Boolean) || "";
+      if (/\bat poll\b/.test(firstAppFrame)) {
+        return "proposer_head_pollers";
+      }
+    }
+
+    return "";
+  }
+
+  function suppressedLegacyObserverResponse(info, family) {
+    const headText = info.url.pathname === "/head.txt";
+    return new Response(headText ? "NaN\n" : "null", {
+      status: 200,
+      headers: {
+        "content-type": headText
+          ? "text/plain; charset=utf-8"
+          : "application/json; charset=utf-8",
+        "x-void-self-http-guard": "suppressed-legacy-observer",
+        "x-void-legacy-observer-family": family,
+      },
+    });
   }
 
   function wrapResponseBodyLifetime(response, cleanup, registerBodyCancel, isAbortRequested) {
@@ -188,6 +260,15 @@
     if (!info?.self) {
       state.externalPassThrough += 1;
       return originalFetch.call(globalThis, input, init);
+    }
+
+    const legacyObserverFamily = classifyLegacyObserver(info);
+    if (legacyObserverFamily) {
+      state.suppressedLegacyObserverFetches += 1;
+      state.legacyObserverSuppressions[legacyObserverFamily] += 1;
+      state.lastSuppressedLegacyObserver = legacyObserverFamily;
+      state.lastSuppressedLegacyObserverPath = info.url.pathname;
+      return Promise.resolve(suppressedLegacyObserverResponse(info, legacyObserverFamily));
     }
 
     if (info.intervention) {
