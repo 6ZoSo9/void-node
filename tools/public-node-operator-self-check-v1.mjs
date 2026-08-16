@@ -23,6 +23,66 @@ const REQUIRED_PUBLIC_ROUTES = [
   "/proofs",
 ];
 
+const REQUIRED_ROUTE_INDEX_ROUTES = [
+  "/public-node",
+  "/public-node/route-index.json",
+  "/public-node/share-pack.json",
+  "/public-node/tester-checklist.json",
+  "/public-node/client-work-pack.json",
+  "/public-node/ai-readiness.json",
+  "/public-node/fresh-proof-seed.json",
+  "/public-node/requester-work-policy.json",
+  "/public-node/data-quality.json",
+  "/public-node/link-health.json",
+  "/public-node/intelligence.json",
+  "/proofs",
+];
+
+const CANONICAL_SNAPSHOT_ROUTES = [
+  "/.well-known/void-public-node.json",
+  "/public-node/external-tester-copy-pack.json",
+  "/public-node/tester-result-intake.json",
+  "/public-node/standalone-outside-tester-smoke.sh",
+  "/public-node/tester-share",
+  "/public-node/tester-lane-summary.json",
+  "/public-node/first-tester-request-copy-pack.json",
+  "/public-node/local-data-drop/manifest.json",
+  "/public-node/local-data-drop.json",
+  "/public-node/local-data-drop/proof/:sha256.json",
+  "/public-node/local-data-drop/by-sha256/:sha256",
+  "/public-node/local-data-drop/:objectId",
+  "/public-node",
+  "/public-node/self-check-snapshot.json",
+  "/public-node/route-manifest.json",
+  "/public-node/share-link.json",
+  "/public-node/tester-bundle.json",
+  "/public-node/outside-tester-smoke.json",
+  "/public-node/tester-loop-status.json",
+  "/public-node/tester-result-receipt.json",
+  "/public-node/quickstart.json",
+  "/public-node/tester-handoff.json",
+  "/public-node/public-exposure-smoke-pack.json",
+  "/public-node/route-index.json",
+  "/proofs",
+];
+
+const REQUIRED_MANIFEST_MARKERS = new Map([
+  ["/.well-known/void-public-node.json", "VOID_PUBLIC_NODE_AGENT_DISCOVERY_V1"],
+  ["/public-node", "VOID_PUBLIC_NODE_PROFILE_ROUTE_V1"],
+  ["/public-node/route-manifest.json", "VOID_PUBLIC_NODE_ROUTE_MANIFEST_V1"],
+  ["/public-node/self-check-snapshot.json", "VOID_PUBLIC_NODE_SELF_CHECK_SNAPSHOT_V1"],
+  ["/public-node/share-link.json", "VOID_PUBLIC_NODE_SHARE_LINK_V1"],
+  ["/public-node/tester-bundle.json", "VOID_PUBLIC_NODE_TESTER_BUNDLE_V1"],
+  ["/public-node/outside-tester-smoke.json", "VOID_PUBLIC_NODE_OUTSIDE_TESTER_SMOKE_SURFACE_V1"],
+  ["/public-node/tester-loop-status.json", "VOID_PUBLIC_NODE_TESTER_LOOP_STATUS_V1"],
+  ["/public-node/tester-result-receipt.json", "VOID_PUBLIC_NODE_TESTER_RESULT_RECEIPT_V1"],
+  ["/public-node/quickstart.json", "VOID_PUBLIC_NODE_QUICKSTART_V1"],
+  ["/public-node/tester-handoff.json", "VOID_PUBLIC_NODE_TESTER_HANDOFF_V1"],
+  ["/public-node/public-exposure-smoke-pack.json", "VOID_PUBLIC_NODE_PUBLIC_EXPOSURE_SMOKE_PACK_V1"],
+  ["/public-node/route-index.json", "VOID_PUBLIC_NODE_ROUTE_INDEX_V1"],
+  ["/proofs", "VOID_PUBLIC_PROOFS_INDEX_V1"],
+]);
+
 const REQUIRED_WELL_KNOWN_ROUTES = [
   "/public-node",
   "/public-node/route-manifest.json",
@@ -101,27 +161,17 @@ function parseArgs(argv) {
   return result;
 }
 
-function normalizeBase(raw) {
-  const value = new URL(raw);
-  if (!["http:", "https:"].includes(value.protocol)) {
-    throw new Error("base URL must use http or https");
-  }
-  if (value.username || value.password || value.search || value.hash) {
-    throw new Error("base URL must not contain credentials, query, or fragment");
-  }
-  if (value.pathname !== "/" && value.pathname !== "") {
-    throw new Error("base URL must not contain a path");
-  }
-  value.pathname = "/";
-  return value;
+function normalizedHostname(hostname) {
+  const lower = hostname.toLowerCase();
+  return lower.startsWith("[") && lower.endsWith("]") ? lower.slice(1, -1) : lower;
 }
 
 function classifyHost(hostname) {
-  const lower = hostname.toLowerCase();
-  if (lower === "localhost") return "loopback";
-  const family = net.isIP(hostname);
+  const normalized = normalizedHostname(hostname);
+  if (normalized === "localhost") return "loopback";
+  const family = net.isIP(normalized);
   if (family === 4) {
-    const parts = hostname.split(".").map(Number);
+    const parts = normalized.split(".").map(Number);
     if (
       parts[0] === 10 ||
       parts[0] === 127 ||
@@ -135,16 +185,39 @@ function classifyHost(hostname) {
     return "public_ipv4";
   }
   if (family === 6) {
-    if (hostname === "::1") return "loopback";
-    return /^(fc|fd|fe8|fe9|fea|feb)/i.test(hostname)
+    if (normalized === "::1") return "loopback";
+    return /^(fc|fd|fe8|fe9|fea|feb)/i.test(normalized)
       ? "private_or_linklocal_ipv6"
       : "public_ipv6";
   }
-  if (lower.endsWith(".local") || lower.endsWith(".lan") || lower.endsWith(".internal")) {
+  if (
+    normalized.endsWith(".local") ||
+    normalized.endsWith(".lan") ||
+    normalized.endsWith(".internal")
+  ) {
     return "private_dns";
   }
-  if (lower.endsWith(".ts.net")) return "overlay_dns";
+  if (normalized.endsWith(".ts.net")) return "overlay_dns";
   return "public_dns";
+}
+
+function normalizeBase(raw) {
+  const value = new URL(raw);
+  if (!["http:", "https:"].includes(value.protocol)) {
+    throw new Error("base URL must use http or https");
+  }
+  if (value.username || value.password || value.search || value.hash) {
+    throw new Error("base URL must not contain credentials, query, or fragment");
+  }
+  if (value.pathname !== "/" && value.pathname !== "") {
+    throw new Error("base URL must not contain a path");
+  }
+  const hostClass = classifyHost(value.hostname);
+  if (value.protocol === "http:" && hostClass.startsWith("public_")) {
+    throw new Error("public base URL must use https; http is limited to loopback/private/overlay hosts");
+  }
+  value.pathname = "/";
+  return value;
 }
 
 function safeIso(raw) {
@@ -157,57 +230,62 @@ function isPlainObject(value) {
   return Boolean(value && typeof value === "object" && !Array.isArray(value));
 }
 
-function routePathFromString(value) {
-  if (typeof value !== "string") return null;
+function exactCanonicalRoutePath(value) {
+  if (typeof value !== "string" || value.length === 0 || value.trim() !== value) return null;
+  if (!value.startsWith("/") || value.startsWith("//") || value.includes("?") || value.includes("#")) {
+    return null;
+  }
   try {
-    if (value.startsWith("/")) {
-      return new URL(value, "http://void.invalid").pathname;
-    }
-    if (/^https?:\/\//i.test(value)) {
-      return new URL(value).pathname;
-    }
+    const parsed = new URL(value, "https://void.invalid");
+    if (parsed.origin !== "https://void.invalid" || parsed.pathname !== value) return null;
+    return value;
   } catch {
     return null;
   }
-  return null;
+}
+
+function absolutePublicLinkPath(value) {
+  if (typeof value !== "string" || value.length === 0 || value.trim() !== value) return null;
+  try {
+    const parsed = new URL(value);
+    if (!["http:", "https:"].includes(parsed.protocol)) return null;
+    if (parsed.username || parsed.password || parsed.search || parsed.hash) return null;
+    return exactCanonicalRoutePath(parsed.pathname);
+  } catch {
+    return null;
+  }
 }
 
 function routeStringArrayAt(value, key) {
   if (!isPlainObject(value) || !Array.isArray(value[key])) return null;
   const routes = [];
   for (const item of value[key]) {
-    const route = routePathFromString(item);
+    const route = exactCanonicalRoutePath(item);
     if (!route) return null;
     routes.push(route);
   }
-  return [...new Set(routes)];
+  return routes.length === new Set(routes).size ? routes : null;
 }
 
 function routeRowArrayAt(value, key, requireManifestMetadata = false) {
   if (!isPlainObject(value) || !Array.isArray(value[key])) return null;
-  const routes = [];
+  const rows = [];
   for (const item of value[key]) {
     if (!isPlainObject(item)) return null;
-    const route = routePathFromString(item.path);
-    if (!route) return null;
-    if (
-      requireManifestMetadata &&
-      (!isNonEmptyString(item.marker) ||
-        item.safety_class !== "public_read_only" ||
-        !isNonEmptyString(item.purpose))
-    ) {
-      return null;
-    }
-    routes.push(route);
+    const route = exactCanonicalRoutePath(item.path);
+    if (!route || !isNonEmptyString(item.marker) || !isNonEmptyString(item.purpose)) return null;
+    if (requireManifestMetadata && item.safety_class !== "public_read_only") return null;
+    rows.push({ route, item });
   }
-  return [...new Set(routes)];
+  if (rows.length !== new Set(rows.map(({ route }) => route)).size) return null;
+  return rows;
 }
 
 function linkRoutesAt(value) {
   if (!isPlainObject(value) || !isPlainObject(value.links)) return null;
   const routes = [];
   for (const item of Object.values(value.links)) {
-    const route = routePathFromString(item);
+    const route = absolutePublicLinkPath(item);
     if (!route) return null;
     routes.push(route);
   }
@@ -231,9 +309,7 @@ function sensitiveRoutes(routes) {
 }
 
 function nonNegativeSafeInteger(value) {
-  return typeof value === "number" && Number.isSafeInteger(value) && value >= 0
-    ? value
-    : null;
+  return typeof value === "number" && Number.isSafeInteger(value) && value >= 0 ? value : null;
 }
 
 function binarySafeInteger(value) {
@@ -244,12 +320,68 @@ function isNonEmptyString(value) {
   return typeof value === "string" && value.length > 0;
 }
 
+function hasCanonicalReadOnlyPolicy(value) {
+  if (!isPlainObject(value)) return false;
+  return (
+    value.public_routes_only === true &&
+    value.private_api === false &&
+    value.mutation === false &&
+    value.read_only === true &&
+    value.money_movement === false &&
+    value.wallet_send === false &&
+    value.wc_to_void_swap === false &&
+    value.buy_void_fulfillment === false &&
+    value.validator_mutation === false
+  );
+}
+
+function exactRouteSet(routes, expected) {
+  return (
+    Array.isArray(routes) &&
+    routes.length === expected.length &&
+    routes.every((route) => expected.includes(route))
+  );
+}
+
+function manifestMetadataOk(rows) {
+  if (!Array.isArray(rows)) return false;
+  for (const [route, expectedMarker] of REQUIRED_MANIFEST_MARKERS) {
+    const row = rows.find((entry) => entry.route === route)?.item;
+    if (!row || row.marker !== expectedMarker || row.safety_class !== "public_read_only" || !isNonEmptyString(row.purpose)) {
+      return false;
+    }
+  }
+  return true;
+}
+
+function snapshotChecksOk(value) {
+  if (!isPlainObject(value)) return false;
+  return (
+    value.self_check_snapshot === true &&
+    value.agent_discovery_present === true &&
+    value.route_index_present === true &&
+    value.route_manifest_present === true &&
+    value.outside_tester_smoke_surface_present === true &&
+    value.externally_testable === true
+  );
+}
+
+function snapshotLinksOk(value, baseOrigin) {
+  if (!isPlainObject(value)) return false;
+  const expected = {
+    agent_discovery: `${baseOrigin}/.well-known/void-public-node.json`,
+    public_node: `${baseOrigin}/public-node`,
+    route_index: `${baseOrigin}/public-node/route-index.json`,
+    route_manifest: `${baseOrigin}/public-node/route-manifest.json`,
+    smoke_surface: `${baseOrigin}/public-node/outside-tester-smoke.json`,
+    proofs: `${baseOrigin}/proofs`,
+  };
+  return Object.entries(expected).every(([key, expectedValue]) => value[key] === expectedValue);
+}
+
 function isLegacyPeerRecord(value) {
   return Boolean(
-    value &&
-      typeof value === "object" &&
-      !Array.isArray(value) &&
-      isNonEmptyString(value.id),
+    value && typeof value === "object" && !Array.isArray(value) && isNonEmptyString(value.id),
   );
 }
 
@@ -270,10 +402,7 @@ function isCanonicalConnectedPeer(value) {
 }
 
 function isLegacyPeerArray(value) {
-  return (
-    Array.isArray(value) &&
-    value.every((entry) => isNonEmptyString(entry) || isLegacyPeerRecord(entry))
-  );
+  return Array.isArray(value) && value.every((entry) => isNonEmptyString(entry) || isLegacyPeerRecord(entry));
 }
 
 function parsePeerCount(value) {
@@ -424,6 +553,7 @@ function check(id, pathValue, ok, reason, observed = {}) {
 async function main() {
   const args = parseArgs(process.argv.slice(2));
   const base = normalizeBase(args.base);
+  const baseOrigin = base.origin;
   const observedAt = safeIso(args.observedAt);
   const checks = [];
 
@@ -452,8 +582,7 @@ async function main() {
   const readyGap = nonNegativeSafeInteger(readyValue?.gap);
   const readyTxrootLive = binarySafeInteger(readyValue?.txroot_live);
   const readyReasonsValid =
-    Array.isArray(readyValue?.reasons) &&
-    readyValue.reasons.every((reason) => typeof reason === "string");
+    Array.isArray(readyValue?.reasons) && readyValue.reasons.every((reason) => typeof reason === "string");
   const readinessOk =
     ready.ok &&
     readyValue?.ready === true &&
@@ -532,13 +661,9 @@ async function main() {
     (route) => !wellKnownRoutes?.includes(route),
   );
   const wellKnownPolicy =
-    isPlainObject(wellKnown.json) && isPlainObject(wellKnown.json.policy)
-      ? wellKnown.json.policy
-      : null;
+    isPlainObject(wellKnown.json) && isPlainObject(wellKnown.json.policy) ? wellKnown.json.policy : null;
   const wellKnownLinks =
-    isPlainObject(wellKnown.json) && isPlainObject(wellKnown.json.links)
-      ? wellKnown.json.links
-      : null;
+    isPlainObject(wellKnown.json) && isPlainObject(wellKnown.json.links) ? wellKnown.json.links : null;
   const wellKnownOk =
     wellKnown.ok &&
     markerAt(wellKnown.json, "VOID_PUBLIC_NODE_AGENT_DISCOVERY_V1") &&
@@ -573,13 +698,19 @@ async function main() {
   );
 
   const routeIndex = await fetchJson(base, "/public-node/route-index.json", args.timeoutMs);
-  const indexRoutes = routeRowArrayAt(routeIndex.json, "routes");
+  const indexRows = routeRowArrayAt(routeIndex.json, "routes");
+  const indexRoutes = indexRows?.map(({ route }) => route) ?? null;
   const indexSensitive = sensitiveRoutes(indexRoutes);
+  const indexMissing = REQUIRED_ROUTE_INDEX_ROUTES.filter((route) => !indexRoutes?.includes(route));
+  const routeIndexPolicyOk = hasCanonicalReadOnlyPolicy(routeIndex.json?.policy);
   const routeIndexOk =
     routeIndex.ok &&
     markerAt(routeIndex.json, "VOID_PUBLIC_NODE_ROUTE_INDEX_V1") &&
-    indexRoutes !== null &&
-    indexSensitive.length === 0;
+    routeIndex.json?.purpose === "public_node_route_index" &&
+    indexRows !== null &&
+    indexMissing.length === 0 &&
+    indexSensitive.length === 0 &&
+    routeIndexPolicyOk;
   checks.push(
     check(
       "route_index",
@@ -589,28 +720,38 @@ async function main() {
       {
         status_code: routeIndex.statusCode,
         marker_present: markerAt(routeIndex.json, "VOID_PUBLIC_NODE_ROUTE_INDEX_V1"),
+        purpose_matches: routeIndex.json?.purpose === "public_node_route_index",
         route_count: indexRoutes?.length ?? null,
+        required_route_count: REQUIRED_ROUTE_INDEX_ROUTES.length,
+        missing_route_count: indexMissing.length,
         sensitive_route_count: indexSensitive.length,
+        policy_matches: routeIndexPolicyOk,
       },
     ),
   );
 
   const routeManifest = await fetchJson(base, "/public-node/route-manifest.json", args.timeoutMs);
-  const manifestRoutes = routeRowArrayAt(routeManifest.json, "routes", true);
+  const manifestRows = routeRowArrayAt(routeManifest.json, "routes", true);
+  const manifestRoutes = manifestRows?.map(({ route }) => route) ?? null;
   const manifestRouteCount = nonNegativeSafeInteger(routeManifest.json?.route_count);
   const manifestCountMatches =
     manifestRoutes !== null && manifestRouteCount !== null && manifestRouteCount === manifestRoutes.length;
-  const manifestMissing = REQUIRED_PUBLIC_ROUTES.filter(
-    (route) => !manifestRoutes?.includes(route),
-  );
+  const manifestCanonicalRoutes = exactRouteSet(manifestRoutes, CANONICAL_SNAPSHOT_ROUTES);
+  const manifestMetadataMatches = manifestMetadataOk(manifestRows);
   const manifestSensitive = sensitiveRoutes(manifestRoutes);
+  const manifestPolicyOk = hasCanonicalReadOnlyPolicy(routeManifest.json?.policy);
   const routeManifestOk =
     routeManifest.ok &&
     markerAt(routeManifest.json, "VOID_PUBLIC_NODE_ROUTE_MANIFEST_V1") &&
-    manifestRoutes !== null &&
+    routeManifest.json?.purpose === "canonical_public_node_route_manifest" &&
+    routeManifest.json?.status === "public_node_route_manifest_ready" &&
+    routeManifest.json?.effective_base_url === baseOrigin &&
+    manifestRows !== null &&
     manifestCountMatches &&
-    manifestMissing.length === 0 &&
-    manifestSensitive.length === 0;
+    manifestCanonicalRoutes &&
+    manifestMetadataMatches &&
+    manifestSensitive.length === 0 &&
+    manifestPolicyOk;
   checks.push(
     check(
       "route_manifest",
@@ -620,11 +761,16 @@ async function main() {
       {
         status_code: routeManifest.statusCode,
         marker_present: markerAt(routeManifest.json, "VOID_PUBLIC_NODE_ROUTE_MANIFEST_V1"),
+        purpose_matches: routeManifest.json?.purpose === "canonical_public_node_route_manifest",
+        status_matches: routeManifest.json?.status === "public_node_route_manifest_ready",
+        effective_base_matches: routeManifest.json?.effective_base_url === baseOrigin,
         route_count: manifestRouteCount,
         route_count_matches: manifestCountMatches,
-        required_route_count: REQUIRED_PUBLIC_ROUTES.length,
-        missing_route_count: manifestMissing.length,
+        canonical_route_set_matches: manifestCanonicalRoutes,
+        route_metadata_matches: manifestMetadataMatches,
+        required_route_count: CANONICAL_SNAPSHOT_ROUTES.length,
         sensitive_route_count: manifestSensitive.length,
+        policy_matches: manifestPolicyOk,
       },
     ),
   );
@@ -636,22 +782,30 @@ async function main() {
     snapshotRoutes !== null &&
     snapshotExpectedRouteCount !== null &&
     snapshotExpectedRouteCount === snapshotRoutes.length;
-  const snapshotMissing = REQUIRED_PUBLIC_ROUTES.filter(
-    (route) => !snapshotRoutes?.includes(route),
-  );
+  const snapshotCanonicalRoutes = exactRouteSet(snapshotRoutes, CANONICAL_SNAPSHOT_ROUTES);
   const snapshotSensitive = sensitiveRoutes(snapshotRoutes);
   const snapshotPolicy =
-    isPlainObject(snapshot.json) && isPlainObject(snapshot.json.policy)
-      ? snapshot.json.policy
-      : null;
-  const snapshotPublicPostFalse = snapshotPolicy?.public_post_endpoint === false;
+    isPlainObject(snapshot.json) && isPlainObject(snapshot.json.policy) ? snapshot.json.policy : null;
+  const snapshotPolicyOk = hasCanonicalReadOnlyPolicy(snapshotPolicy);
+  const snapshotPublicPostFalse =
+    !snapshotPolicy ||
+    !Object.hasOwn(snapshotPolicy, "public_post_endpoint") ||
+    snapshotPolicy.public_post_endpoint === false;
+  const snapshotChecksMatch = snapshotChecksOk(snapshot.json?.checks);
+  const snapshotLinksMatch = snapshotLinksOk(snapshot.json?.links, baseOrigin);
   const snapshotOk =
     snapshot.ok &&
     markerAt(snapshot.json, "VOID_PUBLIC_NODE_SELF_CHECK_SNAPSHOT_V1") &&
+    snapshot.json?.purpose === "public_node_self_check_snapshot" &&
+    snapshot.json?.status === "public_node_externally_testable_read_only_surface_ready" &&
+    snapshot.json?.effective_base_url === baseOrigin &&
     snapshotRoutes !== null &&
     snapshotCountMatches &&
-    snapshotMissing.length === 0 &&
+    snapshotCanonicalRoutes &&
     snapshotSensitive.length === 0 &&
+    snapshotChecksMatch &&
+    snapshotLinksMatch &&
+    snapshotPolicyOk &&
     snapshotPublicPostFalse;
   checks.push(
     check(
@@ -662,11 +816,17 @@ async function main() {
       {
         status_code: snapshot.statusCode,
         marker_present: markerAt(snapshot.json, "VOID_PUBLIC_NODE_SELF_CHECK_SNAPSHOT_V1"),
+        purpose_matches: snapshot.json?.purpose === "public_node_self_check_snapshot",
+        status_matches: snapshot.json?.status === "public_node_externally_testable_read_only_surface_ready",
+        effective_base_matches: snapshot.json?.effective_base_url === baseOrigin,
         expected_route_count: snapshotExpectedRouteCount,
         route_count_matches: snapshotCountMatches,
-        required_route_count: REQUIRED_PUBLIC_ROUTES.length,
-        missing_route_count: snapshotMissing.length,
+        canonical_route_set_matches: snapshotCanonicalRoutes,
+        required_route_count: CANONICAL_SNAPSHOT_ROUTES.length,
         sensitive_route_count: snapshotSensitive.length,
+        checks_match: snapshotChecksMatch,
+        links_match: snapshotLinksMatch,
+        policy_matches: snapshotPolicyOk,
         public_post_endpoint_false: snapshotPublicPostFalse,
       },
     ),
