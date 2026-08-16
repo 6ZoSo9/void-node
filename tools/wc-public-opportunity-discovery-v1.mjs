@@ -56,17 +56,6 @@ function walk(value, visitor, path = []) {
   for (const [key, child] of Object.entries(object)) walk(child, visitor, [...path, key]);
 }
 
-function findObjectByMarker(value, predicate) {
-  let found = null;
-  walk(value, (candidate) => {
-    if (found) return;
-    const object = asObject(candidate);
-    const marker = typeof object?.marker === "string" ? object.marker : "";
-    if (object && predicate(marker, object)) found = object;
-  });
-  return found;
-}
-
 function findFirstScalar(value, wantedKeys, type) {
   const normalized = new Set(wantedKeys.map((key) => key.toLowerCase()));
   let found;
@@ -223,14 +212,15 @@ function claimRouteNoDirectAward(safety, publicClaim) {
 }
 
 function analyze(body, sourcePath, origin, expectedAwardWc, attempts) {
-  const gateway = findObjectByMarker(
-    body,
-    (marker, object) => /PUBLIC.*EARN.*GATEWAY/u.test(marker) || Boolean(object.public_claim),
-  );
+  const topLevel = asObject(body);
+  if (!topLevel) return null;
+
+  const topLevelMarker = typeof topLevel.marker === "string" ? topLevel.marker : "";
+  const gateway = /PUBLIC.*EARN.*GATEWAY/u.test(topLevelMarker) ? topLevel : null;
   const gatewayPilot = asObject(gateway?.pilot_status);
   const pilot =
     (gatewayPilot?.marker === PILOT_MARKER ? gatewayPilot : null) ??
-    findObjectByMarker(body, (marker) => marker === PILOT_MARKER);
+    (topLevelMarker === PILOT_MARKER ? topLevel : null);
   const publicClaim =
     asObject(gateway?.public_claim) ??
     asObject(pilot?.public_claim) ??

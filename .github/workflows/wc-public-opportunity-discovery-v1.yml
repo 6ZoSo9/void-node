@@ -10,6 +10,7 @@ on:
       - "tools/wc-public-coordinator-readiness-v1.mjs"
       - "tools/wc-public-response-teardown-v1.mjs"
       - "scripts/prove_wc_public_opportunity_discovery_v1.mjs"
+      - "scripts/prove_wc_public_opportunity_nested_contract_provenance_v1.mjs"
       - "scripts/prove_wc_public_opportunity_adapter_composition_v1.mjs"
       - "scripts/prove_wc_public_opportunity_response_bounds_v1.mjs"
       - "scripts/prove_wc_public_opportunity_directory_evidence_types_v1.mjs"
@@ -30,6 +31,7 @@ on:
       - "tools/wc-public-coordinator-readiness-v1.mjs"
       - "tools/wc-public-response-teardown-v1.mjs"
       - "scripts/prove_wc_public_opportunity_discovery_v1.mjs"
+      - "scripts/prove_wc_public_opportunity_nested_contract_provenance_v1.mjs"
       - "scripts/prove_wc_public_opportunity_adapter_composition_v1.mjs"
       - "scripts/prove_wc_public_opportunity_response_bounds_v1.mjs"
       - "scripts/prove_wc_public_opportunity_directory_evidence_types_v1.mjs"
@@ -72,6 +74,8 @@ jobs:
         run: node --check tools/wc-public-response-teardown-v1.mjs
       - name: Check focused proof syntax
         run: node --check scripts/prove_wc_public_opportunity_discovery_v1.mjs
+      - name: Check nested contract provenance proof syntax
+        run: node --check scripts/prove_wc_public_opportunity_nested_contract_provenance_v1.mjs
       - name: Check adapter composition proof syntax
         run: node --check scripts/prove_wc_public_opportunity_adapter_composition_v1.mjs
       - name: Check response-bounds proof syntax
@@ -100,6 +104,8 @@ jobs:
         run: node scripts/prove_wc_public_response_reader_read_teardown_v1.mjs
       - name: Prove strict discovery evidence typing
         run: node scripts/prove_wc_public_opportunity_discovery_v1.mjs
+      - name: Prove nested contract provenance binding
+        run: node scripts/prove_wc_public_opportunity_nested_contract_provenance_v1.mjs
       - name: Prove adapter-to-discovery evidence typing
         run: node scripts/prove_wc_public_opportunity_adapter_composition_v1.mjs
       - name: Prove bounded discovery responses
