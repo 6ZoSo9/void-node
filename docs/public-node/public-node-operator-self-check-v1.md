@@ -32,6 +32,15 @@ node tools/public-node-operator-self-check-v1.mjs \
 The output file is written with mode `0600`. The receipt deliberately records a
 host classification rather than the raw target hostname or address.
 
+Public origins require HTTPS. Plain HTTP is admitted only for loopback,
+private, or overlay targets so an operator cannot obtain a green receipt from
+unauthenticated public cleartext evidence. Bracketed IPv6 loopback remains a
+valid local target.
+
+Each response body is bounded to 2 MiB before full buffering. Oversized declared
+or streamed responses, malformed content lengths, request timeouts, and invalid
+JSON fail closed into evidence HOLDs without changing network state.
+
 ## Checks
 
 The tool verifies:
@@ -46,16 +55,29 @@ The tool verifies:
 8. `/public-node/self-check-snapshot.json`
 9. alignment of the public discovery surfaces
 
-The well-known discovery document may publish either root-relative paths or
-absolute HTTP(S) URLs. Absolute links are normalized to their URL path before
-contract comparison, so a reverse proxy or public adapter may advertise a
-canonical base URL that differs from the local probe address. The canonical
-well-known marker and read-only policy remain mandatory.
+The well-known discovery document may publish absolute HTTP(S) links. Their
+paths must resolve to exact canonical public routes without query, fragment,
+whitespace, protocol-relative, foreign-path, or dot-segment aliases. The
+canonical well-known marker and its read-only/no-mutation policy remain
+mandatory.
 
-The route manifest and self-check snapshot must carry their canonical markers,
-contain the required public routes, and avoid sensitive namespace
-advertisements. The snapshot must explicitly expose
-`public_post_endpoint: false`.
+The route index must carry its exact purpose, object-row shape, required public
+routes, and the complete reviewed read-only/no-authority policy. The route
+manifest must carry its exact purpose/status/effective base, internally exact
+route count, object-row metadata and required canonical markers, contain no
+sensitive namespace, and carry the same complete safety policy. Additional
+future public-read-only manifest rows remain admissible when those invariants
+hold.
+
+The self-check snapshot must carry its exact purpose/status/effective base,
+canonical six checks and six links, exact reviewed `expected_routes` set and
+`expected_route_count`, and the complete read-only/no-authority policy. If
+`public_post_endpoint` is present it must be `false`.
+
+Readiness, chain-head, and peer evidence is type-strict. Numeric strings,
+booleans standing in for numeric fields, unsafe/fractional numbers, malformed
+canonical peer envelopes, and contradictory `ok` status fail closed rather
+than being coerced into green evidence.
 
 ## Exit codes
 
@@ -78,6 +100,11 @@ Expected marker:
 ```text
 VOID_PUBLIC_NODE_OPERATOR_SELF_CHECK_V1_PROOF_GREEN
 ```
+
+The canonical proof delegates its runtime/adversarial fixture exercise to
+`scripts/prove_public_node_operator_self_check_response_bound_v1.mjs`, keeping
+the documented self-check proof aligned with the bounded-response and strict
+contract proof used by CI.
 
 ## Authority boundary
 
