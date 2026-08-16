@@ -310,6 +310,46 @@ async function rejectReaderFailure(
   throw error;
 }
 
+async function readResponseChunk(
+  reader: ReadableStreamDefaultReader<Uint8Array>,
+  signal: AbortSignal,
+): Promise<Awaited<ReturnType<typeof reader.read>>> {
+  if (signal.aborted) {
+    throw signal.reason instanceof Error
+      ? signal.reason
+      : new Error("steam_readonly_request_timeout");
+  }
+
+  return await new Promise((resolve, reject) => {
+    let settled = false;
+    const onAbort = () => {
+      if (settled) return;
+      settled = true;
+      reject(
+        signal.reason instanceof Error
+          ? signal.reason
+          : new Error("steam_readonly_request_timeout"),
+      );
+    };
+
+    signal.addEventListener("abort", onAbort, { once: true });
+    reader.read().then(
+      (part) => {
+        if (settled) return;
+        settled = true;
+        signal.removeEventListener("abort", onAbort);
+        resolve(part);
+      },
+      (error) => {
+        if (settled) return;
+        settled = true;
+        signal.removeEventListener("abort", onAbort);
+        reject(error);
+      },
+    );
+  });
+}
+
 async function readBoundedResponse(
   response: Response,
   maxBytes: number,
@@ -362,7 +402,7 @@ async function readBoundedResponse(
   while (true) {
     let part: Awaited<ReturnType<typeof reader.read>>;
     try {
-      part = await reader.read();
+      part = await readResponseChunk(reader, controller.signal);
     } catch {
       return rejectReaderFailure(reader, controller);
     }
