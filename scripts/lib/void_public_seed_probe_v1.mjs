@@ -63,10 +63,24 @@ function requestOneBounded(
   const transport = target.protocol === "https:" ? https : http;
   return new Promise((resolve, reject) => {
     let settled = false;
+    let totalDeadline = null;
+    const clearTotalDeadline = () => {
+      if (totalDeadline !== null) {
+        clearTimeout(totalDeadline);
+        totalDeadline = null;
+      }
+    };
     const fail = (error) => {
       if (settled) return;
       settled = true;
+      clearTotalDeadline();
       reject(error instanceof Error ? error : new Error(String(error)));
+    };
+    const succeed = (value) => {
+      if (settled) return;
+      settled = true;
+      clearTotalDeadline();
+      resolve(value);
     };
 
     const request = transport.request(
@@ -114,8 +128,7 @@ function requestOneBounded(
 
         if (method === "HEAD") {
           response.resume();
-          settled = true;
-          resolve({
+          succeed({
             status,
             headers: headersView,
             bytes: Buffer.alloc(0),
@@ -142,8 +155,7 @@ function requestOneBounded(
         response.on("end", () => {
           if (settled) return;
           const bytes = Buffer.concat(chunks, total);
-          settled = true;
-          resolve({
+          succeed({
             status,
             headers: headersView,
             bytes,
@@ -154,6 +166,9 @@ function requestOneBounded(
       },
     );
 
+    totalDeadline = setTimeout(() => {
+      request.destroy(new Error(`${method} ${url} timed out after ${timeoutMs} ms`));
+    }, timeoutMs);
     request.setTimeout(timeoutMs, () => {
       request.destroy(new Error(`${method} ${url} timed out after ${timeoutMs} ms`));
     });
