@@ -28,6 +28,7 @@ export const READINESS_SCOPE = "offline_binding_signing_only";
 
 const REPOSITORY = "6ZoSo9/void-node";
 const MAXIMUM_BODY_BYTES = 1024 * 1024;
+const MAXIMUM_BODY_TEARDOWN_SETTLEMENT_MS = 250;
 const MINIMUM_CERTIFICATE_LIFETIME_MS = 7 * 24 * 60 * 60 * 1000;
 const MINIMUM_TRUST_LIFETIME_MS = 7 * 24 * 60 * 60 * 1000;
 const SHA40 = /^[0-9a-f]{40}$/;
@@ -61,6 +62,7 @@ const REQUIRED_SOURCE_PATHS = Object.freeze([
   ...Object.values(ROUTES).map((route) => route.source),
   "schemas/void-browser-clearweb-origin-readiness-v1.schema.json",
   "scripts/prove_void_browser_clearweb_origin_readiness_v1.mjs",
+  "scripts/prove_void_browser_clearweb_origin_response_bounds_v1.mjs",
   TRUST_PINS_PATH,
 ]);
 
@@ -262,9 +264,116 @@ function routeUrl(origin, routePath) {
   return resolved.href;
 }
 
+function parseContentLength(response, label) {
+  const raw = response.headers.get("content-length");
+  if (raw === null) return null;
+  if (!/^(0|[1-9][0-9]*)$/.test(raw)) {
+    fail(`${label} has invalid Content-Length`);
+  }
+  const value = Number(raw);
+  if (!Number.isSafeInteger(value)) {
+    fail(`${label} has invalid Content-Length`);
+  }
+  return value;
+}
+
+function requestDeadlineError(signal) {
+  return signal.reason instanceof Error
+    ? signal.reason
+    : new Error("request deadline exceeded");
+}
+
+async function readChunkWithDeadline(reader, signal) {
+  if (signal.aborted) throw requestDeadlineError(signal);
+  return await new Promise((resolve, reject) => {
+    let settled = false;
+    const finish = (action, value) => {
+      if (settled) return;
+      settled = true;
+      signal.removeEventListener("abort", onAbort);
+      action(value);
+    };
+    const onAbort = () => finish(reject, requestDeadlineError(signal));
+    signal.addEventListener("abort", onAbort, { once: true });
+    Promise.resolve()
+      .then(() => reader.read())
+      .then(
+        (value) => finish(resolve, value),
+        (error) => finish(reject, error),
+      );
+  });
+}
+
+async function settleRejectedBody(response, reader, controller, deadlineAt, reason) {
+  if (!controller.signal.aborted) controller.abort(reason);
+  let cancellation;
+  try {
+    if (reader && typeof reader.cancel === "function") {
+      cancellation = Promise.resolve(reader.cancel(reason));
+    } else if (response?.body && typeof response.body.cancel === "function") {
+      cancellation = Promise.resolve(response.body.cancel(reason));
+    }
+  } catch {
+    return;
+  }
+  if (!cancellation) return;
+  const remainingMs = Math.max(0, deadlineAt - Date.now());
+  const settlementMs = Math.min(MAXIMUM_BODY_TEARDOWN_SETTLEMENT_MS, remainingMs);
+  if (settlementMs <= 0) return;
+  await Promise.race([
+    cancellation.catch(() => undefined),
+    new Promise((resolve) => setTimeout(resolve, settlementMs)),
+  ]);
+}
+
+async function readBoundedGetBody(response, maximum, controller, deadlineAt, label) {
+  const contentLength = parseContentLength(response, label);
+  if (contentLength !== null && contentLength > maximum) {
+    const primary = new Hold(`${label} exceeds maximum response size`);
+    await settleRejectedBody(response, null, controller, deadlineAt, primary);
+    throw primary;
+  }
+  if (!response.body || typeof response.body.getReader !== "function") {
+    const primary = new Hold(`${label} body is not stream-readable`);
+    await settleRejectedBody(response, null, controller, deadlineAt, primary);
+    throw primary;
+  }
+
+  const reader = response.body.getReader();
+  const chunks = [];
+  let total = 0;
+  try {
+    while (true) {
+      const part = await readChunkWithDeadline(reader, controller.signal);
+      if (part.done) break;
+      if (!(part.value instanceof Uint8Array)) {
+        throw new Error("response stream yielded a non-byte chunk");
+      }
+      total += part.value.byteLength;
+      if (total > maximum) {
+        const primary = new Hold(`${label} exceeds maximum response size`);
+        await settleRejectedBody(response, reader, controller, deadlineAt, primary);
+        throw primary;
+      }
+      chunks.push(Buffer.from(part.value));
+    }
+    return Buffer.concat(chunks, total);
+  } catch (error) {
+    if (!(error instanceof Hold && /exceeds maximum response size/.test(error.message))) {
+      await settleRejectedBody(response, reader, controller, deadlineAt, error);
+    }
+    throw error;
+  }
+}
+
 async function boundedRequest(url, method, fetchImpl, maximum, timeoutMs) {
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), timeoutMs);
+  const deadlineAt = Date.now() + timeoutMs;
+  const timeout = setTimeout(
+    () => controller.abort(new Error("request deadline exceeded")),
+    timeoutMs,
+  );
+  const label = `${method} ${url}`;
   try {
     const response = await fetchImpl(url, {
       method,
@@ -277,14 +386,18 @@ async function boundedRequest(url, method, fetchImpl, maximum, timeoutMs) {
       },
       signal: controller.signal,
     });
-    const contentLength = Number(response.headers.get("content-length"));
-    if (Number.isFinite(contentLength) && contentLength > maximum) {
-      fail(`${method} ${url} exceeds maximum response size`);
+    let body;
+    if (method === "GET") {
+      body = await readBoundedGetBody(response, maximum, controller, deadlineAt, label);
+    } else {
+      const contentLength = parseContentLength(response, label);
+      if (contentLength !== null && contentLength > maximum) {
+        const primary = new Hold(`${label} exceeds maximum response size`);
+        await settleRejectedBody(response, null, controller, deadlineAt, primary);
+        throw primary;
+      }
+      body = Buffer.alloc(0);
     }
-    const body = method === "GET"
-      ? Buffer.from(await response.arrayBuffer())
-      : Buffer.alloc(0);
-    if (body.length > maximum) fail(`${method} ${url} exceeds maximum response size`);
     return Object.freeze({
       status: response.status,
       observed_url: response.url,
@@ -296,7 +409,7 @@ async function boundedRequest(url, method, fetchImpl, maximum, timeoutMs) {
     });
   } catch (error) {
     if (error instanceof Hold) throw error;
-    fail(`${method} ${url} failed: ${error.message}`);
+    fail(`${label} failed: ${error.message}`);
   } finally {
     clearTimeout(timeout);
   }
@@ -577,6 +690,7 @@ export function evaluateClearwebOriginReadiness(evidence, source, options = {}) 
     "ops/mainnet0/survey_void_browser_clearweb_origin_readiness_v1.mjs",
     "schemas/void-browser-clearweb-origin-readiness-v1.schema.json",
     "scripts/prove_void_browser_clearweb_origin_readiness_v1.mjs",
+    "scripts/prove_void_browser_clearweb_origin_response_bounds_v1.mjs",
   ]) {
     const body = source.files[relative];
     if (!Buffer.isBuffer(body)) fail(`missing readiness source bytes: ${relative}`);
