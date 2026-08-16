@@ -153,6 +153,14 @@ const verifyBody = {
   },
 };
 
+const inventoryPolicy = {
+  inventory_reservation_enabled: true,
+  pool_id: "proof-runtime-integration-v1",
+  inventory_policy_version: "proof-runtime-integration-v1",
+  pool_capacity_void_units: "1000000000",
+  max_reservation_void_units: "1000000000",
+};
+
 const dry = await call("POST", commandRoute, {
   socket: { remoteAddress: "::ffff:127.0.0.1" },
   body: verifyBody,
@@ -176,12 +184,32 @@ assert.equal(
   "explicit_confirmation_required",
 );
 
-const applied = await call("POST", commandRoute, {
+const retired = await call("POST", commandRoute, {
   socket: { remoteAddress: "127.0.0.1" },
   body: {
     ...verifyBody,
     apply: true,
     confirmation: "buyVoidVerifyAndClaim",
+    now_ms: 1_701_500_000_000,
+  },
+});
+assert.equal(retired.status, 400);
+assert.equal(retired.body.decision.status, "held");
+assert.equal(retired.body.decision.mutation_performed, false);
+assert.equal(
+  retired.body.decision.reason,
+  "legacy_verify_and_claim_apply_retired",
+);
+assert.equal(fs.existsSync(path.join(tmp, "buy_void_v1")), false);
+
+const applied = await call("POST", commandRoute, {
+  socket: { remoteAddress: "127.0.0.1" },
+  body: {
+    ...verifyBody,
+    action: "verify_reserve_and_claim",
+    inventory_policy: inventoryPolicy,
+    apply: true,
+    confirmation: "buyVoidVerifyReserveAndClaim",
     now_ms: 1_701_500_000_000,
   },
 });
@@ -301,3 +329,4 @@ fs.rmSync(tmp, { recursive: true, force: true });
 
 console.log("VOID_BUY_VOID_RUNTIME_INTEGRATION_V1_GREEN");
 console.log("partial_mutation_http_status=500");
+console.log("legacy_verify_and_claim_apply_http_status=400");
