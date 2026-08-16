@@ -34,13 +34,33 @@ The live survey requires all of the following:
 Ambiguous, stale, redirected, divergent, authenticated, expiring, off-origin,
 already-published, or elevated-authority evidence produces `HOLD`.
 
+## Bounded response and teardown contract
+
+Every surveyed GET body is streamed through the existing 1 MiB ceiling before
+bytes are retained for JSON/source comparison. A present `Content-Length` must
+be a canonical nonnegative safe integer and is rejected before body reading
+when it exceeds the ceiling. Unknown-length/chunked responses are counted while
+they stream and are rejected at the first byte beyond the ceiling.
+
+The per-request deadline remains active through response-body settlement.
+A body reader that stalls cannot keep the survey alive past that deadline.
+Once rejection is terminal, the owned request is aborted and response-body
+cancellation is attempted through a separate bounded settlement window that
+cannot replace the primary HOLD if cancellation rejects or never settles.
+HEAD responses retain no body bytes. These bounds change evidence collection
+only; they grant no browser, signing, deployment, payment, credential, or
+runtime authority.
+
 ## CI versus live survey
 
-GitHub Actions runs only the deterministic source proof. It intentionally skips
-the physical-presence assertion and makes no network request because a hosted
-runner cannot prove presence on Precision. The adversarial proof separately
-proves that live `survey` mode requires the exact physical hostname while
-`source` mode records `not_run_in_ci_source_mode`.
+GitHub Actions runs only deterministic source/adversarial proofs. It intentionally
+skips the physical-presence assertion and makes no network request because a
+hosted runner cannot prove presence on Precision. The focused matrix runs on
+Node.js 22, 24, and 26 and proves declared oversize, streamed overflow,
+stalled-body deadline, rejecting/non-settling cancellation, and preservation of
+small valid responses. The original adversarial proof separately proves that
+live `survey` mode requires the exact physical hostname while `source` mode
+records `not_run_in_ci_source_mode`.
 
 ## Operator command
 
