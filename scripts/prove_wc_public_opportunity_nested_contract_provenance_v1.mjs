@@ -22,11 +22,11 @@ function safety() {
   };
 }
 
-function publicClaim() {
+function publicClaim({ route = "/public/earn/claim-v1", includeRoute = true } = {}) {
   return {
     enabled: true,
     method: "POST",
-    path: "/public/earn/claim-v1",
+    ...(includeRoute ? { path: route } : {}),
     fixed_award_wc: 3,
     server_selected_work: true,
     participant_selected_award: false,
@@ -43,19 +43,19 @@ function pilot() {
   };
 }
 
-function gateway() {
+function gateway(claim = publicClaim()) {
   return {
     marker: "VOID_PUBLIC_EARN_GATEWAY_V1",
     pilot_status: pilot(),
-    public_claim: publicClaim(),
+    public_claim: claim,
     safety: safety(),
   };
 }
 
-function topLevelPilot() {
+function topLevelPilot(claim = publicClaim()) {
   return {
     ...pilot(),
-    public_claim: publicClaim(),
+    public_claim: claim,
     safety: safety(),
   };
 }
@@ -120,16 +120,36 @@ try {
     const outcome = await runDiscovery(origin);
     assert.deepEqual(new Set(observedMethods), new Set(["GET"]));
     assert.equal(outcome.result.safety?.mutation_attempted, false);
+    assert.equal(outcome.result.safety?.ticket_issuance_attempted, false);
+    assert.equal(outcome.result.safety?.wc_award_attempted, false);
     return outcome;
   }
 
   let outcome = await runCase(gateway());
   assert.equal(outcome.code, 0);
   assert.equal(outcome.result.opportunity_state, "available");
+  assert.equal(outcome.result.public_claim.configured, true);
+  assert.equal(outcome.result.public_claim.path, "/public/earn/claim-v1");
 
   outcome = await runCase(topLevelPilot());
   assert.equal(outcome.code, 0);
   assert.equal(outcome.result.opportunity_state, "available");
+  assert.equal(outcome.result.public_claim.configured, true);
+  assert.equal(outcome.result.public_claim.path, "/public/earn/claim-v1");
+
+  for (const [label, claim] of [
+    ["missing_route", publicClaim({ includeRoute: false })],
+    ["foreign_route", publicClaim({ route: "https://example.invalid/public/earn/claim-v1" })],
+    ["malformed_route", publicClaim({ route: "http://[::1" })],
+    ["non_claim_route", publicClaim({ route: "/public/earn/status-v1" })],
+  ]) {
+    outcome = await runCase(topLevelPilot(claim));
+    assert.equal(outcome.code, 2, label);
+    assert.equal(outcome.result.opportunity_state, "hold", label);
+    assert.equal(outcome.result.public_claim.configured, false, label);
+    assert.equal(outcome.result.public_claim.path, null, label);
+    assert.match(outcome.result.reason, /public_claim_not_discovered/u, label);
+  }
 
   outcome = await runCase({
     marker: "VOID_UNRELATED_ENVELOPE_V1",

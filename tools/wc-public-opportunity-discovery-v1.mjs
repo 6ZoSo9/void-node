@@ -262,7 +262,7 @@ function analyze(body, sourcePath, origin, expectedAwardWc, attempts) {
   const gatewayCompatible = Boolean(pilot || gateway || publicClaim);
   const awardMatches = fixedAwardWc !== null && fixedAwardWc === expectedAwardWc;
   const coordinatorReady = coordinatorEnabled === true;
-  const claimConfigured = Boolean(publicClaim || claimPath);
+  const claimConfigured = Boolean(claimPath);
   const claimNotDisabled = claimEnabled !== false;
   const publicAwardBoundaryConfirmed = publicClaimRouteNoDirectAward === true;
   const reasons = [];
