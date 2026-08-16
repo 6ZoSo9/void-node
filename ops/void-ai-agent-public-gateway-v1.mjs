@@ -543,14 +543,7 @@ async function readBoundedUpstreamResponseBody(
 
       if (total > maximum) {
         chunks.length = 0;
-        const primary = new Error(`${label}_response_too_large`);
-        await rejectUpstreamResponseBounded({
-          controller,
-          body,
-          reader,
-          label,
-        });
-        throw primary;
+        throw new Error(`${label}_response_too_large`);
       }
 
       chunks.push(chunk);
