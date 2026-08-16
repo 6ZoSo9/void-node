@@ -198,6 +198,24 @@ function wellKnownFixture() {
       },
     };
   }
+  if (mode === "well_known_extra_sensitive_link") {
+    return {
+      ...canonical,
+      links: {
+        ...canonical.links,
+        operator_diagnostics: `${baseOrigin}/__void/operator/diagnostics`,
+      },
+    };
+  }
+  if (mode === "well_known_extra_foreign_link") {
+    return {
+      ...canonical,
+      links: {
+        ...canonical.links,
+        foreign_public_node: "https://foreign.example/public-node",
+      },
+    };
+  }
   const policyContradictions = {
     well_known_public_routes_disabled: ["public_routes_only", false],
     well_known_private_api_enabled: ["private_api", true],
@@ -395,9 +413,12 @@ async function listen() {
   return address.port;
 }
 
-async function spawnTool(args) {
+async function spawnTool(args, extraEnv = {}) {
   return await new Promise((resolve, reject) => {
-    const child = spawn(process.execPath, [TOOL, ...args], { stdio: ["ignore", "pipe", "pipe"] });
+    const child = spawn(process.execPath, [TOOL, ...args], {
+      stdio: ["ignore", "pipe", "pipe"],
+      env: { ...process.env, ...extraEnv },
+    });
     let stdout = "";
     let stderr = "";
     child.stdout.setEncoding("utf8");
@@ -409,24 +430,29 @@ async function spawnTool(args) {
   });
 }
 
+function toolArgs(port) {
+  return [
+    "--base",
+    `http://127.0.0.1:${port}`,
+    "--timeout-ms",
+    String(TIMEOUT_MS),
+    "--expected-peer-count",
+    "2",
+    "--observed-at",
+    "2026-08-15T16:00:00Z",
+  ];
+}
+
 async function runTool(port, expectedPeerCount) {
   const temp = fs.mkdtempSync(path.join(os.tmpdir(), `void-public-self-check-${mode}-`));
   const output = path.join(temp, "receipt.json");
   const started = Date.now();
   try {
-    const result = await spawnTool([
-      "--base",
-      `http://127.0.0.1:${port}`,
-      "--timeout-ms",
-      String(TIMEOUT_MS),
-      "--expected-peer-count",
-      String(expectedPeerCount),
-      "--observed-at",
-      "2026-08-15T16:00:00Z",
-      "--output",
-      output,
-    ]);
+    const args = toolArgs(port);
+    args[5] = String(expectedPeerCount);
+    const result = await spawnTool([...args, "--output", output]);
     assert(fs.existsSync(output), `${mode} receipt missing: ${result.stderr || result.stdout}`);
+    assert.equal(fs.statSync(output).mode & 0o777, 0o600, `${mode} receipt mode must be 0600`);
     return {
       ...result,
       elapsed: Date.now() - started,
@@ -480,6 +506,113 @@ async function expectBaseAdmission(base, expectedStatus, message) {
   return result;
 }
 
+async function proveOutputPublicationSafety(port) {
+  mode = "green";
+  const temp = fs.mkdtempSync(path.join(os.tmpdir(), "void-public-self-check-output-safety-"));
+  try {
+    const args = toolArgs(port);
+
+    const existing = path.join(temp, "existing.json");
+    fs.writeFileSync(existing, "existing-sentinel\n", { mode: 0o640 });
+    fs.chmodSync(existing, 0o640);
+    let result = await spawnTool([...args, "--output", existing]);
+    assert.equal(result.status, 1, `existing output must fail closed: ${result.stderr || result.stdout}`);
+    assert.equal(fs.readFileSync(existing, "utf8"), "existing-sentinel\n");
+    assert.equal(fs.statSync(existing).mode & 0o777, 0o640);
+
+    const target = path.join(temp, "symlink-target.txt");
+    const symlinkOutput = path.join(temp, "receipt-symlink.json");
+    fs.writeFileSync(target, "target-sentinel\n", { mode: 0o640 });
+    fs.chmodSync(target, 0o640);
+    fs.symlinkSync(target, symlinkOutput);
+    result = await spawnTool([...args, "--output", symlinkOutput]);
+    assert.equal(result.status, 1, `symlink output must fail closed: ${result.stderr || result.stdout}`);
+    assert.equal(fs.readFileSync(target, "utf8"), "target-sentinel\n");
+    assert.equal(fs.statSync(target).mode & 0o777, 0o640);
+    assert(fs.lstatSync(symlinkOutput).isSymbolicLink());
+
+    const realParent = path.join(temp, "real-parent");
+    const nestedRealParent = path.join(realParent, "nested");
+    const aliasParent = path.join(temp, "alias-parent");
+    fs.mkdirSync(nestedRealParent, { recursive: true, mode: 0o700 });
+    fs.symlinkSync(realParent, aliasParent, "dir");
+    const redirectedOutput = path.join(aliasParent, "nested", "receipt.json");
+    result = await spawnTool([...args, "--output", redirectedOutput]);
+    assert.equal(result.status, 1, `symlinked parent path must fail closed: ${result.stderr || result.stdout}`);
+    assert.equal(fs.existsSync(path.join(nestedRealParent, "receipt.json")), false);
+
+    const missingParentOutput = path.join(temp, "missing-parent", "receipt.json");
+    result = await spawnTool([...args, "--output", missingParentOutput]);
+    assert.equal(result.status, 1, `missing output parent must fail closed: ${result.stderr || result.stdout}`);
+    assert.equal(fs.existsSync(path.dirname(missingParentOutput)), false);
+  } finally {
+    fs.rmSync(temp, { recursive: true, force: true });
+  }
+}
+
+function writeFetchFixturePreload(temp) {
+  const preload = path.join(temp, "fetch-fixture.mjs");
+  fs.writeFileSync(
+    preload,
+    `const originalFetch = globalThis.fetch;\n` +
+      `const fixtureMode = process.env.VOID_SELF_CHECK_FETCH_FIXTURE || "";\n` +
+      `const maxBytes = Number(process.env.VOID_SELF_CHECK_MAX_RESPONSE_BYTES || "0");\n` +
+      `let injected = false;\n` +
+      `let firstSignal = null;\n` +
+      `globalThis.fetch = async (input, init = {}) => {\n` +
+      `  const raw = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;\n` +
+      `  const url = new URL(raw);\n` +
+      `  if (!injected && url.pathname === "/health") {\n` +
+      `    injected = true;\n` +
+      `    firstSignal = init.signal;\n` +
+      `    if (fixtureMode === "cancel-never") {\n` +
+      `      const body = new ReadableStream({\n` +
+      `        start(controller) { controller.enqueue(new Uint8Array([123])); },\n` +
+      `        cancel() { return new Promise(() => {}); },\n` +
+      `      });\n` +
+      `      return new Response(body, { status: 200, headers: { "content-type": "application/json", "content-length": String(maxBytes + 1) } });\n` +
+      `    }\n` +
+      `    if (fixtureMode === "read-failure") {\n` +
+      `      const body = new ReadableStream({ pull(controller) { controller.error(new Error("fixture_read_failure")); } });\n` +
+      `      return new Response(body, { status: 200, headers: { "content-type": "application/json" } });\n` +
+      `    }\n` +
+      `    if (fixtureMode === "body-unavailable") {\n` +
+      `      return { status: 200, headers: new Headers({ "content-type": "application/json" }), body: {} };\n` +
+      `    }\n` +
+      `  }\n` +
+      `  if (injected && url.pathname !== "/health" && firstSignal?.aborted !== true) {\n` +
+      `    throw new Error("prior_request_not_aborted");\n` +
+      `  }\n` +
+      `  return originalFetch(input, init);\n` +
+      `};\n`,
+    { mode: 0o600 },
+  );
+  return preload;
+}
+
+async function proveRejectedResponseOwnership(port, fixtureMode, expectedReason) {
+  mode = "green";
+  const temp = fs.mkdtempSync(path.join(os.tmpdir(), `void-public-self-check-teardown-${fixtureMode}-`));
+  const started = Date.now();
+  try {
+    const preload = writeFetchFixturePreload(temp);
+    const nodeOptions = [process.env.NODE_OPTIONS, `--import=${preload}`].filter(Boolean).join(" ");
+    const result = await spawnTool(toolArgs(port), {
+      NODE_OPTIONS: nodeOptions,
+      VOID_SELF_CHECK_FETCH_FIXTURE: fixtureMode,
+      VOID_SELF_CHECK_MAX_RESPONSE_BYTES: String(MAX_RESPONSE_BYTES),
+    });
+    assert.equal(result.status, 2, `${fixtureMode} must produce bounded HOLD: ${result.stderr || result.stdout}`);
+    const receipt = JSON.parse(result.stdout);
+    assert.deepEqual(receipt.summary.failed_check_ids, ["health"]);
+    assert.equal(checkById(receipt, "health").reason, expectedReason);
+    assert.equal(checkById(receipt, "readiness").ok, true, `${fixtureMode} next request must see prior request aborted`);
+    assert(Date.now() - started < MAX_SETTLE_MS, `${fixtureMode} teardown exceeded ${MAX_SETTLE_MS}ms`);
+  } finally {
+    fs.rmSync(temp, { recursive: true, force: true });
+  }
+}
+
 const port = await listen();
 baseOrigin = `http://127.0.0.1:${port}`;
 try {
@@ -492,6 +625,10 @@ try {
     assert(result.elapsed < MAX_SETTLE_MS, `${selectedMode} oversize HOLD took ${result.elapsed}ms`);
     assert.equal(checkById(result.receipt, "health").reason, "response_too_large");
   }
+
+  await proveRejectedResponseOwnership(port, "cancel-never", "response_too_large");
+  await proveRejectedResponseOwnership(port, "read-failure", "response_body_read_failed");
+  await proveRejectedResponseOwnership(port, "body-unavailable", "response_body_unavailable");
 
   for (const selectedMode of ["gap_string", "txroot_boolean"]) {
     const result = await expectHold(port, selectedMode, "readiness");
@@ -522,6 +659,8 @@ try {
     ["well_known_wrong_status", "well_known_discovery"],
     ["well_known_wrong_base", "well_known_discovery"],
     ["well_known_foreign_link_origin", "well_known_discovery"],
+    ["well_known_extra_sensitive_link", "well_known_discovery"],
+    ["well_known_extra_foreign_link", "well_known_discovery"],
     ["well_known_public_routes_disabled", "well_known_discovery"],
     ["well_known_private_api_enabled", "well_known_discovery"],
     ["well_known_mutation_enabled", "well_known_discovery"],
@@ -563,6 +702,8 @@ try {
   ]) {
     await expectHold(port, selectedMode, checkId);
   }
+
+  await proveOutputPublicationSafety(port);
 
   const publicHttp = await expectBaseAdmission("http://example.invalid", 1, "public HTTP must fail pre-fetch");
   assert.match(publicHttp.stderr, /public base URL must use https/);

@@ -384,14 +384,21 @@ function snapshotLinksOk(value, baseOrigin) {
 
 function wellKnownLinksOk(value, baseOrigin) {
   if (!isPlainObject(value)) return false;
+  const expected = {
+    public_node: `${baseOrigin}/public-node`,
+    route_manifest: `${baseOrigin}/public-node/route-manifest.json`,
+    self_check_snapshot: `${baseOrigin}/public-node/self-check-snapshot.json`,
+    outside_tester_smoke: `${baseOrigin}/public-node/outside-tester-smoke.json`,
+    tester_bundle: `${baseOrigin}/public-node/tester-bundle.json`,
+    result_receipt: `${baseOrigin}/public-node/tester-result-receipt.json`,
+    proofs: `${baseOrigin}/proofs`,
+  };
+  const actualKeys = Object.keys(value).sort();
+  const expectedKeys = Object.keys(expected).sort();
   return (
-    value.public_node === `${baseOrigin}/public-node` &&
-    value.route_manifest === `${baseOrigin}/public-node/route-manifest.json` &&
-    value.self_check_snapshot === `${baseOrigin}/public-node/self-check-snapshot.json` &&
-    value.outside_tester_smoke === `${baseOrigin}/public-node/outside-tester-smoke.json` &&
-    value.tester_bundle === `${baseOrigin}/public-node/tester-bundle.json` &&
-    value.result_receipt === `${baseOrigin}/public-node/tester-result-receipt.json` &&
-    value.proofs === `${baseOrigin}/proofs`
+    actualKeys.length === expectedKeys.length &&
+    actualKeys.every((key, index) => key === expectedKeys[index]) &&
+    Object.entries(expected).every(([key, expectedValue]) => value[key] === expectedValue)
   );
 }
 
@@ -441,7 +448,13 @@ function parsePeerCount(value) {
   return null;
 }
 
-async function settleCancellation(target) {
+function remainingCancellationWindow(deadlineMs) {
+  return Math.max(0, Math.min(CANCEL_SETTLE_TIMEOUT_MS, deadlineMs - Date.now()));
+}
+
+async function settleCancellation(target, controller, deadlineMs) {
+  if (!controller.signal.aborted) controller.abort();
+
   let result;
   try {
     result = target?.cancel?.();
@@ -451,12 +464,15 @@ async function settleCancellation(target) {
   }
   if (!result || typeof result.then !== "function") return;
 
+  const waitMs = remainingCancellationWindow(deadlineMs);
+  if (waitMs <= 0) return;
+
   let timer;
   try {
     await Promise.race([
       Promise.resolve(result).catch(() => undefined),
       new Promise((resolve) => {
-        timer = setTimeout(resolve, CANCEL_SETTLE_TIMEOUT_MS);
+        timer = setTimeout(resolve, waitMs);
       }),
     ]);
   } finally {
@@ -464,38 +480,57 @@ async function settleCancellation(target) {
   }
 }
 
-async function boundedResponseBody(response, maximum) {
+async function boundedResponseBody(response, maximum, controller, deadlineMs) {
+  const rejectBody = async (target, code) => {
+    await settleCancellation(target, controller, deadlineMs);
+    throw new Error(code);
+  };
+
   const contentLengthRaw = response.headers.get("content-length");
   if (contentLengthRaw !== null) {
     if (!/^\d+$/.test(contentLengthRaw)) {
-      await settleCancellation(response.body);
-      throw new Error("invalid_content_length");
+      await rejectBody(response.body, "invalid_content_length");
     }
     const declared = Number(contentLengthRaw);
     if (!Number.isSafeInteger(declared) || declared < 0) {
-      await settleCancellation(response.body);
-      throw new Error("invalid_content_length");
+      await rejectBody(response.body, "invalid_content_length");
     }
     if (declared > maximum) {
-      await settleCancellation(response.body);
-      throw new Error("response_too_large");
+      await rejectBody(response.body, "response_too_large");
     }
   }
 
   const reader = response.body?.getReader?.();
-  if (!reader) throw new Error("response_body_unavailable");
+  if (!reader) {
+    await rejectBody(response.body, "response_body_unavailable");
+  }
 
   const chunks = [];
   let total = 0;
   try {
     while (true) {
-      const { done, value } = await reader.read();
+      let nextChunk;
+      try {
+        nextChunk = await reader.read();
+      } catch (error) {
+        const timedOut = controller.signal.aborted;
+        await settleCancellation(reader, controller, deadlineMs);
+        if (timedOut) {
+          const timeoutError = new Error("request timed out");
+          timeoutError.name = "AbortError";
+          throw timeoutError;
+        }
+        void error;
+        throw new Error("response_body_read_failed");
+      }
+      const { done, value } = nextChunk;
       if (done) break;
-      if (!(value instanceof Uint8Array)) throw new Error("response_body_invalid_chunk");
+      if (!(value instanceof Uint8Array)) {
+        await rejectBody(reader, "response_body_invalid_chunk");
+      }
       total += value.byteLength;
       if (total > maximum) {
-        await settleCancellation(reader);
-        throw new Error("response_too_large");
+        await rejectBody(reader, "response_too_large");
       }
       chunks.push(Buffer.from(value));
     }
@@ -513,6 +548,7 @@ async function boundedResponseBody(response, maximum) {
 async function fetchJson(base, pathname, timeoutMs) {
   const url = new URL(pathname, base);
   const controller = new AbortController();
+  const deadlineMs = Date.now() + timeoutMs;
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
     const response = await fetch(url, {
@@ -524,7 +560,7 @@ async function fetchJson(base, pathname, timeoutMs) {
         "user-agent": "void-public-node-operator-self-check-v1",
       },
     });
-    const body = await boundedResponseBody(response, MAX_RESPONSE_BYTES);
+    const body = await boundedResponseBody(response, MAX_RESPONSE_BYTES, controller, deadlineMs);
     let json = null;
     let parseError = "";
     try {
@@ -545,6 +581,7 @@ async function fetchJson(base, pathname, timeoutMs) {
       "response_too_large",
       "response_body_unavailable",
       "response_body_invalid_chunk",
+      "response_body_read_failed",
     ]).has(message);
     return {
       ok: false,
@@ -564,6 +601,41 @@ async function fetchJson(base, pathname, timeoutMs) {
 
 function check(id, pathValue, ok, reason, observed = {}) {
   return { id, path: pathValue, ok: Boolean(ok), reason: ok ? null : reason, observed };
+}
+
+function validateOutputParent(output) {
+  const parent = path.dirname(output);
+  let parentStat;
+  try {
+    parentStat = fs.lstatSync(parent);
+  } catch {
+    throw new Error("output parent must already exist");
+  }
+  if (!parentStat.isDirectory() || parentStat.isSymbolicLink()) {
+    throw new Error("output parent must be a real directory");
+  }
+  const resolvedParent = fs.realpathSync.native(parent);
+  if (path.resolve(resolvedParent) !== parent) {
+    throw new Error("output parent must not traverse symlinks");
+  }
+}
+
+function writeReceiptCreateOnly(rawOutput, encoded) {
+  const output = path.resolve(rawOutput);
+  validateOutputParent(output);
+  const flags =
+    fs.constants.O_WRONLY |
+    fs.constants.O_CREAT |
+    fs.constants.O_EXCL |
+    (fs.constants.O_NOFOLLOW ?? 0);
+  const fd = fs.openSync(output, flags, 0o600);
+  try {
+    fs.writeFileSync(fd, encoded, { encoding: "utf8" });
+    fs.fchmodSync(fd, 0o600);
+    fs.fsyncSync(fd);
+  } finally {
+    fs.closeSync(fd);
+  }
 }
 
 async function main() {
@@ -676,6 +748,7 @@ async function main() {
   const wellKnownMissing = REQUIRED_WELL_KNOWN_ROUTES.filter(
     (route) => !wellKnownRoutes?.includes(route),
   );
+  const wellKnownRouteSetMatches = exactRouteSet(wellKnownRoutes, REQUIRED_WELL_KNOWN_ROUTES);
   const wellKnownPolicy =
     isPlainObject(wellKnown.json) && isPlainObject(wellKnown.json.policy) ? wellKnown.json.policy : null;
   const wellKnownLinks =
@@ -691,6 +764,7 @@ async function main() {
     wellKnown.json?.effective_base_url === baseOrigin &&
     wellKnownRoutes !== null &&
     wellKnownMissing.length === 0 &&
+    wellKnownRouteSetMatches &&
     wellKnownLinksMatch &&
     wellKnownPolicyOk;
   checks.push(
@@ -710,6 +784,7 @@ async function main() {
           wellKnownRoutes?.filter((route) => route.startsWith("/public-node")).length ?? null,
         required_pointer_count: REQUIRED_WELL_KNOWN_ROUTES.length,
         missing_pointer_count: wellKnownMissing.length,
+        exact_pointer_set_matches: wellKnownRouteSetMatches,
         absolute_url_pointer_count: wellKnownLinks
           ? Object.values(wellKnownLinks).filter(
               (value) => typeof value === "string" && /^https?:\/\//i.test(value),
@@ -928,10 +1003,7 @@ async function main() {
 
   const encoded = `${JSON.stringify(receipt, null, 2)}\n`;
   if (args.output) {
-    const output = path.resolve(args.output);
-    fs.mkdirSync(path.dirname(output), { recursive: true, mode: 0o700 });
-    fs.writeFileSync(output, encoded, { encoding: "utf8", mode: 0o600 });
-    fs.chmodSync(output, 0o600);
+    writeReceiptCreateOnly(args.output, encoded);
   }
   process.stdout.write(encoded);
   process.exitCode = failed.length === 0 ? 0 : 2;
