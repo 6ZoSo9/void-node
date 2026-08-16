@@ -96,12 +96,13 @@ production_broad_delivery_configuration_verified=true
 production_configuration_applied=false
 canonical_delivery_runtime_activation_ready=false
 finite_presale_cap_end_to_end_enforced=false
+durable_history_creation_crash_recovery_ready=false
 durable_history_external_anti_rollback_anchor_ready=false
-current_parent_blocker=durable_history_anti_rollback_anchor_not_ready
-next_gate=durable_history_anti_rollback_anchor
+current_parent_blocker=durable_history_creation_crash_recovery_not_ready
+next_gate=durable_history_creation_crash_recovery
 ```
 
-The verifier therefore closes no new lifecycle gate by itself. It preserves the exact candidate-validation mechanism used by the merged binding and proves that the reviewed candidate can still be recomputed deterministically while runtime and dependency injection remain disabled. Production activation additionally remains held on an independent durable-history anti-rollback anchor; the pure configuration verifier does not and should not attempt to satisfy that storage/runtime trust boundary.
+The verifier therefore closes no new lifecycle gate by itself. It preserves the exact candidate-validation mechanism used by the merged binding and proves that the reviewed candidate can still be recomputed deterministically while runtime and dependency injection remain disabled. Production activation additionally remains held first on deterministic durable-history creation-crash recovery and then on an independent durable-history anti-rollback anchor; the pure configuration verifier does not and should not attempt to satisfy either storage/runtime trust boundary.
 
 Applying the candidate, enabling dependency/runtime composition, funding inventory, reading credentials, signing, broadcasting, and moving funds remain separate authorization gates.
 

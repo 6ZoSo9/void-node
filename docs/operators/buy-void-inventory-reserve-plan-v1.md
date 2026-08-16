@@ -44,13 +44,23 @@ Existing durable record directories created before this contract cannot be
 silently adopted without the index commitment and matching expectation records;
 nonempty unindexed history is held rather than treated as a fresh empty baseline.
 
-This local durability layer deliberately does **not** claim anti-rollback
-completeness against a coordinated valid-suffix rollback of all local artifacts.
-If the last valid history-index entries and their matching expectation/record
-artifacts are removed together, the remaining local hash chain can still be
-internally valid. Detecting that class requires an independent monotonic witness
-outside the local filesystem rollback domain. Production activation therefore
-remains blocked on a separate durable-history anti-rollback anchor.
+This local durability layer deliberately does **not** claim creation-crash
+recovery or anti-rollback completeness.
+
+Creation currently commits the index membership before publishing the matching
+expectation and record. A crash between those durable phases is fail-closed for
+capacity/liability truth, but the next preview/list/mutation sees an indexed-set
+mismatch and cannot automatically complete the interrupted item. Recovering that
+state still requires an explicitly reviewed repair/migration path; production
+activation therefore remains blocked on
+`durable_history_creation_crash_recovery_not_ready`.
+
+Separately, if the last valid history-index entries and their matching
+expectation/record artifacts are removed together, the remaining local hash
+chain can still be internally valid. Detecting that class requires an
+independent monotonic witness outside the local filesystem rollback domain, so
+`durable_history_anti_rollback_anchor_not_ready` also remains an activation
+blocker.
 
 Each reservation binds:
 

@@ -51,7 +51,7 @@ The disabled parent mount must continue proving:
 ## Current truth
 
 ```text
-status=production_configuration_verified_held_on_durable_history_anti_rollback_anchor
+status=production_configuration_verified_held_on_durable_history_creation_recovery
 erc20_execution_composition_ready=true
 canonical_delivery_runtime_activation_ready=false
 production_configuration_values_verified=true
@@ -83,11 +83,15 @@ production_broad_delivery_configuration_verified=true
 paid_unreservable_terminal_obligation_local_integrity_ready=true
 paid_unreservable_terminal_obligation_ready=false
 durable_history_local_consistency_ready=true
+durable_history_creation_commit_point_ready=false
+durable_history_creation_crash_recovery_ready=false
+durable_history_partial_creation_retry_ready=false
+durable_history_manual_state_surgery_required_after_creation_crash=true
 durable_history_external_anti_rollback_anchor_ready=false
 durable_history_valid_suffix_rollback_detection_ready=false
-activation_readiness_blockers=durable_history_anti_rollback_anchor_not_ready,canonical_delivery_runtime_activation_not_ready
-current_parent_blocker=durable_history_anti_rollback_anchor_not_ready
-next_gate=durable_history_anti_rollback_anchor
+activation_readiness_blockers=durable_history_creation_crash_recovery_not_ready,durable_history_anti_rollback_anchor_not_ready,canonical_delivery_runtime_activation_not_ready
+current_parent_blocker=durable_history_creation_crash_recovery_not_ready
+next_gate=durable_history_creation_crash_recovery
 ```
 
 Credential key-to-wallet evidence is recorded for the canonical Precision/Mainnet-0 fulfillment wallet without inferring clone-local binding. Dormant dependency injection requires delivery enable exact `0`, the exact evidence ID, and a configured delivery wallet matching that evidence; any mismatch remains held before dependencies are populated.
@@ -96,7 +100,7 @@ The canonical presale economics source is fail-closed to one pool (`buy-void-pre
 
 `VOID_BUY_VOID_DELIVERY_MAX_AMOUNT_UNITS` remains a separate delivery-execution safety control. A lower 2-VOID canary is allowed only while delivery is disabled; public delivery activation fails configuration unless the delivery maximum equals the canonical presale capacity so every admitted purchase can be fulfilled without an execution-layer throttle.
 
-The obsolete broad-configuration verification blocker is closed. Two source/runtime gates remain before production activation: an independent durable-history anti-rollback anchor, followed by actual canonical delivery runtime activation. Applying the reviewed configuration, enabling dependency/runtime execution, funding inventory, reading the production credential, signing, broadcasting, and moving funds remain separate operational authorization boundaries.
+The obsolete broad-configuration verification blocker is closed. Three source/runtime gates remain before production activation: deterministic creation-crash recovery for the durable history journal, an independent durable-history anti-rollback anchor, and then actual canonical delivery runtime activation. Applying the reviewed configuration, enabling dependency/runtime execution, funding inventory, reading the production credential, signing, broadcasting, and moving funds remain separate operational authorization boundaries.
 
 
 ## Durable presale history integrity and anti-rollback boundary
@@ -148,10 +152,13 @@ The focused inventory proof includes adversarial non-object, closed-schema,
 content-substitution, unexpected-record, missing-reservation, corrupted-liability,
 liability-substitution, paired record/expectation deletion and rename, missing
 index, and malformed/truncated index fixtures. Those tests establish local
-consistency and crash/corruption fail-closed behavior. They intentionally do not
-claim detection of a coordinated valid-suffix rollback across the index and all
-matching local record artifacts. The activation workflow runs the proof directly
-while keeping external anti-rollback readiness false.
+corruption/substitution detection and fail-closed capacity/liability behavior.
+They do **not** yet establish deterministic recovery from a process interruption
+after index publication but before expectation/record publication, and they
+intentionally do not claim detection of a coordinated valid-suffix rollback
+across the index and all matching local record artifacts. The activation workflow
+runs the proof directly while keeping both creation-crash recovery and external
+anti-rollback readiness false.
 
 ## Authority boundary
 

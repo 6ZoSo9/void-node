@@ -19,7 +19,7 @@ const binding =
   VOID_BUY_VOID_ERC20_PRODUCTION_CONFIGURATION_CANDIDATE_BINDING_RECORD_V1;
 assert.equal(
   contract.status,
-  "production_configuration_verified_held_on_durable_history_anti_rollback_anchor",
+  "production_configuration_verified_held_on_durable_history_creation_recovery",
 );
 assert.equal(contract.canonical_chain_id, "2050");
 assert.equal(contract.canonical_asset, "void_token_erc20");
@@ -250,6 +250,26 @@ assert.equal(
 );
 assert.equal(
   contract.presale_invariant_readiness
+    .durable_history_creation_commit_point_ready,
+  false,
+);
+assert.equal(
+  contract.presale_invariant_readiness
+    .durable_history_creation_crash_recovery_ready,
+  false,
+);
+assert.equal(
+  contract.presale_invariant_readiness
+    .durable_history_partial_creation_retry_ready,
+  false,
+);
+assert.equal(
+  contract.presale_invariant_readiness
+    .durable_history_manual_state_surgery_required_after_creation_crash,
+  true,
+);
+assert.equal(
+  contract.presale_invariant_readiness
     .durable_history_external_anti_rollback_anchor_ready,
   false,
 );
@@ -304,17 +324,23 @@ assert.equal(
 assert.deepEqual(
   [...contract.activation_readiness_blockers],
   [
+    "durable_history_creation_crash_recovery_not_ready",
     "durable_history_anti_rollback_anchor_not_ready",
     "canonical_delivery_runtime_activation_not_ready",
   ],
 );
 assert.equal(
   contract.current_parent_blocker,
-  "durable_history_anti_rollback_anchor_not_ready",
+  "durable_history_creation_crash_recovery_not_ready",
 );
 assert.equal(
   contract.next_gate,
-  "durable_history_anti_rollback_anchor",
+  "durable_history_creation_crash_recovery",
+);
+assert.equal(
+  contract.activation_preconditions
+    .durable_history_creation_crash_recovery_required,
+  true,
 );
 assert.equal(
   contract.activation_preconditions
@@ -558,6 +584,10 @@ console.log("durable_history_filename_content_identity_enforced=1");
 console.log("durable_history_missing_record_fail_closed=1");
 console.log("durable_history_liability_completeness_fail_closed=1");
 console.log("durable_history_local_consistency_ready=1");
+console.log("durable_history_creation_commit_point_ready=0");
+console.log("durable_history_creation_crash_recovery_ready=0");
+console.log("durable_history_partial_creation_retry_ready=0");
+console.log("durable_history_manual_state_surgery_required_after_creation_crash=1");
 console.log("durable_history_external_anti_rollback_anchor_ready=0");
 console.log("durable_history_valid_suffix_rollback_detection_ready=0");
 console.log("durable_history_full_rollback_protection_ready=0");
@@ -586,8 +616,8 @@ console.log("validator_scale_purchase_10000_void_admission_ready=1");
 console.log("delivery_execution_amount_cap_separate_from_purchase_admission=1");
 console.log("disabled_delivery_canary_max_may_be_lower=1");
 console.log("public_delivery_activation_requires_presale_capacity_max=1");
-console.log("activation_readiness_blockers=durable_history_anti_rollback_anchor_not_ready,canonical_delivery_runtime_activation_not_ready");
-console.log("current_parent_blocker=durable_history_anti_rollback_anchor_not_ready");
-console.log("next_gate=durable_history_anti_rollback_anchor");
+console.log("activation_readiness_blockers=durable_history_creation_crash_recovery_not_ready,durable_history_anti_rollback_anchor_not_ready,canonical_delivery_runtime_activation_not_ready");
+console.log("current_parent_blocker=durable_history_creation_crash_recovery_not_ready");
+console.log("next_gate=durable_history_creation_crash_recovery");
 console.log("runtime_activation_performed=0");
 console.log("money_movement=0");

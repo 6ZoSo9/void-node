@@ -327,7 +327,12 @@ assert.equal(
 );
 assert.equal(
   activation.next_gate,
-  "durable_history_anti_rollback_anchor",
+  "durable_history_creation_crash_recovery",
+);
+assert.equal(
+  activation.presale_invariant_readiness
+    .durable_history_creation_crash_recovery_ready,
+  false,
 );
 assert.equal(
   activation.presale_invariant_readiness

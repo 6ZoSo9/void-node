@@ -11,7 +11,7 @@ export const
     marker:
       VOID_BUY_VOID_ERC20_DELIVERY_RUNTIME_ACTIVATION_CONFIGURATION_CONTRACT_V1,
     version: 1,
-    status: "production_configuration_verified_held_on_durable_history_anti_rollback_anchor",
+    status: "production_configuration_verified_held_on_durable_history_creation_recovery",
     canonical_chain_id: "2050",
     canonical_asset: "void_token_erc20",
 
@@ -88,6 +88,10 @@ export const
       durable_history_closed_schema_enforced: true,
       durable_history_liability_completeness_fail_closed: true,
       durable_history_integrity_blocks_new_mutation: true,
+      durable_history_creation_commit_point_ready: false,
+      durable_history_creation_crash_recovery_ready: false,
+      durable_history_partial_creation_retry_ready: false,
+      durable_history_manual_state_surgery_required_after_creation_crash: true,
       durable_history_external_anti_rollback_anchor_ready: false,
       durable_history_valid_suffix_rollback_detection_ready: false,
       durable_history_full_rollback_protection_ready: false,
@@ -108,14 +112,15 @@ export const
     production_broad_delivery_configuration_verified: true,
 
     activation_readiness_blockers: [
+      "durable_history_creation_crash_recovery_not_ready",
       "durable_history_anti_rollback_anchor_not_ready",
       "canonical_delivery_runtime_activation_not_ready",
     ] as const,
 
     current_parent_blocker:
-      "durable_history_anti_rollback_anchor_not_ready",
+      "durable_history_creation_crash_recovery_not_ready",
     next_gate:
-      "durable_history_anti_rollback_anchor",
+      "durable_history_creation_crash_recovery",
 
     runtime_source_path:
       "src/economic/buy_void_delivery_runtime_integration_v1.ts",
@@ -225,6 +230,7 @@ export const
       erc20_receipt_to_terminal_closeout_required: true,
       production_configuration_verification_required: true,
       canonical_presale_invariants_required: true,
+      durable_history_creation_crash_recovery_required: true,
       durable_history_external_anti_rollback_anchor_required: true,
       broad_public_delivery_configuration_required: true,
       public_delivery_amount_cap_must_equal_presale_capacity: true,
