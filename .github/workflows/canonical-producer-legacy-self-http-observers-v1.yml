@@ -1,4 +1,4 @@
-name: Mainnet-0 Canonical Producer Liveness Guard v1
+name: Canonical Producer Legacy Self-HTTP Observers v1
 
 on:
   pull_request:
@@ -6,12 +6,10 @@ on:
       - "runtime/canonical-producer-self-http-guard-v1.cjs"
       - "ops/run-void-node-live-v1.sh"
       - "ops/guard-canonical-producer-liveness-v1.sh"
-      - "ops/install-void-node-live-user-service-v1.sh"
       - "ops/mainnet0/install-canonical-producer-liveness-v1.sh"
-      - "ops/mainnet0/public-node-live-runtime-quarantine-install.sh"
-      - "scripts/prove_mainnet0_canonical_producer_liveness_guard_v1.mjs"
+      - "scripts/prove_canonical_producer_legacy_self_http_observers_v1.mjs"
       - "src/index.ts"
-      - ".github/workflows/mainnet0-canonical-producer-liveness-guard-v1.yml"
+      - ".github/workflows/canonical-producer-legacy-self-http-observers-v1.yml"
   push:
     branches:
       - main
@@ -19,12 +17,10 @@ on:
       - "runtime/canonical-producer-self-http-guard-v1.cjs"
       - "ops/run-void-node-live-v1.sh"
       - "ops/guard-canonical-producer-liveness-v1.sh"
-      - "ops/install-void-node-live-user-service-v1.sh"
       - "ops/mainnet0/install-canonical-producer-liveness-v1.sh"
-      - "ops/mainnet0/public-node-live-runtime-quarantine-install.sh"
-      - "scripts/prove_mainnet0_canonical_producer_liveness_guard_v1.mjs"
+      - "scripts/prove_canonical_producer_legacy_self_http_observers_v1.mjs"
       - "src/index.ts"
-      - ".github/workflows/mainnet0-canonical-producer-liveness-guard-v1.yml"
+      - ".github/workflows/canonical-producer-legacy-self-http-observers-v1.yml"
 
 permissions:
   contents: read
@@ -45,12 +41,8 @@ jobs:
           node-version: ${{ matrix.node }}
       - name: Shell syntax
         run: |
+          bash -n ops/run-void-node-live-v1.sh
           bash -n ops/guard-canonical-producer-liveness-v1.sh
-          bash -n ops/install-void-node-live-user-service-v1.sh
           bash -n ops/mainnet0/install-canonical-producer-liveness-v1.sh
-          bash -n ops/mainnet0/public-node-live-runtime-quarantine-install.sh
-      - name: Canonical producer liveness proof
-        env:
-          VOID_CANONICAL_SELF_HTTP_GUARD: "1"
-          VOID_CANONICAL_DISABLE_LEGACY_SELF_HTTP_OBSERVERS: "1"
-        run: node scripts/prove_mainnet0_canonical_producer_liveness_guard_v1.mjs
+      - name: Canonical legacy observer proof
+        run: node scripts/prove_canonical_producer_legacy_self_http_observers_v1.mjs

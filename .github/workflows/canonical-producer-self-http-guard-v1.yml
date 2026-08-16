@@ -1,4 +1,4 @@
-name: Mainnet-0 Canonical Producer Liveness Guard v1
+name: Canonical Producer Self-HTTP Guard v1
 
 on:
   pull_request:
@@ -6,24 +6,23 @@ on:
       - "runtime/canonical-producer-self-http-guard-v1.cjs"
       - "ops/run-void-node-live-v1.sh"
       - "ops/guard-canonical-producer-liveness-v1.sh"
-      - "ops/install-void-node-live-user-service-v1.sh"
       - "ops/mainnet0/install-canonical-producer-liveness-v1.sh"
-      - "ops/mainnet0/public-node-live-runtime-quarantine-install.sh"
+      - "scripts/prove_canonical_producer_self_http_guard_v1.mjs"
       - "scripts/prove_mainnet0_canonical_producer_liveness_guard_v1.mjs"
       - "src/index.ts"
+      - ".github/workflows/canonical-producer-self-http-guard-v1.yml"
       - ".github/workflows/mainnet0-canonical-producer-liveness-guard-v1.yml"
   push:
-    branches:
-      - main
+    branches: [main]
     paths:
       - "runtime/canonical-producer-self-http-guard-v1.cjs"
       - "ops/run-void-node-live-v1.sh"
       - "ops/guard-canonical-producer-liveness-v1.sh"
-      - "ops/install-void-node-live-user-service-v1.sh"
       - "ops/mainnet0/install-canonical-producer-liveness-v1.sh"
-      - "ops/mainnet0/public-node-live-runtime-quarantine-install.sh"
+      - "scripts/prove_canonical_producer_self_http_guard_v1.mjs"
       - "scripts/prove_mainnet0_canonical_producer_liveness_guard_v1.mjs"
       - "src/index.ts"
+      - ".github/workflows/canonical-producer-self-http-guard-v1.yml"
       - ".github/workflows/mainnet0-canonical-producer-liveness-guard-v1.yml"
 
 permissions:
@@ -31,7 +30,8 @@ permissions:
 
 jobs:
   prove:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
+    timeout-minutes: 6
     strategy:
       fail-fast: false
       matrix:
@@ -43,14 +43,19 @@ jobs:
         uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
         with:
           node-version: ${{ matrix.node }}
-      - name: Shell syntax
+      - name: Syntax
         run: |
+          node --check runtime/canonical-producer-self-http-guard-v1.cjs
+          node --check scripts/prove_canonical_producer_self_http_guard_v1.mjs
+          bash -n ops/run-void-node-live-v1.sh
           bash -n ops/guard-canonical-producer-liveness-v1.sh
-          bash -n ops/install-void-node-live-user-service-v1.sh
           bash -n ops/mainnet0/install-canonical-producer-liveness-v1.sh
-          bash -n ops/mainnet0/public-node-live-runtime-quarantine-install.sh
-      - name: Canonical producer liveness proof
+      - name: Canonical self-HTTP containment proof
+        run: node scripts/prove_canonical_producer_self_http_guard_v1.mjs
+      - name: Existing canonical producer liveness proof
         env:
           VOID_CANONICAL_SELF_HTTP_GUARD: "1"
           VOID_CANONICAL_DISABLE_LEGACY_SELF_HTTP_OBSERVERS: "1"
         run: node scripts/prove_mainnet0_canonical_producer_liveness_guard_v1.mjs
+      - name: Diff hygiene
+        run: git diff --check
