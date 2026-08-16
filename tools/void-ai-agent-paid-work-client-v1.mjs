@@ -275,11 +275,7 @@ export function readPaidWorkSubmissionRequestV1(rawPath) {
   };
 }
 
-function remainingDeadlineMs(deadlineAt) {
-  return Math.max(0, deadlineAt - Date.now());
-}
-
-async function settleCancellationBounded(target, controller, deadlineAt) {
+async function settleCancellationBounded(target, controller) {
   if (!controller.signal.aborted) {
     controller.abort();
   }
@@ -292,19 +288,12 @@ async function settleCancellationBounded(target, controller, deadlineAt) {
     return;
   }
 
-  const remaining = remainingDeadlineMs(deadlineAt);
-  if (remaining <= 0) {
-    cancellation.catch(() => undefined);
-    return;
-  }
-
-  const waitMs = Math.min(REJECTION_TEARDOWN_MAX_MS, remaining);
   let timer;
   try {
     await Promise.race([
       cancellation.catch(() => undefined),
       new Promise((resolve) => {
-        timer = setTimeout(resolve, waitMs);
+        timer = setTimeout(resolve, REJECTION_TEARDOWN_MAX_MS);
       }),
     ]);
   } finally {
@@ -312,17 +301,17 @@ async function settleCancellationBounded(target, controller, deadlineAt) {
   }
 }
 
-async function boundedRead(response, maximumBytes, controller, deadlineAt) {
+async function boundedRead(response, maximumBytes, controller) {
   const contentLengthRaw = response.headers.get("content-length");
   if (contentLengthRaw !== null) {
     const contentLengthText = contentLengthRaw.trim();
     if (!/^(?:0|[1-9]\d*)$/.test(contentLengthText)) {
-      await settleCancellationBounded(response.body, controller, deadlineAt);
+      await settleCancellationBounded(response.body, controller);
       fail(`response_content_length_invalid:${contentLengthText}`);
     }
     const contentLength = Number(contentLengthText);
     if (!Number.isSafeInteger(contentLength) || contentLength > maximumBytes) {
-      await settleCancellationBounded(response.body, controller, deadlineAt);
+      await settleCancellationBounded(response.body, controller);
       fail(`response_too_large:${contentLengthText}`);
     }
   }
@@ -342,11 +331,13 @@ async function boundedRead(response, maximumBytes, controller, deadlineAt) {
       assertCondition(value instanceof Uint8Array, "response_body_invalid_chunk");
       total += value.byteLength;
       if (total > maximumBytes) {
-        await settleCancellationBounded(reader, controller, deadlineAt);
         fail(`response_too_large:${total}`);
       }
       chunks.push(Buffer.from(value));
     }
+  } catch (error) {
+    await settleCancellationBounded(reader, controller);
+    throw error;
   } finally {
     try {
       reader.releaseLock();
@@ -382,7 +373,6 @@ async function fetchBoundedV1({
   fetchImpl,
 }) {
   const controller = new AbortController();
-  const deadlineAt = Date.now() + timeoutMs;
   const timer = setTimeout(() => controller.abort(), timeoutMs);
 
   try {
@@ -394,14 +384,13 @@ async function fetchBoundedV1({
       signal: controller.signal,
     });
     if (response.status >= 300 && response.status < 400) {
-      await settleCancellationBounded(response.body, controller, deadlineAt);
+      await settleCancellationBounded(response.body, controller);
       fail(`redirect_forbidden:${response.status}`);
     }
     const raw = await boundedRead(
       response,
       maximumBytes,
       controller,
-      deadlineAt,
     );
     return { response, raw };
   } finally {
