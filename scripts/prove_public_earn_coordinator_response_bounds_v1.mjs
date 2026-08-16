@@ -128,11 +128,7 @@ function deferredCleanup(onSettled) {
   });
 }
 
-function responseLike({
-  status = 200,
-  headers = {},
-  body,
-}) {
+function responseLike({ status = 200, headers = {}, body }) {
   return {
     status,
     headers: new Headers(headers),
@@ -177,17 +173,18 @@ try {
   let declaredCancelCalls = 0;
   let declaredCancelSettled = false;
   const syntheticDeclared = await withSyntheticUpstream(
-    async () => responseLike({
-      headers: { "content-length": String(MAX_RESPONSE_BYTES + 1) },
-      body: {
-        cancel() {
-          declaredCancelCalls += 1;
-          return deferredCleanup(() => {
-            declaredCancelSettled = true;
-          });
+    async () =>
+      responseLike({
+        headers: { "content-length": String(MAX_RESPONSE_BYTES + 1) },
+        body: {
+          cancel() {
+            declaredCancelCalls += 1;
+            return deferredCleanup(() => {
+              declaredCancelSettled = true;
+            });
+          },
         },
-      },
-    }),
+      }),
     () => requestHealth(502),
   );
   assert.equal(syntheticDeclared.json.error, "upstream_response_too_large");
@@ -198,20 +195,73 @@ try {
     "declared-overflow operation released before response teardown settled",
   );
 
+  let declaredRejectCancelCalls = 0;
+  const syntheticDeclaredReject = await withSyntheticUpstream(
+    async () =>
+      responseLike({
+        headers: { "content-length": String(MAX_RESPONSE_BYTES + 1) },
+        body: {
+          cancel() {
+            declaredRejectCancelCalls += 1;
+            return Promise.reject(new Error("synthetic teardown rejection"));
+          },
+        },
+      }),
+    () => requestHealth(502),
+  );
+  assert.equal(
+    syntheticDeclaredReject.json.error,
+    "upstream_response_too_large",
+  );
+  assert.equal(declaredRejectCancelCalls, 1);
+  assert(
+    syntheticDeclaredReject.elapsed < SETTLE_LIMIT_MS,
+    `rejecting declared teardown exceeded bound: ${syntheticDeclaredReject.elapsed}ms`,
+  );
+
+  let declaredNeverCancelCalls = 0;
+  const syntheticDeclaredNever = await withSyntheticUpstream(
+    async () =>
+      responseLike({
+        headers: { "content-length": String(MAX_RESPONSE_BYTES + 1) },
+        body: {
+          cancel() {
+            declaredNeverCancelCalls += 1;
+            return new Promise(() => {});
+          },
+        },
+      }),
+    () => requestHealth(502),
+  );
+  assert.equal(
+    syntheticDeclaredNever.json.error,
+    "upstream_response_too_large",
+  );
+  assert.equal(declaredNeverCancelCalls, 1);
+  assert(
+    syntheticDeclaredNever.elapsed >= TIMEOUT_MS - 200,
+    `never-settling declared teardown released too early: ${syntheticDeclaredNever.elapsed}ms`,
+  );
+  assert(
+    syntheticDeclaredNever.elapsed < SETTLE_LIMIT_MS,
+    `never-settling declared teardown exceeded bound: ${syntheticDeclaredNever.elapsed}ms`,
+  );
+
   let redirectCancelCalls = 0;
   let redirectCancelSettled = false;
   const syntheticRedirect = await withSyntheticUpstream(
-    async () => responseLike({
-      status: 302,
-      body: {
-        cancel() {
-          redirectCancelCalls += 1;
-          return deferredCleanup(() => {
-            redirectCancelSettled = true;
-          });
+    async () =>
+      responseLike({
+        status: 302,
+        body: {
+          cancel() {
+            redirectCancelCalls += 1;
+            return deferredCleanup(() => {
+              redirectCancelSettled = true;
+            });
+          },
         },
-      },
-    }),
+      }),
     () => requestHealth(502),
   );
   assert.equal(
@@ -228,16 +278,17 @@ try {
   let unreadableCancelCalls = 0;
   let unreadableCancelSettled = false;
   const syntheticUnreadable = await withSyntheticUpstream(
-    async () => responseLike({
-      body: {
-        cancel() {
-          unreadableCancelCalls += 1;
-          return deferredCleanup(() => {
-            unreadableCancelSettled = true;
-          });
+    async () =>
+      responseLike({
+        body: {
+          cancel() {
+            unreadableCancelCalls += 1;
+            return deferredCleanup(() => {
+              unreadableCancelSettled = true;
+            });
+          },
         },
-      },
-    }),
+      }),
     () => requestHealth(502),
   );
   assert.equal(
@@ -255,32 +306,33 @@ try {
   let readFailureCancelSettled = false;
   let readCalls = 0;
   const syntheticReadFailure = await withSyntheticUpstream(
-    async () => responseLike({
-      headers: { "content-type": "application/json" },
-      body: {
-        getReader() {
-          return {
-            async read() {
-              readCalls += 1;
-              if (readCalls === 1) {
-                return {
-                  done: false,
-                  value: new TextEncoder().encode('{"ok":'),
-                };
-              }
-              throw new Error("synthetic admitted read failure");
-            },
-            cancel() {
-              readFailureCancelCalls += 1;
-              return deferredCleanup(() => {
-                readFailureCancelSettled = true;
-              });
-            },
-            releaseLock() {},
-          };
+    async () =>
+      responseLike({
+        headers: { "content-type": "application/json" },
+        body: {
+          getReader() {
+            return {
+              async read() {
+                readCalls += 1;
+                if (readCalls === 1) {
+                  return {
+                    done: false,
+                    value: new TextEncoder().encode('{"ok":'),
+                  };
+                }
+                throw new Error("synthetic admitted read failure");
+              },
+              cancel() {
+                readFailureCancelCalls += 1;
+                return deferredCleanup(() => {
+                  readFailureCancelSettled = true;
+                });
+              },
+              releaseLock() {},
+            };
+          },
         },
-      },
-    }),
+      }),
     () => requestHealth(502),
   );
   assert.equal(
@@ -294,14 +346,100 @@ try {
     "admitted read failure released before reader teardown settled",
   );
 
+  let readRejectCancelCalls = 0;
+  let rejectReadCalls = 0;
+  const syntheticReadReject = await withSyntheticUpstream(
+    async () =>
+      responseLike({
+        headers: { "content-type": "application/json" },
+        body: {
+          getReader() {
+            return {
+              async read() {
+                rejectReadCalls += 1;
+                if (rejectReadCalls === 1) {
+                  return {
+                    done: false,
+                    value: new TextEncoder().encode('{"ok":'),
+                  };
+                }
+                throw new Error("synthetic admitted read failure");
+              },
+              cancel() {
+                readRejectCancelCalls += 1;
+                return Promise.reject(new Error("synthetic reader teardown rejection"));
+              },
+              releaseLock() {},
+            };
+          },
+        },
+      }),
+    () => requestHealth(502),
+  );
+  assert.equal(
+    syntheticReadReject.json.error,
+    "private_coordinator_unreachable",
+  );
+  assert.equal(readRejectCancelCalls, 1);
+  assert(
+    syntheticReadReject.elapsed < SETTLE_LIMIT_MS,
+    `rejecting reader teardown exceeded bound: ${syntheticReadReject.elapsed}ms`,
+  );
+
+  let readNeverCancelCalls = 0;
+  let neverReadCalls = 0;
+  const syntheticReadNever = await withSyntheticUpstream(
+    async () =>
+      responseLike({
+        headers: { "content-type": "application/json" },
+        body: {
+          getReader() {
+            return {
+              async read() {
+                neverReadCalls += 1;
+                if (neverReadCalls === 1) {
+                  return {
+                    done: false,
+                    value: new TextEncoder().encode('{"ok":'),
+                  };
+                }
+                throw new Error("synthetic admitted read failure");
+              },
+              cancel() {
+                readNeverCancelCalls += 1;
+                return new Promise(() => {});
+              },
+              releaseLock() {},
+            };
+          },
+        },
+      }),
+    () => requestHealth(502),
+  );
+  assert.equal(
+    syntheticReadNever.json.error,
+    "private_coordinator_unreachable",
+  );
+  assert.equal(readNeverCancelCalls, 1);
+  assert(
+    syntheticReadNever.elapsed >= TIMEOUT_MS - 200,
+    `never-settling reader teardown released too early: ${syntheticReadNever.elapsed}ms`,
+  );
+  assert(
+    syntheticReadNever.elapsed < SETTLE_LIMIT_MS,
+    `never-settling reader teardown exceeded bound: ${syntheticReadNever.elapsed}ms`,
+  );
+
   console.log("valid_forwarding=true");
   console.log("declared_oversize_prebuffer_rejected=true");
   console.log("streamed_oversize_prebuffer_rejected=true");
   console.log("deadline_held_through_body=true");
   console.log("declared_rejection_teardown_owned=true");
+  console.log("declared_rejection_cleanup_faults_bounded=true");
   console.log("redirect_teardown_owned=true");
   console.log("unreadable_body_teardown_owned=true");
   console.log("admitted_read_failure_teardown_owned=true");
+  console.log("admitted_read_failure_cleanup_faults_bounded=true");
   console.log("wc_mutation_performed=false");
   console.log("wallet_or_signer_access=false");
   console.log("transaction_performed=false");
