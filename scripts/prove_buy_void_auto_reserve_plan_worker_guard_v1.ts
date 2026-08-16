@@ -61,6 +61,8 @@ assert.deepEqual(
     duplicate_safe_reservation: true,
     global_pool_lock: true,
     paid_unreservable_terminal_obligation: true,
+    durable_history_expected_set_commitment: true,
+    durable_history_filename_content_identity: true,
     obligation_automatic_retry: false,
     obligation_refund_execution_authorized: false,
     inventory_decrement: false,

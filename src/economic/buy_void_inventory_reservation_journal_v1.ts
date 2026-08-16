@@ -12,6 +12,37 @@ export const VOID_BUY_VOID_INVENTORY_RESERVATION_JOURNAL_V1 =
 export const VOID_BUY_VOID_PAID_UNRESERVABLE_OBLIGATION_V1 =
   "VOID_BUY_VOID_PAID_UNRESERVABLE_OBLIGATION_V1";
 
+export const VOID_BUY_VOID_INVENTORY_HISTORY_EXPECTATION_V1 =
+  "VOID_BUY_VOID_INVENTORY_HISTORY_EXPECTATION_V1";
+
+type BuyVoidInventoryHistoryKindV1 =
+  | "reservation"
+  | "paid_unreservable_obligation";
+
+type BuyVoidInventoryHistoryExpectationV1 = {
+  schema: "void_buy_void_inventory_history_expectation_v1";
+  marker: typeof VOID_BUY_VOID_INVENTORY_HISTORY_EXPECTATION_V1;
+  kind: BuyVoidInventoryHistoryKindV1;
+  pool_id: string;
+  record_id: string;
+  record_identity_fingerprint_sha256: string;
+};
+
+export const VOID_BUY_VOID_INVENTORY_HISTORY_INDEX_V1 =
+  "VOID_BUY_VOID_INVENTORY_HISTORY_INDEX_V1";
+
+type BuyVoidInventoryHistoryIndexEntryV1 = {
+  schema: "void_buy_void_inventory_history_index_entry_v1";
+  marker: typeof VOID_BUY_VOID_INVENTORY_HISTORY_INDEX_V1;
+  sequence: number;
+  kind: BuyVoidInventoryHistoryKindV1;
+  pool_id: string;
+  record_id: string;
+  record_identity_fingerprint_sha256: string;
+  previous_entry_sha256: string;
+  entry_sha256: string;
+};
+
 export const VOID_BUY_VOID_INVENTORY_RESERVATION_AUTHORITY_V1 = {
   filesystem_read: true,
   filesystem_write: true,
@@ -19,6 +50,8 @@ export const VOID_BUY_VOID_INVENTORY_RESERVATION_AUTHORITY_V1 = {
   duplicate_safe_reservation: true,
   global_pool_lock: true,
   paid_unreservable_terminal_obligation: true,
+  durable_history_expected_set_commitment: true,
+  durable_history_filename_content_identity: true,
   obligation_automatic_retry: false,
   obligation_refund_execution_authorized: false,
   inventory_decrement: false,
@@ -53,6 +86,9 @@ export type BuyVoidInventoryReservationJournalPathsV1 = {
   pool_dir: string;
   reservations_dir: string;
   holds_dir: string;
+  reservation_expectations_dir: string;
+  obligation_expectations_dir: string;
+  history_index_file: string;
   lock_dir: string;
 };
 
@@ -419,6 +455,18 @@ export function buyVoidInventoryReservationJournalPathsV1(
     pool_dir: poolDir,
     reservations_dir: path.join(poolDir, "reservations"),
     holds_dir: path.join(poolDir, "holds"),
+    reservation_expectations_dir: path.join(
+      poolDir,
+      "reservation-expectations",
+    ),
+    obligation_expectations_dir: path.join(
+      poolDir,
+      "obligation-expectations",
+    ),
+    history_index_file: path.join(
+      poolDir,
+      "history-index-v1.jsonl",
+    ),
     lock_dir: path.join(poolDir, ".reserve.lock"),
   };
 }
@@ -490,7 +538,7 @@ function atomicCreateJson(
 function readJsonObject(file: string): Record<string, unknown> | null {
   try {
     const parsed = JSON.parse(fs.readFileSync(file, "utf8"));
-    return parsed && typeof parsed === "object"
+    return parsed && typeof parsed === "object" && !Array.isArray(parsed)
       ? parsed as Record<string, unknown>
       : null;
   } catch (error) {
@@ -499,6 +547,609 @@ function readJsonObject(file: string): Record<string, unknown> | null {
     }
     throw error;
   }
+}
+
+
+const RESERVATION_RECORD_KEYS = [
+  "schema",
+  "marker",
+  "reservation_id",
+  "reserved_at_ms",
+  "pool_id",
+  "inventory_policy_version",
+  "pool_capacity_void_units",
+  "committed_before_void_units",
+  "reserved_void_units",
+  "committed_after_void_units",
+  "available_after_void_units",
+  "payment_key_sha256",
+  "request_key_sha256",
+  "canonical_payment_identity",
+  "request_id",
+  "instruction_id",
+  "delivery_address",
+  "intent_fingerprint",
+  "reservation_status",
+  "inventory_decrement_performed",
+  "reservation_release_authorized",
+  "execution_authorized_by_this_module",
+  "signing_authorized_by_this_module",
+  "transaction_broadcast_authorized_by_this_module",
+  "money_movement_authorized_by_this_module",
+] as const;
+
+const PAID_UNRESERVABLE_OBLIGATION_RECORD_KEYS = [
+  "schema",
+  "marker",
+  "obligation_id",
+  "recorded_at_ms",
+  "terminal_state",
+  "reservation_failure_reason",
+  "pool_id",
+  "inventory_policy_version",
+  "pool_capacity_void_units",
+  "inventory_policy_fingerprint_sha256",
+  "available_void_units",
+  "requested_void_units",
+  "source_chain",
+  "payment_transaction_hash",
+  "payment_log_index",
+  "confirmed_block_number",
+  "confirmation_count_at_claim",
+  "payment_usdc_units",
+  "payment_key_sha256",
+  "request_key_sha256",
+  "canonical_payment_identity",
+  "request_id",
+  "instruction_id",
+  "delivery_address",
+  "customer_payment_confirmed",
+  "reservation_created",
+  "automatic_retry",
+  "refund_execution_authorized",
+  "alternate_fulfillment_execution_authorized",
+  "wallet_access_authorized",
+  "signing_authorized",
+  "transaction_broadcast_authorized",
+  "money_movement_authorized",
+] as const;
+
+const HISTORY_EXPECTATION_KEYS = [
+  "schema",
+  "marker",
+  "kind",
+  "pool_id",
+  "record_id",
+  "record_identity_fingerprint_sha256",
+] as const;
+
+const HISTORY_INDEX_ENTRY_KEYS = [
+  "schema",
+  "marker",
+  "sequence",
+  "kind",
+  "pool_id",
+  "record_id",
+  "record_identity_fingerprint_sha256",
+  "previous_entry_sha256",
+  "entry_sha256",
+] as const;
+
+const HISTORY_INDEX_GENESIS_SHA256 = "0".repeat(64);
+
+const CANONICAL_HISTORY_FILE = /^[0-9a-f]{64}\.json$/;
+const TEMP_HISTORY_FILE =
+  /^\.[0-9a-f]{64}\.json\.tmp-[0-9]+-[0-9a-f]+$/;
+
+function hasExactKeys(
+  raw: Record<string, unknown>,
+  expected: readonly string[],
+): boolean {
+  const actual = Object.keys(raw).sort();
+  const wanted = [...expected].sort();
+  return actual.length === wanted.length &&
+    actual.every((key, index) => key === wanted[index]);
+}
+
+function readRequiredHistoryJsonObject(
+  file: string,
+  missingReason: string,
+  invalidReason: string,
+): Record<string, unknown> {
+  try {
+    const stat = fs.lstatSync(file);
+    if (!stat.isFile() || stat.isSymbolicLink()) {
+      throw new Error(invalidReason);
+    }
+    const parsed = JSON.parse(fs.readFileSync(file, "utf8"));
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+      throw new Error(invalidReason);
+    }
+    return parsed as Record<string, unknown>;
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException)?.code === "ENOENT") {
+      throw new Error(missingReason);
+    }
+    const message = String((error as Error)?.message || error);
+    if (message === missingReason || message === invalidReason) {
+      throw error;
+    }
+    throw new Error(`${invalidReason}:${message}`);
+  }
+}
+
+function canonicalHistoryNames(
+  dir: string,
+  invalidNameReason: string,
+): string[] {
+  let stat: ReturnType<typeof fs.lstatSync>;
+  try {
+    stat = fs.lstatSync(dir);
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException)?.code === "ENOENT") {
+      return [];
+    }
+    throw error;
+  }
+  if (!stat.isDirectory() || stat.isSymbolicLink()) {
+    throw new Error(invalidNameReason);
+  }
+
+  const output: string[] = [];
+  for (const name of fs.readdirSync(dir)) {
+    if (TEMP_HISTORY_FILE.test(name)) continue;
+    if (!CANONICAL_HISTORY_FILE.test(name)) {
+      throw new Error(invalidNameReason);
+    }
+    output.push(name);
+  }
+  return output.sort();
+}
+
+function historyRecordFingerprint(
+  raw: Record<string, unknown>,
+): string {
+  const parts: Record<string, string> = {};
+  for (const key of Object.keys(raw).sort()) {
+    const value = raw[key];
+    if (
+      typeof value !== "string" &&
+      typeof value !== "number" &&
+      typeof value !== "boolean"
+    ) {
+      throw new Error("invalid_inventory_history_fingerprint_value");
+    }
+    parts[key] = String(value);
+  }
+  return stableFingerprint(parts);
+}
+
+
+function historyIndexEntrySha256(input: {
+  sequence: number;
+  kind: BuyVoidInventoryHistoryKindV1;
+  pool_id: string;
+  record_id: string;
+  record_identity_fingerprint_sha256: string;
+  previous_entry_sha256: string;
+}): string {
+  return stableFingerprint({
+    schema: "void_buy_void_inventory_history_index_entry_v1",
+    marker: VOID_BUY_VOID_INVENTORY_HISTORY_INDEX_V1,
+    sequence: String(input.sequence),
+    kind: input.kind,
+    pool_id: input.pool_id,
+    record_id: input.record_id,
+    record_identity_fingerprint_sha256:
+      input.record_identity_fingerprint_sha256,
+    previous_entry_sha256: input.previous_entry_sha256,
+  });
+}
+
+function parseHistoryIndexEntry(
+  paths: BuyVoidInventoryReservationJournalPathsV1,
+  raw: Record<string, unknown>,
+  expectedSequence: number,
+  expectedPreviousSha256: string,
+): BuyVoidInventoryHistoryIndexEntryV1 {
+  const sequence = Number(raw.sequence);
+  const kind = String(raw.kind || "") as BuyVoidInventoryHistoryKindV1;
+  const poolId = String(raw.pool_id || "");
+  const recordId = String(raw.record_id || "");
+  const recordFingerprint = String(
+    raw.record_identity_fingerprint_sha256 || "",
+  );
+  const previousEntrySha256 = String(raw.previous_entry_sha256 || "");
+  const entrySha256 = String(raw.entry_sha256 || "");
+  const expectedPoolKey = SAFE_CODE.test(poolId)
+    ? sha256Hex(`void-buy-inventory-pool-v1\n${poolId}`)
+    : "";
+  const expectedEntrySha256 = historyIndexEntrySha256({
+    sequence,
+    kind,
+    pool_id: poolId,
+    record_id: recordId,
+    record_identity_fingerprint_sha256: recordFingerprint,
+    previous_entry_sha256: previousEntrySha256,
+  });
+
+  if (
+    !hasExactKeys(raw, HISTORY_INDEX_ENTRY_KEYS) ||
+    raw.schema !== "void_buy_void_inventory_history_index_entry_v1" ||
+    raw.marker !== VOID_BUY_VOID_INVENTORY_HISTORY_INDEX_V1 ||
+    !Number.isSafeInteger(sequence) ||
+    sequence !== expectedSequence ||
+    !["reservation", "paid_unreservable_obligation"].includes(kind) ||
+    !SAFE_CODE.test(poolId) ||
+    expectedPoolKey !== path.basename(paths.pool_dir) ||
+    !SHA256.test(recordId) ||
+    !SHA256.test(recordFingerprint) ||
+    previousEntrySha256 !== expectedPreviousSha256 ||
+    !SHA256.test(entrySha256) ||
+    entrySha256 !== expectedEntrySha256
+  ) {
+    throw new Error("invalid_inventory_history_index_entry");
+  }
+
+  return raw as BuyVoidInventoryHistoryIndexEntryV1;
+}
+
+function anyHistoryDirectoryEntries(
+  paths: BuyVoidInventoryReservationJournalPathsV1,
+): boolean {
+  return [
+    canonicalHistoryNames(
+      paths.reservation_expectations_dir,
+      "invalid_inventory_reservation_expectation_filename",
+    ),
+    canonicalHistoryNames(
+      paths.reservations_dir,
+      "invalid_inventory_reservation_history_filename",
+    ),
+    canonicalHistoryNames(
+      paths.obligation_expectations_dir,
+      "invalid_paid_unreservable_expectation_filename",
+    ),
+    canonicalHistoryNames(
+      paths.holds_dir,
+      "invalid_paid_unreservable_history_filename",
+    ),
+  ].some((names) => names.length > 0);
+}
+
+function readHistoryIndex(
+  paths: BuyVoidInventoryReservationJournalPathsV1,
+): BuyVoidInventoryHistoryIndexEntryV1[] {
+  let stat: ReturnType<typeof fs.lstatSync>;
+  try {
+    stat = fs.lstatSync(paths.history_index_file);
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException)?.code === "ENOENT") {
+      if (anyHistoryDirectoryEntries(paths)) {
+        throw new Error(
+          "inventory_history_index_missing_for_existing_history",
+        );
+      }
+      return [];
+    }
+    throw error;
+  }
+
+  if (!stat.isFile() || stat.isSymbolicLink()) {
+    throw new Error("invalid_inventory_history_index_file");
+  }
+
+  const raw = fs.readFileSync(paths.history_index_file, "utf8");
+  if (raw.length === 0) {
+    throw new Error("inventory_history_index_empty");
+  }
+  if (!raw.endsWith("\n")) {
+    throw new Error("inventory_history_index_truncated_tail");
+  }
+
+  const lines = raw.slice(0, -1).split("\n");
+  const output: BuyVoidInventoryHistoryIndexEntryV1[] = [];
+  const seen = new Set<string>();
+  let previousEntrySha256 = HISTORY_INDEX_GENESIS_SHA256;
+
+  for (let index = 0; index < lines.length; index += 1) {
+    const line = lines[index];
+    if (!line) {
+      throw new Error("invalid_inventory_history_index_blank_line");
+    }
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(line);
+    } catch {
+      throw new Error("invalid_inventory_history_index_entry_json");
+    }
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+      throw new Error("invalid_inventory_history_index_entry");
+    }
+    const entry = parseHistoryIndexEntry(
+      paths,
+      parsed as Record<string, unknown>,
+      index + 1,
+      previousEntrySha256,
+    );
+    const key = `${entry.kind}:${entry.record_id}`;
+    if (seen.has(key)) {
+      throw new Error("inventory_history_index_duplicate_record");
+    }
+    seen.add(key);
+    output.push(entry);
+    previousEntrySha256 = entry.entry_sha256;
+  }
+
+  return output;
+}
+
+function historyNamesFromIndex(
+  entries: readonly BuyVoidInventoryHistoryIndexEntryV1[],
+  kind: BuyVoidInventoryHistoryKindV1,
+): string[] {
+  return entries
+    .filter((entry) => entry.kind === kind)
+    .map((entry) => `${entry.record_id}.json`)
+    .sort();
+}
+
+function assertHistoryIndexDirectorySets(
+  paths: BuyVoidInventoryReservationJournalPathsV1,
+  entries: readonly BuyVoidInventoryHistoryIndexEntryV1[],
+): void {
+  const reservationNames = historyNamesFromIndex(entries, "reservation");
+  const reservationExpectations = canonicalHistoryNames(
+    paths.reservation_expectations_dir,
+    "invalid_inventory_reservation_expectation_filename",
+  );
+  const reservations = canonicalHistoryNames(
+    paths.reservations_dir,
+    "invalid_inventory_reservation_history_filename",
+  );
+  if (
+    !historySetsMatch(reservationNames, reservationExpectations) ||
+    !historySetsMatch(reservationNames, reservations)
+  ) {
+    throw new Error(
+      "inventory_reservation_history_expected_set_mismatch",
+    );
+  }
+
+  const obligationNames = historyNamesFromIndex(
+    entries,
+    "paid_unreservable_obligation",
+  );
+  const obligationExpectations = canonicalHistoryNames(
+    paths.obligation_expectations_dir,
+    "invalid_paid_unreservable_expectation_filename",
+  );
+  const obligations = canonicalHistoryNames(
+    paths.holds_dir,
+    "invalid_paid_unreservable_history_filename",
+  );
+  if (
+    !historySetsMatch(obligationNames, obligationExpectations) ||
+    !historySetsMatch(obligationNames, obligations)
+  ) {
+    throw new Error(
+      "paid_unreservable_history_expected_set_mismatch",
+    );
+  }
+}
+
+function appendHistoryIndexEntry(
+  paths: BuyVoidInventoryReservationJournalPathsV1,
+  entry: BuyVoidInventoryHistoryIndexEntryV1,
+): void {
+  ensurePrivateDir(paths.pool_dir);
+
+  let exists = false;
+  try {
+    const stat = fs.lstatSync(paths.history_index_file);
+    if (!stat.isFile() || stat.isSymbolicLink()) {
+      throw new Error("invalid_inventory_history_index_file");
+    }
+    exists = true;
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException)?.code !== "ENOENT") {
+      throw error;
+    }
+  }
+
+  const descriptor = fs.openSync(
+    paths.history_index_file,
+    exists ? "a" : "ax",
+    0o600,
+  );
+  try {
+    fs.writeFileSync(
+      descriptor,
+      `${JSON.stringify(entry)}\n`,
+      "utf8",
+    );
+    fs.fsyncSync(descriptor);
+  } finally {
+    fs.closeSync(descriptor);
+  }
+  fsyncDir(paths.pool_dir);
+}
+
+function ensureHistoryIndexEntry(
+  paths: BuyVoidInventoryReservationJournalPathsV1,
+  kind: BuyVoidInventoryHistoryKindV1,
+  record: BuyVoidInventoryReservationV1 | BuyVoidPaidUnreservableObligationV1,
+): void {
+  const recordId = kind === "reservation"
+    ? (record as BuyVoidInventoryReservationV1).reservation_id
+    : (record as BuyVoidPaidUnreservableObligationV1).obligation_id;
+  const recordFingerprint = historyRecordFingerprint(
+    record as unknown as Record<string, unknown>,
+  );
+  const entries = readHistoryIndex(paths);
+  assertHistoryIndexDirectorySets(paths, entries);
+
+  const existing = entries.find(
+    (entry) => entry.kind === kind && entry.record_id === recordId,
+  );
+  if (existing) {
+    if (
+      existing.pool_id !== record.pool_id ||
+      existing.record_identity_fingerprint_sha256 !== recordFingerprint
+    ) {
+      throw new Error("inventory_history_index_identity_conflict");
+    }
+    return;
+  }
+
+  const sequence = entries.length + 1;
+  const previousEntrySha256 = entries.length > 0
+    ? entries[entries.length - 1].entry_sha256
+    : HISTORY_INDEX_GENESIS_SHA256;
+  const entryBase = {
+    sequence,
+    kind,
+    pool_id: record.pool_id,
+    record_id: recordId,
+    record_identity_fingerprint_sha256: recordFingerprint,
+    previous_entry_sha256: previousEntrySha256,
+  };
+  const entry: BuyVoidInventoryHistoryIndexEntryV1 = {
+    schema: "void_buy_void_inventory_history_index_entry_v1",
+    marker: VOID_BUY_VOID_INVENTORY_HISTORY_INDEX_V1,
+    ...entryBase,
+    entry_sha256: historyIndexEntrySha256(entryBase),
+  };
+
+  appendHistoryIndexEntry(paths, entry);
+
+  const verified = readHistoryIndex(paths);
+  const tail = verified[verified.length - 1];
+  if (
+    !tail ||
+    tail.sequence !== sequence ||
+    tail.kind !== kind ||
+    tail.record_id !== recordId ||
+    tail.entry_sha256 !== entry.entry_sha256
+  ) {
+    throw new Error("inventory_history_index_append_verification_failed");
+  }
+}
+
+function historyExpectationDir(
+  paths: BuyVoidInventoryReservationJournalPathsV1,
+  kind: BuyVoidInventoryHistoryKindV1,
+): string {
+  return kind === "reservation"
+    ? paths.reservation_expectations_dir
+    : paths.obligation_expectations_dir;
+}
+
+function historyRecordFile(
+  paths: BuyVoidInventoryReservationJournalPathsV1,
+  kind: BuyVoidInventoryHistoryKindV1,
+  recordId: string,
+): string {
+  return kind === "reservation"
+    ? reservationFile(paths, recordId)
+    : obligationFile(paths, recordId);
+}
+
+function parseHistoryExpectation(
+  raw: Record<string, unknown>,
+  kind: BuyVoidInventoryHistoryKindV1,
+  poolId: string,
+  recordId: string,
+): BuyVoidInventoryHistoryExpectationV1 {
+  if (
+    !hasExactKeys(raw, HISTORY_EXPECTATION_KEYS) ||
+    raw.schema !== "void_buy_void_inventory_history_expectation_v1" ||
+    raw.marker !== VOID_BUY_VOID_INVENTORY_HISTORY_EXPECTATION_V1 ||
+    raw.kind !== kind ||
+    raw.pool_id !== poolId ||
+    raw.record_id !== recordId ||
+    !SHA256.test(String(raw.record_identity_fingerprint_sha256 || ""))
+  ) {
+    throw new Error("invalid_inventory_history_expectation_record");
+  }
+  return raw as BuyVoidInventoryHistoryExpectationV1;
+}
+
+function ensureHistoryExpectation(
+  paths: BuyVoidInventoryReservationJournalPathsV1,
+  kind: BuyVoidInventoryHistoryKindV1,
+  record: BuyVoidInventoryReservationV1 | BuyVoidPaidUnreservableObligationV1,
+): void {
+  const recordId = kind === "reservation"
+    ? (record as BuyVoidInventoryReservationV1).reservation_id
+    : (record as BuyVoidPaidUnreservableObligationV1).obligation_id;
+  const poolId = record.pool_id;
+  const expectationDir = historyExpectationDir(paths, kind);
+  const expectationFile = path.join(expectationDir, `${recordId}.json`);
+  const durableRecordFile = historyRecordFile(paths, kind, recordId);
+
+  if (fs.existsSync(durableRecordFile) && !fs.existsSync(expectationFile)) {
+    throw new Error(
+      kind === "reservation"
+        ? "inventory_reservation_history_expectation_missing_for_existing_record"
+        : "paid_unreservable_history_expectation_missing_for_existing_record",
+    );
+  }
+
+  const recordFingerprint = historyRecordFingerprint(
+    record as unknown as Record<string, unknown>,
+  );
+  const indexEntry = readHistoryIndex(paths).find(
+    (entry) => entry.kind === kind && entry.record_id === recordId,
+  );
+  if (
+    !indexEntry ||
+    indexEntry.pool_id !== poolId ||
+    indexEntry.record_identity_fingerprint_sha256 !== recordFingerprint
+  ) {
+    throw new Error(
+      "inventory_history_expectation_missing_index_commitment",
+    );
+  }
+
+  const expectation: BuyVoidInventoryHistoryExpectationV1 = {
+    schema: "void_buy_void_inventory_history_expectation_v1",
+    marker: VOID_BUY_VOID_INVENTORY_HISTORY_EXPECTATION_V1,
+    kind,
+    pool_id: poolId,
+    record_id: recordId,
+    record_identity_fingerprint_sha256: recordFingerprint,
+  };
+
+  ensurePrivateDir(expectationDir);
+  const created = atomicCreateJson(expectationFile, expectation);
+  if (created === "created") return;
+
+  const existingRaw = readRequiredHistoryJsonObject(
+    expectationFile,
+    "inventory_history_expectation_disappeared",
+    "invalid_inventory_history_expectation_record",
+  );
+  const existing = parseHistoryExpectation(
+    existingRaw,
+    kind,
+    poolId,
+    recordId,
+  );
+  if (
+    existing.record_identity_fingerprint_sha256 !==
+      expectation.record_identity_fingerprint_sha256
+  ) {
+    throw new Error("inventory_history_expectation_identity_conflict");
+  }
+}
+
+function historySetsMatch(
+  expectedNames: readonly string[],
+  recordNames: readonly string[],
+): boolean {
+  return expectedNames.length === recordNames.length &&
+    expectedNames.every((name, index) => name === recordNames[index]);
 }
 
 function reservationIdFor(
@@ -579,6 +1230,7 @@ function parsePaidUnreservableObligation(
         )
       : "";
   if (
+    !hasExactKeys(raw, PAID_UNRESERVABLE_OBLIGATION_RECORD_KEYS) ||
     raw.schema !== "void_buy_void_paid_unreservable_obligation_v1" ||
     raw.marker !== VOID_BUY_VOID_PAID_UNRESERVABLE_OBLIGATION_V1 ||
     String(raw.obligation_id || "") !== expectedObligationId ||
@@ -672,6 +1324,16 @@ function recordPaidUnreservableObligation(
   };
 
   const file = obligationFile(paths, obligationId);
+  ensureHistoryIndexEntry(
+    paths,
+    "paid_unreservable_obligation",
+    record,
+  );
+  ensureHistoryExpectation(
+    paths,
+    "paid_unreservable_obligation",
+    record,
+  );
   const created = atomicCreateJson(file, record);
   if (created === "created") return record;
 
@@ -744,6 +1406,7 @@ function parseReservation(
       : "";
 
   if (
+    !hasExactKeys(raw, RESERVATION_RECORD_KEYS) ||
     raw.schema !== "void_buy_void_inventory_reservation_v1" ||
     raw.marker !== VOID_BUY_VOID_INVENTORY_RESERVATION_JOURNAL_V1 ||
     !SHA256.test(reservationId) ||
@@ -783,14 +1446,65 @@ function parseReservation(
 function listReservationsFromPaths(
   paths: BuyVoidInventoryReservationJournalPathsV1,
 ): BuyVoidInventoryReservationV1[] {
-  if (!fs.existsSync(paths.reservations_dir)) return [];
+  const historyIndex = readHistoryIndex(paths);
+  const expectedNames = historyNamesFromIndex(
+    historyIndex,
+    "reservation",
+  );
+  const expectationNames = canonicalHistoryNames(
+    paths.reservation_expectations_dir,
+    "invalid_inventory_reservation_expectation_filename",
+  );
+  const recordNames = canonicalHistoryNames(
+    paths.reservations_dir,
+    "invalid_inventory_reservation_history_filename",
+  );
+  if (
+    !historySetsMatch(expectedNames, expectationNames) ||
+    !historySetsMatch(expectedNames, recordNames)
+  ) {
+    throw new Error(
+      "inventory_reservation_history_expected_set_mismatch",
+    );
+  }
 
   const output: BuyVoidInventoryReservationV1[] = [];
-  for (const name of fs.readdirSync(paths.reservations_dir).sort()) {
-    if (!/^[0-9a-f]{64}\.json$/.test(name)) continue;
-    const raw = readJsonObject(path.join(paths.reservations_dir, name));
-    if (!raw) continue;
-    output.push(parseReservation(raw));
+  for (const name of expectedNames) {
+    const recordId = name.slice(0, -5);
+    const raw = readRequiredHistoryJsonObject(
+      path.join(paths.reservations_dir, name),
+      "inventory_reservation_history_record_disappeared",
+      "invalid_inventory_reservation_history_record",
+    );
+    const record = parseReservation(raw);
+    if (record.reservation_id !== recordId) {
+      throw new Error(
+        "inventory_reservation_filename_content_identity_mismatch",
+      );
+    }
+
+    const expectationRaw = readRequiredHistoryJsonObject(
+      path.join(paths.reservation_expectations_dir, name),
+      "inventory_reservation_history_expectation_disappeared",
+      "invalid_inventory_reservation_history_expectation",
+    );
+    const expectation = parseHistoryExpectation(
+      expectationRaw,
+      "reservation",
+      record.pool_id,
+      recordId,
+    );
+    if (
+      expectation.record_identity_fingerprint_sha256 !==
+        historyRecordFingerprint(
+          record as unknown as Record<string, unknown>,
+        )
+    ) {
+      throw new Error(
+        "inventory_reservation_history_fingerprint_mismatch",
+      );
+    }
+    output.push(record);
   }
 
   output.sort((left, right) =>
@@ -811,26 +1525,86 @@ export function listBuyVoidInventoryReservationsV1(input: {
   );
 }
 
-export function listBuyVoidPaidUnreservableObligationsV1(input: {
-  root_dir: string;
-  pool_id: string;
-}): BuyVoidPaidUnreservableObligationV1[] {
-  const paths = buyVoidInventoryReservationJournalPathsV1(
-    input.root_dir,
-    input.pool_id,
+function listPaidUnreservableObligationsFromPaths(
+  paths: BuyVoidInventoryReservationJournalPathsV1,
+): BuyVoidPaidUnreservableObligationV1[] {
+  const historyIndex = readHistoryIndex(paths);
+  const expectedNames = historyNamesFromIndex(
+    historyIndex,
+    "paid_unreservable_obligation",
   );
-  if (!fs.existsSync(paths.holds_dir)) return [];
-  const output: BuyVoidPaidUnreservableObligationV1[] = [];
-  for (const name of fs.readdirSync(paths.holds_dir).sort()) {
-    if (!/^[0-9a-f]{64}\.json$/.test(name)) continue;
-    const raw = readJsonObject(path.join(paths.holds_dir, name));
-    if (!raw) continue;
-    output.push(parsePaidUnreservableObligation(raw));
+  const expectationNames = canonicalHistoryNames(
+    paths.obligation_expectations_dir,
+    "invalid_paid_unreservable_expectation_filename",
+  );
+  const recordNames = canonicalHistoryNames(
+    paths.holds_dir,
+    "invalid_paid_unreservable_history_filename",
+  );
+  if (
+    !historySetsMatch(expectedNames, expectationNames) ||
+    !historySetsMatch(expectedNames, recordNames)
+  ) {
+    throw new Error(
+      "paid_unreservable_history_expected_set_mismatch",
+    );
   }
+
+  const output: BuyVoidPaidUnreservableObligationV1[] = [];
+  for (const name of expectedNames) {
+    const recordId = name.slice(0, -5);
+    const raw = readRequiredHistoryJsonObject(
+      path.join(paths.holds_dir, name),
+      "paid_unreservable_history_record_disappeared",
+      "invalid_paid_unreservable_history_record",
+    );
+    const record = parsePaidUnreservableObligation(raw);
+    if (record.obligation_id !== recordId) {
+      throw new Error(
+        "paid_unreservable_filename_content_identity_mismatch",
+      );
+    }
+
+    const expectationRaw = readRequiredHistoryJsonObject(
+      path.join(paths.obligation_expectations_dir, name),
+      "paid_unreservable_history_expectation_disappeared",
+      "invalid_paid_unreservable_history_expectation",
+    );
+    const expectation = parseHistoryExpectation(
+      expectationRaw,
+      "paid_unreservable_obligation",
+      record.pool_id,
+      recordId,
+    );
+    if (
+      expectation.record_identity_fingerprint_sha256 !==
+        historyRecordFingerprint(
+          record as unknown as Record<string, unknown>,
+        )
+    ) {
+      throw new Error(
+        "paid_unreservable_history_fingerprint_mismatch",
+      );
+    }
+    output.push(record);
+  }
+
   output.sort((left, right) =>
     left.obligation_id.localeCompare(right.obligation_id),
   );
   return output;
+}
+
+export function listBuyVoidPaidUnreservableObligationsV1(input: {
+  root_dir: string;
+  pool_id: string;
+}): BuyVoidPaidUnreservableObligationV1[] {
+  return listPaidUnreservableObligationsFromPaths(
+    buyVoidInventoryReservationJournalPathsV1(
+      input.root_dir,
+      input.pool_id,
+    ),
+  );
 }
 
 function aggregateFor(
@@ -1105,6 +1879,7 @@ export function reserveBuyVoidInventoryV1(
   if (input?.apply !== true) {
     try {
       const reservations = listReservationsFromPaths(paths);
+      listPaidUnreservableObligationsFromPaths(paths);
       const evaluated = evaluateReservation(
         input.intent,
         intentCheck,
@@ -1143,6 +1918,7 @@ export function reserveBuyVoidInventoryV1(
     ensurePrivateDir(paths.holds_dir);
 
     const reservations = listReservationsFromPaths(paths);
+    listPaidUnreservableObligationsFromPaths(paths);
     const evaluated = evaluateReservation(
       input.intent,
       intentCheck,
@@ -1197,6 +1973,16 @@ export function reserveBuyVoidInventoryV1(
     const file = reservationFile(
       paths,
       evaluated.reservation.reservation_id,
+    );
+    ensureHistoryIndexEntry(
+      paths,
+      "reservation",
+      evaluated.reservation,
+    );
+    ensureHistoryExpectation(
+      paths,
+      "reservation",
+      evaluated.reservation,
     );
     const created = atomicCreateJson(
       file,
