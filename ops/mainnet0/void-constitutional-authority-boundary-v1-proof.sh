@@ -5,6 +5,7 @@ DOC="docs/governance/void-constitutional-authority-boundary-v1.md"
 FIXTURE="fixtures/governance/void-constitutional-authority-boundary-v1.json"
 MARKER="VOID_CONSTITUTIONAL_AUTHORITY_BOUNDARY_V1_PHASE0_DRAFT"
 ALIGNMENT_MARKER="VOID_CONSTITUTIONAL_SOVEREIGN_SUCCESSION_ALIGNMENT_V1_20260816"
+IDENTITY_BINDING_MARKER="VOID_CONSTITUTIONAL_SOVEREIGN_IDENTITY_BINDING_V1_20260816"
 
 fail() {
   echo "void_constitutional_authority_boundary_v1_proof=FAIL reason=$1"
@@ -18,6 +19,8 @@ grep -Fq "$MARKER" "$DOC" || fail "missing_marker_doc"
 grep -Fq "$MARKER" "$FIXTURE" || fail "missing_marker_fixture"
 grep -Fq "$ALIGNMENT_MARKER" "$DOC" || fail "missing_alignment_marker_doc"
 grep -Fq "$ALIGNMENT_MARKER" "$FIXTURE" || fail "missing_alignment_marker_fixture"
+grep -Fq "$IDENTITY_BINDING_MARKER" "$DOC" || fail "missing_identity_binding_marker_doc"
+grep -Fq "$IDENTITY_BINDING_MARKER" "$FIXTURE" || fail "missing_identity_binding_marker_fixture"
 
 grep -Fq "constraint-only; no authority activated" "$DOC" || fail "missing_constraint_status"
 grep -Fq "Current Phase: Phase 0" "$DOC" || fail "missing_current_phase"
@@ -27,7 +30,12 @@ grep -Fq "Public mutation authority is not active." "$DOC" || fail "missing_publ
 grep -Fq "Signer/wallet authority is not granted." "$DOC" || fail "missing_signer_wallet_inactive"
 grep -Fq "Execution authority is not granted." "$DOC" || fail "missing_execution_inactive"
 
-grep -Fq "ZoSo remains VOID's Sovereign for life unless a separately evidenced successor designation personally authorized by ZoSo takes effect." "$DOC" || fail "missing_lifetime_sovereignty"
+grep -Fq "ZoSo and Derrek Patrick Daly are the same person and the same constitutional Sovereign." "$DOC" || fail "missing_same_sovereign_identity"
+grep -Fq "ZoSo is the operator/sovereign name used within VOID." "$DOC" || true
+grep -Fq "The two names do not create separate offices, persons, authority holders, successors, delegates, keys, or voting identities." "$DOC" || fail "missing_no_separate_identity_authority"
+grep -Fq "Name choice alone cannot split, duplicate, transfer, dilute, expand, or otherwise alter sovereign authority." "$DOC" || fail "missing_name_choice_authority_boundary"
+
+grep -Fq "ZoSo, also named Derrek Patrick Daly, remains VOID's Sovereign for life unless a separately evidenced successor designation personally authorized by that same Sovereign takes effect." "$DOC" || fail "missing_lifetime_sovereignty"
 grep -Fq "No successor is designated by this document." "$DOC" || fail "missing_no_successor_designated"
 grep -Fq "The protected validator body, or a successor selected through a future validator-governed succession process, is the current preferred direction for eventual succession." "$DOC" || fail "missing_preferred_validator_succession_direction"
 grep -Fq "Delegation is not succession. Automation is not sovereignty. Technical control is not constitutional ownership." "$DOC" || fail "missing_delegation_succession_separation"
@@ -36,7 +44,7 @@ grep -Fq "Authority must be legible, typed, bounded, and contestable at every la
 grep -Fq "Validators are not just infrastructure. Validators are protected witnesses to VOID truth." "$DOC" || fail "missing_protected_witnesses"
 grep -Fq "Constitutional authority may stop the machine. It may not secretly become the machine." "$DOC" || fail "missing_constitutional_limit"
 grep -Fq "Emergency authority can preserve truth, pause risk, and force review. It cannot create ordinary truth without validator-visible process." "$DOC" || fail "missing_emergency_rule"
-grep -Fq "VOID's operational independence from outside gatekeepers, investors, platforms, or operators must not be reinterpreted as constitutional independence from ZoSo while ZoSo remains Sovereign." "$DOC" || fail "missing_sovereign_independence_boundary"
+grep -Fq "VOID's operational independence from outside gatekeepers, investors, platforms, or operators must not be reinterpreted as constitutional independence from the single ZoSo / Derrek Patrick Daly sovereign identity while that Sovereign remains in office." "$DOC" || fail "missing_sovereign_independence_boundary"
 
 grep -Fq "The eventual constitutional validator maximum is **144,000**." "$DOC" || fail "missing_validator_maximum"
 grep -Fq "The 144,000 ceiling is a long-horizon constitutional maximum only." "$DOC" || fail "missing_validator_ceiling_non_activation"
@@ -69,7 +77,8 @@ with open(sys.argv[1], "r", encoding="utf-8") as f:
 
 assert data["marker"] == "VOID_CONSTITUTIONAL_AUTHORITY_BOUNDARY_V1_PHASE0_DRAFT"
 assert data["alignment_marker"] == "VOID_CONSTITUTIONAL_SOVEREIGN_SUCCESSION_ALIGNMENT_V1_20260816"
-assert data["version"] == "1.1.0-draft"
+assert data["identity_binding_marker"] == "VOID_CONSTITUTIONAL_SOVEREIGN_IDENTITY_BINDING_V1_20260816"
+assert data["version"] == "1.2.0-draft"
 assert data["date"] == "2026-08-16"
 
 assert data["current_phase"]["phase"] == 0
@@ -79,8 +88,22 @@ assert data["current_phase"]["public_mutation_authority_active"] is False
 assert data["current_phase"]["signer_or_wallet_access_granted"] is False
 assert data["current_phase"]["execution_authority_granted"] is False
 
+identity = data["sovereign_identity"]
+assert identity["operator_name"] == "ZoSo"
+assert identity["personal_name"] == "Derrek Patrick Daly"
+assert identity["personal_name_context"] == "name_given_by_mother"
+assert identity["same_human_person"] is True
+assert identity["same_constitutional_identity"] is True
+assert identity["constitutional_identity_count"] == 1
+assert identity["creates_separate_sovereign_offices"] is False
+assert identity["creates_separate_authority_holders"] is False
+assert identity["creates_successor_or_delegate"] is False
+assert identity["name_choice_changes_authority"] is False
+
 continuity = data["sovereign_continuity"]
 assert continuity["sovereign"] == "ZoSo"
+assert continuity["sovereign_personal_name"] == "Derrek Patrick Daly"
+assert continuity["same_sovereign_identity"] is True
 assert continuity["lifetime_governance"] is True
 assert continuity["effective_successor_designated"] is False
 assert continuity["preferred_successor_direction"] == "protected_validator_body_or_future_validator_selected_successor"
@@ -152,6 +175,8 @@ assert data["phase_ladder"][-1] == "Phase 5 — Succession-ready constitutional 
 assert data["phase_progression_transfers_sovereignty"] is False
 
 print("fixture_json_green=true")
+print("sovereign_identity_binding=true")
+print("sovereign_identity_count=1")
 print("sovereign_lifetime_continuity=true")
 print("effective_successor_designated=false")
 print("constitutional_validator_maximum=144000")
@@ -160,4 +185,4 @@ print("succession_inheritance_separated=true")
 print("non_harm_boundary=true")
 PY
 
-echo "void_constitutional_authority_boundary_v1_proof=GREEN marker=$MARKER alignment_marker=$ALIGNMENT_MARKER"
+echo "void_constitutional_authority_boundary_v1_proof=GREEN marker=$MARKER alignment_marker=$ALIGNMENT_MARKER identity_binding_marker=$IDENTITY_BINDING_MARKER"
