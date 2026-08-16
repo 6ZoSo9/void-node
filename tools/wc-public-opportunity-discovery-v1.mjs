@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 
 import { parseArgs } from "node:util";
+import { readBoundedTextOwned } from "./wc-public-response-teardown-v1.mjs";
 
 const MARKER = "VOID_WC_PUBLIC_OPPORTUNITY_DISCOVERY_V1";
 const PILOT_MARKER = "VOID_WC_PUBLIC_EARNING_PILOT_V1";
@@ -155,49 +156,11 @@ function findClaimPath(value, origin) {
   return found;
 }
 
-function cancelBestEffort(target) {
-  if (!target || typeof target.cancel !== "function") return;
-  try {
-    const pending = target.cancel();
-    if (pending && typeof pending.catch === "function") pending.catch(() => undefined);
-  } catch (error) { void error; }
-}
-
-async function readBoundedText(response, maximum) {
-  const declaredRaw = response.headers.get("content-length");
-  if (declaredRaw !== null) {
-    const declaredText = declaredRaw.trim();
-    if (!/^(0|[1-9]\d*)$/u.test(declaredText)) {
-      cancelBestEffort(response.body);
-      throw new Error("response_content_length_invalid");
-    }
-    const declared = Number(declaredText);
-    if (!Number.isSafeInteger(declared) || declared > maximum) {
-      cancelBestEffort(response.body);
-      throw new Error("response_body_too_large");
-    }
-  }
-  if (!response.body || typeof response.body.getReader !== "function") throw new Error("response_body_unavailable");
-  const reader = response.body.getReader();
-  const decoder = new TextDecoder("utf-8", { fatal: true });
-  let text = "";
-  let received = 0;
-  try {
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      received += value.byteLength;
-      if (received > maximum) {
-        cancelBestEffort(reader);
-        throw new Error("response_body_too_large");
-      }
-      text += decoder.decode(value, { stream: true });
-    }
-    text += decoder.decode();
-    return text;
-  } finally {
-    try { reader.releaseLock(); } catch (error) { void error; }
-  }
+async function readBoundedText(response, maximum, abort) {
+  return readBoundedTextOwned(response, {
+    maximumBytes: maximum,
+    abort,
+  });
 }
 
 async function fetchJson(origin, path, timeoutMs) {
@@ -211,7 +174,13 @@ async function fetchJson(origin, path, timeoutMs) {
       signal: controller.signal,
     });
     const contentType = response.headers.get("content-type") ?? "";
-    const text = await readBoundedText(response, MAX_RESPONSE_BYTES);
+    const text = await readBoundedText(
+      response,
+      MAX_RESPONSE_BYTES,
+      (reason) => {
+        if (!controller.signal.aborted) controller.abort(reason);
+      },
+    );
     let body = null;
     if (contentType.includes("json") || /^[\s]*[{[]/u.test(text)) {
       try { body = JSON.parse(text); } catch { body = null; }

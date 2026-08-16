@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import { isIP } from "node:net";
 import { parseArgs } from "node:util";
+import { readBoundedTextOwned } from "./wc-public-response-teardown-v1.mjs";
 
 const MARKER = "VOID_WC_PUBLIC_COORDINATOR_READINESS_V1";
 const MAX_RESPONSE_BYTES = 64 * 1024;
@@ -84,49 +85,11 @@ function scan(v) {
   return { keys, strings };
 }
 
-function cancelBestEffort(target) {
-  if (!target || typeof target.cancel !== "function") return;
-  try {
-    const pending = target.cancel();
-    if (pending && typeof pending.catch === "function") pending.catch(() => undefined);
-  } catch (error) { void error; }
-}
-
-async function readBoundedText(response, maximum) {
-  const declaredRaw = response.headers.get("content-length");
-  if (declaredRaw !== null) {
-    const declaredText = declaredRaw.trim();
-    if (!/^(0|[1-9]\d*)$/u.test(declaredText)) {
-      cancelBestEffort(response.body);
-      throw new Error("response_content_length_invalid");
-    }
-    const declared = Number(declaredText);
-    if (!Number.isSafeInteger(declared) || declared > maximum) {
-      cancelBestEffort(response.body);
-      throw new Error("response_body_too_large");
-    }
-  }
-  if (!response.body || typeof response.body.getReader !== "function") throw new Error("response_body_unavailable");
-  const reader = response.body.getReader();
-  const decoder = new TextDecoder("utf-8", { fatal: true });
-  let text = "";
-  let received = 0;
-  try {
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      received += value.byteLength;
-      if (received > maximum) {
-        cancelBestEffort(reader);
-        throw new Error("response_body_too_large");
-      }
-      text += decoder.decode(value, { stream: true });
-    }
-    text += decoder.decode();
-    return text;
-  } finally {
-    try { reader.releaseLock(); } catch (error) { void error; }
-  }
+async function readBoundedText(response, maximum, abort) {
+  return readBoundedTextOwned(response, {
+    maximumBytes: maximum,
+    abort,
+  });
 }
 
 async function readJsonOnce(base, path, timeoutMs) {
@@ -141,7 +104,13 @@ async function readJsonOnce(base, path, timeoutMs) {
       signal: controller.signal,
     });
     status = r.status;
-    const text = await readBoundedText(r, MAX_RESPONSE_BYTES);
+    const text = await readBoundedText(
+      r,
+      MAX_RESPONSE_BYTES,
+      (reason) => {
+        if (!controller.signal.aborted) controller.abort(reason);
+      },
+    );
     let body = null;
     let parseError = null;
 
@@ -177,7 +146,6 @@ async function readJsonOnce(base, path, timeoutMs) {
 async function readJson(base, path, timeoutMs, retries = 1) {
   const retry_history = [];
   let result = null;
-
   for (let attempt = 1; attempt <= retries; attempt += 1) {
     result = await readJsonOnce(base, path, timeoutMs);
     retry_history.push({
