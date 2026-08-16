@@ -56,7 +56,9 @@ for (const marker of [
   "money_movement: false",
   "response_persistence: false",
   'redirect: "error"',
-  "AbortSignal.timeout",
+  "new AbortController()",
+  "steam_readonly_request_timeout",
+  "response_content_length_invalid",
   "response_too_large",
 ]) {
   need(moduleText.includes(marker), `missing marker: ${marker}`);
