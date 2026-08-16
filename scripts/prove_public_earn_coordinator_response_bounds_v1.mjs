@@ -6,6 +6,7 @@ import http from "node:http";
 const MAX_RESPONSE_BYTES = 64 * 1024;
 const TIMEOUT_MS = 1_000;
 const SETTLE_LIMIT_MS = 3_000;
+const DEFERRED_TEARDOWN_MS = 120;
 const MARKER = "VOID_PUBLIC_EARN_COORDINATOR_RESPONSE_BOUNDS_V1_GREEN";
 
 const upstreamSockets = new Set();
@@ -83,6 +84,7 @@ process.env.VOID_PUBLIC_EARN_COMPOSITION_MAX_RESPONSE_BYTES =
   String(MAX_RESPONSE_BYTES);
 process.env.VOID_PUBLIC_EARN_COMPOSITION_HOST = "127.0.0.1";
 
+const nativeFetch = globalThis.fetch;
 const { createCompositionServer } = await import(
   "../ops/public/public-earn-coordinator-composition-v1.mjs"
 );
@@ -97,7 +99,7 @@ const base = `http://127.0.0.1:${compositionAddress.port}`;
 
 async function requestHealth(expectedStatus) {
   const started = Date.now();
-  const response = await fetch(`${base}/health`, {
+  const response = await nativeFetch(`${base}/health`, {
     method: "GET",
     redirect: "manual",
   });
@@ -105,6 +107,37 @@ async function requestHealth(expectedStatus) {
   const elapsed = Date.now() - started;
   assert.equal(response.status, expectedStatus, text);
   return { elapsed, text, json: JSON.parse(text) };
+}
+
+async function withSyntheticUpstream(fetchImpl, fn) {
+  const previous = globalThis.fetch;
+  globalThis.fetch = fetchImpl;
+  try {
+    return await fn();
+  } finally {
+    globalThis.fetch = previous;
+  }
+}
+
+function deferredCleanup(onSettled) {
+  return new Promise((resolve) => {
+    setTimeout(() => {
+      onSettled();
+      resolve();
+    }, DEFERRED_TEARDOWN_MS);
+  });
+}
+
+function responseLike({
+  status = 200,
+  headers = {},
+  body,
+}) {
+  return {
+    status,
+    headers: new Headers(headers),
+    body,
+  };
 }
 
 try {
@@ -141,16 +174,141 @@ try {
     `stalled response exceeded total deadline window: ${stalled.elapsed}ms`,
   );
 
+  let declaredCancelCalls = 0;
+  let declaredCancelSettled = false;
+  const syntheticDeclared = await withSyntheticUpstream(
+    async () => responseLike({
+      headers: { "content-length": String(MAX_RESPONSE_BYTES + 1) },
+      body: {
+        cancel() {
+          declaredCancelCalls += 1;
+          return deferredCleanup(() => {
+            declaredCancelSettled = true;
+          });
+        },
+      },
+    }),
+    () => requestHealth(502),
+  );
+  assert.equal(syntheticDeclared.json.error, "upstream_response_too_large");
+  assert.equal(declaredCancelCalls, 1);
+  assert.equal(
+    declaredCancelSettled,
+    true,
+    "declared-overflow operation released before response teardown settled",
+  );
+
+  let redirectCancelCalls = 0;
+  let redirectCancelSettled = false;
+  const syntheticRedirect = await withSyntheticUpstream(
+    async () => responseLike({
+      status: 302,
+      body: {
+        cancel() {
+          redirectCancelCalls += 1;
+          return deferredCleanup(() => {
+            redirectCancelSettled = true;
+          });
+        },
+      },
+    }),
+    () => requestHealth(502),
+  );
+  assert.equal(
+    syntheticRedirect.json.error,
+    "private_coordinator_redirect_forbidden",
+  );
+  assert.equal(redirectCancelCalls, 1);
+  assert.equal(
+    redirectCancelSettled,
+    true,
+    "redirect operation released before response teardown settled",
+  );
+
+  let unreadableCancelCalls = 0;
+  let unreadableCancelSettled = false;
+  const syntheticUnreadable = await withSyntheticUpstream(
+    async () => responseLike({
+      body: {
+        cancel() {
+          unreadableCancelCalls += 1;
+          return deferredCleanup(() => {
+            unreadableCancelSettled = true;
+          });
+        },
+      },
+    }),
+    () => requestHealth(502),
+  );
+  assert.equal(
+    syntheticUnreadable.json.error,
+    "upstream_response_body_unavailable",
+  );
+  assert.equal(unreadableCancelCalls, 1);
+  assert.equal(
+    unreadableCancelSettled,
+    true,
+    "unreadable-body operation released before response teardown settled",
+  );
+
+  let readFailureCancelCalls = 0;
+  let readFailureCancelSettled = false;
+  let readCalls = 0;
+  const syntheticReadFailure = await withSyntheticUpstream(
+    async () => responseLike({
+      headers: { "content-type": "application/json" },
+      body: {
+        getReader() {
+          return {
+            async read() {
+              readCalls += 1;
+              if (readCalls === 1) {
+                return {
+                  done: false,
+                  value: new TextEncoder().encode('{"ok":'),
+                };
+              }
+              throw new Error("synthetic admitted read failure");
+            },
+            cancel() {
+              readFailureCancelCalls += 1;
+              return deferredCleanup(() => {
+                readFailureCancelSettled = true;
+              });
+            },
+            releaseLock() {},
+          };
+        },
+      },
+    }),
+    () => requestHealth(502),
+  );
+  assert.equal(
+    syntheticReadFailure.json.error,
+    "private_coordinator_unreachable",
+  );
+  assert.equal(readFailureCancelCalls, 1);
+  assert.equal(
+    readFailureCancelSettled,
+    true,
+    "admitted read failure released before reader teardown settled",
+  );
+
   console.log("valid_forwarding=true");
   console.log("declared_oversize_prebuffer_rejected=true");
   console.log("streamed_oversize_prebuffer_rejected=true");
   console.log("deadline_held_through_body=true");
+  console.log("declared_rejection_teardown_owned=true");
+  console.log("redirect_teardown_owned=true");
+  console.log("unreadable_body_teardown_owned=true");
+  console.log("admitted_read_failure_teardown_owned=true");
   console.log("wc_mutation_performed=false");
   console.log("wallet_or_signer_access=false");
   console.log("transaction_performed=false");
   console.log("funds_moved=false");
   console.log(MARKER);
 } finally {
+  globalThis.fetch = nativeFetch;
   for (const socket of upstreamSockets) socket.destroy();
   await new Promise((resolve) => composition.close(resolve));
   await new Promise((resolve) => upstream.close(resolve));
