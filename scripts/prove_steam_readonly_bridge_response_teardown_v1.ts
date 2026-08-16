@@ -58,7 +58,7 @@ function responseWithReaderFailure(options: {
   const prefix = new TextEncoder().encode('{"response":');
   let readCalls = 0;
   const reader = {
-    async read(): Promise<ReadableStreamReadResult<Uint8Array>> {
+    async read() {
       readCalls += 1;
       if (readCalls === 1) {
         return { done: false, value: prefix };
