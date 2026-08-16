@@ -55,6 +55,7 @@ jobs:
       - name: Existing canonical producer liveness proof
         env:
           VOID_CANONICAL_SELF_HTTP_GUARD: "1"
+          VOID_CANONICAL_DISABLE_LEGACY_SELF_HTTP_OBSERVERS: "1"
         run: node scripts/prove_mainnet0_canonical_producer_liveness_guard_v1.mjs
       - name: Diff hygiene
         run: git diff --check
