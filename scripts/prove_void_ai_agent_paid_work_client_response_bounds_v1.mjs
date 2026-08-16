@@ -68,6 +68,49 @@ async function expectPrimarySizeError(run, pattern) {
   return error;
 }
 
+async function capturePrimaryError(run) {
+  let error = null;
+  try {
+    await run();
+  } catch (caught) {
+    error = caught;
+  }
+  assert.ok(error instanceof Error, "expected a primary response error");
+  return error;
+}
+
+function admittedReadFailureResponse(signal, cancelImpl, errorMessage) {
+  let reads = 0;
+  const reader = {
+    async read() {
+      reads += 1;
+      if (reads === 1) {
+        return { done: false, value: bytes("{") };
+      }
+      return await new Promise((_, reject) => {
+        const rejectOnAbort = () =>
+          reject(new DOMException(errorMessage, "AbortError"));
+        if (signal.aborted) {
+          rejectOnAbort();
+          return;
+        }
+        signal.addEventListener("abort", rejectOnAbort, { once: true });
+      });
+    },
+    cancel: cancelImpl,
+    releaseLock() {},
+  };
+  return {
+    status: 200,
+    headers: new Headers({ "content-type": "application/json" }),
+    body: {
+      getReader() {
+        return reader;
+      },
+    },
+  };
+}
+
 {
   const payload = discoveryJson();
   const fixture = makeFetch(() =>
@@ -290,8 +333,65 @@ async function expectPrimarySizeError(run, pattern) {
       fetchImpl: fixture.fetch,
     }),
   );
-  assert.ok(Date.now() - started < 600, "stalled body escaped request deadline");
+  assert.ok(Date.now() - started < 600, "stalled body escaped request deadline plus teardown bound");
   assert.equal(abortEvents, 1);
+}
+
+{
+  let cancelCalls = 0;
+  let abortEvents = 0;
+  const fixture = makeFetch((signal) => {
+    signal.addEventListener("abort", () => {
+      abortEvents += 1;
+    }, { once: true });
+    return admittedReadFailureResponse(
+      signal,
+      () => {
+        cancelCalls += 1;
+        return new Promise(() => {});
+      },
+      "synthetic_admitted_read_timeout",
+    );
+  });
+  const started = Date.now();
+  const error = await capturePrimaryError(
+    () => probeVoidAiAgentPaidWorkV1({
+      baseUrl: "https://paid-work.example.invalid",
+      timeoutMs: 120,
+      maxResponseBytes: 1024,
+      fetchImpl: fixture.fetch,
+    }),
+  );
+  assert.equal(error.name, "AbortError");
+  assert.match(error.message, /synthetic_admitted_read_timeout/);
+  assert.ok(Date.now() - started < 650, "admitted read timeout teardown escaped bounded cleanup window");
+  assert.equal(cancelCalls, 1);
+  assert.equal(abortEvents, 1);
+}
+
+{
+  let cancelCalls = 0;
+  const fixture = makeFetch((signal) =>
+    admittedReadFailureResponse(
+      signal,
+      () => {
+        cancelCalls += 1;
+        return Promise.reject(new Error("synthetic_admitted_cancel_failure"));
+      },
+      "synthetic_admitted_read_failure",
+    ),
+  );
+  const error = await capturePrimaryError(
+    () => probeVoidAiAgentPaidWorkV1({
+      baseUrl: "https://paid-work.example.invalid",
+      timeoutMs: 120,
+      maxResponseBytes: 1024,
+      fetchImpl: fixture.fetch,
+    }),
+  );
+  assert.equal(error.name, "AbortError");
+  assert.match(error.message, /synthetic_admitted_read_failure/);
+  assert.equal(cancelCalls, 1);
 }
 
 console.log("VOID_AI_AGENT_PAID_WORK_CLIENT_RESPONSE_BOUNDS_V1_PROOF_GREEN");
@@ -301,6 +401,8 @@ console.log("malformed_content_length_fail_closed=true");
 console.log("rejection_abort_owned=true");
 console.log("rejection_teardown_bounded=true");
 console.log("stalled_body_total_deadline=true");
+console.log("admitted_read_failure_teardown_bounded=true");
+console.log("admitted_read_failure_primary_error_preserved=true");
 console.log("credential_or_token_output=false");
 console.log("wallet_or_signer_authority=false");
 console.log("work_credit_mutation_authority=false");
