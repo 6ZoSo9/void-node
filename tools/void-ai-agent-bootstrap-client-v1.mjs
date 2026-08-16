@@ -23,6 +23,7 @@ const DEFAULT_TIMEOUT_MS = 10_000;
 const MAX_TIMEOUT_MS = 30_000;
 const DEFAULT_MAX_BYTES = 1_048_576;
 const MAX_ALLOWED_BYTES = 4_194_304;
+const RESPONSE_REJECTION_TEARDOWN_MS = 250;
 
 const ROUTES = Object.freeze({
   well_known_discovery:
@@ -203,36 +204,168 @@ function publicMarker(value) {
     : null;
 }
 
-async function boundedRead(response, maxBytes) {
-  const contentLengthRaw =
-    response.headers.get("content-length");
-  if (contentLengthRaw) {
-    const contentLength = Number.parseInt(
-      contentLengthRaw,
-      10,
+function parseDeclaredResponseLength(response) {
+  const raw = response.headers.get("content-length");
+  if (raw === null) return null;
+
+  if (!/^(0|[1-9][0-9]*)$/.test(raw)) {
+    throw new Error(
+      `response_invalid_content_length:${raw}`,
     );
-    if (
-      Number.isFinite(contentLength) &&
-      contentLength > maxBytes
-    ) {
-      throw new Error(
-        `response_too_large:${contentLength}`,
-      );
-    }
   }
 
-  const bytes = new Uint8Array(
-    await response.arrayBuffer(),
-  );
-  if (bytes.byteLength > maxBytes) {
+  const value = Number(raw);
+  if (!Number.isSafeInteger(value) || value < 0) {
     throw new Error(
-      `response_too_large:${bytes.byteLength}`,
+      `response_invalid_content_length:${raw}`,
     );
+  }
+
+  return value;
+}
+
+async function settleCancellationBounded(cancellation) {
+  if (!cancellation || typeof cancellation.then !== "function") {
+    return;
+  }
+
+  let timeout = null;
+  try {
+    await Promise.race([
+      Promise.resolve(cancellation).catch(() => undefined),
+      new Promise((resolve) => {
+        timeout = setTimeout(
+          resolve,
+          RESPONSE_REJECTION_TEARDOWN_MS,
+        );
+      }),
+    ]);
+  } finally {
+    if (timeout !== null) clearTimeout(timeout);
+  }
+}
+
+async function rejectResponseBodyBounded(
+  response,
+  reader,
+  controller,
+) {
+  if (!controller.signal.aborted) {
+    controller.abort(
+      new Error("bootstrap_response_rejected"),
+    );
+  }
+
+  let cancellation = null;
+  try {
+    cancellation = reader?.cancel
+      ? reader.cancel()
+      : response.body?.cancel
+        ? response.body.cancel()
+        : null;
+  } catch (_error) {
+    // Preserve the already-known response rejection.
+  }
+
+  await settleCancellationBounded(cancellation);
+}
+
+async function boundedRead(
+  response,
+  maxBytes,
+  controller,
+) {
+  let declared;
+  try {
+    declared = parseDeclaredResponseLength(response);
+  } catch (error) {
+    await rejectResponseBodyBounded(
+      response,
+      null,
+      controller,
+    );
+    throw error;
+  }
+
+  if (declared !== null && declared > maxBytes) {
+    const primary = new Error(
+      `response_too_large:${declared}`,
+    );
+    await rejectResponseBodyBounded(
+      response,
+      null,
+      controller,
+    );
+    throw primary;
+  }
+
+  const body = response.body;
+  if (!body || typeof body.getReader !== "function") {
+    if (declared === null || declared === 0) {
+      return "";
+    }
+    const primary = new Error(
+      "response_body_unavailable",
+    );
+    await rejectResponseBodyBounded(
+      response,
+      null,
+      controller,
+    );
+    throw primary;
+  }
+
+  const reader = body.getReader();
+  const chunks = [];
+  let total = 0;
+
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+
+      const chunk = Buffer.from(value);
+      total += chunk.length;
+
+      if (total > maxBytes) {
+        chunks.length = 0;
+        const primary = new Error(
+          `response_too_large:${total}`,
+        );
+        await rejectResponseBodyBounded(
+          response,
+          reader,
+          controller,
+        );
+        throw primary;
+      }
+
+      chunks.push(chunk);
+    }
+  } catch (error) {
+    if (!controller.signal.aborted) {
+      await rejectResponseBodyBounded(
+        response,
+        reader,
+        controller,
+      );
+    } else {
+      await settleCancellationBounded(
+        (() => {
+          try {
+            return reader.cancel();
+          } catch (_cancelError) {
+            return null;
+          }
+        })(),
+      );
+    }
+    throw error;
   }
 
   return new TextDecoder("utf-8", {
     fatal: true,
-  }).decode(bytes);
+  }).decode(Buffer.concat(chunks, total));
 }
 
 async function fetchJsonV1({
@@ -273,6 +406,7 @@ async function fetchJsonV1({
     const raw = await boundedRead(
       response,
       maxBytes,
+      controller,
     );
 
     if (!response.ok) {
