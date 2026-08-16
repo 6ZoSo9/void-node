@@ -12,6 +12,7 @@ const MAX_RESPONSE_BYTES = 2 * 1024 * 1024;
 const TIMEOUT_MS = 5_000;
 const MAX_SETTLE_MS = 3_500;
 const MARKER = "VOID_PUBLIC_NODE_OPERATOR_SELF_CHECK_RESPONSE_BOUND_V1_GREEN";
+
 const REQUIRED_ROUTES = [
   "/public-node",
   "/public-node/route-index.json",
@@ -23,7 +24,68 @@ const REQUIRED_ROUTES = [
   "/proofs",
 ];
 
+const ROUTE_INDEX_REQUIRED = [
+  "/public-node",
+  "/public-node/route-index.json",
+  "/public-node/share-pack.json",
+  "/public-node/tester-checklist.json",
+  "/public-node/client-work-pack.json",
+  "/public-node/ai-readiness.json",
+  "/public-node/fresh-proof-seed.json",
+  "/public-node/requester-work-policy.json",
+  "/public-node/data-quality.json",
+  "/public-node/link-health.json",
+  "/public-node/intelligence.json",
+  "/proofs",
+];
+
+const CANONICAL_ROUTES = [
+  "/.well-known/void-public-node.json",
+  "/public-node/external-tester-copy-pack.json",
+  "/public-node/tester-result-intake.json",
+  "/public-node/standalone-outside-tester-smoke.sh",
+  "/public-node/tester-share",
+  "/public-node/tester-lane-summary.json",
+  "/public-node/first-tester-request-copy-pack.json",
+  "/public-node/local-data-drop/manifest.json",
+  "/public-node/local-data-drop.json",
+  "/public-node/local-data-drop/proof/:sha256.json",
+  "/public-node/local-data-drop/by-sha256/:sha256",
+  "/public-node/local-data-drop/:objectId",
+  "/public-node",
+  "/public-node/self-check-snapshot.json",
+  "/public-node/route-manifest.json",
+  "/public-node/share-link.json",
+  "/public-node/tester-bundle.json",
+  "/public-node/outside-tester-smoke.json",
+  "/public-node/tester-loop-status.json",
+  "/public-node/tester-result-receipt.json",
+  "/public-node/quickstart.json",
+  "/public-node/tester-handoff.json",
+  "/public-node/public-exposure-smoke-pack.json",
+  "/public-node/route-index.json",
+  "/proofs",
+];
+
+const MANIFEST_MARKERS = new Map([
+  ["/.well-known/void-public-node.json", "VOID_PUBLIC_NODE_AGENT_DISCOVERY_V1"],
+  ["/public-node", "VOID_PUBLIC_NODE_PROFILE_ROUTE_V1"],
+  ["/public-node/route-manifest.json", "VOID_PUBLIC_NODE_ROUTE_MANIFEST_V1"],
+  ["/public-node/self-check-snapshot.json", "VOID_PUBLIC_NODE_SELF_CHECK_SNAPSHOT_V1"],
+  ["/public-node/share-link.json", "VOID_PUBLIC_NODE_SHARE_LINK_V1"],
+  ["/public-node/tester-bundle.json", "VOID_PUBLIC_NODE_TESTER_BUNDLE_V1"],
+  ["/public-node/outside-tester-smoke.json", "VOID_PUBLIC_NODE_OUTSIDE_TESTER_SMOKE_SURFACE_V1"],
+  ["/public-node/tester-loop-status.json", "VOID_PUBLIC_NODE_TESTER_LOOP_STATUS_V1"],
+  ["/public-node/tester-result-receipt.json", "VOID_PUBLIC_NODE_TESTER_RESULT_RECEIPT_V1"],
+  ["/public-node/quickstart.json", "VOID_PUBLIC_NODE_QUICKSTART_V1"],
+  ["/public-node/tester-handoff.json", "VOID_PUBLIC_NODE_TESTER_HANDOFF_V1"],
+  ["/public-node/public-exposure-smoke-pack.json", "VOID_PUBLIC_NODE_PUBLIC_EXPOSURE_SMOKE_PACK_V1"],
+  ["/public-node/route-index.json", "VOID_PUBLIC_NODE_ROUTE_INDEX_V1"],
+  ["/proofs", "VOID_PUBLIC_PROOFS_INDEX_V1"],
+]);
+
 let mode = "green";
+let baseOrigin = "";
 
 function smallJson(res, status, value) {
   const body = Buffer.from(`${JSON.stringify(value)}\n`, "utf8");
@@ -34,22 +96,37 @@ function smallJson(res, status, value) {
   res.end(body);
 }
 
+function fullPolicy() {
+  return {
+    public_routes_only: true,
+    private_api: false,
+    mutation: false,
+    read_only: true,
+    money_movement: false,
+    wallet_send: false,
+    wc_to_void_swap: false,
+    buy_void_fulfillment: false,
+    validator_mutation: false,
+  };
+}
+
 function canonicalConnected(id) {
   return { id, addr: `127.0.0.1:${id === "peer-a" ? 4701 : 4702}`, listens: [], outbound: true };
 }
 
 function routeIndexRows() {
-  return REQUIRED_ROUTES.map((route, index) => ({
+  const routes = [...new Set([...ROUTE_INDEX_REQUIRED, ...CANONICAL_ROUTES])];
+  return routes.map((route, index) => ({
     path: route,
-    marker: `VOID_PUBLIC_NODE_FIXTURE_ROUTE_${index + 1}_V1`,
+    marker: MANIFEST_MARKERS.get(route) || `VOID_PUBLIC_NODE_FIXTURE_ROUTE_${index + 1}_V1`,
     purpose: `fixture route ${route}`,
   }));
 }
 
 function routeManifestRows() {
-  return REQUIRED_ROUTES.map((route, index) => ({
+  return CANONICAL_ROUTES.map((route, index) => ({
     path: route,
-    marker: `VOID_PUBLIC_NODE_FIXTURE_ROUTE_${index + 1}_V1`,
+    marker: MANIFEST_MARKERS.get(route) || `VOID_PUBLIC_NODE_FIXTURE_ROUTE_${index + 1}_V1`,
     safety_class: "public_read_only",
     purpose: `fixture route ${route}`,
   }));
@@ -94,49 +171,76 @@ function wellKnownFixture() {
   const canonical = {
     marker: "VOID_PUBLIC_NODE_AGENT_DISCOVERY_V1",
     links: {
-      public_node: "/public-node",
-      route_manifest: "/public-node/route-manifest.json",
-      self_check_snapshot: "/public-node/self-check-snapshot.json",
-      proofs: "/proofs",
+      public_node: `${baseOrigin}/public-node`,
+      route_manifest: `${baseOrigin}/public-node/route-manifest.json`,
+      self_check_snapshot: `${baseOrigin}/public-node/self-check-snapshot.json`,
+      proofs: `${baseOrigin}/proofs`,
     },
     policy: { public_routes_only: true, read_only: true, mutation: false },
   };
   if (mode !== "well_known_nested_splice") return canonical;
-  return {
-    marker: "WRONG_MARKER",
-    links: {},
-    policy: canonical.policy,
-    metadata: canonical,
-  };
+  return { marker: "WRONG_MARKER", links: {}, policy: canonical.policy, metadata: canonical };
 }
 
 function routeIndexFixture() {
-  const canonical = { marker: "VOID_PUBLIC_NODE_ROUTE_INDEX_V1", routes: routeIndexRows() };
-  if (mode === "route_index_primitive_row") {
-    return { ...canonical, routes: [...REQUIRED_ROUTES] };
-  }
+  const canonical = {
+    marker: "VOID_PUBLIC_NODE_ROUTE_INDEX_V1",
+    purpose: "public_node_route_index",
+    routes: routeIndexRows(),
+    policy: fullPolicy(),
+  };
+  if (mode === "route_index_primitive_row") return { ...canonical, routes: [...ROUTE_INDEX_REQUIRED] };
   if (mode === "route_index_bad_path") {
     return { ...canonical, routes: [{ ...canonical.routes[0], path: null }, ...canonical.routes.slice(1)] };
   }
+  if (mode === "route_index_foreign_path") {
+    return { ...canonical, routes: canonical.routes.map((row) => row.path === "/public-node" ? { ...row, path: "https://evil.example/public-node" } : row) };
+  }
+  if (mode === "route_index_query_alias") {
+    return { ...canonical, routes: canonical.routes.map((row) => row.path === "/public-node" ? { ...row, path: "/public-node?alias=1" } : row) };
+  }
+  if (mode === "route_index_normalization_alias") {
+    return { ...canonical, routes: canonical.routes.map((row) => row.path === "/public-node" ? { ...row, path: "/x/../public-node" } : row) };
+  }
+  if (mode === "route_index_wrong_purpose") return { ...canonical, purpose: "not_the_route_index" };
+  if (mode === "route_index_bad_policy") return { ...canonical, policy: { ...canonical.policy, money_movement: true } };
   if (mode !== "route_index_nested_splice") return canonical;
-  return { marker: "WRONG_MARKER", routes: [], metadata: canonical };
+  return { marker: "WRONG_MARKER", purpose: canonical.purpose, routes: [], policy: canonical.policy, metadata: canonical };
 }
 
 function routeManifestFixture() {
   const routes = routeManifestRows();
   const canonical = {
     marker: "VOID_PUBLIC_NODE_ROUTE_MANIFEST_V1",
+    purpose: "canonical_public_node_route_manifest",
+    status: "public_node_route_manifest_ready",
+    effective_base_url: baseOrigin,
     route_count: routes.length,
     routes,
+    policy: fullPolicy(),
   };
   if (mode === "route_manifest_missing_metadata") {
     const malformed = { ...routes[0] };
     delete malformed.safety_class;
     return { ...canonical, routes: [malformed, ...routes.slice(1)] };
   }
-  if (mode === "route_manifest_count_mismatch") {
-    return { ...canonical, route_count: routes.length + 1 };
+  if (mode === "route_manifest_count_mismatch") return { ...canonical, route_count: routes.length + 1 };
+  if (mode === "route_manifest_wrong_purpose") return { ...canonical, purpose: "wrong_manifest" };
+  if (mode === "route_manifest_wrong_status") return { ...canonical, status: "stale" };
+  if (mode === "route_manifest_wrong_base") return { ...canonical, effective_base_url: "https://foreign.example" };
+  if (mode === "route_manifest_wrong_marker") {
+    return {
+      ...canonical,
+      routes: canonical.routes.map((row) => row.path === "/public-node" ? { ...row, marker: "WRONG_MARKER" } : row),
+    };
   }
+  if (mode === "route_manifest_bad_safety") {
+    return {
+      ...canonical,
+      routes: canonical.routes.map((row) => row.path === "/public-node" ? { ...row, safety_class: "mutable" } : row),
+    };
+  }
+  if (mode === "route_manifest_bad_policy") return { ...canonical, policy: { ...canonical.policy, wallet_send: true } };
   if (mode !== "route_manifest_nested_splice") return canonical;
   return { marker: "WRONG_MARKER", route_count: 0, routes: [], metadata: canonical };
 }
@@ -144,23 +248,47 @@ function routeManifestFixture() {
 function snapshotFixture() {
   const canonical = {
     marker: "VOID_PUBLIC_NODE_SELF_CHECK_SNAPSHOT_V1",
-    expected_routes: [...REQUIRED_ROUTES],
-    expected_route_count: REQUIRED_ROUTES.length,
-    policy: { public_post_endpoint: false },
+    purpose: "public_node_self_check_snapshot",
+    status: "public_node_externally_testable_read_only_surface_ready",
+    effective_base_url: baseOrigin,
+    expected_routes: [...CANONICAL_ROUTES],
+    expected_route_count: CANONICAL_ROUTES.length,
+    links: {
+      agent_discovery: `${baseOrigin}/.well-known/void-public-node.json`,
+      public_node: `${baseOrigin}/public-node`,
+      route_index: `${baseOrigin}/public-node/route-index.json`,
+      route_manifest: `${baseOrigin}/public-node/route-manifest.json`,
+      smoke_surface: `${baseOrigin}/public-node/outside-tester-smoke.json`,
+      proofs: `${baseOrigin}/proofs`,
+    },
+    checks: {
+      self_check_snapshot: true,
+      agent_discovery_present: true,
+      route_index_present: true,
+      route_manifest_present: true,
+      outside_tester_smoke_surface_present: true,
+      externally_testable: true,
+    },
+    policy: { ...fullPolicy(), public_post_endpoint: false },
   };
   if (mode === "snapshot_legacy_routes") {
     const { expected_routes, expected_route_count, ...rest } = canonical;
     return { ...rest, routes: expected_routes, route_count: expected_route_count };
   }
-  if (mode === "snapshot_count_string") {
-    return { ...canonical, expected_route_count: String(canonical.expected_route_count) };
-  }
-  if (mode === "snapshot_count_mismatch") {
-    return { ...canonical, expected_route_count: canonical.expected_route_count + 1 };
-  }
+  if (mode === "snapshot_count_string") return { ...canonical, expected_route_count: String(canonical.expected_route_count) };
+  if (mode === "snapshot_count_mismatch") return { ...canonical, expected_route_count: canonical.expected_route_count + 1 };
   if (mode === "snapshot_wrong_type_route") {
-    return { ...canonical, expected_routes: [{ path: REQUIRED_ROUTES[0] }, ...REQUIRED_ROUTES.slice(1)] };
+    return { ...canonical, expected_routes: [{ path: CANONICAL_ROUTES[0] }, ...CANONICAL_ROUTES.slice(1)] };
   }
+  if (mode === "snapshot_foreign_route") {
+    return { ...canonical, expected_routes: canonical.expected_routes.map((route) => route === "/public-node" ? "https://evil.example/public-node" : route) };
+  }
+  if (mode === "snapshot_wrong_purpose") return { ...canonical, purpose: "wrong_snapshot" };
+  if (mode === "snapshot_wrong_status") return { ...canonical, status: "stale" };
+  if (mode === "snapshot_wrong_base") return { ...canonical, effective_base_url: "https://foreign.example" };
+  if (mode === "snapshot_bad_check") return { ...canonical, checks: { ...canonical.checks, route_manifest_present: false } };
+  if (mode === "snapshot_bad_link") return { ...canonical, links: { ...canonical.links, proofs: "https://foreign.example/proofs" } };
+  if (mode === "snapshot_bad_policy") return { ...canonical, policy: { ...canonical.policy, validator_mutation: true } };
   if (mode !== "snapshot_nested_splice") return canonical;
   return {
     marker: "WRONG_MARKER",
@@ -207,36 +335,16 @@ const server = http.createServer((req, res) => {
     });
     return;
   }
-  if (pathname === "/__void/ready.json") {
-    smallJson(res, 200, readinessFixture());
-    return;
-  }
-  if (pathname === "/blocks/latest/number2.json") {
-    smallJson(res, 200, headFixture());
-    return;
-  }
-  if (pathname === "/p2p/peers") {
-    smallJson(res, 200, peersFixture());
-    return;
-  }
-  if (pathname === "/.well-known/void-public-node.json") {
-    smallJson(res, 200, wellKnownFixture());
-    return;
-  }
-  if (pathname === "/public-node/route-index.json") {
-    smallJson(res, 200, routeIndexFixture());
-    return;
-  }
-  if (pathname === "/public-node/route-manifest.json") {
-    smallJson(res, 200, routeManifestFixture());
-    return;
-  }
-  if (pathname === "/public-node/self-check-snapshot.json") {
-    smallJson(res, 200, snapshotFixture());
-    return;
-  }
+  if (pathname === "/__void/ready.json") return smallJson(res, 200, readinessFixture());
+  if (pathname === "/blocks/latest/number2.json") return smallJson(res, 200, headFixture());
+  if (pathname === "/p2p/peers") return smallJson(res, 200, peersFixture());
+  if (pathname === "/.well-known/void-public-node.json") return smallJson(res, 200, wellKnownFixture());
+  if (pathname === "/public-node/route-index.json") return smallJson(res, 200, routeIndexFixture());
+  if (pathname === "/public-node/route-manifest.json") return smallJson(res, 200, routeManifestFixture());
+  if (pathname === "/public-node/self-check-snapshot.json") return smallJson(res, 200, snapshotFixture());
   smallJson(res, 404, { ok: false, error: "fixture_not_found", pathname });
 });
+
 server.on("connection", (socket) => {
   sockets.add(socket);
   socket.on("close", () => sockets.delete(socket));
@@ -252,38 +360,37 @@ async function listen() {
   return address.port;
 }
 
+async function spawnTool(args) {
+  return await new Promise((resolve, reject) => {
+    const child = spawn(process.execPath, [TOOL, ...args], { stdio: ["ignore", "pipe", "pipe"] });
+    let stdout = "";
+    let stderr = "";
+    child.stdout.setEncoding("utf8");
+    child.stderr.setEncoding("utf8");
+    child.stdout.on("data", (chunk) => (stdout += chunk));
+    child.stderr.on("data", (chunk) => (stderr += chunk));
+    child.once("error", reject);
+    child.once("close", (status) => resolve({ status, stdout, stderr }));
+  });
+}
+
 async function runTool(port, expectedPeerCount) {
   const temp = fs.mkdtempSync(path.join(os.tmpdir(), `void-public-self-check-${mode}-`));
   const output = path.join(temp, "receipt.json");
   const started = Date.now();
   try {
-    const result = await new Promise((resolve, reject) => {
-      const child = spawn(
-        process.execPath,
-        [
-          TOOL,
-          "--base",
-          `http://127.0.0.1:${port}`,
-          "--timeout-ms",
-          String(TIMEOUT_MS),
-          "--expected-peer-count",
-          String(expectedPeerCount),
-          "--observed-at",
-          "2026-08-15T16:00:00Z",
-          "--output",
-          output,
-        ],
-        { stdio: ["ignore", "pipe", "pipe"] },
-      );
-      let stdout = "";
-      let stderr = "";
-      child.stdout.setEncoding("utf8");
-      child.stderr.setEncoding("utf8");
-      child.stdout.on("data", (chunk) => (stdout += chunk));
-      child.stderr.on("data", (chunk) => (stderr += chunk));
-      child.once("error", reject);
-      child.once("close", (status) => resolve({ status, stdout, stderr }));
-    });
+    const result = await spawnTool([
+      "--base",
+      `http://127.0.0.1:${port}`,
+      "--timeout-ms",
+      String(TIMEOUT_MS),
+      "--expected-peer-count",
+      String(expectedPeerCount),
+      "--observed-at",
+      "2026-08-15T16:00:00Z",
+      "--output",
+      output,
+    ]);
     assert(fs.existsSync(output), `${mode} receipt missing: ${result.stderr || result.stdout}`);
     return {
       ...result,
@@ -322,7 +429,24 @@ async function expectHold(port, selectedMode, checkId, expectedPeerCount = 2) {
   return result;
 }
 
+async function expectBaseAdmission(base, expectedStatus, message) {
+  mode = "green";
+  const result = await spawnTool([
+    "--base",
+    base,
+    "--timeout-ms",
+    "250",
+    "--expected-peer-count",
+    "0",
+    "--observed-at",
+    "2026-08-15T16:00:00Z",
+  ]);
+  assert.equal(result.status, expectedStatus, `${message}: ${result.stderr || result.stdout}`);
+  return result;
+}
+
 const port = await listen();
+baseOrigin = `http://127.0.0.1:${port}`;
 try {
   await expectGreen(port);
   await expectGreen(port, "peer_empty", 0);
@@ -361,17 +485,41 @@ try {
     ["route_index_nested_splice", "route_index"],
     ["route_index_primitive_row", "route_index"],
     ["route_index_bad_path", "route_index"],
+    ["route_index_foreign_path", "route_index"],
+    ["route_index_query_alias", "route_index"],
+    ["route_index_normalization_alias", "route_index"],
+    ["route_index_wrong_purpose", "route_index"],
+    ["route_index_bad_policy", "route_index"],
     ["route_manifest_nested_splice", "route_manifest"],
     ["route_manifest_missing_metadata", "route_manifest"],
     ["route_manifest_count_mismatch", "route_manifest"],
+    ["route_manifest_wrong_purpose", "route_manifest"],
+    ["route_manifest_wrong_status", "route_manifest"],
+    ["route_manifest_wrong_base", "route_manifest"],
+    ["route_manifest_wrong_marker", "route_manifest"],
+    ["route_manifest_bad_safety", "route_manifest"],
+    ["route_manifest_bad_policy", "route_manifest"],
     ["snapshot_nested_splice", "self_check_snapshot"],
     ["snapshot_legacy_routes", "self_check_snapshot"],
     ["snapshot_count_string", "self_check_snapshot"],
     ["snapshot_count_mismatch", "self_check_snapshot"],
     ["snapshot_wrong_type_route", "self_check_snapshot"],
+    ["snapshot_foreign_route", "self_check_snapshot"],
+    ["snapshot_wrong_purpose", "self_check_snapshot"],
+    ["snapshot_wrong_status", "self_check_snapshot"],
+    ["snapshot_wrong_base", "self_check_snapshot"],
+    ["snapshot_bad_check", "self_check_snapshot"],
+    ["snapshot_bad_link", "self_check_snapshot"],
+    ["snapshot_bad_policy", "self_check_snapshot"],
   ]) {
     await expectHold(port, selectedMode, checkId);
   }
+
+  const publicHttp = await expectBaseAdmission("http://example.invalid", 1, "public HTTP must fail pre-fetch");
+  assert.match(publicHttp.stderr, /public base URL must use https/);
+  await expectBaseAdmission("https://example.invalid", 2, "public HTTPS must pass admission and fail only evidence checks");
+  await expectBaseAdmission("http://127.0.0.1:1", 2, "private/loopback HTTP must pass admission");
+  await expectBaseAdmission("http://[::1]:1", 2, "bracketed IPv6 loopback HTTP must pass admission");
 
   console.log(MARKER);
 } finally {
