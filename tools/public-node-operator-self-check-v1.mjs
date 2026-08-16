@@ -379,7 +379,13 @@ function snapshotLinksOk(value, baseOrigin) {
     smoke_surface: `${baseOrigin}/public-node/outside-tester-smoke.json`,
     proofs: `${baseOrigin}/proofs`,
   };
-  return Object.entries(expected).every(([key, expectedValue]) => value[key] === expectedValue);
+  const actualKeys = Object.keys(value).sort();
+  const expectedKeys = Object.keys(expected).sort();
+  return (
+    actualKeys.length === expectedKeys.length &&
+    actualKeys.every((key, index) => key === expectedKeys[index]) &&
+    Object.entries(expected).every(([key, expectedValue]) => value[key] === expectedValue)
+  );
 }
 
 function wellKnownLinksOk(value, baseOrigin) {
