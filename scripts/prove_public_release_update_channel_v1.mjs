@@ -32,6 +32,26 @@ function startTypedHealthServer(tmp){
   if(!fs.existsSync(portFile)){child.kill("SIGTERM");fail("typed health server did not start");}
   return {child,countFile,url:`http://127.0.0.1:${fs.readFileSync(portFile,"utf8")}/ready`};
 }
+function startBoundedDownloadServer(tmp,channelFile,archiveFile){
+  const portFile=path.join(tmp,"download-port"),serverFile=path.join(tmp,"download-server.mjs");
+  fs.writeFileSync(serverFile,`import fs from "node:fs";\nimport http from "node:http";\nconst channel=fs.readFileSync(process.argv[3]),archive=fs.readFileSync(process.argv[4]);\nconst server=http.createServer((req,res)=>{\n  if(req.url==="/channel-valid"){res.writeHead(200,{"content-type":"application/json","content-length":String(channel.length)});res.end(channel);return;}\n  if(req.url==="/channel-declared-over"){res.writeHead(200,{"content-type":"application/json","content-length":String(2*1024*1024+1)});res.flushHeaders();return;}\n  if(req.url==="/channel-stream-over"){res.writeHead(200,{"content-type":"application/json"});res.write(Buffer.alloc(2*1024*1024+1,120));return;}\n  if(req.url==="/asset-valid"){res.writeHead(200,{"content-type":"application/octet-stream","content-length":String(archive.length)});res.end(archive);return;}\n  if(req.url==="/asset-declared-over"){res.writeHead(200,{"content-type":"application/octet-stream","content-length":String(archive.length+1)});res.flushHeaders();return;}\n  if(req.url==="/asset-declared-under"){res.writeHead(200,{"content-type":"application/octet-stream","content-length":String(Math.max(0,archive.length-1))});res.flushHeaders();return;}\n  if(req.url==="/asset-stream-over"){res.writeHead(200,{"content-type":"application/octet-stream"});res.write(archive);res.write(Buffer.from("x"));return;}\n  res.writeHead(404);res.end();\n});\nserver.listen(0,"127.0.0.1",()=>fs.writeFileSync(process.argv[2],String(server.address().port)));\nprocess.on("SIGTERM",()=>process.exit(0));\n`);
+  const child=childProcess.spawn(process.execPath,[serverFile,portFile,channelFile,archiveFile],{stdio:["ignore","ignore","inherit"]});
+  const deadline=Date.now()+5000;while(!fs.existsSync(portFile)&&Date.now()<deadline){if(child.exitCode!==null)fail("bounded download server exited before listen");sleepSync(25);}
+  if(!fs.existsSync(portFile)){child.kill("SIGTERM");fail("bounded download server did not start");}
+  return {child,baseUrl:`http://127.0.0.1:${fs.readFileSync(portFile,"utf8")}`};
+}
+function channelWithArchiveUrl(source,url,dest){
+  const j=JSON.parse(fs.readFileSync(source,"utf8"));j.assets.archive.url=url;fs.writeFileSync(dest,`${JSON.stringify(j)}\n`);
+}
+function startRedirectHealthServers(tmp){
+  const portsFile=path.join(tmp,"redirect-health-ports"),serverFile=path.join(tmp,"redirect-health-server.mjs");
+  fs.writeFileSync(serverFile,`import fs from "node:fs";\nimport http from "node:http";\nconst valid=JSON.stringify({ready:true,gap:0,txroot_live:1});\nconst secondary=http.createServer((req,res)=>{if(req.url==="/valid"){res.writeHead(200,{"content-type":"application/json"});res.end(valid);return;}res.writeHead(404);res.end();});\nsecondary.listen(0,"127.0.0.1",()=>{\n  const primary=http.createServer((req,res)=>{\n    if(req.url==="/same"){res.writeHead(302,{location:"/valid"});res.end();return;}\n    if(req.url==="/cross"){res.writeHead(302,{location:"http://127.0.0.1:"+secondary.address().port+"/valid"});res.end();return;}\n    if(req.url==="/valid"){res.writeHead(200,{"content-type":"application/json"});res.end(valid);return;}\n    res.writeHead(404);res.end();\n  });\n  primary.listen(0,"127.0.0.1",()=>fs.writeFileSync(process.argv[2],JSON.stringify({primary:primary.address().port,secondary:secondary.address().port})));\n});\nprocess.on("SIGTERM",()=>process.exit(0));\n`);
+  const child=childProcess.spawn(process.execPath,[serverFile,portsFile],{stdio:["ignore","ignore","inherit"]});
+  const deadline=Date.now()+5000;while(!fs.existsSync(portsFile)&&Date.now()<deadline){if(child.exitCode!==null)fail("redirect health servers exited before listen");sleepSync(25);}
+  if(!fs.existsSync(portsFile)){child.kill("SIGTERM");fail("redirect health servers did not start");}
+  const ports=JSON.parse(fs.readFileSync(portsFile,"utf8")),base=`http://127.0.0.1:${ports.primary}`;
+  return {child,same:`${base}/same`,cross:`${base}/cross`};
+}
 function build(root,out,version,epoch){run("node",["tools/build-public-release-v1.mjs","--out",out,"--version",version,"--source-date-epoch",String(epoch)],{cwd:root});}
 function manifest(out){return JSON.parse(fs.readFileSync(path.join(out,"void-node-release-manifest.json"),"utf8"));}
 function channel(root,out,version,tag){run("node",["tools/build-public-release-channel-v1.mjs","--manifest",path.join(out,"void-node-release-manifest.json"),"--checksums",path.join(out,"SHA256SUMS"),"--base-url",pathToFileURL(out+path.sep).toString(),"--release-tag",tag,"--out",path.join(out,"stable-v1.json"),"--test-allow-file"],{cwd:root});run("node",["tools/build-public-release-channel-v1.mjs","--verify",path.join(out,"stable-v1.json"),"--test-allow-file"],{cwd:root});}
@@ -39,7 +59,7 @@ function channel(root,out,version,tag){run("node",["tools/build-public-release-c
 const full=process.argv.includes("--full");
 need("release/channel/public-release-channel-v1.schema.json",["VOID_PUBLIC_RELEASE_CHANNEL_V1","rollback_on_health_failure"]);
 need("tools/build-public-release-channel-v1.mjs",["VOID_PUBLIC_RELEASE_CHANNEL_BUILDER_V1","github_attestation_required","--test-allow-file"]);
-need("release/bin/void-node-update",["VOID_NODE_RELEASE_UPDATE_V1","VOID_NODE_RELEASE_ROLLBACK_TRANSACTION_V1","ROLLBACK_RECOVERED","downgrade refused","HEALTH_FAIL_ROLLBACK_BEGIN","HEALTH_RESPONSE_MAX_BYTES","health response exceeds size limit","service_started_implicitly=false"]);
+need("release/bin/void-node-update",["VOID_NODE_RELEASE_UPDATE_V1","VOID_NODE_RELEASE_ROLLBACK_TRANSACTION_V1","ROLLBACK_RECOVERED","downgrade refused","HEALTH_FAIL_ROLLBACK_BEGIN","HEALTH_RESPONSE_MAX_BYTES","health response exceeds size limit","readBoundedResponseBytes","streamExactResponseToFile","VOID_NODE_UPDATE_TEST_ALLOW_HTTP_LOOPBACK","redirect:\"error\"","normalizedUrlIdentity","service_started_implicitly=false"]);
 const manager=need("release/bin/void-node",["void-node update check","void-node update apply","exec \"$RELEASE_ROOT/bin/void-node-update\" rollback"]);
 need("release/portable/bin/void-node",["void-node update check","exec \"$RUNTIME_NODE\" \"$RELEASE_ROOT/bin/void-node-update\" rollback"]);
 need("ops/public/install-void-node-v1.sh",["VOID_NODE_STABLE_MANAGER_V1","$INSTALL_ROOT/control/void-node-update"]);
@@ -78,8 +98,46 @@ try{
   const m3=manifest(out3),archive3=path.join(out3,m3.archive),backup=fs.readFileSync(archive3);fs.appendFileSync(archive3,"tamper");
   const tamper=run(managerPath,["update","apply","--channel",path.join(out3,"stable-v1.json"),"--install-root",installRoot,"--bin-dir",binDir,"--test-allow-file","--skip-attestation","--yes"],{env:e,capture:true,allowFail:true});
   if(tamper.status===0||!/size mismatch|checksum mismatch/.test(`${tamper.stdout}${tamper.stderr}`))fail("tampered archive was not rejected");if(versionAt(installRoot)!==v2)fail("tamper rejection changed current release");pass("tampered-asset-rejected");fs.writeFileSync(archive3,backup);
+  const downloads=startBoundedDownloadServer(tmp,path.join(out3,"stable-v1.json"),archive3),httpEnv={...e,VOID_NODE_UPDATE_TEST_ALLOW_HTTP_LOOPBACK:"1"};
+  try{
+    const ungated=run(managerPath,["update","check","--channel",`${downloads.baseUrl}/channel-valid`,"--install-root",installRoot,"--bin-dir",binDir,"--test-allow-file"],{env:e,capture:true,allowFail:true});
+    if(ungated.status===0||!`${ungated.stdout}${ungated.stderr}`.includes("channel URL must use HTTPS"))fail("loopback HTTP test transport was not fail-closed without its explicit test gate");
+    pass("loopback-http-test-transport-explicitly-gated");
+    for(const [route,label] of [["channel-declared-over","declared-oversize"],["channel-stream-over","streamed-oversize"]]){
+      const started=Date.now(),r=run(managerPath,["update","check","--channel",`${downloads.baseUrl}/${route}`,"--install-root",installRoot,"--bin-dir",binDir,"--test-allow-file"],{env:httpEnv,capture:true,allowFail:true}),elapsed=Date.now()-started;
+      if(r.status===0||!`${r.stdout}${r.stderr}`.includes("download exceeds size limit"))fail(`${label} channel response was not rejected`);
+      if(elapsed>=5000)fail(`${label} channel response exceeded bounded settlement: ${elapsed}ms`);
+      if(versionAt(installRoot)!==v2)fail(`${label} channel response changed current release`);
+      pass(`${label}-channel-response-bounded`);
+    }
+    const remoteCheck=run(managerPath,["update","check","--channel",`${downloads.baseUrl}/channel-valid`,"--install-root",installRoot,"--bin-dir",binDir,"--test-allow-file"],{env:httpEnv,capture:true});
+    if(!remoteCheck.includes("update_available=true"))fail("valid exact-size remote channel was not accepted");pass("valid-exact-size-remote-channel");
+    const assetCases=[["asset-declared-over","declared-oversize"],["asset-declared-under","declared-undersize"],["asset-stream-over","streamed-oversize"]];
+    for(const [route,label] of assetCases){
+      const channelPath=path.join(tmp,`${route}.json`);channelWithArchiveUrl(path.join(out3,"stable-v1.json"),`${downloads.baseUrl}/${route}`,channelPath);
+      const started=Date.now(),r=run(managerPath,["update","apply","--channel",channelPath,"--install-root",installRoot,"--bin-dir",binDir,"--test-allow-file","--skip-attestation","--yes"],{env:httpEnv,capture:true,allowFail:true}),elapsed=Date.now()-started;
+      if(r.status===0||!`${r.stdout}${r.stderr}`.includes("asset size mismatch"))fail(`${label} remote asset was not rejected`);
+      if(elapsed>=5000)fail(`${label} remote asset exceeded bounded settlement: ${elapsed}ms`);
+      if(versionAt(installRoot)!==v2)fail(`${label} remote asset changed current release`);
+      pass(`${label}-remote-asset-bounded`);
+    }
+    const exactAssetChannel=path.join(tmp,"asset-valid.json");channelWithArchiveUrl(path.join(out3,"stable-v1.json"),`${downloads.baseUrl}/asset-valid`,exactAssetChannel);
+    run(managerPath,["update","apply","--channel",exactAssetChannel,"--install-root",installRoot,"--bin-dir",binDir,"--test-allow-file","--skip-attestation","--yes"],{env:httpEnv});
+    if(versionAt(installRoot)!==v3||previousVersion(installRoot)!==v2)fail("valid exact-size remote asset did not install v3");pass("valid-exact-size-remote-asset");
+    run(managerPath,["rollback"],{env:e,capture:true});
+    if(versionAt(installRoot)!==v2||previousVersion(installRoot)!==v3)fail("post-download-bound rollback did not restore v2 baseline");pass("remote-download-proof-baseline-restored");
+  }finally{downloads.child.kill("SIGTERM");}
   const health=run(managerPath,["update","apply","--channel",path.join(out3,"stable-v1.json"),"--install-root",installRoot,"--bin-dir",binDir,"--test-allow-file","--skip-attestation","--yes","--health-command","false"],{env:e,capture:true,allowFail:true});
   if(health.status===0||!`${health.stdout}${health.stderr}`.includes("HEALTH_FAIL_ROLLBACK_BEGIN"))fail("failed health gate did not trigger rollback");if(versionAt(installRoot)!==v2)fail(`health rollback failed; current=${versionAt(installRoot)}`);pass("health-gated-automatic-rollback");
+  const redirects=startRedirectHealthServers(tmp);
+  try{
+    for(const [url,label] of [[redirects.same,"same-origin"],[redirects.cross,"cross-origin"]]){
+      const redirected=run(managerPath,["update","apply","--channel",path.join(out4,"stable-v1.json"),"--install-root",installRoot,"--bin-dir",binDir,"--test-allow-file","--skip-attestation","--yes","--health-url",url],{env:{...e,VOID_NODE_UPDATE_TEST_HEALTH_ATTEMPTS:"1",VOID_NODE_UPDATE_TEST_HEALTH_TIMEOUT_MS:"300",VOID_NODE_UPDATE_TEST_HEALTH_RETRY_DELAY_MS:"0"},capture:true,allowFail:true});
+      if(redirected.status===0||!`${redirected.stdout}${redirected.stderr}`.includes("HEALTH_FAIL_ROLLBACK_BEGIN"))fail(`${label} redirected health evidence suppressed rollback`);
+      if(versionAt(installRoot)!==v2)fail(`${label} redirect rollback failed; current=${versionAt(installRoot)}`);
+      pass(`${label}-health-redirect-rejected`);
+    }
+  }finally{redirects.child.kill("SIGTERM");}
   const adversarial=startAdversarialHealthServer(tmp);
   try{
     const started=Date.now();
