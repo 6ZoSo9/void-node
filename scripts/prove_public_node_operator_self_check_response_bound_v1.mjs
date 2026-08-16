@@ -341,6 +341,24 @@ function snapshotFixture() {
   if (mode === "snapshot_wrong_base") return { ...canonical, effective_base_url: "https://foreign.example" };
   if (mode === "snapshot_bad_check") return { ...canonical, checks: { ...canonical.checks, route_manifest_present: false } };
   if (mode === "snapshot_bad_link") return { ...canonical, links: { ...canonical.links, proofs: "https://foreign.example/proofs" } };
+  if (mode === "snapshot_extra_sensitive_link") {
+    return {
+      ...canonical,
+      links: {
+        ...canonical.links,
+        operator_diagnostics: `${baseOrigin}/__void/operator/diagnostics`,
+      },
+    };
+  }
+  if (mode === "snapshot_extra_foreign_link") {
+    return {
+      ...canonical,
+      links: {
+        ...canonical.links,
+        foreign_public_node: "https://foreign.example/public-node",
+      },
+    };
+  }
   if (mode === "snapshot_bad_policy") return { ...canonical, policy: { ...canonical.policy, validator_mutation: true } };
   if (mode !== "snapshot_nested_splice") return canonical;
   return {
@@ -698,6 +716,8 @@ try {
     ["snapshot_wrong_base", "self_check_snapshot"],
     ["snapshot_bad_check", "self_check_snapshot"],
     ["snapshot_bad_link", "self_check_snapshot"],
+    ["snapshot_extra_sensitive_link", "self_check_snapshot"],
+    ["snapshot_extra_foreign_link", "self_check_snapshot"],
     ["snapshot_bad_policy", "self_check_snapshot"],
   ]) {
     await expectHold(port, selectedMode, checkId);
