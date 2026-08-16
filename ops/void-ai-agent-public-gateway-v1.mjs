@@ -8,6 +8,7 @@ import { fileURLToPath } from "node:url";
 const MARKER = "VOID_AI_AGENT_PUBLIC_GATEWAY_V1";
 const DEFAULT_HOST = "127.0.0.1";
 const DEFAULT_PORT = 4112;
+const UPSTREAM_REJECTION_TEARDOWN_TIMEOUT_MS = 300;
 const OPERATOR_WEBHOOK_INTEGRATION_MARKER =
   "VOID_OPERATOR_WEBHOOK_RECEIVER_AI_GATEWAY_SOURCE_INTEGRATION_V1";
 const OPERATOR_WEBHOOK_RECEIVER_UPSTREAM = (
@@ -146,6 +147,13 @@ const rawPort =
 const port = Number.parseInt(rawPort, 10);
 const proofMode =
   process.env.VOID_AI_AGENT_PUBLIC_GATEWAY_PROOF_MODE === "1";
+const proofCancellationSettlementMode = proofMode
+  ? String(
+      process.env
+        .VOID_AI_AGENT_PUBLIC_GATEWAY_PROOF_CANCEL_SETTLEMENT_MODE ||
+        "",
+    )
+  : "";
 
 if (
   !Number.isInteger(port) ||
@@ -154,6 +162,14 @@ if (
   (port === 0 && !proofMode)
 ) {
   fail(`invalid gateway port: ${rawPort}`);
+}
+
+if (
+  !["", "never", "reject"].includes(
+    proofCancellationSettlementMode,
+  )
+) {
+  fail("invalid gateway proof cancellation settlement mode");
 }
 
 for (const [name, value] of [
@@ -323,31 +339,82 @@ function logBestEffortCancellationError(label, error) {
   );
 }
 
-function cancelResponseBodyBestEffort(body, label) {
-  if (!body || typeof body.cancel !== "function") return;
+function createOwnedUpstreamAbortContext(timeoutMs) {
+  const controller = new AbortController();
+  const timeoutSignal = AbortSignal.timeout(timeoutMs);
+  return {
+    controller,
+    signal: AbortSignal.any([controller.signal, timeoutSignal]),
+  };
+}
 
-  try {
-    const cancellation = body.cancel();
-    if (cancellation && typeof cancellation.catch === "function") {
-      void cancellation.catch((error) => {
-        logBestEffortCancellationError(label, error);
-      });
-    }
-  } catch (error) {
+function proofAdjustedCancellation(cancellation, label) {
+  if (!proofCancellationSettlementMode) return cancellation;
+
+  void Promise.resolve(cancellation).catch((error) => {
     logBestEffortCancellationError(label, error);
+  });
+
+  if (proofCancellationSettlementMode === "never") {
+    return new Promise(() => {});
+  }
+
+  return Promise.reject(
+    new Error(`${label}_proof_cancel_rejected`),
+  );
+}
+
+async function settleCancellationBounded(cancellation, label) {
+  if (!cancellation || typeof cancellation.then !== "function") {
+    return;
+  }
+
+  let timeout;
+  let timedOut = false;
+  try {
+    await Promise.race([
+      Promise.resolve(
+        proofAdjustedCancellation(cancellation, label),
+      ).catch((error) => {
+        logBestEffortCancellationError(label, error);
+      }),
+      new Promise((resolve) => {
+        timeout = setTimeout(() => {
+          timedOut = true;
+          resolve();
+        }, UPSTREAM_REJECTION_TEARDOWN_TIMEOUT_MS);
+      }),
+    ]);
+  } finally {
+    if (timeout) clearTimeout(timeout);
+  }
+
+  if (timedOut) {
+    process.stderr.write(
+      `${MARKER} ${label}_response_cancel_timeout=1\n`,
+    );
   }
 }
 
-function cancelResponseReaderBestEffort(reader, label) {
-  if (!reader || typeof reader.cancel !== "function") return;
+async function rejectUpstreamResponseBounded({
+  controller,
+  body,
+  reader,
+  label,
+}) {
+  if (!controller.signal.aborted) {
+    controller.abort(
+      new Error(`${label}_response_rejected`),
+    );
+  }
 
   try {
-    const cancellation = reader.cancel();
-    if (cancellation && typeof cancellation.catch === "function") {
-      void cancellation.catch((error) => {
-        logBestEffortCancellationError(label, error);
-      });
-    }
+    const cancellation = reader?.cancel
+      ? reader.cancel()
+      : body?.cancel
+        ? body.cancel()
+        : null;
+    await settleCancellationBounded(cancellation, label);
   } catch (error) {
     logBestEffortCancellationError(label, error);
   }
@@ -358,13 +425,11 @@ function parseDeclaredResponseLength(upstreamResponse, label) {
   if (raw === null) return null;
 
   if (!/^(0|[1-9][0-9]*)$/.test(raw)) {
-    cancelResponseBodyBestEffort(upstreamResponse.body, label);
     throw new Error(`${label}_response_invalid_content_length`);
   }
 
   const declared = Number(raw);
   if (!Number.isSafeInteger(declared) || declared < 0) {
-    cancelResponseBodyBestEffort(upstreamResponse.body, label);
     throw new Error(`${label}_response_invalid_content_length`);
   }
 
@@ -375,15 +440,33 @@ async function readBoundedUpstreamResponseBody(
   upstreamResponse,
   maximum,
   label,
+  controller,
 ) {
-  const declared = parseDeclaredResponseLength(
-    upstreamResponse,
-    label,
-  );
+  let declared;
+  try {
+    declared = parseDeclaredResponseLength(
+      upstreamResponse,
+      label,
+    );
+  } catch (error) {
+    await rejectUpstreamResponseBounded({
+      controller,
+      body: upstreamResponse.body,
+      reader: null,
+      label,
+    });
+    throw error;
+  }
 
   if (declared !== null && declared > maximum) {
-    cancelResponseBodyBestEffort(upstreamResponse.body, label);
-    throw new Error(`${label}_response_too_large`);
+    const primary = new Error(`${label}_response_too_large`);
+    await rejectUpstreamResponseBounded({
+      controller,
+      body: upstreamResponse.body,
+      reader: null,
+      label,
+    });
+    throw primary;
   }
 
   const body = upstreamResponse.body;
@@ -395,8 +478,14 @@ async function readBoundedUpstreamResponseBody(
   }
 
   if (typeof body.getReader !== "function") {
-    cancelResponseBodyBestEffort(body, label);
-    throw new Error(`${label}_response_body_unavailable`);
+    const primary = new Error(`${label}_response_body_unavailable`);
+    await rejectUpstreamResponseBounded({
+      controller,
+      body,
+      reader: null,
+      label,
+    });
+    throw primary;
   }
 
   const reader = body.getReader();
@@ -412,8 +501,14 @@ async function readBoundedUpstreamResponseBody(
 
     if (total > maximum) {
       chunks.length = 0;
-      cancelResponseReaderBestEffort(reader, label);
-      throw new Error(`${label}_response_too_large`);
+      const primary = new Error(`${label}_response_too_large`);
+      await rejectUpstreamResponseBounded({
+        controller,
+        body,
+        reader,
+        label,
+      });
+      throw primary;
     }
 
     chunks.push(chunk);
@@ -555,6 +650,9 @@ async function proxyOperatorWebhookReceiver(request, response, url) {
     return;
   }
 
+  const upstreamAbort = createOwnedUpstreamAbortContext(
+    OPERATOR_WEBHOOK_RECEIVER_TIMEOUT_MS,
+  );
   const upstreamResponse = await fetch(
     `${OPERATOR_WEBHOOK_RECEIVER_UPSTREAM}${OPERATOR_WEBHOOK_RECEIVER_PATH}`,
     {
@@ -569,9 +667,7 @@ async function proxyOperatorWebhookReceiver(request, response, url) {
       },
       body,
       redirect: "manual",
-      signal: AbortSignal.timeout(
-        OPERATOR_WEBHOOK_RECEIVER_TIMEOUT_MS,
-      ),
+      signal: upstreamAbort.signal,
     },
   );
 
@@ -579,6 +675,7 @@ async function proxyOperatorWebhookReceiver(request, response, url) {
     upstreamResponse,
     OPERATOR_WEBHOOK_RECEIVER_MAX_RESPONSE_BYTES,
     "operator_webhook_receiver",
+    upstreamAbort.controller,
   );
 
   bodyResponse(
@@ -730,6 +827,9 @@ async function proxyAgentPaidWorkSubmission(
   }
 
   try {
+    const upstreamAbort = createOwnedUpstreamAbortContext(
+      AGENT_PAID_WORK_SUBMISSION_TIMEOUT_MS,
+    );
     const upstreamResponse = await fetch(
       `${AGENT_PAID_WORK_SUBMISSION_RECEIVER_UPSTREAM}${AGENT_PAID_WORK_SUBMISSION_RECEIVER_PATH}`,
       {
@@ -744,9 +844,7 @@ async function proxyAgentPaidWorkSubmission(
         },
         body,
         redirect: "manual",
-        signal: AbortSignal.timeout(
-          AGENT_PAID_WORK_SUBMISSION_TIMEOUT_MS,
-        ),
+        signal: upstreamAbort.signal,
       },
     );
 
@@ -754,6 +852,7 @@ async function proxyAgentPaidWorkSubmission(
       upstreamResponse,
       AGENT_PAID_WORK_SUBMISSION_MAX_RESPONSE_BYTES,
       "agent_paid_work_submission",
+      upstreamAbort.controller,
     );
 
     bodyResponse(
