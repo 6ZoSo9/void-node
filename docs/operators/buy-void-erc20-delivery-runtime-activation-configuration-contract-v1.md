@@ -98,20 +98,27 @@ The obsolete broad-configuration verification blocker is closed. The remaining p
 The presale reservation and paid-unreservable-liability journals are now
 fail-closed against durable-history shrinkage or substitution.
 
-Every new reservation and every new paid-unreservable obligation first publishes
-and fsyncs a content-bound expectation record under the same pool lock. The
-expectation uses the same content-derived ID as its durable record and commits to
-the exact immutable record fingerprint. On every read, the canonical expectation
-set and durable-record set must match exactly, each filename must match the
-embedded derived identity, and both expectation and record objects must satisfy
-their closed schemas.
+Every new reservation and every new paid-unreservable obligation first appends
+and fsyncs a closed entry to the pool-level `history-index-v1.jsonl` under the
+same pool lock. The index is a sequence-checked hash chain binding record kind,
+content-derived ID, exact immutable-record fingerprint, and previous-entry hash.
+Only after that durable membership commitment exists does the writer publish the
+matching expectation record and durable reservation/liability record.
+
+On every read, the authoritative expected IDs are derived from the index. The
+index-derived set must match both expectation and durable-record directories
+exactly, each filename must match the embedded derived identity, and both
+expectation and record objects must satisfy their closed schemas.
 
 Accordingly:
 
 - a present record that becomes `null`, an array/primitive, malformed, unreadable,
   schema-invalid, or content-substituted is an explicit HOLD;
 - deletion or rename before enumeration is detected because the expected ID
-  remains committed;
+  remains committed in the independent history index, including paired deletion
+  or paired rename of both the durable record and its expectation;
+- a malformed or truncated history-index tail fails closed, and removing a valid
+  index tail while leaving its committed record state produces an indexed-set HOLD;
 - a duplicate valid record under another canonical-looking filename is rejected
   as an unexpected record rather than double-counted;
 - paid-unreservable liability corruption blocks new reservation mutation instead

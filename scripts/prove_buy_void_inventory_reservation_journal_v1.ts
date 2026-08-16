@@ -7,6 +7,7 @@ import type {
 } from "../src/economic/buy_void_fulfillment_journal_v1.js";
 import {
   VOID_BUY_VOID_INVENTORY_HISTORY_EXPECTATION_V1,
+  VOID_BUY_VOID_INVENTORY_HISTORY_INDEX_V1,
   VOID_BUY_VOID_INVENTORY_RESERVATION_AUTHORITY_V1,
   VOID_BUY_VOID_INVENTORY_RESERVATION_JOURNAL_V1,
   buyVoidInventoryReservationJournalPathsV1,
@@ -341,6 +342,18 @@ assert.equal(
   VOID_BUY_VOID_INVENTORY_HISTORY_EXPECTATION_V1,
   "VOID_BUY_VOID_INVENTORY_HISTORY_EXPECTATION_V1",
 );
+assert.equal(
+  VOID_BUY_VOID_INVENTORY_HISTORY_INDEX_V1,
+  "VOID_BUY_VOID_INVENTORY_HISTORY_INDEX_V1",
+);
+
+function historyIndexLines(
+  paths: ReturnType<typeof buyVoidInventoryReservationJournalPathsV1>,
+): string[] {
+  const raw = fs.readFileSync(paths.history_index_file, "utf8");
+  assert.equal(raw.endsWith("\n"), true);
+  return raw.slice(0, -1).split("\n");
+}
 
 function finalJsonNames(dir: string): string[] {
   if (!fs.existsSync(dir)) return [];
@@ -393,6 +406,7 @@ function seedPartiallyAvailablePool(root: string): {
     finalJsonNames(paths.reservation_expectations_dir),
     reservationNames,
   );
+  assert.equal(historyIndexLines(paths).length, 2);
   return { paths, reservationNames };
 }
 
@@ -522,6 +536,108 @@ withAdversarialRoot("reservation-missing", (root) => {
   );
 });
 
+
+withAdversarialRoot("reservation-paired-delete", (root) => {
+  const { paths, reservationNames } = seedPartiallyAvailablePool(root);
+  fs.unlinkSync(path.join(paths.reservations_dir, reservationNames[0]));
+  fs.unlinkSync(
+    path.join(paths.reservation_expectations_dir, reservationNames[0]),
+  );
+  assert.throws(
+    () => listBuyVoidInventoryReservationsV1({
+      root_dir: root,
+      pool_id: policy().pool_id,
+    }),
+    /inventory_reservation_history_expected_set_mismatch/,
+  );
+  assertNewReservationMutationBlocked(
+    root,
+    /inventory_reservation_history_expected_set_mismatch/,
+  );
+});
+
+withAdversarialRoot("reservation-paired-rename", (root) => {
+  const { paths, reservationNames } = seedPartiallyAvailablePool(root);
+  const renamed = `${"e".repeat(64)}.json`;
+  assert.equal(
+    fs.existsSync(path.join(paths.reservations_dir, renamed)),
+    false,
+  );
+  fs.renameSync(
+    path.join(paths.reservations_dir, reservationNames[0]),
+    path.join(paths.reservations_dir, renamed),
+  );
+  fs.renameSync(
+    path.join(paths.reservation_expectations_dir, reservationNames[0]),
+    path.join(paths.reservation_expectations_dir, renamed),
+  );
+  assert.throws(
+    () => listBuyVoidInventoryReservationsV1({
+      root_dir: root,
+      pool_id: policy().pool_id,
+    }),
+    /inventory_reservation_history_expected_set_mismatch/,
+  );
+  assertNewReservationMutationBlocked(
+    root,
+    /inventory_reservation_history_expected_set_mismatch/,
+  );
+});
+
+withAdversarialRoot("history-index-malformed-tail", (root) => {
+  const { paths } = seedPartiallyAvailablePool(root);
+  fs.appendFileSync(paths.history_index_file, '{"broken":', "utf8");
+  assert.throws(
+    () => listBuyVoidInventoryReservationsV1({
+      root_dir: root,
+      pool_id: policy().pool_id,
+    }),
+    /inventory_history_index_truncated_tail/,
+  );
+  assertNewReservationMutationBlocked(
+    root,
+    /inventory_history_index_truncated_tail/,
+  );
+});
+
+withAdversarialRoot("history-index-valid-tail-truncation", (root) => {
+  const { paths } = seedPartiallyAvailablePool(root);
+  const lines = historyIndexLines(paths);
+  assert.equal(lines.length, 2);
+  fs.writeFileSync(
+    paths.history_index_file,
+    `${lines[0]}\n`,
+    "utf8",
+  );
+  assert.throws(
+    () => listBuyVoidInventoryReservationsV1({
+      root_dir: root,
+      pool_id: policy().pool_id,
+    }),
+    /inventory_reservation_history_expected_set_mismatch/,
+  );
+  assertNewReservationMutationBlocked(
+    root,
+    /inventory_reservation_history_expected_set_mismatch/,
+  );
+});
+
+withAdversarialRoot("history-index-missing", (root) => {
+  const { paths } = seedPartiallyAvailablePool(root);
+  fs.unlinkSync(paths.history_index_file);
+  assert.throws(
+    () => listBuyVoidInventoryReservationsV1({
+      root_dir: root,
+      pool_id: policy().pool_id,
+    }),
+    /inventory_history_index_missing_for_existing_history/,
+  );
+  assertNewReservationMutationBlocked(
+    root,
+    /inventory_history_index_missing_for_existing_history/,
+  );
+});
+
 withAdversarialRoot("reservation-unexpected", (root) => {
   const { paths, reservationNames } = seedPartiallyAvailablePool(root);
   const source = path.join(paths.reservations_dir, reservationNames[0]);
@@ -579,6 +695,7 @@ function seedObligations(root: string): {
     finalJsonNames(paths.obligation_expectations_dir),
     obligationNames,
   );
+  assert.equal(historyIndexLines(paths).length, 3);
   assert.equal(
     listBuyVoidPaidUnreservableObligationsV1({
       root_dir: root,
@@ -660,6 +777,54 @@ withAdversarialRoot("obligation-substitution", (root) => {
   );
 });
 
+
+withAdversarialRoot("obligation-paired-delete", (root) => {
+  const { paths, obligationNames } = seedObligations(root);
+  fs.unlinkSync(path.join(paths.holds_dir, obligationNames[0]));
+  fs.unlinkSync(
+    path.join(paths.obligation_expectations_dir, obligationNames[0]),
+  );
+  assert.throws(
+    () => listBuyVoidPaidUnreservableObligationsV1({
+      root_dir: root,
+      pool_id: policy().pool_id,
+    }),
+    /paid_unreservable_history_expected_set_mismatch/,
+  );
+  assertLiabilityCorruptionBlocksReservation(
+    root,
+    /paid_unreservable_history_expected_set_mismatch/,
+  );
+});
+
+withAdversarialRoot("obligation-paired-rename", (root) => {
+  const { paths, obligationNames } = seedObligations(root);
+  const renamed = `${"d".repeat(64)}.json`;
+  assert.equal(
+    fs.existsSync(path.join(paths.holds_dir, renamed)),
+    false,
+  );
+  fs.renameSync(
+    path.join(paths.holds_dir, obligationNames[0]),
+    path.join(paths.holds_dir, renamed),
+  );
+  fs.renameSync(
+    path.join(paths.obligation_expectations_dir, obligationNames[0]),
+    path.join(paths.obligation_expectations_dir, renamed),
+  );
+  assert.throws(
+    () => listBuyVoidPaidUnreservableObligationsV1({
+      root_dir: root,
+      pool_id: policy().pool_id,
+    }),
+    /paid_unreservable_history_expected_set_mismatch/,
+  );
+  assertLiabilityCorruptionBlocksReservation(
+    root,
+    /paid_unreservable_history_expected_set_mismatch/,
+  );
+});
+
 withAdversarialRoot("obligation-missing", (root) => {
   const { paths, obligationNames } = seedObligations(root);
   fs.unlinkSync(path.join(paths.holds_dir, obligationNames[0]));
@@ -677,6 +842,9 @@ withAdversarialRoot("obligation-missing", (root) => {
 });
 
 console.log("durable_history_expected_set_commitment=1");
+console.log("durable_history_append_only_hash_chain_index=1");
+console.log("durable_history_paired_deletion_fail_closed=1");
+console.log("durable_history_index_truncated_tail_fail_closed=1");
 console.log("durable_history_filename_content_identity=1");
 console.log("durable_history_missing_record_fail_closed=1");
 console.log("durable_history_non_object_fail_closed=1");

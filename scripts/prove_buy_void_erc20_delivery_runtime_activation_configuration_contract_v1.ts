@@ -196,6 +196,21 @@ assert.equal(
 );
 assert.equal(
   contract.presale_invariant_readiness
+    .durable_history_append_only_hash_chain_index_ready,
+  true,
+);
+assert.equal(
+  contract.presale_invariant_readiness
+    .durable_history_paired_record_expectation_deletion_fail_closed,
+  true,
+);
+assert.equal(
+  contract.presale_invariant_readiness
+    .durable_history_index_truncated_tail_fail_closed,
+  true,
+);
+assert.equal(
+  contract.presale_invariant_readiness
     .durable_history_missing_record_fail_closed,
   true,
 );
@@ -464,6 +479,9 @@ assert.match(
 
 for (const marker of [
   "VOID_BUY_VOID_INVENTORY_HISTORY_EXPECTATION_V1",
+  "VOID_BUY_VOID_INVENTORY_HISTORY_INDEX_V1",
+  "history_index_file",
+  "inventory_history_index_truncated_tail",
   "reservation_expectations_dir",
   "obligation_expectations_dir",
   "inventory_reservation_history_expected_set_mismatch",
@@ -496,6 +514,9 @@ console.log("reviewed_configuration_binding_marker=VOID_BUY_VOID_ERC20_PRODUCTIO
 console.log("configuration_fingerprint_sha256=9891cc703bd724541ace341561e3194bf356d5ac8af9d767acf7189e03174992");
 console.log("canonical_production_credential_binding_evidence_ready=1");
 console.log("durable_history_expected_set_commitment_ready=1");
+console.log("durable_history_append_only_hash_chain_index_ready=1");
+console.log("durable_history_paired_record_expectation_deletion_fail_closed=1");
+console.log("durable_history_index_truncated_tail_fail_closed=1");
 console.log("durable_history_filename_content_identity_enforced=1");
 console.log("durable_history_missing_record_fail_closed=1");
 console.log("durable_history_liability_completeness_fail_closed=1");

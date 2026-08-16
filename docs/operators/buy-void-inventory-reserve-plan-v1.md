@@ -21,21 +21,28 @@ It still does **not** deliver VOID.
 The inventory journal derives a deterministic pool key from the configured
 `pool_id` and stores immutable reservation records beneath that pool.
 
-Each reservation is paired with a durable, content-bound expectation record
-written and fsynced before the reservation itself. The expectation filename is the
-same content-derived ID as the reservation and stores the exact immutable record
-fingerprint. Reservation and expectation sets must match exactly on every read.
+Each reservation is committed first to the pool-level
+`history-index-v1.jsonl`, a fsynced append-only hash chain whose entries contain
+the record kind, content-derived ID, exact immutable-record fingerprint, sequence,
+previous-entry hash, and current-entry hash. The same entry is then paired with a
+durable content-bound expectation record and finally with the reservation itself.
 
-Paid-unreservable operator-reconciliation obligations use the same paired
-expectation contract. Missing, renamed, substituted, unreadable, non-object,
+Paid-unreservable operator-reconciliation obligations use the same index +
+expectation + durable-record contract. The authoritative expected set comes from
+the history index, not from either deletable record directory. Reservation and
+obligation record/expectation sets must each match their indexed IDs exactly on
+every read.
+
+Missing, paired-deleted, paired-renamed, substituted, unreadable, non-object,
 malformed, schema-invalid, or unexpected durable history therefore produces an
-explicit HOLD instead of a smaller recomputed history. A crash between expectation
-publication and record publication is fail-closed: later mutation remains blocked
-until the incomplete durable history is reviewed.
+explicit HOLD instead of a smaller recomputed history. A malformed/truncated
+index tail also fails closed. A crash after index publication but before
+expectation or record publication leaves an indexed-set mismatch, so later
+mutation remains blocked until the incomplete durable history is reviewed.
 
-Existing durable record directories created before this contract cannot be silently
-adopted without matching expectation records; nonempty unindexed history is held
-rather than treated as a fresh empty baseline.
+Existing durable record directories created before this contract cannot be
+silently adopted without the index commitment and matching expectation records;
+nonempty unindexed history is held rather than treated as a fresh empty baseline.
 
 Each reservation binds:
 
