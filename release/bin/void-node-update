@@ -9,6 +9,8 @@ import readline from "node:readline/promises";
 import {fileURLToPath, pathToFileURL} from "node:url";
 
 const MARKER="VOID_NODE_RELEASE_UPDATE_V1";
+const HEALTH_RESPONSE_MAX_BYTES=64*1024;
+const ROLLBACK_TRANSACTION_MARKER="VOID_NODE_RELEASE_ROLLBACK_TRANSACTION_V1";
 function fail(m,code=1){console.error(`ERROR: ${m}`);process.exit(code);}
 function say(m=""){console.log(m);}
 function shaBuffer(b){return crypto.createHash("sha256").update(b).digest("hex");}
@@ -25,6 +27,50 @@ function readJson(p){return JSON.parse(fs.readFileSync(p,"utf8"));}
 function parseVersion(v){const m=String(v).match(/^(\d+)\.(\d+)\.(\d+)(?:-([0-9A-Za-z.-]+))?(?:\+[0-9A-Za-z.-]+)?$/);if(!m)return null;return {core:m.slice(1,4).map(Number),pre:m[4]||""};}
 function compareVersion(a,b){const A=parseVersion(a),B=parseVersion(b);if(!A||!B)fail(`versions must be semver-compatible: ${a} / ${b}`);for(let i=0;i<3;i++){if(A.core[i]!==B.core[i])return A.core[i]<B.core[i]?-1:1;}if(A.pre===B.pre)return 0;if(!A.pre)return 1;if(!B.pre)return -1;return A.pre<B.pre?-1:1;}
 function ensureSafeName(n){if(typeof n!=="string"||!n||n.includes("/")||n.includes("\\")||n==="."||n==="..")fail(`unsafe asset name: ${n}`);return n;}
+function testLoopbackHttpAllowed(u,allowFile){return allowFile&&process.env.VOID_NODE_UPDATE_TEST_ALLOW_HTTP_LOOPBACK==="1"&&u.protocol==="http:"&&(u.hostname==="127.0.0.1"||u.hostname==="localhost");}
+function normalizedUrlIdentity(value){const u=new URL(value);u.hash="";return u.href;}
+function declaredResponseBytes(response,label){
+  const raw=response.headers.get("content-length");if(raw===null)return null;
+  if(!/^(0|[1-9][0-9]*)$/.test(raw))throw new Error(`${label} has invalid Content-Length`);
+  const value=Number(raw);if(!Number.isSafeInteger(value))throw new Error(`${label} has invalid Content-Length`);
+  return value;
+}
+function abortResponseBody(response,reader,ac){
+  if(ac&&!ac.signal.aborted)ac.abort();
+  try{const pending=reader?reader.cancel():response.body?.cancel();if(pending&&typeof pending.catch==="function")pending.catch(()=>{});}catch{}
+}
+async function readBoundedResponseBytes(response,maxBytes,label,ac){
+  const declared=declaredResponseBytes(response,label);
+  if(declared!==null&&declared>maxBytes){abortResponseBody(response,null,ac);throw new Error(`${label} exceeds size limit`);}
+  if(!response.body)throw new Error(`${label} body unavailable`);
+  const reader=response.body.getReader(),chunks=[];let bytes=0;
+  for(;;){
+    const {done,value}=await reader.read();if(done)break;if(!value)continue;
+    if(bytes+value.byteLength>maxBytes){abortResponseBody(response,reader,ac);throw new Error(`${label} exceeds size limit`);}
+    chunks.push(Buffer.from(value));bytes+=value.byteLength;
+  }
+  return Buffer.concat(chunks,bytes);
+}
+async function streamExactResponseToFile(response,dest,a,ac){
+  const label=`asset ${a.name}`,declared=declaredResponseBytes(response,label);
+  if(declared!==null&&declared!==a.bytes){abortResponseBody(response,null,ac);throw new Error(`asset size mismatch for ${a.name}: ${declared} != ${a.bytes}`);}
+  if(!response.body)throw new Error(`${label} body unavailable`);
+  const reader=response.body.getReader(),digest=crypto.createHash("sha256");let bytes=0,fd=null,complete=false;
+  try{
+    fd=fs.openSync(dest,"wx",a.name.endsWith(".sh")?0o755:0o644);
+    for(;;){
+      const {done,value}=await reader.read();if(done)break;if(!value)continue;
+      if(bytes+value.byteLength>a.bytes){abortResponseBody(response,reader,ac);throw new Error(`asset size mismatch for ${a.name}: exceeds ${a.bytes}`);}
+      const chunk=Buffer.from(value);fs.writeSync(fd,chunk);digest.update(chunk);bytes+=chunk.length;
+    }
+    if(bytes!==a.bytes)throw new Error(`asset size mismatch for ${a.name}: ${bytes} != ${a.bytes}`);
+    const actual=digest.digest("hex");if(actual!==a.sha256)throw new Error(`asset checksum mismatch for ${a.name}`);
+    complete=true;
+  }finally{
+    if(fd!==null)fs.closeSync(fd);
+    if(!complete){try{fs.unlinkSync(dest);}catch(e){if(e?.code!=="ENOENT")throw e;}}
+  }
+}
 function validateChannel(j,allowFile){
   if(j?.marker!=="VOID_PUBLIC_RELEASE_CHANNEL_V1"||j?.schema_version!==1)fail("invalid channel marker/schema");
   if(!["stable","candidate"].includes(j.channel))fail("invalid channel");
@@ -39,7 +85,7 @@ function validateChannel(j,allowFile){
     ensureSafeName(a.name);
     if(!/^[0-9a-f]{64}$/.test(a.sha256||""))fail(`invalid hash for ${key}`);
     if(!Number.isSafeInteger(a.bytes)||a.bytes<1)fail(`invalid size for ${key}`);
-    const u=new URL(a.url);if(u.protocol!=="https:"&&!(allowFile&&u.protocol==="file:"))fail(`unsafe URL for ${key}: ${a.url}`);
+    const u=new URL(a.url),testHttp=testLoopbackHttpAllowed(u,allowFile);if(u.protocol!=="https:"&&!(allowFile&&u.protocol==="file:")&&!testHttp)fail(`unsafe URL for ${key}: ${a.url}`);
     if(u.protocol==="https:"&&u.hostname!=="github.com")fail(`stable channel assets must start at github.com: ${a.url}`);
     if(u.protocol==="https:"&&!u.pathname.startsWith(`/${j.repository}/releases/download/${j.release_tag}/`))fail(`asset URL escapes repository/tag: ${a.url}`);
   }
@@ -52,34 +98,92 @@ function validateChannel(j,allowFile){
 }
 function currentInfo(installRoot){const p=path.join(installRoot,"current","BUILD-INFO.json");if(!fs.existsSync(p))fail(`missing current build info: ${p}`);return readJson(p);}
 function verifyRoot(root){const sums=path.join(root,"RELEASE-CONTENTS-SHA256");if(!fs.existsSync(sums))fail(`missing internal checksums: ${sums}`);run("sha256sum",["--check","--strict","RELEASE-CONTENTS-SHA256"],{cwd:root,capture:true});}
-function swapRollback(installRoot,restart){
-  const cur=path.join(installRoot,"current"),prev=path.join(installRoot,"previous");if(!fs.lstatSync(prev).isSymbolicLink())fail("no previous release is available for rollback");
-  const oldCur=fs.realpathSync(cur),oldPrev=fs.realpathSync(prev);verifyRoot(oldPrev);
-  const n1=path.join(installRoot,".current.update-next"),n2=path.join(installRoot,".previous.update-next");
-  try{fs.unlinkSync(n1);}catch{}try{fs.unlinkSync(n2);}catch{}
-  fs.symlinkSync(oldPrev,n1);fs.renameSync(n1,cur);fs.symlinkSync(oldCur,n2);fs.renameSync(n2,prev);
+function exists(p){try{fs.lstatSync(p);return true;}catch(e){if(e?.code==="ENOENT")return false;throw e;}}
+function fsyncDirectory(p){const fd=fs.openSync(p,"r");try{fs.fsyncSync(fd);}finally{fs.closeSync(fd);}}
+function rollbackPaths(installRoot){return {cur:path.join(installRoot,"current"),prev:path.join(installRoot,"previous"),n1:path.join(installRoot,".current.update-next"),n2:path.join(installRoot,".previous.update-next"),journal:path.join(installRoot,".rollback.update-transaction-v1.json"),journalNext:path.join(installRoot,".rollback.update-transaction-v1.json.next")};}
+function pointerTarget(p,name){let st;try{st=fs.lstatSync(p);}catch(e){if(e?.code==="ENOENT")fail(`${name} release pointer is missing`);throw e;}if(!st.isSymbolicLink())fail(`${name} release pointer is not a symlink`);return fs.realpathSync(p);}
+function requireAbsent(p,name){if(exists(p))fail(`unexpected rollback artifact requires operator recovery: ${name}`);}
+function requireStagedLink(p,target,name){let st;try{st=fs.lstatSync(p);}catch(e){if(e?.code==="ENOENT")fail(`missing rollback staging link: ${name}`);throw e;}if(!st.isSymbolicLink()||fs.realpathSync(p)!==target)fail(`invalid rollback staging link: ${name}`);}
+function readRollbackJournal(paths){
+  if(!exists(paths.journal))return null;
+  const st=fs.lstatSync(paths.journal);if(!st.isFile()||st.isSymbolicLink()||st.size>8192)fail("invalid rollback transaction journal");
+  let j;try{j=JSON.parse(fs.readFileSync(paths.journal,"utf8"));}catch{fail("invalid rollback transaction journal JSON");}
+  const keys=Object.keys(j||{}).sort().join(",");
+  if(keys!=="marker,old_current,old_previous,schema_version"||j.marker!==ROLLBACK_TRANSACTION_MARKER||j.schema_version!==1||typeof j.old_current!=="string"||typeof j.old_previous!=="string"||!path.isAbsolute(j.old_current)||!path.isAbsolute(j.old_previous)||j.old_current===j.old_previous)fail("invalid rollback transaction journal contract");
+  verifyRoot(j.old_current);verifyRoot(j.old_previous);return j;
+}
+function writeRollbackJournal(installRoot,paths,journal){
+  const bytes=Buffer.from(`${JSON.stringify(journal)}\n`);const fd=fs.openSync(paths.journalNext,"wx",0o600);
+  try{fs.writeFileSync(fd,bytes);fs.fsyncSync(fd);}finally{fs.closeSync(fd);}
+  fs.renameSync(paths.journalNext,paths.journal);fsyncDirectory(installRoot);
+}
+function completeRollbackTransaction(installRoot,paths,journal,testInterrupt){
+  const current=pointerTarget(paths.cur,"current"),previous=pointerTarget(paths.prev,"previous");
+  if(current===journal.old_current&&previous===journal.old_previous){
+    requireStagedLink(paths.n1,journal.old_previous,"current");requireStagedLink(paths.n2,journal.old_current,"previous");
+    fs.renameSync(paths.n1,paths.cur);fsyncDirectory(installRoot);
+    if(testInterrupt)fail("test interruption after current rollback pointer publication");
+    fs.renameSync(paths.n2,paths.prev);fsyncDirectory(installRoot);
+  }else if(current===journal.old_previous&&previous===journal.old_previous){
+    requireAbsent(paths.n1,"current staging link");requireStagedLink(paths.n2,journal.old_current,"previous");
+    fs.renameSync(paths.n2,paths.prev);fsyncDirectory(installRoot);
+  }else if(current===journal.old_previous&&previous===journal.old_current){
+    requireAbsent(paths.n1,"current staging link");requireAbsent(paths.n2,"previous staging link");
+  }else fail("rollback transaction journal does not match canonical pointer state");
+  fs.unlinkSync(paths.journal);fsyncDirectory(installRoot);
+}
+function recoverRollbackTransaction(installRoot){
+  const paths=rollbackPaths(installRoot),journal=readRollbackJournal(paths);if(!journal)return false;
+  requireAbsent(paths.journalNext,"journal staging file");completeRollbackTransaction(installRoot,paths,journal,false);say(`${MARKER}_ROLLBACK_RECOVERED`);return true;
+}
+function requireCleanRollbackState(installRoot){const paths=rollbackPaths(installRoot);requireAbsent(paths.journal,"transaction journal");requireAbsent(paths.journalNext,"journal staging file");requireAbsent(paths.n1,"current staging link");requireAbsent(paths.n2,"previous staging link");}
+function swapRollback(installRoot,restart,testAllowFile){
+  requireCleanRollbackState(installRoot);const paths=rollbackPaths(installRoot);
+  const oldCur=pointerTarget(paths.cur,"current"),oldPrev=pointerTarget(paths.prev,"previous");verifyRoot(oldCur);verifyRoot(oldPrev);if(oldCur===oldPrev)fail("current and previous releases must be distinct");
+  fs.symlinkSync(oldPrev,paths.n1);fs.symlinkSync(oldCur,paths.n2);
+  const journal={marker:ROLLBACK_TRANSACTION_MARKER,schema_version:1,old_current:oldCur,old_previous:oldPrev};writeRollbackJournal(installRoot,paths,journal);
+  completeRollbackTransaction(installRoot,paths,journal,testAllowFile&&process.env.VOID_NODE_UPDATE_TEST_INTERRUPT_ROLLBACK_AFTER_CURRENT==="1");
   if(restart&&managerAvailable())run("systemctl",["--user","restart","void-node.service"]);
   say(`${MARKER}_ROLLBACK_GREEN`);say(`rolled_back_to=${readJson(path.join(oldPrev,"BUILD-INFO.json")).version}`);
 }
 async function readSource(source,allowFile,maxBytes=2*1024*1024){
   let u;try{u=new URL(source);}catch{u=pathToFileURL(path.resolve(source));}
   if(u.protocol==="file:"){
-    if(!allowFile)fail("file channels are test-only; pass --test-allow-file");const b=fs.readFileSync(fileURLToPath(u));if(b.length>maxBytes)fail("channel file exceeds size limit");return b;
+    if(!allowFile)fail("file channels are test-only; pass --test-allow-file");const st=fs.statSync(fileURLToPath(u));if(st.size>maxBytes)fail("channel file exceeds size limit");return fs.readFileSync(fileURLToPath(u));
   }
-  if(u.protocol!=="https:")fail(`channel URL must use HTTPS: ${source}`);
+  if(u.protocol!=="https:"&&!testLoopbackHttpAllowed(u,allowFile))fail(`channel URL must use HTTPS: ${source}`);
   const ac=new AbortController();const t=setTimeout(()=>ac.abort(),30000);
-  try{const r=await fetch(u,{redirect:"follow",signal:ac.signal,headers:{"user-agent":"void-node-update-v1"}});if(!r.ok)fail(`download failed ${r.status}: ${u}`);const b=Buffer.from(await r.arrayBuffer());if(b.length>maxBytes)fail(`download exceeds size limit: ${u}`);return b;}finally{clearTimeout(t);}
+  try{
+    const r=await fetch(u,{redirect:"follow",signal:ac.signal,headers:{"user-agent":"void-node-update-v1"}});
+    if(!r.ok)fail(`download failed ${r.status}: ${u}`);
+    return await readBoundedResponseBytes(r,maxBytes,"download",ac);
+  }finally{clearTimeout(t);}
 }
 async function downloadAsset(a,dest,allowFile){
-  let u=new URL(a.url);let b;
-  if(u.protocol==="file:"){if(!allowFile)fail("file assets are test-only");b=fs.readFileSync(fileURLToPath(u));}
-  else{
-    const ac=new AbortController();const t=setTimeout(()=>ac.abort(),120000);
-    try{const r=await fetch(u,{redirect:"follow",signal:ac.signal,headers:{"user-agent":"void-node-update-v1"}});if(!r.ok)fail(`asset download failed ${r.status}: ${u}`);b=Buffer.from(await r.arrayBuffer());}finally{clearTimeout(t);}
+  const u=new URL(a.url);
+  if(u.protocol==="file:"){
+    if(!allowFile)fail("file assets are test-only");
+    const source=fileURLToPath(u),st=fs.statSync(source);if(st.size!==a.bytes)fail(`asset size mismatch for ${a.name}: ${st.size} != ${a.bytes}`);
+    const digest=shaFile(source);if(digest!==a.sha256)fail(`asset checksum mismatch for ${a.name}`);
+    fs.copyFileSync(source,dest);fs.chmodSync(dest,a.name.endsWith(".sh")?0o755:0o644);return;
   }
-  if(b.length!==a.bytes)fail(`asset size mismatch for ${a.name}: ${b.length} != ${a.bytes}`);
-  const digest=shaBuffer(b);if(digest!==a.sha256)fail(`asset checksum mismatch for ${a.name}`);
-  fs.writeFileSync(dest,b,{mode:a.name.endsWith(".sh")?0o755:0o644});
+  if(u.protocol!=="https:"&&!testLoopbackHttpAllowed(u,allowFile))fail(`unsafe asset URL: ${a.url}`);
+  const ac=new AbortController();const t=setTimeout(()=>ac.abort(),120000);
+  try{
+    const r=await fetch(u,{redirect:"follow",signal:ac.signal,headers:{"user-agent":"void-node-update-v1"}});
+    if(!r.ok)fail(`asset download failed ${r.status}: ${u}`);
+    await streamExactResponseToFile(r,dest,a,ac);
+  }finally{clearTimeout(t);}
+}
+function healthLimit(o,name,fallback,min,max){
+  if(!o.testAllowFile||process.env[name]===undefined)return fallback;
+  const value=Number(process.env[name]);
+  if(!Number.isSafeInteger(value)||value<min||value>max)fail(`invalid ${name}`);
+  return value;
+}
+async function readBoundedHealthJson(response,ac){
+  const bytes=await readBoundedResponseBytes(response,HEALTH_RESPONSE_MAX_BYTES,"health response",ac);
+  return JSON.parse(bytes.toString("utf8"));
 }
 function parseArgs(){
   const argv=process.argv.slice(2);const command=argv.shift()||"help";const o={command,channel:"",installRoot:"",binDir:"",yes:false,allowDowngrade:false,allowCandidate:false,restartIfRunning:false,healthUrl:"",healthCommand:"",testAllowFile:false,skipAttestation:false};
@@ -104,9 +208,17 @@ async function confirm(o,message){if(o.yes)return; if(!process.stdin.isTTY)fail(
 async function healthCheck(o){
   if(o.healthCommand){if(!o.testAllowFile&&process.env.VOID_NODE_UPDATE_ALLOW_HEALTH_COMMAND!=="1")fail("--health-command is test/operator-only");return childProcess.spawnSync("bash",["-lc",o.healthCommand],{stdio:"inherit"}).status===0;}
   if(!o.healthUrl)return true;
-  for(let i=0;i<30;i++){
-    try{const ac=new AbortController();const t=setTimeout(()=>ac.abort(),3000);const r=await fetch(o.healthUrl,{signal:ac.signal});clearTimeout(t);if(r.ok){const j=await r.json();if(j?.ready===true&&Number(j?.gap)===0&&Number(j?.txroot_live)===1)return true;}}catch{}
-    await new Promise(r=>setTimeout(r,1000));
+  const attempts=healthLimit(o,"VOID_NODE_UPDATE_TEST_HEALTH_ATTEMPTS",30,1,30);
+  const timeoutMs=healthLimit(o,"VOID_NODE_UPDATE_TEST_HEALTH_TIMEOUT_MS",3000,50,3000);
+  const retryDelayMs=healthLimit(o,"VOID_NODE_UPDATE_TEST_HEALTH_RETRY_DELAY_MS",1000,0,1000);
+  const expectedHealthUrl=normalizedUrlIdentity(o.healthUrl);
+  for(let i=0;i<attempts;i++){
+    const ac=new AbortController(),t=setTimeout(()=>ac.abort(),timeoutMs);
+    try{
+      const r=await fetch(o.healthUrl,{redirect:"error",signal:ac.signal});
+      if(r.ok&&normalizedUrlIdentity(r.url)===expectedHealthUrl){const j=await readBoundedHealthJson(r,ac);if(j?.ready===true&&j?.gap===0&&j?.txroot_live===1)return true;}
+    }catch{}finally{clearTimeout(t);}
+    if(i+1<attempts&&retryDelayMs>0)await new Promise(r=>setTimeout(r,retryDelayMs));
   }
   return false;
 }
@@ -116,7 +228,8 @@ async function main(){
   if(o.command==="help"||o.command==="--help"||o.command==="-h"){
     say(`VOID node verified release updater\n\n  void-node update check --channel URL\n  void-node update apply --channel URL --yes [--allow-candidate] [--restart-if-running] [--health-url URL]\n  void-node update rollback\n\nStable apply rejects downgrades, verifies SHA-256 and GitHub attestations, never starts a stopped service, and rolls back after a failed explicit health gate.`);return;
   }
-  if(o.command==="rollback"){const active=managerAvailable()&&childProcess.spawnSync("systemctl",["--user","is-active","--quiet","void-node.service"]).status===0;swapRollback(installRoot,active);return;}
+  if(recoverRollbackTransaction(installRoot))fail("recovered interrupted rollback; re-run the requested command",2);requireCleanRollbackState(installRoot);
+  if(o.command==="rollback"){const active=managerAvailable()&&childProcess.spawnSync("systemctl",["--user","is-active","--quiet","void-node.service"]).status===0;swapRollback(installRoot,active,o.testAllowFile);return;}
   if(!o.channel)fail("--channel is required");
   const raw=await readSource(o.channel,o.testAllowFile);const channel=validateChannel(JSON.parse(raw.toString("utf8")),o.testAllowFile);const cur=currentInfo(installRoot);const cmp=compareVersion(channel.release.version,cur.version);
   say(`marker=${MARKER}`);say(`channel=${channel.channel}`);say(`current_version=${cur.version}`);say(`available_version=${channel.release.version}`);say(`update_available=${cmp>0}`);say(`downgrade=${cmp<0}`);say(`release_immutable=${channel.publication?.release_immutable===true}`);say(`release_revoked=${channel.publication?.revoked===true}`);say(`channel_frozen=${channel.policy?.channel_frozen===true}`);say("service_started_implicitly=false");say("guarded_lanes_activated=false");
@@ -144,7 +257,7 @@ async function main(){
     const healthRequired=Boolean(o.healthCommand||o.healthUrl||active);
     if(active&&!o.healthUrl&&!o.healthCommand)o.healthUrl="http://127.0.0.1:4100/__void/ready.json";
     if(healthRequired&&!(await healthCheck(o))){
-      console.error(`${MARKER}_HEALTH_FAIL_ROLLBACK_BEGIN`);swapRollback(installRoot,active&&o.restartIfRunning);fail("updated release failed health gate and was rolled back");
+      console.error(`${MARKER}_HEALTH_FAIL_ROLLBACK_BEGIN`);swapRollback(installRoot,active&&o.restartIfRunning,o.testAllowFile);fail("updated release failed health gate and was rolled back");
     }
     say(`${MARKER}_APPLY_GREEN`);say(`updated_to=${channel.release.version}`);say(`previous_version=${cur.version}`);say(`service_restarted=${active&&o.restartIfRunning}`);say("health_gate_green=true");say("service_started_implicitly=false");say("guarded_lanes_activated=false");
   }finally{fs.rmSync(tmp,{recursive:true,force:true});}
