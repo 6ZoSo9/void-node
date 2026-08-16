@@ -292,6 +292,24 @@ async function rejectResponseBody(
   throw error;
 }
 
+async function rejectReaderFailure(
+  reader: ReadableStreamDefaultReader<Uint8Array>,
+  controller: AbortController,
+): Promise<never> {
+  const timedOut = controller.signal.aborted;
+  const error = new SteamReadonlyBridgeError(
+    timedOut ? "upstream_timeout" : "upstream_unreachable",
+    timedOut
+      ? "Steam Web API request timed out"
+      : "Steam Web API response body failed",
+  );
+  if (!timedOut) {
+    controller.abort(error);
+  }
+  await settleBestEffort(() => reader.cancel(error));
+  throw error;
+}
+
 async function readBoundedResponse(
   response: Response,
   maxBytes: number,
@@ -342,7 +360,12 @@ async function readBoundedResponse(
   let total = 0;
 
   while (true) {
-    const part = await reader.read();
+    let part: ReadableStreamReadResult<Uint8Array>;
+    try {
+      part = await reader.read();
+    } catch {
+      return rejectReaderFailure(reader, controller);
+    }
     if (part.done) break;
     total += part.value.byteLength;
     if (total > maxBytes) {
