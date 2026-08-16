@@ -398,9 +398,15 @@ async function fetchJsonV1({
       response.status >= 300 &&
       response.status < 400
     ) {
-      throw new Error(
+      const primary = new Error(
         `redirect_forbidden:${response.status}`,
       );
+      await rejectResponseBodyBounded(
+        response,
+        null,
+        controller,
+      );
+      throw primary;
     }
 
     const raw = await boundedRead(

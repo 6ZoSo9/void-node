@@ -38,6 +38,10 @@ jobs:
         uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
         with:
           node-version: ${{ matrix.node }}
+      - name: Verify executable client mode
+        run: |
+          test "$(git ls-files -s -- tools/void-ai-agent-bootstrap-client-v1.mjs | awk '{print $1}')" = "100755"
+          test -x tools/void-ai-agent-bootstrap-client-v1.mjs
       - name: Syntax
         run: |
           node --check tools/void-ai-agent-bootstrap-client-v1.mjs

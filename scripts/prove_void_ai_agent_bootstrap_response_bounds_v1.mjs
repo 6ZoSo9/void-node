@@ -94,6 +94,21 @@ function fetchForMode(mode) {
       return jsonResponse(payload);
     }
 
+    if (mode === "redirect_cancel_never") {
+      return new Response(
+        neverSettlingCancellationStream([
+          bytes('{"redirect":"body"}'),
+        ]),
+        {
+          status: 302,
+          headers: {
+            "content-type": "application/json",
+            location: "/redirect-target",
+          },
+        },
+      );
+    }
+
     if (mode === "declared_oversize_cancel_never") {
       return new Response(neverSettlingCancellationStream(), {
         status: 200,
@@ -176,6 +191,17 @@ const small = await runMode("small");
 assert.equal(small.result.readiness.read_only_connection_ready, true);
 assert.equal(small.result.surfaces.capabilities.available, true);
 
+const redirect = await runMode("redirect_cancel_never");
+assert.equal(redirect.result.surfaces.capabilities.available, false);
+assert.equal(
+  redirect.result.surfaces.capabilities.error,
+  "redirect_forbidden:302",
+);
+assert(
+  redirect.elapsedMs < 1200,
+  `redirect rejection waited on non-settling cancellation: ${redirect.elapsedMs.toFixed(1)}ms`,
+);
+
 const declared = await runMode("declared_oversize_cancel_never");
 assert.equal(declared.result.surfaces.capabilities.available, false);
 assert.match(
@@ -218,6 +244,7 @@ assert(
 
 for (const result of [
   small.result,
+  redirect.result,
   declared.result,
   streamed.result,
   invalidLength.result,
@@ -228,6 +255,7 @@ for (const result of [
   assert.equal(result.readiness.payment_authority_granted, false);
   assert.equal(result.safety.http_methods_used.length, 1);
   assert.equal(result.safety.http_methods_used[0], "GET");
+  assert.equal(result.safety.redirects_followed, false);
   assert.equal(result.safety.credentials_sent, false);
   assert.equal(result.safety.request_body_sent, false);
   assert.equal(result.safety.transaction_broadcast_performed, false);
@@ -235,6 +263,7 @@ for (const result of [
 }
 
 console.log("VOID_AI_AGENT_BOOTSTRAP_RESPONSE_BOUNDS_V1_PROOF_GREEN");
+console.log("redirect_rejection_teardown_bounded=true");
 console.log("declared_oversize_prebuffer_rejected=true");
 console.log("streamed_oversize_prebuffer_rejected=true");
 console.log("invalid_content_length_rejected=true");
