@@ -19,10 +19,11 @@ const input = {
 async function expectCode(
   code: string,
   fetch_impl: typeof fetch,
+  test_env = env,
 ): Promise<number> {
   const started = Date.now();
   await assert.rejects(
-    () => executeSteamReadonlyRequest(input, { env, fetch_impl }),
+    () => executeSteamReadonlyRequest(input, { env: test_env, fetch_impl }),
     (error: unknown) => {
       assert.ok(error instanceof SteamReadonlyBridgeError);
       assert.equal(error.code, code);
@@ -48,6 +49,40 @@ function bodyWithCancel(
       return options.cancel();
     },
   });
+}
+
+function responseWithReaderFailure(options: {
+  fail_delay_ms?: number;
+  cancel: () => Promise<void> | void;
+}): Response {
+  const prefix = new TextEncoder().encode('{"response":');
+  let readCalls = 0;
+  const reader = {
+    async read(): Promise<ReadableStreamReadResult<Uint8Array>> {
+      readCalls += 1;
+      if (readCalls === 1) {
+        return { done: false, value: prefix };
+      }
+      if (options.fail_delay_ms) {
+        await new Promise<void>((resolve) => {
+          setTimeout(resolve, options.fail_delay_ms);
+        });
+      }
+      throw new Error("synthetic admitted response read failure");
+    },
+    cancel() {
+      return options.cancel();
+    },
+  } as unknown as ReadableStreamDefaultReader<Uint8Array>;
+
+  return {
+    ok: true,
+    status: 200,
+    headers: new Headers({ "content-type": "application/json" }),
+    body: {
+      getReader: () => reader,
+    },
+  } as unknown as Response;
 }
 
 let declaredCancelCalls = 0;
@@ -154,6 +189,59 @@ const contentTypeElapsed = await expectCode(
 assert.equal(contentTypeCancelCalls, 1);
 assert.ok(contentTypeElapsed < 900, `content-type teardown stalled ${contentTypeElapsed}ms`);
 
+let admittedNeverCancelCalls = 0;
+const admittedNeverElapsed = await expectCode(
+  "upstream_unreachable",
+  async () => responseWithReaderFailure({
+    cancel: () => {
+      admittedNeverCancelCalls += 1;
+      return new Promise<void>(() => undefined);
+    },
+  }),
+);
+assert.equal(admittedNeverCancelCalls, 1);
+assert.ok(
+  admittedNeverElapsed < 900,
+  `admitted read failure stalled ${admittedNeverElapsed}ms`,
+);
+
+let admittedRejectCancelCalls = 0;
+const admittedRejectElapsed = await expectCode(
+  "upstream_unreachable",
+  async () => responseWithReaderFailure({
+    cancel: () => {
+      admittedRejectCancelCalls += 1;
+      return Promise.reject(new Error("synthetic admitted cleanup failure"));
+    },
+  }),
+);
+assert.equal(admittedRejectCancelCalls, 1);
+assert.ok(
+  admittedRejectElapsed < 900,
+  `admitted rejecting cleanup stalled ${admittedRejectElapsed}ms`,
+);
+
+let timeoutReadCancelCalls = 0;
+const timeoutReadElapsed = await expectCode(
+  "upstream_timeout",
+  async () => responseWithReaderFailure({
+    fail_delay_ms: 550,
+    cancel: () => {
+      timeoutReadCancelCalls += 1;
+      return new Promise<void>(() => undefined);
+    },
+  }),
+  {
+    ...env,
+    VOID_STEAM_READONLY_TIMEOUT_MS: "500",
+  },
+);
+assert.equal(timeoutReadCancelCalls, 1);
+assert.ok(
+  timeoutReadElapsed < 2000,
+  `deadline-triggered read failure stalled ${timeoutReadElapsed}ms`,
+);
+
 const validBody = JSON.stringify({ response: { players: [] } });
 const valid = await executeSteamReadonlyRequest(input, {
   env,
@@ -173,5 +261,8 @@ console.log("malformed_content_length_fail_closed=true");
 console.log("streamed_oversize_cancel_bounded=true");
 console.log("non_2xx_body_teardown_bounded=true");
 console.log("wrong_content_type_body_teardown_bounded=true");
+console.log("admitted_read_failure_cancel_bounded=true");
+console.log("admitted_read_failure_primary_error_preserved=true");
+console.log("deadline_triggered_read_failure_preserved=true");
 console.log("primary_rejection_preserved=true");
 console.log("VOID_STEAM_READONLY_BRIDGE_RESPONSE_TEARDOWN_V1_GREEN");
