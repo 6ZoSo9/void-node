@@ -277,19 +277,40 @@ function readBoundedBody(req, maximum) {
   });
 }
 
-function cancelBodyBestEffort(target) {
-  try {
-    const result = target?.cancel?.();
-    if (result && typeof result.catch === "function") {
-      void result.catch(() => undefined);
-    }
-  } catch (error) {
-    void error;
+async function settleCleanupWithinDeadline(cleanup, deadlineAt) {
+  if (!cleanup || typeof cleanup.then !== "function") return;
+  const remaining = Math.max(0, deadlineAt - Date.now());
+  if (remaining <= 0) {
+    void Promise.resolve(cleanup).catch(() => undefined);
+    return;
   }
+  let timer;
+  try {
+    await Promise.race([
+      Promise.resolve(cleanup).catch(() => undefined),
+      new Promise((resolve) => {
+        timer = setTimeout(resolve, remaining);
+      }),
+    ]);
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+}
+
+async function abortAndCancelWithinDeadline(target, controller, deadlineAt) {
+  if (!controller.signal.aborted) controller.abort();
+  let cleanup;
+  try {
+    cleanup = target?.cancel?.();
+  } catch {
+    return;
+  }
+  await settleCleanupWithinDeadline(cleanup, deadlineAt);
 }
 
 async function fetchWithTimeout(url, options, consume) {
   const controller = new AbortController();
+  const deadlineAt = Date.now() + REQUEST_TIMEOUT_MS;
   const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
   try {
     const response = await fetch(url, {
@@ -297,32 +318,49 @@ async function fetchWithTimeout(url, options, consume) {
       signal: controller.signal,
       redirect: "manual",
     });
-    return await consume(response);
+    return await consume(response, { controller, deadlineAt });
   } finally {
     clearTimeout(timer);
   }
 }
 
-async function boundedResponseBody(response) {
+async function boundedResponseBody(response, request) {
   const contentLengthRaw = response.headers.get("content-length");
   if (contentLengthRaw !== null) {
     if (!/^\d+$/.test(contentLengthRaw)) {
-      cancelBodyBestEffort(response.body);
+      await abortAndCancelWithinDeadline(
+        response.body,
+        request.controller,
+        request.deadlineAt,
+      );
       throw new Error("invalid_upstream_content_length");
     }
     const declared = Number(contentLengthRaw);
     if (!Number.isSafeInteger(declared) || declared < 0) {
-      cancelBodyBestEffort(response.body);
+      await abortAndCancelWithinDeadline(
+        response.body,
+        request.controller,
+        request.deadlineAt,
+      );
       throw new Error("invalid_upstream_content_length");
     }
     if (declared > MAX_RESPONSE_BYTES) {
-      cancelBodyBestEffort(response.body);
+      await abortAndCancelWithinDeadline(
+        response.body,
+        request.controller,
+        request.deadlineAt,
+      );
       throw new Error("upstream_response_too_large");
     }
   }
 
   const reader = response.body?.getReader?.();
   if (!reader) {
+    await abortAndCancelWithinDeadline(
+      response.body,
+      request.controller,
+      request.deadlineAt,
+    );
     throw new Error("upstream_response_body_unavailable");
   }
   const chunks = [];
@@ -332,16 +370,21 @@ async function boundedResponseBody(response) {
       const { done, value } = await reader.read();
       if (done) break;
       if (!(value instanceof Uint8Array)) {
-        cancelBodyBestEffort(reader);
         throw new Error("upstream_response_invalid_chunk");
       }
       total += value.byteLength;
       if (total > MAX_RESPONSE_BYTES) {
-        cancelBodyBestEffort(reader);
         throw new Error("upstream_response_too_large");
       }
       chunks.push(Buffer.from(value));
     }
+  } catch (error) {
+    await abortAndCancelWithinDeadline(
+      reader,
+      request.controller,
+      request.deadlineAt,
+    );
+    throw error;
   } finally {
     try {
       reader.releaseLock();
@@ -473,9 +516,13 @@ async function proxy(req, res, url) {
         headers,
         body,
       },
-      async (response) => {
+      async (response, request) => {
         if (response.status >= 300 && response.status < 400) {
-          cancelBodyBestEffort(response.body);
+          await abortAndCancelWithinDeadline(
+            response.body,
+            request.controller,
+            request.deadlineAt,
+          );
           return { kind: "redirect" };
         }
         return {
@@ -485,7 +532,7 @@ async function proxy(req, res, url) {
           body:
             req.method === "HEAD"
               ? Buffer.alloc(0)
-              : await boundedResponseBody(response),
+              : await boundedResponseBody(response, request),
         };
       },
     );
