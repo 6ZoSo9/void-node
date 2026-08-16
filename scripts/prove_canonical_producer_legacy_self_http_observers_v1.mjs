@@ -1,26 +1,38 @@
 #!/usr/bin/env node
+import crypto from "node:crypto";
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
 
 const MARKER = "VOID_CANONICAL_PRODUCER_LEGACY_SELF_HTTP_OBSERVERS_V1";
+const EXPECTED_SOURCE_BLOB_SHA = "7ab484fd21aae9e259fe4d9733b35216b9e12ea3";
 const modulePath = path.resolve("runtime/canonical-producer-self-http-guard-v1.cjs");
+const sourcePath = path.resolve("src/index.ts");
 
 function read(file) {
   return fs.readFileSync(file, "utf8");
 }
 
 function need(source, token, label) {
-  if (!source.includes(token)) {
-    throw new Error(`${label} missing token: ${token}`);
-  }
+  if (!source.includes(token)) throw new Error(`${label} missing token: ${token}`);
 }
 
-function fixture(name, body, env = {}) {
+function gitBlobSha(source) {
+  const body = Buffer.from(source, "utf8");
+  return crypto
+    .createHash("sha1")
+    .update(`blob ${body.length}\0`, "utf8")
+    .update(body)
+    .digest("hex");
+}
+
+function fixture(name, body, env = {}, cwd = process.cwd()) {
   const result = spawnSync(process.execPath, ["-e", body], {
+    cwd,
     env: { ...process.env, MODULE_PATH: modulePath, ...env },
     encoding: "utf8",
-    timeout: 5000,
+    timeout: 7000,
   });
   if (result.status !== 0) {
     throw new Error(`${name} failed status=${result.status}: ${result.stderr || result.stdout}`);
@@ -37,10 +49,14 @@ const runtimeGuard = read("runtime/canonical-producer-self-http-guard-v1.cjs");
 const runner = read("ops/run-void-node-live-v1.sh");
 const producerGuard = read("ops/guard-canonical-producer-liveness-v1.sh");
 const installer = read("ops/mainnet0/install-canonical-producer-liveness-v1.sh");
+const source = read(sourcePath);
 
 for (const token of [
   "VOID_CANONICAL_DISABLE_LEGACY_SELF_HTTP_OBSERVERS",
-  "classifyLegacyObserver",
+  "LEGACY_SOURCE_BLOB_SHA",
+  EXPECTED_SOURCE_BLOB_SHA,
+  "legacyObserverSourceContract",
+  "stackMatchesCallsites",
   "header3_match_exporter",
   "ready_watchdog",
   "proposer_head_pollers",
@@ -50,6 +66,23 @@ for (const token of [
   '"null"',
 ]) {
   need(runtimeGuard, token, "runtime canonical observer guard");
+}
+
+for (const token of [
+  "(function Header3MatchExporter(){",
+  "(function readyWatchdogV1(){",
+  "(function proposerActivityGauge(){",
+  "(function proposerMetricsV2(){",
+  "/blocks/latest/number2.json",
+  "/__void/metrics/txroot4/setter.prom",
+]) {
+  need(source, token, "canonical producer source");
+}
+
+if (gitBlobSha(source) !== EXPECTED_SOURCE_BLOB_SHA) {
+  throw new Error(
+    `canonical producer source blob drifted expected=${EXPECTED_SOURCE_BLOB_SHA} actual=${gitBlobSha(source)}`,
+  );
 }
 
 need(
@@ -75,89 +108,102 @@ const canonicalEnv = {
   HTTP_PORT: "4100",
 };
 
-const suppressed = fixture(
-  "canonical legacy observer suppression",
+const provenance = fixture(
+  "canonical source-provenance observer suppression",
   String.raw`
+    const fs = require("node:fs");
+    const vm = require("node:vm");
     let calls = [];
     global.fetch = async (input, init = {}) => {
       calls.push({url:String(input), method:String(init.method || "GET").toUpperCase()});
       return new Response("original");
     };
     require(process.env.MODULE_PATH);
+    const state = global.__voidCanonicalSelfHttpGuardV1;
+    const contract = state.legacyObserverSourceContract;
+    const sourceLines = fs.readFileSync(contract.sourcePath, "utf8").split(/\n/);
 
-    async function runHeader3() {
-      async function selfJson(path) {
-        const r = await fetch("http://127.0.0.1:4100" + path);
-        return r.json();
-      }
-      async function poll() {
-        return selfJson("/blocks/latest/number");
-      }
-      return poll();
+    function lineText(n) { return sourceLines[n - 1] || ""; }
+    function firstLine(family, token) {
+      const hit = contract.callsites[family].find((n) => lineText(n).includes(token));
+      if (!hit) throw new Error("missing callsite " + family + " token=" + token);
+      return hit;
     }
-
-    async function runReadyWatchdog() {
-      async function fetchJson(path) {
-        const r = await fetch("http://127.0.0.1:4100" + path);
-        return r.json();
-      }
-      async function fetchText(path) {
-        const r = await fetch("http://127.0.0.1:4100" + path);
-        return r.text();
-      }
-      async function sample() {
-        return [
-          await fetchJson("/__void/ready.json"),
-          await fetchText("/head.txt"),
-          await fetchJson("/proposer/stats"),
-        ];
-      }
-      return sample();
+    function exactLine(family, token) {
+      const hits = contract.callsites[family].filter((n) => lineText(n).includes(token));
+      if (hits.length !== 1) throw new Error("non-exact callsite " + family + " token=" + token + " hits=" + hits.length);
+      return hits[0];
     }
-
-    async function runProposerHeadPollers() {
-      async function poll() {
-        return (await fetch("http://127.0.0.1:4100/head.txt")).text();
-      }
-      return [await poll(), await poll()];
+    function atLine(line, expression) {
+      return vm.runInThisContext(expression, {
+        filename: contract.sourcePath,
+        lineOffset: line - 1,
+      });
     }
 
     (async () => {
-      const header3 = await runHeader3();
-      const ready = await runReadyWatchdog();
-      const proposer = await runProposerHeadPollers();
-      console.log(JSON.stringify({
-        calls,
-        header3,
-        ready,
-        proposer,
-        state:global.__voidCanonicalSelfHttpGuardV1,
-      }));
+      if (!contract.ready) throw new Error("source contract not ready: " + contract.reason);
+      if (contract.actualBlobSha !== contract.expectedBlobSha) throw new Error("source blob contract mismatch");
+
+      const headerLine = firstLine("header3_match_exporter", "fetch");
+      const readyNumber2Line = exactLine("ready_watchdog", "/blocks/latest/number2.json");
+      const readyHeadTxtLine = exactLine("ready_watchdog", "/head.txt");
+      const readyHeadJsonLine = exactLine("ready_watchdog", 'fetch(base()+"/head");');
+      const readySetterLine = exactLine("ready_watchdog", "/__void/metrics/txroot4/setter.prom");
+      const proposerActivityLine = exactLine("proposer_head_pollers", "process.env.HTTP_PORT||'4100'");
+      const proposerMetricsLine = exactLine("proposer_head_pollers", "'+port+'/head.txt");
+
+      const results = [];
+      for (const [line, url] of [
+        [headerLine, "http://127.0.0.1:4100/blocks/latest/number2.json"],
+        [headerLine, "http://127.0.0.1:4100/blocks/77/header3"],
+        [headerLine, "http://127.0.0.1:4100/dev/txroot/77"],
+        [readyNumber2Line, "http://127.0.0.1:4100/blocks/latest/number2.json"],
+        [readyHeadTxtLine, "http://127.0.0.1:4100/head.txt"],
+        [readyHeadJsonLine, "http://127.0.0.1:4100/head"],
+        [readySetterLine, "http://127.0.0.1:4100/__void/metrics/txroot4/setter.prom"],
+        [proposerActivityLine, "http://127.0.0.1:4100/head.txt"],
+        [proposerMetricsLine, "http://127.0.0.1:4100/head.txt"],
+      ]) {
+        const response = await atLine(line, 'fetch(' + JSON.stringify(url) + ')');
+        results.push({url, body:await response.text(), family:response.headers.get("x-void-legacy-observer-family")});
+      }
+
+      const allTargetLines = new Set(Object.values(contract.callsites).flat());
+      let adversarialLine = 1;
+      while (allTargetLines.has(adversarialLine)) adversarialLine++;
+      const unrelated = await atLine(
+        adversarialLine,
+        '(async function poll(){ return (await fetch("http://127.0.0.1:4100/head.txt")).text(); })()',
+      );
+
+      console.log(JSON.stringify({calls, results, unrelated, state}));
     })().catch(e => { console.error(e); process.exit(1); });
   `,
   canonicalEnv,
 );
 
-if (suppressed.calls.length !== 0) {
-  throw new Error("legacy canonical observers opened an underlying fetch");
+if (provenance.calls.length !== 1 || provenance.calls[0].url !== "http://127.0.0.1:4100/head.txt") {
+  throw new Error("source-provenance suppression opened an unexpected underlying fetch");
 }
-if (suppressed.header3 !== null) {
-  throw new Error("Header3 observer did not receive inert JSON null");
+if (provenance.unrelated !== "original") {
+  throw new Error("unrelated canonical poll() did not pass through unchanged");
+}
+if (provenance.results.length !== 9) throw new Error("targeted source-provenance fixture count drifted");
+for (const result of provenance.results) {
+  const expectedBody = result.url.endsWith("/head.txt") ? "NaN\n" : "null";
+  if (result.body !== expectedBody || !result.family) {
+    throw new Error(`targeted callsite was not deterministically suppressed: ${JSON.stringify(result)}`);
+  }
 }
 if (
-  JSON.stringify(suppressed.ready) !== JSON.stringify([null, "NaN\n", null]) ||
-  JSON.stringify(suppressed.proposer) !== JSON.stringify(["NaN\n", "NaN\n"])
+  provenance.state.suppressedLegacyObserverFetches !== 9 ||
+  provenance.state.legacyObserverSuppressions.header3_match_exporter !== 3 ||
+  provenance.state.legacyObserverSuppressions.ready_watchdog !== 4 ||
+  provenance.state.legacyObserverSuppressions.proposer_head_pollers !== 2 ||
+  provenance.state.selfPassThrough !== 1
 ) {
-  throw new Error("legacy observer synthetic truth was not deterministic");
-}
-if (
-  suppressed.state.suppressedLegacyObserverFetches !== 6 ||
-  suppressed.state.legacyObserverSuppressions.header3_match_exporter !== 1 ||
-  suppressed.state.legacyObserverSuppressions.ready_watchdog !== 3 ||
-  suppressed.state.legacyObserverSuppressions.proposer_head_pollers !== 2 ||
-  suppressed.state.inflight !== 0
-) {
-  throw new Error("legacy observer suppression accounting was not exact");
+  throw new Error("source-provenance suppression accounting was not exact");
 }
 
 const retained = fixture(
@@ -276,10 +322,35 @@ if (
   throw new Error("noncanonical observer-like call was altered");
 }
 
+const driftRoot = fs.mkdtempSync(path.join(os.tmpdir(), "void-legacy-observer-drift-"));
+try {
+  fs.mkdirSync(path.join(driftRoot, "src"), { recursive: true });
+  fs.writeFileSync(path.join(driftRoot, "src/index.ts"), source + "\n// adversarial source drift\n", "utf8");
+  const drift = spawnSync(
+    process.execPath,
+    ["-e", 'global.fetch=async()=>new Response("x"); require(process.env.MODULE_PATH);'],
+    {
+      cwd: driftRoot,
+      env: { ...process.env, MODULE_PATH: modulePath, ...canonicalEnv },
+      encoding: "utf8",
+      timeout: 5000,
+    },
+  );
+  if (drift.status === 0 || !`${drift.stderr}\n${drift.stdout}`.includes("LEGACY_SOURCE_CONTRACT_FAIL")) {
+    throw new Error(`source drift did not fail closed: status=${drift.status} stderr=${drift.stderr}`);
+  }
+} finally {
+  fs.rmSync(driftRoot, { recursive: true, force: true });
+}
+
 console.log(
   `${MARKER}_GREEN`,
   JSON.stringify({
     canonical_only: true,
+    source_blob_pinned: EXPECTED_SOURCE_BLOB_SHA,
+    provenance_bound_callsites: true,
+    source_drift_fails_closed: true,
+    unrelated_canonical_poll_passes_through: true,
     header3_match_exporter_socket_fetches: 0,
     ready_watchdog_socket_fetches: 0,
     proposer_activity_gauge_socket_fetches: 0,

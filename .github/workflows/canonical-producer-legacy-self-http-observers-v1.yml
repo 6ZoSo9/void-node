@@ -8,6 +8,7 @@ on:
       - "ops/guard-canonical-producer-liveness-v1.sh"
       - "ops/mainnet0/install-canonical-producer-liveness-v1.sh"
       - "scripts/prove_canonical_producer_legacy_self_http_observers_v1.mjs"
+      - "src/index.ts"
       - ".github/workflows/canonical-producer-legacy-self-http-observers-v1.yml"
   push:
     branches:
@@ -18,6 +19,7 @@ on:
       - "ops/guard-canonical-producer-liveness-v1.sh"
       - "ops/mainnet0/install-canonical-producer-liveness-v1.sh"
       - "scripts/prove_canonical_producer_legacy_self_http_observers_v1.mjs"
+      - "src/index.ts"
       - ".github/workflows/canonical-producer-legacy-self-http-observers-v1.yml"
 
 permissions:

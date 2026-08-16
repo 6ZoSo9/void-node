@@ -2,6 +2,7 @@
 
 (() => {
   const MARKER = "VOID_CANONICAL_PRODUCER_SELF_HTTP_GUARD_V1";
+  const LEGACY_SOURCE_BLOB_SHA = "7ab484fd21aae9e259fe4d9733b35216b9e12ea3";
   if (globalThis.__voidCanonicalSelfHttpGuardV1?.installed) return;
 
   const originalFetch = globalThis.fetch;
@@ -47,6 +48,137 @@
     5000,
   );
 
+  function emptySourceContract(reason) {
+    return {
+      ready: false,
+      reason,
+      expectedBlobSha: LEGACY_SOURCE_BLOB_SHA,
+      actualBlobSha: "",
+      sourcePath: "",
+      callsites: {
+        header3_match_exporter: [],
+        ready_watchdog: [],
+        proposer_head_pollers: [],
+      },
+    };
+  }
+
+  function gitBlobSha(source) {
+    const crypto = require("node:crypto");
+    const body = Buffer.from(source, "utf8");
+    return crypto
+      .createHash("sha1")
+      .update(`blob ${body.length}\0`, "utf8")
+      .update(body)
+      .digest("hex");
+  }
+
+  function lineNumberAt(source, index) {
+    let line = 1;
+    for (let i = 0; i < index; i += 1) if (source.charCodeAt(i) === 10) line += 1;
+    return line;
+  }
+
+  function uniqueTokenIndex(source, token, label) {
+    const first = source.indexOf(token);
+    if (first < 0) throw new Error(`missing_${label}`);
+    if (source.indexOf(token, first + token.length) >= 0) throw new Error(`duplicate_${label}`);
+    return first;
+  }
+
+  function segment(source, startToken, endToken, label) {
+    const start = uniqueTokenIndex(source, startToken, `${label}_start`);
+    const end = source.indexOf(endToken, start + startToken.length);
+    if (end < 0) throw new Error(`missing_${label}_end`);
+    return { start, end, text: source.slice(start, end) };
+  }
+
+  function fetchLinesInSegment(source, seg) {
+    const lines = [];
+    let offset = 0;
+    for (const row of seg.text.split("\n")) {
+      if (/\bfetch\s*\(/.test(row) || /\.fetch\s*\(/.test(row)) {
+        lines.push(lineNumberAt(source, seg.start + offset));
+      }
+      offset += row.length + 1;
+    }
+    return [...new Set(lines)];
+  }
+
+  function buildLegacyObserverSourceContract() {
+    if (!enabled || !legacyObserverSuppressionEnabled) return emptySourceContract("not_required");
+    try {
+      const fs = require("node:fs");
+      const path = require("node:path");
+      const sourcePath = path.resolve(process.cwd(), "src/index.ts");
+      const source = fs.readFileSync(sourcePath, "utf8");
+      const actualBlobSha = gitBlobSha(source);
+      if (actualBlobSha !== LEGACY_SOURCE_BLOB_SHA) {
+        const out = emptySourceContract("source_blob_mismatch");
+        out.actualBlobSha = actualBlobSha;
+        out.sourcePath = sourcePath;
+        return out;
+      }
+
+      const header3 = segment(
+        source,
+        "(function Header3MatchExporter(){",
+        "(function readyBitExporterV2(){",
+        "header3_match_exporter",
+      );
+      const ready = segment(
+        source,
+        "(function readyWatchdogV1(){",
+        "(function txrootHeaderNoopSetterV3c(){",
+        "ready_watchdog",
+      );
+      const proposerActivity = segment(
+        source,
+        "(function proposerActivityGauge(){",
+        "(function proposerMetricsV2(){",
+        "proposer_activity_gauge",
+      );
+      const proposerMetricsStart = uniqueTokenIndex(
+        source,
+        "(function proposerMetricsV2(){",
+        "proposer_metrics_v2_start",
+      );
+      const proposerMetricsNeedle =
+        "const r = await fetch('http://127.0.0.1:'+port+'/head.txt');";
+      const proposerMetricsFetch = source.indexOf(proposerMetricsNeedle, proposerMetricsStart);
+      if (proposerMetricsFetch < 0 || proposerMetricsFetch - proposerMetricsStart > 5000) {
+        throw new Error("missing_proposer_metrics_v2_fetch");
+      }
+
+      const callsites = {
+        header3_match_exporter: fetchLinesInSegment(source, header3),
+        ready_watchdog: fetchLinesInSegment(source, ready),
+        proposer_head_pollers: [
+          ...fetchLinesInSegment(source, proposerActivity),
+          lineNumberAt(source, proposerMetricsFetch),
+        ],
+      };
+
+      if (callsites.header3_match_exporter.length < 1) throw new Error("empty_header3_callsites");
+      if (callsites.ready_watchdog.length < 4) throw new Error("short_ready_watchdog_callsites");
+      if (callsites.proposer_head_pollers.length !== 2) throw new Error("bad_proposer_head_poller_callsites");
+
+      return {
+        ready: true,
+        reason: "exact_source_blob_and_callsites",
+        expectedBlobSha: LEGACY_SOURCE_BLOB_SHA,
+        actualBlobSha,
+        sourcePath,
+        callsites,
+      };
+    } catch (err) {
+      const out = emptySourceContract(`source_contract_error:${String(err?.message || err)}`);
+      return out;
+    }
+  }
+
+  const legacyObserverSourceContract = buildLegacyObserverSourceContract();
+
   const state = {
     installed: true,
     enabled,
@@ -56,6 +188,7 @@
     timeoutMs,
     teardownTimeoutMs,
     legacyObserverSuppressionEnabled,
+    legacyObserverSourceContract,
     inflight: 0,
     limited: 0,
     timedOut: 0,
@@ -79,6 +212,11 @@
   };
   globalThis.__voidCanonicalSelfHttpGuardV1 = state;
   if (!enabled) return;
+  if (legacyObserverSuppressionEnabled && !legacyObserverSourceContract.ready) {
+    throw new Error(
+      `${MARKER}_LEGACY_SOURCE_CONTRACT_FAIL ${legacyObserverSourceContract.reason}`,
+    );
+  }
 
   const interventionPaths = new Set([
     "/proposer/auto/start",
@@ -131,36 +269,57 @@
       .join("\n");
   }
 
+  function stackMatchesCallsites(stack, lines) {
+    const sourcePath = legacyObserverSourceContract.sourcePath;
+    if (!sourcePath || !Array.isArray(lines) || lines.length === 0) return false;
+    return stack.split("\n").some((frame) => {
+      const normalized = String(frame).replaceAll("file://", "");
+      if (!normalized.includes(sourcePath)) return false;
+      return lines.some((line) => normalized.includes(`${sourcePath}:${line}:`));
+    });
+  }
+
   function classifyLegacyObserver(info) {
-    if (!legacyObserverSuppressionEnabled || !info?.self || info.method !== "GET") return "";
+    if (
+      !legacyObserverSuppressionEnabled ||
+      !legacyObserverSourceContract.ready ||
+      !info?.self ||
+      info.method !== "GET"
+    ) {
+      return "";
+    }
 
     const path = info.url.pathname;
     const stack = appCallerStack();
 
     const header3Path =
-      path === "/blocks/latest/number" ||
-      /^\/blocks\/\d+\/(?:header3|txroot)$/.test(path);
-    if (header3Path && /\bselfJson\b/.test(stack) && /\bpoll\b/.test(stack)) {
+      path === "/blocks/latest/number2.json" ||
+      /^\/blocks\/\d+\/header3$/.test(path) ||
+      /^\/dev\/txroot\/\d+$/.test(path);
+    if (
+      header3Path &&
+      stackMatchesCallsites(stack, legacyObserverSourceContract.callsites.header3_match_exporter)
+    ) {
       return "header3_match_exporter";
     }
 
     const readyPath =
-      path === "/__void/ready.json" ||
+      path === "/blocks/latest/number2.json" ||
       path === "/head.txt" ||
-      path === "/proposer/stats";
+      path === "/head" ||
+      path === "/__void/metrics/txroot4/setter.prom";
     if (
       readyPath &&
-      /\bsample\b/.test(stack) &&
-      (/\bfetchJson\b/.test(stack) || /\bfetchText\b/.test(stack))
+      stackMatchesCallsites(stack, legacyObserverSourceContract.callsites.ready_watchdog)
     ) {
       return "ready_watchdog";
     }
 
-    if (path === "/head.txt") {
-      const firstAppFrame = stack.split("\n").find(Boolean) || "";
-      if (/\bat poll\b/.test(firstAppFrame)) {
-        return "proposer_head_pollers";
-      }
+    if (
+      path === "/head.txt" &&
+      stackMatchesCallsites(stack, legacyObserverSourceContract.callsites.proposer_head_pollers)
+    ) {
+      return "proposer_head_pollers";
     }
 
     return "";
