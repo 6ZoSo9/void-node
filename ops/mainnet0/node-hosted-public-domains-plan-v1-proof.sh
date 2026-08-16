@@ -4,15 +4,16 @@ set -euo pipefail
 DOC="docs/public/node-hosted-public-domains-plan-v1.md"
 VOIDCHAIN_PREVIEW="docs/site/voidchain/index.html"
 NULLFEED_PREVIEW="docs/site/nullfeed/index.html"
+AUTHENTICITY_SCHEMA="public/.well-known/void-network-authenticity.schema.json"
 
 echo "=== VOID node-hosted public domains plan v1 proof ==="
 
-for surface in "$DOC" "$VOIDCHAIN_PREVIEW" "$NULLFEED_PREVIEW"; do
+for surface in "$DOC" "$VOIDCHAIN_PREVIEW" "$NULLFEED_PREVIEW" "$AUTHENTICITY_SCHEMA"; do
   test -f "$surface"
 done
 
 for retired in voidchain.io nullfeed.io; do
-  for surface in "$DOC" "$VOIDCHAIN_PREVIEW" "$NULLFEED_PREVIEW"; do
+  for surface in "$DOC" "$VOIDCHAIN_PREVIEW" "$NULLFEED_PREVIEW" "$AUTHENTICITY_SCHEMA"; do
     if grep -Fq "$retired" "$surface"; then
       echo "HOLD: retired $retired identity remains in $surface" >&2
       exit 1
@@ -32,6 +33,7 @@ grep -Fq '`nullfeed.org` is the canonical NullFeed / DataNet media identity doma
 grep -Fq '<title>VOID Network — voidchain.org</title>' "$VOIDCHAIN_PREVIEW"
 grep -Fq '<code>voidchain.org</code>' "$VOIDCHAIN_PREVIEW"
 grep -Fq '<title>NullFeed — nullfeed.org</title>' "$NULLFEED_PREVIEW"
+grep -Fq '"$id": "https://voidchain.org/.well-known/void-network-authenticity.schema.json"' "$AUTHENTICITY_SCHEMA"
 
 code_fence_count=$(grep -c '^```' "$DOC" || true)
 if [[ "$code_fence_count" -ne 2 ]]; then
@@ -77,6 +79,7 @@ echo "domain_voidchain_org_declared=true"
 echo "domain_nullfeed_org_declared=true"
 echo "static_preview_voidchain_org_bound=true"
 echo "static_preview_nullfeed_org_bound=true"
+echo "authenticity_schema_voidchain_org_id_bound=true"
 echo "affected_surface_retired_io_absent=true"
 echo "public_domain_plan_markdown_fence_closed=true"
 echo "domains_are_dns_identity_only=true"

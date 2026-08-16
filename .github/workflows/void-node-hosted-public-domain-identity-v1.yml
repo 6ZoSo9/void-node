@@ -8,6 +8,7 @@ on:
       - 'docs/site/nullfeed/index.html'
       - 'docs/site/voidchain/index.html'
       - 'ops/mainnet0/node-hosted-public-domains-plan-v1-proof.sh'
+      - 'public/.well-known/void-network-authenticity.schema.json'
   push:
     branches:
       - main
@@ -17,6 +18,7 @@ on:
       - 'docs/site/nullfeed/index.html'
       - 'docs/site/voidchain/index.html'
       - 'ops/mainnet0/node-hosted-public-domains-plan-v1-proof.sh'
+      - 'public/.well-known/void-network-authenticity.schema.json'
 
 permissions:
   contents: read
