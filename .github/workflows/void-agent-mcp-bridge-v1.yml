@@ -7,6 +7,10 @@ on:
       - "scripts/prove_void_agent_mcp_bridge_v1.ts"
       - "scripts/ci_diff_hygiene_v1.sh"
       - "scripts/prove_ci_diff_hygiene_v1.mjs"
+      - "tools/void-ai-agent-bootstrap-client-v1.mjs"
+      - "tools/void-ai-agent-paid-work-client-v1.mjs"
+      - "scripts/public_agent_service_order_submission_v1.ts"
+      - "ops/public/agent-services-v1/catalog.json"
       - ".github/workflows/void-agent-mcp-bridge-v1.yml"
   workflow_dispatch:
 
@@ -85,35 +89,32 @@ jobs:
           trap - EXIT
 
           direct_relevant=0
+          external_contract_relevant=0
           for file in "${MCP_CHANGED[@]}"
           do
             case "$file" in
-              integrations/mcp/*)
-                direct_relevant=1
-                break
-                ;;
-              scripts/prove_void_agent_mcp_bridge_v1.ts)
-                direct_relevant=1
-                break
-                ;;
-              scripts/ci_diff_hygiene_v1.sh)
-                direct_relevant=1
-                break
-                ;;
-              scripts/prove_ci_diff_hygiene_v1.mjs)
-                direct_relevant=1
-                break
-                ;;
+              integrations/mcp/*|\
+              scripts/prove_void_agent_mcp_bridge_v1.ts|\
+              scripts/ci_diff_hygiene_v1.sh|\
+              scripts/prove_ci_diff_hygiene_v1.mjs|\
               .github/workflows/void-agent-mcp-bridge-v1.yml)
                 direct_relevant=1
-                break
+                ;;
+              tools/void-ai-agent-bootstrap-client-v1.mjs|\
+              tools/void-ai-agent-paid-work-client-v1.mjs|\
+              scripts/public_agent_service_order_submission_v1.ts|\
+              ops/public/agent-services-v1/catalog.json)
+                direct_relevant=1
+                external_contract_relevant=1
                 ;;
             esac
           done
 
           printf 'VOID_MCP_DIRECT_RELEVANT=%s\n' "$direct_relevant" >> "$GITHUB_ENV"
+          printf 'VOID_MCP_EXTERNAL_CONTRACT_RELEVANT=%s\n' "$external_contract_relevant" >> "$GITHUB_ENV"
           printf 'void_mcp_integration_base=%s\n' "$integration_base"
           printf 'void_mcp_direct_relevant=%s\n' "$direct_relevant"
+          printf 'void_mcp_external_contract_relevant=%s\n' "$external_contract_relevant"
 
       - name: Prove early applicability trust boundary
         if: github.event_name == 'pull_request'
@@ -150,9 +151,13 @@ jobs:
           ! grep -F 'bash scripts/ci_diff_hygiene_v1.sh' <<<"$bootstrap_block"
           grep -F 'git cat-file -p "$CI_DIFF_CHECKOUT_SHA"' <<<"$bootstrap_block"
           grep -F 'git diff --no-renames --name-only -z' <<<"$bootstrap_block"
-          grep -F 'scripts/ci_diff_hygiene_v1.sh)' <<<"$bootstrap_block"
-          grep -F 'scripts/prove_ci_diff_hygiene_v1.mjs)' <<<"$bootstrap_block"
-          grep -F '.github/workflows/void-agent-mcp-bridge-v1.yml)' <<<"$bootstrap_block"
+          grep -F 'scripts/ci_diff_hygiene_v1.sh' <<<"$bootstrap_block"
+          grep -F 'scripts/prove_ci_diff_hygiene_v1.mjs' <<<"$bootstrap_block"
+          grep -F 'tools/void-ai-agent-bootstrap-client-v1.mjs' <<<"$bootstrap_block"
+          grep -F 'tools/void-ai-agent-paid-work-client-v1.mjs' <<<"$bootstrap_block"
+          grep -F 'scripts/public_agent_service_order_submission_v1.ts' <<<"$bootstrap_block"
+          grep -F 'ops/public/agent-services-v1/catalog.json' <<<"$bootstrap_block"
+          grep -F '.github/workflows/void-agent-mcp-bridge-v1.yml' <<<"$bootstrap_block"
 
           tmp_repo="$(mktemp -d)"
           trap 'rm -rf "$tmp_repo"' EXIT
@@ -209,11 +214,24 @@ jobs:
           esac
           test "$classifier_relevant" -eq 1
 
+          external_contract_change="ops/public/agent-services-v1/catalog.json"
+          external_contract_relevant=0
+          case "$external_contract_change" in
+            tools/void-ai-agent-bootstrap-client-v1.mjs|\
+            tools/void-ai-agent-paid-work-client-v1.mjs|\
+            scripts/public_agent_service_order_submission_v1.ts|\
+            ops/public/agent-services-v1/catalog.json)
+              external_contract_relevant=1
+              ;;
+          esac
+          test "$external_contract_relevant" -eq 1
+
           forbidden='VOID_MCP_BASE_REF: $'
           forbidden+='{{ github.event.pull_request.base.sha }}'
           ! grep -F "$forbidden" "$workflow"
           grep -F 'VOID_MCP_BASE_REF=%s' "$workflow"
           grep -F 'VOID_MCP_DIRECT_RELEVANT=%s' "$workflow"
+          grep -F 'VOID_MCP_EXTERNAL_CONTRACT_RELEVANT=%s' "$workflow"
           grep -F "env.VOID_MCP_DIRECT_RELEVANT == '1'" "$workflow"
           test "$(
             grep -c -- 'git diff --no-renames --name-only -z' "$workflow"
@@ -287,9 +305,16 @@ jobs:
         if: github.event_name != 'pull_request' || env.VOID_MCP_DIRECT_RELEVANT == '1'
         env:
           VOID_MCP_EVENT_BASE_REF: ${{ github.event.pull_request.base.sha }}
-        run: >-
-          npx --no-install tsx
-          scripts/prove_void_agent_mcp_bridge_v1.ts
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ "${VOID_MCP_EXTERNAL_CONTRACT_RELEVANT:-0}" = "1" ]
+          then
+            VOID_MCP_BASE_REF="" \
+              npx --no-install tsx scripts/prove_void_agent_mcp_bridge_v1.ts
+          else
+            npx --no-install tsx scripts/prove_void_agent_mcp_bridge_v1.ts
+          fi
 
       - name: Prove exact changed-file lane
         if: github.event_name == 'pull_request' && env.VOID_MCP_DIRECT_RELEVANT == '1'
@@ -320,14 +345,14 @@ jobs:
           for file in "${changed[@]}"
           do
             case "$file" in
-              integrations/mcp/*)
-                ;;
-              scripts/prove_void_agent_mcp_bridge_v1.ts)
-                ;;
-              scripts/ci_diff_hygiene_v1.sh)
-                ;;
-              scripts/prove_ci_diff_hygiene_v1.mjs)
-                ;;
+              integrations/mcp/*|\
+              scripts/prove_void_agent_mcp_bridge_v1.ts|\
+              scripts/ci_diff_hygiene_v1.sh|\
+              scripts/prove_ci_diff_hygiene_v1.mjs|\
+              tools/void-ai-agent-bootstrap-client-v1.mjs|\
+              tools/void-ai-agent-paid-work-client-v1.mjs|\
+              scripts/public_agent_service_order_submission_v1.ts|\
+              ops/public/agent-services-v1/catalog.json|\
               .github/workflows/void-agent-mcp-bridge-v1.yml)
                 ;;
               *)
