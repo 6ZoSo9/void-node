@@ -43,12 +43,26 @@ function startBoundedDownloadServer(tmp,channelFile,archiveFile){
 function channelWithArchiveUrl(source,url,dest){
   const j=JSON.parse(fs.readFileSync(source,"utf8"));j.assets.archive.url=url;fs.writeFileSync(dest,`${JSON.stringify(j)}\n`);
 }
+function foreignStableChannel(source,dest){
+  const j=JSON.parse(fs.readFileSync(source,"utf8")),repository="other-owner/other-repo";j.repository=repository;j.verification.attestation_repository=repository;
+  for(const a of Object.values(j.assets||{})){if(!a?.name)continue;a.url=`https://github.com/${repository}/releases/download/${j.release_tag}/${encodeURIComponent(a.name).replace(/%2F/g,"/")}`;}
+  fs.writeFileSync(dest,`${JSON.stringify(j)}\n`);
+}
 function startRedirectHealthServers(tmp){
   const portsFile=path.join(tmp,"redirect-health-ports"),serverFile=path.join(tmp,"redirect-health-server.mjs");
   fs.writeFileSync(serverFile,`import fs from "node:fs";\nimport http from "node:http";\nconst valid=JSON.stringify({ready:true,gap:0,txroot_live:1});\nconst secondary=http.createServer((req,res)=>{if(req.url==="/valid"){res.writeHead(200,{"content-type":"application/json"});res.end(valid);return;}res.writeHead(404);res.end();});\nsecondary.listen(0,"127.0.0.1",()=>{\n  const primary=http.createServer((req,res)=>{\n    if(req.url==="/same"){res.writeHead(302,{location:"/valid"});res.end();return;}\n    if(req.url==="/cross"){res.writeHead(302,{location:"http://127.0.0.1:"+secondary.address().port+"/valid"});res.end();return;}\n    if(req.url==="/valid"){res.writeHead(200,{"content-type":"application/json"});res.end(valid);return;}\n    res.writeHead(404);res.end();\n  });\n  primary.listen(0,"127.0.0.1",()=>fs.writeFileSync(process.argv[2],JSON.stringify({primary:primary.address().port,secondary:secondary.address().port})));\n});\nprocess.on("SIGTERM",()=>process.exit(0));\n`);
   const child=childProcess.spawn(process.execPath,[serverFile,portsFile],{stdio:["ignore","ignore","inherit"]});
   const deadline=Date.now()+5000;while(!fs.existsSync(portsFile)&&Date.now()<deadline){if(child.exitCode!==null)fail("redirect health servers exited before listen");sleepSync(25);}
   if(!fs.existsSync(portsFile)){child.kill("SIGTERM");fail("redirect health servers did not start");}
+  const ports=JSON.parse(fs.readFileSync(portsFile,"utf8")),base=`http://127.0.0.1:${ports.primary}`;
+  return {child,same:`${base}/same`,cross:`${base}/cross`};
+}
+function startRedirectChannelServers(tmp,channelFile){
+  const portsFile=path.join(tmp,"redirect-channel-ports"),serverFile=path.join(tmp,"redirect-channel-server.mjs");
+  fs.writeFileSync(serverFile,`import fs from "node:fs";\nimport http from "node:http";\nconst channel=fs.readFileSync(process.argv[3]);\nconst secondary=http.createServer((req,res)=>{if(req.url==="/valid"){res.writeHead(200,{"content-type":"application/json","content-length":String(channel.length)});res.end(channel);return;}res.writeHead(404);res.end();});\nsecondary.listen(0,"127.0.0.1",()=>{\n  const primary=http.createServer((req,res)=>{\n    if(req.url==="/same"){res.writeHead(302,{location:"/valid"});res.end();return;}\n    if(req.url==="/cross"){res.writeHead(302,{location:"http://127.0.0.1:"+secondary.address().port+"/valid"});res.end();return;}\n    if(req.url==="/valid"){res.writeHead(200,{"content-type":"application/json","content-length":String(channel.length)});res.end(channel);return;}\n    res.writeHead(404);res.end();\n  });\n  primary.listen(0,"127.0.0.1",()=>fs.writeFileSync(process.argv[2],JSON.stringify({primary:primary.address().port,secondary:secondary.address().port})));\n});\nprocess.on("SIGTERM",()=>process.exit(0));\n`);
+  const child=childProcess.spawn(process.execPath,[serverFile,portsFile,channelFile],{stdio:["ignore","ignore","inherit"]});
+  const deadline=Date.now()+5000;while(!fs.existsSync(portsFile)&&Date.now()<deadline){if(child.exitCode!==null)fail("redirect channel servers exited before listen");sleepSync(25);}
+  if(!fs.existsSync(portsFile)){child.kill("SIGTERM");fail("redirect channel servers did not start");}
   const ports=JSON.parse(fs.readFileSync(portsFile,"utf8")),base=`http://127.0.0.1:${ports.primary}`;
   return {child,same:`${base}/same`,cross:`${base}/cross`};
 }
@@ -59,7 +73,7 @@ function channel(root,out,version,tag){run("node",["tools/build-public-release-c
 const full=process.argv.includes("--full");
 need("release/channel/public-release-channel-v1.schema.json",["VOID_PUBLIC_RELEASE_CHANNEL_V1","rollback_on_health_failure"]);
 need("tools/build-public-release-channel-v1.mjs",["VOID_PUBLIC_RELEASE_CHANNEL_BUILDER_V1","github_attestation_required","--test-allow-file"]);
-need("release/bin/void-node-update",["VOID_NODE_RELEASE_UPDATE_V1","VOID_NODE_RELEASE_ROLLBACK_TRANSACTION_V1","ROLLBACK_RECOVERED","downgrade refused","HEALTH_FAIL_ROLLBACK_BEGIN","HEALTH_RESPONSE_MAX_BYTES","readBoundedResponseBytes(response,HEALTH_RESPONSE_MAX_BYTES,\"health response\",ac)","readBoundedResponseBytes","streamExactResponseToFile","VOID_NODE_UPDATE_TEST_ALLOW_HTTP_LOOPBACK","redirect:\"error\"","normalizedUrlIdentity","service_started_implicitly=false"]);
+need("release/bin/void-node-update",["VOID_NODE_RELEASE_UPDATE_V1","VOID_NODE_RELEASE_ROLLBACK_TRANSACTION_V1","ROLLBACK_RECOVERED","downgrade refused","HEALTH_FAIL_ROLLBACK_BEGIN","CANONICAL_RELEASE_REPOSITORY=\"6ZoSo9/void-node\"","stable channel repository must be","stable attestation repository must be","HEALTH_RESPONSE_MAX_BYTES","readBoundedResponseBytes(response,HEALTH_RESPONSE_MAX_BYTES,\"health response\",ac)","readBoundedResponseBytes","streamExactResponseToFile","VOID_NODE_UPDATE_TEST_ALLOW_HTTP_LOOPBACK","fetch(u,{redirect:\"error\",signal:ac.signal","channel response URL mismatch","redirect:\"error\"","normalizedUrlIdentity","service_started_implicitly=false"]);
 const manager=need("release/bin/void-node",["void-node update check","void-node update apply","exec \"$RELEASE_ROOT/bin/void-node-update\" rollback"]);
 need("release/portable/bin/void-node",["void-node update check","exec \"$RUNTIME_NODE\" \"$RELEASE_ROOT/bin/void-node-update\" rollback"]);
 need("ops/public/install-void-node-v1.sh",["VOID_NODE_STABLE_MANAGER_V1","$INSTALL_ROOT/control/void-node-update"]);
@@ -67,8 +81,8 @@ need("ops/public/install-void-node-portable-runtime-v1.sh",["VOID_NODE_STABLE_MA
 need("ops/security/public-release-update-channel-v1-proof.sh",["VOID public release update channel wall v1 proof"]);
 const workflow=need(".github/workflows/public-release-distribution-v1.yml",["public-release-update-channel-v1-proof","build-public-release-channel-v1.mjs","stable-v1.json","(cd dist-release && sha256sum --check --strict SHA256SUMS)"]);
 const checksumCwd=(workflow.match(/\(cd dist-release && sha256sum --check --strict SHA256SUMS\)/g)||[]).length;if(checksumCwd<2)fail(`expected two artifact-directory checksum checks, found ${checksumCwd}`);pass("workflow-checksum-directory-regression");
-need("docs/public/release-update-channel-v1.md",["anti-downgrade","journaled rollback","ROLLBACK_RECOVERED","GitHub attestation"]);
-need("docs/security/public-release-update-channel-v1-threat-model.md",["channel substitution","journaled rollback","canonical pointer mutation","No service is started implicitly"]);
+need("docs/public/release-update-channel-v1.md",["anti-downgrade","journaled rollback","ROLLBACK_RECOVERED","GitHub attestation","6ZoSo9/void-node","raw.githubusercontent.com/6ZoSo9/void-node/main/public/public-node/void-network/channels/stable-v1.json"]);
+need("docs/security/public-release-update-channel-v1-threat-model.md",["channel substitution","journaled rollback","canonical pointer mutation","repository=\"6ZoSo9/void-node\"","redirects are rejected","No service is started implicitly"]);
 need("public/public-node/void-network/release-update-channel-v1.json",["VOID_PUBLIC_RELEASE_UPDATE_CHANNEL_STATUS_V1","guarded_lanes_activated"]);
 need("Makefile",["public-release-update-channel-v1-proof","public-release-channel-build-v1"]);
 if(!full){console.log(`${MARKER}_STATIC_GREEN`);process.exit(0);}
@@ -87,6 +101,10 @@ try{
   if(versionAt(installRoot)!==v1)fail("initial release install mismatch");pass("initial-release-installed");
   const managerPath=path.join(binDir,"void-node"),stableManagerPath=path.join(installRoot,"bin","void-node"),controlUpdaterPath=path.join(installRoot,"control","void-node-update");
   if(fs.realpathSync(managerPath)!==stableManagerPath||!fs.existsSync(controlUpdaterPath))fail("installer did not establish the stable recovery entrypoint");pass("stable-recovery-entrypoint-installed");
+  const foreignChannel=path.join(tmp,"foreign-stable-v1.json");foreignStableChannel(path.join(out2,"stable-v1.json"),foreignChannel);
+  const foreignApply=run(managerPath,["update","apply","--channel",foreignChannel,"--install-root",installRoot,"--bin-dir",binDir,"--test-allow-file","--skip-attestation","--yes"],{env:e,capture:true,allowFail:true});
+  if(foreignApply.status===0||!`${foreignApply.stdout}${foreignApply.stderr}`.includes("stable channel repository must be 6ZoSo9/void-node"))fail("self-consistent foreign stable repository was not rejected at the trust root");
+  if(versionAt(installRoot)!==v1)fail("foreign stable repository rejection changed current release");pass("foreign-stable-repository-trust-root-rejected-before-install");
   const check=run(managerPath,["update","check","--channel",path.join(out2,"stable-v1.json"),"--install-root",installRoot,"--bin-dir",binDir,"--test-allow-file"],{env:e,capture:true});
   if(!check.includes("update_available=true"))fail("update check did not report update");pass("verified-update-check");
   run(managerPath,["update","apply","--channel",path.join(out2,"stable-v1.json"),"--install-root",installRoot,"--bin-dir",binDir,"--test-allow-file","--skip-attestation","--yes"],{env:e});
@@ -103,6 +121,15 @@ try{
     const ungated=run(managerPath,["update","check","--channel",`${downloads.baseUrl}/channel-valid`,"--install-root",installRoot,"--bin-dir",binDir,"--test-allow-file"],{env:e,capture:true,allowFail:true});
     if(ungated.status===0||!`${ungated.stdout}${ungated.stderr}`.includes("channel URL must use HTTPS"))fail("loopback HTTP test transport was not fail-closed without its explicit test gate");
     pass("loopback-http-test-transport-explicitly-gated");
+    const channelRedirects=startRedirectChannelServers(tmp,path.join(out3,"stable-v1.json"));
+    try{
+      for(const [url,label] of [[channelRedirects.same,"same-origin"],[channelRedirects.cross,"cross-origin"]]){
+        const redirected=run(managerPath,["update","check","--channel",url,"--install-root",installRoot,"--bin-dir",binDir,"--test-allow-file"],{env:httpEnv,capture:true,allowFail:true});
+        if(redirected.status===0)fail(`${label} redirected channel source was accepted`);
+        if(versionAt(installRoot)!==v2)fail(`${label} channel redirect rejection changed current release`);
+        pass(`${label}-channel-source-redirect-rejected`);
+      }
+    }finally{channelRedirects.child.kill("SIGTERM");}
     for(const [route,label] of [["channel-declared-over","declared-oversize"],["channel-stream-over","streamed-oversize"]]){
       const started=Date.now(),r=run(managerPath,["update","check","--channel",`${downloads.baseUrl}/${route}`,"--install-root",installRoot,"--bin-dir",binDir,"--test-allow-file"],{env:httpEnv,capture:true,allowFail:true}),elapsed=Date.now()-started;
       if(r.status===0||!`${r.stdout}${r.stderr}`.includes("download exceeds size limit"))fail(`${label} channel response was not rejected`);
