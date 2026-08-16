@@ -10,7 +10,13 @@ health-gated rollback.
 
 ## Safety model
 
+- Stable channels must declare the exact canonical repository
+  `6ZoSo9/void-node`, and their GitHub attestation repository must match it
+  exactly before any release asset can be installed.
 - Stable assets must originate at `https://github.com/6ZoSo9/void-node/releases/download/...`.
+- Remote channel fetches reject redirects and accept a response only when its
+  normalized final URL is the exact configured channel URL. Use the canonical
+  direct stable pointer below rather than a redirecting `releases/latest` URL.
 - The remote channel body is streamed under a 2 MiB ceiling; a declared oversize
   `Content-Length` or a streamed overflow is rejected before excess bytes are
   retained.
@@ -35,14 +41,14 @@ health-gated rollback.
 
 ```bash
 void-node update check \
-  --channel https://github.com/6ZoSo9/void-node/releases/latest/download/stable-v1.json
+  --channel https://raw.githubusercontent.com/6ZoSo9/void-node/main/public/public-node/void-network/channels/stable-v1.json
 ```
 
 ## Apply while the service is stopped
 
 ```bash
 void-node update apply \
-  --channel https://github.com/6ZoSo9/void-node/releases/latest/download/stable-v1.json \
+  --channel https://raw.githubusercontent.com/6ZoSo9/void-node/main/public/public-node/void-network/channels/stable-v1.json \
   --yes
 ```
 
@@ -55,7 +61,7 @@ GitHub attestations, invokes the verified installer, verifies the installed
 
 ```bash
 void-node update apply \
-  --channel https://github.com/6ZoSo9/void-node/releases/latest/download/stable-v1.json \
+  --channel https://raw.githubusercontent.com/6ZoSo9/void-node/main/public/public-node/void-network/channels/stable-v1.json \
   --restart-if-running \
   --health-url http://127.0.0.1:4100/__void/ready.json \
   --yes
