@@ -89,7 +89,11 @@ function requestOneBounded(
         method,
         headers,
         agent: false,
-        lookup(_hostname, _options, callback) {
+        lookup(_hostname, options, callback) {
+          if (options?.all === true) {
+            callback(null, [{ address, family }]);
+            return;
+          }
           callback(null, address, family);
         },
       },
