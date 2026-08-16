@@ -46,7 +46,7 @@ import {
   type BuyVoidPipelineCoordinatorDecisionV1,
 } from "./buy_void_pipeline_coordinator_v1.js";
 import {
-  readBuyVoidCrashConsistentSagaServerPolicyV1,
+  readBuyVoidCanonicalPresaleServerPolicyV1,
   type BuyVoidCrashConsistentSagaServerPolicyV1,
 } from "./buy_void_crash_consistent_saga_server_policy_v1.js";
 import {
@@ -387,7 +387,7 @@ export function readBuyVoidErc20ExecutionCompositionPolicyV1(
   if (missing.length) return policyHeld("erc20_execution_policy_not_configured", missing);
   if (values.chain_id !== "2050") return policyHeld("erc20_execution_chain_id_mismatch");
 
-  const saga = readBuyVoidCrashConsistentSagaServerPolicyV1(env);
+  const saga = readBuyVoidCanonicalPresaleServerPolicyV1(env);
   if (saga.ok === false) {
     return policyHeld(
       `erc20_execution_saga_policy_held:${saga.reason}`,
@@ -472,6 +472,28 @@ export function readBuyVoidErc20ExecutionCompositionPolicyV1(
   const tokenAtomMultiplier = BigInt(
     VOID_BUY_VOID_ERC20_DELIVERY_UNIT_SCALE_V1.multiplier,
   );
+  const publicDeliveryEnabled =
+    String(
+      env.VOID_BUY_VOID_DELIVERY_RUNTIME_INTEGRATION_ENABLED || "",
+    ) === "1";
+  if (
+    publicDeliveryEnabled &&
+    maxDeliveryUnits !== sagaPoolCapacity
+  ) {
+    return policyHeld(
+      "erc20_execution_public_delivery_amount_cap_must_equal_presale_capacity",
+      [],
+      {
+        max_amount_unit_domain: "fulfillment_units_6_decimal",
+        configured_delivery_max_void_units:
+          maxDeliveryUnits.toString(),
+        canonical_presale_capacity_void_units:
+          sagaPoolCapacity.toString(),
+        public_purchase_throttle_allowed: false,
+        disabled_canary_delivery_cap_separate: true,
+      },
+    );
+  }
   if (
     maxDeliveryUnits > sagaPoolCapacity ||
     maxDeliveryUnits > sagaMaxReservation

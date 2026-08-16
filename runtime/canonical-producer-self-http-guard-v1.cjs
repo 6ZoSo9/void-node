@@ -38,6 +38,12 @@
     50,
     10000,
   );
+  const teardownTimeoutMs = boundedInt(
+    process.env.VOID_CANONICAL_SELF_HTTP_TEARDOWN_TIMEOUT_MS,
+    500,
+    50,
+    5000,
+  );
 
   const state = {
     installed: true,
@@ -46,11 +52,15 @@
     ownPort,
     maxInflight,
     timeoutMs,
+    teardownTimeoutMs,
     inflight: 0,
     limited: 0,
     timedOut: 0,
     cleanups: 0,
     lastCleanupReason: "",
+    teardownDeadlineHits: 0,
+    teardownErrors: 0,
+    lastTeardownError: "",
     suppressedInterventions: 0,
     autopropBypass: 0,
     selfPassThrough: 0,
@@ -98,7 +108,7 @@
     return { url, method, self, autoprop, intervention };
   }
 
-  function wrapResponseBodyLifetime(response, cleanup, registerBodyCancel) {
+  function wrapResponseBodyLifetime(response, cleanup, registerBodyCancel, isAbortRequested) {
     if (!(response instanceof Response)) {
       cleanup("non_response");
       return response;
@@ -111,14 +121,24 @@
     }
 
     const reader = originalBody.getReader();
-    registerBodyCancel((reason) => Promise.resolve(reader.cancel(reason)).catch(() => {}));
+    let cancelPromise = null;
+    const cancelReader = (reason) => {
+      if (cancelPromise) return cancelPromise;
+      try {
+        cancelPromise = Promise.resolve(reader.cancel(reason));
+      } catch (err) {
+        cancelPromise = Promise.reject(err);
+      }
+      return cancelPromise;
+    };
+    registerBodyCancel(cancelReader);
 
     const guardedBody = new ReadableStream({
       async pull(controller) {
         try {
           const { done, value } = await reader.read();
           if (done) {
-            cleanup("body_complete");
+            if (!isAbortRequested()) cleanup("body_complete");
             try {
               controller.close();
             } catch (closeErr) {
@@ -128,7 +148,7 @@
           }
           controller.enqueue(value);
         } catch (err) {
-          cleanup("body_error");
+          if (!isAbortRequested()) cleanup("body_error");
           try {
             controller.error(err);
           } catch (errorErr) {
@@ -138,9 +158,9 @@
       },
       async cancel(reason) {
         try {
-          await reader.cancel(reason);
+          await cancelReader(reason);
         } finally {
-          cleanup("body_cancel");
+          if (!isAbortRequested()) cleanup("body_cancel");
         }
       },
     });
@@ -151,8 +171,6 @@
       headers: response.headers,
     });
 
-    // Preserve fetch metadata that the Response constructor cannot set while
-    // keeping all body consumers on the guarded stream above.
     return new Proxy(guardedResponse, {
       get(target, prop) {
         if (prop === "url" || prop === "redirected" || prop === "type") {
@@ -182,8 +200,6 @@
       );
     }
 
-    // Canonical block production uses this one exact loopback request. Do not
-    // apply diagnostic concurrency/timeout controls to any broader near-match.
     if (info.autoprop) {
       state.autopropBypass += 1;
       return originalFetch.call(globalThis, input, init);
@@ -201,39 +217,89 @@
     const callerSignal = init?.signal || input?.signal;
     let callerAbort;
     let timer;
+    let teardownTimer;
     let bodyCancel = null;
     let cleaned = false;
+    let abortRequested = false;
+    let abortReason = null;
+    let abortCleanupReason = "";
+    let teardownTaskStarted = false;
+    let abortReject;
+    const abortTerminal = new Promise((resolve, reject) => {
+      void resolve;
+      abortReject = reject;
+    });
+    void abortTerminal.catch(() => undefined);
+
+    const recordTeardownError = (err) => {
+      if (err === abortReason) return;
+      state.teardownErrors += 1;
+      state.lastTeardownError = String(err?.message || err || "unknown_teardown_error");
+    };
 
     const cleanup = (reason) => {
       if (cleaned) return;
       cleaned = true;
       if (timer) clearTimeout(timer);
+      if (teardownTimer) clearTimeout(teardownTimer);
       if (callerSignal && callerAbort) callerSignal.removeEventListener("abort", callerAbort);
       state.inflight = Math.max(0, state.inflight - 1);
       state.cleanups += 1;
       state.lastCleanupReason = reason;
+      if (abortRequested && abortReject) {
+        const reject = abortReject;
+        abortReject = null;
+        reject(abortReason instanceof Error ? abortReason : new Error(`${MARKER}_${abortCleanupReason || "ABORT"}`));
+      }
     };
 
-    const abortAndCleanup = (reason, cleanupReason) => {
-      if (!controller.signal.aborted) controller.abort(reason);
-      if (bodyCancel) {
-        try {
-          void bodyCancel(reason);
-        } catch (cancelErr) {
-          void cancelErr;
-        }
+    const settleTeardownTask = (task, cleanupReason) => {
+      if (teardownTaskStarted || cleaned) return;
+      teardownTaskStarted = true;
+      Promise.resolve(task).then(
+        () => cleanup(cleanupReason),
+        (err) => {
+          recordTeardownError(err);
+          cleanup(cleanupReason);
+        },
+      );
+    };
+
+    const beginAbort = (reason, cleanupReason) => {
+      if (abortRequested || cleaned) return;
+      abortRequested = true;
+      abortReason = reason;
+      abortCleanupReason = cleanupReason;
+      if (timer) {
+        clearTimeout(timer);
+        timer = undefined;
       }
-      cleanup(cleanupReason);
+      if (!controller.signal.aborted) controller.abort(reason);
+      teardownTimer = setTimeout(() => {
+        state.teardownDeadlineHits += 1;
+        cleanup(`${cleanupReason}_teardown_deadline`);
+      }, teardownTimeoutMs);
+      if (bodyCancel) {
+        let task;
+        try {
+          task = bodyCancel(reason);
+        } catch (err) {
+          recordTeardownError(err);
+          cleanup(cleanupReason);
+          return;
+        }
+        settleTeardownTask(task, cleanupReason);
+      }
     };
 
     timer = setTimeout(() => {
       state.timedOut += 1;
       const reason = new Error(`${MARKER}_TIMEOUT timeout_ms=${timeoutMs}`);
-      abortAndCleanup(reason, "timeout");
+      beginAbort(reason, "timeout");
     }, timeoutMs);
 
     if (callerSignal) {
-      callerAbort = () => abortAndCleanup(callerSignal.reason, "caller_abort");
+      callerAbort = () => beginAbort(callerSignal.reason, "caller_abort");
       if (callerSignal.aborted) callerAbort();
       else callerSignal.addEventListener("abort", callerAbort, { once: true });
     }
@@ -243,29 +309,59 @@
     try {
       result = originalFetch.call(globalThis, input, guardedInit);
     } catch (err) {
-      cleanup("fetch_sync_error");
+      if (abortRequested) {
+        cleanup(abortCleanupReason || "abort_fetch_sync_error");
+      } else {
+        cleanup("fetch_sync_error");
+      }
       throw err;
     }
 
-    return Promise.resolve(result).then(
-      (response) => wrapResponseBodyLifetime(
-        response,
-        cleanup,
-        (cancel) => {
-          bodyCancel = cancel;
-          if (controller.signal.aborted) {
+    const pipeline = Promise.resolve(result).then(
+      (response) => {
+        if (abortRequested) {
+          if (response instanceof Response && response.body) {
+            let task;
             try {
-              void bodyCancel(controller.signal.reason);
-            } catch (cancelErr) {
-              void cancelErr;
+              task = response.body.cancel(abortReason);
+            } catch (err) {
+              recordTeardownError(err);
+              cleanup(abortCleanupReason);
+              return abortTerminal;
             }
+            settleTeardownTask(task, abortCleanupReason);
+          } else {
+            cleanup(abortCleanupReason);
           }
-        },
-      ),
+          return abortTerminal;
+        }
+        return wrapResponseBodyLifetime(
+          response,
+          cleanup,
+          (cancel) => {
+            bodyCancel = cancel;
+            if (abortRequested && !cleaned) {
+              let task;
+              try {
+                task = bodyCancel(abortReason);
+              } catch (err) {
+                recordTeardownError(err);
+                cleanup(abortCleanupReason);
+                return;
+              }
+              settleTeardownTask(task, abortCleanupReason);
+            }
+          },
+          () => abortRequested,
+        );
+      },
       (err) => {
-        cleanup("fetch_error");
+        if (abortRequested) cleanup(abortCleanupReason);
+        else cleanup("fetch_error");
         throw err;
       },
     );
+
+    return Promise.race([pipeline, abortTerminal]);
   };
 })();

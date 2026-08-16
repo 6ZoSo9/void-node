@@ -82,6 +82,38 @@ jobs:
           test "${#MCP_BASES[@]}" -eq 1
           printf 'VOID_MCP_BASE_REF=%s\n' "${MCP_BASES[0]}" >> "$GITHUB_ENV"
 
+          mapfile -t MCP_CHANGED < <(
+            git diff --no-renames --name-only "${MCP_BASES[0]}..$CI_DIFF_CURRENT_SHA"
+          )
+          direct_relevant=0
+          for file in "${MCP_CHANGED[@]}"
+          do
+            case "$file" in
+              integrations/mcp/*)
+                direct_relevant=1
+                break
+                ;;
+              scripts/prove_void_agent_mcp_bridge_v1.ts)
+                direct_relevant=1
+                break
+                ;;
+              scripts/ci_diff_hygiene_v1.sh)
+                direct_relevant=1
+                break
+                ;;
+              scripts/prove_ci_diff_hygiene_v1.mjs)
+                direct_relevant=1
+                break
+                ;;
+              .github/workflows/void-agent-mcp-bridge-v1.yml)
+                direct_relevant=1
+                break
+                ;;
+            esac
+          done
+          printf 'VOID_MCP_DIRECT_RELEVANT=%s\n' "$direct_relevant" >> "$GITHUB_ENV"
+          printf 'void_mcp_direct_relevant=%s\n' "$direct_relevant"
+
       - name: Prove stale event base cannot drive MCP authority
         if: github.event_name == 'pull_request'
         shell: bash
@@ -110,11 +142,16 @@ jobs:
           forbidden+='{{ github.event.pull_request.base.sha }}'
           ! grep -F "$forbidden" "$workflow"
           grep -F 'VOID_MCP_BASE_REF=%s' "$workflow"
+          grep -F 'VOID_MCP_DIRECT_RELEVANT=%s' "$workflow"
+          grep -F "env.VOID_MCP_DIRECT_RELEVANT == '1'" "$workflow"
+          test "$(grep -c -- 'git diff --no-renames --name-only' "$workflow")" -ge 2
 
       - name: Typecheck, build, and test both protocol eras
+        if: github.event_name != 'pull_request' || env.VOID_MCP_DIRECT_RELEVANT == '1'
         run: npm --prefix integrations/mcp run check
 
       - name: Prove repository and authority boundaries
+        if: github.event_name != 'pull_request' || env.VOID_MCP_DIRECT_RELEVANT == '1'
         env:
           VOID_MCP_EVENT_BASE_REF: ${{ github.event.pull_request.base.sha }}
         run: >-
@@ -122,7 +159,7 @@ jobs:
           scripts/prove_void_agent_mcp_bridge_v1.ts
 
       - name: Prove exact changed-file lane
-        if: github.event_name == 'pull_request'
+        if: github.event_name == 'pull_request' && env.VOID_MCP_DIRECT_RELEVANT == '1'
         env:
           CI_DIFF_EVENT_NAME: ${{ github.event_name }}
           CI_DIFF_PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
@@ -142,7 +179,7 @@ jobs:
           test -n "$BASE_SHA"
 
           mapfile -t changed < <(
-            git diff --name-only "$BASE_SHA..$CI_DIFF_CURRENT_SHA"
+            git diff --no-renames --name-only "$BASE_SHA..$CI_DIFF_CURRENT_SHA"
           )
 
           test "${#changed[@]}" -gt 0
@@ -168,3 +205,10 @@ jobs:
           done
 
           printf 'changed_file=%s\n' "${changed[@]}"
+
+      - name: Confirm unrelated stale-base trigger remains non-authoritative
+        if: github.event_name == 'pull_request' && env.VOID_MCP_DIRECT_RELEVANT != '1'
+        run: |
+          printf 'VOID_AGENT_MCP_BRIDGE_V1_STALE_BASE_TRIGGER_SKIP\n'
+          printf 'mcp_direct_relevant=false\n'
+          printf 'mcp_lane_authority_check_required=false\n'

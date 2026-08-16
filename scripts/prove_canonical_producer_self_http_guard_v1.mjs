@@ -40,6 +40,7 @@ for (const token of [
   "VOID_CANONICAL_SELF_HTTP_GUARD",
   "VOID_CANONICAL_SELF_HTTP_MAX_INFLIGHT",
   "VOID_CANONICAL_SELF_HTTP_TIMEOUT_MS",
+  "VOID_CANONICAL_SELF_HTTP_TEARDOWN_TIMEOUT_MS",
   "/__void/metrics/proposer.commit-direct.v2fs/commit",
   "/proposer/auto/start",
   "/blocks/empty-policy/set",
@@ -48,6 +49,8 @@ for (const token of [
   "wrapResponseBodyLifetime",
   "body_complete",
   "caller_abort",
+  "teardownDeadlineHits",
+  "teardownErrors",
   'url.search === "?empty=1"',
 ]) need(runtimeGuard, token, "runtime self-http guard");
 
@@ -182,6 +185,7 @@ const bodyTimeout = fixture(
     ...canonicalEnv,
     VOID_CANONICAL_SELF_HTTP_MAX_INFLIGHT: "1",
     VOID_CANONICAL_SELF_HTTP_TIMEOUT_MS: "50",
+    VOID_CANONICAL_SELF_HTTP_TEARDOWN_TIMEOUT_MS: "200",
   },
 );
 if (
@@ -195,6 +199,189 @@ if (
   bodyTimeout.state.lastCleanupReason !== "timeout"
 ) {
   throw new Error("stalled response body was not bounded through its full lifetime");
+}
+
+const preHeaderTeardown = fixture(
+  "pre-header abort retains slot until fetch teardown settles",
+  String.raw`
+    let calls = 0;
+    global.fetch = (input, init = {}) => {
+      calls++;
+      return new Promise((resolve, reject) => {
+        void resolve;
+        init.signal?.addEventListener("abort", () => {
+          setTimeout(() => reject(init.signal.reason || new Error("aborted")), 80);
+        }, {once:true});
+      });
+    };
+    require(process.env.MODULE_PATH);
+    (async () => {
+      const first = fetch("http://127.0.0.1:4100/head.txt").catch(e => e);
+      await new Promise(r => setTimeout(r, 70));
+      const inflightDuringTeardown = global.__voidCanonicalSelfHttpGuardV1.inflight;
+      let limitedDuringTeardown = false;
+      try { await fetch("http://127.0.0.1:4100/blocks/latest/number2.json"); } catch (e) { limitedDuringTeardown = String(e).includes("_LIMIT"); }
+      const firstError = await first;
+      await new Promise(r => setImmediate(r));
+      console.log(JSON.stringify({calls, inflightDuringTeardown, limitedDuringTeardown, firstTimedOut:String(firstError).includes("_TIMEOUT"), state:global.__voidCanonicalSelfHttpGuardV1}));
+    })().catch(e => { console.error(e); process.exit(1); });
+  `,
+  {
+    ...canonicalEnv,
+    VOID_CANONICAL_SELF_HTTP_MAX_INFLIGHT: "1",
+    VOID_CANONICAL_SELF_HTTP_TIMEOUT_MS: "50",
+    VOID_CANONICAL_SELF_HTTP_TEARDOWN_TIMEOUT_MS: "200",
+  },
+);
+if (
+  preHeaderTeardown.calls !== 1 ||
+  preHeaderTeardown.inflightDuringTeardown !== 1 ||
+  preHeaderTeardown.limitedDuringTeardown !== true ||
+  preHeaderTeardown.firstTimedOut !== true ||
+  preHeaderTeardown.state.inflight !== 0 ||
+  preHeaderTeardown.state.cleanups !== 1 ||
+  preHeaderTeardown.state.teardownDeadlineHits !== 0
+) {
+  throw new Error("pre-header abort released the diagnostic slot before fetch teardown settled");
+}
+
+const bodyCancelTeardown = fixture(
+  "body abort retains slot until asynchronous cancellation settles",
+  String.raw`
+    let calls = 0;
+    let releaseCancel;
+    global.fetch = () => {
+      calls++;
+      return Promise.resolve(new Response(new ReadableStream({
+        cancel() { return new Promise(resolve => { releaseCancel = resolve; }); }
+      })));
+    };
+    require(process.env.MODULE_PATH);
+    (async () => {
+      await fetch("http://127.0.0.1:4100/head.txt");
+      await new Promise(r => setTimeout(r, 70));
+      const inflightDuringCancel = global.__voidCanonicalSelfHttpGuardV1.inflight;
+      let limitedDuringCancel = false;
+      try { await fetch("http://127.0.0.1:4100/blocks/latest/number2.json"); } catch (e) { limitedDuringCancel = String(e).includes("_LIMIT"); }
+      releaseCancel();
+      await new Promise(r => setImmediate(r));
+      console.log(JSON.stringify({calls, inflightDuringCancel, limitedDuringCancel, state:global.__voidCanonicalSelfHttpGuardV1}));
+    })().catch(e => { console.error(e); process.exit(1); });
+  `,
+  {
+    ...canonicalEnv,
+    VOID_CANONICAL_SELF_HTTP_MAX_INFLIGHT: "1",
+    VOID_CANONICAL_SELF_HTTP_TIMEOUT_MS: "50",
+    VOID_CANONICAL_SELF_HTTP_TEARDOWN_TIMEOUT_MS: "200",
+  },
+);
+if (
+  bodyCancelTeardown.calls !== 1 ||
+  bodyCancelTeardown.inflightDuringCancel !== 1 ||
+  bodyCancelTeardown.limitedDuringCancel !== true ||
+  bodyCancelTeardown.state.inflight !== 0 ||
+  bodyCancelTeardown.state.cleanups !== 1 ||
+  bodyCancelTeardown.state.teardownDeadlineHits !== 0
+) {
+  throw new Error("asynchronous response cancellation released the diagnostic slot early");
+}
+
+const callerAbortTeardown = fixture(
+  "caller abort retains slot until body cancellation settles",
+  String.raw`
+    let releaseCancel;
+    global.fetch = () => Promise.resolve(new Response(new ReadableStream({
+      cancel() { return new Promise(resolve => { releaseCancel = resolve; }); }
+    })));
+    require(process.env.MODULE_PATH);
+    (async () => {
+      const caller = new AbortController();
+      await fetch("http://127.0.0.1:4100/head.txt", {signal:caller.signal});
+      caller.abort(new Error("caller-stop"));
+      await new Promise(r => setImmediate(r));
+      const inflightDuringCancel = global.__voidCanonicalSelfHttpGuardV1.inflight;
+      let limitedDuringCancel = false;
+      try { await fetch("http://127.0.0.1:4100/blocks/latest/number2.json"); } catch (e) { limitedDuringCancel = String(e).includes("_LIMIT"); }
+      releaseCancel();
+      await new Promise(r => setImmediate(r));
+      console.log(JSON.stringify({inflightDuringCancel, limitedDuringCancel, state:global.__voidCanonicalSelfHttpGuardV1}));
+    })().catch(e => { console.error(e); process.exit(1); });
+  `,
+  {
+    ...canonicalEnv,
+    VOID_CANONICAL_SELF_HTTP_MAX_INFLIGHT: "1",
+    VOID_CANONICAL_SELF_HTTP_TIMEOUT_MS: "1000",
+    VOID_CANONICAL_SELF_HTTP_TEARDOWN_TIMEOUT_MS: "200",
+  },
+);
+if (
+  callerAbortTeardown.inflightDuringCancel !== 1 ||
+  callerAbortTeardown.limitedDuringCancel !== true ||
+  callerAbortTeardown.state.inflight !== 0 ||
+  callerAbortTeardown.state.cleanups !== 1 ||
+  callerAbortTeardown.state.lastCleanupReason !== "caller_abort"
+) {
+  throw new Error("caller abort released the diagnostic slot before body cancellation settled");
+}
+
+const teardownDeadline = fixture(
+  "hung response cancellation reaches bounded teardown deadline",
+  String.raw`
+    global.fetch = () => Promise.resolve(new Response(new ReadableStream({
+      cancel() { return new Promise(() => {}); }
+    })));
+    require(process.env.MODULE_PATH);
+    (async () => {
+      await fetch("http://127.0.0.1:4100/head.txt");
+      await new Promise(r => setTimeout(r, 70));
+      const inflightBeforeDeadline = global.__voidCanonicalSelfHttpGuardV1.inflight;
+      await new Promise(r => setTimeout(r, 100));
+      console.log(JSON.stringify({inflightBeforeDeadline, state:global.__voidCanonicalSelfHttpGuardV1}));
+    })().catch(e => { console.error(e); process.exit(1); });
+  `,
+  {
+    ...canonicalEnv,
+    VOID_CANONICAL_SELF_HTTP_MAX_INFLIGHT: "1",
+    VOID_CANONICAL_SELF_HTTP_TIMEOUT_MS: "50",
+    VOID_CANONICAL_SELF_HTTP_TEARDOWN_TIMEOUT_MS: "100",
+  },
+);
+if (
+  teardownDeadline.inflightBeforeDeadline !== 1 ||
+  teardownDeadline.state.inflight !== 0 ||
+  teardownDeadline.state.cleanups !== 1 ||
+  teardownDeadline.state.teardownDeadlineHits !== 1 ||
+  teardownDeadline.state.lastCleanupReason !== "timeout_teardown_deadline"
+) {
+  throw new Error("hung teardown did not reach a bounded truthful terminal deadline");
+}
+
+const teardownReject = fixture(
+  "response cancellation rejection is recorded without leaking slot",
+  String.raw`
+    global.fetch = () => Promise.resolve(new Response(new ReadableStream({
+      cancel() { return Promise.reject(new Error("cancel-failure")); }
+    })));
+    require(process.env.MODULE_PATH);
+    (async () => {
+      await fetch("http://127.0.0.1:4100/head.txt");
+      await new Promise(r => setTimeout(r, 80));
+      console.log(JSON.stringify({state:global.__voidCanonicalSelfHttpGuardV1}));
+    })().catch(e => { console.error(e); process.exit(1); });
+  `,
+  {
+    ...canonicalEnv,
+    VOID_CANONICAL_SELF_HTTP_TIMEOUT_MS: "50",
+    VOID_CANONICAL_SELF_HTTP_TEARDOWN_TIMEOUT_MS: "200",
+  },
+);
+if (
+  teardownReject.state.inflight !== 0 ||
+  teardownReject.state.cleanups !== 1 ||
+  teardownReject.state.teardownErrors !== 1 ||
+  !teardownReject.state.lastTeardownError.includes("cancel-failure")
+) {
+  throw new Error("teardown cancellation failure was not recorded and contained");
 }
 
 const successCleanup = fixture(
@@ -234,35 +421,6 @@ const errorCleanup = fixture(
 );
 if (errorCleanup.failed !== true || errorCleanup.state.inflight !== 0 || errorCleanup.state.cleanups !== 1) {
   throw new Error("errored response body cleanup was not exactly once");
-}
-
-const callerAbort = fixture(
-  "caller abort cleanup exactly once",
-  String.raw`
-    global.fetch = (input, init = {}) => Promise.resolve(new Response(new ReadableStream({
-      start(controller) {
-        init.signal?.addEventListener("abort", () => controller.error(init.signal.reason || new Error("aborted")), {once:true});
-      }
-    })));
-    require(process.env.MODULE_PATH);
-    (async () => {
-      const caller = new AbortController();
-      await fetch("http://127.0.0.1:4100/head.txt", {signal:caller.signal});
-      const inflightAtHeaders = global.__voidCanonicalSelfHttpGuardV1.inflight;
-      caller.abort(new Error("caller-stop"));
-      await new Promise(r => setImmediate(r));
-      console.log(JSON.stringify({inflightAtHeaders, state:global.__voidCanonicalSelfHttpGuardV1}));
-    })().catch(e => { console.error(e); process.exit(1); });
-  `,
-  canonicalEnv,
-);
-if (
-  callerAbort.inflightAtHeaders !== 1 ||
-  callerAbort.state.inflight !== 0 ||
-  callerAbort.state.cleanups !== 1 ||
-  callerAbort.state.lastCleanupReason !== "caller_abort"
-) {
-  throw new Error("caller abort cleanup was not exactly once");
 }
 
 const alreadyAborted = fixture(
@@ -368,6 +526,11 @@ console.log(
     exact_process_argv_preserved: true,
     self_http_max_inflight_bounded: true,
     self_http_timeout_covers_response_body: true,
+    preheader_abort_teardown_slot_retained: true,
+    response_cancel_teardown_slot_retained: true,
+    caller_abort_teardown_slot_retained: true,
+    teardown_deadline_bounded: true,
+    teardown_failure_recorded: true,
     body_cleanup_exact_once: true,
     already_aborted_caller_exact_once: true,
     legacy_watchdog_interventions_suppressed: true,

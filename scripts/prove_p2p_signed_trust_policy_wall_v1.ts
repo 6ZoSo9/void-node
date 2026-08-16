@@ -3,7 +3,7 @@
 
 import assert from "node:assert/strict";
 import { generateKeyPairSync } from "node:crypto";
-import { lstat, readFile, rm, symlink, writeFile } from "node:fs/promises";
+import { chmod, lstat, readFile, rm, symlink, writeFile } from "node:fs/promises";
 import * as path from "node:path";
 import { tmpdir } from "node:os";
 import { mkdtemp } from "node:fs/promises";
@@ -266,6 +266,92 @@ async function main(): Promise<void> {
     });
     assert.equal(idempotent.already_active, true);
 
+    const activationJournal = path.join(stateDir, "activation.ndjson");
+    const canonicalActivationLine = (
+      await readFile(activationJournal, "utf8")
+    ).trim();
+    const canonicalActivation = JSON.parse(
+      canonicalActivationLine,
+    ) as Record<string, unknown>;
+    const expectRejectedActivationJournal = async (
+      value: Record<string, unknown>,
+      expectedCode: string,
+    ): Promise<void> => {
+      const rejectedBytes = `${canonicalVoidP2pTrustJsonV1(
+        value as unknown as Parameters<
+          typeof canonicalVoidP2pTrustJsonV1
+        >[0],
+      )}\n`;
+      await writeFile(
+        activationJournal,
+        rejectedBytes,
+        { mode: 0o600 },
+      );
+      await expectHoldAsync(
+        () =>
+          activateVoidP2pSignedTrustPolicyV1({
+            envelope: firstEnvelope,
+            root_set: roots,
+            options: { expected_network_id: NETWORK, now_ms: NOW },
+            state_dir: stateDir,
+          }),
+        expectedCode,
+      );
+      assert.equal(await readFile(activationJournal, "utf8"), rejectedBytes);
+    };
+
+    const missingGeneration = { ...canonicalActivation };
+    delete missingGeneration.generation;
+    await expectRejectedActivationJournal(
+      missingGeneration,
+      "missing_field",
+    );
+    await expectRejectedActivationJournal(
+      { ...canonicalActivation, unexpected: true },
+      "unexpected_field",
+    );
+    await expectRejectedActivationJournal(
+      { ...canonicalActivation, policy_sha256: "0".repeat(63) },
+      "invalid_sha256",
+    );
+    await expectRejectedActivationJournal(
+      { ...canonicalActivation, envelope_sha256: "f".repeat(63) },
+      "invalid_sha256",
+    );
+    const signerKeyIds = canonicalActivation.signer_key_ids as string[];
+    await expectRejectedActivationJournal(
+      {
+        ...canonicalActivation,
+        signer_key_ids: [signerKeyIds[0], signerKeyIds[0]],
+      },
+      "noncanonical_order",
+    );
+    await expectRejectedActivationJournal(
+      { ...canonicalActivation, threshold: 0 },
+      "invalid_activation",
+    );
+    await expectRejectedActivationJournal(
+      { ...canonicalActivation, activated_at: "not-an-instant" },
+      "invalid_time",
+    );
+    await expectRejectedActivationJournal(
+      { ...canonicalActivation, generation: "unbound-generation" },
+      "invalid_activation",
+    );
+    await expectRejectedActivationJournal(
+      { ...canonicalActivation, network_id: "other-network" },
+      "invalid_activation_journal",
+    );
+    await expectRejectedActivationJournal(
+      { ...canonicalActivation, epoch: "00" },
+      "invalid_epoch",
+    );
+    await writeFile(
+      activationJournal,
+      `${canonicalActivationLine}\n`,
+      { mode: 0o600 },
+    );
+
     const sameEpochDifferent = signTwice(
       policy({ deny_node_ids: [] }),
       key1,
@@ -280,6 +366,127 @@ async function main(): Promise<void> {
           state_dir: stateDir,
         }),
       "epoch_reuse",
+    );
+
+    const sameEpochDifferentVerified = verifyVoidP2pSignedTrustPolicyV1({
+      envelope: sameEpochDifferent,
+      root_set: roots,
+      options: { expected_network_id: NETWORK, now_ms: NOW },
+    });
+    const missingCurrentStateDir = path.join(
+      temporary,
+      "missing-current-state",
+    );
+    const missingCurrentActivation = await activateVoidP2pSignedTrustPolicyV1({
+      envelope: firstEnvelope,
+      root_set: roots,
+      options: { expected_network_id: NETWORK, now_ms: NOW },
+      state_dir: missingCurrentStateDir,
+    });
+    const missingCurrentJournal = path.join(
+      missingCurrentStateDir,
+      "activation.ndjson",
+    );
+    const missingCurrentJournalBefore = await readFile(
+      missingCurrentJournal,
+      "utf8",
+    );
+    const retainedGenerationDir = path.join(
+      missingCurrentStateDir,
+      "generations",
+      missingCurrentActivation.activation.generation,
+    );
+    const rejectedGenerationDir = path.join(
+      missingCurrentStateDir,
+      "generations",
+      `${sameEpochDifferent.policy.epoch.padStart(40, "0")}-${sameEpochDifferentVerified.policy_sha256}`,
+    );
+    const missingCurrentLink = path.join(missingCurrentStateDir, "current");
+    await rm(missingCurrentLink);
+    const expectMissingCurrentHoldWithoutMutation = async (
+      envelope: unknown,
+    ): Promise<void> => {
+      await expectHoldAsync(
+        () =>
+          activateVoidP2pSignedTrustPolicyV1({
+            envelope,
+            root_set: roots,
+            options: { expected_network_id: NETWORK, now_ms: NOW },
+            state_dir: missingCurrentStateDir,
+          }),
+        "missing_current_with_history",
+      );
+      assert.equal(
+        await readFile(missingCurrentJournal, "utf8"),
+        missingCurrentJournalBefore,
+      );
+      assert.equal((await lstat(retainedGenerationDir)).isDirectory(), true);
+      await assert.rejects(
+        lstat(missingCurrentLink),
+        (error: unknown) =>
+          (error as NodeJS.ErrnoException)?.code === "ENOENT",
+      );
+    };
+    await expectMissingCurrentHoldWithoutMutation(sameEpochDifferent);
+    await assert.rejects(
+      lstat(rejectedGenerationDir),
+      (error: unknown) =>
+        (error as NodeJS.ErrnoException)?.code === "ENOENT",
+    );
+    await expectMissingCurrentHoldWithoutMutation(firstEnvelope);
+
+    const retainedOnlyStateDir = path.join(
+      temporary,
+      "missing-current-retained-generation-state",
+    );
+    const retainedOnlyActivation = await activateVoidP2pSignedTrustPolicyV1({
+      envelope: firstEnvelope,
+      root_set: roots,
+      options: { expected_network_id: NETWORK, now_ms: NOW },
+      state_dir: retainedOnlyStateDir,
+    });
+    const retainedOnlyJournal = path.join(
+      retainedOnlyStateDir,
+      "activation.ndjson",
+    );
+    const retainedOnlyCurrent = path.join(retainedOnlyStateDir, "current");
+    const retainedOnlyGeneration = path.join(
+      retainedOnlyStateDir,
+      "generations",
+      retainedOnlyActivation.activation.generation,
+    );
+    const retainedOnlyRejectedGeneration = path.join(
+      retainedOnlyStateDir,
+      "generations",
+      `${sameEpochDifferent.policy.epoch.padStart(40, "0")}-${sameEpochDifferentVerified.policy_sha256}`,
+    );
+    await rm(retainedOnlyCurrent);
+    await rm(retainedOnlyJournal);
+    await expectHoldAsync(
+      () =>
+        activateVoidP2pSignedTrustPolicyV1({
+          envelope: sameEpochDifferent,
+          root_set: roots,
+          options: { expected_network_id: NETWORK, now_ms: NOW },
+          state_dir: retainedOnlyStateDir,
+        }),
+      "missing_current_with_history",
+    );
+    assert.equal((await lstat(retainedOnlyGeneration)).isDirectory(), true);
+    await assert.rejects(
+      lstat(retainedOnlyCurrent),
+      (error: unknown) =>
+        (error as NodeJS.ErrnoException)?.code === "ENOENT",
+    );
+    await assert.rejects(
+      lstat(retainedOnlyJournal),
+      (error: unknown) =>
+        (error as NodeJS.ErrnoException)?.code === "ENOENT",
+    );
+    await assert.rejects(
+      lstat(retainedOnlyRejectedGeneration),
+      (error: unknown) =>
+        (error as NodeJS.ErrnoException)?.code === "ENOENT",
     );
 
     const epoch2MissingLink = signTwice(policy({ epoch: "2" }), key1, key2);
@@ -302,6 +509,219 @@ async function main(): Promise<void> {
       peers: [{ host: "198.51.100.10", port: 4790, expected_node_id: NODE_1 }],
     });
     const secondEnvelope = signTwice(secondPolicy, key2, key3);
+    const activateThroughEpoch2 = async (name: string): Promise<string> => {
+      const fixtureStateDir = path.join(temporary, name);
+      await activateVoidP2pSignedTrustPolicyV1({
+        envelope: firstEnvelope,
+        root_set: roots,
+        options: { expected_network_id: NETWORK, now_ms: NOW },
+        state_dir: fixtureStateDir,
+      });
+      await activateVoidP2pSignedTrustPolicyV1({
+        envelope: secondEnvelope,
+        root_set: roots,
+        options: { expected_network_id: NETWORK, now_ms: NOW },
+        state_dir: fixtureStateDir,
+      });
+      return fixtureStateDir;
+    };
+    const expectJournalHoldWithoutMutation = async (
+      fixtureStateDir: string,
+      envelope: unknown,
+    ): Promise<void> => {
+      const fixtureJournal = path.join(
+        fixtureStateDir,
+        "activation.ndjson",
+      );
+      const before = await readFile(fixtureJournal, "utf8");
+      await expectHoldAsync(
+        () =>
+          activateVoidP2pSignedTrustPolicyV1({
+            envelope,
+            root_set: roots,
+            options: { expected_network_id: NETWORK, now_ms: NOW },
+            state_dir: fixtureStateDir,
+          }),
+        "invalid_activation_journal",
+      );
+      assert.equal(await readFile(fixtureJournal, "utf8"), before);
+    };
+
+    const recoveryStateDir = path.join(temporary, "recovery-state");
+    await activateVoidP2pSignedTrustPolicyV1({
+      envelope: firstEnvelope,
+      root_set: roots,
+      options: { expected_network_id: NETWORK, now_ms: NOW },
+      state_dir: recoveryStateDir,
+    });
+    const recoveryJournal = path.join(
+      recoveryStateDir,
+      "activation.ndjson",
+    );
+    const recoveryJournalBeforeSecondActivation = await readFile(
+      recoveryJournal,
+      "utf8",
+    );
+    if (process.getuid?.() === 0) {
+      await activateVoidP2pSignedTrustPolicyV1({
+        envelope: secondEnvelope,
+        root_set: roots,
+        options: { expected_network_id: NETWORK, now_ms: NOW },
+        state_dir: recoveryStateDir,
+      });
+      await writeFile(
+        recoveryJournal,
+        recoveryJournalBeforeSecondActivation,
+        { mode: 0o600 },
+      );
+    } else {
+      await chmod(recoveryJournal, 0o400);
+      await assert.rejects(
+        activateVoidP2pSignedTrustPolicyV1({
+          envelope: secondEnvelope,
+          root_set: roots,
+          options: { expected_network_id: NETWORK, now_ms: NOW },
+          state_dir: recoveryStateDir,
+        }),
+        (error: unknown) =>
+          (error as NodeJS.ErrnoException)?.code === "EACCES",
+      );
+    }
+    const partiallyActivated =
+      await loadActiveVoidP2pTrustPolicyV1(recoveryStateDir);
+    assert(partiallyActivated);
+    assert.equal(partiallyActivated.activation.epoch, "2");
+    assert.equal(
+      (await readFile(recoveryJournal, "utf8")).trim().split("\n")
+        .length,
+      1,
+    );
+    if (process.getuid?.() !== 0) await chmod(recoveryJournal, 0o600);
+    const recoveryJournalPrefix = await readFile(recoveryJournal, "utf8");
+    const expectedRecoveryLine = canonicalVoidP2pTrustJsonV1(
+      partiallyActivated.activation as unknown as Parameters<
+        typeof canonicalVoidP2pTrustJsonV1
+      >[0],
+    );
+    await writeFile(
+      recoveryJournal,
+      `${recoveryJournalPrefix}!arbitrary-torn-tail`,
+      { mode: 0o600 },
+    );
+    await expectHoldAsync(
+      () =>
+        activateVoidP2pSignedTrustPolicyV1({
+          envelope: secondEnvelope,
+          root_set: roots,
+          options: { expected_network_id: NETWORK, now_ms: NOW },
+          state_dir: recoveryStateDir,
+        }),
+      "invalid_activation_journal",
+    );
+    assert.equal(
+      await readFile(recoveryJournal, "utf8"),
+      `${recoveryJournalPrefix}!arbitrary-torn-tail`,
+    );
+    const expectedRecoveryPrefix = expectedRecoveryLine.slice(
+      0,
+      Math.floor(expectedRecoveryLine.length / 2),
+    );
+    await writeFile(
+      recoveryJournal,
+      `${recoveryJournalPrefix}${expectedRecoveryPrefix}`,
+      { mode: 0o600 },
+    );
+    const recoveredActivation =
+      await activateVoidP2pSignedTrustPolicyV1({
+        envelope: secondEnvelope,
+        root_set: roots,
+        options: { expected_network_id: NETWORK, now_ms: NOW },
+        state_dir: recoveryStateDir,
+      });
+    assert.equal(recoveredActivation.already_active, true);
+    const recoveredJournalLines = (
+      await readFile(recoveryJournal, "utf8")
+    ).trim().split("\n");
+    assert.equal(recoveredJournalLines.length, 2);
+    assert.equal(
+      recoveredJournalLines.at(-1),
+      expectedRecoveryLine,
+    );
+
+    const missingEpoch1JournalStateDir = path.join(
+      temporary,
+      "missing-epoch1-journal-state",
+    );
+    const missingEpoch1Activation = await activateVoidP2pSignedTrustPolicyV1({
+      envelope: firstEnvelope,
+      root_set: roots,
+      options: { expected_network_id: NETWORK, now_ms: NOW },
+      state_dir: missingEpoch1JournalStateDir,
+    });
+    assert.equal(missingEpoch1Activation.activation.epoch, "1");
+    const missingEpoch1Journal = path.join(
+      missingEpoch1JournalStateDir,
+      "activation.ndjson",
+    );
+    await rm(missingEpoch1Journal);
+    const recoveredMissingEpoch1 =
+      await activateVoidP2pSignedTrustPolicyV1({
+        envelope: firstEnvelope,
+        root_set: roots,
+        options: { expected_network_id: NETWORK, now_ms: NOW },
+        state_dir: missingEpoch1JournalStateDir,
+      });
+    assert.equal(recoveredMissingEpoch1.already_active, true);
+    assert.equal(
+      (await readFile(missingEpoch1Journal, "utf8")).trim().split("\n")
+        .length,
+      1,
+    );
+
+    const lostHistoryStateDir = path.join(
+      temporary,
+      "lost-history-state",
+    );
+    await activateVoidP2pSignedTrustPolicyV1({
+      envelope: firstEnvelope,
+      root_set: roots,
+      options: { expected_network_id: NETWORK, now_ms: NOW },
+      state_dir: lostHistoryStateDir,
+    });
+    const lostHistoryActivation =
+      await activateVoidP2pSignedTrustPolicyV1({
+        envelope: secondEnvelope,
+        root_set: roots,
+        options: { expected_network_id: NETWORK, now_ms: NOW },
+        state_dir: lostHistoryStateDir,
+      });
+    assert.equal(lostHistoryActivation.activation.epoch, "2");
+    const lostHistoryJournal = path.join(
+      lostHistoryStateDir,
+      "activation.ndjson",
+    );
+    assert.equal(
+      (await readFile(lostHistoryJournal, "utf8")).trim().split("\n")
+        .length,
+      2,
+    );
+    await rm(lostHistoryJournal);
+    await expectHoldAsync(
+      () =>
+        activateVoidP2pSignedTrustPolicyV1({
+          envelope: secondEnvelope,
+          root_set: roots,
+          options: { expected_network_id: NETWORK, now_ms: NOW },
+          state_dir: lostHistoryStateDir,
+        }),
+      "invalid_activation_journal",
+    );
+    await assert.rejects(
+      readFile(lostHistoryJournal, "utf8"),
+      (error: unknown) =>
+        (error as NodeJS.ErrnoException)?.code === "ENOENT",
+    );
+
     const activated2 = await activateVoidP2pSignedTrustPolicyV1({
       envelope: secondEnvelope,
       root_set: roots,
@@ -317,6 +737,159 @@ async function main(): Promise<void> {
     assert.equal(loaded2.environment.VOID_P2P_EDGE_WALL_DENY_NODE_IDS, `${NODE_2},${NODE_3}`);
     assert.equal((await readFile(path.join(stateDir, "activation.ndjson"), "utf8")).trim().split("\n").length, 2);
 
+    const fakePriorStateDir = await activateThroughEpoch2(
+      "fake-prior-record-state",
+    );
+    const fakePriorJournal = path.join(
+      fakePriorStateDir,
+      "activation.ndjson",
+    );
+    const fakePriorLines = (await readFile(fakePriorJournal, "utf8"))
+      .trim()
+      .split("\n");
+    const fakePrior = JSON.parse(fakePriorLines[0]!) as Record<
+      string,
+      unknown
+    >;
+    const fakePolicySha256 = "a".repeat(64);
+    fakePrior.policy_sha256 = fakePolicySha256;
+    fakePrior.envelope_sha256 = "b".repeat(64);
+    fakePrior.generation = `${"1".padStart(40, "0")}-${fakePolicySha256}`;
+    await writeFile(
+      fakePriorJournal,
+      `${canonicalVoidP2pTrustJsonV1(
+        fakePrior as unknown as Parameters<
+          typeof canonicalVoidP2pTrustJsonV1
+        >[0]
+      )}\n${fakePriorLines[1]}\n`,
+      { mode: 0o600 },
+    );
+    await expectJournalHoldWithoutMutation(fakePriorStateDir, secondEnvelope);
+
+    const missingGenerationStateDir = await activateThroughEpoch2(
+      "missing-generation-state",
+    );
+    const missingGenerationJournal = path.join(
+      missingGenerationStateDir,
+      "activation.ndjson",
+    );
+    const missingGenerationLines = (
+      await readFile(missingGenerationJournal, "utf8")
+    ).trim().split("\n");
+    const missingGenerationRecord = JSON.parse(
+      missingGenerationLines[0]!,
+    ) as Record<string, unknown>;
+    await rm(
+      path.join(
+        missingGenerationStateDir,
+        "generations",
+        String(missingGenerationRecord.generation),
+      ),
+      { recursive: true },
+    );
+    await expectJournalHoldWithoutMutation(
+      missingGenerationStateDir,
+      secondEnvelope,
+    );
+
+    const wrongGenerationStateDir = await activateThroughEpoch2(
+      "wrong-generation-state",
+    );
+    const wrongGenerationJournal = path.join(
+      wrongGenerationStateDir,
+      "activation.ndjson",
+    );
+    const wrongGenerationLines = (
+      await readFile(wrongGenerationJournal, "utf8")
+    ).trim().split("\n");
+    const wrongGenerationRecord = JSON.parse(
+      wrongGenerationLines[0]!,
+    ) as Record<string, unknown>;
+    wrongGenerationRecord.activated_at = "2026-07-22T12:00:00.001Z";
+    await writeFile(
+      wrongGenerationJournal,
+      `${canonicalVoidP2pTrustJsonV1(
+        wrongGenerationRecord as unknown as Parameters<
+          typeof canonicalVoidP2pTrustJsonV1
+        >[0]
+      )}\n${wrongGenerationLines[1]}\n`,
+      { mode: 0o600 },
+    );
+    await expectJournalHoldWithoutMutation(
+      wrongGenerationStateDir,
+      secondEnvelope,
+    );
+
+    const symlinkGenerationStateDir = await activateThroughEpoch2(
+      "symlink-generation-state",
+    );
+    const symlinkGenerationJournal = path.join(
+      symlinkGenerationStateDir,
+      "activation.ndjson",
+    );
+    const symlinkGenerationLines = (
+      await readFile(symlinkGenerationJournal, "utf8")
+    ).trim().split("\n");
+    const symlinkPrior = JSON.parse(symlinkGenerationLines[0]!) as Record<
+      string,
+      unknown
+    >;
+    const symlinkCurrent = JSON.parse(symlinkGenerationLines[1]!) as Record<
+      string,
+      unknown
+    >;
+    const symlinkPriorDir = path.join(
+      symlinkGenerationStateDir,
+      "generations",
+      String(symlinkPrior.generation),
+    );
+    await rm(symlinkPriorDir, { recursive: true });
+    await symlink(String(symlinkCurrent.generation), symlinkPriorDir);
+    await expectJournalHoldWithoutMutation(
+      symlinkGenerationStateDir,
+      secondEnvelope,
+    );
+
+    const thirdPolicy = policy({
+      epoch: "3",
+      previous_policy_sha256: activated2.activation.policy_sha256,
+      allow_node_ids: [NODE_1],
+      deny_node_ids: [NODE_2, NODE_3],
+      peers: [
+        {
+          host: "198.51.100.10",
+          port: 4790,
+          expected_node_id: NODE_1,
+        },
+      ],
+    });
+    const thirdEnvelope = signTwice(thirdPolicy, key1, key3);
+    const brokenPredecessorStateDir = await activateThroughEpoch2(
+      "broken-predecessor-state",
+    );
+    await activateVoidP2pSignedTrustPolicyV1({
+      envelope: thirdEnvelope,
+      root_set: roots,
+      options: { expected_network_id: NETWORK, now_ms: NOW },
+      state_dir: brokenPredecessorStateDir,
+    });
+    const brokenPredecessorJournal = path.join(
+      brokenPredecessorStateDir,
+      "activation.ndjson",
+    );
+    const brokenPredecessorLines = (
+      await readFile(brokenPredecessorJournal, "utf8")
+    ).trim().split("\n");
+    await writeFile(
+      brokenPredecessorJournal,
+      `${brokenPredecessorLines[0]}\n${brokenPredecessorLines[2]}\n`,
+      { mode: 0o600 },
+    );
+    await expectJournalHoldWithoutMutation(
+      brokenPredecessorStateDir,
+      thirdEnvelope,
+    );
+
     await expectHoldAsync(
       () =>
         activateVoidP2pSignedTrustPolicyV1({
@@ -328,19 +901,11 @@ async function main(): Promise<void> {
       "policy_rollback",
     );
 
-    const epoch3Policy = policy({
-      epoch: "3",
-      previous_policy_sha256: activated2.activation.policy_sha256,
-      allow_node_ids: [NODE_1],
-      deny_node_ids: [NODE_2, NODE_3],
-      peers: [{ host: "198.51.100.10", port: 4790, expected_node_id: NODE_1 }],
-    });
-    const epoch3Envelope = signTwice(epoch3Policy, key1, key3);
     await writeFile(path.join(stateDir, "activation.lock"), "held\n", { mode: 0o600 });
     await expectHoldAsync(
       () =>
         activateVoidP2pSignedTrustPolicyV1({
-          envelope: epoch3Envelope,
+          envelope: thirdEnvelope,
           root_set: roots,
           options: { expected_network_id: NETWORK, now_ms: NOW },
           state_dir: stateDir,
