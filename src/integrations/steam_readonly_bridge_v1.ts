@@ -400,12 +400,9 @@ async function readBoundedResponse(
   let total = 0;
 
   while (true) {
-    let part: Awaited<ReturnType<typeof reader.read>>;
-    try {
-      part = await readResponseChunk(reader, controller.signal);
-    } catch {
-      return rejectReaderFailure(reader, controller);
-    }
+    const part = await readResponseChunk(reader, controller.signal).catch(() =>
+      rejectReaderFailure(reader, controller),
+    );
     if (part.done) break;
     total += part.value.byteLength;
     if (total > maxBytes) {
