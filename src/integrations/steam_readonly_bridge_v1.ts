@@ -360,7 +360,7 @@ async function readBoundedResponse(
   let total = 0;
 
   while (true) {
-    let part: ReadableStreamReadResult<Uint8Array>;
+    let part: Awaited<ReturnType<typeof reader.read>>;
     try {
       part = await reader.read();
     } catch {
