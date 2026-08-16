@@ -5,6 +5,8 @@ on:
     paths:
       - "integrations/mcp/**"
       - "scripts/prove_void_agent_mcp_bridge_v1.ts"
+      - "scripts/ci_diff_hygiene_v1.sh"
+      - "scripts/prove_ci_diff_hygiene_v1.mjs"
       - ".github/workflows/void-agent-mcp-bridge-v1.yml"
   workflow_dispatch:
 
@@ -22,13 +24,14 @@ jobs:
     timeout-minutes: 20
 
     steps:
-      - name: Check out exact head
-        uses: actions/checkout@v4
+      - name: Checkout integration state
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
         with:
-          fetch-depth: 0
+          fetch-depth: 1
+          persist-credentials: false
 
       - name: Use Node.js 22
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
         with:
           node-version: "22"
           cache: npm
@@ -52,29 +55,131 @@ jobs:
           --no-fund
           --registry=https://registry.npmjs.org/
 
+      - name: Prove shallow committed-range diff hygiene contract
+        if: github.event_name == 'pull_request'
+        run: node scripts/prove_ci_diff_hygiene_v1.mjs
+
+      - name: Prepare and prove exact committed range
+        if: github.event_name == 'pull_request'
+        env:
+          CI_DIFF_EVENT_NAME: ${{ github.event_name }}
+          CI_DIFF_PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          CI_DIFF_CURRENT_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+          CI_DIFF_CHECKOUT_SHA: ${{ github.sha }}
+          CI_DIFF_BASE_REMOTE: ${{ github.server_url }}/${{ github.repository }}.git
+          CI_DIFF_HEAD_REMOTE: ${{ github.server_url }}/${{ github.event.pull_request.head.repo.full_name || github.repository }}.git
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          DIFF_EVIDENCE="$(bash scripts/ci_diff_hygiene_v1.sh)"
+          printf '%s\n' "$DIFF_EVIDENCE"
+
+          mapfile -t MCP_BASES < <(
+            printf '%s\n' "$DIFF_EVIDENCE" \
+              | sed -n 's/^base_sha=\([0-9a-f]\{40\}\)$/\1/p'
+          )
+          test "${#MCP_BASES[@]}" -eq 1
+          printf 'VOID_MCP_BASE_REF=%s\n' "${MCP_BASES[0]}" >> "$GITHUB_ENV"
+
+          mapfile -t MCP_CHANGED < <(
+            git diff --no-renames --name-only "${MCP_BASES[0]}..$CI_DIFF_CURRENT_SHA"
+          )
+          direct_relevant=0
+          for file in "${MCP_CHANGED[@]}"
+          do
+            case "$file" in
+              integrations/mcp/*)
+                direct_relevant=1
+                break
+                ;;
+              scripts/prove_void_agent_mcp_bridge_v1.ts)
+                direct_relevant=1
+                break
+                ;;
+              scripts/ci_diff_hygiene_v1.sh)
+                direct_relevant=1
+                break
+                ;;
+              scripts/prove_ci_diff_hygiene_v1.mjs)
+                direct_relevant=1
+                break
+                ;;
+              .github/workflows/void-agent-mcp-bridge-v1.yml)
+                direct_relevant=1
+                break
+                ;;
+            esac
+          done
+          printf 'VOID_MCP_DIRECT_RELEVANT=%s\n' "$direct_relevant" >> "$GITHUB_ENV"
+          printf 'void_mcp_direct_relevant=%s\n' "$direct_relevant"
+
+      - name: Prove stale event base cannot drive MCP authority
+        if: github.event_name == 'pull_request'
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          integration_base="1111111111111111111111111111111111111111"
+          stale_event_base="2222222222222222222222222222222222222222"
+          fixture="$({
+            printf 'base_sha=%s\n' "$integration_base"
+            printf 'event_base_sha=%s\n' "$stale_event_base"
+            printf 'integration_base_from_checkout=true\n'
+            printf 'event_base_matches_integration_base=false\n'
+          })"
+
+          mapfile -t fixture_bases < <(
+            printf '%s\n' "$fixture" \
+              | sed -n 's/^base_sha=\([0-9a-f]\{40\}\)$/\1/p'
+          )
+          test "${#fixture_bases[@]}" -eq 1
+          test "${fixture_bases[0]}" = "$integration_base"
+          test "${fixture_bases[0]}" != "$stale_event_base"
+
+          workflow=".github/workflows/void-agent-mcp-bridge-v1.yml"
+          forbidden='VOID_MCP_BASE_REF: $'
+          forbidden+='{{ github.event.pull_request.base.sha }}'
+          ! grep -F "$forbidden" "$workflow"
+          grep -F 'VOID_MCP_BASE_REF=%s' "$workflow"
+          grep -F 'VOID_MCP_DIRECT_RELEVANT=%s' "$workflow"
+          grep -F "env.VOID_MCP_DIRECT_RELEVANT == '1'" "$workflow"
+          test "$(grep -c -- 'git diff --no-renames --name-only' "$workflow")" -ge 2
+
       - name: Typecheck, build, and test both protocol eras
+        if: github.event_name != 'pull_request' || env.VOID_MCP_DIRECT_RELEVANT == '1'
         run: npm --prefix integrations/mcp run check
 
       - name: Prove repository and authority boundaries
+        if: github.event_name != 'pull_request' || env.VOID_MCP_DIRECT_RELEVANT == '1'
         env:
-          VOID_MCP_BASE_REF: ${{ github.event.pull_request.base.sha }}
+          VOID_MCP_EVENT_BASE_REF: ${{ github.event.pull_request.base.sha }}
         run: >-
           npx --no-install tsx
           scripts/prove_void_agent_mcp_bridge_v1.ts
 
       - name: Prove exact changed-file lane
-        if: github.event_name == 'pull_request'
+        if: github.event_name == 'pull_request' && env.VOID_MCP_DIRECT_RELEVANT == '1'
         env:
-          BASE_SHA: ${{ github.event.pull_request.base.sha }}
-          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          CI_DIFF_EVENT_NAME: ${{ github.event_name }}
+          CI_DIFF_PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          CI_DIFF_CURRENT_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+          CI_DIFF_CHECKOUT_SHA: ${{ github.sha }}
+          CI_DIFF_BASE_REMOTE: ${{ github.server_url }}/${{ github.repository }}.git
+          CI_DIFF_HEAD_REMOTE: ${{ github.server_url }}/${{ github.event.pull_request.head.repo.full_name || github.repository }}.git
         shell: bash
         run: |
           set -euo pipefail
 
-          git diff --check "$BASE_SHA...$HEAD_SHA"
+          BASE_SHA="$(
+            git cat-file -p "$CI_DIFF_CHECKOUT_SHA" \
+              | sed -n 's/^parent \([0-9a-f]\{40\}\)$/\1/p' \
+              | sed -n '1p'
+          )"
+          test -n "$BASE_SHA"
 
           mapfile -t changed < <(
-            git diff --name-only "$BASE_SHA...$HEAD_SHA"
+            git diff --no-renames --name-only "$BASE_SHA..$CI_DIFF_CURRENT_SHA"
           )
 
           test "${#changed[@]}" -gt 0
@@ -86,6 +191,10 @@ jobs:
                 ;;
               scripts/prove_void_agent_mcp_bridge_v1.ts)
                 ;;
+              scripts/ci_diff_hygiene_v1.sh)
+                ;;
+              scripts/prove_ci_diff_hygiene_v1.mjs)
+                ;;
               .github/workflows/void-agent-mcp-bridge-v1.yml)
                 ;;
               *)
@@ -96,3 +205,10 @@ jobs:
           done
 
           printf 'changed_file=%s\n' "${changed[@]}"
+
+      - name: Confirm unrelated stale-base trigger remains non-authoritative
+        if: github.event_name == 'pull_request' && env.VOID_MCP_DIRECT_RELEVANT != '1'
+        run: |
+          printf 'VOID_AGENT_MCP_BRIDGE_V1_STALE_BASE_TRIGGER_SKIP\n'
+          printf 'mcp_direct_relevant=false\n'
+          printf 'mcp_lane_authority_check_required=false\n'

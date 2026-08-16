@@ -78,11 +78,16 @@ Canonical status therefore reports:
 ```text
 erc20_transaction_preparation_execution_state_ready=true
 funding_blockers=[
+  production_broad_delivery_configuration_not_verified
   canonical_delivery_runtime_activation_not_ready
 ]
 ```
 
-Credential binding, dependency injection, runtime enablement, and inventory funding remain later independent gates.
+Canonical Precision/Mainnet-0 credential binding evidence is recorded in redacted source evidence without inferring clone-local binding. Dormant dependency injection is fail-closed to delivery enable exact `0` and requires the configured delivery wallet to match the evidence-bound wallet.
+
+Canonical presale economics are now source-bound to `buy-void-presale-v1`, a finite 10000000 VOID total (10000000000000 six-decimal fulfillment units), and a fixed `2 VOID / 1 USDC` rate. The reservation ceiling equals the whole pool, so purchase admission has no per-buyer cap below remaining inventory; a 10,000 VOID validator purchase is explicitly proven.
+
+The old 2-VOID limit remains only a disabled delivery-execution canary. Public delivery activation is required to widen `VOID_BUY_VOID_DELIVERY_MAX_AMOUNT_UNITS` to the canonical presale capacity before execution can be considered configured. Production broad-delivery configuration verification, runtime enablement, and inventory funding remain later independent gates.
 
 ## Funding HOLD
 
@@ -100,3 +105,15 @@ broadcaster, transaction, treasury balance, presale inventory balance, validator
 stake, BTC reserve, or runtime process is mutated by this composition change.
 
 `PROTECT THE CORE`
+
+
+### Presale customer-liability boundary
+
+```text
+payment_admission_reservation_atomicity_ready=true
+inventory_reservation_before_new_paid_claim=true
+paid_unreservable_terminal_obligation_ready=true
+confirmed_payer_without_reservation_or_obligation_allowed=false
+```
+
+The 10,000,000-VOID distribution ceiling is therefore enforced at the paid-admission boundary as well as at inventory reservation: a new paid claim follows a successful aggregate reservation, while a confirmed payment that cannot reserve receives a deterministic terminal reconciliation obligation with zero autonomous value-moving authority.

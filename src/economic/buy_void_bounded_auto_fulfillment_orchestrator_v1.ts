@@ -28,7 +28,9 @@ export const VOID_BUY_VOID_BOUNDED_AUTO_FULFILLMENT_ORCHESTRATOR_AUTHORITY_V1 = 
   exact_confirmation_required: true,
   exact_delegated_confirmation_required: true,
   exact_payment_identity_binding_delegated: true,
-  claim_before_reservation: true,
+  claim_before_reservation: false,
+  inventory_reservation_before_new_paid_claim: true,
+  paid_unreservable_terminal_obligation_required: true,
   durable_reservation_before_execution: true,
   prepared_transaction_hash_before_broadcast: true,
   no_retry_after_possible_broadcast: true,
@@ -244,7 +246,7 @@ function requiredDelegatedConfirmation(
   stageCommand: Record<string, unknown> | null,
 ): string | null {
   if (stage === "observe_and_claim") {
-    return VOID_BUY_VOID_PIPELINE_CONFIRMATIONS_V1.verify_and_claim;
+    return VOID_BUY_VOID_PIPELINE_CONFIRMATIONS_V1.verify_reserve_and_claim;
   }
   if (stage === "reserve_inventory_and_attempt") {
     return VOID_BUY_VOID_PIPELINE_CONFIRMATIONS_V1.reserve_execution;
@@ -444,7 +446,7 @@ export async function runBuyVoidBoundedAutoFulfillmentOrchestratorV1(
   ) {
     const expectedAction =
       selected.stage === "observe_and_claim"
-        ? "verify_and_claim"
+        ? "verify_reserve_and_claim"
         : selected.stage === "reserve_inventory_and_attempt"
           ? "reserve_execution"
           : normalized(stageCommand.action);
