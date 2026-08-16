@@ -63,11 +63,10 @@ mandatory.
 
 The route index must carry its exact purpose, object-row shape, required public
 routes, and the complete reviewed read-only/no-authority policy. The route
-manifest must carry its exact purpose/status/effective base, internally exact
-route count, object-row metadata and required canonical markers, contain no
-sensitive namespace, and carry the same complete safety policy. Additional
-future public-read-only manifest rows remain admissible when those invariants
-hold.
+manifest must carry its exact purpose/status/effective base, exact reviewed
+25-route set and internally matching route count, object-row metadata and
+required canonical markers, contain no sensitive namespace, and carry the same
+complete safety policy.
 
 The self-check snapshot must carry its exact purpose/status/effective base,
 canonical six checks and six links, exact reviewed `expected_routes` set and
