@@ -59,7 +59,7 @@ function channel(root,out,version,tag){run("node",["tools/build-public-release-c
 const full=process.argv.includes("--full");
 need("release/channel/public-release-channel-v1.schema.json",["VOID_PUBLIC_RELEASE_CHANNEL_V1","rollback_on_health_failure"]);
 need("tools/build-public-release-channel-v1.mjs",["VOID_PUBLIC_RELEASE_CHANNEL_BUILDER_V1","github_attestation_required","--test-allow-file"]);
-need("release/bin/void-node-update",["VOID_NODE_RELEASE_UPDATE_V1","VOID_NODE_RELEASE_ROLLBACK_TRANSACTION_V1","ROLLBACK_RECOVERED","downgrade refused","HEALTH_FAIL_ROLLBACK_BEGIN","HEALTH_RESPONSE_MAX_BYTES","health response exceeds size limit","readBoundedResponseBytes","streamExactResponseToFile","VOID_NODE_UPDATE_TEST_ALLOW_HTTP_LOOPBACK","redirect:\"error\"","normalizedUrlIdentity","service_started_implicitly=false"]);
+need("release/bin/void-node-update",["VOID_NODE_RELEASE_UPDATE_V1","VOID_NODE_RELEASE_ROLLBACK_TRANSACTION_V1","ROLLBACK_RECOVERED","downgrade refused","HEALTH_FAIL_ROLLBACK_BEGIN","HEALTH_RESPONSE_MAX_BYTES","readBoundedResponseBytes(response,HEALTH_RESPONSE_MAX_BYTES,\"health response\",ac)","readBoundedResponseBytes","streamExactResponseToFile","VOID_NODE_UPDATE_TEST_ALLOW_HTTP_LOOPBACK","redirect:\"error\"","normalizedUrlIdentity","service_started_implicitly=false"]);
 const manager=need("release/bin/void-node",["void-node update check","void-node update apply","exec \"$RELEASE_ROOT/bin/void-node-update\" rollback"]);
 need("release/portable/bin/void-node",["void-node update check","exec \"$RUNTIME_NODE\" \"$RELEASE_ROOT/bin/void-node-update\" rollback"]);
 need("ops/public/install-void-node-v1.sh",["VOID_NODE_STABLE_MANAGER_V1","$INSTALL_ROOT/control/void-node-update"]);
