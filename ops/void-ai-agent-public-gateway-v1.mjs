@@ -8,11 +8,12 @@ import { fileURLToPath } from "node:url";
 const MARKER = "VOID_AI_AGENT_PUBLIC_GATEWAY_V1";
 const DEFAULT_HOST = "127.0.0.1";
 const DEFAULT_PORT = 4112;
+const UPSTREAM_REJECTION_TEARDOWN_TIMEOUT_MS = 300;
 const OPERATOR_WEBHOOK_INTEGRATION_MARKER =
   "VOID_OPERATOR_WEBHOOK_RECEIVER_AI_GATEWAY_SOURCE_INTEGRATION_V1";
-const OPERATOR_WEBHOOK_RECEIVER_UPSTREAM = (
-  process.env.VOID_OPERATOR_WEBHOOK_RECEIVER_UPSTREAM || ""
-).replace(/\/+$/, "");
+const OPERATOR_WEBHOOK_RECEIVER_UPSTREAM_RAW = String(
+  process.env.VOID_OPERATOR_WEBHOOK_RECEIVER_UPSTREAM || "",
+).trim();
 const OPERATOR_WEBHOOK_RECEIVER_PATH =
   "/__void/operator-notifications/v1/candidate";
 const OPERATOR_WEBHOOK_RECEIVER_MAX_BODY_BYTES = Math.max(
@@ -38,9 +39,9 @@ const OPERATOR_WEBHOOK_RECEIVER_MAX_RESPONSE_BYTES = Math.max(
 
 const AGENT_PAID_WORK_SUBMISSION_INTEGRATION_MARKER =
   "VOID_AGENT_PAID_WORK_SUBMISSION_INTAKE_GATEWAY_SOURCE_V1";
-const AGENT_PAID_WORK_SUBMISSION_RECEIVER_UPSTREAM = (
-  process.env.VOID_AGENT_PAID_WORK_SUBMISSION_RECEIVER_UPSTREAM || ""
-).replace(/\/+$/, "");
+const AGENT_PAID_WORK_SUBMISSION_RECEIVER_UPSTREAM_RAW = String(
+  process.env.VOID_AGENT_PAID_WORK_SUBMISSION_RECEIVER_UPSTREAM || "",
+).trim();
 const AGENT_PAID_WORK_SUBMISSION_RECEIVER_PATH =
   "/__void/agents/paid-work/submissions/v1";
 const AGENT_PAID_WORK_SUBMISSION_MAX_BODY_BYTES = Math.max(
@@ -133,6 +134,47 @@ function fail(message) {
   process.exit(78);
 }
 
+function parseReviewedLoopbackUpstream(raw, name) {
+  if (!raw) return "";
+
+  let parsed;
+  try {
+    parsed = new URL(raw);
+  } catch {
+    fail(`invalid ${name}`);
+  }
+
+  const parsedPort = Number(parsed.port);
+  if (
+    parsed.protocol !== "http:" ||
+    parsed.hostname !== "127.0.0.1" ||
+    parsed.username !== "" ||
+    parsed.password !== "" ||
+    parsed.pathname !== "/" ||
+    parsed.search !== "" ||
+    parsed.hash !== "" ||
+    !Number.isSafeInteger(parsedPort) ||
+    parsedPort < 1 ||
+    parsedPort > 65535 ||
+    raw !== `http://127.0.0.1:${parsedPort}`
+  ) {
+    fail(`invalid ${name}`);
+  }
+
+  return raw;
+}
+
+const OPERATOR_WEBHOOK_RECEIVER_UPSTREAM =
+  parseReviewedLoopbackUpstream(
+    OPERATOR_WEBHOOK_RECEIVER_UPSTREAM_RAW,
+    "VOID_OPERATOR_WEBHOOK_RECEIVER_UPSTREAM",
+  );
+const AGENT_PAID_WORK_SUBMISSION_RECEIVER_UPSTREAM =
+  parseReviewedLoopbackUpstream(
+    AGENT_PAID_WORK_SUBMISSION_RECEIVER_UPSTREAM_RAW,
+    "VOID_AGENT_PAID_WORK_SUBMISSION_RECEIVER_UPSTREAM",
+  );
+
 const host =
   process.env.VOID_AI_AGENT_PUBLIC_GATEWAY_HOST || DEFAULT_HOST;
 
@@ -146,6 +188,13 @@ const rawPort =
 const port = Number.parseInt(rawPort, 10);
 const proofMode =
   process.env.VOID_AI_AGENT_PUBLIC_GATEWAY_PROOF_MODE === "1";
+const proofCancellationSettlementMode = proofMode
+  ? String(
+      process.env
+        .VOID_AI_AGENT_PUBLIC_GATEWAY_PROOF_CANCEL_SETTLEMENT_MODE ||
+        "",
+    )
+  : "";
 
 if (
   !Number.isInteger(port) ||
@@ -154,6 +203,14 @@ if (
   (port === 0 && !proofMode)
 ) {
   fail(`invalid gateway port: ${rawPort}`);
+}
+
+if (
+  !["", "never", "reject"].includes(
+    proofCancellationSettlementMode,
+  )
+) {
+  fail("invalid gateway proof cancellation settlement mode");
 }
 
 for (const [name, value] of [
@@ -317,6 +374,194 @@ function readBoundedRequestBody(request, maximum) {
   });
 }
 
+function logBestEffortCancellationError(label, error) {
+  process.stderr.write(
+    `${MARKER} ${label}_response_cancel_error=${String(error)}\n`,
+  );
+}
+
+function createOwnedUpstreamAbortContext(timeoutMs) {
+  const controller = new AbortController();
+  const timeoutSignal = AbortSignal.timeout(timeoutMs);
+  return {
+    controller,
+    signal: AbortSignal.any([controller.signal, timeoutSignal]),
+  };
+}
+
+function proofAdjustedCancellation(cancellation, label) {
+  if (!proofCancellationSettlementMode) return cancellation;
+
+  void Promise.resolve(cancellation).catch((error) => {
+    logBestEffortCancellationError(label, error);
+  });
+
+  if (proofCancellationSettlementMode === "never") {
+    return new Promise(() => {});
+  }
+
+  return Promise.reject(
+    new Error(`${label}_proof_cancel_rejected`),
+  );
+}
+
+async function settleCancellationBounded(cancellation, label) {
+  if (!cancellation || typeof cancellation.then !== "function") {
+    return;
+  }
+
+  let timeout;
+  let timedOut = false;
+  try {
+    await Promise.race([
+      Promise.resolve(
+        proofAdjustedCancellation(cancellation, label),
+      ).catch((error) => {
+        logBestEffortCancellationError(label, error);
+      }),
+      new Promise((resolve) => {
+        timeout = setTimeout(() => {
+          timedOut = true;
+          resolve();
+        }, UPSTREAM_REJECTION_TEARDOWN_TIMEOUT_MS);
+      }),
+    ]);
+  } finally {
+    if (timeout) clearTimeout(timeout);
+  }
+
+  if (timedOut) {
+    process.stderr.write(
+      `${MARKER} ${label}_response_cancel_timeout=1\n`,
+    );
+  }
+}
+
+async function rejectUpstreamResponseBounded({
+  controller,
+  body,
+  reader,
+  label,
+}) {
+  if (!controller.signal.aborted) {
+    controller.abort(
+      new Error(`${label}_response_rejected`),
+    );
+  }
+
+  try {
+    const cancellation = reader?.cancel
+      ? reader.cancel()
+      : body?.cancel
+        ? body.cancel()
+        : null;
+    await settleCancellationBounded(cancellation, label);
+  } catch (error) {
+    logBestEffortCancellationError(label, error);
+  }
+}
+
+function parseDeclaredResponseLength(upstreamResponse, label) {
+  const raw = upstreamResponse.headers.get("content-length");
+  if (raw === null) return null;
+
+  if (!/^(0|[1-9][0-9]*)$/.test(raw)) {
+    throw new Error(`${label}_response_invalid_content_length`);
+  }
+
+  const declared = Number(raw);
+  if (!Number.isSafeInteger(declared) || declared < 0) {
+    throw new Error(`${label}_response_invalid_content_length`);
+  }
+
+  return declared;
+}
+
+async function readBoundedUpstreamResponseBody(
+  upstreamResponse,
+  maximum,
+  label,
+  controller,
+) {
+  let declared;
+  try {
+    declared = parseDeclaredResponseLength(
+      upstreamResponse,
+      label,
+    );
+  } catch (error) {
+    await rejectUpstreamResponseBounded({
+      controller,
+      body: upstreamResponse.body,
+      reader: null,
+      label,
+    });
+    throw error;
+  }
+
+  if (declared !== null && declared > maximum) {
+    const primary = new Error(`${label}_response_too_large`);
+    await rejectUpstreamResponseBounded({
+      controller,
+      body: upstreamResponse.body,
+      reader: null,
+      label,
+    });
+    throw primary;
+  }
+
+  const body = upstreamResponse.body;
+  if (!body) {
+    if (declared === null || declared === 0) {
+      return Buffer.alloc(0);
+    }
+    throw new Error(`${label}_response_body_unavailable`);
+  }
+
+  if (typeof body.getReader !== "function") {
+    const primary = new Error(`${label}_response_body_unavailable`);
+    await rejectUpstreamResponseBounded({
+      controller,
+      body,
+      reader: null,
+      label,
+    });
+    throw primary;
+  }
+
+  const reader = body.getReader();
+  const chunks = [];
+  let total = 0;
+
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+
+      const chunk = Buffer.from(value);
+      total += chunk.length;
+
+      if (total > maximum) {
+        chunks.length = 0;
+        throw new Error(`${label}_response_too_large`);
+      }
+
+      chunks.push(chunk);
+    }
+  } catch (error) {
+    chunks.length = 0;
+    await rejectUpstreamResponseBounded({
+      controller,
+      body,
+      reader,
+      label,
+    });
+    throw error;
+  }
+
+  return Buffer.concat(chunks, total);
+}
+
 function copyOperatorResponseHeaders(upstreamResponse) {
   const headers = {};
 
@@ -450,6 +695,9 @@ async function proxyOperatorWebhookReceiver(request, response, url) {
     return;
   }
 
+  const upstreamAbort = createOwnedUpstreamAbortContext(
+    OPERATOR_WEBHOOK_RECEIVER_TIMEOUT_MS,
+  );
   const upstreamResponse = await fetch(
     `${OPERATOR_WEBHOOK_RECEIVER_UPSTREAM}${OPERATOR_WEBHOOK_RECEIVER_PATH}`,
     {
@@ -464,22 +712,16 @@ async function proxyOperatorWebhookReceiver(request, response, url) {
       },
       body,
       redirect: "manual",
-      signal: AbortSignal.timeout(
-        OPERATOR_WEBHOOK_RECEIVER_TIMEOUT_MS,
-      ),
+      signal: upstreamAbort.signal,
     },
   );
 
-  const responseBody = Buffer.from(
-    await upstreamResponse.arrayBuffer(),
+  const responseBody = await readBoundedUpstreamResponseBody(
+    upstreamResponse,
+    OPERATOR_WEBHOOK_RECEIVER_MAX_RESPONSE_BYTES,
+    "operator_webhook_receiver",
+    upstreamAbort.controller,
   );
-
-  if (
-    responseBody.length >
-    OPERATOR_WEBHOOK_RECEIVER_MAX_RESPONSE_BYTES
-  ) {
-    throw new Error("operator_webhook_receiver_response_too_large");
-  }
 
   bodyResponse(
     response,
@@ -630,6 +872,9 @@ async function proxyAgentPaidWorkSubmission(
   }
 
   try {
+    const upstreamAbort = createOwnedUpstreamAbortContext(
+      AGENT_PAID_WORK_SUBMISSION_TIMEOUT_MS,
+    );
     const upstreamResponse = await fetch(
       `${AGENT_PAID_WORK_SUBMISSION_RECEIVER_UPSTREAM}${AGENT_PAID_WORK_SUBMISSION_RECEIVER_PATH}`,
       {
@@ -644,24 +889,16 @@ async function proxyAgentPaidWorkSubmission(
         },
         body,
         redirect: "manual",
-        signal: AbortSignal.timeout(
-          AGENT_PAID_WORK_SUBMISSION_TIMEOUT_MS,
-        ),
+        signal: upstreamAbort.signal,
       },
     );
 
-    const responseBody = Buffer.from(
-      await upstreamResponse.arrayBuffer(),
+    const responseBody = await readBoundedUpstreamResponseBody(
+      upstreamResponse,
+      AGENT_PAID_WORK_SUBMISSION_MAX_RESPONSE_BYTES,
+      "agent_paid_work_submission",
+      upstreamAbort.controller,
     );
-
-    if (
-      responseBody.length >
-      AGENT_PAID_WORK_SUBMISSION_MAX_RESPONSE_BYTES
-    ) {
-      throw new Error(
-        "agent_paid_work_submission_response_too_large",
-      );
-    }
 
     bodyResponse(
       response,
