@@ -9,6 +9,7 @@ import readline from "node:readline/promises";
 import {fileURLToPath, pathToFileURL} from "node:url";
 
 const MARKER="VOID_NODE_RELEASE_UPDATE_V1";
+const CANONICAL_RELEASE_REPOSITORY="6ZoSo9/void-node";
 const HEALTH_RESPONSE_MAX_BYTES=64*1024;
 const ROLLBACK_TRANSACTION_MARKER="VOID_NODE_RELEASE_ROLLBACK_TRANSACTION_V1";
 function fail(m,code=1){console.error(`ERROR: ${m}`);process.exit(code);}
@@ -75,6 +76,7 @@ function validateChannel(j,allowFile){
   if(j?.marker!=="VOID_PUBLIC_RELEASE_CHANNEL_V1"||j?.schema_version!==1)fail("invalid channel marker/schema");
   if(!["stable","candidate"].includes(j.channel))fail("invalid channel");
   if(!/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(j.repository||""))fail("invalid repository");
+  if(j.channel==="stable"&&j.repository!==CANONICAL_RELEASE_REPOSITORY)fail(`stable channel repository must be ${CANONICAL_RELEASE_REPOSITORY}`);
   if(!/^release-v[0-9A-Za-z][0-9A-Za-z._+-]{0,127}$/.test(j.release_tag||""))fail("invalid release tag");
   if(!/^[0-9a-f]{40}$/.test(j.release?.git_commit||""))fail("invalid release commit");
   if(!parseVersion(j.release?.version))fail("invalid release version");
@@ -91,6 +93,7 @@ function validateChannel(j,allowFile){
   }
   if(j.assets.archive.sha256!==j.release.archive_sha256||j.assets.archive.bytes!==j.release.archive_bytes)fail("archive binding mismatch");
   if(j.verification?.checksum_algorithm!=="sha256"||j.verification?.github_attestation_required!==true||j.verification?.attestation_repository!==j.repository)fail("unsafe verification policy");
+  if(j.channel==="stable"&&j.verification.attestation_repository!==CANONICAL_RELEASE_REPOSITORY)fail(`stable attestation repository must be ${CANONICAL_RELEASE_REPOSITORY}`);
   if(j.publication!==undefined){const publication=j.publication;if(publication.release_immutable!==true||publication.release_verified!==true||publication.release_attestation_required!==true||publication.artifact_attestations_required!==true||publication.revoked!==false||!/^[0-9a-f]{64}$/.test(publication.publication_receipt_sha256||""))fail("unsafe or revoked publication metadata");}
   if(j.promotion!==undefined){const promotion=j.promotion;if(promotion.state!==j.channel||!Number.isSafeInteger(promotion.ledger_sequence)||promotion.ledger_sequence<1||!/^[0-9a-f]{64}$/.test(promotion.ledger_tip_sha256||"")||(promotion.canary_receipt_sha256!==null&&!/^[0-9a-f]{64}$/.test(promotion.canary_receipt_sha256||""))||(promotion.qualification_receipt_sha256!==null&&!/^[0-9a-f]{64}$/.test(promotion.qualification_receipt_sha256||""))||(promotion.qualification_approval_sha256!==null&&!/^[0-9a-f]{64}$/.test(promotion.qualification_approval_sha256||"")))fail("invalid promotion metadata");if(j.channel==="stable"&&(!promotion.canary_receipt_sha256||!promotion.qualification_receipt_sha256||!promotion.qualification_approval_sha256))fail("stable promotion requires qualification receipt and approval binding");}
   const p=j.policy||{};if(p.downgrade_allowed_by_default!==false||p.service_started_implicitly!==false||p.restart_requires_explicit_flag!==true||p.health_gate_for_running_service!==true||p.rollback_on_health_failure!==true||p.guarded_lanes_activated!==false||(p.channel_frozen!==undefined&&typeof p.channel_frozen!=="boolean"))fail("unsafe update policy");
@@ -152,10 +155,11 @@ async function readSource(source,allowFile,maxBytes=2*1024*1024){
     if(!allowFile)fail("file channels are test-only; pass --test-allow-file");const st=fs.statSync(fileURLToPath(u));if(st.size>maxBytes)fail("channel file exceeds size limit");return fs.readFileSync(fileURLToPath(u));
   }
   if(u.protocol!=="https:"&&!testLoopbackHttpAllowed(u,allowFile))fail(`channel URL must use HTTPS: ${source}`);
-  const ac=new AbortController();const t=setTimeout(()=>ac.abort(),30000);
+  const expectedSourceUrl=normalizedUrlIdentity(u),ac=new AbortController(),t=setTimeout(()=>ac.abort(),30000);
   try{
-    const r=await fetch(u,{redirect:"follow",signal:ac.signal,headers:{"user-agent":"void-node-update-v1"}});
+    const r=await fetch(u,{redirect:"error",signal:ac.signal,headers:{"user-agent":"void-node-update-v1"}});
     if(!r.ok)fail(`download failed ${r.status}: ${u}`);
+    if(normalizedUrlIdentity(r.url)!==expectedSourceUrl)fail(`channel response URL mismatch: ${r.url}`);
     return await readBoundedResponseBytes(r,maxBytes,"download",ac);
   }finally{clearTimeout(t);}
 }
