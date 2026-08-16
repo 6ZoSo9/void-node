@@ -178,7 +178,7 @@ function requestOneBounded(
   });
 }
 
-async function requestBounded(
+export async function requestBounded(
   url,
   {
     method = "GET",
@@ -192,13 +192,18 @@ async function requestBounded(
   if (!Array.isArray(pinnedAddresses) || pinnedAddresses.length === 0) {
     throw new Error(`no pinned addresses available for ${url}`);
   }
+
+  const logicalDeadlineAt = performance.now() + timeoutMs;
   const errors = [];
   for (const address of pinnedAddresses) {
+    const remainingMs = logicalDeadlineAt - performance.now();
+    if (remainingMs < 1) break;
+    const attemptTimeoutMs = Math.max(1, Math.floor(remainingMs));
     try {
       return await requestOneBounded(url, {
         method,
         body,
-        timeoutMs,
+        timeoutMs: attemptTimeoutMs,
         maxBytes,
         address,
         allowLoopbackFixture,
@@ -206,6 +211,11 @@ async function requestBounded(
     } catch (error) {
       errors.push(`${address}: ${error?.message || String(error)}`);
     }
+  }
+
+  if (performance.now() >= logicalDeadlineAt) {
+    const detail = errors.length ? `: ${errors.join(" | ")}` : "";
+    throw new Error(`${method} ${url} timed out after ${timeoutMs} ms across pinned addresses${detail}`);
   }
   throw new Error(`${method} ${url} failed on every pinned address: ${errors.join(" | ")}`);
 }
