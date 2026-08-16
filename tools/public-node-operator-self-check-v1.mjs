@@ -87,6 +87,9 @@ const REQUIRED_WELL_KNOWN_ROUTES = [
   "/public-node",
   "/public-node/route-manifest.json",
   "/public-node/self-check-snapshot.json",
+  "/public-node/outside-tester-smoke.json",
+  "/public-node/tester-bundle.json",
+  "/public-node/tester-result-receipt.json",
   "/proofs",
 ];
 
@@ -379,6 +382,19 @@ function snapshotLinksOk(value, baseOrigin) {
   return Object.entries(expected).every(([key, expectedValue]) => value[key] === expectedValue);
 }
 
+function wellKnownLinksOk(value, baseOrigin) {
+  if (!isPlainObject(value)) return false;
+  return (
+    value.public_node === `${baseOrigin}/public-node` &&
+    value.route_manifest === `${baseOrigin}/public-node/route-manifest.json` &&
+    value.self_check_snapshot === `${baseOrigin}/public-node/self-check-snapshot.json` &&
+    value.outside_tester_smoke === `${baseOrigin}/public-node/outside-tester-smoke.json` &&
+    value.tester_bundle === `${baseOrigin}/public-node/tester-bundle.json` &&
+    value.result_receipt === `${baseOrigin}/public-node/tester-result-receipt.json` &&
+    value.proofs === `${baseOrigin}/proofs`
+  );
+}
+
 function isLegacyPeerRecord(value) {
   return Boolean(
     value && typeof value === "object" && !Array.isArray(value) && isNonEmptyString(value.id),
@@ -664,14 +680,19 @@ async function main() {
     isPlainObject(wellKnown.json) && isPlainObject(wellKnown.json.policy) ? wellKnown.json.policy : null;
   const wellKnownLinks =
     isPlainObject(wellKnown.json) && isPlainObject(wellKnown.json.links) ? wellKnown.json.links : null;
+  const wellKnownPolicyOk = hasCanonicalReadOnlyPolicy(wellKnownPolicy);
+  const wellKnownLinksMatch = wellKnownLinksOk(wellKnownLinks, baseOrigin);
   const wellKnownOk =
     wellKnown.ok &&
     markerAt(wellKnown.json, "VOID_PUBLIC_NODE_AGENT_DISCOVERY_V1") &&
+    wellKnown.json?.purpose === "well_known_public_node_agent_discovery" &&
+    wellKnown.json?.protocol === "void-public-node-discovery-v1" &&
+    wellKnown.json?.status === "public_node_agent_discovery_ready" &&
+    wellKnown.json?.effective_base_url === baseOrigin &&
     wellKnownRoutes !== null &&
     wellKnownMissing.length === 0 &&
-    wellKnownPolicy?.public_routes_only === true &&
-    wellKnownPolicy?.read_only === true &&
-    wellKnownPolicy?.mutation === false;
+    wellKnownLinksMatch &&
+    wellKnownPolicyOk;
   checks.push(
     check(
       "well_known_discovery",
@@ -681,6 +702,10 @@ async function main() {
       {
         status_code: wellKnown.statusCode,
         marker_present: markerAt(wellKnown.json, "VOID_PUBLIC_NODE_AGENT_DISCOVERY_V1"),
+        purpose_matches: wellKnown.json?.purpose === "well_known_public_node_agent_discovery",
+        protocol_matches: wellKnown.json?.protocol === "void-public-node-discovery-v1",
+        status_matches: wellKnown.json?.status === "public_node_agent_discovery_ready",
+        effective_base_matches: wellKnown.json?.effective_base_url === baseOrigin,
         public_route_pointer_count:
           wellKnownRoutes?.filter((route) => route.startsWith("/public-node")).length ?? null,
         required_pointer_count: REQUIRED_WELL_KNOWN_ROUTES.length,
@@ -690,6 +715,8 @@ async function main() {
               (value) => typeof value === "string" && /^https?:\/\//i.test(value),
             ).length
           : null,
+        links_match: wellKnownLinksMatch,
+        policy_matches: wellKnownPolicyOk,
         public_routes_only: wellKnownPolicy?.public_routes_only === true,
         read_only: wellKnownPolicy?.read_only === true,
         mutation_false: wellKnownPolicy?.mutation === false,
