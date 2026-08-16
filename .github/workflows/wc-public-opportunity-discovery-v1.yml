@@ -19,6 +19,7 @@ on:
       - "scripts/prove_wc_public_coordinator_readiness_response_bounds_v1.mjs"
       - "scripts/prove_wc_public_response_teardown_v1.mjs"
       - "scripts/prove_wc_public_response_invalid_utf8_teardown_v1.mjs"
+      - "scripts/prove_wc_public_response_reader_read_teardown_v1.mjs"
   push:
     branches: [main]
     paths:
@@ -38,6 +39,7 @@ on:
       - "scripts/prove_wc_public_coordinator_readiness_response_bounds_v1.mjs"
       - "scripts/prove_wc_public_response_teardown_v1.mjs"
       - "scripts/prove_wc_public_response_invalid_utf8_teardown_v1.mjs"
+      - "scripts/prove_wc_public_response_reader_read_teardown_v1.mjs"
 
 permissions:
   contents: read
@@ -88,10 +90,14 @@ jobs:
         run: node --check scripts/prove_wc_public_response_teardown_v1.mjs
       - name: Check invalid UTF-8 teardown proof syntax
         run: node --check scripts/prove_wc_public_response_invalid_utf8_teardown_v1.mjs
+      - name: Check reader-read teardown proof syntax
+        run: node --check scripts/prove_wc_public_response_reader_read_teardown_v1.mjs
       - name: Prove bounded response rejection teardown
         run: node scripts/prove_wc_public_response_teardown_v1.mjs
       - name: Prove invalid UTF-8 response teardown ownership
         run: node scripts/prove_wc_public_response_invalid_utf8_teardown_v1.mjs
+      - name: Prove reader-read rejection teardown ownership
+        run: node scripts/prove_wc_public_response_reader_read_teardown_v1.mjs
       - name: Prove strict discovery evidence typing
         run: node scripts/prove_wc_public_opportunity_discovery_v1.mjs
       - name: Prove adapter-to-discovery evidence typing
