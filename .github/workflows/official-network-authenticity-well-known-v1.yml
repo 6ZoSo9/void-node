@@ -7,8 +7,13 @@ on:
       - "public/.well-known/void-network-authenticity.schema.json"
       - "public/.well-known/void-agent-discovery.json"
       - "public/.well-known/void-agent-discovery.schema.json"
+      - "public/.well-known/void-agent-authentication.schema.json"
+      - "public/.well-known/void-agent-capabilities.schema.json"
       - "src/ai-agent-discovery-runtime-route-v1.ts"
       - "scripts/prove_official_network_authenticity_well_known_v1.mjs"
+      - "scripts/prove_void_ai_agent_well_known_entrypoint_v1.mjs"
+      - "scripts/prove_void_ai_agent_authentication_contract_v1.mjs"
+      - "scripts/prove_void_ai_agent_capability_negotiation_v1.mjs"
       - "scripts/prove_void_ai_agent_discovery_runtime_route_v1.ts"
       - "docs/public/official-network-authenticity-well-known-v1.md"
   pull_request:
@@ -18,8 +23,13 @@ on:
       - "public/.well-known/void-network-authenticity.schema.json"
       - "public/.well-known/void-agent-discovery.json"
       - "public/.well-known/void-agent-discovery.schema.json"
+      - "public/.well-known/void-agent-authentication.schema.json"
+      - "public/.well-known/void-agent-capabilities.schema.json"
       - "src/ai-agent-discovery-runtime-route-v1.ts"
       - "scripts/prove_official_network_authenticity_well_known_v1.mjs"
+      - "scripts/prove_void_ai_agent_well_known_entrypoint_v1.mjs"
+      - "scripts/prove_void_ai_agent_authentication_contract_v1.mjs"
+      - "scripts/prove_void_ai_agent_capability_negotiation_v1.mjs"
       - "scripts/prove_void_ai_agent_discovery_runtime_route_v1.ts"
       - "docs/public/official-network-authenticity-well-known-v1.md"
 permissions:
@@ -28,8 +38,11 @@ jobs:
   prove:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
         with:
           node-version: "22"
           cache: npm
@@ -40,6 +53,8 @@ jobs:
       - run: node scripts/prove_official_network_authenticity_root_public_admission_v2_1.mjs
       - run: node scripts/prove_official_network_authenticity_well_known_v1.mjs
       - run: node scripts/prove_void_ai_agent_well_known_entrypoint_v1.mjs
+      - run: node scripts/prove_void_ai_agent_authentication_contract_v1.mjs
+      - run: node scripts/prove_void_ai_agent_capability_negotiation_v1.mjs
       - run: npx tsx scripts/prove_void_ai_agent_discovery_runtime_route_v1.ts
       - run: npm run build
       - run: git diff --check

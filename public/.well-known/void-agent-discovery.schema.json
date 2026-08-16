@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://voidchain.io/.well-known/void-agent-discovery.schema.json",
+  "$id": "https://voidchain.org/.well-known/void-agent-discovery.schema.json",
   "title": "VOID AI Agent Well-Known Entrypoint V1",
   "type": "object",
   "additionalProperties": false,
