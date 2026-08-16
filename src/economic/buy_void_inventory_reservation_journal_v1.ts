@@ -554,14 +554,11 @@ function ensurePrivateDir(dir: string): void {
 }
 
 function fsyncDir(dir: string): void {
-  let descriptor: number | null = null;
+  const descriptor = fs.openSync(dir, "r");
   try {
-    descriptor = fs.openSync(dir, "r");
     fs.fsyncSync(descriptor);
-  } catch {
-    // Directory fsync is not supported on all filesystems.
   } finally {
-    if (descriptor !== null) fs.closeSync(descriptor);
+    fs.closeSync(descriptor);
   }
 }
 
@@ -621,7 +618,6 @@ function readJsonObject(file: string): Record<string, unknown> | null {
     throw error;
   }
 }
-
 
 const RESERVATION_RECORD_KEYS = [
   "schema",
@@ -832,7 +828,6 @@ function historyRecordFingerprint(
   return stableFingerprint(parts);
 }
 
-
 function historyIndexEntrySha256(input: {
   sequence: number;
   kind: BuyVoidInventoryHistoryKindV1;
@@ -901,7 +896,6 @@ function parseHistoryIndexEntry(
 
   return raw as BuyVoidInventoryHistoryIndexEntryV1;
 }
-
 
 function historyAnchorEntrySha256(input: {
   sequence: number;
@@ -1555,7 +1549,6 @@ function historySetsMatch(
   return expectedNames.length === recordNames.length &&
     expectedNames.every((name, index) => name === recordNames[index]);
 }
-
 
 function buildHistoryAnchorEntry(
   kind: BuyVoidInventoryHistoryKindV1,
