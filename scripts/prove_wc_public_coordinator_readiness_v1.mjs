@@ -25,6 +25,32 @@ function run(args) {
   });
 }
 
+async function expectAcceptedOrigin(base) {
+  const result = await run([
+    "--base", base,
+    "--timeout-ms", "250",
+    "--status-retries", "1",
+  ]);
+  assert.equal(result.code, 2, result.stderr || result.stdout);
+  const body = JSON.parse(result.stdout);
+  assert.equal(body.readiness_state, "unavailable");
+  assert.equal(body.reason, "public_coordinator_status_surfaces_unavailable");
+  assert.equal(body.safety.mutation_attempted, false);
+}
+
+async function expectRejectedOrigin(base) {
+  const result = await run([
+    "--base", base,
+    "--timeout-ms", "250",
+    "--status-retries", "1",
+  ]);
+  assert.equal(result.code, 2, result.stderr || result.stdout);
+  const body = JSON.parse(result.stdout);
+  assert.equal(body.readiness_state, "unavailable");
+  assert.match(body.reason, /plain HTTP is allowed only for reviewed local\/private\/Tailscale origins/u);
+  assert.equal(body.safety.mutation_attempted, false);
+}
+
 function gatewaySafety(mode) {
   const safety = {
     public_ticket_issue: true,
@@ -330,6 +356,13 @@ try {
 } finally {
   await missingBoundaryFx.close();
 }
+
+await expectAcceptedOrigin("http://[::1]:9");
+await expectAcceptedOrigin("http://dijkstra-readiness-parity.ts.net:9");
+await expectAcceptedOrigin("https://203.0.113.10:9");
+await expectRejectedOrigin("http://worker.localhost:4100");
+await expectRejectedOrigin("http://203.0.113.10:4100");
+await expectRejectedOrigin("http://[2001:db8::1]:4100");
 
 const invalid = await run(["--base", "ftp://invalid.example"]);
 assert.equal(invalid.code, 2);
