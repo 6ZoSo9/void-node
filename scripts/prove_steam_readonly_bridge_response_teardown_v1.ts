@@ -242,6 +242,41 @@ assert.ok(
   `deadline-triggered read failure stalled ${timeoutReadElapsed}ms`,
 );
 
+let neverSettlingReadCalls = 0;
+let neverSettlingCancelCalls = 0;
+const neverSettlingReader = {
+  async read() {
+    neverSettlingReadCalls += 1;
+    return await new Promise<never>(() => undefined);
+  },
+  cancel() {
+    neverSettlingCancelCalls += 1;
+    return new Promise<void>(() => undefined);
+  },
+} as unknown as ReadableStreamDefaultReader<Uint8Array>;
+const neverSettlingResponse = {
+  ok: true,
+  status: 200,
+  headers: new Headers({ "content-type": "application/json" }),
+  body: {
+    getReader: () => neverSettlingReader,
+  },
+} as unknown as Response;
+const neverSettlingElapsed = await expectCode(
+  "upstream_timeout",
+  async () => neverSettlingResponse,
+  {
+    ...env,
+    VOID_STEAM_READONLY_TIMEOUT_MS: "500",
+  },
+);
+assert.equal(neverSettlingReadCalls, 1);
+assert.equal(neverSettlingCancelCalls, 1);
+assert.ok(
+  neverSettlingElapsed >= 450 && neverSettlingElapsed < 1500,
+  `never-settling admitted read escaped deadline ${neverSettlingElapsed}ms`,
+);
+
 const validBody = JSON.stringify({ response: { players: [] } });
 const valid = await executeSteamReadonlyRequest(input, {
   env,
@@ -264,5 +299,7 @@ console.log("wrong_content_type_body_teardown_bounded=true");
 console.log("admitted_read_failure_cancel_bounded=true");
 console.log("admitted_read_failure_primary_error_preserved=true");
 console.log("deadline_triggered_read_failure_preserved=true");
+console.log("deadline_terminates_never_settling_admitted_read=true");
+console.log("never_settling_admitted_read_cleanup_bounded=true");
 console.log("primary_rejection_preserved=true");
 console.log("VOID_STEAM_READONLY_BRIDGE_RESPONSE_TEARDOWN_V1_GREEN");
