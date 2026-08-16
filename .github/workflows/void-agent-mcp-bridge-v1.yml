@@ -30,36 +30,7 @@ jobs:
           fetch-depth: 1
           persist-credentials: false
 
-      - name: Use Node.js 22
-        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
-        with:
-          node-version: "22"
-          cache: npm
-          cache-dependency-path: |
-            package-lock.json
-            integrations/mcp/package-lock.json
-
-      - name: Install root proof dependencies
-        run: >-
-          npm ci
-          --ignore-scripts
-          --no-audit
-          --no-fund
-          --registry=https://registry.npmjs.org/
-
-      - name: Install pinned MCP bridge dependencies
-        run: >-
-          npm --prefix integrations/mcp ci
-          --ignore-scripts
-          --no-audit
-          --no-fund
-          --registry=https://registry.npmjs.org/
-
-      - name: Prove shallow committed-range diff hygiene contract
-        if: github.event_name == 'pull_request'
-        run: node scripts/prove_ci_diff_hygiene_v1.mjs
-
-      - name: Prepare and prove exact committed range
+      - name: Bootstrap and classify exact committed range
         if: github.event_name == 'pull_request'
         env:
           CI_DIFF_EVENT_NAME: ${{ github.event_name }}
@@ -72,19 +43,47 @@ jobs:
         run: |
           set -euo pipefail
 
-          DIFF_EVIDENCE="$(bash scripts/ci_diff_hygiene_v1.sh)"
-          printf '%s\n' "$DIFF_EVIDENCE"
+          require_sha40() {
+            printf '%s' "$1" | grep -Eq '^[0-9a-f]{40}$'
+          }
 
-          mapfile -t MCP_BASES < <(
-            printf '%s\n' "$DIFF_EVIDENCE" \
-              | sed -n 's/^base_sha=\([0-9a-f]\{40\}\)$/\1/p'
-          )
-          test "${#MCP_BASES[@]}" -eq 1
-          printf 'VOID_MCP_BASE_REF=%s\n' "${MCP_BASES[0]}" >> "$GITHUB_ENV"
+          ensure_commit() {
+            local sha="$1"
+            local remote="$2"
 
-          mapfile -t MCP_CHANGED < <(
-            git diff --no-renames --name-only "${MCP_BASES[0]}..$CI_DIFF_CURRENT_SHA"
+            require_sha40 "$sha"
+            if ! git cat-file -e "${sha}^{commit}" 2>/dev/null
+            then
+              git fetch --no-tags --no-recurse-submodules --depth=1 "$remote" "$sha" >/dev/null 2>&1
+            fi
+            git cat-file -e "${sha}^{commit}"
+          }
+
+          mapfile -t integration_parents < <(
+            git cat-file -p "$CI_DIFF_CHECKOUT_SHA" \
+              | sed -n 's/^parent \([0-9a-f]\{40\}\)$/\1/p'
           )
+          test "${#integration_parents[@]}" -eq 2
+
+          integration_base="${integration_parents[0]}"
+          integration_head="${integration_parents[1]}"
+          require_sha40 "$integration_base"
+          require_sha40 "$integration_head"
+          test "$integration_head" = "$CI_DIFF_CURRENT_SHA"
+
+          ensure_commit "$integration_base" "$CI_DIFF_BASE_REMOTE"
+          ensure_commit "$CI_DIFF_CURRENT_SHA" "$CI_DIFF_HEAD_REMOTE"
+
+          printf 'VOID_MCP_BASE_REF=%s\n' "$integration_base" >> "$GITHUB_ENV"
+
+          mcp_changed_file="$(mktemp)"
+          trap 'rm -f "$mcp_changed_file"' EXIT
+          git diff --no-renames --name-only -z \
+            "$integration_base..$CI_DIFF_CURRENT_SHA" > "$mcp_changed_file"
+          mapfile -d '' -t MCP_CHANGED < "$mcp_changed_file"
+          rm -f "$mcp_changed_file"
+          trap - EXIT
+
           direct_relevant=0
           for file in "${MCP_CHANGED[@]}"
           do
@@ -111,40 +110,174 @@ jobs:
                 ;;
             esac
           done
+
           printf 'VOID_MCP_DIRECT_RELEVANT=%s\n' "$direct_relevant" >> "$GITHUB_ENV"
+          printf 'void_mcp_integration_base=%s\n' "$integration_base"
           printf 'void_mcp_direct_relevant=%s\n' "$direct_relevant"
 
-      - name: Prove stale event base cannot drive MCP authority
+      - name: Prove early applicability trust boundary
         if: github.event_name == 'pull_request'
         shell: bash
         run: |
           set -euo pipefail
 
-          integration_base="1111111111111111111111111111111111111111"
-          stale_event_base="2222222222222222222222222222222222222222"
-          fixture="$({
-            printf 'base_sha=%s\n' "$integration_base"
-            printf 'event_base_sha=%s\n' "$stale_event_base"
-            printf 'integration_base_from_checkout=true\n'
-            printf 'event_base_matches_integration_base=false\n'
-          })"
-
-          mapfile -t fixture_bases < <(
-            printf '%s\n' "$fixture" \
-              | sed -n 's/^base_sha=\([0-9a-f]\{40\}\)$/\1/p'
-          )
-          test "${#fixture_bases[@]}" -eq 1
-          test "${fixture_bases[0]}" = "$integration_base"
-          test "${fixture_bases[0]}" != "$stale_event_base"
-
           workflow=".github/workflows/void-agent-mcp-bridge-v1.yml"
+
+          bootstrap_line="$(
+            grep -nF -- '- name: Bootstrap and classify exact committed range' "$workflow" \
+              | sed -n '1p' \
+              | cut -d: -f1
+          )"
+          proof_line="$(
+            grep -nF -- '- name: Prove early applicability trust boundary' "$workflow" \
+              | sed -n '1p' \
+              | cut -d: -f1
+          )"
+          setup_line="$(
+            grep -nF -- '- name: Use Node.js 22' "$workflow" \
+              | sed -n '1p' \
+              | cut -d: -f1
+          )"
+          test -n "$bootstrap_line"
+          test -n "$proof_line"
+          test -n "$setup_line"
+          test "$bootstrap_line" -lt "$proof_line"
+          test "$proof_line" -lt "$setup_line"
+
+          bootstrap_block="$(
+            sed -n "${bootstrap_line},$((proof_line - 1))p" "$workflow"
+          )"
+          ! grep -F 'bash scripts/ci_diff_hygiene_v1.sh' <<<"$bootstrap_block"
+          grep -F 'git cat-file -p "$CI_DIFF_CHECKOUT_SHA"' <<<"$bootstrap_block"
+          grep -F 'git diff --no-renames --name-only -z' <<<"$bootstrap_block"
+          grep -F 'scripts/ci_diff_hygiene_v1.sh)' <<<"$bootstrap_block"
+          grep -F 'scripts/prove_ci_diff_hygiene_v1.mjs)' <<<"$bootstrap_block"
+          grep -F '.github/workflows/void-agent-mcp-bridge-v1.yml)' <<<"$bootstrap_block"
+
+          tmp_repo="$(mktemp -d)"
+          trap 'rm -rf "$tmp_repo"' EXIT
+          git -C "$tmp_repo" init -q
+          git -C "$tmp_repo" config user.name void-ci
+          git -C "$tmp_repo" config user.email void-ci@example.invalid
+          printf 'base\n' > "$tmp_repo/README"
+          git -C "$tmp_repo" add README
+          git -C "$tmp_repo" commit -qm base
+
+          weird_path=$'integrations/mcp/\303\251.ts'
+          mkdir -p "$tmp_repo/integrations/mcp"
+          printf 'export const value = 1;\n' > "$tmp_repo/$weird_path"
+          git -C "$tmp_repo" add "$weird_path"
+          git -C "$tmp_repo" commit -qm weird-mcp-path
+
+          quoted="$(
+            git -C "$tmp_repo" -c core.quotepath=true \
+              diff --no-renames --name-only HEAD^..HEAD
+          )"
+          case "$quoted" in
+            integrations/mcp/*)
+              echo "HOLD: quoted-path fixture did not exercise Git quoting" >&2
+              exit 1
+              ;;
+          esac
+
+          mapfile -d '' -t weird_changed < <(
+            git -C "$tmp_repo" diff --no-renames --name-only -z HEAD^..HEAD
+          )
+          test "${#weird_changed[@]}" -eq 1
+          test "${weird_changed[0]}" = "$weird_path"
+
+          weird_relevant=0
+          for file in "${weird_changed[@]}"
+          do
+            case "$file" in
+              integrations/mcp/*)
+                weird_relevant=1
+                ;;
+            esac
+          done
+          test "$weird_relevant" -eq 1
+
+          lying_helper_output="base_sha=ffffffffffffffffffffffffffffffffffffffff"
+          test "$lying_helper_output" != "base_sha=$VOID_MCP_BASE_REF"
+
+          classifier_change="scripts/ci_diff_hygiene_v1.sh"
+          classifier_relevant=0
+          case "$classifier_change" in
+            scripts/ci_diff_hygiene_v1.sh)
+              classifier_relevant=1
+              ;;
+          esac
+          test "$classifier_relevant" -eq 1
+
           forbidden='VOID_MCP_BASE_REF: $'
           forbidden+='{{ github.event.pull_request.base.sha }}'
           ! grep -F "$forbidden" "$workflow"
           grep -F 'VOID_MCP_BASE_REF=%s' "$workflow"
           grep -F 'VOID_MCP_DIRECT_RELEVANT=%s' "$workflow"
           grep -F "env.VOID_MCP_DIRECT_RELEVANT == '1'" "$workflow"
-          test "$(grep -c -- 'git diff --no-renames --name-only' "$workflow")" -ge 2
+          test "$(
+            grep -c -- 'git diff --no-renames --name-only -z' "$workflow"
+          )" -ge 2
+          test "$(
+            grep -cF \
+              "if: github.event_name != 'pull_request' || env.VOID_MCP_DIRECT_RELEVANT == '1'" \
+              "$workflow"
+          )" -ge 5
+
+      - name: Use Node.js 22
+        if: github.event_name != 'pull_request' || env.VOID_MCP_DIRECT_RELEVANT == '1'
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            integrations/mcp/package-lock.json
+
+      - name: Install root proof dependencies
+        if: github.event_name != 'pull_request' || env.VOID_MCP_DIRECT_RELEVANT == '1'
+        run: >-
+          npm ci
+          --ignore-scripts
+          --no-audit
+          --no-fund
+          --registry=https://registry.npmjs.org/
+
+      - name: Install pinned MCP bridge dependencies
+        if: github.event_name != 'pull_request' || env.VOID_MCP_DIRECT_RELEVANT == '1'
+        run: >-
+          npm --prefix integrations/mcp ci
+          --ignore-scripts
+          --no-audit
+          --no-fund
+          --registry=https://registry.npmjs.org/
+
+      - name: Prove shallow committed-range diff hygiene contract
+        if: github.event_name == 'pull_request' && env.VOID_MCP_DIRECT_RELEVANT == '1'
+        run: node scripts/prove_ci_diff_hygiene_v1.mjs
+
+      - name: Validate committed-range helper against bootstrap base
+        if: github.event_name == 'pull_request' && env.VOID_MCP_DIRECT_RELEVANT == '1'
+        env:
+          CI_DIFF_EVENT_NAME: ${{ github.event_name }}
+          CI_DIFF_PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          CI_DIFF_CURRENT_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+          CI_DIFF_CHECKOUT_SHA: ${{ github.sha }}
+          CI_DIFF_BASE_REMOTE: ${{ github.server_url }}/${{ github.repository }}.git
+          CI_DIFF_HEAD_REMOTE: ${{ github.server_url }}/${{ github.event.pull_request.head.repo.full_name || github.repository }}.git
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          DIFF_EVIDENCE="$(bash scripts/ci_diff_hygiene_v1.sh)"
+          printf '%s\n' "$DIFF_EVIDENCE"
+
+          mapfile -t helper_bases < <(
+            printf '%s\n' "$DIFF_EVIDENCE" \
+              | sed -n 's/^base_sha=\([0-9a-f]\{40\}\)$/\1/p'
+          )
+          test "${#helper_bases[@]}" -eq 1
+          test "${helper_bases[0]}" = "$VOID_MCP_BASE_REF"
 
       - name: Typecheck, build, and test both protocol eras
         if: github.event_name != 'pull_request' || env.VOID_MCP_DIRECT_RELEVANT == '1'
@@ -171,16 +304,16 @@ jobs:
         run: |
           set -euo pipefail
 
-          BASE_SHA="$(
-            git cat-file -p "$CI_DIFF_CHECKOUT_SHA" \
-              | sed -n 's/^parent \([0-9a-f]\{40\}\)$/\1/p' \
-              | sed -n '1p'
-          )"
-          test -n "$BASE_SHA"
+          BASE_SHA="$VOID_MCP_BASE_REF"
+          printf '%s' "$BASE_SHA" | grep -Eq '^[0-9a-f]{40}$'
 
-          mapfile -t changed < <(
-            git diff --no-renames --name-only "$BASE_SHA..$CI_DIFF_CURRENT_SHA"
-          )
+          changed_file_list="$(mktemp)"
+          trap 'rm -f "$changed_file_list"' EXIT
+          git diff --no-renames --name-only -z \
+            "$BASE_SHA..$CI_DIFF_CURRENT_SHA" > "$changed_file_list"
+          mapfile -d '' -t changed < "$changed_file_list"
+          rm -f "$changed_file_list"
+          trap - EXIT
 
           test "${#changed[@]}" -gt 0
 
@@ -198,13 +331,16 @@ jobs:
               .github/workflows/void-agent-mcp-bridge-v1.yml)
                 ;;
               *)
-                echo "HOLD: out-of-lane changed file: $file" >&2
+                printf 'HOLD: out-of-lane changed file: %q\n' "$file" >&2
                 exit 1
                 ;;
             esac
           done
 
-          printf 'changed_file=%s\n' "${changed[@]}"
+          for file in "${changed[@]}"
+          do
+            printf 'changed_file=%q\n' "$file"
+          done
 
       - name: Confirm unrelated stale-base trigger remains non-authoritative
         if: github.event_name == 'pull_request' && env.VOID_MCP_DIRECT_RELEVANT != '1'
@@ -212,3 +348,4 @@ jobs:
           printf 'VOID_AGENT_MCP_BRIDGE_V1_STALE_BASE_TRIGGER_SKIP\n'
           printf 'mcp_direct_relevant=false\n'
           printf 'mcp_lane_authority_check_required=false\n'
+          printf 'dependency_install_performed=false\n'
