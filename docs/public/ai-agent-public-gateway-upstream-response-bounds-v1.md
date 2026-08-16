@@ -4,47 +4,62 @@ Marker: `VOID_AI_AGENT_PUBLIC_GATEWAY_UPSTREAM_RESPONSE_BOUNDS_V1`
 
 ## Outcome
 
-Bound the two existing POST proxy upstream responses in `ops/void-ai-agent-public-gateway-v1.mjs` before full buffering and keep rejected upstream teardown owned until a bounded terminal state:
+Bound the two existing POST proxy upstream responses in `ops/void-ai-agent-public-gateway-v1.mjs` before full buffering, bind their receiver transport to the reviewed loopback contract, and keep rejected or timed-out upstream teardown owned until a bounded terminal state:
 
 - operator webhook candidate forwarding; and
 - authenticated paid-work submission forwarding.
 
-The configured response ceilings already existed. This lane makes those ceilings real streaming limits instead of post-buffer checks and prevents an already-rejected upstream connection from being left alive solely because response cancellation is deferred, rejecting, or non-settling.
+This lane does not add a new proxy protocol or widen authority. It makes the existing response ceilings, receiver trust boundary, and route deadline enforceable on the actual gateway path.
 
-## Contract
+## Reviewed upstream transport
+
+A configured receiver base is accepted only in the exact form:
+
+```text
+http://127.0.0.1:<safe-port>
+```
+
+The gateway rejects malformed URLs, HTTPS/public hosts, non-loopback addresses, IPv6 loopback, userinfo, paths, queries, fragments, and trailing-slash variants before the server reports ready. The gateway appends only the fixed reviewed receiver route after that admission check. Therefore a bearer authorization header and request body cannot be forwarded to an arbitrary configured origin merely because an environment variable is non-empty.
+
+The reviewed deployment examples remain:
+
+- operator webhook receiver: `http://127.0.0.1:4186`;
+- paid-work submission receiver: `http://127.0.0.1:4187`.
+
+## Response and lifetime contract
 
 For each upstream response, the gateway:
 
 1. validates a present `Content-Length` as one canonical nonnegative safe integer;
 2. rejects a declared response larger than the route's configured maximum before accumulating body bytes;
-3. requires a readable response body for responses that are admitted for forwarding;
+3. requires a readable response body for responses admitted for forwarding;
 4. reads the body incrementally and checks the accumulated byte count before retaining bytes beyond the configured maximum;
-5. creates an owned `AbortController` for each proxied upstream request and composes it with the route's existing total timeout;
-6. actively aborts that owned upstream request as soon as a response is rejected for invalid length, oversize, or unusable body state;
-7. waits only a bounded 300 ms for response/reader cancellation settlement, preserving the primary rejection if cleanup rejects or does not settle; and
-8. keeps the route timeout active through complete body consumption, so a normally admitted stalled response remains bounded as well.
+5. creates an owned `AbortController` for each proxied upstream request and composes it with the route's total timeout;
+6. actively aborts that owned request as soon as invalid length, oversize, unusable body state, timeout, or admitted-body read failure is known;
+7. routes admitted-body read/timeout failures through the same bounded teardown path as explicit rejection;
+8. waits at most 300 ms for response/reader cancellation settlement, preserving the primary route rejection or timeout if cleanup rejects or does not settle; and
+9. performs exactly one teardown path for streamed overflow/read failure before propagating the authoritative error.
 
 The response-size limits remain independently configurable through:
 
 - `VOID_OPERATOR_WEBHOOK_RECEIVER_MAX_RESPONSE_BYTES`; and
 - `VOID_AGENT_PAID_WORK_SUBMISSION_MAX_RESPONSE_BYTES`.
 
-Rejected-body cleanup is not a second success criterion and cannot replace the route's authoritative size/format failure. A cleanup rejection is logged; a cleanup promise that does not settle within the bounded teardown window is logged as a timeout after the owned upstream request has already been aborted.
+Cleanup is not a second success criterion. A cleanup rejection is logged; a cleanup promise that does not settle within the bounded teardown window is logged as a timeout after the owned upstream request has already been aborted.
 
 ## Acceptance proof
 
-The focused proof starts the real AI gateway and a real loopback upstream. For both POST routes it proves:
+The focused proofs start the real AI gateway plus real loopback upstreams and cover both POST routes. They prove:
 
-- a valid small upstream response is still forwarded;
-- an oversized declared `Content-Length` returns the existing fail-closed upstream error before full buffering;
-- a chunked response that crosses the configured ceiling returns the existing fail-closed upstream error without waiting for upstream completion;
-- the rejected upstream connection closes after the gateway actively aborts its owned request;
-- a proof-mode cancellation promise that never settles cannot hold the public request beyond the bounded teardown window; and
-- a proof-mode cancellation promise that rejects cannot replace the primary route failure.
+- valid small responses still forward normally;
+- unsafe receiver-base configurations fail before gateway readiness and before any bearer/body forwarding;
+- declared and streamed oversized responses fail closed before unbounded buffering;
+- rejected upstream connections close after owned abort;
+- an otherwise valid response that sends a small admitted prefix and then stalls through the route deadline returns the primary gateway failure only after bounded teardown ownership is exercised;
+- cancellation promises that reject or never settle cannot replace the primary error or hold the public operation indefinitely; and
+- the operator-webhook and paid-work integration/guard regressions remain green.
 
-The proof-mode cancellation hooks alter only cancellation-promise settlement after real abort/cancel initiation; the upstream remains a real loopback HTTP server and the gateway still has to terminate the underlying connection.
-
-The old `arrayBuffer()`-then-check pattern and fire-and-forget rejected-body teardown are forbidden for these two proxy response paths.
+The old `arrayBuffer()`-then-check pattern, arbitrary upstream-base forwarding, fire-and-forget rejected-body teardown, and admitted-timeout teardown escape are forbidden for these two proxy paths.
 
 ## Authority boundary
 
