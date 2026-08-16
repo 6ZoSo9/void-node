@@ -129,7 +129,7 @@
       const ready = segment(
         source,
         "(function readyWatchdogV1(){",
-        "(function txrootHeaderNoopSetterV3c(){",
+        "(function proposerActivityGauge(){",
         "ready_watchdog",
       );
       const proposerActivity = segment(
