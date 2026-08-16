@@ -155,7 +155,9 @@ export async function readBoundedTextOwned(response, {
       text += decoder.decode();
     } catch (error) {
       void error;
-      throw new Error("response_body_invalid_utf8");
+      const primary = new Error("response_body_invalid_utf8");
+      await rejectResponseTeardownBounded({ response, reader, abort, teardownMs });
+      throw primary;
     }
     return text;
   } finally {

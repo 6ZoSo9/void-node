@@ -11,14 +11,14 @@ function headers() {
   };
 }
 
-function malformedUtf8Body(cancel) {
+function invalidUtf8Body(bytes, cancel) {
   let delivered = false;
   let released = false;
   const reader = {
     async read() {
       if (delivered) return { done: true, value: undefined };
       delivered = true;
-      return { done: false, value: new Uint8Array([0xff, 0x61]) };
+      return { done: false, value: new Uint8Array(bytes) };
     },
     cancel,
     releaseLock() {
@@ -29,6 +29,14 @@ function malformedUtf8Body(cancel) {
     body: { getReader: () => reader },
     released: () => released,
   };
+}
+
+function malformedUtf8Body(cancel) {
+  return invalidUtf8Body([0xff, 0x61], cancel);
+}
+
+function truncatedUtf8Body(cancel) {
+  return invalidUtf8Body([0xc2], cancel);
 }
 
 async function expectPrimaryInvalidUtf8(body, abort) {
@@ -51,9 +59,9 @@ async function timed(run) {
   return Date.now() - started;
 }
 
-async function main() {
+async function proveInvalidUtf8Teardown(label, makeBody) {
   let nonsettlingAbortCount = 0;
-  const nonsettling = malformedUtf8Body(() => new Promise(() => {}));
+  const nonsettling = makeBody(() => new Promise(() => {}));
   const nonsettlingElapsed = await timed(() => expectPrimaryInvalidUtf8(
     nonsettling,
     () => { nonsettlingAbortCount += 1; },
@@ -61,34 +69,39 @@ async function main() {
   assert.equal(nonsettlingAbortCount, 1);
   assert.ok(
     nonsettlingElapsed >= 150,
-    `malformed UTF-8 teardown released too early: ${nonsettlingElapsed}ms`,
+    `${label} teardown released too early: ${nonsettlingElapsed}ms`,
   );
   assert.ok(
     nonsettlingElapsed < 2500,
-    `malformed UTF-8 teardown was not bounded: ${nonsettlingElapsed}ms`,
+    `${label} teardown was not bounded: ${nonsettlingElapsed}ms`,
   );
 
   let rejectingAbortCount = 0;
-  const rejecting = malformedUtf8Body(() => Promise.reject(new Error("cleanup_failed")));
+  const rejecting = makeBody(() => Promise.reject(new Error("cleanup_failed")));
   await expectPrimaryInvalidUtf8(rejecting, () => { rejectingAbortCount += 1; });
   assert.equal(rejectingAbortCount, 1);
 
   let repeatedAbortCount = 0;
   const repeatedElapsed = await timed(async () => {
     for (let attempt = 0; attempt < 3; attempt += 1) {
-      const body = malformedUtf8Body(() => new Promise(() => {}));
+      const body = makeBody(() => new Promise(() => {}));
       await expectPrimaryInvalidUtf8(body, () => { repeatedAbortCount += 1; });
     }
   });
   assert.equal(repeatedAbortCount, 3);
   assert.ok(
     repeatedElapsed >= 450,
-    `repeated malformed UTF-8 teardown released too early: ${repeatedElapsed}ms`,
+    `repeated ${label} teardown released too early: ${repeatedElapsed}ms`,
   );
   assert.ok(
     repeatedElapsed < 6000,
-    `repeated malformed UTF-8 teardown was not bounded: ${repeatedElapsed}ms`,
+    `repeated ${label} teardown was not bounded: ${repeatedElapsed}ms`,
   );
+}
+
+async function main() {
+  await proveInvalidUtf8Teardown("malformed UTF-8", malformedUtf8Body);
+  await proveInvalidUtf8Teardown("truncated UTF-8 finalization", truncatedUtf8Body);
 
   process.stdout.write("VOID_WC_PUBLIC_RESPONSE_INVALID_UTF8_TEARDOWN_V1_GREEN\n");
 }
