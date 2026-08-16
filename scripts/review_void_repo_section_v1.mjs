@@ -1,16 +1,7 @@
 #!/usr/bin/env node
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
-import {
-  buildResolvedMap,
-  findRepoRoot,
-  readCanonicalJson,
-  readTrackedIndex,
-  resolveDomain,
-  REGISTRY_PATH,
-  INDEX_REGISTRY_PATH,
-  validateRegistry,
-} from './generate_void_repo_cartography_v1.mjs';
+import { buildResolvedMap, findRepoRoot } from './generate_void_repo_cartography_v1.mjs';
 
 export const SECTION_MARKER = 'VOID_REPO_SECTION_REVIEW_V1';
 const DOMAIN_ID_RE = /^[a-z0-9]+(?:[.-][a-z0-9]+)*$/;
@@ -28,19 +19,21 @@ export function bounded(paths, limit) {
   };
 }
 
-export function buildDomainSection({ repoRoot = findRepoRoot(), domainId, limit = 25 } = {}) {
+export function buildDomainSection({
+  repoRoot = findRepoRoot(),
+  domainId,
+  limit = 25,
+  _testOnlyAfterHeadPinned = null,
+} = {}) {
   if (typeof domainId !== 'string' || !DOMAIN_ID_RE.test(domainId)) fail(`domain_id_invalid value=${String(domainId)}`);
   if (!Number.isSafeInteger(limit) || limit < 1 || limit > 100) fail(`limit_invalid value=${String(limit)}`);
 
-  const registryRead = readCanonicalJson(repoRoot, REGISTRY_PATH);
-  const indexRead = readCanonicalJson(repoRoot, INDEX_REGISTRY_PATH);
-  validateRegistry(registryRead.value, indexRead.value);
-  const sourceDomain = registryRead.value.domains.find((domain) => domain.id === domainId);
-  if (!sourceDomain) fail(`unknown_domain id=${domainId}`);
+  // One collection pass is authoritative for both selected-domain evidence and source identity.
+  const resolved = buildResolvedMap({ repoRoot, includeMatches: true, _testOnlyAfterHeadPinned });
+  if (!resolved.source_snapshot_bound) fail('source_snapshot_unbound');
+  const domain = resolved.domains.find((candidate) => candidate.id === domainId);
+  if (!domain) fail(`unknown_domain id=${domainId}`);
 
-  const entries = readTrackedIndex(repoRoot);
-  const domain = resolveDomain(entries, sourceDomain);
-  const resolved = buildResolvedMap({ repoRoot });
   const related = domain.related_domains.map((id) => {
     const target = resolved.domains.find((candidate) => candidate.id === id);
     if (!target) fail(`related_domain_resolution_failed id=${id}`);
@@ -57,6 +50,8 @@ export function buildDomainSection({ repoRoot = findRepoRoot(), domainId, limit 
     version: 1,
     source_commit_sha: resolved.source_commit_sha,
     source_tree_sha: resolved.source_tree_sha,
+    source_snapshot_kind: resolved.source_snapshot_kind,
+    source_snapshot_bound: resolved.source_snapshot_bound,
     registry_sha256: resolved.registry_sha256,
     domain: {
       id: domain.id,
@@ -88,6 +83,7 @@ export function renderText(section) {
   lines.push(`purpose: ${d.purpose}`);
   lines.push(`area: ${d.area}`);
   lines.push(`source: ${section.source_commit_sha}`);
+  lines.push(`source snapshot: ${section.source_snapshot_kind}`);
   lines.push(`authority surfaces: ${d.authority_surfaces.length ? d.authority_surfaces.join(', ') : 'none'}`);
   if (d.aliases.length) lines.push(`aliases: ${d.aliases.join(', ')}`);
   if (d.index_landmarks.length) lines.push(`src/index.ts landmarks: ${d.index_landmarks.join(', ')}`);

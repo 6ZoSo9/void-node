@@ -9,8 +9,10 @@ export const REGISTRY_PATH = 'docs/repo-map-v1.json';
 export const INDEX_REGISTRY_PATH = 'docs/index-map-v1.json';
 export const MARKER = 'VOID_REPO_CARTOGRAPHY_V1';
 export const RESOLVED_MARKER = 'VOID_REPO_CARTOGRAPHY_RESOLVED_V1';
+export const SNAPSHOT_KIND = 'pinned_git_commit_tree';
 const DOMAIN_ID_RE = /^[a-z0-9]+(?:[.-][a-z0-9]+)*$/;
 const SELECTOR_TYPES = new Set(['exact', 'prefix']);
+const GIT_OBJECT_RE = /^[0-9a-f]{40}$/;
 
 function fail(message) {
   throw new Error(`VOID_REPO_CARTOGRAPHY_V1 ${message}`);
@@ -22,7 +24,7 @@ export function sha256(value) {
 
 export function git(repoRoot, args, options = {}) {
   return execFileSync('git', ['-C', repoRoot, ...args], {
-    encoding: options.encoding ?? 'utf8',
+    encoding: Object.prototype.hasOwnProperty.call(options, 'encoding') ? options.encoding : 'utf8',
     stdio: ['ignore', 'pipe', 'pipe'],
     maxBuffer: 128 * 1024 * 1024,
   });
@@ -36,6 +38,8 @@ export function findRepoRoot(start = process.cwd()) {
   }
 }
 
+// Retained for registry-shape tests and explicit callers that want working-tree bytes.
+// Commit-labeled generated evidence never uses this helper.
 export function readCanonicalJson(repoRoot, relativePath) {
   const absolute = path.join(repoRoot, relativePath);
   let bytes;
@@ -51,6 +55,32 @@ export function readCanonicalJson(repoRoot, relativePath) {
     fail(`invalid_json path=${relativePath}`);
   }
   return { value, bytes };
+}
+
+function parseJsonBytes(bytes, relativePath) {
+  let value;
+  try {
+    value = JSON.parse(bytes.toString('utf8'));
+  } catch {
+    fail(`invalid_json path=${relativePath}`);
+  }
+  return { value, bytes };
+}
+
+export function readCommitBytes(repoRoot, commitSha, relativePath) {
+  if (!GIT_OBJECT_RE.test(commitSha)) fail(`source_commit_invalid observed=${String(commitSha)}`);
+  let bytes;
+  try {
+    bytes = git(repoRoot, ['show', `${commitSha}:${relativePath}`], { encoding: null });
+  } catch {
+    fail(`required_commit_file_unreadable commit=${commitSha} path=${relativePath}`);
+  }
+  if (!Buffer.isBuffer(bytes)) fail(`required_commit_file_not_bytes path=${relativePath}`);
+  return bytes;
+}
+
+export function readCommitJson(repoRoot, commitSha, relativePath) {
+  return parseJsonBytes(readCommitBytes(repoRoot, commitSha, relativePath), relativePath);
 }
 
 export function validateRegistry(registry, indexRegistry) {
@@ -112,23 +142,25 @@ export function validateRegistry(registry, indexRegistry) {
   return { domainIds: ids, landmarkIds };
 }
 
-export function readTrackedIndex(repoRoot) {
+export function readTrackedTree(repoRoot, commitSha) {
+  if (!GIT_OBJECT_RE.test(commitSha)) fail(`source_commit_invalid observed=${String(commitSha)}`);
   let output;
   try {
-    output = git(repoRoot, ['ls-files', '-s', '-z']);
+    output = git(repoRoot, ['ls-tree', '-r', '-z', '--full-tree', commitSha]);
   } catch {
-    fail('git_ls_files_failed');
+    fail(`git_ls_tree_failed commit=${commitSha}`);
   }
   const entries = [];
   for (const row of output.split('\0')) {
     if (!row) continue;
     const tab = row.indexOf('\t');
-    if (tab < 0) fail('git_ls_files_row_invalid');
+    if (tab < 0) fail('git_ls_tree_row_invalid');
     const meta = row.slice(0, tab).split(' ');
-    if (meta.length !== 3) fail('git_ls_files_meta_invalid');
-    const [mode, blob, stage] = meta;
-    if (stage !== '0') fail(`unmerged_index_entry path=${row.slice(tab + 1)}`);
-    entries.push({ path: row.slice(tab + 1), mode, blob });
+    if (meta.length !== 3) fail('git_ls_tree_meta_invalid');
+    const [mode, type, object] = meta;
+    if (type !== 'blob' && type !== 'commit') fail(`git_ls_tree_type_invalid type=${type}`);
+    if (!GIT_OBJECT_RE.test(object)) fail(`git_ls_tree_object_invalid path=${row.slice(tab + 1)}`);
+    entries.push({ path: row.slice(tab + 1), mode, blob: object });
   }
   entries.sort((a, b) => a.path.localeCompare(b.path));
   return entries;
@@ -202,19 +234,52 @@ export function resolveDomain(entries, domain, { includeMatches = true } = {}) {
   };
 }
 
-export function buildResolvedMap({ repoRoot = findRepoRoot(), registryOverride = null, indexRegistryOverride = null } = {}) {
-  const registryRead = registryOverride ? { value: registryOverride, bytes: Buffer.from(JSON.stringify(registryOverride)) } : readCanonicalJson(repoRoot, REGISTRY_PATH);
-  const indexRead = indexRegistryOverride ? { value: indexRegistryOverride, bytes: Buffer.from(JSON.stringify(indexRegistryOverride)) } : readCanonicalJson(repoRoot, INDEX_REGISTRY_PATH);
+export function buildResolvedMap({
+  repoRoot = findRepoRoot(),
+  registryOverride = null,
+  indexRegistryOverride = null,
+  includeMatches = false,
+  _testOnlyAfterHeadPinned = null,
+} = {}) {
+  let head;
+  try {
+    head = git(repoRoot, ['rev-parse', '--verify', 'HEAD^{commit}']).trim();
+  } catch {
+    fail('source_head_unavailable');
+  }
+  if (!GIT_OBJECT_RE.test(head)) fail(`source_commit_invalid observed=${String(head)}`);
+
+  if (_testOnlyAfterHeadPinned !== null) {
+    if (typeof _testOnlyAfterHeadPinned !== 'function') fail('test_hook_invalid');
+    _testOnlyAfterHeadPinned({ repoRoot, head });
+  }
+
+  let tree;
+  try {
+    tree = git(repoRoot, ['rev-parse', `${head}^{tree}`]).trim();
+  } catch {
+    fail(`source_tree_unavailable commit=${head}`);
+  }
+  if (!GIT_OBJECT_RE.test(tree)) fail(`source_tree_invalid observed=${String(tree)}`);
+
+  const registryRead = registryOverride
+    ? { value: registryOverride, bytes: Buffer.from(JSON.stringify(registryOverride)) }
+    : readCommitJson(repoRoot, head, REGISTRY_PATH);
+  const indexRead = indexRegistryOverride
+    ? { value: indexRegistryOverride, bytes: Buffer.from(JSON.stringify(indexRegistryOverride)) }
+    : readCommitJson(repoRoot, head, INDEX_REGISTRY_PATH);
   validateRegistry(registryRead.value, indexRead.value);
-  const entries = readTrackedIndex(repoRoot);
-  const head = git(repoRoot, ['rev-parse', 'HEAD']).trim();
-  const tree = git(repoRoot, ['rev-parse', 'HEAD^{tree}']).trim();
-  const domains = registryRead.value.domains.map((domain) => resolveDomain(entries, domain, { includeMatches: false }));
+  const entries = readTrackedTree(repoRoot, head);
+  const domains = registryRead.value.domains.map((domain) => resolveDomain(entries, domain, { includeMatches }));
+  const sourceSnapshotBound = registryOverride === null && indexRegistryOverride === null;
+
   return {
     marker: RESOLVED_MARKER,
     version: 1,
     source_commit_sha: head,
     source_tree_sha: tree,
+    source_snapshot_kind: SNAPSHOT_KIND,
+    source_snapshot_bound: sourceSnapshotBound,
     tracked_file_count: entries.length,
     registry_path: REGISTRY_PATH,
     registry_sha256: sha256(registryRead.bytes),
@@ -232,6 +297,8 @@ export function renderMarkdown(resolved) {
   lines.push('');
   lines.push(`- source commit: \`${resolved.source_commit_sha}\``);
   lines.push(`- source tree: \`${resolved.source_tree_sha}\``);
+  lines.push(`- source snapshot: \`${resolved.source_snapshot_kind}\``);
+  lines.push(`- source snapshot bound: ${resolved.source_snapshot_bound}`);
   lines.push(`- tracked files: ${resolved.tracked_file_count}`);
   lines.push(`- domains: ${resolved.domain_count}`);
   lines.push(`- registry SHA-256: \`${resolved.registry_sha256}\``);
@@ -242,7 +309,7 @@ export function renderMarkdown(resolved) {
     lines.push(`| \`${domain.id}\` | ${domain.area} | ${domain.canonical_match_count} | ${domain.discovery.proofs.match_count} | ${domain.discovery.workflows.match_count} | ${domain.discovery.docs.match_count} | ${domain.purpose.replaceAll('|', '\\|')} |`);
   }
   lines.push('');
-  lines.push('Generated evidence only. Stable identity is the domain ID; file counts and locations belong to the exact source commit/tree above.');
+  lines.push('Generated evidence only. File counts, identities, registry bytes, and locations belong to the one pinned source commit/tree above.');
   return `${lines.join('\n')}\n`;
 }
 

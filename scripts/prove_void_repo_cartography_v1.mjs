@@ -1,13 +1,20 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import { spawnSync } from 'node:child_process';
 import {
   buildResolvedMap,
   findRepoRoot,
   git,
   readCanonicalJson,
+  readCommitBytes,
   REGISTRY_PATH,
   INDEX_REGISTRY_PATH,
   RESOLVED_MARKER,
+  SNAPSHOT_KIND,
+  sha256,
   validateRegistry,
 } from './generate_void_repo_cartography_v1.mjs';
 import { buildDomainSection, SECTION_MARKER } from './review_void_repo_section_v1.mjs';
@@ -27,6 +34,30 @@ function expectFailure(fn, pattern) {
   assert.match(String(thrown?.message ?? thrown), pattern);
 }
 
+function writeJson(file, value) {
+  fs.writeFileSync(file, `${JSON.stringify(value)}\n`);
+}
+
+function makeSnapshotFixture(sourceRepo, sourceCommit) {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'void-repo-cartography-v1-'));
+  const repo = path.join(root, 'repo');
+  fs.mkdirSync(repo);
+  const archive = git(sourceRepo, ['archive', '--format=tar', sourceCommit], { encoding: null });
+  const extracted = spawnSync('tar', ['-xf', '-', '-C', repo], {
+    input: archive,
+    stdio: ['pipe', 'pipe', 'pipe'],
+  });
+  if (extracted.status !== 0) {
+    throw new Error(`fixture_archive_extract_failed ${extracted.stderr?.toString('utf8') ?? ''}`);
+  }
+  git(repo, ['init', '-q']);
+  git(repo, ['config', 'user.name', 'VOID Cartography Proof']);
+  git(repo, ['config', 'user.email', 'void-cartography-proof@example.invalid']);
+  git(repo, ['add', '--all']);
+  git(repo, ['commit', '-q', '-m', 'fixture baseline']);
+  return { root, repo, baseline: git(repo, ['rev-parse', 'HEAD']).trim() };
+}
+
 const repoRoot = findRepoRoot();
 const beforeStatus = git(repoRoot, ['status', '--porcelain=v1', '--untracked-files=all']);
 const registryRead = readCanonicalJson(repoRoot, REGISTRY_PATH);
@@ -35,6 +66,7 @@ validateRegistry(registryRead.value, indexRead.value);
 
 assert.equal(registryRead.value.marker, 'VOID_REPO_CARTOGRAPHY_V1');
 assert.equal(registryRead.value.version, 1);
+assert.equal(registryRead.value.contract.coordination_live_truth_requires_agents_and_github_control_plane, true);
 assert.ok(registryRead.value.domains.length >= 30, 'expected at least 30 directory domains');
 
 const requiredIds = [
@@ -50,6 +82,7 @@ const requiredIds = [
   'agents.mcp',
   'operations.runtime',
   'operations.mainnet',
+  'operations.coordination',
   'governance',
   'release',
   'security',
@@ -63,11 +96,17 @@ const resolved1 = buildResolvedMap({ repoRoot });
 const resolved2 = buildResolvedMap({ repoRoot });
 assert.equal(resolved1.marker, RESOLVED_MARKER);
 assert.equal(resolved1.source_mutation_performed, false);
+assert.equal(resolved1.source_snapshot_kind, SNAPSHOT_KIND);
+assert.equal(resolved1.source_snapshot_bound, true);
 assert.equal(resolved1.domain_count, registryRead.value.domains.length);
 assert.ok(/^[0-9a-f]{40}$/.test(resolved1.source_commit_sha));
 assert.ok(/^[0-9a-f]{40}$/.test(resolved1.source_tree_sha));
 assert.ok(resolved1.tracked_file_count > 100, 'tracked-file inventory unexpectedly small');
 assert.deepEqual(resolved2, resolved1, 'resolved map must be deterministic on one checkout');
+assert.equal(resolved1.source_commit_sha, git(repoRoot, ['rev-parse', '--verify', 'HEAD^{commit}']).trim());
+assert.equal(resolved1.source_tree_sha, git(repoRoot, ['rev-parse', `${resolved1.source_commit_sha}^{tree}`]).trim());
+assert.equal(resolved1.registry_sha256, sha256(readCommitBytes(repoRoot, resolved1.source_commit_sha, REGISTRY_PATH)));
+assert.equal(resolved1.index_registry_sha256, sha256(readCommitBytes(repoRoot, resolved1.source_commit_sha, INDEX_REGISTRY_PATH)));
 
 for (const domain of resolved1.domains) {
   assert.ok(domain.canonical_match_count > 0, `domain must resolve at least one canonical file: ${domain.id}`);
@@ -78,8 +117,26 @@ for (const domain of resolved1.domains) {
   }
 }
 
+const coordination = resolved1.domains.find((domain) => domain.id === 'operations.coordination');
+assert.ok(coordination, 'operations.coordination domain missing');
+assert.match(coordination.purpose, /AGENTS\.md/);
+assert.match(coordination.purpose, /current GitHub coordination issue or its explicit successor/);
+assert.match(coordination.purpose, /checked-in/i);
+assert.ok(
+  coordination.selectors.some((selector) => selector.type === 'exact' && selector.value === 'AGENTS.md' && selector.required === true),
+  'operations.coordination must start from required AGENTS.md',
+);
+
+const repoMapDoc = readCommitBytes(repoRoot, resolved1.source_commit_sha, 'docs/REPO_MAP.md').toString('utf8');
+assert.match(repoMapDoc, /Coordination precedence/);
+assert.match(repoMapDoc, /current live GitHub coordination issue/);
+assert.match(repoMapDoc, /explicit successor/);
+assert.match(repoMapDoc, /pinned HEAD[\s*]+commit tree/);
+
 const buyVoid = buildDomainSection({ repoRoot, domainId: 'economic.buy-void', limit: 7 });
 assert.equal(buyVoid.marker, SECTION_MARKER);
+assert.equal(buyVoid.source_snapshot_kind, SNAPSHOT_KIND);
+assert.equal(buyVoid.source_snapshot_bound, true);
 assert.equal(buyVoid.domain.id, 'economic.buy-void');
 assert.ok(buyVoid.domain.canonical_files.total > 0);
 assert.ok(buyVoid.domain.canonical_files.shown <= 7);
@@ -113,9 +170,68 @@ const missingSelector = clone(registryRead.value);
 missingSelector.domains[0].selectors = [{ type: 'exact', value: 'definitely/not/present.v1', required: true }];
 expectFailure(() => buildResolvedMap({ repoRoot, registryOverride: missingSelector }), /required_selector_missing/);
 
+const harmlessOverride = buildResolvedMap({ repoRoot, registryOverride: clone(registryRead.value) });
+assert.equal(harmlessOverride.source_snapshot_bound, false, 'override evidence must never claim exact source binding');
+
 const malformedSelector = clone(registryRead.value);
 malformedSelector.domains[0].selectors[0] = { type: 'glob', value: '**', required: true };
 expectFailure(() => validateRegistry(malformedSelector, indexRead.value), /selector_type_invalid/);
+
+// Adversarial dirty-state and concurrent-checkout proof runs entirely in a synthetic temp repo.
+let fixture = null;
+try {
+  fixture = makeSnapshotFixture(repoRoot, resolved1.source_commit_sha);
+  const baselineResolved = buildResolvedMap({ repoRoot: fixture.repo });
+  assert.equal(baselineResolved.source_snapshot_bound, true);
+
+  // Dirty index + dirty working tree must not leak into evidence labeled with unchanged HEAD.
+  const stagedOnly = path.join(fixture.repo, 'cartography-staged-only-proof.txt');
+  fs.writeFileSync(stagedOnly, 'staged-only\n');
+  git(fixture.repo, ['add', '--', 'cartography-staged-only-proof.txt']);
+  const dirtyRegistryPath = path.join(fixture.repo, REGISTRY_PATH);
+  const dirtyRegistry = JSON.parse(fs.readFileSync(dirtyRegistryPath, 'utf8'));
+  dirtyRegistry.domains.find((domain) => domain.id === 'economic.buy-void').purpose = 'UNSTAGED PURPOSE MUST NOT LEAK';
+  writeJson(dirtyRegistryPath, dirtyRegistry);
+
+  const dirtyResolved = buildResolvedMap({ repoRoot: fixture.repo });
+  assert.deepEqual(dirtyResolved, baselineResolved, 'dirty index/worktree must not change HEAD-bound cartography evidence');
+  const dirtySection = buildDomainSection({ repoRoot: fixture.repo, domainId: 'economic.buy-void', limit: 100 });
+  assert.notEqual(dirtySection.domain.purpose, 'UNSTAGED PURPOSE MUST NOT LEAK');
+  assert.ok(!dirtySection.domain.canonical_files.paths.includes('cartography-staged-only-proof.txt'));
+
+  git(fixture.repo, ['reset', '--hard', '-q', fixture.baseline]);
+  git(fixture.repo, ['clean', '-fdq']);
+
+  // Build a second commit with both curated-domain and tracked-path differences.
+  const registryBPath = path.join(fixture.repo, REGISTRY_PATH);
+  const registryB = JSON.parse(fs.readFileSync(registryBPath, 'utf8'));
+  registryB.domains.find((domain) => domain.id === 'economic.buy-void').purpose += ' RACE_SNAPSHOT_B';
+  writeJson(registryBPath, registryB);
+  const probePath = 'src/economic/buy_void_cartography_race_probe_v1.ts';
+  fs.writeFileSync(path.join(fixture.repo, probePath), 'export const VOID_CARTOGRAPHY_RACE_PROBE_V1 = true;\n');
+  git(fixture.repo, ['add', '--', REGISTRY_PATH, probePath]);
+  git(fixture.repo, ['commit', '-q', '-m', 'fixture snapshot B']);
+  const snapshotB = git(fixture.repo, ['rev-parse', 'HEAD']).trim();
+  git(fixture.repo, ['checkout', '--quiet', '--detach', fixture.baseline]);
+
+  const baselineSection = buildDomainSection({ repoRoot: fixture.repo, domainId: 'economic.buy-void', limit: 100 });
+  const racedSection = buildDomainSection({
+    repoRoot: fixture.repo,
+    domainId: 'economic.buy-void',
+    limit: 100,
+    _testOnlyAfterHeadPinned: ({ head }) => {
+      assert.equal(head, fixture.baseline);
+      git(fixture.repo, ['checkout', '--quiet', '--detach', snapshotB]);
+    },
+  });
+  assert.equal(git(fixture.repo, ['rev-parse', 'HEAD']).trim(), snapshotB, 'race hook must move live checkout');
+  assert.deepEqual(racedSection, baselineSection, 'domain section must stay on the one commit pinned before checkout movement');
+  assert.equal(racedSection.source_commit_sha, fixture.baseline);
+  assert.ok(!racedSection.domain.purpose.includes('RACE_SNAPSHOT_B'));
+  assert.ok(!racedSection.domain.canonical_files.paths.includes(probePath));
+} finally {
+  if (fixture?.root) fs.rmSync(fixture.root, { recursive: true, force: true });
+}
 
 const afterStatus = git(repoRoot, ['status', '--porcelain=v1', '--untracked-files=all']);
 assert.equal(afterStatus, beforeStatus, 'cartography proof must not mutate repository state');
@@ -128,6 +244,10 @@ console.log(`domain_count=${resolved1.domain_count}`);
 console.log('bounded_domain_viewer=true');
 console.log('stable_domain_ids=true');
 console.log('generated_locations=true');
+console.log('pinned_head_snapshot=true');
+console.log('dirty_checkout_head_binding=true');
+console.log('domain_section_single_snapshot=true');
+console.log('coordination_live_truth_precedence=true');
 console.log('unknown_relationships_fail_closed=true');
 console.log('unknown_index_landmarks_fail_closed=true');
 console.log('missing_required_paths_fail_closed=true');

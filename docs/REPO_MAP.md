@@ -17,9 +17,10 @@ The stable identity is a domain ID such as:
 - `governance`
 - `release`
 
-The registry stores the durable architectural meaning. Current file matches, Git identities,
-counts, proof/workflow/doc matches, and source revision are generated from the checked-out
-Git tree when needed.
+The registry stores durable architectural meaning. Current file matches, Git identities,
+counts, proof/workflow/doc matches, and source revision are generated from one **pinned HEAD
+commit tree** captured at invocation. Staged files, unstaged edits, and a checkout that moves
+after that pin are not mixed into evidence labeled with the pinned commit/tree.
 
 ## Normal review flow
 
@@ -72,8 +73,9 @@ A domain entry answers the questions that usually cause repeated repository sear
 - which authority/sensitivity surfaces deserve extra care; and
 - which proof, workflow, and documentation filename families are likely relevant.
 
-The generated viewer then resolves those pointers against the current checkout and reports
-bounded current paths rather than committing a giant static file inventory.
+The generated viewer resolves all of those fields from the same pinned commit snapshot used
+for `source_commit_sha`, `source_tree_sha`, and registry identity. One section cannot combine
+domain evidence from one checkout state with source identity from another.
 
 ## Relationship to `src/index.ts` cartography
 
@@ -104,14 +106,35 @@ The map deliberately separates two kinds of information.
 
 **Generated and disposable:**
 
-- current commit/tree SHA;
-- current tracked-file count;
+- pinned source commit/tree SHA;
+- tracked-file count from that commit tree;
 - selector match counts;
-- matched file identities;
+- matched Git object identities;
 - proof/workflow/doc counts; and
-- bounded current path lists.
+- bounded current path lists for that exact commit.
 
-This avoids committed churn when files are added inside an already-mapped subsystem.
+This avoids committed churn when files are added inside an already-mapped subsystem without
+weakening source provenance.
+
+## Snapshot contract
+
+The generator pins `HEAD^{commit}` exactly once before collecting commit-labeled evidence.
+It then reads both registries from that exact commit object and enumerates tracked paths and
+Git object identities with `git ls-tree` against the same pinned commit. The tree SHA is also
+derived from that pinned commit, not from a later live `HEAD` read.
+
+Therefore:
+
+- staged additions or replacements do not appear under the unchanged HEAD identity;
+- unstaged registry edits do not alter the registry digest or curated domain content reported
+  for the unchanged HEAD identity;
+- a concurrent checkout/HEAD movement after the pin cannot change the snapshot being
+  resolved; and
+- explicit in-memory registry overrides are marked `source_snapshot_bound=false` and are not
+  allowed to masquerade as exact commit-bound evidence.
+
+The tooling is read-only. It does not clean, reset, stash, checkout, or otherwise modify the
+caller's repository to establish this invariant.
 
 ## Selector contract
 
@@ -123,8 +146,25 @@ V1 intentionally supports only two simple selector shapes:
 Required selectors must resolve to at least one tracked file. A missing required selector
 fails closed when cartography is generated or viewed.
 
-The generator reads the Git index with `git ls-files -s`, so its content identity is based
-on tracked path + Git blob identity rather than filesystem timestamps.
+Content identity comes from the pinned commit tree rather than the mutable Git index or
+filesystem timestamps.
+
+## Coordination precedence
+
+The `operations.coordination` domain has a special navigation rule because checked-in
+coordination artifacts cannot represent live GitHub state by themselves.
+
+`AGENTS.md` is the required canonical starting point. It defines how a worker discovers the
+**current live GitHub coordination issue** (currently #1301 while it remains designated
+current) and how to follow an explicit successor if that issue is closed, superseded, or
+replaced. Only after resolving that live control plane should a worker use checked-in
+`ops/coordination/` material as repository history, roster/dispatch implementation context,
+or supporting operator evidence.
+
+Accordingly, `ops/coordination/` is **not** labeled as the live coordination source of truth.
+The repository directory cannot grant ownership, priority, collision clearance, or lifecycle
+authority, and it cannot replace the mandatory `AGENTS.md` + current GitHub control-plane
+handoff.
 
 ## Authority labels
 
@@ -145,12 +185,16 @@ The tooling rejects:
 - missing required selectors;
 - unknown related-domain references;
 - unknown `src/index.ts` landmark references;
-- an unmerged Git index;
+- unavailable/malformed pinned commit or tree identity;
+- unreadable required registry bytes in the pinned commit;
+- malformed Git tree entries;
 - unknown viewer domains;
 - viewer limits outside 1–100; and
 - arbitrary registry or repository path overrides.
 
-Both tools are read-only and the proof asserts repository status is unchanged.
+The proof also adversarially checks dirty staged/unstaged state and a checkout movement after
+the source commit is pinned. Both must preserve one coherent source snapshot, and the proof
+asserts that the real repository status is unchanged before and after verification.
 
 ## Growth rule
 
@@ -165,9 +209,11 @@ concepts rather than expanding the directory into a static manifest.
 
 The expected operating pattern is:
 
-1. consult the repository directory;
-2. consult a bounded domain section;
-3. follow a proof/workflow/doc family or `src/index.ts` landmark;
-4. use broad repository search only when the directory does not answer the question.
+1. read `AGENTS.md` and resolve the current live coordination control plane before work;
+2. consult the repository directory;
+3. consult a bounded domain section;
+4. follow a proof/workflow/doc family or `src/index.ts` landmark; and
+5. use broad repository search only when the directory does not answer the question.
 
-This keeps broad search as the fallback instead of the default.
+This keeps broad search as the fallback instead of the default while preserving live
+coordination precedence.
