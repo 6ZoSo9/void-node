@@ -92,6 +92,42 @@ The canonical presale economics source is fail-closed to one pool (`buy-void-pre
 
 The obsolete broad-configuration verification blocker is closed. The remaining parent blocker is actual canonical delivery runtime activation. Applying the reviewed configuration, enabling dependency/runtime execution, funding inventory, reading the production credential, signing, broadcasting, and moving funds remain separate operational authorization boundaries.
 
+
+## Durable presale history integrity
+
+The presale reservation and paid-unreservable-liability journals are now
+fail-closed against durable-history shrinkage or substitution.
+
+Every new reservation and every new paid-unreservable obligation first publishes
+and fsyncs a content-bound expectation record under the same pool lock. The
+expectation uses the same content-derived ID as its durable record and commits to
+the exact immutable record fingerprint. On every read, the canonical expectation
+set and durable-record set must match exactly, each filename must match the
+embedded derived identity, and both expectation and record objects must satisfy
+their closed schemas.
+
+Accordingly:
+
+- a present record that becomes `null`, an array/primitive, malformed, unreadable,
+  schema-invalid, or content-substituted is an explicit HOLD;
+- deletion or rename before enumeration is detected because the expected ID
+  remains committed;
+- a duplicate valid record under another canonical-looking filename is rejected
+  as an unexpected record rather than double-counted;
+- paid-unreservable liability corruption blocks new reservation mutation instead
+  of hiding an operator-reconciliation obligation; and
+- a crash after expectation publication but before durable record publication
+  leaves an expected-record mismatch and therefore fails closed.
+
+Preexisting nonempty durable history without the paired expectation index is not
+silently adopted as a fresh baseline. It remains held for an explicit reviewed
+migration/repair rather than allowing historical commitments to disappear.
+
+The focused inventory proof includes adversarial non-object, closed-schema,
+content-substitution, unexpected-record, missing-reservation, corrupted-liability,
+liability-substitution, and missing-liability fixtures. The activation workflow
+runs that proof directly before claiming the presale-history readiness facts.
+
 ## Authority boundary
 
 Source, proof, documentation, and CI only. This lifecycle promotion performs no deployment, live service restart, production configuration mutation, production credential read, wallet/private-key access, live RPC, signing, transaction broadcast, inventory funding, treasury/liquidity action, or funds movement.

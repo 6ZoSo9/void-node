@@ -14,6 +14,9 @@ on:
       - "docs/operators/buy-void-erc20-production-configuration-verifier-v1.md"
       - "src/economic/buy_void_erc20_production_configuration_candidate_binding_v1.ts"
       - "scripts/prove_buy_void_erc20_production_configuration_candidate_binding_v1.ts"
+      - "src/economic/buy_void_inventory_reservation_journal_v1.ts"
+      - "scripts/prove_buy_void_inventory_reservation_journal_v1.ts"
+      - "docs/operators/buy-void-inventory-reserve-plan-v1.md"
       - "src/economic/buy_void_erc20_production_credential_binding_evidence_v1.ts"
       - "src/economic/buy_void_erc20_transaction_preparation_planner_v1.ts"
       - "ops/mainnet/void-mainnet.deployed.json"
@@ -39,6 +42,9 @@ on:
       - "docs/operators/buy-void-erc20-production-configuration-verifier-v1.md"
       - "src/economic/buy_void_erc20_production_configuration_candidate_binding_v1.ts"
       - "scripts/prove_buy_void_erc20_production_configuration_candidate_binding_v1.ts"
+      - "src/economic/buy_void_inventory_reservation_journal_v1.ts"
+      - "scripts/prove_buy_void_inventory_reservation_journal_v1.ts"
+      - "docs/operators/buy-void-inventory-reserve-plan-v1.md"
       - "src/economic/buy_void_erc20_production_credential_binding_evidence_v1.ts"
       - "src/economic/buy_void_erc20_transaction_preparation_planner_v1.ts"
       - "ops/mainnet/void-mainnet.deployed.json"
@@ -85,6 +91,8 @@ jobs:
         run: npx --no-install tsx scripts/prove_buy_void_erc20_production_configuration_candidate_binding_v1.ts
       - name: Prove production configuration verifier
         run: npx --no-install tsx scripts/prove_buy_void_erc20_production_configuration_verifier_v1.ts
+      - name: Prove durable presale history integrity
+        run: npx --no-install tsx scripts/prove_buy_void_inventory_reservation_journal_v1.ts
       - name: Prove activation configuration source contract
         run: npx --no-install tsx scripts/prove_buy_void_erc20_delivery_runtime_activation_configuration_contract_v1.ts
       - name: Prove execution composition source
@@ -127,6 +135,7 @@ jobs:
             scripts/prove_buy_void_erc20_execution_composition_v1.ts \
             scripts/prove_buy_void_erc20_production_configuration_verifier_v1.ts \
             scripts/prove_buy_void_erc20_production_configuration_candidate_binding_v1.ts \
+            scripts/prove_buy_void_inventory_reservation_journal_v1.ts \
             scripts/prove_buy_void_erc20_delivery_runtime_activation_configuration_contract_v1.ts
       - name: Typecheck repository
         run: npm run typecheck

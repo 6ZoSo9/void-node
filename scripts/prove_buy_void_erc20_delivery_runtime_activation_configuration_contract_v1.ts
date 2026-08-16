@@ -191,6 +191,41 @@ assert.equal(
 );
 assert.equal(
   contract.presale_invariant_readiness
+    .durable_history_expected_set_commitment_ready,
+  true,
+);
+assert.equal(
+  contract.presale_invariant_readiness
+    .durable_history_missing_record_fail_closed,
+  true,
+);
+assert.equal(
+  contract.presale_invariant_readiness
+    .durable_history_filename_content_identity_enforced,
+  true,
+);
+assert.equal(
+  contract.presale_invariant_readiness
+    .durable_history_closed_schema_enforced,
+  true,
+);
+assert.equal(
+  contract.presale_invariant_readiness
+    .durable_history_liability_completeness_fail_closed,
+  true,
+);
+assert.equal(
+  contract.presale_invariant_readiness
+    .durable_history_integrity_blocks_new_mutation,
+  true,
+);
+assert.equal(
+  contract.presale_invariant_readiness
+    .unindexed_preexisting_history_silently_adopted,
+  false,
+);
+assert.equal(
+  contract.presale_invariant_readiness
     .confirmed_payer_without_reservation_or_obligation_allowed,
   false,
 );
@@ -331,6 +366,9 @@ const composition = read(contract.execution_composition_source_path);
 const dependency = read(contract.dependency_bootstrap_source_path);
 const signer = read("src/economic/buy_void_native_fulfillment_wallet_credential_signer_v1.ts");
 const parent = read(contract.parent_source_path);
+const inventoryHistory = read(
+  contract.presale_invariant_readiness.inventory_obligation_source_path,
+);
 
 for (const env of contract.runtime_configuration_contract.required_policy_envs) {
   assert.equal(runtime.includes(env) || composition.includes(env), true, `missing required runtime env ${env}`);
@@ -424,6 +462,22 @@ assert.match(
   /from "\.\/buy_void_delivery_runtime_integration_v1\.js";/,
 );
 
+for (const marker of [
+  "VOID_BUY_VOID_INVENTORY_HISTORY_EXPECTATION_V1",
+  "reservation_expectations_dir",
+  "obligation_expectations_dir",
+  "inventory_reservation_history_expected_set_mismatch",
+  "paid_unreservable_history_expected_set_mismatch",
+  "inventory_reservation_filename_content_identity_mismatch",
+  "paid_unreservable_filename_content_identity_mismatch",
+]) {
+  assert.equal(
+    inventoryHistory.includes(marker),
+    true,
+    `durable inventory history contract drift: ${marker}`,
+  );
+}
+
 for (const [key, value] of Object.entries(contract.authority)) {
   assert.equal(key === "source_only_contract" ? value : !value, true, `authority mismatch ${key}`);
 }
@@ -441,6 +495,10 @@ console.log("production_configuration_applied=0");
 console.log("reviewed_configuration_binding_marker=VOID_BUY_VOID_ERC20_PRODUCTION_CONFIGURATION_CANDIDATE_BINDING_V1");
 console.log("configuration_fingerprint_sha256=9891cc703bd724541ace341561e3194bf356d5ac8af9d767acf7189e03174992");
 console.log("canonical_production_credential_binding_evidence_ready=1");
+console.log("durable_history_expected_set_commitment_ready=1");
+console.log("durable_history_filename_content_identity_enforced=1");
+console.log("durable_history_missing_record_fail_closed=1");
+console.log("durable_history_liability_completeness_fail_closed=1");
 console.log("dormant_dependency_injection_source_ready=1");
 console.log("dependency_injection_requires_delivery_runtime_disabled=1");
 console.log("dependency_injection_required_delivery_enable_value=0");
