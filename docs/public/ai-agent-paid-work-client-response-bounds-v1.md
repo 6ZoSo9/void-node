@@ -14,19 +14,19 @@ For discovery, route probing, and authenticated submission responses, the client
 
 - validates a present `Content-Length` as a canonical nonnegative safe integer;
 - rejects malformed or declared-oversize lengths before body accumulation;
-- requires a readable response body;
+- requires a readable response body and fails unavailable/non-readable bodies closed only after aborting the owned request and attempting bounded cancellation when the body exposes `cancel()`;
 - consumes the body with a stream reader and counts bytes before retaining beyond the configured limit;
-- actively aborts the owned request as soon as redirect, malformed length, oversize, or admitted read failure is known;
+- actively aborts the owned request as soon as redirect, malformed length, oversize, unavailable/non-readable body, or admitted read failure is known;
 - retains request ownership through bounded reader/body cancellation for every terminal body failure, including timeout/read rejection after response headers;
 - gives cleanup a separate maximum 250 ms teardown window so a deadline-triggered read error cannot return while teardown is completely unowned;
-- preserves the primary redirect/size/read/timeout error when cancellation rejects or does not settle; and
+- preserves the primary redirect/size/body/read/timeout error when cancellation rejects or does not settle; and
 - keeps the original AbortController request deadline active through admitted body consumption, with only the bounded teardown window allowed after terminal failure.
 
 The same internal bounded fetch path is used by read-only `probe` requests and token-authenticated `submit` requests. No token value is returned, printed, persisted to result output, or placed in command arguments.
 
 ## Executable falsification boundary
 
-`scripts/prove_void_ai_agent_paid_work_client_response_bounds_v1.mjs` exercises the real paid-work client through its public probe API with synthetic WHATWG responses and requires:
+`scripts/prove_void_ai_agent_paid_work_client_response_bounds_v1.mjs` exercises the real paid-work client through its public probe API with synthetic WHATWG and response-like objects and requires:
 
 - valid bounded discovery plus submission-route probing still succeeds;
 - declared oversize rejects before full buffering and cancels/aborts the rejected response;
@@ -36,10 +36,12 @@ The same internal bounded fetch path is used by read-only `probe` requests and t
 - a rejecting cancellation cannot replace the primary oversize result;
 - a response that sends a small prefix and then stalls remains bounded by the request deadline plus the explicit teardown ceiling;
 - an admitted read that fails when the deadline aborts still attempts exactly one bounded cancellation before request ownership is released;
-- deferred/non-settling and rejecting cancellation after admitted read failure preserve the original `AbortError`; and
+- deferred/non-settling and rejecting cancellation after admitted read failure preserve the original `AbortError`;
+- a non-readable admitted body with non-settling or rejecting cancellation preserves `response_body_unavailable` and reaches the same bounded teardown contract;
+- a null body fails promptly after the owned request is aborted without inventing a readable fallback; and
 - payment, work-execution, Work Credit, wallet/signer, transaction, and Buy VOID authority remain false.
 
-Falsify this repair if any paid-work-client response can still retain bytes beyond `--max-response-bytes` before rejection, if terminal response cleanup can indefinitely delay or replace the primary HOLD, if a timed-out/read-error response can release request ownership without a bounded teardown attempt, or if admitted body processing escapes the request deadline plus teardown ceiling.
+Falsify this repair if any paid-work-client response can still retain bytes beyond `--max-response-bytes` before rejection, if terminal response cleanup can indefinitely delay or replace the primary HOLD, if a timed-out/read-error or unavailable/non-readable response can release request ownership without a bounded teardown attempt when cleanup is available, or if admitted body processing escapes the request deadline plus teardown ceiling.
 
 ## Authority boundary
 

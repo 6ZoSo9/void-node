@@ -111,6 +111,16 @@ function admittedReadFailureResponse(signal, cancelImpl, errorMessage) {
   };
 }
 
+function unreadableBodyResponse(cancelImpl) {
+  return {
+    status: 200,
+    headers: new Headers({ "content-type": "application/json" }),
+    body: {
+      cancel: cancelImpl,
+    },
+  };
+}
+
 {
   const payload = discoveryJson();
   const fixture = makeFetch(() =>
@@ -394,6 +404,79 @@ function admittedReadFailureResponse(signal, cancelImpl, errorMessage) {
   assert.equal(cancelCalls, 1);
 }
 
+{
+  let cancelCalls = 0;
+  let abortEvents = 0;
+  const fixture = makeFetch((signal) => {
+    signal.addEventListener("abort", () => {
+      abortEvents += 1;
+    }, { once: true });
+    return unreadableBodyResponse(() => {
+      cancelCalls += 1;
+      return new Promise(() => {});
+    });
+  });
+  const started = Date.now();
+  const error = await capturePrimaryError(
+    () => probeVoidAiAgentPaidWorkV1({
+      baseUrl: "https://paid-work.example.invalid",
+      timeoutMs: 800,
+      maxResponseBytes: 1024,
+      fetchImpl: fixture.fetch,
+    }),
+  );
+  assert.equal(error.message, "response_body_unavailable");
+  assert.ok(Date.now() - started < 650, "unreadable body non-settling cleanup escaped bounded teardown window");
+  assert.equal(cancelCalls, 1);
+  assert.equal(abortEvents, 1);
+}
+
+{
+  let cancelCalls = 0;
+  const fixture = makeFetch(() =>
+    unreadableBodyResponse(() => {
+      cancelCalls += 1;
+      return Promise.reject(new Error("synthetic_unreadable_cancel_failure"));
+    }),
+  );
+  const error = await capturePrimaryError(
+    () => probeVoidAiAgentPaidWorkV1({
+      baseUrl: "https://paid-work.example.invalid",
+      timeoutMs: 1000,
+      maxResponseBytes: 1024,
+      fetchImpl: fixture.fetch,
+    }),
+  );
+  assert.equal(error.message, "response_body_unavailable");
+  assert.equal(cancelCalls, 1);
+}
+
+{
+  let abortEvents = 0;
+  const fixture = makeFetch((signal) => {
+    signal.addEventListener("abort", () => {
+      abortEvents += 1;
+    }, { once: true });
+    return {
+      status: 200,
+      headers: new Headers({ "content-type": "application/json" }),
+      body: null,
+    };
+  });
+  const started = Date.now();
+  const error = await capturePrimaryError(
+    () => probeVoidAiAgentPaidWorkV1({
+      baseUrl: "https://paid-work.example.invalid",
+      timeoutMs: 1000,
+      maxResponseBytes: 1024,
+      fetchImpl: fixture.fetch,
+    }),
+  );
+  assert.equal(error.message, "response_body_unavailable");
+  assert.ok(Date.now() - started < 250, "missing body should fail promptly without invented fallback");
+  assert.equal(abortEvents, 1);
+}
+
 console.log("VOID_AI_AGENT_PAID_WORK_CLIENT_RESPONSE_BOUNDS_V1_PROOF_GREEN");
 console.log("declared_response_bound_prebuffer=true");
 console.log("streamed_response_bound_prebuffer=true");
@@ -403,6 +486,8 @@ console.log("rejection_teardown_bounded=true");
 console.log("stalled_body_total_deadline=true");
 console.log("admitted_read_failure_teardown_bounded=true");
 console.log("admitted_read_failure_primary_error_preserved=true");
+console.log("unreadable_body_teardown_bounded=true");
+console.log("unreadable_body_primary_error_preserved=true");
 console.log("credential_or_token_output=false");
 console.log("wallet_or_signer_authority=false");
 console.log("work_credit_mutation_authority=false");

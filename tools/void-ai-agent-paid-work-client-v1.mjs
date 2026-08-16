@@ -316,10 +316,10 @@ async function boundedRead(response, maximumBytes, controller) {
     }
   }
 
-  assertCondition(
-    response.body && typeof response.body.getReader === "function",
-    "response_body_unavailable",
-  );
+  if (!response.body || typeof response.body.getReader !== "function") {
+    await settleCancellationBounded(response.body, controller);
+    fail("response_body_unavailable");
+  }
   const reader = response.body.getReader();
   const chunks = [];
   let total = 0;
