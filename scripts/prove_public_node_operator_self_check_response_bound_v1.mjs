@@ -170,14 +170,49 @@ function peersFixture() {
 function wellKnownFixture() {
   const canonical = {
     marker: "VOID_PUBLIC_NODE_AGENT_DISCOVERY_V1",
+    purpose: "well_known_public_node_agent_discovery",
+    protocol: "void-public-node-discovery-v1",
+    status: "public_node_agent_discovery_ready",
+    effective_base_url: baseOrigin,
     links: {
       public_node: `${baseOrigin}/public-node`,
       route_manifest: `${baseOrigin}/public-node/route-manifest.json`,
       self_check_snapshot: `${baseOrigin}/public-node/self-check-snapshot.json`,
+      outside_tester_smoke: `${baseOrigin}/public-node/outside-tester-smoke.json`,
+      tester_bundle: `${baseOrigin}/public-node/tester-bundle.json`,
+      result_receipt: `${baseOrigin}/public-node/tester-result-receipt.json`,
       proofs: `${baseOrigin}/proofs`,
     },
-    policy: { public_routes_only: true, read_only: true, mutation: false },
+    policy: fullPolicy(),
   };
+  if (mode === "well_known_wrong_purpose") return { ...canonical, purpose: "wrong_discovery" };
+  if (mode === "well_known_wrong_protocol") return { ...canonical, protocol: "void-public-node-discovery-v0" };
+  if (mode === "well_known_wrong_status") return { ...canonical, status: "stale" };
+  if (mode === "well_known_wrong_base") return { ...canonical, effective_base_url: "https://foreign.example" };
+  if (mode === "well_known_foreign_link_origin") {
+    return {
+      ...canonical,
+      links: {
+        ...canonical.links,
+        route_manifest: "https://foreign.example/public-node/route-manifest.json",
+      },
+    };
+  }
+  const policyContradictions = {
+    well_known_public_routes_disabled: ["public_routes_only", false],
+    well_known_private_api_enabled: ["private_api", true],
+    well_known_mutation_enabled: ["mutation", true],
+    well_known_read_only_disabled: ["read_only", false],
+    well_known_money_movement_enabled: ["money_movement", true],
+    well_known_wallet_send_enabled: ["wallet_send", true],
+    well_known_wc_swap_enabled: ["wc_to_void_swap", true],
+    well_known_buy_fulfillment_enabled: ["buy_void_fulfillment", true],
+    well_known_validator_mutation_enabled: ["validator_mutation", true],
+  };
+  if (policyContradictions[mode]) {
+    const [field, value] = policyContradictions[mode];
+    return { ...canonical, policy: { ...canonical.policy, [field]: value } };
+  }
   if (mode !== "well_known_nested_splice") return canonical;
   return { marker: "WRONG_MARKER", links: {}, policy: canonical.policy, metadata: canonical };
 }
@@ -482,6 +517,20 @@ try {
 
   for (const [selectedMode, checkId] of [
     ["well_known_nested_splice", "well_known_discovery"],
+    ["well_known_wrong_purpose", "well_known_discovery"],
+    ["well_known_wrong_protocol", "well_known_discovery"],
+    ["well_known_wrong_status", "well_known_discovery"],
+    ["well_known_wrong_base", "well_known_discovery"],
+    ["well_known_foreign_link_origin", "well_known_discovery"],
+    ["well_known_public_routes_disabled", "well_known_discovery"],
+    ["well_known_private_api_enabled", "well_known_discovery"],
+    ["well_known_mutation_enabled", "well_known_discovery"],
+    ["well_known_read_only_disabled", "well_known_discovery"],
+    ["well_known_money_movement_enabled", "well_known_discovery"],
+    ["well_known_wallet_send_enabled", "well_known_discovery"],
+    ["well_known_wc_swap_enabled", "well_known_discovery"],
+    ["well_known_buy_fulfillment_enabled", "well_known_discovery"],
+    ["well_known_validator_mutation_enabled", "well_known_discovery"],
     ["route_index_nested_splice", "route_index"],
     ["route_index_primitive_row", "route_index"],
     ["route_index_bad_path", "route_index"],
