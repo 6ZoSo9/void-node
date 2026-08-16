@@ -54,6 +54,7 @@ fi
 
 if [ "${VOID_CANONICAL_PRODUCER_ROLE:-0}" = "1" ]; then
   test "${VOID_CANONICAL_SELF_HTTP_GUARD:-0}" = "1"
+  test "${VOID_CANONICAL_DISABLE_LEGACY_SELF_HTTP_OBSERVERS:-0}" = "1"
   test -z "${NODE_OPTIONS:-}"
   canonical_self_http_preload=(--require "$ROOT/runtime/canonical-producer-self-http-guard-v1.cjs")
   export NODE_OPTIONS="${canonical_self_http_preload[*]}"
