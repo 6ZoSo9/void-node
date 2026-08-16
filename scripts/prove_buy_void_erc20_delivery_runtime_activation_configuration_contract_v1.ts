@@ -6,15 +6,20 @@ import {
   VOID_BUY_VOID_ERC20_DELIVERY_RUNTIME_ACTIVATION_CONFIGURATION_V1,
 } from "../src/economic/buy_void_erc20_delivery_runtime_activation_configuration_contract_v1.js";
 import {
+  VOID_BUY_VOID_ERC20_PRODUCTION_CONFIGURATION_CANDIDATE_BINDING_RECORD_V1,
+} from "../src/economic/buy_void_erc20_production_configuration_candidate_binding_v1.js";
+import {
   readBuyVoidCanonicalPresaleServerPolicyV1,
 } from "../src/economic/buy_void_crash_consistent_saga_server_policy_v1.js";
 
 const root = process.cwd();
 const read = (p: string) => fs.readFileSync(path.join(root, p), "utf8");
 const contract = VOID_BUY_VOID_ERC20_DELIVERY_RUNTIME_ACTIVATION_CONFIGURATION_V1;
+const binding =
+  VOID_BUY_VOID_ERC20_PRODUCTION_CONFIGURATION_CANDIDATE_BINDING_RECORD_V1;
 assert.equal(
   contract.status,
-  "presale_invariants_source_ready_held_on_activation",
+  "production_configuration_verified_held_on_runtime_activation",
 );
 assert.equal(contract.canonical_chain_id, "2050");
 assert.equal(contract.canonical_asset, "void_token_erc20");
@@ -43,8 +48,9 @@ assert.equal(
   true,
 );
 assert.equal(contract.canonical_delivery_runtime_activation_ready, false);
-assert.equal(contract.production_configuration_values_verified, false);
-assert.equal(contract.production_credential_binding_ready, false);
+assert.equal(contract.production_configuration_values_verified, true);
+assert.equal(contract.production_credential_binding_ready, true);
+assert.equal(contract.production_configuration_applied, false);
 assert.equal(
   contract.canonical_production_credential_binding_evidence_ready,
   true,
@@ -57,6 +63,45 @@ assert.equal(
 assert.equal(
   contract.canonical_production_credential_binding_evidence
     .interpretation.clone_local_credential_binding_inferred,
+  false,
+);
+assert.equal(
+  contract.reviewed_production_configuration_binding.marker,
+  binding.marker,
+);
+assert.equal(
+  contract.reviewed_production_configuration_binding
+    .configuration_fingerprint_sha256,
+  binding.expected.configuration_fingerprint_sha256,
+);
+assert.equal(
+  contract.reviewed_production_configuration_binding
+    .reviewed_merge_commit_sha,
+  "5a66040d63225dee59fc449937fda063800d425a",
+);
+assert.equal(
+  contract.reviewed_production_configuration_binding
+    .repository_candidate_binding_ready,
+  true,
+);
+assert.equal(
+  contract.reviewed_production_configuration_binding
+    .production_configuration_applied,
+  false,
+);
+assert.equal(
+  contract.reviewed_production_configuration_binding
+    .runtime_activation_authorized,
+  false,
+);
+assert.equal(
+  contract.reviewed_production_configuration_binding
+    .dependency_injection_activation_authorized,
+  false,
+);
+assert.equal(
+  contract.reviewed_production_configuration_binding
+    .inventory_funding_authorized,
   false,
 );
 assert.equal(contract.dormant_dependency_injection_source_ready, true);
@@ -110,6 +155,10 @@ assert.equal(
   "10000000000000",
 );
 assert.equal(
+  contract.presale_invariant_readiness.finite_presale_cap_local_history_enforced,
+  true,
+);
+assert.equal(
   contract.presale_invariant_readiness.finite_presale_cap_end_to_end_enforced,
   true,
 );
@@ -141,8 +190,118 @@ assert.equal(
 );
 assert.equal(
   contract.presale_invariant_readiness
+    .paid_unreservable_terminal_obligation_local_integrity_ready,
+  true,
+);
+assert.equal(
+  contract.presale_invariant_readiness
     .paid_unreservable_terminal_obligation_ready,
   true,
+);
+assert.equal(
+  contract.presale_invariant_readiness
+    .durable_history_local_consistency_ready,
+  true,
+);
+assert.equal(
+  contract.presale_invariant_readiness
+    .durable_history_expected_set_commitment_ready,
+  true,
+);
+assert.equal(
+  contract.presale_invariant_readiness
+    .durable_history_append_only_hash_chain_index_ready,
+  true,
+);
+assert.equal(
+  contract.presale_invariant_readiness
+    .durable_history_paired_record_expectation_deletion_fail_closed,
+  true,
+);
+assert.equal(
+  contract.presale_invariant_readiness
+    .durable_history_index_truncated_tail_fail_closed,
+  true,
+);
+assert.equal(
+  contract.presale_invariant_readiness
+    .durable_history_missing_record_fail_closed,
+  true,
+);
+assert.equal(
+  contract.presale_invariant_readiness
+    .durable_history_filename_content_identity_enforced,
+  true,
+);
+assert.equal(
+  contract.presale_invariant_readiness
+    .durable_history_closed_schema_enforced,
+  true,
+);
+assert.equal(
+  contract.presale_invariant_readiness
+    .durable_history_liability_completeness_fail_closed,
+  true,
+);
+assert.equal(
+  contract.presale_invariant_readiness
+    .durable_history_integrity_blocks_new_mutation,
+  true,
+);
+assert.equal(
+  contract.presale_invariant_readiness
+    .durable_history_creation_commit_point_ready,
+  true,
+);
+assert.equal(
+  contract.presale_invariant_readiness
+    .durable_history_creation_crash_recovery_ready,
+  true,
+);
+assert.equal(
+  contract.presale_invariant_readiness
+    .durable_history_partial_creation_retry_ready,
+  true,
+);
+assert.equal(
+  contract.presale_invariant_readiness
+    .durable_history_manual_state_surgery_required_after_creation_crash,
+  false,
+);
+assert.equal(
+  contract.presale_invariant_readiness
+    .durable_history_stale_lock_recovery_ready,
+  true,
+);
+assert.equal(
+  contract.presale_invariant_readiness
+    .durable_history_separate_anchor_authority_ready,
+  true,
+);
+assert.equal(
+  contract.presale_invariant_readiness
+    .durable_history_external_anti_rollback_anchor_ready,
+  true,
+);
+assert.equal(
+  contract.presale_invariant_readiness
+    .durable_history_valid_suffix_rollback_detection_ready,
+  true,
+);
+assert.equal(
+  contract.presale_invariant_readiness
+    .durable_history_full_rollback_protection_ready,
+  false,
+);
+assert.equal(
+  contract.presale_invariant_readiness
+    .durable_history_full_anchor_authority_rollback_out_of_scope,
+  true,
+);
+assert.equal(
+  contract.presale_invariant_readiness
+    .unindexed_preexisting_history_silently_adopted,
+  false,
 );
 assert.equal(
   contract.presale_invariant_readiness
@@ -175,22 +334,29 @@ assert.equal(
 );
 assert.equal(
   contract.production_broad_delivery_configuration_verified,
-  false,
+  true,
 );
 assert.deepEqual(
   [...contract.activation_readiness_blockers],
-  [
-    "production_broad_delivery_configuration_not_verified",
-    "canonical_delivery_runtime_activation_not_ready",
-  ],
+  ["canonical_delivery_runtime_activation_not_ready"],
 );
 assert.equal(
   contract.current_parent_blocker,
-  "production_broad_delivery_configuration_not_verified",
+  "canonical_delivery_runtime_activation_not_ready",
 );
 assert.equal(
   contract.next_gate,
-  "production_broad_delivery_configuration_verification",
+  "canonical_delivery_runtime_activation",
+);
+assert.equal(
+  contract.activation_preconditions
+    .durable_history_creation_crash_recovery_required,
+  true,
+);
+assert.equal(
+  contract.activation_preconditions
+    .durable_history_external_anti_rollback_anchor_required,
+  true,
 );
 
 const presalePolicyBase: NodeJS.ProcessEnv = {
@@ -289,6 +455,9 @@ const composition = read(contract.execution_composition_source_path);
 const dependency = read(contract.dependency_bootstrap_source_path);
 const signer = read("src/economic/buy_void_native_fulfillment_wallet_credential_signer_v1.ts");
 const parent = read(contract.parent_source_path);
+const inventoryHistory = read(
+  contract.presale_invariant_readiness.inventory_obligation_source_path,
+);
 
 for (const env of contract.runtime_configuration_contract.required_policy_envs) {
   assert.equal(runtime.includes(env) || composition.includes(env), true, `missing required runtime env ${env}`);
@@ -382,6 +551,32 @@ assert.match(
   /from "\.\/buy_void_delivery_runtime_integration_v1\.js";/,
 );
 
+for (const marker of [
+  "VOID_BUY_VOID_INVENTORY_HISTORY_ANCHOR_V1",
+  "VOID_BUY_VOID_INVENTORY_HISTORY_EXPECTATION_V1",
+  "VOID_BUY_VOID_INVENTORY_HISTORY_INDEX_V1",
+  "VOID_BUY_VOID_INVENTORY_HISTORY_PENDING_CREATION_V1",
+  "VOID_BUY_VOID_INVENTORY_POOL_LOCK_V1",
+  "history_index_file",
+  "history_anchor_file",
+  "pending_history_dir",
+  "lock_file",
+  "recoverPendingHistoryCreation",
+  "inventory_history_index_truncated_tail",
+  "reservation_expectations_dir",
+  "obligation_expectations_dir",
+  "inventory_reservation_history_expected_set_mismatch",
+  "paid_unreservable_history_expected_set_mismatch",
+  "inventory_reservation_filename_content_identity_mismatch",
+  "paid_unreservable_filename_content_identity_mismatch",
+]) {
+  assert.equal(
+    inventoryHistory.includes(marker),
+    true,
+    `durable inventory history contract drift: ${marker}`,
+  );
+}
+
 for (const [key, value] of Object.entries(contract.authority)) {
   assert.equal(key === "source_only_contract" ? value : !value, true, `authority mismatch ${key}`);
 }
@@ -392,22 +587,47 @@ console.log("canonical_planner_policy_validator_reused=1");
 console.log("max_amount_unit_domain=fulfillment_units_6_decimal");
 console.log("token_atom_multiplier=1000000000000");
 console.log("confirmation_range_preflight_before_record_confirmed=1");
-console.log("runtime_activation_performed=0");
-console.log("production_configuration_values_verified=0");
-console.log("production_credential_binding_ready=0");
+console.log("production_configuration_values_verified=1");
+console.log("production_credential_binding_ready=1");
+console.log("production_broad_delivery_configuration_verified=1");
+console.log("production_configuration_applied=0");
+console.log("reviewed_configuration_binding_marker=VOID_BUY_VOID_ERC20_PRODUCTION_CONFIGURATION_CANDIDATE_BINDING_V1");
+console.log("configuration_fingerprint_sha256=9891cc703bd724541ace341561e3194bf356d5ac8af9d767acf7189e03174992");
 console.log("canonical_production_credential_binding_evidence_ready=1");
+console.log("durable_history_expected_set_commitment_ready=1");
+console.log("durable_history_append_only_hash_chain_index_ready=1");
+console.log("durable_history_paired_record_expectation_deletion_fail_closed=1");
+console.log("durable_history_index_truncated_tail_fail_closed=1");
+console.log("durable_history_filename_content_identity_enforced=1");
+console.log("durable_history_missing_record_fail_closed=1");
+console.log("durable_history_liability_completeness_fail_closed=1");
+console.log("durable_history_local_consistency_ready=1");
+console.log("durable_history_creation_commit_point_ready=1");
+console.log("durable_history_creation_crash_recovery_ready=1");
+console.log("durable_history_partial_creation_retry_ready=1");
+console.log("durable_history_manual_state_surgery_required_after_creation_crash=0");
+console.log("durable_history_stale_lock_recovery_ready=1");
+console.log("durable_history_separate_anchor_authority_ready=1");
+console.log("durable_history_external_anti_rollback_anchor_ready=1");
+console.log("durable_history_valid_suffix_rollback_detection_ready=1");
+console.log("durable_history_full_rollback_protection_ready=0");
+console.log("durable_history_full_anchor_authority_rollback_out_of_scope=1");
+console.log("paid_unreservable_terminal_obligation_local_integrity_ready=1");
+console.log("paid_unreservable_terminal_obligation_ready=1");
 console.log("dormant_dependency_injection_source_ready=1");
 console.log("dependency_injection_requires_delivery_runtime_disabled=1");
 console.log("dependency_injection_required_delivery_enable_value=0");
 console.log("dependency_injection_wallet_evidence_binding_required=1");
 console.log("dependency_injection_runtime_ready=0");
 console.log("canonical_delivery_runtime_parent_mounted=1");
+console.log("canonical_delivery_runtime_activation_ready=0");
 console.log("canonical_delivery_execution_ready=0");
 console.log("presale_inventory_funding_ready=0");
 console.log("canonical_presale_max_void=10000000");
 console.log(
   "canonical_presale_max_fulfillment_units_6_decimal=10000000000000",
 );
+console.log("finite_presale_cap_local_history_enforced=1");
 console.log("finite_presale_cap_end_to_end_enforced=1");
 console.log("canonical_presale_rate=2/1");
 console.log("fixed_presale_rate_enforced=1");
@@ -417,6 +637,8 @@ console.log("validator_scale_purchase_10000_void_admission_ready=1");
 console.log("delivery_execution_amount_cap_separate_from_purchase_admission=1");
 console.log("disabled_delivery_canary_max_may_be_lower=1");
 console.log("public_delivery_activation_requires_presale_capacity_max=1");
-console.log("production_broad_delivery_configuration_verified=0");
-console.log("next_gate=production_broad_delivery_configuration_verification");
+console.log("activation_readiness_blockers=canonical_delivery_runtime_activation_not_ready");
+console.log("current_parent_blocker=canonical_delivery_runtime_activation_not_ready");
+console.log("next_gate=canonical_delivery_runtime_activation");
+console.log("runtime_activation_performed=0");
 console.log("money_movement=0");

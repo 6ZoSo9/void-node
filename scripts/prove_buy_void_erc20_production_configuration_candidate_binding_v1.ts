@@ -62,8 +62,10 @@ function treeBlobSha(treeish: string, relativePath: string): string {
   return match[1];
 }
 
-const eventBaseSha = String(process.env.BUY_VOID_PR_BASE_SHA || "").trim();
-const observedBaseCommitSha = eventBaseSha || binding.reviewed_base_commit_sha;
+const currentPrBaseSha = String(process.env.BUY_VOID_PR_BASE_SHA || "").trim();
+if (currentPrBaseSha) assert.match(currentPrBaseSha, /^[0-9a-f]{40}$/);
+
+const observedBaseCommitSha = binding.reviewed_base_commit_sha;
 assert.match(observedBaseCommitSha, /^[0-9a-f]{40}$/);
 ensureCommitAvailable(observedBaseCommitSha);
 
@@ -257,11 +259,43 @@ assert.equal(
   verified.configuration_fingerprint_sha256,
 );
 
-assert.equal(activation.production_broad_delivery_configuration_verified, false);
+assert.equal(activation.production_configuration_values_verified, true);
+assert.equal(activation.production_credential_binding_ready, true);
+assert.equal(activation.production_broad_delivery_configuration_verified, true);
+assert.equal(activation.production_configuration_applied, false);
 assert.equal(activation.canonical_delivery_runtime_activation_ready, false);
 assert.equal(
   activation.next_gate,
-  "production_broad_delivery_configuration_verification",
+  "canonical_delivery_runtime_activation",
+);
+assert.equal(
+  activation.presale_invariant_readiness
+    .durable_history_creation_crash_recovery_ready,
+  true,
+);
+assert.equal(
+  activation.presale_invariant_readiness
+    .durable_history_external_anti_rollback_anchor_ready,
+  true,
+);
+assert.equal(
+  activation.reviewed_production_configuration_binding.marker,
+  binding.marker,
+);
+assert.equal(
+  activation.reviewed_production_configuration_binding
+    .configuration_fingerprint_sha256,
+  binding.expected.configuration_fingerprint_sha256,
+);
+assert.equal(
+  activation.reviewed_production_configuration_binding
+    .repository_candidate_binding_ready,
+  true,
+);
+assert.equal(
+  activation.reviewed_production_configuration_binding
+    .production_configuration_applied,
+  false,
 );
 
 for (const [key, value] of Object.entries(
@@ -287,6 +321,7 @@ for (const forbidden of ["process.env", "fetch(", "http.request", "https.request
 }
 
 console.log("VOID_BUY_VOID_ERC20_PRODUCTION_CONFIGURATION_CANDIDATE_BINDING_V1_PROOF_GREEN");
+if (currentPrBaseSha) console.log(`current_pr_base_sha=${currentPrBaseSha}`);
 console.log(`reviewed_base_commit_sha=${observedBaseCommitSha}`);
 console.log(`reviewed_base_tree_sha=${observedBaseTreeSha}`);
 console.log(`frozen_mainnet0_deployment_git_blob_sha=${frozenBaseBlobSha}`);
@@ -300,6 +335,7 @@ console.log("rpc_url_fingerprint_sha256=856a41e68ffe7136b6474cf092d3696a26193477
 console.log("planner_policy_fingerprint_sha256=45902d888077b61b75d00164f5e98053ad5a32a0569d848ba680e72c03208846");
 console.log("configuration_fingerprint_sha256=9891cc703bd724541ace341561e3194bf356d5ac8af9d767acf7189e03174992");
 console.log("repository_candidate_binding_ready=1");
+console.log("parent_configuration_truth_promoted=1");
 console.log("runtime_remains_disabled=1");
 console.log("dependency_injection_remains_disabled=1");
 console.log("production_configuration_applied=0");

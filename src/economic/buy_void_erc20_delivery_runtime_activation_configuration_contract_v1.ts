@@ -11,7 +11,7 @@ export const
     marker:
       VOID_BUY_VOID_ERC20_DELIVERY_RUNTIME_ACTIVATION_CONFIGURATION_CONTRACT_V1,
     version: 1,
-    status: "presale_invariants_source_ready_held_on_activation",
+    status: "production_configuration_verified_held_on_runtime_activation",
     canonical_chain_id: "2050",
     canonical_asset: "void_token_erc20",
 
@@ -29,11 +29,26 @@ export const
 
     canonical_delivery_runtime_activation_configuration_contract_ready: true,
     canonical_delivery_runtime_activation_ready: false,
-    production_configuration_values_verified: false,
-    production_credential_binding_ready: false,
+    production_configuration_values_verified: true,
+    production_credential_binding_ready: true,
     canonical_production_credential_binding_evidence_ready: true,
     canonical_production_credential_binding_evidence:
       VOID_BUY_VOID_ERC20_PRODUCTION_CREDENTIAL_BINDING_EVIDENCE_RECORD_V1,
+    reviewed_production_configuration_binding: {
+      marker: "VOID_BUY_VOID_ERC20_PRODUCTION_CONFIGURATION_CANDIDATE_BINDING_V1",
+      source_path:
+        "src/economic/buy_void_erc20_production_configuration_candidate_binding_v1.ts",
+      reviewed_merge_commit_sha:
+        "5a66040d63225dee59fc449937fda063800d425a",
+      configuration_fingerprint_sha256:
+        "9891cc703bd724541ace341561e3194bf356d5ac8af9d767acf7189e03174992",
+      repository_candidate_binding_ready: true,
+      production_configuration_applied: false,
+      runtime_activation_authorized: false,
+      dependency_injection_activation_authorized: false,
+      inventory_funding_authorized: false,
+    },
+    production_configuration_applied: false,
     dormant_dependency_injection_source_ready: true,
     dormant_dependency_injection_requires_delivery_runtime_disabled: true,
     dormant_dependency_injection_required_delivery_enable_value: "0",
@@ -52,6 +67,7 @@ export const
         "10000000000000",
       canonical_max_reservation_fulfillment_units_6_decimal:
         "10000000000000",
+      finite_presale_cap_local_history_enforced: true,
       finite_presale_cap_end_to_end_enforced: true,
       canonical_rate_void_units_numerator: "2",
       canonical_rate_void_units_denominator: "1",
@@ -60,7 +76,29 @@ export const
       no_per_buyer_purchase_throttle_below_remaining_inventory: true,
       payment_admission_reservation_atomicity_ready: true,
       inventory_reservation_before_new_paid_claim: true,
+      paid_unreservable_terminal_obligation_local_integrity_ready: true,
       paid_unreservable_terminal_obligation_ready: true,
+      durable_history_local_consistency_ready: true,
+      durable_history_expected_set_commitment_ready: true,
+      durable_history_append_only_hash_chain_index_ready: true,
+      durable_history_paired_record_expectation_deletion_fail_closed: true,
+      durable_history_index_truncated_tail_fail_closed: true,
+      durable_history_missing_record_fail_closed: true,
+      durable_history_filename_content_identity_enforced: true,
+      durable_history_closed_schema_enforced: true,
+      durable_history_liability_completeness_fail_closed: true,
+      durable_history_integrity_blocks_new_mutation: true,
+      durable_history_creation_commit_point_ready: true,
+      durable_history_creation_crash_recovery_ready: true,
+      durable_history_partial_creation_retry_ready: true,
+      durable_history_manual_state_surgery_required_after_creation_crash: false,
+      durable_history_stale_lock_recovery_ready: true,
+      durable_history_separate_anchor_authority_ready: true,
+      durable_history_external_anti_rollback_anchor_ready: true,
+      durable_history_valid_suffix_rollback_detection_ready: true,
+      durable_history_full_rollback_protection_ready: false,
+      durable_history_full_anchor_authority_rollback_out_of_scope: true,
+      unindexed_preexisting_history_silently_adopted: false,
       confirmed_payer_without_reservation_or_obligation_allowed: false,
       validator_scale_purchase_10000_void_admission_ready: true,
       delivery_execution_amount_cap_separate_from_purchase_admission: true,
@@ -74,17 +112,16 @@ export const
         "src/economic/buy_void_inventory_reservation_journal_v1.ts",
     },
 
-    production_broad_delivery_configuration_verified: false,
+    production_broad_delivery_configuration_verified: true,
 
     activation_readiness_blockers: [
-      "production_broad_delivery_configuration_not_verified",
       "canonical_delivery_runtime_activation_not_ready",
     ] as const,
 
     current_parent_blocker:
-      "production_broad_delivery_configuration_not_verified",
+      "canonical_delivery_runtime_activation_not_ready",
     next_gate:
-      "production_broad_delivery_configuration_verification",
+      "canonical_delivery_runtime_activation",
 
     runtime_source_path:
       "src/economic/buy_void_delivery_runtime_integration_v1.ts",
@@ -194,6 +231,8 @@ export const
       erc20_receipt_to_terminal_closeout_required: true,
       production_configuration_verification_required: true,
       canonical_presale_invariants_required: true,
+      durable_history_creation_crash_recovery_required: true,
+      durable_history_external_anti_rollback_anchor_required: true,
       broad_public_delivery_configuration_required: true,
       public_delivery_amount_cap_must_equal_presale_capacity: true,
       parent_mount_separately_authorized: true,

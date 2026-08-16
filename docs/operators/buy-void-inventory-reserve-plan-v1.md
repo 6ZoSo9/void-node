@@ -21,6 +21,50 @@ It still does **not** deliver VOID.
 The inventory journal derives a deterministic pool key from the configured
 `pool_id` and stores immutable reservation records beneath that pool.
 
+Every reservation and paid-unreservable liability is now committed through a
+recoverable transaction spanning two distinct local authority trees.
+
+The mutable projection tree remains beneath
+`buy-void-inventory-reservation-v1/` and contains the local history index,
+expectations, reservations, and paid-unreservable obligations. A separate sibling
+authority, `buy-void-inventory-history-anchor-v1/`, is outside that journal
+subtree and retains the committed tail.
+
+Creation uses this order:
+
+1. atomically persist/fsync one exact pending-creation transaction in the anchor
+   authority;
+2. append/fsync the local history-index entry;
+3. create/fsync the expectation projection;
+4. create/fsync the reservation or obligation projection;
+5. append/fsync the separate anchor entry — the commit point;
+6. remove the pending transaction.
+
+If a process stops before the anchor commit, the next apply may roll forward only
+that exact pending transaction. Torn local-index/anchor tails are recoverable only
+when the torn bytes are a prefix of the exact pending entry. Preview/read remains
+fail-closed while a pending transaction exists.
+
+After the anchor commit, missing, renamed, malformed or substituted projections
+remain corruption and HOLD; they are not silently recreated. The local index and
+separate anchor must match sequence-for-sequence on kind, pool, record ID,
+fingerprint, and local index-entry SHA.
+
+A pool lock is now an atomically-created regular owner file in the separate
+anchor authority. A live owner remains busy. A valid lock whose recorded PID no
+longer exists is reclaimed, so process death does not permanently wedge the pool.
+
+The separate anchor detects coherent rollback of the journal subtree: truncating
+the local index by a valid suffix while deleting the matching expectation and
+record suffix leaves an anchor/index mismatch and HOLDs before capacity can
+reopen or liability can disappear.
+
+This contract does not claim protection against a coordinated rollback that also
+rewinds the separate anchor authority itself.
+
+Existing nonempty history without the required anchor lineage is not silently
+adopted; it remains held for explicit reviewed migration.
+
 Each reservation binds:
 
 - pool ID and inventory-policy version;
@@ -41,9 +85,9 @@ minus
 sum of every valid immutable reservation in the pool
 ```
 
-A pool-scoped exclusive lock serializes reservation writes. The implementation
-fails closed when the lock is already present. It does not automatically break
-a stale lock.
+A pool-scoped exclusive owner lock serializes reservation writes. A lock whose
+owner PID is still alive remains busy; a valid lock left by a dead process is
+reclaimed before the next mutation.
 
 The reservation is duplicate-safe. Replaying the same exact fulfillment intent
 returns the existing reservation. Reusing a payment, request, payment identity,

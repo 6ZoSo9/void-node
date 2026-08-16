@@ -306,7 +306,19 @@ for (const malformed of [
 }
 
 assert.equal(
+  activation.production_configuration_values_verified,
+  true,
+);
+assert.equal(
+  activation.production_credential_binding_ready,
+  true,
+);
+assert.equal(
   activation.production_broad_delivery_configuration_verified,
+  true,
+);
+assert.equal(
+  activation.production_configuration_applied,
   false,
 );
 assert.equal(
@@ -315,7 +327,17 @@ assert.equal(
 );
 assert.equal(
   activation.next_gate,
-  "production_broad_delivery_configuration_verification",
+  "canonical_delivery_runtime_activation",
+);
+assert.equal(
+  activation.presale_invariant_readiness
+    .durable_history_creation_crash_recovery_ready,
+  true,
+);
+assert.equal(
+  activation.presale_invariant_readiness
+    .durable_history_external_anti_rollback_anchor_ready,
+  true,
 );
 
 for (const [key, value] of Object.entries(
@@ -347,6 +369,7 @@ console.log("wallet_credential_evidence_binding_required=1");
 console.log("public_delivery_cap_equals_full_presale_capacity=1");
 console.log("loopback_http_rpc_with_explicit_port_required=1");
 console.log("planner_policy_validator_reused=1");
+console.log("parent_configuration_truth_promoted=1");
 console.log("runtime_remains_disabled=1");
 console.log("dependency_injection_remains_disabled=1");
 console.log("production_configuration_applied=0");

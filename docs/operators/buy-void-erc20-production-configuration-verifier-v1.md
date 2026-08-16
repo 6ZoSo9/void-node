@@ -4,13 +4,11 @@ Marker: `VOID_BUY_VOID_ERC20_PRODUCTION_CONFIGURATION_VERIFIER_V1`
 
 ## Purpose
 
-This is the source/proof-only implementation of the current Buy VOID activation gate:
+This is the source/proof-only verifier for explicit Buy VOID ERC-20 production configuration candidates.
 
-`production_broad_delivery_configuration_verification`
+The original lifecycle gate `production_broad_delivery_configuration_verification` is now closed by the reviewed candidate binding merged in PR #1313. The verifier remains canonical and reusable after that lifecycle promotion: it validates an explicit candidate without reading or mutating the live process environment and without depending on the parent still being in the pre-verification state.
 
-It verifies an explicit production **candidate** configuration without reading or mutating the live process environment. A successful decision content-addresses the candidate so a later operator step can bind an exact reviewed configuration before any activation is considered.
-
-A successful verifier result does **not** mean that configuration is installed, that the production token deployment has been independently attested, that inventory is funded, or that runtime activation is authorized.
+A successful verifier result does **not** mean that configuration is installed, inventory is funded, a production credential has been read, or runtime activation is authorized.
 
 ## Candidate boundary
 
@@ -33,6 +31,16 @@ The verifier requires:
 
 The verifier deliberately reuses `validateBuyVoidErc20TransactionPreparationPlannerPolicyV1()` rather than introducing a second gas, fee, address, or transport policy parser.
 
+The parent-state compatibility check now verifies only the conditions that are material to safe reuse of this pure verifier:
+
+```text
+canonical_delivery_runtime_activation_configuration_contract_ready=true
+canonical_delivery_runtime_activation_ready=false
+production_configuration_applied=false
+```
+
+It no longer requires the obsolete pre-promotion lifecycle values `production_broad_delivery_configuration_verified=false` or `next_gate=production_broad_delivery_configuration_verification`.
+
 ## Deterministic evidence
 
 A successful candidate emits:
@@ -47,7 +55,15 @@ A successful candidate emits:
 
 Changing a valid token address, gas/fee limit, RPC configuration, or another fingerprinted policy value changes the configuration fingerprint. Explicit canonical RPC transport defaults fingerprint identically to omitted defaults.
 
-The token address is therefore **content-bound**, not silently inferred. Independent deployment-identity/operator review can bind the exact candidate fingerprint before any later production apply or activation step.
+The reviewed Mainnet-0 candidate bound by PR #1313 produces exactly:
+
+```text
+rpc_url_fingerprint_sha256=856a41e68ffe7136b6474cf092d3696a2619347734279f3e19c2047d8e986ba2
+planner_policy_fingerprint_sha256=45902d888077b61b75d00164f5e98053ad5a32a0569d848ba680e72c03208846
+configuration_fingerprint_sha256=9891cc703bd724541ace341561e3194bf356d5ac8af9d767acf7189e03174992
+```
+
+The token address is content-bound, not silently inferred.
 
 ## Fail-closed cases
 
@@ -66,19 +82,29 @@ The executable proof rejects, among other cases:
 - priority fee above the max fee;
 - oversized timeout/response limits;
 - zero, non-canonical, or excessive confirmation depth;
-- unknown fields, missing fields, numeric/coercible values, and whitespace-padded values.
+- unknown fields, missing fields, numeric/coercible values, and whitespace-padded values; and
+- parent lifecycle drift that would imply runtime activation or a configuration application already occurred.
 
 ## Current activation truth
 
-This lane intentionally leaves the parent activation contract unchanged:
+The reviewed production candidate is now consumed by the parent activation contract:
 
 ```text
-production_broad_delivery_configuration_verified=false
+production_configuration_values_verified=true
+production_credential_binding_ready=true
+production_broad_delivery_configuration_verified=true
+production_configuration_applied=false
 canonical_delivery_runtime_activation_ready=false
-next_gate=production_broad_delivery_configuration_verification
+finite_presale_cap_end_to_end_enforced=true
+durable_history_creation_crash_recovery_ready=true
+durable_history_external_anti_rollback_anchor_ready=true
+current_parent_blocker=canonical_delivery_runtime_activation_not_ready
+next_gate=canonical_delivery_runtime_activation
 ```
 
-The verifier closes the **source mechanism** needed to evaluate an exact candidate. A later operator-evidence step must supply and review the real production candidate/fingerprint. Applying that candidate, enabling dependency/runtime composition, funding inventory, reading credentials, signing, broadcasting, and moving funds remain separate authorization gates.
+The verifier therefore closes no new lifecycle gate by itself. It preserves the exact candidate-validation mechanism used by the merged binding and proves that the reviewed candidate can still be recomputed deterministically while runtime and dependency injection remain disabled. The durable-history source lane now closes the reviewed interrupted-creation and coherent journal-subtree rollback gates with a recoverable pending transaction and separate committed-tail anchor authority. The pure configuration verifier remains separate from that storage boundary. Production execution is still disabled; the next parent gate is canonical delivery runtime activation.
+
+Applying the candidate, enabling dependency/runtime composition, funding inventory, reading credentials, signing, broadcasting, and moving funds remain separate authorization gates.
 
 ## Authority boundary
 
