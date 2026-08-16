@@ -125,14 +125,17 @@ assert(
 
 let firstAddressRequests = 0;
 let secondAddressRequests = 0;
-const firstAddressServer = http.createServer((_request, response) => {
+const firstAddressServer = http.createServer((request, response) => {
   firstAddressRequests += 1;
   response.writeHead(200, {
     "content-type": "application/json",
     connection: "close",
   });
   response.write("{");
-  const timer = setTimeout(() => response.destroy(), 400);
+  // Terminate the transport itself rather than only destroying the response
+  // object. This deterministically settles the first client attempt with
+  // substantial logical-deadline budget still available for failover.
+  const timer = setTimeout(() => request.socket.destroy(), 250);
   response.once("close", () => clearTimeout(timer));
 });
 firstAddressServer.listen(0, "127.0.0.2");
@@ -151,7 +154,7 @@ const secondAddressServer = http.createServer((_request, response) => {
 secondAddressServer.listen(firstAddress.port, "127.0.0.1");
 await once(secondAddressServer, "listening");
 
-const logicalTimeoutMs = 600;
+const logicalTimeoutMs = 800;
 const failoverStartedAt = Date.now();
 let failoverError = null;
 try {
@@ -177,11 +180,11 @@ assert(failoverError instanceof Error, "multi-address fixture escaped the logica
 assert(firstAddressRequests === 1, `first address attempts=${firstAddressRequests}; expected 1`);
 assert(secondAddressRequests === 1, `second address attempts=${secondAddressRequests}; expected 1`);
 assert(
-  failoverElapsedMs >= 350,
+  failoverElapsedMs >= 200,
   `first address did not consume the intended budget: elapsed_ms=${failoverElapsedMs}`,
 );
 assert(
-  failoverElapsedMs < 850,
+  failoverElapsedMs < 950,
   `pinned-address failover received a fresh timeout budget: elapsed_ms=${failoverElapsedMs}`,
 );
 assert(
