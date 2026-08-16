@@ -78,7 +78,16 @@ export async function readBoundedBytesOwned(response, {
   let received = 0;
   try {
     while (true) {
-      const { done, value } = await reader.read();
+      let step;
+      try {
+        step = await reader.read();
+      } catch (error) {
+        void error;
+        const primary = new Error("response_body_read_failed");
+        await rejectResponseTeardownBounded({ response, reader, abort, teardownMs });
+        throw primary;
+      }
+      const { done, value } = step;
       if (done) break;
       if (!(value instanceof Uint8Array)) {
         const primary = new Error(invalidChunkError);
@@ -134,7 +143,16 @@ export async function readBoundedTextOwned(response, {
   let received = 0;
   try {
     while (true) {
-      const { done, value } = await reader.read();
+      let step;
+      try {
+        step = await reader.read();
+      } catch (error) {
+        void error;
+        const primary = new Error("response_body_read_failed");
+        await rejectResponseTeardownBounded({ response, reader, abort, teardownMs });
+        throw primary;
+      }
+      const { done, value } = step;
       if (done) break;
       received += value.byteLength;
       if (received > maximumBytes) {
