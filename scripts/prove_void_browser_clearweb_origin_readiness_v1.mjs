@@ -64,6 +64,7 @@ const REQUIRED_CONTEXT = [
   "ops/mainnet0/survey_void_browser_clearweb_origin_readiness_v1.mjs",
   "schemas/void-browser-clearweb-origin-readiness-v1.schema.json",
   "scripts/prove_void_browser_clearweb_origin_readiness_v1.mjs",
+  "scripts/prove_void_browser_clearweb_origin_response_bounds_v1.mjs",
 ];
 const NOW = Date.parse("2026-08-01T17:45:00.000Z");
 const OBSERVED_AT = new Date(NOW).toISOString();
