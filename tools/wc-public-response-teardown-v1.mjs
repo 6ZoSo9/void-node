@@ -1,3 +1,5 @@
+import { Buffer } from "node:buffer";
+
 export const RESPONSE_REJECTION_TEARDOWN_MS = 250;
 
 export async function settleCancellationBounded(
@@ -37,6 +39,68 @@ async function rejectResponseTeardownBounded({ response, reader = null, abort, t
     void error;
   }
   await cancelTargetBounded(reader ?? response?.body, teardownMs);
+}
+
+export async function readBoundedBytesOwned(response, {
+  maximumBytes,
+  abort,
+  teardownMs = RESPONSE_REJECTION_TEARDOWN_MS,
+  trimContentLength = true,
+  invalidContentLengthError = "response_content_length_invalid",
+  bodyTooLargeError = "response_body_too_large",
+  invalidChunkError = "response_body_invalid_chunk",
+  bodyUnavailableError = "response_body_unavailable",
+  bodyUnavailableAsEmpty = false,
+}) {
+  const declaredRaw = response.headers.get("content-length");
+  if (declaredRaw !== null) {
+    const declaredText = trimContentLength ? declaredRaw.trim() : declaredRaw;
+    if (!/^(0|[1-9]\d*)$/u.test(declaredText)) {
+      const primary = new Error(invalidContentLengthError);
+      await rejectResponseTeardownBounded({ response, abort, teardownMs });
+      throw primary;
+    }
+    const declared = Number(declaredText);
+    if (!Number.isSafeInteger(declared) || declared > maximumBytes) {
+      const primary = new Error(bodyTooLargeError);
+      await rejectResponseTeardownBounded({ response, abort, teardownMs });
+      throw primary;
+    }
+  }
+
+  if (!response.body || typeof response.body.getReader !== "function") {
+    if (bodyUnavailableAsEmpty && !response.body) return Buffer.alloc(0);
+    throw new Error(bodyUnavailableError);
+  }
+
+  const reader = response.body.getReader();
+  const chunks = [];
+  let received = 0;
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      if (!(value instanceof Uint8Array)) {
+        const primary = new Error(invalidChunkError);
+        await rejectResponseTeardownBounded({ response, reader, abort, teardownMs });
+        throw primary;
+      }
+      received += value.byteLength;
+      if (received > maximumBytes) {
+        const primary = new Error(bodyTooLargeError);
+        await rejectResponseTeardownBounded({ response, reader, abort, teardownMs });
+        throw primary;
+      }
+      chunks.push(Buffer.from(value));
+    }
+    return Buffer.concat(chunks, received);
+  } finally {
+    try {
+      reader.releaseLock();
+    } catch (error) {
+      void error;
+    }
+  }
 }
 
 export async function readBoundedTextOwned(response, {

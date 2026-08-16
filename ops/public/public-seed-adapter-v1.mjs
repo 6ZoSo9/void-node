@@ -3,6 +3,7 @@
 import fs from "node:fs";
 import http from "node:http";
 import path from "node:path";
+import { readBoundedBytesOwned } from "../../tools/wc-public-response-teardown-v1.mjs";
 
 const UPSTREAM = (process.env.VOID_SEED_UPSTREAM || "http://127.0.0.1:4100").replace(/\/+$/, "");
 const EARN_UPSTREAM = (process.env.VOID_EARN_COORDINATOR_UPSTREAM || "").replace(/\/+$/, "");
@@ -321,76 +322,26 @@ function filteredHeaders(source, extra = {}) {
   return output;
 }
 
-function bestEffortCancelBody(body) {
-  if (!body || typeof body.cancel !== "function") return;
-  try {
-    const pending = body.cancel();
-    if (pending && typeof pending.catch === "function") {
-      pending.catch(() => undefined);
-    }
-  } catch (_error) {
-    // Cleanup must never replace a terminal upstream evidence error.
-  }
-}
-
-function bestEffortCancelReader(reader) {
-  if (!reader || typeof reader.cancel !== "function") return;
-  try {
-    const pending = reader.cancel();
-    if (pending && typeof pending.catch === "function") {
-      pending.catch(() => undefined);
-    }
-  } catch (_error) {
-    // Cleanup must never replace a terminal upstream evidence error.
-  }
-}
-
-async function boundedResponseBody(response, maximum) {
-  const declaredRaw = response.headers.get("content-length");
-  if (declaredRaw !== null) {
-    if (!/^(0|[1-9][0-9]*)$/.test(declaredRaw)) {
-      bestEffortCancelBody(response.body);
-      throw new Error("upstream_response_invalid_content_length");
-    }
-    const declared = Number(declaredRaw);
-    if (!Number.isSafeInteger(declared) || declared > maximum) {
-      bestEffortCancelBody(response.body);
-      throw new Error("upstream_response_too_large");
-    }
-  }
-
-  if (!response.body) return Buffer.alloc(0);
-  const reader = response.body.getReader();
-  const chunks = [];
-  let total = 0;
-  try {
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      if (!(value instanceof Uint8Array)) {
-        throw new Error("upstream_response_invalid_chunk");
-      }
-      total += value.byteLength;
-      if (total > maximum) {
-        bestEffortCancelReader(reader);
-        throw new Error("upstream_response_too_large");
-      }
-      chunks.push(Buffer.from(value));
-    }
-  } finally {
-    try {
-      reader.releaseLock();
-    } catch (_error) {
-      // Releasing a finished/errored reader is cleanup only.
-    }
-  }
-  return Buffer.concat(chunks, total);
+async function boundedResponseBody(response, maximum, abort) {
+  return readBoundedBytesOwned(response, {
+    maximumBytes: maximum,
+    abort,
+    trimContentLength: false,
+    invalidContentLengthError: "upstream_response_invalid_content_length",
+    bodyTooLargeError: "upstream_response_too_large",
+    invalidChunkError: "upstream_response_invalid_chunk",
+    bodyUnavailableError: "upstream_response_body_unavailable",
+    bodyUnavailableAsEmpty: true,
+  });
 }
 
 async function fetchWithTimeout(url, options, timeoutMs) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   let released = false;
+  const abort = (reason) => {
+    if (!controller.signal.aborted) controller.abort(reason);
+  };
   const release = () => {
     if (released) return;
     released = true;
@@ -402,7 +353,7 @@ async function fetchWithTimeout(url, options, timeoutMs) {
       signal: controller.signal,
       redirect: "manual",
     });
-    return { response, release };
+    return { response, abort, release };
   } catch (error) {
     release();
     throw error;
@@ -442,7 +393,7 @@ async function proxyRead(req, res, url) {
     const { response } = request;
     const body = req.method === "HEAD"
       ? Buffer.alloc(0)
-      : await boundedResponseBody(response, PROXY_MAX_RESPONSE_BYTES);
+      : await boundedResponseBody(response, PROXY_MAX_RESPONSE_BYTES, request.abort);
     res.writeHead(response.status, filteredHeaders(response.headers));
     if (req.method === "HEAD") return res.end();
     res.end(body);
@@ -462,7 +413,7 @@ async function fetchEarnJson(pathname, search = "") {
   );
   try {
     const { response } = request;
-    const raw = await boundedResponseBody(response, EARN_MAX_RESPONSE_BYTES);
+    const raw = await boundedResponseBody(response, EARN_MAX_RESPONSE_BYTES, request.abort);
     let body;
     try {
       body = JSON.parse(raw.toString("utf8"));
@@ -776,7 +727,11 @@ async function proxyEarnClaim(req, res) {
   );
   try {
     const { response } = request;
-    const responseBody = await boundedResponseBody(response, EARN_MAX_RESPONSE_BYTES);
+    const responseBody = await boundedResponseBody(
+      response,
+      EARN_MAX_RESPONSE_BYTES,
+      request.abort,
+    );
     res.writeHead(
       response.status,
       filteredHeaders(response.headers, {
@@ -863,7 +818,11 @@ async function proxyEarnSubmit(req, res) {
   );
   try {
     const { response } = request;
-    const responseBody = await boundedResponseBody(response, EARN_MAX_RESPONSE_BYTES);
+    const responseBody = await boundedResponseBody(
+      response,
+      EARN_MAX_RESPONSE_BYTES,
+      request.abort,
+    );
     res.writeHead(
       response.status,
       filteredHeaders(response.headers, {
