@@ -32,8 +32,16 @@ function jsonNonNegativeInteger(v) {
   return n !== null && n >= 0 ? n : null;
 }
 
-function allowHttp(host) {
-  if (host === "localhost" || host === "::1" || host.endsWith(".localhost")) return true;
+function normalizeHttpHostname(hostname) {
+  const host = String(hostname || "").trim().toLowerCase();
+  return host.startsWith("[") && host.endsWith("]")
+    ? host.slice(1, -1)
+    : host;
+}
+
+function allowHttp(hostname) {
+  const host = normalizeHttpHostname(hostname);
+  if (host === "localhost" || host === "::1" || host.endsWith(".ts.net")) return true;
   if (isIP(host) !== 4) return false;
   const [a, b] = host.split(".").map(Number);
   return a === 127 || a === 10 || (a === 172 && b >= 16 && b <= 31) ||
@@ -46,7 +54,7 @@ function origin(raw) {
   if (u.username || u.password) throw new Error("base must not contain credentials");
   if (u.pathname !== "/" || u.search || u.hash) throw new Error("base must be an origin only");
   if (u.protocol === "http:" && !allowHttp(u.hostname)) {
-    throw new Error("plain HTTP is allowed only for loopback, private, or Tailscale IPv4 origins");
+    throw new Error("plain HTTP is allowed only for reviewed local/private/Tailscale origins");
   }
   return u.origin;
 }
