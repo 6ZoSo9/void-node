@@ -11,9 +11,9 @@ const DEFAULT_PORT = 4112;
 const UPSTREAM_REJECTION_TEARDOWN_TIMEOUT_MS = 300;
 const OPERATOR_WEBHOOK_INTEGRATION_MARKER =
   "VOID_OPERATOR_WEBHOOK_RECEIVER_AI_GATEWAY_SOURCE_INTEGRATION_V1";
-const OPERATOR_WEBHOOK_RECEIVER_UPSTREAM = (
-  process.env.VOID_OPERATOR_WEBHOOK_RECEIVER_UPSTREAM || ""
-).replace(/\/+$/, "");
+const OPERATOR_WEBHOOK_RECEIVER_UPSTREAM_RAW = String(
+  process.env.VOID_OPERATOR_WEBHOOK_RECEIVER_UPSTREAM || "",
+).trim();
 const OPERATOR_WEBHOOK_RECEIVER_PATH =
   "/__void/operator-notifications/v1/candidate";
 const OPERATOR_WEBHOOK_RECEIVER_MAX_BODY_BYTES = Math.max(
@@ -39,9 +39,9 @@ const OPERATOR_WEBHOOK_RECEIVER_MAX_RESPONSE_BYTES = Math.max(
 
 const AGENT_PAID_WORK_SUBMISSION_INTEGRATION_MARKER =
   "VOID_AGENT_PAID_WORK_SUBMISSION_INTAKE_GATEWAY_SOURCE_V1";
-const AGENT_PAID_WORK_SUBMISSION_RECEIVER_UPSTREAM = (
-  process.env.VOID_AGENT_PAID_WORK_SUBMISSION_RECEIVER_UPSTREAM || ""
-).replace(/\/+$/, "");
+const AGENT_PAID_WORK_SUBMISSION_RECEIVER_UPSTREAM_RAW = String(
+  process.env.VOID_AGENT_PAID_WORK_SUBMISSION_RECEIVER_UPSTREAM || "",
+).trim();
 const AGENT_PAID_WORK_SUBMISSION_RECEIVER_PATH =
   "/__void/agents/paid-work/submissions/v1";
 const AGENT_PAID_WORK_SUBMISSION_MAX_BODY_BYTES = Math.max(
@@ -133,6 +133,47 @@ function fail(message) {
   process.stderr.write(`HOLD: ${message}\n`);
   process.exit(78);
 }
+
+function parseReviewedLoopbackUpstream(raw, name) {
+  if (!raw) return "";
+
+  let parsed;
+  try {
+    parsed = new URL(raw);
+  } catch {
+    fail(`invalid ${name}`);
+  }
+
+  const parsedPort = Number(parsed.port);
+  if (
+    parsed.protocol !== "http:" ||
+    parsed.hostname !== "127.0.0.1" ||
+    parsed.username !== "" ||
+    parsed.password !== "" ||
+    parsed.pathname !== "/" ||
+    parsed.search !== "" ||
+    parsed.hash !== "" ||
+    !Number.isSafeInteger(parsedPort) ||
+    parsedPort < 1 ||
+    parsedPort > 65535 ||
+    raw !== `http://127.0.0.1:${parsedPort}`
+  ) {
+    fail(`invalid ${name}`);
+  }
+
+  return raw;
+}
+
+const OPERATOR_WEBHOOK_RECEIVER_UPSTREAM =
+  parseReviewedLoopbackUpstream(
+    OPERATOR_WEBHOOK_RECEIVER_UPSTREAM_RAW,
+    "VOID_OPERATOR_WEBHOOK_RECEIVER_UPSTREAM",
+  );
+const AGENT_PAID_WORK_SUBMISSION_RECEIVER_UPSTREAM =
+  parseReviewedLoopbackUpstream(
+    AGENT_PAID_WORK_SUBMISSION_RECEIVER_UPSTREAM_RAW,
+    "VOID_AGENT_PAID_WORK_SUBMISSION_RECEIVER_UPSTREAM",
+  );
 
 const host =
   process.env.VOID_AI_AGENT_PUBLIC_GATEWAY_HOST || DEFAULT_HOST;
@@ -492,26 +533,37 @@ async function readBoundedUpstreamResponseBody(
   const chunks = [];
   let total = 0;
 
-  while (true) {
-    const { done, value } = await reader.read();
-    if (done) break;
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
 
-    const chunk = Buffer.from(value);
-    total += chunk.length;
+      const chunk = Buffer.from(value);
+      total += chunk.length;
 
-    if (total > maximum) {
-      chunks.length = 0;
-      const primary = new Error(`${label}_response_too_large`);
-      await rejectUpstreamResponseBounded({
-        controller,
-        body,
-        reader,
-        label,
-      });
-      throw primary;
+      if (total > maximum) {
+        chunks.length = 0;
+        const primary = new Error(`${label}_response_too_large`);
+        await rejectUpstreamResponseBounded({
+          controller,
+          body,
+          reader,
+          label,
+        });
+        throw primary;
+      }
+
+      chunks.push(chunk);
     }
-
-    chunks.push(chunk);
+  } catch (error) {
+    chunks.length = 0;
+    await rejectUpstreamResponseBounded({
+      controller,
+      body,
+      reader,
+      label,
+    });
+    throw error;
   }
 
   return Buffer.concat(chunks, total);
