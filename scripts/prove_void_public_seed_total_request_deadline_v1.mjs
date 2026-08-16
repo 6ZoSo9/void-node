@@ -1,7 +1,10 @@
 #!/usr/bin/env node
 import http from "node:http";
 import { once } from "node:events";
-import { probePublicSeedSample } from "./lib/void_public_seed_probe_v1.mjs";
+import {
+  probePublicSeedSample,
+  requestBounded,
+} from "./lib/void_public_seed_probe_v1.mjs";
 
 const MARKER = "VOID_PUBLIC_SEED_TOTAL_REQUEST_DEADLINE_V1";
 const GREEN = `${MARKER}_GREEN`;
@@ -27,7 +30,7 @@ const readinessBody = JSON.stringify({
   txroot_live: 1,
 });
 
-const server = http.createServer((request, response) => {
+const slowDripServer = http.createServer((request, response) => {
   const url = new URL(request.url || "/", "http://127.0.0.1");
 
   if (request.method === "HEAD" && url.pathname === "/__void/ready.json") {
@@ -86,12 +89,12 @@ const server = http.createServer((request, response) => {
   jsonResponse(response, 404, { error: "not_found" });
 });
 
-server.listen(0, "127.0.0.1");
-await once(server, "listening");
+slowDripServer.listen(0, "127.0.0.1");
+await once(slowDripServer, "listening");
 
-const address = server.address();
-assert(address && typeof address === "object", "loopback proof server did not bind");
-const endpoint = `http://127.0.0.1:${address.port}`;
+const slowDripAddress = slowDripServer.address();
+assert(slowDripAddress && typeof slowDripAddress === "object", "loopback proof server did not bind");
+const endpoint = `http://127.0.0.1:${slowDripAddress.port}`;
 const timeoutMs = 120;
 const startedAt = Date.now();
 let observedError = null;
@@ -105,8 +108,8 @@ try {
 } catch (error) {
   observedError = error;
 } finally {
-  server.closeAllConnections?.();
-  await new Promise((resolve) => server.close(resolve));
+  slowDripServer.closeAllConnections?.();
+  await new Promise((resolve) => slowDripServer.close(resolve));
 }
 
 const elapsedMs = Date.now() - startedAt;
@@ -120,10 +123,80 @@ assert(
   `unexpected slow-drip terminal error: ${observedError.message}`,
 );
 
+let firstAddressRequests = 0;
+let secondAddressRequests = 0;
+const firstAddressServer = http.createServer((_request, response) => {
+  firstAddressRequests += 1;
+  response.writeHead(200, {
+    "content-type": "application/json",
+    connection: "close",
+  });
+  response.write("{");
+  const timer = setTimeout(() => response.destroy(), 400);
+  response.once("close", () => clearTimeout(timer));
+});
+firstAddressServer.listen(0, "127.0.0.2");
+await once(firstAddressServer, "listening");
+const firstAddress = firstAddressServer.address();
+assert(firstAddress && typeof firstAddress === "object", "first failover fixture did not bind");
+
+const secondAddressServer = http.createServer((_request, response) => {
+  secondAddressRequests += 1;
+  response.writeHead(200, {
+    "content-type": "application/json",
+    connection: "close",
+  });
+  response.write("{");
+});
+secondAddressServer.listen(firstAddress.port, "127.0.0.1");
+await once(secondAddressServer, "listening");
+
+const logicalTimeoutMs = 600;
+const failoverStartedAt = Date.now();
+let failoverError = null;
+try {
+  await requestBounded(`http://seed-fixture.invalid:${firstAddress.port}/probe`, {
+    timeoutMs: logicalTimeoutMs,
+    maxBytes: 64 * 1024,
+    pinnedAddresses: ["127.0.0.2", "127.0.0.1"],
+    allowLoopbackFixture: true,
+  });
+} catch (error) {
+  failoverError = error;
+} finally {
+  firstAddressServer.closeAllConnections?.();
+  secondAddressServer.closeAllConnections?.();
+  await Promise.all([
+    new Promise((resolve) => firstAddressServer.close(resolve)),
+    new Promise((resolve) => secondAddressServer.close(resolve)),
+  ]);
+}
+const failoverElapsedMs = Date.now() - failoverStartedAt;
+
+assert(failoverError instanceof Error, "multi-address fixture escaped the logical request deadline");
+assert(firstAddressRequests === 1, `first address attempts=${firstAddressRequests}; expected 1`);
+assert(secondAddressRequests === 1, `second address attempts=${secondAddressRequests}; expected 1`);
+assert(
+  failoverElapsedMs >= 350,
+  `first address did not consume the intended budget: elapsed_ms=${failoverElapsedMs}`,
+);
+assert(
+  failoverElapsedMs < 850,
+  `pinned-address failover received a fresh timeout budget: elapsed_ms=${failoverElapsedMs}`,
+);
+assert(
+  /timed out|aborted/i.test(failoverError.message),
+  `unexpected multi-address terminal error: ${failoverError.message}`,
+);
+
 console.log(GREEN);
 console.log(`timeout_ms=${timeoutMs}`);
 console.log(`elapsed_ms=${elapsedMs}`);
+console.log(`multi_address_timeout_ms=${logicalTimeoutMs}`);
+console.log(`multi_address_elapsed_ms=${failoverElapsedMs}`);
 console.log("slow_drip_activity_cannot_extend_total_deadline=true");
+console.log("multi_address_failover_shares_one_logical_deadline=true");
+console.log("socket_inactivity_timeout_retained=true");
 console.log("loopback_fixture_only=true");
 console.log("runtime_mutation=false");
 console.log("wallet_or_signer_use=false");
