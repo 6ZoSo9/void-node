@@ -250,6 +250,37 @@ assertCondition(
   `final-URL mismatch must reject before body read; read_calls=${mismatchedFinalUrl.readCalls()}`,
 );
 
+const mutatedRequestUrl = "https://node.example/adapter-mutated-discovery.json";
+const mutatedRequestAlias = finalUrlEvidenceResponse(mutatedRequestUrl);
+let customFetchRequestType = null;
+await expectRejectWithin(
+  "custom fetch cannot mutate requested URL identity",
+  () =>
+    discoverVoidAgentV1({
+      baseUrl: "https://node.example",
+      maxResponseBytes: 1024,
+      timeoutMs: 100,
+      fetchImpl: async (requestedUrl) => {
+        customFetchRequestType = typeof requestedUrl;
+        if (requestedUrl instanceof URL) requestedUrl.href = mutatedRequestUrl;
+        return mutatedRequestAlias.response;
+      },
+    }),
+  "well_known_discovery_final_url_mismatch",
+);
+assertCondition(
+  customFetchRequestType === "string",
+  `custom fetch must receive immutable href string; type=${customFetchRequestType}`,
+);
+assertCondition(
+  mutatedRequestAlias.cancelCalls() === 1,
+  `expected one mutated-request cancellation, got ${mutatedRequestAlias.cancelCalls()}`,
+);
+assertCondition(
+  mutatedRequestAlias.readCalls() === 0,
+  `mutated request must HOLD before body read; read_calls=${mutatedRequestAlias.readCalls()}`,
+);
+
 const missingFinalUrl = finalUrlEvidenceResponse(undefined);
 await expectRejectWithin(
   "custom fetch missing final URL",
@@ -468,5 +499,6 @@ console.log("non_stream_response_text_fallback_forbidden=true");
 console.log("stalled_reader_total_deadline_enforced=true");
 console.log("custom_fetch_total_deadline_enforced=true");
 console.log("custom_fetch_final_url_identity_bound=true");
+console.log("custom_fetch_request_url_snapshot_immutable=true");
 console.log("repeated_hostile_teardown_terminals_bounded=true");
 console.log("VOID_AGENT_SDK_STREAM_CANCEL_LIVENESS_V1_PROOF_GREEN=true");
