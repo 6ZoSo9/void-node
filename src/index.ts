@@ -20519,7 +20519,7 @@ const mod:any = require("./util/txroot.js");
 
   async function poll(){
     try{
-      const n = Number((await selfJson(`/blocks/latest/number2.json`)).number);
+      const n = Number((await selfJson(`/blocks/latest/number2.json`))?.number);
       if (Number.isFinite(n) && n >= 0 && n !== lastChecked){
         const h3 = await selfJson(`/blocks/${n}/header3`);
         const t  = await selfJson(`/dev/txroot/${n}`);
@@ -24960,14 +24960,14 @@ function __voidWpV1(w:any){const f=w?.pressure,n=+(typeof f==="function"?f.call(
     const done = new Set<string>();
     try{
       if (fs.existsSync(doneFile)){
-        for (const line of fs.readFileSync(doneFile, "utf8").split("\\n")){ if (!line.trim()) continue;
+        for (const line of fs.readFileSync(doneFile, "utf8").split("\n")){ if (!line.trim()) continue;
           let rec:any; try{ rec=JSON.parse(line); }catch{ continue; } if (rec && rec.id) done.add(rec.id);
         }
       }
     }catch (err) { voidIndexEmptyCatchVisibilityWindow23401_24300V1("23742:14-file", err); }
     try{
       if (fs.existsSync(jobsFile)){
-        for (const line of fs.readFileSync(jobsFile, "utf8").split("\\n")){ if (!line.trim()) continue;
+        for (const line of fs.readFileSync(jobsFile, "utf8").split("\n")){ if (!line.trim()) continue;
           let j:any; try{ j=JSON.parse(line); }catch{ continue; }
           if (!j || !j.id || done.has(j.id)) continue;
           if (!S().map.has(j.id)){ j.status = "queued"; S().map.set(j.id, j); S().q.push(j); }
@@ -25040,7 +25040,7 @@ function __voidWpV1(w:any){const f=w?.pressure,n=+(typeof f==="function"?f.call(
       lines.push("# HELP void_agent_dlq_total total jobs sent to dead-letter");
       lines.push("# TYPE void_agent_dlq_total counter");
       lines.push(`void_agent_dlq_total ${Number(met.dlq||0)}`);
-      res.type("text/plain").send(lines.join("\\n")+"\n");
+      res.type("text/plain").send(lines.join("\n")+"\n");
     });
   }
 
@@ -25208,7 +25208,7 @@ function __voidWpV1(w:any){const f=w?.pressure,n=+(typeof f==="function"?f.call(
       lines.push("# HELP void_agent_dlq_total total jobs sent to dead-letter");
       lines.push("# TYPE void_agent_dlq_total counter");
       lines.push(`void_agent_dlq_total ${Number(met.dlq||0)}`);
-      res.type("text/plain").send(lines.join("\\n")+"\n");
+      res.type("text/plain").send(lines.join("\n")+"\n");
     });
   } mount();
 })();
@@ -25314,7 +25314,7 @@ function __voidWpV1(w:any){const f=w?.pressure,n=+(typeof f==="function"?f.call(
         const n = Math.max(1, Math.min(1000, Number(req.query.n||"50")));
         if (!fs.existsSync(file)) return res.json({ok:true, items:[]});
         const map = new Map<string, any>();
-        const lines = fs.readFileSync(file, "utf8").split("\\n");
+        const lines = fs.readFileSync(file, "utf8").split("\n");
         for (const line of lines){
           if (!line) continue;
           try{
@@ -25351,7 +25351,7 @@ function __voidWpV1(w:any){const f=w?.pressure,n=+(typeof f==="function"?f.call(
       try{
         const map = new Map<string, number>();
         if (fs.existsSync(file)){
-          for (const line of fs.readFileSync(file, "utf8").split("\\n")){
+          for (const line of fs.readFileSync(file, "utf8").split("\n")){
             if (!line) continue; try{ const o = JSON.parse(line); if (o?.id) map.set(o.id, 1); }catch (err) { voidIndexEmptyCatchVisibilityWindow23401_24300V1("24130:25", err); }
           }
         }
@@ -25432,7 +25432,7 @@ function __voidWpV1(w:any){const f=w?.pressure,n=+(typeof f==="function"?f.call(
       lines.push("# HELP void_agent_receipts_errors total receipt write errors");
       lines.push("# TYPE void_agent_receipts_errors counter");
       lines.push(`void_agent_receipts_errors ${Number(met.receipts_errors||0)}`);
-      res.type("text/plain").send(lines.join("\\n")+"\\n");
+      res.type("text/plain").send(lines.join("\n")+"\\n");
     });
   } mount();
 })();
@@ -25615,7 +25615,7 @@ function __voidWpV1(w:any){const f=w?.pressure,n=+(typeof f==="function"?f.call(
       lines.push("# TYPE void_agent_receipts_errors counter");
       lines.push(`void_agent_receipts_errors ${Number(met.receipts_errors||0)}`);
       // IMPORTANT: real newlines (not '\n' literals)
-      res.type("text/plain").send(lines.join("\\n") + "\n");
+      res.type("text/plain").send(lines.join("\n") + "\n");
     });
   } mount();
 })();
@@ -25632,7 +25632,7 @@ function __voidWpV1(w:any){const f=w?.pressure,n=+(typeof f==="function"?f.call(
     const out:any[] = [];
     try{
       if (!fs.existsSync(pathStr)) return out;
-      for (const line of fs.readFileSync(pathStr, "utf8").split("\\n")){
+      for (const line of fs.readFileSync(pathStr, "utf8").split("\n")){
         if (!line) continue;
         try { out.push(JSON.parse(line)); } catch (err) { voidIndexEmptyCatchVisibilityWindow24301_25200V1("24412:4", err); }
       }
@@ -25697,7 +25697,7 @@ function __voidWpV1(w:any){const f=w?.pressure,n=+(typeof f==="function"?f.call(
       lines.push("# HELP void_agent_receipts_coverage fraction of results with receipts (0..1)");
       lines.push("# TYPE void_agent_receipts_coverage gauge");
       lines.push(`void_agent_receipts_coverage ${isFinite(r.coverage)?r.coverage:0}`);
-      res.type("text/plain").send(lines.join("\\n")+"\n");
+      res.type("text/plain").send(lines.join("\n")+"\n");
     });
   } mount();
 })();
@@ -25716,13 +25716,13 @@ function __voidWpV1(w:any){const f=w?.pressure,n=+(typeof f==="function"?f.call(
     const rmap = new Map<string, number>(); // id -> count
     try{
       if (fs.existsSync(resultsFile)){
-        for (const line of fs.readFileSync(resultsFile,"utf8").split("\\n")){
+        for (const line of fs.readFileSync(resultsFile,"utf8").split("\n")){
           if (!line) continue;
           try{ const o=JSON.parse(line); if (o?.id){ total++; seen.add(o.id); } }catch (err) { voidIndexEmptyCatchVisibilityWindow24301_25200V1("24496:6", err); }
         }
       }
       if (fs.existsSync(receiptsFile)){
-        for (const line of fs.readFileSync(receiptsFile,"utf8").split("\\n")){
+        for (const line of fs.readFileSync(receiptsFile,"utf8").split("\n")){
           if (!line) continue;
           try{ const o=JSON.parse(line); if (o?.id){ receipts++; rmap.set(o.id, (rmap.get(o.id)||0)+1); } }catch (err) { voidIndexEmptyCatchVisibilityWindow24301_25200V1("24502:7", err); }
         }
@@ -25754,7 +25754,7 @@ function __voidWpV1(w:any){const f=w?.pressure,n=+(typeof f==="function"?f.call(
         "# TYPE void_agent_receipts_coverage gauge",
         `void_agent_receipts_coverage ${coverage}`
       ];
-      res.type("text/plain").end(lines.join("\\n")+"\n");
+      res.type("text/plain").end(lines.join("\n")+"\n");
     });
   }
   mount();
@@ -25890,20 +25890,20 @@ function __voidWpV1(w:any){const f=w?.pressure,n=+(typeof f==="function"?f.call(
         const done = new Set();
         // collect leases
         if (fs.existsSync(FILE_LEASES)){
-          fs.readFileSync(FILE_LEASES,"utf8").split("\\n").forEach(l=>{
+          fs.readFileSync(FILE_LEASES,"utf8").split("\n").forEach(l=>{
             if(!l.trim()) return;
             try{ const x=JSON.parse(l); if(x && x.id) leased.add(x.id); }catch (err) { voidIndexEmptyCatchVisibilityWindow24301_25200V1("24670:11", err); }
           });
         }
         // collect done
         if (fs.existsSync(FILE_RESULTS)){
-          fs.readFileSync(FILE_RESULTS,"utf8").split("\\n").forEach(l=>{
+          fs.readFileSync(FILE_RESULTS,"utf8").split("\n").forEach(l=>{
             if(!l.trim()) return;
             try{ const x=JSON.parse(l); if(x && x.id) done.add(x.id); }catch (err) { voidIndexEmptyCatchVisibilityWindow24301_25200V1("24677:12", err); }
           });
         }
         // list jobs not done/not leased
-        fs.readFileSync(FILE_JOBS,"utf8").split("\\n").forEach(l=>{
+        fs.readFileSync(FILE_JOBS,"utf8").split("\n").forEach(l=>{
           if(!l.trim()) return;
           try{
             const x=JSON.parse(l);
@@ -25984,7 +25984,7 @@ function __voidWpV1(w:any){const f=w?.pressure,n=+(typeof f==="function"?f.call(
             try{
               if (!fs.existsSync(file)) return 0;
               const raw = String(fs.readFileSync(file, "utf8") || "");
-              return raw ? raw.split("\\n").filter(Boolean).length : 0;
+              return raw ? raw.split("\n").filter(Boolean).length : 0;
             }catch{ return 0; }
           }
 
@@ -25992,7 +25992,7 @@ function __voidWpV1(w:any){const f=w?.pressure,n=+(typeof f==="function"?f.call(
             try{
               if (!fs.existsSync(file)) return 1e12;
               const raw = String(fs.readFileSync(file, "utf8") || "");
-              const lines = raw.split("\\n").filter(Boolean);
+              const lines = raw.split("\n").filter(Boolean);
               const last = lines.length ? JSON.parse(lines[lines.length - 1]) : null;
               const ts = Number(last?.ts || 0);
               return ts > 0 ? Math.max(0, (Date.now() - ts)/1000) : 1e12;
@@ -26039,7 +26039,7 @@ function __voidWpV1(w:any){const f=w?.pressure,n=+(typeof f==="function"?f.call(
           try{
             if (fs.existsSync(receiptsFile)){
               const raw = String(fs.readFileSync(receiptsFile, "utf8") || "");
-              const lines = raw.split("\\n").filter(Boolean);
+              const lines = raw.split("\n").filter(Boolean);
               const last = lines.length ? JSON.parse(lines[lines.length - 1]) : null;
               const ts = Number(last?.ts || 0);
               receiptAgeSec = ts > 0 ? Math.max(0, (Date.now() - ts)/1000) : null;
@@ -26147,7 +26147,7 @@ function __voidWpV1(w:any){const f=w?.pressure,n=+(typeof f==="function"?f.call(
         // fetch the job payload to return
         let job:any = null;
         if (fs.existsSync(FILE_JOBS)){
-          const lines = fs.readFileSync(FILE_JOBS,"utf8").split("\\n");
+          const lines = fs.readFileSync(FILE_JOBS,"utf8").split("\n");
           for (let i=lines.length-1;i>=0;--i){
             const l = lines[i]; if(!l.trim()) continue;
             try{ const x=JSON.parse(l); if(x.id===id){ job=x; break; } }catch (err) { voidIndexEmptyCatchVisibilityWindow24301_25200V1("24928:17", err); }
@@ -26171,7 +26171,7 @@ function __voidWpV1(w:any){const f=w?.pressure,n=+(typeof f==="function"?f.call(
         // try to find original inputHash for this id
         let inputHash = (req.body?.inputHash || "");
         if (!inputHash && fs.existsSync(FILE_JOBS)){
-          const lines = fs.readFileSync(FILE_JOBS,"utf8").split("\\n");
+          const lines = fs.readFileSync(FILE_JOBS,"utf8").split("\n");
           for (let i=lines.length-1;i>=0;--i){
             const l = lines[i]; if(!l.trim()) continue;
             try{ const x=JSON.parse(l); if(x.id===id){ inputHash = x.inputHash || ""; break; } }catch (err) { voidIndexEmptyCatchVisibilityWindow24301_25200V1("24952:18", err); }
@@ -26193,7 +26193,7 @@ function __voidWpV1(w:any){const f=w?.pressure,n=+(typeof f==="function"?f.call(
         const id = req.params.id;
         let out:any = null;
         if (fs.existsSync(FILE_RESULTS)){
-          const lines = fs.readFileSync(FILE_RESULTS,"utf8").split("\\n");
+          const lines = fs.readFileSync(FILE_RESULTS,"utf8").split("\n");
           for (let i=lines.length-1;i>=0;--i){
             const l = lines[i]; if(!l.trim()) continue;
             try{ const x=JSON.parse(l); if(x.id===id){ out=x; break; } }catch (err) { voidIndexEmptyCatchVisibilityWindow24301_25200V1("24974:19", err); }
@@ -26210,9 +26210,9 @@ function __voidWpV1(w:any){const f=w?.pressure,n=+(typeof f==="function"?f.call(
       try{
         if (!queued.length) rebuildIndex();
         let totalJobs=0, totalResults=0, totalReceipts=0;
-        if (fs.existsSync(FILE_JOBS))     totalJobs    = fs.readFileSync(FILE_JOBS,"utf8").split("\\n").filter(Boolean).length;
-        if (fs.existsSync(FILE_RESULTS))  totalResults = fs.readFileSync(FILE_RESULTS,"utf8").split("\\n").filter(Boolean).length;
-        if (fs.existsSync(FILE_RECEIPTS)) totalReceipts= fs.readFileSync(FILE_RECEIPTS,"utf8").split("\\n").filter(Boolean).length;
+        if (fs.existsSync(FILE_JOBS))     totalJobs    = fs.readFileSync(FILE_JOBS,"utf8").split("\n").filter(Boolean).length;
+        if (fs.existsSync(FILE_RESULTS))  totalResults = fs.readFileSync(FILE_RESULTS,"utf8").split("\n").filter(Boolean).length;
+        if (fs.existsSync(FILE_RECEIPTS)) totalReceipts= fs.readFileSync(FILE_RECEIPTS,"utf8").split("\n").filter(Boolean).length;
         const lines = [
           "# HELP void_agent_jobs_queued current queued jobs",
           "# TYPE void_agent_jobs_queued gauge",
@@ -26227,7 +26227,7 @@ function __voidWpV1(w:any){const f=w?.pressure,n=+(typeof f==="function"?f.call(
           "# TYPE void_agent_receipts_file_total gauge",
           `void_agent_receipts_file_total ${totalReceipts}`,
         ];
-        res.type("text/plain").send(lines.join("\\n")+"\n");
+        res.type("text/plain").send(lines.join("\n")+"\n");
       }catch(e:any){
         res.type("text/plain").send(`# error ${e?.message||"internal"}\n`);
       }
@@ -26280,7 +26280,7 @@ function __voidWpV1(w:any){const f=w?.pressure,n=+(typeof f==="function"?f.call(
   function nowMs(){ return Date.now(); }
   function safeLines(file){
     if (!fs.existsSync(file)) return [];
-    return fs.readFileSync(file,"utf8").split("\\n").filter(l=>l.trim().length>0);
+    return fs.readFileSync(file,"utf8").split("\n").filter(l=>l.trim().length>0);
   }
   function readSetFrom(file, idKey){ // returns Set<string>
     const s = new Set();
@@ -26563,7 +26563,7 @@ function __voidWpV1(w:any){const f=w?.pressure,n=+(typeof f==="function"?f.call(
         const addCompletedTruth = (file:string) => {
           try{
             if (!fs.existsSync(file)) return;
-            for (const line of String(fs.readFileSync(file, "utf8") || "").split("\\n")){
+            for (const line of String(fs.readFileSync(file, "utf8") || "").split("\n")){
               if (!line.trim()) continue;
               try{
                 const j:any = JSON.parse(line);
@@ -26640,7 +26640,7 @@ function __voidWpV1(w:any){const f=w?.pressure,n=+(typeof f==="function"?f.call(
         const addCompletedTruth = (file:string) => {
           try{
             if (!fs.existsSync(file)) return;
-            for (const line of String(fs.readFileSync(file, "utf8") || "").split("\\n")){
+            for (const line of String(fs.readFileSync(file, "utf8") || "").split("\n")){
               if (!line.trim()) continue;
               try{
                 const j:any = JSON.parse(line);
@@ -26746,7 +26746,7 @@ function __voidWpV1(w:any){const f=w?.pressure,n=+(typeof f==="function"?f.call(
           `void_agent_leases_expired ${expired}`,
           `void_agent_lease_ms ${LEASE_MS}`
         ];
-        res.type("text/plain").send(out.join("\\n")+"\n");
+        res.type("text/plain").send(out.join("\n")+"\n");
       }catch(e:any){
         res.type("text/plain").send(`# error ${e?.message||"internal"}\n`);
       }
@@ -26781,7 +26781,7 @@ function __voidWpV1(w:any){const f=w?.pressure,n=+(typeof f==="function"?f.call(
         "# TYPE void_agent_auth_hash_sha256 gauge",
         `void_agent_auth_hash_sha256{hash="${hash}"} 1`
       ];
-      res.type("text/plain").send(lines.join("\\n")+"\n");
+      res.type("text/plain").send(lines.join("\n")+"\n");
     });
 
     // JSON (optional)
@@ -27112,7 +27112,7 @@ function __voidWpV1(w:any){const f=w?.pressure,n=+(typeof f==="function"?f.call(
   const FILE_JOBS = path.join(AGENT_DIR, "jobs.jsonl");
   const FILE_RESULTS = path.join(AGENT_DIR, "results.jsonl");
 
-  function safeLines(f){ return fs.existsSync(f) ? fs.readFileSync(f,"utf8").split("\\n").filter(l=>l.trim()) : []; }
+  function safeLines(f){ return fs.existsSync(f) ? fs.readFileSync(f,"utf8").split("\n").filter(l=>l.trim()) : []; }
   function countSet(file){ const s=new Set(); for (const l of safeLines(file)){ try{ s.add(JSON.parse(l).id) }catch (err) { voidIndexEmptyCatchVisibilityWindow25201_26100V1("25891:14", err); } } return s; }
 
   function mount(){
@@ -27135,7 +27135,7 @@ function __voidWpV1(w:any){const f=w?.pressure,n=+(typeof f==="function"?f.call(
           "# TYPE void_agent_results_total_v2 gauge",
           `void_agent_results_total_v2 ${done.size}`
         ];
-        res.type("text/plain").send(out.join("\\n")+"\\n");
+        res.type("text/plain").send(out.join("\n")+"\\n");
       }catch(e){ res.type("text/plain").send("# error "+(e?.message||"internal")+"\\n"); }
     });
   }
