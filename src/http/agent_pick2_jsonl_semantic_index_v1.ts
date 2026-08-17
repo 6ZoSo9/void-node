@@ -1,5 +1,6 @@
 // @ts-nocheck
 import * as fs from "node:fs";
+import path from "node:path";
 
 export const VOID_AGENT_PICK2_JSONL_SEMANTIC_INDEX_V1 =
   "VOID_AGENT_PICK2_JSONL_SEMANTIC_INDEX_V1";
@@ -10,10 +11,11 @@ type JsonlEntryV1 = {
 };
 
 type FileStampV1 = {
-  dev: number;
-  ino: number;
+  dev: string;
+  ino: string;
   size: number;
-  mtimeMs: number;
+  mtimeNs: string;
+  ctimeNs: string;
 };
 
 type CompletionStateV1 = FileStampV1 & {
@@ -46,12 +48,30 @@ type IoMetricsV1 = {
   rebuilds_total: number;
   incremental_reads_total: number;
   cache_hits_total: number;
+  coherent_scan_retries_total: number;
+  append_witness_misses_total: number;
   by_kind: Record<string, {
     bytes_read: number;
     rebuilds: number;
     incremental_reads: number;
     cache_hits: number;
   }>;
+};
+
+type AppendWitnessV1 = {
+  before: FileStampV1;
+  after: FileStampV1;
+  endedWithNewline: boolean;
+};
+
+type TestHooksV1 = {
+  afterReadChunk?: (ctx: {
+    file: string;
+    kind: string;
+    start: number;
+    bytes: number;
+    chunkIndex: number;
+  }) => void;
 };
 
 export type AgentPick2SemanticSnapshotV1 = {
@@ -64,27 +84,162 @@ export type AgentPick2SemanticSnapshotV1 = {
   io: IoMetricsV1;
 };
 
-function emptyStampV1(): FileStampV1 {
-  return { dev: -1, ino: -1, size: 0, mtimeMs: -1 };
+const APPEND_WITNESS_LIMIT_V1 = 8192;
+const appendWitnessesV1 = new Map<string, AppendWitnessV1[]>();
+
+function fileKeyV1(file: string): string {
+  return path.resolve(String(file || ""));
+}
+
+function stampFromStatsV1(st: any): FileStampV1 {
+  const big = st && typeof st.dev === "bigint";
+  const dev = big ? st.dev : BigInt(st?.dev || 0);
+  const ino = big ? st.ino : BigInt(st?.ino || 0);
+  const sizeBig = big ? st.size : BigInt(st?.size || 0);
+  const mtimeNs =
+    typeof st?.mtimeNs === "bigint"
+      ? st.mtimeNs
+      : BigInt(Math.round(Number(st?.mtimeMs || 0) * 1_000_000));
+  const ctimeNs =
+    typeof st?.ctimeNs === "bigint"
+      ? st.ctimeNs
+      : BigInt(Math.round(Number(st?.ctimeMs || 0) * 1_000_000));
+  return {
+    dev: String(dev),
+    ino: String(ino),
+    size: Number(sizeBig),
+    mtimeNs: String(mtimeNs),
+    ctimeNs: String(ctimeNs),
+  };
+}
+
+function fstatV1(fd: number): FileStampV1 {
+  const st = fs.fstatSync(fd, { bigint: true } as any);
+  if (!st.isFile()) throw new Error("VOID_AGENT_PICK2_JSONL_NON_REGULAR_FILE");
+  return stampFromStatsV1(st);
 }
 
 function statV1(file: string): FileStampV1 | null {
   try {
-    const st = fs.statSync(file);
+    const st = fs.statSync(file, { bigint: true } as any);
     if (!st.isFile()) return null;
-    return {
-      dev: Number(st.dev),
-      ino: Number(st.ino),
-      size: Number(st.size),
-      mtimeMs: Number(st.mtimeMs),
-    };
+    return stampFromStatsV1(st);
   } catch {
     return null;
   }
 }
 
+function emptyStampV1(): FileStampV1 {
+  return {
+    dev: "-1",
+    ino: "-1",
+    size: 0,
+    mtimeNs: "-1",
+    ctimeNs: "-1",
+  };
+}
+
 function sameObjectV1(a: FileStampV1, b: FileStampV1): boolean {
   return a.dev === b.dev && a.ino === b.ino;
+}
+
+function sameStampV1(a: FileStampV1, b: FileStampV1): boolean {
+  return (
+    sameObjectV1(a, b) &&
+    a.size === b.size &&
+    a.mtimeNs === b.mtimeNs &&
+    a.ctimeNs === b.ctimeNs
+  );
+}
+
+function recordAppendWitnessV1(
+  file: string,
+  before: FileStampV1,
+  after: FileStampV1,
+  endedWithNewline: boolean,
+) {
+  const key = fileKeyV1(file);
+  const list = appendWitnessesV1.get(key) || [];
+  list.push({ before, after, endedWithNewline });
+  if (list.length > APPEND_WITNESS_LIMIT_V1) {
+    list.splice(0, list.length - APPEND_WITNESS_LIMIT_V1);
+  }
+  appendWitnessesV1.set(key, list);
+}
+
+function appendWitnessChainV1(
+  file: string,
+  prior: FileStampV1,
+  current: FileStampV1,
+): { ok: boolean; endedWithNewline: boolean } {
+  if (sameStampV1(prior, current)) {
+    return { ok: true, endedWithNewline: true };
+  }
+  if (
+    !sameObjectV1(prior, current) ||
+    current.size <= prior.size
+  ) {
+    return { ok: false, endedWithNewline: false };
+  }
+
+  const list = appendWitnessesV1.get(fileKeyV1(file)) || [];
+  for (let i = 0; i < list.length; i++) {
+    const first = list[i];
+    if (!sameStampV1(first.before, prior)) continue;
+    let cursor = first.after;
+    let ended = first.endedWithNewline;
+    if (sameStampV1(cursor, current)) {
+      return { ok: true, endedWithNewline: ended };
+    }
+    for (let j = i + 1; j < list.length; j++) {
+      const next = list[j];
+      if (!sameStampV1(next.before, cursor)) break;
+      cursor = next.after;
+      ended = next.endedWithNewline;
+      if (sameStampV1(cursor, current)) {
+        return { ok: true, endedWithNewline: ended };
+      }
+    }
+  }
+  return { ok: false, endedWithNewline: false };
+}
+
+export function appendAgentPick2JsonlCanonicalV1(
+  file: string,
+  data: string | Buffer,
+  opts: { durable?: boolean; mode?: number } = {},
+): { witnessed: boolean; before: FileStampV1; after: FileStampV1 } {
+  const bytes = Buffer.isBuffer(data) ? data : Buffer.from(String(data), "utf8");
+  const fd = fs.openSync(
+    file,
+    fs.constants.O_WRONLY | fs.constants.O_CREAT | fs.constants.O_APPEND,
+    opts.mode ?? 0o666,
+  );
+  try {
+    const before = fstatV1(fd);
+    let off = 0;
+    while (off < bytes.length) {
+      const n = fs.writeSync(fd, bytes, off, bytes.length - off, null);
+      if (n <= 0) throw new Error("VOID_AGENT_PICK2_JSONL_APPEND_SHORT_WRITE");
+      off += n;
+    }
+    if (opts.durable) fs.fdatasyncSync(fd);
+    const after = fstatV1(fd);
+    const witnessed =
+      sameObjectV1(before, after) &&
+      after.size === before.size + bytes.length;
+    if (witnessed) {
+      recordAppendWitnessV1(
+        file,
+        before,
+        after,
+        bytes.length === 0 || bytes[bytes.length - 1] === 0x0a,
+      );
+    }
+    return { witnessed, before, after };
+  } finally {
+    fs.closeSync(fd);
+  }
 }
 
 function parseEntryV1(raw: string): JsonlEntryV1 {
@@ -129,6 +284,7 @@ function cloneMetricsV1(metrics: IoMetricsV1): IoMetricsV1 {
 
 export class AgentPick2JsonlSemanticIndexV1 {
   private readonly chunkBytes: number;
+  private readonly testHooks: TestHooksV1;
   private readonly completions = new Map<string, CompletionStateV1>();
   private readonly tails = new Map<string, TailStateV1>();
   private readonly heads = new Map<string, HeadStateV1>();
@@ -137,14 +293,17 @@ export class AgentPick2JsonlSemanticIndexV1 {
     rebuilds_total: 0,
     incremental_reads_total: 0,
     cache_hits_total: 0,
+    coherent_scan_retries_total: 0,
+    append_witness_misses_total: 0,
     by_kind: Object.create(null),
   };
 
-  constructor(opts: { chunkBytes?: number } = {}) {
+  constructor(opts: { chunkBytes?: number; testHooks?: TestHooksV1 } = {}) {
     const requested = Number(opts.chunkBytes || 64 * 1024);
     this.chunkBytes = Number.isFinite(requested)
       ? Math.max(4096, Math.min(1024 * 1024, Math.floor(requested)))
       : 64 * 1024;
+    this.testHooks = opts.testHooks || {};
   }
 
   private metricKind(kind: string) {
@@ -180,30 +339,84 @@ export class AgentPick2JsonlSemanticIndexV1 {
     this.metricKind(kind).cache_hits += 1;
   }
 
-  private readRange(
+  private readRangeFd(
+    fd: number,
     file: string,
     start: number,
     length: number,
     kind: string,
+    chunkIndex: number,
   ): Buffer {
     if (length <= 0) return Buffer.alloc(0);
-    const fd = fs.openSync(file, "r");
-    try {
-      const out = Buffer.allocUnsafe(length);
-      let done = 0;
-      while (done < length) {
-        const n = fs.readSync(fd, out, done, length - done, start + done);
-        if (n <= 0) break;
-        done += n;
-      }
-      this.noteBytes(kind, done);
-      return done === length ? out : out.subarray(0, done);
-    } finally {
-      fs.closeSync(fd);
+    const out = Buffer.allocUnsafe(length);
+    let done = 0;
+    while (done < length) {
+      const n = fs.readSync(fd, out, done, length - done, start + done);
+      if (n <= 0) break;
+      done += n;
     }
+    this.noteBytes(kind, done);
+    if (this.testHooks.afterReadChunk) {
+      this.testHooks.afterReadChunk({
+        file,
+        kind,
+        start,
+        bytes: done,
+        chunkIndex,
+      });
+    }
+    return done === length ? out : out.subarray(0, done);
   }
 
-  private scanRangeLines(
+  private stableRead<T>(
+    file: string,
+    kind: string,
+    reader: (fd: number, stamp: FileStampV1) => T,
+  ): { stamp: FileStampV1; value: T } | null {
+    const openFlags =
+      fs.constants.O_RDONLY |
+      ((fs.constants as any).O_NOFOLLOW || 0);
+
+    for (let attempt = 0; attempt < 4; attempt++) {
+      let fd: number | null = null;
+      try {
+        try {
+          fd = fs.openSync(file, openFlags);
+        } catch (err: any) {
+          if (err?.code === "ENOENT") {
+            if (!statV1(file)) return null;
+            this.metrics.coherent_scan_retries_total += 1;
+            continue;
+          }
+          throw err;
+        }
+
+        const before = fstatV1(fd);
+        const value = reader(fd, before);
+        const after = fstatV1(fd);
+        const pathAfter = statV1(file);
+
+        if (
+          sameStampV1(before, after) &&
+          pathAfter &&
+          sameStampV1(after, pathAfter)
+        ) {
+          return { stamp: after, value };
+        }
+
+        this.metrics.coherent_scan_retries_total += 1;
+      } finally {
+        if (fd !== null) fs.closeSync(fd);
+      }
+    }
+
+    throw new Error(
+      `VOID_AGENT_PICK2_JSONL_UNSTABLE_SCAN file=${file} kind=${kind}`,
+    );
+  }
+
+  private scanRangeLinesFd(
+    fd: number,
     file: string,
     start: number,
     endExclusive: number,
@@ -214,10 +427,18 @@ export class AgentPick2JsonlSemanticIndexV1 {
     const end = Math.max(pos, endExclusive);
     let carry = Buffer.alloc(0);
     let endedWithNewline = true;
+    let chunkIndex = 0;
 
     while (pos < end) {
       const want = Math.min(this.chunkBytes, end - pos);
-      const chunk = this.readRange(file, pos, want, kind);
+      const chunk = this.readRangeFd(
+        fd,
+        file,
+        pos,
+        want,
+        kind,
+        chunkIndex++,
+      );
       if (!chunk.length) break;
       pos += chunk.length;
       const data = carry.length ? Buffer.concat([carry, chunk]) : chunk;
@@ -239,13 +460,13 @@ export class AgentPick2JsonlSemanticIndexV1 {
     return endedWithNewline;
   }
 
-  private rebuildCompletion(file: string, stamp: FileStampV1 | null) {
+  private rebuildCompletion(file: string) {
     const kind = "completion_full";
     this.noteRebuild(kind);
-    const completed = new Set<string>();
-    let endedWithNewline = true;
-    if (stamp) {
-      endedWithNewline = this.scanRangeLines(
+    const stable = this.stableRead(file, kind, (fd, stamp) => {
+      const completed = new Set<string>();
+      const endedWithNewline = this.scanRangeLinesFd(
+        fd,
         file,
         0,
         stamp.size,
@@ -257,64 +478,88 @@ export class AgentPick2JsonlSemanticIndexV1 {
           if (id) completed.add(id);
         },
       );
+      return { completed, endedWithNewline };
+    });
+
+    if (!stable) {
+      const state: CompletionStateV1 = {
+        ...emptyStampV1(),
+        initialized: true,
+        completed: new Set<string>(),
+        endedWithNewline: true,
+      };
+      this.completions.set(file, state);
+      return state;
     }
-    const base = stamp || emptyStampV1();
+
     const state: CompletionStateV1 = {
-      ...base,
+      ...stable.stamp,
       initialized: true,
-      completed,
-      endedWithNewline,
+      completed: stable.value.completed,
+      endedWithNewline: stable.value.endedWithNewline,
     };
     this.completions.set(file, state);
     return state;
   }
 
   private completionState(file: string): CompletionStateV1 {
-    const stamp = statV1(file);
+    const current = statV1(file);
     const prior = this.completions.get(file);
-    if (!prior?.initialized) return this.rebuildCompletion(file, stamp);
+    if (!prior?.initialized) return this.rebuildCompletion(file);
 
-    if (!stamp) {
-      if (prior.size === 0 && prior.dev === -1) {
+    if (!current) {
+      if (prior.size === 0 && prior.dev === "-1") {
         this.noteHit("completion_full");
         return prior;
       }
-      return this.rebuildCompletion(file, null);
+      return this.rebuildCompletion(file);
     }
 
-    const appendSafe =
-      sameObjectV1(prior, stamp) &&
-      stamp.size >= prior.size &&
-      (prior.endedWithNewline || stamp.size === prior.size);
-
-    if (
-      appendSafe &&
-      stamp.size === prior.size &&
-      stamp.mtimeMs === prior.mtimeMs
-    ) {
+    if (sameStampV1(prior, current)) {
       this.noteHit("completion_full");
       return prior;
     }
 
-    if (appendSafe && stamp.size > prior.size) {
+    const chain =
+      prior.endedWithNewline &&
+      appendWitnessChainV1(file, prior, current);
+
+    if (chain && chain.ok && current.size > prior.size) {
       this.noteIncremental("completion_append");
-      const endedWithNewline = this.scanRangeLines(
-        file,
-        prior.size,
-        stamp.size,
-        "completion_append",
-        (entry) => {
-          const x = entry.parsed;
-          if (!x || !isCompletedTruthV1(x)) return;
-          const id = rowIdV1(x);
-          if (id) prior.completed.add(id);
-        },
-      );
-      Object.assign(prior, stamp, { endedWithNewline });
+      const stable = this.stableRead(file, "completion_append", (fd, opened) => {
+        const openedChain = appendWitnessChainV1(file, prior, opened);
+        if (!openedChain.ok) {
+          throw new Error("VOID_AGENT_PICK2_JSONL_APPEND_WITNESS_DRIFT");
+        }
+        const additions = new Set<string>();
+        const endedWithNewline = this.scanRangeLinesFd(
+          fd,
+          file,
+          prior.size,
+          opened.size,
+          "completion_append",
+          (entry) => {
+            const x = entry.parsed;
+            if (!x || !isCompletedTruthV1(x)) return;
+            const id = rowIdV1(x);
+            if (id) additions.add(id);
+          },
+        );
+        return { additions, endedWithNewline };
+      });
+
+      if (!stable) return this.rebuildCompletion(file);
+      for (const id of stable.value.additions) prior.completed.add(id);
+      Object.assign(prior, stable.stamp, {
+        endedWithNewline: stable.value.endedWithNewline,
+      });
       return prior;
     }
 
-    return this.rebuildCompletion(file, stamp);
+    if (current.size > prior.size && sameObjectV1(prior, current)) {
+      this.metrics.append_witness_misses_total += 1;
+    }
+    return this.rebuildCompletion(file);
   }
 
   private decodeTailBuffer(
@@ -335,13 +580,65 @@ export class AgentPick2JsonlSemanticIndexV1 {
 
   private rebuildTail(
     file: string,
-    stamp: FileStampV1 | null,
     maxRaw: number,
     maxValid: number,
   ): TailStateV1 {
     const kind = "tail_rebuild";
     this.noteRebuild(kind);
-    if (!stamp) {
+
+    const stable = this.stableRead(file, kind, (fd, stamp) => {
+      let start = stamp.size;
+      let buffer = Buffer.alloc(0);
+      let entries: JsonlEntryV1[] = [];
+      let chunkIndex = 0;
+
+      while (start > 0) {
+        const nextStart = Math.max(0, start - this.chunkBytes);
+        const chunk = this.readRangeFd(
+          fd,
+          file,
+          nextStart,
+          start - nextStart,
+          kind,
+          chunkIndex++,
+        );
+        buffer = buffer.length ? Buffer.concat([chunk, buffer]) : chunk;
+        start = nextStart;
+        entries = this.decodeTailBuffer(buffer, start === 0);
+        const validCount = entries.reduce(
+          (n, entry) => n + (entry.parsed ? 1 : 0),
+          0,
+        );
+        if (
+          entries.length >= maxRaw &&
+          validCount >= Math.min(maxValid, maxRaw)
+        ) break;
+      }
+
+      const rawTail = entries.slice(-maxRaw);
+      const validTail = maxValid > 0
+        ? entries
+            .map((entry) => entry.parsed)
+            .filter(Boolean)
+            .slice(-maxValid)
+        : [];
+
+      let endedWithNewline = true;
+      if (stamp.size > 0) {
+        endedWithNewline =
+          this.readRangeFd(
+            fd,
+            file,
+            stamp.size - 1,
+            1,
+            kind,
+            chunkIndex,
+          )[0] === 0x0a;
+      }
+      return { rawTail, validTail, endedWithNewline };
+    });
+
+    if (!stable) {
       const state: TailStateV1 = {
         ...emptyStampV1(),
         initialized: true,
@@ -355,44 +652,14 @@ export class AgentPick2JsonlSemanticIndexV1 {
       return state;
     }
 
-    let start = stamp.size;
-    let buffer = Buffer.alloc(0);
-    let entries: JsonlEntryV1[] = [];
-
-    while (start > 0) {
-      const nextStart = Math.max(0, start - this.chunkBytes);
-      const chunk = this.readRange(file, nextStart, start - nextStart, kind);
-      buffer = buffer.length ? Buffer.concat([chunk, buffer]) : chunk;
-      start = nextStart;
-      entries = this.decodeTailBuffer(buffer, start === 0);
-      const validCount = entries.reduce(
-        (n, entry) => n + (entry.parsed ? 1 : 0),
-        0,
-      );
-      if (
-        entries.length >= maxRaw &&
-        validCount >= Math.min(maxValid, maxRaw)
-      ) break;
-    }
-
-    const rawTail = entries.slice(-maxRaw);
-    const validTail = maxValid > 0
-      ? entries
-          .map((entry) => entry.parsed)
-          .filter(Boolean)
-          .slice(-maxValid)
-      : [];
-
     const state: TailStateV1 = {
-      ...stamp,
+      ...stable.stamp,
       initialized: true,
       maxRaw,
       maxValid,
-      rawTail,
-      validTail,
-      endedWithNewline:
-        stamp.size === 0 ||
-        this.readRange(file, Math.max(0, stamp.size - 1), Math.min(1, stamp.size), kind)[0] === 0x0a,
+      rawTail: stable.value.rawTail,
+      validTail: stable.value.validTail,
+      endedWithNewline: stable.value.endedWithNewline,
     };
     this.tails.set(file, state);
     return state;
@@ -403,49 +670,54 @@ export class AgentPick2JsonlSemanticIndexV1 {
     maxRaw: number,
     maxValid: number,
   ): TailStateV1 {
-    const stamp = statV1(file);
+    const current = statV1(file);
     const prior = this.tails.get(file);
     if (
       !prior?.initialized ||
       prior.maxRaw !== maxRaw ||
       prior.maxValid !== maxValid
     ) {
-      return this.rebuildTail(file, stamp, maxRaw, maxValid);
+      return this.rebuildTail(file, maxRaw, maxValid);
     }
 
-    if (!stamp) {
-      if (prior.size === 0 && prior.dev === -1) {
+    if (!current) {
+      if (prior.size === 0 && prior.dev === "-1") {
         this.noteHit("tail_rebuild");
         return prior;
       }
-      return this.rebuildTail(file, null, maxRaw, maxValid);
+      return this.rebuildTail(file, maxRaw, maxValid);
     }
 
-    const appendSafe =
-      sameObjectV1(prior, stamp) &&
-      stamp.size >= prior.size &&
-      (prior.endedWithNewline || stamp.size === prior.size);
-
-    if (
-      appendSafe &&
-      stamp.size === prior.size &&
-      stamp.mtimeMs === prior.mtimeMs
-    ) {
+    if (sameStampV1(prior, current)) {
       this.noteHit("tail_rebuild");
       return prior;
     }
 
-    if (appendSafe && stamp.size > prior.size) {
+    const chain =
+      prior.endedWithNewline &&
+      appendWitnessChainV1(file, prior, current);
+
+    if (chain && chain.ok && current.size > prior.size) {
       this.noteIncremental("tail_append");
-      const appended: JsonlEntryV1[] = [];
-      const endedWithNewline = this.scanRangeLines(
-        file,
-        prior.size,
-        stamp.size,
-        "tail_append",
-        (entry) => appended.push(entry),
-      );
-      for (const entry of appended) {
+      const stable = this.stableRead(file, "tail_append", (fd, opened) => {
+        const openedChain = appendWitnessChainV1(file, prior, opened);
+        if (!openedChain.ok) {
+          throw new Error("VOID_AGENT_PICK2_JSONL_APPEND_WITNESS_DRIFT");
+        }
+        const appended: JsonlEntryV1[] = [];
+        const endedWithNewline = this.scanRangeLinesFd(
+          fd,
+          file,
+          prior.size,
+          opened.size,
+          "tail_append",
+          (entry) => appended.push(entry),
+        );
+        return { appended, endedWithNewline };
+      });
+
+      if (!stable) return this.rebuildTail(file, maxRaw, maxValid);
+      for (const entry of stable.value.appended) {
         prior.rawTail.push(entry);
         if (maxValid > 0 && entry.parsed) prior.validTail.push(entry.parsed);
       }
@@ -457,29 +729,42 @@ export class AgentPick2JsonlSemanticIndexV1 {
       } else if (maxValid === 0) {
         prior.validTail = [];
       }
-      Object.assign(prior, stamp, { endedWithNewline });
+      Object.assign(prior, stable.stamp, {
+        endedWithNewline: stable.value.endedWithNewline,
+      });
       return prior;
     }
 
-    return this.rebuildTail(file, stamp, maxRaw, maxValid);
+    if (current.size > prior.size && sameObjectV1(prior, current)) {
+      this.metrics.append_witness_misses_total += 1;
+    }
+    return this.rebuildTail(file, maxRaw, maxValid);
   }
 
   private rebuildHead(
     file: string,
-    stamp: FileStampV1 | null,
     maxRaw: number,
   ): HeadStateV1 {
     const kind = "jobs_head_rebuild";
     this.noteRebuild(kind);
-    const entries: JsonlEntryV1[] = [];
-    let endedWithNewline = true;
 
-    if (stamp) {
+    const stable = this.stableRead(file, kind, (fd, stamp) => {
+      const entries: JsonlEntryV1[] = [];
+      let endedWithNewline = true;
       let pos = 0;
       let carry = Buffer.alloc(0);
+      let chunkIndex = 0;
+
       outer: while (pos < stamp.size && entries.length < maxRaw) {
         const want = Math.min(this.chunkBytes, stamp.size - pos);
-        const chunk = this.readRange(file, pos, want, kind);
+        const chunk = this.readRangeFd(
+          fd,
+          file,
+          pos,
+          want,
+          kind,
+          chunkIndex++,
+        );
         if (!chunk.length) break;
         pos += chunk.length;
         const data = carry.length ? Buffer.concat([carry, chunk]) : chunk;
@@ -496,24 +781,44 @@ export class AgentPick2JsonlSemanticIndexV1 {
         }
         carry = data.subarray(from);
       }
+
       if (entries.length < maxRaw && carry.length) {
         const raw = carry.toString("utf8");
         if (raw.trim()) entries.push(parseEntryV1(raw));
         endedWithNewline = false;
       } else if (stamp.size > 0 && entries.length < maxRaw) {
         endedWithNewline =
-          this.readRange(
+          this.readRangeFd(
+            fd,
             file,
             stamp.size - 1,
             1,
             kind,
+            chunkIndex,
           )[0] === 0x0a;
       }
+
+      return { entries, endedWithNewline };
+    });
+
+    if (!stable) {
+      const state: HeadStateV1 = {
+        ...emptyStampV1(),
+        initialized: true,
+        maxRaw,
+        entries: [],
+        capped: false,
+        endedWithNewline: true,
+        latestById: new Map(),
+        latestRunnableById: new Map(),
+      };
+      this.heads.set(file, state);
+      return state;
     }
 
     const latestById = new Map<string, any>();
     const latestRunnableById = new Map<string, any>();
-    for (const entry of entries.slice(0, maxRaw)) {
+    for (const entry of stable.value.entries.slice(0, maxRaw)) {
       const x = entry.parsed;
       if (!x) continue;
       const id = rowIdV1(x);
@@ -528,14 +833,13 @@ export class AgentPick2JsonlSemanticIndexV1 {
       }
     }
 
-    const base = stamp || emptyStampV1();
     const state: HeadStateV1 = {
-      ...base,
+      ...stable.stamp,
       initialized: true,
       maxRaw,
-      entries: entries.slice(0, maxRaw),
-      capped: entries.length >= maxRaw,
-      endedWithNewline,
+      entries: stable.value.entries.slice(0, maxRaw),
+      capped: stable.value.entries.length >= maxRaw,
+      endedWithNewline: stable.value.endedWithNewline,
       latestById,
       latestRunnableById,
     };
@@ -544,51 +848,58 @@ export class AgentPick2JsonlSemanticIndexV1 {
   }
 
   private headState(file: string, maxRaw: number): HeadStateV1 {
-    const stamp = statV1(file);
+    const current = statV1(file);
     const prior = this.heads.get(file);
     if (!prior?.initialized || prior.maxRaw !== maxRaw) {
-      return this.rebuildHead(file, stamp, maxRaw);
+      return this.rebuildHead(file, maxRaw);
     }
 
-    if (!stamp) {
-      if (prior.size === 0 && prior.dev === -1) {
+    if (!current) {
+      if (prior.size === 0 && prior.dev === "-1") {
         this.noteHit("jobs_head_rebuild");
         return prior;
       }
-      return this.rebuildHead(file, null, maxRaw);
+      return this.rebuildHead(file, maxRaw);
     }
 
-    const appendSafe =
-      sameObjectV1(prior, stamp) &&
-      stamp.size >= prior.size &&
-      (prior.endedWithNewline || stamp.size === prior.size);
-
-    if (
-      appendSafe &&
-      stamp.size === prior.size &&
-      stamp.mtimeMs === prior.mtimeMs
-    ) {
+    if (sameStampV1(prior, current)) {
       this.noteHit("jobs_head_rebuild");
       return prior;
     }
 
-    if (appendSafe && stamp.size > prior.size && prior.capped) {
+    const chain =
+      prior.endedWithNewline &&
+      appendWitnessChainV1(file, prior, current);
+
+    if (chain && chain.ok && current.size > prior.size && prior.capped) {
       this.noteHit("jobs_head_rebuild");
-      Object.assign(prior, stamp, { endedWithNewline: true });
+      Object.assign(prior, current, {
+        endedWithNewline: chain.endedWithNewline,
+      });
       return prior;
     }
 
-    if (appendSafe && stamp.size > prior.size && !prior.capped) {
+    if (chain && chain.ok && current.size > prior.size && !prior.capped) {
       this.noteIncremental("jobs_head_append");
-      const appended: JsonlEntryV1[] = [];
-      const endedWithNewline = this.scanRangeLines(
-        file,
-        prior.size,
-        stamp.size,
-        "jobs_head_append",
-        (entry) => appended.push(entry),
-      );
-      for (const entry of appended) {
+      const stable = this.stableRead(file, "jobs_head_append", (fd, opened) => {
+        const openedChain = appendWitnessChainV1(file, prior, opened);
+        if (!openedChain.ok) {
+          throw new Error("VOID_AGENT_PICK2_JSONL_APPEND_WITNESS_DRIFT");
+        }
+        const appended: JsonlEntryV1[] = [];
+        const endedWithNewline = this.scanRangeLinesFd(
+          fd,
+          file,
+          prior.size,
+          opened.size,
+          "jobs_head_append",
+          (entry) => appended.push(entry),
+        );
+        return { appended, endedWithNewline };
+      });
+
+      if (!stable) return this.rebuildHead(file, maxRaw);
+      for (const entry of stable.value.appended) {
         if (prior.entries.length >= maxRaw) break;
         prior.entries.push(entry);
         const x = entry.parsed;
@@ -607,11 +918,16 @@ export class AgentPick2JsonlSemanticIndexV1 {
         }
       }
       prior.capped = prior.entries.length >= maxRaw;
-      Object.assign(prior, stamp, { endedWithNewline });
+      Object.assign(prior, stable.stamp, {
+        endedWithNewline: stable.value.endedWithNewline,
+      });
       return prior;
     }
 
-    return this.rebuildHead(file, stamp, maxRaw);
+    if (current.size > prior.size && sameObjectV1(prior, current)) {
+      this.metrics.append_witness_misses_total += 1;
+    }
+    return this.rebuildHead(file, maxRaw);
   }
 
   snapshot(input: {

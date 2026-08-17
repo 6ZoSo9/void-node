@@ -5,6 +5,7 @@ import assert from "node:assert/strict";
 import {
   AgentPick2JsonlSemanticIndexV1,
   VOID_AGENT_PICK2_JSONL_SEMANTIC_INDEX_V1,
+  appendAgentPick2JsonlCanonicalV1,
 } from "../src/http/agent_pick2_jsonl_semantic_index_v1.js";
 
 const SOURCE_MARKER = "VOID_AGENT_PICK2_JSONL_SEMANTIC_INDEX_V1";
@@ -13,7 +14,7 @@ const source = fs.readFileSync(sourcePath, "utf8");
 
 assert.ok(
   source.includes(
-    'import { AgentPick2JsonlSemanticIndexV1 } from "./http/agent_pick2_jsonl_semantic_index_v1.js"; // VOID_AGENT_PICK2_JSONL_SEMANTIC_INDEX_V1_IMPORT',
+    'import { AgentPick2JsonlSemanticIndexV1, appendAgentPick2JsonlCanonicalV1 } from "./http/agent_pick2_jsonl_semantic_index_v1.js"; // VOID_AGENT_PICK2_JSONL_SEMANTIC_INDEX_V1_IMPORT',
   ),
   "pick2 semantic-index import missing from src/index.ts",
 );
@@ -62,6 +63,26 @@ assert.equal(
   "final pick2 handler still reparses safeLines per request",
 );
 
+assert.ok(
+  source.includes("appendAgentPick2JsonlCanonicalV1"),
+  "canonical append witness helper is not integrated into src/index.ts",
+);
+assert.equal(
+  handler.includes("fs.appendFileSync(FILE_LEASES"),
+  false,
+  "final pick2 lease writer bypasses canonical append witness",
+);
+assert.ok(
+  handler.includes("appendAgentPick2JsonlCanonicalV1(FILE_LEASES"),
+  "final pick2 lease writer is not witness-bound",
+);
+const witnessWriterCallCount =
+  source.split("appendAgentPick2JsonlCanonicalV1(").length - 1;
+assert.ok(
+  witnessWriterCallCount >= 8,
+  `expected at least eight canonical JSONL writer bindings, found ${witnessWriterCallCount}`,
+);
+
 function writeJsonl(
   file: string,
   count: number,
@@ -79,7 +100,31 @@ function writeJsonl(
 }
 
 function appendJsonl(file: string, row: Record<string, unknown>) {
-  fs.appendFileSync(file, JSON.stringify(row) + "\n", "utf8");
+  appendAgentPick2JsonlCanonicalV1(file, JSON.stringify(row) + "\n");
+}
+
+function rewriteSameInodeLarger(
+  file: string,
+  rows: Record<string, unknown>[],
+  minBytes: number,
+) {
+  const before = fs.statSync(file);
+  const fd = fs.openSync(file, "w");
+  try {
+    let bytes = 0;
+    let i = 0;
+    while (bytes <= minBytes) {
+      const row = rows[i % rows.length];
+      const line = JSON.stringify({ ...row, pad: "x".repeat(96), seq: i++ }) + "\n";
+      bytes += Buffer.byteLength(line);
+      fs.writeSync(fd, line);
+    }
+  } finally {
+    fs.closeSync(fd);
+  }
+  const after = fs.statSync(file);
+  assert.equal(after.ino, before.ino, "same-inode rewrite fixture changed inode");
+  assert.ok(after.size > minBytes, "same-inode rewrite fixture did not grow");
 }
 
 const root = fs.mkdtempSync(
@@ -271,6 +316,196 @@ try {
   );
   assert.equal(fourth.done.has("done-after-rotate"), true);
 
+  // Same-inode truncate+rewrite-to-larger must never inherit prior semantics.
+  const rewriteRoot = path.join(root, "same-inode-rewrite");
+  const rewriteAgent = path.join(rewriteRoot, "agent");
+  const rewriteV1 = path.join(rewriteRoot, "agent_v1");
+  const rJobs = path.join(rewriteAgent, "jobs.jsonl");
+  const rResults = path.join(rewriteAgent, "results.jsonl");
+  const rLeases = path.join(rewriteAgent, "leases.jsonl");
+  const rReceipt = path.join(rewriteAgent, "receipts.jsonl");
+  const rReceiptV1 = path.join(rewriteV1, "receipts.jsonl");
+  const rStateV1 = path.join(rewriteV1, "job_state.jsonl");
+  const rewriteScanMax = 64;
+
+  writeJsonl(rJobs, 256, (i) => ({
+    id: `old-job-${i}`,
+    ts: now - i,
+    status: "queued",
+  }));
+  writeJsonl(rResults, 256, (i) => ({
+    id: i === 255 ? "old-result" : `old-result-${i}`,
+    ts: now - i,
+  }));
+  writeJsonl(rLeases, 256, (i) => ({
+    id: i === 255 ? "old-active" : `old-lease-${i}`,
+    ts: now,
+    worker: "old-worker",
+  }));
+  writeJsonl(rReceipt, 256, (i) => ({
+    id: i === 255 ? "old-complete" : `old-receipt-${i}`,
+    status: i === 255 ? "completed" : "pending",
+  }));
+  writeJsonl(rReceiptV1, 8, (i) => ({
+    job_id: `stable-v1-${i}`,
+    status: "pending",
+  }));
+  writeJsonl(rStateV1, 8, (i) => ({
+    job_id: `stable-state-${i}`,
+    status: "pending",
+  }));
+
+  const rewriteIndex = new AgentPick2JsonlSemanticIndexV1({
+    chunkBytes: 4096,
+  });
+  const rewriteFirst = rewriteIndex.snapshot({
+    jobsFile: rJobs,
+    resultsFile: rResults,
+    leasesFile: rLeases,
+    completionFiles: [rReceipt, rReceiptV1, rStateV1],
+    scanMax: rewriteScanMax,
+    leaseMs: LEASE_MS,
+    nowMs: now,
+  });
+  assert.equal(rewriteFirst.doneTruthHas("old-complete"), true);
+  assert.equal(rewriteFirst.done.has("old-result"), true);
+  assert.equal(rewriteFirst.active.has("old-active"), true);
+  assert.equal(rewriteFirst.latestRunnableById.has("old-job-0"), true);
+
+  const priorReceiptSize = fs.statSync(rReceipt).size;
+  const priorResultSize = fs.statSync(rResults).size;
+  const priorLeaseSize = fs.statSync(rLeases).size;
+  const priorJobsSize = fs.statSync(rJobs).size;
+
+  rewriteSameInodeLarger(
+    rReceipt,
+    [{ id: "new-complete", status: "completed" }],
+    priorReceiptSize + 4096,
+  );
+  rewriteSameInodeLarger(
+    rResults,
+    [{ id: "new-result", ts: now + 10 }],
+    priorResultSize + 4096,
+  );
+  rewriteSameInodeLarger(
+    rLeases,
+    [{ id: "new-active", ts: now + 10, worker: "new-worker" }],
+    priorLeaseSize + 4096,
+  );
+  rewriteSameInodeLarger(
+    rJobs,
+    [{ id: "new-job", ts: now + 10, status: "queued" }],
+    priorJobsSize + 4096,
+  );
+
+  const rewriteSecond = rewriteIndex.snapshot({
+    jobsFile: rJobs,
+    resultsFile: rResults,
+    leasesFile: rLeases,
+    completionFiles: [rReceipt, rReceiptV1, rStateV1],
+    scanMax: rewriteScanMax,
+    leaseMs: LEASE_MS,
+    nowMs: now + 20,
+  });
+  assert.equal(
+    rewriteSecond.doneTruthHas("old-complete"),
+    false,
+    "same-inode larger rewrite retained stale completion truth",
+  );
+  assert.equal(rewriteSecond.doneTruthHas("new-complete"), true);
+  assert.equal(
+    rewriteSecond.done.has("old-result"),
+    false,
+    "same-inode larger rewrite retained stale result tail",
+  );
+  assert.equal(rewriteSecond.done.has("new-result"), true);
+  assert.equal(
+    rewriteSecond.active.has("old-active"),
+    false,
+    "same-inode larger rewrite retained stale active lease",
+  );
+  assert.equal(rewriteSecond.active.has("new-active"), true);
+  assert.equal(
+    rewriteSecond.latestRunnableById.has("old-job-0"),
+    false,
+    "same-inode larger rewrite retained stale capped jobs head",
+  );
+  assert.equal(rewriteSecond.latestRunnableById.has("new-job"), true);
+  assert.ok(
+    rewriteSecond.io.append_witness_misses_total >= 4,
+    "same-inode rewrite did not fail closed through append-witness misses",
+  );
+
+  // Atomic pathname replacement after the first chunk must never mix generations.
+  const replaceRoot = path.join(root, "mid-scan-replace");
+  const replaceAgent = path.join(replaceRoot, "agent");
+  const replaceV1 = path.join(replaceRoot, "agent_v1");
+  const pJobs = path.join(replaceAgent, "jobs.jsonl");
+  const pResults = path.join(replaceAgent, "results.jsonl");
+  const pLeases = path.join(replaceAgent, "leases.jsonl");
+  const pReceipt = path.join(replaceAgent, "receipts.jsonl");
+  const pReceiptV1 = path.join(replaceV1, "receipts.jsonl");
+  const pStateV1 = path.join(replaceV1, "job_state.jsonl");
+
+  writeJsonl(pJobs, 4, (i) => ({ id: `p-job-${i}`, status: "queued", ts: now }));
+  writeJsonl(pResults, 4, (i) => ({ id: `p-result-${i}`, ts: now }));
+  writeJsonl(pLeases, 4, (i) => ({ id: `p-lease-${i}`, ts: now - LEASE_MS * 2 }));
+  writeJsonl(pReceipt, 600, (i) => ({
+    id: i === 599 ? "old-generation-complete" : `old-generation-${i}`,
+    status: i === 599 ? "completed" : "pending",
+    pad: "o".repeat(128),
+  }));
+  writeJsonl(pReceiptV1, 2, (i) => ({ job_id: `p-v1-${i}`, status: "pending" }));
+  writeJsonl(pStateV1, 2, (i) => ({ job_id: `p-state-${i}`, status: "pending" }));
+
+  let replacedMidScan = false;
+  const replacementPath = pReceipt + ".replacement";
+  const replaceIndex = new AgentPick2JsonlSemanticIndexV1({
+    chunkBytes: 4096,
+    testHooks: {
+      afterReadChunk(ctx) {
+        if (
+          replacedMidScan ||
+          ctx.file !== pReceipt ||
+          ctx.kind !== "completion_full" ||
+          ctx.chunkIndex !== 0
+        ) return;
+        replacedMidScan = true;
+        writeJsonl(replacementPath, 700, (i) => ({
+          id: i === 699 ? "new-generation-complete" : `new-generation-${i}`,
+          status: i === 699 ? "completed" : "pending",
+          pad: "n".repeat(128),
+        }));
+        fs.renameSync(replacementPath, pReceipt);
+      },
+    },
+  });
+
+  const replaceSnapshot = replaceIndex.snapshot({
+    jobsFile: pJobs,
+    resultsFile: pResults,
+    leasesFile: pLeases,
+    completionFiles: [pReceipt, pReceiptV1, pStateV1],
+    scanMax: 64,
+    leaseMs: LEASE_MS,
+    nowMs: now,
+  });
+  assert.equal(replacedMidScan, true, "mid-scan replacement hook did not execute");
+  assert.equal(
+    replaceSnapshot.doneTruthHas("old-generation-complete"),
+    false,
+    "cross-chunk pathname replacement leaked old-generation completion truth",
+  );
+  assert.equal(
+    replaceSnapshot.doneTruthHas("new-generation-complete"),
+    true,
+    "coherent retry did not publish replacement generation",
+  );
+  assert.ok(
+    replaceSnapshot.io.coherent_scan_retries_total >= 1,
+    "mid-scan path replacement was not detected and retried",
+  );
+
   console.log("VOID_AGENT_PICK2_JSONL_SEMANTIC_INDEX_V1_PROOF_GREEN");
   console.log(`marker=${VOID_AGENT_PICK2_JSONL_SEMANTIC_INDEX_V1}`);
   console.log(`source_marker=${SOURCE_MARKER}`);
@@ -287,6 +522,10 @@ try {
   console.log("lease_expiry_semantics_preserved=true");
   console.log("append_only_refresh_incremental=true");
   console.log("truncate_or_replace_rebuilds=true");
+  console.log("same_inode_rewrite_growth_rebuilds=true");
+  console.log("coherent_single_fd_scan=true");
+  console.log("mid_scan_path_replacement_retried=true");
+  console.log("canonical_append_witness_required=true");
   console.log("historical_jsonl_reread_per_pick=false");
   console.log("live_runtime_mutation_performed=false");
 } finally {
