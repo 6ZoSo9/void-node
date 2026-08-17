@@ -86,15 +86,17 @@ node tools/void_public_earn_no_node_client_v1.mjs status ...
 node tools/void_public_earn_no_node_client_v1.mjs run ...
 ```
 
+The executable script in every production-ready command is fixed to the canonical sibling `tools/void_public_earn_no_node_client_v1.mjs`. The handoff has no production `--client-tool` override. A caller-supplied arbitrary script path is rejected before coordinator evidence is fetched and can never produce `handoff_state=ready`.
+
 Optional values include `--state-dir` and an HTTPS `--dataset-url-template` containing `{dataset_id}`.
 
-The focused handoff workflow is dependency-bound to the canonical no-node client source, because that client defines the pilot marker, claim marker, status route, fixed 3-WC award, and participant status contract mirrored by the handoff. A client-only contract change therefore schedules this handoff proof.
+The focused handoff workflow is dependency-bound to the canonical no-node client source, because that client defines the pilot marker, claim marker, status route, fixed 3-WC award, participant status contract, and generated executable identity. A client-only contract change therefore schedules this handoff proof.
 
 It does not execute the full client, create participant identity state, claim a ticket, or submit work.
 
 ## Safety boundary
 
-The handoff uses the supplied directory only to select a candidate origin, independently revalidates that origin against the canonical read-only participant status, then binds it to `GET /health`. It never executes the client, creates an identity, claims a ticket, fetches work, submits a result, awards or settles WC, accesses a wallet, restarts a service, or mutates runtime data.
+The handoff uses the supplied directory only to select a candidate origin, independently revalidates that origin against the canonical read-only participant status, then binds it to `GET /health`. It emits commands only for the canonical no-node client and never executes the client, creates an identity, claims a ticket, fetches work, submits a result, awards or settles WC, accesses a wallet, restarts a service, or mutates runtime data.
 
 ## Focused proof
 
@@ -103,7 +105,7 @@ node scripts/prove_wc_public_opportunity_handoff_v1.mjs
 node scripts/prove_wc_public_opportunity_handoff_provenance_v1.mjs
 ```
 
-The existing proof exercises successful identity-bound handoff, generated-command compatibility, origin-policy parity, and response-bound HOLD behavior. The provenance proof adds the decisive adversarial boundary: attacker-controlled directory JSON can self-assert every currently accepted trust/readiness field and return a valid-looking `/health`, but the handoff must HOLD after the canonical participant-status check and before health binding when the actual coordinator contract is unsafe. A coordinator exposing the canonical status contract must still reach ready state and retain the final health identity binding.
+The existing proof exercises successful identity-bound handoff, canonical generated-client identity, rejection of arbitrary `--client-tool` input before network evidence is fetched, generated-command compatibility, origin-policy parity, and response-bound HOLD behavior. The provenance proof adds the decisive adversarial boundary: attacker-controlled directory JSON can self-assert every currently accepted trust/readiness field and return a valid-looking `/health`, but the handoff must HOLD after the canonical participant-status check and before health binding when the actual coordinator contract is unsafe. A coordinator exposing the canonical status contract must still reach ready state and retain the final health identity binding.
 
 Expected markers include:
 
