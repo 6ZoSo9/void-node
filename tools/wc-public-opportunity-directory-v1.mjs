@@ -12,6 +12,12 @@ const GATEWAY_MARKER = "VOID_PUBLIC_EARN_GATEWAY_V1";
 const CLAIM_MARKER = "VOID_WC_PUBLIC_TICKET_CLAIM_V1";
 const CLAIM_ROUTE = "/wc/public-earning-pilot-v1/claim-ticket";
 const CANONICAL_FIXED_AWARD_WC = 3;
+const CHILD_STDOUT_MAX_BYTES = 256 * 1024;
+const CHILD_STDERR_MAX_BYTES = 64 * 1024;
+const CHILD_REQUEST_WINDOW_COUNT = 10;
+const CHILD_WALL_CLOCK_GRACE_MS = 1000;
+const CHILD_WALL_CLOCK_MAX_MS = 120000;
+const CHILD_TERMINATION_GRACE_MS = 250;
 const HERE = dirname(fileURLToPath(import.meta.url));
 const DEFAULT_DISCOVERY_TOOL = resolve(HERE, "wc-public-opportunity-discovery-v1.mjs");
 
@@ -67,22 +73,110 @@ function readInput(path) {
   return text.split(/\r?\n/u).map((line) => line.trim()).filter((line) => line && !line.startsWith("#"));
 }
 
+function childWallClockMs(timeoutMs) {
+  return Math.min(
+    (timeoutMs * CHILD_REQUEST_WINDOW_COUNT) + CHILD_WALL_CLOCK_GRACE_MS,
+    CHILD_WALL_CLOCK_MAX_MS,
+  );
+}
+
 function runDiscovery(discoveryTool, base, timeoutMs, expectedAwardWc) {
   return new Promise((resolveRun) => {
     const child = spawn(process.execPath, [discoveryTool, "--base", base, "--timeout-ms", String(timeoutMs), "--expected-award-wc", String(expectedAwardWc)], { stdio: ["ignore", "pipe", "pipe"] });
-    let stdout = "";
-    let stderr = "";
-    child.stdout.setEncoding("utf8");
-    child.stderr.setEncoding("utf8");
-    child.stdout.on("data", (chunk) => { stdout += chunk; });
-    child.stderr.on("data", (chunk) => { stderr += chunk; });
-    child.on("error", (error) => resolveRun({ base, exit_code: null, body: null, parse_error: error instanceof Error ? error.name : "spawn_error", stderr_present: false }));
-    child.on("close", (code) => {
+    const stdoutChunks = [];
+    let stdoutBytes = 0;
+    let stderrBytes = 0;
+    let settled = false;
+    let terminalReason = null;
+    let terminationTimer = null;
+
+    const wallTimer = setTimeout(() => beginTermination("child_timeout"), childWallClockMs(timeoutMs));
+    wallTimer.unref?.();
+
+    function boundedChunk(chunk) {
+      return Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
+    }
+
+    function cleanupListeners() {
+      clearTimeout(wallTimer);
+      if (terminationTimer) clearTimeout(terminationTimer);
+      child.stdout?.off("data", onStdout);
+      child.stderr?.off("data", onStderr);
+      child.off("error", onError);
+      child.off("close", onClose);
+    }
+
+    function settle(code, reason = null) {
+      if (settled) return;
+      settled = true;
+      cleanupListeners();
+      const stdout = stdoutChunks.length > 0 ? Buffer.concat(stdoutChunks, stdoutBytes).toString("utf8") : "";
       let body = null;
-      let parseError = null;
-      try { body = JSON.parse(stdout); } catch { parseError = "invalid_json"; }
-      resolveRun({ base, exit_code: code, body, parse_error: parseError, stderr_present: stderr.trim().length > 0 });
-    });
+      let parseError = reason;
+      if (parseError === null) {
+        try { body = JSON.parse(stdout); } catch { parseError = "invalid_json"; }
+      }
+      resolveRun({
+        base,
+        exit_code: code,
+        body,
+        parse_error: parseError,
+        stderr_present: stderrBytes > 0 || reason === "child_stderr_oversize",
+      });
+    }
+
+    function finishTermination() {
+      if (settled) return;
+      try { child.kill("SIGKILL"); } catch { /* bounded best-effort child teardown */ }
+      child.stdout?.destroy();
+      child.stderr?.destroy();
+      child.unref();
+      settle(null, terminalReason ?? "child_termination_failed");
+    }
+
+    function beginTermination(reason) {
+      if (settled || terminalReason !== null) return;
+      terminalReason = reason;
+      child.stdout?.pause();
+      child.stderr?.pause();
+      try { child.kill("SIGTERM"); } catch { /* bounded best-effort child teardown */ }
+      terminationTimer = setTimeout(finishTermination, CHILD_TERMINATION_GRACE_MS);
+      terminationTimer.unref?.();
+    }
+
+    function onStdout(chunk) {
+      if (settled || terminalReason !== null) return;
+      const bytes = boundedChunk(chunk);
+      if (stdoutBytes + bytes.length > CHILD_STDOUT_MAX_BYTES) {
+        beginTermination("child_stdout_oversize");
+        return;
+      }
+      stdoutChunks.push(bytes);
+      stdoutBytes += bytes.length;
+    }
+
+    function onStderr(chunk) {
+      if (settled || terminalReason !== null) return;
+      const bytes = boundedChunk(chunk);
+      if (stderrBytes + bytes.length > CHILD_STDERR_MAX_BYTES) {
+        beginTermination("child_stderr_oversize");
+        return;
+      }
+      stderrBytes += bytes.length;
+    }
+
+    function onError(error) {
+      settle(null, terminalReason ?? (error instanceof Error ? error.name : "spawn_error"));
+    }
+
+    function onClose(code) {
+      settle(code, terminalReason);
+    }
+
+    child.stdout?.on("data", onStdout);
+    child.stderr?.on("data", onStderr);
+    child.once("error", onError);
+    child.once("close", onClose);
   });
 }
 
