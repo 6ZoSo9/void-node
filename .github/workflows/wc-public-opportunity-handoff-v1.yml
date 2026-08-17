@@ -1,0 +1,58 @@
+name: WC Public Opportunity Handoff v1
+
+on:
+  pull_request:
+    paths:
+      - "tools/wc-public-opportunity-handoff-v1.mjs"
+      - "tools/void_public_earn_no_node_client_v1.mjs"
+      - "scripts/prove_wc_public_opportunity_handoff_v1.mjs"
+      - "scripts/prove_wc_public_opportunity_handoff_cancel_liveness_v1.mjs"
+      - "docs/public/wc-public-opportunity-handoff-v1.md"
+      - ".github/workflows/wc-public-opportunity-handoff-v1.yml"
+  push:
+    branches: [main]
+    paths:
+      - "tools/wc-public-opportunity-handoff-v1.mjs"
+      - "tools/void_public_earn_no_node_client_v1.mjs"
+      - "scripts/prove_wc_public_opportunity_handoff_v1.mjs"
+      - "scripts/prove_wc_public_opportunity_handoff_cancel_liveness_v1.mjs"
+      - "docs/public/wc-public-opportunity-handoff-v1.md"
+      - ".github/workflows/wc-public-opportunity-handoff-v1.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: wc-public-opportunity-handoff-v1-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  proof:
+    name: Node ${{ matrix.node }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          fetch-depth: 2
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: ${{ matrix.node }}
+      - name: Syntax
+        run: |
+          node --check tools/wc-public-opportunity-handoff-v1.mjs
+          node --check tools/void_public_earn_no_node_client_v1.mjs
+          node --check scripts/prove_wc_public_opportunity_handoff_v1.mjs
+          node --check scripts/prove_wc_public_opportunity_handoff_cancel_liveness_v1.mjs
+      - name: Prove bounded public opportunity handoff
+        run: |
+          node scripts/prove_wc_public_opportunity_handoff_v1.mjs
+          node scripts/prove_wc_public_opportunity_handoff_cancel_liveness_v1.mjs
+      - name: Diff hygiene
+        run: git diff --check

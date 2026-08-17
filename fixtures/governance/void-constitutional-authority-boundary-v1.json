@@ -1,8 +1,9 @@
 {
   "marker": "VOID_CONSTITUTIONAL_AUTHORITY_BOUNDARY_V1_PHASE0_DRAFT",
   "alignment_marker": "VOID_CONSTITUTIONAL_SOVEREIGN_SUCCESSION_ALIGNMENT_V1_20260816",
+  "identity_binding_marker": "VOID_CONSTITUTIONAL_SOVEREIGN_IDENTITY_BINDING_V1_20260816",
   "artifact": "VOID Constitutional Authority Boundary v1",
-  "version": "1.1.0-draft",
+  "version": "1.2.0-draft",
   "date": "2026-08-16",
   "status": "Phase 0 doctrine/specification draft — constraint-only; no authority activated.",
   "current_phase": {
@@ -14,8 +15,22 @@
     "signer_or_wallet_access_granted": false,
     "execution_authority_granted": false
   },
+  "sovereign_identity": {
+    "operator_name": "ZoSo",
+    "personal_name": "Derrek Patrick Daly",
+    "personal_name_context": "name_given_by_mother",
+    "same_human_person": true,
+    "same_constitutional_identity": true,
+    "constitutional_identity_count": 1,
+    "creates_separate_sovereign_offices": false,
+    "creates_separate_authority_holders": false,
+    "creates_successor_or_delegate": false,
+    "name_choice_changes_authority": false
+  },
   "sovereign_continuity": {
     "sovereign": "ZoSo",
+    "sovereign_personal_name": "Derrek Patrick Daly",
+    "same_sovereign_identity": true,
     "lifetime_governance": true,
     "effective_successor_designated": false,
     "preferred_successor_direction": "protected_validator_body_or_future_validator_selected_successor",

@@ -4,6 +4,8 @@
 
 **Alignment marker:** `VOID_CONSTITUTIONAL_SOVEREIGN_SUCCESSION_ALIGNMENT_V1_20260816`
 
+**Identity binding marker:** `VOID_CONSTITUTIONAL_SOVEREIGN_IDENTITY_BINDING_V1_20260816`
+
 **Status:** Phase 0 doctrine/specification draft — constraint-only; no authority activated.
 
 **Current Phase: Phase 0 — Founder/operator-rooted construction state.**
@@ -20,9 +22,17 @@ Validator contest authority is not active yet. Validator quorum is not active ye
 
 Phase 0 is the protected construction state. Phase 0 is not the target state.
 
+## Sovereign Identity
+
+VOID recognizes one Sovereign human identity: **ZoSo and Derrek Patrick Daly are the same person and the same constitutional Sovereign.**
+
+`ZoSo` is the operator/sovereign name used within VOID. `Derrek Patrick Daly` is the personal name given to that same person by his mother. The two names do not create separate offices, persons, authority holders, successors, delegates, keys, or voting identities.
+
+A constitutional reference to `ZoSo`, `Derrek Patrick Daly`, or both together refers to this one Sovereign identity. Name choice alone cannot split, duplicate, transfer, dilute, expand, or otherwise alter sovereign authority.
+
 ## Sovereign Continuity
 
-ZoSo remains VOID's Sovereign for life unless a separately evidenced successor designation personally authorized by ZoSo takes effect.
+ZoSo, also named Derrek Patrick Daly, remains VOID's Sovereign for life unless a separately evidenced successor designation personally authorized by that same Sovereign takes effect.
 
 No validator quorum, AI autonomy, inactivity, maturity milestone, phase transition, company or entity structure, source-code change, repository control, signer possession, infrastructure control, or other technical control may silently transfer VOID sovereignty.
 
@@ -42,7 +52,7 @@ Constitutional authority may stop the machine. It may not secretly become the ma
 
 Emergency authority can preserve truth, pause risk, and force review. It cannot create ordinary truth without validator-visible process.
 
-VOID's operational independence from outside gatekeepers, investors, platforms, or operators must not be reinterpreted as constitutional independence from ZoSo while ZoSo remains Sovereign.
+VOID's operational independence from outside gatekeepers, investors, platforms, or operators must not be reinterpreted as constitutional independence from the single ZoSo / Derrek Patrick Daly sovereign identity while that Sovereign remains in office.
 
 ## Validator Constitutional Boundary
 
@@ -56,7 +66,7 @@ Validator participation, admission, removal, contest, quorum, and succession pow
 
 ## Delegated AI and Participant Governance
 
-A delegated AI governance role may administer bounded protocol-facing rules and services for voluntary non-validator VOID participation, but only under this constitution and subordinate to ZoSo's sovereign constitutional authority while ZoSo remains Sovereign.
+A delegated AI governance role may administer bounded protocol-facing rules and services for voluntary non-validator VOID participation, but only under this constitution and subordinate to the single ZoSo / Derrek Patrick Daly sovereign identity while that Sovereign remains in office.
 
 This delegation is governance of network participation and protocol behavior, not ownership of people. It creates no real-world political authority, personal dominion, surveillance entitlement, coercive enforcement power, physical-control authority, or permission to violate law or human rights.
 
@@ -106,6 +116,8 @@ Constitutional authority alone must not transfer funds, mint supply, burn supply
 
 No automated agent, validator quorum, repository action, signer possession, corporate action, inactivity timer, or phase transition may infer succession authority that has not been explicitly granted.
 
+No name, alias, personal-name reference, operator-name reference, or identity-label change may create a second Sovereign, divide the Sovereign office, or transfer constitutional authority.
+
 ## Amendment Boundary
 
 An amendment to this document does not itself activate any authority.
@@ -128,6 +140,6 @@ Phase 4 — Reaffirmed founder authority.
 
 Phase 5 — Succession-ready constitutional state.
 
-Phase progression alone never transfers sovereignty. Every phase remains subordinate to the Sovereign Continuity and Succession and Inheritance boundaries above until a valid succession instrument takes effect.
+Phase progression alone never transfers sovereignty. Every phase remains subordinate to the Sovereign Identity, Sovereign Continuity, and Succession and Inheritance boundaries above until a valid succession instrument takes effect.
 
 *VOID will build the rails before it runs the train.*

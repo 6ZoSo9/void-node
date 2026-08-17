@@ -32,6 +32,7 @@ require_eq VOID_DISABLE_COMMIT_DIRECT_AUTOPROP 0
 require_eq VOID_DISABLE_PROPOSER_AUTOPROP 0
 require_eq VOID_DISABLE_COMMIT_DIRECT_V2FS_AUTORUN 0
 require_eq VOID_CANONICAL_SELF_HTTP_GUARD 1
+require_eq VOID_CANONICAL_DISABLE_LEGACY_SELF_HTTP_OBSERVERS 1
 
 if [ "$fail" -ne 0 ]; then
   echo "${MARKER}_FAIL canonical producer liveness contract is not satisfied" >&2
