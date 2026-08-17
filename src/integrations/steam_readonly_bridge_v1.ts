@@ -302,7 +302,7 @@ async function fetchResponseWithDeadline(
     "Steam Web API request timed out",
   );
   let timedOut = controller.signal.aborted;
-  let removeAbortListener = () => undefined;
+  let removeAbortListener: () => void = () => undefined;
   const timeoutPromise = new Promise<never>((_resolve, reject) => {
     const onAbort = () => {
       timedOut = true;
