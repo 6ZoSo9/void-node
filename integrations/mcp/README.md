@@ -176,7 +176,13 @@ Submission has two independent gates:
 2. exact per-call `confirm="submit-paid-work"`.
 
 There is no retry loop. Duplicate and conflicting-duplicate results retain the
-existing VOID intake semantics.
+existing VOID intake semantics. Once the paid-work client has returned and the
+bridge has validated an accepted remote result, later failure to remove the
+private submission temp directory does not rewrite that remote terminal truth
+as a failed submission. The returned interpretation reports
+`private_temp_cleanup_completed=false` in that case. That field is local cleanup
+evidence only: it grants no authority, exposes no private temp path, and does
+not authorize an automatic resubmission.
 
 ## Environment
 
@@ -267,7 +273,9 @@ The subprocess adapter:
 - removes MCP mutation and token-file environment variables from children;
 - uses mode-`0700` temporary directories;
 - uses mode-`0600` request files;
-- deletes temporary files after each call;
+- attempts private temporary-file cleanup after every call;
+- preserves an already-validated remote submission result if post-result local
+  cleanup fails, while reporting `private_temp_cleanup_completed=false`;
 - preserves the existing client's redirect, same-origin, token-file, request
   size, response size, duplicate, and no-retry checks.
 
