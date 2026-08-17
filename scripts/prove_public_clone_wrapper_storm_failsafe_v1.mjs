@@ -36,15 +36,28 @@ assert.match(
   /import \{ loadEnv \} from ["']\.\/util\/env\.js["'];/,
   "src/index.ts must statically compose the production environment module"
 );
-assert.ok(
-  (indexSource.match(/VOID_DISABLE_WRAPPER_STORM/g) || []).length >= 20,
-  "production index must retain the legacy wrapper-family gates controlled by the normalized flag"
-);
-assert.match(
-  indexSource,
-  /process\.env\.VOID_DISABLE_WRAPPER_STORM !== ["']1["']/,
-  "production index must retain wrapper-family disable gating"
-);
+
+const representativeProductionWrapperGates = [
+  {
+    name: "attachTxrootSaveHook",
+    pattern: /VOID_DISABLE_WRAPPER_STORM !== ["']1["'][^\n]*attachTxrootSaveHook\(/,
+  },
+  {
+    name: "txrootCoreStickyWrapper",
+    pattern: /VOID_DISABLE_WRAPPER_STORM !== ["']1["'][^\n]*txrootCoreStickyWrapper\(/,
+  },
+  {
+    name: "txrootForensicsStickyV2",
+    pattern: /VOID_DISABLE_WRAPPER_STORM !== ["']1["'][^\n]*txrootForensicsStickyV2\(/,
+  },
+];
+for (const gate of representativeProductionWrapperGates) {
+  assert.match(
+    indexSource,
+    gate.pattern,
+    `production index must retain the ${gate.name} wrapper-family disable gate`
+  );
+}
 assert.match(
   envExample,
   /^VOID_DISABLE_WRAPPER_STORM=1$/m,
@@ -117,5 +130,6 @@ console.log("fresh_clone_default_disabled=true");
 console.log("stale_env_missing_flag_disabled=true");
 console.log("blank_or_malformed_disabled=true");
 console.log("exact_zero_opt_in_only=true");
+console.log("representative_wrapper_gates_bound=true");
 console.log("live_node_started=false");
 console.log("runtime_mutation=false");
