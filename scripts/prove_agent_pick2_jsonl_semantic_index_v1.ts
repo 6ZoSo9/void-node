@@ -12,6 +12,42 @@ const SOURCE_MARKER = "VOID_AGENT_PICK2_JSONL_SEMANTIC_INDEX_V1";
 const sourcePath = path.resolve("src/index.ts");
 const source = fs.readFileSync(sourcePath, "utf8");
 
+const moduleSourcePath = path.resolve(
+  "src/http/agent_pick2_jsonl_semantic_index_v1.ts",
+);
+const moduleSource = fs.readFileSync(moduleSourcePath, "utf8");
+const appendHelperStart = moduleSource.indexOf(
+  "export function appendAgentPick2JsonlCanonicalV1(",
+);
+const appendHelperEnd = moduleSource.indexOf(
+  "\nfunction parseEntryV1(",
+  appendHelperStart,
+);
+assert.notEqual(appendHelperStart, -1, "canonical append helper missing");
+assert.notEqual(appendHelperEnd, -1, "canonical append helper end missing");
+const appendHelperSource = moduleSource.slice(
+  appendHelperStart,
+  appendHelperEnd,
+);
+assert.equal(
+  appendHelperSource.includes("readSync("),
+  false,
+  "ordinary canonical append rereads historical ledger bytes",
+);
+assert.equal(
+  appendHelperSource.includes("createHash("),
+  false,
+  "ordinary canonical append hashes historical ledger bytes",
+);
+assert.ok(
+  moduleSource.includes("acquireCanonicalAppendLockV1(file)"),
+  "canonical append cross-process lock is missing",
+);
+assert.ok(
+  moduleSource.includes("seedCanonicalWriterStateV1(file, after)"),
+  "canonical writer generation state is not advanced after append",
+);
+
 assert.ok(
   source.includes(
     'import { AgentPick2JsonlSemanticIndexV1, appendAgentPick2JsonlCanonicalV1 } from "./http/agent_pick2_jsonl_semantic_index_v1.js"; // VOID_AGENT_PICK2_JSONL_SEMANTIC_INDEX_V1_IMPORT',
@@ -541,7 +577,7 @@ try {
   );
 
   // The append witness creator must not bless a concurrent same-inode rewrite
-  // that happens after its before-state digest but before the O_APPEND write.
+  // that happens after its trusted before-state check but before the O_APPEND write.
   const witnessRaceRoot = path.join(root, "append-witness-race");
   const witnessRaceAgent = path.join(witnessRaceRoot, "agent");
   const witnessRaceV1 = path.join(witnessRaceRoot, "agent_v1");
@@ -609,7 +645,7 @@ try {
       JSON.stringify(appended) + "\n",
       {
         testHooks: {
-          afterBeforeDigest() {
+          afterTrustedBefore() {
             hookRan = true;
             rewriteSameInodeExactSize(file, replacement, oldSize);
           },
@@ -711,7 +747,9 @@ try {
   console.log("coherent_single_fd_scan=true");
   console.log("mid_scan_path_replacement_retried=true");
   console.log("canonical_append_witness_required=true");
-  console.log("append_witness_prefix_continuity_sha256=true");
+  console.log("canonical_append_cross_process_lock=true");
+  console.log("canonical_append_historical_bytes_read=0");
+  console.log("canonical_mutation_generation_contract=true");
   console.log("append_witness_concurrent_same_inode_rewrite_rejected=true");
   console.log("historical_jsonl_reread_per_pick=false");
   console.log("live_runtime_mutation_performed=false");
