@@ -29,6 +29,15 @@ function parseVersion(v){const m=String(v).match(/^(\d+)\.(\d+)\.(\d+)(?:-([0-9A
 function compareVersion(a,b){const A=parseVersion(a),B=parseVersion(b);if(!A||!B)fail(`versions must be semver-compatible: ${a} / ${b}`);for(let i=0;i<3;i++){if(A.core[i]!==B.core[i])return A.core[i]<B.core[i]?-1:1;}if(A.pre===B.pre)return 0;if(!A.pre)return 1;if(!B.pre)return -1;return A.pre<B.pre?-1:1;}
 function ensureSafeName(n){if(typeof n!=="string"||!n||n.includes("/")||n.includes("\\")||n==="."||n==="..")fail(`unsafe asset name: ${n}`);return n;}
 function testLoopbackHttpAllowed(u,allowFile){return allowFile&&process.env.VOID_NODE_UPDATE_TEST_ALLOW_HTTP_LOOPBACK==="1"&&u.protocol==="http:"&&(u.hostname==="127.0.0.1"||u.hostname==="localhost");}
+function testOnlyAttestationSourceAllowed(value,allowFile){
+  if(!allowFile||typeof value!=="string"||!value)return false;
+  let u;try{u=new URL(value);}catch{u=pathToFileURL(path.resolve(value));}
+  return u.protocol==="file:"||testLoopbackHttpAllowed(u,allowFile);
+}
+function testAttestationBypassAllowed(o,channel){
+  if(!o.testAllowFile||!o.skipAttestation||!testOnlyAttestationSourceAllowed(o.channel,true))return false;
+  return ["archive","installer","manifest"].every(key=>testOnlyAttestationSourceAllowed(channel.assets?.[key]?.url||"",true));
+}
 function normalizedUrlIdentity(value){const u=new URL(value);u.hash="";return u.href;}
 function declaredResponseBytes(response,label){
   const raw=response.headers.get("content-length");if(raw===null)return null;
@@ -232,11 +241,13 @@ async function main(){
   if(o.command==="help"||o.command==="--help"||o.command==="-h"){
     say(`VOID node verified release updater\n\n  void-node update check --channel URL\n  void-node update apply --channel URL --yes [--allow-candidate] [--restart-if-running] [--health-url URL]\n  void-node update rollback\n\nStable apply rejects downgrades, verifies SHA-256 and GitHub attestations, never starts a stopped service, and rolls back after a failed explicit health gate.`);return;
   }
-  if(o.command==="apply"&&o.skipAttestation&&!o.testAllowFile)fail("--skip-attestation is test-only; pass --test-allow-file");
   if(recoverRollbackTransaction(installRoot))fail("recovered interrupted rollback; re-run the requested command",2);requireCleanRollbackState(installRoot);
   if(o.command==="rollback"){const active=managerAvailable()&&childProcess.spawnSync("systemctl",["--user","is-active","--quiet","void-node.service"]).status===0;swapRollback(installRoot,active,o.testAllowFile);return;}
   if(!o.channel)fail("--channel is required");
-  const raw=await readSource(o.channel,o.testAllowFile);const channel=validateChannel(JSON.parse(raw.toString("utf8")),o.testAllowFile);const cur=currentInfo(installRoot);const cmp=compareVersion(channel.release.version,cur.version);
+  if(o.command==="apply"&&o.skipAttestation&&!o.testAllowFile)fail("--skip-attestation is test-only; pass --test-allow-file");
+  if(o.command==="apply"&&o.skipAttestation&&!testOnlyAttestationSourceAllowed(o.channel,o.testAllowFile))fail("--skip-attestation is allowed only for explicit file/loopback test channels");
+  const raw=await readSource(o.channel,o.testAllowFile);const channel=validateChannel(JSON.parse(raw.toString("utf8")),o.testAllowFile);const testAttestationBypass=testAttestationBypassAllowed(o,channel);const cur=currentInfo(installRoot);const cmp=compareVersion(channel.release.version,cur.version);
+  if(o.command==="apply"&&o.skipAttestation&&!testAttestationBypass)fail("--skip-attestation requires explicit file/loopback test channel and attested assets");
   say(`marker=${MARKER}`);say(`channel=${channel.channel}`);say(`current_version=${cur.version}`);say(`available_version=${channel.release.version}`);say(`update_available=${cmp>0}`);say(`downgrade=${cmp<0}`);say(`release_immutable=${channel.publication?.release_immutable===true}`);say(`release_revoked=${channel.publication?.revoked===true}`);say(`channel_frozen=${channel.policy?.channel_frozen===true}`);say("service_started_implicitly=false");say("guarded_lanes_activated=false");
   if(o.command==="check")return;
   if(o.command!=="apply")fail(`unknown command: ${o.command}`);
@@ -251,7 +262,7 @@ async function main(){
     for(const [key,a] of Object.entries(channel.assets))await downloadAsset(a,path.join(tmp,a.name),o.testAllowFile);
     const sums=fs.readFileSync(path.join(tmp,channel.assets.checksums.name),"utf8");
     for(const key of ["archive","installer","manifest","sbom"]){const a=channel.assets[key];const line=`${a.sha256}  ${a.name}`;if(!sums.split(/\r?\n/).includes(line))fail(`SHA256SUMS does not bind ${a.name}`);}
-    if(channel.verification.github_attestation_required&&!o.testAllowFile){
+    if(channel.verification.github_attestation_required&&!testAttestationBypass){
       if(!commandExists("gh"))fail("GitHub CLI is required to verify release attestations");
       for(const key of ["archive","installer","manifest"]){run("gh",["attestation","verify",path.join(tmp,channel.assets[key].name),"--repo",channel.verification.attestation_repository]);}
     }
