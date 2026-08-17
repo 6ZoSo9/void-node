@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { existsSync, readFileSync } from "node:fs";
+import { readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { isIP } from "node:net";
@@ -296,7 +296,6 @@ async function main() {
       account: { type: "string" },
       "select-base": { type: "string" },
       "health-timeout-ms": { type: "string", default: "5000" },
-      "client-tool": { type: "string", default: DEFAULT_CLIENT },
       "state-dir": { type: "string" },
       "dataset-url-template": { type: "string" },
       help: { type: "boolean", short: "h", default: false },
@@ -312,8 +311,7 @@ async function main() {
   if (!validAccount(values.account)) throw new Error("--account must match [A-Za-z0-9._:-]{1,128}");
   const timeoutMs = Number(values["health-timeout-ms"]);
   if (!Number.isInteger(timeoutMs) || timeoutMs < 250 || timeoutMs > 30000) throw new Error("--health-timeout-ms must be an integer between 250 and 30000");
-  const client = resolve(values["client-tool"]);
-  if (!existsSync(client)) throw new Error(`no-node client not found: ${values["client-tool"]}`);
+  const client = DEFAULT_CLIENT;
   if (values["dataset-url-template"]) {
     const t = values["dataset-url-template"];
     if (!t.includes("{dataset_id}")) throw new Error("--dataset-url-template must contain {dataset_id}");
@@ -361,6 +359,8 @@ async function main() {
       selected_candidate_reverified_via_canonical_status_contract: true,
       canonical_status_path: STATUS_ROUTE,
       canonical_status_fixed_award_wc: FIXED_AWARD_WC,
+      canonical_client_path: DEFAULT_CLIENT,
+      canonical_client_override_allowed: false,
       client_executed: false,
       identity_created: false,
       mutation_attempted: false,
