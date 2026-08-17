@@ -89,6 +89,7 @@ async function fixture(mode, fixedAwardWc = 3, options = {}) {
         public_claim: {
           marker: "VOID_WC_PUBLIC_TICKET_CLAIM_V1",
           enabled: mode !== "hold",
+          available: mode !== "hold",
           method: "POST",
           public_route: CLAIM_ROUTE,
           fixed_award_wc: omitAward ? undefined : fixedAwardWc,
@@ -160,6 +161,7 @@ try {
   assert.equal(body.public_claim.marker, "VOID_WC_PUBLIC_TICKET_CLAIM_V1");
   assert.equal(body.public_claim.configured, true);
   assert.equal(body.public_claim.enabled, true);
+  assert.equal(body.public_claim.available, true);
   assert.equal(body.public_claim.method, "POST");
   assert.equal(body.public_claim.path, CLAIM_ROUTE);
   assert.equal(body.public_claim.proof_of_executor_key_possession_required, true);
@@ -277,6 +279,7 @@ try {
   assert.equal(normalBody.opportunity_state, "hold");
   assert.equal(normalBody.pilot.coordinator_enabled, false);
   assert.equal(normalBody.public_claim.enabled, false);
+  assert.equal(normalBody.public_claim.available, false);
   assert.equal(normalBody.safety.mutation_attempted, false);
 
   const required = await run([
@@ -302,6 +305,7 @@ try {
   assert.match(normalBody.reason, /public_claim_award_boundary_unconfirmed/u);
   assert.equal(normalBody.pilot.coordinator_enabled, true);
   assert.equal(normalBody.public_claim.enabled, true);
+  assert.equal(normalBody.public_claim.available, true);
   assert.equal(normalBody.safety.public_claim_route_no_direct_award, false);
   assert.equal(normalBody.safety.public_award_boundary_confirmed, false);
   assert.equal(normalBody.safety.public_award_boundary_safe, false);
