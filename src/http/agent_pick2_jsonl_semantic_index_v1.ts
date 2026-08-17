@@ -5,6 +5,9 @@ import path from "node:path";
 export const VOID_AGENT_PICK2_JSONL_SEMANTIC_INDEX_V1 =
   "VOID_AGENT_PICK2_JSONL_SEMANTIC_INDEX_V1";
 
+export const VOID_AGENT_PICK2_JSONL_MAX_RECORD_BYTES_V1 = 1024 * 1024;
+export const VOID_AGENT_PICK2_JSONL_MAX_TAIL_SCAN_BYTES_V1 = 32 * 1024 * 1024;
+
 type JsonlEntryV1 = {
   raw: string;
   parsed: any | null;
@@ -214,6 +217,12 @@ type AppendWriterTestHooksV1 = {
     before: FileStampV1;
     trusted_generation: boolean;
   }) => void;
+  afterIsolatedTrusted?: (ctx: {
+    file: string;
+    before: FileStampV1;
+    isolated_path: string;
+    trusted_generation: boolean;
+  }) => void;
 };
 
 type CanonicalAppendLockV1 = {
@@ -313,6 +322,49 @@ function releaseCanonicalAppendLockV1(lock: CanonicalAppendLockV1) {
   }
 }
 
+let canonicalAppendNonceV1 = 0;
+
+function sameDataStampV1(a: FileStampV1, b: FileStampV1): boolean {
+  return (
+    sameObjectV1(a, b) &&
+    a.size === b.size &&
+    a.mtimeNs === b.mtimeNs
+  );
+}
+
+function uniqueRuntimeSiblingV1(file: string, label: string): string {
+  const key = fileKeyV1(file);
+  canonicalAppendNonceV1 += 1;
+  return `${key}.void-pick2-${label}-${process.pid}-${canonicalAppendNonceV1}`;
+}
+
+function recordTooLargeV1(file: string, kind: string, bytes: number): never {
+  throw new Error(
+    `VOID_AGENT_PICK2_JSONL_RECORD_TOO_LARGE file=${file} kind=${kind} bytes=${bytes} max=${VOID_AGENT_PICK2_JSONL_MAX_RECORD_BYTES_V1}`,
+  );
+}
+
+function unterminatedRecordV1(file: string, kind: string): never {
+  throw new Error(
+    `VOID_AGENT_PICK2_JSONL_UNTERMINATED_RECORD file=${file} kind=${kind}`,
+  );
+}
+
+function tailScanWindowExceededV1(file: string, kind: string, bytes: number): never {
+  throw new Error(
+    `VOID_AGENT_PICK2_JSONL_TAIL_SCAN_WINDOW_EXCEEDED file=${file} kind=${kind} bytes=${bytes} max=${VOID_AGENT_PICK2_JSONL_MAX_TAIL_SCAN_BYTES_V1}`,
+  );
+}
+
+function assertCanonicalRecordBytesV1(file: string, bytes: Buffer) {
+  if (bytes.length === 0 || bytes[bytes.length - 1] !== 0x0a) {
+    unterminatedRecordV1(file, "canonical_append");
+  }
+  if (bytes.length - 1 > VOID_AGENT_PICK2_JSONL_MAX_RECORD_BYTES_V1) {
+    recordTooLargeV1(file, "canonical_append", bytes.length - 1);
+  }
+}
+
 export function appendAgentPick2JsonlCanonicalV1(
   file: string,
   data: string | Buffer,
@@ -323,9 +375,28 @@ export function appendAgentPick2JsonlCanonicalV1(
   } = {},
 ): { witnessed: boolean; before: FileStampV1; after: FileStampV1 } {
   const bytes = Buffer.isBuffer(data) ? data : Buffer.from(String(data), "utf8");
+  assertCanonicalRecordBytesV1(file, bytes);
+
   const key = fileKeyV1(file);
   const lock = acquireCanonicalAppendLockV1(file);
   let fd: number | null = null;
+  let isolatedPath = "";
+  let canonicalRestored = true;
+  let trustedGeneration = false;
+  let before = emptyStampV1();
+
+  const restoreIsolated = () => {
+    if (!isolatedPath || canonicalRestored) return;
+    const conflict = statV1(file);
+    if (conflict) {
+      const quarantine = uniqueRuntimeSiblingV1(file, "noncanonical-quarantine");
+      fs.renameSync(file, quarantine);
+      canonicalWriterStatesV1.delete(key);
+      trustedGeneration = false;
+    }
+    fs.renameSync(isolatedPath, file);
+    canonicalRestored = true;
+  };
 
   try {
     fd = fs.openSync(
@@ -337,7 +408,7 @@ export function appendAgentPick2JsonlCanonicalV1(
       opts.mode ?? 0o666,
     );
 
-    const before = fstatV1(fd);
+    before = fstatV1(fd);
     const pathBefore = statV1(file);
     if (!pathBefore || !sameStampV1(before, pathBefore)) {
       canonicalWriterStatesV1.delete(key);
@@ -347,9 +418,7 @@ export function appendAgentPick2JsonlCanonicalV1(
     }
 
     const trusted = canonicalWriterStatesV1.get(key);
-    let trustedGeneration =
-      !!trusted &&
-      sameStampV1(trusted.stamp, before);
+    trustedGeneration = !!trusted && sameStampV1(trusted.stamp, before);
 
     opts.testHooks?.afterTrustedBefore?.({
       file,
@@ -357,17 +426,52 @@ export function appendAgentPick2JsonlCanonicalV1(
       trusted_generation: trustedGeneration,
     });
 
-    const immediatelyBeforeWrite = fstatV1(fd);
-    const pathImmediatelyBeforeWrite = statV1(file);
+    const immediatelyBeforeIsolation = fstatV1(fd);
+    const pathImmediatelyBeforeIsolation = statV1(file);
     if (
-      !sameStampV1(before, immediatelyBeforeWrite) ||
-      !pathImmediatelyBeforeWrite ||
-      !sameStampV1(immediatelyBeforeWrite, pathImmediatelyBeforeWrite)
+      !sameStampV1(before, immediatelyBeforeIsolation) ||
+      !pathImmediatelyBeforeIsolation ||
+      !sameStampV1(immediatelyBeforeIsolation, pathImmediatelyBeforeIsolation)
     ) {
       trustedGeneration = false;
       canonicalWriterStatesV1.delete(key);
     }
 
+    if (trustedGeneration) {
+      isolatedPath = uniqueRuntimeSiblingV1(file, "isolated");
+      fs.renameSync(file, isolatedPath);
+      canonicalRestored = false;
+
+      const isolatedFdStamp = fstatV1(fd);
+      const isolatedPathStamp = statV1(isolatedPath);
+      if (
+        !isolatedPathStamp ||
+        !sameStampV1(isolatedFdStamp, isolatedPathStamp) ||
+        !sameDataStampV1(immediatelyBeforeIsolation, isolatedFdStamp)
+      ) {
+        trustedGeneration = false;
+        canonicalWriterStatesV1.delete(key);
+      }
+
+      const finalPrewriteFd = fstatV1(fd);
+      const finalPrewritePath = statV1(isolatedPath);
+      if (
+        !finalPrewritePath ||
+        !sameStampV1(finalPrewriteFd, finalPrewritePath)
+      ) {
+        trustedGeneration = false;
+        canonicalWriterStatesV1.delete(key);
+      }
+
+      opts.testHooks?.afterIsolatedTrusted?.({
+        file,
+        before,
+        isolated_path: isolatedPath,
+        trusted_generation: trustedGeneration,
+      });
+    }
+
+    const writeBase = fstatV1(fd);
     let off = 0;
     while (off < bytes.length) {
       const n = fs.writeSync(fd, bytes, off, bytes.length - off, null);
@@ -376,12 +480,13 @@ export function appendAgentPick2JsonlCanonicalV1(
     }
     if (opts.durable) fs.fdatasyncSync(fd);
 
+    if (isolatedPath) restoreIsolated();
+
     const after = fstatV1(fd);
     const pathAfter = statV1(file);
-    const expectedSize = immediatelyBeforeWrite.size + bytes.length;
     const stableAfter =
-      sameObjectV1(immediatelyBeforeWrite, after) &&
-      after.size === expectedSize &&
+      sameObjectV1(writeBase, after) &&
+      after.size === writeBase.size + bytes.length &&
       !!pathAfter &&
       sameStampV1(after, pathAfter);
 
@@ -389,6 +494,7 @@ export function appendAgentPick2JsonlCanonicalV1(
       seedCanonicalWriterStateV1(file, after);
     } else {
       canonicalWriterStatesV1.delete(key);
+      trustedGeneration = false;
     }
 
     const witnessed = trustedGeneration && stableAfter;
@@ -403,8 +509,12 @@ export function appendAgentPick2JsonlCanonicalV1(
 
     return { witnessed, before, after };
   } finally {
-    if (fd !== null) fs.closeSync(fd);
-    releaseCanonicalAppendLockV1(lock);
+    try {
+      restoreIsolated();
+    } finally {
+      if (fd !== null) fs.closeSync(fd);
+      releaseCanonicalAppendLockV1(lock);
+    }
   }
 }
 
@@ -593,7 +703,6 @@ export class AgentPick2JsonlSemanticIndexV1 {
     let pos = Math.max(0, start);
     const end = Math.max(pos, endExclusive);
     let carry = Buffer.alloc(0);
-    let endedWithNewline = true;
     let chunkIndex = 0;
 
     while (pos < end) {
@@ -608,23 +717,29 @@ export class AgentPick2JsonlSemanticIndexV1 {
       );
       if (!chunk.length) break;
       pos += chunk.length;
+
       const data = carry.length ? Buffer.concat([carry, chunk]) : chunk;
       let from = 0;
       for (let i = 0; i < data.length; i++) {
         if (data[i] !== 0x0a) continue;
-        const raw = data.subarray(from, i).toString("utf8");
-        if (raw.trim()) onLine(parseEntryV1(raw));
+        const lineBytes = i - from;
+        if (lineBytes > VOID_AGENT_PICK2_JSONL_MAX_RECORD_BYTES_V1) {
+          recordTooLargeV1(file, kind, lineBytes);
+        }
+        if (lineBytes > 0) {
+          const raw = data.subarray(from, i).toString("utf8");
+          if (raw.trim()) onLine(parseEntryV1(raw));
+        }
         from = i + 1;
       }
       carry = data.subarray(from);
+      if (carry.length > VOID_AGENT_PICK2_JSONL_MAX_RECORD_BYTES_V1) {
+        recordTooLargeV1(file, kind, carry.length);
+      }
     }
 
-    if (carry.length) {
-      const raw = carry.toString("utf8");
-      if (raw.trim()) onLine(parseEntryV1(raw));
-      endedWithNewline = false;
-    }
-    return endedWithNewline;
+    if (carry.length) unterminatedRecordV1(file, kind);
+    return true;
   }
 
   private rebuildCompletion(file: string) {
@@ -729,22 +844,6 @@ export class AgentPick2JsonlSemanticIndexV1 {
     return this.rebuildCompletion(file);
   }
 
-  private decodeTailBuffer(
-    buffer: Buffer,
-    startsAtZero: boolean,
-  ): JsonlEntryV1[] {
-    let text = buffer.toString("utf8");
-    if (!startsAtZero) {
-      const firstLf = text.indexOf("\n");
-      if (firstLf < 0) return [];
-      text = text.slice(firstLf + 1);
-    }
-    return text
-      .split("\n")
-      .filter((line) => line.trim().length > 0)
-      .map(parseEntryV1);
-  }
-
   private rebuildTail(
     file: string,
     maxRaw: number,
@@ -754,34 +853,98 @@ export class AgentPick2JsonlSemanticIndexV1 {
     this.noteRebuild(kind);
 
     const stable = this.stableRead(file, kind, (fd, stamp) => {
-      let start = stamp.size;
-      let buffer = Buffer.alloc(0);
-      let entries: JsonlEntryV1[] = [];
-      let chunkIndex = 0;
+      if (stamp.size === 0) {
+        return {
+          rawTail: [] as JsonlEntryV1[],
+          validTail: [] as any[],
+          endedWithNewline: true,
+        };
+      }
 
-      while (start > 0) {
-        const nextStart = Math.max(0, start - this.chunkBytes);
+      const last = this.readRangeFd(
+        fd,
+        file,
+        stamp.size - 1,
+        1,
+        kind,
+        0,
+      );
+      if (last.length !== 1 || last[0] !== 0x0a) {
+        unterminatedRecordV1(file, kind);
+      }
+
+      let pos = stamp.size;
+      let suffix = Buffer.alloc(0);
+      const reverseEntries: JsonlEntryV1[] = [];
+      let validCount = 0;
+      let bytesScanned = 0;
+      let chunkIndex = 1;
+      const requiredValid = Math.min(maxValid, maxRaw);
+      const enough = () =>
+        reverseEntries.length >= maxRaw && validCount >= requiredValid;
+
+      while (pos > 0 && !enough()) {
+        const budget = VOID_AGENT_PICK2_JSONL_MAX_TAIL_SCAN_BYTES_V1 - bytesScanned;
+        if (budget <= 0) {
+          tailScanWindowExceededV1(file, kind, bytesScanned);
+        }
+        const want = Math.min(this.chunkBytes, pos, budget);
+        const nextStart = pos - want;
         const chunk = this.readRangeFd(
           fd,
           file,
           nextStart,
-          start - nextStart,
+          want,
           kind,
           chunkIndex++,
         );
-        buffer = buffer.length ? Buffer.concat([chunk, buffer]) : chunk;
-        start = nextStart;
-        entries = this.decodeTailBuffer(buffer, start === 0);
-        const validCount = entries.reduce(
-          (n, entry) => n + (entry.parsed ? 1 : 0),
-          0,
-        );
-        if (
-          entries.length >= maxRaw &&
-          validCount >= Math.min(maxValid, maxRaw)
-        ) break;
+        bytesScanned += chunk.length;
+        const data = suffix.length ? Buffer.concat([chunk, suffix]) : chunk;
+        let end = data.length;
+
+        for (let i = data.length - 1; i >= 0; i--) {
+          if (data[i] !== 0x0a) continue;
+          const lineStart = i + 1;
+          const lineBytes = end - lineStart;
+          if (lineBytes > VOID_AGENT_PICK2_JSONL_MAX_RECORD_BYTES_V1) {
+            recordTooLargeV1(file, kind, lineBytes);
+          }
+          if (lineBytes > 0) {
+            const raw = data.subarray(lineStart, end).toString("utf8");
+            if (raw.trim()) {
+              const entry = parseEntryV1(raw);
+              reverseEntries.push(entry);
+              if (entry.parsed) validCount += 1;
+              if (enough()) break;
+            }
+          }
+          end = i;
+        }
+
+        suffix = data.subarray(0, end);
+        if (suffix.length > VOID_AGENT_PICK2_JSONL_MAX_RECORD_BYTES_V1) {
+          recordTooLargeV1(file, kind, suffix.length);
+        }
+        pos = nextStart;
       }
 
+      if (pos === 0 && suffix.length && !enough()) {
+        if (suffix.length > VOID_AGENT_PICK2_JSONL_MAX_RECORD_BYTES_V1) {
+          recordTooLargeV1(file, kind, suffix.length);
+        }
+        const raw = suffix.toString("utf8");
+        if (raw.trim()) {
+          const entry = parseEntryV1(raw);
+          reverseEntries.push(entry);
+          if (entry.parsed) validCount += 1;
+        }
+      }
+
+      if (!enough() && pos > 0) {
+        tailScanWindowExceededV1(file, kind, bytesScanned);
+      }
+
+      const entries = reverseEntries.reverse();
       const rawTail = entries.slice(-maxRaw);
       const validTail = maxValid > 0
         ? entries
@@ -790,19 +953,7 @@ export class AgentPick2JsonlSemanticIndexV1 {
             .slice(-maxValid)
         : [];
 
-      let endedWithNewline = true;
-      if (stamp.size > 0) {
-        endedWithNewline =
-          this.readRangeFd(
-            fd,
-            file,
-            stamp.size - 1,
-            1,
-            kind,
-            chunkIndex,
-          )[0] === 0x0a;
-      }
-      return { rawTail, validTail, endedWithNewline };
+      return { rawTail, validTail, endedWithNewline: true };
     });
 
     if (!stable) {
@@ -917,10 +1068,23 @@ export class AgentPick2JsonlSemanticIndexV1 {
 
     const stable = this.stableRead(file, kind, (fd, stamp) => {
       const entries: JsonlEntryV1[] = [];
-      let endedWithNewline = true;
       let pos = 0;
       let carry = Buffer.alloc(0);
       let chunkIndex = 0;
+
+      if (stamp.size > 0) {
+        const last = this.readRangeFd(
+          fd,
+          file,
+          stamp.size - 1,
+          1,
+          kind,
+          chunkIndex++,
+        );
+        if (last.length !== 1 || last[0] !== 0x0a) {
+          unterminatedRecordV1(file, kind);
+        }
+      }
 
       outer: while (pos < stamp.size && entries.length < maxRaw) {
         const want = Math.min(this.chunkBytes, stamp.size - pos);
@@ -938,8 +1102,14 @@ export class AgentPick2JsonlSemanticIndexV1 {
         let from = 0;
         for (let i = 0; i < data.length; i++) {
           if (data[i] !== 0x0a) continue;
-          const raw = data.subarray(from, i).toString("utf8");
-          if (raw.trim()) entries.push(parseEntryV1(raw));
+          const lineBytes = i - from;
+          if (lineBytes > VOID_AGENT_PICK2_JSONL_MAX_RECORD_BYTES_V1) {
+            recordTooLargeV1(file, kind, lineBytes);
+          }
+          if (lineBytes > 0) {
+            const raw = data.subarray(from, i).toString("utf8");
+            if (raw.trim()) entries.push(parseEntryV1(raw));
+          }
           from = i + 1;
           if (entries.length >= maxRaw) {
             carry = Buffer.alloc(0);
@@ -947,25 +1117,16 @@ export class AgentPick2JsonlSemanticIndexV1 {
           }
         }
         carry = data.subarray(from);
+        if (carry.length > VOID_AGENT_PICK2_JSONL_MAX_RECORD_BYTES_V1) {
+          recordTooLargeV1(file, kind, carry.length);
+        }
       }
 
-      if (entries.length < maxRaw && carry.length) {
-        const raw = carry.toString("utf8");
-        if (raw.trim()) entries.push(parseEntryV1(raw));
-        endedWithNewline = false;
-      } else if (stamp.size > 0 && entries.length < maxRaw) {
-        endedWithNewline =
-          this.readRangeFd(
-            fd,
-            file,
-            stamp.size - 1,
-            1,
-            kind,
-            chunkIndex,
-          )[0] === 0x0a;
+      if (entries.length < maxRaw && pos >= stamp.size && carry.length) {
+        unterminatedRecordV1(file, kind);
       }
 
-      return { entries, endedWithNewline };
+      return { entries, endedWithNewline: true };
     });
 
     if (!stable) {

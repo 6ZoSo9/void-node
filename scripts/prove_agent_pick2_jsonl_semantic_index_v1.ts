@@ -5,6 +5,8 @@ import assert from "node:assert/strict";
 import {
   AgentPick2JsonlSemanticIndexV1,
   VOID_AGENT_PICK2_JSONL_SEMANTIC_INDEX_V1,
+  VOID_AGENT_PICK2_JSONL_MAX_RECORD_BYTES_V1,
+  VOID_AGENT_PICK2_JSONL_MAX_TAIL_SCAN_BYTES_V1,
   appendAgentPick2JsonlCanonicalV1,
 } from "../src/http/agent_pick2_jsonl_semantic_index_v1.js";
 
@@ -46,6 +48,32 @@ assert.ok(
 assert.ok(
   moduleSource.includes("seedCanonicalWriterStateV1(file, after)"),
   "canonical writer generation state is not advanced after append",
+);
+
+assert.ok(
+  moduleSource.includes("VOID_AGENT_PICK2_JSONL_MAX_RECORD_BYTES_V1"),
+  "semantic index does not define a hard JSONL record ceiling",
+);
+assert.ok(
+  moduleSource.includes("VOID_AGENT_PICK2_JSONL_MAX_TAIL_SCAN_BYTES_V1"),
+  "semantic index does not define a bounded tail scan window",
+);
+assert.equal(
+  moduleSource.includes("Buffer.concat([chunk, buffer])"),
+  false,
+  "tail rebuild still contains unbounded prepend-concat growth",
+);
+assert.ok(
+  appendHelperSource.includes("fs.renameSync(file, isolatedPath)"),
+  "canonical append does not isolate the trusted inode before writing",
+);
+assert.ok(
+  appendHelperSource.includes("afterIsolatedTrusted"),
+  "late prewrite isolation hook is missing",
+);
+assert.ok(
+  appendHelperSource.includes("noncanonical-quarantine"),
+  "racing noncanonical same-path mutations are not quarantined",
 );
 
 assert.ok(
@@ -137,6 +165,26 @@ function writeJsonl(
 
 function appendJsonl(file: string, row: Record<string, unknown>) {
   appendAgentPick2JsonlCanonicalV1(file, JSON.stringify(row) + "\n");
+}
+
+function writeExactSizePath(
+  file: string,
+  row: Record<string, unknown>,
+  exactBytes: number,
+) {
+  const target = Math.max(1, Math.floor(exactBytes));
+  const line = JSON.stringify(row) + "\n";
+  const lineBytes = Buffer.byteLength(line);
+  assert.ok(lineBytes + 1 <= target);
+  const body = line + " ".repeat(target - lineBytes - 1) + "\n";
+  assert.equal(Buffer.byteLength(body), target);
+  fs.mkdirSync(path.dirname(file), { recursive: true });
+  fs.writeFileSync(file, body, "utf8");
+}
+
+function writeRaw(file: string, body: string | Buffer) {
+  fs.mkdirSync(path.dirname(file), { recursive: true });
+  fs.writeFileSync(file, body);
 }
 
 function rewriteSameInodeLarger(
@@ -727,6 +775,193 @@ try {
     "append witness race did not force coherent rebuilds",
   );
 
+
+  // A direct same-path writer that races after the final isolated validation
+  // cannot mutate the trusted inode. Its replacement file is quarantined and
+  // the helper declines an append witness so the next snapshot rebuilds.
+  const lateRoot = path.join(root, "late-same-path-race");
+  const lateAgent = path.join(lateRoot, "agent");
+  const lateV1 = path.join(lateRoot, "agent_v1");
+  const lJobs = path.join(lateAgent, "jobs.jsonl");
+  const lResults = path.join(lateAgent, "results.jsonl");
+  const lLeases = path.join(lateAgent, "leases.jsonl");
+  const lReceipt = path.join(lateAgent, "receipts.jsonl");
+  const lReceiptV1 = path.join(lateV1, "receipts.jsonl");
+  const lStateV1 = path.join(lateV1, "job_state.jsonl");
+  const lateScanMax = 64;
+
+  writeJsonl(lJobs, 256, (i) => ({ id: `l-old-job-${i}`, status: "queued", ts: now - i }));
+  writeJsonl(lResults, 256, (i) => ({ id: i === 255 ? "l-old-result" : `l-old-result-${i}`, ts: now - i }));
+  writeJsonl(lLeases, 256, (i) => ({ id: i === 255 ? "l-old-active" : `l-old-lease-${i}`, ts: now, worker: "l-old-worker" }));
+  writeJsonl(lReceipt, 256, (i) => ({ id: i === 255 ? "l-old-complete" : `l-old-receipt-${i}`, status: i === 255 ? "completed" : "pending" }));
+  writeJsonl(lReceiptV1, 8, (i) => ({ job_id: `l-v1-${i}`, status: "pending" }));
+  writeJsonl(lStateV1, 8, (i) => ({ job_id: `l-state-${i}`, status: "pending" }));
+
+  const lateIndex = new AgentPick2JsonlSemanticIndexV1({ chunkBytes: 4096 });
+  const lateFirst = lateIndex.snapshot({
+    jobsFile: lJobs,
+    resultsFile: lResults,
+    leasesFile: lLeases,
+    completionFiles: [lReceipt, lReceiptV1, lStateV1],
+    scanMax: lateScanMax,
+    leaseMs: LEASE_MS,
+    nowMs: now,
+  });
+  assert.equal(lateFirst.doneTruthHas("l-old-complete"), true);
+  assert.equal(lateFirst.done.has("l-old-result"), true);
+  assert.equal(lateFirst.active.has("l-old-active"), true);
+  assert.equal(lateFirst.latestRunnableById.has("l-old-job-0"), true);
+
+  function lateSamePathAppend(
+    file: string,
+    replacement: Record<string, unknown>,
+    appended: Record<string, unknown>,
+  ) {
+    const oldSize = fs.statSync(file).size;
+    let hookRan = false;
+    const result = appendAgentPick2JsonlCanonicalV1(
+      file,
+      JSON.stringify(appended) + "\n",
+      {
+        testHooks: {
+          afterIsolatedTrusted() {
+            hookRan = true;
+            writeExactSizePath(file, replacement, oldSize);
+          },
+        },
+      },
+    );
+    assert.equal(hookRan, true, `late isolated hook did not execute for ${file}`);
+    assert.equal(result.witnessed, false, `late same-path race minted witness for ${file}`);
+    const quarantines = fs.readdirSync(path.dirname(file)).filter((name) =>
+      name.includes(`${path.basename(file)}.void-pick2-noncanonical-quarantine-`)
+    );
+    assert.ok(quarantines.length >= 1, `late same-path replacement was not quarantined for ${file}`);
+  }
+
+  lateSamePathAppend(
+    lReceipt,
+    { id: "l-noncanonical-complete", status: "completed" },
+    { id: "l-appended-complete", status: "completed" },
+  );
+  lateSamePathAppend(
+    lResults,
+    { id: "l-noncanonical-result", ts: now + 100 },
+    { id: "l-appended-result", ts: now + 101 },
+  );
+  lateSamePathAppend(
+    lLeases,
+    { id: "l-noncanonical-active", ts: now + 100, worker: "l-bad-worker" },
+    { id: "l-appended-active", ts: now + 101, worker: "l-good-worker" },
+  );
+  lateSamePathAppend(
+    lJobs,
+    { id: "l-noncanonical-job", status: "queued", ts: now + 100 },
+    { id: "l-appended-job", status: "queued", ts: now + 101 },
+  );
+
+  const lateSecond = lateIndex.snapshot({
+    jobsFile: lJobs,
+    resultsFile: lResults,
+    leasesFile: lLeases,
+    completionFiles: [lReceipt, lReceiptV1, lStateV1],
+    scanMax: lateScanMax,
+    leaseMs: LEASE_MS,
+    nowMs: now + 200,
+  });
+  assert.equal(lateSecond.doneTruthHas("l-old-complete"), true);
+  assert.equal(lateSecond.doneTruthHas("l-appended-complete"), true);
+  assert.equal(lateSecond.doneTruthHas("l-noncanonical-complete"), false);
+  assert.equal(lateSecond.done.has("l-old-result"), true);
+  assert.equal(lateSecond.done.has("l-appended-result"), true);
+  assert.equal(lateSecond.done.has("l-noncanonical-result"), false);
+  assert.equal(lateSecond.active.has("l-old-active"), true);
+  assert.equal(lateSecond.active.has("l-appended-active"), true);
+  assert.equal(lateSecond.active.has("l-noncanonical-active"), false);
+  assert.equal(lateSecond.latestRunnableById.has("l-old-job-0"), true);
+  assert.equal(lateSecond.latestRunnableById.has("l-noncanonical-job"), false);
+  assert.ok(
+    lateSecond.io.append_witness_misses_total >= 4,
+    "late same-path races did not force coherent rebuilds",
+  );
+
+  function semanticHoldFixture(
+    label: string,
+    target: "completion" | "results" | "leases" | "jobs",
+    body: string | Buffer,
+    expected: RegExp,
+  ) {
+    const dir = path.join(root, `hold-${label}`);
+    const a = path.join(dir, "agent");
+    const v1 = path.join(dir, "agent_v1");
+    const jobs = path.join(a, "jobs.jsonl");
+    const results = path.join(a, "results.jsonl");
+    const leases = path.join(a, "leases.jsonl");
+    const receipt = path.join(a, "receipts.jsonl");
+    const receiptV1 = path.join(v1, "receipts.jsonl");
+    const stateV1 = path.join(v1, "job_state.jsonl");
+
+    writeJsonl(jobs, 4, (i) => ({ id: `${label}-job-${i}`, status: "queued", ts: now }));
+    writeJsonl(results, 4, (i) => ({ id: `${label}-result-${i}`, ts: now }));
+    writeJsonl(leases, 4, (i) => ({ id: `${label}-lease-${i}`, ts: now - LEASE_MS * 2 }));
+    writeJsonl(receipt, 4, (i) => ({ id: `${label}-receipt-${i}`, status: "pending" }));
+    writeJsonl(receiptV1, 2, (i) => ({ job_id: `${label}-v1-${i}`, status: "pending" }));
+    writeJsonl(stateV1, 2, (i) => ({ job_id: `${label}-state-${i}`, status: "pending" }));
+
+    const targetPath =
+      target === "completion" ? receipt :
+      target === "results" ? results :
+      target === "leases" ? leases : jobs;
+    writeRaw(targetPath, body);
+
+    const holdIndex = new AgentPick2JsonlSemanticIndexV1({ chunkBytes: 4096 });
+    let held = false;
+    try {
+      holdIndex.snapshot({
+        jobsFile: jobs,
+        resultsFile: results,
+        leasesFile: leases,
+        completionFiles: [receipt, receiptV1, stateV1],
+        scanMax: 64,
+        leaseMs: LEASE_MS,
+        nowMs: now,
+      });
+    } catch (err) {
+      held = true;
+      assert.match(String((err as any)?.message || err), expected);
+    }
+    assert.equal(held, true, `${label} did not fail closed`);
+    const readBytes = Number((holdIndex as any).metrics?.bytes_read_total || 0);
+    assert.ok(
+      readBytes <= VOID_AGENT_PICK2_JSONL_MAX_RECORD_BYTES_V1 + 256 * 1024,
+      `${label} read too much before HOLD: ${readBytes}`,
+    );
+  }
+
+  const oversized =
+    JSON.stringify({ id: "oversized", status: "completed", pad: "x".repeat(VOID_AGENT_PICK2_JSONL_MAX_RECORD_BYTES_V1) }) + "\n";
+  for (const target of ["completion", "results", "leases", "jobs"] as const) {
+    semanticHoldFixture(
+      `oversized-${target}`,
+      target,
+      oversized,
+      /VOID_AGENT_PICK2_JSONL_RECORD_TOO_LARGE/,
+    );
+  }
+
+  const unterminated = JSON.stringify({ id: "unterminated", status: "completed" });
+  for (const target of ["completion", "results", "leases", "jobs"] as const) {
+    semanticHoldFixture(
+      `unterminated-${target}`,
+      target,
+      unterminated,
+      /VOID_AGENT_PICK2_JSONL_UNTERMINATED_RECORD/,
+    );
+  }
+
+  assert.equal(VOID_AGENT_PICK2_JSONL_MAX_RECORD_BYTES_V1, 1024 * 1024);
+  assert.equal(VOID_AGENT_PICK2_JSONL_MAX_TAIL_SCAN_BYTES_V1, 32 * 1024 * 1024);
+
   console.log("VOID_AGENT_PICK2_JSONL_SEMANTIC_INDEX_V1_PROOF_GREEN");
   console.log(`marker=${VOID_AGENT_PICK2_JSONL_SEMANTIC_INDEX_V1}`);
   console.log(`source_marker=${SOURCE_MARKER}`);
@@ -751,6 +986,11 @@ try {
   console.log("canonical_append_historical_bytes_read=0");
   console.log("canonical_mutation_generation_contract=true");
   console.log("append_witness_concurrent_same_inode_rewrite_rejected=true");
+  console.log("late_same_path_race_quarantined=true");
+  console.log("oversized_record_hold_all_inputs=true");
+  console.log("unterminated_record_hold_all_inputs=true");
+  console.log("jsonl_max_record_bytes=1048576");
+  console.log("jsonl_max_tail_scan_bytes=33554432");
   console.log("historical_jsonl_reread_per_pick=false");
   console.log("live_runtime_mutation_performed=false");
 } finally {
