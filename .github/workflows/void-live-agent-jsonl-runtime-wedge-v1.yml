@@ -9,6 +9,8 @@ on:
       - "scripts/prove_live_agent_jsonl_runtime_wedge_v1.mjs"
       - "scripts/ci_diff_hygiene_v1.sh"
       - "scripts/prove_ci_diff_hygiene_v1.mjs"
+      - "package.json"
+      - "package-lock.json"
       - ".github/workflows/void-live-agent-jsonl-runtime-wedge-v1.yml"
   push:
     branches:
@@ -20,6 +22,8 @@ on:
       - "scripts/prove_live_agent_jsonl_runtime_wedge_v1.mjs"
       - "scripts/ci_diff_hygiene_v1.sh"
       - "scripts/prove_ci_diff_hygiene_v1.mjs"
+      - "package.json"
+      - "package-lock.json"
       - ".github/workflows/void-live-agent-jsonl-runtime-wedge-v1.yml"
 
 permissions:
@@ -28,6 +32,7 @@ permissions:
 jobs:
   node22:
     runs-on: ubuntu-latest
+    timeout-minutes: 12
     steps:
       - name: Checkout integration state
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
@@ -37,11 +42,14 @@ jobs:
       - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
         with:
           node-version: 22
+      - name: Install behavioral-proof runtime dependencies
+        run: npm ci --no-audit --no-fund
       - run: node scripts/prove_live_agent_jsonl_runtime_wedge_v1.mjs
       - run: node scripts/prove_canonical_producer_legacy_self_http_observers_v1.mjs
 
   node24:
     runs-on: ubuntu-latest
+    timeout-minutes: 12
     steps:
       - name: Checkout integration state
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
@@ -51,6 +59,8 @@ jobs:
       - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
         with:
           node-version: 24
+      - name: Install behavioral-proof runtime dependencies
+        run: npm ci --no-audit --no-fund
       - name: Prove shared diff hygiene contract
         run: node scripts/prove_ci_diff_hygiene_v1.mjs
       - run: node scripts/prove_live_agent_jsonl_runtime_wedge_v1.mjs
@@ -68,6 +78,7 @@ jobs:
 
   node26:
     runs-on: ubuntu-latest
+    timeout-minutes: 12
     steps:
       - name: Checkout integration state
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
@@ -77,5 +88,7 @@ jobs:
       - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
         with:
           node-version: 26
+      - name: Install behavioral-proof runtime dependencies
+        run: npm ci --no-audit --no-fund
       - run: node scripts/prove_live_agent_jsonl_runtime_wedge_v1.mjs
       - run: node scripts/prove_canonical_producer_legacy_self_http_observers_v1.mjs
