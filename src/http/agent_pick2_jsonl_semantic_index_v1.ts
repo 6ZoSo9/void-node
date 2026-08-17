@@ -8,6 +8,10 @@ export const VOID_AGENT_PICK2_JSONL_SEMANTIC_INDEX_V1 =
 export const VOID_AGENT_PICK2_JSONL_MAX_RECORD_BYTES_V1 = 1024 * 1024;
 export const VOID_AGENT_PICK2_JSONL_MAX_TAIL_SCAN_BYTES_V1 = 32 * 1024 * 1024;
 
+const VOID_AGENT_PICK2_JSONL_ISOLATION_RECOVERY_V1 =
+  "VOID_AGENT_PICK2_JSONL_ISOLATION_RECOVERY_V1";
+const VOID_AGENT_PICK2_JSONL_ISOLATION_INTENT_MAX_BYTES_V1 = 4096;
+
 type JsonlEntryV1 = {
   raw: string;
   parsed: any | null;
@@ -223,12 +227,28 @@ type AppendWriterTestHooksV1 = {
     isolated_path: string;
     trusted_generation: boolean;
   }) => void;
+  afterAppendBeforeRestore?: (ctx: {
+    file: string;
+    before: FileStampV1;
+    isolated_path: string;
+    trusted_generation: boolean;
+  }) => void;
 };
 
 type CanonicalAppendLockV1 = {
   key: string;
   path: string;
   fd: number;
+};
+
+type IsolationIntentV1 = {
+  marker: string;
+  version: 1;
+  canonical_basename: string;
+  isolated_basename: string;
+  before: FileStampV1;
+  path: string;
+  isolated_path: string;
 };
 
 const canonicalWriterStatesV1 = new Map<string, CanonicalWriterStateV1>();
@@ -338,6 +358,304 @@ function uniqueRuntimeSiblingV1(file: string, label: string): string {
   return `${key}.void-pick2-${label}-${process.pid}-${canonicalAppendNonceV1}`;
 }
 
+function fsyncParentDirectoryV1(file: string) {
+  const dir = path.dirname(fileKeyV1(file));
+  const fd = fs.openSync(
+    dir,
+    fs.constants.O_RDONLY | ((fs.constants as any).O_DIRECTORY || 0),
+  );
+  try {
+    fs.fsyncSync(fd);
+  } finally {
+    fs.closeSync(fd);
+  }
+}
+
+function isolationIntentPathV1(file: string): string {
+  return `${fileKeyV1(file)}.void-pick2-isolation-recovery-v1.json`;
+}
+
+function exactKeysV1(value: any, expected: string[]): boolean {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  const actual = Object.keys(value).sort();
+  const wanted = [...expected].sort();
+  return actual.length === wanted.length &&
+    actual.every((key, i) => key === wanted[i]);
+}
+
+function validStampValueV1(value: any): value is FileStampV1 {
+  return exactKeysV1(value, ["dev", "ino", "size", "mtimeNs", "ctimeNs"]) &&
+    typeof value.dev === "string" && /^\d+$/.test(value.dev) &&
+    typeof value.ino === "string" && /^\d+$/.test(value.ino) &&
+    Number.isSafeInteger(value.size) && value.size >= 0 &&
+    typeof value.mtimeNs === "string" && /^\d+$/.test(value.mtimeNs) &&
+    typeof value.ctimeNs === "string" && /^\d+$/.test(value.ctimeNs);
+}
+
+function hasIsolationIntentV1(file: string): boolean {
+  try {
+    fs.lstatSync(isolationIntentPathV1(file));
+    return true;
+  } catch (err: any) {
+    if (err?.code === "ENOENT") return false;
+    throw err;
+  }
+}
+
+function readIsolationIntentV1(file: string): IsolationIntentV1 | null {
+  const key = fileKeyV1(file);
+  const intentPath = isolationIntentPathV1(key);
+  let lst: any;
+  try {
+    lst = fs.lstatSync(intentPath, { bigint: true } as any);
+  } catch (err: any) {
+    if (err?.code === "ENOENT") return null;
+    throw err;
+  }
+  if (!lst.isFile() || lst.isSymbolicLink()) {
+    throw new Error(
+      `VOID_AGENT_PICK2_JSONL_ISOLATION_INTENT_NON_REGULAR file=${file}`,
+    );
+  }
+  const size = Number(lst.size);
+  if (
+    !Number.isSafeInteger(size) ||
+    size <= 0 ||
+    size > VOID_AGENT_PICK2_JSONL_ISOLATION_INTENT_MAX_BYTES_V1
+  ) {
+    throw new Error(
+      `VOID_AGENT_PICK2_JSONL_ISOLATION_INTENT_SIZE file=${file} bytes=${size}`,
+    );
+  }
+
+  const fd = fs.openSync(
+    intentPath,
+    fs.constants.O_RDONLY | ((fs.constants as any).O_NOFOLLOW || 0),
+  );
+  let raw: Buffer;
+  try {
+    const opened = fstatV1(fd);
+    const listed = stampFromStatsV1(lst);
+    if (!sameStampV1(opened, listed)) {
+      throw new Error(
+        `VOID_AGENT_PICK2_JSONL_ISOLATION_INTENT_UNSTABLE file=${file}`,
+      );
+    }
+    raw = Buffer.alloc(size);
+    let off = 0;
+    while (off < raw.length) {
+      const n = fs.readSync(fd, raw, off, raw.length - off, off);
+      if (n <= 0) break;
+      off += n;
+    }
+    if (off !== raw.length) {
+      throw new Error(
+        `VOID_AGENT_PICK2_JSONL_ISOLATION_INTENT_SHORT_READ file=${file}`,
+      );
+    }
+  } finally {
+    fs.closeSync(fd);
+  }
+
+  let parsed: any;
+  try {
+    parsed = JSON.parse(raw.toString("utf8"));
+  } catch {
+    throw new Error(
+      `VOID_AGENT_PICK2_JSONL_ISOLATION_INTENT_MALFORMED file=${file}`,
+    );
+  }
+  if (!exactKeysV1(parsed, [
+    "marker",
+    "version",
+    "canonical_basename",
+    "isolated_basename",
+    "before",
+  ])) {
+    throw new Error(
+      `VOID_AGENT_PICK2_JSONL_ISOLATION_INTENT_SHAPE file=${file}`,
+    );
+  }
+  const canonicalBase = path.basename(key);
+  const isolatedBase = String(parsed.isolated_basename || "");
+  if (
+    parsed.marker !== VOID_AGENT_PICK2_JSONL_ISOLATION_RECOVERY_V1 ||
+    parsed.version !== 1 ||
+    parsed.canonical_basename !== canonicalBase ||
+    path.basename(isolatedBase) !== isolatedBase ||
+    !isolatedBase.startsWith(`${canonicalBase}.void-pick2-isolated-`) ||
+    !validStampValueV1(parsed.before)
+  ) {
+    throw new Error(
+      `VOID_AGENT_PICK2_JSONL_ISOLATION_INTENT_INVALID file=${file}`,
+    );
+  }
+
+  return {
+    marker: parsed.marker,
+    version: 1,
+    canonical_basename: canonicalBase,
+    isolated_basename: isolatedBase,
+    before: parsed.before,
+    path: intentPath,
+    isolated_path: path.join(path.dirname(key), isolatedBase),
+  };
+}
+
+function writeIsolationIntentV1(
+  file: string,
+  isolatedPath: string,
+  before: FileStampV1,
+) {
+  const key = fileKeyV1(file);
+  const dir = path.dirname(key);
+  const canonicalBase = path.basename(key);
+  const isolatedBase = path.basename(isolatedPath);
+  if (
+    path.dirname(path.resolve(isolatedPath)) !== dir ||
+    !isolatedBase.startsWith(`${canonicalBase}.void-pick2-isolated-`)
+  ) {
+    throw new Error(
+      `VOID_AGENT_PICK2_JSONL_ISOLATION_TARGET_INVALID file=${file}`,
+    );
+  }
+
+  const intentPath = isolationIntentPathV1(key);
+  if (hasIsolationIntentV1(key)) {
+    throw new Error(
+      `VOID_AGENT_PICK2_JSONL_ISOLATION_INTENT_EXISTS file=${file}`,
+    );
+  }
+  const body = Buffer.from(
+    JSON.stringify({
+      marker: VOID_AGENT_PICK2_JSONL_ISOLATION_RECOVERY_V1,
+      version: 1,
+      canonical_basename: canonicalBase,
+      isolated_basename: isolatedBase,
+      before,
+    }) + "\n",
+    "utf8",
+  );
+  if (body.length > VOID_AGENT_PICK2_JSONL_ISOLATION_INTENT_MAX_BYTES_V1) {
+    throw new Error(
+      `VOID_AGENT_PICK2_JSONL_ISOLATION_INTENT_SIZE file=${file} bytes=${body.length}`,
+    );
+  }
+
+  const tmp = uniqueRuntimeSiblingV1(key, "isolation-intent-tmp");
+  let fd: number | null = null;
+  let linked = false;
+  try {
+    fd = fs.openSync(
+      tmp,
+      fs.constants.O_WRONLY |
+        fs.constants.O_CREAT |
+        fs.constants.O_EXCL |
+        ((fs.constants as any).O_NOFOLLOW || 0),
+      0o600,
+    );
+    let off = 0;
+    while (off < body.length) {
+      const n = fs.writeSync(fd, body, off, body.length - off, null);
+      if (n <= 0) {
+        throw new Error("VOID_AGENT_PICK2_JSONL_ISOLATION_INTENT_SHORT_WRITE");
+      }
+      off += n;
+    }
+    fs.fsyncSync(fd);
+    fs.closeSync(fd);
+    fd = null;
+    fs.linkSync(tmp, intentPath);
+    linked = true;
+    fsyncParentDirectoryV1(key);
+    fs.unlinkSync(tmp);
+    fsyncParentDirectoryV1(key);
+  } finally {
+    if (fd !== null) fs.closeSync(fd);
+    if (!linked) {
+      try {
+        fs.unlinkSync(tmp);
+      } catch {
+        // Fail-closed primary error is preserved.
+      }
+    }
+  }
+}
+
+function clearIsolationIntentV1(file: string) {
+  const intentPath = isolationIntentPathV1(file);
+  try {
+    fs.unlinkSync(intentPath);
+    fsyncParentDirectoryV1(file);
+  } catch (err: any) {
+    if (err?.code !== "ENOENT") throw err;
+  }
+}
+
+function recoverCanonicalAppendIsolationUnderLockV1(file: string): boolean {
+  const key = fileKeyV1(file);
+  const intent = readIsolationIntentV1(key);
+  if (!intent) return false;
+
+  const canonical = statV1(key);
+  const isolated = statV1(intent.isolated_path);
+  if (
+    isolated &&
+    (!sameObjectV1(isolated, intent.before) || isolated.size < intent.before.size)
+  ) {
+    throw new Error(
+      `VOID_AGENT_PICK2_JSONL_ISOLATION_RECOVERY_GENERATION_MISMATCH file=${file}`,
+    );
+  }
+
+  canonicalWriterStatesV1.delete(key);
+  appendWitnessesV1.delete(key);
+
+  if (canonical && isolated) {
+    const quarantine = uniqueRuntimeSiblingV1(key, "noncanonical-quarantine");
+    fs.renameSync(key, quarantine);
+    fsyncParentDirectoryV1(key);
+    fs.renameSync(intent.isolated_path, key);
+    fsyncParentDirectoryV1(key);
+    clearIsolationIntentV1(key);
+    return true;
+  }
+
+  if (!canonical && isolated) {
+    fs.renameSync(intent.isolated_path, key);
+    fsyncParentDirectoryV1(key);
+    clearIsolationIntentV1(key);
+    return true;
+  }
+
+  if (canonical && !isolated) {
+    if (
+      !sameObjectV1(canonical, intent.before) ||
+      canonical.size < intent.before.size
+    ) {
+      throw new Error(
+        `VOID_AGENT_PICK2_JSONL_ISOLATION_RECOVERY_CANONICAL_MISMATCH file=${file}`,
+      );
+    }
+    clearIsolationIntentV1(key);
+    return true;
+  }
+
+  throw new Error(
+    `VOID_AGENT_PICK2_JSONL_ISOLATION_RECOVERY_HISTORY_MISSING file=${file}`,
+  );
+}
+
+function recoverCanonicalAppendIsolationV1(file: string): boolean {
+  if (!hasIsolationIntentV1(file)) return false;
+  const lock = acquireCanonicalAppendLockV1(file);
+  try {
+    return recoverCanonicalAppendIsolationUnderLockV1(file);
+  } finally {
+    releaseCanonicalAppendLockV1(lock);
+  }
+}
+
 function recordTooLargeV1(file: string, kind: string, bytes: number): never {
   throw new Error(
     `VOID_AGENT_PICK2_JSONL_RECORD_TOO_LARGE file=${file} kind=${kind} bytes=${bytes} max=${VOID_AGENT_PICK2_JSONL_MAX_RECORD_BYTES_V1}`,
@@ -391,14 +709,19 @@ export function appendAgentPick2JsonlCanonicalV1(
     if (conflict) {
       const quarantine = uniqueRuntimeSiblingV1(file, "noncanonical-quarantine");
       fs.renameSync(file, quarantine);
+      fsyncParentDirectoryV1(file);
       canonicalWriterStatesV1.delete(key);
       trustedGeneration = false;
     }
     fs.renameSync(isolatedPath, file);
+    fsyncParentDirectoryV1(file);
     canonicalRestored = true;
+    clearIsolationIntentV1(file);
   };
 
   try {
+    recoverCanonicalAppendIsolationUnderLockV1(file);
+
     fd = fs.openSync(
       file,
       fs.constants.O_WRONLY |
@@ -439,7 +762,9 @@ export function appendAgentPick2JsonlCanonicalV1(
 
     if (trustedGeneration) {
       isolatedPath = uniqueRuntimeSiblingV1(file, "isolated");
+      writeIsolationIntentV1(file, isolatedPath, immediatelyBeforeIsolation);
       fs.renameSync(file, isolatedPath);
+      fsyncParentDirectoryV1(file);
       canonicalRestored = false;
 
       const isolatedFdStamp = fstatV1(fd);
@@ -480,7 +805,15 @@ export function appendAgentPick2JsonlCanonicalV1(
     }
     if (opts.durable) fs.fdatasyncSync(fd);
 
-    if (isolatedPath) restoreIsolated();
+    if (isolatedPath) {
+      opts.testHooks?.afterAppendBeforeRestore?.({
+        file,
+        before,
+        isolated_path: isolatedPath,
+        trusted_generation: trustedGeneration,
+      });
+      restoreIsolated();
+    }
 
     const after = fstatV1(fd);
     const pathAfter = statV1(file);
@@ -649,6 +982,8 @@ export class AgentPick2JsonlSemanticIndexV1 {
     kind: string,
     reader: (fd: number, stamp: FileStampV1) => T,
   ): { stamp: FileStampV1; value: T } | null {
+    recoverCanonicalAppendIsolationV1(file);
+
     const openFlags =
       fs.constants.O_RDONLY |
       ((fs.constants as any).O_NOFOLLOW || 0);
@@ -660,6 +995,11 @@ export class AgentPick2JsonlSemanticIndexV1 {
           fd = fs.openSync(file, openFlags);
         } catch (err: any) {
           if (err?.code === "ENOENT") {
+            if (hasIsolationIntentV1(file)) {
+              recoverCanonicalAppendIsolationV1(file);
+              this.metrics.coherent_scan_retries_total += 1;
+              continue;
+            }
             if (!statV1(file)) return null;
             this.metrics.coherent_scan_retries_total += 1;
             continue;
@@ -790,7 +1130,7 @@ export class AgentPick2JsonlSemanticIndexV1 {
     if (!prior?.initialized) return this.rebuildCompletion(file);
 
     if (!current) {
-      if (prior.size === 0 && prior.dev === "-1") {
+      if (prior.size === 0 && prior.dev === "-1" && !hasIsolationIntentV1(file)) {
         this.noteHit("completion_full");
         return prior;
       }
@@ -999,7 +1339,7 @@ export class AgentPick2JsonlSemanticIndexV1 {
     }
 
     if (!current) {
-      if (prior.size === 0 && prior.dev === "-1") {
+      if (prior.size === 0 && prior.dev === "-1" && !hasIsolationIntentV1(file)) {
         this.noteHit("tail_rebuild");
         return prior;
       }
@@ -1183,7 +1523,7 @@ export class AgentPick2JsonlSemanticIndexV1 {
     }
 
     if (!current) {
-      if (prior.size === 0 && prior.dev === "-1") {
+      if (prior.size === 0 && prior.dev === "-1" && !hasIsolationIntentV1(file)) {
         this.noteHit("jobs_head_rebuild");
         return prior;
       }
