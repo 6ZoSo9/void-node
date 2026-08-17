@@ -139,9 +139,11 @@ subsystem while keeping evidence provenance explicit.
 ## Snapshot contract
 
 The generator pins `HEAD^{commit}` once before collecting commit-labeled
-evidence. It reads both registries from that exact commit object and enumerates
-tracked paths and object identities with `git ls-tree` against the same pinned
-commit. The tree SHA is derived from that commit, not a later live `HEAD`.
+evidence. This is the pinned HEAD commit tree boundary for all generated
+cartography evidence. It reads both registries from that exact commit object and
+enumerates tracked paths and object identities with `git ls-tree` against the
+same pinned commit. The tree SHA is derived from that commit, not a later live
+`HEAD`.
 
 All cartography Git reads use `--no-replace-objects`, ignore ambient repository
 and alternate-object selection, ignore inline Git config injection, and execute
