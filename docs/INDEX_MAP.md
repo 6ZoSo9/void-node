@@ -52,6 +52,8 @@ meaningful only together with the exact source revision or digest that produced 
 The durable reference is an ID such as:
 
 - `runtime.main`
+- `runtime.ready-watchdog`
+- `runtime.v2fs-status-route`
 - `chain.txroot-watchdog`
 - `datanet.public-explorer`
 - `public-node.route-index`
@@ -60,6 +62,35 @@ The durable reference is an ID such as:
 
 Do **not** cite a committed line number as the permanent identity of a subsystem. New code
 may move it.
+
+## Coverage wave V2
+
+The registry format remains V1 so existing consumers and repository-directory cross-links
+stay compatible. `coverage_wave=2` means only that the reviewed landmark set has grown.
+The original sixteen IDs remain stable and in their original order.
+
+Wave V2 adds seven high-value canonical-producer landmarks whose source identity is already
+bound by the merged self-HTTP and Mainnet-0 liveness proofs:
+
+- `runtime.header3-match-exporter`
+- `runtime.ready-watchdog`
+- `runtime.proposer-activity-gauge`
+- `runtime.proposer-metrics-v2`
+- `runtime.v2fs-status-route`
+- `runtime.autoprop-status-route`
+- `runtime.v2fs-commit-route`
+
+These entries are deliberately evidence-driven. The observer-family anchors are the exact
+source-section identities consumed by `runtime/canonical-producer-self-http-guard-v1.cjs`.
+The V2FS/autoprop route anchors are the exact runtime surfaces consumed by
+`scripts/prove_mainnet0_canonical_producer_liveness_guard_v1.mjs`.
+
+A new coverage proof checks those provenance links in addition to ordinary cartography
+resolution. If one of the reviewed concepts disappears, duplicates, or stops matching its
+provenance evidence, the focused cartography wall fails closed.
+
+This wave does not attempt to label every helper in the monolith. Additional coverage should
+be added in later bounded waves when an exact durable concept and source identity are known.
 
 ## Adding a new substantial area
 
@@ -100,9 +131,18 @@ runtime lanes.
 - per-side windows above 120 lines; and
 - arbitrary source/registry path overrides.
 
-Both tools are read-only and perform no source mutation. Generated maps and bounded review
-sections are emitted to stdout rather than committed, which keeps line-number churn out of
-Git history.
+`scripts/prove_void_index_cartography_coverage_v2.mjs` additionally rejects:
+
+- a coverage-wave value other than `2`;
+- any change to the original sixteen stable IDs or their order;
+- a V2 landmark missing from the registry or current source;
+- drift between observer-family landmarks and their canonical self-HTTP guard provenance;
+- drift between V2FS/autoprop route landmarks and the Mainnet-0 liveness proof; and
+- any V2 registry state that no longer resolves to exactly 23 current landmarks.
+
+All cartography tooling is read-only and performs no source mutation. Generated maps and
+bounded review sections are emitted to stdout rather than committed, which keeps
+line-number churn out of Git history.
 
 ## Concurrency
 
@@ -118,8 +158,9 @@ Cartography should reduce collisions, not create another shared hot file.
 
 ## Current scope
 
-V1 is intentionally a coarse map seeded with major runtime, chain, Buy VOID, Work Credit,
-DataNet, public-node, participant, and integration landmarks. It is designed to grow
-incrementally as the file grows.
+The V1 registry now contains 23 stable landmarks after coverage wave V2. It remains a
+selective directory for major runtime, chain, Buy VOID, Work Credit, DataNet, public-node,
+participant, integration, and canonical-producer boundaries. It is designed to grow
+incrementally when exact navigation concepts are proven useful.
 
 `PROTECT THE CORE`.
