@@ -172,6 +172,11 @@ async function readBoundedText(response, maxBytes, label) {
   }
 }
 
+// Preserve the reviewed test seam used by the existing teardown proof.
+async function readBoundedHealthText(response) {
+  return readBoundedText(response, MAX_HEALTH_RESPONSE_BYTES, "coordinator health");
+}
+
 async function boundedJsonGet(base, path, timeoutMs, maxBytes, label) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
@@ -182,7 +187,9 @@ async function boundedJsonGet(base, path, timeoutMs, maxBytes, label) {
       redirect: "error",
       signal: controller.signal,
     });
-    const text = await readBoundedText(response, maxBytes, label);
+    const text = label === "coordinator health"
+      ? await readBoundedHealthText(response)
+      : await readBoundedText(response, maxBytes, label);
     let body;
     try { body = JSON.parse(text); } catch { throw new Error(`${label} returned non-JSON`); }
     if (!response.ok) throw new Error(`${label} HTTP ${response.status}`);
