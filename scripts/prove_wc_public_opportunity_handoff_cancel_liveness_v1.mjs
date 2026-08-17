@@ -8,6 +8,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 const MARKER = "WC_PUBLIC_OPPORTUNITY_HANDOFF_CANCEL_LIVENESS_GREEN";
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const SOURCE = resolve(ROOT, "tools/wc-public-opportunity-handoff-v1.mjs");
+const CANONICAL_CLIENT = resolve(ROOT, "tools/void_public_earn_no_node_client_v1.mjs");
 const MAX_BYTES = 64 * 1024;
 const PROMPT_MS = 250;
 
@@ -56,6 +57,11 @@ try {
   );
   const instrumentedPath = join(temp, "handoff-contract.mjs");
   writeFileSync(instrumentedPath, instrumented, "utf8");
+  writeFileSync(
+    join(temp, "void_public_earn_no_node_client_v1.mjs"),
+    readFileSync(CANONICAL_CLIENT, "utf8"),
+    "utf8",
+  );
   const { testOnly } = await import(`${pathToFileURL(instrumentedPath).href}?v=${Date.now()}`);
   assert.equal(typeof testOnly?.readBoundedHealthText, "function");
 
