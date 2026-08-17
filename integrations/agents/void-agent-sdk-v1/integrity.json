@@ -3,7 +3,7 @@
   "version": 1,
   "package": "@void-network/agent-sdk",
   "package_version": "0.1.0",
-  "reviewed_source_main": "678c6dc33b312cfbdf597cf176c3a8be1cc1ef73",
+  "reviewed_source_main": "5bbe57b9617465a1631a47e1899286e8e7fd3536",
   "supported_node_majors": [
     22,
     24,
@@ -23,8 +23,8 @@
       "sha256": "246a49d0aac444743efedd3165a015059dd8a2c4b327b1fa95f1a590f53d085b"
     },
     "index.mjs": {
-      "bytes": 16536,
-      "sha256": "73070c1c924f3ae38d45f657bb9676b9592efe8c9f3d6e0197fda2e2ad7ed5c3"
+      "bytes": 17348,
+      "sha256": "766401655f1093ee48773faa4c50b86d20194fbdebf2ee2cc4afa5252345972a"
     },
     "package.json": {
       "bytes": 645,
