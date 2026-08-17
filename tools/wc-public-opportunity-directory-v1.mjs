@@ -110,6 +110,7 @@ function validateResult(raw, expectedAwardWc) {
       marker: typeof body?.public_claim?.marker === "string" ? body.public_claim.marker : null,
       configured: body?.public_claim?.configured === true,
       enabled: body?.public_claim?.enabled ?? null,
+      available: body?.public_claim?.available ?? null,
       method: typeof body?.public_claim?.method === "string" ? body.public_claim.method : null,
       path: typeof body?.public_claim?.path === "string" ? body.public_claim.path : null,
       proof_of_executor_key_possession_required: body?.public_claim?.proof_of_executor_key_possession_required === true,
@@ -152,6 +153,7 @@ function validateResult(raw, expectedAwardWc) {
     executorRole &&
     body?.public_claim?.configured === true &&
     body?.public_claim?.enabled === true &&
+    body?.public_claim?.available === true &&
     claimIdentity &&
     claimAuthenticationReplay &&
     body?.safety?.public_award_boundary_confirmed === true &&
@@ -172,6 +174,7 @@ function validateResult(raw, expectedAwardWc) {
       marker: body?.public_claim?.marker ?? null,
       configured: body?.public_claim?.configured === true,
       enabled: body?.public_claim?.enabled ?? null,
+      available: body?.public_claim?.available ?? null,
       method: body?.public_claim?.method ?? null,
       path: typeof body?.public_claim?.path === "string" ? body.public_claim.path : null,
       proof_of_executor_key_possession_required: body?.public_claim?.proof_of_executor_key_possession_required === true,

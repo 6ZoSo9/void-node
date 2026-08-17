@@ -78,7 +78,13 @@ async function readJson(url) {
   return { response, body: JSON.parse(text) };
 }
 
-function pilotStatus(pilotAwardWc, claimAwardWc = pilotAwardWc, includeClaimAward = true) {
+function pilotStatus(
+  pilotAwardWc,
+  claimAwardWc = pilotAwardWc,
+  includeClaimAward = true,
+  claimAvailable = true,
+  includeClaimAvailable = true,
+) {
   return {
     ok: true,
     marker: PILOT_MARKER,
@@ -109,7 +115,7 @@ function pilotStatus(pilotAwardWc, claimAwardWc = pilotAwardWc, includeClaimAwar
     public_claim: {
       marker: "VOID_WC_PUBLIC_TICKET_CLAIM_V1",
       enabled: true,
-      available: true,
+      ...(includeClaimAvailable ? { available: claimAvailable } : {}),
       public_route: "/wc/public-earning-pilot-v1/claim-ticket",
       task_class: "datanet_fetch_verify",
       ...(includeClaimAward ? { fixed_award_wc: claimAwardWc } : {}),
@@ -134,6 +140,8 @@ function pilotStatus(pilotAwardWc, claimAwardWc = pilotAwardWc, includeClaimAwar
 let fixedAwardWc = 3;
 let claimAwardWc = 3;
 let includeClaimAward = true;
+let claimAvailable = true;
+let includeClaimAvailable = true;
 const earnRequests = [];
 const regularServer = createServer((_request, response) => {
   response.writeHead(404, { "content-type": "application/json" });
@@ -143,7 +151,13 @@ const earnServer = createServer((request, response) => {
   earnRequests.push({ method: request.method, url: request.url });
   if (request.method === "GET" && request.url === STATUS_PATH) {
     response.writeHead(200, { "content-type": "application/json" });
-    response.end(JSON.stringify(pilotStatus(fixedAwardWc, claimAwardWc, includeClaimAward)));
+    response.end(JSON.stringify(pilotStatus(
+      fixedAwardWc,
+      claimAwardWc,
+      includeClaimAward,
+      claimAvailable,
+      includeClaimAvailable,
+    )));
     return;
   }
   response.writeHead(404, { "content-type": "application/json" });
@@ -191,12 +205,15 @@ try {
     fixedAwardWc = rawAward;
     claimAwardWc = rawAward;
     includeClaimAward = true;
+    claimAvailable = true;
+    includeClaimAvailable = true;
 
     const sanitized = await readJson(`${base}${STATUS_PATH}`);
     assert.equal(sanitized.response.status, 200, label);
     assert.equal(sanitized.body.marker, PILOT_MARKER, label);
     assert.equal(sanitized.body.fixed_award_wc, expectedAward, label);
     assert.equal(sanitized.body.public_claim.fixed_award_wc, expectedAward, label);
+    assert.equal(sanitized.body.public_claim.available, true, label);
 
     const discoveryArgs = [
       "--base", base,
@@ -209,6 +226,7 @@ try {
     assert.equal(result.source_path, STATUS_PATH, label);
     assert.equal(result.pilot.fixed_award_wc, expectedAward, label);
     assert.equal(result.pilot.fixed_award_matches, expectedMatch, label);
+    assert.equal(result.public_claim.available, true, label);
     assert.equal(result.safety.public_claim_route_no_direct_award, true, label);
     assert.equal(result.safety.public_award_boundary_confirmed, true, label);
     if (expectedMatch) {
@@ -244,12 +262,15 @@ try {
     fixedAwardWc = 3;
     claimAwardWc = nextClaimAward;
     includeClaimAward = nextIncludeClaimAward;
+    claimAvailable = true;
+    includeClaimAvailable = true;
 
     const sanitized = await readJson(`${base}${STATUS_PATH}`);
     assert.equal(sanitized.response.status, 200, label);
     assert.equal(sanitized.body.marker, PILOT_MARKER, label);
     assert.equal(sanitized.body.fixed_award_wc, 3, label);
     assert.equal(sanitized.body.public_claim.fixed_award_wc, expectedSanitizedClaimAward, label);
+    assert.equal(sanitized.body.public_claim.available, true, label);
 
     const discovery = await runNode(discoveryFile, [
       "--base", base,
@@ -262,9 +283,51 @@ try {
     assert.equal(result.opportunity_state, "hold", label);
     assert.equal(result.pilot.fixed_award_wc, null, label);
     assert.equal(result.pilot.fixed_award_matches, false, label);
+    assert.equal(result.public_claim.available, true, label);
     assert.match(result.reason, /fixed_award_evidence_missing_or_conflicting/u, label);
     assert.equal(result.safety.public_claim_route_no_direct_award, true, label);
     assert.equal(result.safety.public_award_boundary_confirmed, true, label);
+    assert.equal(result.safety.read_only, true, label);
+    assert.deepEqual(result.safety.http_methods_used, ["GET"], label);
+    assert.equal(result.safety.mutation_attempted, false, label);
+    assert.equal(result.safety.ticket_issuance_attempted, false, label);
+    assert.equal(result.safety.wc_award_attempted, false, label);
+    assert.equal(result.safety.wallet_access_attempted, false, label);
+    assert.equal(result.safety.settlement_attempted, false, label);
+  }
+
+  for (const [label, rawAvailable, includeAvailable] of [
+    ["claim_available_missing", undefined, false],
+    ["claim_available_null", null, true],
+    ["claim_available_string", "true", true],
+    ["claim_available_false", false, true],
+  ]) {
+    fixedAwardWc = 3;
+    claimAwardWc = 3;
+    includeClaimAward = true;
+    claimAvailable = rawAvailable;
+    includeClaimAvailable = includeAvailable;
+
+    const sanitized = await readJson(`${base}${STATUS_PATH}`);
+    assert.equal(sanitized.response.status, 200, label);
+    assert.equal(sanitized.body.marker, PILOT_MARKER, label);
+    assert.equal(sanitized.body.fixed_award_wc, 3, label);
+    assert.equal(sanitized.body.public_claim.fixed_award_wc, 3, label);
+    assert.equal(sanitized.body.public_claim.available, false, label);
+
+    const discovery = await runNode(discoveryFile, [
+      "--base", base,
+      "--path", STATUS_PATH,
+      "--expected-award-wc", "3",
+    ]);
+    assert.equal(discovery.code, 0, `${label}: ${discovery.stderr || discovery.stdout}`);
+    const result = JSON.parse(discovery.stdout);
+    assert.equal(result.source_path, STATUS_PATH, label);
+    assert.equal(result.opportunity_state, "hold", label);
+    assert.equal(result.pilot.fixed_award_wc, 3, label);
+    assert.equal(result.pilot.fixed_award_matches, true, label);
+    assert.equal(result.public_claim.available, false, label);
+    assert.match(result.reason, /public_claim_not_available/u, label);
     assert.equal(result.safety.read_only, true, label);
     assert.deepEqual(result.safety.http_methods_used, ["GET"], label);
     assert.equal(result.safety.mutation_attempted, false, label);
@@ -288,6 +351,8 @@ try {
   fixedAwardWc = 3;
   claimAwardWc = 3;
   includeClaimAward = true;
+  claimAvailable = true;
+  includeClaimAvailable = true;
   const readiness = await runNode(readinessFile, [
     "--base", base,
     "--status-retries", "1",

@@ -43,6 +43,7 @@ const body = {
     marker: "VOID_WC_PUBLIC_TICKET_CLAIM_V1",
     configured: true,
     enabled: true,
+    available: true,
     method: "POST",
     path: "/wc/public-earning-pilot-v1/claim-ticket",
     proof_of_executor_key_possession_required: true,
@@ -72,6 +73,10 @@ if (host === "gateway-identity.example") body.gateway.exact_identity = false;
 if (host === "claim-marker.example") body.public_claim.marker = "VOID_WC_PUBLIC_TICKET_CLAIM_V1_ALT";
 if (host === "claim-method.example") body.public_claim.method = "GET";
 if (host === "claim-route.example") body.public_claim.path = "/wc/public-earning-pilot-v1/claim-ticket-alt";
+if (host === "available-missing.example") delete body.public_claim.available;
+if (host === "available-null.example") body.public_claim.available = null;
+if (host === "available-string.example") body.public_claim.available = "true";
+if (host === "available-false.example") body.public_claim.available = false;
 if (host === "gateway-key.example") body.safety.claim_executor_key_possession_required = false;
 if (host === "claim-key.example") body.public_claim.proof_of_executor_key_possession_required = false;
 if (host === "claim-timestamp.example") body.public_claim.signed_claim_timestamp_required = false;
@@ -91,6 +96,8 @@ try {
   assert.equal(goodBody.results[0].pilot.fixed_award_wc, 3);
   assert.equal(goodBody.results[0].pilot.fixed_award_matches, true);
   assert.equal(goodBody.results[0].public_claim.marker, "VOID_WC_PUBLIC_TICKET_CLAIM_V1");
+  assert.equal(goodBody.results[0].public_claim.enabled, true);
+  assert.equal(goodBody.results[0].public_claim.available, true);
   assert.equal(goodBody.results[0].public_claim.method, "POST");
   assert.equal(goodBody.results[0].public_claim.path, "/wc/public-earning-pilot-v1/claim-ticket");
   assert.equal(goodBody.results[0].safety.public_claim_authentication_replay_confirmed, true);
@@ -115,6 +122,10 @@ try {
     "claim-marker.example",
     "claim-method.example",
     "claim-route.example",
+    "available-missing.example",
+    "available-null.example",
+    "available-string.example",
+    "available-false.example",
     "gateway-key.example",
     "claim-key.example",
     "claim-timestamp.example",

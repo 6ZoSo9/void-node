@@ -31,6 +31,7 @@ function claim() {
   return {
     marker: CLAIM_MARKER,
     enabled: true,
+    available: true,
     method: "POST",
     public_route: claimRoute,
     fixed_award_wc: 3,
@@ -153,6 +154,8 @@ try {
     assert.equal(outcome.result.pilot.executor_enabled, false, label);
     assert.equal(outcome.result.pilot.fixed_award_wc, 3, label);
     assert.equal(outcome.result.public_claim.marker, CLAIM_MARKER, label);
+    assert.equal(outcome.result.public_claim.enabled, true, label);
+    assert.equal(outcome.result.public_claim.available, true, label);
     assert.equal(outcome.result.public_claim.method, "POST", label);
     assert.equal(outcome.result.public_claim.path, claimRoute, label);
     assert.equal(outcome.result.public_claim.proof_of_executor_key_possession_required, true, label);
@@ -203,6 +206,20 @@ try {
       assert.equal(outcome.code, 2, `${kind}:${label}`);
       assert.equal(outcome.result.opportunity_state, "hold", `${kind}:${label}`);
       assert.match(outcome.result.reason, /public_claim_not_enabled/u, `${kind}:${label}`);
+    }
+  }
+
+  for (const [label, mutation] of [
+    ["available_missing", (v) => { delete (v.public_claim ?? v).available; }],
+    ["available_null", (v) => { (v.public_claim ?? v).available = null; }],
+    ["available_string", (v) => { (v.public_claim ?? v).available = "true"; }],
+    ["available_false", (v) => { (v.public_claim ?? v).available = false; }],
+  ]) {
+    for (const [kind, base] of [["gateway", gatewayEnvelope()], ["pilot", pilotEnvelope()]]) {
+      const outcome = await runCase(mutate(base, mutation));
+      assert.equal(outcome.code, 2, `${kind}:${label}`);
+      assert.equal(outcome.result.opportunity_state, "hold", `${kind}:${label}`);
+      assert.match(outcome.result.reason, /public_claim_not_available/u, `${kind}:${label}`);
     }
   }
 

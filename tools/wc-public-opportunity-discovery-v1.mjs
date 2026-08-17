@@ -284,6 +284,10 @@ function analyze(body, sourcePath, origin, expectedAwardWc, attempts, sharedGate
     typeof publicClaim?.enabled === "boolean"
       ? publicClaim.enabled
       : null;
+  const claimAvailable =
+    typeof publicClaim?.available === "boolean"
+      ? publicClaim.available
+      : null;
   const claimMarker = directString(publicClaim, ["marker"]);
   const claimMethodKeys = ["method", "http_method", "httpMethod"];
   const claimMethodEvidencePresent = hasDirectKey(publicClaim, claimMethodKeys);
@@ -324,6 +328,7 @@ function analyze(body, sourcePath, origin, expectedAwardWc, attempts, sharedGate
   const coordinatorReady = coordinatorEnabled === true;
   const claimConfigured = claimPath === CLAIM_ROUTE;
   const claimEnabledConfirmed = claimEnabled === true;
+  const claimAvailableConfirmed = claimAvailable === true;
   const publicAwardBoundaryConfirmed = publicClaimRouteNoDirectAward === true;
   const reasons = [];
   if (!pilot) reasons.push("pilot_status_missing");
@@ -334,6 +339,7 @@ function analyze(body, sourcePath, origin, expectedAwardWc, attempts, sharedGate
   if (!awardMatches) reasons.push("fixed_award_mismatch_or_missing");
   if (!claimConfigured) reasons.push("public_claim_not_discovered");
   if (!claimEnabledConfirmed) reasons.push("public_claim_not_enabled");
+  if (!claimAvailableConfirmed) reasons.push("public_claim_not_available");
   if (!claimIdentityConfirmed) reasons.push("public_claim_identity_or_method_unconfirmed");
   if (!publicClaimAuthenticationReplayConfirmed) reasons.push("public_claim_authentication_replay_unconfirmed");
   if (!publicAwardBoundaryConfirmed) reasons.push("public_claim_award_boundary_unconfirmed");
@@ -345,6 +351,7 @@ function analyze(body, sourcePath, origin, expectedAwardWc, attempts, sharedGate
     awardMatches &&
     claimConfigured &&
     claimEnabledConfirmed &&
+    claimAvailableConfirmed &&
     claimIdentityConfirmed &&
     publicClaimAuthenticationReplayConfirmed &&
     publicAwardBoundaryConfirmed
@@ -367,6 +374,7 @@ function analyze(body, sourcePath, origin, expectedAwardWc, attempts, sharedGate
       marker: claimMarker ?? null,
       configured: claimConfigured,
       enabled: claimEnabled,
+      available: claimAvailable,
       method: claimMethod,
       path: claimPath,
       proof_of_executor_key_possession_required: claimProofOfExecutorKeyPossessionRequired,
