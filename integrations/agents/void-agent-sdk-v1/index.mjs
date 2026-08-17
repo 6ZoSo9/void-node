@@ -177,7 +177,13 @@ async function readBoundedText(response, label, maxBytes, request) {
     }
   }
 
-  const reader = response.body?.getReader?.();
+  let reader;
+  try {
+    reader = response.body?.getReader?.();
+  } catch {
+    await abortAndCancelWithinDeadline(response.body, request);
+    fail(`${label}_body_reader_unavailable`);
+  }
   if (!reader) {
     await abortAndCancelWithinDeadline(response.body, request);
     fail(`${label}_body_stream_unavailable`);
@@ -194,8 +200,17 @@ async function readBoundedText(response, label, maxBytes, request) {
         await abortAndCancelWithinDeadline(reader, request);
         throw error;
       }
+      if (!item || typeof item !== "object" || Array.isArray(item) ||
+          typeof item.done !== "boolean") {
+        await abortAndCancelWithinDeadline(reader, request);
+        fail(`${label}_body_read_result_invalid`);
+      }
       const { done, value } = item;
       if (done) break;
+      if (!(value instanceof Uint8Array)) {
+        await abortAndCancelWithinDeadline(reader, request);
+        fail(`${label}_body_chunk_invalid`);
+      }
       const chunk = Buffer.from(value);
       total += chunk.length;
       if (total > maxBytes) {
