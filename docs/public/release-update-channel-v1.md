@@ -25,9 +25,11 @@ health-gated rollback.
   overflow fail before installation, and SHA-256 is computed incrementally.
 - The channel binds every asset by SHA-256 and exact byte length.
 - Stable apply verifies GitHub artifact attestations with `gh attestation verify`.
-  A normal production apply cannot skip a channel-declared required attestation:
-  `--skip-attestation` is accepted only together with the explicit
-  `--test-allow-file` proof boundary and grants no production bypass.
+  A normal HTTPS stable apply cannot skip a channel-declared required attestation,
+  including when `--test-allow-file` is present. `--skip-attestation` is confined
+  to the explicit synthetic boundary where both the channel source and the
+  attested archive/installer/manifest assets use reviewed local `file://` or
+  explicitly enabled loopback-HTTP test transport.
 - The updater rejects downgrades unless the operator explicitly supplies
   `--allow-downgrade`.
 - A stopped service stays stopped. A running service may only be restarted with
