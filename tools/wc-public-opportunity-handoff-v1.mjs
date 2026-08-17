@@ -4,13 +4,17 @@ import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { isIP } from "node:net";
 import { parseArgs } from "node:util";
+import { spawn } from "node:child_process";
 
 const MARKER = "VOID_WC_PUBLIC_OPPORTUNITY_HANDOFF_V1";
 const DIRECTORY_MARKER = "VOID_WC_PUBLIC_OPPORTUNITY_DIRECTORY_V1";
 const DISCOVERY_MARKER = "VOID_WC_PUBLIC_OPPORTUNITY_DISCOVERY_V1";
 const MAX_HEALTH_RESPONSE_BYTES = 64 * 1024;
+const MAX_DIRECTORY_VERIFY_BYTES = 256 * 1024;
+const CANONICAL_FIXED_AWARD_WC = 3;
 const HERE = dirname(fileURLToPath(import.meta.url));
 const DEFAULT_CLIENT = resolve(HERE, "void_public_earn_no_node_client_v1.mjs");
+const CANONICAL_DIRECTORY_TOOL = resolve(HERE, "wc-public-opportunity-directory-v1.mjs");
 
 function hold(reason, extra = {}) {
   process.stdout.write(JSON.stringify({
@@ -23,6 +27,7 @@ function hold(reason, extra = {}) {
       read_only: true,
       health_method: "GET",
       health_response_max_bytes: MAX_HEALTH_RESPONSE_BYTES,
+      canonical_directory_reverification_required: true,
       client_executed: false,
       identity_created: false,
       mutation_attempted: false,
@@ -98,10 +103,74 @@ function candidates(directory) {
     .map((r) => ({
       base: normalizeOrigin(r.base),
       source_path: typeof r.source_path === "string" ? r.source_path : null,
-      fixed_award_wc: Number.isFinite(Number(r.pilot?.fixed_award_wc)) ? Number(r.pilot.fixed_award_wc) : null,
+      fixed_award_wc: typeof r.pilot?.fixed_award_wc === "number" && Number.isFinite(r.pilot.fixed_award_wc)
+        ? r.pilot.fixed_award_wc
+        : null,
       claim_path: typeof r.public_claim?.path === "string" ? r.public_claim.path : null,
     }))
     .sort((a,b) => a.base.localeCompare(b.base));
+}
+
+function verifyCanonicalDirectoryCandidate(base, timeoutMs) {
+  return new Promise((resolveVerification, rejectVerification) => {
+    if (!existsSync(CANONICAL_DIRECTORY_TOOL)) {
+      rejectVerification(new Error("canonical opportunity directory tool is missing"));
+      return;
+    }
+
+    const child = spawn(process.execPath, [
+      CANONICAL_DIRECTORY_TOOL,
+      "--base", base,
+      "--concurrency", "1",
+      "--timeout-ms", String(timeoutMs),
+      "--expected-award-wc", String(CANONICAL_FIXED_AWARD_WC),
+      "--require-available",
+    ], { stdio: ["ignore", "pipe", "pipe"] });
+
+    let stdout = "";
+    let stderr = "";
+    let overflow = false;
+
+    const appendBounded = (target, chunk) => {
+      const next = target + chunk;
+      if (Buffer.byteLength(next, "utf8") > MAX_DIRECTORY_VERIFY_BYTES) {
+        overflow = true;
+        child.kill("SIGKILL");
+        return target;
+      }
+      return next;
+    };
+
+    child.stdout.setEncoding("utf8");
+    child.stderr.setEncoding("utf8");
+    child.stdout.on("data", (chunk) => { stdout = appendBounded(stdout, chunk); });
+    child.stderr.on("data", (chunk) => { stderr = appendBounded(stderr, chunk); });
+    child.once("error", (error) => rejectVerification(new Error("canonical directory verification could not start", { cause: error })));
+    child.once("close", (code) => {
+      if (overflow) {
+        rejectVerification(new Error("canonical directory verification output exceeded byte limit"));
+        return;
+      }
+      if (code !== 0) {
+        rejectVerification(new Error("selected coordinator did not pass canonical directory verification"));
+        return;
+      }
+      let verifiedDirectory;
+      try {
+        verifiedDirectory = validateDirectory(JSON.parse(stdout));
+      } catch (error) {
+        rejectVerification(new Error("canonical directory verification result is invalid", { cause: error }));
+        return;
+      }
+      const verified = candidates(verifiedDirectory).filter((candidate) =>
+        candidate.base === base && candidate.fixed_award_wc === CANONICAL_FIXED_AWARD_WC);
+      if (verified.length !== 1) {
+        rejectVerification(new Error("selected coordinator is not uniquely verified by the canonical directory"));
+        return;
+      }
+      resolveVerification(verified[0]);
+    });
+  });
 }
 
 function bestEffortCancel(cancelTarget, reason) {
@@ -236,6 +305,8 @@ async function main() {
   } else {
     return hold("multiple_available_coordinators_require_select_base", { available_candidate_count: available.length, available_bases: available.map((c) => c.base) });
   }
+
+  selected = await verifyCanonicalDirectoryCandidate(selected.base, timeoutMs);
   const h = await health(selected.base, timeoutMs);
   const common = ["node", client];
   const statusArgv = [...common, "status", "--account", values.account, "--coordinator-base", selected.base, "--coordinator-node-id", h.node_id];
@@ -246,7 +317,7 @@ async function main() {
     marker: MARKER,
     status: "green",
     handoff_state: "ready",
-    reason: "trusted_available_coordinator_bound_to_health_identity",
+    reason: "canonically_reverified_available_coordinator_bound_to_health_identity",
     account: values.account,
     selected,
     coordinator_identity: { health_path: h.path, health_http_status: h.http_status, node_id: h.node_id, node_id_format: "32_lowercase_hex" },
@@ -258,6 +329,8 @@ async function main() {
       directory_marker_validated: true,
       directory_safety_validated: true,
       selected_child_safety_validated: true,
+      selected_candidate_reverified_via_canonical_directory: true,
+      canonical_directory_fixed_award_wc: CANONICAL_FIXED_AWARD_WC,
       client_executed: false,
       identity_created: false,
       mutation_attempted: false,
