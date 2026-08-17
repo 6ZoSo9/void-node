@@ -251,12 +251,10 @@ function analyze(body, sourcePath, origin, expectedAwardWc, attempts) {
     (claimAwardWc === null || claimAwardWc === pilotAwardWc);
   const fixedAwardWc = awardEvidenceConsistent ? pilotAwardWc : null;
 
-  const claimEnabled = directBoolean(publicClaim, [
-    "enabled",
-    "available",
-    "claim_enabled",
-    "claimEnabled",
-  ]);
+  const claimEnabled =
+    typeof publicClaim?.enabled === "boolean"
+      ? publicClaim.enabled
+      : null;
   const claimMethod = directString(publicClaim, [
     "method",
     "http_method",
@@ -269,7 +267,7 @@ function analyze(body, sourcePath, origin, expectedAwardWc, attempts) {
   const awardMatches = fixedAwardWc !== null && fixedAwardWc === expectedAwardWc;
   const coordinatorReady = coordinatorEnabled === true;
   const claimConfigured = Boolean(claimPath);
-  const claimNotDisabled = claimEnabled !== false;
+  const claimEnabledConfirmed = claimEnabled === true;
   const publicAwardBoundaryConfirmed = publicClaimRouteNoDirectAward === true;
   const reasons = [];
   if (!pilot) reasons.push("pilot_status_missing");
@@ -277,14 +275,14 @@ function analyze(body, sourcePath, origin, expectedAwardWc, attempts) {
   if (!awardEvidenceConsistent) reasons.push("fixed_award_evidence_missing_or_conflicting");
   if (!awardMatches) reasons.push("fixed_award_mismatch_or_missing");
   if (!claimConfigured) reasons.push("public_claim_not_discovered");
-  if (!claimNotDisabled) reasons.push("public_claim_disabled");
+  if (!claimEnabledConfirmed) reasons.push("public_claim_not_enabled");
   if (!publicAwardBoundaryConfirmed) reasons.push("public_claim_award_boundary_unconfirmed");
   const opportunityState =
     pilot &&
     coordinatorReady &&
     awardMatches &&
     claimConfigured &&
-    claimNotDisabled &&
+    claimEnabledConfirmed &&
     publicAwardBoundaryConfirmed
       ? "available"
       : "hold";
