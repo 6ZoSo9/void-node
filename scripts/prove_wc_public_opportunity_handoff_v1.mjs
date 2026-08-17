@@ -152,7 +152,10 @@ try {
   assert.equal(body.safety.client_executed, false);
   assert.equal(body.safety.identity_created, false);
   assert.equal(body.safety.mutation_attempted, false);
-  assert.deepEqual(requests, [{ method: "GET", url: "/health", mode: "valid" }]);
+  assert.deepEqual(requests, [
+    { method: "GET", url: STATUS_ROUTE, mode: "valid" },
+    { method: "GET", url: "/health", mode: "valid" },
+  ]);
 
   const canonicalReady = await run(["--directory-json", input, "--account", "outside-user-1", "--state-dir", stateDir, "--dataset-url-template", datasetTemplate]);
   assert.equal(canonicalReady.code, 0, canonicalReady.stderr || canonicalReady.stdout);
@@ -268,6 +271,7 @@ try {
     assert.equal(ipv6Context.coordinatorBase, ipv6Base);
     assert.equal(ipv6Context.trustedNodeId, nodeId);
     assert.deepEqual(ipv6Requests, [
+      { method: "GET", url: STATUS_ROUTE },
       { method: "GET", url: "/health" },
       { method: "GET", url: "/health" },
       { method: "GET", url: STATUS_ROUTE },
