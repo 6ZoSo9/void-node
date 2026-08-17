@@ -13,6 +13,20 @@ export const SNAPSHOT_KIND = 'pinned_git_commit_tree';
 const DOMAIN_ID_RE = /^[a-z0-9]+(?:[.-][a-z0-9]+)*$/;
 const SELECTOR_TYPES = new Set(['exact', 'prefix']);
 const GIT_OBJECT_RE = /^[0-9a-f]{40}$/;
+const GIT_REPOSITORY_SELECTION_ENV = new Set([
+  'GIT_DIR',
+  'GIT_WORK_TREE',
+  'GIT_COMMON_DIR',
+  'GIT_INDEX_FILE',
+  'GIT_OBJECT_DIRECTORY',
+  'GIT_ALTERNATE_OBJECT_DIRECTORIES',
+  'GIT_NAMESPACE',
+  'GIT_REPLACE_REF_BASE',
+]);
+const GIT_CONFIG_INJECTION_ENV = new Set([
+  'GIT_CONFIG_PARAMETERS',
+  'GIT_CONFIG_COUNT',
+]);
 
 function fail(message) {
   throw new Error(`VOID_REPO_CARTOGRAPHY_V1 ${message}`);
@@ -22,11 +36,22 @@ export function sha256(value) {
   return crypto.createHash('sha256').update(value).digest('hex');
 }
 
+export function sanitizedGitEnv(baseEnv = process.env) {
+  const env = { ...baseEnv };
+  for (const key of GIT_REPOSITORY_SELECTION_ENV) delete env[key];
+  for (const key of GIT_CONFIG_INJECTION_ENV) delete env[key];
+  for (const key of Object.keys(env)) {
+    if (/^GIT_CONFIG_(?:KEY|VALUE)_\d+$/.test(key)) delete env[key];
+  }
+  return env;
+}
+
 export function git(repoRoot, args, options = {}) {
-  return execFileSync('git', ['-C', repoRoot, ...args], {
+  return execFileSync('git', ['--no-replace-objects', '-C', repoRoot, ...args], {
     encoding: Object.prototype.hasOwnProperty.call(options, 'encoding') ? options.encoding : 'utf8',
     stdio: ['ignore', 'pipe', 'pipe'],
     maxBuffer: 128 * 1024 * 1024,
+    env: sanitizedGitEnv(options.env ?? process.env),
   });
 }
 
