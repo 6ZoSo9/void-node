@@ -56,7 +56,7 @@
     "src/index.ts": "ef66044c92d6c25d781822c89b11020bc5a838982f9249613a14b8ca59af0f53",
     "src/ui/void_app_wave1_foundation_v1.ts": "269cf9d16e7100797cebaa32247f2adb2ca701f60b78cbaa307be4dfd1a83d9b",
     "src/ui/void_app_wave2_home_readonly_v1.ts": "11607daafb5550f8e6f92736a2a0655f99e6ce3fa90a73a67e71e85775bba901",
-    "src/ui/void_app_wave2_home_source_fetch_v1.ts": "47fe4ce24628e3de46cb40a479fc5c8695637150f07c196c111de91fd5ff25cd",
+    "src/ui/void_app_wave2_home_source_fetch_v1.ts": "8b0fe088ec3e57567f3dc5b17e1cd2ac59df2f5dbf78eec97805c47e14975fd7",
     "src/ui/void_app_wave3_wallet_readonly_v1.ts": "e4d64da7c0749c11066b2115c636ca14ac6aed9f0cd2ccf62a65d967266e88e4",
     "src/ui/void_app_wave4_earn_readonly_v1.ts": "4133d33e2295e5401a256619d78ccc1124c7ddf32cc3ea5d18549614604cc360"
   },
