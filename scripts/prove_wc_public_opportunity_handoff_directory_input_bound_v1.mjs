@@ -48,6 +48,27 @@ function canonicalEmptyDirectory() {
   };
 }
 
+function canonicalDirectoryAtExactBytes(byteLength) {
+  const compact = JSON.stringify(canonicalEmptyDirectory());
+  const compactBytes = Buffer.byteLength(compact, "utf8");
+  assert.ok(compactBytes <= byteLength, `canonical directory exceeds target ${byteLength}`);
+  const text = compact + " ".repeat(byteLength - compactBytes);
+  assert.equal(Buffer.byteLength(text, "utf8"), byteLength);
+  JSON.parse(text);
+  return text;
+}
+
+function multibyteOversizedCanonicalDirectory() {
+  const text = JSON.stringify({
+    ...canonicalEmptyDirectory(),
+    padding: "é".repeat(Math.ceil(MAX_DIRECTORY_INPUT_BYTES / 2)),
+  });
+  assert.ok(text.length < MAX_DIRECTORY_INPUT_BYTES, "multibyte fixture must be below the cap in JS code units");
+  assert.ok(Buffer.byteLength(text, "utf8") > MAX_DIRECTORY_INPUT_BYTES, "multibyte fixture must exceed the cap in UTF-8 bytes");
+  JSON.parse(text);
+  return text;
+}
+
 function assertBoundHold(result) {
   assert.equal(result.code, 2, result.stderr || result.stdout);
   const body = JSON.parse(result.stdout);
@@ -58,14 +79,35 @@ function assertBoundHold(result) {
   assert.equal(body.commands, undefined);
 }
 
+function assertNoCoordinatorHold(result) {
+  assert.equal(result.code, 2, result.stderr || result.stdout);
+  const body = JSON.parse(result.stdout);
+  assert.equal(body.handoff_state, "hold");
+  assert.equal(body.reason, "no_trusted_available_coordinator");
+  assert.equal(body.safety.directory_input_max_bytes, MAX_DIRECTORY_INPUT_BYTES);
+  assert.equal(body.safety.mutation_attempted, false);
+  assert.equal(body.commands, undefined);
+}
+
 const temp = mkdtempSync(join(tmpdir(), "void-wc-handoff-input-bound-"));
 try {
-  const oversized = "x".repeat(MAX_DIRECTORY_INPUT_BYTES + 1);
-  const oversizedFile = join(temp, "oversized.json");
-  writeFileSync(oversizedFile, oversized, "utf8");
-  assertBoundHold(await run(["--directory-json", oversizedFile, "--account", "outside-user-bound"]));
+  const exactLimit = canonicalDirectoryAtExactBytes(MAX_DIRECTORY_INPUT_BYTES);
+  const exactLimitFile = join(temp, "exact-limit.json");
+  writeFileSync(exactLimitFile, exactLimit, "utf8");
+  assertNoCoordinatorHold(await run(["--directory-json", exactLimitFile, "--account", "outside-user-bound"]));
+  assertNoCoordinatorHold(await run(["--directory-json", "-", "--account", "outside-user-bound"], exactLimit));
 
-  assertBoundHold(await run(["--directory-json", "-", "--account", "outside-user-bound"], oversized));
+  const exactOverflow = canonicalDirectoryAtExactBytes(MAX_DIRECTORY_INPUT_BYTES + 1);
+  const exactOverflowFile = join(temp, "exact-overflow.json");
+  writeFileSync(exactOverflowFile, exactOverflow, "utf8");
+  assertBoundHold(await run(["--directory-json", exactOverflowFile, "--account", "outside-user-bound"]));
+  assertBoundHold(await run(["--directory-json", "-", "--account", "outside-user-bound"], exactOverflow));
+
+  const multibyteOverflow = multibyteOversizedCanonicalDirectory();
+  const multibyteOverflowFile = join(temp, "multibyte-overflow.json");
+  writeFileSync(multibyteOverflowFile, multibyteOverflow, "utf8");
+  assertBoundHold(await run(["--directory-json", multibyteOverflowFile, "--account", "outside-user-bound"]));
+  assertBoundHold(await run(["--directory-json", "-", "--account", "outside-user-bound"], multibyteOverflow));
 
   const regularFile = join(temp, "regular.json");
   writeFileSync(regularFile, JSON.stringify(canonicalEmptyDirectory()), "utf8");
@@ -76,15 +118,16 @@ try {
   assert.equal(JSON.parse(symlinkRejected.stdout).reason, "directory JSON input must be a regular file");
 
   const bounded = await run(["--directory-json", regularFile, "--account", "outside-user-bound"]);
-  assert.equal(bounded.code, 2, bounded.stderr || bounded.stdout);
-  const boundedBody = JSON.parse(bounded.stdout);
-  assert.equal(boundedBody.reason, "no_trusted_available_coordinator");
-  assert.equal(boundedBody.safety.directory_input_max_bytes, MAX_DIRECTORY_INPUT_BYTES);
-  assert.equal(boundedBody.commands, undefined);
+  assertNoCoordinatorHold(bounded);
 } finally {
   rmSync(temp, { recursive: true, force: true });
 }
 
+console.log("directory_exact_262144_file_accepted=true");
+console.log("directory_exact_262144_stdin_accepted=true");
+console.log("directory_exact_262145_file_rejected=true");
+console.log("directory_exact_262145_stdin_rejected=true");
+console.log("directory_multibyte_utf8_byte_bound=true");
 console.log("directory_file_preparse_bound=true");
 console.log("directory_stdin_preparse_bound=true");
 console.log("directory_symlink_rejected=true");
