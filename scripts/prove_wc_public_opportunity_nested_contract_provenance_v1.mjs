@@ -26,10 +26,12 @@ function safety() {
 function publicClaim({
   route = canonicalClaimRoute,
   includeRoute = true,
+  enabled = true,
+  includeEnabled = true,
   extra = {},
 } = {}) {
   return {
-    enabled: true,
+    ...(includeEnabled ? { enabled } : {}),
     method: "POST",
     ...(includeRoute ? { public_route: route } : {}),
     fixed_award_wc: 3,
@@ -135,13 +137,39 @@ try {
   assert.equal(outcome.code, 0);
   assert.equal(outcome.result.opportunity_state, "available");
   assert.equal(outcome.result.public_claim.configured, true);
+  assert.equal(outcome.result.public_claim.enabled, true);
   assert.equal(outcome.result.public_claim.path, canonicalClaimRoute);
 
   outcome = await runCase(topLevelPilot());
   assert.equal(outcome.code, 0);
   assert.equal(outcome.result.opportunity_state, "available");
   assert.equal(outcome.result.public_claim.configured, true);
+  assert.equal(outcome.result.public_claim.enabled, true);
   assert.equal(outcome.result.public_claim.path, canonicalClaimRoute);
+
+  for (const [label, claim] of [
+    ["missing_enabled", publicClaim({ includeEnabled: false })],
+    ["null_enabled", publicClaim({ enabled: null })],
+    ["string_enabled", publicClaim({ enabled: "true" })],
+    ["false_enabled", publicClaim({ enabled: false })],
+    ["legacy_available_alias_only", publicClaim({
+      includeEnabled: false,
+      extra: { available: true },
+    })],
+  ]) {
+    for (const [envelopeLabel, envelope] of [
+      ["gateway", gateway],
+      ["top_level_pilot", topLevelPilot],
+    ]) {
+      outcome = await runCase(envelope(claim));
+      assert.equal(outcome.code, 2, `${envelopeLabel}:${label}`);
+      assert.equal(outcome.result.opportunity_state, "hold", `${envelopeLabel}:${label}`);
+      assert.equal(outcome.result.public_claim.configured, true, `${envelopeLabel}:${label}`);
+      assert.notEqual(outcome.result.public_claim.enabled, true, `${envelopeLabel}:${label}`);
+      assert.equal(outcome.result.public_claim.path, canonicalClaimRoute, `${envelopeLabel}:${label}`);
+      assert.match(outcome.result.reason, /public_claim_not_enabled/u, `${envelopeLabel}:${label}`);
+    }
+  }
 
   for (const [label, claim] of [
     ["missing_route", publicClaim({ includeRoute: false })],
