@@ -303,6 +303,65 @@ const awaitTeardownBounded = async (
   }
 };
 
+const cancelLateResponseBounded = async (
+  response: Response,
+  reason: unknown
+): Promise<void> => {
+  try {
+    if (!response.body) return;
+    await awaitTeardownBounded(() => response.body!.cancel(reason));
+  } catch {
+    // Late-response cleanup cannot replace the already-terminal source result.
+  }
+};
+
+const fetchWithinSignal = async (
+  pendingFetch: Promise<Response>,
+  signal: AbortSignal
+): Promise<Response> => {
+  if (signal.aborted) {
+    const reason = sourceDeadlineError(signal);
+    void pendingFetch.then(
+      (response) => cancelLateResponseBounded(response, reason),
+      () => undefined
+    );
+    throw reason;
+  }
+
+  return await new Promise<Response>((resolve, reject) => {
+    let settled = false;
+
+    const settleFetch = (
+      settle: () => void
+    ): void => {
+      if (settled) return;
+      settled = true;
+      signal.removeEventListener("abort", onAbort);
+      settle();
+    };
+
+    const onAbort = (): void => {
+      if (settled) return;
+      settleFetch(() => reject(sourceDeadlineError(signal)));
+    };
+
+    signal.addEventListener("abort", onAbort, { once: true });
+    pendingFetch.then(
+      (response) => {
+        if (settled) {
+          void cancelLateResponseBounded(
+            response,
+            sourceDeadlineError(signal)
+          );
+          return;
+        }
+        settleFetch(() => resolve(response));
+      },
+      (error) => settleFetch(() => reject(error))
+    );
+  });
+};
+
 const declaredLength = (response: Response): number | null => {
   const raw = response.headers.get("content-length");
   if (raw === null || !/^[0-9]+$/.test(raw)) return null;
@@ -391,16 +450,22 @@ export async function fetchVoidUiWave2HomeSourceJsonV1(
   const fetchImpl = options.fetchImpl ?? fetch;
 
   try {
-    const response = await fetchImpl(`${base}${route}`, {
-      method: "GET",
-      headers: {
-        Accept: "application/json",
-        "User-Agent": "void-ui-wave2-home-readonly-v1",
-        "Cache-Control": "no-store",
-      },
-      redirect: "error",
-      signal: controller.signal,
-    });
+    const pendingFetch = Promise.resolve().then(() =>
+      fetchImpl(`${base}${route}`, {
+        method: "GET",
+        headers: {
+          Accept: "application/json",
+          "User-Agent": "void-ui-wave2-home-readonly-v1",
+          "Cache-Control": "no-store",
+        },
+        redirect: "error",
+        signal: controller.signal,
+      })
+    );
+    const response = await fetchWithinSignal(
+      pendingFetch,
+      controller.signal
+    );
 
     const text = await readVoidUiWave2HomeBoundedTextV1(
       response,

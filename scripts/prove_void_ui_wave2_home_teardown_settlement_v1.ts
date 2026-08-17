@@ -210,6 +210,99 @@ async function main(): Promise<void> {
   );
   assert.equal(owner.hasInFlight(), false);
 
+  let neverResolvingFetchCalls = 0;
+  const neverFetchKeepAlive = setTimeout(() => {}, 1000);
+  const neverFetchStart = Date.now();
+  const neverFetch = owner.getOrStart(() =>
+    fetchVoidUiWave2HomeSourceJsonV1(
+      "http://127.0.0.1:4100",
+      "/health",
+      {
+        timeoutMs: 30,
+        fetchImpl: async (_input, init) => {
+          neverResolvingFetchCalls += 1;
+          assert.equal(init?.signal instanceof AbortSignal, true);
+          return await new Promise<Response>(() => {});
+        },
+      }
+    )
+  );
+  const neverFetchOverlap = owner.getOrStart(async () => ({
+    ok: true,
+    status: 200,
+    body: { unexpected_fetch_acquisition_second_batch: true },
+  }));
+  assert.strictEqual(neverFetch, neverFetchOverlap);
+
+  const neverFetchResult = await neverFetch;
+  clearTimeout(neverFetchKeepAlive);
+  const neverFetchElapsed = Date.now() - neverFetchStart;
+  assert.equal(neverResolvingFetchCalls, 1);
+  assert.equal(neverFetchResult.ok, false);
+  assert.equal(neverFetchResult.error, "source_deadline_exceeded");
+  assert.ok(
+    neverFetchElapsed < 30 + 250,
+    `fetch acquisition escaped source deadline: ${neverFetchElapsed}ms`
+  );
+  assert.equal(owner.hasInFlight(), false);
+
+  let resolveLateFetch!: (response: Response) => void;
+  let lateCancelAttempts = 0;
+  const lateFetchKeepAlive = setTimeout(() => {}, 1000);
+  const lateFetchStart = Date.now();
+  const lateFetch = owner.getOrStart(() =>
+    fetchVoidUiWave2HomeSourceJsonV1(
+      "http://127.0.0.1:4100",
+      "/health",
+      {
+        timeoutMs: 30,
+        fetchImpl: async () =>
+          await new Promise<Response>((resolve) => {
+            resolveLateFetch = resolve;
+          }),
+      }
+    )
+  );
+
+  const lateFetchResult = await lateFetch;
+  const lateFetchElapsed = Date.now() - lateFetchStart;
+  assert.equal(lateFetchResult.ok, false);
+  assert.equal(lateFetchResult.error, "source_deadline_exceeded");
+  assert.ok(
+    lateFetchElapsed < 30 + 250,
+    `late fetch acquisition escaped source deadline: ${lateFetchElapsed}ms`
+  );
+  assert.equal(owner.hasInFlight(), false);
+
+  resolveLateFetch(
+    new Response(
+      new ReadableStream<Uint8Array>({
+        cancel() {
+          lateCancelAttempts += 1;
+          return new Promise<void>(() => {});
+        },
+      }),
+      { status: 200 }
+    )
+  );
+
+  await sleep(20);
+  assert.equal(lateCancelAttempts, 1);
+  const lateFresh = owner.getOrStart(async () => ({
+    ok: true,
+    status: 200,
+    body: { fresh_batch_after_late_fetch_timeout: true },
+  }));
+  assert.deepEqual(await lateFresh, {
+    ok: true,
+    status: 200,
+    body: { fresh_batch_after_late_fetch_timeout: true },
+  });
+  assert.equal(owner.hasInFlight(), false);
+  await sleep(VOID_UI_WAVE2_HOME_SOURCE_TEARDOWN_MS_V1 + 20);
+  clearTimeout(lateFetchKeepAlive);
+  assert.equal(lateCancelAttempts, 1);
+
   const fresh = owner.getOrStart(async () => ({
     ok: true,
     status: 200,
@@ -230,6 +323,10 @@ async function main(): Promise<void> {
   console.log("stalled_read_raced_against_source_deadline=true");
   console.log("stalled_read_cancel_attempts=1");
   console.log("snapshot_owner_released_after_stalled_read=true");
+  console.log("fetch_acquisition_raced_against_source_deadline=true");
+  console.log("never_resolving_fetch_owner_released=true");
+  console.log("late_response_cancel_attempts=1");
+  console.log("late_response_cleanup_bounded=true");
   console.log("fresh_batch_after_teardown=true");
   console.log("authority_added=false");
 }
