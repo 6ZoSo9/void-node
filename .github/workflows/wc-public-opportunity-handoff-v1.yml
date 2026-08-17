@@ -4,8 +4,6 @@ on:
   pull_request:
     paths:
       - "tools/wc-public-opportunity-handoff-v1.mjs"
-      - "tools/wc-public-opportunity-directory-v1.mjs"
-      - "tools/wc-public-opportunity-discovery-v1.mjs"
       - "tools/void_public_earn_no_node_client_v1.mjs"
       - "scripts/prove_wc_public_opportunity_handoff_v1.mjs"
       - "scripts/prove_wc_public_opportunity_handoff_cancel_liveness_v1.mjs"
@@ -16,8 +14,6 @@ on:
     branches: [main]
     paths:
       - "tools/wc-public-opportunity-handoff-v1.mjs"
-      - "tools/wc-public-opportunity-directory-v1.mjs"
-      - "tools/wc-public-opportunity-discovery-v1.mjs"
       - "tools/void_public_earn_no_node_client_v1.mjs"
       - "scripts/prove_wc_public_opportunity_handoff_v1.mjs"
       - "scripts/prove_wc_public_opportunity_handoff_cancel_liveness_v1.mjs"
@@ -53,8 +49,6 @@ jobs:
       - name: Syntax
         run: |
           node --check tools/wc-public-opportunity-handoff-v1.mjs
-          node --check tools/wc-public-opportunity-directory-v1.mjs
-          node --check tools/wc-public-opportunity-discovery-v1.mjs
           node --check tools/void_public_earn_no_node_client_v1.mjs
           node --check scripts/prove_wc_public_opportunity_handoff_v1.mjs
           node --check scripts/prove_wc_public_opportunity_handoff_cancel_liveness_v1.mjs
