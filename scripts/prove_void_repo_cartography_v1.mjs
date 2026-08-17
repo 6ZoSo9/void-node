@@ -14,6 +14,7 @@ import {
   INDEX_REGISTRY_PATH,
   RESOLVED_MARKER,
   SNAPSHOT_KIND,
+  sanitizedGitEnv,
   sha256,
   validateRegistry,
 } from './generate_void_repo_cartography_v1.mjs';
@@ -36,6 +37,18 @@ function expectFailure(fn, pattern) {
 
 function writeJson(file, value) {
   fs.writeFileSync(file, `${JSON.stringify(value)}\n`);
+}
+
+function ordinaryGit(repo, args, { encoding = 'utf8' } = {}) {
+  const result = spawnSync('git', ['-C', repo, ...args], {
+    encoding,
+    env: sanitizedGitEnv(),
+    stdio: ['ignore', 'pipe', 'pipe'],
+  });
+  if (result.status !== 0) {
+    throw new Error(`ordinary_git_failed args=${args.join(' ')} stderr=${String(result.stderr ?? '')}`);
+  }
+  return result.stdout;
 }
 
 function makeSnapshotFixture(sourceRepo, sourceCommit) {
@@ -177,8 +190,10 @@ const malformedSelector = clone(registryRead.value);
 malformedSelector.domains[0].selectors[0] = { type: 'glob', value: '**', required: true };
 expectFailure(() => validateRegistry(malformedSelector, indexRead.value), /selector_type_invalid/);
 
-// Adversarial dirty-state and concurrent-checkout proof runs entirely in a synthetic temp repo.
+// Adversarial dirty-state, replacement-object, repository-selection, and checkout-race
+// proof runs entirely in synthetic temporary repositories.
 let fixture = null;
+let foreignFixture = null;
 try {
   fixture = makeSnapshotFixture(repoRoot, resolved1.source_commit_sha);
   const baselineResolved = buildResolvedMap({ repoRoot: fixture.repo });
@@ -212,6 +227,7 @@ try {
   git(fixture.repo, ['add', '--', REGISTRY_PATH, probePath]);
   git(fixture.repo, ['commit', '-q', '-m', 'fixture snapshot B']);
   const snapshotB = git(fixture.repo, ['rev-parse', 'HEAD']).trim();
+  const snapshotBRegistry = fs.readFileSync(path.join(fixture.repo, REGISTRY_PATH));
   git(fixture.repo, ['checkout', '--quiet', '--detach', fixture.baseline]);
 
   const baselineSection = buildDomainSection({ repoRoot: fixture.repo, domainId: 'economic.buy-void', limit: 100 });
@@ -229,8 +245,71 @@ try {
   assert.equal(racedSection.source_commit_sha, fixture.baseline);
   assert.ok(!racedSection.domain.purpose.includes('RACE_SNAPSHOT_B'));
   assert.ok(!racedSection.domain.canonical_files.paths.includes(probePath));
+
+  git(fixture.repo, ['checkout', '--quiet', '--detach', fixture.baseline]);
+
+  // Ordinary Git honors replacement refs, but cartography commit-labeled reads must not.
+  git(fixture.repo, ['replace', fixture.baseline, snapshotB]);
+  const ordinaryReplacedRegistry = ordinaryGit(fixture.repo, ['show', `${fixture.baseline}:${REGISTRY_PATH}`], { encoding: null });
+  assert.ok(Buffer.isBuffer(ordinaryReplacedRegistry));
+  assert.deepEqual(ordinaryReplacedRegistry, snapshotBRegistry, 'replacement fixture must redirect ordinary Git object reads');
+  assert.notDeepEqual(ordinaryReplacedRegistry, readCommitBytes(fixture.repo, fixture.baseline, REGISTRY_PATH));
+  const replacementSafeResolved = buildResolvedMap({ repoRoot: fixture.repo });
+  assert.deepEqual(replacementSafeResolved, baselineResolved, 'replacement refs must not alter commit-bound cartography');
+  const replacementSafeSection = buildDomainSection({ repoRoot: fixture.repo, domainId: 'economic.buy-void', limit: 100 });
+  assert.deepEqual(replacementSafeSection, baselineSection, 'replacement refs must not alter bounded section evidence');
+  git(fixture.repo, ['replace', '-d', fixture.baseline]);
+
+  // Ambient repository/object/config-selection variables must not redirect repo A to repo B.
+  foreignFixture = makeSnapshotFixture(repoRoot, resolved1.source_commit_sha);
+  const foreignRegistryPath = path.join(foreignFixture.repo, REGISTRY_PATH);
+  const foreignRegistry = JSON.parse(fs.readFileSync(foreignRegistryPath, 'utf8'));
+  foreignRegistry.domains.find((domain) => domain.id === 'economic.buy-void').purpose += ' FOREIGN_REPOSITORY_B';
+  writeJson(foreignRegistryPath, foreignRegistry);
+  git(foreignFixture.repo, ['add', '--', REGISTRY_PATH]);
+  git(foreignFixture.repo, ['commit', '-q', '-m', 'foreign repository B']);
+
+  const poisonKeys = [
+    'GIT_DIR',
+    'GIT_WORK_TREE',
+    'GIT_COMMON_DIR',
+    'GIT_INDEX_FILE',
+    'GIT_OBJECT_DIRECTORY',
+    'GIT_ALTERNATE_OBJECT_DIRECTORIES',
+    'GIT_NAMESPACE',
+    'GIT_CONFIG_PARAMETERS',
+    'GIT_CONFIG_COUNT',
+    'GIT_CONFIG_KEY_0',
+    'GIT_CONFIG_VALUE_0',
+  ];
+  const saved = new Map(poisonKeys.map((key) => [key, process.env[key]]));
+  try {
+    process.env.GIT_DIR = path.join(foreignFixture.repo, '.git');
+    process.env.GIT_WORK_TREE = foreignFixture.repo;
+    process.env.GIT_COMMON_DIR = path.join(foreignFixture.repo, '.git');
+    process.env.GIT_INDEX_FILE = path.join(foreignFixture.repo, '.git', 'index');
+    process.env.GIT_OBJECT_DIRECTORY = path.join(foreignFixture.repo, '.git', 'objects');
+    process.env.GIT_ALTERNATE_OBJECT_DIRECTORIES = path.join(foreignFixture.repo, '.git', 'objects');
+    process.env.GIT_NAMESPACE = 'foreign-proof';
+    process.env.GIT_CONFIG_COUNT = '1';
+    process.env.GIT_CONFIG_KEY_0 = 'core.worktree';
+    process.env.GIT_CONFIG_VALUE_0 = foreignFixture.repo;
+    process.env.GIT_CONFIG_PARAMETERS = "'core.worktree'='" + foreignFixture.repo.replaceAll("'", "'\\''") + "'";
+
+    assert.equal(findRepoRoot(fixture.repo), fixture.repo, 'repo discovery must ignore ambient repository-selection state');
+    const envSafeResolved = buildResolvedMap({ repoRoot: fixture.repo });
+    assert.deepEqual(envSafeResolved, baselineResolved, 'ambient Git environment must not redirect cartography evidence');
+    const envSafeSection = buildDomainSection({ repoRoot: fixture.repo, domainId: 'economic.buy-void', limit: 100 });
+    assert.deepEqual(envSafeSection, baselineSection, 'bounded section must remain bound to selected repository A');
+  } finally {
+    for (const [key, value] of saved) {
+      if (value === undefined) delete process.env[key];
+      else process.env[key] = value;
+    }
+  }
 } finally {
   if (fixture?.root) fs.rmSync(fixture.root, { recursive: true, force: true });
+  if (foreignFixture?.root) fs.rmSync(foreignFixture.root, { recursive: true, force: true });
 }
 
 const afterStatus = git(repoRoot, ['status', '--porcelain=v1', '--untracked-files=all']);
@@ -248,6 +327,8 @@ console.log('pinned_head_snapshot=true');
 console.log('dirty_checkout_head_binding=true');
 console.log('domain_section_single_snapshot=true');
 console.log('coordination_live_truth_precedence=true');
+console.log('git_replacement_objects_ignored=true');
+console.log('ambient_git_repository_selection_ignored=true');
 console.log('unknown_relationships_fail_closed=true');
 console.log('unknown_index_landmarks_fail_closed=true');
 console.log('missing_required_paths_fail_closed=true');
