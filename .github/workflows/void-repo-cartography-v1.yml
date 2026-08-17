@@ -10,6 +10,8 @@ on:
       - "scripts/review_void_repo_section_v1.mjs"
       - "scripts/prove_void_repo_cartography_v1.mjs"
       - "scripts/prove_void_repo_cartography_git_executable_identity_v1.mjs"
+      - "scripts/ci_diff_hygiene_v1.sh"
+      - "scripts/prove_ci_diff_hygiene_v1.mjs"
       - ".github/workflows/void-repo-cartography-v1.yml"
   push:
     branches:
@@ -22,6 +24,8 @@ on:
       - "scripts/review_void_repo_section_v1.mjs"
       - "scripts/prove_void_repo_cartography_v1.mjs"
       - "scripts/prove_void_repo_cartography_git_executable_identity_v1.mjs"
+      - "scripts/ci_diff_hygiene_v1.sh"
+      - "scripts/prove_ci_diff_hygiene_v1.mjs"
       - ".github/workflows/void-repo-cartography-v1.yml"
   workflow_dispatch:
 
@@ -61,12 +65,17 @@ jobs:
           node --check scripts/review_void_repo_section_v1.mjs
           node --check scripts/prove_void_repo_cartography_v1.mjs
           node --check scripts/prove_void_repo_cartography_git_executable_identity_v1.mjs
+          node --check scripts/prove_ci_diff_hygiene_v1.mjs
+          bash -n scripts/ci_diff_hygiene_v1.sh
 
       - name: Reviewed Git executable boundary proof
         run: node scripts/prove_void_repo_cartography_git_executable_identity_v1.mjs
 
       - name: Repository cartography proof
         run: node scripts/prove_void_repo_cartography_v1.mjs
+
+      - name: Prove shallow committed-range diff hygiene contract
+        run: node scripts/prove_ci_diff_hygiene_v1.mjs
 
       - name: Resolve current directory
         run: node scripts/generate_void_repo_cartography_v1.mjs --format json > /tmp/void-repo-map-v1.json
@@ -99,5 +108,14 @@ jobs:
         if: always()
         run: node scripts/review_void_repo_section_v1.mjs --domain economic.buy-void --limit 15 >> "$GITHUB_STEP_SUMMARY"
 
-      - name: Diff hygiene
-        run: git diff --check
+      - name: Committed-range diff hygiene
+        if: github.event_name == 'pull_request' || github.event_name == 'push'
+        env:
+          CI_DIFF_EVENT_NAME: ${{ github.event_name }}
+          CI_DIFF_PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          CI_DIFF_PUSH_BEFORE_SHA: ${{ github.event.before }}
+          CI_DIFF_CURRENT_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+          CI_DIFF_CHECKOUT_SHA: ${{ github.sha }}
+          CI_DIFF_BASE_REMOTE: ${{ github.server_url }}/${{ github.repository }}.git
+          CI_DIFF_HEAD_REMOTE: ${{ github.server_url }}/${{ github.event.pull_request.head.repo.full_name || github.repository }}.git
+        run: bash scripts/ci_diff_hygiene_v1.sh
