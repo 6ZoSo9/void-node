@@ -145,6 +145,29 @@ async function rejectResponse(response, request, message) {
   fail(message);
 }
 
+async function validateAcceptedResponseUrl(response, requestedUrl, label, request) {
+  if (typeof response?.url !== "string" || response.url.length === 0) {
+    await rejectResponse(response, request, `${label}_final_url_missing`);
+  }
+
+  let finalUrl;
+  try {
+    finalUrl = new URL(response.url);
+  } catch {
+    await rejectResponse(response, request, `${label}_final_url_invalid`);
+  }
+
+  const expectedUrl = requestedUrl instanceof URL
+    ? requestedUrl
+    : new URL(requestedUrl);
+  if (finalUrl.href !== expectedUrl.href) {
+    await rejectResponse(response, request, `${label}_final_url_mismatch`);
+  }
+  if (response.redirected === true) {
+    await rejectResponse(response, request, `${label}_redirected_response_rejected`);
+  }
+}
+
 async function readBoundedText(response, label, maxBytes, request) {
   const declared = response.headers.get("content-length");
   if (declared !== null) {
@@ -221,6 +244,7 @@ async function fetchJson(url, label, options) {
   if (!response.ok) {
     await rejectResponse(response, request, `${label}_http_${response.status}`);
   }
+  await validateAcceptedResponseUrl(response, url, label, request);
   const contentType = response.headers.get("content-type") ?? "";
   if (!contentType.toLowerCase().includes("json")) {
     await rejectResponse(response, request, `${label}_content_type_not_json`);
