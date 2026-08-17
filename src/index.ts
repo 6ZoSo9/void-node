@@ -102,6 +102,7 @@ import { ValidatorSubmitIntentRuntimeIntegrationV1 } from "./validator/validator
 import { installPublicAgentServiceAcceptancePersistenceTrustedContextProviderBindingFromEnvironmentV1 } from "./http/public_agent_service_acceptance_persistence_trusted_context_provider_binding_v1.js"; // VOID_PUBLIC_AGENT_SERVICE_ACCEPTANCE_PERSISTENCE_TRUSTED_CONTEXT_PROVIDER_BINDING_V1_IMPORT
 import { executePublicAgentServiceAcceptancePersistenceHttpRouteServerBootstrapCallsiteIntegrationFromEnvironmentV1 } from "./http/public_agent_service_acceptance_persistence_http_route_server_bootstrap_callsite_integration_v1.js"; // VOID_PUBLIC_AGENT_SERVICE_ACCEPTANCE_PERSISTENCE_HTTP_ROUTE_SERVER_BOOTSTRAP_CALLSITE_INTEGRATION_V1_IMPORT
 import { executeOrderStatusReadonlyHttpIntegrationFromEnvironmentV1 } from "../tools/void-public-agent-service-order-status-readonly-http-integration-v1.mjs"; // VOID_PUBLIC_AGENT_SERVICE_ORDER_STATUS_READONLY_HTTP_INTEGRATION_V1_IMPORT
+import { AgentPick2JsonlSemanticIndexV1 } from "./http/agent_pick2_jsonl_semantic_index_v1.js"; // VOID_AGENT_PICK2_JSONL_SEMANTIC_INDEX_V1_IMPORT
 
 
 // __VOID_TS_DECLARES_V1__
@@ -39165,6 +39166,7 @@ try {
     const TICK=400;
     const fs = require("node:fs");
     const path = require("node:path");
+    const semanticIndex = new AgentPick2JsonlSemanticIndexV1();
 
     function nowMs(){ return Date.now(); }
     function readEpochMs(agentDir:string){
@@ -39233,34 +39235,16 @@ try {
           const FILE_JOB_STATE_V1 = path.join(AGENTV1_DIR, "job_state.jsonl");
 
           const epochMs = readEpochMs(agentDir);
-          const cutoffLease = nowMs() - LEASE_MS;
-          const doneTruth = new Set<string>();
-          const addCompletedTruth = (file:string) => {
-            try{
-              if (!fs.existsSync(file)) return;
-              for (const l of safeLines(file)){
-                try{
-                  const j:any = JSON.parse(l);
-                  const st = String(j?.status || "").trim().toLowerCase();
-                  if (!(st === "completed" || st === "ok" || st === "done")) continue;
-                  const jid = String(j?.job_id || j?.id || "").trim();
-                  if (jid) doneTruth.add(jid);
-                }catch (err) { voidIndexEmptyCatchVisibilityWindow37801_38700V1("38322:17", err); }
-              }
-            }catch (err) { voidIndexEmptyCatchVisibilityWindow37801_38700V1("38324:18", err); }
-          };
-          addCompletedTruth(FILE_RECEIPTS);
-          addCompletedTruth(FILE_RECEIPTS_V1);
-          addCompletedTruth(FILE_JOB_STATE_V1);
-
-          function safeLines(file:string){
-            try{
-              if (!fs.existsSync(file)) return [];
-              const txt = String(fs.readFileSync(file,"utf8")||"");
-              if (!txt) return [];
-              return txt.split("\\n").filter((l:string)=>l.trim().length>0);
-            }catch{ return []; }
-          }
+          const semantic = semanticIndex.snapshot({
+            jobsFile: FILE_JOBS,
+            resultsFile: FILE_RESULTS,
+            leasesFile: FILE_LEASES,
+            completionFiles: [FILE_RECEIPTS, FILE_RECEIPTS_V1, FILE_JOB_STATE_V1],
+            scanMax: SCAN_MAX,
+            leaseMs: LEASE_MS,
+            nowMs: nowMs(),
+          });
+          const doneTruthHas = semantic.doneTruthHas;
 
           function rowId(x:any){ return String(x?.job_id || x?.id || ""); }
           function rowTs(x:any){
@@ -39345,46 +39329,10 @@ try {
                    /low|easy/.test(d) ? 1 : 0;
           }
 
-          const done = new Set<string>();
-          for (const l of safeLines(FILE_RESULTS).slice(-SCAN_MAX)){
-            try{
-              const x = JSON.parse(l);
-              const id = rowId(x);
-              if (id) done.add(id);
-            }catch (err) { voidIndexEmptyCatchVisibilityWindow37801_38700V1("38428:19", err); }
-          }
-
-          const active = new Set<string>();
-          for (const l of safeLines(FILE_LEASES).slice(-SCAN_MAX)){
-            try{
-              const x = JSON.parse(l);
-              const id = String(x.id || "");
-              const ts = Number(x.ts || 0);
-              if (!id) continue;
-              if (ts >= cutoffLease) active.add(id);
-            }catch (err) { voidIndexEmptyCatchVisibilityWindow37801_38700V1("38439:20", err); }
-          }
-
-          const latestById = new Map<string, any>();
-          const latestRunnableById = new Map<string, any>();
-          const rawLines = safeLines(FILE_JOBS);
-          const n = Math.min(rawLines.length, SCAN_MAX);
-          for (let i = 0; i < n; i++){
-            const l = rawLines[i];
-            try{
-              const x = JSON.parse(l);
-              const id = rowId(x);
-              if (!id) continue;
-
-              const prev = latestById.get(id);
-              if (!prev || rowTs(x) >= rowTs(prev)) latestById.set(id, x);
-
-              if (rowIsRunnable(x)) {
-                const prevRun = latestRunnableById.get(id);
-                if (!prevRun || rowTs(x) >= rowTs(prevRun)) latestRunnableById.set(id, x);
-              }
-            }catch (err) { voidIndexEmptyCatchVisibilityWindow37801_38700V1("38460:21", err); }
-          }
+          const done = semantic.done;
+          const active = semantic.active;
+          const latestById = semantic.latestById;
+          const latestRunnableById = semantic.latestRunnableById;
 
           const requestedAccount = String(req.body?.account || "").trim();
           const rowAccount = (x:any) => String(
@@ -39444,16 +39392,7 @@ try {
             }
           });
 
-          const recentDone = (() => {
-            try {
-              return safeLines(FILE_LEASES)
-                .map((line:string) => { try { return JSON.parse(line); } catch { return null; } })
-                .filter((x:any) => !!x)
-                .slice(-40);
-            } catch {
-              return [];
-            }
-          })();
+          const recentDone = semantic.recentLeases;
 
           const recentTaskCounts:any = Object.create(null);
           let recentTaskStreakTask = "";
@@ -39516,7 +39455,7 @@ try {
               else if (!task || task === "unknown") reject_reason = "unknown_task";
               else if ((task === "datanet_fetch_verify" || task === "datanet_redundancy_check") && !rowDatasetId(x)) reject_reason = "missing_dataset_id";
               else if (epochMs > 0 && (!Number.isFinite(rawTs) || rawTs <= 0 || rawTs < epochMs)) reject_reason = "pre_epoch";
-              else if (done.has(id) || doneTruth.has(id)) reject_reason = "already_done";
+              else if (done.has(id) || doneTruthHas(id)) reject_reason = "already_done";
               else if (active.has(id)) reject_reason = "active_lease";
               else if (stale > MAX_STALE_MS) reject_reason = "too_stale";
               else if (payloadBytes > MAX_PLAINTEXT_BYTES) reject_reason = "payload_too_large";

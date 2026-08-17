@@ -4,6 +4,8 @@ on:
   pull_request:
     paths:
       - "src/index.ts"
+      - "src/http/agent_pick2_jsonl_semantic_index_v1.ts"
+      - "scripts/prove_agent_pick2_jsonl_semantic_index_v1.ts"
       - "runtime/canonical-producer-self-http-guard-v1.cjs"
       - "scripts/prove_canonical_producer_legacy_self_http_observers_v1.mjs"
       - "scripts/prove_live_agent_jsonl_runtime_wedge_v1.mjs"
@@ -17,6 +19,8 @@ on:
       - main
     paths:
       - "src/index.ts"
+      - "src/http/agent_pick2_jsonl_semantic_index_v1.ts"
+      - "scripts/prove_agent_pick2_jsonl_semantic_index_v1.ts"
       - "runtime/canonical-producer-self-http-guard-v1.cjs"
       - "scripts/prove_canonical_producer_legacy_self_http_observers_v1.mjs"
       - "scripts/prove_live_agent_jsonl_runtime_wedge_v1.mjs"
@@ -44,6 +48,7 @@ jobs:
           node-version: 22
       - name: Install behavioral-proof runtime dependencies
         run: npm ci --no-audit --no-fund
+      - run: ./node_modules/.bin/tsx scripts/prove_agent_pick2_jsonl_semantic_index_v1.ts
       - run: node scripts/prove_live_agent_jsonl_runtime_wedge_v1.mjs
       - run: node scripts/prove_canonical_producer_legacy_self_http_observers_v1.mjs
 
@@ -61,10 +66,13 @@ jobs:
           node-version: 24
       - name: Install behavioral-proof runtime dependencies
         run: npm ci --no-audit --no-fund
+      - run: ./node_modules/.bin/tsx scripts/prove_agent_pick2_jsonl_semantic_index_v1.ts
       - name: Prove shared diff hygiene contract
         run: node scripts/prove_ci_diff_hygiene_v1.mjs
       - run: node scripts/prove_live_agent_jsonl_runtime_wedge_v1.mjs
       - run: node scripts/prove_canonical_producer_legacy_self_http_observers_v1.mjs
+      - run: npm run typecheck
+      - run: npm run build
       - name: Diff hygiene
         env:
           CI_DIFF_EVENT_NAME: ${{ github.event_name }}
@@ -90,5 +98,6 @@ jobs:
           node-version: 26
       - name: Install behavioral-proof runtime dependencies
         run: npm ci --no-audit --no-fund
+      - run: ./node_modules/.bin/tsx scripts/prove_agent_pick2_jsonl_semantic_index_v1.ts
       - run: node scripts/prove_live_agent_jsonl_runtime_wedge_v1.mjs
       - run: node scripts/prove_canonical_producer_legacy_self_http_observers_v1.mjs
