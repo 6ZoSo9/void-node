@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { readFileSync } from "node:fs";
+import { closeSync, constants as fsConstants, fstatSync, lstatSync, openSync, readSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { isIP } from "node:net";
@@ -14,6 +14,7 @@ import {
 const MARKER = "VOID_WC_PUBLIC_OPPORTUNITY_HANDOFF_V1";
 const DIRECTORY_MARKER = "VOID_WC_PUBLIC_OPPORTUNITY_DIRECTORY_V1";
 const DISCOVERY_MARKER = "VOID_WC_PUBLIC_OPPORTUNITY_DISCOVERY_V1";
+const MAX_DIRECTORY_INPUT_BYTES = 256 * 1024;
 const MAX_HEALTH_RESPONSE_BYTES = 64 * 1024;
 const MAX_STATUS_RESPONSE_BYTES = 64 * 1024;
 const REJECTED_RESPONSE_TEARDOWN_TIMEOUT_MS = 100;
@@ -29,6 +30,7 @@ function hold(reason, extra = {}) {
     ...extra,
     safety: {
       read_only: true,
+      directory_input_max_bytes: MAX_DIRECTORY_INPUT_BYTES,
       health_method: "GET",
       health_response_max_bytes: MAX_HEALTH_RESPONSE_BYTES,
       canonical_status_reverification_required: true,
@@ -78,9 +80,40 @@ function normalizeOrigin(raw) {
   return url.origin;
 }
 
+function readBoundedDirectoryText(fd) {
+  const bytes = Buffer.allocUnsafe(MAX_DIRECTORY_INPUT_BYTES + 1);
+  let total = 0;
+  while (total < bytes.length) {
+    const count = readSync(fd, bytes, total, bytes.length - total, null);
+    if (count === 0) break;
+    total += count;
+  }
+  if (total > MAX_DIRECTORY_INPUT_BYTES) throw new Error("directory JSON input exceeds byte limit");
+  try {
+    return new TextDecoder("utf-8", { fatal: true }).decode(bytes.subarray(0, total));
+  } catch (error) {
+    throw new Error("directory JSON input is not valid UTF-8", { cause: error });
+  }
+}
+
 function readDirectory(path) {
-  const text = path === "-" ? readFileSync(0, "utf8") : readFileSync(resolve(path), "utf8");
-  return JSON.parse(text);
+  if (path === "-") return JSON.parse(readBoundedDirectoryText(0));
+
+  const resolvedPath = resolve(path);
+  const pathStat = lstatSync(resolvedPath);
+  if (!pathStat.isFile()) throw new Error("directory JSON input must be a regular file");
+  if (pathStat.size > MAX_DIRECTORY_INPUT_BYTES) throw new Error("directory JSON input exceeds byte limit");
+
+  const noFollow = typeof fsConstants.O_NOFOLLOW === "number" ? fsConstants.O_NOFOLLOW : 0;
+  const fd = openSync(resolvedPath, fsConstants.O_RDONLY | noFollow);
+  try {
+    const openedStat = fstatSync(fd);
+    if (!openedStat.isFile()) throw new Error("directory JSON input must be a regular file");
+    if (openedStat.size > MAX_DIRECTORY_INPUT_BYTES) throw new Error("directory JSON input exceeds byte limit");
+    return JSON.parse(readBoundedDirectoryText(fd));
+  } finally {
+    closeSync(fd);
+  }
 }
 
 function validateDirectory(value) {
@@ -137,7 +170,6 @@ async function settleCancellation(cancelTarget, reason) {
     if (timer) clearTimeout(timer);
   }
 }
-
 async function settleRejectedResponse(cancelTarget, controller, reason) {
   abortBestEffort(controller, reason);
   await settleCancellation(cancelTarget, reason);
@@ -351,6 +383,7 @@ async function main() {
     commands: { status: record(statusArgv), run: record(runArgv) },
     safety: {
       read_only: true,
+      directory_input_max_bytes: MAX_DIRECTORY_INPUT_BYTES,
       health_method: "GET",
       health_response_max_bytes: MAX_HEALTH_RESPONSE_BYTES,
       directory_marker_validated: true,
