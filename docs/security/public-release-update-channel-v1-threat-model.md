@@ -37,7 +37,10 @@ transport contract.
 Local `file://` channels exist only behind a test flag. Loopback HTTP exists
 only for the proof harness and requires both `--test-allow-file` and the
 explicit `VOID_NODE_UPDATE_TEST_ALLOW_HTTP_LOOPBACK=1` environment gate; it is
-not a production transport path.
+not a production transport path. Likewise, `--skip-attestation` is accepted
+only inside the explicit `--test-allow-file` proof boundary. A normal HTTPS
+stable apply cannot convert a channel-declared required attestation into an
+optional check through a CLI flag or ambient environment override.
 
 ### Remote response-size exhaustion
 
@@ -62,9 +65,11 @@ then checked against `RELEASE-CONTENTS-SHA256`.
 ### Compromised mirror or transport
 
 Stable apply requires GitHub artifact attestation verification for the archive,
-installer, and release manifest against the exact canonical repository.
-Redirected release-asset bytes still have to match the channel's exact byte
-count and hashes and the canonical-repository attestations. Release-asset
+installer, and release manifest against the exact canonical repository. That
+requirement is non-bypassable on a normal production stable apply; any
+attestation-skipping behavior is confined to the explicit local/test transport
+boundary. Redirected release-asset bytes still have to match the channel's exact
+byte count and hashes and the canonical-repository attestations. Release-asset
 redirect handling does not grant a redirected channel document authority: the
 channel source itself is non-redirecting and endpoint-bound before asset
 metadata is trusted.
