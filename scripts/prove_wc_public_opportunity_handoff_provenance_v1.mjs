@@ -8,9 +8,10 @@ import { spawn } from "node:child_process";
 
 const ROOT = resolve(import.meta.dirname, "..");
 const TOOL = resolve(ROOT, "tools/wc-public-opportunity-handoff-v1.mjs");
+const CANONICAL_CLIENT = resolve(ROOT, "tools/void_public_earn_no_node_client_v1.mjs");
 const temp = mkdtempSync(join(tmpdir(), "void-wc-handoff-provenance-"));
 const input = join(temp, "directory.json");
-const client = join(temp, "client.mjs");
+const fakeClient = join(temp, "client.mjs");
 const nodeId = "0123456789abcdef0123456789abcdef";
 const STATUS_ROUTE = "/wc/public-earning-pilot-v1/status";
 
@@ -144,14 +145,13 @@ const attacker = await listen((req, res) => {
   res.end(JSON.stringify({ error: "not_found" }));
 });
 
-writeFileSync(client, "#!/usr/bin/env node\n", { mode: 0o755 });
+writeFileSync(fakeClient, "#!/usr/bin/env node\n", { mode: 0o755 });
 
 try {
   writeFileSync(input, JSON.stringify(directory(attacker.base)), "utf8");
   const forged = await run([
     "--directory-json", input,
     "--account", "outside-user-1",
-    "--client-tool", client,
     "--health-timeout-ms", "1000",
   ]);
   assert.equal(forged.code, 2, forged.stderr || forged.stdout);
@@ -163,10 +163,21 @@ try {
 
   trusted.requests.length = 0;
   writeFileSync(input, JSON.stringify(directory(trusted.base)), "utf8");
+  const clientOverride = await run([
+    "--directory-json", input,
+    "--account", "outside-user-1",
+    "--client-tool", fakeClient,
+    "--health-timeout-ms", "1000",
+  ]);
+  assert.equal(clientOverride.code, 2, clientOverride.stderr || clientOverride.stdout);
+  const clientOverrideBody = JSON.parse(clientOverride.stdout);
+  assert.equal(clientOverrideBody.handoff_state, "hold");
+  assert.match(clientOverrideBody.reason, /client-tool/u);
+  assert.deepEqual(trusted.requests, [], "client override must be rejected before coordinator evidence is fetched");
+
   const ready = await run([
     "--directory-json", input,
     "--account", "outside-user-1",
-    "--client-tool", client,
     "--health-timeout-ms", "1000",
   ]);
   assert.equal(ready.code, 0, ready.stderr || ready.stdout);
@@ -176,6 +187,10 @@ try {
   assert.equal(readyBody.selected.source_path, STATUS_ROUTE);
   assert.equal(readyBody.selected.fixed_award_wc, 3);
   assert.equal(readyBody.coordinator_identity.node_id, nodeId);
+  assert.equal(readyBody.commands.status.argv[1], CANONICAL_CLIENT);
+  assert.equal(readyBody.commands.run.argv[1], CANONICAL_CLIENT);
+  assert.equal(readyBody.safety.canonical_client_path, CANONICAL_CLIENT);
+  assert.equal(readyBody.safety.canonical_client_override_allowed, false);
   assert.equal(readyBody.safety.selected_candidate_reverified_via_canonical_status_contract, true);
   assert.equal(readyBody.safety.canonical_status_path, STATUS_ROUTE);
   assert.equal(readyBody.safety.canonical_status_fixed_award_wc, 3);
@@ -187,6 +202,7 @@ try {
   console.log("VOID_WC_PUBLIC_OPPORTUNITY_HANDOFF_PROVENANCE_V1_PROOF_GREEN");
   console.log("fabricated_directory_self_attestation_rejected=true");
   console.log("canonical_participant_status_reverification_required=true");
+  console.log("canonical_client_override_rejected=true");
   console.log("trusted_candidate_health_binding_preserved=true");
   console.log("client_executed=false");
   console.log("wc_mutation_performed=false");
