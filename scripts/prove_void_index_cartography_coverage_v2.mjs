@@ -30,27 +30,6 @@ function gitStatus() {
   return result.stdout;
 }
 
-function boundedOccurrenceContexts(source, token) {
-  const lines = source.split("\n");
-  const matches = [];
-  for (let lineIndex = 0; lineIndex < lines.length; lineIndex += 1) {
-    let from = 0;
-    while (true) {
-      const column = lines[lineIndex].indexOf(token, from);
-      if (column < 0) break;
-      matches.push({
-        line: lineIndex + 1,
-        column: column + 1,
-        before: lineIndex > 0 ? lines[lineIndex - 1].slice(0, 360) : "",
-        current: lines[lineIndex].slice(0, 520),
-        after: lineIndex + 1 < lines.length ? lines[lineIndex + 1].slice(0, 360) : "",
-      });
-      from = column + Math.max(1, token.length);
-    }
-  }
-  return matches;
-}
-
 const originalStableIds = [
   "runtime.main",
   "runtime.storage-readiness",
@@ -93,17 +72,20 @@ const v2Coverage = [
   },
   {
     id: "runtime.v2fs-status-route",
-    anchor: "/__void/metrics/proposer.commit-direct.v2fs/status.json",
+    anchor: "app.get(\"/__void/metrics/proposer.commit-direct.v2fs/status.json\",",
+    provenanceToken: "/__void/metrics/proposer.commit-direct.v2fs/status.json",
     evidence: "liveness",
   },
   {
     id: "runtime.autoprop-status-route",
-    anchor: "/__void/metrics/commit-direct-autoprop.v1/status.json",
+    anchor: "app.get(\"/__void/metrics/commit-direct-autoprop.v1/status.json\",",
+    provenanceToken: "/__void/metrics/commit-direct-autoprop.v1/status.json",
     evidence: "liveness",
   },
   {
     id: "runtime.v2fs-commit-route",
-    anchor: "/__void/metrics/proposer.commit-direct.v2fs/commit?empty=1",
+    anchor: "const url = base() + \"/__void/metrics/proposer.commit-direct.v2fs/commit?empty=1\";",
+    provenanceToken: "/__void/metrics/proposer.commit-direct.v2fs/commit?empty=1",
     evidence: "liveness",
   },
 ];
@@ -132,18 +114,18 @@ for (const expected of v2Coverage) {
   if (!actual) fail(`missing V2 landmark: ${expected.id}`);
   if (actual.anchor !== expected.anchor) fail(`V2 anchor drift: ${expected.id}`);
   if (actual.expected_occurrences !== 1) fail(`V2 occurrence contract drift: ${expected.id}`);
+  if (expected.evidence === "liveness") {
+    if (typeof expected.provenanceToken !== "string" || expected.provenanceToken.length === 0) {
+      fail(`missing liveness provenance token: ${expected.id}`);
+    }
+    if (expected.anchor === expected.provenanceToken) {
+      fail(`liveness navigation anchor must remain distinct from provenance token: ${expected.id}`);
+    }
+  }
 }
 
 const sourceBefore = read(sourcePath);
 const sourceDigestBefore = sha256(sourceBefore);
-for (const expected of v2Coverage.filter((item) => item.evidence === "liveness")) {
-  const contexts = boundedOccurrenceContexts(sourceBefore, expected.anchor);
-  console.log(`DIAGNOSTIC_${expected.id.replace(/[^a-z0-9]+/gi, "_").toUpperCase()}_COUNT=${contexts.length}`);
-  contexts.forEach((context, index) => {
-    console.log(`DIAGNOSTIC_${expected.id.replace(/[^a-z0-9]+/gi, "_").toUpperCase()}_${index + 1}=${JSON.stringify(context)}`);
-  });
-}
-
 const map = buildCartography({ registry, source: sourceBefore, sourcePath });
 if (map.landmark_count !== 23) fail(`resolved landmark count mismatch: ${map.landmark_count}`);
 if (map.source_path !== sourcePath) fail(`resolved source path mismatch: ${map.source_path}`);
@@ -158,7 +140,11 @@ const observerEvidence = read(observerEvidencePath);
 const livenessEvidence = read(livenessEvidencePath);
 for (const expected of v2Coverage) {
   const evidence = expected.evidence === "observer" ? observerEvidence : livenessEvidence;
-  if (!evidence.includes(expected.anchor)) {
+  const provenanceToken = expected.provenanceToken ?? expected.anchor;
+  if (!sourceBefore.includes(provenanceToken)) {
+    fail(`source provenance token drift for ${expected.id}`);
+  }
+  if (!evidence.includes(provenanceToken)) {
     fail(`provenance evidence drift for ${expected.id} in ${expected.evidence}`);
   }
 }
@@ -175,6 +161,8 @@ console.log(`baseline_landmark_count=${originalStableIds.length}`);
 console.log(`added_landmark_count=${v2Coverage.length}`);
 console.log(`resolved_landmark_count=${map.landmark_count}`);
 console.log(`observer_provenance_bound=true`);
+console.log(`liveness_navigation_anchor_unique=true`);
 console.log(`liveness_route_provenance_bound=true`);
+console.log(`liveness_provenance_token_separate=true`);
 console.log(`original_stable_ids_preserved=true`);
 console.log(`source_mutation_performed=false`);
