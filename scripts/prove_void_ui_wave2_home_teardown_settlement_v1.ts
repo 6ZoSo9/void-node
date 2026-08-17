@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 
 import {
   VOID_UI_WAVE2_HOME_SOURCE_MAX_RESPONSE_BYTES_V1,
+  VOID_UI_WAVE2_HOME_SOURCE_TEARDOWN_MS_V1,
   VoidUiWave2HomeSnapshotBuildOwnerV1,
   fetchVoidUiWave2HomeSourceJsonV1,
   type VoidUiWave2HomeSourceResultV1,
@@ -157,9 +158,57 @@ async function main(): Promise<void> {
   assert.equal(bounded.ok, false);
   assert.equal(bounded.error, "source_body_too_large");
   assert.ok(
-    deadlineElapsed < 500,
-    `teardown exceeded bounded total deadline: ${deadlineElapsed}ms`
+    deadlineElapsed <
+      30 + VOID_UI_WAVE2_HOME_SOURCE_TEARDOWN_MS_V1 + 250,
+    `teardown exceeded separate bounded terminal: ${deadlineElapsed}ms`
   );
+
+  let stalledReadStarted = false;
+  let stalledCancelAttempts = 0;
+  const stalledKeepAlive = setTimeout(() => {}, 1000);
+  const stalledStart = Date.now();
+  const stalled = owner.getOrStart(() =>
+    fetchVoidUiWave2HomeSourceJsonV1(
+      "http://127.0.0.1:4100",
+      "/health",
+      {
+        timeoutMs: 30,
+        fetchImpl: async () =>
+          new Response(
+            new ReadableStream<Uint8Array>({
+              pull() {
+                stalledReadStarted = true;
+              },
+              cancel() {
+                stalledCancelAttempts += 1;
+                return new Promise<void>(() => {});
+              },
+            }),
+            { status: 200 }
+          ),
+      }
+    )
+  );
+  const stalledOverlap = owner.getOrStart(async () => ({
+    ok: true,
+    status: 200,
+    body: { unexpected_stalled_second_batch: true },
+  }));
+  assert.strictEqual(stalled, stalledOverlap);
+
+  const stalledResult = await stalled;
+  clearTimeout(stalledKeepAlive);
+  const stalledElapsed = Date.now() - stalledStart;
+  assert.equal(stalledReadStarted, true);
+  assert.equal(stalledResult.ok, false);
+  assert.equal(stalledResult.error, "source_deadline_exceeded");
+  assert.equal(stalledCancelAttempts, 1);
+  assert.ok(
+    stalledElapsed <
+      30 + VOID_UI_WAVE2_HOME_SOURCE_TEARDOWN_MS_V1 + 250,
+    `stalled read escaped source deadline + teardown bound: ${stalledElapsed}ms`
+  );
+  assert.equal(owner.hasInFlight(), false);
 
   const fresh = owner.getOrStart(async () => ({
     ok: true,
@@ -177,7 +226,10 @@ async function main(): Promise<void> {
   console.log("declared_cancel_awaited=true");
   console.log("streamed_cancel_awaited=true");
   console.log("snapshot_owner_retained_through_cancel=true");
-  console.log("teardown_bounded_by_total_deadline=true");
+  console.log("teardown_has_separate_bounded_terminal=true");
+  console.log("stalled_read_raced_against_source_deadline=true");
+  console.log("stalled_read_cancel_attempts=1");
+  console.log("snapshot_owner_released_after_stalled_read=true");
   console.log("fresh_batch_after_teardown=true");
   console.log("authority_added=false");
 }

@@ -1,5 +1,6 @@
 export const VOID_UI_WAVE2_HOME_SOURCE_MAX_RESPONSE_BYTES_V1 = 128 * 1024;
 export const VOID_UI_WAVE2_HOME_SOURCE_TIMEOUT_MS_V1 = 2500;
+export const VOID_UI_WAVE2_HOME_SOURCE_TEARDOWN_MS_V1 = 250;
 
 export type VoidUiWave2HomeSourceResultV1 = {
   ok: boolean;
@@ -229,37 +230,72 @@ export function evaluateVoidUiWave2HomeOperationalEvidenceV1(input: {
   };
 }
 
-const awaitTeardownWithinSignal = async (
-  startTeardown: () => Promise<unknown>,
+const sourceDeadlineError = (signal: AbortSignal): Error =>
+  signal.reason instanceof Error
+    ? signal.reason
+    : new Error("source_deadline_exceeded");
+
+const readWithinSignal = async (
+  reader: ReadableStreamDefaultReader<Uint8Array>,
   signal: AbortSignal
+): Promise<ReadableStreamReadResult<Uint8Array>> => {
+  if (signal.aborted) {
+    throw sourceDeadlineError(signal);
+  }
+
+  return await new Promise<ReadableStreamReadResult<Uint8Array>>(
+    (resolve, reject) => {
+      let settled = false;
+      let onAbort: () => void = () => {};
+      const resolveOnce = (
+        value: ReadableStreamReadResult<Uint8Array>
+      ): void => {
+        if (settled) return;
+        settled = true;
+        signal.removeEventListener("abort", onAbort);
+        resolve(value);
+      };
+      const rejectOnce = (reason: unknown): void => {
+        if (settled) return;
+        settled = true;
+        signal.removeEventListener("abort", onAbort);
+        reject(reason);
+      };
+      onAbort = () => rejectOnce(sourceDeadlineError(signal));
+
+      signal.addEventListener("abort", onAbort, { once: true });
+      Promise.resolve()
+        .then(() => reader.read())
+        .then(resolveOnce, rejectOnce);
+    }
+  );
+};
+
+const awaitTeardownBounded = async (
+  startTeardown: () => Promise<unknown>,
+  teardownMs = VOID_UI_WAVE2_HOME_SOURCE_TEARDOWN_MS_V1
 ): Promise<void> => {
   let pending: Promise<unknown>;
   try {
-    pending = startTeardown();
+    pending = Promise.resolve(startTeardown());
   } catch {
     // Cleanup cannot replace the primary bounded-input result.
     return;
   }
 
-  const settled = pending.then(
-    () => undefined,
-    () => undefined
-  );
-  if (signal.aborted) {
-    void settled;
-    return;
-  }
-
-  let onAbort!: () => void;
-  const aborted = new Promise<void>((resolve) => {
-    onAbort = resolve;
-    signal.addEventListener("abort", onAbort, { once: true });
-  });
-
+  let timer: ReturnType<typeof setTimeout> | null = null;
   try {
-    await Promise.race([settled, aborted]);
+    await Promise.race([
+      pending.then(
+        () => undefined,
+        () => undefined
+      ),
+      new Promise<void>((resolve) => {
+        timer = setTimeout(resolve, teardownMs);
+      }),
+    ]);
   } finally {
-    signal.removeEventListener("abort", onAbort);
+    if (timer !== null) clearTimeout(timer);
   }
 };
 
@@ -280,9 +316,8 @@ export async function readVoidUiWave2HomeBoundedTextV1(
     declared > VOID_UI_WAVE2_HOME_SOURCE_MAX_RESPONSE_BYTES_V1
   ) {
     if (response.body) {
-      await awaitTeardownWithinSignal(
-        () => response.body!.cancel("void_ui_wave2_home_source_body_too_large"),
-        signal
+      await awaitTeardownBounded(
+        () => response.body!.cancel("void_ui_wave2_home_source_body_too_large")
       );
     }
     throw new Error("source_body_too_large");
@@ -296,10 +331,17 @@ export async function readVoidUiWave2HomeBoundedTextV1(
   const decoder = new TextDecoder();
   let totalBytes = 0;
   let text = "";
+  let cancellationAttempted = false;
+
+  const cancelReaderBounded = async (reason: unknown): Promise<void> => {
+    if (cancellationAttempted) return;
+    cancellationAttempted = true;
+    await awaitTeardownBounded(() => reader.cancel(reason));
+  };
 
   try {
     while (true) {
-      const { done, value } = await reader.read();
+      const { done, value } = await readWithinSignal(reader, signal);
       if (done) break;
       if (!(value instanceof Uint8Array)) {
         throw new Error("source_body_chunk_invalid");
@@ -307,10 +349,6 @@ export async function readVoidUiWave2HomeBoundedTextV1(
 
       totalBytes += value.byteLength;
       if (totalBytes > VOID_UI_WAVE2_HOME_SOURCE_MAX_RESPONSE_BYTES_V1) {
-        await awaitTeardownWithinSignal(
-          () => reader.cancel("void_ui_wave2_home_source_body_too_large"),
-          signal
-        );
         throw new Error("source_body_too_large");
       }
 
@@ -319,6 +357,9 @@ export async function readVoidUiWave2HomeBoundedTextV1(
 
     text += decoder.decode();
     return text;
+  } catch (error) {
+    await cancelReaderBounded(error);
+    throw error;
   } finally {
     try {
       reader.releaseLock();
@@ -338,7 +379,10 @@ export async function fetchVoidUiWave2HomeSourceJsonV1(
     Number.isSafeInteger(options.timeoutMs) && Number(options.timeoutMs) > 0
       ? Number(options.timeoutMs)
       : VOID_UI_WAVE2_HOME_SOURCE_TIMEOUT_MS_V1;
-  const timeout = setTimeout(() => controller.abort(), timeoutMs);
+  const timeout = setTimeout(
+    () => controller.abort(new Error("source_deadline_exceeded")),
+    timeoutMs
+  );
   timeout.unref?.();
   const fetchImpl = options.fetchImpl ?? fetch;
 
