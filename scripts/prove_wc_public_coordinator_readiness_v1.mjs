@@ -121,6 +121,7 @@ function pilot(mode) {
       marker: "VOID_WC_PUBLIC_TICKET_CLAIM_V1",
       enabled: true,
       available: true,
+      fixed_award_wc: 3,
       server_selected_work: true,
       proof_of_executor_key_possession_required: true,
       participant_selected_dataset: false,
@@ -145,6 +146,14 @@ function pilot(mode) {
     value.public_claim.cooldown_ms = true;
     value.public_claim.max_claims_per_executor_24h = null;
   }
+
+  if (mode === "claim_award_missing") delete value.public_claim.fixed_award_wc;
+  if (mode === "claim_award_null") value.public_claim.fixed_award_wc = null;
+  if (mode === "claim_award_string") value.public_claim.fixed_award_wc = "3";
+  if (mode === "claim_award_boolean") value.public_claim.fixed_award_wc = true;
+  if (mode === "claim_award_fractional") value.public_claim.fixed_award_wc = 3.5;
+  if (mode === "claim_award_wrong_number") value.public_claim.fixed_award_wc = 4;
+  if (mode === "claim_award_unsafe") value.public_claim.fixed_award_wc = Number.MAX_SAFE_INTEGER + 1;
 
   return value;
 }
@@ -226,6 +235,7 @@ try {
   assert.equal(body.summary.failed_checks, 0);
   assert.ok(body.summary.total_checks >= 20);
   assert.ok(body.checks.some((entry) => entry.id === "public_claim_route_no_direct_award" && entry.pass === true));
+  assert.ok(body.checks.some((entry) => entry.id === "fixed_award_policy" && entry.pass === true));
   assert.deepEqual(body.safety.http_methods_used, ["GET"]);
   assert.equal(body.safety.mutation_attempted, false);
   assert.equal(readyFx.requests.every((x) => x.method === "GET"), true);
@@ -319,6 +329,39 @@ try {
   assert.equal(wrongTypesFx.requests.every((entry) => entry.method === "GET"), true);
 } finally {
   await wrongTypesFx.close();
+}
+
+for (const mode of [
+  "claim_award_missing",
+  "claim_award_null",
+  "claim_award_string",
+  "claim_award_boolean",
+  "claim_award_fractional",
+  "claim_award_wrong_number",
+  "claim_award_unsafe",
+]) {
+  const claimAwardFx = await fixture(mode);
+  try {
+    const result = await run([
+      "--base", claimAwardFx.base,
+      "--status-retries", "1",
+      "--require-ready",
+    ]);
+    assert.equal(result.code, 2, `${mode}: ${result.stderr || result.stdout}`);
+    const body = JSON.parse(result.stdout);
+    assert.equal(body.readiness_state, "hold", mode);
+    assert.equal(body.ready_for_bounded_enablement, false, mode);
+    assert.deepEqual(body.summary.failed_check_ids, ["fixed_award_policy"], mode);
+    const awardCheck = body.checks.find((entry) => entry.id === "fixed_award_policy");
+    assert.ok(awardCheck, mode);
+    assert.equal(awardCheck.pass, false, mode);
+    assert.equal(awardCheck.observed.gateway, 3, mode);
+    assert.equal(awardCheck.observed.pilot, 3, mode);
+    assert.equal(awardCheck.observed.expected, 3, mode);
+    assert.equal(claimAwardFx.requests.every((entry) => entry.method === "GET"), true, mode);
+  } finally {
+    await claimAwardFx.close();
+  }
 }
 
 const disabledFx = await fixture("disabled");

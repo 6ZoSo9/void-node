@@ -220,8 +220,14 @@ function checksFor(gateway, pilot, boundaries, expectedAward) {
     check("executor_role_disabled_on_coordinator", p?.executor_enabled === false, p?.executor_enabled ?? null),
     check("fixed_award_policy",
       jsonSafeInteger(g?.fixed_award_wc) === expectedAward &&
-      jsonSafeInteger(p?.fixed_award_wc) === expectedAward,
-      { gateway: g?.fixed_award_wc ?? null, pilot: p?.fixed_award_wc ?? null, expected: expectedAward }),
+      jsonSafeInteger(p?.fixed_award_wc) === expectedAward &&
+      jsonSafeInteger(get(p, ["public_claim", "fixed_award_wc"])) === expectedAward,
+      {
+        gateway: g?.fixed_award_wc ?? null,
+        pilot: p?.fixed_award_wc ?? null,
+        public_claim: get(p, ["public_claim", "fixed_award_wc"]) ?? null,
+        expected: expectedAward,
+      }),
     check("public_claim_marker", get(p, ["public_claim", "marker"]) === "VOID_WC_PUBLIC_TICKET_CLAIM_V1",
       get(p, ["public_claim", "marker"]) ?? null),
     check("public_claim_enabled_available",
