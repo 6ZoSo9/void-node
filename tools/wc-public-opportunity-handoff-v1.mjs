@@ -4,17 +4,20 @@ import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { isIP } from "node:net";
 import { parseArgs } from "node:util";
-import { spawn } from "node:child_process";
+import {
+  CLAIM_MARKER,
+  FIXED_AWARD_WC,
+  PILOT_MARKER,
+  STATUS_ROUTE,
+} from "./void_public_earn_no_node_client_v1.mjs";
 
 const MARKER = "VOID_WC_PUBLIC_OPPORTUNITY_HANDOFF_V1";
 const DIRECTORY_MARKER = "VOID_WC_PUBLIC_OPPORTUNITY_DIRECTORY_V1";
 const DISCOVERY_MARKER = "VOID_WC_PUBLIC_OPPORTUNITY_DISCOVERY_V1";
 const MAX_HEALTH_RESPONSE_BYTES = 64 * 1024;
-const MAX_DIRECTORY_VERIFY_BYTES = 256 * 1024;
-const CANONICAL_FIXED_AWARD_WC = 3;
+const MAX_STATUS_RESPONSE_BYTES = 64 * 1024;
 const HERE = dirname(fileURLToPath(import.meta.url));
 const DEFAULT_CLIENT = resolve(HERE, "void_public_earn_no_node_client_v1.mjs");
-const CANONICAL_DIRECTORY_TOOL = resolve(HERE, "wc-public-opportunity-directory-v1.mjs");
 
 function hold(reason, extra = {}) {
   process.stdout.write(JSON.stringify({
@@ -27,7 +30,7 @@ function hold(reason, extra = {}) {
       read_only: true,
       health_method: "GET",
       health_response_max_bytes: MAX_HEALTH_RESPONSE_BYTES,
-      canonical_directory_reverification_required: true,
+      canonical_status_reverification_required: true,
       client_executed: false,
       identity_created: false,
       mutation_attempted: false,
@@ -111,96 +114,32 @@ function candidates(directory) {
     .sort((a,b) => a.base.localeCompare(b.base));
 }
 
-function verifyCanonicalDirectoryCandidate(base, timeoutMs) {
-  return new Promise((resolveVerification, rejectVerification) => {
-    if (!existsSync(CANONICAL_DIRECTORY_TOOL)) {
-      rejectVerification(new Error("canonical opportunity directory tool is missing"));
-      return;
-    }
-
-    const child = spawn(process.execPath, [
-      CANONICAL_DIRECTORY_TOOL,
-      "--base", base,
-      "--concurrency", "1",
-      "--timeout-ms", String(timeoutMs),
-      "--expected-award-wc", String(CANONICAL_FIXED_AWARD_WC),
-      "--require-available",
-    ], { stdio: ["ignore", "pipe", "pipe"] });
-
-    let stdout = "";
-    let stderr = "";
-    let overflow = false;
-
-    const appendBounded = (target, chunk) => {
-      const next = target + chunk;
-      if (Buffer.byteLength(next, "utf8") > MAX_DIRECTORY_VERIFY_BYTES) {
-        overflow = true;
-        child.kill("SIGKILL");
-        return target;
-      }
-      return next;
-    };
-
-    child.stdout.setEncoding("utf8");
-    child.stderr.setEncoding("utf8");
-    child.stdout.on("data", (chunk) => { stdout = appendBounded(stdout, chunk); });
-    child.stderr.on("data", (chunk) => { stderr = appendBounded(stderr, chunk); });
-    child.once("error", (error) => rejectVerification(new Error("canonical directory verification could not start", { cause: error })));
-    child.once("close", (code) => {
-      if (overflow) {
-        rejectVerification(new Error("canonical directory verification output exceeded byte limit"));
-        return;
-      }
-      if (code !== 0) {
-        rejectVerification(new Error("selected coordinator did not pass canonical directory verification"));
-        return;
-      }
-      let verifiedDirectory;
-      try {
-        verifiedDirectory = validateDirectory(JSON.parse(stdout));
-      } catch (error) {
-        rejectVerification(new Error("canonical directory verification result is invalid", { cause: error }));
-        return;
-      }
-      const verified = candidates(verifiedDirectory).filter((candidate) =>
-        candidate.base === base && candidate.fixed_award_wc === CANONICAL_FIXED_AWARD_WC);
-      if (verified.length !== 1) {
-        rejectVerification(new Error("selected coordinator is not uniquely verified by the canonical directory"));
-        return;
-      }
-      resolveVerification(verified[0]);
-    });
-  });
-}
-
 function bestEffortCancel(cancelTarget, reason) {
   if (!cancelTarget || typeof cancelTarget.cancel !== "function") return;
   try {
     const pending = cancelTarget.cancel(reason);
     if (pending && typeof pending.catch === "function") {
-      void pending.catch((cleanupError) => {
-        void cleanupError;
-      });
+      void pending.catch((cleanupError) => { void cleanupError; });
     }
   } catch (cleanupError) {
     void cleanupError;
   }
 }
 
-async function readBoundedHealthText(response) {
+async function readBoundedText(response, maxBytes, label) {
   const declared = response.headers.get("content-length");
   if (declared !== null) {
     if (!/^\d+$/u.test(declared)) {
-      bestEffortCancel(response.body, "coordinator health content-length is invalid");
-      throw new Error("coordinator health content-length is invalid");
+      bestEffortCancel(response.body, `${label} content-length is invalid`);
+      throw new Error(`${label} content-length is invalid`);
     }
-    if (BigInt(declared) > BigInt(MAX_HEALTH_RESPONSE_BYTES)) {
-      bestEffortCancel(response.body, "coordinator health response exceeds byte limit");
-      throw new Error("coordinator health response exceeds byte limit");
+    if (BigInt(declared) > BigInt(maxBytes)) {
+      bestEffortCancel(response.body, `${label} response exceeds byte limit`);
+      throw new Error(`${label} response exceeds byte limit`);
     }
   }
   if (!response.body || typeof response.body.getReader !== "function") {
-    throw new Error("coordinator health response body is not stream-readable");
+    throw new Error(`${label} response body is not stream-readable`);
   }
   const reader = response.body.getReader();
   const chunks = [];
@@ -209,20 +148,16 @@ async function readBoundedHealthText(response) {
     while (true) {
       const { done, value } = await reader.read();
       if (done) break;
-      if (!(value instanceof Uint8Array)) throw new Error("coordinator health response chunk is invalid");
+      if (!(value instanceof Uint8Array)) throw new Error(`${label} response chunk is invalid`);
       total += value.byteLength;
-      if (total > MAX_HEALTH_RESPONSE_BYTES) {
-        bestEffortCancel(reader, "coordinator health response exceeds byte limit");
-        throw new Error("coordinator health response exceeds byte limit");
+      if (total > maxBytes) {
+        bestEffortCancel(reader, `${label} response exceeds byte limit`);
+        throw new Error(`${label} response exceeds byte limit`);
       }
       chunks.push(value);
     }
   } finally {
-    try {
-      reader.releaseLock();
-    } catch (cleanupError) {
-      void cleanupError;
-    }
+    try { reader.releaseLock(); } catch (cleanupError) { void cleanupError; }
   }
   const bytes = new Uint8Array(total);
   let offset = 0;
@@ -233,27 +168,80 @@ async function readBoundedHealthText(response) {
   try {
     return new TextDecoder("utf-8", { fatal: true }).decode(bytes);
   } catch (error) {
-    throw new Error("coordinator health returned invalid UTF-8", { cause: error });
+    throw new Error(`${label} returned invalid UTF-8`, { cause: error });
   }
 }
 
-async function health(base, timeoutMs) {
+async function boundedJsonGet(base, path, timeoutMs, maxBytes, label) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
-    const response = await fetch(new URL("/health", base), {
+    const response = await fetch(new URL(path, base), {
       method: "GET",
       headers: { accept: "application/json", "user-agent": "void-wc-public-opportunity-handoff-v1" },
       redirect: "error",
       signal: controller.signal,
     });
-    const text = await readBoundedHealthText(response);
+    const text = await readBoundedText(response, maxBytes, label);
     let body;
-    try { body = JSON.parse(text); } catch { throw new Error("coordinator health returned non-JSON"); }
-    if (!response.ok) throw new Error(`coordinator health HTTP ${response.status}`);
-    if (body?.ok !== true || !validNodeId(body?.nodeId)) throw new Error("coordinator health identity is invalid");
-    return { path: "/health", http_status: response.status, node_id: body.nodeId };
-  } finally { clearTimeout(timer); }
+    try { body = JSON.parse(text); } catch { throw new Error(`${label} returned non-JSON`); }
+    if (!response.ok) throw new Error(`${label} HTTP ${response.status}`);
+    return { response, body };
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+function validateCanonicalStatus(body) {
+  const publicClaim = body && typeof body.public_claim === "object" && !Array.isArray(body.public_claim)
+    ? body.public_claim
+    : null;
+  const valid =
+    body?.ok === true &&
+    body?.marker === PILOT_MARKER &&
+    body?.coordinator_enabled === true &&
+    body?.executor_enabled === false &&
+    typeof body?.fixed_award_wc === "number" && body.fixed_award_wc === FIXED_AWARD_WC &&
+    publicClaim?.marker === CLAIM_MARKER &&
+    publicClaim?.enabled === true &&
+    publicClaim?.available === true &&
+    publicClaim?.server_selected_work === true &&
+    publicClaim?.proof_of_executor_key_possession_required === true &&
+    publicClaim?.transport_mode === "outbound_bundle" &&
+    typeof publicClaim?.fixed_award_wc === "number" && publicClaim.fixed_award_wc === FIXED_AWARD_WC &&
+    publicClaim?.participant_selected_dataset === false &&
+    publicClaim?.participant_selected_input_hash === false &&
+    publicClaim?.participant_selected_award === false &&
+    publicClaim?.money_movement === false;
+  if (!valid) throw new Error("selected coordinator did not pass canonical participant status verification");
+  return {
+    source_path: STATUS_ROUTE,
+    fixed_award_wc: FIXED_AWARD_WC,
+    claim_path: typeof publicClaim.path === "string" ? publicClaim.path : null,
+  };
+}
+
+async function verifyCanonicalParticipantStatus(base, timeoutMs) {
+  const { body } = await boundedJsonGet(
+    base,
+    STATUS_ROUTE,
+    timeoutMs,
+    MAX_STATUS_RESPONSE_BYTES,
+    "canonical participant status",
+  );
+  return { base, ...validateCanonicalStatus(body) };
+}
+
+async function health(base, timeoutMs) {
+  const { response, body } = await boundedJsonGet(
+    base,
+    "/health",
+    timeoutMs,
+    MAX_HEALTH_RESPONSE_BYTES,
+    "coordinator health",
+  );
+  if (body?.ok !== true || !validNodeId(body?.nodeId)) throw new Error("coordinator health identity is invalid");
+  return { path: "/health", http_status: response.status, node_id: body.nodeId };
 }
 
 function shellQuote(value) {
@@ -292,6 +280,7 @@ async function main() {
     let u; try { u = new URL(t.replace("{dataset_id}", "fixture")); } catch { throw new Error("--dataset-url-template is invalid"); }
     if (u.protocol !== "https:" || u.username || u.password) throw new Error("--dataset-url-template must be credential-free HTTPS");
   }
+
   const directory = validateDirectory(readDirectory(values["directory-json"]));
   const available = candidates(directory);
   if (available.length === 0) return hold("no_trusted_available_coordinator", { available_candidate_count: 0 });
@@ -306,7 +295,7 @@ async function main() {
     return hold("multiple_available_coordinators_require_select_base", { available_candidate_count: available.length, available_bases: available.map((c) => c.base) });
   }
 
-  selected = await verifyCanonicalDirectoryCandidate(selected.base, timeoutMs);
+  selected = await verifyCanonicalParticipantStatus(selected.base, timeoutMs);
   const h = await health(selected.base, timeoutMs);
   const common = ["node", client];
   const statusArgv = [...common, "status", "--account", values.account, "--coordinator-base", selected.base, "--coordinator-node-id", h.node_id];
@@ -317,7 +306,7 @@ async function main() {
     marker: MARKER,
     status: "green",
     handoff_state: "ready",
-    reason: "canonically_reverified_available_coordinator_bound_to_health_identity",
+    reason: "canonically_reverified_participant_status_bound_to_health_identity",
     account: values.account,
     selected,
     coordinator_identity: { health_path: h.path, health_http_status: h.http_status, node_id: h.node_id, node_id_format: "32_lowercase_hex" },
@@ -329,8 +318,9 @@ async function main() {
       directory_marker_validated: true,
       directory_safety_validated: true,
       selected_child_safety_validated: true,
-      selected_candidate_reverified_via_canonical_directory: true,
-      canonical_directory_fixed_award_wc: CANONICAL_FIXED_AWARD_WC,
+      selected_candidate_reverified_via_canonical_status_contract: true,
+      canonical_status_path: STATUS_ROUTE,
+      canonical_status_fixed_award_wc: FIXED_AWARD_WC,
       client_executed: false,
       identity_created: false,
       mutation_attempted: false,
