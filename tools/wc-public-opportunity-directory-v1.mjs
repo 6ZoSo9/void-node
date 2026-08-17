@@ -8,6 +8,7 @@ import { spawn } from "node:child_process";
 
 const MARKER = "VOID_WC_PUBLIC_OPPORTUNITY_DIRECTORY_V1";
 const DISCOVERY_MARKER = "VOID_WC_PUBLIC_OPPORTUNITY_DISCOVERY_V1";
+const CANONICAL_FIXED_AWARD_WC = 3;
 const HERE = dirname(fileURLToPath(import.meta.url));
 const DEFAULT_DISCOVERY_TOOL = resolve(HERE, "wc-public-opportunity-discovery-v1.mjs");
 
@@ -153,7 +154,7 @@ async function main() {
       input: { type: "string" },
       concurrency: { type: "string", default: "4" },
       "timeout-ms": { type: "string", default: "5000" },
-      "expected-award-wc": { type: "string", default: "3" },
+      "expected-award-wc": { type: "string", default: String(CANONICAL_FIXED_AWARD_WC) },
       "discovery-tool": { type: "string", default: DEFAULT_DISCOVERY_TOOL },
       "require-available": { type: "boolean", default: false },
       help: { type: "boolean", short: "h", default: false },
@@ -168,7 +169,7 @@ async function main() {
   const expectedAwardWc = numberValue(values["expected-award-wc"]);
   if (!Number.isInteger(concurrency) || concurrency < 1 || concurrency > 16) throw new Error("--concurrency must be an integer between 1 and 16");
   if (!Number.isInteger(timeoutMs) || timeoutMs < 250 || timeoutMs > 30000) throw new Error("--timeout-ms must be an integer between 250 and 30000");
-  if (expectedAwardWc === null || expectedAwardWc <= 0) throw new Error("--expected-award-wc must be positive");
+  if (expectedAwardWc !== CANONICAL_FIXED_AWARD_WC) throw new Error("--expected-award-wc must equal canonical fixed award 3");
   const discoveryTool = resolve(values["discovery-tool"]);
   if (!existsSync(discoveryTool)) throw new Error(`discovery tool not found: ${values["discovery-tool"]}`);
   const rawBases = [...values.base];

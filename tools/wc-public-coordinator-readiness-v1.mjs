@@ -4,6 +4,7 @@ import { parseArgs } from "node:util";
 import { readBoundedTextOwned } from "./wc-public-response-teardown-v1.mjs";
 
 const MARKER = "VOID_WC_PUBLIC_COORDINATOR_READINESS_V1";
+const CANONICAL_FIXED_AWARD_WC = 3;
 const MAX_RESPONSE_BYTES = 64 * 1024;
 const ROUTES = {
   gateway: "/__void/public-earn-gateway-v1/status.json",
@@ -345,7 +346,7 @@ async function main() {
       base: { type: "string" },
       account: { type: "string", default: "void-coordinator-readiness-observer-v1" },
       "timeout-ms": { type: "string", default: "15000" },
-      "expected-award-wc": { type: "string", default: "3" },
+      "expected-award-wc": { type: "string", default: String(CANONICAL_FIXED_AWARD_WC) },
       "status-retries": { type: "string", default: "3" },
       "require-ready": { type: "boolean", default: false },
       help: { type: "boolean", short: "h", default: false },
@@ -364,7 +365,7 @@ async function main() {
   const expectedAward = integer(values["expected-award-wc"]);
   const statusRetries = integer(values["status-retries"]);
   if (timeoutMs === null || timeoutMs < 250 || timeoutMs > 30000) throw new Error("invalid timeout");
-  if (expectedAward === null || expectedAward <= 0) throw new Error("invalid expected award");
+  if (expectedAward !== CANONICAL_FIXED_AWARD_WC) throw new Error("--expected-award-wc must equal canonical fixed award 3");
   if (statusRetries === null || statusRetries < 1 || statusRetries > 5) {
     throw new Error("status retries must be between 1 and 5");
   }

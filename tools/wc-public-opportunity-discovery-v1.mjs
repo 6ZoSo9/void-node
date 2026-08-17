@@ -327,7 +327,7 @@ async function main() {
   const timeoutMs = safeNumber(values["timeout-ms"]);
   const expectedAwardWc = safeNumber(values["expected-award-wc"]);
   if (!timeoutMs || timeoutMs < 250 || timeoutMs > 30000) throw new Error("--timeout-ms must be between 250 and 30000");
-  if (expectedAwardWc === null || expectedAwardWc <= 0) throw new Error("--expected-award-wc must be positive");
+  if (expectedAwardWc !== DEFAULT_EXPECTED_AWARD_WC) throw new Error("--expected-award-wc must equal canonical fixed award 3");
   const defaultCandidates = ["/__void/public-earn-gateway-v1/status.json", "/wc/public-earning-pilot-v1/status", "/public-node/public-earn-gateway-v1.json", "/public-node/work-credits/public-earn-status-v1.json", "/public-node/earn/status-v1.json", "/public/earn/status-v1", "/public/earn/status", "/wc/public/earning/status", "/wc/public/status"];
   const attempts = [];
   let firstHold = null;
