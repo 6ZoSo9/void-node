@@ -1,5 +1,6 @@
 // @ts-nocheck
 import * as fs from "node:fs";
+import * as crypto from "node:crypto";
 import path from "node:path";
 
 export const VOID_AGENT_PICK2_JSONL_SEMANTIC_INDEX_V1 =
@@ -204,19 +205,133 @@ function appendWitnessChainV1(
   return { ok: false, endedWithNewline: false };
 }
 
+type AppendContinuityDigestV1 = {
+  stamp: FileStampV1;
+  digest: string;
+};
+
+type AppendWriterTestHooksV1 = {
+  afterBeforeDigest?: (ctx: {
+    file: string;
+    before: FileStampV1;
+    prefixDigest: string;
+  }) => void;
+};
+
+const APPEND_HASH_CHUNK_BYTES_V1 = 1024 * 1024;
+const appendContinuityDigestsV1 = new Map<string, AppendContinuityDigestV1>();
+
+function hashFileAndPrefixFdV1(
+  fd: number,
+  totalSize: number,
+  prefixSize: number,
+): { wholeDigest: string; prefixDigest: string } {
+  const total = Math.max(0, Math.floor(Number(totalSize) || 0));
+  const prefix = Math.max(0, Math.min(total, Math.floor(Number(prefixSize) || 0)));
+  const wholeHash = crypto.createHash("sha256");
+  const prefixHash = crypto.createHash("sha256");
+
+  let pos = 0;
+  while (pos < total) {
+    const want = Math.min(APPEND_HASH_CHUNK_BYTES_V1, total - pos);
+    const buffer = Buffer.allocUnsafe(want);
+    let done = 0;
+    while (done < want) {
+      const n = fs.readSync(fd, buffer, done, want - done, pos + done);
+      if (n <= 0) break;
+      done += n;
+    }
+    if (done !== want) {
+      throw new Error(
+        `VOID_AGENT_PICK2_JSONL_APPEND_HASH_SHORT_READ expected=${want} actual=${done}`,
+      );
+    }
+    const view = buffer.subarray(0, done);
+    wholeHash.update(view);
+
+    const prefixRemaining = prefix - pos;
+    if (prefixRemaining > 0) {
+      prefixHash.update(view.subarray(0, Math.min(done, prefixRemaining)));
+    }
+    pos += done;
+  }
+
+  return {
+    wholeDigest: wholeHash.digest("hex"),
+    prefixDigest: prefixHash.digest("hex"),
+  };
+}
+
+function expectedAppendPrefixDigestV1(
+  fd: number,
+  file: string,
+  before: FileStampV1,
+): string {
+  const key = fileKeyV1(file);
+  const cached = appendContinuityDigestsV1.get(key);
+  if (cached && sameStampV1(cached.stamp, before)) return cached.digest;
+
+  const hashed = hashFileAndPrefixFdV1(fd, before.size, before.size);
+  const afterHash = fstatV1(fd);
+  const pathAfterHash = statV1(file);
+  if (
+    !sameStampV1(before, afterHash) ||
+    !pathAfterHash ||
+    !sameStampV1(afterHash, pathAfterHash)
+  ) {
+    appendContinuityDigestsV1.delete(key);
+    throw new Error(
+      `VOID_AGENT_PICK2_JSONL_UNSTABLE_BEFORE_APPEND file=${file}`,
+    );
+  }
+
+  appendContinuityDigestsV1.set(key, {
+    stamp: before,
+    digest: hashed.wholeDigest,
+  });
+  return hashed.wholeDigest;
+}
+
 export function appendAgentPick2JsonlCanonicalV1(
   file: string,
   data: string | Buffer,
-  opts: { durable?: boolean; mode?: number } = {},
+  opts: {
+    durable?: boolean;
+    mode?: number;
+    testHooks?: AppendWriterTestHooksV1;
+  } = {},
 ): { witnessed: boolean; before: FileStampV1; after: FileStampV1 } {
   const bytes = Buffer.isBuffer(data) ? data : Buffer.from(String(data), "utf8");
+  const key = fileKeyV1(file);
   const fd = fs.openSync(
     file,
-    fs.constants.O_WRONLY | fs.constants.O_CREAT | fs.constants.O_APPEND,
+    fs.constants.O_RDWR | fs.constants.O_CREAT | fs.constants.O_APPEND,
     opts.mode ?? 0o666,
   );
+
   try {
     const before = fstatV1(fd);
+    const expectedPrefixDigest = expectedAppendPrefixDigestV1(fd, file, before);
+
+    const immediatelyBeforeWrite = fstatV1(fd);
+    const pathImmediatelyBeforeWrite = statV1(file);
+    if (
+      !sameStampV1(before, immediatelyBeforeWrite) ||
+      !pathImmediatelyBeforeWrite ||
+      !sameStampV1(immediatelyBeforeWrite, pathImmediatelyBeforeWrite)
+    ) {
+      appendContinuityDigestsV1.delete(key);
+      throw new Error(
+        `VOID_AGENT_PICK2_JSONL_UNSTABLE_BEFORE_WRITE file=${file}`,
+      );
+    }
+
+    opts.testHooks?.afterBeforeDigest?.({
+      file,
+      before,
+      prefixDigest: expectedPrefixDigest,
+    });
+
     let off = 0;
     while (off < bytes.length) {
       const n = fs.writeSync(fd, bytes, off, bytes.length - off, null);
@@ -224,19 +339,49 @@ export function appendAgentPick2JsonlCanonicalV1(
       off += n;
     }
     if (opts.durable) fs.fdatasyncSync(fd);
-    const after = fstatV1(fd);
-    const witnessed =
-      sameObjectV1(before, after) &&
-      after.size === before.size + bytes.length;
-    if (witnessed) {
-      recordAppendWitnessV1(
-        file,
-        before,
-        after,
-        bytes.length === 0 || bytes[bytes.length - 1] === 0x0a,
-      );
+
+    const afterWrite = fstatV1(fd);
+    const expectedSize = before.size + bytes.length;
+    if (
+      !sameObjectV1(before, afterWrite) ||
+      afterWrite.size !== expectedSize
+    ) {
+      appendContinuityDigestsV1.delete(key);
+      return { witnessed: false, before, after: afterWrite };
     }
-    return { witnessed, before, after };
+
+    const hashedAfter = hashFileAndPrefixFdV1(
+      fd,
+      afterWrite.size,
+      before.size,
+    );
+    const afterHash = fstatV1(fd);
+    const pathAfterHash = statV1(file);
+    const stableAfter =
+      sameStampV1(afterWrite, afterHash) &&
+      !!pathAfterHash &&
+      sameStampV1(afterHash, pathAfterHash);
+
+    const witnessed =
+      stableAfter &&
+      hashedAfter.prefixDigest === expectedPrefixDigest;
+
+    if (!witnessed) {
+      appendContinuityDigestsV1.delete(key);
+      return { witnessed: false, before, after: afterHash };
+    }
+
+    appendContinuityDigestsV1.set(key, {
+      stamp: afterHash,
+      digest: hashedAfter.wholeDigest,
+    });
+    recordAppendWitnessV1(
+      file,
+      before,
+      afterHash,
+      bytes.length === 0 || bytes[bytes.length - 1] === 0x0a,
+    );
+    return { witnessed: true, before, after: afterHash };
   } finally {
     fs.closeSync(fd);
   }

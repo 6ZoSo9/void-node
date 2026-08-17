@@ -127,6 +127,40 @@ function rewriteSameInodeLarger(
   assert.ok(after.size > minBytes, "same-inode rewrite fixture did not grow");
 }
 
+function rewriteSameInodeExactSize(
+  file: string,
+  row: Record<string, unknown>,
+  exactBytes: number,
+) {
+  const target = Math.max(1, Math.floor(exactBytes));
+  const line = JSON.stringify(row) + "\n";
+  const lineBytes = Buffer.byteLength(line);
+  assert.ok(
+    lineBytes + 1 <= target,
+    `exact-size rewrite fixture too small target=${target} line=${lineBytes}`,
+  );
+  const body = line + " ".repeat(target - lineBytes - 1) + "\n";
+  assert.equal(Buffer.byteLength(body), target);
+
+  const before = fs.statSync(file);
+  const fd = fs.openSync(file, "w");
+  try {
+    const bytes = Buffer.from(body, "utf8");
+    let off = 0;
+    while (off < bytes.length) {
+      const n = fs.writeSync(fd, bytes, off, bytes.length - off);
+      if (n <= 0) throw new Error("exact-size rewrite short write");
+      off += n;
+    }
+  } finally {
+    fs.closeSync(fd);
+  }
+
+  const after = fs.statSync(file);
+  assert.equal(after.ino, before.ino, "exact-size rewrite fixture changed inode");
+  assert.equal(after.size, target, "exact-size rewrite fixture changed size");
+}
+
 const root = fs.mkdtempSync(
   path.join(os.tmpdir(), "void-agent-pick2-jsonl-semantic-index-v1-"),
 );
@@ -506,6 +540,157 @@ try {
     "mid-scan path replacement was not detected and retried",
   );
 
+  // The append witness creator must not bless a concurrent same-inode rewrite
+  // that happens after its before-state digest but before the O_APPEND write.
+  const witnessRaceRoot = path.join(root, "append-witness-race");
+  const witnessRaceAgent = path.join(witnessRaceRoot, "agent");
+  const witnessRaceV1 = path.join(witnessRaceRoot, "agent_v1");
+  const wJobs = path.join(witnessRaceAgent, "jobs.jsonl");
+  const wResults = path.join(witnessRaceAgent, "results.jsonl");
+  const wLeases = path.join(witnessRaceAgent, "leases.jsonl");
+  const wReceipt = path.join(witnessRaceAgent, "receipts.jsonl");
+  const wReceiptV1 = path.join(witnessRaceV1, "receipts.jsonl");
+  const wStateV1 = path.join(witnessRaceV1, "job_state.jsonl");
+  const witnessRaceScanMax = 64;
+
+  writeJsonl(wJobs, 256, (i) => ({
+    id: `w-old-job-${i}`,
+    status: "queued",
+    ts: now - i,
+  }));
+  writeJsonl(wResults, 256, (i) => ({
+    id: i === 255 ? "w-old-result" : `w-old-result-${i}`,
+    ts: now - i,
+  }));
+  writeJsonl(wLeases, 256, (i) => ({
+    id: i === 255 ? "w-old-active" : `w-old-lease-${i}`,
+    ts: now,
+    worker: "w-old-worker",
+  }));
+  writeJsonl(wReceipt, 256, (i) => ({
+    id: i === 255 ? "w-old-complete" : `w-old-receipt-${i}`,
+    status: i === 255 ? "completed" : "pending",
+  }));
+  writeJsonl(wReceiptV1, 8, (i) => ({
+    job_id: `w-stable-v1-${i}`,
+    status: "pending",
+  }));
+  writeJsonl(wStateV1, 8, (i) => ({
+    job_id: `w-stable-state-${i}`,
+    status: "pending",
+  }));
+
+  const witnessRaceIndex = new AgentPick2JsonlSemanticIndexV1({
+    chunkBytes: 4096,
+  });
+  const witnessRaceFirst = witnessRaceIndex.snapshot({
+    jobsFile: wJobs,
+    resultsFile: wResults,
+    leasesFile: wLeases,
+    completionFiles: [wReceipt, wReceiptV1, wStateV1],
+    scanMax: witnessRaceScanMax,
+    leaseMs: LEASE_MS,
+    nowMs: now,
+  });
+  assert.equal(witnessRaceFirst.doneTruthHas("w-old-complete"), true);
+  assert.equal(witnessRaceFirst.done.has("w-old-result"), true);
+  assert.equal(witnessRaceFirst.active.has("w-old-active"), true);
+  assert.equal(witnessRaceFirst.latestRunnableById.has("w-old-job-0"), true);
+
+  function adversarialAppend(
+    file: string,
+    replacement: Record<string, unknown>,
+    appended: Record<string, unknown>,
+  ) {
+    const oldSize = fs.statSync(file).size;
+    let hookRan = false;
+    const result = appendAgentPick2JsonlCanonicalV1(
+      file,
+      JSON.stringify(appended) + "\n",
+      {
+        testHooks: {
+          afterBeforeDigest() {
+            hookRan = true;
+            rewriteSameInodeExactSize(file, replacement, oldSize);
+          },
+        },
+      },
+    );
+    assert.equal(hookRan, true, `append race hook did not execute for ${file}`);
+    assert.equal(
+      result.witnessed,
+      false,
+      `append race incorrectly minted witness for ${file}`,
+    );
+  }
+
+  adversarialAppend(
+    wReceipt,
+    { id: "w-new-complete", status: "completed" },
+    { id: "w-appended-complete", status: "completed" },
+  );
+  adversarialAppend(
+    wResults,
+    { id: "w-new-result", ts: now + 100 },
+    { id: "w-appended-result", ts: now + 101 },
+  );
+  adversarialAppend(
+    wLeases,
+    { id: "w-new-active", ts: now + 100, worker: "w-new-worker" },
+    { id: "w-appended-active", ts: now + 101, worker: "w-appended-worker" },
+  );
+  adversarialAppend(
+    wJobs,
+    { id: "w-new-job", status: "queued", ts: now + 100 },
+    { id: "w-appended-job", status: "queued", ts: now + 101 },
+  );
+
+  const witnessRaceSecond = witnessRaceIndex.snapshot({
+    jobsFile: wJobs,
+    resultsFile: wResults,
+    leasesFile: wLeases,
+    completionFiles: [wReceipt, wReceiptV1, wStateV1],
+    scanMax: witnessRaceScanMax,
+    leaseMs: LEASE_MS,
+    nowMs: now + 200,
+  });
+
+  assert.equal(
+    witnessRaceSecond.doneTruthHas("w-old-complete"),
+    false,
+    "append witness race retained stale completion truth",
+  );
+  assert.equal(witnessRaceSecond.doneTruthHas("w-new-complete"), true);
+  assert.equal(witnessRaceSecond.doneTruthHas("w-appended-complete"), true);
+
+  assert.equal(
+    witnessRaceSecond.done.has("w-old-result"),
+    false,
+    "append witness race retained stale result tail",
+  );
+  assert.equal(witnessRaceSecond.done.has("w-new-result"), true);
+  assert.equal(witnessRaceSecond.done.has("w-appended-result"), true);
+
+  assert.equal(
+    witnessRaceSecond.active.has("w-old-active"),
+    false,
+    "append witness race retained stale active lease",
+  );
+  assert.equal(witnessRaceSecond.active.has("w-new-active"), true);
+  assert.equal(witnessRaceSecond.active.has("w-appended-active"), true);
+
+  assert.equal(
+    witnessRaceSecond.latestRunnableById.has("w-old-job-0"),
+    false,
+    "append witness race retained stale capped jobs head",
+  );
+  assert.equal(witnessRaceSecond.latestRunnableById.has("w-new-job"), true);
+  assert.equal(witnessRaceSecond.latestRunnableById.has("w-appended-job"), true);
+  assert.ok(
+    witnessRaceSecond.io.append_witness_misses_total >= 4,
+    "append witness race did not force coherent rebuilds",
+  );
+
   console.log("VOID_AGENT_PICK2_JSONL_SEMANTIC_INDEX_V1_PROOF_GREEN");
   console.log(`marker=${VOID_AGENT_PICK2_JSONL_SEMANTIC_INDEX_V1}`);
   console.log(`source_marker=${SOURCE_MARKER}`);
@@ -526,6 +711,8 @@ try {
   console.log("coherent_single_fd_scan=true");
   console.log("mid_scan_path_replacement_retried=true");
   console.log("canonical_append_witness_required=true");
+  console.log("append_witness_prefix_continuity_sha256=true");
+  console.log("append_witness_concurrent_same_inode_rewrite_rejected=true");
   console.log("historical_jsonl_reread_per_pick=false");
   console.log("live_runtime_mutation_performed=false");
 } finally {
