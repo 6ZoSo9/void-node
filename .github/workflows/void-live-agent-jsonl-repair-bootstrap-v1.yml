@@ -44,8 +44,8 @@ jobs:
           join_count = region.count(buggy_join)
           if split_count != 23:
               raise SystemExit(f"expected 23 legacy agent JSONL split defects, got {split_count}")
-          if join_count != 1:
-              raise SystemExit(f"expected 1 legacy agent metrics join defect, got {join_count}")
+          if join_count != 10:
+              raise SystemExit(f"expected 10 legacy agent JSONL join defects, got {join_count}")
 
           for i in range(lo, min(hi, len(lines))):
               lines[i] = lines[i].replace(buggy_split, fixed_split).replace(buggy_join, fixed_join)
@@ -62,6 +62,10 @@ jobs:
           repaired_region = "".join(repaired.splitlines(keepends=True)[lo:hi])
           if buggy_split in repaired_region or buggy_join in repaired_region:
               raise SystemExit("legacy agent JSONL escaped-newline delimiter remains")
+          if repaired_region.count(fixed_split) < 23:
+              raise SystemExit("expected at least 23 real-newline JSONL splits after repair")
+          if repaired_region.count(fixed_join) < 10:
+              raise SystemExit("expected at least 10 real-newline JSONL joins after repair")
           if safe_header not in repaired:
               raise SystemExit("Header3 null-safe suppression compatibility missing")
 
@@ -100,9 +104,9 @@ jobs:
           const fixedJoin = '.join("\\n")';
 
           assert.equal(agentRegion.includes(buggySplit), false, "literal backslash-n JSONL split remains in live agent job family");
-          assert.equal(agentRegion.includes(buggyJoin), false, "literal backslash-n metrics join remains in live agent job family");
+          assert.equal(agentRegion.includes(buggyJoin), false, "literal backslash-n JSONL join remains in live agent job family");
           assert.ok(agentRegion.split(fixedSplit).length - 1 >= 23, "expected repaired newline JSONL readers");
-          assert.ok(agentRegion.includes(fixedJoin), "agent metrics output must join with real newlines");
+          assert.ok(agentRegion.split(fixedJoin).length - 1 >= 10, "expected repaired newline JSONL writers/metrics joins");
 
           const unsafeHeader = 'const n = Number((await selfJson(`/blocks/latest/number2.json`)).number);';
           const safeHeader = 'const n = Number((await selfJson(`/blocks/latest/number2.json`))?.number);';
@@ -120,7 +124,7 @@ jobs:
 
           console.log("VOID_LIVE_AGENT_JSONL_RUNTIME_WEDGE_V1_PROOF_GREEN");
           console.log("agent_jsonl_real_newline_split=true");
-          console.log("agent_metrics_real_newline_join=true");
+          console.log("agent_jsonl_real_newline_join=true");
           console.log("multi_record_jsonl_parse=true");
           console.log("header3_synthetic_null_safe=true");
           console.log("runtime_mutation_performed=false");
