@@ -10,6 +10,7 @@ const MARKER = "VOID_WC_PUBLIC_OPPORTUNITY_DISCOVERY_V1_PROOF_GREEN";
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(HERE, "..");
 const TOOL = resolve(ROOT, "tools/wc-public-opportunity-discovery-v1.mjs");
+const CLAIM_ROUTE = "/wc/public-earning-pilot-v1/claim-ticket";
 
 function run(args) {
   return new Promise((resolveRun, rejectRun) => {
@@ -87,7 +88,7 @@ async function fixture(mode, fixedAwardWc = 3, options = {}) {
         public_claim: {
           enabled: mode !== "hold",
           method: "POST",
-          path: "/public/earn/claim-v1",
+          public_route: CLAIM_ROUTE,
           fixed_award_wc: omitAward ? undefined : fixedAwardWc,
           server_selected_work: true,
           participant_selected_award: false,
@@ -151,7 +152,7 @@ try {
   assert.equal(body.public_claim.configured, true);
   assert.equal(body.public_claim.enabled, true);
   assert.equal(body.public_claim.method, "POST");
-  assert.equal(body.public_claim.path, "/public/earn/claim-v1");
+  assert.equal(body.public_claim.path, CLAIM_ROUTE);
   assert.equal(body.safety.read_only, true);
   assert.deepEqual(body.safety.http_methods_used, ["GET"]);
   assert.equal(body.safety.public_claim_route_no_direct_award, true);
@@ -166,7 +167,7 @@ try {
   assert.ok(available.requests.some(
     (entry) => entry.url === "/__void/public-earn-gateway-v1/status.json",
   ));
-  assert.ok(!available.requests.some((entry) => entry.url === "/public/earn/claim-v1"));
+  assert.ok(!available.requests.some((entry) => entry.url === CLAIM_ROUTE));
   assert.ok(!available.requests.some((entry) => entry.url === "/private/wc/award"));
 } finally {
   await available.close();
@@ -273,7 +274,7 @@ try {
   assert.equal(requiredBody.opportunity_state, "hold");
 
   assert.ok(hold.requests.every((entry) => entry.method === "GET"));
-  assert.ok(!hold.requests.some((entry) => entry.url === "/public/earn/claim-v1"));
+  assert.ok(!hold.requests.some((entry) => entry.url === CLAIM_ROUTE));
 } finally {
   await hold.close();
 }
@@ -302,7 +303,7 @@ try {
 
   assert.ok(unknown.requests.every((entry) => entry.method === "GET"));
   assert.ok(!unknown.requests.some(
-    (entry) => entry.url === "/public/earn/claim-v1",
+    (entry) => entry.url === CLAIM_ROUTE,
   ));
 } finally {
   await unknown.close();
