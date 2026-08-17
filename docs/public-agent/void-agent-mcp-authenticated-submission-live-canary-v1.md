@@ -16,6 +16,22 @@ accepted_for_review=true
 
 It does not mean payment, provider selection, quote acceptance, work dispatch, work execution, Work Credit issuance, WC ledger mutation, WC-to-VOID settlement, wallet or signer access, transaction broadcast, runtime mutation, deployment, or Buy VOID fulfillment occurred.
 
+The completed state and CLI report:
+
+```text
+private_temp_cleanup_completed=true|false
+completion_state_persisted=true|false
+completion_receipt_published=true|false
+```
+
+`private_temp_cleanup_completed=false` does **not** revoke or rewrite a fully validated remote `accepted_for_review` result. It means the bridge could not prove deletion of its local private submission-temp directory after that remote result was already known. The canary preserves that cleanup truth without exposing the private temp path or token-file path, does not retry the submission, and does not claim the retained local artifact was cleaned up. Any later local cleanup/recovery is a separate operator action.
+
+`completion_state_persisted` describes whether the exact terminal state snapshot returned to the caller is durably readable from `state-v1.json`. Remote acceptance becomes terminal before this local write is attempted. If the first completed-state publication fails before commit, the canary returns `accepted_for_review=true`, `completion_state_persisted=false`, and `completion_receipt_published=false`; the already-durable `attempting` state still prevents a second automatic submission. If an atomic state write throws after its rename committed, exact readback recognizes the matching state as persisted instead of inventing a failure.
+
+`completion_receipt_published=false` likewise does **not** rewrite a fully validated remote acceptance into `held`. The canary attempts the create-only completion receipt only after accepted/completed state has been durably recorded. If receipt publication fails, accepted state remains durable with `completion_state_persisted=true` and `completion_receipt_published=false`. Recovery of that local evidence artifact is a separate operator action.
+
+If the completion receipt is durably created but the later state synchronization fails, caller-visible truth is `completion_receipt_published=true` and `completion_state_persisted=false`. The durable receipt is never contradicted as unpublished, and the previously persisted completed state still prevents another submit. A completion receipt that exists records `completion_receipt_published=true`.
+
 ## Two-stage state machine
 
 The canary requires a fresh private state directory and has two explicit stages.
@@ -67,7 +83,9 @@ node tools/void-agent-mcp-authenticated-submission-live-canary-v1.mjs execute \
   --confirm confirmVoidAgentMcpAuthenticatedSubmissionLiveCanaryV1
 ```
 
-The harness writes `attempting` state before opening the submission-capable MCP session. The maximum submission attempt count is one. A timeout, transport failure, malformed response, or other ambiguous result moves the run to `held`; the same state directory cannot be retried automatically.
+The harness writes `attempting` state before opening the submission-capable MCP session. The maximum submission attempt count is one. A timeout, transport failure, malformed response, or other ambiguous result before validated acceptance moves the run to `held`; the same state directory cannot be retried automatically.
+
+After a fully validated remote acceptance, `accepted_for_review=true` is terminal before any later local persistence attempt. A private-temp cleanup failure records `private_temp_cleanup_completed=false`. A completed-state publication failure records `completion_state_persisted=false` without rewriting acceptance to `held`. A completion-receipt publication failure records `completion_receipt_published=false`. A later state-sync failure after a durable receipt records receipt publication as true while state persistence is false. None of those post-accept local conditions causes an automatic submission retry.
 
 ## Gateway boundary
 
@@ -83,6 +101,8 @@ The preparation probe requires:
 
 The raw token is never an MCP argument. The token value is read only by the existing paid-work client from the owner-private file. The harness does not print or persist the token value or token-file path. State and receipts are mode `0600`; state directories are mode `0700`.
 
+Cleanup, state-persistence, and completion-receipt publication evidence are bounded booleans only. The canary does not print or persist the bridge private-temp path when cleanup fails.
+
 ## CI and proof
 
 ```bash
@@ -92,4 +112,10 @@ npm --prefix integrations/mcp run build
 node scripts/prove_void_agent_mcp_authenticated_submission_live_canary_v1.mjs
 ```
 
-CI uses only a loopback fixture. It executes the real MCP stdio server, the official MCP client, the deterministic materializer, and the hardened paid-work client. It performs exactly one authenticated `POST` to the loopback fixture and no external network submission, credential mutation, payment, work execution, WC write, settlement, service restart, or deployment.
+CI uses only loopback and synthetic fixtures. It executes the real MCP stdio server, the official MCP client, the deterministic materializer, and the hardened paid-work client. It performs no external network submission, credential mutation, payment, work execution, WC write, settlement, service restart, or deployment.
+
+The proof injects a synthetic already-accepted MCP result with `private_temp_cleanup_completed=false` and requires the canary to preserve that value through completed state and completion receipt, keep the submission attempt count at one, refuse a second execution from the completed state, and keep token/path material out of persisted evidence. The real CLI cleanup-false path must print the same bounded false value.
+
+The proof pre-creates `completion-receipt-v1.json`, performs exactly one accepted loopback submission, and requires the canary to remain durably `completed` with `accepted_for_review=true`, `completion_state_persisted=true`, and `completion_receipt_published=false`. The pre-existing receipt file must remain unchanged, the CLI must report the false publication fact, a second execution must be rejected before another submit, and no token or private-temp path may be disclosed.
+
+The proof also injects three post-accept state-persistence failures: a failure before the first completed-state write, a throw after an atomic rename whose exact readback proves the completed state is durable, and a failure of the final publication-state write after the completion receipt has been created. Those cases must preserve one accepted submit, zero retry, exact accepted/receipt truth, and no secret/path disclosure.
