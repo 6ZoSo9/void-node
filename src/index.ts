@@ -25432,7 +25432,7 @@ function __voidWpV1(w:any){const f=w?.pressure,n=+(typeof f==="function"?f.call(
       lines.push("# HELP void_agent_receipts_errors total receipt write errors");
       lines.push("# TYPE void_agent_receipts_errors counter");
       lines.push(`void_agent_receipts_errors ${Number(met.receipts_errors||0)}`);
-      res.type("text/plain").send(lines.join("\n")+"\\n");
+      res.type("text/plain").send(lines.join("\n")+"\n");
     });
   } mount();
 })();
@@ -27135,8 +27135,8 @@ function __voidWpV1(w:any){const f=w?.pressure,n=+(typeof f==="function"?f.call(
           "# TYPE void_agent_results_total_v2 gauge",
           `void_agent_results_total_v2 ${done.size}`
         ];
-        res.type("text/plain").send(out.join("\n")+"\\n");
-      }catch(e){ res.type("text/plain").send("# error "+(e?.message||"internal")+"\\n"); }
+        res.type("text/plain").send(out.join("\n")+"\n");
+      }catch(e){ res.type("text/plain").send("# error "+(e?.message||"internal")+"\n"); }
     });
   }
   mount();

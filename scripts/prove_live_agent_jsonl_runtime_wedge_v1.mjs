@@ -14,6 +14,19 @@ assert.equal(agentRegion.includes(buggyJoin), false, "literal backslash-n JSONL 
 assert.ok(agentRegion.split(fixedSplit).length - 1 >= 23, "expected repaired newline JSONL readers");
 assert.ok(agentRegion.split(fixedJoin).length - 1 >= 10, "expected repaired newline JSONL writers/metrics joins");
 
+const badReceiptsTail = String.raw`lines.join("\n")+"\\n"`;
+const goodReceiptsTail = String.raw`lines.join("\n")+"\n"`;
+const badLeaseMetricsTail = String.raw`out.join("\n")+"\\n"`;
+const goodLeaseMetricsTail = String.raw`out.join("\n")+"\n"`;
+const badLeaseErrorTail = String.raw`send("# error "+(e?.message||"internal")+"\\n");`;
+const goodLeaseErrorTail = String.raw`send("# error "+(e?.message||"internal")+"\n");`;
+assert.equal(source.includes(badReceiptsTail), false, "receipts metrics still appends a literal backslash-n tail");
+assert.equal(source.includes(goodReceiptsTail), true, "receipts metrics real newline tail missing");
+assert.equal(source.includes(badLeaseMetricsTail), false, "lease metrics still appends a literal backslash-n tail");
+assert.equal(source.includes(goodLeaseMetricsTail), true, "lease metrics real newline tail missing");
+assert.equal(source.includes(badLeaseErrorTail), false, "lease metrics error response still appends a literal backslash-n tail");
+assert.equal(source.includes(goodLeaseErrorTail), true, "lease metrics error response real newline tail missing");
+
 const unsafeHeader = 'const n = Number((await selfJson(`/blocks/latest/number2.json`)).number);';
 const safeHeader = 'const n = Number((await selfJson(`/blocks/latest/number2.json`))?.number);';
 assert.equal(source.includes(unsafeHeader), false, "Header3 poller still dereferences synthetic null response");
