@@ -36,6 +36,8 @@ node tools/wc-public-opportunity-handoff-v1.mjs \
 
 Use `--directory-json -` to read JSON from standard input.
 
+Directory JSON is bounded to 256 KiB before full retention or `JSON.parse`. Regular-file input is opened through a stable descriptor, must be a regular non-symlink file, and is rejected before reading when its observed size is already above the bound; a concurrent growth race is still capped by reading at most the limit plus one overflow-detection byte. Standard input uses the same limit-plus-one rule. Oversized input produces `hold` before any participant-status or health request and before any ready command can be emitted.
+
 ## Strict selection and independent trust revalidation
 
 The supplied directory is a selection hint. A candidate is initially eligible only when the directory result reports:
@@ -102,14 +104,17 @@ The handoff uses the supplied directory only to select a candidate origin, indep
 
 ```bash
 node scripts/prove_wc_public_opportunity_handoff_v1.mjs
+node scripts/prove_wc_public_opportunity_handoff_cancel_liveness_v1.mjs
 node scripts/prove_wc_public_opportunity_handoff_provenance_v1.mjs
+node scripts/prove_wc_public_opportunity_handoff_directory_input_bound_v1.mjs
 ```
 
-The existing proof exercises successful identity-bound handoff, canonical generated-client identity, rejection of arbitrary `--client-tool` input before network evidence is fetched, generated-command compatibility, origin-policy parity, and response-bound HOLD behavior. The provenance proof adds the decisive adversarial boundary: attacker-controlled directory JSON can self-assert every currently accepted trust/readiness field and return a valid-looking `/health`, but the handoff must HOLD after the canonical participant-status check and before health binding when the actual coordinator contract is unsafe. A coordinator exposing the canonical status contract must still reach ready state and retain the final health identity binding.
+The existing proof exercises successful identity-bound handoff, canonical generated-client identity, rejection of arbitrary `--client-tool` input before network evidence is fetched, generated-command compatibility, origin-policy parity, and response-bound HOLD behavior. The cancellation proof owns hostile rejected-response teardown to an explicit bounded terminal. The provenance proof adds the decisive adversarial boundary: attacker-controlled directory JSON can self-assert every currently accepted trust/readiness field and return a valid-looking `/health`, but the handoff must HOLD after the canonical participant-status check and before health binding when the actual coordinator contract is unsafe. The directory-input proof verifies oversized file and stdin input fail before parsing/network command readiness, rejects symlink input, and preserves bounded canonical directory parsing. A coordinator exposing the canonical status contract must still reach ready state and retain the final health identity binding.
 
 Expected markers include:
 
 ```text
 VOID_WC_PUBLIC_OPPORTUNITY_HANDOFF_V1_PROOF_GREEN
 VOID_WC_PUBLIC_OPPORTUNITY_HANDOFF_PROVENANCE_V1_PROOF_GREEN
+VOID_WC_PUBLIC_OPPORTUNITY_HANDOFF_DIRECTORY_INPUT_BOUND_V1_PROOF_GREEN
 ```
