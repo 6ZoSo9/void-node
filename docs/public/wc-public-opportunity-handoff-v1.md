@@ -34,9 +34,9 @@ node tools/wc-public-opportunity-handoff-v1.mjs \
   --select-base https://node-one.example
 ```
 
-Use `--directory-json -` to read JSON from standard input.
+Use `--directory-json -` to read JSON from standard input. Stdin input has an independent total read deadline: `--directory-stdin-timeout-ms` defaults to 5000 ms and accepts reviewed values from 250 through 30000 ms. The deadline covers the wait for EOF or the overflow-detection byte; a producer that sends a bounded payload and then leaves the pipe open cannot stall the handoff indefinitely.
 
-Directory JSON is bounded to 256 KiB before full retention or `JSON.parse`. Regular-file input is opened through a stable descriptor, must be a regular non-symlink file, and is rejected before reading when its observed size is already above the bound; a concurrent growth race is still capped by reading at most the limit plus one overflow-detection byte. Standard input uses the same limit-plus-one rule. Oversized input produces `hold` before any participant-status or health request and before any ready command can be emitted.
+Directory JSON is bounded to 256 KiB before full retention or `JSON.parse`. Regular-file input is opened through a stable descriptor, must be a regular non-symlink file, and is rejected before reading when its observed size is already above the bound; a concurrent growth race is still capped by reading at most the limit plus one overflow-detection byte. Standard input uses the same limit-plus-one rule and the total read deadline above. Oversized or timed-out stdin input produces `hold` before any participant-status or health request and before any ready command can be emitted.
 
 ## Strict selection and independent trust revalidation
 
@@ -109,7 +109,7 @@ node scripts/prove_wc_public_opportunity_handoff_provenance_v1.mjs
 node scripts/prove_wc_public_opportunity_handoff_directory_input_bound_v1.mjs
 ```
 
-The existing proof exercises successful identity-bound handoff, canonical generated-client identity, rejection of arbitrary `--client-tool` input before network evidence is fetched, generated-command compatibility, origin-policy parity, and response-bound HOLD behavior. The cancellation proof owns hostile rejected-response teardown to an explicit bounded terminal. The provenance proof adds the decisive adversarial boundary: attacker-controlled directory JSON can self-assert every currently accepted trust/readiness field and return a valid-looking `/health`, but the handoff must HOLD after the canonical participant-status check and before health binding when the actual coordinator contract is unsafe. The directory-input proof verifies oversized file and stdin input fail before parsing/network command readiness, rejects symlink input, and preserves bounded canonical directory parsing. A coordinator exposing the canonical status contract must still reach ready state and retain the final health identity binding.
+The existing proof exercises successful identity-bound handoff, canonical generated-client identity, rejection of arbitrary `--client-tool` input before network evidence is fetched, generated-command compatibility, origin-policy parity, and response-bound HOLD behavior. The cancellation proof owns hostile rejected-response teardown to an explicit bounded terminal. The provenance proof adds the decisive adversarial boundary: attacker-controlled directory JSON can self-assert every currently accepted trust/readiness field and return a valid-looking `/health`, but the handoff must HOLD after the canonical participant-status check and before health binding when the actual coordinator contract is unsafe. The directory-input proof verifies exact 262144-byte acceptance, exact 262145-byte rejection, UTF-8 byte accounting, symlink rejection, and deterministic timeout HOLDs when either an exact-cap or partial stdin producer leaves the writer open. Those stdin timeout cases must terminate before any status/health fetch or ready command. A coordinator exposing the canonical status contract must still reach ready state and retain the final health identity binding.
 
 Expected markers include:
 

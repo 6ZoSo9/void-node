@@ -15,6 +15,8 @@ const MARKER = "VOID_WC_PUBLIC_OPPORTUNITY_HANDOFF_V1";
 const DIRECTORY_MARKER = "VOID_WC_PUBLIC_OPPORTUNITY_DIRECTORY_V1";
 const DISCOVERY_MARKER = "VOID_WC_PUBLIC_OPPORTUNITY_DISCOVERY_V1";
 const MAX_DIRECTORY_INPUT_BYTES = 256 * 1024;
+const DEFAULT_DIRECTORY_STDIN_TIMEOUT_MS = 5000;
+const MAX_DIRECTORY_STDIN_TIMEOUT_MS = 30000;
 const MAX_HEALTH_RESPONSE_BYTES = 64 * 1024;
 const MAX_STATUS_RESPONSE_BYTES = 64 * 1024;
 const REJECTED_RESPONSE_TEARDOWN_TIMEOUT_MS = 100;
@@ -31,6 +33,8 @@ function hold(reason, extra = {}) {
     safety: {
       read_only: true,
       directory_input_max_bytes: MAX_DIRECTORY_INPUT_BYTES,
+      directory_stdin_timeout_default_ms: DEFAULT_DIRECTORY_STDIN_TIMEOUT_MS,
+      directory_stdin_timeout_max_ms: MAX_DIRECTORY_STDIN_TIMEOUT_MS,
       health_method: "GET",
       health_response_max_bytes: MAX_HEALTH_RESPONSE_BYTES,
       canonical_status_reverification_required: true,
@@ -80,14 +84,7 @@ function normalizeOrigin(raw) {
   return url.origin;
 }
 
-function readBoundedDirectoryText(fd) {
-  const bytes = Buffer.allocUnsafe(MAX_DIRECTORY_INPUT_BYTES + 1);
-  let total = 0;
-  while (total < bytes.length) {
-    const count = readSync(fd, bytes, total, bytes.length - total, null);
-    if (count === 0) break;
-    total += count;
-  }
+function decodeDirectoryBytes(bytes, total) {
   if (total > MAX_DIRECTORY_INPUT_BYTES) throw new Error("directory JSON input exceeds byte limit");
   try {
     return new TextDecoder("utf-8", { fatal: true }).decode(bytes.subarray(0, total));
@@ -96,8 +93,73 @@ function readBoundedDirectoryText(fd) {
   }
 }
 
-function readDirectory(path) {
-  if (path === "-") return JSON.parse(readBoundedDirectoryText(0));
+function readBoundedDirectoryText(fd) {
+  const bytes = Buffer.allocUnsafe(MAX_DIRECTORY_INPUT_BYTES + 1);
+  let total = 0;
+  while (total < bytes.length) {
+    const count = readSync(fd, bytes, total, bytes.length - total, null);
+    if (count === 0) break;
+    total += count;
+  }
+  return decodeDirectoryBytes(bytes, total);
+}
+
+function readBoundedDirectoryStdinText(timeoutMs) {
+  return new Promise((resolveText, rejectText) => {
+    const input = process.stdin;
+    const bytes = Buffer.allocUnsafe(MAX_DIRECTORY_INPUT_BYTES + 1);
+    let total = 0;
+    let settled = false;
+    let timer;
+
+    function cleanup() {
+      if (timer) clearTimeout(timer);
+      input.off("data", onData);
+      input.off("end", onEnd);
+      input.off("error", onError);
+      input.pause();
+    }
+
+    function finish(error) {
+      if (settled) return;
+      settled = true;
+      cleanup();
+      if (error) {
+        input.destroy();
+        rejectText(error);
+        return;
+      }
+      try {
+        resolveText(decodeDirectoryBytes(bytes, total));
+      } catch (decodeError) {
+        rejectText(decodeError);
+      }
+    }
+
+    function onData(chunk) {
+      const value = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
+      const remaining = bytes.length - total;
+      const copied = Math.min(remaining, value.byteLength);
+      if (copied > 0) value.copy(bytes, total, 0, copied);
+      total += copied;
+      if (total > MAX_DIRECTORY_INPUT_BYTES || value.byteLength > copied) {
+        finish(new Error("directory JSON input exceeds byte limit"));
+      }
+    }
+
+    function onEnd() { finish(); }
+    function onError(error) { finish(new Error("directory stdin read failed", { cause: error })); }
+
+    input.on("data", onData);
+    input.once("end", onEnd);
+    input.once("error", onError);
+    timer = setTimeout(() => finish(new Error("directory stdin read timed out")), timeoutMs);
+    input.resume();
+  });
+}
+
+async function readDirectory(path, stdinTimeoutMs) {
+  if (path === "-") return JSON.parse(await readBoundedDirectoryStdinText(stdinTimeoutMs));
 
   const resolvedPath = resolve(path);
   const pathStat = lstatSync(resolvedPath);
@@ -328,6 +390,7 @@ async function main() {
       account: { type: "string" },
       "select-base": { type: "string" },
       "health-timeout-ms": { type: "string", default: "5000" },
+      "directory-stdin-timeout-ms": { type: "string", default: String(DEFAULT_DIRECTORY_STDIN_TIMEOUT_MS) },
       "state-dir": { type: "string" },
       "dataset-url-template": { type: "string" },
       help: { type: "boolean", short: "h", default: false },
@@ -336,13 +399,17 @@ async function main() {
     strict: true,
   });
   if (values.help) {
-    process.stdout.write("Usage: node tools/wc-public-opportunity-handoff-v1.mjs --directory-json directory.json --account ACCOUNT [--select-base HTTPS_ORIGIN]\n");
+    process.stdout.write("Usage: node tools/wc-public-opportunity-handoff-v1.mjs --directory-json directory.json --account ACCOUNT [--select-base HTTPS_ORIGIN] [--directory-stdin-timeout-ms MS]\n");
     return;
   }
   if (!values["directory-json"]) throw new Error("--directory-json is required");
   if (!validAccount(values.account)) throw new Error("--account must match [A-Za-z0-9._:-]{1,128}");
   const timeoutMs = Number(values["health-timeout-ms"]);
   if (!Number.isInteger(timeoutMs) || timeoutMs < 250 || timeoutMs > 30000) throw new Error("--health-timeout-ms must be an integer between 250 and 30000");
+  const stdinTimeoutMs = Number(values["directory-stdin-timeout-ms"]);
+  if (!Number.isInteger(stdinTimeoutMs) || stdinTimeoutMs < 250 || stdinTimeoutMs > MAX_DIRECTORY_STDIN_TIMEOUT_MS) {
+    throw new Error(`--directory-stdin-timeout-ms must be an integer between 250 and ${MAX_DIRECTORY_STDIN_TIMEOUT_MS}`);
+  }
   const client = DEFAULT_CLIENT;
   if (values["dataset-url-template"]) {
     const t = values["dataset-url-template"];
@@ -351,7 +418,7 @@ async function main() {
     if (u.protocol !== "https:" || u.username || u.password) throw new Error("--dataset-url-template must be credential-free HTTPS");
   }
 
-  const directory = validateDirectory(readDirectory(values["directory-json"]));
+  const directory = validateDirectory(await readDirectory(values["directory-json"], stdinTimeoutMs));
   const available = candidates(directory);
   if (available.length === 0) return hold("no_trusted_available_coordinator", { available_candidate_count: 0 });
   let selected;
@@ -384,6 +451,7 @@ async function main() {
     safety: {
       read_only: true,
       directory_input_max_bytes: MAX_DIRECTORY_INPUT_BYTES,
+      directory_stdin_timeout_ms: stdinTimeoutMs,
       health_method: "GET",
       health_response_max_bytes: MAX_HEALTH_RESPONSE_BYTES,
       directory_marker_validated: true,
