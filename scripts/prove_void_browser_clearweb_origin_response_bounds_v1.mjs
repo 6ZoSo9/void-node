@@ -94,6 +94,34 @@ async function expectFirstGetHold(candidate, options, pattern) {
   return { calls, elapsed_ms: Date.now() - started };
 }
 
+async function expectFirstHeadHold(candidate, options, pattern) {
+  let calls = 0;
+  const fetchImpl = async (url, init) => {
+    calls += 1;
+    if (calls === 1) {
+      assert.equal(init.method, "GET");
+      return response(url, {
+        chunks: [new Uint8Array([123, 125])],
+      }).response;
+    }
+    if (calls === 2) {
+      assert.equal(init.method, "HEAD");
+      return candidate.response;
+    }
+    throw new Error("unexpected request after terminal HEAD HOLD");
+  };
+  const started = Date.now();
+  await assert.rejects(
+    () => collectRouteEvidence(ORIGIN, {
+      fetchImpl,
+      maximum: options.maximum ?? MAXIMUM,
+      timeoutMs: options.timeoutMs ?? 1_000,
+    }),
+    pattern,
+  );
+  return { calls, elapsed_ms: Date.now() - started };
+}
+
 {
   const declared = response(`${ORIGIN}/.well-known/void-agent-discovery.json`, {
     headers: { "content-length": String(MAXIMUM + 1) },
@@ -113,10 +141,34 @@ async function expectFirstGetHold(candidate, options, pattern) {
   const malformed = response(`${ORIGIN}/.well-known/void-agent-discovery.json`, {
     headers: { "content-length": "01" },
     chunks: [new Uint8Array([1])],
+    cancelReject: true,
   });
   await expectFirstGetHold(malformed, {}, /invalid Content-Length/);
   assert.equal(malformed.stats.body_cancel_calls, 1);
   assert.equal(malformed.stats.read_calls, 0);
+}
+
+{
+  const malformedHead = response(
+    `${ORIGIN}/.well-known/void-agent-discovery.json`,
+    {
+      headers: { "content-length": "01" },
+      chunks: [],
+      cancelNeverSettles: true,
+    },
+  );
+  const result = await expectFirstHeadHold(
+    malformedHead,
+    { timeoutMs: 1_000 },
+    /invalid Content-Length/,
+  );
+  assert.equal(result.calls, 2);
+  assert.equal(malformedHead.stats.body_cancel_calls, 1);
+  assert.equal(malformedHead.stats.read_calls, 0);
+  assert.ok(
+    result.elapsed_ms < 750,
+    `malformed HEAD teardown was not bounded: ${result.elapsed_ms}ms`,
+  );
 }
 
 {
@@ -209,6 +261,7 @@ console.log("declared_body_ceiling=true");
 console.log("streamed_body_ceiling=true");
 console.log("stalled_body_deadline=true");
 console.log("bounded_rejected_body_teardown=true");
+console.log("malformed_get_head_teardown_owned=true");
 console.log("cleanup_failure_does_not_replace_primary_hold=true");
 console.log("small_response_contract_preserved=true");
 console.log("live_survey_performed=false");

@@ -326,8 +326,33 @@ async function settleRejectedBody(response, reader, controller, deadlineAt, reas
   ]);
 }
 
+async function parseContentLengthWithOwnedTeardown(
+  response,
+  controller,
+  deadlineAt,
+  label,
+) {
+  try {
+    return parseContentLength(response, label);
+  } catch (error) {
+    await settleRejectedBody(
+      response,
+      null,
+      controller,
+      deadlineAt,
+      error,
+    );
+    throw error;
+  }
+}
+
 async function readBoundedGetBody(response, maximum, controller, deadlineAt, label) {
-  const contentLength = parseContentLength(response, label);
+  const contentLength = await parseContentLengthWithOwnedTeardown(
+    response,
+    controller,
+    deadlineAt,
+    label,
+  );
   if (contentLength !== null && contentLength > maximum) {
     const primary = new Hold(`${label} exceeds maximum response size`);
     await settleRejectedBody(response, null, controller, deadlineAt, primary);
@@ -390,7 +415,12 @@ async function boundedRequest(url, method, fetchImpl, maximum, timeoutMs) {
     if (method === "GET") {
       body = await readBoundedGetBody(response, maximum, controller, deadlineAt, label);
     } else {
-      const contentLength = parseContentLength(response, label);
+      const contentLength = await parseContentLengthWithOwnedTeardown(
+        response,
+        controller,
+        deadlineAt,
+        label,
+      );
       if (contentLength !== null && contentLength > maximum) {
         const primary = new Hold(`${label} exceeds maximum response size`);
         await settleRejectedBody(response, null, controller, deadlineAt, primary);
