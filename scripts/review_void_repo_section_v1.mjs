@@ -25,12 +25,22 @@ export function buildDomainSection({
   limit = 25,
   _testOnlyAfterHeadPinned = null,
 } = {}) {
-  if (typeof domainId !== 'string' || !DOMAIN_ID_RE.test(domainId)) fail(`domain_id_invalid value=${String(domainId)}`);
-  if (!Number.isSafeInteger(limit) || limit < 1 || limit > 100) fail(`limit_invalid value=${String(limit)}`);
+  if (typeof domainId !== 'string' || !DOMAIN_ID_RE.test(domainId)) {
+    fail(`domain_id_invalid value=${String(domainId)}`);
+  }
+  if (!Number.isSafeInteger(limit) || limit < 1 || limit > 100) {
+    fail(`limit_invalid value=${String(limit)}`);
+  }
 
-  // One collection pass is authoritative for both selected-domain evidence and source identity.
-  const resolved = buildResolvedMap({ repoRoot, includeMatches: true, _testOnlyAfterHeadPinned });
+  const resolved = buildResolvedMap({
+    repoRoot,
+    includeMatches: true,
+    _testOnlyAfterHeadPinned,
+  });
   if (!resolved.source_snapshot_bound) fail('source_snapshot_unbound');
+  if (resolved.git_executable_identity_bound !== true) {
+    fail('git_executable_identity_unbound');
+  }
   const domain = resolved.domains.find((candidate) => candidate.id === domainId);
   if (!domain) fail(`unknown_domain id=${domainId}`);
 
@@ -52,6 +62,11 @@ export function buildDomainSection({
     source_tree_sha: resolved.source_tree_sha,
     source_snapshot_kind: resolved.source_snapshot_kind,
     source_snapshot_bound: resolved.source_snapshot_bound,
+    git_executable_path: resolved.git_executable_path,
+    git_executable_sha256: resolved.git_executable_sha256,
+    git_executable_filesystem_identity_sha256:
+      resolved.git_executable_filesystem_identity_sha256,
+    git_executable_identity_bound: resolved.git_executable_identity_bound,
     registry_sha256: resolved.registry_sha256,
     domain: {
       id: domain.id,
@@ -84,13 +99,21 @@ export function renderText(section) {
   lines.push(`area: ${d.area}`);
   lines.push(`source: ${section.source_commit_sha}`);
   lines.push(`source snapshot: ${section.source_snapshot_kind}`);
-  lines.push(`authority surfaces: ${d.authority_surfaces.length ? d.authority_surfaces.join(', ') : 'none'}`);
+  lines.push(`reviewed git: ${section.git_executable_path}`);
+  lines.push(`reviewed git sha256: ${section.git_executable_sha256}`);
+  lines.push(
+    `authority surfaces: ${d.authority_surfaces.length ? d.authority_surfaces.join(', ') : 'none'}`,
+  );
   if (d.aliases.length) lines.push(`aliases: ${d.aliases.join(', ')}`);
-  if (d.index_landmarks.length) lines.push(`src/index.ts landmarks: ${d.index_landmarks.join(', ')}`);
+  if (d.index_landmarks.length) {
+    lines.push(`src/index.ts landmarks: ${d.index_landmarks.join(', ')}`);
+  }
   lines.push('');
 
   const emit = (title, group) => {
-    lines.push(`${title} (${group.shown}/${group.total}${group.truncated ? ', truncated' : ''})`);
+    lines.push(
+      `${title} (${group.shown}/${group.total}${group.truncated ? ', truncated' : ''})`,
+    );
     if (group.paths.length === 0) lines.push('  - none');
     else for (const p of group.paths) lines.push(`  - ${p}`);
     lines.push('');
@@ -103,9 +126,15 @@ export function renderText(section) {
 
   lines.push('related domains');
   if (d.related_domains.length === 0) lines.push('  - none');
-  else for (const r of d.related_domains) lines.push(`  - ${r.id}: ${r.purpose}`);
+  else {
+    for (const r of d.related_domains) {
+      lines.push(`  - ${r.id}: ${r.purpose}`);
+    }
+  }
   lines.push('');
-  lines.push('Navigation evidence only; authority labels do not grant permission or prove runtime activation.');
+  lines.push(
+    'Navigation evidence only; authority labels do not grant permission or prove runtime activation.',
+  );
   return `${lines.join('\n')}\n`;
 }
 
@@ -121,7 +150,9 @@ function parseCli(argv) {
     }
     if (arg === '--limit') {
       const raw = argv[++i];
-      if (!/^\d+$/.test(raw ?? '')) fail(`limit_invalid value=${String(raw)}`);
+      if (!/^\d+$/.test(raw ?? '')) {
+        fail(`limit_invalid value=${String(raw)}`);
+      }
       limit = Number(raw);
       continue;
     }
@@ -133,23 +164,35 @@ function parseCli(argv) {
     fail(`unknown_argument arg=${arg}`);
   }
   if (!domainId) fail('domain_required');
-  if (!['text', 'json'].includes(format)) fail(`format_invalid value=${String(format)}`);
+  if (!['text', 'json'].includes(format)) {
+    fail(`format_invalid value=${String(format)}`);
+  }
   return { help: false, domainId, format, limit };
 }
 
 function printHelp() {
-  process.stdout.write('Usage: node scripts/review_void_repo_section_v1.mjs --domain <stable-id> [--limit 25] [--format text|json]\n');
+  process.stdout.write(
+    'Usage: node scripts/review_void_repo_section_v1.mjs --domain <stable-id> [--limit 25] [--format text|json]\n',
+  );
 }
 
-const invokedDirectly = process.argv[1] && import.meta.url === pathToFileURL(path.resolve(process.argv[1])).href;
+const invokedDirectly =
+  process.argv[1] &&
+  import.meta.url === pathToFileURL(path.resolve(process.argv[1])).href;
 if (invokedDirectly) {
   try {
     const args = parseCli(process.argv.slice(2));
     if (args.help) printHelp();
     else {
-      const section = buildDomainSection({ domainId: args.domainId, limit: args.limit });
-      if (args.format === 'json') process.stdout.write(`${JSON.stringify(section, null, 2)}\n`);
-      else process.stdout.write(renderText(section));
+      const section = buildDomainSection({
+        domainId: args.domainId,
+        limit: args.limit,
+      });
+      if (args.format === 'json') {
+        process.stdout.write(`${JSON.stringify(section, null, 2)}\n`);
+      } else {
+        process.stdout.write(renderText(section));
+      }
     }
   } catch (error) {
     console.error(error instanceof Error ? error.message : String(error));
