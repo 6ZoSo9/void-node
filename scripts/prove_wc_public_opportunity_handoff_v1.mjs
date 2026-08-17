@@ -131,13 +131,22 @@ const address = server.address(); assert.ok(address && typeof address === "objec
 const base = `http://127.0.0.1:${address.port}`;
 const temp = mkdtempSync(join(tmpdir(), "void-wc-handoff-"));
 const input = join(temp, "directory.json");
-const client = join(temp, "client tool.mjs");
+const fakeClient = join(temp, "client tool.mjs");
 const stateDir = join(temp, "state dir");
 const datasetTemplate = "https://data.example/open?id={dataset_id}";
-writeFileSync(client, "#!/usr/bin/env node\n", { mode: 0o755 });
+writeFileSync(fakeClient, "#!/usr/bin/env node\n", { mode: 0o755 });
 try {
   writeFileSync(input, JSON.stringify(directory([available(base), held("https://hold.example")])), "utf8");
-  const ready = await run(["--directory-json", input, "--account", "outside-user-1", "--client-tool", client, "--state-dir", stateDir, "--dataset-url-template", datasetTemplate]);
+
+  requests.length = 0;
+  const arbitraryClient = await run(["--directory-json", input, "--account", "outside-user-1", "--client-tool", fakeClient]);
+  assert.equal(arbitraryClient.code, 2, arbitraryClient.stderr || arbitraryClient.stdout);
+  const arbitraryClientBody = JSON.parse(arbitraryClient.stdout);
+  assert.equal(arbitraryClientBody.handoff_state, "hold");
+  assert.match(arbitraryClientBody.reason, /client-tool/u);
+  assert.deepEqual(requests, [], "rejected client override must fail before network evidence is fetched");
+
+  const ready = await run(["--directory-json", input, "--account", "outside-user-1", "--state-dir", stateDir, "--dataset-url-template", datasetTemplate]);
   assert.equal(ready.code, 0, ready.stderr || ready.stdout);
   const body = JSON.parse(ready.stdout);
   assert.equal(body.marker, "VOID_WC_PUBLIC_OPPORTUNITY_HANDOFF_V1");
@@ -146,8 +155,11 @@ try {
   assert.equal(body.coordinator_identity.node_id, nodeId);
   assert.equal(body.commands.status.argv.includes("status"), true);
   assert.equal(body.commands.run.argv.includes("run"), true);
-  assert.match(body.commands.status.shell, /'[^']*client tool\.mjs'/u);
+  assert.equal(body.commands.status.argv[1], CANONICAL_CLIENT);
+  assert.equal(body.commands.run.argv[1], CANONICAL_CLIENT);
   assert.match(body.commands.status.shell, /'[^']*state dir'/u);
+  assert.equal(body.safety.canonical_client_path, CANONICAL_CLIENT);
+  assert.equal(body.safety.canonical_client_override_allowed, false);
   assert.equal(body.safety.health_response_max_bytes, MAX_HEALTH_RESPONSE_BYTES);
   assert.equal(body.safety.client_executed, false);
   assert.equal(body.safety.identity_created, false);
@@ -190,7 +202,7 @@ try {
   for (const [origin, accepted] of parityCases) {
     assert.equal(Boolean(canonicalClientContract.safeBase(origin)), accepted, `canonical client origin policy mismatch for ${origin}`);
     writeFileSync(input, JSON.stringify(directory([available(origin), available("https://second.example")])), "utf8");
-    const parity = await run(["--directory-json", input, "--account", "outside-user-1", "--client-tool", client]);
+    const parity = await run(["--directory-json", input, "--account", "outside-user-1"]);
     assert.equal(parity.code, 2, parity.stderr || parity.stdout);
     const parityBody = JSON.parse(parity.stdout);
     if (accepted) {
@@ -261,10 +273,11 @@ try {
   const ipv6Base = `http://[::1]:${ipv6Address.port}`;
   try {
     writeFileSync(input, JSON.stringify(directory([available(ipv6Base), held("https://hold.example")])), "utf8");
-    const ipv6Ready = await run(["--directory-json", input, "--account", "outside-user-v6", "--client-tool", client]);
+    const ipv6Ready = await run(["--directory-json", input, "--account", "outside-user-v6"]);
     assert.equal(ipv6Ready.code, 0, ipv6Ready.stderr || ipv6Ready.stdout);
     const ipv6Body = JSON.parse(ipv6Ready.stdout);
     assert.equal(ipv6Body.selected.base, ipv6Base);
+    assert.equal(ipv6Body.commands.status.argv[1], CANONICAL_CLIENT);
     const ipv6StatusParsed = canonicalClientContract.parseArgs(ipv6Body.commands.status.argv.slice(2));
     assert.equal(ipv6StatusParsed.options["coordinator-base"], ipv6Base);
     const ipv6Context = await canonicalClientContract.inspectCoordinator(ipv6StatusParsed.options, syntheticIdentity);
@@ -282,17 +295,17 @@ try {
 
   writeFileSync(input, JSON.stringify(directory([available(base), held("https://hold.example")])), "utf8");
   healthMode = "declared_oversize";
-  const declaredOversize = await run(["--directory-json", input, "--account", "outside-user-1", "--client-tool", client]);
+  const declaredOversize = await run(["--directory-json", input, "--account", "outside-user-1"]);
   assert.equal(declaredOversize.code, 2, declaredOversize.stderr || declaredOversize.stdout);
   assert.equal(JSON.parse(declaredOversize.stdout).reason, "coordinator health response exceeds byte limit");
 
   healthMode = "stream_oversize";
-  const streamedOversize = await run(["--directory-json", input, "--account", "outside-user-1", "--client-tool", client]);
+  const streamedOversize = await run(["--directory-json", input, "--account", "outside-user-1"]);
   assert.equal(streamedOversize.code, 2, streamedOversize.stderr || streamedOversize.stdout);
   assert.equal(JSON.parse(streamedOversize.stdout).reason, "coordinator health response exceeds byte limit");
 
   healthMode = "interrupted";
-  const interrupted = await run(["--directory-json", input, "--account", "outside-user-1", "--client-tool", client, "--health-timeout-ms", "1000"]);
+  const interrupted = await run(["--directory-json", input, "--account", "outside-user-1", "--health-timeout-ms", "1000"]);
   assert.equal(interrupted.code, 2, interrupted.stderr || interrupted.stdout);
   const interruptedBody = JSON.parse(interrupted.stdout);
   assert.equal(interruptedBody.handoff_state, "hold");
@@ -300,21 +313,22 @@ try {
 
   healthMode = "valid";
   writeFileSync(input, JSON.stringify(directory([available(base), available("https://second.example")])), "utf8");
-  const multiple = await run(["--directory-json", input, "--account", "outside-user-1", "--client-tool", client]);
+  const multiple = await run(["--directory-json", input, "--account", "outside-user-1"]);
   assert.equal(multiple.code, 2);
   assert.equal(JSON.parse(multiple.stdout).reason, "multiple_available_coordinators_require_select_base");
 
   writeFileSync(input, JSON.stringify(directory([held(base)])), "utf8");
-  const none = await run(["--directory-json", input, "--account", "outside-user-1", "--client-tool", client]);
+  const none = await run(["--directory-json", input, "--account", "outside-user-1"]);
   assert.equal(none.code, 2);
   assert.equal(JSON.parse(none.stdout).reason, "no_trusted_available_coordinator");
 
   const unsafe = directory([available(base)]); unsafe.safety.mutation_attempted = true;
-  const rejected = await run(["--directory-json", "-", "--account", "outside-user-1", "--client-tool", client], JSON.stringify(unsafe));
+  const rejected = await run(["--directory-json", "-", "--account", "outside-user-1"], JSON.stringify(unsafe));
   assert.equal(rejected.code, 2);
   assert.equal(JSON.parse(rejected.stdout).reason, "directory safety contract failed");
 } finally {
   await new Promise((done, fail) => server.close((error) => error ? fail(error) : done()));
   rmSync(temp, { recursive: true, force: true });
 }
+console.log("canonical_client_override_rejected=true");
 console.log(MARKER);
