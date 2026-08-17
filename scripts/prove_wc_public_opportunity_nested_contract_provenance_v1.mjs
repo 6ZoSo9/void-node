@@ -28,13 +28,15 @@ function publicClaim({
   includeRoute = true,
   enabled = true,
   includeEnabled = true,
+  award = 3,
+  includeAward = true,
   extra = {},
 } = {}) {
   return {
     ...(includeEnabled ? { enabled } : {}),
     method: "POST",
     ...(includeRoute ? { public_route: route } : {}),
-    fixed_award_wc: 3,
+    ...(includeAward ? { fixed_award_wc: award } : {}),
     server_selected_work: true,
     participant_selected_award: false,
     ...extra,
@@ -146,6 +148,31 @@ try {
   assert.equal(outcome.result.public_claim.configured, true);
   assert.equal(outcome.result.public_claim.enabled, true);
   assert.equal(outcome.result.public_claim.path, canonicalClaimRoute);
+
+  for (const [label, claim] of [
+    ["missing_claim_award", publicClaim({ includeAward: false })],
+    ["null_claim_award", publicClaim({ award: null })],
+    ["string_claim_award", publicClaim({ award: "3" })],
+    ["boolean_claim_award", publicClaim({ award: true })],
+    ["fractional_claim_award", publicClaim({ award: 3.5 })],
+    ["wrong_claim_award", publicClaim({ award: 4 })],
+    ["unsafe_claim_award", publicClaim({ award: Number.MAX_SAFE_INTEGER + 1 })],
+  ]) {
+    for (const [envelopeLabel, envelope] of [
+      ["gateway", gateway],
+      ["top_level_pilot", topLevelPilot],
+    ]) {
+      outcome = await runCase(envelope(claim));
+      assert.equal(outcome.code, 2, `${envelopeLabel}:${label}`);
+      assert.equal(outcome.result.opportunity_state, "hold", `${envelopeLabel}:${label}`);
+      assert.equal(outcome.result.pilot.fixed_award_wc, null, `${envelopeLabel}:${label}`);
+      assert.equal(outcome.result.pilot.fixed_award_matches, false, `${envelopeLabel}:${label}`);
+      assert.equal(outcome.result.public_claim.configured, true, `${envelopeLabel}:${label}`);
+      assert.equal(outcome.result.public_claim.enabled, true, `${envelopeLabel}:${label}`);
+      assert.equal(outcome.result.public_claim.path, canonicalClaimRoute, `${envelopeLabel}:${label}`);
+      assert.match(outcome.result.reason, /fixed_award_evidence_missing_or_conflicting/u, `${envelopeLabel}:${label}`);
+    }
+  }
 
   for (const [label, claim] of [
     ["missing_enabled", publicClaim({ includeEnabled: false })],

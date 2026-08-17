@@ -248,7 +248,8 @@ function analyze(body, sourcePath, origin, expectedAwardWc, attempts) {
   const claimAwardWc = strictEvidenceNumber(publicClaim?.fixed_award_wc);
   const awardEvidenceConsistent =
     pilotAwardWc !== null &&
-    (claimAwardWc === null || claimAwardWc === pilotAwardWc);
+    claimAwardWc !== null &&
+    claimAwardWc === pilotAwardWc;
   const fixedAwardWc = awardEvidenceConsistent ? pilotAwardWc : null;
 
   const claimEnabled =
