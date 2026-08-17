@@ -8,6 +8,8 @@ on:
       - "scripts/prove_wc_public_opportunity_handoff_v1.mjs"
       - "scripts/prove_wc_public_opportunity_handoff_cancel_liveness_v1.mjs"
       - "scripts/prove_wc_public_opportunity_handoff_provenance_v1.mjs"
+      - "scripts/ci_diff_hygiene_v1.sh"
+      - "scripts/prove_ci_diff_hygiene_v1.mjs"
       - "docs/public/wc-public-opportunity-handoff-v1.md"
       - ".github/workflows/wc-public-opportunity-handoff-v1.yml"
   push:
@@ -18,6 +20,8 @@ on:
       - "scripts/prove_wc_public_opportunity_handoff_v1.mjs"
       - "scripts/prove_wc_public_opportunity_handoff_cancel_liveness_v1.mjs"
       - "scripts/prove_wc_public_opportunity_handoff_provenance_v1.mjs"
+      - "scripts/ci_diff_hygiene_v1.sh"
+      - "scripts/prove_ci_diff_hygiene_v1.mjs"
       - "docs/public/wc-public-opportunity-handoff-v1.md"
       - ".github/workflows/wc-public-opportunity-handoff-v1.yml"
   workflow_dispatch:
@@ -53,10 +57,21 @@ jobs:
           node --check scripts/prove_wc_public_opportunity_handoff_v1.mjs
           node --check scripts/prove_wc_public_opportunity_handoff_cancel_liveness_v1.mjs
           node --check scripts/prove_wc_public_opportunity_handoff_provenance_v1.mjs
+      - name: Prove shared diff hygiene contract
+        if: matrix.node == 24
+        run: node scripts/prove_ci_diff_hygiene_v1.mjs
       - name: Prove bounded public opportunity handoff
         run: |
           node scripts/prove_wc_public_opportunity_handoff_v1.mjs
           node scripts/prove_wc_public_opportunity_handoff_cancel_liveness_v1.mjs
           node scripts/prove_wc_public_opportunity_handoff_provenance_v1.mjs
       - name: Diff hygiene
-        run: git diff --check
+        env:
+          CI_DIFF_EVENT_NAME: ${{ github.event_name }}
+          CI_DIFF_PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          CI_DIFF_PUSH_BEFORE_SHA: ${{ github.event.before }}
+          CI_DIFF_CURRENT_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+          CI_DIFF_CHECKOUT_SHA: ${{ github.sha }}
+          CI_DIFF_BASE_REMOTE: ${{ github.server_url }}/${{ github.repository }}.git
+          CI_DIFF_HEAD_REMOTE: ${{ github.server_url }}/${{ github.event.pull_request.head.repo.full_name || github.repository }}.git
+        run: bash scripts/ci_diff_hygiene_v1.sh
