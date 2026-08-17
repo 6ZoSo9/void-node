@@ -20,7 +20,7 @@ jobs:
       - name: Guard parent and apply bounded tail repair
         run: |
           git fetch --no-tags origin main
-          test "$(git rev-parse HEAD^)" = "b5ec6e9aa626be841067815a15846c792448094c"
+          test "$(git rev-parse HEAD^)" = "b154865c572011041d3e754cb7cb19241a0b31a6"
           test "$(git rev-parse origin/main)" = "e198ffd2dce2862b6a1d5e4c5890ad2afab349f4"
           python3 - <<'PY'
           from pathlib import Path
@@ -98,28 +98,25 @@ jobs:
           anchor = '\nconst unsafeHeader = \'const n = Number((await selfJson(`/blocks/latest/number2.json`)).number);\';\n'
           if proof.count(anchor) != 1:
               raise SystemExit("focused proof insertion anchor was not unique")
-          addition = r'''
-const badReceiptsTail = String.raw`lines.join("\n")+"\\n"`;
-const goodReceiptsTail = String.raw`lines.join("\n")+"\n"`;
-const badLeaseMetricsTail = String.raw`out.join("\n")+"\\n"`;
-const goodLeaseMetricsTail = String.raw`out.join("\n")+"\n"`;
-const badLeaseErrorTail = String.raw`send("# error "+(e?.message||"internal")+"\\n");`;
-const goodLeaseErrorTail = String.raw`send("# error "+(e?.message||"internal")+"\n");`;
-assert.equal(source.includes(badReceiptsTail), false, "receipts metrics still appends a literal backslash-n tail");
-assert.equal(source.includes(goodReceiptsTail), true, "receipts metrics real newline tail missing");
-assert.equal(source.includes(badLeaseMetricsTail), false, "lease metrics still appends a literal backslash-n tail");
-assert.equal(source.includes(goodLeaseMetricsTail), true, "lease metrics real newline tail missing");
-assert.equal(source.includes(badLeaseErrorTail), false, "lease metrics error response still appends a literal backslash-n tail");
-assert.equal(source.includes(goodLeaseErrorTail), true, "lease metrics error response real newline tail missing");
-'''
+          proof_lines = [
+              r'const badReceiptsTail = String.raw`lines.join("\n")+"\\n"`;',
+              r'const goodReceiptsTail = String.raw`lines.join("\n")+"\n"`;',
+              r'const badLeaseMetricsTail = String.raw`out.join("\n")+"\\n"`;',
+              r'const goodLeaseMetricsTail = String.raw`out.join("\n")+"\n"`;',
+              r'const badLeaseErrorTail = String.raw`send("# error "+(e?.message||"internal")+"\\n");`;',
+              r'const goodLeaseErrorTail = String.raw`send("# error "+(e?.message||"internal")+"\n");`;',
+              'assert.equal(source.includes(badReceiptsTail), false, "receipts metrics still appends a literal backslash-n tail");',
+              'assert.equal(source.includes(goodReceiptsTail), true, "receipts metrics real newline tail missing");',
+              'assert.equal(source.includes(badLeaseMetricsTail), false, "lease metrics still appends a literal backslash-n tail");',
+              'assert.equal(source.includes(goodLeaseMetricsTail), true, "lease metrics real newline tail missing");',
+              'assert.equal(source.includes(badLeaseErrorTail), false, "lease metrics error response still appends a literal backslash-n tail");',
+              'assert.equal(source.includes(goodLeaseErrorTail), true, "lease metrics error response real newline tail missing");',
+          ]
+          addition = "\n".join(proof_lines) + "\n"
           proof_path.write_text(proof.replace(anchor, "\n" + addition + anchor, 1))
 
           strengthened = proof_path.read_text()
-          for marker in (
-              "badReceiptsTail",
-              "badLeaseMetricsTail",
-              "badLeaseErrorTail",
-          ):
+          for marker in ("badReceiptsTail", "badLeaseMetricsTail", "badLeaseErrorTail"):
               if strengthened.count(marker) < 2:
                   raise SystemExit(f"focused proof strengthening missing marker: {marker}")
 
@@ -181,11 +178,10 @@ assert.equal(source.includes(goodLeaseErrorTail), true, "lease metrics error res
           staged_expected=(
             .github/workflows/void-live-agent-metrics-tail-bootstrap-v1.yml
             runtime/canonical-producer-self-http-guard-v1.cjs
-            scripts/prove_canonical_producer_legacy_self-http-observers-v1.mjs
+            scripts/prove_canonical_producer_legacy_self_http_observers_v1.mjs
             scripts/prove_live_agent_jsonl_runtime_wedge_v1.mjs
             src/index.ts
           )
-          staged_expected[2]=scripts/prove_canonical_producer_legacy_self_http_observers_v1.mjs
           mapfile -t staged_paths < <(git diff --cached --name-only | sort)
           mapfile -t sorted_staged_expected < <(printf '%s\n' "${staged_expected[@]}" | sort)
           test "$(printf '%s\n' "${staged_paths[@]}")" = "$(printf '%s\n' "${sorted_staged_expected[@]}")"
