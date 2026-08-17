@@ -232,6 +232,7 @@ async function main(){
   if(o.command==="help"||o.command==="--help"||o.command==="-h"){
     say(`VOID node verified release updater\n\n  void-node update check --channel URL\n  void-node update apply --channel URL --yes [--allow-candidate] [--restart-if-running] [--health-url URL]\n  void-node update rollback\n\nStable apply rejects downgrades, verifies SHA-256 and GitHub attestations, never starts a stopped service, and rolls back after a failed explicit health gate.`);return;
   }
+  if(o.command==="apply"&&o.skipAttestation&&!o.testAllowFile)fail("--skip-attestation is test-only; pass --test-allow-file");
   if(recoverRollbackTransaction(installRoot))fail("recovered interrupted rollback; re-run the requested command",2);requireCleanRollbackState(installRoot);
   if(o.command==="rollback"){const active=managerAvailable()&&childProcess.spawnSync("systemctl",["--user","is-active","--quiet","void-node.service"]).status===0;swapRollback(installRoot,active,o.testAllowFile);return;}
   if(!o.channel)fail("--channel is required");
@@ -250,10 +251,10 @@ async function main(){
     for(const [key,a] of Object.entries(channel.assets))await downloadAsset(a,path.join(tmp,a.name),o.testAllowFile);
     const sums=fs.readFileSync(path.join(tmp,channel.assets.checksums.name),"utf8");
     for(const key of ["archive","installer","manifest","sbom"]){const a=channel.assets[key];const line=`${a.sha256}  ${a.name}`;if(!sums.split(/\r?\n/).includes(line))fail(`SHA256SUMS does not bind ${a.name}`);}
-    if(channel.verification.github_attestation_required&&!o.testAllowFile&&!o.skipAttestation){
+    if(channel.verification.github_attestation_required&&!o.testAllowFile){
       if(!commandExists("gh"))fail("GitHub CLI is required to verify release attestations");
       for(const key of ["archive","installer","manifest"]){run("gh",["attestation","verify",path.join(tmp,channel.assets[key].name),"--repo",channel.verification.attestation_repository]);}
-    } else if(o.skipAttestation&&!o.testAllowFile&&process.env.VOID_NODE_UPDATE_ALLOW_SKIP_ATTESTATION!=="1") fail("--skip-attestation requires explicit operator override");
+    }
     const installer=path.join(tmp,channel.assets.installer.name),archive=path.join(tmp,channel.assets.archive.name),checksums=path.join(tmp,channel.assets.checksums.name),manifest=path.join(tmp,channel.assets.manifest.name);
     run("bash",[installer,"install","--archive",archive,"--checksums",checksums,"--manifest",manifest,"--install-root",installRoot,"--bin-dir",binDir,"--yes"],{env:{VOID_NODE_INSTALL_ALLOW_UNSUPPORTED_NODE:process.env.VOID_NODE_INSTALL_ALLOW_UNSUPPORTED_NODE||"",VOID_NODE_ALLOW_ROOT_INSTALL:process.env.VOID_NODE_ALLOW_ROOT_INSTALL||""}});
     verifyRoot(path.join(installRoot,"current"));
