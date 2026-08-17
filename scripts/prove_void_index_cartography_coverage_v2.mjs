@@ -30,6 +30,27 @@ function gitStatus() {
   return result.stdout;
 }
 
+function boundedOccurrenceContexts(source, token) {
+  const lines = source.split("\n");
+  const matches = [];
+  for (let lineIndex = 0; lineIndex < lines.length; lineIndex += 1) {
+    let from = 0;
+    while (true) {
+      const column = lines[lineIndex].indexOf(token, from);
+      if (column < 0) break;
+      matches.push({
+        line: lineIndex + 1,
+        column: column + 1,
+        before: lineIndex > 0 ? lines[lineIndex - 1].slice(0, 360) : "",
+        current: lines[lineIndex].slice(0, 520),
+        after: lineIndex + 1 < lines.length ? lines[lineIndex + 1].slice(0, 360) : "",
+      });
+      from = column + Math.max(1, token.length);
+    }
+  }
+  return matches;
+}
+
 const originalStableIds = [
   "runtime.main",
   "runtime.storage-readiness",
@@ -115,6 +136,14 @@ for (const expected of v2Coverage) {
 
 const sourceBefore = read(sourcePath);
 const sourceDigestBefore = sha256(sourceBefore);
+for (const expected of v2Coverage.filter((item) => item.evidence === "liveness")) {
+  const contexts = boundedOccurrenceContexts(sourceBefore, expected.anchor);
+  console.log(`DIAGNOSTIC_${expected.id.replace(/[^a-z0-9]+/gi, "_").toUpperCase()}_COUNT=${contexts.length}`);
+  contexts.forEach((context, index) => {
+    console.log(`DIAGNOSTIC_${expected.id.replace(/[^a-z0-9]+/gi, "_").toUpperCase()}_${index + 1}=${JSON.stringify(context)}`);
+  });
+}
+
 const map = buildCartography({ registry, source: sourceBefore, sourcePath });
 if (map.landmark_count !== 23) fail(`resolved landmark count mismatch: ${map.landmark_count}`);
 if (map.source_path !== sourcePath) fail(`resolved source path mismatch: ${map.source_path}`);
