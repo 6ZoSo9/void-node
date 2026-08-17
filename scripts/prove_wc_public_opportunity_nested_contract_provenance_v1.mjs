@@ -11,6 +11,7 @@ const scriptDir = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(scriptDir, "..");
 const discoveryTool = path.join(repoRoot, "tools", "wc-public-opportunity-discovery-v1.mjs");
 const testPath = "/public/earn/status-v1";
+const canonicalClaimRoute = "/wc/public-earning-pilot-v1/claim-ticket";
 
 function safety() {
   return {
@@ -22,14 +23,19 @@ function safety() {
   };
 }
 
-function publicClaim({ route = "/public/earn/claim-v1", includeRoute = true } = {}) {
+function publicClaim({
+  route = canonicalClaimRoute,
+  includeRoute = true,
+  extra = {},
+} = {}) {
   return {
     enabled: true,
     method: "POST",
-    ...(includeRoute ? { path: route } : {}),
+    ...(includeRoute ? { public_route: route } : {}),
     fixed_award_wc: 3,
     server_selected_work: true,
     participant_selected_award: false,
+    ...extra,
   };
 }
 
@@ -129,19 +135,37 @@ try {
   assert.equal(outcome.code, 0);
   assert.equal(outcome.result.opportunity_state, "available");
   assert.equal(outcome.result.public_claim.configured, true);
-  assert.equal(outcome.result.public_claim.path, "/public/earn/claim-v1");
+  assert.equal(outcome.result.public_claim.path, canonicalClaimRoute);
 
   outcome = await runCase(topLevelPilot());
   assert.equal(outcome.code, 0);
   assert.equal(outcome.result.opportunity_state, "available");
   assert.equal(outcome.result.public_claim.configured, true);
-  assert.equal(outcome.result.public_claim.path, "/public/earn/claim-v1");
+  assert.equal(outcome.result.public_claim.path, canonicalClaimRoute);
 
   for (const [label, claim] of [
     ["missing_route", publicClaim({ includeRoute: false })],
-    ["foreign_route", publicClaim({ route: "https://example.invalid/public/earn/claim-v1" })],
+    ["foreign_route", publicClaim({ route: "https://example.invalid/wc/public-earning-pilot-v1/claim-ticket" })],
     ["malformed_route", publicClaim({ route: "http://[::1" })],
     ["non_claim_route", publicClaim({ route: "/public/earn/status-v1" })],
+    ["legacy_path_alias_only", publicClaim({ includeRoute: false, extra: { path: canonicalClaimRoute } })],
+    ["nested_route_substitution", publicClaim({
+      includeRoute: false,
+      extra: { metadata: { ticket_url: canonicalClaimRoute } },
+    })],
+    ["invalid_top_level_with_nested_route", publicClaim({
+      route: "/public/earn/status-v1",
+      extra: { metadata: { ticket_url: canonicalClaimRoute } },
+    })],
+    ["absolute_same_origin_alias", publicClaim({ route: `${origin}${canonicalClaimRoute}` })],
+    ["credential_absolute_route", publicClaim({
+      route: `http://user:pass@127.0.0.1:${address.port}${canonicalClaimRoute}`,
+    })],
+    ["query_alias", publicClaim({ route: `${canonicalClaimRoute}?source=metadata` })],
+    ["fragment_alias", publicClaim({ route: `${canonicalClaimRoute}#claim` })],
+    ["normalized_dot_segment_alias", publicClaim({
+      route: "/wc/public-earning-pilot-v1/../public-earning-pilot-v1/claim-ticket",
+    })],
   ]) {
     outcome = await runCase(topLevelPilot(claim));
     assert.equal(outcome.code, 2, label);

@@ -132,17 +132,23 @@ function collectDiscoveryPaths(value, origin) {
 }
 
 function findClaimPath(value, origin) {
-  let found = null;
-  walk(value, (candidate, path) => {
-    if (found || typeof candidate !== "string") return;
-    const key = path[path.length - 1]?.toLowerCase() ?? "";
-    if (!/(claim|ticket|intake|request|path|url|route)/u.test(key)) return;
-    let parsed;
-    try { parsed = new URL(candidate, origin); } catch { return; }
-    if (parsed.origin !== origin || !/claim|ticket/u.test(parsed.pathname.toLowerCase())) return;
-    found = parsed.pathname;
-  });
-  return found;
+  const claim = asObject(value);
+  const raw = claim?.public_route;
+  if (typeof raw !== "string" || !raw.startsWith("/")) return null;
+  let parsed;
+  try { parsed = new URL(raw, origin); } catch { return null; }
+  if (
+    parsed.origin !== origin ||
+    parsed.username ||
+    parsed.password ||
+    parsed.search ||
+    parsed.hash ||
+    raw !== parsed.pathname ||
+    !/claim|ticket/u.test(parsed.pathname.toLowerCase())
+  ) {
+    return null;
+  }
+  return parsed.pathname;
 }
 
 async function readBoundedText(response, maximum, abort) {
