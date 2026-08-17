@@ -36,9 +36,9 @@ node tools/wc-public-opportunity-handoff-v1.mjs \
 
 Use `--directory-json -` to read JSON from standard input.
 
-## Strict selection
+## Strict selection and provenance
 
-A candidate is eligible only when the directory result reports:
+The supplied directory is a selection hint, not independent proof of trust. A candidate is initially eligible only when the directory result reports:
 
 - `state=available`
 - `trusted=true`
@@ -49,13 +49,17 @@ A candidate is eligible only when the directory result reports:
 - Public award boundary explicitly confirmed
 - No mutation attempt
 
-No eligible candidate produces `hold`. Multiple eligible candidates also produce `hold` until `--select-base` is supplied.
+Before emitting any participant command, the handoff reruns the repository's canonical `wc-public-opportunity-directory-v1` path for the selected origin, with concurrency one, the reviewed three-WC award, and `--require-available`. The selected origin must be independently rediscovered as exactly one trusted available canonical candidate. The handoff uses that fresh canonical candidate—not the caller-supplied child fields—for the selected source path, award, and public-claim path.
+
+A fabricated directory JSON that merely self-asserts `trusted=true`, `child_results_safety_validated=true`, or `state=available` cannot become a ready handoff unless the selected coordinator independently passes the canonical directory/discovery verifier at handoff time.
+
+No eligible candidate produces `hold`. Multiple initially eligible candidates also produce `hold` until `--select-base` is supplied.
 
 Coordinator-origin admission intentionally matches the canonical no-node client: public coordinators require HTTPS; HTTP is allowed only for exact `localhost`, loopback IPs including bracketed IPv6 loopback `[::1]`, RFC1918/private IPv4, CGNAT `100.64.0.0/10`, and `.ts.net` hostnames. Aliases such as `worker.localhost`, adjacent public IPv4 ranges, and non-loopback IPv6 over HTTP remain rejected unless the canonical client contract is separately changed and reviewed.
 
 ## Coordinator identity binding
 
-After selection, the handoff performs exactly one request:
+After canonical directory re-verification, the handoff performs exactly one direct identity request:
 
 ```text
 GET /health
@@ -76,22 +80,26 @@ node tools/void_public_earn_no_node_client_v1.mjs run ...
 
 Optional values include `--state-dir` and an HTTPS `--dataset-url-template` containing `{dataset_id}`.
 
-The focused contract is bound to the canonical no-node client source. A client-only interface change schedules this handoff workflow, and the proof feeds the generated `status` and `run` argv through the real client parser plus its read-only coordinator preflight contract. The proof also executes origin-policy parity cases for public HTTPS, exact `localhost`, bracketed IPv6 loopback `[::1]`, loopback/private/CGNAT IPv4 HTTP, `.ts.net` HTTP, `worker.localhost`, non-loopback IPv6 HTTP, and adjacent rejected public IPv4 ranges. It does not execute the full client, create participant identity state, claim a ticket, or submit work.
+The focused contract is bound to the canonical directory/discovery tools and canonical no-node client source. A change to any of those trust dependencies schedules this handoff workflow. The proof feeds generated `status` and `run` argv through the real client parser plus its read-only coordinator preflight contract, and separately proves that a forged self-attested directory candidate cannot reach ready state without canonical re-verification.
+
+It does not execute the full client, create participant identity state, claim a ticket, or submit work.
 
 ## Safety boundary
 
-The handoff validates the directory marker, directory safety contract, and selected child safety contract. It uses only `GET /health` and never executes the client, creates an identity, claims a ticket, fetches work, submits a result, awards or settles WC, accesses a wallet, restarts a service, or mutates runtime data.
+The handoff validates the supplied directory shape for selection, independently reruns the canonical directory/discovery verifier for the selected coordinator, then binds the verified coordinator to `GET /health`. It never executes the client, creates an identity, claims a ticket, fetches work, submits a result, awards or settles WC, accesses a wallet, restarts a service, or mutates runtime data.
 
 ## Focused proof
 
 ```bash
 node scripts/prove_wc_public_opportunity_handoff_v1.mjs
+node scripts/prove_wc_public_opportunity_handoff_provenance_v1.mjs
 ```
 
-The proof exercises a successful identity-bound handoff; generated-command compatibility with the canonical client parser and read-only coordinator preflight; origin-policy parity with the canonical client; and declared-oversize, streamed-oversize, interrupted-body, multi-candidate, no-candidate, and unsafe-directory HOLD behavior.
+The existing proof exercises successful identity-bound handoff, generated-command compatibility, origin-policy parity, and response-bound HOLD behavior. The provenance proof adds the decisive adversarial boundary: attacker-controlled directory JSON can self-assert every currently accepted trust/readiness field and return a valid-looking `/health`, but the handoff must HOLD before health binding unless canonical directory/discovery independently verifies that origin. A genuinely discoverable canonical coordinator must still reach ready state.
 
-Expected marker:
+Expected markers include:
 
 ```text
 VOID_WC_PUBLIC_OPPORTUNITY_HANDOFF_V1_PROOF_GREEN
+VOID_WC_PUBLIC_OPPORTUNITY_HANDOFF_PROVENANCE_V1_PROOF_GREEN
 ```
