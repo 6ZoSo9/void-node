@@ -15,10 +15,11 @@ jobs:
       - name: Checkout exact repair branch
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
         with:
+          ref: fix/live-agent-jsonl-runtime-wedge-v1-20260816
           fetch-depth: 0
       - name: Guard parent and apply bounded tail repair
         run: |
-          test "$(git rev-parse HEAD^)" = "79a2cb660f960c9fae870e81ba08eec72aa48564"
+          test "$(git rev-parse HEAD^)" = "a2166319efbe26a3cfcc2f8159e7be302315dc27"
           python3 - <<'PY'
           from pathlib import Path
           import subprocess
