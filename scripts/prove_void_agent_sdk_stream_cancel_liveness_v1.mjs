@@ -76,6 +76,14 @@ async function expectAnyRejectBeforeDeadline(label, operation, timeoutMs = 250) 
   return result.error;
 }
 
+const WELL_KNOWN_URL = "https://node.example/.well-known/void-agent-discovery.json";
+
+function bindResponseUrl(response, url = WELL_KNOWN_URL, redirected = false) {
+  Object.defineProperty(response, "url", { value: url, configurable: true });
+  Object.defineProperty(response, "redirected", { value: redirected, configurable: true });
+  return response;
+}
+
 function oversizedResponse(cancelImpl) {
   let cancelCalls = 0;
   const body = new ReadableStream({
@@ -88,10 +96,10 @@ function oversizedResponse(cancelImpl) {
     },
   });
   return {
-    response: new Response(body, {
+    response: bindResponseUrl(new Response(body, {
       status: 200,
       headers: { "content-type": "application/json; charset=utf-8" },
-    }),
+    })),
     cancelCalls: () => cancelCalls,
   };
 }
@@ -105,13 +113,13 @@ function declaredOversizedResponse(cancelImpl) {
     },
   });
   return {
-    response: new Response(body, {
+    response: bindResponseUrl(new Response(body, {
       status: 200,
       headers: {
         "content-type": "application/json; charset=utf-8",
         "content-length": "2048",
       },
-    }),
+    })),
     cancelCalls: () => cancelCalls,
   };
 }
@@ -129,6 +137,8 @@ function nonStreamReadableResponse(cancelImpl = () => Promise.resolve()) {
     response: {
       status: 200,
       ok: true,
+      url: WELL_KNOWN_URL,
+      redirected: false,
       headers: new Headers({
         "content-type": "application/json; charset=utf-8",
       }),
@@ -162,6 +172,8 @@ function stalledReadableResponse(cancelImpl = () => new Promise(() => {})) {
     response: {
       status: 200,
       ok: true,
+      url: WELL_KNOWN_URL,
+      redirected: false,
       headers: new Headers({
         "content-type": "application/json; charset=utf-8",
       }),
@@ -175,6 +187,113 @@ function stalledReadableResponse(cancelImpl = () => new Promise(() => {})) {
     releaseCalls: () => releaseCalls,
   };
 }
+
+function finalUrlEvidenceResponse(urlValue, { redirected = false } = {}) {
+  let cancelCalls = 0;
+  let readCalls = 0;
+  const reader = {
+    read() {
+      readCalls += 1;
+      return Promise.resolve({ done: true, value: undefined });
+    },
+    cancel() {
+      cancelCalls += 1;
+      return Promise.resolve();
+    },
+    releaseLock() {},
+  };
+  const response = {
+    status: 200,
+    ok: true,
+    redirected,
+    headers: new Headers({
+      "content-type": "application/json; charset=utf-8",
+    }),
+    body: {
+      cancel() {
+        cancelCalls += 1;
+        return Promise.resolve();
+      },
+      getReader() {
+        return reader;
+      },
+    },
+  };
+  if (urlValue !== undefined) response.url = urlValue;
+  return {
+    response,
+    cancelCalls: () => cancelCalls,
+    readCalls: () => readCalls,
+  };
+}
+
+const mismatchedFinalUrl = finalUrlEvidenceResponse(
+  "https://attacker.invalid/.well-known/void-agent-discovery.json",
+);
+await expectRejectWithin(
+  "custom fetch final URL mismatch",
+  () =>
+    discoverVoidAgentV1({
+      baseUrl: "https://node.example",
+      maxResponseBytes: 1024,
+      timeoutMs: 100,
+      fetchImpl: async () => mismatchedFinalUrl.response,
+    }),
+  "well_known_discovery_final_url_mismatch",
+);
+assertCondition(
+  mismatchedFinalUrl.cancelCalls() === 1,
+  `expected one final-URL mismatch cancellation, got ${mismatchedFinalUrl.cancelCalls()}`,
+);
+assertCondition(
+  mismatchedFinalUrl.readCalls() === 0,
+  `final-URL mismatch must reject before body read; read_calls=${mismatchedFinalUrl.readCalls()}`,
+);
+
+const missingFinalUrl = finalUrlEvidenceResponse(undefined);
+await expectRejectWithin(
+  "custom fetch missing final URL",
+  () =>
+    discoverVoidAgentV1({
+      baseUrl: "https://node.example",
+      maxResponseBytes: 1024,
+      timeoutMs: 100,
+      fetchImpl: async () => missingFinalUrl.response,
+    }),
+  "well_known_discovery_final_url_missing",
+);
+assertCondition(missingFinalUrl.cancelCalls() === 1, "missing final URL teardown missing");
+assertCondition(missingFinalUrl.readCalls() === 0, "missing final URL read body");
+
+const malformedFinalUrl = finalUrlEvidenceResponse("not a URL");
+await expectRejectWithin(
+  "custom fetch malformed final URL",
+  () =>
+    discoverVoidAgentV1({
+      baseUrl: "https://node.example",
+      maxResponseBytes: 1024,
+      timeoutMs: 100,
+      fetchImpl: async () => malformedFinalUrl.response,
+    }),
+  "well_known_discovery_final_url_invalid",
+);
+assertCondition(malformedFinalUrl.cancelCalls() === 1, "malformed final URL teardown missing");
+assertCondition(malformedFinalUrl.readCalls() === 0, "malformed final URL read body");
+
+const followedRedirect = finalUrlEvidenceResponse(WELL_KNOWN_URL, { redirected: true });
+await expectRejectWithin(
+  "custom fetch reports followed redirect",
+  () =>
+    discoverVoidAgentV1({
+      baseUrl: "https://node.example",
+      maxResponseBytes: 1024,
+      timeoutMs: 100,
+      fetchImpl: async () => followedRedirect.response,
+    }),
+  "well_known_discovery_redirected_response_rejected",
+);
+assertCondition(followedRedirect.cancelCalls() === 1, "redirected response teardown missing");
+assertCondition(followedRedirect.readCalls() === 0, "redirected response read body");
 
 const stalledCancel = oversizedResponse(() => new Promise(() => {}));
 await expectRejectTiming(
@@ -348,5 +467,6 @@ console.log("response_teardown_owned_until_bounded_terminal=true");
 console.log("non_stream_response_text_fallback_forbidden=true");
 console.log("stalled_reader_total_deadline_enforced=true");
 console.log("custom_fetch_total_deadline_enforced=true");
+console.log("custom_fetch_final_url_identity_bound=true");
 console.log("repeated_hostile_teardown_terminals_bounded=true");
 console.log("VOID_AGENT_SDK_STREAM_CANCEL_LIVENESS_V1_PROOF_GREEN=true");
