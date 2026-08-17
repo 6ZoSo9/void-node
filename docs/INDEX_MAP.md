@@ -82,12 +82,17 @@ bound by the merged self-HTTP and Mainnet-0 liveness proofs:
 
 These entries are deliberately evidence-driven. The observer-family anchors are the exact
 source-section identities consumed by `runtime/canonical-producer-self-http-guard-v1.cjs`.
-The V2FS/autoprop route anchors are the exact runtime surfaces consumed by
-`scripts/prove_mainnet0_canonical_producer_liveness_guard_v1.mjs`.
+For the V2FS/autoprop route landmarks, cartography uses a **unique source navigation anchor**
+(the exact route-registration or selected callsite identity), while the coverage proof binds
+that landmark separately to the canonical bare route token consumed by
+`scripts/prove_mainnet0_canonical_producer_liveness_guard_v1.mjs`. The route token may occur
+in several runtime consumers; that does not weaken the cartography invariant that the
+navigation anchor itself resolves exactly once.
 
 A new coverage proof checks those provenance links in addition to ordinary cartography
-resolution. If one of the reviewed concepts disappears, duplicates, or stops matching its
-provenance evidence, the focused cartography wall fails closed.
+resolution. If one of the reviewed concepts disappears, its unique navigation anchor
+duplicates, or its separate provenance token stops matching the reviewed evidence, the
+focused cartography wall fails closed.
 
 This wave does not attempt to label every helper in the monolith. Additional coverage should
 be added in later bounded waves when an exact durable concept and source identity are known.
@@ -137,7 +142,10 @@ runtime lanes.
 - any change to the original sixteen stable IDs or their order;
 - a V2 landmark missing from the registry or current source;
 - drift between observer-family landmarks and their canonical self-HTTP guard provenance;
-- drift between V2FS/autoprop route landmarks and the Mainnet-0 liveness proof; and
+- route landmarks whose unique navigation anchors collapse back into ambiguous bare route
+  tokens;
+- drift between the separate V2FS/autoprop route provenance tokens and the Mainnet-0
+  liveness proof; and
 - any V2 registry state that no longer resolves to exactly 23 current landmarks.
 
 All cartography tooling is read-only and performs no source mutation. Generated maps and
