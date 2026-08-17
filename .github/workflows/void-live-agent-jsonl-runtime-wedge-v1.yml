@@ -6,6 +6,7 @@ on:
       - "src/index.ts"
       - "src/http/agent_pick2_jsonl_semantic_index_v1.ts"
       - "scripts/prove_agent_pick2_jsonl_semantic_index_v1.ts"
+      - "scripts/prove_agent_pick2_jsonl_isolation_crash_recovery_v1.ts"
       - "runtime/canonical-producer-self-http-guard-v1.cjs"
       - "scripts/prove_canonical_producer_legacy_self_http_observers_v1.mjs"
       - "scripts/prove_live_agent_jsonl_runtime_wedge_v1.mjs"
@@ -21,6 +22,7 @@ on:
       - "src/index.ts"
       - "src/http/agent_pick2_jsonl_semantic_index_v1.ts"
       - "scripts/prove_agent_pick2_jsonl_semantic_index_v1.ts"
+      - "scripts/prove_agent_pick2_jsonl_isolation_crash_recovery_v1.ts"
       - "runtime/canonical-producer-self-http-guard-v1.cjs"
       - "scripts/prove_canonical_producer_legacy_self_http_observers_v1.mjs"
       - "scripts/prove_live_agent_jsonl_runtime_wedge_v1.mjs"
@@ -49,6 +51,7 @@ jobs:
       - name: Install behavioral-proof runtime dependencies
         run: npm ci --no-audit --no-fund
       - run: ./node_modules/.bin/tsx scripts/prove_agent_pick2_jsonl_semantic_index_v1.ts
+      - run: ./node_modules/.bin/tsx scripts/prove_agent_pick2_jsonl_isolation_crash_recovery_v1.ts
       - run: node scripts/prove_live_agent_jsonl_runtime_wedge_v1.mjs
       - run: node scripts/prove_canonical_producer_legacy_self_http_observers_v1.mjs
 
@@ -67,6 +70,7 @@ jobs:
       - name: Install behavioral-proof runtime dependencies
         run: npm ci --no-audit --no-fund
       - run: ./node_modules/.bin/tsx scripts/prove_agent_pick2_jsonl_semantic_index_v1.ts
+      - run: ./node_modules/.bin/tsx scripts/prove_agent_pick2_jsonl_isolation_crash_recovery_v1.ts
       - name: Prove shared diff hygiene contract
         run: node scripts/prove_ci_diff_hygiene_v1.mjs
       - run: node scripts/prove_live_agent_jsonl_runtime_wedge_v1.mjs
@@ -99,5 +103,6 @@ jobs:
       - name: Install behavioral-proof runtime dependencies
         run: npm ci --no-audit --no-fund
       - run: ./node_modules/.bin/tsx scripts/prove_agent_pick2_jsonl_semantic_index_v1.ts
+      - run: ./node_modules/.bin/tsx scripts/prove_agent_pick2_jsonl_isolation_crash_recovery_v1.ts
       - run: node scripts/prove_live_agent_jsonl_runtime_wedge_v1.mjs
       - run: node scripts/prove_canonical_producer_legacy_self_http_observers_v1.mjs
