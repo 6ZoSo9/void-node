@@ -12,6 +12,7 @@ const temp = mkdtempSync(join(tmpdir(), "void-wc-handoff-provenance-"));
 const input = join(temp, "directory.json");
 const client = join(temp, "client.mjs");
 const nodeId = "0123456789abcdef0123456789abcdef";
+const STATUS_ROUTE = "/wc/public-earning-pilot-v1/status";
 
 function directory(base) {
   return {
@@ -22,7 +23,7 @@ function directory(base) {
       base,
       state: "available",
       trusted: true,
-      source_path: "/__void/public-earn-gateway-v1/status.json",
+      source_path: STATUS_ROUTE,
       pilot: {
         coordinator_enabled: true,
         executor_enabled: false,
@@ -55,20 +56,25 @@ function directory(base) {
   };
 }
 
-function discoveryEvidence() {
+function canonicalStatus() {
   return {
+    ok: true,
     marker: "VOID_WC_PUBLIC_EARNING_PILOT_V1",
     coordinator_enabled: true,
     executor_enabled: false,
     fixed_award_wc: 3,
-    public_routes_award_wc: false,
     public_claim: {
+      marker: "VOID_WC_PUBLIC_TICKET_CLAIM_V1",
       enabled: true,
       available: true,
-      fixed_award_wc: 3,
-      path: "/wc/public-earning-pilot-v1/claim-ticket",
       server_selected_work: true,
+      proof_of_executor_key_possession_required: true,
+      transport_mode: "outbound_bundle",
+      fixed_award_wc: 3,
+      participant_selected_dataset: false,
+      participant_selected_input_hash: false,
       participant_selected_award: false,
+      money_movement: false,
     },
   };
 }
@@ -84,11 +90,7 @@ function listen(handler) {
     server.listen(0, "127.0.0.1", () => {
       const address = server.address();
       assert.ok(address && typeof address === "object");
-      resolveListen({
-        server,
-        requests,
-        base: `http://127.0.0.1:${address.port}`,
-      });
+      resolveListen({ server, requests, base: `http://127.0.0.1:${address.port}` });
     });
   });
 }
@@ -111,9 +113,9 @@ function run(args) {
 }
 
 const trusted = await listen((req, res) => {
-  if (req.method === "GET" && req.url === "/__void/public-earn-gateway-v1/status.json") {
+  if (req.method === "GET" && req.url === STATUS_ROUTE) {
     res.writeHead(200, { "content-type": "application/json" });
-    res.end(JSON.stringify(discoveryEvidence()));
+    res.end(JSON.stringify(canonicalStatus()));
     return;
   }
   if (req.method === "GET" && req.url === "/health") {
@@ -126,6 +128,13 @@ const trusted = await listen((req, res) => {
 });
 
 const attacker = await listen((req, res) => {
+  if (req.method === "GET" && req.url === STATUS_ROUTE) {
+    const forged = canonicalStatus();
+    forged.public_claim.proof_of_executor_key_possession_required = false;
+    res.writeHead(200, { "content-type": "application/json" });
+    res.end(JSON.stringify(forged));
+    return;
+  }
   if (req.method === "GET" && req.url === "/health") {
     res.writeHead(200, { "content-type": "application/json" });
     res.end(JSON.stringify({ ok: true, nodeId }));
@@ -149,12 +158,8 @@ try {
   const forgedBody = JSON.parse(forged.stdout);
   assert.equal(forgedBody.marker, "VOID_WC_PUBLIC_OPPORTUNITY_HANDOFF_V1");
   assert.equal(forgedBody.handoff_state, "hold");
-  assert.match(forgedBody.reason, /canonical directory verification/u);
-  assert.equal(
-    attacker.requests.some((request) => request.url === "/health"),
-    false,
-    "self-attested directory candidate must not reach health binding before canonical re-verification",
-  );
+  assert.match(forgedBody.reason, /canonical participant status verification/u);
+  assert.deepEqual(attacker.requests, [{ method: "GET", url: STATUS_ROUTE }]);
 
   trusted.requests.length = 0;
   writeFileSync(input, JSON.stringify(directory(trusted.base)), "utf8");
@@ -168,24 +173,20 @@ try {
   const readyBody = JSON.parse(ready.stdout);
   assert.equal(readyBody.handoff_state, "ready");
   assert.equal(readyBody.selected.base, trusted.base);
+  assert.equal(readyBody.selected.source_path, STATUS_ROUTE);
   assert.equal(readyBody.selected.fixed_award_wc, 3);
   assert.equal(readyBody.coordinator_identity.node_id, nodeId);
-  assert.equal(readyBody.safety.selected_candidate_reverified_via_canonical_directory, true);
-  assert.equal(readyBody.safety.canonical_directory_fixed_award_wc, 3);
-  assert.equal(
-    trusted.requests.some((request) => request.url === "/__void/public-earn-gateway-v1/status.json"),
-    true,
-    "handoff must rerun canonical discovery/directory verification",
-  );
-  assert.equal(
-    trusted.requests.some((request) => request.url === "/health"),
-    true,
-    "verified coordinator must retain final health identity binding",
-  );
+  assert.equal(readyBody.safety.selected_candidate_reverified_via_canonical_status_contract, true);
+  assert.equal(readyBody.safety.canonical_status_path, STATUS_ROUTE);
+  assert.equal(readyBody.safety.canonical_status_fixed_award_wc, 3);
+  assert.deepEqual(trusted.requests, [
+    { method: "GET", url: STATUS_ROUTE },
+    { method: "GET", url: "/health" },
+  ]);
 
   console.log("VOID_WC_PUBLIC_OPPORTUNITY_HANDOFF_PROVENANCE_V1_PROOF_GREEN");
   console.log("fabricated_directory_self_attestation_rejected=true");
-  console.log("canonical_directory_reverification_required=true");
+  console.log("canonical_participant_status_reverification_required=true");
   console.log("trusted_candidate_health_binding_preserved=true");
   console.log("client_executed=false");
   console.log("wc_mutation_performed=false");
