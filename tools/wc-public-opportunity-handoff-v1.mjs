@@ -16,6 +16,7 @@ const DIRECTORY_MARKER = "VOID_WC_PUBLIC_OPPORTUNITY_DIRECTORY_V1";
 const DISCOVERY_MARKER = "VOID_WC_PUBLIC_OPPORTUNITY_DISCOVERY_V1";
 const MAX_HEALTH_RESPONSE_BYTES = 64 * 1024;
 const MAX_STATUS_RESPONSE_BYTES = 64 * 1024;
+const REJECTED_RESPONSE_TEARDOWN_TIMEOUT_MS = 100;
 const HERE = dirname(fileURLToPath(import.meta.url));
 const DEFAULT_CLIENT = resolve(HERE, "void_public_earn_no_node_client_v1.mjs");
 
@@ -114,45 +115,77 @@ function candidates(directory) {
     .sort((a,b) => a.base.localeCompare(b.base));
 }
 
-function bestEffortCancel(cancelTarget, reason) {
+function abortBestEffort(controller, reason) {
+  if (!controller || typeof controller.abort !== "function") return;
+  try { controller.abort(reason); } catch (cleanupError) { void cleanupError; }
+}
+
+async function settleCancellation(cancelTarget, reason) {
   if (!cancelTarget || typeof cancelTarget.cancel !== "function") return;
+  let timer;
   try {
-    const pending = cancelTarget.cancel(reason);
-    if (pending && typeof pending.catch === "function") {
-      void pending.catch((cleanupError) => { void cleanupError; });
-    }
-  } catch (cleanupError) {
-    void cleanupError;
+    const cancellation = Promise.resolve()
+      .then(() => cancelTarget.cancel(reason))
+      .catch((cleanupError) => { void cleanupError; });
+    await Promise.race([
+      cancellation,
+      new Promise((resolveTimeout) => {
+        timer = setTimeout(resolveTimeout, REJECTED_RESPONSE_TEARDOWN_TIMEOUT_MS);
+      }),
+    ]);
+  } finally {
+    if (timer) clearTimeout(timer);
   }
 }
 
-async function readBoundedText(response, maxBytes, label) {
+async function settleRejectedResponse(cancelTarget, controller, reason) {
+  abortBestEffort(controller, reason);
+  await settleCancellation(cancelTarget, reason);
+}
+
+async function readBoundedText(response, maxBytes, label, controller) {
   const declared = response.headers.get("content-length");
   if (declared !== null) {
     if (!/^\d+$/u.test(declared)) {
-      bestEffortCancel(response.body, `${label} content-length is invalid`);
-      throw new Error(`${label} content-length is invalid`);
+      const reason = `${label} content-length is invalid`;
+      await settleRejectedResponse(response.body, controller, reason);
+      throw new Error(reason);
     }
     if (BigInt(declared) > BigInt(maxBytes)) {
-      bestEffortCancel(response.body, `${label} response exceeds byte limit`);
-      throw new Error(`${label} response exceeds byte limit`);
+      const reason = `${label} response exceeds byte limit`;
+      await settleRejectedResponse(response.body, controller, reason);
+      throw new Error(reason);
     }
   }
   if (!response.body || typeof response.body.getReader !== "function") {
-    throw new Error(`${label} response body is not stream-readable`);
+    const reason = `${label} response body is not stream-readable`;
+    await settleRejectedResponse(response.body, controller, reason);
+    throw new Error(reason);
   }
   const reader = response.body.getReader();
   const chunks = [];
   let total = 0;
   try {
     while (true) {
-      const { done, value } = await reader.read();
+      let part;
+      try {
+        part = await reader.read();
+      } catch (error) {
+        await settleRejectedResponse(reader, controller, `${label} response body read failed`);
+        throw error;
+      }
+      const { done, value } = part;
       if (done) break;
-      if (!(value instanceof Uint8Array)) throw new Error(`${label} response chunk is invalid`);
+      if (!(value instanceof Uint8Array)) {
+        const reason = `${label} response chunk is invalid`;
+        await settleRejectedResponse(reader, controller, reason);
+        throw new Error(reason);
+      }
       total += value.byteLength;
       if (total > maxBytes) {
-        bestEffortCancel(reader, `${label} response exceeds byte limit`);
-        throw new Error(`${label} response exceeds byte limit`);
+        const reason = `${label} response exceeds byte limit`;
+        await settleRejectedResponse(reader, controller, reason);
+        throw new Error(reason);
       }
       chunks.push(value);
     }
@@ -173,8 +206,8 @@ async function readBoundedText(response, maxBytes, label) {
 }
 
 // Preserve the reviewed test seam used by the existing teardown proof.
-async function readBoundedHealthText(response) {
-  return readBoundedText(response, MAX_HEALTH_RESPONSE_BYTES, "coordinator health");
+async function readBoundedHealthText(response, controller = new AbortController()) {
+  return readBoundedText(response, MAX_HEALTH_RESPONSE_BYTES, "coordinator health", controller);
 }
 
 async function boundedJsonGet(base, path, timeoutMs, maxBytes, label) {
@@ -188,8 +221,8 @@ async function boundedJsonGet(base, path, timeoutMs, maxBytes, label) {
       signal: controller.signal,
     });
     const text = label === "coordinator health"
-      ? await readBoundedHealthText(response)
-      : await readBoundedText(response, maxBytes, label);
+      ? await readBoundedHealthText(response, controller)
+      : await readBoundedText(response, maxBytes, label, controller);
     let body;
     try { body = JSON.parse(text); } catch { throw new Error(`${label} returned non-JSON`); }
     if (!response.ok) throw new Error(`${label} HTTP ${response.status}`);
