@@ -57,4 +57,61 @@
     "src/ui/void_app_wave1_foundation_v1.ts": "269cf9d16e7100797cebaa32247f2adb2ca701f60b78cbaa307be4dfd1a83d9b",
     "src/ui/void_app_wave2_home_readonly_v1.ts": "11607daafb5550f8e6f92736a2a0655f99e6ce3fa90a73a67e71e85775bba901",
     "src/ui/void_app_wave2_home_source_fetch_v1.ts": "425b9ded9be2fa7f9c2a1bd9ea496aa87b61649fc5e15091519daf2d1c361d20",
-    "src/ui/void_app_wave3_wallet_readonly_v1.ts": "e4d64da7c0749c11...10478 tokens truncated...
+    "src/ui/void_app_wave3_wallet_readonly_v1.ts": "e4d64da7c0749c11066b2115c636ca14ac6aed9f0cd2ccf62a65d967266e88e4",
+    "src/ui/void_app_wave4_earn_readonly_v1.ts": "4133d33e2295e5401a256619d78ccc1124c7ddf32cc3ea5d18549614604cc360"
+  },
+  "repository_hashes_refreshed_after_visual_approval": true,
+  "repository_hashes_refreshed_date": "2026-07-14",
+  "repository_hash_self_reference_excluded": "scripts/prove_void_ui_wave2_home_readonly_v1.ts",
+  "repository_hash_self_reference_reason": "The proof verifies this manifest, so hashing the proof inside the same manifest creates an unstable self-reference. The proof is verified by semantic guards, TypeScript execution, and the terminal green marker.",
+  "repository_hashes_refreshed_after_self_reference_fix": true,
+  "ci_noemit_compatibility_fix": {
+    "date": "2026-07-14",
+    "pr": 611,
+    "failure": "TS2353: RequestInit.cache is not accepted by the repository noEmit type environment",
+    "resolution": "Removed the server-side browser cache option and added the explicit Cache-Control: no-store request header. The browser Home client retains its own cache: no-store option.",
+    "module": "src/ui/void_app_wave2_home_readonly_v1.ts",
+    "module_sha256": "c5e76e1a8bce2d2b3b345fb7995a0b44eebf378bfd5c4a02fd13527a135a3090"
+  },
+  "wave2_1_readiness_honesty": {
+    "applied": true,
+    "date": "2026-07-14",
+    "branch": "fix/void-ui-wave2-1-readiness-honesty-v1",
+    "summary_ready_requires": {
+      "all_source_http_200": true,
+      "raw_ready_true": true,
+      "txroot_live": 1,
+      "empty_reasons": true
+    },
+    "raw_source_payload_preserved": true,
+    "authority_added": false,
+    "visual_approval": {
+      "approved": true,
+      "approved_by": "ZoSo",
+      "approved_date": "2026-07-14",
+      "surface": "/app/#/home",
+      "source_node": "Nimo",
+      "expected_summary_health": "degraded",
+      "expected_summary_ready": false,
+      "receipt": "/home/zoso/void-precision-smoke/void-ui-wave2-home-visual-20260714T204351Z.txt",
+      "receipt_sha256": "6386c4c84838a0a4a5baab67362fd3bb146e0e3c8ff2810c3e357fe39581d3c2"
+    }
+  },
+  "wave3_wallet_readonly": {
+    "added": true,
+    "date": "2026-07-14",
+    "route": "/app/#/wallet",
+    "adapter_route": "/__void/ui/wave3/wallet.json",
+    "account_input_kind": "participant_account_id",
+    "authority_added": false
+  },
+  "wave4_earn_readonly": {
+    "added": true,
+    "date": "2026-07-15",
+    "route": "/app/#/earn",
+    "adapter_route": "/__void/ui/wave4/earn.json",
+    "account_input_kind": "participant_account_id",
+    "history_limit": 5,
+    "authority_added": false
+  }
+}
