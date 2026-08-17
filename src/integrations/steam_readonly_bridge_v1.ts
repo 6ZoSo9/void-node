@@ -292,6 +292,55 @@ async function rejectResponseBody(
   throw error;
 }
 
+async function fetchResponseWithDeadline(
+  request: SteamReadonlyPreparedRequest,
+  fetchImpl: typeof fetch,
+  controller: AbortController,
+): Promise<Response> {
+  const timeoutError = new SteamReadonlyBridgeError(
+    "upstream_timeout",
+    "Steam Web API request timed out",
+  );
+  let timedOut = controller.signal.aborted;
+  let removeAbortListener = () => undefined;
+  const timeoutPromise = new Promise<never>((_resolve, reject) => {
+    const onAbort = () => {
+      timedOut = true;
+      reject(timeoutError);
+    };
+    if (controller.signal.aborted) {
+      onAbort();
+      return;
+    }
+    controller.signal.addEventListener("abort", onAbort, { once: true });
+    removeAbortListener = () =>
+      controller.signal.removeEventListener("abort", onAbort);
+  });
+
+  const fetchPromise = Promise.resolve().then(() =>
+    fetchImpl(request.url, {
+      method: "GET",
+      headers: request.headers,
+      redirect: "error",
+      signal: controller.signal,
+    }),
+  );
+
+  void fetchPromise.then(
+    (response) => {
+      if (!timedOut) return;
+      void settleBestEffort(() => response.body?.cancel(timeoutError));
+    },
+    () => undefined,
+  );
+
+  try {
+    return await Promise.race([fetchPromise, timeoutPromise]);
+  } finally {
+    removeAbortListener();
+  }
+}
+
 async function rejectReaderFailure(
   reader: ReadableStreamDefaultReader<Uint8Array>,
   controller: AbortController,
@@ -451,12 +500,7 @@ export async function executeSteamReadonlyRequest(
   try {
     let response: Response;
     try {
-      response = await fetchImpl(request.url, {
-        method: "GET",
-        headers: request.headers,
-        redirect: "error",
-        signal: controller.signal,
-      });
+      response = await fetchResponseWithDeadline(request, fetchImpl, controller);
     } catch (error) {
       if (error instanceof SteamReadonlyBridgeError) throw error;
       throw new SteamReadonlyBridgeError(
