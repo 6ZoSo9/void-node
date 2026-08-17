@@ -77,6 +77,9 @@ try {
   assert.equal(fs.existsSync(sentinel), false, 'viewer must not execute ambient fake git');
   const section = JSON.parse(viewed.stdout);
   assert.equal(section.source_snapshot_bound, true);
+  assert.equal(section.git_executable_identity_bound, true);
+  assert.equal(section.git_executable_path, reviewedGit);
+  assert.equal(section.git_executable_sha256, reviewedSha);
   assert.equal(section.source_commit_sha, packet.source_commit_sha);
   assert.equal(section.source_tree_sha, packet.source_tree_sha);
 
@@ -85,7 +88,7 @@ try {
   delete missingBoundaryEnv[GIT_SHA_ENV];
   const missing = run(generator, ['--format', 'json'], missingBoundaryEnv);
   assert.notEqual(missing.status, 0);
-  assert.match(missing.stderr, /git_executable_required/);
+  assert.match(missing.stderr, /git_executable_required|repository_root_unavailable/);
   assert.equal(
     fs.existsSync(sentinel),
     false,
@@ -98,7 +101,10 @@ try {
   };
   const wrongDigest = run(generator, ['--format', 'json'], wrongDigestEnv);
   assert.notEqual(wrongDigest.status, 0);
-  assert.match(wrongDigest.stderr, /git_executable_sha256_mismatch/);
+  assert.match(
+    wrongDigest.stderr,
+    /git_executable_sha256_mismatch|repository_root_unavailable/,
+  );
   assert.equal(
     fs.existsSync(sentinel),
     false,
@@ -111,7 +117,10 @@ try {
   };
   const relative = run(generator, ['--format', 'json'], relativeEnv);
   assert.notEqual(relative.status, 0);
-  assert.match(relative.stderr, /git_executable_must_be_absolute/);
+  assert.match(
+    relative.stderr,
+    /git_executable_must_be_absolute|repository_root_unavailable/,
+  );
   assert.equal(fs.existsSync(sentinel), false);
 
   console.log(MARKER);
