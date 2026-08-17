@@ -67,7 +67,7 @@ const wellKnownPath = "/.well-known/void-agent-discovery.json";
 const canonicalPath = "/public-node/agents/discovery-v1.json";
 const catalogPath = "/public-node/agents/capability-negotiation-v1.json";
 const supportedNodeMajors = [22, 24, 26];
-const reviewedSourceMain = "678c6dc33b312cfbdf597cf176c3a8be1cc1ef73";
+const reviewedSourceMain = "5bbe57b9617465a1631a47e1899286e8e7fd3536";
 const manifestTopLevelKeys = [
   "marker",
   "version",
@@ -202,6 +202,18 @@ function jsonResponse(value, options = {}) {
   });
 }
 
+function bindResponseUrl(response, url, redirected = false) {
+  Object.defineProperty(response, "url", {
+    value: new URL(url).href,
+    configurable: true,
+  });
+  Object.defineProperty(response, "redirected", {
+    value: redirected,
+    configurable: true,
+  });
+  return response;
+}
+
 function makeFetch(documents, requests = []) {
   return async (url, init) => {
     const resolved = new URL(url);
@@ -213,9 +225,11 @@ function makeFetch(documents, requests = []) {
       headers: { ...init.headers },
     });
     const value = documents.get(resolved.pathname);
-    if (value instanceof Response) return value;
-    if (value === undefined) return jsonResponse({}, { status: 404 });
-    return jsonResponse(value);
+    if (value instanceof Response) return bindResponseUrl(value, resolved);
+    if (value === undefined) {
+      return bindResponseUrl(jsonResponse({}, { status: 404 }), resolved);
+    }
+    return bindResponseUrl(jsonResponse(value), resolved);
   };
 }
 

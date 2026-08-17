@@ -145,6 +145,28 @@ async function rejectResponse(response, request, message) {
   fail(message);
 }
 
+async function validateAcceptedResponseUrl(response, requestedHref, label, request) {
+  const finalUrlValue = response?.url;
+  const redirected = response?.redirected === true;
+  if (typeof finalUrlValue !== "string" || finalUrlValue.length === 0) {
+    await rejectResponse(response, request, `${label}_final_url_missing`);
+  }
+
+  let finalUrl;
+  try {
+    finalUrl = new URL(finalUrlValue);
+  } catch {
+    await rejectResponse(response, request, `${label}_final_url_invalid`);
+  }
+
+  if (finalUrl.href !== requestedHref) {
+    await rejectResponse(response, request, `${label}_final_url_mismatch`);
+  }
+  if (redirected) {
+    await rejectResponse(response, request, `${label}_redirected_response_rejected`);
+  }
+}
+
 async function readBoundedText(response, label, maxBytes, request) {
   const declared = response.headers.get("content-length");
   if (declared !== null) {
@@ -194,13 +216,14 @@ async function readBoundedText(response, label, maxBytes, request) {
 
 async function fetchJson(url, label, options) {
   const { fetchImpl, timeoutMs, maxResponseBytes } = options;
+  const requestedHref = url instanceof URL ? url.href : new URL(url).href;
   const controller = new AbortController();
   const request = {
     controller,
     deadlineAt: Date.now() + timeoutMs,
   };
   const response = await awaitWithinDeadline(
-    Promise.resolve().then(() => fetchImpl(url, {
+    Promise.resolve().then(() => fetchImpl(requestedHref, {
       method: "GET",
       redirect: "manual",
       credentials: "omit",
@@ -221,6 +244,7 @@ async function fetchJson(url, label, options) {
   if (!response.ok) {
     await rejectResponse(response, request, `${label}_http_${response.status}`);
   }
+  await validateAcceptedResponseUrl(response, requestedHref, label, request);
   const contentType = response.headers.get("content-type") ?? "";
   if (!contentType.toLowerCase().includes("json")) {
     await rejectResponse(response, request, `${label}_content_type_not_json`);
