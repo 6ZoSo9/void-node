@@ -5,6 +5,10 @@ import { readBoundedTextOwned } from "./wc-public-response-teardown-v1.mjs";
 
 const MARKER = "VOID_WC_PUBLIC_OPPORTUNITY_DISCOVERY_V1";
 const PILOT_MARKER = "VOID_WC_PUBLIC_EARNING_PILOT_V1";
+const GATEWAY_MARKER = "VOID_PUBLIC_EARN_GATEWAY_V1";
+const CLAIM_MARKER = "VOID_WC_PUBLIC_TICKET_CLAIM_V1";
+const CLAIM_ROUTE = "/wc/public-earning-pilot-v1/claim-ticket";
+const CLAIM_METHOD = "POST";
 const DEFAULT_TIMEOUT_MS = 5000;
 const DEFAULT_EXPECTED_AWARD_WC = 3;
 const MAX_RESPONSE_BYTES = 64 * 1024;
@@ -144,7 +148,7 @@ function findClaimPath(value, origin) {
     parsed.search ||
     parsed.hash ||
     raw !== parsed.pathname ||
-    !/claim|ticket/u.test(parsed.pathname.toLowerCase())
+    parsed.pathname !== CLAIM_ROUTE
   ) {
     return null;
   }
@@ -205,6 +209,29 @@ function directString(object, keys) {
   return null;
 }
 
+function hasDirectKey(object, keys) {
+  if (!object || typeof object !== "object" || Array.isArray(object)) return false;
+  return keys.some((key) => Object.prototype.hasOwnProperty.call(object, key));
+}
+
+function exactMethods(value, expected) {
+  return Array.isArray(value) && JSON.stringify(value) === JSON.stringify(expected);
+}
+
+function extractGatewayContract(body) {
+  const gateway = asObject(body);
+  if (!gateway || gateway.marker !== GATEWAY_MARKER) return null;
+  if (gateway?.routes?.claim_ticket !== CLAIM_ROUTE) return null;
+  if (!exactMethods(gateway?.methods?.claim_ticket, [CLAIM_METHOD])) return null;
+  return {
+    marker: GATEWAY_MARKER,
+    claim_path: CLAIM_ROUTE,
+    claim_method: CLAIM_METHOD,
+    claim_executor_key_possession_required:
+      directBoolean(asObject(gateway.safety), ["claim_executor_key_possession_required"]) === true,
+  };
+}
+
 function claimRouteNoDirectAward(safety, publicClaim) {
   return (
     directBoolean(safety, ["public_ticket_issue"]) === true &&
@@ -217,12 +244,13 @@ function claimRouteNoDirectAward(safety, publicClaim) {
   );
 }
 
-function analyze(body, sourcePath, origin, expectedAwardWc, attempts) {
+function analyze(body, sourcePath, origin, expectedAwardWc, attempts, sharedGatewayContract = null) {
   const topLevel = asObject(body);
   if (!topLevel) return null;
 
   const topLevelMarker = typeof topLevel.marker === "string" ? topLevel.marker : "";
-  const gateway = /PUBLIC.*EARN.*GATEWAY/u.test(topLevelMarker) ? topLevel : null;
+  const gateway = topLevelMarker === GATEWAY_MARKER ? topLevel : null;
+  const localGatewayContract = extractGatewayContract(topLevel) ?? sharedGatewayContract;
   const gatewayPilot = asObject(gateway?.pilot_status);
   const pilot =
     (gatewayPilot?.marker === PILOT_MARKER ? gatewayPilot : null) ??
@@ -256,34 +284,69 @@ function analyze(body, sourcePath, origin, expectedAwardWc, attempts) {
     typeof publicClaim?.enabled === "boolean"
       ? publicClaim.enabled
       : null;
-  const claimMethod = directString(publicClaim, [
-    "method",
-    "http_method",
-    "httpMethod",
-  ]);
+  const claimMarker = directString(publicClaim, ["marker"]);
+  const claimMethodKeys = ["method", "http_method", "httpMethod"];
+  const claimMethodEvidencePresent = hasDirectKey(publicClaim, claimMethodKeys);
+  const directClaimMethod = directString(publicClaim, claimMethodKeys);
   const claimPath = publicClaim ? findClaimPath(publicClaim, origin) : null;
+  const claimMethod = claimMethodEvidencePresent
+    ? directClaimMethod
+    : claimPath === localGatewayContract?.claim_path
+      ? localGatewayContract.claim_method
+      : null;
   const publicClaimRouteNoDirectAward = claimRouteNoDirectAward(safety, publicClaim);
+  const pilotGatewayMarker = directString(pilot, ["gateway_marker"]);
+  const gatewayMarker = gateway?.marker ?? pilotGatewayMarker ?? localGatewayContract?.marker ?? null;
+  const gatewayIdentityConfirmed = gateway
+    ? gateway.marker === GATEWAY_MARKER
+    : pilotGatewayMarker === GATEWAY_MARKER && localGatewayContract?.marker === GATEWAY_MARKER;
+  const claimIdentityConfirmed = claimMarker === CLAIM_MARKER && claimMethod === CLAIM_METHOD;
+  const executorRoleConfirmed = executorEnabled === false;
+  const gatewayKeyKeys = ["claim_executor_key_possession_required"];
+  const gatewayKeyEvidencePresent = hasDirectKey(safety, gatewayKeyKeys);
+  const gatewayClaimExecutorKeyPossessionRequired = gatewayKeyEvidencePresent
+    ? directBoolean(safety, gatewayKeyKeys) === true
+    : localGatewayContract?.claim_executor_key_possession_required === true;
+  const claimProofOfExecutorKeyPossessionRequired =
+    directBoolean(publicClaim, ["proof_of_executor_key_possession_required"]) === true;
+  const signedClaimTimestampRequired =
+    directBoolean(publicClaim, ["signed_claim_timestamp_required"]) === true;
+  const claimNonceReplayProtection =
+    directBoolean(publicClaim, ["claim_nonce_replay_protection"]) === true;
+  const publicClaimAuthenticationReplayConfirmed =
+    gatewayClaimExecutorKeyPossessionRequired &&
+    claimProofOfExecutorKeyPossessionRequired &&
+    signedClaimTimestampRequired &&
+    claimNonceReplayProtection;
 
   const gatewayCompatible = Boolean(pilot || gateway || publicClaim);
   const awardMatches = fixedAwardWc !== null && fixedAwardWc === expectedAwardWc;
   const coordinatorReady = coordinatorEnabled === true;
-  const claimConfigured = Boolean(claimPath);
+  const claimConfigured = claimPath === CLAIM_ROUTE;
   const claimEnabledConfirmed = claimEnabled === true;
   const publicAwardBoundaryConfirmed = publicClaimRouteNoDirectAward === true;
   const reasons = [];
   if (!pilot) reasons.push("pilot_status_missing");
+  if (!gatewayIdentityConfirmed) reasons.push("gateway_identity_unconfirmed");
   if (!coordinatorReady) reasons.push("coordinator_not_enabled");
+  if (!executorRoleConfirmed) reasons.push("executor_role_not_disabled");
   if (!awardEvidenceConsistent) reasons.push("fixed_award_evidence_missing_or_conflicting");
   if (!awardMatches) reasons.push("fixed_award_mismatch_or_missing");
   if (!claimConfigured) reasons.push("public_claim_not_discovered");
   if (!claimEnabledConfirmed) reasons.push("public_claim_not_enabled");
+  if (!claimIdentityConfirmed) reasons.push("public_claim_identity_or_method_unconfirmed");
+  if (!publicClaimAuthenticationReplayConfirmed) reasons.push("public_claim_authentication_replay_unconfirmed");
   if (!publicAwardBoundaryConfirmed) reasons.push("public_claim_award_boundary_unconfirmed");
   const opportunityState =
     pilot &&
+    gatewayIdentityConfirmed &&
     coordinatorReady &&
+    executorRoleConfirmed &&
     awardMatches &&
     claimConfigured &&
     claimEnabledConfirmed &&
+    claimIdentityConfirmed &&
+    publicClaimAuthenticationReplayConfirmed &&
     publicAwardBoundaryConfirmed
       ? "available"
       : "hold";
@@ -293,11 +356,38 @@ function analyze(body, sourcePath, origin, expectedAwardWc, attempts) {
     opportunity_state: opportunityState,
     reason: opportunityState === "available" ? "bounded_public_earning_opportunity_available" : reasons.join(","),
     source_path: sourcePath,
+    gateway: {
+      marker: gatewayMarker,
+      exact_identity: gatewayIdentityConfirmed,
+    },
     gateway_compatible: gatewayCompatible,
     participant: { node_required: false, public_status_only: true, next_tool: "ops/mainnet0/wc-public-ticket-claim-v1.sh", next_document: "docs/public/wc-public-ticket-claim-v1.md" },
     pilot: { marker: pilot?.marker ?? null, coordinator_enabled: coordinatorEnabled, executor_enabled: executorEnabled, fixed_award_wc: fixedAwardWc, expected_fixed_award_wc: expectedAwardWc, fixed_award_matches: awardMatches },
-    public_claim: { configured: claimConfigured, enabled: claimEnabled, method: claimMethod, path: claimPath },
-    safety: { read_only: true, http_methods_used: ["GET"], public_claim_route_no_direct_award: publicClaimRouteNoDirectAward, public_award_boundary_confirmed: publicAwardBoundaryConfirmed, public_award_boundary_safe: publicAwardBoundaryConfirmed, mutation_attempted: false, ticket_issuance_attempted: false, receipt_submission_attempted: false, wc_award_attempted: false, wallet_access_attempted: false, settlement_attempted: false },
+    public_claim: {
+      marker: claimMarker ?? null,
+      configured: claimConfigured,
+      enabled: claimEnabled,
+      method: claimMethod,
+      path: claimPath,
+      proof_of_executor_key_possession_required: claimProofOfExecutorKeyPossessionRequired,
+      signed_claim_timestamp_required: signedClaimTimestampRequired,
+      claim_nonce_replay_protection: claimNonceReplayProtection,
+    },
+    safety: {
+      read_only: true,
+      http_methods_used: ["GET"],
+      public_claim_route_no_direct_award: publicClaimRouteNoDirectAward,
+      public_award_boundary_confirmed: publicAwardBoundaryConfirmed,
+      public_award_boundary_safe: publicAwardBoundaryConfirmed,
+      claim_executor_key_possession_required: gatewayClaimExecutorKeyPossessionRequired,
+      public_claim_authentication_replay_confirmed: publicClaimAuthenticationReplayConfirmed,
+      mutation_attempted: false,
+      ticket_issuance_attempted: false,
+      receipt_submission_attempted: false,
+      wc_award_attempted: false,
+      wallet_access_attempted: false,
+      settlement_attempted: false,
+    },
     attempts: attempts.map(summarizeAttempt),
   };
 }
@@ -331,8 +421,10 @@ async function main() {
   const defaultCandidates = ["/__void/public-earn-gateway-v1/status.json", "/wc/public-earning-pilot-v1/status", "/public-node/public-earn-gateway-v1.json", "/public-node/work-credits/public-earn-status-v1.json", "/public-node/earn/status-v1.json", "/public/earn/status-v1", "/public/earn/status", "/wc/public/earning/status", "/wc/public/status"];
   const attempts = [];
   let firstHold = null;
+  let gatewayContract = null;
   const discovery = await fetchJson(origin, "/.well-known/void-public-node.json", timeoutMs);
   attempts.push(discovery);
+  if (discovery.ok && discovery.body) gatewayContract = extractGatewayContract(discovery.body) ?? gatewayContract;
   const candidates = new Set();
   for (const raw of values.path) {
     const normalized = normalizePath(raw, origin);
@@ -341,7 +433,7 @@ async function main() {
   }
   if (discovery.ok && discovery.body) {
     for (const path of collectDiscoveryPaths(discovery.body, origin)) candidates.add(path);
-    const discoveryAnalysis = analyze(discovery.body, discovery.path, origin, expectedAwardWc, attempts);
+    const discoveryAnalysis = analyze(discovery.body, discovery.path, origin, expectedAwardWc, attempts, gatewayContract);
     if (discoveryAnalysis?.opportunity_state === "available") {
       emitResult(discoveryAnalysis, values["require-available"]);
       return;
@@ -354,7 +446,8 @@ async function main() {
     const attempt = await fetchJson(origin, path, timeoutMs);
     attempts.push(attempt);
     if (!attempt.ok || !attempt.body) continue;
-    const result = analyze(attempt.body, attempt.path, origin, expectedAwardWc, attempts);
+    gatewayContract = extractGatewayContract(attempt.body) ?? gatewayContract;
+    const result = analyze(attempt.body, attempt.path, origin, expectedAwardWc, attempts, gatewayContract);
     if (!result) continue;
     if (result.opportunity_state === "available") {
       emitResult(result, values["require-available"]);
@@ -363,7 +456,7 @@ async function main() {
     if (!firstHold) firstHold = { body: attempt.body, path: attempt.path };
   }
   if (firstHold) {
-    const result = analyze(firstHold.body, firstHold.path, origin, expectedAwardWc, attempts);
+    const result = analyze(firstHold.body, firstHold.path, origin, expectedAwardWc, attempts, gatewayContract);
     if (result) {
       emitResult(result, values["require-available"]);
       return;

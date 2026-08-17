@@ -8,6 +8,9 @@ import { spawn } from "node:child_process";
 
 const MARKER = "VOID_WC_PUBLIC_OPPORTUNITY_DIRECTORY_V1";
 const DISCOVERY_MARKER = "VOID_WC_PUBLIC_OPPORTUNITY_DISCOVERY_V1";
+const GATEWAY_MARKER = "VOID_PUBLIC_EARN_GATEWAY_V1";
+const CLAIM_MARKER = "VOID_WC_PUBLIC_TICKET_CLAIM_V1";
+const CLAIM_ROUTE = "/wc/public-earning-pilot-v1/claim-ticket";
 const CANONICAL_FIXED_AWARD_WC = 3;
 const HERE = dirname(fileURLToPath(import.meta.url));
 const DEFAULT_DISCOVERY_TOOL = resolve(HERE, "wc-public-opportunity-discovery-v1.mjs");
@@ -93,6 +96,10 @@ function validateResult(raw, expectedAwardWc) {
     trusted: false,
     child_exit_code: raw.exit_code,
     source_path: null,
+    gateway: {
+      marker: typeof body?.gateway?.marker === "string" ? body.gateway.marker : null,
+      exact_identity: body?.gateway?.exact_identity === true,
+    },
     pilot: {
       coordinator_enabled: body?.pilot?.coordinator_enabled ?? null,
       executor_enabled: body?.pilot?.executor_enabled ?? null,
@@ -100,14 +107,20 @@ function validateResult(raw, expectedAwardWc) {
       fixed_award_matches: false,
     },
     public_claim: {
+      marker: typeof body?.public_claim?.marker === "string" ? body.public_claim.marker : null,
       configured: body?.public_claim?.configured === true,
       enabled: body?.public_claim?.enabled ?? null,
+      method: typeof body?.public_claim?.method === "string" ? body.public_claim.method : null,
       path: typeof body?.public_claim?.path === "string" ? body.public_claim.path : null,
+      proof_of_executor_key_possession_required: body?.public_claim?.proof_of_executor_key_possession_required === true,
+      signed_claim_timestamp_required: body?.public_claim?.signed_claim_timestamp_required === true,
+      claim_nonce_replay_protection: body?.public_claim?.claim_nonce_replay_protection === true,
     },
     safety: {
       read_only: body?.safety?.read_only === true,
       get_only: false,
       public_award_boundary_confirmed: body?.safety?.public_award_boundary_confirmed === true,
+      public_claim_authentication_replay_confirmed: body?.safety?.public_claim_authentication_replay_confirmed === true,
       mutation_attempted: typeof body?.safety?.mutation_attempted === "boolean" ? body.safety.mutation_attempted : null,
     },
   });
@@ -117,7 +130,33 @@ function validateResult(raw, expectedAwardWc) {
   const safe = body?.safety?.read_only === true && getOnly && body?.safety?.mutation_attempted === false && body?.safety?.ticket_issuance_attempted === false && body?.safety?.receipt_submission_attempted === false && body?.safety?.wc_award_attempted === false && body?.safety?.wallet_access_attempted !== true && body?.safety?.settlement_attempted !== true;
   const observedAward = strictEvidenceNumber(body?.pilot?.fixed_award_wc);
   const awardMatches = observedAward !== null && observedAward === expectedAwardWc && body?.pilot?.fixed_award_matches === true;
-  const availableContract = state !== "available" || (safe && awardMatches && body?.pilot?.coordinator_enabled === true && body?.public_claim?.configured === true && body?.public_claim?.enabled === true && body?.safety?.public_award_boundary_confirmed === true && body?.safety?.public_award_boundary_safe === true);
+  const gatewayIdentity =
+    body?.gateway?.marker === GATEWAY_MARKER &&
+    body?.gateway?.exact_identity === true;
+  const executorRole = body?.pilot?.executor_enabled === false;
+  const claimIdentity =
+    body?.public_claim?.marker === CLAIM_MARKER &&
+    body?.public_claim?.method === "POST" &&
+    body?.public_claim?.path === CLAIM_ROUTE;
+  const claimAuthenticationReplay =
+    body?.safety?.claim_executor_key_possession_required === true &&
+    body?.public_claim?.proof_of_executor_key_possession_required === true &&
+    body?.public_claim?.signed_claim_timestamp_required === true &&
+    body?.public_claim?.claim_nonce_replay_protection === true &&
+    body?.safety?.public_claim_authentication_replay_confirmed === true;
+  const availableContract = state !== "available" || (
+    safe &&
+    awardMatches &&
+    gatewayIdentity &&
+    body?.pilot?.coordinator_enabled === true &&
+    executorRole &&
+    body?.public_claim?.configured === true &&
+    body?.public_claim?.enabled === true &&
+    claimIdentity &&
+    claimAuthenticationReplay &&
+    body?.safety?.public_award_boundary_confirmed === true &&
+    body?.safety?.public_award_boundary_safe === true
+  );
   if (!safe) return invalid("discovery_safety_contract_failed");
   if (!availableContract) return invalid("available_result_contract_failed");
   return {
@@ -127,9 +166,25 @@ function validateResult(raw, expectedAwardWc) {
     trusted: true,
     child_exit_code: raw.exit_code,
     source_path: typeof body.source_path === "string" ? body.source_path : null,
+    gateway: { marker: body?.gateway?.marker ?? null, exact_identity: body?.gateway?.exact_identity === true },
     pilot: { coordinator_enabled: body?.pilot?.coordinator_enabled ?? null, executor_enabled: body?.pilot?.executor_enabled ?? null, fixed_award_wc: observedAward, fixed_award_matches: awardMatches },
-    public_claim: { configured: body?.public_claim?.configured === true, enabled: body?.public_claim?.enabled ?? null, path: typeof body?.public_claim?.path === "string" ? body.public_claim.path : null },
-    safety: { read_only: true, get_only: true, public_award_boundary_confirmed: body?.safety?.public_award_boundary_confirmed === true, mutation_attempted: false },
+    public_claim: {
+      marker: body?.public_claim?.marker ?? null,
+      configured: body?.public_claim?.configured === true,
+      enabled: body?.public_claim?.enabled ?? null,
+      method: body?.public_claim?.method ?? null,
+      path: typeof body?.public_claim?.path === "string" ? body.public_claim.path : null,
+      proof_of_executor_key_possession_required: body?.public_claim?.proof_of_executor_key_possession_required === true,
+      signed_claim_timestamp_required: body?.public_claim?.signed_claim_timestamp_required === true,
+      claim_nonce_replay_protection: body?.public_claim?.claim_nonce_replay_protection === true,
+    },
+    safety: {
+      read_only: true,
+      get_only: true,
+      public_award_boundary_confirmed: body?.safety?.public_award_boundary_confirmed === true,
+      public_claim_authentication_replay_confirmed: body?.safety?.public_claim_authentication_replay_confirmed === true,
+      mutation_attempted: false,
+    },
   };
 }
 

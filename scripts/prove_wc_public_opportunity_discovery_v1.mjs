@@ -41,6 +41,7 @@ function claimSafety() {
   return {
     public_ticket_issue: true,
     public_signed_ticket_claim: true,
+    claim_executor_key_possession_required: true,
     claim_server_selected_work: true,
     participant_selected_award: false,
     submission_response_canonical_accounting: true,
@@ -86,11 +87,15 @@ async function fixture(mode, fixedAwardWc = 3, options = {}) {
           fixed_award_wc: omitAward ? undefined : fixedAwardWc,
         },
         public_claim: {
+          marker: "VOID_WC_PUBLIC_TICKET_CLAIM_V1",
           enabled: mode !== "hold",
           method: "POST",
           public_route: CLAIM_ROUTE,
           fixed_award_wc: omitAward ? undefined : fixedAwardWc,
           server_selected_work: true,
+          proof_of_executor_key_possession_required: true,
+          signed_claim_timestamp_required: true,
+          claim_nonce_replay_protection: true,
           participant_selected_award: false,
         },
         safety,
@@ -145,19 +150,28 @@ try {
   assert.equal(body.status, "green");
   assert.equal(body.opportunity_state, "available");
   assert.equal(body.participant.node_required, false);
+  assert.equal(body.gateway.marker, "VOID_PUBLIC_EARN_GATEWAY_V1");
+  assert.equal(body.gateway.exact_identity, true);
   assert.equal(body.pilot.marker, "VOID_WC_PUBLIC_EARNING_PILOT_V1");
   assert.equal(body.pilot.coordinator_enabled, true);
+  assert.equal(body.pilot.executor_enabled, false);
   assert.equal(body.pilot.fixed_award_wc, 3);
   assert.equal(body.pilot.fixed_award_matches, true);
+  assert.equal(body.public_claim.marker, "VOID_WC_PUBLIC_TICKET_CLAIM_V1");
   assert.equal(body.public_claim.configured, true);
   assert.equal(body.public_claim.enabled, true);
   assert.equal(body.public_claim.method, "POST");
   assert.equal(body.public_claim.path, CLAIM_ROUTE);
+  assert.equal(body.public_claim.proof_of_executor_key_possession_required, true);
+  assert.equal(body.public_claim.signed_claim_timestamp_required, true);
+  assert.equal(body.public_claim.claim_nonce_replay_protection, true);
   assert.equal(body.safety.read_only, true);
   assert.deepEqual(body.safety.http_methods_used, ["GET"]);
   assert.equal(body.safety.public_claim_route_no_direct_award, true);
   assert.equal(body.safety.public_award_boundary_confirmed, true);
   assert.equal(body.safety.public_award_boundary_safe, true);
+  assert.equal(body.safety.claim_executor_key_possession_required, true);
+  assert.equal(body.safety.public_claim_authentication_replay_confirmed, true);
   assert.equal(body.safety.mutation_attempted, false);
   assert.equal(body.safety.ticket_issuance_attempted, false);
   assert.equal(body.safety.wc_award_attempted, false);
