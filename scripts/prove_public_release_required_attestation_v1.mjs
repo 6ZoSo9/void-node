@@ -56,13 +56,28 @@ assert.equal(
 );
 assert.match(
   source,
-  /o\.command==="apply"&&o\.skipAttestation&&!o\.testAllowFile\)fail\("--skip-attestation is test-only; pass --test-allow-file"\)/,
-  "production apply must reject --skip-attestation before channel processing",
+  /function testOnlyAttestationSourceAllowed\(/,
+  "test-only attestation source boundary must be explicit",
 );
 assert.match(
   source,
-  /channel\.verification\.github_attestation_required&&!o\.testAllowFile\)/,
-  "production required-attestation branch must not depend on skipAttestation",
+  /function testAttestationBypassAllowed\(/,
+  "attestation bypass decision must be explicit",
+);
+assert.match(
+  source,
+  /o\.command==="apply"&&o\.skipAttestation&&!testOnlyAttestationSourceAllowed\(o\.channel,o\.testAllowFile\)\)fail\("--skip-attestation is allowed only for explicit file\/loopback test channels"\)/,
+  "HTTPS apply must reject test-only attestation skipping before channel fetch",
+);
+assert.match(
+  source,
+  /channel\.verification\.github_attestation_required&&!testAttestationBypass\)/,
+  "required-attestation branch must depend only on the transport-scoped bypass decision",
+);
+assert.equal(
+  source.includes("channel.verification.github_attestation_required&&!o.testAllowFile"),
+  false,
+  "--test-allow-file alone must not disable required stable attestations",
 );
 
 const productionBypass = invoke(["--skip-attestation"], {
@@ -78,16 +93,19 @@ assert.match(
 assert.equal(productionBypass.installExists, false, "production bypass created install state");
 assert.equal(productionBypass.binExists, false, "production bypass created bin state");
 
-const testBoundary = invoke(["--test-allow-file", "--skip-attestation"]);
-assert.equal(testBoundary.error?.code, undefined, "test-boundary probe timed out");
-assert.notEqual(testBoundary.status, 0, "synthetic HTTPS probe unexpectedly completed");
-assert.doesNotMatch(
-  testBoundary.combined,
-  /--skip-attestation is test-only; pass --test-allow-file/,
-  "explicit test boundary incorrectly rejected test-only attestation skipping",
+const httpsTestFlagBypass = invoke(["--test-allow-file", "--skip-attestation"]);
+assert.equal(httpsTestFlagBypass.error?.code, undefined, "HTTPS test-flag bypass probe timed out");
+assert.notEqual(httpsTestFlagBypass.status, 0, "HTTPS test-flag bypass unexpectedly succeeded");
+assert.match(
+  httpsTestFlagBypass.combined,
+  /--skip-attestation is allowed only for explicit file\/loopback test channels/,
+  "--test-allow-file still disabled attestations for a normal HTTPS stable channel",
 );
+assert.equal(httpsTestFlagBypass.installExists, false, "HTTPS test-flag bypass created install state");
+assert.equal(httpsTestFlagBypass.binExists, false, "HTTPS test-flag bypass created bin state");
 
 console.log("production_stable_attestation_non_bypassable=true");
 console.log("legacy_environment_override_rejected=true");
-console.log("test_only_skip_boundary_retained=true");
+console.log("https_test_flag_attestation_bypass_rejected=true");
+console.log("test_only_skip_boundary_scoped_to_local_transport=true");
 console.log(MARKER);
