@@ -235,20 +235,24 @@ const sourceDeadlineError = (signal: AbortSignal): Error =>
     ? signal.reason
     : new Error("source_deadline_exceeded");
 
+type VoidUiWave2HomeStreamReadResultV1 = Awaited<
+  ReturnType<ReadableStreamDefaultReader<Uint8Array>["read"]>
+>;
+
 const readWithinSignal = async (
   reader: ReadableStreamDefaultReader<Uint8Array>,
   signal: AbortSignal
-): Promise<ReadableStreamReadResult<Uint8Array>> => {
+): Promise<VoidUiWave2HomeStreamReadResultV1> => {
   if (signal.aborted) {
     throw sourceDeadlineError(signal);
   }
 
-  return await new Promise<ReadableStreamReadResult<Uint8Array>>(
+  return await new Promise<VoidUiWave2HomeStreamReadResultV1>(
     (resolve, reject) => {
       let settled = false;
       let onAbort: () => void = () => {};
       const resolveOnce = (
-        value: ReadableStreamReadResult<Uint8Array>
+        value: VoidUiWave2HomeStreamReadResultV1
       ): void => {
         if (settled) return;
         settled = true;
