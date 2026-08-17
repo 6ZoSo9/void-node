@@ -54,7 +54,7 @@ const USDC = "0x6666666666666666666666666666666666666666";
 const PAYER = "0x7777777777777777777777777777777777777777";
 const RECEIVE = "0x8888888888888888888888888888888888888888";
 const VOID_UNITS = "2500000";
-const POOL_ID = "void-presale-mainnet0-v1";
+const POOL_ID = "buy-void-presale-v1";
 const SOURCE_FLOOR = "c4f742c2c2c33c91fcaa27dc462505cd5c19abdc";
 
 function digest(value: string): string {
@@ -139,12 +139,12 @@ function makeInventory(
     reservation_id: digest(`inventory:${label}`),
     reserved_at_ms: Date.parse("2026-08-06T11:10:01.000Z"),
     pool_id: POOL_ID,
-    inventory_policy_version: "proof-policy-v1",
-    pool_capacity_void_units: "10000000",
+    inventory_policy_version: "presale-v1",
+    pool_capacity_void_units: "10000000000000",
     committed_before_void_units: "0",
     reserved_void_units: VOID_UNITS,
     committed_after_void_units: VOID_UNITS,
-    available_after_void_units: "7500000",
+    available_after_void_units: "9999997500000",
     payment_key_sha256: value.payment_key_sha256,
     request_key_sha256: value.request_key_sha256,
     canonical_payment_identity: value.claim.canonical_payment_identity,
@@ -177,10 +177,10 @@ function configuredEnv(): Record<string, string> {
     [economic.payment_min_confirmations]: "12",
     [economic.rate_void_units_numerator]: "2",
     [economic.rate_void_units_denominator]: "1",
-    [economic.inventory_policy_version]: "proof-policy-v1",
+    [economic.inventory_policy_version]: "presale-v1",
     [economic.pool_id]: POOL_ID,
-    [economic.pool_capacity_void_units]: "10000000",
-    [economic.max_reservation_void_units]: "5000000",
+    [economic.pool_capacity_void_units]: "10000000000000",
+    [economic.max_reservation_void_units]: "10000000000000",
     [economic.fulfillment_wallet_address]: WALLET,
     [preparation.rpc_url]: "http://127.0.0.1:18545/",
     [preparation.gas_limit]: "21000",

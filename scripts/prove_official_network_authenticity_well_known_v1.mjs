@@ -30,6 +30,10 @@ const C=[
 [DS.required.includes("network_authenticity")&&DS.properties.network_authenticity.const==="/.well-known/void-network-authenticity.json","discovery schema"],
 [(R.match(/route: "\/\.well-known\/void-network-authenticity\.json"/g)||[]).length===1,"route once"],
 [(R.match(/route: "\/\.well-known\/void-network-authenticity\.schema\.json"/g)||[]).length===1,"schema route once"],
+[S.$id==="https://voidchain.org/.well-known/void-network-authenticity.schema.json","canonical authenticity schema id"],
+[S.$id!=="https://voidchain.io/.well-known/void-network-authenticity.schema.json","retired authenticity schema id rejected"],
+[DS.$id==="https://voidchain.org/.well-known/void-agent-discovery.schema.json","canonical discovery schema id"],
+[DS.$id!=="https://voidchain.io/.well-known/void-agent-discovery.schema.json","retired discovery schema id rejected"],
 [S.properties.status.const==="public_verification_available"&&S.properties.admission.properties.status.const==="admitted_unactivated","schema status"],
 [!JSON.stringify(A).includes("BEGIN PRIVATE KEY"),"no private key"]];
 const pub=createPublicKey(A.verification.public_key_pem);

@@ -7,6 +7,7 @@ on:
       - "scripts/prove_void_app_buy_presale_readonly_v1.mjs"
       - "docs/public/void-app-buy-presale-readonly-v1.md"
       - ".github/workflows/void-app-buy-presale-readonly-v1.yml"
+      - "src/index.ts"
   push:
     branches: [main]
     paths:
@@ -14,6 +15,7 @@ on:
       - "scripts/prove_void_app_buy_presale_readonly_v1.mjs"
       - "docs/public/void-app-buy-presale-readonly-v1.md"
       - ".github/workflows/void-app-buy-presale-readonly-v1.yml"
+      - "src/index.ts"
 
 permissions:
   contents: read

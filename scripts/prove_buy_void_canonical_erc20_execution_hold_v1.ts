@@ -79,8 +79,8 @@ const deliveryCommandRoute =
   "/__void/operator/buy-void-delivery-runtime-v1/command";
 
 assert.equal(routes.has(`GET ${parentStatusRoute}`), true);
-assert.equal(routes.has(`GET ${deliveryStatusRoute}`), false);
-assert.equal(routes.has(`POST ${deliveryCommandRoute}`), false);
+assert.equal(routes.has(`GET ${deliveryStatusRoute}`), true);
+assert.equal(routes.has(`POST ${deliveryCommandRoute}`), true);
 
 const parentStatus = await call("GET", parentStatusRoute, {
   socket: { remoteAddress: "127.0.0.1" },
@@ -93,7 +93,7 @@ assert.equal(
 );
 assert.equal(
   parentStatus.body.canonical_delivery.delivery_runtime_parent_mounted,
-  false,
+  true,
 );
 assert.equal(
   parentStatus.body.canonical_delivery
@@ -136,11 +136,28 @@ assert.equal(
 );
 assert.equal(
   parentStatus.body.canonical_delivery.runtime_status.mounted,
+  true,
+);
+assert.equal(
+  parentStatus.body.canonical_delivery.runtime_status.enabled,
   false,
 );
 assert.equal(
-  parentStatus.body.canonical_delivery.runtime_status.reason,
-  "canonical_erc20_execution_not_ready",
+  parentStatus.body.canonical_delivery.runtime_status.policy_configured,
+  false,
+);
+assert.equal(
+  parentStatus.body.canonical_delivery.runtime_status.signer_configured,
+  false,
+);
+assert.equal(
+  parentStatus.body.canonical_delivery.runtime_status.broadcaster_configured,
+  false,
+);
+assert.equal(
+  parentStatus.body.canonical_delivery.runtime_status
+    .effective_authority.rpc_call,
+  false,
 );
 assert.equal(
   parentStatus.body.canonical_delivery.runtime_status
@@ -168,7 +185,7 @@ fs.rmSync(tmp, { recursive: true, force: true });
 console.log(
   "VOID_BUY_VOID_CANONICAL_ERC20_EXECUTION_HOLD_V1_PROOF_GREEN",
 );
-console.log("canonical_erc20_delivery_parent_mount=0");
+console.log("canonical_erc20_delivery_parent_mount=1");
 console.log("dependency_bootstrap_ready=1");
 console.log("erc20_transaction_preparation_execution_state_ready=1");
 console.log("erc20_atomic_unit_conversion_ready=1");

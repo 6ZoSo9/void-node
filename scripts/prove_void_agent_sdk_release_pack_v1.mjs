@@ -67,7 +67,7 @@ const wellKnownPath = "/.well-known/void-agent-discovery.json";
 const canonicalPath = "/public-node/agents/discovery-v1.json";
 const catalogPath = "/public-node/agents/capability-negotiation-v1.json";
 const supportedNodeMajors = [22, 24, 26];
-const reviewedSourceMain = "f439a8f2150ed52403d69e4820f4ba29c8f69c0b";
+const reviewedSourceMain = "678c6dc33b312cfbdf597cf176c3a8be1cc1ef73";
 const manifestTopLevelKeys = [
   "marker",
   "version",
@@ -528,7 +528,7 @@ expectSyncReject(
 );
 
 const staleReviewedSource = clone(manifest);
-staleReviewedSource.reviewed_source_main = "0".repeat(40);
+staleReviewedSource.reviewed_source_main = "f439a8f2150ed52403d69e4820f4ba29c8f69c0b";
 expectSyncReject(
   "stale reviewed source",
   () => validateReleaseManifestShapeV1(staleReviewedSource),
@@ -603,6 +603,7 @@ console.log(`granted_capabilities=${report.negotiation.granted.length}`);
 console.log(`not_granted_capabilities=${report.negotiation.not_granted.length}`);
 console.log(`integrity_files=${Object.keys(manifest.files).length}`);
 console.log(`reviewed_source_main=${manifest.reviewed_source_main}`);
+console.log("reviewed_source_baseline_fail_closed=true");
 console.log("integrity_schema_closed=true");
 console.log(`runtime_node_major=${runtimeNodeMajor}`);
 console.log("supported_node_majors=22,24,26");

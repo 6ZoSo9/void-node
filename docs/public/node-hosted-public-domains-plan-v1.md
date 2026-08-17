@@ -6,8 +6,8 @@ Marker: `VOID_NODE_HOSTED_PUBLIC_DOMAINS_PLAN_V1`
 
 VOID owns the domains:
 
-- `voidchain.io`
-- `nullfeed.io`
+- `voidchain.org`
+- `nullfeed.org`
 
 These domains are public identity and DNS assets only.
 
@@ -21,9 +21,9 @@ Domains are names. Nodes are the host.
 
 ## Domain roles
 
-### voidchain.io
+### voidchain.org
 
-`voidchain.io` is the canonical public VOID Network / VOID Chain identity domain.
+`voidchain.org` is the canonical public VOID Network / VOID Chain identity domain.
 
 It should eventually resolve to a node-hosted VOID public gateway that exposes:
 
@@ -44,9 +44,9 @@ Primary CTAs:
 3. DataNet Verification
 4. Public Node / Proof Dashboard
 
-### nullfeed.io
+### nullfeed.org
 
-`nullfeed.io` is the canonical NullFeed / DataNet media identity domain.
+`nullfeed.org` is the canonical NullFeed / DataNet media identity domain.
 
 It should eventually resolve to node-hosted NullFeed and DataNet surfaces:
 
@@ -64,6 +64,7 @@ Current public seed URL:
 
 ```text
 https://zoso-alienware-aurora-r7.taila47fd.ts.net
+```
 
 This remains the verified public node-hosted seed until custom-domain DNS and HTTPS are proven.
 

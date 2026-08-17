@@ -75,9 +75,9 @@ for (const marker of [
   "rpc_call: false",
   'asset_mode: "void_token_erc20"',
   "canonical_delivery_asset_void_token_erc20: true",
-  "canonical_delivery_runtime_parent_mounted: false",
+  "canonical_delivery_runtime_parent_mounted: true",
   "delivery_runtime_source_retained: true",
-  "delivery_runtime_parent_mounted: false",
+  "delivery_runtime_parent_mounted: true",
   "VOID_BUY_VOID_ERC20_DELIVERY_DEPENDENCY_BOOTSTRAP_INTEGRATION_GATE_V1",
   "VOID_BUY_VOID_ERC20_DELIVERY_DEPENDENCY_BOOTSTRAP_INTEGRATION_V1",
   "canonical_erc20_delivery_dependency_bootstrap_ready:",
@@ -86,8 +86,8 @@ for (const marker of [
   "canonical_erc20_delivery_atomic_unit_conversion_ready: true",
   "canonical_erc20_delivery_execution_ready: false",
   "canonical_erc20_delivery_execution_held: true",
-  'status: "held"',
-  'reason: "canonical_erc20_execution_not_ready"',
+  "dormant_dependency_injection_source_ready: true",
+  "VOID_BUY_VOID_ERC20_DELIVERY_DEPENDENCY_INJECTION_V1",
   "native_value_delivery_parent_mounted: false",
   "native_receipt_parent_mounted: false",
   "native_execution_parent_mounted: false",
@@ -155,8 +155,24 @@ need(
   "resolved ERC-20 receipt-reconciliation blocker remains in funding blockers",
 );
 need(
-  !/from "\.\/buy_void_delivery_runtime_integration_v1\.js";/.test(moduleText),
-  "canonical ERC-20 delivery runtime remains parent imported",
+  (moduleText.match(
+    /from "\.\/buy_void_delivery_runtime_integration_v1\.js";/g,
+  ) || []).length === 1,
+  "canonical ERC-20 delivery runtime must be parent-imported exactly once",
+);
+need(
+  moduleText.includes("buyVoidDeliveryRuntimeStatusV1()"),
+  "parent must project the real disabled delivery-runtime status",
+);
+need(
+  /from "\.\/buy_void_erc20_delivery_dependency_injection_v1\.js";/.test(
+    moduleText,
+  ),
+  "parent must compose the dormant ERC20 dependency injector",
+);
+need(
+  moduleText.includes("buyVoidErc20DeliveryDependencyInjectionStatusV1()"),
+  "parent must project dormant dependency-injection status",
 );
 for (const forbiddenParentImport of [
   'import "./buy_void_native_delivery_runtime_integration_v1.js";',
@@ -289,7 +305,7 @@ need(workflowText.includes("--moduleResolution NodeNext"), "workflow lacks focus
 
 console.log("VOID_BUY_VOID_RUNTIME_INTEGRATION_GUARD_V1_GREEN");
 console.log("canonical_delivery_asset=void_token_erc20");
-console.log("canonical_erc20_delivery_parent_mount=0");
+console.log("canonical_erc20_delivery_parent_mount=1");
 console.log("erc20_atomic_unit_conversion_ready=1");
 console.log("erc20_transaction_preparation_bridge_ready=1");
 console.log("erc20_transaction_preparation_execution_state_ready=1");
