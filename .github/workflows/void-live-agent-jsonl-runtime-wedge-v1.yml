@@ -7,6 +7,8 @@ on:
       - "runtime/canonical-producer-self-http-guard-v1.cjs"
       - "scripts/prove_canonical_producer_legacy_self_http_observers_v1.mjs"
       - "scripts/prove_live_agent_jsonl_runtime_wedge_v1.mjs"
+      - "scripts/ci_diff_hygiene_v1.sh"
+      - "scripts/prove_ci_diff_hygiene_v1.mjs"
       - ".github/workflows/void-live-agent-jsonl-runtime-wedge-v1.yml"
   push:
     branches:
@@ -16,6 +18,8 @@ on:
       - "runtime/canonical-producer-self-http-guard-v1.cjs"
       - "scripts/prove_canonical_producer_legacy_self_http_observers_v1.mjs"
       - "scripts/prove_live_agent_jsonl_runtime_wedge_v1.mjs"
+      - "scripts/ci_diff_hygiene_v1.sh"
+      - "scripts/prove_ci_diff_hygiene_v1.mjs"
       - ".github/workflows/void-live-agent-jsonl-runtime-wedge-v1.yml"
 
 permissions:
@@ -25,28 +29,51 @@ jobs:
   node22:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+      - name: Checkout integration state
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          fetch-depth: 1
+          persist-credentials: false
       - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
         with:
           node-version: 22
       - run: node scripts/prove_live_agent_jsonl_runtime_wedge_v1.mjs
       - run: node scripts/prove_canonical_producer_legacy_self_http_observers_v1.mjs
+
   node24:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+      - name: Checkout integration state
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
         with:
-          fetch-depth: 0
+          fetch-depth: 1
+          persist-credentials: false
       - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
         with:
           node-version: 24
+      - name: Prove shared diff hygiene contract
+        run: node scripts/prove_ci_diff_hygiene_v1.mjs
       - run: node scripts/prove_live_agent_jsonl_runtime_wedge_v1.mjs
       - run: node scripts/prove_canonical_producer_legacy_self_http_observers_v1.mjs
-      - run: git diff --check "${{ github.event.pull_request.base.sha || github.event.before }}"..HEAD
+      - name: Diff hygiene
+        env:
+          CI_DIFF_EVENT_NAME: ${{ github.event_name }}
+          CI_DIFF_PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          CI_DIFF_PUSH_BEFORE_SHA: ${{ github.event.before }}
+          CI_DIFF_CURRENT_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+          CI_DIFF_CHECKOUT_SHA: ${{ github.sha }}
+          CI_DIFF_BASE_REMOTE: ${{ github.server_url }}/${{ github.repository }}.git
+          CI_DIFF_HEAD_REMOTE: ${{ github.server_url }}/${{ github.event.pull_request.head.repo.full_name || github.repository }}.git
+        run: bash scripts/ci_diff_hygiene_v1.sh
+
   node26:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+      - name: Checkout integration state
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          fetch-depth: 1
+          persist-credentials: false
       - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
         with:
           node-version: 26
