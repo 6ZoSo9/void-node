@@ -85,6 +85,76 @@ function responseWithReaderFailure(options: {
   } as unknown as Response;
 }
 
+const unreachableElapsed = await expectCode(
+  "upstream_unreachable",
+  async () => {
+    throw new Error("synthetic pre-deadline fetch failure");
+  },
+);
+assert.ok(
+  unreachableElapsed < 900,
+  `ordinary fetch rejection stalled ${unreachableElapsed}ms`,
+);
+
+let neverSettlingFetchCalls = 0;
+const neverSettlingFetchElapsed = await expectCode(
+  "upstream_timeout",
+  async () => {
+    neverSettlingFetchCalls += 1;
+    return await new Promise<Response>(() => undefined);
+  },
+  {
+    ...env,
+    VOID_STEAM_READONLY_TIMEOUT_MS: "500",
+  },
+);
+assert.equal(neverSettlingFetchCalls, 1);
+assert.ok(
+  neverSettlingFetchElapsed >= 450 && neverSettlingFetchElapsed < 1500,
+  `never-settling fetch escaped deadline ${neverSettlingFetchElapsed}ms`,
+);
+
+let lateFetchResolveCalls = 0;
+let lateFetchCancelCalls = 0;
+const lateFetchResponse = {
+  ok: true,
+  status: 200,
+  headers: new Headers({ "content-type": "application/json" }),
+  body: {
+    cancel() {
+      lateFetchCancelCalls += 1;
+      return new Promise<void>(() => undefined);
+    },
+  },
+} as unknown as Response;
+const lateFetchElapsed = await expectCode(
+  "upstream_timeout",
+  async () => {
+    await new Promise<void>((resolve) => {
+      setTimeout(resolve, 1200);
+    });
+    lateFetchResolveCalls += 1;
+    return lateFetchResponse;
+  },
+  {
+    ...env,
+    VOID_STEAM_READONLY_TIMEOUT_MS: "500",
+  },
+);
+assert.ok(
+  lateFetchElapsed >= 450 && lateFetchElapsed < 1000,
+  `late fetch response replaced timeout truth ${lateFetchElapsed}ms`,
+);
+await new Promise<void>((resolve) => {
+  setTimeout(resolve, 1000);
+});
+assert.equal(lateFetchResolveCalls, 1);
+assert.equal(lateFetchCancelCalls, 1);
+await new Promise<void>((resolve) => {
+  setTimeout(resolve, 300);
+});
+assert.equal(lateFetchCancelCalls, 1);
+
 let declaredCancelCalls = 0;
 const declaredElapsed = await expectCode(
   "response_too_large",
@@ -291,6 +361,11 @@ const valid = await executeSteamReadonlyRequest(input, {
 assert.equal(valid.ok, true);
 assert.equal(valid.received_bytes, Buffer.byteLength(validBody));
 
+console.log("ordinary_fetch_rejection_preserved=true");
+console.log("deadline_terminates_never_settling_fetch=true");
+console.log("late_fetch_response_timeout_truth_preserved=true");
+console.log("late_fetch_response_cleanup_bounded=true");
+console.log("late_fetch_response_cleanup_exactly_once=true");
 console.log("declared_oversize_cancel_bounded=true");
 console.log("malformed_content_length_fail_closed=true");
 console.log("streamed_oversize_cancel_bounded=true");
