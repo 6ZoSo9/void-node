@@ -188,6 +188,77 @@ function stalledReadableResponse(cancelImpl = () => new Promise(() => {})) {
   };
 }
 
+function malformedChunkResponse(cancelImpl = () => new Promise(() => {})) {
+  let cancelCalls = 0;
+  let releaseCalls = 0;
+  let textCalls = 0;
+  const reader = {
+    read() {
+      return Promise.resolve({ done: false, value: {} });
+    },
+    cancel() {
+      cancelCalls += 1;
+      return cancelImpl();
+    },
+    releaseLock() {
+      releaseCalls += 1;
+    },
+  };
+  return {
+    response: {
+      status: 200,
+      ok: true,
+      url: WELL_KNOWN_URL,
+      redirected: false,
+      headers: new Headers({
+        "content-type": "application/json; charset=utf-8",
+      }),
+      body: {
+        getReader() {
+          return reader;
+        },
+      },
+      text() {
+        textCalls += 1;
+        return new Promise(() => {});
+      },
+    },
+    cancelCalls: () => cancelCalls,
+    releaseCalls: () => releaseCalls,
+    textCalls: () => textCalls,
+  };
+}
+
+function lockedReadableResponse() {
+  let bodyCancelCalls = 0;
+  let textCalls = 0;
+  const response = bindResponseUrl(new Response(new ReadableStream({
+    start(controller) {
+      controller.enqueue(new Uint8Array([123]));
+    },
+  }), {
+    status: 200,
+    headers: { "content-type": "application/json; charset=utf-8" },
+  }));
+  const heldReader = response.body.getReader();
+  const originalCancel = response.body.cancel.bind(response.body);
+  response.body.cancel = (...args) => {
+    bodyCancelCalls += 1;
+    return originalCancel(...args);
+  };
+  const originalText = response.text.bind(response);
+  response.text = (...args) => {
+    textCalls += 1;
+    return originalText(...args);
+  };
+  return {
+    response,
+    heldReader,
+    bodyCancelCalls: () => bodyCancelCalls,
+    textCalls: () => textCalls,
+  };
+}
+
 function finalUrlEvidenceResponse(urlValue, { redirected = false } = {}) {
   let cancelCalls = 0;
   let readCalls = 0;
@@ -446,6 +517,65 @@ assertCondition(
   `expected one reader release attempt, got ${stalledReader.releaseCalls()}`,
 );
 
+const malformedChunk = malformedChunkResponse();
+await expectRejectTiming(
+  "malformed successful stream chunk",
+  () =>
+    discoverVoidAgentV1({
+      baseUrl: "https://node.example",
+      maxResponseBytes: 1024,
+      timeoutMs: 100,
+      fetchImpl: async () => malformedChunk.response,
+    }),
+  "well_known_discovery_body_chunk_invalid",
+  { minimumMs: 50, maximumMs: 400 },
+);
+assertCondition(
+  malformedChunk.cancelCalls() === 1,
+  `expected one malformed-chunk cancellation attempt, got ${malformedChunk.cancelCalls()}`,
+);
+assertCondition(
+  malformedChunk.releaseCalls() === 1,
+  `expected one malformed-chunk release attempt, got ${malformedChunk.releaseCalls()}`,
+);
+assertCondition(
+  malformedChunk.textCalls() === 0,
+  `malformed chunk must not fall back to response.text(); text_calls=${malformedChunk.textCalls()}`,
+);
+
+const lockedBody = lockedReadableResponse();
+let lockedFetchSignal = null;
+try {
+  await expectRejectWithin(
+    "locked response body reader acquisition",
+    () =>
+      discoverVoidAgentV1({
+        baseUrl: "https://node.example",
+        maxResponseBytes: 1024,
+        timeoutMs: 100,
+        fetchImpl: async (_url, init) => {
+          lockedFetchSignal = init.signal;
+          return lockedBody.response;
+        },
+      }),
+    "well_known_discovery_body_reader_unavailable",
+  );
+  assertCondition(
+    lockedFetchSignal?.aborted === true,
+    "locked response body must abort the owned request",
+  );
+  assertCondition(
+    lockedBody.bodyCancelCalls() === 1,
+    `expected one locked-body cancellation attempt, got ${lockedBody.bodyCancelCalls()}`,
+  );
+  assertCondition(
+    lockedBody.textCalls() === 0,
+    `locked body must not fall back to response.text(); text_calls=${lockedBody.textCalls()}`,
+  );
+} finally {
+  lockedBody.heldReader.releaseLock();
+}
+
 const neverFetchError = await expectAnyRejectBeforeDeadline(
   "custom fetch implementation ignores abort",
   () =>
@@ -501,4 +631,6 @@ console.log("custom_fetch_total_deadline_enforced=true");
 console.log("custom_fetch_final_url_identity_bound=true");
 console.log("custom_fetch_request_url_snapshot_immutable=true");
 console.log("repeated_hostile_teardown_terminals_bounded=true");
+console.log("malformed_stream_chunk_teardown_owned=true");
+console.log("locked_stream_reader_acquisition_teardown_owned=true");
 console.log("VOID_AGENT_SDK_STREAM_CANCEL_LIVENESS_V1_PROOF_GREEN=true");
