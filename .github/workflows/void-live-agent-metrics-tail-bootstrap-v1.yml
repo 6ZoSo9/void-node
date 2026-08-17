@@ -1,0 +1,125 @@
+name: VOID live agent metrics tail bootstrap v1
+
+on:
+  push:
+    branches:
+      - fix/live-agent-jsonl-runtime-wedge-v1-20260816
+
+permissions:
+  contents: write
+
+jobs:
+  publish-tail-repair:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout exact repair branch
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          fetch-depth: 0
+      - name: Guard parent and apply bounded tail repair
+        run: |
+          test "$(git rev-parse HEAD^)" = "79a2cb660f960c9fae870e81ba08eec72aa48564"
+          python3 - <<'PY'
+          from pathlib import Path
+          import subprocess
+
+          source = Path("src/index.ts")
+          old_blob = "dbef32af1d2ec6d7d9b8409c21e001fd380d8f1b"
+          observed = subprocess.check_output(["git", "hash-object", str(source)], text=True).strip()
+          if observed != old_blob:
+              raise SystemExit(f"unexpected src/index.ts blob: {observed}")
+
+          text = source.read_text()
+          replacements = [
+              (r'lines.join("\n")+"\\n"', r'lines.join("\n")+"\n"'),
+              (r'out.join("\n")+"\\n"', r'out.join("\n")+"\n"'),
+              (r'send("# error "+(e?.message||"internal")+"\\n");', r'send("# error "+(e?.message||"internal")+"\n");'),
+          ]
+          for bad, good in replacements:
+              count = text.count(bad)
+              if count != 1:
+                  raise SystemExit(f"expected exactly one residual literal-newline tail for {bad!r}, got {count}")
+              text = text.replace(bad, good, 1)
+          source.write_text(text)
+
+          repaired = source.read_text()
+          for bad, good in replacements:
+              if bad in repaired:
+                  raise SystemExit(f"residual literal-newline tail remains: {bad!r}")
+              if good not in repaired:
+                  raise SystemExit(f"real newline tail missing: {good!r}")
+
+          new_blob = subprocess.check_output(["git", "hash-object", str(source)], text=True).strip()
+          if new_blob == old_blob:
+              raise SystemExit("src/index.ts blob did not change")
+
+          expected_pins = {
+              "runtime/canonical-producer-self-http-guard-v1.cjs",
+              "scripts/prove_canonical_producer_legacy_self_http_observers_v1.mjs",
+          }
+          grep = subprocess.run(
+              ["git", "grep", "-l", old_blob, "--", "."],
+              text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=False
+          )
+          pin_paths = {p for p in grep.stdout.splitlines() if p}
+          if pin_paths != expected_pins:
+              raise SystemExit(f"unexpected provenance pin set: {sorted(pin_paths)}")
+          for rel in sorted(expected_pins):
+              p = Path(rel)
+              data = p.read_text()
+              if data.count(old_blob) != 1:
+                  raise SystemExit(f"expected exactly one provenance pin in {rel}")
+              p.write_text(data.replace(old_blob, new_blob, 1))
+
+          print(f"old_index_blob={old_blob}")
+          print(f"new_index_blob={new_blob}")
+          print("metrics_literal_newline_tails_removed=3")
+          PY
+
+          rm .github/workflows/void-live-agent-metrics-tail-bootstrap-v1.yml
+
+          python3 - <<'PY'
+          from pathlib import Path
+          text = Path("src/index.ts").read_text()
+          bad = [
+              r'lines.join("\n")+"\\n"',
+              r'out.join("\n")+"\\n"',
+              r'send("# error "+(e?.message||"internal")+"\\n");',
+          ]
+          for needle in bad:
+              if needle in text:
+                  raise SystemExit(f"bad metrics newline tail survived: {needle!r}")
+          print("VOID_LIVE_AGENT_METRICS_TAIL_COMPLETION_SWEEP_GREEN")
+          PY
+
+      - name: Install dependencies
+        run: npm ci
+      - name: Existing focused wedge proof
+        run: node scripts/prove_live_agent_jsonl_runtime_wedge_v1.mjs
+      - name: Canonical provenance proof
+        run: node scripts/prove_canonical_producer_legacy_self_http_observers_v1.mjs
+      - name: Repository typecheck
+        run: npm run typecheck
+      - name: Repository build
+        run: npm run build
+      - name: Verify net PR scope and publish
+        run: |
+          mapfile -t paths < <(git diff --name-only origin/main --)
+          printf 'net_paths=%s\n' "${paths[*]}"
+          expected=(
+            .github/workflows/void-live-agent-jsonl-runtime-wedge-v1.yml
+            runtime/canonical-producer-self-http-guard-v1.cjs
+            scripts/prove_canonical_producer_legacy_self_http_observers_v1.mjs
+            scripts/prove_live_agent_jsonl_runtime_wedge_v1.mjs
+            src/index.ts
+          )
+          mapfile -t sorted_paths < <(printf '%s\n' "${paths[@]}" | sort)
+          mapfile -t sorted_expected < <(printf '%s\n' "${expected[@]}" | sort)
+          test "$(printf '%s\n' "${sorted_paths[@]}")" = "$(printf '%s\n' "${sorted_expected[@]}")"
+          git diff --check origin/main --
+          git config user.name "void-coordination-bot"
+          git config user.email "44710859+6ZoSo9@users.noreply.github.com"
+          git add -A
+          git diff --cached --check
+          git commit -m "fix(runtime): normalize agent metrics newline tails"
+          git push origin HEAD:fix/live-agent-jsonl-runtime-wedge-v1-20260816
