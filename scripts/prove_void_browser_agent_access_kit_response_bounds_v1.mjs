@@ -185,6 +185,9 @@ await assert.rejects(() => runWith(followedRedirect), /redirected response/);
 assert.equal(followedRedirect.metrics.bodyCancelCalls, 1);
 
 const quarantineUrl = "https://void.example/quarantine.json";
+const sameOriginAlternateA = "https://void.example/resource-a.json";
+const sameOriginAlternateB = "https://void.example/resource-b.json";
+const healthyOriginUrl = "https://healthy.example/data.json";
 const lateRead = deferred();
 const lateCancel = deferred();
 const quarantinedResponse = fakeResponse({
@@ -193,7 +196,13 @@ const quarantinedResponse = fakeResponse({
   cancelImpl: () => lateCancel.promise,
 });
 let quarantineFetchCalls = 0;
-context.fetch = async () => {
+let healthyOriginFetchCalls = 0;
+context.fetch = async (url) => {
+  const href = String(url);
+  if (href === healthyOriginUrl) {
+    healthyOriginFetchCalls += 1;
+    return fakeResponse({ url: healthyOriginUrl });
+  }
   quarantineFetchCalls += 1;
   return quarantinedResponse;
 };
@@ -208,24 +217,52 @@ for (let attempt = 0; attempt < 3; attempt += 1) {
     /prior response body generation is still unresolved/,
   );
 }
-assert.equal(quarantineFetchCalls, 1, "retry spawned replacement fetch while prior body generation unresolved");
+assert.equal(quarantineFetchCalls, 1, "same-URL retry spawned replacement fetch while prior generation unresolved");
+
+for (const url of [sameOriginAlternateA, sameOriginAlternateB]) {
+  await assert.rejects(
+    () => fetchDocument(url, { maximum: 64, timeoutMs: 100 }),
+    /prior response generation for origin is still unresolved/,
+  );
+}
+assert.equal(
+  quarantineFetchCalls,
+  1,
+  "distinct same-origin resource spawned replacement fetch while prior generation unresolved",
+);
+
+const healthyOrigin = await fetchDocument(healthyOriginUrl, { maximum: 64, timeoutMs: 200 });
+assert.deepEqual(JSON.parse(JSON.stringify(healthyOrigin.value)), { ok: true });
+assert.equal(healthyOriginFetchCalls, 1, "independent healthy origin was incorrectly quarantined");
+
 lateRead.resolve({ done: false, value: encode('{"late":true}') });
 await delay(0);
 await assert.rejects(
   () => fetchDocument(quarantineUrl, { maximum: 64, timeoutMs: 100 }),
   /prior response body generation is still unresolved/,
 );
-assert.equal(quarantineFetchCalls, 1, "unresolved cancellation did not retain quarantine");
+await assert.rejects(
+  () => fetchDocument(sameOriginAlternateA, { maximum: 64, timeoutMs: 100 }),
+  /prior response generation for origin is still unresolved/,
+);
+assert.equal(quarantineFetchCalls, 1, "unresolved cancellation did not retain per-origin generation lease");
+
 lateCancel.resolve();
 await delay(0);
-const recoveredResponse = fakeResponse({ url: quarantineUrl });
-context.fetch = async () => {
+const recoveredResponse = fakeResponse({ url: sameOriginAlternateA });
+context.fetch = async (url) => {
+  const href = String(url);
+  if (href === healthyOriginUrl) {
+    healthyOriginFetchCalls += 1;
+    return fakeResponse({ url: healthyOriginUrl });
+  }
   quarantineFetchCalls += 1;
+  assert.equal(href, sameOriginAlternateA);
   return recoveredResponse;
 };
-const recovered = await fetchDocument(quarantineUrl, { maximum: 64, timeoutMs: 200 });
+const recovered = await fetchDocument(sameOriginAlternateA, { maximum: 64, timeoutMs: 200 });
 assert.deepEqual(JSON.parse(JSON.stringify(recovered.value)), { ok: true });
-assert.equal(quarantineFetchCalls, 2, "clean post-settlement recovery did not start exactly one replacement fetch");
+assert.equal(quarantineFetchCalls, 2, "post-settlement different-resource recovery did not start exactly one fetch");
 
 await delay(0);
 console.log("VOID_BROWSER_AGENT_ACCESS_KIT_RESPONSE_BOUNDS_V1_PROOF_GREEN");
@@ -235,6 +272,9 @@ console.log("request_deadline_covers_body=true");
 console.log("rejected_body_teardown_bounded=true");
 console.log("unresolved_body_generation_quarantine=true");
 console.log("same_url_retry_generation_bound=true");
+console.log("same_origin_unresolved_generation_budget=1");
+console.log("distinct_resource_retry_generation_bound=true");
+console.log("healthy_origin_isolation=true");
 console.log("late_read_result_discarded=true");
 console.log("late_cleanup_release_exact_once=true");
 console.log("cleanup_failure_preserves_primary_hold=true");
