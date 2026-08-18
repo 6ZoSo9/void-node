@@ -5,6 +5,7 @@ import fsp from "node:fs/promises";
 import path from "node:path";
 import { nodeIdFromPubPEM } from "../chain/block.js";
 import { loadKeypair } from "../crypto/keypair.js";
+import { appendAgentPick2JsonlCanonicalV1 } from "../http/agent_pick2_jsonl_semantic_index_v1.js";
 import {
   acceptVerifiedReceiptOnce,
   readCanonicalWcState,
@@ -1556,7 +1557,12 @@ function appendExactOnce(
     }
     return { appended: false, existing };
   }
-  appendJsonl(file, value);
+  fs.mkdirSync(path.dirname(file), { recursive: true, mode: 0o700 });
+  appendAgentPick2JsonlCanonicalV1(
+    file,
+    JSON.stringify(value) + "\n",
+    { durable: true, mode: 0o600 },
+  );
   return { appended: true, existing: null };
 }
 

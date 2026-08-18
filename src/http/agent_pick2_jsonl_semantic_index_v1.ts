@@ -7,6 +7,10 @@ export const VOID_AGENT_PICK2_JSONL_SEMANTIC_INDEX_V1 =
 
 export const VOID_AGENT_PICK2_JSONL_MAX_RECORD_BYTES_V1 = 1024 * 1024;
 export const VOID_AGENT_PICK2_JSONL_MAX_TAIL_SCAN_BYTES_V1 = 32 * 1024 * 1024;
+export const VOID_AGENT_PICK2_JSONL_MAX_SYNC_COMPLETION_REBUILD_BYTES_V1 =
+  16 * 1024 * 1024;
+export const VOID_AGENT_PICK2_JSONL_COMPLETION_REBUILD_BACKOFF_MS_V1 =
+  30_000;
 
 type JsonlEntryV1 = {
   raw: string;
@@ -561,6 +565,9 @@ function cloneMetricsV1(metrics: IoMetricsV1): IoMetricsV1 {
 export class AgentPick2JsonlSemanticIndexV1 {
   private readonly chunkBytes: number;
   private readonly testHooks: TestHooksV1;
+  private readonly maxSyncCompletionRebuildBytes: number;
+  private readonly completionRebuildBackoffMs: number;
+  private readonly completionRebuildHoldUntil = new Map<string, number>();
   private readonly completions = new Map<string, CompletionStateV1>();
   private readonly tails = new Map<string, TailStateV1>();
   private readonly heads = new Map<string, HeadStateV1>();
@@ -574,11 +581,31 @@ export class AgentPick2JsonlSemanticIndexV1 {
     by_kind: Object.create(null),
   };
 
-  constructor(opts: { chunkBytes?: number; testHooks?: TestHooksV1 } = {}) {
+  constructor(opts: {
+    chunkBytes?: number;
+    testHooks?: TestHooksV1;
+    maxSyncCompletionRebuildBytes?: number;
+    completionRebuildBackoffMs?: number;
+  } = {}) {
     const requested = Number(opts.chunkBytes || 64 * 1024);
     this.chunkBytes = Number.isFinite(requested)
       ? Math.max(4096, Math.min(1024 * 1024, Math.floor(requested)))
       : 64 * 1024;
+    const requestedCompletionBudget = Number(
+      opts.maxSyncCompletionRebuildBytes ??
+        VOID_AGENT_PICK2_JSONL_MAX_SYNC_COMPLETION_REBUILD_BYTES_V1,
+    );
+    this.maxSyncCompletionRebuildBytes =
+      Number.isFinite(requestedCompletionBudget)
+        ? Math.max(4096, Math.floor(requestedCompletionBudget))
+        : VOID_AGENT_PICK2_JSONL_MAX_SYNC_COMPLETION_REBUILD_BYTES_V1;
+    const requestedBackoff = Number(
+      opts.completionRebuildBackoffMs ??
+        VOID_AGENT_PICK2_JSONL_COMPLETION_REBUILD_BACKOFF_MS_V1,
+    );
+    this.completionRebuildBackoffMs = Number.isFinite(requestedBackoff)
+      ? Math.max(1, Math.floor(requestedBackoff))
+      : VOID_AGENT_PICK2_JSONL_COMPLETION_REBUILD_BACKOFF_MS_V1;
     this.testHooks = opts.testHooks || {};
   }
 
@@ -648,12 +675,17 @@ export class AgentPick2JsonlSemanticIndexV1 {
     file: string,
     kind: string,
     reader: (fd: number, stamp: FileStampV1) => T,
+    maxAttempts = 4,
   ): { stamp: FileStampV1; value: T } | null {
     const openFlags =
       fs.constants.O_RDONLY |
       ((fs.constants as any).O_NOFOLLOW || 0);
+    const attempts = Math.max(
+      1,
+      Math.min(4, Math.floor(Number(maxAttempts) || 1)),
+    );
 
-    for (let attempt = 0; attempt < 4; attempt++) {
+    for (let attempt = 0; attempt < attempts; attempt++) {
       let fd: number | null = null;
       try {
         try {
@@ -744,25 +776,58 @@ export class AgentPick2JsonlSemanticIndexV1 {
 
   private rebuildCompletion(file: string) {
     const kind = "completion_full";
-    this.noteRebuild(kind);
-    const stable = this.stableRead(file, kind, (fd, stamp) => {
-      const completed = new Set<string>();
-      const endedWithNewline = this.scanRangeLinesFd(
-        fd,
-        file,
-        0,
-        stamp.size,
-        kind,
-        (entry) => {
-          const x = entry.parsed;
-          if (!x || !isCompletedTruthV1(x)) return;
-          const id = rowIdV1(x);
-          if (id) completed.add(id);
-        },
+    const observed = statV1(file);
+    const large =
+      !!observed &&
+      observed.size > this.maxSyncCompletionRebuildBytes;
+    const now = Date.now();
+    const holdUntil = Number(this.completionRebuildHoldUntil.get(file) || 0);
+    if (large && holdUntil > now) {
+      throw new Error(
+        `VOID_AGENT_PICK2_JSONL_COMPLETION_REBUILD_BACKOFF file=${file} ` +
+          `bytes=${observed?.size || 0} until_ms=${holdUntil}`,
       );
-      return { completed, endedWithNewline };
-    });
+    }
 
+    this.noteRebuild(kind);
+    let stable: {
+      stamp: FileStampV1;
+      value: { completed: Set<string>; endedWithNewline: boolean };
+    } | null;
+    try {
+      stable = this.stableRead(
+        file,
+        kind,
+        (fd, stamp) => {
+          const completed = new Set<string>();
+          const endedWithNewline = this.scanRangeLinesFd(
+            fd,
+            file,
+            0,
+            stamp.size,
+            kind,
+            (entry) => {
+              const x = entry.parsed;
+              if (!x || !isCompletedTruthV1(x)) return;
+              const id = rowIdV1(x);
+              if (id) completed.add(id);
+            },
+          );
+          return { completed, endedWithNewline };
+        },
+        large ? 1 : 4,
+      );
+    } catch (err) {
+      if (large) {
+        this.completionRebuildHoldUntil.set(
+          file,
+          Date.now() + this.completionRebuildBackoffMs,
+        );
+      }
+      throw err;
+    }
+
+    this.completionRebuildHoldUntil.delete(file);
     if (!stable) {
       const state: CompletionStateV1 = {
         ...emptyStampV1(),
@@ -840,6 +905,27 @@ export class AgentPick2JsonlSemanticIndexV1 {
 
     if (current.size > prior.size && sameObjectV1(prior, current)) {
       this.metrics.append_witness_misses_total += 1;
+      if (current.size > this.maxSyncCompletionRebuildBytes) {
+        const now = Date.now();
+        const holdUntil = Number(
+          this.completionRebuildHoldUntil.get(file) || 0,
+        );
+        if (holdUntil <= 0) {
+          const next = now + this.completionRebuildBackoffMs;
+          this.completionRebuildHoldUntil.set(file, next);
+          throw new Error(
+            `VOID_AGENT_PICK2_JSONL_UNWITNESSED_COMPLETION_GROWTH_HOLD ` +
+              `file=${file} prior_bytes=${prior.size} current_bytes=${current.size} ` +
+              `until_ms=${next}`,
+          );
+        }
+        if (holdUntil > now) {
+          throw new Error(
+            `VOID_AGENT_PICK2_JSONL_COMPLETION_REBUILD_BACKOFF file=${file} ` +
+              `bytes=${current.size} until_ms=${holdUntil}`,
+          );
+        }
+      }
     }
     return this.rebuildCompletion(file);
   }
