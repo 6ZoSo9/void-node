@@ -432,6 +432,8 @@ readForm.addEventListener("submit", async (event) => {
   }
 });
 
-storedEndpoint().then((value) => {
-  if (value) endpointInput.value = value;
-}).catch(() => {});
+void taggedOutcomeV1(
+  storedEndpoint().then((value) => {
+    if (value) endpointInput.value = value;
+  }),
+);
