@@ -44,6 +44,10 @@ node tools/void-ai-agent-bootstrap-client-v1.mjs \
 - Redirects are rejected and their response bodies enter the same bounded
   rejection-teardown contract instead of outliving the bootstrap probe.
 - Every discovered route must remain on the original origin.
+- `--timeout-ms` and `--max-bytes` accept only whole canonical positive decimal
+  CLI tokens in their reviewed ranges. The exported programmatic client accepts
+  only actual finite safe-integer numbers in the same ranges, and validates
+  both controls before admitting any fetch/network work.
 - `--max-bytes` is enforced while streaming, before a response can be fully
   buffered past the configured ceiling.
 - A present `Content-Length` must be a canonical nonnegative safe integer;
