@@ -100,9 +100,7 @@ async function readChunkWithDeadlineV1(reader, signal) {
 }
 
 async function settleRejectedBodyV1(response, reader, controller, requestedUrl, quarantineToken) {
-  try {
-    controller.abort(responseHoldV1("rejected response body"));
-  } catch {}
+  controller.abort(responseHoldV1("rejected response body"));
   let cleanup;
   try {
     if (reader && typeof reader.cancel === "function") {
