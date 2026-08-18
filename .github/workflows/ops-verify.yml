@@ -12,7 +12,7 @@ jobs:
     outputs:
       relevant: ${{ steps.scope.outputs.relevant }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           fetch-depth: 2
           persist-credentials: false
@@ -92,19 +92,19 @@ jobs:
           if git diff --quiet "$BASE_SHA" "$HEAD_SHA" -- \
             Makefile ops/prom-verify.sh .github/workflows/ops-verify.yml; then
             echo "relevant=false" >> "$GITHUB_OUTPUT"
-            echo "No ops-verify repository inputs changed; expensive guards will be skipped."
+            echo "No ops-verify repository inputs changed; guarded checks will be skipped."
           else
             echo "relevant=true" >> "$GITHUB_OUTPUT"
-            echo "Relevant ops-verify input changed; expensive guards will run."
+            echo "Relevant ops-verify input changed; guarded checks will run."
           fi
 
   guards:
     needs: detect
     if: needs.detect.outputs.relevant == 'true'
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 2
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           fetch-depth: 2
           persist-credentials: false
@@ -117,20 +117,19 @@ jobs:
             AFTER=$(test -f Makefile && wc -l < Makefile | tr -d ' ' || echo 0)
             DELTA=$((BEFORE-AFTER))
             if [ "$DELTA" -gt 30 ]; then
-              echo "Makefile shrank by $DELTA lines (limit 30)."; exit 1
+              echo "Makefile shrank by $DELTA lines (limit 30)."
+              exit 1
             fi
           fi
 
-      - name: Install promtool
+      - name: Check ops Prometheus verification script syntax
         run: |
-          sudo apt-get update -y
-          sudo apt-get install -y prometheus || true
-          command -v promtool || echo "promtool not found (verify step will be skipped)"
+          set -euo pipefail
+          bash -n ops/prom-verify.sh
+          echo "ops/prom-verify.sh syntax OK"
 
-      - name: Run prom-verify if promtool exists
+      - name: Prometheus repository validation ownership
         run: |
-          if command -v promtool >/dev/null 2>&1; then
-            bash ops/prom-verify.sh || exit 1
-          else
-            echo "Skipping prom-verify: promtool unavailable on runner."
-          fi
+          set -euo pipefail
+          echo "Repository Prometheus rules/alerts are validated by the dedicated prom-verify workflow."
+          echo "This ops-verify job intentionally does not install Ubuntu prometheus packages."
