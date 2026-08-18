@@ -6,12 +6,16 @@ import path from "node:path";
 import { nodeIdFromPubPEM } from "../chain/block.js";
 import { loadKeypair } from "../crypto/keypair.js";
 import {
+  acquireWcProcessInstanceLockV1,
+  releaseWcProcessInstanceLockV1,
+  type WcProcessInstanceLockV1,
+} from "./wc_process_instance_lock_v1.js";
+import {
   appendWcPublicRemoteTruthJsonlExactOnceV1,
   prepareWcPublicRemoteTruthJsonlExactOnceV1,
 } from "./wc_public_remote_truth_jsonl_index_v1.js";
 import {
   acceptVerifiedReceiptOnce,
-  readCanonicalWcState,
 } from "./wc_verified_receipt_acceptance_v1.js";
 
 export const VOID_WC_PUBLIC_EARNING_PILOT_MARKER =
@@ -145,6 +149,14 @@ function claimsDir(raw?: string): string {
   return path.join(rootDir(raw), "public-claims");
 }
 
+function resultTransactionsDir(raw?: string): string {
+  return path.join(rootDir(raw), "result-transactions");
+}
+
+function resultTransactionFile(ticketId: string, raw?: string): string {
+  return path.join(resultTransactionsDir(raw), `${ticketId}.json`);
+}
+
 function auditFile(raw?: string): string {
   return path.join(rootDir(raw), "audit.jsonl");
 }
@@ -156,6 +168,7 @@ function ensureDirs(raw?: string): void {
     consumedDir(raw),
     locksDir(raw),
     claimsDir(raw),
+    resultTransactionsDir(raw),
   ]) {
     fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
   }
@@ -164,10 +177,47 @@ function ensureDirs(raw?: string): void {
 function atomicWriteJson(file: string, value: JsonObject): void {
   fs.mkdirSync(path.dirname(file), { recursive: true, mode: 0o700 });
   const tmp = `${file}.tmp-${process.pid}-${crypto.randomBytes(6).toString("hex")}`;
-  fs.writeFileSync(tmp, JSON.stringify(value, null, 2) + "\n", {
-    mode: 0o600,
-  });
-  fs.renameSync(tmp, file);
+  let fd: number | null = null;
+  try {
+    fd = fs.openSync(tmp, "wx", 0o600);
+    fs.writeFileSync(fd, JSON.stringify(value, null, 2) + "\n", {
+      encoding: "utf8",
+    });
+    fs.fdatasyncSync(fd);
+    fs.closeSync(fd);
+    fd = null;
+    fs.renameSync(tmp, file);
+    const dirFd = fs.openSync(path.dirname(file), "r");
+    try {
+      fs.fsyncSync(dirFd);
+    } finally {
+      fs.closeSync(dirFd);
+    }
+  } catch (error) {
+    if (fd !== null) {
+      try {
+        fs.closeSync(fd);
+      } catch (cleanupError) {
+        recordPilotBestEffortFailure(
+          "atomic-json-cleanup-close",
+          cleanupError,
+          { file, tmp },
+        );
+      }
+    }
+    try {
+      fs.unlinkSync(tmp);
+    } catch (cleanupError: any) {
+      if (String(cleanupError?.code || "") !== "ENOENT") {
+        recordPilotBestEffortFailure(
+          "atomic-json-cleanup-unlink",
+          cleanupError,
+          { file, tmp },
+        );
+      }
+    }
+    throw error;
+  }
 }
 
 function appendJsonl(file: string, value: JsonObject): void {
@@ -193,6 +243,18 @@ function appendAudit(event: JsonObject, raw?: string): void {
   });
 }
 
+function appendAuditBestEffort(event: JsonObject, raw?: string): void {
+  try {
+    maybePilotTransactionFaultForProofV1("audit_after_commit");
+    appendAudit(event, raw);
+  } catch (error) {
+    recordPilotBestEffortFailure("post-terminal-audit", error, {
+      event: String(event?.event || ""),
+      ticket_id: safeId(event?.ticket_id, 64),
+    });
+  }
+}
+
 function readJson(file: string): JsonObject | null {
   try {
     return JSON.parse(fs.readFileSync(file, "utf8"));
@@ -202,12 +264,103 @@ function readJson(file: string): JsonObject | null {
   }
 }
 
+function readJsonStrict(file: string, label: string): JsonObject | null {
+  if (!fs.existsSync(file)) return null;
+  try {
+    const parsed = JSON.parse(fs.readFileSync(file, "utf8"));
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+      throw new Error(`${label}_not_object`);
+    }
+    return parsed;
+  } catch (error: any) {
+    throw new Error(`${label}_malformed:${String(error?.message || error)}`);
+  }
+}
+
 function ticketFile(dir: string, ticketId: string): string {
   return path.join(dir, `${ticketId}.json`);
 }
 
 function sha256Hex(value: string | Buffer): string {
   return crypto.createHash("sha256").update(value).digest("hex");
+}
+
+
+function canonicalJsonValueV1(value: any): any {
+  if (Array.isArray(value)) return value.map((item) => canonicalJsonValueV1(item));
+  if (value && typeof value === "object") {
+    const out: Record<string, any> = {};
+    for (const key of Object.keys(value).sort()) {
+      out[key] = canonicalJsonValueV1(value[key]);
+    }
+    return out;
+  }
+  return value;
+}
+
+function submissionDigestV1(
+  envelope: PilotResultEnvelope,
+  signature: JsonObject,
+  proofBundle: JsonObject,
+): string {
+  return sha256Hex(
+    JSON.stringify(
+      canonicalJsonValueV1({
+        envelope,
+        signature,
+        proof_bundle: proofBundle,
+      }),
+    ),
+  );
+}
+
+let pilotTransactionFaultPhaseForProofV1 = "";
+
+export function setPilotTransactionFaultForProofV1(phase: string): void {
+  pilotTransactionFaultPhaseForProofV1 = String(phase || "");
+}
+
+function maybePilotTransactionFaultForProofV1(phase: string): void {
+  if (pilotTransactionFaultPhaseForProofV1 === phase) {
+    throw new Error(`VOID_WC_PILOT_PROOF_FAULT_${phase}`);
+  }
+}
+
+function readPilotResultTransactionV1(
+  ticketId: string,
+  raw?: string,
+): JsonObject | null {
+  return readJsonStrict(
+    resultTransactionFile(ticketId, raw),
+    "pilot_result_transaction",
+  );
+}
+
+function writePilotResultTransactionV1(
+  ticketId: string,
+  digest: string,
+  phase: string,
+  patch: JsonObject,
+  raw?: string,
+): JsonObject {
+  const file = resultTransactionFile(ticketId, raw);
+  const prior = readPilotResultTransactionV1(ticketId, raw);
+  if (prior && String(prior.submission_sha256 || "") !== digest) {
+    throw new Error("capability_result_conflict");
+  }
+  const next = {
+    marker: VOID_WC_PUBLIC_EARNING_PILOT_MARKER,
+    version: 1,
+    ticket_id: ticketId,
+    submission_sha256: digest,
+    created_at_ms: Number(prior?.created_at_ms || Date.now()),
+    ...prior,
+    ...patch,
+    phase,
+    updated_at_ms: Date.now(),
+  };
+  atomicWriteJson(file, next);
+  return next;
 }
 
 function safeHexEqual(a: string, b: string): boolean {
@@ -404,15 +557,6 @@ function perAccountCap(): number {
     1,
     1,
     100,
-  );
-}
-
-function ticketLockStaleMs(): number {
-  return clampInt(
-    process.env.VOID_WC_PUBLIC_EARNING_PILOT_LOCK_STALE_MS,
-    5 * 60_000,
-    60_000,
-    60 * 60_000,
   );
 }
 
@@ -1806,114 +1950,29 @@ export async function verifyPilotSubmissionEvidence(
 export async function acquirePilotTicketLock(
   ticketIdRaw: string,
   raw?: string,
-): Promise<{ file: string; handle: fsp.FileHandle }> {
+): Promise<WcProcessInstanceLockV1> {
   const ticketId = safeId(ticketIdRaw, 64);
   if (!/^[0-9a-f]{32}$/.test(ticketId)) {
     throw new Error("invalid_ticket_id");
   }
   ensureDirs(raw);
-  const file = path.join(locksDir(raw), `${ticketId}.lock`);
-
-  for (let attempt = 0; attempt < 2; attempt += 1) {
-    let handle: fsp.FileHandle | null = null;
-    try {
-      handle = await fsp.open(file, "wx", 0o600);
-      await handle.writeFile(
-        JSON.stringify({
-          marker: VOID_WC_PUBLIC_EARNING_PILOT_MARKER,
-          ticket_id: ticketId,
-          pid: process.pid,
-          created_at_ms: Date.now(),
-        }) + "\n",
-        "utf8",
-      );
-      return { file, handle };
-    } catch (error: any) {
-      if (handle) {
-        try {
-          await handle.close();
-        } catch (closeError) {
-          recordPilotBestEffortFailure("ticket-lock-open-cleanup-close", closeError, {
-            file,
-          });
-        }
-        try {
-          await fsp.unlink(file);
-        } catch (unlinkError: any) {
-          if (String(unlinkError?.code || "") !== "ENOENT") {
-            recordPilotBestEffortFailure(
-              "ticket-lock-open-cleanup-unlink",
-              unlinkError,
-              { file },
-            );
-          }
-        }
-      }
-
-      if (String(error?.code || "") !== "EEXIST") throw error;
-
-      let createdAt = 0;
-      let modifiedAt = 0;
-      try {
-        const current = JSON.parse(await fsp.readFile(file, "utf8"));
-        createdAt = Number(current?.created_at_ms || 0);
-      } catch (readError: any) {
-        if (String(readError?.code || "") === "ENOENT") continue;
-        recordPilotBestEffortFailure("ticket-lock-stale-read", readError, {
-          file,
-          ticket_id: ticketId,
-        });
-      }
-      try {
-        modifiedAt = Number((await fsp.stat(file)).mtimeMs || 0);
-      } catch (statError: any) {
-        if (String(statError?.code || "") === "ENOENT") continue;
-        recordPilotBestEffortFailure("ticket-lock-stale-stat", statError, {
-          file,
-          ticket_id: ticketId,
-        });
-      }
-
-      const anchor = Math.max(createdAt, modifiedAt);
-      const ageMs = anchor > 0 ? Math.max(0, Date.now() - anchor) : 0;
-      if (attempt === 0 && anchor > 0 && ageMs > ticketLockStaleMs()) {
-        try {
-          await fsp.unlink(file);
-          appendAudit(
-            {
-              event: "stale_lock_recovered",
-              ticket_id: ticketId,
-              stale_age_ms: ageMs,
-            },
-            raw,
-          );
-          continue;
-        } catch (unlinkError: any) {
-          if (String(unlinkError?.code || "") === "ENOENT") continue;
-          throw unlinkError;
-        }
-      }
+  try {
+    return await acquireWcProcessInstanceLockV1(
+      locksDir(raw),
+      `ticket-${ticketId}`,
+    );
+  } catch (error: any) {
+    if (String(error?.code || "") === "wc_process_lock_busy") {
       throw new Error("ticket_inflight");
     }
+    throw error;
   }
-  throw new Error("ticket_inflight");
 }
 
-export async function releasePilotTicketLock(lock: {
-  file: string;
-  handle: fsp.FileHandle;
-}): Promise<void> {
-  try {
-    await lock.handle.close();
-  } finally {
-    try {
-      await fsp.unlink(lock.file);
-    } catch (error) {
-      recordPilotBestEffortFailure("release-ticket-lock", error, {
-        file: lock.file,
-      });
-    }
-  }
+export async function releasePilotTicketLock(
+  lock: WcProcessInstanceLockV1,
+): Promise<void> {
+  await releaseWcProcessInstanceLockV1(lock);
 }
 
 function completeTicket(
@@ -2328,7 +2387,7 @@ async function executeLocalWork(req: any, res: any): Promise<any> {
   });
 }
 
-async function submitRemoteResult(req: any, res: any): Promise<any> {
+export async function submitRemoteResult(req: any, res: any): Promise<any> {
   if (!coordinatorEnabled()) {
     return res.status(503).json({
       ok: false,
@@ -2346,107 +2405,235 @@ async function submitRemoteResult(req: any, res: any): Promise<any> {
     });
   }
 
-  const consumedPath = ticketFile(consumedDir(), parsed.ticketId);
-  if (fs.existsSync(consumedPath)) {
-    return res.status(409).json({
-      ok: false,
-      marker: VOID_WC_PUBLIC_EARNING_PILOT_MARKER,
-      error: "capability_already_used",
-    });
-  }
-
-  const issuedPath = ticketFile(issuedDir(), parsed.ticketId);
-  const record = readJson(issuedPath) as PilotTicketRecord | null;
-  if (!record) {
-    return res.status(401).json({
-      ok: false,
-      marker: VOID_WC_PUBLIC_EARNING_PILOT_MARKER,
-      error: "invalid_capability",
-    });
-  }
-  if (!safeHexEqual(record.token_sha256, sha256Hex(parsed.token))) {
-    return res.status(401).json({
-      ok: false,
-      marker: VOID_WC_PUBLIC_EARNING_PILOT_MARKER,
-      error: "invalid_capability",
-    });
-  }
-  if (Number(record.expires_at_ms || 0) <= Date.now()) {
-    return res.status(410).json({
-      ok: false,
-      marker: VOID_WC_PUBLIC_EARNING_PILOT_MARKER,
-      error: "capability_expired",
-    });
-  }
-
-  let lock: { file: string; handle: fsp.FileHandle } | null = null;
+  let lock: WcProcessInstanceLockV1 | null = null;
   try {
-    lock = await acquirePilotTicketLock(record.ticket_id);
+    lock = await acquirePilotTicketLock(parsed.ticketId);
+
+    const signature = isJsonObject(req?.body?.signature)
+      ? req.body.signature
+      : {};
+    const proofBundle = isJsonObject(req?.body?.proof_bundle)
+      ? req.body.proof_bundle
+      : {};
     const envelope = verifyPilotResultEnvelope(
       req?.body?.envelope || {},
-      req?.body?.signature || {},
+      signature,
     );
+    const digest = submissionDigestV1(envelope, signature, proofBundle);
+
+    const consumedPath = ticketFile(consumedDir(), parsed.ticketId);
+    const issuedPath = ticketFile(issuedDir(), parsed.ticketId);
+    let consumed = readJsonStrict(consumedPath, "consumed_ticket");
+    let transaction = readPilotResultTransactionV1(parsed.ticketId);
+
+    if (transaction && String(transaction.submission_sha256 || "") !== digest) {
+      throw new Error("capability_result_conflict");
+    }
+
+    if (
+      !consumed &&
+      transaction?.phase === "completed" &&
+      isJsonObject(transaction.completed_ticket)
+    ) {
+      atomicWriteJson(consumedPath, transaction.completed_ticket);
+      try {
+        fs.unlinkSync(issuedPath);
+      } catch (error: any) {
+        if (String(error?.code || "") !== "ENOENT") throw error;
+      }
+      consumed = transaction.completed_ticket;
+    }
+
+    if (consumed) {
+      if (
+        !safeHexEqual(
+          String(consumed.token_sha256 || ""),
+          sha256Hex(parsed.token),
+        )
+      ) {
+        throw new Error("invalid_capability");
+      }
+      assertPilotTicketEnvelopeMatch(
+        consumed as PilotTicketRecord,
+        envelope,
+      );
+      const consumedDigest = String(
+        consumed.submission_sha256 ||
+          transaction?.submission_sha256 ||
+          "",
+      );
+      if (consumedDigest !== digest) {
+        throw new Error("capability_result_conflict");
+      }
+      transaction = writePilotResultTransactionV1(
+        parsed.ticketId,
+        digest,
+        "completed",
+        { completed_ticket: consumed },
+      );
+      try {
+        fs.unlinkSync(issuedPath);
+      } catch (error: any) {
+        if (String(error?.code || "") !== "ENOENT") {
+          recordPilotBestEffortFailure(
+            "idempotent-issued-cleanup",
+            error,
+            { ticket_id: parsed.ticketId },
+          );
+        }
+      }
+      appendAuditBestEffort({
+        event: "completed_idempotent_retry",
+        ticket_id: parsed.ticketId,
+        submission_sha256: digest,
+      });
+      return res.status(200).json({
+        ok: true,
+        marker: VOID_WC_PUBLIC_EARNING_PILOT_MARKER,
+        idempotent: true,
+        recovered_terminal: true,
+        capability_consumed: true,
+        ticket_id: parsed.ticketId,
+        account: String(consumed.account || ""),
+        job_id: String(consumed.job_id || ""),
+        receipt_id: String(consumed.receipt_id || ""),
+        dataset_id: String(consumed.dataset_id || ""),
+        wc: {
+          delta: 0,
+          original_delta: Number(consumed.wc_delta || 0),
+          fixed_award_wc: VOID_WC_PUBLIC_EARNING_PILOT_AWARD_WC,
+          canonical_redeemable_after_local: Number(
+            consumed.canonical_redeemable_after_local || 0,
+          ),
+          canonical_redeemable_after_local_exact: String(
+            consumed.canonical_redeemable_after_local_exact || "0",
+          ),
+          canonical_redeemable_after_local_quanta: String(
+            consumed.canonical_redeemable_after_local_quanta || "0",
+          ),
+          numeric_authority: "nano_wc_fixed_point_v1",
+        },
+        completed_ticket_status: String(
+          consumed.status || "completed",
+        ),
+        transaction_phase: transaction.phase,
+        money_movement: false,
+      });
+    }
+
+    const record = readJsonStrict(
+      issuedPath,
+      "issued_ticket",
+    ) as PilotTicketRecord | null;
+    if (!record) throw new Error("invalid_capability");
+    if (!safeHexEqual(record.token_sha256, sha256Hex(parsed.token))) {
+      throw new Error("invalid_capability");
+    }
+    if (Number(record.expires_at_ms || 0) <= Date.now()) {
+      throw new Error("capability_expired");
+    }
     assertPilotTicketEnvelopeMatch(record, envelope);
 
     const evidence = await verifyPilotSubmissionEvidence(
       record,
       envelope,
-      req?.body?.proof_bundle,
+      proofBundle,
     );
 
-    const before = await readCanonicalWcState(record.account);
+    if (!transaction) {
+      transaction = writePilotResultTransactionV1(
+        record.ticket_id,
+        digest,
+        "prepared",
+        {
+          account: record.account,
+          executor_node_id: record.executor_node_id,
+          job_id: envelope.job_id,
+          receipt_id: envelope.receipt_id,
+          dataset_id: envelope.dataset_id,
+        },
+      );
+    }
+    maybePilotTransactionFaultForProofV1("after_intent_prepared");
+
     const imported = await persistImportedRemoteTruthOnce(
       envelope,
-      req?.body?.signature || {},
+      signature,
     );
-    const acceptance = await acceptVerifiedReceiptOnce(imported.receipt, {
-      expectedAccount: record.account,
-      expectedJobId: envelope.job_id,
-      expectedReceiptId: envelope.receipt_id,
-      capabilityTicketId: record.ticket_id,
-      source: "wc_public_earning_pilot_v1",
-    });
+    transaction = writePilotResultTransactionV1(
+      record.ticket_id,
+      digest,
+      "truth_imported",
+      { imported_truth: imported.appended },
+    );
+    maybePilotTransactionFaultForProofV1("after_truth_imported");
+
+    const acceptance = await acceptVerifiedReceiptOnce(
+      imported.receipt,
+      {
+        expectedAccount: record.account,
+        expectedJobId: envelope.job_id,
+        expectedReceiptId: envelope.receipt_id,
+        capabilityTicketId: record.ticket_id,
+        source: "wc_public_earning_pilot_v1",
+      },
+    );
 
     const sameTicketDuplicate =
       acceptance?.duplicate === true &&
       String(
         acceptance?.entry?.reward_meta?.capability_ticket_id || "",
       ) === record.ticket_id;
+    const acceptedDelta = Number(acceptance?.accepted_delta_wc);
 
     if (
-      !(
-        (
-          acceptance?.credited === true &&
-          acceptance?.duplicate !== true
-        ) ||
-        sameTicketDuplicate
-      ) ||
       Number(acceptance?.award_wc || 0) !==
-        VOID_WC_PUBLIC_EARNING_PILOT_AWARD_WC
+        VOID_WC_PUBLIC_EARNING_PILOT_AWARD_WC ||
+      !Number.isSafeInteger(acceptedDelta) ||
+      !(
+        (acceptance?.credited === true &&
+          acceptance?.duplicate !== true &&
+          acceptedDelta === VOID_WC_PUBLIC_EARNING_PILOT_AWARD_WC) ||
+        (sameTicketDuplicate && acceptedDelta === 0)
+      )
     ) {
       throw new Error("verified_receipt_acceptance_failed");
     }
 
-    const after = await readCanonicalWcState(record.account);
-    const delta =
-      Math.round(
-        (Number(after.redeemable || 0) -
-          Number(before.redeemable || 0)) *
-          1e9,
-      ) / 1e9;
-    if (!sameTicketDuplicate && delta !== VOID_WC_PUBLIC_EARNING_PILOT_AWARD_WC) {
-      throw new Error("canonical_wc_delta_mismatch");
-    }
-    if (
-      sameTicketDuplicate &&
-      Number(after.redeemable || 0) < VOID_WC_PUBLIC_EARNING_PILOT_AWARD_WC
-    ) {
-      throw new Error("canonical_wc_recovery_state_invalid");
-    }
+    const terminalAwardWc = sameTicketDuplicate
+      ? VOID_WC_PUBLIC_EARNING_PILOT_AWARD_WC
+      : acceptedDelta;
+    maybePilotTransactionFaultForProofV1(
+      "after_acceptance_before_journal",
+    );
+
+    transaction = writePilotResultTransactionV1(
+      record.ticket_id,
+      digest,
+      "credited",
+      {
+        accepted_delta_wc: acceptedDelta,
+        terminal_award_wc: terminalAwardWc,
+        canonical_redeemable_before_exact: String(
+          acceptance?.canonical_redeemable_before_exact || "0",
+        ),
+        canonical_redeemable_before_quanta: String(
+          acceptance?.canonical_redeemable_before_quanta || "0",
+        ),
+        canonical_redeemable_after_local_exact: String(
+          acceptance?.canonical_redeemable_after_local_exact || "0",
+        ),
+        canonical_redeemable_after_local_quanta: String(
+          acceptance?.canonical_redeemable_after_local_quanta || "0",
+        ),
+      },
+    );
+    maybePilotTransactionFaultForProofV1("after_credit");
 
     const completed = completeTicket(record, {
+      submission_sha256: digest,
       executor_signature_sha256: sha256Hex(
-        String(req?.body?.signature?.sig || ""),
+        String(signature?.sig || ""),
       ),
       executor_pubkey_sha256: sha256Hex(envelope.executor_pubkey),
       transport_mode: evidence.transportMode,
@@ -2454,18 +2641,41 @@ async function submitRemoteResult(req: any, res: any): Promise<any> {
       participant_outbound_bundle: evidence.participantOutboundBundle,
       outbound_proof_bundle_sha256:
         evidence.participantOutboundBundle
-          ? sha256Hex(JSON.stringify(req?.body?.proof_bundle || {}))
+          ? sha256Hex(
+              JSON.stringify(canonicalJsonValueV1(proofBundle)),
+            )
           : null,
       job_id: envelope.job_id,
       receipt_id: envelope.receipt_id,
       dataset_id: envelope.dataset_id,
-      wc_delta: sameTicketDuplicate ? 0 : delta,
-      canonical_redeemable_after: Number(after.redeemable || 0),
+      wc_delta: terminalAwardWc,
+      credit_delta_this_attempt: acceptedDelta,
+      canonical_redeemable_after_local: Number(
+        acceptance?.canonical_redeemable_after_local || 0,
+      ),
+      canonical_redeemable_after_local_exact: String(
+        acceptance?.canonical_redeemable_after_local_exact || "0",
+      ),
+      canonical_redeemable_after_local_quanta: String(
+        acceptance?.canonical_redeemable_after_local_quanta || "0",
+      ),
       recovered_after_acceptance: sameTicketDuplicate,
     });
+    maybePilotTransactionFaultForProofV1(
+      "after_consumed_projection",
+    );
 
-    appendAudit({
-      event: sameTicketDuplicate ? "completed_recovery" : "credited",
+    transaction = writePilotResultTransactionV1(
+      record.ticket_id,
+      digest,
+      "completed",
+      { completed_ticket: completed },
+    );
+
+    appendAuditBestEffort({
+      event: sameTicketDuplicate
+        ? "completed_recovery"
+        : "credited",
       ticket_id: record.ticket_id,
       account: record.account,
       executor_node_id: record.executor_node_id,
@@ -2475,8 +2685,18 @@ async function submitRemoteResult(req: any, res: any): Promise<any> {
       job_id: envelope.job_id,
       receipt_id: envelope.receipt_id,
       dataset_id: envelope.dataset_id,
-      wc_delta: sameTicketDuplicate ? 0 : delta,
-      canonical_redeemable_after: Number(after.redeemable || 0),
+      wc_delta: terminalAwardWc,
+      credit_delta_this_attempt: acceptedDelta,
+      canonical_redeemable_after_local: Number(
+        acceptance?.canonical_redeemable_after_local || 0,
+      ),
+      canonical_redeemable_after_local_exact: String(
+        acceptance?.canonical_redeemable_after_local_exact || "0",
+      ),
+      canonical_redeemable_after_local_quanta: String(
+        acceptance?.canonical_redeemable_after_local_quanta || "0",
+      ),
+      submission_sha256: digest,
     });
 
     return res.status(200).json({
@@ -2500,11 +2720,29 @@ async function submitRemoteResult(req: any, res: any): Promise<any> {
       receipt_id: envelope.receipt_id,
       dataset_id: envelope.dataset_id,
       wc: {
-        before: Number(before.redeemable || 0),
-        after: Number(after.redeemable || 0),
-        delta: sameTicketDuplicate ? 0 : delta,
+        before: Number(
+          acceptance?.canonical_redeemable_before || 0,
+        ),
+        before_exact: String(
+          acceptance?.canonical_redeemable_before_exact || "0",
+        ),
+        before_quanta: String(
+          acceptance?.canonical_redeemable_before_quanta || "0",
+        ),
+        after_local: Number(
+          acceptance?.canonical_redeemable_after_local || 0,
+        ),
+        after_local_exact: String(
+          acceptance?.canonical_redeemable_after_local_exact || "0",
+        ),
+        after_local_quanta: String(
+          acceptance?.canonical_redeemable_after_local_quanta || "0",
+        ),
+        delta: acceptedDelta,
+        terminal_award_wc: terminalAwardWc,
         fixed_award_wc: VOID_WC_PUBLIC_EARNING_PILOT_AWARD_WC,
-        canonical_redeemable: true,
+        acceptance_local_delta: true,
+        numeric_authority: "nano_wc_fixed_point_v1",
       },
       acceptance: {
         credited: acceptance?.credited === true,
@@ -2512,6 +2750,7 @@ async function submitRemoteResult(req: any, res: any): Promise<any> {
         recovered_after_acceptance: sameTicketDuplicate,
       },
       completed_ticket_status: completed.status,
+      transaction_phase: transaction.phase,
       participant_selected_award: false,
       automatic_background_loop: false,
       generic_credit_route: false,
@@ -2521,19 +2760,28 @@ async function submitRemoteResult(req: any, res: any): Promise<any> {
       money_movement: false,
     });
   } catch (error: any) {
-    appendAudit({
+    appendAuditBestEffort({
       event: "submit_rejected",
       ticket_id: parsed.ticketId,
       error: String(error?.message || error),
     });
     const message = String(error?.message || "");
     const status =
-      message === "ticket_inflight"
+      message === "ticket_inflight" ||
+      message === "acceptance_busy" ||
+      message === "wc_process_lock_contention_retry_exhausted" ||
+      message === "capability_result_conflict"
         ? 409
-        : message.startsWith("VOID_WC_REMOTE_TRUTH_INDEX_") ||
-            message.includes("VOID_WC_REMOTE_TRUTH_MALFORMED_HISTORY")
-          ? 503
-          : 422;
+        : message === "capability_expired"
+          ? 410
+          : message === "invalid_capability"
+            ? 401
+            : message.startsWith("VOID_WC_REMOTE_TRUTH_INDEX_") ||
+                message.includes(
+                  "VOID_WC_REMOTE_TRUTH_MALFORMED_HISTORY",
+                )
+              ? 503
+              : 422;
     return res.status(status).json({
       ok: false,
       marker: VOID_WC_PUBLIC_EARNING_PILOT_MARKER,
@@ -2583,7 +2831,9 @@ function publicStatus(accountRaw: unknown): JsonObject {
       outbound_persisted_receipt_bundle_required: true,
       outbound_evidence_bound_to_signed_envelope: true,
       receipt_timestamp_bound_to_ticket_window: true,
-      stale_ticket_lock_recovery: true,
+      process_instance_ticket_lock: true,
+      age_based_lock_reclaim: false,
+      durable_result_transaction: true,
       public_claim_executor_key_possession_required: true,
       public_claim_replay_protected: true,
       participant_selected_award: false,

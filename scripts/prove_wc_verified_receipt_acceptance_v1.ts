@@ -110,12 +110,20 @@ try {
     VOID_WC_VERIFIED_RECEIPT_ACCEPTANCE_AWARD_WC,
   );
   assert.equal(accepted.entry.delta, 3);
+  assert.equal(accepted.accepted_delta_wc, 3);
+  assert.equal(accepted.accepted_delta_quanta, "3000000000");
+  assert.equal(accepted.canonical_redeemable_before_exact, "0");
+  assert.equal(accepted.canonical_redeemable_after_local_exact, "3");
   assert.equal(accepted.entry.reason, "verified_receipt_acceptance_v1");
   assert.equal(accepted.entry.reward_meta.server_controlled_award, true);
 
   const state = await readCanonicalWcState(account, tmp);
   assert.equal(state.earned, 3);
   assert.equal(state.redeemable, 3);
+  assert.equal(state.earned_exact, "3");
+  assert.equal(state.redeemable_exact, "3");
+  assert.equal(state.earned_quanta, "3000000000");
+  assert.equal(state.numeric_authority, "nano_wc_fixed_point_v1");
 
   const duplicate = await acceptVerifiedReceiptOnce(loaded, {
     dataDir: tmp,
@@ -125,6 +133,8 @@ try {
   });
   assert.equal(duplicate.credited, false);
   assert.equal(duplicate.duplicate, true);
+  assert.equal(duplicate.accepted_delta_wc, 0);
+  assert.equal(duplicate.accepted_delta_quanta, "0");
 
   const firstLedger = fs
     .readFileSync(path.join(tmp, "wc_v1", "ledger.jsonl"), "utf8")
@@ -222,6 +232,119 @@ try {
       error instanceof VerifiedReceiptAcceptanceError &&
       error.code === "ambiguous_malformed_ledger_line",
   );
+
+
+  const sameTicketConflictReceipt = makeReceipt(
+    account,
+    "job_same_ticket_conflict_v1",
+    "rcpt_same_ticket_conflict_v1",
+    "ds_same_ticket_conflict_v1",
+    "6",
+    "7",
+  );
+  persistTruth(sameTicketConflictReceipt);
+  await assert.rejects(
+    () =>
+      acceptVerifiedReceiptOnce(sameTicketConflictReceipt, {
+        dataDir: tmp,
+        expectedAccount: account,
+        expectedJobId: sameTicketConflictReceipt.job_id,
+        expectedReceiptId: sameTicketConflictReceipt.receipt_id,
+        capabilityTicketId: ticketId,
+        source: "same_ticket_conflict_proof",
+      }),
+    (error: any) =>
+      error instanceof VerifiedReceiptAcceptanceError &&
+      error.code === "duplicate_credit_conflict",
+  );
+
+  for (const [label, bad, code] of [
+    ["numeric_string", "3", "ledger_delta_not_exact_number"],
+    ["numeric_array", [3], "ledger_delta_not_exact_number"],
+    ["numeric_10dp", 0.0000000001, "wc_number_precision_exceeds_9dp"],
+    [
+      "numeric_unsafe",
+      Number.MAX_SAFE_INTEGER + 1,
+      "ledger_delta_not_exact_number",
+    ],
+  ] as const) {
+    const root = path.join(tmp, `strict-${label}`);
+    const file = path.join(root, "wc_v1", "ledger.jsonl");
+    append(file, {
+      kind: "credit",
+      account: `strict-${label}`,
+      delta: bad,
+    });
+    await assert.rejects(
+      () => readCanonicalWcState(`strict-${label}`, root),
+      (error: any) =>
+        error instanceof VerifiedReceiptAcceptanceError &&
+        error.code === code,
+    );
+  }
+
+  const fractionalRoot = path.join(tmp, "strict-fractional");
+  append(path.join(fractionalRoot, "wc_v1", "ledger.jsonl"), {
+    kind: "credit",
+    account: "strict-fractional",
+    delta: 1.25,
+  });
+  append(path.join(fractionalRoot, "wc_v1", "redeemed.jsonl"), {
+    account: "strict-fractional",
+    amount: 0.1,
+  });
+  const fractional = await readCanonicalWcState(
+    "strict-fractional",
+    fractionalRoot,
+  );
+  assert.equal(fractional.earned_exact, "1.25");
+  assert.equal(fractional.redeemed_exact, "0.1");
+  assert.equal(fractional.redeemable_exact, "1.15");
+  assert.equal(fractional.redeemable_quanta, "1150000000");
+
+  const highRoot = path.join(tmp, "strict-high-balance");
+  const highAccount = "strict-high-balance";
+  append(path.join(highRoot, "wc_v1", "ledger.jsonl"), {
+    kind: "credit",
+    account: highAccount,
+    delta: Number.MAX_SAFE_INTEGER,
+  });
+  append(path.join(highRoot, "wc_v1", "ledger.jsonl"), {
+    kind: "credit",
+    account: highAccount,
+    delta: 1,
+  });
+  const highBefore = await readCanonicalWcState(highAccount, highRoot);
+  assert.equal(highBefore.redeemable_exact, "9007199254740992");
+
+  const highReceipt = makeReceipt(
+    highAccount,
+    "job_high_balance_v1",
+    "rcpt_high_balance_v1",
+    "ds_high_balance_v1",
+    "8",
+    "9",
+  );
+  persistTruth(highReceipt, highRoot);
+  const highAccepted = await acceptVerifiedReceiptOnce(highReceipt, {
+    dataDir: highRoot,
+    expectedAccount: highAccount,
+    expectedJobId: highReceipt.job_id,
+    expectedReceiptId: highReceipt.receipt_id,
+    capabilityTicketId: "d".repeat(32),
+    source: "high_balance_exact_delta_proof",
+  });
+  assert.equal(highAccepted.accepted_delta_wc, 3);
+  assert.equal(
+    highAccepted.canonical_redeemable_before_exact,
+    "9007199254740992",
+  );
+  assert.equal(
+    highAccepted.canonical_redeemable_after_local_exact,
+    "9007199254740995",
+  );
+  const highAfter = await readCanonicalWcState(highAccount, highRoot);
+  assert.equal(highAfter.redeemable_exact, "9007199254740995");
 
   const badReceipt = {
     ...receipt,

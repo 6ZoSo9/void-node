@@ -3,6 +3,11 @@ import fs from "node:fs";
 import fsp from "node:fs/promises";
 import path from "node:path";
 import readline from "node:readline";
+import {
+  acquireWcProcessInstanceLockV1,
+  releaseWcProcessInstanceLockV1,
+  type WcProcessInstanceLockV1,
+} from "./wc_process_instance_lock_v1.js";
 
 export const VOID_WC_VERIFIED_RECEIPT_ACCEPTANCE_MARKER =
   "VOID_WC_VERIFIED_RECEIPT_ACCEPTANCE_V1";
@@ -118,6 +123,88 @@ function jsonLine(value: JsonObject): string {
   return JSON.stringify(value) + "\n";
 }
 
+
+const VOID_WC_EXACT_DECIMALS_V1 = 9;
+const VOID_WC_QUANTA_PER_WC_V1 = 1_000_000_000n;
+const VOID_WC_AWARD_QUANTA_V1 =
+  BigInt(VOID_WC_VERIFIED_RECEIPT_ACCEPTANCE_AWARD_WC) *
+  VOID_WC_QUANTA_PER_WC_V1;
+
+function wcNumberToQuantaV1(value: unknown, code: string): bigint {
+  if (
+    typeof value !== "number" ||
+    !Number.isFinite(value) ||
+    Math.abs(value) > Number.MAX_SAFE_INTEGER
+  ) {
+    fail(code);
+  }
+
+  const text = value.toString().toLowerCase();
+  const match = /^(-?)(\d+)(?:\.(\d+))?(?:e([+-]?\d+))?$/.exec(text);
+  if (!match) fail(code);
+
+  const negative = match[1] === "-";
+  const whole = match[2] || "0";
+  const fraction = match[3] || "";
+  const exponent = Number(match[4] || 0);
+  if (!Number.isSafeInteger(exponent) || Math.abs(exponent) > 400) {
+    fail(code);
+  }
+
+  let digits = `${whole}${fraction}`.replace(/^0+(?=\d)/, "") || "0";
+  let magnitude = BigInt(digits);
+  const power =
+    VOID_WC_EXACT_DECIMALS_V1 - fraction.length + exponent;
+
+  if (power >= 0) {
+    magnitude *= 10n ** BigInt(power);
+  } else {
+    const divisor = 10n ** BigInt(-power);
+    if (magnitude % divisor !== 0n) {
+      fail("wc_number_precision_exceeds_9dp");
+    }
+    magnitude /= divisor;
+  }
+
+  return negative ? -magnitude : magnitude;
+}
+
+function wcQuantaToDecimalV1(value: bigint): string {
+  const negative = value < 0n;
+  const magnitude = negative ? -value : value;
+  const whole = magnitude / VOID_WC_QUANTA_PER_WC_V1;
+  const fraction = magnitude % VOID_WC_QUANTA_PER_WC_V1;
+  let out = whole.toString();
+  if (fraction !== 0n) {
+    const digits = fraction
+      .toString()
+      .padStart(VOID_WC_EXACT_DECIMALS_V1, "0")
+      .replace(/0+$/, "");
+    out += `.${digits}`;
+  }
+  return negative ? `-${out}` : out;
+}
+
+function wcQuantaToCompatNumberV1(value: bigint): number {
+  const out = Number(wcQuantaToDecimalV1(value));
+  if (!Number.isFinite(out)) fail("wc_compat_number_overflow");
+  return out;
+}
+
+async function appendLedgerEntryDurable(
+  file: string,
+  value: JsonObject,
+): Promise<void> {
+  await fsp.mkdir(path.dirname(file), { recursive: true, mode: 0o700 });
+  const handle = await fsp.open(file, "a", 0o600);
+  try {
+    await handle.writeFile(jsonLine(value), "utf8");
+    await handle.datasync();
+  } finally {
+    await handle.close();
+  }
+}
+
 async function scanJsonl(
   file: string,
   visit: (value: JsonObject) => void,
@@ -148,11 +235,16 @@ async function scanJsonl(
       const line = String(raw || "").trim();
       if (!line) continue;
       count += 1;
+      let parsed: any;
       try {
-        const parsed = JSON.parse(line);
-        if (parsed && typeof parsed === "object") visit(parsed);
-        else recordMalformed(line);
+        parsed = JSON.parse(line);
       } catch (_error) {
+        recordMalformed(line);
+        continue;
+      }
+      if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+        visit(parsed);
+      } else {
         recordMalformed(line);
       }
     }
@@ -347,9 +439,12 @@ function assertJobTruth(
 async function existingCredit(
   normalized: JsonObject,
   raw?: string,
+  capabilityTicketIdRaw?: string,
 ): Promise<{ entry: JsonObject | null; malformed: number }> {
   let existing: JsonObject | null = null;
   let conflict = false;
+  let matches = 0;
+  const capabilityTicketId = safeId(capabilityTicketIdRaw, 64);
   const scan = await scanJsonl(
     ledgerFile(raw),
     (entry) => {
@@ -358,24 +453,47 @@ async function existingCredit(
       const receiptMatch =
         String(entry?.receipt_id || "") === normalized.receipt_id;
       const jobMatch = String(entry?.job_id || "") === normalized.job_id;
-      if (!receiptMatch && !jobMatch) return;
+      const entryTicketId = safeId(
+        entry?.reward_meta?.capability_ticket_id,
+        64,
+      );
+      const ticketMatch =
+        Boolean(capabilityTicketId) && entryTicketId === capabilityTicketId;
+      if (!receiptMatch && !jobMatch && !ticketMatch) return;
 
+      matches += 1;
+      const deltaQuanta = wcNumberToQuantaV1(
+        entry?.delta,
+        "credit_delta_not_exact_number",
+      );
       const compatible =
+        deltaQuanta === VOID_WC_AWARD_QUANTA_V1 &&
         String(entry?.account || "") === normalized.account &&
-        Number(entry?.delta) === VOID_WC_VERIFIED_RECEIPT_ACCEPTANCE_AWARD_WC &&
         String(entry?.receipt_kind || "") ===
-          VOID_WC_VERIFIED_RECEIPT_ACCEPTANCE_TASK;
+          VOID_WC_VERIFIED_RECEIPT_ACCEPTANCE_TASK &&
+        (!capabilityTicketId || entryTicketId === capabilityTicketId) &&
+        (!ticketMatch ||
+          (receiptMatch &&
+            jobMatch &&
+            String(entry?.receipt_id || "") === normalized.receipt_id &&
+            String(entry?.job_id || "") === normalized.job_id));
 
       if (!compatible) conflict = true;
       if (!existing) existing = entry;
     },
-    [normalized.account, normalized.job_id, normalized.receipt_id],
+    [
+      normalized.account,
+      normalized.job_id,
+      normalized.receipt_id,
+      capabilityTicketId,
+    ],
   );
 
   if (scan.ambiguous_malformed > 0) {
     fail("ambiguous_malformed_ledger_line");
   }
   if (conflict) fail("duplicate_credit_conflict");
+  if (matches > 1) fail("duplicate_credit_multiple_entries");
   return { entry: existing, malformed: scan.malformed };
 }
 
@@ -435,61 +553,22 @@ function acceptanceEntry(
   };
 }
 
-async function acquireLock(raw?: string): Promise<{
-  file: string;
-  handle: fsp.FileHandle;
-}> {
-  const dir = wcDir(raw);
-  await fsp.mkdir(dir, { recursive: true, mode: 0o700 });
-  const file = path.join(dir, ".verified-receipt-acceptance-v1.lock");
-
-  for (let attempt = 0; attempt < 2; attempt += 1) {
-    try {
-      const handle = await fsp.open(file, "wx", 0o600);
-      await handle.writeFile(
-        JSON.stringify({
-          marker: VOID_WC_VERIFIED_RECEIPT_ACCEPTANCE_MARKER,
-          pid: process.pid,
-          created_at_ms: Date.now(),
-        }) + "\n",
-        "utf8",
-      );
-      return { file, handle };
-    } catch (error: any) {
-      if (String(error?.code || "") !== "EEXIST") throw error;
-      let stale = false;
-      try {
-        const stat = await fsp.stat(file);
-        stale = Date.now() - Number(stat.mtimeMs || 0) > 5 * 60 * 1000;
-      } catch (statError: any) {
-        if (String(statError?.code || "") !== "ENOENT") throw statError;
-        stale = true;
-      }
-      if (!stale) fail("acceptance_busy");
-      try {
-        await fsp.unlink(file);
-      } catch (unlinkError: any) {
-        if (String(unlinkError?.code || "") !== "ENOENT") throw unlinkError;
-      }
+async function acquireLock(raw?: string): Promise<WcProcessInstanceLockV1> {
+  try {
+    return await acquireWcProcessInstanceLockV1(
+      path.join(wcDir(raw), "locks", "verified-receipt-acceptance-v1"),
+      "acceptance",
+    );
+  } catch (error: any) {
+    if (String(error?.code || "") === "wc_process_lock_busy") {
+      fail("acceptance_busy");
     }
+    throw error;
   }
-
-  fail("acceptance_lock_failed");
 }
 
-async function releaseLock(lock: {
-  file: string;
-  handle: fsp.FileHandle;
-}): Promise<void> {
-  try {
-    await lock.handle.close();
-  } finally {
-    try {
-      await fsp.unlink(lock.file);
-    } catch (error: any) {
-      if (String(error?.code || "") !== "ENOENT") throw error;
-    }
-  }
+async function releaseLock(lock: WcProcessInstanceLockV1): Promise<void> {
+  await releaseWcProcessInstanceLockV1(lock);
 }
 
 export async function findVerifiedReceiptById(
@@ -508,7 +587,11 @@ export async function inspectVerifiedReceiptAcceptance(
   options: VerifiedReceiptAcceptanceOptions = {},
 ): Promise<JsonObject> {
   const normalized = await verifiedTruth(receipt, options);
-  const existing = await existingCredit(normalized, options.dataDir);
+  const existing = await existingCredit(
+    normalized,
+    options.dataDir,
+    options.capabilityTicketId,
+  );
   return {
     ok: true,
     marker: VOID_WC_VERIFIED_RECEIPT_ACCEPTANCE_MARKER,
@@ -535,7 +618,16 @@ export async function acceptVerifiedReceiptOnce(
   const lock = await acquireLock(options.dataDir);
   try {
     const normalized = await verifiedTruth(receipt, options);
-    const existing = await existingCredit(normalized, options.dataDir);
+    const existing = await existingCredit(
+      normalized,
+      options.dataDir,
+      options.capabilityTicketId,
+    );
+    const before = await readCanonicalWcState(
+      normalized.account,
+      options.dataDir,
+    );
+    const beforeQuanta = BigInt(String(before.redeemable_quanta));
 
     if (existing.entry) {
       return {
@@ -544,6 +636,14 @@ export async function acceptVerifiedReceiptOnce(
         credited: false,
         duplicate: true,
         award_wc: VOID_WC_VERIFIED_RECEIPT_ACCEPTANCE_AWARD_WC,
+        accepted_delta_wc: 0,
+        accepted_delta_quanta: "0",
+        canonical_redeemable_before: before.redeemable,
+        canonical_redeemable_before_exact: before.redeemable_exact,
+        canonical_redeemable_before_quanta: before.redeemable_quanta,
+        canonical_redeemable_after_local: before.redeemable,
+        canonical_redeemable_after_local_exact: before.redeemable_exact,
+        canonical_redeemable_after_local_quanta: before.redeemable_quanta,
         account: normalized.account,
         job_id: normalized.job_id,
         receipt_id: normalized.receipt_id,
@@ -554,12 +654,9 @@ export async function acceptVerifiedReceiptOnce(
     }
 
     const entry = acceptanceEntry(normalized, options);
-    await fsp.mkdir(wcDir(options.dataDir), { recursive: true, mode: 0o700 });
-    await fsp.appendFile(ledgerFile(options.dataDir), jsonLine(entry), {
-      encoding: "utf8",
-      mode: 0o600,
-      flag: "a",
-    });
+    await appendLedgerEntryDurable(ledgerFile(options.dataDir), entry);
+    const projectedQuanta = beforeQuanta + VOID_WC_AWARD_QUANTA_V1;
+    const projectedExact = wcQuantaToDecimalV1(projectedQuanta);
 
     return {
       ok: true,
@@ -567,6 +664,16 @@ export async function acceptVerifiedReceiptOnce(
       credited: true,
       duplicate: false,
       award_wc: VOID_WC_VERIFIED_RECEIPT_ACCEPTANCE_AWARD_WC,
+      accepted_delta_wc: VOID_WC_VERIFIED_RECEIPT_ACCEPTANCE_AWARD_WC,
+      accepted_delta_quanta: VOID_WC_AWARD_QUANTA_V1.toString(),
+      canonical_redeemable_before: before.redeemable,
+      canonical_redeemable_before_exact: before.redeemable_exact,
+      canonical_redeemable_before_quanta: before.redeemable_quanta,
+      canonical_redeemable_after_local:
+        wcQuantaToCompatNumberV1(projectedQuanta),
+      canonical_redeemable_after_local_exact: projectedExact,
+      canonical_redeemable_after_local_quanta:
+        projectedQuanta.toString(),
       account: normalized.account,
       job_id: normalized.job_id,
       receipt_id: normalized.receipt_id,
@@ -586,19 +693,34 @@ export async function readCanonicalWcState(
   const account = safeAccount(accountRaw);
   if (!account) fail("account_invalid");
 
-  let earned = 0;
-  let debited = 0;
-  let redeemed = 0;
+  let earnedQuanta = 0n;
+  let debitedQuanta = 0n;
+  let redeemedQuanta = 0n;
 
   const ledgerScan = await scanJsonl(
     ledgerFile(dataDir),
     (entry) => {
       if (String(entry?.account || "") !== account) return;
-      const delta = Number(entry?.delta || 0);
-      if (Number.isFinite(delta) && delta > 0) earned += delta;
+      const deltaQuanta =
+        entry?.delta === undefined || entry?.delta === null
+          ? 0n
+          : wcNumberToQuantaV1(
+              entry.delta,
+              "ledger_delta_not_exact_number",
+            );
+      if (deltaQuanta > 0n) {
+        earnedQuanta += deltaQuanta;
+      }
       if (String(entry?.kind || "") === "debit") {
-        const amount = Number(entry?.amount ?? Math.abs(delta));
-        if (Number.isFinite(amount) && amount > 0) debited += amount;
+        const amountQuanta =
+          entry?.amount === undefined || entry?.amount === null
+            ? (deltaQuanta < 0n ? -deltaQuanta : deltaQuanta)
+            : wcNumberToQuantaV1(
+                entry.amount,
+                "ledger_amount_not_exact_number",
+              );
+        if (amountQuanta < 0n) fail("ledger_amount_negative");
+        debitedQuanta += amountQuanta;
       }
     },
     [account],
@@ -611,8 +733,15 @@ export async function readCanonicalWcState(
     redeemedFile(dataDir),
     (entry) => {
       if (String(entry?.account || "") !== account) return;
-      const amount = Number(entry?.amount || 0);
-      if (Number.isFinite(amount) && amount > 0) redeemed += amount;
+      const amountQuanta =
+        entry?.amount === undefined || entry?.amount === null
+          ? 0n
+          : wcNumberToQuantaV1(
+              entry.amount,
+              "redeemed_amount_not_exact_number",
+            );
+      if (amountQuanta < 0n) fail("redeemed_amount_negative");
+      redeemedQuanta += amountQuanta;
     },
     [account],
   );
@@ -620,17 +749,26 @@ export async function readCanonicalWcState(
     fail("ambiguous_malformed_redeemed_line");
   }
 
-  const round = (value: number) => Math.round(value * 1e9) / 1e9;
-  earned = round(earned);
-  debited = round(debited);
-  redeemed = round(redeemed);
+  const outflowsQuanta = debitedQuanta + redeemedQuanta;
+  const netQuanta = earnedQuanta - outflowsQuanta;
+  const redeemableQuanta = netQuanta > 0n ? netQuanta : 0n;
 
   return {
     account,
-    earned,
-    debited,
-    redeemed,
-    redeemable: round(Math.max(0, earned - debited - redeemed)),
+    earned: wcQuantaToCompatNumberV1(earnedQuanta),
+    debited: wcQuantaToCompatNumberV1(debitedQuanta),
+    redeemed: wcQuantaToCompatNumberV1(redeemedQuanta),
+    redeemable: wcQuantaToCompatNumberV1(redeemableQuanta),
+    earned_exact: wcQuantaToDecimalV1(earnedQuanta),
+    debited_exact: wcQuantaToDecimalV1(debitedQuanta),
+    redeemed_exact: wcQuantaToDecimalV1(redeemedQuanta),
+    redeemable_exact: wcQuantaToDecimalV1(redeemableQuanta),
+    earned_quanta: earnedQuanta.toString(),
+    debited_quanta: debitedQuanta.toString(),
+    redeemed_quanta: redeemedQuanta.toString(),
+    redeemable_quanta: redeemableQuanta.toString(),
+    exact_decimals: VOID_WC_EXACT_DECIMALS_V1,
+    numeric_authority: "nano_wc_fixed_point_v1",
     historical_malformed_ledger_lines: ledgerScan.malformed,
     historical_malformed_redeemed_lines: redeemedScan.malformed,
   };

@@ -80,18 +80,19 @@ for (const marker of [
   "remote_receipt_timestamp_mismatch",
   "local_receipt_timestamp_invalid",
   "receipt_timestamp_bound_to_ticket_window: true",
-  "stale_ticket_lock_recovery: true",
+  "process_instance_ticket_lock: true",
   "receipt_timestamp_before_ticket",
   "receipt_timestamp_after_ticket",
-  "stale_lock_recovered",
+  "acquireWcProcessInstanceLockV1",
   "acquirePilotTicketLock",
   "releasePilotTicketLock",
   "persistImportedRemoteTruthOnce",
   "remote_executor_provenance",
   "acceptVerifiedReceiptOnce",
   'source: "wc_public_earning_pilot_v1"',
-  "canonical_wc_delta_mismatch",
-  "capability_already_used",
+  "accepted_delta_wc",
+  "completed_idempotent_retry",
+  "capability_result_conflict",
   "ticket_inflight",
   "participant_selected_award: false",
   "automatic_background_loop: false",
@@ -145,8 +146,59 @@ need(
   "receipt upper ticket-expiry timestamp bound missing",
 );
 need(
-  moduleText.includes("ageMs > ticketLockStaleMs()"),
-  "stale ticket lock age gate missing",
+  moduleText.includes("acquireWcProcessInstanceLockV1"),
+  "process-generation ticket lock missing",
+);
+const lockText = fs.readFileSync(
+  path.join(root, "src", "economic", "wc_process_instance_lock_v1.ts"),
+  "utf8",
+);
+need(
+  lockText.includes("await fsp.link(temp, file)"),
+  "lock generation is published before complete durable content",
+);
+need(
+  lockText.includes("process_start_ticks"),
+  "lock ownership is not bound to process generation",
+);
+need(
+  moduleText.includes("durable_result_transaction: true"),
+  "durable result transaction status missing",
+);
+need(
+  moduleText.includes("writePilotResultTransactionV1"),
+  "durable result journal missing",
+);
+need(
+  moduleText.includes("appendAuditBestEffort"),
+  "post-terminal audit is not best-effort",
+);
+const submitStart = moduleText.indexOf(
+  "export async function submitRemoteResult(",
+);
+const submitLock = moduleText.indexOf(
+  "await acquirePilotTicketLock(parsed.ticketId)",
+  submitStart,
+);
+const submitConsumed = moduleText.indexOf(
+  "const consumedPath = ticketFile(consumedDir(), parsed.ticketId)",
+  submitStart,
+);
+need(
+  submitStart >= 0 &&
+    submitLock > submitStart &&
+    submitConsumed > submitLock,
+  "single-use ticket state is still checked before ticket ownership",
+);
+need(
+  !moduleText.includes(
+    "const before = await readCanonicalWcState(record.account)",
+  ),
+  "pilot still derives acceptance delta from external before/after reads",
+);
+need(
+  moduleText.includes("acceptance?.accepted_delta_wc"),
+  "pilot does not use acceptance-local delta evidence",
 );
 need(
   moduleText.includes("export function assertRemoteJobTruth("),
@@ -168,6 +220,27 @@ need(
   moduleText.includes("plaintext.expected_input_hash"),
   "remote job is not bound to expected input hash",
 );
+need(
+  acceptanceText.includes("nano_wc_fixed_point_v1"),
+  "canonical WC numeric domain is not exact fixed point",
+);
+need(
+  acceptanceText.includes("capabilityTicketIdRaw"),
+  "acceptance duplicate authority is not capability-ticket bound",
+);
+need(
+  acceptanceText.includes("accepted_delta_wc"),
+  "acceptance-local fixed delta evidence missing",
+);
+need(
+  acceptanceText.includes("redeemable_quanta"),
+  "canonical WC exact quanta evidence missing",
+);
+need(
+  acceptanceText.includes("redeemable_exact"),
+  "canonical WC exact decimal evidence missing",
+);
+
 need(
   moduleText.includes("receiptTsMs !== envelope.receipt_ts_ms"),
   "persisted remote receipt timestamp is not envelope-bound",

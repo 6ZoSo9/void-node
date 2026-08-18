@@ -6,6 +6,10 @@ on:
       - "src/index.ts"
       - "src/http/agent_pick2_jsonl_semantic_index_v1.ts"
       - "src/economic/wc_public_earning_pilot_v1.ts"
+      - "src/economic/wc_verified_receipt_acceptance_v1.ts"
+      - "src/economic/wc_process_instance_lock_v1.ts"
+      - "scripts/prove_wc_verified_receipt_acceptance_v1.ts"
+      - "scripts/prove_wc_process_instance_lock_v1.ts"
       - "scripts/prove_agent_pick2_jsonl_semantic_index_v1.ts"
       - "scripts/prove_agent_pick2_large_unwitnessed_completion_wedge_v1.ts"
       - "scripts/prove_agent_pick2_external_writer_cache_wedge_v1.ts"
@@ -27,6 +31,10 @@ on:
       - "src/index.ts"
       - "src/http/agent_pick2_jsonl_semantic_index_v1.ts"
       - "src/economic/wc_public_earning_pilot_v1.ts"
+      - "src/economic/wc_verified_receipt_acceptance_v1.ts"
+      - "src/economic/wc_process_instance_lock_v1.ts"
+      - "scripts/prove_wc_verified_receipt_acceptance_v1.ts"
+      - "scripts/prove_wc_process_instance_lock_v1.ts"
       - "scripts/prove_agent_pick2_jsonl_semantic_index_v1.ts"
       - "scripts/prove_agent_pick2_large_unwitnessed_completion_wedge_v1.ts"
       - "scripts/prove_agent_pick2_external_writer_cache_wedge_v1.ts"
@@ -81,6 +89,8 @@ jobs:
         run: npm ci --no-audit --no-fund
       - run: ./node_modules/.bin/tsx scripts/prove_agent_pick2_jsonl_semantic_index_v1.ts
       - run: ./node_modules/.bin/tsx scripts/prove_agent_pick2_large_unwitnessed_completion_wedge_v1.ts
+      - run: ./node_modules/.bin/tsx scripts/prove_wc_process_instance_lock_v1.ts
+      - run: ./node_modules/.bin/tsx scripts/prove_wc_verified_receipt_acceptance_v1.ts
       - run: ./node_modules/.bin/tsx scripts/prove_wc_public_earning_pilot_v1.ts
       - run: ./node_modules/.bin/tsx scripts/prove_wc_public_earning_pilot_runtime_v1.ts
       - name: Prove shared diff hygiene contract
