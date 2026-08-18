@@ -768,7 +768,7 @@ function issueTicket(
     ticketFile(issuedDir(raw), ticketId),
     record as unknown as JsonObject,
   );
-  appendAudit(
+  appendAuditBestEffort(
     {
       event:
         issuanceSource === "public_claim"
@@ -1046,11 +1046,63 @@ export function publicTicketClaimPolicySnapshot(): JsonObject {
   };
 }
 
-export function issuePublicTicketClaim(
+export type PublicClaimBeforeIssuanceLockHookForProofV1 =
+  (() => void | Promise<void>) | null;
+
+let publicClaimBeforeIssuanceLockHookForProofV1:
+  PublicClaimBeforeIssuanceLockHookForProofV1 = null;
+
+export function setPublicClaimBeforeIssuanceLockHookForProofV1(
+  hook: PublicClaimBeforeIssuanceLockHookForProofV1,
+): void {
+  publicClaimBeforeIssuanceLockHookForProofV1 = hook;
+}
+
+async function acquirePublicClaimIssuanceLockV1(
+  raw?: string,
+): Promise<WcProcessInstanceLockV1> {
+  ensureDirs(raw);
+  const deadline = Date.now() + 2_000;
+  for (;;) {
+    try {
+      return await acquireWcProcessInstanceLockV1(
+        locksDir(raw),
+        "public-claim-issuance",
+      );
+    } catch (error: any) {
+      const code = String(
+        error?.code || error?.message || error,
+      );
+      if (
+        code !== "wc_process_lock_busy" &&
+        code !==
+          "wc_process_lock_contention_retry_exhausted"
+      ) {
+        throw error;
+      }
+      if (Date.now() >= deadline) {
+        throw new Error(
+          "VOID_WC_PUBLIC_CLAIM_ISSUANCE_BUSY",
+        );
+      }
+      await new Promise<void>((resolve) =>
+        setTimeout(resolve, 10),
+      );
+    }
+  }
+}
+
+async function releasePublicClaimIssuanceLockV1(
+  lock: WcProcessInstanceLockV1,
+): Promise<void> {
+  await releaseWcProcessInstanceLockV1(lock);
+}
+
+export async function issuePublicTicketClaim(
   input: JsonObject,
   raw?: string,
   now = Date.now(),
-): JsonObject {
+): Promise<JsonObject> {
   if (!coordinatorEnabled()) throw new Error("coordinator_lane_disabled");
   if (!publicClaimEnabled()) throw new Error("public_ticket_claim_disabled");
   if (!isJsonObject(input)) throw new Error("invalid_claim_request_body");
@@ -1070,7 +1122,7 @@ export function issuePublicTicketClaim(
     now,
   );
   const claimId = publicClaimId(claim);
-  const history = wcPublicClaimHistorySnapshotV1(
+  wcPublicClaimHistorySnapshotV1(
     raw,
     now,
     claim.account,
@@ -1078,6 +1130,19 @@ export function issuePublicTicketClaim(
     publicClaimClockSkewMs(),
   );
   ensureDirs(raw);
+
+  await publicClaimBeforeIssuanceLockHookForProofV1?.();
+  const issuanceLock =
+    await acquirePublicClaimIssuanceLockV1(raw);
+  try {
+    const history = wcPublicClaimHistorySnapshotV1(
+      raw,
+      now,
+      claim.account,
+      claim.executor_node_id,
+      publicClaimClockSkewMs(),
+    );
+
   const claimFile = path.join(claimsDir(raw), `${claimId}.json`);
 
   let reservationFd: number | null = null;
@@ -1187,7 +1252,7 @@ export function issuePublicTicketClaim(
       money_movement: false,
     });
 
-    appendAudit(
+    appendAuditBestEffort(
       {
         event: "public_claim_accepted",
         claim_id: claimId,
@@ -1201,6 +1266,7 @@ export function issuePublicTicketClaim(
     );
 
     issued = true;
+    primeWcPublicClaimHistoryAuthorityV1(raw);
     return {
       ok: true,
       marker: VOID_WC_PUBLIC_TICKET_CLAIM_MARKER,
@@ -1235,6 +1301,11 @@ export function issuePublicTicketClaim(
         }
       }
     }
+  }
+  } finally {
+    await releasePublicClaimIssuanceLockV1(
+      issuanceLock,
+    );
   }
 }
 
@@ -3025,15 +3096,21 @@ function mount(): void {
   app.post(
     PUBLIC_CLAIM_ROUTE,
     express.json({ limit: "64kb" }),
-    (req: any, res: any) => {
+    async (req: any, res: any) => {
       try {
-        return res.status(201).json(issuePublicTicketClaim(req?.body || {}));
+        return res.status(201).json(
+          await issuePublicTicketClaim(req?.body || {}),
+        );
       } catch (error: any) {
         const message = String(error?.message || error);
         const publicMessage =
           message.includes(
-            "VOID_WC_PUBLIC_CLAIM_HISTORY_WARMING",
+            "VOID_WC_PUBLIC_CLAIM_ISSUANCE_BUSY",
           )
+            ? "public_claim_busy"
+            : message.includes(
+                "VOID_WC_PUBLIC_CLAIM_HISTORY_WARMING",
+              )
             ? "public_claim_history_warming"
             : message.includes(
                   "VOID_WC_PUBLIC_CLAIM_HISTORY_INVALID",
@@ -3047,7 +3124,8 @@ function mount(): void {
           publicMessage === "public_claim_history_warming" ||
           publicMessage === "public_claim_history_invalid"
             ? 503
-            : publicMessage === "public_claim_replay"
+            : publicMessage === "public_claim_replay" ||
+                publicMessage === "public_claim_busy"
               ? 409
               : publicMessage.includes("_cooldown") ||
                   publicMessage.includes("_daily_cap_reached")

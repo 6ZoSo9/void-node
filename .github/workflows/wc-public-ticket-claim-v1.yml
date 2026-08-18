@@ -18,6 +18,7 @@ on:
       - "tools/check_index_size.sh"
       - "scripts/prove_wc_public_ticket_claim_v1.ts"
       - "scripts/prove_wc_public_claim_history_authority_v1.ts"
+      - "scripts/prove_wc_public_claim_issuance_atomicity_v1.ts"
       - "scripts/prove_wc_public_ticket_claim_cli_v1.ts"
       - "scripts/prove_public_earn_gateway_v1.mjs"
       - "scripts/prove_wc_public_earning_pilot_v1.ts"
@@ -48,6 +49,7 @@ on:
       - "tools/check_index_size.sh"
       - "scripts/prove_wc_public_ticket_claim_v1.ts"
       - "scripts/prove_wc_public_claim_history_authority_v1.ts"
+      - "scripts/prove_wc_public_claim_issuance_atomicity_v1.ts"
       - "scripts/prove_wc_public_ticket_claim_cli_v1.ts"
       - "scripts/prove_public_earn_gateway_v1.mjs"
       - "scripts/prove_wc_public_earning_pilot_v1.ts"
@@ -100,6 +102,7 @@ jobs:
       - name: Prove signed public ticket claim
         run: |
           npx tsx scripts/prove_wc_public_claim_history_authority_v1.ts
+          npx tsx scripts/prove_wc_public_claim_issuance_atomicity_v1.ts
           npx tsx scripts/prove_wc_public_ticket_claim_v1.ts
           node scripts/prove_public_earn_gateway_v1.mjs
           npx tsx scripts/prove_wc_public_ticket_claim_cli_v1.ts

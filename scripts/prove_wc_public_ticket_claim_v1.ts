@@ -126,7 +126,7 @@ async function main(): Promise<void> {
     /claim_executor_signature_invalid/,
   );
 
-  assert.throws(
+  await assert.rejects(
     () =>
       pilot.issuePublicTicketClaim(
         {
@@ -138,7 +138,7 @@ async function main(): Promise<void> {
     /unexpected_claim_request_body_field/,
   );
 
-  const first = pilot.issuePublicTicketClaim(
+  const first = await pilot.issuePublicTicketClaim(
     firstSigned,
     tmp,
   );
@@ -215,7 +215,7 @@ async function main(): Promise<void> {
 
   await warm();
 
-  assert.throws(
+  await assert.rejects(
     () =>
       pilot.issuePublicTicketClaim(
         firstSigned,
@@ -224,7 +224,7 @@ async function main(): Promise<void> {
     /public_claim_replay/,
   );
 
-  assert.throws(
+  await assert.rejects(
     () =>
       pilot.issuePublicTicketClaim(
         signed(
@@ -239,7 +239,7 @@ async function main(): Promise<void> {
   // Failed reservation cleanup changes directory generation.
   await warm();
 
-  assert.throws(
+  await assert.rejects(
     () =>
       pilot.issuePublicTicketClaim(
         signed("4".repeat(32)),
@@ -278,7 +278,7 @@ async function main(): Promise<void> {
 
   await warm(true);
 
-  assert.throws(
+  await assert.rejects(
     () =>
       pilot.issuePublicTicketClaim(
         signed("5".repeat(32)),
@@ -299,7 +299,7 @@ async function main(): Promise<void> {
   // so force a proof-only rebuild.
   await warm(true);
 
-  const second = pilot.issuePublicTicketClaim(
+  const second = await pilot.issuePublicTicketClaim(
     signed("6".repeat(32)),
     tmp,
   );
@@ -345,7 +345,7 @@ async function main(): Promise<void> {
 
   await warm(true);
 
-  assert.throws(
+  await assert.rejects(
     () =>
       pilot.issuePublicTicketClaim(
         signed("7".repeat(32)),

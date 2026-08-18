@@ -299,7 +299,7 @@ async function main(): Promise<void> {
     };
 
     try {
-      assert.throws(
+      await assert.rejects(
         () =>
           pilot.issuePublicTicketClaim(
             signed,

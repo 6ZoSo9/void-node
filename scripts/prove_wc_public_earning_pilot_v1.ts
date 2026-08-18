@@ -482,8 +482,36 @@ need(
   moduleText.includes("publicClaimGlobalMaxPer24h()"),
   "public claim global daily cap missing",
 );
+need(
+  moduleText.includes("acquirePublicClaimIssuanceLockV1"),
+  "public claim issuance cross-process authority missing",
+);
+need(
+  moduleText.includes(
+    "await acquirePublicClaimIssuanceLockV1(raw)",
+  ),
+  "public claim cap revalidation is not under issuance authority",
+);
+need(
+  /await\s+releasePublicClaimIssuanceLockV1\(\s*issuanceLock,\s*\)/.test(
+    moduleText,
+  ),
+  "public claim issuance authority is not released",
+);
+need(
+  moduleText.includes(
+    "setPublicClaimBeforeIssuanceLockHookForProofV1",
+  ),
+  "public claim concurrency proof hook missing",
+);
+need(
+  moduleText.includes(
+    'appendAuditBestEffort(\n    {\n      event:\n        issuanceSource === "public_claim"',
+  ),
+  "ticket issuance audit is not best effort",
+);
 const claimIssueStart = moduleText.indexOf(
-  "export function issuePublicTicketClaim(",
+  "export async function issuePublicTicketClaim(",
 );
 const claimIssueEnd = moduleText.indexOf(
   "export function pilotResultSigningObject(",
@@ -496,6 +524,40 @@ need(
 const claimIssueBlock = moduleText.slice(
   claimIssueStart,
   claimIssueEnd,
+);
+const issuanceLockAcquire = claimIssueBlock.indexOf(
+  "await acquirePublicClaimIssuanceLockV1(raw)",
+);
+const issuanceHistoryRecheck = claimIssueBlock.indexOf(
+  "const history = wcPublicClaimHistorySnapshotV1(",
+  issuanceLockAcquire,
+);
+const claimReservationOpen = claimIssueBlock.indexOf(
+  'fs.openSync(claimFile, "wx"',
+  issuanceHistoryRecheck,
+);
+const claimTicketIssue = claimIssueBlock.indexOf(
+  "const ticketResult = issueTicket(",
+  claimReservationOpen,
+);
+const claimTerminalWrite = claimIssueBlock.indexOf(
+  "atomicWriteJson(claimFile, {",
+  claimTicketIssue,
+);
+need(
+  issuanceLockAcquire >= 0 &&
+    issuanceHistoryRecheck > issuanceLockAcquire &&
+    claimReservationOpen > issuanceHistoryRecheck &&
+    claimTicketIssue > claimReservationOpen &&
+    claimTerminalWrite > claimTicketIssue,
+  "claim cap revalidation/reservation/ticket/terminal are not ordered under one authority",
+);
+need(
+  claimIssueBlock.includes(
+    'event: "public_claim_accepted"',
+  ) &&
+    claimIssueBlock.includes("appendAuditBestEffort("),
+  "public claim terminal audit is not best effort",
 );
 need(
   !claimIssueBlock.includes("ticketCounts("),
