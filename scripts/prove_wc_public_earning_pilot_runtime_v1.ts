@@ -17,6 +17,9 @@ async function main(): Promise<void> {
   const acceptance = await import(
     "../src/economic/wc_verified_receipt_acceptance_v1.js"
   );
+  const remoteIndex = await import(
+    "../src/economic/wc_public_remote_truth_jsonl_index_v1.js"
+  );
   const block = await import("../src/chain/block.js");
 
   const { privateKey, publicKey } = crypto.generateKeyPairSync("ed25519");
@@ -357,6 +360,153 @@ async function main(): Promise<void> {
       `concurrent imported truth duplicated ${file}`,
     );
   }
+
+  remoteIndex.resetWcPublicRemoteTruthJsonlIndexForProofV1();
+  const coldTmp = fs.mkdtempSync(
+    path.join(os.tmpdir(), "void-wc-public-earning-pilot-cold-index-v1-"),
+  );
+  const coldPad = "x".repeat(768);
+  const seedCold = (
+    file: string,
+    makeRow: (i: number) => Record<string, unknown>,
+  ) => {
+    fs.mkdirSync(path.dirname(file), { recursive: true });
+    const fd = fs.openSync(file, "w", 0o600);
+    try {
+      for (let i = 0; i < 12_000; i++) {
+        fs.writeSync(fd, JSON.stringify(makeRow(i)) + "\n");
+      }
+      fs.fdatasyncSync(fd);
+    } finally {
+      fs.closeSync(fd);
+    }
+  };
+  const coldReceiptFile = path.join(
+    coldTmp,
+    "agent_v1",
+    "receipts.jsonl",
+  );
+  const coldJobFile = path.join(coldTmp, "agent", "jobs.jsonl");
+  const coldCompletedFile = path.join(
+    coldTmp,
+    "agent_v1",
+    "job_state.jsonl",
+  );
+  seedCold(coldReceiptFile, (i) => ({
+    receipt_id: `cold-seed-receipt-${i}`,
+    job_id: `cold-seed-job-r-${i}`,
+    account: "cold-seed",
+    kind: "datanet_fetch_verify",
+    status: "completed",
+    dataset_id: "cold-seed",
+    input_hash: "1".repeat(64),
+    output_hash: "2".repeat(64),
+    pad: coldPad,
+  }));
+  seedCold(coldJobFile, (i) => ({
+    id: `cold-seed-job-${i}`,
+    job_id: `cold-seed-job-${i}`,
+    account: "cold-seed",
+    kind: "datanet_fetch_verify",
+    status: "queued",
+    dataset_id: "cold-seed",
+    pad: coldPad,
+  }));
+  seedCold(coldCompletedFile, (i) => ({
+    job_id: `cold-seed-state-job-${i}`,
+    receipt_id: `cold-seed-state-receipt-${i}`,
+    status: "completed",
+    dataset_id: "cold-seed",
+    input_hash: "1".repeat(64),
+    output_hash: "2".repeat(64),
+    pad: coldPad,
+  }));
+
+  const coldEnvelope = {
+    ...envelope,
+    ticket_id: "4".repeat(32),
+    job_id: "job_remote_executor_runtime_cold_v1",
+    receipt_id: "rcpt_remote_executor_runtime_cold_v1",
+    dataset_id: "ds_remote_executor_runtime_cold_v1",
+    receipt_ts_ms: Date.now() + 2,
+  };
+  const coldSigned = pilot.signPilotResultEnvelope(
+    coldEnvelope,
+    privateKey,
+  );
+  const coldStarted = Date.now();
+  const coldSettled = await Promise.allSettled(
+    Array.from({ length: 4 }, () =>
+      pilot.persistImportedRemoteTruthOnce(
+        coldSigned.envelope,
+        coldSigned.signature,
+        coldTmp,
+      ),
+    ),
+  );
+  assert.ok(
+    Date.now() - coldStarted < 3_000,
+    "cold participant persistence calls waited behind full history warm",
+  );
+  assert.equal(
+    coldSettled.every(
+      (result) =>
+        result.status === "rejected" &&
+        String(
+          (result as PromiseRejectedResult).reason?.message ||
+            (result as PromiseRejectedResult).reason,
+        ).includes("VOID_WC_REMOTE_TRUTH_INDEX_WARMING"),
+    ),
+    true,
+    "cold participant persistence did not return deterministic warming HOLD",
+  );
+
+  const coldMetrics =
+    remoteIndex.wcPublicRemoteTruthJsonlIndexMetricsV1().filter(
+      (metric: any) => String(metric.file || "").startsWith(coldTmp),
+    );
+  assert.equal(coldMetrics.length, 3);
+  for (const metric of coldMetrics) {
+    assert.equal(
+      metric.warm_starts_total,
+      1,
+      `cold participant path started duplicate warm generation: ${metric.file}`,
+    );
+    assert.equal(metric.canonical_appends_total, 0);
+  }
+
+  await Promise.all([
+    remoteIndex.waitForWcPublicRemoteTruthJsonlIndexWarmForProofV1(
+      coldReceiptFile,
+      ["receipt_id"],
+    ),
+    remoteIndex.waitForWcPublicRemoteTruthJsonlIndexWarmForProofV1(
+      coldJobFile,
+      ["job_id"],
+    ),
+    remoteIndex.waitForWcPublicRemoteTruthJsonlIndexWarmForProofV1(
+      coldCompletedFile,
+      ["job_id", "receipt_id"],
+    ),
+  ]);
+
+  const coldImported = await pilot.persistImportedRemoteTruthOnce(
+    coldSigned.envelope,
+    coldSigned.signature,
+    coldTmp,
+  );
+  assert.equal(coldImported.appended.receipt, true);
+  assert.equal(coldImported.appended.job, true);
+  assert.equal(coldImported.appended.completed, true);
+
+  const coldDuplicate = await pilot.persistImportedRemoteTruthOnce(
+    coldSigned.envelope,
+    coldSigned.signature,
+    coldTmp,
+  );
+  assert.equal(coldDuplicate.appended.receipt, false);
+  assert.equal(coldDuplicate.appended.job, false);
+  assert.equal(coldDuplicate.appended.completed, false);
 
   const accepted = await acceptance.acceptVerifiedReceiptOnce(
     imported.receipt,

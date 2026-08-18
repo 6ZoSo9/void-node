@@ -10,6 +10,7 @@ const CHUNK_BYTES_V1 = 64 * 1024;
 const MAX_RECORD_BYTES_V1 = 1024 * 1024;
 const MAX_CATCH_UP_PASSES_V1 = 32;
 const MAX_REPLACEMENT_REBUILDS_V1 = 2;
+const MAX_REQUEST_INCREMENTAL_BYTES_V1 = 1024 * 1024;
 
 const CONFLICT_FIELDS_V1 = [
   "account",
@@ -47,6 +48,8 @@ type IndexMetricsV1 = {
   catch_up_passes_total: number;
   canonical_appends_total: number;
   canonical_witnessed_appends_total: number;
+  warm_starts_total: number;
+  warm_failures_total: number;
 };
 
 type ExactOnceIndexStateV1 = {
@@ -73,6 +76,11 @@ export type WcPublicRemoteTruthJsonlIndexMetricsV1 = IndexMetricsV1 & {
 
 const statesV1 = new Map<string, ExactOnceIndexStateV1>();
 const tailsV1 = new Map<string, Promise<void>>();
+const warmTasksV1 = new Map<string, Promise<void>>();
+const warmFailuresV1 = new Map<
+  string,
+  { stamp: FileStampV1 | null; message: string }
+>();
 
 function emptyMetricsV1(): IndexMetricsV1 {
   return {
@@ -85,6 +93,8 @@ function emptyMetricsV1(): IndexMetricsV1 {
     catch_up_passes_total: 0,
     canonical_appends_total: 0,
     canonical_witnessed_appends_total: 0,
+    warm_starts_total: 0,
+    warm_failures_total: 0,
   };
 }
 
@@ -194,6 +204,80 @@ async function withIndexLockV1<T>(key: string, fn: () => Promise<T>): Promise<T>
   }
 }
 
+
+function invalidateStateV1(state: ExactOnceIndexStateV1): void {
+  state.entries.clear();
+  state.stamp = null;
+  state.endedWithNewline = true;
+}
+
+function sameNullableStampV1(
+  a: FileStampV1 | null,
+  b: FileStampV1 | null,
+): boolean {
+  if (!a || !b) return a === b;
+  return sameStampV1(a, b);
+}
+
+function warmingErrorV1(file: string): Error {
+  return new Error(`VOID_WC_REMOTE_TRUTH_INDEX_WARMING file=${file}`);
+}
+
+function needsBackgroundWarmV1(
+  state: ExactOnceIndexStateV1,
+  current: FileStampV1 | null,
+): boolean {
+  if (!current || current.size <= 0) return false;
+  if (!state.stamp) return true;
+  if (!sameObjectV1(state.stamp, current)) return true;
+  if (current.size < state.stamp.size) return true;
+  if (
+    current.size > state.stamp.size &&
+    current.size - state.stamp.size > MAX_REQUEST_INCREMENTAL_BYTES_V1
+  ) {
+    return true;
+  }
+  return false;
+}
+
+function startWarmV1(
+  key: string,
+  state: ExactOnceIndexStateV1,
+  observed: FileStampV1 | null,
+  onMalformed?: AppendExactOnceOptionsV1["onMalformed"],
+): Promise<void> {
+  const existing = warmTasksV1.get(key);
+  if (existing) return existing;
+
+  state.metrics.warm_starts_total += 1;
+  const task = withIndexLockV1(key, async () => {
+    try {
+      await rebuildStateV1(state, onMalformed);
+      warmFailuresV1.delete(key);
+    } catch (error: any) {
+      invalidateStateV1(state);
+      state.metrics.warm_failures_total += 1;
+      warmFailuresV1.set(key, {
+        stamp: observed,
+        message: String(error?.message || error),
+      });
+      throw error;
+    }
+  });
+
+  warmTasksV1.set(key, task);
+  task.then(
+    () => {
+      if (warmTasksV1.get(key) === task) warmTasksV1.delete(key);
+    },
+    () => {
+      if (warmTasksV1.get(key) === task) warmTasksV1.delete(key);
+    },
+  );
+  void task.catch(() => undefined);
+  return task;
+}
+
 function recordParsedLineV1(
   state: ExactOnceIndexStateV1,
   line: string,
@@ -218,6 +302,9 @@ function recordParsedLineV1(
   } catch (error) {
     state.metrics.malformed_lines_total += 1;
     onMalformed?.(error, { file: state.file, line: line.slice(0, 1024) });
+    throw new Error(
+      `VOID_WC_REMOTE_TRUTH_MALFORMED_HISTORY file=${state.file} cause=${String((error as any)?.message || error)}`,
+    );
   }
 }
 
@@ -336,18 +423,11 @@ async function rebuildStateV1(
     );
     if (
       scanned.pathAfter &&
-      sameObjectV1(scanned.opened, scanned.pathAfter) &&
-      sameObjectV1(scanned.opened, scanned.after) &&
-      scanned.after.size >= current.size
+      sameStampV1(scanned.opened, scanned.after) &&
+      sameStampV1(scanned.after, scanned.pathAfter)
     ) {
-      state.stamp = {
-        ...scanned.after,
-        size: current.size,
-        mtimeNs: current.mtimeNs,
-        ctimeNs: current.ctimeNs,
-      };
+      state.stamp = scanned.after;
       state.endedWithNewline = scanned.endedWithNewline;
-      await catchUpStateV1(state, onMalformed);
       return;
     }
   }
@@ -367,18 +447,36 @@ async function catchUpStateV1(
         state.metrics.cache_hits_total += 1;
         return;
       }
-      await rebuildStateV1(state, onMalformed);
-      return;
+      throw new Error(
+        `VOID_WC_REMOTE_TRUTH_BACKGROUND_WARM_REQUIRED file=${state.file} reason=disappeared`,
+      );
     }
 
     if (!state.stamp) {
-      await rebuildStateV1(state, onMalformed);
-      return;
+      if (current.size === 0) {
+        state.stamp = current;
+        state.endedWithNewline = true;
+        state.metrics.cache_hits_total += 1;
+        return;
+      }
+      throw new Error(
+        `VOID_WC_REMOTE_TRUTH_BACKGROUND_WARM_REQUIRED file=${state.file} reason=cold`,
+      );
     }
 
     if (!sameObjectV1(state.stamp, current) || current.size < state.stamp.size) {
-      await rebuildStateV1(state, onMalformed);
-      return;
+      throw new Error(
+        `VOID_WC_REMOTE_TRUTH_BACKGROUND_WARM_REQUIRED file=${state.file} reason=replaced`,
+      );
+    }
+
+    if (
+      current.size > state.stamp.size &&
+      current.size - state.stamp.size > MAX_REQUEST_INCREMENTAL_BYTES_V1
+    ) {
+      throw new Error(
+        `VOID_WC_REMOTE_TRUTH_BACKGROUND_WARM_REQUIRED file=${state.file} reason=delta_too_large`,
+      );
     }
 
     if (current.size === state.stamp.size) {
@@ -453,6 +551,62 @@ function existingResultV1(
   return { appended: false, existing };
 }
 
+
+async function ensureIndexReadyV1(
+  key: string,
+  state: ExactOnceIndexStateV1,
+  observed: FileStampV1 | null,
+  onMalformed?: AppendExactOnceOptionsV1["onMalformed"],
+): Promise<void> {
+  const failure = warmFailuresV1.get(key);
+  if (failure) {
+    if (sameNullableStampV1(failure.stamp, observed)) {
+      throw new Error(
+        `VOID_WC_REMOTE_TRUTH_INDEX_WARM_FAILED file=${state.file} cause=${failure.message}`,
+      );
+    }
+    warmFailuresV1.delete(key);
+  }
+
+  if (warmTasksV1.has(key)) throw warmingErrorV1(state.file);
+
+  if (needsBackgroundWarmV1(state, observed)) {
+    startWarmV1(key, state, observed, onMalformed);
+    throw warmingErrorV1(state.file);
+  }
+
+  try {
+    await withIndexLockV1(key, async () => {
+      await catchUpStateV1(state, onMalformed);
+    });
+  } catch (error: any) {
+    if (
+      String(error?.message || "").includes(
+        "VOID_WC_REMOTE_TRUTH_BACKGROUND_WARM_REQUIRED",
+      )
+    ) {
+      const current = await statPathV1(state.file);
+      startWarmV1(key, state, current, onMalformed);
+      throw warmingErrorV1(state.file);
+    }
+    invalidateStateV1(state);
+    throw error;
+  }
+}
+
+export async function prepareWcPublicRemoteTruthJsonlExactOnceV1(
+  file: string,
+  idFields: string[],
+  options: AppendExactOnceOptionsV1 = {},
+): Promise<void> {
+  assertIdFieldsV1(idFields);
+  const absolute = path.resolve(file);
+  const key = indexKeyV1(absolute, idFields);
+  const state = stateForV1(absolute, idFields);
+  const observed = await statPathV1(absolute);
+  await ensureIndexReadyV1(key, state, observed, options.onMalformed);
+}
+
 export async function appendWcPublicRemoteTruthJsonlExactOnceV1(
   file: string,
   value: JsonObject,
@@ -466,32 +620,84 @@ export async function appendWcPublicRemoteTruthJsonlExactOnceV1(
   assertIdFieldsV1(idFields);
   const absolute = path.resolve(file);
   const key = indexKeyV1(absolute, idFields);
+  const state = stateForV1(absolute, idFields);
+  const observed = await statPathV1(absolute);
+  await ensureIndexReadyV1(key, state, observed, options.onMalformed);
 
-  return withIndexLockV1(key, async () => {
-    const state = stateForV1(absolute, idFields);
-    await catchUpStateV1(state, options.onMalformed);
+  try {
+    return await withIndexLockV1(key, async () => {
+      await catchUpStateV1(state, options.onMalformed);
 
-    const existing = existingResultV1(state, value);
-    if (existing) return { ...existing, witnessed: false };
+      const existing = existingResultV1(state, value);
+      if (existing) return { ...existing, witnessed: false };
 
-    await fsp.mkdir(path.dirname(absolute), { recursive: true, mode: 0o700 });
-    const line = Buffer.from(JSON.stringify(value) + "\n", "utf8");
-    const append = appendAgentPick2JsonlCanonicalV1(absolute, line, {
-      durable: options.durable !== false,
-      mode: options.mode ?? 0o600,
+      await fsp.mkdir(path.dirname(absolute), { recursive: true, mode: 0o700 });
+      const line = Buffer.from(JSON.stringify(value) + "\n", "utf8");
+      const append = appendAgentPick2JsonlCanonicalV1(absolute, line, {
+        durable: options.durable !== false,
+        mode: options.mode ?? 0o600,
+      });
+      state.metrics.canonical_appends_total += 1;
+      if (append.witnessed) {
+        state.metrics.canonical_witnessed_appends_total += 1;
+      }
+
+      if (!state.stamp && append.before.size === 0) {
+        state.stamp = append.before;
+        state.endedWithNewline = true;
+      }
+
+      if (!state.stamp || !sameStampV1(state.stamp, append.before)) {
+        invalidateStateV1(state);
+        throw new Error(
+          `VOID_WC_REMOTE_TRUTH_INDEX_REINDEX_REQUIRED file=${absolute}`,
+        );
+      }
+
+      recordParsedLineV1(
+        state,
+        line.subarray(0, line.length - 1).toString("utf8"),
+        options.onMalformed,
+      );
+      state.stamp = append.after;
+      state.endedWithNewline = true;
+
+      const after = state.entries.get(rowKeyV1(value, idFields));
+      if (!after || after.count !== 1) {
+        throw new Error("remote_truth_duplicate_conflict");
+      }
+      return { appended: true, existing: null, witnessed: append.witnessed };
     });
-    state.metrics.canonical_appends_total += 1;
-    if (append.witnessed) {
-      state.metrics.canonical_witnessed_appends_total += 1;
+  } catch (error: any) {
+    if (
+      String(error?.message || "").includes(
+        "VOID_WC_REMOTE_TRUTH_BACKGROUND_WARM_REQUIRED",
+      ) ||
+      String(error?.message || "").includes(
+        "VOID_WC_REMOTE_TRUTH_INDEX_REINDEX_REQUIRED",
+      )
+    ) {
+      const current = await statPathV1(absolute);
+      startWarmV1(key, state, current, options.onMalformed);
     }
+    throw error;
+  }
+}
 
-    await catchUpStateV1(state, options.onMalformed);
-    const after = state.entries.get(rowKeyV1(value, idFields));
-    if (!after || after.count !== 1) {
-      throw new Error("remote_truth_duplicate_conflict");
-    }
-    return { appended: true, existing: null, witnessed: append.witnessed };
-  });
+export async function waitForWcPublicRemoteTruthJsonlIndexWarmForProofV1(
+  file: string,
+  idFields: string[],
+): Promise<void> {
+  const absolute = path.resolve(file);
+  const key = indexKeyV1(absolute, idFields);
+  const task = warmTasksV1.get(key);
+  if (task) await task;
+  const failure = warmFailuresV1.get(key);
+  if (failure) {
+    throw new Error(
+      `VOID_WC_REMOTE_TRUTH_INDEX_WARM_FAILED file=${absolute} cause=${failure.message}`,
+    );
+  }
 }
 
 export function wcPublicRemoteTruthJsonlIndexMetricsV1(): WcPublicRemoteTruthJsonlIndexMetricsV1[] {
@@ -505,8 +711,9 @@ export function wcPublicRemoteTruthJsonlIndexMetricsV1(): WcPublicRemoteTruthJso
 }
 
 export function resetWcPublicRemoteTruthJsonlIndexForProofV1(): void {
-  if (tailsV1.size) {
+  if (tailsV1.size || warmTasksV1.size) {
     throw new Error("VOID_WC_REMOTE_TRUTH_INDEX_RESET_WHILE_BUSY");
   }
   statesV1.clear();
+  warmFailuresV1.clear();
 }

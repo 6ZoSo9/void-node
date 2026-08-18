@@ -182,10 +182,12 @@ need(
 );
 
 need(
-  moduleText.includes(
-    'import { appendWcPublicRemoteTruthJsonlExactOnceV1 } from "./wc_public_remote_truth_jsonl_index_v1.js";',
-  ),
+  moduleText.includes("appendWcPublicRemoteTruthJsonlExactOnceV1"),
   "bounded WC remote-truth index import missing",
+);
+need(
+  moduleText.includes("prepareWcPublicRemoteTruthJsonlExactOnceV1"),
+  "WC remote-truth preflight helper import missing",
 );
 need(
   !moduleText.includes('import readline from "node:readline";'),
@@ -236,6 +238,30 @@ need(
     "const imported = await persistImportedRemoteTruthOnce(",
   ),
   "live coordinator import does not await indexed persistence",
+);
+
+need(
+  moduleText.includes("prepareImportedRemoteTruthIndexes(dataDir)"),
+  "WC imported truth is not preflighted before publication",
+);
+need(
+  moduleText.includes("Promise.allSettled("),
+  "WC cold index preflights do not start together",
+);
+const remoteTruthPreflightIndex = moduleText.indexOf(
+  "await prepareImportedRemoteTruthIndexes(dataDir)",
+);
+const remoteTruthSerializerIndex = moduleText.indexOf(
+  "return serializeImportedRemoteTruthV1(async () => {",
+);
+need(
+  remoteTruthPreflightIndex >= 0 &&
+    remoteTruthSerializerIndex > remoteTruthPreflightIndex,
+  "cold remote-truth warm is still queued behind whole-import serialization",
+);
+need(
+  moduleText.includes('message.startsWith("VOID_WC_REMOTE_TRUTH_INDEX_")'),
+  "remote-truth warming/failure is not mapped to retryable 503",
 );
 
 need(

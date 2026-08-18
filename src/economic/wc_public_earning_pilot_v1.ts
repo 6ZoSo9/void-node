@@ -5,7 +5,10 @@ import fsp from "node:fs/promises";
 import path from "node:path";
 import { nodeIdFromPubPEM } from "../chain/block.js";
 import { loadKeypair } from "../crypto/keypair.js";
-import { appendWcPublicRemoteTruthJsonlExactOnceV1 } from "./wc_public_remote_truth_jsonl_index_v1.js";
+import {
+  appendWcPublicRemoteTruthJsonlExactOnceV1,
+  prepareWcPublicRemoteTruthJsonlExactOnceV1,
+} from "./wc_public_remote_truth_jsonl_index_v1.js";
 import {
   acceptVerifiedReceiptOnce,
   readCanonicalWcState,
@@ -1506,6 +1509,54 @@ export function assertRemoteReceiptTruth(
   }
 }
 
+async function prepareImportedRemoteTruthIndexes(
+  dataDir: string,
+): Promise<{
+  receiptFile: string;
+  jobFile: string;
+  completedFile: string;
+}> {
+  const receiptFile = path.join(dataDir, "agent_v1", "receipts.jsonl");
+  const jobFile = path.join(dataDir, "agent", "jobs.jsonl");
+  const completedFile = path.join(dataDir, "agent_v1", "job_state.jsonl");
+  const specs = [
+    { file: receiptFile, ids: ["receipt_id"] },
+    { file: jobFile, ids: ["job_id"] },
+    { file: completedFile, ids: ["job_id", "receipt_id"] },
+  ];
+  const prepared = await Promise.allSettled(
+    specs.map(({ file, ids }) =>
+      prepareWcPublicRemoteTruthJsonlExactOnceV1(
+        file,
+        ids,
+        {
+          durable: true,
+          mode: 0o600,
+          onMalformed: (error) => {
+            recordPilotBestEffortFailure("read-jsonl-line", error, { file });
+          },
+        },
+      ),
+    ),
+  );
+  const failures = prepared.filter(
+    (result): result is PromiseRejectedResult =>
+      result.status === "rejected",
+  );
+  if (failures.length) {
+    const messages = failures.map((result) =>
+      String(result.reason?.message || result.reason),
+    );
+    const hard = messages.find(
+      (message) =>
+        !message.includes("VOID_WC_REMOTE_TRUTH_INDEX_WARMING"),
+    );
+    if (hard) throw new Error(hard);
+    throw new Error("VOID_WC_REMOTE_TRUTH_INDEX_WARMING");
+  }
+  return { receiptFile, jobFile, completedFile };
+}
+
 async function appendExactOnce(
   file: string,
   value: JsonObject,
@@ -1549,9 +1600,14 @@ export async function persistImportedRemoteTruthOnce(
   signatureRaw: JsonObject,
   raw?: string,
 ): Promise<JsonObject> {
-  return serializeImportedRemoteTruthV1(async () => {
-    const envelope = verifyPilotResultEnvelope(envelopeRaw, signatureRaw);
+  const envelope = verifyPilotResultEnvelope(envelopeRaw, signatureRaw);
   const dataDir = resolveDataDir(raw);
+  const {
+    receiptFile,
+    jobFile,
+    completedFile,
+  } = await prepareImportedRemoteTruthIndexes(dataDir);
+  return serializeImportedRemoteTruthV1(async () => {
   const importedAt = Date.now();
   const provenance = {
     marker: VOID_WC_PUBLIC_EARNING_PILOT_MARKER,
@@ -1614,17 +1670,17 @@ export async function persistImportedRemoteTruthOnce(
   };
 
   const receiptResult = await appendExactOnce(
-    path.join(dataDir, "agent_v1", "receipts.jsonl"),
+    receiptFile,
     receipt,
     ["receipt_id"],
   );
   const jobResult = await appendExactOnce(
-    path.join(dataDir, "agent", "jobs.jsonl"),
+    jobFile,
     job,
     ["job_id"],
   );
   const completedResult = await appendExactOnce(
-    path.join(dataDir, "agent_v1", "job_state.jsonl"),
+    completedFile,
     completed,
     ["job_id", "receipt_id"],
   );
@@ -2470,8 +2526,14 @@ async function submitRemoteResult(req: any, res: any): Promise<any> {
       ticket_id: parsed.ticketId,
       error: String(error?.message || error),
     });
+    const message = String(error?.message || "");
     const status =
-      String(error?.message || "") === "ticket_inflight" ? 409 : 422;
+      message === "ticket_inflight"
+        ? 409
+        : message.startsWith("VOID_WC_REMOTE_TRUTH_INDEX_") ||
+            message.includes("VOID_WC_REMOTE_TRUTH_MALFORMED_HISTORY")
+          ? 503
+          : 422;
     return res.status(status).json({
       ok: false,
       marker: VOID_WC_PUBLIC_EARNING_PILOT_MARKER,
