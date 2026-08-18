@@ -185,10 +185,23 @@ function wcQuantaToDecimalV1(value: bigint): string {
   return negative ? `-${out}` : out;
 }
 
-function wcQuantaToCompatNumberV1(value: bigint): number {
-  const out = Number(wcQuantaToDecimalV1(value));
-  if (!Number.isFinite(out)) fail("wc_compat_number_overflow");
-  return out;
+function wcQuantaToCompatNumberV1(
+  value: bigint,
+): number | null {
+  const exact = wcQuantaToDecimalV1(value);
+  const out = Number(exact);
+  if (!Number.isFinite(out)) return null;
+
+  try {
+    const roundTrip = wcNumberToQuantaV1(
+      out,
+      "wc_compat_number_roundtrip_invalid",
+    );
+    return roundTrip === value ? out : null;
+  } catch (error) {
+    void error;
+    return null;
+  }
 }
 
 async function appendLedgerEntryDurable(
@@ -895,7 +908,17 @@ export async function recoverFailedCapabilityReceiptOnce(
     job_id: jobId,
     dataset_id: String(acceptance?.dataset_id || receipt?.dataset_id || ""),
     wc_delta: VOID_WC_VERIFIED_RECEIPT_ACCEPTANCE_AWARD_WC,
-    canonical_redeemable_after: Number(wc.redeemable || 0),
+    canonical_redeemable_after:
+      typeof wc.redeemable === "number"
+        ? wc.redeemable
+        : null,
+    canonical_redeemable_after_exact: String(
+      wc.redeemable_exact || "0",
+    ),
+    canonical_redeemable_after_quanta: String(
+      wc.redeemable_quanta || "0",
+    ),
+    numeric_authority: "nano_wc_fixed_point_v1",
   };
   atomicWriteJson(consumedFile, recovered);
   appendCapabilityAudit(options.dataDir, {

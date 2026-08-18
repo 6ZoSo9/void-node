@@ -1059,6 +1059,42 @@ async function main(): Promise<void> {
       response.payload.wc.after_local_exact,
       "9007199254740995",
     );
+    assert.equal(response.payload.wc.before, null);
+    assert.equal(response.payload.wc.after_local, null);
+
+    const highConsumedFile = path.join(
+      root,
+      "wc_v1",
+      "public-earning-pilot-v1",
+      "consumed",
+      `${fx.ticketId}.json`,
+    );
+    const highConsumed = JSON.parse(
+      fs.readFileSync(highConsumedFile, "utf8"),
+    );
+    assert.equal(
+      highConsumed.canonical_redeemable_after_local,
+      null,
+    );
+    assert.equal(
+      highConsumed.canonical_redeemable_after_local_exact,
+      "9007199254740995",
+    );
+
+    const replay = makeResponse();
+    await pilot.submitRemoteResult(fx.req, replay);
+    assert.equal(replay.statusCode, 200);
+    assert.equal(replay.payload.idempotent, true);
+    assert.equal(
+      replay.payload.wc.canonical_redeemable_after_local,
+      null,
+    );
+    assert.equal(
+      replay.payload.wc
+        .canonical_redeemable_after_local_exact,
+      "9007199254740995",
+    );
+
     const exactState = await acceptance.readCanonicalWcState(
       account,
       root,
@@ -1067,6 +1103,7 @@ async function main(): Promise<void> {
       exactState.redeemable_exact,
       "9007199254740995",
     );
+    assert.equal(exactState.redeemable, null);
     fs.rmSync(root, { recursive: true, force: true });
   }
 

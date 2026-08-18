@@ -11,6 +11,9 @@ import {
   VerifiedReceiptAcceptanceError,
   VOID_WC_VERIFIED_RECEIPT_ACCEPTANCE_AWARD_WC,
 } from "../src/economic/wc_verified_receipt_acceptance_v1.js";
+import {
+  projectWcProductionBalance,
+} from "../src/economic/wc_production_visibility_projection_v1.js";
 
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "void-wc-verified-acceptance-v1-"));
 
@@ -301,6 +304,7 @@ try {
   assert.equal(fractional.redeemed_exact, "0.1");
   assert.equal(fractional.redeemable_exact, "1.15");
   assert.equal(fractional.redeemable_quanta, "1150000000");
+  assert.equal(fractional.redeemable, 1.15);
 
   const highRoot = path.join(tmp, "strict-high-balance");
   const highAccount = "strict-high-balance";
@@ -316,6 +320,7 @@ try {
   });
   const highBefore = await readCanonicalWcState(highAccount, highRoot);
   assert.equal(highBefore.redeemable_exact, "9007199254740992");
+  assert.equal(highBefore.redeemable, null);
 
   const highReceipt = makeReceipt(
     highAccount,
@@ -343,8 +348,129 @@ try {
     highAccepted.canonical_redeemable_after_local_exact,
     "9007199254740995",
   );
+  assert.equal(
+    highAccepted.canonical_redeemable_before,
+    null,
+  );
+  assert.equal(
+    highAccepted.canonical_redeemable_after_local,
+    null,
+  );
   const highAfter = await readCanonicalWcState(highAccount, highRoot);
   assert.equal(highAfter.redeemable_exact, "9007199254740995");
+  assert.equal(highAfter.redeemable, null);
+
+  const highProjection = await projectWcProductionBalance(
+    highAccount,
+    highRoot,
+    "VOID_WC_PRODUCTION_BALANCE_V1",
+  );
+  assert.equal(highProjection.status, 200);
+  assert.equal(highProjection.body["balance"], null);
+  assert.equal(
+    highProjection.body["balance_exact"],
+    "9007199254740995",
+  );
+  assert.equal(highProjection.body["redeemable"], true);
+  assert.equal(highProjection.body["redeemable_wc"], null);
+  assert.equal(
+    highProjection.body["redeemable_wc_exact"],
+    "9007199254740995",
+  );
+  assert.equal(
+    highProjection.body["numeric_authority"],
+    "nano_wc_fixed_point_v1",
+  );
+
+  const highRecoveryTicketId = "b".repeat(32);
+  const highRecoveryJobId = "job_high_recovery_v1";
+  const highRecoveryReceiptId = "rcpt_high_recovery_v1";
+  const highRecoveryReceipt = makeReceipt(
+    highAccount,
+    highRecoveryJobId,
+    highRecoveryReceiptId,
+    "ds_high_recovery_v1",
+    "a",
+    "b",
+  );
+  persistTruth(highRecoveryReceipt, highRoot);
+  const highRecoveryConsumedFile = path.join(
+    highRoot,
+    "wc_v1",
+    "public-capabilities-v1",
+    "consumed",
+    `${highRecoveryTicketId}.json`,
+  );
+  fs.mkdirSync(
+    path.dirname(highRecoveryConsumedFile),
+    { recursive: true },
+  );
+  fs.writeFileSync(
+    highRecoveryConsumedFile,
+    JSON.stringify(
+      {
+        marker: "VOID_WC_PUBLIC_CAPABILITY_V1",
+        ticket_id: highRecoveryTicketId,
+        account: highAccount,
+        task_class: "datanet_fetch_verify",
+        status: "failed",
+        failure_reason: "high_balance_projection_proof",
+      },
+      null,
+      2,
+    ) + "\n",
+    { mode: 0o600 },
+  );
+
+  const highRecovery = await recoverFailedCapabilityReceiptOnce({
+    dataDir: highRoot,
+    ticketId: highRecoveryTicketId,
+    account: highAccount,
+    jobId: highRecoveryJobId,
+    receiptId: highRecoveryReceiptId,
+    apply: true,
+    confirmation: "wcCapabilityFailedReceiptRecovery",
+  });
+  assert.equal(highRecovery.ticket_status, "recovered");
+  assert.equal(highRecovery.wc.redeemable, null);
+  assert.equal(
+    highRecovery.wc.redeemable_exact,
+    "9007199254740998",
+  );
+  const highRecoveredRecord = JSON.parse(
+    fs.readFileSync(
+      highRecoveryConsumedFile,
+      "utf8",
+    ),
+  );
+  assert.equal(
+    highRecoveredRecord.canonical_redeemable_after,
+    null,
+  );
+  assert.equal(
+    highRecoveredRecord.canonical_redeemable_after_exact,
+    "9007199254740998",
+  );
+  assert.equal(
+    highRecoveredRecord.numeric_authority,
+    "nano_wc_fixed_point_v1",
+  );
+  const highRecoveryReplay =
+    await recoverFailedCapabilityReceiptOnce({
+      dataDir: highRoot,
+      ticketId: highRecoveryTicketId,
+      account: highAccount,
+      jobId: highRecoveryJobId,
+      receiptId: highRecoveryReceiptId,
+      apply: true,
+      confirmation: "wcCapabilityFailedReceiptRecovery",
+    });
+  assert.equal(highRecoveryReplay.idempotent, true);
+  assert.equal(highRecoveryReplay.wc.redeemable, null);
+  assert.equal(
+    highRecoveryReplay.wc.redeemable_exact,
+    "9007199254740998",
+  );
 
   const badReceipt = {
     ...receipt,

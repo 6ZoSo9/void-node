@@ -11,6 +11,7 @@ on:
       - "src/economic/wc_public_earning_pilot_v1.ts"
       - "src/economic/wc_public_claim_history_authority_v1.ts"
       - "src/economic/wc_verified_receipt_acceptance_v1.ts"
+      - "src/economic/wc_production_visibility_projection_v1.ts"
       - "ops/public/public-seed-adapter-v1.mjs"
       - "ops/mainnet0/wc-public-ticket-claim-v1.sh"
       - "ops/mainnet0/wc-public-earning-participant-v1.sh"
@@ -23,6 +24,7 @@ on:
       - "scripts/prove_public_earn_gateway_v1.mjs"
       - "scripts/prove_wc_public_earning_pilot_v1.ts"
       - "scripts/prove_wc_public_earning_pilot_runtime_v1.ts"
+      - "scripts/prove_wc_verified_receipt_acceptance_v1.ts"
       - "scripts/prove_wc_public_earning_outbound_participant_v1.ts"
       - "scripts/prove_wc_public_earning_participant_cli_false_default_v1.ts"
       - "scripts/prove_wc_public_earning_participant_cli_v1.ts"
@@ -42,6 +44,7 @@ on:
       - "src/economic/wc_public_earning_pilot_v1.ts"
       - "src/economic/wc_public_claim_history_authority_v1.ts"
       - "src/economic/wc_verified_receipt_acceptance_v1.ts"
+      - "src/economic/wc_production_visibility_projection_v1.ts"
       - "ops/public/public-seed-adapter-v1.mjs"
       - "ops/mainnet0/wc-public-ticket-claim-v1.sh"
       - "ops/mainnet0/wc-public-earning-participant-v1.sh"
@@ -54,6 +57,7 @@ on:
       - "scripts/prove_public_earn_gateway_v1.mjs"
       - "scripts/prove_wc_public_earning_pilot_v1.ts"
       - "scripts/prove_wc_public_earning_pilot_runtime_v1.ts"
+      - "scripts/prove_wc_verified_receipt_acceptance_v1.ts"
       - "scripts/prove_wc_public_earning_outbound_participant_v1.ts"
       - "scripts/prove_wc_public_earning_participant_cli_false_default_v1.ts"
       - "scripts/prove_wc_public_earning_participant_cli_v1.ts"
@@ -95,6 +99,8 @@ jobs:
         run: |
           npx tsx scripts/prove_wc_public_earning_pilot_v1.ts
           npx tsx scripts/prove_wc_public_earning_pilot_runtime_v1.ts
+          npx tsx scripts/prove_wc_verified_receipt_acceptance_v1.ts
+          npx tsx scripts/prove_wc_production_visibility_canonical_projection_v1.ts
           npx tsx scripts/prove_wc_public_earning_outbound_participant_v1.ts
           npx tsx scripts/prove_wc_public_earning_participant_cli_false_default_v1.ts
           npx tsx scripts/prove_wc_public_earning_participant_cli_v1.ts

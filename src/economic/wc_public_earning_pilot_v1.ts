@@ -401,6 +401,14 @@ function safeHex64(raw: unknown): string {
   return /^[0-9a-f]{64}$/.test(value) ? value : "";
 }
 
+function wcCompatProjectionV1(
+  raw: unknown,
+): number | null {
+  return typeof raw === "number" && Number.isFinite(raw)
+    ? raw
+    : null;
+}
+
 function safeClaimNonce(raw: unknown): string {
   const value = String(raw || "").trim().toLowerCase();
   return /^[0-9a-f]{32}$/.test(value) ? value : "";
@@ -3465,9 +3473,10 @@ export async function submitRemoteResult(req: any, res: any): Promise<any> {
           delta: 0,
           original_delta: Number(consumed.wc_delta || 0),
           fixed_award_wc: VOID_WC_PUBLIC_EARNING_PILOT_AWARD_WC,
-          canonical_redeemable_after_local: Number(
-            consumed.canonical_redeemable_after_local || 0,
-          ),
+          canonical_redeemable_after_local:
+            wcCompatProjectionV1(
+              consumed.canonical_redeemable_after_local,
+            ),
           canonical_redeemable_after_local_exact: String(
             consumed.canonical_redeemable_after_local_exact || "0",
           ),
@@ -3613,9 +3622,10 @@ export async function submitRemoteResult(req: any, res: any): Promise<any> {
       dataset_id: envelope.dataset_id,
       wc_delta: terminalAwardWc,
       credit_delta_this_attempt: acceptedDelta,
-      canonical_redeemable_after_local: Number(
-        acceptance?.canonical_redeemable_after_local || 0,
-      ),
+      canonical_redeemable_after_local:
+        wcCompatProjectionV1(
+          acceptance?.canonical_redeemable_after_local,
+        ),
       canonical_redeemable_after_local_exact: String(
         acceptance?.canonical_redeemable_after_local_exact || "0",
       ),
@@ -3650,9 +3660,10 @@ export async function submitRemoteResult(req: any, res: any): Promise<any> {
       dataset_id: envelope.dataset_id,
       wc_delta: terminalAwardWc,
       credit_delta_this_attempt: acceptedDelta,
-      canonical_redeemable_after_local: Number(
-        acceptance?.canonical_redeemable_after_local || 0,
-      ),
+      canonical_redeemable_after_local:
+        wcCompatProjectionV1(
+          acceptance?.canonical_redeemable_after_local,
+        ),
       canonical_redeemable_after_local_exact: String(
         acceptance?.canonical_redeemable_after_local_exact || "0",
       ),
@@ -3683,8 +3694,8 @@ export async function submitRemoteResult(req: any, res: any): Promise<any> {
       receipt_id: envelope.receipt_id,
       dataset_id: envelope.dataset_id,
       wc: {
-        before: Number(
-          acceptance?.canonical_redeemable_before || 0,
+        before: wcCompatProjectionV1(
+          acceptance?.canonical_redeemable_before,
         ),
         before_exact: String(
           acceptance?.canonical_redeemable_before_exact || "0",
@@ -3692,8 +3703,8 @@ export async function submitRemoteResult(req: any, res: any): Promise<any> {
         before_quanta: String(
           acceptance?.canonical_redeemable_before_quanta || "0",
         ),
-        after_local: Number(
-          acceptance?.canonical_redeemable_after_local || 0,
+        after_local: wcCompatProjectionV1(
+          acceptance?.canonical_redeemable_after_local,
         ),
         after_local_exact: String(
           acceptance?.canonical_redeemable_after_local_exact || "0",

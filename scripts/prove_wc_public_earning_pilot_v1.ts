@@ -21,6 +21,15 @@ const acceptanceText = fs.readFileSync(
   path.join(root, "src", "economic", "wc_verified_receipt_acceptance_v1.ts"),
   "utf8",
 );
+const productionVisibilityText = fs.readFileSync(
+  path.join(
+    root,
+    "src",
+    "economic",
+    "wc_production_visibility_projection_v1.ts",
+  ),
+  "utf8",
+);
 const remoteTruthIndexText = fs.readFileSync(
   path.join(root, "src", "economic", "wc_public_remote_truth_jsonl_index_v1.ts"),
   "utf8",
@@ -261,6 +270,46 @@ need(
 need(
   acceptanceText.includes("nano_wc_fixed_point_v1"),
   "canonical WC numeric domain is not exact fixed point",
+);
+need(
+  acceptanceText.includes(
+    "function wcQuantaToCompatNumberV1(\n  value: bigint,\n): number | null",
+  ),
+  "WC compatibility projection is not lossless-or-null",
+);
+need(
+  acceptanceText.includes(
+    '"wc_compat_number_roundtrip_invalid"',
+  ) &&
+    acceptanceText.includes("roundTrip === value ? out : null"),
+  "WC compatibility projection lacks exact quanta round-trip",
+);
+need(
+  moduleText.includes("function wcCompatProjectionV1("),
+  "public earning compatibility null propagation helper missing",
+);
+for (const forbidden of [
+  "Number(\n          acceptance?.canonical_redeemable_before || 0",
+  "Number(\n          acceptance?.canonical_redeemable_after_local || 0",
+  "Number(\n        acceptance?.canonical_redeemable_after_local || 0",
+  "Number(\n            consumed.canonical_redeemable_after_local || 0",
+]) {
+  need(
+    !moduleText.includes(forbidden),
+    `lossy WC compatibility coercion remains: ${forbidden}`,
+  );
+}
+need(
+  productionVisibilityText.includes(
+    'redeemable: redeemableQuanta > 0n',
+  ),
+  "production WC redeemable boolean still depends on compatibility Number",
+);
+need(
+  productionVisibilityText.includes("balance_exact:") &&
+    productionVisibilityText.includes("redeemable_wc_exact:") &&
+    productionVisibilityText.includes("numeric_authority:"),
+  "production WC exact balance projection missing",
 );
 need(
   acceptanceText.includes("capabilityTicketIdRaw"),
