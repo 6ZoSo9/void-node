@@ -102,7 +102,7 @@ jobs:
     needs: detect
     if: needs.detect.outputs.relevant == 'true'
     runs-on: ubuntu-latest
-    timeout-minutes: 2
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v6
         with:
@@ -122,14 +122,50 @@ jobs:
             fi
           fi
 
-      - name: Check ops Prometheus verification script syntax
+      - name: Install bounded pinned promtool
         run: |
           set -euo pipefail
-          bash -n ops/prom-verify.sh
-          echo "ops/prom-verify.sh syntax OK"
+          VER="2.54.1"
+          SHA256="31715ef65e8a898d0f97c8c08c03b6b9afe485ac84e1698bcfec90fc6e62924f"
+          ROOT="/tmp/void-prometheus-${VER}"
+          ARCHIVE="/tmp/prometheus-${VER}.linux-amd64.tar.gz"
+          URL="https://github.com/prometheus/prometheus/releases/download/v${VER}/prometheus-${VER}.linux-amd64.tar.gz"
 
-      - name: Prometheus repository validation ownership
+          rm -rf "$ROOT"
+          mkdir -p "$ROOT"
+          curl --fail --location --silent --show-error \
+            --connect-timeout 10 --max-time 90 --retry 2 --retry-connrefused \
+            -o "$ARCHIVE" "$URL"
+          printf '%s  %s\n' "$SHA256" "$ARCHIVE" | sha256sum --check --strict
+          tar -xzf "$ARCHIVE" -C "$ROOT" --strip-components=1 \
+            "prometheus-${VER}.linux-amd64/promtool" \
+            "prometheus-${VER}.linux-amd64/prometheus.yml"
+          chmod 0755 "$ROOT/promtool"
+          echo "$ROOT" >> "$GITHUB_PATH"
+          "$ROOT/promtool" --version
+
+      - name: Prove and run ops Prometheus verification
         run: |
           set -euo pipefail
-          echo "Repository Prometheus rules/alerts are validated by the dedicated prom-verify workflow."
-          echo "This ops-verify job intentionally does not install Ubuntu prometheus packages."
+          VER="2.54.1"
+          ROOT="/tmp/void-prometheus-${VER}"
+
+          bash -n ops/prom-verify.sh
+
+          sudo rm -rf /etc/prometheus
+          sudo mkdir -p /etc/prometheus
+
+          # Syntax alone is insufficient: the real verifier must reject an
+          # invalid Prometheus configuration.
+          sudo tee /etc/prometheus/prometheus.yml >/dev/null <<'EOF'
+          global:
+            scrape_interval: definitely-not-a-duration
+          EOF
+          if bash ops/prom-verify.sh; then
+            echo "ops/prom-verify.sh accepted an invalid Prometheus configuration" >&2
+            exit 1
+          fi
+
+          # Restore a known-valid upstream fixture and execute the real verifier.
+          sudo cp "$ROOT/prometheus.yml" /etc/prometheus/prometheus.yml
+          bash ops/prom-verify.sh
