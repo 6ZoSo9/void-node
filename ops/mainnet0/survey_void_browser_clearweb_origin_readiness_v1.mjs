@@ -34,6 +34,7 @@ const MINIMUM_TRUST_LIFETIME_MS = 7 * 24 * 60 * 60 * 1000;
 const SHA40 = /^[0-9a-f]{40}$/;
 const SHA64 = /^[0-9a-f]{64}$/;
 const DNS_LABEL = /^(?!-)[a-z0-9-]{1,63}(?<!-)$/;
+const activeFetchAcquisitions = new WeakMap();
 
 const ROUTES = Object.freeze({
   well_known: Object.freeze({
@@ -283,9 +284,9 @@ function requestDeadlineError(signal) {
     : new Error("request deadline exceeded");
 }
 
-async function readChunkWithDeadline(reader, signal) {
-  if (signal.aborted) throw requestDeadlineError(signal);
-  return await new Promise((resolve, reject) => {
+function awaitWithinOwnedDeadline(promise, signal) {
+  if (signal.aborted) return Promise.reject(requestDeadlineError(signal));
+  return new Promise((resolve, reject) => {
     let settled = false;
     const finish = (action, value) => {
       if (settled) return;
@@ -295,16 +296,21 @@ async function readChunkWithDeadline(reader, signal) {
     };
     const onAbort = () => finish(reject, requestDeadlineError(signal));
     signal.addEventListener("abort", onAbort, { once: true });
-    Promise.resolve()
-      .then(() => reader.read())
-      .then(
-        (value) => finish(resolve, value),
-        (error) => finish(reject, error),
-      );
+    Promise.resolve(promise).then(
+      (value) => finish(resolve, value),
+      (error) => finish(reject, error),
+    );
   });
 }
 
-async function settleRejectedBody(response, reader, controller, deadlineAt, reason) {
+async function readChunkWithDeadline(reader, signal) {
+  return await awaitWithinOwnedDeadline(
+    Promise.resolve().then(() => reader.read()),
+    signal,
+  );
+}
+
+async function settleRejectedBody(response, reader, controller, _deadlineAt, reason) {
   if (!controller.signal.aborted) controller.abort(reason);
   let cancellation;
   try {
@@ -317,13 +323,71 @@ async function settleRejectedBody(response, reader, controller, deadlineAt, reas
     return;
   }
   if (!cancellation) return;
-  const remainingMs = Math.max(0, deadlineAt - Date.now());
-  const settlementMs = Math.min(MAXIMUM_BODY_TEARDOWN_SETTLEMENT_MS, remainingMs);
-  if (settlementMs <= 0) return;
-  await Promise.race([
-    cancellation.catch(() => undefined),
-    new Promise((resolve) => setTimeout(resolve, settlementMs)),
-  ]);
+  let timer = null;
+  try {
+    await Promise.race([
+      cancellation.catch(() => undefined),
+      new Promise((resolve) => {
+        timer = setTimeout(resolve, MAXIMUM_BODY_TEARDOWN_SETTLEMENT_MS);
+      }),
+    ]);
+  } finally {
+    if (timer !== null) clearTimeout(timer);
+  }
+}
+
+function fetchAcquisitionRegistry(fetchImpl) {
+  let registry = activeFetchAcquisitions.get(fetchImpl);
+  if (!registry) {
+    registry = new Map();
+    activeFetchAcquisitions.set(fetchImpl, registry);
+  }
+  return registry;
+}
+
+async function acquireResponseWithDeadline(fetchImpl, url, init, controller, label) {
+  const registry = fetchAcquisitionRegistry(fetchImpl);
+  const key = `${init.method} ${url}`;
+  if (registry.has(key)) {
+    fail(`${label} fetch acquisition is quarantined`);
+  }
+
+  const acquisition = Promise.resolve().then(() => fetchImpl(url, init));
+  const lease = { acquisition };
+  registry.set(key, lease);
+
+  const release = () => {
+    if (registry.get(key) !== lease) return;
+    registry.delete(key);
+    if (registry.size === 0) activeFetchAcquisitions.delete(fetchImpl);
+  };
+
+  acquisition.then(
+    async (response) => {
+      if (!controller.signal.aborted) return;
+      try {
+        await settleRejectedBody(
+          response,
+          null,
+          controller,
+          0,
+          requestDeadlineError(controller.signal),
+        );
+      } catch {
+        // The caller-visible request deadline is already terminal.
+      }
+    },
+    () => undefined,
+  ).finally(release).catch(() => undefined);
+
+  try {
+    const response = await awaitWithinOwnedDeadline(acquisition, controller.signal);
+    release();
+    return response;
+  } catch (error) {
+    if (!controller.signal.aborted) release();
+    throw error;
+  }
 }
 
 async function parseContentLengthWithOwnedTeardown(
@@ -364,7 +428,15 @@ async function readBoundedGetBody(response, maximum, controller, deadlineAt, lab
     throw primary;
   }
 
-  const reader = response.body.getReader();
+  let reader;
+  try {
+    reader = response.body.getReader();
+  } catch {
+    const primary = new Hold(`${label} body reader is unavailable`);
+    await settleRejectedBody(response, null, controller, deadlineAt, primary);
+    throw primary;
+  }
+
   const chunks = [];
   let total = 0;
   try {
@@ -400,17 +472,23 @@ async function boundedRequest(url, method, fetchImpl, maximum, timeoutMs) {
   );
   const label = `${method} ${url}`;
   try {
-    const response = await fetchImpl(url, {
-      method,
-      cache: "no-store",
-      redirect: "manual",
-      credentials: "omit",
-      headers: {
-        accept: "application/json",
-        "cache-control": "no-cache",
+    const response = await acquireResponseWithDeadline(
+      fetchImpl,
+      url,
+      {
+        method,
+        cache: "no-store",
+        redirect: "manual",
+        credentials: "omit",
+        headers: {
+          accept: "application/json",
+          "cache-control": "no-cache",
+        },
+        signal: controller.signal,
       },
-      signal: controller.signal,
-    });
+      controller,
+      label,
+    );
     let body;
     if (method === "GET") {
       body = await readBoundedGetBody(response, maximum, controller, deadlineAt, label);
