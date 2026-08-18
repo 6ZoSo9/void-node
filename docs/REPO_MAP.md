@@ -220,6 +220,19 @@ The focused proof also covers dirty staged/unstaged state, checkout movement
 after the source pin, Git replacement objects, ambient repository/object/config
 selection, and fake top-level `git` substitution through hostile `PATH`.
 
+## Maintenance contract
+
+This is a living directory. The dedicated cartography workflow runs for every
+pull request and every push to `main`, with stale runs canceled and a bounded job
+timeout. Required selectors are fail-closed, so a mapped architectural entrypoint
+cannot be deleted or renamed without the directory proof noticing.
+
+Ordinary growth beneath an existing stable prefix does not require map churn. A
+change that creates, relocates, or retires a durable subsystem entrypoint must
+update the relevant domain selector in the same development lane. New domains
+remain reserved for durable architectural boundaries; the directory is not a
+file-by-file inventory.
+
 ## Growth rule
 
 Do not make this an encyclopedia. Add a domain only when it saves meaningful

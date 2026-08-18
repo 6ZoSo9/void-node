@@ -2,40 +2,23 @@ name: VOID Repository Cartography v1
 
 on:
   pull_request:
-    paths:
-      - "docs/REPO_MAP.md"
-      - "docs/repo-map-v1.json"
-      - "docs/index-map-v1.json"
-      - "scripts/generate_void_repo_cartography_v1.mjs"
-      - "scripts/review_void_repo_section_v1.mjs"
-      - "scripts/prove_void_repo_cartography_v1.mjs"
-      - "scripts/prove_void_repo_cartography_git_executable_identity_v1.mjs"
-      - "scripts/ci_diff_hygiene_v1.sh"
-      - "scripts/prove_ci_diff_hygiene_v1.mjs"
-      - ".github/workflows/void-repo-cartography-v1.yml"
   push:
     branches:
       - main
-    paths:
-      - "docs/REPO_MAP.md"
-      - "docs/repo-map-v1.json"
-      - "docs/index-map-v1.json"
-      - "scripts/generate_void_repo_cartography_v1.mjs"
-      - "scripts/review_void_repo_section_v1.mjs"
-      - "scripts/prove_void_repo_cartography_v1.mjs"
-      - "scripts/prove_void_repo_cartography_git_executable_identity_v1.mjs"
-      - "scripts/ci_diff_hygiene_v1.sh"
-      - "scripts/prove_ci_diff_hygiene_v1.mjs"
-      - ".github/workflows/void-repo-cartography-v1.yml"
   workflow_dispatch:
 
 permissions:
   contents: read
 
+concurrency:
+  group: void-repo-cartography-v1-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 jobs:
   repo-cartography:
     name: repo-directory-node-24
     runs-on: ubuntu-24.04
+    timeout-minutes: 10
     env:
       VOID_REPO_CARTOGRAPHY_GIT_EXECUTABLE: /usr/bin/git
     steps:
