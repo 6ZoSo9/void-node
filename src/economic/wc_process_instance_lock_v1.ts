@@ -34,6 +34,31 @@ function safeName(raw: string): string {
   return /^[A-Za-z0-9._-]{1,160}$/.test(name) ? name : "";
 }
 
+function processStartTicksFromStatTextV1(text: string): string | null {
+  const end = text.lastIndexOf(")");
+  if (end < 0) fail("wc_process_lock_proc_stat_malformed");
+  const fields = text.slice(end + 1).trim().split(/\s+/);
+  const processState = String(fields[0] || "");
+  if (!/^[A-Za-z]$/.test(processState)) {
+    fail("wc_process_lock_proc_stat_malformed");
+  }
+  // A zombie/dead process still has a /proc/<pid>/stat entry and the same
+  // start ticks, but it can never execute a lock release. Treat it as dead
+  // ownership so recovery does not transiently self-wedge behind a zombie.
+  if (
+    processState === "Z" ||
+    processState === "X" ||
+    processState === "x"
+  ) {
+    return null;
+  }
+  const startTicks = String(fields[19] || "");
+  if (!/^[0-9]+$/.test(startTicks)) {
+    fail("wc_process_lock_proc_stat_malformed");
+  }
+  return startTicks;
+}
+
 async function processStartTicks(pid: number): Promise<string | null> {
   if (!Number.isSafeInteger(pid) || pid <= 0) return null;
   const file = `/proc/${pid}/stat`;
@@ -41,17 +66,14 @@ async function processStartTicks(pid: number): Promise<string | null> {
   try {
     text = await fsp.readFile(file, "utf8");
   } catch (error: any) {
-    if (String(error?.code || "") === "ENOENT") return null;
+    const code = String(error?.code || "");
+    // procfs can report either ENOENT or ESRCH when the process disappears
+    // between pathname lookup and the actual stat-file read. Both mean the
+    // recorded owner generation is no longer executable and cannot release.
+    if (code === "ENOENT" || code === "ESRCH") return null;
     throw error;
   }
-  const end = text.lastIndexOf(")");
-  if (end < 0) fail("wc_process_lock_proc_stat_malformed");
-  const fields = text.slice(end + 1).trim().split(/\s+/);
-  const startTicks = String(fields[19] || "");
-  if (!/^[0-9]+$/.test(startTicks)) {
-    fail("wc_process_lock_proc_stat_malformed");
-  }
-  return startTicks;
+  return processStartTicksFromStatTextV1(text);
 }
 
 function generationText(generation: number): string {
@@ -382,4 +404,10 @@ export async function wcProcessStartTicksForProofV1(
   pid: number,
 ): Promise<string | null> {
   return processStartTicks(pid);
+}
+
+export function wcProcessStartTicksFromStatTextForProofV1(
+  text: string,
+): string | null {
+  return processStartTicksFromStatTextV1(text);
 }

@@ -9,6 +9,7 @@ import {
   acquireWcProcessInstanceLockV1,
   releaseWcProcessInstanceLockV1,
   wcProcessStartTicksForProofV1,
+  wcProcessStartTicksFromStatTextForProofV1,
   WcProcessInstanceLockError,
 } from "../src/economic/wc_process_instance_lock_v1.js";
 
@@ -21,6 +22,10 @@ async function child(): Promise<void> {
   process.stdout.write(
     `LOCKED ${lock.file} ${lock.generation}\n`,
   );
+  // An unresolved Promise alone does not keep Node alive. Hold one real
+  // event-loop handle so this fixture is a genuinely live owner until
+  // the parent deliberately SIGKILLs it.
+  setInterval(() => undefined, 60_000);
   await new Promise<void>(() => undefined);
 }
 
@@ -106,10 +111,51 @@ async function main(): Promise<void> {
     );
     assert.equal(fs.existsSync(locked.file), true);
 
-    proc.kill("SIGKILL");
-    await new Promise<void>((resolve) =>
-      proc.once("exit", () => resolve()),
+    const authoritativeOwner = JSON.parse(
+      fs.readFileSync(locked.file, "utf8"),
     );
+    const authoritativeOwnerPid = Number(authoritativeOwner.pid || 0);
+    assert.equal(
+      Number.isSafeInteger(authoritativeOwnerPid) && authoritativeOwnerPid > 0,
+      true,
+      "lock generation did not publish a valid owner PID",
+    );
+    assert.equal(
+      String(authoritativeOwner.process_start_ticks || "").length > 0,
+      true,
+      "lock generation did not publish owner process generation",
+    );
+
+    // Kill the process that actually owns the lock generation, not merely the
+    // tsx launcher. tsx may execute the TypeScript body in a child process on
+    // some Node/runner combinations.
+    process.kill(authoritativeOwnerPid, "SIGKILL");
+
+    const ownerDeadline = Date.now() + 10_000;
+    for (;;) {
+      const liveTicks = await wcProcessStartTicksForProofV1(
+        authoritativeOwnerPid,
+      );
+      if (liveTicks === null) break;
+      if (Date.now() >= ownerDeadline) {
+        throw new Error("authoritative_lock_owner_did_not_exit");
+      }
+      await new Promise<void>((resolve) => setTimeout(resolve, 5));
+    }
+
+    // Best-effort reap/terminate the launcher wrapper too, but it is not the
+    // authority decision. Recovery is keyed to the PID stored in the lock.
+    if (proc.exitCode === null && proc.signalCode === null) {
+      proc.kill("SIGKILL");
+    }
+    if (proc.exitCode === null && proc.signalCode === null) {
+      await Promise.race([
+        new Promise<void>((resolve) =>
+          proc.once("exit", () => resolve()),
+        ),
+        new Promise<void>((resolve) => setTimeout(resolve, 2_000)),
+      ]);
+    }
 
     const recovered = await acquireWcProcessInstanceLockV1(
       root,
@@ -142,6 +188,43 @@ async function main(): Promise<void> {
     );
     assert.ok(pidReuseRecovered.generation > fakeGeneration);
     await releaseWcProcessInstanceLockV1(pidReuseRecovered);
+
+    const runningFields = [
+      "R",
+      ...Array.from({ length: 18 }, () => "0"),
+      "424242",
+    ];
+    const zombieFields = [
+      "Z",
+      ...Array.from({ length: 18 }, () => "0"),
+      "424242",
+    ];
+    const deadFields = [
+      "X",
+      ...Array.from({ length: 18 }, () => "0"),
+      "424242",
+    ];
+    assert.equal(
+      wcProcessStartTicksFromStatTextForProofV1(
+        `123 (proof-running) ${runningFields.join(" ")}`,
+      ),
+      "424242",
+      "running proc-stat generation was not preserved",
+    );
+    assert.equal(
+      wcProcessStartTicksFromStatTextForProofV1(
+        `124 (proof-zombie) ${zombieFields.join(" ")}`,
+      ),
+      null,
+      "zombie proc-stat remained eligible as lock owner",
+    );
+    assert.equal(
+      wcProcessStartTicksFromStatTextForProofV1(
+        `125 (proof-dead) ${deadFields.join(" ")}`,
+      ),
+      null,
+      "dead proc-stat remained eligible as lock owner",
+    );
 
     const orphanTemp = path.join(
       root,
@@ -190,7 +273,20 @@ async function main(): Promise<void> {
     console.log("VOID_WC_PROCESS_INSTANCE_LOCK_V1_GREEN");
     console.log("age_based_live_owner_eviction=false");
     console.log("dead_owner_generation_advanced=true");
+    console.log("authoritative_lock_owner_pid_terminated=true");
+    const helperSource = fs.readFileSync(
+      path.resolve("src/economic/wc_process_instance_lock_v1.ts"),
+      "utf8",
+    );
+    assert.equal(
+      helperSource.includes('code === "ENOENT" || code === "ESRCH"'),
+      true,
+      "procfs owner disappearance does not accept ESRCH",
+    );
+    console.log("procfs_esrch_owner_disappearance_handled=true");
     console.log("pid_reuse_generation_advanced=true");
+    console.log("zombie_process_state_ineligible=true");
+    console.log("dead_process_state_ineligible=true");
     console.log("old_release_replacement_delete=false");
     console.log("partial_generation_publication_not_authoritative=true");
     console.log("malformed_current_generation_fail_closed=true");
