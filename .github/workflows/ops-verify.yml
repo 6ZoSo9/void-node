@@ -166,6 +166,56 @@ jobs:
             exit 1
           fi
 
-          # Restore a known-valid upstream fixture and execute the real verifier.
+          # Restore a known-valid upstream fixture before exercising rule scans.
           sudo cp "$ROOT/prometheus.yml" /etc/prometheus/prometheus.yml
+
+          write_valid_rule() {
+            sudo tee "$1" >/dev/null <<'EOF'
+          groups:
+          - name: void-ops-verify-valid
+            rules:
+            - alert: VoidOpsVerifyValid
+              expr: vector(1)
+          EOF
+          }
+
+          write_invalid_rule() {
+            sudo tee "$1" >/dev/null <<'EOF'
+          groups:
+          - name: void-ops-verify-invalid
+            rules:
+            - alert: VoidOpsVerifyInvalid
+              expr: sum(
+          EOF
+          }
+
+          RULE_DIRS=(
+            /etc/prometheus/alerts
+            /etc/prometheus/rules.d
+            /etc/prometheus/void-rules
+          )
+
+          # Prove every canonical rules directory is actually consumed by the
+          # real verifier. Each iteration leaves all other directories valid and
+          # injects one semantically invalid rule into the selected directory.
+          for target in "${RULE_DIRS[@]}"; do
+            for dir in "${RULE_DIRS[@]}"; do
+              sudo rm -rf "$dir"
+              sudo mkdir -p "$dir"
+              write_valid_rule "$dir/valid.yml"
+            done
+            write_invalid_rule "$target/invalid.yml"
+            if bash ops/prom-verify.sh; then
+              echo "ops/prom-verify.sh did not reject invalid rule in $target" >&2
+              exit 1
+            fi
+          done
+
+          # Final positive path: valid config plus valid rules in all three
+          # canonical directories must pass the same production verifier.
+          for dir in "${RULE_DIRS[@]}"; do
+            sudo rm -rf "$dir"
+            sudo mkdir -p "$dir"
+            write_valid_rule "$dir/valid.yml"
+          done
           bash ops/prom-verify.sh
