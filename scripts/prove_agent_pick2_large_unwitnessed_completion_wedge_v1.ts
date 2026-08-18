@@ -217,16 +217,30 @@ try {
     path.resolve("src/economic/wc_public_earning_pilot_v1.ts"),
     "utf8",
   );
-  const exactStart = pilotSource.indexOf("function appendExactOnce(");
+  const readStart = pilotSource.indexOf("async function readJsonlMatches(");
+  const exactStart = pilotSource.indexOf("async function appendExactOnce(");
   const exactEnd = pilotSource.indexOf(
-    "\nexport function persistImportedRemoteTruthOnce(",
+    "\nexport async function persistImportedRemoteTruthOnce(",
     exactStart,
   );
+  assert.notEqual(readStart, -1);
   assert.notEqual(exactStart, -1);
   assert.notEqual(exactEnd, -1);
+  const readBlock = pilotSource.slice(readStart, exactStart);
   const exactBlock = pilotSource.slice(exactStart, exactEnd);
+  assert.ok(readBlock.includes("await fsp.stat(file)"));
+  assert.ok(readBlock.includes("fs.createReadStream(file"));
+  assert.ok(readBlock.includes("end: size - 1"));
+  assert.ok(readBlock.includes("for await (const raw of lines)"));
+  assert.equal(readBlock.includes("readFileSync("), false);
+  assert.ok(exactBlock.includes("const matches = await readJsonlMatches("));
   assert.ok(exactBlock.includes("appendAgentPick2JsonlCanonicalV1("));
   assert.equal(exactBlock.includes("appendJsonl(file, value);"), false);
+  assert.ok(
+    pilotSource.includes(
+      "const imported = await persistImportedRemoteTruthOnce(",
+    ),
+  );
 
   console.log(`${MARKER}_PROOF_GREEN`);
   console.log(`live_receipts_bytes=${LIVE_RECEIPTS_BYTES}`);
@@ -237,6 +251,8 @@ try {
   console.log("witnessed_completion_append_incremental=true");
   console.log(`witnessed_refresh_bytes=${witnessRefreshBytes}`);
   console.log("wc_public_exact_once_writer_witness_bound=true");
+  console.log("wc_public_exact_once_history_scan_streamed_async=true");
+  console.log("wc_public_history_scan_generation_bounded=true");
   console.log("live_runtime_mutation_performed=false");
 } finally {
   fs.rmSync(root, { recursive: true, force: true });

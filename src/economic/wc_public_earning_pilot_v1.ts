@@ -2,6 +2,7 @@ import crypto from "node:crypto";
 import express from "express";
 import fs from "node:fs";
 import fsp from "node:fs/promises";
+import readline from "node:readline";
 import path from "node:path";
 import { nodeIdFromPubPEM } from "../chain/block.js";
 import { loadKeypair } from "../crypto/keypair.js";
@@ -1506,31 +1507,56 @@ export function assertRemoteReceiptTruth(
   }
 }
 
-function readJsonlMatches(
+async function readJsonlMatches(
   file: string,
   predicate: (value: JsonObject) => boolean,
-): JsonObject[] {
-  if (!fs.existsSync(file)) return [];
+): Promise<JsonObject[]> {
+  let size = 0;
+  try {
+    const st = await fsp.stat(file);
+    if (!st.isFile()) throw new Error("remote_truth_non_regular_file");
+    size = Number(st.size || 0);
+  } catch (error: any) {
+    if (String(error?.code || "") === "ENOENT") return [];
+    throw error;
+  }
+  if (size <= 0) return [];
+
   const out: JsonObject[] = [];
-  for (const line of fs.readFileSync(file, "utf8").split(/\r?\n/)) {
-    if (!line.trim()) continue;
-    try {
-      const value = JSON.parse(line);
-      if (predicate(value)) out.push(value);
-    } catch (error) {
-      recordPilotBestEffortFailure("read-jsonl-line", error, { file });
+  const input = fs.createReadStream(file, {
+    encoding: "utf8",
+    start: 0,
+    end: size - 1,
+  });
+  const lines = readline.createInterface({ input, crlfDelay: Infinity });
+  try {
+    for await (const raw of lines) {
+      const line = String(raw || "");
+      if (!line.trim()) continue;
+      try {
+        const value = JSON.parse(line);
+        if (predicate(value)) {
+          out.push(value);
+          if (out.length > 1) break;
+        }
+      } catch (error) {
+        recordPilotBestEffortFailure("read-jsonl-line", error, { file });
+      }
     }
+  } finally {
+    lines.close();
+    input.destroy();
   }
   return out;
 }
 
-function appendExactOnce(
+async function appendExactOnce(
   file: string,
   value: JsonObject,
   idFields: string[],
-): { appended: boolean; existing: JsonObject | null } {
+): Promise<{ appended: boolean; existing: JsonObject | null }> {
   const keys = idFields.map((field) => String(value?.[field] || ""));
-  const matches = readJsonlMatches(file, (candidate) =>
+  const matches = await readJsonlMatches(file, (candidate) =>
     idFields.every(
       (field, index) => String(candidate?.[field] || "") === keys[index],
     ),
@@ -1566,11 +1592,11 @@ function appendExactOnce(
   return { appended: true, existing: null };
 }
 
-export function persistImportedRemoteTruthOnce(
+export async function persistImportedRemoteTruthOnce(
   envelopeRaw: Partial<PilotResultEnvelope>,
   signatureRaw: JsonObject,
   raw?: string,
-): JsonObject {
+): Promise<JsonObject> {
   const envelope = verifyPilotResultEnvelope(envelopeRaw, signatureRaw);
   const dataDir = resolveDataDir(raw);
   const importedAt = Date.now();
@@ -1634,17 +1660,17 @@ export function persistImportedRemoteTruthOnce(
     remote_executor_provenance: provenance,
   };
 
-  const receiptResult = appendExactOnce(
+  const receiptResult = await appendExactOnce(
     path.join(dataDir, "agent_v1", "receipts.jsonl"),
     receipt,
     ["receipt_id"],
   );
-  const jobResult = appendExactOnce(
+  const jobResult = await appendExactOnce(
     path.join(dataDir, "agent", "jobs.jsonl"),
     job,
     ["job_id"],
   );
-  const completedResult = appendExactOnce(
+  const completedResult = await appendExactOnce(
     path.join(dataDir, "agent_v1", "job_state.jsonl"),
     completed,
     ["job_id", "receipt_id"],
@@ -2359,7 +2385,7 @@ async function submitRemoteResult(req: any, res: any): Promise<any> {
     );
 
     const before = await readCanonicalWcState(record.account);
-    const imported = persistImportedRemoteTruthOnce(
+    const imported = await persistImportedRemoteTruthOnce(
       envelope,
       req?.body?.signature || {},
     );

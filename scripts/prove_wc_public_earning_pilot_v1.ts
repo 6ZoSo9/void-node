@@ -182,6 +182,58 @@ need(
 );
 
 need(
+  moduleText.includes('import readline from "node:readline";'),
+  "streamed JSONL reader import missing",
+);
+const readMatchesStart = moduleText.indexOf(
+  "async function readJsonlMatches(",
+);
+const appendExactStart = moduleText.indexOf(
+  "async function appendExactOnce(",
+);
+const persistImportStart = moduleText.indexOf(
+  "export async function persistImportedRemoteTruthOnce(",
+);
+need(readMatchesStart >= 0, "async JSONL match reader missing");
+need(appendExactStart > readMatchesStart, "async exact-once append missing");
+need(
+  persistImportStart > appendExactStart,
+  "async imported-truth persistence missing",
+);
+const readMatchesBlock = moduleText.slice(readMatchesStart, appendExactStart);
+const appendExactBlock = moduleText.slice(appendExactStart, persistImportStart);
+need(
+  readMatchesBlock.includes("await fsp.stat(file)"),
+  "JSONL history scan does not snapshot file metadata asynchronously",
+);
+need(
+  readMatchesBlock.includes("fs.createReadStream(file"),
+  "JSONL history scan is not streamed",
+);
+need(
+  readMatchesBlock.includes("end: size - 1"),
+  "JSONL history scan is not bounded to a snapshotted generation",
+);
+need(
+  readMatchesBlock.includes("for await (const raw of lines)"),
+  "JSONL history scan does not yield through async iteration",
+);
+need(
+  !readMatchesBlock.includes("readFileSync("),
+  "JSONL history scan still blocks on readFileSync",
+);
+need(
+  appendExactBlock.includes("const matches = await readJsonlMatches("),
+  "exact-once duplicate scan is not awaited",
+);
+need(
+  moduleText.includes(
+    "const imported = await persistImportedRemoteTruthOnce(",
+  ),
+  "live coordinator import does not await streamed persistence",
+);
+
+need(
   moduleText.includes(
     "process.env.VOID_WC_PUBLIC_TICKET_CLAIM_DATASET_ID",
   ),
@@ -269,7 +321,9 @@ const signIndex = moduleText.indexOf("const envelope = verifyPilotResultEnvelope
 const healthIndex = moduleText.indexOf("`${record.executor_http_base}/health`");
 const jobIndex = moduleText.indexOf("`${record.executor_http_base}/jobs/");
 const receiptIndex = moduleText.indexOf("`${record.executor_http_base}/receipts`");
-const importIndex = moduleText.indexOf("const imported = persistImportedRemoteTruthOnce(");
+const importIndex = moduleText.indexOf(
+  "const imported = await persistImportedRemoteTruthOnce(",
+);
 const acceptanceIndex = moduleText.indexOf("const acceptance = await acceptVerifiedReceiptOnce");
 
 need(signIndex >= 0, "signature verification anchor missing");
