@@ -3,8 +3,12 @@ import assert from "node:assert/strict";
 import { performance } from "node:perf_hooks";
 
 import {
+  parseBootstrapClientArgsV1,
   runVoidAiAgentBootstrapClientV1,
 } from "../tools/void-ai-agent-bootstrap-client-v1.mjs";
+
+const MAX_TIMEOUT_MS = 30_000;
+const MAX_ALLOWED_BYTES = 4_194_304;
 
 const WELL_KNOWN = {
   marker: "VOID_AI_AGENT_WELL_KNOWN_ENTRYPOINT_V1",
@@ -239,6 +243,177 @@ async function runMode(mode, { timeoutMs = 1000 } = {}) {
   };
 }
 
+const parsedMinimumBounds = parseBootstrapClientArgsV1([
+  "--base-url",
+  "http://127.0.0.1:4100",
+  "--timeout-ms",
+  "1",
+  "--max-bytes",
+  "1",
+]);
+assert.equal(parsedMinimumBounds.timeoutMs, 1);
+assert.equal(parsedMinimumBounds.maxBytes, 1);
+
+const parsedMaximumBounds = parseBootstrapClientArgsV1([
+  "--base-url",
+  "http://127.0.0.1:4100",
+  "--timeout-ms",
+  String(MAX_TIMEOUT_MS),
+  "--max-bytes",
+  String(MAX_ALLOWED_BYTES),
+]);
+assert.equal(parsedMaximumBounds.timeoutMs, MAX_TIMEOUT_MS);
+assert.equal(parsedMaximumBounds.maxBytes, MAX_ALLOWED_BYTES);
+
+for (const token of [
+  "5000ms",
+  "1e3",
+  "01",
+  "+1",
+  "1.0",
+  "0",
+  "-1",
+  "30001",
+  " 1",
+]) {
+  assert.throws(
+    () =>
+      parseBootstrapClientArgsV1([
+        "--base-url",
+        "http://127.0.0.1:4100",
+        "--timeout-ms",
+        token,
+      ]),
+    /timeout-ms must be an integer from 1 through 30000/,
+  );
+}
+
+for (const token of [
+  "1024junk",
+  "1e3",
+  "01",
+  "+1",
+  "1.0",
+  "0",
+  "-1",
+  "4194305",
+  " 1",
+]) {
+  assert.throws(
+    () =>
+      parseBootstrapClientArgsV1([
+        "--base-url",
+        "http://127.0.0.1:4100",
+        "--max-bytes",
+        token,
+      ]),
+    /max-bytes must be an integer from 1 through 4194304/,
+  );
+}
+
+const invalidTimeoutValues = [
+  NaN,
+  Infinity,
+  -Infinity,
+  true,
+  false,
+  [],
+  {},
+  "1000",
+  1.5,
+  0,
+  -1,
+  Number.MAX_SAFE_INTEGER + 1,
+  MAX_TIMEOUT_MS + 1,
+];
+for (const timeoutMs of invalidTimeoutValues) {
+  let fetchCalls = 0;
+  await assert.rejects(
+    runVoidAiAgentBootstrapClientV1({
+      baseUrl: "http://127.0.0.1:4100",
+      timeoutMs,
+      maxBytes: 1024,
+      fetchImpl: () => {
+        fetchCalls += 1;
+        return Promise.resolve(jsonResponse(WELL_KNOWN));
+      },
+    }),
+    /timeoutMs must be an integer from 1 through 30000/,
+  );
+  assert.equal(fetchCalls, 0);
+}
+
+const invalidMaxByteValues = [
+  NaN,
+  Infinity,
+  -Infinity,
+  true,
+  false,
+  [],
+  {},
+  "1024",
+  1.5,
+  0,
+  -1,
+  Number.MAX_SAFE_INTEGER + 1,
+  MAX_ALLOWED_BYTES + 1,
+];
+for (const maxBytes of invalidMaxByteValues) {
+  let fetchCalls = 0;
+  await assert.rejects(
+    runVoidAiAgentBootstrapClientV1({
+      baseUrl: "http://127.0.0.1:4100",
+      timeoutMs: 1000,
+      maxBytes,
+      fetchImpl: () => {
+        fetchCalls += 1;
+        return Promise.resolve(jsonResponse(WELL_KNOWN));
+      },
+    }),
+    /maxBytes must be an integer from 1 through 4194304/,
+  );
+  assert.equal(fetchCalls, 0);
+}
+
+let minimumTimeoutFetchCalls = 0;
+await assert.rejects(
+  runVoidAiAgentBootstrapClientV1({
+    baseUrl: "http://127.0.0.1:4100",
+    timeoutMs: 1,
+    maxBytes: 1024,
+    fetchImpl: () => {
+      minimumTimeoutFetchCalls += 1;
+      return new Promise(() => {});
+    },
+  }),
+  /bootstrap_request_deadline_exceeded/,
+);
+assert.equal(minimumTimeoutFetchCalls, 1);
+
+let minimumByteFetchCalls = 0;
+await assert.rejects(
+  runVoidAiAgentBootstrapClientV1({
+    baseUrl: "http://127.0.0.1:4100",
+    timeoutMs: 1000,
+    maxBytes: 1,
+    fetchImpl: () => {
+      minimumByteFetchCalls += 1;
+      return Promise.resolve(jsonResponse(WELL_KNOWN));
+    },
+  }),
+  /^Error: response_too_large:/,
+);
+assert.equal(minimumByteFetchCalls, 1);
+
+const maximumBoundsResult = await runVoidAiAgentBootstrapClientV1({
+  baseUrl: "http://127.0.0.1:4100",
+  timeoutMs: MAX_TIMEOUT_MS,
+  maxBytes: MAX_ALLOWED_BYTES,
+  fetchImpl: fetchForMode("small"),
+});
+assert.equal(maximumBoundsResult.readiness.read_only_connection_ready, true);
+assert.equal(maximumBoundsResult.readiness.onboarding_surface_complete, true);
+
 const small = await runMode("small");
 assert.equal(small.result.readiness.read_only_connection_ready, true);
 assert.equal(small.result.surfaces.capabilities.available, true);
@@ -411,6 +586,7 @@ assert.equal(lateCleanupCalls, 1);
 assert.equal(lateFetchCalls, 7);
 
 for (const result of [
+  maximumBoundsResult,
   small.result,
   redirect.result,
   declared.result,
@@ -434,6 +610,10 @@ for (const result of [
 }
 
 console.log("VOID_AI_AGENT_BOOTSTRAP_RESPONSE_BOUNDS_V1_PROOF_GREEN");
+console.log("bound_controls_strictly_typed=true");
+console.log("cli_bound_tokens_canonical_decimal=true");
+console.log("invalid_bound_controls_zero_fetch=true");
+console.log("minimum_and_maximum_bounds_accepted=true");
 console.log("redirect_rejection_teardown_bounded=true");
 console.log("declared_oversize_prebuffer_rejected=true");
 console.log("streamed_oversize_prebuffer_rejected=true");
