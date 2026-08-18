@@ -19,8 +19,8 @@ The repository copy is used for development and proofing. A repo-less participan
 
 The selected Public Earn gateway is **not** trusted to choose the executable client bytes. The client source below is pinned to the immutable reviewed repository commit that last changed the canonical client and to the exact Git blob identity of that file:
 
-- reviewed source commit: `a8166e1539f45d333b9e83ca566e1c51efd0aa5c`
-- exact client Git blob: `99c0e081511d2ef9c19fb1d68fe0ee0298f0488d`
+- reviewed source commit: `5dccff59711a941932f99a4e2f40c79e7e163fcc`
+- exact client Git blob: `0758e71d6b5a978de105d81d62055d4a019b490e`
 - repository path: `tools/void_public_earn_no_node_client_v1.mjs`
 
 The same blob is the client present on the reviewed current source baseline for this guide. The Git blob ID is computed over the exact Git blob object (`blob <byte-length>\0<bytes>`), so altered bytes are rejected before `writeFile` or execution.
@@ -43,12 +43,15 @@ import { createHash } from 'node:crypto';
 import { access, writeFile } from 'node:fs/promises';
 
 const [rawBase, output] = process.argv.slice(2);
-const sourceUrl = 'https://raw.githubusercontent.com/6ZoSo9/void-node/a8166e1539f45d333b9e83ca566e1c51efd0aa5c/tools/void_public_earn_no_node_client_v1.mjs';
-const expectedGitBlobSha1 = '99c0e081511d2ef9c19fb1d68fe0ee0298f0488d';
+const sourceUrl = 'https://raw.githubusercontent.com/6ZoSo9/void-node/5dccff59711a941932f99a4e2f40c79e7e163fcc/tools/void_public_earn_no_node_client_v1.mjs';
+const expectedGitBlobSha1 = '0758e71d6b5a978de105d81d62055d4a019b490e';
 const maxBytes = 1024 * 1024;
 
 function isPrivateHttpHost(hostname) {
-  const host = String(hostname || '').trim().toLowerCase();
+  const rawHost = String(hostname || '').trim().toLowerCase();
+  const host = rawHost.startsWith('[') && rawHost.endsWith(']')
+    ? rawHost.slice(1, -1)
+    : rawHost;
   if (host === 'localhost' || host === '127.0.0.1' || host === '::1') return true;
   if (host.endsWith('.ts.net')) return true;
   const match = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/.exec(host);
@@ -158,9 +161,10 @@ The pre-client policy intentionally matches the current canonical no-node client
 - `http://172.16.0.5:8082` through `172.31.x.x` → allowed
 - `http://100.64.0.5:8082` through `100.127.x.x` → allowed
 - `http://host.ts.net:8082` → allowed
-- ordinary public HTTP, `172.32/16`, `100.63/10`, `100.128/10`, userinfo, query/fragment-bearing origins, and non-root paths → refused before fetch
+- `http://[::1]:8082` → allowed
+- ordinary public HTTP, non-loopback IPv6 HTTP, `172.32/16`, `100.63/10`, `100.128/10`, userinfo, query/fragment-bearing origins, and non-root paths → refused before fetch
 
-Bracketed IPv6 HTTP follows the **current canonical client** exactly. The pinned client currently compares the URL hostname against `::1` without unbracketing it, so `http://[::1]:...` is not admitted by this repo-less bootstrap either. Use HTTPS or an admitted private IPv4/Tailscale origin until that canonical client policy changes. This guide does not silently widen the client policy.
+Bracketed IPv6 loopback HTTP follows the **current canonical client** exactly: one surrounding bracket pair is normalized before private-host classification, so `http://[::1]:...` is admitted while non-loopback IPv6 over HTTP remains refused. This guide does not widen the client policy beyond the reviewed canonical client.
 
 ## Identity
 
@@ -191,7 +195,10 @@ const rawBase = process.argv[2];
 const maxBytes = 65536;
 
 function isPrivateHttpHost(hostname) {
-  const host = String(hostname || '').trim().toLowerCase();
+  const rawHost = String(hostname || '').trim().toLowerCase();
+  const host = rawHost.startsWith('[') && rawHost.endsWith(']')
+    ? rawHost.slice(1, -1)
+    : rawHost;
   if (host === 'localhost' || host === '127.0.0.1' || host === '::1') return true;
   if (host.endsWith('.ts.net')) return true;
   const match = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/.exec(host);

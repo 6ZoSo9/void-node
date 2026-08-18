@@ -12,8 +12,8 @@ const repo = path.resolve(__dirname, '..');
 const guidePath = path.join(repo, 'docs/public/void-public-earn-no-node-client-v1.md');
 const clientRel = 'tools/void_public_earn_no_node_client_v1.mjs';
 const clientPath = path.join(repo, clientRel);
-const pinnedCommit = 'a8166e1539f45d333b9e83ca566e1c51efd0aa5c';
-const expectedGitBlobSha1 = '99c0e081511d2ef9c19fb1d68fe0ee0298f0488d';
+const pinnedCommit = '5dccff59711a941932f99a4e2f40c79e7e163fcc';
+const expectedGitBlobSha1 = '0758e71d6b5a978de105d81d62055d4a019b490e';
 const coordinatorNodeId = 'c'.repeat(32);
 
 function gitBlobSha1(bytes) {
@@ -150,7 +150,7 @@ const unsafeOrigins = [
   'http://172.32.1.2',
   'http://100.63.1.2',
   'http://100.128.1.2',
-  'http://[::1]:8082',
+  'http://[2001:db8::1]:8082',
   'https://user:pass@public.example',
   'https://public.example/path',
   'https://public.example?x=1',
@@ -178,6 +178,7 @@ const admittedOrigins = [
   'http://172.31.1.5:8082',
   'http://100.64.1.5:8082',
   'http://host.ts.net:8082',
+  'http://[::1]:8082',
 ];
 for (let index = 0; index < admittedOrigins.length; index += 1) {
   const output = path.join(root, `admitted-${index}.mjs`);
@@ -226,14 +227,14 @@ assert.equal(fs.readFileSync(existingOut, 'utf8'), 'keep-me', 'existing output c
 
 const statusBody = path.join(root, 'participant-status.json');
 fs.writeFileSync(statusBody, JSON.stringify({ marker: 'VOID_PUBLIC_PARTICIPANT_NO_NODE_HANDOFF_V1', coordinator_node_id: coordinatorNodeId }));
-for (const origin of ['https://public.example', 'http://127.0.0.1:8082', 'http://10.1.2.3:8082', 'http://peer.ts.net:8082']) {
+for (const origin of ['https://public.example', 'http://127.0.0.1:8082', 'http://10.1.2.3:8082', 'http://peer.ts.net:8082', 'http://[::1]:8082']) {
   const log = path.join(root, `status-ok-${crypto.randomBytes(4).toString('hex')}.log`);
   run = runSnippet({ script: statusScript, preload, args: [origin], env: { VOID_TEST_BODY_FILE: statusBody, VOID_TEST_FETCH_LOG: log } });
   assert.equal(run.status, 0, `status origin failed: ${origin}\n${run.stderr}`);
   assert.equal(run.stdout, coordinatorNodeId, 'status coordinator ID mismatch');
   assert.equal(fetchCount(log), 1, 'status fetch count mismatch');
 }
-for (const origin of ['http://public.example', 'http://172.32.1.2', 'http://100.128.1.2', 'http://[::1]:8082', 'https://user@public.example', 'https://public.example/path']) {
+for (const origin of ['http://public.example', 'http://172.32.1.2', 'http://100.128.1.2', 'http://[2001:db8::1]:8082', 'https://user@public.example', 'https://public.example/path']) {
   const log = path.join(root, `status-hold-${crypto.randomBytes(4).toString('hex')}.log`);
   run = runSnippet({ script: statusScript, preload, args: [origin], env: { VOID_TEST_BODY_FILE: statusBody, VOID_TEST_FETCH_LOG: log } });
   assert.notEqual(run.status, 0, `unsafe status origin unexpectedly succeeded: ${origin}`);
