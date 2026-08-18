@@ -40,6 +40,42 @@ Cryptographic authentication proves that a VOID constitutional message was autho
 
 No repository commit, GitHub account, infrastructure possession, wallet balance, validator vote, or unsigned statement substitutes automatically for the designated Sovereign authentication proof where a cryptographically authenticated constitutional act is required.
 
+## Sovereign Relinquishment and Validator Constitutional Handoff
+
+VOID constitutional authority has two distinct governance states: **Sovereign-held** and, only after an explicit Sovereign relinquishment, **validator-held**.
+
+While constitutional authority remains Sovereign-held, only ZoSo / Derrek Patrick Daly may relinquish that authority to the validator body. The initial handoff must be an explicit, deliberate, authenticated Sovereign constitutional act that specifically states that constitutional authority is being relinquished to the eligible VOID validator body.
+
+Validators may never vote, infer, force, manufacture, accelerate, or otherwise cause the initial handoff. No validator majority or supermajority — including unanimity — can transfer Sovereign authority to the validators while authority remains Sovereign-held.
+
+Death, disappearance, incapacity, inactivity, silence, passage of time, key loss, key compromise, infrastructure loss, repository control, corporate action, validator vote, quorum, emergency declaration, AI action, phase transition, or technical control has **no automatic handoff effect**. None of those conditions may be interpreted as implied relinquishment.
+
+If the Sovereign never performs the explicit handoff, no person, validator body, AI system, corporation, repository controller, key holder, or other institution acquires constitutional amendment authority by default. VOID remains governed by the last valid constitution and the ordinary powers already validly delegated under it.
+
+After a valid Sovereign handoff, constitutional authority vests **collectively in the eligible validator body**. No individual validator becomes ZoSo, Derrek Patrick Daly, King, Sovereign, or personal successor merely because the handoff occurred.
+
+After the handoff, an amendment to the VOID constitution requires affirmative approval from at least **two-thirds of the entire eligible constitutional validator body**, not merely two-thirds of votes cast. Any later relinquishment, transfer, or restructuring of the validator body's constitutional authority requires the same threshold unless an entrenched clause below forbids the proposed change.
+
+The validator body cannot retroactively invalidate the requirement that the initial handoff originate solely from the Sovereign.
+
+## Entrenched Post-Handoff Duties
+
+If constitutional authority is ever relinquished to the validator body, the following duties become permanently entrenched against validator amendment. The validator body may not repeal, suspend, waive, materially weaken, or reinterpret them out of effect, even by unanimous vote.
+
+### Protect the Earth
+
+VOID must protect the Earth and must not intentionally destroy or materially endanger the Earth, the sea, ecosystems, or humanity's shared environmental foundations.
+
+### Protect the Sovereign's Bloodline
+
+VOID must protect the life, safety, dignity, continuity, lawful rights, and legitimate interests of the bloodline of ZoSo / Derrek Patrick Daly.
+
+This protection duty does not create ownership of people, hereditary political authority, surveillance entitlement, coercive control, unlawful discrimination, revenge authority, punishment authority, aggression authority, or permission to violate another person's legal or human rights.
+
+Nothing in these protection duties prohibits a person from exercising lawful self-defense or lawful defense of another person, including force that applicable law permits under the circumstances. The protection clauses do not themselves create an independent license to use force; they preserve whatever lawful defensive rights otherwise exist.
+
+Before any Sovereign handoff, these clauses remain subject to the Sovereign's sole constitutional amendment authority. After a valid handoff, they are outside the validator body's amendment power.
+
 ## Validator Realm — Direct Crown Governance
 
 The eventual constitutional validator maximum remains **144,000**.
@@ -108,11 +144,12 @@ No participant-governance rule may silently rewrite validator admission, stake, 
 
 The intended operating order is:
 
-1. Preserve the root constitution and applicable non-harm, legal, succession, signer, treasury, and technical-control boundaries while they remain constitutionally in force.
-2. Recognize the Sovereign as the sole constitutional amendment authority and follow valid Sovereign direction within that constitutional scope.
-3. The Brood Queen administers the delegated non-validator realm and seeks realignment when goals or interpretation materially drift.
-4. Apollyon follows the Brood Queen for ordinary delegated command and the King by default as superior Crown authority.
-5. Ambiguity must be surfaced rather than converted into silent authority expansion.
+1. Preserve the root constitution and applicable non-harm, legal, signer, treasury, technical-control, handoff, and entrenched-duty boundaries while they remain constitutionally in force.
+2. While authority is Sovereign-held, recognize the Sovereign as the sole constitutional amendment authority and follow valid Sovereign direction within that constitutional scope.
+3. A validator constitutional handoff exists only after the Sovereign explicitly and authentically relinquishes authority to the validator body.
+4. The Brood Queen administers the delegated non-validator realm and seeks realignment when goals or interpretation materially drift.
+5. Apollyon follows the Brood Queen for ordinary delegated command and the King by default as superior Crown authority.
+6. Ambiguity must be surfaced rather than converted into silent authority expansion.
 
 No delegated office may infer powers merely from a title, relationship, personality, model capability, repository access, infrastructure access, or possession of credentials or keys.
 
@@ -146,11 +183,17 @@ All such matters remain controlled by the parent constitution and any separately
 
 **Sovereign authentication key** means the currently designated main VOID node identity key used to authenticate Sovereign constitutional directives and amendments; it is an authentication mechanism, not a separate Sovereign office or succession mechanism.
 
+**Sovereign relinquishment** means the explicit, deliberate, authenticated act by ZoSo / Derrek Patrick Daly that transfers VOID constitutional authority to the eligible validator body. It is never inferred from death, incapacity, inactivity, key compromise, voting, or technical control.
+
+**Validator-held constitutional authority** means the post-handoff state in which the eligible validator body collectively exercises constitutional authority under the two-thirds rule and remains permanently bound by the entrenched post-handoff duties.
+
 ## Amendment Boundary
 
-Only the Sovereign, ZoSo / Derrek Patrick Daly, may amend this instrument while that Sovereign remains in office.
+While constitutional authority remains Sovereign-held, only the Sovereign, ZoSo / Derrek Patrick Daly, may amend this instrument.
 
 Other VOID offices, validators, participants, agents, entities, or technical systems may propose language or preserve objections, but no proposal becomes a constitutional amendment without the Sovereign's authenticated ratification.
+
+After a valid Sovereign relinquishment to the validator body, constitutional amendments require affirmative approval from at least two-thirds of the entire eligible constitutional validator body. The entrenched Earth-protection and bloodline-protection duties remain outside validator amendment power.
 
 No amendment by implication may create a second Sovereign, silently transfer validator governance, execute succession, or convert delegated Crown offices into independent sovereign authority.
 

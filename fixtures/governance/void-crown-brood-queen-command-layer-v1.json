@@ -2,16 +2,16 @@
   "marker": "VOID_CROWN_BROOD_QUEEN_COMMAND_LAYER_V1_20260818",
   "parent_constitution_marker": "VOID_CONSTITUTIONAL_AUTHORITY_BOUNDARY_V1_PHASE0_DRAFT",
   "artifact": "VOID Crown / Brood Queen Command Layer v1",
-  "version": "1.1.0-draft",
+  "version": "1.2.0-draft",
   "date": "2026-08-18",
-  "status": "Phase 0 constitutional doctrine/specification — governance hierarchy and Sovereign authentication declared; no sensitive technical authority activated by this document.",
+  "status": "Phase 0 constitutional doctrine/specification — governance hierarchy, Sovereign authentication, and conditional validator handoff declared; no sensitive technical authority activated by this document.",
   "sovereign": {
     "operator_name": "ZoSo",
     "personal_name": "Derrek Patrick Daly",
     "same_constitutional_identity": true,
     "style": "King",
     "root_constitutional_governor": true,
-    "sole_constitutional_amendment_authority": true,
+    "sole_constitutional_amendment_authority_while_sovereign_held": true,
     "delegated_offices_are_co_sovereigns": false
   },
   "sovereign_authentication": {
@@ -26,9 +26,61 @@
     "key_authentication_executes_sensitive_technical_action": false,
     "rotation_or_revocation_requires_explicit_sovereign_instrument": true
   },
+  "constitutional_handoff": {
+    "initial_state": "sovereign_held",
+    "only_sovereign_may_trigger_initial_handoff": true,
+    "handoff_target": "eligible_validator_body_collectively",
+    "requires_explicit_deliberate_authenticated_sovereign_act": true,
+    "validators_may_self_trigger_handoff": false,
+    "validator_unanimity_may_self_trigger_handoff": false,
+    "automatic_handoff_on_death": false,
+    "automatic_handoff_on_disappearance": false,
+    "automatic_handoff_on_incapacity": false,
+    "automatic_handoff_on_inactivity": false,
+    "automatic_handoff_on_passage_of_time": false,
+    "automatic_handoff_on_key_loss_or_compromise": false,
+    "automatic_handoff_on_repository_or_infrastructure_control": false,
+    "automatic_handoff_on_validator_vote_or_quorum": false,
+    "automatic_handoff_on_ai_or_corporate_action": false,
+    "automatic_handoff_on_phase_transition": false,
+    "no_handoff_leaves_last_valid_constitution_in_force": true,
+    "post_handoff_individual_validator_becomes_sovereign": false,
+    "post_handoff_amendment_threshold_numerator": 2,
+    "post_handoff_amendment_threshold_denominator": 3,
+    "threshold_applies_to": "entire_eligible_constitutional_validator_body",
+    "threshold_is_not_merely_votes_cast": true,
+    "post_handoff_relinquishment_transfer_or_restructuring_uses_same_threshold": true,
+    "validators_may_retroactively_invalidate_sovereign_only_initial_handoff_rule": false
+  },
+  "entrenched_post_handoff_duties": {
+    "apply_after_valid_sovereign_handoff": true,
+    "validator_body_may_amend_repeal_suspend_waive_or_materially_weaken": false,
+    "validator_unanimity_may_override": false,
+    "protect_earth": {
+      "required": true,
+      "protects_earth_sea_ecosystems_and_shared_environmental_foundations": true,
+      "authorizes_intentional_environmental_harm": false
+    },
+    "protect_sovereign_bloodline": {
+      "required": true,
+      "protects_life_safety_dignity_continuity_lawful_rights_and_legitimate_interests": true,
+      "creates_ownership_of_people": false,
+      "creates_hereditary_political_authority": false,
+      "creates_surveillance_or_coercive_control_entitlement": false,
+      "authorizes_unlawful_discrimination_revenge_punishment_or_aggression": false,
+      "authorizes_violation_of_legal_or_human_rights": false
+    },
+    "lawful_defense": {
+      "prohibits_lawful_self_defense": false,
+      "prohibits_lawful_defense_of_others": false,
+      "may_include_force_permitted_by_applicable_law": true,
+      "protection_clause_itself_creates_independent_license_to_use_force": false
+    },
+    "sovereign_may_amend_before_handoff": true
+  },
   "validator_realm": {
     "constitutional_maximum": 144000,
-    "direct_governor": "King",
+    "direct_governor_while_sovereign_held": "King",
     "voluntary_entry_required": true,
     "brood_queen_has_independent_validator_command": false,
     "general_has_independent_validator_command": false,
@@ -105,9 +157,9 @@
     "authorizes_transactions_mint_burn_liquidity_or_funds_movement": false,
     "authorizes_deploy_restart_or_live_network_mutation": false,
     "executes_succession_or_inheritance": false,
-    "transfers_legal_title_assets_or_sovereignty": false,
+    "transfers_legal_title_assets_or_sovereignty_by_this_instrument": false,
     "authorizes_ownership_of_people": false,
-    "authorizes_physical_harm_or_coercive_violence": false,
-    "authorizes_harm_to_earth_or_sea": false
+    "authorizes_unlawful_aggression_or_coercive_violence": false,
+    "authorizes_intentional_harm_to_earth_or_sea": false
   }
 }
