@@ -1002,6 +1002,150 @@ async function main(): Promise<void> {
     fs.rmSync(root, { recursive: true, force: true });
   }
 
+
+  {
+    const root = fs.mkdtempSync(
+      path.join(os.tmpdir(), "void-wc-remote-truth-public-warming-"),
+    );
+    remoteIndex.resetWcPublicRemoteTruthJsonlIndexForProofV1();
+    const fx = setupSubmit(root, "public-warming");
+    const receiptFile = path.join(root, "agent_v1", "receipts.jsonl");
+    const jobFile = path.join(root, "agent", "jobs.jsonl");
+    const completedFile = path.join(root, "agent_v1", "job_state.jsonl");
+    for (const [file, row] of [
+      [
+        receiptFile,
+        {
+          receipt_id: "seed-public-warming-receipt",
+          job_id: "seed-public-warming-job",
+          account: "seed-public-warming",
+          status: "completed",
+        },
+      ],
+      [
+        jobFile,
+        {
+          job_id: "seed-public-warming-job",
+          account: "seed-public-warming",
+          status: "queued",
+        },
+      ],
+      [
+        completedFile,
+        {
+          job_id: "seed-public-warming-job",
+          receipt_id: "seed-public-warming-receipt",
+          status: "completed",
+        },
+      ],
+    ] as const) {
+      fs.mkdirSync(path.dirname(file), { recursive: true });
+      fs.writeFileSync(file, JSON.stringify(row) + "\n");
+    }
+
+    const response = makeResponse();
+    await pilot.submitRemoteResult(fx.req, response);
+    assert.equal(response.statusCode, 503);
+    assert.equal(response.payload.error, "remote_truth_warming");
+    const publicText = JSON.stringify(response.payload);
+    assert.equal(publicText.includes(root), false);
+    assert.equal(publicText.includes("file="), false);
+    assert.equal(publicText.includes("VOID_WC_REMOTE_TRUTH_"), false);
+
+    await Promise.allSettled([
+      remoteIndex.waitForWcPublicRemoteTruthJsonlIndexWarmForProofV1(
+        receiptFile,
+        ["receipt_id"],
+      ),
+      remoteIndex.waitForWcPublicRemoteTruthJsonlIndexWarmForProofV1(
+        jobFile,
+        ["job_id"],
+      ),
+      remoteIndex.waitForWcPublicRemoteTruthJsonlIndexWarmForProofV1(
+        completedFile,
+        ["job_id", "receipt_id"],
+      ),
+    ]);
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+
+  {
+    const root = fs.mkdtempSync(
+      path.join(os.tmpdir(), "void-wc-remote-truth-public-malformed-"),
+    );
+    remoteIndex.resetWcPublicRemoteTruthJsonlIndexForProofV1();
+    const fx = setupSubmit(root, "public-malformed");
+    const receiptFile = path.join(root, "agent_v1", "receipts.jsonl");
+    const jobFile = path.join(root, "agent", "jobs.jsonl");
+    const completedFile = path.join(root, "agent_v1", "job_state.jsonl");
+
+    fs.mkdirSync(path.dirname(receiptFile), { recursive: true });
+    fs.writeFileSync(receiptFile, '{"broken":\n');
+    fs.mkdirSync(path.dirname(jobFile), { recursive: true });
+    fs.writeFileSync(
+      jobFile,
+      JSON.stringify({
+        job_id: "seed-public-malformed-job",
+        account: "seed-public-malformed",
+        status: "queued",
+      }) + "\n",
+    );
+    fs.mkdirSync(path.dirname(completedFile), { recursive: true });
+    fs.writeFileSync(
+      completedFile,
+      JSON.stringify({
+        job_id: "seed-public-malformed-job",
+        receipt_id: "seed-public-malformed-receipt",
+        status: "completed",
+      }) + "\n",
+    );
+
+    const warming = makeResponse();
+    await pilot.submitRemoteResult(fx.req, warming);
+    assert.equal(warming.statusCode, 503);
+    assert.equal(warming.payload.error, "remote_truth_warming");
+
+    await Promise.allSettled([
+      remoteIndex.waitForWcPublicRemoteTruthJsonlIndexWarmForProofV1(
+        receiptFile,
+        ["receipt_id"],
+      ),
+      remoteIndex.waitForWcPublicRemoteTruthJsonlIndexWarmForProofV1(
+        jobFile,
+        ["job_id"],
+      ),
+      remoteIndex.waitForWcPublicRemoteTruthJsonlIndexWarmForProofV1(
+        completedFile,
+        ["job_id", "receipt_id"],
+      ),
+    ]);
+
+    const malformed = makeResponse();
+    await pilot.submitRemoteResult(fx.req, malformed);
+    assert.equal(malformed.statusCode, 503);
+    assert.equal(malformed.payload.error, "remote_truth_history_invalid");
+    const publicText = JSON.stringify(malformed.payload);
+    assert.equal(publicText.includes(root), false);
+    assert.equal(publicText.includes("file="), false);
+    assert.equal(publicText.includes("VOID_WC_REMOTE_TRUTH_"), false);
+
+    const audit = fs.readFileSync(
+      path.join(
+        root,
+        "wc_v1",
+        "public-earning-pilot-v1",
+        "audit.jsonl",
+      ),
+      "utf8",
+    );
+    assert.equal(audit.includes(root), true);
+    assert.equal(
+      fs.existsSync(path.join(root, "wc_v1", "ledger.jsonl")),
+      false,
+    );
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+
   console.log(
     "VOID_WC_PUBLIC_EARNING_PILOT_RUNTIME_V1_GREEN",
   );

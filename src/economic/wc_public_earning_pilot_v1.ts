@@ -2387,6 +2387,47 @@ async function executeLocalWork(req: any, res: any): Promise<any> {
   });
 }
 
+
+function publicSubmitErrorV1(error: unknown): {
+  status: number;
+  error: string;
+} {
+  const message = String((error as any)?.message || error || "");
+
+  if (
+    message === "ticket_inflight" ||
+    message === "acceptance_busy" ||
+    message === "wc_process_lock_contention_retry_exhausted" ||
+    message === "capability_result_conflict"
+  ) {
+    return { status: 409, error: message };
+  }
+  if (message === "capability_expired") {
+    return { status: 410, error: message };
+  }
+  if (message === "invalid_capability") {
+    return { status: 401, error: message };
+  }
+
+  if (
+    message === "VOID_WC_REMOTE_TRUTH_INDEX_WARMING" ||
+    message.includes("VOID_WC_REMOTE_TRUTH_INDEX_WARMING")
+  ) {
+    return { status: 503, error: "remote_truth_warming" };
+  }
+  if (message.includes("VOID_WC_REMOTE_TRUTH_MALFORMED_HISTORY")) {
+    return { status: 503, error: "remote_truth_history_invalid" };
+  }
+  if (message === "VOID_WC_REMOTE_TRUTH_AUTHORITY_BUSY") {
+    return { status: 503, error: "remote_truth_busy" };
+  }
+  if (message.startsWith("VOID_WC_REMOTE_TRUTH_")) {
+    return { status: 503, error: "remote_truth_unavailable" };
+  }
+
+  return { status: 422, error: message };
+}
+
 export async function submitRemoteResult(req: any, res: any): Promise<any> {
   if (!coordinatorEnabled()) {
     return res.status(503).json({
@@ -2765,27 +2806,11 @@ export async function submitRemoteResult(req: any, res: any): Promise<any> {
       ticket_id: parsed.ticketId,
       error: String(error?.message || error),
     });
-    const message = String(error?.message || "");
-    const status =
-      message === "ticket_inflight" ||
-      message === "acceptance_busy" ||
-      message === "wc_process_lock_contention_retry_exhausted" ||
-      message === "capability_result_conflict"
-        ? 409
-        : message === "capability_expired"
-          ? 410
-          : message === "invalid_capability"
-            ? 401
-            : message.startsWith("VOID_WC_REMOTE_TRUTH_INDEX_") ||
-                message.includes(
-                  "VOID_WC_REMOTE_TRUTH_MALFORMED_HISTORY",
-                )
-              ? 503
-              : 422;
-    return res.status(status).json({
+    const participantError = publicSubmitErrorV1(error);
+    return res.status(participantError.status).json({
       ok: false,
       marker: VOID_WC_PUBLIC_EARNING_PILOT_MARKER,
-      error: String(error?.message || error),
+      error: participantError.error,
     });
   } finally {
     if (lock) await releasePilotTicketLock(lock);

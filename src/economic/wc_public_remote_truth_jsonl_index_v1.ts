@@ -1,7 +1,13 @@
+import crypto from "node:crypto";
 import fs from "node:fs";
 import fsp from "node:fs/promises";
 import path from "node:path";
 import { appendAgentPick2JsonlCanonicalV1 } from "../http/agent_pick2_jsonl_semantic_index_v1.js";
+import {
+  acquireWcProcessInstanceLockV1,
+  releaseWcProcessInstanceLockV1,
+  type WcProcessInstanceLockV1,
+} from "./wc_process_instance_lock_v1.js";
 
 export const VOID_WC_PUBLIC_REMOTE_TRUTH_JSONL_INDEX_V1 =
   "VOID_WC_PUBLIC_REMOTE_TRUTH_JSONL_INDEX_V1";
@@ -48,6 +54,9 @@ type IndexMetricsV1 = {
   catch_up_passes_total: number;
   canonical_appends_total: number;
   canonical_witnessed_appends_total: number;
+  cross_process_authority_acquires_total: number;
+  cross_process_authority_waits_total: number;
+  cross_process_existing_after_wait_total: number;
   warm_starts_total: number;
   warm_failures_total: number;
 };
@@ -65,6 +74,12 @@ type AppendExactOnceOptionsV1 = {
   durable?: boolean;
   mode?: number;
   onMalformed?: (error: unknown, context: { file: string; line: string }) => void;
+  testHooks?: {
+    beforeCrossProcessAuthority?: (context: {
+      file: string;
+      id_fields: string[];
+    }) => void | Promise<void>;
+  };
 };
 
 export type WcPublicRemoteTruthJsonlIndexMetricsV1 = IndexMetricsV1 & {
@@ -93,6 +108,9 @@ function emptyMetricsV1(): IndexMetricsV1 {
     catch_up_passes_total: 0,
     canonical_appends_total: 0,
     canonical_witnessed_appends_total: 0,
+    cross_process_authority_acquires_total: 0,
+    cross_process_authority_waits_total: 0,
+    cross_process_existing_after_wait_total: 0,
     warm_starts_total: 0,
     warm_failures_total: 0,
   };
@@ -140,12 +158,66 @@ function sameStampV1(a: FileStampV1, b: FileStampV1): boolean {
   return (
     sameObjectV1(a, b) &&
     a.size === b.size &&
-    a.mtimeNs === b.mtimeNs
+    a.mtimeNs === b.mtimeNs &&
+    a.ctimeNs === b.ctimeNs
   );
 }
 
 function indexKeyV1(file: string, idFields: string[]): string {
   return `${path.resolve(file)}\0${JSON.stringify(idFields)}`;
+}
+
+
+const REMOTE_TRUTH_AUTHORITY_WAIT_MS_V1 = 2_000;
+const REMOTE_TRUTH_AUTHORITY_RETRY_MS_V1 = 10;
+
+function remoteTruthAuthorityDirV1(file: string): string {
+  return path.join(
+    path.dirname(path.resolve(file)),
+    ".void-wc-remote-truth-authority-v1",
+  );
+}
+
+function remoteTruthAuthorityNameV1(file: string): string {
+  const digest = crypto
+    .createHash("sha256")
+    .update(path.resolve(file))
+    .digest("hex")
+    .slice(0, 32);
+  return `remote-truth-${digest}`;
+}
+
+function sleepV1(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function acquireRemoteTruthAuthorityV1(
+  file: string,
+): Promise<{ lock: WcProcessInstanceLockV1; waited: boolean }> {
+  const deadline = Date.now() + REMOTE_TRUTH_AUTHORITY_WAIT_MS_V1;
+  let waited = false;
+  for (;;) {
+    try {
+      const lock = await acquireWcProcessInstanceLockV1(
+        remoteTruthAuthorityDirV1(file),
+        remoteTruthAuthorityNameV1(file),
+      );
+      return { lock, waited };
+    } catch (error: any) {
+      const code = String(error?.code || error?.message || error);
+      if (
+        code !== "wc_process_lock_busy" &&
+        code !== "wc_process_lock_contention_retry_exhausted"
+      ) {
+        throw error;
+      }
+      if (Date.now() >= deadline) {
+        throw new Error("VOID_WC_REMOTE_TRUTH_AUTHORITY_BUSY");
+      }
+      waited = true;
+      await sleepV1(REMOTE_TRUTH_AUTHORITY_RETRY_MS_V1);
+    }
+  }
 }
 
 function rowKeyV1(value: JsonObject, idFields: string[]): string {
@@ -231,6 +303,12 @@ function needsBackgroundWarmV1(
   if (!state.stamp) return true;
   if (!sameObjectV1(state.stamp, current)) return true;
   if (current.size < state.stamp.size) return true;
+  if (
+    current.size === state.stamp.size &&
+    !sameStampV1(state.stamp, current)
+  ) {
+    return true;
+  }
   if (
     current.size > state.stamp.size &&
     current.size - state.stamp.size > MAX_REQUEST_INCREMENTAL_BYTES_V1
@@ -624,12 +702,29 @@ export async function appendWcPublicRemoteTruthJsonlExactOnceV1(
   const observed = await statPathV1(absolute);
   await ensureIndexReadyV1(key, state, observed, options.onMalformed);
 
+  await options.testHooks?.beforeCrossProcessAuthority?.({
+    file: absolute,
+    id_fields: idFields.slice(),
+  });
+
+  const authority = await acquireRemoteTruthAuthorityV1(absolute);
+  state.metrics.cross_process_authority_acquires_total += 1;
+  if (authority.waited) {
+    state.metrics.cross_process_authority_waits_total += 1;
+  }
+
   try {
     return await withIndexLockV1(key, async () => {
+      // Revalidate identity only after cross-process file authority is owned.
       await catchUpStateV1(state, options.onMalformed);
 
       const existing = existingResultV1(state, value);
-      if (existing) return { ...existing, witnessed: false };
+      if (existing) {
+        if (authority.waited) {
+          state.metrics.cross_process_existing_after_wait_total += 1;
+        }
+        return { ...existing, witnessed: false };
+      }
 
       await fsp.mkdir(path.dirname(absolute), { recursive: true, mode: 0o700 });
       const line = Buffer.from(JSON.stringify(value) + "\n", "utf8");
@@ -681,6 +776,8 @@ export async function appendWcPublicRemoteTruthJsonlExactOnceV1(
       startWarmV1(key, state, current, options.onMalformed);
     }
     throw error;
+  } finally {
+    await releaseWcProcessInstanceLockV1(authority.lock);
   }
 }
 

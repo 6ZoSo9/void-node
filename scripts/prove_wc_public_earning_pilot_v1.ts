@@ -21,6 +21,10 @@ const acceptanceText = fs.readFileSync(
   path.join(root, "src", "economic", "wc_verified_receipt_acceptance_v1.ts"),
   "utf8",
 );
+const remoteTruthIndexText = fs.readFileSync(
+  path.join(root, "src", "economic", "wc_public_remote_truth_jsonl_index_v1.ts"),
+  "utf8",
+);
 
 need(
   capabilityText.includes(
@@ -333,8 +337,55 @@ need(
   "cold remote-truth warm is still queued behind whole-import serialization",
 );
 need(
-  moduleText.includes('message.startsWith("VOID_WC_REMOTE_TRUTH_INDEX_")'),
-  "remote-truth warming/failure is not mapped to retryable 503",
+  moduleText.includes("function publicSubmitErrorV1("),
+  "bounded participant submit error mapper missing",
+);
+need(
+  moduleText.includes('error: "remote_truth_warming"'),
+  "remote-truth warming does not use stable public code",
+);
+need(
+  moduleText.includes('error: "remote_truth_history_invalid"'),
+  "malformed remote truth does not use stable public code",
+);
+need(
+  moduleText.includes('error: "remote_truth_unavailable"'),
+  "internal remote-truth failures are not sanitized",
+);
+need(
+  remoteTruthIndexText.includes("a.ctimeNs === b.ctimeNs"),
+  "remote-truth stable generation omits ctime",
+);
+need(
+  remoteTruthIndexText.includes("acquireRemoteTruthAuthorityV1"),
+  "remote-truth cross-process authority missing",
+);
+const exactOnceAppendStart = remoteTruthIndexText.indexOf(
+  "export async function appendWcPublicRemoteTruthJsonlExactOnceV1(",
+);
+const authorityAcquireIndex = remoteTruthIndexText.indexOf(
+  "await acquireRemoteTruthAuthorityV1(absolute)",
+  exactOnceAppendStart,
+);
+const authorityCatchUpIndex = remoteTruthIndexText.indexOf(
+  "await catchUpStateV1(state, options.onMalformed)",
+  authorityAcquireIndex,
+);
+const authorityExistingIndex = remoteTruthIndexText.indexOf(
+  "const existing = existingResultV1(state, value)",
+  authorityCatchUpIndex,
+);
+const authorityAppendIndex = remoteTruthIndexText.indexOf(
+  "appendAgentPick2JsonlCanonicalV1(absolute, line",
+  authorityExistingIndex,
+);
+need(
+  exactOnceAppendStart >= 0 &&
+    authorityAcquireIndex > exactOnceAppendStart &&
+    authorityCatchUpIndex > authorityAcquireIndex &&
+    authorityExistingIndex > authorityCatchUpIndex &&
+    authorityAppendIndex > authorityExistingIndex,
+  "identity revalidation and append are not ordered under cross-process authority",
 );
 
 need(
