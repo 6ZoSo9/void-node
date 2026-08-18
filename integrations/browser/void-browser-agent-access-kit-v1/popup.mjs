@@ -8,6 +8,7 @@ import {
 
 // VOID_BROWSER_AGENT_RESPONSE_BOUNDS_V1_BEGIN
 const RESPONSE_TEARDOWN_TIMEOUT_MS_V1 = 250;
+const responseLifetimeQuarantineV1 = new Map();
 
 class BrowserResponseHoldV1 extends Error {
   constructor(message) {
@@ -45,42 +46,86 @@ function abortErrorV1(signal) {
   return responseHoldV1("request deadline exceeded");
 }
 
+function taggedOutcomeV1(promise) {
+  return Promise.resolve(promise).then(
+    (value) => Object.freeze({ kind: "fulfilled", value }),
+    (error) => Object.freeze({ kind: "rejected", error }),
+  );
+}
+
+function beginResponseQuarantineV1(url) {
+  const existing = responseLifetimeQuarantineV1.get(url);
+  if (existing) return existing;
+  const token = { pending: 0 };
+  responseLifetimeQuarantineV1.set(url, token);
+  return token;
+}
+
+function addResponseQuarantinePromiseV1(url, token, outcomePromise) {
+  token.pending += 1;
+  void outcomePromise.then(() => {
+    token.pending -= 1;
+    if (token.pending === 0 && responseLifetimeQuarantineV1.get(url) === token) {
+      responseLifetimeQuarantineV1.delete(url);
+    }
+  });
+}
+
 async function readChunkWithDeadlineV1(reader, signal) {
-  if (signal.aborted) throw abortErrorV1(signal);
+  if (signal.aborted) {
+    return Object.freeze({
+      winner: Object.freeze({ kind: "aborted", error: abortErrorV1(signal) }),
+      readOutcome: null,
+    });
+  }
   let onAbort;
-  const aborted = new Promise((_, reject) => {
-    onAbort = () => reject(abortErrorV1(signal));
+  const aborted = new Promise((resolve) => {
+    onAbort = () => resolve(Object.freeze({ kind: "aborted", error: abortErrorV1(signal) }));
     signal.addEventListener("abort", onAbort, { once: true });
   });
-  const read = Promise.resolve().then(() => reader.read());
-  read.catch(() => {});
+  const readOutcome = Promise.resolve()
+    .then(() => reader.read())
+    .then(
+      (value) => Object.freeze({ kind: "read", value }),
+      (error) => Object.freeze({ kind: "read_error", error }),
+    );
   try {
-    return await Promise.race([read, aborted]);
+    return Object.freeze({
+      winner: await Promise.race([readOutcome, aborted]),
+      readOutcome,
+    });
   } finally {
     signal.removeEventListener("abort", onAbort);
   }
 }
 
-async function settleRejectedBodyV1(response, reader, controller) {
+async function settleRejectedBodyV1(response, reader, controller, requestedUrl, quarantineToken) {
   try {
     controller.abort(responseHoldV1("rejected response body"));
   } catch {}
   let cleanup;
   try {
     if (reader && typeof reader.cancel === "function") {
-      cleanup = Promise.resolve(reader.cancel("rejected response body"));
+      cleanup = reader.cancel("rejected response body");
     } else if (response?.body && typeof response.body.cancel === "function") {
-      cleanup = Promise.resolve(response.body.cancel("rejected response body"));
+      cleanup = response.body.cancel("rejected response body");
     } else {
-      cleanup = Promise.resolve();
+      cleanup = undefined;
     }
   } catch (error) {
     cleanup = Promise.reject(error);
   }
-  cleanup.catch(() => {});
+  const cleanupOutcome = taggedOutcomeV1(cleanup);
+  const token = quarantineToken ?? beginResponseQuarantineV1(requestedUrl);
+  addResponseQuarantinePromiseV1(requestedUrl, token, cleanupOutcome);
   await Promise.race([
-    cleanup.catch(() => {}),
-    new Promise((resolve) => setTimeout(resolve, RESPONSE_TEARDOWN_TIMEOUT_MS_V1)),
+    cleanupOutcome,
+    new Promise((resolve) =>
+      setTimeout(
+        () => resolve(Object.freeze({ kind: "teardown_timeout" })),
+        RESPONSE_TEARDOWN_TIMEOUT_MS_V1,
+      ),
+    ),
   ]);
 }
 
@@ -95,6 +140,10 @@ async function fetchBoundedJsonDocumentV1(url, options = {}) {
   }
 
   const requestedUrl = new URL(String(url)).href;
+  if (responseLifetimeQuarantineV1.has(requestedUrl)) {
+    throw responseHoldV1("prior response body generation is still unresolved");
+  }
+
   const controller = new AbortController();
   const timer = setTimeout(
     () => controller.abort(responseHoldV1("request deadline exceeded")),
@@ -103,6 +152,7 @@ async function fetchBoundedJsonDocumentV1(url, options = {}) {
   let response = null;
   let reader = null;
   let bodyComplete = false;
+  let quarantineToken = null;
 
   try {
     response = await fetch(requestedUrl, {
@@ -147,7 +197,22 @@ async function fetchBoundedJsonDocumentV1(url, options = {}) {
     const chunks = [];
     let total = 0;
     while (true) {
-      const part = await readChunkWithDeadlineV1(reader, controller.signal);
+      const readState = await readChunkWithDeadlineV1(reader, controller.signal);
+      if (readState.winner.kind === "aborted") {
+        if (readState.readOutcome) {
+          quarantineToken = beginResponseQuarantineV1(requestedUrl);
+          addResponseQuarantinePromiseV1(
+            requestedUrl,
+            quarantineToken,
+            readState.readOutcome,
+          );
+        }
+        throw readState.winner.error;
+      }
+      if (readState.winner.kind === "read_error") {
+        throw readState.winner.error;
+      }
+      const part = readState.winner.value;
       if (!part || typeof part.done !== "boolean") {
         throw responseHoldV1("response body read result is invalid");
       }
@@ -185,7 +250,13 @@ async function fetchBoundedJsonDocumentV1(url, options = {}) {
     });
   } catch (error) {
     if (response && !bodyComplete) {
-      await settleRejectedBodyV1(response, reader, controller);
+      await settleRejectedBodyV1(
+        response,
+        reader,
+        controller,
+        requestedUrl,
+        quarantineToken,
+      );
     }
     if (error instanceof BrowserResponseHoldV1) throw error;
     throw responseHoldV1(`request failed: ${String(error?.message || error)}`);
