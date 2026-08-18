@@ -63,15 +63,16 @@ function usage() {
   ].join("\n");
 }
 
-function parsePositiveInteger(
-  raw,
+function validateBoundInteger(
+  value,
   label,
   maximum,
 ) {
-  const value = Number.parseInt(String(raw), 10);
   if (
-    !Number.isInteger(value) ||
-    value <= 0 ||
+    typeof value !== "number" ||
+    !Number.isFinite(value) ||
+    !Number.isSafeInteger(value) ||
+    value < 1 ||
     value > maximum
   ) {
     throw new Error(
@@ -79,6 +80,27 @@ function parsePositiveInteger(
     );
   }
   return value;
+}
+
+function parsePositiveInteger(
+  raw,
+  label,
+  maximum,
+) {
+  if (
+    typeof raw !== "string" ||
+    !/^[1-9][0-9]*$/.test(raw)
+  ) {
+    throw new Error(
+      `${label} must be an integer from 1 through ${maximum}`,
+    );
+  }
+
+  return validateBoundInteger(
+    Number(raw),
+    label,
+    maximum,
+  );
 }
 
 export function parseBootstrapClientArgsV1(argv) {
@@ -695,6 +717,17 @@ export async function runVoidAiAgentBootstrapClientV1({
   maxBytes = DEFAULT_MAX_BYTES,
   fetchImpl = globalThis.fetch,
 } = {}) {
+  const checkedTimeoutMs = validateBoundInteger(
+    timeoutMs,
+    "timeoutMs",
+    MAX_TIMEOUT_MS,
+  );
+  const checkedMaxBytes = validateBoundInteger(
+    maxBytes,
+    "maxBytes",
+    MAX_ALLOWED_BYTES,
+  );
+
   if (typeof fetchImpl !== "function") {
     throw new Error(
       "fetch implementation is unavailable",
@@ -708,8 +741,8 @@ export async function runVoidAiAgentBootstrapClientV1({
   const wellKnown = await fetchJsonV1({
     base,
     route: ROUTES.well_known_discovery,
-    timeoutMs,
-    maxBytes,
+    timeoutMs: checkedTimeoutMs,
+    maxBytes: checkedMaxBytes,
     fetchImpl,
   });
 
@@ -750,32 +783,32 @@ export async function runVoidAiAgentBootstrapClientV1({
   const canonical = await probeSurfaceV1({
     base,
     route: canonicalRoute,
-    timeoutMs,
-    maxBytes,
+    timeoutMs: checkedTimeoutMs,
+    maxBytes: checkedMaxBytes,
     fetchImpl,
   });
   const capabilities =
     await probeSurfaceV1({
       base,
       route: ROUTES.capabilities,
-      timeoutMs,
-      maxBytes,
+      timeoutMs: checkedTimeoutMs,
+      maxBytes: checkedMaxBytes,
       fetchImpl,
     });
   const authentication =
     await probeSurfaceV1({
       base,
       route: ROUTES.authentication,
-      timeoutMs,
-      maxBytes,
+      timeoutMs: checkedTimeoutMs,
+      maxBytes: checkedMaxBytes,
       fetchImpl,
     });
   const firstContact =
     await probeSurfaceV1({
       base,
       route: ROUTES.first_contact,
-      timeoutMs,
-      maxBytes,
+      timeoutMs: checkedTimeoutMs,
+      maxBytes: checkedMaxBytes,
       fetchImpl,
     });
   const externalIntake =
@@ -783,8 +816,8 @@ export async function runVoidAiAgentBootstrapClientV1({
       base,
       route:
         ROUTES.external_opportunity_intake,
-      timeoutMs,
-      maxBytes,
+      timeoutMs: checkedTimeoutMs,
+      maxBytes: checkedMaxBytes,
       fetchImpl,
     });
 
