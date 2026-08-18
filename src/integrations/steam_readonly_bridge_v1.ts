@@ -263,6 +263,7 @@ export function prepareSteamReadonlyRequest(
 
 const RESPONSE_TEARDOWN_TIMEOUT_MS = 250;
 const CANONICAL_CONTENT_LENGTH = /^(0|[1-9][0-9]*)$/;
+let activeFetchAcquisitionLease: Promise<void> | undefined;
 
 async function settleBestEffort(
   cleanup: () => Promise<unknown> | unknown,
@@ -278,6 +279,34 @@ async function settleBestEffort(
   } finally {
     if (timer) clearTimeout(timer);
   }
+}
+
+async function acquireFetchAcquisitionLease(
+  timeoutPromise: Promise<never>,
+  controller: AbortController,
+  timeoutError: SteamReadonlyBridgeError,
+): Promise<() => void> {
+  while (activeFetchAcquisitionLease) {
+    if (controller.signal.aborted) throw timeoutError;
+    await Promise.race([activeFetchAcquisitionLease, timeoutPromise]);
+  }
+  if (controller.signal.aborted) throw timeoutError;
+
+  let resolveLease: () => void = () => undefined;
+  const lease = new Promise<void>((resolve) => {
+    resolveLease = resolve;
+  });
+  activeFetchAcquisitionLease = lease;
+  let released = false;
+
+  return () => {
+    if (released) return;
+    released = true;
+    if (activeFetchAcquisitionLease === lease) {
+      activeFetchAcquisitionLease = undefined;
+    }
+    resolveLease();
+  };
 }
 
 async function rejectResponseBody(
@@ -350,24 +379,31 @@ async function fetchResponseWithDeadline(
       controller.signal.removeEventListener("abort", onAbort);
   });
 
-  const fetchPromise = Promise.resolve().then(() =>
-    fetchImpl(requestedHref, {
-      method: "GET",
-      headers: request.headers,
-      redirect: "error",
-      signal: controller.signal,
-    }),
-  );
-
-  void fetchPromise.then(
-    (response) => {
-      if (!timedOut) return;
-      void settleBestEffort(() => response.body?.cancel(timeoutError));
-    },
-    () => undefined,
-  );
-
   try {
+    const releaseAcquisition = await acquireFetchAcquisitionLease(
+      timeoutPromise,
+      controller,
+      timeoutError,
+    );
+    const fetchPromise = Promise.resolve().then(() =>
+      fetchImpl(requestedHref, {
+        method: "GET",
+        headers: request.headers,
+        redirect: "error",
+        signal: controller.signal,
+      }),
+    );
+
+    void fetchPromise
+      .then(
+        async (response) => {
+          if (!timedOut) return;
+          await settleBestEffort(() => response.body?.cancel(timeoutError));
+        },
+        () => undefined,
+      )
+      .finally(releaseAcquisition);
+
     return {
       response: await Promise.race([fetchPromise, timeoutPromise]),
       requestedHref,
@@ -393,6 +429,28 @@ async function rejectReaderFailure(
   }
   await settleBestEffort(() => reader.cancel(error));
   throw error;
+}
+
+async function acquireResponseBodyReader(
+  body: ReadableStream<Uint8Array>,
+  controller: AbortController,
+): Promise<ReadableStreamDefaultReader<Uint8Array>> {
+  try {
+    return body.getReader();
+  } catch {
+    const timedOut = controller.signal.aborted;
+    const error = new SteamReadonlyBridgeError(
+      timedOut ? "upstream_timeout" : "upstream_unreachable",
+      timedOut
+        ? "Steam Web API request timed out"
+        : "Steam Web API response body reader was unavailable",
+    );
+    if (!timedOut) {
+      controller.abort(error);
+    }
+    await settleBestEffort(() => body.cancel(error));
+    throw error;
+  }
 }
 
 async function readResponseChunk(
@@ -476,11 +534,12 @@ async function readBoundedResponse(
     }
   }
 
-  if (!response.body) {
+  const body = response.body;
+  if (!body) {
     return { bytes: new Uint8Array(), text: "" };
   }
 
-  const reader = response.body.getReader();
+  const reader = await acquireResponseBodyReader(body, controller);
   const chunks: Uint8Array[] = [];
   let total = 0;
 
