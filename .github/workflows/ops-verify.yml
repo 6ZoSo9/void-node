@@ -1,10 +1,29 @@
 name: ops-verify
-on: [push, pull_request]
+
+on:
+  push:
+    paths:
+      - "Makefile"
+      - "ops/prom-verify.sh"
+      - ".github/workflows/ops-verify.yml"
+  pull_request:
+    paths:
+      - "Makefile"
+      - "ops/prom-verify.sh"
+      - ".github/workflows/ops-verify.yml"
+
+permissions:
+  contents: read
+
 jobs:
   guards:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v6
+        with:
+          fetch-depth: 2
+          persist-credentials: false
 
       - name: Guard Makefile shrink (>30 lines)
         run: |
