@@ -9,6 +9,9 @@ import {
   acceptVerifiedReceiptOnce,
   readCanonicalWcState,
 } from "./wc_verified_receipt_acceptance_v1.js";
+import {
+  appendWcPublicRemoteTruthJsonlExactOnceV1,
+} from "./wc_public_remote_truth_jsonl_index_v1.js";
 
 export const VOID_WC_PUBLIC_EARNING_PILOT_MARKER =
   "VOID_WC_PUBLIC_EARNING_PILOT_V1";
@@ -1505,66 +1508,31 @@ export function assertRemoteReceiptTruth(
   }
 }
 
-function readJsonlMatches(
-  file: string,
-  predicate: (value: JsonObject) => boolean,
-): JsonObject[] {
-  if (!fs.existsSync(file)) return [];
-  const out: JsonObject[] = [];
-  for (const line of fs.readFileSync(file, "utf8").split(/\r?\n/)) {
-    if (!line.trim()) continue;
-    try {
-      const value = JSON.parse(line);
-      if (predicate(value)) out.push(value);
-    } catch (error) {
-      recordPilotBestEffortFailure("read-jsonl-line", error, { file });
-    }
-  }
-  return out;
-}
-
-function appendExactOnce(
+async function appendExactOnce(
   file: string,
   value: JsonObject,
   idFields: string[],
-): { appended: boolean; existing: JsonObject | null } {
-  const keys = idFields.map((field) => String(value?.[field] || ""));
-  const matches = readJsonlMatches(file, (candidate) =>
-    idFields.every(
-      (field, index) => String(candidate?.[field] || "") === keys[index],
-    ),
+): Promise<{ appended: boolean; existing: JsonObject | null }> {
+  const result = await appendWcPublicRemoteTruthJsonlExactOnceV1(
+    file,
+    value,
+    idFields,
+    {
+      durable: true,
+      mode: 0o600,
+      onMalformed: (error) => {
+        recordPilotBestEffortFailure("read-jsonl-line", error, { file });
+      },
+    },
   );
-  if (matches.length > 1) throw new Error("remote_truth_duplicate_conflict");
-  if (matches.length === 1) {
-    const existing = matches[0];
-    for (const field of [
-      "account",
-      "job_id",
-      "receipt_id",
-      "dataset_id",
-      "kind",
-      "status",
-      "input_hash",
-      "output_hash",
-    ]) {
-      if (
-        value[field] !== undefined &&
-        String(existing?.[field] || "") !== String(value?.[field] || "")
-      ) {
-        throw new Error(`remote_truth_${field}_conflict`);
-      }
-    }
-    return { appended: false, existing };
-  }
-  appendJsonl(file, value);
-  return { appended: true, existing: null };
+  return { appended: result.appended, existing: result.existing };
 }
 
-export function persistImportedRemoteTruthOnce(
+export async function persistImportedRemoteTruthOnce(
   envelopeRaw: Partial<PilotResultEnvelope>,
   signatureRaw: JsonObject,
   raw?: string,
-): JsonObject {
+): Promise<JsonObject> {
   const envelope = verifyPilotResultEnvelope(envelopeRaw, signatureRaw);
   const dataDir = resolveDataDir(raw);
   const importedAt = Date.now();
@@ -1628,17 +1596,17 @@ export function persistImportedRemoteTruthOnce(
     remote_executor_provenance: provenance,
   };
 
-  const receiptResult = appendExactOnce(
+  const receiptResult = await appendExactOnce(
     path.join(dataDir, "agent_v1", "receipts.jsonl"),
     receipt,
     ["receipt_id"],
   );
-  const jobResult = appendExactOnce(
+  const jobResult = await appendExactOnce(
     path.join(dataDir, "agent", "jobs.jsonl"),
     job,
     ["job_id"],
   );
-  const completedResult = appendExactOnce(
+  const completedResult = await appendExactOnce(
     path.join(dataDir, "agent_v1", "job_state.jsonl"),
     completed,
     ["job_id", "receipt_id"],
@@ -2353,7 +2321,7 @@ async function submitRemoteResult(req: any, res: any): Promise<any> {
     );
 
     const before = await readCanonicalWcState(record.account);
-    const imported = persistImportedRemoteTruthOnce(
+    const imported = await persistImportedRemoteTruthOnce(
       envelope,
       req?.body?.signature || {},
     );
