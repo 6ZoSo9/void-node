@@ -9,6 +9,7 @@ import {
 // VOID_BROWSER_AGENT_RESPONSE_BOUNDS_V1_BEGIN
 const RESPONSE_TEARDOWN_TIMEOUT_MS_V1 = 250;
 const responseLifetimeQuarantineV1 = new Map();
+const responseLifetimeOriginLeaseV1 = new Map();
 
 class BrowserResponseHoldV1 extends Error {
   constructor(message) {
@@ -53,10 +54,33 @@ function taggedOutcomeV1(promise) {
   );
 }
 
-function beginResponseQuarantineV1(url) {
+function responseOriginKeyV1(url) {
+  const parsed = new URL(url);
+  return `${parsed.protocol}//${parsed.host}`;
+}
+
+function acquireResponseOriginLeaseV1(url) {
+  const origin = responseOriginKeyV1(url);
+  if (responseLifetimeOriginLeaseV1.has(origin)) {
+    throw responseHoldV1("prior response generation for origin is still unresolved");
+  }
+  const lease = { origin, released: false };
+  responseLifetimeOriginLeaseV1.set(origin, lease);
+  return lease;
+}
+
+function releaseResponseOriginLeaseV1(lease) {
+  if (!lease || lease.released) return;
+  lease.released = true;
+  if (responseLifetimeOriginLeaseV1.get(lease.origin) === lease) {
+    responseLifetimeOriginLeaseV1.delete(lease.origin);
+  }
+}
+
+function beginResponseQuarantineV1(url, originLease) {
   const existing = responseLifetimeQuarantineV1.get(url);
   if (existing) return existing;
-  const token = { pending: 0 };
+  const token = { pending: 0, originLease };
   responseLifetimeQuarantineV1.set(url, token);
   return token;
 }
@@ -67,6 +91,7 @@ function addResponseQuarantinePromiseV1(url, token, outcomePromise) {
     token.pending -= 1;
     if (token.pending === 0 && responseLifetimeQuarantineV1.get(url) === token) {
       responseLifetimeQuarantineV1.delete(url);
+      releaseResponseOriginLeaseV1(token.originLease);
     }
   });
 }
@@ -99,7 +124,14 @@ async function readChunkWithDeadlineV1(reader, signal) {
   }
 }
 
-async function settleRejectedBodyV1(response, reader, controller, requestedUrl, quarantineToken) {
+async function settleRejectedBodyV1(
+  response,
+  reader,
+  controller,
+  requestedUrl,
+  quarantineToken,
+  originLease,
+) {
   controller.abort(responseHoldV1("rejected response body"));
   let cleanup;
   try {
@@ -114,7 +146,7 @@ async function settleRejectedBodyV1(response, reader, controller, requestedUrl, 
     cleanup = Promise.reject(error);
   }
   const cleanupOutcome = taggedOutcomeV1(cleanup);
-  const token = quarantineToken ?? beginResponseQuarantineV1(requestedUrl);
+  const token = quarantineToken ?? beginResponseQuarantineV1(requestedUrl, originLease);
   addResponseQuarantinePromiseV1(requestedUrl, token, cleanupOutcome);
   await Promise.race([
     cleanupOutcome,
@@ -125,6 +157,7 @@ async function settleRejectedBodyV1(response, reader, controller, requestedUrl, 
       ),
     ),
   ]);
+  return token;
 }
 
 async function fetchBoundedJsonDocumentV1(url, options = {}) {
@@ -141,6 +174,7 @@ async function fetchBoundedJsonDocumentV1(url, options = {}) {
   if (responseLifetimeQuarantineV1.has(requestedUrl)) {
     throw responseHoldV1("prior response body generation is still unresolved");
   }
+  const originLease = acquireResponseOriginLeaseV1(requestedUrl);
 
   const controller = new AbortController();
   const timer = setTimeout(
@@ -198,7 +232,7 @@ async function fetchBoundedJsonDocumentV1(url, options = {}) {
       const readState = await readChunkWithDeadlineV1(reader, controller.signal);
       if (readState.winner.kind === "aborted") {
         if (readState.readOutcome) {
-          quarantineToken = beginResponseQuarantineV1(requestedUrl);
+          quarantineToken = beginResponseQuarantineV1(requestedUrl, originLease);
           addResponseQuarantinePromiseV1(
             requestedUrl,
             quarantineToken,
@@ -248,18 +282,22 @@ async function fetchBoundedJsonDocumentV1(url, options = {}) {
     });
   } catch (error) {
     if (response && !bodyComplete) {
-      await settleRejectedBodyV1(
+      quarantineToken = await settleRejectedBodyV1(
         response,
         reader,
         controller,
         requestedUrl,
         quarantineToken,
+        originLease,
       );
     }
     if (error instanceof BrowserResponseHoldV1) throw error;
     throw responseHoldV1(`request failed: ${String(error?.message || error)}`);
   } finally {
     clearTimeout(timer);
+    if (!quarantineToken || quarantineToken.pending === 0) {
+      releaseResponseOriginLeaseV1(originLease);
+    }
   }
 }
 
