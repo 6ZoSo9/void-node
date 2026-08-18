@@ -208,13 +208,17 @@ function fetchForMode(mode) {
           controller.close();
         },
       });
-      stream.getReader();
-      return new Response(stream, {
+      const response = new Response(stream, {
         status: 200,
         headers: {
           "content-type": "application/json",
         },
       });
+      const proofReader = response.body.getReader();
+      Object.defineProperty(response, "__voidProofLockedReader", {
+        value: proofReader,
+      });
+      return response;
     }
 
     return jsonResponse(payload);
