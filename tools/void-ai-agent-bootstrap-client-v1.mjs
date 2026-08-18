@@ -24,6 +24,7 @@ const MAX_TIMEOUT_MS = 30_000;
 const DEFAULT_MAX_BYTES = 1_048_576;
 const MAX_ALLOWED_BYTES = 4_194_304;
 const RESPONSE_REJECTION_TEARDOWN_MS = 250;
+const activeFetchAcquisitions = new WeakMap();
 
 const ROUTES = Object.freeze({
   well_known_discovery:
@@ -224,6 +225,46 @@ function parseDeclaredResponseLength(response) {
   return value;
 }
 
+function deadlineError(signal) {
+  return signal.reason instanceof Error
+    ? signal.reason
+    : new Error("bootstrap_request_deadline_exceeded");
+}
+
+function awaitWithinOwnedDeadline(promise, signal) {
+  if (signal.aborted) {
+    return Promise.reject(deadlineError(signal));
+  }
+
+  return new Promise((resolve, reject) => {
+    let settled = false;
+    const onAbort = () => {
+      if (settled) return;
+      settled = true;
+      reject(deadlineError(signal));
+    };
+
+    signal.addEventListener("abort", onAbort, {
+      once: true,
+    });
+
+    Promise.resolve(promise).then(
+      (value) => {
+        if (settled) return;
+        settled = true;
+        signal.removeEventListener("abort", onAbort);
+        resolve(value);
+      },
+      (error) => {
+        if (settled) return;
+        settled = true;
+        signal.removeEventListener("abort", onAbort);
+        reject(error);
+      },
+    );
+  });
+}
+
 async function settleCancellationBounded(cancellation) {
   if (!cancellation || typeof cancellation.then !== "function") {
     return;
@@ -260,7 +301,7 @@ async function rejectResponseBodyBounded(
   try {
     cancellation = reader?.cancel
       ? reader.cancel()
-      : response.body?.cancel
+      : response?.body?.cancel
         ? response.body.cancel()
         : null;
   } catch (_error) {
@@ -268,6 +309,65 @@ async function rejectResponseBodyBounded(
   }
 
   await settleCancellationBounded(cancellation);
+}
+
+async function acquireResponseBounded(
+  fetchImpl,
+  url,
+  init,
+  controller,
+) {
+  if (activeFetchAcquisitions.has(fetchImpl)) {
+    throw new Error(
+      "bootstrap_fetch_acquisition_quarantined",
+    );
+  }
+
+  const acquisition = Promise.resolve().then(
+    () => fetchImpl(url, init),
+  );
+  const lease = { acquisition };
+  activeFetchAcquisitions.set(fetchImpl, lease);
+
+  const release = () => {
+    if (activeFetchAcquisitions.get(fetchImpl) === lease) {
+      activeFetchAcquisitions.delete(fetchImpl);
+    }
+  };
+
+  // If the logical request times out before a custom fetch settles, retain
+  // bounded ownership of that generation. A late Response is torn down once,
+  // and the quarantine is released only after settlement plus cleanup.
+  acquisition.then(
+    async (response) => {
+      if (controller.signal.aborted) {
+        try {
+          await rejectResponseBodyBounded(
+            response,
+            null,
+            controller,
+          );
+        } catch (_error) {
+          // The participant-facing deadline is already terminal.
+        }
+      }
+    },
+    () => undefined,
+  ).finally(release).catch(() => undefined);
+
+  try {
+    const response = await awaitWithinOwnedDeadline(
+      acquisition,
+      controller.signal,
+    );
+    release();
+    return response;
+  } catch (error) {
+    if (!controller.signal.aborted) {
+      release();
+    }
+    throw error;
+  }
 }
 
 async function boundedRead(
@@ -315,13 +415,31 @@ async function boundedRead(
     throw primary;
   }
 
-  const reader = body.getReader();
+  let reader;
+  try {
+    reader = body.getReader();
+  } catch (_error) {
+    const primary = new Error(
+      "response_body_reader_unavailable",
+    );
+    await rejectResponseBodyBounded(
+      response,
+      null,
+      controller,
+    );
+    throw primary;
+  }
+
   const chunks = [];
   let total = 0;
 
   try {
     while (true) {
-      const { done, value } = await reader.read();
+      const { done, value } =
+        await awaitWithinOwnedDeadline(
+          Promise.resolve().then(() => reader.read()),
+          controller.signal,
+        );
       if (done) break;
 
       const chunk = Buffer.from(value);
@@ -378,21 +496,29 @@ async function fetchJsonV1({
   const url = sameOriginUrl(base, route);
   const controller = new AbortController();
   const timer = setTimeout(
-    () => controller.abort(),
+    () =>
+      controller.abort(
+        new Error("bootstrap_request_deadline_exceeded"),
+      ),
     timeoutMs,
   );
 
   try {
-    const response = await fetchImpl(url, {
-      method: "GET",
-      redirect: "manual",
-      signal: controller.signal,
-      headers: {
-        accept: "application/json",
-        "user-agent":
-          "void-ai-agent-bootstrap-client-v1",
+    const response = await acquireResponseBounded(
+      fetchImpl,
+      url,
+      {
+        method: "GET",
+        redirect: "manual",
+        signal: controller.signal,
+        headers: {
+          accept: "application/json",
+          "user-agent":
+            "void-ai-agent-bootstrap-client-v1",
+        },
       },
-    });
+      controller,
+    );
 
     if (
       response.status >= 300 &&
