@@ -218,13 +218,29 @@ async function main(): Promise<void> {
 
   await warm();
 
-  await assert.rejects(
-    () =>
-      pilot.issuePublicTicketClaim(
-        firstSigned,
-        tmp,
-      ),
-    /public_claim_replay/,
+  const firstReplay =
+    await pilot.issuePublicTicketClaim(
+      firstSigned,
+      tmp,
+    );
+  assert.equal(firstReplay.ok, true);
+  assert.equal(
+    firstReplay.recovered_claim_replay,
+    true,
+  );
+  assert.equal(
+    firstReplay.ticket.ticket_id,
+    first.ticket.ticket_id,
+  );
+  assert.equal(
+    firstReplay.capability_token,
+    first.capability_token,
+  );
+  assert.equal(
+    fs.readdirSync(path.join(root, "issued"))
+      .filter((name) => name.endsWith(".json"))
+      .length,
+    1,
   );
 
   await assert.rejects(

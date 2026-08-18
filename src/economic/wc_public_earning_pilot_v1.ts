@@ -1098,22 +1098,649 @@ async function releasePublicClaimIssuanceLockV1(
   await releaseWcProcessInstanceLockV1(lock);
 }
 
+type PublicClaimCapabilitySealV1 = {
+  marker: "VOID_WC_PUBLIC_CLAIM_CAPABILITY_SEAL_V1";
+  algorithm: "aes-256-gcm";
+  iv_b64url: string;
+  ciphertext_b64url: string;
+  auth_tag_b64url: string;
+};
+
+type PreparedPublicClaimTicketV1 = {
+  token: string;
+  record: PilotTicketRecord;
+};
+
+function publicClaimCapabilityRecoveryKeyV1(
+  claim: PublicTicketClaimRequest,
+  signatureRaw: string,
+): Buffer {
+  return crypto
+    .createHash("sha256")
+    .update("VOID_WC_PUBLIC_CLAIM_CAPABILITY_RECOVERY_KEY_V1\0", "utf8")
+    .update(publicTicketClaimSigningBytes(claim))
+    .update("\0", "utf8")
+    .update(signatureRaw, "utf8")
+    .digest();
+}
+
+function sealPublicClaimCapabilityTokenV1(
+  token: string,
+  claim: PublicTicketClaimRequest,
+  signatureRaw: string,
+): PublicClaimCapabilitySealV1 {
+  const iv = crypto.randomBytes(12);
+  const key = publicClaimCapabilityRecoveryKeyV1(
+    claim,
+    signatureRaw,
+  );
+  const aad = publicTicketClaimSigningBytes(claim);
+  const cipher = crypto.createCipheriv(
+    "aes-256-gcm",
+    key,
+    iv,
+  );
+  cipher.setAAD(aad);
+  const ciphertext = Buffer.concat([
+    cipher.update(token, "utf8"),
+    cipher.final(),
+  ]);
+  const authTag = cipher.getAuthTag();
+  return {
+    marker: "VOID_WC_PUBLIC_CLAIM_CAPABILITY_SEAL_V1",
+    algorithm: "aes-256-gcm",
+    iv_b64url: iv.toString("base64url"),
+    ciphertext_b64url: ciphertext.toString("base64url"),
+    auth_tag_b64url: authTag.toString("base64url"),
+  };
+}
+
+function unsealPublicClaimCapabilityTokenV1(
+  sealRaw: unknown,
+  claim: PublicTicketClaimRequest,
+  signatureRaw: string,
+): string {
+  if (!isJsonObject(sealRaw)) {
+    throw new Error("public_claim_recovery_seal_invalid");
+  }
+  const seal = sealRaw as JsonObject;
+  if (
+    seal.marker !==
+      "VOID_WC_PUBLIC_CLAIM_CAPABILITY_SEAL_V1" ||
+    seal.algorithm !== "aes-256-gcm"
+  ) {
+    throw new Error("public_claim_recovery_seal_invalid");
+  }
+  const ivText = String(seal.iv_b64url || "");
+  const ciphertextText = String(
+    seal.ciphertext_b64url || "",
+  );
+  const authTagText = String(seal.auth_tag_b64url || "");
+  for (const value of [
+    ivText,
+    ciphertextText,
+    authTagText,
+  ]) {
+    if (!/^[A-Za-z0-9_-]+$/.test(value)) {
+      throw new Error("public_claim_recovery_seal_invalid");
+    }
+  }
+  const iv = Buffer.from(ivText, "base64url");
+  const ciphertext = Buffer.from(
+    ciphertextText,
+    "base64url",
+  );
+  const authTag = Buffer.from(
+    authTagText,
+    "base64url",
+  );
+  if (
+    iv.length !== 12 ||
+    authTag.length !== 16 ||
+    ciphertext.length <= 0 ||
+    ciphertext.length > 512
+  ) {
+    throw new Error("public_claim_recovery_seal_invalid");
+  }
+
+  const key = publicClaimCapabilityRecoveryKeyV1(
+    claim,
+    signatureRaw,
+  );
+  const decipher = crypto.createDecipheriv(
+    "aes-256-gcm",
+    key,
+    iv,
+  );
+  decipher.setAAD(publicTicketClaimSigningBytes(claim));
+  decipher.setAuthTag(authTag);
+  try {
+    return Buffer.concat([
+      decipher.update(ciphertext),
+      decipher.final(),
+    ]).toString("utf8");
+  } catch (error) {
+    void error;
+    throw new Error("public_claim_recovery_seal_invalid");
+  }
+}
+
+function preparePublicClaimTicketV1(
+  claim: PublicTicketClaimRequest,
+  claimId: string,
+  datasetId: string,
+  expectedInputHash: string,
+  issuedAtMs: number,
+  expiresAtMs: number,
+): PreparedPublicClaimTicketV1 {
+  if (
+    !Number.isSafeInteger(issuedAtMs) ||
+    !Number.isSafeInteger(expiresAtMs) ||
+    issuedAtMs <= 0 ||
+    expiresAtMs <= issuedAtMs
+  ) {
+    throw new Error("public_claim_recovery_expiry_invalid");
+  }
+  const ticketId = crypto
+    .randomBytes(16)
+    .toString("hex");
+  const secret = crypto
+    .randomBytes(32)
+    .toString("base64url");
+  const token = `wcep1.${ticketId}.${secret}`;
+  const record: PilotTicketRecord = {
+    marker: VOID_WC_PUBLIC_EARNING_PILOT_MARKER,
+    version: 1,
+    ticket_id: ticketId,
+    account: claim.account,
+    task_class: VOID_WC_PUBLIC_EARNING_PILOT_TASK,
+    executor_node_id: claim.executor_node_id,
+    executor_http_base: "",
+    transport_mode: "outbound_bundle",
+    dataset_id: datasetId,
+    expected_input_hash: expectedInputHash,
+    token_sha256: sha256Hex(token),
+    nonce: crypto.randomBytes(16).toString("hex"),
+    issued_at_ms: issuedAtMs,
+    expires_at_ms: expiresAtMs,
+    max_uses: 1,
+    status: "issued",
+    public_submit_route: PUBLIC_SUBMIT_ROUTE,
+    local_execute_route: LOCAL_EXECUTE_ROUTE,
+    issuance_source: "public_claim",
+    public_claim_id: claimId,
+  };
+  return { token, record };
+}
+
+function publicClaimTicketResponseV1(
+  record: PilotTicketRecord,
+): JsonObject {
+  return {
+    ...record,
+    capability_token_returned_once: true,
+    fixed_award_wc:
+      VOID_WC_PUBLIC_EARNING_PILOT_AWARD_WC,
+    participant_selected_award: false,
+    money_movement: false,
+  };
+}
+
+function publicClaimSuccessResponseV1(
+  claimId: string,
+  prepared: PreparedPublicClaimTicketV1,
+  recoveredClaimReplay: boolean,
+): JsonObject {
+  return {
+    ok: true,
+    marker: VOID_WC_PUBLIC_TICKET_CLAIM_MARKER,
+    claim_id: claimId,
+    claim_request_verified: true,
+    executor_key_possession_verified: true,
+    server_selected_work: true,
+    recovered_claim_replay: recoveredClaimReplay,
+    ticket: publicClaimTicketResponseV1(
+      prepared.record,
+    ),
+    capability_token: prepared.token,
+    capability_token_returned_once: true,
+    fixed_award_wc:
+      VOID_WC_PUBLIC_EARNING_PILOT_AWARD_WC,
+    participant_selected_dataset: false,
+    participant_selected_input_hash: false,
+    participant_selected_award: false,
+    generic_job_submit: false,
+    wallet_send: false,
+    wc_to_void: false,
+    buy_void_fulfillment: false,
+    money_movement: false,
+  };
+}
+
+function publicClaimIdentityRecordV1(
+  claim: PublicTicketClaimRequest,
+  input: JsonObject,
+  claimId: string,
+  datasetId: string,
+  expectedInputHash: string,
+): JsonObject {
+  return {
+    marker: VOID_WC_PUBLIC_TICKET_CLAIM_MARKER,
+    version: 1,
+    claim_id: claimId,
+    account: claim.account,
+    executor_node_id: claim.executor_node_id,
+    executor_pubkey_sha256: sha256Hex(
+      claim.executor_pubkey,
+    ),
+    claim_nonce_sha256: sha256Hex(
+      claim.claim_nonce,
+    ),
+    claim_signature_sha256: sha256Hex(
+      String(input?.signature?.sig || ""),
+    ),
+    dataset_id: datasetId,
+    expected_input_hash: expectedInputHash,
+    fixed_award_wc:
+      VOID_WC_PUBLIC_EARNING_PILOT_AWARD_WC,
+    money_movement: false,
+  };
+}
+
+function assertPublicClaimRecordIdentityV1(
+  record: JsonObject,
+  claim: PublicTicketClaimRequest,
+  input: JsonObject,
+  claimId: string,
+  datasetId: string,
+  expectedInputHash: string,
+): void {
+  const expected =
+    publicClaimIdentityRecordV1(
+      claim,
+      input,
+      claimId,
+      datasetId,
+      expectedInputHash,
+    );
+  for (const field of [
+    "marker",
+    "version",
+    "claim_id",
+    "account",
+    "executor_node_id",
+    "executor_pubkey_sha256",
+    "claim_nonce_sha256",
+    "claim_signature_sha256",
+    "dataset_id",
+    "expected_input_hash",
+    "fixed_award_wc",
+  ]) {
+    if (
+      String(record?.[field] ?? "") !==
+      String(expected?.[field] ?? "")
+    ) {
+      throw new Error(
+        "public_claim_recovery_identity_invalid",
+      );
+    }
+  }
+}
+
+function assertPublicClaimHistoryEligibleV1(
+  history: ReturnType<
+    typeof wcPublicClaimHistorySnapshotV1
+  >,
+  now: number,
+): void {
+  if (
+    history.active >= publicClaimGlobalActiveCap()
+  ) {
+    throw new Error(
+      "public_claim_global_active_cap_reached",
+    );
+  }
+  if (history.active_account >= 1) {
+    throw new Error("public_claim_account_active");
+  }
+  if (history.active_executor >= 1) {
+    throw new Error("public_claim_executor_active");
+  }
+  if (
+    history.global_24h >=
+    publicClaimGlobalMaxPer24h()
+  ) {
+    throw new Error(
+      "public_claim_global_daily_cap_reached",
+    );
+  }
+  if (
+    history.account_24h >= publicClaimMaxPer24h()
+  ) {
+    throw new Error(
+      "public_claim_account_daily_cap_reached",
+    );
+  }
+  if (
+    history.executor_24h >= publicClaimMaxPer24h()
+  ) {
+    throw new Error(
+      "public_claim_executor_daily_cap_reached",
+    );
+  }
+  if (
+    history.last_account_at > 0 &&
+    now - history.last_account_at <
+      publicClaimCooldownMs()
+  ) {
+    throw new Error("public_claim_account_cooldown");
+  }
+  if (
+    history.last_executor_at > 0 &&
+    now - history.last_executor_at <
+      publicClaimCooldownMs()
+  ) {
+    throw new Error(
+      "public_claim_executor_cooldown",
+    );
+  }
+}
+
+function validatePreparedPublicClaimTicketV1(
+  recordRaw: unknown,
+  claim: PublicTicketClaimRequest,
+  claimId: string,
+  datasetId: string,
+  expectedInputHash: string,
+): PilotTicketRecord {
+  if (!isJsonObject(recordRaw)) {
+    throw new Error(
+      "public_claim_recovery_ticket_invalid",
+    );
+  }
+  const record = recordRaw as PilotTicketRecord;
+  if (
+    record.marker !==
+      VOID_WC_PUBLIC_EARNING_PILOT_MARKER ||
+    record.version !== 1 ||
+    !/^[0-9a-f]{32}$/.test(
+      String(record.ticket_id || ""),
+    ) ||
+    record.account !== claim.account ||
+    record.task_class !==
+      VOID_WC_PUBLIC_EARNING_PILOT_TASK ||
+    record.executor_node_id !==
+      claim.executor_node_id ||
+    record.executor_http_base !== "" ||
+    record.transport_mode !== "outbound_bundle" ||
+    record.dataset_id !== datasetId ||
+    record.expected_input_hash !==
+      expectedInputHash ||
+    !/^[0-9a-f]{64}$/.test(
+      String(record.token_sha256 || ""),
+    ) ||
+    record.status !== "issued" ||
+    record.max_uses !== 1 ||
+    record.issuance_source !==
+      "public_claim" ||
+    record.public_claim_id !== claimId
+  ) {
+    throw new Error(
+      "public_claim_recovery_ticket_invalid",
+    );
+  }
+  return record;
+}
+
+function assertPublishedPublicClaimTicketV1(
+  actual: JsonObject,
+  expected: PilotTicketRecord,
+): void {
+  for (const field of [
+    "marker",
+    "version",
+    "ticket_id",
+    "account",
+    "task_class",
+    "executor_node_id",
+    "executor_http_base",
+    "transport_mode",
+    "dataset_id",
+    "expected_input_hash",
+    "token_sha256",
+    "nonce",
+    "issued_at_ms",
+    "expires_at_ms",
+    "max_uses",
+    "status",
+    "public_submit_route",
+    "local_execute_route",
+    "issuance_source",
+    "public_claim_id",
+  ]) {
+    if (
+      String(actual?.[field] ?? "") !==
+      String((expected as any)?.[field] ?? "")
+    ) {
+      throw new Error(
+        "public_claim_recovery_ticket_mismatch",
+      );
+    }
+  }
+}
+
+function publishPreparedPublicClaimTicketV1(
+  prepared: PreparedPublicClaimTicketV1,
+  raw?: string,
+): void {
+  const file = ticketFile(
+    issuedDir(raw),
+    prepared.record.ticket_id,
+  );
+  const existing = readJsonStrict(
+    file,
+    "public_claim_issued_ticket",
+  );
+  if (existing) {
+    assertPublishedPublicClaimTicketV1(
+      existing,
+      prepared.record,
+    );
+    return;
+  }
+  atomicWriteJson(
+    file,
+    prepared.record as unknown as JsonObject,
+  );
+  appendAuditBestEffort(
+    {
+      event: "public_claim_ticket_issued",
+      issuance_source: "public_claim",
+      public_claim_id:
+        prepared.record.public_claim_id,
+      ticket_id: prepared.record.ticket_id,
+      account: prepared.record.account,
+      executor_node_id:
+        prepared.record.executor_node_id,
+      executor_http_base: "",
+      transport_mode: "outbound_bundle",
+      dataset_id: prepared.record.dataset_id,
+      expected_input_hash:
+        prepared.record.expected_input_hash,
+      expires_at_ms:
+        prepared.record.expires_at_ms,
+    },
+    raw,
+  );
+}
+
+function recoverPublicClaimReplayV1(
+  existingClaim: JsonObject,
+  claim: PublicTicketClaimRequest,
+  input: JsonObject,
+  claimId: string,
+  datasetId: string,
+  expectedInputHash: string,
+  now: number,
+  raw?: string,
+): JsonObject | null {
+  assertPublicClaimRecordIdentityV1(
+    existingClaim,
+    claim,
+    input,
+    claimId,
+    datasetId,
+    expectedInputHash,
+  );
+  const status = String(
+    existingClaim.status || "",
+  );
+  if (status === "reserving") {
+    return null;
+  }
+  if (
+    status !== "publishing" &&
+    status !== "issued"
+  ) {
+    throw new Error(
+      "public_claim_recovery_state_invalid",
+    );
+  }
+
+  const preparedRecord =
+    validatePreparedPublicClaimTicketV1(
+      existingClaim.ticket_record,
+      claim,
+      claimId,
+      datasetId,
+      expectedInputHash,
+    );
+  if (
+    Number(preparedRecord.expires_at_ms || 0) <=
+    now
+  ) {
+    throw new Error("public_claim_replay");
+  }
+
+  const signatureRaw = String(
+    input?.signature?.sig || "",
+  );
+  const token =
+    unsealPublicClaimCapabilityTokenV1(
+      existingClaim.capability_token_seal_v1,
+      claim,
+      signatureRaw,
+    );
+  const tokenMatch =
+    /^wcep1\.([0-9a-f]{32})\.([A-Za-z0-9_-]{20,})$/.exec(
+      token,
+    );
+  if (
+    !tokenMatch ||
+    tokenMatch[1] !== preparedRecord.ticket_id ||
+    !safeHexEqual(
+      sha256Hex(token),
+      preparedRecord.token_sha256,
+    )
+  ) {
+    throw new Error(
+      "public_claim_recovery_token_invalid",
+    );
+  }
+
+  const consumedPath = ticketFile(
+    consumedDir(raw),
+    preparedRecord.ticket_id,
+  );
+  if (
+    readJsonStrict(
+      consumedPath,
+      "public_claim_consumed_ticket",
+    )
+  ) {
+    throw new Error("public_claim_replay");
+  }
+
+  const issuedPath = ticketFile(
+    issuedDir(raw),
+    preparedRecord.ticket_id,
+  );
+  const published = readJsonStrict(
+    issuedPath,
+    "public_claim_issued_ticket",
+  );
+  if (published) {
+    assertPublishedPublicClaimTicketV1(
+      published,
+      preparedRecord,
+    );
+  } else if (status === "publishing") {
+    publishPreparedPublicClaimTicketV1(
+      {
+        token,
+        record: preparedRecord,
+      },
+      raw,
+    );
+  } else {
+    throw new Error(
+      "public_claim_recovery_ambiguous",
+    );
+  }
+
+  const issuedState = {
+    ...existingClaim,
+    status: "issued",
+    issued_at_ms: Number(
+      existingClaim.issued_at_ms ||
+        existingClaim.reserved_at_ms ||
+        preparedRecord.issued_at_ms,
+    ),
+    recovery_completed_at_ms: now,
+  };
+  atomicWriteJson(
+    path.join(claimsDir(raw), `${claimId}.json`),
+    issuedState,
+  );
+  primeWcPublicClaimHistoryAuthorityV1(raw);
+
+  return publicClaimSuccessResponseV1(
+    claimId,
+    {
+      token,
+      record: preparedRecord,
+    },
+    true,
+  );
+}
+
 export async function issuePublicTicketClaim(
   input: JsonObject,
   raw?: string,
   now = Date.now(),
 ): Promise<JsonObject> {
-  if (!coordinatorEnabled()) throw new Error("coordinator_lane_disabled");
-  if (!publicClaimEnabled()) throw new Error("public_ticket_claim_disabled");
-  if (!isJsonObject(input)) throw new Error("invalid_claim_request_body");
+  if (!coordinatorEnabled()) {
+    throw new Error("coordinator_lane_disabled");
+  }
+  if (!publicClaimEnabled()) {
+    throw new Error("public_ticket_claim_disabled");
+  }
+  if (!isJsonObject(input)) {
+    throw new Error("invalid_claim_request_body");
+  }
   if (!hasExactKeys(input, ["claim", "signature"])) {
-    throw new Error("unexpected_claim_request_body_field");
+    throw new Error(
+      "unexpected_claim_request_body_field",
+    );
   }
 
   const datasetId = publicClaimDatasetId();
-  const expectedInputHash = publicClaimExpectedInputHash();
+  const expectedInputHash =
+    publicClaimExpectedInputHash();
   if (!datasetId || !expectedInputHash) {
-    throw new Error("public_claim_work_unavailable");
+    throw new Error(
+      "public_claim_work_unavailable",
+    );
   }
 
   const claim = verifyPublicTicketClaim(
@@ -1122,6 +1749,10 @@ export async function issuePublicTicketClaim(
     now,
   );
   const claimId = publicClaimId(claim);
+  const signatureRaw = String(
+    input?.signature?.sig || "",
+  );
+
   wcPublicClaimHistorySnapshotV1(
     raw,
     now,
@@ -1134,7 +1765,46 @@ export async function issuePublicTicketClaim(
   await publicClaimBeforeIssuanceLockHookForProofV1?.();
   const issuanceLock =
     await acquirePublicClaimIssuanceLockV1(raw);
+
   try {
+    const claimFile = path.join(
+      claimsDir(raw),
+      `${claimId}.json`,
+    );
+    const existingClaim = readJsonStrict(
+      claimFile,
+      "public_claim",
+    );
+
+    if (existingClaim) {
+      const replay = recoverPublicClaimReplayV1(
+        existingClaim,
+        claim,
+        input,
+        claimId,
+        datasetId,
+        expectedInputHash,
+        now,
+        raw,
+      );
+      if (replay) {
+        appendAuditBestEffort(
+          {
+            event: "public_claim_recovered_replay",
+            claim_id: claimId,
+            ticket_id: String(
+              replay?.ticket?.ticket_id || "",
+            ),
+            account: claim.account,
+            executor_node_id:
+              claim.executor_node_id,
+          },
+          raw,
+        );
+        return replay;
+      }
+    }
+
     const history = wcPublicClaimHistorySnapshotV1(
       raw,
       now,
@@ -1142,172 +1812,136 @@ export async function issuePublicTicketClaim(
       claim.executor_node_id,
       publicClaimClockSkewMs(),
     );
-
-  const claimFile = path.join(claimsDir(raw), `${claimId}.json`);
-
-  let reservationFd: number | null = null;
-  try {
-    reservationFd = fs.openSync(claimFile, "wx", 0o600);
-    fs.writeSync(
-      reservationFd,
-      JSON.stringify({
-        marker: VOID_WC_PUBLIC_TICKET_CLAIM_MARKER,
-        claim_id: claimId,
-        status: "reserving",
-        reserved_at_ms: now,
-      }) + "\n",
+    assertPublicClaimHistoryEligibleV1(
+      history,
+      now,
     );
-  } catch (error: any) {
-    if (reservationFd !== null) fs.closeSync(reservationFd);
-    if (String(error?.code || "") === "EEXIST") {
+
+    const claimStartedAt = existingClaim
+      ? Number(
+          existingClaim.reserved_at_ms || now,
+        )
+      : now;
+    const claimExpiresAt = existingClaim
+      ? Number(
+          existingClaim.claim_expires_at_ms ||
+            claimStartedAt +
+              publicClaimTicketTtlMs(),
+        )
+      : now + publicClaimTicketTtlMs();
+
+    if (
+      !Number.isSafeInteger(claimStartedAt) ||
+      !Number.isSafeInteger(claimExpiresAt) ||
+      claimStartedAt <= 0 ||
+      claimExpiresAt <= now
+    ) {
       throw new Error("public_claim_replay");
     }
-    throw error;
-  }
-  if (reservationFd !== null) fs.closeSync(reservationFd);
 
-  let issued = false;
-  try {
-    if (history.active >= publicClaimGlobalActiveCap()) {
-      throw new Error("public_claim_global_active_cap_reached");
-    }
-    if (history.active_account >= 1) {
-      throw new Error("public_claim_account_active");
-    }
-    if (history.active_executor >= 1) {
-      throw new Error("public_claim_executor_active");
-    }
+    const identity =
+      publicClaimIdentityRecordV1(
+        claim,
+        input,
+        claimId,
+        datasetId,
+        expectedInputHash,
+      );
 
-    if (
-      history.global_24h >= publicClaimGlobalMaxPer24h()
-    ) {
-      throw new Error("public_claim_global_daily_cap_reached");
-    }
-    if (
-      history.account_24h >= publicClaimMaxPer24h()
-    ) {
-      throw new Error("public_claim_account_daily_cap_reached");
-    }
-    if (
-      history.executor_24h >= publicClaimMaxPer24h()
-    ) {
-      throw new Error("public_claim_executor_daily_cap_reached");
+    if (!existingClaim) {
+      const reservation = {
+        ...identity,
+        status: "reserving",
+        reserved_at_ms: claimStartedAt,
+        claim_expires_at_ms: claimExpiresAt,
+      };
+      atomicWriteJson(claimFile, reservation);
+      maybePilotTransactionFaultForProofV1(
+        "public_claim_after_reservation",
+      );
     }
 
-    if (
-      history.last_account_at > 0 &&
-      now - history.last_account_at < publicClaimCooldownMs()
-    ) {
-      throw new Error("public_claim_account_cooldown");
-    }
-    if (
-      history.last_executor_at > 0 &&
-      now - history.last_executor_at < publicClaimCooldownMs()
-    ) {
-      throw new Error("public_claim_executor_cooldown");
-    }
+    const prepared = preparePublicClaimTicketV1(
+      claim,
+      claimId,
+      datasetId,
+      expectedInputHash,
+      now,
+      claimExpiresAt,
+    );
+    const seal =
+      sealPublicClaimCapabilityTokenV1(
+        prepared.token,
+        claim,
+        signatureRaw,
+      );
 
-    const ticketResult = issueTicket(
-      {
-        account: claim.account,
-        executor_node_id: claim.executor_node_id,
-        executor_http_base: "",
-        transport_mode: "outbound_bundle",
-        dataset_id: datasetId,
-        expected_input_hash: expectedInputHash,
-        task_class: VOID_WC_PUBLIC_EARNING_PILOT_TASK,
-        ttl_ms: publicClaimTicketTtlMs(),
-      },
-      raw,
-      {
-        enforceLegacyCaps: false,
-        issuanceSource: "public_claim",
-        publicClaimId: claimId,
-      },
+    const publishing = {
+      ...identity,
+      status: "publishing",
+      reserved_at_ms: claimStartedAt,
+      issued_at_ms: claimStartedAt,
+      claim_expires_at_ms: claimExpiresAt,
+      ticket_id: prepared.record.ticket_id,
+      token_sha256:
+        prepared.record.token_sha256,
+      expires_at_ms:
+        prepared.record.expires_at_ms,
+      ticket_record: prepared.record,
+      capability_token_seal_v1: seal,
+    };
+    atomicWriteJson(claimFile, publishing);
+    maybePilotTransactionFaultForProofV1(
+      "public_claim_after_publishing_journal",
     );
 
-    const capabilityToken = String(ticketResult.capability_token || "");
-    const ticket = { ...ticketResult };
-    delete ticket.capability_token;
-    delete ticket.operator_issued;
-    delete ticket.public_claim_issued;
+    publishPreparedPublicClaimTicketV1(
+      prepared,
+      raw,
+    );
+    maybePilotTransactionFaultForProofV1(
+      "public_claim_after_ticket_published",
+    );
 
-    atomicWriteJson(claimFile, {
-      marker: VOID_WC_PUBLIC_TICKET_CLAIM_MARKER,
-      version: 1,
-      claim_id: claimId,
+    const issuedState = {
+      ...publishing,
       status: "issued",
-      issued_at_ms: now,
-      account: claim.account,
-      executor_node_id: claim.executor_node_id,
-      executor_pubkey_sha256: sha256Hex(claim.executor_pubkey),
-      claim_nonce_sha256: sha256Hex(claim.claim_nonce),
-      claim_signature_sha256: sha256Hex(String(input.signature.sig || "")),
-      ticket_id: String(ticket.ticket_id || ""),
-      dataset_id: datasetId,
-      expected_input_hash: expectedInputHash,
-      token_sha256: String(ticket.token_sha256 || ""),
-      expires_at_ms: Number(ticket.expires_at_ms || 0),
-      fixed_award_wc: VOID_WC_PUBLIC_EARNING_PILOT_AWARD_WC,
-      money_movement: false,
-    });
+      issued_at_ms: claimStartedAt,
+      issuance_completed_at_ms: now,
+    };
+    atomicWriteJson(claimFile, issuedState);
+    primeWcPublicClaimHistoryAuthorityV1(raw);
+
+    maybePilotTransactionFaultForProofV1(
+      "public_claim_after_claim_issued_before_return",
+    );
 
     appendAuditBestEffort(
       {
         event: "public_claim_accepted",
         claim_id: claimId,
-        ticket_id: String(ticket.ticket_id || ""),
+        ticket_id: prepared.record.ticket_id,
         account: claim.account,
         executor_node_id: claim.executor_node_id,
         dataset_id: datasetId,
-        expires_at_ms: Number(ticket.expires_at_ms || 0),
+        expires_at_ms:
+          prepared.record.expires_at_ms,
       },
       raw,
     );
 
-    issued = true;
-    primeWcPublicClaimHistoryAuthorityV1(raw);
-    return {
-      ok: true,
-      marker: VOID_WC_PUBLIC_TICKET_CLAIM_MARKER,
-      claim_id: claimId,
-      claim_request_verified: true,
-      executor_key_possession_verified: true,
-      server_selected_work: true,
-      ticket,
-      capability_token: capabilityToken,
-      capability_token_returned_once: true,
-      fixed_award_wc: VOID_WC_PUBLIC_EARNING_PILOT_AWARD_WC,
-      participant_selected_dataset: false,
-      participant_selected_input_hash: false,
-      participant_selected_award: false,
-      generic_job_submit: false,
-      wallet_send: false,
-      wc_to_void: false,
-      buy_void_fulfillment: false,
-      money_movement: false,
-    };
-  } finally {
-    if (!issued) {
-      try {
-        fs.unlinkSync(claimFile);
-      } catch (error: any) {
-        if (String(error?.code || "") !== "ENOENT") {
-          recordPilotBestEffortFailure(
-            "public-claim-reservation-cleanup",
-            error,
-            { claim_id: claimId },
-          );
-        }
-      }
-    }
-  }
+    return publicClaimSuccessResponseV1(
+      claimId,
+      prepared,
+      Boolean(existingClaim),
+    );
   } finally {
     await releasePublicClaimIssuanceLockV1(
       issuanceLock,
     );
   }
 }
+
 
 export function pilotResultSigningObject(
   raw: Partial<PilotResultEnvelope>,

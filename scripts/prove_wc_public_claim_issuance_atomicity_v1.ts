@@ -77,6 +77,9 @@ async function main(): Promise<void> {
     forceReset = false,
   ): Promise<void> {
     if (forceReset) {
+      await authority.waitForWcPublicClaimHistoryWarmForProofV1(
+        tmp,
+      );
       authority.resetWcPublicClaimHistoryAuthorityForProofV1(
         tmp,
       );
@@ -381,6 +384,219 @@ async function main(): Promise<void> {
     });
   }
 
+
+  async function recoveryScenario(
+    phase: string,
+    label: string,
+    expectedStatus: "reserving" | "publishing" | "issued",
+    expectTicketBeforeReplay: boolean,
+  ): Promise<void> {
+    const tmp = fs.mkdtempSync(
+      path.join(
+        os.tmpdir(),
+        `void-public-claim-recovery-${label}-`,
+      ),
+    );
+    configure(tmp, 10);
+    ensureRoot(tmp);
+    await warm(tmp);
+
+    const signing = signer();
+    const request = signed(
+      signing,
+      `recovery-${label}-account`,
+      crypto
+        .createHash("sha256")
+        .update(`recovery-${label}`)
+        .digest("hex")
+        .slice(0, 32),
+    );
+
+    pilot.setPilotTransactionFaultForProofV1(
+      phase,
+    );
+    try {
+      await assert.rejects(
+        () =>
+          pilot.issuePublicTicketClaim(
+            request,
+            tmp,
+          ),
+        new RegExp(
+          `VOID_WC_PILOT_PROOF_FAULT_${phase}`,
+        ),
+      );
+    } finally {
+      pilot.setPilotTransactionFaultForProofV1(
+        "",
+      );
+    }
+
+    const claimDir = path.join(
+      rootDir(tmp),
+      "public-claims",
+    );
+    const issuedDir = path.join(
+      rootDir(tmp),
+      "issued",
+    );
+    const claimNames = jsonNames(claimDir);
+    const beforeIssued = jsonNames(issuedDir);
+    assert.equal(claimNames.length, 1);
+    assert.equal(
+      beforeIssued.length,
+      expectTicketBeforeReplay ? 1 : 0,
+    );
+
+    const claimBefore = JSON.parse(
+      fs.readFileSync(
+        path.join(claimDir, claimNames[0]),
+        "utf8",
+      ),
+    );
+    assert.equal(
+      claimBefore.status,
+      expectedStatus,
+    );
+    assert.equal(
+      JSON.stringify(claimBefore).includes(
+        "wcep1.",
+      ),
+      false,
+    );
+
+    await warm(tmp);
+
+    const replay =
+      await pilot.issuePublicTicketClaim(
+        request,
+        tmp,
+      );
+    assert.equal(replay.ok, true);
+    assert.equal(
+      replay.recovered_claim_replay,
+      true,
+    );
+    assert.match(
+      String(replay.capability_token || ""),
+      /^wcep1\./,
+    );
+
+    const afterIssued = jsonNames(issuedDir);
+    assert.equal(afterIssued.length, 1);
+    assert.equal(
+      afterIssued[0],
+      `${replay.ticket.ticket_id}.json`,
+    );
+
+    if (
+      expectedStatus === "publishing" ||
+      expectedStatus === "issued"
+    ) {
+      assert.equal(
+        replay.ticket.ticket_id,
+        String(claimBefore.ticket_id || ""),
+      );
+      assert.equal(
+        crypto
+          .createHash("sha256")
+          .update(replay.capability_token)
+          .digest("hex"),
+        String(claimBefore.token_sha256 || ""),
+      );
+    }
+
+    const claimAfter = JSON.parse(
+      fs.readFileSync(
+        path.join(claimDir, claimNames[0]),
+        "utf8",
+      ),
+    );
+    assert.equal(claimAfter.status, "issued");
+    assert.equal(
+      claimAfter.ticket_id,
+      replay.ticket.ticket_id,
+    );
+    assert.equal(
+      JSON.stringify(claimAfter).includes(
+        replay.capability_token,
+      ),
+      false,
+    );
+
+    const issuedAfter = JSON.parse(
+      fs.readFileSync(
+        path.join(
+          issuedDir,
+          `${replay.ticket.ticket_id}.json`,
+        ),
+        "utf8",
+      ),
+    );
+    assert.equal(
+      JSON.stringify(issuedAfter).includes(
+        replay.capability_token,
+      ),
+      false,
+    );
+    assert.equal(
+      issuedAfter.token_sha256,
+      crypto
+        .createHash("sha256")
+        .update(replay.capability_token)
+        .digest("hex"),
+    );
+
+    await warm(tmp);
+    const exactReplay =
+      await pilot.issuePublicTicketClaim(
+        request,
+        tmp,
+      );
+    assert.equal(
+      exactReplay.capability_token,
+      replay.capability_token,
+    );
+    assert.equal(
+      exactReplay.ticket.ticket_id,
+      replay.ticket.ticket_id,
+    );
+    assert.equal(
+      jsonNames(issuedDir).length,
+      1,
+    );
+
+    fs.rmSync(tmp, {
+      recursive: true,
+      force: true,
+    });
+  }
+
+  await recoveryScenario(
+    "public_claim_after_reservation",
+    "reservation",
+    "reserving",
+    false,
+  );
+  await recoveryScenario(
+    "public_claim_after_publishing_journal",
+    "publishing-journal",
+    "publishing",
+    false,
+  );
+  await recoveryScenario(
+    "public_claim_after_ticket_published",
+    "ticket-published",
+    "publishing",
+    true,
+  );
+  await recoveryScenario(
+    "public_claim_after_claim_issued_before_return",
+    "claim-issued",
+    "issued",
+    true,
+  );
+
   console.log(
     "VOID_WC_PUBLIC_CLAIM_ISSUANCE_ATOMICITY_V1_GREEN",
   );
@@ -390,7 +606,9 @@ async function main(): Promise<void> {
     "issuance_audit_failure_strands_capability=false",
   );
   console.log("plaintext_capability_persisted=false");
-  console.log("crash_replay_recovery_deferred_to_v24=true");
+  console.log("crash_replay_recovery=true");
+  console.log("same_capability_exact_replay=true");
+  console.log("orphan_active_ticket=false");
 }
 
 main().catch((error) => {

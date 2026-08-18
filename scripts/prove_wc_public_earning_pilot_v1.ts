@@ -434,9 +434,24 @@ need(
   ),
   "public claim server-selected input hash source missing",
 );
+const publicClaimLegacyBypassStart = moduleText.indexOf(
+  "export async function issuePublicTicketClaim(",
+);
+const publicClaimLegacyBypassEnd = moduleText.indexOf(
+  "export function pilotResultSigningObject(",
+  publicClaimLegacyBypassStart,
+);
 need(
-  moduleText.includes("enforceLegacyCaps: false"),
-  "public claim does not bypass legacy lifetime canary cap",
+  publicClaimLegacyBypassStart >= 0 &&
+    publicClaimLegacyBypassEnd >
+      publicClaimLegacyBypassStart &&
+    !moduleText
+      .slice(
+        publicClaimLegacyBypassStart,
+        publicClaimLegacyBypassEnd,
+      )
+      .includes("issueTicket("),
+  "public claim re-enters legacy lifetime canary issuance path",
 );
 need(
   moduleText.includes("wcPublicClaimHistorySnapshotV1"),
@@ -525,32 +540,94 @@ const claimIssueBlock = moduleText.slice(
   claimIssueStart,
   claimIssueEnd,
 );
-const issuanceLockAcquire = claimIssueBlock.indexOf(
-  "await acquirePublicClaimIssuanceLockV1(raw)",
+need(
+  moduleText.includes(
+    "VOID_WC_PUBLIC_CLAIM_CAPABILITY_SEAL_V1",
+  ),
+  "public claim recoverable capability seal missing",
+);
+need(
+  moduleText.includes('"aes-256-gcm"'),
+  "public claim capability seal is not authenticated encryption",
+);
+need(
+  moduleText.includes(
+    "recoverPublicClaimReplayV1(",
+  ),
+  "public claim exact replay recovery missing",
+);
+need(
+  moduleText.includes(
+    "public_claim_after_ticket_published",
+  ) &&
+    moduleText.includes(
+      "public_claim_after_claim_issued_before_return",
+    ),
+  "public claim crash-boundary proof hooks missing",
+);
+need(
+  claimIssueBlock.includes(
+    "const existingClaim = readJsonStrict(",
+  ),
+  "public claim exact replay state is not read under issuance authority",
+);
+need(
+  claimIssueBlock.includes(
+    "recoverPublicClaimReplayV1(",
+  ),
+  "public claim replay does not converge through recovery",
+);
+need(
+  claimIssueBlock.includes(
+    "const history = wcPublicClaimHistorySnapshotV1(",
+  ),
+  "public claim history is not revalidated under issuance authority",
+);
+const existingClaimRead = claimIssueBlock.indexOf(
+  "const existingClaim = readJsonStrict(",
+);
+const replayRecovery = claimIssueBlock.indexOf(
+  "recoverPublicClaimReplayV1(",
+  existingClaimRead,
 );
 const issuanceHistoryRecheck = claimIssueBlock.indexOf(
   "const history = wcPublicClaimHistorySnapshotV1(",
-  issuanceLockAcquire,
+  replayRecovery,
 );
-const claimReservationOpen = claimIssueBlock.indexOf(
-  'fs.openSync(claimFile, "wx"',
+const claimReservationWrite = claimIssueBlock.indexOf(
+  "atomicWriteJson(claimFile, reservation)",
   issuanceHistoryRecheck,
 );
-const claimTicketIssue = claimIssueBlock.indexOf(
-  "const ticketResult = issueTicket(",
-  claimReservationOpen,
+const claimPublishingWrite = claimIssueBlock.indexOf(
+  "atomicWriteJson(claimFile, publishing)",
+  claimReservationWrite,
+);
+const claimTicketPublish = claimIssueBlock.indexOf(
+  "publishPreparedPublicClaimTicketV1(",
+  claimPublishingWrite,
 );
 const claimTerminalWrite = claimIssueBlock.indexOf(
-  "atomicWriteJson(claimFile, {",
-  claimTicketIssue,
+  "atomicWriteJson(claimFile, issuedState)",
+  claimTicketPublish,
 );
 need(
-  issuanceLockAcquire >= 0 &&
-    issuanceHistoryRecheck > issuanceLockAcquire &&
-    claimReservationOpen > issuanceHistoryRecheck &&
-    claimTicketIssue > claimReservationOpen &&
-    claimTerminalWrite > claimTicketIssue,
-  "claim cap revalidation/reservation/ticket/terminal are not ordered under one authority",
+  existingClaimRead >= 0 &&
+    replayRecovery > existingClaimRead &&
+    issuanceHistoryRecheck > replayRecovery &&
+    claimReservationWrite > issuanceHistoryRecheck &&
+    claimPublishingWrite > claimReservationWrite &&
+    claimTicketPublish > claimPublishingWrite &&
+    claimTerminalWrite > claimTicketPublish,
+  "claim recovery/history/reservation/publish/terminal ordering invalid",
+);
+need(
+  moduleText.includes(
+    "capability_token_seal_v1: seal",
+  ) &&
+    moduleText.includes(
+      "ticket_record: prepared.record",
+    ),
+  "public claim recovery journal does not bind sealed token to prepared ticket",
 );
 need(
   claimIssueBlock.includes(
@@ -567,6 +644,7 @@ need(
   !claimIssueBlock.includes("publicClaimUsage("),
   "public claim still scans claim history synchronously",
 );
+
 const publicStatusStart = moduleText.indexOf(
   "export function publicStatusForProofV1(",
 );
