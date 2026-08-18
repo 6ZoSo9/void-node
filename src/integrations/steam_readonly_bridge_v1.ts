@@ -292,11 +292,44 @@ async function rejectResponseBody(
   throw error;
 }
 
+async function requireResponseProvenance(
+  response: Response,
+  requestedHref: string,
+  controller: AbortController,
+): Promise<void> {
+  const error = new SteamReadonlyBridgeError(
+    "upstream_response_provenance_invalid",
+    "Steam Web API response provenance did not match the requested URL",
+  );
+
+  let finalUrl: unknown;
+  let redirected: unknown;
+  try {
+    finalUrl = response.url;
+    redirected = response.redirected;
+  } catch {
+    return rejectResponseBody(response, controller, error);
+  }
+
+  if (typeof finalUrl !== "string" || finalUrl.length === 0) {
+    return rejectResponseBody(response, controller, error);
+  }
+  try {
+    new URL(finalUrl);
+  } catch {
+    return rejectResponseBody(response, controller, error);
+  }
+  if (finalUrl !== requestedHref || redirected === true) {
+    return rejectResponseBody(response, controller, error);
+  }
+}
+
 async function fetchResponseWithDeadline(
   request: SteamReadonlyPreparedRequest,
   fetchImpl: typeof fetch,
   controller: AbortController,
-): Promise<Response> {
+): Promise<{ response: Response; requestedHref: string }> {
+  const requestedHref = request.url.href;
   const timeoutError = new SteamReadonlyBridgeError(
     "upstream_timeout",
     "Steam Web API request timed out",
@@ -318,7 +351,7 @@ async function fetchResponseWithDeadline(
   });
 
   const fetchPromise = Promise.resolve().then(() =>
-    fetchImpl(request.url, {
+    fetchImpl(requestedHref, {
       method: "GET",
       headers: request.headers,
       redirect: "error",
@@ -335,7 +368,10 @@ async function fetchResponseWithDeadline(
   );
 
   try {
-    return await Promise.race([fetchPromise, timeoutPromise]);
+    return {
+      response: await Promise.race([fetchPromise, timeoutPromise]),
+      requestedHref,
+    };
   } finally {
     removeAbortListener();
   }
@@ -499,8 +535,13 @@ export async function executeSteamReadonlyRequest(
 
   try {
     let response: Response;
+    let requestedHref: string;
     try {
-      response = await fetchResponseWithDeadline(request, fetchImpl, controller);
+      ({ response, requestedHref } = await fetchResponseWithDeadline(
+        request,
+        fetchImpl,
+        controller,
+      ));
     } catch (error) {
       if (error instanceof SteamReadonlyBridgeError) throw error;
       throw new SteamReadonlyBridgeError(
@@ -510,6 +551,8 @@ export async function executeSteamReadonlyRequest(
           : "Steam Web API request failed",
       );
     }
+
+    await requireResponseProvenance(response, requestedHref, controller);
 
     if (!response.ok) {
       return rejectResponseBody(
