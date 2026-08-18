@@ -1,22 +1,106 @@
 name: ops-verify
 
-on:
-  push:
-    paths:
-      - "Makefile"
-      - "ops/prom-verify.sh"
-      - ".github/workflows/ops-verify.yml"
-  pull_request:
-    paths:
-      - "Makefile"
-      - "ops/prom-verify.sh"
-      - ".github/workflows/ops-verify.yml"
+on: [push, pull_request]
 
 permissions:
   contents: read
 
 jobs:
+  detect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    outputs:
+      relevant: ${{ steps.scope.outputs.relevant }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 2
+          persist-credentials: false
+
+      - name: Prove local relevant-path detector
+        run: |
+          set -euo pipefail
+          TMP="$(mktemp -d)"
+          trap 'rm -rf "$TMP"' EXIT
+          git -C "$TMP" init -q
+          git -C "$TMP" config user.name void-ci-proof
+          git -C "$TMP" config user.email void-ci-proof@example.invalid
+          mkdir -p "$TMP/ops" "$TMP/.github/workflows"
+          : > "$TMP/Makefile"
+          : > "$TMP/ops/prom-verify.sh"
+          : > "$TMP/.github/workflows/ops-verify.yml"
+          git -C "$TMP" add .
+          git -C "$TMP" commit -q -m base
+          BASE="$(git -C "$TMP" rev-parse HEAD)"
+
+          for i in $(seq 1 600); do
+            printf 'noise-%s\n' "$i" > "$TMP/noise-$i.txt"
+          done
+          git -C "$TMP" add .
+          git -C "$TMP" commit -q -m noise
+          NOISE="$(git -C "$TMP" rev-parse HEAD)"
+          git -C "$TMP" diff --quiet "$BASE" "$NOISE" -- \
+            Makefile ops/prom-verify.sh .github/workflows/ops-verify.yml
+
+          printf 'changed\n' >> "$TMP/Makefile"
+          git -C "$TMP" add Makefile
+          git -C "$TMP" commit -q -m relevant
+          RELEVANT="$(git -C "$TMP" rev-parse HEAD)"
+          if git -C "$TMP" diff --quiet "$BASE" "$RELEVANT" -- \
+            Makefile ops/prom-verify.sh .github/workflows/ops-verify.yml; then
+            echo "relevant-path detector failed to find Makefile after large noise set" >&2
+            exit 1
+          fi
+
+      - name: Detect relevant ops verification changes
+        id: scope
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          PUSH_BEFORE_SHA: ${{ github.event.before }}
+          PUSH_AFTER_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          ZERO_SHA="0000000000000000000000000000000000000000"
+          if [ "$EVENT_NAME" = "pull_request" ]; then
+            BASE_SHA="$PR_BASE_SHA"
+            HEAD_SHA="$PR_HEAD_SHA"
+          else
+            BASE_SHA="$PUSH_BEFORE_SHA"
+            HEAD_SHA="$PUSH_AFTER_SHA"
+          fi
+
+          fail_open() {
+            echo "relevant=true" >> "$GITHUB_OUTPUT"
+            echo "Unable to establish a complete local diff; running guards fail-open."
+            exit 0
+          }
+
+          [ -n "${BASE_SHA:-}" ] || fail_open
+          [ -n "${HEAD_SHA:-}" ] || fail_open
+          [ "$BASE_SHA" != "$ZERO_SHA" ] || fail_open
+
+          for sha in "$BASE_SHA" "$HEAD_SHA"; do
+            if ! git cat-file -e "$sha^{commit}" 2>/dev/null; then
+              if ! git fetch --no-tags --depth=1 origin "$sha"; then
+                fail_open
+              fi
+            fi
+          done
+
+          if git diff --quiet "$BASE_SHA" "$HEAD_SHA" -- \
+            Makefile ops/prom-verify.sh .github/workflows/ops-verify.yml; then
+            echo "relevant=false" >> "$GITHUB_OUTPUT"
+            echo "No ops-verify repository inputs changed; expensive guards will be skipped."
+          else
+            echo "relevant=true" >> "$GITHUB_OUTPUT"
+            echo "Relevant ops-verify input changed; expensive guards will run."
+          fi
+
   guards:
+    needs: detect
+    if: needs.detect.outputs.relevant == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
