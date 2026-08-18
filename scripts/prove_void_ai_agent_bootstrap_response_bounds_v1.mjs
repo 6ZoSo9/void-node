@@ -69,6 +69,10 @@ function jsonResponse(payload) {
   });
 }
 
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 function neverSettlingCancellationStream(chunks = []) {
   return new ReadableStream({
     start(controller) {
@@ -81,6 +85,8 @@ function neverSettlingCancellationStream(chunks = []) {
     },
   });
 }
+
+let stalledBodyCancelCalls = 0;
 
 function fetchForMode(mode) {
   return async (input, init = {}) => {
@@ -169,6 +175,48 @@ function fetchForMode(mode) {
       });
     }
 
+    if (mode === "stalled_body_ignores_abort") {
+      return {
+        status: 200,
+        ok: true,
+        headers: new Headers({
+          "content-type": "application/json",
+        }),
+        body: {
+          getReader() {
+            return {
+              read() {
+                return new Promise(() => {});
+              },
+              cancel() {
+                stalledBodyCancelCalls += 1;
+                return Promise.resolve();
+              },
+            };
+          },
+          cancel() {
+            throw new Error("reader should own cancellation");
+          },
+        },
+      };
+    }
+
+    if (mode === "prelocked_body") {
+      const stream = new ReadableStream({
+        start(controller) {
+          controller.enqueue(bytes(JSON.stringify(payload)));
+          controller.close();
+        },
+      });
+      stream.getReader();
+      return new Response(stream, {
+        status: 200,
+        headers: {
+          "content-type": "application/json",
+        },
+      });
+    }
+
     return jsonResponse(payload);
   };
 }
@@ -242,6 +290,122 @@ assert(
   `stalled admitted body escaped total deadline: ${stalled.elapsedMs.toFixed(1)}ms`,
 );
 
+stalledBodyCancelCalls = 0;
+const stalledIgnoringAbort = await runMode(
+  "stalled_body_ignores_abort",
+  { timeoutMs: 120 },
+);
+assert.equal(
+  stalledIgnoringAbort.result.surfaces.capabilities.available,
+  false,
+);
+assert.equal(
+  stalledIgnoringAbort.result.surfaces.capabilities.error,
+  "bootstrap_request_deadline_exceeded",
+);
+assert.equal(stalledBodyCancelCalls, 1);
+assert(
+  stalledIgnoringAbort.elapsedMs < 1200,
+  `signal-ignoring reader escaped owned deadline: ${stalledIgnoringAbort.elapsedMs.toFixed(1)}ms`,
+);
+
+const prelocked = await runMode("prelocked_body");
+assert.equal(prelocked.result.surfaces.capabilities.available, false);
+assert.equal(
+  prelocked.result.surfaces.capabilities.error,
+  "response_body_reader_unavailable",
+);
+assert(
+  prelocked.elapsedMs < 1200,
+  `prelocked reader acquisition escaped teardown ownership: ${prelocked.elapsedMs.toFixed(1)}ms`,
+);
+
+let neverFetchCalls = 0;
+const neverFetch = () => {
+  neverFetchCalls += 1;
+  return new Promise(() => {});
+};
+const neverStarted = performance.now();
+await assert.rejects(
+  runVoidAiAgentBootstrapClientV1({
+    baseUrl: "http://127.0.0.1:4100",
+    timeoutMs: 90,
+    maxBytes: 1024,
+    fetchImpl: neverFetch,
+  }),
+  /bootstrap_request_deadline_exceeded/,
+);
+assert(
+  performance.now() - neverStarted < 700,
+  "never-settling fetch acquisition escaped the request deadline",
+);
+const quarantineStarted = performance.now();
+await assert.rejects(
+  runVoidAiAgentBootstrapClientV1({
+    baseUrl: "http://127.0.0.1:4100",
+    timeoutMs: 90,
+    maxBytes: 1024,
+    fetchImpl: neverFetch,
+  }),
+  /bootstrap_fetch_acquisition_quarantined/,
+);
+assert.equal(neverFetchCalls, 1);
+assert(
+  performance.now() - quarantineStarted < 300,
+  "quarantined unresolved acquisition did not fail fast",
+);
+
+let resolveLateFetch;
+let lateFetchCalls = 0;
+let lateCleanupCalls = 0;
+const lateFetch = (input) => {
+  lateFetchCalls += 1;
+  if (lateFetchCalls === 1) {
+    return new Promise((resolve) => {
+      resolveLateFetch = resolve;
+    });
+  }
+  const url = input instanceof URL ? input : new URL(String(input));
+  return Promise.resolve(jsonResponse(PAYLOADS.get(url.pathname)));
+};
+const lateFirst = runVoidAiAgentBootstrapClientV1({
+  baseUrl: "http://127.0.0.1:4100",
+  timeoutMs: 90,
+  maxBytes: 1024,
+  fetchImpl: lateFetch,
+});
+await assert.rejects(lateFirst, /bootstrap_request_deadline_exceeded/);
+await assert.rejects(
+  runVoidAiAgentBootstrapClientV1({
+    baseUrl: "http://127.0.0.1:4100",
+    timeoutMs: 90,
+    maxBytes: 1024,
+    fetchImpl: lateFetch,
+  }),
+  /bootstrap_fetch_acquisition_quarantined/,
+);
+assert.equal(lateFetchCalls, 1);
+resolveLateFetch({
+  body: {
+    cancel() {
+      lateCleanupCalls += 1;
+      return Promise.resolve();
+    },
+  },
+});
+await sleep(20);
+assert.equal(lateCleanupCalls, 1);
+const recovered = await runVoidAiAgentBootstrapClientV1({
+  baseUrl: "http://127.0.0.1:4100",
+  timeoutMs: 1000,
+  maxBytes: 1024,
+  fetchImpl: lateFetch,
+});
+assert.equal(recovered.readiness.read_only_connection_ready, true);
+assert.equal(recovered.readiness.onboarding_surface_complete, true);
+assert.equal(lateCleanupCalls, 1);
+assert.equal(lateFetchCalls, 7);
+
 for (const result of [
   small.result,
   redirect.result,
@@ -249,6 +413,9 @@ for (const result of [
   streamed.result,
   invalidLength.result,
   stalled.result,
+  stalledIgnoringAbort.result,
+  prelocked.result,
+  recovered,
 ]) {
   assert.equal(result.readiness.mutation_authority_granted, false);
   assert.equal(result.readiness.wallet_or_signer_access_granted, false);
@@ -269,6 +436,11 @@ console.log("streamed_oversize_prebuffer_rejected=true");
 console.log("invalid_content_length_rejected=true");
 console.log("nonsettling_cancel_bounded=true");
 console.log("stalled_body_deadline_retained=true");
+console.log("signal_ignoring_body_read_deadline_owned=true");
+console.log("body_reader_acquisition_teardown_owned=true");
+console.log("fetch_acquisition_deadline_owned=true");
+console.log("unresolved_fetch_generation_quarantined=true");
+console.log("late_fetch_response_cleanup_owned=true");
 console.log("http_get_only=true");
 console.log("credentials_sent=false");
 console.log("wallet_or_signer_access=false");
