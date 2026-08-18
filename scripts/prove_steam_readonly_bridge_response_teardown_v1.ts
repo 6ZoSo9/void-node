@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import {
   executeSteamReadonlyRequest,
+  prepareSteamReadonlyRequest,
   SteamReadonlyBridgeError,
 } from "../src/integrations/steam_readonly_bridge_v1.js";
 
@@ -15,6 +16,20 @@ const input = {
   operation: "player_summaries" as const,
   steamids: ["76561198000000000"],
 };
+
+const expectedUrl = prepareSteamReadonlyRequest(input, env).url.href;
+
+function withProvenance<T extends Response>(
+  response: T,
+  url = expectedUrl,
+  redirected = false,
+): T {
+  Object.defineProperties(response, {
+    url: { value: url },
+    redirected: { value: redirected },
+  });
+  return response;
+}
 
 async function expectCode(
   code: string,
@@ -75,15 +90,64 @@ function responseWithReaderFailure(options: {
     },
   } as unknown as ReadableStreamDefaultReader<Uint8Array>;
 
-  return {
+  return withProvenance({
     ok: true,
     status: 200,
     headers: new Headers({ "content-type": "application/json" }),
     body: {
       getReader: () => reader,
     },
-  } as unknown as Response;
+  } as unknown as Response);
 }
+
+async function expectProvenanceRejected(options: {
+  url?: unknown;
+  redirected?: unknown;
+}): Promise<void> {
+  let bodyReadCalls = 0;
+  let cancelCalls = 0;
+  const response = {
+    ok: true,
+    status: 200,
+    headers: new Headers({ "content-type": "application/json" }),
+    url: options.url,
+    redirected: options.redirected,
+    body: {
+      getReader() {
+        bodyReadCalls += 1;
+        throw new Error("provenance rejection must precede body evidence");
+      },
+      cancel() {
+        cancelCalls += 1;
+        return new Promise<void>(() => undefined);
+      },
+    },
+  } as unknown as Response;
+
+  const elapsed = await expectCode(
+    "upstream_response_provenance_invalid",
+    async () => response,
+  );
+  assert.equal(bodyReadCalls, 0);
+  assert.equal(cancelCalls, 1);
+  assert.ok(elapsed < 900, `provenance teardown stalled ${elapsed}ms`);
+}
+
+await expectProvenanceRejected({
+  url: "https://example.invalid/ISteamUser/GetPlayerSummaries/v2/?steamids=76561198000000000",
+  redirected: false,
+});
+await expectProvenanceRejected({
+  url: "https://partner.steam-api.com/ISteamUser/GetPlayerSummaries/v1/?steamids=76561198000000000",
+  redirected: false,
+});
+await expectProvenanceRejected({
+  url: "https://partner.steam-api.com/ISteamUser/GetPlayerSummaries/v2/?steamids=76561198000000001",
+  redirected: false,
+});
+await expectProvenanceRejected({ url: "", redirected: false });
+await expectProvenanceRejected({ url: "not a url", redirected: false });
+await expectProvenanceRejected({ url: expectedUrl, redirected: true });
 
 const unreachableElapsed = await expectCode(
   "upstream_unreachable",
@@ -116,7 +180,7 @@ assert.ok(
 
 let lateFetchResolveCalls = 0;
 let lateFetchCancelCalls = 0;
-const lateFetchResponse = {
+const lateFetchResponse = withProvenance({
   ok: true,
   status: 200,
   headers: new Headers({ "content-type": "application/json" }),
@@ -126,7 +190,7 @@ const lateFetchResponse = {
       return new Promise<void>(() => undefined);
     },
   },
-} as unknown as Response;
+} as unknown as Response);
 const lateFetchElapsed = await expectCode(
   "upstream_timeout",
   async () => {
@@ -158,7 +222,7 @@ assert.equal(lateFetchCancelCalls, 1);
 let declaredCancelCalls = 0;
 const declaredElapsed = await expectCode(
   "response_too_large",
-  async () => new Response(
+  async () => withProvenance(new Response(
     bodyWithCancel({
       cancel: () => {
         declaredCancelCalls += 1;
@@ -172,7 +236,7 @@ const declaredElapsed = await expectCode(
         "content-length": "17000",
       },
     },
-  ),
+  )),
 );
 assert.equal(declaredCancelCalls, 1);
 assert.ok(declaredElapsed < 900, `declared oversize stalled ${declaredElapsed}ms`);
@@ -180,7 +244,7 @@ assert.ok(declaredElapsed < 900, `declared oversize stalled ${declaredElapsed}ms
 let malformedCancelCalls = 0;
 const malformedElapsed = await expectCode(
   "response_content_length_invalid",
-  async () => new Response(
+  async () => withProvenance(new Response(
     bodyWithCancel({
       cancel: () => {
         malformedCancelCalls += 1;
@@ -194,7 +258,7 @@ const malformedElapsed = await expectCode(
         "content-length": "not-a-byte-count",
       },
     },
-  ),
+  )),
 );
 assert.equal(malformedCancelCalls, 1);
 assert.ok(malformedElapsed < 900, `malformed length stalled ${malformedElapsed}ms`);
@@ -202,7 +266,7 @@ assert.ok(malformedElapsed < 900, `malformed length stalled ${malformedElapsed}m
 let streamedCancelCalls = 0;
 const streamedElapsed = await expectCode(
   "response_too_large",
-  async () => new Response(
+  async () => withProvenance(new Response(
     bodyWithCancel({
       chunk_bytes: 17000,
       cancel: () => {
@@ -216,7 +280,7 @@ const streamedElapsed = await expectCode(
         "content-type": "application/json",
       },
     },
-  ),
+  )),
 );
 assert.equal(streamedCancelCalls, 1);
 assert.ok(streamedElapsed < 900, `streamed oversize stalled ${streamedElapsed}ms`);
@@ -224,7 +288,7 @@ assert.ok(streamedElapsed < 900, `streamed oversize stalled ${streamedElapsed}ms
 let statusCancelCalls = 0;
 const statusElapsed = await expectCode(
   "upstream_http_503",
-  async () => new Response(
+  async () => withProvenance(new Response(
     bodyWithCancel({
       cancel: () => {
         statusCancelCalls += 1;
@@ -235,7 +299,7 @@ const statusElapsed = await expectCode(
       status: 503,
       headers: { "content-type": "application/json" },
     },
-  ),
+  )),
 );
 assert.equal(statusCancelCalls, 1);
 assert.ok(statusElapsed < 900, `non-2xx teardown stalled ${statusElapsed}ms`);
@@ -243,7 +307,7 @@ assert.ok(statusElapsed < 900, `non-2xx teardown stalled ${statusElapsed}ms`);
 let contentTypeCancelCalls = 0;
 const contentTypeElapsed = await expectCode(
   "upstream_content_type_invalid",
-  async () => new Response(
+  async () => withProvenance(new Response(
     bodyWithCancel({
       cancel: () => {
         contentTypeCancelCalls += 1;
@@ -254,7 +318,7 @@ const contentTypeElapsed = await expectCode(
       status: 200,
       headers: { "content-type": "text/plain" },
     },
-  ),
+  )),
 );
 assert.equal(contentTypeCancelCalls, 1);
 assert.ok(contentTypeElapsed < 900, `content-type teardown stalled ${contentTypeElapsed}ms`);
@@ -324,14 +388,14 @@ const neverSettlingReader = {
     return new Promise<void>(() => undefined);
   },
 } as unknown as ReadableStreamDefaultReader<Uint8Array>;
-const neverSettlingResponse = {
+const neverSettlingResponse = withProvenance({
   ok: true,
   status: 200,
   headers: new Headers({ "content-type": "application/json" }),
   body: {
     getReader: () => neverSettlingReader,
   },
-} as unknown as Response;
+} as unknown as Response);
 const neverSettlingElapsed = await expectCode(
   "upstream_timeout",
   async () => neverSettlingResponse,
@@ -350,17 +414,21 @@ assert.ok(
 const validBody = JSON.stringify({ response: { players: [] } });
 const valid = await executeSteamReadonlyRequest(input, {
   env,
-  fetch_impl: async () => new Response(validBody, {
+  fetch_impl: async () => withProvenance(new Response(validBody, {
     status: 200,
     headers: {
       "content-type": "application/json",
       "content-length": String(Buffer.byteLength(validBody)),
     },
-  }),
+  })),
 });
 assert.equal(valid.ok, true);
 assert.equal(valid.received_bytes, Buffer.byteLength(validBody));
 
+console.log("custom_fetch_final_url_exact_match_required=true");
+console.log("custom_fetch_redirected_response_rejected=true");
+console.log("custom_fetch_provenance_rejection_precedes_body_read=true");
+console.log("custom_fetch_provenance_cleanup_bounded=true");
 console.log("ordinary_fetch_rejection_preserved=true");
 console.log("deadline_terminates_never_settling_fetch=true");
 console.log("late_fetch_response_timeout_truth_preserved=true");
