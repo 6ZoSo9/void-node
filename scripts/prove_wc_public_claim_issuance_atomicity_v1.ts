@@ -123,6 +123,10 @@ async function main(): Promise<void> {
     );
   }
 
+  function readJson(file: string): Record<string, any> {
+    return JSON.parse(fs.readFileSync(file, "utf8"));
+  }
+
   async function barrierTwo(): Promise<void> {
     let ready = 0;
     let release!: () => void;
@@ -597,6 +601,337 @@ async function main(): Promise<void> {
     true,
   );
 
+
+  // Journaled recovery stays valid after claim-skew expiry while its ticket
+  // lifetime remains live.
+  {
+    const tmp = fs.mkdtempSync(
+      path.join(
+        os.tmpdir(),
+        "void-public-claim-recovery-stale-signature-",
+      ),
+    );
+    configure(tmp, 10);
+    process.env.VOID_WC_PUBLIC_TICKET_CLAIM_CLOCK_SKEW_MS =
+      "30000";
+    process.env.VOID_WC_PUBLIC_TICKET_CLAIM_TTL_MS =
+      "120000";
+    ensureRoot(tmp);
+    await warm(tmp);
+
+    const signing = signer();
+    const request = signed(
+      signing,
+      "stale-recovery-account",
+      "a".repeat(32),
+    );
+    const t0 = Number(request.claim.claim_ts_ms);
+
+    pilot.setPilotTransactionFaultForProofV1(
+      "public_claim_after_publishing_journal",
+    );
+    try {
+      await assert.rejects(
+        () =>
+          pilot.issuePublicTicketClaim(
+            request,
+            tmp,
+            t0,
+          ),
+        /VOID_WC_PILOT_PROOF_FAULT_public_claim_after_publishing_journal/,
+      );
+    } finally {
+      pilot.setPilotTransactionFaultForProofV1("");
+    }
+
+    const claimName = jsonNames(
+      path.join(rootDir(tmp), "public-claims"),
+    )[0];
+    const before = readJson(
+      path.join(
+        rootDir(tmp),
+        "public-claims",
+        claimName,
+      ),
+    );
+    assert.equal(before.status, "publishing");
+
+    await warm(tmp);
+    const recovered =
+      await pilot.issuePublicTicketClaim(
+        request,
+        tmp,
+        t0 + 30_001,
+      );
+    assert.equal(recovered.ok, true);
+    assert.equal(
+      recovered.recovered_claim_replay,
+      true,
+    );
+    assert.equal(
+      recovered.ticket.ticket_id,
+      before.ticket_id,
+    );
+
+    fs.rmSync(tmp, {
+      recursive: true,
+      force: true,
+    });
+  }
+
+  // The same old signature without a journal remains invalid for new issue.
+  {
+    const tmp = fs.mkdtempSync(
+      path.join(
+        os.tmpdir(),
+        "void-public-claim-stale-fresh-issue-",
+      ),
+    );
+    configure(tmp, 10);
+    process.env.VOID_WC_PUBLIC_TICKET_CLAIM_CLOCK_SKEW_MS =
+      "30000";
+    process.env.VOID_WC_PUBLIC_TICKET_CLAIM_TTL_MS =
+      "120000";
+    ensureRoot(tmp);
+    await warm(tmp);
+
+    const signing = signer();
+    const request = signed(
+      signing,
+      "stale-new-claim-account",
+      "b".repeat(32),
+    );
+    const t0 = Number(request.claim.claim_ts_ms);
+    await assert.rejects(
+      () =>
+        pilot.issuePublicTicketClaim(
+          request,
+          tmp,
+          t0 + 30_001,
+        ),
+      /claim_timestamp_outside_window/,
+    );
+    assert.equal(
+      jsonNames(
+        path.join(rootDir(tmp), "issued"),
+      ).length,
+      0,
+    );
+    assert.equal(
+      jsonNames(
+        path.join(rootDir(tmp), "public-claims"),
+      ).length,
+      0,
+    );
+
+    fs.rmSync(tmp, {
+      recursive: true,
+      force: true,
+    });
+  }
+
+  // A crashed publishing journal cannot resurrect a second active ticket
+  // after another claim has taken the account/executor/global capacity.
+  {
+    const tmp = fs.mkdtempSync(
+      path.join(
+        os.tmpdir(),
+        "void-public-claim-recovery-capacity-conflict-",
+      ),
+    );
+    configure(tmp, 1);
+    ensureRoot(tmp);
+    await warm(tmp);
+
+    const signing = signer();
+    const first = signed(
+      signing,
+      "recovery-capacity-account",
+      "c".repeat(32),
+    );
+    pilot.setPilotTransactionFaultForProofV1(
+      "public_claim_after_publishing_journal",
+    );
+    try {
+      await assert.rejects(
+        () =>
+          pilot.issuePublicTicketClaim(
+            first,
+            tmp,
+          ),
+        /VOID_WC_PILOT_PROOF_FAULT_public_claim_after_publishing_journal/,
+      );
+    } finally {
+      pilot.setPilotTransactionFaultForProofV1("");
+    }
+
+    await warm(tmp);
+    const second = signed(
+      signing,
+      "recovery-capacity-account",
+      "d".repeat(32),
+    );
+    const winner =
+      await pilot.issuePublicTicketClaim(
+        second,
+        tmp,
+      );
+    assert.equal(winner.ok, true);
+    await warm(tmp);
+
+    await assert.rejects(
+      () =>
+        pilot.issuePublicTicketClaim(
+          first,
+          tmp,
+        ),
+      /public_claim_recovery_capacity_conflict/,
+    );
+    const issuedNames = jsonNames(
+      path.join(rootDir(tmp), "issued"),
+    );
+    assert.equal(issuedNames.length, 1);
+    assert.equal(
+      issuedNames[0],
+      `${winner.ticket.ticket_id}.json`,
+    );
+
+    fs.rmSync(tmp, {
+      recursive: true,
+      force: true,
+    });
+  }
+
+  // If the first issued-directory fsync fails after rename, exact retry must
+  // perform a successful issued-directory fsync before returning the token.
+  {
+    const tmp = fs.mkdtempSync(
+      path.join(
+        os.tmpdir(),
+        "void-public-claim-issued-dir-fsync-recovery-",
+      ),
+    );
+    configure(tmp, 10);
+    ensureRoot(tmp);
+    await warm(tmp);
+
+    const signing = signer();
+    const request = signed(
+      signing,
+      "recovery-fsync-account",
+      "f".repeat(32),
+    );
+    const issuedDir = path.join(
+      rootDir(tmp),
+      "issued",
+    );
+    const resolvedIssuedDir = path.resolve(
+      issuedDir,
+    );
+    const originalFsyncSync = fs.fsyncSync;
+    let failedOnce = false;
+
+    (fs as any).fsyncSync = function (
+      fd: number,
+    ): void {
+      let target = "";
+      try {
+        target = path.resolve(
+          fs.readlinkSync(
+            `/proc/self/fd/${fd}`,
+          ),
+        );
+      } catch (error) {
+        void error;
+      }
+      if (
+        !failedOnce &&
+        target === resolvedIssuedDir
+      ) {
+        failedOnce = true;
+        throw new Error(
+          "VOID_WC_PROOF_ISSUED_DIR_FSYNC_FAILURE",
+        );
+      }
+      return originalFsyncSync(fd);
+    };
+
+    try {
+      await assert.rejects(
+        () =>
+          pilot.issuePublicTicketClaim(
+            request,
+            tmp,
+          ),
+        /VOID_WC_PROOF_ISSUED_DIR_FSYNC_FAILURE/,
+      );
+    } finally {
+      (fs as any).fsyncSync =
+        originalFsyncSync;
+    }
+    assert.equal(failedOnce, true);
+    assert.equal(
+      jsonNames(issuedDir).length,
+      1,
+    );
+    const claimName = jsonNames(
+      path.join(rootDir(tmp), "public-claims"),
+    )[0];
+    assert.equal(
+      readJson(
+        path.join(
+          rootDir(tmp),
+          "public-claims",
+          claimName,
+        ),
+      ).status,
+      "publishing",
+    );
+
+    await warm(tmp);
+    let successfulIssuedDirFsyncs = 0;
+    (fs as any).fsyncSync = function (
+      fd: number,
+    ): void {
+      let target = "";
+      try {
+        target = path.resolve(
+          fs.readlinkSync(
+            `/proc/self/fd/${fd}`,
+          ),
+        );
+      } catch (error) {
+        void error;
+      }
+      if (target === resolvedIssuedDir) {
+        successfulIssuedDirFsyncs += 1;
+      }
+      return originalFsyncSync(fd);
+    };
+
+    let recovered: any;
+    try {
+      recovered =
+        await pilot.issuePublicTicketClaim(
+          request,
+          tmp,
+        );
+    } finally {
+      (fs as any).fsyncSync =
+        originalFsyncSync;
+    }
+    assert.equal(recovered.ok, true);
+    assert.ok(
+      successfulIssuedDirFsyncs >= 1,
+      "recovery returned without re-fsyncing issued directory",
+    );
+
+    fs.rmSync(tmp, {
+      recursive: true,
+      force: true,
+    });
+  }
+
   console.log(
     "VOID_WC_PUBLIC_CLAIM_ISSUANCE_ATOMICITY_V1_GREEN",
   );
@@ -609,6 +944,10 @@ async function main(): Promise<void> {
   console.log("crash_replay_recovery=true");
   console.log("same_capability_exact_replay=true");
   console.log("orphan_active_ticket=false");
+  console.log("recovery_survives_claim_skew=true");
+  console.log("fresh_stale_claim_rejected=true");
+  console.log("recovery_capacity_resurrection=false");
+  console.log("issued_directory_durability_reestablished=true");
 }
 
 main().catch((error) => {

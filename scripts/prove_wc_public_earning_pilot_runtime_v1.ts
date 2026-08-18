@@ -17,6 +17,9 @@ async function main(): Promise<void> {
   const acceptance = await import(
     "../src/economic/wc_verified_receipt_acceptance_v1.js"
   );
+  const claimAuthority = await import(
+    "../src/economic/wc_public_claim_history_authority_v1.js"
+  );
   const remoteIndex = await import(
     "../src/economic/wc_public_remote_truth_jsonl_index_v1.js"
   );
@@ -725,6 +728,119 @@ async function main(): Promise<void> {
     };
   };
 
+  const setupSubmitFromPublicClaim = (
+    root: string,
+    issuedClaim: any,
+    suffix: string,
+  ) => {
+    process.env.DATA_DIR = root;
+    process.env.VOID_DATA_DIR = root;
+    const ticketId = String(
+      issuedClaim.ticket.ticket_id,
+    );
+    const token = String(
+      issuedClaim.capability_token,
+    );
+    const account = String(
+      issuedClaim.ticket.account,
+    );
+    const nowSubmit = Date.now();
+    const submitEnvelope = {
+      ticket_id: ticketId,
+      account,
+      task_class: "datanet_fetch_verify",
+      executor_node_id: executorNodeId,
+      executor_pubkey: pubPEM,
+      executor_http_base: "",
+      transport_mode: "outbound_bundle" as const,
+      dataset_id: String(
+        issuedClaim.ticket.dataset_id,
+      ),
+      expected_input_hash: String(
+        issuedClaim.ticket.expected_input_hash,
+      ),
+      job_id: `job_${suffix}`,
+      receipt_id: `rcpt_${suffix}`,
+      input_hash: String(
+        issuedClaim.ticket.expected_input_hash,
+      ),
+      output_hash: "b".repeat(64),
+      fetched_input_hash: String(
+        issuedClaim.ticket.expected_input_hash,
+      ),
+      receipt_ts_ms: nowSubmit,
+    };
+    const submitSigned =
+      pilot.signPilotResultEnvelope(
+        submitEnvelope,
+        privateKey,
+      );
+    const job = {
+      job_id: submitEnvelope.job_id,
+      account,
+      kind: "datanet_fetch_verify",
+      dataset_id: submitEnvelope.dataset_id,
+      plaintext: JSON.stringify({
+        dataset_id: submitEnvelope.dataset_id,
+        expected_input_hash:
+          submitEnvelope.expected_input_hash,
+        capability_ticket_id: ticketId,
+        executor_node_id: executorNodeId,
+      }),
+      meta: {
+        selected_dataset_id:
+          submitEnvelope.dataset_id,
+        capability_ticket_id: ticketId,
+        executor_node_id: executorNodeId,
+      },
+    };
+    const receipt = {
+      receipt_id: submitEnvelope.receipt_id,
+      job_id: submitEnvelope.job_id,
+      account,
+      kind: "datanet_fetch_verify",
+      status: "completed",
+      dataset_id: submitEnvelope.dataset_id,
+      input_hash: submitEnvelope.input_hash,
+      output_hash: submitEnvelope.output_hash,
+      output: {
+        verified: true,
+        fetched_input_hash:
+          submitEnvelope.fetched_input_hash,
+      },
+      ts_ms: submitEnvelope.receipt_ts_ms,
+    };
+    const proof_bundle = {
+      marker: "VOID_WC_PUBLIC_EARNING_PILOT_V1",
+      version: 1,
+      transport_mode: "outbound_bundle",
+      ticket_id: ticketId,
+      executor_node_id: executorNodeId,
+      job_id: submitEnvelope.job_id,
+      receipt_id: submitEnvelope.receipt_id,
+      health: {
+        ok: true,
+        nodeId: executorNodeId,
+      },
+      job,
+      receipt,
+    };
+    return {
+      req: {
+        headers: {
+          authorization: `Bearer ${token}`,
+        },
+        body: {
+          envelope: submitSigned.envelope,
+          signature: submitSigned.signature,
+          proof_bundle,
+        },
+      },
+      ticketId,
+      token,
+    };
+  };
+
   for (const phase of [
     "after_intent_prepared",
     "after_truth_imported",
@@ -1146,6 +1262,293 @@ async function main(): Promise<void> {
     fs.rmSync(root, { recursive: true, force: true });
   }
 
+
+  {
+    const root = fs.mkdtempSync(
+      path.join(
+        os.tmpdir(),
+        "void-wc-claim-recovery-vs-real-submit-",
+      ),
+    );
+    process.env.DATA_DIR = root;
+    process.env.VOID_DATA_DIR = root;
+    process.env.VOID_WC_PUBLIC_EARNING_PILOT_ENABLED =
+      "1";
+    process.env.VOID_WC_PUBLIC_TICKET_CLAIM_ENABLED =
+      "1";
+    process.env.VOID_WC_PUBLIC_TICKET_CLAIM_DATASET_ID =
+      "ds_recovery_vs_real_submit";
+    process.env.VOID_WC_PUBLIC_TICKET_CLAIM_EXPECTED_INPUT_HASH =
+      "a".repeat(64);
+    process.env.VOID_WC_PUBLIC_TICKET_CLAIM_TTL_MS =
+      "120000";
+    process.env.VOID_WC_PUBLIC_TICKET_CLAIM_CLOCK_SKEW_MS =
+      "30000";
+    process.env.VOID_WC_PUBLIC_TICKET_CLAIM_COOLDOWN_MS =
+      "60000";
+    process.env.VOID_WC_PUBLIC_TICKET_CLAIM_MAX_PER_24H =
+      "10";
+    process.env.VOID_WC_PUBLIC_TICKET_CLAIM_GLOBAL_ACTIVE_CAP =
+      "10";
+    process.env.VOID_WC_PUBLIC_TICKET_CLAIM_GLOBAL_MAX_PER_24H =
+      "100";
+
+    claimAuthority.primeWcPublicClaimHistoryAuthorityV1(
+      root,
+    );
+    await claimAuthority.waitForWcPublicClaimHistoryWarmForProofV1(
+      root,
+    );
+
+    const signedClaim = pilot.signPublicTicketClaim(
+      {
+        domain:
+          "void:mainnet-0:wc-public-ticket-claim-v1",
+        marker: "VOID_WC_PUBLIC_TICKET_CLAIM_V1",
+        version: 1,
+        account: "recovery-real-submit-account",
+        executor_node_id: executorNodeId,
+        executor_pubkey: pubPEM,
+        claim_nonce: "9".repeat(32),
+        claim_ts_ms: Date.now(),
+      },
+      privateKey,
+    );
+    const issuedClaim =
+      await pilot.issuePublicTicketClaim(
+        signedClaim,
+        root,
+      );
+    await claimAuthority.waitForWcPublicClaimHistoryWarmForProofV1(
+      root,
+    );
+
+    const submit = setupSubmitFromPublicClaim(
+      root,
+      issuedClaim,
+      "recovery_real_submit",
+    );
+
+    let reachedResolve!: () => void;
+    let releaseResolve!: () => void;
+    const reached = new Promise<void>(
+      (resolve) => {
+        reachedResolve = resolve;
+      },
+    );
+    const release = new Promise<void>(
+      (resolve) => {
+        releaseResolve = resolve;
+      },
+    );
+
+    pilot.setPublicClaimRecoveryBeforeTicketLockHookForProofV1(
+      async () => {
+        reachedResolve();
+        await release;
+      },
+    );
+
+    const replayPromise =
+      pilot.issuePublicTicketClaim(
+        signedClaim,
+        root,
+      );
+    await reached;
+
+    remoteIndex.resetWcPublicRemoteTruthJsonlIndexForProofV1();
+    const submitResponse = makeResponse();
+    await pilot.submitRemoteResult(
+      submit.req,
+      submitResponse,
+    );
+    assert.equal(
+      submitResponse.statusCode,
+      200,
+      "real submission did not consume ticket while recovery paused",
+    );
+    assert.equal(
+      submitResponse.payload.wc.delta,
+      3,
+    );
+
+    releaseResolve();
+    try {
+      await assert.rejects(
+        () => replayPromise,
+        /public_claim_capability_consumed/,
+      );
+    } finally {
+      pilot.setPublicClaimRecoveryBeforeTicketLockHookForProofV1(
+        null,
+      );
+    }
+
+    const ledgerRows = fs
+      .readFileSync(
+        path.join(
+          root,
+          "wc_v1",
+          "ledger.jsonl",
+        ),
+        "utf8",
+      )
+      .trim()
+      .split(/\r?\n/)
+      .filter(Boolean)
+      .map((line) => JSON.parse(line));
+    assert.equal(ledgerRows.length, 1);
+    assert.equal(ledgerRows[0].delta, 3);
+    assert.equal(
+      ledgerRows[0].reward_meta
+        .capability_ticket_id,
+      issuedClaim.ticket.ticket_id,
+    );
+    assert.equal(
+      fs.existsSync(
+        path.join(
+          root,
+          "wc_v1",
+          "public-earning-pilot-v1",
+          "issued",
+          `${issuedClaim.ticket.ticket_id}.json`,
+        ),
+      ),
+      false,
+    );
+    assert.equal(
+      fs.existsSync(
+        path.join(
+          root,
+          "wc_v1",
+          "public-earning-pilot-v1",
+          "consumed",
+          `${issuedClaim.ticket.ticket_id}.json`,
+        ),
+      ),
+      true,
+    );
+
+    fs.rmSync(root, {
+      recursive: true,
+      force: true,
+    });
+  }
+
+  {
+    const root = fs.mkdtempSync(
+      path.join(
+        os.tmpdir(),
+        "void-wc-claim-recovery-wins-before-submit-",
+      ),
+    );
+    process.env.DATA_DIR = root;
+    process.env.VOID_DATA_DIR = root;
+    process.env.VOID_WC_PUBLIC_EARNING_PILOT_ENABLED =
+      "1";
+    process.env.VOID_WC_PUBLIC_TICKET_CLAIM_ENABLED =
+      "1";
+    process.env.VOID_WC_PUBLIC_TICKET_CLAIM_DATASET_ID =
+      "ds_recovery_wins_before_submit";
+    process.env.VOID_WC_PUBLIC_TICKET_CLAIM_EXPECTED_INPUT_HASH =
+      "a".repeat(64);
+    process.env.VOID_WC_PUBLIC_TICKET_CLAIM_TTL_MS =
+      "120000";
+    process.env.VOID_WC_PUBLIC_TICKET_CLAIM_CLOCK_SKEW_MS =
+      "30000";
+    process.env.VOID_WC_PUBLIC_TICKET_CLAIM_COOLDOWN_MS =
+      "60000";
+    process.env.VOID_WC_PUBLIC_TICKET_CLAIM_MAX_PER_24H =
+      "10";
+    process.env.VOID_WC_PUBLIC_TICKET_CLAIM_GLOBAL_ACTIVE_CAP =
+      "10";
+    process.env.VOID_WC_PUBLIC_TICKET_CLAIM_GLOBAL_MAX_PER_24H =
+      "100";
+
+    claimAuthority.primeWcPublicClaimHistoryAuthorityV1(
+      root,
+    );
+    await claimAuthority.waitForWcPublicClaimHistoryWarmForProofV1(
+      root,
+    );
+
+    const signedClaim = pilot.signPublicTicketClaim(
+      {
+        domain:
+          "void:mainnet-0:wc-public-ticket-claim-v1",
+        marker: "VOID_WC_PUBLIC_TICKET_CLAIM_V1",
+        version: 1,
+        account: "recovery-wins-account",
+        executor_node_id: executorNodeId,
+        executor_pubkey: pubPEM,
+        claim_nonce: "8".repeat(32),
+        claim_ts_ms: Date.now(),
+      },
+      privateKey,
+    );
+    const issuedClaim =
+      await pilot.issuePublicTicketClaim(
+        signedClaim,
+        root,
+      );
+    await claimAuthority.waitForWcPublicClaimHistoryWarmForProofV1(
+      root,
+    );
+
+    const recovered =
+      await pilot.issuePublicTicketClaim(
+        signedClaim,
+        root,
+      );
+    assert.equal(
+      recovered.capability_token,
+      issuedClaim.capability_token,
+    );
+    assert.equal(
+      recovered.ticket.ticket_id,
+      issuedClaim.ticket.ticket_id,
+    );
+
+    const submit = setupSubmitFromPublicClaim(
+      root,
+      recovered,
+      "recovery_wins",
+    );
+    remoteIndex.resetWcPublicRemoteTruthJsonlIndexForProofV1();
+    const response = makeResponse();
+    await pilot.submitRemoteResult(
+      submit.req,
+      response,
+    );
+    assert.equal(response.statusCode, 200);
+    assert.equal(response.payload.wc.delta, 3);
+
+    const ledgerRows = fs
+      .readFileSync(
+        path.join(
+          root,
+          "wc_v1",
+          "ledger.jsonl",
+        ),
+        "utf8",
+      )
+      .trim()
+      .split(/\r?\n/)
+      .filter(Boolean);
+    assert.equal(ledgerRows.length, 1);
+
+    fs.rmSync(root, {
+      recursive: true,
+      force: true,
+    });
+  }
+
+  console.log(
+    "public_claim_recovery_consumption_race=false",
+  );
+  console.log(
+    "public_claim_recovery_then_submit_once=true",
+  );
   console.log(
     "VOID_WC_PUBLIC_EARNING_PILOT_RUNTIME_V1_GREEN",
   );

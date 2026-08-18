@@ -558,6 +558,51 @@ need(
 );
 need(
   moduleText.includes(
+    "verifyPublicTicketClaimSignatureV1(",
+  ) &&
+    moduleText.includes(
+      "assertPublicTicketClaimFreshV1(",
+    ),
+  "claim signature validity is not separated from fresh-issuance time policy",
+);
+need(
+  moduleText.includes(
+    "await recoverPublicClaimReplayV1(",
+  ),
+  "claim recovery is not an async authority transaction",
+);
+need(
+  moduleText.includes(
+    "await acquirePilotTicketLock(\n      preparedRecord.ticket_id",
+  ),
+  "claim recovery does not share ticket single-use authority",
+);
+need(
+  moduleText.includes(
+    "public_claim_capability_consumed",
+  ),
+  "claim recovery consumed terminal missing",
+);
+need(
+  moduleText.includes(
+    "public_claim_recovery_capacity_conflict",
+  ),
+  "claim recovery fresh capacity conflict check missing",
+);
+need(
+  moduleText.includes(
+    "fsyncDirectoryV1(issuedDir(raw))",
+  ),
+  "claim recovery does not re-establish issued-directory durability",
+);
+need(
+  moduleText.includes(
+    "setPublicClaimRecoveryBeforeTicketLockHookForProofV1",
+  ),
+  "claim recovery-vs-consumption proof hook missing",
+);
+need(
+  moduleText.includes(
     "public_claim_after_ticket_published",
   ) &&
     moduleText.includes(
@@ -585,6 +630,15 @@ need(
 );
 const existingClaimRead = claimIssueBlock.indexOf(
   "const existingClaim = readJsonStrict(",
+);
+const freshIssuanceGate = claimIssueBlock.indexOf(
+  "assertPublicTicketClaimFreshV1(claim, now)",
+  existingClaimRead,
+);
+need(
+  existingClaimRead >= 0 &&
+    freshIssuanceGate > existingClaimRead,
+  "fresh timestamp gate still precedes recoverable journal lookup",
 );
 const replayRecovery = claimIssueBlock.indexOf(
   "recoverPublicClaimReplayV1(",
@@ -730,15 +784,47 @@ need(
   "claim history stat/read generation binding missing",
 );
 need(
-  moduleText.includes(
-    'if (status === "publishing") {\n    const issuedState = {',
+  /if\s*\(\s*status\s*===\s*"publishing"\s*\)\s*\{\s*const\s+issuedState\s*=\s*\{/.test(
+    moduleText,
   ),
   "claim replay terminal rewrite is not recovery-only",
 );
+const publicClaimRecoveryStart = moduleText.indexOf(
+  "async function recoverPublicClaimReplayV1(",
+);
+const publicClaimRecoveryEnd = moduleText.indexOf(
+  "export async function issuePublicTicketClaim(",
+  publicClaimRecoveryStart,
+);
 need(
-  moduleText.includes(
-    "Exact replay of an already coherent issued claim is read-only.",
-  ),
+  publicClaimRecoveryStart >= 0 &&
+    publicClaimRecoveryEnd > publicClaimRecoveryStart,
+  "public claim recovery block missing",
+);
+const publicClaimRecoveryBlock = moduleText.slice(
+  publicClaimRecoveryStart,
+  publicClaimRecoveryEnd,
+);
+const recoveryPublishingGate =
+  publicClaimRecoveryBlock.indexOf(
+    'if (status === "publishing") {',
+  );
+const recoveryIssuedState =
+  publicClaimRecoveryBlock.indexOf(
+    "const issuedState = {",
+  );
+const recoveryClaimTerminalWrite =
+  publicClaimRecoveryBlock.indexOf(
+    "atomicWriteJson(\n        path.join(claimsDir(raw), `${claimId}.json`),\n        issuedState,",
+  );
+need(
+  recoveryPublishingGate >= 0 &&
+    recoveryIssuedState > recoveryPublishingGate &&
+    recoveryClaimTerminalWrite > recoveryIssuedState &&
+    publicClaimRecoveryBlock.indexOf(
+      "const issuedState = {",
+      recoveryIssuedState + 1,
+    ) === -1,
   "issued claim exact replay read-only contract missing",
 );
 need(

@@ -180,6 +180,15 @@ function ensureDirs(raw?: string): void {
   }
 }
 
+function fsyncDirectoryV1(dir: string): void {
+  const dirFd = fs.openSync(dir, "r");
+  try {
+    fs.fsyncSync(dirFd);
+  } finally {
+    fs.closeSync(dirFd);
+  }
+}
+
 function atomicWriteJson(file: string, value: JsonObject): void {
   fs.mkdirSync(path.dirname(file), { recursive: true, mode: 0o700 });
   const tmp = `${file}.tmp-${process.pid}-${crypto.randomBytes(6).toString("hex")}`;
@@ -193,12 +202,7 @@ function atomicWriteJson(file: string, value: JsonObject): void {
     fs.closeSync(fd);
     fd = null;
     fs.renameSync(tmp, file);
-    const dirFd = fs.openSync(path.dirname(file), "r");
-    try {
-      fs.fsyncSync(dirFd);
-    } finally {
-      fs.closeSync(dirFd);
-    }
+    fsyncDirectoryV1(path.dirname(file));
   } catch (error) {
     if (fd !== null) {
       try {
@@ -900,12 +904,13 @@ export function signPublicTicketClaim(
   };
 }
 
-export function verifyPublicTicketClaim(
+function verifyPublicTicketClaimSignatureV1(
   claimRaw: Partial<PublicTicketClaimRequest>,
   signatureRaw: JsonObject,
-  now = Date.now(),
 ): PublicTicketClaimRequest {
-  if (!isJsonObject(signatureRaw)) throw new Error("invalid_claim_signature");
+  if (!isJsonObject(signatureRaw)) {
+    throw new Error("invalid_claim_signature");
+  }
   if (!hasExactKeys(signatureRaw, ["alg", "key_id", "sig"])) {
     throw new Error("unexpected_claim_signature_field");
   }
@@ -914,24 +919,29 @@ export function verifyPublicTicketClaim(
   if (String(signatureRaw.alg || "") !== "ed25519") {
     throw new Error("claim_signature_algorithm_not_allowed");
   }
-  if (safeNodeId(signatureRaw.key_id) !== claim.executor_node_id) {
+  if (
+    safeNodeId(signatureRaw.key_id) !==
+    claim.executor_node_id
+  ) {
     throw new Error("claim_signature_key_id_mismatch");
   }
-  const sig = String(signatureRaw.sig || "").trim().toLowerCase();
+  const sig = String(signatureRaw.sig || "")
+    .trim()
+    .toLowerCase();
   if (!/^[0-9a-f]{128}$/.test(sig)) {
     throw new Error("invalid_claim_signature_shape");
   }
 
-  const ageMs = Math.abs(now - claim.claim_ts_ms);
-  if (ageMs > publicClaimClockSkewMs()) {
-    throw new Error("claim_timestamp_outside_window");
-  }
-
   let publicKey: crypto.KeyObject;
   try {
-    publicKey = crypto.createPublicKey(claim.executor_pubkey);
+    publicKey = crypto.createPublicKey(
+      claim.executor_pubkey,
+    );
   } catch (error) {
-    recordPilotBestEffortFailure("claim-public-key-parse", error);
+    recordPilotBestEffortFailure(
+      "claim-public-key-parse",
+      error,
+    );
     throw new Error("invalid_executor_pubkey");
   }
 
@@ -941,7 +951,32 @@ export function verifyPublicTicketClaim(
     publicKey,
     Buffer.from(sig, "hex"),
   );
-  if (!verified) throw new Error("claim_executor_signature_invalid");
+  if (!verified) {
+    throw new Error("claim_executor_signature_invalid");
+  }
+  return claim;
+}
+
+function assertPublicTicketClaimFreshV1(
+  claim: PublicTicketClaimRequest,
+  now: number,
+): void {
+  const ageMs = Math.abs(now - claim.claim_ts_ms);
+  if (ageMs > publicClaimClockSkewMs()) {
+    throw new Error("claim_timestamp_outside_window");
+  }
+}
+
+export function verifyPublicTicketClaim(
+  claimRaw: Partial<PublicTicketClaimRequest>,
+  signatureRaw: JsonObject,
+  now = Date.now(),
+): PublicTicketClaimRequest {
+  const claim = verifyPublicTicketClaimSignatureV1(
+    claimRaw,
+    signatureRaw,
+  );
+  assertPublicTicketClaimFreshV1(claim, now);
   return claim;
 }
 
@@ -1056,6 +1091,18 @@ export function setPublicClaimBeforeIssuanceLockHookForProofV1(
   hook: PublicClaimBeforeIssuanceLockHookForProofV1,
 ): void {
   publicClaimBeforeIssuanceLockHookForProofV1 = hook;
+}
+
+export type PublicClaimRecoveryBeforeTicketLockHookForProofV1 =
+  ((ticketId: string) => void | Promise<void>) | null;
+
+let publicClaimRecoveryBeforeTicketLockHookForProofV1:
+  PublicClaimRecoveryBeforeTicketLockHookForProofV1 = null;
+
+export function setPublicClaimRecoveryBeforeTicketLockHookForProofV1(
+  hook: PublicClaimRecoveryBeforeTicketLockHookForProofV1,
+): void {
+  publicClaimRecoveryBeforeTicketLockHookForProofV1 = hook;
 }
 
 async function acquirePublicClaimIssuanceLockV1(
@@ -1446,6 +1493,64 @@ function assertPublicClaimHistoryEligibleV1(
   }
 }
 
+function assertPublicClaimRecoveryCapacityV1(
+  claim: PublicTicketClaimRequest,
+  preparedRecord: PilotTicketRecord | null,
+  now: number,
+  raw?: string,
+): void {
+  const history = wcPublicClaimHistorySnapshotV1(
+    raw,
+    now,
+    claim.account,
+    claim.executor_node_id,
+    publicClaimClockSkewMs(),
+  );
+
+  let ownActive = 0;
+  if (preparedRecord) {
+    const own = readJsonStrict(
+      ticketFile(
+        issuedDir(raw),
+        preparedRecord.ticket_id,
+      ),
+      "public_claim_recovery_own_ticket",
+    );
+    if (own) {
+      assertPublishedPublicClaimTicketV1(
+        own,
+        preparedRecord,
+      );
+      if (preparedRecord.expires_at_ms > now) {
+        ownActive = 1;
+      }
+    }
+  }
+
+  const otherActive = Math.max(
+    0,
+    history.active - ownActive,
+  );
+  const otherAccountActive = Math.max(
+    0,
+    history.active_account - ownActive,
+  );
+  const otherExecutorActive = Math.max(
+    0,
+    history.active_executor - ownActive,
+  );
+
+  if (
+    otherActive >= publicClaimGlobalActiveCap() ||
+    otherAccountActive >= 1 ||
+    otherExecutorActive >= 1
+  ) {
+    throw new Error(
+      "public_claim_recovery_capacity_conflict",
+    );
+  }
+}
+
 function validatePreparedPublicClaimTicketV1(
   recordRaw: unknown,
   claim: PublicTicketClaimRequest,
@@ -1546,6 +1651,9 @@ function publishPreparedPublicClaimTicketV1(
       existing,
       prepared.record,
     );
+    // A prior publication may have failed after rename but before
+    // parent-directory fsync. Exact retry re-establishes durability.
+    fsyncDirectoryV1(path.dirname(file));
     return;
   }
   atomicWriteJson(
@@ -1574,7 +1682,7 @@ function publishPreparedPublicClaimTicketV1(
   );
 }
 
-function recoverPublicClaimReplayV1(
+async function recoverPublicClaimReplayV1(
   existingClaim: JsonObject,
   claim: PublicTicketClaimRequest,
   input: JsonObject,
@@ -1583,7 +1691,7 @@ function recoverPublicClaimReplayV1(
   expectedInputHash: string,
   now: number,
   raw?: string,
-): JsonObject | null {
+): Promise<JsonObject | null> {
   assertPublicClaimRecordIdentityV1(
     existingClaim,
     claim,
@@ -1648,75 +1756,100 @@ function recoverPublicClaimReplayV1(
     );
   }
 
-  const consumedPath = ticketFile(
-    consumedDir(raw),
+  await publicClaimRecoveryBeforeTicketLockHookForProofV1?.(
     preparedRecord.ticket_id,
   );
-  if (
-    readJsonStrict(
-      consumedPath,
-      "public_claim_consumed_ticket",
-    )
-  ) {
-    throw new Error("public_claim_replay");
-  }
 
-  const issuedPath = ticketFile(
-    issuedDir(raw),
-    preparedRecord.ticket_id,
-  );
-  const published = readJsonStrict(
-    issuedPath,
-    "public_claim_issued_ticket",
-  );
-  if (published) {
-    assertPublishedPublicClaimTicketV1(
-      published,
-      preparedRecord,
+  let ticketLock: WcProcessInstanceLockV1 | null = null;
+  try {
+    ticketLock = await acquirePilotTicketLock(
+      preparedRecord.ticket_id,
+      raw,
     );
-  } else if (status === "publishing") {
-    publishPreparedPublicClaimTicketV1(
+
+    const consumedPath = ticketFile(
+      consumedDir(raw),
+      preparedRecord.ticket_id,
+    );
+    if (
+      readJsonStrict(
+        consumedPath,
+        "public_claim_consumed_ticket",
+      )
+    ) {
+      throw new Error(
+        "public_claim_capability_consumed",
+      );
+    }
+
+    // Recovery owns both claim issuance and ticket single-use authority.
+    // Re-check all other active capacity before returning/publishing.
+    assertPublicClaimRecoveryCapacityV1(
+      claim,
+      preparedRecord,
+      now,
+      raw,
+    );
+
+    const issuedPath = ticketFile(
+      issuedDir(raw),
+      preparedRecord.ticket_id,
+    );
+    const published = readJsonStrict(
+      issuedPath,
+      "public_claim_issued_ticket",
+    );
+    if (published) {
+      assertPublishedPublicClaimTicketV1(
+        published,
+        preparedRecord,
+      );
+      fsyncDirectoryV1(issuedDir(raw));
+    } else if (status === "publishing") {
+      publishPreparedPublicClaimTicketV1(
+        {
+          token,
+          record: preparedRecord,
+        },
+        raw,
+      );
+    } else {
+      throw new Error(
+        "public_claim_recovery_ambiguous",
+      );
+    }
+
+    if (status === "publishing") {
+      const issuedState = {
+        ...existingClaim,
+        status: "issued",
+        issued_at_ms: Number(
+          existingClaim.issued_at_ms ||
+            existingClaim.reserved_at_ms ||
+            preparedRecord.issued_at_ms,
+        ),
+        recovery_completed_at_ms: now,
+      };
+      atomicWriteJson(
+        path.join(claimsDir(raw), `${claimId}.json`),
+        issuedState,
+      );
+      primeWcPublicClaimHistoryAuthorityV1(raw);
+    }
+
+    return publicClaimSuccessResponseV1(
+      claimId,
       {
         token,
         record: preparedRecord,
       },
-      raw,
+      true,
     );
-  } else {
-    throw new Error(
-      "public_claim_recovery_ambiguous",
-    );
+  } finally {
+    if (ticketLock) {
+      await releasePilotTicketLock(ticketLock);
+    }
   }
-
-  if (status === "publishing") {
-    const issuedState = {
-      ...existingClaim,
-      status: "issued",
-      issued_at_ms: Number(
-        existingClaim.issued_at_ms ||
-          existingClaim.reserved_at_ms ||
-          preparedRecord.issued_at_ms,
-      ),
-      recovery_completed_at_ms: now,
-    };
-    atomicWriteJson(
-      path.join(claimsDir(raw), `${claimId}.json`),
-      issuedState,
-    );
-    primeWcPublicClaimHistoryAuthorityV1(raw);
-  }
-
-  // Exact replay of an already coherent issued claim is read-only.
-  // Rewriting it here would manufacture a new history generation and
-  // unnecessarily force later participant decisions through WARMING.
-  return publicClaimSuccessResponseV1(
-    claimId,
-    {
-      token,
-      record: preparedRecord,
-    },
-    true,
-  );
 }
 
 export async function issuePublicTicketClaim(
@@ -1748,23 +1881,15 @@ export async function issuePublicTicketClaim(
     );
   }
 
-  const claim = verifyPublicTicketClaim(
+  const claim = verifyPublicTicketClaimSignatureV1(
     input.claim || {},
     input.signature || {},
-    now,
   );
   const claimId = publicClaimId(claim);
   const signatureRaw = String(
     input?.signature?.sig || "",
   );
 
-  wcPublicClaimHistorySnapshotV1(
-    raw,
-    now,
-    claim.account,
-    claim.executor_node_id,
-    publicClaimClockSkewMs(),
-  );
   ensureDirs(raw);
 
   await publicClaimBeforeIssuanceLockHookForProofV1?.();
@@ -1782,7 +1907,7 @@ export async function issuePublicTicketClaim(
     );
 
     if (existingClaim) {
-      const replay = recoverPublicClaimReplayV1(
+      const replay = await recoverPublicClaimReplayV1(
         existingClaim,
         claim,
         input,
@@ -1808,19 +1933,30 @@ export async function issuePublicTicketClaim(
         );
         return replay;
       }
-    }
 
-    const history = wcPublicClaimHistorySnapshotV1(
-      raw,
-      now,
-      claim.account,
-      claim.executor_node_id,
-      publicClaimClockSkewMs(),
-    );
-    assertPublicClaimHistoryEligibleV1(
-      history,
-      now,
-    );
+      // A reserving journal already owns recovery intent. It may survive the
+      // original signature-skew window, but it may not resurrect capacity
+      // now owned by another live ticket.
+      assertPublicClaimRecoveryCapacityV1(
+        claim,
+        null,
+        now,
+        raw,
+      );
+    } else {
+      assertPublicTicketClaimFreshV1(claim, now);
+      const history = wcPublicClaimHistorySnapshotV1(
+        raw,
+        now,
+        claim.account,
+        claim.executor_node_id,
+        publicClaimClockSkewMs(),
+      );
+      assertPublicClaimHistoryEligibleV1(
+        history,
+        now,
+      );
+    }
 
     const claimStartedAt = existingClaim
       ? Number(
@@ -3743,19 +3879,21 @@ function mount(): void {
       } catch (error: any) {
         const message = String(error?.message || error);
         const publicMessage =
-          message.includes(
-            "VOID_WC_PUBLIC_CLAIM_ISSUANCE_BUSY",
-          )
-            ? "public_claim_busy"
+          message === "ticket_inflight"
+            ? "public_claim_recovery_busy"
             : message.includes(
-                "VOID_WC_PUBLIC_CLAIM_HISTORY_WARMING",
+                "VOID_WC_PUBLIC_CLAIM_ISSUANCE_BUSY",
               )
-            ? "public_claim_history_warming"
-            : message.includes(
-                  "VOID_WC_PUBLIC_CLAIM_HISTORY_INVALID",
+              ? "public_claim_busy"
+              : message.includes(
+                  "VOID_WC_PUBLIC_CLAIM_HISTORY_WARMING",
                 )
-              ? "public_claim_history_invalid"
-              : message;
+                ? "public_claim_history_warming"
+                : message.includes(
+                    "VOID_WC_PUBLIC_CLAIM_HISTORY_INVALID",
+                  )
+                  ? "public_claim_history_invalid"
+                  : message;
         const status =
           publicMessage === "coordinator_lane_disabled" ||
           publicMessage === "public_ticket_claim_disabled" ||
@@ -3764,7 +3902,12 @@ function mount(): void {
           publicMessage === "public_claim_history_invalid"
             ? 503
             : publicMessage === "public_claim_replay" ||
-                publicMessage === "public_claim_busy"
+                publicMessage === "public_claim_busy" ||
+                publicMessage === "public_claim_recovery_busy" ||
+                publicMessage ===
+                  "public_claim_recovery_capacity_conflict" ||
+                publicMessage ===
+                  "public_claim_capability_consumed"
               ? 409
               : publicMessage.includes("_cooldown") ||
                   publicMessage.includes("_daily_cap_reached")
