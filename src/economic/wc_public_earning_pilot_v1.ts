@@ -2,11 +2,10 @@ import crypto from "node:crypto";
 import express from "express";
 import fs from "node:fs";
 import fsp from "node:fs/promises";
-import readline from "node:readline";
 import path from "node:path";
 import { nodeIdFromPubPEM } from "../chain/block.js";
 import { loadKeypair } from "../crypto/keypair.js";
-import { appendAgentPick2JsonlCanonicalV1 } from "../http/agent_pick2_jsonl_semantic_index_v1.js";
+import { appendWcPublicRemoteTruthJsonlExactOnceV1 } from "./wc_public_remote_truth_jsonl_index_v1.js";
 import {
   acceptVerifiedReceiptOnce,
   readCanonicalWcState,
@@ -1507,89 +1506,24 @@ export function assertRemoteReceiptTruth(
   }
 }
 
-async function readJsonlMatches(
-  file: string,
-  predicate: (value: JsonObject) => boolean,
-): Promise<JsonObject[]> {
-  let size = 0;
-  try {
-    const st = await fsp.stat(file);
-    if (!st.isFile()) throw new Error("remote_truth_non_regular_file");
-    size = Number(st.size || 0);
-  } catch (error: any) {
-    if (String(error?.code || "") === "ENOENT") return [];
-    throw error;
-  }
-  if (size <= 0) return [];
-
-  const out: JsonObject[] = [];
-  const input = fs.createReadStream(file, {
-    encoding: "utf8",
-    start: 0,
-    end: size - 1,
-  });
-  const lines = readline.createInterface({ input, crlfDelay: Infinity });
-  try {
-    for await (const raw of lines) {
-      const line = String(raw || "");
-      if (!line.trim()) continue;
-      try {
-        const value = JSON.parse(line);
-        if (predicate(value)) {
-          out.push(value);
-          if (out.length > 1) break;
-        }
-      } catch (error) {
-        recordPilotBestEffortFailure("read-jsonl-line", error, { file });
-      }
-    }
-  } finally {
-    lines.close();
-    input.destroy();
-  }
-  return out;
-}
-
 async function appendExactOnce(
   file: string,
   value: JsonObject,
   idFields: string[],
 ): Promise<{ appended: boolean; existing: JsonObject | null }> {
-  const keys = idFields.map((field) => String(value?.[field] || ""));
-  const matches = await readJsonlMatches(file, (candidate) =>
-    idFields.every(
-      (field, index) => String(candidate?.[field] || "") === keys[index],
-    ),
-  );
-  if (matches.length > 1) throw new Error("remote_truth_duplicate_conflict");
-  if (matches.length === 1) {
-    const existing = matches[0];
-    for (const field of [
-      "account",
-      "job_id",
-      "receipt_id",
-      "dataset_id",
-      "kind",
-      "status",
-      "input_hash",
-      "output_hash",
-    ]) {
-      if (
-        value[field] !== undefined &&
-        String(existing?.[field] || "") !== String(value?.[field] || "")
-      ) {
-        throw new Error(`remote_truth_${field}_conflict`);
-      }
-    }
-    return { appended: false, existing };
-  }
-  fs.mkdirSync(path.dirname(file), { recursive: true, mode: 0o700 });
-  appendAgentPick2JsonlCanonicalV1(
+  const result = await appendWcPublicRemoteTruthJsonlExactOnceV1(
     file,
-    JSON.stringify(value) + "\n",
-    { durable: true, mode: 0o600 },
+    value,
+    idFields,
+    {
+      durable: true,
+      mode: 0o600,
+      onMalformed: (error) => {
+        recordPilotBestEffortFailure("read-jsonl-line", error, { file });
+      },
+    },
   );
-  return { appended: true, existing: null };
+  return { appended: result.appended, existing: result.existing };
 }
 
 let importedRemoteTruthSerialTailV1: Promise<void> = Promise.resolve();

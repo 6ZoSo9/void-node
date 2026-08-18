@@ -182,57 +182,37 @@ need(
 );
 
 need(
-  moduleText.includes('import readline from "node:readline";'),
-  "streamed JSONL reader import missing",
+  moduleText.includes(
+    'import { appendWcPublicRemoteTruthJsonlExactOnceV1 } from "./wc_public_remote_truth_jsonl_index_v1.js";',
+  ),
+  "bounded WC remote-truth index import missing",
 );
-const readMatchesStart = moduleText.indexOf(
-  "async function readJsonlMatches(",
+need(
+  !moduleText.includes('import readline from "node:readline";'),
+  "legacy per-import streamed history scanner remains",
+);
+need(
+  !moduleText.includes("async function readJsonlMatches("),
+  "legacy per-import JSONL matcher remains",
 );
 const appendExactStart = moduleText.indexOf(
   "async function appendExactOnce(",
 );
 const persistImportStart = moduleText.indexOf(
-  "export async function persistImportedRemoteTruthOnce(",
+  "let importedRemoteTruthSerialTailV1: Promise<void> = Promise.resolve();",
 );
-need(readMatchesStart >= 0, "async JSONL match reader missing");
-need(appendExactStart > readMatchesStart, "async exact-once append missing");
+need(appendExactStart >= 0, "async exact-once append wrapper missing");
 need(
   persistImportStart > appendExactStart,
-  "async imported-truth persistence missing",
+  "whole-import serializer does not follow exact-once wrapper",
 );
-const readMatchesBlock = moduleText.slice(readMatchesStart, appendExactStart);
 const appendExactBlock = moduleText.slice(appendExactStart, persistImportStart);
 need(
-  readMatchesBlock.includes("await fsp.stat(file)"),
-  "JSONL history scan does not snapshot file metadata asynchronously",
-);
-need(
-  readMatchesBlock.includes("fs.createReadStream(file"),
-  "JSONL history scan is not streamed",
-);
-need(
-  readMatchesBlock.includes("end: size - 1"),
-  "JSONL history scan is not bounded to a snapshotted generation",
-);
-need(
-  readMatchesBlock.includes("for await (const raw of lines)"),
-  "JSONL history scan does not yield through async iteration",
-);
-need(
-  !readMatchesBlock.includes("readFileSync("),
-  "JSONL history scan still blocks on readFileSync",
-);
-need(
-  appendExactBlock.includes("const matches = await readJsonlMatches("),
-  "exact-once duplicate scan is not awaited",
-);
-need(
-  moduleText.includes(
-    "const imported = await persistImportedRemoteTruthOnce(",
+  appendExactBlock.includes(
+    "await appendWcPublicRemoteTruthJsonlExactOnceV1(",
   ),
-  "live coordinator import does not await streamed persistence",
+  "exact-once wrapper does not use bounded remote-truth index",
 );
-
 need(
   moduleText.includes(
     "let importedRemoteTruthSerialTailV1: Promise<void> = Promise.resolve();",
@@ -250,6 +230,12 @@ need(
 need(
   moduleText.includes("return serializeImportedRemoteTruthV1(async () => {"),
   "WC imported-truth persistence is not serialized",
+);
+need(
+  moduleText.includes(
+    "const imported = await persistImportedRemoteTruthOnce(",
+  ),
+  "live coordinator import does not await indexed persistence",
 );
 
 need(
