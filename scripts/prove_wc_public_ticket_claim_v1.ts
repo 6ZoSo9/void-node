@@ -50,6 +50,9 @@ async function main(): Promise<void> {
 
   async function warm(forceReset = false): Promise<void> {
     if (forceReset) {
+      await authority.waitForWcPublicClaimHistoryWarmForProofV1(
+        tmp,
+      );
       authority.resetWcPublicClaimHistoryAuthorityForProofV1(
         tmp,
       );
