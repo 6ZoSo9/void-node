@@ -1,0 +1,385 @@
+import assert from "node:assert/strict";
+import crypto from "node:crypto";
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
+
+function configure(tmp: string): void {
+  process.env.DATA_DIR = tmp;
+  process.env.VOID_DATA_DIR = tmp;
+  process.env.VOID_WC_PUBLIC_EARNING_PILOT_ENABLED = "1";
+  process.env.VOID_WC_PUBLIC_TICKET_CLAIM_ENABLED = "1";
+  process.env.VOID_WC_PUBLIC_TICKET_CLAIM_DATASET_ID =
+    "ds_public_claim_history_authority_v1";
+  process.env.VOID_WC_PUBLIC_TICKET_CLAIM_EXPECTED_INPUT_HASH =
+    "9".repeat(64);
+  process.env.VOID_WC_PUBLIC_TICKET_CLAIM_TTL_MS = "300000";
+  process.env.VOID_WC_PUBLIC_TICKET_CLAIM_CLOCK_SKEW_MS = "300000";
+  process.env.VOID_WC_PUBLIC_TICKET_CLAIM_COOLDOWN_MS = "60000";
+  process.env.VOID_WC_PUBLIC_TICKET_CLAIM_MAX_PER_24H = "10";
+  process.env.VOID_WC_PUBLIC_TICKET_CLAIM_GLOBAL_ACTIVE_CAP = "10";
+  process.env.VOID_WC_PUBLIC_TICKET_CLAIM_GLOBAL_MAX_PER_24H = "100";
+  process.env.VOID_WC_PUBLIC_EARNING_PILOT_PER_ACCOUNT_CAP = "1";
+  process.env.VOID_WC_PUBLIC_EARNING_PILOT_GLOBAL_CAP = "100000";
+}
+
+function pilotRoot(tmp: string): string {
+  return path.join(
+    tmp,
+    "wc_v1",
+    "public-earning-pilot-v1",
+  );
+}
+
+function ensureHistoryDirs(tmp: string): {
+  issued: string;
+  consumed: string;
+  claims: string;
+} {
+  const root = pilotRoot(tmp);
+  const result = {
+    issued: path.join(root, "issued"),
+    consumed: path.join(root, "consumed"),
+    claims: path.join(root, "public-claims"),
+  };
+  for (const dir of Object.values(result)) {
+    fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
+  }
+  return result;
+}
+
+function hex(value: number, width: number): string {
+  return value
+    .toString(16)
+    .padStart(width, "0")
+    .slice(-width);
+}
+
+async function main(): Promise<void> {
+  const authority = await import(
+    "../src/economic/wc_public_claim_history_authority_v1.js"
+  );
+  const pilot = await import(
+    "../src/economic/wc_public_earning_pilot_v1.js"
+  );
+  const block = await import("../src/chain/block.js");
+
+  {
+    const tmp = fs.mkdtempSync(
+      path.join(
+        os.tmpdir(),
+        "void-public-claim-history-large-v1-",
+      ),
+    );
+    configure(tmp);
+    const d = ensureHistoryDirs(tmp);
+
+    const account = "history-target-account";
+    const executor = "a".repeat(32);
+    const now = Date.now();
+
+    for (let i = 1; i <= 1200; i += 1) {
+      const ticketId = hex(i, 32);
+      fs.writeFileSync(
+        path.join(d.consumed, `${ticketId}.json`),
+        JSON.stringify({
+          marker: "VOID_WC_PUBLIC_EARNING_PILOT_V1",
+          version: 1,
+          ticket_id: ticketId,
+          account:
+            i % 17 === 0
+              ? account
+              : `history-account-${i % 89}`,
+          executor_node_id:
+            i % 19 === 0
+              ? executor
+              : hex(i + 5000, 32),
+          expires_at_ms: now + 60_000,
+          status: "completed",
+        }) + "\n",
+        { mode: 0o600 },
+      );
+    }
+
+    for (let i = 1; i <= 1200; i += 1) {
+      const claimId = hex(i + 100_000, 64);
+      fs.writeFileSync(
+        path.join(d.claims, `${claimId}.json`),
+        JSON.stringify({
+          marker: "VOID_WC_PUBLIC_TICKET_CLAIM_V1",
+          version: 1,
+          claim_id: claimId,
+          status: "issued",
+          issued_at_ms:
+            i === 1200
+              ? now - 30_000
+              : now -
+                3 * 24 * 60 * 60_000 -
+                i,
+          account:
+            i === 1200
+              ? account
+              : `claim-account-${i % 97}`,
+          executor_node_id:
+            i === 1200
+              ? executor
+              : hex(i + 9000, 32),
+        }) + "\n",
+        { mode: 0o600 },
+      );
+    }
+
+    let timerTicks = 0;
+    const timer = setInterval(() => {
+      timerTicks += 1;
+    }, 1);
+
+    authority.primeWcPublicClaimHistoryAuthorityV1(tmp);
+    await authority.waitForWcPublicClaimHistoryWarmForProofV1(
+      tmp,
+    );
+    clearInterval(timer);
+
+    assert.ok(
+      timerTicks > 0,
+      "large history warm monopolized event loop",
+    );
+
+    const snapshot =
+      authority.wcPublicClaimHistorySnapshotV1(
+        tmp,
+        now,
+        account,
+        executor,
+        300_000,
+      );
+
+    assert.equal(snapshot.consumed, 1200);
+    assert.equal(snapshot.active, 0);
+    assert.equal(snapshot.account_24h, 1);
+    assert.equal(snapshot.executor_24h, 1);
+    assert.equal(
+      snapshot.synchronous_history_files_read,
+      0,
+    );
+    assert.ok(snapshot.scanned_files_at_warm >= 2400);
+
+    const originalReaddirSync = fs.readdirSync;
+    const originalReadFileSync = fs.readFileSync;
+    let forbiddenHistoryReads = 0;
+
+    (fs as any).readdirSync = function (...args: any[]) {
+      const target = String(args[0] || "");
+      if (
+        target.includes("/consumed") ||
+        target.includes("/public-claims")
+      ) {
+        forbiddenHistoryReads += 1;
+      }
+      return (originalReaddirSync as any)(...args);
+    };
+    (fs as any).readFileSync = function (...args: any[]) {
+      const target = String(args[0] || "");
+      if (
+        target.includes("/consumed/") ||
+        target.includes("/public-claims/")
+      ) {
+        forbiddenHistoryReads += 1;
+      }
+      return (originalReadFileSync as any)(...args);
+    };
+
+    try {
+      const status = pilot.publicStatusForProofV1(
+        account,
+        tmp,
+      );
+      assert.equal(status.ok, true);
+      assert.equal(status.caps.consumed, 1200);
+      assert.equal(
+        status.caps.synchronous_history_files_read,
+        0,
+      );
+    } finally {
+      (fs as any).readdirSync = originalReaddirSync;
+      (fs as any).readFileSync = originalReadFileSync;
+    }
+
+    assert.equal(
+      forbiddenHistoryReads,
+      0,
+      "status request synchronously walked retained history",
+    );
+
+    console.log(
+      `large_history_event_loop_timer_ticks=${timerTicks}`,
+    );
+    fs.rmSync(tmp, { recursive: true, force: true });
+  }
+
+  {
+    const tmp = fs.mkdtempSync(
+      path.join(
+        os.tmpdir(),
+        "void-public-claim-history-active-v1-",
+      ),
+    );
+    configure(tmp);
+    const d = ensureHistoryDirs(tmp);
+
+    const { privateKey, publicKey } =
+      crypto.generateKeyPairSync("ed25519");
+    const pubPEM = publicKey
+      .export({ type: "spki", format: "pem" })
+      .toString();
+    const executor = block.nodeIdFromPubPEM(pubPEM);
+    const account = "active-history-account";
+    const now = Date.now();
+    const activeTicketId = "d".repeat(32);
+
+    fs.writeFileSync(
+      path.join(d.issued, `${activeTicketId}.json`),
+      JSON.stringify({
+        marker: "VOID_WC_PUBLIC_EARNING_PILOT_V1",
+        version: 1,
+        ticket_id: activeTicketId,
+        account,
+        executor_node_id: executor,
+        expires_at_ms: now + 300_000,
+        status: "issued",
+      }) + "\n",
+      { mode: 0o600 },
+    );
+
+    authority.resetWcPublicClaimHistoryAuthorityForProofV1(
+      tmp,
+    );
+    authority.primeWcPublicClaimHistoryAuthorityV1(tmp);
+    await authority.waitForWcPublicClaimHistoryWarmForProofV1(
+      tmp,
+    );
+
+    const signed = pilot.signPublicTicketClaim(
+      {
+        domain: "void:mainnet-0:wc-public-ticket-claim-v1",
+        marker: "VOID_WC_PUBLIC_TICKET_CLAIM_V1",
+        version: 1,
+        account,
+        executor_node_id: executor,
+        executor_pubkey: pubPEM,
+        claim_nonce: "1".repeat(32),
+        claim_ts_ms: now,
+      },
+      privateKey,
+    );
+
+    const originalReaddirSync = fs.readdirSync;
+    const originalReadFileSync = fs.readFileSync;
+    let forbiddenHistoryReads = 0;
+
+    (fs as any).readdirSync = function (...args: any[]) {
+      const target = String(args[0] || "");
+      if (
+        target.includes("/consumed") ||
+        target.includes("/public-claims")
+      ) {
+        forbiddenHistoryReads += 1;
+      }
+      return (originalReaddirSync as any)(...args);
+    };
+    (fs as any).readFileSync = function (...args: any[]) {
+      const target = String(args[0] || "");
+      if (
+        target.includes("/consumed/") ||
+        target.includes("/public-claims/")
+      ) {
+        forbiddenHistoryReads += 1;
+      }
+      return (originalReadFileSync as any)(...args);
+    };
+
+    try {
+      assert.throws(
+        () =>
+          pilot.issuePublicTicketClaim(
+            signed,
+            tmp,
+            now,
+          ),
+        /public_claim_account_active/,
+      );
+    } finally {
+      (fs as any).readdirSync = originalReaddirSync;
+      (fs as any).readFileSync = originalReadFileSync;
+    }
+
+    assert.equal(
+      forbiddenHistoryReads,
+      0,
+      "claim cap decision synchronously walked retained history",
+    );
+
+    fs.rmSync(tmp, { recursive: true, force: true });
+  }
+
+  {
+    const tmp = fs.mkdtempSync(
+      path.join(
+        os.tmpdir(),
+        "void-public-claim-history-malformed-v1-",
+      ),
+    );
+    configure(tmp);
+    const d = ensureHistoryDirs(tmp);
+
+    fs.writeFileSync(
+      path.join(
+        d.consumed,
+        `${"e".repeat(32)}.json`,
+      ),
+      "{broken\n",
+      { mode: 0o600 },
+    );
+
+    authority.resetWcPublicClaimHistoryAuthorityForProofV1(
+      tmp,
+    );
+    authority.primeWcPublicClaimHistoryAuthorityV1(tmp);
+
+    await assert.rejects(
+      () =>
+        authority.waitForWcPublicClaimHistoryWarmForProofV1(
+          tmp,
+        ),
+      /VOID_WC_PUBLIC_CLAIM_HISTORY_INVALID/,
+    );
+
+    assert.throws(
+      () =>
+        authority.wcPublicClaimHistorySnapshotV1(
+          tmp,
+          Date.now(),
+        ),
+      /VOID_WC_PUBLIC_CLAIM_HISTORY_INVALID/,
+    );
+
+    fs.rmSync(tmp, { recursive: true, force: true });
+  }
+
+  console.log(
+    "VOID_WC_PUBLIC_CLAIM_HISTORY_AUTHORITY_V1_GREEN",
+  );
+  console.log(
+    "participant_status_retained_history_sync_scan=false",
+  );
+  console.log(
+    "participant_claim_retained_history_sync_scan=false",
+  );
+  console.log("malformed_history_fail_closed=true");
+  console.log("background_rebuild_yields_event_loop=true");
+}
+
+main().catch((error) => {
+  console.error(error?.stack || String(error));
+  process.exit(1);
+});

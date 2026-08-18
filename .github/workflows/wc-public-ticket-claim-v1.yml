@@ -9,6 +9,7 @@ on:
       - "src/util/merkle.ts"
       - "src/economic/wc_public_capability_v1.ts"
       - "src/economic/wc_public_earning_pilot_v1.ts"
+      - "src/economic/wc_public_claim_history_authority_v1.ts"
       - "src/economic/wc_verified_receipt_acceptance_v1.ts"
       - "ops/public/public-seed-adapter-v1.mjs"
       - "ops/mainnet0/wc-public-ticket-claim-v1.sh"
@@ -16,6 +17,7 @@ on:
       - "tools/void_public_earn_no_node_client_v1.mjs"
       - "tools/check_index_size.sh"
       - "scripts/prove_wc_public_ticket_claim_v1.ts"
+      - "scripts/prove_wc_public_claim_history_authority_v1.ts"
       - "scripts/prove_wc_public_ticket_claim_cli_v1.ts"
       - "scripts/prove_public_earn_gateway_v1.mjs"
       - "scripts/prove_wc_public_earning_pilot_v1.ts"
@@ -37,6 +39,7 @@ on:
       - "src/util/merkle.ts"
       - "src/economic/wc_public_capability_v1.ts"
       - "src/economic/wc_public_earning_pilot_v1.ts"
+      - "src/economic/wc_public_claim_history_authority_v1.ts"
       - "src/economic/wc_verified_receipt_acceptance_v1.ts"
       - "ops/public/public-seed-adapter-v1.mjs"
       - "ops/mainnet0/wc-public-ticket-claim-v1.sh"
@@ -44,6 +47,7 @@ on:
       - "tools/void_public_earn_no_node_client_v1.mjs"
       - "tools/check_index_size.sh"
       - "scripts/prove_wc_public_ticket_claim_v1.ts"
+      - "scripts/prove_wc_public_claim_history_authority_v1.ts"
       - "scripts/prove_wc_public_ticket_claim_cli_v1.ts"
       - "scripts/prove_public_earn_gateway_v1.mjs"
       - "scripts/prove_wc_public_earning_pilot_v1.ts"
@@ -95,6 +99,7 @@ jobs:
 
       - name: Prove signed public ticket claim
         run: |
+          npx tsx scripts/prove_wc_public_claim_history_authority_v1.ts
           npx tsx scripts/prove_wc_public_ticket_claim_v1.ts
           node scripts/prove_public_earn_gateway_v1.mjs
           npx tsx scripts/prove_wc_public_ticket_claim_cli_v1.ts

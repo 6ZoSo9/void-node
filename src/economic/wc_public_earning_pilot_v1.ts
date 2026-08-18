@@ -11,6 +11,10 @@ import {
   type WcProcessInstanceLockV1,
 } from "./wc_process_instance_lock_v1.js";
 import {
+  primeWcPublicClaimHistoryAuthorityV1,
+  wcPublicClaimHistorySnapshotV1,
+} from "./wc_public_claim_history_authority_v1.js";
+import {
   appendWcPublicRemoteTruthJsonlExactOnceV1,
   prepareWcPublicRemoteTruthJsonlExactOnceV1,
 } from "./wc_public_remote_truth_jsonl_index_v1.js";
@@ -718,8 +722,8 @@ function issueTicket(
       ? safeHex64(options.publicClaimId)
       : "";
 
-  const counts = ticketCounts(Date.now(), raw);
   if (options.enforceLegacyCaps !== false) {
+    const counts = ticketCounts(Date.now(), raw);
     if (counts.active + counts.consumed >= globalCap()) {
       throw new Error("global_cap_reached");
     }
@@ -1066,6 +1070,13 @@ export function issuePublicTicketClaim(
     now,
   );
   const claimId = publicClaimId(claim);
+  const history = wcPublicClaimHistorySnapshotV1(
+    raw,
+    now,
+    claim.account,
+    claim.executor_node_id,
+    publicClaimClockSkewMs(),
+  );
   ensureDirs(raw);
   const claimFile = path.join(claimsDir(raw), `${claimId}.json`);
 
@@ -1092,49 +1103,41 @@ export function issuePublicTicketClaim(
 
   let issued = false;
   try {
-    const counts = ticketCounts(now, raw);
-    if (counts.active >= publicClaimGlobalActiveCap()) {
+    if (history.active >= publicClaimGlobalActiveCap()) {
       throw new Error("public_claim_global_active_cap_reached");
     }
-    if (Number(counts.activeAccountCounts[claim.account] || 0) >= 1) {
+    if (history.active_account >= 1) {
       throw new Error("public_claim_account_active");
     }
-    if (
-      Number(counts.activeExecutorCounts[claim.executor_node_id] || 0) >= 1
-    ) {
+    if (history.active_executor >= 1) {
       throw new Error("public_claim_executor_active");
     }
 
-    const usage = publicClaimUsage(now, raw);
-    if (usage.global24h >= publicClaimGlobalMaxPer24h()) {
+    if (
+      history.global_24h >= publicClaimGlobalMaxPer24h()
+    ) {
       throw new Error("public_claim_global_daily_cap_reached");
     }
     if (
-      Number(usage.account24h[claim.account] || 0) >=
-      publicClaimMaxPer24h()
+      history.account_24h >= publicClaimMaxPer24h()
     ) {
       throw new Error("public_claim_account_daily_cap_reached");
     }
     if (
-      Number(usage.executor24h[claim.executor_node_id] || 0) >=
-      publicClaimMaxPer24h()
+      history.executor_24h >= publicClaimMaxPer24h()
     ) {
       throw new Error("public_claim_executor_daily_cap_reached");
     }
 
-    const lastAccountAt = Number(usage.lastAccountAt[claim.account] || 0);
-    const lastExecutorAt = Number(
-      usage.lastExecutorAt[claim.executor_node_id] || 0,
-    );
     if (
-      lastAccountAt > 0 &&
-      now - lastAccountAt < publicClaimCooldownMs()
+      history.last_account_at > 0 &&
+      now - history.last_account_at < publicClaimCooldownMs()
     ) {
       throw new Error("public_claim_account_cooldown");
     }
     if (
-      lastExecutorAt > 0 &&
-      now - lastExecutorAt < publicClaimCooldownMs()
+      history.last_executor_at > 0 &&
+      now - history.last_executor_at < publicClaimCooldownMs()
     ) {
       throw new Error("public_claim_executor_cooldown");
     }
@@ -2890,9 +2893,18 @@ export async function submitRemoteResult(req: any, res: any): Promise<any> {
   }
 }
 
-function publicStatus(accountRaw: unknown): JsonObject {
+export function publicStatusForProofV1(
+  accountRaw: unknown,
+  raw?: string,
+): JsonObject {
   const account = safeAccount(accountRaw);
-  const counts = ticketCounts();
+  const history = wcPublicClaimHistorySnapshotV1(
+    raw,
+    Date.now(),
+    account,
+    "",
+    publicClaimClockSkewMs(),
+  );
   return {
     ok: true,
     marker: VOID_WC_PUBLIC_EARNING_PILOT_MARKER,
@@ -2934,15 +2946,19 @@ function publicStatus(accountRaw: unknown): JsonObject {
       durable_result_transaction: true,
       public_claim_executor_key_possession_required: true,
       public_claim_replay_protected: true,
+      public_claim_history_request_scan: false,
       participant_selected_award: false,
     },
     public_claim: publicTicketClaimPolicySnapshot(),
     caps: {
       per_account: perAccountCap(),
       global: globalCap(),
-      active_issued: counts.active,
-      consumed: counts.consumed,
-      account_total: account ? Number(counts.accountCounts[account] || 0) : null,
+      active_issued: history.active,
+      consumed: history.consumed,
+      account_total: history.account_total,
+      bounded_history_authority: true,
+      synchronous_history_files_read:
+        history.synchronous_history_files_read,
     },
     canonical_pipeline: {
       participant_jobs_submit: "/jobs/submit",
@@ -2973,15 +2989,29 @@ function mount(): void {
   }
   if (app[GLOBAL_MARK]) return;
   app[GLOBAL_MARK] = true;
+  primeWcPublicClaimHistoryAuthorityV1();
 
   app.get(PUBLIC_STATUS_ROUTE, (req: any, res: any) => {
     try {
-      return res.json(publicStatus(req?.query?.account));
+      return res.json(
+        publicStatusForProofV1(req?.query?.account),
+      );
     } catch (error: any) {
-      return res.status(500).json({
+      const message = String(error?.message || error);
+      const publicError =
+        message.includes(
+          "VOID_WC_PUBLIC_CLAIM_HISTORY_WARMING",
+        )
+          ? "public_claim_history_warming"
+          : message.includes(
+                "VOID_WC_PUBLIC_CLAIM_HISTORY_INVALID",
+              )
+            ? "public_claim_history_invalid"
+            : "public_claim_history_unavailable";
+      return res.status(503).json({
         ok: false,
         marker: VOID_WC_PUBLIC_EARNING_PILOT_MARKER,
-        error: String(error?.message || error),
+        error: publicError,
       });
     }
   });
@@ -3000,27 +3030,39 @@ function mount(): void {
         return res.status(201).json(issuePublicTicketClaim(req?.body || {}));
       } catch (error: any) {
         const message = String(error?.message || error);
+        const publicMessage =
+          message.includes(
+            "VOID_WC_PUBLIC_CLAIM_HISTORY_WARMING",
+          )
+            ? "public_claim_history_warming"
+            : message.includes(
+                  "VOID_WC_PUBLIC_CLAIM_HISTORY_INVALID",
+                )
+              ? "public_claim_history_invalid"
+              : message;
         const status =
-          message === "coordinator_lane_disabled" ||
-          message === "public_ticket_claim_disabled" ||
-          message === "public_claim_work_unavailable"
+          publicMessage === "coordinator_lane_disabled" ||
+          publicMessage === "public_ticket_claim_disabled" ||
+          publicMessage === "public_claim_work_unavailable" ||
+          publicMessage === "public_claim_history_warming" ||
+          publicMessage === "public_claim_history_invalid"
             ? 503
-            : message === "public_claim_replay"
+            : publicMessage === "public_claim_replay"
               ? 409
-              : message.includes("_cooldown") ||
-                  message.includes("_daily_cap_reached")
+              : publicMessage.includes("_cooldown") ||
+                  publicMessage.includes("_daily_cap_reached")
                 ? 429
-                : message.includes("_active") ||
-                    message.includes("_active_cap_reached")
+                : publicMessage.includes("_active") ||
+                    publicMessage.includes("_active_cap_reached")
                   ? 409
-                  : message.includes("signature") ||
-                      message.includes("pubkey_node_id_mismatch")
+                  : publicMessage.includes("signature") ||
+                      publicMessage.includes("pubkey_node_id_mismatch")
                     ? 401
                     : 400;
         return res.status(status).json({
           ok: false,
           marker: VOID_WC_PUBLIC_TICKET_CLAIM_MARKER,
-          error: message,
+          error: publicMessage,
           fixed_award_wc: VOID_WC_PUBLIC_EARNING_PILOT_AWARD_WC,
           participant_selected_award: false,
           buy_void_fulfillment: false,

@@ -25,6 +25,15 @@ const remoteTruthIndexText = fs.readFileSync(
   path.join(root, "src", "economic", "wc_public_remote_truth_jsonl_index_v1.ts"),
   "utf8",
 );
+const claimHistoryAuthorityText = fs.readFileSync(
+  path.join(
+    root,
+    "src",
+    "economic",
+    "wc_public_claim_history_authority_v1.ts",
+  ),
+  "utf8",
+);
 
 need(
   capabilityText.includes(
@@ -430,14 +439,36 @@ need(
   "public claim does not bypass legacy lifetime canary cap",
 );
 need(
-  moduleText.includes("counts.activeAccountCounts[claim.account]"),
-  "public claim active account cap missing",
+  moduleText.includes("wcPublicClaimHistorySnapshotV1"),
+  "public claim bounded history authority missing",
 );
 need(
-  moduleText.includes(
-    "counts.activeExecutorCounts[claim.executor_node_id]",
-  ),
-  "public claim active executor cap missing",
+  moduleText.includes("history.active_account"),
+  "public claim active account authority missing",
+);
+need(
+  moduleText.includes("history.active_executor"),
+  "public claim active executor authority missing",
+);
+need(
+  moduleText.includes("history.global_24h"),
+  "public claim global daily authority missing",
+);
+need(
+  moduleText.includes("history.account_24h"),
+  "public claim account daily authority missing",
+);
+need(
+  moduleText.includes("history.executor_24h"),
+  "public claim executor daily authority missing",
+);
+need(
+  moduleText.includes("history.last_account_at"),
+  "public claim account cooldown authority missing",
+);
+need(
+  moduleText.includes("history.last_executor_at"),
+  "public claim executor cooldown authority missing",
 );
 need(
   moduleText.includes("publicClaimCooldownMs()"),
@@ -450,6 +481,74 @@ need(
 need(
   moduleText.includes("publicClaimGlobalMaxPer24h()"),
   "public claim global daily cap missing",
+);
+const claimIssueStart = moduleText.indexOf(
+  "export function issuePublicTicketClaim(",
+);
+const claimIssueEnd = moduleText.indexOf(
+  "export function pilotResultSigningObject(",
+  claimIssueStart,
+);
+need(
+  claimIssueStart >= 0 && claimIssueEnd > claimIssueStart,
+  "public claim issuance block missing",
+);
+const claimIssueBlock = moduleText.slice(
+  claimIssueStart,
+  claimIssueEnd,
+);
+need(
+  !claimIssueBlock.includes("ticketCounts("),
+  "public claim still scans ticket history synchronously",
+);
+need(
+  !claimIssueBlock.includes("publicClaimUsage("),
+  "public claim still scans claim history synchronously",
+);
+const publicStatusStart = moduleText.indexOf(
+  "export function publicStatusForProofV1(",
+);
+const mountStart = moduleText.indexOf(
+  "function mount(): void {",
+  publicStatusStart,
+);
+need(
+  publicStatusStart >= 0 && mountStart > publicStatusStart,
+  "bounded public status block missing",
+);
+const publicStatusBlock = moduleText.slice(
+  publicStatusStart,
+  mountStart,
+);
+need(
+  publicStatusBlock.includes(
+    "wcPublicClaimHistorySnapshotV1",
+  ),
+  "public status bounded history authority missing",
+);
+need(
+  !publicStatusBlock.includes("ticketCounts("),
+  "public status still scans ticket history synchronously",
+);
+need(
+  claimHistoryAuthorityText.includes("await fsp.readdir("),
+  "claim history rebuild is not asynchronous",
+);
+need(
+  claimHistoryAuthorityText.includes("setImmediate(resolve)"),
+  "claim history rebuild does not yield event loop",
+);
+need(
+  claimHistoryAuthorityText.includes(
+    "VOID_WC_PUBLIC_CLAIM_HISTORY_INVALID",
+  ),
+  "malformed claim/ticket history does not fail closed",
+);
+need(
+  claimHistoryAuthorityText.includes(
+    "synchronous_history_files_read: 0",
+  ),
+  "claim history request-time zero-scan contract missing",
 );
 need(
   moduleText.includes("claim_nonce_sha256"),

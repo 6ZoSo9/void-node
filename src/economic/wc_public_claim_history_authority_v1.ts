@@ -1,0 +1,781 @@
+import fs from "node:fs";
+import fsp from "node:fs/promises";
+import path from "node:path";
+
+export const VOID_WC_PUBLIC_CLAIM_HISTORY_AUTHORITY_V1 =
+  "VOID_WC_PUBLIC_CLAIM_HISTORY_AUTHORITY_V1";
+export const VOID_WC_PUBLIC_CLAIM_HISTORY_MAX_RECORD_BYTES_V1 =
+  256 * 1024;
+
+const WARM_YIELD_EVERY_V1 = 32;
+const DAY_MS_V1 = 24 * 60 * 60_000;
+const MAX_CLAIM_SKEW_MS_V1 = 15 * 60_000;
+
+type JsonObject = Record<string, any>;
+
+type DirStampV1 = {
+  exists: boolean;
+  ino: string;
+  mtime_ns: string;
+  ctime_ns: string;
+};
+
+type HistoryStampsV1 = {
+  issued: DirStampV1;
+  consumed: DirStampV1;
+  claims: DirStampV1;
+};
+
+type ActiveTicketV1 = {
+  ticket_id: string;
+  account: string;
+  executor_node_id: string;
+  expires_at_ms: number;
+};
+
+type HistoryStateV1 = {
+  data_dir: string;
+  stamps: HistoryStampsV1;
+  consumed: number;
+  consumed_account_counts: Map<string, number>;
+  consumed_executor_counts: Map<string, number>;
+  issued_tickets: Map<string, ActiveTicketV1>;
+  global_claim_times: number[];
+  account_claim_times: Map<string, number[]>;
+  executor_claim_times: Map<string, number[]>;
+  last_account_at: Map<string, number>;
+  last_executor_at: Map<string, number>;
+  scanned_files: number;
+};
+
+type WarmFailureV1 = {
+  stamps: HistoryStampsV1;
+  message: string;
+};
+
+export type WcPublicClaimHistorySnapshotV1 = {
+  marker: typeof VOID_WC_PUBLIC_CLAIM_HISTORY_AUTHORITY_V1;
+  active: number;
+  consumed: number;
+  account_total: number | null;
+  executor_total: number | null;
+  active_account: number;
+  active_executor: number;
+  global_24h: number;
+  account_24h: number;
+  executor_24h: number;
+  last_account_at: number;
+  last_executor_at: number;
+  scanned_files_at_warm: number;
+  synchronous_history_files_read: 0;
+};
+
+const statesV1 = new Map<string, HistoryStateV1>();
+const warmTasksV1 = new Map<string, Promise<void>>();
+const warmFailuresV1 = new Map<string, WarmFailureV1>();
+
+function dataDirV1(raw?: string): string {
+  return path.resolve(
+    raw ||
+      process.env.DATA_DIR ||
+      process.env.VOID_DATA_DIR ||
+      "data_a",
+  );
+}
+
+function rootDirV1(raw?: string): string {
+  return path.join(
+    dataDirV1(raw),
+    "wc_v1",
+    "public-earning-pilot-v1",
+  );
+}
+
+function issuedDirV1(raw?: string): string {
+  return path.join(rootDirV1(raw), "issued");
+}
+
+function consumedDirV1(raw?: string): string {
+  return path.join(rootDirV1(raw), "consumed");
+}
+
+function claimsDirV1(raw?: string): string {
+  return path.join(rootDirV1(raw), "public-claims");
+}
+
+function ensureDirsV1(raw?: string): void {
+  for (const dir of [
+    rootDirV1(raw),
+    issuedDirV1(raw),
+    consumedDirV1(raw),
+    claimsDirV1(raw),
+  ]) {
+    fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
+  }
+}
+
+function safeAccountV1(raw: unknown): string {
+  const value = String(raw || "").trim();
+  return /^[A-Za-z0-9._:-]{1,128}$/.test(value) ? value : "";
+}
+
+function safeNodeIdV1(raw: unknown): string {
+  const value = String(raw || "").trim().toLowerCase();
+  return /^[0-9a-f]{32}$/.test(value) ? value : "";
+}
+
+function safeTicketIdV1(raw: unknown): string {
+  const value = String(raw || "").trim().toLowerCase();
+  return /^[0-9a-f]{32}$/.test(value) ? value : "";
+}
+
+function safeClaimIdV1(raw: unknown): string {
+  const value = String(raw || "").trim().toLowerCase();
+  return /^[0-9a-f]{64}$/.test(value) ? value : "";
+}
+
+function statDirV1(dir: string): DirStampV1 {
+  try {
+    const st: any = fs.statSync(dir, { bigint: true } as any);
+    return {
+      exists: true,
+      ino: String(st.ino),
+      mtime_ns: String(st.mtimeNs),
+      ctime_ns: String(st.ctimeNs),
+    };
+  } catch (error: any) {
+    if (String(error?.code || "") === "ENOENT") {
+      return {
+        exists: false,
+        ino: "0",
+        mtime_ns: "0",
+        ctime_ns: "0",
+      };
+    }
+    throw error;
+  }
+}
+
+function stampsV1(raw?: string): HistoryStampsV1 {
+  return {
+    issued: statDirV1(issuedDirV1(raw)),
+    consumed: statDirV1(consumedDirV1(raw)),
+    claims: statDirV1(claimsDirV1(raw)),
+  };
+}
+
+function sameStampV1(a: DirStampV1, b: DirStampV1): boolean {
+  return (
+    a.exists === b.exists &&
+    a.ino === b.ino &&
+    a.mtime_ns === b.mtime_ns &&
+    a.ctime_ns === b.ctime_ns
+  );
+}
+
+function sameStampsV1(
+  a: HistoryStampsV1,
+  b: HistoryStampsV1,
+): boolean {
+  return (
+    sameStampV1(a.issued, b.issued) &&
+    sameStampV1(a.consumed, b.consumed) &&
+    sameStampV1(a.claims, b.claims)
+  );
+}
+
+function keyV1(raw?: string): string {
+  return dataDirV1(raw);
+}
+
+function emptyStateV1(
+  raw: string | undefined,
+  stamps: HistoryStampsV1,
+): HistoryStateV1 {
+  return {
+    data_dir: dataDirV1(raw),
+    stamps,
+    consumed: 0,
+    consumed_account_counts: new Map(),
+    consumed_executor_counts: new Map(),
+    issued_tickets: new Map(),
+    global_claim_times: [],
+    account_claim_times: new Map(),
+    executor_claim_times: new Map(),
+    last_account_at: new Map(),
+    last_executor_at: new Map(),
+    scanned_files: 0,
+  };
+}
+
+function incMapV1(map: Map<string, number>, key: string): void {
+  map.set(key, Number(map.get(key) || 0) + 1);
+}
+
+function pushTimeV1(
+  map: Map<string, number[]>,
+  key: string,
+  value: number,
+): void {
+  const values = map.get(key) || [];
+  values.push(value);
+  map.set(key, values);
+}
+
+function sortTimeMapsV1(map: Map<string, number[]>): void {
+  for (const values of map.values()) {
+    values.sort((a, b) => a - b);
+  }
+}
+
+async function readJsonStrictV1(
+  file: string,
+  label: string,
+): Promise<JsonObject> {
+  const stat = await fsp.stat(file);
+  if (
+    stat.size <= 0 ||
+    stat.size >
+      VOID_WC_PUBLIC_CLAIM_HISTORY_MAX_RECORD_BYTES_V1
+  ) {
+    throw new Error(`${label}_size_invalid`);
+  }
+
+  const text = await fsp.readFile(file, "utf8");
+  let parsed: any;
+  try {
+    parsed = JSON.parse(text);
+  } catch (error: any) {
+    throw new Error(
+      `${label}_malformed:${String(error?.message || error)}`,
+    );
+  }
+
+  if (
+    !parsed ||
+    typeof parsed !== "object" ||
+    Array.isArray(parsed)
+  ) {
+    throw new Error(`${label}_not_object`);
+  }
+  return parsed;
+}
+
+function validateTicketV1(
+  record: JsonObject,
+  expectedName: string,
+): ActiveTicketV1 {
+  const ticketId = safeTicketIdV1(record.ticket_id);
+  const expectedId = safeTicketIdV1(
+    expectedName.replace(/\.json$/, ""),
+  );
+  const account = safeAccountV1(record.account);
+  const executor = safeNodeIdV1(record.executor_node_id);
+  const expiresAt = Math.trunc(
+    Number(record.expires_at_ms || 0),
+  );
+
+  if (
+    String(record.marker || "") !==
+      "VOID_WC_PUBLIC_EARNING_PILOT_V1" ||
+    Number(record.version || 0) !== 1 ||
+    !ticketId ||
+    ticketId !== expectedId ||
+    !account ||
+    !executor ||
+    !Number.isFinite(expiresAt) ||
+    expiresAt <= 0
+  ) {
+    throw new Error("ticket_history_semantic_invalid");
+  }
+
+  return {
+    ticket_id: ticketId,
+    account,
+    executor_node_id: executor,
+    expires_at_ms: expiresAt,
+  };
+}
+
+function validateClaimV1(
+  record: JsonObject,
+  expectedName: string,
+): {
+  status: string;
+  account: string;
+  executor_node_id: string;
+  issued_at_ms: number;
+} {
+  const claimId = safeClaimIdV1(record.claim_id);
+  const expectedId = safeClaimIdV1(
+    expectedName.replace(/\.json$/, ""),
+  );
+  const status = String(record.status || "");
+
+  if (
+    String(record.marker || "") !==
+      "VOID_WC_PUBLIC_TICKET_CLAIM_V1" ||
+    !claimId ||
+    claimId !== expectedId ||
+    !["reserving", "publishing", "rotating", "issued"].includes(
+      status,
+    )
+  ) {
+    throw new Error("claim_history_semantic_invalid");
+  }
+
+  if (status !== "issued") {
+    return {
+      status,
+      account: "",
+      executor_node_id: "",
+      issued_at_ms: 0,
+    };
+  }
+
+  const account = safeAccountV1(record.account);
+  const executor = safeNodeIdV1(record.executor_node_id);
+  const issuedAt = Math.trunc(
+    Number(record.issued_at_ms || 0),
+  );
+
+  if (
+    Number(record.version || 0) !== 1 ||
+    !account ||
+    !executor ||
+    !Number.isFinite(issuedAt) ||
+    issuedAt <= 0
+  ) {
+    throw new Error(
+      "claim_history_issued_semantic_invalid",
+    );
+  }
+
+  return {
+    status,
+    account,
+    executor_node_id: executor,
+    issued_at_ms: issuedAt,
+  };
+}
+
+async function maybeYieldV1(count: number): Promise<void> {
+  if (
+    count > 0 &&
+    count % WARM_YIELD_EVERY_V1 === 0
+  ) {
+    await new Promise<void>((resolve) =>
+      setImmediate(resolve),
+    );
+  }
+}
+
+async function scanHistoryV1(
+  raw: string | undefined,
+  before: HistoryStampsV1,
+): Promise<HistoryStateV1> {
+  const state = emptyStateV1(raw, before);
+  const warmNow = Date.now();
+  const recentCutoff =
+    warmNow - DAY_MS_V1 - MAX_CLAIM_SKEW_MS_V1;
+
+  const issuedEntries = (
+    await fsp.readdir(issuedDirV1(raw), {
+      withFileTypes: true,
+    })
+  )
+    .filter((entry) => entry.name.endsWith(".json"))
+    .sort((a, b) => a.name.localeCompare(b.name));
+
+  for (const entry of issuedEntries) {
+    if (!entry.isFile()) {
+      throw new Error(
+        "issued_ticket_history_not_regular_file",
+      );
+    }
+    const record = await readJsonStrictV1(
+      path.join(issuedDirV1(raw), entry.name),
+      "issued_ticket_history",
+    );
+    const ticket = validateTicketV1(record, entry.name);
+    state.scanned_files += 1;
+    if (ticket.expires_at_ms > warmNow) {
+      state.issued_tickets.set(
+        ticket.ticket_id,
+        ticket,
+      );
+    }
+    await maybeYieldV1(state.scanned_files);
+  }
+
+  const consumedEntries = (
+    await fsp.readdir(consumedDirV1(raw), {
+      withFileTypes: true,
+    })
+  )
+    .filter((entry) => entry.name.endsWith(".json"))
+    .sort((a, b) => a.name.localeCompare(b.name));
+
+  for (const entry of consumedEntries) {
+    if (!entry.isFile()) {
+      throw new Error(
+        "consumed_ticket_history_not_regular_file",
+      );
+    }
+    const record = await readJsonStrictV1(
+      path.join(consumedDirV1(raw), entry.name),
+      "consumed_ticket_history",
+    );
+    const ticket = validateTicketV1(record, entry.name);
+    state.scanned_files += 1;
+    state.consumed += 1;
+    incMapV1(
+      state.consumed_account_counts,
+      ticket.account,
+    );
+    incMapV1(
+      state.consumed_executor_counts,
+      ticket.executor_node_id,
+    );
+    await maybeYieldV1(state.scanned_files);
+  }
+
+  const claimEntries = (
+    await fsp.readdir(claimsDirV1(raw), {
+      withFileTypes: true,
+    })
+  )
+    .filter((entry) => entry.name.endsWith(".json"))
+    .sort((a, b) => a.name.localeCompare(b.name));
+
+  for (const entry of claimEntries) {
+    if (!entry.isFile()) {
+      throw new Error(
+        "public_claim_history_not_regular_file",
+      );
+    }
+    const record = await readJsonStrictV1(
+      path.join(claimsDirV1(raw), entry.name),
+      "public_claim_history",
+    );
+    const claim = validateClaimV1(record, entry.name);
+    state.scanned_files += 1;
+
+    if (claim.status === "issued") {
+      state.last_account_at.set(
+        claim.account,
+        Math.max(
+          Number(
+            state.last_account_at.get(claim.account) || 0,
+          ),
+          claim.issued_at_ms,
+        ),
+      );
+      state.last_executor_at.set(
+        claim.executor_node_id,
+        Math.max(
+          Number(
+            state.last_executor_at.get(
+              claim.executor_node_id,
+            ) || 0,
+          ),
+          claim.issued_at_ms,
+        ),
+      );
+
+      if (claim.issued_at_ms >= recentCutoff) {
+        state.global_claim_times.push(
+          claim.issued_at_ms,
+        );
+        pushTimeV1(
+          state.account_claim_times,
+          claim.account,
+          claim.issued_at_ms,
+        );
+        pushTimeV1(
+          state.executor_claim_times,
+          claim.executor_node_id,
+          claim.issued_at_ms,
+        );
+      }
+    }
+
+    await maybeYieldV1(state.scanned_files);
+  }
+
+  state.global_claim_times.sort((a, b) => a - b);
+  sortTimeMapsV1(state.account_claim_times);
+  sortTimeMapsV1(state.executor_claim_times);
+  return state;
+}
+
+async function rebuildHistoryV1(
+  raw?: string,
+): Promise<void> {
+  ensureDirsV1(raw);
+  const key = keyV1(raw);
+
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    const before = stampsV1(raw);
+    const state = await scanHistoryV1(raw, before);
+    const after = stampsV1(raw);
+
+    if (sameStampsV1(before, after)) {
+      state.stamps = after;
+      statesV1.set(key, state);
+      warmFailuresV1.delete(key);
+      return;
+    }
+
+    await new Promise<void>((resolve) =>
+      setImmediate(resolve),
+    );
+  }
+
+  throw new Error(
+    "VOID_WC_PUBLIC_CLAIM_HISTORY_AUTHORITY_UNSTABLE",
+  );
+}
+
+function startWarmV1(raw?: string): void {
+  const key = keyV1(raw);
+  if (warmTasksV1.has(key)) return;
+
+  const task = (async () => {
+    try {
+      await rebuildHistoryV1(raw);
+    } catch (error: any) {
+      warmFailuresV1.set(key, {
+        stamps: stampsV1(raw),
+        message: String(error?.message || error),
+      });
+    } finally {
+      warmTasksV1.delete(key);
+    }
+  })();
+
+  warmTasksV1.set(key, task);
+}
+
+function readyStateV1(raw?: string): HistoryStateV1 {
+  ensureDirsV1(raw);
+  const key = keyV1(raw);
+  const current = stampsV1(raw);
+  const failure = warmFailuresV1.get(key);
+
+  if (failure) {
+    if (sameStampsV1(failure.stamps, current)) {
+      throw new Error(
+        "VOID_WC_PUBLIC_CLAIM_HISTORY_INVALID",
+      );
+    }
+    warmFailuresV1.delete(key);
+  }
+
+  if (warmTasksV1.has(key)) {
+    throw new Error(
+      "VOID_WC_PUBLIC_CLAIM_HISTORY_WARMING",
+    );
+  }
+
+  const state = statesV1.get(key);
+  if (
+    !state ||
+    !sameStampsV1(state.stamps, current)
+  ) {
+    startWarmV1(raw);
+    throw new Error(
+      "VOID_WC_PUBLIC_CLAIM_HISTORY_WARMING",
+    );
+  }
+
+  return state;
+}
+
+function lowerBoundV1(
+  values: number[],
+  target: number,
+): number {
+  let lo = 0;
+  let hi = values.length;
+  while (lo < hi) {
+    const mid = (lo + hi) >>> 1;
+    if (values[mid] < target) lo = mid + 1;
+    else hi = mid;
+  }
+  return lo;
+}
+
+function upperBoundV1(
+  values: number[],
+  target: number,
+): number {
+  let lo = 0;
+  let hi = values.length;
+  while (lo < hi) {
+    const mid = (lo + hi) >>> 1;
+    if (values[mid] <= target) lo = mid + 1;
+    else hi = mid;
+  }
+  return lo;
+}
+
+function countWindowV1(
+  values: number[] | undefined,
+  lower: number,
+  upper: number,
+): number {
+  if (!values?.length) return 0;
+  return (
+    upperBoundV1(values, upper) -
+    lowerBoundV1(values, lower)
+  );
+}
+
+export function wcPublicClaimHistorySnapshotV1(
+  raw?: string,
+  now = Date.now(),
+  accountRaw: unknown = "",
+  executorRaw: unknown = "",
+  clockSkewMs = 5 * 60_000,
+): WcPublicClaimHistorySnapshotV1 {
+  const state = readyStateV1(raw);
+  const account = safeAccountV1(accountRaw);
+  const executor = safeNodeIdV1(executorRaw);
+
+  let active = 0;
+  let activeAccount = 0;
+  let activeExecutor = 0;
+
+  for (const ticket of state.issued_tickets.values()) {
+    if (ticket.expires_at_ms <= now) continue;
+    active += 1;
+    if (account && ticket.account === account) {
+      activeAccount += 1;
+    }
+    if (
+      executor &&
+      ticket.executor_node_id === executor
+    ) {
+      activeExecutor += 1;
+    }
+  }
+
+  const cutoff = now - DAY_MS_V1;
+  const upper =
+    now + Math.max(0, Math.trunc(clockSkewMs));
+
+  const global24h = countWindowV1(
+    state.global_claim_times,
+    cutoff,
+    upper,
+  );
+  const account24h = account
+    ? countWindowV1(
+        state.account_claim_times.get(account),
+        cutoff,
+        upper,
+      )
+    : 0;
+  const executor24h = executor
+    ? countWindowV1(
+        state.executor_claim_times.get(executor),
+        cutoff,
+        upper,
+      )
+    : 0;
+
+  return {
+    marker: VOID_WC_PUBLIC_CLAIM_HISTORY_AUTHORITY_V1,
+    active,
+    consumed: state.consumed,
+    account_total: account
+      ? Number(
+          state.consumed_account_counts.get(account) || 0,
+        ) + activeAccount
+      : null,
+    executor_total: executor
+      ? Number(
+          state.consumed_executor_counts.get(executor) ||
+            0,
+        ) + activeExecutor
+      : null,
+    active_account: activeAccount,
+    active_executor: activeExecutor,
+    global_24h: global24h,
+    account_24h: account24h,
+    executor_24h: executor24h,
+    last_account_at: account
+      ? Number(state.last_account_at.get(account) || 0)
+      : 0,
+    last_executor_at: executor
+      ? Number(
+          state.last_executor_at.get(executor) || 0,
+        )
+      : 0,
+    scanned_files_at_warm: state.scanned_files,
+    synchronous_history_files_read: 0,
+  };
+}
+
+export function primeWcPublicClaimHistoryAuthorityV1(
+  raw?: string,
+): void {
+  ensureDirsV1(raw);
+  const key = keyV1(raw);
+  const current = stampsV1(raw);
+  const state = statesV1.get(key);
+  const failure = warmFailuresV1.get(key);
+
+  if (
+    failure &&
+    sameStampsV1(failure.stamps, current)
+  ) {
+    return;
+  }
+
+  if (
+    state &&
+    sameStampsV1(state.stamps, current) &&
+    !failure
+  ) {
+    return;
+  }
+
+  startWarmV1(raw);
+}
+
+export async function waitForWcPublicClaimHistoryWarmForProofV1(
+  raw?: string,
+): Promise<void> {
+  primeWcPublicClaimHistoryAuthorityV1(raw);
+  const key = keyV1(raw);
+  const task = warmTasksV1.get(key);
+  if (task) await task;
+
+  const failure = warmFailuresV1.get(key);
+  if (failure) {
+    throw new Error(
+      `VOID_WC_PUBLIC_CLAIM_HISTORY_INVALID:${failure.message}`,
+    );
+  }
+
+  if (!statesV1.has(key)) {
+    throw new Error(
+      "VOID_WC_PUBLIC_CLAIM_HISTORY_NOT_READY",
+    );
+  }
+}
+
+export function resetWcPublicClaimHistoryAuthorityForProofV1(
+  raw?: string,
+): void {
+  const key = keyV1(raw);
+  if (warmTasksV1.has(key)) {
+    throw new Error(
+      "VOID_WC_PUBLIC_CLAIM_HISTORY_RESET_WHILE_WARMING",
+    );
+  }
+  statesV1.delete(key);
+  warmFailuresV1.delete(key);
+}

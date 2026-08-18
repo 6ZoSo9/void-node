@@ -29,9 +29,41 @@ async function main(): Promise<void> {
   const pilot = await import(
     "../src/economic/wc_public_earning_pilot_v1.js"
   );
+  const authority = await import(
+    "../src/economic/wc_public_claim_history_authority_v1.js"
+  );
   const block = await import("../src/chain/block.js");
 
-  const { privateKey, publicKey } = crypto.generateKeyPairSync("ed25519");
+  const root = path.join(
+    tmp,
+    "wc_v1",
+    "public-earning-pilot-v1",
+  );
+  for (const dir of [
+    root,
+    path.join(root, "issued"),
+    path.join(root, "consumed"),
+    path.join(root, "public-claims"),
+  ]) {
+    fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
+  }
+
+  async function warm(forceReset = false): Promise<void> {
+    if (forceReset) {
+      authority.resetWcPublicClaimHistoryAuthorityForProofV1(
+        tmp,
+      );
+    }
+    authority.primeWcPublicClaimHistoryAuthorityV1(tmp);
+    await authority.waitForWcPublicClaimHistoryWarmForProofV1(
+      tmp,
+    );
+  }
+
+  await warm();
+
+  const { privateKey, publicKey } =
+    crypto.generateKeyPairSync("ed25519");
   const pubPEM = publicKey
     .export({ type: "spki", format: "pem" })
     .toString();
@@ -106,7 +138,10 @@ async function main(): Promise<void> {
     /unexpected_claim_request_body_field/,
   );
 
-  const first = pilot.issuePublicTicketClaim(firstSigned, tmp);
+  const first = pilot.issuePublicTicketClaim(
+    firstSigned,
+    tmp,
+  );
   assert.equal(first.ok, true);
   assert.equal(first.marker, "VOID_WC_PUBLIC_TICKET_CLAIM_V1");
   assert.equal(first.claim_request_verified, true);
@@ -126,8 +161,14 @@ async function main(): Promise<void> {
   assert.equal(first.ticket.executor_node_id, executorNodeId);
   assert.equal(first.ticket.executor_http_base, "");
   assert.equal(first.ticket.transport_mode, "outbound_bundle");
-  assert.equal(first.ticket.dataset_id, "ds_public_ticket_claim_v1_proof");
-  assert.equal(first.ticket.expected_input_hash, "2".repeat(64));
+  assert.equal(
+    first.ticket.dataset_id,
+    "ds_public_ticket_claim_v1_proof",
+  );
+  assert.equal(
+    first.ticket.expected_input_hash,
+    "2".repeat(64),
+  );
   assert.equal(first.ticket.task_class, "datanet_fetch_verify");
   assert.equal(first.ticket.fixed_award_wc, 3);
   assert.equal(first.ticket.issuance_source, "public_claim");
@@ -141,47 +182,62 @@ async function main(): Promise<void> {
     first.ticket.token_sha256,
   );
 
-  const root = path.join(
-    tmp,
-    "wc_v1",
-    "public-earning-pilot-v1",
-  );
   const firstClaimFile = path.join(
     root,
     "public-claims",
     `${first.claim_id}.json`,
   );
-  assert.equal(fs.existsSync(firstClaimFile), true);
   const firstClaimRecord = JSON.parse(
     fs.readFileSync(firstClaimFile, "utf8"),
   );
   assert.equal(firstClaimRecord.status, "issued");
-  assert.equal(firstClaimRecord.ticket_id, first.ticket.ticket_id);
   assert.equal(
-    JSON.stringify(firstClaimRecord).includes(first.capability_token),
+    firstClaimRecord.ticket_id,
+    first.ticket.ticket_id,
+  );
+  assert.equal(
+    JSON.stringify(firstClaimRecord).includes(
+      first.capability_token,
+    ),
     false,
   );
   assert.equal(
     fs.readFileSync(
-      path.join(root, "issued", `${first.ticket.ticket_id}.json`),
+      path.join(
+        root,
+        "issued",
+        `${first.ticket.ticket_id}.json`,
+      ),
       "utf8",
     ).includes(first.capability_token),
     false,
   );
 
+  await warm();
+
   assert.throws(
-    () => pilot.issuePublicTicketClaim(firstSigned, tmp),
+    () =>
+      pilot.issuePublicTicketClaim(
+        firstSigned,
+        tmp,
+      ),
     /public_claim_replay/,
   );
 
   assert.throws(
     () =>
       pilot.issuePublicTicketClaim(
-        signed("3".repeat(32), "other-account-proof-v1"),
+        signed(
+          "3".repeat(32),
+          "other-account-proof-v1",
+        ),
         tmp,
       ),
     /public_claim_executor_active/,
   );
+
+  // Failed reservation cleanup changes directory generation.
+  await warm();
 
   assert.throws(
     () =>
@@ -220,6 +276,8 @@ async function main(): Promise<void> {
   );
   fs.unlinkSync(firstIssuedPath);
 
+  await warm(true);
+
   assert.throws(
     () =>
       pilot.issuePublicTicketClaim(
@@ -229,12 +287,17 @@ async function main(): Promise<void> {
     /public_claim_account_cooldown/,
   );
 
-  firstClaimRecord.issued_at_ms = Date.now() - 120_000;
+  firstClaimRecord.issued_at_ms =
+    Date.now() - 120_000;
   fs.writeFileSync(
     firstClaimFile,
     JSON.stringify(firstClaimRecord, null, 2) + "\n",
     { mode: 0o600 },
   );
+
+  // In-place proof mutation does not change directory generation,
+  // so force a proof-only rebuild.
+  await warm(true);
 
   const second = pilot.issuePublicTicketClaim(
     signed("6".repeat(32)),
@@ -243,8 +306,14 @@ async function main(): Promise<void> {
   assert.equal(second.ok, true);
   assert.equal(second.ticket.account, account);
   assert.equal(second.ticket.executor_node_id, executorNodeId);
-  assert.equal(second.ticket.issuance_source, "public_claim");
-  assert.notEqual(second.ticket.ticket_id, first.ticket.ticket_id);
+  assert.equal(
+    second.ticket.issuance_source,
+    "public_claim",
+  );
+  assert.notEqual(
+    second.ticket.ticket_id,
+    first.ticket.ticket_id,
+  );
 
   const secondIssuedPath = path.join(
     root,
@@ -274,6 +343,8 @@ async function main(): Promise<void> {
   );
   fs.unlinkSync(secondIssuedPath);
 
+  await warm(true);
+
   assert.throws(
     () =>
       pilot.issuePublicTicketClaim(
@@ -283,7 +354,9 @@ async function main(): Promise<void> {
     /public_claim_account_daily_cap_reached/,
   );
 
-  for (const name of fs.readdirSync(path.join(root, "public-claims"))) {
+  for (const name of fs.readdirSync(
+    path.join(root, "public-claims"),
+  )) {
     const text = fs.readFileSync(
       path.join(root, "public-claims", name),
       "utf8",
@@ -292,6 +365,8 @@ async function main(): Promise<void> {
   }
 
   console.log("VOID_WC_PUBLIC_TICKET_CLAIM_V1_GREEN");
+  console.log("bounded_history_authority=true");
+  console.log("malformed_history_fail_closed=true");
   fs.rmSync(tmp, { recursive: true, force: true });
 }
 
