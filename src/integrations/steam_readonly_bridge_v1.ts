@@ -405,38 +405,42 @@ async function fetchResponseWithDeadline(
       controller.signal.removeEventListener("abort", onAbort);
   });
 
-  const transportLease = await acquireSteamTransportLease(
-    timeoutPromise,
-    controller,
-    timeoutError,
-  );
-  const fetchPromise = Promise.resolve().then(() =>
-    fetchImpl(requestedHref, {
-      method: "GET",
-      headers: request.headers,
-      redirect: "error",
-      signal: controller.signal,
-    }),
-  );
-
+  let transportLease: SteamReadonlyTransportLease | undefined;
+  let fetchPromise: Promise<Response> | undefined;
   try {
+    transportLease = await acquireSteamTransportLease(
+      timeoutPromise,
+      controller,
+      timeoutError,
+    );
+    fetchPromise = Promise.resolve().then(() =>
+      fetchImpl(requestedHref, {
+        method: "GET",
+        headers: request.headers,
+        redirect: "error",
+        signal: controller.signal,
+      }),
+    );
+
     return {
       response: await Promise.race([fetchPromise, timeoutPromise]),
       requestedHref,
       transportLease,
     };
   } catch (error) {
-    if (timedOut || controller.signal.aborted) {
-      transportLease.deferUntil(
-        fetchPromise.then(
-          async (response) => {
-            await settleBestEffort(() => response.body?.cancel(timeoutError));
-          },
-          () => undefined,
-        ),
-      );
-    } else {
-      transportLease.release();
+    if (transportLease && fetchPromise) {
+      if (timedOut || controller.signal.aborted) {
+        transportLease.deferUntil(
+          fetchPromise.then(
+            async (response) => {
+              await settleBestEffort(() => response.body?.cancel(timeoutError));
+            },
+            () => undefined,
+          ),
+        );
+      } else {
+        transportLease.release();
+      }
     }
     throw error;
   } finally {
