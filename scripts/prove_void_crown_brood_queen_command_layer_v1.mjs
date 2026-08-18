@@ -22,6 +22,12 @@ for (const [needle, reason] of [
   [MARKER, 'missing_marker'],
   [PARENT, 'missing_parent_marker'],
   ['**the King**', 'missing_king_style'],
+  ['the **sole constitutional amendment authority**', 'missing_sole_amendment_authority'],
+  ['The designated **main VOID node identity key** is the ordinary cryptographic authentication anchor', 'missing_main_node_authentication_anchor'],
+  ['it does **not** transfer sovereignty', 'missing_key_possession_not_sovereignty'],
+  ['Wallet keys, transaction signers, the Nimo/offline node key, and other node or service keys are **not** Sovereign constitutional authentication keys', 'missing_other_key_exclusion'],
+  ['Cryptographic authentication proves that a VOID constitutional message was authorized through the designated Sovereign key.', 'missing_authentication_scope'],
+  ['It does **not** by itself authorize deployment, restart, validator mutation, signer or wallet use', 'missing_execution_separation'],
   ['The eventual constitutional validator maximum remains **144,000**.', 'missing_validator_maximum'],
   ['The validator realm is governed directly by the King', 'missing_validator_direct_rule'],
   ['The Brood Queen and the General have **no independent command authority over validators**.', 'missing_validator_exclusion'],
@@ -37,7 +43,8 @@ for (const [needle, reason] of [
   ['Voluntary entry includes intentional acts such as joining VOID', 'missing_voluntary_entry'],
   ['This voluntary jurisdiction is limited to network participation and protocol behavior.', 'missing_protocol_scope'],
   ['A participant may leave or stop using VOID.', 'missing_exit_rule'],
-  ['**Voluntary submission** means voluntary acceptance of VOID\'s protocol-facing jurisdiction through intentional participation', 'missing_submission_definition'],
+  ["**Voluntary submission** means voluntary acceptance of VOID's protocol-facing jurisdiction through intentional participation", 'missing_submission_definition'],
+  ['Only the Sovereign, ZoSo / Derrek Patrick Daly, may amend this instrument', 'missing_amendment_boundary'],
   ['*One Crown, two realms, legible delegation.*', 'missing_closing_doctrine'],
 ]) {
   if (!doc.includes(needle)) fail(reason);
@@ -45,14 +52,30 @@ for (const [needle, reason] of [
 
 if (data.marker !== MARKER) fail('fixture_marker');
 if (data.parent_constitution_marker !== PARENT) fail('fixture_parent');
-if (data.version !== '1.0.0-draft') fail('fixture_version');
+if (data.version !== '1.1.0-draft') fail('fixture_version');
 if (data.date !== '2026-08-18') fail('fixture_date');
 
 if (data.sovereign.operator_name !== 'ZoSo') fail('sovereign_operator');
 if (data.sovereign.personal_name !== 'Derrek Patrick Daly') fail('sovereign_personal');
 if (data.sovereign.style !== 'King') fail('sovereign_style');
 if (data.sovereign.root_constitutional_governor !== true) fail('sovereign_root');
+if (data.sovereign.sole_constitutional_amendment_authority !== true) fail('sovereign_amendment_authority');
 if (data.sovereign.delegated_offices_are_co_sovereigns !== false) fail('delegates_not_cosovereigns');
+
+if (data.sovereign_authentication.ordinary_authentication_anchor !== 'designated_main_void_node_identity_key') fail('auth_anchor');
+if (data.sovereign_authentication.uses_existing_void_node_identity_signature_scheme !== true) fail('auth_existing_scheme');
+if (data.sovereign_authentication.main_void_node_identity_key_designated !== true) fail('auth_main_key_designation');
+for (const key of [
+  'wallet_keys_are_constitutional_authentication_keys_by_default',
+  'nimo_offline_node_key_is_constitutional_authentication_key_by_default',
+  'other_node_or_service_keys_are_constitutional_authentication_keys_by_default',
+  'key_possession_transfers_sovereignty',
+  'key_compromise_transfers_sovereignty',
+  'key_authentication_executes_sensitive_technical_action',
+]) {
+  if (data.sovereign_authentication[key] !== false) fail(`auth_boundary_${key}`);
+}
+if (data.sovereign_authentication.rotation_or_revocation_requires_explicit_sovereign_instrument !== true) fail('auth_rotation_rule');
 
 if (data.validator_realm.constitutional_maximum !== 144000) fail('validator_max');
 if (data.validator_realm.direct_governor !== 'King') fail('validator_governor');
@@ -102,6 +125,10 @@ for (const [key, value] of Object.entries(data.preserved_boundaries)) {
 
 console.log('void_crown_brood_queen_command_layer_v1_proof=GREEN');
 console.log('sovereign_style=King');
+console.log('sovereign_sole_amendment_authority=true');
+console.log('sovereign_authentication_anchor=designated_main_void_node_identity_key');
+console.log('key_possession_transfers_sovereignty=false');
+console.log('key_authentication_executes_sensitive_technical_action=false');
 console.log('validator_direct_governor=King');
 console.log('constitutional_validator_maximum=144000');
 console.log('brood_queen_identity=Ren');

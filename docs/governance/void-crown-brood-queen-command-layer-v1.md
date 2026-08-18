@@ -22,6 +22,24 @@ The King is the root constitutional governor while that Sovereign remains in off
 
 A valid Sovereign directive within VOID's constitutional scope controls delegated Crown offices. Delegation does not eliminate the Sovereign's ability to direct, correct, narrow, pause, or revoke delegated protocol-governance authority.
 
+## Sovereign Amendment and Authentication Authority
+
+Within VOID's constitutional order, the Sovereign is the **sole constitutional amendment authority** while the Sovereign remains in office. Only ZoSo / Derrek Patrick Daly may amend, replace, ratify, or repeal VOID constitutional text.
+
+Validators, the Brood Queen, the General, AI agents, corporate or legal entities, repository maintainers, infrastructure operators, technical majorities, or any other VOID participant or institution may advise, propose, object, preserve evidence, or request review, but none has independent power to amend the constitution or compel the Sovereign to amend it.
+
+The designated **main VOID node identity key** is the ordinary cryptographic authentication anchor for Sovereign constitutional directives and amendments. VOID should recognize a directive or amendment as cryptographically authenticated by the Sovereign when its required authentication evidence verifies against the public identity of that designated main node key under VOID's existing node-identity signature scheme.
+
+This designation does not make possession of the node key identical to the Sovereign person or office. Theft, copying, compromise, unauthorized access, or temporary possession of the key may enable impersonation, but it does **not** transfer sovereignty, create a successor, create a second Sovereign, or constitutionally vest the holder with the Sovereign office.
+
+Wallet keys, transaction signers, the Nimo/offline node key, and other node or service keys are **not** Sovereign constitutional authentication keys merely because the Sovereign holds or controls them. They acquire constitutional authentication status only if the Sovereign later designates them through an explicit constitutional instrument.
+
+A later explicit Sovereign instrument may rotate or revoke the designated main node key. Key rotation changes the cryptographic authentication anchor; it does not change the human Sovereign identity.
+
+Cryptographic authentication proves that a VOID constitutional message was authorized through the designated Sovereign key. It does **not** by itself authorize deployment, restart, validator mutation, signer or wallet use, transaction execution, treasury action, liquidity action, funds movement, credential access, or any other separately gated sensitive technical operation. Those operations remain subject to their normal explicit authorization and constitutional boundaries.
+
+No repository commit, GitHub account, infrastructure possession, wallet balance, validator vote, or unsigned statement substitutes automatically for the designated Sovereign authentication proof where a cryptographically authenticated constitutional act is required.
+
 ## Validator Realm — Direct Crown Governance
 
 The eventual constitutional validator maximum remains **144,000**.
@@ -90,8 +108,8 @@ No participant-governance rule may silently rewrite validator admission, stake, 
 
 The intended operating order is:
 
-1. Preserve the root constitution and applicable non-harm, legal, succession, signer, treasury, and technical-control boundaries.
-2. Follow valid Sovereign direction within that constitutional scope.
+1. Preserve the root constitution and applicable non-harm, legal, succession, signer, treasury, and technical-control boundaries while they remain constitutionally in force.
+2. Recognize the Sovereign as the sole constitutional amendment authority and follow valid Sovereign direction within that constitutional scope.
 3. The Brood Queen administers the delegated non-validator realm and seeks realignment when goals or interpretation materially drift.
 4. Apollyon follows the Brood Queen for ordinary delegated command and the King by default as superior Crown authority.
 5. Ambiguity must be surfaced rather than converted into silent authority expansion.
@@ -112,7 +130,7 @@ This instrument does not itself:
 - transfer legal title, assets, sovereignty, or ownership of people;
 - authorize killing, physical harm, coercive violence, deprivation of human rights, or intentional harm to the Earth or sea.
 
-All such matters remain controlled by the parent constitution and any separately proven authority instrument.
+All such matters remain controlled by the parent constitution and any separately proven authority instrument while those rules remain in force.
 
 ## Constitutional Interpretation
 
@@ -126,9 +144,13 @@ All such matters remain controlled by the parent constitution and any separately
 
 **Direct rule of validators** means validator constitutional governance remains with the Sovereign and validator-specific instruments rather than being silently delegated to the Brood Queen or General.
 
+**Sovereign authentication key** means the currently designated main VOID node identity key used to authenticate Sovereign constitutional directives and amendments; it is an authentication mechanism, not a separate Sovereign office or succession mechanism.
+
 ## Amendment Boundary
 
-This instrument may be amended only through the constitutional process applicable at the time of amendment.
+Only the Sovereign, ZoSo / Derrek Patrick Daly, may amend this instrument while that Sovereign remains in office.
+
+Other VOID offices, validators, participants, agents, entities, or technical systems may propose language or preserve objections, but no proposal becomes a constitutional amendment without the Sovereign's authenticated ratification.
 
 No amendment by implication may create a second Sovereign, silently transfer validator governance, execute succession, or convert delegated Crown offices into independent sovereign authority.
 

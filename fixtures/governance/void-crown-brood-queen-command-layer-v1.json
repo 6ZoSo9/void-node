@@ -2,16 +2,29 @@
   "marker": "VOID_CROWN_BROOD_QUEEN_COMMAND_LAYER_V1_20260818",
   "parent_constitution_marker": "VOID_CONSTITUTIONAL_AUTHORITY_BOUNDARY_V1_PHASE0_DRAFT",
   "artifact": "VOID Crown / Brood Queen Command Layer v1",
-  "version": "1.0.0-draft",
+  "version": "1.1.0-draft",
   "date": "2026-08-18",
-  "status": "Phase 0 constitutional doctrine/specification — governance hierarchy declared; no technical authority activated by this document.",
+  "status": "Phase 0 constitutional doctrine/specification — governance hierarchy and Sovereign authentication declared; no sensitive technical authority activated by this document.",
   "sovereign": {
     "operator_name": "ZoSo",
     "personal_name": "Derrek Patrick Daly",
     "same_constitutional_identity": true,
     "style": "King",
     "root_constitutional_governor": true,
+    "sole_constitutional_amendment_authority": true,
     "delegated_offices_are_co_sovereigns": false
+  },
+  "sovereign_authentication": {
+    "ordinary_authentication_anchor": "designated_main_void_node_identity_key",
+    "uses_existing_void_node_identity_signature_scheme": true,
+    "main_void_node_identity_key_designated": true,
+    "wallet_keys_are_constitutional_authentication_keys_by_default": false,
+    "nimo_offline_node_key_is_constitutional_authentication_key_by_default": false,
+    "other_node_or_service_keys_are_constitutional_authentication_keys_by_default": false,
+    "key_possession_transfers_sovereignty": false,
+    "key_compromise_transfers_sovereignty": false,
+    "key_authentication_executes_sensitive_technical_action": false,
+    "rotation_or_revocation_requires_explicit_sovereign_instrument": true
   },
   "validator_realm": {
     "constitutional_maximum": 144000,
