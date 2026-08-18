@@ -263,7 +263,13 @@ export function prepareSteamReadonlyRequest(
 
 const RESPONSE_TEARDOWN_TIMEOUT_MS = 250;
 const CANONICAL_CONTENT_LENGTH = /^(0|[1-9][0-9]*)$/;
-let activeFetchAcquisitionLease: Promise<void> | undefined;
+
+interface SteamReadonlyTransportLease {
+  release(): void;
+  deferUntil(settlement: Promise<unknown>): void;
+}
+
+let activeSteamTransportLease: Promise<void> | undefined;
 
 async function settleBestEffort(
   cleanup: () => Promise<unknown> | unknown,
@@ -281,14 +287,14 @@ async function settleBestEffort(
   }
 }
 
-async function acquireFetchAcquisitionLease(
+async function acquireSteamTransportLease(
   timeoutPromise: Promise<never>,
   controller: AbortController,
   timeoutError: SteamReadonlyBridgeError,
-): Promise<() => void> {
-  while (activeFetchAcquisitionLease) {
+): Promise<SteamReadonlyTransportLease> {
+  while (activeSteamTransportLease) {
     if (controller.signal.aborted) throw timeoutError;
-    await Promise.race([activeFetchAcquisitionLease, timeoutPromise]);
+    await Promise.race([activeSteamTransportLease, timeoutPromise]);
   }
   if (controller.signal.aborted) throw timeoutError;
 
@@ -296,16 +302,32 @@ async function acquireFetchAcquisitionLease(
   const lease = new Promise<void>((resolve) => {
     resolveLease = resolve;
   });
-  activeFetchAcquisitionLease = lease;
+  activeSteamTransportLease = lease;
   let released = false;
+  let deferred = false;
 
-  return () => {
+  const releaseNow = () => {
     if (released) return;
     released = true;
-    if (activeFetchAcquisitionLease === lease) {
-      activeFetchAcquisitionLease = undefined;
+    if (activeSteamTransportLease === lease) {
+      activeSteamTransportLease = undefined;
     }
     resolveLease();
+  };
+
+  return {
+    release() {
+      if (deferred) return;
+      releaseNow();
+    },
+    deferUntil(settlement: Promise<unknown>) {
+      if (released || deferred) return;
+      deferred = true;
+      void settlement.then(
+        () => undefined,
+        () => undefined,
+      ).finally(releaseNow);
+    },
   };
 }
 
@@ -357,7 +379,11 @@ async function fetchResponseWithDeadline(
   request: SteamReadonlyPreparedRequest,
   fetchImpl: typeof fetch,
   controller: AbortController,
-): Promise<{ response: Response; requestedHref: string }> {
+): Promise<{
+  response: Response;
+  requestedHref: string;
+  transportLease: SteamReadonlyTransportLease;
+}> {
   const requestedHref = request.url.href;
   const timeoutError = new SteamReadonlyBridgeError(
     "upstream_timeout",
@@ -379,35 +405,40 @@ async function fetchResponseWithDeadline(
       controller.signal.removeEventListener("abort", onAbort);
   });
 
+  const transportLease = await acquireSteamTransportLease(
+    timeoutPromise,
+    controller,
+    timeoutError,
+  );
+  const fetchPromise = Promise.resolve().then(() =>
+    fetchImpl(requestedHref, {
+      method: "GET",
+      headers: request.headers,
+      redirect: "error",
+      signal: controller.signal,
+    }),
+  );
+
   try {
-    const releaseAcquisition = await acquireFetchAcquisitionLease(
-      timeoutPromise,
-      controller,
-      timeoutError,
-    );
-    const fetchPromise = Promise.resolve().then(() =>
-      fetchImpl(requestedHref, {
-        method: "GET",
-        headers: request.headers,
-        redirect: "error",
-        signal: controller.signal,
-      }),
-    );
-
-    void fetchPromise
-      .then(
-        async (response) => {
-          if (!timedOut) return;
-          await settleBestEffort(() => response.body?.cancel(timeoutError));
-        },
-        () => undefined,
-      )
-      .finally(releaseAcquisition);
-
     return {
       response: await Promise.race([fetchPromise, timeoutPromise]),
       requestedHref,
+      transportLease,
     };
+  } catch (error) {
+    if (timedOut || controller.signal.aborted) {
+      transportLease.deferUntil(
+        fetchPromise.then(
+          async (response) => {
+            await settleBestEffort(() => response.body?.cancel(timeoutError));
+          },
+          () => undefined,
+        ),
+      );
+    } else {
+      transportLease.release();
+    }
+    throw error;
   } finally {
     removeAbortListener();
   }
@@ -456,6 +487,7 @@ async function acquireResponseBodyReader(
 async function readResponseChunk(
   reader: ReadableStreamDefaultReader<Uint8Array>,
   signal: AbortSignal,
+  transportLease: SteamReadonlyTransportLease,
 ): Promise<Awaited<ReturnType<typeof reader.read>>> {
   if (signal.aborted) {
     throw signal.reason instanceof Error
@@ -463,11 +495,13 @@ async function readResponseChunk(
       : new Error("steam_readonly_request_timeout");
   }
 
+  const readPromise = reader.read();
   return await new Promise((resolve, reject) => {
     let settled = false;
     const onAbort = () => {
       if (settled) return;
       settled = true;
+      transportLease.deferUntil(readPromise);
       reject(
         signal.reason instanceof Error
           ? signal.reason
@@ -476,7 +510,11 @@ async function readResponseChunk(
     };
 
     signal.addEventListener("abort", onAbort, { once: true });
-    reader.read().then(
+    if (signal.aborted) {
+      onAbort();
+      return;
+    }
+    readPromise.then(
       (part) => {
         if (settled) return;
         settled = true;
@@ -497,6 +535,7 @@ async function readBoundedResponse(
   response: Response,
   maxBytes: number,
   controller: AbortController,
+  transportLease: SteamReadonlyTransportLease,
 ): Promise<{ bytes: Uint8Array; text: string }> {
   const declaredHeader = response.headers.get("content-length");
   if (declaredHeader !== null) {
@@ -544,9 +583,11 @@ async function readBoundedResponse(
   let total = 0;
 
   while (true) {
-    const part = await readResponseChunk(reader, controller.signal).catch(() =>
-      rejectReaderFailure(reader, controller),
-    );
+    const part = await readResponseChunk(
+      reader,
+      controller.signal,
+      transportLease,
+    ).catch(() => rejectReaderFailure(reader, controller));
     if (part.done) break;
     total += part.value.byteLength;
     if (total > maxBytes) {
@@ -591,16 +632,14 @@ export async function executeSteamReadonlyRequest(
     () => controller.abort(new Error("steam_readonly_request_timeout")),
     request.timeout_ms,
   );
+  let transportLease: SteamReadonlyTransportLease | undefined;
 
   try {
     let response: Response;
     let requestedHref: string;
     try {
-      ({ response, requestedHref } = await fetchResponseWithDeadline(
-        request,
-        fetchImpl,
-        controller,
-      ));
+      ({ response, requestedHref, transportLease } =
+        await fetchResponseWithDeadline(request, fetchImpl, controller));
     } catch (error) {
       if (error instanceof SteamReadonlyBridgeError) throw error;
       throw new SteamReadonlyBridgeError(
@@ -642,6 +681,7 @@ export async function executeSteamReadonlyRequest(
         response,
         request.max_response_bytes,
         controller,
+        transportLease,
       );
     } catch (error) {
       if (error instanceof SteamReadonlyBridgeError) throw error;
@@ -679,6 +719,7 @@ export async function executeSteamReadonlyRequest(
       data,
     };
   } finally {
+    transportLease?.release();
     clearTimeout(timeout);
   }
 }
