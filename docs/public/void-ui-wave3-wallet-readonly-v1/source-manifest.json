@@ -22,7 +22,7 @@
   "repository_hash_self_reference_excluded": "scripts/prove_void_ui_wave3_wallet_readonly_v1.ts",
   "repository_hashes": {
     "docs/public/void-ui-wave1-foundation-v1/source-manifest.json": "43813323f0dd9360f37e82cd04e8dc63a775e0a7cfac39ed01dc1fa20eefe29d",
-    "docs/public/void-ui-wave2-home-readonly-v1/source-manifest.json": "33fecb6e0411c9f261499aee7009af7ae62ff7d68fc1e6243e052bcdb3c53bbb",
+    "docs/public/void-ui-wave2-home-readonly-v1/source-manifest.json": "8bcd0a8150fa78657fcb30e768f3af8727da26b575ee04985a6a92e8a3766b27",
     "docs/public/void-ui-wave3-wallet-readonly-v1/ACCEPTANCE_CRITERIA.md": "cadc91f6196136e1f817088af378832f7e2f14d5e9e556cd8b8f3d4f57ff5331",
     "docs/public/void-ui-wave3-wallet-readonly-v1/ADAPTER_CONTRACT.md": "06b4c2b8f2be017f1d9a856ed2fa055e3645414ba514fed07e289a16c7f3e46",
     "docs/public/void-ui-wave3-wallet-readonly-v1/README.md": "3ede1b145055c64685c0a918d920ddd651dfc8c46b965a7250d30f359c0ff323",
@@ -35,7 +35,7 @@
     "public/void-app-wave1-v1/assets/js/wallet-live.js": "6a4585aa27fe4b7501ea5bafba7a9c111e099e09e1129cc4cba3ba2f31e7ac84",
     "public/void-app-wave1-v1/index.html": "25949a5916387ddac9dde69720222db38bc0de28483cc74d156138b11dee61c4",
     "src/ui/void_app_wave2_home_readonly_v1.ts": "11607daafb5550f8e6f92736a2a0655f99e6ce3fa90a73a67e71e85775bba901",
-    "src/ui/void_app_wave2_home_source_fetch_v1.ts": "425b9ded9be2fa7f9c2a1bd9ea496aa87b61649fc5e15091519daf2d1c361d20",
+    "src/ui/void_app_wave2_home_source_fetch_v1.ts": "50f9f713759c2cec54d4251122190cd03830b3d70738a444f5451187eaad640e",
     "src/ui/void_app_wave3_wallet_readonly_v1.ts": "e4d64da7c0749c11066b2115c636ca14ac6aed9f0cd2ccf62a65d967266e88e4",
     "src/ui/void_app_wave4_earn_readonly_v1.ts": "4133d33e2295e5401a256619d78ccc1124c7ddf32cc3ea5d18549614604cc360"
   },
