@@ -1,10 +1,113 @@
 name: ops-verify
+
 on: [push, pull_request]
+
+permissions:
+  contents: read
+
 jobs:
-  guards:
+  detect:
     runs-on: ubuntu-latest
+    timeout-minutes: 2
+    outputs:
+      relevant: ${{ steps.scope.outputs.relevant }}
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 2
+          persist-credentials: false
+
+      - name: Prove local relevant-path detector
+        run: |
+          set -euo pipefail
+          TMP="$(mktemp -d)"
+          trap 'rm -rf "$TMP"' EXIT
+          git -C "$TMP" init -q
+          git -C "$TMP" config user.name void-ci-proof
+          git -C "$TMP" config user.email void-ci-proof@example.invalid
+          mkdir -p "$TMP/ops" "$TMP/.github/workflows"
+          : > "$TMP/Makefile"
+          : > "$TMP/ops/prom-verify.sh"
+          : > "$TMP/.github/workflows/ops-verify.yml"
+          git -C "$TMP" add .
+          git -C "$TMP" commit -q -m base
+          BASE="$(git -C "$TMP" rev-parse HEAD)"
+
+          for i in $(seq 1 600); do
+            printf 'noise-%s\n' "$i" > "$TMP/noise-$i.txt"
+          done
+          git -C "$TMP" add .
+          git -C "$TMP" commit -q -m noise
+          NOISE="$(git -C "$TMP" rev-parse HEAD)"
+          git -C "$TMP" diff --quiet "$BASE" "$NOISE" -- \
+            Makefile ops/prom-verify.sh .github/workflows/ops-verify.yml
+
+          printf 'changed\n' >> "$TMP/Makefile"
+          git -C "$TMP" add Makefile
+          git -C "$TMP" commit -q -m relevant
+          RELEVANT="$(git -C "$TMP" rev-parse HEAD)"
+          if git -C "$TMP" diff --quiet "$BASE" "$RELEVANT" -- \
+            Makefile ops/prom-verify.sh .github/workflows/ops-verify.yml; then
+            echo "relevant-path detector failed to find Makefile after large noise set" >&2
+            exit 1
+          fi
+
+      - name: Detect relevant ops verification changes
+        id: scope
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          PUSH_BEFORE_SHA: ${{ github.event.before }}
+          PUSH_AFTER_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          ZERO_SHA="0000000000000000000000000000000000000000"
+          if [ "$EVENT_NAME" = "pull_request" ]; then
+            BASE_SHA="$PR_BASE_SHA"
+            HEAD_SHA="$PR_HEAD_SHA"
+          else
+            BASE_SHA="$PUSH_BEFORE_SHA"
+            HEAD_SHA="$PUSH_AFTER_SHA"
+          fi
+
+          fail_open() {
+            echo "relevant=true" >> "$GITHUB_OUTPUT"
+            echo "Unable to establish a complete local diff; running guards fail-open."
+            exit 0
+          }
+
+          [ -n "${BASE_SHA:-}" ] || fail_open
+          [ -n "${HEAD_SHA:-}" ] || fail_open
+          [ "$BASE_SHA" != "$ZERO_SHA" ] || fail_open
+
+          for sha in "$BASE_SHA" "$HEAD_SHA"; do
+            if ! git cat-file -e "$sha^{commit}" 2>/dev/null; then
+              if ! git fetch --no-tags --depth=1 origin "$sha"; then
+                fail_open
+              fi
+            fi
+          done
+
+          if git diff --quiet "$BASE_SHA" "$HEAD_SHA" -- \
+            Makefile ops/prom-verify.sh .github/workflows/ops-verify.yml; then
+            echo "relevant=false" >> "$GITHUB_OUTPUT"
+            echo "No ops-verify repository inputs changed; guarded checks will be skipped."
+          else
+            echo "relevant=true" >> "$GITHUB_OUTPUT"
+            echo "Relevant ops-verify input changed; guarded checks will run."
+          fi
+
+  guards:
+    needs: detect
+    if: needs.detect.outputs.relevant == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v6
+        with:
+          fetch-depth: 2
+          persist-credentials: false
 
       - name: Guard Makefile shrink (>30 lines)
         run: |
@@ -14,20 +117,105 @@ jobs:
             AFTER=$(test -f Makefile && wc -l < Makefile | tr -d ' ' || echo 0)
             DELTA=$((BEFORE-AFTER))
             if [ "$DELTA" -gt 30 ]; then
-              echo "Makefile shrank by $DELTA lines (limit 30)."; exit 1
+              echo "Makefile shrank by $DELTA lines (limit 30)."
+              exit 1
             fi
           fi
 
-      - name: Install promtool
+      - name: Install bounded pinned promtool
         run: |
-          sudo apt-get update -y
-          sudo apt-get install -y prometheus || true
-          command -v promtool || echo "promtool not found (verify step will be skipped)"
+          set -euo pipefail
+          VER="2.54.1"
+          SHA256="31715ef65e8a898d0f97c8c08c03b6b9afe485ac84e1698bcfec90fc6e62924f"
+          ROOT="/tmp/void-prometheus-${VER}"
+          ARCHIVE="/tmp/prometheus-${VER}.linux-amd64.tar.gz"
+          URL="https://github.com/prometheus/prometheus/releases/download/v${VER}/prometheus-${VER}.linux-amd64.tar.gz"
 
-      - name: Run prom-verify if promtool exists
+          rm -rf "$ROOT"
+          mkdir -p "$ROOT"
+          curl --fail --location --silent --show-error \
+            --connect-timeout 10 --max-time 90 --retry 2 --retry-connrefused \
+            -o "$ARCHIVE" "$URL"
+          printf '%s  %s\n' "$SHA256" "$ARCHIVE" | sha256sum --check --strict
+          tar -xzf "$ARCHIVE" -C "$ROOT" --strip-components=1 \
+            "prometheus-${VER}.linux-amd64/promtool" \
+            "prometheus-${VER}.linux-amd64/prometheus.yml"
+          chmod 0755 "$ROOT/promtool"
+          echo "$ROOT" >> "$GITHUB_PATH"
+          "$ROOT/promtool" --version
+
+      - name: Prove and run ops Prometheus verification
         run: |
-          if command -v promtool >/dev/null 2>&1; then
-            bash ops/prom-verify.sh || exit 1
-          else
-            echo "Skipping prom-verify: promtool unavailable on runner."
+          set -euo pipefail
+          VER="2.54.1"
+          ROOT="/tmp/void-prometheus-${VER}"
+
+          bash -n ops/prom-verify.sh
+
+          sudo rm -rf /etc/prometheus
+          sudo mkdir -p /etc/prometheus
+
+          # Syntax alone is insufficient: the real verifier must reject an
+          # invalid Prometheus configuration.
+          sudo tee /etc/prometheus/prometheus.yml >/dev/null <<'EOF'
+          global:
+            scrape_interval: definitely-not-a-duration
+          EOF
+          if bash ops/prom-verify.sh; then
+            echo "ops/prom-verify.sh accepted an invalid Prometheus configuration" >&2
+            exit 1
           fi
+
+          # Restore a known-valid upstream fixture before exercising rule scans.
+          sudo cp "$ROOT/prometheus.yml" /etc/prometheus/prometheus.yml
+
+          write_valid_rule() {
+            sudo tee "$1" >/dev/null <<'EOF'
+          groups:
+          - name: void-ops-verify-valid
+            rules:
+            - alert: VoidOpsVerifyValid
+              expr: vector(1)
+          EOF
+          }
+
+          write_invalid_rule() {
+            sudo tee "$1" >/dev/null <<'EOF'
+          groups:
+          - name: void-ops-verify-invalid
+            rules:
+            - alert: VoidOpsVerifyInvalid
+              expr: sum(
+          EOF
+          }
+
+          RULE_DIRS=(
+            /etc/prometheus/alerts
+            /etc/prometheus/rules.d
+            /etc/prometheus/void-rules
+          )
+
+          # Prove every canonical rules directory is actually consumed by the
+          # real verifier. Each iteration leaves all other directories valid and
+          # injects one semantically invalid rule into the selected directory.
+          for target in "${RULE_DIRS[@]}"; do
+            for dir in "${RULE_DIRS[@]}"; do
+              sudo rm -rf "$dir"
+              sudo mkdir -p "$dir"
+              write_valid_rule "$dir/valid.yml"
+            done
+            write_invalid_rule "$target/invalid.yml"
+            if bash ops/prom-verify.sh; then
+              echo "ops/prom-verify.sh did not reject invalid rule in $target" >&2
+              exit 1
+            fi
+          done
+
+          # Final positive path: valid config plus valid rules in all three
+          # canonical directories must pass the same production verifier.
+          for dir in "${RULE_DIRS[@]}"; do
+            sudo rm -rf "$dir"
+            sudo mkdir -p "$dir"
+            write_valid_rule "$dir/valid.yml"
+          done
+          bash ops/prom-verify.sh
