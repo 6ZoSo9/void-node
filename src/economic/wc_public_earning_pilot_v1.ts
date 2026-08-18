@@ -1688,22 +1688,27 @@ function recoverPublicClaimReplayV1(
     );
   }
 
-  const issuedState = {
-    ...existingClaim,
-    status: "issued",
-    issued_at_ms: Number(
-      existingClaim.issued_at_ms ||
-        existingClaim.reserved_at_ms ||
-        preparedRecord.issued_at_ms,
-    ),
-    recovery_completed_at_ms: now,
-  };
-  atomicWriteJson(
-    path.join(claimsDir(raw), `${claimId}.json`),
-    issuedState,
-  );
-  primeWcPublicClaimHistoryAuthorityV1(raw);
+  if (status === "publishing") {
+    const issuedState = {
+      ...existingClaim,
+      status: "issued",
+      issued_at_ms: Number(
+        existingClaim.issued_at_ms ||
+          existingClaim.reserved_at_ms ||
+          preparedRecord.issued_at_ms,
+      ),
+      recovery_completed_at_ms: now,
+    };
+    atomicWriteJson(
+      path.join(claimsDir(raw), `${claimId}.json`),
+      issuedState,
+    );
+    primeWcPublicClaimHistoryAuthorityV1(raw);
+  }
 
+  // Exact replay of an already coherent issued claim is read-only.
+  // Rewriting it here would manufacture a new history generation and
+  // unnecessarily force later participant decisions through WARMING.
   return publicClaimSuccessResponseV1(
     claimId,
     {

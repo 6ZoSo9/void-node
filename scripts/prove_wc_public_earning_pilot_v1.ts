@@ -691,6 +691,57 @@ need(
   "claim history request-time zero-scan contract missing",
 );
 need(
+  claimHistoryAuthorityText.includes(
+    "record_generations: Map<string, RecordStampV1>",
+  ),
+  "claim history record-generation manifest missing",
+);
+need(
+  claimHistoryAuthorityText.includes(
+    "watch_generation: number",
+  ),
+  "claim history watch generation missing",
+);
+need(
+  claimHistoryAuthorityText.includes(
+    "fs.watch(",
+  ),
+  "claim history in-place mutation watcher missing",
+);
+need(
+  claimHistoryAuthorityText.includes(
+    "revalidateRecordGenerationsV1",
+  ),
+  "claim history warm does not revalidate record generations",
+);
+need(
+  claimHistoryAuthorityText.includes(
+    "fs.constants.O_NOFOLLOW",
+  ),
+  "claim history record open does not reject symlink substitution",
+);
+need(
+  claimHistoryAuthorityText.includes(
+    "sameRecordStampV1(",
+  ) &&
+    claimHistoryAuthorityText.includes(
+      "_generation_changed",
+    ),
+  "claim history stat/read generation binding missing",
+);
+need(
+  moduleText.includes(
+    'if (status === "publishing") {\n    const issuedState = {',
+  ),
+  "claim replay terminal rewrite is not recovery-only",
+);
+need(
+  moduleText.includes(
+    "Exact replay of an already coherent issued claim is read-only.",
+  ),
+  "issued claim exact replay read-only contract missing",
+);
+need(
   moduleText.includes("claim_nonce_sha256"),
   "public claim nonce is not persisted as a hash",
 );

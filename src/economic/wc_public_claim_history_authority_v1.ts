@@ -20,6 +20,20 @@ type DirStampV1 = {
   ctime_ns: string;
 };
 
+type RecordStampV1 = {
+  dev: string;
+  ino: string;
+  size: string;
+  mtime_ns: string;
+  ctime_ns: string;
+};
+
+type HistoryWatchStateV1 = {
+  generation: number;
+  healthy: boolean;
+  watchers: Array<ReturnType<typeof fs.watch>>;
+};
+
 type HistoryStampsV1 = {
   issued: DirStampV1;
   consumed: DirStampV1;
@@ -46,10 +60,13 @@ type HistoryStateV1 = {
   last_account_at: Map<string, number>;
   last_executor_at: Map<string, number>;
   scanned_files: number;
+  watch_generation: number;
+  record_generations: Map<string, RecordStampV1>;
 };
 
 type WarmFailureV1 = {
   stamps: HistoryStampsV1;
+  watch_generation: number;
   message: string;
 };
 
@@ -73,6 +90,19 @@ export type WcPublicClaimHistorySnapshotV1 = {
 const statesV1 = new Map<string, HistoryStateV1>();
 const warmTasksV1 = new Map<string, Promise<void>>();
 const warmFailuresV1 = new Map<string, WarmFailureV1>();
+const watchStatesV1 = new Map<string, HistoryWatchStateV1>();
+
+export type WcPublicClaimHistoryBeforeRecordReadHookForProofV1 =
+  ((file: string, label: string) => void | Promise<void>) | null;
+
+let beforeRecordReadHookForProofV1:
+  WcPublicClaimHistoryBeforeRecordReadHookForProofV1 = null;
+
+export function setWcPublicClaimHistoryBeforeRecordReadHookForProofV1(
+  hook: WcPublicClaimHistoryBeforeRecordReadHookForProofV1,
+): void {
+  beforeRecordReadHookForProofV1 = hook;
+}
 
 function dataDirV1(raw?: string): string {
   return path.resolve(
@@ -188,9 +218,142 @@ function keyV1(raw?: string): string {
   return dataDirV1(raw);
 }
 
+function closeWatchStateV1(state: HistoryWatchStateV1): void {
+  state.healthy = false;
+  for (const watcher of state.watchers) {
+    try {
+      watcher.close();
+    } catch (error) {
+      void error;
+    }
+  }
+  state.watchers.length = 0;
+}
+
+function ensureWatchStateV1(raw?: string): HistoryWatchStateV1 {
+  ensureDirsV1(raw);
+  const key = keyV1(raw);
+  const existing = watchStatesV1.get(key);
+  if (existing?.healthy) return existing;
+  if (existing) {
+    closeWatchStateV1(existing);
+    watchStatesV1.delete(key);
+  }
+
+  const state: HistoryWatchStateV1 = {
+    generation: 1,
+    healthy: true,
+    watchers: [],
+  };
+  watchStatesV1.set(key, state);
+
+  for (const dir of [
+    issuedDirV1(raw),
+    consumedDirV1(raw),
+    claimsDirV1(raw),
+  ]) {
+    const watcher = fs.watch(
+      dir,
+      { persistent: false },
+      () => {
+        if (!state.healthy) return;
+        state.generation += 1;
+        statesV1.delete(key);
+        warmFailuresV1.delete(key);
+      },
+    );
+    watcher.on("error", (error) => {
+      state.healthy = false;
+      state.generation += 1;
+      statesV1.delete(key);
+      warmFailuresV1.set(key, {
+        stamps: stampsV1(raw),
+        watch_generation: state.generation,
+        message: `watch_error:${String(
+          (error as any)?.message || error,
+        )}`,
+      });
+    });
+    watcher.unref();
+    state.watchers.push(watcher);
+  }
+  return state;
+}
+
+export function wcPublicClaimHistoryWatchGenerationForProofV1(
+  raw?: string,
+): number {
+  return ensureWatchStateV1(raw).generation;
+}
+
+export async function waitForWcPublicClaimHistoryWatchAdvanceForProofV1(
+  raw: string | undefined,
+  previousGeneration: number,
+  timeoutMs = 2_000,
+): Promise<number> {
+  const deadline = Date.now() + Math.max(1, timeoutMs);
+  for (;;) {
+    const generation =
+      ensureWatchStateV1(raw).generation;
+    if (generation > previousGeneration) {
+      return generation;
+    }
+    if (Date.now() >= deadline) {
+      throw new Error(
+        "VOID_WC_PUBLIC_CLAIM_HISTORY_WATCH_TIMEOUT",
+      );
+    }
+    await new Promise<void>((resolve) =>
+      setTimeout(resolve, 5),
+    );
+  }
+}
+
+function recordStampFromStatV1(stat: any): RecordStampV1 {
+  return {
+    dev: String(stat.dev),
+    ino: String(stat.ino),
+    size: String(stat.size),
+    mtime_ns: String(stat.mtimeNs),
+    ctime_ns: String(stat.ctimeNs),
+  };
+}
+
+function sameRecordStampV1(
+  a: RecordStampV1,
+  b: RecordStampV1,
+): boolean {
+  return (
+    a.dev === b.dev &&
+    a.ino === b.ino &&
+    a.size === b.size &&
+    a.mtime_ns === b.mtime_ns &&
+    a.ctime_ns === b.ctime_ns
+  );
+}
+
+async function statRecordPathV1(
+  file: string,
+): Promise<RecordStampV1 | null> {
+  try {
+    const stat: any = await fsp.lstat(
+      file,
+      { bigint: true } as any,
+    );
+    if (!stat.isFile()) return null;
+    return recordStampFromStatV1(stat);
+  } catch (error: any) {
+    if (String(error?.code || "") === "ENOENT") {
+      return null;
+    }
+    throw error;
+  }
+}
+
 function emptyStateV1(
   raw: string | undefined,
   stamps: HistoryStampsV1,
+  watchGeneration: number,
 ): HistoryStateV1 {
   return {
     data_dir: dataDirV1(raw),
@@ -205,6 +368,8 @@ function emptyStateV1(
     last_account_at: new Map(),
     last_executor_at: new Map(),
     scanned_files: 0,
+    watch_generation: watchGeneration,
+    record_generations: new Map(),
   };
 }
 
@@ -231,34 +396,80 @@ function sortTimeMapsV1(map: Map<string, number[]>): void {
 async function readJsonStrictV1(
   file: string,
   label: string,
-): Promise<JsonObject> {
-  const stat = await fsp.stat(file);
-  if (
-    stat.size <= 0 ||
-    stat.size >
-      VOID_WC_PUBLIC_CLAIM_HISTORY_MAX_RECORD_BYTES_V1
-  ) {
-    throw new Error(`${label}_size_invalid`);
-  }
-
-  const text = await fsp.readFile(file, "utf8");
-  let parsed: any;
+): Promise<{
+  record: JsonObject;
+  stamp: RecordStampV1;
+}> {
+  const flags =
+    fs.constants.O_RDONLY |
+    Number(fs.constants.O_NOFOLLOW || 0);
+  const handle = await fsp.open(file, flags);
   try {
-    parsed = JSON.parse(text);
-  } catch (error: any) {
-    throw new Error(
-      `${label}_malformed:${String(error?.message || error)}`,
+    const before: any = await handle.stat(
+      { bigint: true } as any,
     );
-  }
+    if (!before.isFile()) {
+      throw new Error(`${label}_not_regular_file`);
+    }
+    const beforeStamp =
+      recordStampFromStatV1(before);
+    const size = Number(before.size);
+    if (
+      !Number.isSafeInteger(size) ||
+      size <= 0 ||
+      size >
+        VOID_WC_PUBLIC_CLAIM_HISTORY_MAX_RECORD_BYTES_V1
+    ) {
+      throw new Error(`${label}_size_invalid`);
+    }
 
-  if (
-    !parsed ||
-    typeof parsed !== "object" ||
-    Array.isArray(parsed)
-  ) {
-    throw new Error(`${label}_not_object`);
+    await beforeRecordReadHookForProofV1?.(
+      file,
+      label,
+    );
+
+    const text = await handle.readFile("utf8");
+    const after: any = await handle.stat(
+      { bigint: true } as any,
+    );
+    const afterStamp =
+      recordStampFromStatV1(after);
+    if (
+      !after.isFile() ||
+      !sameRecordStampV1(
+        beforeStamp,
+        afterStamp,
+      )
+    ) {
+      throw new Error(
+        `${label}_generation_changed`,
+      );
+    }
+
+    let parsed: any;
+    try {
+      parsed = JSON.parse(text);
+    } catch (error: any) {
+      throw new Error(
+        `${label}_malformed:${String(
+          error?.message || error,
+        )}`,
+      );
+    }
+    if (
+      !parsed ||
+      typeof parsed !== "object" ||
+      Array.isArray(parsed)
+    ) {
+      throw new Error(`${label}_not_object`);
+    }
+    return {
+      record: parsed,
+      stamp: afterStamp,
+    };
+  } finally {
+    await handle.close();
   }
-  return parsed;
 }
 
 function validateTicketV1(
@@ -373,8 +584,13 @@ async function maybeYieldV1(count: number): Promise<void> {
 async function scanHistoryV1(
   raw: string | undefined,
   before: HistoryStampsV1,
+  watchGeneration: number,
 ): Promise<HistoryStateV1> {
-  const state = emptyStateV1(raw, before);
+  const state = emptyStateV1(
+    raw,
+    before,
+    watchGeneration,
+  );
   const warmNow = Date.now();
   const recentCutoff =
     warmNow - DAY_MS_V1 - MAX_CLAIM_SKEW_MS_V1;
@@ -393,10 +609,16 @@ async function scanHistoryV1(
         "issued_ticket_history_not_regular_file",
       );
     }
-    const record = await readJsonStrictV1(
-      path.join(issuedDirV1(raw), entry.name),
-      "issued_ticket_history",
+    const file = path.join(
+      issuedDirV1(raw),
+      entry.name,
     );
+    const { record, stamp } =
+      await readJsonStrictV1(
+        file,
+        "issued_ticket_history",
+      );
+    state.record_generations.set(file, stamp);
     const ticket = validateTicketV1(record, entry.name);
     state.scanned_files += 1;
     if (ticket.expires_at_ms > warmNow) {
@@ -422,10 +644,16 @@ async function scanHistoryV1(
         "consumed_ticket_history_not_regular_file",
       );
     }
-    const record = await readJsonStrictV1(
-      path.join(consumedDirV1(raw), entry.name),
-      "consumed_ticket_history",
+    const file = path.join(
+      consumedDirV1(raw),
+      entry.name,
     );
+    const { record, stamp } =
+      await readJsonStrictV1(
+        file,
+        "consumed_ticket_history",
+      );
+    state.record_generations.set(file, stamp);
     const ticket = validateTicketV1(record, entry.name);
     state.scanned_files += 1;
     state.consumed += 1;
@@ -454,10 +682,16 @@ async function scanHistoryV1(
         "public_claim_history_not_regular_file",
       );
     }
-    const record = await readJsonStrictV1(
-      path.join(claimsDirV1(raw), entry.name),
-      "public_claim_history",
+    const file = path.join(
+      claimsDirV1(raw),
+      entry.name,
     );
+    const { record, stamp } =
+      await readJsonStrictV1(
+        file,
+        "public_claim_history",
+      );
+    state.record_generations.set(file, stamp);
     const claim = validateClaimV1(record, entry.name);
     state.scanned_files += 1;
 
@@ -509,19 +743,75 @@ async function scanHistoryV1(
   return state;
 }
 
+async function revalidateRecordGenerationsV1(
+  state: HistoryStateV1,
+): Promise<boolean> {
+  let checked = 0;
+  for (const [file, expected] of
+    state.record_generations.entries()) {
+    const current = await statRecordPathV1(file);
+    if (
+      !current ||
+      !sameRecordStampV1(expected, current)
+    ) {
+      return false;
+    }
+    checked += 1;
+    await maybeYieldV1(checked);
+  }
+  return true;
+}
+
 async function rebuildHistoryV1(
   raw?: string,
 ): Promise<void> {
   ensureDirsV1(raw);
   const key = keyV1(raw);
+  const watch = ensureWatchStateV1(raw);
 
-  for (let attempt = 0; attempt < 3; attempt += 1) {
+  for (let attempt = 0; attempt < 8; attempt += 1) {
+    if (!watch.healthy) {
+      throw new Error(
+        "VOID_WC_PUBLIC_CLAIM_HISTORY_WATCH_INVALID",
+      );
+    }
+
     const before = stampsV1(raw);
-    const state = await scanHistoryV1(raw, before);
-    const after = stampsV1(raw);
+    const watchBefore = watch.generation;
+    let state: HistoryStateV1;
+    try {
+      state = await scanHistoryV1(
+        raw,
+        before,
+        watchBefore,
+      );
+    } catch (error: any) {
+      if (
+        String(error?.message || error).includes(
+          "_generation_changed",
+        )
+      ) {
+        await new Promise<void>((resolve) =>
+          setImmediate(resolve),
+        );
+        continue;
+      }
+      throw error;
+    }
 
-    if (sameStampsV1(before, after)) {
+    const recordsStable =
+      await revalidateRecordGenerationsV1(state);
+    const after = stampsV1(raw);
+    const watchAfter = watch.generation;
+
+    if (
+      recordsStable &&
+      watch.healthy &&
+      watchBefore === watchAfter &&
+      sameStampsV1(before, after)
+    ) {
       state.stamps = after;
+      state.watch_generation = watchAfter;
       statesV1.set(key, state);
       warmFailuresV1.delete(key);
       return;
@@ -541,13 +831,30 @@ function startWarmV1(raw?: string): void {
   const key = keyV1(raw);
   if (warmTasksV1.has(key)) return;
 
+  const watch = ensureWatchStateV1(raw);
+  if (!watch.healthy) {
+    warmFailuresV1.set(key, {
+      stamps: stampsV1(raw),
+      watch_generation: watch.generation,
+      message:
+        "VOID_WC_PUBLIC_CLAIM_HISTORY_WATCH_INVALID",
+    });
+    return;
+  }
+
   const task = (async () => {
     try {
       await rebuildHistoryV1(raw);
     } catch (error: any) {
+      const currentWatch =
+        ensureWatchStateV1(raw);
       warmFailuresV1.set(key, {
         stamps: stampsV1(raw),
-        message: String(error?.message || error),
+        watch_generation:
+          currentWatch.generation,
+        message: String(
+          error?.message || error,
+        ),
       });
     } finally {
       warmTasksV1.delete(key);
@@ -560,11 +867,22 @@ function startWarmV1(raw?: string): void {
 function readyStateV1(raw?: string): HistoryStateV1 {
   ensureDirsV1(raw);
   const key = keyV1(raw);
+  const watch = ensureWatchStateV1(raw);
   const current = stampsV1(raw);
   const failure = warmFailuresV1.get(key);
 
+  if (!watch.healthy) {
+    throw new Error(
+      "VOID_WC_PUBLIC_CLAIM_HISTORY_INVALID",
+    );
+  }
+
   if (failure) {
-    if (sameStampsV1(failure.stamps, current)) {
+    if (
+      failure.watch_generation ===
+        watch.generation &&
+      sameStampsV1(failure.stamps, current)
+    ) {
       throw new Error(
         "VOID_WC_PUBLIC_CLAIM_HISTORY_INVALID",
       );
@@ -581,6 +899,8 @@ function readyStateV1(raw?: string): HistoryStateV1 {
   const state = statesV1.get(key);
   if (
     !state ||
+    state.watch_generation !==
+      watch.generation ||
     !sameStampsV1(state.stamps, current)
   ) {
     startWarmV1(raw);
@@ -723,12 +1043,17 @@ export function primeWcPublicClaimHistoryAuthorityV1(
 ): void {
   ensureDirsV1(raw);
   const key = keyV1(raw);
+  const watch = ensureWatchStateV1(raw);
   const current = stampsV1(raw);
   const state = statesV1.get(key);
   const failure = warmFailuresV1.get(key);
 
+  if (!watch.healthy) return;
+
   if (
     failure &&
+    failure.watch_generation ===
+      watch.generation &&
     sameStampsV1(failure.stamps, current)
   ) {
     return;
@@ -736,6 +1061,8 @@ export function primeWcPublicClaimHistoryAuthorityV1(
 
   if (
     state &&
+    state.watch_generation ===
+      watch.generation &&
     sameStampsV1(state.stamps, current) &&
     !failure
   ) {
@@ -748,23 +1075,47 @@ export function primeWcPublicClaimHistoryAuthorityV1(
 export async function waitForWcPublicClaimHistoryWarmForProofV1(
   raw?: string,
 ): Promise<void> {
-  primeWcPublicClaimHistoryAuthorityV1(raw);
   const key = keyV1(raw);
-  const task = warmTasksV1.get(key);
-  if (task) await task;
 
-  const failure = warmFailuresV1.get(key);
-  if (failure) {
-    throw new Error(
-      `VOID_WC_PUBLIC_CLAIM_HISTORY_INVALID:${failure.message}`,
+  for (let attempt = 0; attempt < 12; attempt += 1) {
+    primeWcPublicClaimHistoryAuthorityV1(raw);
+    const task = warmTasksV1.get(key);
+    if (task) await task;
+
+    const watch = ensureWatchStateV1(raw);
+    const current = stampsV1(raw);
+    const failure = warmFailuresV1.get(key);
+
+    if (
+      failure &&
+      failure.watch_generation ===
+        watch.generation &&
+      sameStampsV1(failure.stamps, current)
+    ) {
+      throw new Error(
+        `VOID_WC_PUBLIC_CLAIM_HISTORY_INVALID:${failure.message}`,
+      );
+    }
+
+    const state = statesV1.get(key);
+    if (
+      watch.healthy &&
+      state &&
+      state.watch_generation ===
+        watch.generation &&
+      sameStampsV1(state.stamps, current)
+    ) {
+      return;
+    }
+
+    await new Promise<void>((resolve) =>
+      setImmediate(resolve),
     );
   }
 
-  if (!statesV1.has(key)) {
-    throw new Error(
-      "VOID_WC_PUBLIC_CLAIM_HISTORY_NOT_READY",
-    );
-  }
+  throw new Error(
+    "VOID_WC_PUBLIC_CLAIM_HISTORY_NOT_READY",
+  );
 }
 
 export function resetWcPublicClaimHistoryAuthorityForProofV1(
@@ -778,4 +1129,9 @@ export function resetWcPublicClaimHistoryAuthorityForProofV1(
   }
   statesV1.delete(key);
   warmFailuresV1.delete(key);
+  const watch = watchStatesV1.get(key);
+  if (watch) {
+    closeWatchStateV1(watch);
+    watchStatesV1.delete(key);
+  }
 }

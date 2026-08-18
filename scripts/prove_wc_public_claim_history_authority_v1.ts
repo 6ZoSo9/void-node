@@ -55,6 +55,22 @@ function hex(value: number, width: number): string {
     .slice(-width);
 }
 
+function dirStamp(dir: string): {
+  ino: string;
+  mtime_ns: string;
+  ctime_ns: string;
+} {
+  const stat: any = fs.statSync(
+    dir,
+    { bigint: true } as any,
+  );
+  return {
+    ino: String(stat.ino),
+    mtime_ns: String(stat.mtimeNs),
+    ctime_ns: String(stat.ctimeNs),
+  };
+}
+
 async function main(): Promise<void> {
   const authority = await import(
     "../src/economic/wc_public_claim_history_authority_v1.js"
@@ -366,6 +382,383 @@ async function main(): Promise<void> {
     fs.rmSync(tmp, { recursive: true, force: true });
   }
 
+
+  {
+    const tmp = fs.mkdtempSync(
+      path.join(
+        os.tmpdir(),
+        "void-public-claim-history-record-generation-v1-",
+      ),
+    );
+    configure(tmp);
+    const d = ensureHistoryDirs(tmp);
+    const now = Date.now();
+
+    const ticketId = "a".repeat(32);
+    const accountA = "record-account-a";
+    const accountB = "record-account-b";
+    const executor = "b".repeat(32);
+    const issuedFile = path.join(
+      d.issued,
+      `${ticketId}.json`,
+    );
+
+    function ticketRecord(account: string): string {
+      return (
+        JSON.stringify({
+          marker: "VOID_WC_PUBLIC_EARNING_PILOT_V1",
+          version: 1,
+          ticket_id: ticketId,
+          account,
+          executor_node_id: executor,
+          expires_at_ms: now + 300_000,
+          status: "issued",
+        }) + "\n"
+      );
+    }
+
+    const ticketA = ticketRecord(accountA);
+    const ticketB = ticketRecord(accountB);
+    assert.equal(
+      Buffer.byteLength(ticketA),
+      Buffer.byteLength(ticketB),
+      "record-generation adversary must preserve byte length",
+    );
+    fs.writeFileSync(
+      issuedFile,
+      ticketA,
+      { mode: 0o600 },
+    );
+
+    const claimId = "c".repeat(64);
+    const claimA = "claim-account-a";
+    const claimB = "claim-account-b";
+    const claimFile = path.join(
+      d.claims,
+      `${claimId}.json`,
+    );
+
+    function claimRecord(account: string): string {
+      return (
+        JSON.stringify({
+          marker: "VOID_WC_PUBLIC_TICKET_CLAIM_V1",
+          version: 1,
+          claim_id: claimId,
+          status: "issued",
+          issued_at_ms: now - 30_000,
+          account,
+          executor_node_id: executor,
+        }) + "\n"
+      );
+    }
+
+    const claimTextA = claimRecord(claimA);
+    const claimTextB = claimRecord(claimB);
+    assert.equal(
+      Buffer.byteLength(claimTextA),
+      Buffer.byteLength(claimTextB),
+      "claim-generation adversary must preserve byte length",
+    );
+    fs.writeFileSync(
+      claimFile,
+      claimTextA,
+      { mode: 0o600 },
+    );
+
+    authority.resetWcPublicClaimHistoryAuthorityForProofV1(
+      tmp,
+    );
+    authority.primeWcPublicClaimHistoryAuthorityV1(
+      tmp,
+    );
+    await authority.waitForWcPublicClaimHistoryWarmForProofV1(
+      tmp,
+    );
+
+    let snapshot =
+      authority.wcPublicClaimHistorySnapshotV1(
+        tmp,
+        now,
+        accountA,
+        executor,
+        300_000,
+      );
+    assert.equal(snapshot.active_account, 1);
+
+    const issuedDirBefore = dirStamp(d.issued);
+    const issuedGeneration =
+      authority.wcPublicClaimHistoryWatchGenerationForProofV1(
+        tmp,
+      );
+    fs.writeFileSync(
+      issuedFile,
+      ticketB,
+      { mode: 0o600 },
+    );
+    const issuedDirAfter = dirStamp(d.issued);
+    assert.deepEqual(
+      issuedDirAfter,
+      issuedDirBefore,
+      "in-place issued-record rewrite unexpectedly changed parent directory stamp",
+    );
+    await authority.waitForWcPublicClaimHistoryWatchAdvanceForProofV1(
+      tmp,
+      issuedGeneration,
+    );
+    assert.throws(
+      () =>
+        authority.wcPublicClaimHistorySnapshotV1(
+          tmp,
+          now,
+          accountA,
+          executor,
+          300_000,
+        ),
+      /VOID_WC_PUBLIC_CLAIM_HISTORY_WARMING/,
+    );
+    await authority.waitForWcPublicClaimHistoryWarmForProofV1(
+      tmp,
+    );
+    snapshot =
+      authority.wcPublicClaimHistorySnapshotV1(
+        tmp,
+        now,
+        accountA,
+        executor,
+        300_000,
+      );
+    assert.equal(snapshot.active_account, 0);
+    assert.equal(
+      authority.wcPublicClaimHistorySnapshotV1(
+        tmp,
+        now,
+        accountB,
+        executor,
+        300_000,
+      ).active_account,
+      1,
+    );
+
+    const claimsDirBefore = dirStamp(d.claims);
+    const claimGeneration =
+      authority.wcPublicClaimHistoryWatchGenerationForProofV1(
+        tmp,
+      );
+    fs.writeFileSync(
+      claimFile,
+      claimTextB,
+      { mode: 0o600 },
+    );
+    const claimsDirAfter = dirStamp(d.claims);
+    assert.deepEqual(
+      claimsDirAfter,
+      claimsDirBefore,
+      "in-place claim rewrite unexpectedly changed parent directory stamp",
+    );
+    await authority.waitForWcPublicClaimHistoryWatchAdvanceForProofV1(
+      tmp,
+      claimGeneration,
+    );
+    assert.throws(
+      () =>
+        authority.wcPublicClaimHistorySnapshotV1(
+          tmp,
+          now,
+          claimA,
+          executor,
+          300_000,
+        ),
+      /VOID_WC_PUBLIC_CLAIM_HISTORY_WARMING/,
+    );
+    await authority.waitForWcPublicClaimHistoryWarmForProofV1(
+      tmp,
+    );
+    assert.equal(
+      authority.wcPublicClaimHistorySnapshotV1(
+        tmp,
+        now,
+        claimA,
+        executor,
+        300_000,
+      ).account_24h,
+      0,
+    );
+    assert.equal(
+      authority.wcPublicClaimHistorySnapshotV1(
+        tmp,
+        now,
+        claimB,
+        executor,
+        300_000,
+      ).account_24h,
+      1,
+    );
+
+    const malformedGeneration =
+      authority.wcPublicClaimHistoryWatchGenerationForProofV1(
+        tmp,
+      );
+    const issuedDirBeforeMalformed =
+      dirStamp(d.issued);
+    fs.writeFileSync(
+      issuedFile,
+      "{broken\n",
+      { mode: 0o600 },
+    );
+    assert.deepEqual(
+      dirStamp(d.issued),
+      issuedDirBeforeMalformed,
+      "valid-to-malformed in-place rewrite unexpectedly changed parent directory stamp",
+    );
+    await authority.waitForWcPublicClaimHistoryWatchAdvanceForProofV1(
+      tmp,
+      malformedGeneration,
+    );
+    assert.throws(
+      () =>
+        authority.wcPublicClaimHistorySnapshotV1(
+          tmp,
+          now,
+          accountB,
+          executor,
+          300_000,
+        ),
+      /VOID_WC_PUBLIC_CLAIM_HISTORY_WARMING/,
+    );
+    await assert.rejects(
+      () =>
+        authority.waitForWcPublicClaimHistoryWarmForProofV1(
+          tmp,
+        ),
+      /VOID_WC_PUBLIC_CLAIM_HISTORY_INVALID/,
+    );
+    assert.throws(
+      () =>
+        authority.wcPublicClaimHistorySnapshotV1(
+          tmp,
+          now,
+          accountB,
+          executor,
+          300_000,
+        ),
+      /VOID_WC_PUBLIC_CLAIM_HISTORY_INVALID/,
+    );
+
+    fs.rmSync(tmp, {
+      recursive: true,
+      force: true,
+    });
+  }
+
+  {
+    const tmp = fs.mkdtempSync(
+      path.join(
+        os.tmpdir(),
+        "void-public-claim-history-stat-read-race-v1-",
+      ),
+    );
+    configure(tmp);
+    const d = ensureHistoryDirs(tmp);
+    const now = Date.now();
+    const ticketId = "d".repeat(32);
+    const executor = "e".repeat(32);
+    const accountA = "race-account-a";
+    const accountB = "race-account-b";
+    const file = path.join(
+      d.issued,
+      `${ticketId}.json`,
+    );
+
+    function record(account: string): string {
+      return (
+        JSON.stringify({
+          marker: "VOID_WC_PUBLIC_EARNING_PILOT_V1",
+          version: 1,
+          ticket_id: ticketId,
+          account,
+          executor_node_id: executor,
+          expires_at_ms: now + 300_000,
+          status: "issued",
+        }) + "\n"
+      );
+    }
+
+    const first = record(accountA);
+    const second = record(accountB);
+    assert.equal(
+      Buffer.byteLength(first),
+      Buffer.byteLength(second),
+    );
+    fs.writeFileSync(
+      file,
+      first,
+      { mode: 0o600 },
+    );
+
+    authority.resetWcPublicClaimHistoryAuthorityForProofV1(
+      tmp,
+    );
+
+    let injected = false;
+    authority.setWcPublicClaimHistoryBeforeRecordReadHookForProofV1(
+      async (target: string, label: string) => {
+        if (
+          injected ||
+          target !== file ||
+          label !== "issued_ticket_history"
+        ) {
+          return;
+        }
+        injected = true;
+        fs.writeFileSync(
+          file,
+          second,
+          { mode: 0o600 },
+        );
+      },
+    );
+
+    try {
+      authority.primeWcPublicClaimHistoryAuthorityV1(
+        tmp,
+      );
+      await authority.waitForWcPublicClaimHistoryWarmForProofV1(
+        tmp,
+      );
+    } finally {
+      authority.setWcPublicClaimHistoryBeforeRecordReadHookForProofV1(
+        null,
+      );
+    }
+
+    assert.equal(injected, true);
+    assert.equal(
+      authority.wcPublicClaimHistorySnapshotV1(
+        tmp,
+        now,
+        accountA,
+        executor,
+        300_000,
+      ).active_account,
+      0,
+    );
+    assert.equal(
+      authority.wcPublicClaimHistorySnapshotV1(
+        tmp,
+        now,
+        accountB,
+        executor,
+        300_000,
+      ).active_account,
+      1,
+    );
+
+    fs.rmSync(tmp, {
+      recursive: true,
+      force: true,
+    });
+  }
+
   console.log(
     "VOID_WC_PUBLIC_CLAIM_HISTORY_AUTHORITY_V1_GREEN",
   );
@@ -377,6 +770,9 @@ async function main(): Promise<void> {
   );
   console.log("malformed_history_fail_closed=true");
   console.log("background_rebuild_yields_event_loop=true");
+  console.log("record_generation_bound=true");
+  console.log("in_place_rewrite_invalidates_cache=true");
+  console.log("stat_read_generation_toctou_closed=true");
 }
 
 main().catch((error) => {
