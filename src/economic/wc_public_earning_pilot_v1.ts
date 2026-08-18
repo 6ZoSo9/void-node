@@ -1592,12 +1592,31 @@ async function appendExactOnce(
   return { appended: true, existing: null };
 }
 
+let importedRemoteTruthSerialTailV1: Promise<void> = Promise.resolve();
+
+async function serializeImportedRemoteTruthV1<T>(
+  fn: () => Promise<T>,
+): Promise<T> {
+  const previous = importedRemoteTruthSerialTailV1;
+  let release!: () => void;
+  importedRemoteTruthSerialTailV1 = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  await previous;
+  try {
+    return await fn();
+  } finally {
+    release();
+  }
+}
+
 export async function persistImportedRemoteTruthOnce(
   envelopeRaw: Partial<PilotResultEnvelope>,
   signatureRaw: JsonObject,
   raw?: string,
 ): Promise<JsonObject> {
-  const envelope = verifyPilotResultEnvelope(envelopeRaw, signatureRaw);
+  return serializeImportedRemoteTruthV1(async () => {
+    const envelope = verifyPilotResultEnvelope(envelopeRaw, signatureRaw);
   const dataDir = resolveDataDir(raw);
   const importedAt = Date.now();
   const provenance = {
@@ -1687,6 +1706,7 @@ export async function persistImportedRemoteTruthOnce(
       completed: completedResult.appended,
     },
   };
+  }); // VOID_WC_IMPORTED_REMOTE_TRUTH_SERIAL_V1
 }
 
 export async function verifyPilotSubmissionEvidence(

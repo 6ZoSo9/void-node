@@ -242,6 +242,21 @@ try {
     ),
   );
 
+  assert.ok(
+    pilotSource.includes(
+      "let importedRemoteTruthSerialTailV1: Promise<void> = Promise.resolve();",
+    ),
+  );
+  assert.ok(
+    pilotSource.includes("async function serializeImportedRemoteTruthV1<T>("),
+  );
+  assert.ok(pilotSource.includes("await previous;"));
+  assert.ok(
+    pilotSource.includes(
+      "return serializeImportedRemoteTruthV1(async () => {",
+    ),
+  );
+
   console.log(`${MARKER}_PROOF_GREEN`);
   console.log(`live_receipts_bytes=${LIVE_RECEIPTS_BYTES}`);
   console.log(`live_job_state_bytes=${LIVE_JOB_STATE_BYTES}`);
@@ -253,6 +268,7 @@ try {
   console.log("wc_public_exact_once_writer_witness_bound=true");
   console.log("wc_public_exact_once_history_scan_streamed_async=true");
   console.log("wc_public_history_scan_generation_bounded=true");
+  console.log("wc_public_import_transaction_serialized=true");
   console.log("live_runtime_mutation_performed=false");
 } finally {
   fs.rmSync(root, { recursive: true, force: true });

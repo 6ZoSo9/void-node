@@ -235,6 +235,25 @@ need(
 
 need(
   moduleText.includes(
+    "let importedRemoteTruthSerialTailV1: Promise<void> = Promise.resolve();",
+  ),
+  "WC imported-truth serializer tail missing",
+);
+need(
+  moduleText.includes("async function serializeImportedRemoteTruthV1<T>("),
+  "WC imported-truth serializer helper missing",
+);
+need(
+  moduleText.includes("await previous;"),
+  "WC imported-truth serializer does not wait for prior import",
+);
+need(
+  moduleText.includes("return serializeImportedRemoteTruthV1(async () => {"),
+  "WC imported-truth persistence is not serialized",
+);
+
+need(
+  moduleText.includes(
     "process.env.VOID_WC_PUBLIC_TICKET_CLAIM_DATASET_ID",
   ),
   "public claim server-selected dataset source missing",

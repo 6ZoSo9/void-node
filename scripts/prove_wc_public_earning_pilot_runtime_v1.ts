@@ -280,6 +280,84 @@ async function main(): Promise<void> {
   assert.equal(importedAgain.appended.job, false);
   assert.equal(importedAgain.appended.completed, false);
 
+  const raceTmp = fs.mkdtempSync(
+    path.join(os.tmpdir(), "void-wc-public-earning-pilot-import-race-v1-"),
+  );
+  const raceEnvelope = {
+    ...envelope,
+    ticket_id: "6".repeat(32),
+    job_id: "job_remote_executor_runtime_race_v1",
+    receipt_id: "rcpt_remote_executor_runtime_race_v1",
+    receipt_ts_ms: Date.now() + 1,
+  };
+  const raceSigned = pilot.signPilotResultEnvelope(
+    raceEnvelope,
+    privateKey,
+  );
+  const [raceOne, raceTwo] = await Promise.all([
+    pilot.persistImportedRemoteTruthOnce(
+      raceSigned.envelope,
+      raceSigned.signature,
+      raceTmp,
+    ),
+    pilot.persistImportedRemoteTruthOnce(
+      raceSigned.envelope,
+      raceSigned.signature,
+      raceTmp,
+    ),
+  ]);
+  const raced = [raceOne.appended, raceTwo.appended];
+  for (const entry of raced) {
+    const allTrue =
+      entry.receipt === true &&
+      entry.job === true &&
+      entry.completed === true;
+    const allFalse =
+      entry.receipt === false &&
+      entry.job === false &&
+      entry.completed === false;
+    assert.equal(
+      allTrue || allFalse,
+      true,
+      "concurrent imported-truth result was partially appended",
+    );
+  }
+  assert.equal(
+    raced.filter(
+      (entry) =>
+        entry.receipt === true &&
+        entry.job === true &&
+        entry.completed === true,
+    ).length,
+    1,
+  );
+  assert.equal(
+    raced.filter(
+      (entry) =>
+        entry.receipt === false &&
+        entry.job === false &&
+        entry.completed === false,
+    ).length,
+    1,
+  );
+
+  for (const file of [
+    path.join(raceTmp, "agent_v1", "receipts.jsonl"),
+    path.join(raceTmp, "agent", "jobs.jsonl"),
+    path.join(raceTmp, "agent_v1", "job_state.jsonl"),
+  ]) {
+    const rows = fs
+      .readFileSync(file, "utf8")
+      .trim()
+      .split(/\r?\n/)
+      .filter(Boolean);
+    assert.equal(
+      rows.length,
+      1,
+      `concurrent imported truth duplicated ${file}`,
+    );
+  }
+
   const accepted = await acceptance.acceptVerifiedReceiptOnce(
     imported.receipt,
     {
