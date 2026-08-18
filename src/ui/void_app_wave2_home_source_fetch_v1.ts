@@ -28,9 +28,36 @@ type FetchLike = (
   init?: RequestInit
 ) => Promise<Response>;
 
+export class VoidUiWave2HomeSourceAcquisitionOwnerV1 {
+  private readonly pendingKeys = new Set<string>();
+
+  tryBegin(key: string): boolean {
+    if (this.pendingKeys.has(key)) return false;
+    this.pendingKeys.add(key);
+    return true;
+  }
+
+  finish(key: string): void {
+    this.pendingKeys.delete(key);
+  }
+
+  hasPending(key: string): boolean {
+    return this.pendingKeys.has(key);
+  }
+
+  pendingCount(): number {
+    return this.pendingKeys.size;
+  }
+}
+
+const defaultSourceAcquisitionOwner =
+  new VoidUiWave2HomeSourceAcquisitionOwnerV1();
+
 type FetchOptions = {
   timeoutMs?: number;
   fetchImpl?: FetchLike;
+  acquisitionOwner?: VoidUiWave2HomeSourceAcquisitionOwnerV1;
+  acquisitionKey?: string;
 };
 
 export class VoidUiWave2HomeSnapshotBuildOwnerV1<T> {
@@ -110,8 +137,6 @@ export function parseVoidUiWave2HomeReadinessEvidenceV1(
   if (
     typeof body.ready !== "boolean" ||
     (body.txroot_live !== 0 && body.txroot_live !== 1) ||
-    !Array.isArray(body.reasons) ||
-    !body.reasons.every((reason) => typeof reason === "string") ||
     typeof body.gap !== "number" ||
     !Number.isSafeInteger(body.gap) ||
     body.gap < 0
@@ -119,10 +144,29 @@ export function parseVoidUiWave2HomeReadinessEvidenceV1(
     return null;
   }
 
+  let reasons: string[];
+  if (body.reasons === null) {
+    if (
+      body.ready !== true ||
+      body.txroot_live !== 1 ||
+      body.gap !== 0
+    ) {
+      return null;
+    }
+    reasons = [];
+  } else if (
+    Array.isArray(body.reasons) &&
+    body.reasons.every((reason) => typeof reason === "string")
+  ) {
+    reasons = [...body.reasons] as string[];
+  } else {
+    return null;
+  }
+
   return {
     ready: body.ready,
     txroot_live: body.txroot_live,
-    reasons: [...body.reasons] as string[],
+    reasons,
     gap: body.gap,
   };
 }
@@ -132,12 +176,7 @@ export function parseVoidUiWave2HomeChainHeadV1(
 ): number | null {
   if (!isObjectRecord(body)) return null;
 
-  const value =
-    body.number ??
-    body.height ??
-    body.head ??
-    body.latest ??
-    null;
+  const value = body.number;
 
   return (
     typeof value === "number" &&
@@ -320,12 +359,7 @@ const fetchWithinSignal = async (
   signal: AbortSignal
 ): Promise<Response> => {
   if (signal.aborted) {
-    const reason = sourceDeadlineError(signal);
-    void pendingFetch.then(
-      (response) => cancelLateResponseBounded(response, reason),
-      () => undefined
-    );
-    throw reason;
+    throw sourceDeadlineError(signal);
   }
 
   return await new Promise<Response>((resolve, reject) => {
@@ -348,16 +382,13 @@ const fetchWithinSignal = async (
     signal.addEventListener("abort", onAbort, { once: true });
     pendingFetch.then(
       (response) => {
-        if (settled) {
-          void cancelLateResponseBounded(
-            response,
-            sourceDeadlineError(signal)
-          );
-          return;
-        }
+        if (settled) return;
         settleFetch(() => resolve(response));
       },
-      (error) => settleFetch(() => reject(error))
+      (error) => {
+        if (settled) return;
+        settleFetch(() => reject(error));
+      }
     );
   });
 };
@@ -437,6 +468,19 @@ export async function fetchVoidUiWave2HomeSourceJsonV1(
   route: string,
   options: FetchOptions = {}
 ): Promise<VoidUiWave2HomeSourceResultV1> {
+  const acquisitionOwner =
+    options.acquisitionOwner ?? defaultSourceAcquisitionOwner;
+  const acquisitionKey = String(options.acquisitionKey ?? route);
+
+  if (!acquisitionOwner.tryBegin(acquisitionKey)) {
+    return {
+      ok: false,
+      status: 0,
+      body: null,
+      error: "source_acquisition_quarantined",
+    };
+  }
+
   const controller = new AbortController();
   const timeoutMs =
     Number.isSafeInteger(options.timeoutMs) && Number(options.timeoutMs) > 0
@@ -462,6 +506,23 @@ export async function fetchVoidUiWave2HomeSourceJsonV1(
         signal: controller.signal,
       })
     );
+
+    void pendingFetch.then(
+      async (response) => {
+        try {
+          if (controller.signal.aborted) {
+            await cancelLateResponseBounded(
+              response,
+              sourceDeadlineError(controller.signal)
+            );
+          }
+        } finally {
+          acquisitionOwner.finish(acquisitionKey);
+        }
+      },
+      () => acquisitionOwner.finish(acquisitionKey)
+    );
+
     const response = await fetchWithinSignal(
       pendingFetch,
       controller.signal
