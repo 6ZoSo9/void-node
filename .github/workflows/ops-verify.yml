@@ -17,7 +17,7 @@ jobs:
           fetch-depth: 2
           persist-credentials: false
 
-      - name: Prove local relevant-path detector
+      - name: Prove local relevant-path detector and full-range shrink contract
         run: |
           set -euo pipefail
           TMP="$(mktemp -d)"
@@ -51,6 +51,41 @@ jobs:
             echo "relevant-path detector failed to find Makefile after large noise set" >&2
             exit 1
           fi
+
+          # A PR-range shrink must not disappear merely because a later commit
+          # stops touching Makefile. Prove the full range sees what HEAD~1 cannot.
+          for i in $(seq 1 80); do
+            printf 'target-%s:\n\t@true\n' "$i"
+          done > "$TMP/Makefile"
+          git -C "$TMP" add Makefile
+          git -C "$TMP" commit -q -m shrink-base
+          SHRINK_BASE="$(git -C "$TMP" rev-parse HEAD)"
+
+          for i in $(seq 1 20); do
+            printf 'target-%s:\n\t@true\n' "$i"
+          done > "$TMP/Makefile"
+          git -C "$TMP" add Makefile
+          git -C "$TMP" commit -q -m shrink
+
+          printf '# later relevant change\n' >> "$TMP/ops/prom-verify.sh"
+          git -C "$TMP" add ops/prom-verify.sh
+          git -C "$TMP" commit -q -m later-relevant
+          SHRINK_HEAD="$(git -C "$TMP" rev-parse HEAD)"
+
+          LAST_BEFORE="$(git -C "$TMP" show "$SHRINK_HEAD~1:Makefile" | wc -l | tr -d ' ')"
+          LAST_AFTER="$(git -C "$TMP" show "$SHRINK_HEAD:Makefile" | wc -l | tr -d ' ')"
+          [ "$LAST_BEFORE" -eq "$LAST_AFTER" ] || {
+            echo "synthetic last-commit control unexpectedly changed Makefile" >&2
+            exit 1
+          }
+
+          RANGE_BEFORE="$(git -C "$TMP" show "$SHRINK_BASE:Makefile" | wc -l | tr -d ' ')"
+          RANGE_AFTER="$(git -C "$TMP" show "$SHRINK_HEAD:Makefile" | wc -l | tr -d ' ')"
+          RANGE_DELTA=$((RANGE_BEFORE-RANGE_AFTER))
+          [ "$RANGE_DELTA" -gt 30 ] || {
+            echo "full-range shrink proof did not exceed 30-line threshold" >&2
+            exit 1
+          }
 
       - name: Detect relevant ops verification changes
         id: scope
@@ -109,17 +144,52 @@ jobs:
           fetch-depth: 2
           persist-credentials: false
 
-      - name: Guard Makefile shrink (>30 lines)
+      - name: Guard Makefile shrink (>30 lines) over complete event range
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          PUSH_BEFORE_SHA: ${{ github.event.before }}
+          PUSH_AFTER_SHA: ${{ github.sha }}
         run: |
           set -euo pipefail
-          if git rev-parse --verify HEAD~1 >/dev/null 2>&1; then
-            BEFORE=$(git show HEAD~1:Makefile 2>/dev/null | wc -l | tr -d ' ')
-            AFTER=$(test -f Makefile && wc -l < Makefile | tr -d ' ' || echo 0)
-            DELTA=$((BEFORE-AFTER))
-            if [ "$DELTA" -gt 30 ]; then
-              echo "Makefile shrank by $DELTA lines (limit 30)."
+          ZERO_SHA="0000000000000000000000000000000000000000"
+          if [ "$EVENT_NAME" = "pull_request" ]; then
+            BASE_SHA="$PR_BASE_SHA"
+            HEAD_SHA="$PR_HEAD_SHA"
+          else
+            BASE_SHA="$PUSH_BEFORE_SHA"
+            HEAD_SHA="$PUSH_AFTER_SHA"
+          fi
+
+          # A newly created branch has no previous push commit, so there is no
+          # meaningful shrink range to compare. Pull requests always have a base.
+          if [ -z "${BASE_SHA:-}" ] || [ "$BASE_SHA" = "$ZERO_SHA" ]; then
+            if [ "$EVENT_NAME" = "pull_request" ]; then
+              echo "Pull-request base SHA unavailable; refusing to waive Makefile shrink guard." >&2
               exit 1
             fi
+            echo "No previous push commit; Makefile shrink guard not applicable to this creation event."
+            exit 0
+          fi
+          [ -n "${HEAD_SHA:-}" ] || {
+            echo "Head SHA unavailable; refusing to waive Makefile shrink guard." >&2
+            exit 1
+          }
+
+          for sha in "$BASE_SHA" "$HEAD_SHA"; do
+            if ! git cat-file -e "$sha^{commit}" 2>/dev/null; then
+              git fetch --no-tags --depth=1 origin "$sha"
+            fi
+            git cat-file -e "$sha^{commit}"
+          done
+
+          BEFORE="$(git show "$BASE_SHA:Makefile" | wc -l | tr -d ' ')"
+          AFTER="$(git show "$HEAD_SHA:Makefile" | wc -l | tr -d ' ')"
+          DELTA=$((BEFORE-AFTER))
+          if [ "$DELTA" -gt 30 ]; then
+            echo "Makefile shrank by $DELTA lines across the complete event range (limit 30)."
+            exit 1
           fi
 
       - name: Install bounded pinned promtool
