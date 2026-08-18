@@ -110,6 +110,31 @@ for (const marker of [
 }
 
 need(
+  moduleText.includes("VOID_WC_PUBLIC_REMOTE_EVIDENCE_MAX_JSON_BYTES_V1"),
+  "inbound executor evidence byte ceiling missing",
+);
+need(
+  moduleText.includes('response.headers.get("content-length")'),
+  "declared response length fast reject missing",
+);
+need(
+  moduleText.includes("response.body.getReader()"),
+  "streamed response byte accounting missing",
+);
+need(
+  moduleText.includes("total + bytes > maxBodyBytes"),
+  "streamed response limit+1 rejection missing",
+);
+need(
+  !moduleText.includes("await response.text()"),
+  "unbounded response.text buffering remains",
+);
+need(
+  moduleText.includes('error: "remote_evidence_body_too_large"'),
+  "oversize evidence does not use stable participant error",
+);
+
+need(
   moduleText.includes(
     '`${localBase}/jobs/submit?dry=0&confirm=jobsSubmit`',
   ),

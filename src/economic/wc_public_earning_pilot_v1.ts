@@ -23,6 +23,8 @@ export const VOID_WC_PUBLIC_EARNING_PILOT_MARKER =
 export const VOID_WC_PUBLIC_EARNING_PILOT_TASK =
   "datanet_fetch_verify";
 export const VOID_WC_PUBLIC_EARNING_PILOT_AWARD_WC = 3;
+export const VOID_WC_PUBLIC_REMOTE_EVIDENCE_MAX_JSON_BYTES_V1 = 1024 * 1024;
+const VOID_WC_PUBLIC_FETCH_MAX_JSON_BYTES_V1 = 8 * 1024 * 1024;
 export const VOID_WC_PUBLIC_TICKET_CLAIM_MARKER =
   "VOID_WC_PUBLIC_TICKET_CLAIM_V1";
 
@@ -1358,10 +1360,75 @@ export function verifyPilotResultEnvelope(
   return envelope;
 }
 
+async function cancelReadableBestEffortV1(
+  readable: any,
+  scope: string,
+): Promise<void> {
+  if (!readable || typeof readable.cancel !== "function") return;
+  try {
+    await readable.cancel("void_json_body_bound_v1");
+  } catch (error) {
+    recordPilotBestEffortFailure(scope, error);
+  }
+}
+
+async function responseTextBoundedV1(
+  response: Response,
+  maxBodyBytesRaw: number,
+): Promise<string> {
+  const maxBodyBytes = Number.isSafeInteger(maxBodyBytesRaw)
+    ? Math.max(1, maxBodyBytesRaw)
+    : VOID_WC_PUBLIC_FETCH_MAX_JSON_BYTES_V1;
+  const declaredRaw = String(
+    response.headers.get("content-length") || "",
+  ).trim();
+  if (/^[0-9]+$/.test(declaredRaw)) {
+    const declared = Number(declaredRaw);
+    if (!Number.isSafeInteger(declared) || declared > maxBodyBytes) {
+      await cancelReadableBestEffortV1(
+        response.body,
+        "fetch-json-declared-oversize-cancel",
+      );
+      throw new Error("remote_evidence_body_too_large");
+    }
+  }
+
+  if (!response.body) return "";
+  const reader = response.body.getReader();
+  const chunks: Buffer[] = [];
+  let total = 0;
+  try {
+    for (;;) {
+      const part = await reader.read();
+      if (part.done) break;
+      const bytes = Number(part.value?.byteLength || 0);
+      if (total + bytes > maxBodyBytes) {
+        await cancelReadableBestEffortV1(
+          reader,
+          "fetch-json-streamed-oversize-cancel",
+        );
+        throw new Error("remote_evidence_body_too_large");
+      }
+      if (bytes > 0) {
+        chunks.push(Buffer.from(part.value));
+        total += bytes;
+      }
+    }
+  } finally {
+    try {
+      reader.releaseLock();
+    } catch (error) {
+      recordPilotBestEffortFailure("fetch-json-reader-release", error);
+    }
+  }
+  return Buffer.concat(chunks, total).toString("utf8");
+}
+
 async function fetchJson(
   url: string,
   init?: RequestInit,
   timeoutMs = 30_000,
+  maxBodyBytes = VOID_WC_PUBLIC_FETCH_MAX_JSON_BYTES_V1,
 ): Promise<JsonObject> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
@@ -1370,7 +1437,7 @@ async function fetchJson(
       ...(init || {}),
       signal: controller.signal,
     });
-    const text = await response.text();
+    const text = await responseTextBoundedV1(response, maxBodyBytes);
     let body: any = {};
     try {
       body = text ? JSON.parse(text) : {};
@@ -1912,6 +1979,7 @@ export async function verifyPilotSubmissionEvidence(
     `${record.executor_http_base}/health`,
     undefined,
     10_000,
+    VOID_WC_PUBLIC_REMOTE_EVIDENCE_MAX_JSON_BYTES_V1,
   );
   if (safeNodeId(health?.nodeId) !== record.executor_node_id) {
     throw new Error("remote_health_node_id_mismatch");
@@ -1921,6 +1989,7 @@ export async function verifyPilotSubmissionEvidence(
     `${record.executor_http_base}/jobs/${encodeURIComponent(envelope.job_id)}`,
     undefined,
     15_000,
+    VOID_WC_PUBLIC_REMOTE_EVIDENCE_MAX_JSON_BYTES_V1,
   );
   assertRemoteJobTruth(job, envelope);
 
@@ -1929,6 +1998,7 @@ export async function verifyPilotSubmissionEvidence(
       `?account=${encodeURIComponent(record.account)}&limit=50`,
     undefined,
     15_000,
+    VOID_WC_PUBLIC_REMOTE_EVIDENCE_MAX_JSON_BYTES_V1,
   );
   const receipt = findVerifiedReceipt(
     remoteReceipts,
@@ -2407,6 +2477,9 @@ function publicSubmitErrorV1(error: unknown): {
   }
   if (message === "invalid_capability") {
     return { status: 401, error: message };
+  }
+  if (message === "remote_evidence_body_too_large") {
+    return { status: 413, error: "remote_evidence_body_too_large" };
   }
 
   if (

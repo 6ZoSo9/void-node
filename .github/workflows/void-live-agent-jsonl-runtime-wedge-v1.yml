@@ -15,6 +15,7 @@ on:
       - "scripts/prove_agent_pick2_external_writer_cache_wedge_v1.ts"
       - "src/economic/wc_public_remote_truth_jsonl_index_v1.ts"
       - "scripts/prove_wc_public_remote_truth_atomicity_v1.ts"
+      - "scripts/prove_wc_public_remote_evidence_body_bound_v1.ts"
       - "scripts/prove_wc_public_earning_pilot_v1.ts"
       - "scripts/prove_wc_public_earning_pilot_runtime_v1.ts"
       - "runtime/canonical-producer-self-http-guard-v1.cjs"
@@ -41,6 +42,7 @@ on:
       - "scripts/prove_agent_pick2_external_writer_cache_wedge_v1.ts"
       - "src/economic/wc_public_remote_truth_jsonl_index_v1.ts"
       - "scripts/prove_wc_public_remote_truth_atomicity_v1.ts"
+      - "scripts/prove_wc_public_remote_evidence_body_bound_v1.ts"
       - "scripts/prove_wc_public_earning_pilot_v1.ts"
       - "scripts/prove_wc_public_earning_pilot_runtime_v1.ts"
       - "runtime/canonical-producer-self-http-guard-v1.cjs"
@@ -93,6 +95,7 @@ jobs:
       - run: ./node_modules/.bin/tsx scripts/prove_agent_pick2_large_unwitnessed_completion_wedge_v1.ts
       - run: ./node_modules/.bin/tsx scripts/prove_wc_process_instance_lock_v1.ts
       - run: ./node_modules/.bin/tsx scripts/prove_wc_public_remote_truth_atomicity_v1.ts
+      - run: ./node_modules/.bin/tsx scripts/prove_wc_public_remote_evidence_body_bound_v1.ts
       - run: ./node_modules/.bin/tsx scripts/prove_wc_verified_receipt_acceptance_v1.ts
       - run: ./node_modules/.bin/tsx scripts/prove_wc_public_earning_pilot_v1.ts
       - run: ./node_modules/.bin/tsx scripts/prove_wc_public_earning_pilot_runtime_v1.ts
