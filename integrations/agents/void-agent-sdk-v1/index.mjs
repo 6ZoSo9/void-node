@@ -106,22 +106,14 @@ async function awaitWithinDeadline(operation, request, label) {
   }
 }
 
-async function settleCleanupWithinDeadline(cleanup, deadlineAt) {
+async function settleCleanupWithinTeardownWindow(cleanup) {
   if (!cleanup || typeof cleanup.then !== "function") return;
-  const remaining = Math.min(
-    RESPONSE_TEARDOWN_SETTLE_MAX_MS,
-    Math.max(0, deadlineAt - Date.now()),
-  );
-  if (remaining <= 0) {
-    void Promise.resolve(cleanup).catch(() => undefined);
-    return;
-  }
   let timer;
   try {
     await Promise.race([
       Promise.resolve(cleanup).catch(() => undefined),
       new Promise((resolve) => {
-        timer = setTimeout(resolve, remaining);
+        timer = setTimeout(resolve, RESPONSE_TEARDOWN_SETTLE_MAX_MS);
       }),
     ]);
   } finally {
@@ -137,7 +129,14 @@ async function abortAndCancelWithinDeadline(target, request) {
   } catch {
     return;
   }
-  await settleCleanupWithinDeadline(cleanup, request.deadlineAt);
+  await settleCleanupWithinTeardownWindow(cleanup);
+}
+
+function ownLateFetchResponse(fetchOperation, request) {
+  void Promise.resolve(fetchOperation).then(
+    (lateResponse) => abortAndCancelWithinDeadline(lateResponse?.body, request),
+    () => undefined,
+  ).catch(() => undefined);
 }
 
 async function rejectResponse(response, request, message) {
@@ -237,21 +236,32 @@ async function fetchJson(url, label, options) {
     controller,
     deadlineAt: Date.now() + timeoutMs,
   };
-  const response = await awaitWithinDeadline(
-    Promise.resolve().then(() => fetchImpl(requestedHref, {
-      method: "GET",
-      redirect: "manual",
-      credentials: "omit",
-      cache: "no-store",
-      headers: {
-        accept: "application/json",
-        "user-agent": `void-agent-sdk/${VOID_AGENT_SDK_VERSION}`,
-      },
-      signal: controller.signal,
-    })),
-    request,
-    `${label}_fetch`,
-  );
+  const fetchOperation = Promise.resolve().then(() => fetchImpl(requestedHref, {
+    method: "GET",
+    redirect: "manual",
+    credentials: "omit",
+    cache: "no-store",
+    headers: {
+      accept: "application/json",
+      "user-agent": `void-agent-sdk/${VOID_AGENT_SDK_VERSION}`,
+    },
+    signal: controller.signal,
+  }));
+
+  let response;
+  try {
+    response = await awaitWithinDeadline(
+      fetchOperation,
+      request,
+      `${label}_fetch`,
+    );
+  } catch (error) {
+    if (error?.name === "TimeoutError" &&
+        error?.message === `${label}_fetch_deadline_exceeded`) {
+      ownLateFetchResponse(fetchOperation, request);
+    }
+    throw error;
+  }
 
   if (response.status >= 300 && response.status < 400) {
     await rejectResponse(response, request, `${label}_redirect_rejected`);

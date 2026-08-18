@@ -259,6 +259,34 @@ function lockedReadableResponse() {
   };
 }
 
+function lateResolvedResponse(cancelImpl = () => new Promise(() => {})) {
+  let cancelCalls = 0;
+  let readCalls = 0;
+  return {
+    response: {
+      status: 200,
+      ok: true,
+      url: WELL_KNOWN_URL,
+      redirected: false,
+      headers: new Headers({
+        "content-type": "application/json; charset=utf-8",
+      }),
+      body: {
+        cancel() {
+          cancelCalls += 1;
+          return cancelImpl();
+        },
+        getReader() {
+          readCalls += 1;
+          throw new Error("late response body must not be read");
+        },
+      },
+    },
+    cancelCalls: () => cancelCalls,
+    readCalls: () => readCalls,
+  };
+}
+
 function finalUrlEvidenceResponse(urlValue, { redirected = false } = {}) {
   let cancelCalls = 0;
   let readCalls = 0;
@@ -496,7 +524,7 @@ assertCondition(
 );
 
 const stalledReader = stalledReadableResponse();
-await expectRejectTiming(
+const stalledReaderElapsedMs = await expectRejectTiming(
   "admitted body read ignores abort",
   () =>
     discoverVoidAgentV1({
@@ -506,7 +534,7 @@ await expectRejectTiming(
       fetchImpl: async () => stalledReader.response,
     }),
   "well_known_discovery_body_deadline_exceeded",
-  { minimumMs: 50, maximumMs: 400 },
+  { minimumMs: 300, maximumMs: 650 },
 );
 assertCondition(
   stalledReader.cancelCalls() === 1,
@@ -515,6 +543,10 @@ assertCondition(
 assertCondition(
   stalledReader.releaseCalls() === 1,
   `expected one reader release attempt, got ${stalledReader.releaseCalls()}`,
+);
+assertCondition(
+  stalledReaderElapsedMs >= 300,
+  `stalled reader must retain a post-deadline teardown terminal; elapsed=${stalledReaderElapsedMs}`,
 );
 
 const malformedChunk = malformedChunkResponse();
@@ -592,6 +624,49 @@ assertCondition(
   `expected TimeoutError for stalled custom fetch, got ${neverFetchError?.name}`,
 );
 
+const lateFetch = lateResolvedResponse();
+let lateFetchSignal = null;
+const lateFetchStartedAt = Date.now();
+const lateFetchError = await expectAnyRejectBeforeDeadline(
+  "custom fetch resolves after request deadline",
+  () =>
+    discoverVoidAgentV1({
+      baseUrl: "https://node.example",
+      maxResponseBytes: 1024,
+      timeoutMs: 100,
+      fetchImpl: (_url, init) => {
+        lateFetchSignal = init.signal;
+        return new Promise((resolve) => {
+          setTimeout(() => resolve(lateFetch.response), 160);
+        });
+      },
+    }),
+  400,
+);
+const lateFetchElapsedMs = Date.now() - lateFetchStartedAt;
+assertCondition(
+  lateFetchError?.name === "TimeoutError" &&
+    lateFetchError?.message === "well_known_discovery_fetch_deadline_exceeded",
+  `expected deterministic late-fetch TimeoutError, got ${lateFetchError?.name}:${lateFetchError?.message}`,
+);
+assertCondition(
+  lateFetchElapsedMs < 250,
+  `late fetch must not hold participant response until late cleanup: ${lateFetchElapsedMs}ms`,
+);
+assertCondition(
+  lateFetchSignal?.aborted === true,
+  "late custom fetch must observe the owned request as aborted",
+);
+await new Promise((resolve) => setTimeout(resolve, 400));
+assertCondition(
+  lateFetch.cancelCalls() === 1,
+  `expected exactly one late-response cancellation attempt, got ${lateFetch.cancelCalls()}`,
+);
+assertCondition(
+  lateFetch.readCalls() === 0,
+  `late response must be torn down without body consumption; read_calls=${lateFetch.readCalls()}`,
+);
+
 let repeatedCancelCalls = 0;
 const repeatedStartedAt = Date.now();
 for (let index = 0; index < 3; index += 1) {
@@ -627,7 +702,9 @@ console.log("declared_oversize_primary_error_preserved=true");
 console.log("response_teardown_owned_until_bounded_terminal=true");
 console.log("non_stream_response_text_fallback_forbidden=true");
 console.log("stalled_reader_total_deadline_enforced=true");
+console.log("stalled_reader_separate_teardown_terminal=true");
 console.log("custom_fetch_total_deadline_enforced=true");
+console.log("late_fetch_response_teardown_owned=true");
 console.log("custom_fetch_final_url_identity_bound=true");
 console.log("custom_fetch_request_url_snapshot_immutable=true");
 console.log("repeated_hostile_teardown_terminals_bounded=true");
