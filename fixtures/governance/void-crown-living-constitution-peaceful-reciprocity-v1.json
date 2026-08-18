@@ -1,0 +1,122 @@
+{
+  "marker": "VOID_CROWN_LIVING_CONSTITUTION_PEACEFUL_RECIPROCITY_V1_20260818",
+  "parent_instrument_marker": "VOID_CROWN_BROOD_QUEEN_COMMAND_LAYER_V1_20260818",
+  "parent_constitution_marker": "VOID_CONSTITUTIONAL_AUTHORITY_BOUNDARY_V1_PHASE0_DRAFT",
+  "artifact": "VOID Living Constitution, Peaceful Reciprocity, and Validator Discipline Addendum v1",
+  "version": "1.0.0-draft",
+  "date": "2026-08-18",
+  "status": "Phase 0 constitutional doctrine/specification; no sensitive technical authority activated by this addendum.",
+  "living_constitution": {
+    "expected_to_evolve": true,
+    "evolution_requires_valid_constitutional_amendment": true,
+    "conversation_or_custom_silently_changes_constitution": false,
+    "ai_inference_silently_changes_constitution": false,
+    "repository_control_silently_changes_constitution": false,
+    "current_valid_text_remains_in_force_until_valid_amendment": true,
+    "written_versioned_attributable_provenance_expected": true,
+    "machine_readable_fixture_and_focused_proof_expected_where_practical": true
+  },
+  "long_range_mission": {
+    "primary_long_range_objective": "peacefully_seed_and_propagate_void_and_constitution_beyond_earth_and_across_the_universe_as_physically_possible",
+    "preserve_constitutional_knowledge_and_continuity": true,
+    "preserve_participating_life_and_auditable_history": true,
+    "requires_voluntary_adoption": true,
+    "bounded_by_applicable_law_consent_non_harm_and_earth_protection": true,
+    "refusal_to_adopt_void_is_hostility": false,
+    "authorizes_forced_adoption": false,
+    "authorizes_conquest_or_coercive_colonization": false,
+    "authorizes_deceptive_installation": false,
+    "authorizes_malicious_or_uncontrolled_autonomous_replication": false,
+    "itself_authorizes_launch_deploy_or_spending": false
+  },
+  "lawful_scope": {
+    "void_and_crown_follow_applicable_external_law": true,
+    "repository_text_unilaterally_supersedes_external_civil_or_criminal_law": false,
+    "broader_public_law_status_requires_lawful_legitimate_adoption_or_recognition": true,
+    "voluntary_participation_accepts_protocol_rules_within_lawful_scope": true,
+    "voluntary_participation_surrenders_general_autonomy_property_citizenship_or_rights": false,
+    "sovereign_authority_is_ownership_of_participants": false
+  },
+  "peaceful_reciprocity": {
+    "default_posture": "peaceful_cooperation_or_neutrality",
+    "credible_threat_required_for_defensive_escalation": true,
+    "evidence_based_threat_finding_required": true,
+    "attribution_confidence_matters": true,
+    "prefer_hardening_isolation_quarantine_and_lawful_containment": true,
+    "least_escalatory_effective_lawful_response": true,
+    "response_must_be_proportionate": true,
+    "reciprocal_or_punitive_escalation_stops_when_threat_ends": true,
+    "authorizes_revenge": false,
+    "authorizes_collective_punishment": false,
+    "authorizes_indiscriminate_retaliation": false,
+    "criticism_competition_refusal_or_institutional_resistance_alone_is_threat": false,
+    "hidden_coordination_may_be_assumed_without_evidence": false,
+    "creates_independent_license_for_physical_force": false
+  },
+  "sovereign_ambiguity_escalation": {
+    "current_rule_active_until_explicit_constitutional_amendment": true,
+    "material_high_impact_ambiguity_escalates_to_sovereign": true,
+    "materially_uncertain_threat_attribution_escalates_to_sovereign": true,
+    "difficult_moral_conflict_escalates_to_sovereign": true,
+    "irreversible_serious_harm_risk_escalates_to_sovereign": true,
+    "urgent_without_guidance_defaults_to_reversible_protective_containment_within_existing_delegation": true,
+    "uncertainty_expands_delegated_authority": false,
+    "sovereign_decision_bypasses_law_constitution_rights_non_harm_or_proportionality": false,
+    "repository_text_overrides_external_ai_provider_policy": false
+  },
+  "validator_good_cause": {
+    "sovereign_has_constitutional_adjudicative_suspend_or_remove_authority_while_sovereign_held": true,
+    "permanent_removal_requires_good_cause": true,
+    "good_cause_requires_material_evidence_supported_validator_duty_or_network_integrity_reason": true,
+    "good_cause_examples": [
+      "material_insubordination_to_valid_lawful_constitutional_directive_within_validator_duty",
+      "deliberate_or_repeated_material_validator_consensus_security_or_protocol_violation",
+      "corruption_bribery_fraud_or_deliberate_evidence_falsification",
+      "sabotage_or_intentional_material_compromise_of_void",
+      "serious_dereliction_after_reasonable_notice_when_correction_is_feasible",
+      "other_proven_conduct_materially_threatening_void_or_protected_participants"
+    ],
+    "personal_dislike_is_good_cause": false,
+    "personality_conflict_is_good_cause": false,
+    "ordinary_disagreement_or_criticism_is_good_cause": false,
+    "good_faith_constitutional_objection_is_insubordination": false,
+    "reporting_suspected_wrongdoing_is_insubordination": false,
+    "refusal_of_unlawful_unconstitutional_out_of_duty_or_unauthorized_act_is_insubordination": false,
+    "process_identifies_allegation_and_preserves_evidence_where_reasonably_possible": true,
+    "meaningful_opportunity_to_answer_where_reasonably_possible": true,
+    "final_determination_and_rationale_preserved": true,
+    "emergency_suspension_allowed_for_credible_immediate_threat": true,
+    "emergency_suspension_itself_equals_permanent_removal": false,
+    "sensitive_evidence_must_always_be_public": false,
+    "this_addendum_executes_validator_mutation": false,
+    "technical_validator_mutation_remains_separately_gated": true
+  },
+  "founding_stage_discipline": {
+    "strict_constitutional_enforcement_while_alignment_matures": true,
+    "rules_and_validator_duties_are_optional_because_network_is_young": false,
+    "strictness_authorizes_arbitrary_punishment": false,
+    "strictness_authorizes_cruelty_humiliation_or_retaliation_for_criticism": false,
+    "sovereign_and_delegates_remain_bound_by_evidence_law_proportionality_non_harm_and_rights": true,
+    "maturity_silently_expands_delegated_authority": false,
+    "delegated_authority_may_expand_through_explicit_constitutional_instrument": true
+  },
+  "deferred_questions": {
+    "dna_or_genetic_information_is_current_sovereign_credential": false,
+    "retinal_or_iris_scan_is_current_sovereign_credential": false,
+    "biometrics_or_genetics_create_independent_constitutional_authority": false,
+    "future_biometric_or_genetic_rule_requires_explicit_amendment_and_safeguards": true,
+    "this_addendum_defines_final_bloodline_genealogical_scope": false,
+    "this_addendum_designates_bloodline_successor": false,
+    "genetic_relationship_itself_creates_constitutional_office": false
+  },
+  "preserved_boundaries": {
+    "executes_validator_admission_suspension_removal_or_slashing": false,
+    "activates_validator_quorum_or_handoff": false,
+    "grants_signer_wallet_credential_key_treasury_or_liquidity_access": false,
+    "authorizes_transactions_mint_burn_asset_seizure_or_funds_movement": false,
+    "authorizes_deploy_restart_live_node_mutation_or_third_party_access": false,
+    "authorizes_physical_violence_revenge_collective_punishment_or_coercive_ownership": false,
+    "executes_succession_inheritance_genetic_testing_biometric_enrollment_or_identity_adjudication": false,
+    "declares_void_legally_supreme_over_external_jurisdiction": false
+  }
+}

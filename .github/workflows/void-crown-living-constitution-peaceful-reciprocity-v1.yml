@@ -1,0 +1,41 @@
+name: VOID Crown Living Constitution Peaceful Reciprocity V1
+
+on:
+  pull_request:
+    paths:
+      - "docs/governance/void-crown-living-constitution-peaceful-reciprocity-v1.md"
+      - "fixtures/governance/void-crown-living-constitution-peaceful-reciprocity-v1.json"
+      - "scripts/prove_void_crown_living_constitution_peaceful_reciprocity_v1.mjs"
+      - ".github/workflows/void-crown-living-constitution-peaceful-reciprocity-v1.yml"
+  push:
+    branches: [main]
+    paths:
+      - "docs/governance/void-crown-living-constitution-peaceful-reciprocity-v1.md"
+      - "fixtures/governance/void-crown-living-constitution-peaceful-reciprocity-v1.json"
+      - "scripts/prove_void_crown_living_constitution_peaceful_reciprocity_v1.mjs"
+      - ".github/workflows/void-crown-living-constitution-peaceful-reciprocity-v1.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: void-crown-living-constitution-peaceful-reciprocity-v1-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  prove:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: 24
+      - name: Prove living constitution, peaceful reciprocity, and validator discipline
+        run: node scripts/prove_void_crown_living_constitution_peaceful_reciprocity_v1.mjs
+      - name: Diff hygiene
+        run: git diff --check
