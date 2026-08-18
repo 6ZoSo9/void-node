@@ -4,6 +4,7 @@ import {
   VOID_UI_WAVE2_HOME_SOURCE_MAX_RESPONSE_BYTES_V1,
   VOID_UI_WAVE2_HOME_SOURCE_TEARDOWN_MS_V1,
   VoidUiWave2HomeSnapshotBuildOwnerV1,
+  VoidUiWave2HomeSourceAcquisitionOwnerV1,
   fetchVoidUiWave2HomeSourceJsonV1,
   type VoidUiWave2HomeSourceResultV1,
 } from "../src/ui/void_app_wave2_home_source_fetch_v1.js";
@@ -210,6 +211,8 @@ async function main(): Promise<void> {
   );
   assert.equal(owner.hasInFlight(), false);
 
+  const neverAcquisitionOwner =
+    new VoidUiWave2HomeSourceAcquisitionOwnerV1();
   let neverResolvingFetchCalls = 0;
   const neverFetchKeepAlive = setTimeout(() => {}, 1000);
   const neverFetchStart = Date.now();
@@ -219,6 +222,8 @@ async function main(): Promise<void> {
       "/health",
       {
         timeoutMs: 30,
+        acquisitionOwner: neverAcquisitionOwner,
+        acquisitionKey: "/health",
         fetchImpl: async (_input, init) => {
           neverResolvingFetchCalls += 1;
           assert.equal(init?.signal instanceof AbortSignal, true);
@@ -245,8 +250,34 @@ async function main(): Promise<void> {
     `fetch acquisition escaped source deadline: ${neverFetchElapsed}ms`
   );
   assert.equal(owner.hasInFlight(), false);
+  assert.equal(neverAcquisitionOwner.hasPending("/health"), true);
+  assert.equal(neverAcquisitionOwner.pendingCount(), 1);
 
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    const quarantined = await fetchVoidUiWave2HomeSourceJsonV1(
+      "http://127.0.0.1:4100",
+      "/health",
+      {
+        timeoutMs: 30,
+        acquisitionOwner: neverAcquisitionOwner,
+        acquisitionKey: "/health",
+        fetchImpl: async () => {
+          neverResolvingFetchCalls += 1;
+          return new Response("{}", { status: 200 });
+        },
+      }
+    );
+    assert.equal(quarantined.ok, false);
+    assert.equal(quarantined.error, "source_acquisition_quarantined");
+  }
+  assert.equal(neverResolvingFetchCalls, 1);
+  assert.equal(neverAcquisitionOwner.hasPending("/health"), true);
+  assert.equal(neverAcquisitionOwner.pendingCount(), 1);
+
+  const lateAcquisitionOwner =
+    new VoidUiWave2HomeSourceAcquisitionOwnerV1();
   let resolveLateFetch!: (response: Response) => void;
+  let lateFetchCalls = 0;
   let lateCancelAttempts = 0;
   const lateFetchKeepAlive = setTimeout(() => {}, 1000);
   const lateFetchStart = Date.now();
@@ -256,16 +287,21 @@ async function main(): Promise<void> {
       "/health",
       {
         timeoutMs: 30,
-        fetchImpl: async () =>
-          await new Promise<Response>((resolve) => {
+        acquisitionOwner: lateAcquisitionOwner,
+        acquisitionKey: "/health",
+        fetchImpl: async () => {
+          lateFetchCalls += 1;
+          return await new Promise<Response>((resolve) => {
             resolveLateFetch = resolve;
-          }),
+          });
+        },
       }
     )
   );
 
   const lateFetchResult = await lateFetch;
   const lateFetchElapsed = Date.now() - lateFetchStart;
+  assert.equal(lateFetchCalls, 1);
   assert.equal(lateFetchResult.ok, false);
   assert.equal(lateFetchResult.error, "source_deadline_exceeded");
   assert.ok(
@@ -273,6 +309,24 @@ async function main(): Promise<void> {
     `late fetch acquisition escaped source deadline: ${lateFetchElapsed}ms`
   );
   assert.equal(owner.hasInFlight(), false);
+  assert.equal(lateAcquisitionOwner.hasPending("/health"), true);
+
+  const lateQuarantined = await fetchVoidUiWave2HomeSourceJsonV1(
+    "http://127.0.0.1:4100",
+    "/health",
+    {
+      timeoutMs: 30,
+      acquisitionOwner: lateAcquisitionOwner,
+      acquisitionKey: "/health",
+      fetchImpl: async () => {
+        lateFetchCalls += 1;
+        return new Response("{}", { status: 200 });
+      },
+    }
+  );
+  assert.equal(lateQuarantined.ok, false);
+  assert.equal(lateQuarantined.error, "source_acquisition_quarantined");
+  assert.equal(lateFetchCalls, 1);
 
   resolveLateFetch(
     new Response(
@@ -288,20 +342,30 @@ async function main(): Promise<void> {
 
   await sleep(20);
   assert.equal(lateCancelAttempts, 1);
-  const lateFresh = owner.getOrStart(async () => ({
-    ok: true,
-    status: 200,
-    body: { fresh_batch_after_late_fetch_timeout: true },
-  }));
-  assert.deepEqual(await lateFresh, {
-    ok: true,
-    status: 200,
-    body: { fresh_batch_after_late_fetch_timeout: true },
-  });
-  assert.equal(owner.hasInFlight(), false);
+  assert.equal(lateAcquisitionOwner.hasPending("/health"), true);
   await sleep(VOID_UI_WAVE2_HOME_SOURCE_TEARDOWN_MS_V1 + 20);
   clearTimeout(lateFetchKeepAlive);
   assert.equal(lateCancelAttempts, 1);
+  assert.equal(lateAcquisitionOwner.hasPending("/health"), false);
+  assert.equal(lateAcquisitionOwner.pendingCount(), 0);
+
+  const recovered = await fetchVoidUiWave2HomeSourceJsonV1(
+    "http://127.0.0.1:4100",
+    "/health",
+    {
+      timeoutMs: 100,
+      acquisitionOwner: lateAcquisitionOwner,
+      acquisitionKey: "/health",
+      fetchImpl: async () => {
+        lateFetchCalls += 1;
+        return new Response('{"ok":true}', { status: 200 });
+      },
+    }
+  );
+  assert.equal(recovered.ok, true);
+  assert.equal(recovered.status, 200);
+  assert.deepEqual(recovered.body, { ok: true });
+  assert.equal(lateFetchCalls, 2);
 
   const fresh = owner.getOrStart(async () => ({
     ok: true,
@@ -324,9 +388,12 @@ async function main(): Promise<void> {
   console.log("stalled_read_cancel_attempts=1");
   console.log("snapshot_owner_released_after_stalled_read=true");
   console.log("fetch_acquisition_raced_against_source_deadline=true");
-  console.log("never_resolving_fetch_owner_released=true");
+  console.log("never_resolving_fetch_persistent_quarantine=true");
+  console.log("never_resolving_fetch_repeated_refreshes=3");
   console.log("late_response_cancel_attempts=1");
   console.log("late_response_cleanup_bounded=true");
+  console.log("late_response_quarantine_released_after_cleanup=true");
+  console.log("fresh_source_generation_after_late_settlement=true");
   console.log("fresh_batch_after_teardown=true");
   console.log("authority_added=false");
 }
