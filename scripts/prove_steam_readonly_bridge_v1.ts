@@ -30,7 +30,7 @@ async function needReject(
   );
 }
 
-function responseAt(url: string, body: BodyInit, init: ResponseInit): Response {
+function responseAt(url: string, body: string, init: ResponseInit): Response {
   const response = new Response(body, init);
   Object.defineProperties(response, {
     url: { value: url },
