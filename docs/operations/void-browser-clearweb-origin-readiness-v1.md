@@ -42,11 +42,21 @@ be a canonical nonnegative safe integer and is rejected before body reading
 when it exceeds the ceiling. Unknown-length/chunked responses are counted while
 they stream and are rejected at the first byte beyond the ceiling.
 
-The per-request deadline remains active through response-body settlement.
-A body reader that stalls cannot keep the survey alive past that deadline.
-Once rejection is terminal, the owned request is aborted and response-body
-cancellation is attempted through a separate bounded settlement window that
-cannot replace the primary HOLD if cancellation rejects or never settles.
+The per-request deadline owns both response acquisition and body consumption.
+A custom fetch implementation that ignores `AbortSignal` cannot keep the caller
+pending past that deadline. One unresolved acquisition for the same exact
+method/URL is quarantined until it actually settles; if it later yields a live
+response after the caller-visible deadline, that response receives one bounded
+cleanup attempt before the quarantine is released. This prevents repeated
+retries from accumulating unowned acquisition generations.
+
+Body-reader acquisition is also inside the owned rejection boundary. A locked
+or throwing body reader aborts the request and receives the same bounded
+best-effort response cleanup as other terminal rejections. Once a body read
+reaches the request deadline, the primary `request deadline exceeded` result is
+preserved while cancellation receives a separate explicit 250 ms teardown
+terminal; it does not inherit a zero-length slice of the already-expired request
+budget. Cleanup rejection or non-settlement cannot replace the primary HOLD.
 HEAD responses retain no body bytes. These bounds change evidence collection
 only; they grant no browser, signing, deployment, payment, credential, or
 runtime authority.
@@ -57,10 +67,12 @@ GitHub Actions runs only deterministic source/adversarial proofs. It intentional
 skips the physical-presence assertion and makes no network request because a
 hosted runner cannot prove presence on Precision. The focused matrix runs on
 Node.js 22, 24, and 26 and proves declared oversize, streamed overflow,
-stalled-body deadline, rejecting/non-settling cancellation, and preservation of
-small valid responses. The original adversarial proof separately proves that
-live `survey` mode requires the exact physical hostname while `source` mode
-records `not_run_in_ci_source_mode`.
+pre-response acquisition deadline/quarantine/late cleanup, locked-reader
+rejection, deadline-triggered body teardown with non-settling cancellation,
+rejecting/non-settling cancellation, and preservation of small valid responses.
+The original adversarial proof separately proves that live `survey` mode
+requires the exact physical hostname while `source` mode records
+`not_run_in_ci_source_mode`.
 
 ## Operator command
 
