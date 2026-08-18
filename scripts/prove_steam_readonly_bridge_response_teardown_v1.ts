@@ -495,54 +495,119 @@ assert.ok(
   `deadline-triggered read failure stalled ${timeoutReadElapsed}ms`,
 );
 
-let neverSettlingReadCalls = 0;
-let neverSettlingCancelCalls = 0;
-const neverSettlingReader = {
-  async read() {
-    neverSettlingReadCalls += 1;
-    return await new Promise<never>(() => undefined);
+let quarantinedReadFetchCalls = 0;
+let quarantinedReadCalls = 0;
+let quarantinedOutstandingReads = 0;
+let quarantinedMaxOutstandingReads = 0;
+let quarantinedReadCancelCalls = 0;
+let resolveQuarantinedRead: (value: { done: true; value?: Uint8Array }) => void =
+  () => undefined;
+const firstQuarantinedRead = new Promise<{ done: true; value?: Uint8Array }>(
+  (resolve) => {
+    resolveQuarantinedRead = resolve;
+  },
+);
+const quarantinedReadReader = {
+  read() {
+    quarantinedReadCalls += 1;
+    quarantinedOutstandingReads += 1;
+    quarantinedMaxOutstandingReads = Math.max(
+      quarantinedMaxOutstandingReads,
+      quarantinedOutstandingReads,
+    );
+    return firstQuarantinedRead.finally(() => {
+      quarantinedOutstandingReads -= 1;
+    });
   },
   cancel() {
-    neverSettlingCancelCalls += 1;
+    quarantinedReadCancelCalls += 1;
     return new Promise<void>(() => undefined);
   },
 } as unknown as ReadableStreamDefaultReader<Uint8Array>;
-const neverSettlingResponse = withProvenance({
+const quarantinedReadResponse = withProvenance({
   ok: true,
   status: 200,
   headers: new Headers({ "content-type": "application/json" }),
   body: {
-    getReader: () => neverSettlingReader,
+    getReader: () => quarantinedReadReader,
   },
 } as unknown as Response);
-const neverSettlingElapsed = await expectCode(
-  "upstream_timeout",
-  async () => neverSettlingResponse,
-  {
-    ...env,
-    VOID_STEAM_READONLY_TIMEOUT_MS: "500",
-  },
-);
-assert.equal(neverSettlingReadCalls, 1);
-assert.equal(neverSettlingCancelCalls, 1);
-assert.ok(
-  neverSettlingElapsed >= 450 && neverSettlingElapsed < 1500,
-  `never-settling admitted read escaped deadline ${neverSettlingElapsed}ms`,
-);
-
 const validBody = JSON.stringify({ response: { players: [] } });
-const valid = await executeSteamReadonlyRequest(input, {
-  env,
-  fetch_impl: async () => withProvenance(new Response(validBody, {
+const quarantinedReadFetchImpl: typeof fetch = async () => {
+  quarantinedReadFetchCalls += 1;
+  if (quarantinedReadFetchCalls === 1) {
+    return quarantinedReadResponse;
+  }
+  return withProvenance(new Response(validBody, {
     status: 200,
     headers: {
       "content-type": "application/json",
       "content-length": String(Buffer.byteLength(validBody)),
     },
-  })),
+  }));
+};
+
+const quarantinedReadElapsed = await expectCode(
+  "upstream_timeout",
+  quarantinedReadFetchImpl,
+  {
+    ...env,
+    VOID_STEAM_READONLY_TIMEOUT_MS: "500",
+  },
+);
+assert.equal(quarantinedReadFetchCalls, 1);
+assert.equal(quarantinedReadCalls, 1);
+assert.equal(quarantinedOutstandingReads, 1);
+assert.equal(quarantinedMaxOutstandingReads, 1);
+assert.equal(quarantinedReadCancelCalls, 1);
+assert.ok(
+  quarantinedReadElapsed >= 450 && quarantinedReadElapsed < 1500,
+  `never-settling admitted read escaped deadline ${quarantinedReadElapsed}ms`,
+);
+
+const repeatedReadStarted = Date.now();
+await Promise.all([
+  expectCode("upstream_timeout", quarantinedReadFetchImpl, {
+    ...env,
+    VOID_STEAM_READONLY_TIMEOUT_MS: "500",
+  }),
+  expectCode("upstream_timeout", quarantinedReadFetchImpl, {
+    ...env,
+    VOID_STEAM_READONLY_TIMEOUT_MS: "500",
+  }),
+  expectCode("upstream_timeout", quarantinedReadFetchImpl, {
+    ...env,
+    VOID_STEAM_READONLY_TIMEOUT_MS: "500",
+  }),
+]);
+const repeatedReadElapsed = Date.now() - repeatedReadStarted;
+assert.equal(quarantinedReadFetchCalls, 1);
+assert.equal(quarantinedReadCalls, 1);
+assert.equal(quarantinedOutstandingReads, 1);
+assert.equal(quarantinedMaxOutstandingReads, 1);
+assert.equal(quarantinedReadCancelCalls, 1);
+assert.ok(
+  repeatedReadElapsed >= 450 && repeatedReadElapsed < 1500,
+  `quarantined admitted-read retries escaped deadline ${repeatedReadElapsed}ms`,
+);
+
+resolveQuarantinedRead({ done: true });
+await new Promise<void>((resolve) => {
+  setTimeout(resolve, 20);
 });
-assert.equal(valid.ok, true);
-assert.equal(valid.received_bytes, Buffer.byteLength(validBody));
+assert.equal(quarantinedOutstandingReads, 0);
+assert.equal(quarantinedReadCancelCalls, 1);
+
+const recoveredAfterReadQuarantine = await executeSteamReadonlyRequest(input, {
+  env,
+  fetch_impl: quarantinedReadFetchImpl,
+});
+assert.equal(recoveredAfterReadQuarantine.ok, true);
+assert.equal(recoveredAfterReadQuarantine.received_bytes, Buffer.byteLength(validBody));
+assert.equal(quarantinedReadFetchCalls, 2);
+assert.equal(quarantinedReadCalls, 1);
+assert.equal(quarantinedMaxOutstandingReads, 1);
+assert.equal(quarantinedReadCancelCalls, 1);
 
 console.log("custom_fetch_final_url_exact_match_required=true");
 console.log("custom_fetch_redirected_response_rejected=true");
@@ -567,5 +632,9 @@ console.log("admitted_read_failure_primary_error_preserved=true");
 console.log("deadline_triggered_read_failure_preserved=true");
 console.log("deadline_terminates_never_settling_admitted_read=true");
 console.log("never_settling_admitted_read_cleanup_bounded=true");
+console.log("timed_out_admitted_read_generation_bounded=true");
+console.log("timed_out_admitted_read_retries_do_not_spawn_fetches=true");
+console.log("admitted_read_quarantine_releases_after_settlement=true");
+console.log("admitted_read_late_settlement_cleanup_exactly_once=true");
 console.log("primary_rejection_preserved=true");
 console.log("VOID_STEAM_READONLY_BRIDGE_RESPONSE_TEARDOWN_V1_GREEN");
