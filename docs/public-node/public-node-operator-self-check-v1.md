@@ -41,6 +41,14 @@ Each response body is bounded to 2 MiB before full buffering. Oversized declared
 or streamed responses, malformed content lengths, request timeouts, and invalid
 JSON fail closed into evidence HOLDs without changing network state.
 
+`--timeout-ms` and `--expected-peer-count` accept only canonical unsigned
+base-10 integer tokens: `0` or a nonzero digit followed only by decimal digits.
+Signed forms, whitespace, leading-zero aliases, decimal/exponent notation,
+hex/binary/octal prefixes, unsafe integers, and out-of-range values fail before
+any fetch or receipt publication. The reviewed ranges remain `250..120000` ms
+and `0..10000` peers. The canonical operator evidence-pack wrapper enforces the
+same peer-count token contract before delegating to this self-check.
+
 ## Checks
 
 The tool verifies:
@@ -103,7 +111,10 @@ VOID_PUBLIC_NODE_OPERATOR_SELF_CHECK_V1_PROOF_GREEN
 The canonical proof delegates its runtime/adversarial fixture exercise to
 `scripts/prove_public_node_operator_self_check_response_bound_v1.mjs`, keeping
 the documented self-check proof aligned with the bounded-response and strict
-contract proof used by CI.
+contract proof used by CI. The focused workflow also runs
+`scripts/prove_public_node_operator_cli_numeric_controls_v1.mjs` across Node
+22, 24, and 26 to prove the self-check and evidence-pack wrapper reject
+noncanonical numeric controls before side effects.
 
 ## Authority boundary
 
