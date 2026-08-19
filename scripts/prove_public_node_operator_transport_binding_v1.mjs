@@ -172,6 +172,105 @@ async function proveReviewerTarget(target, expectedStatus, label) {
   }
 }
 
+async function proveReviewerLocalIoSafety() {
+  const temp = fs.mkdtempSync(path.join(os.tmpdir(), "void-public-self-check-review-io-"));
+  try {
+    const receiptPath = path.join(temp, "receipt.json");
+    fs.writeFileSync(
+      receiptPath,
+      `${JSON.stringify(holdReceipt({ scheme: "http", hostClass: "loopback" }), null, 2)}\n`,
+      { mode: 0o600 },
+    );
+
+    const validOutput = path.join(temp, "review.json");
+    let result = await runNode(REVIEWER, [
+      "--receipt",
+      receiptPath,
+      "--output",
+      validOutput,
+      "--reviewed-at",
+      "2026-08-19T12:02:00Z",
+    ]);
+    assert.equal(result.status, 0, `fresh review output must succeed: ${result.stderr || result.stdout}`);
+    assert.equal(fs.statSync(validOutput).mode & 0o777, 0o600);
+
+    const preexistingOutput = path.join(temp, "preexisting-review.json");
+    fs.writeFileSync(preexistingOutput, "review-sentinel\n", { mode: 0o640 });
+    fs.chmodSync(preexistingOutput, 0o640);
+    result = await runNode(REVIEWER, [
+      "--receipt",
+      receiptPath,
+      "--output",
+      preexistingOutput,
+      "--reviewed-at",
+      "2026-08-19T12:03:00Z",
+    ]);
+    assert.equal(result.status, 1, "pre-existing review output must fail closed");
+    assert.equal(fs.readFileSync(preexistingOutput, "utf8"), "review-sentinel\n");
+    assert.equal(fs.statSync(preexistingOutput).mode & 0o777, 0o640);
+
+    const outputTarget = path.join(temp, "output-target.txt");
+    const outputLink = path.join(temp, "output-link.json");
+    fs.writeFileSync(outputTarget, "output-target-sentinel\n", { mode: 0o640 });
+    fs.symlinkSync(outputTarget, outputLink);
+    result = await runNode(REVIEWER, [
+      "--receipt",
+      receiptPath,
+      "--output",
+      outputLink,
+      "--reviewed-at",
+      "2026-08-19T12:04:00Z",
+    ]);
+    assert.equal(result.status, 1, "symlink review output must fail closed");
+    assert.equal(fs.readFileSync(outputTarget, "utf8"), "output-target-sentinel\n");
+    assert(fs.lstatSync(outputLink).isSymbolicLink());
+
+    const inputLink = path.join(temp, "receipt-link.json");
+    const inputLinkOutput = path.join(temp, "input-link-review.json");
+    fs.symlinkSync(receiptPath, inputLink);
+    result = await runNode(REVIEWER, [
+      "--receipt",
+      inputLink,
+      "--output",
+      inputLinkOutput,
+      "--reviewed-at",
+      "2026-08-19T12:05:00Z",
+    ]);
+    assert.equal(result.status, 3, `symlink receipt must be rejected: ${result.stderr || result.stdout}`);
+    const linkReview = JSON.parse(result.stdout);
+    assert.deepEqual(linkReview.summary.failed_check_ids, ["receipt_load"]);
+
+    const oversizedInput = path.join(temp, "oversized-receipt.json");
+    const oversizedOutput = path.join(temp, "oversized-review.json");
+    fs.writeFileSync(oversizedInput, Buffer.alloc(4 * 1024 * 1024 + 1, 0x20), { mode: 0o600 });
+    result = await runNode(REVIEWER, [
+      "--receipt",
+      oversizedInput,
+      "--output",
+      oversizedOutput,
+      "--reviewed-at",
+      "2026-08-19T12:06:00Z",
+    ]);
+    assert.equal(result.status, 3, `oversized receipt must be rejected: ${result.stderr || result.stdout}`);
+    const oversizedReview = JSON.parse(result.stdout);
+    assert.deepEqual(oversizedReview.summary.failed_check_ids, ["receipt_load"]);
+
+    const missingParentOutput = path.join(temp, "missing-parent", "review.json");
+    result = await runNode(REVIEWER, [
+      "--receipt",
+      receiptPath,
+      "--output",
+      missingParentOutput,
+      "--reviewed-at",
+      "2026-08-19T12:07:00Z",
+    ]);
+    assert.equal(result.status, 1, "review output must not create parent directories implicitly");
+    assert.equal(fs.existsSync(path.dirname(missingParentOutput)), false);
+  } finally {
+    fs.rmSync(temp, { recursive: true, force: true });
+  }
+}
+
 for (const base of [
   "http://node.lan:4100",
   "http://node.local:4100",
@@ -217,7 +316,10 @@ for (const target of [
   await proveReviewerTarget(target, 3, `reviewer rejects ${target.scheme}/${target.hostClass}`);
 }
 
+await proveReviewerLocalIoSafety();
+
 console.log("dns_cleartext_prefetch_rejected=true");
 console.log("literal_private_http_preserved=true");
 console.log("offline_receipt_transport_parity=true");
+console.log("offline_receipt_local_io_fail_closed=true");
 console.log(MARKER);
