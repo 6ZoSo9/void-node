@@ -15,6 +15,8 @@ const DEFAULT_TIMEOUT_MS = 5000;
 const DEFAULT_EXPECTED_AWARD_WC = 3;
 const MAX_RESPONSE_BYTES = 64 * 1024;
 const MAX_CANDIDATE_PATHS = 24;
+const MAX_DISCOVERY_STRUCTURE_DEPTH = 64;
+const MAX_DISCOVERY_VISITED_NODES = 4096;
 
 function fail(message, details = {}) {
   process.stdout.write(JSON.stringify({
@@ -52,24 +54,46 @@ function asObject(value) {
     : null;
 }
 
-function walk(value, visitor, path = []) {
-  visitor(value, path);
-  if (Array.isArray(value)) {
-    for (let index = 0; index < value.length; index += 1) walk(value[index], visitor, [...path, String(index)]);
-    return;
+function walk(value, visitor) {
+  const stack = [{ value, key: null, depth: 0 }];
+  let visited = 0;
+  while (stack.length > 0) {
+    const current = stack.pop();
+    visited += 1;
+    if (
+      current.depth > MAX_DISCOVERY_STRUCTURE_DEPTH ||
+      visited > MAX_DISCOVERY_VISITED_NODES
+    ) {
+      throw new Error("discovery_structure_budget_exceeded");
+    }
+    visitor(current.value, current.key);
+    if (Array.isArray(current.value)) {
+      for (let index = current.value.length - 1; index >= 0; index -= 1) {
+        stack.push({
+          value: current.value[index],
+          key: String(index),
+          depth: current.depth + 1,
+        });
+      }
+      continue;
+    }
+    const object = asObject(current.value);
+    if (!object) continue;
+    const entries = Object.entries(object);
+    for (let index = entries.length - 1; index >= 0; index -= 1) {
+      const [key, child] = entries[index];
+      stack.push({ value: child, key, depth: current.depth + 1 });
+    }
   }
-  const object = asObject(value);
-  if (!object) return;
-  for (const [key, child] of Object.entries(object)) walk(child, visitor, [...path, key]);
 }
 
 function findFirstScalar(value, wantedKeys, type) {
   const normalized = new Set(wantedKeys.map((key) => key.toLowerCase()));
   let found;
-  walk(value, (candidate, path) => {
-    if (found !== undefined || path.length === 0) return;
-    const last = path[path.length - 1]?.toLowerCase();
-    if (!last || !normalized.has(last)) return;
+  walk(value, (candidate, key) => {
+    if (found !== undefined || key === null) return;
+    const last = key.toLowerCase();
+    if (!normalized.has(last)) return;
     if (type === "number") {
       const number = strictEvidenceNumber(candidate);
       if (number !== null) found = number;
@@ -183,8 +207,14 @@ async function fetchJson(origin, path, deadlineMs) {
   }
 
   const controller = new AbortController();
+  let abortKind = null;
   const timer = setTimeout(
-    () => controller.abort(new Error("discovery_deadline_exceeded")),
+    () => {
+      if (abortKind === null) abortKind = "deadline";
+      if (!controller.signal.aborted) {
+        controller.abort(new Error("discovery_deadline_exceeded"));
+      }
+    },
     remainingMs,
   );
   try {
@@ -199,6 +229,7 @@ async function fetchJson(origin, path, deadlineMs) {
       response,
       MAX_RESPONSE_BYTES,
       (reason) => {
+        if (abortKind === null) abortKind = "rejection";
         if (!controller.signal.aborted) controller.abort(reason);
       },
     );
@@ -214,7 +245,7 @@ async function fetchJson(origin, path, deadlineMs) {
       ok: false,
       content_type: null,
       body: null,
-      error: controller.signal.aborted
+      error: abortKind === "deadline"
         ? "discovery_deadline_exceeded"
         : error instanceof Error
           ? error.message
