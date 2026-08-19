@@ -17,7 +17,7 @@ jobs:
           fetch-depth: 2
           persist-credentials: false
 
-      - name: Prove local relevant-path detector
+      - name: Prove local relevant-path detector and PR integration range
         run: |
           set -euo pipefail
           TMP="$(mktemp -d)"
@@ -52,30 +52,149 @@ jobs:
             exit 1
           fi
 
+          # Prove pull-request attribution against the synthetic integration tree.
+          # A is the branch point. B is the current base tip and independently
+          # grows Makefile by >30 lines. H leaves Makefile at A but changes a
+          # relevant ops path. M integrates B + H. B->M must report relevant
+          # because of the ops change while attributing zero Makefile shrink.
+          RANGE="$TMP/range-proof"
+          git -C "$RANGE" init -q 2>/dev/null || {
+            mkdir -p "$RANGE"
+            git -C "$RANGE" init -q
+          }
+          git -C "$RANGE" config user.name void-ci-proof
+          git -C "$RANGE" config user.email void-ci-proof@example.invalid
+          mkdir -p "$RANGE/ops" "$RANGE/.github/workflows"
+          : > "$RANGE/ops/prom-verify.sh"
+          : > "$RANGE/.github/workflows/ops-verify.yml"
+
+          write_makefile() {
+            local count="$1"
+            : > "$RANGE/Makefile"
+            for i in $(seq 1 "$count"); do
+              printf 'target-%s:\n\t@true\n' "$i" >> "$RANGE/Makefile"
+            done
+          }
+
+          write_makefile 80
+          git -C "$RANGE" add .
+          git -C "$RANGE" commit -q -m A
+          A="$(git -C "$RANGE" rev-parse HEAD)"
+
+          git -C "$RANGE" checkout -q -b pr-no-shrink "$A"
+          printf '# PR relevant change\n' >> "$RANGE/ops/prom-verify.sh"
+          git -C "$RANGE" add ops/prom-verify.sh
+          git -C "$RANGE" commit -q -m H
+          H="$(git -C "$RANGE" rev-parse HEAD)"
+
+          git -C "$RANGE" checkout -q -b base-tip "$A"
+          write_makefile 120
+          git -C "$RANGE" add Makefile
+          git -C "$RANGE" commit -q -m B
+          B="$(git -C "$RANGE" rev-parse HEAD)"
+          git -C "$RANGE" merge -q --no-ff -m M pr-no-shrink
+          M="$(git -C "$RANGE" rev-parse HEAD)"
+
+          mapfile -t M_PARENTS < <(
+            git -C "$RANGE" cat-file -p "$M" | sed -n 's/^parent \([0-9a-f]\{40\}\)$/\1/p'
+          )
+          [ "${#M_PARENTS[@]}" -eq 2 ]
+          [ "${M_PARENTS[0]}" = "$B" ]
+          [ "${M_PARENTS[1]}" = "$H" ]
+
+          if git -C "$RANGE" diff --quiet "$B" "$M" -- \
+            Makefile ops/prom-verify.sh .github/workflows/ops-verify.yml; then
+            echo "synthetic integration detector missed PR-owned ops change" >&2
+            exit 1
+          fi
+
+          B_LINES="$(git -C "$RANGE" show "$B:Makefile" | wc -l | tr -d ' ')"
+          M_LINES="$(git -C "$RANGE" show "$M:Makefile" | wc -l | tr -d ' ')"
+          [ "$B_LINES" -eq "$M_LINES" ] || {
+            echo "upstream-only Makefile growth was incorrectly attributed to PR integration" >&2
+            exit 1
+          }
+
+          H_LINES="$(git -C "$RANGE" show "$H:Makefile" | wc -l | tr -d ' ')"
+          DIRECT_FALSE_DELTA=$((B_LINES-H_LINES))
+          [ "$DIRECT_FALSE_DELTA" -gt 30 ] || {
+            echo "synthetic base-tip -> PR-head control did not reproduce false shrink" >&2
+            exit 1
+          }
+
+          # A real multi-commit PR shrink must still fail against the integration
+          # result even when its final commit stops touching Makefile.
+          git -C "$RANGE" checkout -q -b pr-shrink "$B"
+          write_makefile 20
+          git -C "$RANGE" add Makefile
+          git -C "$RANGE" commit -q -m shrink
+          printf '# later relevant change\n' >> "$RANGE/ops/prom-verify.sh"
+          git -C "$RANGE" add ops/prom-verify.sh
+          git -C "$RANGE" commit -q -m later-relevant
+          SHRINK_H="$(git -C "$RANGE" rev-parse HEAD)"
+
+          LAST_BEFORE="$(git -C "$RANGE" show "$SHRINK_H~1:Makefile" | wc -l | tr -d ' ')"
+          LAST_AFTER="$(git -C "$RANGE" show "$SHRINK_H:Makefile" | wc -l | tr -d ' ')"
+          [ "$LAST_BEFORE" -eq "$LAST_AFTER" ] || {
+            echo "synthetic last-commit control unexpectedly changed Makefile" >&2
+            exit 1
+          }
+
+          git -C "$RANGE" checkout -q -b base-shrink "$B"
+          git -C "$RANGE" merge -q --no-ff -m shrink-integration pr-shrink
+          SHRINK_M="$(git -C "$RANGE" rev-parse HEAD)"
+          mapfile -t SHRINK_M_PARENTS < <(
+            git -C "$RANGE" cat-file -p "$SHRINK_M" | sed -n 's/^parent \([0-9a-f]\{40\}\)$/\1/p'
+          )
+          [ "${#SHRINK_M_PARENTS[@]}" -eq 2 ]
+          [ "${SHRINK_M_PARENTS[0]}" = "$B" ]
+          [ "${SHRINK_M_PARENTS[1]}" = "$SHRINK_H" ]
+
+          SHRINK_BEFORE="$(git -C "$RANGE" show "$B:Makefile" | wc -l | tr -d ' ')"
+          SHRINK_AFTER="$(git -C "$RANGE" show "$SHRINK_M:Makefile" | wc -l | tr -d ' ')"
+          SHRINK_DELTA=$((SHRINK_BEFORE-SHRINK_AFTER))
+          [ "$SHRINK_DELTA" -gt 30 ] || {
+            echo "synthetic integration shrink did not exceed 30-line threshold" >&2
+            exit 1
+          }
+
       - name: Detect relevant ops verification changes
         id: scope
         env:
           EVENT_NAME: ${{ github.event_name }}
-          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          CHECKOUT_SHA: ${{ github.sha }}
           PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
           PUSH_BEFORE_SHA: ${{ github.event.before }}
           PUSH_AFTER_SHA: ${{ github.sha }}
         run: |
           set -euo pipefail
           ZERO_SHA="0000000000000000000000000000000000000000"
-          if [ "$EVENT_NAME" = "pull_request" ]; then
-            BASE_SHA="$PR_BASE_SHA"
-            HEAD_SHA="$PR_HEAD_SHA"
-          else
-            BASE_SHA="$PUSH_BEFORE_SHA"
-            HEAD_SHA="$PUSH_AFTER_SHA"
-          fi
 
           fail_open() {
             echo "relevant=true" >> "$GITHUB_OUTPUT"
-            echo "Unable to establish a complete local diff; running guards fail-open."
+            echo "Unable to establish the exact event integration range; running guards fail-open."
             exit 0
           }
+
+          ACTUAL_HEAD="$(git rev-parse HEAD 2>/dev/null)" || fail_open
+          [ -n "${CHECKOUT_SHA:-}" ] || fail_open
+          [ "$ACTUAL_HEAD" = "$CHECKOUT_SHA" ] || fail_open
+
+          if [ "$EVENT_NAME" = "pull_request" ]; then
+            [ -n "${PR_HEAD_SHA:-}" ] || fail_open
+            mapfile -t CHECKOUT_PARENTS < <(
+              git cat-file -p "$CHECKOUT_SHA" 2>/dev/null | sed -n 's/^parent \([0-9a-f]\{40\}\)$/\1/p'
+            )
+            [ "${#CHECKOUT_PARENTS[@]}" -eq 2 ] || fail_open
+            BASE_SHA="${CHECKOUT_PARENTS[0]}"
+            CHECKOUT_PR_HEAD_SHA="${CHECKOUT_PARENTS[1]}"
+            [ "$CHECKOUT_PR_HEAD_SHA" = "$PR_HEAD_SHA" ] || fail_open
+            HEAD_SHA="$CHECKOUT_SHA"
+          else
+            BASE_SHA="$PUSH_BEFORE_SHA"
+            HEAD_SHA="$PUSH_AFTER_SHA"
+            [ "$ACTUAL_HEAD" = "$HEAD_SHA" ] || fail_open
+          fi
 
           [ -n "${BASE_SHA:-}" ] || fail_open
           [ -n "${HEAD_SHA:-}" ] || fail_open
@@ -83,19 +202,20 @@ jobs:
 
           for sha in "$BASE_SHA" "$HEAD_SHA"; do
             if ! git cat-file -e "$sha^{commit}" 2>/dev/null; then
-              if ! git fetch --no-tags --depth=1 origin "$sha"; then
+              if ! git fetch --no-tags --no-recurse-submodules --depth=1 origin "$sha"; then
                 fail_open
               fi
             fi
+            git cat-file -e "$sha^{commit}" 2>/dev/null || fail_open
           done
 
           if git diff --quiet "$BASE_SHA" "$HEAD_SHA" -- \
             Makefile ops/prom-verify.sh .github/workflows/ops-verify.yml; then
             echo "relevant=false" >> "$GITHUB_OUTPUT"
-            echo "No ops-verify repository inputs changed; guarded checks will be skipped."
+            echo "No ops-verify repository inputs changed in the exact integration range; guarded checks will be skipped."
           else
             echo "relevant=true" >> "$GITHUB_OUTPUT"
-            echo "Relevant ops-verify input changed; guarded checks will run."
+            echo "Relevant ops-verify input changed in the exact integration range; guarded checks will run."
           fi
 
   guards:
@@ -109,17 +229,79 @@ jobs:
           fetch-depth: 2
           persist-credentials: false
 
-      - name: Guard Makefile shrink (>30 lines)
+      - name: Guard Makefile shrink (>30 lines) over exact integration range
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          CHECKOUT_SHA: ${{ github.sha }}
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          PUSH_BEFORE_SHA: ${{ github.event.before }}
+          PUSH_AFTER_SHA: ${{ github.sha }}
         run: |
           set -euo pipefail
-          if git rev-parse --verify HEAD~1 >/dev/null 2>&1; then
-            BEFORE=$(git show HEAD~1:Makefile 2>/dev/null | wc -l | tr -d ' ')
-            AFTER=$(test -f Makefile && wc -l < Makefile | tr -d ' ' || echo 0)
-            DELTA=$((BEFORE-AFTER))
-            if [ "$DELTA" -gt 30 ]; then
-              echo "Makefile shrank by $DELTA lines (limit 30)."
+          ZERO_SHA="0000000000000000000000000000000000000000"
+
+          ACTUAL_HEAD="$(git rev-parse HEAD 2>/dev/null)" || {
+            echo "Checkout HEAD unavailable; refusing to waive Makefile shrink guard." >&2
+            exit 1
+          }
+          [ -n "${CHECKOUT_SHA:-}" ] && [ "$ACTUAL_HEAD" = "$CHECKOUT_SHA" ] || {
+            echo "Checkout SHA does not match exact event state; refusing to waive Makefile shrink guard." >&2
+            exit 1
+          }
+
+          if [ "$EVENT_NAME" = "pull_request" ]; then
+            [ -n "${PR_HEAD_SHA:-}" ] || {
+              echo "Pull-request head SHA unavailable; refusing to waive Makefile shrink guard." >&2
+              exit 1
+            }
+            mapfile -t CHECKOUT_PARENTS < <(
+              git cat-file -p "$CHECKOUT_SHA" 2>/dev/null | sed -n 's/^parent \([0-9a-f]\{40\}\)$/\1/p'
+            )
+            [ "${#CHECKOUT_PARENTS[@]}" -eq 2 ] || {
+              echo "Pull-request checkout is not an exact two-parent integration commit." >&2
+              exit 1
+            }
+            BASE_SHA="${CHECKOUT_PARENTS[0]}"
+            CHECKOUT_PR_HEAD_SHA="${CHECKOUT_PARENTS[1]}"
+            [ "$CHECKOUT_PR_HEAD_SHA" = "$PR_HEAD_SHA" ] || {
+              echo "Pull-request integration parent 2 does not equal the exact PR head." >&2
+              exit 1
+            }
+            HEAD_SHA="$CHECKOUT_SHA"
+          else
+            BASE_SHA="$PUSH_BEFORE_SHA"
+            HEAD_SHA="$PUSH_AFTER_SHA"
+            [ -n "${HEAD_SHA:-}" ] && [ "$ACTUAL_HEAD" = "$HEAD_SHA" ] || {
+              echo "Push checkout does not equal the exact after SHA." >&2
+              exit 1
+            }
+          fi
+
+          # A newly created branch has no previous push commit, so there is no
+          # meaningful shrink range to compare. Pull requests always have an
+          # integration parent and can never use this waiver.
+          if [ -z "${BASE_SHA:-}" ] || [ "$BASE_SHA" = "$ZERO_SHA" ]; then
+            if [ "$EVENT_NAME" = "pull_request" ]; then
+              echo "Pull-request integration base unavailable; refusing to waive Makefile shrink guard." >&2
               exit 1
             fi
+            echo "No previous push commit; Makefile shrink guard not applicable to this creation event."
+            exit 0
+          fi
+
+          for sha in "$BASE_SHA" "$HEAD_SHA"; do
+            if ! git cat-file -e "$sha^{commit}" 2>/dev/null; then
+              git fetch --no-tags --no-recurse-submodules --depth=1 origin "$sha"
+            fi
+            git cat-file -e "$sha^{commit}"
+          done
+
+          BEFORE="$(git show "$BASE_SHA:Makefile" | wc -l | tr -d ' ')"
+          AFTER="$(git show "$HEAD_SHA:Makefile" | wc -l | tr -d ' ')"
+          DELTA=$((BEFORE-AFTER))
+          if [ "$DELTA" -gt 30 ]; then
+            echo "Makefile shrank by $DELTA lines across the exact integration range (limit 30)."
+            exit 1
           fi
 
       - name: Install bounded pinned promtool
