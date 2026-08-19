@@ -514,19 +514,18 @@ function validateTicketV1(
   );
   const account = safeAccountV1(record.account);
   const executor = safeNodeIdV1(record.executor_node_id);
-  const expiresAt = Math.trunc(
-    Number(record.expires_at_ms || 0),
-  );
+  const expiresAt = record.expires_at_ms;
 
   if (
     String(record.marker || "") !==
       "VOID_WC_PUBLIC_EARNING_PILOT_V1" ||
-    Number(record.version || 0) !== 1 ||
+    record.version !== 1 ||
     !ticketId ||
     ticketId !== expectedId ||
     !account ||
     !executor ||
-    !Number.isFinite(expiresAt) ||
+    typeof expiresAt !== "number" ||
+    !Number.isSafeInteger(expiresAt) ||
     expiresAt <= 0
   ) {
     throw new Error("ticket_history_semantic_invalid");
@@ -558,6 +557,7 @@ function validateClaimV1(
   if (
     String(record.marker || "") !==
       "VOID_WC_PUBLIC_TICKET_CLAIM_V1" ||
+    record.version !== 1 ||
     !claimId ||
     claimId !== expectedId ||
     !["reserving", "publishing", "rotating", "issued"].includes(
@@ -578,15 +578,13 @@ function validateClaimV1(
 
   const account = safeAccountV1(record.account);
   const executor = safeNodeIdV1(record.executor_node_id);
-  const issuedAt = Math.trunc(
-    Number(record.issued_at_ms || 0),
-  );
+  const issuedAt = record.issued_at_ms;
 
   if (
-    Number(record.version || 0) !== 1 ||
     !account ||
     !executor ||
-    !Number.isFinite(issuedAt) ||
+    typeof issuedAt !== "number" ||
+    !Number.isSafeInteger(issuedAt) ||
     issuedAt <= 0
   ) {
     throw new Error(

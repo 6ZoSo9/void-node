@@ -838,6 +838,36 @@ need(
   "claim history request-time zero-scan contract missing",
 );
 need(
+  !claimHistoryAuthorityText.includes(
+    "Number(record.version || 0)",
+  ) &&
+    !claimHistoryAuthorityText.includes(
+      "Math.trunc(\n    Number(record.expires_at_ms || 0)",
+    ) &&
+    !claimHistoryAuthorityText.includes(
+      "Math.trunc(\n    Number(record.issued_at_ms || 0)",
+    ),
+  "claim history numeric schema still uses coercive parsing",
+);
+need(
+  claimHistoryAuthorityText.includes(
+    "record.version !== 1",
+  ) &&
+    claimHistoryAuthorityText.includes(
+      'typeof expiresAt !== "number"',
+    ) &&
+    claimHistoryAuthorityText.includes(
+      "Number.isSafeInteger(expiresAt)",
+    ) &&
+    claimHistoryAuthorityText.includes(
+      'typeof issuedAt !== "number"',
+    ) &&
+    claimHistoryAuthorityText.includes(
+      "Number.isSafeInteger(issuedAt)",
+    ),
+  "claim history exact numeric schema contract missing",
+);
+need(
   claimHistoryAuthorityText.includes(
     "record_generations: Map<string, RecordStampV1>",
   ),

@@ -1036,6 +1036,380 @@ async function main(): Promise<void> {
     });
   }
 
+  // Durability-authoritative policy numerics are exact JSON numerics:
+  // no Number(...) coercion, booleans, arrays, strings, fractions, or unsafe
+  // integer timestamps may enter active/cooldown/daily authority.
+  {
+    const now = Date.now();
+
+    type InvalidHistoryCase = {
+      label: string;
+      kind: "issued" | "consumed" | "claim";
+      record: Record<string, any>;
+    };
+
+    const baseTicket = (
+      ticketId: string,
+    ): Record<string, any> => ({
+      marker: "VOID_WC_PUBLIC_EARNING_PILOT_V1",
+      version: 1,
+      ticket_id: ticketId,
+      account: "numeric-schema-account",
+      executor_node_id: "5".repeat(32),
+      expires_at_ms: now + 300_000,
+      status: "issued",
+    });
+
+    const baseClaim = (
+      claimId: string,
+    ): Record<string, any> => ({
+      marker: "VOID_WC_PUBLIC_TICKET_CLAIM_V1",
+      version: 1,
+      claim_id: claimId,
+      status: "issued",
+      issued_at_ms: now - 30_000,
+      account: "numeric-schema-account",
+      executor_node_id: "5".repeat(32),
+    });
+
+    const cases: InvalidHistoryCase[] = [
+      {
+        label: "issued-version-string",
+        kind: "issued",
+        record: {
+          ...baseTicket("6".repeat(32)),
+          version: "1",
+        },
+      },
+      {
+        label: "issued-version-boolean",
+        kind: "issued",
+        record: {
+          ...baseTicket("7".repeat(32)),
+          version: true,
+        },
+      },
+      {
+        label: "issued-version-array",
+        kind: "issued",
+        record: {
+          ...baseTicket("8".repeat(32)),
+          version: [1],
+        },
+      },
+      {
+        label: "issued-expiry-string",
+        kind: "issued",
+        record: {
+          ...baseTicket("9".repeat(32)),
+          expires_at_ms: String(now + 300_000),
+        },
+      },
+      {
+        label: "issued-expiry-array",
+        kind: "issued",
+        record: {
+          ...baseTicket("a".repeat(32)),
+          expires_at_ms: [now + 300_000],
+        },
+      },
+      {
+        label: "issued-expiry-fraction",
+        kind: "issued",
+        record: {
+          ...baseTicket("b".repeat(32)),
+          expires_at_ms: now + 300_000.5,
+        },
+      },
+      {
+        label: "issued-expiry-unsafe",
+        kind: "issued",
+        record: {
+          ...baseTicket("c".repeat(32)),
+          expires_at_ms: Number.MAX_SAFE_INTEGER + 1,
+        },
+      },
+      {
+        label: "consumed-expiry-string",
+        kind: "consumed",
+        record: {
+          ...baseTicket("d".repeat(32)),
+          status: "completed",
+          expires_at_ms: String(now + 300_000),
+        },
+      },
+      {
+        label: "consumed-version-boolean",
+        kind: "consumed",
+        record: {
+          ...baseTicket("e".repeat(32)),
+          status: "completed",
+          version: true,
+        },
+      },
+      {
+        label: "claim-version-string",
+        kind: "claim",
+        record: {
+          ...baseClaim("6".repeat(64)),
+          version: "1",
+        },
+      },
+      {
+        label: "claim-version-boolean",
+        kind: "claim",
+        record: {
+          ...baseClaim("7".repeat(64)),
+          version: true,
+        },
+      },
+      {
+        label: "claim-version-array",
+        kind: "claim",
+        record: {
+          ...baseClaim("8".repeat(64)),
+          version: [1],
+        },
+      },
+      {
+        label: "claim-issued-at-string",
+        kind: "claim",
+        record: {
+          ...baseClaim("9".repeat(64)),
+          issued_at_ms: String(now - 30_000),
+        },
+      },
+      {
+        label: "claim-issued-at-array",
+        kind: "claim",
+        record: {
+          ...baseClaim("a".repeat(64)),
+          issued_at_ms: [now - 30_000],
+        },
+      },
+      {
+        label: "claim-issued-at-fraction",
+        kind: "claim",
+        record: {
+          ...baseClaim("b".repeat(64)),
+          issued_at_ms: now - 30_000 + 0.5,
+        },
+      },
+      {
+        label: "claim-issued-at-unsafe",
+        kind: "claim",
+        record: {
+          ...baseClaim("c".repeat(64)),
+          issued_at_ms: Number.MAX_SAFE_INTEGER + 1,
+        },
+      },
+      {
+        label: "reserving-version-string",
+        kind: "claim",
+        record: {
+          ...baseClaim("d".repeat(64)),
+          status: "reserving",
+          version: "1",
+        },
+      },
+    ];
+
+    for (const testCase of cases) {
+      const tmp = fs.mkdtempSync(
+        path.join(
+          os.tmpdir(),
+          `void-public-claim-history-numeric-${testCase.label}-`,
+        ),
+      );
+      configure(tmp);
+      const d = ensureHistoryDirs(tmp);
+      const id = String(
+        testCase.record.ticket_id ||
+          testCase.record.claim_id,
+      );
+      const dir =
+        testCase.kind === "issued"
+          ? d.issued
+          : testCase.kind === "consumed"
+            ? d.consumed
+            : d.claims;
+      fs.writeFileSync(
+        path.join(dir, `${id}.json`),
+        JSON.stringify(testCase.record) + "\n",
+        { mode: 0o600 },
+      );
+
+      authority.resetWcPublicClaimHistoryAuthorityForProofV1(
+        tmp,
+      );
+      authority.primeWcPublicClaimHistoryAuthorityV1(tmp);
+
+      await assert.rejects(
+        () =>
+          authority.waitForWcPublicClaimHistoryWarmForProofV1(
+            tmp,
+          ),
+        /VOID_WC_PUBLIC_CLAIM_HISTORY_INVALID/,
+        testCase.label,
+      );
+      assert.throws(
+        () =>
+          authority.wcPublicClaimHistorySnapshotV1(
+            tmp,
+            now,
+          ),
+        /VOID_WC_PUBLIC_CLAIM_HISTORY_INVALID/,
+        testCase.label,
+      );
+
+      authority.resetWcPublicClaimHistoryAuthorityForProofV1(
+        tmp,
+      );
+      fs.rmSync(tmp, {
+        recursive: true,
+        force: true,
+      });
+    }
+
+    // Fail-closed history must stop a new public capability from being
+    // published, not merely make the background proof fail.
+    for (const kind of ["issued", "claim"] as const) {
+      const tmp = fs.mkdtempSync(
+        path.join(
+          os.tmpdir(),
+          `void-public-claim-history-numeric-issue-gate-${kind}-`,
+        ),
+      );
+      configure(tmp);
+      const d = ensureHistoryDirs(tmp);
+      const { privateKey, publicKey } =
+        crypto.generateKeyPairSync("ed25519");
+      const pubPEM = publicKey
+        .export({
+          type: "spki",
+          format: "pem",
+        })
+        .toString();
+      const executor =
+        block.nodeIdFromPubPEM(pubPEM);
+      const account =
+        `numeric-issue-gate-${kind}`;
+
+      if (kind === "issued") {
+        const badTicketId = "e".repeat(32);
+        fs.writeFileSync(
+          path.join(
+            d.issued,
+            `${badTicketId}.json`,
+          ),
+          JSON.stringify({
+            marker:
+              "VOID_WC_PUBLIC_EARNING_PILOT_V1",
+            version: "1",
+            ticket_id: badTicketId,
+            account,
+            executor_node_id: executor,
+            expires_at_ms: now + 300_000,
+            status: "issued",
+          }) + "\n",
+          { mode: 0o600 },
+        );
+      } else {
+        const badClaimId = "e".repeat(64);
+        fs.writeFileSync(
+          path.join(
+            d.claims,
+            `${badClaimId}.json`,
+          ),
+          JSON.stringify({
+            marker:
+              "VOID_WC_PUBLIC_TICKET_CLAIM_V1",
+            version: 1,
+            claim_id: badClaimId,
+            status: "issued",
+            issued_at_ms:
+              String(now - 30_000),
+            account,
+            executor_node_id: executor,
+          }) + "\n",
+          { mode: 0o600 },
+        );
+      }
+
+      authority.resetWcPublicClaimHistoryAuthorityForProofV1(
+        tmp,
+      );
+      authority.primeWcPublicClaimHistoryAuthorityV1(tmp);
+      await assert.rejects(
+        () =>
+          authority.waitForWcPublicClaimHistoryWarmForProofV1(
+            tmp,
+          ),
+        /VOID_WC_PUBLIC_CLAIM_HISTORY_INVALID/,
+      );
+
+      const issuedBefore = fs
+        .readdirSync(d.issued)
+        .filter((name) => name.endsWith(".json"))
+        .sort();
+      const claimsBefore = fs
+        .readdirSync(d.claims)
+        .filter((name) => name.endsWith(".json"))
+        .sort();
+
+      const signed =
+        pilot.signPublicTicketClaim(
+          {
+            domain:
+              "void:mainnet-0:wc-public-ticket-claim-v1",
+            marker:
+              "VOID_WC_PUBLIC_TICKET_CLAIM_V1",
+            version: 1,
+            account,
+            executor_node_id: executor,
+            executor_pubkey: pubPEM,
+            claim_nonce:
+              (kind === "issued" ? "f" : "1").repeat(32),
+            claim_ts_ms: now,
+          },
+          privateKey,
+        );
+
+      await assert.rejects(
+        () =>
+          pilot.issuePublicTicketClaim(
+            signed,
+            tmp,
+            now,
+          ),
+        /VOID_WC_PUBLIC_CLAIM_HISTORY_INVALID/,
+      );
+
+      assert.deepEqual(
+        fs
+          .readdirSync(d.issued)
+          .filter((name) => name.endsWith(".json"))
+          .sort(),
+        issuedBefore,
+      );
+      assert.deepEqual(
+        fs
+          .readdirSync(d.claims)
+          .filter((name) => name.endsWith(".json"))
+          .sort(),
+        claimsBefore,
+      );
+
+      authority.resetWcPublicClaimHistoryAuthorityForProofV1(
+        tmp,
+      );
+      fs.rmSync(tmp, {
+        recursive: true,
+        force: true,
+      });
+    }
+  }
+
   console.log(
     "VOID_WC_PUBLIC_CLAIM_HISTORY_AUTHORITY_V1_GREEN",
   );
@@ -1052,6 +1426,8 @@ async function main(): Promise<void> {
   console.log("stat_read_generation_toctou_closed=true");
   console.log("consumed_ticket_dominates_issued_residue=true");
   console.log("record_remove_before_open_retried=true");
+  console.log("claim_history_numeric_schema_exact=true");
+  console.log("coercible_history_numeric_fields_rejected=true");
 }
 
 main().catch((error) => {
