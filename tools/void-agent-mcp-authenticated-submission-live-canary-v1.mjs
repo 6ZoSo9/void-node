@@ -175,6 +175,54 @@ function updateState(stateDirectory, value) {
   return writeAtomicJson(path.join(stateDirectory, STATE_FILE), value);
 }
 
+function persistedStateEquals(stateDirectory, expected) {
+  try {
+    return canonicalJson(readState(stateDirectory)) === canonicalJson(expected);
+  } catch {
+    return false;
+  }
+}
+
+function persistTerminalState(stateDirectory, value, phase, localStateFault) {
+  try {
+    if (typeof localStateFault === "function") localStateFault(`${phase}:before`, value);
+    updateState(stateDirectory, value);
+    if (typeof localStateFault === "function") localStateFault(`${phase}:after`, value);
+  } catch {
+    // Exact readback below is authoritative. A write may throw after its rename committed.
+  }
+  return persistedStateEquals(stateDirectory, value);
+}
+
+function publishCompletionReceipt(stateDirectory, receipt, localReceiptFault) {
+  const resolved = path.join(stateDirectory, COMPLETION_RECEIPT_FILE);
+  let descriptor = null;
+  let createdByThisCall = false;
+  try {
+    if (typeof localReceiptFault === "function") localReceiptFault("receipt:before", receipt);
+    descriptor = fs.openSync(resolved, "wx", 0o600);
+    createdByThisCall = true;
+    fs.writeFileSync(descriptor, `${JSON.stringify(receipt, null, 2)}\n`, { encoding: "utf8" });
+    fs.closeSync(descriptor);
+    descriptor = null;
+    fs.chmodSync(resolved, 0o600);
+    if (typeof localReceiptFault === "function") localReceiptFault("receipt:after", receipt);
+  } catch {
+    // Exact readback below distinguishes a committed receipt from a failed/partial create.
+  } finally {
+    if (descriptor !== null) {
+      try { fs.closeSync(descriptor); } catch { /* best-effort descriptor cleanup */ }
+    }
+  }
+  if (!createdByThisCall) return false;
+  try {
+    const persisted = readPrivateJson(resolved, "completion receipt", MAX_STATE_BYTES).value;
+    return canonicalJson(persisted) === canonicalJson(receipt);
+  } catch {
+    return false;
+  }
+}
+
 function inheritedEnvironment() {
   return Object.fromEntries(
     Object.entries(process.env).filter((entry) => typeof entry[1] === "string"),
@@ -556,6 +604,7 @@ function validateSubmissionResult(value, prepared, expectNew) {
   assertCondition(interpretation.accepted_for_review === true, "submission was not accepted for review");
   assertCondition(interpretation.conflicting_duplicate === false, "submission returned a conflicting duplicate");
   if (expectNew) assertCondition(interpretation.duplicate === false, "live canary expected a new submission but received a duplicate");
+  assertCondition(typeof interpretation.private_temp_cleanup_completed === "boolean", "submission cleanup evidence is missing");
   for (const key of [
     "payment_executed", "paid_work_execution_started", "work_dispatched", "work_credit_awarded",
     "work_credit_ledger_written", "void_settled",
@@ -569,6 +618,7 @@ function validateSubmissionResult(value, prepared, expectNew) {
     accepted_for_review: true,
     duplicate: interpretation.duplicate === true,
     conflicting_duplicate: false,
+    private_temp_cleanup_completed: interpretation.private_temp_cleanup_completed,
     receipt_id: typeof value.client_result.receipt_id === "string" ? value.client_result.receipt_id : null,
     client_http_status: value.client_result.http_status,
   };
@@ -591,6 +641,7 @@ export async function executeCanary(options) {
   updateState(context.stateDirectory, attempting);
   const sessionFactory = options.sessionFactory ?? createOfficialMcpSession;
   let session;
+  let acceptedTerminal = null;
   try {
     session = await sessionFactory({
       repoRoot: context.repoRoot,
@@ -623,11 +674,19 @@ export async function executeCanary(options) {
       accepted_for_review: true,
       duplicate: interpretation.duplicate,
       conflicting_duplicate: false,
+      private_temp_cleanup_completed: interpretation.private_temp_cleanup_completed,
+      completion_receipt_published: false,
+      completion_state_persisted: false,
       receipt_id: interpretation.receipt_id,
       client_http_status: interpretation.client_http_status,
       hold_reason: null,
     };
-    updateState(context.stateDirectory, completed);
+    acceptedTerminal = { context, state: completed, receipt: null, result };
+    const completedPersisted = { ...completed, completion_state_persisted: true };
+    if (!persistTerminalState(context.stateDirectory, completedPersisted, "completed", options.localStateFault)) {
+      return acceptedTerminal;
+    }
+    acceptedTerminal = { context, state: completedPersisted, receipt: null, result };
     const receipt = {
       marker: COMPLETION_RECEIPT_MARKER,
       version: 1,
@@ -639,6 +698,8 @@ export async function executeCanary(options) {
       accepted_for_review: true,
       duplicate: interpretation.duplicate,
       conflicting_duplicate: false,
+      private_temp_cleanup_completed: interpretation.private_temp_cleanup_completed,
+      completion_receipt_published: true,
       receipt_id: interpretation.receipt_id,
       client_http_status: interpretation.client_http_status,
       network_submission_performed: true,
@@ -658,9 +719,22 @@ export async function executeCanary(options) {
       authority_all_false: true,
     };
     assertCondition(!canonicalJson(receipt).includes(tokenFile), "completion receipt disclosed token-file path");
-    writeExclusiveJson(path.join(context.stateDirectory, COMPLETION_RECEIPT_FILE), receipt);
-    return { context, state: completed, receipt, result };
+    if (!publishCompletionReceipt(context.stateDirectory, receipt, options.localReceiptFault)) {
+      return acceptedTerminal;
+    }
+    const published = {
+      ...completedPersisted,
+      updated_at_utc: new Date(options.now?.() ?? Date.now()).toISOString(),
+      completion_receipt_published: true,
+      completion_state_persisted: false,
+    };
+    const publishedPersisted = { ...published, completion_state_persisted: true };
+    if (!persistTerminalState(context.stateDirectory, publishedPersisted, "published", options.localStateFault)) {
+      return { context, state: published, receipt, result };
+    }
+    return { context, state: publishedPersisted, receipt, result };
   } catch (error) {
+    if (acceptedTerminal) return acceptedTerminal;
     const held = {
       ...attempting,
       status: "held",
@@ -760,6 +834,9 @@ export async function runCli(argv) {
       "accepted_for_review=true",
       `duplicate=${result.state.duplicate}`,
       "conflicting_duplicate=false",
+      `private_temp_cleanup_completed=${result.state.private_temp_cleanup_completed}`,
+      `completion_state_persisted=${result.state.completion_state_persisted}`,
+      `completion_receipt_published=${result.state.completion_receipt_published}`,
       "submission_attempt_count=1",
       "automatic_retry=false",
       "payment_execution=false",
