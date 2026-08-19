@@ -1,10 +1,20 @@
 #!/usr/bin/env node
 import assert from "node:assert/strict";
+import {
+  mkdtempSync,
+  readFileSync,
+  statSync,
+  symlinkSync,
+  writeFileSync,
+} from "node:fs";
+import os from "node:os";
+import path from "node:path";
 import { performance } from "node:perf_hooks";
 
 import {
   parseBootstrapClientArgsV1,
   runVoidAiAgentBootstrapClientV1,
+  writeBootstrapOutputFileV1,
 } from "../tools/void-ai-agent-bootstrap-client-v1.mjs";
 
 const MAX_TIMEOUT_MS = 30_000;
@@ -715,6 +725,217 @@ assert.equal(recovered.readiness.onboarding_surface_complete, true);
 assert.equal(lateCleanupCalls, 1);
 assert.equal(lateFetchCalls, 7);
 
+let stalledGenerationFetchCalls = 0;
+let stalledGenerationReadCalls = 0;
+let stalledGenerationOutstandingReads = 0;
+let stalledGenerationMaxOutstandingReads = 0;
+let stalledGenerationCancelCalls = 0;
+let resolveStalledGenerationRead;
+const stalledGenerationFetch = (input) => {
+  stalledGenerationFetchCalls += 1;
+  const url = input instanceof URL ? input : new URL(String(input));
+  const payload = PAYLOADS.get(url.pathname);
+
+  if (stalledGenerationFetchCalls === 1) {
+    return Promise.resolve({
+      status: 200,
+      ok: true,
+      url: url.href,
+      redirected: false,
+      headers: new Headers({
+        "content-type": "application/json",
+      }),
+      body: {
+        getReader() {
+          return {
+            read() {
+              stalledGenerationReadCalls += 1;
+              stalledGenerationOutstandingReads += 1;
+              stalledGenerationMaxOutstandingReads = Math.max(
+                stalledGenerationMaxOutstandingReads,
+                stalledGenerationOutstandingReads,
+              );
+              return new Promise((resolve) => {
+                resolveStalledGenerationRead = (value) => {
+                  stalledGenerationOutstandingReads -= 1;
+                  resolve(value);
+                };
+              });
+            },
+            cancel() {
+              stalledGenerationCancelCalls += 1;
+              return Promise.resolve();
+            },
+          };
+        },
+      },
+    });
+  }
+
+  return Promise.resolve(jsonResponse(payload, url.href));
+};
+
+await assert.rejects(
+  runVoidAiAgentBootstrapClientV1({
+    baseUrl: BASE_URL,
+    timeoutMs: 90,
+    maxBytes: 1024,
+    fetchImpl: stalledGenerationFetch,
+  }),
+  /bootstrap_request_deadline_exceeded/,
+);
+assert.equal(stalledGenerationFetchCalls, 1);
+assert.equal(stalledGenerationReadCalls, 1);
+assert.equal(stalledGenerationOutstandingReads, 1);
+assert.equal(stalledGenerationMaxOutstandingReads, 1);
+assert.equal(stalledGenerationCancelCalls, 1);
+
+for (let retry = 0; retry < 3; retry += 1) {
+  await assert.rejects(
+    runVoidAiAgentBootstrapClientV1({
+      baseUrl: BASE_URL,
+      timeoutMs: 90,
+      maxBytes: 1024,
+      fetchImpl: stalledGenerationFetch,
+    }),
+    /bootstrap_fetch_acquisition_quarantined/,
+  );
+}
+assert.equal(stalledGenerationFetchCalls, 1);
+assert.equal(stalledGenerationReadCalls, 1);
+assert.equal(stalledGenerationOutstandingReads, 1);
+assert.equal(stalledGenerationMaxOutstandingReads, 1);
+
+resolveStalledGenerationRead({ done: true, value: undefined });
+await sleep(20);
+assert.equal(stalledGenerationOutstandingReads, 0);
+
+const stalledGenerationRecovered = await runVoidAiAgentBootstrapClientV1({
+  baseUrl: BASE_URL,
+  timeoutMs: 1000,
+  maxBytes: 1024,
+  fetchImpl: stalledGenerationFetch,
+});
+assert.equal(
+  stalledGenerationRecovered.readiness.read_only_connection_ready,
+  true,
+);
+assert.equal(
+  stalledGenerationRecovered.readiness.onboarding_surface_complete,
+  true,
+);
+assert.equal(stalledGenerationFetchCalls, 7);
+assert.equal(stalledGenerationReadCalls, 1);
+assert.equal(stalledGenerationCancelCalls, 1);
+assert.equal(stalledGenerationMaxOutstandingReads, 1);
+
+let resolveNeverCancelFetch;
+let resolveNeverCancelCleanup;
+let neverCancelFetchCalls = 0;
+let neverCancelCleanupCalls = 0;
+const lateNeverCancelFetch = (input) => {
+  neverCancelFetchCalls += 1;
+  if (neverCancelFetchCalls === 1) {
+    return new Promise((resolve) => {
+      resolveNeverCancelFetch = resolve;
+    });
+  }
+  const url = input instanceof URL ? input : new URL(String(input));
+  return Promise.resolve(jsonResponse(PAYLOADS.get(url.pathname), url.href));
+};
+const lateNeverCancelFirst = runVoidAiAgentBootstrapClientV1({
+  baseUrl: BASE_URL,
+  timeoutMs: 90,
+  maxBytes: 1024,
+  fetchImpl: lateNeverCancelFetch,
+});
+await assert.rejects(
+  lateNeverCancelFirst,
+  /bootstrap_request_deadline_exceeded/,
+);
+resolveNeverCancelFetch({
+  body: {
+    cancel() {
+      neverCancelCleanupCalls += 1;
+      return new Promise((resolve) => {
+        resolveNeverCancelCleanup = resolve;
+      });
+    },
+  },
+});
+await sleep(320);
+assert.equal(neverCancelCleanupCalls, 1);
+await assert.rejects(
+  runVoidAiAgentBootstrapClientV1({
+    baseUrl: BASE_URL,
+    timeoutMs: 90,
+    maxBytes: 1024,
+    fetchImpl: lateNeverCancelFetch,
+  }),
+  /bootstrap_fetch_acquisition_quarantined/,
+);
+assert.equal(neverCancelFetchCalls, 1);
+resolveNeverCancelCleanup();
+await sleep(20);
+const lateNeverCancelRecovered = await runVoidAiAgentBootstrapClientV1({
+  baseUrl: BASE_URL,
+  timeoutMs: 1000,
+  maxBytes: 1024,
+  fetchImpl: lateNeverCancelFetch,
+});
+assert.equal(
+  lateNeverCancelRecovered.readiness.read_only_connection_ready,
+  true,
+);
+assert.equal(neverCancelFetchCalls, 7);
+assert.equal(neverCancelCleanupCalls, 1);
+
+const outputDirectory = mkdtempSync(
+  path.join(os.tmpdir(), "void-bootstrap-output-v1-"),
+);
+const outputPath = path.join(outputDirectory, "bootstrap.json");
+const outputContent = '{"marker":"VOID_BOOTSTRAP_OUTPUT_PROOF_V1"}\n';
+assert.equal(
+  writeBootstrapOutputFileV1(outputPath, outputContent),
+  outputPath,
+);
+assert.equal(readFileSync(outputPath, "utf8"), outputContent);
+assert.equal(statSync(outputPath).mode & 0o777, 0o600);
+
+const existingOutputPath = path.join(outputDirectory, "existing.json");
+writeFileSync(existingOutputPath, "existing-sentinel\n", "utf8");
+assert.throws(
+  () => writeBootstrapOutputFileV1(existingOutputPath, "replacement\n"),
+  /output path already exists/,
+);
+assert.equal(
+  readFileSync(existingOutputPath, "utf8"),
+  "existing-sentinel\n",
+);
+
+const symlinkTargetPath = path.join(outputDirectory, "symlink-target.json");
+const symlinkOutputPath = path.join(outputDirectory, "symlink-output.json");
+writeFileSync(symlinkTargetPath, "symlink-target-sentinel\n", "utf8");
+symlinkSync(symlinkTargetPath, symlinkOutputPath);
+assert.throws(
+  () => writeBootstrapOutputFileV1(symlinkOutputPath, "replacement\n"),
+  /output path already exists/,
+);
+assert.equal(
+  readFileSync(symlinkTargetPath, "utf8"),
+  "symlink-target-sentinel\n",
+);
+
+const clientSource = readFileSync(
+  new URL("../tools/void-ai-agent-bootstrap-client-v1.mjs", import.meta.url),
+  "utf8",
+);
+assert.match(clientSource, /openSync\(resolved, "wx", 0o600\)/);
+assert.match(clientSource, /writeFileSync\(descriptor, content/);
+assert.match(clientSource, /fsyncSync\(descriptor\)/);
+assert.doesNotMatch(clientSource, /writeFileSync\(resolved, content/);
+assert.doesNotMatch(clientSource, /chmodSync\(resolved/);
+
 for (const result of [
   maximumBoundsResult,
   small.result,
@@ -726,6 +947,8 @@ for (const result of [
   stalledIgnoringAbort.result,
   prelocked.result,
   recovered,
+  stalledGenerationRecovered,
+  lateNeverCancelRecovered,
 ]) {
   assert.equal(result.readiness.mutation_authority_granted, false);
   assert.equal(result.readiness.wallet_or_signer_access_granted, false);
@@ -758,6 +981,15 @@ console.log("body_reader_acquisition_teardown_owned=true");
 console.log("fetch_acquisition_deadline_owned=true");
 console.log("unresolved_fetch_generation_quarantined=true");
 console.log("late_fetch_response_cleanup_owned=true");
+console.log("timed_out_body_generation_quarantined=true");
+console.log("max_outstanding_body_reads=1");
+console.log("body_generation_recovery=true");
+console.log("late_response_cancel_generation_quarantined=true");
+console.log("output_publication_production_writer=true");
+console.log("output_existing_file_not_truncated=true");
+console.log("output_symlink_not_followed=true");
+console.log("output_descriptor_bound=true");
+console.log("output_mode_0600=true");
 console.log("http_get_only=true");
 console.log("credentials_sent=false");
 console.log("wallet_or_signer_access=false");
