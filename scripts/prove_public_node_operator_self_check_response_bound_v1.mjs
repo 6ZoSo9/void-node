@@ -726,7 +726,7 @@ try {
   await proveOutputPublicationSafety(port);
 
   const publicHttp = await expectBaseAdmission("http://example.invalid", 1, "public HTTP must fail pre-fetch");
-  assert.match(publicHttp.stderr, /public base URL must use https/);
+  assert.match(publicHttp.stderr, /DNS names require https/);
   await expectBaseAdmission("https://example.invalid", 2, "public HTTPS must pass admission and fail only evidence checks");
   await expectBaseAdmission("http://127.0.0.1:1", 2, "private/loopback HTTP must pass admission");
   await expectBaseAdmission("http://[::1]:1", 2, "bracketed IPv6 loopback HTTP must pass admission");
