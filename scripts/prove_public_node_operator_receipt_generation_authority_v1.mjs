@@ -116,36 +116,56 @@ function assertReceiptLoadRejected(result, label) {
 }
 
 function writeMutationPreload(temp) {
-  const preload = path.join(temp, "receipt-generation-preload.mjs");
+  const preload = path.join(temp, "receipt-generation-preload.cjs");
   fs.writeFileSync(
     preload,
-    `import fs from "node:fs";\n` +
+    `const fs = require("node:fs");\n` +
+      `const { syncBuiltinESMExports } = require("node:module");\n` +
       `const originalReadSync = fs.readSync.bind(fs);\n` +
       `let injected = false;\n` +
       `fs.readSync = function(fd, buffer, offset, length, position) {\n` +
       `  const result = originalReadSync(fd, buffer, offset, length, position);\n` +
       `  if (!injected && result > 0 && process.env.VOID_RECEIPT_MUTATION_MODE) {\n` +
-      `    injected = true;\n` +
       `    const target = process.env.VOID_RECEIPT_MUTATION_PATH;\n` +
-      `    const replacement = Buffer.from(process.env.VOID_RECEIPT_MUTATION_BYTES_B64, "base64");\n` +
-      `    if (process.env.VOID_RECEIPT_MUTATION_MODE === "same_inode") {\n` +
-      `      const writeFd = fs.openSync(target, "r+");\n` +
-      `      try {\n` +
-      `        fs.writeSync(writeFd, replacement, 0, replacement.length, 0);\n` +
-      `        fs.ftruncateSync(writeFd, replacement.length);\n` +
-      `        fs.fsyncSync(writeFd);\n` +
-      `      } finally { fs.closeSync(writeFd); }\n` +
-      `    } else if (process.env.VOID_RECEIPT_MUTATION_MODE === "replace_path") {\n` +
-      `      fs.renameSync(target, target + ".old");\n` +
-      `      fs.writeFileSync(target, replacement, { mode: 0o600 });\n` +
-      `      fs.chmodSync(target, 0o600);\n` +
+      `    try {\n` +
+      `      const fdStat = fs.fstatSync(fd, { bigint: true });\n` +
+      `      const targetStat = fs.statSync(target, { bigint: true });\n` +
+      `      if (fdStat.dev !== targetStat.dev || fdStat.ino !== targetStat.ino) return result;\n` +
+      `      injected = true;\n` +
+      `      const replacement = Buffer.from(process.env.VOID_RECEIPT_MUTATION_BYTES_B64, "base64");\n` +
+      `      if (process.env.VOID_RECEIPT_MUTATION_MODE === "same_inode") {\n` +
+      `        const writeFd = fs.openSync(target, "r+");\n` +
+      `        try {\n` +
+      `          fs.writeSync(writeFd, replacement, 0, replacement.length, 0);\n` +
+      `          fs.ftruncateSync(writeFd, replacement.length);\n` +
+      `          fs.fsyncSync(writeFd);\n` +
+      `        } finally { fs.closeSync(writeFd); }\n` +
+      `      } else if (process.env.VOID_RECEIPT_MUTATION_MODE === "replace_path") {\n` +
+      `        fs.renameSync(target, target + ".old");\n` +
+      `        fs.writeFileSync(target, replacement, { mode: 0o600 });\n` +
+      `        fs.chmodSync(target, 0o600);\n` +
+      `      }\n` +
+      `      const markerPath = process.env.VOID_RECEIPT_MUTATION_MARKER_PATH;\n` +
+      `      if (markerPath) fs.writeFileSync(markerPath, "injected\\n", { flag: "wx", mode: 0o600 });\n` +
+      `    } catch (error) {\n` +
+      `      process.stderr.write(\`receipt generation preload failed: \${error instanceof Error ? error.message : String(error)}\\n\`);\n` +
+      `      throw error;\n` +
       `    }\n` +
       `  }\n` +
       `  return result;\n` +
-      `};\n`,
+      `};\n` +
+      `syncBuiltinESMExports();\n`,
     { mode: 0o600 },
   );
   return preload;
+}
+
+function assertMutationInjected(markerPath, label) {
+  assert.equal(
+    fs.readFileSync(markerPath, "utf8"),
+    "injected\n",
+    `${label}: mutation preload did not execute against the selected receipt`,
+  );
 }
 
 const temp = fs.mkdtempSync(
@@ -178,32 +198,39 @@ try {
     "adversarial replacement must preserve byte length",
   );
   const commonEnv = {
-    NODE_OPTIONS: [process.env.NODE_OPTIONS, `--import=${preload}`]
+    NODE_OPTIONS: [process.env.NODE_OPTIONS, `--require=${preload}`]
       .filter(Boolean)
       .join(" "),
     VOID_RECEIPT_MUTATION_BYTES_B64: Buffer.from(replacement).toString("base64"),
   };
 
   const sameInode = path.join(temp, "same-inode.json");
+  const sameInodeMarker = path.join(temp, "same-inode-injected.txt");
   writeReceipt(sameInode);
   result = runReviewer(sameInode, {
     ...commonEnv,
     VOID_RECEIPT_MUTATION_MODE: "same_inode",
     VOID_RECEIPT_MUTATION_PATH: sameInode,
+    VOID_RECEIPT_MUTATION_MARKER_PATH: sameInodeMarker,
   });
+  assertMutationInjected(sameInodeMarker, "same-inode same-size rewrite");
   assertReceiptLoadRejected(result, "same-inode same-size rewrite");
 
   const replaced = path.join(temp, "replacement.json");
+  const replacementMarker = path.join(temp, "replacement-injected.txt");
   writeReceipt(replaced);
   result = runReviewer(replaced, {
     ...commonEnv,
     VOID_RECEIPT_MUTATION_MODE: "replace_path",
     VOID_RECEIPT_MUTATION_PATH: replaced,
+    VOID_RECEIPT_MUTATION_MARKER_PATH: replacementMarker,
   });
+  assertMutationInjected(replacementMarker, "same-path replacement generation");
   assertReceiptLoadRejected(result, "same-path replacement generation");
 
   console.log("receipt_owner_private_mode_required=true");
   console.log("receipt_single_link_required=true");
+  console.log("mutation_preload_target_bound=true");
   console.log("same_inode_same_size_rewrite_rejected=true");
   console.log("same_path_replacement_generation_rejected=true");
   console.log(MARKER);
