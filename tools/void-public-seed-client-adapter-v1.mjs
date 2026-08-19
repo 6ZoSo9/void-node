@@ -128,6 +128,13 @@ export async function createPublicSeedClientAdapterV1({
     throw new Error("public seed client adapter bind must be a numeric loopback literal");
   }
   const peers = normalizePeers(rawPeers, { allowLoopbackFixture });
+  const effectiveTimeoutMs = boundedInteger(timeoutMs, 15_000, 1_000, 60_000);
+  const effectiveMaxBytes = boundedInteger(
+    maxBytes,
+    64 * 1024 * 1024,
+    64 * 1024,
+    COMPILED_MAX_RESPONSE_BYTES,
+  );
   let activeIndex = 0;
   let requestCount = 0;
   let failoverCount = 0;
@@ -163,7 +170,7 @@ export async function createPublicSeedClientAdapterV1({
           dns_pinned: true,
           redirects_followed: false,
           max_range: COMPILED_MAX_RANGE,
-          max_response_bytes: maxBytes,
+          max_response_bytes: effectiveMaxBytes,
           tailnet_required: false,
           private_mutation_routes_exposed: false,
         },
@@ -205,15 +212,15 @@ export async function createPublicSeedClientAdapterV1({
 
     requestCount += 1;
     const failures = [];
-    const logicalDeadlineAtMs = performance.now() + timeoutMs;
+    const logicalDeadlineAtMs = performance.now() + effectiveTimeoutMs;
     for (let offset = 0; offset < peers.length; offset += 1) {
       const index = (activeIndex + offset) % peers.length;
       const peer = peers[index];
       try {
         const remote = await requestPublicSeedRouteV1(peer, route, {
           method,
-          timeoutMs,
-          maxBytes,
+          timeoutMs: effectiveTimeoutMs,
+          maxBytes: effectiveMaxBytes,
           allowLoopbackFixture,
           logicalDeadlineAtMs,
         });
