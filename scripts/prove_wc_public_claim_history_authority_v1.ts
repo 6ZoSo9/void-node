@@ -161,6 +161,19 @@ async function main(): Promise<void> {
       "large history warm monopolized event loop",
     );
 
+    let decisionTimerTicks = 0;
+    const decisionTimer = setInterval(() => {
+      decisionTimerTicks += 1;
+    }, 1);
+    await authority.prepareWcPublicClaimHistoryDecisionV1(
+      tmp,
+    );
+    clearInterval(decisionTimer);
+    assert.ok(
+      decisionTimerTicks > 0,
+      "decision generation revalidation monopolized event loop",
+    );
+
     const snapshot =
       authority.wcPublicClaimHistorySnapshotV1(
         tmp,
@@ -1922,6 +1935,210 @@ async function main(): Promise<void> {
     }
   }
 
+  // Post-warm correctness must not depend on fs.watch delivery. Suppress
+  // every watcher after a valid warm, rewrite one authoritative record in
+  // place without changing its parent directory stamp, and require the next
+  // decision preparation to reject/rebuild rather than serve stale policy.
+  {
+    const tmp = fs.mkdtempSync(
+      path.join(
+        os.tmpdir(),
+        "void-public-claim-history-watch-independent-v1-",
+      ),
+    );
+    configure(tmp);
+    const d = ensureHistoryDirs(tmp);
+    const now = Date.now();
+    const ticketId = "f".repeat(32);
+    const executor = "6".repeat(32);
+    const accountA = "watch-account-a";
+    const accountB = "watch-account-b";
+    const issuedFile = path.join(
+      d.issued,
+      `${ticketId}.json`,
+    );
+
+    const recordText = (account: string) =>
+      JSON.stringify({
+        marker: "VOID_WC_PUBLIC_EARNING_PILOT_V1",
+        version: 1,
+        ticket_id: ticketId,
+        account,
+        executor_node_id: executor,
+        expires_at_ms: now + 300_000,
+        status: "issued",
+      }) + "\n";
+
+    const textA = recordText(accountA);
+    const textB = recordText(accountB);
+    assert.equal(
+      Buffer.byteLength(textA),
+      Buffer.byteLength(textB),
+      "watch-independent rewrite must preserve record length",
+    );
+
+    const rewriteInPlace = (bytes: Buffer) => {
+      const fd = fs.openSync(issuedFile, "r+");
+      try {
+        const prior = fs.fstatSync(
+          fd,
+          { bigint: true } as any,
+        );
+        assert.equal(
+          Number(prior.size),
+          bytes.length,
+          "watch-independent rewrite length drift",
+        );
+        const written = fs.writeSync(
+          fd,
+          bytes,
+          0,
+          bytes.length,
+          0,
+        );
+        assert.equal(written, bytes.length);
+        fs.fdatasyncSync(fd);
+      } finally {
+        fs.closeSync(fd);
+      }
+    };
+
+    fs.writeFileSync(
+      issuedFile,
+      textA,
+      { mode: 0o600 },
+    );
+
+    authority.resetWcPublicClaimHistoryAuthorityForProofV1(
+      tmp,
+    );
+    authority.primeWcPublicClaimHistoryAuthorityV1(tmp);
+    await authority.waitForWcPublicClaimHistoryWarmForProofV1(
+      tmp,
+    );
+    await authority.prepareWcPublicClaimHistoryDecisionV1(
+      tmp,
+    );
+
+    let snapshot =
+      authority.wcPublicClaimHistorySnapshotV1(
+        tmp,
+        now,
+        accountA,
+        executor,
+        300_000,
+      );
+    assert.equal(snapshot.active_account, 1);
+
+    const dirBefore = dirStamp(d.issued);
+    const watchBefore =
+      authority.wcPublicClaimHistoryWatchGenerationForProofV1(
+        tmp,
+      );
+    authority.suppressWcPublicClaimHistoryWatchForProofV1(
+      tmp,
+    );
+    rewriteInPlace(Buffer.from(textB, "utf8"));
+    const dirAfter = dirStamp(d.issued);
+    assert.deepEqual(
+      dirAfter,
+      dirBefore,
+      "in-place rewrite unexpectedly changed parent directory stamp",
+    );
+    assert.equal(
+      authority.wcPublicClaimHistoryWatchGenerationForProofV1(
+        tmp,
+      ),
+      watchBefore,
+      "suppressed watcher unexpectedly advanced generation",
+    );
+
+    await assert.rejects(
+      () =>
+        authority.prepareWcPublicClaimHistoryDecisionV1(
+          tmp,
+        ),
+      /VOID_WC_PUBLIC_CLAIM_HISTORY_WARMING/,
+    );
+
+    await authority.waitForWcPublicClaimHistoryWarmForProofV1(
+      tmp,
+    );
+    await authority.prepareWcPublicClaimHistoryDecisionV1(
+      tmp,
+    );
+
+    snapshot =
+      authority.wcPublicClaimHistorySnapshotV1(
+        tmp,
+        now,
+        accountA,
+        executor,
+        300_000,
+      );
+    assert.equal(snapshot.active_account, 0);
+    snapshot =
+      authority.wcPublicClaimHistorySnapshotV1(
+        tmp,
+        now,
+        accountB,
+        executor,
+        300_000,
+      );
+    assert.equal(snapshot.active_account, 1);
+
+    // Repeat with a same-length valid -> invalid semantic rewrite. Even with
+    // no watcher callback, the decision gate must invalidate first; the
+    // rebuild must then fail closed on malformed authority.
+    const validBytes = fs.readFileSync(issuedFile);
+    assert.equal(validBytes[0], 0x7b);
+    const invalidBytes = Buffer.from(validBytes);
+    invalidBytes[0] = 0x5b;
+
+    const dirBeforeInvalid = dirStamp(d.issued);
+    const watchBeforeInvalid =
+      authority.wcPublicClaimHistoryWatchGenerationForProofV1(
+        tmp,
+      );
+    authority.suppressWcPublicClaimHistoryWatchForProofV1(
+      tmp,
+    );
+    rewriteInPlace(invalidBytes);
+    assert.deepEqual(
+      dirStamp(d.issued),
+      dirBeforeInvalid,
+    );
+    assert.equal(
+      authority.wcPublicClaimHistoryWatchGenerationForProofV1(
+        tmp,
+      ),
+      watchBeforeInvalid,
+    );
+
+    await assert.rejects(
+      () =>
+        authority.prepareWcPublicClaimHistoryDecisionV1(
+          tmp,
+        ),
+      /VOID_WC_PUBLIC_CLAIM_HISTORY_WARMING/,
+    );
+    await assert.rejects(
+      () =>
+        authority.waitForWcPublicClaimHistoryWarmForProofV1(
+          tmp,
+        ),
+      /VOID_WC_PUBLIC_CLAIM_HISTORY_INVALID/,
+    );
+
+    authority.resetWcPublicClaimHistoryAuthorityForProofV1(
+      tmp,
+    );
+    fs.rmSync(tmp, {
+      recursive: true,
+      force: true,
+    });
+  }
+
   console.log(
     "VOID_WC_PUBLIC_CLAIM_HISTORY_AUTHORITY_V1_GREEN",
   );
@@ -1944,6 +2161,11 @@ async function main(): Promise<void> {
   console.log("history_directory_failed_fsync_resynced=true");
   console.log("claim_history_string_schema_exact=true");
   console.log("coercible_history_string_fields_rejected=true");
+  console.log("fs_watch_advisory_only=true");
+  console.log("post_warm_record_generation_revalidated_before_decision=true");
+  console.log("missed_watch_in_place_rewrite_stale_cache=false");
+  console.log("missed_watch_valid_to_invalid_fails_closed=true");
+  console.log("decision_revalidation_yields_event_loop=true");
 }
 
 main().catch((error) => {

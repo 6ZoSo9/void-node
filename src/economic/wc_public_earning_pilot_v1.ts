@@ -11,6 +11,7 @@ import {
   type WcProcessInstanceLockV1,
 } from "./wc_process_instance_lock_v1.js";
 import {
+  prepareWcPublicClaimHistoryDecisionV1,
   primeWcPublicClaimHistoryAuthorityV1,
   wcPublicClaimHistorySnapshotV1,
 } from "./wc_public_claim_history_authority_v1.js";
@@ -1918,6 +1919,7 @@ async function recoverPublicClaimReplayV1(
 
     // Recovery owns both claim issuance and ticket single-use authority.
     // Re-check all other active capacity before returning/publishing.
+    await prepareWcPublicClaimHistoryDecisionV1(raw);
     assertPublicClaimRecoveryCapacityV1(
       claim,
       preparedRecord,
@@ -2071,6 +2073,7 @@ export async function issuePublicTicketClaim(
       // A reserving journal already owns recovery intent. It may survive the
       // original signature-skew window, but it may not resurrect capacity
       // now owned by another live ticket.
+      await prepareWcPublicClaimHistoryDecisionV1(raw);
       assertPublicClaimRecoveryCapacityV1(
         claim,
         null,
@@ -2079,6 +2082,7 @@ export async function issuePublicTicketClaim(
       );
     } else {
       assertPublicTicketClaimFreshV1(claim, now);
+      await prepareWcPublicClaimHistoryDecisionV1(raw);
       const history = wcPublicClaimHistorySnapshotV1(
         raw,
         now,
@@ -3974,8 +3978,9 @@ function mount(): void {
   app[GLOBAL_MARK] = true;
   primeWcPublicClaimHistoryAuthorityV1();
 
-  app.get(PUBLIC_STATUS_ROUTE, (req: any, res: any) => {
+  app.get(PUBLIC_STATUS_ROUTE, async (req: any, res: any) => {
     try {
+      await prepareWcPublicClaimHistoryDecisionV1();
       return res.json(
         publicStatusForProofV1(req?.query?.account),
       );

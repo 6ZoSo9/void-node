@@ -1035,6 +1035,64 @@ function startWarmV1(raw?: string): void {
   warmTasksV1.set(key, task);
 }
 
+
+export function suppressWcPublicClaimHistoryWatchForProofV1(
+  raw?: string,
+): void {
+  const state = ensureWatchStateV1(raw);
+  for (const watcher of state.watchers) {
+    try {
+      watcher.close();
+    } catch (error) {
+      void error;
+    }
+  }
+  state.watchers.length = 0;
+  // Proof-only simulation of a missed/unavailable advisory notification:
+  // keep the watch state nominally healthy so correctness cannot depend on
+  // an error callback or generation increment.
+  state.healthy = true;
+}
+
+export async function prepareWcPublicClaimHistoryDecisionV1(
+  raw?: string,
+): Promise<void> {
+  const state = readyStateV1(raw);
+  const key = keyV1(raw);
+  const watch = ensureWatchStateV1(raw);
+  const before = stampsV1(raw);
+  const watchBefore = watch.generation;
+
+  // fs.watch is a wakeup/performance hint only. Revalidate the exact
+  // per-record generations captured by the published warm state before a
+  // participant-facing status/claim decision may consume that authority.
+  // This is asynchronous metadata work; it never restores synchronous
+  // retained-history file reads to the Node request/event-loop path.
+  const generationsCurrent =
+    await revalidateRecordGenerationsV1(state);
+
+  const after = stampsV1(raw);
+  const watchAfter = watch.generation;
+  const stillPublished = statesV1.get(key) === state;
+
+  if (
+    !generationsCurrent ||
+    !watch.healthy ||
+    !stillPublished ||
+    watchBefore !== watchAfter ||
+    state.watch_generation !== watchAfter ||
+    !sameStampsV1(before, after) ||
+    !sameStampsV1(state.stamps, after)
+  ) {
+    statesV1.delete(key);
+    warmFailuresV1.delete(key);
+    startWarmV1(raw);
+    throw new Error(
+      "VOID_WC_PUBLIC_CLAIM_HISTORY_WARMING",
+    );
+  }
+}
+
 function readyStateV1(raw?: string): HistoryStateV1 {
   ensureDirsV1(raw);
   const key = keyV1(raw);

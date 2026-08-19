@@ -1160,4 +1160,29 @@ need(receiptIndex > jobIndex, "remote receipt verification must follow job");
 need(importIndex > receiptIndex, "remote truth import must follow verification");
 need(acceptanceIndex > importIndex, "canonical acceptance must follow import");
 
+need(
+  claimHistoryAuthorityText.includes(
+    "export async function prepareWcPublicClaimHistoryDecisionV1(",
+  ) &&
+    claimHistoryAuthorityText.includes(
+      "await revalidateRecordGenerationsV1(state)",
+    ) &&
+    claimHistoryAuthorityText.includes(
+      "suppressWcPublicClaimHistoryWatchForProofV1",
+    ),
+  "claim history post-warm decision authority still depends on watcher delivery",
+);
+const historyDecisionRawGates = (
+  moduleText.match(
+    /await prepareWcPublicClaimHistoryDecisionV1\(raw\);/g,
+  ) || []
+).length;
+need(
+  historyDecisionRawGates >= 3 &&
+    moduleText.includes(
+      "await prepareWcPublicClaimHistoryDecisionV1();",
+    ),
+  "participant claim/status paths do not revalidate history generations before decisions",
+);
+
 console.log("VOID_WC_PUBLIC_EARNING_PILOT_V1_GREEN");
