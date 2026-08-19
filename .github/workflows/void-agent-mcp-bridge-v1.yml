@@ -8,6 +8,7 @@ on:
       - "scripts/ci_diff_hygiene_v1.sh"
       - "scripts/prove_ci_diff_hygiene_v1.mjs"
       - "tools/void-ai-agent-bootstrap-client-v1.mjs"
+      - "scripts/prove_void_ai_agent_bootstrap_client_v1.mjs"
       - "scripts/prove_void_ai_agent_bootstrap_response_bounds_v1.mjs"
       - "docs/public/ai-agent-bootstrap-client-v1.md"
       - "tools/void-ai-agent-paid-work-client-v1.mjs"
@@ -103,6 +104,7 @@ jobs:
                 direct_relevant=1
                 ;;
               tools/void-ai-agent-bootstrap-client-v1.mjs|\
+              scripts/prove_void_ai_agent_bootstrap_client_v1.mjs|\
               scripts/prove_void_ai_agent_bootstrap_response_bounds_v1.mjs|\
               docs/public/ai-agent-bootstrap-client-v1.md|\
               tools/void-ai-agent-paid-work-client-v1.mjs|\
@@ -158,6 +160,7 @@ jobs:
           grep -F 'scripts/ci_diff_hygiene_v1.sh' <<<"$bootstrap_block"
           grep -F 'scripts/prove_ci_diff_hygiene_v1.mjs' <<<"$bootstrap_block"
           grep -F 'tools/void-ai-agent-bootstrap-client-v1.mjs' <<<"$bootstrap_block"
+          grep -F 'scripts/prove_void_ai_agent_bootstrap_client_v1.mjs' <<<"$bootstrap_block"
           grep -F 'scripts/prove_void_ai_agent_bootstrap_response_bounds_v1.mjs' <<<"$bootstrap_block"
           grep -F 'docs/public/ai-agent-bootstrap-client-v1.md' <<<"$bootstrap_block"
           grep -F 'tools/void-ai-agent-paid-work-client-v1.mjs' <<<"$bootstrap_block"
@@ -220,10 +223,11 @@ jobs:
           esac
           test "$classifier_relevant" -eq 1
 
-          external_contract_change="docs/public/ai-agent-bootstrap-client-v1.md"
+          external_contract_change="scripts/prove_void_ai_agent_bootstrap_client_v1.mjs"
           external_contract_relevant=0
           case "$external_contract_change" in
             tools/void-ai-agent-bootstrap-client-v1.mjs|\
+            scripts/prove_void_ai_agent_bootstrap_client_v1.mjs|\
             scripts/prove_void_ai_agent_bootstrap_response_bounds_v1.mjs|\
             docs/public/ai-agent-bootstrap-client-v1.md|\
             tools/void-ai-agent-paid-work-client-v1.mjs|\
@@ -358,6 +362,7 @@ jobs:
               scripts/ci_diff_hygiene_v1.sh|\
               scripts/prove_ci_diff_hygiene_v1.mjs|\
               tools/void-ai-agent-bootstrap-client-v1.mjs|\
+              scripts/prove_void_ai_agent_bootstrap_client_v1.mjs|\
               scripts/prove_void_ai_agent_bootstrap_response_bounds_v1.mjs|\
               docs/public/ai-agent-bootstrap-client-v1.md|\
               tools/void-ai-agent-paid-work-client-v1.mjs|\
