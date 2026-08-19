@@ -269,7 +269,7 @@ const signIndex = moduleText.indexOf("const envelope = verifyPilotResultEnvelope
 const healthIndex = moduleText.indexOf("`${record.executor_http_base}/health`");
 const jobIndex = moduleText.indexOf("`${record.executor_http_base}/jobs/");
 const receiptIndex = moduleText.indexOf("`${record.executor_http_base}/receipts`");
-const importIndex = moduleText.indexOf("const imported = persistImportedRemoteTruthOnce(");
+const importIndex = moduleText.indexOf("const imported = await persistImportedRemoteTruthOnce(");
 const acceptanceIndex = moduleText.indexOf("const acceptance = await acceptVerifiedReceiptOnce");
 
 need(signIndex >= 0, "signature verification anchor missing");

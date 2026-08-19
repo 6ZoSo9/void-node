@@ -262,7 +262,7 @@ async function main(): Promise<void> {
     /executor_signature_invalid/,
   );
 
-  const imported = pilot.persistImportedRemoteTruthOnce(
+  const imported = await pilot.persistImportedRemoteTruthOnce(
     signed.envelope,
     signed.signature,
     tmp,
@@ -271,7 +271,7 @@ async function main(): Promise<void> {
   assert.equal(imported.appended.job, true);
   assert.equal(imported.appended.completed, true);
 
-  const importedAgain = pilot.persistImportedRemoteTruthOnce(
+  const importedAgain = await pilot.persistImportedRemoteTruthOnce(
     signed.envelope,
     signed.signature,
     tmp,
