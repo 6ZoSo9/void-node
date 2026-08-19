@@ -89,8 +89,11 @@ function asObject(value: unknown, message: string): Record<string, unknown> {
 }
 
 function responseWithFinalUrl(
-  body: BodyInit,
-  init: ResponseInit,
+  body: string,
+  init: {
+    status: number;
+    headers: Record<string, string>;
+  },
   finalUrl: string,
 ): Response {
   const response = new Response(body, init);
