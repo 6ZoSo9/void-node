@@ -371,10 +371,15 @@ export function createDataNetRequestOwnerV1({
     request.detachControllerAbort = () => controller.signal.removeEventListener('abort', onControllerAbort);
 
     const requestedHref = new URL(String(input), origin).href;
-    const rawFetch = Promise.resolve().then(() => fetchImpl(input, {
-      ...init,
-      signal: controller.signal,
-    }));
+    let rawFetch;
+    try {
+      rawFetch = Promise.resolve(fetchImpl(input, {
+        ...init,
+        signal: controller.signal,
+      }));
+    } catch (error) {
+      rawFetch = Promise.reject(error);
+    }
 
     rawFetch.then(
       (response) => {
