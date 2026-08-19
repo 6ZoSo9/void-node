@@ -36,6 +36,22 @@ const jobBlock = (source, name) => {
     : source.slice(bodyStart, bodyStart + next);
 };
 
+const replaceJobIf = (source, name, replacement) => {
+  const marker = `\n  ${name}:\n`;
+  const start = source.indexOf(marker);
+  assert.notEqual(start, -1, `missing ${name} job`);
+  const bodyStart = start + marker.length;
+  const next = source.slice(bodyStart).search(/\n  [A-Za-z0-9_-]+:\n/);
+  const bodyEnd = next === -1 ? source.length : bodyStart + next;
+  const body = source.slice(bodyStart, bodyEnd);
+  const rewritten = body.replace(
+    /^    if: .*$/m,
+    `    if: ${replacement}`,
+  );
+  assert.notEqual(rewritten, body, `missing ${name} job-level if`);
+  return source.slice(0, bodyStart) + rewritten + source.slice(bodyEnd);
+};
+
 const validateWorkflow = (source, spec) => {
   const proof = jobBlock(source, "proof");
   const inspectGuard = jobBlock(source, "inspect_ref_guard");
@@ -73,6 +89,16 @@ const validateWorkflow = (source, spec) => {
     );
   }
 
+  assert.match(
+    inspect,
+    /^    if: github\.event_name == 'workflow_dispatch' && inputs\.operation == 'inspect'$/m,
+    `${spec.label} inspect production job must remain exactly operation-bound`,
+  );
+  assert.match(
+    apply,
+    /^    if: github\.event_name == 'workflow_dispatch' && inputs\.operation == 'apply'$/m,
+    `${spec.label} apply production job must remain exactly operation-bound`,
+  );
   assert.ok(
     inspect.includes("needs: [proof, inspect_ref_guard]"),
     `${spec.label} inspect must depend on proof plus inspect guard`,
@@ -150,6 +176,32 @@ for (const spec of specs) {
     /guard must not enter a production environment or use secrets/,
     `${spec.label} proof must reject production-environment access in a guard job`,
   );
+
+  for (const [job, operation] of [
+    ["inspect", "inspect"],
+    ["apply", "apply"],
+  ]) {
+    assert.throws(
+      () => validateWorkflow(
+        replaceJobIf(source, job, "always()"),
+        spec,
+      ),
+      new RegExp(`${job} production job must remain exactly operation-bound`),
+      `${spec.label} proof must reject status-function weakening on the ${job} production job`,
+    );
+    assert.throws(
+      () => validateWorkflow(
+        replaceJobIf(
+          source,
+          job,
+          `github.event_name == 'workflow_dispatch' && inputs.operation != 'noop'`,
+        ),
+        spec,
+      ),
+      new RegExp(`${job} production job must remain exactly operation-bound`),
+      `${spec.label} proof must reject operation broadening on the ${job} production job`,
+    );
+  }
 }
 
 process.stdout.write(`${MARKER}\n`);
