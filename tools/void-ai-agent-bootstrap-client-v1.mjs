@@ -1,8 +1,10 @@
 #!/usr/bin/env node
 import {
-  chmodSync,
-  lstatSync,
+  closeSync,
+  fchmodSync,
+  fsyncSync,
   mkdirSync,
+  openSync,
   writeFileSync,
 } from "node:fs";
 import path from "node:path";
@@ -24,7 +26,7 @@ const MAX_TIMEOUT_MS = 30_000;
 const DEFAULT_MAX_BYTES = 1_048_576;
 const MAX_ALLOWED_BYTES = 4_194_304;
 const RESPONSE_REJECTION_TEARDOWN_MS = 250;
-const activeFetchAcquisitions = new WeakMap();
+const activeTransportLeases = new WeakMap();
 
 const ROUTES = Object.freeze({
   well_known_discovery:
@@ -330,10 +332,49 @@ async function settleCancellationBounded(cancellation) {
   }
 }
 
+function makeTransportLease(fetchImpl, acquisition) {
+  const lease = {
+    acquisition,
+    pendingRetentions: 0,
+    releaseRequested: false,
+    released: false,
+    retain(promise) {
+      if (!promise || typeof promise.then !== "function") {
+        return;
+      }
+      lease.pendingRetentions += 1;
+      const settle = () => {
+        lease.pendingRetentions -= 1;
+        lease.maybeRelease();
+      };
+      Promise.resolve(promise).then(settle, settle);
+    },
+    maybeRelease() {
+      if (
+        lease.released ||
+        !lease.releaseRequested ||
+        lease.pendingRetentions !== 0
+      ) {
+        return;
+      }
+      lease.released = true;
+      if (activeTransportLeases.get(fetchImpl) === lease) {
+        activeTransportLeases.delete(fetchImpl);
+      }
+    },
+    release() {
+      lease.releaseRequested = true;
+      lease.maybeRelease();
+    },
+  };
+  return lease;
+}
+
 async function rejectResponseBodyBounded(
   response,
   reader,
   controller,
+  transportLease = null,
 ) {
   if (!controller.signal.aborted) {
     controller.abort(
@@ -352,6 +393,7 @@ async function rejectResponseBodyBounded(
     // Preserve the already-known response rejection.
   }
 
+  transportLease?.retain(cancellation);
   await settleCancellationBounded(cancellation);
 }
 
@@ -361,7 +403,7 @@ async function acquireResponseBounded(
   init,
   controller,
 ) {
-  if (activeFetchAcquisitions.has(fetchImpl)) {
+  if (activeTransportLeases.has(fetchImpl)) {
     throw new Error(
       "bootstrap_fetch_acquisition_quarantined",
     );
@@ -370,18 +412,13 @@ async function acquireResponseBounded(
   const acquisition = Promise.resolve().then(
     () => fetchImpl(url, init),
   );
-  const lease = { acquisition };
-  activeFetchAcquisitions.set(fetchImpl, lease);
-
-  const release = () => {
-    if (activeFetchAcquisitions.get(fetchImpl) === lease) {
-      activeFetchAcquisitions.delete(fetchImpl);
-    }
-  };
+  const lease = makeTransportLease(fetchImpl, acquisition);
+  activeTransportLeases.set(fetchImpl, lease);
 
   // If the logical request times out before a custom fetch settles, retain
-  // bounded ownership of that generation. A late Response is torn down once,
-  // and the quarantine is released only after settlement plus cleanup.
+  // ownership of that exact generation. A late Response is torn down once,
+  // and unresolved cancellation keeps the transport quarantined without
+  // extending the participant-facing deadline.
   acquisition.then(
     async (response) => {
       if (controller.signal.aborted) {
@@ -390,25 +427,29 @@ async function acquireResponseBounded(
             response,
             null,
             controller,
+            lease,
           );
         } catch (_error) {
           // The participant-facing deadline is already terminal.
+        } finally {
+          lease.release();
         }
       }
     },
-    () => undefined,
-  ).finally(release).catch(() => undefined);
+    () => {
+      lease.release();
+    },
+  ).catch(() => undefined);
 
   try {
     const response = await awaitWithinOwnedDeadline(
       acquisition,
       controller.signal,
     );
-    release();
-    return response;
+    return { response, lease };
   } catch (error) {
     if (!controller.signal.aborted) {
-      release();
+      lease.release();
     }
     throw error;
   }
@@ -418,6 +459,7 @@ async function boundedRead(
   response,
   maxBytes,
   controller,
+  transportLease,
 ) {
   let declared;
   try {
@@ -427,6 +469,7 @@ async function boundedRead(
       response,
       null,
       controller,
+      transportLease,
     );
     throw error;
   }
@@ -439,6 +482,7 @@ async function boundedRead(
       response,
       null,
       controller,
+      transportLease,
     );
     throw primary;
   }
@@ -455,6 +499,7 @@ async function boundedRead(
       response,
       null,
       controller,
+      transportLease,
     );
     throw primary;
   }
@@ -470,6 +515,7 @@ async function boundedRead(
       response,
       null,
       controller,
+      transportLease,
     );
     throw primary;
   }
@@ -479,11 +525,38 @@ async function boundedRead(
 
   try {
     while (true) {
-      const { done, value } =
-        await awaitWithinOwnedDeadline(
-          Promise.resolve().then(() => reader.read()),
+      const readPromise = Promise.resolve().then(
+        () => reader.read(),
+      );
+      let readResult;
+      try {
+        readResult = await awaitWithinOwnedDeadline(
+          readPromise,
           controller.signal,
         );
+      } catch (error) {
+        if (controller.signal.aborted) {
+          transportLease?.retain(readPromise);
+          let cancellation = null;
+          try {
+            cancellation = reader.cancel();
+          } catch (_cancelError) {
+            cancellation = null;
+          }
+          transportLease?.retain(cancellation);
+          await settleCancellationBounded(cancellation);
+        } else {
+          await rejectResponseBodyBounded(
+            response,
+            reader,
+            controller,
+            transportLease,
+          );
+        }
+        throw error;
+      }
+
+      const { done, value } = readResult;
       if (done) break;
 
       const chunk = Buffer.from(value);
@@ -498,6 +571,7 @@ async function boundedRead(
           response,
           reader,
           controller,
+          transportLease,
         );
         throw primary;
       }
@@ -505,23 +579,6 @@ async function boundedRead(
       chunks.push(chunk);
     }
   } catch (error) {
-    if (!controller.signal.aborted) {
-      await rejectResponseBodyBounded(
-        response,
-        reader,
-        controller,
-      );
-    } else {
-      await settleCancellationBounded(
-        (() => {
-          try {
-            return reader.cancel();
-          } catch (_cancelError) {
-            return null;
-          }
-        })(),
-      );
-    }
     throw error;
   }
 
@@ -546,9 +603,10 @@ async function fetchJsonV1({
       ),
     timeoutMs,
   );
+  let transportLease = null;
 
   try {
-    const response = await acquireResponseBounded(
+    const acquired = await acquireResponseBounded(
       fetchImpl,
       url,
       {
@@ -563,6 +621,8 @@ async function fetchJsonV1({
       },
       controller,
     );
+    const response = acquired.response;
+    transportLease = acquired.lease;
 
     try {
       requireExactResponseUrl(response, url);
@@ -571,6 +631,7 @@ async function fetchJsonV1({
         response,
         null,
         controller,
+        transportLease,
       );
       throw error;
     }
@@ -586,6 +647,7 @@ async function fetchJsonV1({
         response,
         null,
         controller,
+        transportLease,
       );
       throw primary;
     }
@@ -594,6 +656,7 @@ async function fetchJsonV1({
       response,
       maxBytes,
       controller,
+      transportLease,
     );
 
     if (!response.ok) {
@@ -627,6 +690,7 @@ async function fetchJsonV1({
     };
   } finally {
     clearTimeout(timer);
+    transportLease?.release();
   }
 }
 
@@ -701,7 +765,7 @@ function readNetwork(value) {
   };
 }
 
-function writeOutputFile(outputPath, content) {
+export function writeBootstrapOutputFileV1(outputPath, content) {
   const resolved = path.resolve(
     process.cwd(),
     outputPath,
@@ -719,27 +783,25 @@ function writeOutputFile(outputPath, content) {
     );
   }
 
+  let descriptor;
   try {
-    const info = lstatSync(resolved);
-    if (info.isSymbolicLink()) {
-      throw new Error(
-        "output symlink is forbidden",
-      );
-    }
+    descriptor = openSync(resolved, "wx", 0o600);
   } catch (error) {
-    if (
-      error?.code !== "ENOENT"
-    ) {
-      throw error;
+    if (error?.code === "EEXIST") {
+      throw new Error("output path already exists");
     }
+    throw error;
   }
 
-  writeFileSync(resolved, content, {
-    encoding: "utf8",
-    mode: 0o600,
-    flag: "w",
-  });
-  chmodSync(resolved, 0o600);
+  try {
+    writeFileSync(descriptor, content, {
+      encoding: "utf8",
+    });
+    fchmodSync(descriptor, 0o600);
+    fsyncSync(descriptor);
+  } finally {
+    closeSync(descriptor);
+  }
 
   return resolved;
 }
@@ -1010,7 +1072,7 @@ async function main() {
     ) + "\n";
 
   if (args.outputPath) {
-    const resolved = writeOutputFile(
+    const resolved = writeBootstrapOutputFileV1(
       args.outputPath,
       content,
     );
