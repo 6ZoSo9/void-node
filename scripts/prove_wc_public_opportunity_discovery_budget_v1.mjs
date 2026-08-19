@@ -13,6 +13,7 @@ const ROOT = resolve(HERE, "..");
 const TOOL = resolve(ROOT, "tools/wc-public-opportunity-discovery-v1.mjs");
 const WELL_KNOWN = "/.well-known/void-public-node.json";
 const MAX_CANDIDATE_PATHS = 24;
+const RESPONSE_LIMIT = 64 * 1024;
 
 function runTool(base, timeoutMs) {
   return new Promise((resolveRun, rejectRun) => {
@@ -142,8 +143,88 @@ async function closeServer(server) {
   }
 }
 
+// Response rejection is not deadline expiry. Rejection teardown may abort the
+// owned controller, but the participant-visible error must remain the primary
+// bounded-response reason while the logical deadline is still open.
+for (const mode of ["declared", "streamed"]) {
+  const requests = [];
+  const { server, base } = await listen((request, response) => {
+    requests.push(request.url);
+    if (request.url === WELL_KNOWN) {
+      response.writeHead(200, {
+        "content-type": "application/json",
+        ...(mode === "declared" ? { "content-length": String(RESPONSE_LIMIT + 1) } : {}),
+      });
+      response.end(Buffer.alloc(RESPONSE_LIMIT + 1, 0x20));
+      return;
+    }
+    response.writeHead(404, { "content-type": "application/json" });
+    response.end(JSON.stringify({ error: "not_found" }));
+  });
+
+  try {
+    const result = await runTool(base, 1500);
+    assert.equal(result.code, 2, `${mode}: ${result.stderr || result.stdout}`);
+    const body = JSON.parse(result.stdout);
+    assert.equal(body.attempts[0].path, WELL_KNOWN, mode);
+    assert.equal(body.attempts[0].error, "response_body_too_large", mode);
+    assert.notEqual(body.attempts[0].error, "discovery_deadline_exceeded", mode);
+    assert.ok(requests.every((path) => typeof path === "string"), mode);
+  } finally {
+    await closeServer(server);
+  }
+}
+
+// Parsed JSON structure has its own work authority independent of byte size.
+// Over-budget structure must HOLD before any candidate advertised inside it can
+// cause another request.
+for (const fixture of [
+  {
+    name: "deep",
+    body: (() => {
+      let value = "/public/earn/status-never-probe";
+      for (let depth = 0; depth < 96; depth += 1) value = [value];
+      return { marker: "VOID_PUBLIC_NODE_DISCOVERY_STRUCTURE_FIXTURE_V1", nested: value };
+    })(),
+  },
+  {
+    name: "wide",
+    body: {
+      marker: "VOID_PUBLIC_NODE_DISCOVERY_STRUCTURE_FIXTURE_V1",
+      nodes: Array.from({ length: 5000 }, () => null),
+      candidate_path: "/public/earn/status-never-probe",
+    },
+  },
+]) {
+  const requests = [];
+  const encoded = JSON.stringify(fixture.body);
+  assert.ok(Buffer.byteLength(encoded) < RESPONSE_LIMIT, fixture.name);
+  const { server, base } = await listen((request, response) => {
+    requests.push(request.url);
+    if (request.url === WELL_KNOWN) {
+      response.writeHead(200, { "content-type": "application/json" });
+      response.end(encoded);
+      return;
+    }
+    response.writeHead(500, { "content-type": "application/json" });
+    response.end(JSON.stringify({ error: "candidate_probe_must_not_run" }));
+  });
+
+  try {
+    const result = await runTool(base, 1000);
+    assert.equal(result.code, 2, `${fixture.name}: ${result.stderr || result.stdout}`);
+    const body = JSON.parse(result.stdout);
+    assert.equal(body.reason, "discovery_structure_budget_exceeded", fixture.name);
+    assert.deepEqual(requests, [WELL_KNOWN], fixture.name);
+  } finally {
+    await closeServer(server);
+  }
+}
+
 console.log(MARKER);
 console.log(`maximum_candidate_paths=${MAX_CANDIDATE_PATHS}`);
 console.log("shared_logical_deadline=true");
+console.log("primary_rejection_truth_preserved=true");
+console.log("structure_budget_bounded=true");
 console.log("mutation=false");
 console.log("wc_award=false");
