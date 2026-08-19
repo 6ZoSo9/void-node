@@ -21,6 +21,7 @@ const routePayloads = new Map([
   [
     "/.well-known/void-agent-discovery.json",
     {
+      $schema: "./void-agent-discovery.schema.json",
       marker:
         "VOID_AI_AGENT_WELL_KNOWN_ENTRYPOINT_V1",
       protocol:
@@ -40,7 +41,12 @@ const routePayloads = new Map([
         same_origin_only: true,
         follow_redirects: false,
         send_secrets: false,
+        send_wallet_material: false,
+        send_operator_keys: false,
+        treat_unknown_as: "not_granted",
       },
+      network_authenticity:
+        "/.well-known/void-network-authenticity.json",
     },
   ],
   [
@@ -212,6 +218,51 @@ async function withServer(
   }
 }
 
+function bindResponseUrl(response, url) {
+  Object.defineProperty(response, "url", {
+    value: String(url),
+    configurable: true,
+  });
+  Object.defineProperty(response, "redirected", {
+    value: false,
+    configurable: true,
+  });
+  return response;
+}
+
+function jsonResponse(payload, url) {
+  const content = JSON.stringify(payload);
+  return bindResponseUrl(
+    new Response(content, {
+      status: 200,
+      headers: {
+        "content-type": "application/json",
+        "content-length": String(Buffer.byteLength(content)),
+      },
+    }),
+    url,
+  );
+}
+
+function syntheticResponse(url, readerFactory) {
+  return {
+    status: 200,
+    ok: true,
+    url: String(url),
+    redirected: false,
+    headers: new Headers({
+      "content-type": "application/json",
+    }),
+    body: {
+      getReader: readerFactory,
+    },
+  };
+}
+
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 const args = parseBootstrapClientArgsV1([
   "--base-url",
   "https://example.invalid",
@@ -338,6 +389,334 @@ await withServer(
   },
 );
 
+const canonicalWellKnown = routePayloads.get(
+  "/.well-known/void-agent-discovery.json",
+);
+const exactRootCases = [
+  [
+    "schema",
+    (value) => {
+      value.$schema = "./wrong.schema.json";
+    },
+    /well-known discovery schema mismatch/,
+  ],
+  [
+    "chain",
+    (value) => {
+      value.network.chain_id = 2051;
+    },
+    /well-known chain id mismatch/,
+  ],
+  [
+    "chain_string",
+    (value) => {
+      value.network.chain_id = "2050";
+    },
+    /well-known chain id mismatch/,
+  ],
+  [
+    "chain_fraction",
+    (value) => {
+      value.network.chain_id = 2050.5;
+    },
+    /well-known chain id mismatch/,
+  ],
+  [
+    "chain_unsafe",
+    (value) => {
+      value.network.chain_id = Number.MAX_SAFE_INTEGER + 1;
+    },
+    /well-known chain id mismatch/,
+  ],
+  [
+    "network_name",
+    (value) => {
+      value.network.name = "VOID Mainnet-1";
+    },
+    /well-known network name mismatch/,
+  ],
+  [
+    "canonical_route",
+    (value) => {
+      value.canonical_discovery = "/public-node/agents/other.json";
+    },
+    /well-known canonical discovery mismatch/,
+  ],
+  [
+    "authority_default",
+    (value) => {
+      value.authority.default = "not_granted";
+    },
+    /well-known default authority mismatch/,
+  ],
+  [
+    "credentials",
+    (value) => {
+      value.authority.credentials_required = true;
+    },
+    /well-known credentials requirement mismatch/,
+  ],
+  [
+    "safety_missing",
+    (value) => {
+      delete value.safety.send_operator_keys;
+    },
+    /well_known_safety_keys_mismatch/,
+  ],
+  [
+    "redirect_safety",
+    (value) => {
+      value.safety.follow_redirects = true;
+    },
+    /well-known redirect boundary mismatch/,
+  ],
+  [
+    "network_authenticity",
+    (value) => {
+      value.network_authenticity = "/wrong-authenticity.json";
+    },
+    /well-known network authenticity route mismatch/,
+  ],
+  [
+    "unknown_field",
+    (value) => {
+      value.unreviewed = true;
+    },
+    /well_known_keys_mismatch/,
+  ],
+];
+
+for (const [, mutate, expected] of exactRootCases) {
+  const payload = structuredClone(canonicalWellKnown);
+  mutate(payload);
+  await withServer(
+    new Map([
+      [
+        "/.well-known/void-agent-discovery.json",
+        { payload },
+      ],
+    ]),
+    async ({ baseUrl, observations }) => {
+      await assert.rejects(
+        runVoidAiAgentBootstrapClientV1({
+          baseUrl,
+          timeoutMs: 2000,
+          maxBytes: 65536,
+        }),
+        expected,
+      );
+      assert.equal(
+        observations.methods.length,
+        1,
+        "invalid root contract must stop before downstream probes",
+      );
+    },
+  );
+}
+
+const customBaseUrl = "http://127.0.0.1:4100";
+const capabilityPath = "/.well-known/void-agent-capabilities.json";
+
+let zeroReadCalls = 0;
+let zeroCancelCalls = 0;
+const zeroProgressFetch = async (input) => {
+  const url = input instanceof URL ? input : new URL(String(input));
+  const payload = routePayloads.get(url.pathname);
+  if (url.pathname !== capabilityPath) {
+    return jsonResponse(payload, url.href);
+  }
+  return syntheticResponse(url.href, () => ({
+    read() {
+      zeroReadCalls += 1;
+      return Promise.resolve({
+        done: false,
+        value: new Uint8Array(0),
+      });
+    },
+    cancel() {
+      zeroCancelCalls += 1;
+      return Promise.resolve();
+    },
+  }));
+};
+const zeroProgressResult =
+  await runVoidAiAgentBootstrapClientV1({
+    baseUrl: customBaseUrl,
+    timeoutMs: 1000,
+    maxBytes: 1024,
+    fetchImpl: zeroProgressFetch,
+  });
+assert.equal(
+  zeroProgressResult.surfaces.capabilities.available,
+  false,
+);
+assert.equal(
+  zeroProgressResult.surfaces.capabilities.error,
+  "response_body_zero_progress_chunk",
+);
+assert.equal(zeroReadCalls, 1);
+assert.equal(zeroCancelCalls, 1);
+
+const oversizeChunk = new Uint8Array(2048);
+let oversizeCancelCalls = 0;
+let oversizeCopyCalls = 0;
+const oversizeFetch = async (input) => {
+  const url = input instanceof URL ? input : new URL(String(input));
+  const payload = routePayloads.get(url.pathname);
+  if (url.pathname !== capabilityPath) {
+    return jsonResponse(payload, url.href);
+  }
+  return syntheticResponse(url.href, () => ({
+    read() {
+      return Promise.resolve({
+        done: false,
+        value: oversizeChunk,
+      });
+    },
+    cancel() {
+      oversizeCancelCalls += 1;
+      return Promise.resolve();
+    },
+  }));
+};
+const originalBufferFrom = Buffer.from;
+Buffer.from = function checkedBufferFrom(value, ...rest) {
+  if (value === oversizeChunk) {
+    oversizeCopyCalls += 1;
+    throw new Error("oversize chunk copied before ceiling");
+  }
+  return originalBufferFrom.call(Buffer, value, ...rest);
+};
+let oversizeResult;
+try {
+  oversizeResult = await runVoidAiAgentBootstrapClientV1({
+    baseUrl: customBaseUrl,
+    timeoutMs: 1000,
+    maxBytes: 1024,
+    fetchImpl: oversizeFetch,
+  });
+} finally {
+  Buffer.from = originalBufferFrom;
+}
+assert.equal(
+  oversizeResult.surfaces.capabilities.available,
+  false,
+);
+assert.equal(
+  oversizeResult.surfaces.capabilities.error,
+  "response_too_large:2048",
+);
+assert.equal(oversizeCopyCalls, 0);
+assert.equal(oversizeCancelCalls, 1);
+
+let tinyReadCalls = 0;
+let tinyCancelCalls = 0;
+const tinyChunkFetch = async (input) => {
+  const url = input instanceof URL ? input : new URL(String(input));
+  const payload = routePayloads.get(url.pathname);
+  if (url.pathname !== capabilityPath) {
+    return jsonResponse(payload, url.href);
+  }
+  return syntheticResponse(url.href, () => ({
+    read() {
+      tinyReadCalls += 1;
+      return Promise.resolve({
+        done: false,
+        value: new Uint8Array([0x61]),
+      });
+    },
+    cancel() {
+      tinyCancelCalls += 1;
+      return Promise.resolve();
+    },
+  }));
+};
+const tinyStarted = Date.now();
+const tinyChunkResult =
+  await runVoidAiAgentBootstrapClientV1({
+    baseUrl: customBaseUrl,
+    timeoutMs: 25,
+    maxBytes: 65536,
+    fetchImpl: tinyChunkFetch,
+  });
+assert.equal(
+  tinyChunkResult.surfaces.capabilities.available,
+  false,
+);
+assert.equal(
+  tinyChunkResult.surfaces.capabilities.error,
+  "bootstrap_request_deadline_exceeded",
+);
+assert(tinyReadCalls >= 64);
+assert.equal(tinyReadCalls % 64, 0);
+assert.equal(tinyCancelCalls, 1);
+assert(Date.now() - tinyStarted < 1000);
+
+let malformedCancelCalls = 0;
+let malformedFetchCalls = 0;
+let releaseMalformedCancel;
+let injectMalformedResult = true;
+const malformedFetch = async (input) => {
+  malformedFetchCalls += 1;
+  const url = input instanceof URL ? input : new URL(String(input));
+  const payload = routePayloads.get(url.pathname);
+  if (injectMalformedResult && url.pathname === capabilityPath) {
+    return syntheticResponse(url.href, () => ({
+      read() {
+        return Promise.resolve(null);
+      },
+      cancel() {
+        malformedCancelCalls += 1;
+        return new Promise((resolve) => {
+          releaseMalformedCancel = resolve;
+        });
+      },
+    }));
+  }
+  return jsonResponse(payload, url.href);
+};
+const malformedResult =
+  await runVoidAiAgentBootstrapClientV1({
+    baseUrl: customBaseUrl,
+    timeoutMs: 1000,
+    maxBytes: 1024,
+    fetchImpl: malformedFetch,
+  });
+assert.equal(
+  malformedResult.surfaces.capabilities.available,
+  false,
+);
+assert.equal(
+  malformedResult.surfaces.capabilities.error,
+  "response_body_read_result_invalid",
+);
+assert.equal(malformedCancelCalls, 1);
+const fetchCallsAfterMalformed = malformedFetchCalls;
+await assert.rejects(
+  runVoidAiAgentBootstrapClientV1({
+    baseUrl: customBaseUrl,
+    timeoutMs: 1000,
+    maxBytes: 1024,
+    fetchImpl: malformedFetch,
+  }),
+  /bootstrap_fetch_acquisition_quarantined/,
+);
+assert.equal(malformedFetchCalls, fetchCallsAfterMalformed);
+injectMalformedResult = false;
+releaseMalformedCancel();
+await sleep(20);
+const malformedRecovery =
+  await runVoidAiAgentBootstrapClientV1({
+    baseUrl: customBaseUrl,
+    timeoutMs: 1000,
+    maxBytes: 1024,
+    fetchImpl: malformedFetch,
+  });
+assert.equal(
+  malformedRecovery.readiness.read_only_connection_ready,
+  true,
+);
+
 await withServer(
   new Map([
     [
@@ -457,7 +836,7 @@ await withServer(
         timeoutMs: 2000,
         maxBytes: 65536,
       }),
-      /cross-origin route forbidden/,
+      /well-known canonical discovery mismatch/,
     );
   },
 );
@@ -580,6 +959,13 @@ console.log(
   "VOID_AI_AGENT_BOOTSTRAP_CLIENT_V1_PROOF_EXACT_GREEN",
 );
 console.log("successful_bootstrap=1");
+console.log("well_known_exact_contract_bound=1");
+console.log("invalid_well_known_stops_before_downstream=1");
+console.log("zero_progress_chunk_rejected=1");
+console.log("oversize_chunk_rejected_before_buffer_copy=1");
+console.log("tiny_chunk_deadline_yield_owned=1");
+console.log("malformed_read_result_teardown_owned=1");
+console.log("malformed_read_result_retry_quarantined=1");
 console.log("degraded_optional_surface=1");
 console.log("redirect_rejected=1");
 console.log("cross_origin_rejected=1");

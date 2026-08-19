@@ -1,8 +1,10 @@
 #!/usr/bin/env node
 import {
-  chmodSync,
-  lstatSync,
+  closeSync,
+  fchmodSync,
+  fsyncSync,
   mkdirSync,
+  openSync,
   writeFileSync,
 } from "node:fs";
 import path from "node:path";
@@ -24,6 +26,8 @@ const MAX_TIMEOUT_MS = 30_000;
 const DEFAULT_MAX_BYTES = 1_048_576;
 const MAX_ALLOWED_BYTES = 4_194_304;
 const RESPONSE_REJECTION_TEARDOWN_MS = 250;
+const BODY_READ_YIELD_INTERVAL = 64;
+const activeTransportLeases = new WeakMap();
 
 const ROUTES = Object.freeze({
   well_known_discovery:
@@ -62,15 +66,16 @@ function usage() {
   ].join("\n");
 }
 
-function parsePositiveInteger(
-  raw,
+function validateBoundInteger(
+  value,
   label,
   maximum,
 ) {
-  const value = Number.parseInt(String(raw), 10);
   if (
-    !Number.isInteger(value) ||
-    value <= 0 ||
+    typeof value !== "number" ||
+    !Number.isFinite(value) ||
+    !Number.isSafeInteger(value) ||
+    value < 1 ||
     value > maximum
   ) {
     throw new Error(
@@ -78,6 +83,27 @@ function parsePositiveInteger(
     );
   }
   return value;
+}
+
+function parsePositiveInteger(
+  raw,
+  label,
+  maximum,
+) {
+  if (
+    typeof raw !== "string" ||
+    !/^[1-9][0-9]*$/.test(raw)
+  ) {
+    throw new Error(
+      `${label} must be an integer from 1 through ${maximum}`,
+    );
+  }
+
+  return validateBoundInteger(
+    Number(raw),
+    label,
+    maximum,
+  );
 }
 
 export function parseBootstrapClientArgsV1(argv) {
@@ -194,6 +220,181 @@ function sameOriginUrl(base, routeOrUrl) {
   return resolved;
 }
 
+function requireExactObjectKeys(value, expected, label) {
+  if (
+    value === null ||
+    Array.isArray(value) ||
+    typeof value !== "object"
+  ) {
+    throw new Error(`${label}_object_required`);
+  }
+
+  const actual = Object.keys(value).sort();
+  const wanted = [...expected].sort();
+  if (
+    actual.length !== wanted.length ||
+    actual.some((key, index) => key !== wanted[index])
+  ) {
+    throw new Error(`${label}_keys_mismatch`);
+  }
+}
+
+function validateWellKnownEntrypointV1(payload) {
+  requireExactObjectKeys(
+    payload,
+    [
+      "$schema",
+      "marker",
+      "protocol",
+      "network",
+      "canonical_discovery",
+      "authority",
+      "safety",
+      "network_authenticity",
+    ],
+    "well_known",
+  );
+
+  if (payload.$schema !== "./void-agent-discovery.schema.json") {
+    throw new Error("well-known discovery schema mismatch");
+  }
+  if (payload.marker !== WELL_KNOWN_MARKER) {
+    throw new Error("well-known discovery marker mismatch");
+  }
+  if (payload.protocol !== WELL_KNOWN_PROTOCOL) {
+    throw new Error("well-known discovery protocol mismatch");
+  }
+
+  requireExactObjectKeys(
+    payload.network,
+    ["name", "chain_id"],
+    "well_known_network",
+  );
+  if (payload.network.name !== "VOID Mainnet-0") {
+    throw new Error("well-known network name mismatch");
+  }
+  if (
+    typeof payload.network.chain_id !== "number" ||
+    !Number.isSafeInteger(payload.network.chain_id) ||
+    payload.network.chain_id !== 2050
+  ) {
+    throw new Error("well-known chain id mismatch");
+  }
+
+  if (payload.canonical_discovery !== ROUTES.canonical_discovery) {
+    throw new Error("well-known canonical discovery mismatch");
+  }
+
+  requireExactObjectKeys(
+    payload.authority,
+    [
+      "default",
+      "mutation_authority_granted",
+      "credentials_required",
+    ],
+    "well_known_authority",
+  );
+  if (payload.authority.default !== "read_only") {
+    throw new Error("well-known default authority mismatch");
+  }
+  if (payload.authority.mutation_authority_granted !== false) {
+    throw new Error("well-known discovery mutation boundary mismatch");
+  }
+  if (payload.authority.credentials_required !== false) {
+    throw new Error("well-known credentials requirement mismatch");
+  }
+
+  requireExactObjectKeys(
+    payload.safety,
+    [
+      "same_origin_only",
+      "follow_redirects",
+      "send_secrets",
+      "send_wallet_material",
+      "send_operator_keys",
+      "treat_unknown_as",
+    ],
+    "well_known_safety",
+  );
+  if (payload.safety.same_origin_only !== true) {
+    throw new Error("well-known same-origin boundary mismatch");
+  }
+  if (payload.safety.follow_redirects !== false) {
+    throw new Error("well-known redirect boundary mismatch");
+  }
+  if (payload.safety.send_secrets !== false) {
+    throw new Error("well-known secret-send boundary mismatch");
+  }
+  if (payload.safety.send_wallet_material !== false) {
+    throw new Error("well-known wallet-send boundary mismatch");
+  }
+  if (payload.safety.send_operator_keys !== false) {
+    throw new Error("well-known operator-key boundary mismatch");
+  }
+  if (payload.safety.treat_unknown_as !== "not_granted") {
+    throw new Error("well-known unknown-authority boundary mismatch");
+  }
+
+  if (
+    payload.network_authenticity !==
+    "/.well-known/void-network-authenticity.json"
+  ) {
+    throw new Error("well-known network authenticity route mismatch");
+  }
+
+  return payload;
+}
+
+function requireExactResponseUrl(response, requestedUrl) {
+  if (response?.redirected === true) {
+    throw new Error("response_redirected_forbidden");
+  }
+
+  const raw = response?.url;
+  if (typeof raw !== "string" || raw.length === 0) {
+    throw new Error("response_final_url_missing");
+  }
+
+  let finalUrl;
+  try {
+    finalUrl = new URL(raw);
+  } catch {
+    throw new Error("response_final_url_invalid");
+  }
+
+  if (finalUrl.href !== requestedUrl.href) {
+    throw new Error("response_final_url_mismatch");
+  }
+}
+
+function readExactResponseStatus(response) {
+  let status;
+  let ok;
+  try {
+    status = response?.status;
+    ok = response?.ok;
+  } catch {
+    throw new Error("response_status_metadata_unavailable");
+  }
+
+  if (
+    typeof status !== "number" ||
+    !Number.isSafeInteger(status) ||
+    status < 100 ||
+    status > 599
+  ) {
+    throw new Error("response_status_invalid");
+  }
+  if (typeof ok !== "boolean") {
+    throw new Error("response_ok_invalid");
+  }
+  if (ok !== (status >= 200 && status < 300)) {
+    throw new Error("response_ok_status_mismatch");
+  }
+
+  return status;
+}
+
 function publicMarker(value) {
   const marker = value?.marker;
   return (
@@ -224,6 +425,46 @@ function parseDeclaredResponseLength(response) {
   return value;
 }
 
+function deadlineError(signal) {
+  return signal.reason instanceof Error
+    ? signal.reason
+    : new Error("bootstrap_request_deadline_exceeded");
+}
+
+function awaitWithinOwnedDeadline(promise, signal) {
+  if (signal.aborted) {
+    return Promise.reject(deadlineError(signal));
+  }
+
+  return new Promise((resolve, reject) => {
+    let settled = false;
+    const onAbort = () => {
+      if (settled) return;
+      settled = true;
+      reject(deadlineError(signal));
+    };
+
+    signal.addEventListener("abort", onAbort, {
+      once: true,
+    });
+
+    Promise.resolve(promise).then(
+      (value) => {
+        if (settled) return;
+        settled = true;
+        signal.removeEventListener("abort", onAbort);
+        resolve(value);
+      },
+      (error) => {
+        if (settled) return;
+        settled = true;
+        signal.removeEventListener("abort", onAbort);
+        reject(error);
+      },
+    );
+  });
+}
+
 async function settleCancellationBounded(cancellation) {
   if (!cancellation || typeof cancellation.then !== "function") {
     return;
@@ -245,10 +486,62 @@ async function settleCancellationBounded(cancellation) {
   }
 }
 
+function getTransportOriginLeases(fetchImpl, create = false) {
+  let originLeases = activeTransportLeases.get(fetchImpl);
+  if (!originLeases && create) {
+    originLeases = new Map();
+    activeTransportLeases.set(fetchImpl, originLeases);
+  }
+  return originLeases ?? null;
+}
+
+function makeTransportLease(fetchImpl, origin, acquisition) {
+  const lease = {
+    acquisition,
+    pendingRetentions: 0,
+    releaseRequested: false,
+    released: false,
+    retain(promise) {
+      if (!promise || typeof promise.then !== "function") {
+        return;
+      }
+      lease.pendingRetentions += 1;
+      const settle = () => {
+        lease.pendingRetentions -= 1;
+        lease.maybeRelease();
+      };
+      Promise.resolve(promise).then(settle, settle);
+    },
+    maybeRelease() {
+      if (
+        lease.released ||
+        !lease.releaseRequested ||
+        lease.pendingRetentions !== 0
+      ) {
+        return;
+      }
+      lease.released = true;
+      const originLeases = getTransportOriginLeases(fetchImpl);
+      if (originLeases?.get(origin) === lease) {
+        originLeases.delete(origin);
+        if (originLeases.size === 0) {
+          activeTransportLeases.delete(fetchImpl);
+        }
+      }
+    },
+    release() {
+      lease.releaseRequested = true;
+      lease.maybeRelease();
+    },
+  };
+  return lease;
+}
+
 async function rejectResponseBodyBounded(
   response,
   reader,
   controller,
+  transportLease = null,
 ) {
   if (!controller.signal.aborted) {
     controller.abort(
@@ -260,20 +553,82 @@ async function rejectResponseBodyBounded(
   try {
     cancellation = reader?.cancel
       ? reader.cancel()
-      : response.body?.cancel
+      : response?.body?.cancel
         ? response.body.cancel()
         : null;
   } catch (_error) {
     // Preserve the already-known response rejection.
   }
 
+  transportLease?.retain(cancellation);
   await settleCancellationBounded(cancellation);
+}
+
+async function acquireResponseBounded(
+  fetchImpl,
+  url,
+  init,
+  controller,
+) {
+  const origin = url.origin;
+  const originLeases = getTransportOriginLeases(fetchImpl, true);
+  if (originLeases.has(origin)) {
+    throw new Error(
+      "bootstrap_fetch_acquisition_quarantined",
+    );
+  }
+
+  const acquisition = Promise.resolve().then(
+    () => fetchImpl(url, init),
+  );
+  const lease = makeTransportLease(fetchImpl, origin, acquisition);
+  originLeases.set(origin, lease);
+
+  // If the logical request times out before a custom fetch settles, retain
+  // ownership of that exact generation. A late Response is torn down once,
+  // and unresolved cancellation keeps only that exact origin quarantined
+  // without extending the participant-facing deadline.
+  acquisition.then(
+    async (response) => {
+      if (controller.signal.aborted) {
+        try {
+          await rejectResponseBodyBounded(
+            response,
+            null,
+            controller,
+            lease,
+          );
+        } catch (_error) {
+          // The participant-facing deadline is already terminal.
+        } finally {
+          lease.release();
+        }
+      }
+    },
+    () => {
+      lease.release();
+    },
+  ).catch(() => undefined);
+
+  try {
+    const response = await awaitWithinOwnedDeadline(
+      acquisition,
+      controller.signal,
+    );
+    return { response, lease };
+  } catch (error) {
+    if (!controller.signal.aborted) {
+      lease.release();
+    }
+    throw error;
+  }
 }
 
 async function boundedRead(
   response,
   maxBytes,
   controller,
+  transportLease,
 ) {
   let declared;
   try {
@@ -283,6 +638,7 @@ async function boundedRead(
       response,
       null,
       controller,
+      transportLease,
     );
     throw error;
   }
@@ -295,6 +651,7 @@ async function boundedRead(
       response,
       null,
       controller,
+      transportLease,
     );
     throw primary;
   }
@@ -311,56 +668,128 @@ async function boundedRead(
       response,
       null,
       controller,
+      transportLease,
     );
     throw primary;
   }
 
-  const reader = body.getReader();
+  let reader;
+  try {
+    reader = body.getReader();
+  } catch (_error) {
+    const primary = new Error(
+      "response_body_reader_unavailable",
+    );
+    await rejectResponseBodyBounded(
+      response,
+      null,
+      controller,
+      transportLease,
+    );
+    throw primary;
+  }
+
   const chunks = [];
   let total = 0;
+  let admittedReads = 0;
 
-  try {
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-
-      const chunk = Buffer.from(value);
-      total += chunk.length;
-
-      if (total > maxBytes) {
-        chunks.length = 0;
-        const primary = new Error(
-          `response_too_large:${total}`,
-        );
+  while (true) {
+    const readPromise = Promise.resolve().then(
+      () => reader.read(),
+    );
+    let readResult;
+    try {
+      readResult = await awaitWithinOwnedDeadline(
+        readPromise,
+        controller.signal,
+      );
+    } catch (error) {
+      if (controller.signal.aborted) {
+        transportLease?.retain(readPromise);
+        let cancellation = null;
+        try {
+          cancellation = reader.cancel();
+        } catch (_cancelError) {
+          cancellation = null;
+        }
+        transportLease?.retain(cancellation);
+        await settleCancellationBounded(cancellation);
+      } else {
         await rejectResponseBodyBounded(
           response,
           reader,
           controller,
+          transportLease,
         );
-        throw primary;
+      }
+      throw error;
+    }
+
+    let done;
+    let value;
+    let chunkLength;
+    let chunk;
+    try {
+      if (
+        readResult === null ||
+        Array.isArray(readResult) ||
+        typeof readResult !== "object" ||
+        typeof readResult.done !== "boolean"
+      ) {
+        throw new Error("response_body_read_result_invalid");
       }
 
-      chunks.push(chunk);
-    }
-  } catch (error) {
-    if (!controller.signal.aborted) {
+      ({ done, value } = readResult);
+      if (done) break;
+
+      if (!(value instanceof Uint8Array)) {
+        throw new Error("response_body_read_chunk_invalid");
+      }
+      chunkLength = value.byteLength;
+      if (chunkLength === 0) {
+        throw new Error("response_body_zero_progress_chunk");
+      }
+      if (chunkLength > maxBytes - total) {
+        throw new Error(
+          `response_too_large:${total + chunkLength}`,
+        );
+      }
+
+      // The configured byte ceiling is checked from the typed-array view
+      // before Buffer.from() is allowed to allocate/copy the chunk.
+      chunk = Buffer.from(value);
+    } catch (error) {
+      chunks.length = 0;
       await rejectResponseBodyBounded(
         response,
         reader,
         controller,
+        transportLease,
       );
-    } else {
-      await settleCancellationBounded(
-        (() => {
-          try {
-            return reader.cancel();
-          } catch (_cancelError) {
-            return null;
-          }
-        })(),
-      );
+      throw error;
     }
-    throw error;
+
+    total += chunkLength;
+    chunks.push(chunk);
+    admittedReads += 1;
+
+    if (admittedReads % BODY_READ_YIELD_INTERVAL === 0) {
+      try {
+        await awaitWithinOwnedDeadline(
+          new Promise((resolve) => setImmediate(resolve)),
+          controller.signal,
+        );
+      } catch (error) {
+        chunks.length = 0;
+        await rejectResponseBodyBounded(
+          response,
+          reader,
+          controller,
+          transportLease,
+        );
+        throw error;
+      }
+    }
   }
 
   return new TextDecoder("utf-8", {
@@ -378,33 +807,78 @@ async function fetchJsonV1({
   const url = sameOriginUrl(base, route);
   const controller = new AbortController();
   const timer = setTimeout(
-    () => controller.abort(),
+    () =>
+      controller.abort(
+        new Error("bootstrap_request_deadline_exceeded"),
+      ),
     timeoutMs,
   );
+  let transportLease = null;
 
   try {
-    const response = await fetchImpl(url, {
-      method: "GET",
-      redirect: "manual",
-      signal: controller.signal,
-      headers: {
-        accept: "application/json",
-        "user-agent":
-          "void-ai-agent-bootstrap-client-v1",
+    const acquired = await acquireResponseBounded(
+      fetchImpl,
+      url,
+      {
+        method: "GET",
+        redirect: "manual",
+        signal: controller.signal,
+        headers: {
+          accept: "application/json",
+          "user-agent":
+            "void-ai-agent-bootstrap-client-v1",
+        },
       },
-    });
+      controller,
+    );
+    const response = acquired.response;
+    transportLease = acquired.lease;
 
-    if (
-      response.status >= 300 &&
-      response.status < 400
-    ) {
+    try {
+      requireExactResponseUrl(response, url);
+    } catch (error) {
+      await rejectResponseBodyBounded(
+        response,
+        null,
+        controller,
+        transportLease,
+      );
+      throw error;
+    }
+
+    let status;
+    try {
+      status = readExactResponseStatus(response);
+    } catch (error) {
+      await rejectResponseBodyBounded(
+        response,
+        null,
+        controller,
+        transportLease,
+      );
+      throw error;
+    }
+
+    if (status >= 300 && status < 400) {
       const primary = new Error(
-        `redirect_forbidden:${response.status}`,
+        `redirect_forbidden:${status}`,
       );
       await rejectResponseBodyBounded(
         response,
         null,
         controller,
+        transportLease,
+      );
+      throw primary;
+    }
+
+    if (status < 200 || status >= 300) {
+      const primary = new Error(`http_status:${status}`);
+      await rejectResponseBodyBounded(
+        response,
+        null,
+        controller,
+        transportLease,
       );
       throw primary;
     }
@@ -413,13 +887,8 @@ async function fetchJsonV1({
       response,
       maxBytes,
       controller,
+      transportLease,
     );
-
-    if (!response.ok) {
-      throw new Error(
-        `http_status:${response.status}`,
-      );
-    }
 
     let payload;
     try {
@@ -439,13 +908,14 @@ async function fetchJsonV1({
     return {
       ok: true,
       route: url.pathname,
-      status: response.status,
+      status,
       bytes: Buffer.byteLength(raw, "utf8"),
       marker: publicMarker(payload),
       payload,
     };
   } finally {
     clearTimeout(timer);
+    transportLease?.release();
   }
 }
 
@@ -520,7 +990,7 @@ function readNetwork(value) {
   };
 }
 
-function writeOutputFile(outputPath, content) {
+export function writeBootstrapOutputFileV1(outputPath, content) {
   const resolved = path.resolve(
     process.cwd(),
     outputPath,
@@ -538,27 +1008,25 @@ function writeOutputFile(outputPath, content) {
     );
   }
 
+  let descriptor;
   try {
-    const info = lstatSync(resolved);
-    if (info.isSymbolicLink()) {
-      throw new Error(
-        "output symlink is forbidden",
-      );
-    }
+    descriptor = openSync(resolved, "wx", 0o600);
   } catch (error) {
-    if (
-      error?.code !== "ENOENT"
-    ) {
-      throw error;
+    if (error?.code === "EEXIST") {
+      throw new Error("output path already exists");
     }
+    throw error;
   }
 
-  writeFileSync(resolved, content, {
-    encoding: "utf8",
-    mode: 0o600,
-    flag: "w",
-  });
-  chmodSync(resolved, 0o600);
+  try {
+    writeFileSync(descriptor, content, {
+      encoding: "utf8",
+    });
+    fchmodSync(descriptor, 0o600);
+    fsyncSync(descriptor);
+  } finally {
+    closeSync(descriptor);
+  }
 
   return resolved;
 }
@@ -569,6 +1037,17 @@ export async function runVoidAiAgentBootstrapClientV1({
   maxBytes = DEFAULT_MAX_BYTES,
   fetchImpl = globalThis.fetch,
 } = {}) {
+  const checkedTimeoutMs = validateBoundInteger(
+    timeoutMs,
+    "timeoutMs",
+    MAX_TIMEOUT_MS,
+  );
+  const checkedMaxBytes = validateBoundInteger(
+    maxBytes,
+    "maxBytes",
+    MAX_ALLOWED_BYTES,
+  );
+
   if (typeof fetchImpl !== "function") {
     throw new Error(
       "fetch implementation is unavailable",
@@ -582,74 +1061,51 @@ export async function runVoidAiAgentBootstrapClientV1({
   const wellKnown = await fetchJsonV1({
     base,
     route: ROUTES.well_known_discovery,
-    timeoutMs,
-    maxBytes,
+    timeoutMs: checkedTimeoutMs,
+    maxBytes: checkedMaxBytes,
     fetchImpl,
   });
 
-  if (
-    wellKnown.marker !== WELL_KNOWN_MARKER
-  ) {
-    throw new Error(
-      "well-known discovery marker mismatch",
+  const wellKnownPayload =
+    validateWellKnownEntrypointV1(
+      wellKnown.payload,
     );
-  }
-  if (
-    wellKnown.payload.protocol !==
-    WELL_KNOWN_PROTOCOL
-  ) {
-    throw new Error(
-      "well-known discovery protocol mismatch",
-    );
-  }
-  if (
-    wellKnown.payload?.authority
-      ?.mutation_authority_granted !== false
-  ) {
-    throw new Error(
-      "well-known discovery mutation boundary mismatch",
-    );
-  }
-
   const canonicalRoute =
-    typeof wellKnown.payload
-      .canonical_discovery === "string"
-      ? wellKnown.payload.canonical_discovery
-      : ROUTES.canonical_discovery;
+    wellKnownPayload.canonical_discovery;
 
-  // Reject a cross-origin canonical route even if every
-  // optional endpoint would otherwise be unavailable.
+  // Preserve a transport-level same-origin assertion even though the exact
+  // root contract already pins the reviewed canonical discovery path.
   sameOriginUrl(base, canonicalRoute);
 
   const canonical = await probeSurfaceV1({
     base,
     route: canonicalRoute,
-    timeoutMs,
-    maxBytes,
+    timeoutMs: checkedTimeoutMs,
+    maxBytes: checkedMaxBytes,
     fetchImpl,
   });
   const capabilities =
     await probeSurfaceV1({
       base,
       route: ROUTES.capabilities,
-      timeoutMs,
-      maxBytes,
+      timeoutMs: checkedTimeoutMs,
+      maxBytes: checkedMaxBytes,
       fetchImpl,
     });
   const authentication =
     await probeSurfaceV1({
       base,
       route: ROUTES.authentication,
-      timeoutMs,
-      maxBytes,
+      timeoutMs: checkedTimeoutMs,
+      maxBytes: checkedMaxBytes,
       fetchImpl,
     });
   const firstContact =
     await probeSurfaceV1({
       base,
       route: ROUTES.first_contact,
-      timeoutMs,
-      maxBytes,
+      timeoutMs: checkedTimeoutMs,
+      maxBytes: checkedMaxBytes,
       fetchImpl,
     });
   const externalIntake =
@@ -657,8 +1113,8 @@ export async function runVoidAiAgentBootstrapClientV1({
       base,
       route:
         ROUTES.external_opportunity_intake,
-      timeoutMs,
-      maxBytes,
+      timeoutMs: checkedTimeoutMs,
+      maxBytes: checkedMaxBytes,
       fetchImpl,
     });
 
@@ -719,7 +1175,7 @@ export async function runVoidAiAgentBootstrapClientV1({
   }
 
   const network = readNetwork(
-    wellKnown.payload,
+    wellKnownPayload,
   );
 
   return {
@@ -735,15 +1191,14 @@ export async function runVoidAiAgentBootstrapClientV1({
       route: wellKnown.route,
       marker: wellKnown.marker,
       protocol:
-        wellKnown.payload.protocol,
+        wellKnownPayload.protocol,
       canonical_discovery:
         new URL(
           canonicalRoute,
           base,
         ).pathname,
       authority_default:
-        wellKnown.payload?.authority
-          ?.default ?? null,
+        wellKnownPayload.authority.default,
       mutation_authority_granted: false,
     },
     surfaces: {
@@ -818,7 +1273,7 @@ async function main() {
     ) + "\n";
 
   if (args.outputPath) {
-    const resolved = writeOutputFile(
+    const resolved = writeBootstrapOutputFileV1(
       args.outputPath,
       content,
     );
