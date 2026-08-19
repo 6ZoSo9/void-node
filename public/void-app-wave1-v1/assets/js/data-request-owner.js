@@ -98,6 +98,23 @@ export function createDataNetRequestOwnerV1({
   }
 
   let activeRequest = null;
+  let startQueue = Promise.resolve();
+
+  const acquireStartSlot = async (sourceSignal) => {
+    const predecessor = startQueue;
+    let releaseSlot;
+    const slot = new Promise((resolve) => { releaseSlot = resolve; });
+    startQueue = predecessor.then(() => slot, () => slot);
+
+    try {
+      await raceSignal(predecessor, sourceSignal);
+    } catch (error) {
+      predecessor.then(releaseSlot, releaseSlot);
+      throw error;
+    }
+
+    return releaseSlot;
+  };
 
   const release = (request) => {
     if (request.released) return;
@@ -332,71 +349,80 @@ export function createDataNetRequestOwnerV1({
       return fetchImpl(input, init);
     }
 
-    if (activeRequest) {
-      const priorRequest = activeRequest;
-      abort('DataNet request superseded');
-      await waitForPriorRelease(priorRequest, init?.signal);
-    }
-
-    const controller = new AbortController();
-    let resolveReleased;
-    const releasedPromise = new Promise((resolve) => { resolveReleased = resolve; });
-    const request = {
-      controller,
-      detachSourceAbort: forwardAbort(init?.signal, controller),
-      detachControllerAbort: null,
-      fetchSettled: false,
-      response: null,
-      reader: null,
-      bodyTerminal: false,
-      pendingReads: new Set(),
-      pendingCancels: new Set(),
-      cancelPromise: null,
-      released: false,
-      releasedPromise,
-      resolveReleased,
-    };
-    activeRequest = request;
-
-    const onControllerAbort = () => {
-      void startOwnedCleanup(
-        request,
-        abortReason(controller.signal, 'DataNet request aborted').message,
-      ).catch(() => {});
-    };
-    controller.signal.addEventListener('abort', onControllerAbort, { once: true });
-    request.detachControllerAbort = () => controller.signal.removeEventListener('abort', onControllerAbort);
-
-    const requestedHref = new URL(String(input), origin).href;
+    const releaseStartSlot = await acquireStartSlot(init?.signal);
+    let controller;
+    let request;
+    let requestedHref;
     let rawFetch;
-    try {
-      rawFetch = Promise.resolve(fetchImpl(input, {
-        ...init,
-        signal: controller.signal,
-      }));
-    } catch (error) {
-      rawFetch = Promise.reject(error);
-    }
 
-    rawFetch.then(
-      (response) => {
-        request.fetchSettled = true;
-        request.response = response;
-        if (controller.signal.aborted) {
-          void startResponseCancel(
-            request,
-            response,
-            abortReason(controller.signal, 'DataNet request aborted').message,
-          ).catch(() => {});
-        }
-        maybeRelease(request);
-      },
-      () => {
-        request.fetchSettled = true;
-        request.bodyTerminal = true;
-        maybeRelease(request);
-      },
-    );
+    try {
+      if (activeRequest) {
+        const priorRequest = activeRequest;
+        abortRequest(priorRequest, 'DataNet request superseded');
+        await waitForPriorRelease(priorRequest, init?.signal);
+      }
+
+      controller = new AbortController();
+      let resolveReleased;
+      const releasedPromise = new Promise((resolve) => { resolveReleased = resolve; });
+      request = {
+        controller,
+        detachSourceAbort: forwardAbort(init?.signal, controller),
+        detachControllerAbort: null,
+        fetchSettled: false,
+        response: null,
+        reader: null,
+        bodyTerminal: false,
+        pendingReads: new Set(),
+        pendingCancels: new Set(),
+        cancelPromise: null,
+        released: false,
+        releasedPromise,
+        resolveReleased,
+      };
+      activeRequest = request;
+
+      const onControllerAbort = () => {
+        void startOwnedCleanup(
+          request,
+          abortReason(controller.signal, 'DataNet request aborted').message,
+        ).catch(() => {});
+      };
+      controller.signal.addEventListener('abort', onControllerAbort, { once: true });
+      request.detachControllerAbort = () => controller.signal.removeEventListener('abort', onControllerAbort);
+
+      requestedHref = new URL(String(input), origin).href;
+      try {
+        rawFetch = Promise.resolve(fetchImpl(input, {
+          ...init,
+          signal: controller.signal,
+        }));
+      } catch (error) {
+        rawFetch = Promise.reject(error);
+      }
+
+      rawFetch.then(
+        (response) => {
+          request.fetchSettled = true;
+          request.response = response;
+          if (controller.signal.aborted) {
+            void startResponseCancel(
+              request,
+              response,
+              abortReason(controller.signal, 'DataNet request aborted').message,
+            ).catch(() => {});
+          }
+          maybeRelease(request);
+        },
+        () => {
+          request.fetchSettled = true;
+          request.bodyTerminal = true;
+          maybeRelease(request);
+        },
+      );
+    } finally {
+      releaseStartSlot();
+    }
 
     let response;
     try {
