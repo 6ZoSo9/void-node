@@ -222,6 +222,34 @@ function requireNoFollowSupport() {
   }
 }
 
+function sameReceiptGeneration(left, right) {
+  return (
+    left.dev === right.dev &&
+    left.ino === right.ino &&
+    left.size === right.size &&
+    left.nlink === right.nlink &&
+    left.uid === right.uid &&
+    (left.mode & 0o777n) === (right.mode & 0o777n) &&
+    left.ctimeNs === right.ctimeNs &&
+    left.mtimeNs === right.mtimeNs &&
+    left.birthtimeNs === right.birthtimeNs
+  );
+}
+
+function requireReceiptAuthority(stat) {
+  if (!stat.isFile()) throw new Error("receipt must be a regular file");
+  if (stat.nlink !== 1n) throw new Error("receipt must have exactly one filesystem link");
+  if ((stat.mode & 0o777n) !== 0o600n) {
+    throw new Error("receipt mode must be 0600");
+  }
+  if (typeof process.getuid !== "function") {
+    throw new Error("receipt owner identity is unavailable on this platform");
+  }
+  if (stat.uid !== BigInt(process.getuid())) {
+    throw new Error("receipt must be owned by the current operator uid");
+  }
+}
+
 function readReceipt(file) {
   requireNoFollowSupport();
   const resolved = path.resolve(file);
@@ -229,13 +257,20 @@ function readReceipt(file) {
 
   const fd = fs.openSync(resolved, fs.constants.O_RDONLY | fs.constants.O_NOFOLLOW);
   try {
-    const before = fs.fstatSync(fd);
-    if (!before.isFile()) throw new Error("receipt must be a regular file");
-    if (before.size <= 0 || before.size > MAX_RECEIPT_BYTES) {
+    const before = fs.fstatSync(fd, { bigint: true });
+    requireReceiptAuthority(before);
+    if (before.size <= 0n || before.size > BigInt(MAX_RECEIPT_BYTES)) {
       throw new Error(`receipt size must be from 1 to ${MAX_RECEIPT_BYTES} bytes`);
     }
 
-    const bytes = Buffer.alloc(before.size);
+    const pathBefore = fs.lstatSync(resolved, { bigint: true });
+    requireReceiptAuthority(pathBefore);
+    if (!sameReceiptGeneration(before, pathBefore)) {
+      throw new Error("receipt path does not identify the opened generation");
+    }
+
+    const size = Number(before.size);
+    const bytes = Buffer.alloc(size);
     let offset = 0;
     while (offset < bytes.length) {
       const read = fs.readSync(fd, bytes, offset, bytes.length - offset, offset);
@@ -248,14 +283,33 @@ function readReceipt(file) {
       throw new Error("receipt grew beyond the bounded snapshot during read");
     }
 
-    const after = fs.fstatSync(fd);
-    if (
-      after.dev !== before.dev ||
-      after.ino !== before.ino ||
-      after.size !== before.size ||
-      after.size !== bytes.length
-    ) {
+    const verifyBytes = Buffer.alloc(size);
+    offset = 0;
+    while (offset < verifyBytes.length) {
+      const read = fs.readSync(
+        fd,
+        verifyBytes,
+        offset,
+        verifyBytes.length - offset,
+        offset,
+      );
+      if (read <= 0) throw new Error("receipt changed during generation readback");
+      offset += read;
+    }
+    if (!crypto.timingSafeEqual(bytes, verifyBytes)) {
+      throw new Error("receipt bytes changed during generation readback");
+    }
+
+    const after = fs.fstatSync(fd, { bigint: true });
+    requireReceiptAuthority(after);
+    if (!sameReceiptGeneration(before, after)) {
       throw new Error("receipt generation changed during bounded read");
+    }
+
+    const pathAfter = fs.lstatSync(resolved, { bigint: true });
+    requireReceiptAuthority(pathAfter);
+    if (!sameReceiptGeneration(after, pathAfter)) {
+      throw new Error("receipt path changed during bounded read");
     }
 
     let value;
