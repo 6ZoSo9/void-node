@@ -5,6 +5,8 @@ on:
     paths:
       - ".github/workflows/wc-public-opportunity-discovery-budget-v1.yml"
       - "tools/wc-public-opportunity-discovery-v1.mjs"
+      - "tools/wc-public-response-teardown-v1.mjs"
+      - "scripts/prove_wc_public_opportunity_discovery_v1.mjs"
       - "scripts/prove_wc_public_opportunity_discovery_budget_v1.mjs"
       - "scripts/ci_diff_hygiene_v1.sh"
       - "scripts/prove_ci_diff_hygiene_v1.mjs"
@@ -13,6 +15,8 @@ on:
     paths:
       - ".github/workflows/wc-public-opportunity-discovery-budget-v1.yml"
       - "tools/wc-public-opportunity-discovery-v1.mjs"
+      - "tools/wc-public-response-teardown-v1.mjs"
+      - "scripts/prove_wc_public_opportunity_discovery_v1.mjs"
       - "scripts/prove_wc_public_opportunity_discovery_budget_v1.mjs"
       - "scripts/ci_diff_hygiene_v1.sh"
       - "scripts/prove_ci_diff_hygiene_v1.mjs"
@@ -46,6 +50,7 @@ jobs:
       - name: Check source and proof syntax
         run: |
           node --check tools/wc-public-opportunity-discovery-v1.mjs
+          node --check tools/wc-public-response-teardown-v1.mjs
           node --check scripts/prove_wc_public_opportunity_discovery_v1.mjs
           node --check scripts/prove_wc_public_opportunity_discovery_budget_v1.mjs
 
@@ -61,6 +66,10 @@ jobs:
           grep -Fx "maximum_candidate_paths=24" \
             /tmp/wc-public-opportunity-discovery-budget-v1.log
           grep -Fx "shared_logical_deadline=true" \
+            /tmp/wc-public-opportunity-discovery-budget-v1.log
+          grep -Fx "primary_rejection_truth_preserved=true" \
+            /tmp/wc-public-opportunity-discovery-budget-v1.log
+          grep -Fx "structure_budget_bounded=true" \
             /tmp/wc-public-opportunity-discovery-budget-v1.log
           grep -Fx "mutation=false" \
             /tmp/wc-public-opportunity-discovery-budget-v1.log
