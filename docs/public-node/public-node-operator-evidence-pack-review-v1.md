@@ -40,11 +40,31 @@ node tools/public-node-operator-evidence-pack-review-v1.mjs \
 The review output must be outside the evidence-pack directory and is written
 with mode `0600`.
 
+## Local path authority
+
+On Linux, the evidence-pack directory and the optional review-output parent are
+bound component-by-component through already-open directory descriptors. Each
+next component is opened relative to the previous descriptor with no-follow
+directory semantics before the prior descriptor is released. The reviewer does
+not accept a pathname precheck followed by a later full-path open as authority.
+
+The final pack directory must be owned by the current operator UID, use mode
+`0700`, and remain the same opened generation through review. The final output
+parent must likewise be current-UID-owned and not group/world writable. Parent
+components must be owned by the current UID or root and must not be
+unreviewably writable; a root-owned sticky shared parent such as `/tmp` remains
+supported. Pack artifacts and review publication stay descriptor-relative to
+those bound directory generations.
+
+This prevents an intermediate directory from being replaced with a symlink
+after a clean pathname observation and redirecting either pack admission or the
+create-only review output into another tree.
+
 ## Validation
 
 The reviewer verifies:
 
-1. Real mode-`0700` pack directory
+1. Descriptor-bound real mode-`0700` pack-directory generation
 2. Exactly four canonical artifacts
 3. Regular non-symlink mode-`0600` files
 4. Strict `SHA256SUMS.txt` member set and format
@@ -62,6 +82,8 @@ The reviewer verifies:
 16. Exact semantic equality between that replay and the stored review artifact
 17. False mutation and authority boundaries
 18. Public sanitization with no absolute URLs, keys, credentials, or bearer data
+19. Exact pack-directory generation remains bound through review
+20. Optional output remains create-only under the reviewed parent generation
 
 The review records artifact SHA-256 values but does not copy the raw pack path
 or artifact bodies.
@@ -81,15 +103,17 @@ diagnostic evidence.
 ```bash
 npx --yes tsx \
   scripts/prove_public_node_operator_evidence_pack_review_v1.ts
+node scripts/prove_public_node_operator_evidence_pack_parent_namespace_v1.mjs
 ```
 
-Expected marker:
+Expected markers:
 
 ```text
 VOID_PUBLIC_NODE_OPERATOR_EVIDENCE_PACK_REVIEW_V1_PROOF_GREEN
+VOID_PUBLIC_NODE_OPERATOR_EVIDENCE_PACK_PARENT_NAMESPACE_V1_PROOF_GREEN
 ```
 
-The fixture proof covers:
+The fixture proofs cover:
 
 - accepted green pack produced with the real canonical receipt reviewer
 - accepted hold pack
@@ -101,6 +125,11 @@ The fixture proof covers:
 - mode-`0600` review output
 - a forged acceptance-critical receipt plus forged `accepted:true` review with
   recomputed hashes/checksums, which must fail canonical semantic replay
+- an intermediate pack-parent replacement with a symlink after the old
+  pathname-check boundary, which must not redirect admission into a valid
+  alternate pack
+- an intermediate review-output parent replacement with a symlink, which must
+  not create or modify a review in the alternate tree
 
 ## Authority boundary
 
@@ -116,4 +145,4 @@ The reviewer never:
 - writes a ledger
 - changes peers
 - fulfills Buy VOID
-- performs any mutation
+- performs any runtime or network mutation
