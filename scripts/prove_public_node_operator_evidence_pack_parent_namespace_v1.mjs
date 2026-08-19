@@ -12,7 +12,11 @@ const REVIEWER = path.join(
   ROOT,
   "tools/public-node-operator-evidence-pack-review-v1.mjs",
 );
-const PRODUCER = path.join(ROOT, "tools/public-node-operator-evidence-pack-v1.mjs");
+const SELF_CHECK = path.join(ROOT, "tools/public-node-operator-self-check-v1.mjs");
+const RECEIPT_REVIEW = path.join(
+  ROOT,
+  "tools/public-node-operator-self-check-receipt-review-v1.mjs",
+);
 const MARKER =
   "VOID_PUBLIC_NODE_OPERATOR_EVIDENCE_PACK_PARENT_NAMESPACE_V1_PROOF_GREEN";
 const ARTIFACTS = [
@@ -58,22 +62,181 @@ function snapshotPack(packDir) {
   );
 }
 
-function createValidHoldPack(packDir) {
-  const result = runNode([
-    PRODUCER,
-    "--output-dir",
-    packDir,
-    "--base",
-    "http://127.0.0.1:1",
-    "--expected-peer-count",
-    "0",
-    "--allow-hold",
-    "--observed-at",
-    "2026-08-19T18:00:00.000Z",
+function writePrivate(file, value) {
+  fs.writeFileSync(file, `${JSON.stringify(value, null, 2)}\n`, {
+    mode: 0o600,
+  });
+  fs.chmodSync(file, 0o600);
+}
+
+function load(file) {
+  return JSON.parse(fs.readFileSync(file, "utf8"));
+}
+
+function record(file, name) {
+  const stat = fs.statSync(file);
+  return {
+    name,
+    sha256: sha256(file),
+    bytes: stat.size,
+    mode: (stat.mode & 0o777).toString(8).padStart(3, "0"),
+  };
+}
+
+function createCanonicalGreenPack(packDir) {
+  mkdirPrivate(packDir);
+
+  const checkIds = [
+    "health",
+    "readiness",
+    "chain_head",
+    "peer_visibility",
+    "well_known_discovery",
+    "route_index",
+    "route_manifest",
+    "self_check_snapshot",
+    "public_discovery_alignment",
+  ];
+  const checks = checkIds.map((id) => ({
+    id,
+    path: id === "health" ? "/health" : `/${id}`,
+    ok: true,
+    reason: null,
+    observed: { fixture: true },
+  }));
+
+  const receipt = {
+    marker: "VOID_PUBLIC_NODE_OPERATOR_SELF_CHECK_V1",
+    network: "Mainnet-0",
+    read_only: true,
+    observed_at: "2026-08-19T18:00:00.000Z",
+    target: {
+      scheme: "http",
+      host_class: "loopback",
+      port: 4101,
+      raw_target_included: false,
+    },
+    summary: {
+      status: "green",
+      checks_total: checks.length,
+      checks_green: checks.length,
+      checks_failed: 0,
+      failed_check_ids: [],
+    },
+    runtime: {
+      node_id: "fixture-node-parent-namespace-v1",
+      http_port: 4101,
+      p2p_port: 4701,
+      chain_head: 1856587,
+      peer_count: 2,
+      expected_peer_count: 2,
+      ready: true,
+      gap: 0,
+      txroot_live: 1,
+    },
+    checks,
+    safety: {
+      methods_used: ["GET"],
+      redirects_followed: false,
+      credentials_sent: false,
+      mutation_attempted: false,
+      registration_attempted: false,
+      validator_activation_attempted: false,
+      staking_attempted: false,
+      wallet_connection_attempted: false,
+      ledger_write_attempted: false,
+      peer_state_write_attempted: false,
+      validator_set_write_attempted: false,
+      ticket_claim_attempted: false,
+      buy_void_fulfillment_attempted: false,
+    },
+  };
+
+  const receiptPath = path.join(packDir, ARTIFACTS[0]);
+  writePrivate(receiptPath, receipt);
+
+  const reviewPath = path.join(packDir, ARTIFACTS[1]);
+  const reviewRun = runNode([
+    RECEIPT_REVIEW,
+    "--receipt",
+    receiptPath,
+    "--output",
+    reviewPath,
     "--reviewed-at",
     "2026-08-19T18:00:01.000Z",
+    "--require-green",
   ]);
-  assert.equal(result.status, 0, result.stderr || result.stdout);
+  assert.equal(reviewRun.status, 0, reviewRun.stderr || reviewRun.stdout);
+  const review = load(reviewPath);
+  assert.equal(review.accepted, true, "fixture receipt must pass canonical reviewer");
+  assert.equal(review.receipt_status, "green");
+
+  const receiptRecord = record(receiptPath, ARTIFACTS[0]);
+  const reviewRecord = record(reviewPath, ARTIFACTS[1]);
+
+  const manifest = {
+    marker: "VOID_PUBLIC_NODE_OPERATOR_EVIDENCE_PACK_V1",
+    network: "Mainnet-0",
+    created_at: review.reviewed_at,
+    read_only: true,
+    status: "green",
+    gate: "passed",
+    allow_hold: false,
+    artifacts: {
+      receipt: receiptRecord,
+      review: reviewRecord,
+      checksums: {
+        name: ARTIFACTS[3],
+        algorithm: "sha256",
+        includes_manifest: true,
+      },
+    },
+    bindings: {
+      review_receipt_sha256_matches: true,
+      receipt_status_matches_review: true,
+      expected_peer_count: 2,
+    },
+    source_contracts: {
+      self_check: {
+        name: path.basename(SELF_CHECK),
+        sha256: sha256(SELF_CHECK),
+      },
+      receipt_review: {
+        name: path.basename(RECEIPT_REVIEW),
+        sha256: sha256(RECEIPT_REVIEW),
+      },
+    },
+    execution: {
+      self_check_exit_code: 0,
+      review_exit_code: 0,
+    },
+    safety: {
+      raw_target_included: false,
+      raw_output_path_included: false,
+      credentials_included: false,
+      mutation_attempted: false,
+      registration_attempted: false,
+      validator_activation_attempted: false,
+      ledger_write_attempted: false,
+      peer_state_write_attempted: false,
+      ticket_claim_attempted: false,
+      buy_void_fulfillment_attempted: false,
+    },
+  };
+
+  const manifestPath = path.join(packDir, ARTIFACTS[2]);
+  writePrivate(manifestPath, manifest);
+  const manifestRecord = record(manifestPath, ARTIFACTS[2]);
+
+  const lines = [receiptRecord, reviewRecord, manifestRecord]
+    .sort((left, right) => left.name.localeCompare(right.name))
+    .map((entry) => `${entry.sha256}  ${entry.name}`)
+    .join("\n");
+  fs.writeFileSync(path.join(packDir, ARTIFACTS[3]), `${lines}\n`, {
+    mode: 0o600,
+  });
+  fs.chmodSync(path.join(packDir, ARTIFACTS[3]), 0o600);
+
   assert.equal(fs.statSync(packDir).mode & 0o777, 0o700);
   for (const name of ARTIFACTS) {
     assert.equal(fs.statSync(path.join(packDir, name)).mode & 0o777, 0o600);
@@ -124,7 +287,8 @@ function swapEnv(hook, component, finalTrigger, victim, target, marker) {
 function main() {
   assert.equal(process.platform, "linux", "parent-namespace proof requires Linux");
   assert(fs.existsSync(REVIEWER), "reviewer missing");
-  assert(fs.existsSync(PRODUCER), "pack producer missing");
+  assert(fs.existsSync(SELF_CHECK), "self-check source missing");
+  assert(fs.existsSync(RECEIPT_REVIEW), "receipt reviewer missing");
 
   const temp = fs.mkdtempSync(
     path.join(os.tmpdir(), "void-evidence-pack-parent-namespace-proof-"),
@@ -138,7 +302,7 @@ function main() {
     const targetRoot = path.join(temp, "input-target");
     mkdirPrivate(targetRoot);
     const targetPack = path.join(targetRoot, "pack");
-    createValidHoldPack(targetPack);
+    createCanonicalGreenPack(targetPack);
     const targetBefore = snapshotPack(targetPack);
 
     const nominal = runNode([
