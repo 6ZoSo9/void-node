@@ -1010,6 +1010,110 @@ async function main(): Promise<void> {
       true,
     );
 
+    pilot.resetWcPublicWorkReferenceReadMetricsForProofV1();
+    let referenceGrowthInjected = false;
+    pilot.setWcPublicWorkReferenceReadHookForProofV1(
+      async (phase: string, file: string) => {
+        if (
+          phase !== "after_precheck" ||
+          file !== publicWorkFile ||
+          referenceGrowthInjected
+        ) {
+          return;
+        }
+        referenceGrowthInjected = true;
+        const fd = fs.openSync(publicWorkFile, "a");
+        try {
+          fs.writeSync(
+            fd,
+            Buffer.alloc(
+              pilot.VOID_WC_PUBLIC_WORK_REFERENCE_MAX_BYTES_V1 +
+                1024,
+              0x78,
+            ),
+          );
+          fs.fdatasyncSync(fd);
+        } finally {
+          fs.closeSync(fd);
+        }
+      },
+    );
+    const growingReference =
+      setupSubmitFromPublicClaim(
+        root,
+        issued,
+        "growing_reference_generation",
+        true,
+      );
+    const growingResponse = makeResponse();
+    await pilot.submitRemoteResult(
+      growingReference.req,
+      growingResponse,
+    );
+    pilot.setWcPublicWorkReferenceReadHookForProofV1(
+      null,
+    );
+    assert.equal(referenceGrowthInjected, true);
+    assert.equal(growingResponse.statusCode, 503);
+    assert.equal(
+      growingResponse.payload.error,
+      "useful_work_verifier_unavailable",
+    );
+    assert.ok(
+      pilot.wcPublicWorkReferenceReadMetricsForProofV1()
+        .bytes_read_total <=
+        publicWorkBytes.length + 1,
+      "selected-work verifier exceeded admitted-size + 1 read bound",
+    );
+    for (const file of [
+      path.join(root, "agent_v1", "receipts.jsonl"),
+      path.join(root, "agent", "jobs.jsonl"),
+      path.join(root, "agent_v1", "job_state.jsonl"),
+      path.join(root, "wc_v1", "ledger.jsonl"),
+    ]) {
+      assert.equal(
+        fs.existsSync(file),
+        false,
+        `growing selected-work reference published ${file}`,
+      );
+    }
+    assert.equal(
+      fs.existsSync(
+        path.join(
+          pilotRoot,
+          "result-transactions",
+          `${growingReference.ticketId}.json`,
+        ),
+      ),
+      false,
+    );
+    assert.equal(
+      fs.existsSync(
+        path.join(
+          pilotRoot,
+          "consumed",
+          `${growingReference.ticketId}.json`,
+        ),
+      ),
+      false,
+    );
+    assert.equal(
+      fs.existsSync(
+        path.join(
+          pilotRoot,
+          "issued",
+          `${growingReference.ticketId}.json`,
+        ),
+      ),
+      true,
+    );
+
+    fs.writeFileSync(
+      publicWorkFile,
+      publicWorkBytes,
+      { mode: 0o600 },
+    );
+
     // The exact same live capability may still do the selected work once.
     const legitimate =
       setupSubmitFromPublicClaim(
@@ -2623,6 +2727,12 @@ async function main(): Promise<void> {
   );
   console.log(
     "legitimate_public_work_exact_3_wc=true",
+  );
+  console.log(
+    "public_work_reference_read_bound_pre_retention=true",
+  );
+  console.log(
+    "growing_public_work_reference_zero_import_credit=true",
   );
   console.log(
     "VOID_WC_PUBLIC_EARNING_PILOT_RUNTIME_V1_GREEN",

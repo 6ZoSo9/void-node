@@ -1365,4 +1365,30 @@ need(
   "claim-history mutation-generation reader is not descriptor/path generation bound",
 );
 
+const publicWorkReadStart = moduleText.indexOf(
+  "async function readPublicWorkReferenceBytesV1(",
+);
+const publicWorkReadEnd = moduleText.indexOf(
+  "export function publicWorkPossessionProofV1(",
+  publicWorkReadStart,
+);
+need(
+  publicWorkReadStart >= 0 &&
+    publicWorkReadEnd > publicWorkReadStart,
+  "public-work reference reader missing",
+);
+const publicWorkReadBlock = moduleText.slice(
+  publicWorkReadStart,
+  publicWorkReadEnd,
+);
+need(
+  publicWorkReadBlock.includes("Buffer.alloc(size + 1)") &&
+    publicWorkReadBlock.includes("await handle.read(") &&
+    publicWorkReadBlock.includes(
+      "publicWorkReferenceBytesReadTotalForProofV1",
+    ) &&
+    !publicWorkReadBlock.includes("handle.readFile("),
+  "public-work reference ceiling is not enforced during descriptor read",
+);
+
 console.log("VOID_WC_PUBLIC_EARNING_PILOT_V1_GREEN");

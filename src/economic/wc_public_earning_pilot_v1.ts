@@ -417,8 +417,38 @@ function sha256Hex(value: string | Buffer): string {
 
 export const VOID_WC_PUBLIC_WORK_POSSESSION_DOMAIN_V1 =
   "VOID_WC_PUBLIC_DATASET_POSSESSION_HMAC_V1";
-const VOID_WC_PUBLIC_WORK_REFERENCE_MAX_BYTES_V1 =
+export const VOID_WC_PUBLIC_WORK_REFERENCE_MAX_BYTES_V1 =
   16 * 1024 * 1024;
+
+export type WcPublicWorkReferenceReadHookForProofV1 =
+  ((
+    phase: "after_precheck" | "after_read",
+    file: string,
+  ) => void | Promise<void>) | null;
+
+let publicWorkReferenceReadHookForProofV1:
+  WcPublicWorkReferenceReadHookForProofV1 =
+    null;
+let publicWorkReferenceBytesReadTotalForProofV1 = 0;
+
+export function setWcPublicWorkReferenceReadHookForProofV1(
+  hook: WcPublicWorkReferenceReadHookForProofV1,
+): void {
+  publicWorkReferenceReadHookForProofV1 = hook;
+}
+
+export function resetWcPublicWorkReferenceReadMetricsForProofV1(): void {
+  publicWorkReferenceBytesReadTotalForProofV1 = 0;
+}
+
+export function wcPublicWorkReferenceReadMetricsForProofV1(): {
+  bytes_read_total: number;
+} {
+  return {
+    bytes_read_total:
+      publicWorkReferenceBytesReadTotalForProofV1,
+  };
+}
 
 type PublicWorkReferenceStampV1 = {
   dev: string;
@@ -517,10 +547,36 @@ async function readPublicWorkReferenceBytesV1(
       throw new Error("public_work_reference_unavailable");
     }
 
-    const bytes = await handle.readFile();
-    if (bytes.length !== size) {
+    await publicWorkReferenceReadHookForProofV1?.(
+      "after_precheck",
+      file,
+    );
+
+    const bounded = Buffer.alloc(size + 1);
+    let offset = 0;
+    while (offset < bounded.length) {
+      const { bytesRead } = await handle.read(
+        bounded,
+        offset,
+        bounded.length - offset,
+        offset,
+      );
+      if (bytesRead <= 0) break;
+      offset += bytesRead;
+      publicWorkReferenceBytesReadTotalForProofV1 +=
+        bytesRead;
+    }
+    if (offset !== size) {
       throw new Error("public_work_reference_unstable");
     }
+    const bytes = Buffer.from(
+      bounded.subarray(0, size),
+    );
+
+    await publicWorkReferenceReadHookForProofV1?.(
+      "after_read",
+      file,
+    );
 
     const afterStat: any = await handle.stat(
       { bigint: true } as any,
@@ -611,6 +667,12 @@ export function publicWorkPossessionProofV1(
         : Buffer.from(String(bytes), "utf8"),
     )
     .digest("hex");
+}
+
+export async function readWcPublicWorkReferenceBytesForProofV1(
+  record: PilotTicketRecord,
+): Promise<Buffer> {
+  return readPublicWorkReferenceBytesV1(record);
 }
 
 async function verifyIndependentPublicWorkV1(
