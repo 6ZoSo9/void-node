@@ -28,7 +28,7 @@ node tools/void-ai-agent-bootstrap-client-v1.mjs \
   --pretty
 ```
 
-Optional mode-0600 output:
+Optional create-only mode-0600 output:
 
 ```bash
 node tools/void-ai-agent-bootstrap-client-v1.mjs \
@@ -36,6 +36,11 @@ node tools/void-ai-agent-bootstrap-client-v1.mjs \
   --output ./void-bootstrap-result.json \
   --pretty
 ```
+
+`--output` refuses an existing final path, including a symbolic link. The final
+file is created exclusively, written through that already-open descriptor,
+forced to mode `0600`, and synchronized before close. Choose a new output path
+for each publication rather than relying on overwrite behavior.
 
 ## Network boundary
 
@@ -59,20 +64,28 @@ node tools/void-ai-agent-bootstrap-client-v1.mjs \
 - A present `Content-Length` must be a canonical nonnegative safe integer;
   malformed or oversized declarations fail closed before body accumulation.
 - The per-request deadline owns fetch acquisition as well as response-body
-  consumption. A caller-supplied fetch that ignores `AbortSignal` cannot keep
-  the participant-facing request pending past that deadline.
-- At most one unresolved fetch-acquisition generation is retained for the same
-  caller-supplied fetch implementation. Retries fail closed while that
-  generation remains unresolved rather than accumulating detached requests.
+  consumption. A caller-supplied fetch or admitted reader that ignores
+  `AbortSignal` cannot keep the participant-facing request pending past that
+  deadline.
+- One transport-generation lease spans fetch acquisition through admitted body
+  consumption for a caller-supplied fetch implementation. If the participant
+  deadline wins while acquisition, a body read, or cleanup is still unresolved,
+  the participant still receives the bounded timeout but same-fetch retries
+  fail closed with the existing quarantine terminal instead of spawning a
+  replacement generation. The lease releases only after the retained
+  underlying read/cancel outcome settles, after which a clean retry can recover.
 - If a timed-out fetch resolves later to a live response, the client performs
-  one bounded late-response cleanup before releasing that acquisition
-  generation; cleanup cannot replace the already-returned timeout.
+  one bounded late-response cleanup. A cleanup that exceeds the 250 ms
+  participant-facing teardown window remains quarantine-owned until its actual
+  settlement rather than being detached while a replacement request starts.
 - Response-body reader acquisition is teardown-owned. A locked or throwing
   `getReader()` cannot escape as an unowned raw stream failure.
 - Every admitted `reader.read()` is raced against the owned request deadline,
   including custom readers that ignore request abort.
-- Rejection cleanup has a separate bounded 250 ms settlement terminal and
-  cannot replace or indefinitely delay an already-known response HOLD.
+- Rejection cleanup has a separate bounded 250 ms participant-facing settlement
+  terminal and cannot replace or indefinitely delay an already-known response
+  HOLD; transport quarantine may outlive that visible terminal solely to bound
+  unresolved underlying work.
 - No authorization header, cookie, credential, wallet material, operator key,
   or request body is sent.
 
