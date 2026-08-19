@@ -38,14 +38,38 @@ function logicalDeadlineError(timeoutMs) {
   return error;
 }
 
-function resolverFlightQuarantinedError(hostname) {
-  const error = new Error(`seed DNS resolver flight is already owned for ${hostname}`);
-  error.resolverFlightQuarantined = true;
-  return error;
-}
-
 function remainingDeadlineMs(deadlineAtMs) {
   return Math.max(0, Math.ceil(deadlineAtMs - performance.now()));
+}
+
+function waitWithinDeadline(promise, deadlineAtMs, timeoutMs) {
+  return new Promise((resolve, reject) => {
+    let settled = false;
+    const remaining = remainingDeadlineMs(deadlineAtMs);
+    if (remaining <= 0) {
+      reject(logicalDeadlineError(timeoutMs));
+      return;
+    }
+    const timer = setTimeout(() => {
+      if (settled) return;
+      settled = true;
+      reject(logicalDeadlineError(timeoutMs));
+    }, remaining);
+    promise.then(
+      (value) => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timer);
+        resolve(value);
+      },
+      (error) => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timer);
+        reject(error);
+      },
+    );
+  });
 }
 
 function resolverFlight(hostname, { allowLoopbackFixture, resolvePublicDnsImpl }) {
@@ -58,80 +82,17 @@ function resolverFlight(hostname, { allowLoopbackFixture, resolvePublicDnsImpl }
   const existing = flights.get(key);
   if (existing) return existing;
 
-  const flight = {
-    settled: false,
-    value: null,
-    error: null,
-    waiter: null,
-    quarantined: false,
-  };
-  flights.set(key, flight);
-
-  Promise.resolve()
-    .then(() => resolvePublicDnsImpl(hostname, { allowLoopbackFixture }))
-    .then(
-      (value) => {
-        flight.settled = true;
-        flight.value = value;
-        const waiter = flight.waiter;
-        flight.waiter = null;
-        waiter?.resolve(value);
-      },
-      (error) => {
-        flight.settled = true;
-        flight.error = error instanceof Error ? error : new Error(String(error));
-        const waiter = flight.waiter;
-        flight.waiter = null;
-        waiter?.reject(flight.error);
-      },
-    )
-    .finally(() => {
-      if (flights.get(key) === flight) flights.delete(key);
-      if (flights.size === 0) resolverFlightsByImpl.delete(resolvePublicDnsImpl);
-    });
-
-  return flight;
-}
-
-function waitForResolverFlightWithinDeadline(flight, hostname, deadlineAtMs, timeoutMs) {
-  if (flight.settled) {
-    return flight.error ? Promise.reject(flight.error) : Promise.resolve(flight.value);
-  }
-  if (flight.quarantined || flight.waiter) {
-    return Promise.reject(resolverFlightQuarantinedError(hostname));
-  }
-
-  return new Promise((resolve, reject) => {
-    const remaining = remainingDeadlineMs(deadlineAtMs);
-    if (remaining <= 0) {
-      flight.quarantined = true;
-      reject(logicalDeadlineError(timeoutMs));
-      return;
-    }
-
-    let settled = false;
-    const finish = (callback, value) => {
-      if (settled) return;
-      settled = true;
-      clearTimeout(timer);
-      if (flight.waiter === waiter) flight.waiter = null;
-      callback(value);
-    };
-    const waiter = {
-      resolve(value) {
-        finish(resolve, value);
-      },
-      reject(error) {
-        finish(reject, error);
-      },
-    };
-    flight.waiter = waiter;
-    const timer = setTimeout(() => {
-      if (settled) return;
-      flight.quarantined = true;
-      finish(reject, logicalDeadlineError(timeoutMs));
-    }, remaining);
+  let tracked;
+  const started = Promise.resolve().then(() =>
+    resolvePublicDnsImpl(hostname, { allowLoopbackFixture }),
+  );
+  tracked = started.finally(() => {
+    if (flights.get(key) === tracked) flights.delete(key);
+    if (flights.size === 0) resolverFlightsByImpl.delete(resolvePublicDnsImpl);
   });
+  tracked.catch(() => {});
+  flights.set(key, tracked);
+  return tracked;
 }
 
 function plainObject(value, label) {
@@ -217,7 +178,11 @@ function validateSeedResponse(route, bytes) {
 
   if (parsedRoute.pathname === "/__void/ready.json") {
     const ready = plainObject(value, "seed readiness response");
-    if (ready.ready !== true || ready.gap !== 0 || ready.txroot_live !== 1) {
+    if (
+      ready.ready !== true ||
+      ready.gap !== 0 ||
+      ready.txroot_live !== 1
+    ) {
       throw terminalSeedResponse("seed readiness response is not exact-green");
     }
     positiveInteger(ready.head, "seed readiness head");
@@ -492,10 +457,8 @@ export async function requestPublicSeedRouteV1(
   const deadlineAtMs = Math.min(localDeadlineAtMs, inheritedDeadlineAtMs);
   if (remainingDeadlineMs(deadlineAtMs) <= 0) throw logicalDeadlineError(boundedTimeout);
 
-  const flight = resolverFlight(peer.hostname, { allowLoopbackFixture, resolvePublicDnsImpl });
-  const addresses = await waitForResolverFlightWithinDeadline(
-    flight,
-    peer.hostname,
+  const addresses = await waitWithinDeadline(
+    resolverFlight(peer.hostname, { allowLoopbackFixture, resolvePublicDnsImpl }),
     deadlineAtMs,
     boundedTimeout,
   );
