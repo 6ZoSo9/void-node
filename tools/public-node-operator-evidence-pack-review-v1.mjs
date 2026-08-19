@@ -162,56 +162,104 @@ function readFdBounded(fd, label) {
   return Buffer.concat(chunks, total);
 }
 
-function assertNoSymlinkComponents(absolutePath, label) {
-  const resolved = path.resolve(absolutePath);
-  const parsed = path.parse(resolved);
-  let cursor = parsed.root;
-  for (const component of resolved.slice(parsed.root.length).split(path.sep)) {
-    if (!component) continue;
-    cursor = path.join(cursor, component);
-    const stat = fs.lstatSync(cursor);
-    if (stat.isSymbolicLink()) {
-      throw new Error(`${label} contains a symbolic-link component`);
-    }
-  }
-}
-
-function openReviewedDirectory(directory, label, requiredMode = null) {
-  const resolved = path.resolve(directory);
-  assertNoSymlinkComponents(resolved, label);
-  if (fs.realpathSync(resolved) !== resolved) {
-    throw new Error(`${label} must resolve without symbolic-link aliases`);
-  }
-  const fd = fs.openSync(
-    resolved,
-    fs.constants.O_RDONLY | O_DIRECTORY | O_NOFOLLOW,
-  );
-  try {
-    const stat = fs.fstatSync(fd, { bigint: true });
-    if (!stat.isDirectory()) throw new Error(`${label} must be a directory`);
-    const uid = currentUid();
-    if (uid !== null && stat.uid !== BigInt(uid)) {
-      throw new Error(`${label} must be owned by the current operator UID`);
-    }
-    const mode = Number(stat.mode & 0o777n);
-    if (requiredMode !== null && mode !== requiredMode) {
-      throw new Error(`${label} must use mode ${requiredMode.toString(8).padStart(3, "0")}`);
-    }
-    if ((mode & 0o022) !== 0) {
-      throw new Error(`${label} must not be group/world writable`);
-    }
-    return { fd, resolved, generation: statGeneration(stat), mode };
-  } catch (error) {
-    fs.closeSync(fd);
-    throw error;
-  }
-}
-
 function descriptorChildPath(directoryFd, name) {
   if (process.platform !== "linux") {
     throw new Error("descriptor-bound evidence review requires Linux /proc/self/fd");
   }
   return `/proc/self/fd/${directoryFd}/${name}`;
+}
+
+function openReviewedDirectory(directory, label, requiredMode = null) {
+  if (process.platform !== "linux") {
+    throw new Error("descriptor-bound evidence review requires Linux /proc/self/fd");
+  }
+
+  const resolved = path.resolve(directory);
+  const parsed = path.parse(resolved);
+  const components = resolved
+    .slice(parsed.root.length)
+    .split(path.sep)
+    .filter(Boolean);
+  if (components.length === 0) {
+    throw new Error(`${label} must not be the filesystem root`);
+  }
+
+  let fd = fs.openSync(
+    parsed.root,
+    fs.constants.O_RDONLY | O_DIRECTORY | O_NOFOLLOW,
+  );
+  try {
+    let stat = fs.fstatSync(fd, { bigint: true });
+    if (!stat.isDirectory()) throw new Error(`${label} root must be a directory`);
+
+    for (let index = 0; index < components.length; index += 1) {
+      const component = components[index];
+      if (!component || component === "." || component === "..") {
+        throw new Error(`${label} contains an invalid path component`);
+      }
+
+      const childFd = fs.openSync(
+        descriptorChildPath(fd, component),
+        fs.constants.O_RDONLY | O_DIRECTORY | O_NOFOLLOW,
+      );
+      fs.closeSync(fd);
+      fd = childFd;
+      stat = fs.fstatSync(fd, { bigint: true });
+      if (!stat.isDirectory()) throw new Error(`${label} must be a directory`);
+
+      const uid = currentUid();
+      const mode = Number(stat.mode & 0o777n);
+      const isFinal = index === components.length - 1;
+      if (!isFinal) {
+        if (
+          uid !== null &&
+          stat.uid !== 0n &&
+          stat.uid !== BigInt(uid)
+        ) {
+          throw new Error(`${label} parent component has an unreviewed owner`);
+        }
+        const rootStickyShared =
+          stat.uid === 0n && (stat.mode & 0o1000n) !== 0n;
+        if ((mode & 0o022) !== 0 && !rootStickyShared) {
+          throw new Error(`${label} parent component is group/world writable`);
+        }
+      } else {
+        if (uid !== null && stat.uid !== BigInt(uid)) {
+          throw new Error(`${label} must be owned by the current operator UID`);
+        }
+        if (requiredMode !== null && mode !== requiredMode) {
+          throw new Error(
+            `${label} must use mode ${requiredMode.toString(8).padStart(3, "0")}`,
+          );
+        }
+        if ((mode & 0o022) !== 0) {
+          throw new Error(`${label} must not be group/world writable`);
+        }
+      }
+    }
+
+    const finalStat = fs.fstatSync(fd, { bigint: true });
+    const pathStat = fs.lstatSync(resolved, { bigint: true });
+    if (
+      pathStat.isSymbolicLink() ||
+      !sameGeneration(statGeneration(finalStat), statGeneration(pathStat))
+    ) {
+      throw new Error(`${label} final pathname does not match opened directory generation`);
+    }
+    if (fs.realpathSync(resolved) !== resolved) {
+      throw new Error(`${label} must resolve without symbolic-link aliases`);
+    }
+
+    return {
+      fd,
+      resolved,
+      generation: statGeneration(finalStat),
+      mode: Number(finalStat.mode & 0o777n),
+    };
+  } catch (error) {
+    fs.closeSync(fd);
+    throw error;
+  }
 }
 
 function readArtifact(directoryFd, canonicalPath, name) {
