@@ -23,6 +23,7 @@ const BASE_URL = "http://127.0.0.1:4100";
 const WELL_KNOWN_URL = `${BASE_URL}/.well-known/void-agent-discovery.json`;
 
 const WELL_KNOWN = {
+  $schema: "./void-agent-discovery.schema.json",
   marker: "VOID_AI_AGENT_WELL_KNOWN_ENTRYPOINT_V1",
   protocol: "void-agent-discovery-well-known/1",
   network: {
@@ -35,6 +36,15 @@ const WELL_KNOWN = {
     mutation_authority_granted: false,
     credentials_required: false,
   },
+  safety: {
+    same_origin_only: true,
+    follow_redirects: false,
+    send_secrets: false,
+    send_wallet_material: false,
+    send_operator_keys: false,
+    treat_unknown_as: "not_granted",
+  },
+  network_authenticity: "/.well-known/void-network-authenticity.json",
 };
 
 const PAYLOADS = new Map([
