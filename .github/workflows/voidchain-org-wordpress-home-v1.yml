@@ -56,24 +56,24 @@ jobs:
       - run: node --check scripts/prove_voidchain_org_wordpress_home_v1.mjs
       - run: node scripts/prove_voidchain_org_wordpress_home_v1.mjs
 
-  production_ref_guard:
-    if: github.event_name == 'workflow_dispatch'
+  inspect_ref_guard:
+    if: github.event_name == 'workflow_dispatch' && inputs.operation == 'inspect'
     needs: proof
     runs-on: ubuntu-latest
     timeout-minutes: 2
     steps:
-      - name: Require exact main ref before production environment access
+      - name: Require exact main ref for authenticated production inspect
         shell: bash
         run: |
           set -euo pipefail
           if [ "$GITHUB_REF" != "refs/heads/main" ]; then
-            echo "::error::voidchain.org production inspect/apply requires refs/heads/main; got $GITHUB_REF"
+            echo "::error::voidchain.org production inspect requires refs/heads/main; got $GITHUB_REF"
             exit 1
           fi
 
   inspect:
     if: github.event_name == 'workflow_dispatch' && inputs.operation == 'inspect'
-    needs: [proof, production_ref_guard]
+    needs: [proof, inspect_ref_guard]
     environment: voidchain-org-production
     runs-on: ubuntu-latest
     timeout-minutes: 5
@@ -88,9 +88,24 @@ jobs:
           VOIDCHAIN_WORDPRESS_APPLICATION_PASSWORD: ${{ secrets.VOIDCHAIN_WORDPRESS_APPLICATION_PASSWORD }}
         run: node ops/public/sync-voidchain-org-wordpress-home-v1.mjs --inspect
 
+  apply_ref_guard:
+    if: github.event_name == 'workflow_dispatch' && inputs.operation == 'apply'
+    needs: proof
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: Require exact main ref for production apply
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ "$GITHUB_REF" != "refs/heads/main" ]; then
+            echo "::error::voidchain.org production apply requires refs/heads/main; got $GITHUB_REF"
+            exit 1
+          fi
+
   apply:
     if: github.event_name == 'workflow_dispatch' && inputs.operation == 'apply'
-    needs: [proof, production_ref_guard]
+    needs: [proof, apply_ref_guard]
     environment: voidchain-org-production
     runs-on: ubuntu-latest
     timeout-minutes: 5
