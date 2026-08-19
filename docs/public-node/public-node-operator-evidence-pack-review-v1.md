@@ -14,6 +14,12 @@ It verifies the exact four-artifact set created by:
 tools/public-node-operator-evidence-pack-v1.mjs
 ```
 
+The pack's stored receipt-review artifact is not accepted as a self-attested
+claim. The evidence-pack reviewer executes the locally reviewed canonical
+receipt reviewer again over the exact packed receipt, under the pack's recorded
+`allow_hold` policy and deterministic review timestamp, and requires the stored
+review to match that recomputed semantic result exactly.
+
 ## Command
 
 ```bash
@@ -51,9 +57,11 @@ The reviewer verifies:
 11. Manifest artifact metadata binding
 12. Cross-artifact status and timestamp alignment
 13. Green/hold gate and exit-code alignment
-14. Manifest source-tool hashes against the local merged tools
-15. False mutation and authority boundaries
-16. Public sanitization with no absolute URLs, keys, credentials, or bearer data
+14. Manifest source-tool hashes against the local reviewed tools
+15. Independent canonical receipt-review replay over the exact packed receipt
+16. Exact semantic equality between that replay and the stored review artifact
+17. False mutation and authority boundaries
+18. Public sanitization with no absolute URLs, keys, credentials, or bearer data
 
 The review records artifact SHA-256 values but does not copy the raw pack path
 or artifact bodies.
@@ -83,7 +91,7 @@ VOID_PUBLIC_NODE_OPERATOR_EVIDENCE_PACK_REVIEW_V1_PROOF_GREEN
 
 The fixture proof covers:
 
-- accepted green pack
+- accepted green pack produced with the real canonical receipt reviewer
 - accepted hold pack
 - strict hold rejection
 - checksum tampering rejection
@@ -91,6 +99,8 @@ The fixture proof covers:
 - extra-artifact rejection
 - permission-boundary rejection
 - mode-`0600` review output
+- a forged acceptance-critical receipt plus forged `accepted:true` review with
+  recomputed hashes/checksums, which must fail canonical semantic replay
 
 ## Authority boundary
 
