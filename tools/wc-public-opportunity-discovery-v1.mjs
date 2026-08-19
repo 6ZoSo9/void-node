@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 
+import { performance } from "node:perf_hooks";
 import { parseArgs } from "node:util";
 import { readBoundedTextOwned } from "./wc-public-response-teardown-v1.mjs";
 
@@ -9,9 +10,11 @@ const GATEWAY_MARKER = "VOID_PUBLIC_EARN_GATEWAY_V1";
 const CLAIM_MARKER = "VOID_WC_PUBLIC_TICKET_CLAIM_V1";
 const CLAIM_ROUTE = "/wc/public-earning-pilot-v1/claim-ticket";
 const CLAIM_METHOD = "POST";
+const DISCOVERY_PATH = "/.well-known/void-public-node.json";
 const DEFAULT_TIMEOUT_MS = 5000;
 const DEFAULT_EXPECTED_AWARD_WC = 3;
 const MAX_RESPONSE_BYTES = 64 * 1024;
+const MAX_CANDIDATE_PATHS = 24;
 
 function fail(message, details = {}) {
   process.stdout.write(JSON.stringify({
@@ -162,9 +165,28 @@ async function readBoundedText(response, maximum, abort) {
   });
 }
 
-async function fetchJson(origin, path, timeoutMs) {
+function remainingBudgetMs(deadlineMs) {
+  return Math.max(0, Math.ceil(deadlineMs - performance.now()));
+}
+
+async function fetchJson(origin, path, deadlineMs) {
+  const remainingMs = remainingBudgetMs(deadlineMs);
+  if (remainingMs <= 0) {
+    return {
+      path,
+      status: null,
+      ok: false,
+      content_type: null,
+      body: null,
+      error: "discovery_deadline_exceeded",
+    };
+  }
+
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  const timer = setTimeout(
+    () => controller.abort(new Error("discovery_deadline_exceeded")),
+    remainingMs,
+  );
   try {
     const response = await fetch(new URL(path, origin), {
       method: "GET",
@@ -186,8 +208,21 @@ async function fetchJson(origin, path, timeoutMs) {
     }
     return { path, status: response.status, ok: response.ok, content_type: contentType.split(";", 1)[0], body };
   } catch (error) {
-    return { path, status: null, ok: false, content_type: null, body: null, error: error instanceof Error ? error.message : "request_error" };
-  } finally { clearTimeout(timer); }
+    return {
+      path,
+      status: null,
+      ok: false,
+      content_type: null,
+      body: null,
+      error: controller.signal.aborted
+        ? "discovery_deadline_exceeded"
+        : error instanceof Error
+          ? error.message
+          : "request_error",
+    };
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 function summarizeAttempt(attempt) {
@@ -430,7 +465,8 @@ async function main() {
   const attempts = [];
   let firstHold = null;
   let gatewayContract = null;
-  const discovery = await fetchJson(origin, "/.well-known/void-public-node.json", timeoutMs);
+  const deadlineMs = performance.now() + timeoutMs;
+  const discovery = await fetchJson(origin, DISCOVERY_PATH, deadlineMs);
   attempts.push(discovery);
   if (discovery.ok && discovery.body) gatewayContract = extractGatewayContract(discovery.body) ?? gatewayContract;
   const candidates = new Set();
@@ -449,9 +485,32 @@ async function main() {
     if (discoveryAnalysis) firstHold = { body: discovery.body, path: discovery.path };
   }
   for (const path of defaultCandidates) candidates.add(path);
+
+  if (candidates.size > MAX_CANDIDATE_PATHS) {
+    fail("candidate path limit exceeded", {
+      base_origin: origin,
+      candidate_count: candidates.size,
+      maximum_candidate_paths: MAX_CANDIDATE_PATHS,
+      logical_timeout_ms: timeoutMs,
+      attempts: attempts.map(summarizeAttempt),
+    });
+    return;
+  }
+
   for (const path of candidates) {
     if (path === discovery.path) continue;
-    const attempt = await fetchJson(origin, path, timeoutMs);
+    if (remainingBudgetMs(deadlineMs) <= 0) {
+      attempts.push({
+        path,
+        status: null,
+        ok: false,
+        content_type: null,
+        body: null,
+        error: "discovery_deadline_exceeded",
+      });
+      break;
+    }
+    const attempt = await fetchJson(origin, path, deadlineMs);
     attempts.push(attempt);
     if (!attempt.ok || !attempt.body) continue;
     gatewayContract = extractGatewayContract(attempt.body) ?? gatewayContract;
@@ -470,7 +529,13 @@ async function main() {
       return;
     }
   }
-  fail("compatible public earning gateway not discovered", { base_origin: origin, attempts: attempts.map(summarizeAttempt) });
+  fail("compatible public earning gateway not discovered", {
+    base_origin: origin,
+    candidate_count: candidates.size,
+    maximum_candidate_paths: MAX_CANDIDATE_PATHS,
+    logical_timeout_ms: timeoutMs,
+    attempts: attempts.map(summarizeAttempt),
+  });
 }
 
 main().catch((error) => { fail(error instanceof Error ? error.message : "unexpected error"); });
