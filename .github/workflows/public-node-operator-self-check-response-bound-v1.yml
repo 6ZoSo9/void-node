@@ -13,6 +13,7 @@ on:
       - "scripts/prove_public_node_operator_transport_binding_v1.mjs"
       - "scripts/prove_public_node_operator_receipt_generation_authority_v1.mjs"
       - "scripts/prove_public_node_operator_evidence_pack_review_v1.ts"
+      - "scripts/prove_public_node_operator_evidence_pack_parent_namespace_v1.mjs"
       - "docs/public-node/public-node-operator-self-check-v1.md"
       - "docs/public-node/public-node-operator-self-check-receipt-review-v1.md"
       - "docs/public-node/public-node-operator-evidence-pack-review-v1.md"
@@ -30,6 +31,7 @@ on:
       - "scripts/prove_public_node_operator_transport_binding_v1.mjs"
       - "scripts/prove_public_node_operator_receipt_generation_authority_v1.mjs"
       - "scripts/prove_public_node_operator_evidence_pack_review_v1.ts"
+      - "scripts/prove_public_node_operator_evidence_pack_parent_namespace_v1.mjs"
       - "docs/public-node/public-node-operator-self-check-v1.md"
       - "docs/public-node/public-node-operator-self-check-receipt-review-v1.md"
       - "docs/public-node/public-node-operator-evidence-pack-review-v1.md"
@@ -67,6 +69,7 @@ jobs:
           node --check scripts/prove_public_node_operator_transport_binding_v1.mjs
           node --check scripts/prove_public_node_operator_receipt_generation_authority_v1.mjs
           node --check scripts/prove_public_node_operator_evidence_pack_review_v1.ts
+          node --check scripts/prove_public_node_operator_evidence_pack_parent_namespace_v1.mjs
       - name: Prove bounded operator self-check responses
         run: node scripts/prove_public_node_operator_self_check_response_bound_v1.mjs
       - name: Prove admitted body deadline ownership
@@ -79,5 +82,7 @@ jobs:
         run: node scripts/prove_public_node_operator_receipt_generation_authority_v1.mjs
       - name: Prove canonical evidence-pack receipt-review replay
         run: node --experimental-strip-types scripts/prove_public_node_operator_evidence_pack_review_v1.ts
+      - name: Prove evidence-pack parent namespace binding
+        run: node scripts/prove_public_node_operator_evidence_pack_parent_namespace_v1.mjs
       - name: Diff hygiene
         run: git diff --check
