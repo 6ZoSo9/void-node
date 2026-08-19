@@ -56,9 +56,24 @@ jobs:
       - run: node --check scripts/prove_voidchain_org_wordpress_home_v1.mjs
       - run: node scripts/prove_voidchain_org_wordpress_home_v1.mjs
 
+  production_ref_guard:
+    if: github.event_name == 'workflow_dispatch'
+    needs: proof
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: Require exact main ref before production environment access
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ "$GITHUB_REF" != "refs/heads/main" ]; then
+            echo "::error::voidchain.org production inspect/apply requires refs/heads/main; got $GITHUB_REF"
+            exit 1
+          fi
+
   inspect:
     if: github.event_name == 'workflow_dispatch' && inputs.operation == 'inspect'
-    needs: proof
+    needs: [proof, production_ref_guard]
     environment: voidchain-org-production
     runs-on: ubuntu-latest
     timeout-minutes: 5
@@ -75,7 +90,7 @@ jobs:
 
   apply:
     if: github.event_name == 'workflow_dispatch' && inputs.operation == 'apply'
-    needs: proof
+    needs: [proof, production_ref_guard]
     environment: voidchain-org-production
     runs-on: ubuntu-latest
     timeout-minutes: 5
