@@ -144,7 +144,11 @@ assert.equal(
 );
 assert.match(String(deadlineHarness.records[0].signal.reason?.message), /caller total deadline/);
 assert.equal(deadlineOwner.hasActiveRequest(), false);
-assert.equal(deadlineOwner.abort('deadline cleanup'), true);
+assert.equal(
+  deadlineOwner.abort('deadline cleanup'),
+  false,
+  'bodyless response ownership should already be released after caller abort cleanup',
+);
 
 const unmountHarness = pendingFetchHarness();
 const unmountOwner = createDataNetRequestOwnerV1({
