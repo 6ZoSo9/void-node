@@ -47,6 +47,24 @@ function sendJson(res, status, body) {
   res.end(data);
 }
 
+function sendOversizedJson(res, { declared = false } = {}) {
+  const data = JSON.stringify({
+    ok: true,
+    padding: "x".repeat(tool.MAX_CONTROL_RESPONSE_BYTES + 1024),
+  });
+  const headers = { "content-type": "application/json" };
+  if (declared) headers["content-length"] = Buffer.byteLength(data);
+  res.writeHead(200, headers);
+  res.end(data);
+}
+
+function sendInterruptedJson(res) {
+  res.writeHead(200, { "content-type": "application/json" });
+  res.flushHeaders();
+  res.write('{"ok":true,"partial":"');
+  setTimeout(() => res.destroy(), 5);
+}
+
 function listen(handler) {
   return new Promise((resolve, reject) => {
     const server = http.createServer((req, res) => {
@@ -112,11 +130,14 @@ for (const required of [
   "participant_selected_award: false",
   "full_void_node_required: false",
   "authorization: `Bearer ${capabilityToken}`",
+  "MAX_CONTROL_RESPONSE_BYTES = 64 * 1024",
+  "readResponseTextBounded(response)",
 ]) {
   assert.equal(source.includes(required), true, `required client marker missing: ${required}`);
 }
 assert.equal(source.includes("--dataset-id"), false);
 assert.equal(source.includes("--award"), false);
+assert.equal(source.includes("response.text()"), false, "control JSON must not use unbounded response.text()");
 assert.deepEqual(
   source.match(/catch\s*(?:\([^)]*\))?\s*\{\s*\}/g) || [],
   [],
@@ -126,6 +147,11 @@ assert.match(
   source,
   /VOID_PUBLIC_EARN_NO_NODE_CLIENT_V1_BEST_EFFORT_FAILURE_VISIBLE/,
 );
+assert.equal(t.safeBase("http://[::1]:8082"), "http://[::1]:8082");
+assert.equal(t.safeBase("http://[2001:db8::1]:8082"), "");
+assert.equal(t.safeBase("http://8.8.8.8:8082"), "");
+assert.equal(t.safeBase("https://public.example:8443"), "https://public.example:8443");
+assert.equal(tool.MAX_CONTROL_RESPONSE_BYTES, 64 * 1024);
 
 const root = fs.mkdtempSync(path.join(os.tmpdir(), "void-public-earn-no-node-client-v1-"));
 const successState = path.join(root, "success-state");
@@ -139,13 +165,30 @@ let claimCount = 0;
 let submitCount = 0;
 let badHashSubmitCount = 0;
 let badDatasetReady = false;
+let faultMode = "";
+let faultSubmitCount = 0;
+
+async function runFault(modeName, args) {
+  faultMode = modeName;
+  try {
+    return await runClient(args);
+  } finally {
+    faultMode = "";
+  }
+}
 
 const { server, base } = await listen(async (req, res) => {
   const url = new URL(req.url || "/", base);
   if (req.method === "GET" && url.pathname === "/health") {
+    if (faultMode === "oversized-health-declared") {
+      return sendOversizedJson(res, { declared: true });
+    }
     return sendJson(res, 200, { ok: true, nodeId: coordinatorNodeId });
   }
   if (req.method === "GET" && url.pathname === "/wc/public-earning-pilot-v1/status") {
+    if (faultMode === "oversized-status-streamed") {
+      return sendOversizedJson(res);
+    }
     const account = url.searchParams.get("account") || "";
     return sendJson(res, 200, {
       ok: true,
@@ -185,6 +228,9 @@ const { server, base } = await listen(async (req, res) => {
   if (req.method === "POST" && url.pathname === "/wc/public-earning-pilot-v1/claim-ticket") {
     claimCount += 1;
     const payload = JSON.parse(await readBody(req));
+    if (faultMode === "oversized-claim-streamed") {
+      return sendOversizedJson(res);
+    }
     assert.deepEqual(Object.keys(payload).sort(), ["claim", "signature"]);
     const claim = t.canonicalClaim(payload.claim);
     assert.equal(payload.signature.alg, "ed25519");
@@ -268,6 +314,16 @@ const { server, base } = await listen(async (req, res) => {
     const stored = tickets.get(ticketId);
     assert.ok(stored);
     assert.equal(token, stored.token);
+    if (faultMode === "oversized-submit-streamed") {
+      faultSubmitCount += 1;
+      await readBody(req);
+      return sendOversizedJson(res);
+    }
+    if (faultMode === "interrupted-submit") {
+      faultSubmitCount += 1;
+      await readBody(req);
+      return sendInterruptedJson(res);
+    }
     if (stored.bad) badHashSubmitCount += 1;
     else submitCount += 1;
     const bodyText = await readBody(req);
@@ -467,10 +523,81 @@ try {
   assert.equal(resumed.stdout.includes(pending.capability_token), false);
   assert.equal(resumed.stderr.includes(pending.capability_token), false);
 
-  console.log("fixture_cases=4");
+  const claimsBeforeFaults = claimCount;
+  const oversizedHealthState = path.join(root, "oversized-health-state");
+  const oversizedHealth = await runFault("oversized-health-declared", [
+    "status",
+    "--account", "oversized-health-user",
+    "--coordinator-base", base,
+    "--coordinator-node-id", coordinatorNodeId,
+    "--state-dir", oversizedHealthState,
+  ]);
+  assert.notEqual(oversizedHealth.code, 0);
+  assert.match(oversizedHealth.stderr, /response_too_large/);
+  assert.equal(claimCount, claimsBeforeFaults);
+
+  const oversizedStatus = await runFault("oversized-status-streamed", [
+    "status",
+    "--account", "oversized-status-user",
+    "--coordinator-base", base,
+    "--coordinator-node-id", coordinatorNodeId,
+    "--state-dir", path.join(root, "oversized-status-state"),
+  ]);
+  assert.notEqual(oversizedStatus.code, 0);
+  assert.match(oversizedStatus.stderr, /response_too_large/);
+  assert.equal(claimCount, claimsBeforeFaults);
+
+  const oversizedClaimState = path.join(root, "oversized-claim-state");
+  const oversizedClaim = await runFault("oversized-claim-streamed", [
+    "run",
+    "--account", "oversized-claim-user",
+    "--coordinator-base", base,
+    "--coordinator-node-id", coordinatorNodeId,
+    "--state-dir", oversizedClaimState,
+  ]);
+  assert.notEqual(oversizedClaim.code, 0);
+  assert.match(oversizedClaim.stderr, /response_too_large/);
+  assert.deepEqual(fs.readdirSync(path.join(oversizedClaimState, "pending")), []);
+  assert.deepEqual(fs.readdirSync(path.join(oversizedClaimState, "receipts")), []);
+
+  const oversizedSubmitState = path.join(root, "oversized-submit-state");
+  const oversizedSubmit = await runFault("oversized-submit-streamed", [
+    "run",
+    "--account", "oversized-submit-user",
+    "--coordinator-base", base,
+    "--coordinator-node-id", coordinatorNodeId,
+    "--state-dir", oversizedSubmitState,
+  ]);
+  assert.notEqual(oversizedSubmit.code, 0);
+  assert.match(oversizedSubmit.stderr, /response_too_large/);
+  assert.equal(fs.readdirSync(path.join(oversizedSubmitState, "pending")).length, 1);
+  assert.deepEqual(fs.readdirSync(path.join(oversizedSubmitState, "receipts")), []);
+  assert.doesNotMatch(oversizedSubmit.stdout, /EARNED_3_WC_EXACT_GREEN/);
+
+  const interruptedSubmitState = path.join(root, "interrupted-submit-state");
+  const interruptedSubmit = await runFault("interrupted-submit", [
+    "run",
+    "--account", "interrupted-submit-user",
+    "--coordinator-base", base,
+    "--coordinator-node-id", coordinatorNodeId,
+    "--state-dir", interruptedSubmitState,
+  ]);
+  assert.notEqual(interruptedSubmit.code, 0);
+  assert.match(interruptedSubmit.stderr, /request_failed/);
+  assert.equal(fs.readdirSync(path.join(interruptedSubmitState, "pending")).length, 1);
+  assert.deepEqual(fs.readdirSync(path.join(interruptedSubmitState, "receipts")), []);
+  assert.doesNotMatch(interruptedSubmit.stdout, /EARNED_3_WC_EXACT_GREEN/);
+  assert.equal(faultSubmitCount, 2);
+  assert.equal(balances.has("oversized-submit-user"), false);
+  assert.equal(balances.has("interrupted-submit-user"), false);
+
+  console.log("fixture_cases=9");
   console.log("success_earn_cases=2");
-  console.log("hold_cases=2");
+  console.log("hold_cases=7");
   console.log("pending_ticket_resume_cases=1");
+  console.log(`control_response_limit_bytes=${tool.MAX_CONTROL_RESPONSE_BYTES}`);
+  console.log("control_response_fault_cases=5");
+  console.log("automatic_resubmission=false");
   console.log("full_void_node_required=false");
   console.log("loopback_sign_claim_used=false");
   console.log("loopback_execute_local_used=false");

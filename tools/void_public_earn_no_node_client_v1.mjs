@@ -17,6 +17,7 @@ export const CLAIM_ROUTE = "/wc/public-earning-pilot-v1/claim-ticket";
 export const SUBMIT_ROUTE = "/wc/public-earning-pilot-v1/submit-result";
 export const STATUS_ROUTE = "/wc/public-earning-pilot-v1/status";
 export const ACCOUNTING_MODE = "capability_bound_submission_response_v1";
+export const MAX_CONTROL_RESPONSE_BYTES = 64 * 1024;
 const CLAIM_DOMAIN = "void:mainnet-0:wc-public-ticket-claim-v1";
 const RESULT_DOMAIN = "void:mainnet-0:wc-public-earning-pilot-v1";
 const DEFAULT_STATE_DIR = path.join(
@@ -456,12 +457,59 @@ function redact(value, secrets = []) {
   return value;
 }
 
+async function readResponseTextBounded(response, maxBytes = MAX_CONTROL_RESPONSE_BYTES) {
+  const contentLength = String(response.headers.get("content-length") || "").trim();
+  if (contentLength) {
+    if (!/^\d+$/.test(contentLength)) {
+      fail("response_content_length_invalid", "server returned an invalid content-length");
+    }
+    if (BigInt(contentLength) > BigInt(maxBytes)) {
+      fail("response_too_large", "server response exceeded the control-response byte limit", {
+        max_bytes: maxBytes,
+      });
+    }
+  }
+
+  const reader = response.body?.getReader?.();
+  if (!reader) fail("response_body_unreadable", "server response body is not stream-readable");
+  const chunks = [];
+  let bytes = 0;
+  try {
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      if (!(value instanceof Uint8Array)) {
+        fail("response_body_chunk_invalid", "server response produced an invalid body chunk");
+      }
+      bytes += value.byteLength;
+      if (bytes > maxBytes) {
+        try {
+          await reader.cancel();
+        } catch (error) {
+          visibleBestEffortFailure("control-response-cancel", error);
+        }
+        fail("response_too_large", "server response exceeded the control-response byte limit", {
+          max_bytes: maxBytes,
+        });
+      }
+      chunks.push(Buffer.from(value));
+    }
+  } finally {
+    try {
+      reader.releaseLock();
+    } catch (error) {
+      visibleBestEffortFailure("control-response-reader-release", error);
+    }
+  }
+  return Buffer.concat(chunks, bytes).toString("utf8");
+}
+
 async function requestJson(url, init = {}, timeoutMs = 30_000, secrets = []) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
     const response = await fetch(url, { ...init, signal: controller.signal, redirect: "error" });
-    const text = await response.text();
+    const text = await readResponseTextBounded(response);
     for (const secret of secrets) {
       if (secret && text.includes(secret)) fail("secret_reflection_detected");
     }
