@@ -167,8 +167,128 @@ function auditFile(raw?: string): string {
   return path.join(rootDir(raw), "audit.jsonl");
 }
 
+function fsyncDirectoryV1(dir: string): void {
+  const dirFd = fs.openSync(dir, "r");
+  try {
+    fs.fsyncSync(dirFd);
+  } finally {
+    fs.closeSync(dirFd);
+  }
+}
+
+type DurableDirectoryIdentityV1 = {
+  dev: string;
+  ino: string;
+};
+
+const durableDirectoryLinksV1 =
+  new Map<string, DurableDirectoryIdentityV1>();
+
+export type WcPublicEarningPilotDirectoryParentFsyncHookForProofV1 =
+  ((
+    phase: "before" | "after",
+    parent: string,
+    child: string,
+  ) => void) | null;
+
+let directoryParentFsyncHookForProofV1:
+  WcPublicEarningPilotDirectoryParentFsyncHookForProofV1 =
+    null;
+
+export function setWcPublicEarningPilotDirectoryParentFsyncHookForProofV1(
+  hook: WcPublicEarningPilotDirectoryParentFsyncHookForProofV1,
+): void {
+  directoryParentFsyncHookForProofV1 = hook;
+}
+
+function directoryIdentityV1(
+  dir: string,
+): DurableDirectoryIdentityV1 {
+  const stat: any = fs.statSync(
+    dir,
+    { bigint: true } as any,
+  );
+  if (!stat.isDirectory()) {
+    throw new Error(
+      "wc_public_state_directory_not_directory",
+    );
+  }
+  return {
+    dev: String(stat.dev),
+    ino: String(stat.ino),
+  };
+}
+
+function sameDirectoryIdentityV1(
+  a: DurableDirectoryIdentityV1,
+  b: DurableDirectoryIdentityV1,
+): boolean {
+  return a.dev === b.dev && a.ino === b.ino;
+}
+
+function ensureDurableDirectoryV1(
+  dir: string,
+): void {
+  const target = path.resolve(dir);
+  const parent = path.dirname(target);
+  if (target === parent) return;
+
+  if (!fs.existsSync(parent)) {
+    ensureDurableDirectoryV1(parent);
+  }
+
+  let identity: DurableDirectoryIdentityV1;
+  try {
+    identity = directoryIdentityV1(target);
+  } catch (error: any) {
+    if (String(error?.code || "") !== "ENOENT") {
+      throw error;
+    }
+    try {
+      fs.mkdirSync(target, { mode: 0o700 });
+    } catch (mkdirError: any) {
+      if (String(mkdirError?.code || "") !== "EEXIST") {
+        throw mkdirError;
+      }
+    }
+    identity = directoryIdentityV1(target);
+  }
+
+  const cached = durableDirectoryLinksV1.get(target);
+  if (
+    cached &&
+    sameDirectoryIdentityV1(cached, identity)
+  ) {
+    return;
+  }
+
+  directoryParentFsyncHookForProofV1?.(
+    "before",
+    parent,
+    target,
+  );
+  fsyncDirectoryV1(parent);
+  directoryParentFsyncHookForProofV1?.(
+    "after",
+    parent,
+    target,
+  );
+
+  // Cache only after the containing directory has crossed a successful
+  // fsync boundary. If the fsync or proof hook fails after mkdir became
+  // visible, retry must re-establish the same parent link.
+  durableDirectoryLinksV1.set(
+    target,
+    identity,
+  );
+}
+
 function ensureDirs(raw?: string): void {
+  const dataDir = resolveDataDir(raw);
+  const wcDir = path.join(dataDir, "wc_v1");
   for (const dir of [
+    dataDir,
+    wcDir,
     rootDir(raw),
     issuedDir(raw),
     consumedDir(raw),
@@ -176,16 +296,7 @@ function ensureDirs(raw?: string): void {
     claimsDir(raw),
     resultTransactionsDir(raw),
   ]) {
-    fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
-  }
-}
-
-function fsyncDirectoryV1(dir: string): void {
-  const dirFd = fs.openSync(dir, "r");
-  try {
-    fs.fsyncSync(dirFd);
-  } finally {
-    fs.closeSync(dirFd);
+    ensureDurableDirectoryV1(dir);
   }
 }
 

@@ -1410,6 +1410,172 @@ async function main(): Promise<void> {
     }
   }
 
+  // First-use claim-history directory links must cross a successful
+  // parent-directory fsync before the authority can warm. A visible mkdir
+  // left behind by a failed fsync must be re-synced on exact retry.
+  {
+    const tmp = fs.mkdtempSync(
+      path.join(
+        os.tmpdir(),
+        "void-public-claim-history-dir-durability-v1-",
+      ),
+    );
+    configure(tmp);
+
+    const afterChildren = new Set<string>();
+    authority.setWcPublicClaimHistoryDirectoryParentFsyncHookForProofV1(
+      (
+        phase: "before" | "after",
+        _parent: string,
+        child: string,
+      ) => {
+        if (phase === "after") {
+          afterChildren.add(path.resolve(child));
+        }
+      },
+    );
+    try {
+      authority.primeWcPublicClaimHistoryAuthorityV1(
+        tmp,
+      );
+      await authority.waitForWcPublicClaimHistoryWarmForProofV1(
+        tmp,
+      );
+    } finally {
+      authority.setWcPublicClaimHistoryDirectoryParentFsyncHookForProofV1(
+        null,
+      );
+    }
+
+    const root = pilotRoot(tmp);
+    for (const expected of [
+      path.join(tmp, "wc_v1"),
+      root,
+      path.join(root, "issued"),
+      path.join(root, "consumed"),
+      path.join(root, "public-claims"),
+    ]) {
+      assert.equal(
+        afterChildren.has(path.resolve(expected)),
+        true,
+        `missing successful parent fsync for ${expected}`,
+      );
+    }
+
+    authority.resetWcPublicClaimHistoryAuthorityForProofV1(
+      tmp,
+    );
+    fs.rmSync(tmp, {
+      recursive: true,
+      force: true,
+    });
+  }
+
+  {
+    const tmp = fs.mkdtempSync(
+      path.join(
+        os.tmpdir(),
+        "void-public-claim-history-dir-resync-v1-",
+      ),
+    );
+    configure(tmp);
+    const root = pilotRoot(tmp);
+    const claims = path.join(
+      root,
+      "public-claims",
+    );
+    let failedOnce = false;
+
+    authority.setWcPublicClaimHistoryDirectoryParentFsyncHookForProofV1(
+      (
+        phase: "before" | "after",
+        _parent: string,
+        child: string,
+      ) => {
+        if (
+          !failedOnce &&
+          phase === "before" &&
+          path.resolve(child) ===
+            path.resolve(claims)
+        ) {
+          failedOnce = true;
+          throw new Error(
+            "VOID_WC_PROOF_HISTORY_PARENT_FSYNC_FAILURE",
+          );
+        }
+      },
+    );
+    try {
+      assert.throws(
+        () =>
+          authority.primeWcPublicClaimHistoryAuthorityV1(
+            tmp,
+          ),
+        /VOID_WC_PROOF_HISTORY_PARENT_FSYNC_FAILURE/,
+      );
+    } finally {
+      authority.setWcPublicClaimHistoryDirectoryParentFsyncHookForProofV1(
+        null,
+      );
+    }
+
+    assert.equal(failedOnce, true);
+    assert.equal(
+      fs.existsSync(claims),
+      true,
+      "fault must leave ambiguous visible directory",
+    );
+
+    let successfulResyncs = 0;
+    authority.setWcPublicClaimHistoryDirectoryParentFsyncHookForProofV1(
+      (
+        phase: "before" | "after",
+        _parent: string,
+        child: string,
+      ) => {
+        if (
+          phase === "after" &&
+          path.resolve(child) ===
+            path.resolve(claims)
+        ) {
+          successfulResyncs += 1;
+        }
+      },
+    );
+    try {
+      authority.primeWcPublicClaimHistoryAuthorityV1(
+        tmp,
+      );
+      await authority.waitForWcPublicClaimHistoryWarmForProofV1(
+        tmp,
+      );
+    } finally {
+      authority.setWcPublicClaimHistoryDirectoryParentFsyncHookForProofV1(
+        null,
+      );
+    }
+
+    assert.ok(
+      successfulResyncs >= 1,
+      "visible directory was not re-synced after prior parent fsync failure",
+    );
+    assert.equal(
+      authority.wcPublicClaimHistorySnapshotV1(
+        tmp,
+        Date.now(),
+      ).active,
+      0,
+    );
+
+    authority.resetWcPublicClaimHistoryAuthorityForProofV1(
+      tmp,
+    );
+    fs.rmSync(tmp, {
+      recursive: true,
+      force: true,
+    });
+  }
+
   console.log(
     "VOID_WC_PUBLIC_CLAIM_HISTORY_AUTHORITY_V1_GREEN",
   );
@@ -1428,6 +1594,8 @@ async function main(): Promise<void> {
   console.log("record_remove_before_open_retried=true");
   console.log("claim_history_numeric_schema_exact=true");
   console.log("coercible_history_numeric_fields_rejected=true");
+  console.log("history_directory_parent_fsync_durable=true");
+  console.log("history_directory_failed_fsync_resynced=true");
 }
 
 main().catch((error) => {

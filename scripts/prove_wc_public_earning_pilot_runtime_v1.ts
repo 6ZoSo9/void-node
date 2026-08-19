@@ -2145,6 +2145,251 @@ async function main(): Promise<void> {
     });
   }
 
+  // A fresh public-WC state tree may leave a just-created directory visible
+  // when its parent fsync fails. The failed request must publish no claim or
+  // ticket; exact retry must re-fsync that same visible link before success.
+  {
+    const root = fs.mkdtempSync(
+      path.join(
+        os.tmpdir(),
+        "void-wc-public-state-dir-durability-v1-",
+      ),
+    );
+    process.env.DATA_DIR = root;
+    process.env.VOID_DATA_DIR = root;
+    process.env.VOID_WC_PUBLIC_EARNING_PILOT_ENABLED =
+      "1";
+    process.env.VOID_WC_PUBLIC_TICKET_CLAIM_ENABLED =
+      "1";
+    process.env.VOID_WC_PUBLIC_TICKET_CLAIM_DATASET_ID =
+      "ds_public_state_dir_durability";
+    process.env.VOID_WC_PUBLIC_TICKET_CLAIM_EXPECTED_INPUT_HASH =
+      "a".repeat(64);
+    process.env.VOID_WC_PUBLIC_TICKET_CLAIM_TTL_MS =
+      "300000";
+    process.env.VOID_WC_PUBLIC_TICKET_CLAIM_CLOCK_SKEW_MS =
+      "300000";
+    process.env.VOID_WC_PUBLIC_TICKET_CLAIM_COOLDOWN_MS =
+      "60000";
+    process.env.VOID_WC_PUBLIC_TICKET_CLAIM_MAX_PER_24H =
+      "10";
+    process.env.VOID_WC_PUBLIC_TICKET_CLAIM_GLOBAL_ACTIVE_CAP =
+      "10";
+    process.env.VOID_WC_PUBLIC_TICKET_CLAIM_GLOBAL_MAX_PER_24H =
+      "100";
+
+    claimAuthority.primeWcPublicClaimHistoryAuthorityV1(
+      root,
+    );
+    await claimAuthority.waitForWcPublicClaimHistoryWarmForProofV1(
+      root,
+    );
+
+    const pilotRoot = path.join(
+      root,
+      "wc_v1",
+      "public-earning-pilot-v1",
+    );
+    const resultTransactions = path.join(
+      pilotRoot,
+      "result-transactions",
+    );
+    const issuedDir = path.join(
+      pilotRoot,
+      "issued",
+    );
+    const claimsDir = path.join(
+      pilotRoot,
+      "public-claims",
+    );
+
+    const now = Date.now();
+    const account = "directory-durability-account";
+    const signedClaim = pilot.signPublicTicketClaim(
+      {
+        domain:
+          "void:mainnet-0:wc-public-ticket-claim-v1",
+        marker: "VOID_WC_PUBLIC_TICKET_CLAIM_V1",
+        version: 1,
+        account,
+        executor_node_id: executorNodeId,
+        executor_pubkey: pubPEM,
+        claim_nonce: "c".repeat(32),
+        claim_ts_ms: now,
+      },
+      privateKey,
+    );
+
+    let failedOnce = false;
+    pilot.setWcPublicEarningPilotDirectoryParentFsyncHookForProofV1(
+      (
+        phase: "before" | "after",
+        _parent: string,
+        child: string,
+      ) => {
+        if (
+          !failedOnce &&
+          phase === "before" &&
+          path.resolve(child) ===
+            path.resolve(resultTransactions)
+        ) {
+          failedOnce = true;
+          throw new Error(
+            "VOID_WC_PROOF_PUBLIC_STATE_PARENT_FSYNC_FAILURE",
+          );
+        }
+      },
+    );
+    try {
+      await assert.rejects(
+        () =>
+          pilot.issuePublicTicketClaim(
+            signedClaim,
+            root,
+            now,
+          ),
+        /VOID_WC_PROOF_PUBLIC_STATE_PARENT_FSYNC_FAILURE/,
+      );
+    } finally {
+      pilot.setWcPublicEarningPilotDirectoryParentFsyncHookForProofV1(
+        null,
+      );
+    }
+
+    assert.equal(failedOnce, true);
+    assert.equal(
+      fs.existsSync(resultTransactions),
+      true,
+      "fault must leave ambiguous visible result-transactions directory",
+    );
+    assert.equal(
+      fs
+        .readdirSync(issuedDir)
+        .filter((name) => name.endsWith(".json"))
+        .length,
+      0,
+    );
+    assert.equal(
+      fs
+        .readdirSync(claimsDir)
+        .filter((name) => name.endsWith(".json"))
+        .length,
+      0,
+    );
+
+    let successfulResyncs = 0;
+    pilot.setWcPublicEarningPilotDirectoryParentFsyncHookForProofV1(
+      (
+        phase: "before" | "after",
+        _parent: string,
+        child: string,
+      ) => {
+        if (
+          phase === "after" &&
+          path.resolve(child) ===
+            path.resolve(resultTransactions)
+        ) {
+          successfulResyncs += 1;
+        }
+      },
+    );
+    let issued: any;
+    try {
+      issued =
+        await pilot.issuePublicTicketClaim(
+          signedClaim,
+          root,
+          now,
+        );
+    } finally {
+      pilot.setWcPublicEarningPilotDirectoryParentFsyncHookForProofV1(
+        null,
+      );
+    }
+
+    assert.ok(
+      successfulResyncs >= 1,
+      "retry did not re-establish visible directory parent durability",
+    );
+    assert.equal(issued.ok, true);
+    assert.equal(
+      fs
+        .readdirSync(issuedDir)
+        .filter((name) => name.endsWith(".json"))
+        .length,
+      1,
+    );
+    assert.equal(
+      fs
+        .readdirSync(claimsDir)
+        .filter((name) => name.endsWith(".json"))
+        .length,
+      1,
+    );
+
+    await claimAuthority.waitForWcPublicClaimHistoryWarmForProofV1(
+      root,
+    );
+
+    const submit = setupSubmitFromPublicClaim(
+      root,
+      issued,
+      "directory_durability",
+    );
+    remoteIndex.resetWcPublicRemoteTruthJsonlIndexForProofV1();
+    const response = makeResponse();
+    await pilot.submitRemoteResult(
+      submit.req,
+      response,
+    );
+    assert.equal(response.statusCode, 200);
+    assert.equal(response.payload.wc.delta, 3);
+    assert.equal(
+      response.payload.capability_consumed,
+      true,
+    );
+    assert.equal(
+      fs.existsSync(
+        path.join(
+          resultTransactions,
+          `${issued.ticket.ticket_id}.json`,
+        ),
+      ),
+      true,
+    );
+    assert.equal(
+      fs.existsSync(
+        path.join(
+          pilotRoot,
+          "consumed",
+          `${issued.ticket.ticket_id}.json`,
+        ),
+      ),
+      true,
+    );
+
+    const ledgerRows = fs
+      .readFileSync(
+        path.join(
+          root,
+          "wc_v1",
+          "ledger.jsonl",
+        ),
+        "utf8",
+      )
+      .trim()
+      .split(/\r?\n/)
+      .filter(Boolean)
+      .map((line) => JSON.parse(line));
+    assert.equal(ledgerRows.length, 1);
+    assert.equal(ledgerRows[0].delta, 3);
+
+    fs.rmSync(root, {
+      recursive: true,
+      force: true,
+    });
+  }
+
   console.log(
     "public_claim_recovery_consumption_race=false",
   );
@@ -2159,6 +2404,12 @@ async function main(): Promise<void> {
   );
   console.log(
     "consumed_ticket_cleanup_residue_active=false",
+  );
+  console.log(
+    "public_state_directory_parent_fsync_durable=true",
+  );
+  console.log(
+    "public_state_directory_failed_fsync_resynced=true",
   );
   console.log(
     "VOID_WC_PUBLIC_EARNING_PILOT_RUNTIME_V1_GREEN",

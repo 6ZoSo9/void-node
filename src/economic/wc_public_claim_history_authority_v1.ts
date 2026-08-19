@@ -145,14 +145,130 @@ function claimsDirV1(raw?: string): string {
   return path.join(rootDirV1(raw), "public-claims");
 }
 
+type DurableDirectoryIdentityV1 = {
+  dev: string;
+  ino: string;
+};
+
+const durableDirectoryLinksV1 =
+  new Map<string, DurableDirectoryIdentityV1>();
+
+export type WcPublicClaimHistoryDirectoryParentFsyncHookForProofV1 =
+  ((
+    phase: "before" | "after",
+    parent: string,
+    child: string,
+  ) => void) | null;
+
+let directoryParentFsyncHookForProofV1:
+  WcPublicClaimHistoryDirectoryParentFsyncHookForProofV1 =
+    null;
+
+export function setWcPublicClaimHistoryDirectoryParentFsyncHookForProofV1(
+  hook: WcPublicClaimHistoryDirectoryParentFsyncHookForProofV1,
+): void {
+  directoryParentFsyncHookForProofV1 = hook;
+}
+
+function fsyncDirectoryV1(dir: string): void {
+  const fd = fs.openSync(dir, "r");
+  try {
+    fs.fsyncSync(fd);
+  } finally {
+    fs.closeSync(fd);
+  }
+}
+
+function directoryIdentityV1(
+  dir: string,
+): DurableDirectoryIdentityV1 {
+  const stat: any = fs.statSync(
+    dir,
+    { bigint: true } as any,
+  );
+  if (!stat.isDirectory()) {
+    throw new Error(
+      "wc_public_claim_history_directory_not_directory",
+    );
+  }
+  return {
+    dev: String(stat.dev),
+    ino: String(stat.ino),
+  };
+}
+
+function sameDirectoryIdentityV1(
+  a: DurableDirectoryIdentityV1,
+  b: DurableDirectoryIdentityV1,
+): boolean {
+  return a.dev === b.dev && a.ino === b.ino;
+}
+
+function ensureDurableDirectoryV1(
+  dir: string,
+): void {
+  const target = path.resolve(dir);
+  const parent = path.dirname(target);
+  if (target === parent) return;
+
+  if (!fs.existsSync(parent)) {
+    ensureDurableDirectoryV1(parent);
+  }
+
+  let identity: DurableDirectoryIdentityV1;
+  try {
+    identity = directoryIdentityV1(target);
+  } catch (error: any) {
+    if (String(error?.code || "") !== "ENOENT") {
+      throw error;
+    }
+    try {
+      fs.mkdirSync(target, { mode: 0o700 });
+    } catch (mkdirError: any) {
+      if (String(mkdirError?.code || "") !== "EEXIST") {
+        throw mkdirError;
+      }
+    }
+    identity = directoryIdentityV1(target);
+  }
+
+  const cached = durableDirectoryLinksV1.get(target);
+  if (
+    cached &&
+    sameDirectoryIdentityV1(cached, identity)
+  ) {
+    return;
+  }
+
+  directoryParentFsyncHookForProofV1?.(
+    "before",
+    parent,
+    target,
+  );
+  fsyncDirectoryV1(parent);
+  directoryParentFsyncHookForProofV1?.(
+    "after",
+    parent,
+    target,
+  );
+  durableDirectoryLinksV1.set(
+    target,
+    identity,
+  );
+}
+
 function ensureDirsV1(raw?: string): void {
+  const dataDir = dataDirV1(raw);
+  const wcDir = path.join(dataDir, "wc_v1");
   for (const dir of [
+    dataDir,
+    wcDir,
     rootDirV1(raw),
     issuedDirV1(raw),
     consumedDirV1(raw),
     claimsDirV1(raw),
   ]) {
-    fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
+    ensureDurableDirectoryV1(dir);
   }
 }
 

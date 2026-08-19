@@ -837,6 +837,84 @@ need(
   ),
   "claim history request-time zero-scan contract missing",
 );
+const pilotDurableDirStart = moduleText.indexOf(
+  "function ensureDurableDirectoryV1(",
+);
+const pilotDurableDirEnd = moduleText.indexOf(
+  "function ensureDirs(",
+  pilotDurableDirStart,
+);
+need(
+  pilotDurableDirStart >= 0 &&
+    pilotDurableDirEnd > pilotDurableDirStart,
+  "public-WC durable directory helper missing",
+);
+const pilotDurableDirBlock = moduleText.slice(
+  pilotDurableDirStart,
+  pilotDurableDirEnd,
+);
+const pilotDirBeforeHook = pilotDurableDirBlock.indexOf(
+  '"before"',
+);
+const pilotDirParentFsync = pilotDurableDirBlock.indexOf(
+  "fsyncDirectoryV1(parent)",
+);
+const pilotDirCachePublish = pilotDurableDirBlock.indexOf(
+  "durableDirectoryLinksV1.set(",
+);
+need(
+  pilotDirBeforeHook >= 0 &&
+    pilotDirParentFsync > pilotDirBeforeHook &&
+    pilotDirCachePublish > pilotDirParentFsync,
+  "public-WC directory durability is not parent-fsync-before-cache",
+);
+need(
+  moduleText.includes(
+    "setWcPublicEarningPilotDirectoryParentFsyncHookForProofV1",
+  ),
+  "public-WC directory fsync proof hook missing",
+);
+const historyDurableDirStart =
+  claimHistoryAuthorityText.indexOf(
+    "function ensureDurableDirectoryV1(",
+  );
+const historyDurableDirEnd =
+  claimHistoryAuthorityText.indexOf(
+    "function ensureDirsV1(",
+    historyDurableDirStart,
+  );
+need(
+  historyDurableDirStart >= 0 &&
+    historyDurableDirEnd > historyDurableDirStart,
+  "claim-history durable directory helper missing",
+);
+const historyDurableDirBlock =
+  claimHistoryAuthorityText.slice(
+    historyDurableDirStart,
+    historyDurableDirEnd,
+  );
+const historyDirBeforeHook =
+  historyDurableDirBlock.indexOf('"before"');
+const historyDirParentFsync =
+  historyDurableDirBlock.indexOf(
+    "fsyncDirectoryV1(parent)",
+  );
+const historyDirCachePublish =
+  historyDurableDirBlock.indexOf(
+    "durableDirectoryLinksV1.set(",
+  );
+need(
+  historyDirBeforeHook >= 0 &&
+    historyDirParentFsync > historyDirBeforeHook &&
+    historyDirCachePublish > historyDirParentFsync,
+  "claim-history directory durability is not parent-fsync-before-cache",
+);
+need(
+  claimHistoryAuthorityText.includes(
+    "setWcPublicClaimHistoryDirectoryParentFsyncHookForProofV1",
+  ),
+  "claim-history directory fsync proof hook missing",
+);
 need(
   !claimHistoryAuthorityText.includes(
     "Number(record.version || 0)",
