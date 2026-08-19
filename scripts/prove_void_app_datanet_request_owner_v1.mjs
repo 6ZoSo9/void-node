@@ -68,6 +68,66 @@ function pendingFetchHarness() {
   };
 }
 
+function delayedAbortFetchHarness() {
+  let active = 0;
+  let maxActive = 0;
+  const records = [];
+
+  const fetchImpl = (input, init = {}) => new Promise((resolve, reject) => {
+    active += 1;
+    maxActive = Math.max(maxActive, active);
+
+    const record = {
+      input: String(input),
+      signal: init.signal,
+      aborted: false,
+      settled: false,
+      resolve(value = { ok: true }) {
+        if (record.settled) return;
+        record.settled = true;
+        active -= 1;
+        init.signal?.removeEventListener?.('abort', onAbort);
+        resolve(value);
+      },
+      settleAbort() {
+        if (!record.aborted || record.settled) return;
+        record.settled = true;
+        active -= 1;
+        init.signal?.removeEventListener?.('abort', onAbort);
+        reject(
+          init.signal?.reason instanceof Error
+            ? init.signal.reason
+            : new Error('request aborted'),
+        );
+      },
+    };
+
+    const onAbort = () => {
+      if (record.settled) return;
+      record.aborted = true;
+    };
+
+    if (init.signal?.aborted) onAbort();
+    else init.signal?.addEventListener?.('abort', onAbort, { once: true });
+    records.push(record);
+  });
+
+  return {
+    fetchImpl,
+    records,
+    active: () => active,
+    maxActive: () => maxActive,
+  };
+}
+
+async function drainUntil(predicate, message, turns = 64) {
+  for (let turn = 0; turn < turns; turn += 1) {
+    if (predicate()) return;
+    await Promise.resolve();
+  }
+  assert.equal(predicate(), true, message);
+}
+
 const overlap = pendingFetchHarness();
 const owner = createDataNetRequestOwnerV1({
   fetchImpl: overlap.fetchImpl,
@@ -102,6 +162,80 @@ assert.equal(
 );
 assert.equal(owner.abort('test cleanup after response'), true);
 assert.equal(owner.hasActiveRequest(), false);
+
+const queuedHarness = delayedAbortFetchHarness();
+const queuedOwner = createDataNetRequestOwnerV1({
+  fetchImpl: queuedHarness.fetchImpl,
+  origin: 'https://void.example',
+});
+const queuedFirst = queuedOwner.fetch(DATANET_URL);
+void queuedFirst.catch(() => {});
+await drainUntil(
+  () => queuedHarness.records.length === 1,
+  'initial queued-generation fetch must start',
+);
+
+const queuedSecond = queuedOwner.fetch(DATANET_URL);
+const queuedThird = queuedOwner.fetch(DATANET_URL);
+const queuedFourth = queuedOwner.fetch(DATANET_URL);
+void queuedSecond.catch(() => {});
+void queuedThird.catch(() => {});
+void queuedFourth.catch(() => {});
+
+await drainUntil(
+  () => queuedHarness.records[0].aborted === true,
+  'first generation must be aborted by the first queued superseder',
+);
+assert.equal(
+  queuedHarness.records.length,
+  1,
+  'queued superseders must not start while the prior generation is still settling',
+);
+assert.equal(queuedHarness.maxActive(), 1);
+queuedHarness.records[0].settleAbort();
+
+await drainUntil(
+  () => queuedHarness.records.length === 2 && queuedHarness.records[1].aborted === true,
+  'third caller must supersede only the exact second generation after it starts',
+);
+assert.equal(
+  queuedHarness.records.length,
+  2,
+  'only one replacement generation may start after the first release',
+);
+assert.equal(queuedHarness.maxActive(), 1);
+queuedHarness.records[1].settleAbort();
+
+await drainUntil(
+  () => queuedHarness.records.length === 3 && queuedHarness.records[2].aborted === true,
+  'fourth caller must supersede only the exact third generation after it starts',
+);
+assert.equal(
+  queuedHarness.records.length,
+  3,
+  'queued replacement starts must remain serialized through the third generation',
+);
+assert.equal(queuedHarness.maxActive(), 1);
+queuedHarness.records[2].settleAbort();
+
+await drainUntil(
+  () => queuedHarness.records.length === 4,
+  'final queued superseder must start after the preceding generation releases',
+);
+assert.equal(queuedHarness.records[3].aborted, false);
+assert.equal(queuedHarness.active(), 1);
+assert.equal(
+  queuedHarness.maxActive(),
+  1,
+  'queued superseders must never create concurrent underlying DataNet fetches',
+);
+queuedHarness.records[3].resolve({ request: 'queued-final' });
+assert.deepEqual(await queuedFourth, { request: 'queued-final' });
+await assert.rejects(queuedFirst, /superseded/);
+await assert.rejects(queuedSecond, /superseded/);
+await assert.rejects(queuedThird, /superseded/);
+assert.equal(queuedOwner.abort('queued superseder test cleanup'), true);
+assert.equal(queuedOwner.hasActiveRequest(), false);
 
 const bodyPhaseHarness = pendingFetchHarness();
 const bodyPhaseOwner = createDataNetRequestOwnerV1({
@@ -279,7 +413,8 @@ assert.ok(
   appSource.indexOf(ownerImport) < appSource.indexOf(dataImport),
   'request owner must install before data-live browser listeners are evaluated',
 );
-assert.match(ownerSource, /abort\('DataNet request superseded'\)/);
+assert.match(ownerSource, /acquireStartSlot/);
+assert.match(ownerSource, /abortRequest\(priorRequest, 'DataNet request superseded'\)/);
 assert.match(ownerSource, /sourceSignal\.addEventListener\('abort'/);
 assert.match(ownerSource, /window\.addEventListener\('hashchange', reconcileView\)/);
 assert.match(ownerSource, /new MutationObserver\(reconcileView\)/);
@@ -289,6 +424,8 @@ assert.doesNotMatch(ownerSource, /credentials|wallet|signer|Work Credit|transact
 console.log('VOID_APP_DATANET_REQUEST_OWNER_V1_GREEN');
 console.log('max_concurrent_datanet_requests=1');
 console.log('superseded_request_aborted=true');
+console.log('queued_superseders_serialized=true');
+console.log('queued_superseder_max_concurrent_datanet_requests=1');
 console.log('body_phase_supersession_aborted=true');
 console.log('caller_deadline_signal_preserved=true');
 console.log('route_unmount_aborts=true');
