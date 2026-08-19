@@ -67,13 +67,15 @@ for each publication rather than relying on overwrite behavior.
   consumption. A caller-supplied fetch or admitted reader that ignores
   `AbortSignal` cannot keep the participant-facing request pending past that
   deadline.
-- One transport-generation lease spans fetch acquisition through admitted body
-  consumption for a caller-supplied fetch implementation. If the participant
-  deadline wins while acquisition, a body read, or cleanup is still unresolved,
-  the participant still receives the bounded timeout but same-fetch retries
-  fail closed with the existing quarantine terminal instead of spawning a
-  replacement generation. The lease releases only after the retained
-  underlying read/cancel outcome settles, after which a clean retry can recover.
+- One transport-generation lease per exact origin spans fetch acquisition through
+  admitted body consumption for a caller-supplied fetch implementation. If the
+  participant deadline wins while acquisition, a body read, or cleanup is still
+  unresolved, the participant still receives the bounded timeout but retries to
+  that same origin fail closed with the existing quarantine terminal instead of
+  spawning a replacement generation. Unrelated origins using the same shared
+  fetch implementation retain independent leases and remain usable. The affected
+  origin lease releases only after the retained underlying read/cancel outcome
+  settles, after which a clean retry to that origin can recover.
 - If a timed-out fetch resolves later to a live response, the client performs
   one bounded late-response cleanup. A cleanup that exceeds the 250 ms
   participant-facing teardown window remains quarantine-owned until its actual
@@ -84,8 +86,8 @@ for each publication rather than relying on overwrite behavior.
   including custom readers that ignore request abort.
 - Rejection cleanup has a separate bounded 250 ms participant-facing settlement
   terminal and cannot replace or indefinitely delay an already-known response
-  HOLD; transport quarantine may outlive that visible terminal solely to bound
-  unresolved underlying work.
+  HOLD; per-origin transport quarantine may outlive that visible terminal solely
+  to bound unresolved underlying work without suppressing unrelated origins.
 - No authorization header, cookie, credential, wallet material, operator key,
   or request body is sent.
 
