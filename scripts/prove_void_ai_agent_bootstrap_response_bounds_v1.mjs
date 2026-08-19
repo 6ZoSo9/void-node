@@ -9,6 +9,8 @@ import {
 
 const MAX_TIMEOUT_MS = 30_000;
 const MAX_ALLOWED_BYTES = 4_194_304;
+const BASE_URL = "http://127.0.0.1:4100";
+const WELL_KNOWN_URL = `${BASE_URL}/.well-known/void-agent-discovery.json`;
 
 const WELL_KNOWN = {
   marker: "VOID_AI_AGENT_WELL_KNOWN_ENTRYPOINT_V1",
@@ -62,15 +64,30 @@ function bytes(value) {
   return new TextEncoder().encode(value);
 }
 
-function jsonResponse(payload) {
-  const content = JSON.stringify(payload);
-  return new Response(content, {
-    status: 200,
-    headers: {
-      "content-type": "application/json",
-      "content-length": String(Buffer.byteLength(content)),
-    },
+function bindResponseUrl(response, url, redirected = false) {
+  Object.defineProperty(response, "url", {
+    value: String(url),
+    configurable: true,
   });
+  Object.defineProperty(response, "redirected", {
+    value: redirected,
+    configurable: true,
+  });
+  return response;
+}
+
+function jsonResponse(payload, url = WELL_KNOWN_URL) {
+  const content = JSON.stringify(payload);
+  return bindResponseUrl(
+    new Response(content, {
+      status: 200,
+      headers: {
+        "content-type": "application/json",
+        "content-length": String(Buffer.byteLength(content)),
+      },
+    }),
+    url,
+  );
 }
 
 function sleep(ms) {
@@ -97,61 +114,76 @@ function fetchForMode(mode) {
     const url = input instanceof URL ? input : new URL(String(input));
     const payload = PAYLOADS.get(url.pathname);
     if (!payload) {
-      return new Response("{}", { status: 404 });
+      return bindResponseUrl(
+        new Response("{}", { status: 404 }),
+        url.href,
+      );
     }
 
     if (url.pathname !== "/.well-known/void-agent-capabilities.json") {
-      return jsonResponse(payload);
+      return jsonResponse(payload, url.href);
     }
 
     if (mode === "redirect_cancel_never") {
-      return new Response(
-        neverSettlingCancellationStream([
-          bytes('{"redirect":"body"}'),
-        ]),
-        {
-          status: 302,
-          headers: {
-            "content-type": "application/json",
-            location: "/redirect-target",
+      return bindResponseUrl(
+        new Response(
+          neverSettlingCancellationStream([
+            bytes('{"redirect":"body"}'),
+          ]),
+          {
+            status: 302,
+            headers: {
+              "content-type": "application/json",
+              location: "/redirect-target",
+            },
           },
-        },
+        ),
+        url.href,
       );
     }
 
     if (mode === "declared_oversize_cancel_never") {
-      return new Response(neverSettlingCancellationStream(), {
-        status: 200,
-        headers: {
-          "content-type": "application/json",
-          "content-length": "2048",
-        },
-      });
-    }
-
-    if (mode === "streamed_oversize_cancel_never") {
-      return new Response(
-        neverSettlingCancellationStream([
-          new Uint8Array(700).fill(0x61),
-          new Uint8Array(700).fill(0x62),
-        ]),
-        {
+      return bindResponseUrl(
+        new Response(neverSettlingCancellationStream(), {
           status: 200,
           headers: {
             "content-type": "application/json",
+            "content-length": "2048",
           },
-        },
+        }),
+        url.href,
+      );
+    }
+
+    if (mode === "streamed_oversize_cancel_never") {
+      return bindResponseUrl(
+        new Response(
+          neverSettlingCancellationStream([
+            new Uint8Array(700).fill(0x61),
+            new Uint8Array(700).fill(0x62),
+          ]),
+          {
+            status: 200,
+            headers: {
+              "content-type": "application/json",
+            },
+          },
+        ),
+        url.href,
       );
     }
 
     if (mode === "invalid_content_length") {
-      return new Response(neverSettlingCancellationStream(), {
-        status: 200,
-        headers: {
-          "content-type": "application/json",
-          "content-length": "12x",
-        },
-      });
+      return bindResponseUrl(
+        new Response(neverSettlingCancellationStream(), {
+          status: 200,
+          headers: {
+            "content-type": "application/json",
+            "content-length": "12x",
+          },
+        }),
+        url.href,
+      );
     }
 
     if (mode === "stalled_body") {
@@ -171,18 +203,23 @@ function fetchForMode(mode) {
           return Promise.resolve();
         },
       });
-      return new Response(stream, {
-        status: 200,
-        headers: {
-          "content-type": "application/json",
-        },
-      });
+      return bindResponseUrl(
+        new Response(stream, {
+          status: 200,
+          headers: {
+            "content-type": "application/json",
+          },
+        }),
+        url.href,
+      );
     }
 
     if (mode === "stalled_body_ignores_abort") {
       return {
         status: 200,
         ok: true,
+        url: url.href,
+        redirected: false,
         headers: new Headers({
           "content-type": "application/json",
         }),
@@ -212,12 +249,15 @@ function fetchForMode(mode) {
           controller.close();
         },
       });
-      const response = new Response(stream, {
-        status: 200,
-        headers: {
-          "content-type": "application/json",
-        },
-      });
+      const response = bindResponseUrl(
+        new Response(stream, {
+          status: 200,
+          headers: {
+            "content-type": "application/json",
+          },
+        }),
+        url.href,
+      );
       const proofReader = response.body.getReader();
       Object.defineProperty(response, "__voidProofLockedReader", {
         value: proofReader,
@@ -225,14 +265,14 @@ function fetchForMode(mode) {
       return response;
     }
 
-    return jsonResponse(payload);
+    return jsonResponse(payload, url.href);
   };
 }
 
 async function runMode(mode, { timeoutMs = 1000 } = {}) {
   const started = performance.now();
   const result = await runVoidAiAgentBootstrapClientV1({
-    baseUrl: "http://127.0.0.1:4100",
+    baseUrl: BASE_URL,
     timeoutMs,
     maxBytes: 1024,
     fetchImpl: fetchForMode(mode),
@@ -243,9 +283,82 @@ async function runMode(mode, { timeoutMs = 1000 } = {}) {
   };
 }
 
+async function runFinalUrlCase(mode) {
+  let readerAcquisitions = 0;
+  let bodyCancelCalls = 0;
+
+  const fetchImpl = async (input) => {
+    const requested = input instanceof URL ? input : new URL(String(input));
+    const payload = PAYLOADS.get(requested.pathname);
+    if (!payload) {
+      return bindResponseUrl(
+        new Response("{}", { status: 404 }),
+        requested.href,
+      );
+    }
+
+    if (requested.pathname !== "/.well-known/void-agent-capabilities.json") {
+      return jsonResponse(payload, requested.href);
+    }
+
+    let finalUrl = requested.href;
+    let redirected = false;
+    if (mode === "missing") finalUrl = "";
+    if (mode === "malformed") finalUrl = "not a url";
+    if (mode === "wrong_path") {
+      finalUrl = new URL("/wrong-path", requested).href;
+    }
+    if (mode === "wrong_query") {
+      finalUrl = new URL(`${requested.pathname}?wrong=1`, requested).href;
+    }
+    if (mode === "wrong_fragment") {
+      finalUrl = new URL(`${requested.pathname}#wrong`, requested).href;
+    }
+    if (mode === "cross_origin") {
+      finalUrl = `https://wrong-origin.invalid${requested.pathname}`;
+    }
+    if (mode === "followed_redirect") {
+      redirected = true;
+    }
+
+    return {
+      status: 200,
+      ok: true,
+      url: finalUrl,
+      redirected,
+      headers: new Headers({
+        "content-type": "application/json",
+      }),
+      body: {
+        getReader() {
+          readerAcquisitions += 1;
+          throw new Error("provenance rejection must precede body admission");
+        },
+        cancel() {
+          bodyCancelCalls += 1;
+          return Promise.resolve();
+        },
+      },
+    };
+  };
+
+  const result = await runVoidAiAgentBootstrapClientV1({
+    baseUrl: BASE_URL,
+    timeoutMs: 1000,
+    maxBytes: 1024,
+    fetchImpl,
+  });
+
+  return {
+    result,
+    readerAcquisitions,
+    bodyCancelCalls,
+  };
+}
+
 const parsedMinimumBounds = parseBootstrapClientArgsV1([
   "--base-url",
-  "http://127.0.0.1:4100",
+  BASE_URL,
   "--timeout-ms",
   "1",
   "--max-bytes",
@@ -256,7 +369,7 @@ assert.equal(parsedMinimumBounds.maxBytes, 1);
 
 const parsedMaximumBounds = parseBootstrapClientArgsV1([
   "--base-url",
-  "http://127.0.0.1:4100",
+  BASE_URL,
   "--timeout-ms",
   String(MAX_TIMEOUT_MS),
   "--max-bytes",
@@ -280,7 +393,7 @@ for (const token of [
     () =>
       parseBootstrapClientArgsV1([
         "--base-url",
-        "http://127.0.0.1:4100",
+        BASE_URL,
         "--timeout-ms",
         token,
       ]),
@@ -303,7 +416,7 @@ for (const token of [
     () =>
       parseBootstrapClientArgsV1([
         "--base-url",
-        "http://127.0.0.1:4100",
+        BASE_URL,
         "--max-bytes",
         token,
       ]),
@@ -330,7 +443,7 @@ for (const timeoutMs of invalidTimeoutValues) {
   let fetchCalls = 0;
   await assert.rejects(
     runVoidAiAgentBootstrapClientV1({
-      baseUrl: "http://127.0.0.1:4100",
+      baseUrl: BASE_URL,
       timeoutMs,
       maxBytes: 1024,
       fetchImpl: () => {
@@ -362,7 +475,7 @@ for (const maxBytes of invalidMaxByteValues) {
   let fetchCalls = 0;
   await assert.rejects(
     runVoidAiAgentBootstrapClientV1({
-      baseUrl: "http://127.0.0.1:4100",
+      baseUrl: BASE_URL,
       timeoutMs: 1000,
       maxBytes,
       fetchImpl: () => {
@@ -378,7 +491,7 @@ for (const maxBytes of invalidMaxByteValues) {
 let minimumTimeoutFetchCalls = 0;
 await assert.rejects(
   runVoidAiAgentBootstrapClientV1({
-    baseUrl: "http://127.0.0.1:4100",
+    baseUrl: BASE_URL,
     timeoutMs: 1,
     maxBytes: 1024,
     fetchImpl: () => {
@@ -393,12 +506,13 @@ assert.equal(minimumTimeoutFetchCalls, 1);
 let minimumByteFetchCalls = 0;
 await assert.rejects(
   runVoidAiAgentBootstrapClientV1({
-    baseUrl: "http://127.0.0.1:4100",
+    baseUrl: BASE_URL,
     timeoutMs: 1000,
     maxBytes: 1,
-    fetchImpl: () => {
+    fetchImpl: (input) => {
       minimumByteFetchCalls += 1;
-      return Promise.resolve(jsonResponse(WELL_KNOWN));
+      const url = input instanceof URL ? input : new URL(String(input));
+      return Promise.resolve(jsonResponse(WELL_KNOWN, url.href));
     },
   }),
   /^Error: response_too_large:/,
@@ -406,7 +520,7 @@ await assert.rejects(
 assert.equal(minimumByteFetchCalls, 1);
 
 const maximumBoundsResult = await runVoidAiAgentBootstrapClientV1({
-  baseUrl: "http://127.0.0.1:4100",
+  baseUrl: BASE_URL,
   timeoutMs: MAX_TIMEOUT_MS,
   maxBytes: MAX_ALLOWED_BYTES,
   fetchImpl: fetchForMode("small"),
@@ -417,6 +531,22 @@ assert.equal(maximumBoundsResult.readiness.onboarding_surface_complete, true);
 const small = await runMode("small");
 assert.equal(small.result.readiness.read_only_connection_ready, true);
 assert.equal(small.result.surfaces.capabilities.available, true);
+
+for (const [mode, expectedError] of [
+  ["missing", "response_final_url_missing"],
+  ["malformed", "response_final_url_invalid"],
+  ["wrong_path", "response_final_url_mismatch"],
+  ["wrong_query", "response_final_url_mismatch"],
+  ["wrong_fragment", "response_final_url_mismatch"],
+  ["cross_origin", "response_final_url_mismatch"],
+  ["followed_redirect", "response_redirected_forbidden"],
+]) {
+  const provenance = await runFinalUrlCase(mode);
+  assert.equal(provenance.result.surfaces.capabilities.available, false);
+  assert.equal(provenance.result.surfaces.capabilities.error, expectedError);
+  assert.equal(provenance.readerAcquisitions, 0);
+  assert.equal(provenance.bodyCancelCalls, 1);
+}
 
 const redirect = await runMode("redirect_cancel_never");
 assert.equal(redirect.result.surfaces.capabilities.available, false);
@@ -507,7 +637,7 @@ const neverFetch = () => {
 const neverStarted = performance.now();
 await assert.rejects(
   runVoidAiAgentBootstrapClientV1({
-    baseUrl: "http://127.0.0.1:4100",
+    baseUrl: BASE_URL,
     timeoutMs: 90,
     maxBytes: 1024,
     fetchImpl: neverFetch,
@@ -521,7 +651,7 @@ assert(
 const quarantineStarted = performance.now();
 await assert.rejects(
   runVoidAiAgentBootstrapClientV1({
-    baseUrl: "http://127.0.0.1:4100",
+    baseUrl: BASE_URL,
     timeoutMs: 90,
     maxBytes: 1024,
     fetchImpl: neverFetch,
@@ -545,10 +675,10 @@ const lateFetch = (input) => {
     });
   }
   const url = input instanceof URL ? input : new URL(String(input));
-  return Promise.resolve(jsonResponse(PAYLOADS.get(url.pathname)));
+  return Promise.resolve(jsonResponse(PAYLOADS.get(url.pathname), url.href));
 };
 const lateFirst = runVoidAiAgentBootstrapClientV1({
-  baseUrl: "http://127.0.0.1:4100",
+  baseUrl: BASE_URL,
   timeoutMs: 90,
   maxBytes: 1024,
   fetchImpl: lateFetch,
@@ -556,7 +686,7 @@ const lateFirst = runVoidAiAgentBootstrapClientV1({
 await assert.rejects(lateFirst, /bootstrap_request_deadline_exceeded/);
 await assert.rejects(
   runVoidAiAgentBootstrapClientV1({
-    baseUrl: "http://127.0.0.1:4100",
+    baseUrl: BASE_URL,
     timeoutMs: 90,
     maxBytes: 1024,
     fetchImpl: lateFetch,
@@ -575,7 +705,7 @@ resolveLateFetch({
 await sleep(20);
 assert.equal(lateCleanupCalls, 1);
 const recovered = await runVoidAiAgentBootstrapClientV1({
-  baseUrl: "http://127.0.0.1:4100",
+  baseUrl: BASE_URL,
   timeoutMs: 1000,
   maxBytes: 1024,
   fetchImpl: lateFetch,
@@ -614,6 +744,9 @@ console.log("bound_controls_strictly_typed=true");
 console.log("cli_bound_tokens_canonical_decimal=true");
 console.log("invalid_bound_controls_zero_fetch=true");
 console.log("minimum_and_maximum_bounds_accepted=true");
+console.log("exact_final_url_provenance_required=true");
+console.log("followed_redirect_report_rejected=true");
+console.log("provenance_rejected_before_body_admission=true");
 console.log("redirect_rejection_teardown_bounded=true");
 console.log("declared_oversize_prebuffer_rejected=true");
 console.log("streamed_oversize_prebuffer_rejected=true");
