@@ -127,6 +127,37 @@ async function main(): Promise<void> {
     return JSON.parse(fs.readFileSync(file, "utf8"));
   }
 
+  function consumeTicketForClaimPolicyProof(
+    tmp: string,
+    ticketId: string,
+  ): void {
+    const issued = path.join(
+      rootDir(tmp),
+      "issued",
+      `${ticketId}.json`,
+    );
+    const consumed = path.join(
+      rootDir(tmp),
+      "consumed",
+      `${ticketId}.json`,
+    );
+    const ticket = readJson(issued);
+    fs.writeFileSync(
+      consumed,
+      JSON.stringify(
+        {
+          ...ticket,
+          status: "completed",
+          completed_at_ms: Date.now(),
+        },
+        null,
+        2,
+      ) + "\n",
+      { mode: 0o600 },
+    );
+    fs.unlinkSync(issued);
+  }
+
   async function barrierTwo(): Promise<void> {
     let ready = 0;
     let release!: () => void;
@@ -802,6 +833,187 @@ async function main(): Promise<void> {
     });
   }
 
+  // A durable recovery reservation does not reserve future daily quota.
+  // Once another same-account/executor claim issues and is consumed, replay
+  // of the old pre-ticket reservation must not mint another ticket.
+  {
+    const tmp = fs.mkdtempSync(
+      path.join(
+        os.tmpdir(),
+        "void-public-claim-recovery-daily-turnover-",
+      ),
+    );
+    configure(tmp, 10);
+    process.env.VOID_WC_PUBLIC_TICKET_CLAIM_MAX_PER_24H =
+      "1";
+    process.env.VOID_WC_PUBLIC_TICKET_CLAIM_COOLDOWN_MS =
+      "60000";
+    ensureRoot(tmp);
+    await warm(tmp);
+
+    const signing = signer();
+    const oldClaim = signed(
+      signing,
+      "recovery-policy-daily-account",
+      "e".repeat(32),
+    );
+    pilot.setPilotTransactionFaultForProofV1(
+      "public_claim_after_reservation",
+    );
+    try {
+      await assert.rejects(
+        () =>
+          pilot.issuePublicTicketClaim(
+            oldClaim,
+            tmp,
+          ),
+        /VOID_WC_PILOT_PROOF_FAULT_public_claim_after_reservation/,
+      );
+    } finally {
+      pilot.setPilotTransactionFaultForProofV1("");
+    }
+
+    await warm(tmp);
+    const winnerClaim = signed(
+      signing,
+      "recovery-policy-daily-account",
+      "1".repeat(32),
+    );
+    const winner =
+      await pilot.issuePublicTicketClaim(
+        winnerClaim,
+        tmp,
+      );
+    assert.equal(winner.ok, true);
+    consumeTicketForClaimPolicyProof(
+      tmp,
+      winner.ticket.ticket_id,
+    );
+    await warm(tmp);
+
+    const history =
+      authority.wcPublicClaimHistorySnapshotV1(
+        tmp,
+        Date.now(),
+        "recovery-policy-daily-account",
+        signing.executor,
+        300000,
+      );
+    assert.equal(history.active, 0);
+    assert.equal(history.active_account, 0);
+    assert.equal(history.account_24h, 1);
+    assert.equal(history.executor_24h, 1);
+
+    await assert.rejects(
+      () =>
+        pilot.issuePublicTicketClaim(
+          oldClaim,
+          tmp,
+        ),
+      /public_claim_account_daily_cap_reached/,
+    );
+    assert.equal(
+      jsonNames(
+        path.join(rootDir(tmp), "issued"),
+      ).length,
+      0,
+    );
+
+    fs.rmSync(tmp, {
+      recursive: true,
+      force: true,
+    });
+  }
+
+  // The same turnover is also bound by cooldown when daily quota remains.
+  {
+    const tmp = fs.mkdtempSync(
+      path.join(
+        os.tmpdir(),
+        "void-public-claim-recovery-cooldown-turnover-",
+      ),
+    );
+    configure(tmp, 10);
+    process.env.VOID_WC_PUBLIC_TICKET_CLAIM_MAX_PER_24H =
+      "10";
+    process.env.VOID_WC_PUBLIC_TICKET_CLAIM_COOLDOWN_MS =
+      "60000";
+    ensureRoot(tmp);
+    await warm(tmp);
+
+    const signing = signer();
+    const oldClaim = signed(
+      signing,
+      "recovery-policy-cooldown-account",
+      "2".repeat(32),
+    );
+    pilot.setPilotTransactionFaultForProofV1(
+      "public_claim_after_publishing_journal",
+    );
+    try {
+      await assert.rejects(
+        () =>
+          pilot.issuePublicTicketClaim(
+            oldClaim,
+            tmp,
+          ),
+        /VOID_WC_PILOT_PROOF_FAULT_public_claim_after_publishing_journal/,
+      );
+    } finally {
+      pilot.setPilotTransactionFaultForProofV1("");
+    }
+
+    await warm(tmp);
+    const winnerClaim = signed(
+      signing,
+      "recovery-policy-cooldown-account",
+      "3".repeat(32),
+    );
+    const winner =
+      await pilot.issuePublicTicketClaim(
+        winnerClaim,
+        tmp,
+      );
+    assert.equal(winner.ok, true);
+    consumeTicketForClaimPolicyProof(
+      tmp,
+      winner.ticket.ticket_id,
+    );
+    await warm(tmp);
+
+    const history =
+      authority.wcPublicClaimHistorySnapshotV1(
+        tmp,
+        Date.now(),
+        "recovery-policy-cooldown-account",
+        signing.executor,
+        300000,
+      );
+    assert.equal(history.active, 0);
+    assert.equal(history.account_24h, 1);
+    assert.ok(history.last_account_at > 0);
+
+    await assert.rejects(
+      () =>
+        pilot.issuePublicTicketClaim(
+          oldClaim,
+          tmp,
+        ),
+      /public_claim_account_cooldown/,
+    );
+    assert.equal(
+      jsonNames(
+        path.join(rootDir(tmp), "issued"),
+      ).length,
+      0,
+    );
+
+    fs.rmSync(tmp, {
+      recursive: true,
+      force: true,
+    });
+  }
+
   // If the first issued-directory fsync fails after rename, exact retry must
   // perform a successful issued-directory fsync before returning the token.
   {
@@ -947,6 +1159,8 @@ async function main(): Promise<void> {
   console.log("recovery_survives_claim_skew=true");
   console.log("fresh_stale_claim_rejected=true");
   console.log("recovery_capacity_resurrection=false");
+  console.log("recovery_daily_quota_bypass=false");
+  console.log("recovery_cooldown_bypass=false");
   console.log("issued_directory_durability_reestablished=true");
 }
 

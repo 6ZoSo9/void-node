@@ -638,6 +638,50 @@ need(
   ),
   "claim recovery fresh capacity conflict check missing",
 );
+const recoveryPolicyStart = moduleText.indexOf(
+  "function assertPublicClaimRecoveryCapacityV1(",
+);
+const recoveryPolicyEnd = moduleText.indexOf(
+  "function validatePreparedPublicClaimTicketV1(",
+  recoveryPolicyStart,
+);
+need(
+  recoveryPolicyStart >= 0 &&
+    recoveryPolicyEnd > recoveryPolicyStart,
+  "public claim recovery policy helper missing",
+);
+const recoveryPolicyBlock = moduleText.slice(
+  recoveryPolicyStart,
+  recoveryPolicyEnd,
+);
+need(
+  recoveryPolicyBlock.includes(
+    "if (ownActive === 0) {",
+  ) &&
+    recoveryPolicyBlock.includes(
+      "assertPublicClaimHistoryEligibleV1(",
+    ),
+  "public claim recovery without an own live ticket does not revalidate full current policy",
+);
+const recoveryCapacityConflict =
+  recoveryPolicyBlock.indexOf(
+    "public_claim_recovery_capacity_conflict",
+  );
+const recoveryNoOwnTicketGate =
+  recoveryPolicyBlock.indexOf(
+    "if (ownActive === 0) {",
+  );
+const recoveryFullPolicy =
+  recoveryPolicyBlock.indexOf(
+    "assertPublicClaimHistoryEligibleV1(",
+    recoveryNoOwnTicketGate,
+  );
+need(
+  recoveryCapacityConflict >= 0 &&
+    recoveryNoOwnTicketGate > recoveryCapacityConflict &&
+    recoveryFullPolicy > recoveryNoOwnTicketGate,
+  "public claim recovery active-conflict/full-policy ordering invalid",
+);
 need(
   moduleText.includes(
     "fsyncDirectoryV1(issuedDir(raw))",

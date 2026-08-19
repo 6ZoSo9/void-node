@@ -1535,6 +1535,9 @@ function assertPublicClaimRecoveryCapacityV1(
     }
   }
 
+  // Preserve the stable recovery-specific terminal for live capacity
+  // conflicts. Exclude only this exact recovery ticket when it is already
+  // published and live.
   const otherActive = Math.max(
     0,
     history.active - ownActive,
@@ -1555,6 +1558,18 @@ function assertPublicClaimRecoveryCapacityV1(
   ) {
     throw new Error(
       "public_claim_recovery_capacity_conflict",
+    );
+  }
+
+  // If recovery does not already own a live published ticket, continuing
+  // would consume a fresh issuance slot. Revalidate all non-signature
+  // current policy too: daily quota and cooldown. Journal identity bypasses
+  // claim-signature freshness only; it does not reserve future policy quota
+  // indefinitely.
+  if (ownActive === 0) {
+    assertPublicClaimHistoryEligibleV1(
+      history,
+      now,
     );
   }
 }

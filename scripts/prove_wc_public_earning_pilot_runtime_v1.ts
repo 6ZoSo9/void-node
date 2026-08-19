@@ -576,6 +576,16 @@ async function main(): Promise<void> {
 
   process.env.VOID_WC_PUBLIC_EARNING_PILOT_ENABLED = "1";
 
+  const jsonNamesForProofV28 = (
+    dir: string,
+  ): string[] => {
+    if (!fs.existsSync(dir)) return [];
+    return fs
+      .readdirSync(dir)
+      .filter((name) => name.endsWith(".json"))
+      .sort();
+  };
+
   const makeResponse = () => {
     const state: any = { statusCode: 0, payload: null };
     state.status = (code: number) => {
@@ -1580,11 +1590,352 @@ async function main(): Promise<void> {
     });
   }
 
+
+  {
+    const root = fs.mkdtempSync(
+      path.join(
+        os.tmpdir(),
+        "void-wc-claim-recovery-daily-turnover-",
+      ),
+    );
+    process.env.DATA_DIR = root;
+    process.env.VOID_DATA_DIR = root;
+    process.env.VOID_WC_PUBLIC_EARNING_PILOT_ENABLED =
+      "1";
+    process.env.VOID_WC_PUBLIC_TICKET_CLAIM_ENABLED =
+      "1";
+    process.env.VOID_WC_PUBLIC_TICKET_CLAIM_DATASET_ID =
+      "ds_recovery_daily-turnover";
+    process.env.VOID_WC_PUBLIC_TICKET_CLAIM_EXPECTED_INPUT_HASH =
+      "a".repeat(64);
+    process.env.VOID_WC_PUBLIC_TICKET_CLAIM_TTL_MS =
+      "120000";
+    process.env.VOID_WC_PUBLIC_TICKET_CLAIM_CLOCK_SKEW_MS =
+      "30000";
+    process.env.VOID_WC_PUBLIC_TICKET_CLAIM_COOLDOWN_MS =
+      "60000";
+    process.env.VOID_WC_PUBLIC_TICKET_CLAIM_MAX_PER_24H =
+      "1";
+    process.env.VOID_WC_PUBLIC_TICKET_CLAIM_GLOBAL_ACTIVE_CAP =
+      "10";
+    process.env.VOID_WC_PUBLIC_TICKET_CLAIM_GLOBAL_MAX_PER_24H =
+      "100";
+
+    claimAuthority.primeWcPublicClaimHistoryAuthorityV1(
+      root,
+    );
+    await claimAuthority.waitForWcPublicClaimHistoryWarmForProofV1(
+      root,
+    );
+
+    const oldClaim = pilot.signPublicTicketClaim(
+      {
+        domain:
+          "void:mainnet-0:wc-public-ticket-claim-v1",
+        marker: "VOID_WC_PUBLIC_TICKET_CLAIM_V1",
+        version: 1,
+        account: "recovery-real-daily-turnover",
+        executor_node_id: executorNodeId,
+        executor_pubkey: pubPEM,
+        claim_nonce: "4".repeat(32),
+        claim_ts_ms: Date.now(),
+      },
+      privateKey,
+    );
+
+    pilot.setPilotTransactionFaultForProofV1(
+      "public_claim_after_reservation",
+    );
+    try {
+      await assert.rejects(
+        () =>
+          pilot.issuePublicTicketClaim(
+            oldClaim,
+            root,
+          ),
+        /VOID_WC_PILOT_PROOF_FAULT_public_claim_after_reservation/,
+      );
+    } finally {
+      pilot.setPilotTransactionFaultForProofV1("");
+    }
+
+    await claimAuthority.waitForWcPublicClaimHistoryWarmForProofV1(
+      root,
+    );
+
+    const winnerClaim = pilot.signPublicTicketClaim(
+      {
+        domain:
+          "void:mainnet-0:wc-public-ticket-claim-v1",
+        marker: "VOID_WC_PUBLIC_TICKET_CLAIM_V1",
+        version: 1,
+        account: "recovery-real-daily-turnover",
+        executor_node_id: executorNodeId,
+        executor_pubkey: pubPEM,
+        claim_nonce: "5".repeat(32),
+        claim_ts_ms: Date.now(),
+      },
+      privateKey,
+    );
+    const winner =
+      await pilot.issuePublicTicketClaim(
+        winnerClaim,
+        root,
+      );
+    await claimAuthority.waitForWcPublicClaimHistoryWarmForProofV1(
+      root,
+    );
+
+    const submit = setupSubmitFromPublicClaim(
+      root,
+      winner,
+      "recovery_daily-turnover_winner",
+    );
+    remoteIndex.resetWcPublicRemoteTruthJsonlIndexForProofV1();
+    const submitResponse = makeResponse();
+    await pilot.submitRemoteResult(
+      submit.req,
+      submitResponse,
+    );
+    assert.equal(submitResponse.statusCode, 200);
+    assert.equal(submitResponse.payload.wc.delta, 3);
+
+    await claimAuthority.waitForWcPublicClaimHistoryWarmForProofV1(
+      root,
+    );
+    const policy =
+      claimAuthority.wcPublicClaimHistorySnapshotV1(
+        root,
+        Date.now(),
+        "recovery-real-daily-turnover",
+        executorNodeId,
+        30000,
+      );
+    assert.equal(policy.active, 0);
+    assert.equal(policy.active_account, 0);
+    assert.equal(policy.account_24h, 1);
+    assert.equal(policy.executor_24h, 1);
+
+    await assert.rejects(
+      () =>
+        pilot.issuePublicTicketClaim(
+          oldClaim,
+          root,
+        ),
+      /public_claim_account_daily_cap_reached/,
+    );
+
+    const ledgerRows = fs
+      .readFileSync(
+        path.join(
+          root,
+          "wc_v1",
+          "ledger.jsonl",
+        ),
+        "utf8",
+      )
+      .trim()
+      .split(/\r?\n/)
+      .filter(Boolean)
+      .map((line) => JSON.parse(line));
+    assert.equal(ledgerRows.length, 1);
+    assert.equal(ledgerRows[0].delta, 3);
+    assert.equal(
+      jsonNamesForProofV28(
+        path.join(
+          root,
+          "wc_v1",
+          "public-earning-pilot-v1",
+          "issued",
+        ),
+      ).length,
+      0,
+    );
+
+    fs.rmSync(root, {
+      recursive: true,
+      force: true,
+    });
+  }
+
+  {
+    const root = fs.mkdtempSync(
+      path.join(
+        os.tmpdir(),
+        "void-wc-claim-recovery-cooldown-turnover-",
+      ),
+    );
+    process.env.DATA_DIR = root;
+    process.env.VOID_DATA_DIR = root;
+    process.env.VOID_WC_PUBLIC_EARNING_PILOT_ENABLED =
+      "1";
+    process.env.VOID_WC_PUBLIC_TICKET_CLAIM_ENABLED =
+      "1";
+    process.env.VOID_WC_PUBLIC_TICKET_CLAIM_DATASET_ID =
+      "ds_recovery_cooldown-turnover";
+    process.env.VOID_WC_PUBLIC_TICKET_CLAIM_EXPECTED_INPUT_HASH =
+      "a".repeat(64);
+    process.env.VOID_WC_PUBLIC_TICKET_CLAIM_TTL_MS =
+      "120000";
+    process.env.VOID_WC_PUBLIC_TICKET_CLAIM_CLOCK_SKEW_MS =
+      "30000";
+    process.env.VOID_WC_PUBLIC_TICKET_CLAIM_COOLDOWN_MS =
+      "60000";
+    process.env.VOID_WC_PUBLIC_TICKET_CLAIM_MAX_PER_24H =
+      "10";
+    process.env.VOID_WC_PUBLIC_TICKET_CLAIM_GLOBAL_ACTIVE_CAP =
+      "10";
+    process.env.VOID_WC_PUBLIC_TICKET_CLAIM_GLOBAL_MAX_PER_24H =
+      "100";
+
+    claimAuthority.primeWcPublicClaimHistoryAuthorityV1(
+      root,
+    );
+    await claimAuthority.waitForWcPublicClaimHistoryWarmForProofV1(
+      root,
+    );
+
+    const oldClaim = pilot.signPublicTicketClaim(
+      {
+        domain:
+          "void:mainnet-0:wc-public-ticket-claim-v1",
+        marker: "VOID_WC_PUBLIC_TICKET_CLAIM_V1",
+        version: 1,
+        account: "recovery-real-cooldown-turnover",
+        executor_node_id: executorNodeId,
+        executor_pubkey: pubPEM,
+        claim_nonce: "6".repeat(32),
+        claim_ts_ms: Date.now(),
+      },
+      privateKey,
+    );
+
+    pilot.setPilotTransactionFaultForProofV1(
+      "public_claim_after_publishing_journal",
+    );
+    try {
+      await assert.rejects(
+        () =>
+          pilot.issuePublicTicketClaim(
+            oldClaim,
+            root,
+          ),
+        /VOID_WC_PILOT_PROOF_FAULT_public_claim_after_publishing_journal/,
+      );
+    } finally {
+      pilot.setPilotTransactionFaultForProofV1("");
+    }
+
+    await claimAuthority.waitForWcPublicClaimHistoryWarmForProofV1(
+      root,
+    );
+
+    const winnerClaim = pilot.signPublicTicketClaim(
+      {
+        domain:
+          "void:mainnet-0:wc-public-ticket-claim-v1",
+        marker: "VOID_WC_PUBLIC_TICKET_CLAIM_V1",
+        version: 1,
+        account: "recovery-real-cooldown-turnover",
+        executor_node_id: executorNodeId,
+        executor_pubkey: pubPEM,
+        claim_nonce: "7".repeat(32),
+        claim_ts_ms: Date.now(),
+      },
+      privateKey,
+    );
+    const winner =
+      await pilot.issuePublicTicketClaim(
+        winnerClaim,
+        root,
+      );
+    await claimAuthority.waitForWcPublicClaimHistoryWarmForProofV1(
+      root,
+    );
+
+    const submit = setupSubmitFromPublicClaim(
+      root,
+      winner,
+      "recovery_cooldown-turnover_winner",
+    );
+    remoteIndex.resetWcPublicRemoteTruthJsonlIndexForProofV1();
+    const submitResponse = makeResponse();
+    await pilot.submitRemoteResult(
+      submit.req,
+      submitResponse,
+    );
+    assert.equal(submitResponse.statusCode, 200);
+    assert.equal(submitResponse.payload.wc.delta, 3);
+
+    await claimAuthority.waitForWcPublicClaimHistoryWarmForProofV1(
+      root,
+    );
+    const policy =
+      claimAuthority.wcPublicClaimHistorySnapshotV1(
+        root,
+        Date.now(),
+        "recovery-real-cooldown-turnover",
+        executorNodeId,
+        30000,
+      );
+    assert.equal(policy.active, 0);
+    assert.equal(policy.active_account, 0);
+    assert.equal(policy.account_24h, 1);
+    assert.equal(policy.executor_24h, 1);
+
+    await assert.rejects(
+      () =>
+        pilot.issuePublicTicketClaim(
+          oldClaim,
+          root,
+        ),
+      /public_claim_account_cooldown/,
+    );
+
+    const ledgerRows = fs
+      .readFileSync(
+        path.join(
+          root,
+          "wc_v1",
+          "ledger.jsonl",
+        ),
+        "utf8",
+      )
+      .trim()
+      .split(/\r?\n/)
+      .filter(Boolean)
+      .map((line) => JSON.parse(line));
+    assert.equal(ledgerRows.length, 1);
+    assert.equal(ledgerRows[0].delta, 3);
+    assert.equal(
+      jsonNamesForProofV28(
+        path.join(
+          root,
+          "wc_v1",
+          "public-earning-pilot-v1",
+          "issued",
+        ),
+      ).length,
+      0,
+    );
+
+    fs.rmSync(root, {
+      recursive: true,
+      force: true,
+    });
+  }
+
   console.log(
     "public_claim_recovery_consumption_race=false",
   );
   console.log(
     "public_claim_recovery_then_submit_once=true",
+  );
+  console.log(
+    "public_claim_recovery_daily_turnover_bypass=false",
+  );
+  console.log(
+    "public_claim_recovery_cooldown_turnover_bypass=false",
   );
   console.log(
     "VOID_WC_PUBLIC_EARNING_PILOT_RUNTIME_V1_GREEN",
