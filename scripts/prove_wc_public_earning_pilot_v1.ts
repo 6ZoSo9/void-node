@@ -946,6 +946,30 @@ need(
   "claim history exact numeric schema contract missing",
 );
 need(
+  !claimHistoryAuthorityText.includes(
+    'String(raw || "").trim()',
+  ) &&
+    claimHistoryAuthorityText.includes(
+      'typeof raw === "string" ? raw.trim() : ""',
+    ),
+  "claim history identity helpers still coerce non-string JSON values",
+);
+need(
+  claimHistoryAuthorityText.includes(
+    'record.marker !==\n      "VOID_WC_PUBLIC_EARNING_PILOT_V1"',
+  ) &&
+    claimHistoryAuthorityText.includes(
+      'record.status !== expectedStatus',
+    ) &&
+    claimHistoryAuthorityText.includes(
+      'typeof record.status === "string"',
+    ) &&
+    claimHistoryAuthorityText.includes(
+      'record.marker !==\n      "VOID_WC_PUBLIC_TICKET_CLAIM_V1"',
+    ),
+  "claim history marker/status exact string schema contract missing",
+);
+need(
   claimHistoryAuthorityText.includes(
     "record_generations: Map<string, RecordStampV1>",
   ),

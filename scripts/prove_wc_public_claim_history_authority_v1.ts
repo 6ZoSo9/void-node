@@ -1576,6 +1576,352 @@ async function main(): Promise<void> {
     });
   }
 
+  // Durability-authoritative string/identity fields must be literal JSON
+  // strings. Values that only stringify to a canonical value are invalid.
+  {
+    const now = Date.now();
+    type StringSchemaCase = {
+      label: string;
+      kind: "issued" | "consumed" | "claim";
+      file_id: string;
+      record: Record<string, any>;
+    };
+
+    const ticketId = "1".repeat(32);
+    const claimId = "2".repeat(64);
+    const account = "string-schema-account";
+    const executor = "3".repeat(32);
+
+    const canonicalTicket = {
+      marker: "VOID_WC_PUBLIC_EARNING_PILOT_V1",
+      version: 1,
+      ticket_id: ticketId,
+      account,
+      executor_node_id: executor,
+      expires_at_ms: now + 300_000,
+      status: "issued",
+    };
+    const canonicalClaim = {
+      marker: "VOID_WC_PUBLIC_TICKET_CLAIM_V1",
+      version: 1,
+      claim_id: claimId,
+      status: "issued",
+      issued_at_ms: now - 30_000,
+      account,
+      executor_node_id: executor,
+    };
+
+    const cases: StringSchemaCase[] = [
+      {
+        label: "issued-marker-array",
+        kind: "issued",
+        file_id: ticketId,
+        record: {
+          ...canonicalTicket,
+          marker: ["VOID_WC_PUBLIC_EARNING_PILOT_V1"],
+        },
+      },
+      {
+        label: "issued-status-array",
+        kind: "issued",
+        file_id: ticketId,
+        record: {
+          ...canonicalTicket,
+          status: ["issued"],
+        },
+      },
+      {
+        label: "issued-ticket-id-array",
+        kind: "issued",
+        file_id: ticketId,
+        record: {
+          ...canonicalTicket,
+          ticket_id: [ticketId],
+        },
+      },
+      {
+        label: "issued-account-array",
+        kind: "issued",
+        file_id: ticketId,
+        record: {
+          ...canonicalTicket,
+          account: [account],
+        },
+      },
+      {
+        label: "issued-executor-array",
+        kind: "issued",
+        file_id: ticketId,
+        record: {
+          ...canonicalTicket,
+          executor_node_id: [executor],
+        },
+      },
+      {
+        label: "issued-account-boolean",
+        kind: "issued",
+        file_id: ticketId,
+        record: {
+          ...canonicalTicket,
+          account: true,
+        },
+      },
+      {
+        label: "consumed-status-issued",
+        kind: "consumed",
+        file_id: ticketId,
+        record: {
+          ...canonicalTicket,
+          status: "issued",
+        },
+      },
+      {
+        label: "consumed-marker-array",
+        kind: "consumed",
+        file_id: ticketId,
+        record: {
+          ...canonicalTicket,
+          status: "completed",
+          marker: ["VOID_WC_PUBLIC_EARNING_PILOT_V1"],
+        },
+      },
+      {
+        label: "claim-marker-array",
+        kind: "claim",
+        file_id: claimId,
+        record: {
+          ...canonicalClaim,
+          marker: ["VOID_WC_PUBLIC_TICKET_CLAIM_V1"],
+        },
+      },
+      {
+        label: "claim-status-array",
+        kind: "claim",
+        file_id: claimId,
+        record: {
+          ...canonicalClaim,
+          status: ["issued"],
+        },
+      },
+      {
+        label: "claim-id-array",
+        kind: "claim",
+        file_id: claimId,
+        record: {
+          ...canonicalClaim,
+          claim_id: [claimId],
+        },
+      },
+      {
+        label: "claim-account-array",
+        kind: "claim",
+        file_id: claimId,
+        record: {
+          ...canonicalClaim,
+          account: [account],
+        },
+      },
+      {
+        label: "claim-executor-array",
+        kind: "claim",
+        file_id: claimId,
+        record: {
+          ...canonicalClaim,
+          executor_node_id: [executor],
+        },
+      },
+      {
+        label: "claim-status-object",
+        kind: "claim",
+        file_id: claimId,
+        record: {
+          ...canonicalClaim,
+          status: { value: "issued" },
+        },
+      },
+    ];
+
+    for (const testCase of cases) {
+      const tmp = fs.mkdtempSync(
+        path.join(
+          os.tmpdir(),
+          `void-public-claim-history-string-${testCase.label}-`,
+        ),
+      );
+      configure(tmp);
+      const d = ensureHistoryDirs(tmp);
+      const dir =
+        testCase.kind === "issued"
+          ? d.issued
+          : testCase.kind === "consumed"
+            ? d.consumed
+            : d.claims;
+      fs.writeFileSync(
+        path.join(dir, `${testCase.file_id}.json`),
+        JSON.stringify(testCase.record) + "\n",
+        { mode: 0o600 },
+      );
+
+      authority.resetWcPublicClaimHistoryAuthorityForProofV1(
+        tmp,
+      );
+      authority.primeWcPublicClaimHistoryAuthorityV1(tmp);
+
+      await assert.rejects(
+        () =>
+          authority.waitForWcPublicClaimHistoryWarmForProofV1(
+            tmp,
+          ),
+        /VOID_WC_PUBLIC_CLAIM_HISTORY_INVALID/,
+        testCase.label,
+      );
+
+      authority.resetWcPublicClaimHistoryAuthorityForProofV1(
+        tmp,
+      );
+      fs.rmSync(tmp, {
+        recursive: true,
+        force: true,
+      });
+    }
+
+    // Wrong-typed string authority must block a new capability publication.
+    for (const kind of ["issued", "claim"] as const) {
+      const tmp = fs.mkdtempSync(
+        path.join(
+          os.tmpdir(),
+          `void-public-claim-history-string-issue-gate-${kind}-`,
+        ),
+      );
+      configure(tmp);
+      const d = ensureHistoryDirs(tmp);
+      const { privateKey, publicKey } =
+        crypto.generateKeyPairSync("ed25519");
+      const pubPEM = publicKey
+        .export({
+          type: "spki",
+          format: "pem",
+        })
+        .toString();
+      const executorNode =
+        block.nodeIdFromPubPEM(pubPEM);
+      const issueAccount =
+        `string-issue-gate-${kind}`;
+
+      if (kind === "issued") {
+        const badTicketId = "4".repeat(32);
+        fs.writeFileSync(
+          path.join(
+            d.issued,
+            `${badTicketId}.json`,
+          ),
+          JSON.stringify({
+            marker:
+              "VOID_WC_PUBLIC_EARNING_PILOT_V1",
+            version: 1,
+            ticket_id: badTicketId,
+            account: [issueAccount],
+            executor_node_id: executorNode,
+            expires_at_ms: now + 300_000,
+            status: "issued",
+          }) + "\n",
+          { mode: 0o600 },
+        );
+      } else {
+        const badClaimId = "5".repeat(64);
+        fs.writeFileSync(
+          path.join(
+            d.claims,
+            `${badClaimId}.json`,
+          ),
+          JSON.stringify({
+            marker:
+              "VOID_WC_PUBLIC_TICKET_CLAIM_V1",
+            version: 1,
+            claim_id: badClaimId,
+            status: ["issued"],
+            issued_at_ms: now - 30_000,
+            account: issueAccount,
+            executor_node_id: executorNode,
+          }) + "\n",
+          { mode: 0o600 },
+        );
+      }
+
+      authority.resetWcPublicClaimHistoryAuthorityForProofV1(
+        tmp,
+      );
+      authority.primeWcPublicClaimHistoryAuthorityV1(tmp);
+      await assert.rejects(
+        () =>
+          authority.waitForWcPublicClaimHistoryWarmForProofV1(
+            tmp,
+          ),
+        /VOID_WC_PUBLIC_CLAIM_HISTORY_INVALID/,
+      );
+
+      const issuedBefore = fs
+        .readdirSync(d.issued)
+        .filter((name) => name.endsWith(".json"))
+        .sort();
+      const claimsBefore = fs
+        .readdirSync(d.claims)
+        .filter((name) => name.endsWith(".json"))
+        .sort();
+
+      const signed =
+        pilot.signPublicTicketClaim(
+          {
+            domain:
+              "void:mainnet-0:wc-public-ticket-claim-v1",
+            marker:
+              "VOID_WC_PUBLIC_TICKET_CLAIM_V1",
+            version: 1,
+            account: issueAccount,
+            executor_node_id: executorNode,
+            executor_pubkey: pubPEM,
+            claim_nonce:
+              (kind === "issued" ? "6" : "7").repeat(32),
+            claim_ts_ms: now,
+          },
+          privateKey,
+        );
+
+      await assert.rejects(
+        () =>
+          pilot.issuePublicTicketClaim(
+            signed,
+            tmp,
+            now,
+          ),
+        /VOID_WC_PUBLIC_CLAIM_HISTORY_INVALID/,
+      );
+
+      assert.deepEqual(
+        fs
+          .readdirSync(d.issued)
+          .filter((name) => name.endsWith(".json"))
+          .sort(),
+        issuedBefore,
+      );
+      assert.deepEqual(
+        fs
+          .readdirSync(d.claims)
+          .filter((name) => name.endsWith(".json"))
+          .sort(),
+        claimsBefore,
+      );
+
+      authority.resetWcPublicClaimHistoryAuthorityForProofV1(
+        tmp,
+      );
+      fs.rmSync(tmp, {
+        recursive: true,
+        force: true,
+      });
+    }
+  }
+
   console.log(
     "VOID_WC_PUBLIC_CLAIM_HISTORY_AUTHORITY_V1_GREEN",
   );
@@ -1596,6 +1942,8 @@ async function main(): Promise<void> {
   console.log("coercible_history_numeric_fields_rejected=true");
   console.log("history_directory_parent_fsync_durable=true");
   console.log("history_directory_failed_fsync_resynced=true");
+  console.log("claim_history_string_schema_exact=true");
+  console.log("coercible_history_string_fields_rejected=true");
 }
 
 main().catch((error) => {

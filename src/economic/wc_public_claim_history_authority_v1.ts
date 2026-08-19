@@ -272,23 +272,29 @@ function ensureDirsV1(raw?: string): void {
   }
 }
 
+function exactTrimmedStringV1(
+  raw: unknown,
+): string {
+  return typeof raw === "string" ? raw.trim() : "";
+}
+
 function safeAccountV1(raw: unknown): string {
-  const value = String(raw || "").trim();
+  const value = exactTrimmedStringV1(raw);
   return /^[A-Za-z0-9._:-]{1,128}$/.test(value) ? value : "";
 }
 
 function safeNodeIdV1(raw: unknown): string {
-  const value = String(raw || "").trim().toLowerCase();
+  const value = exactTrimmedStringV1(raw).toLowerCase();
   return /^[0-9a-f]{32}$/.test(value) ? value : "";
 }
 
 function safeTicketIdV1(raw: unknown): string {
-  const value = String(raw || "").trim().toLowerCase();
+  const value = exactTrimmedStringV1(raw).toLowerCase();
   return /^[0-9a-f]{32}$/.test(value) ? value : "";
 }
 
 function safeClaimIdV1(raw: unknown): string {
-  const value = String(raw || "").trim().toLowerCase();
+  const value = exactTrimmedStringV1(raw).toLowerCase();
   return /^[0-9a-f]{64}$/.test(value) ? value : "";
 }
 
@@ -623,6 +629,7 @@ async function readJsonStrictV1(
 function validateTicketV1(
   record: JsonObject,
   expectedName: string,
+  expectedStatus: "issued" | "completed",
 ): ActiveTicketV1 {
   const ticketId = safeTicketIdV1(record.ticket_id);
   const expectedId = safeTicketIdV1(
@@ -633,9 +640,10 @@ function validateTicketV1(
   const expiresAt = record.expires_at_ms;
 
   if (
-    String(record.marker || "") !==
+    record.marker !==
       "VOID_WC_PUBLIC_EARNING_PILOT_V1" ||
     record.version !== 1 ||
+    record.status !== expectedStatus ||
     !ticketId ||
     ticketId !== expectedId ||
     !account ||
@@ -668,10 +676,13 @@ function validateClaimV1(
   const expectedId = safeClaimIdV1(
     expectedName.replace(/\.json$/, ""),
   );
-  const status = String(record.status || "");
+  const status =
+    typeof record.status === "string"
+      ? record.status
+      : "";
 
   if (
-    String(record.marker || "") !==
+    record.marker !==
       "VOID_WC_PUBLIC_TICKET_CLAIM_V1" ||
     record.version !== 1 ||
     !claimId ||
@@ -765,7 +776,11 @@ async function scanHistoryV1(
         "issued_ticket_history",
       );
     state.record_generations.set(file, stamp);
-    const ticket = validateTicketV1(record, entry.name);
+    const ticket = validateTicketV1(
+      record,
+      entry.name,
+      "issued",
+    );
     state.scanned_files += 1;
     if (ticket.expires_at_ms > warmNow) {
       state.issued_tickets.set(
@@ -800,7 +815,11 @@ async function scanHistoryV1(
         "consumed_ticket_history",
       );
     state.record_generations.set(file, stamp);
-    const ticket = validateTicketV1(record, entry.name);
+    const ticket = validateTicketV1(
+      record,
+      entry.name,
+      "completed",
+    );
     state.scanned_files += 1;
 
     // Consumed truth is terminal for single-use authority. If best-effort
