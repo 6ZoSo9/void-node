@@ -8,6 +8,7 @@ import {
   prepareWcPublicRemoteTruthJsonlExactOnceV1,
   resetWcPublicRemoteTruthJsonlIndexForProofV1,
   waitForWcPublicRemoteTruthJsonlIndexWarmForProofV1,
+  wcPublicRemoteTruthJsonlIndexMetricsV1,
 } from "../src/economic/wc_public_remote_truth_jsonl_index_v1.js";
 
 const childMode = process.argv.includes("--child");
@@ -46,21 +47,41 @@ async function child(): Promise<void> {
   await ensureReady(file, ids);
   let output: any;
   try {
-    const result = await appendWcPublicRemoteTruthJsonlExactOnceV1(
-      file,
-      value,
-      ids,
-      {
-        durable: true,
-        mode: 0o600,
-        testHooks: {
-          beforeCrossProcessAuthority: async () => {
-            fs.writeFileSync(ready, "ready\n");
-            await waitForFile(release);
+    let result: any = null;
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      try {
+        result = await appendWcPublicRemoteTruthJsonlExactOnceV1(
+          file,
+          value,
+          ids,
+          {
+            durable: true,
+            mode: 0o600,
+            testHooks: {
+              beforeCrossProcessAuthority: async () => {
+                fs.writeFileSync(ready, "ready\n");
+                await waitForFile(release);
+              },
+            },
           },
-        },
-      },
-    );
+        );
+        break;
+      } catch (error: any) {
+        if (
+          !String(error?.message || error).includes(
+            "VOID_WC_REMOTE_TRUTH_INDEX_WARMING",
+          )
+        ) {
+          throw error;
+        }
+        await waitForWcPublicRemoteTruthJsonlIndexWarmForProofV1(
+          file,
+          ids,
+        );
+        await ensureReady(file, ids);
+      }
+    }
+    assert.ok(result, "remote-truth child did not converge after warm retry");
     output = { ok: true, result };
   } catch (error: any) {
     output = { ok: false, error: String(error?.message || error) };
@@ -161,6 +182,27 @@ async function runTwoProcessRace(
     left: JSON.parse(fs.readFileSync(leftResult, "utf8")),
     right: JSON.parse(fs.readFileSync(rightResult, "utf8")),
   };
+}
+
+function appendPlainDurable(file: string, value: any): void {
+  const line = Buffer.from(JSON.stringify(value) + "\n", "utf8");
+  const fd = fs.openSync(file, "a", 0o600);
+  try {
+    const written = fs.writeSync(fd, line, 0, line.length, null);
+    assert.equal(written, line.length);
+    fs.fdatasyncSync(fd);
+  } finally {
+    fs.closeSync(fd);
+  }
+}
+
+function metricFor(file: string): any {
+  const absolute = path.resolve(file);
+  const metric = wcPublicRemoteTruthJsonlIndexMetricsV1().find(
+    (entry) => entry.file === absolute,
+  );
+  assert.ok(metric, `missing remote-truth metric for ${absolute}`);
+  return metric;
 }
 
 function rewriteSameLength(file: string, value: any): void {
@@ -350,12 +392,164 @@ async function main(): Promise<void> {
     assert.equal(alphaReintroduced.appended, true);
     assert.equal(rows(stalePresenceFile).length, 2);
 
+    // Prefix-continuity adversary: rewrite the indexed prefix A -> B on
+    // the same inode, then append a small valid C. Growth alone must not let
+    // stale cached absence-of-B authorize a duplicate B.
+    resetWcPublicRemoteTruthJsonlIndexForProofV1();
+    const growthTail = {
+      receipt_id: "charlie-0001",
+      job_id: "job-charlie",
+      account: "acct-charlie",
+      status: "completed",
+    };
+
+    const growthAbsenceFile = path.join(
+      root,
+      "growth-stale-absence.jsonl",
+    );
+    seed(growthAbsenceFile, alpha);
+    await ensureReady(growthAbsenceFile, ["receipt_id"]);
+    rewriteSameLength(growthAbsenceFile, bravo);
+    appendPlainDurable(growthAbsenceFile, growthTail);
+
+    await assert.rejects(
+      () =>
+        appendWcPublicRemoteTruthJsonlExactOnceV1(
+          growthAbsenceFile,
+          bravo,
+          ["receipt_id"],
+        ),
+      /VOID_WC_REMOTE_TRUTH_INDEX_WARMING/,
+    );
+    assert.equal(
+      rows(growthAbsenceFile).filter(
+        (row) => row.receipt_id === bravo.receipt_id,
+      ).length,
+      1,
+      "unwitnessed rewrite+growth duplicated stale-absent B before warm",
+    );
+    await waitForWcPublicRemoteTruthJsonlIndexWarmForProofV1(
+      growthAbsenceFile,
+      ["receipt_id"],
+    );
+    const growthBravoExisting =
+      await appendWcPublicRemoteTruthJsonlExactOnceV1(
+        growthAbsenceFile,
+        bravo,
+        ["receipt_id"],
+      );
+    assert.equal(growthBravoExisting.appended, false);
+    assert.equal(
+      rows(growthAbsenceFile).filter(
+        (row) => row.receipt_id === bravo.receipt_id,
+      ).length,
+      1,
+    );
+
+    // Stale-presence variant: after A -> B + C, A must not be returned from
+    // the old prefix cache. Revalidate first, then A may be appended once as
+    // genuinely absent current truth.
+    const growthPresenceFile = path.join(
+      root,
+      "growth-stale-presence.jsonl",
+    );
+    seed(growthPresenceFile, alpha);
+    await ensureReady(growthPresenceFile, ["receipt_id"]);
+    rewriteSameLength(growthPresenceFile, bravo);
+    appendPlainDurable(growthPresenceFile, growthTail);
+
+    await assert.rejects(
+      () =>
+        appendWcPublicRemoteTruthJsonlExactOnceV1(
+          growthPresenceFile,
+          alpha,
+          ["receipt_id"],
+        ),
+      /VOID_WC_REMOTE_TRUTH_INDEX_WARMING/,
+    );
+    assert.equal(
+      rows(growthPresenceFile).some(
+        (row) => row.receipt_id === alpha.receipt_id,
+      ),
+      false,
+      "stale A unexpectedly remained in rewritten file",
+    );
+    await waitForWcPublicRemoteTruthJsonlIndexWarmForProofV1(
+      growthPresenceFile,
+      ["receipt_id"],
+    );
+    const growthAlphaReintroduced =
+      await appendWcPublicRemoteTruthJsonlExactOnceV1(
+        growthPresenceFile,
+        alpha,
+        ["receipt_id"],
+      );
+    assert.equal(growthAlphaReintroduced.appended, true);
+    assert.equal(
+      rows(growthPresenceFile).filter(
+        (row) => row.receipt_id === alpha.receipt_id,
+      ).length,
+      1,
+    );
+
+    // Positive fast path: an append performed by this exact-once authority
+    // uses append.before/after directly and must not reread historical bytes
+    // or trigger a full/incremental history scan.
+    const canonicalFastFile = path.join(
+      root,
+      "canonical-fast-path.jsonl",
+    );
+    seed(canonicalFastFile, alpha);
+    await ensureReady(canonicalFastFile, ["receipt_id"]);
+    const canonicalBefore = metricFor(canonicalFastFile);
+    const canonicalAdded =
+      await appendWcPublicRemoteTruthJsonlExactOnceV1(
+        canonicalFastFile,
+        growthTail,
+        ["receipt_id"],
+      );
+    assert.equal(canonicalAdded.appended, true);
+    const canonicalAfter = metricFor(canonicalFastFile);
+    assert.equal(
+      canonicalAfter.full_scans_total,
+      canonicalBefore.full_scans_total,
+    );
+    assert.equal(
+      canonicalAfter.incremental_scans_total,
+      canonicalBefore.incremental_scans_total,
+    );
+    assert.equal(
+      canonicalAfter.bytes_read_total,
+      canonicalBefore.bytes_read_total,
+    );
+    assert.equal(
+      canonicalAfter.canonical_appends_total,
+      canonicalBefore.canonical_appends_total + 1,
+    );
+    const canonicalRetry =
+      await appendWcPublicRemoteTruthJsonlExactOnceV1(
+        canonicalFastFile,
+        growthTail,
+        ["receipt_id"],
+      );
+    assert.equal(canonicalRetry.appended, false);
+    assert.equal(
+      rows(canonicalFastFile).filter(
+        (row) => row.receipt_id === growthTail.receipt_id,
+      ).length,
+      1,
+    );
+
     console.log("VOID_WC_PUBLIC_REMOTE_TRUTH_ATOMICITY_V1_GREEN");
     console.log("cross_process_same_identity_duplicate_rows=0");
     console.log("cross_process_conflict_duplicate_rows=0");
     console.log("same_inode_restored_mtime_ctime_alias_rejected=true");
     console.log("stale_absence_cache_hit=false");
     console.log("stale_presence_cache_hit=false");
+    console.log("rewrite_growth_stale_absence_cache_hit=false");
+    console.log("rewrite_growth_stale_presence_cache_hit=false");
+    console.log("unwitnessed_growth_requires_background_revalidation=true");
+    console.log("canonical_append_direct_index_update_o_delta=true");
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
   }

@@ -443,6 +443,34 @@ need(
   remoteTruthIndexText.includes("acquireRemoteTruthAuthorityV1"),
   "remote-truth cross-process authority missing",
 );
+const remoteTruthCatchUpStart = remoteTruthIndexText.indexOf(
+  "async function catchUpStateV1(",
+);
+const remoteTruthExistingStart = remoteTruthIndexText.indexOf(
+  "function existingResultV1(",
+  remoteTruthCatchUpStart,
+);
+need(
+  remoteTruthCatchUpStart >= 0 &&
+    remoteTruthExistingStart > remoteTruthCatchUpStart,
+  "remote-truth catch-up block missing",
+);
+const remoteTruthCatchUpBlock = remoteTruthIndexText.slice(
+  remoteTruthCatchUpStart,
+  remoteTruthExistingStart,
+);
+need(
+  remoteTruthCatchUpBlock.includes(
+    "reason=unwitnessed_growth",
+  ),
+  "remote-truth unwitnessed growth does not force background revalidation",
+);
+need(
+  !remoteTruthCatchUpBlock.includes(
+    '"incremental",\n      onMalformed',
+  ),
+  "remote-truth generic growth still authorizes suffix-only cached-prefix catch-up",
+);
 const exactOnceAppendStart = remoteTruthIndexText.indexOf(
   "export async function appendWcPublicRemoteTruthJsonlExactOnceV1(",
 );

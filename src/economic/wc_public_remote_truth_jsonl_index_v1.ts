@@ -309,10 +309,10 @@ function needsBackgroundWarmV1(
   ) {
     return true;
   }
-  if (
-    current.size > state.stamp.size &&
-    current.size - state.stamp.size > MAX_REQUEST_INCREMENTAL_BYTES_V1
-  ) {
+  // Generic observed growth does not prove that the indexed prefix is
+  // unchanged. Only the owned canonical append transaction below has an
+  // exact before/after witness strong enough to advance state directly.
+  if (current.size > state.stamp.size) {
     return true;
   }
   return false;
@@ -548,54 +548,19 @@ async function catchUpStateV1(
       );
     }
 
-    if (
-      current.size > state.stamp.size &&
-      current.size - state.stamp.size > MAX_REQUEST_INCREMENTAL_BYTES_V1
-    ) {
+    if (current.size > state.stamp.size) {
       throw new Error(
-        `VOID_WC_REMOTE_TRUTH_BACKGROUND_WARM_REQUIRED file=${state.file} reason=delta_too_large`,
+        `VOID_WC_REMOTE_TRUTH_BACKGROUND_WARM_REQUIRED file=${state.file} reason=unwitnessed_growth`,
       );
     }
 
-    if (current.size === state.stamp.size) {
-      if (!sameStampV1(state.stamp, current)) {
-        throw new Error(
-          `VOID_WC_REMOTE_TRUTH_NON_APPEND_MUTATION file=${state.file} size=${current.size}`,
-        );
-      }
-      state.metrics.cache_hits_total += 1;
-      return;
-    }
-
-    if (!state.endedWithNewline) {
+    if (!sameStampV1(state.stamp, current)) {
       throw new Error(
-        `VOID_WC_REMOTE_TRUTH_PRIOR_UNTERMINATED_JSONL file=${state.file}`,
+        `VOID_WC_REMOTE_TRUTH_NON_APPEND_MUTATION file=${state.file} size=${current.size}`,
       );
     }
-
-    const start = state.stamp.size;
-    const scanned = await scanRangeV1(
-      state,
-      start,
-      current.size,
-      "incremental",
-      onMalformed,
-    );
-    if (
-      !scanned.pathAfter ||
-      !sameObjectV1(scanned.opened, scanned.pathAfter) ||
-      !sameObjectV1(scanned.opened, scanned.after)
-    ) {
-      await rebuildStateV1(state, onMalformed);
-      return;
-    }
-    state.stamp = {
-      ...scanned.after,
-      size: current.size,
-      mtimeNs: current.mtimeNs,
-      ctimeNs: current.ctimeNs,
-    };
-    state.endedWithNewline = scanned.endedWithNewline;
+    state.metrics.cache_hits_total += 1;
+    return;
   }
 
   throw new Error(`VOID_WC_REMOTE_TRUTH_INDEX_UNSTABLE file=${state.file}`);
@@ -749,6 +714,10 @@ export async function appendWcPublicRemoteTruthJsonlExactOnceV1(
         );
       }
 
+      // This is the only O(delta) growth fast path: cross-process authority
+      // is held and the canonical append primitive proves the exact indexed
+      // generation is append.before. Generic observed growth never uses
+      // cached-prefix authority.
       recordParsedLineV1(
         state,
         line.subarray(0, line.length - 1).toString("utf8"),
@@ -774,6 +743,7 @@ export async function appendWcPublicRemoteTruthJsonlExactOnceV1(
     ) {
       const current = await statPathV1(absolute);
       startWarmV1(key, state, current, options.onMalformed);
+      throw warmingErrorV1(absolute);
     }
     throw error;
   } finally {
