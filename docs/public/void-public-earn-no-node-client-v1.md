@@ -19,8 +19,8 @@ The repository copy is used for development and proofing. A repo-less participan
 
 The selected Public Earn gateway is **not** trusted to choose the executable client bytes. The client source below is pinned to the immutable reviewed repository commit that last changed the canonical client and to the exact Git blob identity of that file:
 
-- reviewed source commit: `dee46215a7166beb524fcd7eb051482a37c5ef0b`
-- exact client Git blob: `1b82f964f2eeb762e861a88d514879a6c9d2355d`
+- reviewed source commit: `8fc9cc295ee8edb84f0742dd22044e03dc612074`
+- exact client Git blob: `b27032a2580509eeba88fba4af82e71d28d18b0e`
 - repository path: `tools/void_public_earn_no_node_client_v1.mjs`
 
 The same blob is the client present on the reviewed current source baseline for this guide. The Git blob ID is computed over the exact Git blob object (`blob <byte-length>\0<bytes>`), so altered bytes are rejected before `writeFile` or execution.
@@ -43,8 +43,8 @@ import { createHash } from 'node:crypto';
 import { access, writeFile } from 'node:fs/promises';
 
 const [rawBase, output] = process.argv.slice(2);
-const sourceUrl = 'https://raw.githubusercontent.com/6ZoSo9/void-node/dee46215a7166beb524fcd7eb051482a37c5ef0b/tools/void_public_earn_no_node_client_v1.mjs';
-const expectedGitBlobSha1 = '1b82f964f2eeb762e861a88d514879a6c9d2355d';
+const sourceUrl = 'https://raw.githubusercontent.com/6ZoSo9/void-node/8fc9cc295ee8edb84f0742dd22044e03dc612074/tools/void_public_earn_no_node_client_v1.mjs';
+const expectedGitBlobSha1 = 'b27032a2580509eeba88fba4af82e71d28d18b0e';
 const maxBytes = 1024 * 1024;
 
 function isPrivateHttpHost(hostname) {
