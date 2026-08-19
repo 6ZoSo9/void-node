@@ -332,7 +332,16 @@ async function settleCancellationBounded(cancellation) {
   }
 }
 
-function makeTransportLease(fetchImpl, acquisition) {
+function getTransportOriginLeases(fetchImpl, create = false) {
+  let originLeases = activeTransportLeases.get(fetchImpl);
+  if (!originLeases && create) {
+    originLeases = new Map();
+    activeTransportLeases.set(fetchImpl, originLeases);
+  }
+  return originLeases ?? null;
+}
+
+function makeTransportLease(fetchImpl, origin, acquisition) {
   const lease = {
     acquisition,
     pendingRetentions: 0,
@@ -358,8 +367,12 @@ function makeTransportLease(fetchImpl, acquisition) {
         return;
       }
       lease.released = true;
-      if (activeTransportLeases.get(fetchImpl) === lease) {
-        activeTransportLeases.delete(fetchImpl);
+      const originLeases = getTransportOriginLeases(fetchImpl);
+      if (originLeases?.get(origin) === lease) {
+        originLeases.delete(origin);
+        if (originLeases.size === 0) {
+          activeTransportLeases.delete(fetchImpl);
+        }
       }
     },
     release() {
@@ -403,7 +416,9 @@ async function acquireResponseBounded(
   init,
   controller,
 ) {
-  if (activeTransportLeases.has(fetchImpl)) {
+  const origin = url.origin;
+  const originLeases = getTransportOriginLeases(fetchImpl, true);
+  if (originLeases.has(origin)) {
     throw new Error(
       "bootstrap_fetch_acquisition_quarantined",
     );
@@ -412,13 +427,13 @@ async function acquireResponseBounded(
   const acquisition = Promise.resolve().then(
     () => fetchImpl(url, init),
   );
-  const lease = makeTransportLease(fetchImpl, acquisition);
-  activeTransportLeases.set(fetchImpl, lease);
+  const lease = makeTransportLease(fetchImpl, origin, acquisition);
+  originLeases.set(origin, lease);
 
   // If the logical request times out before a custom fetch settles, retain
   // ownership of that exact generation. A late Response is torn down once,
-  // and unresolved cancellation keeps the transport quarantined without
-  // extending the participant-facing deadline.
+  // and unresolved cancellation keeps only that exact origin quarantined
+  // without extending the participant-facing deadline.
   acquisition.then(
     async (response) => {
       if (controller.signal.aborted) {
