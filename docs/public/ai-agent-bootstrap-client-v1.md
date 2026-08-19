@@ -9,11 +9,18 @@ or modifying `src/index.ts`.
 ## Read sequence
 
 1. `/.well-known/void-agent-discovery.json`
-2. the same-origin canonical discovery route declared by that entrypoint
+2. the exact canonical discovery route bound by the reviewed well-known contract
 3. `/.well-known/void-agent-capabilities.json`
 4. `/.well-known/void-agent-authentication.json`
 5. `/public-node/agents/first-contact-v1.json`
 6. `/.well-known/void-agent-intake-capability-v1.json`
+
+Before any downstream probe contributes to readiness, the root well-known
+document must match the reviewed V1 contract exactly: schema, marker, protocol,
+`VOID Mainnet-0`, numeric `chain_id: 2050`, canonical discovery route,
+read-only/no-credential authority, the complete fail-closed safety object, and
+the canonical network-authenticity route. Missing, extra, wrong-typed, or
+contradictory root fields fail closed before downstream discovery begins.
 
 The client emits one machine-readable bootstrap report. Required discovery,
 capability, and authentication surfaces determine `read_only_connection_ready`.
