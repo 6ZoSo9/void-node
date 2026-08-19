@@ -1497,4 +1497,70 @@ need(
   "signed result exact raw JSON schema contract missing",
 );
 
+const strictStateReadStart = moduleText.indexOf(
+  "function readJsonStrict(",
+);
+const strictStateReadEnd = moduleText.indexOf(
+  "function ticketFile(",
+  strictStateReadStart,
+);
+need(
+  strictStateReadStart >= 0 &&
+    strictStateReadEnd > strictStateReadStart,
+  "bounded direct-state reader missing",
+);
+const strictStateReadBlock = moduleText.slice(
+  strictStateReadStart,
+  strictStateReadEnd,
+);
+need(
+  strictStateReadBlock.includes(
+    "VOID_WC_PUBLIC_STATE_MAX_JSON_BYTES_V1",
+  ) &&
+    strictStateReadBlock.includes("fs.lstatSync(") &&
+    strictStateReadBlock.includes(
+      "fs.constants.O_NOFOLLOW",
+    ) &&
+    strictStateReadBlock.includes("fs.fstatSync(") &&
+    strictStateReadBlock.includes("fs.readSync(") &&
+    strictStateReadBlock.includes(
+      "samePublicStateRecordStampV1(",
+    ) &&
+    strictStateReadBlock.includes(
+      "publicStateRecordBytesReadTotalForProofV1",
+    ) &&
+    !strictStateReadBlock.includes("fs.existsSync(") &&
+    !strictStateReadBlock.includes("fs.readFileSync("),
+  "participant-critical direct state is not bounded/no-follow/generation-bound",
+);
+need(
+  moduleText.includes(
+    "readWcPublicStateJsonStrictForProofV1",
+  ) &&
+    moduleText.includes(
+      "setWcPublicStateRecordReadHookForProofV1",
+    ),
+  "direct-state adversarial proof hooks missing",
+);
+for (const directStateLabel of [
+  '"public_claim"',
+  '"public_claim_recovery_own_ticket"',
+  '"public_claim_issued_ticket"',
+  '"public_claim_consumed_ticket"',
+  '"pilot_result_transaction"',
+  '"consumed_ticket"',
+  '"issued_ticket"',
+]) {
+  need(
+    moduleText.includes(directStateLabel),
+    `participant-critical direct-state label missing: ${directStateLabel}`,
+  );
+}
+need(
+  /function\s+readPilotResultTransactionV1\([\s\S]{0,700}?readJsonStrict\([\s\S]{0,400}?resultTransactionFile\(\s*ticketId,\s*raw\s*\)[\s\S]{0,250}?"pilot_result_transaction"/.test(
+    moduleText,
+  ),
+  "result transaction does not use strict state reader",
+);
+
 console.log("VOID_WC_PUBLIC_EARNING_PILOT_V1_GREEN");

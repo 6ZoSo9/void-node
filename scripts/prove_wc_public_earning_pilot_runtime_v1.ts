@@ -248,6 +248,158 @@ async function main(): Promise<void> {
     );
   }
 
+  // Participant-critical ticket/claim/result state is read through one
+  // bounded no-follow exact-generation authority.
+  {
+    const stateRoot = fs.mkdtempSync(
+      path.join(
+        os.tmpdir(),
+        "void-wc-public-state-strict-reader-v1-",
+      ),
+    );
+    const file = path.join(stateRoot, "state.json");
+    const validBytes = Buffer.from(
+      JSON.stringify({ marker: "valid-state-v1" }) + "\n",
+      "utf8",
+    );
+
+    fs.writeFileSync(file, validBytes, { mode: 0o600 });
+    pilot.resetWcPublicStateRecordReadMetricsForProofV1();
+    assert.deepEqual(
+      pilot.readWcPublicStateJsonStrictForProofV1(file),
+      { marker: "valid-state-v1" },
+    );
+    assert.equal(
+      pilot.wcPublicStateRecordReadMetricsForProofV1()
+        .bytes_read_total,
+      validBytes.length,
+    );
+
+    fs.writeFileSync(
+      file,
+      Buffer.alloc(
+        pilot.VOID_WC_PUBLIC_STATE_MAX_JSON_BYTES_V1 + 1,
+        0x20,
+      ),
+      { mode: 0o600 },
+    );
+    pilot.resetWcPublicStateRecordReadMetricsForProofV1();
+    assert.throws(
+      () =>
+        pilot.readWcPublicStateJsonStrictForProofV1(file),
+      /proof_state_too_large/,
+    );
+    assert.equal(
+      pilot.wcPublicStateRecordReadMetricsForProofV1()
+        .bytes_read_total,
+      0,
+    );
+
+    fs.unlinkSync(file);
+    const symlinkTarget = path.join(
+      stateRoot,
+      "symlink-target.json",
+    );
+    fs.writeFileSync(
+      symlinkTarget,
+      validBytes,
+      { mode: 0o600 },
+    );
+    fs.symlinkSync(symlinkTarget, file);
+    assert.throws(
+      () =>
+        pilot.readWcPublicStateJsonStrictForProofV1(file),
+      /proof_state_invalid_file_type/,
+    );
+    fs.unlinkSync(file);
+
+    fs.mkdirSync(file, { mode: 0o700 });
+    assert.throws(
+      () =>
+        pilot.readWcPublicStateJsonStrictForProofV1(file),
+      /proof_state_invalid_file_type/,
+    );
+    fs.rmdirSync(file);
+
+    fs.writeFileSync(file, validBytes, { mode: 0o600 });
+    const admittedSize = fs.statSync(file).size;
+    let growthInjected = false;
+    pilot.resetWcPublicStateRecordReadMetricsForProofV1();
+    pilot.setWcPublicStateRecordReadHookForProofV1(
+      (phase: string, hookFile: string) => {
+        if (
+          phase !== "after_precheck" ||
+          hookFile !== file ||
+          growthInjected
+        ) {
+          return;
+        }
+        growthInjected = true;
+        const fd = fs.openSync(file, "a");
+        try {
+          fs.writeSync(
+            fd,
+            Buffer.alloc(
+              pilot.VOID_WC_PUBLIC_STATE_MAX_JSON_BYTES_V1 +
+                1024,
+              0x20,
+            ),
+          );
+          fs.fdatasyncSync(fd);
+        } finally {
+          fs.closeSync(fd);
+        }
+      },
+    );
+    assert.throws(
+      () =>
+        pilot.readWcPublicStateJsonStrictForProofV1(file),
+      /proof_state_generation_changed/,
+    );
+    pilot.setWcPublicStateRecordReadHookForProofV1(null);
+    assert.equal(growthInjected, true);
+    assert.ok(
+      pilot.wcPublicStateRecordReadMetricsForProofV1()
+        .bytes_read_total <=
+        admittedSize + 1,
+      "growing direct state exceeded admitted size + 1 byte",
+    );
+
+    fs.writeFileSync(file, validBytes, { mode: 0o600 });
+    const displaced = `${file}.displaced`;
+    let pathSwapInjected = false;
+    pilot.setWcPublicStateRecordReadHookForProofV1(
+      (phase: string, hookFile: string) => {
+        if (
+          phase !== "after_read" ||
+          hookFile !== file ||
+          pathSwapInjected
+        ) {
+          return;
+        }
+        pathSwapInjected = true;
+        fs.renameSync(file, displaced);
+        fs.writeFileSync(
+          file,
+          validBytes,
+          { mode: 0o600 },
+        );
+      },
+    );
+    assert.throws(
+      () =>
+        pilot.readWcPublicStateJsonStrictForProofV1(file),
+      /proof_state_generation_changed/,
+    );
+    pilot.setWcPublicStateRecordReadHookForProofV1(null);
+    assert.equal(pathSwapInjected, true);
+
+    fs.rmSync(stateRoot, {
+      recursive: true,
+      force: true,
+    });
+  }
+
   const now = Date.now();
   const ticketRecord = {
     marker: "VOID_WC_PUBLIC_EARNING_PILOT_V1",
@@ -1319,6 +1471,89 @@ async function main(): Promise<void> {
       .map((line) => JSON.parse(line));
     assert.equal(ledgerRows.length, 1);
     assert.equal(ledgerRows[0].delta, 3);
+
+    fs.rmSync(root, {
+      recursive: true,
+      force: true,
+    });
+  }
+
+  {
+    const root = fs.mkdtempSync(
+      path.join(
+        os.tmpdir(),
+        "void-wc-direct-state-route-bound-v1-",
+      ),
+    );
+    const prepared = setupSubmit(
+      root,
+      "oversized_issued_state",
+    );
+    const issuedFile = path.join(
+      root,
+      "wc_v1",
+      "public-earning-pilot-v1",
+      "issued",
+      `${prepared.ticketId}.json`,
+    );
+    fs.writeFileSync(
+      issuedFile,
+      Buffer.alloc(
+        pilot.VOID_WC_PUBLIC_STATE_MAX_JSON_BYTES_V1 + 1,
+        0x20,
+      ),
+      { mode: 0o600 },
+    );
+    remoteIndex.resetWcPublicRemoteTruthJsonlIndexForProofV1();
+
+    const response = makeResponse();
+    await pilot.submitRemoteResult(
+      prepared.req,
+      response,
+    );
+    assert.equal(response.statusCode, 422);
+    assert.match(
+      String(response.payload?.error || ""),
+      /issued_ticket_too_large/,
+    );
+
+    const pilotRoot = path.join(
+      root,
+      "wc_v1",
+      "public-earning-pilot-v1",
+    );
+    assert.equal(
+      fs.existsSync(
+        path.join(
+          pilotRoot,
+          "result-transactions",
+          `${prepared.ticketId}.json`,
+        ),
+      ),
+      false,
+    );
+    assert.equal(
+      fs.existsSync(
+        path.join(
+          pilotRoot,
+          "consumed",
+          `${prepared.ticketId}.json`,
+        ),
+      ),
+      false,
+    );
+    for (const authorityFile of [
+      path.join(root, "agent_v1", "receipts.jsonl"),
+      path.join(root, "agent", "jobs.jsonl"),
+      path.join(root, "agent_v1", "job_state.jsonl"),
+      path.join(root, "wc_v1", "ledger.jsonl"),
+    ]) {
+      assert.equal(
+        fs.existsSync(authorityFile),
+        false,
+        `oversized direct state published ${authorityFile}`,
+      );
+    }
 
     fs.rmSync(root, {
       recursive: true,
@@ -2909,6 +3144,18 @@ async function main(): Promise<void> {
   );
   console.log(
     "signed_result_signature_schema_exact=true",
+  );
+  console.log(
+    "direct_state_json_no_follow=true",
+  );
+  console.log(
+    "direct_state_json_cap_plus_one=true",
+  );
+  console.log(
+    "direct_state_json_generation_bound=true",
+  );
+  console.log(
+    "oversized_issued_state_zero_import_credit=true",
   );
   console.log(
     "VOID_WC_PUBLIC_EARNING_PILOT_RUNTIME_V1_GREEN",

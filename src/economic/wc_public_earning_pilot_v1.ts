@@ -394,17 +394,278 @@ function readJson(file: string): JsonObject | null {
   }
 }
 
-function readJsonStrict(file: string, label: string): JsonObject | null {
-  if (!fs.existsSync(file)) return null;
+export const VOID_WC_PUBLIC_STATE_MAX_JSON_BYTES_V1 =
+  256 * 1024;
+
+type PublicStateRecordStampV1 = {
+  dev: string;
+  ino: string;
+  size: string;
+  mtime_ns: string;
+  ctime_ns: string;
+};
+
+function publicStateRecordStampV1(
+  stat: any,
+): PublicStateRecordStampV1 {
+  return {
+    dev: String(stat.dev),
+    ino: String(stat.ino),
+    size: String(stat.size),
+    mtime_ns: String(stat.mtimeNs),
+    ctime_ns: String(stat.ctimeNs),
+  };
+}
+
+function samePublicStateRecordStampV1(
+  a: PublicStateRecordStampV1,
+  b: PublicStateRecordStampV1,
+): boolean {
+  return (
+    a.dev === b.dev &&
+    a.ino === b.ino &&
+    a.size === b.size &&
+    a.mtime_ns === b.mtime_ns &&
+    a.ctime_ns === b.ctime_ns
+  );
+}
+
+export type WcPublicStateRecordReadHookForProofV1 =
+  ((
+    phase:
+      | "after_lstat"
+      | "after_precheck"
+      | "after_read",
+    file: string,
+  ) => void) | null;
+
+let publicStateRecordReadHookForProofV1:
+  WcPublicStateRecordReadHookForProofV1 = null;
+let publicStateRecordBytesReadTotalForProofV1 = 0;
+
+export function setWcPublicStateRecordReadHookForProofV1(
+  hook: WcPublicStateRecordReadHookForProofV1,
+): void {
+  publicStateRecordReadHookForProofV1 = hook;
+}
+
+export function resetWcPublicStateRecordReadMetricsForProofV1(): void {
+  publicStateRecordBytesReadTotalForProofV1 = 0;
+}
+
+export function wcPublicStateRecordReadMetricsForProofV1(): {
+  bytes_read_total: number;
+} {
+  return {
+    bytes_read_total:
+      publicStateRecordBytesReadTotalForProofV1,
+  };
+}
+
+function readJsonStrict(
+  file: string,
+  label: string,
+): JsonObject | null {
+  let initialStat: any;
   try {
-    const parsed = JSON.parse(fs.readFileSync(file, "utf8"));
-    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+    initialStat = fs.lstatSync(
+      file,
+      { bigint: true } as any,
+    );
+  } catch (error: any) {
+    if (String(error?.code || "") === "ENOENT") {
+      return null;
+    }
+    throw new Error(`${label}_state_unavailable`);
+  }
+
+  if (!initialStat.isFile()) {
+    throw new Error(`${label}_invalid_file_type`);
+  }
+
+  const initialSize = Number(initialStat.size);
+  if (
+    !Number.isSafeInteger(initialSize) ||
+    initialSize < 0 ||
+    initialSize >
+      VOID_WC_PUBLIC_STATE_MAX_JSON_BYTES_V1
+  ) {
+    throw new Error(`${label}_too_large`);
+  }
+  const initialStamp =
+    publicStateRecordStampV1(initialStat);
+
+  publicStateRecordReadHookForProofV1?.(
+    "after_lstat",
+    file,
+  );
+
+  let fd: number | null = null;
+  try {
+    try {
+      fd = fs.openSync(
+        file,
+        fs.constants.O_RDONLY |
+          Number(fs.constants.O_NOFOLLOW || 0),
+      );
+    } catch (error: any) {
+      const code = String(error?.code || "");
+      if (code === "ENOENT") {
+        throw new Error(`${label}_generation_changed`);
+      }
+      if (
+        code === "ELOOP" ||
+        code === "EISDIR" ||
+        code === "ENXIO" ||
+        code === "ENODEV"
+      ) {
+        throw new Error(`${label}_invalid_file_type`);
+      }
+      throw new Error(`${label}_state_unavailable`);
+    }
+
+    const beforeStat: any = fs.fstatSync(
+      fd,
+      { bigint: true } as any,
+    );
+    if (!beforeStat.isFile()) {
+      throw new Error(`${label}_invalid_file_type`);
+    }
+    const beforeStamp =
+      publicStateRecordStampV1(beforeStat);
+    if (
+      !samePublicStateRecordStampV1(
+        initialStamp,
+        beforeStamp,
+      )
+    ) {
+      throw new Error(`${label}_generation_changed`);
+    }
+
+    const size = Number(beforeStat.size);
+    if (
+      !Number.isSafeInteger(size) ||
+      size < 0 ||
+      size >
+        VOID_WC_PUBLIC_STATE_MAX_JSON_BYTES_V1
+    ) {
+      throw new Error(`${label}_too_large`);
+    }
+
+    publicStateRecordReadHookForProofV1?.(
+      "after_precheck",
+      file,
+    );
+
+    const buffer = Buffer.alloc(
+      Math.min(
+        size + 1,
+        VOID_WC_PUBLIC_STATE_MAX_JSON_BYTES_V1 + 1,
+      ),
+    );
+    let offset = 0;
+    while (offset < buffer.length) {
+      const bytesRead = fs.readSync(
+        fd,
+        buffer,
+        offset,
+        buffer.length - offset,
+        offset,
+      );
+      if (bytesRead <= 0) break;
+      offset += bytesRead;
+      publicStateRecordBytesReadTotalForProofV1 +=
+        bytesRead;
+    }
+
+    if (offset !== size) {
+      throw new Error(`${label}_generation_changed`);
+    }
+
+    publicStateRecordReadHookForProofV1?.(
+      "after_read",
+      file,
+    );
+
+    const afterStat: any = fs.fstatSync(
+      fd,
+      { bigint: true } as any,
+    );
+    if (!afterStat.isFile()) {
+      throw new Error(`${label}_invalid_file_type`);
+    }
+    const afterStamp =
+      publicStateRecordStampV1(afterStat);
+
+    let pathStat: any;
+    try {
+      pathStat = fs.lstatSync(
+        file,
+        { bigint: true } as any,
+      );
+    } catch (error: any) {
+      if (String(error?.code || "") === "ENOENT") {
+        throw new Error(`${label}_generation_changed`);
+      }
+      throw new Error(`${label}_state_unavailable`);
+    }
+    if (!pathStat.isFile()) {
+      throw new Error(`${label}_invalid_file_type`);
+    }
+    const pathStamp =
+      publicStateRecordStampV1(pathStat);
+
+    if (
+      !samePublicStateRecordStampV1(
+        beforeStamp,
+        afterStamp,
+      ) ||
+      !samePublicStateRecordStampV1(
+        afterStamp,
+        pathStamp,
+      )
+    ) {
+      throw new Error(`${label}_generation_changed`);
+    }
+
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(
+        buffer.subarray(0, size).toString("utf8"),
+      );
+    } catch (error) {
+      void error;
+      throw new Error(`${label}_malformed`);
+    }
+
+    if (
+      !parsed ||
+      typeof parsed !== "object" ||
+      Array.isArray(parsed)
+    ) {
       throw new Error(`${label}_not_object`);
     }
-    return parsed;
-  } catch (error: any) {
-    throw new Error(`${label}_malformed:${String(error?.message || error)}`);
+    return parsed as JsonObject;
+  } finally {
+    if (fd !== null) {
+      try {
+        fs.closeSync(fd);
+      } catch (error) {
+        recordPilotBestEffortFailure(
+          "strict-state-read-close",
+          error,
+          { label },
+        );
+      }
+    }
   }
+}
+
+export function readWcPublicStateJsonStrictForProofV1(
+  file: string,
+  label = "proof_state",
+): JsonObject | null {
+  return readJsonStrict(file, label);
 }
 
 function ticketFile(dir: string, ticketId: string): string {
