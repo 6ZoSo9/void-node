@@ -26,6 +26,7 @@ const MAX_TIMEOUT_MS = 30_000;
 const DEFAULT_MAX_BYTES = 1_048_576;
 const MAX_ALLOWED_BYTES = 4_194_304;
 const RESPONSE_REJECTION_TEARDOWN_MS = 250;
+const BODY_READ_YIELD_INTERVAL = 64;
 const activeTransportLeases = new WeakMap();
 
 const ROUTES = Object.freeze({
@@ -662,64 +663,105 @@ async function boundedRead(
 
   const chunks = [];
   let total = 0;
+  let admittedReads = 0;
 
-  try {
-    while (true) {
-      const readPromise = Promise.resolve().then(
-        () => reader.read(),
+  while (true) {
+    const readPromise = Promise.resolve().then(
+      () => reader.read(),
+    );
+    let readResult;
+    try {
+      readResult = await awaitWithinOwnedDeadline(
+        readPromise,
+        controller.signal,
       );
-      let readResult;
-      try {
-        readResult = await awaitWithinOwnedDeadline(
-          readPromise,
-          controller.signal,
-        );
-      } catch (error) {
-        if (controller.signal.aborted) {
-          transportLease?.retain(readPromise);
-          let cancellation = null;
-          try {
-            cancellation = reader.cancel();
-          } catch (_cancelError) {
-            cancellation = null;
-          }
-          transportLease?.retain(cancellation);
-          await settleCancellationBounded(cancellation);
-        } else {
-          await rejectResponseBodyBounded(
-            response,
-            reader,
-            controller,
-            transportLease,
-          );
+    } catch (error) {
+      if (controller.signal.aborted) {
+        transportLease?.retain(readPromise);
+        let cancellation = null;
+        try {
+          cancellation = reader.cancel();
+        } catch (_cancelError) {
+          cancellation = null;
         }
-        throw error;
-      }
-
-      const { done, value } = readResult;
-      if (done) break;
-
-      const chunk = Buffer.from(value);
-      total += chunk.length;
-
-      if (total > maxBytes) {
-        chunks.length = 0;
-        const primary = new Error(
-          `response_too_large:${total}`,
-        );
+        transportLease?.retain(cancellation);
+        await settleCancellationBounded(cancellation);
+      } else {
         await rejectResponseBodyBounded(
           response,
           reader,
           controller,
           transportLease,
         );
-        throw primary;
+      }
+      throw error;
+    }
+
+    let done;
+    let value;
+    let chunkLength;
+    let chunk;
+    try {
+      if (
+        readResult === null ||
+        Array.isArray(readResult) ||
+        typeof readResult !== "object" ||
+        typeof readResult.done !== "boolean"
+      ) {
+        throw new Error("response_body_read_result_invalid");
       }
 
-      chunks.push(chunk);
+      ({ done, value } = readResult);
+      if (done) break;
+
+      if (!(value instanceof Uint8Array)) {
+        throw new Error("response_body_read_chunk_invalid");
+      }
+      chunkLength = value.byteLength;
+      if (chunkLength === 0) {
+        throw new Error("response_body_zero_progress_chunk");
+      }
+      if (chunkLength > maxBytes - total) {
+        throw new Error(
+          `response_too_large:${total + chunkLength}`,
+        );
+      }
+
+      // The configured byte ceiling is checked from the typed-array view
+      // before Buffer.from() is allowed to allocate/copy the chunk.
+      chunk = Buffer.from(value);
+    } catch (error) {
+      chunks.length = 0;
+      await rejectResponseBodyBounded(
+        response,
+        reader,
+        controller,
+        transportLease,
+      );
+      throw error;
     }
-  } catch (error) {
-    throw error;
+
+    total += chunkLength;
+    chunks.push(chunk);
+    admittedReads += 1;
+
+    if (admittedReads % BODY_READ_YIELD_INTERVAL === 0) {
+      try {
+        await awaitWithinOwnedDeadline(
+          new Promise((resolve) => setImmediate(resolve)),
+          controller.signal,
+        );
+      } catch (error) {
+        chunks.length = 0;
+        await rejectResponseBodyBounded(
+          response,
+          reader,
+          controller,
+          transportLease,
+        );
+        throw error;
+      }
+    }
   }
 
   return new TextDecoder("utf-8", {
