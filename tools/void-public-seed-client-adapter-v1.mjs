@@ -27,6 +27,18 @@ function boundedInteger(raw, fallback, minimum, maximum) {
   return Math.min(maximum, Math.max(minimum, Math.floor(value)));
 }
 
+function exactProgrammaticInteger(raw, label, minimum, maximum) {
+  if (
+    typeof raw !== "number" ||
+    !Number.isSafeInteger(raw) ||
+    raw < minimum ||
+    raw > maximum
+  ) {
+    throw new Error(`${label} must be a safe integer in range ${minimum}..${maximum}`);
+  }
+  return raw;
+}
+
 function json(res, status, body, method = "GET") {
   const bytes = Buffer.from(`${JSON.stringify(body)}\n`);
   res.statusCode = status;
@@ -127,14 +139,25 @@ export async function createPublicSeedClientAdapterV1({
   if (!["127.0.0.1", "::1"].includes(String(host))) {
     throw new Error("public seed client adapter bind must be a numeric loopback literal");
   }
-  const peers = normalizePeers(rawPeers, { allowLoopbackFixture });
-  const effectiveTimeoutMs = boundedInteger(timeoutMs, 15_000, 1_000, 60_000);
-  const effectiveMaxBytes = boundedInteger(
+  const effectivePort = exactProgrammaticInteger(
+    port,
+    "public seed client adapter port",
+    0,
+    65535,
+  );
+  const effectiveTimeoutMs = exactProgrammaticInteger(
+    timeoutMs,
+    "public seed client adapter timeoutMs",
+    1_000,
+    60_000,
+  );
+  const effectiveMaxBytes = exactProgrammaticInteger(
     maxBytes,
-    64 * 1024 * 1024,
+    "public seed client adapter maxBytes",
     64 * 1024,
     COMPILED_MAX_RESPONSE_BYTES,
   );
+  const peers = normalizePeers(rawPeers, { allowLoopbackFixture });
   let activeIndex = 0;
   let requestCount = 0;
   let failoverCount = 0;
@@ -268,11 +291,11 @@ export async function createPublicSeedClientAdapterV1({
 
   await new Promise((resolve, reject) => {
     server.once("error", reject);
-    server.listen(port, host, resolve);
+    server.listen(effectivePort, host, resolve);
   });
 
   const address = server.address();
-  const actualPort = typeof address === "object" && address ? address.port : port;
+  const actualPort = typeof address === "object" && address ? address.port : effectivePort;
   const hostLiteral = host === "::1" ? "[::1]" : host;
   const base = `http://${hostLiteral}:${actualPort}`;
   console.log(`${MARKER}_READY`);
