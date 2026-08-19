@@ -13,6 +13,7 @@ import {
 import {
   prepareWcPublicClaimHistoryDecisionV1,
   primeWcPublicClaimHistoryAuthorityV1,
+  publishWcPublicClaimHistoryMutationForFileV1,
   wcPublicClaimHistorySnapshotV1,
 } from "./wc_public_claim_history_authority_v1.js";
 import {
@@ -313,6 +314,12 @@ function atomicWriteJson(file: string, value: JsonObject): void {
     fs.fdatasyncSync(fd);
     fs.closeSync(fd);
     fd = null;
+
+    // Advance the O(1) cross-process mutation witness before a canonical
+    // history pathname becomes authoritative. If witness publication fails,
+    // the prepared temp remains unpublished and the request fails closed.
+    publishWcPublicClaimHistoryMutationForFileV1(file);
+
     fs.renameSync(tmp, file);
     fsyncDirectoryV1(path.dirname(file));
   } catch (error) {

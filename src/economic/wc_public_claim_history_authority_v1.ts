@@ -1,3 +1,4 @@
+import crypto from "node:crypto";
 import fs from "node:fs";
 import fsp from "node:fs/promises";
 import path from "node:path";
@@ -61,6 +62,7 @@ type HistoryStateV1 = {
   last_executor_at: Map<string, number>;
   scanned_files: number;
   watch_generation: number;
+  mutation_generation: string;
   record_generations: Map<string, RecordStampV1>;
 };
 
@@ -91,6 +93,31 @@ const statesV1 = new Map<string, HistoryStateV1>();
 const warmTasksV1 = new Map<string, Promise<void>>();
 const warmFailuresV1 = new Map<string, WarmFailureV1>();
 const watchStatesV1 = new Map<string, HistoryWatchStateV1>();
+
+type HistoryDecisionMetricsV1 = {
+  decision_checks_total: number;
+  mutation_generation_reads_total: number;
+  record_generation_stats_total: number;
+};
+
+const decisionMetricsV1 =
+  new Map<string, HistoryDecisionMetricsV1>();
+
+function decisionMetricsForV1(
+  raw?: string,
+): HistoryDecisionMetricsV1 {
+  const key = keyV1(raw);
+  let metrics = decisionMetricsV1.get(key);
+  if (!metrics) {
+    metrics = {
+      decision_checks_total: 0,
+      mutation_generation_reads_total: 0,
+      record_generation_stats_total: 0,
+    };
+    decisionMetricsV1.set(key, metrics);
+  }
+  return metrics;
+}
 
 export type WcPublicClaimHistoryBeforeRecordOpenHookForProofV1 =
   ((file: string, label: string) => void | Promise<void>) | null;
@@ -271,6 +298,188 @@ function ensureDirsV1(raw?: string): void {
     ensureDurableDirectoryV1(dir);
   }
 }
+
+const HISTORY_MUTATION_GENERATION_FILE_V1 =
+  ".claim-history-mutation-generation-v1";
+const HISTORY_MUTATION_GENERATION_RE_V1 =
+  /^[0-9a-f]{64}$/;
+
+function historyMutationGenerationFileFromRootV1(
+  root: string,
+): string {
+  return path.join(
+    root,
+    HISTORY_MUTATION_GENERATION_FILE_V1,
+  );
+}
+
+function historyMutationGenerationFileV1(
+  raw?: string,
+): string {
+  return historyMutationGenerationFileFromRootV1(
+    rootDirV1(raw),
+  );
+}
+
+function parseHistoryMutationGenerationV1(
+  raw: string,
+): string {
+  const value = raw.trim();
+  if (!HISTORY_MUTATION_GENERATION_RE_V1.test(value)) {
+    throw new Error(
+      "VOID_WC_PUBLIC_CLAIM_HISTORY_MUTATION_GENERATION_INVALID",
+    );
+  }
+  return value;
+}
+
+function writeHistoryMutationGenerationAtRootV1(
+  root: string,
+): string {
+  ensureDurableDirectoryV1(root);
+  const file =
+    historyMutationGenerationFileFromRootV1(root);
+  const token =
+    crypto.randomBytes(32).toString("hex");
+  const tmp = `${file}.tmp-${process.pid}-${crypto
+    .randomBytes(6)
+    .toString("hex")}`;
+  let fd: number | null = null;
+
+  try {
+    fd = fs.openSync(
+      tmp,
+      fs.constants.O_WRONLY |
+        fs.constants.O_CREAT |
+        fs.constants.O_EXCL |
+        Number(fs.constants.O_NOFOLLOW || 0),
+      0o600,
+    );
+    const bytes = Buffer.from(`${token}\n`, "utf8");
+    let offset = 0;
+    while (offset < bytes.length) {
+      const written = fs.writeSync(
+        fd,
+        bytes,
+        offset,
+        bytes.length - offset,
+        null,
+      );
+      if (written <= 0) {
+        throw new Error(
+          "VOID_WC_PUBLIC_CLAIM_HISTORY_MUTATION_GENERATION_SHORT_WRITE",
+        );
+      }
+      offset += written;
+    }
+    fs.fdatasyncSync(fd);
+    fs.closeSync(fd);
+    fd = null;
+    fs.renameSync(tmp, file);
+    fsyncDirectoryV1(root);
+    return token;
+  } finally {
+    if (fd !== null) {
+      try {
+        fs.closeSync(fd);
+      } catch (error) {
+        void error;
+      }
+    }
+    try {
+      fs.unlinkSync(tmp);
+    } catch (error: any) {
+      if (String(error?.code || "") !== "ENOENT") {
+        void error;
+      }
+    }
+  }
+}
+
+async function readHistoryMutationGenerationV1(
+  raw?: string,
+): Promise<string> {
+  ensureDirsV1(raw);
+  const file = historyMutationGenerationFileV1(raw);
+
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    try {
+      const text = await fsp.readFile(file, "utf8");
+      return parseHistoryMutationGenerationV1(text);
+    } catch (error: any) {
+      if (
+        String(error?.code || "") === "ENOENT" &&
+        attempt === 0
+      ) {
+        writeHistoryMutationGenerationAtRootV1(
+          rootDirV1(raw),
+        );
+        continue;
+      }
+      throw error;
+    }
+  }
+
+  throw new Error(
+    "VOID_WC_PUBLIC_CLAIM_HISTORY_MUTATION_GENERATION_UNAVAILABLE",
+  );
+}
+
+function historyRootForRecordFileV1(
+  fileRaw: string,
+): {
+  root: string;
+  data_dir: string;
+} | null {
+  const file = path.resolve(fileRaw);
+  const parent = path.dirname(file);
+  const kind = path.basename(parent);
+  if (
+    kind !== "issued" &&
+    kind !== "consumed" &&
+    kind !== "public-claims"
+  ) {
+    return null;
+  }
+
+  const root = path.dirname(parent);
+  if (
+    path.basename(root) !==
+      "public-earning-pilot-v1" ||
+    path.basename(path.dirname(root)) !== "wc_v1"
+  ) {
+    return null;
+  }
+
+  return {
+    root,
+    data_dir: path.dirname(
+      path.dirname(root),
+    ),
+  };
+}
+
+export function publishWcPublicClaimHistoryMutationForFileV1(
+  file: string,
+): boolean {
+  const target = historyRootForRecordFileV1(file);
+  if (!target) return false;
+
+  writeHistoryMutationGenerationAtRootV1(
+    target.root,
+  );
+  statesV1.delete(target.data_dir);
+  warmFailuresV1.delete(target.data_dir);
+  return true;
+}
+
+export function wcPublicClaimHistoryDecisionMetricsForProofV1(
+  raw?: string,
+): HistoryDecisionMetricsV1 {
+  const metrics = decisionMetricsForV1(raw);
+  return { ...metrics };
+}
+
 
 function exactTrimmedStringV1(
   raw: unknown,
@@ -466,6 +675,18 @@ function sameRecordStampV1(
   );
 }
 
+function sameRecordDataStampV1(
+  a: RecordStampV1,
+  b: RecordStampV1,
+): boolean {
+  return (
+    a.dev === b.dev &&
+    a.ino === b.ino &&
+    a.size === b.size &&
+    a.mtime_ns === b.mtime_ns
+  );
+}
+
 async function statRecordPathV1(
   file: string,
 ): Promise<RecordStampV1 | null> {
@@ -488,6 +709,7 @@ function emptyStateV1(
   raw: string | undefined,
   stamps: HistoryStampsV1,
   watchGeneration: number,
+  mutationGeneration: string,
 ): HistoryStateV1 {
   return {
     data_dir: dataDirV1(raw),
@@ -503,6 +725,7 @@ function emptyStateV1(
     last_executor_at: new Map(),
     scanned_files: 0,
     watch_generation: watchGeneration,
+    mutation_generation: mutationGeneration,
     record_generations: new Map(),
   };
 }
@@ -583,21 +806,48 @@ async function readJsonStrictV1(
     );
 
     const text = await handle.readFile("utf8");
-    const after: any = await handle.stat(
+    const afterRead: any = await handle.stat(
       { bigint: true } as any,
     );
-    const afterStamp =
-      recordStampFromStatV1(after);
+    const afterReadStamp =
+      recordStampFromStatV1(afterRead);
     if (
-      !after.isFile() ||
+      !afterRead.isFile() ||
       !sameRecordStampV1(
         beforeStamp,
-        afterStamp,
+        afterReadStamp,
       )
     ) {
       throw new Error(
         `${label}_generation_changed`,
       );
+    }
+
+    // Published warm snapshots treat record JSON files as read-only
+    // projections. Canonical mutations replace a pathname atomically and
+    // advance the durable mutation-generation witness; ordinary in-place
+    // writes therefore cannot bypass that O(1) witness.
+    let sealedStamp = afterReadStamp;
+    const mode = Number(afterRead.mode) & 0o777;
+    if ((mode & 0o222) !== 0) {
+      await handle.chmod(0o400);
+      const sealed: any = await handle.stat(
+        { bigint: true } as any,
+      );
+      const nextStamp =
+        recordStampFromStatV1(sealed);
+      if (
+        !sealed.isFile() ||
+        !sameRecordDataStampV1(
+          afterReadStamp,
+          nextStamp,
+        )
+      ) {
+        throw new Error(
+          `${label}_generation_changed`,
+        );
+      }
+      sealedStamp = nextStamp;
     }
 
     let parsed: any;
@@ -619,7 +869,7 @@ async function readJsonStrictV1(
     }
     return {
       record: parsed,
-      stamp: afterStamp,
+      stamp: sealedStamp,
     };
   } finally {
     await handle.close();
@@ -742,11 +992,13 @@ async function scanHistoryV1(
   raw: string | undefined,
   before: HistoryStampsV1,
   watchGeneration: number,
+  mutationGeneration: string,
 ): Promise<HistoryStateV1> {
   const state = emptyStateV1(
     raw,
     before,
     watchGeneration,
+    mutationGeneration,
   );
   const warmNow = Date.now();
   const recentCutoff =
@@ -949,12 +1201,15 @@ async function rebuildHistoryV1(
 
     const before = stampsV1(raw);
     const watchBefore = watch.generation;
+    const mutationBefore =
+      await readHistoryMutationGenerationV1(raw);
     let state: HistoryStateV1;
     try {
       state = await scanHistoryV1(
         raw,
         before,
         watchBefore,
+        mutationBefore,
       );
     } catch (error: any) {
       if (
@@ -972,11 +1227,14 @@ async function rebuildHistoryV1(
 
     const recordsStable =
       await revalidateRecordGenerationsV1(state);
+    const mutationAfter =
+      await readHistoryMutationGenerationV1(raw);
     const after = stampsV1(raw);
     const watchAfter = watch.generation;
 
     if (
       recordsStable &&
+      mutationBefore === mutationAfter &&
       watch.healthy &&
       watchBefore === watchAfter &&
       sameStampsV1(before, after)
@@ -1062,21 +1320,24 @@ export async function prepareWcPublicClaimHistoryDecisionV1(
   const watch = ensureWatchStateV1(raw);
   const before = stampsV1(raw);
   const watchBefore = watch.generation;
+  const metrics = decisionMetricsForV1(raw);
+  metrics.decision_checks_total += 1;
 
-  // fs.watch is a wakeup/performance hint only. Revalidate the exact
-  // per-record generations captured by the published warm state before a
-  // participant-facing status/claim decision may consume that authority.
-  // This is asynchronous metadata work; it never restores synchronous
-  // retained-history file reads to the Node request/event-loop path.
-  const generationsCurrent =
-    await revalidateRecordGenerationsV1(state);
+  // fs.watch is advisory only. Canonical record mutation advances one
+  // crash-durable generation token before pathname publication, and warm
+  // snapshots seal record projections read-only. A hot participant decision
+  // therefore performs one bounded generation read rather than O(history)
+  // per-record lstat work.
+  const mutationGeneration =
+    await readHistoryMutationGenerationV1(raw);
+  metrics.mutation_generation_reads_total += 1;
 
   const after = stampsV1(raw);
   const watchAfter = watch.generation;
   const stillPublished = statesV1.get(key) === state;
 
   if (
-    !generationsCurrent ||
+    mutationGeneration !== state.mutation_generation ||
     !watch.healthy ||
     !stillPublished ||
     watchBefore !== watchAfter ||
@@ -1358,6 +1619,7 @@ export function resetWcPublicClaimHistoryAuthorityForProofV1(
   }
   statesV1.delete(key);
   warmFailuresV1.delete(key);
+  decisionMetricsV1.delete(key);
   const watch = watchStatesV1.get(key);
   if (watch) {
     closeWatchStateV1(watch);

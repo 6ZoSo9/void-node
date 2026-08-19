@@ -1160,17 +1160,71 @@ need(receiptIndex > jobIndex, "remote receipt verification must follow job");
 need(importIndex > receiptIndex, "remote truth import must follow verification");
 need(acceptanceIndex > importIndex, "canonical acceptance must follow import");
 
+const historyDecisionStart =
+  claimHistoryAuthorityText.indexOf(
+    "export async function prepareWcPublicClaimHistoryDecisionV1(",
+  );
+const historyReadyStateStart =
+  claimHistoryAuthorityText.indexOf(
+    "function readyStateV1(",
+    historyDecisionStart,
+  );
+need(
+  historyDecisionStart >= 0 &&
+    historyReadyStateStart > historyDecisionStart,
+  "claim history decision gate missing",
+);
+const historyDecisionBlock =
+  claimHistoryAuthorityText.slice(
+    historyDecisionStart,
+    historyReadyStateStart,
+  );
+need(
+  historyDecisionBlock.includes(
+    "await readHistoryMutationGenerationV1(raw)",
+  ) &&
+    !historyDecisionBlock.includes(
+      "revalidateRecordGenerationsV1(state)",
+    ) &&
+    historyDecisionBlock.includes(
+      "mutation_generation_reads_total += 1",
+    ),
+  "claim history hot decision still performs retained-record generation traversal",
+);
 need(
   claimHistoryAuthorityText.includes(
-    "export async function prepareWcPublicClaimHistoryDecisionV1(",
+    "publishWcPublicClaimHistoryMutationForFileV1",
   ) &&
-    claimHistoryAuthorityText.includes(
-      "await revalidateRecordGenerationsV1(state)",
-    ) &&
-    claimHistoryAuthorityText.includes(
-      "suppressWcPublicClaimHistoryWatchForProofV1",
+    moduleText.includes(
+      "publishWcPublicClaimHistoryMutationForFileV1(file);",
     ),
-  "claim history post-warm decision authority still depends on watcher delivery",
+  "canonical history mutations do not advance the durable O(1) witness",
+);
+const atomicHistoryMutationWitness =
+  moduleText.indexOf(
+    "publishWcPublicClaimHistoryMutationForFileV1(file);",
+  );
+const atomicHistoryRename =
+  moduleText.indexOf(
+    "fs.renameSync(tmp, file);",
+    atomicHistoryMutationWitness,
+  );
+need(
+  atomicHistoryMutationWitness >= 0 &&
+    atomicHistoryRename > atomicHistoryMutationWitness,
+  "history mutation witness is not published before canonical pathname replacement",
+);
+need(
+  claimHistoryAuthorityText.includes(
+    "await handle.chmod(0o400)",
+  ),
+  "warm history projections are not sealed against ordinary in-place mutation",
+);
+need(
+  claimHistoryAuthorityText.includes(
+    "suppressWcPublicClaimHistoryWatchForProofV1",
+  ),
+  "watch-suppression authority proof hook missing",
 );
 const historyDecisionRawGates = (
   moduleText.match(

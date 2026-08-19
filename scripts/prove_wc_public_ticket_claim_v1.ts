@@ -63,6 +63,71 @@ async function main(): Promise<void> {
     );
   }
 
+  function replaceHistoryRecordCanonically(
+    file: string,
+    value: unknown,
+  ): void {
+    const tmpFile =
+      `${file}.proof-replace-${process.pid}-${crypto
+        .randomBytes(6)
+        .toString("hex")}`;
+    let fd: number | null = null;
+    try {
+      fd = fs.openSync(tmpFile, "wx", 0o600);
+      const bytes = Buffer.from(
+        JSON.stringify(value, null, 2) + "\n",
+        "utf8",
+      );
+      let offset = 0;
+      while (offset < bytes.length) {
+        const written = fs.writeSync(
+          fd,
+          bytes,
+          offset,
+          bytes.length - offset,
+          null,
+        );
+        assert.ok(written > 0);
+        offset += written;
+      }
+      fs.fdatasyncSync(fd);
+      fs.closeSync(fd);
+      fd = null;
+
+      assert.equal(
+        authority.publishWcPublicClaimHistoryMutationForFileV1(
+          file,
+        ),
+        true,
+        "proof replacement did not publish claim-history mutation witness",
+      );
+      fs.renameSync(tmpFile, file);
+
+      const dirFd = fs.openSync(
+        path.dirname(file),
+        "r",
+      );
+      try {
+        fs.fsyncSync(dirFd);
+      } finally {
+        fs.closeSync(dirFd);
+      }
+    } finally {
+      if (fd !== null) {
+        try {
+          fs.closeSync(fd);
+        } catch {}
+      }
+      try {
+        fs.unlinkSync(tmpFile);
+      } catch (error: any) {
+        if (String(error?.code || "") !== "ENOENT") {
+          throw error;
+        }
+      }
+    }
+  }
+
   await warm();
 
   const { privateKey, publicKey } =
@@ -308,14 +373,14 @@ async function main(): Promise<void> {
 
   firstClaimRecord.issued_at_ms =
     Date.now() - 120_000;
-  fs.writeFileSync(
+  replaceHistoryRecordCanonically(
     firstClaimFile,
-    JSON.stringify(firstClaimRecord, null, 2) + "\n",
-    { mode: 0o600 },
+    firstClaimRecord,
   );
 
-  // In-place proof mutation does not change directory generation,
-  // so force a proof-only rebuild.
+  // The canonical proof replacement advances the same durable mutation
+  // witness as production before pathname publication; rebuild from that
+  // current generation for the next cooldown/daily-cap assertion.
   await warm(true);
 
   const second = await pilot.issuePublicTicketClaim(

@@ -48,6 +48,59 @@ function ensureHistoryDirs(tmp: string): {
   return result;
 }
 
+function replaceHistoryRecordCanonically(
+  authority: any,
+  file: string,
+  content: string | Buffer,
+): void {
+  const bytes = Buffer.isBuffer(content)
+    ? content
+    : Buffer.from(content, "utf8");
+  const tmp = `${file}.proof-replace-${process.pid}-${Math.random()
+    .toString(16)
+    .slice(2)}`;
+  let fd: number | null = null;
+  try {
+    fd = fs.openSync(tmp, "wx", 0o600);
+    const written = fs.writeSync(
+      fd,
+      bytes,
+      0,
+      bytes.length,
+      null,
+    );
+    assert.equal(written, bytes.length);
+    fs.fdatasyncSync(fd);
+    fs.closeSync(fd);
+    fd = null;
+
+    authority.publishWcPublicClaimHistoryMutationForFileV1(
+      file,
+    );
+    fs.renameSync(tmp, file);
+
+    const dirFd = fs.openSync(path.dirname(file), "r");
+    try {
+      fs.fsyncSync(dirFd);
+    } finally {
+      fs.closeSync(dirFd);
+    }
+  } finally {
+    if (fd !== null) {
+      try {
+        fs.closeSync(fd);
+      } catch {}
+    }
+    try {
+      fs.unlinkSync(tmp);
+    } catch (error: any) {
+      if (String(error?.code || "") !== "ENOENT") {
+        throw error;
+      }
+    }
+  }
+}
+
 function hex(value: number, width: number): string {
   return value
     .toString(16)
@@ -161,17 +214,38 @@ async function main(): Promise<void> {
       "large history warm monopolized event loop",
     );
 
-    let decisionTimerTicks = 0;
-    const decisionTimer = setInterval(() => {
-      decisionTimerTicks += 1;
-    }, 1);
-    await authority.prepareWcPublicClaimHistoryDecisionV1(
-      tmp,
+    const decisionMetricsBefore =
+      authority.wcPublicClaimHistoryDecisionMetricsForProofV1(
+        tmp,
+      );
+    const concurrentDecisions = 32;
+    await Promise.all(
+      Array.from(
+        { length: concurrentDecisions },
+        () =>
+          authority.prepareWcPublicClaimHistoryDecisionV1(
+            tmp,
+          ),
+      ),
     );
-    clearInterval(decisionTimer);
-    assert.ok(
-      decisionTimerTicks > 0,
-      "decision generation revalidation monopolized event loop",
+    const decisionMetricsAfter =
+      authority.wcPublicClaimHistoryDecisionMetricsForProofV1(
+        tmp,
+      );
+    assert.equal(
+      decisionMetricsAfter.decision_checks_total -
+        decisionMetricsBefore.decision_checks_total,
+      concurrentDecisions,
+    );
+    assert.equal(
+      decisionMetricsAfter.mutation_generation_reads_total -
+        decisionMetricsBefore.mutation_generation_reads_total,
+      concurrentDecisions,
+    );
+    assert.equal(
+      decisionMetricsAfter.record_generation_stats_total -
+        decisionMetricsBefore.record_generation_stats_total,
+      0,
     );
 
     const snapshot =
@@ -499,24 +573,16 @@ async function main(): Promise<void> {
     assert.equal(snapshot.active_account, 1);
 
     const issuedDirBefore = dirStamp(d.issued);
-    const issuedGeneration =
-      authority.wcPublicClaimHistoryWatchGenerationForProofV1(
-        tmp,
-      );
-    fs.writeFileSync(
+    replaceHistoryRecordCanonically(
+      authority,
       issuedFile,
       ticketB,
-      { mode: 0o600 },
     );
     const issuedDirAfter = dirStamp(d.issued);
-    assert.deepEqual(
+    assert.notDeepEqual(
       issuedDirAfter,
       issuedDirBefore,
-      "in-place issued-record rewrite unexpectedly changed parent directory stamp",
-    );
-    await authority.waitForWcPublicClaimHistoryWatchAdvanceForProofV1(
-      tmp,
-      issuedGeneration,
+      "canonical issued-record replacement did not change parent directory stamp",
     );
     assert.throws(
       () =>
@@ -553,24 +619,16 @@ async function main(): Promise<void> {
     );
 
     const claimsDirBefore = dirStamp(d.claims);
-    const claimGeneration =
-      authority.wcPublicClaimHistoryWatchGenerationForProofV1(
-        tmp,
-      );
-    fs.writeFileSync(
+    replaceHistoryRecordCanonically(
+      authority,
       claimFile,
       claimTextB,
-      { mode: 0o600 },
     );
     const claimsDirAfter = dirStamp(d.claims);
-    assert.deepEqual(
+    assert.notDeepEqual(
       claimsDirAfter,
       claimsDirBefore,
-      "in-place claim rewrite unexpectedly changed parent directory stamp",
-    );
-    await authority.waitForWcPublicClaimHistoryWatchAdvanceForProofV1(
-      tmp,
-      claimGeneration,
+      "canonical claim replacement did not change parent directory stamp",
     );
     assert.throws(
       () =>
@@ -607,25 +665,17 @@ async function main(): Promise<void> {
       1,
     );
 
-    const malformedGeneration =
-      authority.wcPublicClaimHistoryWatchGenerationForProofV1(
-        tmp,
-      );
     const issuedDirBeforeMalformed =
       dirStamp(d.issued);
-    fs.writeFileSync(
+    replaceHistoryRecordCanonically(
+      authority,
       issuedFile,
       "{broken\n",
-      { mode: 0o600 },
     );
-    assert.deepEqual(
+    assert.notDeepEqual(
       dirStamp(d.issued),
       issuedDirBeforeMalformed,
-      "valid-to-malformed in-place rewrite unexpectedly changed parent directory stamp",
-    );
-    await authority.waitForWcPublicClaimHistoryWatchAdvanceForProofV1(
-      tmp,
-      malformedGeneration,
+      "valid-to-malformed canonical replacement did not change parent directory stamp",
     );
     assert.throws(
       () =>
@@ -1935,15 +1985,14 @@ async function main(): Promise<void> {
     }
   }
 
-  // Post-warm correctness must not depend on fs.watch delivery. Suppress
-  // every watcher after a valid warm, rewrite one authoritative record in
-  // place without changing its parent directory stamp, and require the next
-  // decision preparation to reject/rebuild rather than serve stale policy.
+  // Post-warm correctness must not depend on fs.watch delivery or a
+  // retained-history lstat pass on every decision. Warm seals projections
+  // read-only; canonical replacement advances one durable mutation token.
   {
     const tmp = fs.mkdtempSync(
       path.join(
         os.tmpdir(),
-        "void-public-claim-history-watch-independent-v1-",
+        "void-public-claim-history-bounded-generation-v1-",
       ),
     );
     configure(tmp);
@@ -1951,8 +2000,8 @@ async function main(): Promise<void> {
     const now = Date.now();
     const ticketId = "f".repeat(32);
     const executor = "6".repeat(32);
-    const accountA = "watch-account-a";
-    const accountB = "watch-account-b";
+    const accountA = "bounded-account-a";
+    const accountB = "bounded-account-b";
     const issuedFile = path.join(
       d.issued,
       `${ticketId}.json`,
@@ -1969,43 +2018,9 @@ async function main(): Promise<void> {
         status: "issued",
       }) + "\n";
 
-    const textA = recordText(accountA);
-    const textB = recordText(accountB);
-    assert.equal(
-      Buffer.byteLength(textA),
-      Buffer.byteLength(textB),
-      "watch-independent rewrite must preserve record length",
-    );
-
-    const rewriteInPlace = (bytes: Buffer) => {
-      const fd = fs.openSync(issuedFile, "r+");
-      try {
-        const prior = fs.fstatSync(
-          fd,
-          { bigint: true } as any,
-        );
-        assert.equal(
-          Number(prior.size),
-          bytes.length,
-          "watch-independent rewrite length drift",
-        );
-        const written = fs.writeSync(
-          fd,
-          bytes,
-          0,
-          bytes.length,
-          0,
-        );
-        assert.equal(written, bytes.length);
-        fs.fdatasyncSync(fd);
-      } finally {
-        fs.closeSync(fd);
-      }
-    };
-
     fs.writeFileSync(
       issuedFile,
-      textA,
+      recordText(accountA),
       { mode: 0o600 },
     );
 
@@ -2020,6 +2035,25 @@ async function main(): Promise<void> {
       tmp,
     );
 
+    const sealedMode =
+      fs.statSync(issuedFile).mode & 0o777;
+    assert.equal(
+      sealedMode & 0o222,
+      0,
+      "published history projection remained writable in place",
+    );
+    assert.throws(
+      () => {
+        const fd = fs.openSync(issuedFile, "r+");
+        fs.closeSync(fd);
+      },
+      (error: any) =>
+        ["EACCES", "EPERM"].includes(
+          String(error?.code || ""),
+        ),
+      "read-only projection still admitted ordinary in-place mutation",
+    );
+
     let snapshot =
       authority.wcPublicClaimHistorySnapshotV1(
         tmp,
@@ -2030,7 +2064,6 @@ async function main(): Promise<void> {
       );
     assert.equal(snapshot.active_account, 1);
 
-    const dirBefore = dirStamp(d.issued);
     const watchBefore =
       authority.wcPublicClaimHistoryWatchGenerationForProofV1(
         tmp,
@@ -2038,12 +2071,10 @@ async function main(): Promise<void> {
     authority.suppressWcPublicClaimHistoryWatchForProofV1(
       tmp,
     );
-    rewriteInPlace(Buffer.from(textB, "utf8"));
-    const dirAfter = dirStamp(d.issued);
-    assert.deepEqual(
-      dirAfter,
-      dirBefore,
-      "in-place rewrite unexpectedly changed parent directory stamp",
+    replaceHistoryRecordCanonically(
+      authority,
+      issuedFile,
+      recordText(accountB),
     );
     assert.equal(
       authority.wcPublicClaimHistoryWatchGenerationForProofV1(
@@ -2067,7 +2098,6 @@ async function main(): Promise<void> {
     await authority.prepareWcPublicClaimHistoryDecisionV1(
       tmp,
     );
-
     snapshot =
       authority.wcPublicClaimHistorySnapshotV1(
         tmp,
@@ -2077,25 +2107,24 @@ async function main(): Promise<void> {
         300_000,
       );
     assert.equal(snapshot.active_account, 0);
-    snapshot =
+    assert.equal(
       authority.wcPublicClaimHistorySnapshotV1(
         tmp,
         now,
         accountB,
         executor,
         300_000,
-      );
-    assert.equal(snapshot.active_account, 1);
+      ).active_account,
+      1,
+    );
 
-    // Repeat with a same-length valid -> invalid semantic rewrite. Even with
-    // no watcher callback, the decision gate must invalidate first; the
-    // rebuild must then fail closed on malformed authority.
+    // Canonical valid -> malformed replacement with watch delivery
+    // suppressed must likewise invalidate in O(1) and fail closed in the
+    // existing single-flight background rebuild.
     const validBytes = fs.readFileSync(issuedFile);
-    assert.equal(validBytes[0], 0x7b);
     const invalidBytes = Buffer.from(validBytes);
     invalidBytes[0] = 0x5b;
 
-    const dirBeforeInvalid = dirStamp(d.issued);
     const watchBeforeInvalid =
       authority.wcPublicClaimHistoryWatchGenerationForProofV1(
         tmp,
@@ -2103,10 +2132,10 @@ async function main(): Promise<void> {
     authority.suppressWcPublicClaimHistoryWatchForProofV1(
       tmp,
     );
-    rewriteInPlace(invalidBytes);
-    assert.deepEqual(
-      dirStamp(d.issued),
-      dirBeforeInvalid,
+    replaceHistoryRecordCanonically(
+      authority,
+      issuedFile,
+      invalidBytes,
     );
     assert.equal(
       authority.wcPublicClaimHistoryWatchGenerationForProofV1(
@@ -2114,7 +2143,6 @@ async function main(): Promise<void> {
       ),
       watchBeforeInvalid,
     );
-
     await assert.rejects(
       () =>
         authority.prepareWcPublicClaimHistoryDecisionV1(
@@ -2162,10 +2190,13 @@ async function main(): Promise<void> {
   console.log("claim_history_string_schema_exact=true");
   console.log("coercible_history_string_fields_rejected=true");
   console.log("fs_watch_advisory_only=true");
-  console.log("post_warm_record_generation_revalidated_before_decision=true");
-  console.log("missed_watch_in_place_rewrite_stale_cache=false");
+  console.log("history_record_projection_in_place_mutation_denied=true");
+  console.log("post_warm_mutation_generation_checked_before_decision=true");
+  console.log("missed_watch_canonical_mutation_stale_cache=false");
   console.log("missed_watch_valid_to_invalid_fails_closed=true");
-  console.log("decision_revalidation_yields_event_loop=true");
+  console.log("per_decision_retained_record_walk=false");
+  console.log("decision_mutation_generation_reads_per_request=1");
+  console.log("decision_record_generation_stats_per_request=0");
 }
 
 main().catch((error) => {
