@@ -184,6 +184,118 @@ async function main(): Promise<void> {
   assert.equal(verified.account, account);
   assert.equal(verified.executor_node_id, executorNodeId);
 
+  const canonicalClaimNow =
+    firstSigned.claim.claim_ts_ms;
+  const wrongTypedClaims: any[] = [
+    { ...firstSigned.claim, version: "1" },
+    { ...firstSigned.claim, version: true },
+    { ...firstSigned.claim, version: [1] },
+    {
+      ...firstSigned.claim,
+      claim_ts_ms: String(canonicalClaimNow),
+    },
+    {
+      ...firstSigned.claim,
+      claim_ts_ms: [canonicalClaimNow],
+    },
+    {
+      ...firstSigned.claim,
+      claim_ts_ms: canonicalClaimNow + 0.75,
+    },
+    {
+      ...firstSigned.claim,
+      claim_ts_ms: Number.MAX_SAFE_INTEGER + 1,
+    },
+    {
+      ...firstSigned.claim,
+      domain: [firstSigned.claim.domain],
+    },
+    {
+      ...firstSigned.claim,
+      marker: [firstSigned.claim.marker],
+    },
+    {
+      ...firstSigned.claim,
+      account: [firstSigned.claim.account],
+    },
+    {
+      ...firstSigned.claim,
+      executor_node_id: [
+        firstSigned.claim.executor_node_id,
+      ],
+    },
+    {
+      ...firstSigned.claim,
+      executor_pubkey: [
+        firstSigned.claim.executor_pubkey,
+      ],
+    },
+    {
+      ...firstSigned.claim,
+      claim_nonce: [
+        firstSigned.claim.claim_nonce,
+      ],
+    },
+    {
+      ...firstSigned.claim,
+      account: {
+        value: firstSigned.claim.account,
+      },
+    },
+  ];
+  for (const rawClaim of wrongTypedClaims) {
+    assert.throws(
+      () =>
+        pilot.verifyPublicTicketClaim(
+          rawClaim,
+          firstSigned.signature,
+          canonicalClaimNow,
+        ),
+      /invalid_claim_request_schema/,
+    );
+  }
+
+  const wrongTypedClaimSignatures: any[] = [
+    {
+      ...firstSigned.signature,
+      alg: [firstSigned.signature.alg],
+    },
+    {
+      ...firstSigned.signature,
+      key_id: [firstSigned.signature.key_id],
+    },
+    {
+      ...firstSigned.signature,
+      sig: [firstSigned.signature.sig],
+    },
+    {
+      ...firstSigned.signature,
+      alg: true,
+    },
+  ];
+  for (const rawSignature of wrongTypedClaimSignatures) {
+    assert.throws(
+      () =>
+        pilot.verifyPublicTicketClaim(
+          firstSigned.claim,
+          rawSignature,
+          canonicalClaimNow,
+        ),
+      /invalid_claim_signature_schema/,
+    );
+  }
+
+  assert.deepEqual(
+    fs.readdirSync(path.join(root, "issued")),
+    [],
+    "wrong-typed signed claims published issued ticket state",
+  );
+  assert.deepEqual(
+    fs.readdirSync(path.join(root, "public-claims")),
+    [],
+    "wrong-typed signed claims published claim journal state",
+  );
+
   assert.throws(
     () =>
       pilot.verifyPublicTicketClaim(
@@ -453,6 +565,8 @@ async function main(): Promise<void> {
   console.log("VOID_WC_PUBLIC_TICKET_CLAIM_V1_GREEN");
   console.log("bounded_history_authority=true");
   console.log("malformed_history_fail_closed=true");
+  console.log("signed_claim_raw_schema_exact=true");
+  console.log("signed_claim_signature_schema_exact=true");
   fs.rmSync(tmp, { recursive: true, force: true });
 }
 

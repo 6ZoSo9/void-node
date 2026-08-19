@@ -1260,6 +1260,73 @@ function parseToken(raw: string): {
   return { token, ticketId: match[1] };
 }
 
+const PUBLIC_TICKET_CLAIM_RAW_FIELDS_V1 = [
+  "account",
+  "claim_nonce",
+  "claim_ts_ms",
+  "domain",
+  "executor_node_id",
+  "executor_pubkey",
+  "marker",
+  "version",
+] as const;
+
+function assertExactPublicTicketClaimRawSchemaV1(
+  raw: unknown,
+): void {
+  if (
+    !isJsonObject(raw) ||
+    !hasExactKeys(
+      raw,
+      [...PUBLIC_TICKET_CLAIM_RAW_FIELDS_V1],
+    )
+  ) {
+    throw new Error("invalid_claim_request_schema");
+  }
+
+  for (const field of [
+    "domain",
+    "marker",
+    "account",
+    "executor_node_id",
+    "executor_pubkey",
+    "claim_nonce",
+  ] as const) {
+    if (typeof raw[field] !== "string") {
+      throw new Error("invalid_claim_request_schema");
+    }
+  }
+
+  if (
+    raw.domain !==
+      "void:mainnet-0:wc-public-ticket-claim-v1" ||
+    raw.marker !==
+      VOID_WC_PUBLIC_TICKET_CLAIM_MARKER ||
+    typeof raw.version !== "number" ||
+    raw.version !== 1 ||
+    typeof raw.claim_ts_ms !== "number" ||
+    !Number.isFinite(raw.claim_ts_ms) ||
+    !Number.isSafeInteger(raw.claim_ts_ms) ||
+    raw.claim_ts_ms <= 0
+  ) {
+    throw new Error("invalid_claim_request_schema");
+  }
+}
+
+function assertExactPublicTicketClaimSignatureSchemaV1(
+  raw: unknown,
+): void {
+  if (
+    !isJsonObject(raw) ||
+    !hasExactKeys(raw, ["alg", "key_id", "sig"]) ||
+    typeof raw.alg !== "string" ||
+    typeof raw.key_id !== "string" ||
+    typeof raw.sig !== "string"
+  ) {
+    throw new Error("invalid_claim_signature_schema");
+  }
+}
+
 export function publicTicketClaimSigningObject(
   raw: Partial<PublicTicketClaimRequest>,
 ): PublicTicketClaimRequest {
@@ -1349,12 +1416,12 @@ function verifyPublicTicketClaimSignatureV1(
   claimRaw: Partial<PublicTicketClaimRequest>,
   signatureRaw: JsonObject,
 ): PublicTicketClaimRequest {
-  if (!isJsonObject(signatureRaw)) {
-    throw new Error("invalid_claim_signature");
-  }
-  if (!hasExactKeys(signatureRaw, ["alg", "key_id", "sig"])) {
-    throw new Error("unexpected_claim_signature_field");
-  }
+  assertExactPublicTicketClaimRawSchemaV1(
+    claimRaw,
+  );
+  assertExactPublicTicketClaimSignatureSchemaV1(
+    signatureRaw,
+  );
 
   const claim = publicTicketClaimSigningObject(claimRaw);
   if (String(signatureRaw.alg || "") !== "ed25519") {
@@ -2543,6 +2610,93 @@ export async function issuePublicTicketClaim(
 }
 
 
+const PILOT_RESULT_RAW_FIELDS_V1 = [
+  "account",
+  "dataset_id",
+  "domain",
+  "executor_http_base",
+  "executor_node_id",
+  "executor_pubkey",
+  "expected_input_hash",
+  "fetched_input_hash",
+  "input_hash",
+  "job_id",
+  "marker",
+  "output_hash",
+  "receipt_id",
+  "receipt_ts_ms",
+  "task_class",
+  "ticket_id",
+  "transport_mode",
+  "version",
+] as const;
+
+function assertExactPilotResultRawSchemaV1(
+  raw: unknown,
+): void {
+  if (
+    !isJsonObject(raw) ||
+    !hasExactKeys(
+      raw,
+      [...PILOT_RESULT_RAW_FIELDS_V1],
+    )
+  ) {
+    throw new Error("invalid_result_envelope_schema");
+  }
+
+  for (const field of [
+    "account",
+    "dataset_id",
+    "domain",
+    "executor_http_base",
+    "executor_node_id",
+    "executor_pubkey",
+    "expected_input_hash",
+    "fetched_input_hash",
+    "input_hash",
+    "job_id",
+    "marker",
+    "output_hash",
+    "receipt_id",
+    "task_class",
+    "ticket_id",
+    "transport_mode",
+  ] as const) {
+    if (typeof raw[field] !== "string") {
+      throw new Error("invalid_result_envelope_schema");
+    }
+  }
+
+  if (
+    raw.domain !==
+      "void:mainnet-0:wc-public-earning-pilot-v1" ||
+    raw.marker !==
+      VOID_WC_PUBLIC_EARNING_PILOT_MARKER ||
+    typeof raw.version !== "number" ||
+    raw.version !== 1 ||
+    typeof raw.receipt_ts_ms !== "number" ||
+    !Number.isFinite(raw.receipt_ts_ms) ||
+    !Number.isSafeInteger(raw.receipt_ts_ms) ||
+    raw.receipt_ts_ms <= 0
+  ) {
+    throw new Error("invalid_result_envelope_schema");
+  }
+}
+
+function assertExactPilotResultSignatureSchemaV1(
+  raw: unknown,
+): void {
+  if (
+    !isJsonObject(raw) ||
+    !hasExactKeys(raw, ["alg", "key_id", "sig"]) ||
+    typeof raw.alg !== "string" ||
+    typeof raw.key_id !== "string" ||
+    typeof raw.sig !== "string"
+  ) {
+    throw new Error("invalid_result_signature_schema");
+  }
+}
+
 export function pilotResultSigningObject(
   raw: Partial<PilotResultEnvelope>,
 ): PilotResultEnvelope {
@@ -2637,6 +2791,10 @@ export function verifyPilotResultEnvelope(
   raw: Partial<PilotResultEnvelope>,
   signatureRaw: JsonObject,
 ): PilotResultEnvelope {
+  assertExactPilotResultRawSchemaV1(raw);
+  assertExactPilotResultSignatureSchemaV1(
+    signatureRaw,
+  );
   const envelope = pilotResultSigningObject(raw);
   if (String(signatureRaw?.alg || "") !== "ed25519") {
     throw new Error("signature_algorithm_not_allowed");

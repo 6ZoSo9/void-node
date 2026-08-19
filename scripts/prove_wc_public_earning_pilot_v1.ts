@@ -1391,4 +1391,110 @@ need(
   "public-work reference ceiling is not enforced during descriptor read",
 );
 
+const claimVerifierSchemaStart = moduleText.indexOf(
+  "function verifyPublicTicketClaimSignatureV1(",
+);
+const claimVerifierSchemaEnd = moduleText.indexOf(
+  "function assertPublicTicketClaimFreshV1(",
+  claimVerifierSchemaStart,
+);
+need(
+  claimVerifierSchemaStart >= 0 &&
+    claimVerifierSchemaEnd > claimVerifierSchemaStart,
+  "claim signature verifier block missing",
+);
+const claimVerifierSchemaBlock = moduleText.slice(
+  claimVerifierSchemaStart,
+  claimVerifierSchemaEnd,
+);
+const claimRawSchemaGate =
+  claimVerifierSchemaBlock.indexOf(
+    "assertExactPublicTicketClaimRawSchemaV1(",
+  );
+const claimSignatureSchemaGate =
+  claimVerifierSchemaBlock.indexOf(
+    "assertExactPublicTicketClaimSignatureSchemaV1(",
+  );
+const claimCanonicalize =
+  claimVerifierSchemaBlock.indexOf(
+    "const claim = publicTicketClaimSigningObject(claimRaw)",
+  );
+need(
+  claimRawSchemaGate >= 0 &&
+    claimSignatureSchemaGate > claimRawSchemaGate &&
+    claimCanonicalize > claimSignatureSchemaGate,
+  "signed claim raw/signature schema gates do not precede canonicalization",
+);
+need(
+  moduleText.includes(
+    'typeof raw.claim_ts_ms !== "number"',
+  ) &&
+    moduleText.includes(
+      "!Number.isSafeInteger(raw.claim_ts_ms)",
+    ) &&
+    moduleText.includes(
+      'typeof raw[field] !== "string"',
+    ) &&
+    moduleText.includes(
+      'throw new Error("invalid_claim_request_schema")',
+    ) &&
+    moduleText.includes(
+      'throw new Error("invalid_claim_signature_schema")',
+    ),
+  "signed claim exact raw JSON schema contract missing",
+);
+
+const resultVerifierSchemaStart = moduleText.indexOf(
+  "export function verifyPilotResultEnvelope(",
+);
+const resultVerifierSchemaEnd = moduleText.indexOf(
+  "async function cancelReadableBestEffortV1(",
+  resultVerifierSchemaStart,
+);
+need(
+  resultVerifierSchemaStart >= 0 &&
+    resultVerifierSchemaEnd >
+      resultVerifierSchemaStart,
+  "result signature verifier block missing",
+);
+const resultVerifierSchemaBlock = moduleText.slice(
+  resultVerifierSchemaStart,
+  resultVerifierSchemaEnd,
+);
+const resultRawSchemaGate =
+  resultVerifierSchemaBlock.indexOf(
+    "assertExactPilotResultRawSchemaV1(raw)",
+  );
+const resultSignatureSchemaGate =
+  resultVerifierSchemaBlock.indexOf(
+    "assertExactPilotResultSignatureSchemaV1(",
+  );
+const resultCanonicalize =
+  resultVerifierSchemaBlock.indexOf(
+    "const envelope = pilotResultSigningObject(raw)",
+  );
+need(
+  resultRawSchemaGate >= 0 &&
+    resultSignatureSchemaGate >
+      resultRawSchemaGate &&
+    resultCanonicalize >
+      resultSignatureSchemaGate,
+  "signed result raw/signature schema gates do not precede canonicalization",
+);
+need(
+  moduleText.includes(
+    'typeof raw.receipt_ts_ms !== "number"',
+  ) &&
+    moduleText.includes(
+      "!Number.isSafeInteger(raw.receipt_ts_ms)",
+    ) &&
+    moduleText.includes(
+      'throw new Error("invalid_result_envelope_schema")',
+    ) &&
+    moduleText.includes(
+      'throw new Error("invalid_result_signature_schema")',
+    ),
+  "signed result exact raw JSON schema contract missing",
+);
+
 console.log("VOID_WC_PUBLIC_EARNING_PILOT_V1_GREEN");

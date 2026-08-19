@@ -78,6 +78,176 @@ async function main(): Promise<void> {
   assert.equal(verified.dataset_id, envelope.dataset_id);
   assert.equal(verified.expected_input_hash, envelope.expected_input_hash);
 
+  const canonicalResult = signed.envelope;
+  const canonicalReceiptTs =
+    canonicalResult.receipt_ts_ms;
+  const wrongTypedResults: any[] = [
+    {
+      ...canonicalResult,
+      domain: [canonicalResult.domain],
+    },
+    {
+      ...canonicalResult,
+      domain: "wrong-domain",
+    },
+    {
+      ...canonicalResult,
+      marker: [canonicalResult.marker],
+    },
+    {
+      ...canonicalResult,
+      marker: "wrong-marker",
+    },
+    {
+      ...canonicalResult,
+      version: "1",
+    },
+    {
+      ...canonicalResult,
+      version: [1],
+    },
+    {
+      ...canonicalResult,
+      version: 2,
+    },
+    {
+      ...canonicalResult,
+      ticket_id: [canonicalResult.ticket_id],
+    },
+    {
+      ...canonicalResult,
+      account: [canonicalResult.account],
+    },
+    {
+      ...canonicalResult,
+      task_class: [canonicalResult.task_class],
+    },
+    {
+      ...canonicalResult,
+      executor_node_id: [
+        canonicalResult.executor_node_id,
+      ],
+    },
+    {
+      ...canonicalResult,
+      executor_pubkey: [
+        canonicalResult.executor_pubkey,
+      ],
+    },
+    {
+      ...canonicalResult,
+      executor_http_base: [
+        canonicalResult.executor_http_base,
+      ],
+    },
+    {
+      ...canonicalResult,
+      transport_mode: [
+        canonicalResult.transport_mode,
+      ],
+    },
+    {
+      ...canonicalResult,
+      dataset_id: [canonicalResult.dataset_id],
+    },
+    {
+      ...canonicalResult,
+      expected_input_hash: [
+        canonicalResult.expected_input_hash,
+      ],
+    },
+    {
+      ...canonicalResult,
+      job_id: [canonicalResult.job_id],
+    },
+    {
+      ...canonicalResult,
+      receipt_id: [canonicalResult.receipt_id],
+    },
+    {
+      ...canonicalResult,
+      input_hash: [canonicalResult.input_hash],
+    },
+    {
+      ...canonicalResult,
+      output_hash: [canonicalResult.output_hash],
+    },
+    {
+      ...canonicalResult,
+      fetched_input_hash: [
+        canonicalResult.fetched_input_hash,
+      ],
+    },
+    {
+      ...canonicalResult,
+      receipt_ts_ms: String(canonicalReceiptTs),
+    },
+    {
+      ...canonicalResult,
+      receipt_ts_ms: [canonicalReceiptTs],
+    },
+    {
+      ...canonicalResult,
+      receipt_ts_ms: canonicalReceiptTs + 0.75,
+    },
+    {
+      ...canonicalResult,
+      receipt_ts_ms: Number.MAX_SAFE_INTEGER + 1,
+    },
+  ];
+  for (const rawResult of wrongTypedResults) {
+    assert.throws(
+      () =>
+        pilot.verifyPilotResultEnvelope(
+          rawResult,
+          signed.signature,
+        ),
+      /invalid_result_envelope_schema/,
+    );
+  }
+
+  const wrongTypedResultSignatures: any[] = [
+    {
+      ...signed.signature,
+      alg: [signed.signature.alg],
+    },
+    {
+      ...signed.signature,
+      key_id: [signed.signature.key_id],
+    },
+    {
+      ...signed.signature,
+      sig: [signed.signature.sig],
+    },
+    {
+      ...signed.signature,
+      sig: { value: signed.signature.sig },
+    },
+  ];
+  for (const rawSignature of wrongTypedResultSignatures) {
+    assert.throws(
+      () =>
+        pilot.verifyPilotResultEnvelope(
+          canonicalResult,
+          rawSignature,
+        ),
+      /invalid_result_signature_schema/,
+    );
+  }
+
+  for (const file of [
+    path.join(tmp, "agent_v1", "receipts.jsonl"),
+    path.join(tmp, "agent", "jobs.jsonl"),
+    path.join(tmp, "agent_v1", "job_state.jsonl"),
+    path.join(tmp, "wc_v1", "ledger.jsonl"),
+  ]) {
+    assert.equal(
+      fs.existsSync(file),
+      false,
+      `wrong-typed signed result published ${file}`,
+    );
+  }
+
   const now = Date.now();
   const ticketRecord = {
     marker: "VOID_WC_PUBLIC_EARNING_PILOT_V1",
@@ -2733,6 +2903,12 @@ async function main(): Promise<void> {
   );
   console.log(
     "growing_public_work_reference_zero_import_credit=true",
+  );
+  console.log(
+    "signed_result_raw_schema_exact=true",
+  );
+  console.log(
+    "signed_result_signature_schema_exact=true",
   );
   console.log(
     "VOID_WC_PUBLIC_EARNING_PILOT_RUNTIME_V1_GREEN",
