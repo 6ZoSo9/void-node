@@ -725,6 +725,104 @@ assert.equal(recovered.readiness.onboarding_surface_complete, true);
 assert.equal(lateCleanupCalls, 1);
 assert.equal(lateFetchCalls, 7);
 
+const ISOLATED_BASE_URL = "http://127.0.0.1:4200";
+const originA = new URL(BASE_URL).origin;
+const originB = new URL(ISOLATED_BASE_URL).origin;
+let originAFetchCalls = 0;
+let originBFetchCalls = 0;
+let resolveOriginAFetch;
+let resolveOriginBFetch;
+const crossOriginSharedFetch = (input) => {
+  const url = input instanceof URL ? input : new URL(String(input));
+  const payload = PAYLOADS.get(url.pathname);
+  if (!payload) {
+    return Promise.resolve(
+      bindResponseUrl(new Response("{}", { status: 404 }), url.href),
+    );
+  }
+
+  if (url.origin === originA) {
+    originAFetchCalls += 1;
+    if (originAFetchCalls === 1) {
+      return new Promise((resolve) => {
+        resolveOriginAFetch = resolve;
+      });
+    }
+    return Promise.resolve(jsonResponse(payload, url.href));
+  }
+
+  if (url.origin === originB) {
+    originBFetchCalls += 1;
+    if (originBFetchCalls === 1) {
+      return new Promise((resolve) => {
+        resolveOriginBFetch = resolve;
+      });
+    }
+    return Promise.resolve(jsonResponse(payload, url.href));
+  }
+
+  throw new Error(`unexpected proof origin: ${url.origin}`);
+};
+
+await assert.rejects(
+  runVoidAiAgentBootstrapClientV1({
+    baseUrl: BASE_URL,
+    timeoutMs: 90,
+    maxBytes: 1024,
+    fetchImpl: crossOriginSharedFetch,
+  }),
+  /bootstrap_request_deadline_exceeded/,
+);
+assert.equal(originAFetchCalls, 1);
+await assert.rejects(
+  runVoidAiAgentBootstrapClientV1({
+    baseUrl: BASE_URL,
+    timeoutMs: 90,
+    maxBytes: 1024,
+    fetchImpl: crossOriginSharedFetch,
+  }),
+  /bootstrap_fetch_acquisition_quarantined/,
+);
+assert.equal(originAFetchCalls, 1);
+
+const originBRun = runVoidAiAgentBootstrapClientV1({
+  baseUrl: ISOLATED_BASE_URL,
+  timeoutMs: 1000,
+  maxBytes: 1024,
+  fetchImpl: crossOriginSharedFetch,
+});
+await sleep(20);
+assert.equal(originBFetchCalls, 1);
+
+resolveOriginAFetch(jsonResponse(WELL_KNOWN, `${originA}/.well-known/void-agent-discovery.json`));
+await sleep(20);
+await assert.rejects(
+  runVoidAiAgentBootstrapClientV1({
+    baseUrl: ISOLATED_BASE_URL,
+    timeoutMs: 90,
+    maxBytes: 1024,
+    fetchImpl: crossOriginSharedFetch,
+  }),
+  /bootstrap_fetch_acquisition_quarantined/,
+);
+assert.equal(originBFetchCalls, 1);
+
+resolveOriginBFetch(jsonResponse(WELL_KNOWN, `${originB}/.well-known/void-agent-discovery.json`));
+const crossOriginIsolatedBResult = await originBRun;
+assert.equal(crossOriginIsolatedBResult.readiness.read_only_connection_ready, true);
+assert.equal(crossOriginIsolatedBResult.readiness.onboarding_surface_complete, true);
+assert.equal(originBFetchCalls, 6);
+
+const crossOriginRecoveredA = await runVoidAiAgentBootstrapClientV1({
+  baseUrl: BASE_URL,
+  timeoutMs: 1000,
+  maxBytes: 1024,
+  fetchImpl: crossOriginSharedFetch,
+});
+assert.equal(crossOriginRecoveredA.readiness.read_only_connection_ready, true);
+assert.equal(crossOriginRecoveredA.readiness.onboarding_surface_complete, true);
+assert.equal(originAFetchCalls, 7);
+
 let stalledGenerationFetchCalls = 0;
 let stalledGenerationReadCalls = 0;
 let stalledGenerationOutstandingReads = 0;
@@ -947,6 +1045,8 @@ for (const result of [
   stalledIgnoringAbort.result,
   prelocked.result,
   recovered,
+  crossOriginIsolatedBResult,
+  crossOriginRecoveredA,
   stalledGenerationRecovered,
   lateNeverCancelRecovered,
 ]) {
@@ -981,6 +1081,9 @@ console.log("body_reader_acquisition_teardown_owned=true");
 console.log("fetch_acquisition_deadline_owned=true");
 console.log("unresolved_fetch_generation_quarantined=true");
 console.log("late_fetch_response_cleanup_owned=true");
+console.log("transport_quarantine_scoped_per_exact_origin=true");
+console.log("shared_fetch_healthy_origin_not_quarantined=true");
+console.log("late_origin_release_preserves_other_origin_lease=true");
 console.log("timed_out_body_generation_quarantined=true");
 console.log("max_outstanding_body_reads=1");
 console.log("body_generation_recovery=true");
