@@ -202,9 +202,6 @@ export function createDataNetRequestOwnerV1({
   const waitForPriorRelease = async (request, sourceSignal) => {
     if (!request || request.released) return;
     abortRequest(request, 'DataNet request superseded');
-    if (!request.response && !request.fetchSettled) {
-      return;
-    }
     await boundedSettlement(raceSignal(request.releasedPromise, sourceSignal));
     if (!request.released) {
       throw new Error('DataNet prior request generation is still settling');
