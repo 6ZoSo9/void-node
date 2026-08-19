@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import http from "node:http";
 import process from "node:process";
+import { performance } from "node:perf_hooks";
 import { pathToFileURL } from "node:url";
 import {
   DEFAULT_MAX_RESPONSE_BYTES,
@@ -204,6 +205,7 @@ export async function createPublicSeedClientAdapterV1({
 
     requestCount += 1;
     const failures = [];
+    const logicalDeadlineAtMs = performance.now() + timeoutMs;
     for (let offset = 0; offset < peers.length; offset += 1) {
       const index = (activeIndex + offset) % peers.length;
       const peer = peers[index];
@@ -213,6 +215,7 @@ export async function createPublicSeedClientAdapterV1({
           timeoutMs,
           maxBytes,
           allowLoopbackFixture,
+          logicalDeadlineAtMs,
         });
         if (index !== activeIndex) failoverCount += 1;
         activeIndex = index;
@@ -241,6 +244,7 @@ export async function createPublicSeedClientAdapterV1({
           nextPeer: peers[(index + 1) % peers.length].base,
           message: error?.message || String(error),
         });
+        if (error?.logicalSeedDeadline === true) break;
       }
     }
 
