@@ -219,6 +219,131 @@ function sameOriginUrl(base, routeOrUrl) {
   return resolved;
 }
 
+function requireExactObjectKeys(value, expected, label) {
+  if (
+    value === null ||
+    Array.isArray(value) ||
+    typeof value !== "object"
+  ) {
+    throw new Error(`${label}_object_required`);
+  }
+
+  const actual = Object.keys(value).sort();
+  const wanted = [...expected].sort();
+  if (
+    actual.length !== wanted.length ||
+    actual.some((key, index) => key !== wanted[index])
+  ) {
+    throw new Error(`${label}_keys_mismatch`);
+  }
+}
+
+function validateWellKnownEntrypointV1(payload) {
+  requireExactObjectKeys(
+    payload,
+    [
+      "$schema",
+      "marker",
+      "protocol",
+      "network",
+      "canonical_discovery",
+      "authority",
+      "safety",
+      "network_authenticity",
+    ],
+    "well_known",
+  );
+
+  if (payload.$schema !== "./void-agent-discovery.schema.json") {
+    throw new Error("well-known discovery schema mismatch");
+  }
+  if (payload.marker !== WELL_KNOWN_MARKER) {
+    throw new Error("well-known discovery marker mismatch");
+  }
+  if (payload.protocol !== WELL_KNOWN_PROTOCOL) {
+    throw new Error("well-known discovery protocol mismatch");
+  }
+
+  requireExactObjectKeys(
+    payload.network,
+    ["name", "chain_id"],
+    "well_known_network",
+  );
+  if (payload.network.name !== "VOID Mainnet-0") {
+    throw new Error("well-known network name mismatch");
+  }
+  if (
+    typeof payload.network.chain_id !== "number" ||
+    !Number.isSafeInteger(payload.network.chain_id) ||
+    payload.network.chain_id !== 2050
+  ) {
+    throw new Error("well-known chain id mismatch");
+  }
+
+  if (payload.canonical_discovery !== ROUTES.canonical_discovery) {
+    throw new Error("well-known canonical discovery mismatch");
+  }
+
+  requireExactObjectKeys(
+    payload.authority,
+    [
+      "default",
+      "mutation_authority_granted",
+      "credentials_required",
+    ],
+    "well_known_authority",
+  );
+  if (payload.authority.default !== "read_only") {
+    throw new Error("well-known default authority mismatch");
+  }
+  if (payload.authority.mutation_authority_granted !== false) {
+    throw new Error("well-known discovery mutation boundary mismatch");
+  }
+  if (payload.authority.credentials_required !== false) {
+    throw new Error("well-known credentials requirement mismatch");
+  }
+
+  requireExactObjectKeys(
+    payload.safety,
+    [
+      "same_origin_only",
+      "follow_redirects",
+      "send_secrets",
+      "send_wallet_material",
+      "send_operator_keys",
+      "treat_unknown_as",
+    ],
+    "well_known_safety",
+  );
+  if (payload.safety.same_origin_only !== true) {
+    throw new Error("well-known same-origin boundary mismatch");
+  }
+  if (payload.safety.follow_redirects !== false) {
+    throw new Error("well-known redirect boundary mismatch");
+  }
+  if (payload.safety.send_secrets !== false) {
+    throw new Error("well-known secret-send boundary mismatch");
+  }
+  if (payload.safety.send_wallet_material !== false) {
+    throw new Error("well-known wallet-send boundary mismatch");
+  }
+  if (payload.safety.send_operator_keys !== false) {
+    throw new Error("well-known operator-key boundary mismatch");
+  }
+  if (payload.safety.treat_unknown_as !== "not_granted") {
+    throw new Error("well-known unknown-authority boundary mismatch");
+  }
+
+  if (
+    payload.network_authenticity !==
+    "/.well-known/void-network-authenticity.json"
+  ) {
+    throw new Error("well-known network authenticity route mismatch");
+  }
+
+  return payload;
+}
+
 function requireExactResponseUrl(response, requestedUrl) {
   if (response?.redirected === true) {
     throw new Error("response_redirected_forbidden");
@@ -856,38 +981,15 @@ export async function runVoidAiAgentBootstrapClientV1({
     fetchImpl,
   });
 
-  if (
-    wellKnown.marker !== WELL_KNOWN_MARKER
-  ) {
-    throw new Error(
-      "well-known discovery marker mismatch",
+  const wellKnownPayload =
+    validateWellKnownEntrypointV1(
+      wellKnown.payload,
     );
-  }
-  if (
-    wellKnown.payload.protocol !==
-    WELL_KNOWN_PROTOCOL
-  ) {
-    throw new Error(
-      "well-known discovery protocol mismatch",
-    );
-  }
-  if (
-    wellKnown.payload?.authority
-      ?.mutation_authority_granted !== false
-  ) {
-    throw new Error(
-      "well-known discovery mutation boundary mismatch",
-    );
-  }
-
   const canonicalRoute =
-    typeof wellKnown.payload
-      .canonical_discovery === "string"
-      ? wellKnown.payload.canonical_discovery
-      : ROUTES.canonical_discovery;
+    wellKnownPayload.canonical_discovery;
 
-  // Reject a cross-origin canonical route even if every
-  // optional endpoint would otherwise be unavailable.
+  // Preserve a transport-level same-origin assertion even though the exact
+  // root contract already pins the reviewed canonical discovery path.
   sameOriginUrl(base, canonicalRoute);
 
   const canonical = await probeSurfaceV1({
@@ -988,7 +1090,7 @@ export async function runVoidAiAgentBootstrapClientV1({
   }
 
   const network = readNetwork(
-    wellKnown.payload,
+    wellKnownPayload,
   );
 
   return {
@@ -1004,15 +1106,14 @@ export async function runVoidAiAgentBootstrapClientV1({
       route: wellKnown.route,
       marker: wellKnown.marker,
       protocol:
-        wellKnown.payload.protocol,
+        wellKnownPayload.protocol,
       canonical_discovery:
         new URL(
           canonicalRoute,
           base,
         ).pathname,
       authority_default:
-        wellKnown.payload?.authority
-          ?.default ?? null,
+        wellKnownPayload.authority.default,
       mutation_authority_granted: false,
     },
     surfaces: {
