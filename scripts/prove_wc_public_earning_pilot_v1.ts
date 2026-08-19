@@ -844,6 +844,24 @@ need(
   "claim history record-generation manifest missing",
 );
 need(
+  /state\.issued_tickets\.delete\(\s*ticket\.ticket_id\s*\)/.test(
+    claimHistoryAuthorityText,
+  ),
+  "claim history does not let consumed truth dominate same-ticket issued residue",
+);
+need(
+  claimHistoryAuthorityText.includes(
+    "setWcPublicClaimHistoryBeforeRecordOpenHookForProofV1",
+  ) &&
+    claimHistoryAuthorityText.includes(
+      'String(error?.code || "") === "ENOENT"',
+    ) &&
+    claimHistoryAuthorityText.includes(
+      "`${label}_generation_changed`",
+    ),
+  "claim history readdir-to-open removal is not retried as generation churn",
+);
+need(
   claimHistoryAuthorityText.includes(
     "watch_generation: number",
   ),

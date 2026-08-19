@@ -1925,6 +1925,226 @@ async function main(): Promise<void> {
     });
   }
 
+  // A successful public submit may leave issued residue when best-effort
+  // cleanup fails. Consumed truth must dominate that residue in claim-history
+  // active accounting so the next claim is not blocked after cooldown.
+  {
+    const root = fs.mkdtempSync(
+      path.join(
+        os.tmpdir(),
+        "void-wc-consumed-issued-residue-real-submit-",
+      ),
+    );
+    process.env.DATA_DIR = root;
+    process.env.VOID_DATA_DIR = root;
+    process.env.VOID_WC_PUBLIC_EARNING_PILOT_ENABLED =
+      "1";
+    process.env.VOID_WC_PUBLIC_TICKET_CLAIM_ENABLED =
+      "1";
+    process.env.VOID_WC_PUBLIC_TICKET_CLAIM_DATASET_ID =
+      "ds_consumed_issued_residue";
+    process.env.VOID_WC_PUBLIC_TICKET_CLAIM_EXPECTED_INPUT_HASH =
+      "a".repeat(64);
+    process.env.VOID_WC_PUBLIC_TICKET_CLAIM_TTL_MS =
+      "300000";
+    process.env.VOID_WC_PUBLIC_TICKET_CLAIM_CLOCK_SKEW_MS =
+      "300000";
+    process.env.VOID_WC_PUBLIC_TICKET_CLAIM_COOLDOWN_MS =
+      "60000";
+    process.env.VOID_WC_PUBLIC_TICKET_CLAIM_MAX_PER_24H =
+      "10";
+    process.env.VOID_WC_PUBLIC_TICKET_CLAIM_GLOBAL_ACTIVE_CAP =
+      "10";
+    process.env.VOID_WC_PUBLIC_TICKET_CLAIM_GLOBAL_MAX_PER_24H =
+      "100";
+
+    claimAuthority.primeWcPublicClaimHistoryAuthorityV1(
+      root,
+    );
+    await claimAuthority.waitForWcPublicClaimHistoryWarmForProofV1(
+      root,
+    );
+
+    const account =
+      "consumed-issued-residue-real-account";
+    const t0 = Date.now();
+    const firstClaim = pilot.signPublicTicketClaim(
+      {
+        domain:
+          "void:mainnet-0:wc-public-ticket-claim-v1",
+        marker: "VOID_WC_PUBLIC_TICKET_CLAIM_V1",
+        version: 1,
+        account,
+        executor_node_id: executorNodeId,
+        executor_pubkey: pubPEM,
+        claim_nonce: "a".repeat(32),
+        claim_ts_ms: t0,
+      },
+      privateKey,
+    );
+    const first =
+      await pilot.issuePublicTicketClaim(
+        firstClaim,
+        root,
+        t0,
+      );
+    await claimAuthority.waitForWcPublicClaimHistoryWarmForProofV1(
+      root,
+    );
+
+    const submit = setupSubmitFromPublicClaim(
+      root,
+      first,
+      "consumed_issued_residue",
+    );
+    remoteIndex.resetWcPublicRemoteTruthJsonlIndexForProofV1();
+
+    const issuedPath = path.join(
+      root,
+      "wc_v1",
+      "public-earning-pilot-v1",
+      "issued",
+      `${first.ticket.ticket_id}.json`,
+    );
+    const consumedPath = path.join(
+      root,
+      "wc_v1",
+      "public-earning-pilot-v1",
+      "consumed",
+      `${first.ticket.ticket_id}.json`,
+    );
+    const resolvedIssuedPath = path.resolve(
+      issuedPath,
+    );
+    const originalUnlinkSync = fs.unlinkSync;
+    let cleanupFailureInjected = false;
+
+    (fs as any).unlinkSync = function (
+      target: any,
+    ): void {
+      if (
+        !cleanupFailureInjected &&
+        path.resolve(String(target)) ===
+          resolvedIssuedPath
+      ) {
+        cleanupFailureInjected = true;
+        const error: any = new Error(
+          "VOID_WC_PROOF_ISSUED_CLEANUP_FAILURE",
+        );
+        error.code = "EIO";
+        throw error;
+      }
+      return originalUnlinkSync(target);
+    };
+
+    const submitResponse = makeResponse();
+    try {
+      await pilot.submitRemoteResult(
+        submit.req,
+        submitResponse,
+      );
+    } finally {
+      (fs as any).unlinkSync =
+        originalUnlinkSync;
+    }
+
+    assert.equal(cleanupFailureInjected, true);
+    assert.equal(submitResponse.statusCode, 200);
+    assert.equal(submitResponse.payload.wc.delta, 3);
+    assert.equal(
+      submitResponse.payload.capability_consumed,
+      true,
+    );
+    assert.equal(fs.existsSync(consumedPath), true);
+    assert.equal(
+      fs.existsSync(issuedPath),
+      true,
+      "issued residue must remain for adversary",
+    );
+
+    // Model restart/full rebuild rather than relying on an in-memory watcher.
+    await claimAuthority.waitForWcPublicClaimHistoryWarmForProofV1(
+      root,
+    );
+    claimAuthority.resetWcPublicClaimHistoryAuthorityForProofV1(
+      root,
+    );
+    claimAuthority.primeWcPublicClaimHistoryAuthorityV1(
+      root,
+    );
+    await claimAuthority.waitForWcPublicClaimHistoryWarmForProofV1(
+      root,
+    );
+
+    const nextNow = t0 + 60_001;
+    const history =
+      claimAuthority.wcPublicClaimHistorySnapshotV1(
+        root,
+        nextNow,
+        account,
+        executorNodeId,
+        300_000,
+      );
+    assert.equal(history.consumed, 1);
+    assert.equal(history.active, 0);
+    assert.equal(history.active_account, 0);
+    assert.equal(history.active_executor, 0);
+
+    const secondClaim =
+      pilot.signPublicTicketClaim(
+        {
+          domain:
+            "void:mainnet-0:wc-public-ticket-claim-v1",
+          marker:
+            "VOID_WC_PUBLIC_TICKET_CLAIM_V1",
+          version: 1,
+          account,
+          executor_node_id: executorNodeId,
+          executor_pubkey: pubPEM,
+          claim_nonce: "b".repeat(32),
+          claim_ts_ms: nextNow,
+        },
+        privateKey,
+      );
+    const second =
+      await pilot.issuePublicTicketClaim(
+        secondClaim,
+        root,
+        nextNow,
+      );
+    assert.equal(second.ok, true);
+    assert.notEqual(
+      second.ticket.ticket_id,
+      first.ticket.ticket_id,
+    );
+
+    const ledgerRows = fs
+      .readFileSync(
+        path.join(
+          root,
+          "wc_v1",
+          "ledger.jsonl",
+        ),
+        "utf8",
+      )
+      .trim()
+      .split(/\r?\n/)
+      .filter(Boolean)
+      .map((line) => JSON.parse(line));
+    assert.equal(ledgerRows.length, 1);
+    assert.equal(ledgerRows[0].delta, 3);
+    assert.equal(
+      ledgerRows[0].reward_meta
+        .capability_ticket_id,
+      first.ticket.ticket_id,
+    );
+
+    fs.rmSync(root, {
+      recursive: true,
+      force: true,
+    });
+  }
+
   console.log(
     "public_claim_recovery_consumption_race=false",
   );
@@ -1936,6 +2156,9 @@ async function main(): Promise<void> {
   );
   console.log(
     "public_claim_recovery_cooldown_turnover_bypass=false",
+  );
+  console.log(
+    "consumed_ticket_cleanup_residue_active=false",
   );
   console.log(
     "VOID_WC_PUBLIC_EARNING_PILOT_RUNTIME_V1_GREEN",

@@ -759,6 +759,283 @@ async function main(): Promise<void> {
     });
   }
 
+  // Durable consumed truth dominates a stale same-ID issued projection.
+  // A distinct issued ticket must remain active as a positive control.
+  {
+    const tmp = fs.mkdtempSync(
+      path.join(
+        os.tmpdir(),
+        "void-public-claim-history-consumed-dominates-issued-v1-",
+      ),
+    );
+    configure(tmp);
+    const d = ensureHistoryDirs(tmp);
+    const now = Date.now();
+    const account = "consumed-dominates-issued-account";
+    const executor = "f".repeat(32);
+    const consumedTicketId = "1".repeat(32);
+    const otherIssuedTicketId = "2".repeat(32);
+
+    const ticketRecord = (
+      ticketId: string,
+      status: "issued" | "completed",
+    ) => ({
+      marker: "VOID_WC_PUBLIC_EARNING_PILOT_V1",
+      version: 1,
+      ticket_id: ticketId,
+      account,
+      executor_node_id: executor,
+      expires_at_ms: now + 300_000,
+      status,
+    });
+
+    fs.writeFileSync(
+      path.join(
+        d.issued,
+        `${consumedTicketId}.json`,
+      ),
+      JSON.stringify(
+        ticketRecord(consumedTicketId, "issued"),
+      ) + "\n",
+      { mode: 0o600 },
+    );
+    fs.writeFileSync(
+      path.join(
+        d.consumed,
+        `${consumedTicketId}.json`,
+      ),
+      JSON.stringify(
+        ticketRecord(consumedTicketId, "completed"),
+      ) + "\n",
+      { mode: 0o600 },
+    );
+    fs.writeFileSync(
+      path.join(
+        d.issued,
+        `${otherIssuedTicketId}.json`,
+      ),
+      JSON.stringify(
+        ticketRecord(otherIssuedTicketId, "issued"),
+      ) + "\n",
+      { mode: 0o600 },
+    );
+
+    authority.resetWcPublicClaimHistoryAuthorityForProofV1(
+      tmp,
+    );
+    authority.primeWcPublicClaimHistoryAuthorityV1(tmp);
+    await authority.waitForWcPublicClaimHistoryWarmForProofV1(
+      tmp,
+    );
+
+    let snapshot =
+      authority.wcPublicClaimHistorySnapshotV1(
+        tmp,
+        now,
+        account,
+        executor,
+        300_000,
+      );
+    assert.equal(snapshot.consumed, 1);
+    assert.equal(snapshot.active, 1);
+    assert.equal(snapshot.active_account, 1);
+    assert.equal(snapshot.active_executor, 1);
+
+    // Remove the unrelated active control. The stale issued residue for the
+    // consumed ticket remains on disk; a fresh restart-style warm must still
+    // report zero active capacity.
+    fs.unlinkSync(
+      path.join(
+        d.issued,
+        `${otherIssuedTicketId}.json`,
+      ),
+    );
+    authority.resetWcPublicClaimHistoryAuthorityForProofV1(
+      tmp,
+    );
+    authority.primeWcPublicClaimHistoryAuthorityV1(tmp);
+    await authority.waitForWcPublicClaimHistoryWarmForProofV1(
+      tmp,
+    );
+
+    snapshot =
+      authority.wcPublicClaimHistorySnapshotV1(
+        tmp,
+        now,
+        account,
+        executor,
+        300_000,
+      );
+    assert.equal(snapshot.consumed, 1);
+    assert.equal(snapshot.active, 0);
+    assert.equal(snapshot.active_account, 0);
+    assert.equal(snapshot.active_executor, 0);
+    assert.equal(
+      fs.existsSync(
+        path.join(
+          d.issued,
+          `${consumedTicketId}.json`,
+        ),
+      ),
+      true,
+      "proof must retain stale issued residue",
+    );
+
+    // Model the issued entry disappearing and reappearing after a restart:
+    // consumed authority must still dominate on the next full warm.
+    const residueFile = path.join(
+      d.issued,
+      `${consumedTicketId}.json`,
+    );
+    const residue = fs.readFileSync(
+      residueFile,
+      "utf8",
+    );
+    fs.unlinkSync(residueFile);
+    authority.resetWcPublicClaimHistoryAuthorityForProofV1(
+      tmp,
+    );
+    authority.primeWcPublicClaimHistoryAuthorityV1(tmp);
+    await authority.waitForWcPublicClaimHistoryWarmForProofV1(
+      tmp,
+    );
+    fs.writeFileSync(
+      residueFile,
+      residue,
+      { mode: 0o600 },
+    );
+    authority.resetWcPublicClaimHistoryAuthorityForProofV1(
+      tmp,
+    );
+    authority.primeWcPublicClaimHistoryAuthorityV1(tmp);
+    await authority.waitForWcPublicClaimHistoryWarmForProofV1(
+      tmp,
+    );
+
+    snapshot =
+      authority.wcPublicClaimHistorySnapshotV1(
+        tmp,
+        now,
+        account,
+        executor,
+        300_000,
+      );
+    assert.equal(snapshot.active, 0);
+    assert.equal(snapshot.active_account, 0);
+    assert.equal(snapshot.active_executor, 0);
+
+    fs.rmSync(tmp, {
+      recursive: true,
+      force: true,
+    });
+  }
+
+  // A normal consume transition can remove issued/<T> after readdir()
+  // but before the warm opens that pathname. That is generation churn, not
+  // malformed authority: retry the warm and converge to consumed truth.
+  {
+    const tmp = fs.mkdtempSync(
+      path.join(
+        os.tmpdir(),
+        "void-public-claim-history-remove-before-open-v1-",
+      ),
+    );
+    configure(tmp);
+    const d = ensureHistoryDirs(tmp);
+    const now = Date.now();
+    const ticketId = "3".repeat(32);
+    const account = "remove-before-open-account";
+    const executor = "4".repeat(32);
+    const issuedFile = path.join(
+      d.issued,
+      `${ticketId}.json`,
+    );
+    const consumedFile = path.join(
+      d.consumed,
+      `${ticketId}.json`,
+    );
+
+    const baseTicket = {
+      marker: "VOID_WC_PUBLIC_EARNING_PILOT_V1",
+      version: 1,
+      ticket_id: ticketId,
+      account,
+      executor_node_id: executor,
+      expires_at_ms: now + 300_000,
+    };
+
+    fs.writeFileSync(
+      issuedFile,
+      JSON.stringify({
+        ...baseTicket,
+        status: "issued",
+      }) + "\n",
+      { mode: 0o600 },
+    );
+
+    authority.resetWcPublicClaimHistoryAuthorityForProofV1(
+      tmp,
+    );
+
+    let injected = false;
+    authority.setWcPublicClaimHistoryBeforeRecordOpenHookForProofV1(
+      async (target: string, label: string) => {
+        if (
+          injected ||
+          target !== issuedFile ||
+          label !== "issued_ticket_history"
+        ) {
+          return;
+        }
+        injected = true;
+        fs.writeFileSync(
+          consumedFile,
+          JSON.stringify({
+            ...baseTicket,
+            status: "completed",
+            completed_at_ms: now,
+          }) + "\n",
+          { mode: 0o600 },
+        );
+        fs.unlinkSync(issuedFile);
+      },
+    );
+
+    try {
+      authority.primeWcPublicClaimHistoryAuthorityV1(
+        tmp,
+      );
+      await authority.waitForWcPublicClaimHistoryWarmForProofV1(
+        tmp,
+      );
+    } finally {
+      authority.setWcPublicClaimHistoryBeforeRecordOpenHookForProofV1(
+        null,
+      );
+    }
+
+    assert.equal(injected, true);
+    const snapshot =
+      authority.wcPublicClaimHistorySnapshotV1(
+        tmp,
+        now,
+        account,
+        executor,
+        300_000,
+      );
+    assert.equal(snapshot.consumed, 1);
+    assert.equal(snapshot.active, 0);
+    assert.equal(snapshot.active_account, 0);
+    assert.equal(snapshot.active_executor, 0);
+    assert.equal(fs.existsSync(issuedFile), false);
+    assert.equal(fs.existsSync(consumedFile), true);
+
+    fs.rmSync(tmp, {
+      recursive: true,
+      force: true,
+    });
+  }
+
   console.log(
     "VOID_WC_PUBLIC_CLAIM_HISTORY_AUTHORITY_V1_GREEN",
   );
@@ -773,6 +1050,8 @@ async function main(): Promise<void> {
   console.log("record_generation_bound=true");
   console.log("in_place_rewrite_invalidates_cache=true");
   console.log("stat_read_generation_toctou_closed=true");
+  console.log("consumed_ticket_dominates_issued_residue=true");
+  console.log("record_remove_before_open_retried=true");
 }
 
 main().catch((error) => {

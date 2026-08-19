@@ -92,6 +92,18 @@ const warmTasksV1 = new Map<string, Promise<void>>();
 const warmFailuresV1 = new Map<string, WarmFailureV1>();
 const watchStatesV1 = new Map<string, HistoryWatchStateV1>();
 
+export type WcPublicClaimHistoryBeforeRecordOpenHookForProofV1 =
+  ((file: string, label: string) => void | Promise<void>) | null;
+
+let beforeRecordOpenHookForProofV1:
+  WcPublicClaimHistoryBeforeRecordOpenHookForProofV1 = null;
+
+export function setWcPublicClaimHistoryBeforeRecordOpenHookForProofV1(
+  hook: WcPublicClaimHistoryBeforeRecordOpenHookForProofV1,
+): void {
+  beforeRecordOpenHookForProofV1 = hook;
+}
+
 export type WcPublicClaimHistoryBeforeRecordReadHookForProofV1 =
   ((file: string, label: string) => void | Promise<void>) | null;
 
@@ -403,7 +415,27 @@ async function readJsonStrictV1(
   const flags =
     fs.constants.O_RDONLY |
     Number(fs.constants.O_NOFOLLOW || 0);
-  const handle = await fsp.open(file, flags);
+
+  await beforeRecordOpenHookForProofV1?.(
+    file,
+    label,
+  );
+
+  let handle: Awaited<ReturnType<typeof fsp.open>>;
+  try {
+    handle = await fsp.open(file, flags);
+  } catch (error: any) {
+    if (String(error?.code || "") === "ENOENT") {
+      // The directory snapshot raced a normal remove/consume transition.
+      // Treat this as generation churn so rebuildHistoryV1 retries from a
+      // fresh directory generation instead of poisoning the authority.
+      throw new Error(
+        `${label}_generation_changed`,
+      );
+    }
+    throw error;
+  }
+
   try {
     const before: any = await handle.stat(
       { bigint: true } as any,
@@ -656,6 +688,12 @@ async function scanHistoryV1(
     state.record_generations.set(file, stamp);
     const ticket = validateTicketV1(record, entry.name);
     state.scanned_files += 1;
+
+    // Consumed truth is terminal for single-use authority. If best-effort
+    // cleanup left the same ticket under issued/, that residue must not
+    // consume active global/account/executor claim capacity.
+    state.issued_tickets.delete(ticket.ticket_id);
+
     state.consumed += 1;
     incMapV1(
       state.consumed_account_counts,
