@@ -34,7 +34,15 @@ node tools/public-node-operator-self-check-receipt-review-v1.mjs \
   --output ./void-public-node-operator-self-check-receipt-review-v1.json
 ```
 
-The output review is written with file mode `0600`.
+The receipt input is opened without following symbolic links and is read through
+the opened file descriptor under the 4 MiB ceiling. The reviewer rejects a
+receipt whose generation changes, truncates, or grows during the bounded read.
+
+The optional output is **create-only**: its parent directory must already exist
+and no component of the output path may be a symbolic link. The reviewer never
+overwrites an existing output file. A successful output is written through its
+new file descriptor, fsynced, and fixed to mode `0600`; the containing directory
+is then fsynced before the command reports success.
 
 ## Validation
 
@@ -52,6 +60,8 @@ The reviewer verifies:
 10. Green runtime truth (`ready`, gap, txroot, peers)
 11. Exact GET-only safety boundary
 12. Absence of embedded absolute URLs, secrets, credentials, or raw bodies
+13. Descriptor-bound, no-symlink receipt input under the 4 MiB ceiling
+14. Create-only, no-symlink mode-`0600` review output
 
 The receipt SHA-256 is recorded in the review. The raw receipt path and body are
 not copied into the review.
@@ -89,6 +99,11 @@ The fixture proof covers:
 - summary-count tampering rejection
 - invalid JSON rejection
 - mode-0600 review output
+
+The focused operator transport proof additionally exercises fresh output,
+pre-existing output preservation, symbolic-link input/output rejection,
+missing-parent rejection, and oversized receipt rejection through the real
+offline reviewer CLI.
 
 ## Authority boundary
 
