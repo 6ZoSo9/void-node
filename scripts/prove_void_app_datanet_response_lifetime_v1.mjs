@@ -59,6 +59,90 @@ const finiteResponse = () => ({
   body: finiteBody(),
 });
 
+// A signal-ignoring fetch acquisition must remain generation-owned after caller
+// timeout. Repeated Refresh-equivalent attempts may HOLD, but cannot start a
+// replacement fetch until the exact unresolved acquisition settles and any late
+// response body has been cleaned up.
+{
+  let fetchCalls = 0;
+  let outstandingFetches = 0;
+  let maxOutstandingFetches = 0;
+  let lateCancelCalls = 0;
+  const stalledFetch = deferred();
+
+  const lateResponse = {
+    ok: true,
+    status: 200,
+    redirected: false,
+    url: URL,
+    headers: headers(null),
+    body: {
+      cancel() {
+        lateCancelCalls += 1;
+        return Promise.resolve();
+      },
+    },
+  };
+
+  const owner = createDataNetRequestOwnerV1({
+    origin: 'https://void.example',
+    fetchImpl: () => {
+      fetchCalls += 1;
+      outstandingFetches += 1;
+      maxOutstandingFetches = Math.max(maxOutstandingFetches, outstandingFetches);
+      const operation = fetchCalls === 1
+        ? stalledFetch.promise
+        : Promise.resolve(finiteResponse());
+      return operation.finally(() => { outstandingFetches -= 1; });
+    },
+  });
+
+  const deadline = new AbortController();
+  const started = Date.now();
+  const first = fetchDataNetStatusV1({
+    origin: 'https://void.example',
+    fetchImpl: owner.fetch,
+    signal: deadline.signal,
+  });
+  setTimeout(() => deadline.abort(new Error('synthetic fetch acquisition deadline')), 25);
+  await assert.rejects(first, /synthetic fetch acquisition deadline/);
+  assert.ok(Date.now() - started < 1000, 'fetch acquisition must reject under caller deadline');
+  assert.equal(owner.hasQuarantinedGeneration(), true);
+  assert.equal(fetchCalls, 1);
+  assert.equal(outstandingFetches, 1);
+  assert.equal(maxOutstandingFetches, 1);
+
+  for (let retry = 0; retry < 2; retry += 1) {
+    const retryStarted = Date.now();
+    await assert.rejects(
+      () => fetchDataNetStatusV1({
+        origin: 'https://void.example',
+        fetchImpl: owner.fetch,
+      }),
+      /prior request generation is still settling/,
+    );
+    const elapsed = Date.now() - retryStarted;
+    assert.ok(elapsed >= 200 && elapsed < 1000, 'unresolved fetch retry HOLD must remain bounded');
+    assert.equal(fetchCalls, 1, 'unresolved acquisition must block replacement fetches');
+    assert.equal(outstandingFetches, 1);
+    assert.equal(maxOutstandingFetches, 1);
+  }
+
+  stalledFetch.resolve(lateResponse);
+  await new Promise((resolve) => setTimeout(resolve, 20));
+  assert.equal(lateCancelCalls, 1, 'late response must receive exactly one cleanup attempt');
+  assert.equal(outstandingFetches, 0);
+  assert.equal(owner.hasActiveRequest(), false, 'late response cleanup must release acquisition ownership');
+
+  const recovered = await fetchDataNetStatusV1({
+    origin: 'https://void.example',
+    fetchImpl: owner.fetch,
+  });
+  assert.equal(recovered.status, 'green');
+  assert.equal(fetchCalls, 2, 'clean recovery may start exactly one new fetch generation');
+  assert.equal(maxOutstandingFetches, 1);
+}
+
 // A signal-ignoring admitted read must not outlive the caller-visible deadline,
 // and repeated Refresh-equivalent attempts must not create replacement body generations.
 {
@@ -268,6 +352,8 @@ const finiteResponse = () => ({
 }
 
 console.log('VOID_APP_DATANET_RESPONSE_LIFETIME_V1_GREEN');
+console.log('fetch_acquisition_generation_bound=true');
+console.log('max_outstanding_fetches=1');
 console.log('admitted_body_read_deadline_bound=true');
 console.log('max_outstanding_body_reads=1');
 console.log('unresolved_cleanup_generation_quarantined=true');
