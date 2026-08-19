@@ -299,16 +299,46 @@ try {
   const dnsResults = await Promise.allSettled([dnsRequestOne, dnsRequestTwo]);
   const dnsElapsedMs = performance.now() - dnsStartedAt;
   assert(
-    dnsResults.every(
-      (result) => result.status === "rejected" && result.reason?.logicalSeedDeadline === true,
-    ),
-    "stalled DNS generation did not terminate both logical requests at their deadlines",
+    dnsResults[0].status === "rejected" && dnsResults[0].reason?.logicalSeedDeadline === true,
+    `stalled DNS owner did not terminate at its logical deadline: ${dnsResults[0].status === "rejected" ? dnsResults[0].reason?.message : "fulfilled"}`,
+  );
+  assert(
+    dnsResults[1].status === "rejected" &&
+      dnsResults[1].reason?.resolverFlightQuarantined === true,
+    `concurrent stalled DNS retry was not quarantined: ${dnsResults[1].status === "rejected" ? dnsResults[1].reason?.message : "fulfilled"}`,
   );
   assert(resolverCalls === 1, `stalled DNS retries spawned ${resolverCalls} resolver generations`);
   assert(
     dnsElapsedMs < DEADLINE_MS + DEADLINE_MARGIN_MS,
     `stalled DNS generation escaped logical deadline: ${dnsElapsedMs.toFixed(1)} ms`,
   );
+
+  const quarantineStartedAt = performance.now();
+  for (let attempt = 0; attempt < 64; attempt += 1) {
+    let retryError = null;
+    try {
+      await requestPublicSeedRouteV1(dnsPeer, "/__void/ready.json", {
+        ...options,
+        resolvePublicDnsImpl: resolver,
+      });
+    } catch (error) {
+      retryError = error;
+    }
+    assert(
+      retryError?.resolverFlightQuarantined === true,
+      `stalled DNS retry ${attempt + 1} attached a new waiter instead of quarantining`,
+    );
+  }
+  const quarantineElapsedMs = performance.now() - quarantineStartedAt;
+  assert(
+    resolverCalls === 1,
+    `quarantined stalled DNS retries spawned ${resolverCalls} resolver generations`,
+  );
+  assert(
+    quarantineElapsedMs < DEADLINE_MS,
+    `quarantined stalled DNS retries waited on the unresolved generation: ${quarantineElapsedMs.toFixed(1)} ms`,
+  );
+
   resolverMode = "healthy";
   rejectStalledResolver(new Error("late fixture DNS rejection"));
   await delay(20);
