@@ -376,6 +376,94 @@ async function runFinalUrlCase(mode) {
   };
 }
 
+async function runStatusMetadataCase(mode) {
+  let readerAcquisitions = 0;
+  let bodyCancelCalls = 0;
+
+  const fetchImpl = async (input) => {
+    const requested = input instanceof URL ? input : new URL(String(input));
+    const payload = PAYLOADS.get(requested.pathname);
+    if (!payload) {
+      return bindResponseUrl(
+        new Response("{}", { status: 404 }),
+        requested.href,
+      );
+    }
+
+    if (requested.pathname !== "/.well-known/void-agent-capabilities.json") {
+      return jsonResponse(payload, requested.href);
+    }
+
+    const response = {
+      status: 200,
+      ok: true,
+      url: requested.href,
+      redirected: false,
+      headers: new Headers({
+        "content-type": "application/json",
+      }),
+      body: {
+        getReader() {
+          readerAcquisitions += 1;
+          throw new Error("status rejection must precede body admission");
+        },
+        cancel() {
+          bodyCancelCalls += 1;
+          return Promise.resolve();
+        },
+      },
+    };
+
+    if (mode === "status_500_ok_true") response.status = 500;
+    if (mode === "status_string_200") response.status = "200";
+    if (mode === "status_200_ok_false") response.ok = false;
+    if (mode === "status_500_ok_false") {
+      response.status = 500;
+      response.ok = false;
+    }
+    if (mode === "status_99_ok_false") {
+      response.status = 99;
+      response.ok = false;
+    }
+    if (mode === "status_600_ok_false") {
+      response.status = 600;
+      response.ok = false;
+    }
+    if (mode === "ok_string_true") response.ok = "true";
+    if (mode === "throw_status") {
+      Object.defineProperty(response, "status", {
+        configurable: true,
+        get() {
+          throw new Error("hostile status getter");
+        },
+      });
+    }
+    if (mode === "throw_ok") {
+      Object.defineProperty(response, "ok", {
+        configurable: true,
+        get() {
+          throw new Error("hostile ok getter");
+        },
+      });
+    }
+
+    return response;
+  };
+
+  const result = await runVoidAiAgentBootstrapClientV1({
+    baseUrl: BASE_URL,
+    timeoutMs: 1000,
+    maxBytes: 1024,
+    fetchImpl,
+  });
+
+  return {
+    result,
+    readerAcquisitions,
+    bodyCancelCalls,
+  };
+}
+
 const parsedMinimumBounds = parseBootstrapClientArgsV1([
   "--base-url",
   BASE_URL,
@@ -566,6 +654,24 @@ for (const [mode, expectedError] of [
   assert.equal(provenance.result.surfaces.capabilities.error, expectedError);
   assert.equal(provenance.readerAcquisitions, 0);
   assert.equal(provenance.bodyCancelCalls, 1);
+}
+
+for (const [mode, expectedError] of [
+  ["status_500_ok_true", "response_ok_status_mismatch"],
+  ["status_string_200", "response_status_invalid"],
+  ["status_200_ok_false", "response_ok_status_mismatch"],
+  ["status_500_ok_false", "http_status:500"],
+  ["status_99_ok_false", "response_status_invalid"],
+  ["status_600_ok_false", "response_status_invalid"],
+  ["ok_string_true", "response_ok_invalid"],
+  ["throw_status", "response_status_metadata_unavailable"],
+  ["throw_ok", "response_status_metadata_unavailable"],
+]) {
+  const statusCase = await runStatusMetadataCase(mode);
+  assert.equal(statusCase.result.surfaces.capabilities.available, false);
+  assert.equal(statusCase.result.surfaces.capabilities.error, expectedError);
+  assert.equal(statusCase.readerAcquisitions, 0);
+  assert.equal(statusCase.bodyCancelCalls, 1);
 }
 
 const redirect = await runMode("redirect_cancel_never");
@@ -1080,6 +1186,10 @@ console.log("minimum_and_maximum_bounds_accepted=true");
 console.log("exact_final_url_provenance_required=true");
 console.log("followed_redirect_report_rejected=true");
 console.log("provenance_rejected_before_body_admission=true");
+console.log("response_status_schema_exact=true");
+console.log("response_ok_status_consistency=true");
+console.log("response_status_rejected_before_body_admission=true");
+console.log("response_status_rejection_teardown_owned=true");
 console.log("redirect_rejection_teardown_bounded=true");
 console.log("declared_oversize_prebuffer_rejected=true");
 console.log("streamed_oversize_prebuffer_rejected=true");

@@ -367,6 +367,34 @@ function requireExactResponseUrl(response, requestedUrl) {
   }
 }
 
+function readExactResponseStatus(response) {
+  let status;
+  let ok;
+  try {
+    status = response?.status;
+    ok = response?.ok;
+  } catch {
+    throw new Error("response_status_metadata_unavailable");
+  }
+
+  if (
+    typeof status !== "number" ||
+    !Number.isSafeInteger(status) ||
+    status < 100 ||
+    status > 599
+  ) {
+    throw new Error("response_status_invalid");
+  }
+  if (typeof ok !== "boolean") {
+    throw new Error("response_ok_invalid");
+  }
+  if (ok !== (status >= 200 && status < 300)) {
+    throw new Error("response_ok_status_mismatch");
+  }
+
+  return status;
+}
+
 function publicMarker(value) {
   const marker = value?.marker;
   return (
@@ -818,13 +846,34 @@ async function fetchJsonV1({
       throw error;
     }
 
-    if (
-      response.status >= 300 &&
-      response.status < 400
-    ) {
-      const primary = new Error(
-        `redirect_forbidden:${response.status}`,
+    let status;
+    try {
+      status = readExactResponseStatus(response);
+    } catch (error) {
+      await rejectResponseBodyBounded(
+        response,
+        null,
+        controller,
+        transportLease,
       );
+      throw error;
+    }
+
+    if (status >= 300 && status < 400) {
+      const primary = new Error(
+        `redirect_forbidden:${status}`,
+      );
+      await rejectResponseBodyBounded(
+        response,
+        null,
+        controller,
+        transportLease,
+      );
+      throw primary;
+    }
+
+    if (status < 200 || status >= 300) {
+      const primary = new Error(`http_status:${status}`);
       await rejectResponseBodyBounded(
         response,
         null,
@@ -840,12 +889,6 @@ async function fetchJsonV1({
       controller,
       transportLease,
     );
-
-    if (!response.ok) {
-      throw new Error(
-        `http_status:${response.status}`,
-      );
-    }
 
     let payload;
     try {
@@ -865,7 +908,7 @@ async function fetchJsonV1({
     return {
       ok: true,
       route: url.pathname,
-      status: response.status,
+      status,
       bytes: Buffer.byteLength(raw, "utf8"),
       marker: publicMarker(payload),
       payload,
