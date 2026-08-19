@@ -3,6 +3,7 @@ import express from "express";
 import fs from "node:fs";
 import fsp from "node:fs/promises";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { nodeIdFromPubPEM } from "../chain/block.js";
 import { loadKeypair } from "../crypto/keypair.js";
 import {
@@ -412,6 +413,257 @@ function ticketFile(dir: string, ticketId: string): string {
 
 function sha256Hex(value: string | Buffer): string {
   return crypto.createHash("sha256").update(value).digest("hex");
+}
+
+export const VOID_WC_PUBLIC_WORK_POSSESSION_DOMAIN_V1 =
+  "VOID_WC_PUBLIC_DATASET_POSSESSION_HMAC_V1";
+const VOID_WC_PUBLIC_WORK_REFERENCE_MAX_BYTES_V1 =
+  16 * 1024 * 1024;
+
+type PublicWorkReferenceStampV1 = {
+  dev: string;
+  ino: string;
+  size: string;
+  mtime_ns: string;
+  ctime_ns: string;
+};
+
+function publicWorkReferenceStampV1(
+  stat: any,
+): PublicWorkReferenceStampV1 {
+  return {
+    dev: String(stat.dev),
+    ino: String(stat.ino),
+    size: String(stat.size),
+    mtime_ns: String(stat.mtimeNs),
+    ctime_ns: String(stat.ctimeNs),
+  };
+}
+
+function samePublicWorkReferenceStampV1(
+  a: PublicWorkReferenceStampV1,
+  b: PublicWorkReferenceStampV1,
+): boolean {
+  return (
+    a.dev === b.dev &&
+    a.ino === b.ino &&
+    a.size === b.size &&
+    a.mtime_ns === b.mtime_ns &&
+    a.ctime_ns === b.ctime_ns
+  );
+}
+
+function publicWorkReferenceFileV1(
+  record: PilotTicketRecord,
+): string {
+  const configured = String(
+    process.env.VOID_WC_PUBLIC_TICKET_CLAIM_DATASET_FILE ||
+      "",
+  ).trim();
+  if (configured) return path.resolve(configured);
+
+  const datasetId = safeId(record.dataset_id, 160);
+  if (!datasetId) {
+    throw new Error("public_work_reference_unavailable");
+  }
+
+  const moduleDir = path.dirname(
+    fileURLToPath(import.meta.url),
+  );
+  const repoRoot = path.resolve(
+    moduleDir,
+    "..",
+    "..",
+  );
+  return path.join(
+    repoRoot,
+    "fixtures",
+    "public-earning",
+    `${datasetId}.json`,
+  );
+}
+
+async function readPublicWorkReferenceBytesV1(
+  record: PilotTicketRecord,
+): Promise<Buffer> {
+  const file = publicWorkReferenceFileV1(record);
+  const flags =
+    fs.constants.O_RDONLY |
+    Number(fs.constants.O_NOFOLLOW || 0);
+
+  let handle: Awaited<ReturnType<typeof fsp.open>>;
+  try {
+    handle = await fsp.open(file, flags);
+  } catch (error) {
+    void error;
+    throw new Error("public_work_reference_unavailable");
+  }
+
+  try {
+    const beforeStat: any = await handle.stat(
+      { bigint: true } as any,
+    );
+    if (!beforeStat.isFile()) {
+      throw new Error("public_work_reference_unavailable");
+    }
+    const before =
+      publicWorkReferenceStampV1(beforeStat);
+    const size = Number(beforeStat.size);
+    if (
+      !Number.isSafeInteger(size) ||
+      size <= 0 ||
+      size > VOID_WC_PUBLIC_WORK_REFERENCE_MAX_BYTES_V1
+    ) {
+      throw new Error("public_work_reference_unavailable");
+    }
+
+    const bytes = await handle.readFile();
+    if (bytes.length !== size) {
+      throw new Error("public_work_reference_unstable");
+    }
+
+    const afterStat: any = await handle.stat(
+      { bigint: true } as any,
+    );
+    const after =
+      publicWorkReferenceStampV1(afterStat);
+    if (
+      !afterStat.isFile() ||
+      !samePublicWorkReferenceStampV1(
+        before,
+        after,
+      )
+    ) {
+      throw new Error("public_work_reference_unstable");
+    }
+
+    let pathAfter: PublicWorkReferenceStampV1;
+    try {
+      const pathStat: any = await fsp.lstat(
+        file,
+        { bigint: true } as any,
+      );
+      if (!pathStat.isFile()) {
+        throw new Error("public_work_reference_unavailable");
+      }
+      pathAfter =
+        publicWorkReferenceStampV1(pathStat);
+    } catch (error: any) {
+      if (
+        String(error?.message || "") ===
+        "public_work_reference_unavailable"
+      ) {
+        throw error;
+      }
+      throw new Error("public_work_reference_unavailable");
+    }
+
+    if (
+      !samePublicWorkReferenceStampV1(
+        after,
+        pathAfter,
+      )
+    ) {
+      throw new Error("public_work_reference_unstable");
+    }
+
+    if (
+      !safeHexEqual(
+        sha256Hex(bytes),
+        String(record.expected_input_hash || ""),
+      )
+    ) {
+      throw new Error("public_work_reference_hash_mismatch");
+    }
+
+    return bytes;
+  } finally {
+    await handle.close();
+  }
+}
+
+export function publicWorkPossessionProofV1(
+  capabilityToken: string,
+  ticketId: string,
+  bytes: string | Buffer,
+): string {
+  const token = String(capabilityToken || "");
+  const ticket = String(ticketId || "");
+  if (!token || !/^[0-9a-f]{32}$/.test(ticket)) {
+    throw new Error("useful_work_possession_invalid");
+  }
+
+  return crypto
+    .createHmac(
+      "sha256",
+      Buffer.from(token, "utf8"),
+    )
+    .update(
+      VOID_WC_PUBLIC_WORK_POSSESSION_DOMAIN_V1,
+      "utf8",
+    )
+    .update(Buffer.from([0]))
+    .update(ticket, "utf8")
+    .update(Buffer.from([0]))
+    .update(
+      Buffer.isBuffer(bytes)
+        ? bytes
+        : Buffer.from(String(bytes), "utf8"),
+    )
+    .digest("hex");
+}
+
+async function verifyIndependentPublicWorkV1(
+  record: PilotTicketRecord,
+  envelope: PilotResultEnvelope,
+  evidence: {
+    transportMode: PilotTransportMode;
+  },
+  capabilityToken: string,
+): Promise<{
+  required: boolean;
+  verified: boolean;
+  mode: string;
+  reference_bytes: number;
+}> {
+  // Public claims are the untrusted participant-facing earning surface.
+  // Operator-issued pilot tickets keep their existing evidence contract.
+  if (record.issuance_source !== "public_claim") {
+    return {
+      required: false,
+      verified: false,
+      mode: "not_required_for_non_public_claim",
+      reference_bytes: 0,
+    };
+  }
+
+  if (
+    evidence.transportMode !== "outbound_bundle" ||
+    envelope.transport_mode !== "outbound_bundle"
+  ) {
+    throw new Error("useful_work_transport_invalid");
+  }
+
+  const referenceBytes =
+    await readPublicWorkReferenceBytesV1(record);
+  const expected =
+    publicWorkPossessionProofV1(
+      capabilityToken,
+      record.ticket_id,
+      referenceBytes,
+    );
+
+  if (!safeHexEqual(expected, envelope.output_hash)) {
+    throw new Error("useful_work_possession_invalid");
+  }
+
+  return {
+    required: true,
+    verified: true,
+    mode:
+      "capability_hmac_over_verified_dataset_bytes_v1",
+    reference_bytes: referenceBytes.length,
+  };
 }
 
 
@@ -3475,6 +3727,25 @@ function publicSubmitErrorV1(error: unknown): {
   if (message === "remote_evidence_body_too_large") {
     return { status: 413, error: "remote_evidence_body_too_large" };
   }
+  if (
+    message === "public_work_reference_unavailable" ||
+    message === "public_work_reference_unstable" ||
+    message === "public_work_reference_hash_mismatch"
+  ) {
+    return {
+      status: 503,
+      error: "useful_work_verifier_unavailable",
+    };
+  }
+  if (
+    message === "useful_work_possession_invalid" ||
+    message === "useful_work_transport_invalid"
+  ) {
+    return {
+      status: 422,
+      error: "useful_work_possession_invalid",
+    };
+  }
 
   if (
     message === "VOID_WC_REMOTE_TRUTH_INDEX_WARMING" ||
@@ -3601,6 +3872,11 @@ export async function submitRemoteResult(req: any, res: any): Promise<any> {
         idempotent: true,
         recovered_terminal: true,
         capability_consumed: true,
+        independent_useful_work_verified:
+          consumed.independent_useful_work_verified === true,
+        useful_work_proof_mode: String(
+          consumed.useful_work_proof_mode || "",
+        ),
         ticket_id: parsed.ticketId,
         account: String(consumed.account || ""),
         job_id: String(consumed.job_id || ""),
@@ -3648,6 +3924,13 @@ export async function submitRemoteResult(req: any, res: any): Promise<any> {
       envelope,
       proofBundle,
     );
+    const independentWork =
+      await verifyIndependentPublicWorkV1(
+        record,
+        envelope,
+        evidence,
+        parsed.token,
+      );
 
     if (!transaction) {
       transaction = writePilotResultTransactionV1(
@@ -3741,6 +4024,12 @@ export async function submitRemoteResult(req: any, res: any): Promise<any> {
 
     const completed = completeTicket(record, {
       submission_sha256: digest,
+      independent_useful_work_verified:
+        independentWork.verified,
+      useful_work_proof_mode:
+        independentWork.mode,
+      useful_work_reference_bytes:
+        independentWork.reference_bytes,
       executor_signature_sha256: sha256Hex(
         String(signature?.sig || ""),
       ),
@@ -3818,6 +4107,10 @@ export async function submitRemoteResult(req: any, res: any): Promise<any> {
       transport_mode: evidence.transportMode,
       coordinator_inbound_fetch: evidence.coordinatorInboundFetch,
       participant_outbound_bundle: evidence.participantOutboundBundle,
+      independent_useful_work_verified:
+        independentWork.verified,
+      useful_work_proof_mode:
+        independentWork.mode,
       signature_verified: true,
       remote_health_verified: true,
       remote_job_verified: true,

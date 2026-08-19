@@ -92,6 +92,32 @@ function sha256(value) {
   return crypto.createHash("sha256").update(value).digest("hex");
 }
 
+const PUBLIC_WORK_POSSESSION_DOMAIN_V1 =
+  "VOID_WC_PUBLIC_DATASET_POSSESSION_HMAC_V1";
+
+function publicWorkPossessionProof(
+  capabilityToken,
+  ticketId,
+  bytes,
+) {
+  const token = String(capabilityToken || "");
+  const ticket = String(ticketId || "");
+  if (!token || !/^[0-9a-f]{32}$/.test(ticket)) {
+    fail("useful_work_possession_invalid");
+  }
+  return crypto
+    .createHmac(
+      "sha256",
+      Buffer.from(token, "utf8"),
+    )
+    .update(PUBLIC_WORK_POSSESSION_DOMAIN_V1, "utf8")
+    .update(Buffer.from([0]))
+    .update(ticket, "utf8")
+    .update(Buffer.from([0]))
+    .update(Buffer.from(bytes))
+    .digest("hex");
+}
+
 function nodeIdFromPubPEM(pubPEM) {
   return sha256(String(pubPEM || "")).slice(0, 32);
 }
@@ -606,7 +632,13 @@ async function fetchAndVerifyDataset(ticket, coordinatorBase, publicClaim, expli
       if (raw.length > maxBytes) fail("dataset_too_large");
       const rawHash = sha256(raw);
       if (rawHash === ticket.expected_input_hash) {
-        return { url, bytes: raw.length, fetchedHash: rawHash, representation: "raw" };
+        return {
+          url,
+          bytes: raw.length,
+          fetchedHash: rawHash,
+          representation: "raw",
+          content: raw,
+        };
       }
       const contentType = String(response.headers.get("content-type") || "");
       if (contentType.includes("json") || /^[\s\r\n]*[\[{]/.test(raw.toString("utf8", 0, Math.min(raw.length, 32)))) {
@@ -616,7 +648,13 @@ async function fetchAndVerifyDataset(ticket, coordinatorBase, publicClaim, expli
             if (candidate.length > maxBytes) continue;
             const digest = sha256(candidate);
             if (digest === ticket.expected_input_hash) {
-              return { url, bytes: candidate.length, fetchedHash: digest, representation: "json-content" };
+              return {
+                url,
+                bytes: candidate.length,
+                fetchedHash: digest,
+                representation: "json-content",
+                content: candidate,
+              };
             }
           }
         } catch (error) {
@@ -883,7 +921,11 @@ async function runOnce(options) {
       dataset_id: ticket.dataset_id,
       fetched_bytes: dataset.bytes,
     };
-    const outputHash = sha256(Buffer.from(JSON.stringify(output), "utf8"));
+    const outputHash = publicWorkPossessionProof(
+      capabilityToken,
+      ticket.ticket_id,
+      dataset.content,
+    );
     const signedResult = signResult(
       {
         ticket_id: ticket.ticket_id,

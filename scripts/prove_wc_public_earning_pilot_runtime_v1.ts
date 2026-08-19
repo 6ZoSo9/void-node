@@ -31,6 +31,26 @@ async function main(): Promise<void> {
     .toString();
   const executorNodeId = block.nodeIdFromPubPEM(pubPEM);
 
+  const publicWorkBytes = Buffer.from(
+    "VOID_WC_PUBLIC_WORK_REFERENCE_V1\n",
+    "utf8",
+  );
+  const publicWorkHash = crypto
+    .createHash("sha256")
+    .update(publicWorkBytes)
+    .digest("hex");
+  const publicWorkFile = path.join(
+    tmp,
+    "public-work-reference-v1.bin",
+  );
+  fs.writeFileSync(
+    publicWorkFile,
+    publicWorkBytes,
+    { mode: 0o600 },
+  );
+  process.env.VOID_WC_PUBLIC_TICKET_CLAIM_DATASET_FILE =
+    publicWorkFile;
+
   const envelope = {
     ticket_id: "a".repeat(32),
     account: "outside-operator-pilot-v1",
@@ -742,6 +762,7 @@ async function main(): Promise<void> {
     root: string,
     issuedClaim: any,
     suffix: string,
+    provePossession = true,
   ) => {
     process.env.DATA_DIR = root;
     process.env.VOID_DATA_DIR = root;
@@ -774,7 +795,13 @@ async function main(): Promise<void> {
       input_hash: String(
         issuedClaim.ticket.expected_input_hash,
       ),
-      output_hash: "b".repeat(64),
+      output_hash: provePossession
+        ? pilot.publicWorkPossessionProofV1(
+            token,
+            ticketId,
+            publicWorkBytes,
+          )
+        : "b".repeat(64),
       fetched_input_hash: String(
         issuedClaim.ticket.expected_input_hash,
       ),
@@ -850,6 +877,180 @@ async function main(): Promise<void> {
       token,
     };
   };
+
+  // Acceptance-safety falsifier: a valid public ticket/key plus the old
+  // fully self-consistent participant-authored bundle must earn and import
+  // nothing when the selected dataset bytes were never possessed.
+  {
+    const root = fs.mkdtempSync(
+      path.join(
+        os.tmpdir(),
+        "void-wc-self-attested-no-work-v1-",
+      ),
+    );
+    process.env.DATA_DIR = root;
+    process.env.VOID_DATA_DIR = root;
+    process.env.VOID_WC_PUBLIC_EARNING_PILOT_ENABLED =
+      "1";
+    process.env.VOID_WC_PUBLIC_TICKET_CLAIM_ENABLED =
+      "1";
+    process.env.VOID_WC_PUBLIC_TICKET_CLAIM_DATASET_ID =
+      "ds_self_attested_no_work_v1";
+    process.env.VOID_WC_PUBLIC_TICKET_CLAIM_EXPECTED_INPUT_HASH =
+      publicWorkHash;
+    process.env.VOID_WC_PUBLIC_TICKET_CLAIM_TTL_MS =
+      "300000";
+    process.env.VOID_WC_PUBLIC_TICKET_CLAIM_CLOCK_SKEW_MS =
+      "300000";
+    process.env.VOID_WC_PUBLIC_TICKET_CLAIM_COOLDOWN_MS =
+      "60000";
+    process.env.VOID_WC_PUBLIC_TICKET_CLAIM_MAX_PER_24H =
+      "10";
+    process.env.VOID_WC_PUBLIC_TICKET_CLAIM_GLOBAL_ACTIVE_CAP =
+      "10";
+    process.env.VOID_WC_PUBLIC_TICKET_CLAIM_GLOBAL_MAX_PER_24H =
+      "100";
+
+    claimAuthority.primeWcPublicClaimHistoryAuthorityV1(
+      root,
+    );
+    await claimAuthority.waitForWcPublicClaimHistoryWarmForProofV1(
+      root,
+    );
+
+    const account = "self-attested-no-work-account";
+    const nowClaim = Date.now();
+    const signedClaim = pilot.signPublicTicketClaim(
+      {
+        domain:
+          "void:mainnet-0:wc-public-ticket-claim-v1",
+        marker: "VOID_WC_PUBLIC_TICKET_CLAIM_V1",
+        version: 1,
+        account,
+        executor_node_id: executorNodeId,
+        executor_pubkey: pubPEM,
+        claim_nonce: "e".repeat(32),
+        claim_ts_ms: nowClaim,
+      },
+      privateKey,
+    );
+    const issued =
+      await pilot.issuePublicTicketClaim(
+        signedClaim,
+        root,
+        nowClaim,
+      );
+
+    const fabricated =
+      setupSubmitFromPublicClaim(
+        root,
+        issued,
+        "self_attested_without_dataset",
+        false,
+      );
+    remoteIndex.resetWcPublicRemoteTruthJsonlIndexForProofV1();
+
+    const rejected = makeResponse();
+    await pilot.submitRemoteResult(
+      fabricated.req,
+      rejected,
+    );
+    assert.equal(rejected.statusCode, 422);
+    assert.equal(
+      rejected.payload.error,
+      "useful_work_possession_invalid",
+    );
+
+    for (const file of [
+      path.join(root, "agent_v1", "receipts.jsonl"),
+      path.join(root, "agent", "jobs.jsonl"),
+      path.join(root, "agent_v1", "job_state.jsonl"),
+      path.join(root, "wc_v1", "ledger.jsonl"),
+    ]) {
+      assert.equal(
+        fs.existsSync(file),
+        false,
+        `self-attested no-work submission published ${file}`,
+      );
+    }
+
+    const pilotRoot = path.join(
+      root,
+      "wc_v1",
+      "public-earning-pilot-v1",
+    );
+    assert.equal(
+      fs.existsSync(
+        path.join(
+          pilotRoot,
+          "result-transactions",
+          `${fabricated.ticketId}.json`,
+        ),
+      ),
+      false,
+    );
+    assert.equal(
+      fs.existsSync(
+        path.join(
+          pilotRoot,
+          "consumed",
+          `${fabricated.ticketId}.json`,
+        ),
+      ),
+      false,
+    );
+    assert.equal(
+      fs.existsSync(
+        path.join(
+          pilotRoot,
+          "issued",
+          `${fabricated.ticketId}.json`,
+        ),
+      ),
+      true,
+    );
+
+    // The exact same live capability may still do the selected work once.
+    const legitimate =
+      setupSubmitFromPublicClaim(
+        root,
+        issued,
+        "real_dataset_possession",
+        true,
+      );
+    const accepted = makeResponse();
+    await pilot.submitRemoteResult(
+      legitimate.req,
+      accepted,
+    );
+    assert.equal(accepted.statusCode, 200);
+    assert.equal(accepted.payload.wc.delta, 3);
+    assert.equal(
+      accepted.payload.independent_useful_work_verified,
+      true,
+    );
+    assert.equal(
+      accepted.payload.useful_work_proof_mode,
+      "capability_hmac_over_verified_dataset_bytes_v1",
+    );
+
+    const ledgerRows = fs
+      .readFileSync(
+        path.join(root, "wc_v1", "ledger.jsonl"),
+        "utf8",
+      )
+      .trim()
+      .split(/\r?\n/)
+      .filter(Boolean)
+      .map((line) => JSON.parse(line));
+    assert.equal(ledgerRows.length, 1);
+    assert.equal(ledgerRows[0].delta, 3);
+
+    fs.rmSync(root, {
+      recursive: true,
+      force: true,
+    });
+  }
 
   for (const phase of [
     "after_intent_prepared",
@@ -1326,7 +1527,7 @@ async function main(): Promise<void> {
     process.env.VOID_WC_PUBLIC_TICKET_CLAIM_DATASET_ID =
       "ds_recovery_vs_real_submit";
     process.env.VOID_WC_PUBLIC_TICKET_CLAIM_EXPECTED_INPUT_HASH =
-      "a".repeat(64);
+      publicWorkHash;
     process.env.VOID_WC_PUBLIC_TICKET_CLAIM_TTL_MS =
       "120000";
     process.env.VOID_WC_PUBLIC_TICKET_CLAIM_CLOCK_SKEW_MS =
@@ -1498,7 +1699,7 @@ async function main(): Promise<void> {
     process.env.VOID_WC_PUBLIC_TICKET_CLAIM_DATASET_ID =
       "ds_recovery_wins_before_submit";
     process.env.VOID_WC_PUBLIC_TICKET_CLAIM_EXPECTED_INPUT_HASH =
-      "a".repeat(64);
+      publicWorkHash;
     process.env.VOID_WC_PUBLIC_TICKET_CLAIM_TTL_MS =
       "120000";
     process.env.VOID_WC_PUBLIC_TICKET_CLAIM_CLOCK_SKEW_MS =
@@ -1607,7 +1808,7 @@ async function main(): Promise<void> {
     process.env.VOID_WC_PUBLIC_TICKET_CLAIM_DATASET_ID =
       "ds_recovery_daily-turnover";
     process.env.VOID_WC_PUBLIC_TICKET_CLAIM_EXPECTED_INPUT_HASH =
-      "a".repeat(64);
+      publicWorkHash;
     process.env.VOID_WC_PUBLIC_TICKET_CLAIM_TTL_MS =
       "120000";
     process.env.VOID_WC_PUBLIC_TICKET_CLAIM_CLOCK_SKEW_MS =
@@ -1774,7 +1975,7 @@ async function main(): Promise<void> {
     process.env.VOID_WC_PUBLIC_TICKET_CLAIM_DATASET_ID =
       "ds_recovery_cooldown-turnover";
     process.env.VOID_WC_PUBLIC_TICKET_CLAIM_EXPECTED_INPUT_HASH =
-      "a".repeat(64);
+      publicWorkHash;
     process.env.VOID_WC_PUBLIC_TICKET_CLAIM_TTL_MS =
       "120000";
     process.env.VOID_WC_PUBLIC_TICKET_CLAIM_CLOCK_SKEW_MS =
@@ -1944,7 +2145,7 @@ async function main(): Promise<void> {
     process.env.VOID_WC_PUBLIC_TICKET_CLAIM_DATASET_ID =
       "ds_consumed_issued_residue";
     process.env.VOID_WC_PUBLIC_TICKET_CLAIM_EXPECTED_INPUT_HASH =
-      "a".repeat(64);
+      publicWorkHash;
     process.env.VOID_WC_PUBLIC_TICKET_CLAIM_TTL_MS =
       "300000";
     process.env.VOID_WC_PUBLIC_TICKET_CLAIM_CLOCK_SKEW_MS =
@@ -2164,7 +2365,7 @@ async function main(): Promise<void> {
     process.env.VOID_WC_PUBLIC_TICKET_CLAIM_DATASET_ID =
       "ds_public_state_dir_durability";
     process.env.VOID_WC_PUBLIC_TICKET_CLAIM_EXPECTED_INPUT_HASH =
-      "a".repeat(64);
+      publicWorkHash;
     process.env.VOID_WC_PUBLIC_TICKET_CLAIM_TTL_MS =
       "300000";
     process.env.VOID_WC_PUBLIC_TICKET_CLAIM_CLOCK_SKEW_MS =
@@ -2410,6 +2611,18 @@ async function main(): Promise<void> {
   );
   console.log(
     "public_state_directory_failed_fsync_resynced=true",
+  );
+  console.log(
+    "self_attested_no_dataset_credit=false",
+  );
+  console.log(
+    "self_attested_no_dataset_import=false",
+  );
+  console.log(
+    "independent_useful_work_possession_verified=true",
+  );
+  console.log(
+    "legitimate_public_work_exact_3_wc=true",
   );
   console.log(
     "VOID_WC_PUBLIC_EARNING_PILOT_RUNTIME_V1_GREEN",

@@ -43,6 +43,14 @@ const claimHistoryAuthorityText = fs.readFileSync(
   ),
   "utf8",
 );
+const noNodeClientText = fs.readFileSync(
+  path.join(
+    root,
+    "tools",
+    "void_public_earn_no_node_client_v1.mjs",
+  ),
+  "utf8",
+);
 
 need(
   capabilityText.includes(
@@ -1237,6 +1245,73 @@ need(
       "await prepareWcPublicClaimHistoryDecisionV1();",
     ),
   "participant claim/status paths do not revalidate history generations before decisions",
+);
+
+need(
+  moduleText.includes(
+    "VOID_WC_PUBLIC_DATASET_POSSESSION_HMAC_V1",
+  ) &&
+    moduleText.includes(
+      "readPublicWorkReferenceBytesV1(record)",
+    ) &&
+    moduleText.includes(
+      "public_work_reference_hash_mismatch",
+    ) &&
+    moduleText.includes(
+      "publicWorkPossessionProofV1(",
+    ),
+  "independent public-work possession verifier missing",
+);
+const usefulSubmitStart = moduleText.indexOf(
+  "export async function submitRemoteResult(",
+);
+const usefulEvidenceIndex = moduleText.indexOf(
+  "const evidence = await verifyPilotSubmissionEvidence(",
+  usefulSubmitStart,
+);
+const usefulIndependentIndex = moduleText.indexOf(
+  "await verifyIndependentPublicWorkV1(",
+  usefulEvidenceIndex,
+);
+const usefulIntentIndex = moduleText.indexOf(
+  '"prepared"',
+  usefulIndependentIndex,
+);
+const usefulImportIndex = moduleText.indexOf(
+  "const imported = await persistImportedRemoteTruthOnce(",
+  usefulIndependentIndex,
+);
+need(
+  usefulSubmitStart >= 0 &&
+    usefulEvidenceIndex > usefulSubmitStart &&
+    usefulIndependentIndex > usefulEvidenceIndex &&
+    usefulIntentIndex > usefulIndependentIndex &&
+    usefulImportIndex > usefulIntentIndex,
+  "independent useful-work verification is not acceptance-critical before intent/import",
+);
+need(
+  moduleText.includes(
+    "independent_useful_work_verified:\n        independentWork.verified",
+  ) &&
+    moduleText.includes(
+      '"capability_hmac_over_verified_dataset_bytes_v1"',
+    ),
+  "independent useful-work participant terminal evidence missing",
+);
+need(
+  noNodeClientText.includes(
+    "VOID_WC_PUBLIC_DATASET_POSSESSION_HMAC_V1",
+  ) &&
+    noNodeClientText.includes(
+      ".createHmac(",
+    ) &&
+    noNodeClientText.includes(
+      "dataset.content",
+    ) &&
+    !noNodeClientText.includes(
+      'const outputHash = sha256(Buffer.from(JSON.stringify(output), "utf8"));',
+    ),
+  "supported no-node client does not prove possession from fetched dataset bytes",
 );
 
 console.log("VOID_WC_PUBLIC_EARNING_PILOT_V1_GREEN");
