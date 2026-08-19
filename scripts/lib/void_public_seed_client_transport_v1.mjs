@@ -1,6 +1,7 @@
 import http from "node:http";
 import https from "node:https";
 import net from "node:net";
+import { performance } from "node:perf_hooks";
 import {
   DEFAULT_MAX_RESPONSE_BYTES,
   isPublicIpAddress,
@@ -9,6 +10,7 @@ import {
 } from "./void_public_seed_qualification_v1.mjs";
 
 const COMPILED_MAX_RESPONSE_BYTES = 128 * 1024 * 1024;
+const resolverFlightsByImpl = new WeakMap();
 
 function normalizeConnectedAddress(address) {
   const value = String(address || "").split("%")[0].toLowerCase();
@@ -30,6 +32,69 @@ function terminalSeedResponse(message) {
   return error;
 }
 
+function logicalDeadlineError(timeoutMs) {
+  const error = new Error(`seed logical request deadline exceeded after ${timeoutMs} ms`);
+  error.logicalSeedDeadline = true;
+  return error;
+}
+
+function remainingDeadlineMs(deadlineAtMs) {
+  return Math.max(0, Math.ceil(deadlineAtMs - performance.now()));
+}
+
+function waitWithinDeadline(promise, deadlineAtMs, timeoutMs) {
+  return new Promise((resolve, reject) => {
+    let settled = false;
+    const remaining = remainingDeadlineMs(deadlineAtMs);
+    if (remaining <= 0) {
+      reject(logicalDeadlineError(timeoutMs));
+      return;
+    }
+    const timer = setTimeout(() => {
+      if (settled) return;
+      settled = true;
+      reject(logicalDeadlineError(timeoutMs));
+    }, remaining);
+    promise.then(
+      (value) => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timer);
+        resolve(value);
+      },
+      (error) => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timer);
+        reject(error);
+      },
+    );
+  });
+}
+
+function resolverFlight(hostname, { allowLoopbackFixture, resolvePublicDnsImpl }) {
+  let flights = resolverFlightsByImpl.get(resolvePublicDnsImpl);
+  if (!flights) {
+    flights = new Map();
+    resolverFlightsByImpl.set(resolvePublicDnsImpl, flights);
+  }
+  const key = `${allowLoopbackFixture ? "loopback" : "public"}:${hostname}`;
+  const existing = flights.get(key);
+  if (existing) return existing;
+
+  let tracked;
+  const started = Promise.resolve().then(() =>
+    resolvePublicDnsImpl(hostname, { allowLoopbackFixture }),
+  );
+  tracked = started.finally(() => {
+    if (flights.get(key) === tracked) flights.delete(key);
+    if (flights.size === 0) resolverFlightsByImpl.delete(resolvePublicDnsImpl);
+  });
+  tracked.catch(() => {});
+  flights.set(key, tracked);
+  return tracked;
+}
+
 function plainObject(value, label) {
   if (!value || typeof value !== "object" || Array.isArray(value)) {
     throw terminalSeedResponse(`${label} must be an object`);
@@ -37,11 +102,41 @@ function plainObject(value, label) {
   return value;
 }
 
+function hasOwn(object, key) {
+  return Object.prototype.hasOwnProperty.call(object, key);
+}
+
 function positiveInteger(value, label) {
   if (typeof value !== "number" || !Number.isSafeInteger(value) || value <= 0) {
     throw terminalSeedResponse(`${label} must be a positive safe-integer JSON number`);
   }
   return value;
+}
+
+function nonnegativeInteger(value, label) {
+  if (typeof value !== "number" || !Number.isSafeInteger(value) || value < 0) {
+    throw terminalSeedResponse(`${label} must be a nonnegative safe-integer JSON number`);
+  }
+  return value;
+}
+
+function positiveIntegerAlternative(object, primaryKey, fallbackKey, label) {
+  const primaryPresent = hasOwn(object, primaryKey);
+  const fallbackPresent = hasOwn(object, fallbackKey);
+  if (!primaryPresent && !fallbackPresent) {
+    throw terminalSeedResponse(`${label} is missing`);
+  }
+  if (primaryPresent) {
+    const primary = positiveInteger(object[primaryKey], `${label}.${primaryKey}`);
+    if (fallbackPresent) {
+      const fallback = positiveInteger(object[fallbackKey], `${label}.${fallbackKey}`);
+      if (fallback !== primary) {
+        throw terminalSeedResponse(`${label} primary/fallback values conflict`);
+      }
+    }
+    return primary;
+  }
+  return positiveInteger(object[fallbackKey], `${label}.${fallbackKey}`);
 }
 
 function parseJson(bytes, label) {
@@ -56,10 +151,25 @@ function parseJson(bytes, label) {
 
 function blockNumber(block) {
   if (!block || typeof block !== "object" || Array.isArray(block)) return null;
-  const candidate = block.number ?? block.header?.number;
-  return typeof candidate === "number" && Number.isSafeInteger(candidate) && candidate >= 0
-    ? candidate
-    : null;
+  const primaryPresent = hasOwn(block, "number");
+  const header = block.header;
+  const fallbackPresent =
+    !!header && typeof header === "object" && !Array.isArray(header) && hasOwn(header, "number");
+
+  if (!primaryPresent && !fallbackPresent) return null;
+  try {
+    if (primaryPresent) {
+      const primary = nonnegativeInteger(block.number, "seed block number");
+      if (fallbackPresent) {
+        const fallback = nonnegativeInteger(header.number, "seed block header number");
+        if (fallback !== primary) return null;
+      }
+      return primary;
+    }
+    return nonnegativeInteger(header.number, "seed block header number");
+  } catch {
+    return null;
+  }
 }
 
 function validateSeedResponse(route, bytes) {
@@ -87,7 +197,7 @@ function validateSeedResponse(route, bytes) {
 
   if (parsedRoute.pathname === "/head") {
     const head = plainObject(value, "seed head response");
-    positiveInteger(head.head ?? head.number, "seed head");
+    positiveIntegerAlternative(head, "head", "number", "seed head");
     return;
   }
 
@@ -152,7 +262,7 @@ export function publicSeedTlsServernameV1(targetValue) {
 function requestPinnedAddress(
   target,
   address,
-  { method, timeoutMs, maxBytes, allowLoopbackFixture },
+  { method, timeoutMs, deadlineAtMs, maxBytes, allowLoopbackFixture },
 ) {
   const family = net.isIP(address);
   if (!family) throw new Error(`seed address is invalid: ${address}`);
@@ -164,11 +274,23 @@ function requestPinnedAddress(
   const tlsServername = publicSeedTlsServernameV1(target);
   return new Promise((resolve, reject) => {
     let settled = false;
-    const fail = (error) => {
+    let responseRef = null;
+    let wallTimer = null;
+    const finish = (callback, value) => {
       if (settled) return;
       settled = true;
-      reject(error instanceof Error ? error : new Error(String(error)));
+      if (wallTimer) clearTimeout(wallTimer);
+      callback(value);
     };
+    const fail = (error) => {
+      finish(reject, error instanceof Error ? error : new Error(String(error)));
+    };
+
+    const remaining = remainingDeadlineMs(deadlineAtMs);
+    if (remaining <= 0) {
+      fail(logicalDeadlineError(timeoutMs));
+      return;
+    }
 
     const request = transport.request(
       target,
@@ -188,6 +310,12 @@ function requestPinnedAddress(
         },
       },
       (response) => {
+        responseRef = response;
+        if (remainingDeadlineMs(deadlineAtMs) <= 0) {
+          response.destroy();
+          fail(logicalDeadlineError(timeoutMs));
+          return;
+        }
         const connected = normalizeConnectedAddress(response.socket?.remoteAddress);
         const expected = normalizeConnectedAddress(address);
         if (!connected || connected !== expected) {
@@ -239,8 +367,7 @@ function requestPinnedAddress(
 
         if (method === "HEAD") {
           response.resume();
-          settled = true;
-          resolve({
+          finish(resolve, {
             status,
             contentType,
             bytes: Buffer.alloc(0),
@@ -272,14 +399,20 @@ function requestPinnedAddress(
             fail(error);
             return;
           }
-          settled = true;
-          resolve({ status, contentType, bytes, remoteAddress: connected });
+          finish(resolve, { status, contentType, bytes, remoteAddress: connected });
         });
       },
     );
 
-    request.setTimeout(timeoutMs, () => {
-      request.destroy(new Error(`seed request timed out after ${timeoutMs} ms`));
+    wallTimer = setTimeout(() => {
+      if (settled) return;
+      const error = logicalDeadlineError(timeoutMs);
+      finish(reject, error);
+      responseRef?.destroy(error);
+      request.destroy(error);
+    }, remaining);
+    request.setTimeout(Math.max(1, Math.min(timeoutMs, remaining)), () => {
+      request.destroy(new Error(`seed request inactivity timeout after ${timeoutMs} ms`));
     });
     request.on("error", fail);
     request.end();
@@ -294,11 +427,16 @@ export async function requestPublicSeedRouteV1(
     timeoutMs = 15_000,
     maxBytes = DEFAULT_MAX_RESPONSE_BYTES,
     allowLoopbackFixture = false,
+    logicalDeadlineAtMs = null,
+    resolvePublicDnsImpl = resolvePublicDns,
   } = {},
 ) {
   const normalizedMethod = String(method).toUpperCase();
   if (!new Set(["GET", "HEAD"]).has(normalizedMethod)) {
     throw new Error("public seed client transport permits only GET and HEAD");
+  }
+  if (typeof resolvePublicDnsImpl !== "function") {
+    throw new Error("public seed DNS resolver must be a function");
   }
   const boundedTimeout = boundedInteger(timeoutMs, 15_000, 1_000, 60_000);
   const boundedBytes = boundedInteger(
@@ -310,19 +448,34 @@ export async function requestPublicSeedRouteV1(
   const target = new URL(route, `${peer.base}/`);
   if (target.origin !== peer.base) throw new Error("public seed route escaped its peer origin");
 
-  const addresses = await resolvePublicDns(peer.hostname, { allowLoopbackFixture });
+  const startedAtMs = performance.now();
+  const localDeadlineAtMs = startedAtMs + boundedTimeout;
+  const inheritedDeadlineAtMs =
+    typeof logicalDeadlineAtMs === "number" && Number.isFinite(logicalDeadlineAtMs)
+      ? logicalDeadlineAtMs
+      : localDeadlineAtMs;
+  const deadlineAtMs = Math.min(localDeadlineAtMs, inheritedDeadlineAtMs);
+  if (remainingDeadlineMs(deadlineAtMs) <= 0) throw logicalDeadlineError(boundedTimeout);
+
+  const addresses = await waitWithinDeadline(
+    resolverFlight(peer.hostname, { allowLoopbackFixture, resolvePublicDnsImpl }),
+    deadlineAtMs,
+    boundedTimeout,
+  );
   const failures = [];
   for (const address of addresses) {
+    if (remainingDeadlineMs(deadlineAtMs) <= 0) throw logicalDeadlineError(boundedTimeout);
     try {
       return await requestPinnedAddress(target, address, {
         method: normalizedMethod,
         timeoutMs: boundedTimeout,
+        deadlineAtMs,
         maxBytes: boundedBytes,
         allowLoopbackFixture,
       });
     } catch (error) {
       failures.push(`${address}: ${error?.message || String(error)}`);
-      if (error?.terminalSeedResponse === true) throw error;
+      if (error?.terminalSeedResponse === true || error?.logicalSeedDeadline === true) throw error;
     }
   }
   throw new Error(`seed request failed on every pinned address: ${failures.join(" | ")}`);
