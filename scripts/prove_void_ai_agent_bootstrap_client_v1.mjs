@@ -647,7 +647,8 @@ assert.equal(
   tinyChunkResult.surfaces.capabilities.error,
   "bootstrap_request_deadline_exceeded",
 );
-assert(tinyReadCalls < 4096);
+assert(tinyReadCalls >= 64);
+assert.equal(tinyReadCalls % 64, 0);
 assert.equal(tinyCancelCalls, 1);
 assert(Date.now() - tinyStarted < 1000);
 
