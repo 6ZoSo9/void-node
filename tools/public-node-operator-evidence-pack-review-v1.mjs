@@ -3,6 +3,7 @@
 import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
+import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 
 const MARKER = "VOID_PUBLIC_NODE_OPERATOR_EVIDENCE_PACK_REVIEW_V1";
@@ -195,6 +196,19 @@ function collectStringFindings(value, pathValue = "$", output = []) {
   return output;
 }
 
+function canonicalJson(value) {
+  if (Array.isArray(value)) {
+    return `[${value.map((item) => canonicalJson(item)).join(",")}]`;
+  }
+  if (isObject(value)) {
+    const keys = Object.keys(value).sort();
+    return `{${keys
+      .map((key) => `${JSON.stringify(key)}:${canonicalJson(value[key])}`)
+      .join(",")}}`;
+  }
+  return JSON.stringify(value);
+}
+
 function validateSourceContracts(manifest) {
   const expected = {};
   for (const [key, file] of Object.entries(SOURCE_TOOLS)) {
@@ -221,6 +235,70 @@ function validateSourceContracts(manifest) {
     ok,
     detail: ok ? null : "manifest source-tool hashes do not match local contracts",
   };
+}
+
+function replayCanonicalReceiptReview(receiptPath, manifest, storedReview) {
+  if (!isObject(manifest) || typeof manifest.allow_hold !== "boolean") {
+    return { ok: false, detail: "manifest allow_hold missing for canonical review replay" };
+  }
+  if (!isObject(storedReview)) {
+    return { ok: false, detail: "stored receipt review missing for canonical replay" };
+  }
+
+  let reviewedAt;
+  try {
+    reviewedAt = safeIso(manifest.created_at, "manifest.created_at");
+  } catch (error) {
+    return {
+      ok: false,
+      detail: error instanceof Error ? error.message : "manifest created_at invalid",
+    };
+  }
+
+  const args = [
+    SOURCE_TOOLS.receipt_review,
+    "--receipt",
+    receiptPath,
+    "--reviewed-at",
+    reviewedAt,
+  ];
+  if (!manifest.allow_hold) args.push("--require-green");
+
+  const replay = spawnSync(process.execPath, args, {
+    cwd: ROOT,
+    encoding: "utf8",
+    stdio: ["ignore", "pipe", "pipe"],
+  });
+  if (replay.error) {
+    return { ok: false, detail: "canonical receipt reviewer failed to start" };
+  }
+
+  const expectedExit = manifest?.execution?.review_exit_code;
+  if (!Number.isInteger(expectedExit) || replay.status !== expectedExit) {
+    return {
+      ok: false,
+      detail: `canonical receipt reviewer exit mismatch: expected ${String(expectedExit)}, got ${String(replay.status)}`,
+    };
+  }
+
+  let replayedReview;
+  try {
+    replayedReview = JSON.parse(replay.stdout);
+  } catch {
+    return {
+      ok: false,
+      detail: "canonical receipt reviewer did not emit valid JSON",
+    };
+  }
+
+  if (canonicalJson(replayedReview) !== canonicalJson(storedReview)) {
+    return {
+      ok: false,
+      detail: "stored receipt review does not match canonical semantic replay",
+    };
+  }
+
+  return { ok: true, detail: null };
 }
 
 function reviewPack(packDir) {
@@ -450,6 +528,18 @@ function reviewPack(packDir) {
     "source_contract_binding",
     sourceContracts.ok,
     sourceContracts.detail,
+  );
+
+  const canonicalReplay = replayCanonicalReceiptReview(
+    paths.receipt,
+    manifest,
+    review,
+  );
+  pushCheck(
+    checks,
+    "canonical_receipt_review_replay",
+    canonicalReplay.ok,
+    canonicalReplay.detail,
   );
 
   const safetyOk =
