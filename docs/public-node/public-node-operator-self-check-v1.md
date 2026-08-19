@@ -32,10 +32,14 @@ node tools/public-node-operator-self-check-v1.mjs \
 The output file is written with mode `0600`. The receipt deliberately records a
 host classification rather than the raw target hostname or address.
 
-Public origins require HTTPS. Plain HTTP is admitted only for loopback,
-private, or overlay targets so an operator cannot obtain a green receipt from
-unauthenticated public cleartext evidence. Bracketed IPv6 loopback remains a
-valid local target.
+Public origins and all DNS-name targets require HTTPS. Plain HTTP is admitted
+only for `localhost` or a literal loopback/private/overlay IP address. In
+particular, hostname suffixes such as `.local`, `.lan`, `.internal`, and
+`.ts.net` do not establish that the address actually reached is private or an
+overlay, so they are not trusted for cleartext operator evidence. Bracketed IPv6
+loopback and literal private/link-local IPv6 remain valid local HTTP targets.
+The offline receipt reviewer enforces the same scheme/host-class matrix so a
+forged or stale receipt cannot relabel DNS-based cleartext evidence as trusted.
 
 Each response body is bounded to 2 MiB before full buffering. Oversized declared
 or streamed responses, malformed content lengths, request timeouts, and invalid
@@ -114,7 +118,11 @@ the documented self-check proof aligned with the bounded-response and strict
 contract proof used by CI. The focused workflow also runs
 `scripts/prove_public_node_operator_cli_numeric_controls_v1.mjs` across Node
 22, 24, and 26 to prove the self-check and evidence-pack wrapper reject
-noncanonical numeric controls before side effects.
+noncanonical numeric controls before side effects. Transport admission and
+offline receipt-review parity are proven by
+`scripts/prove_public_node_operator_transport_binding_v1.mjs`, including
+pre-fetch rejection of DNS-name cleartext targets and preservation of reviewed
+literal private/overlay HTTP plus HTTPS behavior.
 
 ## Authority boundary
 
