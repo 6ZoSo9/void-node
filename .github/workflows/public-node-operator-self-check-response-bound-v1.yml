@@ -4,20 +4,24 @@ on:
   pull_request:
     paths:
       - "tools/public-node-operator-self-check-v1.mjs"
+      - "tools/public-node-operator-self-check-receipt-review-v1.mjs"
       - "tools/public-node-operator-evidence-pack-v1.mjs"
       - "scripts/prove_public_node_operator_self_check_response_bound_v1.mjs"
       - "scripts/prove_public_node_operator_admitted_body_deadline_v1.mjs"
       - "scripts/prove_public_node_operator_cli_numeric_controls_v1.mjs"
+      - "scripts/prove_public_node_operator_transport_binding_v1.mjs"
       - "docs/public-node/public-node-operator-self-check-v1.md"
       - ".github/workflows/public-node-operator-self-check-response-bound-v1.yml"
   push:
     branches: [main]
     paths:
       - "tools/public-node-operator-self-check-v1.mjs"
+      - "tools/public-node-operator-self-check-receipt-review-v1.mjs"
       - "tools/public-node-operator-evidence-pack-v1.mjs"
       - "scripts/prove_public_node_operator_self_check_response_bound_v1.mjs"
       - "scripts/prove_public_node_operator_admitted_body_deadline_v1.mjs"
       - "scripts/prove_public_node_operator_cli_numeric_controls_v1.mjs"
+      - "scripts/prove_public_node_operator_transport_binding_v1.mjs"
       - "docs/public-node/public-node-operator-self-check-v1.md"
       - ".github/workflows/public-node-operator-self-check-response-bound-v1.yml"
   workflow_dispatch:
@@ -44,15 +48,19 @@ jobs:
       - name: Syntax check
         run: |
           node --check tools/public-node-operator-self-check-v1.mjs
+          node --check tools/public-node-operator-self-check-receipt-review-v1.mjs
           node --check tools/public-node-operator-evidence-pack-v1.mjs
           node --check scripts/prove_public_node_operator_self_check_response_bound_v1.mjs
           node --check scripts/prove_public_node_operator_admitted_body_deadline_v1.mjs
           node --check scripts/prove_public_node_operator_cli_numeric_controls_v1.mjs
+          node --check scripts/prove_public_node_operator_transport_binding_v1.mjs
       - name: Prove bounded operator self-check responses
         run: node scripts/prove_public_node_operator_self_check_response_bound_v1.mjs
       - name: Prove admitted body deadline ownership
         run: node scripts/prove_public_node_operator_admitted_body_deadline_v1.mjs
       - name: Prove strict operator CLI numeric controls
         run: node scripts/prove_public_node_operator_cli_numeric_controls_v1.mjs
+      - name: Prove operator transport binding
+        run: node scripts/prove_public_node_operator_transport_binding_v1.mjs
       - name: Diff hygiene
         run: git diff --check
