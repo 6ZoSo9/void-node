@@ -12,8 +12,8 @@ const repo = path.resolve(__dirname, '..');
 const guidePath = path.join(repo, 'docs/public/void-public-earn-no-node-client-v1.md');
 const clientRel = 'tools/void_public_earn_no_node_client_v1.mjs';
 const clientPath = path.join(repo, clientRel);
-const pinnedCommit = '5dccff59711a941932f99a4e2f40c79e7e163fcc';
-const expectedGitBlobSha1 = '0758e71d6b5a978de105d81d62055d4a019b490e';
+const pinnedCommit = 'dee46215a7166beb524fcd7eb051482a37c5ef0b';
+const expectedGitBlobSha1 = '1b82f964f2eeb762e861a88d514879a6c9d2355d';
 const coordinatorNodeId = 'c'.repeat(32);
 
 function gitBlobSha1(bytes) {

@@ -1314,4 +1314,55 @@ need(
   "supported no-node client does not prove possession from fetched dataset bytes",
 );
 
+need(
+  claimHistoryAuthorityText.includes(
+    "HISTORY_MUTATION_GENERATION_BYTES_V1 = 65",
+  ) &&
+    claimHistoryAuthorityText.includes(
+      "setWcPublicClaimHistoryMutationGenerationReadHookForProofV1",
+    ) &&
+    claimHistoryAuthorityText.includes(
+      "await fsp.lstat(",
+    ),
+  "claim-history mutation-generation bounded reader contract missing",
+);
+const mutationGenerationReaderStart =
+  claimHistoryAuthorityText.indexOf(
+    "async function readHistoryMutationGenerationV1(",
+  );
+const mutationGenerationReaderEnd =
+  claimHistoryAuthorityText.indexOf(
+    "function historyRootForRecordFileV1(",
+    mutationGenerationReaderStart,
+  );
+const mutationGenerationReaderBlock =
+  claimHistoryAuthorityText.slice(
+    mutationGenerationReaderStart,
+    mutationGenerationReaderEnd,
+  );
+need(
+  mutationGenerationReaderStart >= 0 &&
+    mutationGenerationReaderEnd >
+      mutationGenerationReaderStart &&
+    mutationGenerationReaderBlock.includes(
+      "fs.constants.O_NOFOLLOW",
+    ) &&
+    mutationGenerationReaderBlock.includes(
+      "!beforeStat.isFile()",
+    ) &&
+    mutationGenerationReaderBlock.includes(
+      "await handle.read(",
+    ) &&
+    mutationGenerationReaderBlock.includes(
+      "sameRecordStampV1(before, after)",
+    ) &&
+    mutationGenerationReaderBlock.includes(
+      "sameRecordStampV1(after, pathAfter)",
+    ) &&
+    !mutationGenerationReaderBlock.includes(
+      "fsp.readFile(",
+    ),
+  "claim-history mutation-generation reader is not descriptor/path generation bound",
+);
+
 console.log("VOID_WC_PUBLIC_EARNING_PILOT_V1_GREEN");

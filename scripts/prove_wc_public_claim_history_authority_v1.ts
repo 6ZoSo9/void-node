@@ -89,7 +89,9 @@ function replaceHistoryRecordCanonically(
     if (fd !== null) {
       try {
         fs.closeSync(fd);
-      } catch {}
+      } catch (closeError) {
+        void closeError;
+      }
     }
     try {
       fs.unlinkSync(tmp);
@@ -2167,6 +2169,106 @@ async function main(): Promise<void> {
     });
   }
 
+  // The O(1) mutation-generation witness is policy authority too:
+  // reject symlinks, non-canonical length, and pathname substitution.
+  {
+    const tmp = fs.mkdtempSync(
+      path.join(
+        os.tmpdir(),
+        "void-public-claim-history-mutation-witness-v1-",
+      ),
+    );
+    configure(tmp);
+    ensureHistoryDirs(tmp);
+    const generationFile = path.join(
+      pilotRoot(tmp),
+      ".claim-history-mutation-generation-v1",
+    );
+
+    authority.resetWcPublicClaimHistoryAuthorityForProofV1(tmp);
+    const initial =
+      await authority.readWcPublicClaimHistoryMutationGenerationForProofV1(
+        tmp,
+      );
+    assert.match(initial, /^[0-9a-f]{64}$/);
+    assert.equal(fs.statSync(generationFile).size, 65);
+
+    const target = path.join(tmp, "witness-target.txt");
+    fs.writeFileSync(
+      target,
+      `${"a".repeat(64)}\n`,
+      { mode: 0o600 },
+    );
+    fs.unlinkSync(generationFile);
+    fs.symlinkSync(target, generationFile);
+    await assert.rejects(
+      () =>
+        authority.readWcPublicClaimHistoryMutationGenerationForProofV1(
+          tmp,
+        ),
+      /VOID_WC_PUBLIC_CLAIM_HISTORY_MUTATION_GENERATION_INVALID/,
+    );
+    fs.unlinkSync(generationFile);
+
+    fs.writeFileSync(
+      generationFile,
+      `${"b".repeat(64)}xx`,
+      { mode: 0o600 },
+    );
+    await assert.rejects(
+      () =>
+        authority.readWcPublicClaimHistoryMutationGenerationForProofV1(
+          tmp,
+        ),
+      /VOID_WC_PUBLIC_CLAIM_HISTORY_MUTATION_GENERATION_INVALID/,
+    );
+
+    fs.writeFileSync(
+      generationFile,
+      `${"c".repeat(64)}\n`,
+      { mode: 0o600 },
+    );
+    const displaced = `${generationFile}.displaced`;
+    let swapped = false;
+    authority.setWcPublicClaimHistoryMutationGenerationReadHookForProofV1(
+      async (phase: string, file: string) => {
+        if (
+          swapped ||
+          phase !== "after_read" ||
+          file !== generationFile
+        ) {
+          return;
+        }
+        swapped = true;
+        fs.renameSync(generationFile, displaced);
+        fs.writeFileSync(
+          generationFile,
+          `${"d".repeat(64)}\n`,
+          { mode: 0o600 },
+        );
+      },
+    );
+    await assert.rejects(
+      () =>
+        authority.readWcPublicClaimHistoryMutationGenerationForProofV1(
+          tmp,
+        ),
+      /VOID_WC_PUBLIC_CLAIM_HISTORY_MUTATION_GENERATION_CHANGED/,
+    );
+    authority.setWcPublicClaimHistoryMutationGenerationReadHookForProofV1(
+      null,
+    );
+    assert.equal(swapped, true);
+    assert.equal(
+      await authority.readWcPublicClaimHistoryMutationGenerationForProofV1(
+        tmp,
+      ),
+      "d".repeat(64),
+    );
+
+    fs.rmSync(tmp, { recursive: true, force: true });
+  }
+
   console.log(
     "VOID_WC_PUBLIC_CLAIM_HISTORY_AUTHORITY_V1_GREEN",
   );
@@ -2197,6 +2299,10 @@ async function main(): Promise<void> {
   console.log("per_decision_retained_record_walk=false");
   console.log("decision_mutation_generation_reads_per_request=1");
   console.log("decision_record_generation_stats_per_request=0");
+  console.log("mutation_generation_no_follow=true");
+  console.log("mutation_generation_regular_file_only=true");
+  console.log("mutation_generation_exact_65_bytes=true");
+  console.log("mutation_generation_path_generation_bound=true");
 }
 
 main().catch((error) => {

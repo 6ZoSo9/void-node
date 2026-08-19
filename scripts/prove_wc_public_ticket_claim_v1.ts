@@ -116,7 +116,9 @@ async function main(): Promise<void> {
       if (fd !== null) {
         try {
           fs.closeSync(fd);
-        } catch {}
+        } catch (closeError) {
+          void closeError;
+        }
       }
       try {
         fs.unlinkSync(tmpFile);

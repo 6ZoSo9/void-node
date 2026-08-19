@@ -304,6 +304,24 @@ const HISTORY_MUTATION_GENERATION_FILE_V1 =
 const HISTORY_MUTATION_GENERATION_RE_V1 =
   /^[0-9a-f]{64}$/;
 
+const HISTORY_MUTATION_GENERATION_BYTES_V1 = 65;
+
+export type WcPublicClaimHistoryMutationGenerationReadHookForProofV1 =
+  ((
+    phase: "after_open" | "after_read",
+    file: string,
+  ) => void | Promise<void>) | null;
+
+let mutationGenerationReadHookForProofV1:
+  WcPublicClaimHistoryMutationGenerationReadHookForProofV1 =
+    null;
+
+export function setWcPublicClaimHistoryMutationGenerationReadHookForProofV1(
+  hook: WcPublicClaimHistoryMutationGenerationReadHookForProofV1,
+): void {
+  mutationGenerationReadHookForProofV1 = hook;
+}
+
 function historyMutationGenerationFileFromRootV1(
   root: string,
 ): string {
@@ -403,26 +421,128 @@ async function readHistoryMutationGenerationV1(
   const file = historyMutationGenerationFileV1(raw);
 
   for (let attempt = 0; attempt < 2; attempt += 1) {
+    let handle: Awaited<ReturnType<typeof fsp.open>> | null =
+      null;
     try {
-      const text = await fsp.readFile(file, "utf8");
-      return parseHistoryMutationGenerationV1(text);
-    } catch (error: any) {
+      handle = await fsp.open(
+        file,
+        fs.constants.O_RDONLY |
+          Number(fs.constants.O_NOFOLLOW || 0),
+      );
+      await mutationGenerationReadHookForProofV1?.(
+        "after_open",
+        file,
+      );
+
+      const beforeStat: any = await handle.stat(
+        { bigint: true } as any,
+      );
       if (
-        String(error?.code || "") === "ENOENT" &&
-        attempt === 0
+        !beforeStat.isFile() ||
+        Number(beforeStat.size) !==
+          HISTORY_MUTATION_GENERATION_BYTES_V1
       ) {
+        throw new Error(
+          "VOID_WC_PUBLIC_CLAIM_HISTORY_MUTATION_GENERATION_INVALID",
+        );
+      }
+      const before = recordStampFromStatV1(beforeStat);
+
+      const bytes = Buffer.alloc(
+        HISTORY_MUTATION_GENERATION_BYTES_V1,
+      );
+      let offset = 0;
+      while (offset < bytes.length) {
+        const { bytesRead } = await handle.read(
+          bytes,
+          offset,
+          bytes.length - offset,
+          offset,
+        );
+        if (bytesRead <= 0) {
+          throw new Error(
+            "VOID_WC_PUBLIC_CLAIM_HISTORY_MUTATION_GENERATION_INVALID",
+          );
+        }
+        offset += bytesRead;
+      }
+
+      await mutationGenerationReadHookForProofV1?.(
+        "after_read",
+        file,
+      );
+
+      const afterStat: any = await handle.stat(
+        { bigint: true } as any,
+      );
+      if (!afterStat.isFile()) {
+        throw new Error(
+          "VOID_WC_PUBLIC_CLAIM_HISTORY_MUTATION_GENERATION_INVALID",
+        );
+      }
+      const after = recordStampFromStatV1(afterStat);
+
+      let pathStat: any;
+      try {
+        pathStat = await fsp.lstat(
+          file,
+          { bigint: true } as any,
+        );
+      } catch (error: any) {
+        if (String(error?.code || "") === "ENOENT") {
+          throw new Error(
+            "VOID_WC_PUBLIC_CLAIM_HISTORY_MUTATION_GENERATION_CHANGED",
+          );
+        }
+        throw error;
+      }
+      if (!pathStat.isFile()) {
+        throw new Error(
+          "VOID_WC_PUBLIC_CLAIM_HISTORY_MUTATION_GENERATION_INVALID",
+        );
+      }
+      const pathAfter = recordStampFromStatV1(pathStat);
+
+      if (
+        !sameRecordStampV1(before, after) ||
+        !sameRecordStampV1(after, pathAfter)
+      ) {
+        throw new Error(
+          "VOID_WC_PUBLIC_CLAIM_HISTORY_MUTATION_GENERATION_CHANGED",
+        );
+      }
+
+      return parseHistoryMutationGenerationV1(
+        bytes.toString("utf8"),
+      );
+    } catch (error: any) {
+      const code = String(error?.code || "");
+      if (code === "ENOENT" && attempt === 0) {
         writeHistoryMutationGenerationAtRootV1(
           rootDirV1(raw),
         );
         continue;
       }
+      if (code === "ELOOP" || code === "EISDIR") {
+        throw new Error(
+          "VOID_WC_PUBLIC_CLAIM_HISTORY_MUTATION_GENERATION_INVALID",
+        );
+      }
       throw error;
+    } finally {
+      if (handle) await handle.close();
     }
   }
 
   throw new Error(
     "VOID_WC_PUBLIC_CLAIM_HISTORY_MUTATION_GENERATION_UNAVAILABLE",
   );
+}
+
+export async function readWcPublicClaimHistoryMutationGenerationForProofV1(
+  raw?: string,
+): Promise<string> {
+  return readHistoryMutationGenerationV1(raw);
 }
 
 function historyRootForRecordFileV1(
