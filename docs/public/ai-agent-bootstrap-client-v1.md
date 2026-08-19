@@ -67,7 +67,14 @@ for each publication rather than relying on overwrite behavior.
   only actual finite safe-integer numbers in the same ranges, and validates
   both controls before admitting any fetch/network work.
 - `--max-bytes` is enforced while streaming, before a response can be fully
-  buffered past the configured ceiling.
+  buffered past the configured ceiling. Each nonterminal reader result must be
+  an object with boolean `done` and a non-empty `Uint8Array` value. The typed
+  array byte length is compared against the remaining byte budget before
+  `Buffer.from()` may copy it; malformed, zero-progress, or oversized chunks
+  enter bounded teardown instead of escaping the transport lease.
+- After every 64 admitted nonterminal body reads the client yields to the event
+  loop under the same owned deadline. A custom reader producing an immediate
+  stream of tiny chunks therefore cannot starve the request timer indefinitely.
 - A present `Content-Length` must be a canonical nonnegative safe integer;
   malformed or oversized declarations fail closed before body accumulation.
 - The per-request deadline owns fetch acquisition as well as response-body
@@ -76,13 +83,14 @@ for each publication rather than relying on overwrite behavior.
   deadline.
 - One transport-generation lease per exact origin spans fetch acquisition through
   admitted body consumption for a caller-supplied fetch implementation. If the
-  participant deadline wins while acquisition, a body read, or cleanup is still
-  unresolved, the participant still receives the bounded timeout but retries to
-  that same origin fail closed with the existing quarantine terminal instead of
-  spawning a replacement generation. Unrelated origins using the same shared
-  fetch implementation retain independent leases and remain usable. The affected
-  origin lease releases only after the retained underlying read/cancel outcome
-  settles, after which a clean retry to that origin can recover.
+  participant deadline wins while acquisition, a body read, malformed-read
+  teardown, or cleanup is still unresolved, the participant still receives the
+  bounded terminal but retries to that same origin fail closed with the existing
+  quarantine terminal instead of spawning a replacement generation. Unrelated
+  origins using the same shared fetch implementation retain independent leases
+  and remain usable. The affected origin lease releases only after the retained
+  underlying read/cancel outcome settles, after which a clean retry to that
+  origin can recover.
 - If a timed-out fetch resolves later to a live response, the client performs
   one bounded late-response cleanup. A cleanup that exceeds the 250 ms
   participant-facing teardown window remains quarantine-owned until its actual
