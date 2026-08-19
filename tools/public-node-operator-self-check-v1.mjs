@@ -11,6 +11,11 @@ const DEFAULT_TIMEOUT_MS = 8_000;
 const DEFAULT_EXPECTED_PEERS = 1;
 const MAX_RESPONSE_BYTES = 2 * 1024 * 1024;
 const CANCEL_SETTLE_TIMEOUT_MS = 250;
+const HTTP_HOST_CLASSES = new Set([
+  "loopback",
+  "private_or_overlay_ipv4",
+  "private_or_linklocal_ipv6",
+]);
 
 const REQUIRED_PUBLIC_ROUTES = [
   "/public-node",
@@ -223,8 +228,10 @@ function normalizeBase(raw) {
     throw new Error("base URL must not contain a path");
   }
   const hostClass = classifyHost(value.hostname);
-  if (value.protocol === "http:" && hostClass.startsWith("public_")) {
-    throw new Error("public base URL must use https; http is limited to loopback/private/overlay hosts");
+  if (value.protocol === "http:" && !HTTP_HOST_CLASSES.has(hostClass)) {
+    throw new Error(
+      "http base URL requires localhost or a literal loopback/private/overlay IP; DNS names require https",
+    );
   }
   value.pathname = "/";
   return value;
