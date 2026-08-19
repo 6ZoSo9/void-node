@@ -337,13 +337,44 @@ function canonicalJson(value) {
   return JSON.stringify(value);
 }
 
+function readSourceToolBytes(file, label) {
+  const fd = fs.openSync(file, fs.constants.O_RDONLY | O_NOFOLLOW);
+  try {
+    const before = fs.fstatSync(fd, { bigint: true });
+    if (!before.isFile()) throw new Error(`${label} must be a regular file`);
+    const bytes = readFdBounded(fd, label);
+    const after = fs.fstatSync(fd, { bigint: true });
+    const pathStat = fs.lstatSync(file, { bigint: true });
+    const beforeGeneration = statGeneration(before);
+    if (
+      !sameGeneration(beforeGeneration, statGeneration(after)) ||
+      !sameGeneration(beforeGeneration, statGeneration(pathStat))
+    ) {
+      throw new Error(`${label} changed generation during source binding`);
+    }
+    return bytes;
+  } finally {
+    fs.closeSync(fd);
+  }
+}
+
 function validateSourceContracts(manifest) {
   const expected = {};
+  const loaded = {};
   for (const [key, file] of Object.entries(SOURCE_TOOLS)) {
-    if (!fs.existsSync(file)) {
-      return { ok: false, detail: `local source tool missing: ${key}` };
+    try {
+      loaded[key] = readSourceToolBytes(file, `local source tool ${key}`);
+      expected[key] = sha256Bytes(loaded[key]);
+    } catch (error) {
+      return {
+        ok: false,
+        detail:
+          error instanceof Error
+            ? error.message
+            : `local source tool unavailable: ${key}`,
+        receiptReviewSource: null,
+      };
     }
-    expected[key] = sha256File(file);
   }
 
   const contracts = manifest?.source_contracts;
@@ -358,10 +389,17 @@ function validateSourceContracts(manifest) {
   return {
     ok,
     detail: ok ? null : "manifest source-tool hashes do not match local contracts",
+    receiptReviewSource: ok ? loaded.receipt_review : null,
   };
 }
 
-function replayCanonicalReceiptReview(receiptPath, loadedReceipt, manifest, storedReview) {
+function replayCanonicalReceiptReview(
+  receiptPath,
+  loadedReceipt,
+  manifest,
+  storedReview,
+  receiptReviewSource,
+) {
   if (!isObject(manifest) || typeof manifest.allow_hold !== "boolean") {
     return { ok: false, detail: "manifest allow_hold missing for canonical review replay" };
   }
@@ -377,8 +415,13 @@ function replayCanonicalReceiptReview(receiptPath, loadedReceipt, manifest, stor
     return { ok: false, detail: error instanceof Error ? error.message : "receipt replay precondition failed" };
   }
 
+  if (!Buffer.isBuffer(receiptReviewSource) || receiptReviewSource.length === 0) {
+    return { ok: false, detail: "canonical receipt reviewer source is not bound" };
+  }
+
   const args = [
-    SOURCE_TOOLS.receipt_review,
+    "--input-type=module",
+    "-",
     "--receipt",
     receiptPath,
     "--reviewed-at",
@@ -389,7 +432,9 @@ function replayCanonicalReceiptReview(receiptPath, loadedReceipt, manifest, stor
   const replay = spawnSync(process.execPath, args, {
     cwd: ROOT,
     encoding: "utf8",
-    stdio: ["ignore", "pipe", "pipe"],
+    input: receiptReviewSource,
+    stdio: ["pipe", "pipe", "pipe"],
+    env: {},
   });
   if (replay.error) {
     return { ok: false, detail: "canonical receipt reviewer failed to start" };
@@ -636,7 +681,13 @@ function reviewPack(packDir) {
     );
 
     const canonicalReplay = loaded.receipt
-      ? replayCanonicalReceiptReview(paths.receipt, loaded.receipt, manifest, review)
+      ? replayCanonicalReceiptReview(
+          paths.receipt,
+          loaded.receipt,
+          manifest,
+          review,
+          sourceContracts.receiptReviewSource,
+        )
       : { ok: false, detail: "receipt unavailable for canonical replay" };
     pushCheck(
       checks,
