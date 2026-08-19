@@ -136,17 +136,19 @@ const owner = createDataNetRequestOwnerV1({
 
 const first = owner.fetch(DATANET_URL);
 void first.catch(() => {});
-await Promise.resolve();
-assert.equal(overlap.records.length, 1);
+await drainUntil(
+  () => overlap.records.length === 1,
+  'initial DataNet request must start within the bounded microtask drain',
+);
 assert.equal(overlap.active(), 1);
 assert.equal(owner.hasActiveRequest(), true);
 
 const second = owner.fetch(DATANET_URL);
 void second.catch(() => {});
-for (let turn = 0; turn < 8 && overlap.records.length < 2; turn += 1) {
-  await Promise.resolve();
-}
-assert.equal(overlap.records.length, 2);
+await drainUntil(
+  () => overlap.records.length === 2,
+  'single replacement DataNet request must start after prior release',
+);
 assert.equal(overlap.records[0].aborted, true, 'superseded request must abort immediately');
 assert.equal(overlap.active(), 1, 'only the replacement request may remain active');
 assert.equal(overlap.maxActive(), 1, 'concurrent DataNet requests must never exceed one');
@@ -243,14 +245,20 @@ const bodyPhaseOwner = createDataNetRequestOwnerV1({
   origin: 'https://void.example',
 });
 const headersOnly = bodyPhaseOwner.fetch(DATANET_URL);
-await Promise.resolve();
+await drainUntil(
+  () => bodyPhaseHarness.records.length === 1,
+  'body-phase request must start',
+);
 bodyPhaseHarness.records[0].resolve({ phase: 'headers-returned-body-not-consumed' });
 assert.deepEqual(await headersOnly, { phase: 'headers-returned-body-not-consumed' });
 assert.equal(bodyPhaseOwner.hasActiveRequest(), true);
 const bodyPhaseSignal = bodyPhaseHarness.records[0].signal;
 const bodyReplacement = bodyPhaseOwner.fetch(DATANET_URL);
 void bodyReplacement.catch(() => {});
-await Promise.resolve();
+await drainUntil(
+  () => bodyPhaseHarness.records.length === 2 && bodyPhaseSignal.aborted === true,
+  'body-phase replacement must abort and release before starting',
+);
 assert.equal(
   bodyPhaseSignal.aborted,
   true,
@@ -267,12 +275,18 @@ const deadlineOwner = createDataNetRequestOwnerV1({
 });
 const deadline = new AbortController();
 const deadlineRequest = deadlineOwner.fetch(DATANET_URL, { signal: deadline.signal });
-await Promise.resolve();
+await drainUntil(
+  () => deadlineHarness.records.length === 1,
+  'deadline-bound DataNet request must start',
+);
 deadlineHarness.records[0].resolve({ phase: 'headers-returned' });
 assert.deepEqual(await deadlineRequest, { phase: 'headers-returned' });
 assert.equal(deadlineOwner.hasActiveRequest(), true);
 deadline.abort(new Error('caller total deadline'));
-await Promise.resolve();
+await drainUntil(
+  () => deadlineOwner.hasActiveRequest() === false,
+  'caller deadline must release a bodyless response generation',
+);
 assert.equal(
   deadlineHarness.records[0].signal.aborted,
   true,
@@ -293,7 +307,10 @@ const unmountOwner = createDataNetRequestOwnerV1({
 });
 const mountedRequest = unmountOwner.fetch(DATANET_URL);
 void mountedRequest.catch(() => {});
-await Promise.resolve();
+await drainUntil(
+  () => unmountHarness.records.length === 1,
+  'mounted DataNet request must start',
+);
 assert.equal(
   reconcileDataNetRequestOwnerWithViewV1(unmountOwner, {
     route: 'data',
@@ -322,8 +339,10 @@ const externalSignal = new AbortController();
 const healthRequest = passThroughOwner.fetch('https://void.example/health', {
   signal: externalSignal.signal,
 });
-await Promise.resolve();
-assert.equal(passThroughHarness.records.length, 1);
+await drainUntil(
+  () => passThroughHarness.records.length === 1,
+  'non-DataNet pass-through request must start',
+);
 assert.equal(passThroughHarness.records[0].signal, externalSignal.signal);
 assert.equal(passThroughOwner.hasActiveRequest(), false);
 passThroughHarness.records[0].resolve({ health: true });
@@ -377,7 +396,10 @@ try {
 
   const runtimeRequest = globalThis.fetch(DATANET_URL);
   void runtimeRequest.catch(() => {});
-  await Promise.resolve();
+  await drainUntil(
+    () => runtimeHarness.records.length === 1,
+    'installed owner must start the DataNet request',
+  );
   assert.equal(runtimeOwner.hasActiveRequest(), true);
 
   globalThis.location.hash = '#/home';
@@ -391,7 +413,10 @@ try {
   viewPresent = true;
   const mutationRequest = globalThis.fetch(DATANET_URL);
   void mutationRequest.catch(() => {});
-  await Promise.resolve();
+  await drainUntil(
+    () => runtimeHarness.records.length === 2,
+    'installed owner must start a new generation after unmount cleanup',
+  );
   viewPresent = false;
   observerCallback();
   await assert.rejects(mutationRequest, /unmounted/);
