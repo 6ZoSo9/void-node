@@ -107,6 +107,27 @@ async function reject(route, body, label) {
   );
 }
 
+async function rejectAdapterControls(overrides, label) {
+  let adapter = null;
+  let rejected = null;
+  try {
+    adapter = await createPublicSeedClientAdapterV1({
+      peers: `http://${LOOPBACK}:${port}`,
+      host: LOOPBACK,
+      port: 0,
+      timeoutMs: DEADLINE_MS,
+      maxBytes: 64 * 1024,
+      allowLoopbackFixture: true,
+      ...overrides,
+    });
+  } catch (error) {
+    rejected = error;
+  } finally {
+    if (adapter) await forceClose(adapter.server);
+  }
+  assert(rejected, `${label}: invalid adapter numeric control was accepted`);
+}
+
 try {
   await accept(
     "/__void/ready.json",
@@ -204,6 +225,54 @@ try {
     { blocks: [{ number: 0 }, { header: { number: "1" } }] },
     "range header number string",
   );
+
+  for (const [label, overrides] of [
+    ["adapter port trailing junk", { port: "4191junk" }],
+    ["adapter port numeric string", { port: "4191" }],
+    ["adapter port boolean", { port: true }],
+    ["adapter port array", { port: [4191] }],
+    ["adapter port object", { port: { value: 4191 } }],
+    ["adapter port fraction", { port: 4191.5 }],
+    ["adapter port negative", { port: -1 }],
+    ["adapter port overflow", { port: 65536 }],
+    ["adapter port NaN", { port: Number.NaN }],
+    ["adapter port infinity", { port: Number.POSITIVE_INFINITY }],
+    ["adapter timeout string", { timeoutMs: "1000" }],
+    ["adapter timeout fraction", { timeoutMs: 1000.5 }],
+    ["adapter timeout boolean", { timeoutMs: true }],
+    ["adapter timeout below minimum", { timeoutMs: 999 }],
+    ["adapter timeout above maximum", { timeoutMs: 60001 }],
+    ["adapter timeout NaN", { timeoutMs: Number.NaN }],
+    ["adapter maxBytes string", { maxBytes: String(64 * 1024) }],
+    ["adapter maxBytes fraction", { maxBytes: 64 * 1024 + 0.5 }],
+    ["adapter maxBytes boolean", { maxBytes: false }],
+    ["adapter maxBytes below minimum", { maxBytes: 64 * 1024 - 1 }],
+    ["adapter maxBytes above maximum", { maxBytes: 128 * 1024 * 1024 + 1 }],
+    ["adapter maxBytes infinity", { maxBytes: Number.POSITIVE_INFINITY }],
+  ]) {
+    await rejectAdapterControls(overrides, label);
+  }
+
+  const normalPortFixture = http.createServer();
+  const normalAdapterPort = await listen(normalPortFixture);
+  await forceClose(normalPortFixture);
+  let normalPortAdapter = null;
+  try {
+    normalPortAdapter = await createPublicSeedClientAdapterV1({
+      peers: `http://${LOOPBACK}:${port}`,
+      host: LOOPBACK,
+      port: normalAdapterPort,
+      timeoutMs: DEADLINE_MS,
+      maxBytes: 64 * 1024,
+      allowLoopbackFixture: true,
+    });
+    assert(
+      normalPortAdapter.port === normalAdapterPort,
+      `canonical numeric TCP port drifted: ${String(normalPortAdapter.port)}`,
+    );
+  } finally {
+    if (normalPortAdapter) await forceClose(normalPortAdapter.server);
+  }
 
   let resolverCalls = 0;
   let rejectStalledResolver = null;
