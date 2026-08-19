@@ -28,7 +28,7 @@ node tools/void-ai-agent-bootstrap-client-v1.mjs \
   --pretty
 ```
 
-Optional mode-0600 output:
+Optional create-only mode-0600 output:
 
 ```bash
 node tools/void-ai-agent-bootstrap-client-v1.mjs \
@@ -37,6 +37,11 @@ node tools/void-ai-agent-bootstrap-client-v1.mjs \
   --pretty
 ```
 
+`--output` refuses an existing final path, including a symbolic link. The final
+file is created exclusively, written through that already-open descriptor,
+forced to mode `0600`, and synchronized before close. Choose a new output path
+for each publication rather than relying on overwrite behavior.
+
 ## Network boundary
 
 - HTTPS is required except for loopback proof mode.
@@ -44,14 +49,43 @@ node tools/void-ai-agent-bootstrap-client-v1.mjs \
 - Redirects are rejected and their response bodies enter the same bounded
   rejection-teardown contract instead of outliving the bootstrap probe.
 - Every discovered route must remain on the original origin.
+- A caller-supplied fetch implementation cannot substitute response provenance:
+  before body admission, the final `response.url` must be present, parseable,
+  and normalize to the exact immutable requested href, while
+  `response.redirected === true` is rejected. Missing/malformed final URLs,
+  cross-origin substitutions, and same-origin wrong path/query/fragment values
+  fail closed under bounded response teardown.
+- `--timeout-ms` and `--max-bytes` accept only whole canonical positive decimal
+  CLI tokens in their reviewed ranges. The exported programmatic client accepts
+  only actual finite safe-integer numbers in the same ranges, and validates
+  both controls before admitting any fetch/network work.
 - `--max-bytes` is enforced while streaming, before a response can be fully
   buffered past the configured ceiling.
 - A present `Content-Length` must be a canonical nonnegative safe integer;
   malformed or oversized declarations fail closed before body accumulation.
-- The per-request deadline remains active through response-body consumption and
-  bounded rejection teardown.
-- Rejection cleanup cannot replace or indefinitely delay an already-known
-  response HOLD.
+- The per-request deadline owns fetch acquisition as well as response-body
+  consumption. A caller-supplied fetch or admitted reader that ignores
+  `AbortSignal` cannot keep the participant-facing request pending past that
+  deadline.
+- One transport-generation lease spans fetch acquisition through admitted body
+  consumption for a caller-supplied fetch implementation. If the participant
+  deadline wins while acquisition, a body read, or cleanup is still unresolved,
+  the participant still receives the bounded timeout but same-fetch retries
+  fail closed with the existing quarantine terminal instead of spawning a
+  replacement generation. The lease releases only after the retained
+  underlying read/cancel outcome settles, after which a clean retry can recover.
+- If a timed-out fetch resolves later to a live response, the client performs
+  one bounded late-response cleanup. A cleanup that exceeds the 250 ms
+  participant-facing teardown window remains quarantine-owned until its actual
+  settlement rather than being detached while a replacement request starts.
+- Response-body reader acquisition is teardown-owned. A locked or throwing
+  `getReader()` cannot escape as an unowned raw stream failure.
+- Every admitted `reader.read()` is raced against the owned request deadline,
+  including custom readers that ignore request abort.
+- Rejection cleanup has a separate bounded 250 ms participant-facing settlement
+  terminal and cannot replace or indefinitely delay an already-known response
+  HOLD; transport quarantine may outlive that visible terminal solely to bound
+  unresolved underlying work.
 - No authorization header, cookie, credential, wallet material, operator key,
   or request body is sent.
 
