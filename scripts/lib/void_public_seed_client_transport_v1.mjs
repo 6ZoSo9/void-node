@@ -411,7 +411,7 @@ function requestPinnedAddress(
       responseRef?.destroy(error);
       request.destroy(error);
     }, remaining);
-    request.setTimeout(Math.max(1, Math.min(timeoutMs, remaining)), () => {
+    request.setTimeout(timeoutMs, () => {
       request.destroy(new Error(`seed request inactivity timeout after ${timeoutMs} ms`));
     });
     request.on("error", fail);
