@@ -44,6 +44,12 @@ node tools/void-ai-agent-bootstrap-client-v1.mjs \
 - Redirects are rejected and their response bodies enter the same bounded
   rejection-teardown contract instead of outliving the bootstrap probe.
 - Every discovered route must remain on the original origin.
+- A caller-supplied fetch implementation cannot substitute response provenance:
+  before body admission, the final `response.url` must be present, parseable,
+  and normalize to the exact immutable requested href, while
+  `response.redirected === true` is rejected. Missing/malformed final URLs,
+  cross-origin substitutions, and same-origin wrong path/query/fragment values
+  fail closed under bounded response teardown.
 - `--timeout-ms` and `--max-bytes` accept only whole canonical positive decimal
   CLI tokens in their reviewed ranges. The exported programmatic client accepts
   only actual finite safe-integer numbers in the same ranges, and validates
