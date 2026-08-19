@@ -35,8 +35,13 @@ node tools/public-node-operator-self-check-receipt-review-v1.mjs \
 ```
 
 The receipt input is opened without following symbolic links and is read through
-the opened file descriptor under the 4 MiB ceiling. The reviewer rejects a
-receipt whose generation changes, truncates, or grows during the bounded read.
+the opened file descriptor under the 4 MiB ceiling. A receipt is authoritative
+only when it is a single-link regular file owned by the current operator UID in
+mode `0600`. The reviewer binds the opened descriptor to the same final pathname
+generation before and after the read, including device/inode, owner, mode, link
+count, size, ctime, mtime, and birthtime identity where supplied by the platform.
+It performs a second exact descriptor readback and rejects byte changes even when
+a same-inode rewrite preserves the file size.
 
 The optional output is **create-only**: its parent directory must already exist
 and no component of the output path may be a symbolic link. The reviewer never
@@ -60,8 +65,9 @@ The reviewer verifies:
 10. Green runtime truth (`ready`, gap, txroot, peers)
 11. Exact GET-only safety boundary
 12. Absence of embedded absolute URLs, secrets, credentials, or raw bodies
-13. Descriptor-bound, no-symlink receipt input under the 4 MiB ceiling
-14. Create-only, no-symlink mode-`0600` review output
+13. Owner-private, single-link, no-follow receipt input under the 4 MiB ceiling
+14. Exact descriptor/path generation and byte-stable readback
+15. Create-only, no-symlink mode-`0600` review output
 
 The receipt SHA-256 is recorded in the review. The raw receipt path and body are
 not copied into the review.
@@ -103,7 +109,9 @@ The fixture proof covers:
 The focused operator transport proof additionally exercises fresh output,
 pre-existing output preservation, symbolic-link input/output rejection,
 missing-parent rejection, and oversized receipt rejection through the real
-offline reviewer CLI.
+offline reviewer CLI. The generation-authority proof additionally exercises
+non-private mode, multiple hard links, a same-inode/same-size rewrite during the
+read, and same-path replacement of the final receipt generation.
 
 ## Authority boundary
 
