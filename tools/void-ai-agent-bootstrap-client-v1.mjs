@@ -217,6 +217,28 @@ function sameOriginUrl(base, routeOrUrl) {
   return resolved;
 }
 
+function requireExactResponseUrl(response, requestedUrl) {
+  if (response?.redirected === true) {
+    throw new Error("response_redirected_forbidden");
+  }
+
+  const raw = response?.url;
+  if (typeof raw !== "string" || raw.length === 0) {
+    throw new Error("response_final_url_missing");
+  }
+
+  let finalUrl;
+  try {
+    finalUrl = new URL(raw);
+  } catch {
+    throw new Error("response_final_url_invalid");
+  }
+
+  if (finalUrl.href !== requestedUrl.href) {
+    throw new Error("response_final_url_mismatch");
+  }
+}
+
 function publicMarker(value) {
   const marker = value?.marker;
   return (
@@ -541,6 +563,17 @@ async function fetchJsonV1({
       },
       controller,
     );
+
+    try {
+      requireExactResponseUrl(response, url);
+    } catch (error) {
+      await rejectResponseBodyBounded(
+        response,
+        null,
+        controller,
+      );
+      throw error;
+    }
 
     if (
       response.status >= 300 &&
