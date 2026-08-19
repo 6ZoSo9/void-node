@@ -461,11 +461,7 @@ function parsePeerCount(value) {
   return null;
 }
 
-function remainingCancellationWindow(deadlineMs) {
-  return Math.max(0, Math.min(CANCEL_SETTLE_TIMEOUT_MS, deadlineMs - Date.now()));
-}
-
-async function settleCancellation(target, controller, deadlineMs) {
+async function settleCancellation(target, controller) {
   if (!controller.signal.aborted) controller.abort();
 
   let result;
@@ -477,15 +473,12 @@ async function settleCancellation(target, controller, deadlineMs) {
   }
   if (!result || typeof result.then !== "function") return;
 
-  const waitMs = remainingCancellationWindow(deadlineMs);
-  if (waitMs <= 0) return;
-
   let timer;
   try {
     await Promise.race([
       Promise.resolve(result).catch(() => undefined),
       new Promise((resolve) => {
-        timer = setTimeout(resolve, waitMs);
+        timer = setTimeout(resolve, CANCEL_SETTLE_TIMEOUT_MS);
       }),
     ]);
   } finally {
@@ -493,9 +486,43 @@ async function settleCancellation(target, controller, deadlineMs) {
   }
 }
 
+async function readChunkWithDeadline(reader, controller, deadlineMs) {
+  if (controller.signal.aborted || Date.now() >= deadlineMs) {
+    return { kind: "timeout" };
+  }
+
+  const readOutcome = Promise.resolve()
+    .then(() => reader.read())
+    .then(
+      (value) => ({ kind: "read", value }),
+      (error) => ({ kind: "error", error }),
+    );
+
+  let timer;
+  let abortListener;
+  const deadlineOutcome = new Promise((resolve) => {
+    const settleTimeout = () => resolve({ kind: "timeout" });
+    const remainingMs = Math.max(0, deadlineMs - Date.now());
+    if (remainingMs <= 0 || controller.signal.aborted) {
+      settleTimeout();
+      return;
+    }
+    abortListener = settleTimeout;
+    controller.signal.addEventListener("abort", abortListener, { once: true });
+    timer = setTimeout(settleTimeout, remainingMs);
+  });
+
+  try {
+    return await Promise.race([readOutcome, deadlineOutcome]);
+  } finally {
+    if (timer) clearTimeout(timer);
+    if (abortListener) controller.signal.removeEventListener("abort", abortListener);
+  }
+}
+
 async function boundedResponseBody(response, maximum, controller, deadlineMs) {
   const rejectBody = async (target, code) => {
-    await settleCancellation(target, controller, deadlineMs);
+    await settleCancellation(target, controller);
     throw new Error(code);
   };
 
@@ -513,7 +540,13 @@ async function boundedResponseBody(response, maximum, controller, deadlineMs) {
     }
   }
 
-  const reader = response.body?.getReader?.();
+  let reader;
+  try {
+    reader = response.body?.getReader?.();
+  } catch (error) {
+    void error;
+    await rejectBody(response.body, "response_body_unavailable");
+  }
   if (!reader) {
     await rejectBody(response.body, "response_body_unavailable");
   }
@@ -522,21 +555,26 @@ async function boundedResponseBody(response, maximum, controller, deadlineMs) {
   let total = 0;
   try {
     while (true) {
-      let nextChunk;
-      try {
-        nextChunk = await reader.read();
-      } catch (error) {
-        const timedOut = controller.signal.aborted;
-        await settleCancellation(reader, controller, deadlineMs);
+      const outcome = await readChunkWithDeadline(reader, controller, deadlineMs);
+      if (outcome.kind === "timeout") {
+        await settleCancellation(reader, controller);
+        const timeoutError = new Error("request timed out");
+        timeoutError.name = "AbortError";
+        throw timeoutError;
+      }
+      if (outcome.kind === "error") {
+        const timedOut = controller.signal.aborted || Date.now() >= deadlineMs;
+        await settleCancellation(reader, controller);
         if (timedOut) {
           const timeoutError = new Error("request timed out");
           timeoutError.name = "AbortError";
           throw timeoutError;
         }
-        void error;
+        void outcome.error;
         throw new Error("response_body_read_failed");
       }
-      const { done, value } = nextChunk;
+
+      const { done, value } = outcome.value;
       if (done) break;
       if (!(value instanceof Uint8Array)) {
         await rejectBody(reader, "response_body_invalid_chunk");
