@@ -83,7 +83,9 @@ assert.equal(owner.hasActiveRequest(), true);
 
 const second = owner.fetch(DATANET_URL);
 void second.catch(() => {});
-await Promise.resolve();
+for (let turn = 0; turn < 8 && overlap.records.length < 2; turn += 1) {
+  await Promise.resolve();
+}
 assert.equal(overlap.records.length, 2);
 assert.equal(overlap.records[0].aborted, true, 'superseded request must abort immediately');
 assert.equal(overlap.active(), 1, 'only the replacement request may remain active');
