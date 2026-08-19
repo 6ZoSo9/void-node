@@ -21,6 +21,7 @@ const routePayloads = new Map([
   [
     "/.well-known/void-agent-discovery.json",
     {
+      $schema: "./void-agent-discovery.schema.json",
       marker:
         "VOID_AI_AGENT_WELL_KNOWN_ENTRYPOINT_V1",
       protocol:
@@ -40,7 +41,12 @@ const routePayloads = new Map([
         same_origin_only: true,
         follow_redirects: false,
         send_secrets: false,
+        send_wallet_material: false,
+        send_operator_keys: false,
+        treat_unknown_as: "not_granted",
       },
+      network_authenticity:
+        "/.well-known/void-network-authenticity.json",
     },
   ],
   [
@@ -338,6 +344,131 @@ await withServer(
   },
 );
 
+const canonicalWellKnown = routePayloads.get(
+  "/.well-known/void-agent-discovery.json",
+);
+const exactRootCases = [
+  [
+    "schema",
+    (value) => {
+      value.$schema = "./wrong.schema.json";
+    },
+    /well-known discovery schema mismatch/,
+  ],
+  [
+    "chain",
+    (value) => {
+      value.network.chain_id = 2051;
+    },
+    /well-known chain id mismatch/,
+  ],
+  [
+    "chain_string",
+    (value) => {
+      value.network.chain_id = "2050";
+    },
+    /well-known chain id mismatch/,
+  ],
+  [
+    "chain_fraction",
+    (value) => {
+      value.network.chain_id = 2050.5;
+    },
+    /well-known chain id mismatch/,
+  ],
+  [
+    "chain_unsafe",
+    (value) => {
+      value.network.chain_id = Number.MAX_SAFE_INTEGER + 1;
+    },
+    /well-known chain id mismatch/,
+  ],
+  [
+    "network_name",
+    (value) => {
+      value.network.name = "VOID Mainnet-1";
+    },
+    /well-known network name mismatch/,
+  ],
+  [
+    "canonical_route",
+    (value) => {
+      value.canonical_discovery = "/public-node/agents/other.json";
+    },
+    /well-known canonical discovery mismatch/,
+  ],
+  [
+    "authority_default",
+    (value) => {
+      value.authority.default = "not_granted";
+    },
+    /well-known default authority mismatch/,
+  ],
+  [
+    "credentials",
+    (value) => {
+      value.authority.credentials_required = true;
+    },
+    /well-known credentials requirement mismatch/,
+  ],
+  [
+    "safety_missing",
+    (value) => {
+      delete value.safety.send_operator_keys;
+    },
+    /well_known_safety_keys_mismatch/,
+  ],
+  [
+    "redirect_safety",
+    (value) => {
+      value.safety.follow_redirects = true;
+    },
+    /well-known redirect boundary mismatch/,
+  ],
+  [
+    "network_authenticity",
+    (value) => {
+      value.network_authenticity = "/wrong-authenticity.json";
+    },
+    /well-known network authenticity route mismatch/,
+  ],
+  [
+    "unknown_field",
+    (value) => {
+      value.unreviewed = true;
+    },
+    /well_known_keys_mismatch/,
+  ],
+];
+
+for (const [, mutate, expected] of exactRootCases) {
+  const payload = structuredClone(canonicalWellKnown);
+  mutate(payload);
+  await withServer(
+    new Map([
+      [
+        "/.well-known/void-agent-discovery.json",
+        { payload },
+      ],
+    ]),
+    async ({ baseUrl, observations }) => {
+      await assert.rejects(
+        runVoidAiAgentBootstrapClientV1({
+          baseUrl,
+          timeoutMs: 2000,
+          maxBytes: 65536,
+        }),
+        expected,
+      );
+      assert.equal(
+        observations.methods.length,
+        1,
+        "invalid root contract must stop before downstream probes",
+      );
+    },
+  );
+}
+
 await withServer(
   new Map([
     [
@@ -457,7 +588,7 @@ await withServer(
         timeoutMs: 2000,
         maxBytes: 65536,
       }),
-      /cross-origin route forbidden/,
+      /well-known canonical discovery mismatch/,
     );
   },
 );
@@ -580,6 +711,8 @@ console.log(
   "VOID_AI_AGENT_BOOTSTRAP_CLIENT_V1_PROOF_EXACT_GREEN",
 );
 console.log("successful_bootstrap=1");
+console.log("well_known_exact_contract_bound=1");
+console.log("invalid_well_known_stops_before_downstream=1");
 console.log("degraded_optional_surface=1");
 console.log("redirect_rejected=1");
 console.log("cross_origin_rejected=1");
