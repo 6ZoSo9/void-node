@@ -9,6 +9,23 @@ const RECEIPT_MARKER = "VOID_PUBLIC_NODE_OPERATOR_SELF_CHECK_V1";
 const NETWORK = "Mainnet-0";
 const MAX_RECEIPT_BYTES = 4 * 1024 * 1024;
 
+const TARGET_HOST_CLASSES = new Set([
+  "loopback",
+  "private_or_overlay_ipv4",
+  "public_ipv4",
+  "private_or_linklocal_ipv6",
+  "public_ipv6",
+  "private_dns",
+  "overlay_dns",
+  "public_dns",
+]);
+
+const HTTP_TARGET_HOST_CLASSES = new Set([
+  "loopback",
+  "private_or_overlay_ipv4",
+  "private_or_linklocal_ipv6",
+]);
+
 const EXPECTED_CHECK_IDS = [
   "health",
   "readiness",
@@ -230,16 +247,18 @@ function reviewReceipt(receipt) {
   }
   pushCheck(checks, "observed_at", observedAtValid, "observed_at invalid");
 
+  const targetScheme = receipt.target?.scheme;
+  const targetHostClass = receipt.target?.host_class;
   const targetOk =
     exactKeys(receipt.target, ["scheme", "host_class", "port", "raw_target_included"]) &&
-    ["http", "https"].includes(receipt.target?.scheme) &&
-    typeof receipt.target?.host_class === "string" &&
-    receipt.target.host_class.length > 0 &&
+    ["http", "https"].includes(targetScheme) &&
+    TARGET_HOST_CLASSES.has(targetHostClass) &&
+    (targetScheme === "https" || HTTP_TARGET_HOST_CLASSES.has(targetHostClass)) &&
     Number.isInteger(receipt.target?.port) &&
     receipt.target.port >= 1 &&
     receipt.target.port <= 65535 &&
     receipt.target.raw_target_included === false;
-  pushCheck(checks, "target_redaction", targetOk, "target redaction contract mismatch");
+  pushCheck(checks, "target_redaction", targetOk, "target redaction/transport contract mismatch");
 
   const receiptChecks = Array.isArray(receipt.checks) ? receipt.checks : [];
   const checkIds = receiptChecks.map((entry) => entry?.id);
