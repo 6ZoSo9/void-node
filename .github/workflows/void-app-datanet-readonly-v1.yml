@@ -14,6 +14,7 @@ on:
       - "scripts/prove_void_app_datanet_readonly_v1.mjs"
       - "scripts/prove_void_app_datanet_local_origin_v1.mjs"
       - "scripts/prove_void_app_datanet_request_owner_v1.mjs"
+      - "scripts/prove_void_app_datanet_response_lifetime_v1.mjs"
       - ".github/workflows/void-app-datanet-readonly-v1.yml"
   push:
     branches: [main]
@@ -29,6 +30,7 @@ on:
       - "scripts/prove_void_app_datanet_readonly_v1.mjs"
       - "scripts/prove_void_app_datanet_local_origin_v1.mjs"
       - "scripts/prove_void_app_datanet_request_owner_v1.mjs"
+      - "scripts/prove_void_app_datanet_response_lifetime_v1.mjs"
       - ".github/workflows/void-app-datanet-readonly-v1.yml"
 
 permissions:
@@ -59,6 +61,7 @@ jobs:
           node --check scripts/prove_void_app_datanet_readonly_v1.mjs
           node --check scripts/prove_void_app_datanet_local_origin_v1.mjs
           node --check scripts/prove_void_app_datanet_request_owner_v1.mjs
+          node --check scripts/prove_void_app_datanet_response_lifetime_v1.mjs
       - name: Build compiled runtime adapter
         run: |
           npm ci --ignore-scripts --no-audit --no-fund
@@ -70,3 +73,5 @@ jobs:
         run: node scripts/prove_void_app_datanet_local_origin_v1.mjs
       - name: Prove bounded DataNet request ownership
         run: node scripts/prove_void_app_datanet_request_owner_v1.mjs
+      - name: Prove DataNet response lifetime ownership
+        run: node scripts/prove_void_app_datanet_response_lifetime_v1.mjs
