@@ -64,8 +64,10 @@ the still-fenced lock generation without deleting a replacement. A live external
 process instance remains busy unless
 its exact nonce-bound durable release terminal proves that logical ownership
 ended. A dead, PID-reused, same-process abandoned, or durably released lock is
-recoverable without manual reclaim-owner deletion. Exact readback plus
-parent-directory resync resolves uncertain publication. If physical release
+recoverable without manual reclaim-owner deletion. Exact readback plus an exact
+process-local generation/nonce retry identity resolves uncertain publication
+even when repeated parent-directory resync attempts fail before storage
+recovers. If physical release
 fails, another process can reclaim through the inode fence while the original
 process remains alive; without the release terminal, a live owner is
 non-stealable.

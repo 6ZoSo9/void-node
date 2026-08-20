@@ -153,7 +153,8 @@ Linux process-start ticks, boot ID, and nonce. A matching external process
 instance remains busy; a dead or PID-reused owner is reclaimed through a
 hard-link inode fence, which prevents compare/delete races from unlinking a
 replacement lock. Publication-fsync uncertainty is resolved by exact readback
-and resync. Logical release first publishes a durable nonce-bound terminal
+and an exact process-local generation/nonce retry identity, including repeated
+resync failure before storage recovery. Logical release first publishes a durable nonce-bound terminal
 witness; if physical deletion fails, another process can validate that exact
 witness and reclaim through the same inode fence while the original process
 remains alive. A live owner with no release witness remains non-stealable.

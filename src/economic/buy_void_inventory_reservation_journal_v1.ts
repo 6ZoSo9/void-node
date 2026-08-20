@@ -3138,6 +3138,10 @@ function processInstanceStatus(
 }
 
 const ACTIVE_POOL_LOCK_NONCES = new Set<string>();
+const UNCERTAIN_POOL_LOCK_RECLAIM_OWNER_PUBLICATIONS = new Map<
+  string,
+  BuyVoidInventoryPoolLockReclaimOwnerV1
+>();
 
 function readPoolLock(
   paths: BuyVoidInventoryReservationJournalPathsV1,
@@ -3458,7 +3462,29 @@ function acquirePoolLockReclaimOwner(
     const active = owners.at(-1);
     if (active) {
       const status = processInstanceStatus(active);
-      if (status === "matching" || status === "unknown") return "busy";
+      if (status === "matching") {
+        const activeFile = poolLockReclaimOwnerFile(
+          paths,
+          observed.owner_nonce,
+          active.reclaim_generation,
+        );
+        const uncertain = UNCERTAIN_POOL_LOCK_RECLAIM_OWNER_PUBLICATIONS.get(
+          activeFile,
+        );
+        if (uncertain && exactPoolLockReclaimOwnerMatch(active, uncertain)) {
+          // A prior call in this exact process may have published the owner
+          // link but failed every attempted parent-directory fsync. Preserve
+          // that exact generation/nonce identity across synchronous retries:
+          // only its publisher may re-establish durability and resume. Keep
+          // the memory entry on failure so a later retry can converge once
+          // the storage fault clears.
+          fsyncDir(paths.history_anchor_pool_dir);
+          UNCERTAIN_POOL_LOCK_RECLAIM_OWNER_PUBLICATIONS.delete(activeFile);
+          return "acquired";
+        }
+        return "busy";
+      }
+      if (status === "unknown") return "busy";
     }
     const generation = (active?.reclaim_generation ?? 0) + 1;
     if (generation > MAX_POOL_LOCK_RECLAIM_OWNER_GENERATIONS_V1) {
@@ -3496,7 +3522,21 @@ function acquirePoolLockReclaimOwner(
         observed.owner_nonce,
       ).at(-1);
       if (published && exactPoolLockReclaimOwnerMatch(published, candidate)) {
+        if (
+          !UNCERTAIN_POOL_LOCK_RECLAIM_OWNER_PUBLICATIONS.has(ownerFile) &&
+          UNCERTAIN_POOL_LOCK_RECLAIM_OWNER_PUBLICATIONS.size >=
+            MAX_POOL_LOCK_RECLAIM_OWNER_GENERATIONS_V1
+        ) {
+          throw new Error(
+            "inventory_reservation_lock_reclaim_owner_uncertain_publications_exhausted",
+          );
+        }
+        UNCERTAIN_POOL_LOCK_RECLAIM_OWNER_PUBLICATIONS.set(
+          ownerFile,
+          candidate,
+        );
         fsyncDir(paths.history_anchor_pool_dir);
+        UNCERTAIN_POOL_LOCK_RECLAIM_OWNER_PUBLICATIONS.delete(ownerFile);
         return "acquired";
       }
       throw error;
@@ -3519,13 +3559,13 @@ function clearPoolLockReclaimOwners(
 ): void {
   const owners = readPoolLockReclaimOwners(paths, observedOwnerNonce);
   for (const owner of owners.slice().reverse()) {
-    clearReclaimFence(
-      poolLockReclaimOwnerFile(
-        paths,
-        observedOwnerNonce,
-        owner.reclaim_generation,
-      ),
+    const ownerFile = poolLockReclaimOwnerFile(
+      paths,
+      observedOwnerNonce,
+      owner.reclaim_generation,
     );
+    clearReclaimFence(ownerFile);
+    UNCERTAIN_POOL_LOCK_RECLAIM_OWNER_PUBLICATIONS.delete(ownerFile);
   }
 }
 
