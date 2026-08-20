@@ -27,6 +27,21 @@ const TERMINAL_PHASES = new Set([
   "CANCELLED_BEFORE_FUNDING",
 ]);
 
+const EVENT_TYPES = new Set([
+  "BIND_HASHLOCK",
+  "EXPIRE_RESERVATION",
+  "CANCEL_BEFORE_FUNDING",
+  "HOLD",
+  "OBSERVE_SOURCE_FUNDING",
+  "CONFIRM_SOURCE_FUNDING",
+  "OBSERVE_SOURCE_REFUND",
+  "OBSERVE_COUNTERPARTY_LOCK",
+  "OBSERVE_COUNTERPARTY_REFUND",
+  "OBSERVE_PREIMAGE_REVEAL",
+  "OBSERVE_BOTH_CLAIMS",
+  "FINALIZE_SETTLEMENT",
+]);
+
 const TRANSITIONS = Object.freeze({
   RESERVED: Object.freeze({
     BIND_HASHLOCK: "HASH_BOUND",
@@ -226,6 +241,9 @@ function validateEvent(raw, index, contract) {
   if (event.schema !== EVENT_SCHEMA) throw new Error(`${label}.schema mismatch`);
   if (event.contract_id !== contract.contract_id) {
     throw new Error(`${label}.contract_id mismatch`);
+  }
+  if (typeof event.event_type !== "string" || !EVENT_TYPES.has(event.event_type)) {
+    throw new Error(`${label}.event_type must be a supported v1 event name`);
   }
   const sourceRefundRole =
     contract.direction === "BTC_TO_VOID" ? "SOURCE_NATIVE_BTC" : "SOURCE_NATIVE_VOID";
