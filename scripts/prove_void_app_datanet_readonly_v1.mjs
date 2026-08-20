@@ -187,15 +187,26 @@ await assert.rejects(
   /redirected/,
 );
 
-await assert.rejects(
-  () => fetchDataNetStatusV1({
-    origin: 'https://void.example',
-    fetchImpl: async () => makeResponse({
-      url: 'https://other.example/public-node/datanet/field-replication-status-card-v1.json',
+const missingFinalUrl = makeResponse();
+delete missingFinalUrl.url;
+for (const response of [
+  missingFinalUrl,
+  makeResponse({ url: '' }),
+  makeResponse({ url: 42 }),
+  makeResponse({ url: 'not a url' }),
+  makeResponse({ url: 'https://void.example/public-node/datanet/field-replication-status-card-v1.json?shadow=1' }),
+  makeResponse({ url: 'https://void.example/public-node/datanet/field-replication-status-card-v1.json#shadow' }),
+  makeResponse({ url: 'https://void.example/public-node/datanet/other.json' }),
+  makeResponse({ url: 'https://other.example/public-node/datanet/field-replication-status-card-v1.json' }),
+]) {
+  await assert.rejects(
+    () => fetchDataNetStatusV1({
+      origin: 'https://void.example',
+      fetchImpl: async () => response,
     }),
-  }),
-  /escaped/,
-);
+    /escaped/,
+  );
+}
 
 await assert.rejects(
   () => fetchDataNetStatusV1({
@@ -227,6 +238,50 @@ await assert.rejects(
 );
 assert.equal(streamedReads, 3, 'stream must stop immediately after crossing 128 KiB');
 assert.equal(streamedCancelled, true, 'over-limit stream must be cancelled');
+
+let zeroProgressReads = 0;
+let zeroProgressCancelled = false;
+await assert.rejects(
+  () => fetchDataNetStatusV1({
+    origin: 'https://void.example',
+    fetchImpl: async () => makeResponse({
+      chunks: [new Uint8Array(0), encoder.encode(JSON.stringify(canonical))],
+      hooks: {
+        onRead: () => { zeroProgressReads += 1; },
+        onCancel: () => { zeroProgressCancelled = true; },
+      },
+    }),
+  }),
+  /made no progress/,
+);
+assert.equal(zeroProgressReads, 1, 'zero-progress response must fail on the first empty chunk');
+assert.equal(zeroProgressCancelled, true, 'zero-progress response must be cancelled once');
+
+const deadline = new AbortController();
+let immediateTinyReads = 0;
+const deadlineTimer = setTimeout(
+  () => deadline.abort(new Error('synthetic DataNet deadline')),
+  0,
+);
+try {
+  await assert.rejects(
+    () => fetchDataNetStatusV1({
+      origin: 'https://void.example',
+      signal: deadline.signal,
+      fetchImpl: async () => makeResponse({
+        chunks: Array.from({ length: 4096 }, () => new Uint8Array([0x20])),
+        hooks: { onRead: () => { immediateTinyReads += 1; } },
+      }),
+    }),
+    /synthetic DataNet deadline/,
+  );
+} finally {
+  clearTimeout(deadlineTimer);
+}
+assert.ok(
+  immediateTinyReads <= 128,
+  `immediate tiny-chunk stream must yield to the deadline before unbounded reads; saw ${immediateTinyReads}`,
+);
 
 await assert.rejects(
   () => fetchDataNetStatusV1({
@@ -273,6 +328,9 @@ for (const forbidden of [
 }
 assert.doesNotMatch(dataSource, /response\.text\(\)/, 'unbounded full-body buffering must remain absent');
 assert.match(dataSource, /response\?\.body\?\.getReader\?\.\(\)/);
+assert.match(dataSource, /typeof response\.url !== 'string' \|\| response\.url\.length === 0/);
+assert.match(dataSource, /value\.byteLength === 0/);
+assert.match(dataSource, /reads % 64 === 0/);
 assert.equal((dataSource.match(/new MutationObserver/g) ?? []).length, 1);
 assert.equal((dataSource.match(/observer\.observe\(viewRoot, \{ childList: true \}\)/g) ?? []).length, 1);
 assert.doesNotMatch(dataSource, /addEventListener\(['"]hashchange['"]/);
@@ -467,7 +525,10 @@ console.log('request_method=GET');
 console.log('same_origin_only=true');
 console.log('credentials=omit');
 console.log('redirects=rejected');
+console.log('final_url_identity_required=true');
 console.log('stream_limit_bytes=131072');
+console.log('zero_progress_stream_rejected=true');
+console.log('immediate_stream_deadline_yield=true');
 console.log('automatic_requests_per_render=1');
 console.log('validated_to_loading_evidence_withheld=true');
 console.log('replacement_success_repopulates_only_new_snapshot=true');
