@@ -6,6 +6,7 @@ on:
       - "src/storage/segmented_jsonl_v1.ts"
       - "scripts/prove_segmented_jsonl_v1.ts"
       - "scripts/prove_segmented_jsonl_record_delimiter_ceiling_v1.ts"
+      - "scripts/prove_segmented_jsonl_manifest_publish_ceiling_v1.ts"
       - ".github/workflows/void-segmented-jsonl-v1.yml"
       - "scripts/ci_diff_hygiene_v1.sh"
       - "scripts/prove_ci_diff_hygiene_v1.mjs"
@@ -16,6 +17,7 @@ on:
       - "src/storage/segmented_jsonl_v1.ts"
       - "scripts/prove_segmented_jsonl_v1.ts"
       - "scripts/prove_segmented_jsonl_record_delimiter_ceiling_v1.ts"
+      - "scripts/prove_segmented_jsonl_manifest_publish_ceiling_v1.ts"
       - ".github/workflows/void-segmented-jsonl-v1.yml"
       - "scripts/ci_diff_hygiene_v1.sh"
       - "scripts/prove_ci_diff_hygiene_v1.mjs"
@@ -56,6 +58,7 @@ jobs:
           node --experimental-strip-types --check src/storage/segmented_jsonl_v1.ts
           node --experimental-strip-types --check scripts/prove_segmented_jsonl_v1.ts
           node --experimental-strip-types --check scripts/prove_segmented_jsonl_record_delimiter_ceiling_v1.ts
+          node --experimental-strip-types --check scripts/prove_segmented_jsonl_manifest_publish_ceiling_v1.ts
           node --check scripts/prove_ci_diff_hygiene_v1.mjs
           bash -n scripts/ci_diff_hygiene_v1.sh
 
@@ -64,6 +67,9 @@ jobs:
 
       - name: Prove delimiter-inclusive segment ceiling
         run: npx --no-install tsx scripts/prove_segmented_jsonl_record_delimiter_ceiling_v1.ts
+
+      - name: Prove writer-reader manifest publication ceiling
+        run: npx --no-install tsx scripts/prove_segmented_jsonl_manifest_publish_ceiling_v1.ts
 
       - name: Repository typecheck
         if: matrix.node == 24
