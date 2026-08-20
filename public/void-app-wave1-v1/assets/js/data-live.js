@@ -393,7 +393,11 @@ export function validateDataNetStatusV1(value) {
   });
 }
 
-async function readBoundedResponseText(response) {
+const abortReason = (signal, fallback) => (
+  signal?.reason instanceof Error ? signal.reason : new Error(fallback)
+);
+
+async function readBoundedResponseText(response, signal) {
   const reader = response?.body?.getReader?.();
   if (!reader || typeof reader.read !== 'function') {
     throw new Error('DataNet response body is not stream-readable');
@@ -401,13 +405,28 @@ async function readBoundedResponseText(response) {
 
   const chunks = [];
   let total = 0;
+  let reads = 0;
   try {
     while (true) {
+      if (signal?.aborted) {
+        throw abortReason(signal, 'DataNet request timed out');
+      }
+
       const { done, value } = await reader.read();
       if (done) break;
       if (!(value instanceof Uint8Array)) {
         throw new Error('DataNet response stream yielded invalid bytes');
       }
+      if (value.byteLength === 0) {
+        try {
+          await reader.cancel?.('DataNet response stream made no progress');
+        } catch {
+          // Zero-progress rejection remains authoritative if cancellation fails.
+        }
+        throw new Error('DataNet response stream made no progress');
+      }
+
+      reads += 1;
       total += value.byteLength;
       if (total > MAX_RESPONSE_BYTES) {
         try {
@@ -418,6 +437,13 @@ async function readBoundedResponseText(response) {
         throw new Error('DataNet response exceeds the size limit');
       }
       chunks.push(value);
+
+      if (reads % 64 === 0) {
+        await new Promise((resolve) => setTimeout(resolve, 0));
+        if (signal?.aborted) {
+          throw abortReason(signal, 'DataNet request timed out');
+        }
+      }
     }
   } finally {
     try {
@@ -457,6 +483,7 @@ export async function fetchDataNetStatusV1({
   }
 
   const controller = signal ? null : new AbortController();
+  const requestSignal = signal ?? controller.signal;
   const timeout = controller
     ? setTimeout(() => controller.abort(new Error('DataNet request timed out')), REQUEST_TIMEOUT_MS)
     : null;
@@ -468,7 +495,7 @@ export async function fetchDataNetStatusV1({
       cache: 'no-store',
       credentials: 'omit',
       redirect: 'error',
-      signal: signal ?? controller.signal,
+      signal: requestSignal,
     });
 
     if (!response || response.ok !== true) {
@@ -477,17 +504,18 @@ export async function fetchDataNetStatusV1({
     if (response.redirected === true) {
       throw new Error('DataNet endpoint redirected');
     }
+    if (typeof response.url !== 'string' || response.url.length === 0) {
+      throw new Error('DataNet response escaped the exact same-origin endpoint');
+    }
 
-    if (typeof response.url === 'string' && response.url.length > 0) {
-      const finalUrl = new URL(response.url, base);
-      if (
-        finalUrl.origin !== base.origin
-        || finalUrl.pathname !== DATANET_ENDPOINT
-        || finalUrl.search
-        || finalUrl.hash
-      ) {
-        throw new Error('DataNet response escaped the exact same-origin endpoint');
-      }
+    let finalUrl;
+    try {
+      finalUrl = new URL(response.url);
+    } catch {
+      throw new Error('DataNet response escaped the exact same-origin endpoint');
+    }
+    if (finalUrl.href !== url.href) {
+      throw new Error('DataNet response escaped the exact same-origin endpoint');
     }
 
     const contentLengthHeader = response.headers?.get?.('content-length');
@@ -501,7 +529,7 @@ export async function fetchDataNetStatusV1({
       }
     }
 
-    const text = await readBoundedResponseText(response);
+    const text = await readBoundedResponseText(response, requestSignal);
 
     let parsed;
     try {
