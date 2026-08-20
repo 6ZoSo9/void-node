@@ -20,6 +20,25 @@ import {
   type BuyVoidInventoryReservationPolicyV1,
 } from "../src/economic/buy_void_inventory_reservation_journal_v1.js";
 
+function processIdentity(pid: number): {
+  process_start_ticks: string;
+  boot_id: string;
+} {
+  const stat = fs.readFileSync(
+    pid === process.pid ? "/proc/self/stat" : `/proc/${pid}/stat`,
+    "utf8",
+  ).trim();
+  const commandEnd = stat.lastIndexOf(")");
+  const fieldsFromState = stat.slice(commandEnd + 1).trim().split(/\s+/u);
+  return {
+    process_start_ticks: fieldsFromState[19],
+    boot_id: fs.readFileSync(
+      "/proc/sys/kernel/random/boot_id",
+      "utf8",
+    ).trim(),
+  };
+}
+
 function hash(char: string): string {
   return char.repeat(64);
 }
@@ -194,7 +213,7 @@ try {
     apply: true,
     now_ms: 1_700_000_000_200,
   });
-  assert.equal(first.ok, true);
+  assert.equal(first.ok, true, JSON.stringify(first));
   assert.equal(first.status, "reserved");
   if (!first.ok) throw new Error("first reserve unexpectedly held");
   assert.equal(first.new_reservation, true);
@@ -318,13 +337,15 @@ try {
       `${JSON.stringify({
         schema: "void_buy_void_inventory_pool_lock_v1",
         marker: VOID_BUY_VOID_INVENTORY_POOL_LOCK_V1,
-        pid: process.pid,
+        pid: 1,
         acquired_at_ms: Date.now(),
+        ...processIdentity(1),
         owner_nonce: "a".repeat(32),
       }, null, 2)}
 `,
       "utf8",
     );
+    fs.chmodSync(paths.lock_file, 0o600);
     const busy = reserveBuyVoidInventoryV1({
       root_dir: busyRoot,
       intent: makeIntent(8, "1"),
@@ -341,11 +362,14 @@ try {
         marker: VOID_BUY_VOID_INVENTORY_POOL_LOCK_V1,
         pid: 2147483647,
         acquired_at_ms: Date.now(),
+        process_start_ticks: "1",
+        boot_id: "00000000-0000-0000-0000-000000000000",
         owner_nonce: "b".repeat(32),
       }, null, 2)}
 `,
       "utf8",
     );
+    fs.chmodSync(paths.lock_file, 0o600);
     const reclaimed = reserveBuyVoidInventoryV1({
       root_dir: busyRoot,
       intent: makeIntent(8, "1"),
@@ -448,7 +472,12 @@ function withOneShotOpenFailure(
     flags: fs.OpenMode,
     mode?: fs.Mode,
   ) => {
-    if (!fired && String(file) === target) {
+    const numericFlags = typeof flags === "number" ? flags : 0;
+    if (
+      !fired &&
+      String(file) === target &&
+      (numericFlags & fs.constants.O_WRONLY) === fs.constants.O_WRONLY
+    ) {
       fired = true;
       throw new Error(`injected_open_failure:${target}`);
     }
@@ -944,6 +973,7 @@ withAdversarialRoot("reservation-crash-torn-index-tail", (root) => {
     expected.slice(0, Math.max(1, Math.floor(expected.length / 3))),
     "utf8",
   );
+  fs.chmodSync(paths.history_index_file, 0o600);
   const recovered = reserveBuyVoidInventoryV1({
     root_dir: root,
     intent,
@@ -977,6 +1007,7 @@ withAdversarialRoot("reservation-crash-torn-anchor-tail", (root) => {
     expected.slice(0, Math.max(1, Math.floor(expected.length / 3))),
     "utf8",
   );
+  fs.chmodSync(paths.history_anchor_file, 0o600);
   const recovered = reserveBuyVoidInventoryV1({
     root_dir: root,
     intent,
@@ -1322,6 +1353,324 @@ withAdversarialRoot("obligation-coherent-suffix-rollback", (root) => {
   );
 });
 
+withAdversarialRoot("authority-directory-mode", (root) => {
+  const { paths } = seedPartiallyAvailablePool(root);
+  const before = finalJsonNames(paths.reservations_dir);
+  fs.chmodSync(paths.reservations_dir, 0o755);
+  assert.throws(
+    () => listBuyVoidInventoryReservationsV1({
+      root_dir: root,
+      pool_id: policy().pool_id,
+    }),
+    /invalid_inventory_authority_directory/,
+  );
+  assertNewReservationMutationBlocked(root, /invalid_inventory_authority_directory/);
+  assert.deepEqual(finalJsonNames(paths.reservations_dir), before);
+});
+
+withAdversarialRoot("authority-record-mode", (root) => {
+  const { paths, reservationNames } = seedPartiallyAvailablePool(root);
+  fs.chmodSync(path.join(paths.reservations_dir, reservationNames[0]), 0o644);
+  assert.throws(
+    () => listBuyVoidInventoryReservationsV1({
+      root_dir: root,
+      pool_id: policy().pool_id,
+    }),
+    /invalid_inventory_reservation_history_record/,
+  );
+  assertNewReservationMutationBlocked(root, /invalid_inventory_reservation_history_record/);
+});
+
+withAdversarialRoot("authority-symlink-root", (realRoot) => {
+  const linkRoot = `${realRoot}-link`;
+  fs.symlinkSync(realRoot, linkRoot, "dir");
+  try {
+    const held = reserveBuyVoidInventoryV1({
+      root_dir: linkRoot,
+      intent: makeIntent(7, "1"),
+      policy: policy(),
+      apply: true,
+    });
+    assert.match(heldReason(held), /inventory_authority_symlink_ancestor/);
+    assert.deepEqual(fs.readdirSync(realRoot), []);
+  } finally {
+    fs.unlinkSync(linkRoot);
+  }
+});
+
+withAdversarialRoot("bounded-record-read", (root) => {
+  const { paths, reservationNames } = seedPartiallyAvailablePool(root);
+  const file = path.join(paths.reservations_dir, reservationNames[0]);
+  fs.writeFileSync(file, `{"oversized":"${"x".repeat(1_048_576)}"}\n`, "utf8");
+  assert.throws(
+    () => listBuyVoidInventoryReservationsV1({
+      root_dir: root,
+      pool_id: policy().pool_id,
+    }),
+    /invalid_inventory_reservation_history_record:too_large/,
+  );
+  assertNewReservationMutationBlocked(root, /too_large/);
+});
+
+withAdversarialRoot("bounded-index-line-read", (root) => {
+  const { paths } = seedPartiallyAvailablePool(root);
+  fs.appendFileSync(paths.history_index_file, `${"x".repeat(262_145)}\n`, "utf8");
+  assert.throws(
+    () => listBuyVoidInventoryReservationsV1({
+      root_dir: root,
+      pool_id: policy().pool_id,
+    }),
+    /invalid_inventory_history_index_file:line_too_large/,
+  );
+  assertNewReservationMutationBlocked(root, /line_too_large/);
+});
+
+withAdversarialRoot("exact-index-sequence-type", (root) => {
+  const { paths } = seedPartiallyAvailablePool(root);
+  const lines = historyIndexLines(paths);
+  const first = JSON.parse(lines[0]);
+  first.sequence = "1";
+  fs.writeFileSync(
+    paths.history_index_file,
+    `${JSON.stringify(first)}\n${lines.slice(1).join("\n")}\n`,
+    "utf8",
+  );
+  assert.throws(
+    () => listBuyVoidInventoryReservationsV1({
+      root_dir: root,
+      pool_id: policy().pool_id,
+    }),
+    /invalid_inventory_history_index_entry/,
+  );
+  assertNewReservationMutationBlocked(root, /invalid_inventory_history_index_entry/);
+});
+
+withAdversarialRoot("exact-anchor-sequence-type", (root) => {
+  const { paths } = seedPartiallyAvailablePool(root);
+  const lines = historyAnchorLines(paths);
+  const first = JSON.parse(lines[0]);
+  first.sequence = "1";
+  fs.writeFileSync(
+    paths.history_anchor_file,
+    `${JSON.stringify(first)}\n${lines.slice(1).join("\n")}\n`,
+    "utf8",
+  );
+  assert.throws(
+    () => listBuyVoidInventoryReservationsV1({
+      root_dir: root,
+      pool_id: policy().pool_id,
+    }),
+    /invalid_inventory_history_anchor_entry/,
+  );
+  assertNewReservationMutationBlocked(root, /invalid_inventory_history_anchor_entry/);
+});
+
+withAdversarialRoot("exact-reservation-numeric-string-type", (root) => {
+  const { paths, reservationNames } = seedPartiallyAvailablePool(root);
+  const file = path.join(paths.reservations_dir, reservationNames[0]);
+  const raw = JSON.parse(fs.readFileSync(file, "utf8"));
+  raw.reserved_void_units = Number(raw.reserved_void_units);
+  fs.writeFileSync(file, `${JSON.stringify(raw)}\n`, "utf8");
+  assert.throws(
+    () => listBuyVoidInventoryReservationsV1({
+      root_dir: root,
+      pool_id: policy().pool_id,
+    }),
+    /invalid_inventory_reservation_record/,
+  );
+  assertNewReservationMutationBlocked(root, /invalid_inventory_reservation_record/);
+});
+
+withAdversarialRoot("exact-obligation-numeric-string-type", (root) => {
+  const { paths, obligationNames } = seedObligations(root);
+  const file = path.join(paths.holds_dir, obligationNames[0]);
+  const raw = JSON.parse(fs.readFileSync(file, "utf8"));
+  raw.requested_void_units = Number(raw.requested_void_units);
+  fs.writeFileSync(file, `${JSON.stringify(raw)}\n`, "utf8");
+  assert.throws(
+    () => listBuyVoidPaidUnreservableObligationsV1({
+      root_dir: root,
+      pool_id: policy().pool_id,
+    }),
+    /invalid_paid_unreservable_obligation_record/,
+  );
+  assertLiabilityCorruptionBlocksReservation(
+    root,
+    /invalid_paid_unreservable_obligation_record/,
+  );
+});
+
+withAdversarialRoot("exact-lock-runtime-types", (root) => {
+  const paths = buyVoidInventoryReservationJournalPathsV1(root, policy().pool_id);
+  fs.mkdirSync(paths.history_anchor_pool_dir, { recursive: true, mode: 0o700 });
+  fs.writeFileSync(paths.lock_file, `${JSON.stringify({
+    schema: "void_buy_void_inventory_pool_lock_v1",
+    marker: VOID_BUY_VOID_INVENTORY_POOL_LOCK_V1,
+    pid: String(process.pid),
+    acquired_at_ms: Date.now(),
+    ...processIdentity(process.pid),
+    owner_nonce: "c".repeat(32),
+  })}\n`, { mode: 0o600 });
+  const held = reserveBuyVoidInventoryV1({
+    root_dir: root,
+    intent: makeIntent(7, "1"),
+    policy: policy(),
+    apply: true,
+  });
+  assert.match(heldReason(held), /invalid_inventory_reservation_lock/);
+});
+
+withAdversarialRoot("pid-reuse-lock-recovery", (root) => {
+  const paths = buyVoidInventoryReservationJournalPathsV1(root, policy().pool_id);
+  fs.mkdirSync(paths.history_anchor_pool_dir, { recursive: true, mode: 0o700 });
+  const identity = processIdentity(process.pid);
+  fs.writeFileSync(paths.lock_file, `${JSON.stringify({
+    schema: "void_buy_void_inventory_pool_lock_v1",
+    marker: VOID_BUY_VOID_INVENTORY_POOL_LOCK_V1,
+    pid: process.pid,
+    acquired_at_ms: Date.now(),
+    process_start_ticks: String(BigInt(identity.process_start_ticks) + 1n),
+    boot_id: identity.boot_id,
+    owner_nonce: "d".repeat(32),
+  })}\n`, { mode: 0o600 });
+  const recovered = reserveBuyVoidInventoryV1({
+    root_dir: root,
+    intent: makeIntent(7, "1"),
+    policy: policy(),
+    apply: true,
+  });
+  assert.equal(recovered.ok, true);
+  assert.equal(fs.existsSync(paths.lock_file), false);
+});
+
+withAdversarialRoot("stale-reclaim-compare-delete-race", (root) => {
+  const seeded = reserveBuyVoidInventoryV1({
+    root_dir: root,
+    intent: makeIntent(1, "1"),
+    policy: policy(),
+    apply: true,
+  });
+  assert.equal(seeded.ok, true);
+  const paths = buyVoidInventoryReservationJournalPathsV1(root, policy().pool_id);
+  const stale = {
+    schema: "void_buy_void_inventory_pool_lock_v1",
+    marker: VOID_BUY_VOID_INVENTORY_POOL_LOCK_V1,
+    pid: 2147483647,
+    acquired_at_ms: Date.now(),
+    process_start_ticks: "1",
+    boot_id: "00000000-0000-0000-0000-000000000000",
+    owner_nonce: "e".repeat(32),
+  };
+  fs.writeFileSync(paths.lock_file, `${JSON.stringify(stale)}\n`, { mode: 0o600 });
+  fs.linkSync(paths.lock_file, paths.lock_reclaim_file);
+  fs.unlinkSync(paths.lock_file);
+  const live = {
+    ...stale,
+    pid: 1,
+    ...processIdentity(1),
+    owner_nonce: "f".repeat(32),
+  };
+  fs.writeFileSync(paths.lock_file, `${JSON.stringify(live)}\n`, { mode: 0o600 });
+  const held = reserveBuyVoidInventoryV1({
+    root_dir: root,
+    intent: makeIntent(2, "1"),
+    policy: policy(),
+    apply: true,
+  });
+  assert.equal(heldReason(held), "inventory_reservation_busy");
+  assert.deepEqual(JSON.parse(fs.readFileSync(paths.lock_file, "utf8")), live);
+});
+
+withAdversarialRoot("uncertain-lock-publication-recovery", (root) => {
+  const paths = buyVoidInventoryReservationJournalPathsV1(root, policy().pool_id);
+  const originalOpen = fs.openSync;
+  const originalLink = fs.linkSync;
+  const originalFsync = fs.fsyncSync;
+  const originalClose = fs.closeSync;
+  const directoryDescriptors = new Set<number>();
+  let armed = false;
+  let fired = false;
+  (fs as any).openSync = (file: fs.PathLike, flags: fs.OpenMode, mode?: fs.Mode) => {
+    const descriptor = (originalOpen as any)(file, flags, mode);
+    if (String(file) === paths.history_anchor_pool_dir && String(flags) === "r") {
+      directoryDescriptors.add(descriptor);
+    }
+    return descriptor;
+  };
+  (fs as any).linkSync = (source: fs.PathLike, destination: fs.PathLike) => {
+    const result = originalLink(source, destination);
+    if (String(destination) === paths.lock_file) armed = true;
+    return result;
+  };
+  (fs as any).fsyncSync = (descriptor: number) => {
+    if (!fired && armed && directoryDescriptors.has(descriptor)) {
+      fired = true;
+      throw new Error("injected_uncertain_lock_publication");
+    }
+    return originalFsync(descriptor);
+  };
+  (fs as any).closeSync = (descriptor: number) => {
+    try {
+      return originalClose(descriptor);
+    } finally {
+      directoryDescriptors.delete(descriptor);
+    }
+  };
+  try {
+    const recovered = reserveBuyVoidInventoryV1({
+      root_dir: root,
+      intent: makeIntent(7, "1"),
+      policy: policy(),
+      apply: true,
+    });
+    assert.equal(fired, true);
+    assert.equal(recovered.ok, true);
+  } finally {
+    (fs as any).openSync = originalOpen;
+    (fs as any).linkSync = originalLink;
+    (fs as any).fsyncSync = originalFsync;
+    (fs as any).closeSync = originalClose;
+  }
+  assert.equal(fs.existsSync(paths.lock_file), false);
+});
+
+withAdversarialRoot("lock-release-recovery", (root) => {
+  const paths = buyVoidInventoryReservationJournalPathsV1(root, policy().pool_id);
+  const intent = makeIntent(7, "1");
+  const originalUnlink = fs.unlinkSync;
+  let fired = false;
+  (fs as any).unlinkSync = (file: fs.PathLike) => {
+    if (!fired && String(file) === paths.lock_file) {
+      fired = true;
+      throw new Error("injected_lock_release_failure");
+    }
+    return originalUnlink(file);
+  };
+  try {
+    const first = reserveBuyVoidInventoryV1({
+      root_dir: root,
+      intent,
+      policy: policy(),
+      apply: true,
+    });
+    assert.equal(first.ok, true);
+    assert.equal(fired, true);
+    assert.equal(fs.existsSync(paths.lock_file), true);
+  } finally {
+    (fs as any).unlinkSync = originalUnlink;
+  }
+  const recovered = reserveBuyVoidInventoryV1({
+    root_dir: root,
+    intent,
+    policy: policy(),
+    apply: true,
+  });
+  assert.equal(recovered.ok, true);
+  if (!recovered.ok) throw new Error("lock release recovery unexpectedly held");
+  assert.equal(recovered.status, "duplicate");
+  assert.equal(fs.existsSync(paths.lock_file), false);
+});
+
 console.log("durable_history_expected_set_commitment=1");
 console.log("durable_history_append_only_hash_chain_index=1");
 console.log("durable_history_paired_deletion_fail_closed=1");
@@ -1338,5 +1687,12 @@ console.log("durable_history_missing_record_fail_closed=1");
 console.log("durable_history_non_object_fail_closed=1");
 console.log("durable_history_closed_schema_enforced=1");
 console.log("durable_history_liability_corruption_blocks_new_mutation=1");
+console.log("durability_authority_owner_mode_symlink_fail_closed=1");
+console.log("bounded_durable_state_reads=1");
+console.log("durable_metadata_exact_runtime_json_types=1");
+console.log("pool_lock_process_instance_identity=1");
+console.log("pool_lock_publication_recovery=1");
+console.log("pool_lock_release_recovery=1");
+console.log("stale_lock_compare_delete_race_closed=1");
 
 console.log("VOID_BUY_VOID_INVENTORY_RESERVATION_JOURNAL_V1_GREEN");

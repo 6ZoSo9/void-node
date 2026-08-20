@@ -124,6 +124,7 @@ function withDirectoryFsyncFailure(
   const originalFsync = fs.fsyncSync;
   const originalClose = fs.closeSync;
   const directoryDescriptors = new Set<number>();
+  const observedDirectories: string[] = [];
   let seen = 0;
   let fired = false;
 
@@ -133,6 +134,7 @@ function withDirectoryFsyncFailure(
     mode?: fs.Mode,
   ) => {
     const descriptor = (originalOpen as any)(file, flags, mode);
+    if (String(flags) === "r") observedDirectories.push(String(file));
     if (String(file) === targetDir && String(flags) === "r") {
       directoryDescriptors.add(descriptor);
     }
@@ -171,7 +173,7 @@ function withDirectoryFsyncFailure(
   assert.equal(
     fired,
     true,
-    `directory fsync injection did not fire: ${targetDir} occurrence=${occurrence}`,
+    `directory fsync injection did not fire: ${targetDir} occurrence=${occurrence} observed=${observedDirectories.join(",")}`,
   );
 }
 
@@ -205,7 +207,7 @@ const reservationBoundaries: Boundary[] = [
   {
     name: "history_anchor_parent",
     target: (paths) => paths.history_anchor_pool_dir,
-    occurrence: 2,
+    occurrence: 3,
   },
   {
     name: "pending_deletion",
@@ -241,11 +243,15 @@ for (let index = 0; index < reservationBoundaries.length; index += 1) {
       },
     );
     assert.ok(interrupted);
-    assert.equal(interrupted!.ok, false);
+    assert.equal(interrupted!.ok, false, `${boundary.name}: injected write must HOLD`);
     if (interrupted!.ok) throw new Error("expected interrupted reservation HOLD");
-    assert.equal(interrupted!.reason, "inventory_reservation_write_failed");
+    assert.equal(
+      interrupted!.reason === "inventory_reservation_write_failed" ||
+        interrupted!.reason.startsWith("inventory_reservation_lock_failed:"),
+      true,
+    );
     assert.match(
-      String(interrupted!.detail?.message || ""),
+      String(interrupted!.detail?.message || interrupted!.reason),
       /injected_directory_fsync_failure/,
     );
 
@@ -354,7 +360,7 @@ for (let index = 0; index < obligationBoundaries.length; index += 1) {
       },
     );
     assert.ok(interrupted);
-    assert.equal(interrupted!.ok, false);
+    assert.equal(interrupted!.ok, false, `${boundary.name}: injected write must HOLD`);
     if (interrupted!.ok) throw new Error("expected interrupted obligation HOLD");
     assert.equal(
       interrupted!.reason,

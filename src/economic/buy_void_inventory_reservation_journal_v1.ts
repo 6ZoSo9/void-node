@@ -84,6 +84,8 @@ type BuyVoidInventoryPoolLockV1 = {
   marker: typeof VOID_BUY_VOID_INVENTORY_POOL_LOCK_V1;
   pid: number;
   acquired_at_ms: number;
+  process_start_ticks: string;
+  boot_id: string;
   owner_nonce: string;
 };
 
@@ -118,6 +120,12 @@ const SHA256 = /^[0-9a-f]{64}$/;
 const TX_HASH = /^0x[0-9a-f]{64}$/;
 const SAFE_CODE = /^[A-Za-z0-9._:-]{1,160}$/;
 const ADDRESS = /^0x[0-9a-f]{40}$/;
+const CANONICAL_UINT = /^(0|[1-9][0-9]*)$/;
+const BOOT_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+const MAX_DURABLE_JSON_BYTES = 1_048_576;
+const MAX_DURABLE_JSONL_BYTES = 67_108_864;
+const MAX_DURABLE_JSONL_LINE_BYTES = 262_144;
+const DURABLE_READ_CHUNK_BYTES = 64 * 1024;
 
 export type BuyVoidInventoryReservationPolicyV1 = {
   inventory_reservation_enabled: boolean;
@@ -143,6 +151,7 @@ export type BuyVoidInventoryReservationJournalPathsV1 = {
   history_anchor_file: string;
   pending_history_dir: string;
   lock_file: string;
+  lock_reclaim_file: string;
 };
 
 export type BuyVoidInventoryAggregateV1 = {
@@ -344,6 +353,26 @@ function parseNonNegativeInteger(value: unknown): bigint | null {
   }
 }
 
+function isCanonicalUnsignedString(
+  value: unknown,
+  positive: boolean,
+): value is string {
+  if (typeof value !== "string" || !CANONICAL_UINT.test(value)) return false;
+  try {
+    const parsed = BigInt(value);
+    return positive ? parsed > 0n : parsed >= 0n;
+  } catch {
+    return false;
+  }
+}
+
+function hasStringFields(
+  raw: Record<string, unknown>,
+  fields: readonly string[],
+): boolean {
+  return fields.every((field) => typeof raw[field] === "string");
+}
+
 function validateRoot(rootDir: unknown): string {
   const raw = String(rootDir || "").trim();
   if (!raw || raw.includes("\0")) {
@@ -541,16 +570,66 @@ export function buyVoidInventoryReservationJournalPathsV1(
       historyAnchorPoolDir,
       ".reserve.lock.json",
     ),
+    lock_reclaim_file: path.join(
+      historyAnchorPoolDir,
+      ".reserve.lock.reclaim.json",
+    ),
   };
 }
 
-function ensurePrivateDir(dir: string): void {
-  fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
-  try {
-    fs.chmodSync(dir, 0o700);
-  } catch {
-    // Permission tightening is best effort on non-POSIX filesystems.
+function assertOwnedPrivateDirectory(dir: string): void {
+  const stat = fs.lstatSync(dir);
+  const uid = process.getuid?.();
+  if (
+    stat.isSymbolicLink() ||
+    !stat.isDirectory() ||
+    uid === undefined ||
+    stat.uid !== uid ||
+    (stat.mode & 0o077) !== 0
+  ) {
+    throw new Error(`invalid_inventory_authority_directory:${dir}`);
   }
+}
+
+function assertNoSymlinkAncestors(target: string): void {
+  let current = path.resolve(target);
+  while (true) {
+    try {
+      if (fs.lstatSync(current).isSymbolicLink()) {
+        throw new Error(`inventory_authority_symlink_ancestor:${current}`);
+      }
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException)?.code !== "ENOENT") throw error;
+    }
+    const parent = path.dirname(current);
+    if (parent === current) return;
+    current = parent;
+  }
+}
+
+function ensurePrivateDir(dir: string): void {
+  const resolved = path.resolve(dir);
+  assertNoSymlinkAncestors(resolved);
+  const missing: string[] = [];
+  let current = resolved;
+  while (true) {
+    try {
+      fs.lstatSync(current);
+      break;
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException)?.code !== "ENOENT") throw error;
+      missing.push(current);
+      const parent = path.dirname(current);
+      if (parent === current) throw error;
+      current = parent;
+    }
+  }
+  for (const candidate of missing.reverse()) {
+    fs.mkdirSync(candidate, { mode: 0o700 });
+    assertOwnedPrivateDirectory(candidate);
+    fsyncDir(path.dirname(candidate));
+  }
+  assertOwnedPrivateDirectory(resolved);
 }
 
 function fsyncDir(dir: string): void {
@@ -559,6 +638,27 @@ function fsyncDir(dir: string): void {
     fs.fsyncSync(descriptor);
   } finally {
     fs.closeSync(descriptor);
+  }
+}
+
+function ensureInventoryAuthorityDirectories(
+  paths: BuyVoidInventoryReservationJournalPathsV1,
+): void {
+  for (const dir of [
+    paths.root_dir,
+    paths.journal_dir,
+    paths.pools_dir,
+    paths.pool_dir,
+    paths.reservations_dir,
+    paths.holds_dir,
+    paths.reservation_expectations_dir,
+    paths.obligation_expectations_dir,
+    paths.history_anchor_dir,
+    paths.history_anchor_pools_dir,
+    paths.history_anchor_pool_dir,
+    paths.pending_history_dir,
+  ]) {
+    ensurePrivateDir(dir);
   }
 }
 
@@ -592,6 +692,8 @@ function atomicCreateJson(
       return "created";
     } catch (error) {
       if ((error as NodeJS.ErrnoException)?.code === "EEXIST") {
+        // Re-establish publication durability after an earlier uncertain link.
+        fsyncDir(parent);
         return "exists";
       }
       throw error;
@@ -605,17 +707,213 @@ function atomicCreateJson(
   }
 }
 
-function readJsonObject(file: string): Record<string, unknown> | null {
+type DurableFileIdentityV1 = {
+  dev: bigint;
+  ino: bigint;
+  size: bigint;
+  mtime_ns: bigint;
+  ctime_ns: bigint;
+};
+
+function durableFileIdentity(stat: fs.BigIntStats): DurableFileIdentityV1 {
+  return {
+    dev: stat.dev,
+    ino: stat.ino,
+    size: stat.size,
+    mtime_ns: stat.mtimeNs,
+    ctime_ns: stat.ctimeNs,
+  };
+}
+
+function sameDurableFileIdentity(
+  left: DurableFileIdentityV1,
+  right: DurableFileIdentityV1,
+): boolean {
+  return Object.keys(left).every((key) =>
+    left[key as keyof DurableFileIdentityV1] ===
+      right[key as keyof DurableFileIdentityV1]
+  );
+}
+
+function assertAuthoritativeFileStat(
+  stat: fs.BigIntStats,
+  invalidReason: string,
+): void {
+  const uid = process.getuid?.();
+  if (
+    !stat.isFile() ||
+    stat.isSymbolicLink() ||
+    uid === undefined ||
+    stat.uid !== BigInt(uid) ||
+    (stat.mode & 0o077n) !== 0n
+  ) {
+    throw new Error(invalidReason);
+  }
+}
+
+function readBoundedAuthoritativeFile(
+  file: string,
+  maxBytes: number,
+  invalidReason: string,
+): string {
+  assertNoSymlinkAncestors(file);
+  assertOwnedPrivateDirectory(path.dirname(file));
+  const before = fs.lstatSync(file, { bigint: true });
+  assertAuthoritativeFileStat(before, invalidReason);
+  if (before.size > BigInt(maxBytes)) throw new Error(`${invalidReason}:too_large`);
+  const flags = fs.constants.O_RDONLY |
+    (fs.constants.O_NOFOLLOW || 0);
+  const descriptor = fs.openSync(file, flags);
   try {
-    const parsed = JSON.parse(fs.readFileSync(file, "utf8"));
-    return parsed && typeof parsed === "object" && !Array.isArray(parsed)
-      ? parsed as Record<string, unknown>
-      : null;
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException)?.code === "ENOENT") {
-      return null;
+    const opened = fs.fstatSync(descriptor, { bigint: true });
+    assertAuthoritativeFileStat(opened, invalidReason);
+    if (
+      opened.size > BigInt(maxBytes) ||
+      !sameDurableFileIdentity(
+        durableFileIdentity(before),
+        durableFileIdentity(opened),
+      )
+    ) {
+      throw new Error(`${invalidReason}:unstable`);
     }
-    throw error;
+    const buffer = Buffer.alloc(Number(opened.size) + 1);
+    let offset = 0;
+    while (offset < buffer.length) {
+      const count = fs.readSync(
+        descriptor,
+        buffer,
+        offset,
+        buffer.length - offset,
+        offset,
+      );
+      if (count === 0) break;
+      offset += count;
+    }
+    if (offset !== Number(opened.size)) {
+      throw new Error(`${invalidReason}:unstable`);
+    }
+    const afterDescriptor = fs.fstatSync(descriptor, { bigint: true });
+    const afterPath = fs.lstatSync(file, { bigint: true });
+    assertAuthoritativeFileStat(afterPath, invalidReason);
+    if (
+      !sameDurableFileIdentity(
+        durableFileIdentity(opened),
+        durableFileIdentity(afterDescriptor),
+      ) ||
+      !sameDurableFileIdentity(
+        durableFileIdentity(opened),
+        durableFileIdentity(afterPath),
+      )
+    ) {
+      throw new Error(`${invalidReason}:unstable`);
+    }
+    try {
+      return new TextDecoder("utf-8", { fatal: true }).decode(
+        buffer.subarray(0, offset),
+      );
+    } catch {
+      throw new Error(`${invalidReason}:invalid_utf8`);
+    }
+  } finally {
+    fs.closeSync(descriptor);
+  }
+}
+
+function scanBoundedAuthoritativeLines(
+  file: string,
+  invalidReason: string,
+  onLine: (line: string, index: number) => void,
+): { line_count: number; trailing_bytes: Buffer; complete_bytes: number } {
+  assertNoSymlinkAncestors(file);
+  assertOwnedPrivateDirectory(path.dirname(file));
+  const before = fs.lstatSync(file, { bigint: true });
+  assertAuthoritativeFileStat(before, invalidReason);
+  if (before.size > BigInt(MAX_DURABLE_JSONL_BYTES)) {
+    throw new Error(`${invalidReason}:too_large`);
+  }
+  const descriptor = fs.openSync(
+    file,
+    fs.constants.O_RDONLY | (fs.constants.O_NOFOLLOW || 0),
+  );
+  try {
+    const opened = fs.fstatSync(descriptor, { bigint: true });
+    assertAuthoritativeFileStat(opened, invalidReason);
+    if (
+      opened.size > BigInt(MAX_DURABLE_JSONL_BYTES) ||
+      !sameDurableFileIdentity(
+        durableFileIdentity(before),
+        durableFileIdentity(opened),
+      )
+    ) {
+      throw new Error(`${invalidReason}:unstable`);
+    }
+
+    const chunk = Buffer.allocUnsafe(DURABLE_READ_CHUNK_BYTES);
+    let carry = Buffer.alloc(0);
+    let offset = 0;
+    let lineCount = 0;
+    while (offset <= Number(opened.size)) {
+      const count = fs.readSync(
+        descriptor,
+        chunk,
+        0,
+        Math.min(chunk.length, Number(opened.size) - offset + 1),
+        offset,
+      );
+      if (count === 0) break;
+      offset += count;
+      const combined = carry.length === 0
+        ? Buffer.from(chunk.subarray(0, count))
+        : Buffer.concat([carry, chunk.subarray(0, count)]);
+      let start = 0;
+      while (true) {
+        const newline = combined.indexOf(0x0a, start);
+        if (newline < 0) break;
+        const lineBytes = combined.subarray(start, newline);
+        if (lineBytes.length > MAX_DURABLE_JSONL_LINE_BYTES) {
+          throw new Error(`${invalidReason}:line_too_large`);
+        }
+        let line: string;
+        try {
+          line = new TextDecoder("utf-8", { fatal: true }).decode(lineBytes);
+        } catch {
+          throw new Error(`${invalidReason}:invalid_utf8`);
+        }
+        onLine(line, lineCount);
+        lineCount += 1;
+        start = newline + 1;
+      }
+      carry = Buffer.from(combined.subarray(start));
+      if (carry.length > MAX_DURABLE_JSONL_LINE_BYTES) {
+        throw new Error(`${invalidReason}:line_too_large`);
+      }
+    }
+    if (offset !== Number(opened.size)) {
+      throw new Error(`${invalidReason}:unstable`);
+    }
+
+    const afterDescriptor = fs.fstatSync(descriptor, { bigint: true });
+    const afterPath = fs.lstatSync(file, { bigint: true });
+    assertAuthoritativeFileStat(afterPath, invalidReason);
+    if (
+      !sameDurableFileIdentity(
+        durableFileIdentity(opened),
+        durableFileIdentity(afterDescriptor),
+      ) ||
+      !sameDurableFileIdentity(
+        durableFileIdentity(opened),
+        durableFileIdentity(afterPath),
+      )
+    ) {
+      throw new Error(`${invalidReason}:unstable`);
+    }
+    return {
+      line_count: lineCount,
+      trailing_bytes: carry,
+      complete_bytes: Number(opened.size) - carry.length,
+    };
+  } finally {
+    fs.closeSync(descriptor);
   }
 }
 
@@ -734,6 +1032,8 @@ const POOL_LOCK_KEYS = [
   "marker",
   "pid",
   "acquired_at_ms",
+  "process_start_ticks",
+  "boot_id",
   "owner_nonce",
 ] as const;
 
@@ -761,11 +1061,11 @@ function readRequiredHistoryJsonObject(
   invalidReason: string,
 ): Record<string, unknown> {
   try {
-    const stat = fs.lstatSync(file);
-    if (!stat.isFile() || stat.isSymbolicLink()) {
-      throw new Error(invalidReason);
-    }
-    const parsed = JSON.parse(fs.readFileSync(file, "utf8"));
+    const parsed = JSON.parse(readBoundedAuthoritativeFile(
+      file,
+      MAX_DURABLE_JSON_BYTES,
+      invalidReason,
+    ));
     if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
       throw new Error(invalidReason);
     }
@@ -798,6 +1098,8 @@ function canonicalHistoryNames(
   if (!stat.isDirectory() || stat.isSymbolicLink()) {
     throw new Error(invalidNameReason);
   }
+  assertNoSymlinkAncestors(dir);
+  assertOwnedPrivateDirectory(dir);
 
   const output: string[] = [];
   for (const name of fs.readdirSync(dir)) {
@@ -823,7 +1125,7 @@ function historyRecordFingerprint(
     ) {
       throw new Error("invalid_inventory_history_fingerprint_value");
     }
-    parts[key] = String(value);
+    parts[key] = `${typeof value}:${String(value)}`;
   }
   return stableFingerprint(parts);
 }
@@ -855,15 +1157,24 @@ function parseHistoryIndexEntry(
   expectedSequence: number,
   expectedPreviousSha256: string,
 ): BuyVoidInventoryHistoryIndexEntryV1 {
-  const sequence = Number(raw.sequence);
-  const kind = String(raw.kind || "") as BuyVoidInventoryHistoryKindV1;
-  const poolId = String(raw.pool_id || "");
-  const recordId = String(raw.record_id || "");
-  const recordFingerprint = String(
-    raw.record_identity_fingerprint_sha256 || "",
-  );
-  const previousEntrySha256 = String(raw.previous_entry_sha256 || "");
-  const entrySha256 = String(raw.entry_sha256 || "");
+  const sequence = raw.sequence;
+  const kind = raw.kind as BuyVoidInventoryHistoryKindV1;
+  const poolId = raw.pool_id;
+  const recordId = raw.record_id;
+  const recordFingerprint = raw.record_identity_fingerprint_sha256;
+  const previousEntrySha256 = raw.previous_entry_sha256;
+  const entrySha256 = raw.entry_sha256;
+  if (
+    typeof sequence !== "number" ||
+    typeof kind !== "string" ||
+    typeof poolId !== "string" ||
+    typeof recordId !== "string" ||
+    typeof recordFingerprint !== "string" ||
+    typeof previousEntrySha256 !== "string" ||
+    typeof entrySha256 !== "string"
+  ) {
+    throw new Error("invalid_inventory_history_index_entry");
+  }
   const expectedPoolKey = SAFE_CODE.test(poolId)
     ? sha256Hex(`void-buy-inventory-pool-v1\n${poolId}`)
     : "";
@@ -894,7 +1205,17 @@ function parseHistoryIndexEntry(
     throw new Error("invalid_inventory_history_index_entry");
   }
 
-  return raw as BuyVoidInventoryHistoryIndexEntryV1;
+  return {
+    schema: "void_buy_void_inventory_history_index_entry_v1",
+    marker: VOID_BUY_VOID_INVENTORY_HISTORY_INDEX_V1,
+    sequence,
+    kind,
+    pool_id: poolId,
+    record_id: recordId,
+    record_identity_fingerprint_sha256: recordFingerprint,
+    previous_entry_sha256: previousEntrySha256,
+    entry_sha256: entrySha256,
+  };
 }
 
 function historyAnchorEntrySha256(input: {
@@ -926,18 +1247,26 @@ function parseHistoryAnchorEntry(
   expectedSequence: number,
   expectedPreviousSha256: string,
 ): BuyVoidInventoryHistoryAnchorEntryV1 {
-  const sequence = Number(raw.sequence);
-  const kind = String(raw.kind || "") as BuyVoidInventoryHistoryKindV1;
-  const poolId = String(raw.pool_id || "");
-  const recordId = String(raw.record_id || "");
-  const recordFingerprint = String(
-    raw.record_identity_fingerprint_sha256 || "",
-  );
-  const historyIndexEntrySha256 = String(
-    raw.history_index_entry_sha256 || "",
-  );
-  const previousAnchorSha256 = String(raw.previous_anchor_sha256 || "");
-  const anchorSha256 = String(raw.anchor_sha256 || "");
+  const sequence = raw.sequence;
+  const kind = raw.kind as BuyVoidInventoryHistoryKindV1;
+  const poolId = raw.pool_id;
+  const recordId = raw.record_id;
+  const recordFingerprint = raw.record_identity_fingerprint_sha256;
+  const historyIndexEntrySha256 = raw.history_index_entry_sha256;
+  const previousAnchorSha256 = raw.previous_anchor_sha256;
+  const anchorSha256 = raw.anchor_sha256;
+  if (
+    typeof sequence !== "number" ||
+    typeof kind !== "string" ||
+    typeof poolId !== "string" ||
+    typeof recordId !== "string" ||
+    typeof recordFingerprint !== "string" ||
+    typeof historyIndexEntrySha256 !== "string" ||
+    typeof previousAnchorSha256 !== "string" ||
+    typeof anchorSha256 !== "string"
+  ) {
+    throw new Error("invalid_inventory_history_anchor_entry");
+  }
   const expectedPoolKey = SAFE_CODE.test(poolId)
     ? sha256Hex(`void-buy-inventory-pool-v1\n${poolId}`)
     : "";
@@ -968,7 +1297,18 @@ function parseHistoryAnchorEntry(
   ) {
     throw new Error("invalid_inventory_history_anchor_entry");
   }
-  return raw as BuyVoidInventoryHistoryAnchorEntryV1;
+  return {
+    schema: "void_buy_void_inventory_history_anchor_entry_v1",
+    marker: VOID_BUY_VOID_INVENTORY_HISTORY_ANCHOR_V1,
+    sequence,
+    kind,
+    pool_id: poolId,
+    record_id: recordId,
+    record_identity_fingerprint_sha256: recordFingerprint,
+    history_index_entry_sha256: historyIndexEntrySha256,
+    previous_anchor_sha256: previousAnchorSha256,
+    anchor_sha256: anchorSha256,
+  };
 }
 
 function readHistoryAnchor(
@@ -984,17 +1324,13 @@ function readHistoryAnchor(
   if (!stat.isFile() || stat.isSymbolicLink()) {
     throw new Error("invalid_inventory_history_anchor_file");
   }
-  const raw = fs.readFileSync(paths.history_anchor_file, "utf8");
-  if (raw.length === 0) throw new Error("inventory_history_anchor_empty");
-  if (!raw.endsWith("\n")) {
-    throw new Error("inventory_history_anchor_truncated_tail");
-  }
-  const lines = raw.slice(0, -1).split("\n");
   const output: BuyVoidInventoryHistoryAnchorEntryV1[] = [];
   const seen = new Set<string>();
   let previousAnchorSha256 = HISTORY_ANCHOR_GENESIS_SHA256;
-  for (let index = 0; index < lines.length; index += 1) {
-    const line = lines[index];
+  const scan = scanBoundedAuthoritativeLines(
+    paths.history_anchor_file,
+    "invalid_inventory_history_anchor_file",
+    (line, index) => {
     if (!line) throw new Error("invalid_inventory_history_anchor_blank_line");
     let parsed: unknown;
     try {
@@ -1018,6 +1354,13 @@ function readHistoryAnchor(
     seen.add(key);
     output.push(entry);
     previousAnchorSha256 = entry.anchor_sha256;
+    },
+  );
+  if (scan.line_count === 0 && scan.trailing_bytes.length === 0) {
+    throw new Error("inventory_history_anchor_empty");
+  }
+  if (scan.trailing_bytes.length !== 0) {
+    throw new Error("inventory_history_anchor_truncated_tail");
   }
   return output;
 }
@@ -1029,20 +1372,28 @@ function appendHistoryAnchorEntry(
   ensurePrivateDir(paths.history_anchor_pool_dir);
   let exists = false;
   try {
-    const stat = fs.lstatSync(paths.history_anchor_file);
-    if (!stat.isFile() || stat.isSymbolicLink()) {
-      throw new Error("invalid_inventory_history_anchor_file");
-    }
+    const stat = fs.lstatSync(paths.history_anchor_file, { bigint: true });
+    assertAuthoritativeFileStat(
+      stat,
+      "invalid_inventory_history_anchor_file",
+    );
     exists = true;
   } catch (error) {
     if ((error as NodeJS.ErrnoException)?.code !== "ENOENT") throw error;
   }
   const descriptor = fs.openSync(
     paths.history_anchor_file,
-    exists ? "a" : "ax",
+    fs.constants.O_WRONLY |
+      fs.constants.O_APPEND |
+      (exists ? 0 : fs.constants.O_CREAT | fs.constants.O_EXCL) |
+      (fs.constants.O_NOFOLLOW || 0),
     0o600,
   );
   try {
+    assertAuthoritativeFileStat(
+      fs.fstatSync(descriptor, { bigint: true }),
+      "invalid_inventory_history_anchor_file",
+    );
     fs.writeFileSync(descriptor, `${JSON.stringify(entry)}\n`, "utf8");
     fs.fsyncSync(descriptor);
   } finally {
@@ -1114,14 +1465,18 @@ function parsePendingHistoryCreation(
   ) {
     throw new Error("invalid_inventory_history_pending_creation");
   }
-  const kind = String(raw.kind || "") as BuyVoidInventoryHistoryKindV1;
-  const poolId = String(raw.pool_id || "");
-  const recordId = String(raw.record_id || "");
-  const fingerprint = String(raw.record_identity_fingerprint_sha256 || "");
+  const kind = raw.kind as BuyVoidInventoryHistoryKindV1;
+  const poolId = raw.pool_id;
+  const recordId = raw.record_id;
+  const fingerprint = raw.record_identity_fingerprint_sha256;
   if (
+    typeof kind !== "string" ||
     !["reservation", "paid_unreservable_obligation"].includes(kind) ||
+    typeof poolId !== "string" ||
     !SAFE_CODE.test(poolId) ||
+    typeof recordId !== "string" ||
     !SHA256.test(recordId) ||
+    typeof fingerprint !== "string" ||
     !SHA256.test(fingerprint) ||
     !raw.record ||
     typeof raw.record !== "object" ||
@@ -1154,17 +1509,25 @@ function parsePendingHistoryCreation(
 
   const indexRaw = raw.index_entry as Record<string, unknown>;
   const anchorRaw = raw.anchor_entry as Record<string, unknown>;
+  if (
+    typeof indexRaw.sequence !== "number" ||
+    typeof indexRaw.previous_entry_sha256 !== "string" ||
+    typeof anchorRaw.sequence !== "number" ||
+    typeof anchorRaw.previous_anchor_sha256 !== "string"
+  ) {
+    throw new Error("invalid_inventory_history_pending_creation");
+  }
   const indexEntry = parseHistoryIndexEntry(
     paths,
     indexRaw,
-    Number(indexRaw.sequence),
-    String(indexRaw.previous_entry_sha256 || ""),
+    indexRaw.sequence,
+    indexRaw.previous_entry_sha256,
   );
   const anchorEntry = parseHistoryAnchorEntry(
     paths,
     anchorRaw,
-    Number(anchorRaw.sequence),
-    String(anchorRaw.previous_anchor_sha256 || ""),
+    anchorRaw.sequence,
+    anchorRaw.previous_anchor_sha256,
   );
 
   if (
@@ -1254,21 +1617,13 @@ function readHistoryIndex(
     throw new Error("invalid_inventory_history_index_file");
   }
 
-  const raw = fs.readFileSync(paths.history_index_file, "utf8");
-  if (raw.length === 0) {
-    throw new Error("inventory_history_index_empty");
-  }
-  if (!raw.endsWith("\n")) {
-    throw new Error("inventory_history_index_truncated_tail");
-  }
-
-  const lines = raw.slice(0, -1).split("\n");
   const output: BuyVoidInventoryHistoryIndexEntryV1[] = [];
   const seen = new Set<string>();
   let previousEntrySha256 = HISTORY_INDEX_GENESIS_SHA256;
-
-  for (let index = 0; index < lines.length; index += 1) {
-    const line = lines[index];
+  const scan = scanBoundedAuthoritativeLines(
+    paths.history_index_file,
+    "invalid_inventory_history_index_file",
+    (line, index) => {
     if (!line) {
       throw new Error("invalid_inventory_history_index_blank_line");
     }
@@ -1294,6 +1649,13 @@ function readHistoryIndex(
     seen.add(key);
     output.push(entry);
     previousEntrySha256 = entry.entry_sha256;
+    },
+  );
+  if (scan.line_count === 0 && scan.trailing_bytes.length === 0) {
+    throw new Error("inventory_history_index_empty");
+  }
+  if (scan.trailing_bytes.length !== 0) {
+    throw new Error("inventory_history_index_truncated_tail");
   }
 
   return output;
@@ -1377,10 +1739,11 @@ function appendHistoryIndexEntry(
 
   let exists = false;
   try {
-    const stat = fs.lstatSync(paths.history_index_file);
-    if (!stat.isFile() || stat.isSymbolicLink()) {
-      throw new Error("invalid_inventory_history_index_file");
-    }
+    const stat = fs.lstatSync(paths.history_index_file, { bigint: true });
+    assertAuthoritativeFileStat(
+      stat,
+      "invalid_inventory_history_index_file",
+    );
     exists = true;
   } catch (error) {
     if ((error as NodeJS.ErrnoException)?.code !== "ENOENT") {
@@ -1390,10 +1753,17 @@ function appendHistoryIndexEntry(
 
   const descriptor = fs.openSync(
     paths.history_index_file,
-    exists ? "a" : "ax",
+    fs.constants.O_WRONLY |
+      fs.constants.O_APPEND |
+      (exists ? 0 : fs.constants.O_CREAT | fs.constants.O_EXCL) |
+      (fs.constants.O_NOFOLLOW || 0),
     0o600,
   );
   try {
+    assertAuthoritativeFileStat(
+      fs.fstatSync(descriptor, { bigint: true }),
+      "invalid_inventory_history_index_file",
+    );
     fs.writeFileSync(
       descriptor,
       `${JSON.stringify(entry)}\n`,
@@ -1466,7 +1836,8 @@ function parseHistoryExpectation(
     raw.kind !== kind ||
     raw.pool_id !== poolId ||
     raw.record_id !== recordId ||
-    !SHA256.test(String(raw.record_identity_fingerprint_sha256 || ""))
+    typeof raw.record_identity_fingerprint_sha256 !== "string" ||
+    !SHA256.test(raw.record_identity_fingerprint_sha256)
   ) {
     throw new Error("invalid_inventory_history_expectation_record");
   }
@@ -1608,8 +1979,17 @@ function exactAnchorEntryMatch(
 }
 
 function syncRegularFile(file: string): void {
-  const descriptor = fs.openSync(file, "r");
+  assertNoSymlinkAncestors(file);
+  assertOwnedPrivateDirectory(path.dirname(file));
+  const descriptor = fs.openSync(
+    file,
+    fs.constants.O_RDONLY | (fs.constants.O_NOFOLLOW || 0),
+  );
   try {
+    assertAuthoritativeFileStat(
+      fs.fstatSync(descriptor, { bigint: true }),
+      "invalid_inventory_authoritative_file",
+    );
     fs.fsyncSync(descriptor);
   } finally {
     fs.closeSync(descriptor);
@@ -1633,29 +2013,39 @@ function repairTornAppendFromPending(
   if (!stat.isFile() || stat.isSymbolicLink()) {
     throw new Error(invalidReason);
   }
-  const raw = fs.readFileSync(file, "utf8");
-  if (raw.endsWith("\n")) return;
+  const scan = scanBoundedAuthoritativeLines(
+    file,
+    invalidReason,
+    () => undefined,
+  );
+  if (scan.trailing_bytes.length === 0) {
+    // A complete visible line after a prior fsync failure is not committed
+    // until this recovery attempt re-establishes file and directory durability.
+    syncRegularFile(file);
+    fsyncDir(parentDir);
+    return;
+  }
 
-  const lastNewline = raw.lastIndexOf("\n");
-  const completeRaw = lastNewline >= 0
-    ? raw.slice(0, lastNewline + 1)
-    : "";
-  const tornTail = raw.slice(completeRaw.length);
-  const completeLineCount = completeRaw
-    ? completeRaw.slice(0, -1).split("\n").length
-    : 0;
+  let tornTail: string;
+  try {
+    tornTail = new TextDecoder("utf-8", { fatal: true }).decode(
+      scan.trailing_bytes,
+    );
+  } catch {
+    throw new Error(invalidReason);
+  }
 
   if (
-    completeLineCount !== expectedCompleteLineCount ||
+    scan.line_count !== expectedCompleteLineCount ||
     !expectedLine.startsWith(tornTail)
   ) {
     throw new Error(invalidReason);
   }
 
-  if (completeRaw.length === 0) {
+  if (scan.complete_bytes === 0) {
     fs.unlinkSync(file);
   } else {
-    fs.truncateSync(file, Buffer.byteLength(completeRaw, "utf8"));
+    fs.truncateSync(file, scan.complete_bytes);
     syncRegularFile(file);
   }
   fsyncDir(parentDir);
@@ -1987,8 +2377,19 @@ function parsePaidUnreservableObligation(
           ].join("\n"),
         )
       : "";
+  const exactStringFields = [
+    "schema", "marker", "obligation_id", "terminal_state",
+    "reservation_failure_reason", "pool_id", "inventory_policy_version",
+    "pool_capacity_void_units", "inventory_policy_fingerprint_sha256",
+    "available_void_units", "requested_void_units", "source_chain",
+    "payment_transaction_hash", "payment_log_index", "confirmed_block_number",
+    "confirmation_count_at_claim", "payment_usdc_units", "payment_key_sha256",
+    "request_key_sha256", "canonical_payment_identity", "request_id",
+    "instruction_id", "delivery_address",
+  ] as const;
   if (
     !hasExactKeys(raw, PAID_UNRESERVABLE_OBLIGATION_RECORD_KEYS) ||
+    !hasStringFields(raw, exactStringFields) ||
     raw.schema !== "void_buy_void_paid_unreservable_obligation_v1" ||
     raw.marker !== VOID_BUY_VOID_PAID_UNRESERVABLE_OBLIGATION_V1 ||
     String(raw.obligation_id || "") !== expectedObligationId ||
@@ -2000,16 +2401,16 @@ function parsePaidUnreservableObligation(
     ) ||
     !SAFE_CODE.test(poolId) ||
     !SAFE_CODE.test(String(raw.inventory_policy_version || "")) ||
-    parsePositiveInteger(raw.pool_capacity_void_units) === null ||
+    !isCanonicalUnsignedString(raw.pool_capacity_void_units, true) ||
     !SHA256.test(String(raw.inventory_policy_fingerprint_sha256 || "")) ||
-    parseNonNegativeInteger(raw.available_void_units) === null ||
-    parsePositiveInteger(raw.requested_void_units) === null ||
+    !isCanonicalUnsignedString(raw.available_void_units, false) ||
+    !isCanonicalUnsignedString(raw.requested_void_units, true) ||
     !SAFE_CODE.test(String(raw.source_chain || "")) ||
     !TX_HASH.test(String(raw.payment_transaction_hash || "")) ||
-    parseNonNegativeInteger(raw.payment_log_index) === null ||
-    parsePositiveInteger(raw.confirmed_block_number) === null ||
-    parsePositiveInteger(raw.confirmation_count_at_claim) === null ||
-    parsePositiveInteger(raw.payment_usdc_units) === null ||
+    !isCanonicalUnsignedString(raw.payment_log_index, false) ||
+    !isCanonicalUnsignedString(raw.confirmed_block_number, true) ||
+    !isCanonicalUnsignedString(raw.confirmation_count_at_claim, true) ||
+    !isCanonicalUnsignedString(raw.payment_usdc_units, true) ||
     !SHA256.test(paymentKey) ||
     !SHA256.test(requestKey) ||
     !String(raw.canonical_payment_identity || "").trim() ||
@@ -2173,20 +2574,32 @@ function parseReservation(
           ].join("\n"),
         )
       : "";
+  const exactStringFields = [
+    "schema", "marker", "reservation_id", "pool_id",
+    "inventory_policy_version", "pool_capacity_void_units",
+    "committed_before_void_units", "reserved_void_units",
+    "committed_after_void_units", "available_after_void_units",
+    "payment_key_sha256", "request_key_sha256",
+    "canonical_payment_identity", "request_id", "instruction_id",
+    "delivery_address", "intent_fingerprint", "reservation_status",
+  ] as const;
 
   if (
     !hasExactKeys(raw, RESERVATION_RECORD_KEYS) ||
+    !hasStringFields(raw, exactStringFields) ||
     raw.schema !== "void_buy_void_inventory_reservation_v1" ||
     raw.marker !== VOID_BUY_VOID_INVENTORY_RESERVATION_JOURNAL_V1 ||
     !SHA256.test(reservationId) ||
     reservationId !== expectedReservationId ||
     !SAFE_CODE.test(poolId) ||
     !SAFE_CODE.test(String(raw.inventory_policy_version || "")) ||
-    capacity === null ||
-    committedBefore === null ||
-    reserved === null ||
-    committedAfter === null ||
-    availableAfter === null ||
+    !isCanonicalUnsignedString(raw.pool_capacity_void_units, true) ||
+    !isCanonicalUnsignedString(raw.committed_before_void_units, false) ||
+    !isCanonicalUnsignedString(raw.reserved_void_units, true) ||
+    !isCanonicalUnsignedString(raw.committed_after_void_units, true) ||
+    !isCanonicalUnsignedString(raw.available_after_void_units, false) ||
+    capacity === null || committedBefore === null || reserved === null ||
+    committedAfter === null || availableAfter === null ||
     committedBefore + reserved !== committedAfter ||
     committedAfter > capacity ||
     capacity - committedAfter !== availableAfter ||
@@ -2414,22 +2827,40 @@ function aggregateFor(
 function parsePoolLock(
   raw: Record<string, unknown>,
 ): BuyVoidInventoryPoolLockV1 {
-  const pid = Number(raw.pid);
-  const acquiredAtMs = Number(raw.acquired_at_ms);
-  const ownerNonce = String(raw.owner_nonce || "");
+  const pid = raw.pid;
+  const acquiredAtMs = raw.acquired_at_ms;
+  const processStartTicks = raw.process_start_ticks;
+  const bootId = raw.boot_id;
+  const ownerNonce = raw.owner_nonce;
   if (
     !hasExactKeys(raw, POOL_LOCK_KEYS) ||
     raw.schema !== "void_buy_void_inventory_pool_lock_v1" ||
     raw.marker !== VOID_BUY_VOID_INVENTORY_POOL_LOCK_V1 ||
+    typeof pid !== "number" ||
     !Number.isSafeInteger(pid) ||
     pid <= 0 ||
+    typeof acquiredAtMs !== "number" ||
     !Number.isSafeInteger(acquiredAtMs) ||
     acquiredAtMs <= 0 ||
+    typeof processStartTicks !== "string" ||
+    !CANONICAL_UINT.test(processStartTicks) ||
+    processStartTicks === "0" ||
+    typeof bootId !== "string" ||
+    !BOOT_ID.test(bootId) ||
+    typeof ownerNonce !== "string" ||
     !LOCK_NONCE.test(ownerNonce)
   ) {
     throw new Error("invalid_inventory_reservation_lock");
   }
-  return raw as BuyVoidInventoryPoolLockV1;
+  return {
+    schema: "void_buy_void_inventory_pool_lock_v1",
+    marker: VOID_BUY_VOID_INVENTORY_POOL_LOCK_V1,
+    pid,
+    acquired_at_ms: acquiredAtMs,
+    process_start_ticks: processStartTicks,
+    boot_id: bootId,
+    owner_nonce: ownerNonce,
+  };
 }
 
 function processPidIsAlive(pid: number): boolean {
@@ -2444,12 +2875,60 @@ function processPidIsAlive(pid: number): boolean {
   }
 }
 
+function readSmallKernelText(file: string): string {
+  const value = fs.readFileSync(file, "utf8").trim();
+  if (Buffer.byteLength(value, "utf8") > 4096) {
+    throw new Error("process_identity_evidence_too_large");
+  }
+  return value;
+}
+
+function readProcessInstanceIdentity(pid: number): {
+  process_start_ticks: string;
+  boot_id: string;
+} {
+  const bootId = readSmallKernelText("/proc/sys/kernel/random/boot_id");
+  const stat = readSmallKernelText(
+    pid === process.pid ? "/proc/self/stat" : `/proc/${pid}/stat`,
+  );
+  const commandEnd = stat.lastIndexOf(")");
+  if (commandEnd < 0) throw new Error("invalid_process_identity_stat");
+  const fieldsFromState = stat.slice(commandEnd + 1).trim().split(/\s+/u);
+  const processStartTicks = fieldsFromState[19];
+  if (!BOOT_ID.test(bootId) || !CANONICAL_UINT.test(processStartTicks || "")) {
+    throw new Error("invalid_process_instance_identity");
+  }
+  return { process_start_ticks: processStartTicks, boot_id: bootId };
+}
+
+function processInstanceStatus(
+  lock: BuyVoidInventoryPoolLockV1,
+): "matching" | "stale" | "unknown" {
+  if (!processPidIsAlive(lock.pid)) return "stale";
+  try {
+    const current = readProcessInstanceIdentity(lock.pid);
+    return current.boot_id === lock.boot_id &&
+        current.process_start_ticks === lock.process_start_ticks
+      ? "matching"
+      : "stale";
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException)?.code === "ENOENT") return "stale";
+    return "unknown";
+  }
+}
+
+const ACTIVE_POOL_LOCK_NONCES = new Set<string>();
+
 function readPoolLock(
   paths: BuyVoidInventoryReservationJournalPathsV1,
 ): BuyVoidInventoryPoolLockV1 | null {
+  return readPoolLockFile(paths.lock_file);
+}
+
+function readPoolLockFile(file: string): BuyVoidInventoryPoolLockV1 | null {
   let stat: ReturnType<typeof fs.lstatSync>;
   try {
-    stat = fs.lstatSync(paths.lock_file);
+    stat = fs.lstatSync(file);
   } catch (error) {
     if ((error as NodeJS.ErrnoException)?.code === "ENOENT") return null;
     throw error;
@@ -2459,11 +2938,76 @@ function readPoolLock(
   }
   return parsePoolLock(
     readRequiredHistoryJsonObject(
-      paths.lock_file,
+      file,
       "inventory_reservation_lock_disappeared",
       "invalid_inventory_reservation_lock",
     ),
   );
+}
+
+function sameInode(left: string, right: string): boolean {
+  try {
+    const leftStat = fs.lstatSync(left, { bigint: true });
+    const rightStat = fs.lstatSync(right, { bigint: true });
+    return leftStat.dev === rightStat.dev && leftStat.ino === rightStat.ino;
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException)?.code === "ENOENT") return false;
+    throw error;
+  }
+}
+
+function exactPoolLockMatch(
+  left: BuyVoidInventoryPoolLockV1,
+  right: BuyVoidInventoryPoolLockV1,
+): boolean {
+  return JSON.stringify(left) === JSON.stringify(right);
+}
+
+function deleteAndSync(file: string): void {
+  fs.unlinkSync(file);
+  fsyncDir(path.dirname(file));
+}
+
+function clearReclaimFence(
+  paths: BuyVoidInventoryReservationJournalPathsV1,
+): void {
+  try {
+    deleteAndSync(paths.lock_reclaim_file);
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException)?.code !== "ENOENT") throw error;
+  }
+}
+
+function acquireStaleReclaimFence(
+  paths: BuyVoidInventoryReservationJournalPathsV1,
+  observed: BuyVoidInventoryPoolLockV1,
+): "acquired" | "busy" | "retry" {
+  let claim = readPoolLockFile(paths.lock_reclaim_file);
+  if (claim) {
+    if (processInstanceStatus(claim) === "matching") return "busy";
+  } else {
+    try {
+      fs.linkSync(paths.lock_file, paths.lock_reclaim_file);
+      fsyncDir(paths.history_anchor_pool_dir);
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException)?.code === "EEXIST") return "retry";
+      if ((error as NodeJS.ErrnoException)?.code === "ENOENT") return "retry";
+      throw error;
+    }
+    claim = readPoolLockFile(paths.lock_reclaim_file);
+    if (!claim || !exactPoolLockMatch(claim, observed)) {
+      clearReclaimFence(paths);
+      return "retry";
+    }
+  }
+
+  if (sameInode(paths.lock_file, paths.lock_reclaim_file)) {
+    deleteAndSync(paths.lock_file);
+  } else if (fs.existsSync(paths.lock_file)) {
+    clearReclaimFence(paths);
+    return "retry";
+  }
+  return "acquired";
 }
 
 function acquirePoolLock(
@@ -2471,38 +3015,65 @@ function acquirePoolLock(
 ):
   | { ok: true; owner_nonce: string }
   | { ok: false; reason: string } {
-  ensurePrivateDir(paths.history_anchor_pool_dir);
-  for (let attempt = 0; attempt < 2; attempt += 1) {
-    const owner: BuyVoidInventoryPoolLockV1 = {
-      schema: "void_buy_void_inventory_pool_lock_v1",
-      marker: VOID_BUY_VOID_INVENTORY_POOL_LOCK_V1,
-      pid: process.pid,
-      acquired_at_ms: Date.now(),
-      owner_nonce: crypto.randomBytes(16).toString("hex"),
-    };
-    const created = atomicCreateJson(paths.lock_file, owner);
-    if (created === "created") {
-      return { ok: true, owner_nonce: owner.owner_nonce };
-    }
-
-    const existing = readPoolLock(paths);
-    if (!existing) continue;
-    if (processPidIsAlive(existing.pid)) {
-      return { ok: false, reason: "inventory_reservation_busy" };
-    }
-    try {
-      fs.unlinkSync(paths.lock_file);
-      fsyncDir(paths.history_anchor_pool_dir);
-    } catch (error) {
-      return {
-        ok: false,
-        reason: `inventory_reservation_stale_lock_recovery_failed:${
-          String((error as Error)?.message || error)
-        }`,
+  try {
+    ensureInventoryAuthorityDirectories(paths);
+    const processIdentity = readProcessInstanceIdentity(process.pid);
+    let ownsReclaimFence = false;
+    for (let attempt = 0; attempt < 5; attempt += 1) {
+      const owner: BuyVoidInventoryPoolLockV1 = {
+        schema: "void_buy_void_inventory_pool_lock_v1",
+        marker: VOID_BUY_VOID_INVENTORY_POOL_LOCK_V1,
+        pid: process.pid,
+        acquired_at_ms: Date.now(),
+        ...processIdentity,
+        owner_nonce: crypto.randomBytes(16).toString("hex"),
       };
+      try {
+        const created = atomicCreateJson(paths.lock_file, owner);
+        if (created === "created") {
+          if (ownsReclaimFence) clearReclaimFence(paths);
+          ACTIVE_POOL_LOCK_NONCES.add(owner.owner_nonce);
+          return { ok: true, owner_nonce: owner.owner_nonce };
+        }
+      } catch (error) {
+        const readback = readPoolLock(paths);
+        if (readback && exactPoolLockMatch(readback, owner)) {
+          fsyncDir(paths.history_anchor_pool_dir);
+          if (ownsReclaimFence) clearReclaimFence(paths);
+          ACTIVE_POOL_LOCK_NONCES.add(owner.owner_nonce);
+          return { ok: true, owner_nonce: owner.owner_nonce };
+        }
+        throw error;
+      }
+
+      const existing = readPoolLock(paths);
+      if (!existing) continue;
+      const status = processInstanceStatus(existing);
+      const activeInThisProcess = existing.pid === process.pid &&
+        ACTIVE_POOL_LOCK_NONCES.has(existing.owner_nonce);
+      if (
+        status === "unknown" ||
+        (status === "matching" &&
+          (existing.pid !== process.pid || activeInThisProcess))
+      ) {
+        return { ok: false, reason: "inventory_reservation_busy" };
+      }
+      const fence = acquireStaleReclaimFence(paths, existing);
+      if (fence === "busy") {
+        return { ok: false, reason: "inventory_reservation_busy" };
+      }
+      if (fence === "retry") continue;
+      ownsReclaimFence = true;
     }
+    return { ok: false, reason: "inventory_reservation_busy" };
+  } catch (error) {
+    return {
+      ok: false,
+      reason: `inventory_reservation_lock_failed:${
+        String((error as Error)?.message || error)
+      }`,
+    };
   }
-  return { ok: false, reason: "inventory_reservation_busy" };
 }
 
 function releasePoolLock(
@@ -2521,7 +3092,9 @@ function releasePoolLock(
     fs.unlinkSync(paths.lock_file);
     fsyncDir(paths.history_anchor_pool_dir);
   } catch {
-    // A valid lock left by process death is reclaimed on the next apply.
+    // Exact process-instance recovery on the next call reclaims this nonce.
+  } finally {
+    ACTIVE_POOL_LOCK_NONCES.delete(lock.owner_nonce);
   }
 }
 

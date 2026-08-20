@@ -273,6 +273,21 @@ assert.equal(
     .durable_history_stale_lock_recovery_ready,
   true,
 );
+for (const key of [
+  "durability_authority_directory_namespace_ready",
+  "durability_authoritative_file_owner_mode_ready",
+  "bounded_durable_state_reads_ready",
+  "durable_metadata_exact_runtime_json_types_ready",
+  "durable_record_fingerprint_type_sensitive_ready",
+  "pool_lock_process_instance_identity_ready",
+  "pool_lock_publication_recovery_ready",
+  "pool_lock_release_recovery_ready",
+  "stale_lock_compare_delete_race_closed",
+  "durable_publication_retry_resync_ready",
+  "committed_range_diff_hygiene_ready",
+] as const) {
+  assert.equal(contract.presale_invariant_readiness[key], true, key);
+}
 assert.equal(
   contract.presale_invariant_readiness
     .durable_history_separate_anchor_authority_ready,
@@ -607,6 +622,17 @@ console.log("durable_history_creation_crash_recovery_ready=1");
 console.log("durable_history_partial_creation_retry_ready=1");
 console.log("durable_history_manual_state_surgery_required_after_creation_crash=0");
 console.log("durable_history_stale_lock_recovery_ready=1");
+console.log("durability_authority_directory_namespace_ready=1");
+console.log("durability_authoritative_file_owner_mode_ready=1");
+console.log("bounded_durable_state_reads_ready=1");
+console.log("durable_metadata_exact_runtime_json_types_ready=1");
+console.log("durable_record_fingerprint_type_sensitive_ready=1");
+console.log("pool_lock_process_instance_identity_ready=1");
+console.log("pool_lock_publication_recovery_ready=1");
+console.log("pool_lock_release_recovery_ready=1");
+console.log("stale_lock_compare_delete_race_closed=1");
+console.log("durable_publication_retry_resync_ready=1");
+console.log("committed_range_diff_hygiene_ready=1");
 console.log("durable_history_separate_anchor_authority_ready=1");
 console.log("durable_history_external_anti_rollback_anchor_ready=1");
 console.log("durable_history_valid_suffix_rollback_detection_ready=1");

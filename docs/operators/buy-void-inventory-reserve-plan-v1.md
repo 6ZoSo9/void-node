@@ -50,9 +50,25 @@ remain corruption and HOLD; they are not silently recreated. The local index and
 separate anchor must match sequence-for-sequence on kind, pool, record ID,
 fingerprint, and local index-entry SHA.
 
-A pool lock is now an atomically-created regular owner file in the separate
-anchor authority. A live owner remains busy. A valid lock whose recorded PID no
-longer exists is reclaimed, so process death does not permanently wedge the pool.
+A pool lock is now an atomically-created private regular owner file in the
+separate anchor authority. It binds PID, Linux process-start ticks, boot ID, and
+nonce, so PID reuse is not mistaken for the recorded owner. Reclamation first
+hard-links the observed inode into a fixed fence and deletes the public name only
+if both names still identify that inode. A live external process instance remains
+busy; a dead, PID-reused, or same-process abandoned lock is recoverable. Exact
+readback plus parent-directory resync resolves uncertain publication, and a
+failed release does not permanently wedge the next exact invocation.
+The process-instance evidence is Linux `/proc` authority; if that evidence cannot
+be read or validated, mutation fails closed rather than guessing ownership.
+
+All durability-authoritative directories and files must be current-UID owned,
+private mode, regular/non-symlink objects. First-use directory creation fsyncs
+each parent namespace. Existing-path retries re-fsync publication directories.
+Single JSON records are bounded to 1 MiB; index and anchor JSONL are scanned in
+64 KiB chunks with 64 MiB aggregate and 256 KiB line limits while file identity
+is stable. Durable numeric/string/identity fields keep exact JSON runtime types,
+and type-sensitive fingerprints prevent values such as `"100"` and `100` from
+aliasing.
 
 The separate anchor detects coherent rollback of the journal subtree: truncating
 the local index by a valid suffix while deleting the matching expectation and

@@ -88,6 +88,17 @@ durable_history_creation_crash_recovery_ready=true
 durable_history_partial_creation_retry_ready=true
 durable_history_manual_state_surgery_required_after_creation_crash=false
 durable_history_stale_lock_recovery_ready=true
+durability_authority_directory_namespace_ready=true
+durability_authoritative_file_owner_mode_ready=true
+bounded_durable_state_reads_ready=true
+durable_metadata_exact_runtime_json_types_ready=true
+durable_record_fingerprint_type_sensitive_ready=true
+pool_lock_process_instance_identity_ready=true
+pool_lock_publication_recovery_ready=true
+pool_lock_release_recovery_ready=true
+stale_lock_compare_delete_race_closed=true
+durable_publication_retry_resync_ready=true
+committed_range_diff_hygiene_ready=true
 durable_history_separate_anchor_authority_ready=true
 durable_history_external_anti_rollback_anchor_ready=true
 durable_history_valid_suffix_rollback_detection_ready=true
@@ -122,8 +133,21 @@ anchor tails are repairable only when the observed bytes are a prefix of the
 exact pending entry. Preview/read remains fail-closed while pending recovery is
 required.
 
-The pool lock is an atomically-created regular owner file with PID and nonce. A
-live owner remains busy; a valid dead-owner lock is reclaimed.
+Every durability-authoritative directory and file is required to be a
+non-symlink, current-UID-owned, private-mode object. JSON files are bounded to 1
+MiB; the index and anchor are read incrementally with a 64 MiB aggregate and 256
+KiB per-line ceiling while inode/size/time identity remains stable. Numeric and
+identity metadata retains exact JSON runtime types, and record fingerprints are
+type-sensitive.
+
+The pool lock is an atomically-created private regular owner file with PID,
+Linux process-start ticks, boot ID, and nonce. A matching external process
+instance remains busy; a dead or PID-reused owner is reclaimed through a
+hard-link inode fence, which prevents compare/delete races from unlinking a
+replacement lock. Publication-fsync uncertainty is resolved by exact readback
+and resync, and a failed release is recoverable on the next exact call.
+Linux `/proc` supplies the process-instance evidence; unavailable or ambiguous
+evidence holds mutation instead of weakening ownership checks.
 
 After the anchor commit, missing, renamed, malformed or substituted local
 projections remain corruption and HOLD rather than being reconstructed. The
@@ -132,10 +156,16 @@ fingerprint, and local entry hash.
 
 Fault-injection now covers reservation and paid-obligation interruption after
 pending creation, index append, expectation creation, record creation, and anchor
-append; torn index/anchor tails; dead-owner lock recovery; and coherent last-entry
+append; torn index/anchor tails; uncertain publication and release recovery;
+dead-owner and PID-reuse lock recovery; stale-reclaim replacement races;
+owner/mode/symlink rejection; bounded reads; exact runtime JSON types; and coherent last-entry
 rollback where the local index suffix and matching expectation/record are removed
 together while the separate anchor remains. Those rollback cases HOLD before
 capacity can reopen or liability can disappear.
+
+The focused workflow runs the repository committed-range diff-hygiene helper for
+pull requests and pushes (plus its self-proof), so whitespace defects in committed
+changes cannot hide behind a clean checkout worktree.
 
 `durable_history_full_rollback_protection_ready=false` remains explicit because a
 coordinated rollback that also rewinds the separate anchor authority itself is
