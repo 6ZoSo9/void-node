@@ -7,6 +7,8 @@ import path from "node:path";
 import process from "node:process";
 import {
   ENTER_VOID_URL,
+  MAX_RESPONSE_BYTES,
+  readBoundedResponseBytes,
   validateCanonical,
   validatePublicAppDocument,
   validateRenderedIntegrity,
@@ -304,10 +306,154 @@ assert.throws(
   /primary CTA response is missing/,
   "primary CTA validator must reject the wrong application surface",
 );
+
+const syntheticResponse = ({
+  contentLength = null,
+  parts = [],
+  cancel = () => Promise.resolve(),
+}) => {
+  const state = {
+    bodyCancelCalls: 0,
+    readerCancelCalls: 0,
+    getReaderCalls: 0,
+    readCalls: 0,
+  };
+  const headers = new Headers();
+  if (contentLength !== null) {
+    headers.set("content-length", contentLength);
+  }
+  const body = {
+    cancel() {
+      state.bodyCancelCalls += 1;
+      return cancel();
+    },
+    getReader() {
+      state.getReaderCalls += 1;
+      let index = 0;
+      return {
+        async read() {
+          state.readCalls += 1;
+          if (index >= parts.length) {
+            return { done: true, value: undefined };
+          }
+          const value = parts[index];
+          index += 1;
+          return { done: false, value };
+        },
+        cancel() {
+          state.readerCancelCalls += 1;
+          return cancel();
+        },
+        releaseLock() {},
+      };
+    },
+  };
+  return [{ headers, body }, state];
+};
+
+{
+  const [response, state] = syntheticResponse({
+    contentLength: "3",
+    parts: [new Uint8Array([1, 2]), new Uint8Array([3])],
+  });
+  const bytes = await readBoundedResponseBytes(response, new AbortController());
+  assert.deepEqual([...bytes], [1, 2, 3], "small streamed response must remain usable");
+  assert.equal(state.readerCancelCalls, 0, "valid response must not be cancelled");
+}
+
+{
+  const [response, state] = syntheticResponse({
+    contentLength: String(MAX_RESPONSE_BYTES + 1),
+  });
+  const controller = new AbortController();
+  await assert.rejects(
+    () => readBoundedResponseBytes(response, controller),
+    /response exceeds size limit/,
+  );
+  assert.equal(state.getReaderCalls, 0, "declared oversize must reject before body reads");
+  assert.equal(state.bodyCancelCalls, 1, "declared oversize must own body cancellation");
+  assert.equal(controller.signal.aborted, true, "declared oversize must abort the owned request");
+}
+
+{
+  const [response, state] = syntheticResponse({ contentLength: "02" });
+  const controller = new AbortController();
+  await assert.rejects(
+    () => readBoundedResponseBytes(response, controller),
+    /invalid response content-length/,
+  );
+  assert.equal(state.getReaderCalls, 0, "malformed declared length must reject before reads");
+  assert.equal(state.bodyCancelCalls, 1, "malformed declared length must own teardown");
+  assert.equal(controller.signal.aborted, true, "malformed declared length must abort request");
+}
+
+{
+  const [response, state] = syntheticResponse({
+    parts: [new Uint8Array(MAX_RESPONSE_BYTES + 1)],
+  });
+  const controller = new AbortController();
+  await assert.rejects(
+    () => readBoundedResponseBytes(response, controller),
+    /response exceeds size limit/,
+  );
+  assert.equal(state.readCalls, 1, "stream overflow must fail at first over-limit chunk");
+  assert.equal(state.readerCancelCalls, 1, "stream overflow must cancel its reader once");
+  assert.equal(controller.signal.aborted, true, "stream overflow must abort the owned request");
+}
+
+{
+  const [response, state] = syntheticResponse({
+    parts: [new Uint8Array(MAX_RESPONSE_BYTES + 1)],
+    cancel: () => Promise.reject(new Error("synthetic cancellation rejection")),
+  });
+  await assert.rejects(
+    () => readBoundedResponseBytes(response, new AbortController()),
+    /response exceeds size limit/,
+    "cleanup rejection must not replace the primary oversize result",
+  );
+  assert.equal(state.readerCancelCalls, 1, "rejecting cleanup must be attempted exactly once");
+}
+
+{
+  const [response, state] = syntheticResponse({
+    parts: [new Uint8Array(MAX_RESPONSE_BYTES + 1)],
+    cancel: () => new Promise(() => {}),
+  });
+  const started = Date.now();
+  await assert.rejects(
+    () => readBoundedResponseBytes(response, new AbortController()),
+    /response exceeds size limit/,
+    "never-settling cleanup must preserve the primary oversize result",
+  );
+  const elapsed = Date.now() - started;
+  assert.ok(elapsed >= 150, `teardown bound returned implausibly early: ${elapsed}ms`);
+  assert.ok(elapsed < 1500, `teardown bound exceeded reviewed terminal: ${elapsed}ms`);
+  assert.equal(state.readerCancelCalls, 1, "never-settling cleanup must be attempted once");
+}
+
+{
+  const [response, state] = syntheticResponse({ parts: ["not-bytes"] });
+  await assert.rejects(
+    () => readBoundedResponseBytes(response, new AbortController()),
+    /non-byte chunk/,
+  );
+  assert.equal(state.readerCancelCalls, 1, "non-byte body evidence must be cancelled");
+}
+
+assert.doesNotMatch(
+  sync,
+  /\.arrayBuffer\s*\(/,
+  "production sync must not prebuffer untrusted responses before enforcing the byte ceiling",
+);
 assert.match(
   sync,
-  /const requestPublicAppEntrypoint = async \(\) => \{[\s\S]*method: "GET",[\s\S]*headers: \{ accept: "text\/html" \},[\s\S]*redirect: "error",[\s\S]*AbortSignal\.timeout\(REQUEST_TIMEOUT_MS\)/,
-  "primary CTA live check must remain bounded, read-only, and redirect rejecting",
+  /const RESPONSE_TEARDOWN_TIMEOUT_MS = 250;/,
+  "production sync must keep an explicit bounded teardown terminal",
+);
+assert.match(
+  sync,
+  /const requestPublicAppEntrypoint = async \(\) =>\s*withResponseDeadline\([\s\S]*method: "GET"[\s\S]*readBoundedResponseBytes/,
+  "primary CTA live check must remain bounded and read-only through body settlement",
 );
 
 for (const token of [
@@ -316,6 +462,9 @@ for (const token of [
   'redirect: "error"',
   "MAX_RESPONSE_BYTES",
   "REQUEST_TIMEOUT_MS",
+  "RESPONSE_TEARDOWN_TIMEOUT_MS",
+  "readBoundedResponseBytes",
+  "withResponseDeadline",
   "requestPublicAppEntrypoint",
   "validatePublicAppDocument",
   "primary CTA returned HTTP",
@@ -356,6 +505,12 @@ process.stdout.write(`${JSON.stringify({
   primary_cta_url: ENTER_VOID_URL,
   primary_cta_404_reproduced: true,
   primary_cta_contract_guard: true,
+  streamed_response_bound: true,
+  declared_oversize_pre_read_rejection: true,
+  malformed_content_length_teardown_owned: true,
+  rejecting_cleanup_preserves_primary_error: true,
+  nonsettling_cleanup_bounded: true,
+  prebuffer_arraybuffer_removed: true,
   canonical_domain: "https://voidchain.org",
   page_path: path.relative(repo, pagePath),
   sync_path: path.relative(repo, syncPath),
