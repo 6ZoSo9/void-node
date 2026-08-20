@@ -56,12 +56,15 @@ nonce, so PID reuse is not mistaken for the recorded owner. Reclamation first
 hard-links the observed inode into a generation-specific fence. A separate
 exclusive owner object serializes the fence-compare/public-name-delete window,
 so two reclaimers cannot both validate an old inode and let a delayed unlink
-remove a replacement lock. An abandoned reclaim owner is deliberately not
-auto-reclaimed; recovery then fails closed instead of recursively reopening the
-same compare/delete race. A live external process instance remains busy unless
+remove a replacement lock. Reclaim ownership is a monotonic, generation-bound
+chain carrying the exact Linux process-instance identity. A live or identity-
+unknown reclaimer remains non-stealable; after an exact reclaimer process dies,
+one contender can exclusively publish the next generation and safely resume
+the still-fenced lock generation without deleting a replacement. A live external
+process instance remains busy unless
 its exact nonce-bound durable release terminal proves that logical ownership
 ended. A dead, PID-reused, same-process abandoned, or durably released lock is
-recoverable when no abandoned reclaim owner blocks it. Exact readback plus
+recoverable without manual reclaim-owner deletion. Exact readback plus
 parent-directory resync resolves uncertain publication. If physical release
 fails, another process can reclaim through the inode fence while the original
 process remains alive; without the release terminal, a live owner is

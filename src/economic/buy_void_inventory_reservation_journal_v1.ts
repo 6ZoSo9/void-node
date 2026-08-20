@@ -98,6 +98,18 @@ type BuyVoidInventoryPoolLockReleaseV1 = {
   lock: BuyVoidInventoryPoolLockV1;
 };
 
+type BuyVoidInventoryPoolLockReclaimOwnerV1 = {
+  schema: "void_buy_void_inventory_pool_lock_reclaim_owner_v2";
+  marker: typeof VOID_BUY_VOID_INVENTORY_POOL_LOCK_V1;
+  observed_owner_nonce: string;
+  reclaim_generation: number;
+  pid: number;
+  acquired_at_ms: number;
+  process_start_ticks: string;
+  boot_id: string;
+  reclaimer_nonce: string;
+};
+
 export const VOID_BUY_VOID_INVENTORY_RESERVATION_AUTHORITY_V1 = {
   filesystem_read: true,
   filesystem_write: true,
@@ -113,6 +125,7 @@ export const VOID_BUY_VOID_INVENTORY_RESERVATION_AUTHORITY_V1 = {
   stale_pool_lock_recovery: true,
   cross_process_pool_lock_release_recovery: true,
   generation_bound_pool_lock_reclaim_fence: true,
+  crash_recoverable_pool_lock_reclaim_owner: true,
   full_presale_domain_history_range: false,
   obligation_automatic_retry: false,
   obligation_refund_execution_authorized: false,
@@ -138,6 +151,7 @@ const MAX_DURABLE_JSON_BYTES = 1_048_576;
 const MAX_DURABLE_JSONL_BYTES = 67_108_864;
 const MAX_DURABLE_JSONL_LINE_BYTES = 262_144;
 const DURABLE_READ_CHUNK_BYTES = 64 * 1024;
+const MAX_POOL_LOCK_RECLAIM_OWNER_GENERATIONS_V1 = 1_024;
 
 export type BuyVoidInventoryReservationPolicyV1 = {
   inventory_reservation_enabled: boolean;
@@ -1202,6 +1216,18 @@ const POOL_LOCK_RELEASE_KEYS = [
   "marker",
   "released_at_ms",
   "lock",
+] as const;
+
+const POOL_LOCK_RECLAIM_OWNER_KEYS = [
+  "schema",
+  "marker",
+  "observed_owner_nonce",
+  "reclaim_generation",
+  "pid",
+  "acquired_at_ms",
+  "process_start_ticks",
+  "boot_id",
+  "reclaimer_nonce",
 ] as const;
 
 const HISTORY_INDEX_GENESIS_SHA256 = "0".repeat(64);
@@ -3092,7 +3118,11 @@ function readProcessInstanceIdentity(pid: number): {
 }
 
 function processInstanceStatus(
-  lock: BuyVoidInventoryPoolLockV1,
+  lock: {
+    pid: number;
+    process_start_ticks: string;
+    boot_id: string;
+  },
 ): "matching" | "stale" | "unknown" {
   if (!processPidIsAlive(lock.pid)) return "stale";
   try {
@@ -3301,8 +3331,182 @@ function poolLockReclaimFile(
 function poolLockReclaimOwnerFile(
   paths: BuyVoidInventoryReservationJournalPathsV1,
   ownerNonce: string,
+  generation: number,
 ): string {
-  return `${poolLockReclaimFile(paths, ownerNonce)}.owner`;
+  if (
+    !Number.isSafeInteger(generation) ||
+    generation < 1 ||
+    generation > MAX_POOL_LOCK_RECLAIM_OWNER_GENERATIONS_V1
+  ) {
+    throw new Error("invalid_inventory_reservation_lock_reclaim_generation");
+  }
+  return `${poolLockReclaimFile(paths, ownerNonce)}.owner-${
+    String(generation).padStart(4, "0")
+  }.json`;
+}
+
+function parsePoolLockReclaimOwner(
+  raw: Record<string, unknown>,
+): BuyVoidInventoryPoolLockReclaimOwnerV1 {
+  const observedOwnerNonce = raw.observed_owner_nonce;
+  const generation = raw.reclaim_generation;
+  const pid = raw.pid;
+  const acquiredAtMs = raw.acquired_at_ms;
+  const processStartTicks = raw.process_start_ticks;
+  const bootId = raw.boot_id;
+  const reclaimerNonce = raw.reclaimer_nonce;
+  if (
+    !hasExactKeys(raw, POOL_LOCK_RECLAIM_OWNER_KEYS) ||
+    raw.schema !== "void_buy_void_inventory_pool_lock_reclaim_owner_v2" ||
+    raw.marker !== VOID_BUY_VOID_INVENTORY_POOL_LOCK_V1 ||
+    typeof observedOwnerNonce !== "string" ||
+    !LOCK_NONCE.test(observedOwnerNonce) ||
+    typeof generation !== "number" ||
+    !Number.isSafeInteger(generation) ||
+    generation < 1 ||
+    generation > MAX_POOL_LOCK_RECLAIM_OWNER_GENERATIONS_V1 ||
+    typeof pid !== "number" ||
+    !Number.isSafeInteger(pid) ||
+    pid <= 0 ||
+    typeof acquiredAtMs !== "number" ||
+    !Number.isSafeInteger(acquiredAtMs) ||
+    acquiredAtMs <= 0 ||
+    typeof processStartTicks !== "string" ||
+    !CANONICAL_UINT.test(processStartTicks) ||
+    processStartTicks === "0" ||
+    typeof bootId !== "string" ||
+    !BOOT_ID.test(bootId) ||
+    typeof reclaimerNonce !== "string" ||
+    !LOCK_NONCE.test(reclaimerNonce)
+  ) {
+    throw new Error("invalid_inventory_reservation_lock_reclaim_owner");
+  }
+  return {
+    schema: "void_buy_void_inventory_pool_lock_reclaim_owner_v2",
+    marker: VOID_BUY_VOID_INVENTORY_POOL_LOCK_V1,
+    observed_owner_nonce: observedOwnerNonce,
+    reclaim_generation: generation,
+    pid,
+    acquired_at_ms: acquiredAtMs,
+    process_start_ticks: processStartTicks,
+    boot_id: bootId,
+    reclaimer_nonce: reclaimerNonce,
+  };
+}
+
+function readPoolLockReclaimOwners(
+  paths: BuyVoidInventoryReservationJournalPathsV1,
+  observedOwnerNonce: string,
+): BuyVoidInventoryPoolLockReclaimOwnerV1[] {
+  const prefix = `${path.basename(
+    poolLockReclaimFile(paths, observedOwnerNonce),
+  )}.owner-`;
+  return withPinnedPrivateDirectoryV1(
+    paths.history_anchor_pool_dir,
+    false,
+    (stableParent) => {
+      const names = fs.readdirSync(stableParent)
+        .filter((name) => name.startsWith(prefix))
+        .sort();
+      if (names.length > MAX_POOL_LOCK_RECLAIM_OWNER_GENERATIONS_V1) {
+        throw new Error(
+          "inventory_reservation_lock_reclaim_owner_generations_exhausted",
+        );
+      }
+      const owners = names.map((name, index) => {
+        const expected = `${prefix}${String(index + 1).padStart(4, "0")}.json`;
+        if (name !== expected) {
+          throw new Error(
+            "invalid_inventory_reservation_lock_reclaim_owner_generation",
+          );
+        }
+        const owner = parsePoolLockReclaimOwner(
+          readRequiredHistoryJsonObject(
+            path.join(stableParent, name),
+            "inventory_reservation_lock_reclaim_owner_disappeared",
+            "invalid_inventory_reservation_lock_reclaim_owner",
+          ),
+        );
+        if (
+          owner.observed_owner_nonce !== observedOwnerNonce ||
+          owner.reclaim_generation !== index + 1
+        ) {
+          throw new Error(
+            "inventory_reservation_lock_reclaim_owner_identity_mismatch",
+          );
+        }
+        return owner;
+      });
+      return owners;
+    },
+  );
+}
+
+function exactPoolLockReclaimOwnerMatch(
+  left: BuyVoidInventoryPoolLockReclaimOwnerV1,
+  right: BuyVoidInventoryPoolLockReclaimOwnerV1,
+): boolean {
+  return JSON.stringify(left) === JSON.stringify(right);
+}
+
+function acquirePoolLockReclaimOwner(
+  paths: BuyVoidInventoryReservationJournalPathsV1,
+  observed: BuyVoidInventoryPoolLockV1,
+): "acquired" | "busy" {
+  for (let attempt = 0; attempt < 5; attempt += 1) {
+    const owners = readPoolLockReclaimOwners(paths, observed.owner_nonce);
+    const active = owners.at(-1);
+    if (active) {
+      const status = processInstanceStatus(active);
+      if (status === "matching" || status === "unknown") return "busy";
+    }
+    const generation = (active?.reclaim_generation ?? 0) + 1;
+    if (generation > MAX_POOL_LOCK_RECLAIM_OWNER_GENERATIONS_V1) {
+      throw new Error(
+        "inventory_reservation_lock_reclaim_owner_generations_exhausted",
+      );
+    }
+    const processIdentity = readProcessInstanceIdentity(process.pid);
+    const candidate: BuyVoidInventoryPoolLockReclaimOwnerV1 = {
+      schema: "void_buy_void_inventory_pool_lock_reclaim_owner_v2",
+      marker: VOID_BUY_VOID_INVENTORY_POOL_LOCK_V1,
+      observed_owner_nonce: observed.owner_nonce,
+      reclaim_generation: generation,
+      pid: process.pid,
+      acquired_at_ms: Date.now(),
+      ...processIdentity,
+      reclaimer_nonce: crypto.randomBytes(16).toString("hex"),
+    };
+    const created = atomicCreateJson(
+      poolLockReclaimOwnerFile(paths, observed.owner_nonce, generation),
+      candidate,
+    );
+    if (created === "exists") continue;
+    const published = readPoolLockReclaimOwners(
+      paths,
+      observed.owner_nonce,
+    ).at(-1);
+    if (published && exactPoolLockReclaimOwnerMatch(published, candidate)) {
+      return "acquired";
+    }
+  }
+  return "busy";
+}
+
+function clearPoolLockReclaimOwners(
+  paths: BuyVoidInventoryReservationJournalPathsV1,
+  observedOwnerNonce: string,
+): void {
+  const owners = readPoolLockReclaimOwners(paths, observedOwnerNonce);
+  for (const owner of owners.slice().reverse()) {
+    clearReclaimFence(
+      poolLockReclaimOwnerFile(
+        paths,
+        observedOwnerNonce,
+        owner.reclaim_generation,
+      ),
+    );
+  }
 }
 
 function clearReclaimFence(file: string): void {
@@ -3356,22 +3560,12 @@ function acquireStaleReclaimFence(
   }
 
   // The generation hardlink proves which lock was observed, but it cannot by
-  // itself make a later pathname unlink conditional on that inode. Serialize
-  // the compare/delete window with a separate generation-specific ownership
-  // object. An abandoned owner fails closed: it is never auto-reclaimed by a
-  // second process, because doing so would recreate the same compare/delete
-  // race recursively.
-  const reclaimOwnerFile = poolLockReclaimOwnerFile(
-    paths,
-    observed.owner_nonce,
-  );
-  const ownerCreated = atomicCreateJson(reclaimOwnerFile, {
-    schema: "void_buy_void_inventory_pool_lock_reclaim_owner_v1",
-    marker: VOID_BUY_VOID_INVENTORY_POOL_LOCK_V1,
-    observed_owner_nonce: observed.owner_nonce,
-    reclaimer_nonce: crypto.randomBytes(16).toString("hex"),
-  });
-  if (ownerCreated === "exists") return "busy";
+  // itself make a later pathname unlink conditional on that inode. A durable,
+  // monotonically versioned reclaim-owner chain serializes the compare/delete
+  // window. Only the latest exact process instance may act. If it crashes, one
+  // contender wins publication of the next generation with O_EXCL/link
+  // semantics; a live or identity-unknown owner remains non-stealable.
+  if (acquirePoolLockReclaimOwner(paths, observed) === "busy") return "busy";
 
   try {
     if (sameInode(paths.lock_file, reclaimFile)) {
@@ -3387,7 +3581,13 @@ function acquireStaleReclaimFence(
     }
     return "acquired";
   } finally {
-    clearReclaimFence(reclaimOwnerFile);
+    // Once the public lock no longer names the observed generation, retained
+    // owner records cannot authorize deletion of a replacement. Cleanup is
+    // generation-specific and a crash before this point is recoverable by the
+    // next published owner generation.
+    if (!sameInode(paths.lock_file, reclaimFile)) {
+      clearPoolLockReclaimOwners(paths, observed.owner_nonce);
+    }
   }
 }
 

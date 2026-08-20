@@ -166,6 +166,7 @@ assert.deepEqual(
     stale_pool_lock_recovery: true,
     cross_process_pool_lock_release_recovery: true,
     generation_bound_pool_lock_reclaim_fence: true,
+    crash_recoverable_pool_lock_reclaim_owner: true,
     full_presale_domain_history_range: false,
     obligation_automatic_retry: false,
     obligation_refund_execution_authorized: false,
@@ -800,21 +801,28 @@ function writeCrossProcessLockChild(root: string): string {
     '} else {',
     '  let fired = false;',
     '  const originalUnlink = fs.unlinkSync;',
-    '  const originalLstat = fs.lstatSync;',
-    '  if (mode === "delayed-reclaimer") {',
-    '    fs.lstatSync = (file, options) => {',
-    '      const stat = originalLstat(file, options);',
-    '      const basename = String(file).split("/").pop();',
-    '      if (!fired && basename?.startsWith(paths.lock_reclaim_prefix.split("/").pop() + "-") && basename?.endsWith(".json") && fs.existsSync(String(file) + ".owner")) {',
+    '  const originalLink = fs.linkSync;',
+    '  const originalFsync = fs.fsyncSync;',
+    '  if (mode === "delayed-reclaimer" || mode === "orphan-reclaim-owner") {',
+    '    let ownerLinked = false;',
+    '    fs.linkSync = (source, destination) => {',
+    '      const result = originalLink(source, destination);',
+    '      const basename = String(destination).split("/").pop();',
+    '      if (/\\.json\\.owner-[0-9]{4}\\.json$/u.test(basename || "")) ownerLinked = true;',
+    '      return result;',
+    '    };',
+    '    fs.fsyncSync = (descriptor) => {',
+    '      const result = originalFsync(descriptor);',
+    '      if (!fired && ownerLinked) {',
     '        fired = true;',
     '        fs.writeFileSync(input.barrier_reached_file, "reached\\n", { flag: "wx", mode: 0o600 });',
     '        const deadline = Date.now() + 10000;',
     '        while (!fs.existsSync(input.barrier_release_file)) {',
-    '          if (Date.now() >= deadline) throw new Error("delayed_reclaimer_barrier_timeout");',
+    '          if (Date.now() >= deadline) throw new Error("reclaim_owner_barrier_timeout");',
     '          Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 20);',
     '        }',
     '      }',
-    '      return stat;',
+    '      return result;',
     '    };',
     '  }',
     '  if (mode === "release-failure" || mode === "reclaim-fence-cleanup-failure") {',
@@ -832,7 +840,8 @@ function writeCrossProcessLockChild(root: string): string {
     '  }',
     '  const result = reserveBuyVoidInventoryV1({ root_dir: root, intent: input.intent, policy: input.policy, apply: true });',
     '  fs.unlinkSync = originalUnlink;',
-    '  fs.lstatSync = originalLstat;',
+    '  fs.linkSync = originalLink;',
+    '  fs.fsyncSync = originalFsync;',
     '  const releaseFiles = fs.readdirSync(paths.history_anchor_pool_dir).filter((name) => /^\\.reserve\\.lock\\.release-[0-9a-f]{32}\\.json$/u.test(name));',
     '  const reclaimFiles = fs.readdirSync(paths.history_anchor_pool_dir).filter((name) => /^\\.reserve\\.lock\\.reclaim-[0-9a-f]{32}\\.json$/u.test(name));',
     '  const survivingLock = fs.existsSync(paths.lock_file) ? JSON.parse(fs.readFileSync(paths.lock_file, "utf8")) : null;',
@@ -851,6 +860,7 @@ async function startCrossProcessChild(
     | "release-failure"
     | "reclaim-fence-cleanup-failure"
     | "delayed-reclaimer"
+    | "orphan-reclaim-owner"
     | "retry"
     | "live-owner",
   root: string,
@@ -944,7 +954,41 @@ async function proveSerializedStaleReclaimCompareDelete(): Promise<void> {
         { stdio: ["ignore", "pipe", "pipe"] },
       );
       const delayedResult = readChildResult(delayed);
+      // Keep a primary assertion failure visible if cleanup has to terminate the
+      // deliberately paused child before this promise is awaited below.
+      void delayedResult.catch(() => undefined);
       await waitForFile(barrierReached);
+      if (delayed.exitCode !== null || delayed.signalCode !== null) {
+        throw new Error(
+          `delayed_reclaimer_exited_at_barrier:${JSON.stringify(await delayedResult)}`,
+        );
+      }
+      const liveOwnerFiles = fs.readdirSync(
+        paths.history_anchor_pool_dir,
+      ).filter((name) =>
+        /\.reclaim-[0-9a-f]{32}\.json\.owner-0001\.json$/u.test(name)
+      );
+      assert.equal(liveOwnerFiles.length, 1);
+      const liveOwner = JSON.parse(fs.readFileSync(
+        path.join(paths.history_anchor_pool_dir, liveOwnerFiles[0]),
+        "utf8",
+      ));
+      assert.equal(liveOwner.pid, delayed.pid);
+      const syntheticProcessStat =
+        `${liveOwner.pid} (reclaimer) S ${
+          Array(18).fill("0").join(" ")
+        } ${liveOwner.process_start_ticks}\n`;
+      fs.writeFileSync(
+        inputFile,
+        JSON.stringify({
+          ...JSON.parse(fs.readFileSync(inputFile, "utf8")),
+          owner_identity: {
+            pid: liveOwner.pid,
+            process_stat: syntheticProcessStat,
+          },
+        }),
+        { mode: 0o600 },
+      );
 
       const second = await startCrossProcessChild(
         childFile,
@@ -953,7 +997,11 @@ async function proveSerializedStaleReclaimCompareDelete(): Promise<void> {
         inputFile,
       );
       contender = second.child;
-      assert.equal(second.result.result.ok, false);
+      assert.equal(
+        second.result.result.ok,
+        false,
+        JSON.stringify(second.result),
+      );
       assert.equal(
         second.result.result.reason,
         "inventory_reservation_busy",
@@ -990,6 +1038,121 @@ async function proveSerializedStaleReclaimCompareDelete(): Promise<void> {
     } finally {
       if (delayed) await stopChild(delayed);
       if (contender) await stopChild(contender);
+      fs.rmSync(root, { recursive: true, force: true });
+    }
+  }
+}
+
+async function proveCrashRecoverableReclaimOwner(): Promise<void> {
+  for (const scenario of ["reservation", "obligation"] as const) {
+    const root = fs.mkdtempSync(
+      path.join(os.tmpdir(), `void-buy-history-reclaim-owner-crash-${scenario}-`),
+    );
+    let crashed: ReturnType<typeof spawn> | null = null;
+    let retryChild: ReturnType<typeof spawn> | null = null;
+    try {
+      const scenarioPolicy = scenario === "reservation"
+        ? policy()
+        : policy("1", "1");
+      if (scenario === "obligation") {
+        const seed = reserveBuyVoidInventoryV1({
+          root_dir: root,
+          intent: makeIntent(130, "1"),
+          policy: scenarioPolicy,
+          apply: true,
+        });
+        assert.equal(seed.ok, true);
+      }
+      const paths = buyVoidInventoryReservationJournalPathsV1(
+        root,
+        scenarioPolicy.pool_id,
+      );
+      fs.mkdirSync(paths.history_anchor_pool_dir, {
+        recursive: true,
+        mode: 0o700,
+      });
+      const stale = {
+        schema: "void_buy_void_inventory_pool_lock_v1",
+        marker: VOID_BUY_VOID_INVENTORY_POOL_LOCK_V1,
+        pid: 2147483647,
+        acquired_at_ms: Date.now(),
+        process_start_ticks: "1",
+        boot_id: "00000000-0000-0000-0000-000000000000",
+        owner_nonce: "8".repeat(32),
+      };
+      fs.writeFileSync(paths.lock_file, `${JSON.stringify(stale)}\n`, {
+        flag: "wx",
+        mode: 0o600,
+      });
+      const barrierReached = path.join(root, "reclaim-owner-crash-reached");
+      const barrierRelease = path.join(root, "reclaim-owner-never-release");
+      const inputFile = path.join(root, "cross-process-input.json");
+      fs.writeFileSync(
+        inputFile,
+        JSON.stringify({
+          intent: makeIntent(scenario === "reservation" ? 131 : 132, "1"),
+          policy: scenarioPolicy,
+          barrier_reached_file: barrierReached,
+          barrier_release_file: barrierRelease,
+        }),
+        { mode: 0o600 },
+      );
+      const childFile = writeCrossProcessLockChild(root);
+      crashed = spawn(
+        process.execPath,
+        [
+          ...process.execArgv,
+          childFile,
+          "orphan-reclaim-owner",
+          root,
+          inputFile,
+        ],
+        { stdio: ["ignore", "pipe", "pipe"] },
+      );
+      await waitForFile(barrierReached);
+      const ownerFilesBeforeCrash = fs.readdirSync(
+        paths.history_anchor_pool_dir,
+      ).filter((name) =>
+        /\.reclaim-[0-9a-f]{32}\.json\.owner-0001\.json$/u.test(name)
+      );
+      assert.equal(ownerFilesBeforeCrash.length, 1);
+      crashed.kill("SIGKILL");
+      await new Promise<void>((resolve, reject) => {
+        crashed?.once("exit", () => resolve());
+        crashed?.once("error", reject);
+      });
+
+      const retry = await startCrossProcessChild(
+        childFile,
+        "retry",
+        root,
+        inputFile,
+      );
+      retryChild = retry.child;
+      if (scenario === "reservation") {
+        assert.equal(retry.result.result.ok, true, JSON.stringify(retry.result));
+        assert.equal(
+          listBuyVoidInventoryReservationsV1({
+            root_dir: root,
+            pool_id: scenarioPolicy.pool_id,
+          }).length,
+          1,
+        );
+      } else {
+        assert.equal(retry.result.result.ok, false, JSON.stringify(retry.result));
+        assert.equal(retry.result.result.reason, "inventory_sold_out");
+        assert.equal(
+          listBuyVoidPaidUnreservableObligationsV1({
+            root_dir: root,
+            pool_id: scenarioPolicy.pool_id,
+          }).length,
+          1,
+        );
+      }
+      assert.equal(fs.existsSync(paths.lock_file), false);
+    } finally {
+      if (crashed) await stopChild(crashed);
+      if (retryChild) await stopChild(retryChild);
       fs.rmSync(root, { recursive: true, force: true });
     }
   }
@@ -2475,6 +2638,7 @@ withAdversarialRoot("lock-release-recovery", (root) => {
 await proveCrossProcessReleaseRecovery();
 await proveCrossProcessOrphanReclaimFenceRecovery();
 await proveSerializedStaleReclaimCompareDelete();
+await proveCrashRecoverableReclaimOwner();
 
 console.log("durable_history_expected_set_commitment=1");
 console.log("durable_history_append_only_hash_chain_index=1");
@@ -2505,5 +2669,6 @@ console.log("pool_lock_release_recovery=1");
 console.log("pool_lock_cross_process_release_recovery=1");
 console.log("pool_lock_reclaim_fence_generation_recovery=1");
 console.log("stale_lock_compare_delete_race_closed=1");
+console.log("pool_lock_reclaim_owner_crash_recovery=1");
 
 console.log("VOID_BUY_VOID_INVENTORY_RESERVATION_JOURNAL_V1_GREEN");
