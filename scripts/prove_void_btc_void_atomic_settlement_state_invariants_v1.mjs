@@ -69,6 +69,13 @@ function makeEvent(
   return { ...payload, event_id: contentId(payload) };
 }
 
+function recomputeEventId(event) {
+  const { event_id: ignoredEventId, ...payload } = event;
+  void ignoredEventId;
+  event.event_id = contentId(payload);
+  return event;
+}
+
 const happyTransitions = [
   ["BIND_HASHLOCK", "RESERVED", "HASH_BOUND", "a"],
   ["OBSERVE_SOURCE_FUNDING", "HASH_BOUND", "SOURCE_FUNDED", "b"],
@@ -188,6 +195,71 @@ const refunded = evaluateBtcVoidAtomicSettlementTraceV1(
 );
 assert.equal(refunded.final_phase, "REFUNDED");
 assert.equal(refunded.terminal, true);
+
+for (const invalidEventType of [
+  ["OBSERVE_SOURCE_REFUND"],
+  { 0: "OBSERVE_SOURCE_REFUND", length: 1 },
+  null,
+  true,
+  7,
+  "UNKNOWN_EVENT",
+]) {
+  const invalidTypeTrace = trace("BTC_TO_VOID", [
+    ["BIND_HASHLOCK", "RESERVED", "HASH_BOUND", "a"],
+    ["OBSERVE_SOURCE_FUNDING", "HASH_BOUND", "SOURCE_FUNDED", "b"],
+    ["OBSERVE_SOURCE_REFUND", "SOURCE_FUNDED", "REFUNDED", "c"],
+  ]);
+  const event = invalidTypeTrace.events[2];
+  event.event_type = invalidEventType;
+  event.refund_asset_role = "NOT_A_REFUND";
+  recomputeEventId(event);
+  assert.throws(
+    () => evaluateBtcVoidAtomicSettlementTraceV1(invalidTypeTrace),
+    /event_type must be a supported v1 event name/,
+  );
+}
+
+function assertRejectedEventScalar(field, invalidValue, expectedError) {
+  const invalidTrace = trace();
+  const event = invalidTrace.events[0];
+  event[field] =
+    invalidValue === "__CONTRACT_ID_ARRAY__"
+      ? [invalidTrace.contract.contract_id]
+      : invalidValue;
+  if (field !== "event_id") recomputeEventId(event);
+  assert.throws(
+    () => evaluateBtcVoidAtomicSettlementTraceV1(invalidTrace),
+    expectedError,
+  );
+}
+
+assertRejectedEventScalar(
+  "schema",
+  ["void.btc_void.atomic_settlement_event.v1"],
+  /schema mismatch/,
+);
+assertRejectedEventScalar(
+  "contract_id",
+  "__CONTRACT_ID_ARRAY__",
+  /contract_id mismatch/,
+);
+assertRejectedEventScalar("from_phase", ["RESERVED"], /from_phase does not match/);
+assertRejectedEventScalar("to_phase", ["HASH_BOUND"], /transition is not allowed/);
+assertRejectedEventScalar(
+  "refund_asset_role",
+  ["NOT_A_REFUND"],
+  /refund_asset_role mismatch/,
+);
+assertRejectedEventScalar(
+  "evidence_id",
+  [`sha256:${"a".repeat(64)}`],
+  /canonical sha256 identity/,
+);
+assertRejectedEventScalar(
+  "event_id",
+  [`sha256:${"b".repeat(64)}`],
+  /event_id content mismatch/,
+);
 
 function bothLockedRefundTransitions(complete = true) {
   const transitions = [
@@ -404,7 +476,7 @@ process.stdout.write(
     {
       marker: `${VOID_BTC_VOID_ATOMIC_SETTLEMENT_STATE_INVARIANTS_V1}_PROOF_GREEN`,
       status: "PASS",
-      assertions: 76,
+      assertions: 89,
       btc_to_void_evaluation_id: baseline.evaluation_id,
       refund_terminal: refunded.final_phase,
       authority: baseline.authority,
