@@ -72,12 +72,23 @@ const PUBLIC_UTILITY_CANONICALIZATION_BOUNDARY = [
 ];
 const OFFICIAL_NETWORK_AUTHENTICITY_VERIFICATION_BOUNDARY = [
   ".github/workflows/void-ai-agent-first-contact-v1.yml",
+  ".github/workflows/void-ai-agent-provenance-unfiltered-v1.yml",
   "docs/public/ai-agent-first-contact-v1.md",
   "scripts/prove_void_ai_agent_first_contact_v1.mjs",
   "tools/void-ai-agent-first-contact-v1.mjs",
 ];
+const COMMITTED_RANGE_DIFF_HYGIENE_REPAIR_BOUNDARY = [
+  ".github/workflows/void-ai-agent-first-contact-v1.yml",
+  ".github/workflows/void-ai-agent-provenance-unfiltered-v1.yml",
+  "scripts/prove_void_ai_agent_first_contact_v1.mjs",
+];
 const ALLOWED_BOUNDARY = [
-  ...new Set([...ORIGINAL_BOUNDARY, ...COMPOSITION_BOUNDARY]),
+  ...new Set([
+    ...ORIGINAL_BOUNDARY,
+    ...COMPOSITION_BOUNDARY,
+    ...OFFICIAL_NETWORK_AUTHENTICITY_VERIFICATION_BOUNDARY,
+    ...COMMITTED_RANGE_DIFF_HYGIENE_REPAIR_BOUNDARY,
+  ]),
 ];
 const AUTHENTICITY_ROUTE = "/.well-known/void-network-authenticity.json";
 const MANIFEST_PATH = join(
@@ -1373,6 +1384,7 @@ if (workingBoundary.length > 0) {
     PUBLIC_UTILITY_PROVENANCE_BOUNDARY,
     PUBLIC_UTILITY_CANONICALIZATION_BOUNDARY,
     OFFICIAL_NETWORK_AUTHENTICITY_VERIFICATION_BOUNDARY,
+    COMMITTED_RANGE_DIFF_HYGIENE_REPAIR_BOUNDARY,
   ].some(
     (boundary) =>
       JSON.stringify(workingBoundary) ===

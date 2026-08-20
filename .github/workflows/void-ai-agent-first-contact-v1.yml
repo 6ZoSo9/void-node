@@ -15,6 +15,8 @@ on:
       - "public/.well-known/void-network-authenticity.json"
       - "scripts/prove_void_ai_agent_first_contact_v1.mjs"
       - "scripts/prove_void_ai_agent_public_utility_v1.mjs"
+      - "scripts/ci_diff_hygiene_v1.sh"
+      - "scripts/prove_ci_diff_hygiene_v1.mjs"
       - "tools/void-ai-agent-first-contact-v1.mjs"
   push:
     branches:
@@ -32,6 +34,8 @@ on:
       - "public/.well-known/void-network-authenticity.json"
       - "scripts/prove_void_ai_agent_first_contact_v1.mjs"
       - "scripts/prove_void_ai_agent_public_utility_v1.mjs"
+      - "scripts/ci_diff_hygiene_v1.sh"
+      - "scripts/prove_ci_diff_hygiene_v1.mjs"
       - "tools/void-ai-agent-first-contact-v1.mjs"
 
 permissions:
@@ -52,6 +56,18 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: ${{ matrix.node-version }}
+      - name: Prove committed-range diff hygiene contract
+        if: matrix.node-version == 24
+        run: node scripts/prove_ci_diff_hygiene_v1.mjs
       - run: node scripts/prove_void_ai_agent_first_contact_v1.mjs
       - run: node scripts/prove_void_ai_agent_public_utility_v1.mjs
-      - run: git diff --check
+      - name: Diff hygiene across committed change range
+        env:
+          CI_DIFF_EVENT_NAME: ${{ github.event_name }}
+          CI_DIFF_PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          CI_DIFF_PUSH_BEFORE_SHA: ${{ github.event.before }}
+          CI_DIFF_CURRENT_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+          CI_DIFF_CHECKOUT_SHA: ${{ github.sha }}
+          CI_DIFF_BASE_REMOTE: ${{ github.server_url }}/${{ github.repository }}.git
+          CI_DIFF_HEAD_REMOTE: ${{ github.server_url }}/${{ github.event.pull_request.head.repo.full_name || github.repository }}.git
+        run: bash scripts/ci_diff_hygiene_v1.sh
