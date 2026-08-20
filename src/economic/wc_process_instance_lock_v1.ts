@@ -1,6 +1,7 @@
 import crypto from "node:crypto";
 import fs from "node:fs";
 import fsp from "node:fs/promises";
+import net from "node:net";
 import path from "node:path";
 
 export const VOID_WC_PROCESS_INSTANCE_LOCK_V1 =
@@ -90,6 +91,17 @@ type LocalReleaseV1 = {
   lock: LockRecordV1;
   namespace_identity: DirectoryIdentityV1;
 };
+
+type KernelNameAuthorityV1 = {
+  server: net.Server;
+  root: string;
+  root_identity: DirectoryIdentityV1;
+  namespace: string;
+  namespace_identity: DirectoryIdentityV1;
+};
+
+const heldKernelNameAuthoritiesV1 =
+  new WeakMap<WcProcessInstanceLockV1, KernelNameAuthorityV1>();
 
 const localReleaseFallbacksV1 =
   new Map<string, LocalReleaseV1>();
@@ -261,6 +273,99 @@ function sameDirectoryIdentityV1(
     a.uid === b.uid &&
     a.mode === b.mode
   );
+}
+
+function directoryIdentityMatchesPathV1(
+  dir: string,
+  expected: DirectoryIdentityV1,
+): boolean {
+  try {
+    return sameDirectoryIdentityV1(
+      expected,
+      directoryIdentityV1(dir),
+    );
+  } catch (error) {
+    void error;
+    return false;
+  }
+}
+
+function kernelNameAuthorityPathV1(
+  root: string,
+  name: string,
+): string {
+  const digest = crypto
+    .createHash("sha256")
+    .update(
+      "VOID_WC_PROCESS_INSTANCE_LOCK_KERNEL_NAME_AUTHORITY_V1\0",
+      "utf8",
+    )
+    .update(path.resolve(root), "utf8")
+    .update("\0", "utf8")
+    .update(name, "utf8")
+    .digest("hex");
+  return `\0void-wc-process-lock-v1-${digest}`;
+}
+
+async function acquireKernelNameAuthorityV1(
+  root: string,
+  name: string,
+): Promise<net.Server> {
+  if (process.platform !== "linux") {
+    fail("wc_process_lock_kernel_authority_unavailable");
+  }
+
+  const socketPath = kernelNameAuthorityPathV1(root, name);
+  const server = net.createServer((socket) => {
+    socket.destroy();
+  });
+
+  try {
+    await new Promise<void>((resolve, reject) => {
+      const onError = (error: NodeJS.ErrnoException): void => {
+        server.off("listening", onListening);
+        reject(error);
+      };
+      const onListening = (): void => {
+        server.off("error", onError);
+        resolve();
+      };
+      server.once("error", onError);
+      server.once("listening", onListening);
+      try {
+        server.listen({
+          path: socketPath,
+          exclusive: true,
+        });
+      } catch (error) {
+        server.off("error", onError);
+        server.off("listening", onListening);
+        reject(error);
+      }
+    });
+  } catch (error: any) {
+    if (String(error?.code || "") === "EADDRINUSE") {
+      fail("wc_process_lock_busy");
+    }
+    throw error;
+  }
+
+  server.unref();
+  return server;
+}
+
+async function closeKernelNameAuthorityV1(
+  server: net.Server,
+): Promise<void> {
+  if (!server.listening) return;
+  await new Promise<void>((resolve) => {
+    try {
+      server.close(() => resolve());
+    } catch (error) {
+      void error;
+      resolve();
+    }
+  });
 }
 
 function fsyncDirectoryV1(dir: string): void {
@@ -784,6 +889,7 @@ function isLocallyReleasedV1(
 function rememberLocalReleaseV1(
   namespace: string,
   lock: LockRecordV1,
+  namespaceIdentity: DirectoryIdentityV1 | null = null,
 ): void {
   const key = localReleaseKeyV1(namespace);
   if (
@@ -801,7 +907,8 @@ function rememberLocalReleaseV1(
       owner_nonce: lock.owner_nonce,
     },
     lock: { ...lock },
-    namespace_identity: directoryIdentityV1(namespace),
+    namespace_identity:
+      namespaceIdentity ?? directoryIdentityV1(namespace),
   });
   localReleaseRetryDelayMsV1 =
     LOCAL_RELEASE_RETRY_MIN_MS_V1;
@@ -1364,8 +1471,13 @@ export async function acquireWcProcessInstanceLockV1(
   }
 
   const root = path.resolve(dirRaw);
-  ensurePrivateDirectoryV1(root);
-  const candidates = namespaceCandidatesV1(root, name);
+  const kernelAuthority =
+    await acquireKernelNameAuthorityV1(root, name);
+  let retainKernelAuthority = false;
+
+  try {
+    const rootIdentity = ensurePrivateDirectoryV1(root);
+    const candidates = namespaceCandidatesV1(root, name);
 
   for (
     let attempt = 0;
@@ -1534,7 +1646,21 @@ export async function acquireWcProcessInstanceLockV1(
       );
     }
 
-    return {
+    if (
+      !directoryIdentityMatchesPathV1(
+        root,
+        rootIdentity,
+      )
+    ) {
+      rememberLocalReleaseV1(
+        ensured.namespace,
+        record,
+        ensured.identity,
+      );
+      fail("wc_process_lock_root_generation_changed");
+    }
+
+    const returned: WcProcessInstanceLockV1 = {
       ...record,
       dir: ensured.root,
       namespace_dir: ensured.namespace,
@@ -1546,9 +1672,25 @@ export async function acquireWcProcessInstanceLockV1(
         generation,
       ),
     };
+    heldKernelNameAuthoritiesV1.set(returned, {
+      server: kernelAuthority,
+      root,
+      root_identity: rootIdentity,
+      namespace: ensured.namespace,
+      namespace_identity: ensured.identity,
+    });
+    retainKernelAuthority = true;
+    return returned;
   }
 
-  fail("wc_process_lock_contention_retry_exhausted");
+  return fail("wc_process_lock_contention_retry_exhausted");
+  } finally {
+    if (!retainKernelAuthority) {
+      await closeKernelNameAuthorityV1(
+        kernelAuthority,
+      );
+    }
+  }
 }
 
 function validateReturnedLockV1(
@@ -1585,59 +1727,154 @@ export async function releaseWcProcessInstanceLockV1(
   lockRaw: WcProcessInstanceLockV1,
 ): Promise<void> {
   const lock = validateReturnedLockV1(lockRaw);
+  const authority =
+    heldKernelNameAuthoritiesV1.get(lockRaw);
+  if (!authority) {
+    fail("wc_process_lock_returned_kernel_authority_missing");
+  }
+
   const namespace = path.resolve(
     String(lockRaw.namespace_dir || lockRaw.dir || ""),
   );
-  const namespaceIdentity = directoryIdentityV1(namespace);
-  if (
-    String(lockRaw.namespace_dev || "") !== namespaceIdentity.dev ||
-    String(lockRaw.namespace_ino || "") !== namespaceIdentity.ino
-  ) {
-    fail("wc_process_lock_returned_namespace_changed");
-  }
-  const expectedFile = lockFileV1(namespace, lock.generation);
-  if (path.resolve(lockRaw.file) !== expectedFile) {
-    fail("wc_process_lock_returned_path_invalid");
-  }
+  let releaseTerminal = false;
 
-  let current: LockRecordV1 | null;
   try {
-    current = await readLockRecordV1(
-      expectedFile,
+    if (
+      path.resolve(String(lockRaw.dir || "")) !== authority.root ||
+      namespace !== authority.namespace
+    ) {
+      fail("wc_process_lock_returned_path_invalid");
+    }
+
+    if (
+      String(lockRaw.namespace_dev || "") !==
+        authority.namespace_identity.dev ||
+      String(lockRaw.namespace_ino || "") !==
+        authority.namespace_identity.ino
+    ) {
+      fail("wc_process_lock_returned_namespace_changed");
+    }
+
+    if (
+      !directoryIdentityMatchesPathV1(
+        authority.root,
+        authority.root_identity,
+      ) ||
+      !directoryIdentityMatchesPathV1(
+        namespace,
+        authority.namespace_identity,
+      )
+    ) {
+      rememberLocalReleaseV1(
+        namespace,
+        lock,
+        authority.namespace_identity,
+      );
+      releaseTerminal = true;
+      console.warn(
+        "VOID_WC_PROCESS_INSTANCE_LOCK_NAMESPACE_RELEASE_FALLBACK_V1",
+        {
+          name: lock.name,
+          generation: lock.generation,
+          error:
+            "wc_process_lock_root_or_namespace_generation_changed",
+        },
+      );
+      return;
+    }
+
+    const expectedFile = lockFileV1(
+      namespace,
       lock.generation,
     );
-  } catch (error: any) {
-    if (
-      error instanceof WcProcessInstanceLockError &&
-      error.code.endsWith("_generation_changed")
-    ) {
-      const snapshot = scanNamespaceV1(namespace);
-      if (snapshot.current > lock.generation) return;
+    if (path.resolve(lockRaw.file) !== expectedFile) {
+      fail("wc_process_lock_returned_path_invalid");
     }
-    throw error;
-  }
-  if (!current) {
-    const snapshot = scanNamespaceV1(namespace);
-    if (snapshot.current > lock.generation) return;
-    if (isLocallyReleasedV1(namespace, lock)) return;
-    fail("wc_process_lock_release_generation_changed");
-  }
-  if (
-    current.name !== lock.name ||
-    !sameOwnerTupleV1(current, lock)
-  ) {
-    fail("wc_process_lock_release_owner_mismatch");
-  }
 
-  try {
-    await publishReleaseV1(namespace, current);
-    clearLocalReleaseV1(namespace);
-  } catch (error) {
-    rememberLocalReleaseV1(namespace, current);
-    console.warn("VOID_WC_PROCESS_INSTANCE_LOCK_RELEASE_FALLBACK_V1", {
-      name: current.name,
-      generation: current.generation,
-      error: String((error as any)?.message || error),
-    });
+    let current: LockRecordV1 | null;
+    try {
+      current = await readLockRecordV1(
+        expectedFile,
+        lock.generation,
+      );
+    } catch (error: any) {
+      if (
+        error instanceof WcProcessInstanceLockError &&
+        error.code.endsWith("_generation_changed")
+      ) {
+        const snapshot = scanNamespaceV1(namespace);
+        if (snapshot.current > lock.generation) {
+          releaseTerminal = true;
+          return;
+        }
+      }
+      throw error;
+    }
+    if (!current) {
+      const snapshot = scanNamespaceV1(namespace);
+      if (snapshot.current > lock.generation) {
+        releaseTerminal = true;
+        return;
+      }
+      if (isLocallyReleasedV1(namespace, lock)) {
+        releaseTerminal = true;
+        return;
+      }
+      fail("wc_process_lock_release_generation_changed");
+    }
+    if (
+      current.name !== lock.name ||
+      !sameOwnerTupleV1(current, lock)
+    ) {
+      fail("wc_process_lock_release_owner_mismatch");
+    }
+
+    try {
+      await publishReleaseV1(namespace, current);
+      if (
+        !directoryIdentityMatchesPathV1(
+          authority.root,
+          authority.root_identity,
+        ) ||
+        !directoryIdentityMatchesPathV1(
+          namespace,
+          authority.namespace_identity,
+        )
+      ) {
+        rememberLocalReleaseV1(
+          namespace,
+          current,
+          authority.namespace_identity,
+        );
+        releaseTerminal = true;
+        return;
+      }
+      clearLocalReleaseV1(namespace);
+      releaseTerminal = true;
+    } catch (error) {
+      rememberLocalReleaseV1(
+        namespace,
+        current,
+        authority.namespace_identity,
+      );
+      releaseTerminal = true;
+      console.warn(
+        "VOID_WC_PROCESS_INSTANCE_LOCK_RELEASE_FALLBACK_V1",
+        {
+          name: current.name,
+          generation: current.generation,
+          error: String(
+            (error as any)?.message || error,
+          ),
+        },
+      );
+    }
+  } finally {
+    if (releaseTerminal) {
+      heldKernelNameAuthoritiesV1.delete(lockRaw);
+      await closeKernelNameAuthorityV1(
+        authority.server,
+      );
+    }
   }
 }

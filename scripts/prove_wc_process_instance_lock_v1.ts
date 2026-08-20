@@ -94,6 +94,70 @@ async function terminateProofChild(
   });
 }
 
+async function spawnHeldProofLock(
+  dir: string,
+  name: string,
+  proofChildren: Array<ReturnType<typeof spawn>>,
+): Promise<{
+  childProcess: ReturnType<typeof spawn>;
+  file: string;
+  generation: number;
+}> {
+  const childProcess = spawn(
+    process.execPath,
+    [
+      "--import=tsx",
+      path.resolve(process.argv[1]),
+      "--hold-child",
+    ],
+    {
+      env: {
+        ...process.env,
+        VOID_WC_LOCK_PROOF_DIR: dir,
+        VOID_WC_LOCK_PROOF_NAME: name,
+      },
+      stdio: ["ignore", "pipe", "inherit"],
+    },
+  );
+  proofChildren.push(childProcess);
+
+  const locked = await new Promise<{
+    file: string;
+    generation: number;
+  }>((resolve, reject) => {
+    let buffer = "";
+    const timer = setTimeout(
+      () => reject(new Error("held_proof_lock_timeout")),
+      10_000,
+    );
+    childProcess.stdout.setEncoding("utf8");
+    childProcess.stdout.on("data", (chunk) => {
+      buffer += chunk;
+      const line = buffer
+        .split(/\r?\n/)
+        .find((value) => value.startsWith("LOCKED "));
+      if (!line) return;
+      clearTimeout(timer);
+      const [, file, generation] = line.split(" ");
+      resolve({
+        file,
+        generation: Number(generation),
+      });
+    });
+    childProcess.on("exit", (code) => {
+      clearTimeout(timer);
+      if (code !== null) {
+        reject(new Error(`held_proof_child_exited_${code}`));
+      }
+    });
+  });
+
+  return {
+    childProcess,
+    ...locked,
+  };
+}
+
 async function main(): Promise<void> {
   if (childMode) return child();
   if (releaseFaultChildMode) return releaseFaultChild();
@@ -239,6 +303,138 @@ async function main(): Promise<void> {
       assert.equal(successor.generation, released.generation + 1);
       await releaseWcProcessInstanceLockV1(successor);
       await terminateProofChild(releaseProc);
+    }
+
+    // The filesystem tree is evidence, not the cross-process lock name.
+    // A live owner keeps one Linux abstract-socket authority for the exact
+    // canonical root/name pair. Replacing the private root cannot create a
+    // second lock universe while that owner is active.
+    {
+      const splitParent = path.join(
+        root,
+        "root-namespace-split-proof",
+      );
+      const splitRoot = path.join(splitParent, "locks");
+      fs.mkdirSync(splitRoot, {
+        recursive: true,
+        mode: 0o700,
+      });
+      const held = await spawnHeldProofLock(
+        splitRoot,
+        "root-namespace-split",
+        proofChildren,
+      );
+      const displaced = `${splitRoot}.displaced`;
+      fs.renameSync(splitRoot, displaced);
+      fs.mkdirSync(splitRoot, { mode: 0o700 });
+
+      await expectCode(
+        () =>
+          acquireWcProcessInstanceLockV1(
+            splitRoot,
+            "root-namespace-split",
+          ),
+        "wc_process_lock_busy",
+      );
+      assert.equal(
+        fs.readdirSync(splitRoot).some((entry) =>
+          entry.startsWith(
+            ".wc-process-lock-v1-shard-",
+          ),
+        ),
+        false,
+        "replacement root minted a second lock namespace",
+      );
+
+      fs.rmSync(splitRoot, {
+        recursive: true,
+        force: true,
+      });
+      fs.renameSync(displaced, splitRoot);
+      await terminateProofChild(held.childProcess);
+
+      const recoveredAfterRestore =
+        await acquireWcProcessInstanceLockV1(
+          splitRoot,
+          "root-namespace-split",
+        );
+      assert.ok(
+        recoveredAfterRestore.generation >
+          held.generation,
+      );
+      await releaseWcProcessInstanceLockV1(
+        recoveredAfterRestore,
+      );
+    }
+
+    // Replacing an intermediate ancestor preserves the lexical root/name and
+    // therefore cannot bypass the same kernel authority.
+    {
+      const ancestorBase = path.join(
+        root,
+        "ancestor-namespace-split-proof",
+      );
+      const liveParent = path.join(
+        ancestorBase,
+        "live",
+      );
+      const splitRoot = path.join(
+        liveParent,
+        "locks",
+      );
+      fs.mkdirSync(splitRoot, {
+        recursive: true,
+        mode: 0o700,
+      });
+      const held = await spawnHeldProofLock(
+        splitRoot,
+        "ancestor-namespace-split",
+        proofChildren,
+      );
+      const displaced = `${liveParent}.displaced`;
+      fs.renameSync(liveParent, displaced);
+      fs.mkdirSync(splitRoot, {
+        recursive: true,
+        mode: 0o700,
+      });
+
+      await expectCode(
+        () =>
+          acquireWcProcessInstanceLockV1(
+            splitRoot,
+            "ancestor-namespace-split",
+          ),
+        "wc_process_lock_busy",
+      );
+      assert.equal(
+        fs.readdirSync(splitRoot).some((entry) =>
+          entry.startsWith(
+            ".wc-process-lock-v1-shard-",
+          ),
+        ),
+        false,
+        "replacement ancestor minted a second lock namespace",
+      );
+
+      fs.rmSync(liveParent, {
+        recursive: true,
+        force: true,
+      });
+      fs.renameSync(displaced, liveParent);
+      await terminateProofChild(held.childProcess);
+
+      const recoveredAfterRestore =
+        await acquireWcProcessInstanceLockV1(
+          splitRoot,
+          "ancestor-namespace-split",
+        );
+      assert.ok(
+        recoveredAfterRestore.generation >
+          held.generation,
+      );
+      await releaseWcProcessInstanceLockV1(
+        recoveredAfterRestore,
+      );
     }
 
     const currentTicks = await wcProcessStartTicksForProofV1(process.pid);
@@ -410,10 +606,25 @@ async function main(): Promise<void> {
       );
       assert.equal(
         fs.existsSync(orphanRelease),
-        false,
-        "stale release-only retirement residue was not reclaimed",
+        true,
+        "kernel busy path unexpectedly mutated retirement debris",
       );
       await releaseWcProcessInstanceLockV1(current);
+
+      const successor =
+        await acquireWcProcessInstanceLockV1(
+          root,
+          "cleanup-turnover",
+        );
+      assert.ok(
+        successor.generation > current.generation,
+      );
+      assert.equal(
+        fs.existsSync(orphanRelease),
+        false,
+        "next successful acquisition did not reclaim stale release residue",
+      );
+      await releaseWcProcessInstanceLockV1(successor);
     }
 
     // A lock pathname that becomes visible before its directory fsync fails
@@ -630,24 +841,56 @@ async function main(): Promise<void> {
     );
 
     {
-      const owner = await acquireWcProcessInstanceLockV1(root, "release-tuple");
-      writeJson(owner.released_file, {
+      // The live-owner kernel gate must reject before touching filesystem
+      // evidence. Exercise malformed durable release truth only after the
+      // owning child exits and its abstract-socket authority is gone.
+      const held = await spawnHeldProofLock(
+        root,
+        "release-tuple",
+        proofChildren,
+      );
+      const owner = readJson(held.file);
+      const releasedFile = genFile(
+        path.dirname(held.file),
+        held.generation,
+        "released",
+      );
+      const foreignNonce =
+        owner.owner_nonce === "f".repeat(64)
+          ? "e".repeat(64)
+          : "f".repeat(64);
+      writeJson(releasedFile, {
         marker: VOID_WC_PROCESS_INSTANCE_LOCK_V1,
         version: 1,
         name: owner.name,
-        generation: owner.generation,
+        generation: held.generation,
         pid: owner.pid,
         process_start_ticks: owner.process_start_ticks,
         boot_id: owner.boot_id,
-        owner_nonce: "f".repeat(64),
+        owner_nonce: foreignNonce,
         released_at_ms: Date.now(),
       });
+      await terminateProofChild(held.childProcess);
+
       await expectCode(
-        () => acquireWcProcessInstanceLockV1(root, "release-tuple"),
+        () =>
+          acquireWcProcessInstanceLockV1(
+            root,
+            "release-tuple",
+          ),
         /wc_process_lock_release_owner_mismatch/,
       );
-      fs.unlinkSync(owner.released_file);
-      await releaseWcProcessInstanceLockV1(owner);
+      fs.unlinkSync(releasedFile);
+
+      const successor =
+        await acquireWcProcessInstanceLockV1(
+          root,
+          "release-tuple",
+        );
+      assert.ok(
+        successor.generation > held.generation,
+      );
+      await releaseWcProcessInstanceLockV1(successor);
     }
 
     // Release-publication failure is owner-local and bounded. Exact known
@@ -725,6 +968,26 @@ async function main(): Promise<void> {
       }
     }
 
+    const lockSource = fs.readFileSync(
+      path.resolve(
+        "src/economic/wc_process_instance_lock_v1.ts",
+      ),
+      "utf8",
+    );
+    for (const required of [
+      'import net from "node:net";',
+      "\\0void-wc-process-lock-v1-",
+      "heldKernelNameAuthoritiesV1",
+      "EADDRINUSE",
+      "wc_process_lock_returned_kernel_authority_missing",
+    ]) {
+      assert.equal(
+        lockSource.includes(required),
+        true,
+        required,
+      );
+    }
+
     const pilotSource = fs.readFileSync(
       path.resolve("src/economic/wc_public_earning_pilot_v1.ts"),
       "utf8",
@@ -773,9 +1036,11 @@ async function main(): Promise<void> {
     console.log("colliding_live_lock_names_isolated=true");
     console.log("adversarial_lock_fixture_roots_isolated=true");
     console.log("cleanup_release_before_lock_order=true");
+    console.log("kernel_busy_path_filesystem_mutation=false");
     console.log("stale_release_turnover_converges=true");
     console.log("turnover_generation_rescanned=true");
     console.log("strict_lock_record_schema=true");
+    console.log("release_tuple_validation_after_kernel_owner_exit=true");
     console.log("strict_release_owner_tuple=true");
     console.log("lock_record_no_follow=true");
     console.log("lock_record_byte_cap=true");
@@ -787,6 +1052,9 @@ async function main(): Promise<void> {
     console.log("local_release_memory_bounded=true");
     console.log("local_release_overflow_fails_closed=true");
     console.log("issuance_wait_monotonic=true");
+    console.log("kernel_name_authority_bound=true");
+    console.log("root_namespace_replacement_split=false");
+    console.log("ancestor_namespace_replacement_split=false");
     console.log("workflow_binds_process_lock=true");
   } finally {
     await Promise.all(proofChildren.map(terminateProofChild));
