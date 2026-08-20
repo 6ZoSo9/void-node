@@ -943,6 +943,46 @@ try {
   pass("late persistence settles abort-terminally before releasing the next pull");
 
   const receiptModule = await import("../dist/chain/receipts.js");
+  const withReceiptDirectorySyncSwap = async (directory, operation) => {
+    const originalOpen = fs.promises.open;
+    const parked = `${directory}.admitted-generation`;
+    let substituted = false;
+    let syncedAdmitted = false;
+    let directorySyncs = 0;
+    fs.promises.open = async (...args) => {
+      const handle = await originalOpen(...args);
+      if (String(args[0]) !== directory) return handle;
+      const admitted = await handle.stat({ bigint: true });
+      const originalSync = handle.sync.bind(handle);
+      handle.sync = async () => {
+        directorySyncs += 1;
+        if (substituted) return await originalSync();
+        substituted = true;
+        fs.renameSync(directory, parked);
+        fs.mkdirSync(directory, { recursive: true });
+        try {
+          await originalSync();
+          syncedAdmitted = true;
+        } finally {
+          fs.rmSync(directory, { recursive: true, force: true });
+          fs.renameSync(parked, directory);
+        }
+        const restored = fs.lstatSync(directory, { bigint: true });
+        assert(
+          restored.dev === admitted.dev && restored.ino === admitted.ino,
+          "receipt directory substitution did not restore the admitted generation",
+        );
+      };
+      return handle;
+    };
+    try {
+      const result = await operation();
+      return { result, substituted, syncedAdmitted, directorySyncs };
+    } finally {
+      fs.promises.open = originalOpen;
+      fs.rmSync(parked, { recursive: true, force: true });
+    }
+  };
   const receiptFaultRoot = fs.mkdtempSync(path.join(os.tmpdir(), "void-follower-receipts-v1-"));
   try {
     const receipt = {
@@ -967,31 +1007,22 @@ try {
       );
       const recoveredStore = new receiptModule.ReceiptsStore(caseDir, { shardSpan: 10_000 });
       if (faultAtV1 === "before_directory_sync") {
-        const originalOpen = fs.promises.open;
-        let recoveryDirectorySyncs = 0;
-        fs.promises.open = async (...args) => {
-          const handle = await originalOpen(...args);
-          if (String(args[0]) !== caseDir || String(args[1]) !== "r") return handle;
-          const originalSync = handle.sync.bind(handle);
-          handle.sync = async () => {
-            recoveryDirectorySyncs += 1;
-            return await originalSync();
-          };
-          return handle;
-        };
-        try {
+        const recovery = await withReceiptDirectorySyncSwap(
+          caseDir,
+          async () => {
           const recoveredHits = await recoveredStore.getMany([receipt.h]);
           assert(
             recoveredHits.get(receipt.h)?.found === true,
             "post-rename recovery did not classify the visible receipt",
           );
-          assert(
-            recoveryDirectorySyncs === 1,
-            "cold receipt recovery returned before re-syncing its directory generation",
-          );
-        } finally {
-          fs.promises.open = originalOpen;
-        }
+          },
+        );
+        assert(recovery.substituted, "recovery parent substitution did not execute");
+        assert(recovery.syncedAdmitted, "recovery fsynced a substituted parent generation");
+        assert(
+          recovery.directorySyncs === 1,
+          "cold receipt recovery returned before re-syncing its admitted directory generation",
+        );
       }
       await recoveredStore.appendMany([receipt]);
       await recoveredStore.appendMany([receipt]);
@@ -1003,10 +1034,31 @@ try {
       assert(JSON.parse(durableLines[0]).h === receipt.h, `${faultAtV1} recovery hid the receipt`);
       assert(recoveredStore.get(receipt.h).found === true, `${faultAtV1} recovery missed durable truth`);
     }
+
+    const appendAuthorityDir = path.join(receiptFaultRoot, "append-directory-authority");
+    const appendAuthorityStore = new receiptModule.ReceiptsStore(
+      appendAuthorityDir,
+      { shardSpan: 10_000 },
+    );
+    const appendAuthority = await withReceiptDirectorySyncSwap(
+      appendAuthorityDir,
+      () => appendAuthorityStore.appendMany([receipt]),
+    );
+    assert(appendAuthority.substituted, "append parent substitution did not execute");
+    assert(appendAuthority.syncedAdmitted, "append fsynced a substituted parent generation");
+    const appendAuthorityRestart = new receiptModule.ReceiptsStore(
+      appendAuthorityDir,
+      { shardSpan: 10_000 },
+    );
+    const appendAuthorityHits = await appendAuthorityRestart.getMany([receipt.h]);
+    assert(
+      appendAuthorityHits.get(receipt.h)?.found === true,
+      "directory-generation-bound append was not durable after restart",
+    );
   } finally {
     fs.rmSync(receiptFaultRoot, { recursive: true, force: true });
   }
-  pass("receipt publication faults recover to one valid durable receipt");
+  pass("receipt publication and recovery fsync the exact admitted directory generation");
 
   const receiptHistoryRoot = fs.mkdtempSync(
     path.join(os.tmpdir(), "void-follower-receipt-history-v1-"),
@@ -1187,7 +1239,7 @@ try {
     let replacedDuringRead = false;
     fs.promises.open = async (...args) => {
       const handle = await originalOpen(...args);
-      if (String(args[0]) !== recoveryShardPath) return handle;
+      if (path.basename(String(args[0])) !== recoveryShard) return handle;
       const originalRead = handle.read.bind(handle);
       handle.read = async (...readArgs) => {
         const result = await originalRead(...readArgs);
@@ -1240,7 +1292,9 @@ try {
     let retainedGrowthBytes = 0;
     fs.promises.open = async (...args) => {
       const handle = await originalOpen(...args);
-      if (String(args[0]) !== growthShardPath) return handle;
+      if (path.basename(String(args[0])) !== path.basename(growthShardPath)) {
+        return handle;
+      }
       const originalRead = handle.read.bind(handle);
       handle.read = async (...readArgs) => {
         const result = await originalRead(...readArgs);
@@ -1480,4 +1534,5 @@ console.log("follower_receipt_publication_atomic=true");
 console.log("follower_post_commit_projection_recovery=true");
 console.log("follower_receipt_history_deadline_owned=true");
 console.log("follower_receipt_descriptor_generation_bound=true");
+console.log("follower_receipt_directory_generation_bound=true");
 console.log("follower_rejected_response_body_released=true");

@@ -33,6 +33,13 @@ type ReceiptHit =
   | { n: number; o: number; ts: number; found: true }
   | { found: false };
 
+type ReceiptDirectoryAuthorityV1 = {
+  handle: Awaited<ReturnType<typeof fs.promises.open>>;
+  stablePath: string;
+  dev: bigint;
+  ino: bigint;
+};
+
 export class ReceiptsStore {
   private dir: string;
   private shardSpan: number;
@@ -46,13 +53,66 @@ export class ReceiptsStore {
     if (!fs.existsSync(this.dir)) fs.mkdirSync(this.dir, { recursive: true });
   }
 
-  private async shardFilesV1(signal?: AbortSignal): Promise<string[]> {
+  private async openDirectoryAuthorityV1(
+    signal?: AbortSignal,
+  ): Promise<ReceiptDirectoryAuthorityV1> {
+    signal?.throwIfAborted();
+    const handle = await fs.promises.open(
+      this.dir,
+      fs.constants.O_RDONLY |
+        fs.constants.O_DIRECTORY |
+        fs.constants.O_NOFOLLOW,
+    );
+    try {
+      const opened = await handle.stat({ bigint: true });
+      const publicPath = await fs.promises.lstat(this.dir, { bigint: true });
+      if (
+        !opened.isDirectory() ||
+        !publicPath.isDirectory() ||
+        opened.dev !== publicPath.dev ||
+        opened.ino !== publicPath.ino
+      ) {
+        throw new Error("receipt directory authority generation mismatch");
+      }
+      return {
+        handle,
+        stablePath: `/proc/self/fd/${handle.fd}`,
+        dev: opened.dev,
+        ino: opened.ino,
+      };
+    } catch (error) {
+      await handle.close().catch(() => undefined);
+      throw error;
+    }
+  }
+
+  private async assertDirectoryAuthorityV1(
+    authority: ReceiptDirectoryAuthorityV1,
+  ): Promise<void> {
+    const opened = await authority.handle.stat({ bigint: true });
+    const publicPath = await fs.promises.lstat(this.dir, { bigint: true });
+    if (
+      !opened.isDirectory() ||
+      !publicPath.isDirectory() ||
+      opened.dev !== authority.dev ||
+      opened.ino !== authority.ino ||
+      publicPath.dev !== authority.dev ||
+      publicPath.ino !== authority.ino
+    ) {
+      throw new Error("receipt directory authority generation changed");
+    }
+  }
+
+  private async shardFilesV1(
+    signal?: AbortSignal,
+    directory = this.dir,
+  ): Promise<string[]> {
     signal?.throwIfAborted();
     const files: string[] = [];
     let entries = 0;
-    const directory = await fs.promises.opendir(this.dir);
+    const openedDirectory = await fs.promises.opendir(directory);
     try {
-      for await (const entry of directory) {
+      for await (const entry of openedDirectory) {
         signal?.throwIfAborted();
         entries += 1;
         if (entries > MAX_RECEIPT_DIRECTORY_ENTRIES_V1) {
@@ -68,7 +128,7 @@ export class ReceiptsStore {
         }
       }
     } finally {
-      await directory.close().catch(() => undefined);
+      await openedDirectory.close().catch(() => undefined);
     }
     files.sort();
     signal?.throwIfAborted();
@@ -101,14 +161,15 @@ export class ReceiptsStore {
 
   private async scanReceiptHistoryV1(
     wantedHashes: Set<string>,
-    opts: { signal?: AbortSignal; files?: string[] } = {},
+    opts: { signal?: AbortSignal; files?: string[]; directory?: string } = {},
   ): Promise<{
     hits: Map<string, Receipt>;
     files: string[];
     lineCounts: Map<string, number>;
     activeContent: string;
   }> {
-    const files = opts.files ?? await this.shardFilesV1(opts.signal);
+    const directory = opts.directory ?? this.dir;
+    const files = opts.files ?? await this.shardFilesV1(opts.signal, directory);
     const hits = new Map<string, Receipt>();
     const lineCounts = new Map<string, number>();
     const seenHashes = new Set<string>();
@@ -118,7 +179,7 @@ export class ReceiptsStore {
 
     for (const file of files.slice().reverse()) {
       opts.signal?.throwIfAborted();
-      const shardPath = path.join(this.dir, file);
+      const shardPath = path.join(directory, file);
       let handle: Awaited<ReturnType<typeof fs.promises.open>> | null = null;
       try {
         handle = await fs.promises.open(
@@ -239,14 +300,13 @@ export class ReceiptsStore {
     return { hits, files, lineCounts, activeContent };
   }
 
-  private async fsyncDirectoryV1(signal?: AbortSignal): Promise<void> {
+  private async fsyncDirectoryV1(
+    authority: ReceiptDirectoryAuthorityV1,
+    signal?: AbortSignal,
+  ): Promise<void> {
     signal?.throwIfAborted();
-    const handle = await fs.promises.open(this.dir, "r");
-    try {
-      await handle.sync();
-    } finally {
-      await handle.close();
-    }
+    await authority.handle.sync();
+    signal?.throwIfAborted();
   }
 
   async getMany(
@@ -267,27 +327,35 @@ export class ReceiptsStore {
       else cold.add(hash);
     }
     if (cold.size > 0) {
-      const { hits, files } = await this.scanReceiptHistoryV1(cold, opts);
-      if (files.length > 0) {
-        // A prior replacement may be visible after its caller observed a
-        // parent-directory fsync failure. Re-establish that exact directory
-        // durability boundary before cold disk truth enters the cache or lets
-        // follower projection recovery skip the append/retry path.
-        await this.fsyncDirectoryV1(opts.signal);
-      }
-      for (const hash of cold) {
-        const receipt = hits.get(hash);
-        if (receipt) {
-          this.mem.set(hash, {
-            n: receipt.n,
-            o: receipt.o,
-            ts: receipt.ts,
-            found: true,
-          });
+      const authority = await this.openDirectoryAuthorityV1(opts.signal);
+      try {
+        const { hits, files } = await this.scanReceiptHistoryV1(cold, {
+          ...opts,
+          directory: authority.stablePath,
+        });
+        if (files.length > 0) {
+          // A prior replacement may be visible after its caller observed a
+          // parent-directory fsync failure. Re-establish durability on the
+          // exact directory generation that supplied the scanned shards.
+          await this.fsyncDirectoryV1(authority, opts.signal);
         }
-        out.set(hash, receipt
-          ? { n: receipt.n, o: receipt.o, ts: receipt.ts, found: true }
-          : { found: false });
+        await this.assertDirectoryAuthorityV1(authority);
+        for (const hash of cold) {
+          const receipt = hits.get(hash);
+          if (receipt) {
+            this.mem.set(hash, {
+              n: receipt.n,
+              o: receipt.o,
+              ts: receipt.ts,
+              found: true,
+            });
+          }
+          out.set(hash, receipt
+            ? { n: receipt.n, o: receipt.o, ts: receipt.ts, found: true }
+            : { found: false });
+        }
+      } finally {
+        await authority.handle.close().catch(() => undefined);
       }
     }
     return out;
@@ -338,14 +406,17 @@ export class ReceiptsStore {
     }
     if (normalizedByHash.size === 0) return;
 
-    const shardFiles = await this.shardFilesV1(opts.signal);
+    const authority = await this.openDirectoryAuthorityV1(opts.signal);
+    try {
+    const directory = authority.stablePath;
+    const shardFiles = await this.shardFilesV1(opts.signal, directory);
     const {
       hits: durable,
       lineCounts,
       activeContent,
     } = await this.scanReceiptHistoryV1(
       new Set(normalizedByHash.keys()),
-      { signal: opts.signal, files: shardFiles },
+      { signal: opts.signal, files: shardFiles, directory },
     );
     const pending: Receipt[] = [];
     for (const receipt of normalizedByHash.values()) {
@@ -362,12 +433,13 @@ export class ReceiptsStore {
       // A prior publication may have made this exact generation visible and
       // then failed while syncing the containing directory. Re-sync before an
       // exact retry accepts the visible receipt as durability-authoritative.
-      await this.fsyncDirectoryV1(opts.signal);
+      await this.fsyncDirectoryV1(authority, opts.signal);
+      await this.assertDirectoryAuthorityV1(authority);
       return;
     }
 
     let file = shardFiles.at(-1) ?? "receipts-00000000.jsonl";
-    let p = path.join(this.dir, file);
+    let p = path.join(directory, file);
     let before = shardFiles.length > 0 ? activeContent : "";
     const suffix = `${pending.map((receipt) => JSON.stringify(receipt)).join("\n")}\n`;
     let payload = Buffer.from(before + suffix, "utf8");
@@ -388,7 +460,7 @@ export class ReceiptsStore {
         throw new Error("receipt shard namespace is exhausted");
       }
       file = `receipts-${String(nextBase).padStart(8, "0")}.jsonl`;
-      p = path.join(this.dir, file);
+      p = path.join(directory, file);
       before = "";
       activeLines = 0;
       payload = Buffer.from(suffix, "utf8");
@@ -398,7 +470,7 @@ export class ReceiptsStore {
     }
 
     const tempPath = path.join(
-      this.dir,
+      directory,
       `.${file}.append-${process.pid}-${++this.appendNonce}.tmp`,
     );
     let handle: Awaited<ReturnType<typeof fs.promises.open>> | null = null;
@@ -444,10 +516,11 @@ export class ReceiptsStore {
           "VOID_RECEIPT_APPEND_FAULT_BEFORE_DIRECTORY_SYNC_V1",
         );
       }
-      await this.fsyncDirectoryV1();
+      await this.fsyncDirectoryV1(authority);
       if (opts.faultAtV1 === "after_publish") {
         throw new Error("VOID_RECEIPT_APPEND_FAULT_AFTER_PUBLISH_V1");
       }
+      await this.assertDirectoryAuthorityV1(authority);
       for (const receipt of pending) {
         this.mem.set(receipt.h, {
           n: receipt.n,
@@ -459,6 +532,9 @@ export class ReceiptsStore {
     } finally {
       if (handle) await handle.close().catch(() => undefined);
       if (!published) await fs.promises.unlink(tempPath).catch(() => undefined);
+    }
+    } finally {
+      await authority.handle.close().catch(() => undefined);
     }
   }
 
