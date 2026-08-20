@@ -507,7 +507,8 @@ export function buildDiscoveryPack({
   );
   let temporaryIdentity = null;
   let temporaryPinned = null;
-  let published = false;
+  let destinationIdentity = null;
+  let destinationPinned = null;
 
   try {
     if (testHooks !== null && typeof testHooks !== "object") {
@@ -635,27 +636,91 @@ export function buildDiscoveryPack({
       fail("temporary output changed generation before publication");
     }
 
-    fs.renameSync(temporaryBoundPath, destinationBoundPath);
-    published = true;
+    try {
+      fs.mkdirSync(destinationBoundPath, { mode: 0o700 });
+    } catch (error) {
+      if (error?.code === "EEXIST") {
+        fail(`output became occupied before publication: ${destination}`);
+      }
+      throw error;
+    }
+    destinationIdentity = boundChildIdentity(
+      pinnedParent,
+      destinationName,
+      "reserved output",
+    );
+    const destinationFd = fs.openSync(
+      destinationBoundPath,
+      fs.constants.O_RDONLY | fs.constants.O_DIRECTORY | fs.constants.O_NOFOLLOW,
+    );
+    const destinationMetadata = fs.fstatSync(destinationFd, { bigint: true });
+    if (!sameIdentity(destinationIdentity, identityOf(destinationMetadata))) {
+      fs.closeSync(destinationFd);
+      fail("reserved output changed generation during creation");
+    }
+    destinationPinned = Object.freeze({
+      fd: destinationFd,
+      absolute: destination,
+      identity: identityOf(destinationMetadata),
+      procPath: procFdPath(destinationFd),
+    });
+    if (fs.readdirSync(destinationPinned.procPath).length !== 0) {
+      fail("reserved output was not empty");
+    }
+
+    for (const entry of fs.readdirSync(temporaryPinned.procPath, {
+      withFileTypes: true,
+    })) {
+      const leaf = safeLeaf(entry.name, "published output entry");
+      const sourcePath = path.join(temporaryPinned.procPath, leaf);
+      const targetPath = path.join(destinationPinned.procPath, leaf);
+      try {
+        fs.lstatSync(targetPath);
+        fail(`reserved output entry already exists: ${leaf}`);
+      } catch (error) {
+        if (error instanceof Hold) throw error;
+        if (error?.code !== "ENOENT") throw error;
+      }
+      fs.renameSync(sourcePath, targetPath);
+    }
+    if (fs.readdirSync(temporaryPinned.procPath).length !== 0) {
+      fail("temporary output was not empty after reserved publication");
+    }
+
+    assertPinnedDirectoryPath(pinnedParent, "output parent");
+    assertPinnedDirectoryPath(destinationPinned, "published output");
     if (!sameIdentity(
       boundChildIdentity(pinnedParent, destinationName, "published output"),
+      destinationIdentity,
+    )) {
+      fail("published output generation does not match the reserved destination generation");
+    }
+    if (!sameIdentity(
+      boundChildIdentity(pinnedParent, temporaryName, "temporary output"),
       temporaryIdentity,
     )) {
-      fail("published output generation does not match the reviewed temporary generation");
+      fail("temporary output changed generation before cleanup");
     }
-    assertPinnedDirectoryPath(pinnedParent, "output parent");
+    fs.rmdirSync(temporaryBoundPath);
+    temporaryIdentity = null;
 
     return Object.freeze({ destination, receipt });
   } catch (error) {
+    if (destinationIdentity !== null) {
+      removeBoundChildIfIdentity(pinnedParent, destinationName, destinationIdentity);
+    }
     if (temporaryIdentity !== null) {
-      if (published) {
-        removeBoundChildIfIdentity(pinnedParent, destinationName, temporaryIdentity);
-      } else {
-        removeBoundChildIfIdentity(pinnedParent, temporaryName, temporaryIdentity);
-      }
+      removeBoundChildIfIdentity(pinnedParent, temporaryName, temporaryIdentity);
     }
     throw error;
   } finally {
+    if (destinationPinned !== null) {
+      try {
+        closePinnedDirectory(destinationPinned);
+      } catch {
+        // best effort only after the primary result has been established
+      }
+    }
     if (temporaryPinned !== null) {
       try {
         closePinnedDirectory(temporaryPinned);
