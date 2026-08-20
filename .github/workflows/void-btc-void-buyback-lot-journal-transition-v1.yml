@@ -4,6 +4,8 @@ on:
   pull_request:
     paths:
       - "tools/void-btc-void-buyback-lot-journal-transition-v1.mjs"
+      - "tools/void-btc-void-bounded-stdin-v1.mjs"
+      - "scripts/lib/prove_void_btc_void_bounded_stdin_v1.mjs"
       - "tools/void-btc-void-market-maker-reserve-policy-v1.mjs"
       - "scripts/prove_void_btc_void_buyback_lot_journal_transition_v1.mjs"
       - "docs/public/btc-void-buyback-lot-journal-transition-v1.md"
@@ -12,6 +14,8 @@ on:
     branches: [main]
     paths:
       - "tools/void-btc-void-buyback-lot-journal-transition-v1.mjs"
+      - "tools/void-btc-void-bounded-stdin-v1.mjs"
+      - "scripts/lib/prove_void_btc_void_bounded_stdin_v1.mjs"
       - "tools/void-btc-void-market-maker-reserve-policy-v1.mjs"
       - "scripts/prove_void_btc_void_buyback_lot_journal_transition_v1.mjs"
       - "docs/public/btc-void-buyback-lot-journal-transition-v1.md"
@@ -30,8 +34,11 @@ jobs:
       matrix:
         node: [22, 24, 26]
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
         with:
           node-version: ${{ matrix.node }}
       - run: node scripts/prove_void_btc_void_buyback_lot_journal_transition_v1.mjs
