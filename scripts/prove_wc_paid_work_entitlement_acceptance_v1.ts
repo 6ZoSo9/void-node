@@ -121,6 +121,106 @@ try {
     source: "proof",
   };
 
+  const paidWorkUnsignedCore = (
+    record: Record<string, any>,
+  ): Record<string, any> => {
+    const core = { ...record };
+    delete core.service_key_fingerprint_sha256;
+    delete core.service_signature_base64;
+    return core;
+  };
+
+  const invalidSignedAwardValues: Array<
+    [string, unknown, boolean]
+  > = [
+    ["missing", undefined, true],
+    ["null", null, false],
+    ["string", "3", false],
+    ["array", [3], false],
+    ["boolean", true, false],
+    ["fractional", 3.5, false],
+    ["unsafe", Number.MAX_SAFE_INTEGER + 1, false],
+  ];
+
+  for (const target of ["review", "entitlement"] as const) {
+    for (const [label, value, remove] of invalidSignedAwardValues) {
+      const caseRoot = fs.mkdtempSync(
+        path.join(
+          os.tmpdir(),
+          `void-wc-paid-work-${target}-award-${label}-`,
+        ),
+      );
+      const reviewCore = paidWorkUnsignedCore(review);
+      const entitlementCore = paidWorkUnsignedCore(entitlement);
+      const selected = target === "review" ? reviewCore : entitlementCore;
+      if (remove) delete selected.award_wc;
+      else selected.award_wc = value;
+
+      const hostileReview = signRecord(
+        reviewCore,
+        privateKey,
+        serviceFingerprint,
+      );
+      const hostileEntitlement = signRecord(
+        entitlementCore,
+        privateKey,
+        serviceFingerprint,
+      );
+      const hostileReviewRaw =
+        JSON.stringify(hostileReview, null, 2) + "\n";
+      const hostileEntitlementRaw =
+        JSON.stringify(hostileEntitlement, null, 2) + "\n";
+      const hostileAuthority = {
+        reviewRaw: hostileReviewRaw,
+        entitlementRaw: hostileEntitlementRaw,
+        servicePublicKeyPem: publicKeyPem,
+      };
+      const hostileOptions = {
+        ...options,
+        dataDir: caseRoot,
+        expectedReviewSha256: sha256(hostileReviewRaw),
+        expectedEntitlementSha256: sha256(hostileEntitlementRaw),
+      };
+      const expectedCode =
+        target === "review"
+          ? "review_award_wc_mismatch"
+          : "entitlement_award_wc_mismatch";
+
+      await assert.rejects(
+        () =>
+          inspectPaidWorkEntitlementAcceptance(
+            hostileAuthority,
+            hostileOptions,
+          ),
+        (error: any) =>
+          error instanceof PaidWorkEntitlementAcceptanceError &&
+          error.code === expectedCode,
+        `${target} ${label} signed award was accepted by dry-run`,
+      );
+      await assert.rejects(
+        () =>
+          acceptPaidWorkEntitlementOnce(hostileAuthority, {
+            ...hostileOptions,
+            apply: true,
+            confirmation:
+              VOID_WC_PAID_WORK_ENTITLEMENT_ACCEPTANCE_CONFIRMATION,
+          }),
+        (error: any) =>
+          error instanceof PaidWorkEntitlementAcceptanceError &&
+          error.code === expectedCode,
+        `${target} ${label} signed award was accepted by apply`,
+      );
+      assert.equal(
+        fs.existsSync(
+          path.join(caseRoot, "wc_v1", "ledger.jsonl"),
+        ),
+        false,
+        `${target} ${label} signed award published WC credit`,
+      );
+      fs.rmSync(caseRoot, { recursive: true, force: true });
+    }
+  }
+
   const dry = await inspectPaidWorkEntitlementAcceptance(authority, options);
   assert.equal(dry.eligible, true);
   assert.equal(dry.duplicate, false);
@@ -265,6 +365,9 @@ try {
   assert.equal(source.includes("req?.body?.delta"), false);
   assert.equal(source.includes("req?.body?.wc_award"), false);
 
+  console.log("signed_review_award_numeric_schema_exact=true");
+  console.log("signed_entitlement_award_numeric_schema_exact=true");
+  console.log("wrong_typed_signed_award_wc_credit_rows=0");
   console.log("VOID_WC_PAID_WORK_ENTITLEMENT_ACCEPTANCE_V1_PROOF_GREEN");
 } finally {
   fs.rmSync(tmp, { recursive: true, force: true });

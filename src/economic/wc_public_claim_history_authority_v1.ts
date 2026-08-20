@@ -625,8 +625,9 @@ function closeWatchStateV1(state: HistoryWatchStateV1): void {
 }
 
 function ensureWatchStateV1(raw?: string): HistoryWatchStateV1 {
-  ensureDirsV1(raw);
-  const key = keyV1(raw);
+  const boundRaw = keyV1(raw);
+  ensureDirsV1(boundRaw);
+  const key = boundRaw;
   const existing = watchStatesV1.get(key);
   if (existing?.healthy) return existing;
   if (existing) {
@@ -642,9 +643,9 @@ function ensureWatchStateV1(raw?: string): HistoryWatchStateV1 {
   watchStatesV1.set(key, state);
 
   for (const dir of [
-    issuedDirV1(raw),
-    consumedDirV1(raw),
-    claimsDirV1(raw),
+    issuedDirV1(boundRaw),
+    consumedDirV1(boundRaw),
+    claimsDirV1(boundRaw),
   ]) {
     const watcher = fs.watch(
       dir,
@@ -661,7 +662,7 @@ function ensureWatchStateV1(raw?: string): HistoryWatchStateV1 {
       state.generation += 1;
       statesV1.delete(key);
       warmFailuresV1.set(key, {
-        stamps: stampsV1(raw),
+        stamps: stampsV1(boundRaw),
         watch_generation: state.generation,
         message: `watch_error:${String(
           (error as any)?.message || error,
@@ -1308,10 +1309,11 @@ async function rebuildHistoryV1(
 }
 
 function startWarmV1(raw?: string): void {
-  const key = keyV1(raw);
+  const boundRaw = keyV1(raw);
+  const key = boundRaw;
   if (warmTasksV1.has(key)) return;
 
-  const watch = ensureWatchStateV1(raw);
+  const watch = ensureWatchStateV1(boundRaw);
   if (!watch.healthy) {
     warmFailuresV1.set(key, {
       stamps: stampsV1(raw),
@@ -1324,12 +1326,32 @@ function startWarmV1(raw?: string): void {
 
   const task = (async () => {
     try {
-      await rebuildHistoryV1(raw);
+      await rebuildHistoryV1(boundRaw);
     } catch (error: any) {
+      // The failure recorder must not re-enter directory admission. In
+      // particular, a fail-closed authority-root replacement is the original
+      // failure and must not turn the background task into an unhandled
+      // rejection. Keep the task bound to the exact root selected at start.
       const currentWatch =
-        ensureWatchStateV1(raw);
+        watchStatesV1.get(key) || watch;
+      let failureStamps: HistoryStampsV1;
+      try {
+        failureStamps = stampsV1(boundRaw);
+      } catch {
+        const missing = (): DirStampV1 => ({
+          exists: false,
+          ino: "0",
+          mtime_ns: "0",
+          ctime_ns: "0",
+        });
+        failureStamps = {
+          issued: missing(),
+          consumed: missing(),
+          claims: missing(),
+        };
+      }
       warmFailuresV1.set(key, {
-        stamps: stampsV1(raw),
+        stamps: failureStamps,
         watch_generation:
           currentWatch.generation,
         message: String(

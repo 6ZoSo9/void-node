@@ -17,6 +17,9 @@ async function main(): Promise<void> {
   const acceptance = await import(
     "../src/economic/wc_verified_receipt_acceptance_v1.js"
   );
+  const stateDirectoryAuthority = await import(
+    "../src/economic/wc_public_state_directory_authority_v1.js"
+  );
   const claimAuthority = await import(
     "../src/economic/wc_public_claim_history_authority_v1.js"
   );
@@ -1288,6 +1291,143 @@ async function main(): Promise<void> {
       fixture.ticketId,
       true,
     );
+  }
+
+  const settleClaimAuthorityForReplacementProofV1 = async (
+    root: string,
+  ): Promise<void> => {
+    for (let attempt = 0; attempt < 200; attempt += 1) {
+      try {
+        claimAuthority.resetWcPublicClaimHistoryAuthorityForProofV1(
+          root,
+        );
+        return;
+      } catch (error: any) {
+        if (
+          !String(error?.message || error).includes(
+            "VOID_WC_PUBLIC_CLAIM_HISTORY_RESET_WHILE_WARMING",
+          )
+        ) {
+          throw error;
+        }
+      }
+      await new Promise<void>((resolve) => setImmediate(resolve));
+    }
+    throw new Error(
+      "VOID_WC_PUBLIC_CLAIM_HISTORY_BACKGROUND_TASK_DID_NOT_SETTLE",
+    );
+  };
+
+  // A private directory replacement at an already-admitted canonical path is
+  // not implicit recovery. The participant submit path must retain the old
+  // generation as authority and HOLD before publishing any result or credit.
+  {
+    const root = fs.mkdtempSync(
+      path.join(
+        os.tmpdir(),
+        "void-wc-result-namespace-replacement-v1-",
+      ),
+    );
+    const fixture = setupSubmit(
+      root,
+      "result_namespace_replacement",
+    );
+    const issuedDir = path.join(
+      root,
+      "wc_v1",
+      "public-earning-pilot-v1",
+      "issued",
+    );
+    stateDirectoryAuthority.ensureWcPublicStateDurableDirectoryV1(
+      issuedDir,
+      root,
+    );
+    const retiredIssuedDir = `${issuedDir}.retired`;
+    fs.renameSync(issuedDir, retiredIssuedDir);
+    fs.mkdirSync(issuedDir, { mode: 0o700 });
+
+    const response = makeResponse();
+    await pilot.submitRemoteResult(fixture.req, response);
+    assert.equal(response.statusCode, 422);
+    assert.match(
+      String(response.payload.error || ""),
+      /wc_public_state_directory_generation_changed/,
+    );
+    assert.equal(
+      fs.existsSync(
+        path.join(
+          retiredIssuedDir,
+          `${fixture.ticketId}.json`,
+        ),
+      ),
+      true,
+      "replacement fixture lost the prior issued authority",
+    );
+    assertRejectedSubmissionPublishedNoAuthority(
+      root,
+      fixture.ticketId,
+      false,
+    );
+    await settleClaimAuthorityForReplacementProofV1(root);
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+
+  // Replacing the admitted DATA_DIR root with a fresh private tree must HOLD
+  // before any descendant directory can be silently re-authorized.
+  {
+    const parent = fs.mkdtempSync(
+      path.join(
+        os.tmpdir(),
+        "void-wc-authority-root-replacement-v1-",
+      ),
+    );
+    const root = path.join(parent, "data");
+    fs.mkdirSync(root, { mode: 0o700 });
+    const fixture = setupSubmit(
+      root,
+      "authority_root_replacement",
+    );
+    const issuedDir = path.join(
+      root,
+      "wc_v1",
+      "public-earning-pilot-v1",
+      "issued",
+    );
+    stateDirectoryAuthority.ensureWcPublicStateDurableDirectoryV1(
+      issuedDir,
+      root,
+    );
+    const retiredRoot = path.join(parent, "data.retired");
+    fs.renameSync(root, retiredRoot);
+    fs.mkdirSync(root, { mode: 0o700 });
+
+    const response = makeResponse();
+    await pilot.submitRemoteResult(fixture.req, response);
+    assert.equal(response.statusCode, 422);
+    assert.match(
+      String(response.payload.error || ""),
+      /wc_public_state_authority_root_generation_changed/,
+    );
+    assert.equal(
+      fs.existsSync(path.join(root, "wc_v1")),
+      false,
+      "replacement DATA_DIR received descendant authority",
+    );
+    assert.equal(
+      fs.existsSync(
+        path.join(
+          retiredRoot,
+          "wc_v1",
+          "public-earning-pilot-v1",
+          "issued",
+          `${fixture.ticketId}.json`,
+        ),
+      ),
+      true,
+      "replacement fixture lost the prior DATA_DIR authority",
+    );
+    await settleClaimAuthorityForReplacementProofV1(root);
+    fs.rmSync(parent, { recursive: true, force: true });
   }
 
   for (const [label, version, remove] of invalidProofBundleVersions) {
@@ -3296,6 +3436,18 @@ async function main(): Promise<void> {
   );
   console.log(
     "participant_state_namespace_authority_exact=true",
+  );
+  console.log(
+    "public_state_directory_replacement_rejected=true",
+  );
+  console.log(
+    "public_state_authority_root_replacement_rejected=true",
+  );
+  console.log(
+    "claim_history_async_data_dir_bound=true",
+  );
+  console.log(
+    "claim_history_background_failure_contained=true",
   );
   console.log(
     "remote_receipt_timestamp_schema_exact=true",

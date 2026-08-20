@@ -16,6 +16,12 @@ export type WcPublicStateDirectoryParentFsyncHookV1 =
     ) => void)
   | null;
 
+// Once an authority root or durability-critical descendant has been
+// admitted, its exact directory generation remains authoritative for this
+// process lifetime. A different private directory at the same pathname is a
+// replacement, not an implicit recovery or rotation.
+const durableAuthorityRootsV1 =
+  new Map<string, WcPublicStateDirectoryIdentityV1>();
 const durableDirectoryLinksV1 =
   new Map<string, WcPublicStateDirectoryIdentityV1>();
 
@@ -87,6 +93,30 @@ function fsyncDirectoryV1(dir: string): void {
   }
 }
 
+function cachedDirectoryIdentityV1(
+  cache: Map<string, WcPublicStateDirectoryIdentityV1>,
+  key: string,
+  requirePrivate: boolean,
+  changedCode: string,
+): WcPublicStateDirectoryIdentityV1 | null {
+  const cached = cache.get(key);
+  if (!cached) return null;
+
+  let current: WcPublicStateDirectoryIdentityV1;
+  try {
+    current = directoryIdentityV1(key, requirePrivate);
+  } catch (error: any) {
+    if (String(error?.code || "") === "ENOENT") {
+      throw new Error(changedCode);
+    }
+    throw error;
+  }
+  if (!sameIdentityV1(cached, current)) {
+    throw new Error(changedCode);
+  }
+  return current;
+}
+
 export function ensureWcPublicStateDurableDirectoryV1(
   dirRaw: string,
   authorityRootRaw: string,
@@ -98,6 +128,22 @@ export function ensureWcPublicStateDurableDirectoryV1(
     throw new Error("wc_public_state_directory_outside_authority_root");
   }
 
+  // Check already-admitted generations before creating anything beneath a
+  // replacement tree. We still walk every component below so a symlinked or
+  // non-directory ancestor cannot be hidden by a matching final inode.
+  const cachedAuthorityRoot = cachedDirectoryIdentityV1(
+    durableAuthorityRootsV1,
+    authorityRoot,
+    true,
+    "wc_public_state_authority_root_generation_changed",
+  );
+  const cachedTarget = cachedDirectoryIdentityV1(
+    durableDirectoryLinksV1,
+    target,
+    true,
+    "wc_public_state_directory_generation_changed",
+  );
+
   for (const component of pathComponentsV1(target)) {
     const requirePrivate = isWithinV1(component, authorityRoot);
     try {
@@ -105,6 +151,14 @@ export function ensureWcPublicStateDurableDirectoryV1(
       continue;
     } catch (error: any) {
       if (String(error?.code || "") !== "ENOENT") throw error;
+      if (cachedTarget) {
+        throw new Error("wc_public_state_directory_generation_changed");
+      }
+      if (cachedAuthorityRoot && component === authorityRoot) {
+        throw new Error(
+          "wc_public_state_authority_root_generation_changed",
+        );
+      }
     }
 
     const parent = path.dirname(component);
@@ -129,9 +183,40 @@ export function ensureWcPublicStateDurableDirectoryV1(
     directoryIdentityV1(component, requirePrivate);
   }
 
+  let authorityIdentity = directoryIdentityV1(authorityRoot, true);
+  if (
+    cachedAuthorityRoot &&
+    !sameIdentityV1(cachedAuthorityRoot, authorityIdentity)
+  ) {
+    throw new Error(
+      "wc_public_state_authority_root_generation_changed",
+    );
+  }
+  if (!cachedAuthorityRoot) {
+    const authorityParent = path.dirname(authorityRoot);
+    if (authorityParent !== authorityRoot) {
+      fsyncDirectoryV1(authorityParent);
+      const durableAuthorityIdentity = directoryIdentityV1(
+        authorityRoot,
+        true,
+      );
+      if (!sameIdentityV1(authorityIdentity, durableAuthorityIdentity)) {
+        throw new Error(
+          "wc_public_state_authority_root_generation_changed",
+        );
+      }
+      authorityIdentity = durableAuthorityIdentity;
+    }
+    durableAuthorityRootsV1.set(authorityRoot, authorityIdentity);
+  }
+
   const identity = directoryIdentityV1(target, true);
-  const cached = durableDirectoryLinksV1.get(target);
-  if (cached && sameIdentityV1(cached, identity)) return identity;
+  if (cachedTarget) {
+    if (!sameIdentityV1(cachedTarget, identity)) {
+      throw new Error("wc_public_state_directory_generation_changed");
+    }
+    return identity;
+  }
 
   const parent = path.dirname(target);
   hook?.("before", parent, target);
@@ -140,6 +225,12 @@ export function ensureWcPublicStateDurableDirectoryV1(
   const after = directoryIdentityV1(target, true);
   if (!sameIdentityV1(identity, after)) {
     throw new Error("wc_public_state_directory_generation_changed");
+  }
+  const authorityAfter = directoryIdentityV1(authorityRoot, true);
+  if (!sameIdentityV1(authorityIdentity, authorityAfter)) {
+    throw new Error(
+      "wc_public_state_authority_root_generation_changed",
+    );
   }
   durableDirectoryLinksV1.set(target, after);
   return after;

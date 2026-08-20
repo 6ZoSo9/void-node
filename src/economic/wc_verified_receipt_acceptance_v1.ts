@@ -1240,8 +1240,10 @@ function normalizePaidWorkAuthority(
     paidWorkFail("review_award_type_invalid");
   }
   if (
-    Number(review.award_wc) !==
-    VOID_WC_PAID_WORK_ENTITLEMENT_ACCEPTANCE_AWARD_WC
+    typeof review.award_wc !== "number" ||
+    !Number.isSafeInteger(review.award_wc) ||
+    review.award_wc !==
+      VOID_WC_PAID_WORK_ENTITLEMENT_ACCEPTANCE_AWARD_WC
   ) {
     paidWorkFail("review_award_wc_mismatch");
   }
@@ -1285,8 +1287,10 @@ function normalizePaidWorkAuthority(
     paidWorkFail("entitlement_award_type_invalid");
   }
   if (
-    Number(entitlement.award_wc) !==
-    VOID_WC_PAID_WORK_ENTITLEMENT_ACCEPTANCE_AWARD_WC
+    typeof entitlement.award_wc !== "number" ||
+    !Number.isSafeInteger(entitlement.award_wc) ||
+    entitlement.award_wc !==
+      VOID_WC_PAID_WORK_ENTITLEMENT_ACCEPTANCE_AWARD_WC
   ) {
     paidWorkFail("entitlement_award_wc_mismatch");
   }
