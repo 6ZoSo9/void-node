@@ -9,6 +9,7 @@ const CANONICAL_PROTOCOL = "void-agent-discovery/1";
 const SAFE_METHODS = new Set(["GET", "HEAD"]);
 const MAX_RESPONSE_BYTES = 262_144;
 const RESPONSE_TIMEOUT_MS = 10_000;
+const RESPONSE_TEARDOWN_TIMEOUT_MS = 250;
 
 function fail(error, detail = undefined) {
   const output = {
@@ -84,33 +85,80 @@ function sameOriginPath(base, value, label) {
   return resolved;
 }
 
-async function readBoundedJson(response, label) {
+async function settleTeardownBounded(startCleanup) {
+  let cleanup;
+  try {
+    cleanup = startCleanup?.();
+  } catch {
+    return;
+  }
+  if (!cleanup || typeof cleanup.then !== "function") return;
+
+  let timeout;
+  const timeoutPromise = new Promise((resolve) => {
+    timeout = setTimeout(resolve, RESPONSE_TEARDOWN_TIMEOUT_MS);
+    timeout.unref?.();
+  });
+  try {
+    await Promise.race([
+      Promise.resolve(cleanup).then(
+        () => undefined,
+        () => undefined,
+      ),
+      timeoutPromise,
+    ]);
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+async function rejectWithTeardown(response, controller, error, reader = undefined) {
+  controller.abort();
+  await settleTeardownBounded(() => {
+    if (reader && typeof reader.cancel === "function") return reader.cancel();
+    if (response?.body && typeof response.body.cancel === "function") {
+      return response.body.cancel();
+    }
+    return undefined;
+  });
+  throw error;
+}
+
+async function readBoundedJson(response, label, controller) {
   const contentType = response.headers.get("content-type") ?? "";
   const mediaType = contentType.split(";", 1)[0].trim().toLowerCase();
   if (mediaType !== "application/json") {
-    await response.body?.cancel();
-    throw new Error(`${label}_content_type_not_json`);
+    await rejectWithTeardown(
+      response,
+      controller,
+      new Error(`${label}_content_type_not_json`),
+    );
   }
 
   const declaredLength = response.headers.get("content-length");
   if (declaredLength !== null) {
     if (!/^(?:0|[1-9][0-9]*)$/.test(declaredLength)) {
-      await response.body?.cancel();
-      throw new Error(`${label}_content_length_invalid`);
+      await rejectWithTeardown(
+        response,
+        controller,
+        new Error(`${label}_content_length_invalid`),
+      );
     }
     const declaredBytes = Number(declaredLength);
     if (
       !Number.isSafeInteger(declaredBytes) ||
       declaredBytes > MAX_RESPONSE_BYTES
     ) {
-      await response.body?.cancel();
-      throw new Error(
-        `${label}_response_exceeds_${MAX_RESPONSE_BYTES}_bytes`,
+      await rejectWithTeardown(
+        response,
+        controller,
+        new Error(`${label}_response_exceeds_${MAX_RESPONSE_BYTES}_bytes`),
       );
     }
   }
 
   if (response.body === null) {
+    controller.abort();
     throw new Error(`${label}_response_body_missing`);
   }
   const reader = response.body.getReader();
@@ -118,13 +166,24 @@ async function readBoundedJson(response, label) {
   let total = 0;
   try {
     while (true) {
-      const { done, value } = await reader.read();
+      let result;
+      try {
+        result = await reader.read();
+      } catch {
+        const error = controller.signal.aborted
+          ? new Error(`${label}_deadline_exceeded`)
+          : new Error(`${label}_response_read_failed`);
+        await rejectWithTeardown(response, controller, error, reader);
+      }
+      const { done, value } = result;
       if (done) break;
       total += value.byteLength;
       if (total > MAX_RESPONSE_BYTES) {
-        await reader.cancel();
-        throw new Error(
-          `${label}_response_exceeds_${MAX_RESPONSE_BYTES}_bytes`,
+        await rejectWithTeardown(
+          response,
+          controller,
+          new Error(`${label}_response_exceeds_${MAX_RESPONSE_BYTES}_bytes`),
+          reader,
         );
       }
       chunks.push(value);
@@ -165,12 +224,21 @@ async function getJson(url, label) {
       },
       signal: controller.signal,
     });
-    if (!response.ok) throw new Error(`${label}_http_${response.status}`);
-    if (response.url !== url.href) {
-      await response.body?.cancel();
-      throw new Error(`${label}_final_url_mismatch`);
+    if (!response.ok) {
+      await rejectWithTeardown(
+        response,
+        controller,
+        new Error(`${label}_http_${response.status}`),
+      );
     }
-    return await readBoundedJson(response, label);
+    if (response.url !== url.href) {
+      await rejectWithTeardown(
+        response,
+        controller,
+        new Error(`${label}_final_url_mismatch`),
+      );
+    }
+    return await readBoundedJson(response, label, controller);
   } finally {
     clearTimeout(timer);
   }
