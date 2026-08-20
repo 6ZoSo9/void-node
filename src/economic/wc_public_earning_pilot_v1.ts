@@ -1878,13 +1878,26 @@ async function acquirePublicClaimIssuanceLockV1(
   raw?: string,
 ): Promise<WcProcessInstanceLockV1> {
   ensureDirs(raw);
-  const deadline = Date.now() + 2_000;
+  const deadlineNs =
+    process.hrtime.bigint() + 2_000_000_000n;
   for (;;) {
+    if (process.hrtime.bigint() >= deadlineNs) {
+      throw new Error(
+        "VOID_WC_PUBLIC_CLAIM_ISSUANCE_BUSY",
+      );
+    }
     try {
-      return await acquireWcProcessInstanceLockV1(
+      const lock = await acquireWcProcessInstanceLockV1(
         locksDir(raw),
         "public-claim-issuance",
       );
+      if (process.hrtime.bigint() >= deadlineNs) {
+        await releaseWcProcessInstanceLockV1(lock);
+        throw new Error(
+          "VOID_WC_PUBLIC_CLAIM_ISSUANCE_BUSY",
+        );
+      }
+      return lock;
     } catch (error: any) {
       const code = String(
         error?.code || error?.message || error,
@@ -1896,15 +1909,22 @@ async function acquirePublicClaimIssuanceLockV1(
       ) {
         throw error;
       }
-      if (Date.now() >= deadline) {
-        throw new Error(
-          "VOID_WC_PUBLIC_CLAIM_ISSUANCE_BUSY",
-        );
-      }
-      await new Promise<void>((resolve) =>
-        setTimeout(resolve, 10),
+    }
+    const nowNs = process.hrtime.bigint();
+    if (nowNs >= deadlineNs) {
+      throw new Error(
+        "VOID_WC_PUBLIC_CLAIM_ISSUANCE_BUSY",
       );
     }
+    const remainingMs = Number(
+      (deadlineNs - nowNs) / 1_000_000n,
+    );
+    await new Promise<void>((resolve) =>
+      setTimeout(
+        resolve,
+        Math.max(1, Math.min(10, remainingMs)),
+      ),
+    );
   }
 }
 

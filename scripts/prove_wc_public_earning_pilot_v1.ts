@@ -208,9 +208,47 @@ const lockText = fs.readFileSync(
   path.join(root, "src", "economic", "wc_process_instance_lock_v1.ts"),
   "utf8",
 );
+const lockPublishStart = lockText.indexOf(
+  "async function durablePublishExclusiveV1(",
+);
+const lockPublishEnd = lockText.indexOf(
+  "async function publishReleaseV1(",
+  lockPublishStart,
+);
 need(
-  lockText.includes("await fsp.link(temp, file)"),
-  "lock generation is published before complete durable content",
+  lockPublishStart >= 0 &&
+    lockPublishEnd > lockPublishStart,
+  "bounded exclusive lock publication helper missing",
+);
+const lockPublishBlock = lockText.slice(
+  lockPublishStart,
+  lockPublishEnd,
+);
+const lockWrite = lockPublishBlock.indexOf(
+  "await handle.write(",
+);
+const lockDataSync = lockPublishBlock.indexOf(
+  "await handle.datasync()",
+);
+const lockClose = lockPublishBlock.indexOf(
+  "await handle.close()",
+);
+const lockLink = lockPublishBlock.indexOf(
+  "await fsp.link(tmp, file)",
+);
+const lockDirectorySync = lockPublishBlock.indexOf(
+  "await dirHandle.sync()",
+);
+need(
+  lockWrite >= 0 &&
+    lockDataSync > lockWrite &&
+    lockClose > lockDataSync &&
+    lockLink > lockClose &&
+    lockDirectorySync > lockLink &&
+    lockPublishBlock.includes(
+      "WcProcessInstanceLockPublicationLinkedError",
+    ),
+  "lock generation publication is not complete/durable/exclusive",
 );
 need(
   lockText.includes("process_start_ticks"),

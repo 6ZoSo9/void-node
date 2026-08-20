@@ -10,6 +10,7 @@ on:
       - "src/economic/wc_public_capability_v1.ts"
       - "src/economic/wc_public_earning_pilot_v1.ts"
       - "src/economic/wc_public_claim_history_authority_v1.ts"
+      - "src/economic/wc_process_instance_lock_v1.ts"
       - "src/economic/wc_verified_receipt_acceptance_v1.ts"
       - "src/economic/wc_production_visibility_projection_v1.ts"
       - "ops/public/public-seed-adapter-v1.mjs"
@@ -19,6 +20,7 @@ on:
       - "tools/check_index_size.sh"
       - "scripts/prove_wc_public_ticket_claim_v1.ts"
       - "scripts/prove_wc_public_claim_history_authority_v1.ts"
+      - "scripts/prove_wc_process_instance_lock_v1.ts"
       - "scripts/prove_wc_public_claim_issuance_atomicity_v1.ts"
       - "scripts/prove_wc_public_ticket_claim_cli_v1.ts"
       - "scripts/prove_public_earn_gateway_v1.mjs"
@@ -43,6 +45,7 @@ on:
       - "src/economic/wc_public_capability_v1.ts"
       - "src/economic/wc_public_earning_pilot_v1.ts"
       - "src/economic/wc_public_claim_history_authority_v1.ts"
+      - "src/economic/wc_process_instance_lock_v1.ts"
       - "src/economic/wc_verified_receipt_acceptance_v1.ts"
       - "src/economic/wc_production_visibility_projection_v1.ts"
       - "ops/public/public-seed-adapter-v1.mjs"
@@ -52,6 +55,7 @@ on:
       - "tools/check_index_size.sh"
       - "scripts/prove_wc_public_ticket_claim_v1.ts"
       - "scripts/prove_wc_public_claim_history_authority_v1.ts"
+      - "scripts/prove_wc_process_instance_lock_v1.ts"
       - "scripts/prove_wc_public_claim_issuance_atomicity_v1.ts"
       - "scripts/prove_wc_public_ticket_claim_cli_v1.ts"
       - "scripts/prove_public_earn_gateway_v1.mjs"
@@ -108,6 +112,7 @@ jobs:
       - name: Prove signed public ticket claim
         run: |
           npx tsx scripts/prove_wc_public_claim_history_authority_v1.ts
+          npx tsx scripts/prove_wc_process_instance_lock_v1.ts
           npx tsx scripts/prove_wc_public_claim_issuance_atomicity_v1.ts
           npx tsx scripts/prove_wc_public_ticket_claim_v1.ts
           node scripts/prove_public_earn_gateway_v1.mjs
