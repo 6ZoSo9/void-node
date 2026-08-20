@@ -1065,6 +1065,52 @@ try {
     false,
   );
 
+  const unverifiedCommercialSignals = structuredClone(capabilitiesCatalog);
+  unverifiedCommercialSignals.unreviewed_signals = {
+    paid_work_enabled: true,
+    work_credit_earning_enabled: "live",
+    nested: {
+      capability: "paid_work",
+      status: "available",
+    },
+  };
+  const unverifiedCommercialSignalsResult = await runClient(
+    ["--base-url", baseUrl],
+    [
+      [
+        manifest.entrypoints.capabilities,
+        unverifiedCommercialSignals,
+      ],
+    ],
+  );
+  assert.equal(
+    unverifiedCommercialSignalsResult.code,
+    2,
+    unverifiedCommercialSignalsResult.stderr,
+  );
+  const unverifiedCommercialSignalsReport = JSON.parse(
+    unverifiedCommercialSignalsResult.stdout,
+  );
+  assert.equal(
+    unverifiedCommercialSignalsReport.checks.capabilities_loaded,
+    true,
+  );
+  assert.deepEqual(
+    unverifiedCommercialSignalsReport.observed_capabilities,
+    {
+      paid_work_observed: false,
+      work_credit_earning_observed: false,
+    },
+  );
+  assert.equal(
+    unverifiedCommercialSignalsReport.next_actions.some(
+      (action) =>
+        action.id === "review_observed_paid_work_capability" ||
+        action.id === "review_observed_work_credit_capability",
+    ),
+    false,
+  );
+
   const decoyIntake = await runClient(
     ["--base-url", baseUrl],
     [[manifest.entrypoints.agent_intake, fixtures.get(DECOY_INTAKE_PATH)]],
