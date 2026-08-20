@@ -165,6 +165,19 @@ class VoidFollowerPeerHttpStatusErrorV1 extends Error {
   }
 }
 
+async function cancelFollowerResponseBodyV1(
+  response: Response,
+  reason: unknown,
+  scope: string,
+  context: Record<string, unknown> = {},
+): Promise<void> {
+  try {
+    await response.body?.cancel(reason);
+  } catch (cancelError) {
+    recordPeerHeadProbeFailure(scope, cancelError, context);
+  }
+}
+
 async function readFollowerJsonResponseBoundedV1(
   response: Response,
   maxBytes: number,
@@ -174,11 +187,27 @@ async function readFollowerJsonResponseBoundedV1(
   const rawLength = String(response.headers.get("content-length") || "").trim();
   if (rawLength) {
     if (!/^(0|[1-9][0-9]*)$/.test(rawLength)) {
-      throw new Error("VOID_FOLLOWER_RESPONSE_BOUND_V1: invalid content-length");
+      const error = new Error(
+        "VOID_FOLLOWER_RESPONSE_BOUND_V1: invalid content-length",
+      );
+      await cancelFollowerResponseBodyV1(
+        response,
+        error,
+        "peer-response-invalid-length-body-cancel",
+      );
+      throw error;
     }
     const advertised = Number(rawLength);
     if (!Number.isSafeInteger(advertised) || advertised > maxBytes) {
-      throw new Error(`VOID_FOLLOWER_RESPONSE_BOUND_V1: response exceeds ${maxBytes} bytes`);
+      const error = new Error(
+        `VOID_FOLLOWER_RESPONSE_BOUND_V1: response exceeds ${maxBytes} bytes`,
+      );
+      await cancelFollowerResponseBodyV1(
+        response,
+        error,
+        "peer-response-oversize-body-cancel",
+      );
+      throw error;
     }
   }
 
@@ -4167,14 +4196,29 @@ attachEphemeralDirectTransportV1(
         ts: receiptTimestamp,
       }));
       const anyReceipts: any = this.receipts as any;
+      let receiptHits: Map<string, {
+        n?: number;
+        o?: number;
+        ts?: number;
+        found: boolean;
+      }> | null = null;
+      if (typeof anyReceipts.getMany === "function") {
+        receiptHits = await anyReceipts.getMany(
+          receipts.map((receipt: { h: string }) => receipt.h),
+          { signal: pullSignal },
+        );
+      }
       const missingReceipts = receipts.filter((receipt: {
         h: string;
         n: number;
         o: number;
         ts: number;
       }) => {
-        if (typeof anyReceipts.get !== "function") return true;
-        const prior = anyReceipts.get(receipt.h);
+        const prior = receiptHits
+          ? receiptHits.get(receipt.h)
+          : typeof anyReceipts.get === "function"
+            ? anyReceipts.get(receipt.h)
+            : null;
         if (!prior?.found) return true;
         if (
           Number(prior.n) !== receipt.n ||
@@ -4263,6 +4307,13 @@ attachEphemeralDirectTransportV1(
           });
           const n = Number(j?.number);
           if (Number.isFinite(n) && n >= 0) return n;
+        } else if (r) {
+          await cancelFollowerResponseBodyV1(
+            r,
+            new Error(`peer head rejected HTTP ${r.status}`),
+            "peer-head-status-body-cancel",
+            { peerHttp: base, status: r.status },
+          );
         }
       } catch (err) {
         throwIfFollowerPullAbortedV1(pullSignal);
@@ -4284,6 +4335,13 @@ attachEphemeralDirectTransportV1(
           });
           const n = Number(j?.head);
           if (Number.isFinite(n) && n >= 0) return n;
+        } else if (r) {
+          await cancelFollowerResponseBodyV1(
+            r,
+            new Error(`peer head rejected HTTP ${r.status}`),
+            "peer-head-status-body-cancel",
+            { peerHttp: base, status: r.status },
+          );
         }
       } catch (err) {
         throwIfFollowerPullAbortedV1(pullSignal);
@@ -4305,6 +4363,13 @@ attachEphemeralDirectTransportV1(
           });
           const n = Number(j?.chain?.head);
           if (Number.isFinite(n) && n >= 0) return n;
+        } else if (r) {
+          await cancelFollowerResponseBodyV1(
+            r,
+            new Error(`peer head rejected HTTP ${r.status}`),
+            "peer-head-status-body-cancel",
+            { peerHttp: base, status: r.status },
+          );
         }
       } catch (err) {
         throwIfFollowerPullAbortedV1(pullSignal);
@@ -4326,6 +4391,13 @@ attachEphemeralDirectTransportV1(
           });
           const n = Number(j?.head);
           if (Number.isFinite(n) && n >= 0) return n;
+        } else if (r) {
+          await cancelFollowerResponseBodyV1(
+            r,
+            new Error(`peer head rejected HTTP ${r.status}`),
+            "peer-head-status-body-cancel",
+            { peerHttp: base, status: r.status },
+          );
         }
       } catch (err) {
         throwIfFollowerPullAbortedV1(pullSignal);
@@ -4354,13 +4426,14 @@ attachEphemeralDirectTransportV1(
           `${peerHttp}/blocks/range?from=${from}&to=${to}`,
         );
         if (!response.ok) {
-          try { await response.body?.cancel(); } catch (cancelError) {
-            recordPeerHeadProbeFailure("peer-range-status-body-cancel", cancelError, {
-              peerHttp,
-              status: response.status,
-            });
-          }
-          throw new VoidFollowerPeerHttpStatusErrorV1(response.status);
+          const error = new VoidFollowerPeerHttpStatusErrorV1(response.status);
+          await cancelFollowerResponseBodyV1(
+            response,
+            error,
+            "peer-range-status-body-cancel",
+            { peerHttp, status: response.status },
+          );
+          throw error;
         }
         const body = await readFollowerJsonResponseBoundedV1(
           response,

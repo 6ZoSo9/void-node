@@ -135,6 +135,29 @@ function createRedirectGateway() {
 function createFollowerAdversaryGateway(state) {
   return http.createServer((req, res) => {
     const url = new URL(req.url || "/", "http://127.0.0.1");
+    const holdRejectedResponse = (status, headers = {}, end = false) => {
+      state.rejected_streams_started += 1;
+      state.active_rejected_streams += 1;
+      state.max_active_rejected_streams = Math.max(
+        state.max_active_rejected_streams,
+        state.active_rejected_streams,
+      );
+      let released = false;
+      const release = () => {
+        if (released) return;
+        released = true;
+        state.active_rejected_streams -= 1;
+        state.rejected_streams_closed += 1;
+      };
+      req.once("close", release);
+      res.once("close", release);
+      res.statusCode = status;
+      for (const [name, value] of Object.entries(headers)) {
+        res.setHeader(name, value);
+      }
+      res.write("x");
+      if (end) res.end();
+    };
     if (state.mode === "redirect_all_302" || state.mode === "redirect_all_307") {
       state.redirect_source_requests += 1;
       res.statusCode = Number(state.mode.slice(-3));
@@ -144,6 +167,17 @@ function createFollowerAdversaryGateway(state) {
     }
     if (url.pathname === "/blocks/latest/number2.json") {
       state.head_requests += 1;
+      if (state.mode === "non_success_head_streams") {
+        holdRejectedResponse(503);
+        return;
+      }
+      if (state.mode === "declared_invalid_head_length") {
+        holdRejectedResponse(200, {
+          "content-type": "application/json",
+          "content-length": "01",
+        }, true);
+        return;
+      }
       if (state.mode === "streamed_oversize_head") {
         res.statusCode = 200;
         res.setHeader("content-type", "application/json");
@@ -156,16 +190,27 @@ function createFollowerAdversaryGateway(state) {
     }
     if (url.pathname === "/head") {
       state.head_fallback_requests += 1;
+      if (state.mode === "non_success_head_streams") {
+        holdRejectedResponse(503);
+        return;
+      }
       sendJson(req, res, 200, { head: state.head ?? state.block.number });
+      return;
+    }
+    if (
+      state.mode === "non_success_head_streams" &&
+      ["/__void/demo/summary.json", "/api/health"].includes(url.pathname)
+    ) {
+      holdRejectedResponse(503);
       return;
     }
     if (url.pathname === "/blocks/range") {
       state.range_requests += 1;
       if (state.mode === "declared_oversize_range") {
-        res.statusCode = 200;
-        res.setHeader("content-type", "application/json");
-        res.setHeader("content-length", String(128 * 1024 * 1024 + 1));
-        res.end("[]");
+        holdRejectedResponse(200, {
+          "content-type": "application/json",
+          "content-length": String(128 * 1024 * 1024 + 1),
+        });
         return;
       }
       if (state.mode === "http_404" || state.mode === "http_500") {
@@ -275,6 +320,7 @@ const laneFiles = [
   "tools/void-public-seed-client-adapter-v1.mjs",
   "scripts/run_void_public_bootstrap_supervisor_v1.mjs",
   "src/http/follower_routes.ts",
+  "src/chain/receipts.ts",
   "src/node_core.ts",
   "run-void-node.sh",
 ];
@@ -297,6 +343,10 @@ for (const marker of [
   "followerPullPersistenceGenerationV1",
   "VOID_FOLLOWER_PROJECTION_RECOVERY_V1",
   "ensureFollowerBlockProjectionsV1",
+  "MAX_RECEIPT_HISTORY_SCAN_BYTES_V1",
+  "scanReceiptHistoryV1",
+  "getMany",
+  "cancelFollowerResponseBodyV1",
   "AbortSignal.timeout",
   "throwIfFollowerPullAbortedV1",
   'redirect: "error"',
@@ -353,6 +403,10 @@ const followerAdversaryState = {
   head_requests: 0,
   head_fallback_requests: 0,
   range_requests: 0,
+  rejected_streams_started: 0,
+  rejected_streams_closed: 0,
+  active_rejected_streams: 0,
+  max_active_rejected_streams: 0,
 };
 const followerAdversaryGateway = createFollowerAdversaryGateway(followerAdversaryState);
 const followerRedirectTargetState = { requests: 0 };
@@ -574,6 +628,10 @@ try {
     followerAdversaryState.head_requests = 0;
     followerAdversaryState.head_fallback_requests = 0;
     followerAdversaryState.range_requests = 0;
+    followerAdversaryState.rejected_streams_started = 0;
+    followerAdversaryState.rejected_streams_closed = 0;
+    followerAdversaryState.active_rejected_streams = 0;
+    followerAdversaryState.max_active_rejected_streams = 0;
   };
 
   for (const mode of ["http_404", "http_500"]) {
@@ -636,6 +694,7 @@ try {
     async appendMany() { declaredOversizeFixture.state.receipt_writes += 1; },
   });
   const declaredOversizeResult = await declaredOversizeFixture.node.pullOnce(followerAdversaryBase);
+  await new Promise((resolve) => setTimeout(resolve, 25));
   assert(declaredOversizeResult.imported === 0, "declared oversized range imported a block");
   assert(
     declaredOversizeFixture.state.block_writes === 0 &&
@@ -643,7 +702,78 @@ try {
       declaredOversizeFixture.state.receipt_writes === 0,
     "declared oversized range mutated follower state",
   );
-  pass("declared oversized range is rejected before JSON buffering");
+  assert(
+    followerAdversaryState.rejected_streams_started === 2 &&
+      followerAdversaryState.rejected_streams_closed === 2 &&
+      followerAdversaryState.active_rejected_streams === 0,
+    `declared oversized range body survived bounded retry: ${JSON.stringify({
+      started: followerAdversaryState.rejected_streams_started,
+      closed: followerAdversaryState.rejected_streams_closed,
+      active: followerAdversaryState.active_rejected_streams,
+      maxActive: followerAdversaryState.max_active_rejected_streams,
+    })}`,
+  );
+  pass("declared oversized range is released before bounded retry");
+
+  resetAdversary("non_success_head_streams");
+  const rejectedHeadFixture = createFollowerImportFixture(Node, {
+    async appendMany() {
+      rejectedHeadFixture.state.receipt_writes += 1;
+    },
+  });
+  const rejectedHeadResult = await rejectedHeadFixture.node.pullOnce(
+    followerAdversaryBase,
+  );
+  await new Promise((resolve) => setTimeout(resolve, 25));
+  assert(
+    rejectedHeadResult.imported === 0 &&
+      rejectedHeadResult.reason === "peer head unavailable",
+    "non-success head bodies entered follower admission",
+  );
+  assert(
+    followerAdversaryState.rejected_streams_started === 4 &&
+      followerAdversaryState.rejected_streams_closed === 4 &&
+      followerAdversaryState.active_rejected_streams === 0,
+    "non-success head body survived fallback or return",
+  );
+  assert(
+    rejectedHeadFixture.state.block_writes === 0 &&
+      rejectedHeadFixture.state.index_writes === 0 &&
+      rejectedHeadFixture.state.receipt_writes === 0,
+    "non-success head bodies mutated follower state",
+  );
+  pass("non-success head bodies are released without leaking across fallback");
+
+  resetAdversary("declared_invalid_head_length");
+  process.env.VOID_FOLLOWER_PULL_TIMEOUT_MS = "1000";
+  const invalidLengthFixture = createFollowerImportFixture(Node, {
+    async appendMany(_records, opts = {}) {
+      opts.signal?.throwIfAborted();
+      invalidLengthFixture.state.receipt_writes += 1;
+    },
+  });
+  const invalidLengthResult = await invalidLengthFixture.node.pullOnce(
+    followerAdversaryBase,
+  );
+  await new Promise((resolve) => setTimeout(resolve, 25));
+  assert(
+    invalidLengthResult.imported === 1,
+    "malformed declared length prevented bounded head fallback",
+  );
+  assert(
+    followerAdversaryState.rejected_streams_started === 1 &&
+      followerAdversaryState.rejected_streams_closed === 1 &&
+      followerAdversaryState.active_rejected_streams === 0,
+    "malformed declared-length body was not terminally released",
+  );
+  assert(
+    invalidLengthFixture.state.block_writes === 1 &&
+      invalidLengthFixture.state.index_writes === 1 &&
+      invalidLengthFixture.state.receipt_writes === 1,
+    "malformed declared length crossed or suppressed the valid fallback import",
+  );
+  pass("malformed declared length releases its body before bounded fallback");
+  process.env.VOID_FOLLOWER_PULL_TIMEOUT_MS = "100";
 
   resetAdversary("streamed_oversize_head");
   const streamedOversizeFixture = createFollowerImportFixture(Node, {
@@ -825,6 +955,7 @@ try {
       "before_first_byte",
       "after_strict_prefix",
       "after_full_bytes",
+      "before_directory_sync",
       "after_publish",
     ]) {
       const caseDir = path.join(receiptFaultRoot, faultAtV1);
@@ -835,6 +966,33 @@ try {
         `${faultAtV1} did not stop the injected receipt publication`,
       );
       const recoveredStore = new receiptModule.ReceiptsStore(caseDir, { shardSpan: 10_000 });
+      if (faultAtV1 === "before_directory_sync") {
+        const originalOpen = fs.promises.open;
+        let recoveryDirectorySyncs = 0;
+        fs.promises.open = async (...args) => {
+          const handle = await originalOpen(...args);
+          if (String(args[0]) !== caseDir || String(args[1]) !== "r") return handle;
+          const originalSync = handle.sync.bind(handle);
+          handle.sync = async () => {
+            recoveryDirectorySyncs += 1;
+            return await originalSync();
+          };
+          return handle;
+        };
+        try {
+          const recoveredHits = await recoveredStore.getMany([receipt.h]);
+          assert(
+            recoveredHits.get(receipt.h)?.found === true,
+            "post-rename recovery did not classify the visible receipt",
+          );
+          assert(
+            recoveryDirectorySyncs === 1,
+            "cold receipt recovery returned before re-syncing its directory generation",
+          );
+        } finally {
+          fs.promises.open = originalOpen;
+        }
+      }
       await recoveredStore.appendMany([receipt]);
       await recoveredStore.appendMany([receipt]);
       const shardFiles = fs.readdirSync(caseDir).filter((file) => /^receipts-\d{8}\.jsonl$/.test(file));
@@ -849,6 +1007,272 @@ try {
     fs.rmSync(receiptFaultRoot, { recursive: true, force: true });
   }
   pass("receipt publication faults recover to one valid durable receipt");
+
+  const receiptHistoryRoot = fs.mkdtempSync(
+    path.join(os.tmpdir(), "void-follower-receipt-history-v1-"),
+  );
+  try {
+    const historyDir = path.join(receiptHistoryRoot, "history");
+    fs.mkdirSync(historyDir, { recursive: true });
+    for (let index = 0; index < 1_500; index += 1) {
+      const historicalReceipt = {
+        h: index.toString(16).padStart(64, "0"),
+        n: index,
+        o: 0,
+        ts: followerBlock0.timestamp,
+      };
+      fs.writeFileSync(
+        path.join(
+          historyDir,
+          `receipts-${String(index * 10_000).padStart(8, "0")}.jsonl`,
+        ),
+        `${JSON.stringify(historicalReceipt)}\n`,
+      );
+    }
+
+    const secondFollowerTx = {
+      hash: "c".repeat(64),
+      body: { proof: "bounded follower receipt history" },
+    };
+    const historyRoots = computeFollowerBlockRoots(
+      [followerTx, secondFollowerTx],
+      [],
+    );
+    const historyBlock = {
+      ...followerBlock0,
+      txRoot: historyRoots.txRoot,
+      txs: [followerTx, secondFollowerTx],
+    };
+    const historyStore = new receiptModule.ReceiptsStore(historyDir, {
+      shardSpan: 10_000,
+    });
+    const historyFixture = createFollowerImportFixture(Node, historyStore);
+    historyFixture.blocks.set(historyBlock.number, historyBlock);
+    historyFixture.state.head = historyBlock.number;
+    historyFixture.node.txIndex = {
+      shardForBlock: () => ({ path: "fixture-index" }),
+      lookupInShard: (_file, hash) => ({
+        found: true,
+        n: historyBlock.number,
+        o: hash === followerTx.hash ? 0 : 1,
+      }),
+      putMany() {
+        historyFixture.state.index_writes += 1;
+      },
+    };
+    resetAdversary("valid", historyBlock, { head: historyBlock.number });
+    process.env.VOID_FOLLOWER_PULL_TIMEOUT_MS = "100";
+    const historyFilesBefore = fs.readdirSync(historyDir).sort();
+    await assertRejects(
+      () => historyFixture.node.pullOnce(followerAdversaryBase),
+      /Timeout|abort/i,
+      "cold receipt history scan escaped the follower pull deadline",
+    );
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    assert(
+      JSON.stringify(fs.readdirSync(historyDir).sort()) ===
+        JSON.stringify(historyFilesBefore),
+      "timed-out receipt history scan published late state",
+    );
+    assert(
+      historyFixture.state.block_writes === 0 &&
+        historyFixture.state.index_writes === 0,
+      "timed-out receipt history scan crossed a projection mutation boundary",
+    );
+
+    const boundedDir = path.join(receiptHistoryRoot, "bounded");
+    fs.mkdirSync(boundedDir, { recursive: true });
+    const oversizedPath = path.join(boundedDir, "receipts-00000000.jsonl");
+    fs.writeFileSync(oversizedPath, "");
+    fs.truncateSync(oversizedPath, 16 * 1024 * 1024 + 1);
+    const oversizedStore = new receiptModule.ReceiptsStore(boundedDir);
+    await assertRejects(
+      () => oversizedStore.getMany([followerTx.hash]),
+      /not a bounded regular file/,
+      "oversized receipt shard was retained or parsed",
+    );
+    fs.writeFileSync(oversizedPath, "{malformed}\n");
+    await assertRejects(
+      () => oversizedStore.getMany([followerTx.hash]),
+      /malformed JSONL/,
+      "malformed receipt history did not fail closed",
+    );
+
+    const contaminationDir = path.join(receiptHistoryRoot, "contamination");
+    fs.mkdirSync(contaminationDir, { recursive: true });
+    const contaminationOlder = path.join(
+      contaminationDir,
+      "receipts-00000000.jsonl",
+    );
+    const contaminationNewer = path.join(
+      contaminationDir,
+      "receipts-00010000.jsonl",
+    );
+    fs.writeFileSync(contaminationOlder, "{malformed}\n");
+    fs.writeFileSync(
+      contaminationNewer,
+      `${JSON.stringify({
+        h: followerTx.hash,
+        n: followerBlock0.number,
+        o: 0,
+        ts: followerBlock0.timestamp,
+      })}\n`,
+    );
+    const contaminationStore = new receiptModule.ReceiptsStore(
+      contaminationDir,
+    );
+    await assertRejects(
+      () => contaminationStore.getMany([followerTx.hash]),
+      /malformed JSONL/,
+      "later receipt hit bypassed older shard corruption",
+    );
+    fs.writeFileSync(
+      contaminationOlder,
+      `${JSON.stringify({
+        h: "e".repeat(64),
+        n: followerBlock0.number,
+        o: 0,
+        ts: followerBlock0.timestamp,
+      })}\n`,
+    );
+    fs.writeFileSync(
+      contaminationNewer,
+      `${JSON.stringify({
+        h: "f".repeat(64),
+        n: followerBlock0.number,
+        o: 0,
+        ts: followerBlock0.timestamp,
+      })}\n`,
+    );
+    const postFailureHits = await contaminationStore.getMany([
+      followerTx.hash,
+    ]);
+    assert(
+      postFailureHits.get(followerTx.hash)?.found === false,
+      "failed receipt scan contaminated the durable-hit cache",
+    );
+
+    const recoveryDir = path.join(receiptHistoryRoot, "recovery");
+    const recoveryStore = new receiptModule.ReceiptsStore(recoveryDir, {
+      shardSpan: 10_000,
+    });
+    historyFixture.node.receipts = recoveryStore;
+    process.env.VOID_FOLLOWER_PULL_TIMEOUT_MS = "1000";
+    const recoveredHistoryResult = await historyFixture.node.pullOnce(
+      followerAdversaryBase,
+    );
+    assert(
+      recoveredHistoryResult.ok === true &&
+        recoveredHistoryResult.reason === "no new blocks",
+      "bounded receipt recovery did not release the next pull",
+    );
+    const recoveredHits = await recoveryStore.getMany(
+      historyBlock.txs.map((tx) => tx.hash),
+    );
+    assert(
+      historyBlock.txs.every((tx) => recoveredHits.get(tx.hash)?.found === true),
+      "bounded receipt recovery omitted a canonical projection",
+    );
+    const recoveryShard = fs.readdirSync(recoveryDir).find((file) =>
+      /^receipts-\d{8}\.jsonl$/.test(file)
+    );
+    assert(
+      recoveryShard,
+      "receipt publication omitted its authoritative shard",
+    );
+
+    const recoveryShardPath = path.join(recoveryDir, recoveryShard);
+    const replacementPath = `${recoveryShardPath}.replacement`;
+    const originalOpen = fs.promises.open;
+    let replacedDuringRead = false;
+    fs.promises.open = async (...args) => {
+      const handle = await originalOpen(...args);
+      if (String(args[0]) !== recoveryShardPath) return handle;
+      const originalRead = handle.read.bind(handle);
+      handle.read = async (...readArgs) => {
+        const result = await originalRead(...readArgs);
+        if (!replacedDuringRead && result.bytesRead > 0) {
+          replacedDuringRead = true;
+          fs.writeFileSync(
+            replacementPath,
+            `${JSON.stringify({
+              h: "d".repeat(64),
+              n: historyBlock.number,
+              o: 0,
+              ts: historyBlock.timestamp,
+            })}\n`,
+          );
+          fs.renameSync(replacementPath, recoveryShardPath);
+        }
+        return result;
+      };
+      return handle;
+    };
+    try {
+      const racedGenerationStore = new receiptModule.ReceiptsStore(recoveryDir);
+      await assertRejects(
+        () => racedGenerationStore.getMany([historyBlock.txs[0].hash]),
+        /generation changed during read/,
+        "path replacement escaped exact receipt generation binding",
+      );
+      assert(replacedDuringRead, "receipt generation race fixture did not execute");
+    } finally {
+      fs.promises.open = originalOpen;
+      fs.rmSync(replacementPath, { force: true });
+    }
+
+    const growthDir = path.join(receiptHistoryRoot, "growth");
+    fs.mkdirSync(growthDir, { recursive: true });
+    const growthShardPath = path.join(
+      growthDir,
+      "receipts-00000000.jsonl",
+    );
+    fs.writeFileSync(
+      growthShardPath,
+      `${JSON.stringify({
+        h: historyBlock.txs[0].hash,
+        n: historyBlock.number,
+        o: 0,
+        ts: historyBlock.timestamp,
+      })}\n`,
+    );
+    let grewDuringRead = false;
+    let retainedGrowthBytes = 0;
+    fs.promises.open = async (...args) => {
+      const handle = await originalOpen(...args);
+      if (String(args[0]) !== growthShardPath) return handle;
+      const originalRead = handle.read.bind(handle);
+      handle.read = async (...readArgs) => {
+        const result = await originalRead(...readArgs);
+        retainedGrowthBytes += result.bytesRead;
+        if (!grewDuringRead && result.bytesRead > 0) {
+          grewDuringRead = true;
+          fs.truncateSync(growthShardPath, 16 * 1024 * 1024 + 4_096);
+        }
+        return result;
+      };
+      return handle;
+    };
+    try {
+      const grownGenerationStore = new receiptModule.ReceiptsStore(growthDir);
+      await assertRejects(
+        () => grownGenerationStore.getMany([historyBlock.txs[0].hash]),
+        /not a bounded regular file/,
+        "same-inode receipt growth escaped the descriptor read ceiling",
+      );
+      assert(grewDuringRead, "same-inode receipt growth fixture did not execute");
+      assert(
+        retainedGrowthBytes <= 16 * 1024 * 1024 + 1,
+        `same-inode growth retained beyond cap-plus-one: ${retainedGrowthBytes}`,
+      );
+    } finally {
+      fs.promises.open = originalOpen;
+    }
+  } finally {
+    fs.rmSync(receiptHistoryRoot, { recursive: true, force: true });
+    process.env.VOID_FOLLOWER_PULL_TIMEOUT_MS = "100";
+  }
+  pass("receipt history scan is bounded, deadline-owned, and retry-safe");
 
   resetAdversary("valid");
   const postCommitAbort = new AbortController();
@@ -1054,3 +1478,6 @@ console.log("follower_persistence_generation_quarantined=true");
 console.log("follower_receipt_append_abort_terminal=true");
 console.log("follower_receipt_publication_atomic=true");
 console.log("follower_post_commit_projection_recovery=true");
+console.log("follower_receipt_history_deadline_owned=true");
+console.log("follower_receipt_descriptor_generation_bound=true");
+console.log("follower_rejected_response_body_released=true");

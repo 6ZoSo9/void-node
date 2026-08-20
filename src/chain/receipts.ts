@@ -20,9 +20,18 @@ type ReceiptAppendFaultV1 =
   | "before_first_byte"
   | "after_strict_prefix"
   | "after_full_bytes"
+  | "before_directory_sync"
   | "after_publish";
 
 const MAX_RECEIPT_SHARD_BYTES_V1 = 16 * 1024 * 1024;
+const MAX_RECEIPT_HISTORY_SCAN_BYTES_V1 = 128 * 1024 * 1024;
+const MAX_RECEIPT_SHARD_FILES_V1 = 4_096;
+const MAX_RECEIPT_DIRECTORY_ENTRIES_V1 = 8_192;
+const RECEIPT_READ_CHUNK_BYTES_V1 = 64 * 1024;
+
+type ReceiptHit =
+  | { n: number; o: number; ts: number; found: true }
+  | { found: false };
 
 export class ReceiptsStore {
   private dir: string;
@@ -37,9 +46,251 @@ export class ReceiptsStore {
     if (!fs.existsSync(this.dir)) fs.mkdirSync(this.dir, { recursive: true });
   }
 
-  private shardPathFromHead(): string {
-    const base = Math.floor(this.mem.size / this.shardSpan) * this.shardSpan;
-    return path.join(this.dir, `receipts-${String(base).padStart(8, "0")}.jsonl`);
+  private async shardFilesV1(signal?: AbortSignal): Promise<string[]> {
+    signal?.throwIfAborted();
+    const files: string[] = [];
+    let entries = 0;
+    const directory = await fs.promises.opendir(this.dir);
+    try {
+      for await (const entry of directory) {
+        signal?.throwIfAborted();
+        entries += 1;
+        if (entries > MAX_RECEIPT_DIRECTORY_ENTRIES_V1) {
+          throw new Error(
+            `receipt directory exceeds ${MAX_RECEIPT_DIRECTORY_ENTRIES_V1} bounded entries`,
+          );
+        }
+        if (/^receipts-\d{8}\.jsonl$/.test(entry.name)) files.push(entry.name);
+        if (files.length > MAX_RECEIPT_SHARD_FILES_V1) {
+          throw new Error(
+            `receipt history exceeds ${MAX_RECEIPT_SHARD_FILES_V1} bounded shards`,
+          );
+        }
+      }
+    } finally {
+      await directory.close().catch(() => undefined);
+    }
+    files.sort();
+    signal?.throwIfAborted();
+    return files;
+  }
+
+  private parseReceiptLineV1(line: string, file: string): Receipt {
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(line);
+    } catch {
+      throw new Error(`receipt shard contains malformed JSONL: ${file}`);
+    }
+    if (
+      !parsed ||
+      typeof parsed !== "object" ||
+      Array.isArray(parsed) ||
+      !/^[0-9a-f]{64}$/.test(String((parsed as Receipt).h || "")) ||
+      !Number.isSafeInteger((parsed as Receipt).n) ||
+      (parsed as Receipt).n < 0 ||
+      !Number.isSafeInteger((parsed as Receipt).o) ||
+      (parsed as Receipt).o < 0 ||
+      !Number.isSafeInteger((parsed as Receipt).ts) ||
+      (parsed as Receipt).ts <= 0
+    ) {
+      throw new Error(`receipt shard contains an invalid receipt: ${file}`);
+    }
+    return parsed as Receipt;
+  }
+
+  private async scanReceiptHistoryV1(
+    wantedHashes: Set<string>,
+    opts: { signal?: AbortSignal; files?: string[] } = {},
+  ): Promise<{
+    hits: Map<string, Receipt>;
+    files: string[];
+    lineCounts: Map<string, number>;
+    activeContent: string;
+  }> {
+    const files = opts.files ?? await this.shardFilesV1(opts.signal);
+    const hits = new Map<string, Receipt>();
+    const lineCounts = new Map<string, number>();
+    const seenHashes = new Set<string>();
+    const activeFile = files.at(-1);
+    let activeContent = "";
+    let admittedBytes = 0;
+
+    for (const file of files.slice().reverse()) {
+      opts.signal?.throwIfAborted();
+      const shardPath = path.join(this.dir, file);
+      let handle: Awaited<ReturnType<typeof fs.promises.open>> | null = null;
+      try {
+        handle = await fs.promises.open(
+          shardPath,
+          fs.constants.O_RDONLY | fs.constants.O_NOFOLLOW,
+        );
+        const opened = await handle.stat({ bigint: true });
+        if (
+          !opened.isFile() ||
+          opened.size > BigInt(MAX_RECEIPT_SHARD_BYTES_V1)
+        ) {
+          throw new Error(`receipt shard is not a bounded regular file: ${file}`);
+        }
+        if (
+          BigInt(admittedBytes) + opened.size >
+            BigInt(MAX_RECEIPT_HISTORY_SCAN_BYTES_V1)
+        ) {
+          throw new Error(
+            `receipt history scan exceeds ${MAX_RECEIPT_HISTORY_SCAN_BYTES_V1} bytes`,
+          );
+        }
+
+        const chunks: Buffer[] = [];
+        let fileBytes = 0;
+        while (true) {
+          opts.signal?.throwIfAborted();
+          const shardBytesRemaining = MAX_RECEIPT_SHARD_BYTES_V1 - fileBytes;
+          const historyBytesRemaining =
+            MAX_RECEIPT_HISTORY_SCAN_BYTES_V1 - admittedBytes - fileBytes;
+          const readLimit = Math.max(
+            1,
+            Math.min(
+              RECEIPT_READ_CHUNK_BYTES_V1,
+              shardBytesRemaining + 1,
+              historyBytesRemaining + 1,
+            ),
+          );
+          const chunk = Buffer.allocUnsafe(readLimit);
+          const { bytesRead } = await handle.read(
+            chunk,
+            0,
+            chunk.byteLength,
+            null,
+          );
+          if (bytesRead === 0) break;
+          fileBytes += bytesRead;
+          if (fileBytes > MAX_RECEIPT_SHARD_BYTES_V1) {
+            throw new Error(`receipt shard is not a bounded regular file: ${file}`);
+          }
+          if (
+            admittedBytes + fileBytes > MAX_RECEIPT_HISTORY_SCAN_BYTES_V1
+          ) {
+            throw new Error(
+              `receipt history scan exceeds ${MAX_RECEIPT_HISTORY_SCAN_BYTES_V1} bytes`,
+            );
+          }
+          chunks.push(chunk.subarray(0, bytesRead));
+        }
+
+        const afterRead = await handle.stat({ bigint: true });
+        const finalPath = await fs.promises.lstat(shardPath, { bigint: true });
+        if (
+          !afterRead.isFile() ||
+          !finalPath.isFile() ||
+          opened.dev !== afterRead.dev ||
+          opened.ino !== afterRead.ino ||
+          opened.size !== afterRead.size ||
+          opened.mtimeNs !== afterRead.mtimeNs ||
+          opened.ctimeNs !== afterRead.ctimeNs ||
+          afterRead.dev !== finalPath.dev ||
+          afterRead.ino !== finalPath.ino ||
+          afterRead.size !== finalPath.size ||
+          afterRead.mtimeNs !== finalPath.mtimeNs ||
+          afterRead.ctimeNs !== finalPath.ctimeNs ||
+          afterRead.size !== BigInt(fileBytes)
+        ) {
+          throw new Error(`receipt shard generation changed during read: ${file}`);
+        }
+
+        admittedBytes += fileBytes;
+        let text: string;
+        try {
+          text = new TextDecoder("utf-8", { fatal: true }).decode(
+            Buffer.concat(chunks, fileBytes),
+          );
+        } catch {
+          throw new Error(`receipt shard contains invalid UTF-8: ${file}`);
+        }
+        if (text.length > 0 && !text.endsWith("\n")) {
+          throw new Error(`receipt shard has a torn suffix: ${file}`);
+        }
+        let lines = 0;
+        for (const line of text.split("\n")) {
+          if (!line) continue;
+          if (Buffer.byteLength(line, "utf8") > RECEIPT_READ_CHUNK_BYTES_V1) {
+            throw new Error(`receipt shard contains an oversized line: ${file}`);
+          }
+          lines += 1;
+          const receipt = this.parseReceiptLineV1(line, file);
+          if (seenHashes.has(receipt.h)) {
+            throw new Error(
+              `receipt shard contains a duplicate receipt: ${receipt.h}`,
+            );
+          }
+          seenHashes.add(receipt.h);
+          if (wantedHashes.has(receipt.h)) {
+            hits.set(receipt.h, receipt);
+          }
+        }
+        lineCounts.set(file, lines);
+        if (file === activeFile) activeContent = text;
+      } finally {
+        if (handle) await handle.close().catch(() => undefined);
+      }
+      await new Promise<void>((resolve) => setImmediate(resolve));
+    }
+    opts.signal?.throwIfAborted();
+    return { hits, files, lineCounts, activeContent };
+  }
+
+  private async fsyncDirectoryV1(signal?: AbortSignal): Promise<void> {
+    signal?.throwIfAborted();
+    const handle = await fs.promises.open(this.dir, "r");
+    try {
+      await handle.sync();
+    } finally {
+      await handle.close();
+    }
+  }
+
+  async getMany(
+    hashes: string[],
+    opts: { signal?: AbortSignal } = {},
+  ): Promise<Map<string, ReceiptHit>> {
+    opts.signal?.throwIfAborted();
+    const wanted = new Set(
+      hashes
+        .map((hash) => String(hash || "").toLowerCase())
+        .filter((hash) => /^[0-9a-f]{64}$/.test(hash)),
+    );
+    const out = new Map<string, ReceiptHit>();
+    const cold = new Set<string>();
+    for (const hash of wanted) {
+      const prior = this.mem.get(hash);
+      if (prior) out.set(hash, prior);
+      else cold.add(hash);
+    }
+    if (cold.size > 0) {
+      const { hits, files } = await this.scanReceiptHistoryV1(cold, opts);
+      if (files.length > 0) {
+        // A prior replacement may be visible after its caller observed a
+        // parent-directory fsync failure. Re-establish that exact directory
+        // durability boundary before cold disk truth enters the cache or lets
+        // follower projection recovery skip the append/retry path.
+        await this.fsyncDirectoryV1(opts.signal);
+      }
+      for (const hash of cold) {
+        const receipt = hits.get(hash);
+        if (receipt) {
+          this.mem.set(hash, {
+            n: receipt.n,
+            o: receipt.o,
+            ts: receipt.ts,
+            found: true,
+          });
+        }
+        out.set(hash, receipt
+          ? { n: receipt.n, o: receipt.o, ts: receipt.ts, found: true }
+          : { found: false });
+      }
+    }
+    return out;
   }
 
   async appendMany(
@@ -65,62 +316,6 @@ export class ReceiptsStore {
     await fs.promises.mkdir(this.dir, { recursive: true });
     opts.signal?.throwIfAborted();
 
-    const durable = new Map<string, Receipt>();
-    const shardContents = new Map<string, string>();
-    const shardFiles = (await fs.promises.readdir(this.dir))
-      .filter((file) => /^receipts-\d{8}\.jsonl$/.test(file))
-      .sort();
-    for (const file of shardFiles) {
-      const shardPath = path.join(this.dir, file);
-      const stat = await fs.promises.lstat(shardPath);
-      if (!stat.isFile() || stat.size > MAX_RECEIPT_SHARD_BYTES_V1) {
-        throw new Error(`receipt shard is not a bounded regular file: ${file}`);
-      }
-      const text = await fs.promises.readFile(shardPath, "utf8");
-      if (text.length > 0 && !text.endsWith("\n")) {
-        throw new Error(`receipt shard has a torn suffix: ${file}`);
-      }
-      shardContents.set(file, text);
-      for (const line of text.split("\n")) {
-        if (!line) continue;
-        let parsed: unknown;
-        try {
-          parsed = JSON.parse(line);
-        } catch {
-          throw new Error(`receipt shard contains malformed JSONL: ${file}`);
-        }
-        if (
-          !parsed ||
-          typeof parsed !== "object" ||
-          Array.isArray(parsed) ||
-          !/^[0-9a-f]{64}$/.test(String((parsed as Receipt).h || "")) ||
-          !Number.isSafeInteger((parsed as Receipt).n) ||
-          (parsed as Receipt).n < 0 ||
-          !Number.isSafeInteger((parsed as Receipt).o) ||
-          (parsed as Receipt).o < 0 ||
-          !Number.isSafeInteger((parsed as Receipt).ts) ||
-          (parsed as Receipt).ts <= 0
-        ) {
-          throw new Error(`receipt shard contains an invalid receipt: ${file}`);
-        }
-        const receipt = parsed as Receipt;
-        if (durable.has(receipt.h)) {
-          throw new Error(`receipt shard contains a duplicate receipt: ${receipt.h}`);
-        }
-        durable.set(receipt.h, receipt);
-      }
-    }
-
-    this.mem.clear();
-    for (const receipt of durable.values()) {
-      this.mem.set(receipt.h, {
-        n: receipt.n,
-        o: receipt.o,
-        ts: receipt.ts,
-        found: true,
-      });
-    }
-
     const normalizedByHash = new Map<string, Receipt>();
     for (const receipt of arr
       .map((r) => ({
@@ -141,7 +336,17 @@ export class ReceiptsStore {
       }
       normalizedByHash.set(receipt.h, receipt);
     }
+    if (normalizedByHash.size === 0) return;
 
+    const shardFiles = await this.shardFilesV1(opts.signal);
+    const {
+      hits: durable,
+      lineCounts,
+      activeContent,
+    } = await this.scanReceiptHistoryV1(
+      new Set(normalizedByHash.keys()),
+      { signal: opts.signal, files: shardFiles },
+    );
     const pending: Receipt[] = [];
     for (const receipt of normalizedByHash.values()) {
       const prior = durable.get(receipt.h);
@@ -153,13 +358,41 @@ export class ReceiptsStore {
       }
       pending.push(receipt);
     }
-    if (pending.length === 0) return;
+    if (pending.length === 0) {
+      // A prior publication may have made this exact generation visible and
+      // then failed while syncing the containing directory. Re-sync before an
+      // exact retry accepts the visible receipt as durability-authoritative.
+      await this.fsyncDirectoryV1(opts.signal);
+      return;
+    }
 
-    const p = this.shardPathFromHead();
-    const file = path.basename(p);
-    const before = shardContents.get(file) ?? "";
+    let file = shardFiles.at(-1) ?? "receipts-00000000.jsonl";
+    let p = path.join(this.dir, file);
+    let before = shardFiles.length > 0 ? activeContent : "";
     const suffix = `${pending.map((receipt) => JSON.stringify(receipt)).join("\n")}\n`;
-    const payload = Buffer.from(before + suffix, "utf8");
+    let payload = Buffer.from(before + suffix, "utf8");
+    let activeLines = lineCounts.get(file) ?? 0;
+    if (
+      shardFiles.length > 0 &&
+      (activeLines + pending.length > this.shardSpan ||
+        payload.byteLength > MAX_RECEIPT_SHARD_BYTES_V1)
+    ) {
+      if (shardFiles.length >= MAX_RECEIPT_SHARD_FILES_V1) {
+        throw new Error(
+          `receipt history exceeds ${MAX_RECEIPT_SHARD_FILES_V1} bounded shards`,
+        );
+      }
+      const priorBase = Number(file.slice("receipts-".length, -".jsonl".length));
+      const nextBase = priorBase + this.shardSpan;
+      if (!Number.isSafeInteger(nextBase) || nextBase > 99_999_999) {
+        throw new Error("receipt shard namespace is exhausted");
+      }
+      file = `receipts-${String(nextBase).padStart(8, "0")}.jsonl`;
+      p = path.join(this.dir, file);
+      before = "";
+      activeLines = 0;
+      payload = Buffer.from(suffix, "utf8");
+    }
     if (payload.byteLength > MAX_RECEIPT_SHARD_BYTES_V1) {
       throw new Error(`receipt shard publication exceeds ${MAX_RECEIPT_SHARD_BYTES_V1} bytes`);
     }
@@ -206,12 +439,12 @@ export class ReceiptsStore {
       // retry either sees the old shard or the complete replacement.
       fs.renameSync(tempPath, p);
       published = true;
-      const dirFd = fs.openSync(this.dir, "r");
-      try {
-        fs.fsyncSync(dirFd);
-      } finally {
-        fs.closeSync(dirFd);
+      if (opts.faultAtV1 === "before_directory_sync") {
+        throw new Error(
+          "VOID_RECEIPT_APPEND_FAULT_BEFORE_DIRECTORY_SYNC_V1",
+        );
       }
+      await this.fsyncDirectoryV1();
       if (opts.faultAtV1 === "after_publish") {
         throw new Error("VOID_RECEIPT_APPEND_FAULT_AFTER_PUBLISH_V1");
       }
