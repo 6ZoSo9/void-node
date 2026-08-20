@@ -47,6 +47,10 @@ native BTC; for VOID-to-BTC they bind respectively to native BTC and native
 VOID. One receipt can never resolve both positions. A terminal state cannot reopen
 and no terminal state automatically retries.
 
+Every event name must be an exact scalar string from the closed v1 event set.
+Arrays, objects, numbers, booleans, null, and unknown event names are rejected
+before refund-role derivation or transition lookup.
+
 Every transition is receipt-backed and content-addressed. An exact replay of
 an already-applied event is idempotent and leaves the evaluation identity
 unchanged. A receipt identity cannot back two different transitions. A
