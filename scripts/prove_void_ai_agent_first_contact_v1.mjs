@@ -70,8 +70,25 @@ const PUBLIC_UTILITY_CANONICALIZATION_BOUNDARY = [
   "scripts/prove_void_ai_agent_first_contact_v1.mjs",
   "tools/void-ai-agent-first-contact-v1.mjs",
 ];
+const OFFICIAL_NETWORK_AUTHENTICITY_VERIFICATION_BOUNDARY = [
+  ".github/workflows/void-ai-agent-first-contact-v1.yml",
+  ".github/workflows/void-ai-agent-provenance-unfiltered-v1.yml",
+  "docs/public/ai-agent-first-contact-v1.md",
+  "scripts/prove_void_ai_agent_first_contact_v1.mjs",
+  "tools/void-ai-agent-first-contact-v1.mjs",
+];
+const COMMITTED_RANGE_DIFF_HYGIENE_REPAIR_BOUNDARY = [
+  ".github/workflows/void-ai-agent-first-contact-v1.yml",
+  ".github/workflows/void-ai-agent-provenance-unfiltered-v1.yml",
+  "scripts/prove_void_ai_agent_first_contact_v1.mjs",
+];
 const ALLOWED_BOUNDARY = [
-  ...new Set([...ORIGINAL_BOUNDARY, ...COMPOSITION_BOUNDARY]),
+  ...new Set([
+    ...ORIGINAL_BOUNDARY,
+    ...COMPOSITION_BOUNDARY,
+    ...OFFICIAL_NETWORK_AUTHENTICITY_VERIFICATION_BOUNDARY,
+    ...COMMITTED_RANGE_DIFF_HYGIENE_REPAIR_BOUNDARY,
+  ]),
 ];
 const AUTHENTICITY_ROUTE = "/.well-known/void-network-authenticity.json";
 const MANIFEST_PATH = join(
@@ -90,10 +107,17 @@ const PUBLIC_UTILITY_PATH = join(
   ROOT,
   "public/public-node/agents/public-utility-v1.json",
 );
+const OFFICIAL_AUTHENTICITY_PATH = join(
+  ROOT,
+  "public/.well-known/void-network-authenticity.json",
+);
 
 const manifest = JSON.parse(await readFile(MANIFEST_PATH, "utf8"));
 const publicUtility = JSON.parse(
   await readFile(PUBLIC_UTILITY_PATH, "utf8"),
+);
+const officialAuthenticity = JSON.parse(
+  await readFile(OFFICIAL_AUTHENTICITY_PATH, "utf8"),
 );
 const capabilitiesCatalog = JSON.parse(
   await readFile(
@@ -299,25 +323,7 @@ const fixtures = new Map([
   ],
   [
     manifest.entrypoints.official_authenticity,
-    {
-      marker: "VOID_OFFICIAL_NETWORK_AUTHENTICITY_WELL_KNOWN_V1",
-      protocol: "void-network-authenticity/1",
-      status: "public_verification_available",
-      network: {
-        name: "VOID Mainnet-0",
-        chain_id: 2050,
-      },
-      authority: {
-        verification_only: true,
-        mutation_authority_granted: false,
-        runtime_authority_granted: false,
-        economic_authority_granted: false,
-      },
-      safety: {
-        credentials_required: false,
-        follow_redirects: false,
-      },
-    },
+    officialAuthenticity,
   ],
   [
     manifest.entrypoints.authentication,
@@ -1027,6 +1033,78 @@ try {
     false,
   );
 
+  const unsignedClone = {
+    marker: "VOID_OFFICIAL_NETWORK_AUTHENTICITY_WELL_KNOWN_V1",
+    protocol: "void-network-authenticity/1",
+    status: "public_verification_available",
+    network: {
+      name: "VOID Mainnet-0",
+      chain_id: 2050,
+    },
+    authority: {
+      verification_only: true,
+      mutation_authority_granted: false,
+      runtime_authority_granted: false,
+      economic_authority_granted: false,
+    },
+    safety: {
+      credentials_required: false,
+      follow_redirects: false,
+    },
+  };
+  const missingSignature = structuredClone(officialAuthenticity);
+  delete missingSignature.verification.signature_base64;
+  const forgedSignature = structuredClone(officialAuthenticity);
+  forgedSignature.verification.signature_base64 =
+    `${forgedSignature.verification.signature_base64[0] === "A" ? "B" : "A"}${forgedSignature.verification.signature_base64.slice(1)}`;
+  const wrongKey = structuredClone(officialAuthenticity);
+  wrongKey.verification.public_key_pem =
+    "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEAejYyFziUrf8A2eRhz9/LJMM2SsMFvrEqVN1iC7m/G4g=\n-----END PUBLIC KEY-----\n";
+  const wrongPayloadDigest = structuredClone(officialAuthenticity);
+  wrongPayloadDigest.verification.payload_sha256 =
+    "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff";
+  const wrongGenesis = structuredClone(officialAuthenticity);
+  wrongGenesis.network.genesis_sha256 =
+    "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff";
+  const wrongCheckpoint = structuredClone(officialAuthenticity);
+  wrongCheckpoint.admission.checkpoint_commit =
+    "ffffffffffffffffffffffffffffffffffffffff";
+  const staleAdmission = structuredClone(officialAuthenticity);
+  staleAdmission.admission.status = "stale";
+
+  for (const [label, hostileAuthenticity] of [
+    ["unsigned_same_origin_clone", unsignedClone],
+    ["missing_signature", missingSignature],
+    ["forged_signature", forgedSignature],
+    ["wrong_public_key", wrongKey],
+    ["wrong_payload_digest", wrongPayloadDigest],
+    ["wrong_genesis", wrongGenesis],
+    ["wrong_checkpoint", wrongCheckpoint],
+    ["stale_admission", staleAdmission],
+  ]) {
+    const hostile = await runClient(
+      ["--base-url", baseUrl],
+      [[manifest.entrypoints.official_authenticity, hostileAuthenticity]],
+    );
+    assert.equal(hostile.code, 2, `${label}: ${hostile.stderr}`);
+    const hostileReport = JSON.parse(hostile.stdout);
+    assert.equal(hostileReport.status, "partial_read_only", label);
+    assert.equal(hostileReport.official_network_verified, false, label);
+    assert.equal(
+      hostileReport.checks.network_binding_consistent,
+      false,
+      label,
+    );
+    assert.deepEqual(
+      hostileReport.observed_capabilities,
+      {
+        paid_work_observed: false,
+        work_credit_earning_observed: false,
+      },
+      label,
+    );
+  }
+
   const decoyContracts = await runClient(
     ["--base-url", baseUrl],
     [
@@ -1061,6 +1139,52 @@ try {
   assert.equal(
     decoyContractsReport.next_actions.some(
       (action) => action.id === "inspect_capabilities",
+    ),
+    false,
+  );
+
+  const unverifiedCommercialSignals = structuredClone(capabilitiesCatalog);
+  unverifiedCommercialSignals.unreviewed_signals = {
+    paid_work_enabled: true,
+    work_credit_earning_enabled: "live",
+    nested: {
+      capability: "paid_work",
+      status: "available",
+    },
+  };
+  const unverifiedCommercialSignalsResult = await runClient(
+    ["--base-url", baseUrl],
+    [
+      [
+        manifest.entrypoints.capabilities,
+        unverifiedCommercialSignals,
+      ],
+    ],
+  );
+  assert.equal(
+    unverifiedCommercialSignalsResult.code,
+    2,
+    unverifiedCommercialSignalsResult.stderr,
+  );
+  const unverifiedCommercialSignalsReport = JSON.parse(
+    unverifiedCommercialSignalsResult.stdout,
+  );
+  assert.equal(
+    unverifiedCommercialSignalsReport.checks.capabilities_loaded,
+    true,
+  );
+  assert.deepEqual(
+    unverifiedCommercialSignalsReport.observed_capabilities,
+    {
+      paid_work_observed: false,
+      work_credit_earning_observed: false,
+    },
+  );
+  assert.equal(
+    unverifiedCommercialSignalsReport.next_actions.some(
+      (action) =>
+        action.id === "review_observed_paid_work_capability" ||
+        action.id === "review_observed_work_credit_capability",
     ),
     false,
   );
@@ -1259,6 +1383,8 @@ if (workingBoundary.length > 0) {
     FIRST_CONTACT_MANIFEST_INTEGRITY_REPAIR_BOUNDARY,
     PUBLIC_UTILITY_PROVENANCE_BOUNDARY,
     PUBLIC_UTILITY_CANONICALIZATION_BOUNDARY,
+    OFFICIAL_NETWORK_AUTHENTICITY_VERIFICATION_BOUNDARY,
+    COMMITTED_RANGE_DIFF_HYGIENE_REPAIR_BOUNDARY,
   ].some(
     (boundary) =>
       JSON.stringify(workingBoundary) ===
