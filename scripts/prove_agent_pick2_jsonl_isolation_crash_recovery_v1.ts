@@ -48,6 +48,19 @@ assert.ok(
   "post-append/pre-restore crash hook is missing",
 );
 assert.ok(
+  moduleSource.includes("afterPayloadBeforeFdatasync"),
+  "complete-payload/pre-fdatasync crash hook is missing",
+);
+assert.ok(
+  moduleSource.includes("VOID_AGENT_PICK2_JSONL_APPEND_COMMIT_V1"),
+  "durable append commit witness is missing",
+);
+assert.equal(
+  moduleSource.includes("if (opts.durable) fs.fdatasyncSync(fd)"),
+  false,
+  "canonical append durability is still optional",
+);
+assert.ok(
   moduleSource.includes("beforeIntentRetire"),
   "post-restore intent-retirement fault hook is missing",
 );
@@ -89,7 +102,11 @@ const SCAN_MAX = 64;
 const LEASE_MS = 30_000;
 
 type Target = "completion" | "results" | "leases" | "jobs";
-type Phase = "before_write" | "partial_write" | "after_durable_append";
+type Phase =
+  | "before_write"
+  | "partial_write"
+  | "complete_write_before_fsync"
+  | "after_durable_append";
 
 type Fixture = {
   dir: string;
@@ -316,6 +333,7 @@ function spawnCrash(fixture: Fixture, target: Target, phase: Phase, row: any, se
       `  payloadWriteChunkBytes: spec.phase === "partial_write" ? 1 : undefined,\n` +
       `  afterIsolatedTrusted() { if (spec.phase === "before_write") process.kill(process.pid, "SIGKILL"); },\n` +
       `  afterPayloadWriteProgress(ctx) { if (spec.phase === "partial_write" && ctx.bytes_written < ctx.bytes_total) process.kill(process.pid, "SIGKILL"); },\n` +
+      `  afterPayloadBeforeFdatasync() { if (spec.phase === "complete_write_before_fsync") process.kill(process.pid, "SIGKILL"); },\n` +
       `  afterAppendBeforeRestore() { if (spec.phase === "after_durable_append") process.kill(process.pid, "SIGKILL"); },\n` +
       `} });\n` +
       `throw new Error("crash hook did not terminate child");\n`,
@@ -415,7 +433,7 @@ function runLocalPartialFailure(target: Target) {
         },
       },
     );
-  } catch {
+  } catch (_err) {
     threw = true;
   }
   assert.equal(threw, true, `partial payload failure did not throw for ${target}`);
@@ -452,7 +470,7 @@ function runClaimPublicationFailure(phase: "after_create" | "partial_body") {
             },
       },
     );
-  } catch {
+  } catch (_err) {
     threw = true;
   }
   assert.equal(threw, true, `claim publication failure did not throw: ${phase}`);
@@ -504,7 +522,10 @@ function writeClaim(
 }
 
 function runPidReuseIdentityCase() {
-  if (process.platform !== "linux") return;
+  if (
+    process.platform !== "linux" ||
+    !fs.existsSync(`/proc/${process.pid}/stat`)
+  ) return;
   const fixture = createFixture("pid-instance-reuse");
   seedWriterState(fixture);
   const targetFile = fixture.results;
@@ -522,7 +543,10 @@ function runPidReuseIdentityCase() {
 }
 
 function runLiveClaimInterleavingCase() {
-  if (process.platform !== "linux") return;
+  if (
+    process.platform !== "linux" ||
+    !fs.existsSync(`/proc/${process.pid}/stat`)
+  ) return;
   const fixture = createFixture("live-claim-interleaving");
   seedWriterState(fixture);
   const targetFile = fixture.results;
@@ -597,7 +621,9 @@ function runLiveClaimInterleavingCase() {
     );
     assert.equal(countId(targetFile, "after-live-release"), 1);
   } finally {
-    try { fs.writeFileSync(release, "1"); } catch {}
+    try { fs.writeFileSync(release, "1"); } catch (err) {
+      console.warn("release-signal cleanup failed", err);
+    }
     if (child.exitCode === null) child.kill("SIGTERM");
   }
 }
@@ -638,6 +664,20 @@ function runIntentRetirementFailureCase() {
   // append the same committed payload a second time.
   appendAgentPick2JsonlCanonicalV1(targetFile, payload, { durable: true });
   assert.equal(countId(targetFile, id), 1, "terminal retry witness did not suppress duplicate");
+
+  const interveningId = "intent-retirement-intervening";
+  appendAgentPick2JsonlCanonicalV1(
+    targetFile,
+    JSON.stringify({ id: interveningId, ts: now + 2 }) + "\n",
+  );
+  appendAgentPick2JsonlCanonicalV1(targetFile, payload);
+  appendAgentPick2JsonlCanonicalV1(targetFile, payload);
+  assert.equal(countId(targetFile, interveningId), 1);
+  assert.equal(
+    countId(targetFile, id),
+    1,
+    "content-addressed terminal witness did not survive A/B/retry(A)/retry(A)",
+  );
 }
 
 function runReleaseFailureCase() {
@@ -803,7 +843,9 @@ function runRecoveryPathSwapCase(
       testHooks: {
         afterRecoveryIsolatedValidated(ctx) {
           assert.equal(fs.existsSync(ctx.pinned_path), true, "validated recovery pin is missing");
-          try { fs.unlinkSync(ctx.isolated_path); } catch {}
+          try { fs.unlinkSync(ctx.isolated_path); } catch (err) {
+            console.warn("isolated-path fault setup cleanup failed", err);
+          }
           if (replacement === "regular") {
             fs.copyFileSync(replacementTarget, ctx.isolated_path);
           } else {
@@ -836,9 +878,11 @@ try {
   for (const target of ["completion", "results", "leases", "jobs"] as const) {
     runCrashCase(target, "before_write");
     runCrashCase(target, "partial_write");
+    runCrashCase(target, "complete_write_before_fsync");
     runCrashCase(target, "after_durable_append");
     runCrashCase(target, "before_write", false);
     runCrashCase(target, "partial_write", false);
+    runCrashCase(target, "complete_write_before_fsync", false);
     runCrashCase(target, "after_durable_append", false);
     runLocalPartialFailure(target);
     runFirstCreateDirectoryDurabilityCase(target);
@@ -856,6 +900,7 @@ try {
   console.log("VOID_AGENT_PICK2_JSONL_ISOLATION_CRASH_RECOVERY_V1_PROOF_GREEN");
   console.log("child_sigkill_before_write_all_inputs=true");
   console.log("child_sigkill_partial_payload_all_inputs=true");
+  console.log("child_sigkill_complete_payload_before_fsync_rolls_back=true");
   console.log("child_sigkill_after_durable_append_all_inputs=true");
   console.log("partial_payload_local_failure_rolls_back=true");
   console.log("unseeded_first_append_crash_recovery_all_inputs=true");
@@ -868,6 +913,7 @@ try {
   console.log("live_claim_not_deleted_by_stale_reclaimer=true");
   console.log("append_commit_boundary_absent_or_exactly_once=true");
   console.log("post_restore_intent_retirement_failure_terminal_truth=true");
+  console.log("terminal_retry_witness_content_addressed_set=true");
   console.log("release_failure_self_recovery=true");
   console.log("isolated_recovery_publication_identity_pinned=true");
   console.log("path_swap_regular_and_symlink_never_publish=true");

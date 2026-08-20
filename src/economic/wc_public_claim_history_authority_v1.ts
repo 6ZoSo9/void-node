@@ -1,0 +1,1985 @@
+import crypto from "node:crypto";
+import fs from "node:fs";
+import fsp from "node:fs/promises";
+import path from "node:path";
+import {
+  ensureWcPublicStateDurableDirectoryV1,
+} from "./wc_public_state_directory_authority_v1.js";
+
+export const VOID_WC_PUBLIC_CLAIM_HISTORY_AUTHORITY_V1 =
+  "VOID_WC_PUBLIC_CLAIM_HISTORY_AUTHORITY_V1";
+export const VOID_WC_PUBLIC_CLAIM_HISTORY_MAX_RECORD_BYTES_V1 =
+  256 * 1024;
+export const VOID_WC_PUBLIC_CLAIM_HISTORY_RECORD_VALIDATION_LEASE_MS_V1 =
+  1_000;
+
+const WARM_YIELD_EVERY_V1 = 32;
+const DAY_MS_V1 = 24 * 60 * 60_000;
+const MAX_CLAIM_SKEW_MS_V1 = 15 * 60_000;
+
+type JsonObject = Record<string, any>;
+
+type DirStampV1 = {
+  exists: boolean;
+  ino: string;
+  mtime_ns: string;
+  ctime_ns: string;
+};
+
+type RecordStampV1 = {
+  dev: string;
+  ino: string;
+  size: string;
+  mtime_ns: string;
+  ctime_ns: string;
+};
+
+type HistoryWatchStateV1 = {
+  generation: number;
+  healthy: boolean;
+  watchers: Array<ReturnType<typeof fs.watch>>;
+  challenge_acks: Map<
+    string,
+    {
+      resolve: () => void;
+      reject: (error: Error) => void;
+    }
+  >;
+};
+
+type HistoryStampsV1 = {
+  issued: DirStampV1;
+  consumed: DirStampV1;
+  claims: DirStampV1;
+};
+
+type ActiveTicketV1 = {
+  ticket_id: string;
+  account: string;
+  executor_node_id: string;
+  expires_at_ms: number;
+};
+
+type HistoryStateV1 = {
+  data_dir: string;
+  stamps: HistoryStampsV1;
+  consumed: number;
+  consumed_account_counts: Map<string, number>;
+  consumed_executor_counts: Map<string, number>;
+  issued_tickets: Map<string, ActiveTicketV1>;
+  global_claim_times: number[];
+  account_claim_times: Map<string, number[]>;
+  executor_claim_times: Map<string, number[]>;
+  last_account_at: Map<string, number>;
+  last_executor_at: Map<string, number>;
+  scanned_files: number;
+  watch_generation: number;
+  mutation_generation: string;
+  record_generations: Map<string, RecordStampV1>;
+  record_validation_fresh_until_ms: number;
+};
+
+type WarmFailureV1 = {
+  stamps: HistoryStampsV1;
+  watch_generation: number;
+  message: string;
+};
+
+export type WcPublicClaimHistorySnapshotV1 = {
+  marker: typeof VOID_WC_PUBLIC_CLAIM_HISTORY_AUTHORITY_V1;
+  active: number;
+  consumed: number;
+  account_total: number | null;
+  executor_total: number | null;
+  active_account: number;
+  active_executor: number;
+  global_24h: number;
+  account_24h: number;
+  executor_24h: number;
+  last_account_at: number;
+  last_executor_at: number;
+  scanned_files_at_warm: number;
+  synchronous_history_files_read: 0;
+};
+
+const statesV1 = new Map<string, HistoryStateV1>();
+const warmTasksV1 = new Map<string, Promise<void>>();
+const warmFailuresV1 = new Map<string, WarmFailureV1>();
+const watchStatesV1 = new Map<string, HistoryWatchStateV1>();
+const watchChallengeTasksV1 =
+  new Map<string, Promise<void>>();
+const decisionRecordValidationTasksV1 =
+  new WeakMap<HistoryStateV1, Promise<boolean>>();
+const decisionRecordValidationTasksByKeyV1 =
+  new Map<string, Promise<boolean>>();
+const suppressedWatchMutationNotificationsForProofV1 =
+  new Set<string>();
+
+const HISTORY_WATCH_CHALLENGE_PREFIX_V1 =
+  ".claim-history-watch-challenge-";
+const HISTORY_WATCH_CHALLENGE_TIMEOUT_MS_V1 = 250;
+
+type HistoryDecisionMetricsV1 = {
+  decision_checks_total: number;
+  mutation_generation_reads_total: number;
+  record_generation_stats_total: number;
+  record_validation_fresh_hits_total: number;
+  record_validation_background_starts_total: number;
+};
+
+const decisionMetricsV1 =
+  new Map<string, HistoryDecisionMetricsV1>();
+
+function decisionMetricsForV1(
+  raw?: string,
+): HistoryDecisionMetricsV1 {
+  const key = keyV1(raw);
+  let metrics = decisionMetricsV1.get(key);
+  if (!metrics) {
+    metrics = {
+      decision_checks_total: 0,
+      mutation_generation_reads_total: 0,
+      record_generation_stats_total: 0,
+      record_validation_fresh_hits_total: 0,
+      record_validation_background_starts_total: 0,
+    };
+    decisionMetricsV1.set(key, metrics);
+  }
+  return metrics;
+}
+
+export type WcPublicClaimHistoryBeforeRecordOpenHookForProofV1 =
+  ((file: string, label: string) => void | Promise<void>) | null;
+
+let beforeRecordOpenHookForProofV1:
+  WcPublicClaimHistoryBeforeRecordOpenHookForProofV1 = null;
+
+export function setWcPublicClaimHistoryBeforeRecordOpenHookForProofV1(
+  hook: WcPublicClaimHistoryBeforeRecordOpenHookForProofV1,
+): void {
+  beforeRecordOpenHookForProofV1 = hook;
+}
+
+export type WcPublicClaimHistoryBeforeRecordReadHookForProofV1 =
+  ((file: string, label: string) => void | Promise<void>) | null;
+
+let beforeRecordReadHookForProofV1:
+  WcPublicClaimHistoryBeforeRecordReadHookForProofV1 = null;
+
+export function setWcPublicClaimHistoryBeforeRecordReadHookForProofV1(
+  hook: WcPublicClaimHistoryBeforeRecordReadHookForProofV1,
+): void {
+  beforeRecordReadHookForProofV1 = hook;
+}
+
+function dataDirV1(raw?: string): string {
+  return path.resolve(
+    raw ||
+      process.env.DATA_DIR ||
+      process.env.VOID_DATA_DIR ||
+      "data_a",
+  );
+}
+
+function rootDirV1(raw?: string): string {
+  return path.join(
+    dataDirV1(raw),
+    "wc_v1",
+    "public-earning-pilot-v1",
+  );
+}
+
+function issuedDirV1(raw?: string): string {
+  return path.join(rootDirV1(raw), "issued");
+}
+
+function consumedDirV1(raw?: string): string {
+  return path.join(rootDirV1(raw), "consumed");
+}
+
+function claimsDirV1(raw?: string): string {
+  return path.join(rootDirV1(raw), "public-claims");
+}
+
+export type WcPublicClaimHistoryDirectoryParentFsyncHookForProofV1 =
+  ((
+    phase: "before" | "after",
+    parent: string,
+    child: string,
+  ) => void) | null;
+
+let directoryParentFsyncHookForProofV1:
+  WcPublicClaimHistoryDirectoryParentFsyncHookForProofV1 =
+    null;
+
+export function setWcPublicClaimHistoryDirectoryParentFsyncHookForProofV1(
+  hook: WcPublicClaimHistoryDirectoryParentFsyncHookForProofV1,
+): void {
+  directoryParentFsyncHookForProofV1 = hook;
+}
+
+function fsyncDirectoryV1(dir: string): void {
+  const fd = fs.openSync(dir, "r");
+  try {
+    fs.fsyncSync(fd);
+  } finally {
+    fs.closeSync(fd);
+  }
+}
+
+function ensureDurableDirectoryV1(
+  dir: string,
+  authorityRootRaw: string,
+): void {
+  ensureWcPublicStateDurableDirectoryV1(
+    dir,
+    authorityRootRaw,
+    directoryParentFsyncHookForProofV1,
+  );
+}
+
+function ensureDirsV1(raw?: string): void {
+  const dataDir = dataDirV1(raw);
+  const wcDir = path.join(dataDir, "wc_v1");
+  for (const dir of [
+    dataDir,
+    wcDir,
+    rootDirV1(raw),
+    issuedDirV1(raw),
+    consumedDirV1(raw),
+    claimsDirV1(raw),
+  ]) {
+    ensureDurableDirectoryV1(dir, dataDir);
+  }
+}
+
+const HISTORY_MUTATION_GENERATION_FILE_V1 =
+  ".claim-history-mutation-generation-v1";
+const HISTORY_MUTATION_GENERATION_RE_V1 =
+  /^[0-9a-f]{64}$/;
+
+const HISTORY_MUTATION_GENERATION_BYTES_V1 = 65;
+
+export type WcPublicClaimHistoryMutationGenerationReadHookForProofV1 =
+  ((
+    phase: "after_open" | "after_read",
+    file: string,
+  ) => void | Promise<void>) | null;
+
+let mutationGenerationReadHookForProofV1:
+  WcPublicClaimHistoryMutationGenerationReadHookForProofV1 =
+    null;
+
+export function setWcPublicClaimHistoryMutationGenerationReadHookForProofV1(
+  hook: WcPublicClaimHistoryMutationGenerationReadHookForProofV1,
+): void {
+  mutationGenerationReadHookForProofV1 = hook;
+}
+
+function historyMutationGenerationFileFromRootV1(
+  root: string,
+): string {
+  return path.join(
+    root,
+    HISTORY_MUTATION_GENERATION_FILE_V1,
+  );
+}
+
+function historyMutationGenerationFileV1(
+  raw?: string,
+): string {
+  return historyMutationGenerationFileFromRootV1(
+    rootDirV1(raw),
+  );
+}
+
+function parseHistoryMutationGenerationV1(
+  raw: string,
+): string {
+  const value = raw.trim();
+  if (!HISTORY_MUTATION_GENERATION_RE_V1.test(value)) {
+    throw new Error(
+      "VOID_WC_PUBLIC_CLAIM_HISTORY_MUTATION_GENERATION_INVALID",
+    );
+  }
+  return value;
+}
+
+function writeHistoryMutationGenerationAtRootV1(
+  root: string,
+  dataDir: string,
+): string {
+  ensureDurableDirectoryV1(root, dataDir);
+  const file =
+    historyMutationGenerationFileFromRootV1(root);
+  const token =
+    crypto.randomBytes(32).toString("hex");
+  const tmp = `${file}.tmp-${process.pid}-${crypto
+    .randomBytes(6)
+    .toString("hex")}`;
+  let fd: number | null = null;
+
+  try {
+    fd = fs.openSync(
+      tmp,
+      fs.constants.O_WRONLY |
+        fs.constants.O_CREAT |
+        fs.constants.O_EXCL |
+        Number(fs.constants.O_NOFOLLOW || 0),
+      0o600,
+    );
+    const bytes = Buffer.from(`${token}\n`, "utf8");
+    let offset = 0;
+    while (offset < bytes.length) {
+      const written = fs.writeSync(
+        fd,
+        bytes,
+        offset,
+        bytes.length - offset,
+        null,
+      );
+      if (written <= 0) {
+        throw new Error(
+          "VOID_WC_PUBLIC_CLAIM_HISTORY_MUTATION_GENERATION_SHORT_WRITE",
+        );
+      }
+      offset += written;
+    }
+    fs.fdatasyncSync(fd);
+    fs.closeSync(fd);
+    fd = null;
+    fs.renameSync(tmp, file);
+    fsyncDirectoryV1(root);
+    return token;
+  } finally {
+    if (fd !== null) {
+      try {
+        fs.closeSync(fd);
+      } catch (error) {
+        void error;
+      }
+    }
+    try {
+      fs.unlinkSync(tmp);
+    } catch (error: any) {
+      if (String(error?.code || "") !== "ENOENT") {
+        void error;
+      }
+    }
+  }
+}
+
+async function readHistoryMutationGenerationV1(
+  raw?: string,
+): Promise<string> {
+  ensureDirsV1(raw);
+  const file = historyMutationGenerationFileV1(raw);
+
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    let handle: Awaited<ReturnType<typeof fsp.open>> | null =
+      null;
+    try {
+      handle = await fsp.open(
+        file,
+        fs.constants.O_RDONLY |
+          Number(fs.constants.O_NOFOLLOW || 0),
+      );
+      await mutationGenerationReadHookForProofV1?.(
+        "after_open",
+        file,
+      );
+
+      const beforeStat: any = await handle.stat(
+        { bigint: true } as any,
+      );
+      if (
+        !beforeStat.isFile() ||
+        Number(beforeStat.size) !==
+          HISTORY_MUTATION_GENERATION_BYTES_V1
+      ) {
+        throw new Error(
+          "VOID_WC_PUBLIC_CLAIM_HISTORY_MUTATION_GENERATION_INVALID",
+        );
+      }
+      const before = recordStampFromStatV1(beforeStat);
+
+      const bytes = Buffer.alloc(
+        HISTORY_MUTATION_GENERATION_BYTES_V1,
+      );
+      let offset = 0;
+      while (offset < bytes.length) {
+        const { bytesRead } = await handle.read(
+          bytes,
+          offset,
+          bytes.length - offset,
+          offset,
+        );
+        if (bytesRead <= 0) {
+          throw new Error(
+            "VOID_WC_PUBLIC_CLAIM_HISTORY_MUTATION_GENERATION_INVALID",
+          );
+        }
+        offset += bytesRead;
+      }
+
+      await mutationGenerationReadHookForProofV1?.(
+        "after_read",
+        file,
+      );
+
+      const afterStat: any = await handle.stat(
+        { bigint: true } as any,
+      );
+      if (!afterStat.isFile()) {
+        throw new Error(
+          "VOID_WC_PUBLIC_CLAIM_HISTORY_MUTATION_GENERATION_INVALID",
+        );
+      }
+      const after = recordStampFromStatV1(afterStat);
+
+      let pathStat: any;
+      try {
+        pathStat = await fsp.lstat(
+          file,
+          { bigint: true } as any,
+        );
+      } catch (error: any) {
+        if (String(error?.code || "") === "ENOENT") {
+          throw new Error(
+            "VOID_WC_PUBLIC_CLAIM_HISTORY_MUTATION_GENERATION_CHANGED",
+          );
+        }
+        throw error;
+      }
+      if (!pathStat.isFile()) {
+        throw new Error(
+          "VOID_WC_PUBLIC_CLAIM_HISTORY_MUTATION_GENERATION_INVALID",
+        );
+      }
+      const pathAfter = recordStampFromStatV1(pathStat);
+
+      if (
+        !sameRecordStampV1(before, after) ||
+        !sameRecordStampV1(after, pathAfter)
+      ) {
+        throw new Error(
+          "VOID_WC_PUBLIC_CLAIM_HISTORY_MUTATION_GENERATION_CHANGED",
+        );
+      }
+
+      return parseHistoryMutationGenerationV1(
+        bytes.toString("utf8"),
+      );
+    } catch (error: any) {
+      const code = String(error?.code || "");
+      if (code === "ENOENT" && attempt === 0) {
+        writeHistoryMutationGenerationAtRootV1(
+          rootDirV1(raw),
+          dataDirV1(raw),
+        );
+        continue;
+      }
+      if (code === "ELOOP" || code === "EISDIR") {
+        throw new Error(
+          "VOID_WC_PUBLIC_CLAIM_HISTORY_MUTATION_GENERATION_INVALID",
+        );
+      }
+      throw error;
+    } finally {
+      if (handle) await handle.close();
+    }
+  }
+
+  throw new Error(
+    "VOID_WC_PUBLIC_CLAIM_HISTORY_MUTATION_GENERATION_UNAVAILABLE",
+  );
+}
+
+export async function readWcPublicClaimHistoryMutationGenerationForProofV1(
+  raw?: string,
+): Promise<string> {
+  return readHistoryMutationGenerationV1(raw);
+}
+
+function historyRootForRecordFileV1(
+  fileRaw: string,
+): {
+  root: string;
+  data_dir: string;
+} | null {
+  const file = path.resolve(fileRaw);
+  const parent = path.dirname(file);
+  const kind = path.basename(parent);
+  if (
+    kind !== "issued" &&
+    kind !== "consumed" &&
+    kind !== "public-claims"
+  ) {
+    return null;
+  }
+
+  const root = path.dirname(parent);
+  if (
+    path.basename(root) !==
+      "public-earning-pilot-v1" ||
+    path.basename(path.dirname(root)) !== "wc_v1"
+  ) {
+    return null;
+  }
+
+  return {
+    root,
+    data_dir: path.dirname(
+      path.dirname(root),
+    ),
+  };
+}
+
+export function publishWcPublicClaimHistoryMutationForFileV1(
+  file: string,
+): boolean {
+  const target = historyRootForRecordFileV1(file);
+  if (!target) return false;
+
+  writeHistoryMutationGenerationAtRootV1(
+    target.root,
+    target.data_dir,
+  );
+  statesV1.delete(target.data_dir);
+  warmFailuresV1.delete(target.data_dir);
+  return true;
+}
+
+export function wcPublicClaimHistoryDecisionMetricsForProofV1(
+  raw?: string,
+): HistoryDecisionMetricsV1 {
+  const metrics = decisionMetricsForV1(raw);
+  return { ...metrics };
+}
+
+
+function exactTrimmedStringV1(
+  raw: unknown,
+): string {
+  return typeof raw === "string" ? raw.trim() : "";
+}
+
+function safeAccountV1(raw: unknown): string {
+  const value = exactTrimmedStringV1(raw);
+  return /^[A-Za-z0-9._:-]{1,128}$/.test(value) ? value : "";
+}
+
+function safeNodeIdV1(raw: unknown): string {
+  const value = exactTrimmedStringV1(raw).toLowerCase();
+  return /^[0-9a-f]{32}$/.test(value) ? value : "";
+}
+
+function safeTicketIdV1(raw: unknown): string {
+  const value = exactTrimmedStringV1(raw).toLowerCase();
+  return /^[0-9a-f]{32}$/.test(value) ? value : "";
+}
+
+function safeClaimIdV1(raw: unknown): string {
+  const value = exactTrimmedStringV1(raw).toLowerCase();
+  return /^[0-9a-f]{64}$/.test(value) ? value : "";
+}
+
+function statDirV1(dir: string): DirStampV1 {
+  try {
+    const st: any = fs.statSync(dir, { bigint: true } as any);
+    return {
+      exists: true,
+      ino: String(st.ino),
+      mtime_ns: String(st.mtimeNs),
+      ctime_ns: String(st.ctimeNs),
+    };
+  } catch (error: any) {
+    if (String(error?.code || "") === "ENOENT") {
+      return {
+        exists: false,
+        ino: "0",
+        mtime_ns: "0",
+        ctime_ns: "0",
+      };
+    }
+    throw error;
+  }
+}
+
+function stampsV1(raw?: string): HistoryStampsV1 {
+  return {
+    issued: statDirV1(issuedDirV1(raw)),
+    consumed: statDirV1(consumedDirV1(raw)),
+    claims: statDirV1(claimsDirV1(raw)),
+  };
+}
+
+function sameStampV1(a: DirStampV1, b: DirStampV1): boolean {
+  return (
+    a.exists === b.exists &&
+    a.ino === b.ino &&
+    a.mtime_ns === b.mtime_ns &&
+    a.ctime_ns === b.ctime_ns
+  );
+}
+
+function sameStampsV1(
+  a: HistoryStampsV1,
+  b: HistoryStampsV1,
+): boolean {
+  return (
+    sameStampV1(a.issued, b.issued) &&
+    sameStampV1(a.consumed, b.consumed) &&
+    sameStampV1(a.claims, b.claims)
+  );
+}
+
+function keyV1(raw?: string): string {
+  return dataDirV1(raw);
+}
+
+function closeWatchStateV1(state: HistoryWatchStateV1): void {
+  state.healthy = false;
+  for (const pending of state.challenge_acks.values()) {
+    pending.reject(
+      new Error(
+        "VOID_WC_PUBLIC_CLAIM_HISTORY_WATCH_INVALID",
+      ),
+    );
+  }
+  state.challenge_acks.clear();
+  for (const watcher of state.watchers) {
+    try {
+      watcher.close();
+    } catch (error) {
+      void error;
+    }
+  }
+  state.watchers.length = 0;
+}
+
+function ensureWatchStateV1(raw?: string): HistoryWatchStateV1 {
+  const boundRaw = keyV1(raw);
+  ensureDirsV1(boundRaw);
+  const key = boundRaw;
+  const existing = watchStatesV1.get(key);
+  if (existing?.healthy) return existing;
+  if (existing) {
+    closeWatchStateV1(existing);
+    watchStatesV1.delete(key);
+  }
+
+  const state: HistoryWatchStateV1 = {
+    generation: 1,
+    healthy: true,
+    watchers: [],
+    challenge_acks: new Map(),
+  };
+  watchStatesV1.set(key, state);
+
+  for (const dir of [
+    issuedDirV1(boundRaw),
+    consumedDirV1(boundRaw),
+    claimsDirV1(boundRaw),
+  ]) {
+    const watcher = fs.watch(
+      dir,
+      { persistent: false },
+      (_eventType, filename) => {
+        if (!state.healthy) return;
+        const renderedFilename =
+          typeof filename === "string"
+            ? filename
+            : String(filename || "");
+        if (
+          renderedFilename.startsWith(
+            HISTORY_WATCH_CHALLENGE_PREFIX_V1,
+          )
+        ) {
+          const challenge = state.challenge_acks.get(
+            `${dir}\u0000${renderedFilename}`,
+          );
+          if (challenge) {
+            state.challenge_acks.delete(
+              `${dir}\u0000${renderedFilename}`,
+            );
+            challenge.resolve();
+          }
+          return;
+        }
+        if (
+          suppressedWatchMutationNotificationsForProofV1.has(key)
+        ) {
+          return;
+        }
+        state.generation += 1;
+        statesV1.delete(key);
+        warmFailuresV1.delete(key);
+      },
+    );
+    watcher.on("error", (error) => {
+      state.healthy = false;
+      state.generation += 1;
+      statesV1.delete(key);
+      warmFailuresV1.set(key, {
+        stamps: stampsV1(boundRaw),
+        watch_generation: state.generation,
+        message: `watch_error:${String(
+          (error as any)?.message || error,
+        )}`,
+      });
+    });
+    watcher.unref();
+    state.watchers.push(watcher);
+  }
+  return state;
+}
+
+async function challengeHistoryWatchersV1(
+  raw: string | undefined,
+  state: HistoryWatchStateV1,
+): Promise<void> {
+  const key = keyV1(raw);
+  const existing = watchChallengeTasksV1.get(key);
+  if (existing) return existing;
+
+  const task = (async () => {
+    if (!state.healthy || watchStatesV1.get(key) !== state) {
+      throw new Error(
+        "VOID_WC_PUBLIC_CLAIM_HISTORY_WATCH_INVALID",
+      );
+    }
+
+    for (const dir of [
+      issuedDirV1(raw),
+      consumedDirV1(raw),
+      claimsDirV1(raw),
+    ]) {
+      const name =
+        `${HISTORY_WATCH_CHALLENGE_PREFIX_V1}` +
+        `${process.pid}-${crypto.randomBytes(12).toString("hex")}`;
+      const challengeKey = `${dir}\u0000${name}`;
+      const file = path.join(dir, name);
+      let timer: ReturnType<typeof setTimeout> | null = null;
+      let fd: number | null = null;
+
+      const acknowledged = new Promise<void>((resolve, reject) => {
+        state.challenge_acks.set(challengeKey, { resolve, reject });
+        timer = setTimeout(() => {
+          state.challenge_acks.delete(challengeKey);
+          reject(
+            new Error(
+              "VOID_WC_PUBLIC_CLAIM_HISTORY_WATCH_CHALLENGE_TIMEOUT",
+            ),
+          );
+        }, HISTORY_WATCH_CHALLENGE_TIMEOUT_MS_V1);
+      });
+
+      try {
+        fd = fs.openSync(
+          file,
+          fs.constants.O_WRONLY |
+            fs.constants.O_CREAT |
+            fs.constants.O_EXCL |
+            Number(fs.constants.O_NOFOLLOW || 0),
+          0o600,
+        );
+        fs.closeSync(fd);
+        fd = null;
+        await acknowledged;
+      } catch (error) {
+        state.healthy = false;
+        state.generation += 1;
+        statesV1.delete(key);
+        warmFailuresV1.delete(key);
+        throw error;
+      } finally {
+        if (timer) clearTimeout(timer);
+        state.challenge_acks.delete(challengeKey);
+        if (fd !== null) {
+          try {
+            fs.closeSync(fd);
+          } catch (error) {
+            void error;
+          }
+        }
+        try {
+          fs.unlinkSync(file);
+        } catch (error: any) {
+          if (String(error?.code || "") !== "ENOENT") {
+            state.healthy = false;
+            state.generation += 1;
+            statesV1.delete(key);
+            throw error;
+          }
+        }
+      }
+    }
+
+    // Challenge events are ordered behind preceding inotify events. Yield
+    // once so every earlier history mutation callback has invalidated the
+    // published snapshot before it can be reused.
+    await new Promise<void>((resolve) => setImmediate(resolve));
+  })();
+
+  watchChallengeTasksV1.set(key, task);
+  try {
+    await task;
+  } finally {
+    if (watchChallengeTasksV1.get(key) === task) {
+      watchChallengeTasksV1.delete(key);
+    }
+  }
+}
+
+export function wcPublicClaimHistoryWatchGenerationForProofV1(
+  raw?: string,
+): number {
+  return ensureWatchStateV1(raw).generation;
+}
+
+export async function waitForWcPublicClaimHistoryWatchAdvanceForProofV1(
+  raw: string | undefined,
+  previousGeneration: number,
+  timeoutMs = 2_000,
+): Promise<number> {
+  const deadline = Date.now() + Math.max(1, timeoutMs);
+  for (;;) {
+    const generation =
+      ensureWatchStateV1(raw).generation;
+    if (generation > previousGeneration) {
+      return generation;
+    }
+    if (Date.now() >= deadline) {
+      throw new Error(
+        "VOID_WC_PUBLIC_CLAIM_HISTORY_WATCH_TIMEOUT",
+      );
+    }
+    await new Promise<void>((resolve) =>
+      setTimeout(resolve, 5),
+    );
+  }
+}
+
+function recordStampFromStatV1(stat: any): RecordStampV1 {
+  return {
+    dev: String(stat.dev),
+    ino: String(stat.ino),
+    size: String(stat.size),
+    mtime_ns: String(stat.mtimeNs),
+    ctime_ns: String(stat.ctimeNs),
+  };
+}
+
+function sameRecordStampV1(
+  a: RecordStampV1,
+  b: RecordStampV1,
+): boolean {
+  return (
+    a.dev === b.dev &&
+    a.ino === b.ino &&
+    a.size === b.size &&
+    a.mtime_ns === b.mtime_ns &&
+    a.ctime_ns === b.ctime_ns
+  );
+}
+
+function sameRecordDataStampV1(
+  a: RecordStampV1,
+  b: RecordStampV1,
+): boolean {
+  return (
+    a.dev === b.dev &&
+    a.ino === b.ino &&
+    a.size === b.size &&
+    a.mtime_ns === b.mtime_ns
+  );
+}
+
+async function statRecordPathV1(
+  file: string,
+): Promise<RecordStampV1 | null> {
+  try {
+    const stat: any = await fsp.lstat(
+      file,
+      { bigint: true } as any,
+    );
+    if (!stat.isFile()) return null;
+    return recordStampFromStatV1(stat);
+  } catch (error: any) {
+    if (String(error?.code || "") === "ENOENT") {
+      return null;
+    }
+    throw error;
+  }
+}
+
+function emptyStateV1(
+  raw: string | undefined,
+  stamps: HistoryStampsV1,
+  watchGeneration: number,
+  mutationGeneration: string,
+): HistoryStateV1 {
+  return {
+    data_dir: dataDirV1(raw),
+    stamps,
+    consumed: 0,
+    consumed_account_counts: new Map(),
+    consumed_executor_counts: new Map(),
+    issued_tickets: new Map(),
+    global_claim_times: [],
+    account_claim_times: new Map(),
+    executor_claim_times: new Map(),
+    last_account_at: new Map(),
+    last_executor_at: new Map(),
+    scanned_files: 0,
+    watch_generation: watchGeneration,
+    mutation_generation: mutationGeneration,
+    record_generations: new Map(),
+    record_validation_fresh_until_ms: 0,
+  };
+}
+
+function incMapV1(map: Map<string, number>, key: string): void {
+  map.set(key, Number(map.get(key) || 0) + 1);
+}
+
+function pushTimeV1(
+  map: Map<string, number[]>,
+  key: string,
+  value: number,
+): void {
+  const values = map.get(key) || [];
+  values.push(value);
+  map.set(key, values);
+}
+
+function sortTimeMapsV1(map: Map<string, number[]>): void {
+  for (const values of map.values()) {
+    values.sort((a, b) => a - b);
+  }
+}
+
+async function readJsonStrictV1(
+  file: string,
+  label: string,
+): Promise<{
+  record: JsonObject;
+  stamp: RecordStampV1;
+}> {
+  const flags =
+    fs.constants.O_RDONLY |
+    Number(fs.constants.O_NOFOLLOW || 0);
+
+  await beforeRecordOpenHookForProofV1?.(
+    file,
+    label,
+  );
+
+  let handle: Awaited<ReturnType<typeof fsp.open>>;
+  try {
+    handle = await fsp.open(file, flags);
+  } catch (error: any) {
+    if (String(error?.code || "") === "ENOENT") {
+      // The directory snapshot raced a normal remove/consume transition.
+      // Treat this as generation churn so rebuildHistoryV1 retries from a
+      // fresh directory generation instead of poisoning the authority.
+      throw new Error(
+        `${label}_generation_changed`,
+      );
+    }
+    throw error;
+  }
+
+  try {
+    const before: any = await handle.stat(
+      { bigint: true } as any,
+    );
+    if (!before.isFile()) {
+      throw new Error(`${label}_not_regular_file`);
+    }
+    const beforeStamp =
+      recordStampFromStatV1(before);
+    const size = Number(before.size);
+    if (
+      !Number.isSafeInteger(size) ||
+      size <= 0 ||
+      size >
+        VOID_WC_PUBLIC_CLAIM_HISTORY_MAX_RECORD_BYTES_V1
+    ) {
+      throw new Error(`${label}_size_invalid`);
+    }
+
+    await beforeRecordReadHookForProofV1?.(
+      file,
+      label,
+    );
+
+    const text = await handle.readFile("utf8");
+    const afterRead: any = await handle.stat(
+      { bigint: true } as any,
+    );
+    const afterReadStamp =
+      recordStampFromStatV1(afterRead);
+    if (
+      !afterRead.isFile() ||
+      !sameRecordStampV1(
+        beforeStamp,
+        afterReadStamp,
+      )
+    ) {
+      throw new Error(
+        `${label}_generation_changed`,
+      );
+    }
+
+    // Published warm snapshots treat record JSON files as read-only
+    // projections. Canonical mutations replace a pathname atomically and
+    // advance the durable mutation-generation witness. Exact pathname
+    // generations are also retained for decision-time revalidation.
+    let sealedStamp = afterReadStamp;
+    const mode = Number(afterRead.mode) & 0o777;
+    if ((mode & 0o222) !== 0) {
+      await handle.chmod(0o400);
+      const sealed: any = await handle.stat(
+        { bigint: true } as any,
+      );
+      const nextStamp =
+        recordStampFromStatV1(sealed);
+      if (
+        !sealed.isFile() ||
+        !sameRecordDataStampV1(
+          afterReadStamp,
+          nextStamp,
+        )
+      ) {
+        throw new Error(
+          `${label}_generation_changed`,
+        );
+      }
+      sealedStamp = nextStamp;
+    }
+
+    let parsed: any;
+    try {
+      parsed = JSON.parse(text);
+    } catch (error: any) {
+      throw new Error(
+        `${label}_malformed:${String(
+          error?.message || error,
+        )}`,
+      );
+    }
+    if (
+      !parsed ||
+      typeof parsed !== "object" ||
+      Array.isArray(parsed)
+    ) {
+      throw new Error(`${label}_not_object`);
+    }
+    return {
+      record: parsed,
+      stamp: sealedStamp,
+    };
+  } finally {
+    await handle.close();
+  }
+}
+
+function validateTicketV1(
+  record: JsonObject,
+  expectedName: string,
+  expectedStatus: "issued" | "completed",
+): ActiveTicketV1 {
+  const ticketId = safeTicketIdV1(record.ticket_id);
+  const expectedId = safeTicketIdV1(
+    expectedName.replace(/\.json$/, ""),
+  );
+  const account = safeAccountV1(record.account);
+  const executor = safeNodeIdV1(record.executor_node_id);
+  const expiresAt = record.expires_at_ms;
+
+  if (
+    record.marker !==
+      "VOID_WC_PUBLIC_EARNING_PILOT_V1" ||
+    record.version !== 1 ||
+    record.status !== expectedStatus ||
+    !ticketId ||
+    ticketId !== expectedId ||
+    !account ||
+    !executor ||
+    typeof expiresAt !== "number" ||
+    !Number.isSafeInteger(expiresAt) ||
+    expiresAt <= 0
+  ) {
+    throw new Error("ticket_history_semantic_invalid");
+  }
+
+  return {
+    ticket_id: ticketId,
+    account,
+    executor_node_id: executor,
+    expires_at_ms: expiresAt,
+  };
+}
+
+function validateClaimV1(
+  record: JsonObject,
+  expectedName: string,
+): {
+  status: string;
+  account: string;
+  executor_node_id: string;
+  issued_at_ms: number;
+} {
+  const claimId = safeClaimIdV1(record.claim_id);
+  const expectedId = safeClaimIdV1(
+    expectedName.replace(/\.json$/, ""),
+  );
+  const status =
+    typeof record.status === "string"
+      ? record.status
+      : "";
+
+  if (
+    record.marker !==
+      "VOID_WC_PUBLIC_TICKET_CLAIM_V1" ||
+    record.version !== 1 ||
+    !claimId ||
+    claimId !== expectedId ||
+    !["reserving", "publishing", "rotating", "issued"].includes(
+      status,
+    )
+  ) {
+    throw new Error("claim_history_semantic_invalid");
+  }
+
+  if (status !== "issued") {
+    return {
+      status,
+      account: "",
+      executor_node_id: "",
+      issued_at_ms: 0,
+    };
+  }
+
+  const account = safeAccountV1(record.account);
+  const executor = safeNodeIdV1(record.executor_node_id);
+  const issuedAt = record.issued_at_ms;
+
+  if (
+    !account ||
+    !executor ||
+    typeof issuedAt !== "number" ||
+    !Number.isSafeInteger(issuedAt) ||
+    issuedAt <= 0
+  ) {
+    throw new Error(
+      "claim_history_issued_semantic_invalid",
+    );
+  }
+
+  return {
+    status,
+    account,
+    executor_node_id: executor,
+    issued_at_ms: issuedAt,
+  };
+}
+
+async function maybeYieldV1(count: number): Promise<void> {
+  if (
+    count > 0 &&
+    count % WARM_YIELD_EVERY_V1 === 0
+  ) {
+    await new Promise<void>((resolve) =>
+      setImmediate(resolve),
+    );
+  }
+}
+
+async function scanHistoryV1(
+  raw: string | undefined,
+  before: HistoryStampsV1,
+  watchGeneration: number,
+  mutationGeneration: string,
+): Promise<HistoryStateV1> {
+  const state = emptyStateV1(
+    raw,
+    before,
+    watchGeneration,
+    mutationGeneration,
+  );
+  const warmNow = Date.now();
+  const recentCutoff =
+    warmNow - DAY_MS_V1 - MAX_CLAIM_SKEW_MS_V1;
+
+  const issuedEntries = (
+    await fsp.readdir(issuedDirV1(raw), {
+      withFileTypes: true,
+    })
+  )
+    .filter((entry) => entry.name.endsWith(".json"))
+    .sort((a, b) => a.name.localeCompare(b.name));
+
+  for (const entry of issuedEntries) {
+    if (!entry.isFile()) {
+      throw new Error(
+        "issued_ticket_history_not_regular_file",
+      );
+    }
+    const file = path.join(
+      issuedDirV1(raw),
+      entry.name,
+    );
+    const { record, stamp } =
+      await readJsonStrictV1(
+        file,
+        "issued_ticket_history",
+      );
+    state.record_generations.set(file, stamp);
+    const ticket = validateTicketV1(
+      record,
+      entry.name,
+      "issued",
+    );
+    state.scanned_files += 1;
+    if (ticket.expires_at_ms > warmNow) {
+      state.issued_tickets.set(
+        ticket.ticket_id,
+        ticket,
+      );
+    }
+    await maybeYieldV1(state.scanned_files);
+  }
+
+  const consumedEntries = (
+    await fsp.readdir(consumedDirV1(raw), {
+      withFileTypes: true,
+    })
+  )
+    .filter((entry) => entry.name.endsWith(".json"))
+    .sort((a, b) => a.name.localeCompare(b.name));
+
+  for (const entry of consumedEntries) {
+    if (!entry.isFile()) {
+      throw new Error(
+        "consumed_ticket_history_not_regular_file",
+      );
+    }
+    const file = path.join(
+      consumedDirV1(raw),
+      entry.name,
+    );
+    const { record, stamp } =
+      await readJsonStrictV1(
+        file,
+        "consumed_ticket_history",
+      );
+    state.record_generations.set(file, stamp);
+    const ticket = validateTicketV1(
+      record,
+      entry.name,
+      "completed",
+    );
+    state.scanned_files += 1;
+
+    // Consumed truth is terminal for single-use authority. If best-effort
+    // cleanup left the same ticket under issued/, that residue must not
+    // consume active global/account/executor claim capacity.
+    state.issued_tickets.delete(ticket.ticket_id);
+
+    state.consumed += 1;
+    incMapV1(
+      state.consumed_account_counts,
+      ticket.account,
+    );
+    incMapV1(
+      state.consumed_executor_counts,
+      ticket.executor_node_id,
+    );
+    await maybeYieldV1(state.scanned_files);
+  }
+
+  const claimEntries = (
+    await fsp.readdir(claimsDirV1(raw), {
+      withFileTypes: true,
+    })
+  )
+    .filter((entry) => entry.name.endsWith(".json"))
+    .sort((a, b) => a.name.localeCompare(b.name));
+
+  for (const entry of claimEntries) {
+    if (!entry.isFile()) {
+      throw new Error(
+        "public_claim_history_not_regular_file",
+      );
+    }
+    const file = path.join(
+      claimsDirV1(raw),
+      entry.name,
+    );
+    const { record, stamp } =
+      await readJsonStrictV1(
+        file,
+        "public_claim_history",
+      );
+    state.record_generations.set(file, stamp);
+    const claim = validateClaimV1(record, entry.name);
+    state.scanned_files += 1;
+
+    if (claim.status === "issued") {
+      state.last_account_at.set(
+        claim.account,
+        Math.max(
+          Number(
+            state.last_account_at.get(claim.account) || 0,
+          ),
+          claim.issued_at_ms,
+        ),
+      );
+      state.last_executor_at.set(
+        claim.executor_node_id,
+        Math.max(
+          Number(
+            state.last_executor_at.get(
+              claim.executor_node_id,
+            ) || 0,
+          ),
+          claim.issued_at_ms,
+        ),
+      );
+
+      if (claim.issued_at_ms >= recentCutoff) {
+        state.global_claim_times.push(
+          claim.issued_at_ms,
+        );
+        pushTimeV1(
+          state.account_claim_times,
+          claim.account,
+          claim.issued_at_ms,
+        );
+        pushTimeV1(
+          state.executor_claim_times,
+          claim.executor_node_id,
+          claim.issued_at_ms,
+        );
+      }
+    }
+
+    await maybeYieldV1(state.scanned_files);
+  }
+
+  state.global_claim_times.sort((a, b) => a - b);
+  sortTimeMapsV1(state.account_claim_times);
+  sortTimeMapsV1(state.executor_claim_times);
+  return state;
+}
+
+async function revalidateRecordGenerationsV1(
+  state: HistoryStateV1,
+  onStat: (() => void) | null = null,
+): Promise<boolean> {
+  let checked = 0;
+  for (const [file, expected] of
+    state.record_generations.entries()) {
+    const current = await statRecordPathV1(file);
+    onStat?.();
+    if (
+      !current ||
+      !sameRecordStampV1(expected, current)
+    ) {
+      return false;
+    }
+    checked += 1;
+    await maybeYieldV1(checked);
+  }
+  return true;
+}
+
+function decisionRecordGenerationsFreshV1(
+  state: HistoryStateV1,
+  metrics: HistoryDecisionMetricsV1,
+): boolean {
+  if (
+    Date.now() <= state.record_validation_fresh_until_ms
+  ) {
+    metrics.record_validation_fresh_hits_total += 1;
+    return true;
+  }
+
+  const existing = decisionRecordValidationTasksV1.get(state);
+  if (existing) return false;
+
+  const key = state.data_dir;
+  metrics.record_validation_background_starts_total += 1;
+
+  let task: Promise<boolean> = Promise.resolve(false);
+  task = (async () => {
+    try {
+      const recordsStable =
+        await revalidateRecordGenerationsV1(
+          state,
+          () => {
+            metrics.record_generation_stats_total += 1;
+          },
+        );
+      const watch = ensureWatchStateV1(key);
+      const mutationGeneration =
+        await readHistoryMutationGenerationV1(key);
+      const current = stampsV1(key);
+
+      if (
+        recordsStable &&
+        statesV1.get(key) === state &&
+        watch.healthy &&
+        watch.generation === state.watch_generation &&
+        mutationGeneration === state.mutation_generation &&
+        sameStampsV1(state.stamps, current)
+      ) {
+        state.record_validation_fresh_until_ms =
+          Date.now() +
+          VOID_WC_PUBLIC_CLAIM_HISTORY_RECORD_VALIDATION_LEASE_MS_V1;
+        return true;
+      }
+
+      if (statesV1.get(key) === state) {
+        statesV1.delete(key);
+        warmFailuresV1.delete(key);
+        startWarmV1(key);
+      }
+      return false;
+    } catch {
+      if (statesV1.get(key) === state) {
+        statesV1.delete(key);
+        warmFailuresV1.delete(key);
+        startWarmV1(key);
+      }
+      return false;
+    } finally {
+      if (decisionRecordValidationTasksV1.get(state) === task) {
+        decisionRecordValidationTasksV1.delete(state);
+      }
+      if (decisionRecordValidationTasksByKeyV1.get(key) === task) {
+        decisionRecordValidationTasksByKeyV1.delete(key);
+      }
+    }
+  })();
+  decisionRecordValidationTasksV1.set(state, task);
+  decisionRecordValidationTasksByKeyV1.set(key, task);
+  return false;
+}
+
+async function rebuildHistoryV1(
+  raw?: string,
+): Promise<void> {
+  ensureDirsV1(raw);
+  const key = keyV1(raw);
+  const watch = ensureWatchStateV1(raw);
+
+  for (let attempt = 0; attempt < 8; attempt += 1) {
+    if (!watch.healthy) {
+      throw new Error(
+        "VOID_WC_PUBLIC_CLAIM_HISTORY_WATCH_INVALID",
+      );
+    }
+
+    const before = stampsV1(raw);
+    const watchBefore = watch.generation;
+    const mutationBefore =
+      await readHistoryMutationGenerationV1(raw);
+    let state: HistoryStateV1;
+    try {
+      state = await scanHistoryV1(
+        raw,
+        before,
+        watchBefore,
+        mutationBefore,
+      );
+    } catch (error: any) {
+      if (
+        String(error?.message || error).includes(
+          "_generation_changed",
+        )
+      ) {
+        await new Promise<void>((resolve) =>
+          setImmediate(resolve),
+        );
+        continue;
+      }
+      throw error;
+    }
+
+    const recordsStable =
+      await revalidateRecordGenerationsV1(state);
+    const mutationAfter =
+      await readHistoryMutationGenerationV1(raw);
+    const after = stampsV1(raw);
+    const watchAfter = watch.generation;
+
+    if (
+      recordsStable &&
+      mutationBefore === mutationAfter &&
+      watch.healthy &&
+      watchBefore === watchAfter &&
+      sameStampsV1(before, after)
+    ) {
+      state.stamps = after;
+      state.watch_generation = watchAfter;
+      state.record_validation_fresh_until_ms =
+        Date.now() +
+        VOID_WC_PUBLIC_CLAIM_HISTORY_RECORD_VALIDATION_LEASE_MS_V1;
+      statesV1.set(key, state);
+      warmFailuresV1.delete(key);
+      return;
+    }
+
+    await new Promise<void>((resolve) =>
+      setImmediate(resolve),
+    );
+  }
+
+  throw new Error(
+    "VOID_WC_PUBLIC_CLAIM_HISTORY_AUTHORITY_UNSTABLE",
+  );
+}
+
+function startWarmV1(raw?: string): void {
+  const boundRaw = keyV1(raw);
+  const key = boundRaw;
+  if (warmTasksV1.has(key)) return;
+
+  const watch = ensureWatchStateV1(boundRaw);
+  if (!watch.healthy) {
+    warmFailuresV1.set(key, {
+      stamps: stampsV1(raw),
+      watch_generation: watch.generation,
+      message:
+        "VOID_WC_PUBLIC_CLAIM_HISTORY_WATCH_INVALID",
+    });
+    return;
+  }
+
+  const task = (async () => {
+    try {
+      await rebuildHistoryV1(boundRaw);
+    } catch (error: any) {
+      // The failure recorder must not re-enter directory admission. In
+      // particular, a fail-closed authority-root replacement is the original
+      // failure and must not turn the background task into an unhandled
+      // rejection. Keep the task bound to the exact root selected at start.
+      const currentWatch =
+        watchStatesV1.get(key) || watch;
+      let failureStamps: HistoryStampsV1;
+      try {
+        failureStamps = stampsV1(boundRaw);
+      } catch {
+        const missing = (): DirStampV1 => ({
+          exists: false,
+          ino: "0",
+          mtime_ns: "0",
+          ctime_ns: "0",
+        });
+        failureStamps = {
+          issued: missing(),
+          consumed: missing(),
+          claims: missing(),
+        };
+      }
+      warmFailuresV1.set(key, {
+        stamps: failureStamps,
+        watch_generation:
+          currentWatch.generation,
+        message: String(
+          error?.message || error,
+        ),
+      });
+    } finally {
+      warmTasksV1.delete(key);
+    }
+  })();
+
+  warmTasksV1.set(key, task);
+}
+
+
+export function suppressWcPublicClaimHistoryWatchForProofV1(
+  raw?: string,
+): void {
+  const state = ensureWatchStateV1(raw);
+  for (const watcher of state.watchers) {
+    try {
+      watcher.close();
+    } catch (error) {
+      void error;
+    }
+  }
+  state.watchers.length = 0;
+  // Proof-only simulation of a missed/unavailable advisory notification:
+  // keep the watch state nominally healthy so correctness cannot depend on
+  // an error callback or generation increment.
+  state.healthy = true;
+}
+
+export function suppressWcPublicClaimHistoryMutationNotificationsForProofV1(
+  raw?: string,
+  suppress = true,
+): void {
+  const key = keyV1(raw);
+  if (suppress) {
+    suppressedWatchMutationNotificationsForProofV1.add(key);
+  } else {
+    suppressedWatchMutationNotificationsForProofV1.delete(key);
+  }
+}
+
+export async function prepareWcPublicClaimHistoryDecisionV1(
+  raw?: string,
+): Promise<void> {
+  const state = readyStateV1(raw);
+  const key = keyV1(raw);
+  const watch = ensureWatchStateV1(raw);
+  const watchBefore = watch.generation;
+  const metrics = decisionMetricsForV1(raw);
+  metrics.decision_checks_total += 1;
+
+  // A bounded per-decision watcher challenge is a correctness barrier, not
+  // a mere health metric: delivery of the unique sentinel is ordered after
+  // any preceding same-inode history mutation. A closed, stalled, or
+  // overflowed watcher cannot silently preserve stale policy authority.
+  await challengeHistoryWatchersV1(raw, watch);
+  const before = stampsV1(raw);
+
+  // Canonical record mutation advances one crash-durable generation token
+  // before pathname publication, and warm snapshots seal record projections
+  // read-only. The bounded generation read remains the canonical-writer
+  // witness; exact record generations below cover missed/coalesced advisory
+  // notifications without synchronous record-content reads.
+  const mutationGeneration =
+    await readHistoryMutationGenerationV1(raw);
+  metrics.mutation_generation_reads_total += 1;
+  // Watch delivery is advisory. A completed exact pathname-generation pass
+  // leases its result for a short, reviewed interval. Once that lease expires,
+  // the participant path starts (or joins) one yielding background pass and
+  // deterministically HOLDs instead of awaiting O(retained history) work.
+  const recordsFresh =
+    decisionRecordGenerationsFreshV1(state, metrics);
+
+  if (!recordsFresh) {
+    throw new Error(
+      "VOID_WC_PUBLIC_CLAIM_HISTORY_WARMING",
+    );
+  }
+
+  const after = stampsV1(raw);
+  const watchAfter = watch.generation;
+  const stillPublished = statesV1.get(key) === state;
+
+  if (
+    mutationGeneration !== state.mutation_generation ||
+    !watch.healthy ||
+    !stillPublished ||
+    watchBefore !== watchAfter ||
+    state.watch_generation !== watchAfter ||
+    !sameStampsV1(before, after)
+  ) {
+    statesV1.delete(key);
+    warmFailuresV1.delete(key);
+    startWarmV1(raw);
+    throw new Error(
+      "VOID_WC_PUBLIC_CLAIM_HISTORY_WARMING",
+    );
+  }
+
+  // The challenge itself creates and removes non-policy sentinels in each
+  // watched directory. Once their ordered delivery is proven and no other
+  // mutation invalidated this exact published state, bind the cache to the
+  // resulting directory epochs for the next decision.
+  state.stamps = after;
+}
+
+function readyStateV1(raw?: string): HistoryStateV1 {
+  ensureDirsV1(raw);
+  const key = keyV1(raw);
+  const watch = ensureWatchStateV1(raw);
+  const current = stampsV1(raw);
+  const failure = warmFailuresV1.get(key);
+
+  if (!watch.healthy) {
+    throw new Error(
+      "VOID_WC_PUBLIC_CLAIM_HISTORY_INVALID",
+    );
+  }
+
+  if (failure) {
+    if (
+      failure.watch_generation ===
+        watch.generation &&
+      sameStampsV1(failure.stamps, current)
+    ) {
+      throw new Error(
+        "VOID_WC_PUBLIC_CLAIM_HISTORY_INVALID",
+      );
+    }
+    warmFailuresV1.delete(key);
+  }
+
+  if (
+    warmTasksV1.has(key) ||
+    decisionRecordValidationTasksByKeyV1.has(key)
+  ) {
+    throw new Error(
+      "VOID_WC_PUBLIC_CLAIM_HISTORY_WARMING",
+    );
+  }
+
+  const state = statesV1.get(key);
+  const challengeActive = watchChallengeTasksV1.has(key);
+  if (
+    !state ||
+    state.watch_generation !==
+      watch.generation ||
+    (!challengeActive &&
+      !sameStampsV1(state.stamps, current))
+  ) {
+    startWarmV1(raw);
+    throw new Error(
+      "VOID_WC_PUBLIC_CLAIM_HISTORY_WARMING",
+    );
+  }
+
+  return state;
+}
+
+function lowerBoundV1(
+  values: number[],
+  target: number,
+): number {
+  let lo = 0;
+  let hi = values.length;
+  while (lo < hi) {
+    const mid = (lo + hi) >>> 1;
+    if (values[mid] < target) lo = mid + 1;
+    else hi = mid;
+  }
+  return lo;
+}
+
+function upperBoundV1(
+  values: number[],
+  target: number,
+): number {
+  let lo = 0;
+  let hi = values.length;
+  while (lo < hi) {
+    const mid = (lo + hi) >>> 1;
+    if (values[mid] <= target) lo = mid + 1;
+    else hi = mid;
+  }
+  return lo;
+}
+
+function countWindowV1(
+  values: number[] | undefined,
+  lower: number,
+  upper: number,
+): number {
+  if (!values?.length) return 0;
+  return (
+    upperBoundV1(values, upper) -
+    lowerBoundV1(values, lower)
+  );
+}
+
+export function wcPublicClaimHistorySnapshotV1(
+  raw?: string,
+  now = Date.now(),
+  accountRaw: unknown = "",
+  executorRaw: unknown = "",
+  clockSkewMs = 5 * 60_000,
+): WcPublicClaimHistorySnapshotV1 {
+  const state = readyStateV1(raw);
+  const account = safeAccountV1(accountRaw);
+  const executor = safeNodeIdV1(executorRaw);
+
+  let active = 0;
+  let activeAccount = 0;
+  let activeExecutor = 0;
+
+  for (const ticket of state.issued_tickets.values()) {
+    if (ticket.expires_at_ms <= now) continue;
+    active += 1;
+    if (account && ticket.account === account) {
+      activeAccount += 1;
+    }
+    if (
+      executor &&
+      ticket.executor_node_id === executor
+    ) {
+      activeExecutor += 1;
+    }
+  }
+
+  const cutoff = now - DAY_MS_V1;
+  const upper =
+    now + Math.max(0, Math.trunc(clockSkewMs));
+
+  const global24h = countWindowV1(
+    state.global_claim_times,
+    cutoff,
+    upper,
+  );
+  const account24h = account
+    ? countWindowV1(
+        state.account_claim_times.get(account),
+        cutoff,
+        upper,
+      )
+    : 0;
+  const executor24h = executor
+    ? countWindowV1(
+        state.executor_claim_times.get(executor),
+        cutoff,
+        upper,
+      )
+    : 0;
+
+  return {
+    marker: VOID_WC_PUBLIC_CLAIM_HISTORY_AUTHORITY_V1,
+    active,
+    consumed: state.consumed,
+    account_total: account
+      ? Number(
+          state.consumed_account_counts.get(account) || 0,
+        ) + activeAccount
+      : null,
+    executor_total: executor
+      ? Number(
+          state.consumed_executor_counts.get(executor) ||
+            0,
+        ) + activeExecutor
+      : null,
+    active_account: activeAccount,
+    active_executor: activeExecutor,
+    global_24h: global24h,
+    account_24h: account24h,
+    executor_24h: executor24h,
+    last_account_at: account
+      ? Number(state.last_account_at.get(account) || 0)
+      : 0,
+    last_executor_at: executor
+      ? Number(
+          state.last_executor_at.get(executor) || 0,
+        )
+      : 0,
+    scanned_files_at_warm: state.scanned_files,
+    synchronous_history_files_read: 0,
+  };
+}
+
+export function primeWcPublicClaimHistoryAuthorityV1(
+  raw?: string,
+): void {
+  ensureDirsV1(raw);
+  const key = keyV1(raw);
+  const watch = ensureWatchStateV1(raw);
+  const current = stampsV1(raw);
+  const state = statesV1.get(key);
+  const failure = warmFailuresV1.get(key);
+
+  if (!watch.healthy) return;
+
+  if (
+    failure &&
+    failure.watch_generation ===
+      watch.generation &&
+    sameStampsV1(failure.stamps, current)
+  ) {
+    return;
+  }
+
+  if (
+    state &&
+    state.watch_generation ===
+      watch.generation &&
+    sameStampsV1(state.stamps, current) &&
+    !failure
+  ) {
+    return;
+  }
+
+  startWarmV1(raw);
+}
+
+export async function waitForWcPublicClaimHistoryWarmForProofV1(
+  raw?: string,
+): Promise<void> {
+  const key = keyV1(raw);
+
+  for (let attempt = 0; attempt < 12; attempt += 1) {
+    primeWcPublicClaimHistoryAuthorityV1(raw);
+    const validationTask =
+      decisionRecordValidationTasksByKeyV1.get(key);
+    if (validationTask) await validationTask;
+    const task = warmTasksV1.get(key);
+    if (task) await task;
+
+    const watch = ensureWatchStateV1(raw);
+    const current = stampsV1(raw);
+    const failure = warmFailuresV1.get(key);
+
+    if (
+      failure &&
+      failure.watch_generation ===
+        watch.generation &&
+      sameStampsV1(failure.stamps, current)
+    ) {
+      throw new Error(
+        `VOID_WC_PUBLIC_CLAIM_HISTORY_INVALID:${failure.message}`,
+      );
+    }
+
+    const state = statesV1.get(key);
+    if (
+      watch.healthy &&
+      state &&
+      state.watch_generation ===
+        watch.generation &&
+      sameStampsV1(state.stamps, current)
+    ) {
+      return;
+    }
+
+    await new Promise<void>((resolve) =>
+      setImmediate(resolve),
+    );
+  }
+
+  throw new Error(
+    "VOID_WC_PUBLIC_CLAIM_HISTORY_NOT_READY",
+  );
+}
+
+export function resetWcPublicClaimHistoryAuthorityForProofV1(
+  raw?: string,
+): void {
+  const key = keyV1(raw);
+  if (
+    warmTasksV1.has(key) ||
+    decisionRecordValidationTasksByKeyV1.has(key)
+  ) {
+    throw new Error(
+      "VOID_WC_PUBLIC_CLAIM_HISTORY_RESET_WHILE_WARMING",
+    );
+  }
+  statesV1.delete(key);
+  warmFailuresV1.delete(key);
+  decisionMetricsV1.delete(key);
+  watchChallengeTasksV1.delete(key);
+  suppressedWatchMutationNotificationsForProofV1.delete(key);
+  const watch = watchStatesV1.get(key);
+  if (watch) {
+    closeWatchStateV1(watch);
+    watchStatesV1.delete(key);
+  }
+}

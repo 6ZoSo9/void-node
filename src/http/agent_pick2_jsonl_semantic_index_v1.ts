@@ -1,5 +1,6 @@
 // @ts-nocheck
 import * as fs from "node:fs";
+import * as fsp from "node:fs/promises";
 import path from "node:path";
 import crypto from "node:crypto";
 
@@ -8,6 +9,10 @@ export const VOID_AGENT_PICK2_JSONL_SEMANTIC_INDEX_V1 =
 
 export const VOID_AGENT_PICK2_JSONL_MAX_RECORD_BYTES_V1 = 1024 * 1024;
 export const VOID_AGENT_PICK2_JSONL_MAX_TAIL_SCAN_BYTES_V1 = 32 * 1024 * 1024;
+export const VOID_AGENT_PICK2_JSONL_MAX_SYNC_COMPLETION_REBUILD_BYTES_V1 =
+  16 * 1024 * 1024;
+export const VOID_AGENT_PICK2_JSONL_COMPLETION_REBUILD_BACKOFF_MS_V1 =
+  30_000;
 
 const VOID_AGENT_PICK2_JSONL_ISOLATION_RECOVERY_V1 =
   "VOID_AGENT_PICK2_JSONL_ISOLATION_RECOVERY_V1";
@@ -53,6 +58,8 @@ type HeadStateV1 = FileStampV1 & {
 
 type IoMetricsV1 = {
   bytes_read_total: number;
+  sync_bytes_read_total: number;
+  async_bytes_read_total: number;
   rebuilds_total: number;
   incremental_reads_total: number;
   cache_hits_total: number;
@@ -132,8 +139,9 @@ function statV1(file: string): FileStampV1 | null {
     const st = fs.statSync(file, { bigint: true } as any);
     if (!st.isFile()) return null;
     return stampFromStatsV1(st);
-  } catch {
-    return null;
+  } catch (err: any) {
+    if (err?.code === "ENOENT") return null;
+    throw err;
   }
 }
 
@@ -241,6 +249,10 @@ type AppendWriterTestHooksV1 = {
     bytes_written: number;
     bytes_total: number;
   }) => void;
+  afterPayloadBeforeFdatasync?: (ctx: {
+    file: string;
+    bytes_total: number;
+  }) => void;
   afterLockClaimTempCreated?: (ctx: {
     file: string;
     claim_temp_path: string;
@@ -293,12 +305,14 @@ type IsolationIntentV1 = {
   canonical_basename: string;
   isolated_basename: string;
   pin_basename: string;
+  commit_basename: string;
   before: FileStampV1;
   append_bytes: number;
   append_sha256: string;
   path: string;
   isolated_path: string;
   pinned_path: string;
+  commit_path: string;
 };
 
 type RecoveryOutcomeV1 = {
@@ -319,6 +333,8 @@ type TerminalAppendV1 = {
 
 const VOID_AGENT_PICK2_JSONL_APPEND_TERMINAL_V1 =
   "VOID_AGENT_PICK2_JSONL_APPEND_TERMINAL_V1";
+const VOID_AGENT_PICK2_JSONL_APPEND_COMMIT_V1 =
+  "VOID_AGENT_PICK2_JSONL_APPEND_COMMIT_V1";
 const VOID_AGENT_PICK2_JSONL_APPEND_TERMINAL_MAX_BYTES_V1 = 4096;
 const VOID_AGENT_PICK2_JSONL_APPEND_CLAIM_V1 =
   "VOID_AGENT_PICK2_JSONL_APPEND_CLAIM_V1";
@@ -357,6 +373,10 @@ function fsyncParentDirectoryV1(file: string) {
   } finally {
     fs.closeSync(fd);
   }
+}
+
+function recordBestEffortFailureV1(scope: string, err: unknown) {
+  console.warn(`VOID_AGENT_PICK2_JSONL_BEST_EFFORT_FAILURE scope=${scope}`, err);
 }
 
 function exactKeysV1(value: any, expected: string[]): boolean {
@@ -399,7 +419,7 @@ function linuxProcessInstanceV1(pid: number): string | null {
     const startTicks = String(fields[19] || "");
     if (!/^\d+$/.test(startTicks)) return null;
     return `linux:${boot}:${startTicks}`;
-  } catch {
+  } catch (_err) {
     return null;
   }
 }
@@ -490,7 +510,7 @@ function readAppendClaimV1(claimPath: string): AppendClaimV1 {
   let parsed: any;
   try {
     parsed = JSON.parse(raw.toString("utf8"));
-  } catch {
+  } catch (_err) {
     throw new Error("VOID_AGENT_PICK2_JSONL_APPEND_CLAIM_MALFORMED");
   }
   if (!exactKeysV1(parsed, [
@@ -545,7 +565,9 @@ function removeObservedClaimV1(claim: AppendClaimV1): boolean {
   if (!sameStampV1(stamp, claim.stamp)) return false;
   try {
     fs.unlinkSync(claim.path);
-    try { fsyncParentDirectoryV1(claim.path); } catch {}
+    try { fsyncParentDirectoryV1(claim.path); } catch (err) {
+      recordBestEffortFailureV1("claim_parent_fsync", err);
+    }
     return true;
   } catch (err: any) {
     return err?.code === "ENOENT";
@@ -633,10 +655,14 @@ function publishAppendClaimV1(
     };
   } catch (err) {
     if (fd !== null) {
-      try { fs.closeSync(fd); } catch {}
+      try { fs.closeSync(fd); } catch (closeErr) {
+        recordBestEffortFailureV1("claim_temp_close", closeErr);
+      }
       fd = null;
     }
-    try { fs.unlinkSync(tempPath); } catch {}
+    try { fs.unlinkSync(tempPath); } catch (unlinkErr) {
+      recordBestEffortFailureV1("claim_temp_unlink", unlinkErr);
+    }
     if (published) {
       try {
         const own = readAppendClaimV1(claimPath);
@@ -647,7 +673,9 @@ function publishAppendClaimV1(
         ) {
           removeObservedClaimV1(own);
         }
-      } catch {}
+      } catch (cleanupErr) {
+        recordBestEffortFailureV1("published_claim_cleanup", cleanupErr);
+      }
     }
     throw err;
   }
@@ -664,7 +692,8 @@ function blockOrReclaimOtherClaimsV1(
     let claim: AppendClaimV1;
     try {
       claim = readAppendClaimV1(claimPath);
-    } catch {
+    } catch (err) {
+      recordBestEffortFailureV1("claim_read_blocks_reclamation", err);
       blocked = true;
       continue;
     }
@@ -701,7 +730,9 @@ function acquireCanonicalAppendLockV1(
       try {
         const claim = readAppendClaimV1(own.path);
         removeObservedClaimV1(claim);
-      } catch {}
+      } catch (cleanupErr) {
+        recordBestEffortFailureV1("contended_claim_cleanup", cleanupErr);
+      }
       own = null;
       throw new Error("VOID_AGENT_PICK2_JSONL_CANONICAL_APPEND_LOCKED");
     }
@@ -734,7 +765,8 @@ function releaseCanonicalAppendLockV1(
     ) {
       removeObservedClaimV1(claim);
     }
-  } catch {
+  } catch (err) {
+    recordBestEffortFailureV1("claim_release_deferred", err);
     // A release fault must not turn a known append/recovery outcome into an
     // ambiguous caller-visible failure. The immutable unique claim remains and
     // is reclaimed as this process instance's orphan on the next acquisition.
@@ -815,7 +847,7 @@ function readIsolationIntentV1(file: string): IsolationIntentV1 | null {
   let parsed: any;
   try {
     parsed = JSON.parse(raw.toString("utf8"));
-  } catch {
+  } catch (_err) {
     throw new Error(
       `VOID_AGENT_PICK2_JSONL_ISOLATION_INTENT_MALFORMED file=${file}`,
     );
@@ -826,6 +858,7 @@ function readIsolationIntentV1(file: string): IsolationIntentV1 | null {
     "canonical_basename",
     "isolated_basename",
     "pin_basename",
+    "commit_basename",
     "before",
     "append_bytes",
     "append_sha256",
@@ -837,6 +870,7 @@ function readIsolationIntentV1(file: string): IsolationIntentV1 | null {
   const canonicalBase = path.basename(key);
   const isolatedBase = String(parsed.isolated_basename || "");
   const pinBase = String(parsed.pin_basename || "");
+  const commitBase = String(parsed.commit_basename || "");
   if (
     parsed.marker !== VOID_AGENT_PICK2_JSONL_ISOLATION_RECOVERY_V1 ||
     parsed.version !== 1 ||
@@ -845,6 +879,8 @@ function readIsolationIntentV1(file: string): IsolationIntentV1 | null {
     !isolatedBase.startsWith(`${canonicalBase}.void-pick2-isolated-`) ||
     path.basename(pinBase) !== pinBase ||
     !pinBase.startsWith(`${canonicalBase}.void-pick2-recovery-pin-`) ||
+    path.basename(commitBase) !== commitBase ||
+    !commitBase.startsWith(`${canonicalBase}.void-pick2-append-commit-`) ||
     !validStampValueV1(parsed.before) ||
     !Number.isSafeInteger(parsed.append_bytes) ||
     parsed.append_bytes <= 0 ||
@@ -863,12 +899,14 @@ function readIsolationIntentV1(file: string): IsolationIntentV1 | null {
     canonical_basename: canonicalBase,
     isolated_basename: isolatedBase,
     pin_basename: pinBase,
+    commit_basename: commitBase,
     before: parsed.before,
     append_bytes: parsed.append_bytes,
     append_sha256: parsed.append_sha256,
     path: intentPath,
     isolated_path: path.join(path.dirname(key), isolatedBase),
     pinned_path: path.join(path.dirname(key), pinBase),
+    commit_path: path.join(path.dirname(key), commitBase),
   };
 }
 
@@ -876,6 +914,7 @@ function writeIsolationIntentV1(
   file: string,
   isolatedPath: string,
   pinnedPath: string,
+  commitPath: string,
   before: FileStampV1,
   appendBytes: number,
   appendSha256: string,
@@ -885,11 +924,14 @@ function writeIsolationIntentV1(
   const canonicalBase = path.basename(key);
   const isolatedBase = path.basename(isolatedPath);
   const pinBase = path.basename(pinnedPath);
+  const commitBase = path.basename(commitPath);
   if (
     path.dirname(path.resolve(isolatedPath)) !== dir ||
     !isolatedBase.startsWith(`${canonicalBase}.void-pick2-isolated-`) ||
     path.dirname(path.resolve(pinnedPath)) !== dir ||
     !pinBase.startsWith(`${canonicalBase}.void-pick2-recovery-pin-`)
+    || path.dirname(path.resolve(commitPath)) !== dir
+    || !commitBase.startsWith(`${canonicalBase}.void-pick2-append-commit-`)
   ) {
     throw new Error(
       `VOID_AGENT_PICK2_JSONL_ISOLATION_TARGET_INVALID file=${file}`,
@@ -919,6 +961,7 @@ function writeIsolationIntentV1(
       canonical_basename: canonicalBase,
       isolated_basename: isolatedBase,
       pin_basename: pinBase,
+      commit_basename: commitBase,
       before,
       append_bytes: appendBytes,
       append_sha256: appendSha256,
@@ -962,8 +1005,91 @@ function writeIsolationIntentV1(
   } finally {
     if (fd !== null) fs.closeSync(fd);
     if (!linked) {
-      try { fs.unlinkSync(tmp); } catch {}
+      try { fs.unlinkSync(tmp); } catch (cleanupErr) {
+        recordBestEffortFailureV1("isolation_intent_temp_unlink", cleanupErr);
+      }
     }
+  }
+}
+
+function writeAppendCommitV1(intent: IsolationIntentV1) {
+  const body = Buffer.from(
+    JSON.stringify({
+      marker: VOID_AGENT_PICK2_JSONL_APPEND_COMMIT_V1,
+      version: 1,
+      append_bytes: intent.append_bytes,
+      append_sha256: intent.append_sha256,
+    }) + "\n",
+    "utf8",
+  );
+  const tmp = uniqueRuntimeSiblingV1(intent.path, "append-commit-tmp");
+  let fd: number | null = null;
+  let linked = false;
+  try {
+    fd = fs.openSync(
+      tmp,
+      fs.constants.O_WRONLY |
+        fs.constants.O_CREAT |
+        fs.constants.O_EXCL |
+        ((fs.constants as any).O_NOFOLLOW || 0),
+      0o600,
+    );
+    let off = 0;
+    while (off < body.length) {
+      const n = fs.writeSync(fd, body, off, body.length - off, null);
+      if (n <= 0) throw new Error("VOID_AGENT_PICK2_JSONL_APPEND_COMMIT_SHORT_WRITE");
+      off += n;
+    }
+    fs.fsyncSync(fd);
+    fs.closeSync(fd);
+    fd = null;
+    fs.linkSync(tmp, intent.commit_path);
+    linked = true;
+    fsyncParentDirectoryV1(intent.path);
+  } finally {
+    if (fd !== null) fs.closeSync(fd);
+    try {
+      fs.unlinkSync(tmp);
+    } catch (err: any) {
+      if (err?.code !== "ENOENT") throw err;
+    }
+    if (linked) fsyncParentDirectoryV1(intent.path);
+  }
+}
+
+function hasValidAppendCommitV1(intent: IsolationIntentV1): boolean {
+  let fd: number | null = null;
+  try {
+    const listed = fs.lstatSync(intent.commit_path, { bigint: true } as any);
+    if (!listed.isFile() || listed.isSymbolicLink()) return false;
+    const size = Number(listed.size);
+    if (!Number.isSafeInteger(size) || size <= 0 || size > 4096) return false;
+    fd = fs.openSync(
+      intent.commit_path,
+      fs.constants.O_RDONLY | ((fs.constants as any).O_NOFOLLOW || 0),
+    );
+    if (!sameStampV1(fstatV1(fd), stampFromStatsV1(listed))) return false;
+    const raw = readExactFdV1(fd, 0, size);
+    const parsed = JSON.parse(raw.toString("utf8"));
+    return exactKeysV1(parsed, ["marker", "version", "append_bytes", "append_sha256"]) &&
+      parsed.marker === VOID_AGENT_PICK2_JSONL_APPEND_COMMIT_V1 &&
+      parsed.version === 1 &&
+      parsed.append_bytes === intent.append_bytes &&
+      parsed.append_sha256 === intent.append_sha256;
+  } catch (err: any) {
+    if (err?.code === "ENOENT") return false;
+    return false;
+  } finally {
+    if (fd !== null) fs.closeSync(fd);
+  }
+}
+
+function clearAppendCommitV1(intent: IsolationIntentV1) {
+  try {
+    fs.unlinkSync(intent.commit_path);
+    fsyncParentDirectoryV1(intent.path);
+  } catch (err: any) {
+    if (err?.code !== "ENOENT") throw err;
   }
 }
 
@@ -971,22 +1097,32 @@ function clearIsolationIntentV1(
   file: string,
   hooks?: AppendWriterTestHooksV1,
 ) {
+  const intent = readIsolationIntentV1(file);
   const intentPath = isolationIntentPathV1(file);
   hooks?.beforeIntentRetire?.({ file: fileKeyV1(file), intent_path: intentPath });
   try {
     fs.unlinkSync(intentPath);
     fsyncParentDirectoryV1(file);
+    if (intent) clearAppendCommitV1(intent);
   } catch (err: any) {
     if (err?.code !== "ENOENT") throw err;
   }
 }
 
-function terminalAppendPathV1(file: string): string {
-  return `${fileKeyV1(file)}.void-pick2-append-terminal-v1.json`;
+function terminalAppendPathV1(
+  file: string,
+  appendBytes: number,
+  appendSha256: string,
+): string {
+  return `${fileKeyV1(file)}.void-pick2-append-terminal-v1-${appendBytes}-${appendSha256}.json`;
 }
 
-function readTerminalAppendV1(file: string): TerminalAppendV1 | null {
-  const terminalPath = terminalAppendPathV1(file);
+function readTerminalAppendV1(
+  file: string,
+  appendBytes: number,
+  appendSha256: string,
+): TerminalAppendV1 | null {
+  const terminalPath = terminalAppendPathV1(file, appendBytes, appendSha256);
   let lst: any;
   try {
     lst = fs.lstatSync(terminalPath, { bigint: true } as any);
@@ -1032,7 +1168,7 @@ function readTerminalAppendV1(file: string): TerminalAppendV1 | null {
   let parsed: any;
   try {
     parsed = JSON.parse(raw.toString("utf8"));
-  } catch {
+  } catch (_err) {
     throw new Error(`VOID_AGENT_PICK2_JSONL_APPEND_TERMINAL_MALFORMED file=${file}`);
   }
   if (!exactKeysV1(parsed, [
@@ -1074,7 +1210,11 @@ function writeTerminalAppendV1(
   intent: IsolationIntentV1,
   after: FileStampV1,
 ) {
-  const terminalPath = terminalAppendPathV1(file);
+  const terminalPath = terminalAppendPathV1(
+    file,
+    intent.append_bytes,
+    intent.append_sha256,
+  );
   const body = Buffer.from(
     JSON.stringify({
       marker: VOID_AGENT_PICK2_JSONL_APPEND_TERMINAL_V1,
@@ -1110,25 +1250,32 @@ function writeTerminalAppendV1(
     fs.fsyncSync(fd);
     fs.closeSync(fd);
     fd = null;
-    fs.renameSync(tmp, terminalPath);
-    published = true;
+    try {
+      fs.linkSync(tmp, terminalPath);
+      published = true;
+    } catch (err: any) {
+      if (err?.code !== "EEXIST") throw err;
+      const existing = readTerminalAppendV1(
+        file,
+        intent.append_bytes,
+        intent.append_sha256,
+      );
+      if (!existing) throw err;
+      published = true;
+    }
     fsyncParentDirectoryV1(file);
   } finally {
-    if (fd !== null) { try { fs.closeSync(fd); } catch {} }
-    try { fs.unlinkSync(tmp); } catch {}
+    if (fd !== null) {
+      try { fs.closeSync(fd); } catch (err) {
+        console.warn("VOID_AGENT_PICK2_JSONL_APPEND_TERMINAL_CLOSE_FAILED", err);
+      }
+    }
+    try { fs.unlinkSync(tmp); } catch (err: any) {
+      if (err?.code !== "ENOENT") throw err;
+    }
     if (!published && !fs.existsSync(terminalPath)) {
       // Intent remains authoritative if terminal publication did not complete.
     }
-  }
-}
-
-function clearTerminalAppendV1(file: string) {
-  const terminalPath = terminalAppendPathV1(file);
-  try {
-    fs.unlinkSync(terminalPath);
-    fsyncParentDirectoryV1(file);
-  } catch (err: any) {
-    if (err?.code !== "ENOENT") throw err;
   }
 }
 
@@ -1140,8 +1287,18 @@ function canonicalMatchesTerminalV1(file: string, terminal: TerminalAppendV1): b
       fs.constants.O_RDONLY | ((fs.constants as any).O_NOFOLLOW || 0),
     );
     const opened = fstatV1(fd);
-    return sameStampV1(opened, terminal.after);
-  } catch {
+    if (
+      !sameObjectV1(opened, terminal.after) ||
+      opened.size < terminal.before.size + terminal.append_bytes
+    ) return false;
+    const payload = readExactFdV1(
+      fd,
+      terminal.before.size,
+      terminal.append_bytes,
+    );
+    return sha256V1(payload) === terminal.append_sha256;
+  } catch (err) {
+    console.warn("VOID_AGENT_PICK2_JSONL_APPEND_TERMINAL_VERIFY_FAILED", err);
     return false;
   } finally {
     if (fd !== null) fs.closeSync(fd);
@@ -1297,6 +1454,11 @@ function classifyRecoveryGenerationV1(
     throw new Error(
       `VOID_AGENT_PICK2_JSONL_ISOLATION_RECOVERY_SUFFIX_DIGEST file=${intent.path}`,
     );
+  }
+  if (!hasValidAppendCommitV1(intent)) {
+    fs.ftruncateSync(fd, intent.before.size);
+    fs.fdatasyncSync(fd);
+    return "absent";
   }
   return "committed";
 }
@@ -1458,7 +1620,8 @@ function recoverCanonicalAppendIsolationV1(file: string): boolean {
       try {
         writeTerminalAppendV1(file, outcome.intent, outcome.after);
         clearIsolationIntentV1(file);
-      } catch {
+      } catch (err) {
+        recordBestEffortFailureV1("terminal_seal_deferred", err);
         // Keep the durable intent as the retry witness if terminal sealing fails.
       }
     }
@@ -1506,6 +1669,9 @@ export function appendAgentPick2JsonlCanonicalV1(
 ): { witnessed: boolean; before: FileStampV1; after: FileStampV1 } {
   const bytes = Buffer.isBuffer(data) ? data : Buffer.from(String(data), "utf8");
   assertCanonicalRecordBytesV1(file, bytes);
+  if (opts.durable === false) {
+    throw new Error(`VOID_AGENT_PICK2_JSONL_DURABLE_APPEND_REQUIRED file=${file}`);
+  }
   const appendSha256 = sha256V1(bytes);
 
   const key = fileKeyV1(file);
@@ -1513,6 +1679,7 @@ export function appendAgentPick2JsonlCanonicalV1(
   let fd: number | null = null;
   let isolatedPath = "";
   let pinnedPath = "";
+  let commitPath = "";
   let canonicalRestored = true;
   let trustedGeneration = false;
   let before = emptyStampV1();
@@ -1524,7 +1691,8 @@ export function appendAgentPick2JsonlCanonicalV1(
   const retireIntentKnownCommitted = () => {
     try {
       clearIsolationIntentV1(file, opts.testHooks);
-    } catch {
+    } catch (err) {
+      recordBestEffortFailureV1("committed_intent_retire_deferred", err);
       // The committed row remains terminal truth. Retaining the intent keeps a
       // restart/retry witness instead of reporting a false append failure.
     }
@@ -1571,19 +1739,21 @@ export function appendAgentPick2JsonlCanonicalV1(
     if (committed) {
       retireIntentKnownCommitted();
     } else {
-      try { clearIsolationIntentV1(file); } catch {}
+      try { clearIsolationIntentV1(file); } catch (clearErr) {
+        recordBestEffortFailureV1("absent_intent_retire", clearErr);
+      }
     }
   };
 
   try {
     const recovered = recoverCanonicalAppendIsolationUnderLockV1(file, opts.testHooks);
     if (recovered.kind === "committed" && recovered.intent && recovered.after) {
+      writeTerminalAppendV1(file, recovered.intent, recovered.after);
       const sameRetry =
         recovered.intent.append_bytes === bytes.length &&
         recovered.intent.append_sha256 === appendSha256;
       if (sameRetry) {
         retireIntentKnownCommitted();
-        try { clearTerminalAppendV1(file); } catch {}
         seedCanonicalWriterStateV1(file, recovered.after);
         return {
           witnessed: false,
@@ -1594,25 +1764,19 @@ export function appendAgentPick2JsonlCanonicalV1(
       clearIsolationIntentV1(file);
     }
 
-    const terminal = readTerminalAppendV1(file);
+    const terminal = readTerminalAppendV1(file, bytes.length, appendSha256);
     if (terminal) {
       if (!canonicalMatchesTerminalV1(file, terminal)) {
         throw new Error(
           `VOID_AGENT_PICK2_JSONL_APPEND_TERMINAL_CANONICAL_MISMATCH file=${file}`,
         );
       }
-      const sameRetry =
-        terminal.append_bytes === bytes.length &&
-        terminal.append_sha256 === appendSha256;
-      clearTerminalAppendV1(file);
-      if (sameRetry) {
-        seedCanonicalWriterStateV1(file, terminal.after);
-        return {
-          witnessed: false,
-          before: terminal.before,
-          after: terminal.after,
-        };
-      }
+      seedCanonicalWriterStateV1(file, terminal.after);
+      return {
+        witnessed: false,
+        before: terminal.before,
+        after: terminal.after,
+      };
     }
 
     const canonicalExistedBeforeOpen = !!lstatEntryV1(file);
@@ -1624,7 +1788,7 @@ export function appendAgentPick2JsonlCanonicalV1(
         ((fs.constants as any).O_NOFOLLOW || 0),
       opts.mode ?? 0o666,
     );
-    if (opts.durable && !canonicalExistedBeforeOpen) {
+    if (!canonicalExistedBeforeOpen) {
       opts.testHooks?.beforeFirstCanonicalCreateDirectorySync?.({ file: key });
       fsyncParentDirectoryV1(file);
       opts.testHooks?.afterFirstCanonicalCreateDirectorySync?.({ file: key });
@@ -1673,7 +1837,8 @@ export function appendAgentPick2JsonlCanonicalV1(
     // `trustedGeneration` controls witness minting only, not durability.
     isolatedPath = uniqueRuntimeSiblingV1(file, "isolated");
     pinnedPath = uniqueRuntimeSiblingV1(file, "recovery-pin");
-    writeIsolationIntentV1(file, isolatedPath, pinnedPath,
+    commitPath = uniqueRuntimeSiblingV1(file, "append-commit");
+    writeIsolationIntentV1(file, isolatedPath, pinnedPath, commitPath,
       immediatelyBeforeIsolation,
       bytes.length,
       appendSha256,
@@ -1731,7 +1896,16 @@ export function appendAgentPick2JsonlCanonicalV1(
         bytes_total: bytes.length,
       });
     }
-    if (opts.durable) fs.fdatasyncSync(fd);
+    opts.testHooks?.afterPayloadBeforeFdatasync?.({
+      file,
+      bytes_total: bytes.length,
+    });
+    fs.fdatasyncSync(fd);
+    const durableIntent = readIsolationIntentV1(file);
+    if (!durableIntent || durableIntent.commit_path !== commitPath) {
+      throw new Error(`VOID_AGENT_PICK2_JSONL_ISOLATION_INTENT_CHANGED file=${file}`);
+    }
+    writeAppendCommitV1(durableIntent);
     appendCommitted = true;
 
     if (isolatedPath) {
@@ -1789,10 +1963,12 @@ export function appendAgentPick2JsonlCanonicalV1(
           current.size >= writeBase.size
         ) {
           fs.ftruncateSync(fd, writeBase.size);
-          if (opts.durable) fs.fdatasyncSync(fd);
+          fs.fdatasyncSync(fd);
         }
       } else if (intentWritten && canonicalRestored && !appendCommitted) {
-        try { clearIsolationIntentV1(file); } catch {}
+        try { clearIsolationIntentV1(file); } catch (clearErr) {
+          recordBestEffortFailureV1("failed_append_intent_retire", clearErr);
+        }
       }
     } finally {
       if (fd !== null) fs.closeSync(fd);
@@ -1805,7 +1981,7 @@ function parseEntryV1(raw: string): JsonlEntryV1 {
   if (!line.trim()) return { raw: line, parsed: null };
   try {
     return { raw: line, parsed: JSON.parse(line) };
-  } catch {
+  } catch (_err) {
     return { raw: line, parsed: null };
   }
 }
@@ -1843,11 +2019,17 @@ function cloneMetricsV1(metrics: IoMetricsV1): IoMetricsV1 {
 export class AgentPick2JsonlSemanticIndexV1 {
   private readonly chunkBytes: number;
   private readonly testHooks: TestHooksV1;
+  private readonly maxSyncCompletionRebuildBytes: number;
+  private readonly completionRebuildBackoffMs: number;
+  private readonly completionRebuildHoldUntil = new Map<string, number>();
+  private readonly completionWarmTasks = new Map<string, Promise<void>>();
   private readonly completions = new Map<string, CompletionStateV1>();
   private readonly tails = new Map<string, TailStateV1>();
   private readonly heads = new Map<string, HeadStateV1>();
   private readonly metrics: IoMetricsV1 = {
     bytes_read_total: 0,
+    sync_bytes_read_total: 0,
+    async_bytes_read_total: 0,
     rebuilds_total: 0,
     incremental_reads_total: 0,
     cache_hits_total: 0,
@@ -1856,11 +2038,31 @@ export class AgentPick2JsonlSemanticIndexV1 {
     by_kind: Object.create(null),
   };
 
-  constructor(opts: { chunkBytes?: number; testHooks?: TestHooksV1 } = {}) {
+  constructor(opts: {
+    chunkBytes?: number;
+    testHooks?: TestHooksV1;
+    maxSyncCompletionRebuildBytes?: number;
+    completionRebuildBackoffMs?: number;
+  } = {}) {
     const requested = Number(opts.chunkBytes || 64 * 1024);
     this.chunkBytes = Number.isFinite(requested)
       ? Math.max(4096, Math.min(1024 * 1024, Math.floor(requested)))
       : 64 * 1024;
+    const requestedCompletionBudget = Number(
+      opts.maxSyncCompletionRebuildBytes ??
+        VOID_AGENT_PICK2_JSONL_MAX_SYNC_COMPLETION_REBUILD_BYTES_V1,
+    );
+    this.maxSyncCompletionRebuildBytes =
+      Number.isFinite(requestedCompletionBudget)
+        ? Math.max(4096, Math.floor(requestedCompletionBudget))
+        : VOID_AGENT_PICK2_JSONL_MAX_SYNC_COMPLETION_REBUILD_BYTES_V1;
+    const requestedBackoff = Number(
+      opts.completionRebuildBackoffMs ??
+        VOID_AGENT_PICK2_JSONL_COMPLETION_REBUILD_BACKOFF_MS_V1,
+    );
+    this.completionRebuildBackoffMs = Number.isFinite(requestedBackoff)
+      ? Math.max(1, Math.floor(requestedBackoff))
+      : VOID_AGENT_PICK2_JSONL_COMPLETION_REBUILD_BACKOFF_MS_V1;
     this.testHooks = opts.testHooks || {};
   }
 
@@ -1879,6 +2081,14 @@ export class AgentPick2JsonlSemanticIndexV1 {
   private noteBytes(kind: string, bytes: number) {
     const n = Math.max(0, Number(bytes) || 0);
     this.metrics.bytes_read_total += n;
+    this.metrics.sync_bytes_read_total += n;
+    this.metricKind(kind).bytes_read += n;
+  }
+
+  private noteAsyncBytes(kind: string, bytes: number) {
+    const n = Math.max(0, Number(bytes) || 0);
+    this.metrics.bytes_read_total += n;
+    this.metrics.async_bytes_read_total += n;
     this.metricKind(kind).bytes_read += n;
   }
 
@@ -1930,14 +2140,19 @@ export class AgentPick2JsonlSemanticIndexV1 {
     file: string,
     kind: string,
     reader: (fd: number, stamp: FileStampV1) => T,
+    maxAttempts = 4,
   ): { stamp: FileStampV1; value: T } | null {
     recoverCanonicalAppendIsolationV1(file);
 
     const openFlags =
       fs.constants.O_RDONLY |
       ((fs.constants as any).O_NOFOLLOW || 0);
+    const attempts = Math.max(
+      1,
+      Math.min(4, Math.floor(Number(maxAttempts) || 1)),
+    );
 
-    for (let attempt = 0; attempt < 4; attempt++) {
+    for (let attempt = 0; attempt < attempts; attempt++) {
       let fd: number | null = null;
       try {
         try {
@@ -2031,8 +2246,176 @@ export class AgentPick2JsonlSemanticIndexV1 {
     return true;
   }
 
+  private completionWarmKey(file: string): string {
+    return fileKeyV1(file);
+  }
+
+  private completionWarmInProgress(file: string): boolean {
+    return this.completionWarmTasks.has(this.completionWarmKey(file));
+  }
+
+  private startCompletionWarm(file: string): Promise<void> {
+    const key = this.completionWarmKey(file);
+    const existing = this.completionWarmTasks.get(key);
+    if (existing) return existing;
+
+    const task = (async () => {
+      const kind = "completion_async_warm";
+      const flags =
+        fs.constants.O_RDONLY |
+        ((fs.constants as any).O_NOFOLLOW || 0);
+      let handle: any = null;
+      this.noteRebuild(kind);
+      try {
+        try {
+          handle = await fsp.open(file, flags);
+        } catch (err: any) {
+          if (err?.code === "ENOENT") {
+            this.completions.set(file, {
+              ...emptyStampV1(),
+              initialized: true,
+              completed: new Set<string>(),
+              endedWithNewline: true,
+            });
+            this.completionRebuildHoldUntil.delete(file);
+            return;
+          }
+          throw err;
+        }
+
+        const before = stampFromStatsV1(
+          await handle.stat({ bigint: true } as any),
+        );
+        const pathBefore = statV1(file);
+        if (!pathBefore || !sameStampV1(before, pathBefore)) {
+          throw new Error(
+            `VOID_AGENT_PICK2_JSONL_ASYNC_WARM_UNSTABLE file=${file}`,
+          );
+        }
+
+        const completed = new Set<string>();
+        const buf = Buffer.allocUnsafe(this.chunkBytes);
+        let position = 0;
+        let carry = Buffer.alloc(0);
+
+        while (position < before.size) {
+          const want = Math.min(buf.length, before.size - position);
+          const result = await handle.read(buf, 0, want, position);
+          const bytesRead = Number(result?.bytesRead || 0);
+          if (bytesRead <= 0) {
+            throw new Error(
+              `VOID_AGENT_PICK2_JSONL_ASYNC_WARM_SHORT_READ file=${file} position=${position}`,
+            );
+          }
+          position += bytesRead;
+          this.noteAsyncBytes(kind, bytesRead);
+          const chunk = Buffer.from(buf.subarray(0, bytesRead));
+          const data = carry.length ? Buffer.concat([carry, chunk]) : chunk;
+          let from = 0;
+          for (let i = 0; i < data.length; i++) {
+            if (data[i] !== 0x0a) continue;
+            const lineBytes = i - from;
+            if (lineBytes > VOID_AGENT_PICK2_JSONL_MAX_RECORD_BYTES_V1) {
+              recordTooLargeV1(file, kind, lineBytes);
+            }
+            if (lineBytes > 0) {
+              const raw = data.subarray(from, i).toString("utf8");
+              const entry = parseEntryV1(raw);
+              const x = entry.parsed;
+              if (x && isCompletedTruthV1(x)) {
+                const id = rowIdV1(x);
+                if (id) completed.add(id);
+              }
+            }
+            from = i + 1;
+          }
+          carry = Buffer.from(data.subarray(from));
+          if (carry.length > VOID_AGENT_PICK2_JSONL_MAX_RECORD_BYTES_V1) {
+            recordTooLargeV1(file, kind, carry.length);
+          }
+        }
+
+        if (carry.length) unterminatedRecordV1(file, kind);
+
+        const after = stampFromStatsV1(
+          await handle.stat({ bigint: true } as any),
+        );
+        const pathAfter = statV1(file);
+        if (
+          !sameStampV1(before, after) ||
+          !pathAfter ||
+          !sameStampV1(after, pathAfter)
+        ) {
+          throw new Error(
+            `VOID_AGENT_PICK2_JSONL_ASYNC_WARM_UNSTABLE file=${file}`,
+          );
+        }
+
+        this.completions.set(file, {
+          ...after,
+          initialized: true,
+          completed,
+          endedWithNewline: true,
+        });
+        seedCanonicalWriterStateV1(file, after);
+        this.completionRebuildHoldUntil.delete(file);
+      } catch (err) {
+        this.completionRebuildHoldUntil.set(
+          file,
+          Date.now() + this.completionRebuildBackoffMs,
+        );
+        throw err;
+      } finally {
+        if (handle) await handle.close();
+      }
+    })();
+
+    this.completionWarmTasks.set(key, task);
+    task.then(
+      () => {
+        if (this.completionWarmTasks.get(key) === task) {
+          this.completionWarmTasks.delete(key);
+        }
+      },
+      () => {
+        if (this.completionWarmTasks.get(key) === task) {
+          this.completionWarmTasks.delete(key);
+        }
+      },
+    );
+    void task.catch(() => undefined);
+    return task;
+  }
+
+  async waitForCompletionWarmForProofV1(file: string): Promise<void> {
+    const task = this.completionWarmTasks.get(this.completionWarmKey(file));
+    if (task) await task;
+  }
+
   private rebuildCompletion(file: string) {
     const kind = "completion_full";
+    const observed = statV1(file);
+    if (observed && observed.size > this.maxSyncCompletionRebuildBytes) {
+      if (this.completionWarmInProgress(file)) {
+        throw new Error(
+          `VOID_AGENT_PICK2_JSONL_COMPLETION_WARMING_HOLD file=${file} bytes=${observed.size}`,
+        );
+      }
+      const now = Date.now();
+      const holdUntil = Number(this.completionRebuildHoldUntil.get(file) || 0);
+      if (holdUntil > now) {
+        throw new Error(
+          `VOID_AGENT_PICK2_JSONL_COMPLETION_REBUILD_BACKOFF file=${file} ` +
+            `bytes=${observed.size} until_ms=${holdUntil}`,
+        );
+      }
+      this.startCompletionWarm(file);
+      throw new Error(
+        `VOID_AGENT_PICK2_JSONL_COMPLETION_WARMING_HOLD file=${file} ` +
+          `bytes=${observed.size} sync_budget=${this.maxSyncCompletionRebuildBytes}`,
+      );
+    }
+
     this.noteRebuild(kind);
     const stable = this.stableRead(file, kind, (fd, stamp) => {
       const completed = new Set<string>();
@@ -2129,6 +2512,29 @@ export class AgentPick2JsonlSemanticIndexV1 {
 
     if (current.size > prior.size && sameObjectV1(prior, current)) {
       this.metrics.append_witness_misses_total += 1;
+      if (current.size > this.maxSyncCompletionRebuildBytes) {
+        if (this.completionWarmInProgress(file)) {
+          throw new Error(
+            `VOID_AGENT_PICK2_JSONL_COMPLETION_WARMING_HOLD file=${file} bytes=${current.size}`,
+          );
+        }
+        const now = Date.now();
+        const holdUntil = Number(
+          this.completionRebuildHoldUntil.get(file) || 0,
+        );
+        if (holdUntil > now) {
+          throw new Error(
+            `VOID_AGENT_PICK2_JSONL_COMPLETION_REBUILD_BACKOFF file=${file} ` +
+              `bytes=${current.size} until_ms=${holdUntil}`,
+          );
+        }
+        this.startCompletionWarm(file);
+        throw new Error(
+          `VOID_AGENT_PICK2_JSONL_UNWITNESSED_COMPLETION_GROWTH_HOLD ` +
+            `file=${file} prior_bytes=${prior.size} current_bytes=${current.size} ` +
+            `async_warm_started=true`,
+        );
+      }
     }
     return this.rebuildCompletion(file);
   }

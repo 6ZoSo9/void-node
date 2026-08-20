@@ -10,12 +10,16 @@ import {
   recoverFailedCapabilityReceiptOnce,
   VerifiedReceiptAcceptanceError,
   VOID_WC_VERIFIED_RECEIPT_ACCEPTANCE_AWARD_WC,
+  VOID_WC_VERIFIED_RECEIPT_ACCEPTANCE_TASK,
 } from "../src/economic/wc_verified_receipt_acceptance_v1.js";
+import {
+  projectWcProductionBalance,
+} from "../src/economic/wc_production_visibility_projection_v1.js";
 
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "void-wc-verified-acceptance-v1-"));
 
 function append(file: string, value: any): void {
-  fs.mkdirSync(path.dirname(file), { recursive: true });
+  fs.mkdirSync(path.dirname(file), { recursive: true, mode: 0o700 });
   fs.appendFileSync(file, JSON.stringify(value) + "\n");
 }
 
@@ -110,12 +114,20 @@ try {
     VOID_WC_VERIFIED_RECEIPT_ACCEPTANCE_AWARD_WC,
   );
   assert.equal(accepted.entry.delta, 3);
+  assert.equal(accepted.accepted_delta_wc, 3);
+  assert.equal(accepted.accepted_delta_quanta, "3000000000");
+  assert.equal(accepted.canonical_redeemable_before_exact, "0");
+  assert.equal(accepted.canonical_redeemable_after_local_exact, "3");
   assert.equal(accepted.entry.reason, "verified_receipt_acceptance_v1");
   assert.equal(accepted.entry.reward_meta.server_controlled_award, true);
 
   const state = await readCanonicalWcState(account, tmp);
   assert.equal(state.earned, 3);
   assert.equal(state.redeemable, 3);
+  assert.equal(state.earned_exact, "3");
+  assert.equal(state.redeemable_exact, "3");
+  assert.equal(state.earned_quanta, "3000000000");
+  assert.equal(state.numeric_authority, "nano_wc_fixed_point_v1");
 
   const duplicate = await acceptVerifiedReceiptOnce(loaded, {
     dataDir: tmp,
@@ -125,6 +137,8 @@ try {
   });
   assert.equal(duplicate.credited, false);
   assert.equal(duplicate.duplicate, true);
+  assert.equal(duplicate.accepted_delta_wc, 0);
+  assert.equal(duplicate.accepted_delta_quanta, "0");
 
   const firstLedger = fs
     .readFileSync(path.join(tmp, "wc_v1", "ledger.jsonl"), "utf8")
@@ -134,6 +148,185 @@ try {
   assert.equal(firstLedger.length, 1);
   assert.equal(firstLedger[0].receipt_id, receiptId);
   assert.equal(firstLedger[0].job_id, jobId);
+  assert.equal(firstLedger[0].ts_ms, receipt.ts_ms);
+
+  const invalidReceiptTimestamps: Array<[string, unknown]> = [
+    ["missing", undefined],
+    ["null", null],
+    ["string", String(receipt.ts_ms)],
+    ["array", [receipt.ts_ms]],
+    ["boolean", true],
+    ["fractional", receipt.ts_ms + 0.5],
+    ["unsafe", Number.MAX_SAFE_INTEGER + 1],
+    ["zero", 0],
+  ];
+  for (const [label, tsMs] of invalidReceiptTimestamps) {
+    const strictRoot = path.join(tmp, `receipt-ts-${label}`);
+    const strictReceipt = makeReceipt(
+      `receipt-ts-${label}`,
+      `job_receipt_ts_${label}`,
+      `rcpt_receipt_ts_${label}`,
+      `ds_receipt_ts_${label}`,
+      "c",
+      "d",
+    );
+    if (label === "missing") {
+      delete strictReceipt.ts_ms;
+    } else {
+      strictReceipt.ts_ms = tsMs;
+    }
+    persistTruth(strictReceipt, strictRoot);
+    await assert.rejects(
+      () =>
+        acceptVerifiedReceiptOnce(strictReceipt, {
+          dataDir: strictRoot,
+          expectedAccount: strictReceipt.account,
+          expectedJobId: strictReceipt.job_id,
+          expectedReceiptId: strictReceipt.receipt_id,
+        }),
+      (error: any) =>
+        error instanceof VerifiedReceiptAcceptanceError &&
+        error.code ===
+          "receipt_ts_ms_not_exact_positive_safe_integer",
+    );
+    assert.equal(
+      fs.existsSync(path.join(strictRoot, "wc_v1", "ledger.jsonl")),
+      false,
+      `${label} receipt timestamp produced WC credit`,
+    );
+  }
+
+  const timestampMismatchRoot = path.join(tmp, "receipt-ts-mismatch");
+  const persistedTimestampReceipt = makeReceipt(
+    "receipt-ts-mismatch",
+    "job_receipt_ts_mismatch",
+    "rcpt_receipt_ts_mismatch",
+    "ds_receipt_ts_mismatch",
+    "e",
+    "f",
+  );
+  persistTruth(persistedTimestampReceipt, timestampMismatchRoot);
+  await assert.rejects(
+    () =>
+      acceptVerifiedReceiptOnce(
+        {
+          ...persistedTimestampReceipt,
+          ts_ms: persistedTimestampReceipt.ts_ms + 1,
+        },
+        {
+          dataDir: timestampMismatchRoot,
+          expectedAccount: persistedTimestampReceipt.account,
+          expectedJobId: persistedTimestampReceipt.job_id,
+          expectedReceiptId: persistedTimestampReceipt.receipt_id,
+        },
+      ),
+    (error: any) =>
+      error instanceof VerifiedReceiptAcceptanceError &&
+      error.code === "persisted_receipt_ts_ms_mismatch",
+  );
+  assert.equal(
+    fs.existsSync(
+      path.join(timestampMismatchRoot, "wc_v1", "ledger.jsonl"),
+    ),
+    false,
+    "timestamp-mismatched receipt produced WC credit",
+  );
+
+  // Receipt, job, and completion identity is persisted JSON authority. Values
+  // that stringify like scalar strings must not alias that authority.
+  for (const [label, mutateReceipt, mutateJob, mutateCompleted] of [
+    [
+      "receipt-account-array",
+      (value: any) => { value.account = [value.account]; },
+      null,
+      null,
+    ],
+    [
+      "receipt-hash-array",
+      (value: any) => { value.input_hash = [value.input_hash]; },
+      null,
+      null,
+    ],
+    [
+      "job-id-array",
+      null,
+      (value: any) => { value.job_id = [value.job_id]; },
+      null,
+    ],
+    [
+      "job-kind-object",
+      null,
+      (value: any) => { value.kind = { value: value.kind }; },
+      null,
+    ],
+    [
+      "completed-status-array",
+      null,
+      null,
+      (value: any) => { value.status = [value.status]; },
+    ],
+    [
+      "completed-hash-array",
+      null,
+      null,
+      (value: any) => { value.output_hash = [value.output_hash]; },
+    ],
+  ] as const) {
+    const strictRoot = path.join(tmp, label);
+    const strictReceipt = makeReceipt(
+      `account-${label}`,
+      `job-${label}`,
+      `receipt-${label}`,
+      `dataset-${label}`,
+      "8",
+      "9",
+    );
+    const receiptTruth = structuredClone(strictReceipt);
+    const jobTruth = {
+      job_id: strictReceipt.job_id,
+      account: strictReceipt.account,
+      kind: strictReceipt.kind,
+      status: "queued",
+      dataset_id: strictReceipt.dataset_id,
+    };
+    const completedTruth = {
+      job_id: strictReceipt.job_id,
+      status: "completed",
+      receipt_id: strictReceipt.receipt_id,
+      dataset_id: strictReceipt.dataset_id,
+      input_hash: strictReceipt.input_hash,
+      output_hash: strictReceipt.output_hash,
+      verified: true,
+    };
+    mutateReceipt?.(receiptTruth);
+    mutateJob?.(jobTruth);
+    mutateCompleted?.(completedTruth);
+    append(
+      path.join(strictRoot, "agent_v1", "receipts.jsonl"),
+      receiptTruth,
+    );
+    append(path.join(strictRoot, "agent", "jobs.jsonl"), jobTruth);
+    append(
+      path.join(strictRoot, "agent_v1", "job_state.jsonl"),
+      completedTruth,
+    );
+
+    await assert.rejects(
+      () =>
+        acceptVerifiedReceiptOnce(strictReceipt, {
+          dataDir: strictRoot,
+          expectedAccount: strictReceipt.account,
+          expectedJobId: strictReceipt.job_id,
+          expectedReceiptId: strictReceipt.receipt_id,
+        }),
+      (error: any) => error instanceof VerifiedReceiptAcceptanceError,
+    );
+    assert.equal(
+      fs.existsSync(path.join(strictRoot, "wc_v1", "ledger.jsonl")),
+      false,
+      `${label} persisted truth produced WC credit`,
+    );
+  }
 
   const malformedSafeRoot = path.join(tmp, "malformed-unrelated");
   const malformedSafeAccount = "outside-operator-malformed-safe";
@@ -153,7 +346,7 @@ try {
     "wc_v1",
     "ledger.jsonl",
   );
-  fs.mkdirSync(path.dirname(malformedSafeLedger), { recursive: true });
+  fs.mkdirSync(path.dirname(malformedSafeLedger), { recursive: true, mode: 0o700 });
   fs.appendFileSync(malformedSafeLedger, '{"legacy_broken":\n');
 
   const malformedSafeInspection = await inspectVerifiedReceiptAcceptance(
@@ -204,7 +397,7 @@ try {
   );
   persistTruth(ambiguousReceipt, ambiguousRoot);
   const ambiguousLedger = path.join(ambiguousRoot, "wc_v1", "ledger.jsonl");
-  fs.mkdirSync(path.dirname(ambiguousLedger), { recursive: true });
+  fs.mkdirSync(path.dirname(ambiguousLedger), { recursive: true, mode: 0o700 });
   fs.appendFileSync(
     ambiguousLedger,
     `{"kind":"credit","account":"${ambiguousAccount}","job_id":"${ambiguousJobId}","receipt_id":"${ambiguousReceiptId}"\n`,
@@ -221,6 +414,311 @@ try {
     (error: any) =>
       error instanceof VerifiedReceiptAcceptanceError &&
       error.code === "ambiguous_malformed_ledger_line",
+  );
+
+  const identityAliasRoot = path.join(tmp, "identity-alias-ledgers");
+  const identityAliasAccount = "identity-alias-account";
+  for (const wrongAccount of [
+    [identityAliasAccount],
+    true,
+    { value: identityAliasAccount },
+  ]) {
+    append(path.join(identityAliasRoot, "wc_v1", "ledger.jsonl"), {
+      kind: "credit",
+      account: wrongAccount,
+      delta: 3,
+    });
+    append(path.join(identityAliasRoot, "wc_v1", "redeemed.jsonl"), {
+      account: wrongAccount,
+      amount: 3,
+    });
+  }
+  const identityAliasState = await readCanonicalWcState(
+    identityAliasAccount,
+    identityAliasRoot,
+  );
+  assert.equal(identityAliasState.earned_quanta, "0");
+  assert.equal(identityAliasState.redeemed_quanta, "0");
+  assert.equal(identityAliasState.redeemable_quanta, "0");
+
+  const duplicateAliasRoot = path.join(tmp, "duplicate-identity-alias");
+  const duplicateAliasReceipt = makeReceipt(
+    "duplicate-alias-account",
+    "job_duplicate_alias_v1",
+    "rcpt_duplicate_alias_v1",
+    "ds_duplicate_alias_v1",
+    "a",
+    "b",
+  );
+  persistTruth(duplicateAliasReceipt, duplicateAliasRoot);
+  append(path.join(duplicateAliasRoot, "wc_v1", "ledger.jsonl"), {
+    kind: "credit",
+    account: duplicateAliasReceipt.account,
+    delta: 3,
+    reason: "verified_receipt_acceptance_v1",
+    receipt_kind: VOID_WC_VERIFIED_RECEIPT_ACCEPTANCE_TASK,
+    receipt_id: [duplicateAliasReceipt.receipt_id],
+    job_id: [duplicateAliasReceipt.job_id],
+  });
+  const duplicateAliasInspection =
+    await inspectVerifiedReceiptAcceptance(
+      duplicateAliasReceipt,
+      { dataDir: duplicateAliasRoot },
+    );
+  assert.equal(duplicateAliasInspection.duplicate, false);
+  const duplicateAliasAccepted = await acceptVerifiedReceiptOnce(
+    duplicateAliasReceipt,
+    { dataDir: duplicateAliasRoot },
+  );
+  assert.equal(duplicateAliasAccepted.credited, true);
+  const duplicateAliasRetry = await acceptVerifiedReceiptOnce(
+    duplicateAliasReceipt,
+    { dataDir: duplicateAliasRoot },
+  );
+  assert.equal(duplicateAliasRetry.credited, false);
+  assert.equal(duplicateAliasRetry.duplicate, true);
+  assert.equal(
+    (await readCanonicalWcState(
+      duplicateAliasReceipt.account,
+      duplicateAliasRoot,
+    )).redeemable_quanta,
+    "3000000000",
+  );
+
+
+  const sameTicketConflictReceipt = makeReceipt(
+    account,
+    "job_same_ticket_conflict_v1",
+    "rcpt_same_ticket_conflict_v1",
+    "ds_same_ticket_conflict_v1",
+    "6",
+    "7",
+  );
+  persistTruth(sameTicketConflictReceipt);
+  await assert.rejects(
+    () =>
+      acceptVerifiedReceiptOnce(sameTicketConflictReceipt, {
+        dataDir: tmp,
+        expectedAccount: account,
+        expectedJobId: sameTicketConflictReceipt.job_id,
+        expectedReceiptId: sameTicketConflictReceipt.receipt_id,
+        capabilityTicketId: ticketId,
+        source: "same_ticket_conflict_proof",
+      }),
+    (error: any) =>
+      error instanceof VerifiedReceiptAcceptanceError &&
+      error.code === "duplicate_credit_conflict",
+  );
+
+  for (const [label, bad, code] of [
+    ["numeric_string", "3", "ledger_delta_not_exact_number"],
+    ["numeric_array", [3], "ledger_delta_not_exact_number"],
+    ["numeric_10dp", 0.0000000001, "wc_number_precision_exceeds_9dp"],
+    [
+      "numeric_unsafe",
+      Number.MAX_SAFE_INTEGER + 1,
+      "ledger_delta_not_exact_number",
+    ],
+  ] as const) {
+    const root = path.join(tmp, `strict-${label}`);
+    const file = path.join(root, "wc_v1", "ledger.jsonl");
+    append(file, {
+      kind: "credit",
+      account: `strict-${label}`,
+      delta: bad,
+    });
+    await assert.rejects(
+      () => readCanonicalWcState(`strict-${label}`, root),
+      (error: any) =>
+        error instanceof VerifiedReceiptAcceptanceError &&
+        error.code === code,
+    );
+  }
+
+  const fractionalRoot = path.join(tmp, "strict-fractional");
+  append(path.join(fractionalRoot, "wc_v1", "ledger.jsonl"), {
+    kind: "credit",
+    account: "strict-fractional",
+    delta: 1.25,
+  });
+  append(path.join(fractionalRoot, "wc_v1", "redeemed.jsonl"), {
+    account: "strict-fractional",
+    amount: 0.1,
+  });
+  const fractional = await readCanonicalWcState(
+    "strict-fractional",
+    fractionalRoot,
+  );
+  assert.equal(fractional.earned_exact, "1.25");
+  assert.equal(fractional.redeemed_exact, "0.1");
+  assert.equal(fractional.redeemable_exact, "1.15");
+  assert.equal(fractional.redeemable_quanta, "1150000000");
+  assert.equal(fractional.redeemable, 1.15);
+
+  const highRoot = path.join(tmp, "strict-high-balance");
+  const highAccount = "strict-high-balance";
+  append(path.join(highRoot, "wc_v1", "ledger.jsonl"), {
+    kind: "credit",
+    account: highAccount,
+    delta: Number.MAX_SAFE_INTEGER,
+  });
+  append(path.join(highRoot, "wc_v1", "ledger.jsonl"), {
+    kind: "credit",
+    account: highAccount,
+    delta: 1,
+  });
+  const highBefore = await readCanonicalWcState(highAccount, highRoot);
+  assert.equal(highBefore.redeemable_exact, "9007199254740992");
+  assert.equal(highBefore.redeemable, null);
+
+  const highReceipt = makeReceipt(
+    highAccount,
+    "job_high_balance_v1",
+    "rcpt_high_balance_v1",
+    "ds_high_balance_v1",
+    "8",
+    "9",
+  );
+  persistTruth(highReceipt, highRoot);
+  const highAccepted = await acceptVerifiedReceiptOnce(highReceipt, {
+    dataDir: highRoot,
+    expectedAccount: highAccount,
+    expectedJobId: highReceipt.job_id,
+    expectedReceiptId: highReceipt.receipt_id,
+    capabilityTicketId: "d".repeat(32),
+    source: "high_balance_exact_delta_proof",
+  });
+  assert.equal(highAccepted.accepted_delta_wc, 3);
+  assert.equal(
+    highAccepted.canonical_redeemable_before_exact,
+    "9007199254740992",
+  );
+  assert.equal(
+    highAccepted.canonical_redeemable_after_local_exact,
+    "9007199254740995",
+  );
+  assert.equal(
+    highAccepted.canonical_redeemable_before,
+    null,
+  );
+  assert.equal(
+    highAccepted.canonical_redeemable_after_local,
+    null,
+  );
+  const highAfter = await readCanonicalWcState(highAccount, highRoot);
+  assert.equal(highAfter.redeemable_exact, "9007199254740995");
+  assert.equal(highAfter.redeemable, null);
+
+  const highProjection = await projectWcProductionBalance(
+    highAccount,
+    highRoot,
+    "VOID_WC_PRODUCTION_BALANCE_V1",
+  );
+  assert.equal(highProjection.status, 200);
+  assert.equal(highProjection.body["balance"], null);
+  assert.equal(
+    highProjection.body["balance_exact"],
+    "9007199254740995",
+  );
+  assert.equal(highProjection.body["redeemable"], true);
+  assert.equal(highProjection.body["redeemable_wc"], null);
+  assert.equal(
+    highProjection.body["redeemable_wc_exact"],
+    "9007199254740995",
+  );
+  assert.equal(
+    highProjection.body["numeric_authority"],
+    "nano_wc_fixed_point_v1",
+  );
+
+  const highRecoveryTicketId = "b".repeat(32);
+  const highRecoveryJobId = "job_high_recovery_v1";
+  const highRecoveryReceiptId = "rcpt_high_recovery_v1";
+  const highRecoveryReceipt = makeReceipt(
+    highAccount,
+    highRecoveryJobId,
+    highRecoveryReceiptId,
+    "ds_high_recovery_v1",
+    "a",
+    "b",
+  );
+  persistTruth(highRecoveryReceipt, highRoot);
+  const highRecoveryConsumedFile = path.join(
+    highRoot,
+    "wc_v1",
+    "public-capabilities-v1",
+    "consumed",
+    `${highRecoveryTicketId}.json`,
+  );
+  fs.mkdirSync(
+    path.dirname(highRecoveryConsumedFile),
+    { recursive: true, mode: 0o700 },
+  );
+  fs.writeFileSync(
+    highRecoveryConsumedFile,
+    JSON.stringify(
+      {
+        marker: "VOID_WC_PUBLIC_CAPABILITY_V1",
+        ticket_id: highRecoveryTicketId,
+        account: highAccount,
+        task_class: "datanet_fetch_verify",
+        status: "failed",
+        failure_reason: "high_balance_projection_proof",
+      },
+      null,
+      2,
+    ) + "\n",
+    { mode: 0o600 },
+  );
+
+  const highRecovery = await recoverFailedCapabilityReceiptOnce({
+    dataDir: highRoot,
+    ticketId: highRecoveryTicketId,
+    account: highAccount,
+    jobId: highRecoveryJobId,
+    receiptId: highRecoveryReceiptId,
+    apply: true,
+    confirmation: "wcCapabilityFailedReceiptRecovery",
+  });
+  assert.equal(highRecovery.ticket_status, "recovered");
+  assert.equal(highRecovery.wc.redeemable, null);
+  assert.equal(
+    highRecovery.wc.redeemable_exact,
+    "9007199254740998",
+  );
+  const highRecoveredRecord = JSON.parse(
+    fs.readFileSync(
+      highRecoveryConsumedFile,
+      "utf8",
+    ),
+  );
+  assert.equal(
+    highRecoveredRecord.canonical_redeemable_after,
+    null,
+  );
+  assert.equal(
+    highRecoveredRecord.canonical_redeemable_after_exact,
+    "9007199254740998",
+  );
+  assert.equal(
+    highRecoveredRecord.numeric_authority,
+    "nano_wc_fixed_point_v1",
+  );
+  const highRecoveryReplay =
+    await recoverFailedCapabilityReceiptOnce({
+      dataDir: highRoot,
+      ticketId: highRecoveryTicketId,
+      account: highAccount,
+      jobId: highRecoveryJobId,
+      receiptId: highRecoveryReceiptId,
+      apply: true,
+      confirmation: "wcCapabilityFailedReceiptRecovery",
+    });
+  assert.equal(highRecoveryReplay.idempotent, true);
+  assert.equal(highRecoveryReplay.wc.redeemable, null);
+  assert.equal(
+    highRecoveryReplay.wc.redeemable_exact,
+    "9007199254740998",
   );
 
   const badReceipt = {
@@ -262,7 +760,7 @@ try {
     "consumed",
     `${recoveryTicketId}.json`,
   );
-  fs.mkdirSync(path.dirname(consumedFile), { recursive: true });
+  fs.mkdirSync(path.dirname(consumedFile), { recursive: true, mode: 0o700 });
   fs.writeFileSync(
     consumedFile,
     JSON.stringify(
