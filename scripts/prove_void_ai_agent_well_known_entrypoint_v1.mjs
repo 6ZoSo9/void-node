@@ -117,6 +117,8 @@ assert.match(client, /sameOriginPath/);
 assert.match(client, /mutation_authority_claim_rejected/);
 assert.match(client, /unknown_authority_must_be_not_granted/);
 assert.match(client, /MAX_RESPONSE_BYTES = 262_144/);
+assert.match(client, /RESPONSE_TEARDOWN_TIMEOUT_MS = 250/);
+assert.match(client, /rejectWithTeardown/);
 assert.match(client, /response\.body\.getReader\(\)/);
 assert.match(client, /response\.url !== url\.href/);
 assert.doesNotMatch(client, /response\.json\(\)/);
@@ -152,7 +154,6 @@ for (const required of [
   );
 }
 
-
 function runClient(base) {
   return new Promise((resolve, reject) => {
     const child = spawn(process.execPath, [clientPath, "--base", base], {
@@ -186,11 +187,21 @@ function runClient(base) {
 
 let responseMode = "normal";
 let requestCount = 0;
+let stalledResponseClosed = false;
 const server = http.createServer((request, response) => {
   requestCount += 1;
   response.on("error", () => {});
   if (request.url === "/.well-known/void-agent-discovery.json") {
     response.setHeader("content-type", "application/json; charset=utf-8");
+    if (responseMode === "non-2xx-stalled") {
+      response.statusCode = 503;
+      stalledResponseClosed = false;
+      response.once("close", () => {
+        stalledResponseClosed = true;
+      });
+      response.flushHeaders();
+      return;
+    }
     if (responseMode === "declared-oversize") {
       response.setHeader("content-length", "262145");
       response.end("x");
@@ -253,6 +264,32 @@ try {
     );
     assert.equal(requestCount, 1);
   }
+
+  requestCount = 0;
+  responseMode = "non-2xx-stalled";
+  const startedAt = Date.now();
+  const rejected = await runClient(base);
+  const elapsedMs = Date.now() - startedAt;
+  assert.equal(rejected.code, 1, rejected.stdout);
+  assert.equal(rejected.signal, null);
+  assert.equal(rejected.stderr, "");
+  const rejection = JSON.parse(rejected.stdout);
+  assert.equal(rejection.ok, false);
+  assert.equal(rejection.error, "well_known_discovery_rejected");
+  assert.equal(rejection.detail, "well_known_http_503");
+  assert.equal(requestCount, 1);
+  assert.ok(
+    elapsedMs < 2_000,
+    `non-2xx teardown exceeded bound: ${elapsedMs}ms`,
+  );
+  for (let index = 0; index < 20 && !stalledResponseClosed; index += 1) {
+    await new Promise((resolve) => setTimeout(resolve, 25));
+  }
+  assert.equal(
+    stalledResponseClosed,
+    true,
+    "stalled rejected response was not terminally closed",
+  );
 } finally {
   await new Promise((resolve) => server.close(resolve));
 }
@@ -263,7 +300,8 @@ console.log(`schema=${path.relative(root, schemaPath)}`);
 console.log(`canonical=${path.relative(root, canonicalPath)}`);
 console.log(`client=${path.relative(root, clientPath)}`);
 console.log(`documentation=${path.relative(root, docPath)}`);
-console.log("bounded_response_adversaries=2");
+console.log("bounded_response_adversaries=3");
+console.log("rejected_response_lifetime_owned=true");
 console.log("existing_files_modified=4");
 console.log("runtime_routing_modified=0");
 console.log("validator_lane_modified=0");
