@@ -2,9 +2,10 @@
   "marker": "VOID_WORKER_LIVE_DISPATCH_POLICY_V1",
   "version": 1,
   "repository": "6ZoSo9/void-node",
-  "plan_issue": 1301,
+  "plan_issue": 1182,
   "composition": {
     "base_worker_ids": [
+      "ren",
       "larry",
       "curly",
       "moe",
@@ -22,8 +23,7 @@
     "supplemental_worker_ids": [
       "dijkstra",
       "katherine",
-      "keller",
-      "feynman"
+      "keller"
     ],
     "expected_worker_count": 15
   },
@@ -47,7 +47,7 @@
     "lane_id": "repository-evidence-refresh-v1",
     "priority": "P3",
     "sensitive": false,
-    "tracking_issue": 1301,
+    "tracking_issue": 1182,
     "exploration_domains": [
       "current-main-refresh",
       "open-pr-refresh",
@@ -59,10 +59,26 @@
   },
   "workers": [
     {
+      "id": "ren",
+      "name": "Ren",
+      "cohort": "coordinator",
+      "tracking_issue": 1182,
+      "fallback_lane_id": "ren-coordination-triage-v1",
+      "fallback_priority": "P2",
+      "sensitive": false,
+      "exploration_domains": [
+        "coordination-truth",
+        "repository-triage",
+        "capability-prioritization",
+        "integration-gaps"
+      ],
+      "authority_boundary": "Read-only coordination, repository triage, and ranked integration-gap research only. No merge, deployment, service, credential, wallet, signer, Work Credit, validator, transaction, treasury, liquidity, or funds authority."
+    },
+    {
       "id": "larry",
       "name": "Larry",
       "cohort": "stooges",
-      "tracking_issue": 1301,
+      "tracking_issue": 1182,
       "fallback_lane_id": "larry-integration-exploration-v1",
       "fallback_priority": "P2",
       "sensitive": false,
@@ -78,7 +94,7 @@
       "id": "curly",
       "name": "Curly",
       "cohort": "stooges",
-      "tracking_issue": 1301,
+      "tracking_issue": 1182,
       "fallback_lane_id": "curly-participant-exploration-v1",
       "fallback_priority": "P3",
       "sensitive": true,
@@ -110,7 +126,7 @@
       "id": "satoshi",
       "name": "Satoshi",
       "cohort": "specialist",
-      "tracking_issue": 1301,
+      "tracking_issue": 1182,
       "fallback_lane_id": "satoshi-market-invariant-research-v1",
       "fallback_priority": "P2",
       "sensitive": true,
@@ -126,7 +142,7 @@
       "id": "turing",
       "name": "Turing",
       "cohort": "specialist",
-      "tracking_issue": 1301,
+      "tracking_issue": 1182,
       "fallback_lane_id": "turing-agent-utility-research-v1",
       "fallback_priority": "P2",
       "sensitive": false,
@@ -142,7 +158,7 @@
       "id": "ada",
       "name": "Ada",
       "cohort": "experimental",
-      "tracking_issue": 1301,
+      "tracking_issue": 1243,
       "fallback_lane_id": "ada-coordination-truth-research-v1",
       "fallback_priority": "P1",
       "sensitive": false,
@@ -286,23 +302,6 @@
         "truthful-interface-copy"
       ],
       "authority_boundary": "Read-only participant accessibility, usability, onboarding, error-state, and truthful-interface research only. No WordPress apply, deployment, credential, account creation, paid-work dispatch, Work Credit, wallet, signer, validator, transaction, treasury, liquidity, or funds mutation."
-    },
-    {
-      "id": "feynman",
-      "name": "Feynman",
-      "cohort": "experimental",
-      "tracking_issue": 1301,
-      "fallback_lane_id": "feynman-wildcard-contribution-v1",
-      "fallback_priority": "P2",
-      "sensitive": false,
-      "exploration_domains": [
-        "correctness",
-        "reliability",
-        "integration",
-        "participant-usability",
-        "developer-experience"
-      ],
-      "authority_boundary": "Read-only wildcard discovery and ranked unowned source-gap research only. No takeover of an owned lane, merge, deployment, service or network mutation, credential or secret access, wallet, signer, Work Credit, validator, transaction, treasury, liquidity, or funds authority."
     }
   ]
 }

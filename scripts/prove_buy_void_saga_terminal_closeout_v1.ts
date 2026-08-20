@@ -59,7 +59,7 @@ const SOURCE_FLOOR = "2a768edd618653c07e37bb0cf6f500dff41d8457";
 const RECEIVE = "0x2222222222222222222222222222222222222222";
 const USDC = "0x3333333333333333333333333333333333333333";
 const WALLET = "0x4444444444444444444444444444444444444444";
-const POOL_ID = "buy-void-presale-v1";
+const POOL_ID = "void-presale-mainnet0-v1";
 const TRANSFER_TOPIC =
   "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef";
 
@@ -107,10 +107,10 @@ function configuredEnv(requestDir: string): Record<string, string> {
     [economic.payment_min_confirmations]: "3",
     [economic.rate_void_units_numerator]: "2",
     [economic.rate_void_units_denominator]: "1",
-    [economic.inventory_policy_version]: "presale-v1",
+    [economic.inventory_policy_version]: "terminal-proof-policy-v1",
     [economic.pool_id]: POOL_ID,
-    [economic.pool_capacity_void_units]: "10000000000000",
-    [economic.max_reservation_void_units]: "10000000000000",
+    [economic.pool_capacity_void_units]: "1000000000",
+    [economic.max_reservation_void_units]: "100000000",
     [economic.fulfillment_wallet_address]: WALLET,
     [terminal.enabled]: "1",
     [terminal.request_dir]: requestDir,

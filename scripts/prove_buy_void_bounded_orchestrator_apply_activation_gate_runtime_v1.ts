@@ -120,7 +120,7 @@ async function main(): Promise<void> {
     assert.equal(defaultGate.runtime_execution_mounted_v1, true);
 
     const stageCommand = {
-      action: "verify_reserve_and_claim",
+      action: "verify_and_claim",
       request_id: requestId,
     };
     const dry = await invoke({

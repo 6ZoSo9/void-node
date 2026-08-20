@@ -1,7 +1,7 @@
 import crypto from "node:crypto";
 import path from "node:path";
 import {
-  readBuyVoidCanonicalPresaleServerPolicyV1,
+  readBuyVoidCrashConsistentSagaServerPolicyV1,
 } from "./buy_void_crash_consistent_saga_server_policy_v1.js";
 
 export const VOID_BUY_VOID_SAGA_TERMINAL_CLOSEOUT_SERVER_POLICY_V1 =
@@ -107,7 +107,7 @@ export function readBuyVoidSagaTerminalCloseoutServerPolicyV1(
     return held("terminal_closeout_request_dir_not_configured", [requestDirName]);
   }
 
-  const parent = readBuyVoidCanonicalPresaleServerPolicyV1(env);
+  const parent = readBuyVoidCrashConsistentSagaServerPolicyV1(env);
   if (parent.ok !== true) {
     return held(
       `parent_economic_policy_held:${String(parent.reason || "unknown")}`,

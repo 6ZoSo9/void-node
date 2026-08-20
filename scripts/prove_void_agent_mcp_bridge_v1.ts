@@ -153,7 +153,7 @@ function changedWorkingTreePaths(): string[] {
 function changedCommittedPaths(baseRef: string): string[] {
   const raw = execFileSync(
     "git",
-    ["diff", "--name-only", `${baseRef}..HEAD`],
+    ["diff", "--name-only", `${baseRef}...HEAD`],
     { cwd: ROOT, encoding: "utf8" },
   );
   return raw.split(/\r?\n/).filter(Boolean).map(normalized);

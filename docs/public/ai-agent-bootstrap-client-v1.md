@@ -41,17 +41,9 @@ node tools/void-ai-agent-bootstrap-client-v1.mjs \
 
 - HTTPS is required except for loopback proof mode.
 - Only `GET` is used.
-- Redirects are rejected and their response bodies enter the same bounded
-  rejection-teardown contract instead of outliving the bootstrap probe.
+- Redirects are rejected.
 - Every discovered route must remain on the original origin.
-- `--max-bytes` is enforced while streaming, before a response can be fully
-  buffered past the configured ceiling.
-- A present `Content-Length` must be a canonical nonnegative safe integer;
-  malformed or oversized declarations fail closed before body accumulation.
-- The per-request deadline remains active through response-body consumption and
-  bounded rejection teardown.
-- Rejection cleanup cannot replace or indefinitely delay an already-known
-  response HOLD.
+- Response size and request duration are bounded.
 - No authorization header, cookie, credential, wallet material, operator key,
   or request body is sent.
 
@@ -76,8 +68,6 @@ promise of paid work, Work Credits, settlement, or execution.
 
 - `tools/void-ai-agent-bootstrap-client-v1.mjs`
 - `scripts/prove_void_ai_agent_bootstrap_client_v1.mjs`
-- `scripts/prove_void_ai_agent_bootstrap_response_bounds_v1.mjs`
 - `schemas/void-ai-agent-bootstrap-client-v1.schema.json`
 - `examples/void-ai-agent-bootstrap-client-v1.example.json`
 - `.github/workflows/void-ai-agent-bootstrap-client-v1.yml`
-- `.github/workflows/void-ai-agent-bootstrap-response-bounds-v1.yml`

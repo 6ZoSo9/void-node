@@ -95,13 +95,10 @@ const parentStatusRoute = "/__void/operator/buy-void-runtime-v1/status";
 const parentCommandRoute = "/__void/operator/buy-void-runtime-v1/command";
 const deliveryStatusRoute =
   "/__void/operator/buy-void-delivery-runtime-v1/status";
-const deliveryCommandRoute =
-  "/__void/operator/buy-void-delivery-runtime-v1/command";
 
 assert.equal(routes.has(`GET ${parentStatusRoute}`), true);
 assert.equal(routes.has(`POST ${parentCommandRoute}`), true);
-assert.equal(routes.has(`GET ${deliveryStatusRoute}`), true);
-assert.equal(routes.has(`POST ${deliveryCommandRoute}`), true);
+assert.equal(routes.has(`GET ${deliveryStatusRoute}`), false);
 assert.equal(
   routes.has(
     "GET /__void/operator/buy-void-native-delivery-receipt-v1/status",
@@ -160,11 +157,6 @@ assert.equal(
 );
 assert.equal(
   parentStatus.body.canonical_delivery
-    .erc20_transaction_preparation_execution_state_ready,
-  true,
-);
-assert.equal(
-  parentStatus.body.canonical_delivery
     .erc20_receipt_reconciliation_bridge_ready,
   true,
 );
@@ -175,7 +167,7 @@ assert.equal(
 assert.deepEqual(
   parentStatus.body.canonical_delivery.funding_blockers,
   [
-    "canonical_delivery_runtime_activation_not_ready",
+    "canonical_delivery_dependency_bootstrap_not_ready",
   ],
 );
 assert.equal(
@@ -192,7 +184,7 @@ assert.equal(
 );
 assert.equal(
   parentStatus.body.canonical_delivery.delivery_runtime_parent_mounted,
-  true,
+  false,
 );
 assert.equal(
   parentStatus.body.canonical_delivery
@@ -202,32 +194,6 @@ assert.equal(
 assert.equal(
   parentStatus.body.canonical_delivery
     .canonical_delivery_dependency_bootstrap_ready,
-  true,
-);
-assert.equal(
-  parentStatus.body.canonical_delivery
-    .dependency_bootstrap_integration_gate.marker,
-  "VOID_BUY_VOID_ERC20_DELIVERY_DEPENDENCY_BOOTSTRAP_INTEGRATION_GATE_V1",
-);
-assert.equal(
-  parentStatus.body.canonical_delivery
-    .dependency_bootstrap_integration_gate.status,
-  "source_ready",
-);
-assert.equal(
-  parentStatus.body.canonical_delivery
-    .dependency_bootstrap_integration_gate
-    .erc20_transaction_preparation_execution_state_ready,
-  true,
-);
-assert.equal(
-  parentStatus.body.canonical_delivery
-    .dependency_bootstrap_integration_gate.next_funding_blocker,
-  "canonical_delivery_runtime_activation_not_ready",
-);
-assert.equal(
-  parentStatus.body.canonical_delivery
-    .dependency_bootstrap_integration_gate.authority.credential_read,
   false,
 );
 assert.equal(
@@ -240,15 +206,15 @@ assert.equal(
 );
 assert.equal(
   parentStatus.body.canonical_delivery.runtime_status.mounted,
-  true,
-);
-assert.equal(
-  parentStatus.body.canonical_delivery.runtime_status.enabled,
   false,
 );
 assert.equal(
-  parentStatus.body.canonical_delivery.runtime_status.policy_configured,
-  false,
+  parentStatus.body.canonical_delivery.runtime_status.status,
+  "held",
+);
+assert.equal(
+  parentStatus.body.canonical_delivery.runtime_status.reason,
+  "canonical_erc20_execution_not_ready",
 );
 assert.equal(
   parentStatus.body.canonical_delivery.runtime_status.signer_configured,
@@ -260,38 +226,9 @@ assert.equal(
 );
 assert.equal(
   parentStatus.body.canonical_delivery.runtime_status
-    .effective_authority.rpc_call,
-  false,
-);
-assert.equal(
-  parentStatus.body.canonical_delivery.runtime_status
-    .effective_authority.signing,
-  false,
-);
-assert.equal(
-  parentStatus.body.canonical_delivery.runtime_status
     .effective_authority.transaction_broadcast,
   false,
 );
-assert.equal(
-  parentStatus.body.canonical_delivery.runtime_status
-    .effective_authority.money_movement,
-  false,
-);
-
-const deliveryStatus = await call("GET", deliveryStatusRoute, {
-  socket: { remoteAddress: "127.0.0.1" },
-});
-assert.equal(deliveryStatus.status, 200);
-assert.equal(deliveryStatus.body.enabled, false);
-assert.equal(deliveryStatus.body.policy_configured, false);
-assert.equal(deliveryStatus.body.signer_configured, false);
-assert.equal(deliveryStatus.body.broadcaster_configured, false);
-assert.equal(
-  deliveryStatus.body.effective_authority.transaction_broadcast,
-  false,
-);
-assert.equal(deliveryStatus.body.effective_authority.money_movement, false);
 
 const removedParentActions = [
   "run_bounded_auto_fulfillment_orchestrator",
@@ -320,11 +257,10 @@ console.log(
 );
 console.log("canonical_delivery_asset=void_token_erc20");
 console.log("native_parent_routes=0");
-console.log("canonical_erc20_delivery_parent_mount=1");
+console.log("canonical_erc20_delivery_parent_mount=0");
 console.log("erc20_atomic_unit_conversion_ready=1");
 console.log("erc20_transaction_preparation_bridge_ready=1");
-console.log("erc20_transaction_preparation_execution_state_ready=1");
-console.log("canonical_delivery_dependency_bootstrap_ready=1");
+console.log("canonical_delivery_dependency_bootstrap_ready=0");
 console.log("crash_saga_parent_mount=0");
 console.log("native_transaction_preparation_parent_mount=0");
 console.log("presale_inventory_funding_ready=0");

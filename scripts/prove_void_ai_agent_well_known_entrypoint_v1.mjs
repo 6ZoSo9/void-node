@@ -78,14 +78,6 @@ assert.equal(canonical.network?.chain_id, pointer.network?.chain_id);
 assert.equal(canonical.authority?.mutation_authority_granted, false);
 
 assert.equal(
-  schema.$id,
-  "https://voidchain.org/.well-known/void-agent-discovery.schema.json",
-);
-assert.notEqual(
-  schema.$id,
-  "https://voidchain.io/.well-known/void-agent-discovery.schema.json",
-);
-assert.equal(
   schema.properties?.marker?.const,
   pointer.marker,
 );

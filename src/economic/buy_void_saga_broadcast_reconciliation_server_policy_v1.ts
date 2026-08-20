@@ -1,6 +1,6 @@
 import crypto from "node:crypto";
 import {
-  readBuyVoidCanonicalPresaleServerPolicyV1,
+  readBuyVoidCrashConsistentSagaServerPolicyV1,
   type BuyVoidCrashConsistentSagaServerPolicyV1,
 } from "./buy_void_crash_consistent_saga_server_policy_v1.js";
 import type {
@@ -140,7 +140,7 @@ export function readBuyVoidSagaBroadcastReconciliationServerPolicyV1(
   env: NodeJS.ProcessEnv = process.env,
 ): BuyVoidSagaBroadcastReconciliationServerPolicyDecisionV1 {
   const economicDecision =
-    readBuyVoidCanonicalPresaleServerPolicyV1(env);
+    readBuyVoidCrashConsistentSagaServerPolicyV1(env);
   if (economicDecision.ok !== true) {
     return held(
       `parent_economic_policy_held:${economicDecision.reason}`,

@@ -1,7 +1,6 @@
 #!/usr/bin/env node
 import http from "node:http";
 import process from "node:process";
-import { performance } from "node:perf_hooks";
 import { pathToFileURL } from "node:url";
 import {
   DEFAULT_MAX_RESPONSE_BYTES,
@@ -25,18 +24,6 @@ function boundedInteger(raw, fallback, minimum, maximum) {
   const value = Number(raw);
   if (!Number.isFinite(value)) return fallback;
   return Math.min(maximum, Math.max(minimum, Math.floor(value)));
-}
-
-function exactProgrammaticInteger(raw, label, minimum, maximum) {
-  if (
-    typeof raw !== "number" ||
-    !Number.isSafeInteger(raw) ||
-    raw < minimum ||
-    raw > maximum
-  ) {
-    throw new Error(`${label} must be a safe integer in range ${minimum}..${maximum}`);
-  }
-  return raw;
 }
 
 function json(res, status, body, method = "GET") {
@@ -139,24 +126,6 @@ export async function createPublicSeedClientAdapterV1({
   if (!["127.0.0.1", "::1"].includes(String(host))) {
     throw new Error("public seed client adapter bind must be a numeric loopback literal");
   }
-  const effectivePort = exactProgrammaticInteger(
-    port,
-    "public seed client adapter port",
-    0,
-    65535,
-  );
-  const effectiveTimeoutMs = exactProgrammaticInteger(
-    timeoutMs,
-    "public seed client adapter timeoutMs",
-    1_000,
-    60_000,
-  );
-  const effectiveMaxBytes = exactProgrammaticInteger(
-    maxBytes,
-    "public seed client adapter maxBytes",
-    64 * 1024,
-    COMPILED_MAX_RESPONSE_BYTES,
-  );
   const peers = normalizePeers(rawPeers, { allowLoopbackFixture });
   let activeIndex = 0;
   let requestCount = 0;
@@ -193,7 +162,7 @@ export async function createPublicSeedClientAdapterV1({
           dns_pinned: true,
           redirects_followed: false,
           max_range: COMPILED_MAX_RANGE,
-          max_response_bytes: effectiveMaxBytes,
+          max_response_bytes: maxBytes,
           tailnet_required: false,
           private_mutation_routes_exposed: false,
         },
@@ -235,17 +204,15 @@ export async function createPublicSeedClientAdapterV1({
 
     requestCount += 1;
     const failures = [];
-    const logicalDeadlineAtMs = performance.now() + effectiveTimeoutMs;
     for (let offset = 0; offset < peers.length; offset += 1) {
       const index = (activeIndex + offset) % peers.length;
       const peer = peers[index];
       try {
         const remote = await requestPublicSeedRouteV1(peer, route, {
           method,
-          timeoutMs: effectiveTimeoutMs,
-          maxBytes: effectiveMaxBytes,
+          timeoutMs,
+          maxBytes,
           allowLoopbackFixture,
-          logicalDeadlineAtMs,
         });
         if (index !== activeIndex) failoverCount += 1;
         activeIndex = index;
@@ -274,7 +241,6 @@ export async function createPublicSeedClientAdapterV1({
           nextPeer: peers[(index + 1) % peers.length].base,
           message: error?.message || String(error),
         });
-        if (error?.logicalSeedDeadline === true) break;
       }
     }
 
@@ -291,11 +257,11 @@ export async function createPublicSeedClientAdapterV1({
 
   await new Promise((resolve, reject) => {
     server.once("error", reject);
-    server.listen(effectivePort, host, resolve);
+    server.listen(port, host, resolve);
   });
 
   const address = server.address();
-  const actualPort = typeof address === "object" && address ? address.port : effectivePort;
+  const actualPort = typeof address === "object" && address ? address.port : port;
   const hostLiteral = host === "::1" ? "[::1]" : host;
   const base = `http://${hostLiteral}:${actualPort}`;
   console.log(`${MARKER}_READY`);

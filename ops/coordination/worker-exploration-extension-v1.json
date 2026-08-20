@@ -112,7 +112,7 @@
       "lane_id": "larry-green-exploration-v1",
       "state": "ACTIVE_RESEARCH",
       "priority": "P3",
-      "tracking_issue": 1301,
+      "tracking_issue": 1182,
       "sensitive": false,
       "reason": "Primary SDK lane is review-required; use bounded Green exploration instead of idling.",
       "exploration_domains": [
@@ -128,7 +128,7 @@
       "lane_id": "curly-participant-exploration-v1",
       "state": "ACTIVE_RESEARCH",
       "priority": "P3",
-      "tracking_issue": 1301,
+      "tracking_issue": 1182,
       "sensitive": true,
       "reason": "No concrete presale event requires mutation; explore participant onboarding, receipt clarity, and presale-exit readiness without manufacturing economic work.",
       "exploration_domains": [
@@ -144,7 +144,7 @@
       "lane_id": "moe-network-gap-exploration-v1",
       "state": "ACTIVE_RESEARCH",
       "priority": "P3",
-      "tracking_issue": 1301,
+      "tracking_issue": 1182,
       "sensitive": true,
       "reason": "Collector source #1231 is merged and operationally parked while the retirement stack remains frozen; explore disjoint networking reliability gaps without entering unpublished activation or blocked descendant work.",
       "exploration_domains": [

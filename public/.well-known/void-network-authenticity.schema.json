@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://voidchain.org/.well-known/void-network-authenticity.schema.json",
+  "$id": "https://voidchain.io/.well-known/void-network-authenticity.schema.json",
   "title": "VOID Official Network Authenticity Well-Known V1",
   "type": "object",
   "additionalProperties": false,

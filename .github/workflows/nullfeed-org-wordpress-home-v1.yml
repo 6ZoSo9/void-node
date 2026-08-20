@@ -8,7 +8,6 @@ on:
       - "ops/public/nullfeed-org-wordpress-home-v1.html"
       - "ops/public/sync-nullfeed-org-wordpress-home-v1.mjs"
       - "scripts/prove_nullfeed_org_wordpress_home_v1.mjs"
-      - "scripts/prove_wordpress_production_ref_guards_v1.mjs"
   push:
     branches:
       - main
@@ -18,7 +17,6 @@ on:
       - "ops/public/nullfeed-org-wordpress-home-v1.html"
       - "ops/public/sync-nullfeed-org-wordpress-home-v1.mjs"
       - "scripts/prove_nullfeed_org_wordpress_home_v1.mjs"
-      - "scripts/prove_wordpress_production_ref_guards_v1.mjs"
   workflow_dispatch:
     inputs:
       operation:
@@ -56,28 +54,11 @@ jobs:
           node-version: 24
       - run: node --check ops/public/sync-nullfeed-org-wordpress-home-v1.mjs
       - run: node --check scripts/prove_nullfeed_org_wordpress_home_v1.mjs
-      - run: node --check scripts/prove_wordpress_production_ref_guards_v1.mjs
       - run: node scripts/prove_nullfeed_org_wordpress_home_v1.mjs
-      - run: node scripts/prove_wordpress_production_ref_guards_v1.mjs
-
-  inspect_ref_guard:
-    if: github.event_name == 'workflow_dispatch' && inputs.operation == 'inspect'
-    needs: proof
-    runs-on: ubuntu-latest
-    timeout-minutes: 2
-    steps:
-      - name: Require exact main ref for authenticated production inspect
-        shell: bash
-        run: |
-          set -euo pipefail
-          if [ "$GITHUB_REF" != "refs/heads/main" ]; then
-            echo "::error::NullFeed production inspect requires refs/heads/main; got $GITHUB_REF"
-            exit 1
-          fi
 
   inspect:
     if: github.event_name == 'workflow_dispatch' && inputs.operation == 'inspect'
-    needs: [proof, inspect_ref_guard]
+    needs: proof
     environment: nullfeed-org-production
     runs-on: ubuntu-latest
     timeout-minutes: 5

@@ -130,7 +130,7 @@ export const views = {
   wallet: () => walletView(),
   earn: () => earnView(),
   data: () => placeholderView('Data', 'Publish, retrieve, verify, share, and manage datasets from one consistent data workspace.', 'Review data structure', ['Dataset table', 'Publish workflow', 'Verification state']),
-  buy: () => buyView(),
+  buy: () => placeholderView('Buy', 'Quotes, payment instructions, request status, and history will be presented as one guided purchase flow.', 'Review purchase structure', ['Quote summary', 'Payment review', 'Fulfillment status']),
   validate: () => placeholderView('Validate', 'Staking readiness, candidate status, and validator onboarding will be separated from operator controls.', 'Review validation structure', ['Readiness checklist', 'Candidate status', 'Admission proof']),
   network: () => networkView(),
   foundation: () => foundationView(),
@@ -438,97 +438,6 @@ function earnView() {
               </dl>
             </div>
           </details>
-        </section>
-      </div>
-    </div>`;
-}
-
-function buyView() {
-  return `
-    <div data-buy-view data-buy-marker="VOID_BUY_VOID_APP_READONLY_V1">
-      ${pageHeader({
-        eyebrow: 'Current fixed-price presale',
-        title: 'Buy VOID',
-        purpose: 'Review the $0.50 presale terms, request boundary, and receipt truth without submitting payment or moving funds.',
-      })}
-      <div class="alert">
-        <span class="alert__icon">i</span>
-        <div class="alert__copy">
-          <strong>Read-only presale guidance</strong>
-          <p>No wallet, signer, transaction, inventory, or fulfillment action is available in this view.</p>
-        </div>
-      </div>
-
-      <div class="dashboard-grid">
-        <section class="surface hero-surface span-12" aria-labelledby="buy-presale-title">
-          <div class="hero-content">
-            <span class="status-chip status-chip--warning">HOLD — live readiness not loaded</span>
-            <h2 id="buy-presale-title">Fixed-price presale</h2>
-            <p>The reviewed policy price is $0.50 / VOID. This page does not claim that intake is open, quote remaining inventory, or publish payment instructions without a verified live readiness source.</p>
-          </div>
-          <aside class="hero-aside" aria-label="Presale policy boundary">
-            <div class="signal-line"><span>Policy price</span><strong>$0.50 / VOID</strong></div>
-            <div class="signal-line"><span>Request</span><strong>NO REQUEST SELECTED</strong></div>
-            <div class="signal-line"><span>Fulfillment</span><strong>NOT ACTIVATED HERE</strong></div>
-          </aside>
-        </section>
-
-        <section class="surface panel span-6" aria-labelledby="buy-before-payment-title">
-          <div class="panel-header">
-            <div class="panel-header__copy">
-              <span class="eyebrow">Before payment</span>
-              <h2 id="buy-before-payment-title">Require verified instructions</h2>
-              <p>No payment address is published here.</p>
-            </div>
-          </div>
-          <div class="activity-list">
-            <div class="activity-row">
-              <div class="activity-copy"><strong>Presale readiness</strong><small>Must come from the exact validated inventory aggregate and intake policy.</small></div>
-              <div class="activity-value">Not loaded</div>
-            </div>
-            <div class="activity-row">
-              <div class="activity-copy"><strong>Payment instructions</strong><small>Must bind an exact request, amount, network, destination, and expiry.</small></div>
-              <div class="activity-value">Unavailable</div>
-            </div>
-            <div class="activity-row">
-              <div class="activity-copy"><strong>Automatic fulfillment</strong><small>Source-green does not prove activation, funding, signing, or broadcast.</small></div>
-              <div class="activity-value">Unproven</div>
-            </div>
-          </div>
-        </section>
-
-        <section class="surface panel span-6" aria-labelledby="buy-receipt-title">
-          <div class="panel-header">
-            <div class="panel-header__copy">
-              <span class="eyebrow">Receipt truth</span>
-              <h2 id="buy-receipt-title">Do not infer fulfillment</h2>
-              <p>A payment observation is not a fulfillment receipt.</p>
-            </div>
-          </div>
-          <div class="activity-list">
-            <div class="activity-row">
-              <div class="activity-copy"><strong>Request status</strong><small>No request identifier is selected or queried by this view.</small></div>
-              <div class="activity-value">Unavailable</div>
-            </div>
-            <div class="activity-row">
-              <div class="activity-copy"><strong>Payment status</strong><small>No chain observation or confirmation evidence is loaded.</small></div>
-              <div class="activity-value">Unverified</div>
-            </div>
-            <div class="activity-row">
-              <div class="activity-copy"><strong>Fulfillment receipt</strong><small>Requires exact request, payment, delivered VOID units, and durable receipt binding.</small></div>
-              <div class="activity-value">Not available</div>
-            </div>
-          </div>
-        </section>
-
-        <section class="surface panel span-12" aria-labelledby="buy-exit-title">
-          <div class="panel-header">
-            <div class="panel-header__copy">
-              <span class="eyebrow">Presale exit boundary</span>
-              <h2 id="buy-exit-title">OPEN, SOLD_OUT, CLOSED, or HOLD</h2>
-              <p>Only a validated OPEN readiness result may accept a new request. Missing, inconsistent, disabled, sold-out, or closed evidence must not be presented as purchasable.</p>
-            </div>
-          </div>
         </section>
       </div>
     </div>`;

@@ -30,15 +30,6 @@ async function needReject(
   );
 }
 
-function responseAt(url: string, body: string, init: ResponseInit): Response {
-  const response = new Response(body, init);
-  Object.defineProperties(response, {
-    url: { value: url },
-    redirected: { value: false },
-  });
-  return response;
-}
-
 const root = process.cwd();
 const moduleText = fs.readFileSync(
   path.join(root, "src", "integrations", "steam_readonly_bridge_v1.ts"),
@@ -65,10 +56,7 @@ for (const marker of [
   "money_movement: false",
   "response_persistence: false",
   'redirect: "error"',
-  "new AbortController()",
-  "steam_readonly_request_timeout",
-  "upstream_response_provenance_invalid",
-  "response_content_length_invalid",
+  "AbortSignal.timeout",
   "response_too_large",
 ]) {
   need(moduleText.includes(marker), `missing marker: ${marker}`);
@@ -198,7 +186,7 @@ const result = await executeSteamReadonlyRequest(
       observedHeaders = Object.fromEntries(
         new Headers(init?.headers).entries(),
       );
-      return responseAt(observedUrl, body, {
+      return new Response(body, {
         status: 200,
         headers: {
           "content-type": "application/json; charset=utf-8",
@@ -235,8 +223,8 @@ await needReject(
       },
       {
         env,
-        fetch_impl: async (requestInput) =>
-          responseAt(String(requestInput), "x".repeat(17000), {
+        fetch_impl: async () =>
+          new Response("x".repeat(17000), {
             status: 200,
             headers: {
               "content-type": "application/json",

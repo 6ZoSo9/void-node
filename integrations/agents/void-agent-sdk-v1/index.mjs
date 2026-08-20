@@ -14,7 +14,6 @@ const CAPABILITY_PROTOCOL = "void-agent-capability-negotiation/1";
 const SAFE_METHODS = new Set(["GET", "HEAD"]);
 const CAPABILITY_ID = /^[a-z0-9][a-z0-9._-]{0,127}$/;
 const DEFAULT_WANTED = ["public_discovery", "capability_negotiation"];
-const RESPONSE_TEARDOWN_SETTLE_MAX_MS = 250;
 
 function fail(message) {
   throw new Error(message);
@@ -76,156 +75,58 @@ export function sameOriginVoidPath(base, value, label = "path") {
   return resolved;
 }
 
-function timeoutError(label) {
-  const error = new Error(`${label}_deadline_exceeded`);
-  error.name = "TimeoutError";
-  return error;
-}
-
-async function awaitWithinDeadline(operation, request, label) {
-  const remaining = request.deadlineAt - Date.now();
-  if (remaining <= 0) {
-    const error = timeoutError(label);
-    if (!request.controller.signal.aborted) request.controller.abort(error);
-    throw error;
-  }
-  let timer;
-  try {
-    return await Promise.race([
-      Promise.resolve(operation),
-      new Promise((_, reject) => {
-        timer = setTimeout(() => {
-          const error = timeoutError(label);
-          if (!request.controller.signal.aborted) request.controller.abort(error);
-          reject(error);
-        }, remaining);
-      }),
-    ]);
-  } finally {
-    if (timer) clearTimeout(timer);
-  }
-}
-
-async function settleCleanupWithinDeadline(cleanup, deadlineAt) {
-  if (!cleanup || typeof cleanup.then !== "function") return;
-  const remaining = Math.min(
-    RESPONSE_TEARDOWN_SETTLE_MAX_MS,
-    Math.max(0, deadlineAt - Date.now()),
-  );
-  if (remaining <= 0) {
-    void Promise.resolve(cleanup).catch(() => undefined);
-    return;
-  }
-  let timer;
-  try {
-    await Promise.race([
-      Promise.resolve(cleanup).catch(() => undefined),
-      new Promise((resolve) => {
-        timer = setTimeout(resolve, remaining);
-      }),
-    ]);
-  } finally {
-    if (timer) clearTimeout(timer);
-  }
-}
-
-async function abortAndCancelWithinDeadline(target, request) {
-  if (!request.controller.signal.aborted) request.controller.abort();
-  let cleanup;
-  try {
-    cleanup = target?.cancel?.();
-  } catch {
-    return;
-  }
-  await settleCleanupWithinDeadline(cleanup, request.deadlineAt);
-}
-
-async function rejectResponse(response, request, message) {
-  await abortAndCancelWithinDeadline(response?.body, request);
-  fail(message);
-}
-
-async function readBoundedText(response, label, maxBytes, request) {
+async function readBoundedText(response, label, maxBytes) {
   const declared = response.headers.get("content-length");
   if (declared !== null) {
     const parsed = Number(declared);
-    if (Number.isFinite(parsed) && parsed > maxBytes) {
-      await abortAndCancelWithinDeadline(response.body, request);
-      fail(`${label}_body_too_large`);
-    }
+    if (Number.isFinite(parsed) && parsed > maxBytes) fail(`${label}_body_too_large`);
+  }
+  if (!response.body || typeof response.body.getReader !== "function") {
+    const text = await response.text();
+    if (Buffer.byteLength(text, "utf8") > maxBytes) fail(`${label}_body_too_large`);
+    return text;
   }
 
-  const reader = response.body?.getReader?.();
-  if (!reader) {
-    await abortAndCancelWithinDeadline(response.body, request);
-    fail(`${label}_body_stream_unavailable`);
-  }
-
+  const reader = response.body.getReader();
   const chunks = [];
   let total = 0;
   try {
     while (true) {
-      let item;
-      try {
-        item = await awaitWithinDeadline(reader.read(), request, `${label}_body`);
-      } catch (error) {
-        await abortAndCancelWithinDeadline(reader, request);
-        throw error;
-      }
-      const { done, value } = item;
+      const { done, value } = await reader.read();
       if (done) break;
       const chunk = Buffer.from(value);
       total += chunk.length;
       if (total > maxBytes) {
-        await abortAndCancelWithinDeadline(reader, request);
+        await reader.cancel();
         fail(`${label}_body_too_large`);
       }
       chunks.push(chunk);
     }
   } finally {
-    try {
-      reader.releaseLock();
-    } catch (releaseError) {
-      void releaseError;
-    }
+    reader.releaseLock();
   }
   return Buffer.concat(chunks, total).toString("utf8");
 }
 
 async function fetchJson(url, label, options) {
   const { fetchImpl, timeoutMs, maxResponseBytes } = options;
-  const controller = new AbortController();
-  const request = {
-    controller,
-    deadlineAt: Date.now() + timeoutMs,
-  };
-  const response = await awaitWithinDeadline(
-    Promise.resolve().then(() => fetchImpl(url, {
-      method: "GET",
-      redirect: "manual",
-      credentials: "omit",
-      cache: "no-store",
-      headers: {
-        accept: "application/json",
-        "user-agent": `void-agent-sdk/${VOID_AGENT_SDK_VERSION}`,
-      },
-      signal: controller.signal,
-    })),
-    request,
-    `${label}_fetch`,
-  );
+  const response = await fetchImpl(url, {
+    method: "GET",
+    redirect: "manual",
+    credentials: "omit",
+    cache: "no-store",
+    headers: {
+      accept: "application/json",
+      "user-agent": `void-agent-sdk/${VOID_AGENT_SDK_VERSION}`,
+    },
+    signal: AbortSignal.timeout(timeoutMs),
+  });
 
-  if (response.status >= 300 && response.status < 400) {
-    await rejectResponse(response, request, `${label}_redirect_rejected`);
-  }
-  if (!response.ok) {
-    await rejectResponse(response, request, `${label}_http_${response.status}`);
-  }
+  if (response.status >= 300 && response.status < 400) fail(`${label}_redirect_rejected`);
+  if (!response.ok) fail(`${label}_http_${response.status}`);
   const contentType = response.headers.get("content-type") ?? "";
-  if (!contentType.toLowerCase().includes("json")) {
-    await rejectResponse(response, request, `${label}_content_type_not_json`);
-  }
-  const text = await readBoundedText(response, label, maxResponseBytes, request);
+  if (!contentType.toLowerCase().includes("json")) fail(`${label}_content_type_not_json`);
+  const text = await readBoundedText(response, label, maxResponseBytes);
   try {
     return JSON.parse(text);
   } catch {

@@ -11,7 +11,7 @@ source connection explicit and testable:
 1. select exactly one existing execution attempt by server journal ID;
 2. reconstruct the fulfillment intent, aggregate inventory reservation, and
    bounded execution plan from server-owned journals;
-3. read the chain-2050 pending nonce, gas price, and pending-state fulfillment-wallet balance
+3. read the chain-2050 pending nonce, gas price, and fulfillment-wallet balance
    through a server-controlled loopback JSON-RPC URL;
 4. build a bounded type-2 native VOID transfer plan;
 5. dry-run while execution remains disabled, without credentials, signing,
@@ -105,21 +105,10 @@ The planner permits only four JSON-RPC methods:
 - `eth_chainId`
 - `eth_getTransactionCount` with block tag `pending`
 - `eth_gasPrice`
-- `eth_getBalance` with block tag `pending`
-
-The nonce and spendability checks therefore use one coherent `pending` execution-state perspective. A plan cannot select a pending nonce while trusting a pre-pending (`latest`) balance. Successful planner evidence reports `execution_state=pending`.
+- `eth_getBalance` with block tag `latest`
 
 The RPC URL is server controlled and must be loopback HTTP. Redirects, proxies,
 credentials in URLs, non-loopback hosts, and arbitrary methods are rejected.
-The built-in transport keeps the socket-inactivity timeout and also enforces a
-separate total wall-clock deadline from request start through complete response
-body consumption. Continuous slow response traffic cannot extend one planner RPC
-past the configured `request_timeout_ms`; timeout, total-deadline, size-limit,
-and normal terminal paths all settle through the same exactly-once completion
-boundary. Response-level `aborted` and `error` events are also contained at that
-boundary, so a loopback peer that sends headers and partial JSON before closing
-the socket yields an ordinary fail-closed planner HOLD rather than an unhandled
-`IncomingMessage` error.
 
 The type-2 transaction fee plan is:
 
@@ -134,9 +123,7 @@ The planner holds when:
 - the computed max fee exceeds the server cap;
 - priority fee exceeds computed max fee;
 - gas limit exceeds its cap;
-- the wallet's pending balance cannot cover the VOID value plus maximum gas cost.
-
-The focused proof includes a latest-sufficient / pending-insufficient fixture and requires HOLD, so preceding pending spends cannot be ignored. It also exercises the real built-in HTTP transport against a continuously active slow-drip response and requires a total-deadline HOLD within the configured bound. A second real loopback fixture sends headers plus partial JSON and destroys the socket; that path must settle as HOLD without a process-level exception.
+- wallet balance cannot cover the VOID value plus maximum gas cost.
 
 The raw RPC URL is not returned. Only its SHA-256 fingerprint is exposed.
 

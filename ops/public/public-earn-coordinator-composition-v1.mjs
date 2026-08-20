@@ -277,122 +277,30 @@ function readBoundedBody(req, maximum) {
   });
 }
 
-async function settleCleanupWithinDeadline(cleanup, deadlineAt) {
-  if (!cleanup || typeof cleanup.then !== "function") return;
-  const remaining = Math.max(0, deadlineAt - Date.now());
-  if (remaining <= 0) {
-    void Promise.resolve(cleanup).catch(() => undefined);
-    return;
-  }
-  let timer;
-  try {
-    await Promise.race([
-      Promise.resolve(cleanup).catch(() => undefined),
-      new Promise((resolve) => {
-        timer = setTimeout(resolve, remaining);
-      }),
-    ]);
-  } finally {
-    if (timer) clearTimeout(timer);
-  }
-}
-
-async function abortAndCancelWithinDeadline(target, controller, deadlineAt) {
-  if (!controller.signal.aborted) controller.abort();
-  let cleanup;
-  try {
-    cleanup = target?.cancel?.();
-  } catch {
-    return;
-  }
-  await settleCleanupWithinDeadline(cleanup, deadlineAt);
-}
-
-async function fetchWithTimeout(url, options, consume) {
+async function fetchWithTimeout(url, options) {
   const controller = new AbortController();
-  const deadlineAt = Date.now() + REQUEST_TIMEOUT_MS;
   const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
   try {
-    const response = await fetch(url, {
+    return await fetch(url, {
       ...options,
       signal: controller.signal,
       redirect: "manual",
     });
-    return await consume(response, { controller, deadlineAt });
   } finally {
     clearTimeout(timer);
   }
 }
 
-async function boundedResponseBody(response, request) {
-  const contentLengthRaw = response.headers.get("content-length");
-  if (contentLengthRaw !== null) {
-    if (!/^\d+$/.test(contentLengthRaw)) {
-      await abortAndCancelWithinDeadline(
-        response.body,
-        request.controller,
-        request.deadlineAt,
-      );
-      throw new Error("invalid_upstream_content_length");
-    }
-    const declared = Number(contentLengthRaw);
-    if (!Number.isSafeInteger(declared) || declared < 0) {
-      await abortAndCancelWithinDeadline(
-        response.body,
-        request.controller,
-        request.deadlineAt,
-      );
-      throw new Error("invalid_upstream_content_length");
-    }
-    if (declared > MAX_RESPONSE_BYTES) {
-      await abortAndCancelWithinDeadline(
-        response.body,
-        request.controller,
-        request.deadlineAt,
-      );
-      throw new Error("upstream_response_too_large");
-    }
+async function boundedResponseBody(response) {
+  const declared = Number(response.headers.get("content-length") || 0);
+  if (Number.isFinite(declared) && declared > MAX_RESPONSE_BYTES) {
+    throw new Error("upstream_response_too_large");
   }
-
-  const reader = response.body?.getReader?.();
-  if (!reader) {
-    await abortAndCancelWithinDeadline(
-      response.body,
-      request.controller,
-      request.deadlineAt,
-    );
-    throw new Error("upstream_response_body_unavailable");
+  const body = Buffer.from(await response.arrayBuffer());
+  if (body.length > MAX_RESPONSE_BYTES) {
+    throw new Error("upstream_response_too_large");
   }
-  const chunks = [];
-  let total = 0;
-  try {
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      if (!(value instanceof Uint8Array)) {
-        throw new Error("upstream_response_invalid_chunk");
-      }
-      total += value.byteLength;
-      if (total > MAX_RESPONSE_BYTES) {
-        throw new Error("upstream_response_too_large");
-      }
-      chunks.push(Buffer.from(value));
-    }
-  } catch (error) {
-    await abortAndCancelWithinDeadline(
-      reader,
-      request.controller,
-      request.deadlineAt,
-    );
-    throw error;
-  } finally {
-    try {
-      reader.releaseLock();
-    } catch (error) {
-      void error;
-    }
-  }
-  return Buffer.concat(chunks, total);
+  return body;
 }
 
 function filteredResponseHeaders(source) {
@@ -507,55 +415,24 @@ async function proxy(req, res, url) {
   }
 
   const upstreamUrl = `${PRIVATE_UPSTREAM}${url.pathname}${url.search}`;
-  let upstream;
+  let response;
   try {
-    upstream = await fetchWithTimeout(
-      upstreamUrl,
-      {
-        method: req.method,
-        headers,
-        body,
-      },
-      async (response, request) => {
-        if (response.status >= 300 && response.status < 400) {
-          await abortAndCancelWithinDeadline(
-            response.body,
-            request.controller,
-            request.deadlineAt,
-          );
-          return { kind: "redirect" };
-        }
-        return {
-          kind: "response",
-          status: response.status,
-          headers: filteredResponseHeaders(response.headers),
-          body:
-            req.method === "HEAD"
-              ? Buffer.alloc(0)
-              : await boundedResponseBody(response, request),
-        };
-      },
-    );
+    response = await fetchWithTimeout(upstreamUrl, {
+      method: req.method,
+      headers,
+      body,
+    });
   } catch (error) {
-    const message = error instanceof Error ? error.message : "";
-    const boundedError = new Set([
-      "invalid_upstream_content_length",
-      "upstream_response_too_large",
-      "upstream_response_body_unavailable",
-      "upstream_response_invalid_chunk",
-    ]).has(message);
     writeJson(req, res, 502, {
       ok: false,
       error:
         error?.name === "AbortError"
           ? "private_coordinator_timeout"
-          : boundedError
-            ? message
-            : "private_coordinator_unreachable",
+          : "private_coordinator_unreachable",
     });
     return;
   }
-  if (upstream.kind === "redirect") {
+  if (response.status >= 300 && response.status < 400) {
     writeJson(req, res, 502, {
       ok: false,
       error: "private_coordinator_redirect_forbidden",
@@ -563,9 +440,26 @@ async function proxy(req, res, url) {
     return;
   }
 
-  res.writeHead(upstream.status, upstream.headers);
+  let responseBody;
+  try {
+    responseBody =
+      req.method === "HEAD"
+        ? Buffer.alloc(0)
+        : await boundedResponseBody(response);
+  } catch (error) {
+    writeJson(req, res, 502, {
+      ok: false,
+      error: error?.message || "private_coordinator_response_rejected",
+    });
+    return;
+  }
+
+  res.writeHead(
+    response.status,
+    filteredResponseHeaders(response.headers),
+  );
   if (req.method === "HEAD") return res.end();
-  res.end(upstream.body);
+  res.end(responseBody);
 }
 
 export function compositionStatus(dataset) {

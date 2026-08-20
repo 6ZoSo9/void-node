@@ -88,23 +88,6 @@ function asObject(value: unknown, message: string): Record<string, unknown> {
   return value as Record<string, unknown>;
 }
 
-function responseWithFinalUrl(
-  body: string,
-  init: {
-    status: number;
-    headers: Record<string, string>;
-  },
-  finalUrl: string,
-): Response {
-  const response = new Response(body, init);
-  Object.defineProperty(response, "url", {
-    configurable: false,
-    enumerable: true,
-    value: finalUrl,
-  });
-  return response;
-}
-
 const root = process.cwd();
 const moduleText = fs.readFileSync(
   path.join(
@@ -356,17 +339,13 @@ const registration = registerSteamReadonlyBridgeRuntimeV2(
       observedHeaders = Object.fromEntries(
         new Headers(init?.headers).entries(),
       );
-      return responseWithFinalUrl(
-        mockBody,
-        {
-          status: 200,
-          headers: {
-            "content-type": "application/json; charset=utf-8",
-            "content-length": String(Buffer.byteLength(mockBody)),
-          },
+      return new Response(mockBody, {
+        status: 200,
+        headers: {
+          "content-type": "application/json; charset=utf-8",
+          "content-length": String(Buffer.byteLength(mockBody)),
         },
-        observedUrl,
-      );
+      });
     },
   },
 );

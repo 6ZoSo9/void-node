@@ -51,22 +51,6 @@ export const VOID_BUY_VOID_CRASH_CONSISTENT_SAGA_SERVER_POLICY_ENVS_V1 = {
     "VOID_BUY_VOID_NATIVE_DELIVERY_WALLET_ADDRESS",
 } as const;
 
-export const VOID_BUY_VOID_CANONICAL_PRESALE_ECONOMICS_V1 = {
-  marker: "VOID_BUY_VOID_CANONICAL_PRESALE_ECONOMICS_V1",
-  version: 1,
-  pool_id: "buy-void-presale-v1",
-  inventory_policy_version: "presale-v1",
-  canonical_presale_max_void: "10000000",
-  pool_capacity_void_units: "10000000000000",
-  max_reservation_void_units: "10000000000000",
-  rate_void_units_numerator: "2",
-  rate_void_units_denominator: "1",
-  reservation_ceiling_equals_total_pool: true,
-  per_buyer_purchase_cap_below_remaining_inventory: false,
-  no_per_buyer_purchase_throttle_below_remaining_inventory: true,
-  delivery_execution_amount_cap_is_separate: true,
-} as const;
-
 const PAYMENT_CHAIN = /^[a-z0-9][a-z0-9_-]{1,31}$/;
 const ADDRESS = /^0x[0-9a-f]{40}$/;
 const SAFE_ID = /^[A-Za-z0-9._:-]{1,160}$/;
@@ -379,72 +363,4 @@ export function readBuyVoidCrashConsistentSagaServerPolicyV1(
         VOID_BUY_VOID_CRASH_CONSISTENT_SAGA_SERVER_POLICY_AUTHORITY_V1,
     },
   };
-}
-
-
-export function readBuyVoidCanonicalPresaleServerPolicyV1(
-  env: NodeJS.ProcessEnv = process.env,
-): BuyVoidCrashConsistentSagaServerPolicyDecisionV1 {
-  const decision = readBuyVoidCrashConsistentSagaServerPolicyV1(env);
-  if (decision.ok !== true) return decision;
-
-  const canonical = VOID_BUY_VOID_CANONICAL_PRESALE_ECONOMICS_V1;
-  const policy = decision.policy;
-
-  if (policy.inventory_policy.pool_id !== canonical.pool_id) {
-    return held("canonical_presale_pool_id_mismatch", [], {
-      expected: canonical.pool_id,
-      observed: policy.inventory_policy.pool_id,
-    });
-  }
-  if (
-    policy.inventory_policy.inventory_policy_version !==
-    canonical.inventory_policy_version
-  ) {
-    return held("canonical_presale_inventory_policy_version_mismatch", [], {
-      expected: canonical.inventory_policy_version,
-      observed: policy.inventory_policy.inventory_policy_version,
-    });
-  }
-  if (
-    policy.fulfillment_policy.rate_void_units_numerator !==
-      canonical.rate_void_units_numerator ||
-    policy.fulfillment_policy.rate_void_units_denominator !==
-      canonical.rate_void_units_denominator
-  ) {
-    return held("canonical_presale_fixed_rate_mismatch", [], {
-      expected_numerator: canonical.rate_void_units_numerator,
-      expected_denominator: canonical.rate_void_units_denominator,
-      observed_numerator:
-        policy.fulfillment_policy.rate_void_units_numerator,
-      observed_denominator:
-        policy.fulfillment_policy.rate_void_units_denominator,
-    });
-  }
-  if (
-    policy.inventory_policy.pool_capacity_void_units !==
-    canonical.pool_capacity_void_units
-  ) {
-    return held("canonical_presale_pool_capacity_mismatch", [], {
-      expected: canonical.pool_capacity_void_units,
-      observed: policy.inventory_policy.pool_capacity_void_units,
-    });
-  }
-  if (
-    policy.inventory_policy.max_reservation_void_units !==
-    canonical.max_reservation_void_units
-  ) {
-    return held("canonical_presale_reservation_ceiling_mismatch", [], {
-      expected: canonical.max_reservation_void_units,
-      observed: policy.inventory_policy.max_reservation_void_units,
-    });
-  }
-  if (
-    policy.fulfillment_policy.pool_remaining_void_units !==
-    canonical.pool_capacity_void_units
-  ) {
-    return held("canonical_presale_fulfillment_pool_capacity_mismatch");
-  }
-
-  return decision;
 }

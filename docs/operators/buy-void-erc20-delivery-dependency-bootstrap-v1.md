@@ -93,36 +93,26 @@ The focused proof:
 - proves non-200, wrong/deceptive-Content-Type, and oversized slow-drip
   responses are rejected and their underlying connections close within the
   configured bound; and
-- proves the canonical parent reports
-  `canonical_delivery_dependency_bootstrap_ready=true` through the pure
-  metadata integration gate while still not importing this value-bearing
-  source module.
+- proves the canonical parent still reports
+  `canonical_delivery_dependency_bootstrap_ready=false` and does not import
+  this source module.
 
 Existing independently reviewed signer, broadcaster, submission-guard, and
 canonical adapter proofs remain the evidence for those primitives themselves.
 This lane proves their safe lazy composition without performing signing or
 transaction submission.
 
-## Canonical integration status
+## Canonical sequencing
 
-The separately reviewed source integration gate now sets
-`canonical_delivery_dependency_bootstrap_ready=true`.
+Merging this lane establishes a reviewed source composition only. It does not
+flip canonical readiness.
 
-That status binds this exact source composition as the canonical dependency
-source. It does not import or instantiate this module in the parent and does not
-configure a signer, broadcaster, credential directory, RPC URL, or submission
-guard at runtime.
-
-Merged PR #1282 closes the separate transaction-preparation execution-state
-gate. Canonical status now reports
-`erc20_transaction_preparation_execution_state_ready=true`: nonce selection,
-ERC-20 gas estimation, and spendability share the reviewed `pending`
-execution-state perspective.
-
-The sole remaining canonical funding blocker in this source composition is
-`canonical_delivery_runtime_activation_not_ready`. Runtime parent mounting,
-production credential binding, service activation, execution enablement,
-inventory funding, and any real transaction remain later independent gates.
+A later, separate integration gate may set
+`canonical_delivery_dependency_bootstrap_ready=true` only after exact-head CI
+and independent review confirm that this composition is the intended canonical
+dependency source. Runtime parent mounting, production credential binding,
+service/runtime activation, execution enablement, inventory funding, and any
+real transaction remain later independent gates.
 
 ## Authority boundary
 

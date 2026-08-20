@@ -7,58 +7,46 @@ const wrapperPath = path.join(
   root,
   "src/economic/buy_void_runtime_integration_v1.ts",
 );
-const runtimePath = path.join(
+const canonicalRuntimePath = path.join(
   root,
   "src/economic/buy_void_delivery_runtime_integration_v1.ts",
 );
-const compositionPath = path.join(
-  root,
-  "src/economic/buy_void_erc20_execution_composition_v1.ts",
-);
-const plannerPath = path.join(
-  root,
-  "src/economic/buy_void_erc20_transaction_preparation_planner_v1.ts",
-);
-const adapterPath = path.join(
+const canonicalAdapterPath = path.join(
   root,
   "src/economic/buy_void_delivery_sign_broadcast_adapter_v1.ts",
-);
-const submissionGuardPath = path.join(
-  root,
-  "src/economic/buy_void_delivery_submission_guard_v1.ts",
 );
 const nativeRuntimePath = path.join(
   root,
   "src/economic/buy_void_native_delivery_runtime_integration_v1.ts",
 );
+const nativeAdapterPath = path.join(
+  root,
+  "src/economic/buy_void_native_delivery_sign_broadcast_adapter_v1.ts",
+);
+const guardPath = path.join(
+  root,
+  "src/economic/buy_void_delivery_submission_guard_v1.ts",
+);
 const indexPath = path.join(root, "src/index.ts");
 
 for (const file of [
   wrapperPath,
-  runtimePath,
-  compositionPath,
-  plannerPath,
-  adapterPath,
-  submissionGuardPath,
+  canonicalRuntimePath,
+  canonicalAdapterPath,
   nativeRuntimePath,
+  nativeAdapterPath,
+  guardPath,
   indexPath,
 ]) {
   assert.equal(fs.existsSync(file), true, `missing ${file}`);
 }
 
 const wrapper = fs.readFileSync(wrapperPath, "utf8");
-const runtime = fs.readFileSync(runtimePath, "utf8");
-const composition = fs.readFileSync(compositionPath, "utf8");
-const planner = fs.readFileSync(plannerPath, "utf8");
-const adapter = fs.readFileSync(adapterPath, "utf8");
-const submissionGuard = fs.readFileSync(
-  submissionGuardPath,
-  "utf8",
-);
-const nativeRuntime = fs.readFileSync(
-  nativeRuntimePath,
-  "utf8",
-);
+const canonicalRuntime = fs.readFileSync(canonicalRuntimePath, "utf8");
+const canonicalAdapter = fs.readFileSync(canonicalAdapterPath, "utf8");
+const nativeRuntime = fs.readFileSync(nativeRuntimePath, "utf8");
+const nativeAdapter = fs.readFileSync(nativeAdapterPath, "utf8");
+const guard = fs.readFileSync(guardPath, "utf8");
 const index = fs.readFileSync(indexPath, "utf8");
 
 assert.equal(
@@ -67,19 +55,26 @@ assert.equal(
       /from "\.\/buy_void_delivery_runtime_integration_v1\.js";/g,
     ) || []
   ).length,
-  1,
-  "canonical parent must mount the disabled ERC20 delivery runtime exactly once",
+  0,
+  "canonical parent must not import the held ERC-20 delivery runtime",
 );
-assert.equal(
-  wrapper.includes("buyVoidDeliveryRuntimeStatusV1()"),
-  true,
-  "canonical parent must project the real delivery-runtime status",
-);
+for (const forbiddenParentImport of [
+  'import "./buy_void_native_delivery_runtime_integration_v1.js";',
+  'import "./buy_void_native_delivery_receipt_runtime_v1.js";',
+  'import "./buy_void_native_execution_runtime_v1.js";',
+]) {
+  assert.equal(
+    wrapper.includes(forbiddenParentImport),
+    false,
+    `wrapper retains native parent mount: ${forbiddenParentImport}`,
+  );
+}
 
 for (const forbiddenIndexImport of [
   "buy_void_delivery_runtime_integration_v1",
+  "buy_void_native_delivery_runtime_integration_v1",
   "buy_void_delivery_sign_broadcast_adapter_v1",
-  "buy_void_erc20_execution_composition_v1",
+  "buy_void_native_delivery_sign_broadcast_adapter_v1",
 ]) {
   assert.equal(
     index.includes(forbiddenIndexImport),
@@ -96,186 +91,150 @@ for (const marker of [
   "disabled_by_default",
   "server_controlled_root_dir",
   "server_controlled_policy",
-  "prepared_attempt_loaded_from_server_journal: true",
-  "server_derived_transaction_plan: true",
-  "caller_supplied_transaction_plan: false",
-  "canonical_planner_policy_validation_required: true",
-  "max_amount_fulfillment_unit_binding_required: true",
-  "confirmation_count_preflight_before_record_confirmed_required: true",
-  "durable_nonce_reservation_required: true",
-  "signed_hash_custody_required: true",
-  "saga_write_ahead_broadcast_intent_required: true",
-  "erc20_receipt_reconciliation_required: true",
-  "canonical_record_confirmed_required: true",
-  "existing_terminal_closeout_reused: true",
-  "runBuyVoidErc20ExecutionCompositionV1",
-  '"sign_and_broadcast"',
-  '"caller_supplied_runtime_material_forbidden"',
+  "prepared_attempt_loaded_from_server_journal",
+  "VOID_BUY_VOID_DELIVERY_TOKEN_ADDRESS",
+  "VOID_BUY_VOID_DELIVERY_WALLET_ADDRESS",
+  "VOID_BUY_VOID_DELIVERY_SIGN_BROADCAST_ADAPTER_V1",
   "raw_signed_transaction_output: false",
   "automatic_retry: false",
 ]) {
   assert.equal(
-    runtime.includes(marker),
+    canonicalRuntime.includes(marker),
     true,
     `canonical runtime missing ${marker}`,
   );
 }
 
-for (const directRuntimeMarker of [
-  "runBuyVoidDeliverySignBroadcastV1",
-  "createBuyVoidDeliverySubmissionGuardV1",
-  "const plan = (body as any).plan",
-  "submission_idempotency_key: (body as any)",
-]) {
-  assert.equal(
-    runtime.includes(directRuntimeMarker),
-    false,
-    `runtime bypasses composition boundary: ${directRuntimeMarker}`,
-  );
-}
-
-assert.match(
-  runtime,
-  /const ALLOWED_INPUT_KEYS = new Set\(\[/,
-);
-for (const allowed of [
-  '"action"',
-  '"attempt_id"',
-  '"apply"',
-  '"confirmation"',
-]) {
-  assert.equal(runtime.includes(allowed), true);
-}
-assert.doesNotMatch(runtime, /^\s*"plan",\s*$/m);
-assert.doesNotMatch(runtime, /^\s*"transaction_plan",\s*$/m);
-
-for (const marker of [
-  "VOID_BUY_VOID_ERC20_EXECUTION_COMPOSITION_V1",
-  "server_derived_transaction_plan: true",
-  "caller_transaction_plan: false",
-  "exact_pending_nonce_reservation: true",
-  "wallet_scoped_nonce_lock: true",
-  "overlapping_unbroadcast_nonce_fails_closed: true",
-  "live_pre_sign_revalidation: true",
-  "signed_hash_custody_persisted_before_broadcast: true",
-  "write_ahead_saga_broadcast_intent: true",
-  "no_rebroadcast_after_ambiguous_submission: true",
-  "canonical_record_confirmed_reused: true",
-  "existing_saga_terminal_closeout_reused: true",
-  "validateBuyVoidErc20TransactionPreparationPlannerPolicyV1",
-  "erc20_execution_max_amount_exceeds_saga_fulfillment_unit_cap",
-  "MAX_SAGA_CONFIRMATIONS = 1_000_000n",
-  "erc20_receipt_confirmation_count_out_of_saga_range",
-  "runBuyVoidDeliverySignBroadcastV1",
-]) {
-  assert.equal(
-    composition.includes(marker),
-    true,
-    `execution composition missing ${marker}`,
-  );
-}
-
-const confirmationPreflight = composition.indexOf(
-  "erc20_receipt_confirmation_count_out_of_saga_range",
-);
-const recordConfirmed = composition.indexOf(
-  'action: "record_confirmed"',
-);
-assert.ok(
-  confirmationPreflight >= 0 &&
-    recordConfirmed > confirmationPreflight,
-  "confirmation domain must fail closed before record_confirmed",
-);
-
-for (const marker of [
-  "VOID_BUY_VOID_ERC20_TRANSACTION_PREPARATION_PLANNER_V1",
-  'execution_state_tag: "pending"',
-  '"eth_getTransactionCount"',
-  '"eth_estimateGas"',
-  '"eth_getBalance"',
-  '[policy.fulfillment_wallet_address, "pending"]',
-]) {
-  assert.equal(
-    planner.includes(marker),
-    true,
-    `coherent-pending planner missing ${marker}`,
-  );
-}
-
 for (const marker of [
   "VOID_BUY_VOID_DELIVERY_SIGN_BROADCAST_ADAPTER_V1",
+  '"buyVoidSignAndBroadcast"',
+  "TRANSFER_INTERFACE",
+  '"function transfer(address to, uint256 value) returns (bool)"',
   "VOID_BUY_VOID_ERC20_DELIVERY_UNIT_SCALE_V1",
-  'multiplier: "1000000000000"',
-  "exact_signed_hash_required: true",
+  "ERC20_TOKEN_ATOM_MULTIPLIER_V1",
+  "tokenAmountAtoms",
+  "void_token_address",
+  "to: tokenAddress",
+  "value: 0n",
+  "TRANSFER_INTERFACE.encodeFunctionData",
   "claim_submission_once(binding)",
   "release_submission_claim(",
   "sign_transaction(",
   "broadcast_signed_transaction(",
+  'status: "not_broadcast"',
+  'status: "broadcast_unknown"',
+  'status: "broadcast_accepted"',
   "raw_signed_transaction_persisted: false",
   "raw_signed_transaction_returned: false",
   "automatic_retry_allowed: false",
 ]) {
   assert.equal(
-    adapter.includes(marker),
+    canonicalAdapter.includes(marker),
     true,
-    `sign/broadcast adapter missing ${marker}`,
+    `canonical adapter missing ${marker}`,
+  );
+}
+
+for (const forbidden of [
+  "native_asset_only: true",
+  'asset_mode: "native_void"',
+  "NATIVE_VALUE_MULTIPLIER_V1",
+  "value: nativeValueWei",
+]) {
+  assert.equal(
+    canonicalAdapter.includes(forbidden),
+    false,
+    `canonical ERC-20 adapter contains native-value material: ${forbidden}`,
+  );
+}
+
+for (const retainedMarker of [
+  "VOID_BUY_VOID_NATIVE_DELIVERY_RUNTIME_INTEGRATION_V1",
+  "native_asset_only: true",
+  "erc20_transfer: false",
+  "token_contract_dependency: false",
+]) {
+  assert.equal(
+    nativeRuntime.includes(retainedMarker),
+    true,
+    `native canary runtime source not retained: ${retainedMarker}`,
+  );
+}
+for (const retainedMarker of [
+  "VOID_BUY_VOID_NATIVE_DELIVERY_SIGN_BROADCAST_ADAPTER_V1",
+  'asset_mode: "native_void"',
+  "value: nativeValueWei",
+  'data: "0x"',
+]) {
+  assert.equal(
+    nativeAdapter.includes(retainedMarker),
+    true,
+    `native canary adapter source not retained: ${retainedMarker}`,
   );
 }
 
 for (const marker of [
   "VOID_BUY_VOID_DELIVERY_SUBMISSION_GUARD_V1",
+  "VOID_BUY_VOID_DELIVERY_SIGN_BROADCAST_ADAPTER_V1",
+  "VOID_BUY_VOID_NATIVE_DELIVERY_SIGN_BROADCAST_ADAPTER_V1",
   "append_only_journal",
   "hash_chain",
   "exclusive_lock",
   "automatic_stale_lock_removal: false",
   "release_submission_claim",
 ]) {
-  assert.equal(
-    submissionGuard.includes(marker),
-    true,
-    `submission guard missing ${marker}`,
-  );
+  assert.equal(guard.includes(marker), true, `guard missing ${marker}`);
 }
 
-for (const marker of [
-  "VOID_BUY_VOID_NATIVE_DELIVERY_RUNTIME_INTEGRATION_V1",
-  "native_asset_only: true",
-  "erc20_transfer: false",
-]) {
-  assert.equal(
-    nativeRuntime.includes(marker),
-    true,
-    `native canary runtime not retained: ${marker}`,
-  );
-}
-
-for (const marker of [
-  'asset_mode: "void_token_erc20"',
-  "delivery_runtime_source_retained: true",
-  "delivery_runtime_parent_mounted: true",
-  "canonical_delivery_runtime_parent_mounted: true",
-  "canonical_erc20_delivery_execution_ready: false",
-  "canonical_erc20_delivery_execution_held: true",
-  "presale_inventory_funding_ready: false",
-]) {
-  assert.equal(
-    wrapper.includes(marker),
-    true,
-    `parent truth missing ${marker}`,
-  );
-}
+assert.equal(
+  wrapper.includes('asset_mode: "void_token_erc20"'),
+  true,
+);
+assert.equal(
+  wrapper.includes("delivery_runtime_source_retained: true"),
+  true,
+);
+assert.equal(
+  wrapper.includes("delivery_runtime_parent_mounted: false"),
+  true,
+);
+assert.equal(
+  wrapper.includes("canonical_delivery_runtime_parent_mounted: false"),
+  true,
+);
+assert.equal(
+  wrapper.includes("canonical_erc20_delivery_atomic_unit_conversion_ready: true"),
+  true,
+);
+assert.equal(
+  wrapper.includes("canonical_erc20_delivery_dependency_bootstrap_ready: false"),
+  true,
+);
+assert.equal(
+  wrapper.includes("canonical_erc20_delivery_execution_ready: false"),
+  true,
+);
+assert.equal(
+  wrapper.includes("canonical_erc20_delivery_execution_held: true"),
+  true,
+);
+assert.equal(
+  wrapper.includes("native_delivery_parent_mounted: false"),
+  true,
+);
+assert.equal(
+  wrapper.includes("presale_inventory_funding_ready: false"),
+  true,
+);
 
 console.log(
-  "VOID_BUY_VOID_DELIVERY_RUNTIME_INTEGRATION_GUARD_V1_GREEN",
+  "VOID_BUY_VOID_NATIVE_DELIVERY_RUNTIME_INTEGRATION_GUARD_V1_GREEN",
 );
 console.log("canonical_parent_delivery=void_token_erc20");
-console.log("canonical_erc20_delivery_parent_mount=1");
-console.log("server_derived_transaction_plan=1");
-console.log("caller_supplied_transaction_plan=0");
-console.log("canonical_planner_policy_validator_reused=1");
-console.log("durable_nonce_reservation=1");
-console.log("signed_hash_custody=1");
-console.log("write_ahead_broadcast_intent=1");
-console.log("confirmation_range_preflight_before_record_confirmed=1");
-console.log("existing_terminal_closeout_reused=1");
+console.log("canonical_erc20_delivery_source_retained=1");
+console.log("canonical_erc20_delivery_parent_mounted=0");
+console.log("erc20_atomic_unit_conversion_ready=1");
+console.log("canonical_delivery_dependency_bootstrap_ready=0");
+console.log("native_canary_source_retained=1");
+console.log("native_canary_parent_mounted=0");
 console.log("presale_inventory_funding_ready=0");

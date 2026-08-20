@@ -43,7 +43,7 @@ const RECEIVE = "0x8888888888888888888888888888888888888888";
 const PAYMENT_TX = `0x${"5".repeat(64)}`;
 const PAYMENT_ID = `voidpay1:ethereum:${PAYMENT_TX}:0`;
 const VOID_UNITS = "2500000";
-const POOL_ID = "buy-void-presale-v1";
+const POOL_ID = "void-presale-mainnet0-v1";
 const INVENTORY_ID = "a".repeat(64);
 const SOURCE_FLOOR = "eea521d298ffb299ca8839d9171a1151f206d7c9";
 
@@ -132,12 +132,12 @@ function inventory(value: Record<string, any>): Record<string, any> {
     reservation_id: INVENTORY_ID,
     reserved_at_ms: Date.parse("2026-08-06T10:10:01.000Z"),
     pool_id: POOL_ID,
-    inventory_policy_version: "presale-v1",
-    pool_capacity_void_units: "10000000000000",
+    inventory_policy_version: "proof-policy-v1",
+    pool_capacity_void_units: "10000000",
     committed_before_void_units: "0",
     reserved_void_units: VOID_UNITS,
     committed_after_void_units: VOID_UNITS,
-    available_after_void_units: "9999997500000",
+    available_after_void_units: "7500000",
     payment_key_sha256: value.payment_key_sha256,
     request_key_sha256: value.request_key_sha256,
     canonical_payment_identity: value.claim.canonical_payment_identity,
@@ -165,10 +165,10 @@ function economicEnv(): Record<string, string> {
     [envs.payment_min_confirmations]: "12",
     [envs.rate_void_units_numerator]: "2",
     [envs.rate_void_units_denominator]: "1",
-    [envs.inventory_policy_version]: "presale-v1",
+    [envs.inventory_policy_version]: "proof-policy-v1",
     [envs.pool_id]: POOL_ID,
-    [envs.pool_capacity_void_units]: "10000000000000",
-    [envs.max_reservation_void_units]: "10000000000000",
+    [envs.pool_capacity_void_units]: "10000000",
+    [envs.max_reservation_void_units]: "5000000",
     [envs.fulfillment_wallet_address]: WALLET,
   };
 }

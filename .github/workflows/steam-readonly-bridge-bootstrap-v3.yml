@@ -4,10 +4,7 @@ on:
   pull_request:
     paths:
       - "src/index.ts"
-      - "src/integrations/steam_readonly_bridge_v1.ts"
-      - "src/http/steam_readonly_bridge_runtime_v2.ts"
       - "src/http/steam_readonly_bridge_bootstrap_v3.ts"
-      - "scripts/prove_steam_readonly_bridge_runtime_v2.ts"
       - "scripts/prove_steam_readonly_bridge_bootstrap_v3.ts"
       - "docs/integrations/steam-readonly-bridge-bootstrap-v3.md"
       - ".github/workflows/steam-readonly-bridge-bootstrap-v3.yml"

@@ -1,10 +1,8 @@
 {
   "marker": "VOID_CONSTITUTIONAL_AUTHORITY_BOUNDARY_V1_PHASE0_DRAFT",
-  "alignment_marker": "VOID_CONSTITUTIONAL_SOVEREIGN_SUCCESSION_ALIGNMENT_V1_20260816",
-  "identity_binding_marker": "VOID_CONSTITUTIONAL_SOVEREIGN_IDENTITY_BINDING_V1_20260816",
   "artifact": "VOID Constitutional Authority Boundary v1",
-  "version": "1.2.0-draft",
-  "date": "2026-08-16",
+  "version": "1.0.0-draft",
+  "date": "2026-06-26",
   "status": "Phase 0 doctrine/specification draft — constraint-only; no authority activated.",
   "current_phase": {
     "phase": 0,
@@ -15,77 +13,6 @@
     "signer_or_wallet_access_granted": false,
     "execution_authority_granted": false
   },
-  "sovereign_identity": {
-    "operator_name": "ZoSo",
-    "personal_name": "Derrek Patrick Daly",
-    "personal_name_context": "name_given_by_mother",
-    "same_human_person": true,
-    "same_constitutional_identity": true,
-    "constitutional_identity_count": 1,
-    "creates_separate_sovereign_offices": false,
-    "creates_separate_authority_holders": false,
-    "creates_successor_or_delegate": false,
-    "name_choice_changes_authority": false
-  },
-  "sovereign_continuity": {
-    "sovereign": "ZoSo",
-    "sovereign_personal_name": "Derrek Patrick Daly",
-    "same_sovereign_identity": true,
-    "lifetime_governance": true,
-    "effective_successor_designated": false,
-    "preferred_successor_direction": "protected_validator_body_or_future_validator_selected_successor",
-    "preferred_successor_direction_is_automatic": false,
-    "silent_transfer_forbidden": true,
-    "silent_transfer_forbidden_triggers": [
-      "validator_quorum",
-      "ai_autonomy",
-      "inactivity",
-      "maturity_milestone",
-      "phase_transition",
-      "company_or_entity_structure",
-      "source_code_change",
-      "repository_control",
-      "signer_possession",
-      "infrastructure_or_technical_control"
-    ]
-  },
-  "validators": {
-    "protected_witnesses": true,
-    "constitutional_maximum": 144000,
-    "ceiling_auto_admits_validators": false,
-    "ceiling_changes_current_operational_limits": false,
-    "ceiling_activates_validator_authority": false,
-    "validator_specific_sovereign_charter_allowed": true,
-    "general_participant_governance_may_silently_override_validator_charter": false
-  },
-  "delegated_ai_governance": {
-    "scope": "voluntary_non_validator_void_participation",
-    "subordinate_to_sovereign": true,
-    "ownership_of_people": false,
-    "real_world_political_authority": false,
-    "surveillance_entitlement": false,
-    "coercive_enforcement_authority": false,
-    "physical_control_authority": false,
-    "permission_to_violate_law_or_human_rights": false
-  },
-  "succession_and_inheritance": {
-    "delegation_is_succession": false,
-    "automation_is_sovereignty": false,
-    "technical_control_is_constitutional_ownership": false,
-    "governance_succession_separate_from_personal_inheritance": true,
-    "future_void_successor_auto_inherits_personal_assets": false,
-    "family_inheritance_auto_confers_void_sovereignty": false,
-    "expressed_personal_estate_direction": "legally_personal_assets_equity_ip_and_economic_interests_toward_family_or_bloodline_via_valid_external_estate_instruments_and_applicable_law",
-    "repository_document_transfers_legal_title": false,
-    "repository_document_is_will_or_trust": false,
-    "repository_document_moves_assets": false
-  },
-  "non_harm": {
-    "authorizes_killing_or_physical_harm": false,
-    "authorizes_coercive_violence": false,
-    "authorizes_harm_to_earth_or_sea": false,
-    "displaces_applicable_law_or_human_rights": false
-  },
   "authority_boundary": {
     "constraint_only": true,
     "activates_new_authority": false,
@@ -95,33 +22,17 @@
     "authorizes_execution": false,
     "grants_signer_wallet_access": false,
     "moves_funds": false,
-    "mutates_ledgers": false,
-    "executes_succession": false,
-    "transfers_assets": false
+    "mutates_ledgers": false
   },
   "doctrine": [
     "Authority must be legible, typed, bounded, and contestable at every layer.",
     "Validators are not just infrastructure. Validators are protected witnesses to VOID truth.",
     "Constitutional authority may stop the machine. It may not secretly become the machine.",
-    "Emergency authority can preserve truth, pause risk, and force review. It cannot create ordinary truth without validator-visible process.",
-    "Delegation is not succession. Automation is not sovereignty. Technical control is not constitutional ownership."
+    "Emergency authority can preserve truth, pause risk, and force review. It cannot create ordinary truth without validator-visible process."
   ],
   "break_glass": {
-    "permitted_classes": [
-      "pause",
-      "quarantine",
-      "challenge"
-    ],
-    "forbidden_classes": [
-      "fund_movement",
-      "authority_rotation",
-      "history_rewrite",
-      "ledger_mutation",
-      "signer_wallet_access",
-      "public_mutation",
-      "succession_execution",
-      "asset_transfer"
-    ]
+    "permitted_classes": ["pause", "quarantine", "challenge"],
+    "forbidden_classes": ["fund_movement", "authority_rotation", "history_rewrite", "ledger_mutation", "signer_wallet_access", "public_mutation"]
   },
   "phase_ladder": [
     "Phase 0 — Founder/operator construction state",
@@ -129,7 +40,6 @@
     "Phase 2 — Validator contest-delay state",
     "Phase 3 — Validator quorum-required state",
     "Phase 4 — Reaffirmed founder authority",
-    "Phase 5 — Succession-ready constitutional state"
-  ],
-  "phase_progression_transfers_sovereignty": false
+    "Phase 5 — Network constitutional authority"
+  ]
 }

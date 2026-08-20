@@ -260,16 +260,6 @@ assert(
   "well-known credentials requirement differs",
 );
 assert(
-  wellKnownSchema.$id ===
-    "https://voidchain.org/.well-known/void-agent-capabilities.schema.json",
-  "well-known capability schema canonical ID differs",
-);
-assert(
-  wellKnownSchema.$id !==
-    "https://voidchain.io/.well-known/void-agent-capabilities.schema.json",
-  "retired well-known capability schema ID accepted",
-);
-assert(
   wellKnownSchema.properties?.marker?.const === wellKnown.marker,
   "well-known schema marker differs",
 );

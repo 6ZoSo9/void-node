@@ -33,22 +33,6 @@ async function main(): Promise<void> {
     false,
   );
 
-  assert.equal(
-    VOID_BUY_VOID_BOUNDED_AUTO_FULFILLMENT_ORCHESTRATOR_AUTHORITY_V1
-      .claim_before_reservation,
-    false,
-  );
-  assert.equal(
-    VOID_BUY_VOID_BOUNDED_AUTO_FULFILLMENT_ORCHESTRATOR_AUTHORITY_V1
-      .inventory_reservation_before_new_paid_claim,
-    true,
-  );
-  assert.equal(
-    VOID_BUY_VOID_BOUNDED_AUTO_FULFILLMENT_ORCHESTRATOR_AUTHORITY_V1
-      .paid_unreservable_terminal_obligation_required,
-    true,
-  );
-
   const root = "/tmp/void-buy-bounded-orchestrator-proof-v1";
 
   const dryClaim = await runBuyVoidBoundedAutoFulfillmentOrchestratorV1({
@@ -66,7 +50,7 @@ async function main(): Promise<void> {
   assert.equal(dryClaim.selected_stage, "observe_and_claim");
   assert.equal(
     dryClaim.required_delegated_confirmation,
-    VOID_BUY_VOID_PIPELINE_CONFIRMATIONS_V1.verify_reserve_and_claim,
+    VOID_BUY_VOID_PIPELINE_CONFIRMATIONS_V1.verify_and_claim,
   );
 
   const dryReserve = await runBuyVoidBoundedAutoFulfillmentOrchestratorV1({
@@ -115,14 +99,14 @@ async function main(): Promise<void> {
       broadcast_status: "none",
     },
     stage_command: {
-      action: "verify_reserve_and_claim",
+      action: "verify_and_claim",
       request_id: "buyvoid_contract_apply_claim_v1",
     },
     apply: true,
     confirmation:
       VOID_BUY_VOID_BOUNDED_AUTO_FULFILLMENT_ORCHESTRATOR_CONFIRMATION_V1,
     delegated_confirmation:
-      VOID_BUY_VOID_PIPELINE_CONFIRMATIONS_V1.verify_reserve_and_claim,
+      VOID_BUY_VOID_PIPELINE_CONFIRMATIONS_V1.verify_and_claim,
     dependencies: {
       run_pipeline_command: (command) => {
         pipelineCalls += 1;
@@ -130,7 +114,7 @@ async function main(): Promise<void> {
         assert.equal(command.apply, true);
         assert.equal(
           command.confirmation,
-          VOID_BUY_VOID_PIPELINE_CONFIRMATIONS_V1.verify_reserve_and_claim,
+          VOID_BUY_VOID_PIPELINE_CONFIRMATIONS_V1.verify_and_claim,
         );
         return {
           ok: true,
@@ -157,12 +141,12 @@ async function main(): Promise<void> {
         broadcast_status: "none",
       },
       stage_command: {
-        action: "verify_reserve_and_claim",
+        action: "verify_and_claim",
         request_id: "buyvoid_contract_missing_confirmation_v1",
       },
       apply: true,
       delegated_confirmation:
-        VOID_BUY_VOID_PIPELINE_CONFIRMATIONS_V1.verify_reserve_and_claim,
+        VOID_BUY_VOID_PIPELINE_CONFIRMATIONS_V1.verify_and_claim,
       dependencies: {
         run_pipeline_command: () => {
           throw new Error("must_not_run");

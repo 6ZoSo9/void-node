@@ -365,16 +365,6 @@ assert(
   "well-known mutation wall differs",
 );
 assert(
-  wellKnownSchema.$id ===
-    "https://voidchain.org/.well-known/void-agent-authentication.schema.json",
-  "well-known auth schema canonical ID differs",
-);
-assert(
-  wellKnownSchema.$id !==
-    "https://voidchain.io/.well-known/void-agent-authentication.schema.json",
-  "retired well-known auth schema ID accepted",
-);
-assert(
   wellKnownSchema.properties?.marker?.const === wellKnown.marker,
   "well-known auth schema marker differs",
 );

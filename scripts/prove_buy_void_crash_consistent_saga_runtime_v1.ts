@@ -42,7 +42,7 @@ const RECEIVE = "0x8888888888888888888888888888888888888888";
 const PAYMENT_TX = `0x${"5".repeat(64)}`;
 const PAYMENT_ID = `voidpay1:ethereum:${PAYMENT_TX}:0`;
 const VOID_UNITS = "2500000";
-const POOL_ID = "buy-void-presale-v1";
+const POOL_ID = "void-presale-mainnet0-v1";
 const RUNTIME_ENABLE_ENV =
   "VOID_BUY_VOID_CRASH_CONSISTENT_SAGA_RUNTIME_ENABLED";
 const PREPARATION_ENABLE_ENV =
@@ -217,13 +217,13 @@ function policyEnvValues(): Record<string, string> {
     [VOID_BUY_VOID_CRASH_CONSISTENT_SAGA_SERVER_POLICY_ENVS_V1.rate_void_units_denominator]:
       "1",
     [VOID_BUY_VOID_CRASH_CONSISTENT_SAGA_SERVER_POLICY_ENVS_V1.inventory_policy_version]:
-      "presale-v1",
+      "proof-policy-v1",
     [VOID_BUY_VOID_CRASH_CONSISTENT_SAGA_SERVER_POLICY_ENVS_V1.pool_id]:
       POOL_ID,
     [VOID_BUY_VOID_CRASH_CONSISTENT_SAGA_SERVER_POLICY_ENVS_V1.pool_capacity_void_units]:
-      "10000000000000",
+      "10000000",
     [VOID_BUY_VOID_CRASH_CONSISTENT_SAGA_SERVER_POLICY_ENVS_V1.max_reservation_void_units]:
-      "10000000000000",
+      "5000000",
     [VOID_BUY_VOID_CRASH_CONSISTENT_SAGA_SERVER_POLICY_ENVS_V1.fulfillment_wallet_address]:
       WALLET,
   };
@@ -557,9 +557,9 @@ async function main(): Promise<void> {
       assert.deepEqual(input.policy, {
         inventory_reservation_enabled: true,
         pool_id: POOL_ID,
-        inventory_policy_version: "presale-v1",
-        pool_capacity_void_units: "10000000000000",
-        max_reservation_void_units: "10000000000000",
+        inventory_policy_version: "proof-policy-v1",
+        pool_capacity_void_units: "10000000",
+        max_reservation_void_units: "5000000",
       });
       const result = reserveBuyVoidInventoryV1(input);
       assert.equal(result.ok, true);
@@ -570,20 +570,7 @@ async function main(): Promise<void> {
       return result;
     },
     run_pipeline_command: async (command: Record<string, any>) => {
-      if (command.action === "verify_reserve_and_claim") {
-        if (command.apply === true) {
-          assert.equal(
-            command.confirmation,
-            VOID_BUY_VOID_PIPELINE_CONFIRMATIONS_V1.verify_reserve_and_claim,
-          );
-        }
-        assert.deepEqual(command.inventory_policy, {
-          inventory_reservation_enabled: true,
-          pool_id: POOL_ID,
-          inventory_policy_version: "presale-v1",
-          pool_capacity_void_units: "10000000000000",
-          max_reservation_void_units: "10000000000000",
-        });
+      if (command.action === "verify_and_claim") {
         assert.deepEqual(command.verification_policy, {
           allowed_chains: ["ethereum"],
           usdc_contract_by_chain: { ethereum: USDC },
@@ -598,7 +585,7 @@ async function main(): Promise<void> {
           receive_address_by_chain: { ethereum: RECEIVE },
           rate_void_units_numerator: "2",
           rate_void_units_denominator: "1",
-          pool_remaining_void_units: "10000000000000",
+          pool_remaining_void_units: "10000000",
           exact_payment_required: true,
         });
         assert.deepEqual(command.receipt, receipt);
@@ -757,11 +744,8 @@ async function main(): Promise<void> {
     body: applyFrom(dryClaim, receipt),
     dependencies: deps,
   });
-  assert.equal(changedPolicyRetry.code, 503);
-  assert.match(
-    changedPolicyRetry.body.reason,
-    /canonical_presale_fixed_rate_mismatch|server_rate_policy_conflict|server_policy_fingerprint_conflict/,
-  );
+  assert.equal(changedPolicyRetry.code, 409);
+  assert.match(changedPolicyRetry.body.reason, /server_rate_policy_conflict|server_policy_fingerprint_conflict/);
   assert.equal(claimCalls, 1);
   process.env[rateEnv] = "2";
 
@@ -1139,9 +1123,9 @@ async function main(): Promise<void> {
     policy: {
       inventory_reservation_enabled: true,
       pool_id: POOL_ID,
-      inventory_policy_version: "presale-v1",
-      pool_capacity_void_units: "10000000000000",
-      max_reservation_void_units: "10000000000000",
+      inventory_policy_version: "proof-policy-v1",
+      pool_capacity_void_units: "10000000",
+      max_reservation_void_units: "5000000",
     },
     apply: true,
     now_ms: clock += 1000,
@@ -1233,9 +1217,9 @@ async function main(): Promise<void> {
     policy: {
       inventory_reservation_enabled: true,
       pool_id: POOL_ID,
-      inventory_policy_version: "presale-v1",
-      pool_capacity_void_units: "10000000000000",
-      max_reservation_void_units: "10000000000000",
+      inventory_policy_version: "proof-policy-v1",
+      pool_capacity_void_units: "10000000",
+      max_reservation_void_units: "5000000",
     },
     apply: true,
     now_ms: clock += 1000,
@@ -1282,10 +1266,10 @@ async function main(): Promise<void> {
     process.env[maximumReservationEnv] =
       originalMaximumReservation;
   }
-  assert.equal(maxImportHeld.code, 503);
+  assert.equal(maxImportHeld.code, 409);
   assert.match(
     maxImportHeld.body.reason,
-    /canonical_presale_reservation_ceiling_mismatch/,
+    /inventory_server_max_reservation_conflict/,
   );
   assert.equal(
     fs.existsSync(

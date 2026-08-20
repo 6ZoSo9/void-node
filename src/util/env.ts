@@ -6,23 +6,6 @@ import * as path from "node:path";
 import * as fs from "node:fs";
 import * as dotenv from "dotenv";
 
-/**
- * Legacy saveBlock/txroot wrapper families are public-runtime opt-in only.
- * Missing, blank, malformed, or explicitly disabled values all fail closed.
- * An operator must set the exact value "0" before process start to deliberately
- * exercise the legacy wrapper family.
- */
-export function normalizeWrapperStormDisableFlagV1(raw: string | undefined): "0" | "1" {
-  return raw === "0" ? "0" : "1";
-}
-
-// This module is statically imported by src/index.ts before its top-level legacy
-// wrapper guards execute, so stale public-clone .env files that predate the flag
-// cannot silently re-enable wrapper families.
-process.env.VOID_DISABLE_WRAPPER_STORM = normalizeWrapperStormDisableFlagV1(
-  process.env.VOID_DISABLE_WRAPPER_STORM
-);
-
 let loaded = false;
 
 /** Load `.env` if present, return merged snapshot of process.env. */

@@ -46,41 +46,25 @@ an unrelated lane merely because it is convenient.
 
 Marker: `VOID_CAPABILITY_CLOSURE_PLAN_COORDINATION_V1`
 
-While GitHub issue #1301 is open and explicitly designated as the current VOID
+While GitHub issue #1182 is open and explicitly designated as the current VOID
 capability-closure plan, every worker must read it before starting or extending a
 lane. Its priority order, canonical-lane assignments, anti-duplication rules,
-role-routing rules, comment-discipline rules, and re-evaluation triggers are
-repository-wide coordination requirements.
+and re-evaluation triggers are repository-wide coordination requirements.
 
 - Prefer closing an existing P0/P1 capability loop over opening another
   source-only proof, closeout, documentation, or architecture layer.
-- Do not open a duplicate implementation for a semantic area that #1301 assigns
+- Do not open a duplicate implementation for a semantic area that #1182 assigns
   to an existing canonical branch or pull request. Disjoint supporting work may
   proceed under the coordination-severity rules below.
-- Treat a worker's named specialty as its first-look priority, not a permanent
-  exclusive identity. If that specialty is blocked, parked, already adequately
-  occupied, requires unavailable authority, or has no meaningful safe action,
-  fall through to the highest-value genuinely unowned Green or bounded Amber
-  source-only work that can be completed usefully. Return to the specialty when
-  it again becomes the highest-value actionable lane.
-- Interactive coordinator names used in human/assistant sessions, including Ren
-  or Mira, are not scheduled worker slots unless the current live-dispatch policy
-  explicitly includes them.
-- Treat #1301 as a state index rather than an hourly transcript. Do not post
-  routine `STARTED`, heartbeat, `still blocked`, `no change`, or CI-poll comments
-  there. Put detailed attributable execution evidence on the lane issue or
-  relevant pull request. Use #1301 only for material ownership, blocker,
-  collision, dependency, lifecycle, reassignment, or priority changes, and
-  prefer one consolidated material update.
+- If the highest useful priority is already occupied by a primary worker or a
+  Red collision, fall through to the next useful priority instead of idling.
 - Treat `merged`, `deployed`, and `externally accepted` as distinct states and
   stop at the highest state actually proven.
-- If #1301 is closed, superseded, explicitly replaced, or its assumptions no
+- If #1182 is closed, superseded, explicitly replaced, or its assumptions no
   longer match repository/runtime reality, emit `HOLD`, perform a fresh repo
-  scan, identify the explicitly superseding coordination plan, and use that
-  reviewed successor rather than mechanically continuing #1301.
-- Issue #1301 and any explicit successor are temporary execution coordination,
-  not permanent constitutional rules and not authority to bypass this working
-  agreement.
+  scan, and use the newly reviewed plan rather than mechanically continuing it.
+- Issue #1182 is temporary execution coordination, not a permanent
+  constitutional rule and not authority to bypass this working agreement.
 
 The coordination issue grants no service, deployment, credential, wallet,
 signer, payment, Work Credit, validator, treasury, transaction, or fund
@@ -137,13 +121,10 @@ Proceed normally under the repository quality and authority rules.
 
 ### Primary workers are not exclusive owners
 
-A worker named in the current coordination plan is the primary first-look worker
-for that lane, not the exclusive owner of an entire subsystem and not permanently
-bound to that specialty. Other workers must not duplicate the canonical
+A worker named in #1182 is the primary worker for that lane, not the exclusive
+owner of an entire subsystem. Other workers must not duplicate the canonical
 implementation or enter a Red boundary, but they may take disjoint prerequisites,
-fall through to another priority, review/integrate existing work, or explore
-elsewhere. A blocked primary worker should likewise fall through to useful
-unowned work rather than idle solely to preserve role purity.
+fall through to another priority, or explore elsewhere.
 
 ### Priority fall-through
 

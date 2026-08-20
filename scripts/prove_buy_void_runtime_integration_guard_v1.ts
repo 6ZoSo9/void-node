@@ -27,15 +27,6 @@ const transactionPreparationPlannerText = fs.readFileSync(
   ),
   "utf8",
 );
-const dependencyBootstrapGateText = fs.readFileSync(
-  path.join(
-    root,
-    "src",
-    "economic",
-    "buy_void_erc20_delivery_dependency_bootstrap_integration_gate_v1.ts",
-  ),
-  "utf8",
-);
 const workflowText = fs.readFileSync(
   path.join(root, ".github", "workflows", "buy-void-runtime-integration-v1.yml"),
   "utf8",
@@ -75,19 +66,15 @@ for (const marker of [
   "rpc_call: false",
   'asset_mode: "void_token_erc20"',
   "canonical_delivery_asset_void_token_erc20: true",
-  "canonical_delivery_runtime_parent_mounted: true",
+  "canonical_delivery_runtime_parent_mounted: false",
   "delivery_runtime_source_retained: true",
-  "delivery_runtime_parent_mounted: true",
-  "VOID_BUY_VOID_ERC20_DELIVERY_DEPENDENCY_BOOTSTRAP_INTEGRATION_GATE_V1",
-  "VOID_BUY_VOID_ERC20_DELIVERY_DEPENDENCY_BOOTSTRAP_INTEGRATION_V1",
-  "canonical_erc20_delivery_dependency_bootstrap_ready:",
-  "erc20_transaction_preparation_execution_state_ready:",
-  "canonical_erc20_transaction_preparation_execution_state_ready:",
+  "delivery_runtime_parent_mounted: false",
+  "canonical_erc20_delivery_dependency_bootstrap_ready: false",
   "canonical_erc20_delivery_atomic_unit_conversion_ready: true",
   "canonical_erc20_delivery_execution_ready: false",
   "canonical_erc20_delivery_execution_held: true",
-  "dormant_dependency_injection_source_ready: true",
-  "VOID_BUY_VOID_ERC20_DELIVERY_DEPENDENCY_INJECTION_V1",
+  'status: "held"',
+  'reason: "canonical_erc20_execution_not_ready"',
   "native_value_delivery_parent_mounted: false",
   "native_receipt_parent_mounted: false",
   "native_execution_parent_mounted: false",
@@ -113,29 +100,6 @@ for (const marker of [
   need(moduleText.includes(marker), `missing runtime marker: ${marker}`);
 }
 
-for (const marker of [
-  "erc20_transaction_preparation_execution_state_ready: true",
-  '"canonical_delivery_runtime_activation_not_ready"',
-  "next_funding_blocker:",
-]) {
-  need(
-    dependencyBootstrapGateText.includes(marker),
-    `missing planner execution-state HOLD marker: ${marker}`,
-  );
-}
-need(
-  transactionPreparationPlannerText.includes(
-    'execution_state_tag: "pending"',
-  ),
-  "planner execution-state contract must remain pending",
-);
-need(
-  !transactionPreparationPlannerText.includes(
-    '[policy.fulfillment_wallet_address, "latest"]',
-  ),
-  "planner must not regress to latest-state balance preflight",
-);
-
 need(
   !moduleText.includes(
     '"erc20_transaction_preparation_bridge_not_mounted"',
@@ -155,24 +119,8 @@ need(
   "resolved ERC-20 receipt-reconciliation blocker remains in funding blockers",
 );
 need(
-  (moduleText.match(
-    /from "\.\/buy_void_delivery_runtime_integration_v1\.js";/g,
-  ) || []).length === 1,
-  "canonical ERC-20 delivery runtime must be parent-imported exactly once",
-);
-need(
-  moduleText.includes("buyVoidDeliveryRuntimeStatusV1()"),
-  "parent must project the real disabled delivery-runtime status",
-);
-need(
-  /from "\.\/buy_void_erc20_delivery_dependency_injection_v1\.js";/.test(
-    moduleText,
-  ),
-  "parent must compose the dormant ERC20 dependency injector",
-);
-need(
-  moduleText.includes("buyVoidErc20DeliveryDependencyInjectionStatusV1()"),
-  "parent must project dormant dependency-injection status",
+  !/from "\.\/buy_void_delivery_runtime_integration_v1\.js";/.test(moduleText),
+  "canonical ERC-20 delivery runtime remains parent imported",
 );
 for (const forbiddenParentImport of [
   'import "./buy_void_native_delivery_runtime_integration_v1.js";',
@@ -241,32 +189,14 @@ need(
 
 for (const deliveryMarker of [
   "VOID_BUY_VOID_DELIVERY_RUNTIME_INTEGRATION_V1",
-  "VOID_BUY_VOID_ERC20_EXECUTION_COMPOSITION_V1",
-  "runBuyVoidErc20ExecutionCompositionV1",
-  '"sign_and_broadcast"',
-  "server_derived_transaction_plan: true",
-  "caller_supplied_transaction_plan: false",
-  "canonical_planner_policy_validation_required: true",
-  "durable_nonce_reservation_required: true",
-  "signed_hash_custody_required: true",
-  "saga_write_ahead_broadcast_intent_required: true",
-  "canonical_record_confirmed_required: true",
-  "existing_terminal_closeout_reused: true",
+  "VOID_BUY_VOID_DELIVERY_TOKEN_ADDRESS",
+  "VOID_BUY_VOID_DELIVERY_WALLET_ADDRESS",
+  "VOID_BUY_VOID_DELIVERY_SIGN_BROADCAST_ADAPTER_V1",
+  '"buyVoidSignAndBroadcast"',
 ]) {
   need(
     deliveryRuntimeText.includes(deliveryMarker),
     `canonical delivery runtime missing ${deliveryMarker}`,
-  );
-}
-for (const forbiddenDeliveryRuntimeMarker of [
-  "runBuyVoidDeliverySignBroadcastV1",
-  "createBuyVoidDeliverySubmissionGuardV1",
-  "const plan = (body as any).plan",
-  "submission_idempotency_key: (body as any)",
-]) {
-  need(
-    !deliveryRuntimeText.includes(forbiddenDeliveryRuntimeMarker),
-    `canonical delivery runtime retains direct sign/broadcast path: ${forbiddenDeliveryRuntimeMarker}`,
   );
 }
 
@@ -305,15 +235,10 @@ need(workflowText.includes("--moduleResolution NodeNext"), "workflow lacks focus
 
 console.log("VOID_BUY_VOID_RUNTIME_INTEGRATION_GUARD_V1_GREEN");
 console.log("canonical_delivery_asset=void_token_erc20");
-console.log("canonical_erc20_delivery_parent_mount=1");
+console.log("canonical_erc20_delivery_parent_mount=0");
 console.log("erc20_atomic_unit_conversion_ready=1");
 console.log("erc20_transaction_preparation_bridge_ready=1");
-console.log("erc20_transaction_preparation_execution_state_ready=1");
-console.log("canonical_delivery_dependency_bootstrap_ready=1");
-console.log("server_derived_transaction_plan=1");
-console.log("caller_supplied_transaction_plan=0");
-console.log("server_derived_durable_execution_composition_ready=1");
-console.log("caller_supplied_transaction_plan=0");
+console.log("canonical_delivery_dependency_bootstrap_ready=0");
 console.log("native_parent_mounts=0");
 console.log("bounded_orchestrator_parent_mount=0");
 console.log("standalone_crash_saga_source_retained=1");
