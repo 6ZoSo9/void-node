@@ -13,7 +13,7 @@ This bounded audit closes exact empty catch blocks in `src/index.ts` line window
 - `src/index.ts` measured catch context count at this historical audit: `2563`
 - `src/index.ts` current line-based exact empty catch count: `0`
 - `src/index.ts` current measured catch context count: `2529`
-- SHA256: `b20c8222ef8935d5ac8b414aa4e4038ad731a45cc7ea0eda818ac4783f4acd7a`
+- SHA256: `c3cbbda6a4851c5574454ce614bb964c690a4a470c9bb021990cf379af6ef9e9`
 ## SaveBlock marker descriptor idempotency
 
 The same audited window now treats an existing truthy saveBlock wrapper marker

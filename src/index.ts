@@ -63875,6 +63875,15 @@ a{color:#93c5fd;text-decoration:none}
   const MARK = "__void_jobs_and_datanet_worker_v1";
   if (G[MARK]) return;
   G[MARK] = { installed:false, ts:Date.now(), last_job_id:"", last_receipt_id:"" };
+  // VOID_JOBS_DATANET_WORKER_RUNTIME_INDEX_V1_BEGIN
+  let backgroundWorkerIndexV1:any = null;
+  async function getBackgroundWorkerIndexV1(){
+    if (backgroundWorkerIndexV1) return backgroundWorkerIndexV1;
+    const mod:any = await import("./http/jobs_datanet_worker_runtime_index_v1.js");
+    backgroundWorkerIndexV1 = new mod.JobsDatanetWorkerRuntimeIndexV1();
+    return backgroundWorkerIndexV1;
+  }
+  // VOID_JOBS_DATANET_WORKER_RUNTIME_INDEX_V1_END
   if (process.env.VOID_DISABLE_TIMER_FILE_JSON_V5 === "1" && process.env.VOID_ENABLE_JOBS_WORKER_INCREMENTAL_V1 !== "1") return;
 
   function getApp(){ return G.__void_http_app || G.app || null; }
@@ -64474,12 +64483,16 @@ a{color:#93c5fd;text-decoration:none}
     return crypto.createHash("sha256").update(Buffer.from(s, "utf8")).digest("hex");
   }
 
-  async function processJob(jobId:string){
+  async function processJob(jobId:string, workerCtx:any=null){
     const fs = require("node:fs");
     const path = require("node:path");
-    const job = latestJobById(jobId);
+    const job = workerCtx?.job || latestJobById(jobId);
     if (!job) return;
-    if (hasCompletedTruth(jobId)) {
+    const workerCompletedTruthHas = (id:string) =>
+      workerCtx && typeof workerCtx.doneTruthHas === "function"
+        ? !!workerCtx.doneTruthHas(id)
+        : hasCompletedTruth(id);
+    if (workerCompletedTruthHas(jobId)) {
       markJobDone(jobId);
       return;
     }
@@ -64558,7 +64571,7 @@ a{color:#93c5fd;text-decoration:none}
           output: outputObj,
           ts_ms: nowMs(),
         };
-        if (hasCompletedTruth(jobId)) {
+        if (workerCompletedTruthHas(jobId)) {
           markJobDone(jobId);
           return;
         }
@@ -64632,7 +64645,7 @@ a{color:#93c5fd;text-decoration:none}
           output: outputObj,
           ts_ms: nowMs(),
         };
-        if (hasCompletedTruth(jobId)) {
+        if (workerCompletedTruthHas(jobId)) {
           markJobDone(jobId);
           return;
         }
@@ -64709,7 +64722,7 @@ a{color:#93c5fd;text-decoration:none}
           output: outputObj,
           ts_ms: nowMs(),
         };
-        if (hasCompletedTruth(jobId)) {
+        if (workerCompletedTruthHas(jobId)) {
           markJobDone(jobId);
           return;
         }
@@ -64735,6 +64748,11 @@ a{color:#93c5fd;text-decoration:none}
         throw new Error("unsupported_kind");
       }
 } catch (e:any) {
+      if (
+        String(e?.message || e).startsWith(
+          "VOID_JOBS_DATANET_WORKER_COMPLETION_HOLD",
+        )
+      ) throw e;
       replaceJobState(jobId, {
         status: "failed",
         completed_at_ms: nowMs(),
@@ -64753,11 +64771,31 @@ a{color:#93c5fd;text-decoration:none}
       if (st.running) return;
       st.running = true;
       try {
-        let queued = scanQueuedJobsIncremental();
-        if (!queued.length) queued = listQueuedJobsFullScan();
-        for (const jobId of queued) {
+        const workerIndex:any = await getBackgroundWorkerIndexV1();
+        const workerInput:any = {
+          jobsFile: jobsFile(),
+          receiptsFile: receiptsFile(),
+          jobStateFile: jobStateFile(),
+        };
+        const batch:any = workerIndex.scan(workerInput);
+        st.background_index_v1_ready = !!batch.ready;
+        st.background_index_v1_hold_reason = batch.holdReason || "";
+        st.background_index_v1_scan_complete = !!batch.scanComplete;
+        st.background_index_v1_bytes_read_total = Number(batch.bytesReadTotal || 0);
+        if (!batch.ready) {
+          st.last_tick_ms = Date.now();
+          return;
+        }
+        for (const item of (batch.jobs || [])) {
+          const jobId = String(item?.jobId || "").trim();
+          if (!jobId) continue;
           try {
-            await processJob(jobId);
+            await processJob(jobId, {
+              job: item.job,
+              doneTruthHas: (id:string) =>
+                workerIndex.completionHasV1(workerInput, id),
+            });
+            workerIndex.markDone(jobId);
             markJobDone(jobId);
             G[MARK].last_job_id = jobId;
           } catch (err) { voidIndexEmptyCatchVisibilityWindow59401_78300V1("63765:68", err); }
