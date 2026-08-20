@@ -10,6 +10,10 @@ on:
       - "public/.well-known/void-agent-authentication.schema.json"
       - "public/.well-known/void-agent-capabilities.schema.json"
       - "src/ai-agent-discovery-runtime-route-v1.ts"
+      - "scripts/prove_official_network_authenticity_wall_v1.mjs"
+      - "scripts/prove_official_network_authenticity_root_v2.mjs"
+      - "scripts/prove_official_network_identity_mainnet0_correction_v2_1.mjs"
+      - "scripts/prove_official_network_authenticity_root_public_admission_v2_1.mjs"
       - "scripts/prove_official_network_authenticity_well_known_v1.mjs"
       - "scripts/prove_void_ai_agent_well_known_entrypoint_v1.mjs"
       - "tools/void-ai-agent-well-known-client-v1.mjs"
@@ -17,6 +21,8 @@ on:
       - "scripts/prove_void_ai_agent_authentication_contract_v1.mjs"
       - "scripts/prove_void_ai_agent_capability_negotiation_v1.mjs"
       - "scripts/prove_void_ai_agent_discovery_runtime_route_v1.ts"
+      - "scripts/ci_diff_hygiene_v1.sh"
+      - "scripts/prove_ci_diff_hygiene_v1.mjs"
       - "docs/public/official-network-authenticity-well-known-v1.md"
   pull_request:
     paths:
@@ -28,6 +34,10 @@ on:
       - "public/.well-known/void-agent-authentication.schema.json"
       - "public/.well-known/void-agent-capabilities.schema.json"
       - "src/ai-agent-discovery-runtime-route-v1.ts"
+      - "scripts/prove_official_network_authenticity_wall_v1.mjs"
+      - "scripts/prove_official_network_authenticity_root_v2.mjs"
+      - "scripts/prove_official_network_identity_mainnet0_correction_v2_1.mjs"
+      - "scripts/prove_official_network_authenticity_root_public_admission_v2_1.mjs"
       - "scripts/prove_official_network_authenticity_well_known_v1.mjs"
       - "scripts/prove_void_ai_agent_well_known_entrypoint_v1.mjs"
       - "tools/void-ai-agent-well-known-client-v1.mjs"
@@ -35,6 +45,8 @@ on:
       - "scripts/prove_void_ai_agent_authentication_contract_v1.mjs"
       - "scripts/prove_void_ai_agent_capability_negotiation_v1.mjs"
       - "scripts/prove_void_ai_agent_discovery_runtime_route_v1.ts"
+      - "scripts/ci_diff_hygiene_v1.sh"
+      - "scripts/prove_ci_diff_hygiene_v1.mjs"
       - "docs/public/official-network-authenticity-well-known-v1.md"
 permissions:
   contents: read
@@ -51,6 +63,17 @@ jobs:
           node-version: "22"
           cache: npm
       - run: npm ci
+      - run: node scripts/prove_ci_diff_hygiene_v1.mjs
+      - name: Prove committed-range diff hygiene
+        env:
+          CI_DIFF_EVENT_NAME: ${{ github.event_name }}
+          CI_DIFF_PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          CI_DIFF_PUSH_BEFORE_SHA: ${{ github.event.before }}
+          CI_DIFF_CURRENT_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+          CI_DIFF_CHECKOUT_SHA: ${{ github.sha }}
+          CI_DIFF_BASE_REMOTE: ${{ github.server_url }}/${{ github.repository }}.git
+          CI_DIFF_HEAD_REMOTE: ${{ github.server_url }}/${{ github.event.pull_request.head.repo.full_name || github.repository }}.git
+        run: bash scripts/ci_diff_hygiene_v1.sh
       - run: node scripts/prove_official_network_authenticity_wall_v1.mjs
       - run: node scripts/prove_official_network_authenticity_root_v2.mjs
       - run: node scripts/prove_official_network_identity_mainnet0_correction_v2_1.mjs
@@ -61,4 +84,3 @@ jobs:
       - run: node scripts/prove_void_ai_agent_capability_negotiation_v1.mjs
       - run: npx tsx scripts/prove_void_ai_agent_discovery_runtime_route_v1.ts
       - run: npm run build
-      - run: git diff --check
