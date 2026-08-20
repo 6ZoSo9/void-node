@@ -54,8 +54,7 @@ not readiness evidence. Discovery, authentication, and capability readiness
 are bound to the exact reviewed canonical V1 document identities. This closes
 every top-level and nested key set, including schema references, canonical
 routes, network binding, authority-zero fields, negotiation, next-contract,
-client-algorithm, and safety semantics. Any added, removed, retyped, reordered,
-or authority-widening value fails closed as `partial_read_only`; the related
+client-algorithm, and safety semantics. Any added, removed, retyped, or authority-widening value fails closed as `partial_read_only`; the related
 inspection action is omitted, and no official-network, authentication,
 capability, paid-work, or earning claim is derived from that malformed
 surface.
