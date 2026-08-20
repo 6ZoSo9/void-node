@@ -6,10 +6,14 @@ import {
 } from "node:crypto";
 import {
   closeSync,
+  constants,
   fchmodSync,
+  fstatSync,
   fsyncSync,
+  lstatSync,
   mkdirSync,
   openSync,
+  unlinkSync,
   writeFileSync,
 } from "node:fs";
 import path from "node:path";
@@ -47,6 +51,33 @@ const NETWORK_AUTHENTICITY_SUPERSEDED_PAYLOAD_SHA256 =
   "b624f7bb029e5b3eca8b2e14050711d4f764d2d39bba56455f1f94697de2708e";
 const NETWORK_AUTHENTICITY_QUARANTINED_KEY_ID =
   "ed25519:0ccca842c156fc87af3279b15830fca826db1225d669b790e97705e2b402362b";
+const REVIEWED_SURFACE_CONTRACTS_V1 = Object.freeze({
+  canonical_discovery: Object.freeze({
+    marker: "VOID_AI_AGENT_DISCOVERY_CONTRACT_WALL_V1",
+    canonical_sha256:
+      "c27ed5e98a3171dadfd9ce136a249bd072b7c9bcb53f0330069f9dc10b65b93d",
+  }),
+  capabilities: Object.freeze({
+    marker: "VOID_AI_AGENT_CAPABILITY_WELL_KNOWN_V1",
+    canonical_sha256:
+      "c7d4d75f97599a9accaca699c6918c8345712045e18c9c35e0d1a415a875eb4f",
+  }),
+  authentication: Object.freeze({
+    marker: "VOID_AI_AGENT_AUTHENTICATION_WELL_KNOWN_V1",
+    canonical_sha256:
+      "b25bd797ede8464053a21f065f812d7d85effccf6df8185f0b30e002d28b9881",
+  }),
+  first_contact: Object.freeze({
+    marker: "VOID_AI_AGENT_FIRST_CONTACT_V1",
+    canonical_sha256:
+      "a5cfc0a39644ea8b4665dca46c82d9360a25b035cd0f91409c3761000a1be52b",
+  }),
+  external_opportunity_intake: Object.freeze({
+    marker: "VOID_EXTERNAL_OPPORTUNITY_AGENT_INTAKE_CAPABILITY_V1",
+    canonical_sha256:
+      "5b16d50b6e4991ff64ad78a51421ed151d32a3d6340192a15167f3d5f096dd42",
+  }),
+});
 
 const DEFAULT_TIMEOUT_MS = 10_000;
 const MAX_TIMEOUT_MS = 30_000;
@@ -54,6 +85,7 @@ const DEFAULT_MAX_BYTES = 1_048_576;
 const MAX_ALLOWED_BYTES = 4_194_304;
 const RESPONSE_REJECTION_TEARDOWN_MS = 250;
 const BODY_READ_YIELD_INTERVAL = 64;
+const PROC_FD_ROOT = "/proc/self/fd";
 const activeTransportLeases = new WeakMap();
 
 const ROUTES = Object.freeze({
@@ -392,6 +424,23 @@ function sha256Hex(value) {
   return createHash("sha256").update(value).digest("hex");
 }
 
+function validateReviewedSurfaceContractV1(
+  payload,
+  contract,
+  label,
+) {
+  if (payload?.marker !== contract.marker) {
+    throw new Error(`${label}_marker_mismatch`);
+  }
+  const canonicalSha256 = sha256Hex(
+    JSON.stringify(canonicalJsonValue(payload)),
+  );
+  if (canonicalSha256 !== contract.canonical_sha256) {
+    throw new Error(`${label}_contract_identity_mismatch`);
+  }
+  return payload;
+}
+
 function validateOfficialNetworkAuthenticityV1(payload) {
   requireExactObjectKeys(
     payload,
@@ -663,16 +712,6 @@ function readExactResponseStatus(response) {
   }
 
   return status;
-}
-
-function publicMarker(value) {
-  const marker = value?.marker;
-  return (
-    typeof marker === "string" &&
-    /^VOID_[A-Z0-9_]+$/.test(marker)
-  )
-    ? marker
-    : null;
 }
 
 function parseDeclaredResponseLength(response) {
@@ -1266,7 +1305,10 @@ async function fetchJsonV1({
       route: url.pathname,
       status,
       bytes: Buffer.byteLength(raw, "utf8"),
-      marker: publicMarker(payload),
+      marker:
+        typeof payload.marker === "string"
+          ? payload.marker
+          : null,
       payload,
     };
   } finally {
@@ -1278,6 +1320,7 @@ async function fetchJsonV1({
 async function probeSurfaceV1(options) {
   try {
     const value = await fetchJsonV1(options);
+    const payload = options.validate(value.payload);
 
     return {
       available: true,
@@ -1285,11 +1328,9 @@ async function probeSurfaceV1(options) {
       http_status: value.status,
       response_bytes: value.bytes,
       marker: value.marker,
-      public_marker_valid: Boolean(
-        value.marker,
-      ),
+      public_marker_valid: true,
       error: null,
-      payload: value.payload,
+      payload,
     };
   } catch (error) {
     return {
@@ -1346,42 +1387,217 @@ function readNetwork(value) {
   };
 }
 
-export function writeBootstrapOutputFileV1(outputPath, content) {
+function identityOfV1(stat) {
+  return Object.freeze({
+    dev: String(stat.dev),
+    ino: String(stat.ino),
+  });
+}
+
+function sameIdentityV1(left, right) {
+  return left.dev === right.dev && left.ino === right.ino;
+}
+
+function procFdPathV1(fd, leaf = "") {
+  const root = path.join(PROC_FD_ROOT, String(fd));
+  return leaf ? path.join(root, leaf) : root;
+}
+
+function openPinnedOutputParentV1(
+  parent,
+  { createMissing = true } = {},
+) {
+  let procStat;
+  try {
+    procStat = lstatSync(PROC_FD_ROOT);
+  } catch {
+    throw new Error(
+      "output parent authority requires /proc/self/fd",
+    );
+  }
+  if (!procStat.isDirectory()) {
+    throw new Error(
+      "output parent authority requires /proc/self/fd",
+    );
+  }
+
+  const absolute = path.resolve(parent);
+  const root = path.parse(absolute).root;
+  const relative = path.relative(root, absolute);
+  const parts = relative
+    ? relative.split(path.sep).filter(Boolean)
+    : [];
+  let fd = openSync(
+    root,
+    constants.O_RDONLY | constants.O_DIRECTORY,
+  );
+
+  try {
+    for (const part of parts) {
+      if (
+        part !== path.basename(part) ||
+        part === "." ||
+        part === ".."
+      ) {
+        throw new Error("output parent component invalid");
+      }
+      const bound = procFdPathV1(fd, part);
+      let next;
+      try {
+        next = openSync(
+          bound,
+          constants.O_RDONLY |
+            constants.O_DIRECTORY |
+            Number(constants.O_NOFOLLOW || 0),
+        );
+      } catch (error) {
+        if (error?.code !== "ENOENT") {
+          throw new Error(
+            "output parent must contain only real directories",
+          );
+        }
+        if (!createMissing) {
+          throw new Error(
+            "output parent path changed generation",
+          );
+        }
+        mkdirSync(bound, { mode: 0o700 });
+        fsyncSync(fd);
+        next = openSync(
+          bound,
+          constants.O_RDONLY |
+            constants.O_DIRECTORY |
+            Number(constants.O_NOFOLLOW || 0),
+        );
+      }
+      const metadata = fstatSync(next, {
+        bigint: true,
+      });
+      if (!metadata.isDirectory()) {
+        closeSync(next);
+        throw new Error(
+          "output parent component is not a directory",
+        );
+      }
+      closeSync(fd);
+      fd = next;
+    }
+
+    const metadata = fstatSync(fd, { bigint: true });
+    return Object.freeze({
+      fd,
+      absolute,
+      identity: identityOfV1(metadata),
+    });
+  } catch (error) {
+    closeSync(fd);
+    throw error;
+  }
+}
+
+function assertPinnedOutputParentV1(pinned) {
+  const current = openPinnedOutputParentV1(
+    pinned.absolute,
+    { createMissing: false },
+  );
+  try {
+    if (!sameIdentityV1(pinned.identity, current.identity)) {
+      throw new Error(
+        "output parent path changed generation",
+      );
+    }
+  } finally {
+    closeSync(current.fd);
+  }
+}
+
+export function writeBootstrapOutputFileV1(
+  outputPath,
+  content,
+  testHooks = null,
+) {
   const resolved = path.resolve(
     process.cwd(),
     outputPath,
   );
   const parent = path.dirname(resolved);
-
-  mkdirSync(parent, {
-    recursive: true,
-    mode: 0o700,
-  });
-
-  if (pathToFileURL(resolved).protocol !== "file:") {
-    throw new Error(
-      "output path must be a local file",
-    );
+  const leaf = path.basename(resolved);
+  if (!leaf || leaf === "." || leaf === "..") {
+    throw new Error("output path leaf invalid");
+  }
+  if (testHooks !== null && typeof testHooks !== "object") {
+    throw new Error("output test hooks invalid");
   }
 
+  const pinned = openPinnedOutputParentV1(parent);
+  const boundOutput = procFdPathV1(pinned.fd, leaf);
   let descriptor;
+  let openedIdentity = null;
+  let published = false;
   try {
-    descriptor = openSync(resolved, "wx", 0o600);
-  } catch (error) {
-    if (error?.code === "EEXIST") {
-      throw new Error("output path already exists");
-    }
-    throw error;
-  }
+    testHooks?.afterParentPinned?.({
+      parent,
+      resolved,
+    });
+    assertPinnedOutputParentV1(pinned);
 
-  try {
+    try {
+      descriptor = openSync(
+        boundOutput,
+        constants.O_WRONLY |
+          constants.O_CREAT |
+          constants.O_EXCL |
+          Number(constants.O_NOFOLLOW || 0),
+        0o600,
+      );
+    } catch (error) {
+      if (error?.code === "EEXIST") {
+        throw new Error("output path already exists");
+      }
+      throw error;
+    }
+
+    openedIdentity = identityOfV1(
+      fstatSync(descriptor, { bigint: true }),
+    );
+    testHooks?.afterOutputOpened?.({
+      parent,
+      resolved,
+    });
+    assertPinnedOutputParentV1(pinned);
+
     writeFileSync(descriptor, content, {
       encoding: "utf8",
     });
     fchmodSync(descriptor, 0o600);
     fsyncSync(descriptor);
+    const linkedIdentity = identityOfV1(
+      lstatSync(boundOutput, { bigint: true }),
+    );
+    if (!sameIdentityV1(openedIdentity, linkedIdentity)) {
+      throw new Error("output path changed generation");
+    }
+    fsyncSync(pinned.fd);
+    assertPinnedOutputParentV1(pinned);
+    published = true;
   } finally {
-    closeSync(descriptor);
+    if (descriptor !== undefined) {
+      closeSync(descriptor);
+    }
+    if (!published && openedIdentity) {
+      try {
+        const linkedIdentity = identityOfV1(
+          lstatSync(boundOutput, { bigint: true }),
+        );
+        if (sameIdentityV1(openedIdentity, linkedIdentity)) {
+          unlinkSync(boundOutput);
+          fsyncSync(pinned.fd);
+        }
+      } catch {
+        // Never delete an unknown replacement generation while failing closed.
+      }
+    }
+    closeSync(pinned.fd);
   }
 
   return resolved;
@@ -1457,6 +1673,12 @@ export async function runVoidAiAgentBootstrapClientV1({
     timeoutMs: checkedTimeoutMs,
     maxBytes: checkedMaxBytes,
     fetchImpl,
+    validate: (payload) =>
+      validateReviewedSurfaceContractV1(
+        payload,
+        REVIEWED_SURFACE_CONTRACTS_V1.canonical_discovery,
+        "canonical_discovery",
+      ),
   });
   const capabilities =
     await probeSurfaceV1({
@@ -1465,6 +1687,12 @@ export async function runVoidAiAgentBootstrapClientV1({
       timeoutMs: checkedTimeoutMs,
       maxBytes: checkedMaxBytes,
       fetchImpl,
+      validate: (payload) =>
+        validateReviewedSurfaceContractV1(
+          payload,
+          REVIEWED_SURFACE_CONTRACTS_V1.capabilities,
+          "capabilities",
+        ),
     });
   const authentication =
     await probeSurfaceV1({
@@ -1473,6 +1701,12 @@ export async function runVoidAiAgentBootstrapClientV1({
       timeoutMs: checkedTimeoutMs,
       maxBytes: checkedMaxBytes,
       fetchImpl,
+      validate: (payload) =>
+        validateReviewedSurfaceContractV1(
+          payload,
+          REVIEWED_SURFACE_CONTRACTS_V1.authentication,
+          "authentication",
+        ),
     });
   const firstContact =
     await probeSurfaceV1({
@@ -1481,6 +1715,12 @@ export async function runVoidAiAgentBootstrapClientV1({
       timeoutMs: checkedTimeoutMs,
       maxBytes: checkedMaxBytes,
       fetchImpl,
+      validate: (payload) =>
+        validateReviewedSurfaceContractV1(
+          payload,
+          REVIEWED_SURFACE_CONTRACTS_V1.first_contact,
+          "first_contact",
+        ),
     });
   const externalIntake =
     await probeSurfaceV1({
@@ -1490,6 +1730,12 @@ export async function runVoidAiAgentBootstrapClientV1({
       timeoutMs: checkedTimeoutMs,
       maxBytes: checkedMaxBytes,
       fetchImpl,
+      validate: (payload) =>
+        validateReviewedSurfaceContractV1(
+          payload,
+          REVIEWED_SURFACE_CONTRACTS_V1.external_opportunity_intake,
+          "external_opportunity_intake",
+        ),
     });
 
   const required = [
