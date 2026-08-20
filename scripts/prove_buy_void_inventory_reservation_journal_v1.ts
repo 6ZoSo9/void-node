@@ -800,6 +800,23 @@ function writeCrossProcessLockChild(root: string): string {
     '} else {',
     '  let fired = false;',
     '  const originalUnlink = fs.unlinkSync;',
+    '  const originalLstat = fs.lstatSync;',
+    '  if (mode === "delayed-reclaimer") {',
+    '    fs.lstatSync = (file, options) => {',
+    '      const stat = originalLstat(file, options);',
+    '      const basename = String(file).split("/").pop();',
+    '      if (!fired && basename?.startsWith(paths.lock_reclaim_prefix.split("/").pop() + "-") && basename?.endsWith(".json") && fs.existsSync(String(file) + ".owner")) {',
+    '        fired = true;',
+    '        fs.writeFileSync(input.barrier_reached_file, "reached\\n", { flag: "wx", mode: 0o600 });',
+    '        const deadline = Date.now() + 10000;',
+    '        while (!fs.existsSync(input.barrier_release_file)) {',
+    '          if (Date.now() >= deadline) throw new Error("delayed_reclaimer_barrier_timeout");',
+    '          Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 20);',
+    '        }',
+    '      }',
+    '      return stat;',
+    '    };',
+    '  }',
     '  if (mode === "release-failure" || mode === "reclaim-fence-cleanup-failure") {',
     '    fs.unlinkSync = (file) => {',
     '      const basename = String(file).split("/").pop();',
@@ -815,6 +832,7 @@ function writeCrossProcessLockChild(root: string): string {
     '  }',
     '  const result = reserveBuyVoidInventoryV1({ root_dir: root, intent: input.intent, policy: input.policy, apply: true });',
     '  fs.unlinkSync = originalUnlink;',
+    '  fs.lstatSync = originalLstat;',
     '  const releaseFiles = fs.readdirSync(paths.history_anchor_pool_dir).filter((name) => /^\\.reserve\\.lock\\.release-[0-9a-f]{32}\\.json$/u.test(name));',
     '  const reclaimFiles = fs.readdirSync(paths.history_anchor_pool_dir).filter((name) => /^\\.reserve\\.lock\\.reclaim-[0-9a-f]{32}\\.json$/u.test(name));',
     '  const survivingLock = fs.existsSync(paths.lock_file) ? JSON.parse(fs.readFileSync(paths.lock_file, "utf8")) : null;',
@@ -832,6 +850,7 @@ async function startCrossProcessChild(
   mode:
     | "release-failure"
     | "reclaim-fence-cleanup-failure"
+    | "delayed-reclaimer"
     | "retry"
     | "live-owner",
   root: string,
@@ -846,6 +865,134 @@ async function startCrossProcessChild(
     { stdio: ["ignore", "pipe", "pipe"] },
   );
   return { child, result: await readChildResult(child) };
+}
+
+async function waitForFile(file: string): Promise<void> {
+  const deadline = Date.now() + 10_000;
+  while (!fs.existsSync(file)) {
+    if (Date.now() >= deadline) {
+      throw new Error(`wait_for_file_timeout:${file}`);
+    }
+    await new Promise((resolve) => setTimeout(resolve, 20));
+  }
+}
+
+async function proveSerializedStaleReclaimCompareDelete(): Promise<void> {
+  for (const scenario of ["reservation", "obligation"] as const) {
+    const root = fs.mkdtempSync(
+      path.join(os.tmpdir(), `void-buy-history-reclaim-owner-${scenario}-`),
+    );
+    let delayed: ReturnType<typeof spawn> | null = null;
+    let contender: ReturnType<typeof spawn> | null = null;
+    try {
+      const scenarioPolicy = scenario === "reservation"
+        ? policy()
+        : policy("1", "1");
+      if (scenario === "obligation") {
+        const seed = reserveBuyVoidInventoryV1({
+          root_dir: root,
+          intent: makeIntent(120, "1"),
+          policy: scenarioPolicy,
+          apply: true,
+        });
+        assert.equal(seed.ok, true);
+      }
+      const paths = buyVoidInventoryReservationJournalPathsV1(
+        root,
+        scenarioPolicy.pool_id,
+      );
+      fs.mkdirSync(paths.history_anchor_pool_dir, {
+        recursive: true,
+        mode: 0o700,
+      });
+      const stale = {
+        schema: "void_buy_void_inventory_pool_lock_v1",
+        marker: VOID_BUY_VOID_INVENTORY_POOL_LOCK_V1,
+        pid: 2147483647,
+        acquired_at_ms: Date.now(),
+        process_start_ticks: "1",
+        boot_id: "00000000-0000-0000-0000-000000000000",
+        owner_nonce: "9".repeat(32),
+      };
+      fs.writeFileSync(paths.lock_file, `${JSON.stringify(stale)}\n`, {
+        flag: "wx",
+        mode: 0o600,
+      });
+      const barrierReached = path.join(root, "reclaim-barrier-reached");
+      const barrierRelease = path.join(root, "reclaim-barrier-release");
+      const inputFile = path.join(root, "cross-process-input.json");
+      fs.writeFileSync(
+        inputFile,
+        JSON.stringify({
+          intent: makeIntent(scenario === "reservation" ? 121 : 122, "1"),
+          policy: scenarioPolicy,
+          barrier_reached_file: barrierReached,
+          barrier_release_file: barrierRelease,
+        }),
+        { mode: 0o600 },
+      );
+      const childFile = writeCrossProcessLockChild(root);
+      delayed = spawn(
+        process.execPath,
+        [
+          ...process.execArgv,
+          childFile,
+          "delayed-reclaimer",
+          root,
+          inputFile,
+        ],
+        { stdio: ["ignore", "pipe", "pipe"] },
+      );
+      const delayedResult = readChildResult(delayed);
+      await waitForFile(barrierReached);
+
+      const second = await startCrossProcessChild(
+        childFile,
+        "retry",
+        root,
+        inputFile,
+      );
+      contender = second.child;
+      assert.equal(second.result.result.ok, false);
+      assert.equal(
+        second.result.result.reason,
+        "inventory_reservation_busy",
+      );
+      assert.deepEqual(
+        JSON.parse(fs.readFileSync(paths.lock_file, "utf8")),
+        stale,
+      );
+
+      fs.writeFileSync(barrierRelease, "release\n", { mode: 0o600 });
+      const completed = await delayedResult;
+      assert.equal(completed.fired, true);
+      if (scenario === "reservation") {
+        assert.equal(completed.result.ok, true);
+        assert.equal(
+          listBuyVoidInventoryReservationsV1({
+            root_dir: root,
+            pool_id: scenarioPolicy.pool_id,
+          }).length,
+          1,
+        );
+      } else {
+        assert.equal(completed.result.ok, false);
+        assert.equal(completed.result.reason, "inventory_sold_out");
+        assert.equal(
+          listBuyVoidPaidUnreservableObligationsV1({
+            root_dir: root,
+            pool_id: scenarioPolicy.pool_id,
+          }).length,
+          1,
+        );
+      }
+      assert.equal(fs.existsSync(paths.lock_file), false);
+    } finally {
+      if (delayed) await stopChild(delayed);
+      if (contender) await stopChild(contender);
+      fs.rmSync(root, { recursive: true, force: true });
+    }
+  }
 }
 
 async function proveCrossProcessReleaseRecovery(): Promise<void> {
@@ -2327,6 +2474,7 @@ withAdversarialRoot("lock-release-recovery", (root) => {
 
 await proveCrossProcessReleaseRecovery();
 await proveCrossProcessOrphanReclaimFenceRecovery();
+await proveSerializedStaleReclaimCompareDelete();
 
 console.log("durable_history_expected_set_commitment=1");
 console.log("durable_history_append_only_hash_chain_index=1");

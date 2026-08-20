@@ -3298,6 +3298,13 @@ function poolLockReclaimFile(
   return `${paths.lock_reclaim_prefix}-${ownerNonce}.json`;
 }
 
+function poolLockReclaimOwnerFile(
+  paths: BuyVoidInventoryReservationJournalPathsV1,
+  ownerNonce: string,
+): string {
+  return `${poolLockReclaimFile(paths, ownerNonce)}.owner`;
+}
+
 function clearReclaimFence(file: string): void {
   try {
     deleteAndSync(file);
@@ -3348,18 +3355,40 @@ function acquireStaleReclaimFence(
     }
   }
 
-  if (sameInode(paths.lock_file, reclaimFile)) {
-    try {
-      deleteAndSync(paths.lock_file);
-    } catch (error) {
+  // The generation hardlink proves which lock was observed, but it cannot by
+  // itself make a later pathname unlink conditional on that inode. Serialize
+  // the compare/delete window with a separate generation-specific ownership
+  // object. An abandoned owner fails closed: it is never auto-reclaimed by a
+  // second process, because doing so would recreate the same compare/delete
+  // race recursively.
+  const reclaimOwnerFile = poolLockReclaimOwnerFile(
+    paths,
+    observed.owner_nonce,
+  );
+  const ownerCreated = atomicCreateJson(reclaimOwnerFile, {
+    schema: "void_buy_void_inventory_pool_lock_reclaim_owner_v1",
+    marker: VOID_BUY_VOID_INVENTORY_POOL_LOCK_V1,
+    observed_owner_nonce: observed.owner_nonce,
+    reclaimer_nonce: crypto.randomBytes(16).toString("hex"),
+  });
+  if (ownerCreated === "exists") return "busy";
+
+  try {
+    if (sameInode(paths.lock_file, reclaimFile)) {
+      try {
+        deleteAndSync(paths.lock_file);
+      } catch (error) {
+        clearReclaimFence(reclaimFile);
+        throw error;
+      }
+    } else if (pinnedFileExists(paths.lock_file)) {
       clearReclaimFence(reclaimFile);
-      throw error;
+      return "retry";
     }
-  } else if (pinnedFileExists(paths.lock_file)) {
-    clearReclaimFence(reclaimFile);
-    return "retry";
+    return "acquired";
+  } finally {
+    clearReclaimFence(reclaimOwnerFile);
   }
-  return "acquired";
 }
 
 function acquirePoolLock(

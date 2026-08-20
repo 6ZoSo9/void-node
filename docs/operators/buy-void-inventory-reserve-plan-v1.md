@@ -53,14 +53,19 @@ fingerprint, and local index-entry SHA.
 A pool lock is now an atomically-created private regular owner file in the
 separate anchor authority. It binds PID, Linux process-start ticks, boot ID, and
 nonce, so PID reuse is not mistaken for the recorded owner. Reclamation first
-hard-links the observed inode into a fixed fence and deletes the public name only
-if both names still identify that inode. A live external process instance remains
-busy unless its exact nonce-bound durable release terminal proves that logical
-ownership ended. A dead, PID-reused, same-process abandoned, or durably released
-lock is recoverable. Exact readback plus parent-directory resync resolves
-uncertain publication. If physical release fails, another process can reclaim
-through the inode fence while the original process remains alive; without the
-release terminal, a live owner is non-stealable.
+hard-links the observed inode into a generation-specific fence. A separate
+exclusive owner object serializes the fence-compare/public-name-delete window,
+so two reclaimers cannot both validate an old inode and let a delayed unlink
+remove a replacement lock. An abandoned reclaim owner is deliberately not
+auto-reclaimed; recovery then fails closed instead of recursively reopening the
+same compare/delete race. A live external process instance remains busy unless
+its exact nonce-bound durable release terminal proves that logical ownership
+ended. A dead, PID-reused, same-process abandoned, or durably released lock is
+recoverable when no abandoned reclaim owner blocks it. Exact readback plus
+parent-directory resync resolves uncertain publication. If physical release
+fails, another process can reclaim through the inode fence while the original
+process remains alive; without the release terminal, a live owner is
+non-stealable.
 The process-instance evidence is Linux `/proc` authority; if that evidence cannot
 be read or validated, mutation fails closed rather than guessing ownership.
 
