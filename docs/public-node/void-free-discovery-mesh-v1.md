@@ -33,8 +33,12 @@ The offline builder fails closed unless it can bind local file and output namesp
 - Before publication, the builder reopens the selected parent path and requires it to resolve to the same device/inode generation. An ancestor or parent replacement therefore produces HOLD instead of redirecting output into the replacement tree.
 - Final publication first claims the absent destination with an exclusive directory reservation, then moves the completed private staging entries through descriptor-relative authority. A concurrently created foreign destination wins unchanged and the build HOLDs without clobbering it.
 - The build receipt hashes the exact config bytes that were descriptor-bound and validated; it does not reopen the config pathname later for receipt authority.
-- Every staged artifact, including the receipt itself, is checked against its exact intended bytes through no-follow descriptor-relative file opens after the pre-publication boundary. Symlinks, replacement generations, extra files, missing files, and byte drift HOLD before publication.
-- After the reserved publication is populated, the complete descriptor-bound inventory and every published file are verified again against the same intended bytes before success is returned. A compromised publication is removed only through the exact directory generation reserved by this build.
+- Every staged artifact, including the receipt itself, is checked against its exact intended bytes through no-follow descriptor-relative file opens after the pre-publication boundary. Symlinks, replacement generations, extra files, missing files, and byte drift present before or during an artifact's admitted read HOLD before publication.
+- After the reserved publication is populated, the complete descriptor-bound inventory and every published file are verified again against the same intended bytes. A compromised publication detected by that pass is removed only through the exact directory generation reserved by this build.
+
+The per-file verification pass does not atomically seal the complete tree. It does not exclude a different process with the same UID and filesystem namespace from rewriting a file or replacing a directory entry after that leaf's final admitted read. The builder therefore requires exclusive same-UID mutation authority over the selected output parent and every builder-owned temporary or reserved generation for the complete build interval. Do not run it alongside another process that can mutate that namespace.
+
+The receipt records this boundary as machine-readable truth: `same_uid_concurrent_mutation_excluded` is `false`, `exclusive_same_uid_output_mutation_authority_required` is `true`, and `consumer_receipt_reverification_required_after_handoff` is `true`. Treat its hashes as verification evidence, not an immutable filesystem seal. A consumer must reverify the receipt hashes after every handoff and immediately before deployment or other use.
 
 This hardening currently requires Linux `/proc/self/fd`, which matches the supported VOID operator environment. If descriptor-relative filesystem authority is unavailable, the build fails closed.
 
@@ -55,7 +59,7 @@ node tools/void-free-discovery-mesh-v1.mjs build \
   --confirm "buildVoidFreeDiscoveryMeshV1"
 ```
 
-The output path must be absent, its parent must already exist, every parent component must be a real directory rather than a symlink, and the output must be outside the repository. The command performs no network calls.
+The output path must be absent, its parent must already exist, every parent component must be a real directory rather than a symlink, and the output must be outside the repository. The invoking operator must also have exclusive same-UID mutation authority over that output namespace until the build returns. The command performs no network calls.
 
 The pack contains:
 
@@ -91,4 +95,4 @@ python3 -B scripts/check_void_ci_cost_boundary_v1.py --self-test
 python3 -B scripts/check_void_ci_cost_boundary_v1.py --repo-root .
 ```
 
-The proof exercises origin, date, key, path, same-host, output-location, inventory, cost, and authority boundaries. It also replaces opened key/config pathnames, injects output-parent symlink components, swaps an output ancestor, creates a foreign destination after private build bytes exist, mutates staged content and the staged receipt after receipt construction, and mutates a file after reserved publication. All such generation or content changes must HOLD; replacement namespaces receive zero writes, the exact foreign destination generation remains untouched, and no compromised pack survives as a successful result. CI is limited to public repositories so this lane cannot consume private-repository hosted-runner minutes.
+The proof exercises origin, date, key, path, same-host, output-location, inventory, cost, and authority boundaries. It also replaces opened key/config pathnames, injects output-parent symlink components, swaps an output ancestor, creates a foreign destination after private build bytes exist, mutates staged content and the staged receipt after receipt construction, and mutates a file after reserved publication but before the relevant verification pass. All such generation or content changes must HOLD; replacement namespaces receive zero writes, the exact foreign destination generation remains untouched, and no compromised pack detected by those passes survives as a successful result. It also proves the explicit machine-readable boundary that hostile concurrent same-UID mutation is not excluded and that consumers must reverify receipt hashes after handoff. CI is limited to public repositories so this lane cannot consume private-repository hosted-runner minutes.

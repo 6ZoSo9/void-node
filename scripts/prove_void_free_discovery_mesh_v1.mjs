@@ -28,6 +28,7 @@ const HERE = path.dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(HERE, "..");
 const TOOL = path.join(REPO_ROOT, "tools/void-free-discovery-mesh-v1.mjs");
 const CONFIG = path.join(REPO_ROOT, "config/void-free-discovery-mesh-v1.json");
+const DOCS = path.join(REPO_ROOT, "docs/public-node/void-free-discovery-mesh-v1.md");
 const WORKFLOW_PATH =
   ".github/workflows/void-free-discovery-mesh-v1.yml";
 const CI_COST_CHECKER_PATH = "scripts/check_void_ci_cost_boundary_v1.py";
@@ -187,6 +188,7 @@ assert.ok(
 );
 
 const toolSource = fs.readFileSync(TOOL, "utf8");
+const docsSource = fs.readFileSync(DOCS, "utf8");
 for (const forbidden of [
   /\bfetch\s*\(/,
   /node:https/,
@@ -201,6 +203,9 @@ assert.match(toolSource, /\/proc\/self\/fd/);
 assert.match(toolSource, /O_NOFOLLOW/);
 assert.doesNotMatch(toolSource, /fs\.readFileSync\(CONFIG_PATH/);
 assert.doesNotMatch(toolSource, /requireRegularFile\(args\.indexNowKeyFile/);
+assert.match(docsSource, /does not atomically seal the complete tree/);
+assert.match(docsSource, /exclusive same-UID mutation authority/);
+assert.match(docsSource, /reverify the receipt hashes after every handoff/);
 
 const temporaryRoot = fs.mkdtempSync(path.join(os.tmpdir(), "void-free-discovery-mesh-proof-"));
 try {
@@ -219,6 +224,12 @@ try {
   assert.equal(built.receipt.claims.provider_account_mutation, false);
   assert.equal(built.receipt.claims.payment_method_collection, false);
   assert.equal(built.receipt.claims.automatic_paid_upgrade, false);
+  assert.deepEqual(built.receipt.integrity_boundary, {
+    verification_model: "descriptor_relative_per_file_snapshot",
+    same_uid_concurrent_mutation_excluded: false,
+    exclusive_same_uid_output_mutation_authority_required: true,
+    consumer_receipt_reverification_required_after_handoff: true,
+  });
   assert.equal(
     built.receipt.config_sha256,
     readDiscoveryConfigFile(CONFIG).sha256,
@@ -491,6 +502,9 @@ console.log("descriptor_relative_output_authority=true");
 console.log("destination_no_replace_publication=true");
 console.log("staged_content_generation_bound=true");
 console.log("published_inventory_reverified=true");
+console.log("same_uid_concurrent_mutation_excluded=false");
+console.log("exclusive_same_uid_output_mutation_authority_required=true");
+console.log("consumer_receipt_reverification_required_after_handoff=true");
 console.log("ci_cost_checker_change_schedules=true");
 console.log("unrelated_path_does_not_schedule=true");
 console.log("network_calls=false");

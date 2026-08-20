@@ -775,6 +775,12 @@ export function buildDiscoveryPack({
       canonical_urls: request.urlList,
       files,
       config_sha256: configEvidence.sha256,
+      integrity_boundary: {
+        verification_model: "descriptor_relative_per_file_snapshot",
+        same_uid_concurrent_mutation_excluded: false,
+        exclusive_same_uid_output_mutation_authority_required: true,
+        consumer_receipt_reverification_required_after_handoff: true,
+      },
       claims: {
         source_only: true,
         network_calls: false,
@@ -948,6 +954,9 @@ function main() {
   console.log("automatic_paid_upgrade=false");
   console.log("wallet_or_signer_access=false");
   console.log("fund_movement=false");
+  console.log("same_uid_concurrent_mutation_excluded=false");
+  console.log("exclusive_same_uid_output_mutation_authority_required=true");
+  console.log("consumer_receipt_reverification_required_after_handoff=true");
   const result = buildDiscoveryPack({
     origin: args.origin,
     output: args.output,
