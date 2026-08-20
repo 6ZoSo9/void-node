@@ -4,6 +4,8 @@ import assert from "node:assert/strict";
 import crypto from "node:crypto";
 import fs from "node:fs";
 
+import { proveBtcVoidBoundedStdinV1 } from "./lib/prove_void_btc_void_bounded_stdin_v1.mjs";
+
 import {
   BITCOIN_MAX_MONEY_SATOSHIS_V1,
   VOID_BTC_VOID_V1_MINIMUM_SPREAD_BPS,
@@ -610,6 +612,12 @@ assert.doesNotMatch(
   "workflow must not use mutable Action tags",
 );
 assert.equal(workflowDoc.includes("market_maker-reserve_policy"), false);
+
+await proveBtcVoidBoundedStdinV1({
+  cliPath: "tools/void-btc-void-market-maker-reserve-policy-v1.mjs",
+  validInput: JSON.stringify(request()),
+  holdMarker: "VOID_BTC_VOID_MARKET_MAKER_RESERVE_POLICY_V1_HOLD",
+});
 
 process.stdout.write(
   JSON.stringify({
