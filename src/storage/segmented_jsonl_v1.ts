@@ -11,6 +11,7 @@ export const VOID_SEGMENTED_JSONL_DEFAULT_TARGET_BYTES_V1 = 8 * 1024 * 1024;
 export const VOID_SEGMENTED_JSONL_DEFAULT_MAX_RECORD_BYTES_V1 = 1024 * 1024;
 export const VOID_SEGMENTED_JSONL_MAX_TARGET_BYTES_V1 = 8 * 1024 * 1024;
 export const VOID_SEGMENTED_JSONL_MAX_RECORD_BYTES_V1 = 1024 * 1024;
+export const VOID_SEGMENTED_JSONL_MAX_MANIFEST_BYTES_V1 = 8 * 1024 * 1024;
 
 const MANIFEST = "manifest.v1.json";
 const ACTIVE = "active.jsonl";
@@ -69,6 +70,7 @@ type BuildOptionsV1 = {
 };
 
 type GenerationV1 = { dev: string; ino: string; size: string; mtimeNs: string; ctimeNs: string };
+type FdObservationV1 = { generation: GenerationV1; mode: number };
 
 function fail(code: string, detail: string): never {
   throw new Error(`${VOID_SEGMENTED_JSONL_V1}:${code}:${detail}`);
@@ -80,6 +82,14 @@ function sha256(data: Buffer | string): string {
 
 function isHex64(value: unknown): value is string {
   return typeof value === "string" && /^[0-9a-f]{64}$/.test(value);
+}
+
+function requireExactKeys(value: Record<string, unknown>, expected: readonly string[], code: string, detail: string): void {
+  const actual = Object.keys(value).sort();
+  const wanted = [...expected].sort();
+  if (actual.length !== wanted.length || actual.some((key, index) => key !== wanted[index])) {
+    fail(code, `${detail}:keys=${actual.join(",")}`);
+  }
 }
 
 function exactSafeInteger(
@@ -151,11 +161,13 @@ function sameGeneration(a: GenerationV1, b: GenerationV1): boolean {
   return a.dev === b.dev && a.ino === b.ino && a.size === b.size && a.mtimeNs === b.mtimeNs && a.ctimeNs === b.ctimeNs;
 }
 
-function fdGeneration(fd: number): GenerationV1 {
+function fdObservation(fd: number): FdObservationV1 {
   const st = fs.fstatSync(fd, { bigint: true } as any);
   if (!st.isFile()) fail("NON_REGULAR_FD", String(fd));
-  return generationFromStat(st);
+  return { generation: generationFromStat(st), mode: Number(st.mode & 0o777n) };
 }
+
+function fdGeneration(fd: number): GenerationV1 { return fdObservation(fd).generation; }
 
 function pathGeneration(file: string): GenerationV1 | null {
   try {
@@ -163,6 +175,15 @@ function pathGeneration(file: string): GenerationV1 | null {
     if (!st.isFile() || st.isSymbolicLink()) return null;
     return generationFromStat(st);
   } catch (error) { void error; return null; }
+}
+
+function openRegularReadV1(file: string): number {
+  const flags = fs.constants.O_RDONLY | ((fs.constants as any).O_NOFOLLOW || 0);
+  try { return fs.openSync(file, flags); }
+  catch (err: any) {
+    if (err?.code === "ENOENT") fail("MISSING_FILE", file);
+    fail("OPEN_FILE_FAILED", `${file}:${String(err?.code || err)}`);
+  }
 }
 
 function exactGenerationSizeV1(generation: GenerationV1, code: string, file: string): number {
@@ -195,6 +216,27 @@ function readAdmittedGenerationV1(
   return bytes;
 }
 
+function readExactGenerationBufferV1(
+  file: string,
+  maximumBytes: number,
+  tooLargeCode: string,
+  shortCode: string,
+  growthCode: string,
+): Buffer {
+  const fd = openRegularReadV1(file);
+  try {
+    const before = fdGeneration(fd), p0 = pathGeneration(file);
+    if (!p0 || !sameGeneration(before, p0)) fail("UNSTABLE_FILE_BEFORE_READ", file);
+    const expectedBytes = exactGenerationSizeV1(before, tooLargeCode, file);
+    if (expectedBytes > maximumBytes) fail(tooLargeCode, `${file}:${expectedBytes}:${maximumBytes}`);
+    const chunks: Buffer[] = [];
+    readAdmittedGenerationV1(fd, expectedBytes, shortCode, growthCode, file, chunk => chunks.push(chunk));
+    const after = fdGeneration(fd), p1 = pathGeneration(file);
+    if (!sameGeneration(before, after) || !p1 || !sameGeneration(after, p1)) fail("UNSTABLE_FILE_DURING_READ", file);
+    return Buffer.concat(chunks, expectedBytes);
+  } finally { fs.closeSync(fd); }
+}
+
 function writeDurableNew(file: string, body: Buffer, mode: number): void {
   ensureDir(path.dirname(file));
   const flags = fs.constants.O_WRONLY | fs.constants.O_CREAT | fs.constants.O_EXCL | ((fs.constants as any).O_NOFOLLOW || 0);
@@ -207,8 +249,10 @@ function writeDurableNew(file: string, body: Buffer, mode: number): void {
       if (n <= 0) fail("SHORT_WRITE", file);
       off += n;
     }
+    fs.fchmodSync(fd, mode);
     fs.fsyncSync(fd);
-    const fdGen = fdGeneration(fd);
+    const observed = fdObservation(fd), fdGen = observed.generation;
+    if (observed.mode !== mode) fail("WRITE_MODE_MISMATCH", `${file}:${observed.mode.toString(8)}:${mode.toString(8)}`);
     const pathGen = pathGeneration(file);
     if (!pathGen || !sameGeneration(fdGen, pathGen)) fail("WRITE_PATH_GENERATION_MISMATCH", file);
     ok = true;
@@ -255,6 +299,7 @@ function sealedRoot(segments: SegmentedJsonlSegmentV1[]): string {
 function parseManifest(value: unknown): SegmentedJsonlManifestV1 {
   if (!value || typeof value !== "object" || Array.isArray(value)) fail("INVALID_MANIFEST", "not-object");
   const m = value as any;
+  requireExactKeys(m, ["v","format","generation","segment_target_bytes","max_record_bytes","total_bytes","total_records","sealed_bytes","sealed_records","sealed_root_sha256","sealed_segments","active"], "INVALID_MANIFEST_KEYS", "manifest");
   if (m.v !== 1 || m.format !== VOID_SEGMENTED_JSONL_V1) fail("INVALID_MANIFEST_VERSION", `${String(m.v)}:${String(m.format)}`);
   const ints = ["generation","segment_target_bytes","max_record_bytes","total_bytes","total_records","sealed_bytes","sealed_records"];
   for (const k of ints) if (!Number.isSafeInteger(m[k]) || m[k] < 0) fail("INVALID_MANIFEST_INTEGER", k);
@@ -269,18 +314,26 @@ function parseManifest(value: unknown): SegmentedJsonlManifestV1 {
   if (!isHex64(m.sealed_root_sha256) || !Array.isArray(m.sealed_segments)) fail("INVALID_MANIFEST_SEALED", "shape");
   const segments: SegmentedJsonlSegmentV1[] = m.sealed_segments.map((s: any, i: number) => {
     if (!s || typeof s !== "object" || Array.isArray(s) || s.id !== i || s.file !== segmentRel(i)) fail("INVALID_SEGMENT", `index=${i}`);
+    requireExactKeys(s, ["id","file","bytes","records","first_record_index","last_record_index","sha256"], "INVALID_SEGMENT_KEYS", `index=${i}`);
     for (const k of ["id","bytes","records","first_record_index","last_record_index"]) if (!Number.isSafeInteger(s[k]) || s[k] < 0) fail("INVALID_SEGMENT_INTEGER", `${i}:${k}`);
     if (s.bytes <= 0 || s.bytes > m.segment_target_bytes || s.records <= 0 || s.last_record_index - s.first_record_index + 1 !== s.records || !isHex64(s.sha256)) fail("INVALID_SEGMENT_RANGE", String(i));
     return { id:s.id, file:s.file, bytes:s.bytes, records:s.records, first_record_index:s.first_record_index, last_record_index:s.last_record_index, sha256:s.sha256 };
   });
   const a = m.active;
   if (!a || typeof a !== "object" || Array.isArray(a) || a.file !== ACTIVE) fail("INVALID_ACTIVE", "shape");
+  requireExactKeys(a, ["file","bytes","records","first_record_index","last_record_index","sha256"], "INVALID_ACTIVE_KEYS", "active");
   for (const k of ["bytes","records","first_record_index"]) if (!Number.isSafeInteger(a[k]) || a[k] < 0) fail("INVALID_ACTIVE_INTEGER", k);
   if (a.last_record_index !== null && (!Number.isSafeInteger(a.last_record_index) || a.last_record_index < 0)) fail("INVALID_ACTIVE_LAST_INDEX", String(a.last_record_index));
   if (!isHex64(a.sha256) || a.bytes > m.segment_target_bytes || (a.records === 0) !== (a.last_record_index === null)) fail("INVALID_ACTIVE_RANGE", "empty-last-or-bytes");
   if (a.records > 0 && a.last_record_index - a.first_record_index + 1 !== a.records) fail("INVALID_ACTIVE_RANGE", "count");
   const active: SegmentedJsonlActiveV1 = { file:ACTIVE, bytes:a.bytes, records:a.records, first_record_index:a.first_record_index, last_record_index:a.last_record_index, sha256:a.sha256 };
-  const manifest: SegmentedJsonlManifestV1 = { ...m, sealed_segments:segments, active };
+  const manifest: SegmentedJsonlManifestV1 = {
+    v: 1, format: VOID_SEGMENTED_JSONL_V1, generation: m.generation,
+    segment_target_bytes: m.segment_target_bytes, max_record_bytes: m.max_record_bytes,
+    total_bytes: m.total_bytes, total_records: m.total_records,
+    sealed_bytes: m.sealed_bytes, sealed_records: m.sealed_records,
+    sealed_root_sha256: m.sealed_root_sha256, sealed_segments: segments, active,
+  };
   if (sealedRoot(segments) !== manifest.sealed_root_sha256) fail("SEALED_ROOT_MISMATCH", manifest.sealed_root_sha256);
   const sb = segments.reduce((n,s)=>n+s.bytes,0), sr = segments.reduce((n,s)=>n+s.records,0);
   if (sb !== manifest.sealed_bytes || sr !== manifest.sealed_records || manifest.total_bytes !== sb + active.bytes || manifest.total_records !== sr + active.records) fail("TOTAL_MISMATCH", "bytes-or-records");
@@ -302,15 +355,13 @@ function atomicManifest(root: string, manifest: SegmentedJsonlManifestV1): void 
   }
 }
 
-function scanFile(file: string, expectedBytes: number, expectedRecords: number, maxRecord: number, validateJson: boolean): { bytes:number; records:number; sha256:string } {
-  const st = regularStat(file);
-  if (st.size !== expectedBytes) fail("FILE_SIZE_MISMATCH", `${file}:${st.size}:${expectedBytes}`);
-  const flags = fs.constants.O_RDONLY | ((fs.constants as any).O_NOFOLLOW || 0);
-  const fd = fs.openSync(file, flags);
+function scanFile(file: string, expectedBytes: number, expectedRecords: number, maxRecord: number, validateJson: boolean, expectedMode: number): { bytes:number; records:number; sha256:string } {
+  const fd = openRegularReadV1(file);
   try {
-    const before = fdGeneration(fd), p0 = pathGeneration(file);
+    const beforeObservation = fdObservation(fd), before = beforeObservation.generation, p0 = pathGeneration(file);
     if (!p0 || !sameGeneration(before,p0)) fail("UNSTABLE_FILE_BEFORE_SCAN", file);
     if (BigInt(before.size) !== BigInt(expectedBytes)) fail("FILE_SIZE_MISMATCH", `${file}:${before.size}:${expectedBytes}`);
+    if (beforeObservation.mode !== expectedMode) fail("FILE_MODE_MISMATCH", `${file}:${beforeObservation.mode.toString(8)}:${expectedMode.toString(8)}`);
     const hash = crypto.createHash("sha256");
     let carry = Buffer.alloc(0), bytes = 0, records = 0;
     bytes = readAdmittedGenerationV1(fd, expectedBytes, "FILE_SHORT_READ", "FILE_GREW_DURING_SCAN", file, (chunk) => {
@@ -321,16 +372,20 @@ function scanFile(file: string, expectedBytes: number, expectedRecords: number, 
     });
     if (carry.length) fail("UNTERMINATED_FILE", file);
     if (bytes !== expectedBytes || records !== expectedRecords) fail("FILE_RECORD_MISMATCH", `${file}:bytes=${bytes}/${expectedBytes}:records=${records}/${expectedRecords}`);
-    const after = fdGeneration(fd), p1 = pathGeneration(file);
+    const afterObservation = fdObservation(fd), after = afterObservation.generation, p1 = pathGeneration(file);
     if (!sameGeneration(before,after) || !p1 || !sameGeneration(after,p1)) fail("UNSTABLE_FILE_DURING_SCAN", file);
+    if (afterObservation.mode !== expectedMode) fail("FILE_MODE_MISMATCH", `${file}:${afterObservation.mode.toString(8)}:${expectedMode.toString(8)}`);
     return { bytes, records, sha256:hash.digest("hex") };
   } finally { fs.closeSync(fd); }
 }
 
 export function readSegmentedJsonlManifestV1(rootInput: string): SegmentedJsonlManifestV1 {
   const root = rootPath(rootInput), file = inside(root,path.join(root,MANIFEST));
-  regularStat(file);
-  try { return parseManifest(JSON.parse(fs.readFileSync(file,"utf8"))); }
+  const body = readExactGenerationBufferV1(file, VOID_SEGMENTED_JSONL_MAX_MANIFEST_BYTES_V1, "MANIFEST_TOO_LARGE", "MANIFEST_SHORT_READ", "MANIFEST_GREW_DURING_READ");
+  let decoded: string;
+  try { decoded = FATAL_UTF8_DECODER.decode(body); }
+  catch { fail("INVALID_MANIFEST_UTF8", file); }
+  try { return parseManifest(JSON.parse(decoded)); }
   catch (err) { if (err instanceof Error && err.message.startsWith(VOID_SEGMENTED_JSONL_V1)) throw err; fail("INVALID_MANIFEST_JSON", file); }
 }
 
@@ -338,13 +393,12 @@ export function verifySegmentedJsonlV1(rootInput: string, options: {validateJson
   const root = rootPath(rootInput), m = readSegmentedJsonlManifestV1(root), validateJson = options.validateJson !== false;
   let bytes=0, records=0;
   for (const s of m.sealed_segments) {
-    const file = segmentPath(root,s.id), mode = regularStat(file).mode & 0o777;
-    if ((mode & 0o222) !== 0) fail("SEALED_SEGMENT_WRITABLE", `id=${s.id}:mode=${mode.toString(8)}`);
-    const got = scanFile(file,s.bytes,s.records,m.max_record_bytes,validateJson);
+    const file = segmentPath(root,s.id);
+    const got = scanFile(file,s.bytes,s.records,m.max_record_bytes,validateJson,0o400);
     if (got.sha256 !== s.sha256) fail("SEGMENT_HASH_MISMATCH", `id=${s.id}:expected=${s.sha256}:actual=${got.sha256}`);
     bytes += got.bytes; records += got.records;
   }
-  const a = scanFile(inside(root,path.join(root,ACTIVE)),m.active.bytes,m.active.records,m.max_record_bytes,validateJson);
+  const a = scanFile(inside(root,path.join(root,ACTIVE)),m.active.bytes,m.active.records,m.max_record_bytes,validateJson,0o600);
   if (a.sha256 !== m.active.sha256) fail("ACTIVE_HASH_MISMATCH", `expected=${m.active.sha256}:actual=${a.sha256}`);
   bytes += a.bytes; records += a.records;
   if (bytes !== m.total_bytes || records !== m.total_records) fail("VERIFY_TOTAL_MISMATCH", `${bytes}:${records}`);
@@ -354,7 +408,7 @@ export function verifySegmentedJsonlV1(rootInput: string, options: {validateJson
 function writeSealed(root:string,id:number,parts:Buffer[],first:number,records:number): SegmentedJsonlSegmentV1 {
   if (records <= 0) fail("EMPTY_SEAL", `id=${id}`);
   const body=Buffer.concat(parts), file=segmentPath(root,id);
-  writeDurableNew(file,body,0o600); fs.chmodSync(file,0o400); fsyncDir(path.dirname(file));
+  writeDurableNew(file,body,0o400);
   return { id, file:segmentRel(id), bytes:body.length, records, first_record_index:first, last_record_index:first+records-1, sha256:sha256(body) };
 }
 
@@ -395,20 +449,22 @@ function appendVerifiedGenerationToOutputV1(
   outputFd: number,
   outputHash: ReturnType<typeof crypto.createHash>,
   outputPath: string,
+  expectedMode: number,
 ): number {
-  const flags=fs.constants.O_RDONLY|((fs.constants as any).O_NOFOLLOW||0);
-  const inFd=fs.openSync(file,flags);
+  const inFd=openRegularReadV1(file);
   try {
-    const before=fdGeneration(inFd), p0=pathGeneration(file);
+    const beforeObservation=fdObservation(inFd), before=beforeObservation.generation, p0=pathGeneration(file);
     if(!p0||!sameGeneration(before,p0)) fail("RECONSTRUCT_SOURCE_UNSTABLE_BEFORE_COPY",file);
     if(BigInt(before.size)!==BigInt(expectedBytes)) fail("RECONSTRUCT_SOURCE_SIZE_MISMATCH",`${file}:${before.size}:${expectedBytes}`);
+    if(beforeObservation.mode!==expectedMode) fail("RECONSTRUCT_SOURCE_MODE_MISMATCH",`${file}:${beforeObservation.mode.toString(8)}:${expectedMode.toString(8)}`);
     const sourceHash=crypto.createHash("sha256");
     const copied=readAdmittedGenerationV1(inFd,expectedBytes,"RECONSTRUCT_SOURCE_SHORT_READ","RECONSTRUCT_SOURCE_GREW_DURING_COPY",file,(chunk)=>{
       sourceHash.update(chunk); outputHash.update(chunk);
       let off=0; while(off<chunk.length){const w=fs.writeSync(outputFd,chunk,off,chunk.length-off,null);if(w<=0)fail("SHORT_RECONSTRUCT_WRITE",outputPath);off+=w;}
     });
-    const after=fdGeneration(inFd), p1=pathGeneration(file);
+    const afterObservation=fdObservation(inFd), after=afterObservation.generation, p1=pathGeneration(file);
     if(!sameGeneration(before,after)||!p1||!sameGeneration(after,p1)) fail("RECONSTRUCT_SOURCE_UNSTABLE_DURING_COPY",file);
+    if(afterObservation.mode!==expectedMode) fail("RECONSTRUCT_SOURCE_MODE_MISMATCH",`${file}:${afterObservation.mode.toString(8)}:${expectedMode.toString(8)}`);
     if(copied!==expectedBytes) fail("RECONSTRUCT_SOURCE_SIZE_MISMATCH",`${file}:${copied}:${expectedBytes}`);
     const actual=sourceHash.digest("hex");
     if(actual!==expectedSha256) fail("RECONSTRUCT_SOURCE_HASH_MISMATCH",`${file}:expected=${expectedSha256}:actual=${actual}`);
@@ -421,8 +477,8 @@ export function reconstructSegmentedJsonlV1ToFile(rootInput:string,outputInput:s
   if(fs.existsSync(out)) fail("OUTPUT_EXISTS",out); ensureDir(path.dirname(out));
   const fd=fs.openSync(out,fs.constants.O_WRONLY|fs.constants.O_CREAT|fs.constants.O_EXCL|((fs.constants as any).O_NOFOLLOW||0),0o600), hash=crypto.createHash("sha256"); let bytes=0;
   try{
-    for(const s of verified.manifest.sealed_segments) bytes+=appendVerifiedGenerationToOutputV1(segmentPath(root,s.id),s.bytes,s.sha256,fd,hash,out);
-    bytes+=appendVerifiedGenerationToOutputV1(inside(root,path.join(root,ACTIVE)),verified.manifest.active.bytes,verified.manifest.active.sha256,fd,hash,out);
+    for(const s of verified.manifest.sealed_segments) bytes+=appendVerifiedGenerationToOutputV1(segmentPath(root,s.id),s.bytes,s.sha256,fd,hash,out,0o400);
+    bytes+=appendVerifiedGenerationToOutputV1(inside(root,path.join(root,ACTIVE)),verified.manifest.active.bytes,verified.manifest.active.sha256,fd,hash,out,0o600);
     fs.fsyncSync(fd);
   }finally{fs.closeSync(fd);} fsyncDir(path.dirname(out));
   if(bytes!==verified.manifest.total_bytes) fail("RECONSTRUCT_SIZE_MISMATCH",`${bytes}:${verified.manifest.total_bytes}`);

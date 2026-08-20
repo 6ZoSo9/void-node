@@ -12,6 +12,7 @@ import {
   reconstructSegmentedJsonlV1ToFile,
   sealedSegmentInventoryV1,
   verifySegmentedJsonlV1,
+  VOID_SEGMENTED_JSONL_MAX_MANIFEST_BYTES_V1,
   VOID_SEGMENTED_JSONL_MAX_RECORD_BYTES_V1,
   VOID_SEGMENTED_JSONL_MAX_TARGET_BYTES_V1,
 } from "../src/storage/segmented_jsonl_v1.js";
@@ -64,9 +65,10 @@ function proveReconstructRejectsPostVerifyReplacement(
   const replacementPath = `${targetPath}.replacement`;
   const originalBytes = fs.readFileSync(targetPath);
   const replacementBytes = sameLengthReplacementBytes(originalBytes);
+  const originalMode = fs.statSync(targetPath).mode & 0o777;
   assert.equal(replacementBytes.length, originalBytes.length);
-  fs.writeFileSync(replacementPath, replacementBytes, { mode: 0o400 });
-  fs.chmodSync(replacementPath, 0o400);
+  fs.writeFileSync(replacementPath, replacementBytes, { mode: originalMode });
+  fs.chmodSync(replacementPath, originalMode);
 
   const originalOpenSync = (mutableFs as any).openSync;
   let targetOpenCount = 0;
@@ -94,6 +96,104 @@ function proveReconstructRejectsPostVerifyReplacement(
   }
   assert.equal(swapped, true, `${label} replacement must occur between verify and copy`);
   assert.equal(targetOpenCount >= 2, true, `${label} must be opened for verify and copy`);
+}
+
+function proveWritableReplacementRejected(
+  targetPath: string,
+  targetOpenOrdinal: number,
+  action: () => unknown,
+  expectedFailure: string,
+  label: string,
+): void {
+  const replacementPath = `${targetPath}.writable-replacement`;
+  fs.writeFileSync(replacementPath, fs.readFileSync(targetPath), { mode: 0o600 });
+  fs.chmodSync(replacementPath, 0o600);
+  const originalOpenSync = (mutableFs as any).openSync;
+  let targetOpenCount = 0;
+  let swapped = false;
+  try {
+    (mutableFs as any).openSync = (...args: any[]) => {
+      const candidate = typeof args[0] === "string" ? path.resolve(args[0]) : "";
+      if (candidate === path.resolve(targetPath)) {
+        targetOpenCount += 1;
+        if (targetOpenCount === targetOpenOrdinal) {
+          fs.renameSync(replacementPath, targetPath);
+          swapped = true;
+        }
+      }
+      return originalOpenSync(...args);
+    };
+    syncBuiltinESMExports();
+    expectFailure(action, expectedFailure);
+  } finally {
+    (mutableFs as any).openSync = originalOpenSync;
+    syncBuiltinESMExports();
+  }
+  assert.equal(swapped, true, `${label} writable replacement must occur`);
+}
+
+function proveInScanModeChangeRejected(storePath: string, targetPath: string): void {
+  const originalOpenSync = (mutableFs as any).openSync;
+  const originalFstatSync = (mutableFs as any).fstatSync;
+  let targetFd = -1;
+  let changed = false;
+  try {
+    (mutableFs as any).openSync = (...args: any[]) => {
+      const fd = originalOpenSync(...args);
+      const candidate = typeof args[0] === "string" ? path.resolve(args[0]) : "";
+      if (candidate === path.resolve(targetPath)) targetFd = fd;
+      return fd;
+    };
+    (mutableFs as any).fstatSync = (...args: any[]) => {
+      const st = originalFstatSync(...args);
+      if (args[0] === targetFd && !changed) {
+        fs.chmodSync(targetPath, 0o600);
+        changed = true;
+      }
+      return st;
+    };
+    syncBuiltinESMExports();
+    expectFailure(() => verifySegmentedJsonlV1(storePath), "UNSTABLE_FILE_BEFORE_SCAN");
+  } finally {
+    (mutableFs as any).openSync = originalOpenSync;
+    (mutableFs as any).fstatSync = originalFstatSync;
+    syncBuiltinESMExports();
+    fs.chmodSync(targetPath, 0o400);
+  }
+  assert.equal(changed, true, "sealed mode must change after exact-fd admission");
+}
+
+function proveManifestReplacementRejected(storePath: string): void {
+  const manifestPath = path.join(storePath, "manifest.v1.json");
+  const replacementPath = `${manifestPath}.replacement`;
+  fs.writeFileSync(replacementPath, fs.readFileSync(manifestPath), { mode: 0o600 });
+  const originalOpenSync = (mutableFs as any).openSync;
+  const originalReadSync = (mutableFs as any).readSync;
+  let manifestFd = -1;
+  let swapped = false;
+  try {
+    (mutableFs as any).openSync = (...args: any[]) => {
+      const fd = originalOpenSync(...args);
+      const candidate = typeof args[0] === "string" ? path.resolve(args[0]) : "";
+      if (candidate === path.resolve(manifestPath)) manifestFd = fd;
+      return fd;
+    };
+    (mutableFs as any).readSync = (...args: any[]) => {
+      const n = originalReadSync(...args);
+      if (args[0] === manifestFd && n > 0 && !swapped) {
+        fs.renameSync(replacementPath, manifestPath);
+        swapped = true;
+      }
+      return n;
+    };
+    syncBuiltinESMExports();
+    expectFailure(() => readSegmentedJsonlManifestV1(storePath), "UNSTABLE_FILE_DURING_READ");
+  } finally {
+    (mutableFs as any).openSync = originalOpenSync;
+    (mutableFs as any).readSync = originalReadSync;
+    syncBuiltinESMExports();
+  }
+  assert.equal(swapped, true, "manifest replacement must occur after exact-fd admission");
 }
 
 function proveGrowthReadIsBounded(
@@ -230,6 +330,51 @@ try {
   assert.deepEqual(rebuiltBytes, body, "segmentation must reconstruct source byte-for-byte");
   assert.equal(reconstruction.sha256, sha256(body));
 
+  const verifyWritableStore = path.join(tmp, "verify-writable-replacement-store");
+  fs.cpSync(store, verifyWritableStore, { recursive: true });
+  proveWritableReplacementRejected(
+    path.join(verifyWritableStore, manifest.sealed_segments[0].file),
+    1,
+    () => verifySegmentedJsonlV1(verifyWritableStore),
+    "FILE_MODE_MISMATCH",
+    "verification sealed leaf",
+  );
+
+  const scanModeStore = path.join(tmp, "verify-mode-change-store");
+  fs.cpSync(store, scanModeStore, { recursive: true });
+  proveInScanModeChangeRejected(
+    scanModeStore,
+    path.join(scanModeStore, manifest.sealed_segments[0].file),
+  );
+
+  const reconstructWritableStore = path.join(tmp, "reconstruct-writable-replacement-store");
+  fs.cpSync(store, reconstructWritableStore, { recursive: true });
+  proveWritableReplacementRejected(
+    path.join(reconstructWritableStore, manifest.sealed_segments[0].file),
+    2,
+    () => reconstructSegmentedJsonlV1ToFile(
+      reconstructWritableStore,
+      path.join(tmp, "reconstruct-writable-replacement-output.jsonl"),
+    ),
+    "RECONSTRUCT_SOURCE_MODE_MISMATCH",
+    "reconstruction sealed leaf",
+  );
+
+  const manifestRaceStore = path.join(tmp, "manifest-generation-race-store");
+  fs.cpSync(store, manifestRaceStore, { recursive: true });
+  proveManifestReplacementRejected(manifestRaceStore);
+
+  const oversizedManifestStore = path.join(tmp, "oversized-manifest-store");
+  fs.cpSync(store, oversizedManifestStore, { recursive: true });
+  fs.truncateSync(
+    path.join(oversizedManifestStore, "manifest.v1.json"),
+    VOID_SEGMENTED_JSONL_MAX_MANIFEST_BYTES_V1 + 1,
+  );
+  expectFailure(
+    () => readSegmentedJsonlManifestV1(oversizedManifestStore),
+    "MANIFEST_TOO_LARGE",
+  );
+
   const segmentRaceStore = path.join(tmp, "reconstruct-segment-race-store");
   fs.cpSync(store, segmentRaceStore, { recursive: true });
   proveReconstructRejectsPostVerifyReplacement(
@@ -327,7 +472,7 @@ try {
   verifySegmentedJsonlV1(store);
 
   fs.chmodSync(tamperedPath, 0o600);
-  expectFailure(() => verifySegmentedJsonlV1(store), "SEALED_SEGMENT_WRITABLE");
+  expectFailure(() => verifySegmentedJsonlV1(store), "FILE_MODE_MISMATCH");
   fs.chmodSync(tamperedPath, 0o400);
   verifySegmentedJsonlV1(store);
 
@@ -465,6 +610,20 @@ try {
   const reread = readSegmentedJsonlManifestV1(store);
   assert.deepEqual(reread, manifest, "durable manifest must round-trip exactly");
 
+  for (const [label, mutate, expected] of [
+    ["top", (value: any) => { value.extra = true; }, "INVALID_MANIFEST_KEYS"],
+    ["segment", (value: any) => { value.sealed_segments[0].extra = true; }, "INVALID_SEGMENT_KEYS"],
+    ["active", (value: any) => { value.active.extra = true; }, "INVALID_ACTIVE_KEYS"],
+  ] as const) {
+    const exactStore = path.join(tmp, `manifest-exact-keys-${label}`);
+    fs.cpSync(store, exactStore, { recursive: true });
+    const exactPath = path.join(exactStore, "manifest.v1.json");
+    const value = JSON.parse(fs.readFileSync(exactPath, "utf8"));
+    mutate(value);
+    fs.writeFileSync(exactPath, `${JSON.stringify(value, null, 2)}\n`, { mode: 0o600 });
+    expectFailure(() => readSegmentedJsonlManifestV1(exactStore), expected);
+  }
+
   console.log("VOID_SEGMENTED_JSONL_V1_PROOF_GREEN");
   console.log(
     JSON.stringify({
@@ -479,6 +638,10 @@ try {
       exact_utf8_json_records: true,
       admitted_generation_reads_bounded: true,
       reconstruct_copy_generation_bound: true,
+      sealed_mode_bound_to_exact_fd_generation: true,
+      manifest_generation_and_retention_bounded: true,
+      manifest_runtime_shape_exact: true,
+      max_manifest_bytes: VOID_SEGMENTED_JSONL_MAX_MANIFEST_BYTES_V1,
       max_segment_target_bytes: VOID_SEGMENTED_JSONL_MAX_TARGET_BYTES_V1,
       max_record_bytes: VOID_SEGMENTED_JSONL_MAX_RECORD_BYTES_V1,
     }),
