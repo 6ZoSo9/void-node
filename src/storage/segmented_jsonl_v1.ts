@@ -138,7 +138,7 @@ function pathGeneration(file: string): GenerationV1 | null {
     const st = fs.lstatSync(file, { bigint: true } as any);
     if (!st.isFile() || st.isSymbolicLink()) return null;
     return generationFromStat(st);
-  } catch { return null; }
+  } catch (error) { void error; return null; }
 }
 
 function writeDurableNew(file: string, body: Buffer, mode: number): void {
@@ -160,7 +160,10 @@ function writeDurableNew(file: string, body: Buffer, mode: number): void {
     ok = true;
   } finally {
     fs.closeSync(fd);
-    if (!ok) { try { fs.unlinkSync(file); } catch {} }
+    if (!ok) {
+      try { fs.unlinkSync(file); }
+      catch (cleanupError) { void cleanupError; }
+    }
   }
   fsyncDir(path.dirname(file));
 }
@@ -227,7 +230,12 @@ function atomicManifest(root: string, manifest: SegmentedJsonlManifestV1): void 
   const target = path.join(root, MANIFEST);
   const tmp = path.join(root, `.${MANIFEST}.tmp-${process.pid}-${crypto.randomBytes(8).toString("hex")}`);
   writeDurableNew(tmp, Buffer.from(`${JSON.stringify(manifest, null, 2)}\n`), 0o600);
-  try { fs.renameSync(tmp, target); fsyncDir(root); } catch (err) { try { if (fs.existsSync(tmp)) fs.unlinkSync(tmp); } catch {} throw err; }
+  try { fs.renameSync(tmp, target); fsyncDir(root); }
+  catch (err) {
+    try { if (fs.existsSync(tmp)) fs.unlinkSync(tmp); }
+    catch (cleanupError) { void cleanupError; }
+    throw err;
+  }
 }
 
 function scanFile(file: string, expectedBytes: number, expectedRecords: number, maxRecord: number, validateJson: boolean): { bytes:number; records:number; sha256:string } {
