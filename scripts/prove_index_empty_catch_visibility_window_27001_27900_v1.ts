@@ -5,10 +5,10 @@ const ID = "VOID_INDEX_EMPTY_CATCH_VISIBILITY_WINDOW_27001_27900_V1";
 const FILE = "src/index.ts";
 const START = 27001;
 const END = 27900;
-const EXPECTED_SHA256 = "89d57ae3247e66c75fa3d92625eed8c43fd7f7e50af1a5e4e44ebaf36a58759e";
+const EXPECTED_SHA256 = "b20c8222ef8935d5ac8b414aa4e4038ad731a45cc7ea0eda818ac4783f4acd7a";
 const EXPECTED_WINDOW_EMPTY_CATCH_COUNT = 0;
-const EXPECTED_TOTAL_EMPTY_CATCH_COUNT = 704;
-const EXPECTED_MEASURED_CATCH_CONTEXT_COUNT = 2563;
+const EXPECTED_TOTAL_EMPTY_CATCH_COUNT = 0;
+const EXPECTED_MEASURED_CATCH_CONTEXT_COUNT = 2529;
 const MARKER = "VOID_INDEX_EMPTY_CATCH_VISIBILITY_WINDOW_27001_27900_V1_VISIBLE";
 
 const source = readFileSync(FILE, "utf8");
@@ -78,5 +78,200 @@ pass("index-measured-catch-context-preserved", `src/index.ts measured catch cont
 
 if (markers < 1) fail("index-window-marker-present", `marker count=${markers}, expected>=1`);
 pass("index-window-marker-present", `marker count=${markers}, expected>=1`);
+
+// VOID_SAVEBLOCK_MARKER_DESCRIPTOR_IDEMPOTENCY_V1_PROOF_BEGIN
+const helperBegin =
+  "        // VOID_SAVEBLOCK_MARKER_DESCRIPTOR_IDEMPOTENCY_V1_BEGIN\n";
+const helperEnd =
+  "        // VOID_SAVEBLOCK_MARKER_DESCRIPTOR_IDEMPOTENCY_V1_END\n";
+const helperBeginIndex = source.indexOf(helperBegin);
+const helperEndIndex = source.indexOf(
+  helperEnd,
+  helperBeginIndex + helperBegin.length,
+);
+if (
+  helperBeginIndex < 0 ||
+  helperEndIndex < 0 ||
+  source.indexOf(helperBegin, helperBeginIndex + 1) >= 0 ||
+  source.indexOf(helperEnd, helperEndIndex + 1) >= 0
+) {
+  fail(
+    "saveblock-marker-helper-single-source",
+    `begin=${helperBeginIndex}, end=${helperEndIndex}`,
+  );
+}
+pass("saveblock-marker-helper-single-source", "exactly one source helper");
+
+const helperSource = source.slice(
+  helperBeginIndex + helperBegin.length,
+  helperEndIndex,
+);
+if (
+  helperSource.includes("fn[k] = true") ||
+  helperSource.includes("(fn as any)[k] = true")
+) {
+  fail(
+    "saveblock-marker-no-direct-assignment-fallback",
+    "direct assignment fallback remains",
+  );
+}
+pass(
+  "saveblock-marker-no-direct-assignment-fallback",
+  "descriptor-aware path only",
+);
+
+const helperFactory = new Function(
+  `${helperSource}\nreturn voidMarkTruthyFunctionFlagV1;`,
+);
+const markTruthyFunctionFlag = helperFactory();
+if (typeof markTruthyFunctionFlag !== "function") {
+  fail(
+    "saveblock-marker-helper-executable",
+    `type=${typeof markTruthyFunctionFlag}`,
+  );
+}
+pass("saveblock-marker-helper-executable", "function");
+
+function descriptorShape(fn: any, key: string): string {
+  const descriptor = Object.getOwnPropertyDescriptor(fn, key);
+  if (!descriptor) return "absent";
+  return JSON.stringify({
+    value: descriptor.value,
+    writable: descriptor.writable,
+    enumerable: descriptor.enumerable,
+    configurable: descriptor.configurable,
+  });
+}
+
+{
+  const fn = function immutableStringMarker() {};
+  Object.defineProperty(fn, "__void_trampoline_v7", {
+    value: "saveblock.finalize.v2c",
+  });
+  const before = descriptorShape(fn, "__void_trampoline_v7");
+  const visible: unknown[] = [];
+  const result = markTruthyFunctionFlag(
+    fn,
+    "__void_trampoline_v7",
+    (error: unknown) => visible.push(error),
+  );
+  const after = descriptorShape(fn, "__void_trampoline_v7");
+  if (
+    result !== true ||
+    before !== after ||
+    (fn as any).__void_trampoline_v7 !== "saveblock.finalize.v2c" ||
+    visible.length !== 0
+  ) {
+    fail(
+      "immutable-string-marker-preserved",
+      `result=${result}, before=${before}, after=${after}, visible=${visible.length}`,
+    );
+  }
+  pass(
+    "immutable-string-marker-preserved",
+    "saveblock.finalize.v2c retained exactly",
+  );
+}
+
+{
+  const fn = function immutableTrueMarker() {};
+  Object.defineProperty(fn, "__void_trampoline_v7", { value: true });
+  const before = descriptorShape(fn, "__void_trampoline_v7");
+  const visible: unknown[] = [];
+  const result = markTruthyFunctionFlag(
+    fn,
+    "__void_trampoline_v7",
+    (error: unknown) => visible.push(error),
+  );
+  const after = descriptorShape(fn, "__void_trampoline_v7");
+  if (result !== true || before !== after || visible.length !== 0) {
+    fail(
+      "immutable-true-marker-preserved",
+      `result=${result}, before=${before}, after=${after}, visible=${visible.length}`,
+    );
+  }
+  pass("immutable-true-marker-preserved", "immutable true retained exactly");
+}
+
+{
+  const fn = function absentMarker() {};
+  const visible: unknown[] = [];
+  const result = markTruthyFunctionFlag(
+    fn,
+    "__void_trampoline_v7",
+    (error: unknown) => visible.push(error),
+  );
+  const descriptor = Object.getOwnPropertyDescriptor(fn, "__void_trampoline_v7");
+  if (
+    result !== true ||
+    descriptor?.value !== true ||
+    descriptor?.configurable !== true ||
+    visible.length !== 0
+  ) {
+    fail(
+      "absent-marker-defined",
+      `result=${result}, descriptor=${descriptorShape(fn, "__void_trampoline_v7")}, visible=${visible.length}`,
+    );
+  }
+  pass("absent-marker-defined", "truthy configurable marker installed");
+}
+
+{
+  const fn = function configurableFalseMarker() {};
+  Object.defineProperty(fn, "__void_trampoline_v7", {
+    value: false,
+    configurable: true,
+  });
+  const visible: unknown[] = [];
+  const result = markTruthyFunctionFlag(
+    fn,
+    "__void_trampoline_v7",
+    (error: unknown) => visible.push(error),
+  );
+  const descriptor = Object.getOwnPropertyDescriptor(fn, "__void_trampoline_v7");
+  if (
+    result !== true ||
+    descriptor?.value !== true ||
+    descriptor?.configurable !== true ||
+    visible.length !== 0
+  ) {
+    fail(
+      "configurable-false-marker-repaired",
+      `result=${result}, descriptor=${descriptorShape(fn, "__void_trampoline_v7")}, visible=${visible.length}`,
+    );
+  }
+  pass("configurable-false-marker-repaired", "configurable conflict repaired");
+}
+
+{
+  const fn = function immutableFalseMarker() {};
+  Object.defineProperty(fn, "__void_trampoline_v7", { value: false });
+  const before = descriptorShape(fn, "__void_trampoline_v7");
+  const visible: unknown[] = [];
+  const result = markTruthyFunctionFlag(
+    fn,
+    "__void_trampoline_v7",
+    (error: unknown) => visible.push(error),
+  );
+  const after = descriptorShape(fn, "__void_trampoline_v7");
+  const first = visible[0];
+  if (
+    result !== false ||
+    before !== after ||
+    visible.length !== 1 ||
+    !(first instanceof TypeError) ||
+    first.message !== "void_saveblock_marker_conflict:__void_trampoline_v7"
+  ) {
+    fail(
+      "nonconfigurable-false-marker-visible",
+      `result=${result}, before=${before}, after=${after}, visible=${visible.map(String).join("|")}`,
+    );
+  }
+  pass(
+    "nonconfigurable-false-marker-visible",
+    "conflict preserved and reported",
+  );
+}
+// VOID_SAVEBLOCK_MARKER_DESCRIPTOR_IDEMPOTENCY_V1_PROOF_END
 
 console.log(`${ID}_GREEN`);
