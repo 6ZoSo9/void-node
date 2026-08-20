@@ -23,11 +23,17 @@ type ReceiptAppendFaultV1 =
   | "before_directory_sync"
   | "after_publish";
 
+type ReceiptAppendTestHooksV1 = {
+  afterSnapshot?: () => void | Promise<void>;
+};
+
 const MAX_RECEIPT_SHARD_BYTES_V1 = 16 * 1024 * 1024;
 const MAX_RECEIPT_HISTORY_SCAN_BYTES_V1 = 128 * 1024 * 1024;
 const MAX_RECEIPT_SHARD_FILES_V1 = 4_096;
 const MAX_RECEIPT_DIRECTORY_ENTRIES_V1 = 8_192;
 const RECEIPT_READ_CHUNK_BYTES_V1 = 64 * 1024;
+const RECEIPT_APPEND_LOCK_WAIT_MS_V1 = 10;
+const RECEIPT_APPEND_LOCK_MAX_WAIT_MS_V1 = 30_000;
 
 type ReceiptHit =
   | { n: number; o: number; ts: number; found: true }
@@ -51,6 +57,38 @@ export class ReceiptsStore {
     this.dir = dir;
     this.shardSpan = Math.max(10_000, Number(opts.shardSpan ?? 100_000));
     if (!fs.existsSync(this.dir)) fs.mkdirSync(this.dir, { recursive: true });
+  }
+
+  private async acquireAppendLockV1(signal?: AbortSignal): Promise<string> {
+    const lockPath = path.join(this.dir, ".receipts-append.lock.v1");
+    const deadline = Date.now() + RECEIPT_APPEND_LOCK_MAX_WAIT_MS_V1;
+    while (true) {
+      signal?.throwIfAborted();
+      try {
+        await fs.promises.mkdir(lockPath, { mode: 0o700 });
+        return lockPath;
+      } catch (error: any) {
+        if (error?.code !== "EEXIST") throw error;
+        if (Date.now() >= deadline) {
+          throw new Error("VOID_RECEIPT_APPEND_CROSS_PROCESS_LOCKED_V1");
+        }
+        await new Promise<void>((resolve, reject) => {
+          const onAbort = () => {
+            clearTimeout(timer);
+            reject(signal?.reason);
+          };
+          const timer = setTimeout(() => {
+            signal?.removeEventListener("abort", onAbort);
+            resolve();
+          }, RECEIPT_APPEND_LOCK_WAIT_MS_V1);
+          signal?.addEventListener("abort", onAbort, { once: true });
+        });
+      }
+    }
+  }
+
+  private async releaseAppendLockV1(lockPath: string): Promise<void> {
+    await fs.promises.rmdir(lockPath);
   }
 
   private async openDirectoryAuthorityV1(
@@ -377,7 +415,11 @@ export class ReceiptsStore {
 
   async appendMany(
     arr: Receipt[],
-    opts: { signal?: AbortSignal; faultAtV1?: ReceiptAppendFaultV1 } = {},
+    opts: {
+      signal?: AbortSignal;
+      faultAtV1?: ReceiptAppendFaultV1;
+      testHooksV1?: ReceiptAppendTestHooksV1;
+    } = {},
   ) {
     const operation = this.appendTail.then(() =>
       this.appendManyExclusive(arr, opts)
@@ -391,7 +433,11 @@ export class ReceiptsStore {
 
   private async appendManyExclusive(
     arr: Receipt[],
-    opts: { signal?: AbortSignal; faultAtV1?: ReceiptAppendFaultV1 },
+    opts: {
+      signal?: AbortSignal;
+      faultAtV1?: ReceiptAppendFaultV1;
+      testHooksV1?: ReceiptAppendTestHooksV1;
+    },
   ): Promise<void> {
     opts.signal?.throwIfAborted();
     if (!Array.isArray(arr) || arr.length === 0) return;
@@ -420,6 +466,8 @@ export class ReceiptsStore {
     }
     if (normalizedByHash.size === 0) return;
 
+    const appendLock = await this.acquireAppendLockV1(opts.signal);
+    try {
     const authority = await this.openDirectoryAuthorityV1(opts.signal);
     try {
     const directory = authority.stablePath;
@@ -432,6 +480,8 @@ export class ReceiptsStore {
       new Set(normalizedByHash.keys()),
       { signal: opts.signal, files: shardFiles, directory },
     );
+    await opts.testHooksV1?.afterSnapshot?.();
+    opts.signal?.throwIfAborted();
     const pending: Receipt[] = [];
     for (const receipt of normalizedByHash.values()) {
       const prior = durable.get(receipt.h);
@@ -549,6 +599,9 @@ export class ReceiptsStore {
     }
     } finally {
       await authority.handle.close().catch(() => undefined);
+    }
+    } finally {
+      await this.releaseAppendLockV1(appendLock);
     }
   }
 

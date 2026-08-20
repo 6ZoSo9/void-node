@@ -1060,6 +1060,120 @@ try {
   }
   pass("receipt publication and recovery fsync the exact admitted directory generation");
 
+  const receiptConcurrencyRoot = fs.mkdtempSync(
+    path.join(os.tmpdir(), "void-follower-receipt-concurrency-v1-"),
+  );
+  try {
+    const readyPath = path.join(receiptConcurrencyRoot, "writer-a.ready");
+    const releasePath = path.join(receiptConcurrencyRoot, "writer-a.release");
+    const moduleUrl = new URL("../dist/chain/receipts.js", import.meta.url).href;
+    const writerSource = `
+      import fs from "node:fs";
+      const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+      const { ReceiptsStore } = await import(process.env.VOID_RECEIPT_MODULE_URL);
+      const store = new ReceiptsStore(process.env.VOID_RECEIPT_DIR, { shardSpan: 10_000 });
+      const hooks = process.env.VOID_RECEIPT_READY_PATH ? {
+        afterSnapshot: async () => {
+          fs.writeFileSync(process.env.VOID_RECEIPT_READY_PATH, "ready\\n", { flag: "wx" });
+          while (!fs.existsSync(process.env.VOID_RECEIPT_RELEASE_PATH)) await sleep(5);
+        },
+      } : undefined;
+      await store.appendMany([JSON.parse(process.env.VOID_RECEIPT_RECORD)], {
+        testHooksV1: hooks,
+      });
+      console.log("writer_done=true");
+    `;
+    const spawnReceiptWriter = (receipt, hold = false) => {
+      const child = childProcess.spawn(
+        process.execPath,
+        ["--input-type=module", "-e", writerSource],
+        {
+          env: {
+            ...process.env,
+            VOID_RECEIPT_MODULE_URL: moduleUrl,
+            VOID_RECEIPT_DIR: receiptConcurrencyRoot,
+            VOID_RECEIPT_RECORD: JSON.stringify(receipt),
+            ...(hold ? {
+              VOID_RECEIPT_READY_PATH: readyPath,
+              VOID_RECEIPT_RELEASE_PATH: releasePath,
+            } : {}),
+          },
+          stdio: ["ignore", "pipe", "pipe"],
+        },
+      );
+      let stdout = "";
+      let stderr = "";
+      child.stdout.on("data", (chunk) => { stdout += chunk; });
+      child.stderr.on("data", (chunk) => { stderr += chunk; });
+      return {
+        child,
+        settled: once(child, "exit").then(([code, signal]) => ({
+          code,
+          signal,
+          stdout,
+          stderr,
+        })),
+      };
+    };
+    const receiptA = {
+      h: "a".repeat(64),
+      n: 1,
+      o: 0,
+      ts: followerBlock0.timestamp,
+    };
+    const receiptB = {
+      h: "b".repeat(64),
+      n: 2,
+      o: 0,
+      ts: followerBlock0.timestamp,
+    };
+    const writerA = spawnReceiptWriter(receiptA, true);
+    const readyDeadline = Date.now() + 10_000;
+    while (!fs.existsSync(readyPath) && Date.now() < readyDeadline) {
+      await new Promise((resolve) => setTimeout(resolve, 5));
+    }
+    assert(fs.existsSync(readyPath), "writer A did not reach its admitted snapshot barrier");
+    const writerB = spawnReceiptWriter(receiptB);
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    assert(
+      writerB.child.exitCode === null,
+      "writer B escaped the cross-process append authority while writer A held it",
+    );
+    assert(
+      fs.readdirSync(receiptConcurrencyRoot).filter((file) =>
+        /^receipts-\d{8}\.jsonl$/.test(file)
+      ).length === 0,
+      "a receipt was published before the admitted writer barrier released",
+    );
+    fs.writeFileSync(releasePath, "release\n", { flag: "wx" });
+    const [resultA, resultB] = await Promise.all([
+      writerA.settled,
+      writerB.settled,
+    ]);
+    for (const [name, result] of [["A", resultA], ["B", resultB]]) {
+      assert(
+        result.code === 0 && result.signal === null && /writer_done=true/.test(result.stdout),
+        `writer ${name} failed: ${result.stderr || result.stdout}`,
+      );
+    }
+    const restartedStore = new receiptModule.ReceiptsStore(
+      receiptConcurrencyRoot,
+      { shardSpan: 10_000 },
+    );
+    const concurrentHits = await restartedStore.getMany([
+      receiptA.h,
+      receiptB.h,
+    ]);
+    assert(
+      concurrentHits.get(receiptA.h)?.found === true &&
+        concurrentHits.get(receiptB.h)?.found === true,
+      "cross-process replacement silently lost one successful receipt",
+    );
+  } finally {
+    fs.rmSync(receiptConcurrencyRoot, { recursive: true, force: true });
+  }
+  pass("cross-process receipt append authority prevents replacement lost updates");
+
   const receiptHistoryRoot = fs.mkdtempSync(
     path.join(os.tmpdir(), "void-follower-receipt-history-v1-"),
   );
@@ -1602,4 +1716,5 @@ console.log("follower_receipt_history_deadline_owned=true");
 console.log("follower_receipt_descriptor_generation_bound=true");
 console.log("follower_receipt_directory_generation_bound=true");
 console.log("follower_receipt_exact_json_types=true");
+console.log("follower_receipt_cross_process_atomic=true");
 console.log("follower_rejected_response_body_released=true");
