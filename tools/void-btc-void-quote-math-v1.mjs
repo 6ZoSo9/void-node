@@ -3,7 +3,19 @@
 import crypto from "node:crypto";
 import { pathToFileURL } from "node:url";
 
+import { readBtcVoidBoundedStdinV1 } from "./void-btc-void-bounded-stdin-v1.mjs";
+
+import {
+  BITCOIN_MAX_MONEY_SATOSHIS_V1,
+  VOID_MAX_SUPPLY_ATOMS_V1,
+} from "./void-btc-void-atomic-settlement-state-invariants-v1.mjs";
+
 export const VOID_BTC_VOID_QUOTE_MATH_V1 = "void_btc_void_quote_math_v1";
+
+export {
+  BITCOIN_MAX_MONEY_SATOSHIS_V1,
+  VOID_MAX_SUPPLY_ATOMS_V1,
+};
 
 const BPS_DENOMINATOR = 10_000n;
 const MAX_FEE_BPS = 1_000;
@@ -37,6 +49,13 @@ function atomic(value, label, { allowZero = false } = {}) {
     throw new Error(label + " is outside the v1 atomic-value range");
   }
   return parsed;
+}
+
+function nativeMaximum(value, maximum, label, maximumLabel) {
+  if (value > BigInt(maximum)) {
+    throw new Error(label + " exceeds " + maximumLabel);
+  }
+  return value;
 }
 
 function integer(value, label, minimum, maximum) {
@@ -89,18 +108,47 @@ function normalizeRequest(raw) {
     "quote policy",
   );
 
-  const amountIn = atomic(request.amount_in, "amount_in");
-  const btcReserve = atomic(reserves.btc_sats, "reserves.btc_sats");
-  const voidReserve = atomic(reserves.void_atomic, "reserves.void_atomic");
-  const minimumBtcReserve = atomic(
-    policy.minimum_btc_reserve_sats,
-    "policy.minimum_btc_reserve_sats",
-    { allowZero: true },
+  const amountIn = nativeMaximum(
+    atomic(request.amount_in, "amount_in"),
+    request.direction === "btc_to_void"
+      ? BITCOIN_MAX_MONEY_SATOSHIS_V1
+      : VOID_MAX_SUPPLY_ATOMS_V1,
+    "amount_in",
+    request.direction === "btc_to_void"
+      ? "Bitcoin MAX_MONEY"
+      : "VOID maximum supply",
   );
-  const minimumVoidReserve = atomic(
-    policy.minimum_void_reserve_atomic,
+  const btcReserve = nativeMaximum(
+    atomic(reserves.btc_sats, "reserves.btc_sats"),
+    BITCOIN_MAX_MONEY_SATOSHIS_V1,
+    "reserves.btc_sats",
+    "Bitcoin MAX_MONEY",
+  );
+  const voidReserve = nativeMaximum(
+    atomic(reserves.void_atomic, "reserves.void_atomic"),
+    VOID_MAX_SUPPLY_ATOMS_V1,
+    "reserves.void_atomic",
+    "VOID maximum supply",
+  );
+  const minimumBtcReserve = nativeMaximum(
+    atomic(
+      policy.minimum_btc_reserve_sats,
+      "policy.minimum_btc_reserve_sats",
+      { allowZero: true },
+    ),
+    BITCOIN_MAX_MONEY_SATOSHIS_V1,
+    "policy.minimum_btc_reserve_sats",
+    "Bitcoin MAX_MONEY",
+  );
+  const minimumVoidReserve = nativeMaximum(
+    atomic(
+      policy.minimum_void_reserve_atomic,
+      "policy.minimum_void_reserve_atomic",
+      { allowZero: true },
+    ),
+    VOID_MAX_SUPPLY_ATOMS_V1,
     "policy.minimum_void_reserve_atomic",
-    { allowZero: true },
+    "VOID maximum supply",
   );
   const feeBps = integer(policy.fee_bps, "policy.fee_bps", 0, MAX_FEE_BPS);
   const maxInputFractionBps = integer(
@@ -142,14 +190,22 @@ export function quoteBtcVoidV1(raw) {
   const reserveIn = btcIn ? normalized.btcReserve : normalized.voidReserve;
   const reserveOut = btcIn ? normalized.voidReserve : normalized.btcReserve;
 
+  const inputReserveMaximum = btcIn
+    ? BITCOIN_MAX_MONEY_SATOSHIS_V1
+    : VOID_MAX_SUPPLY_ATOMS_V1;
+  const inputReserveMaximumLabel = btcIn
+    ? "Bitcoin MAX_MONEY"
+    : "VOID maximum supply";
+  if (reserveIn + normalized.amountIn > BigInt(inputReserveMaximum)) {
+    throw new Error(
+      "post-quote input reserve exceeds " + inputReserveMaximumLabel,
+    );
+  }
   if (
     normalized.amountIn * BPS_DENOMINATOR >
     reserveIn * BigInt(normalized.maxInputFractionBps)
   ) {
     throw new Error("amount_in exceeds the configured reserve-fraction limit");
-  }
-  if (reserveIn + normalized.amountIn > MAX_ATOMIC_VALUE) {
-    throw new Error("post-quote input reserve exceeds the v1 atomic-value range");
   }
 
   const feeFactor = BPS_DENOMINATOR - BigInt(normalized.feeBps);
@@ -232,15 +288,10 @@ export function quoteBtcVoidV1(raw) {
 }
 
 async function readBoundedStdin() {
-  const chunks = [];
-  let bytes = 0;
-  for await (const chunk of process.stdin) {
-    bytes += chunk.length;
-    if (bytes > MAX_STDIN_BYTES) throw new Error("stdin exceeds 65536 bytes");
-    chunks.push(chunk);
-  }
-  if (bytes === 0) throw new Error("stdin JSON is required");
-  return Buffer.concat(chunks).toString("utf8");
+  return readBtcVoidBoundedStdinV1({
+    stream: process.stdin,
+    maxBytes: MAX_STDIN_BYTES,
+  });
 }
 
 async function main() {
