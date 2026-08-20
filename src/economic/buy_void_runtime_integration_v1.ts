@@ -1,12 +1,19 @@
 import path from "node:path";
 import express from "express";
-const VOID_BUY_VOID_DELIVERY_RUNTIME_INTEGRATION_V1 =
-  "VOID_BUY_VOID_DELIVERY_RUNTIME_INTEGRATION_V1";
-const VOID_BUY_VOID_DELIVERY_RUNTIME_ROUTES_V1 = {
-  status: "/__void/operator/buy-void-delivery-runtime-v1/status",
-  command: "/__void/operator/buy-void-delivery-runtime-v1/command",
-} as const;
+import {
+  VOID_BUY_VOID_DELIVERY_RUNTIME_INTEGRATION_V1,
+  VOID_BUY_VOID_DELIVERY_RUNTIME_ROUTES_V1,
+  buyVoidDeliveryRuntimeStatusV1,
+} from "./buy_void_delivery_runtime_integration_v1.js";
+import {
+  VOID_BUY_VOID_ERC20_DELIVERY_DEPENDENCY_INJECTION_V1,
+  buyVoidErc20DeliveryDependencyInjectionStatusV1,
+} from "./buy_void_erc20_delivery_dependency_injection_v1.js";
 import "./buy_void_confirmed_closeout_runtime_v1.js";
+import {
+  VOID_BUY_VOID_ERC20_DELIVERY_DEPENDENCY_BOOTSTRAP_INTEGRATION_GATE_V1,
+  VOID_BUY_VOID_ERC20_DELIVERY_DEPENDENCY_BOOTSTRAP_INTEGRATION_V1,
+} from "./buy_void_erc20_delivery_dependency_bootstrap_integration_gate_v1.js";
 import {
   VOID_BUY_VOID_PIPELINE_CONFIRMATIONS_V1,
   VOID_BUY_VOID_PIPELINE_COORDINATOR_AUTHORITY_V1,
@@ -43,7 +50,7 @@ export const VOID_BUY_VOID_CANONICAL_DELIVERY_COMPOSITION_V1 = {
     VOID_BUY_VOID_DELIVERY_RUNTIME_INTEGRATION_V1,
   delivery_routes: VOID_BUY_VOID_DELIVERY_RUNTIME_ROUTES_V1,
   delivery_runtime_source_retained: true,
-  delivery_runtime_parent_mounted: false,
+  delivery_runtime_parent_mounted: true,
   native_delivery_parent_mounted: false,
   native_receipt_parent_mounted: false,
   native_execution_parent_mounted: false,
@@ -52,15 +59,25 @@ export const VOID_BUY_VOID_CANONICAL_DELIVERY_COMPOSITION_V1 = {
   native_transaction_preparation_parent_mounted: false,
   opaque_prepared_transaction_execution_parent_mounted: false,
   erc20_transaction_preparation_bridge_ready: true,
+  erc20_transaction_preparation_execution_state_ready:
+    VOID_BUY_VOID_ERC20_DELIVERY_DEPENDENCY_BOOTSTRAP_INTEGRATION_V1
+      .erc20_transaction_preparation_execution_state_ready,
   erc20_receipt_reconciliation_bridge_ready: true,
   erc20_fulfillment_unit_to_token_atom_scale_ready: true,
-  canonical_delivery_dependency_bootstrap_ready: false,
+  dependency_bootstrap_integration_gate:
+    VOID_BUY_VOID_ERC20_DELIVERY_DEPENDENCY_BOOTSTRAP_INTEGRATION_V1,
+  canonical_delivery_dependency_bootstrap_ready:
+    VOID_BUY_VOID_ERC20_DELIVERY_DEPENDENCY_BOOTSTRAP_INTEGRATION_V1
+      .canonical_delivery_dependency_bootstrap_ready,
+  dormant_dependency_injection_source_ready: true,
+  dependency_injection_marker:
+    VOID_BUY_VOID_ERC20_DELIVERY_DEPENDENCY_INJECTION_V1,
   canonical_delivery_execution_ready: false,
   canonical_delivery_execution_held: true,
   presale_inventory_funding_ready: false,
-  funding_blockers: [
-    "canonical_delivery_dependency_bootstrap_not_ready",
-  ],
+  funding_blockers:
+    VOID_BUY_VOID_ERC20_DELIVERY_DEPENDENCY_BOOTSTRAP_INTEGRATION_V1
+      .funding_blockers,
 } as const;
 
 export const VOID_BUY_VOID_RUNTIME_INTEGRATION_ROUTES_V1 = {
@@ -78,8 +95,15 @@ export const VOID_BUY_VOID_RUNTIME_INTEGRATION_AUTHORITY_V1 = {
   background_loop: false,
   rpc_call: false,
   canonical_delivery_asset_void_token_erc20: true,
-  canonical_delivery_runtime_parent_mounted: false,
-  canonical_erc20_delivery_dependency_bootstrap_ready: false,
+  canonical_delivery_runtime_parent_mounted: true,
+  canonical_erc20_delivery_dependency_bootstrap_integration_gate_marker:
+    VOID_BUY_VOID_ERC20_DELIVERY_DEPENDENCY_BOOTSTRAP_INTEGRATION_GATE_V1,
+  canonical_erc20_delivery_dependency_bootstrap_ready:
+    VOID_BUY_VOID_ERC20_DELIVERY_DEPENDENCY_BOOTSTRAP_INTEGRATION_V1
+      .canonical_delivery_dependency_bootstrap_ready,
+  canonical_erc20_transaction_preparation_execution_state_ready:
+    VOID_BUY_VOID_ERC20_DELIVERY_DEPENDENCY_BOOTSTRAP_INTEGRATION_V1
+      .erc20_transaction_preparation_execution_state_ready,
   canonical_erc20_delivery_atomic_unit_conversion_ready: true,
   canonical_erc20_delivery_execution_ready: false,
   canonical_erc20_delivery_execution_held: true,
@@ -270,22 +294,11 @@ export function buyVoidRuntimeStatusV1(): Record<string, unknown> {
     canonical_delivery: {
       ...VOID_BUY_VOID_CANONICAL_DELIVERY_COMPOSITION_V1,
       runtime_status: {
-        marker: VOID_BUY_VOID_DELIVERY_RUNTIME_INTEGRATION_V1,
-        version: 1,
-        ok: true,
-        mounted: false,
-        status: "held",
-        reason: "canonical_erc20_execution_not_ready",
-        routes: VOID_BUY_VOID_DELIVERY_RUNTIME_ROUTES_V1,
-        signer_configured: false,
-        broadcaster_configured: false,
-        effective_authority: {
-          signing: false,
-          transaction_broadcast: false,
-          money_movement: false,
-          rpc_call: false,
-        },
+        mounted: true,
+        ...buyVoidDeliveryRuntimeStatusV1(),
       },
+      dependency_injection_status:
+        buyVoidErc20DeliveryDependencyInjectionStatusV1(),
     },
     saga_broadcast_reconciliation_runtime:
       buyVoidSagaBroadcastReconciliationRuntimeStatusV1(),

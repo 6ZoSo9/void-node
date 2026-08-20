@@ -1,6 +1,8 @@
 {
   "marker": "VOID_INDEX_CARTOGRAPHY_V1",
   "version": 1,
+  "coverage_wave": 2,
+  "coverage_baseline_landmark_count": 16,
   "source_path": "src/index.ts",
   "managed_landmark_prefix": "// VOID-INDEX-LANDMARK:",
   "contract": {
@@ -122,6 +124,55 @@
       "area": "integration",
       "purpose": "Public agent service-acceptance persistence/bootstrap integration import boundary.",
       "anchor": "// VOID_PUBLIC_AGENT_SERVICE_ACCEPTANCE_PERSISTENCE_HTTP_ROUTE_SERVER_BOOTSTRAP_CALLSITE_INTEGRATION_V1_IMPORT",
+      "expected_occurrences": 1
+    },
+    {
+      "id": "runtime.header3-match-exporter",
+      "area": "runtime",
+      "purpose": "Canonical producer legacy Header3 match-export observer family.",
+      "anchor": "(function Header3MatchExporter(){",
+      "expected_occurrences": 1
+    },
+    {
+      "id": "runtime.ready-watchdog",
+      "area": "runtime",
+      "purpose": "Canonical producer legacy readiness watchdog and self-HTTP intervention family.",
+      "anchor": "(function readyWatchdogV1(){",
+      "expected_occurrences": 1
+    },
+    {
+      "id": "runtime.proposer-activity-gauge",
+      "area": "runtime",
+      "purpose": "Canonical producer proposer-activity head observer family.",
+      "anchor": "(function proposerActivityGauge(){",
+      "expected_occurrences": 1
+    },
+    {
+      "id": "runtime.proposer-metrics-v2",
+      "area": "runtime",
+      "purpose": "Canonical producer proposer metrics head observer family.",
+      "anchor": "(function proposerMetricsV2(){",
+      "expected_occurrences": 1
+    },
+    {
+      "id": "runtime.v2fs-status-route",
+      "area": "runtime",
+      "purpose": "Canonical V2FS proposer status route registration used by liveness validation.",
+      "anchor": "app.get(\"/__void/metrics/proposer.commit-direct.v2fs/status.json\",",
+      "expected_occurrences": 1
+    },
+    {
+      "id": "runtime.autoprop-status-route",
+      "area": "runtime",
+      "purpose": "Canonical commit-direct autoprop status route registration used by liveness validation.",
+      "anchor": "app.get(\"/__void/metrics/commit-direct-autoprop.v1/status.json\",",
+      "expected_occurrences": 1
+    },
+    {
+      "id": "runtime.v2fs-commit-route",
+      "area": "runtime",
+      "purpose": "Canonical base-backed V2FS empty-block autoprop callsite used by liveness validation.",
+      "anchor": "const url = base() + \"/__void/metrics/proposer.commit-direct.v2fs/commit?empty=1\";",
       "expected_occurrences": 1
     }
   ]

@@ -102,6 +102,7 @@ import { ValidatorSubmitIntentRuntimeIntegrationV1 } from "./validator/validator
 import { installPublicAgentServiceAcceptancePersistenceTrustedContextProviderBindingFromEnvironmentV1 } from "./http/public_agent_service_acceptance_persistence_trusted_context_provider_binding_v1.js"; // VOID_PUBLIC_AGENT_SERVICE_ACCEPTANCE_PERSISTENCE_TRUSTED_CONTEXT_PROVIDER_BINDING_V1_IMPORT
 import { executePublicAgentServiceAcceptancePersistenceHttpRouteServerBootstrapCallsiteIntegrationFromEnvironmentV1 } from "./http/public_agent_service_acceptance_persistence_http_route_server_bootstrap_callsite_integration_v1.js"; // VOID_PUBLIC_AGENT_SERVICE_ACCEPTANCE_PERSISTENCE_HTTP_ROUTE_SERVER_BOOTSTRAP_CALLSITE_INTEGRATION_V1_IMPORT
 import { executeOrderStatusReadonlyHttpIntegrationFromEnvironmentV1 } from "../tools/void-public-agent-service-order-status-readonly-http-integration-v1.mjs"; // VOID_PUBLIC_AGENT_SERVICE_ORDER_STATUS_READONLY_HTTP_INTEGRATION_V1_IMPORT
+import { AgentPick2JsonlSemanticIndexV1, appendAgentPick2JsonlCanonicalV1 } from "./http/agent_pick2_jsonl_semantic_index_v1.js"; // VOID_AGENT_PICK2_JSONL_SEMANTIC_INDEX_V1_IMPORT
 
 
 // __VOID_TS_DECLARES_V1__
@@ -20519,7 +20520,7 @@ const mod:any = require("./util/txroot.js");
 
   async function poll(){
     try{
-      const n = Number((await selfJson(`/blocks/latest/number2.json`)).number);
+      const n = Number((await selfJson(`/blocks/latest/number2.json`))?.number);
       if (Number.isFinite(n) && n >= 0 && n !== lastChecked){
         const h3 = await selfJson(`/blocks/${n}/header3`);
         const t  = await selfJson(`/dev/txroot/${n}`);
@@ -24847,7 +24848,7 @@ function __voidWpV1(w:any){const f=w?.pressure,n=+(typeof f==="function"?f.call(
   const out = path.join(base, "agent", "results.jsonl");
   async function appendResult(line:string){
     try{ fs.mkdirSync(path.dirname(out), {recursive:true});
-      const fd = fs.openSync(out, "a"); fs.writeSync(fd, line+"\n"); try{ fs.fdatasyncSync(fd);}catch (err) { voidIndexEmptyCatchVisibilityWindow23401_24300V1("23625:4", err); } fs.closeSync(fd);
+      appendAgentPick2JsonlCanonicalV1(out, line+"\n", { durable:true });
     }catch (err) { voidIndexEmptyCatchVisibilityWindow23401_24300V1("23626:5", err); }
   }
   function wire(){
@@ -24893,10 +24894,7 @@ function __voidWpV1(w:any){const f=w?.pressure,n=+(typeof f==="function"?f.call(
           error: req.body?.error ? String(req.body.error) : null
         };
         const line = JSON.stringify(rec);
-        const fd = fs.openSync(out, "a");
-        fs.writeSync(fd, line+"\n");
-        try{ fs.fdatasyncSync(fd); }catch (err) { voidIndexEmptyCatchVisibilityWindow23401_24300V1("23673:6", err); }
-        fs.closeSync(fd);
+        appendAgentPick2JsonlCanonicalV1(out, line+"\n", { durable:true });
         res.json({ok:true});
       }catch(e:any){
         res.status(500).json({ok:false, error:String(e?.message||e)});
@@ -24960,14 +24958,14 @@ function __voidWpV1(w:any){const f=w?.pressure,n=+(typeof f==="function"?f.call(
     const done = new Set<string>();
     try{
       if (fs.existsSync(doneFile)){
-        for (const line of fs.readFileSync(doneFile, "utf8").split("\\n")){ if (!line.trim()) continue;
+        for (const line of fs.readFileSync(doneFile, "utf8").split("\n")){ if (!line.trim()) continue;
           let rec:any; try{ rec=JSON.parse(line); }catch{ continue; } if (rec && rec.id) done.add(rec.id);
         }
       }
     }catch (err) { voidIndexEmptyCatchVisibilityWindow23401_24300V1("23742:14-file", err); }
     try{
       if (fs.existsSync(jobsFile)){
-        for (const line of fs.readFileSync(jobsFile, "utf8").split("\\n")){ if (!line.trim()) continue;
+        for (const line of fs.readFileSync(jobsFile, "utf8").split("\n")){ if (!line.trim()) continue;
           let j:any; try{ j=JSON.parse(line); }catch{ continue; }
           if (!j || !j.id || done.has(j.id)) continue;
           if (!S().map.has(j.id)){ j.status = "queued"; S().map.set(j.id, j); S().q.push(j); }
@@ -25040,7 +25038,7 @@ function __voidWpV1(w:any){const f=w?.pressure,n=+(typeof f==="function"?f.call(
       lines.push("# HELP void_agent_dlq_total total jobs sent to dead-letter");
       lines.push("# TYPE void_agent_dlq_total counter");
       lines.push(`void_agent_dlq_total ${Number(met.dlq||0)}`);
-      res.type("text/plain").send(lines.join("\\n")+"\n");
+      res.type("text/plain").send(lines.join("\n")+"\n");
     });
   }
 
@@ -25180,8 +25178,7 @@ function __voidWpV1(w:any){const f=w?.pressure,n=+(typeof f==="function"?f.call(
               meta,
               status: "queued"
             };
-            const fd = fs.openSync(jobsFile, "a");
-            fs.writeSync(fd, JSON.stringify(rec) + "\n"); try{ fs.fdatasyncSync(fd); }catch (err) { voidIndexEmptyCatchVisibilityWindow23401_24300V1("23959:18", err); } fs.closeSync(fd);
+            appendAgentPick2JsonlCanonicalV1(jobsFile, JSON.stringify(rec) + "\n", { durable:true });
           }
         }catch (err) { voidIndexEmptyCatchVisibilityWindow23401_24300V1("23961:19", err); } // never break response flow
         return _json(body);
@@ -25208,7 +25205,7 @@ function __voidWpV1(w:any){const f=w?.pressure,n=+(typeof f==="function"?f.call(
       lines.push("# HELP void_agent_dlq_total total jobs sent to dead-letter");
       lines.push("# TYPE void_agent_dlq_total counter");
       lines.push(`void_agent_dlq_total ${Number(met.dlq||0)}`);
-      res.type("text/plain").send(lines.join("\\n")+"\n");
+      res.type("text/plain").send(lines.join("\n")+"\n");
     });
   } mount();
 })();
@@ -25235,10 +25232,7 @@ function __voidWpV1(w:any){const f=w?.pressure,n=+(typeof f==="function"?f.call(
   function append(rec:any){
     try{
       fs.mkdirSync(path.dirname(out), {recursive:true});
-      const fd = fs.openSync(out, "a");
-      fs.writeSync(fd, JSON.stringify(rec) + "\n");
-      try{ fs.fdatasyncSync(fd); }catch (err) { voidIndexEmptyCatchVisibilityWindow23401_24300V1("24015:21", err); }
-      fs.closeSync(fd);
+      appendAgentPick2JsonlCanonicalV1(out, JSON.stringify(rec) + "\n", { durable:true });
     }catch (err) { voidIndexEmptyCatchVisibilityWindow23401_24300V1("24017:22", err); }
   }
 
@@ -25314,7 +25308,7 @@ function __voidWpV1(w:any){const f=w?.pressure,n=+(typeof f==="function"?f.call(
         const n = Math.max(1, Math.min(1000, Number(req.query.n||"50")));
         if (!fs.existsSync(file)) return res.json({ok:true, items:[]});
         const map = new Map<string, any>();
-        const lines = fs.readFileSync(file, "utf8").split("\\n");
+        const lines = fs.readFileSync(file, "utf8").split("\n");
         for (const line of lines){
           if (!line) continue;
           try{
@@ -25351,7 +25345,7 @@ function __voidWpV1(w:any){const f=w?.pressure,n=+(typeof f==="function"?f.call(
       try{
         const map = new Map<string, number>();
         if (fs.existsSync(file)){
-          for (const line of fs.readFileSync(file, "utf8").split("\\n")){
+          for (const line of fs.readFileSync(file, "utf8").split("\n")){
             if (!line) continue; try{ const o = JSON.parse(line); if (o?.id) map.set(o.id, 1); }catch (err) { voidIndexEmptyCatchVisibilityWindow23401_24300V1("24130:25", err); }
           }
         }
@@ -25385,10 +25379,7 @@ function __voidWpV1(w:any){const f=w?.pressure,n=+(typeof f==="function"?f.call(
   function append(rec:any){
     try{
       fs.mkdirSync(dir, {recursive:true});
-      const fd = fs.openSync(receiptsFile, "a");
-      fs.writeSync(fd, JSON.stringify(rec)+"\n");
-      try{ fs.fdatasyncSync(fd); }catch (err) { voidIndexEmptyCatchVisibilityWindow23401_24300V1("24165:27", err); }
-      fs.closeSync(fd);
+      appendAgentPick2JsonlCanonicalV1(receiptsFile, JSON.stringify(rec)+"\n", { durable:true });
       met.receipts_total = (Number(met.receipts_total||0)+1);
     }catch{ met.receipts_errors = (Number(met.receipts_errors||0)+1); }
   }
@@ -25432,7 +25423,7 @@ function __voidWpV1(w:any){const f=w?.pressure,n=+(typeof f==="function"?f.call(
       lines.push("# HELP void_agent_receipts_errors total receipt write errors");
       lines.push("# TYPE void_agent_receipts_errors counter");
       lines.push(`void_agent_receipts_errors ${Number(met.receipts_errors||0)}`);
-      res.type("text/plain").send(lines.join("\\n")+"\\n");
+      res.type("text/plain").send(lines.join("\n")+"\n");
     });
   } mount();
 })();
@@ -25615,7 +25606,7 @@ function __voidWpV1(w:any){const f=w?.pressure,n=+(typeof f==="function"?f.call(
       lines.push("# TYPE void_agent_receipts_errors counter");
       lines.push(`void_agent_receipts_errors ${Number(met.receipts_errors||0)}`);
       // IMPORTANT: real newlines (not '\n' literals)
-      res.type("text/plain").send(lines.join("\\n") + "\n");
+      res.type("text/plain").send(lines.join("\n") + "\n");
     });
   } mount();
 })();
@@ -25632,7 +25623,7 @@ function __voidWpV1(w:any){const f=w?.pressure,n=+(typeof f==="function"?f.call(
     const out:any[] = [];
     try{
       if (!fs.existsSync(pathStr)) return out;
-      for (const line of fs.readFileSync(pathStr, "utf8").split("\\n")){
+      for (const line of fs.readFileSync(pathStr, "utf8").split("\n")){
         if (!line) continue;
         try { out.push(JSON.parse(line)); } catch (err) { voidIndexEmptyCatchVisibilityWindow24301_25200V1("24412:4", err); }
       }
@@ -25697,7 +25688,7 @@ function __voidWpV1(w:any){const f=w?.pressure,n=+(typeof f==="function"?f.call(
       lines.push("# HELP void_agent_receipts_coverage fraction of results with receipts (0..1)");
       lines.push("# TYPE void_agent_receipts_coverage gauge");
       lines.push(`void_agent_receipts_coverage ${isFinite(r.coverage)?r.coverage:0}`);
-      res.type("text/plain").send(lines.join("\\n")+"\n");
+      res.type("text/plain").send(lines.join("\n")+"\n");
     });
   } mount();
 })();
@@ -25716,13 +25707,13 @@ function __voidWpV1(w:any){const f=w?.pressure,n=+(typeof f==="function"?f.call(
     const rmap = new Map<string, number>(); // id -> count
     try{
       if (fs.existsSync(resultsFile)){
-        for (const line of fs.readFileSync(resultsFile,"utf8").split("\\n")){
+        for (const line of fs.readFileSync(resultsFile,"utf8").split("\n")){
           if (!line) continue;
           try{ const o=JSON.parse(line); if (o?.id){ total++; seen.add(o.id); } }catch (err) { voidIndexEmptyCatchVisibilityWindow24301_25200V1("24496:6", err); }
         }
       }
       if (fs.existsSync(receiptsFile)){
-        for (const line of fs.readFileSync(receiptsFile,"utf8").split("\\n")){
+        for (const line of fs.readFileSync(receiptsFile,"utf8").split("\n")){
           if (!line) continue;
           try{ const o=JSON.parse(line); if (o?.id){ receipts++; rmap.set(o.id, (rmap.get(o.id)||0)+1); } }catch (err) { voidIndexEmptyCatchVisibilityWindow24301_25200V1("24502:7", err); }
         }
@@ -25754,7 +25745,7 @@ function __voidWpV1(w:any){const f=w?.pressure,n=+(typeof f==="function"?f.call(
         "# TYPE void_agent_receipts_coverage gauge",
         `void_agent_receipts_coverage ${coverage}`
       ];
-      res.type("text/plain").end(lines.join("\\n")+"\n");
+      res.type("text/plain").end(lines.join("\n")+"\n");
     });
   }
   mount();
@@ -25862,7 +25853,7 @@ function __voidWpV1(w:any){const f=w?.pressure,n=+(typeof f==="function"?f.call(
   function sha256Hex(buf){ return crypto.createHash("sha256").update(buf).digest("hex"); }
   function jsonlAppend(file, obj){
     mkdirp(path.dirname(file));
-    fs.appendFileSync(file, JSON.stringify(obj) + "\n", {encoding:"utf8"});
+    appendAgentPick2JsonlCanonicalV1(file, JSON.stringify(obj) + "\n");
   }
   function nowMs(){ return Date.now(); }
   function id24(){ return crypto.randomBytes(12).toString("hex"); } // 24 chars
@@ -25890,20 +25881,20 @@ function __voidWpV1(w:any){const f=w?.pressure,n=+(typeof f==="function"?f.call(
         const done = new Set();
         // collect leases
         if (fs.existsSync(FILE_LEASES)){
-          fs.readFileSync(FILE_LEASES,"utf8").split("\\n").forEach(l=>{
+          fs.readFileSync(FILE_LEASES,"utf8").split("\n").forEach(l=>{
             if(!l.trim()) return;
             try{ const x=JSON.parse(l); if(x && x.id) leased.add(x.id); }catch (err) { voidIndexEmptyCatchVisibilityWindow24301_25200V1("24670:11", err); }
           });
         }
         // collect done
         if (fs.existsSync(FILE_RESULTS)){
-          fs.readFileSync(FILE_RESULTS,"utf8").split("\\n").forEach(l=>{
+          fs.readFileSync(FILE_RESULTS,"utf8").split("\n").forEach(l=>{
             if(!l.trim()) return;
             try{ const x=JSON.parse(l); if(x && x.id) done.add(x.id); }catch (err) { voidIndexEmptyCatchVisibilityWindow24301_25200V1("24677:12", err); }
           });
         }
         // list jobs not done/not leased
-        fs.readFileSync(FILE_JOBS,"utf8").split("\\n").forEach(l=>{
+        fs.readFileSync(FILE_JOBS,"utf8").split("\n").forEach(l=>{
           if(!l.trim()) return;
           try{
             const x=JSON.parse(l);
@@ -25945,7 +25936,7 @@ function __voidWpV1(w:any){const f=w?.pressure,n=+(typeof f==="function"?f.call(
         const ts = Date.now();
 
         const rec = { id, kind, input, inputHash, meta: body?.meta || {}, ts, status: "queued" };
-        jobs.appendFileSync(path.join(agentDir, "jobs.jsonl"), JSON.stringify(rec) + "\n");
+        appendAgentPick2JsonlCanonicalV1(path.join(agentDir, "jobs.jsonl"), JSON.stringify(rec) + "\n");
 
         return res.json({ ok:true, id, inputHash, ts });
       }catch(e:any){
@@ -25984,7 +25975,7 @@ function __voidWpV1(w:any){const f=w?.pressure,n=+(typeof f==="function"?f.call(
             try{
               if (!fs.existsSync(file)) return 0;
               const raw = String(fs.readFileSync(file, "utf8") || "");
-              return raw ? raw.split("\\n").filter(Boolean).length : 0;
+              return raw ? raw.split("\n").filter(Boolean).length : 0;
             }catch{ return 0; }
           }
 
@@ -25992,7 +25983,7 @@ function __voidWpV1(w:any){const f=w?.pressure,n=+(typeof f==="function"?f.call(
             try{
               if (!fs.existsSync(file)) return 1e12;
               const raw = String(fs.readFileSync(file, "utf8") || "");
-              const lines = raw.split("\\n").filter(Boolean);
+              const lines = raw.split("\n").filter(Boolean);
               const last = lines.length ? JSON.parse(lines[lines.length - 1]) : null;
               const ts = Number(last?.ts || 0);
               return ts > 0 ? Math.max(0, (Date.now() - ts)/1000) : 1e12;
@@ -26039,7 +26030,7 @@ function __voidWpV1(w:any){const f=w?.pressure,n=+(typeof f==="function"?f.call(
           try{
             if (fs.existsSync(receiptsFile)){
               const raw = String(fs.readFileSync(receiptsFile, "utf8") || "");
-              const lines = raw.split("\\n").filter(Boolean);
+              const lines = raw.split("\n").filter(Boolean);
               const last = lines.length ? JSON.parse(lines[lines.length - 1]) : null;
               const ts = Number(last?.ts || 0);
               receiptAgeSec = ts > 0 ? Math.max(0, (Date.now() - ts)/1000) : null;
@@ -26147,7 +26138,7 @@ function __voidWpV1(w:any){const f=w?.pressure,n=+(typeof f==="function"?f.call(
         // fetch the job payload to return
         let job:any = null;
         if (fs.existsSync(FILE_JOBS)){
-          const lines = fs.readFileSync(FILE_JOBS,"utf8").split("\\n");
+          const lines = fs.readFileSync(FILE_JOBS,"utf8").split("\n");
           for (let i=lines.length-1;i>=0;--i){
             const l = lines[i]; if(!l.trim()) continue;
             try{ const x=JSON.parse(l); if(x.id===id){ job=x; break; } }catch (err) { voidIndexEmptyCatchVisibilityWindow24301_25200V1("24928:17", err); }
@@ -26171,7 +26162,7 @@ function __voidWpV1(w:any){const f=w?.pressure,n=+(typeof f==="function"?f.call(
         // try to find original inputHash for this id
         let inputHash = (req.body?.inputHash || "");
         if (!inputHash && fs.existsSync(FILE_JOBS)){
-          const lines = fs.readFileSync(FILE_JOBS,"utf8").split("\\n");
+          const lines = fs.readFileSync(FILE_JOBS,"utf8").split("\n");
           for (let i=lines.length-1;i>=0;--i){
             const l = lines[i]; if(!l.trim()) continue;
             try{ const x=JSON.parse(l); if(x.id===id){ inputHash = x.inputHash || ""; break; } }catch (err) { voidIndexEmptyCatchVisibilityWindow24301_25200V1("24952:18", err); }
@@ -26193,7 +26184,7 @@ function __voidWpV1(w:any){const f=w?.pressure,n=+(typeof f==="function"?f.call(
         const id = req.params.id;
         let out:any = null;
         if (fs.existsSync(FILE_RESULTS)){
-          const lines = fs.readFileSync(FILE_RESULTS,"utf8").split("\\n");
+          const lines = fs.readFileSync(FILE_RESULTS,"utf8").split("\n");
           for (let i=lines.length-1;i>=0;--i){
             const l = lines[i]; if(!l.trim()) continue;
             try{ const x=JSON.parse(l); if(x.id===id){ out=x; break; } }catch (err) { voidIndexEmptyCatchVisibilityWindow24301_25200V1("24974:19", err); }
@@ -26210,9 +26201,9 @@ function __voidWpV1(w:any){const f=w?.pressure,n=+(typeof f==="function"?f.call(
       try{
         if (!queued.length) rebuildIndex();
         let totalJobs=0, totalResults=0, totalReceipts=0;
-        if (fs.existsSync(FILE_JOBS))     totalJobs    = fs.readFileSync(FILE_JOBS,"utf8").split("\\n").filter(Boolean).length;
-        if (fs.existsSync(FILE_RESULTS))  totalResults = fs.readFileSync(FILE_RESULTS,"utf8").split("\\n").filter(Boolean).length;
-        if (fs.existsSync(FILE_RECEIPTS)) totalReceipts= fs.readFileSync(FILE_RECEIPTS,"utf8").split("\\n").filter(Boolean).length;
+        if (fs.existsSync(FILE_JOBS))     totalJobs    = fs.readFileSync(FILE_JOBS,"utf8").split("\n").filter(Boolean).length;
+        if (fs.existsSync(FILE_RESULTS))  totalResults = fs.readFileSync(FILE_RESULTS,"utf8").split("\n").filter(Boolean).length;
+        if (fs.existsSync(FILE_RECEIPTS)) totalReceipts= fs.readFileSync(FILE_RECEIPTS,"utf8").split("\n").filter(Boolean).length;
         const lines = [
           "# HELP void_agent_jobs_queued current queued jobs",
           "# TYPE void_agent_jobs_queued gauge",
@@ -26227,7 +26218,7 @@ function __voidWpV1(w:any){const f=w?.pressure,n=+(typeof f==="function"?f.call(
           "# TYPE void_agent_receipts_file_total gauge",
           `void_agent_receipts_file_total ${totalReceipts}`,
         ];
-        res.type("text/plain").send(lines.join("\\n")+"\n");
+        res.type("text/plain").send(lines.join("\n")+"\n");
       }catch(e:any){
         res.type("text/plain").send(`# error ${e?.message||"internal"}\n`);
       }
@@ -26280,7 +26271,7 @@ function __voidWpV1(w:any){const f=w?.pressure,n=+(typeof f==="function"?f.call(
   function nowMs(){ return Date.now(); }
   function safeLines(file){
     if (!fs.existsSync(file)) return [];
-    return fs.readFileSync(file,"utf8").split("\\n").filter(l=>l.trim().length>0);
+    return fs.readFileSync(file,"utf8").split("\n").filter(l=>l.trim().length>0);
   }
   function readSetFrom(file, idKey){ // returns Set<string>
     const s = new Set();
@@ -26563,7 +26554,7 @@ function __voidWpV1(w:any){const f=w?.pressure,n=+(typeof f==="function"?f.call(
         const addCompletedTruth = (file:string) => {
           try{
             if (!fs.existsSync(file)) return;
-            for (const line of String(fs.readFileSync(file, "utf8") || "").split("\\n")){
+            for (const line of String(fs.readFileSync(file, "utf8") || "").split("\n")){
               if (!line.trim()) continue;
               try{
                 const j:any = JSON.parse(line);
@@ -26608,7 +26599,7 @@ function __voidWpV1(w:any){const f=w?.pressure,n=+(typeof f==="function"?f.call(
           selected_score: picked.score
         };
         fs.mkdirSync(AGENT_DIR, {recursive:true});
-        fs.appendFileSync(FILE_LEASES, JSON.stringify(lease)+"\n");
+        appendAgentPick2JsonlCanonicalV1(FILE_LEASES, JSON.stringify(lease)+"\n");
 
         const baseJob = picked.job || readLatestJob(id) || { id };
         const job = {
@@ -26640,7 +26631,7 @@ function __voidWpV1(w:any){const f=w?.pressure,n=+(typeof f==="function"?f.call(
         const addCompletedTruth = (file:string) => {
           try{
             if (!fs.existsSync(file)) return;
-            for (const line of String(fs.readFileSync(file, "utf8") || "").split("\\n")){
+            for (const line of String(fs.readFileSync(file, "utf8") || "").split("\n")){
               if (!line.trim()) continue;
               try{
                 const j:any = JSON.parse(line);
@@ -26746,7 +26737,7 @@ function __voidWpV1(w:any){const f=w?.pressure,n=+(typeof f==="function"?f.call(
           `void_agent_leases_expired ${expired}`,
           `void_agent_lease_ms ${LEASE_MS}`
         ];
-        res.type("text/plain").send(out.join("\\n")+"\n");
+        res.type("text/plain").send(out.join("\n")+"\n");
       }catch(e:any){
         res.type("text/plain").send(`# error ${e?.message||"internal"}\n`);
       }
@@ -26781,7 +26772,7 @@ function __voidWpV1(w:any){const f=w?.pressure,n=+(typeof f==="function"?f.call(
         "# TYPE void_agent_auth_hash_sha256 gauge",
         `void_agent_auth_hash_sha256{hash="${hash}"} 1`
       ];
-      res.type("text/plain").send(lines.join("\\n")+"\n");
+      res.type("text/plain").send(lines.join("\n")+"\n");
     });
 
     // JSON (optional)
@@ -26843,7 +26834,7 @@ function __voidWpV1(w:any){const f=w?.pressure,n=+(typeof f==="function"?f.call(
       function appendJsonl(file:string, obj:any){
         try{
           fs.mkdirSync(path.dirname(file), { recursive:true });
-          fs.appendFileSync(file, JSON.stringify(obj) + "\n");
+          appendAgentPick2JsonlCanonicalV1(file, JSON.stringify(obj) + "\n");
           return true;
         }catch{
           return false;
@@ -27112,7 +27103,7 @@ function __voidWpV1(w:any){const f=w?.pressure,n=+(typeof f==="function"?f.call(
   const FILE_JOBS = path.join(AGENT_DIR, "jobs.jsonl");
   const FILE_RESULTS = path.join(AGENT_DIR, "results.jsonl");
 
-  function safeLines(f){ return fs.existsSync(f) ? fs.readFileSync(f,"utf8").split("\\n").filter(l=>l.trim()) : []; }
+  function safeLines(f){ return fs.existsSync(f) ? fs.readFileSync(f,"utf8").split("\n").filter(l=>l.trim()) : []; }
   function countSet(file){ const s=new Set(); for (const l of safeLines(file)){ try{ s.add(JSON.parse(l).id) }catch (err) { voidIndexEmptyCatchVisibilityWindow25201_26100V1("25891:14", err); } } return s; }
 
   function mount(){
@@ -27135,8 +27126,8 @@ function __voidWpV1(w:any){const f=w?.pressure,n=+(typeof f==="function"?f.call(
           "# TYPE void_agent_results_total_v2 gauge",
           `void_agent_results_total_v2 ${done.size}`
         ];
-        res.type("text/plain").send(out.join("\\n")+"\\n");
-      }catch(e){ res.type("text/plain").send("# error "+(e?.message||"internal")+"\\n"); }
+        res.type("text/plain").send(out.join("\n")+"\n");
+      }catch(e){ res.type("text/plain").send("# error "+(e?.message||"internal")+"\n"); }
     });
   }
   mount();
@@ -38409,7 +38400,7 @@ try {
       function safeAppend(job:any){
         try{
           fs.mkdirSync(AGENT_DIR, {recursive:true});
-          fs.appendFileSync(FILE_JOBS, JSON.stringify(job) + "\n");
+          appendAgentPick2JsonlCanonicalV1(FILE_JOBS, JSON.stringify(job) + "\n");
         }catch (err) { voidIndexEmptyCatchVisibilityWindow36901_37800V1("37487:36", err); }
       }
 
@@ -38586,7 +38577,7 @@ try {
           const worker = (req.body?.worker || "anon").toString();
           const lease = {id: chosenId, worker, ts: nowMs(), leaseMs: LEASE_MS};
           fs.mkdirSync(AGENT_DIR, {recursive:true});
-          fs.appendFileSync(FILE_LEASES, JSON.stringify(lease)+"\n");
+          appendAgentPick2JsonlCanonicalV1(FILE_LEASES, JSON.stringify(lease)+"\n");
 
           const job = latestJobById(FILE_JOBS, chosenId, SCAN_MAX);
           return res.json({ok:true, job, leaseMs:LEASE_MS, fifo:true});
@@ -39145,7 +39136,7 @@ try {
 
           const worker = (req.body?.worker || "anon").toString();
           const lease = {id: chosenId, worker, ts: nowMs(), leaseMs: LEASE_MS};
-          try{ fs.mkdirSync(agentDir, {recursive:true}); fs.appendFileSync(FILE_LEASES, JSON.stringify(lease)+"\n"); }catch (err) { voidIndexEmptyCatchVisibilityWindow37801_38700V1("38222:14", err); }
+          try{ fs.mkdirSync(agentDir, {recursive:true}); appendAgentPick2JsonlCanonicalV1(FILE_LEASES, JSON.stringify(lease)+"\n"); }catch (err) { voidIndexEmptyCatchVisibilityWindow37801_38700V1("38222:14", err); }
           return res.json({ok:true, job: chosenJob, leaseMs:LEASE_MS, epochMs});
         }catch(e:any){
           return res.status(500).json({ok:false, error:e?.message||"internal"});
@@ -39165,6 +39156,7 @@ try {
     const TICK=400;
     const fs = require("node:fs");
     const path = require("node:path");
+    const semanticIndex = new AgentPick2JsonlSemanticIndexV1();
 
     function nowMs(){ return Date.now(); }
     function readEpochMs(agentDir:string){
@@ -39233,34 +39225,16 @@ try {
           const FILE_JOB_STATE_V1 = path.join(AGENTV1_DIR, "job_state.jsonl");
 
           const epochMs = readEpochMs(agentDir);
-          const cutoffLease = nowMs() - LEASE_MS;
-          const doneTruth = new Set<string>();
-          const addCompletedTruth = (file:string) => {
-            try{
-              if (!fs.existsSync(file)) return;
-              for (const l of safeLines(file)){
-                try{
-                  const j:any = JSON.parse(l);
-                  const st = String(j?.status || "").trim().toLowerCase();
-                  if (!(st === "completed" || st === "ok" || st === "done")) continue;
-                  const jid = String(j?.job_id || j?.id || "").trim();
-                  if (jid) doneTruth.add(jid);
-                }catch (err) { voidIndexEmptyCatchVisibilityWindow37801_38700V1("38322:17", err); }
-              }
-            }catch (err) { voidIndexEmptyCatchVisibilityWindow37801_38700V1("38324:18", err); }
-          };
-          addCompletedTruth(FILE_RECEIPTS);
-          addCompletedTruth(FILE_RECEIPTS_V1);
-          addCompletedTruth(FILE_JOB_STATE_V1);
-
-          function safeLines(file:string){
-            try{
-              if (!fs.existsSync(file)) return [];
-              const txt = String(fs.readFileSync(file,"utf8")||"");
-              if (!txt) return [];
-              return txt.split("\\n").filter((l:string)=>l.trim().length>0);
-            }catch{ return []; }
-          }
+          const semantic = semanticIndex.snapshot({
+            jobsFile: FILE_JOBS,
+            resultsFile: FILE_RESULTS,
+            leasesFile: FILE_LEASES,
+            completionFiles: [FILE_RECEIPTS, FILE_RECEIPTS_V1, FILE_JOB_STATE_V1],
+            scanMax: SCAN_MAX,
+            leaseMs: LEASE_MS,
+            nowMs: nowMs(),
+          });
+          const doneTruthHas = semantic.doneTruthHas;
 
           function rowId(x:any){ return String(x?.job_id || x?.id || ""); }
           function rowTs(x:any){
@@ -39345,46 +39319,10 @@ try {
                    /low|easy/.test(d) ? 1 : 0;
           }
 
-          const done = new Set<string>();
-          for (const l of safeLines(FILE_RESULTS).slice(-SCAN_MAX)){
-            try{
-              const x = JSON.parse(l);
-              const id = rowId(x);
-              if (id) done.add(id);
-            }catch (err) { voidIndexEmptyCatchVisibilityWindow37801_38700V1("38428:19", err); }
-          }
-
-          const active = new Set<string>();
-          for (const l of safeLines(FILE_LEASES).slice(-SCAN_MAX)){
-            try{
-              const x = JSON.parse(l);
-              const id = String(x.id || "");
-              const ts = Number(x.ts || 0);
-              if (!id) continue;
-              if (ts >= cutoffLease) active.add(id);
-            }catch (err) { voidIndexEmptyCatchVisibilityWindow37801_38700V1("38439:20", err); }
-          }
-
-          const latestById = new Map<string, any>();
-          const latestRunnableById = new Map<string, any>();
-          const rawLines = safeLines(FILE_JOBS);
-          const n = Math.min(rawLines.length, SCAN_MAX);
-          for (let i = 0; i < n; i++){
-            const l = rawLines[i];
-            try{
-              const x = JSON.parse(l);
-              const id = rowId(x);
-              if (!id) continue;
-
-              const prev = latestById.get(id);
-              if (!prev || rowTs(x) >= rowTs(prev)) latestById.set(id, x);
-
-              if (rowIsRunnable(x)) {
-                const prevRun = latestRunnableById.get(id);
-                if (!prevRun || rowTs(x) >= rowTs(prevRun)) latestRunnableById.set(id, x);
-              }
-            }catch (err) { voidIndexEmptyCatchVisibilityWindow37801_38700V1("38460:21", err); }
-          }
+          const done = semantic.done;
+          const active = semantic.active;
+          const latestById = semantic.latestById;
+          const latestRunnableById = semantic.latestRunnableById;
 
           const requestedAccount = String(req.body?.account || "").trim();
           const rowAccount = (x:any) => String(
@@ -39444,16 +39382,7 @@ try {
             }
           });
 
-          const recentDone = (() => {
-            try {
-              return safeLines(FILE_LEASES)
-                .map((line:string) => { try { return JSON.parse(line); } catch { return null; } })
-                .filter((x:any) => !!x)
-                .slice(-40);
-            } catch {
-              return [];
-            }
-          })();
+          const recentDone = semantic.recentLeases;
 
           const recentTaskCounts:any = Object.create(null);
           let recentTaskStreakTask = "";
@@ -39516,7 +39445,7 @@ try {
               else if (!task || task === "unknown") reject_reason = "unknown_task";
               else if ((task === "datanet_fetch_verify" || task === "datanet_redundancy_check") && !rowDatasetId(x)) reject_reason = "missing_dataset_id";
               else if (epochMs > 0 && (!Number.isFinite(rawTs) || rawTs <= 0 || rawTs < epochMs)) reject_reason = "pre_epoch";
-              else if (done.has(id) || doneTruth.has(id)) reject_reason = "already_done";
+              else if (done.has(id) || doneTruthHas(id)) reject_reason = "already_done";
               else if (active.has(id)) reject_reason = "active_lease";
               else if (stale > MAX_STALE_MS) reject_reason = "too_stale";
               else if (payloadBytes > MAX_PLAINTEXT_BYTES) reject_reason = "payload_too_large";
@@ -39708,7 +39637,7 @@ try {
             selected_stale_for_ms: chosen.stale_for_ms || 0,
             selected_score: chosen.score
           };
-          try{ fs.mkdirSync(agentDir, {recursive:true}); fs.appendFileSync(FILE_LEASES, JSON.stringify(lease)+"\n"); }catch (err) { voidIndexEmptyCatchVisibilityWindow38701_39600V1("38785:1", err); }
+          try{ fs.mkdirSync(agentDir, {recursive:true}); appendAgentPick2JsonlCanonicalV1(FILE_LEASES, JSON.stringify(lease)+"\n"); }catch (err) { voidIndexEmptyCatchVisibilityWindow38701_39600V1("38785:1", err); }
 
           const outJob = {
             ...chosen.raw,
@@ -39897,7 +39826,7 @@ try {
             selected_stale_for_ms: Number(meta?.selected_stale_for_ms || body.selected_stale_for_ms || 0) || null,
             meta: meta
           };
-          fs.appendFileSync(receiptsFile, JSON.stringify(rec) + "\n");
+          appendAgentPick2JsonlCanonicalV1(receiptsFile, JSON.stringify(rec) + "\n");
           return res.json({ok:true, id, inputHash: rec.inputHash, outputHash: rec.outputHash});
         }catch(e:any){
           return res.status(500).json({ok:false, error:e?.message||"internal"});
@@ -44467,7 +44396,7 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
   function appendJsonl(file:string, obj:any){
     const fs = require("node:fs");
     ensureDirs();
-    fs.appendFileSync(file, JSON.stringify(obj) + "\n");
+    appendAgentPick2JsonlCanonicalV1(file, JSON.stringify(obj) + "\n");
   }
 
   function listEvents(account:string|null = null){
@@ -44610,7 +44539,7 @@ app.get("/upgrade/check", async (_req:any, res:any) => {
   function appendJsonl(file:string, obj:any){
     const fs = require("node:fs");
     ensureDirs();
-    fs.appendFileSync(file, JSON.stringify(obj) + "\n");
+    appendAgentPick2JsonlCanonicalV1(file, JSON.stringify(obj) + "\n");
   }
   function safeAccount(x:any): string {
     return String(x ?? "").trim().slice(0,128);
@@ -63517,7 +63446,7 @@ a{color:#93c5fd;text-decoration:none}
   function appendJsonl(file:string, obj:any){
     const fs = require("node:fs");
     ensureDirs();
-    fs.appendFileSync(file, JSON.stringify(obj) + "\n");
+    appendAgentPick2JsonlCanonicalV1(file, JSON.stringify(obj) + "\n");
   }
   function safeAccount(x:any): string {
     return String(x ?? "").trim().slice(0,128);
@@ -63960,7 +63889,7 @@ a{color:#93c5fd;text-decoration:none}
   function appendJsonl(file:string, obj:any){
     const fs = require("node:fs");
     ensureDirs();
-    fs.appendFileSync(file, JSON.stringify(obj) + "\n");
+    appendAgentPick2JsonlCanonicalV1(file, JSON.stringify(obj) + "\n");
   }
 
   // __void_datanet_peer_fetch_fallback_v1
