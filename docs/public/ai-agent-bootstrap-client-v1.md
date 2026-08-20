@@ -34,10 +34,15 @@ Missing, malformed, forged, or mismatched authenticity evidence fails closed,
 so no report can publish `official_entrypoint.verified: true` or readiness truth
 from an unverified network-authenticity packet.
 
-The client emits one machine-readable bootstrap report. Required discovery,
-capability, and authentication surfaces determine `read_only_connection_ready`.
-First-contact and external-opportunity intake additionally determine
-`onboarding_surface_complete`.
+The client emits one machine-readable bootstrap report. A generic
+`VOID_*` marker is never sufficient for readiness. Canonical discovery,
+capability, authentication, first-contact, and external-opportunity intake
+responses are each bound to the canonical SHA-256 of the complete reviewed
+JSON contract. This closes marker-preserving drift in protocol, network,
+authority, safety, runtime, onboarding, and unsupported-operation fields.
+Required discovery, capability, and authentication contracts determine
+`read_only_connection_ready`. Exact first-contact and external-opportunity
+intake contracts additionally determine `onboarding_surface_complete`.
 
 ## Use
 
@@ -56,10 +61,16 @@ node tools/void-ai-agent-bootstrap-client-v1.mjs \
   --pretty
 ```
 
-`--output` refuses an existing final path, including a symbolic link. The final
-file is created exclusively, written through that already-open descriptor,
-forced to mode `0600`, and synchronized before close. Choose a new output path
-for each publication rather than relying on overwrite behavior.
+`--output` refuses an existing final path, including a symbolic link. Every
+output-parent component is created or opened relative to an already-pinned
+directory descriptor with no-follow semantics. The final leaf is created
+exclusively inside that pinned namespace, written through the already-open
+descriptor, forced to mode `0600`, and synchronized before close. The parent
+directory is synchronized and its absolute pathname must still resolve to the
+same device/inode generation before success is returned. A symlinked component
+or concurrent parent replacement fails closed before publication. This
+Linux source contract requires `/proc/self/fd`; absence fails closed. Choose a
+new output path for each publication rather than relying on overwrite behavior.
 
 ## Network boundary
 
