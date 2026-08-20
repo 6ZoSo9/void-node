@@ -4,6 +4,8 @@ import assert from "node:assert/strict";
 import crypto from "node:crypto";
 import fs from "node:fs";
 
+import { proveBtcVoidBoundedStdinV1 } from "./lib/prove_void_btc_void_bounded_stdin_v1.mjs";
+
 import {
   VOID_BTC_VOID_V1_MINIMUM_SPREAD_BPS,
   canonicalJson,
@@ -355,6 +357,16 @@ assert.doesNotMatch(
   /uses:\s+actions\/(?:checkout|setup-node)@v\d+/,
   "workflow must not use mutable Action tags",
 );
+
+await proveBtcVoidBoundedStdinV1({
+  cliPath: "tools/void-btc-void-buyback-lot-journal-transition-v1.mjs",
+  validInput: JSON.stringify({
+    schema: "void.btc_void.buyback_lot_journal_transition_request.v1",
+    journal_entries: [],
+    candidate_plan: firstPlan,
+  }),
+  holdMarker: "VOID_BTC_VOID_BUYBACK_LOT_JOURNAL_TRANSITION_V1_HOLD",
+});
 
 process.stdout.write(
   JSON.stringify(
