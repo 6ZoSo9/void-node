@@ -327,7 +327,7 @@ assert.equal(
 );
 assert.equal(
   activation.next_gate,
-  "canonical_delivery_runtime_activation",
+  "durable_history_full_presale_domain",
 );
 assert.equal(
   activation.presale_invariant_readiness

@@ -266,7 +266,7 @@ assert.equal(activation.production_configuration_applied, false);
 assert.equal(activation.canonical_delivery_runtime_activation_ready, false);
 assert.equal(
   activation.next_gate,
-  "canonical_delivery_runtime_activation",
+  "durable_history_full_presale_domain",
 );
 assert.equal(
   activation.presale_invariant_readiness

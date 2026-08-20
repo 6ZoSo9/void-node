@@ -95,11 +95,11 @@ production_credential_binding_ready=true
 production_broad_delivery_configuration_verified=true
 production_configuration_applied=false
 canonical_delivery_runtime_activation_ready=false
-finite_presale_cap_end_to_end_enforced=true
+finite_presale_cap_end_to_end_enforced=false
 durable_history_creation_crash_recovery_ready=true
 durable_history_external_anti_rollback_anchor_ready=true
-current_parent_blocker=canonical_delivery_runtime_activation_not_ready
-next_gate=canonical_delivery_runtime_activation
+current_parent_blocker=durable_history_full_presale_domain_not_ready
+next_gate=durable_history_full_presale_domain
 ```
 
 The verifier therefore closes no new lifecycle gate by itself. It preserves the exact candidate-validation mechanism used by the merged binding and proves that the reviewed candidate can still be recomputed deterministically while runtime and dependency injection remain disabled. The durable-history source lane now closes the reviewed interrupted-creation and coherent journal-subtree rollback gates with a recoverable pending transaction and separate committed-tail anchor authority. The pure configuration verifier remains separate from that storage boundary. Production execution is still disabled; the next parent gate is canonical delivery runtime activation.
