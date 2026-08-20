@@ -11,6 +11,8 @@ import {
   reconstructSegmentedJsonlV1ToFile,
   sealedSegmentInventoryV1,
   verifySegmentedJsonlV1,
+  VOID_SEGMENTED_JSONL_MAX_RECORD_BYTES_V1,
+  VOID_SEGMENTED_JSONL_MAX_TARGET_BYTES_V1,
 } from "../src/storage/segmented_jsonl_v1.js";
 
 function sha256(data: Buffer): string {
@@ -48,6 +50,51 @@ try {
   const rebuilt = path.join(tmp, "rebuilt.jsonl");
   const body = makeFixture(500);
   fs.writeFileSync(source, body);
+
+  const expectBuildControlFailure = (
+    suffix: string,
+    options: Record<string, unknown>,
+    fragment: string,
+  ) => {
+    const destination = path.join(tmp, `invalid-control-${suffix}`);
+    assert.equal(fs.existsSync(destination), false, `${suffix} destination must begin absent`);
+    expectFailure(
+      () => buildSegmentedJsonlV1FromFile(source, destination, options as any),
+      fragment,
+    );
+    assert.equal(
+      fs.existsSync(destination),
+      false,
+      `${suffix} invalid controls must fail before destination publication`,
+    );
+  };
+
+  expectBuildControlFailure("target-string", { segmentTargetBytes: "16384" }, "INVALID_SEGMENT_TARGET");
+  expectBuildControlFailure("target-array", { segmentTargetBytes: [16384] }, "INVALID_SEGMENT_TARGET");
+  expectBuildControlFailure("target-boolean", { segmentTargetBytes: true }, "INVALID_SEGMENT_TARGET");
+  expectBuildControlFailure("target-fraction", { segmentTargetBytes: 16384.5 }, "INVALID_SEGMENT_TARGET");
+  expectBuildControlFailure("target-nan", { segmentTargetBytes: Number.NaN }, "INVALID_SEGMENT_TARGET");
+  expectBuildControlFailure("target-infinity", { segmentTargetBytes: Number.POSITIVE_INFINITY }, "INVALID_SEGMENT_TARGET");
+  expectBuildControlFailure(
+    "target-excessive-safe",
+    { segmentTargetBytes: VOID_SEGMENTED_JSONL_MAX_TARGET_BYTES_V1 + 1 },
+    "INVALID_SEGMENT_TARGET",
+  );
+  expectBuildControlFailure("record-string", { maxRecordBytes: "4096" }, "INVALID_MAX_RECORD");
+  expectBuildControlFailure("record-array", { maxRecordBytes: [4096] }, "INVALID_MAX_RECORD");
+  expectBuildControlFailure("record-fraction", { maxRecordBytes: 4096.5 }, "INVALID_MAX_RECORD");
+  expectBuildControlFailure(
+    "record-excessive-safe",
+    {
+      segmentTargetBytes: VOID_SEGMENTED_JSONL_MAX_TARGET_BYTES_V1,
+      maxRecordBytes: VOID_SEGMENTED_JSONL_MAX_RECORD_BYTES_V1 + 1,
+    },
+    "INVALID_MAX_RECORD",
+  );
+  expectBuildControlFailure("generation-string", { generation: "7" }, "INVALID_GENERATION");
+  expectBuildControlFailure("generation-array", { generation: [7] }, "INVALID_GENERATION");
+  expectBuildControlFailure("generation-fraction", { generation: 7.5 }, "INVALID_GENERATION");
+  expectBuildControlFailure("generation-infinity", { generation: Number.POSITIVE_INFINITY }, "INVALID_GENERATION");
 
   const manifest = buildSegmentedJsonlV1FromFile(source, store, {
     segmentTargetBytes: 16 * 1024,
@@ -171,6 +218,29 @@ try {
     "RECORD_TOO_LARGE",
   );
 
+  const excessiveTargetStore = path.join(tmp, "manifest-excessive-target");
+  fs.cpSync(store, excessiveTargetStore, { recursive: true });
+  const excessiveTargetManifestPath = path.join(excessiveTargetStore, "manifest.v1.json");
+  const excessiveTargetManifest = JSON.parse(fs.readFileSync(excessiveTargetManifestPath, "utf8"));
+  excessiveTargetManifest.segment_target_bytes = VOID_SEGMENTED_JSONL_MAX_TARGET_BYTES_V1 + 1;
+  fs.writeFileSync(excessiveTargetManifestPath, `${JSON.stringify(excessiveTargetManifest, null, 2)}\n`);
+  expectFailure(
+    () => readSegmentedJsonlManifestV1(excessiveTargetStore),
+    "INVALID_MANIFEST_RANGE",
+  );
+
+  const excessiveRecordStore = path.join(tmp, "manifest-excessive-record");
+  fs.cpSync(store, excessiveRecordStore, { recursive: true });
+  const excessiveRecordManifestPath = path.join(excessiveRecordStore, "manifest.v1.json");
+  const excessiveRecordManifest = JSON.parse(fs.readFileSync(excessiveRecordManifestPath, "utf8"));
+  excessiveRecordManifest.segment_target_bytes = VOID_SEGMENTED_JSONL_MAX_TARGET_BYTES_V1;
+  excessiveRecordManifest.max_record_bytes = VOID_SEGMENTED_JSONL_MAX_RECORD_BYTES_V1 + 1;
+  fs.writeFileSync(excessiveRecordManifestPath, `${JSON.stringify(excessiveRecordManifest, null, 2)}\n`);
+  expectFailure(
+    () => readSegmentedJsonlManifestV1(excessiveRecordStore),
+    "INVALID_MANIFEST_RANGE",
+  );
+
   const reread = readSegmentedJsonlManifestV1(store);
   assert.deepEqual(reread, manifest, "durable manifest must round-trip exactly");
 
@@ -184,6 +254,9 @@ try {
       sealed_root_sha256: manifest.sealed_root_sha256,
       reconstruction_sha256: reconstruction.sha256,
       peer_missing_segments: plan.missing.length,
+      exact_numeric_policy: true,
+      max_segment_target_bytes: VOID_SEGMENTED_JSONL_MAX_TARGET_BYTES_V1,
+      max_record_bytes: VOID_SEGMENTED_JSONL_MAX_RECORD_BYTES_V1,
     }),
   );
 } finally {
