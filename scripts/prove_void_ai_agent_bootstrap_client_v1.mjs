@@ -17,6 +17,17 @@ import {
   runVoidAiAgentBootstrapClientV1,
 } from "../tools/void-ai-agent-bootstrap-client-v1.mjs";
 
+const PROOF_MAX_BYTES = 65_536;
+const canonicalNetworkAuthenticity = JSON.parse(
+  readFileSync(
+    new URL(
+      "../public/.well-known/void-network-authenticity.json",
+      import.meta.url,
+    ),
+    "utf8",
+  ),
+);
+
 const routePayloads = new Map([
   [
     "/.well-known/void-agent-discovery.json",
@@ -48,6 +59,10 @@ const routePayloads = new Map([
       network_authenticity:
         "/.well-known/void-network-authenticity.json",
     },
+  ],
+  [
+    "/.well-known/void-network-authenticity.json",
+    canonicalNetworkAuthenticity,
   ],
   [
     "/public-node/agents/discovery-v1.json",
@@ -318,7 +333,7 @@ await withServer(
       await runVoidAiAgentBootstrapClientV1({
         baseUrl,
         timeoutMs: 2000,
-        maxBytes: 65536,
+        maxBytes: PROOF_MAX_BYTES,
       });
 
     assert.equal(
@@ -501,7 +516,7 @@ for (const [, mutate, expected] of exactRootCases) {
         runVoidAiAgentBootstrapClientV1({
           baseUrl,
           timeoutMs: 2000,
-          maxBytes: 65536,
+          maxBytes: PROOF_MAX_BYTES,
         }),
         expected,
       );
@@ -513,6 +528,96 @@ for (const [, mutate, expected] of exactRootCases) {
     },
   );
 }
+
+const networkAuthenticityPath =
+  "/.well-known/void-network-authenticity.json";
+const networkAuthenticityCases = [
+  [
+    "network",
+    (value) => {
+      value.network.chain_id = 2051;
+    },
+    /network authenticity network mismatch/,
+  ],
+  [
+    "key_id",
+    (value) => {
+      value.verification.key_id =
+        "ed25519:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff";
+    },
+    /network authenticity key id mismatch/,
+  ],
+  [
+    "payload",
+    (value) => {
+      value.verification.signed_payload.project =
+        "VOID Network forged";
+    },
+    /network authenticity payload digest mismatch/,
+  ],
+  [
+    "signature",
+    (value) => {
+      const signature = value.verification.signature_base64;
+      value.verification.signature_base64 =
+        `${signature[0] === "A" ? "B" : "A"}${signature.slice(1)}`;
+    },
+    /network authenticity signature invalid/,
+  ],
+  [
+    "authority",
+    (value) => {
+      value.authority.work_credit_authority_granted = true;
+    },
+    /network authenticity authority mismatch/,
+  ],
+];
+
+for (const [, mutate, expected] of networkAuthenticityCases) {
+  const payload = structuredClone(canonicalNetworkAuthenticity);
+  mutate(payload);
+  await withServer(
+    new Map([
+      [networkAuthenticityPath, { payload }],
+    ]),
+    async ({ baseUrl, observations }) => {
+      await assert.rejects(
+        runVoidAiAgentBootstrapClientV1({
+          baseUrl,
+          timeoutMs: 2000,
+          maxBytes: PROOF_MAX_BYTES,
+        }),
+        expected,
+      );
+      assert.equal(
+        observations.methods.length,
+        2,
+        "invalid authenticity must stop before downstream probes",
+      );
+    },
+  );
+}
+
+await withServer(
+  new Map([
+    [networkAuthenticityPath, { kind: "missing" }],
+  ]),
+  async ({ baseUrl, observations }) => {
+    await assert.rejects(
+      runVoidAiAgentBootstrapClientV1({
+        baseUrl,
+        timeoutMs: 2000,
+        maxBytes: PROOF_MAX_BYTES,
+      }),
+      /http_status:404/,
+    );
+    assert.equal(
+      observations.methods.length,
+      2,
+      "missing authenticity must stop before downstream probes",
+    );
+  },
+);
 
 const customBaseUrl = "http://127.0.0.1:4100";
 const capabilityPath = "/.well-known/void-agent-capabilities.json";
@@ -543,7 +648,7 @@ const zeroProgressResult =
   await runVoidAiAgentBootstrapClientV1({
     baseUrl: customBaseUrl,
     timeoutMs: 1000,
-    maxBytes: 1024,
+    maxBytes: PROOF_MAX_BYTES,
     fetchImpl: zeroProgressFetch,
   });
 assert.equal(
@@ -557,7 +662,7 @@ assert.equal(
 assert.equal(zeroReadCalls, 1);
 assert.equal(zeroCancelCalls, 1);
 
-const oversizeChunk = new Uint8Array(2048);
+const oversizeChunk = new Uint8Array(PROOF_MAX_BYTES + 1);
 let oversizeCancelCalls = 0;
 let oversizeCopyCalls = 0;
 const oversizeFetch = async (input) => {
@@ -592,7 +697,7 @@ try {
   oversizeResult = await runVoidAiAgentBootstrapClientV1({
     baseUrl: customBaseUrl,
     timeoutMs: 1000,
-    maxBytes: 1024,
+    maxBytes: PROOF_MAX_BYTES,
     fetchImpl: oversizeFetch,
   });
 } finally {
@@ -604,7 +709,7 @@ assert.equal(
 );
 assert.equal(
   oversizeResult.surfaces.capabilities.error,
-  "response_too_large:2048",
+  `response_too_large:${PROOF_MAX_BYTES + 1}`,
 );
 assert.equal(oversizeCopyCalls, 0);
 assert.equal(oversizeCancelCalls, 1);
@@ -636,7 +741,7 @@ const tinyChunkResult =
   await runVoidAiAgentBootstrapClientV1({
     baseUrl: customBaseUrl,
     timeoutMs: 25,
-    maxBytes: 65536,
+    maxBytes: PROOF_MAX_BYTES,
     fetchImpl: tinyChunkFetch,
   });
 assert.equal(
@@ -679,7 +784,7 @@ const malformedResult =
   await runVoidAiAgentBootstrapClientV1({
     baseUrl: customBaseUrl,
     timeoutMs: 1000,
-    maxBytes: 1024,
+    maxBytes: PROOF_MAX_BYTES,
     fetchImpl: malformedFetch,
   });
 assert.equal(
@@ -696,7 +801,7 @@ await assert.rejects(
   runVoidAiAgentBootstrapClientV1({
     baseUrl: customBaseUrl,
     timeoutMs: 1000,
-    maxBytes: 1024,
+    maxBytes: PROOF_MAX_BYTES,
     fetchImpl: malformedFetch,
   }),
   /bootstrap_fetch_acquisition_quarantined/,
@@ -709,7 +814,7 @@ const malformedRecovery =
   await runVoidAiAgentBootstrapClientV1({
     baseUrl: customBaseUrl,
     timeoutMs: 1000,
-    maxBytes: 1024,
+    maxBytes: PROOF_MAX_BYTES,
     fetchImpl: malformedFetch,
   });
 assert.equal(
@@ -729,7 +834,7 @@ await withServer(
       await runVoidAiAgentBootstrapClientV1({
         baseUrl,
         timeoutMs: 2000,
-        maxBytes: 65536,
+        maxBytes: PROOF_MAX_BYTES,
       });
 
     assert.equal(
@@ -770,7 +875,7 @@ await withServer(
       await runVoidAiAgentBootstrapClientV1({
         baseUrl,
         timeoutMs: 2000,
-        maxBytes: 65536,
+        maxBytes: PROOF_MAX_BYTES,
       });
 
     assert.equal(
@@ -800,7 +905,7 @@ await withServer(
       await runVoidAiAgentBootstrapClientV1({
         baseUrl,
         timeoutMs: 2000,
-        maxBytes: 65536,
+        maxBytes: PROOF_MAX_BYTES,
       });
 
     assert.equal(
@@ -834,7 +939,7 @@ await withServer(
       runVoidAiAgentBootstrapClientV1({
         baseUrl,
         timeoutMs: 2000,
-        maxBytes: 65536,
+        maxBytes: PROOF_MAX_BYTES,
       }),
       /well-known canonical discovery mismatch/,
     );
@@ -850,7 +955,7 @@ await withServer(
         body: JSON.stringify({
           marker:
             "VOID_AI_AGENT_CAPABILITIES_WELL_KNOWN_V1",
-          padding: "x".repeat(2048),
+          padding: "x".repeat(PROOF_MAX_BYTES + 1024),
         }),
       },
     ],
@@ -860,7 +965,7 @@ await withServer(
       await runVoidAiAgentBootstrapClientV1({
         baseUrl,
         timeoutMs: 2000,
-        maxBytes: 1024,
+        maxBytes: PROOF_MAX_BYTES,
       });
 
     assert.equal(
@@ -936,7 +1041,7 @@ await withServer(
       await runVoidAiAgentBootstrapClientV1({
         baseUrl,
         timeoutMs: 2000,
-        maxBytes: 65536,
+        maxBytes: PROOF_MAX_BYTES,
       });
     const content =
       JSON.stringify(result) + "\n";
@@ -960,6 +1065,9 @@ console.log(
 );
 console.log("successful_bootstrap=1");
 console.log("well_known_exact_contract_bound=1");
+console.log("network_authenticity_consumed=1");
+console.log("network_authenticity_signature_verified=1");
+console.log("invalid_network_authenticity_stops_before_downstream=1");
 console.log("invalid_well_known_stops_before_downstream=1");
 console.log("zero_progress_chunk_rejected=1");
 console.log("oversize_chunk_rejected_before_buffer_copy=1");

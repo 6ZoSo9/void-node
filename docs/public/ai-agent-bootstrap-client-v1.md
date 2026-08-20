@@ -9,11 +9,12 @@ or modifying `src/index.ts`.
 ## Read sequence
 
 1. `/.well-known/void-agent-discovery.json`
-2. the exact canonical discovery route bound by the reviewed well-known contract
-3. `/.well-known/void-agent-capabilities.json`
-4. `/.well-known/void-agent-authentication.json`
-5. `/public-node/agents/first-contact-v1.json`
-6. `/.well-known/void-agent-intake-capability-v1.json`
+2. the exact same-origin `/.well-known/void-network-authenticity.json` route bound by the reviewed root contract
+3. the exact canonical discovery route bound by the reviewed well-known contract
+4. `/.well-known/void-agent-capabilities.json`
+5. `/.well-known/void-agent-authentication.json`
+6. `/public-node/agents/first-contact-v1.json`
+7. `/.well-known/void-agent-intake-capability-v1.json`
 
 Before any downstream probe contributes to readiness, the root well-known
 document must match the reviewed V1 contract exactly: schema, marker, protocol,
@@ -21,6 +22,17 @@ document must match the reviewed V1 contract exactly: schema, marker, protocol,
 read-only/no-credential authority, the complete fail-closed safety object, and
 the canonical network-authenticity route. Missing, extra, wrong-typed, or
 contradictory root fields fail closed before downstream discovery begins.
+
+The network-authenticity reference is not treated as proof merely because the
+root names it. Before downstream discovery, the client GETs that exact
+same-origin route through the same bounded, final-URL-bound, no-redirect
+transport. The returned packet must match the reviewed closed Mainnet-0
+identity/admission/authority/safety contract, bind to the admitted Ed25519 key
+identity and signed-payload SHA-256, derive the same key identity from the
+public key, and verify the Ed25519 signature over the canonical signed payload.
+Missing, malformed, forged, or mismatched authenticity evidence fails closed,
+so no report can publish `official_entrypoint.verified: true` or readiness truth
+from an unverified network-authenticity packet.
 
 The client emits one machine-readable bootstrap report. Required discovery,
 capability, and authentication surfaces determine `read_only_connection_ready`.

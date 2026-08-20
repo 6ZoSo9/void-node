@@ -19,6 +19,9 @@ import {
 
 const MAX_TIMEOUT_MS = 30_000;
 const MAX_ALLOWED_BYTES = 4_194_304;
+const PROOF_MAX_BYTES = 65_536;
+const DECLARED_OVERSIZE_BYTES = 131_072;
+const STREAMED_OVERSIZE_CHUNK_BYTES = 40_000;
 const BASE_URL = "http://127.0.0.1:4100";
 const WELL_KNOWN_URL = `${BASE_URL}/.well-known/void-agent-discovery.json`;
 
@@ -47,8 +50,19 @@ const WELL_KNOWN = {
   network_authenticity: "/.well-known/void-network-authenticity.json",
 };
 
+const NETWORK_AUTHENTICITY = JSON.parse(
+  readFileSync(
+    new URL(
+      "../public/.well-known/void-network-authenticity.json",
+      import.meta.url,
+    ),
+    "utf8",
+  ),
+);
+
 const PAYLOADS = new Map([
   ["/.well-known/void-agent-discovery.json", WELL_KNOWN],
+  ["/.well-known/void-network-authenticity.json", NETWORK_AUTHENTICITY],
   [
     "/public-node/agents/discovery-v1.json",
     { marker: "VOID_AI_AGENT_DISCOVERY_V1", status: "available" },
@@ -168,7 +182,7 @@ function fetchForMode(mode) {
           status: 200,
           headers: {
             "content-type": "application/json",
-            "content-length": "2048",
+            "content-length": String(DECLARED_OVERSIZE_BYTES),
           },
         }),
         url.href,
@@ -179,8 +193,8 @@ function fetchForMode(mode) {
       return bindResponseUrl(
         new Response(
           neverSettlingCancellationStream([
-            new Uint8Array(700).fill(0x61),
-            new Uint8Array(700).fill(0x62),
+            new Uint8Array(STREAMED_OVERSIZE_CHUNK_BYTES).fill(0x61),
+            new Uint8Array(STREAMED_OVERSIZE_CHUNK_BYTES).fill(0x62),
           ]),
           {
             status: 200,
@@ -294,7 +308,7 @@ async function runMode(mode, { timeoutMs = 1000 } = {}) {
   const result = await runVoidAiAgentBootstrapClientV1({
     baseUrl: BASE_URL,
     timeoutMs,
-    maxBytes: 1024,
+    maxBytes: PROOF_MAX_BYTES,
     fetchImpl: fetchForMode(mode),
   });
   return {
@@ -365,7 +379,7 @@ async function runFinalUrlCase(mode) {
   const result = await runVoidAiAgentBootstrapClientV1({
     baseUrl: BASE_URL,
     timeoutMs: 1000,
-    maxBytes: 1024,
+    maxBytes: PROOF_MAX_BYTES,
     fetchImpl,
   });
 
@@ -453,7 +467,7 @@ async function runStatusMetadataCase(mode) {
   const result = await runVoidAiAgentBootstrapClientV1({
     baseUrl: BASE_URL,
     timeoutMs: 1000,
-    maxBytes: 1024,
+    maxBytes: PROOF_MAX_BYTES,
     fetchImpl,
   });
 
@@ -553,7 +567,7 @@ for (const timeoutMs of invalidTimeoutValues) {
     runVoidAiAgentBootstrapClientV1({
       baseUrl: BASE_URL,
       timeoutMs,
-      maxBytes: 1024,
+      maxBytes: PROOF_MAX_BYTES,
       fetchImpl: () => {
         fetchCalls += 1;
         return Promise.resolve(jsonResponse(WELL_KNOWN));
@@ -601,7 +615,7 @@ await assert.rejects(
   runVoidAiAgentBootstrapClientV1({
     baseUrl: BASE_URL,
     timeoutMs: 1,
-    maxBytes: 1024,
+    maxBytes: PROOF_MAX_BYTES,
     fetchImpl: () => {
       minimumTimeoutFetchCalls += 1;
       return new Promise(() => {});
@@ -689,7 +703,7 @@ const declared = await runMode("declared_oversize_cancel_never");
 assert.equal(declared.result.surfaces.capabilities.available, false);
 assert.match(
   declared.result.surfaces.capabilities.error,
-  /^response_too_large:2048$/,
+  new RegExp(`^response_too_large:${DECLARED_OVERSIZE_BYTES}$`),
 );
 assert(
   declared.elapsedMs < 1200,
@@ -700,7 +714,7 @@ const streamed = await runMode("streamed_oversize_cancel_never");
 assert.equal(streamed.result.surfaces.capabilities.available, false);
 assert.match(
   streamed.result.surfaces.capabilities.error,
-  /^response_too_large:1400$/,
+  new RegExp(`^response_too_large:${2 * STREAMED_OVERSIZE_CHUNK_BYTES}$`),
 );
 assert(
   streamed.elapsedMs < 1200,
@@ -765,7 +779,7 @@ await assert.rejects(
   runVoidAiAgentBootstrapClientV1({
     baseUrl: BASE_URL,
     timeoutMs: 90,
-    maxBytes: 1024,
+    maxBytes: PROOF_MAX_BYTES,
     fetchImpl: neverFetch,
   }),
   /bootstrap_request_deadline_exceeded/,
@@ -779,7 +793,7 @@ await assert.rejects(
   runVoidAiAgentBootstrapClientV1({
     baseUrl: BASE_URL,
     timeoutMs: 90,
-    maxBytes: 1024,
+    maxBytes: PROOF_MAX_BYTES,
     fetchImpl: neverFetch,
   }),
   /bootstrap_fetch_acquisition_quarantined/,
@@ -806,7 +820,7 @@ const lateFetch = (input) => {
 const lateFirst = runVoidAiAgentBootstrapClientV1({
   baseUrl: BASE_URL,
   timeoutMs: 90,
-  maxBytes: 1024,
+  maxBytes: PROOF_MAX_BYTES,
   fetchImpl: lateFetch,
 });
 await assert.rejects(lateFirst, /bootstrap_request_deadline_exceeded/);
@@ -814,7 +828,7 @@ await assert.rejects(
   runVoidAiAgentBootstrapClientV1({
     baseUrl: BASE_URL,
     timeoutMs: 90,
-    maxBytes: 1024,
+    maxBytes: PROOF_MAX_BYTES,
     fetchImpl: lateFetch,
   }),
   /bootstrap_fetch_acquisition_quarantined/,
@@ -833,13 +847,13 @@ assert.equal(lateCleanupCalls, 1);
 const recovered = await runVoidAiAgentBootstrapClientV1({
   baseUrl: BASE_URL,
   timeoutMs: 1000,
-  maxBytes: 1024,
+  maxBytes: PROOF_MAX_BYTES,
   fetchImpl: lateFetch,
 });
 assert.equal(recovered.readiness.read_only_connection_ready, true);
 assert.equal(recovered.readiness.onboarding_surface_complete, true);
 assert.equal(lateCleanupCalls, 1);
-assert.equal(lateFetchCalls, 7);
+assert.equal(lateFetchCalls, 8);
 
 const ISOLATED_BASE_URL = "http://127.0.0.1:4200";
 const originA = new URL(BASE_URL).origin;
@@ -884,7 +898,7 @@ await assert.rejects(
   runVoidAiAgentBootstrapClientV1({
     baseUrl: BASE_URL,
     timeoutMs: 90,
-    maxBytes: 1024,
+    maxBytes: PROOF_MAX_BYTES,
     fetchImpl: crossOriginSharedFetch,
   }),
   /bootstrap_request_deadline_exceeded/,
@@ -894,7 +908,7 @@ await assert.rejects(
   runVoidAiAgentBootstrapClientV1({
     baseUrl: BASE_URL,
     timeoutMs: 90,
-    maxBytes: 1024,
+    maxBytes: PROOF_MAX_BYTES,
     fetchImpl: crossOriginSharedFetch,
   }),
   /bootstrap_fetch_acquisition_quarantined/,
@@ -904,7 +918,7 @@ assert.equal(originAFetchCalls, 1);
 const originBRun = runVoidAiAgentBootstrapClientV1({
   baseUrl: ISOLATED_BASE_URL,
   timeoutMs: 1000,
-  maxBytes: 1024,
+  maxBytes: PROOF_MAX_BYTES,
   fetchImpl: crossOriginSharedFetch,
 });
 await sleep(20);
@@ -916,7 +930,7 @@ await assert.rejects(
   runVoidAiAgentBootstrapClientV1({
     baseUrl: ISOLATED_BASE_URL,
     timeoutMs: 90,
-    maxBytes: 1024,
+    maxBytes: PROOF_MAX_BYTES,
     fetchImpl: crossOriginSharedFetch,
   }),
   /bootstrap_fetch_acquisition_quarantined/,
@@ -927,17 +941,17 @@ resolveOriginBFetch(jsonResponse(WELL_KNOWN, `${originB}/.well-known/void-agent-
 const crossOriginIsolatedBResult = await originBRun;
 assert.equal(crossOriginIsolatedBResult.readiness.read_only_connection_ready, true);
 assert.equal(crossOriginIsolatedBResult.readiness.onboarding_surface_complete, true);
-assert.equal(originBFetchCalls, 6);
+assert.equal(originBFetchCalls, 7);
 
 const crossOriginRecoveredA = await runVoidAiAgentBootstrapClientV1({
   baseUrl: BASE_URL,
   timeoutMs: 1000,
-  maxBytes: 1024,
+  maxBytes: PROOF_MAX_BYTES,
   fetchImpl: crossOriginSharedFetch,
 });
 assert.equal(crossOriginRecoveredA.readiness.read_only_connection_ready, true);
 assert.equal(crossOriginRecoveredA.readiness.onboarding_surface_complete, true);
-assert.equal(originAFetchCalls, 7);
+assert.equal(originAFetchCalls, 8);
 
 let stalledGenerationFetchCalls = 0;
 let stalledGenerationReadCalls = 0;
@@ -993,7 +1007,7 @@ await assert.rejects(
   runVoidAiAgentBootstrapClientV1({
     baseUrl: BASE_URL,
     timeoutMs: 90,
-    maxBytes: 1024,
+    maxBytes: PROOF_MAX_BYTES,
     fetchImpl: stalledGenerationFetch,
   }),
   /bootstrap_request_deadline_exceeded/,
@@ -1009,7 +1023,7 @@ for (let retry = 0; retry < 3; retry += 1) {
     runVoidAiAgentBootstrapClientV1({
       baseUrl: BASE_URL,
       timeoutMs: 90,
-      maxBytes: 1024,
+      maxBytes: PROOF_MAX_BYTES,
       fetchImpl: stalledGenerationFetch,
     }),
     /bootstrap_fetch_acquisition_quarantined/,
@@ -1027,7 +1041,7 @@ assert.equal(stalledGenerationOutstandingReads, 0);
 const stalledGenerationRecovered = await runVoidAiAgentBootstrapClientV1({
   baseUrl: BASE_URL,
   timeoutMs: 1000,
-  maxBytes: 1024,
+  maxBytes: PROOF_MAX_BYTES,
   fetchImpl: stalledGenerationFetch,
 });
 assert.equal(
@@ -1038,7 +1052,7 @@ assert.equal(
   stalledGenerationRecovered.readiness.onboarding_surface_complete,
   true,
 );
-assert.equal(stalledGenerationFetchCalls, 7);
+assert.equal(stalledGenerationFetchCalls, 8);
 assert.equal(stalledGenerationReadCalls, 1);
 assert.equal(stalledGenerationCancelCalls, 1);
 assert.equal(stalledGenerationMaxOutstandingReads, 1);
@@ -1060,7 +1074,7 @@ const lateNeverCancelFetch = (input) => {
 const lateNeverCancelFirst = runVoidAiAgentBootstrapClientV1({
   baseUrl: BASE_URL,
   timeoutMs: 90,
-  maxBytes: 1024,
+  maxBytes: PROOF_MAX_BYTES,
   fetchImpl: lateNeverCancelFetch,
 });
 await assert.rejects(
@@ -1083,7 +1097,7 @@ await assert.rejects(
   runVoidAiAgentBootstrapClientV1({
     baseUrl: BASE_URL,
     timeoutMs: 90,
-    maxBytes: 1024,
+    maxBytes: PROOF_MAX_BYTES,
     fetchImpl: lateNeverCancelFetch,
   }),
   /bootstrap_fetch_acquisition_quarantined/,
@@ -1094,14 +1108,14 @@ await sleep(20);
 const lateNeverCancelRecovered = await runVoidAiAgentBootstrapClientV1({
   baseUrl: BASE_URL,
   timeoutMs: 1000,
-  maxBytes: 1024,
+  maxBytes: PROOF_MAX_BYTES,
   fetchImpl: lateNeverCancelFetch,
 });
 assert.equal(
   lateNeverCancelRecovered.readiness.read_only_connection_ready,
   true,
 );
-assert.equal(neverCancelFetchCalls, 7);
+assert.equal(neverCancelFetchCalls, 8);
 assert.equal(neverCancelCleanupCalls, 1);
 
 // A synchronously throwing cancellation start is not a cleanup terminal.
@@ -1158,35 +1172,35 @@ const cancelThrowFetch = (input) => {
 const cancelThrowFirst = await runVoidAiAgentBootstrapClientV1({
   baseUrl: BASE_URL,
   timeoutMs: 1000,
-  maxBytes: 1024,
+  maxBytes: PROOF_MAX_BYTES,
   fetchImpl: cancelThrowFetch,
 });
 assert.equal(cancelThrowFirst.surfaces.capabilities.available, false);
 assert.equal(cancelThrowFirst.surfaces.capabilities.error, "http_status:500");
-assert.equal(cancelThrowFetchCallsA, 3);
+assert.equal(cancelThrowFetchCallsA, 4);
 assert.equal(cancelThrowCalls, 1);
 for (let retry = 0; retry < 3; retry += 1) {
   await assert.rejects(
     runVoidAiAgentBootstrapClientV1({
       baseUrl: BASE_URL,
       timeoutMs: 90,
-      maxBytes: 1024,
+      maxBytes: PROOF_MAX_BYTES,
       fetchImpl: cancelThrowFetch,
     }),
     /bootstrap_fetch_acquisition_quarantined/,
   );
 }
-assert.equal(cancelThrowFetchCallsA, 3);
+assert.equal(cancelThrowFetchCallsA, 4);
 assert.equal(cancelThrowCalls, 1);
 const cancelThrowOriginBResult = await runVoidAiAgentBootstrapClientV1({
   baseUrl: CANCEL_THROW_BASE_B,
   timeoutMs: 1000,
-  maxBytes: 1024,
+  maxBytes: PROOF_MAX_BYTES,
   fetchImpl: cancelThrowFetch,
 });
 assert.equal(cancelThrowOriginBResult.readiness.read_only_connection_ready, true);
 assert.equal(cancelThrowOriginBResult.readiness.onboarding_surface_complete, true);
-assert.equal(cancelThrowFetchCallsB, 6);
+assert.equal(cancelThrowFetchCallsB, 7);
 
 // The same invariant applies to a Response that arrives only after the logical
 // acquisition deadline. A late body whose cancellation cannot start must not
@@ -1220,7 +1234,7 @@ await assert.rejects(
   runVoidAiAgentBootstrapClientV1({
     baseUrl: BASE_URL,
     timeoutMs: 90,
-    maxBytes: 1024,
+    maxBytes: PROOF_MAX_BYTES,
     fetchImpl: lateThrowFetch,
   }),
   /bootstrap_request_deadline_exceeded/,
@@ -1240,7 +1254,7 @@ for (let retry = 0; retry < 3; retry += 1) {
     runVoidAiAgentBootstrapClientV1({
       baseUrl: BASE_URL,
       timeoutMs: 90,
-      maxBytes: 1024,
+      maxBytes: PROOF_MAX_BYTES,
       fetchImpl: lateThrowFetch,
     }),
     /bootstrap_fetch_acquisition_quarantined/,
@@ -1250,11 +1264,11 @@ assert.equal(lateThrowFetchCallsA, 1);
 const lateThrowOriginBResult = await runVoidAiAgentBootstrapClientV1({
   baseUrl: LATE_THROW_BASE_B,
   timeoutMs: 1000,
-  maxBytes: 1024,
+  maxBytes: PROOF_MAX_BYTES,
   fetchImpl: lateThrowFetch,
 });
 assert.equal(lateThrowOriginBResult.readiness.read_only_connection_ready, true);
-assert.equal(lateThrowFetchCallsB, 6);
+assert.equal(lateThrowFetchCallsB, 7);
 
 // Body accessor failure is also part of admitted-response lifetime. If the
 // body itself cannot be acquired, there is no safe cleanup capability, so the
@@ -1297,7 +1311,7 @@ await assert.rejects(
   runVoidAiAgentBootstrapClientV1({
     baseUrl: BASE_URL,
     timeoutMs: 1000,
-    maxBytes: 1024,
+    maxBytes: PROOF_MAX_BYTES,
     fetchImpl: bodyThrowFetch,
   }),
   /response_body_unavailable/,
@@ -1307,7 +1321,7 @@ for (let retry = 0; retry < 3; retry += 1) {
     runVoidAiAgentBootstrapClientV1({
       baseUrl: BASE_URL,
       timeoutMs: 90,
-      maxBytes: 1024,
+      maxBytes: PROOF_MAX_BYTES,
       fetchImpl: bodyThrowFetch,
     }),
     /bootstrap_fetch_acquisition_quarantined/,
@@ -1317,11 +1331,11 @@ assert.equal(bodyThrowFetchCallsA, 1);
 const bodyThrowOriginBResult = await runVoidAiAgentBootstrapClientV1({
   baseUrl: BODY_THROW_BASE_B,
   timeoutMs: 1000,
-  maxBytes: 1024,
+  maxBytes: PROOF_MAX_BYTES,
   fetchImpl: bodyThrowFetch,
 });
 assert.equal(bodyThrowOriginBResult.readiness.read_only_connection_ready, true);
-assert.equal(bodyThrowFetchCallsB, 6);
+assert.equal(bodyThrowFetchCallsB, 7);
 
 // If getReader property access fails but a real body cancellation terminal is
 // available, retain the origin only until that exact cancellation settles,
@@ -1363,7 +1377,7 @@ await assert.rejects(
   runVoidAiAgentBootstrapClientV1({
     baseUrl: BASE_URL,
     timeoutMs: 1000,
-    maxBytes: 1024,
+    maxBytes: PROOF_MAX_BYTES,
     fetchImpl: getReaderAccessorFetch,
   }),
   /response_body_reader_unavailable/,
@@ -1374,7 +1388,7 @@ for (let retry = 0; retry < 3; retry += 1) {
     runVoidAiAgentBootstrapClientV1({
       baseUrl: BASE_URL,
       timeoutMs: 90,
-      maxBytes: 1024,
+      maxBytes: PROOF_MAX_BYTES,
       fetchImpl: getReaderAccessorFetch,
     }),
     /bootstrap_fetch_acquisition_quarantined/,
@@ -1386,12 +1400,12 @@ await sleep(20);
 const getReaderRecovered = await runVoidAiAgentBootstrapClientV1({
   baseUrl: BASE_URL,
   timeoutMs: 1000,
-  maxBytes: 1024,
+  maxBytes: PROOF_MAX_BYTES,
   fetchImpl: getReaderAccessorFetch,
 });
 assert.equal(getReaderRecovered.readiness.read_only_connection_ready, true);
 assert.equal(getReaderRecovered.readiness.onboarding_surface_complete, true);
-assert.equal(getReaderFetchCalls, 7);
+assert.equal(getReaderFetchCalls, 8);
 assert.equal(getReaderCleanupCalls, 1);
 
 const outputDirectory = mkdtempSync(
@@ -1478,6 +1492,7 @@ console.log("bound_controls_strictly_typed=true");
 console.log("cli_bound_tokens_canonical_decimal=true");
 console.log("invalid_bound_controls_zero_fetch=true");
 console.log("minimum_and_maximum_bounds_accepted=true");
+console.log("network_authenticity_route_served_under_response_bounds=true");
 console.log("exact_final_url_provenance_required=true");
 console.log("followed_redirect_report_rejected=true");
 console.log("provenance_rejected_before_body_admission=true");

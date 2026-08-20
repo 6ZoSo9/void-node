@@ -1,5 +1,10 @@
 #!/usr/bin/env node
 import {
+  createHash,
+  createPublicKey,
+  verify as verifySignature,
+} from "node:crypto";
+import {
   closeSync,
   fchmodSync,
   fsyncSync,
@@ -20,6 +25,28 @@ const WELL_KNOWN_MARKER =
   "VOID_AI_AGENT_WELL_KNOWN_ENTRYPOINT_V1";
 const WELL_KNOWN_PROTOCOL =
   "void-agent-discovery-well-known/1";
+const NETWORK_AUTHENTICITY_MARKER =
+  "VOID_OFFICIAL_NETWORK_AUTHENTICITY_WELL_KNOWN_V1";
+const NETWORK_AUTHENTICITY_PROTOCOL =
+  "void-network-authenticity/1";
+const NETWORK_AUTHENTICITY_SIGNATURE_DOMAIN =
+  "VOID_OFFICIAL_NETWORK_AUTHENTICITY_ROOT_V2";
+const NETWORK_AUTHENTICITY_KEY_ID =
+  "ed25519:00e7609bf643b41c7cae625c3ae51f5d55c06ec1adba35e8eb80300c64e77a7c";
+const NETWORK_AUTHENTICITY_PAYLOAD_SHA256 =
+  "3c3af2b3f7753e03e244c6f2520bcc0501b1b6f1eacea583a9a8e4fe32b8cdf3";
+const NETWORK_AUTHENTICITY_GENESIS_SHA256 =
+  "22f42ef6cfa8e4ebfbc5ea98cdc536ec04c1bb4ddb15885b45b1ac02d0f122ab";
+const NETWORK_AUTHENTICITY_CHECKPOINT_TAG =
+  "ckpt-official-network-authenticity-root-public-admission-v2-1-post-merge-exact-green-20260725T144005Z";
+const NETWORK_AUTHENTICITY_CHECKPOINT_COMMIT =
+  "b8e93d1d0b84e917c16a2d5cdfc195fcb6e4e8af";
+const NETWORK_AUTHENTICITY_RETURN_ZIP_SHA256 =
+  "8a920f18636c86fff4d6386073b2980092df3c6b95a180bfd8ce04f5e22969d9";
+const NETWORK_AUTHENTICITY_SUPERSEDED_PAYLOAD_SHA256 =
+  "b624f7bb029e5b3eca8b2e14050711d4f764d2d39bba56455f1f94697de2708e";
+const NETWORK_AUTHENTICITY_QUARANTINED_KEY_ID =
+  "ed25519:0ccca842c156fc87af3279b15830fca826db1225d669b790e97705e2b402362b";
 
 const DEFAULT_TIMEOUT_MS = 10_000;
 const MAX_TIMEOUT_MS = 30_000;
@@ -32,6 +59,8 @@ const activeTransportLeases = new WeakMap();
 const ROUTES = Object.freeze({
   well_known_discovery:
     "/.well-known/void-agent-discovery.json",
+  network_authenticity:
+    "/.well-known/void-network-authenticity.json",
   canonical_discovery:
     "/public-node/agents/discovery-v1.json",
   capabilities:
@@ -337,9 +366,250 @@ function validateWellKnownEntrypointV1(payload) {
 
   if (
     payload.network_authenticity !==
-    "/.well-known/void-network-authenticity.json"
+    ROUTES.network_authenticity
   ) {
     throw new Error("well-known network authenticity route mismatch");
+  }
+
+  return payload;
+}
+
+function canonicalJsonValue(value) {
+  if (Array.isArray(value)) {
+    return value.map(canonicalJsonValue);
+  }
+  if (value !== null && typeof value === "object") {
+    return Object.fromEntries(
+      Object.keys(value)
+        .sort()
+        .map((key) => [key, canonicalJsonValue(value[key])]),
+    );
+  }
+  return value;
+}
+
+function sha256Hex(value) {
+  return createHash("sha256").update(value).digest("hex");
+}
+
+function validateOfficialNetworkAuthenticityV1(payload) {
+  requireExactObjectKeys(
+    payload,
+    [
+      "$schema",
+      "marker",
+      "protocol",
+      "status",
+      "network",
+      "admission",
+      "verification",
+      "supersession",
+      "authority",
+      "safety",
+    ],
+    "network_authenticity",
+  );
+
+  if (payload.$schema !== "./void-network-authenticity.schema.json") {
+    throw new Error("network authenticity schema mismatch");
+  }
+  if (payload.marker !== NETWORK_AUTHENTICITY_MARKER) {
+    throw new Error("network authenticity marker mismatch");
+  }
+  if (payload.protocol !== NETWORK_AUTHENTICITY_PROTOCOL) {
+    throw new Error("network authenticity protocol mismatch");
+  }
+  if (payload.status !== "public_verification_available") {
+    throw new Error("network authenticity status mismatch");
+  }
+
+  requireExactObjectKeys(
+    payload.network,
+    [
+      "name",
+      "chain_id",
+      "legacy_genesis_name",
+      "genesis_sha256",
+    ],
+    "network_authenticity_network",
+  );
+  if (
+    payload.network.name !== "VOID Mainnet-0" ||
+    typeof payload.network.chain_id !== "number" ||
+    !Number.isSafeInteger(payload.network.chain_id) ||
+    payload.network.chain_id !== 2050 ||
+    payload.network.legacy_genesis_name !== "VOID-DEV" ||
+    payload.network.genesis_sha256 !== NETWORK_AUTHENTICITY_GENESIS_SHA256
+  ) {
+    throw new Error("network authenticity network mismatch");
+  }
+
+  requireExactObjectKeys(
+    payload.admission,
+    [
+      "status",
+      "checkpoint_tag",
+      "checkpoint_commit",
+      "source_public_return_zip_sha256",
+    ],
+    "network_authenticity_admission",
+  );
+  if (
+    payload.admission.status !== "admitted_unactivated" ||
+    payload.admission.checkpoint_tag !== NETWORK_AUTHENTICITY_CHECKPOINT_TAG ||
+    payload.admission.checkpoint_commit !== NETWORK_AUTHENTICITY_CHECKPOINT_COMMIT ||
+    payload.admission.source_public_return_zip_sha256 !==
+      NETWORK_AUTHENTICITY_RETURN_ZIP_SHA256
+  ) {
+    throw new Error("network authenticity admission mismatch");
+  }
+
+  requireExactObjectKeys(
+    payload.verification,
+    [
+      "algorithm",
+      "signature_domain",
+      "key_id",
+      "payload_sha256",
+      "public_key_pem",
+      "signature_base64",
+      "signed_payload",
+    ],
+    "network_authenticity_verification",
+  );
+  if (
+    payload.verification.algorithm !== "Ed25519" ||
+    payload.verification.signature_domain !==
+      NETWORK_AUTHENTICITY_SIGNATURE_DOMAIN
+  ) {
+    throw new Error("network authenticity verification contract mismatch");
+  }
+  if (payload.verification.key_id !== NETWORK_AUTHENTICITY_KEY_ID) {
+    throw new Error("network authenticity key id mismatch");
+  }
+  if (
+    payload.verification.payload_sha256 !==
+    NETWORK_AUTHENTICITY_PAYLOAD_SHA256
+  ) {
+    throw new Error("network authenticity payload id mismatch");
+  }
+
+  requireExactObjectKeys(
+    payload.supersession,
+    [
+      "superseded_payload_sha256",
+      "quarantined_key_id",
+      "quarantined_candidate_admitted",
+    ],
+    "network_authenticity_supersession",
+  );
+  if (
+    payload.supersession.superseded_payload_sha256 !==
+      NETWORK_AUTHENTICITY_SUPERSEDED_PAYLOAD_SHA256 ||
+    payload.supersession.quarantined_key_id !==
+      NETWORK_AUTHENTICITY_QUARANTINED_KEY_ID ||
+    payload.supersession.quarantined_candidate_admitted !== false
+  ) {
+    throw new Error("network authenticity supersession mismatch");
+  }
+
+  const falseAuthorityKeys = [
+    "mutation_authority_granted",
+    "runtime_authority_granted",
+    "service_enablement_granted",
+    "wallet_authority_granted",
+    "validator_authority_granted",
+    "work_credit_authority_granted",
+    "buy_void_authority_granted",
+    "economic_authority_granted",
+    "third_party_network_control_granted",
+  ];
+  requireExactObjectKeys(
+    payload.authority,
+    ["verification_only", ...falseAuthorityKeys],
+    "network_authenticity_authority",
+  );
+  if (
+    payload.authority.verification_only !== true ||
+    falseAuthorityKeys.some((key) => payload.authority[key] !== false)
+  ) {
+    throw new Error("network authenticity authority mismatch");
+  }
+
+  requireExactObjectKeys(
+    payload.safety,
+    [
+      "private_key_present",
+      "credentials_required",
+      "send_secrets",
+      "send_wallet_material",
+      "send_operator_keys",
+      "follow_redirects",
+      "treat_unknown_as",
+    ],
+    "network_authenticity_safety",
+  );
+  if (
+    payload.safety.private_key_present !== false ||
+    payload.safety.credentials_required !== false ||
+    payload.safety.send_secrets !== false ||
+    payload.safety.send_wallet_material !== false ||
+    payload.safety.send_operator_keys !== false ||
+    payload.safety.follow_redirects !== false ||
+    payload.safety.treat_unknown_as !== "not_official"
+  ) {
+    throw new Error("network authenticity safety mismatch");
+  }
+
+  const signedPayloadBytes = Buffer.from(
+    `${JSON.stringify(
+      canonicalJsonValue(payload.verification.signed_payload),
+    )}\n`,
+    "utf8",
+  );
+  const payloadDigest = sha256Hex(signedPayloadBytes);
+  if (
+    payloadDigest !== NETWORK_AUTHENTICITY_PAYLOAD_SHA256 ||
+    payload.verification.payload_sha256 !== payloadDigest
+  ) {
+    throw new Error("network authenticity payload digest mismatch");
+  }
+
+  let publicKey;
+  try {
+    publicKey = createPublicKey(payload.verification.public_key_pem);
+  } catch {
+    throw new Error("network authenticity public key invalid");
+  }
+  if (publicKey.asymmetricKeyType !== "ed25519") {
+    throw new Error("network authenticity public key type mismatch");
+  }
+  const derivedKeyId = `ed25519:${sha256Hex(
+    publicKey.export({ format: "der", type: "spki" }),
+  )}`;
+  if (
+    derivedKeyId !== NETWORK_AUTHENTICITY_KEY_ID ||
+    payload.verification.key_id !== derivedKeyId
+  ) {
+    throw new Error("network authenticity public key identity mismatch");
+  }
+
+  const rawSignature = payload.verification.signature_base64;
+  if (typeof rawSignature !== "string") {
+    throw new Error("network authenticity signature invalid");
+  }
+  const signature = Buffer.from(rawSignature, "base64");
+  if (
+    signature.length !== 64 ||
+    signature.toString("base64") !== rawSignature ||
+    !verifySignature(
+      null,
+      signedPayloadBytes,
+      publicKey,
+      signature,
+    )
+  ) {
+    throw new Error("network authenticity signature invalid");
   }
 
   return payload;
@@ -1158,6 +1428,24 @@ export async function runVoidAiAgentBootstrapClientV1({
     );
   const canonicalRoute =
     wellKnownPayload.canonical_discovery;
+  const networkAuthenticityRoute =
+    wellKnownPayload.network_authenticity;
+
+  // The root reference is not authenticity evidence by itself. Consume the
+  // exact referenced packet through the same bounded/provenance-safe transport
+  // and cryptographically bind it to the reviewed admitted Mainnet-0 root
+  // before any downstream surface can contribute to readiness truth.
+  sameOriginUrl(base, networkAuthenticityRoute);
+  const networkAuthenticity = await fetchJsonV1({
+    base,
+    route: networkAuthenticityRoute,
+    timeoutMs: checkedTimeoutMs,
+    maxBytes: checkedMaxBytes,
+    fetchImpl,
+  });
+  validateOfficialNetworkAuthenticityV1(
+    networkAuthenticity.payload,
+  );
 
   // Preserve a transport-level same-origin assertion even though the exact
   // root contract already pins the reviewed canonical discovery path.
