@@ -45,21 +45,21 @@ const forwardAbort = (sourceSignal, controller) => {
   return () => sourceSignal.removeEventListener('abort', abortFromSource);
 };
 
-const waitForAbort = (signal) => new Promise((_, reject) => {
+const raceSignal = (promise, signal) => {
+  if (!signal) return Promise.resolve(promise);
   if (signal.aborted) {
-    reject(abortReason(signal, 'DataNet request aborted'));
-    return;
+    return Promise.reject(abortReason(signal, 'DataNet request aborted'));
   }
-  const onAbort = () => {
-    signal.removeEventListener('abort', onAbort);
-    reject(abortReason(signal, 'DataNet request aborted'));
-  };
-  signal.addEventListener('abort', onAbort, { once: true });
-});
 
-const raceSignal = async (promise, signal) => {
-  if (!signal) return promise;
-  return Promise.race([promise, waitForAbort(signal)]);
+  let onAbort = null;
+  const aborted = new Promise((_, reject) => {
+    onAbort = () => reject(abortReason(signal, 'DataNet request aborted'));
+    signal.addEventListener('abort', onAbort, { once: true });
+  });
+
+  return Promise.race([promise, aborted]).finally(() => {
+    if (onAbort) signal.removeEventListener('abort', onAbort);
+  });
 };
 
 const boundedSettlement = async (promise, timeoutMs = TEARDOWN_TIMEOUT_MS) => {
@@ -320,16 +320,26 @@ export function createDataNetRequestOwnerV1({
       return rejectResponse(request, response, new Error('DataNet endpoint redirected'));
     }
 
-    if (typeof response.url === 'string' && response.url.length > 0) {
-      let finalUrl;
-      try {
-        finalUrl = new URL(response.url, origin);
-      } catch {
-        return rejectResponse(request, response, new Error('DataNet response escaped the exact same-origin endpoint'));
-      }
-      if (finalUrl.href !== requestedHref) {
-        return rejectResponse(request, response, new Error('DataNet response escaped the exact same-origin endpoint'));
-      }
+    if (typeof response.url !== 'string' || response.url.length === 0) {
+      return rejectResponse(
+        request,
+        response,
+        new Error('DataNet response escaped the exact same-origin endpoint'),
+      );
+    }
+
+    let finalUrl;
+    try {
+      finalUrl = new URL(response.url);
+    } catch {
+      return rejectResponse(
+        request,
+        response,
+        new Error('DataNet response escaped the exact same-origin endpoint'),
+      );
+    }
+    if (finalUrl.href !== requestedHref) {
+      return rejectResponse(request, response, new Error('DataNet response escaped the exact same-origin endpoint'));
     }
 
     let contentLength;
