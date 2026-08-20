@@ -500,6 +500,7 @@ function makeTransportLease(fetchImpl, origin, acquisition) {
     acquisition,
     pendingRetentions: 0,
     releaseRequested: false,
+    poisoned: false,
     released: false,
     retain(promise) {
       if (!promise || typeof promise.then !== "function") {
@@ -512,9 +513,13 @@ function makeTransportLease(fetchImpl, origin, acquisition) {
       };
       Promise.resolve(promise).then(settle, settle);
     },
+    poison() {
+      lease.poisoned = true;
+    },
     maybeRelease() {
       if (
         lease.released ||
+        lease.poisoned ||
         !lease.releaseRequested ||
         lease.pendingRetentions !== 0
       ) {
@@ -542,6 +547,7 @@ async function rejectResponseBodyBounded(
   reader,
   controller,
   transportLease = null,
+  knownBody = undefined,
 ) {
   if (!controller.signal.aborted) {
     controller.abort(
@@ -549,19 +555,52 @@ async function rejectResponseBodyBounded(
     );
   }
 
+  let body = knownBody;
   let cancellation = null;
   try {
-    cancellation = reader?.cancel
-      ? reader.cancel()
-      : response?.body?.cancel
-        ? response.body.cancel()
-        : null;
+    if (reader !== null && reader !== undefined) {
+      const cancel = reader.cancel;
+      if (typeof cancel !== "function") {
+        transportLease?.poison();
+        return;
+      }
+      cancellation = cancel.call(reader);
+    } else {
+      if (body === undefined) {
+        body = response?.body;
+      }
+      if (!body) return;
+
+      const cancel = body.cancel;
+      if (typeof cancel !== "function") {
+        transportLease?.poison();
+        return;
+      }
+      cancellation = cancel.call(body);
+    }
   } catch (_error) {
-    // Preserve the already-known response rejection.
+    // A cleanup attempt that cannot even start provides no terminal witness.
+    // Preserve the already-known response rejection and keep this exact
+    // transport/origin generation quarantined for the process lifetime.
+    transportLease?.poison();
+    return;
   }
 
-  transportLease?.retain(cancellation);
-  await settleCancellationBounded(cancellation);
+  if (!cancellation || typeof cancellation.then !== "function") {
+    transportLease?.poison();
+    return;
+  }
+
+  const observedCancellation = Promise.resolve(cancellation).then(
+    () => undefined,
+    () => {
+      // A rejected cleanup promise is terminal for the attempt, but not proof
+      // that the rejected response resource actually closed.
+      transportLease?.poison();
+    },
+  );
+  transportLease?.retain(observedCancellation);
+  await settleCancellationBounded(observedCancellation);
 }
 
 async function acquireResponseBounded(
@@ -656,8 +695,20 @@ async function boundedRead(
     throw primary;
   }
 
-  const body = response.body;
-  if (!body || typeof body.getReader !== "function") {
+  let body;
+  try {
+    body = response.body;
+  } catch (_error) {
+    if (!controller.signal.aborted) {
+      controller.abort(
+        new Error("bootstrap_response_rejected"),
+      );
+    }
+    transportLease?.poison();
+    throw new Error("response_body_unavailable");
+  }
+
+  if (!body) {
     if (declared === null || declared === 0) {
       return "";
     }
@@ -669,13 +720,14 @@ async function boundedRead(
       null,
       controller,
       transportLease,
+      body,
     );
     throw primary;
   }
 
-  let reader;
+  let getReader;
   try {
-    reader = body.getReader();
+    getReader = body.getReader;
   } catch (_error) {
     const primary = new Error(
       "response_body_reader_unavailable",
@@ -685,6 +737,38 @@ async function boundedRead(
       null,
       controller,
       transportLease,
+      body,
+    );
+    throw primary;
+  }
+
+  if (typeof getReader !== "function") {
+    const primary = new Error(
+      "response_body_reader_unavailable",
+    );
+    await rejectResponseBodyBounded(
+      response,
+      null,
+      controller,
+      transportLease,
+      body,
+    );
+    throw primary;
+  }
+
+  let reader;
+  try {
+    reader = getReader.call(body);
+  } catch (_error) {
+    const primary = new Error(
+      "response_body_reader_unavailable",
+    );
+    await rejectResponseBodyBounded(
+      response,
+      null,
+      controller,
+      transportLease,
+      body,
     );
     throw primary;
   }
@@ -706,20 +790,20 @@ async function boundedRead(
     } catch (error) {
       if (controller.signal.aborted) {
         transportLease?.retain(readPromise);
-        let cancellation = null;
-        try {
-          cancellation = reader.cancel();
-        } catch (_cancelError) {
-          cancellation = null;
-        }
-        transportLease?.retain(cancellation);
-        await settleCancellationBounded(cancellation);
+        await rejectResponseBodyBounded(
+          response,
+          reader,
+          controller,
+          transportLease,
+          body,
+        );
       } else {
         await rejectResponseBodyBounded(
           response,
           reader,
           controller,
           transportLease,
+          body,
         );
       }
       throw error;
@@ -765,6 +849,7 @@ async function boundedRead(
         reader,
         controller,
         transportLease,
+        body,
       );
       throw error;
     }
@@ -786,6 +871,7 @@ async function boundedRead(
           reader,
           controller,
           transportLease,
+          body,
         );
         throw error;
       }
