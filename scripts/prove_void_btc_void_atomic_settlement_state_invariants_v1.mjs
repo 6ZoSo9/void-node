@@ -4,6 +4,8 @@ import assert from "node:assert/strict";
 import crypto from "node:crypto";
 import fs from "node:fs";
 
+import { proveBtcVoidBoundedStdinV1 } from "./lib/prove_void_btc_void_bounded_stdin_v1.mjs";
+
 import {
   BITCOIN_MAX_MONEY_SATOSHIS_V1,
   VOID_BTC_VOID_ATOMIC_SETTLEMENT_STATE_INVARIANTS_V1,
@@ -470,6 +472,12 @@ for (const required of [
 ]) {
   assert.ok(doc.includes(required), `documentation missing ${required}`);
 }
+
+await proveBtcVoidBoundedStdinV1({
+  cliPath: "tools/void-btc-void-atomic-settlement-state-invariants-v1.mjs",
+  validInput: JSON.stringify(trace()),
+  holdMarker: `${VOID_BTC_VOID_ATOMIC_SETTLEMENT_STATE_INVARIANTS_V1}_HOLD`,
+});
 
 process.stdout.write(
   JSON.stringify(
