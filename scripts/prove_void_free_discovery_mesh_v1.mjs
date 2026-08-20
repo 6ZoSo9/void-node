@@ -9,6 +9,8 @@ import { fileURLToPath } from "node:url";
 import {
   CRAWLER_EXCLUSIONS,
   MARKER,
+  MAX_DISCOVERY_CONFIG_FILE_BYTES,
+  MAX_INDEXNOW_KEY_FILE_BYTES,
   PUBLIC_PATHS,
   buildDiscoveryPack,
   canonicalUrls,
@@ -281,6 +283,7 @@ try {
   fs.writeFileSync(keyPath, `${INDEXNOW_KEY}\n`, { mode: 0o600 });
   assert.throws(
     () => readPinnedUtf8RegularFile(keyPath, "IndexNow key file", {
+      maxBytes: MAX_INDEXNOW_KEY_FILE_BYTES,
       afterOpen() {
         fs.renameSync(keyPath, keyOpenedGeneration);
         fs.writeFileSync(keyPath, "Attacker-Replacement-Key-0001\n", { mode: 0o600 });
@@ -293,6 +296,48 @@ try {
     fs.readFileSync(keyPath, "utf8"),
     "Attacker-Replacement-Key-0001\n",
     "replacement key generation must not be mistaken for the opened generation",
+  );
+
+  const maximumKeyPath = path.join(temporaryRoot, "indexnow-key.maximum.txt");
+  const maximumKey = "A".repeat(128);
+  fs.writeFileSync(maximumKeyPath, `${maximumKey}\n`, { mode: 0o600 });
+  assert.equal(
+    validateIndexNowKey(readPinnedUtf8RegularFile(
+      maximumKeyPath,
+      "IndexNow key file",
+      { maxBytes: MAX_INDEXNOW_KEY_FILE_BYTES },
+    ).text),
+    maximumKey,
+    "the exact 128-character key plus one newline must remain valid",
+  );
+
+  const oversizedKeyPath = path.join(temporaryRoot, "indexnow-key.oversized.txt");
+  fs.writeFileSync(oversizedKeyPath, `${maximumKey}\n\n`, { mode: 0o600 });
+  assert.throws(
+    () => readPinnedUtf8RegularFile(
+      oversizedKeyPath,
+      "IndexNow key file",
+      { maxBytes: MAX_INDEXNOW_KEY_FILE_BYTES },
+    ),
+    /exceeds 129-byte limit/,
+    "a key file one byte above the contract must HOLD before body retention",
+  );
+
+  const sparseKeyPath = path.join(temporaryRoot, "indexnow-key.sparse.txt");
+  const sparseKeyFd = fs.openSync(sparseKeyPath, "wx", 0o600);
+  try {
+    fs.ftruncateSync(sparseKeyFd, 1024 * 1024 * 1024);
+  } finally {
+    fs.closeSync(sparseKeyFd);
+  }
+  assert.throws(
+    () => readPinnedUtf8RegularFile(
+      sparseKeyPath,
+      "IndexNow key file",
+      { maxBytes: MAX_INDEXNOW_KEY_FILE_BYTES },
+    ),
+    /exceeds 129-byte limit/,
+    "a sparse one-gigabyte key file must HOLD from metadata without proportional allocation",
   );
 
   const configPath = path.join(temporaryRoot, "config.json");
@@ -309,6 +354,19 @@ try {
     }),
     /changed while being read|path changed generation/,
     "config pathname replacement after open must HOLD before replacement authority can be consumed",
+  );
+
+  const oversizedConfigPath = path.join(temporaryRoot, "config.oversized.json");
+  const oversizedConfigFd = fs.openSync(oversizedConfigPath, "wx", 0o600);
+  try {
+    fs.ftruncateSync(oversizedConfigFd, MAX_DISCOVERY_CONFIG_FILE_BYTES + 1);
+  } finally {
+    fs.closeSync(oversizedConfigFd);
+  }
+  assert.throws(
+    () => readDiscoveryConfigFile(oversizedConfigPath),
+    /exceeds 65536-byte limit/,
+    "the committed-config reader must also HOLD before retaining oversized bytes",
   );
 
   const symlinkTarget = path.join(temporaryRoot, "symlink-target");
@@ -505,6 +563,8 @@ console.log("published_inventory_reverified=true");
 console.log("same_uid_concurrent_mutation_excluded=false");
 console.log("exclusive_same_uid_output_mutation_authority_required=true");
 console.log("consumer_receipt_reverification_required_after_handoff=true");
+console.log(`indexnow_key_file_max_bytes=${MAX_INDEXNOW_KEY_FILE_BYTES}`);
+console.log(`discovery_config_file_max_bytes=${MAX_DISCOVERY_CONFIG_FILE_BYTES}`);
 console.log("ci_cost_checker_change_schedules=true");
 console.log("unrelated_path_does_not_schedule=true");
 console.log("network_calls=false");

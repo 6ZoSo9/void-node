@@ -8,6 +8,8 @@ import { fileURLToPath } from "node:url";
 
 export const MARKER = "VOID_FREE_DISCOVERY_MESH_V1";
 export const CONFIRMATION = "buildVoidFreeDiscoveryMeshV1";
+export const MAX_INDEXNOW_KEY_FILE_BYTES = 129;
+export const MAX_DISCOVERY_CONFIG_FILE_BYTES = 64 * 1024;
 
 export const PUBLIC_PATHS = Object.freeze([
   "/",
@@ -103,8 +105,11 @@ function safeLeaf(name, label) {
 export function readPinnedUtf8RegularFile(
   filename,
   label = "file",
-  { afterOpen = null } = {},
+  { maxBytes, afterOpen = null } = {},
 ) {
+  if (!Number.isSafeInteger(maxBytes) || maxBytes < 0) {
+    fail(`${label} maxBytes must be a non-negative safe integer`);
+  }
   ensureDescriptorRelativeFs();
   const resolved = path.resolve(String(filename ?? ""));
   let fd;
@@ -121,6 +126,9 @@ export function readPinnedUtf8RegularFile(
     const before = fs.fstatSync(fd, { bigint: true });
     if (!before.isFile()) {
       fail(`${label} must be a regular non-symlink file: ${resolved}`);
+    }
+    if (before.size > BigInt(maxBytes)) {
+      fail(`${label} exceeds ${maxBytes}-byte limit`);
     }
     const beforeSnapshot = stableFileSnapshot(before);
 
@@ -438,7 +446,10 @@ export function indexNowRequest(originValue, keyValue) {
 }
 
 export function readDiscoveryConfigFile(filename = CONFIG_PATH, options = {}) {
-  const evidence = readPinnedUtf8RegularFile(filename, "free-discovery config", options);
+  const evidence = readPinnedUtf8RegularFile(filename, "free-discovery config", {
+    afterOpen: options.afterOpen ?? null,
+    maxBytes: MAX_DISCOVERY_CONFIG_FILE_BYTES,
+  });
   let config;
   try {
     config = JSON.parse(evidence.text);
@@ -942,7 +953,9 @@ function main() {
   const args = parseArgs(process.argv.slice(2));
   if (args.command !== "build") fail("command must be build");
   if (args.confirm !== CONFIRMATION) fail("confirmation phrase mismatch");
-  const keyEvidence = readPinnedUtf8RegularFile(args.indexNowKeyFile, "IndexNow key file");
+  const keyEvidence = readPinnedUtf8RegularFile(args.indexNowKeyFile, "IndexNow key file", {
+    maxBytes: MAX_INDEXNOW_KEY_FILE_BYTES,
+  });
   const key = validateIndexNowKey(keyEvidence.text);
   console.log(`${MARKER}=START`);
   console.log("operation=build_offline_provider_neutral_discovery_pack");
@@ -957,6 +970,8 @@ function main() {
   console.log("same_uid_concurrent_mutation_excluded=false");
   console.log("exclusive_same_uid_output_mutation_authority_required=true");
   console.log("consumer_receipt_reverification_required_after_handoff=true");
+  console.log(`indexnow_key_file_max_bytes=${MAX_INDEXNOW_KEY_FILE_BYTES}`);
+  console.log(`discovery_config_file_max_bytes=${MAX_DISCOVERY_CONFIG_FILE_BYTES}`);
   const result = buildDiscoveryPack({
     origin: args.origin,
     output: args.output,
