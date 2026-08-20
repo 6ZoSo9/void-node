@@ -477,16 +477,21 @@ function relativeFileParts(relative, label) {
 }
 
 function duplicatePinnedDirectory(pinned, label) {
-  const fd = fs.openSync(
-    pinned.procPath,
-    fs.constants.O_RDONLY | fs.constants.O_DIRECTORY,
-  );
-  const metadata = fs.fstatSync(fd, { bigint: true });
-  if (!metadata.isDirectory() || !sameIdentity(pinned.identity, identityOf(metadata))) {
-    fs.closeSync(fd);
-    fail(`${label} changed generation before descriptor-relative verification`);
+  let fd;
+  try {
+    fd = fs.openSync(
+      pinned.procPath,
+      fs.constants.O_RDONLY | fs.constants.O_DIRECTORY,
+    );
+    const metadata = fs.fstatSync(fd, { bigint: true });
+    if (!metadata.isDirectory() || !sameIdentity(pinned.identity, identityOf(metadata))) {
+      fail(`${label} changed generation before descriptor-relative verification`);
+    }
+    return fd;
+  } catch (error) {
+    if (fd !== undefined) fs.closeSync(fd);
+    throw error;
   }
-  return fd;
 }
 
 function openPinnedRelativeDirectory(rootPinned, parts, label) {
@@ -494,25 +499,30 @@ function openPinnedRelativeDirectory(rootPinned, parts, label) {
   try {
     for (const part of parts) {
       const nextPath = procFdPath(fd, part);
-      const nextFd = fs.openSync(
-        nextPath,
-        fs.constants.O_RDONLY
-          | fs.constants.O_DIRECTORY
-          | fs.constants.O_NOFOLLOW,
-      );
-      const metadata = fs.fstatSync(nextFd, { bigint: true });
-      const linked = fs.lstatSync(nextPath, { bigint: true });
-      if (
-        !metadata.isDirectory()
-        || linked.isSymbolicLink()
-        || !linked.isDirectory()
-        || !sameIdentity(identityOf(metadata), identityOf(linked))
-      ) {
-        fs.closeSync(nextFd);
-        fail(`${label} directory changed generation: ${part}`);
+      let nextFd;
+      try {
+        nextFd = fs.openSync(
+          nextPath,
+          fs.constants.O_RDONLY
+            | fs.constants.O_DIRECTORY
+            | fs.constants.O_NOFOLLOW,
+        );
+        const metadata = fs.fstatSync(nextFd, { bigint: true });
+        const linked = fs.lstatSync(nextPath, { bigint: true });
+        if (
+          !metadata.isDirectory()
+          || linked.isSymbolicLink()
+          || !linked.isDirectory()
+          || !sameIdentity(identityOf(metadata), identityOf(linked))
+        ) {
+          fail(`${label} directory changed generation: ${part}`);
+        }
+        fs.closeSync(fd);
+        fd = nextFd;
+        nextFd = undefined;
+      } finally {
+        if (nextFd !== undefined) fs.closeSync(nextFd);
       }
-      fs.closeSync(fd);
-      fd = nextFd;
     }
     return fd;
   } catch (error) {
