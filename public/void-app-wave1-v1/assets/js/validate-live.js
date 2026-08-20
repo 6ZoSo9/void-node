@@ -2,6 +2,9 @@ export const VALIDATE_ENDPOINT = '/app/assets/data/mainnet0-validator-candidate-
 export const VALIDATE_SOURCE_ROUTE = '/public-node/validators/mainnet0-validator-candidate-readiness-matrix-hold-v1.json';
 export const VALIDATE_MARKER = 'VOID_MAINNET0_VALIDATOR_CANDIDATE_READINESS_MATRIX_HOLD_V1';
 export const MAX_VALIDATE_RESPONSE_BYTES = 128 * 1024;
+export const VALIDATE_REQUEST_TIMEOUT_MS = 5000;
+export const VALIDATE_TEARDOWN_MS = 250;
+export const VALIDATE_YIELD_EVERY_READS = 64;
 
 const TOP_KEYS = Object.freeze([
   'boundary',
@@ -172,27 +175,132 @@ export function validateValidatorReadinessSnapshotV1(snapshot) {
   return snapshot;
 }
 
-export async function readBoundedValidatorJsonV1(response) {
+const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+const abortReason = (signal, fallback = 'validator readiness request cancelled') =>
+  signal?.reason instanceof Error ? signal.reason : new Error(fallback);
+
+async function waitBounded(promise, timeoutMs) {
+  let timer = null;
+  try {
+    await Promise.race([
+      promise,
+      new Promise((resolve) => { timer = setTimeout(resolve, timeoutMs); }),
+    ]);
+  } finally {
+    if (timer !== null) clearTimeout(timer);
+  }
+}
+
+async function awaitSignalBound(promise, signal = null) {
+  if (!signal) return promise;
+  if (signal.aborted) throw abortReason(signal);
+  let onAbort;
+  const aborted = new Promise((_, reject) => {
+    onAbort = () => reject(abortReason(signal));
+    signal.addEventListener('abort', onAbort, { once: true });
+  });
+  try {
+    return await Promise.race([promise, aborted]);
+  } finally {
+    signal.removeEventListener('abort', onAbort);
+  }
+}
+
+async function awaitOwned(promise, { signal = null, track = (value) => Promise.resolve(value) } = {}) {
+  return awaitSignalBound(track(Promise.resolve(promise)), signal);
+}
+
+async function cancelOwnedBounded(target, reason, {
+  track = (value) => Promise.resolve(value),
+  teardownMs = VALIDATE_TEARDOWN_MS,
+} = {}) {
+  if (!target || typeof target.cancel !== 'function') return;
+  let cancellation;
+  try {
+    cancellation = target.cancel(reason);
+  } catch {
+    return;
+  }
+  const tracked = track(Promise.resolve(cancellation));
+  await waitBounded(tracked.catch(() => undefined), teardownMs);
+}
+
+export async function readBoundedValidatorJsonV1(response, {
+  signal = null,
+  track = (value) => Promise.resolve(value),
+  teardownMs = VALIDATE_TEARDOWN_MS,
+} = {}) {
   if (!response?.body || typeof response.body.getReader !== 'function') {
     throw new Error('validator readiness response body is not stream-readable');
   }
   const reader = response.body.getReader();
   const chunks = [];
   let total = 0;
+  let readCount = 0;
+  let pendingRead = null;
+  let pendingReadSettled = true;
+  const releaseReader = () => {
+    try {
+      reader.releaseLock();
+    } catch {
+      // A pending read owns the reader until that exact read settles.
+    }
+  };
   try {
     while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      if (!(value instanceof Uint8Array)) throw new Error('validator readiness response chunk invalid');
-      total += value.byteLength;
-      if (total > MAX_VALIDATE_RESPONSE_BYTES) {
-        await reader.cancel('validator readiness response exceeds byte limit');
-        throw new Error('validator readiness response exceeds byte limit');
+      pendingReadSettled = false;
+      pendingRead = track(Promise.resolve().then(() => reader.read()));
+      pendingRead.then(
+        () => { pendingReadSettled = true; },
+        () => { pendingReadSettled = true; },
+      );
+      let step;
+      try {
+        step = await awaitSignalBound(pendingRead, signal);
+      } catch (error) {
+        const primary = signal?.aborted
+          ? abortReason(signal, 'validator readiness request deadline exceeded')
+          : error instanceof Error
+            ? error
+            : new Error('validator readiness response body read failed');
+        await cancelOwnedBounded(reader, primary.message, { track, teardownMs });
+        throw primary;
       }
+      if (!step || typeof step.done !== 'boolean') {
+        const primary = new Error('validator readiness response read result invalid');
+        await cancelOwnedBounded(reader, primary.message, { track, teardownMs });
+        throw primary;
+      }
+      const { done, value } = step;
+      if (done) break;
+      if (!(value instanceof Uint8Array)) {
+        const primary = new Error('validator readiness response chunk invalid');
+        await cancelOwnedBounded(reader, primary.message, { track, teardownMs });
+        throw primary;
+      }
+      if (value.byteLength === 0) {
+        const primary = new Error('validator readiness response made no progress');
+        await cancelOwnedBounded(reader, primary.message, { track, teardownMs });
+        throw primary;
+      }
+      if (total + value.byteLength > MAX_VALIDATE_RESPONSE_BYTES) {
+        const primary = new Error('validator readiness response exceeds byte limit');
+        await cancelOwnedBounded(reader, primary.message, { track, teardownMs });
+        throw primary;
+      }
+      total += value.byteLength;
       chunks.push(value);
+      readCount += 1;
+      if (readCount % VALIDATE_YIELD_EVERY_READS === 0) {
+        await awaitSignalBound(delay(0), signal);
+      }
     }
   } finally {
-    reader.releaseLock();
+    if (pendingRead && !pendingReadSettled) {
+      pendingRead.then(releaseReader, releaseReader);
+    } else {
+      releaseReader();
+    }
   }
 
   const bytes = new Uint8Array(total);
@@ -203,6 +311,152 @@ export async function readBoundedValidatorJsonV1(response) {
   }
   const text = new TextDecoder('utf-8', { fatal: true }).decode(bytes);
   return JSON.parse(text);
+}
+
+export function createValidateRequestOwnerV1({
+  timeoutMs = VALIDATE_REQUEST_TIMEOUT_MS,
+  teardownMs = VALIDATE_TEARDOWN_MS,
+} = {}) {
+  if (!Number.isSafeInteger(timeoutMs) || timeoutMs <= 0) throw new Error('validator readiness timeout invalid');
+  if (!Number.isSafeInteger(teardownMs) || teardownMs < 0) throw new Error('validator readiness teardown invalid');
+
+  let active = null;
+  let startGate = Promise.resolve();
+
+  const acquireStartGate = async () => {
+    const previous = startGate;
+    let release;
+    startGate = new Promise((resolve) => { release = resolve; });
+    await previous;
+    return release;
+  };
+
+  const makeGeneration = () => {
+    const controller = new AbortController();
+    let pending = 0;
+    let operationDone = false;
+    let released = false;
+    let releaseResolve;
+    const releasedPromise = new Promise((resolve) => { releaseResolve = resolve; });
+    let timer = null;
+
+    const generation = {
+      controller,
+      signal: controller.signal,
+      releasedPromise,
+      get released() { return released; },
+      track(promise) {
+        pending += 1;
+        return Promise.resolve(promise).finally(() => {
+          pending -= 1;
+          generation.maybeRelease();
+        });
+      },
+      abort(reason) {
+        if (!controller.signal.aborted) {
+          controller.abort(reason instanceof Error ? reason : new Error(String(reason)));
+        }
+      },
+      markOperationDone() {
+        operationDone = true;
+        generation.maybeRelease();
+      },
+      maybeRelease() {
+        if (released || !operationDone || pending !== 0) return;
+        released = true;
+        if (timer !== null) clearTimeout(timer);
+        if (active === generation) active = null;
+        releaseResolve();
+      },
+    };
+
+    timer = setTimeout(
+      () => generation.abort(new Error('validator readiness request deadline exceeded')),
+      timeoutMs,
+    );
+    return generation;
+  };
+
+  const awaitPriorRelease = async () => {
+    const prior = active;
+    if (!prior || prior.released) return;
+    prior.abort(new Error('validator readiness request superseded'));
+    await waitBounded(prior.releasedPromise, teardownMs);
+    if (active === prior && !prior.released) {
+      throw new Error('validator readiness previous request still settling');
+    }
+  };
+
+  return {
+    async run(operation) {
+      if (typeof operation !== 'function') throw new Error('validator readiness request operation invalid');
+      const releaseGate = await acquireStartGate();
+      let generation;
+      try {
+        await awaitPriorRelease();
+        generation = makeGeneration();
+        active = generation;
+      } finally {
+        releaseGate();
+      }
+      try {
+        return await operation({
+          signal: generation.signal,
+          track: generation.track.bind(generation),
+          teardownMs,
+        });
+      } finally {
+        generation.markOperationDone();
+      }
+    },
+    abort(reason = new Error('validator readiness request cancelled')) {
+      active?.abort(reason);
+    },
+    hasActive() {
+      return Boolean(active && !active.released);
+    },
+    async waitForRelease() {
+      if (active && !active.released) await active.releasedPromise;
+    },
+  };
+}
+
+async function rejectResponseOwned(response, primary, { track, teardownMs }) {
+  await cancelOwnedBounded(response?.body, primary.message, { track, teardownMs });
+  throw primary;
+}
+
+export async function fetchValidatorReadinessSnapshotV1({
+  endpoint = VALIDATE_ENDPOINT,
+  fetchImpl = globalThis.fetch,
+  owner,
+} = {}) {
+  if (typeof fetchImpl !== 'function') throw new Error('validator readiness fetch unavailable');
+  if (!owner || typeof owner.run !== 'function') throw new Error('validator readiness request owner unavailable');
+
+  return owner.run(async ({ signal, track, teardownMs }) => {
+    const response = await awaitOwned(fetchImpl(endpoint, {
+      method: 'GET',
+      headers: { Accept: 'application/json' },
+      cache: 'no-store',
+      credentials: 'omit',
+      redirect: 'error',
+      mode: 'same-origin',
+      referrerPolicy: 'no-referrer',
+      signal,
+    }), { signal, track });
+
+    if (!response?.ok) {
+      const status = Number.isSafeInteger(response?.status) ? response.status : 'unknown';
+      return rejectResponseOwned(response, new Error(`validator readiness returned HTTP ${status}`), { track, teardownMs });
+    }
+    const contentType = response.headers?.get?.('content-type') || '';
+    if (!contentType.toLowerCase().includes('application/json')) {
+      return rejectResponseOwned(response, new Error('validator readiness content type mismatch'), { track, teardownMs });
+    }
+    const snapshot = await readBoundedValidatorJsonV1(response, { signal, track, teardownMs });
+    return validateValidatorReadinessSnapshotV1(snapshot);
+  });
 }
 
 const currentRoute = () => location.hash.replace(/^#\/?/, '').split(/[?\/]/)[0] || 'home';
@@ -292,6 +546,7 @@ const setChip = (variant, text) => {
 
 let requestSerial = 0;
 let mounted = false;
+const validateRequestOwner = createValidateRequestOwnerV1();
 
 const renderChecklist = (items) => {
   const list = document.querySelector('[data-validate-checklist]');
@@ -380,20 +635,7 @@ export async function loadValidateViewV1() {
   const serial = ++requestSerial;
   setLoading();
   try {
-    const response = await fetch(VALIDATE_ENDPOINT, {
-      method: 'GET',
-      headers: { Accept: 'application/json' },
-      cache: 'no-store',
-      credentials: 'omit',
-      redirect: 'error',
-      mode: 'same-origin',
-      referrerPolicy: 'no-referrer',
-      signal: AbortSignal.timeout(5000),
-    });
-    if (!response.ok) throw new Error(`validator readiness returned HTTP ${response.status}`);
-    const contentType = response.headers.get('content-type') || '';
-    if (!contentType.toLowerCase().includes('application/json')) throw new Error('validator readiness content type mismatch');
-    const snapshot = validateValidatorReadinessSnapshotV1(await readBoundedValidatorJsonV1(response));
+    const snapshot = await fetchValidatorReadinessSnapshotV1({ owner: validateRequestOwner });
     if (serial !== requestSerial || currentRoute() !== 'validate') return;
     applySnapshot(snapshot);
   } catch (error) {
@@ -402,9 +644,17 @@ export async function loadValidateViewV1() {
   }
 }
 
+const leaveValidate = () => {
+  if (mounted || validateRequestOwner.hasActive()) {
+    requestSerial += 1;
+    validateRequestOwner.abort(new Error('validator readiness route departed'));
+  }
+  mounted = false;
+};
+
 const mountValidate = () => {
   if (currentRoute() !== 'validate') {
-    mounted = false;
+    leaveValidate();
     return;
   }
   const root = document.getElementById('view-root');
