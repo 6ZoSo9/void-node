@@ -8,6 +8,8 @@ import * as path from "node:path";
 export const VOID_SEGMENTED_JSONL_V1 = "VOID_SEGMENTED_JSONL_V1";
 export const VOID_SEGMENTED_JSONL_DEFAULT_TARGET_BYTES_V1 = 8 * 1024 * 1024;
 export const VOID_SEGMENTED_JSONL_DEFAULT_MAX_RECORD_BYTES_V1 = 1024 * 1024;
+export const VOID_SEGMENTED_JSONL_MAX_TARGET_BYTES_V1 = 8 * 1024 * 1024;
+export const VOID_SEGMENTED_JSONL_MAX_RECORD_BYTES_V1 = 1024 * 1024;
 
 const MANIFEST = "manifest.v1.json";
 const ACTIVE = "active.jsonl";
@@ -76,6 +78,26 @@ function sha256(data: Buffer | string): string {
 
 function isHex64(value: unknown): value is string {
   return typeof value === "string" && /^[0-9a-f]{64}$/.test(value);
+}
+
+function exactSafeInteger(
+  value: unknown,
+  fallback: number,
+  minimum: number,
+  maximum: number,
+  code: string,
+): number {
+  const candidate = value === undefined ? fallback : value;
+  if (
+    typeof candidate !== "number" ||
+    !Number.isFinite(candidate) ||
+    !Number.isSafeInteger(candidate) ||
+    candidate < minimum ||
+    candidate > maximum
+  ) {
+    fail(code, String(candidate));
+  }
+  return candidate;
 }
 
 function rootPath(input: string): string {
@@ -201,7 +223,14 @@ function parseManifest(value: unknown): SegmentedJsonlManifestV1 {
   if (m.v !== 1 || m.format !== VOID_SEGMENTED_JSONL_V1) fail("INVALID_MANIFEST_VERSION", `${String(m.v)}:${String(m.format)}`);
   const ints = ["generation","segment_target_bytes","max_record_bytes","total_bytes","total_records","sealed_bytes","sealed_records"];
   for (const k of ints) if (!Number.isSafeInteger(m[k]) || m[k] < 0) fail("INVALID_MANIFEST_INTEGER", k);
-  if (m.generation <= 0 || m.segment_target_bytes < 1024 || m.max_record_bytes <= 0 || m.max_record_bytes > m.segment_target_bytes) fail("INVALID_MANIFEST_RANGE", "limits");
+  if (
+    m.generation <= 0 ||
+    m.segment_target_bytes < 1024 ||
+    m.segment_target_bytes > VOID_SEGMENTED_JSONL_MAX_TARGET_BYTES_V1 ||
+    m.max_record_bytes <= 0 ||
+    m.max_record_bytes > VOID_SEGMENTED_JSONL_MAX_RECORD_BYTES_V1 ||
+    m.max_record_bytes > m.segment_target_bytes
+  ) fail("INVALID_MANIFEST_RANGE", "limits");
   if (!isHex64(m.sealed_root_sha256) || !Array.isArray(m.sealed_segments)) fail("INVALID_MANIFEST_SEALED", "shape");
   const segments: SegmentedJsonlSegmentV1[] = m.sealed_segments.map((s: any, i: number) => {
     if (!s || typeof s !== "object" || Array.isArray(s) || s.id !== i || s.file !== segmentRel(i)) fail("INVALID_SEGMENT", `index=${i}`);
@@ -298,12 +327,10 @@ function writeSealed(root:string,id:number,parts:Buffer[],first:number,records:n
 export function buildSegmentedJsonlV1FromFile(sourceInput:string,destinationInput:string,options:BuildOptionsV1={}): SegmentedJsonlManifestV1 {
   const source=path.resolve(String(sourceInput||"")); regularStat(source);
   const root=rootPath(destinationInput);
-  const target=Math.floor(Number(options.segmentTargetBytes ?? VOID_SEGMENTED_JSONL_DEFAULT_TARGET_BYTES_V1));
-  const max=Math.floor(Number(options.maxRecordBytes ?? VOID_SEGMENTED_JSONL_DEFAULT_MAX_RECORD_BYTES_V1));
-  const generation=Math.floor(Number(options.generation ?? 1)), validateJson=options.validateJson !== false;
-  if (!Number.isSafeInteger(target)||target<1024) fail("INVALID_SEGMENT_TARGET",String(target));
-  if (!Number.isSafeInteger(max)||max<=0||max>target) fail("INVALID_MAX_RECORD",String(max));
-  if (!Number.isSafeInteger(generation)||generation<=0) fail("INVALID_GENERATION",String(generation));
+  const target=exactSafeInteger(options.segmentTargetBytes,VOID_SEGMENTED_JSONL_DEFAULT_TARGET_BYTES_V1,1024,VOID_SEGMENTED_JSONL_MAX_TARGET_BYTES_V1,"INVALID_SEGMENT_TARGET");
+  const max=exactSafeInteger(options.maxRecordBytes,VOID_SEGMENTED_JSONL_DEFAULT_MAX_RECORD_BYTES_V1,1,VOID_SEGMENTED_JSONL_MAX_RECORD_BYTES_V1,"INVALID_MAX_RECORD");
+  const generation=exactSafeInteger(options.generation,1,1,Number.MAX_SAFE_INTEGER,"INVALID_GENERATION"), validateJson=options.validateJson !== false;
+  if(max>target) fail("INVALID_MAX_RECORD",String(max));
   if (fs.existsSync(root)) { const st=fs.lstatSync(root); if(!st.isDirectory()||st.isSymbolicLink()) fail("DESTINATION_NOT_DIRECTORY",root); if(fs.readdirSync(root).length) fail("DESTINATION_NOT_EMPTY",root); }
   else { fs.mkdirSync(root,{mode:0o700}); fsyncDir(path.dirname(root)); }
   ensureDir(path.join(root,SEGMENTS)); fsyncDir(root);
