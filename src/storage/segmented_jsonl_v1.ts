@@ -409,6 +409,15 @@ function parseManifest(value: unknown): SegmentedJsonlManifestV1 {
   return manifest;
 }
 
+export function serializeSegmentedJsonlManifestV1(manifestInput: unknown): Buffer {
+  const manifest = parseManifest(manifestInput);
+  const body = Buffer.from(`${JSON.stringify(manifest, null, 2)}\n`, "utf8");
+  if (body.length > VOID_SEGMENTED_JSONL_MAX_MANIFEST_BYTES_V1) {
+    fail("MANIFEST_TOO_LARGE", `serialized=${body.length}:max=${VOID_SEGMENTED_JSONL_MAX_MANIFEST_BYTES_V1}`);
+  }
+  return body;
+}
+
 function atomicManifest(
   root: string,
   manifest: SegmentedJsonlManifestV1,
@@ -417,7 +426,7 @@ function atomicManifest(
   const target = path.join(root, MANIFEST);
   const tmp = path.join(root, `.${MANIFEST}.tmp-${process.pid}-${crypto.randomBytes(8).toString("hex")}`);
   const authority = retainedAuthority ?? openDirectoryAuthorityV1(root);
-  const created = writeDurableNew(tmp, Buffer.from(`${JSON.stringify(manifest, null, 2)}\n`), 0o600, authority);
+  const created = writeDurableNew(tmp, serializeSegmentedJsonlManifestV1(manifest), 0o600, authority);
   try {
     const stableTmp = path.join(authority.stablePath, path.basename(tmp));
     const stableTarget = path.join(authority.stablePath, MANIFEST);
