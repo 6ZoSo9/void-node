@@ -113,7 +113,12 @@ const abortOwnedRequest = (controller) => {
 
 const cancelResponseBodyBounded = async (response, controller) => {
   abortOwnedRequest(controller);
-  const body = response?.body;
+  let body;
+  try {
+    body = response?.body;
+  } catch (error) {
+    return;
+  }
   if (!body || typeof body.cancel !== "function") {
     return;
   }
@@ -223,6 +228,31 @@ const readBoundedResponseBytes = async (
   return bytes;
 };
 
+const requireJsonResponseHeaders = async (response, controller) => {
+  const contentType = String(response.headers.get("content-type") || "")
+    .toLowerCase();
+  if (!contentType.includes("application/json")) {
+    const error = new Error(`unexpected content type on HTTP ${response.status}`);
+    await cancelResponseBodyBounded(response, controller);
+    throw error;
+  }
+};
+
+const requirePublicAppResponseHeaders = async (response, controller) => {
+  if (response.status !== 200) {
+    const error = new Error(`primary CTA returned HTTP ${String(response.status)}`);
+    await cancelResponseBodyBounded(response, controller);
+    throw error;
+  }
+  const contentType = String(response.headers.get("content-type") || "")
+    .toLowerCase();
+  if (!contentType.includes("text/html")) {
+    const error = new Error("primary CTA returned non-HTML content");
+    await cancelResponseBodyBounded(response, controller);
+    throw error;
+  }
+};
+
 const withResponseDeadline = async (url, options, consume) => {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
@@ -241,12 +271,8 @@ const withResponseDeadline = async (url, options, consume) => {
 
 const requestJson = async (url, options = {}) =>
   withResponseDeadline(url, options, async (response, controller) => {
+    await requireJsonResponseHeaders(response, controller);
     const bytes = await readBoundedResponseBytes(response, controller);
-    const contentType = String(response.headers.get("content-type") || "")
-      .toLowerCase();
-    if (!contentType.includes("application/json")) {
-      throw new Error(`unexpected content type on HTTP ${response.status}`);
-    }
 
     let value;
     try {
@@ -290,6 +316,7 @@ const requestPublicAppEntrypoint = async () =>
       headers: { accept: "text/html" },
     },
     async (response, controller) => {
+      await requirePublicAppResponseHeaders(response, controller);
       const bytes = await readBoundedResponseBytes(response, controller, {
         oversizeMessage: "primary CTA response exceeds size limit",
       });
@@ -456,6 +483,8 @@ export {
   ENTER_VOID_URL,
   MAX_RESPONSE_BYTES,
   readBoundedResponseBytes,
+  requireJsonResponseHeaders,
+  requirePublicAppResponseHeaders,
   validateCanonical,
   validatePublicAppDocument,
   validateRenderedIntegrity,
