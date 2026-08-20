@@ -14,6 +14,8 @@ import {
   canonicalUrls,
   datasetJsonLd,
   indexNowRequest,
+  readDiscoveryConfigFile,
+  readPinnedUtf8RegularFile,
   renderLanding,
   renderRobots,
   renderSitemap,
@@ -125,6 +127,7 @@ assert.equal(config.cost_boundary.automatic_paid_upgrade, false);
 assert.equal(config.authority.network_calls, false);
 assert.equal(config.authority.deployment, false);
 assert.equal(config.authority.wallet_or_signer_access, false);
+assert.equal(readDiscoveryConfigFile(CONFIG).config.marker, MARKER);
 
 const toolSource = fs.readFileSync(TOOL, "utf8");
 for (const forbidden of [
@@ -137,6 +140,10 @@ for (const forbidden of [
 ]) {
   assert.doesNotMatch(toolSource, forbidden);
 }
+assert.match(toolSource, /\/proc\/self\/fd/);
+assert.match(toolSource, /O_NOFOLLOW/);
+assert.doesNotMatch(toolSource, /fs\.readFileSync\(CONFIG_PATH/);
+assert.doesNotMatch(toolSource, /requireRegularFile\(args\.indexNowKeyFile/);
 
 const temporaryRoot = fs.mkdtempSync(path.join(os.tmpdir(), "void-free-discovery-mesh-proof-"));
 try {
@@ -155,6 +162,11 @@ try {
   assert.equal(built.receipt.claims.provider_account_mutation, false);
   assert.equal(built.receipt.claims.payment_method_collection, false);
   assert.equal(built.receipt.claims.automatic_paid_upgrade, false);
+  assert.equal(
+    built.receipt.config_sha256,
+    readDiscoveryConfigFile(CONFIG).sha256,
+    "receipt must hash the descriptor-bound config bytes actually validated",
+  );
 
   const inventory = [];
   function collect(directory, prefix = "") {
@@ -195,6 +207,87 @@ try {
     }),
     /outside the repository/,
   );
+
+  const keyPath = path.join(temporaryRoot, "indexnow-key.txt");
+  const keyOpenedGeneration = path.join(temporaryRoot, "indexnow-key.opened.txt");
+  fs.writeFileSync(keyPath, `${INDEXNOW_KEY}\n`, { mode: 0o600 });
+  assert.throws(
+    () => readPinnedUtf8RegularFile(keyPath, "IndexNow key file", {
+      afterOpen() {
+        fs.renameSync(keyPath, keyOpenedGeneration);
+        fs.writeFileSync(keyPath, "Attacker-Replacement-Key-0001\n", { mode: 0o600 });
+      },
+    }),
+    /changed while being read|path changed generation/,
+    "key pathname replacement after open must HOLD",
+  );
+  assert.equal(
+    fs.readFileSync(keyPath, "utf8"),
+    "Attacker-Replacement-Key-0001\n",
+    "replacement key generation must not be mistaken for the opened generation",
+  );
+
+  const configPath = path.join(temporaryRoot, "config.json");
+  const configOpenedGeneration = path.join(temporaryRoot, "config.opened.json");
+  fs.writeFileSync(configPath, fs.readFileSync(CONFIG));
+  assert.throws(
+    () => readDiscoveryConfigFile(configPath, {
+      afterOpen() {
+        fs.renameSync(configPath, configOpenedGeneration);
+        const replacement = structuredClone(config);
+        replacement.authority.network_calls = true;
+        fs.writeFileSync(configPath, `${JSON.stringify(replacement, null, 2)}\n`);
+      },
+    }),
+    /changed while being read|path changed generation/,
+    "config pathname replacement after open must HOLD before replacement authority can be consumed",
+  );
+
+  const symlinkTarget = path.join(temporaryRoot, "symlink-target");
+  const symlinkParent = path.join(temporaryRoot, "symlink-parent");
+  fs.mkdirSync(symlinkTarget);
+  fs.symlinkSync(symlinkTarget, symlinkParent, "dir");
+  assert.throws(
+    () => buildDiscoveryPack({
+      origin: ORIGIN,
+      output: path.join(symlinkParent, "pack"),
+      indexNowKey: INDEXNOW_KEY,
+      lastmod: LASTMOD,
+    }),
+    /only existing real directories/,
+    "output parent traversal must reject symlink components",
+  );
+  assert.deepEqual(fs.readdirSync(symlinkTarget), [], "symlink target must receive zero writes");
+
+  const authorityRoot = path.join(temporaryRoot, "authority-swap");
+  const anchor = path.join(authorityRoot, "anchor");
+  const originalAnchor = path.join(authorityRoot, "anchor-original");
+  const parent = path.join(anchor, "parent");
+  const redirectedOutput = path.join(parent, "pack");
+  fs.mkdirSync(parent, { recursive: true });
+  assert.throws(
+    () => buildDiscoveryPack({
+      origin: ORIGIN,
+      output: redirectedOutput,
+      indexNowKey: INDEXNOW_KEY,
+      lastmod: LASTMOD,
+      testHooks: {
+        beforePublish() {
+          fs.renameSync(anchor, originalAnchor);
+          fs.mkdirSync(parent, { recursive: true });
+        },
+      },
+    }),
+    /output parent path changed generation|must contain only existing real directories/,
+    "ancestor replacement before publication must HOLD",
+  );
+  assert.equal(fs.existsSync(redirectedOutput), false, "replacement namespace must receive no published pack");
+  assert.deepEqual(fs.readdirSync(parent), [], "replacement namespace must receive zero writes");
+  assert.deepEqual(
+    fs.readdirSync(path.join(originalAnchor, "parent")),
+    [],
+    "the pinned original parent must clean its private temporary generation on HOLD",
+  );
 } finally {
   fs.rmSync(temporaryRoot, { recursive: true, force: true });
 }
@@ -205,6 +298,10 @@ console.log("google_search_console_registration_only=true");
 console.log("bing_indexnow_payload_only=true");
 console.log("cloudflare_crawler_hints_dashboard_only=true");
 console.log("indexnow_key_outside_repository=true");
+console.log("input_generation_replacements_held=true");
+console.log("output_symlink_components_held=true");
+console.log("output_ancestor_swap_held=true");
+console.log("descriptor_relative_output_authority=true");
 console.log("network_calls=false");
 console.log("live_submission=false");
 console.log("deployment=false");

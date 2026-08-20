@@ -23,6 +23,18 @@ This lane is designed to remain at `$0`. It collects no payment method, activate
 
 The generated discovery content is informational. It grants no wallet, signer, validator, operator, payment, Work Credit, node mutation, or deployment authority. `robots.txt` is crawler guidance, not access control; private or sensitive routes must still be protected by real authentication and network controls.
 
+## Filesystem generation authority
+
+The offline builder fails closed unless it can bind local file and output namespace authority to exact filesystem generations.
+
+- The IndexNow key and committed discovery config are opened with `O_NOFOLLOW`, read through the opened descriptor, checked for stable file metadata, and rechecked against the selected pathname before their bytes are accepted.
+- The output parent is traversed component-by-component with no-follow directory opens. Symlink components are rejected rather than followed.
+- Build output is written through descriptor-relative `/proc/self/fd/...` paths rooted in the exact opened parent and private temporary directory generations.
+- Before publication, the builder reopens the selected parent path and requires it to resolve to the same device/inode generation. An ancestor or parent replacement therefore produces HOLD instead of redirecting output into the replacement tree.
+- The build receipt hashes the exact config bytes that were descriptor-bound and validated; it does not reopen the config pathname later for receipt authority.
+
+This hardening currently requires Linux `/proc/self/fd`, which matches the supported VOID operator environment. If descriptor-relative filesystem authority is unavailable, the build fails closed.
+
 ## Build an offline pack
 
 Create the IndexNow key outside the repository. The protocol accepts 8–128 ASCII letters, numbers, or dashes. The key is publicly served after deployment, but keeping its source file outside Git prevents accidental coupling to source history.
@@ -40,7 +52,7 @@ node tools/void-free-discovery-mesh-v1.mjs build \
   --confirm "buildVoidFreeDiscoveryMeshV1"
 ```
 
-The output path must be absent, its parent must already exist, and it must be outside the repository. The command performs no network calls.
+The output path must be absent, its parent must already exist, every parent component must be a real directory rather than a symlink, and the output must be outside the repository. The command performs no network calls.
 
 The pack contains:
 
@@ -76,4 +88,4 @@ python3 -B scripts/check_void_ci_cost_boundary_v1.py --self-test
 python3 -B scripts/check_void_ci_cost_boundary_v1.py --repo-root .
 ```
 
-The proof exercises origin, date, key, path, same-host, output-location, inventory, cost, and authority boundaries. CI is limited to public repositories so this lane cannot consume private-repository hosted-runner minutes.
+The proof exercises origin, date, key, path, same-host, output-location, inventory, cost, and authority boundaries. It also replaces opened key/config pathnames, injects output-parent symlink components, and swaps an output ancestor after private build bytes exist but before publication. All such generation changes must HOLD with zero writes in the replacement namespace. CI is limited to public repositories so this lane cannot consume private-repository hosted-runner minutes.

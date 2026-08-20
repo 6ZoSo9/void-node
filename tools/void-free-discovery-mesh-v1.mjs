@@ -29,6 +29,7 @@ export const CRAWLER_EXCLUSIONS = Object.freeze([
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(HERE, "..");
 const CONFIG_PATH = path.join(REPO_ROOT, "config/void-free-discovery-mesh-v1.json");
+const PROC_FD_ROOT = "/proc/self/fd";
 
 export class Hold extends Error {
   constructor(message) {
@@ -53,33 +54,207 @@ function sha256File(filename) {
   return sha256(fs.readFileSync(filename));
 }
 
-function requireRegularFile(filename, label) {
+function ensureDescriptorRelativeFs() {
   let metadata;
   try {
-    metadata = fs.lstatSync(filename);
+    metadata = fs.statSync(PROC_FD_ROOT);
   } catch {
-    fail(`${label} is missing: ${filename}`);
+    fail("descriptor-relative filesystem authority requires /proc/self/fd");
   }
-  if (!metadata.isFile() || metadata.isSymbolicLink()) {
-    fail(`${label} must be a regular non-symlink file: ${filename}`);
+  if (!metadata.isDirectory()) {
+    fail("descriptor-relative filesystem authority requires /proc/self/fd");
   }
-  return filename;
 }
 
-function requireRealDirectory(directory, label) {
+function identityOf(metadata) {
+  return Object.freeze({ dev: metadata.dev, ino: metadata.ino });
+}
+
+function sameIdentity(left, right) {
+  return left.dev === right.dev && left.ino === right.ino;
+}
+
+function stableFileSnapshot(metadata) {
+  return Object.freeze({
+    dev: metadata.dev,
+    ino: metadata.ino,
+    size: metadata.size,
+    mtimeNs: metadata.mtimeNs,
+    ctimeNs: metadata.ctimeNs,
+  });
+}
+
+function sameFileSnapshot(left, right) {
+  return left.dev === right.dev
+    && left.ino === right.ino
+    && left.size === right.size
+    && left.mtimeNs === right.mtimeNs
+    && left.ctimeNs === right.ctimeNs;
+}
+
+function procFdPath(fd, child = "") {
+  const base = path.join(PROC_FD_ROOT, String(fd));
+  return child ? path.join(base, child) : base;
+}
+
+function safeLeaf(name, label) {
+  if (!name || name !== path.basename(name) || name === "." || name === "..") {
+    fail(`${label} is not a safe leaf name`);
+  }
+  return name;
+}
+
+export function readPinnedUtf8RegularFile(
+  filename,
+  label = "file",
+  { afterOpen = null } = {},
+) {
+  ensureDescriptorRelativeFs();
+  const resolved = path.resolve(String(filename ?? ""));
+  let fd;
+  try {
+    fd = fs.openSync(
+      resolved,
+      fs.constants.O_RDONLY | fs.constants.O_NOFOLLOW,
+    );
+  } catch {
+    fail(`${label} must be an existing regular non-symlink file: ${resolved}`);
+  }
+
+  try {
+    const before = fs.fstatSync(fd, { bigint: true });
+    if (!before.isFile()) {
+      fail(`${label} must be a regular non-symlink file: ${resolved}`);
+    }
+    const beforeSnapshot = stableFileSnapshot(before);
+
+    if (afterOpen !== null) {
+      if (typeof afterOpen !== "function") fail(`${label} afterOpen hook must be a function`);
+      afterOpen({ path: resolved });
+    }
+
+    const text = fs.readFileSync(fd, "utf8");
+    const after = fs.fstatSync(fd, { bigint: true });
+    if (!after.isFile() || !sameFileSnapshot(beforeSnapshot, stableFileSnapshot(after))) {
+      fail(`${label} changed while being read`);
+    }
+
+    let current;
+    try {
+      current = fs.lstatSync(resolved, { bigint: true });
+    } catch {
+      fail(`${label} path changed generation while being read`);
+    }
+    if (
+      !current.isFile()
+      || current.isSymbolicLink()
+      || !sameFileSnapshot(beforeSnapshot, stableFileSnapshot(current))
+    ) {
+      fail(`${label} path changed generation while being read`);
+    }
+
+    return Object.freeze({
+      path: resolved,
+      text,
+      sha256: sha256(text),
+      identity: identityOf(before),
+    });
+  } finally {
+    fs.closeSync(fd);
+  }
+}
+
+function openPinnedDirectory(directory, label) {
+  ensureDescriptorRelativeFs();
+  const absolute = path.resolve(String(directory ?? ""));
+  const root = path.parse(absolute).root;
+  const relative = path.relative(root, absolute);
+  const parts = relative ? relative.split(path.sep).filter(Boolean) : [];
+  let fd;
+
+  try {
+    fd = fs.openSync(root, fs.constants.O_RDONLY | fs.constants.O_DIRECTORY);
+    for (const part of parts) {
+      const nextPath = procFdPath(fd, part);
+      let nextFd;
+      try {
+        nextFd = fs.openSync(
+          nextPath,
+          fs.constants.O_RDONLY
+            | fs.constants.O_DIRECTORY
+            | fs.constants.O_NOFOLLOW,
+        );
+      } catch {
+        fail(`${label} must contain only existing real directories: ${absolute}`);
+      }
+      const metadata = fs.fstatSync(nextFd, { bigint: true });
+      if (!metadata.isDirectory()) {
+        fs.closeSync(nextFd);
+        fail(`${label} must contain only real directories: ${absolute}`);
+      }
+      fs.closeSync(fd);
+      fd = nextFd;
+    }
+
+    const metadata = fs.fstatSync(fd, { bigint: true });
+    if (!metadata.isDirectory()) fail(`${label} must be a real directory: ${absolute}`);
+    return Object.freeze({
+      fd,
+      absolute,
+      identity: identityOf(metadata),
+      procPath: procFdPath(fd),
+    });
+  } catch (error) {
+    if (fd !== undefined) {
+      try {
+        fs.closeSync(fd);
+      } catch {
+        // best effort only while propagating the primary HOLD
+      }
+    }
+    throw error;
+  }
+}
+
+function closePinnedDirectory(pinned) {
+  fs.closeSync(pinned.fd);
+}
+
+function assertPinnedDirectoryPath(pinned, label) {
+  const reread = openPinnedDirectory(pinned.absolute, label);
+  try {
+    if (!sameIdentity(pinned.identity, reread.identity)) {
+      fail(`${label} path changed generation`);
+    }
+  } finally {
+    closePinnedDirectory(reread);
+  }
+}
+
+function boundChildPath(pinned, leaf, label = "child") {
+  return procFdPath(pinned.fd, safeLeaf(leaf, label));
+}
+
+function boundChildIdentity(pinned, leaf, label) {
   let metadata;
   try {
-    metadata = fs.lstatSync(directory);
+    metadata = fs.lstatSync(boundChildPath(pinned, leaf, label), { bigint: true });
   } catch {
-    fail(`${label} is missing: ${directory}`);
+    fail(`${label} is missing from the pinned namespace`);
   }
-  if (!metadata.isDirectory() || metadata.isSymbolicLink()) {
-    fail(`${label} must be a real directory: ${directory}`);
+  return identityOf(metadata);
+}
+
+function removeBoundChildIfIdentity(pinned, leaf, expectedIdentity) {
+  const filename = boundChildPath(pinned, leaf, "cleanup child");
+  try {
+    const metadata = fs.lstatSync(filename, { bigint: true });
+    if (sameIdentity(identityOf(metadata), expectedIdentity)) {
+      fs.rmSync(filename, { recursive: true, force: true });
+    }
+  } catch {
+    // Never delete an unknown replacement generation during cleanup.
   }
-  if (fs.realpathSync(directory) !== path.resolve(directory)) {
-    fail(`${label} does not resolve exactly: ${directory}`);
-  }
-  return directory;
 }
 
 function isInside(parent, candidate) {
@@ -266,11 +441,11 @@ export function indexNowRequest(originValue, keyValue) {
   };
 }
 
-function readConfig() {
-  requireRegularFile(CONFIG_PATH, "free-discovery config");
+export function readDiscoveryConfigFile(filename = CONFIG_PATH, options = {}) {
+  const evidence = readPinnedUtf8RegularFile(filename, "free-discovery config", options);
   let config;
   try {
-    config = JSON.parse(fs.readFileSync(CONFIG_PATH, "utf8"));
+    config = JSON.parse(evidence.text);
   } catch (error) {
     fail(`free-discovery config is invalid JSON: ${error.message}`);
   }
@@ -289,34 +464,98 @@ function readConfig() {
   if (JSON.stringify(config.crawler_exclusions) !== JSON.stringify(CRAWLER_EXCLUSIONS)) {
     fail("free-discovery config crawler exclusion mismatch");
   }
-  return config;
+  return Object.freeze({ config, sha256: evidence.sha256, identity: evidence.identity });
 }
 
 function writeFile(filename, value) {
   fs.writeFileSync(filename, value, { encoding: "utf8", mode: 0o600, flag: "wx" });
 }
 
-export function buildDiscoveryPack({ origin, output, indexNowKey, lastmod }) {
+export function buildDiscoveryPack({
+  origin,
+  output,
+  indexNowKey,
+  lastmod,
+  testHooks = null,
+}) {
   const normalizedOrigin = validateOrigin(origin);
   const normalizedLastmod = validateLastmod(lastmod);
   const normalizedKey = validateIndexNowKey(indexNowKey);
-  const config = readConfig();
+  const configEvidence = readDiscoveryConfigFile();
   const destination = path.resolve(String(output ?? ""));
   if (!destination || destination === path.parse(destination).root) fail("output path is unsafe");
   if (isInside(REPO_ROOT, destination)) {
     fail("output must remain outside the repository so the IndexNow key is never committed");
   }
-  const parent = path.dirname(destination);
-  requireRealDirectory(parent, "output parent");
-  if (fs.existsSync(destination)) fail(`output already exists: ${destination}`);
 
-  const temporary = path.join(parent, `.${path.basename(destination)}.${process.pid}.tmp`);
-  if (fs.existsSync(temporary)) fail(`temporary output already exists: ${temporary}`);
-  fs.mkdirSync(temporary, { mode: 0o700 });
+  const parent = path.dirname(destination);
+  const destinationName = safeLeaf(path.basename(destination), "output destination");
+  const pinnedParent = openPinnedDirectory(parent, "output parent");
+  const destinationBoundPath = boundChildPath(
+    pinnedParent,
+    destinationName,
+    "output destination",
+  );
+  const temporaryName = safeLeaf(
+    `.${destinationName}.${process.pid}.${crypto.randomBytes(16).toString("hex")}.tmp`,
+    "temporary output",
+  );
+  const temporaryBoundPath = boundChildPath(
+    pinnedParent,
+    temporaryName,
+    "temporary output",
+  );
+  let temporaryIdentity = null;
+  let temporaryPinned = null;
+  let published = false;
+
   try {
-    const publicRoot = path.join(temporary, "public");
+    if (testHooks !== null && typeof testHooks !== "object") {
+      fail("testHooks must be an object when supplied");
+    }
+    testHooks?.afterOutputParentPinned?.({ parent, destination });
+    assertPinnedDirectoryPath(pinnedParent, "output parent");
+
+    try {
+      fs.lstatSync(destinationBoundPath);
+      fail(`output already exists: ${destination}`);
+    } catch (error) {
+      if (error instanceof Hold) throw error;
+      if (error?.code !== "ENOENT") throw error;
+    }
+    try {
+      fs.lstatSync(temporaryBoundPath);
+      fail(`temporary output already exists: ${temporaryName}`);
+    } catch (error) {
+      if (error instanceof Hold) throw error;
+      if (error?.code !== "ENOENT") throw error;
+    }
+
+    fs.mkdirSync(temporaryBoundPath, { mode: 0o700 });
+    temporaryIdentity = boundChildIdentity(
+      pinnedParent,
+      temporaryName,
+      "temporary output",
+    );
+    const temporaryFd = fs.openSync(
+      temporaryBoundPath,
+      fs.constants.O_RDONLY | fs.constants.O_DIRECTORY | fs.constants.O_NOFOLLOW,
+    );
+    const temporaryMetadata = fs.fstatSync(temporaryFd, { bigint: true });
+    if (!sameIdentity(temporaryIdentity, identityOf(temporaryMetadata))) {
+      fs.closeSync(temporaryFd);
+      fail("temporary output changed generation during creation");
+    }
+    temporaryPinned = Object.freeze({
+      fd: temporaryFd,
+      absolute: path.join(parent, temporaryName),
+      identity: identityOf(temporaryMetadata),
+      procPath: procFdPath(temporaryFd),
+    });
+
+    const publicRoot = path.join(temporaryPinned.procPath, "public");
     const discoveryRoot = path.join(publicRoot, "discovery");
-    const operatorRoot = path.join(temporary, "operator");
+    const operatorRoot = path.join(temporaryPinned.procPath, "operator");
     fs.mkdirSync(publicRoot, { mode: 0o700 });
     fs.mkdirSync(discoveryRoot, { mode: 0o700 });
     fs.mkdirSync(operatorRoot, { mode: 0o700 });
@@ -354,12 +593,12 @@ export function buildDiscoveryPack({ origin, output, indexNowKey, lastmod }) {
     ]);
 
     for (const [relative, value] of outputs) {
-      writeFile(path.join(temporary, relative), value);
+      writeFile(path.join(temporaryPinned.procPath, relative), value);
     }
 
     const files = {};
     for (const relative of [...outputs.keys()].sort()) {
-      files[relative] = sha256File(path.join(temporary, relative));
+      files[relative] = sha256File(path.join(temporaryPinned.procPath, relative));
     }
     const receipt = {
       marker: "VOID_FREE_DISCOVERY_MESH_BUILD_RECEIPT_V1",
@@ -369,7 +608,7 @@ export function buildDiscoveryPack({ origin, output, indexNowKey, lastmod }) {
       indexnow_key_location: request.keyLocation,
       canonical_urls: request.urlList,
       files,
-      config_sha256: sha256File(CONFIG_PATH),
+      config_sha256: configEvidence.sha256,
       claims: {
         source_only: true,
         network_calls: false,
@@ -384,12 +623,47 @@ export function buildDiscoveryPack({ origin, output, indexNowKey, lastmod }) {
         fund_movement: false,
       },
     };
-    writeFile(path.join(temporary, "build-receipt-v1.json"), prettyJson(receipt));
-    fs.renameSync(temporary, destination);
+    writeFile(path.join(temporaryPinned.procPath, "build-receipt-v1.json"), prettyJson(receipt));
+
+    testHooks?.beforePublish?.({ parent, destination });
+    assertPinnedDirectoryPath(pinnedParent, "output parent");
+    assertPinnedDirectoryPath(temporaryPinned, "temporary output");
+    if (!sameIdentity(
+      boundChildIdentity(pinnedParent, temporaryName, "temporary output"),
+      temporaryIdentity,
+    )) {
+      fail("temporary output changed generation before publication");
+    }
+
+    fs.renameSync(temporaryBoundPath, destinationBoundPath);
+    published = true;
+    if (!sameIdentity(
+      boundChildIdentity(pinnedParent, destinationName, "published output"),
+      temporaryIdentity,
+    )) {
+      fail("published output generation does not match the reviewed temporary generation");
+    }
+    assertPinnedDirectoryPath(pinnedParent, "output parent");
+
     return Object.freeze({ destination, receipt });
   } catch (error) {
-    fs.rmSync(temporary, { recursive: true, force: true });
+    if (temporaryIdentity !== null) {
+      if (published) {
+        removeBoundChildIfIdentity(pinnedParent, destinationName, temporaryIdentity);
+      } else {
+        removeBoundChildIfIdentity(pinnedParent, temporaryName, temporaryIdentity);
+      }
+    }
     throw error;
+  } finally {
+    if (temporaryPinned !== null) {
+      try {
+        closePinnedDirectory(temporaryPinned);
+      } catch {
+        // best effort only after the primary result has been established
+      }
+    }
+    closePinnedDirectory(pinnedParent);
   }
 }
 
@@ -420,8 +694,8 @@ function main() {
   const args = parseArgs(process.argv.slice(2));
   if (args.command !== "build") fail("command must be build");
   if (args.confirm !== CONFIRMATION) fail("confirmation phrase mismatch");
-  requireRegularFile(args.indexNowKeyFile, "IndexNow key file");
-  const key = validateIndexNowKey(fs.readFileSync(args.indexNowKeyFile, "utf8"));
+  const keyEvidence = readPinnedUtf8RegularFile(args.indexNowKeyFile, "IndexNow key file");
+  const key = validateIndexNowKey(keyEvidence.text);
   console.log(`${MARKER}=START`);
   console.log("operation=build_offline_provider_neutral_discovery_pack");
   console.log("network_calls=false");
