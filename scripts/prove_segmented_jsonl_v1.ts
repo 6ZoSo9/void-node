@@ -246,6 +246,112 @@ function proveGrowthReadIsBounded(
   );
 }
 
+function proveManifestPublicationIsCreateOnly(
+  sourcePath: string,
+  destinationPath: string,
+): void {
+  const manifestPath = path.join(destinationPath, "manifest.v1.json");
+  const sentinel = Buffer.from("foreign-manifest-sentinel\n", "utf8");
+  const originalLinkSync = (mutableFs as any).linkSync;
+  let occupied = false;
+  try {
+    (mutableFs as any).linkSync = (...args: any[]) => {
+      const target = typeof args[1] === "string" ? path.resolve(args[1]) : "";
+      if (!occupied && target.endsWith("/manifest.v1.json")) {
+        fs.writeFileSync(manifestPath, sentinel, { flag: "wx", mode: 0o600 });
+        occupied = true;
+      }
+      return originalLinkSync(...args);
+    };
+    syncBuiltinESMExports();
+    expectFailure(
+      () => buildSegmentedJsonlV1FromFile(sourcePath, destinationPath, {
+        segmentTargetBytes: 16 * 1024,
+        maxRecordBytes: 4 * 1024,
+      }),
+      "MANIFEST_EXISTS_AT_COMMIT",
+    );
+  } finally {
+    (mutableFs as any).linkSync = originalLinkSync;
+    syncBuiltinESMExports();
+  }
+  assert.equal(occupied, true, "foreign manifest must occupy the final name at commit");
+  assert.deepEqual(fs.readFileSync(manifestPath), sentinel, "foreign manifest must survive unchanged");
+}
+
+function proveFailedLeafCleanupPreservesReplacement(
+  sourcePath: string,
+  destinationPath: string,
+): void {
+  const segmentPath = path.join(destinationPath, "segments", "000000000000.jsonl");
+  const ownedPath = `${segmentPath}.owned-generation`;
+  const sentinel = Buffer.from("foreign-segment-sentinel\n", "utf8");
+  const originalFchmodSync = (mutableFs as any).fchmodSync;
+  let replaced = false;
+  try {
+    (mutableFs as any).fchmodSync = (...args: any[]) => {
+      if (!replaced && fs.existsSync(segmentPath)) {
+        fs.renameSync(segmentPath, ownedPath);
+        fs.writeFileSync(segmentPath, sentinel, { flag: "wx", mode: 0o400 });
+        replaced = true;
+        const error = new Error("injected exact-leaf failure") as NodeJS.ErrnoException;
+        error.code = "EIO";
+        throw error;
+      }
+      return originalFchmodSync(...args);
+    };
+    syncBuiltinESMExports();
+    expectFailure(
+      () => buildSegmentedJsonlV1FromFile(sourcePath, destinationPath, {
+        segmentTargetBytes: 16 * 1024,
+        maxRecordBytes: 4 * 1024,
+      }),
+      "injected exact-leaf failure",
+    );
+  } finally {
+    (mutableFs as any).fchmodSync = originalFchmodSync;
+    syncBuiltinESMExports();
+  }
+  assert.equal(replaced, true, "failed leaf must be replaced before cleanup boundary");
+  assert.deepEqual(fs.readFileSync(segmentPath), sentinel, "foreign replacement must survive failure cleanup");
+}
+
+function proveManifestParentGenerationSwapHolds(
+  sourcePath: string,
+  destinationPath: string,
+): void {
+  const detachedPath = `${destinationPath}.detached`;
+  const originalLinkSync = (mutableFs as any).linkSync;
+  let swapped = false;
+  try {
+    (mutableFs as any).linkSync = (...args: any[]) => {
+      if (!swapped && typeof args[1] === "string" && String(args[1]).endsWith("/manifest.v1.json")) {
+        fs.renameSync(destinationPath, detachedPath);
+        fs.mkdirSync(destinationPath, { mode: 0o700 });
+        swapped = true;
+      }
+      return originalLinkSync(...args);
+    };
+    syncBuiltinESMExports();
+    expectFailure(
+      () => buildSegmentedJsonlV1FromFile(sourcePath, destinationPath, {
+        segmentTargetBytes: 16 * 1024,
+        maxRecordBytes: 4 * 1024,
+      }),
+      "DIRECTORY_AUTHORITY_CHANGED",
+    );
+  } finally {
+    (mutableFs as any).linkSync = originalLinkSync;
+    syncBuiltinESMExports();
+  }
+  assert.equal(swapped, true, "manifest parent generation must be substituted before commit");
+  assert.equal(
+    fs.existsSync(path.join(destinationPath, "manifest.v1.json")),
+    false,
+    "manifest publication must not redirect into a substituted parent generation",
+  );
+}
+
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "void-segmented-jsonl-v1-"));
 try {
   const source = path.join(tmp, "source.jsonl");
@@ -253,6 +359,10 @@ try {
   const rebuilt = path.join(tmp, "rebuilt.jsonl");
   const body = makeFixture(500);
   fs.writeFileSync(source, body);
+
+  proveManifestPublicationIsCreateOnly(source, path.join(tmp, "manifest-no-replace-store"));
+  proveFailedLeafCleanupPreservesReplacement(source, path.join(tmp, "leaf-cleanup-store"));
+  proveManifestParentGenerationSwapHolds(source, path.join(tmp, "manifest-parent-swap-store"));
 
   const expectBuildControlFailure = (
     suffix: string,
@@ -639,6 +749,9 @@ try {
       admitted_generation_reads_bounded: true,
       reconstruct_copy_generation_bound: true,
       sealed_mode_bound_to_exact_fd_generation: true,
+      publication_parent_generation_bound: true,
+      manifest_publication_create_only: true,
+      failed_leaf_cleanup_preserves_foreign_generation: true,
       manifest_generation_and_retention_bounded: true,
       manifest_runtime_shape_exact: true,
       max_manifest_bytes: VOID_SEGMENTED_JSONL_MAX_MANIFEST_BYTES_V1,

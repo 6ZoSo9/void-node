@@ -71,6 +71,7 @@ type BuildOptionsV1 = {
 
 type GenerationV1 = { dev: string; ino: string; size: string; mtimeNs: string; ctimeNs: string };
 type FdObservationV1 = { generation: GenerationV1; mode: number };
+type DirectoryAuthorityV1 = { fd: number; publicPath: string; stablePath: string; dev: string; ino: string };
 
 function fail(code: string, detail: string): never {
   throw new Error(`${VOID_SEGMENTED_JSONL_V1}:${code}:${detail}`);
@@ -127,15 +128,64 @@ function inside(root: string, candidate: string): string {
 }
 
 function ensureDir(dir: string): void {
-  fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
   const st = fs.lstatSync(dir);
   if (!st.isDirectory() || st.isSymbolicLink()) fail("NON_DIRECTORY", dir);
 }
 
-function fsyncDir(dir: string): void {
+function openDirectoryAuthorityV1(dir: string): DirectoryAuthorityV1 {
+  const publicPath = path.resolve(dir);
   const flags = fs.constants.O_RDONLY | ((fs.constants as any).O_DIRECTORY || 0);
-  const fd = fs.openSync(dir, flags);
-  try { fs.fsyncSync(fd); } finally { fs.closeSync(fd); }
+  const fd = fs.openSync(publicPath, flags | ((fs.constants as any).O_NOFOLLOW || 0));
+  try {
+    const opened = fs.fstatSync(fd, { bigint: true } as any);
+    const current = fs.lstatSync(publicPath, { bigint: true } as any);
+    if (!opened.isDirectory() || !current.isDirectory() || current.isSymbolicLink() || opened.dev !== current.dev || opened.ino !== current.ino) {
+      fail("DIRECTORY_AUTHORITY_MISMATCH", publicPath);
+    }
+    return { fd, publicPath, stablePath: `/proc/self/fd/${fd}`, dev: String(opened.dev), ino: String(opened.ino) };
+  } catch (error) { fs.closeSync(fd); throw error; }
+}
+
+function assertDirectoryAuthorityV1(authority: DirectoryAuthorityV1): void {
+  const opened = fs.fstatSync(authority.fd, { bigint: true } as any);
+  const current = fs.lstatSync(authority.publicPath, { bigint: true } as any);
+  if (!opened.isDirectory() || !current.isDirectory() || current.isSymbolicLink() || String(opened.dev) !== authority.dev || String(opened.ino) !== authority.ino || opened.dev !== current.dev || opened.ino !== current.ino) {
+    fail("DIRECTORY_AUTHORITY_CHANGED", authority.publicPath);
+  }
+}
+
+function fsyncDir(dir: string): void {
+  const authority = openDirectoryAuthorityV1(dir);
+  try { fs.fsyncSync(authority.fd); assertDirectoryAuthorityV1(authority); }
+  finally { fs.closeSync(authority.fd); }
+}
+
+function createDirectoryNewV1(dir: string): void {
+  const parent = path.dirname(dir), name = path.basename(dir), authority = openDirectoryAuthorityV1(parent);
+  try {
+    fs.mkdirSync(path.join(authority.stablePath, name), { mode: 0o700 });
+    fs.fsyncSync(authority.fd);
+    assertDirectoryAuthorityV1(authority);
+    const created = fs.lstatSync(path.join(authority.stablePath, name), { bigint: true } as any);
+    const visible = fs.lstatSync(dir, { bigint: true } as any);
+    if (!created.isDirectory() || created.isSymbolicLink() || !visible.isDirectory() || visible.isSymbolicLink() || created.dev !== visible.dev || created.ino !== visible.ino) {
+      fail("CREATED_DIRECTORY_AUTHORITY_MISMATCH", dir);
+    }
+  } finally { fs.closeSync(authority.fd); }
+}
+
+function createDirectoryChildV1(parent: DirectoryAuthorityV1, name: string, publicPath: string): DirectoryAuthorityV1 {
+  fs.mkdirSync(path.join(parent.stablePath, name), { mode: 0o700 });
+  fs.fsyncSync(parent.fd);
+  assertDirectoryAuthorityV1(parent);
+  const child = openDirectoryAuthorityV1(publicPath);
+  const stableChild = fs.lstatSync(path.join(parent.stablePath, name), { bigint: true } as any);
+  const openedChild = fs.fstatSync(child.fd, { bigint: true } as any);
+  if (stableChild.dev !== openedChild.dev || stableChild.ino !== openedChild.ino) {
+    fs.closeSync(child.fd);
+    fail("CREATED_DIRECTORY_AUTHORITY_MISMATCH", publicPath);
+  }
+  return child;
 }
 
 function regularStat(file: string): fs.Stats {
@@ -237,12 +287,23 @@ function readExactGenerationBufferV1(
   } finally { fs.closeSync(fd); }
 }
 
-function writeDurableNew(file: string, body: Buffer, mode: number): void {
+function writeDurableNew(
+  file: string,
+  body: Buffer,
+  mode: number,
+  retainedAuthority?: DirectoryAuthorityV1,
+): GenerationV1 {
   ensureDir(path.dirname(file));
+  const authority = retainedAuthority ?? openDirectoryAuthorityV1(path.dirname(file));
+  if (path.resolve(path.dirname(file)) !== authority.publicPath) fail("WRITE_PARENT_AUTHORITY_MISMATCH", file);
+  const stableFile = path.join(authority.stablePath, path.basename(file));
   const flags = fs.constants.O_WRONLY | fs.constants.O_CREAT | fs.constants.O_EXCL | ((fs.constants as any).O_NOFOLLOW || 0);
-  const fd = fs.openSync(file, flags, mode);
+  let fd = -1;
   let ok = false;
+  let created: GenerationV1 | null = null;
   try {
+    fd = fs.openSync(stableFile, flags, mode);
+    created = fdGeneration(fd);
     let off = 0;
     while (off < body.length) {
       const n = fs.writeSync(fd, body, off, body.length - off, null);
@@ -253,17 +314,22 @@ function writeDurableNew(file: string, body: Buffer, mode: number): void {
     fs.fsyncSync(fd);
     const observed = fdObservation(fd), fdGen = observed.generation;
     if (observed.mode !== mode) fail("WRITE_MODE_MISMATCH", `${file}:${observed.mode.toString(8)}:${mode.toString(8)}`);
-    const pathGen = pathGeneration(file);
+    const pathGen = pathGeneration(stableFile);
     if (!pathGen || !sameGeneration(fdGen, pathGen)) fail("WRITE_PATH_GENERATION_MISMATCH", file);
+    fs.fsyncSync(authority.fd);
+    assertDirectoryAuthorityV1(authority);
+    created = fdGen;
     ok = true;
   } finally {
-    fs.closeSync(fd);
-    if (!ok) {
-      try { fs.unlinkSync(file); }
-      catch (cleanupError) { void cleanupError; }
-    }
+    if (fd >= 0) fs.closeSync(fd);
+    // Failure cleanup intentionally leaves the exclusively created generation
+    // in place. Node has no conditional unlink primitive; deleting by pathname
+    // after losing fd authority could remove a substituted foreign generation.
+    if (!ok) { try { fs.fsyncSync(authority.fd); } catch (error) { void error; } }
+    if (!retainedAuthority) fs.closeSync(authority.fd);
   }
-  fsyncDir(path.dirname(file));
+  if (!created) fail("WRITE_GENERATION_UNAVAILABLE", file);
+  return created;
 }
 
 function segmentName(id: number): string {
@@ -343,16 +409,34 @@ function parseManifest(value: unknown): SegmentedJsonlManifestV1 {
   return manifest;
 }
 
-function atomicManifest(root: string, manifest: SegmentedJsonlManifestV1): void {
+function atomicManifest(
+  root: string,
+  manifest: SegmentedJsonlManifestV1,
+  retainedAuthority?: DirectoryAuthorityV1,
+): void {
   const target = path.join(root, MANIFEST);
   const tmp = path.join(root, `.${MANIFEST}.tmp-${process.pid}-${crypto.randomBytes(8).toString("hex")}`);
-  writeDurableNew(tmp, Buffer.from(`${JSON.stringify(manifest, null, 2)}\n`), 0o600);
-  try { fs.renameSync(tmp, target); fsyncDir(root); }
-  catch (err) {
-    try { if (fs.existsSync(tmp)) fs.unlinkSync(tmp); }
-    catch (cleanupError) { void cleanupError; }
-    throw err;
-  }
+  const authority = retainedAuthority ?? openDirectoryAuthorityV1(root);
+  const created = writeDurableNew(tmp, Buffer.from(`${JSON.stringify(manifest, null, 2)}\n`), 0o600, authority);
+  try {
+    const stableTmp = path.join(authority.stablePath, path.basename(tmp));
+    const stableTarget = path.join(authority.stablePath, MANIFEST);
+    const current = pathGeneration(stableTmp);
+    if (!current || !sameGeneration(created, current)) fail("MANIFEST_STAGING_GENERATION_CHANGED", tmp);
+    try { fs.linkSync(stableTmp, stableTarget); }
+    catch (error: any) {
+      if (error?.code === "EEXIST") fail("MANIFEST_EXISTS_AT_COMMIT", target);
+      throw error;
+    }
+    fs.fsyncSync(authority.fd);
+    assertDirectoryAuthorityV1(authority);
+    const published = pathGeneration(stableTarget);
+    if (!published || published.dev !== created.dev || published.ino !== created.ino || published.size !== created.size) {
+      fail("MANIFEST_PUBLICATION_GENERATION_MISMATCH", target);
+    }
+    // The hidden staging hard link is retained. Removing it by pathname would
+    // reintroduce a compare/delete race against a substituted foreign leaf.
+  } finally { if (!retainedAuthority) fs.closeSync(authority.fd); }
 }
 
 function scanFile(file: string, expectedBytes: number, expectedRecords: number, maxRecord: number, validateJson: boolean, expectedMode: number): { bytes:number; records:number; sha256:string } {
@@ -405,10 +489,10 @@ export function verifySegmentedJsonlV1(rootInput: string, options: {validateJson
   return { manifest:m, sealed_segments_verified:m.sealed_segments.length, total_bytes_verified:bytes, total_records_verified:records };
 }
 
-function writeSealed(root:string,id:number,parts:Buffer[],first:number,records:number): SegmentedJsonlSegmentV1 {
+function writeSealed(root:string,id:number,parts:Buffer[],first:number,records:number,authority?:DirectoryAuthorityV1): SegmentedJsonlSegmentV1 {
   if (records <= 0) fail("EMPTY_SEAL", `id=${id}`);
   const body=Buffer.concat(parts), file=segmentPath(root,id);
-  writeDurableNew(file,body,0o400);
+  writeDurableNew(file,body,0o400,authority);
   return { id, file:segmentRel(id), bytes:body.length, records, first_record_index:first, last_record_index:first+records-1, sha256:sha256(body) };
 }
 
@@ -420,13 +504,16 @@ export function buildSegmentedJsonlV1FromFile(sourceInput:string,destinationInpu
   const generation=exactSafeInteger(options.generation,1,1,Number.MAX_SAFE_INTEGER,"INVALID_GENERATION"), validateJson=options.validateJson !== false;
   if(max + 1 > target) fail("INVALID_MAX_RECORD",String(max));
   if (fs.existsSync(root)) { const st=fs.lstatSync(root); if(!st.isDirectory()||st.isSymbolicLink()) fail("DESTINATION_NOT_DIRECTORY",root); if(fs.readdirSync(root).length) fail("DESTINATION_NOT_EMPTY",root); }
-  else { fs.mkdirSync(root,{mode:0o700}); fsyncDir(path.dirname(root)); }
-  ensureDir(path.join(root,SEGMENTS)); fsyncDir(root);
+  else { createDirectoryNewV1(root); }
+  const rootAuthority = openDirectoryAuthorityV1(root);
+  let segmentAuthority: DirectoryAuthorityV1 | null = null;
+  try {
+  segmentAuthority = createDirectoryChildV1(rootAuthority, SEGMENTS, path.join(root,SEGMENTS));
   const flags=fs.constants.O_RDONLY|((fs.constants as any).O_NOFOLLOW||0), fd=fs.openSync(source,flags);
   const before=fdGeneration(fd), p0=pathGeneration(source); if(!p0||!sameGeneration(before,p0)){fs.closeSync(fd);fail("SOURCE_GENERATION_UNSTABLE_BEFORE_BUILD",source);}
   const admittedSourceBytes=exactGenerationSizeV1(before,"SOURCE_SIZE_UNREPRESENTABLE",source);
   const sealed:SegmentedJsonlSegmentV1[]=[]; let parts:Buffer[]=[]; let partBytes=0, partRecords=0, first=0, global=0, carry=Buffer.alloc(0);
-  const flush=()=>{ if(!partRecords)return; sealed.push(writeSealed(root,sealed.length,parts,first,partRecords)); first=global; parts=[]; partBytes=0; partRecords=0; };
+  const flush=()=>{ if(!partRecords)return; sealed.push(writeSealed(root,sealed.length,parts,first,partRecords,segmentAuthority!)); first=global; parts=[]; partBytes=0; partRecords=0; };
   try {
     readAdmittedGenerationV1(fd,admittedSourceBytes,"SOURCE_SHORT_READ","SOURCE_GREW_DURING_BUILD",source,(chunk)=>{ const data=carry.length?Buffer.concat([carry,chunk]):chunk; let from=0;
       for(let i=0;i<data.length;i++) if(data[i]===0x0a){ const rec=Buffer.from(data.subarray(from,i+1)); validateRecord(rec,max,validateJson,global); if(rec.length>target) fail("RECORD_EXCEEDS_SEGMENT_TARGET",`record=${global}:bytes=${rec.length}:target=${target}`); if(partBytes>0&&partBytes+rec.length>target) flush(); parts.push(rec); partBytes+=rec.length; partRecords++; global++; from=i+1; }
@@ -435,11 +522,18 @@ export function buildSegmentedJsonlV1FromFile(sourceInput:string,destinationInpu
     const after=fdGeneration(fd),p1=pathGeneration(source); if(!sameGeneration(before,after)||!p1||!sameGeneration(after,p1)) fail("SOURCE_GENERATION_CHANGED_DURING_BUILD",source);
   } finally { fs.closeSync(fd); }
   if(carry.length) fail("SOURCE_UNTERMINATED",source);
-  const activeBody=Buffer.concat(parts), activePath=inside(root,path.join(root,ACTIVE)); writeDurableNew(activePath,activeBody,0o600);
+  const activeBody=Buffer.concat(parts), activePath=inside(root,path.join(root,ACTIVE)); writeDurableNew(activePath,activeBody,0o600,rootAuthority);
   const sealedBytes=sealed.reduce((n,s)=>n+s.bytes,0), sealedRecords=sealed.reduce((n,s)=>n+s.records,0);
   const active:SegmentedJsonlActiveV1={file:ACTIVE,bytes:activeBody.length,records:partRecords,first_record_index:first,last_record_index:partRecords?first+partRecords-1:null,sha256:sha256(activeBody)};
   const manifest:SegmentedJsonlManifestV1={v:1,format:VOID_SEGMENTED_JSONL_V1,generation,segment_target_bytes:target,max_record_bytes:max,total_bytes:sealedBytes+active.bytes,total_records:sealedRecords+active.records,sealed_bytes:sealedBytes,sealed_records:sealedRecords,sealed_root_sha256:sealedRoot(sealed),sealed_segments:sealed,active};
-  parseManifest(manifest); atomicManifest(root,manifest); return manifest;
+  parseManifest(manifest); atomicManifest(root,manifest,rootAuthority);
+  assertDirectoryAuthorityV1(rootAuthority);
+  assertDirectoryAuthorityV1(segmentAuthority);
+  return manifest;
+  } finally {
+    if (segmentAuthority) fs.closeSync(segmentAuthority.fd);
+    fs.closeSync(rootAuthority.fd);
+  }
 }
 
 function appendVerifiedGenerationToOutputV1(
