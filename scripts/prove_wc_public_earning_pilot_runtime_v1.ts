@@ -3256,9 +3256,258 @@ async function main(): Promise<void> {
     fs.rmSync(root, { recursive: true, force: true });
   }
 
+  // Durability authority covers the complete directory-link chain, not
+  // merely the final parent->child pair. Reparenting the exact authority root
+  // into a fresh immediate parent, or replacing an admitted intermediate
+  // ancestor while preserving the exact lower subtree, must HOLD. Restoring
+  // the exact admitted chain requires fresh parent-link fsyncs before reuse.
+  {
+    const outer = fs.mkdtempSync(
+      path.join(
+        os.tmpdir(),
+        "void-wc-public-state-root-link-chain-v1-",
+      ),
+    );
+    const authorityParent = path.join(
+      outer,
+      "authority-parent",
+    );
+    const root = path.join(authorityParent, "data");
+    const target = path.join(
+      root,
+      "wc_v1",
+      "public-earning-pilot-v1",
+      "issued",
+    );
+    const displacedParent =
+      `${authorityParent}.proof-displaced`;
+    fs.mkdirSync(target, {
+      recursive: true,
+      mode: 0o700,
+    });
+
+    stateDirectoryAuthority
+      .ensureWcPublicStateDurableDirectoryV1(
+        target,
+        root,
+      );
+    const rootBefore: any = fs.lstatSync(
+      root,
+      { bigint: true } as any,
+    );
+    const targetBefore: any = fs.lstatSync(
+      target,
+      { bigint: true } as any,
+    );
+
+    fs.renameSync(authorityParent, displacedParent);
+    fs.mkdirSync(authorityParent, { mode: 0o700 });
+    fs.renameSync(
+      path.join(displacedParent, "data"),
+      root,
+    );
+
+    const rootReparented: any = fs.lstatSync(
+      root,
+      { bigint: true } as any,
+    );
+    assert.equal(
+      String(rootReparented.dev),
+      String(rootBefore.dev),
+    );
+    assert.equal(
+      String(rootReparented.ino),
+      String(rootBefore.ino),
+    );
+    assert.throws(
+      () =>
+        stateDirectoryAuthority
+          .ensureWcPublicStateDurableDirectoryV1(
+            target,
+            root,
+          ),
+      /wc_public_state_(?:authority_root|directory_parent)_generation_changed/,
+    );
+
+    fs.renameSync(
+      root,
+      path.join(displacedParent, "data"),
+    );
+    fs.rmSync(authorityParent, {
+      recursive: true,
+      force: true,
+    });
+    fs.renameSync(displacedParent, authorityParent);
+
+    let restoredRootLinkFsyncs = 0;
+    const rootRestored =
+      stateDirectoryAuthority
+        .ensureWcPublicStateDurableDirectoryV1(
+          target,
+          root,
+          (
+            phase: "before" | "after",
+            _observedParent: string,
+            child: string,
+          ) => {
+            if (
+              phase === "after" &&
+              path.resolve(child) === path.resolve(root)
+            ) {
+              restoredRootLinkFsyncs += 1;
+            }
+          },
+        );
+    assert.ok(
+      restoredRootLinkFsyncs >= 1,
+      "restored authority-root link was reused without fsync",
+    );
+    assert.equal(
+      rootRestored.dev,
+      String(targetBefore.dev),
+    );
+    assert.equal(
+      rootRestored.ino,
+      String(targetBefore.ino),
+    );
+
+    fs.rmSync(outer, {
+      recursive: true,
+      force: true,
+    });
+  }
+
+  {
+    const root = fs.mkdtempSync(
+      path.join(
+        os.tmpdir(),
+        "void-wc-public-state-ancestor-link-chain-v1-",
+      ),
+    );
+    const wcDir = path.join(root, "wc_v1");
+    const pilotRoot = path.join(
+      wcDir,
+      "public-earning-pilot-v1",
+    );
+    const target = path.join(pilotRoot, "issued");
+    const displacedWc =
+      `${wcDir}.proof-displaced`;
+    fs.mkdirSync(target, {
+      recursive: true,
+      mode: 0o700,
+    });
+
+    stateDirectoryAuthority
+      .ensureWcPublicStateDurableDirectoryV1(
+        target,
+        root,
+      );
+    const pilotBefore: any = fs.lstatSync(
+      pilotRoot,
+      { bigint: true } as any,
+    );
+    const targetBefore: any = fs.lstatSync(
+      target,
+      { bigint: true } as any,
+    );
+
+    fs.renameSync(wcDir, displacedWc);
+    fs.mkdirSync(wcDir, { mode: 0o700 });
+    fs.renameSync(
+      path.join(
+        displacedWc,
+        "public-earning-pilot-v1",
+      ),
+      pilotRoot,
+    );
+
+    const pilotReparented: any = fs.lstatSync(
+      pilotRoot,
+      { bigint: true } as any,
+    );
+    const targetReparented: any = fs.lstatSync(
+      target,
+      { bigint: true } as any,
+    );
+    assert.equal(
+      String(pilotReparented.ino),
+      String(pilotBefore.ino),
+    );
+    assert.equal(
+      String(targetReparented.ino),
+      String(targetBefore.ino),
+    );
+    assert.throws(
+      () =>
+        stateDirectoryAuthority
+          .ensureWcPublicStateDurableDirectoryV1(
+            target,
+            root,
+          ),
+      /wc_public_state_directory_generation_changed/,
+    );
+
+    fs.renameSync(
+      pilotRoot,
+      path.join(
+        displacedWc,
+        "public-earning-pilot-v1",
+      ),
+    );
+    fs.rmSync(wcDir, {
+      recursive: true,
+      force: true,
+    });
+    fs.renameSync(displacedWc, wcDir);
+
+    let restoredAncestorLinkFsyncs = 0;
+    const restored =
+      stateDirectoryAuthority
+        .ensureWcPublicStateDurableDirectoryV1(
+          target,
+          root,
+          (
+            phase: "before" | "after",
+            _observedParent: string,
+            child: string,
+          ) => {
+            if (
+              phase === "after" &&
+              (
+                path.resolve(child) ===
+                  path.resolve(wcDir) ||
+                path.resolve(child) ===
+                  path.resolve(pilotRoot)
+              )
+            ) {
+              restoredAncestorLinkFsyncs += 1;
+            }
+          },
+        );
+    assert.ok(
+      restoredAncestorLinkFsyncs >= 1,
+      "restored ancestor chain was reused without fsync",
+    );
+    assert.equal(
+      restored.dev,
+      String(targetBefore.dev),
+    );
+    assert.equal(
+      restored.ino,
+      String(targetBefore.ino),
+    );
+
+    fs.rmSync(root, {
+      recursive: true,
+      force: true,
+    });
+  }
+
   // A directory cache may publish only the exact parent->child tuple that
   // crossed fsync. Reparenting the exact child after helper return but before
-  // cache publication must HOLD; exact retry must re-fsync the new link.
+  // cache publication must HOLD. The replacement intermediate parent remains
+  // inadmissible; after the exact admitted chain is restored, retry must
+  // re-fsync the restored parent->child link.
   {
     const root = fs.mkdtempSync(
       path.join(
@@ -3338,6 +3587,45 @@ async function main(): Promise<void> {
     assert.equal(String(after.dev), String(before.dev));
     assert.equal(String(after.ino), String(before.ino));
 
+    // The exact child now sits under an unadmitted replacement
+    // intermediate parent. Full-chain authority must not silently rotate to
+    // that parent merely because the child inode is unchanged.
+    assert.throws(
+      () =>
+        stateDirectoryAuthority
+          .ensureWcPublicStateDurableDirectoryV1(
+            target,
+            root,
+          ),
+      /wc_public_state_directory_generation_changed/,
+    );
+
+    // Restore the exact admitted parent and exact child. The parent namespace
+    // changed while the child link was detached, so successful reuse still
+    // requires a fresh fsync of the restored parent->child link.
+    fs.renameSync(
+      target,
+      path.join(displaced, "issued"),
+    );
+    fs.rmSync(parent, {
+      recursive: true,
+      force: true,
+    });
+    fs.renameSync(displaced, parent);
+
+    const restoredAfter: any = fs.lstatSync(
+      target,
+      { bigint: true } as any,
+    );
+    assert.equal(
+      String(restoredAfter.dev),
+      String(before.dev),
+    );
+    assert.equal(
+      String(restoredAfter.ino),
+      String(before.ino),
+    );
+
     let retryFsyncs = 0;
     const admitted =
       stateDirectoryAuthority
@@ -3360,10 +3648,16 @@ async function main(): Promise<void> {
         );
     assert.ok(
       retryFsyncs >= 1,
-      "post-fsync reparented link was cached without retry fsync",
+      "restored post-fsync child link was reused without retry fsync",
     );
-    assert.equal(admitted.dev, String(after.dev));
-    assert.equal(admitted.ino, String(after.ino));
+    assert.equal(
+      admitted.dev,
+      String(restoredAfter.dev),
+    );
+    assert.equal(
+      admitted.ino,
+      String(restoredAfter.ino),
+    );
 
     fs.rmSync(root, {
       recursive: true,
@@ -3651,6 +3945,18 @@ async function main(): Promise<void> {
   );
   console.log(
     "post_fsync_cache_retry_resynced=true",
+  );
+  console.log(
+    "post_fsync_replacement_parent_adopted=false",
+  );
+  console.log(
+    "authority_root_parent_link_generation_bound=true",
+  );
+  console.log(
+    "cached_ancestor_link_chain_generation_bound=true",
+  );
+  console.log(
+    "restored_full_link_chain_resynced=true",
   );
   console.log(
     "self_attested_no_dataset_credit=false",

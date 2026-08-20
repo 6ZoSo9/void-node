@@ -1078,6 +1078,24 @@ need(
   "durable-link cache publication is not bound to the fsynced tuple",
 );
 need(
+  publicStateDirectoryAuthorityText.includes(
+    "function ensureDurableDirectoryLinkComponentV1(",
+  ) &&
+    publicStateDirectoryAuthorityText.includes(
+      "const durableComponents = pathComponentsV1(target).filter(",
+    ) &&
+    publicStateDirectoryAuthorityText.includes(
+      "for (const component of durableComponents)",
+    ) &&
+    publicStateDirectoryAuthorityText.includes(
+      "ensureDurableDirectoryLinkComponentV1(\n      authorityRoot,",
+    ) &&
+    publicStateDirectoryAuthorityText.includes(
+      "if (target === authorityRoot)",
+    ),
+  "public-state durability does not bind the full authority-root-to-target link chain",
+);
+need(
   !publicStateDirectoryAuthorityText.includes(
     "fsyncDirectoryV1(",
   ),

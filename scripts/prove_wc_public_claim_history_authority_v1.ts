@@ -855,13 +855,17 @@ async function main(): Promise<void> {
     );
     assert.equal(String(childAfter.ino), String(childBefore.ino));
     assert.notEqual(String(parentAfter.ino), String(parentBefore.ino));
+    // Full-chain admission may reject the replaced immediate parent as an
+    // admitted child-link generation before reaching the final target's
+    // parent-specific comparison. Both classifications are fail-closed and
+    // the exact cached child must remain inadmissible.
     assert.throws(
       () =>
         stateDirectoryAuthority.ensureWcPublicStateDurableDirectoryV1(
           target,
           tmp,
         ),
-      /wc_public_state_directory_parent_generation_changed/,
+      /wc_public_state_directory_(?:parent_)?generation_changed/,
     );
 
     fs.rmSync(tmp, { recursive: true, force: true });

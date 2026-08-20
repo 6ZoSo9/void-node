@@ -425,6 +425,84 @@ function cachedDirectoryLinkV1(
   return cached;
 }
 
+function ensureDurableDirectoryLinkComponentV1(
+  component: string,
+  authorityRoot: string,
+  hook: WcPublicStateDirectoryParentFsyncHookV1,
+): WcPublicStateDirectoryIdentityV1 {
+  const requirePrivate = isWithinV1(
+    component,
+    authorityRoot,
+  );
+  const identity = directoryIdentityV1(
+    component,
+    requirePrivate,
+  );
+  const parent = path.dirname(component);
+  if (parent === component) return identity;
+
+  const parentRequirePrivate = isWithinV1(
+    parent,
+    authorityRoot,
+  );
+  const parentIdentity = directoryIdentityV1(
+    parent,
+    parentRequirePrivate,
+  );
+  const cached = durableDirectoryLinksV1.get(component);
+  const childChanged =
+    component === authorityRoot
+      ? "wc_public_state_authority_root_generation_changed"
+      : "wc_public_state_directory_generation_changed";
+
+  if (cached) {
+    if (!sameIdentityV1(cached.child, identity)) {
+      throw new Error(childChanged);
+    }
+    if (!sameIdentityV1(cached.parent, parentIdentity)) {
+      throw new Error(
+        "wc_public_state_directory_parent_generation_changed",
+      );
+    }
+    const parentNamespace = directoryNamespaceEpochV1(
+      parent,
+      parentRequirePrivate,
+    );
+    if (
+      sameNamespaceEpochV1(
+        cached.parent_namespace,
+        parentNamespace,
+      )
+    ) {
+      return identity;
+    }
+  }
+
+  const durableLink = fsyncExactDirectoryLinkV1(
+    parent,
+    component,
+    parentIdentity,
+    identity,
+    parentRequirePrivate,
+    hook,
+  );
+  beforeCachePublishHookForProofV1?.(
+    parent,
+    component,
+  );
+  assertDurableDirectoryLinkCurrentV1(
+    parent,
+    component,
+    parentRequirePrivate,
+    durableLink,
+  );
+  durableDirectoryLinksV1.set(
+    component,
+    durableLink,
+  );
+  return durableLink.child;
+}
+
 export function ensureWcPublicStateDurableDirectoryV1(
   dirRaw: string,
   authorityRootRaw: string,
@@ -486,7 +564,25 @@ export function ensureWcPublicStateDurableDirectoryV1(
     directoryIdentityV1(component, requirePrivate);
   }
 
-  let authorityIdentity = directoryIdentityV1(authorityRoot, true);
+  const durableComponents = pathComponentsV1(target).filter(
+    (component) => isWithinV1(component, authorityRoot),
+  );
+  if (
+    durableComponents.length === 0 ||
+    durableComponents[0] !== authorityRoot ||
+    durableComponents[durableComponents.length - 1] !== target
+  ) {
+    throw new Error(
+      "wc_public_state_directory_outside_authority_root",
+    );
+  }
+
+  const authorityIdentity =
+    ensureDurableDirectoryLinkComponentV1(
+      authorityRoot,
+      authorityRoot,
+      hook,
+    );
   if (
     cachedAuthorityRoot &&
     !sameIdentityV1(cachedAuthorityRoot, authorityIdentity)
@@ -496,34 +592,28 @@ export function ensureWcPublicStateDurableDirectoryV1(
     );
   }
   if (!cachedAuthorityRoot) {
-    const authorityParent = path.dirname(authorityRoot);
-    if (authorityParent !== authorityRoot) {
-      const authorityParentRequirePrivate =
-        isWithinV1(authorityParent, authorityRoot);
-      const authorityParentIdentity = directoryIdentityV1(
-        authorityParent,
-        authorityParentRequirePrivate,
-      );
-      fsyncExactDirectoryLinkV1(
-        authorityParent,
-        authorityRoot,
-        authorityParentIdentity,
-        authorityIdentity,
-        authorityParentRequirePrivate,
-        null,
-      );
-      const durableAuthorityIdentity = directoryIdentityV1(
-        authorityRoot,
-        true,
-      );
-      if (!sameIdentityV1(authorityIdentity, durableAuthorityIdentity)) {
-        throw new Error(
-          "wc_public_state_authority_root_generation_changed",
-        );
-      }
-      authorityIdentity = durableAuthorityIdentity;
+    durableAuthorityRootsV1.set(
+      authorityRoot,
+      authorityIdentity,
+    );
+  }
+
+  for (const component of durableComponents) {
+    if (
+      component === authorityRoot ||
+      component === target
+    ) {
+      continue;
     }
-    durableAuthorityRootsV1.set(authorityRoot, authorityIdentity);
+    ensureDurableDirectoryLinkComponentV1(
+      component,
+      authorityRoot,
+      hook,
+    );
+  }
+
+  if (target === authorityRoot) {
+    return authorityIdentity;
   }
 
   const identity = directoryIdentityV1(target, true);
