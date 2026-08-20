@@ -536,14 +536,19 @@ function scanNamespaceV1(
       parsed.generation,
     );
   }
-  for (const generation of releaseGenerations) {
-    if (!lockGenerations.has(generation)) {
-      fail("wc_process_lock_ambiguous_generation");
-    }
-  }
   const current = lockGenerations.size
     ? Math.max(...lockGenerations)
     : 0;
+  for (const generation of releaseGenerations) {
+    if (lockGenerations.has(generation)) continue;
+    // Cleanup is retirement, not authority. Once a higher immutable lock
+    // generation exists, an old release pathname whose old lock pathname has
+    // already been removed cannot regain authority. Accept that bounded
+    // turnover shape so the next cleanup pass can retire it. An orphan release
+    // at/above the current lock generation remains ambiguous and fails closed.
+    if (current > 0 && generation < current) continue;
+    fail("wc_process_lock_ambiguous_generation");
+  }
   const after = directoryIdentityV1(namespace);
   if (!sameDirectoryIdentityV1(before, after)) {
     fail("wc_process_lock_directory_generation_changed");
@@ -1162,12 +1167,39 @@ async function cleanupOlderV1(
     LOCK_NAMESPACE_MAX_ENTRIES_V1 + 1,
     "wc_process_lock_namespace_overflow",
   );
+  const stale: Array<{
+    entry: fs.Dirent;
+    generation: number;
+    kind: "lock" | "released";
+  }> = [];
   for (const entry of entries) {
     const parsed = generationFromNameV1(entry.name);
-    if (!parsed || parsed.generation >= keepGeneration) continue;
-    if (!entry.isFile()) fail("wc_process_lock_ambiguous_generation");
+    if (!parsed || !entry.isFile()) {
+      fail("wc_process_lock_ambiguous_generation");
+    }
+    if (parsed.generation >= keepGeneration) continue;
+    stale.push({
+      entry,
+      generation: parsed.generation,
+      kind: parsed.kind,
+    });
+  }
+
+  // Retire the release projection before its matching old lock. A concurrent
+  // scanner may therefore observe a harmless old lock without a release, but
+  // never a release-only generation created by this cleanup path.
+  stale.sort((a, b) =>
+    a.generation - b.generation ||
+    (a.kind === b.kind
+      ? 0
+      : a.kind === "released"
+        ? -1
+        : 1),
+  );
+
+  for (const item of stale) {
     try {
-      await fsp.unlink(path.join(namespace, entry.name));
+      await fsp.unlink(path.join(namespace, item.entry.name));
     } catch (error: any) {
       if (String(error?.code || "") !== "ENOENT") throw error;
     }
@@ -1202,7 +1234,10 @@ async function inspectNamespaceV1(
   );
 
   if (
-    [...snapshot.lockGenerations].some(
+    [
+      ...snapshot.lockGenerations,
+      ...snapshot.releaseGenerations,
+    ].some(
       (generation) => generation < snapshot.current,
     )
   ) {

@@ -367,6 +367,55 @@ async function main(): Promise<void> {
       await releaseWcProcessInstanceLockV1(first);
     }
 
+    // Cleanup may be observed between unlink operations. A release-only
+    // residue below a higher immutable current lock is retirement debris, not
+    // authority corruption: the scanner must converge on the current owner and
+    // the cleanup pass must remove the stale residue without a hard ambiguity.
+    {
+      const retired = await acquireWcProcessInstanceLockV1(
+        root,
+        "cleanup-turnover",
+      );
+      await releaseWcProcessInstanceLockV1(retired);
+      const current = await acquireWcProcessInstanceLockV1(
+        root,
+        "cleanup-turnover",
+      );
+      assert.ok(current.generation > retired.generation);
+
+      const orphanRelease = genFile(
+        current.namespace_dir,
+        retired.generation,
+        "released",
+      );
+      writeJson(orphanRelease, {
+        marker: VOID_WC_PROCESS_INSTANCE_LOCK_V1,
+        version: 1,
+        name: retired.name,
+        generation: retired.generation,
+        pid: retired.pid,
+        process_start_ticks: retired.process_start_ticks,
+        boot_id: retired.boot_id,
+        owner_nonce: retired.owner_nonce,
+        released_at_ms: Date.now(),
+      });
+
+      await expectCode(
+        () =>
+          acquireWcProcessInstanceLockV1(
+            root,
+            "cleanup-turnover",
+          ),
+        "wc_process_lock_busy",
+      );
+      assert.equal(
+        fs.existsSync(orphanRelease),
+        false,
+        "stale release-only retirement residue was not reclaimed",
+      );
+      await releaseWcProcessInstanceLockV1(current);
+    }
+
     // A lock pathname that becomes visible before its directory fsync fails
     // must not self-wedge the publishing process. The next immutable
     // generation completes durability and retires the uncertain predecessor.
@@ -723,6 +772,8 @@ async function main(): Promise<void> {
     console.log("unrelated_history_scan_bounded=true");
     console.log("colliding_live_lock_names_isolated=true");
     console.log("adversarial_lock_fixture_roots_isolated=true");
+    console.log("cleanup_release_before_lock_order=true");
+    console.log("stale_release_turnover_converges=true");
     console.log("turnover_generation_rescanned=true");
     console.log("strict_lock_record_schema=true");
     console.log("strict_release_owner_tuple=true");
