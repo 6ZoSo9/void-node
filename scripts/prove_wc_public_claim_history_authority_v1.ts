@@ -224,6 +224,7 @@ async function main(): Promise<void> {
         tmp,
       );
     const concurrentDecisions = 32;
+    const sequentialDecisions = 8;
     await Promise.all(
       Array.from(
         { length: concurrentDecisions },
@@ -233,6 +234,14 @@ async function main(): Promise<void> {
           ),
       ),
     );
+    const sequentialStartedAt = Date.now();
+    for (let i = 0; i < sequentialDecisions; i += 1) {
+      await authority.prepareWcPublicClaimHistoryDecisionV1(
+        tmp,
+      );
+    }
+    const sequentialElapsedMs =
+      Date.now() - sequentialStartedAt;
     const decisionMetricsAfter =
       authority.wcPublicClaimHistoryDecisionMetricsForProofV1(
         tmp,
@@ -240,18 +249,97 @@ async function main(): Promise<void> {
     assert.equal(
       decisionMetricsAfter.decision_checks_total -
         decisionMetricsBefore.decision_checks_total,
-      concurrentDecisions,
+      concurrentDecisions + sequentialDecisions,
     );
     assert.equal(
       decisionMetricsAfter.mutation_generation_reads_total -
         decisionMetricsBefore.mutation_generation_reads_total,
-      concurrentDecisions,
+      concurrentDecisions + sequentialDecisions,
+    );
+    assert.equal(
+      decisionMetricsAfter.record_generation_stats_total -
+        decisionMetricsBefore.record_generation_stats_total,
+      0,
+      "fresh participant decisions performed retained-generation stats",
+    );
+    assert.equal(
+      decisionMetricsAfter.record_validation_fresh_hits_total -
+        decisionMetricsBefore.record_validation_fresh_hits_total,
+      concurrentDecisions + sequentialDecisions,
+    );
+    assert.equal(
+      decisionMetricsAfter.record_validation_background_starts_total -
+        decisionMetricsBefore.record_validation_background_starts_total,
+      0,
     );
     assert.ok(
-      decisionMetricsAfter.record_generation_stats_total -
-        decisionMetricsBefore.record_generation_stats_total >=
+      sequentialElapsedMs < 1_000,
+      `sequential fresh decisions exceeded bounded latency: ${sequentialElapsedMs}ms`,
+    );
+
+    await new Promise<void>((resolve) =>
+      setTimeout(
+        resolve,
+        authority.VOID_WC_PUBLIC_CLAIM_HISTORY_RECORD_VALIDATION_LEASE_MS_V1 +
+          25,
+      ),
+    );
+    const expiredDecisionStartedAt = Date.now();
+    await assert.rejects(
+      () =>
+        authority.prepareWcPublicClaimHistoryDecisionV1(
+          tmp,
+        ),
+      /VOID_WC_PUBLIC_CLAIM_HISTORY_WARMING/,
+    );
+    const expiredDecisionElapsedMs =
+      Date.now() - expiredDecisionStartedAt;
+    assert.ok(
+      expiredDecisionElapsedMs < 1_000,
+      `expired decision awaited retained history: ${expiredDecisionElapsedMs}ms`,
+    );
+
+    const validationMetricsStarted =
+      authority.wcPublicClaimHistoryDecisionMetricsForProofV1(
+        tmp,
+      );
+    assert.equal(
+      validationMetricsStarted.record_validation_background_starts_total -
+        decisionMetricsAfter.record_validation_background_starts_total,
+      1,
+    );
+    await authority.waitForWcPublicClaimHistoryWarmForProofV1(
+      tmp,
+    );
+    const validationMetricsFinished =
+      authority.wcPublicClaimHistoryDecisionMetricsForProofV1(
+        tmp,
+      );
+    assert.ok(
+      validationMetricsFinished.record_generation_stats_total -
+        decisionMetricsAfter.record_generation_stats_total >=
         2400,
-      "exact record-generation barrier did not cover warmed history",
+      "background exact-generation reconciliation did not cover warmed history",
+    );
+
+    const postValidationMetrics =
+      authority.wcPublicClaimHistoryDecisionMetricsForProofV1(
+        tmp,
+      );
+    for (let i = 0; i < sequentialDecisions; i += 1) {
+      await authority.prepareWcPublicClaimHistoryDecisionV1(
+        tmp,
+      );
+    }
+    const postValidationDecisions =
+      authority.wcPublicClaimHistoryDecisionMetricsForProofV1(
+        tmp,
+      );
+    assert.equal(
+      postValidationDecisions.record_generation_stats_total -
+        postValidationMetrics.record_generation_stats_total,
+      0,
+      "sequential post-validation decisions repeated retained-generation stats",
     );
 
     const snapshot =
@@ -2205,7 +2293,15 @@ async function main(): Promise<void> {
 
     // A live watcher may acknowledge its sentinel even when one ordinary
     // mutation notification is absent. Exact record generations, rather
-    // than sentinel liveness, must still reject cached account-B policy.
+    // than sentinel liveness, must still reject cached account-B policy as
+    // soon as the reviewed freshness lease requires exact reconciliation.
+    await new Promise<void>((resolve) =>
+      setTimeout(
+        resolve,
+        authority.VOID_WC_PUBLIC_CLAIM_HISTORY_RECORD_VALIDATION_LEASE_MS_V1 +
+          25,
+      ),
+    );
     const directoryBeforeUncooperative = dirStamp(d.issued);
     const mutationBeforeUncooperative =
       await authority.readWcPublicClaimHistoryMutationGenerationForProofV1(
@@ -2502,7 +2598,7 @@ async function main(): Promise<void> {
   console.log("missed_watch_uncooperative_in_place_rewrite_fails_closed=true");
   console.log("per_decision_retained_record_content_read=false");
   console.log("decision_mutation_generation_reads_per_request=1");
-  console.log("decision_record_generation_validation=single_flight_async");
+  console.log("decision_record_generation_validation=bounded_freshness_background_single_flight");
   console.log("mutation_generation_no_follow=true");
   console.log("mutation_generation_regular_file_only=true");
   console.log("mutation_generation_exact_65_bytes=true");

@@ -10,6 +10,8 @@ export const VOID_WC_PUBLIC_CLAIM_HISTORY_AUTHORITY_V1 =
   "VOID_WC_PUBLIC_CLAIM_HISTORY_AUTHORITY_V1";
 export const VOID_WC_PUBLIC_CLAIM_HISTORY_MAX_RECORD_BYTES_V1 =
   256 * 1024;
+export const VOID_WC_PUBLIC_CLAIM_HISTORY_RECORD_VALIDATION_LEASE_MS_V1 =
+  1_000;
 
 const WARM_YIELD_EVERY_V1 = 32;
 const DAY_MS_V1 = 24 * 60 * 60_000;
@@ -74,6 +76,7 @@ type HistoryStateV1 = {
   watch_generation: number;
   mutation_generation: string;
   record_generations: Map<string, RecordStampV1>;
+  record_validation_fresh_until_ms: number;
 };
 
 type WarmFailureV1 = {
@@ -107,6 +110,8 @@ const watchChallengeTasksV1 =
   new Map<string, Promise<void>>();
 const decisionRecordValidationTasksV1 =
   new WeakMap<HistoryStateV1, Promise<boolean>>();
+const decisionRecordValidationTasksByKeyV1 =
+  new Map<string, Promise<boolean>>();
 const suppressedWatchMutationNotificationsForProofV1 =
   new Set<string>();
 
@@ -118,6 +123,8 @@ type HistoryDecisionMetricsV1 = {
   decision_checks_total: number;
   mutation_generation_reads_total: number;
   record_generation_stats_total: number;
+  record_validation_fresh_hits_total: number;
+  record_validation_background_starts_total: number;
 };
 
 const decisionMetricsV1 =
@@ -133,6 +140,8 @@ function decisionMetricsForV1(
       decision_checks_total: 0,
       mutation_generation_reads_total: 0,
       record_generation_stats_total: 0,
+      record_validation_fresh_hits_total: 0,
+      record_validation_background_starts_total: 0,
     };
     decisionMetricsV1.set(key, metrics);
   }
@@ -927,6 +936,7 @@ function emptyStateV1(
     watch_generation: watchGeneration,
     mutation_generation: mutationGeneration,
     record_generations: new Map(),
+    record_validation_fresh_until_ms: 0,
   };
 }
 
@@ -1387,27 +1397,77 @@ async function revalidateRecordGenerationsV1(
   return true;
 }
 
-async function validateDecisionRecordGenerationsV1(
+function decisionRecordGenerationsFreshV1(
   state: HistoryStateV1,
   metrics: HistoryDecisionMetricsV1,
-): Promise<boolean> {
-  const existing = decisionRecordValidationTasksV1.get(state);
-  if (existing) return existing;
-
-  const task = revalidateRecordGenerationsV1(
-    state,
-    () => {
-      metrics.record_generation_stats_total += 1;
-    },
-  );
-  decisionRecordValidationTasksV1.set(state, task);
-  try {
-    return await task;
-  } finally {
-    if (decisionRecordValidationTasksV1.get(state) === task) {
-      decisionRecordValidationTasksV1.delete(state);
-    }
+): boolean {
+  if (
+    Date.now() <= state.record_validation_fresh_until_ms
+  ) {
+    metrics.record_validation_fresh_hits_total += 1;
+    return true;
   }
+
+  const existing = decisionRecordValidationTasksV1.get(state);
+  if (existing) return false;
+
+  const key = state.data_dir;
+  metrics.record_validation_background_starts_total += 1;
+
+  let task: Promise<boolean> = Promise.resolve(false);
+  task = (async () => {
+    try {
+      const recordsStable =
+        await revalidateRecordGenerationsV1(
+          state,
+          () => {
+            metrics.record_generation_stats_total += 1;
+          },
+        );
+      const watch = ensureWatchStateV1(key);
+      const mutationGeneration =
+        await readHistoryMutationGenerationV1(key);
+      const current = stampsV1(key);
+
+      if (
+        recordsStable &&
+        statesV1.get(key) === state &&
+        watch.healthy &&
+        watch.generation === state.watch_generation &&
+        mutationGeneration === state.mutation_generation &&
+        sameStampsV1(state.stamps, current)
+      ) {
+        state.record_validation_fresh_until_ms =
+          Date.now() +
+          VOID_WC_PUBLIC_CLAIM_HISTORY_RECORD_VALIDATION_LEASE_MS_V1;
+        return true;
+      }
+
+      if (statesV1.get(key) === state) {
+        statesV1.delete(key);
+        warmFailuresV1.delete(key);
+        startWarmV1(key);
+      }
+      return false;
+    } catch {
+      if (statesV1.get(key) === state) {
+        statesV1.delete(key);
+        warmFailuresV1.delete(key);
+        startWarmV1(key);
+      }
+      return false;
+    } finally {
+      if (decisionRecordValidationTasksV1.get(state) === task) {
+        decisionRecordValidationTasksV1.delete(state);
+      }
+      if (decisionRecordValidationTasksByKeyV1.get(key) === task) {
+        decisionRecordValidationTasksByKeyV1.delete(key);
+      }
+    }
+  })();
+  decisionRecordValidationTasksV1.set(state, task);
+  decisionRecordValidationTasksByKeyV1.set(key, task);
+  return false;
 }
 
 async function rebuildHistoryV1(
@@ -1466,6 +1526,9 @@ async function rebuildHistoryV1(
     ) {
       state.stamps = after;
       state.watch_generation = watchAfter;
+      state.record_validation_fresh_until_ms =
+        Date.now() +
+        VOID_WC_PUBLIC_CLAIM_HISTORY_RECORD_VALIDATION_LEASE_MS_V1;
       statesV1.set(key, state);
       warmFailuresV1.delete(key);
       return;
@@ -1595,18 +1658,24 @@ export async function prepareWcPublicClaimHistoryDecisionV1(
   const mutationGeneration =
     await readHistoryMutationGenerationV1(raw);
   metrics.mutation_generation_reads_total += 1;
-  // Watch delivery is advisory. Exact pathname generations are the
-  // correctness-grade barrier for a live watcher that acknowledges its
-  // sentinel while an ordinary same-inode notification is absent.
-  const recordsStable =
-    await validateDecisionRecordGenerationsV1(state, metrics);
+  // Watch delivery is advisory. A completed exact pathname-generation pass
+  // leases its result for a short, reviewed interval. Once that lease expires,
+  // the participant path starts (or joins) one yielding background pass and
+  // deterministically HOLDs instead of awaiting O(retained history) work.
+  const recordsFresh =
+    decisionRecordGenerationsFreshV1(state, metrics);
+
+  if (!recordsFresh) {
+    throw new Error(
+      "VOID_WC_PUBLIC_CLAIM_HISTORY_WARMING",
+    );
+  }
 
   const after = stampsV1(raw);
   const watchAfter = watch.generation;
   const stillPublished = statesV1.get(key) === state;
 
   if (
-    !recordsStable ||
     mutationGeneration !== state.mutation_generation ||
     !watch.healthy ||
     !stillPublished ||
@@ -1655,7 +1724,10 @@ function readyStateV1(raw?: string): HistoryStateV1 {
     warmFailuresV1.delete(key);
   }
 
-  if (warmTasksV1.has(key)) {
+  if (
+    warmTasksV1.has(key) ||
+    decisionRecordValidationTasksByKeyV1.has(key)
+  ) {
     throw new Error(
       "VOID_WC_PUBLIC_CLAIM_HISTORY_WARMING",
     );
@@ -1846,6 +1918,9 @@ export async function waitForWcPublicClaimHistoryWarmForProofV1(
 
   for (let attempt = 0; attempt < 12; attempt += 1) {
     primeWcPublicClaimHistoryAuthorityV1(raw);
+    const validationTask =
+      decisionRecordValidationTasksByKeyV1.get(key);
+    if (validationTask) await validationTask;
     const task = warmTasksV1.get(key);
     if (task) await task;
 
@@ -1889,7 +1964,10 @@ export function resetWcPublicClaimHistoryAuthorityForProofV1(
   raw?: string,
 ): void {
   const key = keyV1(raw);
-  if (warmTasksV1.has(key)) {
+  if (
+    warmTasksV1.has(key) ||
+    decisionRecordValidationTasksByKeyV1.has(key)
+  ) {
     throw new Error(
       "VOID_WC_PUBLIC_CLAIM_HISTORY_RESET_WHILE_WARMING",
     );
