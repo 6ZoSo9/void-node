@@ -68,9 +68,13 @@ exclusively inside that pinned namespace, written through the already-open
 descriptor, forced to mode `0600`, and synchronized before close. The parent
 directory is synchronized and its absolute pathname must still resolve to the
 same device/inode generation before success is returned. A symlinked component
-or concurrent parent replacement fails closed before publication. This
-Linux source contract requires `/proc/self/fd`; absence fails closed. Choose a
-new output path for each publication rather than relying on overwrite behavior.
+or concurrent parent replacement fails closed before publication. Failures
+before that exact commit terminal remove only the opened leaf generation so the
+same path remains retryable. Once the exact file and parent namespace are
+durable and revalidated, a late close report cannot turn the committed
+create-only result into a false failure. This Linux source contract requires
+`/proc/self/fd`; absence fails closed. Choose a new output path for each
+ordinary publication rather than relying on overwrite behavior.
 
 ## Network boundary
 

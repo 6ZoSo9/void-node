@@ -1569,8 +1569,20 @@ export function writeBootstrapOutputFileV1(
     writeFileSync(descriptor, content, {
       encoding: "utf8",
     });
+    testHooks?.afterOutputWrite?.({
+      parent,
+      resolved,
+    });
     fchmodSync(descriptor, 0o600);
+    testHooks?.afterOutputMode?.({
+      parent,
+      resolved,
+    });
     fsyncSync(descriptor);
+    testHooks?.afterOutputFsync?.({
+      parent,
+      resolved,
+    });
     const linkedIdentity = identityOfV1(
       lstatSync(boundOutput, { bigint: true }),
     );
@@ -1582,7 +1594,19 @@ export function writeBootstrapOutputFileV1(
     published = true;
   } finally {
     if (descriptor !== undefined) {
-      closeSync(descriptor);
+      try {
+        closeSync(descriptor);
+        testHooks?.afterOutputClosed?.({
+          parent,
+          resolved,
+        });
+      } catch {
+        // An exact file+parent fsync and final generation validation already
+        // establish a committed result. A late close report cannot reverse
+        // that truth or turn the create-only leaf into a false HOLD. Before
+        // publication, preserve the original failure and continue exact-leaf
+        // rollback instead of letting close mask cleanup.
+      }
     }
     if (!published && openedIdentity) {
       try {
@@ -1597,7 +1621,12 @@ export function writeBootstrapOutputFileV1(
         // Never delete an unknown replacement generation while failing closed.
       }
     }
-    closeSync(pinned.fd);
+    try {
+      closeSync(pinned.fd);
+    } catch {
+      // Parent close cannot reverse an already-fsynced namespace commit and
+      // must not mask a pre-publication failure/rollback terminal.
+    }
   }
 
   return resolved;

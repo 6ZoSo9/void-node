@@ -1588,6 +1588,76 @@ for (const parent of [
   );
 }
 
+for (const hookName of [
+  "afterOutputWrite",
+  "afterOutputMode",
+  "afterOutputFsync",
+]) {
+  const failedOutputPath = path.join(
+    outputDirectory,
+    `failure-${hookName}.json`,
+  );
+  assert.throws(
+    () =>
+      writeBootstrapOutputFileV1(
+        failedOutputPath,
+        outputContent,
+        {
+          [hookName]() {
+            throw new Error(
+              `injected ${hookName} failure`,
+            );
+          },
+        },
+      ),
+    new RegExp(`injected ${hookName} failure`),
+  );
+  assert.throws(
+    () => statSync(failedOutputPath),
+    /ENOENT/,
+  );
+  assert.equal(
+    writeBootstrapOutputFileV1(
+      failedOutputPath,
+      outputContent,
+    ),
+    failedOutputPath,
+  );
+  assert.equal(
+    readFileSync(failedOutputPath, "utf8"),
+    outputContent,
+  );
+}
+
+const closeReportOutputPath = path.join(
+  outputDirectory,
+  "close-report.json",
+);
+assert.equal(
+  writeBootstrapOutputFileV1(
+    closeReportOutputPath,
+    outputContent,
+    {
+      afterOutputClosed() {
+        throw new Error("injected close report failure");
+      },
+    },
+  ),
+  closeReportOutputPath,
+);
+assert.equal(
+  readFileSync(closeReportOutputPath, "utf8"),
+  outputContent,
+);
+assert.throws(
+  () =>
+    writeBootstrapOutputFileV1(
+      closeReportOutputPath,
+      "replacement\n",
+    ),
+  /output path already exists/,
+);
+
 const clientSource = readFileSync(
   new URL("../tools/void-ai-agent-bootstrap-client-v1.mjs", import.meta.url),
   "utf8",
@@ -1676,6 +1746,8 @@ console.log("output_descriptor_bound=true");
 console.log("output_parent_namespace_bound=true");
 console.log("output_parent_replacement_held=true");
 console.log("output_late_parent_replacement_cleaned=true");
+console.log("output_precommit_failure_retryable=true");
+console.log("output_committed_close_report_terminal=true");
 console.log("output_mode_0600=true");
 console.log("http_get_only=true");
 console.log("credentials_sent=false");
