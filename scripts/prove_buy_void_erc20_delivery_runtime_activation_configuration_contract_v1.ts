@@ -584,6 +584,8 @@ for (const marker of [
   "paid_unreservable_history_expected_set_mismatch",
   "inventory_reservation_filename_content_identity_mismatch",
   "paid_unreservable_filename_content_identity_mismatch",
+  "function withPinnedPrivateDirectoryV1",
+  "function assertPinnedPrivateDirectoryCurrentV1",
 ]) {
   assert.equal(
     inventoryHistory.includes(marker),
@@ -623,6 +625,7 @@ console.log("durable_history_partial_creation_retry_ready=1");
 console.log("durable_history_manual_state_surgery_required_after_creation_crash=0");
 console.log("durable_history_stale_lock_recovery_ready=1");
 console.log("durability_authority_directory_namespace_ready=1");
+console.log("durability_authority_descendant_generation_pinned_ready=1");
 console.log("durability_authoritative_file_owner_mode_ready=1");
 console.log("bounded_durable_state_reads_ready=1");
 console.log("durable_metadata_exact_runtime_json_types_ready=1");

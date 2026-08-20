@@ -66,10 +66,14 @@ private mode, regular/non-symlink objects. First-use directory creation fsyncs
 each parent namespace. Existing-path retries re-fsync publication directories.
 Each transaction opens the configured root one component at a time with
 directory/no-follow descriptors, verifies that the public root still identifies
-the pinned inode, and performs all descendant reads, locks, links, appends, and
-fsyncs through that pinned `/proc/self/fd` namespace. A root or ancestor
-generation change before or during the transaction HOLDs; replacement trees are
-never accepted as durability evidence or publication authority.
+the pinned inode, and performs descendant work through that pinned
+`/proc/self/fd` namespace. Every durability-critical leaf read, create, link,
+unlink, append, repair, directory scan, and fsync additionally pins its exact
+private parent directory until the operation completes and rechecks that the
+public descendant still names the pinned generation. A configured-root or lower
+descendant generation change before or during the operation HOLDs; replacement
+trees are never consumed as durability evidence or used as publication
+authority.
 Single JSON records are bounded to 1 MiB; index and anchor JSONL are scanned in
 64 KiB chunks with 64 MiB aggregate and 256 KiB line limits while file identity
 is stable. Durable numeric/string/identity fields keep exact JSON runtime types,

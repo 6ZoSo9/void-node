@@ -131,7 +131,7 @@ function withDirectoryFsyncFailure(
   const originalOpen = fs.openSync;
   const originalFsync = fs.fsyncSync;
   const originalClose = fs.closeSync;
-  const directoryDescriptors = new Set<number>();
+  const directoryDescriptors = new Map<number, string>();
   const observedDirectories: string[] = [];
   let seen = 0;
   let fired = false;
@@ -142,18 +142,30 @@ function withDirectoryFsyncFailure(
     mode?: fs.Mode,
   ) => {
     const descriptor = (originalOpen as any)(file, flags, mode);
-    if (String(flags) === "r") observedDirectories.push(String(file));
+    const isDirectory = typeof flags === "number"
+      ? (flags & fs.constants.O_DIRECTORY) === fs.constants.O_DIRECTORY
+      : String(flags) === "r";
+    let openedPath = String(file);
+    if (isDirectory) {
+      try {
+        openedPath = fs.realpathSync(`/proc/self/fd/${descriptor}`);
+      } catch {
+        // Keep the submitted path when descriptor rendering is unavailable.
+      }
+      observedDirectories.push(openedPath);
+    }
     if (
-      inventoryAuthoritySuffix(String(file)) ===
+      inventoryAuthoritySuffix(openedPath) ===
         inventoryAuthoritySuffix(targetDir) &&
-      String(flags) === "r"
+      isDirectory
     ) {
-      directoryDescriptors.add(descriptor);
+      directoryDescriptors.set(descriptor, openedPath);
     }
     return descriptor;
   };
   (fs as any).fsyncSync = (descriptor: number) => {
-    if (directoryDescriptors.has(descriptor)) {
+    const syncedDirectory = directoryDescriptors.get(descriptor);
+    if (syncedDirectory) {
       seen += 1;
       if (!fired && seen === occurrence) {
         fired = true;
@@ -219,7 +231,7 @@ const reservationBoundaries: Boundary[] = [
   {
     name: "history_anchor_parent",
     target: (paths) => paths.history_anchor_pool_dir,
-    occurrence: 2,
+    occurrence: 3,
   },
   {
     name: "pending_deletion",
@@ -255,7 +267,11 @@ for (let index = 0; index < reservationBoundaries.length; index += 1) {
       },
     );
     assert.ok(interrupted);
-    assert.equal(interrupted!.ok, false, `${boundary.name}: injected write must HOLD`);
+    assert.equal(
+      interrupted!.ok,
+      false,
+      `${boundary.name}: injected write must HOLD`,
+    );
     if (interrupted!.ok) throw new Error("expected interrupted reservation HOLD");
     assert.equal(
       interrupted!.reason === "inventory_reservation_write_failed" ||
@@ -324,7 +340,7 @@ const obligationBoundaries: Boundary[] = [
   {
     name: "history_anchor_parent",
     target: (paths) => paths.history_anchor_pool_dir,
-    occurrence: 2,
+    occurrence: 3,
   },
   {
     name: "pending_deletion",

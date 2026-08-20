@@ -473,11 +473,20 @@ function withOneShotOpenFailure(
     mode?: fs.Mode,
   ) => {
     const numericFlags = typeof flags === "number" ? flags : 0;
+    let sameParent = false;
+    try {
+      sameParent =
+        fs.realpathSync(path.dirname(String(file))) ===
+          fs.realpathSync(path.dirname(target));
+    } catch {
+      sameParent =
+        path.basename(path.dirname(String(file))) ===
+          path.basename(path.dirname(target));
+    }
     if (
       !fired &&
       path.basename(String(file)) === path.basename(target) &&
-      path.basename(path.dirname(String(file))) ===
-        path.basename(path.dirname(target)) &&
+      sameParent &&
       (numericFlags & fs.constants.O_WRONLY) === fs.constants.O_WRONLY
     ) {
       fired = true;
@@ -532,6 +541,56 @@ function withRootNamespaceSwapAtIdentityCheck(
   assert.equal(swapped, true);
 }
 
+function withDescendantNamespaceSwapAtLeafOpen(
+  descendantDir: string,
+  matchesLeaf: (leaf: string, flags: fs.OpenMode) => boolean,
+  prepareReplacement: (replacementDir: string) => void,
+  body: (reviewedDir: string, replacementDir: string) => void,
+): void {
+  const reviewedDir = `${descendantDir}.reviewed-${process.pid}`;
+  const replacementDir = `${descendantDir}.replacement-${process.pid}`;
+  fs.mkdirSync(replacementDir, { mode: 0o700 });
+  prepareReplacement(replacementDir);
+  const originalOpen = fs.openSync;
+  let swapped = false;
+  (fs as any).openSync = (
+    target: fs.PathLike,
+    flags: fs.OpenMode,
+    mode?: fs.Mode,
+  ) => {
+    const targetText = String(target);
+    let openedInsideDescendant = false;
+    try {
+      openedInsideDescendant =
+        fs.realpathSync(path.dirname(targetText)) ===
+          fs.realpathSync(descendantDir);
+    } catch {
+      openedInsideDescendant = false;
+    }
+    if (
+      !swapped &&
+      openedInsideDescendant &&
+      matchesLeaf(path.basename(targetText), flags)
+    ) {
+      fs.renameSync(descendantDir, reviewedDir);
+      fs.renameSync(replacementDir, descendantDir);
+      swapped = true;
+    }
+    return originalOpen(target, flags, mode as any);
+  };
+  try {
+    body(reviewedDir, descendantDir);
+  } finally {
+    (fs as any).openSync = originalOpen;
+    if (swapped) {
+      fs.renameSync(descendantDir, replacementDir);
+      fs.renameSync(reviewedDir, descendantDir);
+    }
+    fs.rmSync(replacementDir, { recursive: true, force: true });
+  }
+  assert.equal(swapped, true);
+}
+
 function withOneShotLinkFailure(
   destinationFragment: string,
   body: () => void,
@@ -542,9 +601,18 @@ function withOneShotLinkFailure(
     existingPath: fs.PathLike,
     newPath: fs.PathLike,
   ) => {
+    let destination = String(newPath);
+    try {
+      destination = path.join(
+        fs.realpathSync(path.dirname(destination)),
+        path.basename(destination),
+      );
+    } catch {
+      // Keep the rendered descriptor-relative path for the assertion below.
+    }
     if (
       !fired &&
-      String(newPath).includes(destinationFragment) &&
+      destination.includes(destinationFragment) &&
       /^[0-9a-f]{64}\.json$/.test(path.basename(String(newPath)))
     ) {
       fired = true;
@@ -569,7 +637,15 @@ function withOneShotPendingDeleteFailure(
   const original = fs.unlinkSync;
   let fired = false;
   (fs as any).unlinkSync = (file: fs.PathLike) => {
-    const rendered = String(file);
+    let rendered = String(file);
+    try {
+      rendered = path.join(
+        fs.realpathSync(path.dirname(rendered)),
+        path.basename(rendered),
+      );
+    } catch {
+      // Keep the rendered descriptor-relative path for the assertion below.
+    }
     if (
       !fired &&
       path.basename(path.dirname(rendered)) === path.basename(pendingDir) &&
@@ -1467,6 +1543,93 @@ withAdversarialRoot("authority-write-root-generation-swap", (root) => {
   });
 });
 
+withAdversarialRoot("authority-read-descendant-generation-swap", (root) => {
+  const { paths, reservationNames } = seedPartiallyAvailablePool(root);
+  const targetName = reservationNames[0];
+  const redirected = '{"redirected_authority":true}\n';
+  withDescendantNamespaceSwapAtLeafOpen(
+    paths.reservations_dir,
+    (leaf) => leaf === targetName,
+    (replacementDir) => {
+      fs.writeFileSync(
+        path.join(replacementDir, targetName),
+        redirected,
+        { encoding: "utf8", mode: 0o600 },
+      );
+    },
+    (_reviewedDir, replacementDir) => {
+      assert.throws(
+        () => listBuyVoidInventoryReservationsV1({
+          root_dir: root,
+          pool_id: policy().pool_id,
+        }),
+        /inventory_authority_namespace_changed/,
+      );
+      assert.equal(
+        fs.readFileSync(path.join(replacementDir, targetName), "utf8"),
+        redirected,
+      );
+    },
+  );
+  assert.equal(
+    listBuyVoidInventoryReservationsV1({
+      root_dir: root,
+      pool_id: policy().pool_id,
+    }).length,
+    2,
+  );
+});
+
+withAdversarialRoot("authority-write-descendant-generation-swap", (root) => {
+  const { paths } = seedPartiallyAvailablePool(root);
+  const intent = makeIntent(7, "100");
+  const preview = reserveBuyVoidInventoryV1({
+    root_dir: root,
+    intent,
+    policy: policy(),
+    apply: false,
+    now_ms: 1_700_000_019_910,
+  });
+  assert.equal(preview.ok, true);
+  if (!preview.ok) throw new Error("descendant write preview held");
+  const targetName = `${preview.reservation.reservation_id}.json`;
+  withDescendantNamespaceSwapAtLeafOpen(
+    paths.reservations_dir,
+    (leaf) => leaf.startsWith(`.${targetName}.tmp-`),
+    () => undefined,
+    (_reviewedDir, replacementDir) => {
+      const held = reserveBuyVoidInventoryV1({
+        root_dir: root,
+        intent,
+        policy: policy(),
+        apply: true,
+        now_ms: 1_700_000_019_910,
+      });
+      assert.equal(held.ok, false);
+      assert.match(
+        String(held.ok ? "" : held.detail?.message || held.reason),
+        /inventory_authority_namespace_changed/,
+      );
+      assert.deepEqual(fs.readdirSync(replacementDir), []);
+    },
+  );
+  const recovered = reserveBuyVoidInventoryV1({
+    root_dir: root,
+    intent,
+    policy: policy(),
+    apply: true,
+    now_ms: 1_700_000_019_910,
+  });
+  assert.equal(recovered.ok, true);
+  assert.equal(
+    listBuyVoidInventoryReservationsV1({
+      root_dir: root,
+      pool_id: policy().pool_id,
+    }).length,
+    3,
+  );
+});
+
 withAdversarialRoot("bounded-record-read", (root) => {
   const { paths, reservationNames } = seedPartiallyAvailablePool(root);
   const file = path.join(paths.reservations_dir, reservationNames[0]);
@@ -1661,8 +1824,14 @@ withAdversarialRoot("uncertain-lock-publication-recovery", (root) => {
   let fired = false;
   (fs as any).openSync = (file: fs.PathLike, flags: fs.OpenMode, mode?: fs.Mode) => {
     const descriptor = (originalOpen as any)(file, flags, mode);
+    let openedPath = String(file);
+    try {
+      openedPath = fs.realpathSync(`/proc/self/fd/${descriptor}`);
+    } catch {
+      // Non-directory descriptors do not need a stable rendered path here.
+    }
     if (
-      path.basename(String(file)) ===
+      path.basename(openedPath) ===
         path.basename(paths.history_anchor_pool_dir) &&
       (typeof flags === "number"
         ? (flags & fs.constants.O_DIRECTORY) === fs.constants.O_DIRECTORY
@@ -1767,6 +1936,8 @@ console.log("durable_history_liability_corruption_blocks_new_mutation=1");
 console.log("durability_authority_owner_mode_symlink_fail_closed=1");
 console.log("durability_authority_generation_pinned_root=1");
 console.log("durability_authority_ancestor_swap_read_write_hold=1");
+console.log("durability_authority_descendant_generation_pinned=1");
+console.log("durability_authority_descendant_swap_read_write_hold=1");
 console.log("bounded_durable_state_reads=1");
 console.log("durable_metadata_exact_runtime_json_types=1");
 console.log("pool_lock_process_instance_identity=1");

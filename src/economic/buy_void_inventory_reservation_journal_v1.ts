@@ -610,41 +610,6 @@ function descriptorNamespaceParts(target: string): {
   };
 }
 
-function assertOwnedPrivateDirectory(dir: string): void {
-  const descriptorNamespace = descriptorNamespaceParts(dir);
-  if (descriptorNamespace && descriptorNamespace.descendants.length === 0) {
-    assertOwnedPrivateDirectoryStat(
-      fs.fstatSync(descriptorNamespace.descriptor),
-      dir,
-    );
-    return;
-  }
-  const stat = fs.lstatSync(dir);
-  assertOwnedPrivateDirectoryStat(stat, dir);
-}
-
-function assertNoSymlinkAncestors(target: string): void {
-  const resolved = path.resolve(target);
-  const descriptorNamespace = descriptorNamespaceParts(resolved);
-  const stop = descriptorNamespace
-    ? `/proc/self/fd/${descriptorNamespace.descriptor}`
-    : path.parse(resolved).root;
-  let current = resolved;
-  while (true) {
-    if (current === stop) return;
-    try {
-      if (fs.lstatSync(current).isSymbolicLink()) {
-        throw new Error(`inventory_authority_symlink_ancestor:${current}`);
-      }
-    } catch (error) {
-      if ((error as NodeJS.ErrnoException)?.code !== "ENOENT") throw error;
-    }
-    const parent = path.dirname(current);
-    if (parent === current) return;
-    current = parent;
-  }
-}
-
 function openDirectoryComponentNoFollow(
   stablePath: string,
   displayPath: string,
@@ -727,8 +692,46 @@ function traversePrivateDirectoryV1(
 }
 
 function ensurePrivateDir(dir: string): void {
-  const descriptor = traversePrivateDirectoryV1(dir, true);
-  fs.closeSync(descriptor);
+  withPinnedPrivateDirectoryV1(dir, true, () => undefined);
+}
+
+function assertPinnedPrivateDirectoryCurrentV1(
+  dir: string,
+  descriptor: number,
+): void {
+  try {
+    const descriptorNamespace = descriptorNamespaceParts(dir);
+    const current = descriptorNamespace &&
+        descriptorNamespace.descendants.length === 0
+      ? fs.fstatSync(descriptorNamespace.descriptor, { bigint: true })
+      : fs.lstatSync(dir, { bigint: true });
+    const pinned = fs.fstatSync(descriptor, { bigint: true });
+    assertOwnedPrivateDirectoryStat(current, dir);
+    assertOwnedPrivateDirectoryStat(pinned, dir);
+    if (current.dev !== pinned.dev || current.ino !== pinned.ino) {
+      throw new Error("inventory_authority_namespace_changed");
+    }
+  } catch (error) {
+    const message = String((error as Error)?.message || error);
+    if (message === "inventory_authority_namespace_changed") throw error;
+    throw new Error(`inventory_authority_namespace_changed:${message}`);
+  }
+}
+
+function withPinnedPrivateDirectoryV1<T>(
+  dir: string,
+  createMissing: boolean,
+  action: (stableDir: string, descriptor: number) => T,
+): T {
+  const descriptor = traversePrivateDirectoryV1(dir, createMissing);
+  try {
+    assertPinnedPrivateDirectoryCurrentV1(dir, descriptor);
+    const output = action(`/proc/self/fd/${descriptor}`, descriptor);
+    assertPinnedPrivateDirectoryCurrentV1(dir, descriptor);
+    return output;
+  } finally {
+    fs.closeSync(descriptor);
+  }
 }
 
 function assertPinnedInventoryRootCurrentV1(
@@ -771,12 +774,11 @@ function withPinnedInventoryRootV1<T>(
 }
 
 function fsyncDir(dir: string): void {
-  const descriptor = fs.openSync(dir, "r");
-  try {
-    fs.fsyncSync(descriptor);
-  } finally {
-    fs.closeSync(descriptor);
-  }
+  withPinnedPrivateDirectoryV1(
+    dir,
+    false,
+    (_stableDir, descriptor) => fs.fsyncSync(descriptor),
+  );
 }
 
 function ensureInventoryAuthorityDirectories(
@@ -805,44 +807,46 @@ function atomicCreateJson(
   value: unknown,
 ): "created" | "exists" {
   const parent = path.dirname(file);
-  ensurePrivateDir(parent);
-  const temporary = path.join(
-    parent,
-    `.${path.basename(file)}.tmp-${process.pid}-` +
-      crypto.randomBytes(8).toString("hex"),
-  );
-  const descriptor = fs.openSync(temporary, "wx", 0o600);
-  try {
-    fs.writeFileSync(
-      descriptor,
-      `${JSON.stringify(value, null, 2)}\n`,
-      "utf8",
+  return withPinnedPrivateDirectoryV1(parent, true, (stableParent, parentFd) => {
+    const stableFile = path.join(stableParent, path.basename(file));
+    const temporary = path.join(
+      stableParent,
+      `.${path.basename(file)}.tmp-${process.pid}-` +
+        crypto.randomBytes(8).toString("hex"),
     );
-    fs.fsyncSync(descriptor);
-  } finally {
-    fs.closeSync(descriptor);
-  }
+    const descriptor = fs.openSync(temporary, "wx", 0o600);
+    try {
+      fs.writeFileSync(
+        descriptor,
+        `${JSON.stringify(value, null, 2)}\n`,
+        "utf8",
+      );
+      fs.fsyncSync(descriptor);
+    } finally {
+      fs.closeSync(descriptor);
+    }
 
-  try {
     try {
-      fs.linkSync(temporary, file);
-      fsyncDir(parent);
-      return "created";
-    } catch (error) {
-      if ((error as NodeJS.ErrnoException)?.code === "EEXIST") {
-        // Re-establish publication durability after an earlier uncertain link.
-        fsyncDir(parent);
-        return "exists";
+      try {
+        fs.linkSync(temporary, stableFile);
+        fs.fsyncSync(parentFd);
+        return "created";
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException)?.code === "EEXIST") {
+          // Re-establish publication durability after an earlier uncertain link.
+          fs.fsyncSync(parentFd);
+          return "exists";
+        }
+        throw error;
       }
-      throw error;
+    } finally {
+      try {
+        fs.unlinkSync(temporary);
+      } catch {
+        // Best effort cleanup.
+      }
     }
-  } finally {
-    try {
-      fs.unlinkSync(temporary);
-    } catch {
-      // Best effort cleanup.
-    }
-  }
+  });
 }
 
 type DurableFileIdentityV1 = {
@@ -894,67 +898,71 @@ function readBoundedAuthoritativeFile(
   maxBytes: number,
   invalidReason: string,
 ): string {
-  assertNoSymlinkAncestors(file);
-  assertOwnedPrivateDirectory(path.dirname(file));
-  const before = fs.lstatSync(file, { bigint: true });
-  assertAuthoritativeFileStat(before, invalidReason);
-  if (before.size > BigInt(maxBytes)) throw new Error(`${invalidReason}:too_large`);
-  const flags = fs.constants.O_RDONLY |
-    (fs.constants.O_NOFOLLOW || 0);
-  const descriptor = fs.openSync(file, flags);
-  try {
-    const opened = fs.fstatSync(descriptor, { bigint: true });
-    assertAuthoritativeFileStat(opened, invalidReason);
-    if (
-      opened.size > BigInt(maxBytes) ||
-      !sameDurableFileIdentity(
-        durableFileIdentity(before),
-        durableFileIdentity(opened),
-      )
-    ) {
-      throw new Error(`${invalidReason}:unstable`);
+  const parent = path.dirname(file);
+  return withPinnedPrivateDirectoryV1(parent, false, (stableParent) => {
+    const stableFile = path.join(stableParent, path.basename(file));
+    const before = fs.lstatSync(stableFile, { bigint: true });
+    assertAuthoritativeFileStat(before, invalidReason);
+    if (before.size > BigInt(maxBytes)) {
+      throw new Error(`${invalidReason}:too_large`);
     }
-    const buffer = Buffer.alloc(Number(opened.size) + 1);
-    let offset = 0;
-    while (offset < buffer.length) {
-      const count = fs.readSync(
-        descriptor,
-        buffer,
-        offset,
-        buffer.length - offset,
-        offset,
-      );
-      if (count === 0) break;
-      offset += count;
-    }
-    if (offset !== Number(opened.size)) {
-      throw new Error(`${invalidReason}:unstable`);
-    }
-    const afterDescriptor = fs.fstatSync(descriptor, { bigint: true });
-    const afterPath = fs.lstatSync(file, { bigint: true });
-    assertAuthoritativeFileStat(afterPath, invalidReason);
-    if (
-      !sameDurableFileIdentity(
-        durableFileIdentity(opened),
-        durableFileIdentity(afterDescriptor),
-      ) ||
-      !sameDurableFileIdentity(
-        durableFileIdentity(opened),
-        durableFileIdentity(afterPath),
-      )
-    ) {
-      throw new Error(`${invalidReason}:unstable`);
-    }
+    const flags = fs.constants.O_RDONLY |
+      (fs.constants.O_NOFOLLOW || 0);
+    const descriptor = fs.openSync(stableFile, flags);
     try {
-      return new TextDecoder("utf-8", { fatal: true }).decode(
-        buffer.subarray(0, offset),
-      );
-    } catch {
-      throw new Error(`${invalidReason}:invalid_utf8`);
+      const opened = fs.fstatSync(descriptor, { bigint: true });
+      assertAuthoritativeFileStat(opened, invalidReason);
+      if (
+        opened.size > BigInt(maxBytes) ||
+        !sameDurableFileIdentity(
+          durableFileIdentity(before),
+          durableFileIdentity(opened),
+        )
+      ) {
+        throw new Error(`${invalidReason}:unstable`);
+      }
+      const buffer = Buffer.alloc(Number(opened.size) + 1);
+      let offset = 0;
+      while (offset < buffer.length) {
+        const count = fs.readSync(
+          descriptor,
+          buffer,
+          offset,
+          buffer.length - offset,
+          offset,
+        );
+        if (count === 0) break;
+        offset += count;
+      }
+      if (offset !== Number(opened.size)) {
+        throw new Error(`${invalidReason}:unstable`);
+      }
+      const afterDescriptor = fs.fstatSync(descriptor, { bigint: true });
+      const afterPath = fs.lstatSync(stableFile, { bigint: true });
+      assertAuthoritativeFileStat(afterPath, invalidReason);
+      if (
+        !sameDurableFileIdentity(
+          durableFileIdentity(opened),
+          durableFileIdentity(afterDescriptor),
+        ) ||
+        !sameDurableFileIdentity(
+          durableFileIdentity(opened),
+          durableFileIdentity(afterPath),
+        )
+      ) {
+        throw new Error(`${invalidReason}:unstable`);
+      }
+      try {
+        return new TextDecoder("utf-8", { fatal: true }).decode(
+          buffer.subarray(0, offset),
+        );
+      } catch {
+        throw new Error(`${invalidReason}:invalid_utf8`);
+      }
+    } finally {
+      fs.closeSync(descriptor);
     }
-  } finally {
-    fs.closeSync(descriptor);
-  }
+  });
 }
 
 function scanBoundedAuthoritativeLines(
@@ -962,18 +970,19 @@ function scanBoundedAuthoritativeLines(
   invalidReason: string,
   onLine: (line: string, index: number) => void,
 ): { line_count: number; trailing_bytes: Buffer; complete_bytes: number } {
-  assertNoSymlinkAncestors(file);
-  assertOwnedPrivateDirectory(path.dirname(file));
-  const before = fs.lstatSync(file, { bigint: true });
-  assertAuthoritativeFileStat(before, invalidReason);
-  if (before.size > BigInt(MAX_DURABLE_JSONL_BYTES)) {
-    throw new Error(`${invalidReason}:too_large`);
-  }
-  const descriptor = fs.openSync(
-    file,
-    fs.constants.O_RDONLY | (fs.constants.O_NOFOLLOW || 0),
-  );
-  try {
+  const parent = path.dirname(file);
+  return withPinnedPrivateDirectoryV1(parent, false, (stableParent) => {
+    const stableFile = path.join(stableParent, path.basename(file));
+    const before = fs.lstatSync(stableFile, { bigint: true });
+    assertAuthoritativeFileStat(before, invalidReason);
+    if (before.size > BigInt(MAX_DURABLE_JSONL_BYTES)) {
+      throw new Error(`${invalidReason}:too_large`);
+    }
+    const descriptor = fs.openSync(
+      stableFile,
+      fs.constants.O_RDONLY | (fs.constants.O_NOFOLLOW || 0),
+    );
+    try {
     const opened = fs.fstatSync(descriptor, { bigint: true });
     assertAuthoritativeFileStat(opened, invalidReason);
     if (
@@ -1031,7 +1040,7 @@ function scanBoundedAuthoritativeLines(
     }
 
     const afterDescriptor = fs.fstatSync(descriptor, { bigint: true });
-    const afterPath = fs.lstatSync(file, { bigint: true });
+    const afterPath = fs.lstatSync(stableFile, { bigint: true });
     assertAuthoritativeFileStat(afterPath, invalidReason);
     if (
       !sameDurableFileIdentity(
@@ -1045,14 +1054,15 @@ function scanBoundedAuthoritativeLines(
     ) {
       throw new Error(`${invalidReason}:unstable`);
     }
-    return {
-      line_count: lineCount,
-      trailing_bytes: carry,
-      complete_bytes: Number(opened.size) - carry.length,
-    };
-  } finally {
-    fs.closeSync(descriptor);
-  }
+      return {
+        line_count: lineCount,
+        trailing_bytes: carry,
+        complete_bytes: Number(opened.size) - carry.length,
+      };
+    } finally {
+      fs.closeSync(descriptor);
+    }
+  });
 }
 
 const RESERVATION_RECORD_KEYS = [
@@ -1224,30 +1234,24 @@ function canonicalHistoryNames(
   dir: string,
   invalidNameReason: string,
 ): string[] {
-  let stat: ReturnType<typeof fs.lstatSync>;
   try {
-    stat = fs.lstatSync(dir);
+    return withPinnedPrivateDirectoryV1(dir, false, (stableDir) => {
+      const output: string[] = [];
+      for (const name of fs.readdirSync(stableDir)) {
+        if (TEMP_HISTORY_FILE.test(name)) continue;
+        if (!CANONICAL_HISTORY_FILE.test(name)) {
+          throw new Error(invalidNameReason);
+        }
+        output.push(name);
+      }
+      return output.sort();
+    });
   } catch (error) {
     if ((error as NodeJS.ErrnoException)?.code === "ENOENT") {
       return [];
     }
     throw error;
   }
-  if (!stat.isDirectory() || stat.isSymbolicLink()) {
-    throw new Error(invalidNameReason);
-  }
-  assertNoSymlinkAncestors(dir);
-  assertOwnedPrivateDirectory(dir);
-
-  const output: string[] = [];
-  for (const name of fs.readdirSync(dir)) {
-    if (TEMP_HISTORY_FILE.test(name)) continue;
-    if (!CANONICAL_HISTORY_FILE.test(name)) {
-      throw new Error(invalidNameReason);
-    }
-    output.push(name);
-  }
-  return output.sort();
 }
 
 function historyRecordFingerprint(
@@ -1452,23 +1456,15 @@ function parseHistoryAnchorEntry(
 function readHistoryAnchor(
   paths: BuyVoidInventoryReservationJournalPathsV1,
 ): BuyVoidInventoryHistoryAnchorEntryV1[] {
-  let stat: ReturnType<typeof fs.lstatSync>;
-  try {
-    stat = fs.lstatSync(paths.history_anchor_file);
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException)?.code === "ENOENT") return [];
-    throw error;
-  }
-  if (!stat.isFile() || stat.isSymbolicLink()) {
-    throw new Error("invalid_inventory_history_anchor_file");
-  }
   const output: BuyVoidInventoryHistoryAnchorEntryV1[] = [];
   const seen = new Set<string>();
   let previousAnchorSha256 = HISTORY_ANCHOR_GENESIS_SHA256;
-  const scan = scanBoundedAuthoritativeLines(
-    paths.history_anchor_file,
-    "invalid_inventory_history_anchor_file",
-    (line, index) => {
+  let scan: ReturnType<typeof scanBoundedAuthoritativeLines>;
+  try {
+    scan = scanBoundedAuthoritativeLines(
+      paths.history_anchor_file,
+      "invalid_inventory_history_anchor_file",
+      (line, index) => {
     if (!line) throw new Error("invalid_inventory_history_anchor_blank_line");
     let parsed: unknown;
     try {
@@ -1492,8 +1488,12 @@ function readHistoryAnchor(
     seen.add(key);
     output.push(entry);
     previousAnchorSha256 = entry.anchor_sha256;
-    },
-  );
+      },
+    );
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException)?.code === "ENOENT") return [];
+    throw error;
+  }
   if (scan.line_count === 0 && scan.trailing_bytes.length === 0) {
     throw new Error("inventory_history_anchor_empty");
   }
@@ -1507,37 +1507,46 @@ function appendHistoryAnchorEntry(
   paths: BuyVoidInventoryReservationJournalPathsV1,
   entry: BuyVoidInventoryHistoryAnchorEntryV1,
 ): void {
-  ensurePrivateDir(paths.history_anchor_pool_dir);
-  let exists = false;
-  try {
-    const stat = fs.lstatSync(paths.history_anchor_file, { bigint: true });
-    assertAuthoritativeFileStat(
-      stat,
-      "invalid_inventory_history_anchor_file",
-    );
-    exists = true;
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException)?.code !== "ENOENT") throw error;
-  }
-  const descriptor = fs.openSync(
-    paths.history_anchor_file,
-    fs.constants.O_WRONLY |
-      fs.constants.O_APPEND |
-      (exists ? 0 : fs.constants.O_CREAT | fs.constants.O_EXCL) |
-      (fs.constants.O_NOFOLLOW || 0),
-    0o600,
+  withPinnedPrivateDirectoryV1(
+    paths.history_anchor_pool_dir,
+    true,
+    (stableParent, parentFd) => {
+      const stableFile = path.join(
+        stableParent,
+        path.basename(paths.history_anchor_file),
+      );
+      let exists = false;
+      try {
+        const stat = fs.lstatSync(stableFile, { bigint: true });
+        assertAuthoritativeFileStat(
+          stat,
+          "invalid_inventory_history_anchor_file",
+        );
+        exists = true;
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException)?.code !== "ENOENT") throw error;
+      }
+      const descriptor = fs.openSync(
+        stableFile,
+        fs.constants.O_WRONLY |
+          fs.constants.O_APPEND |
+          (exists ? 0 : fs.constants.O_CREAT | fs.constants.O_EXCL) |
+          (fs.constants.O_NOFOLLOW || 0),
+        0o600,
+      );
+      try {
+        assertAuthoritativeFileStat(
+          fs.fstatSync(descriptor, { bigint: true }),
+          "invalid_inventory_history_anchor_file",
+        );
+        fs.writeFileSync(descriptor, `${JSON.stringify(entry)}\n`, "utf8");
+        fs.fsyncSync(descriptor);
+      } finally {
+        fs.closeSync(descriptor);
+      }
+      fs.fsyncSync(parentFd);
+    },
   );
-  try {
-    assertAuthoritativeFileStat(
-      fs.fstatSync(descriptor, { bigint: true }),
-      "invalid_inventory_history_anchor_file",
-    );
-    fs.writeFileSync(descriptor, `${JSON.stringify(entry)}\n`, "utf8");
-    fs.fsyncSync(descriptor);
-  } finally {
-    fs.closeSync(descriptor);
-  }
-  fsyncDir(paths.history_anchor_pool_dir);
 }
 
 function anchorMatchesIndexEntry(
@@ -1736,32 +1745,15 @@ function anyHistoryDirectoryEntries(
 function readHistoryIndex(
   paths: BuyVoidInventoryReservationJournalPathsV1,
 ): BuyVoidInventoryHistoryIndexEntryV1[] {
-  let stat: ReturnType<typeof fs.lstatSync>;
-  try {
-    stat = fs.lstatSync(paths.history_index_file);
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException)?.code === "ENOENT") {
-      if (anyHistoryDirectoryEntries(paths)) {
-        throw new Error(
-          "inventory_history_index_missing_for_existing_history",
-        );
-      }
-      return [];
-    }
-    throw error;
-  }
-
-  if (!stat.isFile() || stat.isSymbolicLink()) {
-    throw new Error("invalid_inventory_history_index_file");
-  }
-
   const output: BuyVoidInventoryHistoryIndexEntryV1[] = [];
   const seen = new Set<string>();
   let previousEntrySha256 = HISTORY_INDEX_GENESIS_SHA256;
-  const scan = scanBoundedAuthoritativeLines(
-    paths.history_index_file,
-    "invalid_inventory_history_index_file",
-    (line, index) => {
+  let scan: ReturnType<typeof scanBoundedAuthoritativeLines>;
+  try {
+    scan = scanBoundedAuthoritativeLines(
+      paths.history_index_file,
+      "invalid_inventory_history_index_file",
+      (line, index) => {
     if (!line) {
       throw new Error("invalid_inventory_history_index_blank_line");
     }
@@ -1787,8 +1779,19 @@ function readHistoryIndex(
     seen.add(key);
     output.push(entry);
     previousEntrySha256 = entry.entry_sha256;
-    },
-  );
+      },
+    );
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException)?.code === "ENOENT") {
+      if (anyHistoryDirectoryEntries(paths)) {
+        throw new Error(
+          "inventory_history_index_missing_for_existing_history",
+        );
+      }
+      return [];
+    }
+    throw error;
+  }
   if (scan.line_count === 0 && scan.trailing_bytes.length === 0) {
     throw new Error("inventory_history_index_empty");
   }
@@ -1873,45 +1876,53 @@ function appendHistoryIndexEntry(
   paths: BuyVoidInventoryReservationJournalPathsV1,
   entry: BuyVoidInventoryHistoryIndexEntryV1,
 ): void {
-  ensurePrivateDir(paths.pool_dir);
+  withPinnedPrivateDirectoryV1(
+    paths.pool_dir,
+    true,
+    (stableParent, parentFd) => {
+      const stableFile = path.join(
+        stableParent,
+        path.basename(paths.history_index_file),
+      );
+      let exists = false;
+      try {
+        const stat = fs.lstatSync(stableFile, { bigint: true });
+        assertAuthoritativeFileStat(
+          stat,
+          "invalid_inventory_history_index_file",
+        );
+        exists = true;
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException)?.code !== "ENOENT") {
+          throw error;
+        }
+      }
 
-  let exists = false;
-  try {
-    const stat = fs.lstatSync(paths.history_index_file, { bigint: true });
-    assertAuthoritativeFileStat(
-      stat,
-      "invalid_inventory_history_index_file",
-    );
-    exists = true;
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException)?.code !== "ENOENT") {
-      throw error;
-    }
-  }
-
-  const descriptor = fs.openSync(
-    paths.history_index_file,
-    fs.constants.O_WRONLY |
-      fs.constants.O_APPEND |
-      (exists ? 0 : fs.constants.O_CREAT | fs.constants.O_EXCL) |
-      (fs.constants.O_NOFOLLOW || 0),
-    0o600,
+      const descriptor = fs.openSync(
+        stableFile,
+        fs.constants.O_WRONLY |
+          fs.constants.O_APPEND |
+          (exists ? 0 : fs.constants.O_CREAT | fs.constants.O_EXCL) |
+          (fs.constants.O_NOFOLLOW || 0),
+        0o600,
+      );
+      try {
+        assertAuthoritativeFileStat(
+          fs.fstatSync(descriptor, { bigint: true }),
+          "invalid_inventory_history_index_file",
+        );
+        fs.writeFileSync(
+          descriptor,
+          `${JSON.stringify(entry)}\n`,
+          "utf8",
+        );
+        fs.fsyncSync(descriptor);
+      } finally {
+        fs.closeSync(descriptor);
+      }
+      fs.fsyncSync(parentFd);
+    },
   );
-  try {
-    assertAuthoritativeFileStat(
-      fs.fstatSync(descriptor, { bigint: true }),
-      "invalid_inventory_history_index_file",
-    );
-    fs.writeFileSync(
-      descriptor,
-      `${JSON.stringify(entry)}\n`,
-      "utf8",
-    );
-    fs.fsyncSync(descriptor);
-  } finally {
-    fs.closeSync(descriptor);
-  }
-  fsyncDir(paths.pool_dir);
 }
 
 function buildHistoryIndexEntry(
@@ -1995,7 +2006,10 @@ function ensureHistoryExpectation(
   const expectationFile = path.join(expectationDir, `${recordId}.json`);
   const durableRecordFile = historyRecordFile(paths, kind, recordId);
 
-  if (fs.existsSync(durableRecordFile) && !fs.existsSync(expectationFile)) {
+  if (
+    pinnedFileExists(durableRecordFile) &&
+    !pinnedFileExists(expectationFile)
+  ) {
     throw new Error(
       kind === "reservation"
         ? "inventory_reservation_history_expectation_missing_for_existing_record"
@@ -2117,21 +2131,21 @@ function exactAnchorEntryMatch(
 }
 
 function syncRegularFile(file: string): void {
-  assertNoSymlinkAncestors(file);
-  assertOwnedPrivateDirectory(path.dirname(file));
-  const descriptor = fs.openSync(
-    file,
-    fs.constants.O_RDONLY | (fs.constants.O_NOFOLLOW || 0),
-  );
-  try {
-    assertAuthoritativeFileStat(
-      fs.fstatSync(descriptor, { bigint: true }),
-      "invalid_inventory_authoritative_file",
+  withPinnedPrivateDirectoryV1(path.dirname(file), false, (stableParent) => {
+    const descriptor = fs.openSync(
+      path.join(stableParent, path.basename(file)),
+      fs.constants.O_RDONLY | (fs.constants.O_NOFOLLOW || 0),
     );
-    fs.fsyncSync(descriptor);
-  } finally {
-    fs.closeSync(descriptor);
-  }
+    try {
+      assertAuthoritativeFileStat(
+        fs.fstatSync(descriptor, { bigint: true }),
+        "invalid_inventory_authoritative_file",
+      );
+      fs.fsyncSync(descriptor);
+    } finally {
+      fs.closeSync(descriptor);
+    }
+  });
 }
 
 function repairTornAppendFromPending(
@@ -2141,52 +2155,55 @@ function repairTornAppendFromPending(
   parentDir: string,
   invalidReason: string,
 ): void {
-  let stat: ReturnType<typeof fs.lstatSync>;
-  try {
-    stat = fs.lstatSync(file);
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException)?.code === "ENOENT") return;
-    throw error;
-  }
-  if (!stat.isFile() || stat.isSymbolicLink()) {
-    throw new Error(invalidReason);
-  }
-  const scan = scanBoundedAuthoritativeLines(
-    file,
-    invalidReason,
-    () => undefined,
-  );
-  if (scan.trailing_bytes.length === 0) {
-    // A complete visible line after a prior fsync failure is not committed
-    // until this recovery attempt re-establishes file and directory durability.
-    syncRegularFile(file);
-    fsyncDir(parentDir);
-    return;
-  }
-
-  let tornTail: string;
-  try {
-    tornTail = new TextDecoder("utf-8", { fatal: true }).decode(
-      scan.trailing_bytes,
+  withPinnedPrivateDirectoryV1(parentDir, false, (stableParent, parentFd) => {
+    const stableFile = path.join(stableParent, path.basename(file));
+    let stat: ReturnType<typeof fs.lstatSync>;
+    try {
+      stat = fs.lstatSync(stableFile);
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException)?.code === "ENOENT") return;
+      throw error;
+    }
+    if (!stat.isFile() || stat.isSymbolicLink()) {
+      throw new Error(invalidReason);
+    }
+    const scan = scanBoundedAuthoritativeLines(
+      stableFile,
+      invalidReason,
+      () => undefined,
     );
-  } catch {
-    throw new Error(invalidReason);
-  }
+    if (scan.trailing_bytes.length === 0) {
+      // A complete visible line after a prior fsync failure is not committed
+      // until this recovery attempt re-establishes file and directory durability.
+      syncRegularFile(stableFile);
+      fs.fsyncSync(parentFd);
+      return;
+    }
 
-  if (
-    scan.line_count !== expectedCompleteLineCount ||
-    !expectedLine.startsWith(tornTail)
-  ) {
-    throw new Error(invalidReason);
-  }
+    let tornTail: string;
+    try {
+      tornTail = new TextDecoder("utf-8", { fatal: true }).decode(
+        scan.trailing_bytes,
+      );
+    } catch {
+      throw new Error(invalidReason);
+    }
 
-  if (scan.complete_bytes === 0) {
-    fs.unlinkSync(file);
-  } else {
-    fs.truncateSync(file, scan.complete_bytes);
-    syncRegularFile(file);
-  }
-  fsyncDir(parentDir);
+    if (
+      scan.line_count !== expectedCompleteLineCount ||
+      !expectedLine.startsWith(tornTail)
+    ) {
+      throw new Error(invalidReason);
+    }
+
+    if (scan.complete_bytes === 0) {
+      fs.unlinkSync(stableFile);
+    } else {
+      fs.truncateSync(stableFile, scan.complete_bytes);
+      syncRegularFile(stableFile);
+    }
+    fs.fsyncSync(parentFd);
+  });
 }
 
 function assertHistoryProjectionMatchesPending(
@@ -2328,8 +2345,14 @@ function deletePendingHistoryCreation(
   paths: BuyVoidInventoryReservationJournalPathsV1,
   pending: BuyVoidInventoryHistoryPendingCreationV1,
 ): void {
-  fs.unlinkSync(pendingHistoryFile(paths, pending.record_id));
-  fsyncDir(paths.pending_history_dir);
+  withPinnedPrivateDirectoryV1(
+    paths.pending_history_dir,
+    false,
+    (stableParent, parentFd) => {
+      fs.unlinkSync(path.join(stableParent, `${pending.record_id}.json`));
+      fs.fsyncSync(parentFd);
+    },
+  );
 }
 
 function recoverPendingHistoryCreation(
@@ -3074,34 +3097,46 @@ function readPoolLock(
 }
 
 function readPoolLockFile(file: string): BuyVoidInventoryPoolLockV1 | null {
-  let stat: ReturnType<typeof fs.lstatSync>;
   try {
-    stat = fs.lstatSync(file);
+    return parsePoolLock(
+      readRequiredHistoryJsonObject(
+        file,
+        "inventory_reservation_lock_disappeared",
+        "invalid_inventory_reservation_lock",
+      ),
+    );
   } catch (error) {
-    if ((error as NodeJS.ErrnoException)?.code === "ENOENT") return null;
+    if (
+      String((error as Error)?.message || error) ===
+        "inventory_reservation_lock_disappeared"
+    ) {
+      return null;
+    }
     throw error;
   }
-  if (!stat.isFile() || stat.isSymbolicLink()) {
-    throw new Error("invalid_inventory_reservation_lock");
-  }
-  return parsePoolLock(
-    readRequiredHistoryJsonObject(
-      file,
-      "inventory_reservation_lock_disappeared",
-      "invalid_inventory_reservation_lock",
-    ),
-  );
 }
 
 function sameInode(left: string, right: string): boolean {
-  try {
-    const leftStat = fs.lstatSync(left, { bigint: true });
-    const rightStat = fs.lstatSync(right, { bigint: true });
-    return leftStat.dev === rightStat.dev && leftStat.ino === rightStat.ino;
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException)?.code === "ENOENT") return false;
-    throw error;
+  const parent = path.dirname(left);
+  if (path.resolve(parent) !== path.resolve(path.dirname(right))) {
+    throw new Error("inventory_authority_cross_directory_identity_check");
   }
+  return withPinnedPrivateDirectoryV1(parent, false, (stableParent) => {
+    try {
+      const leftStat = fs.lstatSync(
+        path.join(stableParent, path.basename(left)),
+        { bigint: true },
+      );
+      const rightStat = fs.lstatSync(
+        path.join(stableParent, path.basename(right)),
+        { bigint: true },
+      );
+      return leftStat.dev === rightStat.dev && leftStat.ino === rightStat.ino;
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException)?.code === "ENOENT") return false;
+      throw error;
+    }
+  });
 }
 
 function exactPoolLockMatch(
@@ -3112,8 +3147,24 @@ function exactPoolLockMatch(
 }
 
 function deleteAndSync(file: string): void {
-  fs.unlinkSync(file);
-  fsyncDir(path.dirname(file));
+  const parent = path.dirname(file);
+  withPinnedPrivateDirectoryV1(parent, false, (stableParent, parentFd) => {
+    fs.unlinkSync(path.join(stableParent, path.basename(file)));
+    fs.fsyncSync(parentFd);
+  });
+}
+
+function pinnedFileExists(file: string): boolean {
+  const parent = path.dirname(file);
+  return withPinnedPrivateDirectoryV1(parent, false, (stableParent) => {
+    try {
+      fs.lstatSync(path.join(stableParent, path.basename(file)));
+      return true;
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException)?.code === "ENOENT") return false;
+      throw error;
+    }
+  });
 }
 
 function clearReclaimFence(
@@ -3135,8 +3186,17 @@ function acquireStaleReclaimFence(
     if (processInstanceStatus(claim) === "matching") return "busy";
   } else {
     try {
-      fs.linkSync(paths.lock_file, paths.lock_reclaim_file);
-      fsyncDir(paths.history_anchor_pool_dir);
+      withPinnedPrivateDirectoryV1(
+        paths.history_anchor_pool_dir,
+        false,
+        (stableParent, parentFd) => {
+          fs.linkSync(
+            path.join(stableParent, path.basename(paths.lock_file)),
+            path.join(stableParent, path.basename(paths.lock_reclaim_file)),
+          );
+          fs.fsyncSync(parentFd);
+        },
+      );
     } catch (error) {
       if ((error as NodeJS.ErrnoException)?.code === "EEXIST") return "retry";
       if ((error as NodeJS.ErrnoException)?.code === "ENOENT") return "retry";
@@ -3151,7 +3211,7 @@ function acquireStaleReclaimFence(
 
   if (sameInode(paths.lock_file, paths.lock_reclaim_file)) {
     deleteAndSync(paths.lock_file);
-  } else if (fs.existsSync(paths.lock_file)) {
+  } else if (pinnedFileExists(paths.lock_file)) {
     clearReclaimFence(paths);
     return "retry";
   }
@@ -3237,8 +3297,7 @@ function releasePoolLock(
     ) {
       return;
     }
-    fs.unlinkSync(paths.lock_file);
-    fsyncDir(paths.history_anchor_pool_dir);
+    deleteAndSync(paths.lock_file);
   } catch {
     // Exact process-instance recovery on the next call reclaims this nonce.
   } finally {
