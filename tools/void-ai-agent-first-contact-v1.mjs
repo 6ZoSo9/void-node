@@ -661,10 +661,6 @@ function capabilitiesContractValid(manifest, capabilities) {
   );
 }
 
-function normalizedText(value) {
-  return JSON.stringify(value ?? null).toLowerCase().replace(/[^a-z0-9]/g, "");
-}
-
 function hasExactKeys(value, expected) {
   return (
     value !== null &&
@@ -866,98 +862,13 @@ async function observeUsefulPublicResources(
   return { observations, networkRequests };
 }
 
-function normalizedKey(value) {
-  return String(value ?? "")
-    .toLowerCase()
-    .replace(/[^a-z0-9]/g, "");
-}
-
-function affirmativeValue(value) {
-  if (value === true) {
-    return true;
-  }
-  if (typeof value !== "string") {
-    return false;
-  }
-  return [
-    "active",
-    "available",
-    "enabled",
-    "live",
-    "ready",
-    "supported",
-  ].includes(normalizedKey(value));
-}
-
-function observedCommercialSignals(capabilities) {
-  let paidWorkObserved = false;
-  let workCreditEarningObserved = false;
-
-  const paidKeys = new Set([
-    "paidworkavailable",
-    "paidworkenabled",
-    "paidworksubmissionenabled",
-    "paidworksupported",
-  ]);
-  const workCreditKeys = new Set([
-    "workcreditearningavailable",
-    "workcreditearningenabled",
-    "workcreditsupported",
-    "wcearningavailable",
-    "wcearningenabled",
-  ]);
-
-  const visit = (value) => {
-    if (Array.isArray(value)) {
-      for (const item of value) {
-        visit(item);
-      }
-      return;
-    }
-    if (!value || typeof value !== "object") {
-      return;
-    }
-
-    const identifier = normalizedText({
-      id: value.id,
-      name: value.name,
-      capability: value.capability,
-      type: value.type,
-    });
-    const objectAvailable =
-      value.enabled === true ||
-      value.available === true ||
-      affirmativeValue(value.status);
-
-    if (objectAvailable && identifier.includes("paidwork")) {
-      paidWorkObserved = true;
-    }
-    if (
-      objectAvailable &&
-      (
-        identifier.includes("workcredit") ||
-        identifier.includes("wcearning")
-      )
-    ) {
-      workCreditEarningObserved = true;
-    }
-
-    for (const [key, item] of Object.entries(value)) {
-      const normalized = normalizedKey(key);
-      if (paidKeys.has(normalized) && affirmativeValue(item)) {
-        paidWorkObserved = true;
-      }
-      if (workCreditKeys.has(normalized) && affirmativeValue(item)) {
-        workCreditEarningObserved = true;
-      }
-      visit(item);
-    }
-  };
-
-  visit(capabilities?.body);
+function observedCommercialSignals() {
+  // A self-declared capability catalog is not independent runtime evidence.
+  // V1 has no versioned paid-work or earning response contract to fetch and
+  // validate, so arbitrary catalog labels must never promote these claims.
   return {
-    paid_work_observed: paidWorkObserved,
-    work_credit_earning_observed: workCreditEarningObserved,
+    paid_work_observed: false,
+    work_credit_earning_observed: false,
   };
 }
 
@@ -1117,7 +1028,7 @@ async function main() {
   ].every(Boolean);
 
   const commercial = capabilitiesValid
-    ? observedCommercialSignals(capabilities)
+    ? observedCommercialSignals()
     : {
         paid_work_observed: false,
         work_credit_earning_observed: false,
