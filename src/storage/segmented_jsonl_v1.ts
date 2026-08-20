@@ -164,7 +164,7 @@ function sameGeneration(a: GenerationV1, b: GenerationV1): boolean {
 function fdObservation(fd: number): FdObservationV1 {
   const st = fs.fstatSync(fd, { bigint: true } as any);
   if (!st.isFile()) fail("NON_REGULAR_FD", String(fd));
-  return { generation: generationFromStat(st), mode: Number(st.mode & 0o777n) };
+  return { generation: generationFromStat(st), mode: Number(st.mode) & 0o777 };
 }
 
 function fdGeneration(fd: number): GenerationV1 { return fdObservation(fd).generation; }
