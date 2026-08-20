@@ -112,6 +112,8 @@ export const VOID_BUY_VOID_INVENTORY_RESERVATION_AUTHORITY_V1 = {
   durable_history_coherent_suffix_rollback_detection: true,
   stale_pool_lock_recovery: true,
   cross_process_pool_lock_release_recovery: true,
+  generation_bound_pool_lock_reclaim_fence: true,
+  full_presale_domain_history_range: false,
   obligation_automatic_retry: false,
   obligation_refund_execution_authorized: false,
   inventory_decrement: false,
@@ -161,7 +163,7 @@ export type BuyVoidInventoryReservationJournalPathsV1 = {
   history_anchor_file: string;
   pending_history_dir: string;
   lock_file: string;
-  lock_reclaim_file: string;
+  lock_reclaim_prefix: string;
 };
 
 export type BuyVoidInventoryAggregateV1 = {
@@ -580,9 +582,9 @@ export function buyVoidInventoryReservationJournalPathsV1(
       historyAnchorPoolDir,
       ".reserve.lock.json",
     ),
-    lock_reclaim_file: path.join(
+    lock_reclaim_prefix: path.join(
       historyAnchorPoolDir,
-      ".reserve.lock.reclaim.json",
+      ".reserve.lock.reclaim",
     ),
   };
 }
@@ -3286,11 +3288,19 @@ function pinnedFileExists(file: string): boolean {
   });
 }
 
-function clearReclaimFence(
+function poolLockReclaimFile(
   paths: BuyVoidInventoryReservationJournalPathsV1,
-): void {
+  ownerNonce: string,
+): string {
+  if (!LOCK_NONCE.test(ownerNonce)) {
+    throw new Error("invalid_inventory_reservation_lock_reclaim_nonce");
+  }
+  return `${paths.lock_reclaim_prefix}-${ownerNonce}.json`;
+}
+
+function clearReclaimFence(file: string): void {
   try {
-    deleteAndSync(paths.lock_reclaim_file);
+    deleteAndSync(file);
   } catch (error) {
     if ((error as NodeJS.ErrnoException)?.code !== "ENOENT") throw error;
   }
@@ -3300,9 +3310,19 @@ function acquireStaleReclaimFence(
   paths: BuyVoidInventoryReservationJournalPathsV1,
   observed: BuyVoidInventoryPoolLockV1,
 ): "acquired" | "busy" | "retry" {
-  let claim = readPoolLockFile(paths.lock_reclaim_file);
+  const reclaimFile = poolLockReclaimFile(paths, observed.owner_nonce);
+  let claim = readPoolLockFile(reclaimFile);
   if (claim) {
-    if (processInstanceStatus(claim) === "matching") return "busy";
+    if (!exactPoolLockMatch(claim, observed)) {
+      throw new Error("inventory_reservation_lock_reclaim_identity_mismatch");
+    }
+    const status = processInstanceStatus(claim);
+    if (
+      (status === "matching" || status === "unknown") &&
+      !readPoolLockRelease(paths, observed)
+    ) {
+      return "busy";
+    }
   } else {
     try {
       withPinnedPrivateDirectoryV1(
@@ -3311,7 +3331,7 @@ function acquireStaleReclaimFence(
         (stableParent, parentFd) => {
           fs.linkSync(
             path.join(stableParent, path.basename(paths.lock_file)),
-            path.join(stableParent, path.basename(paths.lock_reclaim_file)),
+            path.join(stableParent, path.basename(reclaimFile)),
           );
           fs.fsyncSync(parentFd);
         },
@@ -3321,22 +3341,22 @@ function acquireStaleReclaimFence(
       if ((error as NodeJS.ErrnoException)?.code === "ENOENT") return "retry";
       throw error;
     }
-    claim = readPoolLockFile(paths.lock_reclaim_file);
+    claim = readPoolLockFile(reclaimFile);
     if (!claim || !exactPoolLockMatch(claim, observed)) {
-      clearReclaimFence(paths);
+      clearReclaimFence(reclaimFile);
       return "retry";
     }
   }
 
-  if (sameInode(paths.lock_file, paths.lock_reclaim_file)) {
+  if (sameInode(paths.lock_file, reclaimFile)) {
     try {
       deleteAndSync(paths.lock_file);
     } catch (error) {
-      clearReclaimFence(paths);
+      clearReclaimFence(reclaimFile);
       throw error;
     }
   } else if (pinnedFileExists(paths.lock_file)) {
-    clearReclaimFence(paths);
+    clearReclaimFence(reclaimFile);
     return "retry";
   }
   return "acquired";
@@ -3350,7 +3370,7 @@ function acquirePoolLock(
   try {
     ensureInventoryAuthorityDirectories(paths);
     const processIdentity = readProcessInstanceIdentity(process.pid);
-    let ownsReclaimFence = false;
+    let ownedReclaimFenceFile: string | null = null;
     let releasedWitnessFile: string | null = null;
     for (let attempt = 0; attempt < 5; attempt += 1) {
       const owner: BuyVoidInventoryPoolLockV1 = {
@@ -3364,7 +3384,9 @@ function acquirePoolLock(
       try {
         const created = atomicCreateJson(paths.lock_file, owner);
         if (created === "created") {
-          if (ownsReclaimFence) clearReclaimFence(paths);
+          if (ownedReclaimFenceFile) {
+            clearReclaimFence(ownedReclaimFenceFile);
+          }
           if (releasedWitnessFile) {
             try {
               clearPoolLockRelease(releasedWitnessFile);
@@ -3379,7 +3401,9 @@ function acquirePoolLock(
         const readback = readPoolLock(paths);
         if (readback && exactPoolLockMatch(readback, owner)) {
           fsyncDir(paths.history_anchor_pool_dir);
-          if (ownsReclaimFence) clearReclaimFence(paths);
+          if (ownedReclaimFenceFile) {
+            clearReclaimFence(ownedReclaimFenceFile);
+          }
           if (releasedWitnessFile) {
             try {
               clearPoolLockRelease(releasedWitnessFile);
@@ -3414,7 +3438,10 @@ function acquirePoolLock(
         return { ok: false, reason: "inventory_reservation_busy" };
       }
       if (fence === "retry") continue;
-      ownsReclaimFence = true;
+      ownedReclaimFenceFile = poolLockReclaimFile(
+        paths,
+        existing.owner_nonce,
+      );
       if (released) {
         releasedWitnessFile = poolLockReleaseFile(
           paths,
@@ -3452,7 +3479,9 @@ function releasePoolLock(
     try {
       const fence = acquireStaleReclaimFence(paths, existing);
       if (fence === "acquired") {
-        clearReclaimFence(paths);
+        clearReclaimFence(
+          poolLockReclaimFile(paths, existing.owner_nonce),
+        );
         clearPoolLockRelease(releaseFile);
       }
     } catch {

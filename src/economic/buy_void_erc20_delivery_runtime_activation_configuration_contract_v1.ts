@@ -68,7 +68,7 @@ export const
       canonical_max_reservation_fulfillment_units_6_decimal:
         "10000000000000",
       finite_presale_cap_local_history_enforced: true,
-      finite_presale_cap_end_to_end_enforced: true,
+      finite_presale_cap_end_to_end_enforced: false,
       canonical_rate_void_units_numerator: "2",
       canonical_rate_void_units_denominator: "1",
       fixed_presale_rate_enforced: true,
@@ -96,12 +96,15 @@ export const
       durability_authority_directory_namespace_ready: true,
       durability_authoritative_file_owner_mode_ready: true,
       bounded_durable_state_reads_ready: true,
+      bounded_durable_state_reads_full_presale_domain_ready: false,
+      durable_history_full_presale_domain_ready: false,
       durable_metadata_exact_runtime_json_types_ready: true,
       durable_record_fingerprint_type_sensitive_ready: true,
       pool_lock_process_instance_identity_ready: true,
       pool_lock_publication_recovery_ready: true,
       pool_lock_release_recovery_ready: true,
       pool_lock_cross_process_release_recovery_ready: true,
+      pool_lock_reclaim_fence_generation_recovery_ready: true,
       stale_lock_compare_delete_race_closed: true,
       durable_publication_retry_resync_ready: true,
       committed_range_diff_hygiene_ready: true,
@@ -127,13 +130,14 @@ export const
     production_broad_delivery_configuration_verified: true,
 
     activation_readiness_blockers: [
+      "durable_history_full_presale_domain_not_ready",
       "canonical_delivery_runtime_activation_not_ready",
     ] as const,
 
     current_parent_blocker:
-      "canonical_delivery_runtime_activation_not_ready",
+      "durable_history_full_presale_domain_not_ready",
     next_gate:
-      "canonical_delivery_runtime_activation",
+      "durable_history_full_presale_domain",
 
     runtime_source_path:
       "src/economic/buy_void_delivery_runtime_integration_v1.ts",

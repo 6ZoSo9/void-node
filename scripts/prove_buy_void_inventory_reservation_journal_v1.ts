@@ -165,6 +165,8 @@ assert.deepEqual(
     durable_history_coherent_suffix_rollback_detection: true,
     stale_pool_lock_recovery: true,
     cross_process_pool_lock_release_recovery: true,
+    generation_bound_pool_lock_reclaim_fence: true,
+    full_presale_domain_history_range: false,
     obligation_automatic_retry: false,
     obligation_refund_execution_authorized: false,
     inventory_decrement: false,
@@ -798,11 +800,15 @@ function writeCrossProcessLockChild(root: string): string {
     '} else {',
     '  let fired = false;',
     '  const originalUnlink = fs.unlinkSync;',
-    '  if (mode === "release-failure") {',
+    '  if (mode === "release-failure" || mode === "reclaim-fence-cleanup-failure") {',
     '    fs.unlinkSync = (file) => {',
-    '      if (!fired && String(file).endsWith("/" + paths.lock_file.split("/").pop())) {',
+    '      const basename = String(file).split("/").pop();',
+    '      const target = mode === "release-failure"',
+    '        ? basename === paths.lock_file.split("/").pop()',
+    '        : basename?.startsWith(paths.lock_reclaim_prefix.split("/").pop() + "-") && basename?.endsWith(".json");',
+    '      if (!fired && target) {',
     '        fired = true;',
-    '        throw new Error("injected_cross_process_lock_release_failure");',
+    '        throw new Error("injected_cross_process_lock_cleanup_failure");',
     '      }',
     '      return originalUnlink(file);',
     '    };',
@@ -810,9 +816,10 @@ function writeCrossProcessLockChild(root: string): string {
     '  const result = reserveBuyVoidInventoryV1({ root_dir: root, intent: input.intent, policy: input.policy, apply: true });',
     '  fs.unlinkSync = originalUnlink;',
     '  const releaseFiles = fs.readdirSync(paths.history_anchor_pool_dir).filter((name) => /^\\.reserve\\.lock\\.release-[0-9a-f]{32}\\.json$/u.test(name));',
+    '  const reclaimFiles = fs.readdirSync(paths.history_anchor_pool_dir).filter((name) => /^\\.reserve\\.lock\\.reclaim-[0-9a-f]{32}\\.json$/u.test(name));',
     '  const survivingLock = fs.existsSync(paths.lock_file) ? JSON.parse(fs.readFileSync(paths.lock_file, "utf8")) : null;',
-    '  process.stdout.write(JSON.stringify({ ready: true, result, fired, lock_exists: Boolean(survivingLock), release_files: releaseFiles, owner_identity: survivingLock ? { pid: survivingLock.pid, process_stat: fs.readFileSync("/proc/self/stat", "utf8") } : null }) + "\\n");',
-    '  if (mode === "release-failure") setInterval(() => undefined, 1000);',
+    '  process.stdout.write(JSON.stringify({ ready: true, result, fired, lock_exists: Boolean(survivingLock), release_files: releaseFiles, reclaim_files: reclaimFiles, owner_identity: { pid: process.pid, process_stat: fs.readFileSync("/proc/self/stat", "utf8") } }) + "\\n");',
+    '  if (mode === "release-failure" || mode === "reclaim-fence-cleanup-failure") setInterval(() => undefined, 1000);',
     '}',
   ].join("\n");
   const file = path.join(root, "cross-process-lock-child.mjs");
@@ -822,7 +829,11 @@ function writeCrossProcessLockChild(root: string): string {
 
 async function startCrossProcessChild(
   childFile: string,
-  mode: "release-failure" | "retry" | "live-owner",
+  mode:
+    | "release-failure"
+    | "reclaim-fence-cleanup-failure"
+    | "retry"
+    | "live-owner",
   root: string,
   inputFile: string,
 ): Promise<{
@@ -993,6 +1004,90 @@ async function proveCrossProcessReleaseRecovery(): Promise<void> {
   } finally {
     if (owner) await stopChild(owner);
     fs.rmSync(root, { recursive: true, force: true });
+  }
+}
+
+async function proveCrossProcessOrphanReclaimFenceRecovery(): Promise<void> {
+  for (const scenario of ["reservation", "obligation"] as const) {
+    const root = fs.mkdtempSync(
+      path.join(os.tmpdir(), `void-buy-history-orphan-reclaim-${scenario}-`),
+    );
+    let owner: ReturnType<typeof spawn> | null = null;
+    try {
+      const scenarioPolicy = scenario === "reservation"
+        ? policy()
+        : policy("1", "1");
+      if (scenario === "obligation") {
+        const seed = reserveBuyVoidInventoryV1({
+          root_dir: root,
+          intent: makeIntent(95, "1"),
+          policy: scenarioPolicy,
+          apply: true,
+        });
+        assert.equal(seed.ok, true);
+      }
+      const input = {
+        intent: makeIntent(scenario === "reservation" ? 96 : 97, "1"),
+        policy: scenarioPolicy,
+      };
+      const inputFile = path.join(root, "cross-process-input.json");
+      fs.writeFileSync(inputFile, JSON.stringify(input), { mode: 0o600 });
+      const childFile = writeCrossProcessLockChild(root);
+      const first = await startCrossProcessChild(
+        childFile,
+        "reclaim-fence-cleanup-failure",
+        root,
+        inputFile,
+      );
+      owner = first.child;
+      assert.equal(first.result.fired, true);
+      assert.equal(first.result.lock_exists, false);
+      assert.equal(first.result.release_files.length, 1);
+      assert.equal(first.result.reclaim_files.length, 1);
+      assert.equal(owner.exitCode, null);
+      if (scenario === "reservation") {
+        assert.equal(first.result.result.ok, true);
+      } else {
+        assert.equal(first.result.result.ok, false);
+        assert.equal(first.result.result.reason, "inventory_sold_out");
+      }
+
+      for (let successor = 0; successor < 2; successor += 1) {
+        const retry = await startCrossProcessChild(
+          childFile,
+          "retry",
+          root,
+          inputFile,
+        );
+        assert.equal(owner.exitCode, null);
+        if (scenario === "reservation") {
+          assert.equal(retry.result.result.ok, true);
+          assert.equal(retry.result.result.status, "duplicate");
+          assert.equal(
+            listBuyVoidInventoryReservationsV1({
+              root_dir: root,
+              pool_id: scenarioPolicy.pool_id,
+            }).length,
+            1,
+          );
+        } else {
+          assert.equal(retry.result.result.ok, false);
+          assert.equal(retry.result.result.reason, "inventory_sold_out");
+          assert.equal(
+            listBuyVoidPaidUnreservableObligationsV1({
+              root_dir: root,
+              pool_id: scenarioPolicy.pool_id,
+            }).length,
+            1,
+          );
+        }
+        assert.equal(retry.result.lock_exists, false);
+        await stopChild(retry.child);
+      }
+    } finally {
+      if (owner) await stopChild(owner);
+      fs.rmSync(root, { recursive: true, force: true });
+    }
   }
 }
 
@@ -2105,7 +2200,9 @@ withAdversarialRoot("stale-reclaim-compare-delete-race", (root) => {
     owner_nonce: "e".repeat(32),
   };
   fs.writeFileSync(paths.lock_file, `${JSON.stringify(stale)}\n`, { mode: 0o600 });
-  fs.linkSync(paths.lock_file, paths.lock_reclaim_file);
+  const staleReclaimFile =
+    `${paths.lock_reclaim_prefix}-${stale.owner_nonce}.json`;
+  fs.linkSync(paths.lock_file, staleReclaimFile);
   fs.unlinkSync(paths.lock_file);
   const live = {
     ...stale,
@@ -2229,6 +2326,7 @@ withAdversarialRoot("lock-release-recovery", (root) => {
 });
 
 await proveCrossProcessReleaseRecovery();
+await proveCrossProcessOrphanReclaimFenceRecovery();
 
 console.log("durable_history_expected_set_commitment=1");
 console.log("durable_history_append_only_hash_chain_index=1");
@@ -2257,6 +2355,7 @@ console.log("pool_lock_process_instance_identity=1");
 console.log("pool_lock_publication_recovery=1");
 console.log("pool_lock_release_recovery=1");
 console.log("pool_lock_cross_process_release_recovery=1");
+console.log("pool_lock_reclaim_fence_generation_recovery=1");
 console.log("stale_lock_compare_delete_race_closed=1");
 
 console.log("VOID_BUY_VOID_INVENTORY_RESERVATION_JOURNAL_V1_GREEN");

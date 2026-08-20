@@ -160,7 +160,7 @@ assert.equal(
 );
 assert.equal(
   contract.presale_invariant_readiness.finite_presale_cap_end_to_end_enforced,
-  true,
+  false,
 );
 assert.equal(
   contract.presale_invariant_readiness.canonical_rate_void_units_numerator,
@@ -283,6 +283,7 @@ for (const key of [
   "pool_lock_publication_recovery_ready",
   "pool_lock_release_recovery_ready",
   "pool_lock_cross_process_release_recovery_ready",
+  "pool_lock_reclaim_fence_generation_recovery_ready",
   "stale_lock_compare_delete_race_closed",
   "durable_publication_retry_resync_ready",
   "committed_range_diff_hygiene_ready",
@@ -349,20 +350,33 @@ assert.equal(
   true,
 );
 assert.equal(
+  contract.presale_invariant_readiness
+    .bounded_durable_state_reads_full_presale_domain_ready,
+  false,
+);
+assert.equal(
+  contract.presale_invariant_readiness
+    .durable_history_full_presale_domain_ready,
+  false,
+);
+assert.equal(
   contract.production_broad_delivery_configuration_verified,
   true,
 );
 assert.deepEqual(
   [...contract.activation_readiness_blockers],
-  ["canonical_delivery_runtime_activation_not_ready"],
+  [
+    "durable_history_full_presale_domain_not_ready",
+    "canonical_delivery_runtime_activation_not_ready",
+  ],
 );
 assert.equal(
   contract.current_parent_blocker,
-  "canonical_delivery_runtime_activation_not_ready",
+  "durable_history_full_presale_domain_not_ready",
 );
 assert.equal(
   contract.next_gate,
-  "canonical_delivery_runtime_activation",
+  "durable_history_full_presale_domain",
 );
 assert.equal(
   contract.activation_preconditions
@@ -635,6 +649,7 @@ console.log("pool_lock_process_instance_identity_ready=1");
 console.log("pool_lock_publication_recovery_ready=1");
 console.log("pool_lock_release_recovery_ready=1");
 console.log("pool_lock_cross_process_release_recovery_ready=1");
+console.log("pool_lock_reclaim_fence_generation_recovery_ready=1");
 console.log("stale_lock_compare_delete_race_closed=1");
 console.log("durable_publication_retry_resync_ready=1");
 console.log("committed_range_diff_hygiene_ready=1");
@@ -659,7 +674,7 @@ console.log(
   "canonical_presale_max_fulfillment_units_6_decimal=10000000000000",
 );
 console.log("finite_presale_cap_local_history_enforced=1");
-console.log("finite_presale_cap_end_to_end_enforced=1");
+console.log("finite_presale_cap_end_to_end_enforced=0");
 console.log("canonical_presale_rate=2/1");
 console.log("fixed_presale_rate_enforced=1");
 console.log("canonical_presale_reservation_ceiling=10000000000000");
@@ -668,8 +683,10 @@ console.log("validator_scale_purchase_10000_void_admission_ready=1");
 console.log("delivery_execution_amount_cap_separate_from_purchase_admission=1");
 console.log("disabled_delivery_canary_max_may_be_lower=1");
 console.log("public_delivery_activation_requires_presale_capacity_max=1");
-console.log("activation_readiness_blockers=canonical_delivery_runtime_activation_not_ready");
-console.log("current_parent_blocker=canonical_delivery_runtime_activation_not_ready");
-console.log("next_gate=canonical_delivery_runtime_activation");
+console.log("bounded_durable_state_reads_full_presale_domain_ready=0");
+console.log("durable_history_full_presale_domain_ready=0");
+console.log("activation_readiness_blockers=durable_history_full_presale_domain_not_ready,canonical_delivery_runtime_activation_not_ready");
+console.log("current_parent_blocker=durable_history_full_presale_domain_not_ready");
+console.log("next_gate=durable_history_full_presale_domain");
 console.log("runtime_activation_performed=0");
 console.log("money_movement=0");

@@ -71,7 +71,7 @@ canonical_presale_max_void=10000000
 canonical_presale_max_fulfillment_units_6_decimal=10000000000000
 canonical_presale_max_reservation_fulfillment_units_6_decimal=10000000000000
 finite_presale_cap_local_history_enforced=true
-finite_presale_cap_end_to_end_enforced=true
+finite_presale_cap_end_to_end_enforced=false
 canonical_presale_rate=2/1
 fixed_presale_rate_enforced=true
 reservation_ceiling_equals_total_pool=true
@@ -91,12 +91,15 @@ durable_history_stale_lock_recovery_ready=true
 durability_authority_directory_namespace_ready=true
 durability_authoritative_file_owner_mode_ready=true
 bounded_durable_state_reads_ready=true
+bounded_durable_state_reads_full_presale_domain_ready=false
+durable_history_full_presale_domain_ready=false
 durable_metadata_exact_runtime_json_types_ready=true
 durable_record_fingerprint_type_sensitive_ready=true
 pool_lock_process_instance_identity_ready=true
 pool_lock_publication_recovery_ready=true
 pool_lock_release_recovery_ready=true
 pool_lock_cross_process_release_recovery_ready=true
+pool_lock_reclaim_fence_generation_recovery_ready=true
 stale_lock_compare_delete_race_closed=true
 durable_publication_retry_resync_ready=true
 committed_range_diff_hygiene_ready=true
@@ -105,14 +108,16 @@ durable_history_external_anti_rollback_anchor_ready=true
 durable_history_valid_suffix_rollback_detection_ready=true
 durable_history_full_rollback_protection_ready=false
 durable_history_full_anchor_authority_rollback_out_of_scope=true
-activation_readiness_blockers=canonical_delivery_runtime_activation_not_ready
-current_parent_blocker=canonical_delivery_runtime_activation_not_ready
-next_gate=canonical_delivery_runtime_activation
+activation_readiness_blockers=durable_history_full_presale_domain_not_ready,canonical_delivery_runtime_activation_not_ready
+current_parent_blocker=durable_history_full_presale_domain_not_ready
+next_gate=durable_history_full_presale_domain
 ```
 
 Credential key-to-wallet evidence is recorded for the canonical Precision/Mainnet-0 fulfillment wallet without inferring clone-local binding. Dormant dependency injection requires delivery enable exact `0`, the exact evidence ID, and a configured delivery wallet matching that evidence; any mismatch remains held before dependencies are populated.
 
 The canonical presale economics source is fail-closed to one pool (`buy-void-presale-v1`), exactly 10000000 VOID (10000000000000 six-decimal fulfillment units), and exactly `2 VOID / 1 USDC`. The inventory reservation ceiling equals the entire presale pool, so there is **no per-buyer 2-VOID throttle** below remaining inventory. A 10,000 VOID validator-scale purchase is explicitly proven to reserve successfully.
+
+The current 64 MiB bounded JSONL history/index representation cannot cover the full minimum-purchase presale domain without reaching its authoritative read ceiling first. The activation contract therefore fails closed with `durable_history_full_presale_domain_not_ready`; the fixed cap, rate, reservation ceiling, and absence of a smaller per-buyer maximum remain unchanged. The next source gate is a bounded authenticated working-state/checkpoint design that preserves append-only audit evidence without rereading one permanent line per valid purchase.
 
 `VOID_BUY_VOID_DELIVERY_MAX_AMOUNT_UNITS` remains a separate delivery-execution safety control. A lower 2-VOID canary is allowed only while delivery is disabled; public delivery activation fails configuration unless the delivery maximum equals the canonical presale capacity so every admitted purchase can be fulfilled without an execution-layer throttle.
 

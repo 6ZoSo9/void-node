@@ -68,6 +68,8 @@ assert.deepEqual(
     durable_history_coherent_suffix_rollback_detection: true,
     stale_pool_lock_recovery: true,
     cross_process_pool_lock_release_recovery: true,
+    generation_bound_pool_lock_reclaim_fence: true,
+    full_presale_domain_history_range: false,
     obligation_automatic_retry: false,
     obligation_refund_execution_authorized: false,
     inventory_decrement: false,
