@@ -2154,7 +2154,7 @@ async function main(): Promise<void> {
         authority.prepareWcPublicClaimHistoryDecisionV1(
           tmp,
         ),
-      /VOID_WC_PUBLIC_CLAIM_HISTORY_WATCH_(?:CHALLENGE_TIMEOUT|INVALID)/,
+      /VOID_WC_PUBLIC_CLAIM_HISTORY_(?:WARMING|WATCH_(?:CHALLENGE_TIMEOUT|INVALID))/,
     );
 
     authority.resetWcPublicClaimHistoryAuthorityForProofV1(
@@ -2301,7 +2301,7 @@ async function main(): Promise<void> {
         authority.prepareWcPublicClaimHistoryDecisionV1(
           tmp,
         ),
-      /VOID_WC_PUBLIC_CLAIM_HISTORY_WATCH_(?:CHALLENGE_TIMEOUT|INVALID)/,
+      /VOID_WC_PUBLIC_CLAIM_HISTORY_(?:WARMING|WATCH_(?:CHALLENGE_TIMEOUT|INVALID))/,
     );
     authority.resetWcPublicClaimHistoryAuthorityForProofV1(
       tmp,
