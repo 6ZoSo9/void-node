@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 
 import crypto from "node:crypto";
+import { constants as bufferConstants } from "node:buffer";
 import fs from "node:fs";
 import net from "node:net";
 import path from "node:path";
@@ -110,6 +111,9 @@ export function readPinnedUtf8RegularFile(
   if (!Number.isSafeInteger(maxBytes) || maxBytes < 0) {
     fail(`${label} maxBytes must be a non-negative safe integer`);
   }
+  if (maxBytes >= bufferConstants.MAX_LENGTH) {
+    fail(`${label} maxBytes exceeds the runtime buffer capacity`);
+  }
   ensureDescriptorRelativeFs();
   const resolved = path.resolve(String(filename ?? ""));
   let fd;
@@ -137,7 +141,23 @@ export function readPinnedUtf8RegularFile(
       afterOpen({ path: resolved });
     }
 
-    const text = fs.readFileSync(fd, "utf8");
+    const body = Buffer.allocUnsafe(maxBytes + 1);
+    let retainedBytes = 0;
+    while (retainedBytes < body.length) {
+      const bytesRead = fs.readSync(
+        fd,
+        body,
+        retainedBytes,
+        body.length - retainedBytes,
+        null,
+      );
+      if (bytesRead === 0) break;
+      retainedBytes += bytesRead;
+    }
+    if (retainedBytes > maxBytes) {
+      fail(`${label} exceeds ${maxBytes}-byte limit`);
+    }
+    const text = body.toString("utf8", 0, retainedBytes);
     const after = fs.fstatSync(fd, { bigint: true });
     if (!after.isFile() || !sameFileSnapshot(beforeSnapshot, stableFileSnapshot(after))) {
       fail(`${label} changed while being read`);

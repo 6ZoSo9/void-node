@@ -204,6 +204,7 @@ for (const forbidden of [
 assert.match(toolSource, /\/proc\/self\/fd/);
 assert.match(toolSource, /O_NOFOLLOW/);
 assert.doesNotMatch(toolSource, /fs\.readFileSync\(CONFIG_PATH/);
+assert.doesNotMatch(toolSource, /const text = fs\.readFileSync\(fd, "utf8"\)/);
 assert.doesNotMatch(toolSource, /requireRegularFile\(args\.indexNowKeyFile/);
 assert.match(docsSource, /does not atomically seal the complete tree/);
 assert.match(docsSource, /exclusive same-UID mutation authority/);
@@ -298,6 +299,30 @@ try {
     "replacement key generation must not be mistaken for the opened generation",
   );
 
+  const growingKeyPath = path.join(temporaryRoot, "indexnow-key.growing.txt");
+  const growingKeyInitial = `${INDEXNOW_KEY}\n`;
+  fs.writeFileSync(growingKeyPath, growingKeyInitial, { mode: 0o600 });
+  const growingKeyBefore = fs.statSync(growingKeyPath, { bigint: true });
+  assert.throws(
+    () => readPinnedUtf8RegularFile(growingKeyPath, "IndexNow key file", {
+      maxBytes: MAX_INDEXNOW_KEY_FILE_BYTES,
+      afterOpen() {
+        fs.appendFileSync(
+          growingKeyPath,
+          "A".repeat(
+            MAX_INDEXNOW_KEY_FILE_BYTES + 1 - Buffer.byteLength(growingKeyInitial),
+          ),
+        );
+        const grown = fs.statSync(growingKeyPath, { bigint: true });
+        assert.equal(grown.dev, growingKeyBefore.dev);
+        assert.equal(grown.ino, growingKeyBefore.ino);
+        assert.equal(grown.size, BigInt(MAX_INDEXNOW_KEY_FILE_BYTES + 1));
+      },
+    }),
+    /exceeds 129-byte limit/,
+    "same-inode key growth after admission must HOLD at the cap-plus-one read boundary",
+  );
+
   const maximumKeyPath = path.join(temporaryRoot, "indexnow-key.maximum.txt");
   const maximumKey = "A".repeat(128);
   fs.writeFileSync(maximumKeyPath, `${maximumKey}\n`, { mode: 0o600 });
@@ -354,6 +379,29 @@ try {
     }),
     /changed while being read|path changed generation/,
     "config pathname replacement after open must HOLD before replacement authority can be consumed",
+  );
+
+  const growingConfigPath = path.join(temporaryRoot, "config.growing.json");
+  fs.writeFileSync(growingConfigPath, fs.readFileSync(CONFIG));
+  const growingConfigBefore = fs.statSync(growingConfigPath, { bigint: true });
+  assert.throws(
+    () => readDiscoveryConfigFile(growingConfigPath, {
+      afterOpen() {
+        fs.appendFileSync(
+          growingConfigPath,
+          Buffer.alloc(
+            MAX_DISCOVERY_CONFIG_FILE_BYTES + 1 - Number(growingConfigBefore.size),
+            0x20,
+          ),
+        );
+        const grown = fs.statSync(growingConfigPath, { bigint: true });
+        assert.equal(grown.dev, growingConfigBefore.dev);
+        assert.equal(grown.ino, growingConfigBefore.ino);
+        assert.equal(grown.size, BigInt(MAX_DISCOVERY_CONFIG_FILE_BYTES + 1));
+      },
+    }),
+    /exceeds 65536-byte limit/,
+    "same-inode config growth after admission must HOLD at the cap-plus-one read boundary",
   );
 
   const oversizedConfigPath = path.join(temporaryRoot, "config.oversized.json");
@@ -554,6 +602,7 @@ console.log("bing_indexnow_payload_only=true");
 console.log("cloudflare_crawler_hints_dashboard_only=true");
 console.log("indexnow_key_outside_repository=true");
 console.log("input_generation_replacements_held=true");
+console.log("pinned_input_same_inode_growth_bounded=true");
 console.log("output_symlink_components_held=true");
 console.log("output_ancestor_swap_held=true");
 console.log("descriptor_relative_output_authority=true");
