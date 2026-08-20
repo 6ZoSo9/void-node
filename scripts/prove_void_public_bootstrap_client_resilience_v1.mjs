@@ -1204,6 +1204,72 @@ try {
       "failed receipt scan contaminated the durable-hit cache",
     );
 
+    const assertWrongTypedReceiptFailsClosed = async (
+      name,
+      durableRows,
+      expectedReceipt,
+    ) => {
+      const wrongTypedDir = path.join(receiptHistoryRoot, name);
+      fs.mkdirSync(wrongTypedDir, { recursive: true });
+      const wrongTypedShard = path.join(
+        wrongTypedDir,
+        "receipts-00000000.jsonl",
+      );
+      const originalBytes = `${durableRows.map((row) => JSON.stringify(row)).join("\n")}\n`;
+      fs.writeFileSync(wrongTypedShard, originalBytes);
+      const store = new receiptModule.ReceiptsStore(wrongTypedDir, {
+        shardSpan: 10_000,
+      });
+      await assertRejects(
+        () => store.getMany([expectedReceipt.h]),
+        /invalid receipt/,
+        `${name} entered durable membership truth`,
+      );
+      await assertRejects(
+        () => store.appendMany([expectedReceipt]),
+        /invalid receipt/,
+        `${name} allowed replacement publication`,
+      );
+      assert(
+        fs.readFileSync(wrongTypedShard, "utf8") === originalBytes,
+        `${name} mutated malformed durable identity history`,
+      );
+      assert(
+        fs.readdirSync(wrongTypedDir).length === 1,
+        `${name} published a second canonical receipt generation`,
+      );
+    };
+    const exactTypedReceipt = {
+      h: "9".repeat(64),
+      n: followerBlock0.number,
+      o: 0,
+      ts: followerBlock0.timestamp,
+    };
+    await assertWrongTypedReceiptFailsClosed(
+      "array-hash-only",
+      [{ ...exactTypedReceipt, h: [exactTypedReceipt.h] }],
+      exactTypedReceipt,
+    );
+    await assertWrongTypedReceiptFailsClosed(
+      "array-hash-then-canonical",
+      [
+        { ...exactTypedReceipt, h: [exactTypedReceipt.h] },
+        exactTypedReceipt,
+      ],
+      exactTypedReceipt,
+    );
+    await assertWrongTypedReceiptFailsClosed(
+      "array-hash-conflict",
+      [{
+        ...exactTypedReceipt,
+        h: [exactTypedReceipt.h],
+        n: exactTypedReceipt.n + 1,
+        o: 1,
+      }],
+      exactTypedReceipt,
+    );
+    pass("receipt history rejects coercible durable JSON identities");
+
     const recoveryDir = path.join(receiptHistoryRoot, "recovery");
     const recoveryStore = new receiptModule.ReceiptsStore(recoveryDir, {
       shardSpan: 10_000,
@@ -1535,4 +1601,5 @@ console.log("follower_post_commit_projection_recovery=true");
 console.log("follower_receipt_history_deadline_owned=true");
 console.log("follower_receipt_descriptor_generation_bound=true");
 console.log("follower_receipt_directory_generation_bound=true");
+console.log("follower_receipt_exact_json_types=true");
 console.log("follower_rejected_response_body_released=true");

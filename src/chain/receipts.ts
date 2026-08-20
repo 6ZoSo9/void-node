@@ -145,18 +145,32 @@ export class ReceiptsStore {
     if (
       !parsed ||
       typeof parsed !== "object" ||
-      Array.isArray(parsed) ||
-      !/^[0-9a-f]{64}$/.test(String((parsed as Receipt).h || "")) ||
-      !Number.isSafeInteger((parsed as Receipt).n) ||
-      (parsed as Receipt).n < 0 ||
-      !Number.isSafeInteger((parsed as Receipt).o) ||
-      (parsed as Receipt).o < 0 ||
-      !Number.isSafeInteger((parsed as Receipt).ts) ||
-      (parsed as Receipt).ts <= 0
+      Array.isArray(parsed)
     ) {
       throw new Error(`receipt shard contains an invalid receipt: ${file}`);
     }
-    return parsed as Receipt;
+    const candidate = parsed as Record<string, unknown>;
+    if (
+      typeof candidate.h !== "string" ||
+      !/^[0-9a-f]{64}$/.test(candidate.h) ||
+      typeof candidate.n !== "number" ||
+      !Number.isSafeInteger(candidate.n) ||
+      candidate.n < 0 ||
+      typeof candidate.o !== "number" ||
+      !Number.isSafeInteger(candidate.o) ||
+      candidate.o < 0 ||
+      typeof candidate.ts !== "number" ||
+      !Number.isSafeInteger(candidate.ts) ||
+      candidate.ts <= 0
+    ) {
+      throw new Error(`receipt shard contains an invalid receipt: ${file}`);
+    }
+    return {
+      h: candidate.h,
+      n: candidate.n,
+      o: candidate.o,
+      ts: candidate.ts,
+    };
   }
 
   private async scanReceiptHistoryV1(
