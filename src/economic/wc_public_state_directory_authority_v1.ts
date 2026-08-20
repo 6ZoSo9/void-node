@@ -29,6 +29,19 @@ export type WcPublicStateDirectoryParentFsyncHookV1 =
     ) => void)
   | null;
 
+export type WcPublicStateDirectoryBeforeCachePublishHookV1 =
+  | ((parent: string, child: string) => void)
+  | null;
+
+let beforeCachePublishHookForProofV1:
+  WcPublicStateDirectoryBeforeCachePublishHookV1 = null;
+
+export function setWcPublicStateDirectoryBeforeCachePublishHookForProofV1(
+  hook: WcPublicStateDirectoryBeforeCachePublishHookV1,
+): void {
+  beforeCachePublishHookForProofV1 = hook;
+}
+
 // Once an authority root or durability-critical descendant has been
 // admitted, its exact directory generation remains authoritative for this
 // process lifetime. A different private directory at the same pathname is a
@@ -195,7 +208,7 @@ function fsyncExactDirectoryLinkV1(
   expectedChild: WcPublicStateDirectoryIdentityV1,
   parentRequirePrivate: boolean,
   hook: WcPublicStateDirectoryParentFsyncHookV1,
-): void {
+): WcPublicStateDurableDirectoryLinkV1 {
   const parentChanged =
     "wc_public_state_directory_parent_generation_changed";
   const childChanged =
@@ -301,8 +314,65 @@ function fsyncExactDirectoryLinkV1(
     if (!sameIdentityV1(expectedChild, childAfter)) {
       throw new Error(childChanged);
     }
+
+    const openedNamespaceFinal =
+      directoryNamespaceEpochFromStatV1(
+        fs.fstatSync(fd, { bigint: true } as any),
+      );
+    if (
+      !sameNamespaceEpochV1(
+        openedNamespace,
+        openedNamespaceFinal,
+      )
+    ) {
+      throw new Error(childChanged);
+    }
+
+    return {
+      child: childAfter,
+      parent: parentAfter,
+      parent_namespace: openedNamespaceFinal,
+    };
   } finally {
     fs.closeSync(fd);
+  }
+}
+
+function assertDurableDirectoryLinkCurrentV1(
+  parent: string,
+  child: string,
+  parentRequirePrivate: boolean,
+  durableLink: WcPublicStateDurableDirectoryLinkV1,
+): void {
+  const parentChanged =
+    "wc_public_state_directory_parent_generation_changed";
+  const childChanged =
+    "wc_public_state_directory_generation_changed";
+
+  const currentParent = directoryIdentityV1(
+    parent,
+    parentRequirePrivate,
+  );
+  if (!sameIdentityV1(durableLink.parent, currentParent)) {
+    throw new Error(parentChanged);
+  }
+
+  const currentChild = directoryIdentityV1(child, true);
+  if (!sameIdentityV1(durableLink.child, currentChild)) {
+    throw new Error(childChanged);
+  }
+
+  const currentNamespace = directoryNamespaceEpochV1(
+    parent,
+    parentRequirePrivate,
+  );
+  if (
+    !sameNamespaceEpochV1(
+      durableLink.parent_namespace,
+      currentNamespace,
+    )
+  ) {
+    throw new Error(childChanged);
   }
 }
 
@@ -489,7 +559,7 @@ export function ensureWcPublicStateDurableDirectoryV1(
       // namespace epoch. Re-establish the exact parent->child link before
       // reusing durability authority; a replacement parent generation is
       // rejected above even when the exact child inode was reparented.
-      fsyncExactDirectoryLinkV1(
+      const durableLink = fsyncExactDirectoryLinkV1(
         parent,
         target,
         parentIdentity,
@@ -497,17 +567,21 @@ export function ensureWcPublicStateDurableDirectoryV1(
         parentRequirePrivate,
         hook,
       );
-      durableDirectoryLinksV1.set(target, {
-        child: directoryIdentityV1(target, true),
-        parent: directoryIdentityV1(
-          parent,
-          parentRequirePrivate,
-        ),
-        parent_namespace: directoryNamespaceEpochV1(
-          parent,
-          parentRequirePrivate,
-        ),
-      });
+      beforeCachePublishHookForProofV1?.(
+        parent,
+        target,
+      );
+      assertDurableDirectoryLinkCurrentV1(
+        parent,
+        target,
+        parentRequirePrivate,
+        durableLink,
+      );
+      durableDirectoryLinksV1.set(
+        target,
+        durableLink,
+      );
+      return durableLink.child;
     }
     return identity;
   }
@@ -519,7 +593,7 @@ export function ensureWcPublicStateDurableDirectoryV1(
     parent,
     parentRequirePrivate,
   );
-  fsyncExactDirectoryLinkV1(
+  const durableLink = fsyncExactDirectoryLinkV1(
     parent,
     target,
     parentIdentity,
@@ -527,26 +601,25 @@ export function ensureWcPublicStateDurableDirectoryV1(
     parentRequirePrivate,
     hook,
   );
-  const after = directoryIdentityV1(target, true);
-  if (!sameIdentityV1(identity, after)) {
-    throw new Error("wc_public_state_directory_generation_changed");
-  }
+  beforeCachePublishHookForProofV1?.(
+    parent,
+    target,
+  );
+  assertDurableDirectoryLinkCurrentV1(
+    parent,
+    target,
+    parentRequirePrivate,
+    durableLink,
+  );
   const authorityAfter = directoryIdentityV1(authorityRoot, true);
   if (!sameIdentityV1(authorityIdentity, authorityAfter)) {
     throw new Error(
       "wc_public_state_authority_root_generation_changed",
     );
   }
-  durableDirectoryLinksV1.set(target, {
-    child: after,
-    parent: directoryIdentityV1(
-      parent,
-      parentRequirePrivate,
-    ),
-    parent_namespace: directoryNamespaceEpochV1(
-      parent,
-      parentRequirePrivate,
-    ),
-  });
-  return after;
+  durableDirectoryLinksV1.set(
+    target,
+    durableLink,
+  );
+  return durableLink.child;
 }

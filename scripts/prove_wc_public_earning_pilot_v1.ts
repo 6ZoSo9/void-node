@@ -1049,6 +1049,35 @@ need(
   "shared public-state directory durability is not exact-parent-fsync-before-cache",
 );
 need(
+  sharedExactDirFsyncBlock.includes(
+    "): WcPublicStateDurableDirectoryLinkV1 {",
+  ) &&
+    sharedExactDirFsyncBlock.includes(
+      "const openedNamespaceFinal =",
+    ) &&
+    sharedExactDirFsyncBlock.includes(
+      "parent_namespace: openedNamespaceFinal",
+    ),
+  "exact parent fsync helper does not return the verified durable-link tuple",
+);
+need(
+  publicStateDirectoryAuthorityText.includes(
+    "setWcPublicStateDirectoryBeforeCachePublishHookForProofV1",
+  ) &&
+    publicStateDirectoryAuthorityText.includes(
+      "assertDurableDirectoryLinkCurrentV1(",
+    ) &&
+    (
+      publicStateDirectoryAuthorityText.match(
+        /durableDirectoryLinksV1\.set\(\s*target,\s*durableLink,?\s*\)/g,
+      ) || []
+    ).length === 2 &&
+    !publicStateDirectoryAuthorityText.includes(
+      "durableDirectoryLinksV1.set(target, {",
+    ),
+  "durable-link cache publication is not bound to the fsynced tuple",
+);
+need(
   !publicStateDirectoryAuthorityText.includes(
     "fsyncDirectoryV1(",
   ),

@@ -3256,6 +3256,121 @@ async function main(): Promise<void> {
     fs.rmSync(root, { recursive: true, force: true });
   }
 
+  // A directory cache may publish only the exact parent->child tuple that
+  // crossed fsync. Reparenting the exact child after helper return but before
+  // cache publication must HOLD; exact retry must re-fsync the new link.
+  {
+    const root = fs.mkdtempSync(
+      path.join(
+        os.tmpdir(),
+        "void-wc-public-state-post-fsync-cache-race-v1-",
+      ),
+    );
+    const parent = path.join(
+      root,
+      "wc_v1",
+      "public-earning-pilot-v1",
+    );
+    const target = path.join(parent, "issued");
+    const displaced =
+      `${parent}.proof-post-fsync-displaced`;
+    fs.mkdirSync(target, {
+      recursive: true,
+      mode: 0o700,
+    });
+
+    const before: any = fs.lstatSync(
+      target,
+      { bigint: true } as any,
+    );
+    let reparentInjected = false;
+
+    stateDirectoryAuthority
+      .setWcPublicStateDirectoryBeforeCachePublishHookForProofV1(
+        (
+          observedParent: string,
+          child: string,
+        ) => {
+          if (
+            reparentInjected ||
+            path.resolve(observedParent) !==
+              path.resolve(parent) ||
+            path.resolve(child) !== path.resolve(target)
+          ) {
+            return;
+          }
+          reparentInjected = true;
+          fs.renameSync(parent, displaced);
+          fs.mkdirSync(parent, { mode: 0o700 });
+          fs.renameSync(
+            path.join(displaced, "issued"),
+            target,
+          );
+        },
+      );
+
+    try {
+      assert.throws(
+        () =>
+          stateDirectoryAuthority
+            .ensureWcPublicStateDurableDirectoryV1(
+              target,
+              root,
+            ),
+        /wc_public_state_directory_parent_generation_changed/,
+      );
+    } finally {
+      stateDirectoryAuthority
+        .setWcPublicStateDirectoryBeforeCachePublishHookForProofV1(
+          null,
+        );
+    }
+
+    assert.equal(
+      reparentInjected,
+      true,
+      "post-fsync cache-publication seam did not execute",
+    );
+    const after: any = fs.lstatSync(
+      target,
+      { bigint: true } as any,
+    );
+    assert.equal(String(after.dev), String(before.dev));
+    assert.equal(String(after.ino), String(before.ino));
+
+    let retryFsyncs = 0;
+    const admitted =
+      stateDirectoryAuthority
+        .ensureWcPublicStateDurableDirectoryV1(
+          target,
+          root,
+          (
+            phase: "before" | "after",
+            _observedParent: string,
+            child: string,
+          ) => {
+            if (
+              phase === "after" &&
+              path.resolve(child) ===
+                path.resolve(target)
+            ) {
+              retryFsyncs += 1;
+            }
+          },
+        );
+    assert.ok(
+      retryFsyncs >= 1,
+      "post-fsync reparented link was cached without retry fsync",
+    );
+    assert.equal(admitted.dev, String(after.dev));
+    assert.equal(admitted.ino, String(after.ino));
+
+    fs.rmSync(root, {
+      recursive: true,
+      force: true,
+    });
+  }
+
   // A fresh public-WC state tree may leave a just-created directory visible
   // when its parent fsync fails. The failed request must publish no claim or
   // ticket; exact retry must re-fsync that same visible link before success.
@@ -3530,6 +3645,12 @@ async function main(): Promise<void> {
   );
   console.log(
     "transient_child_namespace_swap_cached=false",
+  );
+  console.log(
+    "post_fsync_cache_reparent_hold=true",
+  );
+  console.log(
+    "post_fsync_cache_retry_resynced=true",
   );
   console.log(
     "self_attested_no_dataset_credit=false",
