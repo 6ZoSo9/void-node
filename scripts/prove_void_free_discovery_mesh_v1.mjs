@@ -28,6 +28,17 @@ const HERE = path.dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(HERE, "..");
 const TOOL = path.join(REPO_ROOT, "tools/void-free-discovery-mesh-v1.mjs");
 const CONFIG = path.join(REPO_ROOT, "config/void-free-discovery-mesh-v1.json");
+const WORKFLOW_PATH =
+  ".github/workflows/void-free-discovery-mesh-v1.yml";
+const CI_COST_CHECKER_PATH = "scripts/check_void_ci_cost_boundary_v1.py";
+const EXPECTED_TRIGGER_PATHS = Object.freeze([
+  WORKFLOW_PATH,
+  "config/void-free-discovery-mesh-v1.json",
+  "docs/public-node/void-free-discovery-mesh-v1.md",
+  "scripts/prove_void_free_discovery_mesh_v1.mjs",
+  CI_COST_CHECKER_PATH,
+  "tools/void-free-discovery-mesh-v1.mjs",
+].sort());
 const ORIGIN = "https://void.example";
 const LASTMOD = "2026-07-31";
 const INDEXNOW_KEY = "VOID-Free-Discovery-Test-Key-0001";
@@ -128,6 +139,52 @@ assert.equal(config.authority.network_calls, false);
 assert.equal(config.authority.deployment, false);
 assert.equal(config.authority.wallet_or_signer_access, false);
 assert.equal(readDiscoveryConfigFile(CONFIG).config.marker, MARKER);
+
+function workflowEventPaths(source, eventName, endMarker) {
+  const startMarker = `  ${eventName}:\n`;
+  const start = source.indexOf(startMarker);
+  assert.notEqual(start, -1, `${eventName}: trigger missing`);
+  const end = source.indexOf(endMarker, start + startMarker.length);
+  assert.notEqual(end, -1, `${eventName}: trigger boundary missing`);
+  return [...source.slice(start, end).matchAll(/^\s{6}- "([^"]+)"$/gm)]
+    .map((match) => match[1])
+    .sort();
+}
+
+const workflowSource = fs.readFileSync(
+  path.join(REPO_ROOT, WORKFLOW_PATH),
+  "utf8",
+);
+const pullRequestPaths = workflowEventPaths(
+  workflowSource,
+  "pull_request",
+  "  push:\n",
+);
+const pushPaths = workflowEventPaths(
+  workflowSource,
+  "push",
+  "\npermissions:\n",
+);
+assert.deepEqual(
+  pullRequestPaths,
+  EXPECTED_TRIGGER_PATHS,
+  "pull_request trigger must bind the exact Free Discovery Mesh dependency set",
+);
+assert.deepEqual(
+  pushPaths,
+  EXPECTED_TRIGGER_PATHS,
+  "push trigger must bind the exact Free Discovery Mesh dependency set",
+);
+assert.ok(
+  pullRequestPaths.includes(CI_COST_CHECKER_PATH)
+    && pushPaths.includes(CI_COST_CHECKER_PATH),
+  "CI cost checker-only changes must schedule the Free Discovery Mesh workflow",
+);
+assert.ok(
+  !pullRequestPaths.includes("src/node_core.ts")
+    && !pushPaths.includes("src/node_core.ts"),
+  "unrelated source changes must not schedule the Free Discovery Mesh workflow",
+);
 
 const toolSource = fs.readFileSync(TOOL, "utf8");
 for (const forbidden of [
@@ -302,6 +359,8 @@ console.log("input_generation_replacements_held=true");
 console.log("output_symlink_components_held=true");
 console.log("output_ancestor_swap_held=true");
 console.log("descriptor_relative_output_authority=true");
+console.log("ci_cost_checker_change_schedules=true");
+console.log("unrelated_path_does_not_schedule=true");
 console.log("network_calls=false");
 console.log("live_submission=false");
 console.log("deployment=false");
