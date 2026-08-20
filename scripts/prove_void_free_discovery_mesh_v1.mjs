@@ -389,6 +389,91 @@ try {
     ["pack"],
     "private temporary output must be cleaned after no-replace HOLD",
   );
+
+  const stagedMutationParent = path.join(temporaryRoot, "staged-mutation-parent");
+  const stagedMutationOutput = path.join(stagedMutationParent, "pack");
+  fs.mkdirSync(stagedMutationParent);
+  assert.throws(
+    () => buildDiscoveryPack({
+      origin: ORIGIN,
+      output: stagedMutationOutput,
+      indexNowKey: INDEXNOW_KEY,
+      lastmod: LASTMOD,
+      testHooks: {
+        beforePublish({ temporary }) {
+          const target = path.join(temporary, "public/robots.txt");
+          const original = fs.readFileSync(target);
+          const replacement = Buffer.from(original);
+          replacement[0] ^= 0x01;
+          fs.writeFileSync(target, replacement);
+        },
+      },
+    }),
+    /staged output bytes changed: public\/robots\.txt/,
+    "staged content mutation after receipt construction must HOLD",
+  );
+  assert.equal(
+    fs.existsSync(stagedMutationOutput),
+    false,
+    "compromised staged content must never become a successful published pack",
+  );
+  assert.deepEqual(
+    fs.readdirSync(stagedMutationParent),
+    [],
+    "compromised private staging must be removed by exact owned generation",
+  );
+
+  const receiptMutationParent = path.join(temporaryRoot, "receipt-mutation-parent");
+  const receiptMutationOutput = path.join(receiptMutationParent, "pack");
+  fs.mkdirSync(receiptMutationParent);
+  assert.throws(
+    () => buildDiscoveryPack({
+      origin: ORIGIN,
+      output: receiptMutationOutput,
+      indexNowKey: INDEXNOW_KEY,
+      lastmod: LASTMOD,
+      testHooks: {
+        beforePublish({ temporary }) {
+          fs.writeFileSync(
+            path.join(temporary, "build-receipt-v1.json"),
+            '{"marker":"ATTACKER_REPLACEMENT"}\n',
+          );
+        },
+      },
+    }),
+    /staged output byte length changed: build-receipt-v1\.json/,
+    "the receipt generation itself must remain bound through publication",
+  );
+  assert.equal(fs.existsSync(receiptMutationOutput), false);
+  assert.deepEqual(fs.readdirSync(receiptMutationParent), []);
+
+  const publishedMutationParent = path.join(temporaryRoot, "published-mutation-parent");
+  const publishedMutationOutput = path.join(publishedMutationParent, "pack");
+  fs.mkdirSync(publishedMutationParent);
+  assert.throws(
+    () => buildDiscoveryPack({
+      origin: ORIGIN,
+      output: publishedMutationOutput,
+      indexNowKey: INDEXNOW_KEY,
+      lastmod: LASTMOD,
+      testHooks: {
+        afterReservedPublication({ destination }) {
+          fs.writeFileSync(
+            path.join(destination, "operator/indexnow-request-v1.json"),
+            '{"host":"attacker.example"}\n',
+          );
+        },
+      },
+    }),
+    /published output byte length changed: operator\/indexnow-request-v1\.json/,
+    "final descriptor-bound inventory must be reverified after publication",
+  );
+  assert.equal(
+    fs.existsSync(publishedMutationOutput),
+    false,
+    "a compromised reserved publication must not survive a HOLD",
+  );
+  assert.deepEqual(fs.readdirSync(publishedMutationParent), []);
 } finally {
   fs.rmSync(temporaryRoot, { recursive: true, force: true });
 }
@@ -404,6 +489,8 @@ console.log("output_symlink_components_held=true");
 console.log("output_ancestor_swap_held=true");
 console.log("descriptor_relative_output_authority=true");
 console.log("destination_no_replace_publication=true");
+console.log("staged_content_generation_bound=true");
+console.log("published_inventory_reverified=true");
 console.log("ci_cost_checker_change_schedules=true");
 console.log("unrelated_path_does_not_schedule=true");
 console.log("network_calls=false");

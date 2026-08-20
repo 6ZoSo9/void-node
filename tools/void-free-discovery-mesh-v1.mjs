@@ -50,10 +50,6 @@ function sha256(value) {
   return crypto.createHash("sha256").update(value).digest("hex");
 }
 
-function sha256File(filename) {
-  return sha256(fs.readFileSync(filename));
-}
-
 function ensureDescriptorRelativeFs() {
   let metadata;
   try {
@@ -471,6 +467,165 @@ function writeFile(filename, value) {
   fs.writeFileSync(filename, value, { encoding: "utf8", mode: 0o600, flag: "wx" });
 }
 
+function relativeFileParts(relative, label) {
+  const value = String(relative ?? "");
+  const parts = value.split("/").map((part) => safeLeaf(part, label));
+  if (!value || parts.join("/") !== value) {
+    fail(`${label} is not a canonical relative file path`);
+  }
+  return parts;
+}
+
+function duplicatePinnedDirectory(pinned, label) {
+  const fd = fs.openSync(
+    pinned.procPath,
+    fs.constants.O_RDONLY | fs.constants.O_DIRECTORY,
+  );
+  const metadata = fs.fstatSync(fd, { bigint: true });
+  if (!metadata.isDirectory() || !sameIdentity(pinned.identity, identityOf(metadata))) {
+    fs.closeSync(fd);
+    fail(`${label} changed generation before descriptor-relative verification`);
+  }
+  return fd;
+}
+
+function openPinnedRelativeDirectory(rootPinned, parts, label) {
+  let fd = duplicatePinnedDirectory(rootPinned, label);
+  try {
+    for (const part of parts) {
+      const nextPath = procFdPath(fd, part);
+      const nextFd = fs.openSync(
+        nextPath,
+        fs.constants.O_RDONLY
+          | fs.constants.O_DIRECTORY
+          | fs.constants.O_NOFOLLOW,
+      );
+      const metadata = fs.fstatSync(nextFd, { bigint: true });
+      const linked = fs.lstatSync(nextPath, { bigint: true });
+      if (
+        !metadata.isDirectory()
+        || linked.isSymbolicLink()
+        || !linked.isDirectory()
+        || !sameIdentity(identityOf(metadata), identityOf(linked))
+      ) {
+        fs.closeSync(nextFd);
+        fail(`${label} directory changed generation: ${part}`);
+      }
+      fs.closeSync(fd);
+      fd = nextFd;
+    }
+    return fd;
+  } catch (error) {
+    fs.closeSync(fd);
+    throw error;
+  }
+}
+
+function verifyPinnedRegularFile(rootPinned, relative, expectedValue, label) {
+  const parts = relativeFileParts(relative, `${label} path`);
+  const leaf = parts.at(-1);
+  const parentFd = openPinnedRelativeDirectory(rootPinned, parts.slice(0, -1), label);
+  let fd;
+  try {
+    const filename = procFdPath(parentFd, leaf);
+    fd = fs.openSync(filename, fs.constants.O_RDONLY | fs.constants.O_NOFOLLOW);
+    const before = fs.fstatSync(fd, { bigint: true });
+    if (!before.isFile()) fail(`${label} must be a regular file: ${relative}`);
+    const expected = Buffer.from(expectedValue, "utf8");
+    if (before.size !== BigInt(expected.length)) {
+      fail(`${label} byte length changed: ${relative}`);
+    }
+    const beforeSnapshot = stableFileSnapshot(before);
+    const actual = fs.readFileSync(fd);
+    const after = fs.fstatSync(fd, { bigint: true });
+    const linked = fs.lstatSync(filename, { bigint: true });
+    if (
+      !after.isFile()
+      || linked.isSymbolicLink()
+      || !linked.isFile()
+      || !sameFileSnapshot(beforeSnapshot, stableFileSnapshot(after))
+      || !sameFileSnapshot(beforeSnapshot, stableFileSnapshot(linked))
+    ) {
+      fail(`${label} changed generation while being verified: ${relative}`);
+    }
+    if (!actual.equals(expected)) {
+      fail(`${label} bytes changed: ${relative}`);
+    }
+  } finally {
+    if (fd !== undefined) fs.closeSync(fd);
+    fs.closeSync(parentFd);
+  }
+}
+
+function collectPinnedInventory(rootPinned, label) {
+  const inventory = [];
+  const rootFd = duplicatePinnedDirectory(rootPinned, label);
+
+  function walk(fd, prefix) {
+    const before = fs.fstatSync(fd, { bigint: true });
+    if (!before.isDirectory()) fail(`${label} inventory crossed a non-directory`);
+    const beforeSnapshot = stableFileSnapshot(before);
+    const names = fs.readdirSync(procFdPath(fd)).sort();
+    for (const name of names) {
+      const leaf = safeLeaf(name, `${label} inventory entry`);
+      const filename = procFdPath(fd, leaf);
+      const linked = fs.lstatSync(filename, { bigint: true });
+      if (linked.isSymbolicLink()) fail(`${label} contains a symlink: ${prefix}${leaf}`);
+      const relative = `${prefix}${leaf}`;
+      if (linked.isFile()) {
+        inventory.push(relative);
+        continue;
+      }
+      if (!linked.isDirectory()) fail(`${label} contains a non-file entry: ${relative}`);
+      const childFd = fs.openSync(
+        filename,
+        fs.constants.O_RDONLY
+          | fs.constants.O_DIRECTORY
+          | fs.constants.O_NOFOLLOW,
+      );
+      try {
+        const child = fs.fstatSync(childFd, { bigint: true });
+        if (!child.isDirectory() || !sameIdentity(identityOf(child), identityOf(linked))) {
+          fail(`${label} directory changed generation: ${relative}`);
+        }
+        walk(childFd, `${relative}/`);
+      } finally {
+        fs.closeSync(childFd);
+      }
+    }
+    const afterNames = fs.readdirSync(procFdPath(fd)).sort();
+    const after = fs.fstatSync(fd, { bigint: true });
+    if (
+      JSON.stringify(names) !== JSON.stringify(afterNames)
+      || !sameFileSnapshot(beforeSnapshot, stableFileSnapshot(after))
+    ) {
+      fail(`${label} inventory changed while being verified`);
+    }
+  }
+
+  try {
+    walk(rootFd, "");
+    return inventory.sort();
+  } finally {
+    fs.closeSync(rootFd);
+  }
+}
+
+function verifyPinnedTree(rootPinned, expectedFiles, label) {
+  const expectedInventory = [...expectedFiles.keys()].sort();
+  const beforeInventory = collectPinnedInventory(rootPinned, label);
+  if (JSON.stringify(beforeInventory) !== JSON.stringify(expectedInventory)) {
+    fail(`${label} inventory mismatch`);
+  }
+  for (const [relative, value] of expectedFiles) {
+    verifyPinnedRegularFile(rootPinned, relative, value, label);
+  }
+  const afterInventory = collectPinnedInventory(rootPinned, label);
+  if (JSON.stringify(afterInventory) !== JSON.stringify(expectedInventory)) {
+    fail(`${label} inventory changed during content verification`);
+  }
+}
+
 export function buildDiscoveryPack({
   origin,
   output,
@@ -599,7 +754,7 @@ export function buildDiscoveryPack({
 
     const files = {};
     for (const relative of [...outputs.keys()].sort()) {
-      files[relative] = sha256File(path.join(temporaryPinned.procPath, relative));
+      files[relative] = sha256(outputs.get(relative));
     }
     const receipt = {
       marker: "VOID_FREE_DISCOVERY_MESH_BUILD_RECEIPT_V1",
@@ -624,9 +779,18 @@ export function buildDiscoveryPack({
         fund_movement: false,
       },
     };
-    writeFile(path.join(temporaryPinned.procPath, "build-receipt-v1.json"), prettyJson(receipt));
+    const receiptText = prettyJson(receipt);
+    writeFile(path.join(temporaryPinned.procPath, "build-receipt-v1.json"), receiptText);
+    const expectedFiles = new Map([
+      ...outputs,
+      ["build-receipt-v1.json", receiptText],
+    ]);
 
-    testHooks?.beforePublish?.({ parent, destination });
+    testHooks?.beforePublish?.({
+      parent,
+      destination,
+      temporary: temporaryPinned.absolute,
+    });
     assertPinnedDirectoryPath(pinnedParent, "output parent");
     assertPinnedDirectoryPath(temporaryPinned, "temporary output");
     if (!sameIdentity(
@@ -635,6 +799,7 @@ export function buildDiscoveryPack({
     )) {
       fail("temporary output changed generation before publication");
     }
+    verifyPinnedTree(temporaryPinned, expectedFiles, "staged output");
 
     try {
       fs.mkdirSync(destinationBoundPath, { mode: 0o700 });
@@ -701,6 +866,8 @@ export function buildDiscoveryPack({
     )) {
       fail("temporary output changed generation before cleanup");
     }
+    testHooks?.afterReservedPublication?.({ parent, destination });
+    verifyPinnedTree(destinationPinned, expectedFiles, "published output");
     fs.rmdirSync(temporaryBoundPath);
     temporaryIdentity = null;
 
