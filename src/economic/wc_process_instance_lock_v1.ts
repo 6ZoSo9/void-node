@@ -9,6 +9,7 @@ export const VOID_WC_PROCESS_INSTANCE_LOCK_V1 =
 const LOCK_RECORD_MAX_BYTES_V1 = 4 * 1024;
 const LOCK_NAMESPACE_MAX_ENTRIES_V1 = 128;
 const LOCK_NAMESPACE_SHARD_HEX_V1 = 3;
+const LOCK_NAMESPACE_MAX_PROBES_V1 = 16;
 const LOCK_PUBLICATION_TEMP_MAX_ENTRIES_V1 = 128;
 const LOCAL_RELEASE_MAX_NAMESPACES_V1 = 256;
 const ACQUIRE_MAX_RESCANS_V1 = 32;
@@ -296,18 +297,46 @@ function ensurePrivateChildDirectoryV1(
   return directoryIdentityV1(child);
 }
 
-function shardDirV1(root: string, name: string): string {
-  const shard = crypto
+
+function validateNamespaceProbeV1(raw: number): number {
+  if (
+    !Number.isSafeInteger(raw) ||
+    raw < 0 ||
+    raw >= LOCK_NAMESPACE_MAX_PROBES_V1
+  ) {
+    fail("wc_process_lock_namespace_probe_invalid");
+  }
+  return raw;
+}
+
+function shardDirV1(
+  root: string,
+  name: string,
+  probe = 0,
+): string {
+  const selectedProbe = validateNamespaceProbeV1(probe);
+  const hash = crypto
     .createHash("sha256")
-    .update("VOID_WC_PROCESS_INSTANCE_LOCK_NAMESPACE_V1\0", "utf8")
+    .update("VOID_WC_PROCESS_INSTANCE_LOCK_NAMESPACE_V1\0", "utf8");
+  if (selectedProbe > 0) {
+    hash
+      .update("probe\0", "utf8")
+      .update(String(selectedProbe), "utf8")
+      .update("\0", "utf8");
+  }
+  const shard = hash
     .update(name, "utf8")
     .digest("hex")
     .slice(0, LOCK_NAMESPACE_SHARD_HEX_V1);
   return path.join(root, `.wc-process-lock-v1-shard-${shard}`);
 }
 
-function namespaceDirV1(root: string, name: string): string {
-  return path.join(shardDirV1(root, name), "state");
+function namespaceDirV1(
+  root: string,
+  name: string,
+  probe = 0,
+): string {
+  return path.join(shardDirV1(root, name, probe), "state");
 }
 
 function publicationTempDirV1(namespace: string): string {
@@ -317,15 +346,21 @@ function publicationTempDirV1(namespace: string): string {
 export function wcProcessInstanceLockNamespaceForProofV1(
   dirRaw: string,
   nameRaw: string,
+  probe = 0,
 ): string {
   const name = safeNameV1(nameRaw);
   if (!name) fail("wc_process_lock_invalid_name");
-  return namespaceDirV1(path.resolve(dirRaw), name);
+  return namespaceDirV1(
+    path.resolve(dirRaw),
+    name,
+    validateNamespaceProbeV1(probe),
+  );
 }
 
 function ensureNamespaceV1(
   rootRaw: string,
   name: string,
+  probe = 0,
 ): {
   root: string;
   shard: string;
@@ -335,7 +370,11 @@ function ensureNamespaceV1(
 } {
   const root = path.resolve(rootRaw);
   const rootBefore = ensurePrivateDirectoryV1(root);
-  const shard = shardDirV1(root, name);
+  const shard = shardDirV1(
+    root,
+    name,
+    validateNamespaceProbeV1(probe),
+  );
   ensurePrivateChildDirectoryV1(root, shard);
   const namespace = path.join(shard, "state");
   const tempDir = path.join(shard, "tmp");
@@ -352,6 +391,70 @@ function ensureNamespaceV1(
     temp_dir: tempDir,
     identity,
   };
+}
+
+function existingNamespaceV1(
+  rootRaw: string,
+  name: string,
+  probe: number,
+): ReturnType<typeof ensureNamespaceV1> | null {
+  const root = path.resolve(rootRaw);
+  const rootBefore = directoryIdentityV1(root);
+  const shard = shardDirV1(
+    root,
+    name,
+    validateNamespaceProbeV1(probe),
+  );
+  if (!fs.existsSync(shard)) return null;
+  directoryIdentityV1(shard);
+  const namespace = path.join(shard, "state");
+  if (!fs.existsSync(namespace)) return null;
+  const identity = directoryIdentityV1(namespace);
+  const tempDir = path.join(shard, "tmp");
+  if (fs.existsSync(tempDir)) {
+    directoryIdentityV1(tempDir);
+  } else {
+    ensurePrivateChildDirectoryV1(shard, tempDir);
+  }
+  const rootAfter = directoryIdentityV1(root);
+  if (!sameDirectoryIdentityV1(rootBefore, rootAfter)) {
+    fail("wc_process_lock_directory_generation_changed");
+  }
+  return {
+    root,
+    shard,
+    namespace,
+    temp_dir: tempDir,
+    identity,
+  };
+}
+
+type NamespaceCandidateV1 = {
+  probe: number;
+  namespace: string;
+};
+
+function namespaceCandidatesV1(
+  rootRaw: string,
+  name: string,
+): NamespaceCandidateV1[] {
+  const root = path.resolve(rootRaw);
+  const seen = new Set<string>();
+  const candidates: NamespaceCandidateV1[] = [];
+  for (
+    let probe = 0;
+    probe < LOCK_NAMESPACE_MAX_PROBES_V1;
+    probe += 1
+  ) {
+    const namespace = namespaceDirV1(root, name, probe);
+    if (seen.has(namespace)) continue;
+    seen.add(namespace);
+    candidates.push({ probe, namespace });
+  }
+  if (!candidates.length) {
+    fail("wc_process_lock_namespace_capacity_exhausted");
+  }
+  return candidates;
 }
 
 function generationTextV1(generation: number): string {
@@ -994,6 +1097,147 @@ async function cleanupOlderV1(
   fsyncDirectoryV1(namespace);
 }
 
+
+type InspectedNamespaceV1 = {
+  ensured: ReturnType<typeof ensureNamespaceV1>;
+  snapshot: ReturnType<typeof scanNamespaceV1>;
+  current: LockRecordV1 | null;
+  released: boolean;
+  live: boolean;
+};
+
+function generationChangedErrorV1(error: unknown): boolean {
+  return (
+    error instanceof WcProcessInstanceLockError &&
+    error.code.endsWith("_generation_changed")
+  );
+}
+
+async function inspectNamespaceV1(
+  ensured: ReturnType<typeof ensureNamespaceV1>,
+  bootId: string,
+): Promise<InspectedNamespaceV1> {
+  cleanupPublicationTempsV1(ensured.temp_dir, bootId);
+  let snapshot = scanNamespaceV1(
+    ensured.namespace,
+    LOCK_NAMESPACE_MAX_ENTRIES_V1 + 1,
+  );
+
+  if (
+    [...snapshot.lockGenerations].some(
+      (generation) => generation < snapshot.current,
+    )
+  ) {
+    await cleanupOlderV1(
+      ensured.namespace,
+      snapshot.current,
+    );
+    snapshot = scanNamespaceV1(ensured.namespace);
+  }
+
+  let current: LockRecordV1 | null = null;
+  let released = false;
+  let live = false;
+  if (snapshot.current > 0) {
+    current = await readLockRecordV1(
+      lockFileV1(ensured.namespace, snapshot.current),
+      snapshot.current,
+    );
+    if (!current) {
+      fail("wc_process_lock_record_generation_changed");
+    }
+    if (snapshot.releaseGenerations.has(snapshot.current)) {
+      const release = await readReleaseRecordV1(
+        releaseFileV1(
+          ensured.namespace,
+          snapshot.current,
+        ),
+        current,
+      );
+      if (!release) {
+        fail("wc_process_lock_release_generation_changed");
+      }
+      released = true;
+    } else if (
+      isLocallyReleasedV1(ensured.namespace, current)
+    ) {
+      released = true;
+    }
+    live =
+      !released &&
+      (await ownerStillLiveV1(current, bootId));
+  }
+
+  return {
+    ensured,
+    snapshot,
+    current,
+    released,
+    live,
+  };
+}
+
+async function releasePublishedCandidateBestEffortV1(
+  namespace: string,
+  record: LockRecordV1,
+): Promise<void> {
+  try {
+    await publishReleaseV1(namespace, record);
+  } catch {
+    rememberLocalReleaseV1(namespace, record);
+  }
+}
+
+async function validatePublishedNameV1(
+  root: string,
+  name: string,
+  candidates: NamespaceCandidateV1[],
+  ownNamespace: ReturnType<typeof ensureNamespaceV1>,
+  record: LockRecordV1,
+  bootId: string,
+): Promise<"owned" | "lost" | "competing" | "retry"> {
+  let ownSeen = false;
+  for (const candidate of candidates) {
+    const existing = existingNamespaceV1(
+      root,
+      name,
+      candidate.probe,
+    );
+    if (!existing) continue;
+
+    let state: InspectedNamespaceV1;
+    try {
+      state = await inspectNamespaceV1(existing, bootId);
+    } catch (error) {
+      if (generationChangedErrorV1(error)) return "retry";
+      throw error;
+    }
+
+    if (existing.namespace === ownNamespace.namespace) {
+      if (
+        !state.current ||
+        !state.live ||
+        state.current.name !== name ||
+        state.current.generation !== record.generation ||
+        !sameOwnerTupleV1(state.current, record)
+      ) {
+        return "lost";
+      }
+      ownSeen = true;
+      continue;
+    }
+
+    if (
+      state.current &&
+      state.live &&
+      state.current.name === name
+    ) {
+      return "competing";
+    }
+  }
+  return ownSeen ? "owned" : "lost";
+}
+
 export async function acquireWcProcessInstanceLockV1(
   dirRaw: string,
   nameRaw: string,
@@ -1002,82 +1246,102 @@ export async function acquireWcProcessInstanceLockV1(
   if (!name) fail("wc_process_lock_invalid_name");
   const bootId = await readBootIdV1();
   const ownTicks = await processStartTicksV1(process.pid);
-  if (!ownTicks) fail("wc_process_lock_process_identity_unavailable");
+  if (!ownTicks) {
+    fail("wc_process_lock_process_identity_unavailable");
+  }
 
-  for (let attempt = 0; attempt < ACQUIRE_MAX_RESCANS_V1; attempt += 1) {
-    const ensured = ensureNamespaceV1(dirRaw, name);
-    cleanupPublicationTempsV1(ensured.temp_dir, bootId);
-    let snapshot = scanNamespaceV1(
-      ensured.namespace,
-      LOCK_NAMESPACE_MAX_ENTRIES_V1 + 1,
-    );
+  const root = path.resolve(dirRaw);
+  ensurePrivateDirectoryV1(root);
+  const candidates = namespaceCandidatesV1(root, name);
 
-    // The fixed shard count bounds lifetime disk namespaces. Old generations
-    // can never regain authority once a higher immutable
-    // generation exists. Retire them before publishing another owner so a
-    // prior cleanup failure cannot make history grow without bound.
-    if (
-      [...snapshot.lockGenerations].some(
-        (generation) => generation < snapshot.current,
-      )
-    ) {
-      await cleanupOlderV1(ensured.namespace, snapshot.current);
-      snapshot = scanNamespaceV1(ensured.namespace);
-    }
+  for (
+    let attempt = 0;
+    attempt < ACQUIRE_MAX_RESCANS_V1;
+    attempt += 1
+  ) {
+    let selected:
+      | {
+          candidate: NamespaceCandidateV1;
+          ensured: ReturnType<typeof ensureNamespaceV1> | null;
+        }
+      | null = null;
+    let retry = false;
 
-    if (snapshot.current > 0) {
-      const currentFile = lockFileV1(
-        ensured.namespace,
-        snapshot.current,
+    for (const candidate of candidates) {
+      const existing = existingNamespaceV1(
+        root,
+        name,
+        candidate.probe,
       );
-      let current: LockRecordV1 | null;
+      if (!existing) {
+        selected ??= {
+          candidate,
+          ensured: null,
+        };
+        continue;
+      }
+
+      let state: InspectedNamespaceV1;
       try {
-        current = await readLockRecordV1(
-          currentFile,
-          snapshot.current,
-        );
-      } catch (error: any) {
-        if (
-          error instanceof WcProcessInstanceLockError &&
-          error.code.endsWith("_generation_changed")
-        ) {
-          continue;
+        state = await inspectNamespaceV1(existing, bootId);
+      } catch (error) {
+        if (generationChangedErrorV1(error)) {
+          retry = true;
+          break;
         }
         throw error;
       }
-      if (!current) continue;
-      let released = false;
-      if (snapshot.releaseGenerations.has(snapshot.current)) {
-        let release: ReleaseRecordV1 | null;
-        try {
-          release = await readReleaseRecordV1(
-            releaseFileV1(ensured.namespace, snapshot.current),
-            current,
-          );
-        } catch (error: any) {
-          if (
-            error instanceof WcProcessInstanceLockError &&
-            error.code.endsWith("_generation_changed")
-          ) {
-            continue;
-          }
-          throw error;
+
+      if (state.current && state.live) {
+        if (state.current.name === name) {
+          fail("wc_process_lock_busy");
         }
-        if (!release) continue;
-        released = true;
-      } else if (isLocallyReleasedV1(ensured.namespace, current)) {
-        released = true;
+        continue;
       }
-      if (!released && (await ownerStillLiveV1(current, bootId))) {
-        fail("wc_process_lock_busy");
-      }
+
+      selected ??= {
+        candidate,
+        ensured: existing,
+      };
     }
 
-    const generation = snapshot.current + 1;
-    if (!Number.isSafeInteger(generation) || generation <= 0) {
+    if (retry) continue;
+    if (!selected) {
+      fail("wc_process_lock_namespace_capacity_exhausted");
+    }
+
+    const ensured =
+      selected.ensured ??
+      ensureNamespaceV1(
+        root,
+        name,
+        selected.candidate.probe,
+      );
+
+    let chosen: InspectedNamespaceV1;
+    try {
+      chosen = await inspectNamespaceV1(
+        ensured,
+        bootId,
+      );
+    } catch (error) {
+      if (generationChangedErrorV1(error)) continue;
+      throw error;
+    }
+    if (chosen.current && chosen.live) {
+      if (chosen.current.name === name) {
+        fail("wc_process_lock_busy");
+      }
+      continue;
+    }
+
+    const generation = chosen.snapshot.current + 1;
+    if (
+      !Number.isSafeInteger(generation) ||
+      generation <= 0
+    ) {
       fail("wc_process_lock_generation_exhausted");
     }
-    const ownerNonce = crypto.randomBytes(32).toString("hex");
     const record: LockRecordV1 = {
       marker: VOID_WC_PROCESS_INSTANCE_LOCK_V1,
       version: 1,
@@ -1086,10 +1350,14 @@ export async function acquireWcProcessInstanceLockV1(
       pid: process.pid,
       process_start_ticks: ownTicks,
       boot_id: bootId,
-      owner_nonce: ownerNonce,
+      owner_nonce: crypto.randomBytes(32).toString("hex"),
       created_at_ms: Date.now(),
     };
-    const file = lockFileV1(ensured.namespace, generation);
+    const file = lockFileV1(
+      ensured.namespace,
+      generation,
+    );
+
     let published: boolean;
     try {
       published = await durablePublishExclusiveV1(
@@ -1100,44 +1368,59 @@ export async function acquireWcProcessInstanceLockV1(
         "lock",
       );
     } catch (error) {
-      if (error instanceof WcProcessInstanceLockPublicationLinkedError) {
-        // The generation pathname became visible but its directory fsync did
-        // not complete. Treat only this process's exact generation as locally
-        // released, then advance. A later successful namespace fsync commits
-        // both directory mutations; foreign processes still see a live owner.
-        rememberLocalReleaseV1(ensured.namespace, record);
+      if (
+        error instanceof
+        WcProcessInstanceLockPublicationLinkedError
+      ) {
+        rememberLocalReleaseV1(
+          ensured.namespace,
+          record,
+        );
         continue;
       }
       throw error;
     }
     if (!published) continue;
 
-    const after = scanNamespaceV1(
-      ensured.namespace,
-      LOCK_NAMESPACE_MAX_ENTRIES_V1 + 1,
+    const validation = await validatePublishedNameV1(
+      root,
+      name,
+      candidates,
+      ensured,
+      record,
+      bootId,
     );
-    if (after.current !== generation) {
-      try {
-        await publishReleaseV1(ensured.namespace, record);
-      } catch {
-        rememberLocalReleaseV1(ensured.namespace, record);
+    if (validation !== "owned") {
+      await releasePublishedCandidateBestEffortV1(
+        ensured.namespace,
+        record,
+      );
+      if (validation === "competing") {
+        fail("wc_process_lock_busy");
       }
       continue;
     }
+
     clearLocalReleaseV1(ensured.namespace);
 
-    // Cleanup cannot revoke the already-durable current owner. Keep the
-    // request terminal truthful and let the next acquisition retry bounded
-    // stale-history cleanup before it can publish another generation.
     try {
-      await cleanupOlderV1(ensured.namespace, generation);
-    } catch (error) {
-      console.warn("VOID_WC_PROCESS_INSTANCE_LOCK_CLEANUP_HOLD_V1", {
-        name,
+      await cleanupOlderV1(
+        ensured.namespace,
         generation,
-        error: String((error as any)?.message || error),
-      });
+      );
+    } catch (error) {
+      console.warn(
+        "VOID_WC_PROCESS_INSTANCE_LOCK_CLEANUP_HOLD_V1",
+        {
+          name,
+          generation,
+          error: String(
+            (error as any)?.message || error,
+          ),
+        },
+      );
     }
+
     return {
       ...record,
       dir: ensured.root,
@@ -1145,9 +1428,13 @@ export async function acquireWcProcessInstanceLockV1(
       namespace_dev: ensured.identity.dev,
       namespace_ino: ensured.identity.ino,
       file,
-      released_file: releaseFileV1(ensured.namespace, generation),
+      released_file: releaseFileV1(
+        ensured.namespace,
+        generation,
+      ),
     };
   }
+
   fail("wc_process_lock_contention_retry_exhausted");
 }
 
@@ -1222,7 +1509,10 @@ export async function releaseWcProcessInstanceLockV1(
     if (isLocallyReleasedV1(namespace, lock)) return;
     fail("wc_process_lock_release_generation_changed");
   }
-  if (!sameOwnerTupleV1(current, lock)) {
+  if (
+    current.name !== lock.name ||
+    !sameOwnerTupleV1(current, lock)
+  ) {
     fail("wc_process_lock_release_owner_mismatch");
   }
 

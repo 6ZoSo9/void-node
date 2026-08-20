@@ -216,6 +216,49 @@ async function main(): Promise<void> {
     );
     await releaseWcProcessInstanceLockV1(isolated);
 
+    // Distinct names that collide in the primary 12-bit shard must retain
+    // independent live ownership. A collision is a placement concern, not a
+    // reason for one ticket/claim to inherit another name's busy terminal.
+    {
+      const firstName = "collision-proof-3";
+      const secondName = "collision-proof-153";
+      assert.equal(
+        wcProcessInstanceLockNamespaceForProofV1(
+          root,
+          firstName,
+        ),
+        wcProcessInstanceLockNamespaceForProofV1(
+          root,
+          secondName,
+        ),
+        "fixture no longer collides in the primary shard",
+      );
+
+      const first = await acquireWcProcessInstanceLockV1(
+        root,
+        firstName,
+      );
+      const second = await acquireWcProcessInstanceLockV1(
+        root,
+        secondName,
+      );
+      assert.notEqual(
+        second.namespace_dir,
+        first.namespace_dir,
+        "colliding unrelated names shared one live namespace",
+      );
+      await expectCode(
+        () =>
+          acquireWcProcessInstanceLockV1(
+            root,
+            firstName,
+          ),
+        "wc_process_lock_busy",
+      );
+      await releaseWcProcessInstanceLockV1(second);
+      await releaseWcProcessInstanceLockV1(first);
+    }
+
     // A lock pathname that becomes visible before its directory fsync fails
     // must not self-wedge the publishing process. The next immutable
     // generation completes durability and retires the uncertain predecessor.
@@ -454,7 +497,18 @@ async function main(): Promise<void> {
     // generations remain self-recoverable, while a new fallback beyond the
     // reviewed process-lifetime cap fails visibly instead of evicting older
     // release truth and silently reintroducing a self-wedge.
+    //
+    // Use a dedicated authority root. Earlier malformed-record adversaries
+    // intentionally leave ambiguous namespaces behind. Open-addressing must
+    // fail closed if one of those namespaces appears in a later name's probe
+    // set, so reusing that poisoned root would test fixture contamination
+    // rather than release-fallback capacity.
     {
+      const fallbackRoot = path.join(
+        root,
+        "release-fallback-proof-root",
+      );
+      fs.mkdirSync(fallbackRoot, { mode: 0o700 });
       const originalWarn = console.warn;
       try {
         setWcProcessInstanceLockReleasePublicationFaultForProofV1(true);
@@ -464,14 +518,14 @@ async function main(): Promise<void> {
         for (let index = 0; fallbackNames.length < 256; index += 1) {
           const candidate = `fallback-${index}`;
           const namespace = wcProcessInstanceLockNamespaceForProofV1(
-            root,
+            fallbackRoot,
             candidate,
           );
           if (fallbackNamespaces.has(namespace)) continue;
           fallbackNamespaces.add(namespace);
           fallbackNames.push(candidate);
           const fallback = await acquireWcProcessInstanceLockV1(
-            root,
+            fallbackRoot,
             candidate,
           );
           await releaseWcProcessInstanceLockV1(fallback);
@@ -486,13 +540,13 @@ async function main(): Promise<void> {
         for (let index = 0; !overflowName; index += 1) {
           const candidate = `fallback-overflow-${index}`;
           const namespace = wcProcessInstanceLockNamespaceForProofV1(
-            root,
+            fallbackRoot,
             candidate,
           );
           if (!fallbackNamespaces.has(namespace)) overflowName = candidate;
         }
         const overflow = await acquireWcProcessInstanceLockV1(
-          root,
+          fallbackRoot,
           overflowName,
         );
         await expectCode(
@@ -503,7 +557,7 @@ async function main(): Promise<void> {
         await releaseWcProcessInstanceLockV1(overflow);
 
         const self = await acquireWcProcessInstanceLockV1(
-          root,
+          fallbackRoot,
           fallbackNames[0],
         );
         assert.ok(self.generation >= 2);
@@ -559,6 +613,8 @@ async function main(): Promise<void> {
     console.log("dead_process_state_ineligible=true");
     console.log("lock_namespace_shards_bounded=true");
     console.log("unrelated_history_scan_bounded=true");
+    console.log("colliding_live_lock_names_isolated=true");
+    console.log("adversarial_lock_fixture_roots_isolated=true");
     console.log("turnover_generation_rescanned=true");
     console.log("strict_lock_record_schema=true");
     console.log("strict_release_owner_tuple=true");
