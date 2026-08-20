@@ -4,6 +4,7 @@
 import * as crypto from "node:crypto";
 import * as fs from "node:fs";
 import * as path from "node:path";
+import { TextDecoder } from "node:util";
 
 export const VOID_SEGMENTED_JSONL_V1 = "VOID_SEGMENTED_JSONL_V1";
 export const VOID_SEGMENTED_JSONL_DEFAULT_TARGET_BYTES_V1 = 8 * 1024 * 1024;
@@ -16,6 +17,7 @@ const ACTIVE = "active.jsonl";
 const SEGMENTS = "segments";
 const NAME_WIDTH = 12;
 const READ_CHUNK = 1024 * 1024;
+const FATAL_UTF8_DECODER = new TextDecoder("utf-8", { fatal: true });
 
 export type SegmentedJsonlSegmentV1 = {
   id: number;
@@ -205,7 +207,10 @@ function validateRecord(record: Buffer, max: number, validateJson: boolean, inde
   if (payload > max) fail("RECORD_TOO_LARGE", `record=${index}:bytes=${payload}:max=${max}`);
   if (record.subarray(0, payload).includes(0x0a)) fail("INTERNAL_NEWLINE", `record=${index}`);
   if (validateJson) {
-    try { JSON.parse(record.subarray(0, payload).toString("utf8").replace(/\r$/, "")); }
+    let decoded: string;
+    try { decoded = FATAL_UTF8_DECODER.decode(record.subarray(0, payload)); }
+    catch { fail("INVALID_UTF8", `record=${index}`); }
+    try { JSON.parse(decoded.replace(/\r$/, "")); }
     catch { fail("INVALID_JSON", `record=${index}`); }
   }
 }

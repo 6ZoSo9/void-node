@@ -267,6 +267,60 @@ try {
     "INVALID_JSON",
   );
 
+  const invalidUtf8Records = [
+    {
+      label: "invalid-byte",
+      body: Buffer.concat([
+        Buffer.from('{"value":"', "utf8"),
+        Buffer.from([0xff]),
+        Buffer.from('"}\n', "utf8"),
+      ]),
+    },
+    {
+      label: "truncated-multibyte",
+      body: Buffer.concat([
+        Buffer.from('{"value":"', "utf8"),
+        Buffer.from([0xe2, 0x82]),
+        Buffer.from('"}\n', "utf8"),
+      ]),
+    },
+  ];
+  for (const fixture of invalidUtf8Records) {
+    const invalidSource = path.join(tmp, `${fixture.label}.jsonl`);
+    const strictStore = path.join(tmp, `${fixture.label}-strict-store`);
+    const opaqueStore = path.join(tmp, `${fixture.label}-opaque-store`);
+    fs.writeFileSync(invalidSource, fixture.body);
+    expectFailure(
+      () => buildSegmentedJsonlV1FromFile(invalidSource, strictStore, {
+        segmentTargetBytes: 4096,
+        maxRecordBytes: 1024,
+      }),
+      "INVALID_UTF8",
+    );
+    buildSegmentedJsonlV1FromFile(invalidSource, opaqueStore, {
+      segmentTargetBytes: 4096,
+      maxRecordBytes: 1024,
+      validateJson: false,
+    });
+    expectFailure(
+      () => verifySegmentedJsonlV1(opaqueStore),
+      "INVALID_UTF8",
+    );
+    verifySegmentedJsonlV1(opaqueStore, { validateJson: false });
+  }
+
+  const validUtf8Source = path.join(tmp, "valid-utf8.jsonl");
+  const validUtf8Store = path.join(tmp, "valid-utf8-store");
+  fs.writeFileSync(
+    validUtf8Source,
+    Buffer.from('{"value":"VOID 🌌"}\r\n', "utf8"),
+  );
+  buildSegmentedJsonlV1FromFile(validUtf8Source, validUtf8Store, {
+    segmentTargetBytes: 4096,
+    maxRecordBytes: 1024,
+  });
+  verifySegmentedJsonlV1(validUtf8Store);
+
   const unterminatedSource = path.join(tmp, "unterminated.jsonl");
   fs.writeFileSync(unterminatedSource, Buffer.from('{"ok":1}', "utf8"));
   expectFailure(
@@ -327,6 +381,7 @@ try {
       reconstruction_sha256: reconstruction.sha256,
       peer_missing_segments: plan.missing.length,
       exact_numeric_policy: true,
+      exact_utf8_json_records: true,
       reconstruct_copy_generation_bound: true,
       max_segment_target_bytes: VOID_SEGMENTED_JSONL_MAX_TARGET_BYTES_V1,
       max_record_bytes: VOID_SEGMENTED_JSONL_MAX_RECORD_BYTES_V1,
