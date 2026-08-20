@@ -1104,6 +1104,296 @@ assert.equal(
 assert.equal(neverCancelFetchCalls, 7);
 assert.equal(neverCancelCleanupCalls, 1);
 
+// A synchronously throwing cancellation start is not a cleanup terminal.
+// The exact origin must remain conservatively poisoned while a second origin
+// sharing the same fetch implementation remains independently usable.
+const CANCEL_THROW_BASE_B = "http://127.0.0.1:4300";
+const cancelThrowOriginA = new URL(BASE_URL).origin;
+const cancelThrowOriginB = new URL(CANCEL_THROW_BASE_B).origin;
+let cancelThrowFetchCallsA = 0;
+let cancelThrowFetchCallsB = 0;
+let cancelThrowCalls = 0;
+const cancelThrowFetch = (input) => {
+  const url = input instanceof URL ? input : new URL(String(input));
+  const payload = PAYLOADS.get(url.pathname);
+  if (!payload) {
+    return Promise.resolve(
+      bindResponseUrl(new Response("{}", { status: 404 }), url.href),
+    );
+  }
+
+  if (url.origin === cancelThrowOriginA) {
+    cancelThrowFetchCallsA += 1;
+    if (url.pathname === "/.well-known/void-agent-capabilities.json") {
+      return Promise.resolve({
+        status: 500,
+        ok: false,
+        url: url.href,
+        redirected: false,
+        headers: new Headers({
+          "content-type": "application/json",
+        }),
+        body: {
+          getReader() {
+            throw new Error("non-2xx rejection must precede reader acquisition");
+          },
+          cancel() {
+            cancelThrowCalls += 1;
+            throw new Error("synchronous cancellation start failure");
+          },
+        },
+      });
+    }
+    return Promise.resolve(jsonResponse(payload, url.href));
+  }
+
+  if (url.origin === cancelThrowOriginB) {
+    cancelThrowFetchCallsB += 1;
+    return Promise.resolve(jsonResponse(payload, url.href));
+  }
+
+  throw new Error(`unexpected cancel-throw proof origin: ${url.origin}`);
+};
+
+const cancelThrowFirst = await runVoidAiAgentBootstrapClientV1({
+  baseUrl: BASE_URL,
+  timeoutMs: 1000,
+  maxBytes: 1024,
+  fetchImpl: cancelThrowFetch,
+});
+assert.equal(cancelThrowFirst.surfaces.capabilities.available, false);
+assert.equal(cancelThrowFirst.surfaces.capabilities.error, "http_status:500");
+assert.equal(cancelThrowFetchCallsA, 2);
+assert.equal(cancelThrowCalls, 1);
+for (let retry = 0; retry < 3; retry += 1) {
+  await assert.rejects(
+    runVoidAiAgentBootstrapClientV1({
+      baseUrl: BASE_URL,
+      timeoutMs: 90,
+      maxBytes: 1024,
+      fetchImpl: cancelThrowFetch,
+    }),
+    /bootstrap_fetch_acquisition_quarantined/,
+  );
+}
+assert.equal(cancelThrowFetchCallsA, 2);
+assert.equal(cancelThrowCalls, 1);
+const cancelThrowOriginBResult = await runVoidAiAgentBootstrapClientV1({
+  baseUrl: CANCEL_THROW_BASE_B,
+  timeoutMs: 1000,
+  maxBytes: 1024,
+  fetchImpl: cancelThrowFetch,
+});
+assert.equal(cancelThrowOriginBResult.readiness.read_only_connection_ready, true);
+assert.equal(cancelThrowOriginBResult.readiness.onboarding_surface_complete, true);
+assert.equal(cancelThrowFetchCallsB, 6);
+
+// The same invariant applies to a Response that arrives only after the logical
+// acquisition deadline. A late body whose cancellation cannot start must not
+// make the timed-out origin reusable.
+const LATE_THROW_BASE_B = "http://127.0.0.1:4400";
+const lateThrowOriginA = new URL(BASE_URL).origin;
+const lateThrowOriginB = new URL(LATE_THROW_BASE_B).origin;
+let lateThrowFetchCallsA = 0;
+let lateThrowFetchCallsB = 0;
+let lateThrowCancelCalls = 0;
+let resolveLateThrowFetch;
+const lateThrowFetch = (input) => {
+  const url = input instanceof URL ? input : new URL(String(input));
+  const payload = PAYLOADS.get(url.pathname);
+  if (url.origin === lateThrowOriginA) {
+    lateThrowFetchCallsA += 1;
+    if (lateThrowFetchCallsA === 1) {
+      return new Promise((resolve) => {
+        resolveLateThrowFetch = resolve;
+      });
+    }
+    return Promise.resolve(jsonResponse(payload, url.href));
+  }
+  if (url.origin === lateThrowOriginB) {
+    lateThrowFetchCallsB += 1;
+    return Promise.resolve(jsonResponse(payload, url.href));
+  }
+  throw new Error(`unexpected late-cancel proof origin: ${url.origin}`);
+};
+await assert.rejects(
+  runVoidAiAgentBootstrapClientV1({
+    baseUrl: BASE_URL,
+    timeoutMs: 90,
+    maxBytes: 1024,
+    fetchImpl: lateThrowFetch,
+  }),
+  /bootstrap_request_deadline_exceeded/,
+);
+resolveLateThrowFetch({
+  body: {
+    cancel() {
+      lateThrowCancelCalls += 1;
+      throw new Error("late cancellation start failure");
+    },
+  },
+});
+await sleep(20);
+assert.equal(lateThrowCancelCalls, 1);
+for (let retry = 0; retry < 3; retry += 1) {
+  await assert.rejects(
+    runVoidAiAgentBootstrapClientV1({
+      baseUrl: BASE_URL,
+      timeoutMs: 90,
+      maxBytes: 1024,
+      fetchImpl: lateThrowFetch,
+    }),
+    /bootstrap_fetch_acquisition_quarantined/,
+  );
+}
+assert.equal(lateThrowFetchCallsA, 1);
+const lateThrowOriginBResult = await runVoidAiAgentBootstrapClientV1({
+  baseUrl: LATE_THROW_BASE_B,
+  timeoutMs: 1000,
+  maxBytes: 1024,
+  fetchImpl: lateThrowFetch,
+});
+assert.equal(lateThrowOriginBResult.readiness.read_only_connection_ready, true);
+assert.equal(lateThrowFetchCallsB, 6);
+
+// Body accessor failure is also part of admitted-response lifetime. If the
+// body itself cannot be acquired, there is no safe cleanup capability, so the
+// exact origin must remain poisoned rather than admitting a replacement.
+const BODY_THROW_BASE_B = "http://127.0.0.1:4500";
+const bodyThrowOriginA = new URL(BASE_URL).origin;
+const bodyThrowOriginB = new URL(BODY_THROW_BASE_B).origin;
+let bodyThrowFetchCallsA = 0;
+let bodyThrowFetchCallsB = 0;
+const bodyThrowFetch = (input) => {
+  const url = input instanceof URL ? input : new URL(String(input));
+  const payload = PAYLOADS.get(url.pathname);
+  if (url.origin === bodyThrowOriginA) {
+    bodyThrowFetchCallsA += 1;
+    if (bodyThrowFetchCallsA === 1) {
+      const content = JSON.stringify(WELL_KNOWN);
+      return Promise.resolve({
+        status: 200,
+        ok: true,
+        url: url.href,
+        redirected: false,
+        headers: new Headers({
+          "content-type": "application/json",
+          "content-length": String(Buffer.byteLength(content)),
+        }),
+        get body() {
+          throw new Error("hostile body getter");
+        },
+      });
+    }
+    return Promise.resolve(jsonResponse(payload, url.href));
+  }
+  if (url.origin === bodyThrowOriginB) {
+    bodyThrowFetchCallsB += 1;
+    return Promise.resolve(jsonResponse(payload, url.href));
+  }
+  throw new Error(`unexpected body-accessor proof origin: ${url.origin}`);
+};
+await assert.rejects(
+  runVoidAiAgentBootstrapClientV1({
+    baseUrl: BASE_URL,
+    timeoutMs: 1000,
+    maxBytes: 1024,
+    fetchImpl: bodyThrowFetch,
+  }),
+  /response_body_unavailable/,
+);
+for (let retry = 0; retry < 3; retry += 1) {
+  await assert.rejects(
+    runVoidAiAgentBootstrapClientV1({
+      baseUrl: BASE_URL,
+      timeoutMs: 90,
+      maxBytes: 1024,
+      fetchImpl: bodyThrowFetch,
+    }),
+    /bootstrap_fetch_acquisition_quarantined/,
+  );
+}
+assert.equal(bodyThrowFetchCallsA, 1);
+const bodyThrowOriginBResult = await runVoidAiAgentBootstrapClientV1({
+  baseUrl: BODY_THROW_BASE_B,
+  timeoutMs: 1000,
+  maxBytes: 1024,
+  fetchImpl: bodyThrowFetch,
+});
+assert.equal(bodyThrowOriginBResult.readiness.read_only_connection_ready, true);
+assert.equal(bodyThrowFetchCallsB, 6);
+
+// If getReader property access fails but a real body cancellation terminal is
+// available, retain the origin only until that exact cancellation settles,
+// then release once and permit a clean recovery generation.
+let resolveGetReaderCleanup;
+let getReaderFetchCalls = 0;
+let getReaderCleanupCalls = 0;
+const getReaderAccessorFetch = (input) => {
+  getReaderFetchCalls += 1;
+  const url = input instanceof URL ? input : new URL(String(input));
+  const payload = PAYLOADS.get(url.pathname);
+  if (getReaderFetchCalls === 1) {
+    const content = JSON.stringify(WELL_KNOWN);
+    return Promise.resolve({
+      status: 200,
+      ok: true,
+      url: url.href,
+      redirected: false,
+      headers: new Headers({
+        "content-type": "application/json",
+        "content-length": String(Buffer.byteLength(content)),
+      }),
+      body: {
+        get getReader() {
+          throw new Error("hostile getReader property getter");
+        },
+        cancel() {
+          getReaderCleanupCalls += 1;
+          return new Promise((resolve) => {
+            resolveGetReaderCleanup = resolve;
+          });
+        },
+      },
+    });
+  }
+  return Promise.resolve(jsonResponse(payload, url.href));
+};
+await assert.rejects(
+  runVoidAiAgentBootstrapClientV1({
+    baseUrl: BASE_URL,
+    timeoutMs: 1000,
+    maxBytes: 1024,
+    fetchImpl: getReaderAccessorFetch,
+  }),
+  /response_body_reader_unavailable/,
+);
+assert.equal(getReaderCleanupCalls, 1);
+for (let retry = 0; retry < 3; retry += 1) {
+  await assert.rejects(
+    runVoidAiAgentBootstrapClientV1({
+      baseUrl: BASE_URL,
+      timeoutMs: 90,
+      maxBytes: 1024,
+      fetchImpl: getReaderAccessorFetch,
+    }),
+    /bootstrap_fetch_acquisition_quarantined/,
+  );
+}
+assert.equal(getReaderFetchCalls, 1);
+resolveGetReaderCleanup();
+await sleep(20);
+const getReaderRecovered = await runVoidAiAgentBootstrapClientV1({
+  baseUrl: BASE_URL,
+  timeoutMs: 1000,
+  maxBytes: 1024,
+  fetchImpl: getReaderAccessorFetch,
+});
+assert.equal(getReaderRecovered.readiness.read_only_connection_ready, true);
+assert.equal(getReaderRecovered.readiness.onboarding_surface_complete, true);
+assert.equal(getReaderFetchCalls, 7);
+assert.equal(getReaderCleanupCalls, 1);
+
 const outputDirectory = mkdtempSync(
   path.join(os.tmpdir(), "void-bootstrap-output-v1-"),
 );
@@ -1165,6 +1455,11 @@ for (const result of [
   crossOriginRecoveredA,
   stalledGenerationRecovered,
   lateNeverCancelRecovered,
+  cancelThrowFirst,
+  cancelThrowOriginBResult,
+  lateThrowOriginBResult,
+  bodyThrowOriginBResult,
+  getReaderRecovered,
 ]) {
   assert.equal(result.readiness.mutation_authority_granted, false);
   assert.equal(result.readiness.wallet_or_signer_access_granted, false);
@@ -1208,6 +1503,10 @@ console.log("timed_out_body_generation_quarantined=true");
 console.log("max_outstanding_body_reads=1");
 console.log("body_generation_recovery=true");
 console.log("late_response_cancel_generation_quarantined=true");
+console.log("response_cancel_start_failure_poisoned=true");
+console.log("late_response_cancel_start_failure_poisoned=true");
+console.log("body_accessor_failure_poisoned=true");
+console.log("getreader_accessor_cleanup_terminal_owned=true");
 console.log("output_publication_production_writer=true");
 console.log("output_existing_file_not_truncated=true");
 console.log("output_symlink_not_followed=true");
