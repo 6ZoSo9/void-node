@@ -1,5 +1,6 @@
 // @ts-nocheck
 import * as fs from "node:fs";
+import * as fsp from "node:fs/promises";
 import path from "node:path";
 
 export const VOID_AGENT_PICK2_JSONL_SEMANTIC_INDEX_V1 =
@@ -7,6 +8,10 @@ export const VOID_AGENT_PICK2_JSONL_SEMANTIC_INDEX_V1 =
 
 export const VOID_AGENT_PICK2_JSONL_MAX_RECORD_BYTES_V1 = 1024 * 1024;
 export const VOID_AGENT_PICK2_JSONL_MAX_TAIL_SCAN_BYTES_V1 = 32 * 1024 * 1024;
+export const VOID_AGENT_PICK2_JSONL_MAX_SYNC_COMPLETION_REBUILD_BYTES_V1 =
+  16 * 1024 * 1024;
+export const VOID_AGENT_PICK2_JSONL_COMPLETION_REBUILD_BACKOFF_MS_V1 =
+  30_000;
 
 type JsonlEntryV1 = {
   raw: string;
@@ -48,6 +53,8 @@ type HeadStateV1 = FileStampV1 & {
 
 type IoMetricsV1 = {
   bytes_read_total: number;
+  sync_bytes_read_total: number;
+  async_bytes_read_total: number;
   rebuilds_total: number;
   incremental_reads_total: number;
   cache_hits_total: number;
@@ -561,11 +568,17 @@ function cloneMetricsV1(metrics: IoMetricsV1): IoMetricsV1 {
 export class AgentPick2JsonlSemanticIndexV1 {
   private readonly chunkBytes: number;
   private readonly testHooks: TestHooksV1;
+  private readonly maxSyncCompletionRebuildBytes: number;
+  private readonly completionRebuildBackoffMs: number;
+  private readonly completionRebuildHoldUntil = new Map<string, number>();
+  private readonly completionWarmTasks = new Map<string, Promise<void>>();
   private readonly completions = new Map<string, CompletionStateV1>();
   private readonly tails = new Map<string, TailStateV1>();
   private readonly heads = new Map<string, HeadStateV1>();
   private readonly metrics: IoMetricsV1 = {
     bytes_read_total: 0,
+    sync_bytes_read_total: 0,
+    async_bytes_read_total: 0,
     rebuilds_total: 0,
     incremental_reads_total: 0,
     cache_hits_total: 0,
@@ -574,11 +587,31 @@ export class AgentPick2JsonlSemanticIndexV1 {
     by_kind: Object.create(null),
   };
 
-  constructor(opts: { chunkBytes?: number; testHooks?: TestHooksV1 } = {}) {
+  constructor(opts: {
+    chunkBytes?: number;
+    testHooks?: TestHooksV1;
+    maxSyncCompletionRebuildBytes?: number;
+    completionRebuildBackoffMs?: number;
+  } = {}) {
     const requested = Number(opts.chunkBytes || 64 * 1024);
     this.chunkBytes = Number.isFinite(requested)
       ? Math.max(4096, Math.min(1024 * 1024, Math.floor(requested)))
       : 64 * 1024;
+    const requestedCompletionBudget = Number(
+      opts.maxSyncCompletionRebuildBytes ??
+        VOID_AGENT_PICK2_JSONL_MAX_SYNC_COMPLETION_REBUILD_BYTES_V1,
+    );
+    this.maxSyncCompletionRebuildBytes =
+      Number.isFinite(requestedCompletionBudget)
+        ? Math.max(4096, Math.floor(requestedCompletionBudget))
+        : VOID_AGENT_PICK2_JSONL_MAX_SYNC_COMPLETION_REBUILD_BYTES_V1;
+    const requestedBackoff = Number(
+      opts.completionRebuildBackoffMs ??
+        VOID_AGENT_PICK2_JSONL_COMPLETION_REBUILD_BACKOFF_MS_V1,
+    );
+    this.completionRebuildBackoffMs = Number.isFinite(requestedBackoff)
+      ? Math.max(1, Math.floor(requestedBackoff))
+      : VOID_AGENT_PICK2_JSONL_COMPLETION_REBUILD_BACKOFF_MS_V1;
     this.testHooks = opts.testHooks || {};
   }
 
@@ -597,6 +630,14 @@ export class AgentPick2JsonlSemanticIndexV1 {
   private noteBytes(kind: string, bytes: number) {
     const n = Math.max(0, Number(bytes) || 0);
     this.metrics.bytes_read_total += n;
+    this.metrics.sync_bytes_read_total += n;
+    this.metricKind(kind).bytes_read += n;
+  }
+
+  private noteAsyncBytes(kind: string, bytes: number) {
+    const n = Math.max(0, Number(bytes) || 0);
+    this.metrics.bytes_read_total += n;
+    this.metrics.async_bytes_read_total += n;
     this.metricKind(kind).bytes_read += n;
   }
 
@@ -648,12 +689,17 @@ export class AgentPick2JsonlSemanticIndexV1 {
     file: string,
     kind: string,
     reader: (fd: number, stamp: FileStampV1) => T,
+    maxAttempts = 4,
   ): { stamp: FileStampV1; value: T } | null {
     const openFlags =
       fs.constants.O_RDONLY |
       ((fs.constants as any).O_NOFOLLOW || 0);
+    const attempts = Math.max(
+      1,
+      Math.min(4, Math.floor(Number(maxAttempts) || 1)),
+    );
 
-    for (let attempt = 0; attempt < 4; attempt++) {
+    for (let attempt = 0; attempt < attempts; attempt++) {
       let fd: number | null = null;
       try {
         try {
@@ -742,8 +788,176 @@ export class AgentPick2JsonlSemanticIndexV1 {
     return true;
   }
 
+  private completionWarmKey(file: string): string {
+    return fileKeyV1(file);
+  }
+
+  private completionWarmInProgress(file: string): boolean {
+    return this.completionWarmTasks.has(this.completionWarmKey(file));
+  }
+
+  private startCompletionWarm(file: string): Promise<void> {
+    const key = this.completionWarmKey(file);
+    const existing = this.completionWarmTasks.get(key);
+    if (existing) return existing;
+
+    const task = (async () => {
+      const kind = "completion_async_warm";
+      const flags =
+        fs.constants.O_RDONLY |
+        ((fs.constants as any).O_NOFOLLOW || 0);
+      let handle: any = null;
+      this.noteRebuild(kind);
+      try {
+        try {
+          handle = await fsp.open(file, flags);
+        } catch (err: any) {
+          if (err?.code === "ENOENT") {
+            this.completions.set(file, {
+              ...emptyStampV1(),
+              initialized: true,
+              completed: new Set<string>(),
+              endedWithNewline: true,
+            });
+            this.completionRebuildHoldUntil.delete(file);
+            return;
+          }
+          throw err;
+        }
+
+        const before = stampFromStatsV1(
+          await handle.stat({ bigint: true } as any),
+        );
+        const pathBefore = statV1(file);
+        if (!pathBefore || !sameStampV1(before, pathBefore)) {
+          throw new Error(
+            `VOID_AGENT_PICK2_JSONL_ASYNC_WARM_UNSTABLE file=${file}`,
+          );
+        }
+
+        const completed = new Set<string>();
+        const buf = Buffer.allocUnsafe(this.chunkBytes);
+        let position = 0;
+        let carry = Buffer.alloc(0);
+
+        while (position < before.size) {
+          const want = Math.min(buf.length, before.size - position);
+          const result = await handle.read(buf, 0, want, position);
+          const bytesRead = Number(result?.bytesRead || 0);
+          if (bytesRead <= 0) {
+            throw new Error(
+              `VOID_AGENT_PICK2_JSONL_ASYNC_WARM_SHORT_READ file=${file} position=${position}`,
+            );
+          }
+          position += bytesRead;
+          this.noteAsyncBytes(kind, bytesRead);
+          const chunk = Buffer.from(buf.subarray(0, bytesRead));
+          const data = carry.length ? Buffer.concat([carry, chunk]) : chunk;
+          let from = 0;
+          for (let i = 0; i < data.length; i++) {
+            if (data[i] !== 0x0a) continue;
+            const lineBytes = i - from;
+            if (lineBytes > VOID_AGENT_PICK2_JSONL_MAX_RECORD_BYTES_V1) {
+              recordTooLargeV1(file, kind, lineBytes);
+            }
+            if (lineBytes > 0) {
+              const raw = data.subarray(from, i).toString("utf8");
+              const entry = parseEntryV1(raw);
+              const x = entry.parsed;
+              if (x && isCompletedTruthV1(x)) {
+                const id = rowIdV1(x);
+                if (id) completed.add(id);
+              }
+            }
+            from = i + 1;
+          }
+          carry = Buffer.from(data.subarray(from));
+          if (carry.length > VOID_AGENT_PICK2_JSONL_MAX_RECORD_BYTES_V1) {
+            recordTooLargeV1(file, kind, carry.length);
+          }
+        }
+
+        if (carry.length) unterminatedRecordV1(file, kind);
+
+        const after = stampFromStatsV1(
+          await handle.stat({ bigint: true } as any),
+        );
+        const pathAfter = statV1(file);
+        if (
+          !sameStampV1(before, after) ||
+          !pathAfter ||
+          !sameStampV1(after, pathAfter)
+        ) {
+          throw new Error(
+            `VOID_AGENT_PICK2_JSONL_ASYNC_WARM_UNSTABLE file=${file}`,
+          );
+        }
+
+        this.completions.set(file, {
+          ...after,
+          initialized: true,
+          completed,
+          endedWithNewline: true,
+        });
+        seedCanonicalWriterStateV1(file, after);
+        this.completionRebuildHoldUntil.delete(file);
+      } catch (err) {
+        this.completionRebuildHoldUntil.set(
+          file,
+          Date.now() + this.completionRebuildBackoffMs,
+        );
+        throw err;
+      } finally {
+        if (handle) await handle.close();
+      }
+    })();
+
+    this.completionWarmTasks.set(key, task);
+    task.then(
+      () => {
+        if (this.completionWarmTasks.get(key) === task) {
+          this.completionWarmTasks.delete(key);
+        }
+      },
+      () => {
+        if (this.completionWarmTasks.get(key) === task) {
+          this.completionWarmTasks.delete(key);
+        }
+      },
+    );
+    void task.catch(() => undefined);
+    return task;
+  }
+
+  async waitForCompletionWarmForProofV1(file: string): Promise<void> {
+    const task = this.completionWarmTasks.get(this.completionWarmKey(file));
+    if (task) await task;
+  }
+
   private rebuildCompletion(file: string) {
     const kind = "completion_full";
+    const observed = statV1(file);
+    if (observed && observed.size > this.maxSyncCompletionRebuildBytes) {
+      if (this.completionWarmInProgress(file)) {
+        throw new Error(
+          `VOID_AGENT_PICK2_JSONL_COMPLETION_WARMING_HOLD file=${file} bytes=${observed.size}`,
+        );
+      }
+      const now = Date.now();
+      const holdUntil = Number(this.completionRebuildHoldUntil.get(file) || 0);
+      if (holdUntil > now) {
+        throw new Error(
+          `VOID_AGENT_PICK2_JSONL_COMPLETION_REBUILD_BACKOFF file=${file} ` +
+            `bytes=${observed.size} until_ms=${holdUntil}`,
+        );
+      }
+      this.startCompletionWarm(file);
+      throw new Error(
+        `VOID_AGENT_PICK2_JSONL_COMPLETION_WARMING_HOLD file=${file} ` +
+          `bytes=${observed.size} sync_budget=${this.maxSyncCompletionRebuildBytes}`,
+      );
+    }
+
     this.noteRebuild(kind);
     const stable = this.stableRead(file, kind, (fd, stamp) => {
       const completed = new Set<string>();
@@ -840,6 +1054,29 @@ export class AgentPick2JsonlSemanticIndexV1 {
 
     if (current.size > prior.size && sameObjectV1(prior, current)) {
       this.metrics.append_witness_misses_total += 1;
+      if (current.size > this.maxSyncCompletionRebuildBytes) {
+        if (this.completionWarmInProgress(file)) {
+          throw new Error(
+            `VOID_AGENT_PICK2_JSONL_COMPLETION_WARMING_HOLD file=${file} bytes=${current.size}`,
+          );
+        }
+        const now = Date.now();
+        const holdUntil = Number(
+          this.completionRebuildHoldUntil.get(file) || 0,
+        );
+        if (holdUntil > now) {
+          throw new Error(
+            `VOID_AGENT_PICK2_JSONL_COMPLETION_REBUILD_BACKOFF file=${file} ` +
+              `bytes=${current.size} until_ms=${holdUntil}`,
+          );
+        }
+        this.startCompletionWarm(file);
+        throw new Error(
+          `VOID_AGENT_PICK2_JSONL_UNWITNESSED_COMPLETION_GROWTH_HOLD ` +
+            `file=${file} prior_bytes=${prior.size} current_bytes=${current.size} ` +
+            `async_warm_started=true`,
+        );
+      }
     }
     return this.rebuildCompletion(file);
   }

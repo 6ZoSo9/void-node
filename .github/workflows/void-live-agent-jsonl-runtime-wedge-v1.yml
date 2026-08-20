@@ -5,7 +5,24 @@ on:
     paths:
       - "src/index.ts"
       - "src/http/agent_pick2_jsonl_semantic_index_v1.ts"
+      - "src/economic/wc_public_earning_pilot_v1.ts"
+      - "src/economic/wc_public_state_directory_authority_v1.ts"
+      - "src/economic/wc_public_claim_history_authority_v1.ts"
+      - "src/economic/wc_verified_receipt_acceptance_v1.ts"
+      - "src/economic/wc_process_instance_lock_v1.ts"
+      - "scripts/prove_wc_verified_receipt_acceptance_v1.ts"
+      - "scripts/prove_wc_paid_work_entitlement_acceptance_v1.ts"
+      - "scripts/prove_wc_process_instance_lock_v1.ts"
       - "scripts/prove_agent_pick2_jsonl_semantic_index_v1.ts"
+      - "scripts/prove_agent_pick2_large_unwitnessed_completion_wedge_v1.ts"
+      - "scripts/prove_agent_pick2_external_writer_cache_wedge_v1.ts"
+      - "src/economic/wc_public_remote_truth_jsonl_index_v1.ts"
+      - "scripts/prove_wc_public_remote_truth_atomicity_v1.ts"
+      - "scripts/prove_wc_public_remote_evidence_body_bound_v1.ts"
+      - "scripts/prove_wc_public_claim_history_authority_v1.ts"
+      - "scripts/prove_wc_public_claim_issuance_atomicity_v1.ts"
+      - "scripts/prove_wc_public_earning_pilot_v1.ts"
+      - "scripts/prove_wc_public_earning_pilot_runtime_v1.ts"
       - "runtime/canonical-producer-self-http-guard-v1.cjs"
       - "scripts/prove_canonical_producer_legacy_self_http_observers_v1.mjs"
       - "scripts/prove_live_agent_jsonl_runtime_wedge_v1.mjs"
@@ -20,7 +37,24 @@ on:
     paths:
       - "src/index.ts"
       - "src/http/agent_pick2_jsonl_semantic_index_v1.ts"
+      - "src/economic/wc_public_earning_pilot_v1.ts"
+      - "src/economic/wc_public_state_directory_authority_v1.ts"
+      - "src/economic/wc_public_claim_history_authority_v1.ts"
+      - "src/economic/wc_verified_receipt_acceptance_v1.ts"
+      - "src/economic/wc_process_instance_lock_v1.ts"
+      - "scripts/prove_wc_verified_receipt_acceptance_v1.ts"
+      - "scripts/prove_wc_paid_work_entitlement_acceptance_v1.ts"
+      - "scripts/prove_wc_process_instance_lock_v1.ts"
       - "scripts/prove_agent_pick2_jsonl_semantic_index_v1.ts"
+      - "scripts/prove_agent_pick2_large_unwitnessed_completion_wedge_v1.ts"
+      - "scripts/prove_agent_pick2_external_writer_cache_wedge_v1.ts"
+      - "src/economic/wc_public_remote_truth_jsonl_index_v1.ts"
+      - "scripts/prove_wc_public_remote_truth_atomicity_v1.ts"
+      - "scripts/prove_wc_public_remote_evidence_body_bound_v1.ts"
+      - "scripts/prove_wc_public_claim_history_authority_v1.ts"
+      - "scripts/prove_wc_public_claim_issuance_atomicity_v1.ts"
+      - "scripts/prove_wc_public_earning_pilot_v1.ts"
+      - "scripts/prove_wc_public_earning_pilot_runtime_v1.ts"
       - "runtime/canonical-producer-self-http-guard-v1.cjs"
       - "scripts/prove_canonical_producer_legacy_self_http_observers_v1.mjs"
       - "scripts/prove_live_agent_jsonl_runtime_wedge_v1.mjs"
@@ -49,6 +83,7 @@ jobs:
       - name: Install behavioral-proof runtime dependencies
         run: npm ci --no-audit --no-fund
       - run: ./node_modules/.bin/tsx scripts/prove_agent_pick2_jsonl_semantic_index_v1.ts
+      - run: ./node_modules/.bin/tsx scripts/prove_agent_pick2_large_unwitnessed_completion_wedge_v1.ts
       - run: node scripts/prove_live_agent_jsonl_runtime_wedge_v1.mjs
       - run: node scripts/prove_canonical_producer_legacy_self_http_observers_v1.mjs
 
@@ -67,6 +102,16 @@ jobs:
       - name: Install behavioral-proof runtime dependencies
         run: npm ci --no-audit --no-fund
       - run: ./node_modules/.bin/tsx scripts/prove_agent_pick2_jsonl_semantic_index_v1.ts
+      - run: ./node_modules/.bin/tsx scripts/prove_agent_pick2_large_unwitnessed_completion_wedge_v1.ts
+      - run: ./node_modules/.bin/tsx scripts/prove_wc_process_instance_lock_v1.ts
+      - run: ./node_modules/.bin/tsx scripts/prove_wc_public_remote_truth_atomicity_v1.ts
+      - run: ./node_modules/.bin/tsx scripts/prove_wc_public_remote_evidence_body_bound_v1.ts
+      - run: ./node_modules/.bin/tsx scripts/prove_wc_public_claim_history_authority_v1.ts
+      - run: ./node_modules/.bin/tsx scripts/prove_wc_public_claim_issuance_atomicity_v1.ts
+      - run: ./node_modules/.bin/tsx scripts/prove_wc_verified_receipt_acceptance_v1.ts
+      - run: ./node_modules/.bin/tsx scripts/prove_wc_paid_work_entitlement_acceptance_v1.ts
+      - run: ./node_modules/.bin/tsx scripts/prove_wc_public_earning_pilot_v1.ts
+      - run: ./node_modules/.bin/tsx scripts/prove_wc_public_earning_pilot_runtime_v1.ts
       - name: Prove shared diff hygiene contract
         run: node scripts/prove_ci_diff_hygiene_v1.mjs
       - run: node scripts/prove_live_agent_jsonl_runtime_wedge_v1.mjs
@@ -99,5 +144,6 @@ jobs:
       - name: Install behavioral-proof runtime dependencies
         run: npm ci --no-audit --no-fund
       - run: ./node_modules/.bin/tsx scripts/prove_agent_pick2_jsonl_semantic_index_v1.ts
+      - run: ./node_modules/.bin/tsx scripts/prove_agent_pick2_large_unwitnessed_completion_wedge_v1.ts
       - run: node scripts/prove_live_agent_jsonl_runtime_wedge_v1.mjs
       - run: node scripts/prove_canonical_producer_legacy_self_http_observers_v1.mjs
