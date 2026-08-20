@@ -1163,7 +1163,7 @@ const cancelThrowFirst = await runVoidAiAgentBootstrapClientV1({
 });
 assert.equal(cancelThrowFirst.surfaces.capabilities.available, false);
 assert.equal(cancelThrowFirst.surfaces.capabilities.error, "http_status:500");
-assert.equal(cancelThrowFetchCallsA, 2);
+assert.equal(cancelThrowFetchCallsA, 3);
 assert.equal(cancelThrowCalls, 1);
 for (let retry = 0; retry < 3; retry += 1) {
   await assert.rejects(
@@ -1176,7 +1176,7 @@ for (let retry = 0; retry < 3; retry += 1) {
     /bootstrap_fetch_acquisition_quarantined/,
   );
 }
-assert.equal(cancelThrowFetchCallsA, 2);
+assert.equal(cancelThrowFetchCallsA, 3);
 assert.equal(cancelThrowCalls, 1);
 const cancelThrowOriginBResult = await runVoidAiAgentBootstrapClientV1({
   baseUrl: CANCEL_THROW_BASE_B,
