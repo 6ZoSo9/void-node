@@ -120,6 +120,69 @@ function exactStringV1(value: unknown): string | null {
   return typeof value === "string" ? value : null;
 }
 
+type CanonicalAcceptanceCreditAuthorityV1 =
+  | "not_acceptance"
+  | "valid"
+  | "invalid";
+
+function ownsV1(value: JsonObject, field: string): boolean {
+  return Object.prototype.hasOwnProperty.call(value, field);
+}
+
+// Balance and duplicate authority must classify acceptance credits through
+// the same closed schema. Otherwise a wrong-typed lineage can count toward
+// balance while disappearing from the exact-once projection.
+function canonicalAcceptanceCreditAuthorityV1(
+  entry: JsonObject,
+): CanonicalAcceptanceCreditAuthorityV1 {
+  const reason = exactStringV1(entry.reason);
+  const source = exactStringV1(entry?.reward_meta?.source);
+  const paidWorkCandidate =
+    reason === "paid_work_entitlement_acceptance_v1" ||
+    source === "void_agent_paid_work_intake_v1" ||
+    (ownsV1(entry, "submission_id") &&
+      ownsV1(entry, "entitlement_sha256") &&
+      ownsV1(entry, "idempotency_key"));
+  const verifiedReceiptCandidate =
+    reason === "verified_receipt_acceptance_v1" ||
+    source === "wc_verified_receipt_acceptance_v1" ||
+    (ownsV1(entry, "receipt_id") &&
+      ownsV1(entry, "job_id") &&
+      ownsV1(entry, "receipt_kind"));
+
+  if (!paidWorkCandidate && !verifiedReceiptCandidate) {
+    return "not_acceptance";
+  }
+  if (paidWorkCandidate && verifiedReceiptCandidate) {
+    return "invalid";
+  }
+
+  const commonValid =
+    exactStringV1(entry.kind) === "credit" &&
+    Boolean(exactStringV1(entry.account)) &&
+    typeof entry.delta === "number" &&
+    Number.isSafeInteger(entry.delta) &&
+    entry.delta === VOID_WC_VERIFIED_RECEIPT_ACCEPTANCE_AWARD_WC;
+  if (!commonValid) return "invalid";
+
+  if (paidWorkCandidate) {
+    return reason === "paid_work_entitlement_acceptance_v1" &&
+      Boolean(exactStringV1(entry.submission_id)) &&
+      Boolean(exactStringV1(entry.entitlement_sha256)) &&
+      Boolean(exactStringV1(entry.idempotency_key))
+      ? "valid"
+      : "invalid";
+  }
+
+  return reason === "verified_receipt_acceptance_v1" &&
+    exactStringV1(entry.receipt_kind) ===
+      VOID_WC_VERIFIED_RECEIPT_ACCEPTANCE_TASK &&
+    Boolean(exactStringV1(entry.receipt_id)) &&
+    Boolean(exactStringV1(entry.job_id))
+    ? "valid"
+    : "invalid";
+}
+
 function hex64(value: unknown): string {
   if (typeof value !== "string") return "";
   const candidate = value.trim().toLowerCase().replace(/^0x/, "");
@@ -504,6 +567,7 @@ async function existingCredit(
         "credit_delta_not_exact_number",
       );
       const compatible =
+        canonicalAcceptanceCreditAuthorityV1(entry) === "valid" &&
         deltaQuanta === VOID_WC_AWARD_QUANTA_V1 &&
         exactStringV1(entry?.account) === normalized.account &&
         exactStringV1(entry?.receipt_kind) ===
@@ -738,6 +802,11 @@ export async function readCanonicalWcState(
     ledgerFile(dataDir),
     (entry) => {
       if (exactStringV1(entry?.account) !== account) return;
+      if (
+        canonicalAcceptanceCreditAuthorityV1(entry) === "invalid"
+      ) {
+        return;
+      }
       if (
         entry?.kind !== undefined &&
         typeof entry.kind !== "string"
@@ -1460,6 +1529,7 @@ async function existingPaidWorkEntitlementCredit(
     }
 
     const exactMatch =
+      canonicalAcceptanceCreditAuthorityV1(entry) === "valid" &&
       sameSubmission &&
       sameEntitlement &&
       sameIdempotency &&

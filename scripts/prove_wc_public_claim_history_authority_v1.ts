@@ -247,10 +247,11 @@ async function main(): Promise<void> {
         decisionMetricsBefore.mutation_generation_reads_total,
       concurrentDecisions,
     );
-    assert.equal(
+    assert.ok(
       decisionMetricsAfter.record_generation_stats_total -
-        decisionMetricsBefore.record_generation_stats_total,
-      0,
+        decisionMetricsBefore.record_generation_stats_total >=
+        2400,
+      "exact record-generation barrier did not cover warmed history",
     );
 
     const snapshot =
@@ -2050,9 +2051,9 @@ async function main(): Promise<void> {
     }
   }
 
-  // Post-warm correctness must not depend on fs.watch delivery or a
-  // retained-history lstat pass on every decision. Warm seals projections
-  // read-only; canonical replacement advances one durable mutation token.
+  // Post-warm correctness must not depend on fs.watch completeness. Warm
+  // seals projections read-only; canonical replacement advances one durable
+  // token, and exact async generation validation covers missed notifications.
   {
     const tmp = fs.mkdtempSync(
       path.join(
@@ -2202,10 +2203,9 @@ async function main(): Promise<void> {
       1,
     );
 
-    // A non-cooperating same-inode rewrite does not advance the durable
-    // mutation token or parent-directory stamps. The ordered watcher
-    // challenge must still fail closed when delivery has been suppressed;
-    // stale account-B policy may never be reused.
+    // A live watcher may acknowledge its sentinel even when one ordinary
+    // mutation notification is absent. Exact record generations, rather
+    // than sentinel liveness, must still reject cached account-B policy.
     const directoryBeforeUncooperative = dirStamp(d.issued);
     const mutationBeforeUncooperative =
       await authority.readWcPublicClaimHistoryMutationGenerationForProofV1(
@@ -2215,7 +2215,7 @@ async function main(): Promise<void> {
       issuedFile,
       { bigint: true } as any,
     );
-    authority.suppressWcPublicClaimHistoryWatchForProofV1(
+    authority.suppressWcPublicClaimHistoryMutationNotificationsForProofV1(
       tmp,
     );
     fs.chmodSync(issuedFile, 0o600);
@@ -2247,12 +2247,33 @@ async function main(): Promise<void> {
       ),
       mutationBeforeUncooperative,
     );
-    await assert.rejects(
-      () =>
-        authority.prepareWcPublicClaimHistoryDecisionV1(
-          tmp,
-        ),
-      /VOID_WC_PUBLIC_CLAIM_HISTORY_WATCH_(?:CHALLENGE_TIMEOUT|INVALID)/,
+    let droppedMutationStartedWarm = false;
+    try {
+      await assert.rejects(
+        async () => {
+          try {
+            await authority.prepareWcPublicClaimHistoryDecisionV1(
+              tmp,
+            );
+          } catch (error) {
+            droppedMutationStartedWarm = String(
+              (error as any)?.message || error,
+            ).includes("VOID_WC_PUBLIC_CLAIM_HISTORY_WARMING");
+            throw error;
+          }
+        },
+        /VOID_WC_PUBLIC_CLAIM_HISTORY_WARMING/,
+      );
+    } finally {
+      authority.suppressWcPublicClaimHistoryMutationNotificationsForProofV1(
+        tmp,
+        false,
+      );
+    }
+
+    assert.equal(droppedMutationStartedWarm, true);
+    await authority.waitForWcPublicClaimHistoryWarmForProofV1(
+      tmp,
     );
 
     authority.resetWcPublicClaimHistoryAuthorityForProofV1(
@@ -2287,8 +2308,8 @@ async function main(): Promise<void> {
     );
 
     // Canonical valid -> malformed replacement with watch delivery
-    // suppressed must likewise invalidate in O(1) and fail closed in the
-    // existing single-flight background rebuild.
+    // suppressed must likewise fail closed into the existing single-flight
+    // background rebuild.
     const validBytes = fs.readFileSync(issuedFile);
     const invalidBytes = Buffer.from(validBytes);
     invalidBytes[0] = 0x5b;
@@ -2479,9 +2500,9 @@ async function main(): Promise<void> {
   console.log("missed_watch_canonical_mutation_stale_cache=false");
   console.log("missed_watch_valid_to_invalid_fails_closed=true");
   console.log("missed_watch_uncooperative_in_place_rewrite_fails_closed=true");
-  console.log("per_decision_retained_record_walk=false");
+  console.log("per_decision_retained_record_content_read=false");
   console.log("decision_mutation_generation_reads_per_request=1");
-  console.log("decision_record_generation_stats_per_request=0");
+  console.log("decision_record_generation_validation=single_flight_async");
   console.log("mutation_generation_no_follow=true");
   console.log("mutation_generation_regular_file_only=true");
   console.log("mutation_generation_exact_65_bytes=true");

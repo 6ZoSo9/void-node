@@ -417,9 +417,9 @@ try {
   const allAliasRoot = path.join(tmp, "idempotency-all-alias");
   appendLedgerRow(allAliasRoot, {
     kind: "credit",
-    account: [account],
+    account,
     delta: 3,
-    reason: ["paid_work_entitlement_acceptance_v1"],
+    reason: "paid_work_entitlement_acceptance_v1",
     submission_id: [submissionId],
     entitlement_sha256: [entitlementSha256],
     idempotency_key: [idempotencyKey],
@@ -433,6 +433,37 @@ try {
   assert.equal(
     (await readCanonicalWcState(account, allAliasRoot)).redeemable_quanta,
     "0",
+  );
+  const allAliasApplied = await acceptPaidWorkEntitlementOnce(
+    authority,
+    {
+      ...options,
+      dataDir: allAliasRoot,
+      apply: true,
+      confirmation:
+        VOID_WC_PAID_WORK_ENTITLEMENT_ACCEPTANCE_CONFIRMATION,
+    },
+  );
+  assert.equal(allAliasApplied.credited, true);
+  assert.equal(
+    (await readCanonicalWcState(account, allAliasRoot)).redeemable_quanta,
+    "3000000000",
+  );
+  const allAliasRetry = await acceptPaidWorkEntitlementOnce(
+    authority,
+    {
+      ...options,
+      dataDir: allAliasRoot,
+      apply: true,
+      confirmation:
+        VOID_WC_PAID_WORK_ENTITLEMENT_ACCEPTANCE_CONFIRMATION,
+    },
+  );
+  assert.equal(allAliasRetry.credited, false);
+  assert.equal(allAliasRetry.duplicate, true);
+  assert.equal(
+    (await readCanonicalWcState(account, allAliasRoot)).redeemable_quanta,
+    "3000000000",
   );
 
   for (const [label, patch] of [

@@ -105,6 +105,10 @@ const warmFailuresV1 = new Map<string, WarmFailureV1>();
 const watchStatesV1 = new Map<string, HistoryWatchStateV1>();
 const watchChallengeTasksV1 =
   new Map<string, Promise<void>>();
+const decisionRecordValidationTasksV1 =
+  new WeakMap<HistoryStateV1, Promise<boolean>>();
+const suppressedWatchMutationNotificationsForProofV1 =
+  new Set<string>();
 
 const HISTORY_WATCH_CHALLENGE_PREFIX_V1 =
   ".claim-history-watch-challenge-";
@@ -694,6 +698,11 @@ function ensureWatchStateV1(raw?: string): HistoryWatchStateV1 {
           }
           return;
         }
+        if (
+          suppressedWatchMutationNotificationsForProofV1.has(key)
+        ) {
+          return;
+        }
         state.generation += 1;
         statesV1.delete(key);
         warmFailuresV1.delete(key);
@@ -1016,8 +1025,8 @@ async function readJsonStrictV1(
 
     // Published warm snapshots treat record JSON files as read-only
     // projections. Canonical mutations replace a pathname atomically and
-    // advance the durable mutation-generation witness; ordinary in-place
-    // writes therefore cannot bypass that O(1) witness.
+    // advance the durable mutation-generation witness. Exact pathname
+    // generations are also retained for decision-time revalidation.
     let sealedStamp = afterReadStamp;
     const mode = Number(afterRead.mode) & 0o777;
     if ((mode & 0o222) !== 0) {
@@ -1359,11 +1368,13 @@ async function scanHistoryV1(
 
 async function revalidateRecordGenerationsV1(
   state: HistoryStateV1,
+  onStat: (() => void) | null = null,
 ): Promise<boolean> {
   let checked = 0;
   for (const [file, expected] of
     state.record_generations.entries()) {
     const current = await statRecordPathV1(file);
+    onStat?.();
     if (
       !current ||
       !sameRecordStampV1(expected, current)
@@ -1374,6 +1385,29 @@ async function revalidateRecordGenerationsV1(
     await maybeYieldV1(checked);
   }
   return true;
+}
+
+async function validateDecisionRecordGenerationsV1(
+  state: HistoryStateV1,
+  metrics: HistoryDecisionMetricsV1,
+): Promise<boolean> {
+  const existing = decisionRecordValidationTasksV1.get(state);
+  if (existing) return existing;
+
+  const task = revalidateRecordGenerationsV1(
+    state,
+    () => {
+      metrics.record_generation_stats_total += 1;
+    },
+  );
+  decisionRecordValidationTasksV1.set(state, task);
+  try {
+    return await task;
+  } finally {
+    if (decisionRecordValidationTasksV1.get(state) === task) {
+      decisionRecordValidationTasksV1.delete(state);
+    }
+  }
 }
 
 async function rebuildHistoryV1(
@@ -1524,6 +1558,18 @@ export function suppressWcPublicClaimHistoryWatchForProofV1(
   state.healthy = true;
 }
 
+export function suppressWcPublicClaimHistoryMutationNotificationsForProofV1(
+  raw?: string,
+  suppress = true,
+): void {
+  const key = keyV1(raw);
+  if (suppress) {
+    suppressedWatchMutationNotificationsForProofV1.add(key);
+  } else {
+    suppressedWatchMutationNotificationsForProofV1.delete(key);
+  }
+}
+
 export async function prepareWcPublicClaimHistoryDecisionV1(
   raw?: string,
 ): Promise<void> {
@@ -1543,18 +1589,24 @@ export async function prepareWcPublicClaimHistoryDecisionV1(
 
   // Canonical record mutation advances one crash-durable generation token
   // before pathname publication, and warm snapshots seal record projections
-  // read-only. The ordered watcher challenge above closes the non-cooperating
-  // same-inode seam without an O(history) per-record lstat walk; the bounded
-  // generation read below remains the canonical-writer witness.
+  // read-only. The bounded generation read remains the canonical-writer
+  // witness; exact record generations below cover missed/coalesced advisory
+  // notifications without synchronous record-content reads.
   const mutationGeneration =
     await readHistoryMutationGenerationV1(raw);
   metrics.mutation_generation_reads_total += 1;
+  // Watch delivery is advisory. Exact pathname generations are the
+  // correctness-grade barrier for a live watcher that acknowledges its
+  // sentinel while an ordinary same-inode notification is absent.
+  const recordsStable =
+    await validateDecisionRecordGenerationsV1(state, metrics);
 
   const after = stampsV1(raw);
   const watchAfter = watch.generation;
   const stillPublished = statesV1.get(key) === state;
 
   if (
+    !recordsStable ||
     mutationGeneration !== state.mutation_generation ||
     !watch.healthy ||
     !stillPublished ||
@@ -1846,6 +1898,7 @@ export function resetWcPublicClaimHistoryAuthorityForProofV1(
   warmFailuresV1.delete(key);
   decisionMetricsV1.delete(key);
   watchChallengeTasksV1.delete(key);
+  suppressedWatchMutationNotificationsForProofV1.delete(key);
   const watch = watchStatesV1.get(key);
   if (watch) {
     closeWatchStateV1(watch);

@@ -453,9 +453,10 @@ try {
   persistTruth(duplicateAliasReceipt, duplicateAliasRoot);
   append(path.join(duplicateAliasRoot, "wc_v1", "ledger.jsonl"), {
     kind: "credit",
-    account: [duplicateAliasReceipt.account],
+    account: duplicateAliasReceipt.account,
     delta: 3,
-    receipt_kind: [VOID_WC_VERIFIED_RECEIPT_ACCEPTANCE_TASK],
+    reason: "verified_receipt_acceptance_v1",
+    receipt_kind: VOID_WC_VERIFIED_RECEIPT_ACCEPTANCE_TASK,
     receipt_id: [duplicateAliasReceipt.receipt_id],
     job_id: [duplicateAliasReceipt.job_id],
   });
@@ -470,6 +471,12 @@ try {
     { dataDir: duplicateAliasRoot },
   );
   assert.equal(duplicateAliasAccepted.credited, true);
+  const duplicateAliasRetry = await acceptVerifiedReceiptOnce(
+    duplicateAliasReceipt,
+    { dataDir: duplicateAliasRoot },
+  );
+  assert.equal(duplicateAliasRetry.credited, false);
+  assert.equal(duplicateAliasRetry.duplicate, true);
   assert.equal(
     (await readCanonicalWcState(
       duplicateAliasReceipt.account,
