@@ -321,15 +321,7 @@ export function createValidateRequestOwnerV1({
   if (!Number.isSafeInteger(teardownMs) || teardownMs < 0) throw new Error('validator readiness teardown invalid');
 
   let active = null;
-  let startGate = Promise.resolve();
-
-  const acquireStartGate = async () => {
-    const previous = startGate;
-    let release;
-    startGate = new Promise((resolve) => { release = resolve; });
-    await previous;
-    return release;
-  };
+  let startEpoch = 0;
 
   const makeGeneration = () => {
     const controller = new AbortController();
@@ -377,28 +369,23 @@ export function createValidateRequestOwnerV1({
     return generation;
   };
 
-  const awaitPriorRelease = async () => {
-    const prior = active;
-    if (!prior || prior.released) return;
-    prior.abort(new Error('validator readiness request superseded'));
-    await waitBounded(prior.releasedPromise, teardownMs);
-    if (active === prior && !prior.released) {
-      throw new Error('validator readiness previous request still settling');
-    }
-  };
-
   return {
     async run(operation) {
       if (typeof operation !== 'function') throw new Error('validator readiness request operation invalid');
-      const releaseGate = await acquireStartGate();
-      let generation;
-      try {
-        await awaitPriorRelease();
-        generation = makeGeneration();
-        active = generation;
-      } finally {
-        releaseGate();
+      const epoch = ++startEpoch;
+      const prior = active;
+      if (prior && !prior.released) {
+        prior.abort(new Error('validator readiness request superseded'));
+        await waitBounded(prior.releasedPromise, teardownMs);
       }
+      if (epoch !== startEpoch) {
+        throw new Error('validator readiness request superseded before start');
+      }
+      if (active && !active.released) {
+        throw new Error('validator readiness previous request still settling');
+      }
+      const generation = makeGeneration();
+      active = generation;
       try {
         return await operation({
           signal: generation.signal,
