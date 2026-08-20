@@ -55,6 +55,10 @@ assert.ok(
   moduleSource.includes("VOID_AGENT_PICK2_JSONL_APPEND_COMMIT_V1"),
   "durable append commit witness is missing",
 );
+assert.ok(
+  moduleSource.includes("VOID_AGENT_PICK2_JSONL_APPEND_COMMIT_AMBIGUOUS"),
+  "ambiguous append commit evidence does not fail closed",
+);
 assert.equal(
   moduleSource.includes("if (opts.durable) fs.fdatasyncSync(fd)"),
   false,
@@ -77,6 +81,10 @@ assert.ok(
 assert.ok(
   moduleSource.includes("beforeLockClaimReleaseUnlink"),
   "release-failure recovery hook is missing",
+);
+assert.ok(
+  moduleSource.includes("VOID_AGENT_PICK2_JSONL_APPEND_CLAIM_RELEASE_V1"),
+  "cross-process claim release witness is missing",
 );
 
 assert.ok(
@@ -249,6 +257,13 @@ function claimTempFiles(file: string): string[] {
     .filter((name) => name.startsWith(prefix));
 }
 
+function claimReleaseFiles(file: string): string[] {
+  const prefix = `${path.basename(file)}.void-pick2-append-release-`;
+  return fs
+    .readdirSync(path.dirname(file))
+    .filter((name) => name.startsWith(prefix) && name.endsWith(".json"));
+}
+
 function isolatedFiles(file: string): string[] {
   const prefix = `${path.basename(file)}.void-pick2-isolated-`;
   return fs.readdirSync(path.dirname(file)).filter((name) => name.startsWith(prefix));
@@ -408,6 +423,71 @@ function runCrashCase(target: Target, phase: Phase, seed = true) {
     `append commit boundary was not exactly-once for ${target}/${phase}`,
   );
   assertAppendedTruth(target, semantic, id, shouldContainAppend);
+}
+
+function runAmbiguousCommitWitnessCase(
+  kind: "malformed" | "replacement" | "symlink",
+) {
+  if (kind === "symlink" && process.platform === "win32") return;
+  const fixture = createFixture(`ambiguous-commit-witness-${kind}`);
+  const targetFile = fixture.results;
+  const row = appendedRow("results", `ambiguous-commit-${kind}`);
+  const id = rowId(row);
+  spawnCrash(fixture, "results", "after_durable_append", row);
+
+  const intent = JSON.parse(fs.readFileSync(intentPath(targetFile), "utf8"));
+  const targetDir = path.dirname(targetFile);
+  const commitPath = path.join(targetDir, intent.commit_basename);
+  const pinnedPath = path.join(targetDir, intent.pin_basename);
+  const isolatedPath = path.join(targetDir, intent.isolated_basename);
+  const originalCommit = fs.readFileSync(commitPath);
+  const authoritativeSize = fs.statSync(pinnedPath).size;
+  assert.equal(fs.statSync(isolatedPath).size, authoritativeSize);
+  assert.equal(countId(isolatedPath, id), 1, "durable crash fixture omitted appended row");
+
+  if (kind === "malformed") {
+    fs.writeFileSync(commitPath, "{not-json}\n", "utf8");
+  } else if (kind === "replacement") {
+    fs.unlinkSync(commitPath);
+    fs.writeFileSync(
+      commitPath,
+      JSON.stringify({
+        marker: "VOID_AGENT_PICK2_JSONL_APPEND_COMMIT_V1",
+        version: 1,
+        append_bytes: intent.append_bytes,
+        append_sha256: "0".repeat(64),
+      }) + "\n",
+      "utf8",
+    );
+  } else {
+    const target = path.join(fixture.dir, "untrusted-commit-target.json");
+    fs.writeFileSync(target, originalCommit);
+    fs.unlinkSync(commitPath);
+    fs.symlinkSync(target, commitPath);
+  }
+
+  let held = false;
+  try {
+    snapshot(fixture);
+  } catch (err: any) {
+    held = /VOID_AGENT_PICK2_JSONL_APPEND_COMMIT_AMBIGUOUS/.test(
+      String(err?.message || err),
+    );
+  }
+  assert.equal(held, true, `${kind} commit witness did not HOLD`);
+  assert.equal(fs.existsSync(targetFile), false, `${kind} HOLD published canonical history`);
+  assert.equal(fs.existsSync(intentPath(targetFile)), true, `${kind} HOLD retired intent`);
+  assert.equal(fs.existsSync(pinnedPath), true, `${kind} HOLD lost recovery pin`);
+  assert.equal(fs.statSync(pinnedPath).size, authoritativeSize, `${kind} HOLD truncated pin`);
+  assert.equal(fs.statSync(isolatedPath).size, authoritativeSize, `${kind} HOLD truncated history`);
+  assert.equal(countId(isolatedPath, id), 1, `${kind} HOLD erased durable row`);
+
+  fs.rmSync(commitPath, { recursive: true, force: true });
+  fs.writeFileSync(commitPath, originalCommit, { mode: 0o600 });
+  const recovered = snapshot(fixture);
+  assert.equal(fs.existsSync(intentPath(targetFile)), false, `${kind} retry retained intent`);
+  assert.equal(countId(targetFile, id), 1, `${kind} retry did not recover exactly once`);
+  assert.equal(recovered.done.has(id), true, `${kind} retry omitted semantic truth`);
 }
 
 function runLocalPartialFailure(target: Target) {
@@ -741,6 +821,118 @@ function runReleaseFailureCase() {
   assert.equal(claimFiles(crashTarget).length, 0);
 }
 
+function runCrossProcessReleaseCase(
+  mode: "fault_after_release" | "pause_before_release",
+  afterRecovery: boolean,
+) {
+  const fixture = createFixture(`cross-process-release-${mode}-${afterRecovery}`);
+  const targetFile = fixture.results;
+  const ownerRow = appendedRow(
+    "results",
+    afterRecovery ? "cross-release-recovery-owner" : "cross-release-owner",
+  );
+  const ownerId = rowId(ownerRow);
+  if (afterRecovery) {
+    spawnCrash(fixture, "results", "after_durable_append", ownerRow);
+  }
+
+  const beforeRelease = path.join(fixture.dir, "before-release");
+  const continueRelease = path.join(fixture.dir, "continue-release");
+  const idle = path.join(fixture.dir, "owner-idle");
+  const stop = path.join(fixture.dir, "owner-stop");
+  const exited = path.join(fixture.dir, "owner-exited");
+  const childPath = path.join(fixture.dir, "release-owner-child.mjs");
+  fs.writeFileSync(
+    childPath,
+    `import fs from "node:fs";\n` +
+      `import { appendAgentPick2JsonlCanonicalV1 } from ${JSON.stringify(moduleUrl)};\n` +
+      `const file=${JSON.stringify(targetFile)};\n` +
+      `const payload=${JSON.stringify(JSON.stringify(ownerRow) + "\n")};\n` +
+      `const beforeRelease=${JSON.stringify(beforeRelease)};\n` +
+      `const continueRelease=${JSON.stringify(continueRelease)};\n` +
+      `const idle=${JSON.stringify(idle)};\n` +
+      `const stop=${JSON.stringify(stop)};\n` +
+      `const exited=${JSON.stringify(exited)};\n` +
+      `const mode=${JSON.stringify(mode)};\n` +
+      `const wait=(file)=>{const sab=new SharedArrayBuffer(4);const a=new Int32Array(sab);while(!fs.existsSync(file))Atomics.wait(a,0,0,10);};\n` +
+      `appendAgentPick2JsonlCanonicalV1(file,payload,{durable:true,testHooks:{\n` +
+      ` beforeLockClaimReleasePublish(){if(mode==="pause_before_release"){fs.writeFileSync(beforeRelease,"1");wait(continueRelease);}},\n` +
+      ` beforeLockClaimReleaseUnlink(){if(mode==="fault_after_release")throw new Error("INJECT_CROSS_PROCESS_RELEASE_UNLINK_FAILURE");},\n` +
+      `}});\n` +
+      `fs.writeFileSync(idle,"1");wait(stop);fs.writeFileSync(exited,"1");\n`,
+    "utf8",
+  );
+
+  let stderr = "";
+  const child = spawn(process.execPath, ["--import", "tsx", childPath], {
+    cwd: process.cwd(),
+    stdio: ["ignore", "ignore", "pipe"],
+  });
+  child.stderr.setEncoding("utf8");
+  child.stderr.on("data", (chunk) => { stderr += chunk; });
+  try {
+    if (mode === "pause_before_release") {
+      waitFor(
+        () => fs.existsSync(beforeRelease) || child.exitCode !== null,
+        "owner pre-release hold",
+      );
+      assert.equal(fs.existsSync(beforeRelease), true, `owner failed before hold: ${stderr}`);
+      let blocked = false;
+      try {
+        appendAgentPick2JsonlCanonicalV1(
+          targetFile,
+          JSON.stringify({ id: "must-block-before-release", ts: now + 2 }) + "\n",
+        );
+      } catch (err: any) {
+        blocked = /VOID_AGENT_PICK2_JSONL_CANONICAL_APPEND_LOCKED/.test(
+          String(err?.message || err),
+        );
+      }
+      assert.equal(blocked, true, "foreign writer entered before logical release");
+      assert.equal(claimReleaseFiles(targetFile).length, 0, "release witness published early");
+      fs.writeFileSync(continueRelease, "1");
+    }
+
+    waitFor(
+      () => fs.existsSync(idle) || child.exitCode !== null,
+      "released owner idle state",
+    );
+    assert.equal(fs.existsSync(idle), true, `owner failed before idle: ${stderr}`);
+    assert.equal(child.exitCode, null, "released owner did not remain alive");
+    if (mode === "fault_after_release") {
+      assert.equal(claimFiles(targetFile).length, 1, "release fault omitted owner claim");
+      assert.equal(
+        claimReleaseFiles(targetFile).length,
+        1,
+        "release fault omitted cross-process witness",
+      );
+    }
+
+    const successorId = `cross-release-successor-${mode}-${afterRecovery}`;
+    appendAgentPick2JsonlCanonicalV1(
+      targetFile,
+      JSON.stringify({ id: successorId, ts: now + 3 }) + "\n",
+      { durable: true },
+    );
+    assert.equal(countId(targetFile, ownerId), 1, "owner append/recovery was not exact once");
+    assert.equal(countId(targetFile, successorId), 1, "foreign successor append was not exact once");
+    assert.equal(claimFiles(targetFile).length, 0, "foreign successor retained a claim");
+    assert.equal(claimReleaseFiles(targetFile).length, 0, "release witness was not retired");
+  } finally {
+    try { fs.writeFileSync(continueRelease, "1"); } catch (_err) {
+      // Test cleanup only; the child may already be past this gate.
+    }
+    try { fs.writeFileSync(stop, "1"); } catch (_err) {
+      // Test cleanup only; the child may already have exited.
+    }
+    waitFor(
+      () => fs.existsSync(exited),
+      "release-owner child exit",
+    );
+    if (child.exitCode === null && child.signalCode === null) child.kill("SIGTERM");
+  }
+}
+
 function runFirstCreateDirectoryDurabilityCase(target: Target) {
   const success = createFixture(`first-create-success-${target}`);
   const successFile = targetPath(success, target);
@@ -894,6 +1086,12 @@ try {
   runLiveClaimInterleavingCase();
   runIntentRetirementFailureCase();
   runReleaseFailureCase();
+  runCrossProcessReleaseCase("fault_after_release", false);
+  runCrossProcessReleaseCase("fault_after_release", true);
+  runCrossProcessReleaseCase("pause_before_release", false);
+  runAmbiguousCommitWitnessCase("malformed");
+  runAmbiguousCommitWitnessCase("replacement");
+  runAmbiguousCommitWitnessCase("symlink");
   runRecoveryPathSwapCase("regular", false);
   runRecoveryPathSwapCase("symlink", true);
 
@@ -912,9 +1110,12 @@ try {
   console.log("pid_reuse_process_instance_recovered=true");
   console.log("live_claim_not_deleted_by_stale_reclaimer=true");
   console.log("append_commit_boundary_absent_or_exactly_once=true");
+  console.log("ambiguous_append_commit_witness_fails_closed=true");
   console.log("post_restore_intent_retirement_failure_terminal_truth=true");
   console.log("terminal_retry_witness_content_addressed_set=true");
   console.log("release_failure_self_recovery=true");
+  console.log("release_failure_cross_process_recovery=true");
+  console.log("pre_release_foreign_writer_excluded=true");
   console.log("isolated_recovery_publication_identity_pinned=true");
   console.log("path_swap_regular_and_symlink_never_publish=true");
   console.log("split_history_after_restart=false");

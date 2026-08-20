@@ -267,6 +267,10 @@ type AppendWriterTestHooksV1 = {
     file: string;
     claim_path: string;
   }) => void;
+  beforeLockClaimReleasePublish?: (ctx: {
+    file: string;
+    claim_path: string;
+  }) => void;
   beforeIntentRetire?: (ctx: {
     file: string;
     intent_path: string;
@@ -295,6 +299,17 @@ type AppendClaimV1 = {
   process_instance: string;
   token: string;
   created_ms: number;
+  path: string;
+  stamp: FileStampV1;
+};
+
+type AppendClaimReleaseV1 = {
+  marker: string;
+  version: 1;
+  pid: number;
+  process_instance: string;
+  token: string;
+  claim_stamp: FileStampV1;
   path: string;
   stamp: FileStampV1;
 };
@@ -339,6 +354,8 @@ const VOID_AGENT_PICK2_JSONL_APPEND_TERMINAL_MAX_BYTES_V1 = 4096;
 const VOID_AGENT_PICK2_JSONL_APPEND_CLAIM_V1 =
   "VOID_AGENT_PICK2_JSONL_APPEND_CLAIM_V1";
 const VOID_AGENT_PICK2_JSONL_APPEND_CLAIM_MAX_BYTES_V1 = 4096;
+const VOID_AGENT_PICK2_JSONL_APPEND_CLAIM_RELEASE_V1 =
+  "VOID_AGENT_PICK2_JSONL_APPEND_CLAIM_RELEASE_V1";
 const canonicalWriterStatesV1 = new Map<string, CanonicalWriterStateV1>();
 const activeCanonicalWritersV1 = new Set<string>();
 let canonicalAppendNonceV1 = 0;
@@ -452,6 +469,34 @@ function appendClaimTempPathV1(file: string, token: string): string {
   );
 }
 
+function appendClaimReleasePathV1(file: string, token: string): string {
+  const claimPath = fileKeyV1(file);
+  const claimSuffix = `.void-pick2-append-claim-${token}.json`;
+  const claimBase = path.basename(claimPath);
+  if (!claimBase.endsWith(claimSuffix)) {
+    throw new Error("VOID_AGENT_PICK2_JSONL_APPEND_CLAIM_RELEASE_PATH_INVALID");
+  }
+  const canonicalBase = claimBase.slice(0, -claimSuffix.length);
+  return path.join(
+    path.dirname(claimPath),
+    `${canonicalBase}.void-pick2-append-release-${token}.json`,
+  );
+}
+
+function appendClaimReleaseTempPathV1(file: string, token: string): string {
+  const claimPath = fileKeyV1(file);
+  const claimSuffix = `.void-pick2-append-claim-${token}.json`;
+  const claimBase = path.basename(claimPath);
+  if (!claimBase.endsWith(claimSuffix)) {
+    throw new Error("VOID_AGENT_PICK2_JSONL_APPEND_CLAIM_RELEASE_PATH_INVALID");
+  }
+  const canonicalBase = claimBase.slice(0, -claimSuffix.length);
+  return path.join(
+    path.dirname(claimPath),
+    `${canonicalBase}.void-pick2-append-release-tmp-${process.pid}-${token}`,
+  );
+}
+
 function listAppendClaimPathsV1(file: string): string[] {
   const key = fileKeyV1(file);
   const dir = path.dirname(key);
@@ -550,6 +595,158 @@ function readAppendClaimV1(claimPath: string): AppendClaimV1 {
     path: claimPath,
     stamp: opened,
   };
+}
+
+function readAppendClaimReleaseV1(
+  claim: AppendClaimV1,
+): AppendClaimReleaseV1 | null {
+  const releasePath = appendClaimReleasePathV1(claim.path, claim.token);
+  let lst: any;
+  try {
+    lst = fs.lstatSync(releasePath, { bigint: true } as any);
+  } catch (err: any) {
+    if (err?.code === "ENOENT") return null;
+    throw err;
+  }
+  if (!lst.isFile() || lst.isSymbolicLink()) {
+    throw new Error("VOID_AGENT_PICK2_JSONL_APPEND_CLAIM_RELEASE_NON_REGULAR");
+  }
+  const size = Number(lst.size);
+  if (
+    !Number.isSafeInteger(size) ||
+    size <= 0 ||
+    size > VOID_AGENT_PICK2_JSONL_APPEND_CLAIM_MAX_BYTES_V1
+  ) {
+    throw new Error("VOID_AGENT_PICK2_JSONL_APPEND_CLAIM_RELEASE_SIZE");
+  }
+  const fd = fs.openSync(
+    releasePath,
+    fs.constants.O_RDONLY | ((fs.constants as any).O_NOFOLLOW || 0),
+  );
+  let raw: Buffer;
+  let opened: FileStampV1;
+  try {
+    opened = fstatV1(fd);
+    if (!sameStampV1(opened, stampFromStatsV1(lst))) {
+      throw new Error("VOID_AGENT_PICK2_JSONL_APPEND_CLAIM_RELEASE_UNSTABLE");
+    }
+    raw = readExactFdV1(fd, 0, size);
+  } finally {
+    fs.closeSync(fd);
+  }
+  let parsed: any;
+  try {
+    parsed = JSON.parse(raw.toString("utf8"));
+  } catch (_err) {
+    throw new Error("VOID_AGENT_PICK2_JSONL_APPEND_CLAIM_RELEASE_MALFORMED");
+  }
+  if (!exactKeysV1(parsed, [
+    "marker",
+    "version",
+    "pid",
+    "process_instance",
+    "token",
+    "claim_stamp",
+  ])) {
+    throw new Error("VOID_AGENT_PICK2_JSONL_APPEND_CLAIM_RELEASE_SHAPE");
+  }
+  if (
+    parsed.marker !== VOID_AGENT_PICK2_JSONL_APPEND_CLAIM_RELEASE_V1 ||
+    parsed.version !== 1 ||
+    parsed.pid !== claim.pid ||
+    parsed.process_instance !== claim.process_instance ||
+    parsed.token !== claim.token ||
+    !validStampValueV1(parsed.claim_stamp) ||
+    !sameStampV1(parsed.claim_stamp, claim.stamp)
+  ) {
+    throw new Error("VOID_AGENT_PICK2_JSONL_APPEND_CLAIM_RELEASE_MISMATCH");
+  }
+  return {
+    marker: parsed.marker,
+    version: 1,
+    pid: parsed.pid,
+    process_instance: parsed.process_instance,
+    token: parsed.token,
+    claim_stamp: parsed.claim_stamp,
+    path: releasePath,
+    stamp: opened,
+  };
+}
+
+function publishAppendClaimReleaseV1(claim: AppendClaimV1) {
+  const releasePath = appendClaimReleasePathV1(claim.path, claim.token);
+  const tempPath = appendClaimReleaseTempPathV1(claim.path, claim.token);
+  const body = Buffer.from(
+    JSON.stringify({
+      marker: VOID_AGENT_PICK2_JSONL_APPEND_CLAIM_RELEASE_V1,
+      version: 1,
+      pid: claim.pid,
+      process_instance: claim.process_instance,
+      token: claim.token,
+      claim_stamp: claim.stamp,
+    }) + "\n",
+    "utf8",
+  );
+  let fd: number | null = null;
+  try {
+    fd = fs.openSync(
+      tempPath,
+      fs.constants.O_WRONLY |
+        fs.constants.O_CREAT |
+        fs.constants.O_EXCL |
+        ((fs.constants as any).O_NOFOLLOW || 0),
+      0o600,
+    );
+    let off = 0;
+    while (off < body.length) {
+      const n = fs.writeSync(fd, body, off, body.length - off, null);
+      if (n <= 0) {
+        throw new Error("VOID_AGENT_PICK2_JSONL_APPEND_CLAIM_RELEASE_SHORT_WRITE");
+      }
+      off += n;
+    }
+    fs.fsyncSync(fd);
+    fs.closeSync(fd);
+    fd = null;
+    try {
+      fs.linkSync(tempPath, releasePath);
+      fsyncParentDirectoryV1(claim.path);
+    } catch (err: any) {
+      if (err?.code !== "EEXIST") throw err;
+      const existing = readAppendClaimReleaseV1(claim);
+      if (!existing) {
+        throw new Error("VOID_AGENT_PICK2_JSONL_APPEND_CLAIM_RELEASE_MISSING");
+      }
+    }
+  } finally {
+    if (fd !== null) fs.closeSync(fd);
+    try {
+      fs.unlinkSync(tempPath);
+      fsyncParentDirectoryV1(claim.path);
+    } catch (err: any) {
+      if (err?.code !== "ENOENT") {
+        recordBestEffortFailureV1("claim_release_temp_unlink", err);
+      }
+    }
+  }
+}
+
+function removeObservedClaimReleaseV1(release: AppendClaimReleaseV1): boolean {
+  let now: any;
+  try {
+    now = fs.lstatSync(release.path, { bigint: true } as any);
+  } catch (err: any) {
+    return err?.code === "ENOENT";
+  }
+  if (!now.isFile() || now.isSymbolicLink()) return false;
+  if (!sameStampV1(stampFromStatsV1(now), release.stamp)) return false;
+  try {
+    fs.unlinkSync(release.path);
+    fsyncParentDirectoryV1(release.path);
+    return true;
+  } catch (err: any) {
+    return err?.code === "ENOENT";
+  }
 }
 
 function removeObservedClaimV1(claim: AppendClaimV1): boolean {
@@ -697,6 +894,27 @@ function blockOrReclaimOtherClaimsV1(
       blocked = true;
       continue;
     }
+    let release: AppendClaimReleaseV1 | null;
+    try {
+      release = readAppendClaimReleaseV1(claim);
+    } catch (err) {
+      recordBestEffortFailureV1("claim_release_read_blocks_reclamation", err);
+      blocked = true;
+      continue;
+    }
+    if (release) {
+      if (!removeObservedClaimV1(claim)) {
+        blocked = true;
+        continue;
+      }
+      if (!removeObservedClaimReleaseV1(release)) {
+        recordBestEffortFailureV1(
+          "claim_release_witness_cleanup",
+          new Error("release witness cleanup deferred"),
+        );
+      }
+      continue;
+    }
     const ownOrphan =
       claim.pid === process.pid && claim.process_instance === selfInstance;
     const state = ownOrphan ? "stale" : claimStateV1(claim);
@@ -752,24 +970,56 @@ function releaseCanonicalAppendLockV1(
   lock: CanonicalAppendLockV1,
   hooks?: AppendWriterTestHooksV1,
 ) {
+  let claim: AppendClaimV1 | null = null;
+  let release: AppendClaimReleaseV1 | null = null;
+  let releasePublished = false;
   try {
+    claim = readAppendClaimV1(lock.path);
+    if (
+      claim.token !== lock.token ||
+      claim.pid !== process.pid ||
+      claim.process_instance !== lock.process_instance
+    ) {
+      throw new Error("VOID_AGENT_PICK2_JSONL_APPEND_CLAIM_RELEASE_OWNER_MISMATCH");
+    }
+    hooks?.beforeLockClaimReleasePublish?.({
+      file: lock.key,
+      claim_path: lock.path,
+    });
+    // The durable exact-claim release witness is the cross-process logical
+    // unlock boundary. A foreign contender may retire this exact immutable
+    // claim after the witness is visible, even if pathname cleanup fails while
+    // the prior process remains alive.
+    publishAppendClaimReleaseV1(claim);
+    releasePublished = true;
+    release = readAppendClaimReleaseV1(claim);
+    if (!release) {
+      throw new Error("VOID_AGENT_PICK2_JSONL_APPEND_CLAIM_RELEASE_MISSING");
+    }
     hooks?.beforeLockClaimReleaseUnlink?.({
       file: lock.key,
       claim_path: lock.path,
     });
-    const claim = readAppendClaimV1(lock.path);
-    if (
-      claim.token === lock.token &&
-      claim.pid === process.pid &&
-      claim.process_instance === lock.process_instance
-    ) {
-      removeObservedClaimV1(claim);
+    if (!removeObservedClaimV1(claim)) {
+      throw new Error("VOID_AGENT_PICK2_JSONL_APPEND_CLAIM_RELEASE_UNLINK_FAILED");
+    }
+    if (!removeObservedClaimReleaseV1(release)) {
+      recordBestEffortFailureV1(
+        "claim_release_witness_cleanup",
+        new Error("release witness cleanup deferred"),
+      );
     }
   } catch (err) {
-    recordBestEffortFailureV1("claim_release_deferred", err);
-    // A release fault must not turn a known append/recovery outcome into an
-    // ambiguous caller-visible failure. The immutable unique claim remains and
-    // is reclaimed as this process instance's orphan on the next acquisition.
+    let claimRemoved = false;
+    if (claim && !releasePublished) {
+      // If witness publication itself fails, direct exact-generation cleanup
+      // remains safe. Otherwise preserve the claim and its durable witness for
+      // a foreign contender to retire.
+      claimRemoved = removeObservedClaimV1(claim);
+    }
+    if (!claimRemoved) {
+      recordBestEffortFailureV1("claim_release_deferred", err);
+    }
   } finally {
     activeCanonicalWritersV1.delete(lock.key);
   }
@@ -1057,28 +1307,44 @@ function writeAppendCommitV1(intent: IsolationIntentV1) {
   }
 }
 
-function hasValidAppendCommitV1(intent: IsolationIntentV1): boolean {
+type AppendCommitEvidenceV1 = "absent" | "valid" | "ambiguous";
+
+function classifyAppendCommitEvidenceV1(
+  intent: IsolationIntentV1,
+): AppendCommitEvidenceV1 {
   let fd: number | null = null;
+  let entryObserved = false;
   try {
     const listed = fs.lstatSync(intent.commit_path, { bigint: true } as any);
-    if (!listed.isFile() || listed.isSymbolicLink()) return false;
+    entryObserved = true;
+    if (!listed.isFile() || listed.isSymbolicLink()) return "ambiguous";
     const size = Number(listed.size);
-    if (!Number.isSafeInteger(size) || size <= 0 || size > 4096) return false;
+    if (!Number.isSafeInteger(size) || size <= 0 || size > 4096) {
+      return "ambiguous";
+    }
     fd = fs.openSync(
       intent.commit_path,
       fs.constants.O_RDONLY | ((fs.constants as any).O_NOFOLLOW || 0),
     );
-    if (!sameStampV1(fstatV1(fd), stampFromStatsV1(listed))) return false;
+    if (!sameStampV1(fstatV1(fd), stampFromStatsV1(listed))) {
+      return "ambiguous";
+    }
     const raw = readExactFdV1(fd, 0, size);
     const parsed = JSON.parse(raw.toString("utf8"));
     return exactKeysV1(parsed, ["marker", "version", "append_bytes", "append_sha256"]) &&
       parsed.marker === VOID_AGENT_PICK2_JSONL_APPEND_COMMIT_V1 &&
       parsed.version === 1 &&
       parsed.append_bytes === intent.append_bytes &&
-      parsed.append_sha256 === intent.append_sha256;
+      parsed.append_sha256 === intent.append_sha256
+      ? "valid"
+      : "ambiguous";
   } catch (err: any) {
-    if (err?.code === "ENOENT") return false;
-    return false;
+    // Only an entry that was definitely absent at the initial no-follow
+    // lookup can authorize rollback. Once any pathname generation was
+    // observed, disappearance, replacement, parse failure, or I/O failure is
+    // ambiguous commit evidence and must preserve the authoritative suffix.
+    if (err?.code === "ENOENT" && !entryObserved) return "absent";
+    return "ambiguous";
   } finally {
     if (fd !== null) fs.closeSync(fd);
   }
@@ -1432,8 +1698,20 @@ function classifyRecoveryGenerationV1(
     );
   }
   const expectedSize = intent.before.size + intent.append_bytes;
-  if (current.size === intent.before.size) return "absent";
+  const commitEvidence = classifyAppendCommitEvidenceV1(intent);
+  const requireDefinitelyAbsentCommitV1 = () => {
+    if (commitEvidence !== "absent") {
+      throw new Error(
+        `VOID_AGENT_PICK2_JSONL_APPEND_COMMIT_AMBIGUOUS file=${intent.path}`,
+      );
+    }
+  };
+  if (current.size === intent.before.size) {
+    requireDefinitelyAbsentCommitV1();
+    return "absent";
+  }
   if (current.size > intent.before.size && current.size < expectedSize) {
+    requireDefinitelyAbsentCommitV1();
     fs.ftruncateSync(fd, intent.before.size);
     fs.fdatasyncSync(fd);
     current = fstatV1(fd);
@@ -1455,7 +1733,12 @@ function classifyRecoveryGenerationV1(
       `VOID_AGENT_PICK2_JSONL_ISOLATION_RECOVERY_SUFFIX_DIGEST file=${intent.path}`,
     );
   }
-  if (!hasValidAppendCommitV1(intent)) {
+  if (commitEvidence === "ambiguous") {
+    throw new Error(
+      `VOID_AGENT_PICK2_JSONL_APPEND_COMMIT_AMBIGUOUS file=${intent.path}`,
+    );
+  }
+  if (commitEvidence === "absent") {
     fs.ftruncateSync(fd, intent.before.size);
     fs.fdatasyncSync(fd);
     return "absent";
