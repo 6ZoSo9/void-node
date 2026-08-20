@@ -12,6 +12,7 @@ import {
 } from "../src/storage/segmented_jsonl_v1.ts";
 
 const HEX64_ZERO = "0".repeat(64);
+const SEGMENT_BYTES = 1024;
 
 function sealedRoot(segments: SegmentedJsonlSegmentV1[]): string {
   return crypto
@@ -37,20 +38,20 @@ function makeManifest(segmentCount: number): SegmentedJsonlManifestV1 {
     (_, id) => ({
       id,
       file: `segments/${String(id).padStart(12, "0")}.jsonl`,
-      bytes: 2,
+      bytes: SEGMENT_BYTES,
       records: 1,
       first_record_index: id,
       last_record_index: id,
       sha256: HEX64_ZERO,
     }),
   );
-  const sealedBytes = segmentCount * 2;
+  const sealedBytes = segmentCount * SEGMENT_BYTES;
   return {
     v: 1,
     format: "VOID_SEGMENTED_JSONL_V1",
     generation: 1,
-    segment_target_bytes: 1024,
-    max_record_bytes: 1023,
+    segment_target_bytes: SEGMENT_BYTES,
+    max_record_bytes: SEGMENT_BYTES - 1,
     total_bytes: sealedBytes,
     total_records: segmentCount,
     sealed_bytes: sealedBytes,
