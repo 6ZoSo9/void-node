@@ -3132,6 +3132,89 @@ async function main(): Promise<void> {
     });
   }
 
+  // A directory link may be cached as durable only when the exact parent
+  // generation that contains that exact target generation crosses fsync. A
+  // transient private replacement at the parent pathname must not satisfy the
+  // durability boundary even when the original namespace is restored later.
+  {
+    const root = fs.mkdtempSync(
+      path.join(
+        os.tmpdir(),
+        "void-wc-public-state-parent-generation-v1-",
+      ),
+    );
+    const parent = path.join(
+      root,
+      "wc_v1",
+      "public-earning-pilot-v1",
+    );
+    const target = path.join(parent, "issued");
+    const displaced = `${parent}.proof-displaced`;
+    fs.mkdirSync(target, { recursive: true, mode: 0o700 });
+
+    let swapInjected = false;
+    let afterHookObserved = false;
+    try {
+      assert.throws(
+        () =>
+          stateDirectoryAuthority
+            .ensureWcPublicStateDurableDirectoryV1(
+              target,
+              root,
+              (
+                phase: "before" | "after",
+                _observedParent: string,
+                child: string,
+              ) => {
+                if (
+                  path.resolve(child) !== path.resolve(target)
+                ) {
+                  return;
+                }
+                if (phase === "after") {
+                  afterHookObserved = true;
+                  return;
+                }
+                if (swapInjected) return;
+                swapInjected = true;
+                fs.renameSync(parent, displaced);
+                fs.mkdirSync(parent, { mode: 0o700 });
+              },
+            ),
+        /wc_public_state_directory_parent_generation_changed/,
+      );
+    } finally {
+      if (fs.existsSync(parent)) {
+        fs.rmSync(parent, { recursive: true, force: true });
+      }
+      if (fs.existsSync(displaced)) {
+        fs.renameSync(displaced, parent);
+      }
+    }
+
+    assert.equal(swapInjected, true);
+    assert.equal(
+      afterHookObserved,
+      false,
+      "replacement parent crossed fsync before generation rejection",
+    );
+
+    const admitted =
+      stateDirectoryAuthority
+        .ensureWcPublicStateDurableDirectoryV1(
+          target,
+          root,
+        );
+    const targetStat: any = fs.lstatSync(
+      target,
+      { bigint: true } as any,
+    );
+    assert.equal(admitted.dev, String(targetStat.dev));
+    assert.equal(admitted.ino, String(targetStat.ino));
+
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+
   // A fresh public-WC state tree may leave a just-created directory visible
   // when its parent fsync fails. The failed request must publish no claim or
   // ticket; exact retry must re-fsync that same visible link before success.
@@ -3397,6 +3480,12 @@ async function main(): Promise<void> {
   );
   console.log(
     "public_state_directory_failed_fsync_resynced=true",
+  );
+  console.log(
+    "public_state_parent_fsync_generation_bound=true",
+  );
+  console.log(
+    "transient_parent_namespace_swap_cached=false",
   );
   console.log(
     "self_attested_no_dataset_credit=false",

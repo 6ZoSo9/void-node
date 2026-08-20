@@ -983,25 +983,70 @@ need(
   ),
   "claim-history directory fsync proof hook missing",
 );
-const sharedDirBeforeHook =
+const sharedExactDirFsyncStart =
   publicStateDirectoryAuthorityText.indexOf(
-    'hook?.("before", parent, target)',
+    "function fsyncExactDirectoryLinkV1(",
   );
-const sharedDirParentFsync =
+const sharedExactDirFsyncEnd =
   publicStateDirectoryAuthorityText.indexOf(
-    "fsyncDirectoryV1(parent)",
-    sharedDirBeforeHook,
+    "\nfunction cachedDirectoryIdentityV1(",
+    sharedExactDirFsyncStart,
+  );
+need(
+  sharedExactDirFsyncStart >= 0 &&
+    sharedExactDirFsyncEnd > sharedExactDirFsyncStart,
+  "shared public-state exact parent-generation fsync helper missing",
+);
+const sharedExactDirFsyncBlock =
+  publicStateDirectoryAuthorityText.slice(
+    sharedExactDirFsyncStart,
+    sharedExactDirFsyncEnd,
+  );
+for (const marker of [
+  'hook?.("before", parent, child)',
+  "O_DIRECTORY",
+  "O_NOFOLLOW",
+  "fs.fstatSync(",
+  "directoryIdentityAtParentFdV1(",
+  "sameIdentityV1(expectedParent, openedParent)",
+  "sameIdentityV1(expectedChild, linkedBefore)",
+  "fs.fsyncSync(fd)",
+  'hook?.("after", parent, child)',
+  "sameIdentityV1(openedParent, openedParentAfter)",
+  "sameIdentityV1(expectedChild, linkedAfter)",
+  "sameIdentityV1(expectedParent, parentAfter)",
+  "sameIdentityV1(expectedChild, childAfter)",
+]) {
+  need(
+    sharedExactDirFsyncBlock.includes(marker),
+    `shared public-state exact parent-generation fsync missing: ${marker}`,
+  );
+}
+need(
+  publicStateDirectoryAuthorityText.includes(
+    '"/proc/self/fd"',
+  ),
+  "shared public-state descriptor-relative child identity missing",
+);
+const sharedDirExactTargetFsync =
+  publicStateDirectoryAuthorityText.indexOf(
+    "fsyncExactDirectoryLinkV1(\n    parent,\n    target,",
   );
 const sharedDirCachePublish =
   publicStateDirectoryAuthorityText.indexOf(
     "durableDirectoryLinksV1.set(",
-    sharedDirParentFsync,
+    sharedDirExactTargetFsync,
   );
 need(
-  sharedDirBeforeHook >= 0 &&
-    sharedDirParentFsync > sharedDirBeforeHook &&
-    sharedDirCachePublish > sharedDirParentFsync,
-  "shared public-state directory durability is not parent-fsync-before-cache",
+  sharedDirExactTargetFsync >= 0 &&
+    sharedDirCachePublish > sharedDirExactTargetFsync,
+  "shared public-state directory durability is not exact-parent-fsync-before-cache",
+);
+need(
+  !publicStateDirectoryAuthorityText.includes(
+    "fsyncDirectoryV1(",
+  ),
+  "pathname-only public-state directory fsync remains",
 );
 for (const marker of [
   "fs.lstatSync(dir",

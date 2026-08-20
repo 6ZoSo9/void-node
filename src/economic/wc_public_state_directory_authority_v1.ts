@@ -25,12 +25,11 @@ const durableAuthorityRootsV1 =
 const durableDirectoryLinksV1 =
   new Map<string, WcPublicStateDirectoryIdentityV1>();
 
-function directoryIdentityV1(
-  dir: string,
+function directoryIdentityFromStatV1(
+  stat: any,
   requirePrivate: boolean,
 ): WcPublicStateDirectoryIdentityV1 {
-  const stat: any = fs.lstatSync(dir, { bigint: true } as any);
-  if (!stat.isDirectory() || stat.isSymbolicLink()) {
+  if (!stat.isDirectory()) {
     throw new Error("wc_public_state_directory_not_authoritative");
   }
   const mode = Number(stat.mode) & 0o777;
@@ -51,6 +50,55 @@ function directoryIdentityV1(
     uid: String(stat.uid),
     mode,
   };
+}
+
+function directoryIdentityV1(
+  dir: string,
+  requirePrivate: boolean,
+): WcPublicStateDirectoryIdentityV1 {
+  const stat: any = fs.lstatSync(dir, { bigint: true } as any);
+  if (stat.isSymbolicLink()) {
+    throw new Error("wc_public_state_directory_not_authoritative");
+  }
+  return directoryIdentityFromStatV1(stat, requirePrivate);
+}
+
+function directoryIdentityAtParentFdV1(
+  parentFd: number,
+  childName: string,
+  requirePrivate: boolean,
+  changedCode: string,
+): WcPublicStateDirectoryIdentityV1 {
+  if (
+    !childName ||
+    childName === "." ||
+    childName === ".." ||
+    path.basename(childName) !== childName
+  ) {
+    throw new Error(changedCode);
+  }
+
+  let stat: any;
+  try {
+    stat = fs.lstatSync(
+      path.join(
+        "/proc/self/fd",
+        String(parentFd),
+        childName,
+      ),
+      { bigint: true } as any,
+    );
+  } catch (error: any) {
+    const code = String(error?.code || "");
+    if (code === "ENOENT" || code === "ENOTDIR") {
+      throw new Error(changedCode);
+    }
+    throw error;
+  }
+  if (stat.isSymbolicLink()) {
+    throw new Error(changedCode);
+  }
+  return directoryIdentityFromStatV1(stat, requirePrivate);
 }
 
 function sameIdentityV1(
@@ -84,10 +132,104 @@ function pathComponentsV1(target: string): string[] {
   return components;
 }
 
-function fsyncDirectoryV1(dir: string): void {
-  const fd = fs.openSync(dir, "r");
+function fsyncExactDirectoryLinkV1(
+  parent: string,
+  child: string,
+  expectedParent: WcPublicStateDirectoryIdentityV1,
+  expectedChild: WcPublicStateDirectoryIdentityV1,
+  parentRequirePrivate: boolean,
+  hook: WcPublicStateDirectoryParentFsyncHookV1,
+): void {
+  const parentChanged =
+    "wc_public_state_directory_parent_generation_changed";
+  const childChanged =
+    "wc_public_state_directory_generation_changed";
+  const childName = path.basename(child);
+  if (path.dirname(child) !== parent || !childName) {
+    throw new Error(parentChanged);
+  }
+
+  hook?.("before", parent, child);
+
+  let fd: number;
   try {
+    fd = fs.openSync(
+      parent,
+      fs.constants.O_RDONLY |
+        Number((fs.constants as any).O_DIRECTORY || 0) |
+        Number((fs.constants as any).O_NOFOLLOW || 0),
+    );
+  } catch (error: any) {
+    const code = String(error?.code || "");
+    if (
+      code === "ENOENT" ||
+      code === "ENOTDIR" ||
+      code === "ELOOP"
+    ) {
+      throw new Error(parentChanged);
+    }
+    throw error;
+  }
+
+  try {
+    const openedBefore: any = fs.fstatSync(
+      fd,
+      { bigint: true } as any,
+    );
+    const openedParent = directoryIdentityFromStatV1(
+      openedBefore,
+      parentRequirePrivate,
+    );
+    if (!sameIdentityV1(expectedParent, openedParent)) {
+      throw new Error(parentChanged);
+    }
+
+    const linkedBefore = directoryIdentityAtParentFdV1(
+      fd,
+      childName,
+      true,
+      childChanged,
+    );
+    if (!sameIdentityV1(expectedChild, linkedBefore)) {
+      throw new Error(childChanged);
+    }
+
     fs.fsyncSync(fd);
+    hook?.("after", parent, child);
+
+    const openedAfter: any = fs.fstatSync(
+      fd,
+      { bigint: true } as any,
+    );
+    const openedParentAfter = directoryIdentityFromStatV1(
+      openedAfter,
+      parentRequirePrivate,
+    );
+    if (!sameIdentityV1(openedParent, openedParentAfter)) {
+      throw new Error(parentChanged);
+    }
+
+    const linkedAfter = directoryIdentityAtParentFdV1(
+      fd,
+      childName,
+      true,
+      childChanged,
+    );
+    if (!sameIdentityV1(expectedChild, linkedAfter)) {
+      throw new Error(childChanged);
+    }
+
+    const parentAfter = directoryIdentityV1(
+      parent,
+      parentRequirePrivate,
+    );
+    if (!sameIdentityV1(expectedParent, parentAfter)) {
+      throw new Error(parentChanged);
+    }
+    const childAfter = directoryIdentityV1(child, true);
+    if (!sameIdentityV1(expectedChild, childAfter)) {
+      throw new Error(childChanged);
+    }
   } finally {
     fs.closeSync(fd);
   }
@@ -195,7 +337,20 @@ export function ensureWcPublicStateDurableDirectoryV1(
   if (!cachedAuthorityRoot) {
     const authorityParent = path.dirname(authorityRoot);
     if (authorityParent !== authorityRoot) {
-      fsyncDirectoryV1(authorityParent);
+      const authorityParentRequirePrivate =
+        isWithinV1(authorityParent, authorityRoot);
+      const authorityParentIdentity = directoryIdentityV1(
+        authorityParent,
+        authorityParentRequirePrivate,
+      );
+      fsyncExactDirectoryLinkV1(
+        authorityParent,
+        authorityRoot,
+        authorityParentIdentity,
+        authorityIdentity,
+        authorityParentRequirePrivate,
+        null,
+      );
       const durableAuthorityIdentity = directoryIdentityV1(
         authorityRoot,
         true,
@@ -219,9 +374,20 @@ export function ensureWcPublicStateDurableDirectoryV1(
   }
 
   const parent = path.dirname(target);
-  hook?.("before", parent, target);
-  fsyncDirectoryV1(parent);
-  hook?.("after", parent, target);
+  const parentRequirePrivate =
+    isWithinV1(parent, authorityRoot);
+  const parentIdentity = directoryIdentityV1(
+    parent,
+    parentRequirePrivate,
+  );
+  fsyncExactDirectoryLinkV1(
+    parent,
+    target,
+    parentIdentity,
+    identity,
+    parentRequirePrivate,
+    hook,
+  );
   const after = directoryIdentityV1(target, true);
   if (!sameIdentityV1(identity, after)) {
     throw new Error("wc_public_state_directory_generation_changed");
