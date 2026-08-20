@@ -127,6 +127,35 @@ function recordPeerHeadProbeFailure(scope: string, err: unknown, meta: Record<st
   });
 }
 
+const VOID_FOLLOWER_PULL_TIMEOUT_DEFAULT_MS_V1 = 15_000;
+const VOID_FOLLOWER_PULL_TIMEOUT_MIN_MS_V1 = 100;
+const VOID_FOLLOWER_PULL_TIMEOUT_MAX_MS_V1 = 120_000;
+
+function voidFollowerPullTimeoutMsV1(): number {
+  const raw = process.env.VOID_FOLLOWER_PULL_TIMEOUT_MS;
+  if (raw == null || raw === "") return VOID_FOLLOWER_PULL_TIMEOUT_DEFAULT_MS_V1;
+  if (!/^[1-9][0-9]*$/.test(raw)) {
+    throw new Error("VOID_FOLLOWER_PULL_TIMEOUT_MS must be an exact positive integer");
+  }
+  const value = Number(raw);
+  if (
+    !Number.isSafeInteger(value) ||
+    value < VOID_FOLLOWER_PULL_TIMEOUT_MIN_MS_V1 ||
+    value > VOID_FOLLOWER_PULL_TIMEOUT_MAX_MS_V1
+  ) {
+    throw new Error(
+      `VOID_FOLLOWER_PULL_TIMEOUT_MS must be within ${VOID_FOLLOWER_PULL_TIMEOUT_MIN_MS_V1}..${VOID_FOLLOWER_PULL_TIMEOUT_MAX_MS_V1}`,
+    );
+  }
+  return value;
+}
+
+function throwIfFollowerPullAbortedV1(signal: AbortSignal): void {
+  if (!signal.aborted) return;
+  const reason = signal.reason;
+  throw reason instanceof Error ? reason : new Error("follower pull aborted");
+}
+
 function recordImportHeadAdvanceBestEffortFailure(scope: string, err: unknown, meta: Record<string, unknown> = {}): void {
   const message = err instanceof Error ? err.message : String(err);
   console.warn("VOID_IMPORT_HEAD_ADVANCE_BEST_EFFORT_FAILURE_VISIBLE", {
@@ -3982,7 +4011,26 @@ attachEphemeralDirectTransportV1(
   }
 
   /** follower: one-shot */
-  async pullOnce(peerHttp: string, hooks?: { onImportBlock?: (b: any) => void }) {
+  async pullOnce(
+    peerHttp: string,
+    hooks?: { onImportBlock?: (b: any) => void; signal?: AbortSignal },
+  ) {
+    const timeoutSignal = AbortSignal.timeout(voidFollowerPullTimeoutMsV1());
+    const pullSignal = hooks?.signal
+      ? AbortSignal.any([hooks.signal, timeoutSignal])
+      : timeoutSignal;
+    throwIfFollowerPullAbortedV1(pullSignal);
+
+    const fetchPeer = async (url: string): Promise<Response> => {
+      throwIfFollowerPullAbortedV1(pullSignal);
+      try {
+        return await fetch(url, { signal: pullSignal });
+      } catch (error) {
+        throwIfFollowerPullAbortedV1(pullSignal);
+        throw error;
+      }
+    };
+
     const myHead = this.store.loadHeadNumber();
 
     const readPeerHead = async (): Promise<number> => {
@@ -3990,49 +4038,69 @@ attachEphemeralDirectTransportV1(
 
       // 1) Preferred current surface
       try {
-        const r: any = await fetch(`${base}/blocks/latest/number2.json`).catch(() => null);
+        const r: any = await fetchPeer(`${base}/blocks/latest/number2.json`);
         if (r && r.ok) {
-          const j: any = await r.json().catch(() => null);
+          const j: any = await r.json().catch((error) => {
+            throwIfFollowerPullAbortedV1(pullSignal);
+            recordPeerHeadProbeFailure("peer-head-probe-json", error, { peerHttp: base });
+            return null;
+          });
           const n = Number(j?.number);
           if (Number.isFinite(n) && n >= 0) return n;
         }
       } catch (err) {
+        throwIfFollowerPullAbortedV1(pullSignal);
         recordPeerHeadProbeFailure("peer-head-probe-latest-number2", err, { peerHttp: base });
       }
 
       // 2) Fallback to /head
       try {
-        const r: any = await fetch(`${base}/head`).catch(() => null);
+        const r: any = await fetchPeer(`${base}/head`);
         if (r && r.ok) {
-          const j: any = await r.json().catch(() => null);
+          const j: any = await r.json().catch((error) => {
+            throwIfFollowerPullAbortedV1(pullSignal);
+            recordPeerHeadProbeFailure("peer-head-probe-json", error, { peerHttp: base });
+            return null;
+          });
           const n = Number(j?.head);
           if (Number.isFinite(n) && n >= 0) return n;
         }
       } catch (err) {
+        throwIfFollowerPullAbortedV1(pullSignal);
         recordPeerHeadProbeFailure("peer-head-probe-head", err, { peerHttp: base });
       }
 
       // 3) Fallback demo summary
       try {
-        const r: any = await fetch(`${base}/__void/demo/summary.json`).catch(() => null);
+        const r: any = await fetchPeer(`${base}/__void/demo/summary.json`);
         if (r && r.ok) {
-          const j: any = await r.json().catch(() => null);
+          const j: any = await r.json().catch((error) => {
+            throwIfFollowerPullAbortedV1(pullSignal);
+            recordPeerHeadProbeFailure("peer-head-probe-json", error, { peerHttp: base });
+            return null;
+          });
           const n = Number(j?.chain?.head);
           if (Number.isFinite(n) && n >= 0) return n;
         }
       } catch (err) {
+        throwIfFollowerPullAbortedV1(pullSignal);
         recordPeerHeadProbeFailure("peer-head-probe-demo-summary", err, { peerHttp: base });
       }
 
       // 4) Last resort legacy helper
       try {
-        const r: any = await fetch(`${base}/api/health`).catch(() => null);
+        const r: any = await fetchPeer(`${base}/api/health`);
         if (r && r.ok) {
-          const j: any = await r.json().catch(() => null);
+          const j: any = await r.json().catch((error) => {
+            throwIfFollowerPullAbortedV1(pullSignal);
+            recordPeerHeadProbeFailure("peer-head-probe-json", error, { peerHttp: base });
+            return null;
+          });
           const n = Number(j?.head);
           if (Number.isFinite(n) && n >= 0) return n;
         }
       } catch (err) {
+        throwIfFollowerPullAbortedV1(pullSignal);
         recordPeerHeadProbeFailure("peer-head-probe-api-health", err, { peerHttp: base });
       }
 
@@ -4052,11 +4120,23 @@ attachEphemeralDirectTransportV1(
     const maxPull = Math.max(1, Number(process.env.VOID_FOLLOWER_PULL_LIMIT || 250) || 250);
     const to = Math.min(theirHead, myHead + maxPull);
 
-    const fetchRange = async (): Promise<any[]> =>
-      await fetch(`${peerHttp}/blocks/range?from=${from}&to=${to}`)
-        .then((r) => r.json())
-        .then((j) => (Array.isArray(j) ? j : []))
-        .catch(() => []);
+    const fetchRange = async (): Promise<any[]> => {
+      try {
+        const response = await fetchPeer(
+          `${peerHttp}/blocks/range?from=${from}&to=${to}`,
+        );
+        const body = await response.json().catch((error) => {
+          throwIfFollowerPullAbortedV1(pullSignal);
+          recordPeerHeadProbeFailure("peer-range-json", error, { peerHttp });
+          return null;
+        });
+        return Array.isArray(body) ? body : [];
+      } catch (error) {
+        throwIfFollowerPullAbortedV1(pullSignal);
+        recordPeerHeadProbeFailure("peer-range-fetch", error, { peerHttp });
+        return [];
+      }
+    };
 
     let arr: any[] = await fetchRange();
     let retried = false;

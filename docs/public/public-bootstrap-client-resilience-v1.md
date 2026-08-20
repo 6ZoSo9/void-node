@@ -146,9 +146,10 @@ pull_limit=999
 catchup_interval_ms=250
 steady_interval_ms=1000
 failure_backoff_max_ms=30000
+pull_timeout_ms=15000
 ```
 
-The environment values remain bounded in source. A successful pull that remains behind schedules another catch-up pull. Failures rotate the configured local origins and use bounded exponential backoff.
+The environment values remain bounded in source. `VOID_FOLLOWER_PULL_TIMEOUT_MS` accepts only exact integers in `100..120000` and defaults to 15 seconds. The deadline is owned inside `Node.pullOnce()` and is propagated through head probes, range acquisition, and JSON body reads. Cancellation aborts the active fetch before the autostart loop clears `running` and rotates peers; it is not a detached `Promise.race` that can continue importing in the background. A successful pull that remains behind schedules another catch-up pull. Failures, including timeouts, rotate the configured local origins and use bounded exponential backoff.
 
 The public gateway still rejects `/follower/start` and every mutation route. Autostart occurs inside the new local node process; it is not remotely callable.
 
@@ -164,6 +165,7 @@ VOID_PUBLIC_BOOTSTRAP_MANIFEST_URL=<canonical HTTPS URL>
 VOID_PUBLIC_BOOTSTRAP_MANIFEST_URLS=<comma-separated mirrors>
 VOID_PUBLIC_BOOTSTRAP_TIMEOUT_MS=<1000..60000>
 VOID_PUBLIC_BOOTSTRAP_MAX_LIVE_SEEDS=<1..8>
+VOID_FOLLOWER_PULL_TIMEOUT_MS=<100..120000>
 VOID_PUBLIC_SEED_CLIENT_PORT=<0..65535>
 ```
 

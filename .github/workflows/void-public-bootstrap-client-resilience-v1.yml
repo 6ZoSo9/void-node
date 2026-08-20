@@ -117,3 +117,5 @@ jobs:
           grep -F 'VOID_PUBLIC_BOOTSTRAP_CATCHUP_PROGRESS' dist/http/follower_routes.js
           grep -F 'VOID_PUBLIC_BOOTSTRAP_CLIENT_ADAPTER_ACTIVE' dist/http/follower_routes.js
           grep -F 'VOID_FOLLOWER_CATCHUP_PULL_LIMIT' dist/http/follower_routes.js
+          grep -F 'VOID_FOLLOWER_PULL_TIMEOUT_MS' dist/node_core.js
+          grep -F 'AbortSignal.timeout' dist/node_core.js

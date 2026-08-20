@@ -180,6 +180,7 @@ const laneFiles = [
   "tools/void-public-seed-client-adapter-v1.mjs",
   "scripts/run_void_public_bootstrap_supervisor_v1.mjs",
   "src/http/follower_routes.ts",
+  "src/node_core.ts",
   "run-void-node.sh",
 ];
 for (const file of laneFiles) {
@@ -196,6 +197,9 @@ for (const marker of [
   "VOID_PUBLIC_BOOTSTRAP_SUPERVISOR_V1",
   "VOID_PUBLIC_BOOTSTRAP_CATCHUP_PROGRESS",
   "VOID_PUBLIC_BOOTSTRAP_CLIENT_ADAPTER_ACTIVE",
+  "VOID_FOLLOWER_PULL_TIMEOUT_MS",
+  "AbortSignal.timeout",
+  "throwIfFollowerPullAbortedV1",
   "dns_pinned",
   "redirects_followed: false",
 ]) {
@@ -221,10 +225,29 @@ pass("static client, launcher, and catch-up contracts");
 
 const badGateway = createRedirectGateway();
 const goodGateway = createGoodGateway();
+const stalledGatewayState = { requests: 0, active: 0, maxActive: 0 };
+const stalledGateway = http.createServer((req, res) => {
+  stalledGatewayState.requests += 1;
+  stalledGatewayState.active += 1;
+  stalledGatewayState.maxActive = Math.max(
+    stalledGatewayState.maxActive,
+    stalledGatewayState.active,
+  );
+  let released = false;
+  const release = () => {
+    if (released) return;
+    released = true;
+    stalledGatewayState.active -= 1;
+  };
+  req.once("close", release);
+  res.once("close", release);
+});
 const badPort = await listen(badGateway);
 const goodPort = await listen(goodGateway);
+const stalledPort = await listen(stalledGateway);
 const badBase = `http://${LOOPBACK}:${badPort}`;
 const goodBase = `http://${LOOPBACK}:${goodPort}`;
+const stalledBase = `http://${LOOPBACK}:${stalledPort}`;
 
 let adapter;
 let manifestServer;
@@ -381,17 +404,55 @@ try {
   );
   pass("local fallback accepts only an untampered content-addressed hold");
 
-  process.env.VOID_FOLLOWER_AUTOSTART_PEERS = adapter.base;
+  process.env.VOID_FOLLOWER_AUTOSTART_PEERS = `${stalledBase},${adapter.base}`;
   process.env.VOID_PUBLIC_BOOTSTRAP_CLIENT_ADAPTER_ACTIVE = "1";
   process.env.VOID_FOLLOWER_AUTOSTART_INTERVAL_MS = "500";
   process.env.VOID_FOLLOWER_CATCHUP_INTERVAL_MS = "50";
   process.env.VOID_FOLLOWER_CATCHUP_PULL_LIMIT = "999";
   process.env.VOID_FOLLOWER_FAILURE_BACKOFF_MAX_MS = "1000";
+  process.env.VOID_FOLLOWER_PULL_TIMEOUT_MS = "100";
 
+  const { Node } = await import("../src/node_core.ts");
   const { registerFollowerRoutes } = await import("../src/http/follower_routes.ts");
-  const calls = [];
   const app = { post() {}, get() {} };
-  const node = {
+  const failoverNode = Object.create(Node.prototype);
+  failoverNode.store = { loadHeadNumber: () => 2000 };
+  const pullOnceV1 = Node.prototype.pullOnce;
+  const failoverCalls = [];
+  let failoverInFlight = 0;
+  let failoverMaxInFlight = 0;
+  failoverNode.pullOnce = async function (peer, hooks) {
+    failoverCalls.push(peer);
+    failoverInFlight += 1;
+    failoverMaxInFlight = Math.max(failoverMaxInFlight, failoverInFlight);
+    try {
+      return await pullOnceV1.call(this, peer, hooks);
+    } finally {
+      failoverInFlight -= 1;
+    }
+  };
+
+  registerFollowerRoutes(app, failoverNode);
+  await new Promise((resolve) => setTimeout(resolve, 1650));
+  assert(
+    failoverCalls[0] === stalledBase && failoverCalls.includes(adapter.base),
+    "timed-out bootstrap peer did not rotate to the next peer",
+  );
+  assert(
+    failoverMaxInFlight === 1 && failoverInFlight === 0,
+    "follower timeout detached or overlapped a pull",
+  );
+  assert(
+    stalledGatewayState.requests === 1 &&
+      stalledGatewayState.maxActive === 1 &&
+      stalledGatewayState.active === 0,
+    "stalled peer request was not cancelled and terminally released",
+  );
+  pass("bounded pull timeout cancels a stalled peer before failover");
+
+  process.env.VOID_FOLLOWER_AUTOSTART_PEERS = adapter.base;
+  const calls = [];
+  const catchupNode = {
     async pullOnce(peer) {
       calls.push(peer);
       if (calls.length === 1) {
@@ -414,7 +475,7 @@ try {
       };
     },
   };
-  registerFollowerRoutes(app, node);
+  registerFollowerRoutes(app, catchupNode);
   await new Promise((resolve) => setTimeout(resolve, 1300));
   assert(calls.length >= 2, "catch-up loop did not schedule a rapid second pull");
   assert(calls.every((peer) => peer === adapter.base), "node followed a non-loopback peer");
@@ -425,6 +486,7 @@ try {
   if (manifestServer) await close(manifestServer);
   await close(badGateway);
   await close(goodGateway);
+  await close(stalledGateway);
   removeFixture(LOCAL_HOLD_PATH);
   removeFixture(LOCAL_TAMPERED_PATH);
   removeFixture(LOCAL_STABLE_PATH);
