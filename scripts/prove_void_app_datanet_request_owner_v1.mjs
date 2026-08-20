@@ -120,6 +120,48 @@ function delayedAbortFetchHarness() {
   };
 }
 
+function trackedSignalHarness() {
+  const listeners = new Set();
+  let added = 0;
+  let removed = 0;
+  return {
+    signal: {
+      aborted: false,
+      reason: undefined,
+      addEventListener(name, listener) {
+        if (name !== 'abort') return;
+        added += 1;
+        listeners.add(listener);
+      },
+      removeEventListener(name, listener) {
+        if (name !== 'abort') return;
+        if (listeners.delete(listener)) removed += 1;
+      },
+    },
+    added: () => added,
+    removed: () => removed,
+    active: () => listeners.size,
+  };
+}
+
+const rejectingResponse = (overrides = {}) => {
+  let cancelCalls = 0;
+  const response = {
+    ok: true,
+    status: 200,
+    redirected: false,
+    url: DATANET_URL,
+    headers: { get: () => null },
+    body: {
+      async cancel() {
+        cancelCalls += 1;
+      },
+    },
+    ...overrides,
+  };
+  return { response, cancelCalls: () => cancelCalls };
+};
+
 async function drainUntil(predicate, message, turns = 64) {
   for (let turn = 0; turn < turns; turn += 1) {
     if (predicate()) return;
@@ -164,6 +206,56 @@ assert.equal(
 );
 assert.equal(owner.abort('test cleanup after response'), true);
 assert.equal(owner.hasActiveRequest(), false);
+
+const provenanceCases = [
+  (() => {
+    const fixture = rejectingResponse();
+    delete fixture.response.url;
+    return fixture;
+  })(),
+  rejectingResponse({ url: '' }),
+  rejectingResponse({ url: 42 }),
+  rejectingResponse({ url: 'not a url' }),
+  rejectingResponse({ url: `${DATANET_URL}?shadow=1` }),
+  rejectingResponse({ url: `${DATANET_URL}#shadow` }),
+  rejectingResponse({ url: 'https://void.example/public-node/datanet/other.json' }),
+  rejectingResponse({ url: 'https://other.example/public-node/datanet/field-replication-status-card-v1.json' }),
+];
+let provenanceIndex = 0;
+const provenanceOwner = createDataNetRequestOwnerV1({
+  fetchImpl: async () => provenanceCases[provenanceIndex++].response,
+  origin: 'https://void.example',
+});
+for (let index = 0; index < provenanceCases.length; index += 1) {
+  await assert.rejects(
+    () => provenanceOwner.fetch(DATANET_URL),
+    /escaped/,
+    `invalid final URL case ${index} must fail closed`,
+  );
+  assert.equal(
+    provenanceCases[index].cancelCalls(),
+    1,
+    `invalid final URL case ${index} must own one response cancellation`,
+  );
+  assert.equal(provenanceOwner.hasActiveRequest(), false);
+}
+
+const trackedSource = trackedSignalHarness();
+const listenerOwner = createDataNetRequestOwnerV1({
+  fetchImpl: async () => ({ phase: 'listener-cleanup' }),
+  origin: 'https://void.example',
+});
+const listenerRequest = listenerOwner.fetch(DATANET_URL, { signal: trackedSource.signal });
+assert.deepEqual(await listenerRequest, { phase: 'listener-cleanup' });
+assert.equal(trackedSource.active(), 1, 'only the owned forward-abort listener may remain after start race');
+assert.equal(listenerOwner.abort('listener cleanup'), true);
+await drainUntil(
+  () => listenerOwner.hasActiveRequest() === false,
+  'listener cleanup generation must release',
+);
+assert.equal(trackedSource.active(), 0, 'all source-signal listeners must detach after release');
+assert.equal(trackedSource.added(), 2, 'start race plus forward-abort must each attach once');
+assert.equal(trackedSource.removed(), 2, 'both attached source-signal listeners must be detached');
 
 const queuedHarness = delayedAbortFetchHarness();
 const queuedOwner = createDataNetRequestOwnerV1({
@@ -441,6 +533,9 @@ assert.ok(
 assert.match(ownerSource, /acquireStartSlot/);
 assert.match(ownerSource, /abortRequest\(priorRequest, 'DataNet request superseded'\)/);
 assert.match(ownerSource, /sourceSignal\.addEventListener\('abort'/);
+assert.match(ownerSource, /Promise\.race\(\[promise, aborted\]\)\.finally/);
+assert.match(ownerSource, /signal\.removeEventListener\('abort', onAbort\)/);
+assert.match(ownerSource, /typeof response\.url !== 'string' \|\| response\.url\.length === 0/);
 assert.match(ownerSource, /window\.addEventListener\('hashchange', reconcileView\)/);
 assert.match(ownerSource, /new MutationObserver\(reconcileView\)/);
 assert.doesNotMatch(ownerSource, /POST|PUT|PATCH|DELETE/);
@@ -453,6 +548,8 @@ console.log('queued_superseders_serialized=true');
 console.log('queued_superseder_max_concurrent_datanet_requests=1');
 console.log('body_phase_supersession_aborted=true');
 console.log('caller_deadline_signal_preserved=true');
+console.log('final_url_identity_required=true');
+console.log('abort_race_listener_detached=true');
 console.log('route_unmount_aborts=true');
 console.log('non_datanet_fetch_passthrough=true');
 console.log('mutation_authority=false');
