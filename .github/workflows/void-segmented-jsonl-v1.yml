@@ -1,0 +1,83 @@
+name: VOID Segmented JSONL V1
+
+on:
+  pull_request:
+    paths:
+      - "src/storage/segmented_jsonl_v1.ts"
+      - "scripts/prove_segmented_jsonl_v1.ts"
+      - ".github/workflows/void-segmented-jsonl-v1.yml"
+      - "scripts/ci_diff_hygiene_v1.sh"
+      - "scripts/prove_ci_diff_hygiene_v1.mjs"
+  push:
+    branches:
+      - main
+    paths:
+      - "src/storage/segmented_jsonl_v1.ts"
+      - "scripts/prove_segmented_jsonl_v1.ts"
+      - ".github/workflows/void-segmented-jsonl-v1.yml"
+      - "scripts/ci_diff_hygiene_v1.sh"
+      - "scripts/prove_ci_diff_hygiene_v1.mjs"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: void-segmented-jsonl-v1-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  proof:
+    name: segmented-jsonl-node-${{ matrix.node }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+    steps:
+      - name: Checkout exact revision
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Use Node.js ${{ matrix.node }}
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: ${{ matrix.node }}
+
+      - name: Install reviewed dependencies
+        run: npm ci
+
+      - name: Syntax
+        run: |
+          node --experimental-strip-types --check src/storage/segmented_jsonl_v1.ts
+          node --experimental-strip-types --check scripts/prove_segmented_jsonl_v1.ts
+          node --check scripts/prove_ci_diff_hygiene_v1.mjs
+          bash -n scripts/ci_diff_hygiene_v1.sh
+
+      - name: Prove segmented JSONL store
+        run: npx --no-install tsx scripts/prove_segmented_jsonl_v1.ts
+
+      - name: Repository typecheck
+        if: matrix.node == 24
+        run: npm run typecheck
+
+      - name: Repository build
+        if: matrix.node == 24
+        run: npm run build
+
+      - name: Prove committed-range diff hygiene contract
+        run: node scripts/prove_ci_diff_hygiene_v1.mjs
+
+      - name: Committed-range diff hygiene
+        if: github.event_name == 'pull_request' || github.event_name == 'push'
+        env:
+          CI_DIFF_EVENT_NAME: ${{ github.event_name }}
+          CI_DIFF_PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          CI_DIFF_PUSH_BEFORE_SHA: ${{ github.event.before }}
+          CI_DIFF_CURRENT_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+          CI_DIFF_CHECKOUT_SHA: ${{ github.sha }}
+          CI_DIFF_BASE_REMOTE: ${{ github.server_url }}/${{ github.repository }}.git
+          CI_DIFF_HEAD_REMOTE: ${{ github.server_url }}/${{ github.event.pull_request.head.repo.full_name || github.repository }}.git
+        run: bash scripts/ci_diff_hygiene_v1.sh
