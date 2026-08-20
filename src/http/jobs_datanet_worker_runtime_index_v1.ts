@@ -168,7 +168,14 @@ export class JobsDatanetWorkerRuntimeIndexV1 {
     }
 
     let bytesReadThisTick = 0;
-    const remaining = Math.max(0, size - this.jobsOffset);
+    // VOID_JOBS_DATANET_WORKER_PENDING_BACKPRESSURE_V1
+    // Drain the already-bounded queued-job chunk before advancing the ledger
+    // cursor again. This prevents pending job objects from accumulating across
+    // history chunks faster than maxJobsPerTick can process them.
+    const canAdvanceHistory = this.pending.size === 0;
+    const remaining = canAdvanceHistory
+      ? Math.max(0, size - this.jobsOffset)
+      : 0;
     if (remaining > 0) {
       const want = Math.min(this.maxScanBytesPerTick, remaining);
       const buffer = Buffer.allocUnsafe(want);

@@ -136,17 +136,51 @@ try {
   );
 
   const firstBatch = snapshot.jobs.map((x) => x.jobId);
+  const firstChunkBytesTotal = snapshot.bytesReadTotal;
   for (const jobId of firstBatch) index.markDone(jobId);
-  const next = index.scan(input);
+  let next = index.scan(input);
   assert(
-    next.bytesReadThisTick <= 32 * 1024,
-    "second-jobs-scan-byte-budget",
+    next.bytesReadThisTick === 0,
+    "pending-backlog-pauses-ledger-advance",
     `bytes=${next.bytesReadThisTick}`,
+  );
+  assert(
+    next.bytesReadTotal === firstChunkBytesTotal,
+    "pending-backlog-preserves-ledger-byte-total",
+    `before=${firstChunkBytesTotal} after=${next.bytesReadTotal}`,
+  );
+  assert(
+    next.jobs.length > 0 && next.jobs.length <= 4,
+    "pending-backlog-remains-process-bounded",
+    `jobs=${next.jobs.length}`,
   );
   assert(
     next.jobs.every((x) => !firstBatch.includes(x.jobId)),
     "locally-done-jobs-not-requeued",
     `first=${firstBatch.length} next=${next.jobs.length}`,
+  );
+
+  let drainTicks = 0;
+  while (next.bytesReadThisTick === 0 && drainTicks < 1000) {
+    for (const item of next.jobs) index.markDone(item.jobId);
+    next = index.scan(input);
+    drainTicks += 1;
+  }
+  assert(
+    drainTicks > 0 && drainTicks < 1000,
+    "pending-backlog-drains-within-proof-bound",
+    `drain_ticks=${drainTicks}`,
+  );
+  assert(
+    next.bytesReadThisTick > 0 &&
+      next.bytesReadThisTick <= 32 * 1024,
+    "ledger-advance-resumes-after-pending-drain",
+    `bytes=${next.bytesReadThisTick}`,
+  );
+  assert(
+    next.bytesReadTotal > firstChunkBytesTotal,
+    "ledger-byte-total-advances-after-pending-drain",
+    `before=${firstChunkBytesTotal} after=${next.bytesReadTotal}`,
   );
 
   // One malformed newline-terminated row must not abort the already-consumed
@@ -277,6 +311,11 @@ try {
     helperSource.includes("VOID_JOBS_DATANET_WORKER_MALFORMED_ROW_SKIP_V1"),
     "runtime-index-malformed-row-skip-source",
     "per-row malformed JSON skip marker present",
+  );
+  assert(
+    helperSource.includes("VOID_JOBS_DATANET_WORKER_PENDING_BACKPRESSURE_V1"),
+    "runtime-index-pending-backpressure-source",
+    "pending backlog pauses history advancement",
   );
 
   const semanticSource = readFileSync(
