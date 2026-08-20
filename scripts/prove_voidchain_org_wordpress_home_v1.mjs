@@ -9,6 +9,8 @@ import {
   ENTER_VOID_URL,
   MAX_RESPONSE_BYTES,
   readBoundedResponseBytes,
+  requireJsonResponseHeaders,
+  requirePublicAppResponseHeaders,
   validateCanonical,
   validatePublicAppDocument,
   validateRenderedIntegrity,
@@ -308,6 +310,8 @@ assert.throws(
 );
 
 const syntheticResponse = ({
+  status = 200,
+  contentType = "application/json",
   contentLength = null,
   parts = [],
   cancel = () => Promise.resolve(),
@@ -319,6 +323,7 @@ const syntheticResponse = ({
     readCalls: 0,
   };
   const headers = new Headers();
+  headers.set("content-type", contentType);
   if (contentLength !== null) {
     headers.set("content-length", contentLength);
   }
@@ -348,7 +353,15 @@ const syntheticResponse = ({
       };
     },
   };
-  return [{ headers, body }, state];
+  return [
+    {
+      status,
+      ok: status >= 200 && status < 300,
+      headers,
+      body,
+    },
+    state,
+  ];
 };
 
 {
@@ -359,6 +372,58 @@ const syntheticResponse = ({
   const bytes = await readBoundedResponseBytes(response, new AbortController());
   assert.deepEqual([...bytes], [1, 2, 3], "small streamed response must remain usable");
   assert.equal(state.readerCancelCalls, 0, "valid response must not be cancelled");
+}
+
+{
+  const [response, state] = syntheticResponse({
+    contentType: "text/html",
+    parts: [new Uint8Array([1])],
+    cancel: () => Promise.reject(new Error("synthetic header cleanup rejection")),
+  });
+  const controller = new AbortController();
+  await assert.rejects(
+    () => requireJsonResponseHeaders(response, controller),
+    /unexpected content type on HTTP 200/,
+    "wrong JSON media type must preserve its primary header error",
+  );
+  assert.equal(state.getReaderCalls, 0, "wrong JSON media type must reject before reader acquisition");
+  assert.equal(state.readCalls, 0, "wrong JSON media type must reject before body reads");
+  assert.equal(state.bodyCancelCalls, 1, "wrong JSON media type must own body cancellation");
+  assert.equal(controller.signal.aborted, true, "wrong JSON media type must abort the owned request");
+}
+
+{
+  const [response, state] = syntheticResponse({
+    status: 404,
+    contentType: "text/html",
+    parts: [new Uint8Array([1])],
+  });
+  const controller = new AbortController();
+  await assert.rejects(
+    () => requirePublicAppResponseHeaders(response, controller),
+    /primary CTA returned HTTP 404/,
+  );
+  assert.equal(state.getReaderCalls, 0, "CTA non-200 must reject before reader acquisition");
+  assert.equal(state.readCalls, 0, "CTA non-200 must reject before body reads");
+  assert.equal(state.bodyCancelCalls, 1, "CTA non-200 must own body cancellation");
+  assert.equal(controller.signal.aborted, true, "CTA non-200 must abort the owned request");
+}
+
+{
+  const [response, state] = syntheticResponse({
+    status: 200,
+    contentType: "application/json",
+    parts: [new Uint8Array([1])],
+  });
+  const controller = new AbortController();
+  await assert.rejects(
+    () => requirePublicAppResponseHeaders(response, controller),
+    /primary CTA returned non-HTML content/,
+  );
+  assert.equal(state.getReaderCalls, 0, "CTA wrong media type must reject before reader acquisition");
+  assert.equal(state.readCalls, 0, "CTA wrong media type must reject before body reads");
+  assert.equal(state.bodyCancelCalls, 1, "CTA wrong media type must own body cancellation");
+  assert.equal(controller.signal.aborted, true, "CTA wrong media type must abort the owned request");
 }
 
 {
@@ -452,8 +517,13 @@ assert.match(
 );
 assert.match(
   sync,
-  /const requestPublicAppEntrypoint = async \(\) =>\s*withResponseDeadline\([\s\S]*method: "GET"[\s\S]*readBoundedResponseBytes/,
-  "primary CTA live check must remain bounded and read-only through body settlement",
+  /const requestJson = async[\s\S]*requireJsonResponseHeaders\(response, controller\);[\s\S]*readBoundedResponseBytes\(response, controller\)/,
+  "WordPress JSON header admission must precede body acquisition",
+);
+assert.match(
+  sync,
+  /const requestPublicAppEntrypoint = async \(\) =>\s*withResponseDeadline\([\s\S]*method: "GET"[\s\S]*requirePublicAppResponseHeaders\(response, controller\);[\s\S]*readBoundedResponseBytes/,
+  "primary CTA header admission must precede bounded body settlement",
 );
 
 for (const token of [
@@ -464,6 +534,8 @@ for (const token of [
   "REQUEST_TIMEOUT_MS",
   "RESPONSE_TEARDOWN_TIMEOUT_MS",
   "readBoundedResponseBytes",
+  "requireJsonResponseHeaders",
+  "requirePublicAppResponseHeaders",
   "withResponseDeadline",
   "requestPublicAppEntrypoint",
   "validatePublicAppDocument",
@@ -506,6 +578,9 @@ process.stdout.write(`${JSON.stringify({
   primary_cta_404_reproduced: true,
   primary_cta_contract_guard: true,
   streamed_response_bound: true,
+  json_wrong_content_type_prebody_rejected: true,
+  cta_non_200_prebody_rejected: true,
+  cta_wrong_content_type_prebody_rejected: true,
   declared_oversize_pre_read_rejection: true,
   malformed_content_length_teardown_owned: true,
   rejecting_cleanup_preserves_primary_error: true,
