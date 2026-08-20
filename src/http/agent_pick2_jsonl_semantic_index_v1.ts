@@ -934,6 +934,40 @@ export class AgentPick2JsonlSemanticIndexV1 {
     if (task) await task;
   }
 
+  completionTruthSnapshotV1(files: string[]): {
+    ready: boolean;
+    doneTruthHas: (id: string) => boolean;
+    io: any;
+    holdReason: string | null;
+  } {
+    try {
+      const states = (files || []).map((file) => this.completionState(file));
+      return {
+        ready: true,
+        doneTruthHas: (id: string) => {
+          const key = String(id || "").trim();
+          if (!key) return false;
+          return states.some((state) => state.completed.has(key));
+        },
+        io: cloneMetricsV1(this.metrics),
+        holdReason: null,
+      };
+    } catch (err: any) {
+      const message = String(err?.message || err || "");
+      const hold =
+        message.startsWith("VOID_AGENT_PICK2_JSONL_COMPLETION_WARMING_HOLD") ||
+        message.startsWith("VOID_AGENT_PICK2_JSONL_COMPLETION_REBUILD_BACKOFF") ||
+        message.startsWith("VOID_AGENT_PICK2_JSONL_UNWITNESSED_COMPLETION_GROWTH_HOLD");
+      if (!hold) throw err;
+      return {
+        ready: false,
+        doneTruthHas: (_id: string) => false,
+        io: cloneMetricsV1(this.metrics),
+        holdReason: message,
+      };
+    }
+  }
+
   private rebuildCompletion(file: string) {
     const kind = "completion_full";
     const observed = statV1(file);
