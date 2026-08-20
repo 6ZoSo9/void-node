@@ -3,6 +3,8 @@
 import crypto from "node:crypto";
 import { pathToFileURL } from "node:url";
 
+import { readBtcVoidBoundedStdinV1 } from "./void-btc-void-bounded-stdin-v1.mjs";
+
 export const VOID_BTC_VOID_ATOMIC_SETTLEMENT_STATE_INVARIANTS_V1 =
   "VOID_BTC_VOID_ATOMIC_SETTLEMENT_STATE_INVARIANTS_V1";
 export const BITCOIN_MAX_MONEY_SATOSHIS_V1 = "2100000000000000";
@@ -357,15 +359,10 @@ export function evaluateBtcVoidAtomicSettlementTraceV1(raw) {
 }
 
 async function readBoundedStdin() {
-  const chunks = [];
-  let bytes = 0;
-  for await (const chunk of process.stdin) {
-    bytes += chunk.length;
-    if (bytes > MAX_STDIN_BYTES) throw new Error("stdin exceeds 1048576 bytes");
-    chunks.push(chunk);
-  }
-  if (bytes === 0) throw new Error("stdin JSON is required");
-  return Buffer.concat(chunks).toString("utf8");
+  return readBtcVoidBoundedStdinV1({
+    stream: process.stdin,
+    maxBytes: MAX_STDIN_BYTES,
+  });
 }
 
 async function main() {
