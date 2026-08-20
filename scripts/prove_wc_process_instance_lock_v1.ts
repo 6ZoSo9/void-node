@@ -74,6 +74,26 @@ function nextUuid(raw: string): string {
   return first + raw.slice(1);
 }
 
+async function terminateProofChild(
+  childProcess: ReturnType<typeof spawn>,
+): Promise<void> {
+  if (
+    childProcess.exitCode !== null ||
+    childProcess.signalCode !== null
+  ) {
+    return;
+  }
+  await new Promise<void>((resolve) => {
+    const timer = setTimeout(resolve, 2_000);
+    timer.unref();
+    childProcess.once("close", () => {
+      clearTimeout(timer);
+      resolve();
+    });
+    childProcess.kill("SIGKILL");
+  });
+}
+
 async function main(): Promise<void> {
   if (childMode) return child();
   if (releaseFaultChildMode) return releaseFaultChild();
@@ -82,11 +102,11 @@ async function main(): Promise<void> {
     path.join(os.tmpdir(), "void-wc-process-instance-lock-v1-"),
   );
   const name = "proof-lock";
+  const proofChildren: Array<ReturnType<typeof spawn>> = [];
   try {
-    const tsx = path.resolve("node_modules/.bin/tsx");
     const proc = spawn(
-      tsx,
-      [path.resolve(process.argv[1]), "--hold-child"],
+      process.execPath,
+      ["--import=tsx", path.resolve(process.argv[1]), "--hold-child"],
       {
         env: {
           ...process.env,
@@ -96,6 +116,7 @@ async function main(): Promise<void> {
         stdio: ["ignore", "pipe", "inherit"],
       },
     );
+    proofChildren.push(proc);
     const locked = await new Promise<{
       file: string;
       generation: number;
@@ -143,7 +164,7 @@ async function main(): Promise<void> {
       }
       await new Promise<void>((resolve) => setTimeout(resolve, 5));
     }
-    if (proc.exitCode === null && proc.signalCode === null) proc.kill("SIGKILL");
+    await terminateProofChild(proc);
 
     const recovered = await acquireWcProcessInstanceLockV1(root, name);
     assert.ok(recovered.generation > locked.generation);
@@ -156,8 +177,12 @@ async function main(): Promise<void> {
     {
       const releaseName = "release-cross-process-recovery";
       const releaseProc = spawn(
-        tsx,
-        [path.resolve(process.argv[1]), "--release-fault-child"],
+        process.execPath,
+        [
+          "--import=tsx",
+          path.resolve(process.argv[1]),
+          "--release-fault-child",
+        ],
         {
           env: {
             ...process.env,
@@ -167,6 +192,7 @@ async function main(): Promise<void> {
           stdio: ["ignore", "pipe", "inherit"],
         },
       );
+      proofChildren.push(releaseProc);
       const released = await new Promise<{
         file: string;
         generation: number;
@@ -212,9 +238,7 @@ async function main(): Promise<void> {
       assert.ok(successor, "foreign process did not converge after release recovery");
       assert.equal(successor.generation, released.generation + 1);
       await releaseWcProcessInstanceLockV1(successor);
-      if (releaseProc.exitCode === null && releaseProc.signalCode === null) {
-        releaseProc.kill("SIGKILL");
-      }
+      await terminateProofChild(releaseProc);
     }
 
     const currentTicks = await wcProcessStartTicksForProofV1(process.pid);
@@ -714,6 +738,7 @@ async function main(): Promise<void> {
     console.log("issuance_wait_monotonic=true");
     console.log("workflow_binds_process_lock=true");
   } finally {
+    await Promise.all(proofChildren.map(terminateProofChild));
     setWcProcessInstanceLockBeforeRecordReadHookForProofV1(null);
     setWcProcessInstanceLockPublicationSyncFailuresForProofV1(0);
     setWcProcessInstanceLockReleasePublicationFaultForProofV1(false);
