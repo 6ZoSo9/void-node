@@ -10,6 +10,8 @@ on:
       - "docs/public/btc-void-native-atomic-market-v1.md"
       - "scripts/prove_void_btc_void_market_maker_reserve_policy_v1.mjs"
       - "tools/void-btc-void-market-maker-reserve-policy-v1.mjs"
+      - "tools/void-btc-void-bounded-stdin-v1.mjs"
+      - "scripts/lib/prove_void_btc_void_bounded_stdin_v1.mjs"
       - "tools/void-btc-void-atomic-settlement-state-invariants-v1.mjs"
   push:
     branches:
@@ -22,6 +24,8 @@ on:
       - "docs/public/btc-void-native-atomic-market-v1.md"
       - "scripts/prove_void_btc_void_market_maker_reserve_policy_v1.mjs"
       - "tools/void-btc-void-market-maker-reserve-policy-v1.mjs"
+      - "tools/void-btc-void-bounded-stdin-v1.mjs"
+      - "scripts/lib/prove_void_btc_void_bounded_stdin_v1.mjs"
       - "tools/void-btc-void-atomic-settlement-state-invariants-v1.mjs"
 
 permissions:
