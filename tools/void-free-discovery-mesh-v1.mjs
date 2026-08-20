@@ -5,6 +5,7 @@ import { constants as bufferConstants } from "node:buffer";
 import fs from "node:fs";
 import net from "node:net";
 import path from "node:path";
+import { isDeepStrictEqual } from "node:util";
 import { fileURLToPath } from "node:url";
 
 export const MARKER = "VOID_FREE_DISCOVERY_MESH_V1";
@@ -33,6 +34,72 @@ const HERE = path.dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(HERE, "..");
 const CONFIG_PATH = path.join(REPO_ROOT, "config/void-free-discovery-mesh-v1.json");
 const PROC_FD_ROOT = "/proc/self/fd";
+const DISCOVERY_CONFIG_CONTRACT = Object.freeze({
+  marker: MARKER,
+  version: 1,
+  network: {
+    name: "VOID Mainnet-0",
+    identity: "mainnet0",
+    chain_id: 2050,
+  },
+  source: {
+    repository: "6ZoSo9/void-node",
+    base_commit: "118ccd098d99053d921c53c4036eb8008bb2c705",
+  },
+  activation: {
+    state: "source_only_not_activated",
+    clearnet_origin: "operator_required_at_build_time",
+    public_deployment: false,
+    search_console_registration: false,
+    indexnow_submission: false,
+    cloudflare_crawler_hints: false,
+  },
+  providers: {
+    google: {
+      surface: "Search Console and standards-based sitemap discovery",
+      mode: "manual_registration_after_verified_deployment",
+      runtime_dependency: false,
+      paid_api_required: false,
+      credentials_in_repository: false,
+    },
+    microsoft_bing: {
+      surface: "Bing Webmaster Tools and IndexNow",
+      mode: "offline_payload_generation_only",
+      runtime_dependency: false,
+      live_submission: false,
+      credentials_in_repository: false,
+    },
+    cloudflare: {
+      surface: "optional Free-plan CDN and Crawler Hints",
+      mode: "dashboard_opt_in_after_verified_deployment",
+      runtime_dependency: false,
+      crawler_hints_enabled: false,
+      credentials_in_repository: false,
+    },
+  },
+  public_paths: PUBLIC_PATHS,
+  crawler_exclusions: CRAWLER_EXCLUSIONS,
+  cost_boundary: {
+    payment_method_collection: false,
+    billing_api_access: false,
+    automatic_paid_upgrade: false,
+    external_paid_service_execution: false,
+    startup_credit_consumption: false,
+    fail_closed_before_paid_usage: true,
+  },
+  authority: {
+    network_calls: false,
+    deployment: false,
+    dns_mutation: false,
+    provider_account_mutation: false,
+    payment_execution: false,
+    fund_movement: false,
+    wallet_or_signer_access: false,
+    work_credit_write: false,
+    node_runtime_mutation: false,
+    service_restart: false,
+  },
+});
 
 export class Hold extends Error {
   constructor(message) {
@@ -476,22 +543,41 @@ export function readDiscoveryConfigFile(filename = CONFIG_PATH, options = {}) {
   } catch (error) {
     fail(`free-discovery config is invalid JSON: ${error.message}`);
   }
-  if (
-    config?.marker !== MARKER
-    || config?.version !== 1
-    || config?.activation?.state !== "source_only_not_activated"
-    || config?.cost_boundary?.automatic_paid_upgrade !== false
-    || config?.authority?.network_calls !== false
-  ) {
-    fail("free-discovery config boundary mismatch");
-  }
-  if (JSON.stringify(config.public_paths) !== JSON.stringify(PUBLIC_PATHS)) {
-    fail("free-discovery config public-path boundary mismatch");
-  }
-  if (JSON.stringify(config.crawler_exclusions) !== JSON.stringify(CRAWLER_EXCLUSIONS)) {
-    fail("free-discovery config crawler exclusion mismatch");
+  if (!isDeepStrictEqual(config, DISCOVERY_CONFIG_CONTRACT)) {
+    fail("free-discovery config must exactly match the closed source-only authority contract");
   }
   return Object.freeze({ config, sha256: evidence.sha256, identity: evidence.identity });
+}
+
+function receiptClaimsFromConfig(config) {
+  return Object.freeze({
+    source_only: config.activation.state === "source_only_not_activated",
+    network_calls: config.authority.network_calls,
+    live_submission:
+      config.activation.indexnow_submission || config.providers.microsoft_bing.live_submission,
+    public_deployment: config.activation.public_deployment || config.authority.deployment,
+    search_console_registration: config.activation.search_console_registration,
+    cloudflare_crawler_hints: config.activation.cloudflare_crawler_hints,
+    provider_runtime_dependency: Object.values(config.providers)
+      .some((provider) => provider.runtime_dependency),
+    paid_api_required: config.providers.google.paid_api_required,
+    credentials_in_repository: Object.values(config.providers)
+      .some((provider) => provider.credentials_in_repository),
+    provider_account_mutation: config.authority.provider_account_mutation,
+    payment_method_collection: config.cost_boundary.payment_method_collection,
+    billing_api_access: config.cost_boundary.billing_api_access,
+    automatic_paid_upgrade: config.cost_boundary.automatic_paid_upgrade,
+    external_paid_service_execution: config.cost_boundary.external_paid_service_execution,
+    startup_credit_consumption: config.cost_boundary.startup_credit_consumption,
+    fail_closed_before_paid_usage: config.cost_boundary.fail_closed_before_paid_usage,
+    dns_mutation: config.authority.dns_mutation,
+    payment_execution: config.authority.payment_execution,
+    wallet_or_signer_access: config.authority.wallet_or_signer_access,
+    fund_movement: config.authority.fund_movement,
+    work_credit_write: config.authority.work_credit_write,
+    node_runtime_mutation: config.authority.node_runtime_mutation,
+    service_restart: config.authority.service_restart,
+  });
 }
 
 function writeFile(filename, value) {
@@ -812,19 +898,7 @@ export function buildDiscoveryPack({
         exclusive_same_uid_output_mutation_authority_required: true,
         consumer_receipt_reverification_required_after_handoff: true,
       },
-      claims: {
-        source_only: true,
-        network_calls: false,
-        live_submission: false,
-        public_deployment: false,
-        provider_account_mutation: false,
-        payment_method_collection: false,
-        billing_api_access: false,
-        automatic_paid_upgrade: false,
-        external_paid_service_execution: false,
-        wallet_or_signer_access: false,
-        fund_movement: false,
-      },
+      claims: receiptClaimsFromConfig(configEvidence.config),
     };
     const receiptText = prettyJson(receipt);
     writeFile(path.join(temporaryPinned.procPath, "build-receipt-v1.json"), receiptText);

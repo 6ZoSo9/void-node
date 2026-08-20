@@ -220,13 +220,31 @@ try {
     lastmod: LASTMOD,
   });
   assert.equal(built.destination, output);
-  assert.equal(built.receipt.claims.source_only, true);
-  assert.equal(built.receipt.claims.network_calls, false);
-  assert.equal(built.receipt.claims.live_submission, false);
-  assert.equal(built.receipt.claims.public_deployment, false);
-  assert.equal(built.receipt.claims.provider_account_mutation, false);
-  assert.equal(built.receipt.claims.payment_method_collection, false);
-  assert.equal(built.receipt.claims.automatic_paid_upgrade, false);
+  assert.deepEqual(built.receipt.claims, {
+    source_only: true,
+    network_calls: false,
+    live_submission: false,
+    public_deployment: false,
+    search_console_registration: false,
+    cloudflare_crawler_hints: false,
+    provider_runtime_dependency: false,
+    paid_api_required: false,
+    credentials_in_repository: false,
+    provider_account_mutation: false,
+    payment_method_collection: false,
+    billing_api_access: false,
+    automatic_paid_upgrade: false,
+    external_paid_service_execution: false,
+    startup_credit_consumption: false,
+    fail_closed_before_paid_usage: true,
+    dns_mutation: false,
+    payment_execution: false,
+    wallet_or_signer_access: false,
+    fund_movement: false,
+    work_credit_write: false,
+    node_runtime_mutation: false,
+    service_restart: false,
+  });
   assert.deepEqual(built.receipt.integrity_boundary, {
     verification_model: "descriptor_relative_per_file_snapshot",
     same_uid_concurrent_mutation_excluded: false,
@@ -403,6 +421,66 @@ try {
     /exceeds 65536-byte limit/,
     "same-inode config growth after admission must HOLD at the cap-plus-one read boundary",
   );
+
+  const configBoundaryMutations = [
+    { path: ["activation", "state"], value: "activated" },
+    ...[
+      "public_deployment",
+      "search_console_registration",
+      "indexnow_submission",
+      "cloudflare_crawler_hints",
+    ].map((field) => ({ path: ["activation", field], value: true })),
+    ...[
+      ["google", "runtime_dependency"],
+      ["google", "paid_api_required"],
+      ["google", "credentials_in_repository"],
+      ["microsoft_bing", "runtime_dependency"],
+      ["microsoft_bing", "live_submission"],
+      ["microsoft_bing", "credentials_in_repository"],
+      ["cloudflare", "runtime_dependency"],
+      ["cloudflare", "crawler_hints_enabled"],
+      ["cloudflare", "credentials_in_repository"],
+    ].map(([provider, field]) => ({ path: ["providers", provider, field], value: true })),
+    ...[
+      "payment_method_collection",
+      "billing_api_access",
+      "automatic_paid_upgrade",
+      "external_paid_service_execution",
+      "startup_credit_consumption",
+    ].map((field) => ({ path: ["cost_boundary", field], value: true })),
+    { path: ["cost_boundary", "fail_closed_before_paid_usage"], value: false },
+    ...[
+      "network_calls",
+      "deployment",
+      "dns_mutation",
+      "provider_account_mutation",
+      "payment_execution",
+      "fund_movement",
+      "wallet_or_signer_access",
+      "work_credit_write",
+      "node_runtime_mutation",
+      "service_restart",
+    ].map((field) => ({ path: ["authority", field], value: true })),
+    { path: ["providers", "microsoft_bing", "mode"], value: "live_submission" },
+    { path: ["authority", "future_mutation"], value: true },
+    { path: ["future_authority"], value: true },
+  ];
+  for (const [index, mutation] of configBoundaryMutations.entries()) {
+    const adversarialConfig = structuredClone(config);
+    let target = adversarialConfig;
+    for (const component of mutation.path.slice(0, -1)) target = target[component];
+    target[mutation.path.at(-1)] = mutation.value;
+    const adversarialConfigPath = path.join(
+      temporaryRoot,
+      `config.boundary-mutation-${index}.json`,
+    );
+    fs.writeFileSync(adversarialConfigPath, `${JSON.stringify(adversarialConfig, null, 2)}\n`);
+    assert.throws(
+      () => readDiscoveryConfigFile(adversarialConfigPath),
+      /must exactly match the closed source-only authority contract/,
+      `config authority mutation must HOLD before publication: ${mutation.path.join(".")}`,
+    );
+  }
 
   const oversizedConfigPath = path.join(temporaryRoot, "config.oversized.json");
   const oversizedConfigFd = fs.openSync(oversizedConfigPath, "wx", 0o600);
@@ -603,6 +681,7 @@ console.log("cloudflare_crawler_hints_dashboard_only=true");
 console.log("indexnow_key_outside_repository=true");
 console.log("input_generation_replacements_held=true");
 console.log("pinned_input_same_inode_growth_bounded=true");
+console.log("config_authority_contract_closed=true");
 console.log("output_symlink_components_held=true");
 console.log("output_ancestor_swap_held=true");
 console.log("descriptor_relative_output_authority=true");
