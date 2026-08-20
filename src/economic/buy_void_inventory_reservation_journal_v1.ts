@@ -577,23 +577,61 @@ export function buyVoidInventoryReservationJournalPathsV1(
   };
 }
 
-function assertOwnedPrivateDirectory(dir: string): void {
-  const stat = fs.lstatSync(dir);
+const DIRECTORY_OPEN_FLAGS = fs.constants.O_RDONLY |
+  (fs.constants.O_DIRECTORY || 0) |
+  (fs.constants.O_NOFOLLOW || 0);
+const DESCRIPTOR_NAMESPACE = /^\/proc\/self\/fd\/([0-9]+)(?:\/(.*))?$/u;
+
+function assertOwnedPrivateDirectoryStat(
+  stat: fs.Stats | fs.BigIntStats,
+  dir: string,
+): void {
   const uid = process.getuid?.();
   if (
     stat.isSymbolicLink() ||
     !stat.isDirectory() ||
     uid === undefined ||
-    stat.uid !== uid ||
-    (stat.mode & 0o077) !== 0
+    BigInt(stat.uid) !== BigInt(uid) ||
+    (BigInt(stat.mode) & 0o077n) !== 0n
   ) {
     throw new Error(`invalid_inventory_authority_directory:${dir}`);
   }
 }
 
+function descriptorNamespaceParts(target: string): {
+  descriptor: number;
+  descendants: string[];
+} | null {
+  const match = DESCRIPTOR_NAMESPACE.exec(path.resolve(target));
+  if (!match) return null;
+  return {
+    descriptor: Number(match[1]),
+    descendants: match[2] ? match[2].split("/").filter(Boolean) : [],
+  };
+}
+
+function assertOwnedPrivateDirectory(dir: string): void {
+  const descriptorNamespace = descriptorNamespaceParts(dir);
+  if (descriptorNamespace && descriptorNamespace.descendants.length === 0) {
+    assertOwnedPrivateDirectoryStat(
+      fs.fstatSync(descriptorNamespace.descriptor),
+      dir,
+    );
+    return;
+  }
+  const stat = fs.lstatSync(dir);
+  assertOwnedPrivateDirectoryStat(stat, dir);
+}
+
 function assertNoSymlinkAncestors(target: string): void {
-  let current = path.resolve(target);
+  const resolved = path.resolve(target);
+  const descriptorNamespace = descriptorNamespaceParts(resolved);
+  const stop = descriptorNamespace
+    ? `/proc/self/fd/${descriptorNamespace.descriptor}`
+    : path.parse(resolved).root;
+  let current = resolved;
   while (true) {
+    if (current === stop) return;
     try {
       if (fs.lstatSync(current).isSymbolicLink()) {
         throw new Error(`inventory_authority_symlink_ancestor:${current}`);
@@ -607,29 +645,129 @@ function assertNoSymlinkAncestors(target: string): void {
   }
 }
 
-function ensurePrivateDir(dir: string): void {
+function openDirectoryComponentNoFollow(
+  stablePath: string,
+  displayPath: string,
+): number {
+  try {
+    return fs.openSync(stablePath, DIRECTORY_OPEN_FLAGS);
+  } catch (error) {
+    try {
+      if (fs.lstatSync(stablePath).isSymbolicLink()) {
+        throw new Error(`inventory_authority_symlink_ancestor:${displayPath}`);
+      }
+    } catch (inspectionError) {
+      if (
+        String((inspectionError as Error)?.message || inspectionError).startsWith(
+          "inventory_authority_symlink_ancestor:",
+        )
+      ) {
+        throw inspectionError;
+      }
+    }
+    throw error;
+  }
+}
+
+function traversePrivateDirectoryV1(
+  dir: string,
+  createMissing: boolean,
+): number {
   const resolved = path.resolve(dir);
-  assertNoSymlinkAncestors(resolved);
-  const missing: string[] = [];
-  let current = resolved;
+  const descriptorNamespace = descriptorNamespaceParts(resolved);
+  let descriptor: number;
+  let components: string[];
+  let displayCurrent: string;
+  if (descriptorNamespace) {
+    descriptor = fs.openSync(
+      `/proc/self/fd/${descriptorNamespace.descriptor}`,
+      fs.constants.O_RDONLY | (fs.constants.O_DIRECTORY || 0),
+    );
+    components = descriptorNamespace.descendants;
+    displayCurrent = `/proc/self/fd/${descriptorNamespace.descriptor}`;
+  } else {
+    descriptor = fs.openSync(path.parse(resolved).root, DIRECTORY_OPEN_FLAGS);
+    components = resolved.slice(path.parse(resolved).root.length)
+      .split(path.sep)
+      .filter(Boolean);
+    displayCurrent = path.parse(resolved).root;
+  }
+
   while (true) {
     try {
-      fs.lstatSync(current);
-      break;
+      for (const component of components) {
+        const stableChild = `/proc/self/fd/${descriptor}/${component}`;
+        const displayChild = path.join(displayCurrent, component);
+        let next: number;
+        try {
+          next = openDirectoryComponentNoFollow(stableChild, displayChild);
+        } catch (error) {
+          if (
+            !createMissing ||
+            (error as NodeJS.ErrnoException)?.code !== "ENOENT"
+          ) {
+            throw error;
+          }
+          fs.mkdirSync(stableChild, { mode: 0o700 });
+          fs.fsyncSync(descriptor);
+          next = openDirectoryComponentNoFollow(stableChild, displayChild);
+          assertOwnedPrivateDirectoryStat(fs.fstatSync(next), displayChild);
+        }
+        fs.closeSync(descriptor);
+        descriptor = next;
+        displayCurrent = displayChild;
+      }
+      assertOwnedPrivateDirectoryStat(fs.fstatSync(descriptor), resolved);
+      return descriptor;
     } catch (error) {
-      if ((error as NodeJS.ErrnoException)?.code !== "ENOENT") throw error;
-      missing.push(current);
-      const parent = path.dirname(current);
-      if (parent === current) throw error;
-      current = parent;
+      fs.closeSync(descriptor);
+      throw error;
     }
   }
-  for (const candidate of missing.reverse()) {
-    fs.mkdirSync(candidate, { mode: 0o700 });
-    assertOwnedPrivateDirectory(candidate);
-    fsyncDir(path.dirname(candidate));
+}
+
+function ensurePrivateDir(dir: string): void {
+  const descriptor = traversePrivateDirectoryV1(dir, true);
+  fs.closeSync(descriptor);
+}
+
+function assertPinnedInventoryRootCurrentV1(
+  rootDir: string,
+  descriptor: number,
+): void {
+  let current: fs.BigIntStats;
+  try {
+    current = fs.lstatSync(rootDir, { bigint: true });
+  } catch (error) {
+    throw new Error(
+      `inventory_authority_namespace_changed:${
+        String((error as Error)?.message || error)
+      }`,
+    );
   }
-  assertOwnedPrivateDirectory(resolved);
+  const pinned = fs.fstatSync(descriptor, { bigint: true });
+  assertOwnedPrivateDirectoryStat(current, rootDir);
+  assertOwnedPrivateDirectoryStat(pinned, rootDir);
+  if (current.dev !== pinned.dev || current.ino !== pinned.ino) {
+    throw new Error("inventory_authority_namespace_changed");
+  }
+}
+
+function withPinnedInventoryRootV1<T>(
+  rootDir: string,
+  createMissing: boolean,
+  action: (pinnedRootDir: string) => T,
+): T {
+  const root = validateRoot(rootDir);
+  const descriptor = traversePrivateDirectoryV1(root, createMissing);
+  try {
+    assertPinnedInventoryRootCurrentV1(root, descriptor);
+    const output = action(`/proc/self/fd/${descriptor}`);
+    assertPinnedInventoryRootCurrentV1(root, descriptor);
+    return output;
+  } finally {
+    fs.closeSync(descriptor);
+  }
 }
 
 function fsyncDir(dir: string): void {
@@ -2699,11 +2837,16 @@ export function listBuyVoidInventoryReservationsV1(input: {
   root_dir: string;
   pool_id: string;
 }): BuyVoidInventoryReservationV1[] {
-  return listReservationsFromPaths(
-    buyVoidInventoryReservationJournalPathsV1(
-      input.root_dir,
-      input.pool_id,
-    ),
+  return withPinnedInventoryRootV1(
+    input.root_dir,
+    false,
+    (pinnedRootDir) =>
+      listReservationsFromPaths(
+        buyVoidInventoryReservationJournalPathsV1(
+          pinnedRootDir,
+          input.pool_id,
+        ),
+      ),
   );
 }
 
@@ -2781,11 +2924,16 @@ export function listBuyVoidPaidUnreservableObligationsV1(input: {
   root_dir: string;
   pool_id: string;
 }): BuyVoidPaidUnreservableObligationV1[] {
-  return listPaidUnreservableObligationsFromPaths(
-    buyVoidInventoryReservationJournalPathsV1(
-      input.root_dir,
-      input.pool_id,
-    ),
+  return withPinnedInventoryRootV1(
+    input.root_dir,
+    false,
+    (pinnedRootDir) =>
+      listPaidUnreservableObligationsFromPaths(
+        buyVoidInventoryReservationJournalPathsV1(
+          pinnedRootDir,
+          input.pool_id,
+        ),
+      ),
   );
 }
 
@@ -3263,7 +3411,7 @@ function evaluateReservation(
   };
 }
 
-export function reserveBuyVoidInventoryV1(
+function reserveBuyVoidInventoryWithinPinnedRootV1(
   input: ReserveBuyVoidInventoryInputV1,
 ): BuyVoidInventoryReservationDecisionV1 {
   let paths: BuyVoidInventoryReservationJournalPathsV1;
@@ -3426,5 +3574,26 @@ export function reserveBuyVoidInventoryV1(
     if ("owner_nonce" in lock) {
       releasePoolLock(paths, lock);
     }
+  }
+}
+
+export function reserveBuyVoidInventoryV1(
+  input: ReserveBuyVoidInventoryInputV1,
+): BuyVoidInventoryReservationDecisionV1 {
+  try {
+    return withPinnedInventoryRootV1(
+      input?.root_dir,
+      input?.apply === true,
+      (pinnedRootDir) =>
+        reserveBuyVoidInventoryWithinPinnedRootV1({
+          ...input,
+          root_dir: pinnedRootDir,
+        }),
+    );
+  } catch (error) {
+    return held(
+      input?.apply === true,
+      String((error as Error)?.message || error),
+    );
   }
 }

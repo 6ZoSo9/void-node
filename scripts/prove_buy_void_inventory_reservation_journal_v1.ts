@@ -475,7 +475,9 @@ function withOneShotOpenFailure(
     const numericFlags = typeof flags === "number" ? flags : 0;
     if (
       !fired &&
-      String(file) === target &&
+      path.basename(String(file)) === path.basename(target) &&
+      path.basename(path.dirname(String(file))) ===
+        path.basename(path.dirname(target)) &&
       (numericFlags & fs.constants.O_WRONLY) === fs.constants.O_WRONLY
     ) {
       fired = true;
@@ -489,6 +491,45 @@ function withOneShotOpenFailure(
     (fs as any).openSync = original;
   }
   assert.equal(fired, true);
+}
+
+function withRootNamespaceSwapAtIdentityCheck(
+  root: string,
+  body: (reviewedRoot: string) => void,
+): void {
+  const reviewedRoot = `${root}-reviewed`;
+  const replacementRoot = `${root}-replacement`;
+  fs.mkdirSync(replacementRoot, { mode: 0o700 });
+  const originalLstat = fs.lstatSync;
+  let swapped = false;
+  (fs as any).lstatSync = (
+    target: fs.PathLike,
+    options?: fs.StatOptions,
+  ) => {
+    if (
+      !swapped &&
+      path.resolve(String(target)) === path.resolve(root) &&
+      typeof options === "object" &&
+      options !== null &&
+      (options as { bigint?: boolean }).bigint === true
+    ) {
+      fs.renameSync(root, reviewedRoot);
+      fs.renameSync(replacementRoot, root);
+      swapped = true;
+    }
+    return (originalLstat as any)(target, options);
+  };
+  try {
+    body(reviewedRoot);
+  } finally {
+    (fs as any).lstatSync = originalLstat;
+    if (swapped) {
+      fs.renameSync(root, replacementRoot);
+      fs.renameSync(reviewedRoot, root);
+    }
+    fs.rmSync(replacementRoot, { recursive: true, force: true });
+  }
+  assert.equal(swapped, true);
 }
 
 function withOneShotLinkFailure(
@@ -531,7 +572,7 @@ function withOneShotPendingDeleteFailure(
     const rendered = String(file);
     if (
       !fired &&
-      path.dirname(rendered) === pendingDir &&
+      path.basename(path.dirname(rendered)) === path.basename(pendingDir) &&
       /^[0-9a-f]{64}\.json$/.test(path.basename(rendered))
     ) {
       fired = true;
@@ -1398,6 +1439,34 @@ withAdversarialRoot("authority-symlink-root", (realRoot) => {
   }
 });
 
+withAdversarialRoot("authority-read-root-generation-swap", (root) => {
+  seedPartiallyAvailablePool(root);
+  withRootNamespaceSwapAtIdentityCheck(root, () => {
+    assert.throws(
+      () => listBuyVoidInventoryReservationsV1({
+        root_dir: root,
+        pool_id: policy().pool_id,
+      }),
+      /inventory_authority_namespace_changed/,
+    );
+    assert.deepEqual(fs.readdirSync(root), []);
+  });
+});
+
+withAdversarialRoot("authority-write-root-generation-swap", (root) => {
+  withRootNamespaceSwapAtIdentityCheck(root, (reviewedRoot) => {
+    const held = reserveBuyVoidInventoryV1({
+      root_dir: root,
+      intent: makeIntent(7, "1"),
+      policy: policy(),
+      apply: true,
+    });
+    assert.match(heldReason(held), /inventory_authority_namespace_changed/);
+    assert.deepEqual(fs.readdirSync(root), []);
+    assert.deepEqual(fs.readdirSync(reviewedRoot), []);
+  });
+});
+
 withAdversarialRoot("bounded-record-read", (root) => {
   const { paths, reservationNames } = seedPartiallyAvailablePool(root);
   const file = path.join(paths.reservations_dir, reservationNames[0]);
@@ -1592,14 +1661,22 @@ withAdversarialRoot("uncertain-lock-publication-recovery", (root) => {
   let fired = false;
   (fs as any).openSync = (file: fs.PathLike, flags: fs.OpenMode, mode?: fs.Mode) => {
     const descriptor = (originalOpen as any)(file, flags, mode);
-    if (String(file) === paths.history_anchor_pool_dir && String(flags) === "r") {
+    if (
+      path.basename(String(file)) ===
+        path.basename(paths.history_anchor_pool_dir) &&
+      (typeof flags === "number"
+        ? (flags & fs.constants.O_DIRECTORY) === fs.constants.O_DIRECTORY
+        : String(flags) === "r")
+    ) {
       directoryDescriptors.add(descriptor);
     }
     return descriptor;
   };
   (fs as any).linkSync = (source: fs.PathLike, destination: fs.PathLike) => {
     const result = originalLink(source, destination);
-    if (String(destination) === paths.lock_file) armed = true;
+    if (path.basename(String(destination)) === path.basename(paths.lock_file)) {
+      armed = true;
+    }
     return result;
   };
   (fs as any).fsyncSync = (descriptor: number) => {
@@ -1640,7 +1717,7 @@ withAdversarialRoot("lock-release-recovery", (root) => {
   const originalUnlink = fs.unlinkSync;
   let fired = false;
   (fs as any).unlinkSync = (file: fs.PathLike) => {
-    if (!fired && String(file) === paths.lock_file) {
+    if (!fired && path.basename(String(file)) === path.basename(paths.lock_file)) {
       fired = true;
       throw new Error("injected_lock_release_failure");
     }
@@ -1688,6 +1765,8 @@ console.log("durable_history_non_object_fail_closed=1");
 console.log("durable_history_closed_schema_enforced=1");
 console.log("durable_history_liability_corruption_blocks_new_mutation=1");
 console.log("durability_authority_owner_mode_symlink_fail_closed=1");
+console.log("durability_authority_generation_pinned_root=1");
+console.log("durability_authority_ancestor_swap_read_write_hold=1");
 console.log("bounded_durable_state_reads=1");
 console.log("durable_metadata_exact_runtime_json_types=1");
 console.log("pool_lock_process_instance_identity=1");

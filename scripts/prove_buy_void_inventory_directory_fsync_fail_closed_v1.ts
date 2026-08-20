@@ -115,6 +115,14 @@ function pendingNames(
     .sort();
 }
 
+function inventoryAuthoritySuffix(file: string): string {
+  const components = path.resolve(file).split(path.sep).filter(Boolean);
+  const start = components.findIndex((component) =>
+    component.startsWith("buy-void-inventory-")
+  );
+  return start < 0 ? path.basename(file) : components.slice(start).join("/");
+}
+
 function withDirectoryFsyncFailure(
   targetDir: string,
   occurrence: number,
@@ -135,7 +143,11 @@ function withDirectoryFsyncFailure(
   ) => {
     const descriptor = (originalOpen as any)(file, flags, mode);
     if (String(flags) === "r") observedDirectories.push(String(file));
-    if (String(file) === targetDir && String(flags) === "r") {
+    if (
+      inventoryAuthoritySuffix(String(file)) ===
+        inventoryAuthoritySuffix(targetDir) &&
+      String(flags) === "r"
+    ) {
       directoryDescriptors.add(descriptor);
     }
     return descriptor;
@@ -207,7 +219,7 @@ const reservationBoundaries: Boundary[] = [
   {
     name: "history_anchor_parent",
     target: (paths) => paths.history_anchor_pool_dir,
-    occurrence: 3,
+    occurrence: 2,
   },
   {
     name: "pending_deletion",
