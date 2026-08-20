@@ -1,8 +1,10 @@
 #!/usr/bin/env node
 import assert from "node:assert/strict";
 import {
+  mkdirSync,
   mkdtempSync,
   readFileSync,
+  renameSync,
   statSync,
   symlinkSync,
   writeFileSync,
@@ -59,38 +61,74 @@ const NETWORK_AUTHENTICITY = JSON.parse(
     "utf8",
   ),
 );
+const CANONICAL_DISCOVERY = JSON.parse(
+  readFileSync(
+    new URL(
+      "../public/public-node/agents/discovery-v1.json",
+      import.meta.url,
+    ),
+    "utf8",
+  ),
+);
+const CAPABILITIES = JSON.parse(
+  readFileSync(
+    new URL(
+      "../public/.well-known/void-agent-capabilities.json",
+      import.meta.url,
+    ),
+    "utf8",
+  ),
+);
+const AUTHENTICATION = JSON.parse(
+  readFileSync(
+    new URL(
+      "../public/.well-known/void-agent-authentication.json",
+      import.meta.url,
+    ),
+    "utf8",
+  ),
+);
+const FIRST_CONTACT = JSON.parse(
+  readFileSync(
+    new URL(
+      "../public/public-node/agents/first-contact-v1.json",
+      import.meta.url,
+    ),
+    "utf8",
+  ),
+);
+const EXTERNAL_INTAKE = JSON.parse(
+  readFileSync(
+    new URL(
+      "../fixtures/external-opportunity/agent-intake-capability-v1.example.json",
+      import.meta.url,
+    ),
+    "utf8",
+  ),
+);
 
 const PAYLOADS = new Map([
   ["/.well-known/void-agent-discovery.json", WELL_KNOWN],
   ["/.well-known/void-network-authenticity.json", NETWORK_AUTHENTICITY],
   [
     "/public-node/agents/discovery-v1.json",
-    { marker: "VOID_AI_AGENT_DISCOVERY_V1", status: "available" },
+    CANONICAL_DISCOVERY,
   ],
   [
     "/.well-known/void-agent-capabilities.json",
-    {
-      marker: "VOID_AI_AGENT_CAPABILITIES_WELL_KNOWN_V1",
-      status: "available",
-    },
+    CAPABILITIES,
   ],
   [
     "/.well-known/void-agent-authentication.json",
-    {
-      marker: "VOID_AI_AGENT_AUTHENTICATION_WELL_KNOWN_V1",
-      status: "available",
-    },
+    AUTHENTICATION,
   ],
   [
     "/public-node/agents/first-contact-v1.json",
-    { marker: "VOID_AI_AGENT_FIRST_CONTACT_V1", connection_mode: "read_only" },
+    FIRST_CONTACT,
   ],
   [
     "/.well-known/void-agent-intake-capability-v1.json",
-    {
-      marker: "VOID_EXTERNAL_OPPORTUNITY_AGENT_INTAKE_CAPABILITY_V1",
-      status: "available",
-    },
+    EXTERNAL_INTAKE,
   ],
 ]);
 
@@ -1444,13 +1482,122 @@ assert.equal(
   "symlink-target-sentinel\n",
 );
 
+const nestedOutputPath = path.join(
+  outputDirectory,
+  "new-parent",
+  "nested",
+  "bootstrap.json",
+);
+assert.equal(
+  writeBootstrapOutputFileV1(
+    nestedOutputPath,
+    outputContent,
+  ),
+  nestedOutputPath,
+);
+assert.equal(
+  readFileSync(nestedOutputPath, "utf8"),
+  outputContent,
+);
+
+const symlinkParentTarget = path.join(
+  outputDirectory,
+  "symlink-parent-target",
+);
+const symlinkParent = path.join(
+  outputDirectory,
+  "symlink-parent",
+);
+mkdirSync(symlinkParentTarget, { mode: 0o700 });
+symlinkSync(symlinkParentTarget, symlinkParent);
+assert.throws(
+  () =>
+    writeBootstrapOutputFileV1(
+      path.join(symlinkParent, "escaped.json"),
+      outputContent,
+    ),
+  /output parent must contain only real directories/,
+);
+assert.throws(
+  () =>
+    statSync(
+      path.join(symlinkParentTarget, "escaped.json"),
+    ),
+  /ENOENT/,
+);
+
+const raceParent = path.join(
+  outputDirectory,
+  "race-parent",
+);
+const displacedRaceParent =
+  raceParent + ".displaced";
+mkdirSync(raceParent, { mode: 0o700 });
+assert.throws(
+  () =>
+    writeBootstrapOutputFileV1(
+      path.join(raceParent, "race.json"),
+      outputContent,
+      {
+        afterParentPinned() {
+          renameSync(raceParent, displacedRaceParent);
+          mkdirSync(raceParent, { mode: 0o700 });
+        },
+      },
+    ),
+  /output parent path changed generation/,
+);
+for (const parent of [raceParent, displacedRaceParent]) {
+  assert.throws(
+    () => statSync(path.join(parent, "race.json")),
+    /ENOENT/,
+  );
+}
+
+const lateRaceParent = path.join(
+  outputDirectory,
+  "late-race-parent",
+);
+const displacedLateRaceParent =
+  lateRaceParent + ".displaced";
+mkdirSync(lateRaceParent, { mode: 0o700 });
+assert.throws(
+  () =>
+    writeBootstrapOutputFileV1(
+      path.join(lateRaceParent, "race.json"),
+      outputContent,
+      {
+        afterOutputOpened() {
+          renameSync(
+            lateRaceParent,
+            displacedLateRaceParent,
+          );
+          mkdirSync(lateRaceParent, { mode: 0o700 });
+        },
+      },
+    ),
+  /output parent path changed generation/,
+);
+for (const parent of [
+  lateRaceParent,
+  displacedLateRaceParent,
+]) {
+  assert.throws(
+    () => statSync(path.join(parent, "race.json")),
+    /ENOENT/,
+  );
+}
+
 const clientSource = readFileSync(
   new URL("../tools/void-ai-agent-bootstrap-client-v1.mjs", import.meta.url),
   "utf8",
 );
-assert.match(clientSource, /openSync\(resolved, "wx", 0o600\)/);
+assert.match(clientSource, /openPinnedOutputParentV1\(parent\)/);
+assert.match(clientSource, /procFdPathV1\(pinned\.fd, leaf\)/);
+assert.match(clientSource, /constants\.O_NOFOLLOW/);
 assert.match(clientSource, /writeFileSync\(descriptor, content/);
 assert.match(clientSource, /fsyncSync\(descriptor\)/);
+assert.match(clientSource, /fsyncSync\(pinned\.fd\)/);
 assert.doesNotMatch(clientSource, /writeFileSync\(resolved, content/);
 assert.doesNotMatch(clientSource, /chmodSync\(resolved/);
 
@@ -1526,6 +1673,9 @@ console.log("output_publication_production_writer=true");
 console.log("output_existing_file_not_truncated=true");
 console.log("output_symlink_not_followed=true");
 console.log("output_descriptor_bound=true");
+console.log("output_parent_namespace_bound=true");
+console.log("output_parent_replacement_held=true");
+console.log("output_late_parent_replacement_cleaned=true");
 console.log("output_mode_0600=true");
 console.log("http_get_only=true");
 console.log("credentials_sent=false");
