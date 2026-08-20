@@ -111,6 +111,14 @@ const OFFICIAL_AUTHENTICITY_PATH = join(
   ROOT,
   "public/.well-known/void-network-authenticity.json",
 );
+const DISCOVERY_CONTRACT_PATH = join(
+  ROOT,
+  "public/.well-known/void-agent-discovery.json",
+);
+const AUTHENTICATION_CONTRACT_PATH = join(
+  ROOT,
+  "public/.well-known/void-agent-authentication.json",
+);
 
 const manifest = JSON.parse(await readFile(MANIFEST_PATH, "utf8"));
 const publicUtility = JSON.parse(
@@ -118,6 +126,12 @@ const publicUtility = JSON.parse(
 );
 const officialAuthenticity = JSON.parse(
   await readFile(OFFICIAL_AUTHENTICITY_PATH, "utf8"),
+);
+const discoveryContract = JSON.parse(
+  await readFile(DISCOVERY_CONTRACT_PATH, "utf8"),
+);
+const authenticationContract = JSON.parse(
+  await readFile(AUTHENTICATION_CONTRACT_PATH, "utf8"),
 );
 const capabilitiesCatalog = JSON.parse(
   await readFile(
@@ -298,57 +312,12 @@ assert.equal(
 const fixtures = new Map([
   [manifest.entrypoints.first_contact, manifest],
   [manifest.entrypoints.public_utility, publicUtility],
-  [
-    manifest.entrypoints.well_known_discovery,
-    {
-      marker: "VOID_AI_AGENT_WELL_KNOWN_ENTRYPOINT_V1",
-      protocol: "void-agent-discovery-well-known/1",
-      network: {
-        name: "VOID Mainnet-0",
-        chain_id: 2050,
-      },
-      canonical_discovery: "/public-node/agents/discovery-v1.json",
-      network_authenticity:
-        manifest.entrypoints.official_authenticity,
-      authority: {
-        default: "read_only",
-        mutation_authority_granted: false,
-        credentials_required: false,
-      },
-      safety: {
-        same_origin_only: true,
-        follow_redirects: false,
-      },
-    },
-  ],
+  [manifest.entrypoints.well_known_discovery, discoveryContract],
   [
     manifest.entrypoints.official_authenticity,
     officialAuthenticity,
   ],
-  [
-    manifest.entrypoints.authentication,
-    {
-      marker: "VOID_AI_AGENT_AUTHENTICATION_WELL_KNOWN_V1",
-      protocol: "void-agent-authentication-well-known/1",
-      contract_published: true,
-      canonical_authentication_contract:
-        "/public-node/agents/authentication-v1.json",
-      network: {
-        name: "VOID Mainnet-0",
-        chain_id: 2050,
-      },
-      authenticated_routes_active: false,
-      verifier_runtime_active: false,
-      mutation_authority_granted: false,
-      safety: {
-        same_origin_only: true,
-        follow_redirects: false,
-        send_credentials_now: false,
-        send_signed_envelopes_now: false,
-        treat_unknown_as: "not_granted",
-      },
-    },
-  ],
+  [manifest.entrypoints.authentication, authenticationContract],
   [manifest.entrypoints.capabilities, capabilitiesCatalog],
   [publicUtility.entries[2].path, datanetReceipt],
   [manifest.entrypoints.agent_intake, agentIntakeCapability],
@@ -1105,6 +1074,126 @@ try {
     );
   }
 
+
+  const assertRequiredContractRejected = async ({
+    label,
+    entrypoint,
+    document,
+    check,
+    officialNetworkVerified,
+    omittedAction,
+  }) => {
+    const hostile = await runClient(
+      ["--base-url", baseUrl],
+      [[entrypoint, document]],
+    );
+    assert.equal(hostile.code, 2, `${label}: ${hostile.stderr}`);
+    const hostileReport = JSON.parse(hostile.stdout);
+    assert.equal(hostileReport.status, "partial_read_only", label);
+    assert.equal(hostileReport.checks[check], false, label);
+    assert.equal(
+      hostileReport.official_network_verified,
+      officialNetworkVerified,
+      label,
+    );
+    assert.deepEqual(
+      hostileReport.observed_capabilities,
+      {
+        paid_work_observed: false,
+        work_credit_earning_observed: false,
+      },
+      label,
+    );
+    if (omittedAction) {
+      assert.equal(
+        hostileReport.next_actions.some(
+          (action) => action.id === omittedAction,
+        ),
+        false,
+        label,
+      );
+    }
+  };
+
+  const discoveryWithExtraTopLevel = structuredClone(discoveryContract);
+  discoveryWithExtraTopLevel.unreviewed_extension = true;
+  const discoverySendingSecrets = structuredClone(discoveryContract);
+  discoverySendingSecrets.safety.send_secrets = true;
+  const discoverySendingWalletMaterial = structuredClone(discoveryContract);
+  discoverySendingWalletMaterial.safety.send_wallet_material = true;
+  const discoveryWithWalletAuthority = structuredClone(discoveryContract);
+  discoveryWithWalletAuthority.authority.wallet_authority_granted = true;
+  const discoveryWithTypedSafetyForgery = structuredClone(discoveryContract);
+  discoveryWithTypedSafetyForgery.safety.send_operator_keys = "false";
+  for (const [label, document] of [
+    ["discovery_extra_top_level", discoveryWithExtraTopLevel],
+    ["discovery_send_secrets", discoverySendingSecrets],
+    ["discovery_send_wallet_material", discoverySendingWalletMaterial],
+    ["discovery_wallet_authority", discoveryWithWalletAuthority],
+    ["discovery_wrong_typed_safety", discoveryWithTypedSafetyForgery],
+  ]) {
+    await assertRequiredContractRejected({
+      label,
+      entrypoint: manifest.entrypoints.well_known_discovery,
+      document,
+      check: "network_binding_consistent",
+      officialNetworkVerified: false,
+    });
+  }
+
+  const authenticationWithExtraTopLevel =
+    structuredClone(authenticationContract);
+  authenticationWithExtraTopLevel.wallet_authority_granted = true;
+  const authenticationWithoutSchema =
+    structuredClone(authenticationContract);
+  delete authenticationWithoutSchema.$schema;
+  for (const [label, document] of [
+    ["authentication_extra_top_level", authenticationWithExtraTopLevel],
+    ["authentication_missing_schema", authenticationWithoutSchema],
+  ]) {
+    await assertRequiredContractRejected({
+      label,
+      entrypoint: manifest.entrypoints.authentication,
+      document,
+      check: "authentication_contract_found",
+      officialNetworkVerified: true,
+      omittedAction: "inspect_authentication",
+    });
+  }
+
+  const capabilitiesAwardingWorkCredit =
+    structuredClone(capabilitiesCatalog);
+  capabilitiesAwardingWorkCredit.authority.work_credit_awards_active = true;
+  const capabilitiesAcceptingPayment =
+    structuredClone(capabilitiesCatalog);
+  capabilitiesAcceptingPayment.authority.payment_submission_active = true;
+  const capabilitiesWithActiveVerifier =
+    structuredClone(capabilitiesCatalog);
+  capabilitiesWithActiveVerifier.next_contract.verifier_runtime_active = true;
+  const capabilitiesAllowingUnsignedMutation =
+    structuredClone(capabilitiesCatalog);
+  capabilitiesAllowingUnsignedMutation.safety
+    .mutation_without_separate_signed_capability = "allowed";
+  const capabilitiesWithExtraTopLevel =
+    structuredClone(capabilitiesCatalog);
+  capabilitiesWithExtraTopLevel.unreviewed_extension = true;
+  for (const [label, document] of [
+    ["capabilities_work_credit_awards_active", capabilitiesAwardingWorkCredit],
+    ["capabilities_payment_submission_active", capabilitiesAcceptingPayment],
+    ["capabilities_verifier_runtime_active", capabilitiesWithActiveVerifier],
+    ["capabilities_unsigned_mutation_allowed", capabilitiesAllowingUnsignedMutation],
+    ["capabilities_extra_top_level", capabilitiesWithExtraTopLevel],
+  ]) {
+    await assertRequiredContractRejected({
+      label,
+      entrypoint: manifest.entrypoints.capabilities,
+      document,
+      check: "capabilities_loaded",
+      officialNetworkVerified: true,
+      omittedAction: "inspect_capabilities",
+    });
+  }
+
   const decoyContracts = await runClient(
     ["--base-url", baseUrl],
     [
@@ -1171,7 +1260,7 @@ try {
   );
   assert.equal(
     unverifiedCommercialSignalsReport.checks.capabilities_loaded,
-    true,
+    false,
   );
   assert.deepEqual(
     unverifiedCommercialSignalsReport.observed_capabilities,
@@ -1448,6 +1537,8 @@ console.log(`boundary_composition_commit=${boundaryCompositionCommit}`);
 console.log("first_contact_marker=VOID_AI_AGENT_FIRST_CONTACT_V1");
 console.log("client_marker=VOID_AI_AGENT_FIRST_CONTACT_CLIENT_V1");
 console.log("official_network_verified=true");
+console.log("required_readiness_contracts_exact=true");
+console.log("authority_widening_adversaries_rejected=12");
 console.log("connection_mode=read_only");
 console.log("get_only_client=true");
 console.log("paid_work_promised=false");
