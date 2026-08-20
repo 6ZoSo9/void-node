@@ -85,3 +85,8 @@ are complete.
 ```sh
 node scripts/prove_void_btc_void_atomic_settlement_state_invariants_v1.mjs
 ```
+
+
+## Bounded CLI input acquisition
+
+The settlement, quote, reserve-policy, and buyback-journal command-line evaluators share one fail-closed stdin acquisition contract. Existing byte ceilings remain unchanged: 1 MiB for settlement and journal input, and 64 KiB for quote and reserve-policy input. Every reader also owns a 500 ms idle deadline and a 2 second total deadline. Withholding EOF below the byte ceiling therefore emits the evaluator's deterministic `*_HOLD` marker and no success payload; ordinary EOF-terminated input remains supported.
