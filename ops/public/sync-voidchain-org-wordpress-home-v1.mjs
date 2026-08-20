@@ -96,7 +96,6 @@ const settleWithin = async (promise, timeoutMs) => {
       ),
       new Promise((resolve) => {
         timeout = setTimeout(() => resolve("timeout"), timeoutMs);
-        timeout.unref?.();
       }),
     ]);
   } finally {
@@ -211,7 +210,7 @@ const readBoundedResponseBytes = async (
     try {
       reader.releaseLock();
     } catch (error) {
-      // Reader cleanup must not replace the already-determined request outcome.
+      void error;
     }
   }
 
