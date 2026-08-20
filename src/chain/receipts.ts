@@ -3,6 +3,7 @@
 
 // src/chain/receipts.ts
 import * as fs from "node:fs";
+import * as crypto from "node:crypto";
 import * as path from "node:path";
 
 function recordSmallEmptyCatchVisibilityFailure_src_chain_receipts_ts(scope: string, err: unknown): void {
@@ -25,6 +26,9 @@ type ReceiptAppendFaultV1 =
 
 type ReceiptAppendTestHooksV1 = {
   afterSnapshot?: () => void | Promise<void>;
+  afterLockClaimPublished?: () => void | Promise<void>;
+  beforeLockClaimCleanup?: () => void | Promise<void>;
+  beforeObservedLockCleanup?: (path: string) => void | Promise<void>;
 };
 
 const MAX_RECEIPT_SHARD_BYTES_V1 = 16 * 1024 * 1024;
@@ -34,6 +38,10 @@ const MAX_RECEIPT_DIRECTORY_ENTRIES_V1 = 8_192;
 const RECEIPT_READ_CHUNK_BYTES_V1 = 64 * 1024;
 const RECEIPT_APPEND_LOCK_WAIT_MS_V1 = 10;
 const RECEIPT_APPEND_LOCK_MAX_WAIT_MS_V1 = 30_000;
+const RECEIPT_APPEND_LOCK_CLAIM_MAX_BYTES_V1 = 16 * 1024;
+const RECEIPT_APPEND_LOCK_CLAIM_V1 = "VOID_RECEIPT_APPEND_LOCK_CLAIM_V1";
+const RECEIPT_APPEND_LOCK_RELEASE_V1 = "VOID_RECEIPT_APPEND_LOCK_RELEASE_V1";
+const RECEIPT_APPEND_LOCK_TOKEN_V1 = /^[0-9a-f]{32}$/;
 
 type ReceiptHit =
   | { n: number; o: number; ts: number; found: true }
@@ -45,6 +53,105 @@ type ReceiptDirectoryAuthorityV1 = {
   dev: bigint;
   ino: bigint;
 };
+
+type ReceiptFileStampV1 = {
+  dev: string;
+  ino: string;
+  size: number;
+  mtimeNs: string;
+  ctimeNs: string;
+};
+
+type ReceiptAppendLockClaimV1 = {
+  marker: typeof RECEIPT_APPEND_LOCK_CLAIM_V1;
+  version: 1;
+  pid: number;
+  process_instance: string;
+  token: string;
+  directory_dev: string;
+  directory_ino: string;
+  path: string;
+  stamp: ReceiptFileStampV1;
+};
+
+type ReceiptAppendLockReleaseV1 = {
+  marker: typeof RECEIPT_APPEND_LOCK_RELEASE_V1;
+  version: 1;
+  pid: number;
+  process_instance: string;
+  token: string;
+  claim_stamp: ReceiptFileStampV1;
+  path: string;
+  stamp: ReceiptFileStampV1;
+};
+
+let receiptProcessInstanceCacheV1 = "";
+
+function receiptExactKeysV1(value: unknown, expected: string[]): value is Record<string, unknown> {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  const actual = Object.keys(value).sort();
+  const wanted = [...expected].sort();
+  return actual.length === wanted.length && actual.every((key, index) => key === wanted[index]);
+}
+
+function receiptFileStampV1(stat: fs.BigIntStats): ReceiptFileStampV1 {
+  return {
+    dev: String(stat.dev),
+    ino: String(stat.ino),
+    size: Number(stat.size),
+    mtimeNs: String(stat.mtimeNs),
+    ctimeNs: String(stat.ctimeNs),
+  };
+}
+
+function receiptSameStampV1(a: ReceiptFileStampV1, b: ReceiptFileStampV1): boolean {
+  return a.dev === b.dev && a.ino === b.ino && a.size === b.size &&
+    a.mtimeNs === b.mtimeNs && a.ctimeNs === b.ctimeNs;
+}
+
+function receiptValidStampV1(value: unknown): value is ReceiptFileStampV1 {
+  return receiptExactKeysV1(value, ["dev", "ino", "size", "mtimeNs", "ctimeNs"]) &&
+    typeof value.dev === "string" && /^\d+$/.test(value.dev) &&
+    typeof value.ino === "string" && /^\d+$/.test(value.ino) &&
+    Number.isSafeInteger(value.size) && Number(value.size) >= 0 &&
+    typeof value.mtimeNs === "string" && /^\d+$/.test(value.mtimeNs) &&
+    typeof value.ctimeNs === "string" && /^\d+$/.test(value.ctimeNs);
+}
+
+function receiptLinuxProcessInstanceV1(pid: number): string | null {
+  if (process.platform !== "linux" || !Number.isSafeInteger(pid) || pid <= 0) return null;
+  try {
+    const boot = fs.readFileSync("/proc/sys/kernel/random/boot_id", "utf8").trim();
+    const raw = fs.readFileSync(`/proc/${pid}/stat`, "utf8");
+    const end = raw.lastIndexOf(")");
+    if (!/^[0-9a-f-]{36}$/.test(boot) || end < 0) return null;
+    const fields = raw.slice(end + 1).trim().split(/\s+/);
+    const startTicks = String(fields[19] || "");
+    if (!/^\d+$/.test(startTicks)) return null;
+    return `linux:${boot}:${startTicks}`;
+  } catch (_error) {
+    return null;
+  }
+}
+
+function receiptCurrentProcessInstanceV1(): string {
+  if (receiptProcessInstanceCacheV1) return receiptProcessInstanceCacheV1;
+  receiptProcessInstanceCacheV1 = receiptLinuxProcessInstanceV1(process.pid) ||
+    `opaque:${process.pid}:${crypto.randomBytes(16).toString("hex")}`;
+  return receiptProcessInstanceCacheV1;
+}
+
+function receiptPidAliveV1(pid: number): boolean {
+  if (!Number.isSafeInteger(pid) || pid <= 0) return false;
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch (error: any) {
+    if (error?.code === "ESRCH") return false;
+    if (error?.code === "EPERM") return true;
+    throw error;
+  }
+}
 
 export class ReceiptsStore {
   private dir: string;
@@ -59,36 +166,350 @@ export class ReceiptsStore {
     if (!fs.existsSync(this.dir)) fs.mkdirSync(this.dir, { recursive: true });
   }
 
-  private async acquireAppendLockV1(signal?: AbortSignal): Promise<string> {
-    const lockPath = path.join(this.dir, ".receipts-append.lock.v1");
-    const deadline = Date.now() + RECEIPT_APPEND_LOCK_MAX_WAIT_MS_V1;
-    while (true) {
-      signal?.throwIfAborted();
-      try {
-        await fs.promises.mkdir(lockPath, { mode: 0o700 });
-        return lockPath;
-      } catch (error: any) {
-        if (error?.code !== "EEXIST") throw error;
-        if (Date.now() >= deadline) {
-          throw new Error("VOID_RECEIPT_APPEND_CROSS_PROCESS_LOCKED_V1");
-        }
-        await new Promise<void>((resolve, reject) => {
-          const onAbort = () => {
-            clearTimeout(timer);
-            reject(signal?.reason);
-          };
-          const timer = setTimeout(() => {
-            signal?.removeEventListener("abort", onAbort);
-            resolve();
-          }, RECEIPT_APPEND_LOCK_WAIT_MS_V1);
-          signal?.addEventListener("abort", onAbort, { once: true });
-        });
+  private appendLockClaimNameV1(token: string): string {
+    return `.receipts-append-claim-${token}.json`;
+  }
+
+  private appendLockReleaseNameV1(token: string): string {
+    return `.receipts-append-release-${token}.json`;
+  }
+
+  private async readAppendLockJsonV1(
+    authority: ReceiptDirectoryAuthorityV1,
+    name: string,
+  ): Promise<{ value: unknown; stamp: ReceiptFileStampV1 }> {
+    const stablePath = path.join(authority.stablePath, name);
+    const listed = await fs.promises.lstat(stablePath, { bigint: true });
+    if (!listed.isFile() || listed.isSymbolicLink()) {
+      throw new Error("VOID_RECEIPT_APPEND_LOCK_NON_REGULAR_V1");
+    }
+    const size = Number(listed.size);
+    if (!Number.isSafeInteger(size) || size <= 0 || size > RECEIPT_APPEND_LOCK_CLAIM_MAX_BYTES_V1) {
+      throw new Error("VOID_RECEIPT_APPEND_LOCK_RECORD_SIZE_V1");
+    }
+    const handle = await fs.promises.open(
+      stablePath,
+      fs.constants.O_RDONLY | fs.constants.O_NOFOLLOW,
+    );
+    try {
+      const opened = await handle.stat({ bigint: true });
+      const listedStamp = receiptFileStampV1(listed);
+      const openedStamp = receiptFileStampV1(opened);
+      if (!receiptSameStampV1(listedStamp, openedStamp)) {
+        throw new Error("VOID_RECEIPT_APPEND_LOCK_RECORD_UNSTABLE_V1");
       }
+      const bytes = Buffer.alloc(size);
+      let offset = 0;
+      while (offset < bytes.length) {
+        const { bytesRead } = await handle.read(bytes, offset, bytes.length - offset, offset);
+        if (bytesRead <= 0) break;
+        offset += bytesRead;
+      }
+      if (offset !== bytes.length) {
+        throw new Error("VOID_RECEIPT_APPEND_LOCK_RECORD_SHORT_READ_V1");
+      }
+      const after = receiptFileStampV1(await handle.stat({ bigint: true }));
+      const visible = receiptFileStampV1(await fs.promises.lstat(stablePath, { bigint: true }));
+      if (!receiptSameStampV1(openedStamp, after) || !receiptSameStampV1(after, visible)) {
+        throw new Error("VOID_RECEIPT_APPEND_LOCK_RECORD_CHANGED_V1");
+      }
+      return { value: JSON.parse(bytes.toString("utf8")), stamp: openedStamp };
+    } finally {
+      await handle.close();
     }
   }
 
-  private async releaseAppendLockV1(lockPath: string): Promise<void> {
-    await fs.promises.rmdir(lockPath);
+  private async readAppendLockClaimV1(
+    authority: ReceiptDirectoryAuthorityV1,
+    name: string,
+  ): Promise<ReceiptAppendLockClaimV1> {
+    const { value, stamp } = await this.readAppendLockJsonV1(authority, name);
+    if (!receiptExactKeysV1(value, [
+      "marker",
+      "version",
+      "pid",
+      "process_instance",
+      "token",
+      "directory_dev",
+      "directory_ino",
+    ])) {
+      throw new Error("VOID_RECEIPT_APPEND_LOCK_CLAIM_SHAPE_V1");
+    }
+    const token = String(value.token || "");
+    if (
+      value.marker !== RECEIPT_APPEND_LOCK_CLAIM_V1 ||
+      value.version !== 1 ||
+      !Number.isSafeInteger(value.pid) || Number(value.pid) <= 0 ||
+      typeof value.process_instance !== "string" || !value.process_instance ||
+      !RECEIPT_APPEND_LOCK_TOKEN_V1.test(token) ||
+      value.directory_dev !== String(authority.dev) ||
+      value.directory_ino !== String(authority.ino) ||
+      name !== this.appendLockClaimNameV1(token)
+    ) {
+      throw new Error("VOID_RECEIPT_APPEND_LOCK_CLAIM_INVALID_V1");
+    }
+    return {
+      marker: RECEIPT_APPEND_LOCK_CLAIM_V1,
+      version: 1,
+      pid: Number(value.pid),
+      process_instance: value.process_instance,
+      token,
+      directory_dev: value.directory_dev,
+      directory_ino: value.directory_ino,
+      path: path.join(authority.stablePath, name),
+      stamp,
+    };
+  }
+
+  private async readAppendLockReleaseV1(
+    authority: ReceiptDirectoryAuthorityV1,
+    claim: ReceiptAppendLockClaimV1,
+  ): Promise<ReceiptAppendLockReleaseV1 | null> {
+    const name = this.appendLockReleaseNameV1(claim.token);
+    let record: { value: unknown; stamp: ReceiptFileStampV1 };
+    try {
+      record = await this.readAppendLockJsonV1(authority, name);
+    } catch (error: any) {
+      if (error?.code === "ENOENT") return null;
+      throw error;
+    }
+    const { value, stamp } = record;
+    if (!receiptExactKeysV1(value, [
+      "marker",
+      "version",
+      "pid",
+      "process_instance",
+      "token",
+      "claim_stamp",
+    ]) ||
+      value.marker !== RECEIPT_APPEND_LOCK_RELEASE_V1 ||
+      value.version !== 1 ||
+      value.pid !== claim.pid ||
+      value.process_instance !== claim.process_instance ||
+      value.token !== claim.token ||
+      !receiptValidStampV1(value.claim_stamp) ||
+      !receiptSameStampV1(value.claim_stamp, claim.stamp)
+    ) {
+      throw new Error("VOID_RECEIPT_APPEND_LOCK_RELEASE_INVALID_V1");
+    }
+    return {
+      marker: RECEIPT_APPEND_LOCK_RELEASE_V1,
+      version: 1,
+      pid: claim.pid,
+      process_instance: claim.process_instance,
+      token: claim.token,
+      claim_stamp: value.claim_stamp,
+      path: path.join(authority.stablePath, name),
+      stamp,
+    };
+  }
+
+  private async writeAppendLockRecordV1(
+    authority: ReceiptDirectoryAuthorityV1,
+    finalName: string,
+    value: unknown,
+  ): Promise<void> {
+    const token = crypto.randomBytes(8).toString("hex");
+    const tempName = `.receipts-append-lock-tmp-${process.pid}-${token}`;
+    const tempPath = path.join(authority.stablePath, tempName);
+    const finalPath = path.join(authority.stablePath, finalName);
+    const body = Buffer.from(`${JSON.stringify(value)}\n`, "utf8");
+    const handle = await fs.promises.open(
+      tempPath,
+      fs.constants.O_WRONLY | fs.constants.O_CREAT | fs.constants.O_EXCL | fs.constants.O_NOFOLLOW,
+      0o600,
+    );
+    let published = false;
+    try {
+      let offset = 0;
+      while (offset < body.length) {
+        const { bytesWritten } = await handle.write(body, offset, body.length - offset, null);
+        if (bytesWritten <= 0) throw new Error("VOID_RECEIPT_APPEND_LOCK_RECORD_SHORT_WRITE_V1");
+        offset += bytesWritten;
+      }
+      await handle.sync();
+      await handle.close();
+      await fs.promises.link(tempPath, finalPath);
+      published = true;
+      await authority.handle.sync();
+      await this.assertDirectoryAuthorityV1(authority);
+    } finally {
+      await handle.close().catch(() => undefined);
+      await fs.promises.unlink(tempPath).catch(() => undefined);
+      if (!published) await authority.handle.sync().catch(() => undefined);
+    }
+  }
+
+  private appendLockClaimStateV1(
+    claim: ReceiptAppendLockClaimV1,
+  ): "live" | "stale" | "ambiguous" {
+    if (!receiptPidAliveV1(claim.pid)) return "stale";
+    if (process.platform === "linux") {
+      const actual = receiptLinuxProcessInstanceV1(claim.pid);
+      if (!actual) return "ambiguous";
+      return actual === claim.process_instance ? "live" : "stale";
+    }
+    return claim.pid === process.pid && claim.process_instance === receiptCurrentProcessInstanceV1()
+      ? "live"
+      : "ambiguous";
+  }
+
+  private async removeObservedAppendLockRecordV1(
+    authority: ReceiptDirectoryAuthorityV1,
+    record: { path: string; stamp: ReceiptFileStampV1 },
+  ): Promise<boolean> {
+    let visible: fs.BigIntStats;
+    try {
+      visible = await fs.promises.lstat(record.path, { bigint: true });
+    } catch (error: any) {
+      return error?.code === "ENOENT";
+    }
+    if (!visible.isFile() || visible.isSymbolicLink() ||
+      !receiptSameStampV1(receiptFileStampV1(visible), record.stamp)) return false;
+    try {
+      await fs.promises.unlink(record.path);
+      await authority.handle.sync();
+      await this.assertDirectoryAuthorityV1(authority);
+      return true;
+    } catch (error: any) {
+      return error?.code === "ENOENT";
+    }
+  }
+
+  private async appendLockBlockedV1(
+    authority: ReceiptDirectoryAuthorityV1,
+    ownPath = "",
+    hooks?: ReceiptAppendTestHooksV1,
+  ): Promise<boolean> {
+    const names = (await fs.promises.readdir(authority.stablePath))
+      .filter((name) => /^\.receipts-append-claim-[0-9a-f]{32}\.json$/.test(name))
+      .sort();
+    let blocked = false;
+    for (const name of names) {
+      const claimPath = path.join(authority.stablePath, name);
+      if (ownPath && claimPath === ownPath) continue;
+      let claim: ReceiptAppendLockClaimV1;
+      try {
+        claim = await this.readAppendLockClaimV1(authority, name);
+      } catch (_error) {
+        blocked = true;
+        continue;
+      }
+      let release: ReceiptAppendLockReleaseV1 | null;
+      try {
+        release = await this.readAppendLockReleaseV1(authority, claim);
+      } catch (_error) {
+        blocked = true;
+        continue;
+      }
+      if (release) {
+        await hooks?.beforeObservedLockCleanup?.(claim.path);
+        if (!await this.removeObservedAppendLockRecordV1(authority, claim)) {
+          blocked = true;
+          continue;
+        }
+        await this.removeObservedAppendLockRecordV1(authority, release);
+        continue;
+      }
+      const state = this.appendLockClaimStateV1(claim);
+      if (state === "stale") {
+        await hooks?.beforeObservedLockCleanup?.(claim.path);
+        if (!await this.removeObservedAppendLockRecordV1(authority, claim)) blocked = true;
+        continue;
+      }
+      blocked = true;
+    }
+    return blocked;
+  }
+
+  private async publishAppendLockClaimV1(
+    authority: ReceiptDirectoryAuthorityV1,
+  ): Promise<ReceiptAppendLockClaimV1> {
+    const token = crypto.randomBytes(16).toString("hex");
+    const name = this.appendLockClaimNameV1(token);
+    const processInstance = receiptCurrentProcessInstanceV1();
+    await this.writeAppendLockRecordV1(authority, name, {
+      marker: RECEIPT_APPEND_LOCK_CLAIM_V1,
+      version: 1,
+      pid: process.pid,
+      process_instance: processInstance,
+      token,
+      directory_dev: String(authority.dev),
+      directory_ino: String(authority.ino),
+    });
+    return await this.readAppendLockClaimV1(authority, name);
+  }
+
+  private async acquireAppendLockV1(
+    authority: ReceiptDirectoryAuthorityV1,
+    signal?: AbortSignal,
+    hooks?: ReceiptAppendTestHooksV1,
+  ): Promise<ReceiptAppendLockClaimV1> {
+    const deadline = Date.now() + RECEIPT_APPEND_LOCK_MAX_WAIT_MS_V1;
+    while (true) {
+      signal?.throwIfAborted();
+      await this.assertDirectoryAuthorityV1(authority);
+      if (!await this.appendLockBlockedV1(authority, "", hooks)) {
+        const own = await this.publishAppendLockClaimV1(authority);
+        await hooks?.afterLockClaimPublished?.();
+        await this.assertDirectoryAuthorityV1(authority);
+        if (!await this.appendLockBlockedV1(authority, own.path, hooks)) return own;
+        await this.removeObservedAppendLockRecordV1(authority, own);
+      }
+      if (Date.now() >= deadline) {
+        throw new Error("VOID_RECEIPT_APPEND_CROSS_PROCESS_LOCKED_V1");
+      }
+      await new Promise<void>((resolve, reject) => {
+        const onAbort = () => {
+          clearTimeout(timer);
+          reject(signal?.reason);
+        };
+        const timer = setTimeout(() => {
+          signal?.removeEventListener("abort", onAbort);
+          resolve();
+        }, RECEIPT_APPEND_LOCK_WAIT_MS_V1);
+        signal?.addEventListener("abort", onAbort, { once: true });
+      });
+    }
+  }
+
+  private async releaseAppendLockV1(
+    authority: ReceiptDirectoryAuthorityV1,
+    claim: ReceiptAppendLockClaimV1,
+    hooks?: ReceiptAppendTestHooksV1,
+  ): Promise<void> {
+    try {
+      const current = await this.readAppendLockClaimV1(
+        authority,
+        this.appendLockClaimNameV1(claim.token),
+      );
+      if (current.pid !== process.pid ||
+        current.process_instance !== receiptCurrentProcessInstanceV1() ||
+        !receiptSameStampV1(current.stamp, claim.stamp)) {
+        throw new Error("VOID_RECEIPT_APPEND_LOCK_RELEASE_OWNER_MISMATCH_V1");
+      }
+      const releaseName = this.appendLockReleaseNameV1(claim.token);
+      await this.writeAppendLockRecordV1(authority, releaseName, {
+        marker: RECEIPT_APPEND_LOCK_RELEASE_V1,
+        version: 1,
+        pid: claim.pid,
+        process_instance: claim.process_instance,
+        token: claim.token,
+        claim_stamp: claim.stamp,
+      });
+      const release = await this.readAppendLockReleaseV1(authority, claim);
+      if (!release) throw new Error("VOID_RECEIPT_APPEND_LOCK_RELEASE_MISSING_V1");
+      await hooks?.beforeLockClaimCleanup?.();
+      if (!await this.removeObservedAppendLockRecordV1(authority, claim)) {
+        throw new Error("VOID_RECEIPT_APPEND_LOCK_RELEASE_CLEANUP_FAILED_V1");
+      }
+      await this.removeObservedAppendLockRecordV1(authority, release);
+    } catch (error) {
+      recordSmallEmptyCatchVisibilityFailure_src_chain_receipts_ts(
+        "receipt-append-lock-release-deferred",
+        error,
+      );
+    }
   }
 
   private async openDirectoryAuthorityV1(
@@ -466,9 +887,13 @@ export class ReceiptsStore {
     }
     if (normalizedByHash.size === 0) return;
 
-    const appendLock = await this.acquireAppendLockV1(opts.signal);
-    try {
     const authority = await this.openDirectoryAuthorityV1(opts.signal);
+    try {
+    const appendLock = await this.acquireAppendLockV1(
+      authority,
+      opts.signal,
+      opts.testHooksV1,
+    );
     try {
     const directory = authority.stablePath;
     const shardFiles = await this.shardFilesV1(opts.signal, directory);
@@ -598,10 +1023,14 @@ export class ReceiptsStore {
       if (!published) await fs.promises.unlink(tempPath).catch(() => undefined);
     }
     } finally {
-      await authority.handle.close().catch(() => undefined);
+      await this.releaseAppendLockV1(
+        authority,
+        appendLock,
+        opts.testHooksV1,
+      );
     }
     } finally {
-      await this.releaseAppendLockV1(appendLock);
+      await authority.handle.close().catch(() => undefined);
     }
   }
 

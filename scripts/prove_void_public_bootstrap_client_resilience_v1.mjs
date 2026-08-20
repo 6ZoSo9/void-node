@@ -1060,6 +1060,150 @@ try {
   }
   pass("receipt publication and recovery fsync the exact admitted directory generation");
 
+  const receiptLockAuthorityRoot = fs.mkdtempSync(
+    path.join(os.tmpdir(), "void-follower-receipt-lock-authority-v1-"),
+  );
+  try {
+    const currentDir = path.join(receiptLockAuthorityRoot, "current");
+    const detachedDir = path.join(receiptLockAuthorityRoot, "detached");
+    const swappedStore = new receiptModule.ReceiptsStore(currentDir, {
+      shardSpan: 10_000,
+    });
+    let swapped = false;
+    await assertRejects(
+      () => swappedStore.appendMany([{
+        h: "c".repeat(64),
+        n: 3,
+        o: 0,
+        ts: followerBlock0.timestamp,
+      }], {
+        testHooksV1: {
+          afterLockClaimPublished: () => {
+            fs.renameSync(currentDir, detachedDir);
+            fs.mkdirSync(currentDir, { mode: 0o700 });
+            swapped = true;
+          },
+        },
+      }),
+      /receipt directory authority generation changed/,
+      "directory replacement after claim publication escaped exact lock authority",
+    );
+    assert(swapped, "receipt lock directory generation swap did not execute");
+    assert(
+      fs.readdirSync(currentDir).filter((name) => /^receipts-\d{8}\.jsonl$/.test(name)).length === 0,
+      "detached lock owner mutated the substituted receipt directory",
+    );
+
+    const pidReuseDir = path.join(receiptLockAuthorityRoot, "pid-reuse");
+    fs.mkdirSync(pidReuseDir, { mode: 0o700 });
+    const pidReuseStat = fs.statSync(pidReuseDir, { bigint: true });
+    const pidReuseToken = "d".repeat(32);
+    fs.writeFileSync(
+      path.join(pidReuseDir, `.receipts-append-claim-${pidReuseToken}.json`),
+      `${JSON.stringify({
+        marker: "VOID_RECEIPT_APPEND_LOCK_CLAIM_V1",
+        version: 1,
+        pid: process.pid,
+        process_instance: "linux:00000000-0000-0000-0000-000000000000:1",
+        token: pidReuseToken,
+        directory_dev: String(pidReuseStat.dev),
+        directory_ino: String(pidReuseStat.ino),
+      })}\n`,
+      { flag: "wx", mode: 0o600 },
+    );
+    const pidReuseReceipt = {
+      h: "e".repeat(64),
+      n: 4,
+      o: 0,
+      ts: followerBlock0.timestamp,
+    };
+    const pidReuseStore = new receiptModule.ReceiptsStore(pidReuseDir, {
+      shardSpan: 10_000,
+    });
+    await pidReuseStore.appendMany([pidReuseReceipt]);
+    const pidReuseRestart = new receiptModule.ReceiptsStore(pidReuseDir, {
+      shardSpan: 10_000,
+    });
+    assert(
+      (await pidReuseRestart.getMany([pidReuseReceipt.h])).get(pidReuseReceipt.h)?.found === true,
+      "same numeric PID with a different process instance wedged recovery",
+    );
+
+    const replacementDir = path.join(receiptLockAuthorityRoot, "cleanup-replacement");
+    fs.mkdirSync(replacementDir, { mode: 0o700 });
+    const replacementStat = fs.statSync(replacementDir, { bigint: true });
+    const replacementToken = "4".repeat(32);
+    const replacementClaimPath = path.join(
+      replacementDir,
+      `.receipts-append-claim-${replacementToken}.json`,
+    );
+    const bootId = fs.readFileSync("/proc/sys/kernel/random/boot_id", "utf8").trim();
+    const processStat = fs.readFileSync(`/proc/${process.pid}/stat`, "utf8");
+    const processFields = processStat.slice(processStat.lastIndexOf(")") + 1).trim().split(/\s+/);
+    const liveProcessInstance = `linux:${bootId}:${processFields[19]}`;
+    fs.writeFileSync(
+      replacementClaimPath,
+      `${JSON.stringify({
+        marker: "VOID_RECEIPT_APPEND_LOCK_CLAIM_V1",
+        version: 1,
+        pid: process.pid,
+        process_instance: "linux:00000000-0000-0000-0000-000000000000:1",
+        token: replacementToken,
+        directory_dev: String(replacementStat.dev),
+        directory_ino: String(replacementStat.ino),
+      })}\n`,
+      { flag: "wx", mode: 0o600 },
+    );
+    const liveReplacement = Buffer.from(`${JSON.stringify({
+      marker: "VOID_RECEIPT_APPEND_LOCK_CLAIM_V1",
+      version: 1,
+      pid: process.pid,
+      process_instance: liveProcessInstance,
+      token: replacementToken,
+      directory_dev: String(replacementStat.dev),
+      directory_ino: String(replacementStat.ino),
+    })}\n`);
+    let cleanupSwapped = false;
+    const replacementStore = new receiptModule.ReceiptsStore(replacementDir, {
+      shardSpan: 10_000,
+    });
+    let replacementAppendSettled = false;
+    const replacementAppend = replacementStore.appendMany([{
+        h: "5".repeat(64),
+        n: 9,
+        o: 0,
+        ts: followerBlock0.timestamp,
+      }], {
+        testHooksV1: {
+          beforeObservedLockCleanup: (claimPath) => {
+            if (cleanupSwapped) return;
+            fs.renameSync(claimPath, `${claimPath}.stale-generation`);
+            fs.writeFileSync(claimPath, liveReplacement, { flag: "wx", mode: 0o600 });
+            cleanupSwapped = true;
+          },
+        },
+      }).finally(() => { replacementAppendSettled = true; });
+    const cleanupSwapDeadline = Date.now() + 10_000;
+    while (!cleanupSwapped && Date.now() < cleanupSwapDeadline) {
+      await new Promise((resolve) => setTimeout(resolve, 5));
+    }
+    assert(cleanupSwapped, "claim cleanup replacement adversary did not execute");
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    assert(
+      replacementAppendSettled === false,
+      "foreign live replacement claim lost append authority",
+    );
+    assert(
+      fs.readFileSync(replacementClaimPath).equals(liveReplacement),
+      "generation-safe cleanup deleted or changed the foreign live replacement claim",
+    );
+    fs.unlinkSync(replacementClaimPath);
+    await replacementAppend;
+  } finally {
+    fs.rmSync(receiptLockAuthorityRoot, { recursive: true, force: true });
+  }
+  pass("receipt append claims bind exact directory and process generations");
+
   const receiptConcurrencyRoot = fs.mkdtempSync(
     path.join(os.tmpdir(), "void-follower-receipt-concurrency-v1-"),
   );
@@ -1072,18 +1216,23 @@ try {
       const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
       const { ReceiptsStore } = await import(process.env.VOID_RECEIPT_MODULE_URL);
       const store = new ReceiptsStore(process.env.VOID_RECEIPT_DIR, { shardSpan: 10_000 });
-      const hooks = process.env.VOID_RECEIPT_READY_PATH ? {
-        afterSnapshot: async () => {
+      const hooks = {
+        ...(process.env.VOID_RECEIPT_READY_PATH ? { afterSnapshot: async () => {
           fs.writeFileSync(process.env.VOID_RECEIPT_READY_PATH, "ready\\n", { flag: "wx" });
           while (!fs.existsSync(process.env.VOID_RECEIPT_RELEASE_PATH)) await sleep(5);
-        },
-      } : undefined;
+        } } : {}),
+        ...(process.env.VOID_RECEIPT_FAIL_RELEASE_CLEANUP === "1" ? {
+          beforeLockClaimCleanup: () => {
+            throw new Error("injected receipt lock release cleanup failure");
+          },
+        } : {}),
+      };
       await store.appendMany([JSON.parse(process.env.VOID_RECEIPT_RECORD)], {
         testHooksV1: hooks,
       });
       console.log("writer_done=true");
     `;
-    const spawnReceiptWriter = (receipt, hold = false) => {
+    const spawnReceiptWriter = (receipt, hold = false, failReleaseCleanup = false) => {
       const child = childProcess.spawn(
         process.execPath,
         ["--input-type=module", "-e", writerSource],
@@ -1096,6 +1245,9 @@ try {
             ...(hold ? {
               VOID_RECEIPT_READY_PATH: readyPath,
               VOID_RECEIPT_RELEASE_PATH: releasePath,
+            } : {}),
+            ...(failReleaseCleanup ? {
+              VOID_RECEIPT_FAIL_RELEASE_CLEANUP: "1",
             } : {}),
           },
           stdio: ["ignore", "pipe", "pipe"],
@@ -1169,10 +1321,110 @@ try {
         concurrentHits.get(receiptB.h)?.found === true,
       "cross-process replacement silently lost one successful receipt",
     );
+
+    const ownerDeathDir = path.join(receiptConcurrencyRoot, "owner-death");
+    const ownerDeathReady = path.join(receiptConcurrencyRoot, "owner-death.ready");
+    const ownerDeathRelease = path.join(receiptConcurrencyRoot, "owner-death.release");
+    const spawnOwnerDeathWriter = (receipt) => {
+      const child = childProcess.spawn(
+        process.execPath,
+        ["--input-type=module", "-e", writerSource],
+        {
+          env: {
+            ...process.env,
+            VOID_RECEIPT_MODULE_URL: moduleUrl,
+            VOID_RECEIPT_DIR: ownerDeathDir,
+            VOID_RECEIPT_RECORD: JSON.stringify(receipt),
+            VOID_RECEIPT_READY_PATH: ownerDeathReady,
+            VOID_RECEIPT_RELEASE_PATH: ownerDeathRelease,
+          },
+          stdio: ["ignore", "pipe", "pipe"],
+        },
+      );
+      return { child, settled: once(child, "exit") };
+    };
+    const deadOwnerReceipt = {
+      h: "f".repeat(64),
+      n: 5,
+      o: 0,
+      ts: followerBlock0.timestamp,
+    };
+    const recoveredOwnerReceipt = {
+      h: "1".repeat(64),
+      n: 6,
+      o: 0,
+      ts: followerBlock0.timestamp,
+    };
+    const deadOwner = spawnOwnerDeathWriter(deadOwnerReceipt);
+    const ownerDeathDeadline = Date.now() + 10_000;
+    while (!fs.existsSync(ownerDeathReady) && Date.now() < ownerDeathDeadline) {
+      await new Promise((resolve) => setTimeout(resolve, 5));
+    }
+    assert(fs.existsSync(ownerDeathReady), "dead-owner fixture did not publish its claim");
+    deadOwner.child.kill("SIGKILL");
+    await deadOwner.settled;
+    const ownerRecoveryStore = new receiptModule.ReceiptsStore(ownerDeathDir, {
+      shardSpan: 10_000,
+    });
+    await ownerRecoveryStore.appendMany([recoveredOwnerReceipt]);
+    assert(
+      (await ownerRecoveryStore.getMany([recoveredOwnerReceipt.h])).get(recoveredOwnerReceipt.h)?.found === true,
+      "dead exact process-instance claim permanently wedged receipt append",
+    );
+
+    const releaseFailureDir = path.join(receiptConcurrencyRoot, "release-failure");
+    const releaseFailureA = {
+      h: "2".repeat(64),
+      n: 7,
+      o: 0,
+      ts: followerBlock0.timestamp,
+    };
+    const releaseFailureB = {
+      h: "3".repeat(64),
+      n: 8,
+      o: 0,
+      ts: followerBlock0.timestamp,
+    };
+    const releaseWriter = childProcess.spawn(
+      process.execPath,
+      ["--input-type=module", "-e", writerSource],
+      {
+        env: {
+          ...process.env,
+          VOID_RECEIPT_MODULE_URL: moduleUrl,
+          VOID_RECEIPT_DIR: releaseFailureDir,
+          VOID_RECEIPT_RECORD: JSON.stringify(releaseFailureA),
+          VOID_RECEIPT_FAIL_RELEASE_CLEANUP: "1",
+        },
+        stdio: ["ignore", "pipe", "pipe"],
+      },
+    );
+    let releaseStdout = "";
+    let releaseStderr = "";
+    releaseWriter.stdout.on("data", (chunk) => { releaseStdout += chunk; });
+    releaseWriter.stderr.on("data", (chunk) => { releaseStderr += chunk; });
+    const [releaseCode, releaseSignal] = await once(releaseWriter, "exit");
+    assert(
+      releaseCode === 0 && releaseSignal === null && /writer_done=true/.test(releaseStdout),
+      `release-failure writer failed: ${releaseStderr || releaseStdout}`,
+    );
+    const releaseRecoveryStore = new receiptModule.ReceiptsStore(releaseFailureDir, {
+      shardSpan: 10_000,
+    });
+    await releaseRecoveryStore.appendMany([releaseFailureB]);
+    const releaseHits = await releaseRecoveryStore.getMany([
+      releaseFailureA.h,
+      releaseFailureB.h,
+    ]);
+    assert(
+      releaseHits.get(releaseFailureA.h)?.found === true &&
+        releaseHits.get(releaseFailureB.h)?.found === true,
+      "durable logical release witness lost or wedged a receipt",
+    );
   } finally {
     fs.rmSync(receiptConcurrencyRoot, { recursive: true, force: true });
   }
-  pass("cross-process receipt append authority prevents replacement lost updates");
+  pass("cross-process receipt authority survives owner death and release cleanup failure");
 
   const receiptHistoryRoot = fs.mkdtempSync(
     path.join(os.tmpdir(), "void-follower-receipt-history-v1-"),
@@ -1717,4 +1969,8 @@ console.log("follower_receipt_descriptor_generation_bound=true");
 console.log("follower_receipt_directory_generation_bound=true");
 console.log("follower_receipt_exact_json_types=true");
 console.log("follower_receipt_cross_process_atomic=true");
+console.log("follower_receipt_lock_directory_generation_bound=true");
+console.log("follower_receipt_lock_process_instance_bound=true");
+console.log("follower_receipt_lock_release_recoverable=true");
+console.log("follower_receipt_lock_cleanup_generation_bound=true");
 console.log("follower_rejected_response_body_released=true");
