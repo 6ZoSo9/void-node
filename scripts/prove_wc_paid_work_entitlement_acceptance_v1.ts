@@ -221,6 +221,180 @@ try {
     }
   }
 
+  const assertSignedAuthorityRejected = async (
+    label: string,
+    mutateCore: (
+      reviewCore: Record<string, any>,
+      entitlementCore: Record<string, any>,
+    ) => void,
+    expectedCode: string,
+    mutateSigned?: (
+      hostileReview: Record<string, any>,
+      hostileEntitlement: Record<string, any>,
+    ) => void,
+  ): Promise<void> => {
+    const caseRoot = fs.mkdtempSync(
+      path.join(os.tmpdir(), `void-wc-paid-work-${label}-`),
+    );
+    try {
+      const reviewCore = paidWorkUnsignedCore(review);
+      const entitlementCore = paidWorkUnsignedCore(entitlement);
+      mutateCore(reviewCore, entitlementCore);
+      const hostileReview = signRecord(
+        reviewCore,
+        privateKey,
+        serviceFingerprint,
+      );
+      const hostileEntitlement = signRecord(
+        entitlementCore,
+        privateKey,
+        serviceFingerprint,
+      );
+      mutateSigned?.(hostileReview, hostileEntitlement);
+
+      const hostileReviewRaw =
+        JSON.stringify(hostileReview, null, 2) + "\n";
+      const hostileEntitlementRaw =
+        JSON.stringify(hostileEntitlement, null, 2) + "\n";
+      const hostileAuthority = {
+        reviewRaw: hostileReviewRaw,
+        entitlementRaw: hostileEntitlementRaw,
+        servicePublicKeyPem: publicKeyPem,
+      };
+      const hostileOptions = {
+        ...options,
+        dataDir: caseRoot,
+        expectedReviewSha256: sha256(hostileReviewRaw),
+        expectedEntitlementSha256: sha256(hostileEntitlementRaw),
+      };
+
+      for (const apply of [false, true]) {
+        const operation = apply
+          ? () =>
+              acceptPaidWorkEntitlementOnce(hostileAuthority, {
+                ...hostileOptions,
+                apply: true,
+                confirmation:
+                  VOID_WC_PAID_WORK_ENTITLEMENT_ACCEPTANCE_CONFIRMATION,
+              })
+          : () =>
+              inspectPaidWorkEntitlementAcceptance(
+                hostileAuthority,
+                hostileOptions,
+              );
+        await assert.rejects(
+          operation,
+          (error: any) =>
+            error instanceof PaidWorkEntitlementAcceptanceError &&
+            error.code === expectedCode,
+          `${label} was accepted by ${apply ? "apply" : "inspect"}`,
+        );
+      }
+      assert.equal(
+        fs.existsSync(
+          path.join(caseRoot, "wc_v1", "ledger.jsonl"),
+        ),
+        false,
+        `${label} published WC credit`,
+      );
+    } finally {
+      fs.rmSync(caseRoot, { recursive: true, force: true });
+    }
+  };
+
+  for (const target of ["review", "entitlement"] as const) {
+    const canonicalSchema =
+      target === "review"
+        ? "void-agent-paid-work-review-v1"
+        : "void-agent-paid-work-entitlement-v1";
+    const swappedSchema =
+      target === "review"
+        ? "void-agent-paid-work-entitlement-v1"
+        : "void-agent-paid-work-review-v1";
+    const schemaCases: Array<[string, unknown, boolean]> = [
+      ["missing", undefined, true],
+      ["null", null, false],
+      ["wrong", "void-agent-paid-work-unknown-v1", false],
+      ["swapped", swappedSchema, false],
+      ["array", [canonicalSchema], false],
+      ["boolean", true, false],
+    ];
+    for (const [label, value, remove] of schemaCases) {
+      await assertSignedAuthorityRejected(
+        `${target}-schema-${label}`,
+        (reviewCore, entitlementCore) => {
+          const selected =
+            target === "review" ? reviewCore : entitlementCore;
+          if (remove) delete selected.schema;
+          else selected.schema = value;
+        },
+        target === "review"
+          ? "review_schema_invalid"
+          : "entitlement_schema_invalid",
+      );
+    }
+  }
+
+  const signedStringCases: Array<
+    [
+      string,
+      "review" | "entitlement",
+      string,
+      unknown,
+      string,
+    ]
+  > = [
+    ["review-submission", "review", "submission_id", submissionId, "submission_id_required"],
+    ["review-task", "review", "task_id", VOID_WC_PAID_WORK_ENTITLEMENT_ACCEPTANCE_TASK, "paid_work_task_mismatch"],
+    ["review-agent", "review", "agent_id", account, "agent_id_required"],
+    ["review-fingerprint", "review", "agent_key_fingerprint_sha256", agentFingerprint, "agent_key_fingerprint_invalid"],
+    ["review-decision", "review", "decision", "approve", "review_decision_not_approve"],
+    ["review-status", "review", "status", "approved_pilot_wc_entitlement_issued", "review_status_invalid"],
+    ["review-award-type", "review", "award_type", "pilot_wc_entitlement", "review_award_type_invalid"],
+    ["entitlement-submission", "entitlement", "submission_id", submissionId, "entitlement_submission_id_mismatch"],
+    ["entitlement-task", "entitlement", "task_id", VOID_WC_PAID_WORK_ENTITLEMENT_ACCEPTANCE_TASK, "entitlement_task_id_mismatch"],
+    ["entitlement-agent", "entitlement", "agent_id", account, "entitlement_agent_id_mismatch"],
+    ["entitlement-fingerprint", "entitlement", "agent_key_fingerprint_sha256", agentFingerprint, "entitlement_agent_key_fingerprint_mismatch"],
+    ["entitlement-status", "entitlement", "status", "pilot_wc_entitlement_issued", "entitlement_status_invalid"],
+    ["entitlement-award-type", "entitlement", "award_type", "pilot_wc_entitlement", "entitlement_award_type_invalid"],
+  ];
+  for (const [label, target, field, canonical, expectedCode] of signedStringCases) {
+    await assertSignedAuthorityRejected(
+      `${label}-array`,
+      (reviewCore, entitlementCore) => {
+        const selected =
+          target === "review" ? reviewCore : entitlementCore;
+        selected[field] = [canonical];
+      },
+      expectedCode,
+    );
+  }
+
+  for (const target of ["review", "entitlement"] as const) {
+    await assertSignedAuthorityRejected(
+      `${target}-service-fingerprint-array`,
+      () => undefined,
+      `${target}_service_key_fingerprint_mismatch`,
+      (hostileReview, hostileEntitlement) => {
+        const selected =
+          target === "review" ? hostileReview : hostileEntitlement;
+        selected.service_key_fingerprint_sha256 = [serviceFingerprint];
+      },
+    );
+    await assertSignedAuthorityRejected(
+      `${target}-service-signature-array`,
+      () => undefined,
+      `${target}_service_signature_invalid_base64`,
+      (hostileReview, hostileEntitlement) => {
+        const selected =
+          target === "review" ? hostileReview : hostileEntitlement;
+        selected.service_signature_base64 = [
+          selected.service_signature_base64,
+        ];
+      },
+    );
+  }
+
   const dry = await inspectPaidWorkEntitlementAcceptance(authority, options);
   assert.equal(dry.eligible, true);
   assert.equal(dry.duplicate, false);
@@ -365,8 +539,13 @@ try {
   assert.equal(source.includes("req?.body?.delta"), false);
   assert.equal(source.includes("req?.body?.wc_award"), false);
 
+  console.log("signed_review_schema_identity_exact=true");
+  console.log("signed_entitlement_schema_identity_exact=true");
+  console.log("signed_paid_work_string_schema_exact=true");
+  console.log("signed_service_metadata_schema_exact=true");
   console.log("signed_review_award_numeric_schema_exact=true");
   console.log("signed_entitlement_award_numeric_schema_exact=true");
+  console.log("wrong_typed_signed_schema_wc_credit_rows=0");
   console.log("wrong_typed_signed_award_wc_credit_rows=0");
   console.log("VOID_WC_PAID_WORK_ENTITLEMENT_ACCEPTANCE_V1_PROOF_GREEN");
 } finally {

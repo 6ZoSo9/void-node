@@ -969,6 +969,10 @@ export function isVoidWcPaidWorkEntitlementAcceptanceTask(taskRaw: unknown): boo
   return VOID_WC_PAID_WORK_ENTITLEMENT_ACCEPTANCE_TASKS.some((candidate) => candidate === task);
 }
 export const VOID_WC_PAID_WORK_ENTITLEMENT_ACCEPTANCE_AWARD_WC = 3;
+const VOID_WC_PAID_WORK_REVIEW_SCHEMA_V1 =
+  "void-agent-paid-work-review-v1";
+const VOID_WC_PAID_WORK_ENTITLEMENT_SCHEMA_V1 =
+  "void-agent-paid-work-entitlement-v1";
 export const VOID_WC_PAID_WORK_ENTITLEMENT_ACCEPTANCE_CONFIRMATION =
   "wcPaidWorkEntitlementAcceptance";
 
@@ -1044,7 +1048,10 @@ function paidWorkStrictJson(raw: string, label: string): JsonObject {
 }
 
 function paidWorkStrictBase64(value: unknown, label: string): Buffer {
-  const text = String(value || "");
+  if (typeof value !== "string") {
+    paidWorkFail(`${label}_invalid_base64`);
+  }
+  const text = value;
   if (!text || !/^[A-Za-z0-9+/]+={0,2}$/.test(text)) {
     paidWorkFail(`${label}_invalid_base64`);
   }
@@ -1091,10 +1098,12 @@ function verifyPaidWorkServiceRecord(
   expectedFingerprint: string,
   label: string,
 ): void {
-  const recordFingerprint = String(
-    record.service_key_fingerprint_sha256 || "",
-  );
-  if (recordFingerprint !== expectedFingerprint) {
+  const recordFingerprint =
+    record.service_key_fingerprint_sha256;
+  if (
+    typeof recordFingerprint !== "string" ||
+    recordFingerprint !== expectedFingerprint
+  ) {
     paidWorkFail(`${label}_service_key_fingerprint_mismatch`);
   }
 
@@ -1124,11 +1133,11 @@ function verifyPaidWorkServiceRecord(
 }
 
 function paidWorkExpected(
-  actual: unknown,
+  actual: string,
   expected: string | undefined,
   code: string,
 ): void {
-  if (expected !== undefined && String(actual || "") !== expected) {
+  if (expected !== undefined && actual !== expected) {
     paidWorkFail(code);
   }
 }
@@ -1137,20 +1146,48 @@ function paidWorkFalse(value: unknown, code: string): void {
   if (value !== false) paidWorkFail(code);
 }
 
+function paidWorkRequiredString(
+  value: unknown,
+  code: string,
+): string {
+  if (typeof value !== "string" || value.length === 0) {
+    paidWorkFail(code);
+  }
+  return value;
+}
+
+function paidWorkOptionalString(
+  value: unknown,
+  code: string,
+): string | undefined {
+  if (value === undefined) return undefined;
+  if (typeof value !== "string") paidWorkFail(code);
+  return value;
+}
+
 function normalizePaidWorkAuthority(
   authority: PaidWorkEntitlementAuthorityV1,
   options: PaidWorkEntitlementAcceptanceOptionsV1,
 ): JsonObject {
-  if (!authority || typeof authority !== "object") {
+  if (
+    !authority ||
+    typeof authority !== "object" ||
+    Array.isArray(authority)
+  ) {
     paidWorkFail("authority_required");
   }
-  const reviewRaw = String(authority.reviewRaw || "");
-  const entitlementRaw = String(authority.entitlementRaw || "");
-  const servicePublicKeyPem = String(authority.servicePublicKeyPem || "");
-
-  if (!reviewRaw) paidWorkFail("review_raw_required");
-  if (!entitlementRaw) paidWorkFail("entitlement_raw_required");
-  if (!servicePublicKeyPem) paidWorkFail("service_public_key_required");
+  const reviewRaw = paidWorkRequiredString(
+    authority.reviewRaw,
+    "review_raw_required",
+  );
+  const entitlementRaw = paidWorkRequiredString(
+    authority.entitlementRaw,
+    "entitlement_raw_required",
+  );
+  const servicePublicKeyPem = paidWorkRequiredString(
+    authority.servicePublicKeyPem,
+    "service_public_key_required",
+  );
 
   const reviewSha256 = paidWorkSha256Hex(reviewRaw);
   const entitlementSha256 = paidWorkSha256Hex(entitlementRaw);
@@ -1172,6 +1209,16 @@ function normalizePaidWorkAuthority(
     "entitlement",
   );
 
+  if (review.schema !== VOID_WC_PAID_WORK_REVIEW_SCHEMA_V1) {
+    paidWorkFail("review_schema_invalid");
+  }
+  if (
+    entitlement.schema !==
+    VOID_WC_PAID_WORK_ENTITLEMENT_SCHEMA_V1
+  ) {
+    paidWorkFail("entitlement_schema_invalid");
+  }
+
   const serviceFingerprint = paidWorkServiceKeyFingerprint(
     servicePublicKeyPem,
   );
@@ -1188,17 +1235,45 @@ function normalizePaidWorkAuthority(
     "entitlement",
   );
 
-  const submissionId = String(review.submission_id || "");
-  const taskId = String(review.task_id || "");
-  const agentId = String(
-    review.agent_id || entitlement.agent_id || "",
+  const submissionId = paidWorkRequiredString(
+    review.submission_id,
+    "submission_id_required",
   );
-  const agentFingerprint = String(
-    review.agent_key_fingerprint_sha256 || "",
+  const taskId = paidWorkRequiredString(
+    review.task_id,
+    "paid_work_task_mismatch",
+  );
+  const reviewAgentId = paidWorkOptionalString(
+    review.agent_id,
+    "agent_id_required",
+  );
+  const entitlementAgentId = paidWorkOptionalString(
+    entitlement.agent_id,
+    "entitlement_agent_id_mismatch",
+  );
+  const agentId = reviewAgentId || entitlementAgentId || "";
+  const agentFingerprint = paidWorkRequiredString(
+    review.agent_key_fingerprint_sha256,
+    "agent_key_fingerprint_invalid",
+  );
+  const entitlementSubmissionId = paidWorkRequiredString(
+    entitlement.submission_id,
+    "entitlement_submission_id_mismatch",
+  );
+  const entitlementTaskId = paidWorkRequiredString(
+    entitlement.task_id,
+    "entitlement_task_id_mismatch",
+  );
+  const entitlementFingerprint = paidWorkRequiredString(
+    entitlement.agent_key_fingerprint_sha256,
+    "entitlement_agent_key_fingerprint_mismatch",
   );
 
-  if (!submissionId) paidWorkFail("submission_id_required");
-  if (!isVoidWcPaidWorkEntitlementAcceptanceTask(taskId)) {
+  if (
+    !VOID_WC_PAID_WORK_ENTITLEMENT_ACCEPTANCE_TASKS.some(
+      (candidate) => candidate === taskId,
+    )
+  ) {
     paidWorkFail("paid_work_task_mismatch");
   }
   if (!agentId) paidWorkFail("agent_id_required");
@@ -1227,16 +1302,16 @@ function normalizePaidWorkAuthority(
     "expected_agent_key_fingerprint_mismatch",
   );
 
-  if (String(review.decision || "") !== "approve") {
+  if (review.decision !== "approve") {
     paidWorkFail("review_decision_not_approve");
   }
   if (
-    String(review.status || "") !==
+    review.status !==
     "approved_pilot_wc_entitlement_issued"
   ) {
     paidWorkFail("review_status_invalid");
   }
-  if (String(review.award_type || "") !== "pilot_wc_entitlement") {
+  if (review.award_type !== "pilot_wc_entitlement") {
     paidWorkFail("review_award_type_invalid");
   }
   if (
@@ -1256,33 +1331,27 @@ function normalizePaidWorkAuthority(
     "review_void_settlement_performed",
   );
 
-  if (String(entitlement.submission_id || "") !== submissionId) {
+  if (entitlementSubmissionId !== submissionId) {
     paidWorkFail("entitlement_submission_id_mismatch");
   }
-  if (String(entitlement.task_id || "") !== taskId) {
+  if (entitlementTaskId !== taskId) {
     paidWorkFail("entitlement_task_id_mismatch");
   }
   if (
-    entitlement.agent_id !== undefined &&
-    String(entitlement.agent_id || "") !== agentId
+    entitlementAgentId !== undefined &&
+    entitlementAgentId !== agentId
   ) {
     paidWorkFail("entitlement_agent_id_mismatch");
   }
-  if (
-    String(entitlement.agent_key_fingerprint_sha256 || "") !==
-    agentFingerprint
-  ) {
+  if (entitlementFingerprint !== agentFingerprint) {
     paidWorkFail("entitlement_agent_key_fingerprint_mismatch");
   }
-  if (
-    String(entitlement.status || "") !==
-    "pilot_wc_entitlement_issued"
-  ) {
+  if (entitlement.status !== "pilot_wc_entitlement_issued") {
     paidWorkFail("entitlement_status_invalid");
   }
   if (
     entitlement.award_type !== undefined &&
-    String(entitlement.award_type || "") !== "pilot_wc_entitlement"
+    entitlement.award_type !== "pilot_wc_entitlement"
   ) {
     paidWorkFail("entitlement_award_type_invalid");
   }
