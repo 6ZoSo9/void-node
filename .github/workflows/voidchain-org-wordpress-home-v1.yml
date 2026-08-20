@@ -42,7 +42,9 @@ permissions:
   contents: read
 
 concurrency:
-  group: voidchain-org-wordpress-home-v1
+  # Keep production dispatches serialized, while isolating pull-request and
+  # main-push proof evidence so unrelated events cannot cancel a pending run.
+  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.ref }}
   cancel-in-progress: false
 
 jobs:
