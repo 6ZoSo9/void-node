@@ -202,12 +202,15 @@ need(
   "coordinator ticket input-hash binding missing",
 );
 need(
-  moduleText.includes("const earliestAllowed = Number(record.issued_at_ms || 0) - skewMs"),
-  "receipt lower timestamp bound missing",
+  moduleText.includes("const earliestAllowed = issuedAtMs - skewMs") &&
+    moduleText.includes("expiresAtMs + skewMs") &&
+    moduleText.includes("pilot_ticket_numeric_schema_invalid"),
+  "receipt ticket timestamp bounds are not exact-number authoritative",
 );
 need(
-  moduleText.includes("Number(record.expires_at_ms || 0) + skewMs"),
-  "receipt upper ticket-expiry timestamp bound missing",
+  !moduleText.includes("Number(record.issued_at_ms || 0)") &&
+    !moduleText.includes("Number(record.expires_at_ms || 0)"),
+  "durable ticket timestamp schema still uses coercive parsing",
 );
 need(
   moduleText.includes("acquireWcProcessInstanceLockV1"),
@@ -1016,6 +1019,9 @@ for (const marker of [
   "sameIdentityV1(expectedChild, linkedAfter)",
   "sameIdentityV1(expectedParent, parentAfter)",
   "sameIdentityV1(expectedChild, childAfter)",
+  "directoryNamespaceEpochFromStatV1(",
+  "sameNamespaceEpochV1(openedNamespace, namespaceBeforeFsync)",
+  "sameNamespaceEpochV1(openedNamespace, openedNamespaceAfter)",
 ]) {
   need(
     sharedExactDirFsyncBlock.includes(marker),

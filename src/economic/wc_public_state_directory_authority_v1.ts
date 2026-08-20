@@ -8,6 +8,13 @@ export type WcPublicStateDirectoryIdentityV1 = {
   mode: number;
 };
 
+type WcPublicStateDirectoryNamespaceEpochV1 = {
+  dev: string;
+  ino: string;
+  mtime_ns: string;
+  ctime_ns: string;
+};
+
 export type WcPublicStateDirectoryParentFsyncHookV1 =
   | ((
       phase: "before" | "after",
@@ -113,6 +120,32 @@ function sameIdentityV1(
   );
 }
 
+function directoryNamespaceEpochFromStatV1(
+  stat: any,
+): WcPublicStateDirectoryNamespaceEpochV1 {
+  if (!stat.isDirectory()) {
+    throw new Error("wc_public_state_directory_not_authoritative");
+  }
+  return {
+    dev: String(stat.dev),
+    ino: String(stat.ino),
+    mtime_ns: String(stat.mtimeNs),
+    ctime_ns: String(stat.ctimeNs),
+  };
+}
+
+function sameNamespaceEpochV1(
+  a: WcPublicStateDirectoryNamespaceEpochV1,
+  b: WcPublicStateDirectoryNamespaceEpochV1,
+): boolean {
+  return (
+    a.dev === b.dev &&
+    a.ino === b.ino &&
+    a.mtime_ns === b.mtime_ns &&
+    a.ctime_ns === b.ctime_ns
+  );
+}
+
 function isWithinV1(candidate: string, root: string): boolean {
   return candidate === root || candidate.startsWith(root + path.sep);
 }
@@ -180,6 +213,8 @@ function fsyncExactDirectoryLinkV1(
       openedBefore,
       parentRequirePrivate,
     );
+    const openedNamespace =
+      directoryNamespaceEpochFromStatV1(openedBefore);
     if (!sameIdentityV1(expectedParent, openedParent)) {
       throw new Error(parentChanged);
     }
@@ -191,6 +226,14 @@ function fsyncExactDirectoryLinkV1(
       childChanged,
     );
     if (!sameIdentityV1(expectedChild, linkedBefore)) {
+      throw new Error(childChanged);
+    }
+
+    const namespaceBeforeFsync =
+      directoryNamespaceEpochFromStatV1(
+        fs.fstatSync(fd, { bigint: true } as any),
+      );
+    if (!sameNamespaceEpochV1(openedNamespace, namespaceBeforeFsync)) {
       throw new Error(childChanged);
     }
 
@@ -207,6 +250,11 @@ function fsyncExactDirectoryLinkV1(
     );
     if (!sameIdentityV1(openedParent, openedParentAfter)) {
       throw new Error(parentChanged);
+    }
+    const openedNamespaceAfter =
+      directoryNamespaceEpochFromStatV1(openedAfter);
+    if (!sameNamespaceEpochV1(openedNamespace, openedNamespaceAfter)) {
+      throw new Error(childChanged);
     }
 
     const linkedAfter = directoryIdentityAtParentFdV1(

@@ -104,18 +104,21 @@ function capabilityAuditFile(raw?: string): string {
 }
 
 function safeAccount(value: unknown): string {
-  const account = String(value || "").trim();
+  if (typeof value !== "string") return "";
+  const account = value.trim();
   return /^[A-Za-z0-9._:@-]{3,128}$/.test(account) ? account : "";
 }
 
 function safeId(value: unknown, max = 180): string {
-  const id = String(value || "").trim();
+  if (typeof value !== "string") return "";
+  const id = value.trim();
   if (!id || id.length > max || !/^[A-Za-z0-9._:@-]+$/.test(id)) return "";
   return id;
 }
 
 function hex64(value: unknown): string {
-  const candidate = String(value || "").trim().toLowerCase().replace(/^0x/, "");
+  if (typeof value !== "string") return "";
+  const candidate = value.trim().toLowerCase().replace(/^0x/, "");
   return /^[0-9a-f]{64}$/.test(candidate) ? candidate : "";
 }
 
@@ -290,7 +293,8 @@ async function persistedReceiptById(
 ): Promise<JsonObject | null> {
   const found = await lastMatchingJson(
     receiptsFile(raw),
-    (candidate) => String(candidate?.receipt_id || candidate?.id || "") === receiptId,
+    (candidate) =>
+      safeId(candidate?.receipt_id ?? candidate?.id, 180) === receiptId,
   );
   if (found.malformed > 0 && !found.value) fail("receipt_store_malformed");
   return found.value;
@@ -303,8 +307,9 @@ async function persistedCompletedState(
   const found = await lastMatchingJson(
     jobStateFile(raw),
     (candidate) =>
-      String(candidate?.job_id || "") === jobId &&
-      String(candidate?.status || "").toLowerCase() === "completed",
+      safeId(candidate?.job_id, 160) === jobId &&
+      typeof candidate?.status === "string" &&
+      candidate.status.trim().toLowerCase() === "completed",
   );
   if (found.malformed > 0 && !found.value) fail("job_state_store_malformed");
   return found.value;
@@ -317,7 +322,8 @@ async function persistedJob(jobId: string, raw?: string): Promise<JsonObject | n
   for (const file of jobFiles(raw)) {
     const result = await lastMatchingJson(
       file,
-      (candidate) => String(candidate?.job_id || candidate?.id || "") === jobId,
+      (candidate) =>
+        safeId(candidate?.job_id ?? candidate?.id, 160) === jobId,
     );
     malformed += result.malformed;
     if (result.value) found = result.value;
@@ -332,8 +338,11 @@ function normalizeReceipt(receipt: JsonObject): JsonObject {
   const jobId = safeId(receipt?.job_id, 160);
   const receiptId = safeId(receipt?.receipt_id || receipt?.id, 180);
   const datasetId = safeId(receipt?.dataset_id || receipt?.selected_dataset_id, 160);
-  const kind = String(receipt?.kind || "").trim();
-  const status = String(receipt?.status || "").trim().toLowerCase();
+  const kind = typeof receipt?.kind === "string" ? receipt.kind.trim() : "";
+  const status =
+    typeof receipt?.status === "string"
+      ? receipt.status.trim().toLowerCase()
+      : "";
   const inputHash = hex64(receipt?.input_hash);
   const outputHash = hex64(receipt?.output_hash);
   const fetchedInputHash = hex64(receipt?.output?.fetched_input_hash);
@@ -431,7 +440,7 @@ function assertJobTruth(
 
   const jobAccount = safeAccount(job?.account || job?.who || job?.owner);
   const jobId = safeId(job?.job_id || job?.id, 160);
-  const jobKind = String(job?.kind || "").trim();
+  const jobKind = typeof job?.kind === "string" ? job.kind.trim() : "";
   const jobDatasetId = safeId(job?.dataset_id || job?.selected_dataset_id, 160);
 
   if (jobId !== normalized.job_id) fail("job_id_mismatch");

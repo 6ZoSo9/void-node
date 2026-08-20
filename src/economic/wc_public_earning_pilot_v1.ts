@@ -1037,6 +1037,20 @@ function safeHex64(raw: unknown): string {
   return /^[0-9a-f]{64}$/.test(value) ? value : "";
 }
 
+function exactPositiveSafeIntegerV1(
+  raw: unknown,
+  code: string,
+): number {
+  if (
+    typeof raw !== "number" ||
+    !Number.isSafeInteger(raw) ||
+    raw <= 0
+  ) {
+    throw new Error(code);
+  }
+  return raw;
+}
+
 function wcCompatProjectionV1(
   raw: unknown,
 ): number | null {
@@ -1291,7 +1305,11 @@ function ticketCounts(now = Date.now(), raw?: string): {
       if (!name.endsWith(".json")) continue;
       const record = readJson(path.join(dir, name));
       if (!record) continue;
-      if (!isConsumed && Number(record.expires_at_ms || 0) <= now) continue;
+      const expiresAt = exactPositiveSafeIntegerV1(
+        record.expires_at_ms,
+        "pilot_ticket_numeric_schema_invalid",
+      );
+      if (!isConsumed && expiresAt <= now) continue;
       if (isConsumed) consumed += 1;
       else active += 1;
       const account = safeAccount(record.account);
@@ -1724,7 +1742,10 @@ function publicClaimUsage(now = Date.now(), raw?: string): {
     if (!name.endsWith(".json")) continue;
     const record = readJson(path.join(claimsDir(raw), name));
     if (!record || String(record.status || "") !== "issued") continue;
-    const issuedAt = Math.trunc(Number(record.issued_at_ms || 0));
+    const issuedAt = exactPositiveSafeIntegerV1(
+      record.issued_at_ms,
+      "public_claim_numeric_schema_invalid",
+    );
     const account = safeAccount(record.account);
     const executor = safeNodeId(record.executor_node_id);
     if (!issuedAt || !account || !executor) continue;
@@ -2156,8 +2177,7 @@ function assertPublicClaimRecordIdentityV1(
     "fixed_award_wc",
   ]) {
     if (
-      String(record?.[field] ?? "") !==
-      String(expected?.[field] ?? "")
+      record?.[field] !== expected?.[field]
     ) {
       throw new Error(
         "public_claim_recovery_identity_invalid",
@@ -2311,6 +2331,14 @@ function validatePreparedPublicClaimTicketV1(
     );
   }
   const record = recordRaw as PilotTicketRecord;
+  const issuedAtMs = exactPositiveSafeIntegerV1(
+    record.issued_at_ms,
+    "public_claim_recovery_ticket_invalid",
+  );
+  const expiresAtMs = exactPositiveSafeIntegerV1(
+    record.expires_at_ms,
+    "public_claim_recovery_ticket_invalid",
+  );
   if (
     record.marker !==
       VOID_WC_PUBLIC_EARNING_PILOT_MARKER ||
@@ -2335,7 +2363,8 @@ function validatePreparedPublicClaimTicketV1(
     record.max_uses !== 1 ||
     record.issuance_source !==
       "public_claim" ||
-    record.public_claim_id !== claimId
+    record.public_claim_id !== claimId ||
+    expiresAtMs <= issuedAtMs
   ) {
     throw new Error(
       "public_claim_recovery_ticket_invalid",
@@ -2371,8 +2400,7 @@ function assertPublishedPublicClaimTicketV1(
     "public_claim_id",
   ]) {
     if (
-      String(actual?.[field] ?? "") !==
-      String((expected as any)?.[field] ?? "")
+      actual?.[field] !== (expected as any)?.[field]
     ) {
       throw new Error(
         "public_claim_recovery_ticket_mismatch",
@@ -2448,9 +2476,10 @@ async function recoverPublicClaimReplayV1(
     datasetId,
     expectedInputHash,
   );
-  const status = String(
-    existingClaim.status || "",
-  );
+  const status =
+    typeof existingClaim.status === "string"
+      ? existingClaim.status
+      : "";
   if (status === "reserving") {
     return null;
   }
@@ -2463,6 +2492,30 @@ async function recoverPublicClaimReplayV1(
     );
   }
 
+  const reservedAtMs = exactPositiveSafeIntegerV1(
+    existingClaim.reserved_at_ms,
+    "public_claim_numeric_schema_invalid",
+  );
+  const claimExpiresAtMs = exactPositiveSafeIntegerV1(
+    existingClaim.claim_expires_at_ms,
+    "public_claim_numeric_schema_invalid",
+  );
+  const issuedAtMs = exactPositiveSafeIntegerV1(
+    existingClaim.issued_at_ms,
+    "public_claim_numeric_schema_invalid",
+  );
+  const expiresAtMs = exactPositiveSafeIntegerV1(
+    existingClaim.expires_at_ms,
+    "public_claim_numeric_schema_invalid",
+  );
+  if (
+    claimExpiresAtMs <= reservedAtMs ||
+    issuedAtMs !== reservedAtMs ||
+    claimExpiresAtMs !== expiresAtMs
+  ) {
+    throw new Error("public_claim_numeric_schema_invalid");
+  }
+
   const preparedRecord =
     validatePreparedPublicClaimTicketV1(
       existingClaim.ticket_record,
@@ -2472,8 +2525,13 @@ async function recoverPublicClaimReplayV1(
       expectedInputHash,
     );
   if (
-    Number(preparedRecord.expires_at_ms || 0) <=
-    now
+    preparedRecord.issued_at_ms < issuedAtMs ||
+    preparedRecord.expires_at_ms !== expiresAtMs
+  ) {
+    throw new Error("public_claim_numeric_schema_invalid");
+  }
+  if (
+    preparedRecord.expires_at_ms <= now
   ) {
     throw new Error("public_claim_replay");
   }
@@ -2572,11 +2630,7 @@ async function recoverPublicClaimReplayV1(
       const issuedState = {
         ...existingClaim,
         status: "issued",
-        issued_at_ms: Number(
-          existingClaim.issued_at_ms ||
-            existingClaim.reserved_at_ms ||
-            preparedRecord.issued_at_ms,
-        ),
+        issued_at_ms: issuedAtMs,
         recovery_completed_at_ms: now,
       };
       atomicWriteJson(
@@ -2711,15 +2765,15 @@ export async function issuePublicTicketClaim(
     }
 
     const claimStartedAt = existingClaim
-      ? Number(
-          existingClaim.reserved_at_ms || now,
+      ? exactPositiveSafeIntegerV1(
+          existingClaim.reserved_at_ms,
+          "public_claim_numeric_schema_invalid",
         )
       : now;
     const claimExpiresAt = existingClaim
-      ? Number(
-          existingClaim.claim_expires_at_ms ||
-            claimStartedAt +
-              publicClaimTicketTtlMs(),
+      ? exactPositiveSafeIntegerV1(
+          existingClaim.claim_expires_at_ms,
+          "public_claim_numeric_schema_invalid",
         )
       : now + publicClaimTicketTtlMs();
 
@@ -3264,9 +3318,20 @@ export function assertPilotTicketEnvelopeMatch(
 
   const skewMs = receiptTimestampSkewMs();
   const now = Date.now();
-  const earliestAllowed = Number(record.issued_at_ms || 0) - skewMs;
+  const issuedAtMs = exactPositiveSafeIntegerV1(
+    record.issued_at_ms,
+    "pilot_ticket_numeric_schema_invalid",
+  );
+  const expiresAtMs = exactPositiveSafeIntegerV1(
+    record.expires_at_ms,
+    "pilot_ticket_numeric_schema_invalid",
+  );
+  if (expiresAtMs <= issuedAtMs) {
+    throw new Error("pilot_ticket_numeric_schema_invalid");
+  }
+  const earliestAllowed = issuedAtMs - skewMs;
   const latestAllowed = Math.min(
-    Number(record.expires_at_ms || 0) + skewMs,
+    expiresAtMs + skewMs,
     now + skewMs,
   );
   if (envelope.receipt_ts_ms < earliestAllowed) {
@@ -3892,7 +3957,20 @@ async function executeLocalWork(req: any, res: any): Promise<any> {
   const expectedInputHash = safeHex64(ticket.expected_input_hash);
   const ticketId = safeId(ticket.ticket_id, 64);
   const transportMode = ticketTransportMode(ticket);
-  const expiresAt = Number(ticket.expires_at_ms || 0);
+  let expiresAt = 0;
+  try {
+    expiresAt = exactPositiveSafeIntegerV1(
+      ticket.expires_at_ms,
+      "pilot_ticket_numeric_schema_invalid",
+    );
+  } catch (error) {
+    void error;
+    return res.status(400).json({
+      ok: false,
+      marker: VOID_WC_PUBLIC_EARNING_PILOT_MARKER,
+      error: "pilot_ticket_numeric_schema_invalid",
+    });
+  }
 
   const parsedToken = parseToken(token);
   if (!parsedToken || parsedToken.ticketId !== ticketId) {
@@ -4370,7 +4448,11 @@ export async function submitRemoteResult(req: any, res: any): Promise<any> {
     if (!safeHexEqual(record.token_sha256, sha256Hex(parsed.token))) {
       throw new Error("invalid_capability");
     }
-    if (Number(record.expires_at_ms || 0) <= Date.now()) {
+    const expiresAtMs = exactPositiveSafeIntegerV1(
+      record.expires_at_ms,
+      "pilot_ticket_numeric_schema_invalid",
+    );
+    if (expiresAtMs <= Date.now()) {
       throw new Error("capability_expired");
     }
     assertPilotTicketEnvelopeMatch(record, envelope);

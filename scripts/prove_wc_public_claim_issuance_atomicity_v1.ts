@@ -632,6 +632,105 @@ async function main(): Promise<void> {
     true,
   );
 
+  // Crash-recovery journals and their embedded ticket are durability
+  // authority. JSON values that merely stringify like timestamps must HOLD
+  // before any issued ticket is published.
+  for (const [label, mutate] of [
+    [
+      "reserved-string",
+      (claim: Record<string, any>) => {
+        claim.reserved_at_ms = String(claim.reserved_at_ms);
+      },
+    ],
+    [
+      "claim-expiry-array",
+      (claim: Record<string, any>) => {
+        claim.claim_expires_at_ms = [claim.claim_expires_at_ms];
+      },
+    ],
+    [
+      "issued-boolean",
+      (claim: Record<string, any>) => {
+        claim.issued_at_ms = true;
+      },
+    ],
+    [
+      "expiry-object",
+      (claim: Record<string, any>) => {
+        claim.expires_at_ms = { value: claim.expires_at_ms };
+      },
+    ],
+    [
+      "ticket-issued-string",
+      (claim: Record<string, any>) => {
+        claim.ticket_record.issued_at_ms = String(
+          claim.ticket_record.issued_at_ms,
+        );
+      },
+    ],
+    [
+      "ticket-expiry-array",
+      (claim: Record<string, any>) => {
+        claim.ticket_record.expires_at_ms = [
+          claim.ticket_record.expires_at_ms,
+        ];
+      },
+    ],
+  ] as const) {
+    const tmp = fs.mkdtempSync(
+      path.join(
+        os.tmpdir(),
+        `void-public-claim-exact-numeric-${label}-`,
+      ),
+    );
+    configure(tmp, 10);
+    ensureRoot(tmp);
+    await warm(tmp);
+
+    const signing = signer();
+    const request = signed(
+      signing,
+      `exact-numeric-${label}`,
+      crypto
+        .createHash("sha256")
+        .update(`exact-numeric-${label}`)
+        .digest("hex")
+        .slice(0, 32),
+    );
+    pilot.setPilotTransactionFaultForProofV1(
+      "public_claim_after_publishing_journal",
+    );
+    try {
+      await assert.rejects(
+        () => pilot.issuePublicTicketClaim(request, tmp),
+        /VOID_WC_PILOT_PROOF_FAULT_public_claim_after_publishing_journal/,
+      );
+    } finally {
+      pilot.setPilotTransactionFaultForProofV1("");
+    }
+
+    const claimDir = path.join(rootDir(tmp), "public-claims");
+    const claimFile = path.join(claimDir, jsonNames(claimDir)[0]);
+    const claim = readJson(claimFile);
+    mutate(claim);
+    fs.writeFileSync(
+      claimFile,
+      JSON.stringify(claim, null, 2) + "\n",
+      { mode: 0o600 },
+    );
+
+    await assert.rejects(
+      () => pilot.issuePublicTicketClaim(request, tmp),
+      /public_claim_(?:numeric_schema_invalid|recovery_ticket_invalid)/,
+    );
+    assert.equal(
+      jsonNames(path.join(rootDir(tmp), "issued")).length,
+      0,
+      `${label} recovery published an issued ticket`,
+    );
+    fs.rmSync(tmp, { recursive: true, force: true });
+  }
+
 
   // Journaled recovery stays valid after claim-skew expiry while its ticket
   // lifetime remains live.

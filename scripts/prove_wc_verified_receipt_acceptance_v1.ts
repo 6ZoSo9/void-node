@@ -231,6 +231,102 @@ try {
     "timestamp-mismatched receipt produced WC credit",
   );
 
+  // Receipt, job, and completion identity is persisted JSON authority. Values
+  // that stringify like scalar strings must not alias that authority.
+  for (const [label, mutateReceipt, mutateJob, mutateCompleted] of [
+    [
+      "receipt-account-array",
+      (value: any) => { value.account = [value.account]; },
+      null,
+      null,
+    ],
+    [
+      "receipt-hash-array",
+      (value: any) => { value.input_hash = [value.input_hash]; },
+      null,
+      null,
+    ],
+    [
+      "job-id-array",
+      null,
+      (value: any) => { value.job_id = [value.job_id]; },
+      null,
+    ],
+    [
+      "job-kind-object",
+      null,
+      (value: any) => { value.kind = { value: value.kind }; },
+      null,
+    ],
+    [
+      "completed-status-array",
+      null,
+      null,
+      (value: any) => { value.status = [value.status]; },
+    ],
+    [
+      "completed-hash-array",
+      null,
+      null,
+      (value: any) => { value.output_hash = [value.output_hash]; },
+    ],
+  ] as const) {
+    const strictRoot = path.join(tmp, label);
+    const strictReceipt = makeReceipt(
+      `account-${label}`,
+      `job-${label}`,
+      `receipt-${label}`,
+      `dataset-${label}`,
+      "8",
+      "9",
+    );
+    const receiptTruth = structuredClone(strictReceipt);
+    const jobTruth = {
+      job_id: strictReceipt.job_id,
+      account: strictReceipt.account,
+      kind: strictReceipt.kind,
+      status: "queued",
+      dataset_id: strictReceipt.dataset_id,
+    };
+    const completedTruth = {
+      job_id: strictReceipt.job_id,
+      status: "completed",
+      receipt_id: strictReceipt.receipt_id,
+      dataset_id: strictReceipt.dataset_id,
+      input_hash: strictReceipt.input_hash,
+      output_hash: strictReceipt.output_hash,
+      verified: true,
+    };
+    mutateReceipt?.(receiptTruth);
+    mutateJob?.(jobTruth);
+    mutateCompleted?.(completedTruth);
+    append(
+      path.join(strictRoot, "agent_v1", "receipts.jsonl"),
+      receiptTruth,
+    );
+    append(path.join(strictRoot, "agent", "jobs.jsonl"), jobTruth);
+    append(
+      path.join(strictRoot, "agent_v1", "job_state.jsonl"),
+      completedTruth,
+    );
+
+    await assert.rejects(
+      () =>
+        acceptVerifiedReceiptOnce(strictReceipt, {
+          dataDir: strictRoot,
+          expectedAccount: strictReceipt.account,
+          expectedJobId: strictReceipt.job_id,
+          expectedReceiptId: strictReceipt.receipt_id,
+        }),
+      (error: any) => error instanceof VerifiedReceiptAcceptanceError,
+    );
+    assert.equal(
+      fs.existsSync(path.join(strictRoot, "wc_v1", "ledger.jsonl")),
+      false,
+      `${label} persisted truth produced WC credit`,
+    );
+  }
+
   const malformedSafeRoot = path.join(tmp, "malformed-unrelated");
   const malformedSafeAccount = "outside-operator-malformed-safe";
   const malformedSafeJobId = "job_malformed_safe_v1";

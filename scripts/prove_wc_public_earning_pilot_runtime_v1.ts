@@ -3199,6 +3199,47 @@ async function main(): Promise<void> {
       "replacement parent crossed fsync before generation rejection",
     );
 
+    const replacementTarget = `${target}.proof-replacement`;
+    const displacedTarget = `${target}.proof-displaced`;
+    fs.mkdirSync(replacementTarget, { mode: 0o700 });
+    let childSwapRestored = false;
+    assert.throws(
+      () =>
+        stateDirectoryAuthority
+          .ensureWcPublicStateDurableDirectoryV1(
+            target,
+            root,
+            (
+              phase: "before" | "after",
+              _observedParent: string,
+              child: string,
+            ) => {
+              if (
+                phase !== "after" ||
+                path.resolve(child) !== path.resolve(target) ||
+                childSwapRestored
+              ) {
+                return;
+              }
+              fs.renameSync(target, displacedTarget);
+              fs.renameSync(replacementTarget, target);
+              fs.renameSync(target, replacementTarget);
+              fs.renameSync(displacedTarget, target);
+              childSwapRestored = true;
+            },
+          ),
+      /wc_public_state_directory_generation_changed/,
+    );
+    assert.equal(
+      childSwapRestored,
+      true,
+      "child swap-and-restore proof seam did not execute",
+    );
+    fs.rmSync(replacementTarget, {
+      recursive: true,
+      force: true,
+    });
+
     const admitted =
       stateDirectoryAuthority
         .ensureWcPublicStateDurableDirectoryV1(
@@ -3486,6 +3527,9 @@ async function main(): Promise<void> {
   );
   console.log(
     "transient_parent_namespace_swap_cached=false",
+  );
+  console.log(
+    "transient_child_namespace_swap_cached=false",
   );
   console.log(
     "self_attested_no_dataset_credit=false",
