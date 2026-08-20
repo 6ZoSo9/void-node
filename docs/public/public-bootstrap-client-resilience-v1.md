@@ -131,7 +131,7 @@ The adapter:
 - requires JSON and caps responses at 64 MiB by default with a 128 MiB compiled ceiling;
 - fails over across the resolver's qualified seed set;
 - exposes no wallet, signer, validator, treasury, Work Credit, Buy VOID, admin, filesystem, secret, or operator mutation route; and
-- absorbs an identical immediate block-range retry for two seconds, bound to the current peer, so the legacy bounded-pull retry does not double remote bandwidth.
+- defensively absorbs an identical immediate block-range retry for two seconds, bound to the current peer; the current follower accepts a complete requested page without issuing that legacy duplicate request.
 
 The supervisor requests an ephemeral loopback port by default, avoiding collision with unrelated local services.
 
@@ -149,7 +149,13 @@ failure_backoff_max_ms=30000
 pull_timeout_ms=15000
 ```
 
-The environment values remain bounded in source. `VOID_FOLLOWER_PULL_TIMEOUT_MS` accepts only exact integers in `100..120000` and defaults to 15 seconds. The deadline is owned inside `Node.pullOnce()` and is propagated through head probes, range acquisition, and JSON body reads. Cancellation aborts the active fetch before the autostart loop clears `running` and rotates peers; it is not a detached `Promise.race` that can continue importing in the background. A successful pull that remains behind schedules another catch-up pull. Failures, including timeouts, rotate the configured local origins and use bounded exponential backoff.
+The environment values remain bounded in source. `VOID_FOLLOWER_PULL_TIMEOUT_MS` accepts only exact integers in `100..120000` and defaults to 15 seconds. The deadline is owned inside `Node.pullOnce()` and is propagated through head probes, range acquisition, streamed JSON admission, block validation/import, index updates, receipt persistence, hooks, and contiguous-head publication. Cancellation aborts the active fetch and any signal-aware receipt append before the autostart loop clears `running` and rotates peers; the terminal wait also bounds a non-settling persistence implementation without starting later node mutations.
+
+Every follower fetch uses `redirect: error` and verifies that the final response URL exactly equals the requested peer URL. Redirected head or range data therefore cannot cross peer-origin provenance, even when the target would return otherwise valid JSON. Every head response is streamed under a 64-KiB ceiling. Range responses reuse the public client transport's reviewed 128-MiB compiled ceiling. Exact decimal `content-length` values are rejected before reading when oversized, and chunked bodies are cancelled as soon as their accumulated bytes exceed the same limit. JSON parsing occurs only after the complete bounded body has been admitted. Non-success range responses are terminal for that peer attempt: their bodies are cancelled and never enter block validation or import, even if they contain a valid-looking block array.
+
+Range completeness is evaluated against the requested inclusive `from..to` page, not against the peer's potentially much later advertised head. For example, a follower at block 0 with a 250-block pull limit and peer head 1000 accepts one exact response containing blocks 1 through 250, advances through block 250, and begins the next pull at block 251 without repeating the first GET.
+
+A successful pull that remains behind schedules another catch-up pull. Failures, including timeouts, oversized responses, invalid JSON, and non-success range statuses, rotate the configured local origins and use bounded exponential backoff.
 
 The public gateway still rejects `/follower/start` and every mutation route. Autostart occurs inside the new local node process; it is not remotely callable.
 

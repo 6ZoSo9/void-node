@@ -33,24 +33,31 @@ export class ReceiptsStore {
     return path.join(this.dir, `receipts-${String(base).padStart(8, "0")}.jsonl`);
   }
 
-  async appendMany(arr: Receipt[]) {
+  async appendMany(arr: Receipt[], opts: { signal?: AbortSignal } = {}) {
+    opts.signal?.throwIfAborted();
     if (!Array.isArray(arr) || arr.length === 0) return;
     await fs.promises.mkdir(this.dir, { recursive: true });
+    opts.signal?.throwIfAborted();
     const p = this.shardPathFromHead();
-    const lines = arr
+    const normalized = arr
       .map((r) => ({
         h: String(r.h || "").toLowerCase(),
         n: Number(r.n),
         o: Number(r.o),
         ts: Number(r.ts) || Date.now(),
       }))
-      .filter((r) => /^[0-9a-f]{64}$/.test(r.h) && Number.isFinite(r.n) && Number.isFinite(r.o))
-      .map((r) => {
+      .filter((r) => /^[0-9a-f]{64}$/.test(r.h) && Number.isFinite(r.n) && Number.isFinite(r.o));
+    const lines = normalized.map((r) => JSON.stringify(r)).join("\n");
+    if (lines) {
+      await fs.promises.writeFile(p, lines + "\n", {
+        flag: "a",
+        signal: opts.signal,
+      });
+      opts.signal?.throwIfAborted();
+      for (const r of normalized) {
         this.mem.set(r.h, { n: r.n, o: r.o, ts: r.ts, found: true });
-        return JSON.stringify(r);
-      })
-      .join("\n");
-    if (lines) await fs.promises.appendFile(p, lines + "\n");
+      }
+    }
   }
 
   get(hashHex: string) {
@@ -122,4 +129,3 @@ export class ReceiptsStore {
     return { ok: true, keepLast: Math.max(1, Number(keepLast) || 1), removed, kept };
   }
 }
-

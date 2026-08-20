@@ -26,6 +26,16 @@ function assert(condition, message) {
   if (!condition) fail(message);
 }
 
+async function assertRejects(fn, pattern, message) {
+  try {
+    await fn();
+  } catch (error) {
+    assert(pattern.test(String(error?.message || error)), `${message}: ${error?.message || error}`);
+    return;
+  }
+  fail(message);
+}
+
 function pass(message) {
   console.log(`[PASS] ${message}`);
 }
@@ -120,6 +130,89 @@ function createRedirectGateway() {
   });
 }
 
+function createFollowerAdversaryGateway(state) {
+  return http.createServer((req, res) => {
+    const url = new URL(req.url || "/", "http://127.0.0.1");
+    if (state.mode === "redirect_all_302" || state.mode === "redirect_all_307") {
+      state.redirect_source_requests += 1;
+      res.statusCode = Number(state.mode.slice(-3));
+      res.setHeader("location", state.redirect_location);
+      res.end("redirected\n");
+      return;
+    }
+    if (url.pathname === "/blocks/latest/number2.json") {
+      state.head_requests += 1;
+      if (state.mode === "streamed_oversize_head") {
+        res.statusCode = 200;
+        res.setHeader("content-type", "application/json");
+        res.write(`{"padding":"${"x".repeat(70 * 1024)}`);
+        res.end('"}\n');
+        return;
+      }
+      sendJson(req, res, 200, { number: state.head ?? state.block.number });
+      return;
+    }
+    if (url.pathname === "/head") {
+      state.head_fallback_requests += 1;
+      sendJson(req, res, 200, { head: state.head ?? state.block.number });
+      return;
+    }
+    if (url.pathname === "/blocks/range") {
+      state.range_requests += 1;
+      if (state.mode === "declared_oversize_range") {
+        res.statusCode = 200;
+        res.setHeader("content-type", "application/json");
+        res.setHeader("content-length", String(128 * 1024 * 1024 + 1));
+        res.end("[]");
+        return;
+      }
+      if (state.mode === "http_404" || state.mode === "http_500") {
+        sendJson(req, res, Number(state.mode.slice(5)), [state.block]);
+        return;
+      }
+      if (state.mode === "redirect_range_302" || state.mode === "redirect_range_307") {
+        state.redirect_source_requests += 1;
+        res.statusCode = Number(state.mode.slice(-3));
+        res.setHeader("location", state.redirect_location);
+        res.end("redirected\n");
+        return;
+      }
+      sendJson(req, res, 200, state.range_blocks ?? [state.block]);
+      return;
+    }
+    sendJson(req, res, 404, { ok: false, error: "route_not_public" });
+  });
+}
+
+function createFollowerImportFixture(Node, receipts) {
+  const blocks = new Map();
+  const state = {
+    head: -1,
+    block_writes: 0,
+    index_writes: 0,
+    receipt_writes: 0,
+    hook_calls: 0,
+  };
+  const node = Object.create(Node.prototype);
+  node.store = {
+    loadHeadNumber: () => state.head,
+    loadBlock: (number) => blocks.get(number) || null,
+    saveBlock: (block) => {
+      state.block_writes += 1;
+      blocks.set(Number(block.number), block);
+      state.head = Math.max(state.head, Number(block.number));
+    },
+    persistHeadAtomic: (number) => {
+      state.head = Math.max(state.head, Number(number));
+    },
+  };
+  node.txIndex = {
+    putMany: () => { state.index_writes += 1; },
+  };
+  node.receipts = receipts;
+  return { node, state, blocks };
+}
+
 async function runNode(args, env) {
   const child = childProcess.spawn(process.execPath, args, {
     env: { ...process.env, ...env },
@@ -200,6 +293,8 @@ for (const marker of [
   "VOID_FOLLOWER_PULL_TIMEOUT_MS",
   "AbortSignal.timeout",
   "throwIfFollowerPullAbortedV1",
+  'redirect: "error"',
+  "response.url",
   "dns_pinned",
   "redirects_followed: false",
 ]) {
@@ -242,12 +337,35 @@ const stalledGateway = http.createServer((req, res) => {
   req.once("close", release);
   res.once("close", release);
 });
+const followerAdversaryState = {
+  mode: "valid",
+  block: { number: 0 },
+  head: null,
+  range_blocks: null,
+  redirect_location: "",
+  redirect_source_requests: 0,
+  head_requests: 0,
+  head_fallback_requests: 0,
+  range_requests: 0,
+};
+const followerAdversaryGateway = createFollowerAdversaryGateway(followerAdversaryState);
+const followerRedirectTargetState = { requests: 0 };
+const followerRedirectTarget = http.createServer((req, res) => {
+  followerRedirectTargetState.requests += 1;
+  const url = new URL(req.url || "/", "http://127.0.0.1");
+  if (url.pathname === "/blocks/range") sendJson(req, res, 200, [followerAdversaryState.block]);
+  else sendJson(req, res, 200, { number: followerAdversaryState.head ?? followerAdversaryState.block.number });
+});
 const badPort = await listen(badGateway);
 const goodPort = await listen(goodGateway);
 const stalledPort = await listen(stalledGateway);
+const followerAdversaryPort = await listen(followerAdversaryGateway);
+const followerRedirectTargetPort = await listen(followerRedirectTarget);
 const badBase = `http://${LOOPBACK}:${badPort}`;
 const goodBase = `http://${LOOPBACK}:${goodPort}`;
 const stalledBase = `http://${LOOPBACK}:${stalledPort}`;
+const followerAdversaryBase = `http://${LOOPBACK}:${followerAdversaryPort}`;
+const followerRedirectTargetBase = `http://${LOOPBACK}:${followerRedirectTargetPort}`;
 
 let adapter;
 let manifestServer;
@@ -413,8 +531,230 @@ try {
   process.env.VOID_FOLLOWER_PULL_TIMEOUT_MS = "100";
 
   const { Node } = await import("../src/node_core.ts");
+  const {
+    blockHash: followerBlockHash,
+    computeRoots: computeFollowerBlockRoots,
+  } = await import("../src/chain/block.ts");
   const { registerFollowerRoutes } = await import("../src/http/follower_routes.ts");
   const app = { post() {}, get() {} };
+  const followerTx = { hash: "a".repeat(64), body: { proof: "bounded follower import" } };
+  const followerRoots = computeFollowerBlockRoots([followerTx], []);
+  const followerBlock0 = {
+    number: 0,
+    parentHash: "0".repeat(64),
+    timestamp: Date.now(),
+    txRoot: followerRoots.txRoot,
+    blobRoot: followerRoots.blobRoot,
+    txs: [followerTx],
+    blobs: [],
+    proposer: "fixture-proposer",
+    sig: "b".repeat(128),
+  };
+  const followerBlock1 = {
+    ...followerBlock0,
+    number: 1,
+    parentHash: followerBlockHash(followerBlock0),
+    timestamp: followerBlock0.timestamp + 1,
+  };
+
+  const resetAdversary = (mode, block = followerBlock0, options = {}) => {
+    followerAdversaryState.mode = mode;
+    followerAdversaryState.block = block;
+    followerAdversaryState.head = options.head ?? null;
+    followerAdversaryState.range_blocks = options.rangeBlocks ?? null;
+    followerAdversaryState.redirect_location = `${followerRedirectTargetBase}${options.redirectPath ?? "/blocks/latest/number2.json"}`;
+    followerAdversaryState.redirect_source_requests = 0;
+    followerRedirectTargetState.requests = 0;
+    followerAdversaryState.head_requests = 0;
+    followerAdversaryState.head_fallback_requests = 0;
+    followerAdversaryState.range_requests = 0;
+  };
+
+  for (const mode of ["http_404", "http_500"]) {
+    resetAdversary(mode);
+    const fixture = createFollowerImportFixture(Node, {
+      async appendMany() { fixture.state.receipt_writes += 1; },
+    });
+    await assertRejects(
+      () => fixture.node.pullOnce(followerAdversaryBase),
+      /VOID_FOLLOWER_PEER_HTTP_STATUS_V1/,
+      `${mode} range did not fail terminally`,
+    );
+    assert(
+      fixture.state.block_writes === 0 &&
+        fixture.state.index_writes === 0 &&
+        fixture.state.receipt_writes === 0,
+      `${mode} range mutated follower state`,
+    );
+    assert(followerAdversaryState.range_requests === 1, `${mode} range was retried after terminal status`);
+  }
+  pass("non-success range bodies never enter follower validation or import");
+
+  for (const mode of ["redirect_all_302", "redirect_all_307"]) {
+    resetAdversary(mode);
+    const fixture = createFollowerImportFixture(Node, {
+      async appendMany() { fixture.state.receipt_writes += 1; },
+    });
+    const result = await fixture.node.pullOnce(followerAdversaryBase);
+    assert(result.imported === 0, `${mode} imported redirected head data`);
+    assert(
+      fixture.state.block_writes === 0 &&
+        fixture.state.index_writes === 0 &&
+        fixture.state.receipt_writes === 0,
+      `${mode} mutated follower state`,
+    );
+    assert(followerAdversaryState.redirect_source_requests <= 4, `${mode} failover was unbounded`);
+    assert(followerRedirectTargetState.requests === 0, `${mode} reached the redirect target`);
+  }
+
+  resetAdversary("redirect_range_302", followerBlock0, {
+    redirectPath: "/blocks/range?from=0&to=0",
+  });
+  const redirectedRangeFixture = createFollowerImportFixture(Node, {
+    async appendMany() { redirectedRangeFixture.state.receipt_writes += 1; },
+  });
+  const redirectedRangeResult = await redirectedRangeFixture.node.pullOnce(followerAdversaryBase);
+  assert(redirectedRangeResult.imported === 0, "redirected range imported peer data");
+  assert(
+    redirectedRangeFixture.state.block_writes === 0 &&
+      redirectedRangeFixture.state.index_writes === 0 &&
+      redirectedRangeFixture.state.receipt_writes === 0,
+    "redirected range mutated follower state",
+  );
+  assert(followerAdversaryState.redirect_source_requests === 2, "redirected range retry was not bounded");
+  assert(followerRedirectTargetState.requests === 0, "redirected range reached the second origin");
+  pass("redirected head and range responses never cross peer provenance");
+
+  resetAdversary("declared_oversize_range");
+  const declaredOversizeFixture = createFollowerImportFixture(Node, {
+    async appendMany() { declaredOversizeFixture.state.receipt_writes += 1; },
+  });
+  const declaredOversizeResult = await declaredOversizeFixture.node.pullOnce(followerAdversaryBase);
+  assert(declaredOversizeResult.imported === 0, "declared oversized range imported a block");
+  assert(
+    declaredOversizeFixture.state.block_writes === 0 &&
+      declaredOversizeFixture.state.index_writes === 0 &&
+      declaredOversizeFixture.state.receipt_writes === 0,
+    "declared oversized range mutated follower state",
+  );
+  pass("declared oversized range is rejected before JSON buffering");
+
+  resetAdversary("streamed_oversize_head");
+  const streamedOversizeFixture = createFollowerImportFixture(Node, {
+    async appendMany(_records, opts = {}) {
+      opts.signal?.throwIfAborted();
+      streamedOversizeFixture.state.receipt_writes += 1;
+    },
+  });
+  const streamedOversizeResult = await streamedOversizeFixture.node.pullOnce(followerAdversaryBase);
+  assert(streamedOversizeResult.imported === 1, "bounded head fallback did not import valid range");
+  assert(
+    followerAdversaryState.head_requests === 1 &&
+      followerAdversaryState.head_fallback_requests === 1,
+    "streamed oversized head did not fall through exactly once",
+  );
+  assert(
+    streamedOversizeFixture.state.block_writes === 1 &&
+      streamedOversizeFixture.state.index_writes === 1 &&
+      streamedOversizeFixture.state.receipt_writes === 1,
+    "valid bounded range did not complete its import side effects",
+  );
+  pass("streamed oversized head is cancelled before bounded fallback and valid import");
+
+  resetAdversary("valid");
+  let stalledReceiptCalls = 0;
+  const persistenceFixture = createFollowerImportFixture(Node, {
+    appendMany(_records, opts = {}) {
+      stalledReceiptCalls += 1;
+      return new Promise((_resolve, reject) => {
+        opts.signal?.addEventListener("abort", () => reject(opts.signal.reason), { once: true });
+      });
+    },
+  });
+  const persistenceStartedAt = Date.now();
+  await assertRejects(
+    () => persistenceFixture.node.pullOnce(followerAdversaryBase),
+    /Timeout|abort/i,
+    "stalled receipt persistence outlived the pull deadline",
+  );
+  assert(Date.now() - persistenceStartedAt < 1000, "stalled persistence did not settle promptly");
+  const mutationsAtTimeout =
+    persistenceFixture.state.block_writes +
+    persistenceFixture.state.index_writes +
+    persistenceFixture.state.receipt_writes;
+  await new Promise((resolve) => setTimeout(resolve, 150));
+  assert(
+    persistenceFixture.state.block_writes +
+      persistenceFixture.state.index_writes +
+      persistenceFixture.state.receipt_writes === mutationsAtTimeout,
+    "timed-out persistence produced a late mutation",
+  );
+  assert(stalledReceiptCalls === 1, "stalled persistence was retried or overlapped");
+
+  resetAdversary("valid", followerBlock1);
+  persistenceFixture.node.receipts = {
+    async appendMany(_records, opts = {}) {
+      opts.signal?.throwIfAborted();
+      persistenceFixture.state.receipt_writes += 1;
+    },
+  };
+  const postTimeoutProgress = await persistenceFixture.node.pullOnce(followerAdversaryBase);
+  assert(
+    postTimeoutProgress.imported === 1 && persistenceFixture.state.head === 1,
+    "next peer attempt did not progress after terminal persistence timeout",
+  );
+  pass("pull deadline owns receipt persistence and releases the next import attempt");
+
+  const emptyFollowerRoots = computeFollowerBlockRoots([], []);
+  const followerPartialBlocks = [];
+  let partialParent = followerBlock0;
+  for (let number = 1; number <= 250; number += 1) {
+    const block = {
+      ...followerBlock0,
+      number,
+      parentHash: followerBlockHash(partialParent),
+      timestamp: followerBlock0.timestamp + number,
+      txRoot: emptyFollowerRoots.txRoot,
+      blobRoot: emptyFollowerRoots.blobRoot,
+      txs: [],
+    };
+    followerPartialBlocks.push(block);
+    partialParent = block;
+  }
+  process.env.VOID_FOLLOWER_PULL_TIMEOUT_MS = "5000";
+  process.env.VOID_FOLLOWER_PULL_LIMIT = "250";
+  resetAdversary("valid", followerPartialBlocks[0], {
+    head: 1000,
+    rangeBlocks: followerPartialBlocks,
+  });
+  const partialFixture = createFollowerImportFixture(Node, { async appendMany() {} });
+  partialFixture.blocks.set(0, followerBlock0);
+  partialFixture.state.head = 0;
+  const partialResult = await partialFixture.node.pullOnce(followerAdversaryBase);
+  assert(partialResult.imported === 250, "complete bounded page did not import through requested end");
+  assert(partialResult.advancedHead === 250, "complete bounded page did not advance to block 250");
+  assert(partialResult.retried === false, "complete bounded page was falsely retried");
+  assert(followerAdversaryState.range_requests === 1, "complete bounded page issued duplicate GETs");
+
+  const followerBlock251 = {
+    ...followerPartialBlocks[249],
+    number: 251,
+    parentHash: followerBlockHash(followerPartialBlocks[249]),
+    timestamp: followerBlock0.timestamp + 251,
+  };
+  resetAdversary("valid", followerBlock251, {
+    head: 251,
+    rangeBlocks: [followerBlock251],
+  });
+  const continuedResult = await partialFixture.node.pullOnce(followerAdversaryBase);
+  assert(
+    continuedResult.imported === 1 && continuedResult.advancedHead === 251,
+    "later pull did not continue from block 251",
+  );
+  assert(followerAdversaryState.range_requests === 1, "continued page issued duplicate GETs");
+  process.env.VOID_FOLLOWER_PULL_TIMEOUT_MS = "100";
+  pass("complete partial catch-up pages advance once and later pulls continue at the next block");
+
   const failoverNode = Object.create(Node.prototype);
   failoverNode.store = { loadHeadNumber: () => 2000 };
   const pullOnceV1 = Node.prototype.pullOnce;
@@ -487,6 +827,8 @@ try {
   await close(badGateway);
   await close(goodGateway);
   await close(stalledGateway);
+  await close(followerAdversaryGateway);
+  await close(followerRedirectTarget);
   removeFixture(LOCAL_HOLD_PATH);
   removeFixture(LOCAL_TAMPERED_PATH);
   removeFixture(LOCAL_STABLE_PATH);
@@ -506,3 +848,5 @@ console.log("validator_authority=false");
 console.log("treasury_authority=false");
 console.log("work_credit_authority=false");
 console.log("money_movement_authority=false");
+console.log("follower_redirect_provenance_bound=true");
+console.log("complete_partial_page_single_get=true");

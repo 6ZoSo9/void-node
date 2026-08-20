@@ -130,6 +130,8 @@ function recordPeerHeadProbeFailure(scope: string, err: unknown, meta: Record<st
 const VOID_FOLLOWER_PULL_TIMEOUT_DEFAULT_MS_V1 = 15_000;
 const VOID_FOLLOWER_PULL_TIMEOUT_MIN_MS_V1 = 100;
 const VOID_FOLLOWER_PULL_TIMEOUT_MAX_MS_V1 = 120_000;
+const VOID_FOLLOWER_HEAD_RESPONSE_MAX_BYTES_V1 = 64 * 1024;
+const VOID_FOLLOWER_RANGE_RESPONSE_MAX_BYTES_V1 = 128 * 1024 * 1024;
 
 function voidFollowerPullTimeoutMsV1(): number {
   const raw = process.env.VOID_FOLLOWER_PULL_TIMEOUT_MS;
@@ -154,6 +156,79 @@ function throwIfFollowerPullAbortedV1(signal: AbortSignal): void {
   if (!signal.aborted) return;
   const reason = signal.reason;
   throw reason instanceof Error ? reason : new Error("follower pull aborted");
+}
+
+class VoidFollowerPeerHttpStatusErrorV1 extends Error {
+  constructor(status: number) {
+    super(`VOID_FOLLOWER_PEER_HTTP_STATUS_V1: range request returned HTTP ${status}`);
+    this.name = "VoidFollowerPeerHttpStatusErrorV1";
+  }
+}
+
+async function readFollowerJsonResponseBoundedV1(
+  response: Response,
+  maxBytes: number,
+  signal: AbortSignal,
+): Promise<unknown> {
+  throwIfFollowerPullAbortedV1(signal);
+  const rawLength = String(response.headers.get("content-length") || "").trim();
+  if (rawLength) {
+    if (!/^(0|[1-9][0-9]*)$/.test(rawLength)) {
+      throw new Error("VOID_FOLLOWER_RESPONSE_BOUND_V1: invalid content-length");
+    }
+    const advertised = Number(rawLength);
+    if (!Number.isSafeInteger(advertised) || advertised > maxBytes) {
+      throw new Error(`VOID_FOLLOWER_RESPONSE_BOUND_V1: response exceeds ${maxBytes} bytes`);
+    }
+  }
+
+  if (!response.body) {
+    throw new Error("VOID_FOLLOWER_RESPONSE_BOUND_V1: response body unavailable");
+  }
+
+  const reader = response.body.getReader();
+  const chunks: Buffer[] = [];
+  let total = 0;
+  try {
+    while (true) {
+      throwIfFollowerPullAbortedV1(signal);
+      const { done, value } = await reader.read();
+      throwIfFollowerPullAbortedV1(signal);
+      if (done) break;
+      const chunk = Buffer.from(value);
+      total += chunk.length;
+      if (total > maxBytes) {
+        throw new Error(`VOID_FOLLOWER_RESPONSE_BOUND_V1: response exceeds ${maxBytes} bytes`);
+      }
+      chunks.push(chunk);
+    }
+  } catch (error) {
+    try { await reader.cancel(error); } catch (cancelError) {
+      recordPeerHeadProbeFailure("peer-response-reader-cancel", cancelError);
+    }
+    throwIfFollowerPullAbortedV1(signal);
+    throw error;
+  }
+
+  throwIfFollowerPullAbortedV1(signal);
+  return JSON.parse(Buffer.concat(chunks, total).toString("utf8"));
+}
+
+async function awaitFollowerPullPersistenceV1<T>(
+  operation: Promise<T>,
+  signal: AbortSignal,
+): Promise<T> {
+  throwIfFollowerPullAbortedV1(signal);
+  return await new Promise<T>((resolve, reject) => {
+    const onAbort = () => {
+      const reason = signal.reason;
+      reject(reason instanceof Error ? reason : new Error("follower pull aborted"));
+    };
+    signal.addEventListener("abort", onAbort, { once: true });
+    operation.then(resolve, reject).finally(() => {
+      signal.removeEventListener("abort", onAbort);
+    });
+  });
 }
 
 function recordImportHeadAdvanceBestEffortFailure(scope: string, err: unknown, meta: Record<string, unknown> = {}): void {
@@ -4023,8 +4098,25 @@ attachEphemeralDirectTransportV1(
 
     const fetchPeer = async (url: string): Promise<Response> => {
       throwIfFollowerPullAbortedV1(pullSignal);
+      const requestedUrl = new URL(url).href;
       try {
-        return await fetch(url, { signal: pullSignal });
+        const response = await fetch(requestedUrl, {
+          signal: pullSignal,
+          redirect: "error",
+        });
+        const finalUrl = new URL(response.url).href;
+        if (response.redirected || finalUrl !== requestedUrl) {
+          try { await response.body?.cancel(); } catch (cancelError) {
+            recordPeerHeadProbeFailure("peer-response-provenance-body-cancel", cancelError, {
+              requestedUrl,
+              finalUrl,
+            });
+          }
+          throw new Error(
+            `VOID_FOLLOWER_PEER_RESPONSE_PROVENANCE_V1: expected ${requestedUrl}, received ${finalUrl}`,
+          );
+        }
+        return response;
       } catch (error) {
         throwIfFollowerPullAbortedV1(pullSignal);
         throw error;
@@ -4040,7 +4132,11 @@ attachEphemeralDirectTransportV1(
       try {
         const r: any = await fetchPeer(`${base}/blocks/latest/number2.json`);
         if (r && r.ok) {
-          const j: any = await r.json().catch((error: unknown) => {
+          const j: any = await readFollowerJsonResponseBoundedV1(
+            r,
+            VOID_FOLLOWER_HEAD_RESPONSE_MAX_BYTES_V1,
+            pullSignal,
+          ).catch((error: unknown) => {
             throwIfFollowerPullAbortedV1(pullSignal);
             recordPeerHeadProbeFailure("peer-head-probe-json", error, { peerHttp: base });
             return null;
@@ -4057,7 +4153,11 @@ attachEphemeralDirectTransportV1(
       try {
         const r: any = await fetchPeer(`${base}/head`);
         if (r && r.ok) {
-          const j: any = await r.json().catch((error: unknown) => {
+          const j: any = await readFollowerJsonResponseBoundedV1(
+            r,
+            VOID_FOLLOWER_HEAD_RESPONSE_MAX_BYTES_V1,
+            pullSignal,
+          ).catch((error: unknown) => {
             throwIfFollowerPullAbortedV1(pullSignal);
             recordPeerHeadProbeFailure("peer-head-probe-json", error, { peerHttp: base });
             return null;
@@ -4074,7 +4174,11 @@ attachEphemeralDirectTransportV1(
       try {
         const r: any = await fetchPeer(`${base}/__void/demo/summary.json`);
         if (r && r.ok) {
-          const j: any = await r.json().catch((error: unknown) => {
+          const j: any = await readFollowerJsonResponseBoundedV1(
+            r,
+            VOID_FOLLOWER_HEAD_RESPONSE_MAX_BYTES_V1,
+            pullSignal,
+          ).catch((error: unknown) => {
             throwIfFollowerPullAbortedV1(pullSignal);
             recordPeerHeadProbeFailure("peer-head-probe-json", error, { peerHttp: base });
             return null;
@@ -4091,7 +4195,11 @@ attachEphemeralDirectTransportV1(
       try {
         const r: any = await fetchPeer(`${base}/api/health`);
         if (r && r.ok) {
-          const j: any = await r.json().catch((error: unknown) => {
+          const j: any = await readFollowerJsonResponseBoundedV1(
+            r,
+            VOID_FOLLOWER_HEAD_RESPONSE_MAX_BYTES_V1,
+            pullSignal,
+          ).catch((error: unknown) => {
             throwIfFollowerPullAbortedV1(pullSignal);
             recordPeerHeadProbeFailure("peer-head-probe-json", error, { peerHttp: base });
             return null;
@@ -4125,7 +4233,20 @@ attachEphemeralDirectTransportV1(
         const response = await fetchPeer(
           `${peerHttp}/blocks/range?from=${from}&to=${to}`,
         );
-        const body = await response.json().catch((error: unknown) => {
+        if (!response.ok) {
+          try { await response.body?.cancel(); } catch (cancelError) {
+            recordPeerHeadProbeFailure("peer-range-status-body-cancel", cancelError, {
+              peerHttp,
+              status: response.status,
+            });
+          }
+          throw new VoidFollowerPeerHttpStatusErrorV1(response.status);
+        }
+        const body = await readFollowerJsonResponseBoundedV1(
+          response,
+          VOID_FOLLOWER_RANGE_RESPONSE_MAX_BYTES_V1,
+          pullSignal,
+        ).catch((error: unknown) => {
           throwIfFollowerPullAbortedV1(pullSignal);
           recordPeerHeadProbeFailure("peer-range-json", error, { peerHttp });
           return null;
@@ -4134,6 +4255,7 @@ attachEphemeralDirectTransportV1(
       } catch (error) {
         throwIfFollowerPullAbortedV1(pullSignal);
         recordPeerHeadProbeFailure("peer-range-fetch", error, { peerHttp });
+        if (error instanceof VoidFollowerPeerHttpStatusErrorV1) throw error;
         return [];
       }
     };
@@ -4141,7 +4263,12 @@ attachEphemeralDirectTransportV1(
     let arr: any[] = await fetchRange();
     let retried = false;
 
-    if (!Array.isArray(arr) || arr.length === 0 || Number(arr[arr.length - 1]?.number) !== theirHead) {
+    const isCompleteRequestedRange = (blocks: any[]): boolean =>
+      Array.isArray(blocks) &&
+      blocks.length === to - from + 1 &&
+      blocks.every((block, index) => Number(block?.number) === from + index);
+
+    if (!isCompleteRequestedRange(arr)) {
       arr = await fetchRange();
       retried = true;
     }
@@ -4152,6 +4279,7 @@ attachEphemeralDirectTransportV1(
     const importedNums: number[] = [];
 
     const persistHeadIfPossible = (n: number) => {
+      throwIfFollowerPullAbortedV1(pullSignal);
       try {
         const st: any = this.store as any;
         if (!Number.isFinite(n) || n < 0) return;
@@ -4183,6 +4311,7 @@ attachEphemeralDirectTransportV1(
       if (!(Number.isFinite(h) && h >= -1)) h = -1;
       if (!(Number.isFinite(maxN) && maxN >= 0)) return h;
       while (h < maxN) {
+        throwIfFollowerPullAbortedV1(pullSignal);
         const nxt = h + 1;
         let blk: any = null;
         try { blk = this.store.loadBlock(nxt); } catch (err) { recordImportHeadAdvanceBestEffortFailure("advance-contiguous-head-load-block", err, { blockNumber: nxt }); }
@@ -4190,6 +4319,7 @@ attachEphemeralDirectTransportV1(
         h = nxt;
       }
       if (h > startHead) {
+        throwIfFollowerPullAbortedV1(pullSignal);
         persistHeadIfPossible(h);
         try {
           const st: any = this.store as any;
@@ -4203,6 +4333,7 @@ attachEphemeralDirectTransportV1(
     };
 
     for (const b of arr) {
+      throwIfFollowerPullAbortedV1(pullSignal);
       const n = Number(b?.number);
       if (!Number.isFinite(n)) continue;
 
@@ -4232,18 +4363,22 @@ attachEphemeralDirectTransportV1(
           };
         }
 
+        throwIfFollowerPullAbortedV1(pullSignal);
         this.store.saveBlock(b);
+        throwIfFollowerPullAbortedV1(pullSignal);
         imported++;
         importedNums.push(n);
 
         if (incomingHasTxs) {
           try {
+            throwIfFollowerPullAbortedV1(pullSignal);
             const refs = b.txs.map((tx: any, i: number) => ({ h: String(tx.hash).toLowerCase(), n, o: i }));
             this.txIndex.putMany(refs);
           } catch (err) {
             recordSideEffectWriteFailure("peer-import-tx-index", err, { blockNumber: n, txCount: b.txs?.length ?? 0 });
           }
           try {
+            throwIfFollowerPullAbortedV1(pullSignal);
             const anyReceipts: any = this.receipts as any;
             const recs = b.txs.map((tx: any, i: number) => ({
               h: String(tx.hash).toLowerCase(),
@@ -4251,13 +4386,27 @@ attachEphemeralDirectTransportV1(
               o: i,
               ts: b.timestamp ?? Date.now(),
             }));
-            if (typeof anyReceipts.appendMany === "function") await anyReceipts.appendMany(recs);
-            else if (typeof anyReceipts.append === "function") for (const r of recs) await anyReceipts.append(r);
+            if (typeof anyReceipts.appendMany === "function") {
+              await awaitFollowerPullPersistenceV1(
+                Promise.resolve(anyReceipts.appendMany(recs, { signal: pullSignal })),
+                pullSignal,
+              );
+            } else if (typeof anyReceipts.append === "function") {
+              for (const r of recs) {
+                throwIfFollowerPullAbortedV1(pullSignal);
+                await awaitFollowerPullPersistenceV1(
+                  Promise.resolve(anyReceipts.append(r, { signal: pullSignal })),
+                  pullSignal,
+                );
+              }
+            }
+            throwIfFollowerPullAbortedV1(pullSignal);
           } catch (err) {
             recordSideEffectWriteFailure("peer-import-receipts", err, { blockNumber: n, txCount: b.txs?.length ?? 0 });
           }
         }
 
+        throwIfFollowerPullAbortedV1(pullSignal);
         hooks?.onImportBlock?.(b);
         continue;
       }
@@ -4285,17 +4434,21 @@ attachEphemeralDirectTransportV1(
         }
 
         const merged = { ...existing, ...b, txs: b.txs };
+        throwIfFollowerPullAbortedV1(pullSignal);
         this.store.saveBlock(merged);
+        throwIfFollowerPullAbortedV1(pullSignal);
         filled++;
         importedNums.push(n);
 
         try {
+          throwIfFollowerPullAbortedV1(pullSignal);
           const refs = b.txs.map((tx: any, i: number) => ({ h: String(tx.hash).toLowerCase(), n, o: i }));
           this.txIndex.putMany(refs);
         } catch (err) {
           recordSideEffectWriteFailure("peer-import-tx-index", err, { blockNumber: n, txCount: b.txs?.length ?? 0 });
         }
         try {
+          throwIfFollowerPullAbortedV1(pullSignal);
           const anyReceipts: any = this.receipts as any;
           const recs = b.txs.map((tx: any, i: number) => ({
             h: String(tx.hash).toLowerCase(),
@@ -4303,12 +4456,26 @@ attachEphemeralDirectTransportV1(
             o: i,
             ts: b.timestamp ?? Date.now(),
           }));
-          if (typeof anyReceipts.appendMany === "function") await anyReceipts.appendMany(recs);
-          else if (typeof anyReceipts.append === "function") for (const r of recs) await anyReceipts.append(r);
+          if (typeof anyReceipts.appendMany === "function") {
+            await awaitFollowerPullPersistenceV1(
+              Promise.resolve(anyReceipts.appendMany(recs, { signal: pullSignal })),
+              pullSignal,
+            );
+          } else if (typeof anyReceipts.append === "function") {
+            for (const r of recs) {
+              throwIfFollowerPullAbortedV1(pullSignal);
+              await awaitFollowerPullPersistenceV1(
+                Promise.resolve(anyReceipts.append(r, { signal: pullSignal })),
+                pullSignal,
+              );
+            }
+          }
+          throwIfFollowerPullAbortedV1(pullSignal);
         } catch (err) {
           recordSideEffectWriteFailure("peer-import-receipts", err, { blockNumber: n, txCount: b.txs?.length ?? 0 });
         }
 
+        throwIfFollowerPullAbortedV1(pullSignal);
         hooks?.onImportBlock?.(b);
         continue;
       }

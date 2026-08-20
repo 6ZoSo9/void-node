@@ -12,12 +12,16 @@ on:
       - "scripts/prove_void_public_seed_numeric_evidence_v1.mjs"
       - "scripts/prove_void_public_bootstrap_client_closed_response_v1.mjs"
       - "scripts/prove_void_public_seed_tls_servername_v1.mjs"
+      - "scripts/ci_diff_hygiene_v1.sh"
+      - "scripts/prove_ci_diff_hygiene_v1.mjs"
       - "scripts/lib/void_public_seed_client_transport_v1.mjs"
       - "scripts/lib/void_public_seed_qualification_v1.mjs"
       - "scripts/lib/void_public_seed_common_v1.mjs"
       - "scripts/lib/void_public_seed_probe_v1.mjs"
       - "scripts/lib/void_public_seed_receipt_v1.mjs"
       - "src/http/follower_routes.ts"
+      - "src/node_core.ts"
+      - "src/chain/receipts.ts"
       - "tools/void-public-seed-client-adapter-v1.mjs"
       - "docs/public/public-bootstrap-client-resilience-v1.md"
   push:
@@ -32,12 +36,16 @@ on:
       - "scripts/prove_void_public_seed_numeric_evidence_v1.mjs"
       - "scripts/prove_void_public_bootstrap_client_closed_response_v1.mjs"
       - "scripts/prove_void_public_seed_tls_servername_v1.mjs"
+      - "scripts/ci_diff_hygiene_v1.sh"
+      - "scripts/prove_ci_diff_hygiene_v1.mjs"
       - "scripts/lib/void_public_seed_client_transport_v1.mjs"
       - "scripts/lib/void_public_seed_qualification_v1.mjs"
       - "scripts/lib/void_public_seed_common_v1.mjs"
       - "scripts/lib/void_public_seed_probe_v1.mjs"
       - "scripts/lib/void_public_seed_receipt_v1.mjs"
       - "src/http/follower_routes.ts"
+      - "src/node_core.ts"
+      - "src/chain/receipts.ts"
       - "tools/void-public-seed-client-adapter-v1.mjs"
       - "docs/public/public-bootstrap-client-resilience-v1.md"
   workflow_dispatch:
@@ -61,6 +69,7 @@ jobs:
       - name: Checkout exact source
         uses: actions/checkout@v6
         with:
+          fetch-depth: 1
           persist-credentials: false
 
       - name: Use supported Node.js major
@@ -90,6 +99,7 @@ jobs:
       - name: Checkout exact source
         uses: actions/checkout@v6
         with:
+          fetch-depth: 1
           persist-credentials: false
 
       - name: Use Node.js 24 LTS
@@ -106,6 +116,9 @@ jobs:
       - name: Build runtime artifacts
         run: npm run build
 
+      - name: Prove shallow committed-range diff hygiene contract
+        run: node scripts/prove_ci_diff_hygiene_v1.mjs
+
       - name: Prove public bootstrap client resilience
         run: |
           npx --no-install tsx scripts/prove_void_public_bootstrap_client_resilience_v1.mjs
@@ -119,3 +132,15 @@ jobs:
           grep -F 'VOID_FOLLOWER_CATCHUP_PULL_LIMIT' dist/http/follower_routes.js
           grep -F 'VOID_FOLLOWER_PULL_TIMEOUT_MS' dist/node_core.js
           grep -F 'AbortSignal.timeout' dist/node_core.js
+          grep -F 'VOID_FOLLOWER_RESPONSE_BOUND_V1' dist/node_core.js
+
+      - name: Diff hygiene across committed change range
+        env:
+          CI_DIFF_EVENT_NAME: ${{ github.event_name }}
+          CI_DIFF_PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          CI_DIFF_PUSH_BEFORE_SHA: ${{ github.event.before }}
+          CI_DIFF_CURRENT_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+          CI_DIFF_CHECKOUT_SHA: ${{ github.sha }}
+          CI_DIFF_BASE_REMOTE: ${{ github.server_url }}/${{ github.repository }}.git
+          CI_DIFF_HEAD_REMOTE: ${{ github.server_url }}/${{ github.event.pull_request.head.repo.full_name || github.repository }}.git
+        run: bash scripts/ci_diff_hygiene_v1.sh
