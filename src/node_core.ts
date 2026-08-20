@@ -4040,7 +4040,7 @@ attachEphemeralDirectTransportV1(
       try {
         const r: any = await fetchPeer(`${base}/blocks/latest/number2.json`);
         if (r && r.ok) {
-          const j: any = await r.json().catch((error) => {
+          const j: any = await r.json().catch((error: unknown) => {
             throwIfFollowerPullAbortedV1(pullSignal);
             recordPeerHeadProbeFailure("peer-head-probe-json", error, { peerHttp: base });
             return null;
@@ -4057,7 +4057,7 @@ attachEphemeralDirectTransportV1(
       try {
         const r: any = await fetchPeer(`${base}/head`);
         if (r && r.ok) {
-          const j: any = await r.json().catch((error) => {
+          const j: any = await r.json().catch((error: unknown) => {
             throwIfFollowerPullAbortedV1(pullSignal);
             recordPeerHeadProbeFailure("peer-head-probe-json", error, { peerHttp: base });
             return null;
@@ -4074,7 +4074,7 @@ attachEphemeralDirectTransportV1(
       try {
         const r: any = await fetchPeer(`${base}/__void/demo/summary.json`);
         if (r && r.ok) {
-          const j: any = await r.json().catch((error) => {
+          const j: any = await r.json().catch((error: unknown) => {
             throwIfFollowerPullAbortedV1(pullSignal);
             recordPeerHeadProbeFailure("peer-head-probe-json", error, { peerHttp: base });
             return null;
@@ -4091,7 +4091,7 @@ attachEphemeralDirectTransportV1(
       try {
         const r: any = await fetchPeer(`${base}/api/health`);
         if (r && r.ok) {
-          const j: any = await r.json().catch((error) => {
+          const j: any = await r.json().catch((error: unknown) => {
             throwIfFollowerPullAbortedV1(pullSignal);
             recordPeerHeadProbeFailure("peer-head-probe-json", error, { peerHttp: base });
             return null;
@@ -4125,7 +4125,7 @@ attachEphemeralDirectTransportV1(
         const response = await fetchPeer(
           `${peerHttp}/blocks/range?from=${from}&to=${to}`,
         );
-        const body = await response.json().catch((error) => {
+        const body = await response.json().catch((error: unknown) => {
           throwIfFollowerPullAbortedV1(pullSignal);
           recordPeerHeadProbeFailure("peer-range-json", error, { peerHttp });
           return null;
