@@ -229,20 +229,20 @@ function parseManifest(value: unknown): SegmentedJsonlManifestV1 {
     m.segment_target_bytes > VOID_SEGMENTED_JSONL_MAX_TARGET_BYTES_V1 ||
     m.max_record_bytes <= 0 ||
     m.max_record_bytes > VOID_SEGMENTED_JSONL_MAX_RECORD_BYTES_V1 ||
-    m.max_record_bytes > m.segment_target_bytes
+    m.max_record_bytes + 1 > m.segment_target_bytes
   ) fail("INVALID_MANIFEST_RANGE", "limits");
   if (!isHex64(m.sealed_root_sha256) || !Array.isArray(m.sealed_segments)) fail("INVALID_MANIFEST_SEALED", "shape");
   const segments: SegmentedJsonlSegmentV1[] = m.sealed_segments.map((s: any, i: number) => {
     if (!s || typeof s !== "object" || Array.isArray(s) || s.id !== i || s.file !== segmentRel(i)) fail("INVALID_SEGMENT", `index=${i}`);
     for (const k of ["id","bytes","records","first_record_index","last_record_index"]) if (!Number.isSafeInteger(s[k]) || s[k] < 0) fail("INVALID_SEGMENT_INTEGER", `${i}:${k}`);
-    if (s.bytes <= 0 || s.records <= 0 || s.last_record_index - s.first_record_index + 1 !== s.records || !isHex64(s.sha256)) fail("INVALID_SEGMENT_RANGE", String(i));
+    if (s.bytes <= 0 || s.bytes > m.segment_target_bytes || s.records <= 0 || s.last_record_index - s.first_record_index + 1 !== s.records || !isHex64(s.sha256)) fail("INVALID_SEGMENT_RANGE", String(i));
     return { id:s.id, file:s.file, bytes:s.bytes, records:s.records, first_record_index:s.first_record_index, last_record_index:s.last_record_index, sha256:s.sha256 };
   });
   const a = m.active;
   if (!a || typeof a !== "object" || Array.isArray(a) || a.file !== ACTIVE) fail("INVALID_ACTIVE", "shape");
   for (const k of ["bytes","records","first_record_index"]) if (!Number.isSafeInteger(a[k]) || a[k] < 0) fail("INVALID_ACTIVE_INTEGER", k);
   if (a.last_record_index !== null && (!Number.isSafeInteger(a.last_record_index) || a.last_record_index < 0)) fail("INVALID_ACTIVE_LAST_INDEX", String(a.last_record_index));
-  if (!isHex64(a.sha256) || (a.records === 0) !== (a.last_record_index === null)) fail("INVALID_ACTIVE_RANGE", "empty-last");
+  if (!isHex64(a.sha256) || a.bytes > m.segment_target_bytes || (a.records === 0) !== (a.last_record_index === null)) fail("INVALID_ACTIVE_RANGE", "empty-last-or-bytes");
   if (a.records > 0 && a.last_record_index - a.first_record_index + 1 !== a.records) fail("INVALID_ACTIVE_RANGE", "count");
   const active: SegmentedJsonlActiveV1 = { file:ACTIVE, bytes:a.bytes, records:a.records, first_record_index:a.first_record_index, last_record_index:a.last_record_index, sha256:a.sha256 };
   const manifest: SegmentedJsonlManifestV1 = { ...m, sealed_segments:segments, active };
@@ -330,7 +330,7 @@ export function buildSegmentedJsonlV1FromFile(sourceInput:string,destinationInpu
   const target=exactSafeInteger(options.segmentTargetBytes,VOID_SEGMENTED_JSONL_DEFAULT_TARGET_BYTES_V1,1024,VOID_SEGMENTED_JSONL_MAX_TARGET_BYTES_V1,"INVALID_SEGMENT_TARGET");
   const max=exactSafeInteger(options.maxRecordBytes,VOID_SEGMENTED_JSONL_DEFAULT_MAX_RECORD_BYTES_V1,1,VOID_SEGMENTED_JSONL_MAX_RECORD_BYTES_V1,"INVALID_MAX_RECORD");
   const generation=exactSafeInteger(options.generation,1,1,Number.MAX_SAFE_INTEGER,"INVALID_GENERATION"), validateJson=options.validateJson !== false;
-  if(max>target) fail("INVALID_MAX_RECORD",String(max));
+  if(max + 1 > target) fail("INVALID_MAX_RECORD",String(max));
   if (fs.existsSync(root)) { const st=fs.lstatSync(root); if(!st.isDirectory()||st.isSymbolicLink()) fail("DESTINATION_NOT_DIRECTORY",root); if(fs.readdirSync(root).length) fail("DESTINATION_NOT_EMPTY",root); }
   else { fs.mkdirSync(root,{mode:0o700}); fsyncDir(path.dirname(root)); }
   ensureDir(path.join(root,SEGMENTS)); fsyncDir(root);
@@ -341,7 +341,7 @@ export function buildSegmentedJsonlV1FromFile(sourceInput:string,destinationInpu
   try {
     const buf=Buffer.allocUnsafe(READ_CHUNK);
     for(;;){ const n=fs.readSync(fd,buf,0,buf.length,null); if(n<=0)break; const data=carry.length?Buffer.concat([carry,buf.subarray(0,n)]):Buffer.from(buf.subarray(0,n)); let from=0;
-      for(let i=0;i<data.length;i++) if(data[i]===0x0a){ const rec=Buffer.from(data.subarray(from,i+1)); validateRecord(rec,max,validateJson,global); if(partBytes>0&&partBytes+rec.length>target) flush(); parts.push(rec); partBytes+=rec.length; partRecords++; global++; from=i+1; }
+      for(let i=0;i<data.length;i++) if(data[i]===0x0a){ const rec=Buffer.from(data.subarray(from,i+1)); validateRecord(rec,max,validateJson,global); if(rec.length>target) fail("RECORD_EXCEEDS_SEGMENT_TARGET",`record=${global}:bytes=${rec.length}:target=${target}`); if(partBytes>0&&partBytes+rec.length>target) flush(); parts.push(rec); partBytes+=rec.length; partRecords++; global++; from=i+1; }
       carry=Buffer.from(data.subarray(from)); if(carry.length>max) fail("RECORD_TOO_LARGE",`record=${global}:partial=${carry.length}:max=${max}`);
     }
     const after=fdGeneration(fd),p1=pathGeneration(source); if(!sameGeneration(before,after)||!p1||!sameGeneration(after,p1)) fail("SOURCE_GENERATION_CHANGED_DURING_BUILD",source);
