@@ -18,6 +18,12 @@ const REVIEWED_FIRST_CONTACT_MANIFEST_FINGERPRINT_SHA256 =
   "ed56951c1bc043911ede167dc2cddbab38af62f069d07638dc1825d7e936f413";
 const REVIEWED_PUBLIC_UTILITY_CATALOG_SHA256 =
   "b67fe641d7ccebdb3e4626245b2895d75dd640789d29aca2544855f3d646daa2";
+const REVIEWED_DISCOVERY_CONTRACT_SHA256 =
+  "9a133f55de2d2556c508e54d74d087c1fe116a814ead9303511de26f354e3caa";
+const REVIEWED_AUTHENTICATION_CONTRACT_SHA256 =
+  "4c35476408ce20796310bbffec16a9500db11209f304c2b470215784e5860435";
+const REVIEWED_CAPABILITIES_CONTRACT_SHA256 =
+  "d8190d10366afe010b9b5186ea0d88128b08868f2430a4cb11a5d0298b68578a";
 const OFFICIAL_NETWORK = {
   name: "VOID Mainnet-0",
   chain_id: 2050,
@@ -641,6 +647,8 @@ function bindingConsistent(manifest, discovery, authenticity) {
     manifest?.network?.name === OFFICIAL_NETWORK.name &&
     manifest?.network?.chain_id === OFFICIAL_NETWORK.chain_id &&
     manifest?.network?.identity === OFFICIAL_NETWORK.identity &&
+    canonicalSha256(discoveryDocument) ===
+      REVIEWED_DISCOVERY_CONTRACT_SHA256 &&
     discoveryDocument?.marker ===
       "VOID_AI_AGENT_WELL_KNOWN_ENTRYPOINT_V1" &&
     discoveryDocument?.protocol === "void-agent-discovery-well-known/1" &&
@@ -661,6 +669,8 @@ function authenticationContractValid(manifest, authentication) {
   const contract = authentication?.body;
   return (
     authentication?.ok === true &&
+    canonicalSha256(contract) ===
+      REVIEWED_AUTHENTICATION_CONTRACT_SHA256 &&
     contract?.marker === "VOID_AI_AGENT_AUTHENTICATION_WELL_KNOWN_V1" &&
     contract?.protocol === "void-agent-authentication-well-known/1" &&
     contract?.contract_published === true &&
@@ -774,6 +784,8 @@ function capabilitiesContractValid(manifest, capabilities) {
   const catalog = capabilities?.body;
   if (
     capabilities?.ok !== true ||
+    canonicalSha256(catalog) !==
+      REVIEWED_CAPABILITIES_CONTRACT_SHA256 ||
     catalog?.marker !== "VOID_AI_AGENT_CAPABILITY_NEGOTIATION_V1" ||
     catalog?.protocol !== "void-agent-capability-negotiation/1" ||
     catalog?.network?.name !== manifest?.network?.name ||
