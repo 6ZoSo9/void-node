@@ -3,6 +3,8 @@
 import assert from "node:assert/strict";
 import fs from "node:fs";
 
+import { proveBtcVoidBoundedStdinV1 } from "./lib/prove_void_btc_void_bounded_stdin_v1.mjs";
+
 import {
   BITCOIN_MAX_MONEY_SATOSHIS_V1,
   VOID_MAX_SUPPLY_ATOMS_V1,
@@ -369,6 +371,12 @@ assert.doesNotMatch(
   /uses:\s+actions\/(?:checkout|setup-node)@v\d+/,
   "workflow must not use mutable Action tags",
 );
+
+await proveBtcVoidBoundedStdinV1({
+  cliPath: "tools/void-btc-void-quote-math-v1.mjs",
+  validInput: JSON.stringify(request()),
+  holdMarker: "VOID_BTC_VOID_QUOTE_MATH_V1_HOLD",
+});
 
 process.stdout.write(
   JSON.stringify({
