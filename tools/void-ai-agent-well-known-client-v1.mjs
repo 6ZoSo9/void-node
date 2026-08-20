@@ -7,6 +7,8 @@ const WELL_KNOWN_PROTOCOL = "void-agent-discovery-well-known/1";
 const CANONICAL_MARKER = "VOID_AI_AGENT_DISCOVERY_CONTRACT_WALL_V1";
 const CANONICAL_PROTOCOL = "void-agent-discovery/1";
 const SAFE_METHODS = new Set(["GET", "HEAD"]);
+const MAX_RESPONSE_BYTES = 262_144;
+const RESPONSE_TIMEOUT_MS = 10_000;
 
 function fail(error, detail = undefined) {
   const output = {
@@ -82,22 +84,96 @@ function sameOriginPath(base, value, label) {
   return resolved;
 }
 
-async function getJson(url, label) {
-  const response = await fetch(url, {
-    method: "GET",
-    redirect: "error",
-    headers: {
-      accept: "application/json",
-      "user-agent": "void-ai-agent-well-known-client-v1",
-    },
-    signal: AbortSignal.timeout(10_000),
-  });
-  if (!response.ok) throw new Error(`${label}_http_${response.status}`);
+async function readBoundedJson(response, label) {
   const contentType = response.headers.get("content-type") ?? "";
-  if (!contentType.toLowerCase().includes("json")) {
+  const mediaType = contentType.split(";", 1)[0].trim().toLowerCase();
+  if (mediaType !== "application/json") {
+    await response.body?.cancel();
     throw new Error(`${label}_content_type_not_json`);
   }
-  return response.json();
+
+  const declaredLength = response.headers.get("content-length");
+  if (declaredLength !== null) {
+    if (!/^(?:0|[1-9][0-9]*)$/.test(declaredLength)) {
+      await response.body?.cancel();
+      throw new Error(`${label}_content_length_invalid`);
+    }
+    const declaredBytes = Number(declaredLength);
+    if (
+      !Number.isSafeInteger(declaredBytes) ||
+      declaredBytes > MAX_RESPONSE_BYTES
+    ) {
+      await response.body?.cancel();
+      throw new Error(
+        `${label}_response_exceeds_${MAX_RESPONSE_BYTES}_bytes`,
+      );
+    }
+  }
+
+  if (response.body === null) {
+    throw new Error(`${label}_response_body_missing`);
+  }
+  const reader = response.body.getReader();
+  const chunks = [];
+  let total = 0;
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      total += value.byteLength;
+      if (total > MAX_RESPONSE_BYTES) {
+        await reader.cancel();
+        throw new Error(
+          `${label}_response_exceeds_${MAX_RESPONSE_BYTES}_bytes`,
+        );
+      }
+      chunks.push(value);
+    }
+  } finally {
+    reader.releaseLock();
+  }
+
+  const bytes = new Uint8Array(total);
+  let offset = 0;
+  for (const chunk of chunks) {
+    bytes.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  let text;
+  try {
+    text = new TextDecoder("utf-8", { fatal: true }).decode(bytes);
+  } catch {
+    throw new Error(`${label}_response_not_utf8`);
+  }
+  try {
+    return JSON.parse(text);
+  } catch {
+    throw new Error(`${label}_response_not_json`);
+  }
+}
+
+async function getJson(url, label) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), RESPONSE_TIMEOUT_MS);
+  try {
+    const response = await fetch(url, {
+      method: "GET",
+      redirect: "error",
+      headers: {
+        accept: "application/json",
+        "user-agent": "void-ai-agent-well-known-client-v1",
+      },
+      signal: controller.signal,
+    });
+    if (!response.ok) throw new Error(`${label}_http_${response.status}`);
+    if (response.url !== url.href) {
+      await response.body?.cancel();
+      throw new Error(`${label}_final_url_mismatch`);
+    }
+    return await readBoundedJson(response, label);
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 function validateWellKnown(base, document) {
