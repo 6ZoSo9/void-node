@@ -19,6 +19,10 @@ const canonicalPath = path.join(
   root,
   "public/public-node/agents/discovery-v1.json",
 );
+const authenticityPath = path.join(
+  root,
+  "public/.well-known/void-network-authenticity.json",
+);
 const clientPath = path.join(
   root,
   "tools/void-ai-agent-well-known-client-v1.mjs",
@@ -32,6 +36,7 @@ for (const file of [
   pointerPath,
   schemaPath,
   canonicalPath,
+  authenticityPath,
   clientPath,
   docPath,
 ]) {
@@ -45,6 +50,9 @@ for (const file of [
 const pointer = JSON.parse(fs.readFileSync(pointerPath, "utf8"));
 const schema = JSON.parse(fs.readFileSync(schemaPath, "utf8"));
 const canonical = JSON.parse(fs.readFileSync(canonicalPath, "utf8"));
+const authenticity = JSON.parse(
+  fs.readFileSync(authenticityPath, "utf8"),
+);
 const client = fs.readFileSync(clientPath, "utf8");
 const doc = fs.readFileSync(docPath, "utf8");
 
@@ -70,6 +78,17 @@ assert.equal(pointer.safety?.send_secrets, false);
 assert.equal(pointer.safety?.send_wallet_material, false);
 assert.equal(pointer.safety?.send_operator_keys, false);
 assert.equal(pointer.safety?.treat_unknown_as, "not_granted");
+assert.equal(
+  pointer.network_authenticity,
+  "/.well-known/void-network-authenticity.json",
+);
+assert.equal(
+  authenticity.marker,
+  "VOID_OFFICIAL_NETWORK_AUTHENTICITY_WELL_KNOWN_V1",
+);
+assert.equal(authenticity.protocol, "void-network-authenticity/1");
+assert.equal(authenticity.network?.chain_id, 2050);
+assert.equal(authenticity.authority?.verification_only, true);
 
 assert.equal(
   canonical.marker,
@@ -116,6 +135,10 @@ assert.match(client, /redirect:\s*"error"/);
 assert.match(client, /sameOriginPath/);
 assert.match(client, /mutation_authority_claim_rejected/);
 assert.match(client, /unknown_authority_must_be_not_granted/);
+assert.match(client, /createPublicKey/);
+assert.match(client, /verifySignature/);
+assert.match(client, /CANONICAL_DISCOVERY_SHA256/);
+assert.match(client, /network_authenticity_url/);
 assert.match(client, /MAX_RESPONSE_BYTES = 262_144/);
 assert.match(client, /RESPONSE_TEARDOWN_TIMEOUT_MS = 250/);
 assert.match(client, /rejectWithTeardown/);
@@ -222,7 +245,35 @@ const server = http.createServer((request, response) => {
   }
   if (request.url === pointer.canonical_discovery) {
     response.setHeader("content-type", "application/json; charset=utf-8");
-    response.end(JSON.stringify(canonical));
+    const servedCanonical = structuredClone(canonical);
+    if (responseMode === "canonical-authority-elevated") {
+      servedCanonical.capabilities[0].authority = "wallet_write";
+    } else if (responseMode === "canonical-safety-unsafe") {
+      servedCanonical.safety.send_secrets = true;
+    } else if (responseMode === "canonical-onboarding-unsafe") {
+      servedCanonical.agent_onboarding.steps[0].method = "POST";
+    }
+    response.end(JSON.stringify(servedCanonical));
+    return;
+  }
+  if (request.url === pointer.network_authenticity) {
+    if (responseMode === "authenticity-missing") {
+      response.statusCode = 404;
+      response.setHeader("content-type", "application/json");
+      response.end("{}");
+      return;
+    }
+    const servedAuthenticity = structuredClone(authenticity);
+    if (responseMode === "authenticity-forged") {
+      const signature = servedAuthenticity.verification.signature_base64;
+      servedAuthenticity.verification.signature_base64 =
+        `${signature[0] === "A" ? "B" : "A"}${signature.slice(1)}`;
+    } else if (responseMode === "authenticity-wrong-key") {
+      servedAuthenticity.verification.key_id =
+        "ed25519:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff";
+    }
+    response.setHeader("content-type", "application/json; charset=utf-8");
+    response.end(JSON.stringify(servedAuthenticity));
     return;
   }
   response.statusCode = 404;
@@ -246,7 +297,7 @@ try {
   assert.equal(ordinary.signal, null);
   assert.equal(ordinary.stderr, "");
   assert.equal(JSON.parse(ordinary.stdout).ok, true);
-  assert.equal(requestCount, 2);
+  assert.equal(requestCount, 3);
 
   for (const mode of ["declared-oversize", "streamed-oversize"]) {
     requestCount = 0;
@@ -290,6 +341,50 @@ try {
     true,
     "stalled rejected response was not terminally closed",
   );
+
+  for (const [mode, detail] of [
+    ["authenticity-missing", "network_authenticity_http_404"],
+    [
+      "authenticity-forged",
+      "network_authenticity_signature_invalid",
+    ],
+    [
+      "authenticity-wrong-key",
+      "network_authenticity_verification_contract_mismatch",
+    ],
+  ]) {
+    requestCount = 0;
+    responseMode = mode;
+    const hostile = await runClient(base);
+    assert.equal(hostile.code, 1, hostile.stdout);
+    const rejection = JSON.parse(hostile.stdout);
+    assert.equal(rejection.detail, detail);
+    assert.equal(
+      requestCount,
+      2,
+      `${mode} reached canonical discovery`,
+    );
+  }
+
+  for (const [mode, detail] of [
+    [
+      "canonical-authority-elevated",
+      "canonical_live_capability_network_discovery_not_read_only",
+    ],
+    ["canonical-safety-unsafe", "canonical_safety_boundary_rejected"],
+    [
+      "canonical-onboarding-unsafe",
+      "canonical_agent_onboarding_fetch_unsafe",
+    ],
+  ]) {
+    requestCount = 0;
+    responseMode = mode;
+    const hostile = await runClient(base);
+    assert.equal(hostile.code, 1, hostile.stdout);
+    const rejection = JSON.parse(hostile.stdout);
+    assert.equal(rejection.detail, detail);
+    assert.equal(requestCount, 3);
+  }
 } finally {
   await new Promise((resolve) => server.close(resolve));
 }
@@ -298,10 +393,13 @@ console.log("VOID_AI_AGENT_WELL_KNOWN_ENTRYPOINT_V1_PROOF_GREEN");
 console.log(`pointer=${path.relative(root, pointerPath)}`);
 console.log(`schema=${path.relative(root, schemaPath)}`);
 console.log(`canonical=${path.relative(root, canonicalPath)}`);
+console.log(`authenticity=${path.relative(root, authenticityPath)}`);
 console.log(`client=${path.relative(root, clientPath)}`);
 console.log(`documentation=${path.relative(root, docPath)}`);
 console.log("bounded_response_adversaries=3");
 console.log("rejected_response_lifetime_owned=true");
+console.log("official_network_authenticity_adversaries=3");
+console.log("canonical_authority_safety_adversaries=3");
 console.log("existing_files_modified=4");
 console.log("runtime_routing_modified=0");
 console.log("validator_lane_modified=0");
