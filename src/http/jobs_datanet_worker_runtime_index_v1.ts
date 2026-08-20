@@ -226,7 +226,15 @@ export class JobsDatanetWorkerRuntimeIndexV1 {
       for (const raw of lines) {
         const line = String(raw || "").trim();
         if (!line) continue;
-        const job = JSON.parse(line);
+        let job: any;
+        try {
+          job = JSON.parse(line);
+        } catch {
+          // VOID_JOBS_DATANET_WORKER_MALFORMED_ROW_SKIP_V1
+          // Preserve legacy fail-soft semantics: one malformed JSONL row must
+          // not discard valid jobs later in the same already-consumed chunk.
+          continue;
+        }
         const jobId = String(job?.job_id || job?.id || "").trim();
         if (!jobId || this.jobsSeen.has(jobId)) continue;
         this.jobsSeen.add(jobId);

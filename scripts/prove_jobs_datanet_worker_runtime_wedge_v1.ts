@@ -149,6 +149,70 @@ try {
     `first=${firstBatch.length} next=${next.jobs.length}`,
   );
 
+  // One malformed newline-terminated row must not abort the already-consumed
+  // chunk and permanently skip a valid row that follows it.
+  const malformedJobsFile = path.join(root, "jobs-malformed.jsonl");
+  const malformedReceiptsFile = path.join(root, "receipts-malformed.jsonl");
+  const malformedJobStateFile = path.join(root, "job-state-malformed.jsonl");
+  fs.writeFileSync(malformedReceiptsFile, "");
+  fs.writeFileSync(malformedJobStateFile, "");
+  const validBefore = JSON.stringify({
+    job_id: "malformed_valid_before",
+    status: "queued",
+    account: "proof",
+    kind: "datanet_publish",
+    input: { plaintext: "before" },
+  });
+  const invalidMiddle = '{"job_id":"malformed_broken",';
+  const validAfter = JSON.stringify({
+    job_id: "malformed_valid_after",
+    status: "queued",
+    account: "proof",
+    kind: "datanet_publish",
+    input: { plaintext: "after" },
+  });
+  const malformedFixture =
+    [validBefore, invalidMiddle, validAfter].join("\n") + "\n";
+  fs.writeFileSync(malformedJobsFile, malformedFixture);
+
+  const malformedIndex = new JobsDatanetWorkerRuntimeIndexV1({
+    maxScanBytesPerTick: 64 * 1024,
+    maxJobsPerTick: 8,
+    maxSyncCompletionRebuildBytes: 1024 * 1024,
+    completionRebuildBackoffMs: 5,
+  });
+  const malformedSnapshot = malformedIndex.scan({
+    jobsFile: malformedJobsFile,
+    receiptsFile: malformedReceiptsFile,
+    jobStateFile: malformedJobStateFile,
+  });
+  const malformedIds = malformedSnapshot.jobs.map((x) => x.jobId);
+  assert(
+    malformedSnapshot.ready === true,
+    "malformed-row-scan-remains-ready",
+    `ready=${malformedSnapshot.ready}`,
+  );
+  assert(
+    malformedSnapshot.scanComplete === true,
+    "malformed-row-same-chunk-consumed",
+    `scan_complete=${malformedSnapshot.scanComplete} bytes=${malformedSnapshot.bytesReadThisTick}`,
+  );
+  assert(
+    malformedIds.includes("malformed_valid_before"),
+    "valid-before-malformed-row-preserved",
+    `jobs=${malformedIds.join(",")}`,
+  );
+  assert(
+    malformedIds.includes("malformed_valid_after"),
+    "valid-after-malformed-row-preserved",
+    `jobs=${malformedIds.join(",")}`,
+  );
+  assert(
+    !malformedIds.includes("malformed_broken"),
+    "malformed-row-not-materialized",
+    `jobs=${malformedIds.join(",")}`,
+  );
+
   const indexSource = readFileSync("src/index.ts", "utf8");
   const workerStart = indexSource.indexOf("  function startWorker(){");
   const workerEnd = indexSource.indexOf("  function mount(){", workerStart);
@@ -208,6 +272,11 @@ try {
     helperSource.includes("maxScanBytesPerTick"),
     "runtime-index-byte-budget-source",
     "maxScanBytesPerTick present",
+  );
+  assert(
+    helperSource.includes("VOID_JOBS_DATANET_WORKER_MALFORMED_ROW_SKIP_V1"),
+    "runtime-index-malformed-row-skip-source",
+    "per-row malformed JSON skip marker present",
   );
 
   const semanticSource = readFileSync(
