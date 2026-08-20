@@ -177,10 +177,18 @@ for (const required of [
   );
 }
 
-function runClient(base) {
+function runClient(base, { directLoopback = false } = {}) {
   return new Promise((resolve, reject) => {
+    const env = { ...process.env };
+    if (directLoopback) {
+      // The managed proof sandbox injects Node's opt-in environment proxy.
+      // Disable that external transport shim so this fixture exercises the
+      // actual local IPv6 socket rather than a configured HTTP proxy.
+      delete env.NODE_USE_ENV_PROXY;
+    }
     const child = spawn(process.execPath, [clientPath, "--base", base], {
       cwd: root,
+      env,
       stdio: ["ignore", "pipe", "pipe"],
     });
     let stdout = "";
@@ -211,7 +219,7 @@ function runClient(base) {
 let responseMode = "normal";
 let requestCount = 0;
 let stalledResponseClosed = false;
-const server = http.createServer((request, response) => {
+function handleRequest(request, response) {
   requestCount += 1;
   response.on("error", () => {});
   if (request.url === "/.well-known/void-agent-discovery.json") {
@@ -279,7 +287,9 @@ const server = http.createServer((request, response) => {
   response.statusCode = 404;
   response.setHeader("content-type", "application/json");
   response.end("{}");
-});
+}
+
+const server = http.createServer(handleRequest);
 
 await new Promise((resolve, reject) => {
   server.once("error", reject);
@@ -389,6 +399,36 @@ try {
   await new Promise((resolve) => server.close(resolve));
 }
 
+const cleartextNonLoopback = await runClient("http://[2001:db8::1]");
+assert.equal(cleartextNonLoopback.code, 1, cleartextNonLoopback.stdout);
+assert.equal(
+  JSON.parse(cleartextNonLoopback.stdout).detail,
+  "base_must_use_https_except_loopback",
+);
+
+const ipv6Server = http.createServer(handleRequest);
+await new Promise((resolve, reject) => {
+  ipv6Server.once("error", reject);
+  ipv6Server.listen(0, "::1", resolve);
+});
+try {
+  const address = ipv6Server.address();
+  assert.ok(address && typeof address === "object");
+  requestCount = 0;
+  responseMode = "normal";
+  const ipv6 = await runClient(
+    `http://[::1]:${address.port}`,
+    { directLoopback: true },
+  );
+  assert.equal(ipv6.code, 0, ipv6.stdout || ipv6.stderr);
+  assert.equal(ipv6.signal, null);
+  assert.equal(ipv6.stderr, "");
+  assert.equal(JSON.parse(ipv6.stdout).ok, true);
+  assert.equal(requestCount, 3);
+} finally {
+  await new Promise((resolve) => ipv6Server.close(resolve));
+}
+
 console.log("VOID_AI_AGENT_WELL_KNOWN_ENTRYPOINT_V1_PROOF_GREEN");
 console.log(`pointer=${path.relative(root, pointerPath)}`);
 console.log(`schema=${path.relative(root, schemaPath)}`);
@@ -400,6 +440,8 @@ console.log("bounded_response_adversaries=3");
 console.log("rejected_response_lifetime_owned=true");
 console.log("official_network_authenticity_adversaries=3");
 console.log("canonical_authority_safety_adversaries=3");
+console.log("ipv6_loopback_three_get_cold_start=true");
+console.log("cleartext_non_loopback_ipv6_rejected=true");
 console.log("existing_files_modified=4");
 console.log("runtime_routing_modified=0");
 console.log("validator_lane_modified=0");

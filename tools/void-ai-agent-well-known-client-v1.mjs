@@ -120,7 +120,8 @@ function normalizeBase(value) {
   const loopback =
     url.hostname === "127.0.0.1" ||
     url.hostname === "localhost" ||
-    url.hostname === "::1";
+    url.hostname === "::1" ||
+    url.hostname === "[::1]";
   if (url.protocol !== "https:" && !loopback) {
     throw new Error("base_must_use_https_except_loopback");
   }

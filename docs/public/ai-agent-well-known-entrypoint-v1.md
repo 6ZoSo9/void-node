@@ -54,6 +54,9 @@ The client rejects cross-origin pointers, redirects, unsigned or forged network
 identity, mutation-authority claims, credential requirements, unsafe methods or
 onboarding, wrong chain identity, malformed JSON, authority-elevated capability
 records, and unknown authority that is not treated as `not_granted`.
+HTTPS is required except for explicit loopback development origins; both
+`127.0.0.1` and bracketed IPv6 `[::1]` use the same bounded three-request
+verification path. Cleartext non-loopback IPv4 and IPv6 remain rejected.
 
 ## Proof
 
