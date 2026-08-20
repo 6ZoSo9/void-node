@@ -90,7 +90,7 @@ async function child(): Promise<void> {
 }
 
 function seed(file: string, row: any): void {
-  fs.mkdirSync(path.dirname(file), { recursive: true });
+  fs.mkdirSync(path.dirname(file), { recursive: true, mode: 0o700 });
   fs.writeFileSync(file, JSON.stringify(row) + "\n", { mode: 0o600 });
 }
 

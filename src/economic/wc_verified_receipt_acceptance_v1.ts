@@ -337,6 +337,7 @@ function normalizeReceipt(receipt: JsonObject): JsonObject {
   const inputHash = hex64(receipt?.input_hash);
   const outputHash = hex64(receipt?.output_hash);
   const fetchedInputHash = hex64(receipt?.output?.fetched_input_hash);
+  const receiptTsMs = receipt?.ts_ms;
 
   if (!account) fail("receipt_account_invalid");
   if (!jobId) fail("receipt_job_id_invalid");
@@ -352,6 +353,14 @@ function normalizeReceipt(receipt: JsonObject): JsonObject {
   if (!fetchedInputHash || fetchedInputHash !== inputHash) {
     fail("verified_input_hash_mismatch");
   }
+  if (
+    typeof receiptTsMs !== "number" ||
+    !Number.isFinite(receiptTsMs) ||
+    !Number.isSafeInteger(receiptTsMs) ||
+    receiptTsMs <= 0
+  ) {
+    fail("receipt_ts_ms_not_exact_positive_safe_integer");
+  }
 
   return {
     account,
@@ -363,7 +372,7 @@ function normalizeReceipt(receipt: JsonObject): JsonObject {
     input_hash: inputHash,
     output_hash: outputHash,
     fetched_input_hash: fetchedInputHash,
-    ts_ms: Number(receipt?.ts_ms || Date.now()),
+    ts_ms: receiptTsMs,
     output: receipt?.output || {},
   };
 }
@@ -404,8 +413,9 @@ function assertReceiptMatch(incoming: JsonObject, persisted: JsonObject): void {
     "input_hash",
     "output_hash",
     "fetched_input_hash",
+    "ts_ms",
   ]) {
-    if (String(incoming[field] || "") !== String(truth[field] || "")) {
+    if (incoming[field] !== truth[field]) {
       fail(`persisted_receipt_${field}_mismatch`);
     }
   }
@@ -541,7 +551,7 @@ function acceptanceEntry(
     kind: "credit",
     account: normalized.account,
     delta: VOID_WC_VERIFIED_RECEIPT_ACCEPTANCE_AWARD_WC,
-    ts_ms: Number(normalized.ts_ms || Date.now()),
+    ts_ms: normalized.ts_ms,
     reason: "verified_receipt_acceptance_v1",
     receipt_kind: VOID_WC_VERIFIED_RECEIPT_ACCEPTANCE_TASK,
     receipt_id: normalized.receipt_id,

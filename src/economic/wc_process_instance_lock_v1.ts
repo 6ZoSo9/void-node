@@ -12,6 +12,8 @@ const LOCK_NAMESPACE_SHARD_HEX_V1 = 3;
 const LOCK_NAMESPACE_MAX_PROBES_V1 = 16;
 const LOCK_PUBLICATION_TEMP_MAX_ENTRIES_V1 = 128;
 const LOCAL_RELEASE_MAX_NAMESPACES_V1 = 256;
+const LOCAL_RELEASE_RETRY_MIN_MS_V1 = 25;
+const LOCAL_RELEASE_RETRY_MAX_MS_V1 = 5_000;
 const ACQUIRE_MAX_RESCANS_V1 = 32;
 const BOOT_ID_FILE_V1 = "/proc/sys/kernel/random/boot_id";
 
@@ -85,11 +87,16 @@ type DirectoryIdentityV1 = {
 type LocalReleaseV1 = {
   generation: number;
   owner: OwnerTupleV1;
+  lock: LockRecordV1;
   namespace_identity: DirectoryIdentityV1;
 };
 
 const localReleaseFallbacksV1 =
   new Map<string, LocalReleaseV1>();
+let localReleaseRetryTimerV1: NodeJS.Timeout | null = null;
+let localReleaseRetryRunningV1 = false;
+let localReleaseRetryDelayMsV1 =
+  LOCAL_RELEASE_RETRY_MIN_MS_V1;
 let lastNamespaceEntriesScannedV1 = 0;
 
 export type WcProcessInstanceLockBeforeRecordReadHookForProofV1 =
@@ -788,12 +795,83 @@ function rememberLocalReleaseV1(
       boot_id: lock.boot_id,
       owner_nonce: lock.owner_nonce,
     },
+    lock: { ...lock },
     namespace_identity: directoryIdentityV1(namespace),
   });
+  localReleaseRetryDelayMsV1 =
+    LOCAL_RELEASE_RETRY_MIN_MS_V1;
+  scheduleLocalReleaseRetryV1();
 }
 
 function clearLocalReleaseV1(namespace: string): void {
   localReleaseFallbacksV1.delete(localReleaseKeyV1(namespace));
+}
+
+function scheduleLocalReleaseRetryV1(): void {
+  if (
+    localReleaseRetryTimerV1 ||
+    localReleaseRetryRunningV1 ||
+    localReleaseFallbacksV1.size === 0
+  ) {
+    return;
+  }
+  localReleaseRetryTimerV1 = setTimeout(() => {
+    localReleaseRetryTimerV1 = null;
+    localReleaseRetryRunningV1 = true;
+    void retryLocalReleaseFallbacksV1().finally(() => {
+      localReleaseRetryRunningV1 = false;
+      scheduleLocalReleaseRetryV1();
+    });
+  }, localReleaseRetryDelayMsV1);
+  localReleaseRetryTimerV1.unref();
+}
+
+async function retryLocalReleaseFallbacksV1(): Promise<void> {
+  let progressed = false;
+  for (const [key, pending] of [
+    ...localReleaseFallbacksV1.entries(),
+  ]) {
+    const currentPending = localReleaseFallbacksV1.get(key);
+    if (currentPending !== pending) continue;
+    const namespace = key;
+    try {
+      if (
+        !sameDirectoryIdentityV1(
+          pending.namespace_identity,
+          directoryIdentityV1(namespace),
+        )
+      ) {
+        continue;
+      }
+      const snapshot = scanNamespaceV1(namespace);
+      if (snapshot.current > pending.generation) {
+        clearLocalReleaseV1(namespace);
+        progressed = true;
+        continue;
+      }
+      if (snapshot.current !== pending.generation) continue;
+      const current = await readLockRecordV1(
+        lockFileV1(namespace, pending.generation),
+        pending.generation,
+      );
+      if (!current || !sameOwnerTupleV1(current, pending.lock)) {
+        continue;
+      }
+      await publishReleaseV1(namespace, current);
+      clearLocalReleaseV1(namespace);
+      progressed = true;
+    } catch {
+      // Persistent storage faults remain fail-closed. The bounded obligation
+      // stays queued and one shared unref'd timer retries after recovery.
+    }
+  }
+  localReleaseRetryDelayMsV1 =
+    localReleaseFallbacksV1.size === 0 || progressed
+      ? LOCAL_RELEASE_RETRY_MIN_MS_V1
+      : Math.min(
+          LOCAL_RELEASE_RETRY_MAX_MS_V1,
+          localReleaseRetryDelayMsV1 * 2,
+        );
 }
 
 async function readBootIdV1(): Promise<string> {

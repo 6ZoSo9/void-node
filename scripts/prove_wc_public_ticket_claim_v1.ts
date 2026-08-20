@@ -34,6 +34,99 @@ async function main(): Promise<void> {
   );
   const block = await import("../src/chain/block.js");
 
+  const redirectedTarget = path.join(tmp, "redirected-target");
+  const redirectedDataDir = path.join(tmp, "redirected-data");
+  fs.mkdirSync(redirectedTarget, { mode: 0o700 });
+  fs.symlinkSync(redirectedTarget, redirectedDataDir, "dir");
+  await assert.rejects(
+    () =>
+      pilot.acquirePilotTicketLock(
+        "8".repeat(32),
+        redirectedDataDir,
+      ),
+    /wc_public_state_directory_not_authoritative/,
+  );
+  assert.equal(
+    fs.existsSync(path.join(redirectedTarget, "wc_v1")),
+    false,
+    "symlinked DATA_DIR redirected participant authority",
+  );
+
+  const redirectedChildRoot = path.join(tmp, "redirected-child-root");
+  const redirectedChildTarget = path.join(tmp, "redirected-child-target");
+  fs.mkdirSync(redirectedChildRoot, { mode: 0o700 });
+  fs.mkdirSync(redirectedChildTarget, { mode: 0o700 });
+  fs.symlinkSync(
+    redirectedChildTarget,
+    path.join(redirectedChildRoot, "wc_v1"),
+    "dir",
+  );
+  await assert.rejects(
+    () =>
+      pilot.acquirePilotTicketLock(
+        "9".repeat(32),
+        redirectedChildRoot,
+      ),
+    /wc_public_state_directory_not_authoritative/,
+  );
+  assert.equal(
+    fs.existsSync(
+      path.join(
+        redirectedChildTarget,
+        "public-earning-pilot-v1",
+      ),
+    ),
+    false,
+    "symlinked wc_v1 redirected participant authority",
+  );
+
+  const redirectedPilotRoot = path.join(tmp, "redirected-pilot-root");
+  const redirectedPilotTarget = path.join(tmp, "redirected-pilot-target");
+  fs.mkdirSync(path.join(redirectedPilotRoot, "wc_v1"), {
+    recursive: true,
+    mode: 0o700,
+  });
+  fs.mkdirSync(redirectedPilotTarget, { mode: 0o700 });
+  fs.symlinkSync(
+    redirectedPilotTarget,
+    path.join(
+      redirectedPilotRoot,
+      "wc_v1",
+      "public-earning-pilot-v1",
+    ),
+    "dir",
+  );
+  await assert.rejects(
+    () =>
+      pilot.acquirePilotTicketLock(
+        "b".repeat(32),
+        redirectedPilotRoot,
+      ),
+    /wc_public_state_directory_not_authoritative/,
+  );
+  assert.equal(
+    fs.existsSync(path.join(redirectedPilotTarget, "locks")),
+    false,
+    "symlinked pilot namespace redirected participant authority",
+  );
+
+  const permissiveDataDir = path.join(tmp, "permissive-data");
+  fs.mkdirSync(permissiveDataDir, { mode: 0o700 });
+  fs.chmodSync(permissiveDataDir, 0o755);
+  await assert.rejects(
+    () =>
+      pilot.acquirePilotTicketLock(
+        "a".repeat(32),
+        permissiveDataDir,
+      ),
+    /wc_public_state_directory_not_private/,
+  );
+  assert.equal(
+    fs.existsSync(path.join(permissiveDataDir, "wc_v1")),
+    false,
+    "permissive DATA_DIR admitted participant authority",
+  );
+
   const root = path.join(
     tmp,
     "wc_v1",
@@ -567,6 +660,7 @@ async function main(): Promise<void> {
   console.log("malformed_history_fail_closed=true");
   console.log("signed_claim_raw_schema_exact=true");
   console.log("signed_claim_signature_schema_exact=true");
+  console.log("participant_state_directory_namespace_authority_exact=true");
   fs.rmSync(tmp, { recursive: true, force: true });
 }
 

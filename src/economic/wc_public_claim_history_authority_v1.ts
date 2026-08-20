@@ -2,6 +2,9 @@ import crypto from "node:crypto";
 import fs from "node:fs";
 import fsp from "node:fs/promises";
 import path from "node:path";
+import {
+  ensureWcPublicStateDurableDirectoryV1,
+} from "./wc_public_state_directory_authority_v1.js";
 
 export const VOID_WC_PUBLIC_CLAIM_HISTORY_AUTHORITY_V1 =
   "VOID_WC_PUBLIC_CLAIM_HISTORY_AUTHORITY_V1";
@@ -172,14 +175,6 @@ function claimsDirV1(raw?: string): string {
   return path.join(rootDirV1(raw), "public-claims");
 }
 
-type DurableDirectoryIdentityV1 = {
-  dev: string;
-  ino: string;
-};
-
-const durableDirectoryLinksV1 =
-  new Map<string, DurableDirectoryIdentityV1>();
-
 export type WcPublicClaimHistoryDirectoryParentFsyncHookForProofV1 =
   ((
     phase: "before" | "after",
@@ -206,81 +201,14 @@ function fsyncDirectoryV1(dir: string): void {
   }
 }
 
-function directoryIdentityV1(
-  dir: string,
-): DurableDirectoryIdentityV1 {
-  const stat: any = fs.statSync(
-    dir,
-    { bigint: true } as any,
-  );
-  if (!stat.isDirectory()) {
-    throw new Error(
-      "wc_public_claim_history_directory_not_directory",
-    );
-  }
-  return {
-    dev: String(stat.dev),
-    ino: String(stat.ino),
-  };
-}
-
-function sameDirectoryIdentityV1(
-  a: DurableDirectoryIdentityV1,
-  b: DurableDirectoryIdentityV1,
-): boolean {
-  return a.dev === b.dev && a.ino === b.ino;
-}
-
 function ensureDurableDirectoryV1(
   dir: string,
+  authorityRootRaw: string,
 ): void {
-  const target = path.resolve(dir);
-  const parent = path.dirname(target);
-  if (target === parent) return;
-
-  if (!fs.existsSync(parent)) {
-    ensureDurableDirectoryV1(parent);
-  }
-
-  let identity: DurableDirectoryIdentityV1;
-  try {
-    identity = directoryIdentityV1(target);
-  } catch (error: any) {
-    if (String(error?.code || "") !== "ENOENT") {
-      throw error;
-    }
-    try {
-      fs.mkdirSync(target, { mode: 0o700 });
-    } catch (mkdirError: any) {
-      if (String(mkdirError?.code || "") !== "EEXIST") {
-        throw mkdirError;
-      }
-    }
-    identity = directoryIdentityV1(target);
-  }
-
-  const cached = durableDirectoryLinksV1.get(target);
-  if (
-    cached &&
-    sameDirectoryIdentityV1(cached, identity)
-  ) {
-    return;
-  }
-
-  directoryParentFsyncHookForProofV1?.(
-    "before",
-    parent,
-    target,
-  );
-  fsyncDirectoryV1(parent);
-  directoryParentFsyncHookForProofV1?.(
-    "after",
-    parent,
-    target,
-  );
-  durableDirectoryLinksV1.set(
-    target,
-    identity,
+  ensureWcPublicStateDurableDirectoryV1(
+    dir,
+    authorityRootRaw,
+    directoryParentFsyncHookForProofV1,
   );
 }
 
@@ -295,7 +223,7 @@ function ensureDirsV1(raw?: string): void {
     consumedDirV1(raw),
     claimsDirV1(raw),
   ]) {
-    ensureDurableDirectoryV1(dir);
+    ensureDurableDirectoryV1(dir, dataDir);
   }
 }
 
@@ -353,8 +281,9 @@ function parseHistoryMutationGenerationV1(
 
 function writeHistoryMutationGenerationAtRootV1(
   root: string,
+  dataDir: string,
 ): string {
-  ensureDurableDirectoryV1(root);
+  ensureDurableDirectoryV1(root, dataDir);
   const file =
     historyMutationGenerationFileFromRootV1(root);
   const token =
@@ -520,6 +449,7 @@ async function readHistoryMutationGenerationV1(
       if (code === "ENOENT" && attempt === 0) {
         writeHistoryMutationGenerationAtRootV1(
           rootDirV1(raw),
+          dataDirV1(raw),
         );
         continue;
       }
@@ -587,6 +517,7 @@ export function publishWcPublicClaimHistoryMutationForFileV1(
 
   writeHistoryMutationGenerationAtRootV1(
     target.root,
+    target.data_dir,
   );
   statesV1.delete(target.data_dir);
   warmFailuresV1.delete(target.data_dir);

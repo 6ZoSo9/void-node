@@ -24,6 +24,9 @@ import {
 import {
   acceptVerifiedReceiptOnce,
 } from "./wc_verified_receipt_acceptance_v1.js";
+import {
+  ensureWcPublicStateDurableDirectoryV1,
+} from "./wc_public_state_directory_authority_v1.js";
 
 export const VOID_WC_PUBLIC_EARNING_PILOT_MARKER =
   "VOID_WC_PUBLIC_EARNING_PILOT_V1";
@@ -179,14 +182,6 @@ function fsyncDirectoryV1(dir: string): void {
   }
 }
 
-type DurableDirectoryIdentityV1 = {
-  dev: string;
-  ino: string;
-};
-
-const durableDirectoryLinksV1 =
-  new Map<string, DurableDirectoryIdentityV1>();
-
 export type WcPublicEarningPilotDirectoryParentFsyncHookForProofV1 =
   ((
     phase: "before" | "after",
@@ -204,85 +199,14 @@ export function setWcPublicEarningPilotDirectoryParentFsyncHookForProofV1(
   directoryParentFsyncHookForProofV1 = hook;
 }
 
-function directoryIdentityV1(
-  dir: string,
-): DurableDirectoryIdentityV1 {
-  const stat: any = fs.statSync(
-    dir,
-    { bigint: true } as any,
-  );
-  if (!stat.isDirectory()) {
-    throw new Error(
-      "wc_public_state_directory_not_directory",
-    );
-  }
-  return {
-    dev: String(stat.dev),
-    ino: String(stat.ino),
-  };
-}
-
-function sameDirectoryIdentityV1(
-  a: DurableDirectoryIdentityV1,
-  b: DurableDirectoryIdentityV1,
-): boolean {
-  return a.dev === b.dev && a.ino === b.ino;
-}
-
 function ensureDurableDirectoryV1(
   dir: string,
+  authorityRootRaw: string,
 ): void {
-  const target = path.resolve(dir);
-  const parent = path.dirname(target);
-  if (target === parent) return;
-
-  if (!fs.existsSync(parent)) {
-    ensureDurableDirectoryV1(parent);
-  }
-
-  let identity: DurableDirectoryIdentityV1;
-  try {
-    identity = directoryIdentityV1(target);
-  } catch (error: any) {
-    if (String(error?.code || "") !== "ENOENT") {
-      throw error;
-    }
-    try {
-      fs.mkdirSync(target, { mode: 0o700 });
-    } catch (mkdirError: any) {
-      if (String(mkdirError?.code || "") !== "EEXIST") {
-        throw mkdirError;
-      }
-    }
-    identity = directoryIdentityV1(target);
-  }
-
-  const cached = durableDirectoryLinksV1.get(target);
-  if (
-    cached &&
-    sameDirectoryIdentityV1(cached, identity)
-  ) {
-    return;
-  }
-
-  directoryParentFsyncHookForProofV1?.(
-    "before",
-    parent,
-    target,
-  );
-  fsyncDirectoryV1(parent);
-  directoryParentFsyncHookForProofV1?.(
-    "after",
-    parent,
-    target,
-  );
-
-  // Cache only after the containing directory has crossed a successful
-  // fsync boundary. If the fsync or proof hook fails after mkdir became
-  // visible, retry must re-establish the same parent link.
-  durableDirectoryLinksV1.set(
-    target,
-    identity,
+  ensureWcPublicStateDurableDirectoryV1(
+    dir,
+    authorityRootRaw,
+    directoryParentFsyncHookForProofV1,
   );
 }
 
@@ -299,12 +223,19 @@ function ensureDirs(raw?: string): void {
     claimsDir(raw),
     resultTransactionsDir(raw),
   ]) {
-    ensureDurableDirectoryV1(dir);
+    ensureDurableDirectoryV1(dir, dataDir);
   }
 }
 
-function atomicWriteJson(file: string, value: JsonObject): void {
-  fs.mkdirSync(path.dirname(file), { recursive: true, mode: 0o700 });
+function atomicWriteJson(
+  file: string,
+  value: JsonObject,
+  raw?: string,
+): void {
+  ensureDurableDirectoryV1(
+    path.dirname(file),
+    resolveDataDir(raw),
+  );
   const tmp = `${file}.tmp-${process.pid}-${crypto.randomBytes(6).toString("hex")}`;
   let fd: number | null = null;
   try {
@@ -350,8 +281,15 @@ function atomicWriteJson(file: string, value: JsonObject): void {
   }
 }
 
-function appendJsonl(file: string, value: JsonObject): void {
-  fs.mkdirSync(path.dirname(file), { recursive: true, mode: 0o700 });
+function appendJsonl(
+  file: string,
+  value: JsonObject,
+  raw?: string,
+): void {
+  ensureDurableDirectoryV1(
+    path.dirname(file),
+    resolveDataDir(raw),
+  );
   const fd = fs.openSync(file, "a", 0o600);
   try {
     fs.writeSync(fd, JSON.stringify(value) + "\n");
@@ -366,11 +304,15 @@ function appendJsonl(file: string, value: JsonObject): void {
 }
 
 function appendAudit(event: JsonObject, raw?: string): void {
-  appendJsonl(auditFile(raw), {
-    marker: VOID_WC_PUBLIC_EARNING_PILOT_MARKER,
-    at_ms: Date.now(),
-    ...event,
-  });
+  appendJsonl(
+    auditFile(raw),
+    {
+      marker: VOID_WC_PUBLIC_EARNING_PILOT_MARKER,
+      at_ms: Date.now(),
+      ...event,
+    },
+    raw,
+  );
 }
 
 function appendAuditBestEffort(event: JsonObject, raw?: string): void {
@@ -1063,7 +1005,7 @@ function writePilotResultTransactionV1(
     phase,
     updated_at_ms: Date.now(),
   };
-  atomicWriteJson(file, next);
+  atomicWriteJson(file, next, raw);
   return next;
 }
 
@@ -1473,6 +1415,7 @@ function issueTicket(
   atomicWriteJson(
     ticketFile(issuedDir(raw), ticketId),
     record as unknown as JsonObject,
+    raw,
   );
   appendAuditBestEffort(
     {
@@ -2463,6 +2406,7 @@ function publishPreparedPublicClaimTicketV1(
   atomicWriteJson(
     file,
     prepared.record as unknown as JsonObject,
+    raw,
   );
   appendAuditBestEffort(
     {
@@ -2638,6 +2582,7 @@ async function recoverPublicClaimReplayV1(
       atomicWriteJson(
         path.join(claimsDir(raw), `${claimId}.json`),
         issuedState,
+        raw,
       );
       primeWcPublicClaimHistoryAuthorityV1(raw);
     }
@@ -2803,7 +2748,7 @@ export async function issuePublicTicketClaim(
         reserved_at_ms: claimStartedAt,
         claim_expires_at_ms: claimExpiresAt,
       };
-      atomicWriteJson(claimFile, reservation);
+      atomicWriteJson(claimFile, reservation, raw);
       maybePilotTransactionFaultForProofV1(
         "public_claim_after_reservation",
       );
@@ -2838,7 +2783,7 @@ export async function issuePublicTicketClaim(
       ticket_record: prepared.record,
       capability_token_seal_v1: seal,
     };
-    atomicWriteJson(claimFile, publishing);
+    atomicWriteJson(claimFile, publishing, raw);
     maybePilotTransactionFaultForProofV1(
       "public_claim_after_publishing_journal",
     );
@@ -2857,7 +2802,7 @@ export async function issuePublicTicketClaim(
       issued_at_ms: claimStartedAt,
       issuance_completed_at_ms: now,
     };
-    atomicWriteJson(claimFile, issuedState);
+    atomicWriteJson(claimFile, issuedState, raw);
     primeWcPublicClaimHistoryAuthorityV1(raw);
 
     maybePilotTransactionFaultForProofV1(
@@ -3440,8 +3385,13 @@ export function assertRemoteReceiptTruth(
   const inputHash = safeHex64(receipt.input_hash);
   const outputHash = safeHex64(receipt.output_hash);
   const fetchedInputHash = safeHex64(receipt?.output?.fetched_input_hash);
-  const receiptTsMs = Math.trunc(Number(receipt?.ts_ms || 0));
-  if (!Number.isFinite(receiptTsMs) || receiptTsMs <= 0) {
+  const receiptTsMs = receipt?.ts_ms;
+  if (
+    typeof receiptTsMs !== "number" ||
+    !Number.isFinite(receiptTsMs) ||
+    !Number.isSafeInteger(receiptTsMs) ||
+    receiptTsMs <= 0
+  ) {
     throw new Error("remote_receipt_timestamp_invalid");
   }
 
@@ -3677,7 +3627,7 @@ export async function verifyPilotSubmissionEvidence(
       : {};
     if (
       proofBundle.marker !== VOID_WC_PUBLIC_EARNING_PILOT_MARKER ||
-      Number(proofBundle.version || 0) !== 1 ||
+      proofBundle.version !== 1 ||
       safeTransportMode(proofBundle.transport_mode) !== "outbound_bundle" ||
       safeId(proofBundle.ticket_id, 64) !== envelope.ticket_id ||
       safeNodeId(proofBundle.executor_node_id) !==
@@ -3804,7 +3754,7 @@ function completeTicket(
     completed_at_ms: Date.now(),
   };
   const consumedPath = ticketFile(consumedDir(raw), record.ticket_id);
-  atomicWriteJson(consumedPath, completed);
+  atomicWriteJson(consumedPath, completed, raw);
   try {
     fs.unlinkSync(ticketFile(issuedDir(raw), record.ticket_id));
   } catch (error) {
@@ -4089,8 +4039,13 @@ async function executeLocalWork(req: any, res: any): Promise<any> {
   const inputHash = safeHex64(receipt.input_hash);
   const outputHash = safeHex64(receipt.output_hash);
   const fetchedInputHash = safeHex64(receipt?.output?.fetched_input_hash);
-  const receiptTs = Math.trunc(Number(receipt.ts_ms || 0));
-  if (!Number.isFinite(receiptTs) || receiptTs <= 0) {
+  const receiptTs = receipt.ts_ms;
+  if (
+    typeof receiptTs !== "number" ||
+    !Number.isFinite(receiptTs) ||
+    !Number.isSafeInteger(receiptTs) ||
+    receiptTs <= 0
+  ) {
     throw new Error("local_receipt_timestamp_invalid");
   }
 

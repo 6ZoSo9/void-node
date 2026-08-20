@@ -43,6 +43,15 @@ const claimHistoryAuthorityText = fs.readFileSync(
   ),
   "utf8",
 );
+const publicStateDirectoryAuthorityText = fs.readFileSync(
+  path.join(
+    root,
+    "src",
+    "economic",
+    "wc_public_state_directory_authority_v1.ts",
+  ),
+  "utf8",
+);
 const noNodeClientText = fs.readFileSync(
   path.join(
     root,
@@ -375,16 +384,20 @@ need(
 );
 
 need(
-  moduleText.includes("receiptTsMs !== envelope.receipt_ts_ms"),
+  moduleText.includes('typeof receiptTsMs !== "number"') &&
+    moduleText.includes("!Number.isSafeInteger(receiptTsMs)") &&
+    moduleText.includes("receiptTsMs !== envelope.receipt_ts_ms"),
   "persisted remote receipt timestamp is not envelope-bound",
 );
 need(
-  moduleText.includes("const receiptTs = Math.trunc(Number(receipt.ts_ms || 0))"),
-  "local executor receipt timestamp is not persisted-truth-only",
+  moduleText.includes("proofBundle.version !== 1"),
+  "outbound proof-bundle version is not exact-runtime-typed",
 );
 need(
-  !moduleText.includes("Number(receipt.ts_ms || Date.now())"),
-  "local executor still synthesizes a receipt timestamp",
+  !moduleText.includes("Math.trunc(Number(receipt?.ts_ms || 0))") &&
+    !moduleText.includes("Math.trunc(Number(receipt.ts_ms || 0))") &&
+    !moduleText.includes("Number(receipt.ts_ms || Date.now())"),
+  "remote receipt timestamp is still coerced or synthesized",
 );
 
 need(
@@ -816,11 +829,11 @@ const issuanceHistoryRecheck = claimIssueBlock.indexOf(
   replayRecovery,
 );
 const claimReservationWrite = claimIssueBlock.indexOf(
-  "atomicWriteJson(claimFile, reservation)",
+  "atomicWriteJson(claimFile, reservation, raw)",
   issuanceHistoryRecheck,
 );
 const claimPublishingWrite = claimIssueBlock.indexOf(
-  "atomicWriteJson(claimFile, publishing)",
+  "atomicWriteJson(claimFile, publishing, raw)",
   claimReservationWrite,
 );
 const claimTicketPublish = claimIssueBlock.indexOf(
@@ -828,7 +841,7 @@ const claimTicketPublish = claimIssueBlock.indexOf(
   claimPublishingWrite,
 );
 const claimTerminalWrite = claimIssueBlock.indexOf(
-  "atomicWriteJson(claimFile, issuedState)",
+  "atomicWriteJson(claimFile, issuedState, raw)",
   claimTicketPublish,
 );
 need(
@@ -927,20 +940,11 @@ const pilotDurableDirBlock = moduleText.slice(
   pilotDurableDirStart,
   pilotDurableDirEnd,
 );
-const pilotDirBeforeHook = pilotDurableDirBlock.indexOf(
-  '"before"',
-);
-const pilotDirParentFsync = pilotDurableDirBlock.indexOf(
-  "fsyncDirectoryV1(parent)",
-);
-const pilotDirCachePublish = pilotDurableDirBlock.indexOf(
-  "durableDirectoryLinksV1.set(",
-);
 need(
-  pilotDirBeforeHook >= 0 &&
-    pilotDirParentFsync > pilotDirBeforeHook &&
-    pilotDirCachePublish > pilotDirParentFsync,
-  "public-WC directory durability is not parent-fsync-before-cache",
+  pilotDurableDirBlock.includes(
+    "ensureWcPublicStateDurableDirectoryV1(",
+  ),
+  "public-WC directory helper does not use shared authority",
 );
 need(
   moduleText.includes(
@@ -967,21 +971,11 @@ const historyDurableDirBlock =
     historyDurableDirStart,
     historyDurableDirEnd,
   );
-const historyDirBeforeHook =
-  historyDurableDirBlock.indexOf('"before"');
-const historyDirParentFsync =
-  historyDurableDirBlock.indexOf(
-    "fsyncDirectoryV1(parent)",
-  );
-const historyDirCachePublish =
-  historyDurableDirBlock.indexOf(
-    "durableDirectoryLinksV1.set(",
-  );
 need(
-  historyDirBeforeHook >= 0 &&
-    historyDirParentFsync > historyDirBeforeHook &&
-    historyDirCachePublish > historyDirParentFsync,
-  "claim-history directory durability is not parent-fsync-before-cache",
+  historyDurableDirBlock.includes(
+    "ensureWcPublicStateDurableDirectoryV1(",
+  ),
+  "claim-history directory helper does not use shared authority",
 );
 need(
   claimHistoryAuthorityText.includes(
@@ -989,6 +983,38 @@ need(
   ),
   "claim-history directory fsync proof hook missing",
 );
+const sharedDirBeforeHook =
+  publicStateDirectoryAuthorityText.indexOf(
+    'hook?.("before", parent, target)',
+  );
+const sharedDirParentFsync =
+  publicStateDirectoryAuthorityText.indexOf(
+    "fsyncDirectoryV1(parent)",
+    sharedDirBeforeHook,
+  );
+const sharedDirCachePublish =
+  publicStateDirectoryAuthorityText.indexOf(
+    "durableDirectoryLinksV1.set(",
+    sharedDirParentFsync,
+  );
+need(
+  sharedDirBeforeHook >= 0 &&
+    sharedDirParentFsync > sharedDirBeforeHook &&
+    sharedDirCachePublish > sharedDirParentFsync,
+  "shared public-state directory durability is not parent-fsync-before-cache",
+);
+for (const marker of [
+  "fs.lstatSync(dir",
+  "stat.isSymbolicLink()",
+  "wc_public_state_directory_not_authoritative",
+  "wc_public_state_directory_not_private",
+  "wc_public_state_directory_generation_changed",
+]) {
+  need(
+    publicStateDirectoryAuthorityText.includes(marker),
+    `shared public-state directory authority missing: ${marker}`,
+  );
+}
 need(
   !claimHistoryAuthorityText.includes(
     "Number(record.version || 0)",

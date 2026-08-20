@@ -687,7 +687,7 @@ async function main(): Promise<void> {
     file: string,
     makeRow: (i: number) => Record<string, unknown>,
   ) => {
-    fs.mkdirSync(path.dirname(file), { recursive: true });
+    fs.mkdirSync(path.dirname(file), { recursive: true, mode: 0o700 });
     const fd = fs.openSync(file, "w", 0o600);
     try {
       for (let i = 0; i < 12_000; i++) {
@@ -985,7 +985,7 @@ async function main(): Promise<void> {
       "issued",
       `${ticketId}.json`,
     );
-    fs.mkdirSync(path.dirname(issued), { recursive: true });
+    fs.mkdirSync(path.dirname(issued), { recursive: true, mode: 0o700 });
     fs.writeFileSync(
       issued,
       JSON.stringify(
@@ -1199,6 +1199,143 @@ async function main(): Promise<void> {
       token,
     };
   };
+
+  const assertRejectedSubmissionPublishedNoAuthority = (
+    root: string,
+    ticketId: string,
+    expectedIssued: boolean,
+  ): void => {
+    const pilotRoot = path.join(
+      root,
+      "wc_v1",
+      "public-earning-pilot-v1",
+    );
+    assert.equal(
+      fs.existsSync(
+        path.join(pilotRoot, "issued", `${ticketId}.json`),
+      ),
+      expectedIssued,
+      "rejected evidence changed issued capability truth",
+    );
+    for (const file of [
+      path.join(pilotRoot, "consumed", `${ticketId}.json`),
+      path.join(
+        pilotRoot,
+        "result-transactions",
+        `${ticketId}.json`,
+      ),
+      path.join(root, "agent_v1", "receipts.jsonl"),
+      path.join(root, "agent", "jobs.jsonl"),
+      path.join(root, "agent_v1", "job_state.jsonl"),
+      path.join(root, "wc_v1", "ledger.jsonl"),
+    ]) {
+      assert.equal(
+        fs.existsSync(file),
+        false,
+        `rejected evidence published authority at ${file}`,
+      );
+    }
+  };
+
+  const invalidProofBundleVersions: Array<
+    [string, unknown, boolean]
+  > = [
+    ["missing", undefined, true],
+    ["null", null, false],
+    ["string", "1", false],
+    ["boolean", true, false],
+    ["array", [1], false],
+    ["fractional", 1.5, false],
+    ["unsafe", Number.MAX_SAFE_INTEGER + 1, false],
+  ];
+
+  for (const authorityCase of ["symlink", "permissive"] as const) {
+    const root = fs.mkdtempSync(
+      path.join(
+        os.tmpdir(),
+        `void-wc-result-namespace-${authorityCase}-`,
+      ),
+    );
+    const fixture = setupSubmit(
+      root,
+      `result_namespace_${authorityCase}`,
+    );
+    const consumed = path.join(
+      root,
+      "wc_v1",
+      "public-earning-pilot-v1",
+      "consumed",
+    );
+    if (authorityCase === "symlink") {
+      const redirected = path.join(root, "redirected-consumed");
+      fs.mkdirSync(redirected, { mode: 0o700 });
+      fs.symlinkSync(redirected, consumed, "dir");
+    } else {
+      fs.mkdirSync(consumed, { mode: 0o755 });
+      fs.chmodSync(consumed, 0o755);
+    }
+    const response = makeResponse();
+    await pilot.submitRemoteResult(fixture.req, response);
+    assert.equal(response.statusCode, 422);
+    assert.match(
+      response.payload.error,
+      authorityCase === "symlink"
+        ? /wc_public_state_directory_not_authoritative/
+        : /wc_public_state_directory_not_private/,
+    );
+    assertRejectedSubmissionPublishedNoAuthority(
+      root,
+      fixture.ticketId,
+      true,
+    );
+  }
+
+  for (const [label, version, remove] of invalidProofBundleVersions) {
+    const root = fs.mkdtempSync(
+      path.join(os.tmpdir(), `void-wc-proof-version-${label}-`),
+    );
+    const fixture = setupSubmit(root, `proof_version_${label}`);
+    if (remove) delete fixture.req.body.proof_bundle.version;
+    else fixture.req.body.proof_bundle.version = version;
+    const response = makeResponse();
+    await pilot.submitRemoteResult(fixture.req, response);
+    assert.equal(response.statusCode, 422);
+    assert.equal(response.payload.error, "outbound_proof_bundle_invalid");
+    assertRejectedSubmissionPublishedNoAuthority(
+      root,
+      fixture.ticketId,
+      true,
+    );
+  }
+
+  const invalidRemoteReceiptTimestamps: Array<
+    [string, unknown, boolean]
+  > = [
+    ["missing", undefined, true],
+    ["null", null, false],
+    ["string", String(Date.now()), false],
+    ["boolean", true, false],
+    ["array", [Date.now()], false],
+    ["fractional", Date.now() + 0.5, false],
+    ["unsafe", Number.MAX_SAFE_INTEGER + 1, false],
+  ];
+  for (const [label, timestamp, remove] of invalidRemoteReceiptTimestamps) {
+    const root = fs.mkdtempSync(
+      path.join(os.tmpdir(), `void-wc-receipt-ts-${label}-`),
+    );
+    const fixture = setupSubmit(root, `receipt_ts_${label}`);
+    if (remove) delete fixture.req.body.proof_bundle.receipt.ts_ms;
+    else fixture.req.body.proof_bundle.receipt.ts_ms = timestamp;
+    const response = makeResponse();
+    await pilot.submitRemoteResult(fixture.req, response);
+    assert.equal(response.statusCode, 422);
+    assert.equal(response.payload.error, "remote_receipt_timestamp_invalid");
+    assertRejectedSubmissionPublishedNoAuthority(
+      root,
+      fixture.ticketId,
+      true,
+    );
+  }
 
   // Acceptance-safety falsifier: a valid public ticket/key plus the old
   // fully self-consistent participant-authored bundle must earn and import
@@ -1749,7 +1886,7 @@ async function main(): Promise<void> {
     remoteIndex.resetWcPublicRemoteTruthJsonlIndexForProofV1();
     const account = "ticket-high-balance";
     const ledgerFile = path.join(root, "wc_v1", "ledger.jsonl");
-    fs.mkdirSync(path.dirname(ledgerFile), { recursive: true });
+    fs.mkdirSync(path.dirname(ledgerFile), { recursive: true, mode: 0o700 });
     fs.appendFileSync(
       ledgerFile,
       JSON.stringify({
@@ -1912,7 +2049,7 @@ async function main(): Promise<void> {
         },
       ],
     ] as const) {
-      fs.mkdirSync(path.dirname(file), { recursive: true });
+      fs.mkdirSync(path.dirname(file), { recursive: true, mode: 0o700 });
       fs.writeFileSync(file, JSON.stringify(row) + "\n");
     }
 
@@ -1952,9 +2089,9 @@ async function main(): Promise<void> {
     const jobFile = path.join(root, "agent", "jobs.jsonl");
     const completedFile = path.join(root, "agent_v1", "job_state.jsonl");
 
-    fs.mkdirSync(path.dirname(receiptFile), { recursive: true });
+    fs.mkdirSync(path.dirname(receiptFile), { recursive: true, mode: 0o700 });
     fs.writeFileSync(receiptFile, '{"broken":\n');
-    fs.mkdirSync(path.dirname(jobFile), { recursive: true });
+    fs.mkdirSync(path.dirname(jobFile), { recursive: true, mode: 0o700 });
     fs.writeFileSync(
       jobFile,
       JSON.stringify({
@@ -1963,7 +2100,7 @@ async function main(): Promise<void> {
         status: "queued",
       }) + "\n",
     );
-    fs.mkdirSync(path.dirname(completedFile), { recursive: true });
+    fs.mkdirSync(path.dirname(completedFile), { recursive: true, mode: 0o700 });
     fs.writeFileSync(
       completedFile,
       JSON.stringify({
@@ -3156,6 +3293,15 @@ async function main(): Promise<void> {
   );
   console.log(
     "oversized_issued_state_zero_import_credit=true",
+  );
+  console.log(
+    "participant_state_namespace_authority_exact=true",
+  );
+  console.log(
+    "remote_receipt_timestamp_schema_exact=true",
+  );
+  console.log(
+    "outbound_proof_bundle_version_schema_exact=true",
   );
   console.log(
     "VOID_WC_PUBLIC_EARNING_PILOT_RUNTIME_V1_GREEN",

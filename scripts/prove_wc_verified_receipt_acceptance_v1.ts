@@ -18,7 +18,7 @@ import {
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "void-wc-verified-acceptance-v1-"));
 
 function append(file: string, value: any): void {
-  fs.mkdirSync(path.dirname(file), { recursive: true });
+  fs.mkdirSync(path.dirname(file), { recursive: true, mode: 0o700 });
   fs.appendFileSync(file, JSON.stringify(value) + "\n");
 }
 
@@ -147,6 +147,89 @@ try {
   assert.equal(firstLedger.length, 1);
   assert.equal(firstLedger[0].receipt_id, receiptId);
   assert.equal(firstLedger[0].job_id, jobId);
+  assert.equal(firstLedger[0].ts_ms, receipt.ts_ms);
+
+  const invalidReceiptTimestamps: Array<[string, unknown]> = [
+    ["missing", undefined],
+    ["null", null],
+    ["string", String(receipt.ts_ms)],
+    ["array", [receipt.ts_ms]],
+    ["boolean", true],
+    ["fractional", receipt.ts_ms + 0.5],
+    ["unsafe", Number.MAX_SAFE_INTEGER + 1],
+    ["zero", 0],
+  ];
+  for (const [label, tsMs] of invalidReceiptTimestamps) {
+    const strictRoot = path.join(tmp, `receipt-ts-${label}`);
+    const strictReceipt = makeReceipt(
+      `receipt-ts-${label}`,
+      `job_receipt_ts_${label}`,
+      `rcpt_receipt_ts_${label}`,
+      `ds_receipt_ts_${label}`,
+      "c",
+      "d",
+    );
+    if (label === "missing") {
+      delete strictReceipt.ts_ms;
+    } else {
+      strictReceipt.ts_ms = tsMs;
+    }
+    persistTruth(strictReceipt, strictRoot);
+    await assert.rejects(
+      () =>
+        acceptVerifiedReceiptOnce(strictReceipt, {
+          dataDir: strictRoot,
+          expectedAccount: strictReceipt.account,
+          expectedJobId: strictReceipt.job_id,
+          expectedReceiptId: strictReceipt.receipt_id,
+        }),
+      (error: any) =>
+        error instanceof VerifiedReceiptAcceptanceError &&
+        error.code ===
+          "receipt_ts_ms_not_exact_positive_safe_integer",
+    );
+    assert.equal(
+      fs.existsSync(path.join(strictRoot, "wc_v1", "ledger.jsonl")),
+      false,
+      `${label} receipt timestamp produced WC credit`,
+    );
+  }
+
+  const timestampMismatchRoot = path.join(tmp, "receipt-ts-mismatch");
+  const persistedTimestampReceipt = makeReceipt(
+    "receipt-ts-mismatch",
+    "job_receipt_ts_mismatch",
+    "rcpt_receipt_ts_mismatch",
+    "ds_receipt_ts_mismatch",
+    "e",
+    "f",
+  );
+  persistTruth(persistedTimestampReceipt, timestampMismatchRoot);
+  await assert.rejects(
+    () =>
+      acceptVerifiedReceiptOnce(
+        {
+          ...persistedTimestampReceipt,
+          ts_ms: persistedTimestampReceipt.ts_ms + 1,
+        },
+        {
+          dataDir: timestampMismatchRoot,
+          expectedAccount: persistedTimestampReceipt.account,
+          expectedJobId: persistedTimestampReceipt.job_id,
+          expectedReceiptId: persistedTimestampReceipt.receipt_id,
+        },
+      ),
+    (error: any) =>
+      error instanceof VerifiedReceiptAcceptanceError &&
+      error.code === "persisted_receipt_ts_ms_mismatch",
+  );
+  assert.equal(
+    fs.existsSync(
+      path.join(timestampMismatchRoot, "wc_v1", "ledger.jsonl"),
+    ),
+    false,
+    "timestamp-mismatched receipt produced WC credit",
+  );
 
   const malformedSafeRoot = path.join(tmp, "malformed-unrelated");
   const malformedSafeAccount = "outside-operator-malformed-safe";
@@ -166,7 +249,7 @@ try {
     "wc_v1",
     "ledger.jsonl",
   );
-  fs.mkdirSync(path.dirname(malformedSafeLedger), { recursive: true });
+  fs.mkdirSync(path.dirname(malformedSafeLedger), { recursive: true, mode: 0o700 });
   fs.appendFileSync(malformedSafeLedger, '{"legacy_broken":\n');
 
   const malformedSafeInspection = await inspectVerifiedReceiptAcceptance(
@@ -217,7 +300,7 @@ try {
   );
   persistTruth(ambiguousReceipt, ambiguousRoot);
   const ambiguousLedger = path.join(ambiguousRoot, "wc_v1", "ledger.jsonl");
-  fs.mkdirSync(path.dirname(ambiguousLedger), { recursive: true });
+  fs.mkdirSync(path.dirname(ambiguousLedger), { recursive: true, mode: 0o700 });
   fs.appendFileSync(
     ambiguousLedger,
     `{"kind":"credit","account":"${ambiguousAccount}","job_id":"${ambiguousJobId}","receipt_id":"${ambiguousReceiptId}"\n`,
@@ -403,7 +486,7 @@ try {
   );
   fs.mkdirSync(
     path.dirname(highRecoveryConsumedFile),
-    { recursive: true },
+    { recursive: true, mode: 0o700 },
   );
   fs.writeFileSync(
     highRecoveryConsumedFile,
@@ -511,7 +594,7 @@ try {
     "consumed",
     `${recoveryTicketId}.json`,
   );
-  fs.mkdirSync(path.dirname(consumedFile), { recursive: true });
+  fs.mkdirSync(path.dirname(consumedFile), { recursive: true, mode: 0o700 });
   fs.writeFileSync(
     consumedFile,
     JSON.stringify(

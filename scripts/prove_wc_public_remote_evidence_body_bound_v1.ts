@@ -144,7 +144,7 @@ async function main(): Promise<void> {
       "issued",
       `${ticketId}.json`,
     );
-    fs.mkdirSync(path.dirname(issuedFile), { recursive: true });
+    fs.mkdirSync(path.dirname(issuedFile), { recursive: true, mode: 0o700 });
     fs.writeFileSync(
       issuedFile,
       JSON.stringify({
@@ -229,7 +229,7 @@ async function main(): Promise<void> {
         assert.equal(
           response.statusCode,
           413,
-          `${target}/${kind} did not reject oversize evidence`,
+          `${target}/${kind} did not reject oversize evidence: ${JSON.stringify(response.payload)}`,
         );
         assert.equal(
           response.payload.error,

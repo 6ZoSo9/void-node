@@ -19,12 +19,27 @@ import {
 } from "../src/economic/wc_process_instance_lock_v1.js";
 
 const childMode = process.argv.includes("--hold-child");
+const releaseFaultChildMode = process.argv.includes(
+  "--release-fault-child",
+);
 
 async function child(): Promise<void> {
   const dir = String(process.env.VOID_WC_LOCK_PROOF_DIR || "");
   const name = String(process.env.VOID_WC_LOCK_PROOF_NAME || "");
   const lock = await acquireWcProcessInstanceLockV1(dir, name);
   process.stdout.write(`LOCKED ${lock.file} ${lock.generation}\n`);
+  setInterval(() => undefined, 60_000);
+  await new Promise<void>(() => undefined);
+}
+
+async function releaseFaultChild(): Promise<void> {
+  const dir = String(process.env.VOID_WC_LOCK_PROOF_DIR || "");
+  const name = String(process.env.VOID_WC_LOCK_PROOF_NAME || "");
+  const lock = await acquireWcProcessInstanceLockV1(dir, name);
+  setWcProcessInstanceLockReleasePublicationFaultForProofV1(true);
+  await releaseWcProcessInstanceLockV1(lock);
+  setWcProcessInstanceLockReleasePublicationFaultForProofV1(false);
+  process.stdout.write(`RELEASED ${lock.file} ${lock.generation}\n`);
   setInterval(() => undefined, 60_000);
   await new Promise<void>(() => undefined);
 }
@@ -61,6 +76,7 @@ function nextUuid(raw: string): string {
 
 async function main(): Promise<void> {
   if (childMode) return child();
+  if (releaseFaultChildMode) return releaseFaultChild();
 
   const root = fs.mkdtempSync(
     path.join(os.tmpdir(), "void-wc-process-instance-lock-v1-"),
@@ -132,6 +148,74 @@ async function main(): Promise<void> {
     const recovered = await acquireWcProcessInstanceLockV1(root, name);
     assert.ok(recovered.generation > locked.generation);
     await releaseWcProcessInstanceLockV1(recovered);
+
+    // A transient release-publication fault must retain one bounded shared
+    // publication obligation. A foreign process converges after storage
+    // recovery even while the releasing process stays alive and never
+    // reacquires the lock.
+    {
+      const releaseName = "release-cross-process-recovery";
+      const releaseProc = spawn(
+        tsx,
+        [path.resolve(process.argv[1]), "--release-fault-child"],
+        {
+          env: {
+            ...process.env,
+            VOID_WC_LOCK_PROOF_DIR: root,
+            VOID_WC_LOCK_PROOF_NAME: releaseName,
+          },
+          stdio: ["ignore", "pipe", "inherit"],
+        },
+      );
+      const released = await new Promise<{
+        file: string;
+        generation: number;
+      }>((resolve, reject) => {
+        let buffer = "";
+        const timer = setTimeout(
+          () => reject(new Error("release_child_timeout")),
+          10_000,
+        );
+        releaseProc.stdout.setEncoding("utf8");
+        releaseProc.stdout.on("data", (chunk) => {
+          buffer += chunk;
+          const line = buffer
+            .split(/\r?\n/)
+            .find((value) => value.startsWith("RELEASED "));
+          if (!line) return;
+          clearTimeout(timer);
+          const [, file, generation] = line.split(" ");
+          resolve({ file, generation: Number(generation) });
+        });
+        releaseProc.on("exit", (code) => {
+          clearTimeout(timer);
+          if (code !== null) {
+            reject(new Error(`release_child_exited_${code}`));
+          }
+        });
+      });
+      assert.equal(fs.existsSync(released.file), true);
+
+      let successor: WcProcessInstanceLockV1 | null = null;
+      const deadline = Date.now() + 10_000;
+      while (!successor && Date.now() < deadline) {
+        try {
+          successor = await acquireWcProcessInstanceLockV1(
+            root,
+            releaseName,
+          );
+        } catch (error: any) {
+          assert.equal(error?.code, "wc_process_lock_busy");
+          await new Promise<void>((resolve) => setTimeout(resolve, 10));
+        }
+      }
+      assert.ok(successor, "foreign process did not converge after release recovery");
+      assert.equal(successor.generation, released.generation + 1);
+      await releaseWcProcessInstanceLockV1(successor);
+      if (releaseProc.exitCode === null && releaseProc.signalCode === null) {
+        releaseProc.kill("SIGKILL");
+      }
+    }
 
     const currentTicks = await wcProcessStartTicksForProofV1(process.pid);
     assert.ok(currentTicks);
