@@ -1,6 +1,8 @@
 #!/usr/bin/env node
 import assert from "node:assert/strict";
 import fs from "node:fs";
+import http from "node:http";
+import { spawn } from "node:child_process";
 import path from "node:path";
 import process from "node:process";
 
@@ -114,6 +116,10 @@ assert.match(client, /redirect:\s*"error"/);
 assert.match(client, /sameOriginPath/);
 assert.match(client, /mutation_authority_claim_rejected/);
 assert.match(client, /unknown_authority_must_be_not_granted/);
+assert.match(client, /MAX_RESPONSE_BYTES = 262_144/);
+assert.match(client, /response\.body\.getReader\(\)/);
+assert.match(client, /response\.url !== url\.href/);
+assert.doesNotMatch(client, /response\.json\(\)/);
 
 for (const forbidden of [
   /method:\s*"POST"/,
@@ -146,13 +152,119 @@ for (const required of [
   );
 }
 
+
+function runClient(base) {
+  return new Promise((resolve, reject) => {
+    const child = spawn(process.execPath, [clientPath, "--base", base], {
+      cwd: root,
+      stdio: ["ignore", "pipe", "pipe"],
+    });
+    let stdout = "";
+    let stderr = "";
+    const timer = setTimeout(() => {
+      child.kill("SIGKILL");
+      reject(new Error("well-known client proof deadline exceeded"));
+    }, 5_000);
+    child.stdout.setEncoding("utf8");
+    child.stderr.setEncoding("utf8");
+    child.stdout.on("data", (chunk) => {
+      stdout += chunk;
+    });
+    child.stderr.on("data", (chunk) => {
+      stderr += chunk;
+    });
+    child.once("error", (error) => {
+      clearTimeout(timer);
+      reject(error);
+    });
+    child.once("close", (code, signal) => {
+      clearTimeout(timer);
+      resolve({ code, signal, stdout, stderr });
+    });
+  });
+}
+
+let responseMode = "normal";
+let requestCount = 0;
+const server = http.createServer((request, response) => {
+  requestCount += 1;
+  response.on("error", () => {});
+  if (request.url === "/.well-known/void-agent-discovery.json") {
+    response.setHeader("content-type", "application/json; charset=utf-8");
+    if (responseMode === "declared-oversize") {
+      response.setHeader("content-length", "262145");
+      response.end("x");
+      return;
+    }
+    if (responseMode === "streamed-oversize") {
+      let remaining = 262_145;
+      while (remaining > 0) {
+        const size = Math.min(8_192, remaining);
+        response.write(Buffer.alloc(size, 0x61));
+        remaining -= size;
+      }
+      response.end();
+      return;
+    }
+    response.end(JSON.stringify(pointer));
+    return;
+  }
+  if (request.url === pointer.canonical_discovery) {
+    response.setHeader("content-type", "application/json; charset=utf-8");
+    response.end(JSON.stringify(canonical));
+    return;
+  }
+  response.statusCode = 404;
+  response.setHeader("content-type", "application/json");
+  response.end("{}");
+});
+
+await new Promise((resolve, reject) => {
+  server.once("error", reject);
+  server.listen(0, "127.0.0.1", resolve);
+});
+try {
+  const address = server.address();
+  assert.ok(address && typeof address === "object");
+  const base = `http://127.0.0.1:${address.port}`;
+
+  requestCount = 0;
+  responseMode = "normal";
+  const ordinary = await runClient(base);
+  assert.equal(ordinary.code, 0, ordinary.stderr);
+  assert.equal(ordinary.signal, null);
+  assert.equal(ordinary.stderr, "");
+  assert.equal(JSON.parse(ordinary.stdout).ok, true);
+  assert.equal(requestCount, 2);
+
+  for (const mode of ["declared-oversize", "streamed-oversize"]) {
+    requestCount = 0;
+    responseMode = mode;
+    const hostile = await runClient(base);
+    assert.equal(hostile.code, 1, hostile.stdout);
+    assert.equal(hostile.signal, null);
+    assert.equal(hostile.stderr, "");
+    const rejection = JSON.parse(hostile.stdout);
+    assert.equal(rejection.ok, false);
+    assert.equal(rejection.error, "well_known_discovery_rejected");
+    assert.equal(
+      rejection.detail,
+      "well_known_response_exceeds_262144_bytes",
+    );
+    assert.equal(requestCount, 1);
+  }
+} finally {
+  await new Promise((resolve) => server.close(resolve));
+}
+
 console.log("VOID_AI_AGENT_WELL_KNOWN_ENTRYPOINT_V1_PROOF_GREEN");
 console.log(`pointer=${path.relative(root, pointerPath)}`);
 console.log(`schema=${path.relative(root, schemaPath)}`);
 console.log(`canonical=${path.relative(root, canonicalPath)}`);
 console.log(`client=${path.relative(root, clientPath)}`);
 console.log(`documentation=${path.relative(root, docPath)}`);
-console.log("existing_files_modified=0");
+console.log("bounded_response_adversaries=2");
+console.log("existing_files_modified=4");
 console.log("runtime_routing_modified=0");
 console.log("validator_lane_modified=0");
 console.log("release_lane_modified=0");
