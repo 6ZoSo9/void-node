@@ -395,6 +395,78 @@ try {
     );
   }
 
+  const entitlementSha256 = sha256(entitlementRaw);
+  const idempotencyKey =
+    `paid-work-entitlement:${submissionId}:` +
+    `${entitlementSha256}:award-3`;
+  const appendLedgerRow = (
+    root: string,
+    row: Record<string, any>,
+  ): void => {
+    const file = path.join(root, "wc_v1", "ledger.jsonl");
+    fs.mkdirSync(path.dirname(file), {
+      recursive: true,
+      mode: 0o700,
+    });
+    fs.appendFileSync(file, `${JSON.stringify(row)}\n`, {
+      encoding: "utf8",
+      mode: 0o600,
+    });
+  };
+
+  const allAliasRoot = path.join(tmp, "idempotency-all-alias");
+  appendLedgerRow(allAliasRoot, {
+    kind: "credit",
+    account: [account],
+    delta: 3,
+    reason: ["paid_work_entitlement_acceptance_v1"],
+    submission_id: [submissionId],
+    entitlement_sha256: [entitlementSha256],
+    idempotency_key: [idempotencyKey],
+  });
+  const allAlias = await inspectPaidWorkEntitlementAcceptance(
+    authority,
+    { ...options, dataDir: allAliasRoot },
+  );
+  assert.equal(allAlias.duplicate, false);
+  assert.equal(allAlias.would_credit, true);
+  assert.equal(
+    (await readCanonicalWcState(account, allAliasRoot)).redeemable_quanta,
+    "0",
+  );
+
+  for (const [label, patch] of [
+    ["account-array", { account: [account] }],
+    ["delta-string", { delta: "3" }],
+    [
+      "reason-array",
+      { reason: ["paid_work_entitlement_acceptance_v1"] },
+    ],
+  ] as const) {
+    const root = path.join(tmp, `idempotency-${label}`);
+    appendLedgerRow(root, {
+      kind: "credit",
+      account,
+      delta: 3,
+      reason: "paid_work_entitlement_acceptance_v1",
+      submission_id: submissionId,
+      entitlement_sha256: entitlementSha256,
+      idempotency_key: idempotencyKey,
+      ...patch,
+    });
+    await assert.rejects(
+      () =>
+        inspectPaidWorkEntitlementAcceptance(
+          authority,
+          { ...options, dataDir: root },
+        ),
+      (error: any) =>
+        error instanceof PaidWorkEntitlementAcceptanceError &&
+        error.code === "duplicate_credit_conflict",
+      label,
+    );
+  }
+
   const dry = await inspectPaidWorkEntitlementAcceptance(authority, options);
   assert.equal(dry.eligible, true);
   assert.equal(dry.duplicate, false);

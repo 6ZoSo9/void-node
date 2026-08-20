@@ -36,6 +36,13 @@ type HistoryWatchStateV1 = {
   generation: number;
   healthy: boolean;
   watchers: Array<ReturnType<typeof fs.watch>>;
+  challenge_acks: Map<
+    string,
+    {
+      resolve: () => void;
+      reject: (error: Error) => void;
+    }
+  >;
 };
 
 type HistoryStampsV1 = {
@@ -96,6 +103,12 @@ const statesV1 = new Map<string, HistoryStateV1>();
 const warmTasksV1 = new Map<string, Promise<void>>();
 const warmFailuresV1 = new Map<string, WarmFailureV1>();
 const watchStatesV1 = new Map<string, HistoryWatchStateV1>();
+const watchChallengeTasksV1 =
+  new Map<string, Promise<void>>();
+
+const HISTORY_WATCH_CHALLENGE_PREFIX_V1 =
+  ".claim-history-watch-challenge-";
+const HISTORY_WATCH_CHALLENGE_TIMEOUT_MS_V1 = 250;
 
 type HistoryDecisionMetricsV1 = {
   decision_checks_total: number;
@@ -614,6 +627,14 @@ function keyV1(raw?: string): string {
 
 function closeWatchStateV1(state: HistoryWatchStateV1): void {
   state.healthy = false;
+  for (const pending of state.challenge_acks.values()) {
+    pending.reject(
+      new Error(
+        "VOID_WC_PUBLIC_CLAIM_HISTORY_WATCH_INVALID",
+      ),
+    );
+  }
+  state.challenge_acks.clear();
   for (const watcher of state.watchers) {
     try {
       watcher.close();
@@ -639,6 +660,7 @@ function ensureWatchStateV1(raw?: string): HistoryWatchStateV1 {
     generation: 1,
     healthy: true,
     watchers: [],
+    challenge_acks: new Map(),
   };
   watchStatesV1.set(key, state);
 
@@ -650,8 +672,28 @@ function ensureWatchStateV1(raw?: string): HistoryWatchStateV1 {
     const watcher = fs.watch(
       dir,
       { persistent: false },
-      () => {
+      (_eventType, filename) => {
         if (!state.healthy) return;
+        const renderedFilename =
+          typeof filename === "string"
+            ? filename
+            : String(filename || "");
+        if (
+          renderedFilename.startsWith(
+            HISTORY_WATCH_CHALLENGE_PREFIX_V1,
+          )
+        ) {
+          const challenge = state.challenge_acks.get(
+            `${dir}\u0000${renderedFilename}`,
+          );
+          if (challenge) {
+            state.challenge_acks.delete(
+              `${dir}\u0000${renderedFilename}`,
+            );
+            challenge.resolve();
+          }
+          return;
+        }
         state.generation += 1;
         statesV1.delete(key);
         warmFailuresV1.delete(key);
@@ -673,6 +715,103 @@ function ensureWatchStateV1(raw?: string): HistoryWatchStateV1 {
     state.watchers.push(watcher);
   }
   return state;
+}
+
+async function challengeHistoryWatchersV1(
+  raw: string | undefined,
+  state: HistoryWatchStateV1,
+): Promise<void> {
+  const key = keyV1(raw);
+  const existing = watchChallengeTasksV1.get(key);
+  if (existing) return existing;
+
+  const task = (async () => {
+    if (!state.healthy || watchStatesV1.get(key) !== state) {
+      throw new Error(
+        "VOID_WC_PUBLIC_CLAIM_HISTORY_WATCH_INVALID",
+      );
+    }
+
+    for (const dir of [
+      issuedDirV1(raw),
+      consumedDirV1(raw),
+      claimsDirV1(raw),
+    ]) {
+      const name =
+        `${HISTORY_WATCH_CHALLENGE_PREFIX_V1}` +
+        `${process.pid}-${crypto.randomBytes(12).toString("hex")}`;
+      const challengeKey = `${dir}\u0000${name}`;
+      const file = path.join(dir, name);
+      let timer: ReturnType<typeof setTimeout> | null = null;
+      let fd: number | null = null;
+
+      const acknowledged = new Promise<void>((resolve, reject) => {
+        state.challenge_acks.set(challengeKey, { resolve, reject });
+        timer = setTimeout(() => {
+          state.challenge_acks.delete(challengeKey);
+          reject(
+            new Error(
+              "VOID_WC_PUBLIC_CLAIM_HISTORY_WATCH_CHALLENGE_TIMEOUT",
+            ),
+          );
+        }, HISTORY_WATCH_CHALLENGE_TIMEOUT_MS_V1);
+      });
+
+      try {
+        fd = fs.openSync(
+          file,
+          fs.constants.O_WRONLY |
+            fs.constants.O_CREAT |
+            fs.constants.O_EXCL |
+            Number(fs.constants.O_NOFOLLOW || 0),
+          0o600,
+        );
+        fs.closeSync(fd);
+        fd = null;
+        await acknowledged;
+      } catch (error) {
+        state.healthy = false;
+        state.generation += 1;
+        statesV1.delete(key);
+        warmFailuresV1.delete(key);
+        throw error;
+      } finally {
+        if (timer) clearTimeout(timer);
+        state.challenge_acks.delete(challengeKey);
+        if (fd !== null) {
+          try {
+            fs.closeSync(fd);
+          } catch (error) {
+            void error;
+          }
+        }
+        try {
+          fs.unlinkSync(file);
+        } catch (error: any) {
+          if (String(error?.code || "") !== "ENOENT") {
+            state.healthy = false;
+            state.generation += 1;
+            statesV1.delete(key);
+            throw error;
+          }
+        }
+      }
+    }
+
+    // Challenge events are ordered behind preceding inotify events. Yield
+    // once so every earlier history mutation callback has invalidated the
+    // published snapshot before it can be reused.
+    await new Promise<void>((resolve) => setImmediate(resolve));
+  })();
+
+  watchChallengeTasksV1.set(key, task);
+  try {
+    await task;
+  } finally {
+    if (watchChallengeTasksV1.get(key) === task) {
+      watchChallengeTasksV1.delete(key);
+    }
+  }
 }
 
 export function wcPublicClaimHistoryWatchGenerationForProofV1(
@@ -1391,16 +1530,22 @@ export async function prepareWcPublicClaimHistoryDecisionV1(
   const state = readyStateV1(raw);
   const key = keyV1(raw);
   const watch = ensureWatchStateV1(raw);
-  const before = stampsV1(raw);
   const watchBefore = watch.generation;
   const metrics = decisionMetricsForV1(raw);
   metrics.decision_checks_total += 1;
 
-  // fs.watch is advisory only. Canonical record mutation advances one
-  // crash-durable generation token before pathname publication, and warm
-  // snapshots seal record projections read-only. A hot participant decision
-  // therefore performs one bounded generation read rather than O(history)
-  // per-record lstat work.
+  // A bounded per-decision watcher challenge is a correctness barrier, not
+  // a mere health metric: delivery of the unique sentinel is ordered after
+  // any preceding same-inode history mutation. A closed, stalled, or
+  // overflowed watcher cannot silently preserve stale policy authority.
+  await challengeHistoryWatchersV1(raw, watch);
+  const before = stampsV1(raw);
+
+  // Canonical record mutation advances one crash-durable generation token
+  // before pathname publication, and warm snapshots seal record projections
+  // read-only. The ordered watcher challenge above closes the non-cooperating
+  // same-inode seam without an O(history) per-record lstat walk; the bounded
+  // generation read below remains the canonical-writer witness.
   const mutationGeneration =
     await readHistoryMutationGenerationV1(raw);
   metrics.mutation_generation_reads_total += 1;
@@ -1415,8 +1560,7 @@ export async function prepareWcPublicClaimHistoryDecisionV1(
     !stillPublished ||
     watchBefore !== watchAfter ||
     state.watch_generation !== watchAfter ||
-    !sameStampsV1(before, after) ||
-    !sameStampsV1(state.stamps, after)
+    !sameStampsV1(before, after)
   ) {
     statesV1.delete(key);
     warmFailuresV1.delete(key);
@@ -1425,6 +1569,12 @@ export async function prepareWcPublicClaimHistoryDecisionV1(
       "VOID_WC_PUBLIC_CLAIM_HISTORY_WARMING",
     );
   }
+
+  // The challenge itself creates and removes non-policy sentinels in each
+  // watched directory. Once their ordered delivery is proven and no other
+  // mutation invalidated this exact published state, bind the cache to the
+  // resulting directory epochs for the next decision.
+  state.stamps = after;
 }
 
 function readyStateV1(raw?: string): HistoryStateV1 {
@@ -1460,11 +1610,13 @@ function readyStateV1(raw?: string): HistoryStateV1 {
   }
 
   const state = statesV1.get(key);
+  const challengeActive = watchChallengeTasksV1.has(key);
   if (
     !state ||
     state.watch_generation !==
       watch.generation ||
-    !sameStampsV1(state.stamps, current)
+    (!challengeActive &&
+      !sameStampsV1(state.stamps, current))
   ) {
     startWarmV1(raw);
     throw new Error(
@@ -1693,6 +1845,7 @@ export function resetWcPublicClaimHistoryAuthorityForProofV1(
   statesV1.delete(key);
   warmFailuresV1.delete(key);
   decisionMetricsV1.delete(key);
+  watchChallengeTasksV1.delete(key);
   const watch = watchStatesV1.get(key);
   if (watch) {
     closeWatchStateV1(watch);

@@ -10,6 +10,7 @@ import {
   recoverFailedCapabilityReceiptOnce,
   VerifiedReceiptAcceptanceError,
   VOID_WC_VERIFIED_RECEIPT_ACCEPTANCE_AWARD_WC,
+  VOID_WC_VERIFIED_RECEIPT_ACCEPTANCE_TASK,
 } from "../src/economic/wc_verified_receipt_acceptance_v1.js";
 import {
   projectWcProductionBalance,
@@ -413,6 +414,68 @@ try {
     (error: any) =>
       error instanceof VerifiedReceiptAcceptanceError &&
       error.code === "ambiguous_malformed_ledger_line",
+  );
+
+  const identityAliasRoot = path.join(tmp, "identity-alias-ledgers");
+  const identityAliasAccount = "identity-alias-account";
+  for (const wrongAccount of [
+    [identityAliasAccount],
+    true,
+    { value: identityAliasAccount },
+  ]) {
+    append(path.join(identityAliasRoot, "wc_v1", "ledger.jsonl"), {
+      kind: "credit",
+      account: wrongAccount,
+      delta: 3,
+    });
+    append(path.join(identityAliasRoot, "wc_v1", "redeemed.jsonl"), {
+      account: wrongAccount,
+      amount: 3,
+    });
+  }
+  const identityAliasState = await readCanonicalWcState(
+    identityAliasAccount,
+    identityAliasRoot,
+  );
+  assert.equal(identityAliasState.earned_quanta, "0");
+  assert.equal(identityAliasState.redeemed_quanta, "0");
+  assert.equal(identityAliasState.redeemable_quanta, "0");
+
+  const duplicateAliasRoot = path.join(tmp, "duplicate-identity-alias");
+  const duplicateAliasReceipt = makeReceipt(
+    "duplicate-alias-account",
+    "job_duplicate_alias_v1",
+    "rcpt_duplicate_alias_v1",
+    "ds_duplicate_alias_v1",
+    "a",
+    "b",
+  );
+  persistTruth(duplicateAliasReceipt, duplicateAliasRoot);
+  append(path.join(duplicateAliasRoot, "wc_v1", "ledger.jsonl"), {
+    kind: "credit",
+    account: [duplicateAliasReceipt.account],
+    delta: 3,
+    receipt_kind: [VOID_WC_VERIFIED_RECEIPT_ACCEPTANCE_TASK],
+    receipt_id: [duplicateAliasReceipt.receipt_id],
+    job_id: [duplicateAliasReceipt.job_id],
+  });
+  const duplicateAliasInspection =
+    await inspectVerifiedReceiptAcceptance(
+      duplicateAliasReceipt,
+      { dataDir: duplicateAliasRoot },
+    );
+  assert.equal(duplicateAliasInspection.duplicate, false);
+  const duplicateAliasAccepted = await acceptVerifiedReceiptOnce(
+    duplicateAliasReceipt,
+    { dataDir: duplicateAliasRoot },
+  );
+  assert.equal(duplicateAliasAccepted.credited, true);
+  assert.equal(
+    (await readCanonicalWcState(
+      duplicateAliasReceipt.account,
+      duplicateAliasRoot,
+    )).redeemable_quanta,
+    "3000000000",
   );
 
 

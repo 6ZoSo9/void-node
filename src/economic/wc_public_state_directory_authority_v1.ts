@@ -15,6 +15,12 @@ type WcPublicStateDirectoryNamespaceEpochV1 = {
   ctime_ns: string;
 };
 
+type WcPublicStateDurableDirectoryLinkV1 = {
+  child: WcPublicStateDirectoryIdentityV1;
+  parent: WcPublicStateDirectoryIdentityV1;
+  parent_namespace: WcPublicStateDirectoryNamespaceEpochV1;
+};
+
 export type WcPublicStateDirectoryParentFsyncHookV1 =
   | ((
       phase: "before" | "after",
@@ -30,7 +36,7 @@ export type WcPublicStateDirectoryParentFsyncHookV1 =
 const durableAuthorityRootsV1 =
   new Map<string, WcPublicStateDirectoryIdentityV1>();
 const durableDirectoryLinksV1 =
-  new Map<string, WcPublicStateDirectoryIdentityV1>();
+  new Map<string, WcPublicStateDurableDirectoryLinkV1>();
 
 function directoryIdentityFromStatV1(
   stat: any,
@@ -132,6 +138,23 @@ function directoryNamespaceEpochFromStatV1(
     mtime_ns: String(stat.mtimeNs),
     ctime_ns: String(stat.ctimeNs),
   };
+}
+
+function directoryNamespaceEpochV1(
+  dir: string,
+  requirePrivate: boolean,
+): WcPublicStateDirectoryNamespaceEpochV1 {
+  const stat: any = fs.lstatSync(
+    dir,
+    { bigint: true } as any,
+  );
+  if (stat.isSymbolicLink()) {
+    throw new Error(
+      "wc_public_state_directory_not_authoritative",
+    );
+  }
+  directoryIdentityFromStatV1(stat, requirePrivate);
+  return directoryNamespaceEpochFromStatV1(stat);
 }
 
 function sameNamespaceEpochV1(
@@ -307,6 +330,31 @@ function cachedDirectoryIdentityV1(
   return current;
 }
 
+function cachedDirectoryLinkV1(
+  key: string,
+): WcPublicStateDurableDirectoryLinkV1 | null {
+  const cached = durableDirectoryLinksV1.get(key);
+  if (!cached) return null;
+
+  let current: WcPublicStateDirectoryIdentityV1;
+  try {
+    current = directoryIdentityV1(key, true);
+  } catch (error: any) {
+    if (String(error?.code || "") === "ENOENT") {
+      throw new Error(
+        "wc_public_state_directory_generation_changed",
+      );
+    }
+    throw error;
+  }
+  if (!sameIdentityV1(cached.child, current)) {
+    throw new Error(
+      "wc_public_state_directory_generation_changed",
+    );
+  }
+  return cached;
+}
+
 export function ensureWcPublicStateDurableDirectoryV1(
   dirRaw: string,
   authorityRootRaw: string,
@@ -327,12 +375,7 @@ export function ensureWcPublicStateDurableDirectoryV1(
     true,
     "wc_public_state_authority_root_generation_changed",
   );
-  const cachedTarget = cachedDirectoryIdentityV1(
-    durableDirectoryLinksV1,
-    target,
-    true,
-    "wc_public_state_directory_generation_changed",
-  );
+  const cachedTarget = cachedDirectoryLinkV1(target);
 
   for (const component of pathComponentsV1(target)) {
     const requirePrivate = isWithinV1(component, authorityRoot);
@@ -415,8 +458,56 @@ export function ensureWcPublicStateDurableDirectoryV1(
 
   const identity = directoryIdentityV1(target, true);
   if (cachedTarget) {
-    if (!sameIdentityV1(cachedTarget, identity)) {
+    if (!sameIdentityV1(cachedTarget.child, identity)) {
       throw new Error("wc_public_state_directory_generation_changed");
+    }
+
+    const parent = path.dirname(target);
+    const parentRequirePrivate =
+      isWithinV1(parent, authorityRoot);
+    const parentIdentity = directoryIdentityV1(
+      parent,
+      parentRequirePrivate,
+    );
+    if (!sameIdentityV1(cachedTarget.parent, parentIdentity)) {
+      throw new Error(
+        "wc_public_state_directory_parent_generation_changed",
+      );
+    }
+
+    const parentNamespace = directoryNamespaceEpochV1(
+      parent,
+      parentRequirePrivate,
+    );
+    if (
+      !sameNamespaceEpochV1(
+        cachedTarget.parent_namespace,
+        parentNamespace,
+      )
+    ) {
+      // Sibling publication can legitimately advance the same parent's
+      // namespace epoch. Re-establish the exact parent->child link before
+      // reusing durability authority; a replacement parent generation is
+      // rejected above even when the exact child inode was reparented.
+      fsyncExactDirectoryLinkV1(
+        parent,
+        target,
+        parentIdentity,
+        identity,
+        parentRequirePrivate,
+        hook,
+      );
+      durableDirectoryLinksV1.set(target, {
+        child: directoryIdentityV1(target, true),
+        parent: directoryIdentityV1(
+          parent,
+          parentRequirePrivate,
+        ),
+        parent_namespace: directoryNamespaceEpochV1(
+          parent,
+          parentRequirePrivate,
+        ),
+      });
     }
     return identity;
   }
@@ -446,6 +537,16 @@ export function ensureWcPublicStateDurableDirectoryV1(
       "wc_public_state_authority_root_generation_changed",
     );
   }
-  durableDirectoryLinksV1.set(target, after);
+  durableDirectoryLinksV1.set(target, {
+    child: after,
+    parent: directoryIdentityV1(
+      parent,
+      parentRequirePrivate,
+    ),
+    parent_namespace: directoryNamespaceEpochV1(
+      parent,
+      parentRequirePrivate,
+    ),
+  });
   return after;
 }

@@ -134,6 +134,9 @@ async function main(): Promise<void> {
     "../src/economic/wc_public_earning_pilot_v1.js"
   );
   const block = await import("../src/chain/block.js");
+  const stateDirectoryAuthority = await import(
+    "../src/economic/wc_public_state_directory_authority_v1.js"
+  );
 
   {
     const tmp = fs.mkdtempSync(
@@ -713,6 +716,66 @@ async function main(): Promise<void> {
       recursive: true,
       force: true,
     });
+  }
+
+  // Cache reuse must remain bound to the exact immediate-parent generation
+  // whose child link crossed fsync. Reparenting the exact cached child inode
+  // into a fresh, unsynced parent must not inherit old durability authority.
+  {
+    const tmp = fs.mkdtempSync(
+      path.join(
+        os.tmpdir(),
+        "void-public-state-cached-child-reparent-v1-",
+      ),
+    );
+    const parent = path.join(
+      tmp,
+      "wc_v1",
+      "public-earning-pilot-v1",
+    );
+    const target = path.join(parent, "issued");
+    const displaced = `${parent}.displaced`;
+
+    stateDirectoryAuthority.ensureWcPublicStateDurableDirectoryV1(
+      target,
+      tmp,
+    );
+    const childBefore: any = fs.statSync(
+      target,
+      { bigint: true } as any,
+    );
+    const parentBefore: any = fs.statSync(
+      parent,
+      { bigint: true } as any,
+    );
+
+    fs.renameSync(parent, displaced);
+    fs.mkdirSync(parent, { mode: 0o700 });
+    fs.renameSync(
+      path.join(displaced, "issued"),
+      target,
+    );
+
+    const childAfter: any = fs.statSync(
+      target,
+      { bigint: true } as any,
+    );
+    const parentAfter: any = fs.statSync(
+      parent,
+      { bigint: true } as any,
+    );
+    assert.equal(String(childAfter.ino), String(childBefore.ino));
+    assert.notEqual(String(parentAfter.ino), String(parentBefore.ino));
+    assert.throws(
+      () =>
+        stateDirectoryAuthority.ensureWcPublicStateDurableDirectoryV1(
+          target,
+          tmp,
+        ),
+      /wc_public_state_directory_parent_generation_changed/,
+    );
+
+    fs.rmSync(tmp, { recursive: true, force: true });
   }
 
   {
@@ -2091,9 +2154,13 @@ async function main(): Promise<void> {
         authority.prepareWcPublicClaimHistoryDecisionV1(
           tmp,
         ),
-      /VOID_WC_PUBLIC_CLAIM_HISTORY_WARMING/,
+      /VOID_WC_PUBLIC_CLAIM_HISTORY_WATCH_(?:CHALLENGE_TIMEOUT|INVALID)/,
     );
 
+    authority.resetWcPublicClaimHistoryAuthorityForProofV1(
+      tmp,
+    );
+    authority.primeWcPublicClaimHistoryAuthorityV1(tmp);
     await authority.waitForWcPublicClaimHistoryWarmForProofV1(
       tmp,
     );
@@ -2118,6 +2185,90 @@ async function main(): Promise<void> {
         300_000,
       ).active_account,
       1,
+    );
+
+    // A non-cooperating same-inode rewrite does not advance the durable
+    // mutation token or parent-directory stamps. The ordered watcher
+    // challenge must still fail closed when delivery has been suppressed;
+    // stale account-B policy may never be reused.
+    const directoryBeforeUncooperative = dirStamp(d.issued);
+    const mutationBeforeUncooperative =
+      await authority.readWcPublicClaimHistoryMutationGenerationForProofV1(
+        tmp,
+      );
+    const recordBeforeUncooperative: any = fs.statSync(
+      issuedFile,
+      { bigint: true } as any,
+    );
+    authority.suppressWcPublicClaimHistoryWatchForProofV1(
+      tmp,
+    );
+    fs.chmodSync(issuedFile, 0o600);
+    fs.writeFileSync(
+      issuedFile,
+      recordText(accountA),
+      { mode: 0o600 },
+    );
+    fs.chmodSync(issuedFile, 0o400);
+    const recordAfterUncooperative: any = fs.statSync(
+      issuedFile,
+      { bigint: true } as any,
+    );
+    assert.equal(
+      String(recordAfterUncooperative.ino),
+      String(recordBeforeUncooperative.ino),
+    );
+    assert.notEqual(
+      String(recordAfterUncooperative.ctimeNs),
+      String(recordBeforeUncooperative.ctimeNs),
+    );
+    assert.deepEqual(
+      dirStamp(d.issued),
+      directoryBeforeUncooperative,
+    );
+    assert.equal(
+      await authority.readWcPublicClaimHistoryMutationGenerationForProofV1(
+        tmp,
+      ),
+      mutationBeforeUncooperative,
+    );
+    await assert.rejects(
+      () =>
+        authority.prepareWcPublicClaimHistoryDecisionV1(
+          tmp,
+        ),
+      /VOID_WC_PUBLIC_CLAIM_HISTORY_WATCH_(?:CHALLENGE_TIMEOUT|INVALID)/,
+    );
+
+    authority.resetWcPublicClaimHistoryAuthorityForProofV1(
+      tmp,
+    );
+    authority.primeWcPublicClaimHistoryAuthorityV1(tmp);
+    await authority.waitForWcPublicClaimHistoryWarmForProofV1(
+      tmp,
+    );
+    await authority.prepareWcPublicClaimHistoryDecisionV1(
+      tmp,
+    );
+    assert.equal(
+      authority.wcPublicClaimHistorySnapshotV1(
+        tmp,
+        now,
+        accountA,
+        executor,
+        300_000,
+      ).active_account,
+      1,
+    );
+    assert.equal(
+      authority.wcPublicClaimHistorySnapshotV1(
+        tmp,
+        now,
+        accountB,
+        executor,
+        300_000,
+      ).active_account,
+      0,
     );
 
     // Canonical valid -> malformed replacement with watch delivery
@@ -2150,8 +2301,12 @@ async function main(): Promise<void> {
         authority.prepareWcPublicClaimHistoryDecisionV1(
           tmp,
         ),
-      /VOID_WC_PUBLIC_CLAIM_HISTORY_WARMING/,
+      /VOID_WC_PUBLIC_CLAIM_HISTORY_WATCH_(?:CHALLENGE_TIMEOUT|INVALID)/,
     );
+    authority.resetWcPublicClaimHistoryAuthorityForProofV1(
+      tmp,
+    );
+    authority.primeWcPublicClaimHistoryAuthorityV1(tmp);
     await assert.rejects(
       () =>
         authority.waitForWcPublicClaimHistoryWarmForProofV1(
@@ -2289,13 +2444,15 @@ async function main(): Promise<void> {
   console.log("coercible_history_numeric_fields_rejected=true");
   console.log("history_directory_parent_fsync_durable=true");
   console.log("history_directory_failed_fsync_resynced=true");
+  console.log("cached_child_parent_link_generation_bound=true");
   console.log("claim_history_string_schema_exact=true");
   console.log("coercible_history_string_fields_rejected=true");
-  console.log("fs_watch_advisory_only=true");
+  console.log("fs_watch_ordered_liveness_barrier=true");
   console.log("history_record_projection_in_place_mutation_denied=true");
   console.log("post_warm_mutation_generation_checked_before_decision=true");
   console.log("missed_watch_canonical_mutation_stale_cache=false");
   console.log("missed_watch_valid_to_invalid_fails_closed=true");
+  console.log("missed_watch_uncooperative_in_place_rewrite_fails_closed=true");
   console.log("per_decision_retained_record_walk=false");
   console.log("decision_mutation_generation_reads_per_request=1");
   console.log("decision_record_generation_stats_per_request=0");

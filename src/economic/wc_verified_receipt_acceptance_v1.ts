@@ -116,6 +116,10 @@ function safeId(value: unknown, max = 180): string {
   return id;
 }
 
+function exactStringV1(value: unknown): string | null {
+  return typeof value === "string" ? value : null;
+}
+
 function hex64(value: unknown): string {
   if (typeof value !== "string") return "";
   const candidate = value.trim().toLowerCase().replace(/^0x/, "");
@@ -480,11 +484,12 @@ async function existingCredit(
   const scan = await scanJsonl(
     ledgerFile(raw),
     (entry) => {
-      if (String(entry?.kind || "") !== "credit") return;
+      if (exactStringV1(entry?.kind) !== "credit") return;
 
       const receiptMatch =
-        String(entry?.receipt_id || "") === normalized.receipt_id;
-      const jobMatch = String(entry?.job_id || "") === normalized.job_id;
+        exactStringV1(entry?.receipt_id) === normalized.receipt_id;
+      const jobMatch =
+        exactStringV1(entry?.job_id) === normalized.job_id;
       const entryTicketId = safeId(
         entry?.reward_meta?.capability_ticket_id,
         64,
@@ -500,15 +505,15 @@ async function existingCredit(
       );
       const compatible =
         deltaQuanta === VOID_WC_AWARD_QUANTA_V1 &&
-        String(entry?.account || "") === normalized.account &&
-        String(entry?.receipt_kind || "") ===
+        exactStringV1(entry?.account) === normalized.account &&
+        exactStringV1(entry?.receipt_kind) ===
           VOID_WC_VERIFIED_RECEIPT_ACCEPTANCE_TASK &&
         (!capabilityTicketId || entryTicketId === capabilityTicketId) &&
         (!ticketMatch ||
           (receiptMatch &&
             jobMatch &&
-            String(entry?.receipt_id || "") === normalized.receipt_id &&
-            String(entry?.job_id || "") === normalized.job_id));
+            exactStringV1(entry?.receipt_id) === normalized.receipt_id &&
+            exactStringV1(entry?.job_id) === normalized.job_id));
 
       if (!compatible) conflict = true;
       if (!existing) existing = entry;
@@ -732,7 +737,13 @@ export async function readCanonicalWcState(
   const ledgerScan = await scanJsonl(
     ledgerFile(dataDir),
     (entry) => {
-      if (String(entry?.account || "") !== account) return;
+      if (exactStringV1(entry?.account) !== account) return;
+      if (
+        entry?.kind !== undefined &&
+        typeof entry.kind !== "string"
+      ) {
+        fail("ledger_kind_not_exact_string");
+      }
       const deltaQuanta =
         entry?.delta === undefined || entry?.delta === null
           ? 0n
@@ -743,7 +754,7 @@ export async function readCanonicalWcState(
       if (deltaQuanta > 0n) {
         earnedQuanta += deltaQuanta;
       }
-      if (String(entry?.kind || "") === "debit") {
+      if (entry.kind === "debit") {
         const amountQuanta =
           entry?.amount === undefined || entry?.amount === null
             ? (deltaQuanta < 0n ? -deltaQuanta : deltaQuanta)
@@ -764,7 +775,7 @@ export async function readCanonicalWcState(
   const redeemedScan = await scanJsonl(
     redeemedFile(dataDir),
     (entry) => {
-      if (String(entry?.account || "") !== account) return;
+      if (exactStringV1(entry?.account) !== account) return;
       const amountQuanta =
         entry?.amount === undefined || entry?.amount === null
           ? 0n
@@ -1437,12 +1448,12 @@ async function existingPaidWorkEntitlementCredit(
     }
 
     const sameSubmission =
-      String(entry.submission_id || "") === normalized.submission_id;
+      exactStringV1(entry.submission_id) === normalized.submission_id;
     const sameEntitlement =
-      String(entry.entitlement_sha256 || "") ===
+      exactStringV1(entry.entitlement_sha256) ===
       normalized.entitlement_sha256;
     const sameIdempotency =
-      String(entry.idempotency_key || "") === normalized.idempotency_key;
+      exactStringV1(entry.idempotency_key) === normalized.idempotency_key;
 
     if (!sameSubmission && !sameEntitlement && !sameIdempotency) {
       continue;
@@ -1452,10 +1463,12 @@ async function existingPaidWorkEntitlementCredit(
       sameSubmission &&
       sameEntitlement &&
       sameIdempotency &&
-      String(entry.account || "") === normalized.account &&
-      Number(entry.delta) ===
+      exactStringV1(entry.account) === normalized.account &&
+      typeof entry.delta === "number" &&
+      Number.isSafeInteger(entry.delta) &&
+      entry.delta ===
         VOID_WC_PAID_WORK_ENTITLEMENT_ACCEPTANCE_AWARD_WC &&
-      String(entry.reason || "") ===
+      exactStringV1(entry.reason) ===
         "paid_work_entitlement_acceptance_v1";
 
     if (!exactMatch) {
