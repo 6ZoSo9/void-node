@@ -354,12 +354,44 @@ export function buildSegmentedJsonlV1FromFile(sourceInput:string,destinationInpu
   parseManifest(manifest); atomicManifest(root,manifest); return manifest;
 }
 
+function appendVerifiedGenerationToOutputV1(
+  file: string,
+  expectedBytes: number,
+  expectedSha256: string,
+  outputFd: number,
+  outputHash: ReturnType<typeof crypto.createHash>,
+  outputPath: string,
+): number {
+  const flags=fs.constants.O_RDONLY|((fs.constants as any).O_NOFOLLOW||0);
+  const inFd=fs.openSync(file,flags);
+  try {
+    const before=fdGeneration(inFd), p0=pathGeneration(file);
+    if(!p0||!sameGeneration(before,p0)) fail("RECONSTRUCT_SOURCE_UNSTABLE_BEFORE_COPY",file);
+    if(Number(before.size)!==expectedBytes) fail("RECONSTRUCT_SOURCE_SIZE_MISMATCH",`${file}:${before.size}:${expectedBytes}`);
+    const sourceHash=crypto.createHash("sha256"), buf=Buffer.allocUnsafe(READ_CHUNK); let copied=0;
+    for(;;){
+      const n=fs.readSync(inFd,buf,0,buf.length,null); if(n<=0)break;
+      const chunk=buf.subarray(0,n); sourceHash.update(chunk); outputHash.update(chunk); copied+=n;
+      let off=0; while(off<n){const w=fs.writeSync(outputFd,chunk,off,n-off,null);if(w<=0)fail("SHORT_RECONSTRUCT_WRITE",outputPath);off+=w;}
+    }
+    const after=fdGeneration(inFd), p1=pathGeneration(file);
+    if(!sameGeneration(before,after)||!p1||!sameGeneration(after,p1)) fail("RECONSTRUCT_SOURCE_UNSTABLE_DURING_COPY",file);
+    if(copied!==expectedBytes) fail("RECONSTRUCT_SOURCE_SIZE_MISMATCH",`${file}:${copied}:${expectedBytes}`);
+    const actual=sourceHash.digest("hex");
+    if(actual!==expectedSha256) fail("RECONSTRUCT_SOURCE_HASH_MISMATCH",`${file}:expected=${expectedSha256}:actual=${actual}`);
+    return copied;
+  } finally { fs.closeSync(inFd); }
+}
+
 export function reconstructSegmentedJsonlV1ToFile(rootInput:string,outputInput:string) {
   const root=rootPath(rootInput), verified=verifySegmentedJsonlV1(root), out=path.resolve(String(outputInput||""));
   if(fs.existsSync(out)) fail("OUTPUT_EXISTS",out); ensureDir(path.dirname(out));
   const fd=fs.openSync(out,fs.constants.O_WRONLY|fs.constants.O_CREAT|fs.constants.O_EXCL|((fs.constants as any).O_NOFOLLOW||0),0o600), hash=crypto.createHash("sha256"); let bytes=0;
-  const append=(file:string)=>{ const inFd=fs.openSync(file,fs.constants.O_RDONLY|((fs.constants as any).O_NOFOLLOW||0)); try{const buf=Buffer.allocUnsafe(READ_CHUNK);for(;;){const n=fs.readSync(inFd,buf,0,buf.length,null);if(n<=0)break;const chunk=buf.subarray(0,n);let off=0;while(off<n){const w=fs.writeSync(fd,chunk,off,n-off,null);if(w<=0)fail("SHORT_RECONSTRUCT_WRITE",out);off+=w;}hash.update(chunk);bytes+=n;}}finally{fs.closeSync(inFd);}};
-  try{for(const s of verified.manifest.sealed_segments)append(segmentPath(root,s.id));append(inside(root,path.join(root,ACTIVE)));fs.fsyncSync(fd);}finally{fs.closeSync(fd);} fsyncDir(path.dirname(out));
+  try{
+    for(const s of verified.manifest.sealed_segments) bytes+=appendVerifiedGenerationToOutputV1(segmentPath(root,s.id),s.bytes,s.sha256,fd,hash,out);
+    bytes+=appendVerifiedGenerationToOutputV1(inside(root,path.join(root,ACTIVE)),verified.manifest.active.bytes,verified.manifest.active.sha256,fd,hash,out);
+    fs.fsyncSync(fd);
+  }finally{fs.closeSync(fd);} fsyncDir(path.dirname(out));
   if(bytes!==verified.manifest.total_bytes) fail("RECONSTRUCT_SIZE_MISMATCH",`${bytes}:${verified.manifest.total_bytes}`);
   return {bytes,records:verified.manifest.total_records,sha256:hash.digest("hex")};
 }
