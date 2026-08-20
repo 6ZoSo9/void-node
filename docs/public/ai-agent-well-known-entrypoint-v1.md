@@ -87,3 +87,8 @@ The handlers serve exact repository JSON bytes with `Cache-Control: no-store`.
 They grant no mutation, wallet, treasury, ledger, validator, Work Credit, or
 Buy VOID execution authority. `src/index.ts` is not expanded by this runtime
 integration; mounting is delegated through the existing local runtime router.
+
+
+## Bounded response admission
+
+The reference client admits only exact `application/json` responses from the requested final URL. It rejects declared or streamed bodies above 262,144 bytes before JSON retention, requires fatal UTF-8 decoding, and keeps its 10-second request deadline active through complete body consumption. Redirects, oversized bodies, malformed content lengths, invalid UTF-8, and invalid JSON fail closed without granting authority or requesting credentials.
