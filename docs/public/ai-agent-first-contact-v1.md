@@ -82,14 +82,18 @@ In this client, `official_network_verified` means:
 1. the first-contact manifest declares the exact `VOID Mainnet-0`, chain
    `2050`, and `mainnet0` identity;
 2. the official discovery and authenticity documents were reachable;
-3. both responses carry their exact contract markers, protocol versions, and
-   top-level network fields;
+3. discovery carries its exact contract marker, protocol, network, and
+   read-only controls;
 4. discovery links back to the manifest-declared authenticity path; and
-5. both responses preserve their read-only, no-credentials, no-redirect, and
-   authority-zero controls.
+5. the authenticity packet matches the reviewed Ed25519 key identity, signed
+   payload digest, genesis, admitted checkpoint, supersession, authority, and
+   safety contract, and its signature verifies over the canonical payload.
 
-It does **not** claim that the client independently revalidated every
-cryptographic signature or reproduced the offline root ceremony.
+The client verifies the published authenticity signature but does **not**
+reproduce the offline root ceremony or grant any runtime/economic authority.
+Missing, unsigned, forged, wrong-key, wrong-digest, wrong-genesis,
+wrong-checkpoint, stale, or unadmitted identity evidence forces
+`partial_read_only` and never produces official-network verification.
 Free-form or nested text containing `VOID`, `mainnet0`, or `2050` is not
 network-binding evidence and is rejected.
 

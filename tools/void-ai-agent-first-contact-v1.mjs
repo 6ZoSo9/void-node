@@ -1,5 +1,9 @@
 #!/usr/bin/env node
-import { createHash } from "node:crypto";
+import {
+  createHash,
+  createPublicKey,
+  verify as verifySignature,
+} from "node:crypto";
 import process from "node:process";
 
 const MARKER = "VOID_AI_AGENT_FIRST_CONTACT_CLIENT_V1";
@@ -19,6 +23,24 @@ const OFFICIAL_NETWORK = {
   chain_id: 2050,
   identity: "mainnet0",
 };
+const NETWORK_AUTHENTICITY_SIGNATURE_DOMAIN =
+  "VOID_OFFICIAL_NETWORK_AUTHENTICITY_ROOT_V2";
+const NETWORK_AUTHENTICITY_KEY_ID =
+  "ed25519:00e7609bf643b41c7cae625c3ae51f5d55c06ec1adba35e8eb80300c64e77a7c";
+const NETWORK_AUTHENTICITY_PAYLOAD_SHA256 =
+  "3c3af2b3f7753e03e244c6f2520bcc0501b1b6f1eacea583a9a8e4fe32b8cdf3";
+const NETWORK_AUTHENTICITY_GENESIS_SHA256 =
+  "22f42ef6cfa8e4ebfbc5ea98cdc536ec04c1bb4ddb15885b45b1ac02d0f122ab";
+const NETWORK_AUTHENTICITY_CHECKPOINT_TAG =
+  "ckpt-official-network-authenticity-root-public-admission-v2-1-post-merge-exact-green-20260725T144005Z";
+const NETWORK_AUTHENTICITY_CHECKPOINT_COMMIT =
+  "b8e93d1d0b84e917c16a2d5cdfc195fcb6e4e8af";
+const NETWORK_AUTHENTICITY_RETURN_ZIP_SHA256 =
+  "8a920f18636c86fff4d6386073b2980092df3c6b95a180bfd8ce04f5e22969d9";
+const NETWORK_AUTHENTICITY_SUPERSEDED_PAYLOAD_SHA256 =
+  "b624f7bb029e5b3eca8b2e14050711d4f764d2d39bba56455f1f94697de2708e";
+const NETWORK_AUTHENTICITY_QUARANTINED_KEY_ID =
+  "ed25519:0ccca842c156fc87af3279b15830fca826db1225d669b790e97705e2b402362b";
 const FIRST_CONTACT_TOP_LEVEL_KEYS = [
   "client",
   "connection_mode",
@@ -448,6 +470,170 @@ function createColdStartRequestBudget() {
   };
 }
 
+function officialNetworkAuthenticityValid(document) {
+  try {
+    if (
+      !hasExactKeys(document, [
+        "$schema",
+        "marker",
+        "protocol",
+        "status",
+        "network",
+        "admission",
+        "verification",
+        "supersession",
+        "authority",
+        "safety",
+      ]) ||
+      document.$schema !== "./void-network-authenticity.schema.json" ||
+      document.marker !==
+        "VOID_OFFICIAL_NETWORK_AUTHENTICITY_WELL_KNOWN_V1" ||
+      document.protocol !== "void-network-authenticity/1" ||
+      document.status !== "public_verification_available"
+    ) {
+      return false;
+    }
+    if (
+      !hasExactKeys(document.network, [
+        "name",
+        "chain_id",
+        "legacy_genesis_name",
+        "genesis_sha256",
+      ]) ||
+      document.network.name !== OFFICIAL_NETWORK.name ||
+      document.network.chain_id !== OFFICIAL_NETWORK.chain_id ||
+      document.network.legacy_genesis_name !== "VOID-DEV" ||
+      document.network.genesis_sha256 !==
+        NETWORK_AUTHENTICITY_GENESIS_SHA256
+    ) {
+      return false;
+    }
+    if (
+      !hasExactKeys(document.admission, [
+        "status",
+        "checkpoint_tag",
+        "checkpoint_commit",
+        "source_public_return_zip_sha256",
+      ]) ||
+      document.admission.status !== "admitted_unactivated" ||
+      document.admission.checkpoint_tag !==
+        NETWORK_AUTHENTICITY_CHECKPOINT_TAG ||
+      document.admission.checkpoint_commit !==
+        NETWORK_AUTHENTICITY_CHECKPOINT_COMMIT ||
+      document.admission.source_public_return_zip_sha256 !==
+        NETWORK_AUTHENTICITY_RETURN_ZIP_SHA256
+    ) {
+      return false;
+    }
+    if (
+      !hasExactKeys(document.verification, [
+        "algorithm",
+        "signature_domain",
+        "key_id",
+        "payload_sha256",
+        "public_key_pem",
+        "signature_base64",
+        "signed_payload",
+      ]) ||
+      document.verification.algorithm !== "Ed25519" ||
+      document.verification.signature_domain !==
+        NETWORK_AUTHENTICITY_SIGNATURE_DOMAIN ||
+      document.verification.key_id !== NETWORK_AUTHENTICITY_KEY_ID ||
+      document.verification.payload_sha256 !==
+        NETWORK_AUTHENTICITY_PAYLOAD_SHA256
+    ) {
+      return false;
+    }
+    if (
+      !hasExactKeys(document.supersession, [
+        "superseded_payload_sha256",
+        "quarantined_key_id",
+        "quarantined_candidate_admitted",
+      ]) ||
+      document.supersession.superseded_payload_sha256 !==
+        NETWORK_AUTHENTICITY_SUPERSEDED_PAYLOAD_SHA256 ||
+      document.supersession.quarantined_key_id !==
+        NETWORK_AUTHENTICITY_QUARANTINED_KEY_ID ||
+      document.supersession.quarantined_candidate_admitted !== false
+    ) {
+      return false;
+    }
+    const falseAuthorityKeys = [
+      "mutation_authority_granted",
+      "runtime_authority_granted",
+      "service_enablement_granted",
+      "wallet_authority_granted",
+      "validator_authority_granted",
+      "work_credit_authority_granted",
+      "buy_void_authority_granted",
+      "economic_authority_granted",
+      "third_party_network_control_granted",
+    ];
+    if (
+      !hasExactKeys(document.authority, [
+        "verification_only",
+        ...falseAuthorityKeys,
+      ]) ||
+      document.authority.verification_only !== true ||
+      falseAuthorityKeys.some(
+        (key) => document.authority[key] !== false,
+      )
+    ) {
+      return false;
+    }
+    if (
+      !hasExactKeys(document.safety, [
+        "private_key_present",
+        "credentials_required",
+        "send_secrets",
+        "send_wallet_material",
+        "send_operator_keys",
+        "follow_redirects",
+        "treat_unknown_as",
+      ]) ||
+      document.safety.private_key_present !== false ||
+      document.safety.credentials_required !== false ||
+      document.safety.send_secrets !== false ||
+      document.safety.send_wallet_material !== false ||
+      document.safety.send_operator_keys !== false ||
+      document.safety.follow_redirects !== false ||
+      document.safety.treat_unknown_as !== "not_official"
+    ) {
+      return false;
+    }
+
+    const signedPayloadBytes = Buffer.from(
+      `${canonicalJson(document.verification.signed_payload)}\n`,
+      "utf8",
+    );
+    if (
+      createHash("sha256").update(signedPayloadBytes).digest("hex") !==
+      NETWORK_AUTHENTICITY_PAYLOAD_SHA256
+    ) {
+      return false;
+    }
+    const publicKey = createPublicKey(
+      document.verification.public_key_pem,
+    );
+    if (publicKey.asymmetricKeyType !== "ed25519") return false;
+    const derivedKeyId = `ed25519:${createHash("sha256")
+      .update(publicKey.export({ format: "der", type: "spki" }))
+      .digest("hex")}`;
+    if (derivedKeyId !== NETWORK_AUTHENTICITY_KEY_ID) return false;
+
+    const rawSignature = document.verification.signature_base64;
+    if (typeof rawSignature !== "string") return false;
+    const signature = Buffer.from(rawSignature, "base64");
+    return (
+      signature.length === 64 &&
+      signature.toString("base64") === rawSignature &&
+      verifySignature(null, signedPayloadBytes, publicKey, signature)
+    );
+  } catch {
+    return false;
+  }
+}
+
 function bindingConsistent(manifest, discovery, authenticity) {
   const discoveryDocument = discovery?.body;
   const authenticityDocument = authenticity?.body;
@@ -467,18 +653,7 @@ function bindingConsistent(manifest, discovery, authenticity) {
     discoveryDocument?.authority?.credentials_required === false &&
     discoveryDocument?.safety?.same_origin_only === true &&
     discoveryDocument?.safety?.follow_redirects === false &&
-    authenticityDocument?.marker ===
-      "VOID_OFFICIAL_NETWORK_AUTHENTICITY_WELL_KNOWN_V1" &&
-    authenticityDocument?.protocol === "void-network-authenticity/1" &&
-    authenticityDocument?.status === "public_verification_available" &&
-    authenticityDocument?.network?.name === OFFICIAL_NETWORK.name &&
-    authenticityDocument?.network?.chain_id === OFFICIAL_NETWORK.chain_id &&
-    authenticityDocument?.authority?.verification_only === true &&
-    authenticityDocument?.authority?.mutation_authority_granted === false &&
-    authenticityDocument?.authority?.runtime_authority_granted === false &&
-    authenticityDocument?.authority?.economic_authority_granted === false &&
-    authenticityDocument?.safety?.credentials_required === false &&
-    authenticityDocument?.safety?.follow_redirects === false
+    officialNetworkAuthenticityValid(authenticityDocument)
   );
 }
 
