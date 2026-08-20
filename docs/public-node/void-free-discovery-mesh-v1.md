@@ -31,6 +31,7 @@ The offline builder fails closed unless it can bind local file and output namesp
 - The output parent is traversed component-by-component with no-follow directory opens. Symlink components are rejected rather than followed.
 - Build output is written through descriptor-relative `/proc/self/fd/...` paths rooted in the exact opened parent and private temporary directory generations.
 - Before publication, the builder reopens the selected parent path and requires it to resolve to the same device/inode generation. An ancestor or parent replacement therefore produces HOLD instead of redirecting output into the replacement tree.
+- Final publication first claims the absent destination with an exclusive directory reservation, then moves the completed private staging entries through descriptor-relative authority. A concurrently created foreign destination wins unchanged and the build HOLDs without clobbering it.
 - The build receipt hashes the exact config bytes that were descriptor-bound and validated; it does not reopen the config pathname later for receipt authority.
 
 This hardening currently requires Linux `/proc/self/fd`, which matches the supported VOID operator environment. If descriptor-relative filesystem authority is unavailable, the build fails closed.
@@ -88,4 +89,4 @@ python3 -B scripts/check_void_ci_cost_boundary_v1.py --self-test
 python3 -B scripts/check_void_ci_cost_boundary_v1.py --repo-root .
 ```
 
-The proof exercises origin, date, key, path, same-host, output-location, inventory, cost, and authority boundaries. It also replaces opened key/config pathnames, injects output-parent symlink components, and swaps an output ancestor after private build bytes exist but before publication. All such generation changes must HOLD with zero writes in the replacement namespace. CI is limited to public repositories so this lane cannot consume private-repository hosted-runner minutes.
+The proof exercises origin, date, key, path, same-host, output-location, inventory, cost, and authority boundaries. It also replaces opened key/config pathnames, injects output-parent symlink components, swaps an output ancestor, and creates a foreign destination after private build bytes exist but before publication. All such generation changes must HOLD; replacement namespaces receive zero writes and the exact foreign destination generation remains untouched. CI is limited to public repositories so this lane cannot consume private-repository hosted-runner minutes.
