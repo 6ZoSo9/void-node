@@ -96,6 +96,56 @@ function proveReconstructRejectsPostVerifyReplacement(
   assert.equal(targetOpenCount >= 2, true, `${label} must be opened for verify and copy`);
 }
 
+function proveGrowthReadIsBounded(
+  targetPath: string,
+  targetOpenOrdinal: number,
+  action: () => unknown,
+  expectedFailure: string,
+  expectedBytes: number,
+  label: string,
+): void {
+  const originalOpenSync = (mutableFs as any).openSync;
+  const originalReadSync = (mutableFs as any).readSync;
+  let targetOpenCount = 0;
+  let targetFd = -1;
+  let admittedReadBytes = 0;
+  let grew = false;
+  try {
+    (mutableFs as any).openSync = (...args: any[]) => {
+      const fd = originalOpenSync(...args);
+      const candidate = typeof args[0] === "string" ? path.resolve(args[0]) : "";
+      if (candidate === path.resolve(targetPath)) {
+        targetOpenCount += 1;
+        if (targetOpenCount === targetOpenOrdinal) targetFd = fd;
+      }
+      return fd;
+    };
+    (mutableFs as any).readSync = (...args: any[]) => {
+      const n = originalReadSync(...args);
+      if (args[0] === targetFd && n > 0) {
+        admittedReadBytes += n;
+        if (!grew) {
+          fs.appendFileSync(targetPath, Buffer.from('{"late":true}\n', "utf8"));
+          grew = true;
+        }
+      }
+      return n;
+    };
+    syncBuiltinESMExports();
+    expectFailure(action, expectedFailure);
+  } finally {
+    (mutableFs as any).openSync = originalOpenSync;
+    (mutableFs as any).readSync = originalReadSync;
+    syncBuiltinESMExports();
+  }
+  assert.equal(grew, true, `${label} must grow after the admitted read begins`);
+  assert.equal(
+    admittedReadBytes <= expectedBytes + 1,
+    true,
+    `${label} read ${admittedReadBytes} bytes beyond admitted ${expectedBytes}`,
+  );
+}
+
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "void-segmented-jsonl-v1-"));
 try {
   const source = path.join(tmp, "source.jsonl");
@@ -197,6 +247,51 @@ try {
     path.join(activeRaceStore, "active.jsonl"),
     path.join(tmp, "reconstruct-active-race-output.jsonl"),
     "active segment",
+  );
+
+  const buildGrowthSource = path.join(tmp, "build-growth-source.jsonl");
+  const buildGrowthBody = makeFixture(20);
+  fs.writeFileSync(buildGrowthSource, buildGrowthBody);
+  proveGrowthReadIsBounded(
+    buildGrowthSource,
+    1,
+    () => buildSegmentedJsonlV1FromFile(
+      buildGrowthSource,
+      path.join(tmp, "build-growth-store"),
+      { segmentTargetBytes: 4096, maxRecordBytes: 1024 },
+    ),
+    "SOURCE_GREW_DURING_BUILD",
+    buildGrowthBody.length,
+    "builder source generation",
+  );
+
+  const scanGrowthStore = path.join(tmp, "scan-growth-store");
+  fs.cpSync(store, scanGrowthStore, { recursive: true });
+  const scanGrowthActive = path.join(scanGrowthStore, "active.jsonl");
+  const scanGrowthBytes = fs.statSync(scanGrowthActive).size;
+  proveGrowthReadIsBounded(
+    scanGrowthActive,
+    1,
+    () => verifySegmentedJsonlV1(scanGrowthStore),
+    "FILE_GREW_DURING_SCAN",
+    scanGrowthBytes,
+    "verification leaf generation",
+  );
+
+  const reconstructGrowthStore = path.join(tmp, "reconstruct-growth-store");
+  fs.cpSync(store, reconstructGrowthStore, { recursive: true });
+  const reconstructGrowthActive = path.join(reconstructGrowthStore, "active.jsonl");
+  const reconstructGrowthBytes = fs.statSync(reconstructGrowthActive).size;
+  proveGrowthReadIsBounded(
+    reconstructGrowthActive,
+    2,
+    () => reconstructSegmentedJsonlV1ToFile(
+      reconstructGrowthStore,
+      path.join(tmp, "reconstruct-growth-output.jsonl"),
+    ),
+    "RECONSTRUCT_SOURCE_GREW_DURING_COPY",
+    reconstructGrowthBytes,
+    "reconstruction source generation",
   );
 
   const inventory = sealedSegmentInventoryV1(manifest);
@@ -382,6 +477,7 @@ try {
       peer_missing_segments: plan.missing.length,
       exact_numeric_policy: true,
       exact_utf8_json_records: true,
+      admitted_generation_reads_bounded: true,
       reconstruct_copy_generation_bound: true,
       max_segment_target_bytes: VOID_SEGMENTED_JSONL_MAX_TARGET_BYTES_V1,
       max_record_bytes: VOID_SEGMENTED_JSONL_MAX_RECORD_BYTES_V1,

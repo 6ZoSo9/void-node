@@ -165,6 +165,36 @@ function pathGeneration(file: string): GenerationV1 | null {
   } catch (error) { void error; return null; }
 }
 
+function exactGenerationSizeV1(generation: GenerationV1, code: string, file: string): number {
+  const size = BigInt(generation.size);
+  if (size < 0n || size > BigInt(Number.MAX_SAFE_INTEGER)) fail(code, `${file}:${generation.size}`);
+  return Number(size);
+}
+
+function readAdmittedGenerationV1(
+  fd: number,
+  expectedBytes: number,
+  shortCode: string,
+  growthCode: string,
+  file: string,
+  onChunk: (chunk: Buffer) => void,
+): number {
+  if (!Number.isSafeInteger(expectedBytes) || expectedBytes < 0) fail(shortCode, `${file}:${expectedBytes}`);
+  const buf = Buffer.allocUnsafe(READ_CHUNK);
+  let bytes = 0;
+  while (bytes < expectedBytes) {
+    const limit = Math.min(buf.length, expectedBytes - bytes);
+    const n = fs.readSync(fd, buf, 0, limit, null);
+    if (n <= 0) fail(shortCode, `${file}:${bytes}:${expectedBytes}`);
+    const chunk = Buffer.from(buf.subarray(0, n));
+    bytes += n;
+    onChunk(chunk);
+  }
+  const sentinel = Buffer.allocUnsafe(1);
+  if (fs.readSync(fd, sentinel, 0, 1, null) > 0) fail(growthCode, `${file}:${expectedBytes}`);
+  return bytes;
+}
+
 function writeDurableNew(file: string, body: Buffer, mode: number): void {
   ensureDir(path.dirname(file));
   const flags = fs.constants.O_WRONLY | fs.constants.O_CREAT | fs.constants.O_EXCL | ((fs.constants as any).O_NOFOLLOW || 0);
@@ -280,16 +310,15 @@ function scanFile(file: string, expectedBytes: number, expectedRecords: number, 
   try {
     const before = fdGeneration(fd), p0 = pathGeneration(file);
     if (!p0 || !sameGeneration(before,p0)) fail("UNSTABLE_FILE_BEFORE_SCAN", file);
+    if (BigInt(before.size) !== BigInt(expectedBytes)) fail("FILE_SIZE_MISMATCH", `${file}:${before.size}:${expectedBytes}`);
     const hash = crypto.createHash("sha256");
-    const buf = Buffer.allocUnsafe(READ_CHUNK);
     let carry = Buffer.alloc(0), bytes = 0, records = 0;
-    for (;;) {
-      const n = fs.readSync(fd, buf, 0, buf.length, null); if (n <= 0) break;
-      const chunk = Buffer.from(buf.subarray(0,n)); bytes += n; hash.update(chunk);
+    bytes = readAdmittedGenerationV1(fd, expectedBytes, "FILE_SHORT_READ", "FILE_GREW_DURING_SCAN", file, (chunk) => {
+      hash.update(chunk);
       const data = carry.length ? Buffer.concat([carry,chunk]) : chunk; let from = 0;
       for (let i=0;i<data.length;i++) if (data[i] === 0x0a) { const rec = data.subarray(from,i+1); validateRecord(rec,maxRecord,validateJson,records); records++; from=i+1; }
       carry = Buffer.from(data.subarray(from)); if (carry.length > maxRecord) fail("RECORD_TOO_LARGE", `${file}:partial=${carry.length}`);
-    }
+    });
     if (carry.length) fail("UNTERMINATED_FILE", file);
     if (bytes !== expectedBytes || records !== expectedRecords) fail("FILE_RECORD_MISMATCH", `${file}:bytes=${bytes}/${expectedBytes}:records=${records}/${expectedRecords}`);
     const after = fdGeneration(fd), p1 = pathGeneration(file);
@@ -341,14 +370,14 @@ export function buildSegmentedJsonlV1FromFile(sourceInput:string,destinationInpu
   ensureDir(path.join(root,SEGMENTS)); fsyncDir(root);
   const flags=fs.constants.O_RDONLY|((fs.constants as any).O_NOFOLLOW||0), fd=fs.openSync(source,flags);
   const before=fdGeneration(fd), p0=pathGeneration(source); if(!p0||!sameGeneration(before,p0)){fs.closeSync(fd);fail("SOURCE_GENERATION_UNSTABLE_BEFORE_BUILD",source);}
+  const admittedSourceBytes=exactGenerationSizeV1(before,"SOURCE_SIZE_UNREPRESENTABLE",source);
   const sealed:SegmentedJsonlSegmentV1[]=[]; let parts:Buffer[]=[]; let partBytes=0, partRecords=0, first=0, global=0, carry=Buffer.alloc(0);
   const flush=()=>{ if(!partRecords)return; sealed.push(writeSealed(root,sealed.length,parts,first,partRecords)); first=global; parts=[]; partBytes=0; partRecords=0; };
   try {
-    const buf=Buffer.allocUnsafe(READ_CHUNK);
-    for(;;){ const n=fs.readSync(fd,buf,0,buf.length,null); if(n<=0)break; const data=carry.length?Buffer.concat([carry,buf.subarray(0,n)]):Buffer.from(buf.subarray(0,n)); let from=0;
+    readAdmittedGenerationV1(fd,admittedSourceBytes,"SOURCE_SHORT_READ","SOURCE_GREW_DURING_BUILD",source,(chunk)=>{ const data=carry.length?Buffer.concat([carry,chunk]):chunk; let from=0;
       for(let i=0;i<data.length;i++) if(data[i]===0x0a){ const rec=Buffer.from(data.subarray(from,i+1)); validateRecord(rec,max,validateJson,global); if(rec.length>target) fail("RECORD_EXCEEDS_SEGMENT_TARGET",`record=${global}:bytes=${rec.length}:target=${target}`); if(partBytes>0&&partBytes+rec.length>target) flush(); parts.push(rec); partBytes+=rec.length; partRecords++; global++; from=i+1; }
       carry=Buffer.from(data.subarray(from)); if(carry.length>max) fail("RECORD_TOO_LARGE",`record=${global}:partial=${carry.length}:max=${max}`);
-    }
+    });
     const after=fdGeneration(fd),p1=pathGeneration(source); if(!sameGeneration(before,after)||!p1||!sameGeneration(after,p1)) fail("SOURCE_GENERATION_CHANGED_DURING_BUILD",source);
   } finally { fs.closeSync(fd); }
   if(carry.length) fail("SOURCE_UNTERMINATED",source);
@@ -372,13 +401,12 @@ function appendVerifiedGenerationToOutputV1(
   try {
     const before=fdGeneration(inFd), p0=pathGeneration(file);
     if(!p0||!sameGeneration(before,p0)) fail("RECONSTRUCT_SOURCE_UNSTABLE_BEFORE_COPY",file);
-    if(Number(before.size)!==expectedBytes) fail("RECONSTRUCT_SOURCE_SIZE_MISMATCH",`${file}:${before.size}:${expectedBytes}`);
-    const sourceHash=crypto.createHash("sha256"), buf=Buffer.allocUnsafe(READ_CHUNK); let copied=0;
-    for(;;){
-      const n=fs.readSync(inFd,buf,0,buf.length,null); if(n<=0)break;
-      const chunk=buf.subarray(0,n); sourceHash.update(chunk); outputHash.update(chunk); copied+=n;
-      let off=0; while(off<n){const w=fs.writeSync(outputFd,chunk,off,n-off,null);if(w<=0)fail("SHORT_RECONSTRUCT_WRITE",outputPath);off+=w;}
-    }
+    if(BigInt(before.size)!==BigInt(expectedBytes)) fail("RECONSTRUCT_SOURCE_SIZE_MISMATCH",`${file}:${before.size}:${expectedBytes}`);
+    const sourceHash=crypto.createHash("sha256");
+    const copied=readAdmittedGenerationV1(inFd,expectedBytes,"RECONSTRUCT_SOURCE_SHORT_READ","RECONSTRUCT_SOURCE_GREW_DURING_COPY",file,(chunk)=>{
+      sourceHash.update(chunk); outputHash.update(chunk);
+      let off=0; while(off<chunk.length){const w=fs.writeSync(outputFd,chunk,off,chunk.length-off,null);if(w<=0)fail("SHORT_RECONSTRUCT_WRITE",outputPath);off+=w;}
+    });
     const after=fdGeneration(inFd), p1=pathGeneration(file);
     if(!sameGeneration(before,after)||!p1||!sameGeneration(after,p1)) fail("RECONSTRUCT_SOURCE_UNSTABLE_DURING_COPY",file);
     if(copied!==expectedBytes) fail("RECONSTRUCT_SOURCE_SIZE_MISMATCH",`${file}:${copied}:${expectedBytes}`);
