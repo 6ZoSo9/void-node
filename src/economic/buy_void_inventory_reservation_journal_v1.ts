@@ -3477,10 +3477,30 @@ function acquirePoolLockReclaimOwner(
       ...processIdentity,
       reclaimer_nonce: crypto.randomBytes(16).toString("hex"),
     };
-    const created = atomicCreateJson(
-      poolLockReclaimOwnerFile(paths, observed.owner_nonce, generation),
-      candidate,
+    const ownerFile = poolLockReclaimOwnerFile(
+      paths,
+      observed.owner_nonce,
+      generation,
     );
+    let created: "created" | "exists";
+    try {
+      created = atomicCreateJson(ownerFile, candidate);
+    } catch (error) {
+      // link(2) can publish the exact owner generation before the parent
+      // directory fsync reports failure. Treat that outcome as uncertain, not
+      // absent: only this caller's exact process/generation/nonce record may
+      // resume after re-establishing the parent durability boundary. A foreign
+      // live owner remains non-stealable because it cannot match candidate.
+      const published = readPoolLockReclaimOwners(
+        paths,
+        observed.owner_nonce,
+      ).at(-1);
+      if (published && exactPoolLockReclaimOwnerMatch(published, candidate)) {
+        fsyncDir(paths.history_anchor_pool_dir);
+        return "acquired";
+      }
+      throw error;
+    }
     if (created === "exists") continue;
     const published = readPoolLockReclaimOwners(
       paths,

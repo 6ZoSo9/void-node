@@ -803,8 +803,9 @@ function writeCrossProcessLockChild(root: string): string {
     '  const originalUnlink = fs.unlinkSync;',
     '  const originalLink = fs.linkSync;',
     '  const originalFsync = fs.fsyncSync;',
-    '  if (mode === "delayed-reclaimer" || mode === "orphan-reclaim-owner") {',
+    '  if (mode === "delayed-reclaimer" || mode === "orphan-reclaim-owner" || mode === "uncertain-reclaim-owner") {',
     '    let ownerLinked = false;',
+    '    let recoveredPublication = false;',
     '    fs.linkSync = (source, destination) => {',
     '      const result = originalLink(source, destination);',
     '      const basename = String(destination).split("/").pop();',
@@ -812,9 +813,14 @@ function writeCrossProcessLockChild(root: string): string {
     '      return result;',
     '    };',
     '    fs.fsyncSync = (descriptor) => {',
-    '      const result = originalFsync(descriptor);',
-    '      if (!fired && ownerLinked) {',
+    '      if (mode === "uncertain-reclaim-owner" && ownerLinked && !fired) {',
     '        fired = true;',
+    '        throw new Error("injected_uncertain_reclaim_owner_publication");',
+    '      }',
+    '      const result = originalFsync(descriptor);',
+    '      if (ownerLinked && ((!fired && mode !== "uncertain-reclaim-owner") || (fired && mode === "uncertain-reclaim-owner" && !recoveredPublication))) {',
+    '        if (mode === "uncertain-reclaim-owner") recoveredPublication = true;',
+    '        else fired = true;',
     '        fs.writeFileSync(input.barrier_reached_file, "reached\\n", { flag: "wx", mode: 0o600 });',
     '        const deadline = Date.now() + 10000;',
     '        while (!fs.existsSync(input.barrier_release_file)) {',
@@ -861,6 +867,7 @@ async function startCrossProcessChild(
     | "reclaim-fence-cleanup-failure"
     | "delayed-reclaimer"
     | "orphan-reclaim-owner"
+    | "uncertain-reclaim-owner"
     | "retry"
     | "live-owner",
   root: string,
@@ -1153,6 +1160,168 @@ async function proveCrashRecoverableReclaimOwner(): Promise<void> {
     } finally {
       if (crashed) await stopChild(crashed);
       if (retryChild) await stopChild(retryChild);
+      fs.rmSync(root, { recursive: true, force: true });
+    }
+  }
+}
+
+async function proveUncertainReclaimOwnerPublicationRecovery(): Promise<void> {
+  for (const scenario of ["reservation", "obligation"] as const) {
+    const root = fs.mkdtempSync(
+      path.join(
+        os.tmpdir(),
+        `void-buy-history-reclaim-owner-uncertain-${scenario}-`,
+      ),
+    );
+    let uncertain: ReturnType<typeof spawn> | null = null;
+    let contender: ReturnType<typeof spawn> | null = null;
+    try {
+      const scenarioPolicy = scenario === "reservation"
+        ? policy()
+        : policy("1", "1");
+      if (scenario === "obligation") {
+        const seed = reserveBuyVoidInventoryV1({
+          root_dir: root,
+          intent: makeIntent(140, "1"),
+          policy: scenarioPolicy,
+          apply: true,
+        });
+        assert.equal(seed.ok, true);
+      }
+      const paths = buyVoidInventoryReservationJournalPathsV1(
+        root,
+        scenarioPolicy.pool_id,
+      );
+      fs.mkdirSync(paths.history_anchor_pool_dir, {
+        recursive: true,
+        mode: 0o700,
+      });
+      const stale = {
+        schema: "void_buy_void_inventory_pool_lock_v1",
+        marker: VOID_BUY_VOID_INVENTORY_POOL_LOCK_V1,
+        pid: 2147483647,
+        acquired_at_ms: Date.now(),
+        process_start_ticks: "1",
+        boot_id: "00000000-0000-0000-0000-000000000000",
+        owner_nonce: "7".repeat(32),
+      };
+      fs.writeFileSync(paths.lock_file, `${JSON.stringify(stale)}\n`, {
+        flag: "wx",
+        mode: 0o600,
+      });
+      const barrierReached = path.join(
+        root,
+        "reclaim-owner-publication-recovered",
+      );
+      const barrierRelease = path.join(
+        root,
+        "reclaim-owner-publication-release",
+      );
+      const inputFile = path.join(root, "cross-process-input.json");
+      fs.writeFileSync(
+        inputFile,
+        JSON.stringify({
+          intent: makeIntent(scenario === "reservation" ? 141 : 142, "1"),
+          policy: scenarioPolicy,
+          barrier_reached_file: barrierReached,
+          barrier_release_file: barrierRelease,
+        }),
+        { mode: 0o600 },
+      );
+      const childFile = writeCrossProcessLockChild(root);
+      uncertain = spawn(
+        process.execPath,
+        [
+          ...process.execArgv,
+          childFile,
+          "uncertain-reclaim-owner",
+          root,
+          inputFile,
+        ],
+        { stdio: ["ignore", "pipe", "pipe"] },
+      );
+      const uncertainResult = readChildResult(uncertain);
+      void uncertainResult.catch(() => undefined);
+      await waitForFile(barrierReached);
+      if (uncertain.exitCode !== null || uncertain.signalCode !== null) {
+        throw new Error(
+          `uncertain_reclaim_owner_exited_at_barrier:${
+            JSON.stringify(await uncertainResult)
+          }`,
+        );
+      }
+
+      const ownerFiles = fs.readdirSync(
+        paths.history_anchor_pool_dir,
+      ).filter((name) =>
+        /\.reclaim-[0-9a-f]{32}\.json\.owner-0001\.json$/u.test(name)
+      );
+      assert.equal(ownerFiles.length, 1);
+      const liveOwner = JSON.parse(fs.readFileSync(
+        path.join(paths.history_anchor_pool_dir, ownerFiles[0]),
+        "utf8",
+      ));
+      assert.equal(liveOwner.pid, uncertain.pid);
+      const syntheticProcessStat =
+        `${liveOwner.pid} (reclaimer) S ${
+          Array(18).fill("0").join(" ")
+        } ${liveOwner.process_start_ticks}\n`;
+      fs.writeFileSync(
+        inputFile,
+        JSON.stringify({
+          ...JSON.parse(fs.readFileSync(inputFile, "utf8")),
+          owner_identity: {
+            pid: liveOwner.pid,
+            process_stat: syntheticProcessStat,
+          },
+        }),
+        { mode: 0o600 },
+      );
+
+      const second = await startCrossProcessChild(
+        childFile,
+        "retry",
+        root,
+        inputFile,
+      );
+      contender = second.child;
+      assert.equal(second.result.result.ok, false, JSON.stringify(second.result));
+      assert.equal(
+        second.result.result.reason,
+        "inventory_reservation_busy",
+      );
+      assert.deepEqual(
+        JSON.parse(fs.readFileSync(paths.lock_file, "utf8")),
+        stale,
+      );
+
+      fs.writeFileSync(barrierRelease, "release\n", { mode: 0o600 });
+      const completed = await uncertainResult;
+      assert.equal(completed.fired, true);
+      if (scenario === "reservation") {
+        assert.equal(completed.result.ok, true, JSON.stringify(completed));
+        assert.equal(
+          listBuyVoidInventoryReservationsV1({
+            root_dir: root,
+            pool_id: scenarioPolicy.pool_id,
+          }).length,
+          1,
+        );
+      } else {
+        assert.equal(completed.result.ok, false, JSON.stringify(completed));
+        assert.equal(completed.result.reason, "inventory_sold_out");
+        assert.equal(
+          listBuyVoidPaidUnreservableObligationsV1({
+            root_dir: root,
+            pool_id: scenarioPolicy.pool_id,
+          }).length,
+          1,
+        );
+      }
+      assert.equal(fs.existsSync(paths.lock_file), false);
+    } finally {
+      if (uncertain) await stopChild(uncertain);
+      if (contender) await stopChild(contender);
       fs.rmSync(root, { recursive: true, force: true });
     }
   }
@@ -2639,6 +2808,7 @@ await proveCrossProcessReleaseRecovery();
 await proveCrossProcessOrphanReclaimFenceRecovery();
 await proveSerializedStaleReclaimCompareDelete();
 await proveCrashRecoverableReclaimOwner();
+await proveUncertainReclaimOwnerPublicationRecovery();
 
 console.log("durable_history_expected_set_commitment=1");
 console.log("durable_history_append_only_hash_chain_index=1");
@@ -2648,6 +2818,7 @@ console.log("durable_history_creation_crash_recovery=1");
 console.log("durable_history_torn_index_tail_recovery=1");
 console.log("durable_history_torn_anchor_tail_recovery=1");
 console.log("durable_history_stale_lock_recovery=1");
+console.log("durable_history_reclaim_owner_publication_recovery=1");
 console.log("durable_history_separate_anchor_authority=1");
 console.log("durable_history_coherent_suffix_rollback_detection=1");
 console.log("durable_history_index_truncated_tail_fail_closed=1");
@@ -2670,5 +2841,6 @@ console.log("pool_lock_cross_process_release_recovery=1");
 console.log("pool_lock_reclaim_fence_generation_recovery=1");
 console.log("stale_lock_compare_delete_race_closed=1");
 console.log("pool_lock_reclaim_owner_crash_recovery=1");
+console.log("pool_lock_reclaim_owner_publication_recovery=1");
 
 console.log("VOID_BUY_VOID_INVENTORY_RESERVATION_JOURNAL_V1_GREEN");

@@ -106,6 +106,7 @@ export const
       pool_lock_cross_process_release_recovery_ready: true,
       pool_lock_reclaim_fence_generation_recovery_ready: true,
       pool_lock_reclaim_owner_crash_recovery_ready: true,
+      pool_lock_reclaim_owner_publication_recovery_ready: true,
       stale_lock_compare_delete_race_closed: true,
       durable_publication_retry_resync_ready: true,
       committed_range_diff_hygiene_ready: true,
