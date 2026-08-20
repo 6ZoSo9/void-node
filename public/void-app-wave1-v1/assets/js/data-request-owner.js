@@ -136,34 +136,98 @@ export function createDataNetRequestOwnerV1({
     }
   };
 
+  const releaseReaderLockIfTerminal = (request) => {
+    if (
+      !request.bodyTerminal
+      || !request.releaseReaderLockRequested
+      || !request.reader
+    ) {
+      return;
+    }
+    request.releaseReaderLockRequested = false;
+    try {
+      request.reader.releaseLock?.();
+    } catch {
+      // Reader-lock release is cleanup only after an independently witnessed terminal.
+    }
+  };
+
+  const markBodyTerminal = (request) => {
+    request.bodyTerminal = true;
+    releaseReaderLockIfTerminal(request);
+    maybeRelease(request);
+  };
+
+  const observeReaderTerminal = (request, rawReader) => {
+    if (!rawReader) return null;
+    if (request.readerTerminalPromise) return request.readerTerminalPromise;
+
+    let closed;
+    try {
+      closed = rawReader.closed;
+    } catch {
+      return null;
+    }
+    if (!closed || typeof closed.then !== 'function') return null;
+
+    const terminal = Promise.resolve(closed).then(
+      () => markBodyTerminal(request),
+      () => markBodyTerminal(request),
+    );
+    request.readerTerminalPromise = terminal;
+    return terminal;
+  };
+
+  const observeResponseTerminal = (request, response) => {
+    if (request.bodyTerminal) return request.readerTerminalPromise;
+    if (request.reader) return observeReaderTerminal(request, request.reader);
+
+    const body = response?.body;
+    if (!body || typeof body.getReader !== 'function') return null;
+
+    let rawReader;
+    try {
+      rawReader = body.getReader();
+    } catch {
+      return null;
+    }
+    request.reader = rawReader;
+    request.releaseReaderLockRequested = true;
+    return observeReaderTerminal(request, rawReader);
+  };
+
   const trackRead = (request, promise) => {
     request.pendingReads.add(promise);
     promise.then(
       (result) => {
         request.pendingReads.delete(promise);
-        if (result?.done === true) request.bodyTerminal = true;
-        maybeRelease(request);
+        if (result?.done === true) markBodyTerminal(request);
+        else maybeRelease(request);
       },
       () => {
         request.pendingReads.delete(promise);
-        request.bodyTerminal = true;
-        maybeRelease(request);
+        markBodyTerminal(request);
       },
     );
     return promise;
   };
 
-  const trackCancel = (request, promise) => {
+  const trackCancel = (request, promise, onRejected = null) => {
     request.pendingCancels.add(promise);
     promise.then(
       () => {
         request.pendingCancels.delete(promise);
-        request.bodyTerminal = true;
-        maybeRelease(request);
+        markBodyTerminal(request);
       },
       () => {
         request.pendingCancels.delete(promise);
-        request.bodyTerminal = true;
+        if (typeof onRejected === 'function') {
+          try {
+            onRejected();
+          } catch {
+            // A failed terminal-observer setup keeps the generation quarantined.
+          }
+        }
         maybeRelease(request);
       },
     );
@@ -172,12 +236,20 @@ export function createDataNetRequestOwnerV1({
 
   const startReaderCancel = (request, rawReader, reason) => {
     if (request.cancelPromise) return request.cancelPromise;
-    if (!rawReader || typeof rawReader.cancel !== 'function') {
-      request.bodyTerminal = true;
-      maybeRelease(request);
+    if (!rawReader) {
+      markBodyTerminal(request);
       request.cancelPromise = Promise.resolve();
       return request.cancelPromise;
     }
+
+    if (!request.reader) request.reader = rawReader;
+    observeReaderTerminal(request, rawReader);
+    if (typeof rawReader.cancel !== 'function') {
+      request.cancelPromise = Promise.resolve();
+      maybeRelease(request);
+      return request.cancelPromise;
+    }
+
     const operation = Promise.resolve().then(() => rawReader.cancel(reason));
     request.cancelPromise = trackCancel(request, operation);
     return request.cancelPromise;
@@ -186,14 +258,24 @@ export function createDataNetRequestOwnerV1({
   const startResponseCancel = (request, response, reason) => {
     if (request.cancelPromise) return request.cancelPromise;
     const body = response?.body;
-    if (!body || typeof body.cancel !== 'function') {
-      request.bodyTerminal = true;
-      maybeRelease(request);
+    if (!body) {
+      markBodyTerminal(request);
       request.cancelPromise = Promise.resolve();
       return request.cancelPromise;
     }
+    if (typeof body.cancel !== 'function') {
+      observeResponseTerminal(request, response);
+      request.cancelPromise = Promise.resolve();
+      maybeRelease(request);
+      return request.cancelPromise;
+    }
+
     const operation = Promise.resolve().then(() => body.cancel(reason));
-    request.cancelPromise = trackCancel(request, operation);
+    request.cancelPromise = trackCancel(
+      request,
+      operation,
+      () => observeResponseTerminal(request, response),
+    );
     return request.cancelPromise;
   };
 
@@ -201,8 +283,7 @@ export function createDataNetRequestOwnerV1({
     if (request.reader) return startReaderCancel(request, request.reader, reason);
     if (request.response) return startResponseCancel(request, request.response, reason);
     if (request.fetchSettled) {
-      request.bodyTerminal = true;
-      maybeRelease(request);
+      markBodyTerminal(request);
     }
     return request.cancelPromise ?? Promise.resolve();
   };
@@ -227,6 +308,7 @@ export function createDataNetRequestOwnerV1({
 
   const wrapReader = (request, rawReader) => {
     request.reader = rawReader;
+    observeReaderTerminal(request, rawReader);
     return Object.freeze({
       async read() {
         if (request.controller.signal.aborted) {
@@ -260,7 +342,8 @@ export function createDataNetRequestOwnerV1({
         return boundedSettlement(operation);
       },
       releaseLock() {
-        rawReader.releaseLock?.();
+        request.releaseReaderLockRequested = true;
+        releaseReaderLockIfTerminal(request);
         maybeRelease(request);
       },
     });
@@ -383,6 +466,8 @@ export function createDataNetRequestOwnerV1({
         response: null,
         reader: null,
         bodyTerminal: false,
+        readerTerminalPromise: null,
+        releaseReaderLockRequested: false,
         pendingReads: new Set(),
         pendingCancels: new Set(),
         cancelPromise: null,
@@ -426,8 +511,7 @@ export function createDataNetRequestOwnerV1({
         },
         () => {
           request.fetchSettled = true;
-          request.bodyTerminal = true;
-          maybeRelease(request);
+          markBodyTerminal(request);
         },
       );
     } finally {
@@ -439,8 +523,7 @@ export function createDataNetRequestOwnerV1({
       response = await raceSignal(rawFetch, controller.signal);
     } catch (error) {
       if (!controller.signal.aborted && activeRequest === request) {
-        request.bodyTerminal = true;
-        maybeRelease(request);
+        markBodyTerminal(request);
       }
       throw error;
     }
