@@ -27,6 +27,51 @@ const canonicalNetworkAuthenticity = JSON.parse(
     "utf8",
   ),
 );
+const canonicalDiscovery = JSON.parse(
+  readFileSync(
+    new URL(
+      "../public/public-node/agents/discovery-v1.json",
+      import.meta.url,
+    ),
+    "utf8",
+  ),
+);
+const canonicalCapabilities = JSON.parse(
+  readFileSync(
+    new URL(
+      "../public/.well-known/void-agent-capabilities.json",
+      import.meta.url,
+    ),
+    "utf8",
+  ),
+);
+const canonicalAuthentication = JSON.parse(
+  readFileSync(
+    new URL(
+      "../public/.well-known/void-agent-authentication.json",
+      import.meta.url,
+    ),
+    "utf8",
+  ),
+);
+const canonicalFirstContact = JSON.parse(
+  readFileSync(
+    new URL(
+      "../public/public-node/agents/first-contact-v1.json",
+      import.meta.url,
+    ),
+    "utf8",
+  ),
+);
+const canonicalExternalIntake = JSON.parse(
+  readFileSync(
+    new URL(
+      "../fixtures/external-opportunity/agent-intake-capability-v1.example.json",
+      import.meta.url,
+    ),
+    "utf8",
+  ),
+);
 
 const routePayloads = new Map([
   [
@@ -66,41 +111,23 @@ const routePayloads = new Map([
   ],
   [
     "/public-node/agents/discovery-v1.json",
-    {
-      marker: "VOID_AI_AGENT_DISCOVERY_V1",
-      status: "available",
-    },
+    canonicalDiscovery,
   ],
   [
     "/.well-known/void-agent-capabilities.json",
-    {
-      marker:
-        "VOID_AI_AGENT_CAPABILITIES_WELL_KNOWN_V1",
-      status: "available",
-    },
+    canonicalCapabilities,
   ],
   [
     "/.well-known/void-agent-authentication.json",
-    {
-      marker:
-        "VOID_AI_AGENT_AUTHENTICATION_WELL_KNOWN_V1",
-      status: "available",
-    },
+    canonicalAuthentication,
   ],
   [
     "/public-node/agents/first-contact-v1.json",
-    {
-      marker: "VOID_AI_AGENT_FIRST_CONTACT_V1",
-      connection_mode: "read_only",
-    },
+    canonicalFirstContact,
   ],
   [
     "/.well-known/void-agent-intake-capability-v1.json",
-    {
-      marker:
-        "VOID_EXTERNAL_OPPORTUNITY_AGENT_INTAKE_CAPABILITY_V1",
-      status: "available",
-    },
+    canonicalExternalIntake,
   ],
 ]);
 
@@ -619,6 +646,106 @@ await withServer(
   },
 );
 
+const reviewedSurfaceCases = [
+  [
+    "canonical_discovery",
+    "/public-node/agents/discovery-v1.json",
+    canonicalDiscovery,
+    (value) => {
+      value.authority.mutation_authority_granted = true;
+    },
+    true,
+  ],
+  [
+    "capabilities",
+    "/.well-known/void-agent-capabilities.json",
+    canonicalCapabilities,
+    (value) => {
+      value.authority.mutation_authority_granted = true;
+    },
+    true,
+  ],
+  [
+    "authentication",
+    "/.well-known/void-agent-authentication.json",
+    canonicalAuthentication,
+    (value) => {
+      value.authenticated_routes_active = true;
+    },
+    true,
+  ],
+  [
+    "first_contact",
+    "/public-node/agents/first-contact-v1.json",
+    canonicalFirstContact,
+    (value) => {
+      value.honesty.paid_work_promised = true;
+    },
+    false,
+  ],
+  [
+    "external_opportunity_intake",
+    "/.well-known/void-agent-intake-capability-v1.json",
+    canonicalExternalIntake,
+    (value) => {
+      value.authority.network_request = true;
+    },
+    false,
+  ],
+];
+
+for (
+  const [
+    surface,
+    route,
+    canonicalPayload,
+    mutate,
+    required,
+  ] of reviewedSurfaceCases
+) {
+  const payload = structuredClone(canonicalPayload);
+  const marker = payload.marker;
+  mutate(payload);
+  assert.equal(
+    payload.marker,
+    marker,
+    "surface falsifier must preserve the accepted marker",
+  );
+  await withServer(
+    new Map([[route, { payload }]]),
+    async ({ baseUrl }) => {
+      const result =
+        await runVoidAiAgentBootstrapClientV1({
+          baseUrl,
+          timeoutMs: 2000,
+          maxBytes: PROOF_MAX_BYTES,
+        });
+      assert.equal(
+        result.surfaces[surface].available,
+        false,
+      );
+      assert.equal(
+        result.surfaces[surface].public_marker_valid,
+        false,
+      );
+      assert.equal(
+        result.surfaces[surface].error,
+        `${surface}_contract_identity_mismatch`,
+      );
+      assert.equal(
+        result.readiness.onboarding_surface_complete,
+        false,
+      );
+      if (required) {
+        assert.equal(
+          result.readiness.read_only_connection_ready,
+          false,
+        );
+      }
+    },
+  );
+}
+
 const customBaseUrl = "http://127.0.0.1:4100";
 const capabilityPath = "/.well-known/void-agent-capabilities.json";
 
@@ -1069,6 +1196,8 @@ console.log("network_authenticity_consumed=1");
 console.log("network_authenticity_signature_verified=1");
 console.log("invalid_network_authenticity_stops_before_downstream=1");
 console.log("invalid_well_known_stops_before_downstream=1");
+console.log("reviewed_surface_contract_identities_bound=5");
+console.log("marker_only_surface_admission=false");
 console.log("zero_progress_chunk_rejected=1");
 console.log("oversize_chunk_rejected_before_buffer_copy=1");
 console.log("tiny_chunk_deadline_yield_owned=1");
