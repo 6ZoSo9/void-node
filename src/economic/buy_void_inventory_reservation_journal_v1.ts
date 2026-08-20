@@ -49,6 +49,8 @@ export const VOID_BUY_VOID_INVENTORY_HISTORY_PENDING_CREATION_V1 =
   "VOID_BUY_VOID_INVENTORY_HISTORY_PENDING_CREATION_V1";
 export const VOID_BUY_VOID_INVENTORY_POOL_LOCK_V1 =
   "VOID_BUY_VOID_INVENTORY_POOL_LOCK_V1";
+const VOID_BUY_VOID_INVENTORY_POOL_LOCK_RELEASE_V1 =
+  "VOID_BUY_VOID_INVENTORY_POOL_LOCK_RELEASE_V1";
 
 type BuyVoidInventoryHistoryAnchorEntryV1 = {
   schema: "void_buy_void_inventory_history_anchor_entry_v1";
@@ -89,6 +91,13 @@ type BuyVoidInventoryPoolLockV1 = {
   owner_nonce: string;
 };
 
+type BuyVoidInventoryPoolLockReleaseV1 = {
+  schema: "void_buy_void_inventory_pool_lock_release_v1";
+  marker: typeof VOID_BUY_VOID_INVENTORY_POOL_LOCK_RELEASE_V1;
+  released_at_ms: number;
+  lock: BuyVoidInventoryPoolLockV1;
+};
+
 export const VOID_BUY_VOID_INVENTORY_RESERVATION_AUTHORITY_V1 = {
   filesystem_read: true,
   filesystem_write: true,
@@ -102,6 +111,7 @@ export const VOID_BUY_VOID_INVENTORY_RESERVATION_AUTHORITY_V1 = {
   durable_history_separate_anchor_authority: true,
   durable_history_coherent_suffix_rollback_detection: true,
   stale_pool_lock_recovery: true,
+  cross_process_pool_lock_release_recovery: true,
   obligation_automatic_retry: false,
   obligation_refund_execution_authorized: false,
   inventory_decrement: false,
@@ -1183,6 +1193,13 @@ const POOL_LOCK_KEYS = [
   "process_start_ticks",
   "boot_id",
   "owner_nonce",
+] as const;
+
+const POOL_LOCK_RELEASE_KEYS = [
+  "schema",
+  "marker",
+  "released_at_ms",
+  "lock",
 ] as const;
 
 const HISTORY_INDEX_GENESIS_SHA256 = "0".repeat(64);
@@ -3146,6 +3163,108 @@ function exactPoolLockMatch(
   return JSON.stringify(left) === JSON.stringify(right);
 }
 
+function poolLockReleaseFile(
+  paths: BuyVoidInventoryReservationJournalPathsV1,
+  ownerNonce: string,
+): string {
+  if (!LOCK_NONCE.test(ownerNonce)) {
+    throw new Error("invalid_inventory_reservation_lock_release_nonce");
+  }
+  return path.join(
+    paths.history_anchor_pool_dir,
+    `.reserve.lock.release-${ownerNonce}.json`,
+  );
+}
+
+function parsePoolLockRelease(
+  raw: Record<string, unknown>,
+): BuyVoidInventoryPoolLockReleaseV1 {
+  const releasedAtMs = raw.released_at_ms;
+  if (
+    !hasExactKeys(raw, POOL_LOCK_RELEASE_KEYS) ||
+    raw.schema !== "void_buy_void_inventory_pool_lock_release_v1" ||
+    raw.marker !== VOID_BUY_VOID_INVENTORY_POOL_LOCK_RELEASE_V1 ||
+    typeof releasedAtMs !== "number" ||
+    !Number.isSafeInteger(releasedAtMs) ||
+    releasedAtMs <= 0 ||
+    !raw.lock ||
+    typeof raw.lock !== "object" ||
+    Array.isArray(raw.lock)
+  ) {
+    throw new Error("invalid_inventory_reservation_lock_release");
+  }
+  return {
+    schema: "void_buy_void_inventory_pool_lock_release_v1",
+    marker: VOID_BUY_VOID_INVENTORY_POOL_LOCK_RELEASE_V1,
+    released_at_ms: releasedAtMs,
+    lock: parsePoolLock(raw.lock as Record<string, unknown>),
+  };
+}
+
+function readPoolLockRelease(
+  paths: BuyVoidInventoryReservationJournalPathsV1,
+  lock: BuyVoidInventoryPoolLockV1,
+): BuyVoidInventoryPoolLockReleaseV1 | null {
+  const file = poolLockReleaseFile(paths, lock.owner_nonce);
+  let release: BuyVoidInventoryPoolLockReleaseV1;
+  try {
+    release = parsePoolLockRelease(
+      readRequiredHistoryJsonObject(
+        file,
+        "inventory_reservation_lock_release_disappeared",
+        "invalid_inventory_reservation_lock_release",
+      ),
+    );
+  } catch (error) {
+    if (
+      String((error as Error)?.message || error) ===
+        "inventory_reservation_lock_release_disappeared"
+    ) {
+      return null;
+    }
+    throw error;
+  }
+  if (!exactPoolLockMatch(release.lock, lock)) {
+    throw new Error("inventory_reservation_lock_release_identity_mismatch");
+  }
+  return release;
+}
+
+function publishPoolLockRelease(
+  paths: BuyVoidInventoryReservationJournalPathsV1,
+  lock: BuyVoidInventoryPoolLockV1,
+): string {
+  const file = poolLockReleaseFile(paths, lock.owner_nonce);
+  const release: BuyVoidInventoryPoolLockReleaseV1 = {
+    schema: "void_buy_void_inventory_pool_lock_release_v1",
+    marker: VOID_BUY_VOID_INVENTORY_POOL_LOCK_RELEASE_V1,
+    released_at_ms: Date.now(),
+    lock,
+  };
+  try {
+    const created = atomicCreateJson(file, release);
+    if (created === "exists") {
+      const existing = readPoolLockRelease(paths, lock);
+      if (!existing) {
+        throw new Error("inventory_reservation_lock_release_disappeared");
+      }
+    }
+  } catch (error) {
+    const existing = readPoolLockRelease(paths, lock);
+    if (!existing) throw error;
+    fsyncDir(paths.history_anchor_pool_dir);
+  }
+  return file;
+}
+
+function clearPoolLockRelease(file: string): void {
+  try {
+    deleteAndSync(file);
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException)?.code !== "ENOENT") throw error;
+  }
+}
+
 function deleteAndSync(file: string): void {
   const parent = path.dirname(file);
   withPinnedPrivateDirectoryV1(parent, false, (stableParent, parentFd) => {
@@ -3210,7 +3329,12 @@ function acquireStaleReclaimFence(
   }
 
   if (sameInode(paths.lock_file, paths.lock_reclaim_file)) {
-    deleteAndSync(paths.lock_file);
+    try {
+      deleteAndSync(paths.lock_file);
+    } catch (error) {
+      clearReclaimFence(paths);
+      throw error;
+    }
   } else if (pinnedFileExists(paths.lock_file)) {
     clearReclaimFence(paths);
     return "retry";
@@ -3227,6 +3351,7 @@ function acquirePoolLock(
     ensureInventoryAuthorityDirectories(paths);
     const processIdentity = readProcessInstanceIdentity(process.pid);
     let ownsReclaimFence = false;
+    let releasedWitnessFile: string | null = null;
     for (let attempt = 0; attempt < 5; attempt += 1) {
       const owner: BuyVoidInventoryPoolLockV1 = {
         schema: "void_buy_void_inventory_pool_lock_v1",
@@ -3240,6 +3365,13 @@ function acquirePoolLock(
         const created = atomicCreateJson(paths.lock_file, owner);
         if (created === "created") {
           if (ownsReclaimFence) clearReclaimFence(paths);
+          if (releasedWitnessFile) {
+            try {
+              clearPoolLockRelease(releasedWitnessFile);
+            } catch {
+              // A nonce-specific stale witness cannot release this new lock.
+            }
+          }
           ACTIVE_POOL_LOCK_NONCES.add(owner.owner_nonce);
           return { ok: true, owner_nonce: owner.owner_nonce };
         }
@@ -3248,6 +3380,13 @@ function acquirePoolLock(
         if (readback && exactPoolLockMatch(readback, owner)) {
           fsyncDir(paths.history_anchor_pool_dir);
           if (ownsReclaimFence) clearReclaimFence(paths);
+          if (releasedWitnessFile) {
+            try {
+              clearPoolLockRelease(releasedWitnessFile);
+            } catch {
+              // A nonce-specific stale witness cannot release this new lock.
+            }
+          }
           ACTIVE_POOL_LOCK_NONCES.add(owner.owner_nonce);
           return { ok: true, owner_nonce: owner.owner_nonce };
         }
@@ -3259,10 +3398,14 @@ function acquirePoolLock(
       const status = processInstanceStatus(existing);
       const activeInThisProcess = existing.pid === process.pid &&
         ACTIVE_POOL_LOCK_NONCES.has(existing.owner_nonce);
+      const released = status === "matching"
+        ? readPoolLockRelease(paths, existing)
+        : null;
       if (
         status === "unknown" ||
         (status === "matching" &&
-          (existing.pid !== process.pid || activeInThisProcess))
+          (activeInThisProcess ||
+            (existing.pid !== process.pid && !released)))
       ) {
         return { ok: false, reason: "inventory_reservation_busy" };
       }
@@ -3272,6 +3415,12 @@ function acquirePoolLock(
       }
       if (fence === "retry") continue;
       ownsReclaimFence = true;
+      if (released) {
+        releasedWitnessFile = poolLockReleaseFile(
+          paths,
+          existing.owner_nonce,
+        );
+      }
     }
     return { ok: false, reason: "inventory_reservation_busy" };
   } catch (error) {
@@ -3288,6 +3437,7 @@ function releasePoolLock(
   paths: BuyVoidInventoryReservationJournalPathsV1,
   lock: { ok: true; owner_nonce: string },
 ): void {
+  let releaseFile: string | null = null;
   try {
     const existing = readPoolLock(paths);
     if (
@@ -3297,11 +3447,22 @@ function releasePoolLock(
     ) {
       return;
     }
-    deleteAndSync(paths.lock_file);
-  } catch {
-    // Exact process-instance recovery on the next call reclaims this nonce.
-  } finally {
+    releaseFile = publishPoolLockRelease(paths, existing);
     ACTIVE_POOL_LOCK_NONCES.delete(lock.owner_nonce);
+    try {
+      const fence = acquireStaleReclaimFence(paths, existing);
+      if (fence === "acquired") {
+        clearReclaimFence(paths);
+        clearPoolLockRelease(releaseFile);
+      }
+    } catch {
+      // The durable release witness lets another process reclaim this lock.
+    }
+  } catch (error) {
+    if (!releaseFile) {
+      // Do not claim logical release when cross-process evidence is unavailable.
+      throw error;
+    }
   }
 }
 

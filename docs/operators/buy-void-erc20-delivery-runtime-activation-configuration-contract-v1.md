@@ -96,6 +96,7 @@ durable_record_fingerprint_type_sensitive_ready=true
 pool_lock_process_instance_identity_ready=true
 pool_lock_publication_recovery_ready=true
 pool_lock_release_recovery_ready=true
+pool_lock_cross_process_release_recovery_ready=true
 stale_lock_compare_delete_race_closed=true
 durable_publication_retry_resync_ready=true
 committed_range_diff_hygiene_ready=true
@@ -145,7 +146,10 @@ Linux process-start ticks, boot ID, and nonce. A matching external process
 instance remains busy; a dead or PID-reused owner is reclaimed through a
 hard-link inode fence, which prevents compare/delete races from unlinking a
 replacement lock. Publication-fsync uncertainty is resolved by exact readback
-and resync, and a failed release is recoverable on the next exact call.
+and resync. Logical release first publishes a durable nonce-bound terminal
+witness; if physical deletion fails, another process can validate that exact
+witness and reclaim through the same inode fence while the original process
+remains alive. A live owner with no release witness remains non-stealable.
 Linux `/proc` supplies the process-instance evidence; unavailable or ambiguous
 evidence holds mutation instead of weakening ownership checks.
 
@@ -157,7 +161,9 @@ fingerprint, and local entry hash.
 Fault-injection now covers reservation and paid-obligation interruption after
 pending creation, index append, expectation creation, record creation, and anchor
 append; torn index/anchor tails; uncertain publication and release recovery;
-dead-owner and PID-reuse lock recovery; stale-reclaim replacement races;
+cross-process failed-release handoff with the original owner still alive;
+the never-released live-owner control; dead-owner and PID-reuse lock recovery;
+stale-reclaim replacement races;
 owner/mode/symlink rejection; bounded reads; exact runtime JSON types; and coherent last-entry
 rollback where the local index suffix and matching expectation/record are removed
 together while the separate anchor remains. Those rollback cases HOLD before

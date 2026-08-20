@@ -282,6 +282,7 @@ for (const key of [
   "pool_lock_process_instance_identity_ready",
   "pool_lock_publication_recovery_ready",
   "pool_lock_release_recovery_ready",
+  "pool_lock_cross_process_release_recovery_ready",
   "stale_lock_compare_delete_race_closed",
   "durable_publication_retry_resync_ready",
   "committed_range_diff_hygiene_ready",
@@ -633,6 +634,7 @@ console.log("durable_record_fingerprint_type_sensitive_ready=1");
 console.log("pool_lock_process_instance_identity_ready=1");
 console.log("pool_lock_publication_recovery_ready=1");
 console.log("pool_lock_release_recovery_ready=1");
+console.log("pool_lock_cross_process_release_recovery_ready=1");
 console.log("stale_lock_compare_delete_race_closed=1");
 console.log("durable_publication_retry_resync_ready=1");
 console.log("committed_range_diff_hygiene_ready=1");

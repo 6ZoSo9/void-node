@@ -101,6 +101,7 @@ export const
       pool_lock_process_instance_identity_ready: true,
       pool_lock_publication_recovery_ready: true,
       pool_lock_release_recovery_ready: true,
+      pool_lock_cross_process_release_recovery_ready: true,
       stale_lock_compare_delete_race_closed: true,
       durable_publication_retry_resync_ready: true,
       committed_range_diff_hygiene_ready: true,

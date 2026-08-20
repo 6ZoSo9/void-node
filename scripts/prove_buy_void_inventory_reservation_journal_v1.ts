@@ -1,7 +1,9 @@
 import assert from "node:assert/strict";
+import { spawn } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { pathToFileURL } from "node:url";
 import type {
   BuyVoidFulfillmentJournalIntentV1,
 } from "../src/economic/buy_void_fulfillment_journal_v1.js";
@@ -162,6 +164,7 @@ assert.deepEqual(
     durable_history_separate_anchor_authority: true,
     durable_history_coherent_suffix_rollback_detection: true,
     stale_pool_lock_recovery: true,
+    cross_process_pool_lock_release_recovery: true,
     obligation_automatic_retry: false,
     obligation_refund_execution_authorized: false,
     inventory_decrement: false,
@@ -681,6 +684,314 @@ function withAdversarialRoot(
   try {
     body(root);
   } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+}
+
+async function readChildResult(
+  child: ReturnType<typeof spawn>,
+): Promise<Record<string, any>> {
+  return await new Promise((resolve, reject) => {
+    let stdout = "";
+    let stderr = "";
+    let settled = false;
+    const timer = setTimeout(() => {
+      if (settled) return;
+      settled = true;
+      child.kill("SIGKILL");
+      reject(new Error(`cross_process_child_timeout:${stderr}`));
+    }, 15_000);
+    child.stdout?.on("data", (chunk) => {
+      stdout += String(chunk);
+      const newline = stdout.indexOf("\n");
+      if (newline < 0 || settled) return;
+      settled = true;
+      clearTimeout(timer);
+      try {
+        resolve(JSON.parse(stdout.slice(0, newline)));
+      } catch (error) {
+        reject(
+          new Error(
+            `cross_process_child_invalid_json:${
+              String((error as Error)?.message || error)
+            }:${stdout}:${stderr}`,
+          ),
+        );
+      }
+    });
+    child.stderr?.on("data", (chunk) => {
+      stderr += String(chunk);
+    });
+    child.once("error", (error) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      reject(error);
+    });
+    child.once("exit", (code, signal) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      reject(
+        new Error(
+          `cross_process_child_early_exit:${code}:${signal}:${stdout}:${stderr}`,
+        ),
+      );
+    });
+  });
+}
+
+async function stopChild(child: ReturnType<typeof spawn>): Promise<void> {
+  if (child.exitCode !== null || child.signalCode !== null) return;
+  await new Promise<void>((resolve) => {
+    const timer = setTimeout(() => {
+      child.kill("SIGKILL");
+    }, 2_000);
+    child.once("exit", () => {
+      clearTimeout(timer);
+      resolve();
+    });
+    child.kill("SIGTERM");
+  });
+}
+
+function writeCrossProcessLockChild(root: string): string {
+  const moduleUrl = pathToFileURL(
+    path.resolve(
+      "src/economic/buy_void_inventory_reservation_journal_v1.ts",
+    ),
+  ).href;
+  const child = [
+    'import fs from "node:fs";',
+    `import { buyVoidInventoryReservationJournalPathsV1, reserveBuyVoidInventoryV1 } from ${JSON.stringify(moduleUrl)};`,
+    'const [mode, root, inputFile] = process.argv.slice(2);',
+    'const input = JSON.parse(fs.readFileSync(inputFile, "utf8"));',
+    'const paths = buyVoidInventoryReservationJournalPathsV1(root, input.policy.pool_id);',
+    'const originalKill = process.kill;',
+    'const originalReadFile = fs.readFileSync;',
+    'if (input.owner_identity) {',
+    '  process.kill = (pid, signal) => pid === input.owner_identity.pid ? true : originalKill(pid, signal);',
+    '  fs.readFileSync = (file, options) => String(file) === "/proc/" + input.owner_identity.pid + "/stat" ? input.owner_identity.process_stat : originalReadFile(file, options);',
+    '}',
+    'function processIdentity() {',
+    '  const stat = fs.readFileSync("/proc/self/stat", "utf8").trim();',
+    '  const end = stat.lastIndexOf(")");',
+    '  return {',
+    '    process_start_ticks: stat.slice(end + 1).trim().split(/\\s+/u)[19],',
+    '    boot_id: fs.readFileSync("/proc/sys/kernel/random/boot_id", "utf8").trim(),',
+    '  };',
+    '}',
+    'if (mode === "live-owner") {',
+    '  const lock = {',
+    '    schema: "void_buy_void_inventory_pool_lock_v1",',
+    '    marker: "VOID_BUY_VOID_INVENTORY_POOL_LOCK_V1",',
+    '    pid: process.pid,',
+    '    acquired_at_ms: Date.now(),',
+    '    ...processIdentity(),',
+    '    owner_nonce: "a".repeat(32),',
+    '  };',
+    '  fs.writeFileSync(paths.lock_file, JSON.stringify(lock) + "\\n", { flag: "wx", mode: 0o600 });',
+    '  const dir = fs.openSync(paths.history_anchor_pool_dir, "r");',
+    '  try { fs.fsyncSync(dir); } finally { fs.closeSync(dir); }',
+    '  process.stdout.write(JSON.stringify({ ready: true, pid: process.pid, owner_identity: { pid: process.pid, process_stat: fs.readFileSync("/proc/self/stat", "utf8") } }) + "\\n");',
+    '  setInterval(() => undefined, 1000);',
+    '} else {',
+    '  let fired = false;',
+    '  const originalUnlink = fs.unlinkSync;',
+    '  if (mode === "release-failure") {',
+    '    fs.unlinkSync = (file) => {',
+    '      if (!fired && String(file).endsWith("/" + paths.lock_file.split("/").pop())) {',
+    '        fired = true;',
+    '        throw new Error("injected_cross_process_lock_release_failure");',
+    '      }',
+    '      return originalUnlink(file);',
+    '    };',
+    '  }',
+    '  const result = reserveBuyVoidInventoryV1({ root_dir: root, intent: input.intent, policy: input.policy, apply: true });',
+    '  fs.unlinkSync = originalUnlink;',
+    '  const releaseFiles = fs.readdirSync(paths.history_anchor_pool_dir).filter((name) => /^\\.reserve\\.lock\\.release-[0-9a-f]{32}\\.json$/u.test(name));',
+    '  const survivingLock = fs.existsSync(paths.lock_file) ? JSON.parse(fs.readFileSync(paths.lock_file, "utf8")) : null;',
+    '  process.stdout.write(JSON.stringify({ ready: true, result, fired, lock_exists: Boolean(survivingLock), release_files: releaseFiles, owner_identity: survivingLock ? { pid: survivingLock.pid, process_stat: fs.readFileSync("/proc/self/stat", "utf8") } : null }) + "\\n");',
+    '  if (mode === "release-failure") setInterval(() => undefined, 1000);',
+    '}',
+  ].join("\n");
+  const file = path.join(root, "cross-process-lock-child.mjs");
+  fs.writeFileSync(file, child, { mode: 0o600 });
+  return file;
+}
+
+async function startCrossProcessChild(
+  childFile: string,
+  mode: "release-failure" | "retry" | "live-owner",
+  root: string,
+  inputFile: string,
+): Promise<{
+  child: ReturnType<typeof spawn>;
+  result: Record<string, any>;
+}> {
+  const child = spawn(
+    process.execPath,
+    [...process.execArgv, childFile, mode, root, inputFile],
+    { stdio: ["ignore", "pipe", "pipe"] },
+  );
+  return { child, result: await readChildResult(child) };
+}
+
+async function proveCrossProcessReleaseRecovery(): Promise<void> {
+  for (const scenario of ["reservation", "obligation"] as const) {
+    const root = fs.mkdtempSync(
+      path.join(os.tmpdir(), `void-buy-history-cross-process-${scenario}-`),
+    );
+    let owner: ReturnType<typeof spawn> | null = null;
+    try {
+      const scenarioPolicy = scenario === "reservation"
+        ? policy()
+        : policy("1", "1");
+      if (scenario === "obligation") {
+        const seed = reserveBuyVoidInventoryV1({
+          root_dir: root,
+          intent: makeIntent(90, "1"),
+          policy: scenarioPolicy,
+          apply: true,
+        });
+        assert.equal(seed.ok, true);
+      }
+      const input = {
+        intent: makeIntent(scenario === "reservation" ? 91 : 92, "1"),
+        policy: scenarioPolicy,
+      };
+      const inputFile = path.join(root, "cross-process-input.json");
+      fs.writeFileSync(inputFile, JSON.stringify(input), { mode: 0o600 });
+      const childFile = writeCrossProcessLockChild(root);
+      const first = await startCrossProcessChild(
+        childFile,
+        "release-failure",
+        root,
+        inputFile,
+      );
+      owner = first.child;
+      assert.equal(first.result.fired, true);
+      assert.equal(first.result.lock_exists, true);
+      assert.equal(first.result.release_files.length, 1);
+      assert.equal(owner.exitCode, null);
+      fs.writeFileSync(
+        inputFile,
+        JSON.stringify({
+          ...input,
+          owner_identity: first.result.owner_identity,
+        }),
+        { mode: 0o600 },
+      );
+      if (scenario === "reservation") {
+        assert.equal(first.result.result.ok, true);
+      } else {
+        assert.equal(first.result.result.ok, false);
+        assert.equal(first.result.result.reason, "inventory_sold_out");
+      }
+
+      const retry = await startCrossProcessChild(
+        childFile,
+        "retry",
+        root,
+        inputFile,
+      );
+      assert.equal(owner.exitCode, null);
+      if (scenario === "reservation") {
+        assert.equal(retry.result.result.ok, true);
+        assert.equal(retry.result.result.status, "duplicate");
+        assert.equal(
+          listBuyVoidInventoryReservationsV1({
+            root_dir: root,
+            pool_id: scenarioPolicy.pool_id,
+          }).length,
+          1,
+        );
+      } else {
+        assert.equal(retry.result.result.ok, false);
+        assert.equal(retry.result.result.reason, "inventory_sold_out");
+        assert.equal(
+          listBuyVoidPaidUnreservableObligationsV1({
+            root_dir: root,
+            pool_id: scenarioPolicy.pool_id,
+          }).length,
+          1,
+        );
+      }
+      assert.equal(retry.result.lock_exists, false);
+      await stopChild(retry.child);
+    } finally {
+      if (owner) await stopChild(owner);
+      fs.rmSync(root, { recursive: true, force: true });
+    }
+  }
+
+  const root = fs.mkdtempSync(
+    path.join(os.tmpdir(), "void-buy-history-cross-process-live-owner-"),
+  );
+  let owner: ReturnType<typeof spawn> | null = null;
+  try {
+    const livePolicy = policy();
+    const seed = reserveBuyVoidInventoryV1({
+      root_dir: root,
+      intent: makeIntent(93, "1"),
+      policy: livePolicy,
+      apply: true,
+    });
+    assert.equal(seed.ok, true);
+    const input = {
+      intent: makeIntent(94, "1"),
+      policy: livePolicy,
+    };
+    const inputFile = path.join(root, "cross-process-input.json");
+    fs.writeFileSync(inputFile, JSON.stringify(input), { mode: 0o600 });
+    const childFile = writeCrossProcessLockChild(root);
+    const live = await startCrossProcessChild(
+      childFile,
+      "live-owner",
+      root,
+      inputFile,
+    );
+    owner = live.child;
+    assert.equal(owner.exitCode, null);
+    const livePaths = buyVoidInventoryReservationJournalPathsV1(
+      root,
+      livePolicy.pool_id,
+    );
+    assert.equal(fs.existsSync(livePaths.lock_file), true);
+    const liveLock = JSON.parse(fs.readFileSync(livePaths.lock_file, "utf8"));
+    assert.equal(liveLock.pid, live.result.pid);
+    assert.equal(
+      fs.readdirSync(livePaths.history_anchor_pool_dir)
+        .some((name) => name.startsWith(".reserve.lock.release-")),
+      false,
+    );
+    fs.writeFileSync(
+      inputFile,
+      JSON.stringify({
+        ...input,
+        owner_identity: live.result.owner_identity,
+      }),
+      { mode: 0o600 },
+    );
+    const blocked = await startCrossProcessChild(
+      childFile,
+      "retry",
+      root,
+      inputFile,
+    );
+    assert.equal(
+      blocked.result.result.ok,
+      false,
+      JSON.stringify(blocked.result),
+    );
+    assert.equal(
+      blocked.result.result.reason,
+      "inventory_reservation_busy",
+    );
+    assert.equal(owner.exitCode, null);
+    await stopChild(blocked.child);
+  } finally {
+    if (owner) await stopChild(owner);
     fs.rmSync(root, { recursive: true, force: true });
   }
 }
@@ -1917,6 +2228,8 @@ withAdversarialRoot("lock-release-recovery", (root) => {
   assert.equal(fs.existsSync(paths.lock_file), false);
 });
 
+await proveCrossProcessReleaseRecovery();
+
 console.log("durable_history_expected_set_commitment=1");
 console.log("durable_history_append_only_hash_chain_index=1");
 console.log("durable_history_paired_deletion_fail_closed=1");
@@ -1943,6 +2256,7 @@ console.log("durable_metadata_exact_runtime_json_types=1");
 console.log("pool_lock_process_instance_identity=1");
 console.log("pool_lock_publication_recovery=1");
 console.log("pool_lock_release_recovery=1");
+console.log("pool_lock_cross_process_release_recovery=1");
 console.log("stale_lock_compare_delete_race_closed=1");
 
 console.log("VOID_BUY_VOID_INVENTORY_RESERVATION_JOURNAL_V1_GREEN");
