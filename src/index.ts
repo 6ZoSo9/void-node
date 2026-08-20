@@ -28797,9 +28797,54 @@ if (process.env.VOID_DISABLE_FINALIZE_WAL_COMMIT !== "1" && process.env.VOID_SAV
           "__void_wrapOnce_v1",
           "__void_saveblock_finalized_v1",
         ];
+        // VOID_SAVEBLOCK_MARKER_DESCRIPTOR_IDEMPOTENCY_V1_BEGIN
+        function voidMarkTruthyFunctionFlagV1(fn, k, visible){
+          try{
+            const descriptor = Object.getOwnPropertyDescriptor(fn, k);
+            if (descriptor) {
+              let current;
+              try {
+                current = Object.prototype.hasOwnProperty.call(
+                  descriptor,
+                  "value",
+                )
+                  ? descriptor.value
+                  : fn[k];
+              } catch (err) {
+                visible(err);
+                return false;
+              }
+              if (current) return true;
+              if (descriptor.configurable !== true) {
+                visible(
+                  new TypeError(
+                    `void_saveblock_marker_conflict:${String(k)}`,
+                  ),
+                );
+                return false;
+              }
+            }
+            Object.defineProperty(fn, k, {
+              value: true,
+              configurable: true,
+            });
+            return true;
+          } catch (err) {
+            visible(err);
+            return false;
+          }
+        }
+        // VOID_SAVEBLOCK_MARKER_DESCRIPTOR_IDEMPOTENCY_V1_END
         for (const k of props){
-          try { Object.defineProperty(fn, k, { value: true, configurable: true }); }
-          catch { try { (fn as any)[k] = true; } catch (err) { voidIndexEmptyCatchVisibilityWindow27001_27900V1("27568:30", err); } }
+          voidMarkTruthyFunctionFlagV1(
+            fn,
+            k,
+            (err) =>
+              voidIndexEmptyCatchVisibilityWindow27001_27900V1(
+                "27568:30",
+                err,
+              ),
+          );
         }
 
         // Also block re-attach attempts that key off prototype flags.
