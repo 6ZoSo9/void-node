@@ -2149,13 +2149,28 @@ async function main(): Promise<void> {
       "suppressed watcher unexpectedly advanced generation",
     );
 
+    let canonicalReplacementStartedWarm = false;
     await assert.rejects(
-      () =>
-        authority.prepareWcPublicClaimHistoryDecisionV1(
-          tmp,
-        ),
+      async () => {
+        try {
+          await authority.prepareWcPublicClaimHistoryDecisionV1(
+            tmp,
+          );
+        } catch (error) {
+          canonicalReplacementStartedWarm = String(
+            (error as any)?.message || error,
+          ).includes("VOID_WC_PUBLIC_CLAIM_HISTORY_WARMING");
+          throw error;
+        }
+      },
       /VOID_WC_PUBLIC_CLAIM_HISTORY_(?:WARMING|WATCH_(?:CHALLENGE_TIMEOUT|INVALID))/,
     );
+
+    if (canonicalReplacementStartedWarm) {
+      await authority.waitForWcPublicClaimHistoryWarmForProofV1(
+        tmp,
+      );
+    }
 
     authority.resetWcPublicClaimHistoryAuthorityForProofV1(
       tmp,
@@ -2296,17 +2311,28 @@ async function main(): Promise<void> {
       ),
       watchBeforeInvalid,
     );
+    let malformedReplacementStartedWarm = false;
     await assert.rejects(
-      () =>
-        authority.prepareWcPublicClaimHistoryDecisionV1(
-          tmp,
-        ),
+      async () => {
+        try {
+          await authority.prepareWcPublicClaimHistoryDecisionV1(
+            tmp,
+          );
+        } catch (error) {
+          malformedReplacementStartedWarm = String(
+            (error as any)?.message || error,
+          ).includes("VOID_WC_PUBLIC_CLAIM_HISTORY_WARMING");
+          throw error;
+        }
+      },
       /VOID_WC_PUBLIC_CLAIM_HISTORY_(?:WARMING|WATCH_(?:CHALLENGE_TIMEOUT|INVALID))/,
     );
-    authority.resetWcPublicClaimHistoryAuthorityForProofV1(
-      tmp,
-    );
-    authority.primeWcPublicClaimHistoryAuthorityV1(tmp);
+    if (!malformedReplacementStartedWarm) {
+      authority.resetWcPublicClaimHistoryAuthorityForProofV1(
+        tmp,
+      );
+      authority.primeWcPublicClaimHistoryAuthorityV1(tmp);
+    }
     await assert.rejects(
       () =>
         authority.waitForWcPublicClaimHistoryWarmForProofV1(
