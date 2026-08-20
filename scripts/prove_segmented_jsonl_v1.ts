@@ -3,6 +3,7 @@ import * as crypto from "node:crypto";
 import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
+import { createRequire, syncBuiltinESMExports } from "node:module";
 
 import {
   buildSegmentedJsonlV1FromFile,
@@ -41,6 +42,58 @@ function makeFixture(recordCount: number): Buffer {
     );
   }
   return Buffer.concat(rows);
+}
+
+const require = createRequire(import.meta.url);
+const mutableFs = require("node:fs") as typeof fs;
+
+function sameLengthReplacementBytes(input: Buffer): Buffer {
+  const output = Buffer.from(input);
+  const at = output.indexOf("x".charCodeAt(0));
+  assert.ok(at >= 0, "fixture must contain a mutable payload byte");
+  output[at] = "y".charCodeAt(0);
+  return output;
+}
+
+function proveReconstructRejectsPostVerifyReplacement(
+  storePath: string,
+  targetPath: string,
+  outputPath: string,
+  label: string,
+): void {
+  const replacementPath = `${targetPath}.replacement`;
+  const originalBytes = fs.readFileSync(targetPath);
+  const replacementBytes = sameLengthReplacementBytes(originalBytes);
+  assert.equal(replacementBytes.length, originalBytes.length);
+  fs.writeFileSync(replacementPath, replacementBytes, { mode: 0o400 });
+  fs.chmodSync(replacementPath, 0o400);
+
+  const originalOpenSync = (mutableFs as any).openSync;
+  let targetOpenCount = 0;
+  let swapped = false;
+  try {
+    (mutableFs as any).openSync = (...args: any[]) => {
+      const candidate = typeof args[0] === "string" ? path.resolve(args[0]) : "";
+      if (candidate === path.resolve(targetPath)) {
+        targetOpenCount += 1;
+        if (targetOpenCount === 2) {
+          fs.renameSync(replacementPath, targetPath);
+          swapped = true;
+        }
+      }
+      return originalOpenSync(...args);
+    };
+    syncBuiltinESMExports();
+    expectFailure(
+      () => reconstructSegmentedJsonlV1ToFile(storePath, outputPath),
+      "RECONSTRUCT_SOURCE_HASH_MISMATCH",
+    );
+  } finally {
+    (mutableFs as any).openSync = originalOpenSync;
+    syncBuiltinESMExports();
+  }
+  assert.equal(swapped, true, `${label} replacement must occur between verify and copy`);
+  assert.equal(targetOpenCount >= 2, true, `${label} must be opened for verify and copy`);
 }
 
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "void-segmented-jsonl-v1-"));
@@ -126,6 +179,25 @@ try {
   const rebuiltBytes = fs.readFileSync(rebuilt);
   assert.deepEqual(rebuiltBytes, body, "segmentation must reconstruct source byte-for-byte");
   assert.equal(reconstruction.sha256, sha256(body));
+
+  const segmentRaceStore = path.join(tmp, "reconstruct-segment-race-store");
+  fs.cpSync(store, segmentRaceStore, { recursive: true });
+  proveReconstructRejectsPostVerifyReplacement(
+    segmentRaceStore,
+    path.join(segmentRaceStore, manifest.sealed_segments[0].file),
+    path.join(tmp, "reconstruct-segment-race-output.jsonl"),
+    "sealed segment",
+  );
+
+  const activeRaceStore = path.join(tmp, "reconstruct-active-race-store");
+  fs.cpSync(store, activeRaceStore, { recursive: true });
+  assert.ok(manifest.active.bytes > 0, "fixture must retain an active segment");
+  proveReconstructRejectsPostVerifyReplacement(
+    activeRaceStore,
+    path.join(activeRaceStore, "active.jsonl"),
+    path.join(tmp, "reconstruct-active-race-output.jsonl"),
+    "active segment",
+  );
 
   const inventory = sealedSegmentInventoryV1(manifest);
   const localPrefix = inventory.slice(0, Math.max(1, inventory.length - 2));
@@ -255,6 +327,7 @@ try {
       reconstruction_sha256: reconstruction.sha256,
       peer_missing_segments: plan.missing.length,
       exact_numeric_policy: true,
+      reconstruct_copy_generation_bound: true,
       max_segment_target_bytes: VOID_SEGMENTED_JSONL_MAX_TARGET_BYTES_V1,
       max_record_bytes: VOID_SEGMENTED_JSONL_MAX_RECORD_BYTES_V1,
     }),
