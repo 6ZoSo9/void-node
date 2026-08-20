@@ -2,6 +2,8 @@
 import childProcess from "node:child_process";
 import fs from "node:fs";
 import http from "node:http";
+import os from "node:os";
+import path from "node:path";
 import process from "node:process";
 import { once } from "node:events";
 import {
@@ -291,6 +293,10 @@ for (const marker of [
   "VOID_PUBLIC_BOOTSTRAP_CATCHUP_PROGRESS",
   "VOID_PUBLIC_BOOTSTRAP_CLIENT_ADAPTER_ACTIVE",
   "VOID_FOLLOWER_PULL_TIMEOUT_MS",
+  "VOID_FOLLOWER_PERSISTENCE_GENERATION_ACTIVE_V1",
+  "followerPullPersistenceGenerationV1",
+  "VOID_FOLLOWER_PROJECTION_RECOVERY_V1",
+  "ensureFollowerBlockProjectionsV1",
   "AbortSignal.timeout",
   "throwIfFollowerPullAbortedV1",
   'redirect: "error"',
@@ -705,6 +711,197 @@ try {
   );
   pass("pull deadline owns receipt persistence and releases the next import attempt");
 
+  resetAdversary("valid");
+  let neverSettlingReceiptCalls = 0;
+  const neverSettlingPersistenceFixture = createFollowerImportFixture(Node, {
+    appendMany() {
+      neverSettlingReceiptCalls += 1;
+      return new Promise(() => {});
+    },
+  });
+  await assertRejects(
+    () => neverSettlingPersistenceFixture.node.pullOnce(followerAdversaryBase),
+    /Timeout|abort/i,
+    "never-settling receipt persistence outlived the caller deadline",
+  );
+  const neverSettlingRequests =
+    followerAdversaryState.head_requests +
+    followerAdversaryState.head_fallback_requests +
+    followerAdversaryState.range_requests;
+  const neverSettlingMutations =
+    neverSettlingPersistenceFixture.state.block_writes +
+    neverSettlingPersistenceFixture.state.index_writes +
+    neverSettlingPersistenceFixture.state.receipt_writes;
+  await assertRejects(
+    () => neverSettlingPersistenceFixture.node.pullOnce(followerAdversaryBase),
+    /VOID_FOLLOWER_PERSISTENCE_GENERATION_ACTIVE_V1/,
+    "next pull was admitted while a never-settling persistence generation remained mutation-capable",
+  );
+  assert(
+    followerAdversaryState.head_requests +
+      followerAdversaryState.head_fallback_requests +
+      followerAdversaryState.range_requests === neverSettlingRequests,
+    "quarantined persistence generation allowed another peer request",
+  );
+  assert(
+    neverSettlingPersistenceFixture.state.block_writes +
+      neverSettlingPersistenceFixture.state.index_writes +
+      neverSettlingPersistenceFixture.state.receipt_writes === neverSettlingMutations,
+    "quarantined persistence generation allowed another import mutation",
+  );
+  assert(neverSettlingReceiptCalls === 1, "never-settling persistence was overlapped");
+  pass("never-settling persistence generation quarantines all subsequent pulls");
+
+  resetAdversary("valid");
+  let lateSettlingReceiptCalls = 0;
+  let lateSettlingReceiptMutations = 0;
+  const lateSettlingPersistenceFixture = createFollowerImportFixture(Node, {
+    appendMany(_records, opts = {}) {
+      lateSettlingReceiptCalls += 1;
+      return new Promise((resolve, reject) => {
+        setTimeout(() => {
+          if (opts.signal?.aborted) {
+            reject(opts.signal.reason);
+            return;
+          }
+          lateSettlingReceiptMutations += 1;
+          resolve();
+        }, 200);
+      });
+    },
+  });
+  await assertRejects(
+    () => lateSettlingPersistenceFixture.node.pullOnce(followerAdversaryBase),
+    /Timeout|abort/i,
+    "late-settling receipt persistence outlived the caller deadline",
+  );
+  const lateSettlingRequests =
+    followerAdversaryState.head_requests +
+    followerAdversaryState.head_fallback_requests +
+    followerAdversaryState.range_requests;
+  await assertRejects(
+    () => lateSettlingPersistenceFixture.node.pullOnce(followerAdversaryBase),
+    /VOID_FOLLOWER_PERSISTENCE_GENERATION_ACTIVE_V1/,
+    "next pull was admitted before late persistence became abort-terminal",
+  );
+  assert(
+    followerAdversaryState.head_requests +
+      followerAdversaryState.head_fallback_requests +
+      followerAdversaryState.range_requests === lateSettlingRequests,
+    "late persistence generation overlapped another peer request",
+  );
+  await new Promise((resolve) => setTimeout(resolve, 250));
+  assert(lateSettlingReceiptCalls === 1, "late persistence generation was overlapped");
+  assert(lateSettlingReceiptMutations === 0, "late persistence mutated after caller timeout");
+
+  resetAdversary("valid");
+  lateSettlingPersistenceFixture.node.receipts = {
+    async appendMany(_records, opts = {}) {
+      opts.signal?.throwIfAborted();
+      lateSettlingPersistenceFixture.state.receipt_writes += 1;
+    },
+  };
+  process.env.VOID_FOLLOWER_PULL_TIMEOUT_MS = "1000";
+  const postSettlementProgress = await lateSettlingPersistenceFixture.node.pullOnce(
+    followerAdversaryBase,
+  );
+  assert(
+    postSettlementProgress.ok === true && lateSettlingPersistenceFixture.state.head === 0,
+    "next pull did not progress after late persistence settled abort-terminally",
+  );
+  process.env.VOID_FOLLOWER_PULL_TIMEOUT_MS = "100";
+  pass("late persistence settles abort-terminally before releasing the next pull");
+
+  const receiptModule = await import("../dist/chain/receipts.js");
+  const receiptFaultRoot = fs.mkdtempSync(path.join(os.tmpdir(), "void-follower-receipts-v1-"));
+  try {
+    const receipt = {
+      h: followerBlock0.txs[0].hash.toLowerCase(),
+      n: followerBlock0.number,
+      o: 0,
+      ts: followerBlock0.timestamp,
+    };
+    for (const faultAtV1 of [
+      "before_first_byte",
+      "after_strict_prefix",
+      "after_full_bytes",
+      "after_publish",
+    ]) {
+      const caseDir = path.join(receiptFaultRoot, faultAtV1);
+      const firstStore = new receiptModule.ReceiptsStore(caseDir, { shardSpan: 10_000 });
+      await assertRejects(
+        () => firstStore.appendMany([receipt], { faultAtV1 }),
+        /VOID_RECEIPT_APPEND_FAULT_/,
+        `${faultAtV1} did not stop the injected receipt publication`,
+      );
+      const recoveredStore = new receiptModule.ReceiptsStore(caseDir, { shardSpan: 10_000 });
+      await recoveredStore.appendMany([receipt]);
+      await recoveredStore.appendMany([receipt]);
+      const shardFiles = fs.readdirSync(caseDir).filter((file) => /^receipts-\d{8}\.jsonl$/.test(file));
+      const durableLines = shardFiles.flatMap((file) =>
+        fs.readFileSync(path.join(caseDir, file), "utf8").split("\n").filter(Boolean),
+      );
+      assert(durableLines.length === 1, `${faultAtV1} recovery duplicated the logical receipt`);
+      assert(JSON.parse(durableLines[0]).h === receipt.h, `${faultAtV1} recovery hid the receipt`);
+      assert(recoveredStore.get(receipt.h).found === true, `${faultAtV1} recovery missed durable truth`);
+    }
+  } finally {
+    fs.rmSync(receiptFaultRoot, { recursive: true, force: true });
+  }
+  pass("receipt publication faults recover to one valid durable receipt");
+
+  resetAdversary("valid");
+  const postCommitAbort = new AbortController();
+  let abortAfterCanonicalCommit = true;
+  const recoveredReceiptRecords = new Map();
+  const postCommitFixture = createFollowerImportFixture(Node, {
+    get(hash) {
+      return recoveredReceiptRecords.get(hash) ?? { found: false };
+    },
+    async appendMany(records, opts = {}) {
+      opts.signal?.throwIfAborted();
+      for (const record of records) recoveredReceiptRecords.set(record.h, { ...record, found: true });
+      postCommitFixture.state.receipt_writes += 1;
+    },
+  });
+  const recoveredIndexRecords = new Map();
+  postCommitFixture.node.txIndex = {
+    shardForBlock: () => ({ path: "fixture-index" }),
+    lookupInShard: (_file, hash) => recoveredIndexRecords.get(hash) ?? { found: false },
+    putMany(refs) {
+      for (const ref of refs) recoveredIndexRecords.set(ref.h, { ...ref, found: true });
+      postCommitFixture.state.index_writes += 1;
+    },
+  };
+  const ordinarySaveBlock = postCommitFixture.node.store.saveBlock;
+  postCommitFixture.node.store.saveBlock = (block) => {
+    ordinarySaveBlock(block);
+    if (abortAfterCanonicalCommit) {
+      abortAfterCanonicalCommit = false;
+      postCommitAbort.abort(new Error("VOID_TEST_ABORT_AFTER_CANONICAL_COMMIT_V1"));
+    }
+  };
+  await assertRejects(
+    () => postCommitFixture.node.pullOnce(followerAdversaryBase, { signal: postCommitAbort.signal }),
+    /VOID_TEST_ABORT_AFTER_CANONICAL_COMMIT_V1/,
+    "post-commit abort did not return the injected terminal",
+  );
+  assert(postCommitFixture.state.head === 0, "post-commit abort did not preserve canonical head truth");
+  assert(
+    postCommitFixture.state.index_writes === 1 && postCommitFixture.state.receipt_writes === 0,
+    "post-commit abort did not stop at the expected recoverable projection boundary",
+  );
+
+  resetAdversary("valid");
+  const recoveredResult = await postCommitFixture.node.pullOnce(followerAdversaryBase);
+  assert(recoveredResult.ok === true && recoveredResult.reason === "no new blocks", "retry did not recover at equal peer head");
+  assert(
+    postCommitFixture.state.index_writes === 1 && postCommitFixture.state.receipt_writes === 1,
+    "retry duplicated the index or failed to complete the missing receipt projection",
+  );
+  assert(postCommitFixture.state.block_writes === 1, "retry duplicated the canonical block commit");
+  pass("canonical block truth deterministically redoes missing follower projections");
+
   const emptyFollowerRoots = computeFollowerBlockRoots([], []);
   const followerPartialBlocks = [];
   let partialParent = followerBlock0;
@@ -756,7 +953,10 @@ try {
   pass("complete partial catch-up pages advance once and later pulls continue at the next block");
 
   const failoverNode = Object.create(Node.prototype);
-  failoverNode.store = { loadHeadNumber: () => 2000 };
+  failoverNode.store = {
+    loadHeadNumber: () => 2000,
+    loadBlock: () => null,
+  };
   const pullOnceV1 = Node.prototype.pullOnce;
   const failoverCalls = [];
   let failoverInFlight = 0;
@@ -850,3 +1050,7 @@ console.log("work_credit_authority=false");
 console.log("money_movement_authority=false");
 console.log("follower_redirect_provenance_bound=true");
 console.log("complete_partial_page_single_get=true");
+console.log("follower_persistence_generation_quarantined=true");
+console.log("follower_receipt_append_abort_terminal=true");
+console.log("follower_receipt_publication_atomic=true");
+console.log("follower_post_commit_projection_recovery=true");

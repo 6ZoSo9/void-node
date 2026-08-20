@@ -16,11 +16,20 @@ function recordSmallEmptyCatchVisibilityFailure_src_chain_receipts_ts(scope: str
 
 
 type Receipt = { h: string; n: number; o: number; ts: number };
+type ReceiptAppendFaultV1 =
+  | "before_first_byte"
+  | "after_strict_prefix"
+  | "after_full_bytes"
+  | "after_publish";
+
+const MAX_RECEIPT_SHARD_BYTES_V1 = 16 * 1024 * 1024;
 
 export class ReceiptsStore {
   private dir: string;
   private shardSpan: number;
   private mem = new Map<string, { n: number; o: number; ts: number; found: true }>();
+  private appendTail: Promise<void> = Promise.resolve();
+  private appendNonce = 0;
 
   constructor(dir: string, opts: { shardSpan?: number } = {}) {
     this.dir = dir;
@@ -33,30 +42,190 @@ export class ReceiptsStore {
     return path.join(this.dir, `receipts-${String(base).padStart(8, "0")}.jsonl`);
   }
 
-  async appendMany(arr: Receipt[], opts: { signal?: AbortSignal } = {}) {
+  async appendMany(
+    arr: Receipt[],
+    opts: { signal?: AbortSignal; faultAtV1?: ReceiptAppendFaultV1 } = {},
+  ) {
+    const operation = this.appendTail.then(() =>
+      this.appendManyExclusive(arr, opts)
+    );
+    this.appendTail = operation.then(
+      () => undefined,
+      () => undefined,
+    );
+    return await operation;
+  }
+
+  private async appendManyExclusive(
+    arr: Receipt[],
+    opts: { signal?: AbortSignal; faultAtV1?: ReceiptAppendFaultV1 },
+  ): Promise<void> {
     opts.signal?.throwIfAborted();
     if (!Array.isArray(arr) || arr.length === 0) return;
     await fs.promises.mkdir(this.dir, { recursive: true });
     opts.signal?.throwIfAborted();
-    const p = this.shardPathFromHead();
-    const normalized = arr
+
+    const durable = new Map<string, Receipt>();
+    const shardContents = new Map<string, string>();
+    const shardFiles = (await fs.promises.readdir(this.dir))
+      .filter((file) => /^receipts-\d{8}\.jsonl$/.test(file))
+      .sort();
+    for (const file of shardFiles) {
+      const shardPath = path.join(this.dir, file);
+      const stat = await fs.promises.lstat(shardPath);
+      if (!stat.isFile() || stat.size > MAX_RECEIPT_SHARD_BYTES_V1) {
+        throw new Error(`receipt shard is not a bounded regular file: ${file}`);
+      }
+      const text = await fs.promises.readFile(shardPath, "utf8");
+      if (text.length > 0 && !text.endsWith("\n")) {
+        throw new Error(`receipt shard has a torn suffix: ${file}`);
+      }
+      shardContents.set(file, text);
+      for (const line of text.split("\n")) {
+        if (!line) continue;
+        let parsed: unknown;
+        try {
+          parsed = JSON.parse(line);
+        } catch {
+          throw new Error(`receipt shard contains malformed JSONL: ${file}`);
+        }
+        if (
+          !parsed ||
+          typeof parsed !== "object" ||
+          Array.isArray(parsed) ||
+          !/^[0-9a-f]{64}$/.test(String((parsed as Receipt).h || "")) ||
+          !Number.isSafeInteger((parsed as Receipt).n) ||
+          (parsed as Receipt).n < 0 ||
+          !Number.isSafeInteger((parsed as Receipt).o) ||
+          (parsed as Receipt).o < 0 ||
+          !Number.isSafeInteger((parsed as Receipt).ts) ||
+          (parsed as Receipt).ts <= 0
+        ) {
+          throw new Error(`receipt shard contains an invalid receipt: ${file}`);
+        }
+        const receipt = parsed as Receipt;
+        if (durable.has(receipt.h)) {
+          throw new Error(`receipt shard contains a duplicate receipt: ${receipt.h}`);
+        }
+        durable.set(receipt.h, receipt);
+      }
+    }
+
+    this.mem.clear();
+    for (const receipt of durable.values()) {
+      this.mem.set(receipt.h, {
+        n: receipt.n,
+        o: receipt.o,
+        ts: receipt.ts,
+        found: true,
+      });
+    }
+
+    const normalizedByHash = new Map<string, Receipt>();
+    for (const receipt of arr
       .map((r) => ({
         h: String(r.h || "").toLowerCase(),
         n: Number(r.n),
         o: Number(r.o),
         ts: Number(r.ts) || Date.now(),
       }))
-      .filter((r) => /^[0-9a-f]{64}$/.test(r.h) && Number.isFinite(r.n) && Number.isFinite(r.o));
-    const lines = normalized.map((r) => JSON.stringify(r)).join("\n");
-    if (lines) {
-      await fs.promises.writeFile(p, lines + "\n", {
-        flag: "a",
-        signal: opts.signal,
-      });
-      opts.signal?.throwIfAborted();
-      for (const r of normalized) {
-        this.mem.set(r.h, { n: r.n, o: r.o, ts: r.ts, found: true });
+      .filter((r) =>
+        /^[0-9a-f]{64}$/.test(r.h) &&
+        Number.isSafeInteger(r.n) && r.n >= 0 &&
+        Number.isSafeInteger(r.o) && r.o >= 0 &&
+        Number.isSafeInteger(r.ts) && r.ts > 0
+      )) {
+      const prior = normalizedByHash.get(receipt.h);
+      if (prior && (prior.n !== receipt.n || prior.o !== receipt.o || prior.ts !== receipt.ts)) {
+        throw new Error(`receipt batch contains conflicting duplicates: ${receipt.h}`);
       }
+      normalizedByHash.set(receipt.h, receipt);
+    }
+
+    const pending: Receipt[] = [];
+    for (const receipt of normalizedByHash.values()) {
+      const prior = durable.get(receipt.h);
+      if (prior) {
+        if (prior.n !== receipt.n || prior.o !== receipt.o || prior.ts !== receipt.ts) {
+          throw new Error(`durable receipt conflicts with retry: ${receipt.h}`);
+        }
+        continue;
+      }
+      pending.push(receipt);
+    }
+    if (pending.length === 0) return;
+
+    const p = this.shardPathFromHead();
+    const file = path.basename(p);
+    const before = shardContents.get(file) ?? "";
+    const suffix = `${pending.map((receipt) => JSON.stringify(receipt)).join("\n")}\n`;
+    const payload = Buffer.from(before + suffix, "utf8");
+    if (payload.byteLength > MAX_RECEIPT_SHARD_BYTES_V1) {
+      throw new Error(`receipt shard publication exceeds ${MAX_RECEIPT_SHARD_BYTES_V1} bytes`);
+    }
+
+    const tempPath = path.join(
+      this.dir,
+      `.${file}.append-${process.pid}-${++this.appendNonce}.tmp`,
+    );
+    let handle: Awaited<ReturnType<typeof fs.promises.open>> | null = null;
+    let published = false;
+    try {
+      opts.signal?.throwIfAborted();
+      if (opts.faultAtV1 === "before_first_byte") {
+        throw new Error("VOID_RECEIPT_APPEND_FAULT_BEFORE_FIRST_BYTE_V1");
+      }
+      handle = await fs.promises.open(tempPath, "wx", 0o600);
+      let offset = 0;
+      const strictPrefix = Math.max(1, Math.floor(payload.byteLength / 2));
+      while (offset < payload.byteLength) {
+        opts.signal?.throwIfAborted();
+        const remaining = payload.byteLength - offset;
+        const faultBound = opts.faultAtV1 === "after_strict_prefix"
+          ? strictPrefix - offset
+          : remaining;
+        const length = Math.min(64 * 1024, remaining, Math.max(1, faultBound));
+        const { bytesWritten } = await handle.write(payload, offset, length, null);
+        if (bytesWritten <= 0) throw new Error("receipt append made no write progress");
+        offset += bytesWritten;
+        if (opts.faultAtV1 === "after_strict_prefix" && offset >= strictPrefix) {
+          await handle.sync();
+          throw new Error("VOID_RECEIPT_APPEND_FAULT_AFTER_STRICT_PREFIX_V1");
+        }
+      }
+      await handle.sync();
+      if (opts.faultAtV1 === "after_full_bytes") {
+        throw new Error("VOID_RECEIPT_APPEND_FAULT_AFTER_FULL_BYTES_V1");
+      }
+      opts.signal?.throwIfAborted();
+      await handle.close();
+      handle = null;
+      opts.signal?.throwIfAborted();
+      // The authoritative shard is never append-mutated. An interrupted write
+      // can therefore affect only this unpublished temporary generation; a
+      // retry either sees the old shard or the complete replacement.
+      fs.renameSync(tempPath, p);
+      published = true;
+      const dirFd = fs.openSync(this.dir, "r");
+      try {
+        fs.fsyncSync(dirFd);
+      } finally {
+        fs.closeSync(dirFd);
+      }
+      if (opts.faultAtV1 === "after_publish") {
+        throw new Error("VOID_RECEIPT_APPEND_FAULT_AFTER_PUBLISH_V1");
+      }
+      for (const receipt of pending) {
+        this.mem.set(receipt.h, {
+          n: receipt.n,
+          o: receipt.o,
+          ts: receipt.ts,
+          found: true,
+        });
+      }
+    } finally {
+      if (handle) await handle.close().catch(() => undefined);
+      if (!published) await fs.promises.unlink(tempPath).catch(() => undefined);
     }
   }
 

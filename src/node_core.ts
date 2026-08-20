@@ -225,8 +225,12 @@ async function awaitFollowerPullPersistenceV1<T>(
       reject(reason instanceof Error ? reason : new Error("follower pull aborted"));
     };
     signal.addEventListener("abort", onAbort, { once: true });
-    operation.then(resolve, reject).finally(() => {
+    operation.then((value) => {
       signal.removeEventListener("abort", onAbort);
+      resolve(value);
+    }, (error) => {
+      signal.removeEventListener("abort", onAbort);
+      reject(error);
     });
   });
 }
@@ -575,6 +579,7 @@ export class Node {
   });
   readonly mempool = new Mempool();
   private proposerTimer: NodeJS.Timeout | null = null;
+  private followerPullPersistenceGenerationV1: Promise<void> | null = null;
   private blobsDir = path.join(this.baseDir, "blobs");
 
   private allowEmptyBlocks = false;
@@ -4090,11 +4095,115 @@ attachEphemeralDirectTransportV1(
     peerHttp: string,
     hooks?: { onImportBlock?: (b: any) => void; signal?: AbortSignal },
   ) {
+    if (this.followerPullPersistenceGenerationV1) {
+      throw new Error("VOID_FOLLOWER_PERSISTENCE_GENERATION_ACTIVE_V1");
+    }
     const timeoutSignal = AbortSignal.timeout(voidFollowerPullTimeoutMsV1());
     const pullSignal = hooks?.signal
       ? AbortSignal.any([hooks.signal, timeoutSignal])
       : timeoutSignal;
     throwIfFollowerPullAbortedV1(pullSignal);
+
+    const persistWithinPullLifetime = async <T>(
+      operation: Promise<T>,
+    ): Promise<T> => {
+      const settlement = operation.then(
+        () => undefined,
+        () => undefined,
+      );
+      this.followerPullPersistenceGenerationV1 = settlement;
+      void settlement.then(() => {
+        if (this.followerPullPersistenceGenerationV1 === settlement) {
+          this.followerPullPersistenceGenerationV1 = null;
+        }
+      });
+      return await awaitFollowerPullPersistenceV1(operation, pullSignal);
+    };
+
+    const ensureFollowerBlockProjectionsV1 = async (block: any): Promise<boolean> => {
+      if (!Array.isArray(block?.txs) || block.txs.length === 0) return false;
+      const blockNumber = Number(block.number);
+      if (!Number.isSafeInteger(blockNumber) || blockNumber < 0) {
+        throw new Error("VOID_FOLLOWER_PROJECTION_RECOVERY_V1: invalid canonical block number");
+      }
+
+      const refs = block.txs.map((tx: any, index: number) => ({
+        h: String(tx.hash).toLowerCase(),
+        n: blockNumber,
+        o: index,
+      }));
+      if (refs.some((ref: { h: string; n: number; o: number }) =>
+        !/^[0-9a-f]{64}$/.test(ref.h) ||
+        !Number.isSafeInteger(ref.o) ||
+        ref.o < 0
+      )) {
+        throw new Error("VOID_FOLLOWER_PROJECTION_RECOVERY_V1: invalid transaction reference");
+      }
+      const missingRefs = refs.filter((ref: { h: string; n: number; o: number }) => {
+        if (
+          typeof (this.txIndex as any).shardForBlock !== "function" ||
+          typeof (this.txIndex as any).lookupInShard !== "function"
+        ) {
+          return true;
+        }
+        const shard = (this.txIndex as any).shardForBlock(ref.n);
+        const prior = (this.txIndex as any).lookupInShard(shard.path, ref.h);
+        if (!prior?.found) return true;
+        if (Number(prior.n) !== ref.n || Number(prior.o) !== ref.o) {
+          throw new Error(
+            `VOID_FOLLOWER_PROJECTION_RECOVERY_V1: conflicting tx index for ${ref.h}`,
+          );
+        }
+        return false;
+      });
+      if (missingRefs.length > 0) this.txIndex.putMany(missingRefs);
+
+      const receiptTimestamp = Number(block.timestamp);
+      if (!Number.isSafeInteger(receiptTimestamp) || receiptTimestamp <= 0) {
+        throw new Error("VOID_FOLLOWER_PROJECTION_RECOVERY_V1: invalid receipt timestamp");
+      }
+      const receipts = refs.map((ref: { h: string; n: number; o: number }) => ({
+        ...ref,
+        ts: receiptTimestamp,
+      }));
+      const anyReceipts: any = this.receipts as any;
+      const missingReceipts = receipts.filter((receipt: {
+        h: string;
+        n: number;
+        o: number;
+        ts: number;
+      }) => {
+        if (typeof anyReceipts.get !== "function") return true;
+        const prior = anyReceipts.get(receipt.h);
+        if (!prior?.found) return true;
+        if (
+          Number(prior.n) !== receipt.n ||
+          Number(prior.o) !== receipt.o ||
+          Number(prior.ts) !== receipt.ts
+        ) {
+          throw new Error(
+            `VOID_FOLLOWER_PROJECTION_RECOVERY_V1: conflicting receipt for ${receipt.h}`,
+          );
+        }
+        return false;
+      });
+      if (missingReceipts.length > 0) {
+        if (typeof anyReceipts.appendMany === "function") {
+          await persistWithinPullLifetime(
+            Promise.resolve(anyReceipts.appendMany(missingReceipts, { signal: pullSignal })),
+          );
+        } else if (typeof anyReceipts.append === "function") {
+          for (const receipt of missingReceipts) {
+            await persistWithinPullLifetime(
+              Promise.resolve(anyReceipts.append(receipt, { signal: pullSignal })),
+            );
+          }
+        } else {
+          throw new Error("VOID_FOLLOWER_PROJECTION_RECOVERY_V1: receipt persistence unavailable");
+        }
+      }
+      return missingRefs.length > 0 || missingReceipts.length > 0;
+    };
 
     const fetchPeer = async (url: string): Promise<Response> => {
       throwIfFollowerPullAbortedV1(pullSignal);
@@ -4124,6 +4233,17 @@ attachEphemeralDirectTransportV1(
     };
 
     const myHead = this.store.loadHeadNumber();
+
+    // A canonical block is the durable redo authority for its derived follower
+    // projections. This executes before peer-head short-circuiting so a retry
+    // after an abort immediately following saveBlock() converges even when the
+    // peer has no later block to offer.
+    if (Number.isSafeInteger(myHead) && myHead >= 0) {
+      const canonicalHeadBlock = this.store.loadBlock(myHead);
+      if (canonicalHeadBlock && Number(canonicalHeadBlock.number) === myHead) {
+        await ensureFollowerBlockProjectionsV1(canonicalHeadBlock);
+      }
+    }
 
     const readPeerHead = async (): Promise<number> => {
       const base = String(peerHttp || "").replace(/\/+$/, "");
@@ -4365,48 +4485,13 @@ attachEphemeralDirectTransportV1(
 
         throwIfFollowerPullAbortedV1(pullSignal);
         this.store.saveBlock(b);
-        throwIfFollowerPullAbortedV1(pullSignal);
         imported++;
         importedNums.push(n);
 
         if (incomingHasTxs) {
-          try {
-            throwIfFollowerPullAbortedV1(pullSignal);
-            const refs = b.txs.map((tx: any, i: number) => ({ h: String(tx.hash).toLowerCase(), n, o: i }));
-            this.txIndex.putMany(refs);
-          } catch (err) {
-            recordSideEffectWriteFailure("peer-import-tx-index", err, { blockNumber: n, txCount: b.txs?.length ?? 0 });
-          }
-          try {
-            throwIfFollowerPullAbortedV1(pullSignal);
-            const anyReceipts: any = this.receipts as any;
-            const recs = b.txs.map((tx: any, i: number) => ({
-              h: String(tx.hash).toLowerCase(),
-              n,
-              o: i,
-              ts: b.timestamp ?? Date.now(),
-            }));
-            if (typeof anyReceipts.appendMany === "function") {
-              await awaitFollowerPullPersistenceV1(
-                Promise.resolve(anyReceipts.appendMany(recs, { signal: pullSignal })),
-                pullSignal,
-              );
-            } else if (typeof anyReceipts.append === "function") {
-              for (const r of recs) {
-                throwIfFollowerPullAbortedV1(pullSignal);
-                await awaitFollowerPullPersistenceV1(
-                  Promise.resolve(anyReceipts.append(r, { signal: pullSignal })),
-                  pullSignal,
-                );
-              }
-            }
-            throwIfFollowerPullAbortedV1(pullSignal);
-          } catch (err) {
-            recordSideEffectWriteFailure("peer-import-receipts", err, { blockNumber: n, txCount: b.txs?.length ?? 0 });
-          }
+          await ensureFollowerBlockProjectionsV1(b);
         }
 
-        throwIfFollowerPullAbortedV1(pullSignal);
         hooks?.onImportBlock?.(b);
         continue;
       }
@@ -4436,48 +4521,17 @@ attachEphemeralDirectTransportV1(
         const merged = { ...existing, ...b, txs: b.txs };
         throwIfFollowerPullAbortedV1(pullSignal);
         this.store.saveBlock(merged);
-        throwIfFollowerPullAbortedV1(pullSignal);
         filled++;
         importedNums.push(n);
 
-        try {
-          throwIfFollowerPullAbortedV1(pullSignal);
-          const refs = b.txs.map((tx: any, i: number) => ({ h: String(tx.hash).toLowerCase(), n, o: i }));
-          this.txIndex.putMany(refs);
-        } catch (err) {
-          recordSideEffectWriteFailure("peer-import-tx-index", err, { blockNumber: n, txCount: b.txs?.length ?? 0 });
-        }
-        try {
-          throwIfFollowerPullAbortedV1(pullSignal);
-          const anyReceipts: any = this.receipts as any;
-          const recs = b.txs.map((tx: any, i: number) => ({
-            h: String(tx.hash).toLowerCase(),
-            n,
-            o: i,
-            ts: b.timestamp ?? Date.now(),
-          }));
-          if (typeof anyReceipts.appendMany === "function") {
-            await awaitFollowerPullPersistenceV1(
-              Promise.resolve(anyReceipts.appendMany(recs, { signal: pullSignal })),
-              pullSignal,
-            );
-          } else if (typeof anyReceipts.append === "function") {
-            for (const r of recs) {
-              throwIfFollowerPullAbortedV1(pullSignal);
-              await awaitFollowerPullPersistenceV1(
-                Promise.resolve(anyReceipts.append(r, { signal: pullSignal })),
-                pullSignal,
-              );
-            }
-          }
-          throwIfFollowerPullAbortedV1(pullSignal);
-        } catch (err) {
-          recordSideEffectWriteFailure("peer-import-receipts", err, { blockNumber: n, txCount: b.txs?.length ?? 0 });
-        }
+        await ensureFollowerBlockProjectionsV1(merged);
 
-        throwIfFollowerPullAbortedV1(pullSignal);
         hooks?.onImportBlock?.(b);
         continue;
+      }
+
+      if (existingHasTxs) {
+        await ensureFollowerBlockProjectionsV1(existing);
       }
 
       alreadyHad++;
