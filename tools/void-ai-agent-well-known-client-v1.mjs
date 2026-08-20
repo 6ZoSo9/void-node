@@ -97,7 +97,6 @@ async function settleTeardownBounded(startCleanup) {
   let timeout;
   const timeoutPromise = new Promise((resolve) => {
     timeout = setTimeout(resolve, RESPONSE_TEARDOWN_TIMEOUT_MS);
-    timeout.unref?.();
   });
   try {
     await Promise.race([
