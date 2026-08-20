@@ -345,6 +345,50 @@ try {
     [],
     "the pinned original parent must clean its private temporary generation on HOLD",
   );
+
+  const noReplaceParent = path.join(temporaryRoot, "no-replace-parent");
+  const foreignDestination = path.join(noReplaceParent, "pack");
+  fs.mkdirSync(noReplaceParent);
+  let foreignDestinationIdentity;
+  assert.throws(
+    () => buildDiscoveryPack({
+      origin: ORIGIN,
+      output: foreignDestination,
+      indexNowKey: INDEXNOW_KEY,
+      lastmod: LASTMOD,
+      testHooks: {
+        beforePublish() {
+          fs.mkdirSync(foreignDestination, { mode: 0o700 });
+          const metadata = fs.statSync(foreignDestination, { bigint: true });
+          foreignDestinationIdentity = { dev: metadata.dev, ino: metadata.ino };
+        },
+      },
+    }),
+    /output became occupied before publication/,
+    "a concurrent foreign destination must win without being replaced",
+  );
+  const preservedForeignDestination = fs.statSync(
+    foreignDestination,
+    { bigint: true },
+  );
+  assert.deepEqual(
+    {
+      dev: preservedForeignDestination.dev,
+      ino: preservedForeignDestination.ino,
+    },
+    foreignDestinationIdentity,
+    "the exact concurrently-created foreign destination generation must remain",
+  );
+  assert.deepEqual(
+    fs.readdirSync(foreignDestination),
+    [],
+    "the foreign destination must remain untouched",
+  );
+  assert.deepEqual(
+    fs.readdirSync(noReplaceParent),
+    ["pack"],
+    "private temporary output must be cleaned after no-replace HOLD",
+  );
 } finally {
   fs.rmSync(temporaryRoot, { recursive: true, force: true });
 }
@@ -359,6 +403,7 @@ console.log("input_generation_replacements_held=true");
 console.log("output_symlink_components_held=true");
 console.log("output_ancestor_swap_held=true");
 console.log("descriptor_relative_output_authority=true");
+console.log("destination_no_replace_publication=true");
 console.log("ci_cost_checker_change_schedules=true");
 console.log("unrelated_path_does_not_schedule=true");
 console.log("network_calls=false");
