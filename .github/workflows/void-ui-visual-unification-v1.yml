@@ -6,30 +6,36 @@ on:
       - "public/void-app-wave1-v1/assets/css/site-theme.css"
       - "public/public-node/index.html"
       - "public/public-node/void-public-node-home-v1.js"
+      - "ops/public/voidchain-org-wordpress-home-v1.html"
+      - "ops/public/sync-voidchain-org-wordpress-home-v1.mjs"
       - "docs/public/void-ui-visual-unification-v1.md"
       - "scripts/prove_void_ui_visual_unification_v1.mjs"
       - "scripts/prove_void_public_node_home_v1.mjs"
+      - "scripts/prove_voidchain_org_visual_unification_v1.mjs"
+      - "scripts/prove_voidchain_org_wordpress_home_v1.mjs"
       - "tools/public-node-safe-serve-v1.mjs"
       - ".github/workflows/void-ui-visual-unification-v1.yml"
       - "scripts/prove_void_app_site_theme_v1.mjs"
       - "public/void-app-wave1-v1/assets/css/tokens.css"
       - "public/void-app-wave1-v1/assets/css/main.css"
-      - "ops/public/voidchain-org-wordpress-home-v1.html"
   push:
     branches: [main]
     paths:
       - "public/void-app-wave1-v1/assets/css/site-theme.css"
       - "public/public-node/index.html"
       - "public/public-node/void-public-node-home-v1.js"
+      - "ops/public/voidchain-org-wordpress-home-v1.html"
+      - "ops/public/sync-voidchain-org-wordpress-home-v1.mjs"
       - "docs/public/void-ui-visual-unification-v1.md"
       - "scripts/prove_void_ui_visual_unification_v1.mjs"
       - "scripts/prove_void_public_node_home_v1.mjs"
+      - "scripts/prove_voidchain_org_visual_unification_v1.mjs"
+      - "scripts/prove_voidchain_org_wordpress_home_v1.mjs"
       - "tools/public-node-safe-serve-v1.mjs"
       - ".github/workflows/void-ui-visual-unification-v1.yml"
       - "scripts/prove_void_app_site_theme_v1.mjs"
       - "public/void-app-wave1-v1/assets/css/tokens.css"
       - "public/void-app-wave1-v1/assets/css/main.css"
-      - "ops/public/voidchain-org-wordpress-home-v1.html"
 
 permissions:
   contents: read
@@ -58,12 +64,18 @@ jobs:
         run: |
           node --check scripts/prove_void_ui_visual_unification_v1.mjs
           node --check scripts/prove_void_public_node_home_v1.mjs
+          node --check scripts/prove_voidchain_org_visual_unification_v1.mjs
+          node --check scripts/prove_voidchain_org_wordpress_home_v1.mjs
           node --check public/public-node/void-public-node-home-v1.js
       - name: Existing production-theme proof
         run: node scripts/prove_void_app_site_theme_v1.mjs
-      - name: Visual-unification proof
+      - name: Participant visual-unification proof
         run: node scripts/prove_void_ui_visual_unification_v1.mjs
       - name: Public-node home proof
         run: node scripts/prove_void_public_node_home_v1.mjs
+      - name: WordPress source integrity proof
+        run: node scripts/prove_voidchain_org_wordpress_home_v1.mjs
+      - name: voidchain.org visual-unification proof
+        run: node scripts/prove_voidchain_org_visual_unification_v1.mjs
       - name: Diff hygiene
         run: git diff --check
