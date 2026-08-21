@@ -138,6 +138,30 @@ function directoryOpenFlagsV1(): number {
   return fs.constants.O_RDONLY | ((fs.constants as any).O_DIRECTORY || 0) | ((fs.constants as any).O_NOFOLLOW || 0);
 }
 
+function directoryModeV1(st: any): number {
+  return Number(st.mode) & 0o777;
+}
+
+function currentUidV1(): bigint {
+  if (typeof process.getuid !== "function") fail("DIRECTORY_WRITE_AUTHORITY_UNAVAILABLE", "process.getuid");
+  return BigInt(process.getuid());
+}
+
+function assertPrivateDirectoryStatV1(st: any, publicPath: string): void {
+  const expectedUid = currentUidV1();
+  const mode = directoryModeV1(st);
+  if (
+    st.uid !== expectedUid ||
+    (mode & 0o022) !== 0 ||
+    (mode & 0o300) !== 0o300
+  ) {
+    fail(
+      "DIRECTORY_WRITE_AUTHORITY_MISMATCH",
+      `${publicPath}:uid=${String(st.uid)}:expected_uid=${String(expectedUid)}:mode=${mode.toString(8)}`,
+    );
+  }
+}
+
 function openDirectoryAuthorityV1(dir: string): DirectoryAuthorityV1 {
   const publicPath = path.resolve(dir);
   const parsed = path.parse(publicPath);
@@ -230,6 +254,22 @@ function assertDirectoryAuthorityV1(authority: DirectoryAuthorityV1): void {
   }
 }
 
+function assertPrivateDirectoryWriteAuthorityV1(authority: DirectoryAuthorityV1): void {
+  assertDirectoryAuthorityV1(authority);
+  const opened = fs.fstatSync(authority.fd, { bigint: true } as any);
+  const current = fs.lstatSync(authority.publicPath, { bigint: true } as any);
+  assertPrivateDirectoryStatV1(opened, authority.publicPath);
+  assertPrivateDirectoryStatV1(current, authority.publicPath);
+  const openedMode = directoryModeV1(opened);
+  const currentMode = directoryModeV1(current);
+  if (opened.uid !== current.uid || openedMode !== currentMode) {
+    fail(
+      "DIRECTORY_WRITE_AUTHORITY_CHANGED",
+      `${authority.publicPath}:opened_uid=${String(opened.uid)}:current_uid=${String(current.uid)}:opened_mode=${openedMode.toString(8)}:current_mode=${currentMode.toString(8)}`,
+    );
+  }
+}
+
 function fsyncDir(dir: string): void {
   const authority = openDirectoryAuthorityV1(dir);
   try { fs.fsyncSync(authority.fd); assertDirectoryAuthorityV1(authority); }
@@ -247,13 +287,19 @@ function createDirectoryNewV1(dir: string): void {
     if (!created.isDirectory() || created.isSymbolicLink() || !visible.isDirectory() || visible.isSymbolicLink() || created.dev !== visible.dev || created.ino !== visible.ino) {
       fail("CREATED_DIRECTORY_AUTHORITY_MISMATCH", dir);
     }
+    assertPrivateDirectoryStatV1(created, dir);
+    assertPrivateDirectoryStatV1(visible, dir);
+    if (created.uid !== visible.uid || directoryModeV1(created) !== directoryModeV1(visible)) {
+      fail("DIRECTORY_WRITE_AUTHORITY_CHANGED", dir);
+    }
   } finally { fs.closeSync(authority.fd); }
 }
 
 function createDirectoryChildV1(parent: DirectoryAuthorityV1, name: string, publicPath: string): DirectoryAuthorityV1 {
+  assertPrivateDirectoryWriteAuthorityV1(parent);
   fs.mkdirSync(path.join(parent.stablePath, name), { mode: 0o700 });
   fs.fsyncSync(parent.fd);
-  assertDirectoryAuthorityV1(parent);
+  assertPrivateDirectoryWriteAuthorityV1(parent);
   const child = openDirectoryChildAuthorityV1(parent, name, publicPath);
   const stableChild = fs.lstatSync(path.join(parent.stablePath, name), { bigint: true } as any);
   const openedChild = fs.fstatSync(child.fd, { bigint: true } as any);
@@ -261,6 +307,7 @@ function createDirectoryChildV1(parent: DirectoryAuthorityV1, name: string, publ
     fs.closeSync(child.fd);
     fail("CREATED_DIRECTORY_AUTHORITY_MISMATCH", publicPath);
   }
+  assertPrivateDirectoryWriteAuthorityV1(child);
   return child;
 }
 
@@ -379,6 +426,7 @@ function writeDurableNew(
   ensureDir(path.dirname(file));
   const authority = retainedAuthority ?? openDirectoryAuthorityV1(path.dirname(file));
   if (path.resolve(path.dirname(file)) !== authority.publicPath) fail("WRITE_PARENT_AUTHORITY_MISMATCH", file);
+  assertPrivateDirectoryWriteAuthorityV1(authority);
   const stableFile = path.join(authority.stablePath, path.basename(file));
   const flags = fs.constants.O_WRONLY | fs.constants.O_CREAT | fs.constants.O_EXCL | ((fs.constants as any).O_NOFOLLOW || 0);
   let fd = -1;
@@ -400,7 +448,7 @@ function writeDurableNew(
     const pathGen = pathGeneration(stableFile);
     if (!pathGen || !sameGeneration(fdGen, pathGen)) fail("WRITE_PATH_GENERATION_MISMATCH", file);
     fs.fsyncSync(authority.fd);
-    assertDirectoryAuthorityV1(authority);
+    assertPrivateDirectoryWriteAuthorityV1(authority);
     created = fdGen;
     ok = true;
   } finally {
@@ -521,6 +569,7 @@ function atomicManifest(
   const target = path.join(root, MANIFEST);
   const authority = retainedAuthority ?? openDirectoryAuthorityV1(root);
   try {
+    assertPrivateDirectoryWriteAuthorityV1(authority);
     let created: GenerationV1;
     try {
       created = writeDurableNew(target, serializeSegmentedJsonlManifestV1(manifest), 0o600, authority);
@@ -537,7 +586,7 @@ function atomicManifest(
       }
       if (observed.nlink !== 1) fail("MANIFEST_PUBLICATION_LINK_COUNT_MISMATCH", `${target}:${observed.nlink}`);
     } finally { fs.closeSync(fd); }
-    assertDirectoryAuthorityV1(authority);
+    assertPrivateDirectoryWriteAuthorityV1(authority);
   } finally { if (!retainedAuthority) fs.closeSync(authority.fd); }
 }
 
@@ -566,10 +615,10 @@ function scanFile(file: string, expectedBytes: number, expectedRecords: number, 
 }
 
 function readSegmentedJsonlManifestFromAuthorityV1(root: DirectoryAuthorityV1): SegmentedJsonlManifestV1 {
-  assertDirectoryAuthorityV1(root);
+  assertPrivateDirectoryWriteAuthorityV1(root);
   const file = path.join(root.stablePath, MANIFEST);
   const body = readExactGenerationBufferV1(file, VOID_SEGMENTED_JSONL_MAX_MANIFEST_BYTES_V1, "MANIFEST_TOO_LARGE", "MANIFEST_SHORT_READ", "MANIFEST_GREW_DURING_READ", 1);
-  assertDirectoryAuthorityV1(root);
+  assertPrivateDirectoryWriteAuthorityV1(root);
   let decoded: string;
   try { decoded = FATAL_UTF8_DECODER.decode(body); }
   catch { fail("INVALID_MANIFEST_UTF8", root.publicPath); }
@@ -588,8 +637,8 @@ function verifySegmentedJsonlWithAuthoritiesV1(
   segments: DirectoryAuthorityV1,
   options: {validateJson?:boolean} = {},
 ) {
-  assertDirectoryAuthorityV1(root);
-  assertDirectoryAuthorityV1(segments);
+  assertPrivateDirectoryWriteAuthorityV1(root);
+  assertPrivateDirectoryWriteAuthorityV1(segments);
   const m = readSegmentedJsonlManifestFromAuthorityV1(root), validateJson = options.validateJson !== false;
   let bytes=0, records=0;
   for (const s of m.sealed_segments) {
@@ -602,8 +651,8 @@ function verifySegmentedJsonlWithAuthoritiesV1(
   if (a.sha256 !== m.active.sha256) fail("ACTIVE_HASH_MISMATCH", `expected=${m.active.sha256}:actual=${a.sha256}`);
   bytes += a.bytes; records += a.records;
   if (bytes !== m.total_bytes || records !== m.total_records) fail("VERIFY_TOTAL_MISMATCH", `${bytes}:${records}`);
-  assertDirectoryAuthorityV1(segments);
-  assertDirectoryAuthorityV1(root);
+  assertPrivateDirectoryWriteAuthorityV1(segments);
+  assertPrivateDirectoryWriteAuthorityV1(root);
   return { manifest:m, sealed_segments_verified:m.sealed_segments.length, total_bytes_verified:bytes, total_records_verified:records };
 }
 
@@ -611,7 +660,9 @@ export function verifySegmentedJsonlV1(rootInput: string, options: {validateJson
   const rootPathValue = rootPath(rootInput), root = openDirectoryAuthorityV1(rootPathValue);
   let segments: DirectoryAuthorityV1 | null = null;
   try {
+    assertPrivateDirectoryWriteAuthorityV1(root);
     segments = openDirectoryChildAuthorityV1(root, SEGMENTS, path.join(rootPathValue, SEGMENTS));
+    assertPrivateDirectoryWriteAuthorityV1(segments);
     return verifySegmentedJsonlWithAuthoritiesV1(root, segments, options);
   } finally {
     if (segments) fs.closeSync(segments.fd);
@@ -641,9 +692,11 @@ export function buildSegmentedJsonlV1FromFile(sourceInput:string,destinationInpu
   const rootAuthority = openDirectoryAuthorityV1(root);
   let segmentAuthority: DirectoryAuthorityV1 | null = null;
   try {
+  assertPrivateDirectoryWriteAuthorityV1(rootAuthority);
   if(fs.readdirSync(rootAuthority.stablePath).length) fail("DESTINATION_NOT_EMPTY",root);
-  assertDirectoryAuthorityV1(rootAuthority);
+  assertPrivateDirectoryWriteAuthorityV1(rootAuthority);
   segmentAuthority = createDirectoryChildV1(rootAuthority, SEGMENTS, path.join(root,SEGMENTS));
+  assertPrivateDirectoryWriteAuthorityV1(segmentAuthority);
   const flags=fs.constants.O_RDONLY|((fs.constants as any).O_NOFOLLOW||0), fd=fs.openSync(source,flags);
   const before=fdGeneration(fd), p0=pathGeneration(source); if(!p0||!sameGeneration(before,p0)){fs.closeSync(fd);fail("SOURCE_GENERATION_UNSTABLE_BEFORE_BUILD",source);}
   const admittedSourceBytes=exactGenerationSizeV1(before,"SOURCE_SIZE_UNREPRESENTABLE",source);
@@ -667,8 +720,8 @@ export function buildSegmentedJsonlV1FromFile(sourceInput:string,destinationInpu
   const active:SegmentedJsonlActiveV1={file:ACTIVE,bytes:activeBody.length,records:partRecords,first_record_index:first,last_record_index:partRecords?first+partRecords-1:null,sha256:sha256(activeBody)};
   const manifest:SegmentedJsonlManifestV1={v:1,format:VOID_SEGMENTED_JSONL_V1,generation,segment_target_bytes:target,max_record_bytes:max,total_bytes:sealedBytes+active.bytes,total_records:sealedRecords+active.records,sealed_bytes:sealedBytes,sealed_records:sealedRecords,sealed_root_sha256:sealedRoot(sealed),sealed_segments:sealed,active};
   parseManifest(manifest); atomicManifest(root,manifest,rootAuthority);
-  assertDirectoryAuthorityV1(rootAuthority);
-  assertDirectoryAuthorityV1(segmentAuthority);
+  assertPrivateDirectoryWriteAuthorityV1(rootAuthority);
+  assertPrivateDirectoryWriteAuthorityV1(segmentAuthority);
   return manifest;
   } finally {
     if (segmentAuthority) fs.closeSync(segmentAuthority.fd);
@@ -712,9 +765,12 @@ export function reconstructSegmentedJsonlV1ToFile(rootInput:string,outputInput:s
   const root=openDirectoryAuthorityV1(rootPathValue);
   let segments:DirectoryAuthorityV1|null=null, outputParent:DirectoryAuthorityV1|null=null, fd=-1;
   try {
+    assertPrivateDirectoryWriteAuthorityV1(root);
     segments=openDirectoryChildAuthorityV1(root,SEGMENTS,path.join(rootPathValue,SEGMENTS));
+    assertPrivateDirectoryWriteAuthorityV1(segments);
     const verified=verifySegmentedJsonlWithAuthoritiesV1(root,segments);
     outputParent=openDirectoryAuthorityV1(path.dirname(out));
+    assertPrivateDirectoryWriteAuthorityV1(outputParent);
     const stableOut=path.join(outputParent.stablePath,path.basename(out));
     try {
       fd=fs.openSync(stableOut,fs.constants.O_WRONLY|fs.constants.O_CREAT|fs.constants.O_EXCL|((fs.constants as any).O_NOFOLLOW||0),0o600);
@@ -728,9 +784,9 @@ export function reconstructSegmentedJsonlV1ToFile(rootInput:string,outputInput:s
       bytes+=appendVerifiedGenerationToOutputV1(path.join(root.stablePath,ACTIVE),verified.manifest.active.bytes,verified.manifest.active.sha256,fd,hash,out,0o600);
       fs.fsyncSync(fd);
       fs.fsyncSync(outputParent.fd);
-      assertDirectoryAuthorityV1(outputParent);
-      assertDirectoryAuthorityV1(segments);
-      assertDirectoryAuthorityV1(root);
+      assertPrivateDirectoryWriteAuthorityV1(outputParent);
+      assertPrivateDirectoryWriteAuthorityV1(segments);
+      assertPrivateDirectoryWriteAuthorityV1(root);
     }finally{fs.closeSync(fd);fd=-1;}
     if(bytes!==verified.manifest.total_bytes) fail("RECONSTRUCT_SIZE_MISMATCH",`${bytes}:${verified.manifest.total_bytes}`);
     return {bytes,records:verified.manifest.total_records,sha256:hash.digest("hex")};

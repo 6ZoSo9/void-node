@@ -32,6 +32,47 @@ try {
   reconstructSegmentedJsonlV1ToFile(store, rebuilt);
   assert.deepEqual(fs.readFileSync(rebuilt), fs.readFileSync(source));
 
+  // A pre-existing destination is authoritative only when the current UID owns
+  // it and group/other principals cannot mutate its child namespace.
+  const broadStore = path.join(tmp, "broad-store");
+  fs.mkdirSync(broadStore, { mode: 0o700 });
+  fs.chmodSync(broadStore, 0o777);
+  const broadBefore = fs.lstatSync(broadStore, { bigint: true } as any);
+  expectFailure(
+    () => buildSegmentedJsonlV1FromFile(source, broadStore, { segmentTargetBytes: 4096, maxRecordBytes: 1024 }),
+    "DIRECTORY_WRITE_AUTHORITY_MISMATCH",
+  );
+  const broadAfter = fs.lstatSync(broadStore, { bigint: true } as any);
+  assert.equal(broadAfter.dev, broadBefore.dev);
+  assert.equal(broadAfter.ino, broadBefore.ino);
+  assert.deepEqual(fs.readdirSync(broadStore), [], "broadly writable destination must remain untouched");
+
+  // Write-authority metadata is part of the retained store generation. Widening
+  // permissions without replacing the inode must make later admission fail.
+  const modeStore = path.join(tmp, "mode-store");
+  buildSegmentedJsonlV1FromFile(source, modeStore, { segmentTargetBytes: 4096, maxRecordBytes: 1024 });
+  const modeRootBefore = fs.lstatSync(modeStore, { bigint: true } as any);
+  fs.chmodSync(modeStore, 0o777);
+  const modeRootAfter = fs.lstatSync(modeStore, { bigint: true } as any);
+  assert.equal(modeRootAfter.dev, modeRootBefore.dev);
+  assert.equal(modeRootAfter.ino, modeRootBefore.ino);
+  expectFailure(() => verifySegmentedJsonlV1(modeStore), "DIRECTORY_WRITE_AUTHORITY_MISMATCH");
+  fs.chmodSync(modeStore, 0o700);
+  fs.chmodSync(path.join(modeStore, "segments"), 0o777);
+  expectFailure(() => verifySegmentedJsonlV1(modeStore), "DIRECTORY_WRITE_AUTHORITY_MISMATCH");
+  fs.chmodSync(path.join(modeStore, "segments"), 0o700);
+  assert.equal(verifySegmentedJsonlV1(modeStore).total_records_verified, 300);
+
+  const broadOutputParent = path.join(tmp, "broad-output-parent");
+  fs.mkdirSync(broadOutputParent, { mode: 0o700 });
+  fs.chmodSync(broadOutputParent, 0o777);
+  const broadOutput = path.join(broadOutputParent, "out.jsonl");
+  expectFailure(
+    () => reconstructSegmentedJsonlV1ToFile(store, broadOutput),
+    "DIRECTORY_WRITE_AUTHORITY_MISMATCH",
+  );
+  assert.equal(fs.existsSync(broadOutput), false, "broadly writable output parent must not receive reconstruction output");
+
   // Intermediate symlink ancestry must never become an accepted store authority.
   const realParent = path.join(tmp, "real-parent");
   const aliasParent = path.join(tmp, "alias-parent");
@@ -99,6 +140,10 @@ try {
   fs.symlinkSync(readForeign, path.join(readStore, "segments"), "dir");
   expectFailure(() => verifySegmentedJsonlV1(readStore), "DIRECTORY_CHILD_OPEN_FAILED");
 
+  console.log("broadly_writable_store_rejected=true");
+  console.log("store_write_authority_mode_bound=true");
+  console.log("segments_write_authority_mode_bound=true");
+  console.log("broadly_writable_output_parent_rejected=true");
   console.log("intermediate_symlink_store_rejected=true");
   console.log("intermediate_symlink_build_rejected=true");
   console.log("intermediate_symlink_output_rejected=true");
