@@ -113,8 +113,6 @@ Restart=on-failure
 RestartSec=2
 NoNewPrivileges=true
 PrivateTmp=true
-ProtectSystem=strict
-ProtectHome=read-only
 RestrictSUIDSGID=true
 LockPersonality=true
 
