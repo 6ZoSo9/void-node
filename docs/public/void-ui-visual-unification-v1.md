@@ -79,6 +79,32 @@ The page consumes only the existing sanitized `GET /__void/public-app/network.js
 
 The existing `tools/public-node-safe-serve-v1.mjs` directory behavior resolves `/public-node/` to `public/public-node/index.html` when this source tree is served by that static server. This is still **source truth, not deployment truth**: `src/index.ts`, the composition-gateway process, DNS/TLS, Funnel/Tor, and all currently running services remain unchanged. No live cutover is claimed by this PR.
 
+## Phase C — voidchain.org public website source
+
+The canonical WordPress Custom HTML source at `ops/public/voidchain-org-wordpress-home-v1.html` now uses the same VOID grammar without becoming an operator dashboard.
+
+The visible website hierarchy is intentionally small:
+
+1. `VOID NETWORK`
+2. one sentence explaining the product: a decentralized data network for AI agents;
+3. `Enter VOID` and `Public Node` as the two hero exits;
+4. one compact `Mainnet-0 / Block / Public Node` status strip; and
+5. exactly three capability paths: DataNet, Earn, and Agents.
+
+The former visible node-mirror/debug material is removed from normal presentation:
+
+- readiness gap;
+- txroot-live state;
+- exact-green hint;
+- bootstrap hold prose;
+- embedded discovery and route-index SHA-256 strings;
+- stale version/git-commit snapshot; and
+- source/debug links competing with the primary hero.
+
+Compatibility IDs required by the reviewed WordPress live client remain in a hidden technical-state container. The existing browser client remains GET-only and credential-free and continues reading only the public readiness/head surfaces. The established WordPress Custom HTML integrity contract remains authoritative and is now run inside the focused Node 22/24/26 visual-unification matrix together with a new visual-clutter proof.
+
+This is **repository source only**. No WordPress API apply, page mutation, DNS/TLS change, Funnel/Tor change, service restart, or public-domain cutover occurs from Phase C.
+
 ## Worker integration slices
 
 The umbrella lane owns end-state visual consistency, but source ownership stays serialized.
@@ -93,7 +119,7 @@ The canonical static public-node source/proof is now present. Do not edit `src/i
 
 ### Public website
 
-The WordPress/public-domain surface should consume the same visual language but remain a sparse public website, not a copy of the participant console. Production WordPress writes and domain-edge activation remain separate lifecycle actions.
+The canonical WordPress source is visually unified in this lane. Production WordPress writes and domain-edge activation remain separate lifecycle actions. #1359 retains ownership of its path-preserving edge files and must not be absorbed into #1368.
 
 ## Definition of Done
 
@@ -105,6 +131,7 @@ Source DoD for visual unification requires:
 - system/proof/debug material demoted without being destroyed;
 - no regression of existing read-only adapters or safety/economic authority boundaries;
 - a node-hosted public presentation that is visibly related to the participant app but materially simpler;
+- a sparse public website source using the same visual grammar;
 - rendered evidence before lifecycle promotion; and
 - fresh collision/review checks before every occupied-file integration.
 
