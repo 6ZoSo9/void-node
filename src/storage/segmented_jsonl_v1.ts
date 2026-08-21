@@ -488,7 +488,19 @@ function writeDurableNew(
     if (!pathGen || !sameGeneration(fdGen, pathGen)) fail("WRITE_PATH_GENERATION_MISMATCH", file);
     fs.fsyncSync(authority.fd);
     assertPrivateDirectoryWriteAuthorityV1(authority);
-    created = fdGen;
+    const committedObservation = fdObservation(fd);
+    const committedPathGeneration = pathGeneration(stableFile);
+    if (committedObservation.mode !== mode) {
+      fail("WRITE_POST_FSYNC_MODE_MISMATCH", `${file}:${committedObservation.mode.toString(8)}:${mode.toString(8)}`);
+    }
+    if (
+      !sameGeneration(fdGen, committedObservation.generation) ||
+      !committedPathGeneration ||
+      !sameGeneration(committedObservation.generation, committedPathGeneration)
+    ) {
+      fail("WRITE_POST_FSYNC_GENERATION_MISMATCH", file);
+    }
+    created = committedObservation.generation;
     committed = true;
   } catch (error) {
     primaryError = error;
