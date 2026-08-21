@@ -17,8 +17,11 @@ import {
   VOID_SEGMENTED_JSONL_MAX_CHECKPOINT_BYTES_V1,
   deriveSegmentedJsonlCheckpointV1,
   deriveSegmentedJsonlSnapshotAuthorityV1,
+  verifySegmentedJsonlCheckpointChainV1,
+  verifySegmentedJsonlCheckpointEncodingV1,
   verifySegmentedJsonlCheckpointV1,
   verifySegmentedJsonlSnapshotAuthorityV1,
+  type SegmentedJsonlCheckpointV1,
 } from "../src/storage/segmented_jsonl_snapshot_authority_v1.js";
 
 function sha256(data: Buffer | string): string {
@@ -56,6 +59,29 @@ function matchesOpenedTarget(candidateInput: unknown, targetPath: string): boole
   }
 }
 
+function checkpointCoreForProof(checkpoint: SegmentedJsonlCheckpointV1) {
+  return {
+    v: checkpoint.v,
+    format: checkpoint.format,
+    checkpoint_index: checkpoint.checkpoint_index,
+    previous_checkpoint_sha256: checkpoint.previous_checkpoint_sha256,
+    snapshot_sha256: checkpoint.snapshot_sha256,
+    manifest_sha256: checkpoint.manifest_sha256,
+    store_generation: checkpoint.store_generation,
+    store_total_bytes: checkpoint.store_total_bytes,
+    store_total_records: checkpoint.store_total_records,
+    cumulative_bytes: checkpoint.cumulative_bytes,
+    cumulative_records: checkpoint.cumulative_records,
+  };
+}
+
+function resignCheckpoint(checkpoint: SegmentedJsonlCheckpointV1): SegmentedJsonlCheckpointV1 {
+  return {
+    ...checkpoint,
+    checkpoint_sha256: sha256(JSON.stringify(checkpointCoreForProof(checkpoint))),
+  };
+}
+
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "void-segmented-snapshot-authority-v1-"));
 try {
   const source = path.join(tmp, "source.jsonl");
@@ -78,33 +104,94 @@ try {
   assert.deepEqual(directAuthority, authority);
 
   const checkpoint0 = deriveSegmentedJsonlCheckpointV1(authority);
-  verifySegmentedJsonlCheckpointV1(checkpoint0);
+  verifySegmentedJsonlCheckpointV1(checkpoint0, authority);
+
+  // Checkpoint progression is one unique next store generation per link.
+  // Replaying the same snapshot or reusing/regressing/skipping a generation is
+  // rejected before cumulative lifetime totals can change.
+  expectFailure(
+    () => deriveSegmentedJsonlCheckpointV1(authority, checkpoint0),
+    "CHECKPOINT_SNAPSHOT_REPLAY",
+  );
+  const sameGenerationManifest = { ...manifest, active: { ...manifest.active, sha256: "1".repeat(64) } };
+  const sameGenerationAuthority = deriveSegmentedJsonlSnapshotAuthorityV1(sameGenerationManifest);
+  expectFailure(
+    () => deriveSegmentedJsonlCheckpointV1(sameGenerationAuthority, checkpoint0),
+    "CHECKPOINT_GENERATION_NOT_NEXT",
+  );
+  const skippedGenerationAuthority = deriveSegmentedJsonlSnapshotAuthorityV1({
+    ...manifest,
+    generation: manifest.generation + 2,
+  });
+  expectFailure(
+    () => deriveSegmentedJsonlCheckpointV1(skippedGenerationAuthority, checkpoint0),
+    "CHECKPOINT_GENERATION_NOT_NEXT",
+  );
+
+  const nextAuthority = deriveSegmentedJsonlSnapshotAuthorityV1({
+    ...manifest,
+    generation: manifest.generation + 1,
+  });
+  const checkpoint1 = deriveSegmentedJsonlCheckpointV1(nextAuthority, checkpoint0);
+  verifySegmentedJsonlCheckpointV1(checkpoint1, nextAuthority, checkpoint0);
+  assert.equal(checkpoint1.store_generation, checkpoint0.store_generation + 1);
+  assert.equal(
+    BigInt(checkpoint1.cumulative_records),
+    BigInt(checkpoint0.cumulative_records) + BigInt(nextAuthority.total_records),
+  );
+
+  // Encoding-only validation deliberately is not authority-grade. A fully
+  // re-signed forged checkpoint can be self-consistent, but the strict verifier
+  // rejects it because it does not bind the referenced snapshot authority.
+  const forged = resignCheckpoint({
+    ...checkpoint1,
+    snapshot_sha256: "a".repeat(64),
+    manifest_sha256: "b".repeat(64),
+  });
+  verifySegmentedJsonlCheckpointEncodingV1(forged);
+  expectFailure(
+    () => verifySegmentedJsonlCheckpointV1(forged, nextAuthority, checkpoint0),
+    "CHECKPOINT_SNAPSHOT_BINDING_MISMATCH",
+  );
+
+  const checkpoint2Authority = deriveSegmentedJsonlSnapshotAuthorityV1({
+    ...manifest,
+    generation: manifest.generation + 2,
+  });
+  const checkpoint2 = deriveSegmentedJsonlCheckpointV1(checkpoint2Authority, checkpoint1);
+  const forkedPredecessor = resignCheckpoint({
+    ...checkpoint2,
+    previous_checkpoint_sha256: checkpoint0.checkpoint_sha256,
+  });
+  expectFailure(
+    () => verifySegmentedJsonlCheckpointChainV1([
+      { checkpoint: checkpoint0, snapshot: authority },
+      { checkpoint: checkpoint1, snapshot: nextAuthority },
+      { checkpoint: forkedPredecessor, snapshot: checkpoint2Authority },
+    ]),
+    "CHECKPOINT_PREDECESSOR_MISMATCH",
+  );
+
   let checkpoint = checkpoint0;
-  let maximumCheckpointBytes = 0;
+  let rollingManifest = manifest;
+  let maximumCheckpointBytes = Buffer.byteLength(JSON.stringify(checkpoint0), "utf8");
   for (let i = 0; i < 10_000; i++) {
-    checkpoint = deriveSegmentedJsonlCheckpointV1(authority, checkpoint);
-    verifySegmentedJsonlCheckpointV1(checkpoint, null, false);
+    rollingManifest = { ...rollingManifest, generation: rollingManifest.generation + 1 };
+    const rollingAuthority = deriveSegmentedJsonlSnapshotAuthorityV1(rollingManifest);
+    const next = deriveSegmentedJsonlCheckpointV1(rollingAuthority, checkpoint);
+    verifySegmentedJsonlCheckpointV1(next, rollingAuthority, checkpoint);
+    checkpoint = next;
     maximumCheckpointBytes = Math.max(maximumCheckpointBytes, Buffer.byteLength(JSON.stringify(checkpoint), "utf8"));
   }
   assert.ok(maximumCheckpointBytes <= VOID_SEGMENTED_JSONL_MAX_CHECKPOINT_BYTES_V1);
   assert.equal(Array.isArray((checkpoint as any).sealed_segments), false);
+  assert.equal(checkpoint.store_generation, manifest.generation + 10_000);
   assert.equal(BigInt(checkpoint.cumulative_records), BigInt(manifest.total_records) * 10_001n);
   assert.equal(BigInt(checkpoint.cumulative_bytes), BigInt(manifest.total_bytes) * 10_001n);
 
-  const checkpoint1 = deriveSegmentedJsonlCheckpointV1(authority, checkpoint0);
-  verifySegmentedJsonlCheckpointV1(checkpoint1, checkpoint0);
-  const badPrevious = { ...checkpoint1, previous_checkpoint_sha256: "0".repeat(64) };
-  expectFailure(() => verifySegmentedJsonlCheckpointV1(badPrevious as any, checkpoint0), "CHECKPOINT_DIGEST_MISMATCH");
-  const badCumulative = { ...checkpoint1, cumulative_records: String(BigInt(checkpoint1.cumulative_records) + 1n) };
-  expectFailure(() => verifySegmentedJsonlCheckpointV1(badCumulative as any, checkpoint0), "CHECKPOINT_DIGEST_MISMATCH");
-
-  // The authoritative contract is content-addressed and deliberately does not
-  // claim that mutable live pathnames form one coherent terminal generation.
-  // Trigger the exact behind-cursor race that defeats a finite terminal sweep:
-  // segment 0 has already passed terminal revalidation when segment 1 enters
-  // its terminal revalidation. The logical snapshot identity remains the
-  // original manifest commitment, while a later live-tree verification rejects
-  // the changed segment.
+  // The current content-addressed object remains deliberately honest about the
+  // unresolved live-tree terminal-generation seam. This fixture keeps that HOLD
+  // visible rather than laundering a finite revalidation sweep into authority.
   const raceSource = path.join(tmp, "race-source.jsonl");
   const raceStore = path.join(tmp, "race-store");
   fs.writeFileSync(raceSource, makeSource(6), { mode: 0o600 });
@@ -155,11 +242,15 @@ try {
   );
   expectFailure(() => verifySegmentedJsonlV1(raceStore), "SEGMENT_HASH_MISMATCH");
 
-  console.log("content_addressed_snapshot_authority=true");
+  console.log("content_addressed_manifest_commitment=true");
   console.log("live_tree_terminal_authority=false");
+  console.log("checkpoint_snapshot_binding_required=true");
+  console.log("checkpoint_snapshot_replay_rejected=true");
+  console.log("checkpoint_generation_progression_exact=true");
+  console.log("checkpoint_predecessor_substitution_rejected=true");
   console.log("checkpoint_metadata_lifetime_bounded=true");
   console.log(`checkpoint_max_bytes_observed=${maximumCheckpointBytes}`);
-  console.log("behind_cursor_live_tree_mutation_not_promoted_to_snapshot_identity=true");
+  console.log("behind_cursor_live_tree_mutation_not_promoted_to_terminal_authority=true");
   console.log("VOID_SEGMENTED_JSONL_SNAPSHOT_AUTHORITY_V1_PROOF_GREEN");
 } finally {
   fs.rmSync(tmp, { recursive: true, force: true });
