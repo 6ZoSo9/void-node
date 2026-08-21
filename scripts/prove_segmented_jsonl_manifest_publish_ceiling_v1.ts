@@ -107,11 +107,16 @@ assert.equal(VOID_SEGMENTED_JSONL_MAX_SEALED_SEGMENTS_V1, 31_190);
 
 const accepted = makeManifest(VOID_SEGMENTED_JSONL_MAX_SEALED_SEGMENTS_V1);
 const tooMany = makeManifest(VOID_SEGMENTED_JSONL_MAX_SEALED_SEGMENTS_V1 + 1);
-const oversizedWithinCount = makeManifest(
-  VOID_SEGMENTED_JSONL_MAX_SEALED_SEGMENTS_V1,
-  8 * 1024 * 1024,
-  8 * 1024 * 1024,
-);
+const oversizedWithinCount = makeManifest(VOID_SEGMENTED_JSONL_MAX_SEALED_SEGMENTS_V1);
+for (const segment of oversizedWithinCount.sealed_segments) {
+  segment.records = 2;
+  segment.first_record_index = segment.id * 2;
+  segment.last_record_index = segment.first_record_index + 1;
+}
+oversizedWithinCount.total_records = VOID_SEGMENTED_JSONL_MAX_SEALED_SEGMENTS_V1 * 2;
+oversizedWithinCount.sealed_records = oversizedWithinCount.total_records;
+oversizedWithinCount.active.first_record_index = oversizedWithinCount.total_records;
+oversizedWithinCount.sealed_root_sha256 = sealedRoot(oversizedWithinCount.sealed_segments);
 const exactMinimumRecordBytes = makeManifest(1, 2, 1024);
 const impossibleSealedCardinality = makeManifest(1, 1, 1024);
 const impossibleActiveCardinality = makeManifest(0);
