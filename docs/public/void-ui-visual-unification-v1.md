@@ -41,7 +41,7 @@ The Home route should answer three questions quickly:
 
 Exhaustive safety evidence stays in proofs/system surfaces. Safety still shapes controls and state; it does not dominate normal-user copy.
 
-## Phase A — source slice in this PR
+## Phase A — participant presentation
 
 The first slice is intentionally presentation-only and path-disjoint from current runtime repairs:
 
@@ -58,6 +58,27 @@ The first slice is intentionally presentation-only and path-disjoint from curren
 
 No JavaScript, adapter, route, endpoint, account semantics, wallet behavior, Work Credit behavior, validator behavior, P2P behavior, economic behavior, or runtime behavior changes in Phase A.
 
+## Phase B — public node home candidate
+
+The path-disjoint public-node renderer now exists at:
+
+- `public/public-node/void-public-node-home-v1.html`
+- `public/public-node/void-public-node-home-v1.js`
+- `scripts/prove_void_public_node_home_v1.mjs`
+
+Its human-facing hierarchy is deliberately small:
+
+1. `Enter VOID`
+2. `Participate`
+3. DataNet
+4. Earn
+5. Agents
+6. `System / Proofs` as the secondary evidence escape hatch
+
+The page consumes only the existing sanitized `GET /__void/public-app/network.json` composition endpoint. The browser client rejects redirects and final-URL drift, omits credentials, applies a five-second request deadline, caps retained response bytes at 64 KiB, uses fatal UTF-8 decoding, validates the public composition marker and numeric evidence, and renders dynamic values through `textContent` only.
+
+This is a **candidate renderer**, not a live-route claim. `src/index.ts`, the current composition gateway routing, DNS/TLS, Funnel/Tor, and the deployed `/public-node/` root are unchanged by Phase B. Switching the canonical node-hosted root to this renderer remains a later serialized integration after collision-sensitive runtime work clears.
+
 ## Worker integration slices
 
 The umbrella lane owns end-state visual consistency, but source ownership stays serialized.
@@ -68,7 +89,7 @@ A worker may simplify static participant markup and labels only after a fresh co
 
 ### Public node presentation
 
-Build a path-disjoint public-node presentation module/proof first. Do not edit `src/index.ts` while the live CPU/runtime and public-edge work still makes that file collision-prone. Wiring the new renderer into the live node is a later explicit integration step after the runtime seam clears.
+The path-disjoint public-node presentation module/proof is now present. Do not edit `src/index.ts` while the live CPU/runtime and public-edge work still makes that file collision-prone. Wiring the new renderer into the live node is a later explicit integration step after the runtime seam clears.
 
 ### Public website
 
