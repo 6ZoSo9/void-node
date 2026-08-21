@@ -735,9 +735,9 @@ export function verifySegmentedJsonlV1(rootInput: string, options: {validateJson
   }
 }
 
-function writeSealed(root:string,id:number,parts:Buffer[],first:number,records:number,authority?:DirectoryAuthorityV1): SegmentedJsonlSegmentV1 {
+function writeSealed(root:string,id:number,body:Buffer,first:number,records:number,authority?:DirectoryAuthorityV1): SegmentedJsonlSegmentV1 {
   if (records <= 0) fail("EMPTY_SEAL", `id=${id}`);
-  const body=Buffer.concat(parts), file=segmentPath(root,id);
+  const file=segmentPath(root,id);
   writeDurableNew(file,body,0o400,authority);
   return { id, file:segmentRel(id), bytes:body.length, records, first_record_index:first, last_record_index:first+records-1, sha256:sha256(body) };
 }
@@ -765,22 +765,24 @@ export function buildSegmentedJsonlV1FromFile(sourceInput:string,destinationInpu
   const flags=fs.constants.O_RDONLY|((fs.constants as any).O_NOFOLLOW||0), fd=fs.openSync(source,flags);
   const before=fdGeneration(fd), p0=pathGeneration(source); if(!p0||!sameGeneration(before,p0)){fs.closeSync(fd);fail("SOURCE_GENERATION_UNSTABLE_BEFORE_BUILD",source);}
   const admittedSourceBytes=exactGenerationSizeV1(before,"SOURCE_SIZE_UNREPRESENTABLE",source);
-  const sealed:SegmentedJsonlSegmentV1[]=[]; let parts:Buffer[]=[]; let partBytes=0, partRecords=0, first=0, global=0, carry=Buffer.alloc(0);
+  const sealed:SegmentedJsonlSegmentV1[]=[];
+  const partBuffer=Buffer.allocUnsafe(target);
+  let partBytes=0, partRecords=0, first=0, global=0, carry=Buffer.alloc(0);
   const flush=()=>{
     if(!partRecords)return;
     if(sealed.length>=sealedLimit) fail("BUILDER_SEGMENT_COUNT_EXCEEDS_BOUND",`attempted=${sealed.length+1}:limit=${sealedLimit}:repository_max=${VOID_SEGMENTED_JSONL_MAX_SEALED_SEGMENTS_V1}`);
-    sealed.push(writeSealed(root,sealed.length,parts,first,partRecords,segmentAuthority!));
-    first=global; parts=[]; partBytes=0; partRecords=0;
+    sealed.push(writeSealed(root,sealed.length,partBuffer.subarray(0,partBytes),first,partRecords,segmentAuthority!));
+    first=global; partBytes=0; partRecords=0;
   };
   try {
     readAdmittedGenerationV1(fd,admittedSourceBytes,"SOURCE_SHORT_READ","SOURCE_GREW_DURING_BUILD",source,(chunk)=>{ const data=carry.length?Buffer.concat([carry,chunk]):chunk; let from=0;
-      for(let i=0;i<data.length;i++) if(data[i]===0x0a){ const rec=Buffer.from(data.subarray(from,i+1)); validateRecord(rec,max,validateJson,global); if(rec.length>target) fail("RECORD_EXCEEDS_SEGMENT_TARGET",`record=${global}:bytes=${rec.length}:target=${target}`); if(partBytes>0&&partBytes+rec.length>target) flush(); parts.push(rec); partBytes+=rec.length; partRecords++; global++; from=i+1; }
+      for(let i=0;i<data.length;i++) if(data[i]===0x0a){ const rec=data.subarray(from,i+1); validateRecord(rec,max,validateJson,global); if(rec.length>target) fail("RECORD_EXCEEDS_SEGMENT_TARGET",`record=${global}:bytes=${rec.length}:target=${target}`); if(partBytes>0&&partBytes+rec.length>target) flush(); rec.copy(partBuffer,partBytes); partBytes+=rec.length; partRecords++; global++; from=i+1; }
       carry=Buffer.from(data.subarray(from)); if(carry.length>max) fail("RECORD_TOO_LARGE",`record=${global}:partial=${carry.length}:max=${max}`);
     });
     const after=fdGeneration(fd),p1=pathGeneration(source); if(!sameGeneration(before,after)||!p1||!sameGeneration(after,p1)) fail("SOURCE_GENERATION_CHANGED_DURING_BUILD",source);
   } finally { fs.closeSync(fd); }
   if(carry.length) fail("SOURCE_UNTERMINATED",source);
-  const activeBody=Buffer.concat(parts), activePath=inside(root,path.join(root,ACTIVE)); writeDurableNew(activePath,activeBody,0o600,rootAuthority);
+  const activeBody=partBuffer.subarray(0,partBytes), activePath=inside(root,path.join(root,ACTIVE)); writeDurableNew(activePath,activeBody,0o600,rootAuthority);
   const sealedBytes=sealed.reduce((n,s)=>n+s.bytes,0), sealedRecords=sealed.reduce((n,s)=>n+s.records,0);
   const active:SegmentedJsonlActiveV1={file:ACTIVE,bytes:activeBody.length,records:partRecords,first_record_index:first,last_record_index:partRecords?first+partRecords-1:null,sha256:sha256(activeBody)};
   const manifest:SegmentedJsonlManifestV1={v:1,format:VOID_SEGMENTED_JSONL_V1,generation,segment_target_bytes:target,max_record_bytes:max,total_bytes:sealedBytes+active.bytes,total_records:sealedRecords+active.records,sealed_bytes:sealedBytes,sealed_records:sealedRecords,sealed_root_sha256:sealedRoot(sealed),sealed_segments:sealed,active};
