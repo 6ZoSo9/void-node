@@ -204,8 +204,10 @@ try {
   const dirFd = fs.openSync(dir, fs.constants.O_RDONLY | fs.constants.O_DIRECTORY);
   try { fs.fsyncSync(dirFd); } finally { fs.closeSync(dirFd); }
 } catch (error) {
-  if (fd !== undefined) { try { fs.closeSync(fd); } catch {} }
-  try { fs.unlinkSync(tmp); } catch {}
+  if (fd !== undefined) {
+    try { fs.closeSync(fd); } catch (closeError) { void closeError; }
+  }
+  try { fs.unlinkSync(tmp); } catch (unlinkError) { void unlinkError; }
   throw error;
 }
 NODE
@@ -381,6 +383,8 @@ EOF
   observed="$(current_simple_funnel_port)"
   require_exact_port "$previous_port" "$observed" "pre-cutover predecessor"
   publish_transaction_state prepared "$previous_port" "$FRONTDOOR_PORT"
+  observed="$(current_simple_funnel_port)"
+  require_exact_port "$previous_port" "$observed" "immediate pre-cutover predecessor"
 
   echo "switching_canonical_443_funnel=http://127.0.0.1:${FRONTDOOR_PORT}"
   if ! tailscale funnel --https=443 --bg --yes "http://127.0.0.1:${FRONTDOOR_PORT}"; then
