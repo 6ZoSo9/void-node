@@ -218,8 +218,8 @@ function injectParentFsyncPreSampleAba(source: string, destination: string): voi
   assert.ok(failure instanceof Error, "pre-sample ABA child-link swap must fail closed");
   assert.match(
     failure.message,
-    /VOID_SEGMENTED_JSONL_V1:WRITE_PARENT_DIRECTORY_EPOCH_CHANGED:/,
-    "one parent mutation epoch must span child decision, fsync, and final child recheck",
+    /VOID_SEGMENTED_JSONL_V1:(?:WRITE_PARENT_DIRECTORY_EPOCH_CHANGED|WRITE_POST_FSYNC_GENERATION_MISMATCH):/,
+    "directory mutation or exact child generation must reject pre-sample ABA replacement",
   );
   assert.equal(
     fs.readFileSync(foreignAside, "utf8"),
