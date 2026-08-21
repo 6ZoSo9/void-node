@@ -140,6 +140,96 @@ function injectParentFsyncChildLinkSwap(source: string, destination: string): vo
   assert.equal(fs.existsSync(sealedLeaf), true, "owned sealed generation may remain for later exact recovery");
 }
 
+function injectParentFsyncPreSampleAba(source: string, destination: string): void {
+  const originalFstatSync = (mutableFs as any).fstatSync;
+  const originalFsyncSync = (mutableFs as any).fsyncSync;
+  const originalLstatSync = (mutableFs as any).lstatSync;
+  const originalRenameSync = (mutableFs as any).renameSync;
+  const originalWriteFileSync = (mutableFs as any).writeFileSync;
+  const segmentsDir = path.join(destination, "segments");
+  const sealedLeaf = path.join(segmentsDir, "000000000000.jsonl");
+  const ownedAside = path.join(segmentsDir, ".owned-before-pre-fsync-sample.jsonl");
+  const foreignAside = path.join(segmentsDir, ".foreign-before-pre-fsync-sample.jsonl");
+  const foreignBody = Buffer.from("foreign-generation-before-pre-fsync-sample\n", "utf8");
+  let swapped = false;
+  let parentFsyncDone = false;
+  let restored = false;
+  let failure: unknown = null;
+
+  const fdPath = (fd: number): string => {
+    try { return fs.readlinkSync(`/proc/self/fd/${fd}`); }
+    catch { return ""; }
+  };
+
+  try {
+    (mutableFs as any).fstatSync = (fd: number, ...args: any[]) => {
+      if (
+        !swapped &&
+        path.resolve(fdPath(fd)) === path.resolve(segmentsDir) &&
+        fs.existsSync(sealedLeaf)
+      ) {
+        originalRenameSync(sealedLeaf, ownedAside);
+        originalWriteFileSync(sealedLeaf, foreignBody, { flag: "wx", mode: 0o400 });
+        swapped = true;
+      }
+      return originalFstatSync(fd, ...args);
+    };
+    (mutableFs as any).fsyncSync = (fd: number) => {
+      const result = originalFsyncSync(fd);
+      if (swapped && path.resolve(fdPath(fd)) === path.resolve(segmentsDir)) {
+        parentFsyncDone = true;
+      }
+      return result;
+    };
+    (mutableFs as any).lstatSync = (candidate: fs.PathLike, ...args: any[]) => {
+      if (
+        swapped &&
+        parentFsyncDone &&
+        !restored &&
+        typeof candidate === "string" &&
+        path.resolve(candidate) === path.resolve(segmentsDir)
+      ) {
+        originalRenameSync(sealedLeaf, foreignAside);
+        originalRenameSync(ownedAside, sealedLeaf);
+        restored = true;
+      }
+      return originalLstatSync(candidate as any, ...args);
+    };
+    syncBuiltinESMExports();
+
+    try {
+      buildSegmentedJsonlV1FromFile(source, destination, {
+        segmentTargetBytes: 4096,
+        maxRecordBytes: 1024,
+      });
+    } catch (error) {
+      failure = error;
+    }
+  } finally {
+    (mutableFs as any).fstatSync = originalFstatSync;
+    (mutableFs as any).fsyncSync = originalFsyncSync;
+    (mutableFs as any).lstatSync = originalLstatSync;
+    syncBuiltinESMExports();
+  }
+
+  assert.equal(swapped, true, "pre-sample child-link swap must execute");
+  assert.equal(parentFsyncDone, true, "real parent fsync must execute while foreign child is canonical");
+  assert.equal(restored, true, "owned child must be restored after the old post-fsync sample window");
+  assert.ok(failure instanceof Error, "pre-sample ABA child-link swap must fail closed");
+  assert.match(
+    failure.message,
+    /VOID_SEGMENTED_JSONL_V1:WRITE_PARENT_DIRECTORY_EPOCH_CHANGED:/,
+    "one parent mutation epoch must span child decision, fsync, and final child recheck",
+  );
+  assert.equal(
+    fs.readFileSync(foreignAside, "utf8"),
+    foreignBody.toString("utf8"),
+    "foreign ABA generation must survive unchanged",
+  );
+  assert.equal(fs.existsSync(path.join(destination, "manifest.v1.json")), false, "manifest must not publish after pre-sample ABA mismatch");
+  assert.equal(fs.existsSync(sealedLeaf), true, "owned sealed generation may remain for exact recovery after ABA hold");
+}
+
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "void-segmented-jsonl-close-v1-"));
 fs.chmodSync(tmp, 0o700);
 try {
@@ -175,11 +265,17 @@ try {
     path.join(tmp, "parent-fsync-child-link-store"),
   );
 
+  injectParentFsyncPreSampleAba(
+    source,
+    path.join(tmp, "parent-fsync-pre-sample-aba-store"),
+  );
+
   console.log("post_durable_sealed_close_truth_preserved=true");
   console.log("post_durable_active_close_truth_preserved=true");
   console.log("post_durable_manifest_close_truth_preserved=true");
   console.log("parent_fsync_directory_entry_epoch_bound=true");
   console.log("foreign_parent_fsync_replacement_preserved=true");
+  console.log("parent_fsync_pre_sample_aba_rejected=true");
   console.log("VOID_SEGMENTED_JSONL_POST_DURABLE_CLOSE_V1_PROOF_GREEN");
 } finally {
   fs.rmSync(tmp, { recursive: true, force: true });
