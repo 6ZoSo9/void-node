@@ -6,7 +6,7 @@ import { fileURLToPath } from "node:url";
 
 const MARKER = "VOID_PUBLIC_FRONTDOOR_V1";
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
-const HOME_PATH = resolve(ROOT, "public/void-public-frontdoor-v1/index.html");
+const HOME_PATH = process.env.VOID_PUBLIC_FRONTDOOR_HOME || resolve(ROOT, "public/void-public-frontdoor-v1/index.html");
 const BIND = process.env.VOID_PUBLIC_FRONTDOOR_BIND || "127.0.0.1";
 const PORT = Number(process.env.VOID_PUBLIC_FRONTDOOR_PORT || "8083");
 const UPSTREAM_HOST = "127.0.0.1";
