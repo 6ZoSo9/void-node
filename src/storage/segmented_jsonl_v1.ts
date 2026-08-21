@@ -70,7 +70,7 @@ type BuildOptionsV1 = {
 };
 
 type GenerationV1 = { dev: string; ino: string; size: string; mtimeNs: string; ctimeNs: string };
-type FdObservationV1 = { generation: GenerationV1; mode: number };
+type FdObservationV1 = { generation: GenerationV1; mode: number; nlink: number };
 type DirectoryAuthorityV1 = { fd: number; publicPath: string; stablePath: string; dev: string; ino: string };
 
 function fail(code: string, detail: string): never {
@@ -214,7 +214,7 @@ function sameGeneration(a: GenerationV1, b: GenerationV1): boolean {
 function fdObservation(fd: number): FdObservationV1 {
   const st = fs.fstatSync(fd, { bigint: true } as any);
   if (!st.isFile()) fail("NON_REGULAR_FD", String(fd));
-  return { generation: generationFromStat(st), mode: Number(st.mode) & 0o777 };
+  return { generation: generationFromStat(st), mode: Number(st.mode) & 0o777, nlink: Number(st.nlink) };
 }
 
 function fdGeneration(fd: number): GenerationV1 { return fdObservation(fd).generation; }
@@ -272,17 +272,24 @@ function readExactGenerationBufferV1(
   tooLargeCode: string,
   shortCode: string,
   growthCode: string,
+  expectedNlink?: number,
 ): Buffer {
   const fd = openRegularReadV1(file);
   try {
-    const before = fdGeneration(fd), p0 = pathGeneration(file);
+    const beforeObservation = fdObservation(fd), before = beforeObservation.generation, p0 = pathGeneration(file);
     if (!p0 || !sameGeneration(before, p0)) fail("UNSTABLE_FILE_BEFORE_READ", file);
+    if (expectedNlink !== undefined && beforeObservation.nlink !== expectedNlink) {
+      fail("READ_LINK_COUNT_MISMATCH", `${file}:${beforeObservation.nlink}:${expectedNlink}`);
+    }
     const expectedBytes = exactGenerationSizeV1(before, tooLargeCode, file);
     if (expectedBytes > maximumBytes) fail(tooLargeCode, `${file}:${expectedBytes}:${maximumBytes}`);
     const chunks: Buffer[] = [];
     readAdmittedGenerationV1(fd, expectedBytes, shortCode, growthCode, file, chunk => chunks.push(chunk));
-    const after = fdGeneration(fd), p1 = pathGeneration(file);
+    const afterObservation = fdObservation(fd), after = afterObservation.generation, p1 = pathGeneration(file);
     if (!sameGeneration(before, after) || !p1 || !sameGeneration(after, p1)) fail("UNSTABLE_FILE_DURING_READ", file);
+    if (expectedNlink !== undefined && afterObservation.nlink !== expectedNlink) {
+      fail("READ_LINK_COUNT_MISMATCH", `${file}:${afterObservation.nlink}:${expectedNlink}`);
+    }
     return Buffer.concat(chunks, expectedBytes);
   } finally { fs.closeSync(fd); }
 }
@@ -424,27 +431,25 @@ function atomicManifest(
   retainedAuthority?: DirectoryAuthorityV1,
 ): void {
   const target = path.join(root, MANIFEST);
-  const tmp = path.join(root, `.${MANIFEST}.tmp-${process.pid}-${crypto.randomBytes(8).toString("hex")}`);
   const authority = retainedAuthority ?? openDirectoryAuthorityV1(root);
-  const created = writeDurableNew(tmp, serializeSegmentedJsonlManifestV1(manifest), 0o600, authority);
   try {
-    const stableTmp = path.join(authority.stablePath, path.basename(tmp));
-    const stableTarget = path.join(authority.stablePath, MANIFEST);
-    const current = pathGeneration(stableTmp);
-    if (!current || !sameGeneration(created, current)) fail("MANIFEST_STAGING_GENERATION_CHANGED", tmp);
-    try { fs.linkSync(stableTmp, stableTarget); }
-    catch (error: any) {
+    let created: GenerationV1;
+    try {
+      created = writeDurableNew(target, serializeSegmentedJsonlManifestV1(manifest), 0o600, authority);
+    } catch (error: any) {
       if (error?.code === "EEXIST") fail("MANIFEST_EXISTS_AT_COMMIT", target);
       throw error;
     }
-    fs.fsyncSync(authority.fd);
+    const stableTarget = path.join(authority.stablePath, MANIFEST);
+    const fd = openRegularReadV1(stableTarget);
+    try {
+      const observed = fdObservation(fd), visible = pathGeneration(stableTarget);
+      if (!visible || !sameGeneration(created, observed.generation) || !sameGeneration(observed.generation, visible)) {
+        fail("MANIFEST_PUBLICATION_GENERATION_MISMATCH", target);
+      }
+      if (observed.nlink !== 1) fail("MANIFEST_PUBLICATION_LINK_COUNT_MISMATCH", `${target}:${observed.nlink}`);
+    } finally { fs.closeSync(fd); }
     assertDirectoryAuthorityV1(authority);
-    const published = pathGeneration(stableTarget);
-    if (!published || published.dev !== created.dev || published.ino !== created.ino || published.size !== created.size) {
-      fail("MANIFEST_PUBLICATION_GENERATION_MISMATCH", target);
-    }
-    // The hidden staging hard link is retained. Removing it by pathname would
-    // reintroduce a compare/delete race against a substituted foreign leaf.
   } finally { if (!retainedAuthority) fs.closeSync(authority.fd); }
 }
 
@@ -474,7 +479,7 @@ function scanFile(file: string, expectedBytes: number, expectedRecords: number, 
 
 export function readSegmentedJsonlManifestV1(rootInput: string): SegmentedJsonlManifestV1 {
   const root = rootPath(rootInput), file = inside(root,path.join(root,MANIFEST));
-  const body = readExactGenerationBufferV1(file, VOID_SEGMENTED_JSONL_MAX_MANIFEST_BYTES_V1, "MANIFEST_TOO_LARGE", "MANIFEST_SHORT_READ", "MANIFEST_GREW_DURING_READ");
+  const body = readExactGenerationBufferV1(file, VOID_SEGMENTED_JSONL_MAX_MANIFEST_BYTES_V1, "MANIFEST_TOO_LARGE", "MANIFEST_SHORT_READ", "MANIFEST_GREW_DURING_READ", 1);
   let decoded: string;
   try { decoded = FATAL_UTF8_DECODER.decode(body); }
   catch { fail("INVALID_MANIFEST_UTF8", file); }

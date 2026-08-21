@@ -252,16 +252,22 @@ function proveManifestPublicationIsCreateOnly(
 ): void {
   const manifestPath = path.join(destinationPath, "manifest.v1.json");
   const sentinel = Buffer.from("foreign-manifest-sentinel\n", "utf8");
-  const originalLinkSync = (mutableFs as any).linkSync;
+  const originalOpenSync = (mutableFs as any).openSync;
   let occupied = false;
   try {
-    (mutableFs as any).linkSync = (...args: any[]) => {
-      const target = typeof args[1] === "string" ? path.resolve(args[1]) : "";
-      if (!occupied && target.endsWith("/manifest.v1.json")) {
-        fs.writeFileSync(manifestPath, sentinel, { flag: "wx", mode: 0o600 });
+    (mutableFs as any).openSync = (...args: any[]) => {
+      const candidate = typeof args[0] === "string" ? String(args[0]) : "";
+      const flags = typeof args[1] === "number" ? args[1] : 0;
+      if (
+        !occupied &&
+        candidate.endsWith("/manifest.v1.json") &&
+        (flags & fs.constants.O_EXCL) !== 0
+      ) {
+        const publicManifest = path.join(destinationPath, "manifest.v1.json");
+        fs.writeFileSync(publicManifest, sentinel, { flag: "wx", mode: 0o600 });
         occupied = true;
       }
-      return originalLinkSync(...args);
+      return originalOpenSync(...args);
     };
     syncBuiltinESMExports();
     expectFailure(
@@ -272,7 +278,7 @@ function proveManifestPublicationIsCreateOnly(
       "MANIFEST_EXISTS_AT_COMMIT",
     );
   } finally {
-    (mutableFs as any).linkSync = originalLinkSync;
+    (mutableFs as any).openSync = originalOpenSync;
     syncBuiltinESMExports();
   }
   assert.equal(occupied, true, "foreign manifest must occupy the final name at commit");
@@ -321,16 +327,22 @@ function proveManifestParentGenerationSwapHolds(
   destinationPath: string,
 ): void {
   const detachedPath = `${destinationPath}.detached`;
-  const originalLinkSync = (mutableFs as any).linkSync;
+  const originalOpenSync = (mutableFs as any).openSync;
   let swapped = false;
   try {
-    (mutableFs as any).linkSync = (...args: any[]) => {
-      if (!swapped && typeof args[1] === "string" && String(args[1]).endsWith("/manifest.v1.json")) {
+    (mutableFs as any).openSync = (...args: any[]) => {
+      const candidate = typeof args[0] === "string" ? String(args[0]) : "";
+      const flags = typeof args[1] === "number" ? args[1] : 0;
+      if (
+        !swapped &&
+        candidate.endsWith("/manifest.v1.json") &&
+        (flags & fs.constants.O_EXCL) !== 0
+      ) {
         fs.renameSync(destinationPath, detachedPath);
         fs.mkdirSync(destinationPath, { mode: 0o700 });
         swapped = true;
       }
-      return originalLinkSync(...args);
+      return originalOpenSync(...args);
     };
     syncBuiltinESMExports();
     expectFailure(
@@ -341,7 +353,7 @@ function proveManifestParentGenerationSwapHolds(
       "DIRECTORY_AUTHORITY_CHANGED",
     );
   } finally {
-    (mutableFs as any).linkSync = originalLinkSync;
+    (mutableFs as any).openSync = originalOpenSync;
     syncBuiltinESMExports();
   }
   assert.equal(swapped, true, "manifest parent generation must be substituted before commit");
@@ -420,6 +432,19 @@ try {
   assert.ok(manifest.active.bytes <= manifest.segment_target_bytes);
   assert.equal(manifest.total_bytes, body.length);
   assert.equal(manifest.total_records, 500);
+
+  const manifestPath = path.join(store, "manifest.v1.json");
+  assert.equal(fs.statSync(manifestPath).nlink, 1, "canonical manifest must have exactly one authoritative name");
+  assert.equal(
+    fs.readdirSync(store).some((name) => name.startsWith(".manifest.v1.json.tmp-")),
+    false,
+    "successful manifest publication must not retain a staging alias",
+  );
+  const manifestAlias = path.join(store, "manifest-alias-test");
+  fs.linkSync(manifestPath, manifestAlias);
+  expectFailure(() => readSegmentedJsonlManifestV1(store), "READ_LINK_COUNT_MISMATCH");
+  fs.unlinkSync(manifestAlias);
+  assert.deepEqual(readSegmentedJsonlManifestV1(store), manifest, "single-link manifest must remain readable after alias removal");
 
   for (const segment of manifest.sealed_segments) {
     assert.ok(segment.bytes <= manifest.segment_target_bytes);
@@ -751,6 +776,8 @@ try {
       sealed_mode_bound_to_exact_fd_generation: true,
       publication_parent_generation_bound: true,
       manifest_publication_create_only: true,
+      manifest_single_link_commit: true,
+      manifest_staging_alias_absent: true,
       failed_leaf_cleanup_preserves_foreign_generation: true,
       manifest_generation_and_retention_bounded: true,
       manifest_runtime_shape_exact: true,
