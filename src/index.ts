@@ -25870,41 +25870,17 @@ function __voidWpV1(w:any){const f=w?.pressure,n=+(typeof f==="function"?f.call(
   // Simple in-memory index for quick picks (rebuilt lazily)
   let queued = []; // ids not yet leased/completed
   let building = false;
+  const legacyAgentV0Index = new AgentPick2JsonlSemanticIndexV1();
   function rebuildIndex(){
     if (building) return;
     building = true;
     try {
-      queued = [];
-      if (fs.existsSync(FILE_JOBS)){
-        const seen = new Set();
-        const leased = new Set();
-        const done = new Set();
-        // collect leases
-        if (fs.existsSync(FILE_LEASES)){
-          fs.readFileSync(FILE_LEASES,"utf8").split("\n").forEach(l=>{
-            if(!l.trim()) return;
-            try{ const x=JSON.parse(l); if(x && x.id) leased.add(x.id); }catch (err) { voidIndexEmptyCatchVisibilityWindow24301_25200V1("24670:11", err); }
-          });
-        }
-        // collect done
-        if (fs.existsSync(FILE_RESULTS)){
-          fs.readFileSync(FILE_RESULTS,"utf8").split("\n").forEach(l=>{
-            if(!l.trim()) return;
-            try{ const x=JSON.parse(l); if(x && x.id) done.add(x.id); }catch (err) { voidIndexEmptyCatchVisibilityWindow24301_25200V1("24677:12", err); }
-          });
-        }
-        // list jobs not done/not leased
-        fs.readFileSync(FILE_JOBS,"utf8").split("\n").forEach(l=>{
-          if(!l.trim()) return;
-          try{
-            const x=JSON.parse(l);
-            if(!x || !x.id) return;
-            if(seen.has(x.id)) return;
-            seen.add(x.id);
-            if(!done.has(x.id) && !leased.has(x.id)) queued.push(x.id);
-          }catch (err) { voidIndexEmptyCatchVisibilityWindow24301_25200V1("24689:13", err); }
-        });
-      }
+      const snap = legacyAgentV0Index.legacyAgentV0SnapshotV1({
+        jobsFile: FILE_JOBS,
+        resultsFile: FILE_RESULTS,
+        leasesFile: FILE_LEASES,
+      });
+      queued = snap.queuedIds.slice();
     } finally { building = false; }
   }
 
@@ -26135,15 +26111,13 @@ function __voidWpV1(w:any){const f=w?.pressure,n=+(typeof f==="function"?f.call(
         if (!id) return res.json({ok:true, job:null});
         const worker = (req.body?.worker || "anon").toString();
         jsonlAppend(FILE_LEASES, {id, worker, ts:nowMs()});
-        // fetch the job payload to return
-        let job:any = null;
-        if (fs.existsSync(FILE_JOBS)){
-          const lines = fs.readFileSync(FILE_JOBS,"utf8").split("\n");
-          for (let i=lines.length-1;i>=0;--i){
-            const l = lines[i]; if(!l.trim()) continue;
-            try{ const x=JSON.parse(l); if(x.id===id){ job=x; break; } }catch (err) { voidIndexEmptyCatchVisibilityWindow24301_25200V1("24928:17", err); }
-          }
-        }
+        // fetch the job payload without rereading historical jobs.jsonl
+        const legacyPickSnap = legacyAgentV0Index.legacyAgentV0SnapshotV1({
+          jobsFile: FILE_JOBS,
+          resultsFile: FILE_RESULTS,
+          leasesFile: FILE_LEASES,
+        });
+        const job:any = legacyPickSnap.latestById.get(id) || null;
         return res.json({ok:true, job});
       }catch(e:any){
         return res.status(500).json({ok:false, error:e?.message||"internal"});
@@ -26161,12 +26135,13 @@ function __voidWpV1(w:any){const f=w?.pressure,n=+(typeof f==="function"?f.call(
 
         // try to find original inputHash for this id
         let inputHash = (req.body?.inputHash || "");
-        if (!inputHash && fs.existsSync(FILE_JOBS)){
-          const lines = fs.readFileSync(FILE_JOBS,"utf8").split("\n");
-          for (let i=lines.length-1;i>=0;--i){
-            const l = lines[i]; if(!l.trim()) continue;
-            try{ const x=JSON.parse(l); if(x.id===id){ inputHash = x.inputHash || ""; break; } }catch (err) { voidIndexEmptyCatchVisibilityWindow24301_25200V1("24952:18", err); }
-          }
+        if (!inputHash){
+          const legacyResultSnap = legacyAgentV0Index.legacyAgentV0SnapshotV1({
+            jobsFile: FILE_JOBS,
+            resultsFile: FILE_RESULTS,
+            leasesFile: FILE_LEASES,
+          });
+          inputHash = String(legacyResultSnap.latestById.get(id)?.inputHash || "");
         }
         const rec = { id, output, outputHash, inputHash, ts: nowMs() };
         jsonlAppend(FILE_RESULTS, rec);
@@ -26182,14 +26157,10 @@ function __voidWpV1(w:any){const f=w?.pressure,n=+(typeof f==="function"?f.call(
     app.get("/agent/v0/result/:id", async (req,res)=>{
       try{
         const id = req.params.id;
-        let out:any = null;
-        if (fs.existsSync(FILE_RESULTS)){
-          const lines = fs.readFileSync(FILE_RESULTS,"utf8").split("\n");
-          for (let i=lines.length-1;i>=0;--i){
-            const l = lines[i]; if(!l.trim()) continue;
-            try{ const x=JSON.parse(l); if(x.id===id){ out=x; break; } }catch (err) { voidIndexEmptyCatchVisibilityWindow24301_25200V1("24974:19", err); }
-          }
-        }
+        const resultSnap = legacyAgentV0Index.legacyAgentV0ResultSnapshotV1({
+          resultsFile: FILE_RESULTS,
+        });
+        const out:any = resultSnap.latestById.get(id) || null;
         return res.json({ok:true, result: out});
       }catch(e:any){
         return res.status(500).json({ok:false, error:e?.message||"internal"});
@@ -26200,10 +26171,14 @@ function __voidWpV1(w:any){const f=w?.pressure,n=+(typeof f==="function"?f.call(
     app.get("/__void/metrics/agent_jobs.prom", (_req,res)=>{
       try{
         if (!queued.length) rebuildIndex();
-        let totalJobs=0, totalResults=0, totalReceipts=0;
-        if (fs.existsSync(FILE_JOBS))     totalJobs    = fs.readFileSync(FILE_JOBS,"utf8").split("\n").filter(Boolean).length;
-        if (fs.existsSync(FILE_RESULTS))  totalResults = fs.readFileSync(FILE_RESULTS,"utf8").split("\n").filter(Boolean).length;
-        if (fs.existsSync(FILE_RECEIPTS)) totalReceipts= fs.readFileSync(FILE_RECEIPTS,"utf8").split("\n").filter(Boolean).length;
+        const legacyMetricsSnap = legacyAgentV0Index.legacyAgentV0MetricsSnapshotV1({
+          jobsFile: FILE_JOBS,
+          resultsFile: FILE_RESULTS,
+          receiptsFile: FILE_RECEIPTS,
+        });
+        const totalJobs = legacyMetricsSnap.rowCounts.jobs;
+        const totalResults = legacyMetricsSnap.rowCounts.results;
+        const totalReceipts = legacyMetricsSnap.rowCounts.receipts;
         const lines = [
           "# HELP void_agent_jobs_queued current queued jobs",
           "# TYPE void_agent_jobs_queued gauge",
@@ -27102,9 +27077,7 @@ function __voidWpV1(w:any){const f=w?.pressure,n=+(typeof f==="function"?f.call(
   const AGENT_DIR = path.join(DATA_DIR, "agent");
   const FILE_JOBS = path.join(AGENT_DIR, "jobs.jsonl");
   const FILE_RESULTS = path.join(AGENT_DIR, "results.jsonl");
-
-  function safeLines(f){ return fs.existsSync(f) ? fs.readFileSync(f,"utf8").split("\n").filter(l=>l.trim()) : []; }
-  function countSet(file){ const s=new Set(); for (const l of safeLines(file)){ try{ s.add(JSON.parse(l).id) }catch (err) { voidIndexEmptyCatchVisibilityWindow25201_26100V1("25891:14", err); } } return s; }
+  const legacyAgentV0MetricsIndex = new AgentPick2JsonlSemanticIndexV1();
 
   function mount(){
     const app = (globalThis).__void_http_app || (globalThis as any).app;
@@ -27112,19 +27085,21 @@ function __voidWpV1(w:any){const f=w?.pressure,n=+(typeof f==="function"?f.call(
 
     app.get("/__void/metrics/agent_jobs.v2.prom", (_req,res)=>{
       try{
-        const jobs = countSet(FILE_JOBS);
-        const done = countSet(FILE_RESULTS);
-        let queued = 0; for (const id of jobs){ if (!done.has(id)) queued++; }
+        const metricsSnap = legacyAgentV0MetricsIndex.legacyAgentV0MetricsSnapshotV1({
+          jobsFile: FILE_JOBS,
+          resultsFile: FILE_RESULTS,
+        });
+        const queued = metricsSnap.queuedDistinctCount;
         const out = [
           "# HELP void_agent_jobs_queued_v2 jobs without a result (jobs - results)",
           "# TYPE void_agent_jobs_queued_v2 gauge",
           `void_agent_jobs_queued_v2 ${queued}`,
           "# HELP void_agent_jobs_total_v2 distinct job ids seen",
           "# TYPE void_agent_jobs_total_v2 gauge",
-          `void_agent_jobs_total_v2 ${jobs.size}`,
+          `void_agent_jobs_total_v2 ${metricsSnap.distinctCounts.jobs}`,
           "# HELP void_agent_results_total_v2 distinct result ids seen",
           "# TYPE void_agent_results_total_v2 gauge",
-          `void_agent_results_total_v2 ${done.size}`
+          `void_agent_results_total_v2 ${metricsSnap.distinctCounts.results}`
         ];
         res.type("text/plain").send(out.join("\n")+"\n");
       }catch(e){ res.type("text/plain").send("# error "+(e?.message||"internal")+"\n"); }

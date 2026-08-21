@@ -79,6 +79,25 @@ type AppendWitnessV1 = {
   endedWithNewline: boolean;
 };
 
+
+
+type LegacyAgentV0JobsStateV1 = FileStampV1 & {
+  initialized: boolean;
+  endedWithNewline: boolean;
+  recordCount: number;
+  firstOrder: any[];
+  seen: Set<any>;
+  latestById: Map<any, any>;
+};
+
+type LegacyAgentV0IdSetStateV1 = FileStampV1 & {
+  initialized: boolean;
+  endedWithNewline: boolean;
+  recordCount: number;
+  ids: Set<any>;
+  latestById: Map<any, any>;
+};
+
 type TestHooksV1 = {
   afterReadChunk?: (ctx: {
     file: string;
@@ -2309,6 +2328,9 @@ export class AgentPick2JsonlSemanticIndexV1 {
   private readonly completions = new Map<string, CompletionStateV1>();
   private readonly tails = new Map<string, TailStateV1>();
   private readonly heads = new Map<string, HeadStateV1>();
+
+  private readonly legacyAgentV0Jobs = new Map<string, LegacyAgentV0JobsStateV1>();
+  private readonly legacyAgentV0IdSets = new Map<string, LegacyAgentV0IdSetStateV1>();
   private readonly metrics: IoMetricsV1 = {
     bytes_read_total: 0,
     sync_bytes_read_total: 0,
@@ -3268,6 +3290,367 @@ export class AgentPick2JsonlSemanticIndexV1 {
       this.metrics.append_witness_misses_total += 1;
     }
     return this.rebuildHead(file, maxRaw);
+  }
+
+
+  private scanLegacyAgentV0RangeLinesFd(
+    fd: number,
+    file: string,
+    start: number,
+    endExclusive: number,
+    kind: string,
+    onLine: (entry: JsonlEntryV1) => void,
+  ): boolean {
+    let pos = Math.max(0, start);
+    const end = Math.max(pos, endExclusive);
+    let carry = Buffer.alloc(0);
+    let chunkIndex = 0;
+
+    while (pos < end) {
+      const want = Math.min(this.chunkBytes, end - pos);
+      const chunk = this.readRangeFd(
+        fd,
+        file,
+        pos,
+        want,
+        kind,
+        chunkIndex++,
+      );
+      if (!chunk.length) break;
+      pos += chunk.length;
+      const data = carry.length ? Buffer.concat([carry, chunk]) : chunk;
+      let from = 0;
+      for (let i = 0; i < data.length; i++) {
+        if (data[i] !== 0x0a) continue;
+        const lineBytes = i - from;
+        if (lineBytes > VOID_AGENT_PICK2_JSONL_MAX_RECORD_BYTES_V1) {
+          recordTooLargeV1(file, kind, lineBytes);
+        }
+        if (lineBytes > 0) {
+          const raw = data.subarray(from, i).toString("utf8");
+          onLine(parseEntryV1(raw));
+        }
+        from = i + 1;
+      }
+      carry = Buffer.from(data.subarray(from));
+      if (carry.length > VOID_AGENT_PICK2_JSONL_MAX_RECORD_BYTES_V1) {
+        recordTooLargeV1(file, kind, carry.length);
+      }
+    }
+
+    if (carry.length) {
+      if (carry.length > VOID_AGENT_PICK2_JSONL_MAX_RECORD_BYTES_V1) {
+        recordTooLargeV1(file, kind, carry.length);
+      }
+      const raw = carry.toString("utf8");
+      onLine(parseEntryV1(raw));
+      return false;
+    }
+    return true;
+  }
+
+  private rebuildLegacyAgentV0Jobs(file: string): LegacyAgentV0JobsStateV1 {
+    const kind = "legacy_agent_v0_jobs_rebuild";
+    this.noteRebuild(kind);
+    const stable = this.stableRead(file, kind, (fd, stamp) => {
+      const firstOrder: any[] = [];
+      const seen = new Set<any>();
+      const latestById = new Map<any, any>();
+      let recordCount = 0;
+      const endedWithNewline = this.scanLegacyAgentV0RangeLinesFd(
+        fd,
+        file,
+        0,
+        stamp.size,
+        kind,
+        (entry) => {
+          recordCount += 1;
+          const x = entry.parsed;
+          const id = x?.id;
+          if (!x || !id) return;
+          if (!seen.has(id)) {
+            seen.add(id);
+            firstOrder.push(id);
+          }
+          latestById.set(id, x);
+        },
+      );
+      return { firstOrder, seen, latestById, recordCount, endedWithNewline };
+    });
+
+    const state: LegacyAgentV0JobsStateV1 = stable
+      ? {
+          ...stable.stamp,
+          initialized: true,
+          endedWithNewline: stable.value.endedWithNewline,
+          recordCount: stable.value.recordCount,
+          firstOrder: stable.value.firstOrder,
+          seen: stable.value.seen,
+          latestById: stable.value.latestById,
+        }
+      : {
+          ...emptyStampV1(),
+          initialized: true,
+          endedWithNewline: true,
+          recordCount: 0,
+          firstOrder: [],
+          seen: new Set<any>(),
+          latestById: new Map<any, any>(),
+        };
+    this.legacyAgentV0Jobs.set(file, state);
+    return state;
+  }
+
+  private legacyAgentV0JobsState(file: string): LegacyAgentV0JobsStateV1 {
+    const current = statV1(file);
+    const prior = this.legacyAgentV0Jobs.get(file);
+    if (!prior?.initialized) return this.rebuildLegacyAgentV0Jobs(file);
+
+    if (!current) {
+      if (prior.size === 0 && prior.dev === "-1" && !hasIsolationIntentV1(file)) {
+        this.noteHit("legacy_agent_v0_jobs_rebuild");
+        return prior;
+      }
+      return this.rebuildLegacyAgentV0Jobs(file);
+    }
+    if (sameStampV1(prior, current)) {
+      this.noteHit("legacy_agent_v0_jobs_rebuild");
+      return prior;
+    }
+
+    const chain = prior.endedWithNewline && appendWitnessChainV1(file, prior, current);
+    if (chain && chain.ok && current.size > prior.size) {
+      const kind = "legacy_agent_v0_jobs_append";
+      this.noteIncremental(kind);
+      const stable = this.stableRead(file, kind, (fd, opened) => {
+        const openedChain = appendWitnessChainV1(file, prior, opened);
+        if (!openedChain.ok) throw new Error("VOID_AGENT_V0_LEGACY_APPEND_WITNESS_DRIFT");
+        const appended: JsonlEntryV1[] = [];
+        const endedWithNewline = this.scanLegacyAgentV0RangeLinesFd(
+          fd,
+          file,
+          prior.size,
+          opened.size,
+          kind,
+          (entry) => appended.push(entry),
+        );
+        return { appended, endedWithNewline };
+      });
+      if (!stable) return this.rebuildLegacyAgentV0Jobs(file);
+      prior.recordCount += stable.value.appended.length;
+      for (const entry of stable.value.appended) {
+        const x = entry.parsed;
+        const id = x?.id;
+        if (!x || !id) continue;
+        if (!prior.seen.has(id)) {
+          prior.seen.add(id);
+          prior.firstOrder.push(id);
+        }
+        prior.latestById.set(id, x);
+      }
+      Object.assign(prior, stable.stamp, {
+        endedWithNewline: stable.value.endedWithNewline,
+      });
+      return prior;
+    }
+
+    if (current.size > prior.size && sameObjectV1(prior, current)) {
+      this.metrics.append_witness_misses_total += 1;
+    }
+    return this.rebuildLegacyAgentV0Jobs(file);
+  }
+
+  private legacyAgentV0IdSetKey(file: string, role: string): string {
+    return `${role}\u0000${fileKeyV1(file)}`;
+  }
+
+  private rebuildLegacyAgentV0IdSet(
+    file: string,
+    role: string,
+  ): LegacyAgentV0IdSetStateV1 {
+    const kind = `legacy_agent_v0_${role}_rebuild`;
+    this.noteRebuild(kind);
+    const stable = this.stableRead(file, kind, (fd, stamp) => {
+      const ids = new Set<any>();
+      const latestById = new Map<any, any>();
+      let recordCount = 0;
+      const endedWithNewline = this.scanLegacyAgentV0RangeLinesFd(
+        fd,
+        file,
+        0,
+        stamp.size,
+        kind,
+        (entry) => {
+          recordCount += 1;
+          const x = entry.parsed;
+          const id = x?.id;
+          if (x && id) {
+            ids.add(id);
+            latestById.set(id, x);
+          }
+        },
+      );
+      return { ids, latestById, recordCount, endedWithNewline };
+    });
+    const state: LegacyAgentV0IdSetStateV1 = stable
+      ? {
+          ...stable.stamp,
+          initialized: true,
+          endedWithNewline: stable.value.endedWithNewline,
+          recordCount: stable.value.recordCount,
+          ids: stable.value.ids,
+          latestById: stable.value.latestById,
+        }
+      : {
+          ...emptyStampV1(),
+          initialized: true,
+          endedWithNewline: true,
+          recordCount: 0,
+          ids: new Set<any>(),
+          latestById: new Map<any, any>(),
+        };
+    this.legacyAgentV0IdSets.set(this.legacyAgentV0IdSetKey(file, role), state);
+    return state;
+  }
+
+  private legacyAgentV0IdSetState(
+    file: string,
+    role: string,
+  ): LegacyAgentV0IdSetStateV1 {
+    const key = this.legacyAgentV0IdSetKey(file, role);
+    const current = statV1(file);
+    const prior = this.legacyAgentV0IdSets.get(key);
+    if (!prior?.initialized) return this.rebuildLegacyAgentV0IdSet(file, role);
+
+    if (!current) {
+      if (prior.size === 0 && prior.dev === "-1" && !hasIsolationIntentV1(file)) {
+        this.noteHit(`legacy_agent_v0_${role}_rebuild`);
+        return prior;
+      }
+      return this.rebuildLegacyAgentV0IdSet(file, role);
+    }
+    if (sameStampV1(prior, current)) {
+      this.noteHit(`legacy_agent_v0_${role}_rebuild`);
+      return prior;
+    }
+
+    const chain = prior.endedWithNewline && appendWitnessChainV1(file, prior, current);
+    if (chain && chain.ok && current.size > prior.size) {
+      const kind = `legacy_agent_v0_${role}_append`;
+      this.noteIncremental(kind);
+      const stable = this.stableRead(file, kind, (fd, opened) => {
+        const openedChain = appendWitnessChainV1(file, prior, opened);
+        if (!openedChain.ok) throw new Error("VOID_AGENT_V0_LEGACY_APPEND_WITNESS_DRIFT");
+        const ids = new Set<any>();
+        const latestById = new Map<any, any>();
+        let recordCount = 0;
+        const endedWithNewline = this.scanLegacyAgentV0RangeLinesFd(
+          fd,
+          file,
+          prior.size,
+          opened.size,
+          kind,
+          (entry) => {
+            recordCount += 1;
+            const x = entry.parsed;
+            const id = x?.id;
+            if (x && id) {
+              ids.add(id);
+              latestById.set(id, x);
+            }
+          },
+        );
+        return { ids, latestById, recordCount, endedWithNewline };
+      });
+      if (!stable) return this.rebuildLegacyAgentV0IdSet(file, role);
+      prior.recordCount += stable.value.recordCount;
+      for (const id of stable.value.ids) prior.ids.add(id);
+      for (const [id, row] of stable.value.latestById) prior.latestById.set(id, row);
+      Object.assign(prior, stable.stamp, {
+        endedWithNewline: stable.value.endedWithNewline,
+      });
+      return prior;
+    }
+
+    if (current.size > prior.size && sameObjectV1(prior, current)) {
+      this.metrics.append_witness_misses_total += 1;
+    }
+    return this.rebuildLegacyAgentV0IdSet(file, role);
+  }
+
+  legacyAgentV0ResultSnapshotV1(input: {
+    resultsFile: string;
+  }): {
+    latestById: Map<any, any>;
+    rowCount: number;
+    distinctCount: number;
+    io: IoMetricsV1;
+  } {
+    const results = this.legacyAgentV0IdSetState(input.resultsFile, "results");
+    return {
+      latestById: results.latestById,
+      rowCount: results.recordCount,
+      distinctCount: results.ids.size,
+      io: cloneMetricsV1(this.metrics),
+    };
+  }
+
+  legacyAgentV0MetricsSnapshotV1(input: {
+    jobsFile: string;
+    resultsFile: string;
+    receiptsFile?: string;
+  }): {
+    rowCounts: { jobs: number; results: number; receipts: number };
+    distinctCounts: { jobs: number; results: number; receipts: number };
+    queuedDistinctCount: number;
+    io: IoMetricsV1;
+  } {
+    const jobs = this.legacyAgentV0JobsState(input.jobsFile);
+    const results = this.legacyAgentV0IdSetState(input.resultsFile, "results");
+    const receipts = input.receiptsFile
+      ? this.legacyAgentV0IdSetState(input.receiptsFile, "receipts")
+      : null;
+    let queuedDistinctCount = 0;
+    for (const id of jobs.seen) {
+      if (!results.ids.has(id)) queuedDistinctCount += 1;
+    }
+    return {
+      rowCounts: {
+        jobs: jobs.recordCount,
+        results: results.recordCount,
+        receipts: receipts?.recordCount || 0,
+      },
+      distinctCounts: {
+        jobs: jobs.seen.size,
+        results: results.ids.size,
+        receipts: receipts?.ids.size || 0,
+      },
+      queuedDistinctCount,
+      io: cloneMetricsV1(this.metrics),
+    };
+  }
+
+  legacyAgentV0SnapshotV1(input: {
+    jobsFile: string;
+    resultsFile: string;
+    leasesFile: string;
+  }): {
+    queuedIds: any[];
+    latestById: Map<any, any>;
+    io: IoMetricsV1;
+  } {
+    // Preserve the legacy rebuild order: leases, results, then jobs.
+    const leased = this.legacyAgentV0IdSetState(input.leasesFile, "leases");
+    const done = this.legacyAgentV0IdSetState(input.resultsFile, "results");
+    const jobs = this.legacyAgentV0JobsState(input.jobsFile);
+    const queuedIds = jobs.firstOrder.filter(
+      (id) => !leased.ids.has(id) && !done.ids.has(id),
+    );
+    return {
+      queuedIds,
+      latestById: jobs.latestById,
+      io: cloneMetricsV1(this.metrics),
+    };
   }
 
   snapshot(input: {
