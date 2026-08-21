@@ -155,6 +155,9 @@ export async function projectWcProductionBalance(
   marker: "VOID_WC_PRODUCTION_BALANCE_V1",
 ): Promise<Projection> {
   const canonicalState = await readCanonicalWcState(account, dataDir);
+  const redeemableQuanta = BigInt(
+    String(canonicalState.redeemable_quanta || "0"),
+  );
   const state = readLedger(dataDir);
   const failure = integrity(marker, state);
   if (failure) return failure;
@@ -169,13 +172,21 @@ export async function projectWcProductionBalance(
       marker,
       account,
       balance: canonicalState.earned,
+      balance_exact: canonicalState.earned_exact,
+      balance_quanta: canonicalState.earned_quanta,
       count,
       ledger_version: "wc-v1",
       ledger_exists: state.exists,
       read_only: true,
       spendable: false,
-      redeemable: canonicalState.redeemable > 0,
+      redeemable: redeemableQuanta > 0n,
       redeemable_wc: canonicalState.redeemable,
+      redeemable_wc_exact:
+        canonicalState.redeemable_exact,
+      redeemable_wc_quanta:
+        canonicalState.redeemable_quanta,
+      numeric_authority:
+        canonicalState.numeric_authority,
       transferable: false,
       included_in_legacy_balance: false,
       automatic_runner_activation: false,
@@ -192,6 +203,9 @@ export async function projectWcProductionLedger(
   marker: "VOID_WC_PRODUCTION_LEDGER_V1",
 ): Promise<Projection> {
   const canonicalState = await readCanonicalWcState(account, dataDir);
+  const redeemableQuanta = BigInt(
+    String(canonicalState.redeemable_quanta || "0"),
+  );
   const state = readLedger(dataDir);
   const failure = integrity(marker, state);
   if (failure) return failure;
@@ -213,7 +227,7 @@ export async function projectWcProductionLedger(
       read_only: true,
       mutation: false,
       spendable: false,
-      redeemable: canonicalState.redeemable > 0,
+      redeemable: redeemableQuanta > 0n,
       transferable: false,
       included_in_legacy_balance: false,
       automatic_runner_activation: false,
