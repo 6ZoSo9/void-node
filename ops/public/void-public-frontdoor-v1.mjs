@@ -13,6 +13,8 @@ const UPSTREAM_HOST = "127.0.0.1";
 const UPSTREAM_PORT = Number(process.env.VOID_PUBLIC_FRONTDOOR_UPSTREAM_PORT || "8082");
 const UPSTREAM_TIMEOUT_MS = 30_000;
 const STATUS_PROBE_PATH = "/app/";
+const STATUS_PROBE_IDENTITY_HEADER = "x-void-public-app-composition";
+const STATUS_PROBE_IDENTITY_VALUE = "v1";
 const STATUS_PROBE_TIMEOUT_MS = Number(
   process.env.VOID_PUBLIC_FRONTDOOR_STATUS_TIMEOUT_MS || "1000",
 );
@@ -75,9 +77,15 @@ const probeUpstreamReady = () => new Promise((resolvePromise) => {
     },
   }, (response) => {
     const statusCode = response.statusCode || 0;
+    const upstreamIdentity =
+      response.headers[STATUS_PROBE_IDENTITY_HEADER];
     response.on("error", () => {});
     response.destroy();
-    finish(statusCode >= 200 && statusCode < 300);
+    finish(
+      statusCode >= 200
+      && statusCode < 300
+      && upstreamIdentity === STATUS_PROBE_IDENTITY_VALUE,
+    );
   });
 
   timer = setTimeout(() => {
