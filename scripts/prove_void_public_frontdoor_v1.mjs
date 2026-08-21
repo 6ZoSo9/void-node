@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import assert from "node:assert/strict";
 import http from "node:http";
-import { spawn } from "node:child_process";
+import { execFileSync, spawn } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -15,6 +15,7 @@ const source = readFileSync(serverPath, "utf8");
 const cutover = readFileSync(cutoverPath, "utf8");
 
 assert.match(html, /VOID_PUBLIC_FRONTDOOR_V1/);
+assert.match(html, /VOID_UI_VISUAL_UNIFICATION_V1/);
 assert.match(html, /<title>VOID \/ Public Node<\/title>/);
 assert.match(html, /<strong>VOID<\/strong><span>Public Node<\/span>/);
 assert.match(html, /A decentralized data network for AI agents/);
@@ -56,14 +57,29 @@ assert.match(source, /req\.pipe\(upstream\)/);
 assert.doesNotMatch(source, /child_process|exec\(|spawn\(|writeFile|appendFile/);
 
 assert.match(cutover, /VOID_PUBLIC_FRONTDOOR_CUTOVER_V1/);
+assert.match(cutover, /canonical_funnel_root_ports_from_text/);
+assert.match(cutover, /https:\/\/\$\{dns\}:8443/);
+assert.match(cutover, /127\.0\.0\.1:8082/);
+assert.match(cutover, /127\.0\.0\.1:4188/);
+assert.match(cutover, /canonical_443_port=8082/);
+assert.match(cutover, /auxiliary_8443_ignored=true/);
 assert.match(cutover, /tailscale funnel status --json/);
 assert.match(cutover, /tailscale funnel --https=443 --bg --yes/);
 assert.match(cutover, /--rollback/);
 assert.match(cutover, /node_service_restart=false/);
 assert.match(cutover, /composition_gateway_restart=false/);
+assert.doesNotMatch(cutover, /expected exactly one simple root Funnel proxy target/);
 assert.doesNotMatch(cutover, /tailscale funnel reset/);
 assert.doesNotMatch(cutover, /systemctl --user (restart|stop|start) void-node/);
 assert.doesNotMatch(cutover, /src\/index\.ts/);
+
+const parserSelfTest = execFileSync("bash", [cutoverPath, "--parser-self-test"], {
+  cwd: ROOT,
+  encoding: "utf8",
+});
+assert.match(parserSelfTest, /VOID_PUBLIC_FRONTDOOR_CUTOVER_V1_PARSER_SELF_TEST_GREEN/);
+assert.match(parserSelfTest, /canonical_443_port=8082/);
+assert.match(parserSelfTest, /auxiliary_8443_ignored=true/);
 
 const upstreamPort = 18082;
 const frontdoorPort = 18083;
@@ -165,6 +181,8 @@ console.log("unified_visual_contract=true");
 console.log("hero_primary_exits=2");
 console.log("capability_paths=3");
 console.log("legacy_root_clutter=false");
+console.log("canonical_443_funnel_selection_proved=true");
+console.log("auxiliary_8443_funnel_ignored=true");
 console.log("root_static_get_head_only=true");
 console.log("non_root_proxy_behavior_executed=true");
 console.log("post_passthrough_executed=true");
