@@ -100,6 +100,7 @@ export type AutoRepairPlan = {
 };
 
 const SEG_SPAN = 10_000;
+const SCAN_READ_CHUNK_BYTES = 1024 * 1024;
 
 function segNameFor(n: number): string {
   return String(Math.floor(n / SEG_SPAN) * SEG_SPAN).padStart(8, "0");
@@ -186,9 +187,45 @@ function readFrames(root: string, binPath: string, segmentName: string): FrameSc
     if (!st.isFile()) {
       throw new Error(`canonical block path is not a regular file: ${binPath}`);
     }
+
     const lenBuf = Buffer.alloc(4);
+    const chunk = Buffer.allocUnsafe(
+      Math.max(1, Math.min(SCAN_READ_CHUNK_BYTES, st.size)),
+    );
+    let chunkOffset = 0;
+    let chunkLength = 0;
+    let fileReadOffset = 0;
     let off = 0;
     let previousN: number | null = null;
+
+    function refill(): boolean {
+      if (fileReadOffset >= st.size) return false;
+      const want = Math.min(chunk.length, st.size - fileReadOffset);
+      const got = fs.readSync(fd, chunk, 0, want, fileReadOffset);
+      if (got <= 0) return false;
+      fileReadOffset += got;
+      chunkOffset = 0;
+      chunkLength = got;
+      return true;
+    }
+
+    function readExact(target: Buffer, targetOffset: number, length: number): number {
+      let copied = 0;
+      while (copied < length) {
+        if (chunkOffset >= chunkLength && !refill()) break;
+        const available = chunkLength - chunkOffset;
+        const take = Math.min(length - copied, available);
+        chunk.copy(
+          target,
+          targetOffset + copied,
+          chunkOffset,
+          chunkOffset + take,
+        );
+        chunkOffset += take;
+        copied += take;
+      }
+      return copied;
+    }
 
     while (off < st.size) {
       if (st.size - off < 4) {
@@ -201,9 +238,11 @@ function readFrames(root: string, binPath: string, segmentName: string): FrameSc
         };
       }
 
-      const gotLength = fs.readSync(fd, lenBuf, 0, 4, off);
+      const gotLength = readExact(lenBuf, 0, 4);
       if (gotLength !== 4) {
-        throw new Error(`short length-prefix read in ${segmentName} at offset ${off}: got ${gotLength}`);
+        throw new Error(
+          `short length-prefix read in ${segmentName} at offset ${off}: got ${gotLength}`,
+        );
       }
 
       const len = lenBuf.readUInt32BE(0);
@@ -220,9 +259,11 @@ function readFrames(root: string, binPath: string, segmentName: string): FrameSc
       }
 
       const body = Buffer.alloc(len);
-      const gotBody = fs.readSync(fd, body, 0, len, start);
+      const gotBody = readExact(body, 0, len);
       if (gotBody !== len) {
-        throw new Error(`short complete-frame read in ${segmentName} at offset ${off}: expected ${len}, got ${gotBody}`);
+        throw new Error(
+          `short complete-frame read in ${segmentName} at offset ${off}: expected ${len}, got ${gotBody}`,
+        );
       }
 
       let parsed: any;
@@ -230,18 +271,26 @@ function readFrames(root: string, binPath: string, segmentName: string): FrameSc
         parsed = JSON.parse(body.toString("utf8"));
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err);
-        throw new Error(`complete frame JSON invalid in ${segmentName} at offset ${off}: ${message}`);
+        throw new Error(
+          `complete frame JSON invalid in ${segmentName} at offset ${off}: ${message}`,
+        );
       }
 
       const n = parsed?.number;
       if (!Number.isSafeInteger(n) || n < 0) {
-        throw new Error(`complete frame block number invalid in ${segmentName} at offset ${off}`);
+        throw new Error(
+          `complete frame block number invalid in ${segmentName} at offset ${off}`,
+        );
       }
       if (segNameFor(n) !== segmentName) {
-        throw new Error(`complete frame segment mismatch in ${segmentName}: block ${n}`);
+        throw new Error(
+          `complete frame segment mismatch in ${segmentName}: block ${n}`,
+        );
       }
       if (previousN !== null && n !== previousN + 1) {
-        throw new Error(`complete frame order invalid in ${segmentName}: previous ${previousN}, block ${n}`);
+        throw new Error(
+          `complete frame order invalid in ${segmentName}: previous ${previousN}, block ${n}`,
+        );
       }
 
       frames.push({ off, end, n });
@@ -260,11 +309,13 @@ function readFrames(root: string, binPath: string, segmentName: string): FrameSc
     try {
       fs.closeSync(fd);
     } catch (err) {
-      recordSmallEmptyCatchVisibilityFailure_src_chain_auto_repair_ts("frame-scan-close", err);
+      recordSmallEmptyCatchVisibilityFailure_src_chain_auto_repair_ts(
+        "frame-scan-close",
+        err,
+      );
     }
   }
 }
-
 function truncateTornTail(root: string, binPath: string, completeBytes: number): void {
   assertVoidSegStoreRegularFileV1(root, binPath, false);
   fs.truncateSync(binPath, completeBytes);
