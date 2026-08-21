@@ -11,6 +11,12 @@ import { Block, computeRoots, blockHash, blockHeaderBytes, validateBlockForAppen
 import { cidForBytes } from "./util/cid.js";
 import { ensureDir } from "./util/files.js";
 import { SegStore } from "./chain/seg_store.js";
+import {
+  VOID_LEGACY_COMMIT_DIRECT_V2FS_MARKER_V1,
+  validateLegacyCommitDirectV2fsForAppendV1,
+} from "./chain/legacy_commit_direct_v2fs_v1.js";
+import { followerLegacyV2fsOriginAuthorizedV1 } from "./http/follower_legacy_v2fs_authority_v1.js";
+import { preferredAuthenticatedDuplicateDirectionV1 } from "./p2p/authenticated_duplicate_arbitration_v1.js";
 import { TxIndex } from "./chain/txindex.js";
 import { ReceiptsStore } from "./chain/receipts.js";
 import { buildKidxForJsonl } from "./util/kidx.js";
@@ -1822,9 +1828,19 @@ private finishAuthenticatedPeer(peer: Peer, auth: VoidPeerAuthV1) {
       existing !== peer &&
       this.peers.get(auth.id) === existing
     ) {
-      if (existing.outbound && !peer.outbound) {
-        this.rejectUnauthenticatedPeer(peer, "duplicate inbound connection");
-        return false;
+      if (existing.outbound !== peer.outbound) {
+        const preferredDirection = preferredAuthenticatedDuplicateDirectionV1(
+          this.id,
+          auth.id,
+        );
+        const candidateDirection = peer.outbound ? "outbound" : "inbound";
+        if (candidateDirection !== preferredDirection) {
+          this.rejectUnauthenticatedPeer(
+            peer,
+            `duplicate ${candidateDirection} connection`,
+          );
+          return false;
+        }
       }
       if (existing.authTimer) {
         clearTimeout(existing.authTimer);
@@ -4190,6 +4206,44 @@ attachEphemeralDirectTransportV1(
       : timeoutSignal;
     throwIfFollowerPullAbortedV1(pullSignal);
 
+    const legacyV2fsOriginAuthorized = followerLegacyV2fsOriginAuthorizedV1(
+      peerHttp,
+      process.env.VOID_FOLLOWER_LEGACY_V2FS_ORIGINS,
+    );
+
+    const validateFollowerBlockV1 = (
+      block: any,
+      parent: any,
+    ): { ok: true; legacyV2fs: boolean } | { ok: false; reason: string } => {
+      if (block?._commit === VOID_LEGACY_COMMIT_DIRECT_V2FS_MARKER_V1) {
+        if (!legacyV2fsOriginAuthorized) {
+          return { ok: false, reason: "legacy_v2fs_origin_not_authorized" };
+        }
+        const legacy = validateLegacyCommitDirectV2fsForAppendV1(block, parent);
+        if (legacy.ok === false) {
+          return { ok: false, reason: legacy.reason };
+        }
+        return { ok: true, legacyV2fs: true };
+      }
+
+      const modern = validateBlockForAppend(block, parent as any);
+      if (modern.ok === false) {
+        return { ok: false, reason: modern.reason };
+      }
+      return { ok: true, legacyV2fs: false };
+    };
+
+    const saveFollowerBlockV1 = (
+      block: any,
+      admission: { ok: true; legacyV2fs: boolean },
+    ): void => {
+      if (admission.legacyV2fs) {
+        this.store.saveAuthorizedLegacyCommitDirectV2fs(block);
+        return;
+      }
+      this.store.saveBlock(block);
+    };
+
     const persistWithinPullLifetime = async <T>(
       operation: Promise<T>,
     ): Promise<T> => {
@@ -4244,7 +4298,11 @@ attachEphemeralDirectTransportV1(
       });
       if (missingRefs.length > 0) this.txIndex.putMany(missingRefs);
 
-      const receiptTimestamp = Number(block.timestamp);
+      const receiptTimestamp = Number(
+        block?._commit === VOID_LEGACY_COMMIT_DIRECT_V2FS_MARKER_V1
+          ? block?.ts
+          : block?.timestamp,
+      );
       if (!Number.isSafeInteger(receiptTimestamp) || receiptTimestamp <= 0) {
         throw new Error("VOID_FOLLOWER_PROJECTION_RECOVERY_V1: invalid receipt timestamp");
       }
@@ -4599,8 +4657,8 @@ attachEphemeralDirectTransportV1(
 
       if (!existing) {
         const parentBlock = n === 0 ? null : this.store.loadBlock(n - 1);
-        const valid = validateBlockForAppend(b, parentBlock as any);
-        if (!valid.ok) {
+        const admission = validateFollowerBlockV1(b, parentBlock as any);
+        if (admission.ok === false) {
           return {
             ok: false,
             imported,
@@ -4608,7 +4666,7 @@ attachEphemeralDirectTransportV1(
             filled,
             reason: "invalid imported block",
             invalidBlock: n,
-            invalidReason: (valid as any).reason || "unknown",
+            invalidReason: admission.reason,
             myHead,
             theirHead,
             from,
@@ -4620,7 +4678,7 @@ attachEphemeralDirectTransportV1(
         }
 
         throwIfFollowerPullAbortedV1(pullSignal);
-        this.store.saveBlock(b);
+        saveFollowerBlockV1(b, admission);
         imported++;
         importedNums.push(n);
 

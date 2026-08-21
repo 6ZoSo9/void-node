@@ -1,0 +1,117 @@
+// VOID Community License (VCL) v1.0 — see LICENSE
+// Copyright (c) 2025-2026 6ZoSo9
+
+import { computeRoots } from "./block.js";
+import type { BlockValidationResult } from "./block.js";
+
+export const VOID_LEGACY_COMMIT_DIRECT_V2FS_MARKER_V1 =
+  "proposer.commit-direct.v2fs" as const;
+
+const LEGACY_TOP_LEVEL_KEYS_V1 = [
+  "_commit",
+  "header",
+  "number",
+  "ts",
+  "txRoot",
+  "txs",
+] as const;
+
+const LEGACY_HEADER_KEYS_V1 = ["txRoot"] as const;
+
+function exactObjectKeysV1(
+  value: unknown,
+  expected: readonly string[],
+): value is Record<string, unknown> {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  const actual = Object.keys(value as Record<string, unknown>).sort();
+  const wanted = [...expected].sort();
+  return (
+    actual.length === wanted.length &&
+    actual.every((key, index) => key === wanted[index])
+  );
+}
+
+export function isLegacyCommitDirectV2fsMarkerV1(candidate: unknown): boolean {
+  return (
+    !!candidate &&
+    typeof candidate === "object" &&
+    !Array.isArray(candidate) &&
+    (candidate as Record<string, unknown>)._commit ===
+      VOID_LEGACY_COMMIT_DIRECT_V2FS_MARKER_V1
+  );
+}
+
+export function validateLegacyCommitDirectV2fsForAppendV1(
+  candidate: unknown,
+  parent: unknown,
+): BlockValidationResult {
+  if (!exactObjectKeysV1(candidate, LEGACY_TOP_LEVEL_KEYS_V1)) {
+    return { ok: false, reason: "legacy_v2fs_exact_envelope_required" };
+  }
+
+  if (candidate._commit !== VOID_LEGACY_COMMIT_DIRECT_V2FS_MARKER_V1) {
+    return { ok: false, reason: "legacy_v2fs_marker_mismatch" };
+  }
+
+  const number = Number(candidate.number);
+  if (!Number.isSafeInteger(number) || number < 0) {
+    return { ok: false, reason: "legacy_v2fs_invalid_block_number" };
+  }
+
+  const ts = Number(candidate.ts);
+  if (!Number.isSafeInteger(ts) || ts <= 0) {
+    return { ok: false, reason: "legacy_v2fs_invalid_timestamp" };
+  }
+
+  if (!Array.isArray(candidate.txs)) {
+    return { ok: false, reason: "legacy_v2fs_txs_must_be_array" };
+  }
+
+  for (const tx of candidate.txs) {
+    if (!tx || typeof tx !== "object" || Array.isArray(tx)) {
+      return { ok: false, reason: "legacy_v2fs_invalid_transaction" };
+    }
+    const hash = String((tx as Record<string, unknown>).hash ?? "").toLowerCase();
+    if (!/^[0-9a-f]{64}$/.test(hash)) {
+      return { ok: false, reason: "legacy_v2fs_invalid_transaction_hash" };
+    }
+  }
+
+  const txRoot = String(candidate.txRoot ?? "");
+  if (!/^[0-9a-f]{64}$/.test(txRoot)) {
+    return { ok: false, reason: "legacy_v2fs_invalid_tx_root" };
+  }
+
+  if (!exactObjectKeysV1(candidate.header, LEGACY_HEADER_KEYS_V1)) {
+    return { ok: false, reason: "legacy_v2fs_exact_header_required" };
+  }
+
+  const headerTxRoot = String(candidate.header.txRoot ?? "");
+  if (!/^[0-9a-f]{64}$/.test(headerTxRoot)) {
+    return { ok: false, reason: "legacy_v2fs_invalid_header_tx_root" };
+  }
+  if (headerTxRoot !== txRoot) {
+    return { ok: false, reason: "legacy_v2fs_header_tx_root_mismatch" };
+  }
+
+  const roots = computeRoots(candidate.txs as any[], []);
+  if (roots.txRoot !== txRoot) {
+    return { ok: false, reason: "legacy_v2fs_tx_root_mismatch" };
+  }
+
+  if (number === 0) {
+    if (parent != null) {
+      return { ok: false, reason: "legacy_v2fs_genesis_parent_must_be_null" };
+    }
+    return { ok: true };
+  }
+
+  if (!parent || typeof parent !== "object" || Array.isArray(parent)) {
+    return { ok: false, reason: "legacy_v2fs_missing_parent_block" };
+  }
+  if (Number((parent as Record<string, unknown>).number) !== number - 1) {
+    return { ok: false, reason: "legacy_v2fs_parent_number_mismatch" };
+  }
+
+  return { ok: true };
+}

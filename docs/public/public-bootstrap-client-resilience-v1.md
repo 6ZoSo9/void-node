@@ -222,3 +222,32 @@ Issue #1005 remains open until that real stable-ingress and outside-machine proo
 ## Non-actions
 
 This lane does not deploy or restart a service, open a firewall port, configure DNS or TLS, publish a release, replace the hold manifest with a real endpoint, access credentials, read a wallet or signer, activate validator authority, mutate Work Credit, move funds, or close issue #1005.
+
+## Mainnet-0 legacy commit-direct follower compatibility
+
+Current Mainnet-0 canonical production still exposes the exact unsigned
+`proposer.commit-direct.v2fs` block envelope (`number`, `ts`, `txs`, `txRoot`,
+`header.txRoot`, `_commit`). The ordinary modern signed-block validator remains
+unchanged and continues to reject that envelope.
+
+Follower compatibility is a separate fail-closed lane. It is disabled by
+default and activates only when the selected peer's exact HTTP(S) origin is
+listed in `VOID_FOLLOWER_LEGACY_V2FS_ORIGINS`. Redirect handling and final-URL
+equality remain enforced before any response body can supply synchronization
+state. The legacy validator accepts only the exact reviewed envelope, verifies
+positive integer time/height, transaction hash/root consistency,
+`header.txRoot`, and contiguous parent numbering, and rejects hybrid objects
+rather than synthesizing `timestamp`, `parentHash`, `blobRoot`, `proposer`, or
+`sig`.
+
+SegStore records an authorized legacy append as WAL v2 with explicit
+`legacy-v2fs` mode. Restart recovery therefore cannot infer unsigned legacy
+authority from an older untagged WAL v1 record. Both modern and authorized
+legacy paths share the same canonical segment fsync and atomic head-publication
+machinery. Legacy receipt projections use the admitted `ts` value.
+
+Authenticated direct/relay duplicates retain the existing direct-over-relay
+precedence. When the remaining duplicate candidates are opposite directions
+for the same authenticated identity, the lower node ID keeps outbound and the
+higher node ID keeps inbound. Both endpoints therefore select the same physical
+connection independently instead of each preserving its own outbound socket.
