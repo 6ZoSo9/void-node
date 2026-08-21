@@ -17,11 +17,14 @@ import {
   VOID_SEGMENTED_JSONL_MAX_CHECKPOINT_BYTES_V1,
   deriveSegmentedJsonlCheckpointV1,
   deriveSegmentedJsonlSnapshotAuthorityV1,
+  verifySegmentedJsonlCheckpointAnchorV1,
   verifySegmentedJsonlCheckpointChainV1,
   verifySegmentedJsonlCheckpointEncodingV1,
   verifySegmentedJsonlCheckpointV1,
   verifySegmentedJsonlSnapshotAuthorityV1,
+  type SegmentedJsonlCheckpointAnchorV1,
   type SegmentedJsonlCheckpointV1,
+  type SegmentedJsonlSnapshotAuthorityV1,
 } from "../src/storage/segmented_jsonl_snapshot_authority_v1.js";
 
 function sha256(data: Buffer | string): string {
@@ -82,6 +85,17 @@ function resignCheckpoint(checkpoint: SegmentedJsonlCheckpointV1): SegmentedJson
   };
 }
 
+function trustedAnchor(
+  checkpoint: SegmentedJsonlCheckpointV1,
+  snapshot: SegmentedJsonlSnapshotAuthorityV1,
+): SegmentedJsonlCheckpointAnchorV1 {
+  return verifySegmentedJsonlCheckpointAnchorV1({
+    checkpoint,
+    snapshot,
+    trusted_checkpoint_sha256: checkpoint.checkpoint_sha256,
+  });
+}
+
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "void-segmented-snapshot-authority-v1-"));
 try {
   const source = path.join(tmp, "source.jsonl");
@@ -105,18 +119,21 @@ try {
 
   const checkpoint0 = deriveSegmentedJsonlCheckpointV1(authority);
   verifySegmentedJsonlCheckpointV1(checkpoint0, authority);
+  const anchor0 = trustedAnchor(checkpoint0, authority);
+  assert.equal(checkpoint0.cumulative_bytes, String(authority.total_bytes));
+  assert.equal(checkpoint0.cumulative_records, String(authority.total_records));
 
   // Checkpoint progression is one unique next store generation per link.
   // Replaying the same snapshot or reusing/regressing/skipping a generation is
-  // rejected before cumulative lifetime totals can change.
+  // rejected before authoritative logical totals can change.
   expectFailure(
-    () => deriveSegmentedJsonlCheckpointV1(authority, checkpoint0),
+    () => deriveSegmentedJsonlCheckpointV1(authority, anchor0),
     "CHECKPOINT_SNAPSHOT_REPLAY",
   );
   const sameGenerationManifest = { ...manifest, active: { ...manifest.active, sha256: "1".repeat(64) } };
   const sameGenerationAuthority = deriveSegmentedJsonlSnapshotAuthorityV1(sameGenerationManifest);
   expectFailure(
-    () => deriveSegmentedJsonlCheckpointV1(sameGenerationAuthority, checkpoint0),
+    () => deriveSegmentedJsonlCheckpointV1(sameGenerationAuthority, anchor0),
     "CHECKPOINT_GENERATION_NOT_NEXT",
   );
   const skippedGenerationAuthority = deriveSegmentedJsonlSnapshotAuthorityV1({
@@ -124,25 +141,29 @@ try {
     generation: manifest.generation + 2,
   });
   expectFailure(
-    () => deriveSegmentedJsonlCheckpointV1(skippedGenerationAuthority, checkpoint0),
+    () => deriveSegmentedJsonlCheckpointV1(skippedGenerationAuthority, anchor0),
     "CHECKPOINT_GENERATION_NOT_NEXT",
   );
 
+  // An unchanged full store may advance its generation without inventing
+  // additional logical records/bytes. The checkpoint carries the exact current
+  // store totals rather than summing complete snapshot sizes across generations.
   const nextAuthority = deriveSegmentedJsonlSnapshotAuthorityV1({
     ...manifest,
     generation: manifest.generation + 1,
   });
-  const checkpoint1 = deriveSegmentedJsonlCheckpointV1(nextAuthority, checkpoint0);
-  verifySegmentedJsonlCheckpointV1(checkpoint1, nextAuthority, checkpoint0);
+  const checkpoint1 = deriveSegmentedJsonlCheckpointV1(nextAuthority, anchor0);
+  verifySegmentedJsonlCheckpointV1(checkpoint1, nextAuthority, anchor0);
+  const anchor1 = trustedAnchor(checkpoint1, nextAuthority);
   assert.equal(checkpoint1.store_generation, checkpoint0.store_generation + 1);
-  assert.equal(
-    BigInt(checkpoint1.cumulative_records),
-    BigInt(checkpoint0.cumulative_records) + BigInt(nextAuthority.total_records),
-  );
+  assert.equal(checkpoint1.cumulative_records, String(nextAuthority.total_records));
+  assert.equal(checkpoint1.cumulative_bytes, String(nextAuthority.total_bytes));
+  assert.equal(checkpoint1.cumulative_records, checkpoint0.cumulative_records);
+  assert.equal(checkpoint1.cumulative_bytes, checkpoint0.cumulative_bytes);
 
   // Encoding-only validation deliberately is not authority-grade. A fully
-  // re-signed forged checkpoint can be self-consistent, but the strict verifier
-  // rejects it because it does not bind the referenced snapshot authority.
+  // re-signed forged current checkpoint can be self-consistent, but the strict
+  // verifier rejects it because it does not bind the referenced snapshot.
   const forged = resignCheckpoint({
     ...checkpoint1,
     snapshot_sha256: "a".repeat(64),
@@ -150,15 +171,42 @@ try {
   });
   verifySegmentedJsonlCheckpointEncodingV1(forged);
   expectFailure(
-    () => verifySegmentedJsonlCheckpointV1(forged, nextAuthority, checkpoint0),
+    () => verifySegmentedJsonlCheckpointV1(forged, nextAuthority, anchor0),
     "CHECKPOINT_SNAPSHOT_BINDING_MISMATCH",
+  );
+
+  // A re-signed predecessor cannot inject fabricated lifetime totals even if a
+  // caller presents its self-hash as the trusted checkpoint hash: the trusted
+  // checkpoint must also bind an exact referenced snapshot and its logical
+  // totals. A mismatched external trust hash is independently rejected.
+  const forgedPrevious = resignCheckpoint({
+    ...checkpoint0,
+    cumulative_bytes: String(authority.total_bytes + 1),
+    cumulative_records: String(authority.total_records + 1),
+  });
+  verifySegmentedJsonlCheckpointEncodingV1(forgedPrevious);
+  expectFailure(
+    () => verifySegmentedJsonlCheckpointAnchorV1({
+      checkpoint: forgedPrevious,
+      snapshot: authority,
+      trusted_checkpoint_sha256: forgedPrevious.checkpoint_sha256,
+    }),
+    "CHECKPOINT_CUMULATIVE_MISMATCH",
+  );
+  expectFailure(
+    () => verifySegmentedJsonlCheckpointAnchorV1({
+      checkpoint: checkpoint0,
+      snapshot: authority,
+      trusted_checkpoint_sha256: "f".repeat(64),
+    }),
+    "CHECKPOINT_TRUST_ANCHOR_MISMATCH",
   );
 
   const checkpoint2Authority = deriveSegmentedJsonlSnapshotAuthorityV1({
     ...manifest,
     generation: manifest.generation + 2,
   });
-  const checkpoint2 = deriveSegmentedJsonlCheckpointV1(checkpoint2Authority, checkpoint1);
+  const checkpoint2 = deriveSegmentedJsonlCheckpointV1(checkpoint2Authority, anchor1);
   const forkedPredecessor = resignCheckpoint({
     ...checkpoint2,
     previous_checkpoint_sha256: checkpoint0.checkpoint_sha256,
@@ -168,26 +216,35 @@ try {
       { checkpoint: checkpoint0, snapshot: authority },
       { checkpoint: checkpoint1, snapshot: nextAuthority },
       { checkpoint: forkedPredecessor, snapshot: checkpoint2Authority },
-    ]),
+    ], checkpoint0.checkpoint_sha256),
     "CHECKPOINT_PREDECESSOR_MISMATCH",
+  );
+  expectFailure(
+    () => verifySegmentedJsonlCheckpointChainV1([
+      { checkpoint: checkpoint0, snapshot: authority },
+      { checkpoint: checkpoint1, snapshot: nextAuthority },
+    ], "e".repeat(64)),
+    "CHECKPOINT_CHAIN_TRUST_ROOT_MISMATCH",
   );
 
   let checkpoint = checkpoint0;
+  let checkpointAnchor = anchor0;
   let rollingManifest = manifest;
   let maximumCheckpointBytes = Buffer.byteLength(JSON.stringify(checkpoint0), "utf8");
   for (let i = 0; i < 10_000; i++) {
     rollingManifest = { ...rollingManifest, generation: rollingManifest.generation + 1 };
     const rollingAuthority = deriveSegmentedJsonlSnapshotAuthorityV1(rollingManifest);
-    const next = deriveSegmentedJsonlCheckpointV1(rollingAuthority, checkpoint);
-    verifySegmentedJsonlCheckpointV1(next, rollingAuthority, checkpoint);
+    const next = deriveSegmentedJsonlCheckpointV1(rollingAuthority, checkpointAnchor);
+    verifySegmentedJsonlCheckpointV1(next, rollingAuthority, checkpointAnchor);
     checkpoint = next;
+    checkpointAnchor = trustedAnchor(checkpoint, rollingAuthority);
     maximumCheckpointBytes = Math.max(maximumCheckpointBytes, Buffer.byteLength(JSON.stringify(checkpoint), "utf8"));
   }
   assert.ok(maximumCheckpointBytes <= VOID_SEGMENTED_JSONL_MAX_CHECKPOINT_BYTES_V1);
   assert.equal(Array.isArray((checkpoint as any).sealed_segments), false);
   assert.equal(checkpoint.store_generation, manifest.generation + 10_000);
-  assert.equal(BigInt(checkpoint.cumulative_records), BigInt(manifest.total_records) * 10_001n);
-  assert.equal(BigInt(checkpoint.cumulative_bytes), BigInt(manifest.total_bytes) * 10_001n);
+  assert.equal(checkpoint.cumulative_records, String(manifest.total_records));
+  assert.equal(checkpoint.cumulative_bytes, String(manifest.total_bytes));
 
   // The current content-addressed object remains deliberately honest about the
   // unresolved live-tree terminal-generation seam. This fixture keeps that HOLD
@@ -247,7 +304,9 @@ try {
   console.log("checkpoint_snapshot_binding_required=true");
   console.log("checkpoint_snapshot_replay_rejected=true");
   console.log("checkpoint_generation_progression_exact=true");
+  console.log("checkpoint_predecessor_trust_anchor_required=true");
   console.log("checkpoint_predecessor_substitution_rejected=true");
+  console.log("checkpoint_cumulative_full_store_not_double_counted=true");
   console.log("checkpoint_metadata_lifetime_bounded=true");
   console.log(`checkpoint_max_bytes_observed=${maximumCheckpointBytes}`);
   console.log("behind_cursor_live_tree_mutation_not_promoted_to_terminal_authority=true");
