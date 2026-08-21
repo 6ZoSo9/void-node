@@ -247,6 +247,250 @@ try {
     `jobs=${malformedIds.join(",")}`,
   );
 
+  // A fixed-size read must not decode a partial UTF-8 code point. Build one
+  // record whose four-byte payload character straddles the 4096-byte boundary.
+  const utf8JobsFile = path.join(root, "jobs-utf8.jsonl");
+  const utf8ReceiptsFile = path.join(root, "receipts-utf8.jsonl");
+  const utf8JobStateFile = path.join(root, "job-state-utf8.jsonl");
+  fs.writeFileSync(utf8ReceiptsFile, "");
+  fs.writeFileSync(utf8JobStateFile, "");
+  let utf8Line = "";
+  let utf8Plaintext = "";
+  for (let filler = 3800; filler < 4200; filler += 1) {
+    utf8Plaintext = "x".repeat(filler) + "💥tail";
+    utf8Line = JSON.stringify({
+      job_id: "utf8_split_job",
+      status: "queued",
+      account: "proof",
+      kind: "datanet_publish",
+      input: { plaintext: utf8Plaintext },
+    });
+    if (Buffer.from(utf8Line).indexOf(Buffer.from("💥")) === 4094) break;
+  }
+  assert(
+    Buffer.from(utf8Line).indexOf(Buffer.from("💥")) === 4094,
+    "utf8-fixture-crosses-chunk-boundary",
+    `emoji_offset=${Buffer.from(utf8Line).indexOf(Buffer.from("💥"))}`,
+  );
+  fs.writeFileSync(utf8JobsFile, utf8Line + "\n");
+  const utf8Index = new JobsDatanetWorkerRuntimeIndexV1({
+    maxScanBytesPerTick: 4096,
+    maxJobsPerTick: 4,
+    maxSyncCompletionRebuildBytes: 1024 * 1024,
+  });
+  const utf8Input = {
+    jobsFile: utf8JobsFile,
+    receiptsFile: utf8ReceiptsFile,
+    jobStateFile: utf8JobStateFile,
+  };
+  const utf8First = utf8Index.scan(utf8Input);
+  assert(
+    utf8First.jobs.length === 0 && utf8First.retainedState.carryBytes === 4096,
+    "split-codepoint-held-as-bytes",
+    `jobs=${utf8First.jobs.length} carry=${utf8First.retainedState.carryBytes}`,
+  );
+  const utf8Second = utf8Index.scan(utf8Input);
+  assert(
+    utf8Second.jobs.length === 1 &&
+      utf8Second.jobs[0]?.job?.input?.plaintext === utf8Plaintext,
+    "split-codepoint-round-trips-exactly",
+    `jobs=${utf8Second.jobs.length} exact=${utf8Second.jobs[0]?.job?.input?.plaintext === utf8Plaintext}`,
+  );
+
+  const carryRewriteJobsFile = path.join(root, "jobs-carry-rewrite.jsonl");
+  const carryA = utf8Line;
+  const carryB = utf8Line.replace("utf8_split_job", "utf8_split_new");
+  assert(
+    Buffer.byteLength(carryA) === Buffer.byteLength(carryB),
+    "carry-rewrite-fixture-equal-size",
+    `bytes=${Buffer.byteLength(carryA)}`,
+  );
+  fs.writeFileSync(carryRewriteJobsFile, carryA + "\n");
+  const carryRewriteIndex = new JobsDatanetWorkerRuntimeIndexV1({
+    maxScanBytesPerTick: 4096,
+    maxJobsPerTick: 4,
+    maxSyncCompletionRebuildBytes: 1024 * 1024,
+  });
+  const carryRewriteInput = {
+    jobsFile: carryRewriteJobsFile,
+    receiptsFile: utf8ReceiptsFile,
+    jobStateFile: utf8JobStateFile,
+  };
+  const carryFirst = carryRewriteIndex.scan(carryRewriteInput);
+  assert(
+    carryFirst.jobs.length === 0 && carryFirst.retainedState.carryBytes === 4096,
+    "partial-record-buffered-before-growth",
+    `carry=${carryFirst.retainedState.carryBytes}`,
+  );
+  fs.writeFileSync(
+    carryRewriteJobsFile,
+    carryB + "\n" +
+      JSON.stringify({ job_id: "carry_append", status: "completed" }) + "\n",
+  );
+  const carrySecond = carryRewriteIndex.scan(carryRewriteInput);
+  assert(
+    carrySecond.jobs.length === 0 && carrySecond.bytesReadThisTick === 4096,
+    "changed-partial-record-resets-before-append",
+    `jobs=${carrySecond.jobs.length} bytes=${carrySecond.bytesReadThisTick}`,
+  );
+  const carryThird = carryRewriteIndex.scan(carryRewriteInput);
+  assert(
+    carryThird.jobs[0]?.jobId === "utf8_split_new",
+    "changed-partial-record-replayed-from-zero",
+    `job=${carryThird.jobs[0]?.jobId}`,
+  );
+
+  const invalidUtf8JobsFile = path.join(root, "jobs-invalid-utf8.jsonl");
+  const invalidPrefix = Buffer.from(
+    '{"job_id":"invalid_utf8","status":"queued","input":{"plaintext":"',
+    "utf8",
+  );
+  const invalidSuffix = Buffer.from('"}}\n', "utf8");
+  fs.writeFileSync(
+    invalidUtf8JobsFile,
+    Buffer.concat([invalidPrefix, Buffer.from([0xc3, 0x28]), invalidSuffix]),
+  );
+  const invalidUtf8Index = new JobsDatanetWorkerRuntimeIndexV1({
+    maxScanBytesPerTick: 4096,
+    maxSyncCompletionRebuildBytes: 1024 * 1024,
+  });
+  let invalidUtf8Held = false;
+  try {
+    invalidUtf8Index.scan({
+      jobsFile: invalidUtf8JobsFile,
+      receiptsFile: utf8ReceiptsFile,
+      jobStateFile: utf8JobStateFile,
+    });
+  } catch (error: any) {
+    invalidUtf8Held = String(error?.message || error).includes(
+      "VOID_JOBS_DATANET_WORKER_INVALID_UTF8",
+    );
+  }
+  assert(
+    invalidUtf8Held,
+    "invalid-utf8-fails-closed",
+    `held=${invalidUtf8Held}`,
+  );
+
+  // Same-inode, equal-size replacement must invalidate already-materialized
+  // pending work and make the replacement record visible from offset zero.
+  const rewriteJobsFile = path.join(root, "jobs-rewrite.jsonl");
+  const rewriteReceiptsFile = path.join(root, "receipts-rewrite.jsonl");
+  const rewriteJobStateFile = path.join(root, "job-state-rewrite.jsonl");
+  fs.writeFileSync(rewriteReceiptsFile, "");
+  fs.writeFileSync(rewriteJobStateFile, "");
+  const rewriteLineA = JSON.stringify({
+    job_id: "rewrite_job_a",
+    status: "queued",
+    account: "proof",
+    kind: "datanet_publish",
+    input: { plaintext: "payload_a" },
+  }) + "\n";
+  const rewriteLineB = rewriteLineA
+    .replace("rewrite_job_a", "rewrite_job_b")
+    .replace("payload_a", "payload_b");
+  assert(
+    Buffer.byteLength(rewriteLineA) === Buffer.byteLength(rewriteLineB),
+    "rewrite-fixture-equal-size",
+    `bytes=${Buffer.byteLength(rewriteLineA)}`,
+  );
+  fs.writeFileSync(rewriteJobsFile, rewriteLineA);
+  const rewriteIno = fs.statSync(rewriteJobsFile).ino;
+  const rewriteIndex = new JobsDatanetWorkerRuntimeIndexV1({
+    maxScanBytesPerTick: 4096,
+    maxJobsPerTick: 4,
+    maxSyncCompletionRebuildBytes: 1024 * 1024,
+  });
+  const rewriteInput = {
+    jobsFile: rewriteJobsFile,
+    receiptsFile: rewriteReceiptsFile,
+    jobStateFile: rewriteJobStateFile,
+  };
+  const rewriteFirst = rewriteIndex.scan(rewriteInput);
+  assert(
+    rewriteFirst.jobs[0]?.jobId === "rewrite_job_a",
+    "rewrite-original-materialized",
+    `job=${rewriteFirst.jobs[0]?.jobId}`,
+  );
+  fs.writeFileSync(rewriteJobsFile, rewriteLineB);
+  const rewriteInoAfter = fs.statSync(rewriteJobsFile).ino;
+  assert(
+    rewriteInoAfter === rewriteIno,
+    "rewrite-fixture-preserves-inode",
+    `before=${rewriteIno} after=${rewriteInoAfter}`,
+  );
+  const rewriteSecond = rewriteIndex.scan(rewriteInput);
+  assert(
+    rewriteSecond.jobs.length === 1 &&
+      rewriteSecond.jobs[0]?.jobId === "rewrite_job_b" &&
+      rewriteSecond.jobs[0]?.job?.input?.plaintext === "payload_b",
+    "equal-size-rewrite-invalidates-stale-pending",
+    `jobs=${rewriteSecond.jobs.map((item) => item.jobId).join(",")}`,
+  );
+
+  // The transient done bridge is pruned as soon as durable completion truth
+  // observes the corresponding record; retained identity state cannot grow
+  // with total process-lifetime history.
+  const retainedJobsFile = path.join(root, "jobs-retained.jsonl");
+  const retainedReceiptsFile = path.join(root, "receipts-retained.jsonl");
+  const retainedJobStateFile = path.join(root, "job-state-retained.jsonl");
+  fs.writeFileSync(retainedJobsFile, "");
+  fs.writeFileSync(retainedReceiptsFile, "");
+  fs.writeFileSync(retainedJobStateFile, "");
+  const retainedIndex = new JobsDatanetWorkerRuntimeIndexV1({
+    maxScanBytesPerTick: 4096,
+    maxJobsPerTick: 1,
+    maxLocallyDoneIds: 64,
+    maxSyncCompletionRebuildBytes: 1024 * 1024,
+  });
+  const retainedInput = {
+    jobsFile: retainedJobsFile,
+    receiptsFile: retainedReceiptsFile,
+    jobStateFile: retainedJobStateFile,
+  };
+  let maxRetainedDone = 0;
+  for (let i = 0; i < 256; i += 1) {
+    const jobId = `retained_${String(i).padStart(4, "0")}`;
+    fs.appendFileSync(
+      retainedJobsFile,
+      JSON.stringify({
+        job_id: jobId,
+        status: "queued",
+        account: "proof",
+        kind: "datanet_publish",
+        input: { plaintext: `retained_payload_${i}` },
+      }) + "\n",
+    );
+    const queued = retainedIndex.scan(retainedInput);
+    if (!queued.ready || queued.jobs[0]?.jobId !== jobId) {
+      fail(
+        "retained-history-job-materialized",
+        `i=${i} ready=${queued.ready} job=${queued.jobs[0]?.jobId}`,
+      );
+    }
+    fs.appendFileSync(
+      retainedJobStateFile,
+      JSON.stringify({ job_id: jobId, status: "completed" }) + "\n",
+    );
+    retainedIndex.markDone(jobId);
+    const pruned = retainedIndex.scan(retainedInput);
+    if (!pruned.ready) {
+      fail("retained-history-completion-ready", `i=${i}`);
+    }
+    maxRetainedDone = Math.max(
+      maxRetainedDone,
+      pruned.retainedState.locallyDoneIds,
+    );
+  }
+  const retainedFinal = retainedIndex.scan(retainedInput);
+  assert(
+    maxRetainedDone === 0 &&
+      retainedFinal.retainedState.locallyDoneIds === 0 &&
+      retainedFinal.retainedState.pendingIds === 0,
+    "retained-identity-state-independent-of-history",
+    `max_local_done=${maxRetainedDone} final=${JSON.stringify(retainedFinal.retainedState)}`,
+  );
+
   const indexSource = readFileSync("src/index.ts", "utf8");
   const workerStart = indexSource.indexOf("  function startWorker(){");
   const workerEnd = indexSource.indexOf("  function mount(){", workerStart);
@@ -316,6 +560,24 @@ try {
     helperSource.includes("VOID_JOBS_DATANET_WORKER_PENDING_BACKPRESSURE_V1"),
     "runtime-index-pending-backpressure-source",
     "pending backlog pauses history advancement",
+  );
+  assert(
+    !helperSource.includes("jobsSeen"),
+    "runtime-index-no-history-sized-seen-set",
+    "jobsSeen absent",
+  );
+  assert(
+    helperSource.includes("VOID_JOBS_DATANET_WORKER_EQUAL_SIZE_REWRITE_RESET_V1") &&
+      helperSource.includes("VOID_JOBS_DATANET_WORKER_PENDING_SOURCE_WITNESS_V1") &&
+      helperSource.includes("VOID_JOBS_DATANET_WORKER_CARRY_SOURCE_WITNESS_V1"),
+    "runtime-index-source-continuity-guards",
+    "rewrite reset and pending source witness present",
+  );
+  assert(
+    helperSource.includes("VOID_JOBS_DATANET_WORKER_INVALID_UTF8") &&
+      helperSource.includes("maxLocallyDoneIds"),
+    "runtime-index-byte-and-retention-guards",
+    "fatal UTF-8 and retained-ID cap present",
   );
 
   const semanticSource = readFileSync(
