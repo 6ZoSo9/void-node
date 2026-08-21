@@ -112,7 +112,7 @@ function atomicWriteText(root: string, p: string, text: string) {
 }
 
 export class SegStore {
-  // --- WAL replay metrics (v1) ---
+  // --- WAL replay metrics (v1; additive) ---
   private _walReplayMetrics: WalReplayMetrics = _walReplayMetricsInit();
   public getWalReplayMetrics(): WalReplayMetrics { return this._walReplayMetrics; }
 
@@ -333,6 +333,15 @@ export class SegStore {
 
     this.assertCanonicalCommitWritable();
 
+    const head = this.loadHeadNumber();
+    if (head >= n) {
+      const existing = this.loadBlock(n);
+      if (existing) {
+        if (this.canonicalBlockMatchesExistingV1(existing, b, mode)) return;
+        throw new Error("SegStore.saveBlock: conflicting existing block");
+      }
+    }
+
     const parent = n === 0 ? null : this.loadBlock(n - 1);
     const valid = this.validateCanonicalBlockByModeV1(b, parent as any, mode);
     if (!valid.ok) {
@@ -342,15 +351,6 @@ export class SegStore {
       throw new Error(
         `SegStore.${op}: invalid block: ${(valid as any).reason || "unknown"}`,
       );
-    }
-
-    const head = this.loadHeadNumber();
-    if (head >= n) {
-      const existing = this.loadBlock(n);
-      if (existing) {
-        if (this.canonicalBlockMatchesExistingV1(existing, b, mode)) return;
-        throw new Error("SegStore.saveBlock: conflicting existing block");
-      }
     }
 
     const seg = this.segName(n);
