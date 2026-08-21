@@ -254,8 +254,175 @@ for (const scenario of ['overflow', 'zero_progress']) {
   assert.equal(fetchCalls, 2);
 }
 
+// A throwing getReader property on an otherwise successful response is hostile lifecycle
+// metadata. Keep the exact request generation quarantined until body cancellation supplies
+// a terminal witness, and do not start replacement fetch work meanwhile.
+{
+  const cancelGate = deferred();
+  let fetchCalls = 0;
+  let cancelCalls = 0;
+  let healthy = false;
+
+  const hostileBody = {
+    get getReader() {
+      throw new Error('validator normal getReader accessor fixture');
+    },
+    cancel() {
+      cancelCalls += 1;
+      return cancelGate.promise;
+    },
+  };
+
+  const fetchImpl = async () => {
+    fetchCalls += 1;
+    if (healthy) return responseFor();
+    return {
+      ok: true,
+      status: 200,
+      headers: new Headers({ 'content-type': 'application/json' }),
+      body: hostileBody,
+    };
+  };
+
+  const owner = createValidateRequestOwnerV1({ timeoutMs: 250, teardownMs: 10 });
+  await assert.rejects(
+    () => fetchValidatorReadinessSnapshotV1({ fetchImpl, owner }),
+    /reader accessor is unavailable/,
+  );
+  assert.equal(cancelCalls, 1);
+  assert.equal(owner.hasActive(), true);
+
+  await assertRetriesQuarantined(
+    owner,
+    () => fetchValidatorReadinessSnapshotV1({ fetchImpl, owner }),
+    () => fetchCalls,
+  );
+  assert.equal(fetchCalls, 1);
+
+  cancelGate.resolve();
+  await owner.waitForRelease();
+  healthy = true;
+  assert.equal((await fetchValidatorReadinessSnapshotV1({ fetchImpl, owner })).marker, VALIDATE_MARKER);
+  assert.equal(fetchCalls, 2);
+}
+
+// Rejected-response teardown must preserve its primary HTTP terminal when getReader itself
+// is exposed through a throwing accessor, while retaining ownership until cancellation ends.
+{
+  const cancelGate = deferred();
+  let fetchCalls = 0;
+  let cancelCalls = 0;
+  let healthy = false;
+
+  const hostileBody = {
+    get getReader() {
+      throw new Error('validator rejected getReader accessor fixture');
+    },
+    cancel() {
+      cancelCalls += 1;
+      return cancelGate.promise;
+    },
+  };
+
+  const fetchImpl = async () => {
+    fetchCalls += 1;
+    if (healthy) return responseFor();
+    return {
+      ok: false,
+      status: 503,
+      headers: new Headers({ 'content-type': 'application/json' }),
+      body: hostileBody,
+    };
+  };
+
+  const owner = createValidateRequestOwnerV1({ timeoutMs: 250, teardownMs: 10 });
+  await assert.rejects(
+    () => fetchValidatorReadinessSnapshotV1({ fetchImpl, owner }),
+    /returned HTTP 503/,
+  );
+  assert.equal(cancelCalls, 1);
+  assert.equal(owner.hasActive(), true);
+
+  await assertRetriesQuarantined(
+    owner,
+    () => fetchValidatorReadinessSnapshotV1({ fetchImpl, owner }),
+    () => fetchCalls,
+  );
+  assert.equal(fetchCalls, 1);
+
+  cancelGate.resolve();
+  await owner.waitForRelease();
+  healthy = true;
+  assert.equal((await fetchValidatorReadinessSnapshotV1({ fetchImpl, owner })).marker, VALIDATE_MARKER);
+  assert.equal(fetchCalls, 2);
+}
+
+// A throwing cancel accessor must not escape the established primary body error or release
+// the generation before the independent reader.closed terminal has settled.
+{
+  const closedGate = deferred();
+  let fetchCalls = 0;
+  let cancelAccessorReads = 0;
+  let healthy = false;
+
+  const fetchImpl = async () => {
+    fetchCalls += 1;
+    if (healthy) return responseFor();
+    return {
+      ok: true,
+      status: 200,
+      headers: new Headers({ 'content-type': 'application/json' }),
+      body: {
+        getReader() {
+          let sent = false;
+          return {
+            closed: closedGate.promise,
+            read() {
+              if (sent) return Promise.resolve({ done: true, value: undefined });
+              sent = true;
+              return Promise.resolve({
+                done: false,
+                value: new Uint8Array(MAX_VALIDATE_RESPONSE_BYTES + 1),
+              });
+            },
+            get cancel() {
+              cancelAccessorReads += 1;
+              throw new Error('validator cancel accessor fixture');
+            },
+            releaseLock() {},
+          };
+        },
+      },
+    };
+  };
+
+  const owner = createValidateRequestOwnerV1({ timeoutMs: 250, teardownMs: 10 });
+  await assert.rejects(
+    () => fetchValidatorReadinessSnapshotV1({ fetchImpl, owner }),
+    /exceeds byte limit/,
+  );
+  assert.equal(cancelAccessorReads, 1);
+  assert.equal(owner.hasActive(), true);
+
+  await assertRetriesQuarantined(
+    owner,
+    () => fetchValidatorReadinessSnapshotV1({ fetchImpl, owner }),
+    () => fetchCalls,
+  );
+  assert.equal(fetchCalls, 1);
+
+  closedGate.resolve();
+  await owner.waitForRelease();
+  healthy = true;
+  assert.equal((await fetchValidatorReadinessSnapshotV1({ fetchImpl, owner })).marker, VALIDATE_MARKER);
+  assert.equal(fetchCalls, 2);
+}
+
 console.log('VOID_APP_VALIDATOR_RESPONSE_LIFETIME_V1_PROOF_GREEN');
 console.log('yield_abort_body_quarantined=1');
 console.log('settled_rejection_cancel_failure_quarantined=1');
 console.log('late_fetch_response_body_quarantined=1');
+console.log('throwing_getreader_accessor_quarantined=1');
+console.log('rejected_throwing_getreader_primary_preserved=1');
+console.log('throwing_cancel_accessor_quarantined=1');
 console.log('retry_replacement_generations=0_before_terminal');
