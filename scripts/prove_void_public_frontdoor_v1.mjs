@@ -53,6 +53,12 @@ assert.match(source, /const BIND = process\.env\.VOID_PUBLIC_FRONTDOOR_BIND \|\|
 assert.match(source, /if \(BIND !== "127\.0\.0\.1"\) throw new Error/);
 assert.match(source, /UPSTREAM_HOST = "127\.0\.0\.1"/);
 assert.match(source, /VOID_PUBLIC_FRONTDOOR_UPSTREAM_PORT/);
+assert.match(source, /STATUS_PROBE_PATH = "\/app\/"/);
+assert.match(source, /VOID_PUBLIC_FRONTDOOR_STATUS_TIMEOUT_MS/);
+assert.match(source, /statusProbeInFlight/);
+assert.match(source, /ready: upstreamReady/);
+assert.match(source, /upstream_ready: upstreamReady/);
+assert.doesNotMatch(source, /\bready:\s*true/);
 assert.match(source, /req\.pipe\(upstream\)/);
 assert.doesNotMatch(source, /child_process|exec\(|spawn\(|writeFile|appendFile/);
 
@@ -83,7 +89,12 @@ assert.match(parserSelfTest, /auxiliary_8443_ignored=true/);
 
 const upstreamPort = 18082;
 const frontdoorPort = 18083;
+let upstreamMode = "healthy";
+let upstreamRequests = 0;
 const upstream = http.createServer((req, res) => {
+  upstreamRequests += 1;
+  if (upstreamMode === "stall") return;
+
   const chunks = [];
   req.on("data", (chunk) => chunks.push(chunk));
   req.on("end", () => {
@@ -103,10 +114,29 @@ const upstream = http.createServer((req, res) => {
     res.end(out);
   });
 });
-await new Promise((resolvePromise, reject) => {
-  upstream.once("error", reject);
-  upstream.listen(upstreamPort, "127.0.0.1", resolvePromise);
+
+const listenUpstream = () => new Promise((resolvePromise, reject) => {
+  const onError = (error) => {
+    upstream.off("listening", onListening);
+    reject(error);
+  };
+  const onListening = () => {
+    upstream.off("error", onError);
+    resolvePromise();
+  };
+  upstream.once("error", onError);
+  upstream.once("listening", onListening);
+  upstream.listen(upstreamPort, "127.0.0.1");
 });
+
+const closeUpstream = () => new Promise((resolvePromise, reject) => {
+  upstream.close((error) => {
+    if (error) reject(error);
+    else resolvePromise();
+  });
+});
+
+await listenUpstream();
 
 const child = spawn(process.execPath, [serverPath], {
   cwd: ROOT,
@@ -116,6 +146,7 @@ const child = spawn(process.execPath, [serverPath], {
     VOID_PUBLIC_FRONTDOOR_BIND: "127.0.0.1",
     VOID_PUBLIC_FRONTDOOR_PORT: String(frontdoorPort),
     VOID_PUBLIC_FRONTDOOR_UPSTREAM_PORT: String(upstreamPort),
+    VOID_PUBLIC_FRONTDOOR_STATUS_TIMEOUT_MS: "250",
   },
   stdio: ["ignore", "pipe", "pipe"],
 });
@@ -124,6 +155,12 @@ let stdout = "";
 let stderr = "";
 child.stdout.on("data", (d) => { stdout += d; });
 child.stderr.on("data", (d) => { stderr += d; });
+
+const fetchStatus = async () => {
+  const response = await fetch(`http://127.0.0.1:${frontdoorPort}/__void/frontdoor/status.json`);
+  assert.equal(response.status, 200);
+  return response.json();
+};
 
 try {
   const deadline = Date.now() + 5000;
@@ -138,11 +175,34 @@ try {
   assert.equal(rootResponse.headers.get("x-void-frontdoor"), "VOID_PUBLIC_FRONTDOOR_V1");
   assert.match(await rootResponse.text(), /VOID_PUBLIC_FRONTDOOR_V1/);
 
-  const statusResponse = await fetch(`http://127.0.0.1:${frontdoorPort}/__void/frontdoor/status.json`);
-  const status = await statusResponse.json();
+  const status = await fetchStatus();
   assert.equal(status.marker, "VOID_PUBLIC_FRONTDOOR_V1");
   assert.equal(status.ready, true);
+  assert.equal(status.listener_ready, true);
+  assert.equal(status.upstream_ready, true);
   assert.equal(status.upstream, `http://127.0.0.1:${upstreamPort}`);
+
+  upstreamMode = "stall";
+  const stalledBefore = upstreamRequests;
+  const stalledStarted = Date.now();
+  const stalledStatuses = await Promise.all([
+    fetchStatus(),
+    fetchStatus(),
+    fetchStatus(),
+  ]);
+  const stalledElapsed = Date.now() - stalledStarted;
+  assert.ok(stalledElapsed < 1000, `stalled status probe escaped bound: ${stalledElapsed}ms`);
+  assert.equal(upstreamRequests - stalledBefore, 1);
+  for (const stalledStatus of stalledStatuses) {
+    assert.equal(stalledStatus.ready, false);
+    assert.equal(stalledStatus.listener_ready, true);
+    assert.equal(stalledStatus.upstream_ready, false);
+  }
+
+  upstreamMode = "healthy";
+  const recoveredAfterStall = await fetchStatus();
+  assert.equal(recoveredAfterStall.ready, true);
+  assert.equal(recoveredAfterStall.upstream_ready, true);
 
   const proxyResponse = await fetch(`http://127.0.0.1:${frontdoorPort}/app/test?x=1`);
   assert.equal(proxyResponse.status, 200);
@@ -170,10 +230,24 @@ try {
   assert.equal(rootPostJson.method, "POST");
   assert.equal(rootPostJson.url, "/");
   assert.equal(rootPostJson.body, "root-post");
+
+  await closeUpstream();
+  const downStarted = Date.now();
+  const downStatus = await fetchStatus();
+  const downElapsed = Date.now() - downStarted;
+  assert.ok(downElapsed < 1000, `downstream-unavailable status escaped bound: ${downElapsed}ms`);
+  assert.equal(downStatus.ready, false);
+  assert.equal(downStatus.listener_ready, true);
+  assert.equal(downStatus.upstream_ready, false);
+
+  await listenUpstream();
+  const recoveredAfterDown = await fetchStatus();
+  assert.equal(recoveredAfterDown.ready, true);
+  assert.equal(recoveredAfterDown.upstream_ready, true);
 } finally {
   child.kill("SIGTERM");
   await new Promise((r) => child.once("exit", r));
-  await new Promise((r) => upstream.close(r));
+  if (upstream.listening) await closeUpstream();
 }
 
 console.log("VOID_PUBLIC_FRONTDOOR_V1_PROOF_GREEN");
@@ -186,6 +260,9 @@ console.log("auxiliary_8443_funnel_ignored=true");
 console.log("root_static_get_head_only=true");
 console.log("non_root_proxy_behavior_executed=true");
 console.log("post_passthrough_executed=true");
+console.log("frontdoor_status_upstream_bound=true");
+console.log("frontdoor_status_probe_singleflight=true");
+console.log("frontdoor_status_recovery_without_restart=true");
 console.log("loopback_only=true");
 console.log("rollback_contract_present=true");
 console.log("node_runtime_mutated=false");
