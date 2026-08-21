@@ -71,7 +71,7 @@ function snapshotCore(manifest: SegmentedJsonlManifestV1) {
   const manifestBytes = serializeSegmentedJsonlManifestV1(manifest);
   return {
     v: 1 as const,
-    format: VOID_SEGMENTED_JSONL_SNAPSHOT_AUTHORITY_V1,
+    format: VOID_SEGMENTED_JSONL_SNAPSHOT_AUTHORITY_V1 as typeof VOID_SEGMENTED_JSONL_SNAPSHOT_AUTHORITY_V1,
     manifest_sha256: sha256(manifestBytes),
     sealed_root_sha256: manifest.sealed_root_sha256,
     active_sha256: manifest.active.sha256,
@@ -128,7 +128,7 @@ function checkpointCore(
   const previousRecords = previous ? parseDecimal(previous.cumulative_records, "cumulative_records") : 0n;
   return {
     v: 1 as const,
-    format: VOID_SEGMENTED_JSONL_CHECKPOINT_V1,
+    format: VOID_SEGMENTED_JSONL_CHECKPOINT_V1 as typeof VOID_SEGMENTED_JSONL_CHECKPOINT_V1,
     checkpoint_index: previous ? previous.checkpoint_index + 1 : 0,
     previous_checkpoint_sha256: previous ? previous.checkpoint_sha256 : null,
     snapshot_sha256: snapshot.snapshot_sha256,
