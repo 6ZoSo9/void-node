@@ -1,0 +1,60 @@
+name: voidchain.org visual cutover v1
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/voidchain-org-visual-cutover-v1.yml"
+      - "ops/public/voidchain-org-wordpress-home-v1.html"
+      - "ops/public/sync-voidchain-org-wordpress-home-v1.mjs"
+      - "scripts/prove_voidchain_org_wordpress_home_v1.mjs"
+      - "scripts/prove_voidchain_org_visual_unification_v1.mjs"
+      - "scripts/ci_diff_hygiene_v1.sh"
+      - "scripts/prove_ci_diff_hygiene_v1.mjs"
+  push:
+    branches:
+      - main
+    paths:
+      - ".github/workflows/voidchain-org-visual-cutover-v1.yml"
+      - "ops/public/voidchain-org-wordpress-home-v1.html"
+      - "ops/public/sync-voidchain-org-wordpress-home-v1.mjs"
+      - "scripts/prove_voidchain_org_wordpress_home_v1.mjs"
+      - "scripts/prove_voidchain_org_visual_unification_v1.mjs"
+      - "scripts/ci_diff_hygiene_v1.sh"
+      - "scripts/prove_ci_diff_hygiene_v1.mjs"
+
+permissions:
+  contents: read
+
+jobs:
+  proof:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@1e60f620b9541d16bece96c5465dc8ee9832be0b
+        with:
+          node-version: 24
+      - name: Syntax
+        run: |
+          node --check scripts/prove_voidchain_org_wordpress_home_v1.mjs
+          node --check scripts/prove_voidchain_org_visual_unification_v1.mjs
+          node --check scripts/prove_ci_diff_hygiene_v1.mjs
+      - name: Prove committed-range diff hygiene contract
+        run: node scripts/prove_ci_diff_hygiene_v1.mjs
+      - name: Existing WordPress source/rendered integrity proof
+        run: node scripts/prove_voidchain_org_wordpress_home_v1.mjs
+      - name: Public visual-unification proof
+        run: node scripts/prove_voidchain_org_visual_unification_v1.mjs
+      - name: Diff hygiene across committed change range
+        env:
+          CI_DIFF_EVENT_NAME: ${{ github.event_name }}
+          CI_DIFF_PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          CI_DIFF_PUSH_BEFORE_SHA: ${{ github.event.before }}
+          CI_DIFF_CURRENT_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+          CI_DIFF_CHECKOUT_SHA: ${{ github.sha }}
+          CI_DIFF_BASE_REMOTE: ${{ github.server_url }}/${{ github.repository }}.git
+          CI_DIFF_HEAD_REMOTE: ${{ github.server_url }}/${{ github.event.pull_request.head.repo.full_name || github.repository }}.git
+        run: bash scripts/ci_diff_hygiene_v1.sh
