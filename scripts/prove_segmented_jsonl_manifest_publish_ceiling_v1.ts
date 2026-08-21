@@ -6,9 +6,13 @@ import * as crypto from "node:crypto";
 
 import {
   VOID_SEGMENTED_JSONL_MAX_MANIFEST_BYTES_V1,
+  VOID_SEGMENTED_JSONL_MAX_SEALED_SEGMENTS_V1,
+  planSegmentReplicationV1,
+  sealedSegmentInventoryV1,
   serializeSegmentedJsonlManifestV1,
   type SegmentedJsonlManifestV1,
   type SegmentedJsonlSegmentV1,
+  type SegmentInventoryV1,
 } from "../src/storage/segmented_jsonl_v1.ts";
 
 const HEX64_ZERO = "0".repeat(64);
@@ -32,26 +36,30 @@ function sealedRoot(segments: SegmentedJsonlSegmentV1[]): string {
     .digest("hex");
 }
 
-function makeManifest(segmentCount: number): SegmentedJsonlManifestV1 {
+function makeManifest(
+  segmentCount: number,
+  segmentBytes = SEGMENT_BYTES,
+  segmentTargetBytes = Math.max(SEGMENT_BYTES, segmentBytes),
+): SegmentedJsonlManifestV1 {
   const segments: SegmentedJsonlSegmentV1[] = Array.from(
     { length: segmentCount },
     (_, id) => ({
       id,
       file: `segments/${String(id).padStart(12, "0")}.jsonl`,
-      bytes: SEGMENT_BYTES,
+      bytes: segmentBytes,
       records: 1,
       first_record_index: id,
       last_record_index: id,
       sha256: HEX64_ZERO,
     }),
   );
-  const sealedBytes = segmentCount * SEGMENT_BYTES;
+  const sealedBytes = segmentCount * segmentBytes;
   return {
     v: 1,
     format: "VOID_SEGMENTED_JSONL_V1",
     generation: 1,
-    segment_target_bytes: SEGMENT_BYTES,
-    max_record_bytes: SEGMENT_BYTES - 1,
+    segment_target_bytes: segmentTargetBytes,
+    max_record_bytes: Math.min(SEGMENT_BYTES - 1, segmentTargetBytes - 1),
     total_bytes: sealedBytes,
     total_records: segmentCount,
     sealed_bytes: sealedBytes,
@@ -80,25 +88,75 @@ function expectVoidError(fn: () => unknown, code: string): void {
   });
 }
 
-const accepted = makeManifest(31_190);
-const rejected = makeManifest(31_191);
+assert.equal(VOID_SEGMENTED_JSONL_MAX_SEALED_SEGMENTS_V1, 31_190);
+
+const accepted = makeManifest(VOID_SEGMENTED_JSONL_MAX_SEALED_SEGMENTS_V1);
+const tooMany = makeManifest(VOID_SEGMENTED_JSONL_MAX_SEALED_SEGMENTS_V1 + 1);
+const oversizedWithinCount = makeManifest(
+  VOID_SEGMENTED_JSONL_MAX_SEALED_SEGMENTS_V1,
+  8 * 1024 * 1024,
+  8 * 1024 * 1024,
+);
 const acceptedBytes = rawSerializedBytes(accepted);
-const rejectedBytes = rawSerializedBytes(rejected);
+const tooManyBytes = rawSerializedBytes(tooMany);
+const oversizedWithinCountBytes = rawSerializedBytes(oversizedWithinCount);
 
 assert(acceptedBytes <= VOID_SEGMENTED_JSONL_MAX_MANIFEST_BYTES_V1);
-assert(rejectedBytes > VOID_SEGMENTED_JSONL_MAX_MANIFEST_BYTES_V1);
+assert(tooManyBytes > VOID_SEGMENTED_JSONL_MAX_MANIFEST_BYTES_V1);
+assert(oversizedWithinCountBytes > VOID_SEGMENTED_JSONL_MAX_MANIFEST_BYTES_V1);
 
 const serializedAccepted = serializeSegmentedJsonlManifestV1(accepted);
 assert.equal(serializedAccepted.length, acceptedBytes);
 assert(serializedAccepted.length <= VOID_SEGMENTED_JSONL_MAX_MANIFEST_BYTES_V1);
 
 expectVoidError(
-  () => serializeSegmentedJsonlManifestV1(rejected),
+  () => serializeSegmentedJsonlManifestV1(tooMany),
+  "MANIFEST_SEGMENT_COUNT_EXCEEDS_BOUND",
+);
+expectVoidError(
+  () => serializeSegmentedJsonlManifestV1(oversizedWithinCount),
   "MANIFEST_TOO_LARGE",
 );
 
+const acceptedInventory = sealedSegmentInventoryV1(accepted);
+assert.equal(acceptedInventory.length, VOID_SEGMENTED_JSONL_MAX_SEALED_SEGMENTS_V1);
+const acceptedPlan = planSegmentReplicationV1(accepted, []);
+assert.equal(acceptedPlan.missing.length, VOID_SEGMENTED_JSONL_MAX_SEALED_SEGMENTS_V1);
+assert.equal(acceptedPlan.matching.length, 0);
+assert.equal(acceptedPlan.conflicting.length, 0);
+
+expectVoidError(
+  () => sealedSegmentInventoryV1(tooMany),
+  "MANIFEST_SEGMENT_COUNT_EXCEEDS_BOUND",
+);
+expectVoidError(
+  () => planSegmentReplicationV1(tooMany, []),
+  "MANIFEST_SEGMENT_COUNT_EXCEEDS_BOUND",
+);
+expectVoidError(
+  () => sealedSegmentInventoryV1(oversizedWithinCount),
+  "MANIFEST_TOO_LARGE",
+);
+expectVoidError(
+  () => planSegmentReplicationV1(oversizedWithinCount, []),
+  "MANIFEST_TOO_LARGE",
+);
+
+const excessiveLocalInventory: SegmentInventoryV1[] = Array.from(
+  { length: VOID_SEGMENTED_JSONL_MAX_SEALED_SEGMENTS_V1 + 1 },
+  (_, id) => ({ id, bytes: 1, records: 1, sha256: HEX64_ZERO }),
+);
+expectVoidError(
+  () => planSegmentReplicationV1(accepted, excessiveLocalInventory),
+  "LOCAL_INVENTORY_TOO_LARGE",
+);
+
 console.log(`accepted_manifest_bytes=${acceptedBytes}`);
-console.log(`rejected_manifest_bytes=${rejectedBytes}`);
+console.log(`too_many_manifest_bytes=${tooManyBytes}`);
+console.log(`oversized_within_count_bytes=${oversizedWithinCountBytes}`);
 console.log(`max_manifest_bytes=${VOID_SEGMENTED_JSONL_MAX_MANIFEST_BYTES_V1}`);
+console.log(`max_sealed_segments=${VOID_SEGMENTED_JSONL_MAX_SEALED_SEGMENTS_V1}`);
 console.log("writer_reader_manifest_ceiling_bound=true");
+console.log("direct_object_manifest_ceiling_bound=true");
+console.log("local_inventory_count_bound=true");
 console.log("VOID_SEGMENTED_JSONL_MANIFEST_PUBLISH_CEILING_V1_PROOF_GREEN");
