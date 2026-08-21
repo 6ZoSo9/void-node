@@ -3,6 +3,7 @@ import * as os from "node:os";
 import * as path from "node:path";
 import { readFileSync } from "node:fs";
 import { JobsDatanetWorkerRuntimeIndexV1 } from "../src/http/jobs_datanet_worker_runtime_index_v1.js";
+import { appendAgentPick2JsonlCanonicalV1 } from "../src/http/agent_pick2_jsonl_semantic_index_v1.js";
 
 const ID = "VOID_JOBS_DATANET_WORKER_RUNTIME_WEDGE_V1";
 const root = fs.mkdtempSync(path.join(os.tmpdir(), "void-jobs-worker-index-"));
@@ -329,15 +330,21 @@ try {
   );
   const carrySecond = carryRewriteIndex.scan(carryRewriteInput);
   assert(
-    carrySecond.jobs.length === 0 && carrySecond.bytesReadThisTick === 4096,
-    "changed-partial-record-resets-before-append",
-    `jobs=${carrySecond.jobs.length} bytes=${carrySecond.bytesReadThisTick}`,
+    carrySecond.ready === false && carrySecond.bytesReadThisTick === 0,
+    "changed-partial-record-growth-holds-first",
+    `ready=${carrySecond.ready} hold=${carrySecond.holdReason}`,
   );
   const carryThird = carryRewriteIndex.scan(carryRewriteInput);
   assert(
-    carryThird.jobs[0]?.jobId === "utf8_split_new",
+    carryThird.jobs.length === 0 && carryThird.bytesReadThisTick === 4096,
+    "changed-partial-record-resets-before-replay",
+    `jobs=${carryThird.jobs.length} bytes=${carryThird.bytesReadThisTick}`,
+  );
+  const carryFourth = carryRewriteIndex.scan(carryRewriteInput);
+  assert(
+    carryFourth.jobs[0]?.jobId === "utf8_split_new",
     "changed-partial-record-replayed-from-zero",
-    `job=${carryThird.jobs[0]?.jobId}`,
+    `job=${carryFourth.jobs[0]?.jobId}`,
   );
 
   const invalidUtf8JobsFile = path.join(root, "jobs-invalid-utf8.jsonl");
@@ -356,11 +363,14 @@ try {
   });
   let invalidUtf8Held = false;
   try {
-    invalidUtf8Index.scan({
+    const invalid = invalidUtf8Index.scan({
       jobsFile: invalidUtf8JobsFile,
       receiptsFile: utf8ReceiptsFile,
       jobStateFile: utf8JobStateFile,
     });
+    invalidUtf8Held =
+      invalid.ready === false &&
+      String(invalid.holdReason || "").includes("COMPLETION_INVALID_UTF8");
   } catch (error: any) {
     invalidUtf8Held = String(error?.message || error).includes(
       "VOID_JOBS_DATANET_WORKER_INVALID_UTF8",
@@ -421,11 +431,258 @@ try {
   );
   const rewriteSecond = rewriteIndex.scan(rewriteInput);
   assert(
-    rewriteSecond.jobs.length === 1 &&
-      rewriteSecond.jobs[0]?.jobId === "rewrite_job_b" &&
-      rewriteSecond.jobs[0]?.job?.input?.plaintext === "payload_b",
+    rewriteSecond.ready === false,
+    "equal-size-rewrite-holds-first",
+    `ready=${rewriteSecond.ready} hold=${rewriteSecond.holdReason}`,
+  );
+  const rewriteThird = rewriteIndex.scan(rewriteInput);
+  assert(
+    rewriteThird.jobs.length === 1 &&
+      rewriteThird.jobs[0]?.jobId === "rewrite_job_b" &&
+      rewriteThird.jobs[0]?.job?.input?.plaintext === "payload_b",
     "equal-size-rewrite-invalidates-stale-pending",
-    `jobs=${rewriteSecond.jobs.map((item) => item.jobId).join(",")}`,
+    `jobs=${rewriteThird.jobs.map((item) => item.jobId).join(",")}`,
+  );
+
+  // A fixed tail sample is not sufficient append authority. Rewrite an older
+  // row outside the final 8 KiB, preserve the tail exactly, then append a new
+  // queued row with an uncooperative writer. The runtime must HOLD before it
+  // can advance from the previously admitted cursor.
+  const prefixJobsFile = path.join(root, "jobs-prefix-authority.jsonl");
+  const prefixReceiptsFile = path.join(root, "receipts-prefix-authority.jsonl");
+  const prefixJobStateFile = path.join(root, "job-state-prefix-authority.jsonl");
+  fs.writeFileSync(prefixReceiptsFile, "");
+  fs.writeFileSync(prefixJobStateFile, "");
+  const prefixRows = Array.from({ length: 320 }, (_, i) =>
+    JSON.stringify({
+      job_id: `prefix_${String(i).padStart(4, "0")}`,
+      status: "completed",
+      payload: "x".repeat(64),
+    }),
+  );
+  fs.writeFileSync(prefixJobsFile, prefixRows.join("\n") + "\n");
+  assert(
+    fs.statSync(prefixJobsFile).size > 16 * 1024,
+    "prefix-authority-fixture-exceeds-tail-window",
+    `bytes=${fs.statSync(prefixJobsFile).size}`,
+  );
+  const prefixIndex = new JobsDatanetWorkerRuntimeIndexV1({
+    maxScanBytesPerTick: 64 * 1024,
+    maxSyncCompletionRebuildBytes: 1024 * 1024,
+  });
+  const prefixInput = {
+    jobsFile: prefixJobsFile,
+    receiptsFile: prefixReceiptsFile,
+    jobStateFile: prefixJobStateFile,
+  };
+  const prefixFirst = prefixIndex.scan(prefixInput);
+  assert(
+    prefixFirst.ready && prefixFirst.scanComplete,
+    "prefix-authority-baseline-admitted",
+    `ready=${prefixFirst.ready} complete=${prefixFirst.scanComplete}`,
+  );
+  const prefixOriginal = Buffer.from(prefixRows[0], "utf8");
+  const prefixMutated = Buffer.from(
+    prefixRows[0].replace("prefix_0000", "mutant_0000"),
+    "utf8",
+  );
+  assert(
+    prefixOriginal.length === prefixMutated.length,
+    "prefix-authority-rewrite-equal-size",
+    `bytes=${prefixOriginal.length}`,
+  );
+  const prefixFd = fs.openSync(prefixJobsFile, "r+");
+  try {
+    fs.writeSync(prefixFd, prefixMutated, 0, prefixMutated.length, 0);
+  } finally {
+    fs.closeSync(prefixFd);
+  }
+  fs.appendFileSync(
+    prefixJobsFile,
+    JSON.stringify({ job_id: "prefix_attack_append", status: "queued" }) + "\n",
+  );
+  const prefixHeld = prefixIndex.scan(prefixInput);
+  assert(
+    prefixHeld.ready === false && prefixHeld.jobs.length === 0,
+    "older-prefix-rewrite-plus-growth-holds",
+    `ready=${prefixHeld.ready} hold=${prefixHeld.holdReason}`,
+  );
+
+  const canonicalJobsFile = path.join(root, "jobs-canonical-growth.jsonl");
+  const canonicalReceiptsFile = path.join(root, "receipts-canonical-growth.jsonl");
+  const canonicalJobStateFile = path.join(root, "job-state-canonical-growth.jsonl");
+  fs.writeFileSync(canonicalJobsFile, "");
+  fs.writeFileSync(canonicalReceiptsFile, "");
+  fs.writeFileSync(canonicalJobStateFile, "");
+  const canonicalIndex = new JobsDatanetWorkerRuntimeIndexV1({
+    maxScanBytesPerTick: 4096,
+    maxSyncCompletionRebuildBytes: 1024 * 1024,
+  });
+  const canonicalInput = {
+    jobsFile: canonicalJobsFile,
+    receiptsFile: canonicalReceiptsFile,
+    jobStateFile: canonicalJobStateFile,
+  };
+  assert(
+    canonicalIndex.scan(canonicalInput).ready,
+    "canonical-growth-baseline-admitted",
+    "empty generation ready",
+  );
+  appendAgentPick2JsonlCanonicalV1(
+    canonicalJobsFile,
+    JSON.stringify({ job_id: "canonical_append", status: "queued" }) + "\n",
+  );
+  const canonicalGrowth = canonicalIndex.scan(canonicalInput);
+  assert(
+    canonicalGrowth.ready && canonicalGrowth.jobs[0]?.jobId === "canonical_append",
+    "canonical-witnessed-growth-advances",
+    `ready=${canonicalGrowth.ready} job=${canonicalGrowth.jobs[0]?.jobId}`,
+  );
+
+  // A large completion warm owns one monotonic generation and catches up
+  // canonical append deltas. Legitimate active appends must not restart the
+  // full-history scan from byte zero.
+  const warmJobsFile = path.join(root, "jobs-warm-growth.jsonl");
+  const warmReceiptsFile = path.join(root, "receipts-warm-growth.jsonl");
+  const warmJobStateFile = path.join(root, "job-state-warm-growth.jsonl");
+  fs.writeFileSync(warmJobsFile, "");
+  fs.writeFileSync(warmReceiptsFile, "");
+  fs.writeFileSync(
+    warmJobStateFile,
+    repeatToBytes(
+      JSON.stringify({ job_id: "warm_filler", status: "queued" }) + "\n",
+      512 * 1024,
+    ),
+  );
+  const warmIndex = new JobsDatanetWorkerRuntimeIndexV1({
+    maxScanBytesPerTick: 4096,
+    maxSyncCompletionRebuildBytes: 4096,
+    completionRebuildBackoffMs: 5,
+  });
+  const warmInput = {
+    jobsFile: warmJobsFile,
+    receiptsFile: warmReceiptsFile,
+    jobStateFile: warmJobStateFile,
+  };
+  const warmFirst = warmIndex.scan(warmInput);
+  assert(
+    warmFirst.ready === false,
+    "active-append-warm-starts-held",
+    `hold=${warmFirst.holdReason}`,
+  );
+  let lastWarmId = "";
+  for (let i = 0; i < 40; i += 1) {
+    lastWarmId = `warm_completed_${String(i).padStart(3, "0")}`;
+    appendAgentPick2JsonlCanonicalV1(
+      warmJobStateFile,
+      JSON.stringify({ job_id: lastWarmId, status: "completed" }) + "\n",
+    );
+    if (i % 4 === 0) await sleep(0);
+  }
+  let warmReady = warmIndex.scan(warmInput);
+  for (let i = 0; i < 1000 && !warmReady.ready; i += 1) {
+    await sleep(1);
+    warmReady = warmIndex.scan(warmInput);
+  }
+  assert(
+    warmReady.ready && warmReady.doneTruthHas(lastWarmId),
+    "active-append-warm-catches-up",
+    `ready=${warmReady.ready} last_done=${warmReady.doneTruthHas(lastWarmId)}`,
+  );
+  assert(
+    Number(warmReady.completionIo?.async_warms_total || 0) === 1,
+    "active-append-warm-does-not-restart",
+    `warms=${warmReady.completionIo?.async_warms_total}`,
+  );
+
+  // An uncooperative mutation while the warm owns its generation must not
+  // publish stale completion truth. The task rejects into a bounded backoff
+  // HOLD instead of silently accepting the rewritten prefix.
+  const hostileWarmJobsFile = path.join(root, "jobs-hostile-warm.jsonl");
+  const hostileWarmReceiptsFile = path.join(root, "receipts-hostile-warm.jsonl");
+  const hostileWarmJobStateFile = path.join(root, "job-state-hostile-warm.jsonl");
+  fs.writeFileSync(hostileWarmJobsFile, "");
+  fs.writeFileSync(hostileWarmReceiptsFile, "");
+  fs.writeFileSync(
+    hostileWarmJobStateFile,
+    repeatToBytes(
+      JSON.stringify({ job_id: "hostile_filler", status: "queued" }) + "\n",
+      512 * 1024,
+    ),
+  );
+  const hostileWarmIndex = new JobsDatanetWorkerRuntimeIndexV1({
+    maxScanBytesPerTick: 4096,
+    maxSyncCompletionRebuildBytes: 4096,
+    completionRebuildBackoffMs: 5000,
+  });
+  const hostileWarmInput = {
+    jobsFile: hostileWarmJobsFile,
+    receiptsFile: hostileWarmReceiptsFile,
+    jobStateFile: hostileWarmJobStateFile,
+  };
+  assert(
+    hostileWarmIndex.scan(hostileWarmInput).ready === false,
+    "hostile-warm-starts-held",
+    "large generation warming",
+  );
+  const hostileFd = fs.openSync(hostileWarmJobStateFile, "r+");
+  try {
+    const replacement = Buffer.from("{\"job_id\":\"hostile_mutation\"}", "utf8");
+    fs.writeSync(hostileFd, replacement, 0, replacement.length, 0);
+  } finally {
+    fs.closeSync(hostileFd);
+  }
+  let hostileHeld = hostileWarmIndex.scan(hostileWarmInput);
+  for (
+    let i = 0;
+    i < 200 &&
+    !String(hostileHeld.holdReason || "").includes("REBUILD_BACKOFF");
+    i += 1
+  ) {
+    await sleep(1);
+    hostileHeld = hostileWarmIndex.scan(hostileWarmInput);
+  }
+  assert(
+    hostileHeld.ready === false &&
+      String(hostileHeld.holdReason || "").includes("REBUILD_BACKOFF"),
+    "hostile-warm-mutation-fails-closed",
+    `ready=${hostileHeld.ready} hold=${hostileHeld.holdReason}`,
+  );
+
+  // Append-witness retention is intentionally finite. If a dormant reader
+  // misses more events than the bounded authority window can prove, it must
+  // HOLD rather than infer continuity from an incomplete event suffix.
+  const witnessLimitJobsFile = path.join(root, "jobs-witness-limit.jsonl");
+  const witnessLimitReceiptsFile = path.join(root, "receipts-witness-limit.jsonl");
+  const witnessLimitJobStateFile = path.join(root, "job-state-witness-limit.jsonl");
+  fs.writeFileSync(witnessLimitJobsFile, "");
+  fs.writeFileSync(witnessLimitReceiptsFile, "");
+  fs.writeFileSync(witnessLimitJobStateFile, "");
+  const witnessLimitIndex = new JobsDatanetWorkerRuntimeIndexV1({
+    maxScanBytesPerTick: 4096,
+    maxSyncCompletionRebuildBytes: 1024 * 1024,
+  });
+  const witnessLimitInput = {
+    jobsFile: witnessLimitJobsFile,
+    receiptsFile: witnessLimitReceiptsFile,
+    jobStateFile: witnessLimitJobStateFile,
+  };
+  assert(
+    witnessLimitIndex.scan(witnessLimitInput).ready,
+    "witness-limit-baseline-admitted",
+    "empty generation ready",
+  );
+  for (let i = 0; i < 8200; i += 1) {
+    appendAgentPick2JsonlCanonicalV1(
+      witnessLimitJobsFile,
+      JSON.stringify({ job_id: `witness_${i}`, status: "completed" }) + "\n",
+    );
+  }
+  const witnessLimitHeld = witnessLimitIndex.scan(witnessLimitInput);
+  assert(
+    witnessLimitHeld.ready === false && witnessLimitHeld.jobs.length === 0,
+    "expired-append-authority-fails-closed",
+    `ready=${witnessLimitHeld.ready} hold=${witnessLimitHeld.holdReason}`,
   );
 
   // The transient done bridge is pruned as soon as durable completion truth
@@ -451,7 +708,7 @@ try {
   let maxRetainedDone = 0;
   for (let i = 0; i < 256; i += 1) {
     const jobId = `retained_${String(i).padStart(4, "0")}`;
-    fs.appendFileSync(
+    appendAgentPick2JsonlCanonicalV1(
       retainedJobsFile,
       JSON.stringify({
         job_id: jobId,
@@ -468,7 +725,7 @@ try {
         `i=${i} ready=${queued.ready} job=${queued.jobs[0]?.jobId}`,
       );
     }
-    fs.appendFileSync(
+    appendAgentPick2JsonlCanonicalV1(
       retainedJobStateFile,
       JSON.stringify({ job_id: jobId, status: "completed" }) + "\n",
     );
@@ -569,7 +826,7 @@ try {
   assert(
     helperSource.includes("VOID_JOBS_DATANET_WORKER_EQUAL_SIZE_REWRITE_RESET_V1") &&
       helperSource.includes("VOID_JOBS_DATANET_WORKER_PENDING_SOURCE_WITNESS_V1") &&
-      helperSource.includes("VOID_JOBS_DATANET_WORKER_CARRY_SOURCE_WITNESS_V1"),
+      helperSource.includes("VOID_JOBS_DATANET_WORKER_APPEND_CONTINUITY_AUTHORITY_V1"),
     "runtime-index-source-continuity-guards",
     "rewrite reset and pending source witness present",
   );
