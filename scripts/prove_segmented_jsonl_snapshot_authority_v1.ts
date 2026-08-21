@@ -106,6 +106,7 @@ try {
     maxRecordBytes: 900,
   });
   assert.ok(manifest.sealed_segments.length >= 2);
+  assert.equal(manifest.generation, 1);
 
   const authority = verifySegmentedJsonlSnapshotAuthorityV1(store).authority;
   assert.equal(authority.live_tree_terminal_authority, false);
@@ -122,6 +123,47 @@ try {
   const anchor0 = trustedAnchor(checkpoint0, authority);
   assert.equal(checkpoint0.cumulative_bytes, String(authority.total_bytes));
   assert.equal(checkpoint0.cumulative_records, String(authority.total_records));
+
+  // A V1 checkpoint chain has exactly one genesis semantic: store generation 1.
+  // A later authentic store generation cannot silently masquerade as checkpoint
+  // index 0 unless a separately reviewed epoch/root migration contract exists.
+  const lateGenesisAuthority = deriveSegmentedJsonlSnapshotAuthorityV1({
+    ...manifest,
+    generation: 7,
+  });
+  expectFailure(
+    () => deriveSegmentedJsonlCheckpointV1(lateGenesisAuthority),
+    "CHECKPOINT_GENESIS_GENERATION_MISMATCH",
+  );
+  const lateGenesisCheckpoint = resignCheckpoint({
+    ...checkpoint0,
+    snapshot_sha256: lateGenesisAuthority.snapshot_sha256,
+    manifest_sha256: lateGenesisAuthority.manifest_sha256,
+    store_generation: lateGenesisAuthority.generation,
+    store_total_bytes: lateGenesisAuthority.total_bytes,
+    store_total_records: lateGenesisAuthority.total_records,
+    cumulative_bytes: String(lateGenesisAuthority.total_bytes),
+    cumulative_records: String(lateGenesisAuthority.total_records),
+  });
+  verifySegmentedJsonlCheckpointEncodingV1(lateGenesisCheckpoint);
+  expectFailure(
+    () => verifySegmentedJsonlCheckpointV1(lateGenesisCheckpoint, lateGenesisAuthority),
+    "CHECKPOINT_GENESIS_GENERATION_MISMATCH",
+  );
+  expectFailure(
+    () => verifySegmentedJsonlCheckpointAnchorV1({
+      checkpoint: lateGenesisCheckpoint,
+      snapshot: lateGenesisAuthority,
+      trusted_checkpoint_sha256: lateGenesisCheckpoint.checkpoint_sha256,
+    }),
+    "CHECKPOINT_GENESIS_GENERATION_MISMATCH",
+  );
+  expectFailure(
+    () => verifySegmentedJsonlCheckpointChainV1([
+      { checkpoint: lateGenesisCheckpoint, snapshot: lateGenesisAuthority },
+    ], lateGenesisCheckpoint.checkpoint_sha256),
+    "CHECKPOINT_GENESIS_GENERATION_MISMATCH",
+  );
 
   // Checkpoint progression is one unique next store generation per link.
   // Replaying the same snapshot or reusing/regressing/skipping a generation is
@@ -301,6 +343,8 @@ try {
 
   console.log("content_addressed_manifest_commitment=true");
   console.log("live_tree_terminal_authority=false");
+  console.log("checkpoint_genesis_generation_one_required=true");
+  console.log("checkpoint_late_generation_reanchor_rejected=true");
   console.log("checkpoint_snapshot_binding_required=true");
   console.log("checkpoint_snapshot_replay_rejected=true");
   console.log("checkpoint_generation_progression_exact=true");
