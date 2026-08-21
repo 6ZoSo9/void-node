@@ -254,7 +254,9 @@ exit 0
   while (true) {
     try {
       if (readFileSync(fixtureReadyPath).length >= 0) break;
-    } catch {}
+    } catch (error) {
+      if (!error || error.code !== "ENOENT") throw error;
+    }
     if (firstApply.exitCode !== null) throw new Error(`first fixture apply exited before overlap barrier: ${firstStdout} ${firstStderr}`);
     if (Date.now() >= overlapDeadline) {
       firstApply.kill("SIGTERM");
@@ -307,6 +309,7 @@ const upstream = http.createServer((req, res) => {
       "content-type": "application/json",
       "content-length": out.byteLength,
       "x-mock-upstream": "true",
+      "x-void-public-app-composition": "v1",
     });
     res.end(out);
   });
