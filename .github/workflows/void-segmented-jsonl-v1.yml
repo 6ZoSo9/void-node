@@ -10,6 +10,8 @@ on:
       - ".github/workflows/void-segmented-jsonl-v1.yml"
       - "scripts/ci_diff_hygiene_v1.sh"
       - "scripts/prove_ci_diff_hygiene_v1.mjs"
+      - "package.json"
+      - "package-lock.json"
   push:
     branches:
       - main
@@ -21,6 +23,8 @@ on:
       - ".github/workflows/void-segmented-jsonl-v1.yml"
       - "scripts/ci_diff_hygiene_v1.sh"
       - "scripts/prove_ci_diff_hygiene_v1.mjs"
+      - "package.json"
+      - "package-lock.json"
 
 permissions:
   contents: read
@@ -52,6 +56,23 @@ jobs:
 
       - name: Install reviewed dependencies
         run: npm ci
+
+      - name: Prove focused workflow dependency closure
+        run: |
+          node <<'NODE'
+          const fs = require('node:fs');
+          const text = fs.readFileSync('.github/workflows/void-segmented-jsonl-v1.yml', 'utf8');
+          const packageJson = 'package' + '.json';
+          const packageLock = 'package-lock' + '.json';
+          for (const dependency of [packageJson, packageLock]) {
+            const exact = `      - "${dependency}"`;
+            const count = text.split('\n').filter(line => line === exact).length;
+            if (count !== 2) {
+              throw new Error(`focused_dependency_binding_mismatch:${dependency}:${count}`);
+            }
+          }
+          console.log('focused_package_dependency_binding=true');
+          NODE
 
       - name: Syntax
         run: |
