@@ -312,6 +312,24 @@ function createDirectoryChildV1(parent: DirectoryAuthorityV1, name: string, publ
   return child;
 }
 
+function openStoreRootAuthorityV1(rootInput: string): DirectoryAuthorityV1 {
+  const publicPath = rootPath(rootInput);
+  const parent = openDirectoryAuthorityV1(path.dirname(publicPath));
+  try {
+    assertPrivateDirectoryWriteAuthorityV1(parent);
+    const root = openDirectoryChildAuthorityV1(parent, path.basename(publicPath), publicPath);
+    try {
+      assertPrivateDirectoryWriteAuthorityV1(root);
+      return root;
+    } catch (error) {
+      fs.closeSync(root.fd);
+      throw error;
+    }
+  } finally {
+    fs.closeSync(parent.fd);
+  }
+}
+
 function regularStat(file: string): fs.Stats {
   let st: fs.Stats;
   try { st = fs.lstatSync(file); } catch (err: any) { fail("MISSING_FILE", `${file}:${String(err?.code || err)}`); }
@@ -517,7 +535,14 @@ function parseManifest(value: unknown): SegmentedJsonlManifestV1 {
     if (!s || typeof s !== "object" || Array.isArray(s) || s.id !== i || s.file !== segmentRel(i)) fail("INVALID_SEGMENT", `index=${i}`);
     requireExactKeys(s, ["id","file","bytes","records","first_record_index","last_record_index","sha256"], "INVALID_SEGMENT_KEYS", `index=${i}`);
     for (const k of ["id","bytes","records","first_record_index","last_record_index"]) if (!Number.isSafeInteger(s[k]) || s[k] < 0) fail("INVALID_SEGMENT_INTEGER", `${i}:${k}`);
-    if (s.bytes <= 0 || s.bytes > m.segment_target_bytes || s.records <= 0 || s.last_record_index - s.first_record_index + 1 !== s.records || !isHex64(s.sha256)) fail("INVALID_SEGMENT_RANGE", String(i));
+    if (
+      s.bytes <= 0 ||
+      s.bytes > m.segment_target_bytes ||
+      s.records <= 0 ||
+      s.records > Math.floor(s.bytes / 2) ||
+      s.last_record_index - s.first_record_index + 1 !== s.records ||
+      !isHex64(s.sha256)
+    ) fail("INVALID_SEGMENT_RANGE", String(i));
     return { id:s.id, file:s.file, bytes:s.bytes, records:s.records, first_record_index:s.first_record_index, last_record_index:s.last_record_index, sha256:s.sha256 };
   });
   const a = m.active;
@@ -525,7 +550,13 @@ function parseManifest(value: unknown): SegmentedJsonlManifestV1 {
   requireExactKeys(a, ["file","bytes","records","first_record_index","last_record_index","sha256"], "INVALID_ACTIVE_KEYS", "active");
   for (const k of ["bytes","records","first_record_index"]) if (!Number.isSafeInteger(a[k]) || a[k] < 0) fail("INVALID_ACTIVE_INTEGER", k);
   if (a.last_record_index !== null && (!Number.isSafeInteger(a.last_record_index) || a.last_record_index < 0)) fail("INVALID_ACTIVE_LAST_INDEX", String(a.last_record_index));
-  if (!isHex64(a.sha256) || a.bytes > m.segment_target_bytes || (a.records === 0) !== (a.last_record_index === null)) fail("INVALID_ACTIVE_RANGE", "empty-last-or-bytes");
+  if (
+    !isHex64(a.sha256) ||
+    a.bytes > m.segment_target_bytes ||
+    (a.records === 0) !== (a.last_record_index === null) ||
+    (a.records === 0) !== (a.bytes === 0) ||
+    a.records > Math.floor(a.bytes / 2)
+  ) fail("INVALID_ACTIVE_RANGE", "empty-last-bytes-or-cardinality");
   if (a.records > 0 && a.last_record_index - a.first_record_index + 1 !== a.records) fail("INVALID_ACTIVE_RANGE", "count");
   const active: SegmentedJsonlActiveV1 = { file:ACTIVE, bytes:a.bytes, records:a.records, first_record_index:a.first_record_index, last_record_index:a.last_record_index, sha256:a.sha256 };
   const manifest: SegmentedJsonlManifestV1 = {
@@ -628,7 +659,7 @@ function readSegmentedJsonlManifestFromAuthorityV1(root: DirectoryAuthorityV1): 
 }
 
 export function readSegmentedJsonlManifestV1(rootInput: string): SegmentedJsonlManifestV1 {
-  const rootPathValue = rootPath(rootInput), root = openDirectoryAuthorityV1(rootPathValue);
+  const rootPathValue = rootPath(rootInput), root = openStoreRootAuthorityV1(rootPathValue);
   try { return readSegmentedJsonlManifestFromAuthorityV1(root); }
   finally { fs.closeSync(root.fd); }
 }
@@ -658,7 +689,7 @@ function verifySegmentedJsonlWithAuthoritiesV1(
 }
 
 export function verifySegmentedJsonlV1(rootInput: string, options: {validateJson?:boolean} = {}) {
-  const rootPathValue = rootPath(rootInput), root = openDirectoryAuthorityV1(rootPathValue);
+  const rootPathValue = rootPath(rootInput), root = openStoreRootAuthorityV1(rootPathValue);
   let segments: DirectoryAuthorityV1 | null = null;
   try {
     assertPrivateDirectoryWriteAuthorityV1(root);
@@ -690,7 +721,7 @@ export function buildSegmentedJsonlV1FromFile(sourceInput:string,destinationInpu
     const st=fs.lstatSync(root);
     if(!st.isDirectory()||st.isSymbolicLink()) fail("DESTINATION_NOT_DIRECTORY",root);
   } else { createDirectoryNewV1(root); }
-  const rootAuthority = openDirectoryAuthorityV1(root);
+  const rootAuthority = openStoreRootAuthorityV1(root);
   let segmentAuthority: DirectoryAuthorityV1 | null = null;
   try {
   assertPrivateDirectoryWriteAuthorityV1(rootAuthority);
@@ -763,7 +794,7 @@ function appendVerifiedGenerationToOutputV1(
 export function reconstructSegmentedJsonlV1ToFile(rootInput:string,outputInput:string) {
   const rootPathValue=rootPath(rootInput), out=path.resolve(String(outputInput||""));
   if (!out || out === path.parse(out).root) fail("INVALID_OUTPUT", out || "empty");
-  const root=openDirectoryAuthorityV1(rootPathValue);
+  const root=openStoreRootAuthorityV1(rootPathValue);
   let segments:DirectoryAuthorityV1|null=null, outputParent:DirectoryAuthorityV1|null=null, fd=-1;
   try {
     assertPrivateDirectoryWriteAuthorityV1(root);
