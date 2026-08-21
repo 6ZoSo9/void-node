@@ -1574,6 +1574,151 @@ try {
       "dead exact process-instance claim permanently wedged receipt append",
     );
 
+    const claimPublicationDir = path.join(
+      receiptConcurrencyRoot,
+      "claim-publication-failure",
+    );
+    const claimPublicationA = {
+      h: "7".repeat(64),
+      n: 12,
+      o: 0,
+      ts: followerBlock0.timestamp,
+    };
+    const claimPublicationB = {
+      h: "8".repeat(64),
+      n: 13,
+      o: 0,
+      ts: followerBlock0.timestamp,
+    };
+    const claimPublicationStore = new receiptModule.ReceiptsStore(
+      claimPublicationDir,
+      { shardSpan: 10_000 },
+    );
+    let injectedClaimPublicationFailures = 0;
+    await assertRejects(
+      () => claimPublicationStore.appendMany([claimPublicationA], {
+        testHooksV1: {
+          afterLockClaimLinkedBeforeSync() {
+            injectedClaimPublicationFailures += 1;
+            throw new Error("injected receipt lock claim publication failure");
+          },
+        },
+      }),
+      /injected receipt lock claim publication failure/,
+      "post-link claim publication failure was not surfaced",
+    );
+    assert(
+      injectedClaimPublicationFailures === 1 &&
+        fs.readdirSync(claimPublicationDir).filter((file) =>
+          /^\.receipts-append-claim-[0-9a-f]{32}\.json$/.test(file)
+        ).length === 1 &&
+        !fs.readdirSync(claimPublicationDir).some((file) =>
+          /^receipts-\d{8}\.jsonl$/.test(file)
+      ),
+      "post-link claim publication fixture did not retain only its exact abandoned claim",
+    );
+    const abandonedClaimName = fs.readdirSync(claimPublicationDir).find((file) =>
+      /^\.receipts-append-claim-[0-9a-f]{32}\.json$/.test(file)
+    );
+    assert(abandonedClaimName, "post-link claim publication fixture lost its claim name");
+    const abandonedClaimPath = path.join(claimPublicationDir, abandonedClaimName);
+    const abandonedClaimBytes = fs.readFileSync(abandonedClaimPath);
+    const displacedClaimPath = `${abandonedClaimPath}.displaced-generation`;
+    let claimCleanupSwapped = false;
+    const claimCleanupAbort = new AbortController();
+    const claimCleanupTimer = setTimeout(() => {
+      claimCleanupAbort.abort(new Error("stop after foreign claim replacement"));
+    }, 250);
+    try {
+      await assertRejects(
+        () => claimPublicationStore.appendMany([claimPublicationA], {
+          signal: claimCleanupAbort.signal,
+          testHooksV1: {
+            beforeObservedLockCleanup(claimPath) {
+              if (claimCleanupSwapped) return;
+              fs.renameSync(claimPath, displacedClaimPath);
+              fs.writeFileSync(claimPath, abandonedClaimBytes, {
+                flag: "wx",
+                mode: 0o600,
+              });
+              claimCleanupSwapped = true;
+            },
+          },
+        }),
+        /stop after foreign claim replacement/,
+        "foreign claim replacement did not keep retry outside append authority",
+      );
+    } finally {
+      clearTimeout(claimCleanupTimer);
+    }
+    assert(
+      claimCleanupSwapped &&
+        fs.readFileSync(abandonedClaimPath).equals(abandonedClaimBytes),
+      "generation-safe abandoned-claim cleanup deleted or changed a foreign replacement",
+    );
+    fs.unlinkSync(abandonedClaimPath);
+    fs.renameSync(displacedClaimPath, abandonedClaimPath);
+    const claimPublicationContender = childProcess.spawn(
+      process.execPath,
+      ["--input-type=module", "-e", writerSource],
+      {
+        env: {
+          ...process.env,
+          VOID_RECEIPT_MODULE_URL: moduleUrl,
+          VOID_RECEIPT_DIR: claimPublicationDir,
+          VOID_RECEIPT_RECORD: JSON.stringify(claimPublicationB),
+        },
+        stdio: ["ignore", "pipe", "pipe"],
+      },
+    );
+    let claimPublicationStdout = "";
+    let claimPublicationStderr = "";
+    claimPublicationContender.stdout.on("data", (chunk) => {
+      claimPublicationStdout += chunk;
+    });
+    claimPublicationContender.stderr.on("data", (chunk) => {
+      claimPublicationStderr += chunk;
+    });
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    assert(
+      claimPublicationContender.exitCode === null,
+      "foreign contender crossed an unconfirmed live-owner claim",
+    );
+    const claimPublicationRetryStartedAt = Date.now();
+    const claimPublicationContenderSettled = once(
+      claimPublicationContender,
+      "exit",
+    );
+    await claimPublicationStore.appendMany([claimPublicationA]);
+    const [claimPublicationCode, claimPublicationSignal] =
+      await claimPublicationContenderSettled;
+    assert(
+      claimPublicationCode === 0 &&
+        claimPublicationSignal === null &&
+        /writer_done=true/.test(claimPublicationStdout),
+      `claim-publication recovery contender failed: ${claimPublicationStderr || claimPublicationStdout}`,
+    );
+    assert(
+      Date.now() - claimPublicationRetryStartedAt < 5_000,
+      "same-process claim-publication retry waited for owner exit or stale timeout",
+    );
+    const claimPublicationHits = await claimPublicationStore.getMany([
+      claimPublicationA.h,
+      claimPublicationB.h,
+    ]);
+    assert(
+      [claimPublicationA, claimPublicationB].every((receipt) =>
+        claimPublicationHits.get(receipt.h)?.found === true
+      ),
+      "claim-publication recovery lost a serialized successor receipt",
+    );
+    assert(
+      !fs.readdirSync(claimPublicationDir).some((file) =>
+        /^\.receipts-append-(?:claim|release)-[0-9a-f]{32}\.json$/.test(file)
+      ),
+      "claim-publication recovery left an exact claim or witness behind",
+    );
+
     const releaseFailureDir = path.join(receiptConcurrencyRoot, "release-failure");
     const releaseFailureA = {
       h: "2".repeat(64),
@@ -1747,7 +1892,7 @@ try {
   } finally {
     fs.rmSync(receiptConcurrencyRoot, { recursive: true, force: true });
   }
-  pass("cross-process receipt authority survives owner death and release publication or cleanup failure");
+  pass("cross-process receipt authority survives owner death and claim/release publication or cleanup failure");
 
   const receiptHistoryRoot = fs.mkdtempSync(
     path.join(os.tmpdir(), "void-follower-receipt-history-v1-"),
@@ -2294,6 +2439,7 @@ console.log("follower_receipt_exact_json_types=true");
 console.log("follower_receipt_cross_process_atomic=true");
 console.log("follower_receipt_lock_directory_generation_bound=true");
 console.log("follower_receipt_lock_process_instance_bound=true");
+console.log("follower_receipt_lock_claim_publication_recoverable=true");
 console.log("follower_receipt_lock_release_recoverable=true");
 console.log("follower_receipt_lock_cleanup_generation_bound=true");
 console.log("follower_rejected_response_body_released=true");

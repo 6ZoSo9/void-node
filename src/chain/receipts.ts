@@ -26,6 +26,7 @@ type ReceiptAppendFaultV1 =
 
 type ReceiptAppendTestHooksV1 = {
   afterSnapshot?: () => void | Promise<void>;
+  afterLockClaimLinkedBeforeSync?: () => void | Promise<void>;
   afterLockClaimPublished?: () => void | Promise<void>;
   beforeLockReleasePublication?: () => void | Promise<void>;
   beforeLockClaimCleanup?: () => void | Promise<void>;
@@ -110,6 +111,16 @@ function receiptSameStampV1(a: ReceiptFileStampV1, b: ReceiptFileStampV1): boole
     a.mtimeNs === b.mtimeNs && a.ctimeNs === b.ctimeNs;
 }
 
+function receiptSamePublishedGenerationV1(
+  linked: ReceiptFileStampV1,
+  visible: ReceiptFileStampV1,
+): boolean {
+  // Retiring the temporary hard-link after final-name publication changes the
+  // inode ctime but not the published file generation or bytes.
+  return linked.dev === visible.dev && linked.ino === visible.ino &&
+    linked.size === visible.size && linked.mtimeNs === visible.mtimeNs;
+}
+
 function receiptValidStampV1(value: unknown): value is ReceiptFileStampV1 {
   return receiptExactKeysV1(value, ["dev", "ino", "size", "mtimeNs", "ctimeNs"]) &&
     typeof value.dev === "string" && /^\d+$/.test(value.dev) &&
@@ -165,6 +176,11 @@ export class ReceiptsStore {
   // publication can be retried by this same live owner without weakening the
   // durable witness required by other processes.
   private locallyReleasedAppendClaimV1: ReceiptAppendLockClaimV1 | null = null;
+  // A claim can become visible before its containing directory is synced and
+  // revalidated. Retain that exact generation so this same live store can
+  // retire an abandoned publication attempt without ever deleting a foreign
+  // replacement at the same pathname.
+  private locallyUnconfirmedAppendClaimV1: ReceiptAppendLockClaimV1 | null = null;
 
   constructor(dir: string, opts: { shardSpan?: number } = {}) {
     this.dir = dir;
@@ -314,6 +330,7 @@ export class ReceiptsStore {
     authority: ReceiptDirectoryAuthorityV1,
     finalName: string,
     value: unknown,
+    afterLink?: (stamp: ReceiptFileStampV1) => void | Promise<void>,
   ): Promise<void> {
     const token = crypto.randomBytes(8).toString("hex");
     const tempName = `.receipts-append-lock-tmp-${process.pid}-${token}`;
@@ -334,9 +351,14 @@ export class ReceiptsStore {
         offset += bytesWritten;
       }
       await handle.sync();
-      await handle.close();
       await fs.promises.link(tempPath, finalPath);
       published = true;
+      const publishedStat = await handle.stat({ bigint: true });
+      if (!publishedStat.isFile() || publishedStat.isSymbolicLink()) {
+        throw new Error("VOID_RECEIPT_APPEND_LOCK_PUBLISHED_NON_REGULAR_V1");
+      }
+      await afterLink?.(receiptFileStampV1(publishedStat));
+      await handle.close();
       await authority.handle.sync();
       await this.assertDirectoryAuthorityV1(authority);
     } finally {
@@ -433,6 +455,15 @@ export class ReceiptsStore {
           continue;
         }
       }
+      if (this.sameLocallyUnconfirmedAppendClaimV1(claim)) {
+        await hooks?.beforeObservedLockCleanup?.(claim.path);
+        if (await this.removeObservedAppendLockRecordV1(authority, claim)) {
+          this.locallyUnconfirmedAppendClaimV1 = null;
+          continue;
+        }
+        blocked = true;
+        continue;
+      }
       const state = this.appendLockClaimStateV1(claim);
       if (state === "stale") {
         await hooks?.beforeObservedLockCleanup?.(claim.path);
@@ -446,11 +477,12 @@ export class ReceiptsStore {
 
   private async publishAppendLockClaimV1(
     authority: ReceiptDirectoryAuthorityV1,
+    hooks?: ReceiptAppendTestHooksV1,
   ): Promise<ReceiptAppendLockClaimV1> {
     const token = crypto.randomBytes(16).toString("hex");
     const name = this.appendLockClaimNameV1(token);
     const processInstance = receiptCurrentProcessInstanceV1();
-    await this.writeAppendLockRecordV1(authority, name, {
+    const value = {
       marker: RECEIPT_APPEND_LOCK_CLAIM_V1,
       version: 1,
       pid: process.pid,
@@ -458,8 +490,21 @@ export class ReceiptsStore {
       token,
       directory_dev: String(authority.dev),
       directory_ino: String(authority.ino),
+    } as const;
+    await this.writeAppendLockRecordV1(authority, name, value, async (stamp) => {
+      this.locallyUnconfirmedAppendClaimV1 = {
+        ...value,
+        path: path.join(authority.stablePath, name),
+        stamp,
+      };
+      await hooks?.afterLockClaimLinkedBeforeSync?.();
     });
-    return await this.readAppendLockClaimV1(authority, name);
+    const claim = await this.readAppendLockClaimV1(authority, name);
+    if (!this.sameLocallyUnconfirmedAppendClaimV1(claim)) {
+      throw new Error("VOID_RECEIPT_APPEND_LOCK_CLAIM_PUBLICATION_MISMATCH_V1");
+    }
+    this.locallyUnconfirmedAppendClaimV1 = null;
+    return claim;
   }
 
   private async acquireAppendLockV1(
@@ -472,7 +517,7 @@ export class ReceiptsStore {
       signal?.throwIfAborted();
       await this.assertDirectoryAuthorityV1(authority);
       if (!await this.appendLockBlockedV1(authority, "", hooks)) {
-        const own = await this.publishAppendLockClaimV1(authority);
+        const own = await this.publishAppendLockClaimV1(authority, hooks);
         await hooks?.afterLockClaimPublished?.();
         await this.assertDirectoryAuthorityV1(authority);
         if (!await this.appendLockBlockedV1(authority, own.path, hooks)) return own;
@@ -522,6 +567,19 @@ export class ReceiptsStore {
       local.directory_dev === claim.directory_dev &&
       local.directory_ino === claim.directory_ino &&
       receiptSameStampV1(local.stamp, claim.stamp);
+  }
+
+  private sameLocallyUnconfirmedAppendClaimV1(
+    claim: ReceiptAppendLockClaimV1,
+  ): boolean {
+    const local = this.locallyUnconfirmedAppendClaimV1;
+    return local !== null &&
+      local.pid === claim.pid &&
+      local.process_instance === claim.process_instance &&
+      local.token === claim.token &&
+      local.directory_dev === claim.directory_dev &&
+      local.directory_ino === claim.directory_ino &&
+      receiptSamePublishedGenerationV1(local.stamp, claim.stamp);
   }
 
   private async finishAppendLockReleaseV1(
