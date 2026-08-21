@@ -20,8 +20,55 @@ fail() {
   exit 2
 }
 
+canonical_funnel_root_ports_from_text() {
+  local dns="$1"
+  local text="$2"
+  printf '%s\n' "$text" | awk -v header="https://${dns} (Funnel on)" '
+    $0 == header {
+      in_target = 1
+      next
+    }
+    in_target && /^https:\/\// {
+      exit
+    }
+    in_target && /^\|-- \/ proxy http:\/\/(127\.0\.0\.1|localhost):[0-9]+\/?$/ {
+      line = $0
+      sub(/^.*:/, "", line)
+      sub(/\/$/, "", line)
+      print line
+    }
+  '
+}
+
+parser_self_test() {
+  local dns fixture got count
+  dns="zoso-alienware-aurora-r7.taila47fd.ts.net"
+  fixture="# Funnel on:
+#     - https://${dns}
+#     - https://${dns}:8443
+
+https://${dns} (Funnel on)
+|-- / proxy http://127.0.0.1:8082
+
+https://${dns}:8443 (Funnel on)
+|-- / proxy http://127.0.0.1:4188"
+  got="$(canonical_funnel_root_ports_from_text "$dns" "$fixture")"
+  count="$(printf '%s\n' "$got" | sed '/^$/d' | wc -l | tr -d ' ')"
+  [[ "$count" == "1" ]] || fail "parser self-test expected one canonical 443 target; found $count"
+  [[ "$got" == "8082" ]] || fail "parser self-test selected wrong target: ${got:-missing}"
+  echo "${MARKER}_PARSER_SELF_TEST_GREEN"
+  echo "canonical_443_port=8082"
+  echo "auxiliary_8443_ignored=true"
+}
+
+if [[ "$MODE" == "--parser-self-test" ]]; then
+  for cmd in awk sed wc tr; do command -v "$cmd" >/dev/null 2>&1 || fail "missing command: $cmd"; done
+  parser_self_test
+  exit 0
+fi
+
 need() { command -v "$1" >/dev/null 2>&1 || fail "missing command: $1"; }
-for cmd in node curl tailscale systemctl sed grep install date; do need "$cmd"; done
+for cmd in node curl tailscale systemctl sed grep install date awk wc tr; do need "$cmd"; done
 
 [[ -f "$SERVER_SRC" ]] || fail "missing server source: $SERVER_SRC"
 [[ -f "$HOME_SRC" ]] || fail "missing home source: $HOME_SRC"
@@ -36,15 +83,17 @@ tailscale_dns_name() {
 }
 
 current_simple_funnel_port() {
-  local text count port
+  local text dns ports_text count port
+  dns="$(tailscale_dns_name)" || fail "cannot resolve local Tailscale DNS name"
   text="$(tailscale funnel status 2>/dev/null)" || fail "cannot read Funnel status"
-  count="$(printf '%s\n' "$text" | grep -Ec '\|-- / proxy http://(127\.0\.0\.1|localhost):[0-9]+/?$' || true)"
+  ports_text="$(canonical_funnel_root_ports_from_text "$dns" "$text")"
+  count="$(printf '%s\n' "$ports_text" | sed '/^$/d' | wc -l | tr -d ' ')"
   [[ "$count" == "1" ]] || {
     printf '%s\n' "$text" >&2
-    fail "expected exactly one simple root Funnel proxy target; found $count"
+    fail "expected exactly one canonical 443 root Funnel proxy target for https://${dns}; found $count"
   }
-  port="$(printf '%s\n' "$text" | sed -nE 's#.*\|-- / proxy http://(127\.0\.0\.1|localhost):([0-9]+)/?$#\2#p')"
-  [[ "$port" =~ ^[0-9]+$ ]] || fail "could not parse current Funnel port"
+  port="$(printf '%s\n' "$ports_text" | sed -n '1p')"
+  [[ "$port" =~ ^[0-9]+$ ]] || fail "could not parse canonical 443 Funnel port"
   printf '%s' "$port"
 }
 
@@ -76,17 +125,20 @@ rollback() {
 
 apply() {
   local previous_port dns timestamp
+  parser_self_test >/dev/null
   previous_port="$(current_simple_funnel_port)"
   [[ "$previous_port" != "$FRONTDOOR_PORT" ]] || fail "Funnel already targets frontdoor port ${FRONTDOOR_PORT}"
   [[ "$previous_port" != "0" ]] || fail "invalid previous Funnel port"
 
   echo "previous_funnel_port=$previous_port"
   echo "frontdoor_port=$FRONTDOOR_PORT"
+  echo "canonical_funnel_listener=https://$(tailscale_dns_name)"
+  echo "auxiliary_funnel_listeners_preserved=true"
   echo "node_service_restart=false"
   echo "composition_gateway_restart=false"
 
   curl -fsS --max-time 5 "http://127.0.0.1:${previous_port}/" -o /dev/null \
-    || fail "current Funnel backend is not healthy on 127.0.0.1:${previous_port}"
+    || fail "current canonical Funnel backend is not healthy on 127.0.0.1:${previous_port}"
 
   mkdir -p "$INSTALL_DIR" "$STATE_DIR" "$UNIT_DIR"
   timestamp="$(date -u +%Y%m%dT%H%M%SZ)"
@@ -133,7 +185,7 @@ EOF
   curl -fsS --max-time 5 "http://127.0.0.1:${FRONTDOOR_PORT}/app/" -o /dev/null \
     || fail "frontdoor passthrough to /app/ failed before Funnel cutover"
 
-  echo "switching_funnel=http://127.0.0.1:${FRONTDOOR_PORT}"
+  echo "switching_canonical_443_funnel=http://127.0.0.1:${FRONTDOOR_PORT}"
   if ! tailscale funnel --https=443 --bg --yes "http://127.0.0.1:${FRONTDOOR_PORT}"; then
     rollback
     fail "Funnel cutover command failed; rollback attempted"
@@ -153,6 +205,7 @@ EOF
   echo "public_url=https://${dns}/"
   echo "previous_funnel_port=${previous_port}"
   echo "frontdoor_port=${FRONTDOOR_PORT}"
+  echo "auxiliary_funnel_listeners_preserved=true"
   echo "node_service_restart=false"
   echo "src_index_changed=false"
 }
@@ -160,12 +213,15 @@ EOF
 case "$MODE" in
   --status) status ;;
   --check)
+    parser_self_test >/dev/null
     current_simple_funnel_port >/dev/null
     curl -fsS --max-time 5 "http://127.0.0.1:$(current_simple_funnel_port)/" -o /dev/null \
-      || fail "current Funnel backend unavailable"
+      || fail "current canonical Funnel backend unavailable"
     echo "${MARKER}_CHECK_GREEN"
+    echo "canonical_443_only=true"
     ;;
   --apply) apply ;;
   --rollback) rollback ;;
-  *) fail "usage: $0 [--status|--check|--apply|--rollback]" ;;
+  --parser-self-test) parser_self_test ;;
+  *) fail "usage: $0 [--status|--check|--apply|--rollback|--parser-self-test]" ;;
 esac
