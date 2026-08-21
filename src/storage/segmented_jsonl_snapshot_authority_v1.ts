@@ -43,6 +43,11 @@ export type SegmentedJsonlCheckpointV1 = {
   checkpoint_sha256: string;
 };
 
+export type SegmentedJsonlCheckpointChainEntryV1 = {
+  checkpoint: SegmentedJsonlCheckpointV1;
+  snapshot: SegmentedJsonlSnapshotAuthorityV1;
+};
+
 function fail(code: string, detail: string): never {
   throw new Error(`${VOID_SEGMENTED_JSONL_SNAPSHOT_AUTHORITY_V1}:${code}:${detail}`);
 }
@@ -92,6 +97,47 @@ export function deriveSegmentedJsonlSnapshotAuthorityV1(
     ...core,
     snapshot_sha256: sha256(canonicalJson(core)),
   };
+}
+
+export function verifySegmentedJsonlSnapshotAuthorityObjectV1(
+  snapshotInput: SegmentedJsonlSnapshotAuthorityV1,
+): SegmentedJsonlSnapshotAuthorityV1 {
+  const snapshot = snapshotInput as SegmentedJsonlSnapshotAuthorityV1;
+  if (!snapshot || typeof snapshot !== "object") fail("INVALID_SNAPSHOT_AUTHORITY", "not-object");
+  requireExactKeys(snapshot, [
+    "v", "format", "manifest_sha256", "sealed_root_sha256", "active_sha256",
+    "generation", "total_bytes", "total_records", "snapshot_sha256",
+    "live_tree_terminal_authority",
+  ], "INVALID_SNAPSHOT_AUTHORITY_KEYS");
+  if (
+    snapshot.v !== 1 ||
+    snapshot.format !== VOID_SEGMENTED_JSONL_SNAPSHOT_AUTHORITY_V1 ||
+    snapshot.live_tree_terminal_authority !== false ||
+    !isHex64(snapshot.snapshot_sha256) ||
+    !isHex64(snapshot.manifest_sha256) ||
+    !isHex64(snapshot.sealed_root_sha256) ||
+    !isHex64(snapshot.active_sha256) ||
+    !Number.isSafeInteger(snapshot.generation) || snapshot.generation <= 0 ||
+    !Number.isSafeInteger(snapshot.total_bytes) || snapshot.total_bytes < 0 ||
+    !Number.isSafeInteger(snapshot.total_records) || snapshot.total_records < 0
+  ) {
+    fail("INVALID_SNAPSHOT_AUTHORITY", "shape");
+  }
+  const core = {
+    v: snapshot.v,
+    format: snapshot.format,
+    manifest_sha256: snapshot.manifest_sha256,
+    sealed_root_sha256: snapshot.sealed_root_sha256,
+    active_sha256: snapshot.active_sha256,
+    generation: snapshot.generation,
+    total_bytes: snapshot.total_bytes,
+    total_records: snapshot.total_records,
+    live_tree_terminal_authority: snapshot.live_tree_terminal_authority,
+  };
+  if (sha256(canonicalJson(core)) !== snapshot.snapshot_sha256) {
+    fail("SNAPSHOT_DIGEST_MISMATCH", snapshot.snapshot_sha256);
+  }
+  return snapshot;
 }
 
 export function verifySegmentedJsonlSnapshotAuthorityV1(
@@ -149,53 +195,24 @@ function serializeCheckpointCore(core: object): Buffer {
   return body;
 }
 
-export function deriveSegmentedJsonlCheckpointV1(
-  snapshot: SegmentedJsonlSnapshotAuthorityV1,
-  previous: SegmentedJsonlCheckpointV1 | null = null,
-): SegmentedJsonlCheckpointV1 {
-  requireExactKeys(snapshot, [
-    "v", "format", "manifest_sha256", "sealed_root_sha256", "active_sha256",
-    "generation", "total_bytes", "total_records", "snapshot_sha256",
-    "live_tree_terminal_authority",
-  ], "INVALID_SNAPSHOT_AUTHORITY_KEYS");
-  if (
-    snapshot.v !== 1 ||
-    snapshot.format !== VOID_SEGMENTED_JSONL_SNAPSHOT_AUTHORITY_V1 ||
-    snapshot.live_tree_terminal_authority !== false ||
-    !isHex64(snapshot.snapshot_sha256) ||
-    !isHex64(snapshot.manifest_sha256) ||
-    !isHex64(snapshot.sealed_root_sha256) ||
-    !isHex64(snapshot.active_sha256) ||
-    !Number.isSafeInteger(snapshot.generation) || snapshot.generation <= 0 ||
-    !Number.isSafeInteger(snapshot.total_bytes) || snapshot.total_bytes < 0 ||
-    !Number.isSafeInteger(snapshot.total_records) || snapshot.total_records < 0
-  ) {
-    fail("INVALID_SNAPSHOT_AUTHORITY", "shape");
-  }
-  const snapshotCoreValue = {
-    v: snapshot.v,
-    format: snapshot.format,
-    manifest_sha256: snapshot.manifest_sha256,
-    sealed_root_sha256: snapshot.sealed_root_sha256,
-    active_sha256: snapshot.active_sha256,
-    generation: snapshot.generation,
-    total_bytes: snapshot.total_bytes,
-    total_records: snapshot.total_records,
-    live_tree_terminal_authority: snapshot.live_tree_terminal_authority,
+function checkpointCoreFromValue(c: SegmentedJsonlCheckpointV1) {
+  return {
+    v: c.v,
+    format: c.format,
+    checkpoint_index: c.checkpoint_index,
+    previous_checkpoint_sha256: c.previous_checkpoint_sha256,
+    snapshot_sha256: c.snapshot_sha256,
+    manifest_sha256: c.manifest_sha256,
+    store_generation: c.store_generation,
+    store_total_bytes: c.store_total_bytes,
+    store_total_records: c.store_total_records,
+    cumulative_bytes: c.cumulative_bytes,
+    cumulative_records: c.cumulative_records,
   };
-  if (sha256(canonicalJson(snapshotCoreValue)) !== snapshot.snapshot_sha256) {
-    fail("SNAPSHOT_DIGEST_MISMATCH", snapshot.snapshot_sha256);
-  }
-  if (previous) verifySegmentedJsonlCheckpointV1(previous, null, false);
-  const core = checkpointCore(snapshot, previous);
-  const checkpoint_sha256 = sha256(serializeCheckpointCore(core));
-  return { ...core, checkpoint_sha256 };
 }
 
-export function verifySegmentedJsonlCheckpointV1(
+export function verifySegmentedJsonlCheckpointEncodingV1(
   checkpointInput: SegmentedJsonlCheckpointV1,
-  previous: SegmentedJsonlCheckpointV1 | null = null,
-  requirePreviousMatch = true,
 ): SegmentedJsonlCheckpointV1 {
   const c = checkpointInput as SegmentedJsonlCheckpointV1;
   if (!c || typeof c !== "object") fail("INVALID_CHECKPOINT", "not-object");
@@ -219,43 +236,96 @@ export function verifySegmentedJsonlCheckpointV1(
   }
   parseDecimal(c.cumulative_bytes, "cumulative_bytes");
   parseDecimal(c.cumulative_records, "cumulative_records");
-  const core = {
-    v: c.v,
-    format: c.format,
-    checkpoint_index: c.checkpoint_index,
-    previous_checkpoint_sha256: c.previous_checkpoint_sha256,
-    snapshot_sha256: c.snapshot_sha256,
-    manifest_sha256: c.manifest_sha256,
-    store_generation: c.store_generation,
-    store_total_bytes: c.store_total_bytes,
-    store_total_records: c.store_total_records,
-    cumulative_bytes: c.cumulative_bytes,
-    cumulative_records: c.cumulative_records,
-  };
-  if (sha256(serializeCheckpointCore(core)) !== c.checkpoint_sha256) {
+  if (sha256(serializeCheckpointCore(checkpointCoreFromValue(c))) !== c.checkpoint_sha256) {
     fail("CHECKPOINT_DIGEST_MISMATCH", c.checkpoint_sha256);
   }
-  if (requirePreviousMatch) {
-    if (previous === null) {
-      if (c.checkpoint_index !== 0 || c.previous_checkpoint_sha256 !== null) {
-        fail("CHECKPOINT_PREDECESSOR_MISMATCH", "expected-genesis");
-      }
-      if (c.cumulative_bytes !== String(c.store_total_bytes) || c.cumulative_records !== String(c.store_total_records)) {
-        fail("CHECKPOINT_CUMULATIVE_MISMATCH", "genesis");
-      }
-    } else {
-      verifySegmentedJsonlCheckpointV1(previous, null, false);
-      if (
-        c.checkpoint_index !== previous.checkpoint_index + 1 ||
-        c.previous_checkpoint_sha256 !== previous.checkpoint_sha256 ||
-        parseDecimal(c.cumulative_bytes, "cumulative_bytes") !==
-          parseDecimal(previous.cumulative_bytes, "previous_cumulative_bytes") + BigInt(c.store_total_bytes) ||
-        parseDecimal(c.cumulative_records, "cumulative_records") !==
-          parseDecimal(previous.cumulative_records, "previous_cumulative_records") + BigInt(c.store_total_records)
-      ) {
-        fail("CHECKPOINT_PREDECESSOR_MISMATCH", String(c.checkpoint_index));
-      }
+  return c;
+}
+
+function assertCheckpointSnapshotBindingV1(
+  checkpoint: SegmentedJsonlCheckpointV1,
+  snapshot: SegmentedJsonlSnapshotAuthorityV1,
+): void {
+  if (
+    checkpoint.snapshot_sha256 !== snapshot.snapshot_sha256 ||
+    checkpoint.manifest_sha256 !== snapshot.manifest_sha256 ||
+    checkpoint.store_generation !== snapshot.generation ||
+    checkpoint.store_total_bytes !== snapshot.total_bytes ||
+    checkpoint.store_total_records !== snapshot.total_records
+  ) {
+    fail("CHECKPOINT_SNAPSHOT_BINDING_MISMATCH", String(checkpoint.checkpoint_index));
+  }
+}
+
+function assertCheckpointProgressionV1(
+  snapshot: SegmentedJsonlSnapshotAuthorityV1,
+  previous: SegmentedJsonlCheckpointV1,
+): void {
+  if (snapshot.snapshot_sha256 === previous.snapshot_sha256) {
+    fail("CHECKPOINT_SNAPSHOT_REPLAY", snapshot.snapshot_sha256);
+  }
+  if (snapshot.manifest_sha256 === previous.manifest_sha256) {
+    fail("CHECKPOINT_MANIFEST_REPLAY", snapshot.manifest_sha256);
+  }
+  if (snapshot.generation !== previous.store_generation + 1) {
+    fail("CHECKPOINT_GENERATION_NOT_NEXT", `${previous.store_generation}:${snapshot.generation}`);
+  }
+}
+
+export function deriveSegmentedJsonlCheckpointV1(
+  snapshotInput: SegmentedJsonlSnapshotAuthorityV1,
+  previousInput: SegmentedJsonlCheckpointV1 | null = null,
+): SegmentedJsonlCheckpointV1 {
+  const snapshot = verifySegmentedJsonlSnapshotAuthorityObjectV1(snapshotInput);
+  const previous = previousInput ? verifySegmentedJsonlCheckpointEncodingV1(previousInput) : null;
+  if (previous) assertCheckpointProgressionV1(snapshot, previous);
+  const core = checkpointCore(snapshot, previous);
+  const checkpoint_sha256 = sha256(serializeCheckpointCore(core));
+  return { ...core, checkpoint_sha256 };
+}
+
+export function verifySegmentedJsonlCheckpointV1(
+  checkpointInput: SegmentedJsonlCheckpointV1,
+  snapshotInput: SegmentedJsonlSnapshotAuthorityV1,
+  previousInput: SegmentedJsonlCheckpointV1 | null = null,
+): SegmentedJsonlCheckpointV1 {
+  const c = verifySegmentedJsonlCheckpointEncodingV1(checkpointInput);
+  const snapshot = verifySegmentedJsonlSnapshotAuthorityObjectV1(snapshotInput);
+  const previous = previousInput ? verifySegmentedJsonlCheckpointEncodingV1(previousInput) : null;
+  assertCheckpointSnapshotBindingV1(c, snapshot);
+  if (previous === null) {
+    if (c.checkpoint_index !== 0 || c.previous_checkpoint_sha256 !== null) {
+      fail("CHECKPOINT_PREDECESSOR_MISMATCH", "expected-genesis");
+    }
+    if (c.cumulative_bytes !== String(c.store_total_bytes) || c.cumulative_records !== String(c.store_total_records)) {
+      fail("CHECKPOINT_CUMULATIVE_MISMATCH", "genesis");
+    }
+  } else {
+    assertCheckpointProgressionV1(snapshot, previous);
+    if (
+      c.checkpoint_index !== previous.checkpoint_index + 1 ||
+      c.previous_checkpoint_sha256 !== previous.checkpoint_sha256 ||
+      parseDecimal(c.cumulative_bytes, "cumulative_bytes") !==
+        parseDecimal(previous.cumulative_bytes, "previous_cumulative_bytes") + BigInt(c.store_total_bytes) ||
+      parseDecimal(c.cumulative_records, "cumulative_records") !==
+        parseDecimal(previous.cumulative_records, "previous_cumulative_records") + BigInt(c.store_total_records)
+    ) {
+      fail("CHECKPOINT_PREDECESSOR_MISMATCH", String(c.checkpoint_index));
     }
   }
   return c;
+}
+
+export function verifySegmentedJsonlCheckpointChainV1(
+  entries: readonly SegmentedJsonlCheckpointChainEntryV1[],
+): SegmentedJsonlCheckpointV1 {
+  if (!Array.isArray(entries) || entries.length === 0) fail("INVALID_CHECKPOINT_CHAIN", "empty");
+  let previous: SegmentedJsonlCheckpointV1 | null = null;
+  let current: SegmentedJsonlCheckpointV1 | null = null;
+  for (const [index, entry] of entries.entries()) {
+    if (!entry || typeof entry !== "object") fail("INVALID_CHECKPOINT_CHAIN", `entry=${index}`);
+    current = verifySegmentedJsonlCheckpointV1(entry.checkpoint, entry.snapshot, previous);
+    previous = current;
+  }
+  return current!;
 }
