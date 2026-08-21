@@ -92,7 +92,7 @@ function proveReconstructRejectsPostVerifyReplacement(
     (mutableFs as any).openSync = (...args: any[]) => {
       if (matchesOpenedTarget(args[0], targetPath)) {
         targetOpenCount += 1;
-        if (targetOpenCount === 2) {
+        if (targetOpenCount === 3) {
           fs.renameSync(replacementPath, targetPath);
           swapped = true;
         }
@@ -109,7 +109,7 @@ function proveReconstructRejectsPostVerifyReplacement(
     syncBuiltinESMExports();
   }
   assert.equal(swapped, true, `${label} replacement must occur between verify and copy`);
-  assert.equal(targetOpenCount >= 2, true, `${label} must be opened for verify and copy`);
+  assert.equal(targetOpenCount >= 3, true, `${label} must be opened for scan, terminal revalidation, and copy`);
 }
 
 function proveWritableReplacementRejected(
@@ -496,7 +496,7 @@ try {
   fs.cpSync(store, reconstructWritableStore, { recursive: true });
   proveWritableReplacementRejected(
     path.join(reconstructWritableStore, manifest.sealed_segments[0].file),
-    2,
+    3,
     () => reconstructSegmentedJsonlV1ToFile(
       reconstructWritableStore,
       path.join(tmp, "reconstruct-writable-replacement-output.jsonl"),
@@ -574,7 +574,7 @@ try {
   const reconstructGrowthBytes = fs.statSync(reconstructGrowthActive).size;
   proveGrowthReadIsBounded(
     reconstructGrowthActive,
-    2,
+    3,
     () => reconstructSegmentedJsonlV1ToFile(
       reconstructGrowthStore,
       path.join(tmp, "reconstruct-growth-output.jsonl"),
