@@ -12,6 +12,7 @@ export const VOID_SEGMENTED_JSONL_DEFAULT_MAX_RECORD_BYTES_V1 = 1024 * 1024;
 export const VOID_SEGMENTED_JSONL_MAX_TARGET_BYTES_V1 = 8 * 1024 * 1024;
 export const VOID_SEGMENTED_JSONL_MAX_RECORD_BYTES_V1 = 1024 * 1024;
 export const VOID_SEGMENTED_JSONL_MAX_MANIFEST_BYTES_V1 = 8 * 1024 * 1024;
+export const VOID_SEGMENTED_JSONL_MAX_SEALED_SEGMENTS_V1 = 31_190;
 
 const MANIFEST = "manifest.v1.json";
 const ACTIVE = "active.jsonl";
@@ -385,6 +386,9 @@ function parseManifest(value: unknown): SegmentedJsonlManifestV1 {
     m.max_record_bytes + 1 > m.segment_target_bytes
   ) fail("INVALID_MANIFEST_RANGE", "limits");
   if (!isHex64(m.sealed_root_sha256) || !Array.isArray(m.sealed_segments)) fail("INVALID_MANIFEST_SEALED", "shape");
+  if (m.sealed_segments.length > VOID_SEGMENTED_JSONL_MAX_SEALED_SEGMENTS_V1) {
+    fail("MANIFEST_SEGMENT_COUNT_EXCEEDS_BOUND", `${m.sealed_segments.length}:${VOID_SEGMENTED_JSONL_MAX_SEALED_SEGMENTS_V1}`);
+  }
   const segments: SegmentedJsonlSegmentV1[] = m.sealed_segments.map((s: any, i: number) => {
     if (!s || typeof s !== "object" || Array.isArray(s) || s.id !== i || s.file !== segmentRel(i)) fail("INVALID_SEGMENT", `index=${i}`);
     requireExactKeys(s, ["id","file","bytes","records","first_record_index","last_record_index","sha256"], "INVALID_SEGMENT_KEYS", `index=${i}`);
@@ -416,13 +420,22 @@ function parseManifest(value: unknown): SegmentedJsonlManifestV1 {
   return manifest;
 }
 
-export function serializeSegmentedJsonlManifestV1(manifestInput: unknown): Buffer {
-  const manifest = parseManifest(manifestInput);
+function serializeParsedSegmentedJsonlManifestV1(manifest: SegmentedJsonlManifestV1): Buffer {
   const body = Buffer.from(`${JSON.stringify(manifest, null, 2)}\n`, "utf8");
   if (body.length > VOID_SEGMENTED_JSONL_MAX_MANIFEST_BYTES_V1) {
     fail("MANIFEST_TOO_LARGE", `serialized=${body.length}:max=${VOID_SEGMENTED_JSONL_MAX_MANIFEST_BYTES_V1}`);
   }
   return body;
+}
+
+function admitDirectManifestV1(manifestInput: unknown): SegmentedJsonlManifestV1 {
+  const manifest = parseManifest(manifestInput);
+  serializeParsedSegmentedJsonlManifestV1(manifest);
+  return manifest;
+}
+
+export function serializeSegmentedJsonlManifestV1(manifestInput: unknown): Buffer {
+  return serializeParsedSegmentedJsonlManifestV1(parseManifest(manifestInput));
 }
 
 function atomicManifest(
@@ -594,7 +607,11 @@ export function reconstructSegmentedJsonlV1ToFile(rootInput:string,outputInput:s
 }
 
 export function planSegmentReplicationV1(remoteInput:unknown,localInventory:readonly SegmentInventoryV1[]):SegmentReplicationPlanV1 {
-  const remote=parseManifest(remoteInput), local=new Map<number,SegmentInventoryV1>();
+  if (!Array.isArray(localInventory)) fail("INVALID_LOCAL_INVENTORY", "not-array");
+  if (localInventory.length > VOID_SEGMENTED_JSONL_MAX_SEALED_SEGMENTS_V1) {
+    fail("LOCAL_INVENTORY_TOO_LARGE", `${localInventory.length}:${VOID_SEGMENTED_JSONL_MAX_SEALED_SEGMENTS_V1}`);
+  }
+  const remote=admitDirectManifestV1(remoteInput), local=new Map<number,SegmentInventoryV1>();
   for(const x of localInventory){if(!Number.isSafeInteger(x.id)||x.id<0||!Number.isSafeInteger(x.bytes)||x.bytes<0||!Number.isSafeInteger(x.records)||x.records<0||!isHex64(x.sha256))fail("INVALID_LOCAL_INVENTORY",JSON.stringify(x));if(local.has(x.id))fail("DUPLICATE_LOCAL_SEGMENT",String(x.id));local.set(x.id,x);}
   const missing:SegmentedJsonlSegmentV1[]=[],matching:SegmentedJsonlSegmentV1[]=[],conflicting:SegmentReplicationPlanV1["conflicting"]=[];
   for(const s of remote.sealed_segments){const l=local.get(s.id);if(!l)missing.push(s);else if(l.bytes===s.bytes&&l.records===s.records&&l.sha256===s.sha256)matching.push(s);else conflicting.push({remote:s,local:l});}
@@ -602,5 +619,5 @@ export function planSegmentReplicationV1(remoteInput:unknown,localInventory:read
 }
 
 export function sealedSegmentInventoryV1(manifestInput:unknown):SegmentInventoryV1[]{
-  return parseManifest(manifestInput).sealed_segments.map(s=>({id:s.id,bytes:s.bytes,records:s.records,sha256:s.sha256}));
+  return admitDirectManifestV1(manifestInput).sealed_segments.map(s=>({id:s.id,bytes:s.bytes,records:s.records,sha256:s.sha256}));
 }
