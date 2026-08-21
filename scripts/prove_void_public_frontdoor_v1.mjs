@@ -15,11 +15,34 @@ const source = readFileSync(serverPath, "utf8");
 const cutover = readFileSync(cutoverPath, "utf8");
 
 assert.match(html, /VOID_PUBLIC_FRONTDOOR_V1/);
+assert.match(html, /<title>VOID \/ Public Node<\/title>/);
+assert.match(html, /<strong>VOID<\/strong><span>Public Node<\/span>/);
 assert.match(html, /A decentralized data network for AI agents/);
 assert.match(html, /href="\/app\/"[^>]*>Enter VOID</);
 assert.match(html, /href="\/participant"[^>]*>Participate</);
+assert.equal((html.match(/class="button(?: primary)?"/g) || []).length, 2);
 assert.equal((html.match(/class="card"/g) || []).length, 3);
-for (const old of ["VOID Network is live", "Fund VOID", "Inspect Public Proof", "EXACT-GREEN HINT", "TXROOT LIVE"]) {
+for (const token of [
+  "--bg:#050506",
+  "--surface:#0b0b0e",
+  "--line:#2a2a31",
+  "--text:#f2f2f4",
+  "--secondary:#c8c8cf",
+  "--muted:#9898a3",
+  "background-size:32px 32px",
+]) {
+  assert.ok(html.includes(token), `unified VOID visual token missing: ${token}`);
+}
+assert.match(html, /a:focus-visible\{outline:2px solid var\(--text\);outline-offset:4px\}/);
+assert.doesNotMatch(html, /border-radius\s*:|box-shadow\s*:/i);
+for (const old of [
+  "VOID Network is live",
+  "Fund VOID",
+  "Inspect Public Proof",
+  "EXACT-GREEN HINT",
+  "TXROOT LIVE",
+  "Operator controls are not exposed",
+]) {
   assert.ok(!html.includes(old), `legacy root clutter must be absent: ${old}`);
 }
 assert.doesNotMatch(html, /<script\b/i);
@@ -138,6 +161,10 @@ try {
 }
 
 console.log("VOID_PUBLIC_FRONTDOOR_V1_PROOF_GREEN");
+console.log("unified_visual_contract=true");
+console.log("hero_primary_exits=2");
+console.log("capability_paths=3");
+console.log("legacy_root_clutter=false");
 console.log("root_static_get_head_only=true");
 console.log("non_root_proxy_behavior_executed=true");
 console.log("post_passthrough_executed=true");
