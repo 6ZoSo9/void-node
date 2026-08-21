@@ -486,7 +486,12 @@ function writeDurableNew(
     if (observed.mode !== mode) fail("WRITE_MODE_MISMATCH", `${file}:${observed.mode.toString(8)}:${mode.toString(8)}`);
     const pathGen = pathGeneration(stableFile);
     if (!pathGen || !sameGeneration(fdGen, pathGen)) fail("WRITE_PATH_GENERATION_MISMATCH", file);
+    const parentEpochBeforeFsync = generationFromStat(fs.fstatSync(authority.fd, { bigint: true } as any));
     fs.fsyncSync(authority.fd);
+    const parentEpochAfterFsync = generationFromStat(fs.fstatSync(authority.fd, { bigint: true } as any));
+    if (!sameGeneration(parentEpochBeforeFsync, parentEpochAfterFsync)) {
+      fail("WRITE_PARENT_DIRECTORY_EPOCH_CHANGED", file);
+    }
     assertPrivateDirectoryWriteAuthorityV1(authority);
     const committedObservation = fdObservation(fd);
     const committedPathGeneration = pathGeneration(stableFile);
