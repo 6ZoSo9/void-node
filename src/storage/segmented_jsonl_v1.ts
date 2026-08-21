@@ -134,18 +134,92 @@ function ensureDir(dir: string): void {
   if (!st.isDirectory() || st.isSymbolicLink()) fail("NON_DIRECTORY", dir);
 }
 
+function directoryOpenFlagsV1(): number {
+  return fs.constants.O_RDONLY | ((fs.constants as any).O_DIRECTORY || 0) | ((fs.constants as any).O_NOFOLLOW || 0);
+}
+
 function openDirectoryAuthorityV1(dir: string): DirectoryAuthorityV1 {
   const publicPath = path.resolve(dir);
-  const flags = fs.constants.O_RDONLY | ((fs.constants as any).O_DIRECTORY || 0);
-  const fd = fs.openSync(publicPath, flags | ((fs.constants as any).O_NOFOLLOW || 0));
+  const parsed = path.parse(publicPath);
+  let fd = fs.openSync(parsed.root, directoryOpenFlagsV1());
+  let visiblePath = parsed.root;
   try {
+    const components = publicPath.slice(parsed.root.length).split(path.sep).filter(Boolean);
+    for (const component of components) {
+      const stableChild = path.join(`/proc/self/fd/${fd}`, component);
+      let nextFd = -1;
+      try {
+        nextFd = fs.openSync(stableChild, directoryOpenFlagsV1());
+      } catch (error: any) {
+        fail("DIRECTORY_COMPONENT_OPEN_FAILED", `${path.join(visiblePath, component)}:${String(error?.code || error)}`);
+      }
+      try {
+        const opened = fs.fstatSync(nextFd, { bigint: true } as any);
+        const stable = fs.lstatSync(stableChild, { bigint: true } as any);
+        visiblePath = path.join(visiblePath, component);
+        const visible = fs.lstatSync(visiblePath, { bigint: true } as any);
+        if (
+          !opened.isDirectory() ||
+          !stable.isDirectory() ||
+          stable.isSymbolicLink() ||
+          !visible.isDirectory() ||
+          visible.isSymbolicLink() ||
+          opened.dev !== stable.dev ||
+          opened.ino !== stable.ino ||
+          opened.dev !== visible.dev ||
+          opened.ino !== visible.ino
+        ) {
+          fail("DIRECTORY_ANCESTRY_AUTHORITY_MISMATCH", visiblePath);
+        }
+      } catch (error) {
+        fs.closeSync(nextFd);
+        throw error;
+      }
+      fs.closeSync(fd);
+      fd = nextFd;
+    }
     const opened = fs.fstatSync(fd, { bigint: true } as any);
     const current = fs.lstatSync(publicPath, { bigint: true } as any);
     if (!opened.isDirectory() || !current.isDirectory() || current.isSymbolicLink() || opened.dev !== current.dev || opened.ino !== current.ino) {
       fail("DIRECTORY_AUTHORITY_MISMATCH", publicPath);
     }
     return { fd, publicPath, stablePath: `/proc/self/fd/${fd}`, dev: String(opened.dev), ino: String(opened.ino) };
-  } catch (error) { fs.closeSync(fd); throw error; }
+  } catch (error) {
+    fs.closeSync(fd);
+    throw error;
+  }
+}
+
+function openDirectoryChildAuthorityV1(parent: DirectoryAuthorityV1, name: string, publicPath: string): DirectoryAuthorityV1 {
+  if (!name || name === "." || name === ".." || path.basename(name) !== name) fail("INVALID_DIRECTORY_CHILD", name);
+  assertDirectoryAuthorityV1(parent);
+  const stablePath = path.join(parent.stablePath, name);
+  let fd = -1;
+  try {
+    try { fd = fs.openSync(stablePath, directoryOpenFlagsV1()); }
+    catch (error: any) { fail("DIRECTORY_CHILD_OPEN_FAILED", `${publicPath}:${String(error?.code || error)}`); }
+    const opened = fs.fstatSync(fd, { bigint: true } as any);
+    const stable = fs.lstatSync(stablePath, { bigint: true } as any);
+    const visible = fs.lstatSync(publicPath, { bigint: true } as any);
+    if (
+      !opened.isDirectory() ||
+      !stable.isDirectory() ||
+      stable.isSymbolicLink() ||
+      !visible.isDirectory() ||
+      visible.isSymbolicLink() ||
+      opened.dev !== stable.dev ||
+      opened.ino !== stable.ino ||
+      opened.dev !== visible.dev ||
+      opened.ino !== visible.ino
+    ) {
+      fail("DIRECTORY_CHILD_AUTHORITY_MISMATCH", publicPath);
+    }
+    assertDirectoryAuthorityV1(parent);
+    return { fd, publicPath: path.resolve(publicPath), stablePath: `/proc/self/fd/${fd}`, dev: String(opened.dev), ino: String(opened.ino) };
+  } catch (error) {
+    if (fd >= 0) fs.closeSync(fd);
+    throw error;
+  }
 }
 
 function assertDirectoryAuthorityV1(authority: DirectoryAuthorityV1): void {
@@ -180,7 +254,7 @@ function createDirectoryChildV1(parent: DirectoryAuthorityV1, name: string, publ
   fs.mkdirSync(path.join(parent.stablePath, name), { mode: 0o700 });
   fs.fsyncSync(parent.fd);
   assertDirectoryAuthorityV1(parent);
-  const child = openDirectoryAuthorityV1(publicPath);
+  const child = openDirectoryChildAuthorityV1(parent, name, publicPath);
   const stableChild = fs.lstatSync(path.join(parent.stablePath, name), { bigint: true } as any);
   const openedChild = fs.fstatSync(child.fd, { bigint: true } as any);
   if (stableChild.dev !== openedChild.dev || stableChild.ino !== openedChild.ino) {
@@ -491,30 +565,58 @@ function scanFile(file: string, expectedBytes: number, expectedRecords: number, 
   } finally { fs.closeSync(fd); }
 }
 
-export function readSegmentedJsonlManifestV1(rootInput: string): SegmentedJsonlManifestV1 {
-  const root = rootPath(rootInput), file = inside(root,path.join(root,MANIFEST));
+function readSegmentedJsonlManifestFromAuthorityV1(root: DirectoryAuthorityV1): SegmentedJsonlManifestV1 {
+  assertDirectoryAuthorityV1(root);
+  const file = path.join(root.stablePath, MANIFEST);
   const body = readExactGenerationBufferV1(file, VOID_SEGMENTED_JSONL_MAX_MANIFEST_BYTES_V1, "MANIFEST_TOO_LARGE", "MANIFEST_SHORT_READ", "MANIFEST_GREW_DURING_READ", 1);
+  assertDirectoryAuthorityV1(root);
   let decoded: string;
   try { decoded = FATAL_UTF8_DECODER.decode(body); }
-  catch { fail("INVALID_MANIFEST_UTF8", file); }
+  catch { fail("INVALID_MANIFEST_UTF8", root.publicPath); }
   try { return parseManifest(JSON.parse(decoded)); }
-  catch (err) { if (err instanceof Error && err.message.startsWith(VOID_SEGMENTED_JSONL_V1)) throw err; fail("INVALID_MANIFEST_JSON", file); }
+  catch (err) { if (err instanceof Error && err.message.startsWith(VOID_SEGMENTED_JSONL_V1)) throw err; fail("INVALID_MANIFEST_JSON", root.publicPath); }
 }
 
-export function verifySegmentedJsonlV1(rootInput: string, options: {validateJson?:boolean} = {}) {
-  const root = rootPath(rootInput), m = readSegmentedJsonlManifestV1(root), validateJson = options.validateJson !== false;
+export function readSegmentedJsonlManifestV1(rootInput: string): SegmentedJsonlManifestV1 {
+  const rootPathValue = rootPath(rootInput), root = openDirectoryAuthorityV1(rootPathValue);
+  try { return readSegmentedJsonlManifestFromAuthorityV1(root); }
+  finally { fs.closeSync(root.fd); }
+}
+
+function verifySegmentedJsonlWithAuthoritiesV1(
+  root: DirectoryAuthorityV1,
+  segments: DirectoryAuthorityV1,
+  options: {validateJson?:boolean} = {},
+) {
+  assertDirectoryAuthorityV1(root);
+  assertDirectoryAuthorityV1(segments);
+  const m = readSegmentedJsonlManifestFromAuthorityV1(root), validateJson = options.validateJson !== false;
   let bytes=0, records=0;
   for (const s of m.sealed_segments) {
-    const file = segmentPath(root,s.id);
+    const file = path.join(segments.stablePath, segmentName(s.id));
     const got = scanFile(file,s.bytes,s.records,m.max_record_bytes,validateJson,0o400);
     if (got.sha256 !== s.sha256) fail("SEGMENT_HASH_MISMATCH", `id=${s.id}:expected=${s.sha256}:actual=${got.sha256}`);
     bytes += got.bytes; records += got.records;
   }
-  const a = scanFile(inside(root,path.join(root,ACTIVE)),m.active.bytes,m.active.records,m.max_record_bytes,validateJson,0o600);
+  const a = scanFile(path.join(root.stablePath,ACTIVE),m.active.bytes,m.active.records,m.max_record_bytes,validateJson,0o600);
   if (a.sha256 !== m.active.sha256) fail("ACTIVE_HASH_MISMATCH", `expected=${m.active.sha256}:actual=${a.sha256}`);
   bytes += a.bytes; records += a.records;
   if (bytes !== m.total_bytes || records !== m.total_records) fail("VERIFY_TOTAL_MISMATCH", `${bytes}:${records}`);
+  assertDirectoryAuthorityV1(segments);
+  assertDirectoryAuthorityV1(root);
   return { manifest:m, sealed_segments_verified:m.sealed_segments.length, total_bytes_verified:bytes, total_records_verified:records };
+}
+
+export function verifySegmentedJsonlV1(rootInput: string, options: {validateJson?:boolean} = {}) {
+  const rootPathValue = rootPath(rootInput), root = openDirectoryAuthorityV1(rootPathValue);
+  let segments: DirectoryAuthorityV1 | null = null;
+  try {
+    segments = openDirectoryChildAuthorityV1(root, SEGMENTS, path.join(rootPathValue, SEGMENTS));
+    return verifySegmentedJsonlWithAuthoritiesV1(root, segments, options);
+  } finally {
+    if (segments) fs.closeSync(segments.fd);
+    fs.closeSync(root.fd);
+  }
 }
 
 function writeSealed(root:string,id:number,parts:Buffer[],first:number,records:number,authority?:DirectoryAuthorityV1): SegmentedJsonlSegmentV1 {
@@ -532,11 +634,15 @@ export function buildSegmentedJsonlV1FromFile(sourceInput:string,destinationInpu
   const sealedLimit=exactSafeInteger(options.maxSealedSegments,VOID_SEGMENTED_JSONL_MAX_SEALED_SEGMENTS_V1,0,VOID_SEGMENTED_JSONL_MAX_SEALED_SEGMENTS_V1,"INVALID_MAX_SEALED_SEGMENTS");
   const generation=exactSafeInteger(options.generation,1,1,Number.MAX_SAFE_INTEGER,"INVALID_GENERATION"), validateJson=options.validateJson !== false;
   if(max + 1 > target) fail("INVALID_MAX_RECORD",String(max));
-  if (fs.existsSync(root)) { const st=fs.lstatSync(root); if(!st.isDirectory()||st.isSymbolicLink()) fail("DESTINATION_NOT_DIRECTORY",root); if(fs.readdirSync(root).length) fail("DESTINATION_NOT_EMPTY",root); }
-  else { createDirectoryNewV1(root); }
+  if (fs.existsSync(root)) {
+    const st=fs.lstatSync(root);
+    if(!st.isDirectory()||st.isSymbolicLink()) fail("DESTINATION_NOT_DIRECTORY",root);
+  } else { createDirectoryNewV1(root); }
   const rootAuthority = openDirectoryAuthorityV1(root);
   let segmentAuthority: DirectoryAuthorityV1 | null = null;
   try {
+  if(fs.readdirSync(rootAuthority.stablePath).length) fail("DESTINATION_NOT_EMPTY",root);
+  assertDirectoryAuthorityV1(rootAuthority);
   segmentAuthority = createDirectoryChildV1(rootAuthority, SEGMENTS, path.join(root,SEGMENTS));
   const flags=fs.constants.O_RDONLY|((fs.constants as any).O_NOFOLLOW||0), fd=fs.openSync(source,flags);
   const before=fdGeneration(fd), p0=pathGeneration(source); if(!p0||!sameGeneration(before,p0)){fs.closeSync(fd);fail("SOURCE_GENERATION_UNSTABLE_BEFORE_BUILD",source);}
@@ -601,16 +707,39 @@ function appendVerifiedGenerationToOutputV1(
 }
 
 export function reconstructSegmentedJsonlV1ToFile(rootInput:string,outputInput:string) {
-  const root=rootPath(rootInput), verified=verifySegmentedJsonlV1(root), out=path.resolve(String(outputInput||""));
-  if(fs.existsSync(out)) fail("OUTPUT_EXISTS",out); ensureDir(path.dirname(out));
-  const fd=fs.openSync(out,fs.constants.O_WRONLY|fs.constants.O_CREAT|fs.constants.O_EXCL|((fs.constants as any).O_NOFOLLOW||0),0o600), hash=crypto.createHash("sha256"); let bytes=0;
-  try{
-    for(const s of verified.manifest.sealed_segments) bytes+=appendVerifiedGenerationToOutputV1(segmentPath(root,s.id),s.bytes,s.sha256,fd,hash,out,0o400);
-    bytes+=appendVerifiedGenerationToOutputV1(inside(root,path.join(root,ACTIVE)),verified.manifest.active.bytes,verified.manifest.active.sha256,fd,hash,out,0o600);
-    fs.fsyncSync(fd);
-  }finally{fs.closeSync(fd);} fsyncDir(path.dirname(out));
-  if(bytes!==verified.manifest.total_bytes) fail("RECONSTRUCT_SIZE_MISMATCH",`${bytes}:${verified.manifest.total_bytes}`);
-  return {bytes,records:verified.manifest.total_records,sha256:hash.digest("hex")};
+  const rootPathValue=rootPath(rootInput), out=path.resolve(String(outputInput||""));
+  if (!out || out === path.parse(out).root) fail("INVALID_OUTPUT", out || "empty");
+  const root=openDirectoryAuthorityV1(rootPathValue);
+  let segments:DirectoryAuthorityV1|null=null, outputParent:DirectoryAuthorityV1|null=null, fd=-1;
+  try {
+    segments=openDirectoryChildAuthorityV1(root,SEGMENTS,path.join(rootPathValue,SEGMENTS));
+    const verified=verifySegmentedJsonlWithAuthoritiesV1(root,segments);
+    outputParent=openDirectoryAuthorityV1(path.dirname(out));
+    const stableOut=path.join(outputParent.stablePath,path.basename(out));
+    try {
+      fd=fs.openSync(stableOut,fs.constants.O_WRONLY|fs.constants.O_CREAT|fs.constants.O_EXCL|((fs.constants as any).O_NOFOLLOW||0),0o600);
+    } catch (error:any) {
+      if(error?.code==="EEXIST") fail("OUTPUT_EXISTS",out);
+      throw error;
+    }
+    const hash=crypto.createHash("sha256"); let bytes=0;
+    try{
+      for(const s of verified.manifest.sealed_segments) bytes+=appendVerifiedGenerationToOutputV1(path.join(segments.stablePath,segmentName(s.id)),s.bytes,s.sha256,fd,hash,out,0o400);
+      bytes+=appendVerifiedGenerationToOutputV1(path.join(root.stablePath,ACTIVE),verified.manifest.active.bytes,verified.manifest.active.sha256,fd,hash,out,0o600);
+      fs.fsyncSync(fd);
+      fs.fsyncSync(outputParent.fd);
+      assertDirectoryAuthorityV1(outputParent);
+      assertDirectoryAuthorityV1(segments);
+      assertDirectoryAuthorityV1(root);
+    }finally{fs.closeSync(fd);fd=-1;}
+    if(bytes!==verified.manifest.total_bytes) fail("RECONSTRUCT_SIZE_MISMATCH",`${bytes}:${verified.manifest.total_bytes}`);
+    return {bytes,records:verified.manifest.total_records,sha256:hash.digest("hex")};
+  } finally {
+    if(fd>=0)fs.closeSync(fd);
+    if(outputParent)fs.closeSync(outputParent.fd);
+    if(segments)fs.closeSync(segments.fd);
+    fs.closeSync(root.fd);
+  }
 }
 
 export function planSegmentReplicationV1(remoteInput:unknown,localInventory:readonly SegmentInventoryV1[]):SegmentReplicationPlanV1 {
