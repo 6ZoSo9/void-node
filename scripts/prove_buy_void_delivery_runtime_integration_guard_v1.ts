@@ -67,8 +67,13 @@ assert.equal(
       /from "\.\/buy_void_delivery_runtime_integration_v1\.js";/g,
     ) || []
   ).length,
-  0,
-  "canonical parent must not mount the held ERC20 delivery runtime",
+  1,
+  "canonical parent must mount the disabled ERC20 delivery runtime exactly once",
+);
+assert.equal(
+  wrapper.includes("buyVoidDeliveryRuntimeStatusV1()"),
+  true,
+  "canonical parent must project the real delivery-runtime status",
 );
 
 for (const forbiddenIndexImport of [
@@ -247,8 +252,8 @@ for (const marker of [
 for (const marker of [
   'asset_mode: "void_token_erc20"',
   "delivery_runtime_source_retained: true",
-  "delivery_runtime_parent_mounted: false",
-  "canonical_delivery_runtime_parent_mounted: false",
+  "delivery_runtime_parent_mounted: true",
+  "canonical_delivery_runtime_parent_mounted: true",
   "canonical_erc20_delivery_execution_ready: false",
   "canonical_erc20_delivery_execution_held: true",
   "presale_inventory_funding_ready: false",
@@ -264,7 +269,7 @@ console.log(
   "VOID_BUY_VOID_DELIVERY_RUNTIME_INTEGRATION_GUARD_V1_GREEN",
 );
 console.log("canonical_parent_delivery=void_token_erc20");
-console.log("canonical_erc20_delivery_parent_mount=0");
+console.log("canonical_erc20_delivery_parent_mount=1");
 console.log("server_derived_transaction_plan=1");
 console.log("caller_supplied_transaction_plan=0");
 console.log("canonical_planner_policy_validator_reused=1");

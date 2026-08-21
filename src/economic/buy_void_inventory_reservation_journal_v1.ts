@@ -9,12 +9,18 @@ import {
 export const VOID_BUY_VOID_INVENTORY_RESERVATION_JOURNAL_V1 =
   "VOID_BUY_VOID_INVENTORY_RESERVATION_JOURNAL_V1";
 
+export const VOID_BUY_VOID_PAID_UNRESERVABLE_OBLIGATION_V1 =
+  "VOID_BUY_VOID_PAID_UNRESERVABLE_OBLIGATION_V1";
+
 export const VOID_BUY_VOID_INVENTORY_RESERVATION_AUTHORITY_V1 = {
   filesystem_read: true,
   filesystem_write: true,
   aggregate_inventory_reservation: true,
   duplicate_safe_reservation: true,
   global_pool_lock: true,
+  paid_unreservable_terminal_obligation: true,
+  obligation_automatic_retry: false,
+  obligation_refund_execution_authorized: false,
   inventory_decrement: false,
   reservation_release: false,
   sold_out_closeout: false,
@@ -28,6 +34,7 @@ export const VOID_BUY_VOID_INVENTORY_RESERVATION_AUTHORITY_V1 = {
 } as const;
 
 const SHA256 = /^[0-9a-f]{64}$/;
+const TX_HASH = /^0x[0-9a-f]{64}$/;
 const SAFE_CODE = /^[A-Za-z0-9._:-]{1,160}$/;
 const ADDRESS = /^0x[0-9a-f]{40}$/;
 
@@ -87,6 +94,44 @@ export type BuyVoidInventoryReservationV1 = {
   signing_authorized_by_this_module: false;
   transaction_broadcast_authorized_by_this_module: false;
   money_movement_authorized_by_this_module: false;
+};
+
+export type BuyVoidPaidUnreservableObligationV1 = {
+  schema: "void_buy_void_paid_unreservable_obligation_v1";
+  marker: typeof VOID_BUY_VOID_PAID_UNRESERVABLE_OBLIGATION_V1;
+  obligation_id: string;
+  recorded_at_ms: number;
+  terminal_state: "operator_reconciliation_required";
+  reservation_failure_reason:
+    | "inventory_sold_out"
+    | "insufficient_void_inventory";
+  pool_id: string;
+  inventory_policy_version: string;
+  pool_capacity_void_units: string;
+  inventory_policy_fingerprint_sha256: string;
+  available_void_units: string;
+  requested_void_units: string;
+  source_chain: string;
+  payment_transaction_hash: string;
+  payment_log_index: string;
+  confirmed_block_number: string;
+  confirmation_count_at_claim: string;
+  payment_usdc_units: string;
+  payment_key_sha256: string;
+  request_key_sha256: string;
+  canonical_payment_identity: string;
+  request_id: string;
+  instruction_id: string;
+  delivery_address: string;
+  customer_payment_confirmed: true;
+  reservation_created: false;
+  automatic_retry: false;
+  refund_execution_authorized: false;
+  alternate_fulfillment_execution_authorized: false;
+  wallet_access_authorized: false;
+  signing_authorized: false;
+  transaction_broadcast_authorized: false;
+  money_movement_authorized: false;
 };
 
 export type BuyVoidInventoryReservationDecisionV1 =
@@ -483,6 +528,184 @@ function reservationFile(
   );
 }
 
+function obligationIdFor(
+  policy: NormalizedPolicyV1,
+  intent: BuyVoidFulfillmentJournalIntentV1,
+): string {
+  return sha256Hex(
+    [
+      "void-buy-paid-unreservable-obligation-v1",
+      policy.pool_key_sha256,
+      intent.payment_key_sha256,
+      intent.request_key_sha256,
+      intent.claim.instruction_id,
+    ].join("\n"),
+  );
+}
+
+function obligationFile(
+  paths: BuyVoidInventoryReservationJournalPathsV1,
+  obligationId: string,
+): string {
+  if (!SHA256.test(obligationId)) {
+    throw new Error("invalid_paid_unreservable_obligation_id");
+  }
+  return path.join(paths.holds_dir, `${obligationId}.json`);
+}
+
+function parsePaidUnreservableObligation(
+  raw: Record<string, unknown>,
+): BuyVoidPaidUnreservableObligationV1 {
+  const poolId = String(raw.pool_id || "");
+  const paymentKey = String(raw.payment_key_sha256 || "");
+  const requestKey = String(raw.request_key_sha256 || "");
+  const instructionId = String(raw.instruction_id || "");
+  const expectedPoolKey = SAFE_CODE.test(poolId)
+    ? sha256Hex(`void-buy-inventory-pool-v1\n${poolId}`)
+    : "";
+  const expectedObligationId =
+    expectedPoolKey &&
+    SHA256.test(paymentKey) &&
+    SHA256.test(requestKey) &&
+    SAFE_CODE.test(instructionId)
+      ? sha256Hex(
+          [
+            "void-buy-paid-unreservable-obligation-v1",
+            expectedPoolKey,
+            paymentKey,
+            requestKey,
+            instructionId,
+          ].join("\n"),
+        )
+      : "";
+  if (
+    raw.schema !== "void_buy_void_paid_unreservable_obligation_v1" ||
+    raw.marker !== VOID_BUY_VOID_PAID_UNRESERVABLE_OBLIGATION_V1 ||
+    String(raw.obligation_id || "") !== expectedObligationId ||
+    !Number.isSafeInteger(raw.recorded_at_ms) ||
+    Number(raw.recorded_at_ms) <= 0 ||
+    raw.terminal_state !== "operator_reconciliation_required" ||
+    !["inventory_sold_out", "insufficient_void_inventory"].includes(
+      String(raw.reservation_failure_reason || ""),
+    ) ||
+    !SAFE_CODE.test(poolId) ||
+    !SAFE_CODE.test(String(raw.inventory_policy_version || "")) ||
+    parsePositiveInteger(raw.pool_capacity_void_units) === null ||
+    !SHA256.test(String(raw.inventory_policy_fingerprint_sha256 || "")) ||
+    parseNonNegativeInteger(raw.available_void_units) === null ||
+    parsePositiveInteger(raw.requested_void_units) === null ||
+    !SAFE_CODE.test(String(raw.source_chain || "")) ||
+    !TX_HASH.test(String(raw.payment_transaction_hash || "")) ||
+    parseNonNegativeInteger(raw.payment_log_index) === null ||
+    parsePositiveInteger(raw.confirmed_block_number) === null ||
+    parsePositiveInteger(raw.confirmation_count_at_claim) === null ||
+    parsePositiveInteger(raw.payment_usdc_units) === null ||
+    !SHA256.test(paymentKey) ||
+    !SHA256.test(requestKey) ||
+    !String(raw.canonical_payment_identity || "").trim() ||
+    !SAFE_CODE.test(String(raw.request_id || "")) ||
+    !SAFE_CODE.test(instructionId) ||
+    !normalizeAddress(raw.delivery_address) ||
+    raw.customer_payment_confirmed !== true ||
+    raw.reservation_created !== false ||
+    raw.automatic_retry !== false ||
+    raw.refund_execution_authorized !== false ||
+    raw.alternate_fulfillment_execution_authorized !== false ||
+    raw.wallet_access_authorized !== false ||
+    raw.signing_authorized !== false ||
+    raw.transaction_broadcast_authorized !== false ||
+    raw.money_movement_authorized !== false
+  ) {
+    throw new Error("invalid_paid_unreservable_obligation_record");
+  }
+  return raw as BuyVoidPaidUnreservableObligationV1;
+}
+
+function recordPaidUnreservableObligation(
+  paths: BuyVoidInventoryReservationJournalPathsV1,
+  intent: BuyVoidFulfillmentJournalIntentV1,
+  policy: NormalizedPolicyV1,
+  reason: "inventory_sold_out" | "insufficient_void_inventory",
+  availableVoidUnits: string,
+  requestedVoidUnits: string,
+  nowMs: number,
+): BuyVoidPaidUnreservableObligationV1 {
+  ensurePrivateDir(paths.holds_dir);
+  const obligationId = obligationIdFor(policy, intent);
+  const binding = intent.verification_binding;
+  const record: BuyVoidPaidUnreservableObligationV1 = {
+    schema: "void_buy_void_paid_unreservable_obligation_v1",
+    marker: VOID_BUY_VOID_PAID_UNRESERVABLE_OBLIGATION_V1,
+    obligation_id: obligationId,
+    recorded_at_ms: nowMs,
+    terminal_state: "operator_reconciliation_required",
+    reservation_failure_reason: reason,
+    pool_id: policy.pool_id,
+    inventory_policy_version: policy.inventory_policy_version,
+    pool_capacity_void_units: policy.capacity.toString(),
+    inventory_policy_fingerprint_sha256: policy.policy_fingerprint,
+    available_void_units: availableVoidUnits,
+    requested_void_units: requestedVoidUnits,
+    source_chain: binding.source_chain,
+    payment_transaction_hash: binding.payment_transaction_hash,
+    payment_log_index: binding.payment_log_index,
+    confirmed_block_number: binding.confirmed_block_number,
+    confirmation_count_at_claim: binding.confirmation_count_at_claim,
+    payment_usdc_units: binding.payment_usdc_units,
+    payment_key_sha256: intent.payment_key_sha256,
+    request_key_sha256: intent.request_key_sha256,
+    canonical_payment_identity: intent.claim.canonical_payment_identity,
+    request_id: intent.claim.request_id,
+    instruction_id: intent.claim.instruction_id,
+    delivery_address: String(
+      intent.claim.unsigned_instruction.delivery_address,
+    ).toLowerCase(),
+    customer_payment_confirmed: true,
+    reservation_created: false,
+    automatic_retry: false,
+    refund_execution_authorized: false,
+    alternate_fulfillment_execution_authorized: false,
+    wallet_access_authorized: false,
+    signing_authorized: false,
+    transaction_broadcast_authorized: false,
+    money_movement_authorized: false,
+  };
+
+  const file = obligationFile(paths, obligationId);
+  const created = atomicCreateJson(file, record);
+  if (created === "created") return record;
+
+  const existingRaw = readJsonObject(file);
+  if (!existingRaw) {
+    throw new Error("paid_unreservable_obligation_race_unreadable");
+  }
+  const existing = parsePaidUnreservableObligation(existingRaw);
+  for (const key of [
+    "pool_id",
+    "inventory_policy_version",
+    "pool_capacity_void_units",
+    "inventory_policy_fingerprint_sha256",
+    "requested_void_units",
+    "source_chain",
+    "payment_transaction_hash",
+    "payment_log_index",
+    "confirmed_block_number",
+    "confirmation_count_at_claim",
+    "payment_usdc_units",
+    "payment_key_sha256",
+    "request_key_sha256",
+    "canonical_payment_identity",
+    "request_id",
+    "instruction_id",
+    "delivery_address",
+  ] as const) {
+    if (existing[key] !== record[key]) {
+      throw new Error("paid_unreservable_obligation_identity_conflict");
+    }
+  }
+  return existing;
+}
+
 function parseReservation(
   raw: Record<string, unknown>,
 ): BuyVoidInventoryReservationV1 {
@@ -586,6 +809,28 @@ export function listBuyVoidInventoryReservationsV1(input: {
       input.pool_id,
     ),
   );
+}
+
+export function listBuyVoidPaidUnreservableObligationsV1(input: {
+  root_dir: string;
+  pool_id: string;
+}): BuyVoidPaidUnreservableObligationV1[] {
+  const paths = buyVoidInventoryReservationJournalPathsV1(
+    input.root_dir,
+    input.pool_id,
+  );
+  if (!fs.existsSync(paths.holds_dir)) return [];
+  const output: BuyVoidPaidUnreservableObligationV1[] = [];
+  for (const name of fs.readdirSync(paths.holds_dir).sort()) {
+    if (!/^[0-9a-f]{64}\.json$/.test(name)) continue;
+    const raw = readJsonObject(path.join(paths.holds_dir, name));
+    if (!raw) continue;
+    output.push(parsePaidUnreservableObligation(raw));
+  }
+  output.sort((left, right) =>
+    left.obligation_id.localeCompare(right.obligation_id),
+  );
+  return output;
 }
 
 function aggregateFor(
@@ -906,6 +1151,35 @@ export function reserveBuyVoidInventoryV1(
       nowMs,
     );
     if ("reason" in evaluated) {
+      if (
+        evaluated.reason === "inventory_sold_out" ||
+        evaluated.reason === "insufficient_void_inventory"
+      ) {
+        try {
+          const obligation = recordPaidUnreservableObligation(
+            paths,
+            input.intent,
+            policy,
+            evaluated.reason,
+            String(evaluated.detail?.available_void_units || "0"),
+            intentCheck.amount.toString(),
+            nowMs,
+          );
+          return held(true, evaluated.reason, {
+            ...(evaluated.detail || {}),
+            terminal_recovery_obligation_recorded: true,
+            terminal_recovery_obligation_id: obligation.obligation_id,
+            terminal_recovery_state: obligation.terminal_state,
+            confirmed_payment_stranded: false,
+            automatic_retry: false,
+          });
+        } catch (error) {
+          return held(true, "paid_unreservable_obligation_write_failed", {
+            reservation_failure_reason: evaluated.reason,
+            message: String((error as Error)?.message || error),
+          });
+        }
+      }
       return held(true, evaluated.reason, evaluated.detail);
     }
     if (evaluated.duplicate) {

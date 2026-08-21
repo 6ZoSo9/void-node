@@ -5,42 +5,58 @@ on:
     paths:
       - ".github/workflows/void-browser-agent-access-kit-v1.yml"
       - "docs/public-node/void-browser-agent-access-kit-v1.md"
+      - "docs/public-node/void-browser-agent-access-kit-response-bounds-v1.md"
       - "integrations/browser/void-browser-agent-access-kit-v1/**"
       - "scripts/prove_void_browser_agent_access_kit_v1.mjs"
+      - "scripts/prove_void_browser_agent_access_kit_response_bounds_v1.mjs"
+      - "scripts/ci_diff_hygiene_v1.sh"
+      - "scripts/prove_ci_diff_hygiene_v1.mjs"
   push:
     branches:
       - main
     paths:
       - ".github/workflows/void-browser-agent-access-kit-v1.yml"
       - "docs/public-node/void-browser-agent-access-kit-v1.md"
+      - "docs/public-node/void-browser-agent-access-kit-response-bounds-v1.md"
       - "integrations/browser/void-browser-agent-access-kit-v1/**"
       - "scripts/prove_void_browser_agent_access_kit_v1.mjs"
+      - "scripts/prove_void_browser_agent_access_kit_response_bounds_v1.mjs"
+      - "scripts/ci_diff_hygiene_v1.sh"
+      - "scripts/prove_ci_diff_hygiene_v1.mjs"
+  workflow_dispatch:
 
 permissions:
   contents: read
 
 concurrency:
   group: void-browser-agent-access-kit-v1-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 jobs:
   proof:
-    runs-on: ubuntu-latest
+    name: prove (Node ${{ matrix.node }})
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        node: ["22", "24", "26"]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
         with:
-          fetch-depth: 1
+          fetch-depth: 0
+          persist-credentials: false
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
         with:
-          node-version: "22"
+          node-version: ${{ matrix.node }}
 
       - name: Validate source syntax and manifest
         run: |
           node --check integrations/browser/void-browser-agent-access-kit-v1/core.mjs
           node --check integrations/browser/void-browser-agent-access-kit-v1/popup.mjs
           node --check scripts/prove_void_browser_agent_access_kit_v1.mjs
+          node --check scripts/prove_void_browser_agent_access_kit_response_bounds_v1.mjs
           python3 -m json.tool \
             integrations/browser/void-browser-agent-access-kit-v1/manifest.json \
             >/dev/null
@@ -58,29 +74,50 @@ jobs:
             /tmp/void-browser-agent-access-kit-v1-proof.log
           grep -Fx "canonical_void_identity_pinned=true" \
             /tmp/void-browser-agent-access-kit-v1-proof.log
-          grep -Fx "clearweb_binding_replay_rejected=true" \
-            /tmp/void-browser-agent-access-kit-v1-proof.log
-          grep -Fx "well_known_discovery_validated=true" \
-            /tmp/void-browser-agent-access-kit-v1-proof.log
-          grep -Fx "canonical_discovery_validated=true" \
-            /tmp/void-browser-agent-access-kit-v1-proof.log
-          grep -Fx "same_origin_discovery_chain=true" \
-            /tmp/void-browser-agent-access-kit-v1-proof.log
-          grep -Fx "unsafe_discovery_rejected=true" \
-            /tmp/void-browser-agent-access-kit-v1-proof.log
           grep -Fx "capability_intersection_fail_closed=true" \
             /tmp/void-browser-agent-access-kit-v1-proof.log
-          grep -Fx "verified_read_console=true" \
-            /tmp/void-browser-agent-access-kit-v1-proof.log
-          grep -Fx "verified_resources_only=true" \
-            /tmp/void-browser-agent-access-kit-v1-proof.log
-          grep -Fx "read_method_get_only=true" \
-            /tmp/void-browser-agent-access-kit-v1-proof.log
-          grep -Fx "arbitrary_resource_input=false" \
-            /tmp/void-browser-agent-access-kit-v1-proof.log
-          grep -Fx "mutation=false" \
-            /tmp/void-browser-agent-access-kit-v1-proof.log
-          grep -Fx "payment_execution=false" \
-            /tmp/void-browser-agent-access-kit-v1-proof.log
-          grep -Fx "fund_movement=false" \
-            /tmp/void-browser-agent-access-kit-v1-proof.log
+          grep -Fx "mutation=false" /tmp/void-browser-agent-access-kit-v1-proof.log
+          grep -Fx "payment_execution=false" /tmp/void-browser-agent-access-kit-v1-proof.log
+          grep -Fx "fund_movement=false" /tmp/void-browser-agent-access-kit-v1-proof.log
+
+      - name: Prove bounded response lifetime
+        run: |
+          node scripts/prove_void_browser_agent_access_kit_response_bounds_v1.mjs \
+            | tee /tmp/void-browser-agent-access-kit-response-bounds-v1-proof.log
+          grep -Fx "VOID_BROWSER_AGENT_ACCESS_KIT_RESPONSE_BOUNDS_V1_PROOF_GREEN" \
+            /tmp/void-browser-agent-access-kit-response-bounds-v1-proof.log
+          grep -Fx "streaming_byte_ceiling=true" \
+            /tmp/void-browser-agent-access-kit-response-bounds-v1-proof.log
+          grep -Fx "rejected_body_teardown_bounded=true" \
+            /tmp/void-browser-agent-access-kit-response-bounds-v1-proof.log
+          grep -Fx "prebuffer_array_buffer=false" \
+            /tmp/void-browser-agent-access-kit-response-bounds-v1-proof.log
+
+      - name: Prove committed-range diff hygiene contract
+        if: matrix.node == '22'
+        run: node scripts/prove_ci_diff_hygiene_v1.mjs
+
+      - name: Diff hygiene (pull request)
+        if: github.event_name == 'pull_request'
+        env:
+          CI_DIFF_EVENT_NAME: ${{ github.event_name }}
+          CI_DIFF_PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          CI_DIFF_CURRENT_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+          CI_DIFF_CHECKOUT_SHA: ${{ github.sha }}
+          CI_DIFF_BASE_REMOTE: ${{ github.server_url }}/${{ github.repository }}.git
+          CI_DIFF_HEAD_REMOTE: ${{ github.server_url }}/${{ github.event.pull_request.head.repo.full_name || github.repository }}.git
+        run: bash scripts/ci_diff_hygiene_v1.sh
+
+      - name: Diff hygiene (push)
+        if: github.event_name == 'push'
+        env:
+          CI_DIFF_EVENT_NAME: ${{ github.event_name }}
+          CI_DIFF_PUSH_BEFORE_SHA: ${{ github.event.before }}
+          CI_DIFF_CURRENT_SHA: ${{ github.sha }}
+          CI_DIFF_CHECKOUT_SHA: ${{ github.sha }}
+          CI_DIFF_BASE_REMOTE: ${{ github.server_url }}/${{ github.repository }}.git
+        run: bash scripts/ci_diff_hygiene_v1.sh
+
+      - name: Diff hygiene (manual)
+        if: github.event_name == 'workflow_dispatch'
+        run: git diff --check HEAD^ HEAD

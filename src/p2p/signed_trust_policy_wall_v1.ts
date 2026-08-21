@@ -727,6 +727,311 @@ async function fsyncDirectory(pathname: string): Promise<void> {
   }
 }
 
+async function truncateAndSyncFile(
+  pathname: string,
+  byteLength: number,
+): Promise<void> {
+  const handle = await open(pathname, "r+");
+  try {
+    await handle.truncate(byteLength);
+    await handle.sync();
+  } finally {
+    await handle.close();
+  }
+}
+
+async function readClosedActivationGeneration(
+  stateDir: string,
+  activation: VoidP2pTrustPolicyActivationRecordV1,
+  label: string,
+): Promise<VoidP2pSignedTrustPolicyEnvelopeV1> {
+  const generationDir = path.join(
+    stateDir,
+    "generations",
+    activation.generation,
+  );
+  let generationInfo;
+  try {
+    generationInfo = await lstat(generationDir);
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") {
+      return hold(
+        "invalid_activation_journal",
+        `${label} retained generation is missing`,
+      );
+    }
+    throw error;
+  }
+  if (!generationInfo.isDirectory() || generationInfo.isSymbolicLink()) {
+    hold(
+      "invalid_activation_journal",
+      `${label} retained generation must be a real directory`,
+    );
+  }
+
+  const readClosedJson = async (
+    filename: string,
+  ): Promise<Readonly<{ raw: string; value: unknown }>> => {
+    const pathname = path.join(generationDir, filename);
+    let info;
+    try {
+      info = await lstat(pathname);
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === "ENOENT") {
+        return hold(
+          "invalid_activation_journal",
+          `${label} retained ${filename} is missing`,
+        );
+      }
+      throw error;
+    }
+    if (!info.isFile() || info.isSymbolicLink()) {
+      hold(
+        "invalid_activation_journal",
+        `${label} retained ${filename} must be a regular file`,
+      );
+    }
+    const raw = await readFile(pathname, "utf8");
+    try {
+      return Object.freeze({ raw, value: JSON.parse(raw) as unknown });
+    } catch {
+      return hold(
+        "invalid_activation_journal",
+        `${label} retained ${filename} is not valid JSON`,
+      );
+    }
+  };
+
+  const closedActivation = await readClosedJson("activation.json");
+  const parsedActivation = parseVoidP2pTrustPolicyActivationRecordV1(
+    closedActivation.value,
+    `${label}.activation`,
+  );
+  const activationCanonical = canonicalVoidP2pTrustJsonV1(
+    activation as unknown as JsonValue,
+  );
+  if (
+    closedActivation.raw !== `${activationCanonical}\n` ||
+    canonicalVoidP2pTrustJsonV1(
+      parsedActivation as unknown as JsonValue,
+    ) !== activationCanonical
+  ) {
+    hold(
+      "invalid_activation_journal",
+      `${label} does not exactly match its retained activation.json`,
+    );
+  }
+
+  const closedEnvelope = await readClosedJson("policy-envelope.json");
+  const envelope = parseVoidP2pSignedTrustPolicyEnvelopeV1(
+    closedEnvelope.value,
+  );
+  const envelopeCanonical = canonicalVoidP2pTrustJsonV1(
+    envelope as unknown as JsonValue,
+  );
+  if (closedEnvelope.raw !== `${envelopeCanonical}\n`) {
+    hold(
+      "invalid_activation_journal",
+      `${label} retained policy envelope is not canonical`,
+    );
+  }
+  const policyCanonical = canonicalVoidP2pTrustJsonV1(
+    envelope.policy as unknown as JsonValue,
+  );
+  if (
+    envelope.policy.network_id !== activation.network_id ||
+    envelope.policy.epoch !== activation.epoch ||
+    sha256Hex(policyCanonical) !== activation.policy_sha256 ||
+    sha256Hex(envelopeCanonical) !== activation.envelope_sha256 ||
+    canonicalVoidP2pTrustJsonV1(
+      envelope.signatures.map((signature) => signature.key_id) as unknown as JsonValue,
+    ) !== canonicalVoidP2pTrustJsonV1(
+      activation.signer_key_ids as unknown as JsonValue,
+    )
+  ) {
+    hold(
+      "invalid_activation_journal",
+      `${label} does not match its retained signed policy envelope`,
+    );
+  }
+  return envelope;
+}
+
+async function ensureActivationJournalRecord(
+  stateDir: string,
+  activation: VoidP2pTrustPolicyActivationRecordV1,
+): Promise<void> {
+  const journalPath = path.join(stateDir, "activation.ndjson");
+  const expected = canonicalVoidP2pTrustJsonV1(
+    activation as unknown as JsonValue,
+  );
+  const activeEnvelope = await readClosedActivationGeneration(
+    stateDir,
+    activation,
+    "active activation",
+  );
+  let raw = "";
+  try {
+    const info = await lstat(journalPath);
+    if (!info.isFile() || info.isSymbolicLink()) {
+      hold(
+        "unsafe_activation_journal",
+        "activation journal must be a regular file",
+      );
+    }
+    raw = await readFile(journalPath, "utf8");
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+  }
+
+  let completeRaw = raw;
+  let tornTail: string | null = null;
+  if (raw && !raw.endsWith("\n")) {
+    const lastNewline = raw.lastIndexOf("\n");
+    completeRaw = lastNewline === -1 ? "" : raw.slice(0, lastNewline + 1);
+    tornTail = raw.slice(lastNewline + 1);
+  }
+
+  const lines = completeRaw ? completeRaw.slice(0, -1).split("\n") : [];
+  let previousEpoch = 0n;
+  let previousPolicySha256: string | undefined;
+  let exactMatches = 0;
+  for (const [index, line] of lines.entries()) {
+    let parsedValue: unknown;
+    try {
+      parsedValue = JSON.parse(line);
+    } catch {
+      hold(
+        "invalid_activation_journal",
+        `activation journal line ${index + 1} is not valid JSON`,
+      );
+    }
+    const parsed = parseVoidP2pTrustPolicyActivationRecordV1(
+      parsedValue,
+      `activation_journal[${index}]`,
+    );
+    if (parsed.network_id !== activation.network_id) {
+      hold(
+        "invalid_activation_journal",
+        `activation journal line ${index + 1} is bound to a different network`,
+      );
+    }
+    const canonical = canonicalVoidP2pTrustJsonV1(
+      parsed as unknown as JsonValue,
+    );
+    if (canonical !== line) {
+      hold(
+        "invalid_activation_journal",
+        `activation journal line ${index + 1} is not canonical`,
+      );
+    }
+    const epoch = BigInt(parsed.epoch);
+    if (epoch <= previousEpoch) {
+      hold(
+        "invalid_activation_journal",
+        "activation journal epochs must be strictly increasing",
+      );
+    }
+    const durableEnvelope = await readClosedActivationGeneration(
+      stateDir,
+      parsed,
+      `activation journal line ${index + 1}`,
+    );
+    if (index === 0) {
+      if (
+        epoch !== 1n ||
+        durableEnvelope.policy.previous_policy_sha256 !== undefined
+      ) {
+        hold(
+          "invalid_activation_journal",
+          "activation journal must begin with the retained genesis policy",
+        );
+      }
+    } else if (
+      durableEnvelope.policy.previous_policy_sha256 !== previousPolicySha256
+    ) {
+      hold(
+        "invalid_activation_journal",
+        `activation journal line ${index + 1} breaks the retained policy predecessor chain`,
+      );
+    }
+    previousEpoch = epoch;
+    previousPolicySha256 = parsed.policy_sha256;
+    if (line === expected) exactMatches += 1;
+    else if (parsed.epoch === activation.epoch) {
+      hold(
+        "activation_journal_conflict",
+        "active epoch conflicts with its durable journal record",
+      );
+    }
+  }
+
+  if (exactMatches > 1) {
+    hold(
+      "invalid_activation_journal",
+      "active activation record appears more than once",
+    );
+  }
+  if (exactMatches === 1 && lines.at(-1) !== expected) {
+    hold(
+      "invalid_activation_journal",
+      "active activation record must be the journal tail",
+    );
+  }
+  const activeEpoch = BigInt(activation.epoch);
+  if (activeEpoch > 1n && lines.length === 0) {
+    hold(
+      "invalid_activation_journal",
+      "activation journal history is required after epoch 1",
+    );
+  }
+  if (exactMatches === 0) {
+    if (
+      activeEpoch === 1n
+        ? lines.length !== 0 ||
+          activeEnvelope.policy.previous_policy_sha256 !== undefined
+        : previousPolicySha256 === undefined ||
+          activeEnvelope.policy.previous_policy_sha256 !== previousPolicySha256
+    ) {
+      hold(
+        "invalid_activation_journal",
+        "active generation does not extend the retained journal predecessor chain",
+      );
+    }
+  }
+  if (tornTail !== null) {
+    if (
+      exactMatches !== 0 ||
+      previousEpoch >= activeEpoch ||
+      !expected.startsWith(tornTail)
+    ) {
+      hold(
+        "invalid_activation_journal",
+        "activation journal has an unrecoverable torn tail",
+      );
+    }
+    await truncateAndSyncFile(
+      journalPath,
+      Buffer.byteLength(completeRaw, "utf8"),
+    );
+  }
+  if (exactMatches === 0) {
+    if (previousEpoch >= activeEpoch) {
+      hold(
+        "activation_journal_conflict",
+        "activation journal is ahead of the active policy",
+      );
+    }
+    await appendFile(journalPath, `${expected}\n`, {
+      encoding: "utf8",
+      mode: 0o600,
+    });
+    await chmod(journalPath, 0o600);
+  }
+  await fsyncFile(journalPath);
+  await fsyncDirectory(stateDir);
+}
+
 async function writeExclusiveJson(pathname: string, value: JsonValue): Promise<void> {
   const handle = await open(pathname, "wx", 0o600);
   try {
@@ -735,6 +1040,89 @@ async function writeExclusiveJson(pathname: string, value: JsonValue): Promise<v
   } finally {
     await handle.close();
   }
+}
+
+const ACTIVATION_RECORD_KEYS_V1 = [
+  "schema",
+  "network_id",
+  "epoch",
+  "policy_sha256",
+  "envelope_sha256",
+  "signer_key_ids",
+  "threshold",
+  "activated_at",
+  "generation",
+] as const;
+
+function parseVoidP2pTrustPolicyActivationRecordV1(
+  value: unknown,
+  label = "activation",
+): VoidP2pTrustPolicyActivationRecordV1 {
+  if (!isRecord(value)) hold("invalid_activation", `${label} must be an object`);
+  exactKeys(value, ACTIVATION_RECORD_KEYS_V1, label);
+  if (value.schema !== VOID_P2P_TRUST_ACTIVATION_SCHEMA_V1) {
+    hold("invalid_activation", `${label} schema mismatch`);
+  }
+  const activation: VoidP2pTrustPolicyActivationRecordV1 = Object.freeze({
+    schema: VOID_P2P_TRUST_ACTIVATION_SCHEMA_V1,
+    network_id: assertNetworkId(
+      requireString(value.network_id, `${label}.network_id`),
+      `${label}.network_id`,
+    ),
+    epoch: requireString(value.epoch, `${label}.epoch`),
+    policy_sha256: assertSha256(
+      requireString(value.policy_sha256, `${label}.policy_sha256`),
+      `${label}.policy_sha256`,
+    ),
+    envelope_sha256: assertSha256(
+      requireString(value.envelope_sha256, `${label}.envelope_sha256`),
+      `${label}.envelope_sha256`,
+    ),
+    signer_key_ids: Object.freeze(
+      requireArray(value.signer_key_ids, `${label}.signer_key_ids`).map(
+        (entry, index) => {
+          const keyId = requireString(
+            entry,
+            `${label}.signer_key_ids[${index}]`,
+          );
+          if (!KEY_ID_PATTERN.test(keyId)) {
+            hold(
+              "invalid_activation",
+              `${label} signer key ID is invalid`,
+            );
+          }
+          return keyId;
+        },
+      ),
+    ),
+    threshold: requireInteger(value.threshold, `${label}.threshold`),
+    activated_at: requireString(
+      value.activated_at,
+      `${label}.activated_at`,
+    ),
+    generation: requireString(value.generation, `${label}.generation`),
+  });
+  assertEpoch(activation.epoch, `${label}.epoch`);
+  assertIsoInstant(activation.activated_at, `${label}.activated_at`);
+  assertSortedUnique(activation.signer_key_ids, `${label}.signer_key_ids`);
+  if (
+    activation.threshold < 1 ||
+    activation.threshold > activation.signer_key_ids.length
+  ) {
+    hold(
+      "invalid_activation",
+      `${label} threshold is inconsistent with signer_key_ids`,
+    );
+  }
+  const expectedGeneration =
+    `${activation.epoch.padStart(40, "0")}-${activation.policy_sha256}`;
+  if (activation.generation !== expectedGeneration) {
+    hold(
+      "invalid_activation",
+      `${label} generation must bind epoch and policy_sha256`,
+    );
+  }
+  return activation;
 }
 
 async function readActiveRecord(stateDir: string): Promise<Readonly<{
@@ -765,53 +1153,45 @@ async function readActiveRecord(stateDir: string): Promise<Readonly<{
   if (!generationInfo.isDirectory() || generationInfo.isSymbolicLink()) {
     hold("unsafe_current_pointer", "active generation must be a real directory");
   }
-  const activationValue = await readJson(path.join(generationDir, "activation.json"));
-  if (!isRecord(activationValue)) hold("invalid_activation", "activation.json must be an object");
-  exactKeys(
-    activationValue,
-    [
-      "schema",
-      "network_id",
-      "epoch",
-      "policy_sha256",
-      "envelope_sha256",
-      "signer_key_ids",
-      "threshold",
-      "activated_at",
-      "generation",
-    ],
-    "activation",
+  const activation = parseVoidP2pTrustPolicyActivationRecordV1(
+    await readJson(path.join(generationDir, "activation.json")),
   );
-  if (activationValue.schema !== VOID_P2P_TRUST_ACTIVATION_SCHEMA_V1) {
-    hold("invalid_activation", "activation schema mismatch");
-  }
-  const activation: VoidP2pTrustPolicyActivationRecordV1 = Object.freeze({
-    schema: VOID_P2P_TRUST_ACTIVATION_SCHEMA_V1,
-    network_id: assertNetworkId(requireString(activationValue.network_id, "activation.network_id")),
-    epoch: requireString(activationValue.epoch, "activation.epoch"),
-    policy_sha256: assertSha256(requireString(activationValue.policy_sha256, "activation.policy_sha256"), "activation.policy_sha256"),
-    envelope_sha256: assertSha256(requireString(activationValue.envelope_sha256, "activation.envelope_sha256"), "activation.envelope_sha256"),
-    signer_key_ids: Object.freeze(
-      requireArray(activationValue.signer_key_ids, "activation.signer_key_ids").map((entry, index) => {
-        const keyId = requireString(entry, `activation.signer_key_ids[${index}]`);
-        if (!KEY_ID_PATTERN.test(keyId)) hold("invalid_activation", "activation signer key ID is invalid");
-        return keyId;
-      }),
-    ),
-    threshold: requireInteger(activationValue.threshold, "activation.threshold"),
-    activated_at: requireString(activationValue.activated_at, "activation.activated_at"),
-    generation: requireString(activationValue.generation, "activation.generation"),
-  });
-  assertEpoch(activation.epoch, "activation.epoch");
-  assertIsoInstant(activation.activated_at, "activation.activated_at");
-  assertSortedUnique(activation.signer_key_ids, "activation.signer_key_ids");
-  if (activation.threshold < 1 || activation.threshold > activation.signer_key_ids.length) {
-    hold("invalid_activation", "activation threshold is inconsistent with signer_key_ids");
-  }
   if (activation.generation !== path.basename(generationDir)) {
     hold("invalid_activation", "activation generation does not match current target");
   }
   return Object.freeze({ activation, generation_dir: generationDir });
+}
+
+async function assertFreshGenesisStateV1(
+  stateDir: string,
+  generationsDir: string,
+): Promise<void> {
+  const journalPath = path.join(stateDir, "activation.ndjson");
+  try {
+    const journalInfo = await lstat(journalPath);
+    if (!journalInfo.isFile() || journalInfo.isSymbolicLink()) {
+      hold(
+        "unsafe_activation_journal",
+        "activation journal must be a regular file",
+      );
+    }
+    hold(
+      "missing_current_with_history",
+      "current pointer is missing while activation journal state remains",
+    );
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+  }
+
+  const generationEntries = await import("node:fs/promises").then(
+    ({ readdir }) => readdir(generationsDir),
+  );
+  if (generationEntries.length > 0) {
+    hold(
+      "missing_current_with_history",
+      "current pointer is missing while retained generation state remains",
+    );
+  }
 }
 
 export async function activateVoidP2pSignedTrustPolicyV1(input: Readonly<{
@@ -844,6 +1224,7 @@ export async function activateVoidP2pSignedTrustPolicyV1(input: Readonly<{
     const current = await readActiveRecord(stateDir);
     const newEpoch = assertEpoch(verified.policy.epoch, "policy.epoch");
     if (current) {
+      await ensureActivationJournalRecord(stateDir, current.activation);
       const currentEpoch = assertEpoch(current.activation.epoch, "activation.epoch");
       if (newEpoch < currentEpoch) {
         hold("policy_rollback", "signed policy epoch is lower than the active epoch");
@@ -865,6 +1246,7 @@ export async function activateVoidP2pSignedTrustPolicyV1(input: Readonly<{
         hold("broken_policy_chain", "new policy does not name the active policy SHA-256 as its predecessor");
       }
     } else {
+      await assertFreshGenesisStateV1(stateDir, generationsDir);
       if (newEpoch !== 1n) hold("invalid_genesis_epoch", "first activated signed policy must use epoch 1");
       if (verified.policy.previous_policy_sha256 !== undefined) {
         hold("invalid_genesis_predecessor", "epoch 1 must not declare previous_policy_sha256");
@@ -911,15 +1293,7 @@ export async function activateVoidP2pSignedTrustPolicyV1(input: Readonly<{
     await symlink(path.join("generations", generation), temporaryLink);
     await rename(temporaryLink, path.join(stateDir, "current"));
     await fsyncDirectory(stateDir);
-    const journalPath = path.join(stateDir, "activation.ndjson");
-    await appendFile(
-      journalPath,
-      `${canonicalVoidP2pTrustJsonV1(activation as unknown as JsonValue)}\n`,
-      { encoding: "utf8", mode: 0o600 },
-    );
-    await chmod(journalPath, 0o600);
-    await fsyncFile(journalPath);
-    await fsyncDirectory(stateDir);
+    await ensureActivationJournalRecord(stateDir, activation);
     return Object.freeze({
       verified,
       activation,

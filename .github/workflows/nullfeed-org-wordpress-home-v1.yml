@@ -8,6 +8,7 @@ on:
       - "ops/public/nullfeed-org-wordpress-home-v1.html"
       - "ops/public/sync-nullfeed-org-wordpress-home-v1.mjs"
       - "scripts/prove_nullfeed_org_wordpress_home_v1.mjs"
+      - "scripts/prove_wordpress_production_ref_guards_v1.mjs"
   push:
     branches:
       - main
@@ -17,6 +18,7 @@ on:
       - "ops/public/nullfeed-org-wordpress-home-v1.html"
       - "ops/public/sync-nullfeed-org-wordpress-home-v1.mjs"
       - "scripts/prove_nullfeed_org_wordpress_home_v1.mjs"
+      - "scripts/prove_wordpress_production_ref_guards_v1.mjs"
   workflow_dispatch:
     inputs:
       operation:
@@ -40,7 +42,9 @@ permissions:
   contents: read
 
 concurrency:
-  group: nullfeed-org-wordpress-home-v1
+  # Keep production dispatches serialized, while isolating pull-request and
+  # main-push proof evidence so unrelated events cannot cancel a pending run.
+  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.ref }}
   cancel-in-progress: false
 
 jobs:
@@ -48,23 +52,40 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
-      - uses: actions/checkout@v6
-      - uses: actions/setup-node@v6
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
         with:
           node-version: 24
       - run: node --check ops/public/sync-nullfeed-org-wordpress-home-v1.mjs
       - run: node --check scripts/prove_nullfeed_org_wordpress_home_v1.mjs
+      - run: node --check scripts/prove_wordpress_production_ref_guards_v1.mjs
       - run: node scripts/prove_nullfeed_org_wordpress_home_v1.mjs
+      - run: node scripts/prove_wordpress_production_ref_guards_v1.mjs
+
+  inspect_ref_guard:
+    if: github.event_name == 'workflow_dispatch' && inputs.operation == 'inspect'
+    needs: proof
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: Require exact main ref for authenticated production inspect
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ "$GITHUB_REF" != "refs/heads/main" ]; then
+            echo "::error::NullFeed production inspect requires refs/heads/main; got $GITHUB_REF"
+            exit 1
+          fi
 
   inspect:
     if: github.event_name == 'workflow_dispatch' && inputs.operation == 'inspect'
-    needs: proof
+    needs: [proof, inspect_ref_guard]
     environment: nullfeed-org-production
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
-      - uses: actions/checkout@v6
-      - uses: actions/setup-node@v6
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
         with:
           node-version: 24
       - name: Inspect exact NullFeed WordPress page
@@ -95,8 +116,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
-      - uses: actions/checkout@v6
-      - uses: actions/setup-node@v6
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
         with:
           node-version: 24
       - name: Apply exact reviewed NullFeed WordPress page

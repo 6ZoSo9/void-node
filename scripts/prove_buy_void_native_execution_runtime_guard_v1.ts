@@ -144,9 +144,17 @@ assert.doesNotMatch(
   runtimeIntegration,
   /import "\.\/buy_void_native_delivery_runtime_integration_v1\.js";/,
 );
-assert.doesNotMatch(
+assert.match(
   runtimeIntegration,
   /from "\.\/buy_void_delivery_runtime_integration_v1\.js";/,
+);
+assert.match(
+  runtimeIntegration,
+  /canonical_delivery_runtime_parent_mounted: true/,
+);
+assert.match(
+  runtimeIntegration,
+  /delivery_runtime_parent_mounted: true/,
 );
 assert.match(
   runtimeIntegration,

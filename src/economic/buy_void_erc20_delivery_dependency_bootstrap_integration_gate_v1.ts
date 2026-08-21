@@ -23,7 +23,7 @@ export const
     ],
     canonical_delivery_dependency_bootstrap_ready: true,
     erc20_transaction_preparation_execution_state_ready: true,
-    canonical_delivery_runtime_parent_mounted: false,
+    canonical_delivery_runtime_parent_mounted: true,
     canonical_delivery_execution_ready: false,
     canonical_delivery_execution_held: true,
     production_credential_binding_ready: false,

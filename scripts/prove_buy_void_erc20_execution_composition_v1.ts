@@ -62,8 +62,8 @@ const env: NodeJS.ProcessEnv = {
   VOID_BUY_VOID_CRASH_CONSISTENT_SAGA_RATE_VOID_UNITS_DENOMINATOR: "1",
   VOID_BUY_VOID_CRASH_CONSISTENT_SAGA_INVENTORY_POLICY_VERSION: "presale-v1",
   VOID_BUY_VOID_INVENTORY_POOL_ID: poolId,
-  VOID_BUY_VOID_CRASH_CONSISTENT_SAGA_POOL_CAPACITY_VOID_UNITS: "1000000000",
-  VOID_BUY_VOID_CRASH_CONSISTENT_SAGA_MAX_RESERVATION_VOID_UNITS: "1000000000",
+  VOID_BUY_VOID_CRASH_CONSISTENT_SAGA_POOL_CAPACITY_VOID_UNITS: "10000000000000",
+  VOID_BUY_VOID_CRASH_CONSISTENT_SAGA_MAX_RESERVATION_VOID_UNITS: "10000000000000",
   VOID_BUY_VOID_NATIVE_DELIVERY_WALLET_ADDRESS: wallet.address,
 };
 const invalidPolicyCases: Array<{
@@ -181,7 +181,7 @@ const fulfillmentPolicy: BuyVoidAutoFulfillmentPolicyV1 = {
   receive_address_by_chain: { base: receive },
   rate_void_units_numerator: "2",
   rate_void_units_denominator: "1",
-  pool_remaining_void_units: "1000000000",
+  pool_remaining_void_units: "10000000000000",
   exact_payment_required: true,
 };
 const claimed = claimBuyVoidFulfillmentJournalV1({
@@ -201,8 +201,8 @@ const inventory = reserveBuyVoidInventoryV1({
     inventory_reservation_enabled: true,
     pool_id: poolId,
     inventory_policy_version: "presale-v1",
-    pool_capacity_void_units: "1000000000",
-    max_reservation_void_units: "1000000000",
+    pool_capacity_void_units: "10000000000000",
+    max_reservation_void_units: "10000000000000",
   },
   apply: true,
   now_ms: nowBase + 100,
