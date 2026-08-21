@@ -59,6 +59,23 @@ try {
   );
   assert.equal(fs.existsSync(broadNewStore), false, "broadly writable parent must not receive a new store root");
 
+  // An already-valid private store cannot become authoritative merely because
+  // its own mode is private when the containing namespace is broadly writable.
+  const relocatedStore = path.join(tmp, "relocated-store");
+  buildSegmentedJsonlV1FromFile(source, relocatedStore, { segmentTargetBytes: 4096, maxRecordBytes: 1024 });
+  const broadExistingParent = path.join(tmp, "broad-existing-parent");
+  fs.mkdirSync(broadExistingParent, { mode: 0o700 });
+  fs.chmodSync(broadExistingParent, 0o777);
+  const broadExistingStore = path.join(broadExistingParent, "store");
+  fs.renameSync(relocatedStore, broadExistingStore);
+  expectFailure(() => verifySegmentedJsonlV1(broadExistingStore), "DIRECTORY_WRITE_AUTHORITY_MISMATCH");
+  expectFailure(
+    () => buildSegmentedJsonlV1FromFile(source, broadExistingStore, { segmentTargetBytes: 4096, maxRecordBytes: 1024 }),
+    "DIRECTORY_WRITE_AUTHORITY_MISMATCH",
+  );
+  fs.chmodSync(broadExistingParent, 0o700);
+  assert.equal(verifySegmentedJsonlV1(broadExistingStore).total_records_verified, 300);
+
   // Write-authority metadata is part of the retained store generation. Widening
   // permissions without replacing the inode must make later admission fail.
   const modeStore = path.join(tmp, "mode-store");
@@ -154,6 +171,8 @@ try {
 
   console.log("broadly_writable_store_rejected=true");
   console.log("broadly_writable_new_root_parent_rejected=true");
+  console.log("broadly_writable_existing_root_parent_rejected=true");
+  console.log("private_existing_root_parent_control_green=true");
   console.log("store_write_authority_mode_bound=true");
   console.log("segments_write_authority_mode_bound=true");
   console.log("broadly_writable_output_parent_rejected=true");
