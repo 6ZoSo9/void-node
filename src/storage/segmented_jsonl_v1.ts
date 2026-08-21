@@ -466,8 +466,11 @@ function writeDurableNew(
   const stableFile = path.join(authority.stablePath, path.basename(file));
   const flags = fs.constants.O_WRONLY | fs.constants.O_CREAT | fs.constants.O_EXCL | ((fs.constants as any).O_NOFOLLOW || 0);
   let fd = -1;
-  let ok = false;
+  let committed = false;
   let created: GenerationV1 | null = null;
+  let primaryError: unknown = null;
+  let closeError: unknown = null;
+  let authorityCloseError: unknown = null;
   try {
     fd = fs.openSync(stableFile, flags, mode);
     created = fdGeneration(fd);
@@ -486,15 +489,37 @@ function writeDurableNew(
     fs.fsyncSync(authority.fd);
     assertPrivateDirectoryWriteAuthorityV1(authority);
     created = fdGen;
-    ok = true;
-  } finally {
-    if (fd >= 0) fs.closeSync(fd);
-    // Failure cleanup intentionally leaves the exclusively created generation
-    // in place. Node has no conditional unlink primitive; deleting by pathname
-    // after losing fd authority could remove a substituted foreign generation.
-    if (!ok) { try { fs.fsyncSync(authority.fd); } catch (error) { void error; } }
-    if (!retainedAuthority) fs.closeSync(authority.fd);
+    committed = true;
+  } catch (error) {
+    primaryError = error;
   }
+
+  if (fd >= 0) {
+    try { fs.closeSync(fd); }
+    catch (error) { closeError = error; }
+  }
+  // Before the durable terminal, preserve the original failure and retain the
+  // exclusively created generation. Deleting by pathname could remove a
+  // substituted foreign generation after descriptor authority is lost.
+  if (!committed) {
+    try { fs.fsyncSync(authority.fd); } catch (error) { void error; }
+  }
+  if (!retainedAuthority) {
+    try { fs.closeSync(authority.fd); }
+    catch (error) { authorityCloseError = error; }
+  }
+  if (!committed) {
+    if (primaryError !== null) throw primaryError;
+    if (closeError !== null) throw closeError;
+    if (authorityCloseError !== null) throw authorityCloseError;
+    fail("WRITE_NOT_COMMITTED", file);
+  }
+  // Once the exact file generation, final mode, file fsync, containing
+  // directory fsync, and parent authority checks have all passed, descriptor
+  // cleanup is post-commit. A close error must not downgrade durable truth into
+  // a reusable failure terminal.
+  void closeError;
+  void authorityCloseError;
   if (!created) fail("WRITE_GENERATION_UNAVAILABLE", file);
   return created;
 }
