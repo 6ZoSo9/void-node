@@ -66,6 +66,7 @@ export type SegmentReplicationPlanV1 = {
 type BuildOptionsV1 = {
   segmentTargetBytes?: number;
   maxRecordBytes?: number;
+  maxSealedSegments?: number;
   generation?: number;
   validateJson?: boolean;
 };
@@ -528,6 +529,7 @@ export function buildSegmentedJsonlV1FromFile(sourceInput:string,destinationInpu
   const root=rootPath(destinationInput);
   const target=exactSafeInteger(options.segmentTargetBytes,VOID_SEGMENTED_JSONL_DEFAULT_TARGET_BYTES_V1,1024,VOID_SEGMENTED_JSONL_MAX_TARGET_BYTES_V1,"INVALID_SEGMENT_TARGET");
   const max=exactSafeInteger(options.maxRecordBytes,VOID_SEGMENTED_JSONL_DEFAULT_MAX_RECORD_BYTES_V1,1,VOID_SEGMENTED_JSONL_MAX_RECORD_BYTES_V1,"INVALID_MAX_RECORD");
+  const sealedLimit=exactSafeInteger(options.maxSealedSegments,VOID_SEGMENTED_JSONL_MAX_SEALED_SEGMENTS_V1,0,VOID_SEGMENTED_JSONL_MAX_SEALED_SEGMENTS_V1,"INVALID_MAX_SEALED_SEGMENTS");
   const generation=exactSafeInteger(options.generation,1,1,Number.MAX_SAFE_INTEGER,"INVALID_GENERATION"), validateJson=options.validateJson !== false;
   if(max + 1 > target) fail("INVALID_MAX_RECORD",String(max));
   if (fs.existsSync(root)) { const st=fs.lstatSync(root); if(!st.isDirectory()||st.isSymbolicLink()) fail("DESTINATION_NOT_DIRECTORY",root); if(fs.readdirSync(root).length) fail("DESTINATION_NOT_EMPTY",root); }
@@ -540,7 +542,12 @@ export function buildSegmentedJsonlV1FromFile(sourceInput:string,destinationInpu
   const before=fdGeneration(fd), p0=pathGeneration(source); if(!p0||!sameGeneration(before,p0)){fs.closeSync(fd);fail("SOURCE_GENERATION_UNSTABLE_BEFORE_BUILD",source);}
   const admittedSourceBytes=exactGenerationSizeV1(before,"SOURCE_SIZE_UNREPRESENTABLE",source);
   const sealed:SegmentedJsonlSegmentV1[]=[]; let parts:Buffer[]=[]; let partBytes=0, partRecords=0, first=0, global=0, carry=Buffer.alloc(0);
-  const flush=()=>{ if(!partRecords)return; sealed.push(writeSealed(root,sealed.length,parts,first,partRecords,segmentAuthority!)); first=global; parts=[]; partBytes=0; partRecords=0; };
+  const flush=()=>{
+    if(!partRecords)return;
+    if(sealed.length>=sealedLimit) fail("BUILDER_SEGMENT_COUNT_EXCEEDS_BOUND",`attempted=${sealed.length+1}:limit=${sealedLimit}:repository_max=${VOID_SEGMENTED_JSONL_MAX_SEALED_SEGMENTS_V1}`);
+    sealed.push(writeSealed(root,sealed.length,parts,first,partRecords,segmentAuthority!));
+    first=global; parts=[]; partBytes=0; partRecords=0;
+  };
   try {
     readAdmittedGenerationV1(fd,admittedSourceBytes,"SOURCE_SHORT_READ","SOURCE_GREW_DURING_BUILD",source,(chunk)=>{ const data=carry.length?Buffer.concat([carry,chunk]):chunk; let from=0;
       for(let i=0;i<data.length;i++) if(data[i]===0x0a){ const rec=Buffer.from(data.subarray(from,i+1)); validateRecord(rec,max,validateJson,global); if(rec.length>target) fail("RECORD_EXCEEDS_SEGMENT_TARGET",`record=${global}:bytes=${rec.length}:target=${target}`); if(partBytes>0&&partBytes+rec.length>target) flush(); parts.push(rec); partBytes+=rec.length; partRecords++; global++; from=i+1; }
