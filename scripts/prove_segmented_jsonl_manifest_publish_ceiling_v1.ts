@@ -12,6 +12,7 @@ import {
   VOID_SEGMENTED_JSONL_MAX_SEALED_SEGMENTS_V1,
   buildSegmentedJsonlV1FromFile,
   planSegmentReplicationV1,
+  readSegmentedJsonlManifestV1,
   sealedSegmentInventoryV1,
   serializeSegmentedJsonlManifestV1,
   type SegmentedJsonlManifestV1,
@@ -111,6 +112,11 @@ const oversizedWithinCount = makeManifest(
   8 * 1024 * 1024,
   8 * 1024 * 1024,
 );
+const exactMinimumRecordBytes = makeManifest(1, 2, 1024);
+const impossibleSealedCardinality = makeManifest(1, 1, 1024);
+const impossibleActiveCardinality = makeManifest(0);
+impossibleActiveCardinality.active.bytes = 1;
+impossibleActiveCardinality.total_bytes = 1;
 const acceptedBytes = rawSerializedBytes(accepted);
 const tooManyBytes = rawSerializedBytes(tooMany);
 const oversizedWithinCountBytes = rawSerializedBytes(oversizedWithinCount);
@@ -122,6 +128,7 @@ assert(oversizedWithinCountBytes > VOID_SEGMENTED_JSONL_MAX_MANIFEST_BYTES_V1);
 const serializedAccepted = serializeSegmentedJsonlManifestV1(accepted);
 assert.equal(serializedAccepted.length, acceptedBytes);
 assert(serializedAccepted.length <= VOID_SEGMENTED_JSONL_MAX_MANIFEST_BYTES_V1);
+assert(serializeSegmentedJsonlManifestV1(exactMinimumRecordBytes).length > 0);
 
 expectVoidError(
   () => serializeSegmentedJsonlManifestV1(tooMany),
@@ -130,6 +137,14 @@ expectVoidError(
 expectVoidError(
   () => serializeSegmentedJsonlManifestV1(oversizedWithinCount),
   "MANIFEST_TOO_LARGE",
+);
+expectVoidError(
+  () => serializeSegmentedJsonlManifestV1(impossibleSealedCardinality),
+  "INVALID_SEGMENT_RANGE",
+);
+expectVoidError(
+  () => serializeSegmentedJsonlManifestV1(impossibleActiveCardinality),
+  "INVALID_ACTIVE_RANGE",
 );
 
 const acceptedInventory = sealedSegmentInventoryV1(accepted);
@@ -155,6 +170,22 @@ expectVoidError(
   () => planSegmentReplicationV1(oversizedWithinCount, []),
   "MANIFEST_TOO_LARGE",
 );
+expectVoidError(
+  () => sealedSegmentInventoryV1(impossibleSealedCardinality),
+  "INVALID_SEGMENT_RANGE",
+);
+expectVoidError(
+  () => planSegmentReplicationV1(impossibleSealedCardinality, []),
+  "INVALID_SEGMENT_RANGE",
+);
+expectVoidError(
+  () => sealedSegmentInventoryV1(impossibleActiveCardinality),
+  "INVALID_ACTIVE_RANGE",
+);
+expectVoidError(
+  () => planSegmentReplicationV1(impossibleActiveCardinality, []),
+  "INVALID_ACTIVE_RANGE",
+);
 
 const excessiveLocalInventory: SegmentInventoryV1[] = Array.from(
   { length: VOID_SEGMENTED_JSONL_MAX_SEALED_SEGMENTS_V1 + 1 },
@@ -167,6 +198,30 @@ expectVoidError(
 
 const builderRoot = fs.mkdtempSync(path.join(os.tmpdir(), "void-segmented-jsonl-builder-bound-"));
 try {
+  const impossibleSealedRoot = path.join(builderRoot, "impossible-sealed-manifest");
+  fs.mkdirSync(impossibleSealedRoot, { mode: 0o700 });
+  fs.writeFileSync(
+    path.join(impossibleSealedRoot, "manifest.v1.json"),
+    `${JSON.stringify(impossibleSealedCardinality, null, 2)}\n`,
+    { mode: 0o600 },
+  );
+  expectVoidError(
+    () => readSegmentedJsonlManifestV1(impossibleSealedRoot),
+    "INVALID_SEGMENT_RANGE",
+  );
+
+  const impossibleActiveRoot = path.join(builderRoot, "impossible-active-manifest");
+  fs.mkdirSync(impossibleActiveRoot, { mode: 0o700 });
+  fs.writeFileSync(
+    path.join(impossibleActiveRoot, "manifest.v1.json"),
+    `${JSON.stringify(impossibleActiveCardinality, null, 2)}\n`,
+    { mode: 0o600 },
+  );
+  expectVoidError(
+    () => readSegmentedJsonlManifestV1(impossibleActiveRoot),
+    "INVALID_ACTIVE_RANGE",
+  );
+
   const source = path.join(builderRoot, "source.jsonl");
   const destination = path.join(builderRoot, "store");
   const invalidDestination = path.join(builderRoot, "invalid-store");
@@ -216,6 +271,9 @@ console.log(`max_manifest_bytes=${VOID_SEGMENTED_JSONL_MAX_MANIFEST_BYTES_V1}`);
 console.log(`max_sealed_segments=${VOID_SEGMENTED_JSONL_MAX_SEALED_SEGMENTS_V1}`);
 console.log("writer_reader_manifest_ceiling_bound=true");
 console.log("direct_object_manifest_ceiling_bound=true");
+console.log("manifest_record_byte_cardinality_bound=true");
+console.log("durable_manifest_record_byte_cardinality_bound=true");
+console.log("minimum_two_bytes_per_record_boundary_green=true");
 console.log("local_inventory_count_bound=true");
 console.log("builder_segment_count_limit_bound=true");
 console.log("builder_overcap_active_manifest_absent=true");
