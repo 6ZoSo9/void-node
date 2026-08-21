@@ -63,10 +63,24 @@ function requestOneBounded(
   const transport = target.protocol === "https:" ? https : http;
   return new Promise((resolve, reject) => {
     let settled = false;
+    let totalDeadline = null;
+    const clearTotalDeadline = () => {
+      if (totalDeadline !== null) {
+        clearTimeout(totalDeadline);
+        totalDeadline = null;
+      }
+    };
     const fail = (error) => {
       if (settled) return;
       settled = true;
+      clearTotalDeadline();
       reject(error instanceof Error ? error : new Error(String(error)));
+    };
+    const succeed = (value) => {
+      if (settled) return;
+      settled = true;
+      clearTotalDeadline();
+      resolve(value);
     };
 
     const request = transport.request(
@@ -75,7 +89,11 @@ function requestOneBounded(
         method,
         headers,
         agent: false,
-        lookup(_hostname, _options, callback) {
+        lookup(_hostname, options, callback) {
+          if (options?.all === true) {
+            callback(null, [{ address, family }]);
+            return;
+          }
           callback(null, address, family);
         },
       },
@@ -114,8 +132,7 @@ function requestOneBounded(
 
         if (method === "HEAD") {
           response.resume();
-          settled = true;
-          resolve({
+          succeed({
             status,
             headers: headersView,
             bytes: Buffer.alloc(0),
@@ -142,8 +159,7 @@ function requestOneBounded(
         response.on("end", () => {
           if (settled) return;
           const bytes = Buffer.concat(chunks, total);
-          settled = true;
-          resolve({
+          succeed({
             status,
             headers: headersView,
             bytes,
@@ -154,6 +170,9 @@ function requestOneBounded(
       },
     );
 
+    totalDeadline = setTimeout(() => {
+      request.destroy(new Error(`${method} ${url} timed out after ${timeoutMs} ms`));
+    }, timeoutMs);
     request.setTimeout(timeoutMs, () => {
       request.destroy(new Error(`${method} ${url} timed out after ${timeoutMs} ms`));
     });
@@ -163,7 +182,7 @@ function requestOneBounded(
   });
 }
 
-async function requestBounded(
+export async function requestBounded(
   url,
   {
     method = "GET",
@@ -177,13 +196,18 @@ async function requestBounded(
   if (!Array.isArray(pinnedAddresses) || pinnedAddresses.length === 0) {
     throw new Error(`no pinned addresses available for ${url}`);
   }
+
+  const logicalDeadlineAt = performance.now() + timeoutMs;
   const errors = [];
   for (const address of pinnedAddresses) {
+    const remainingMs = logicalDeadlineAt - performance.now();
+    if (remainingMs < 1) break;
+    const attemptTimeoutMs = Math.max(1, Math.floor(remainingMs));
     try {
       return await requestOneBounded(url, {
         method,
         body,
-        timeoutMs,
+        timeoutMs: attemptTimeoutMs,
         maxBytes,
         address,
         allowLoopbackFixture,
@@ -191,6 +215,11 @@ async function requestBounded(
     } catch (error) {
       errors.push(`${address}: ${error?.message || String(error)}`);
     }
+  }
+
+  if (performance.now() >= logicalDeadlineAt) {
+    const detail = errors.length ? `: ${errors.join(" | ")}` : "";
+    throw new Error(`${method} ${url} timed out after ${timeoutMs} ms across pinned addresses${detail}`);
   }
   throw new Error(`${method} ${url} failed on every pinned address: ${errors.join(" | ")}`);
 }

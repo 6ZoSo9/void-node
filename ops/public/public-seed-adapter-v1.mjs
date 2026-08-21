@@ -3,6 +3,7 @@
 import fs from "node:fs";
 import http from "node:http";
 import path from "node:path";
+import { readBoundedBytesOwned } from "../../tools/wc-public-response-teardown-v1.mjs";
 
 const UPSTREAM = (process.env.VOID_SEED_UPSTREAM || "http://127.0.0.1:4100").replace(/\/+$/, "");
 const EARN_UPSTREAM = (process.env.VOID_EARN_COORDINATOR_UPSTREAM || "").replace(/\/+$/, "");
@@ -215,6 +216,24 @@ function safeFiniteNumber(value) {
   return Number.isFinite(parsed) ? parsed : null;
 }
 
+function strictFiniteNumber(value) {
+  return typeof value === "number" && Number.isFinite(value) ? value : null;
+}
+
+function strictSafeInteger(value, minimum = 0) {
+  return (
+    typeof value === "number" &&
+    Number.isSafeInteger(value) &&
+    value >= minimum
+  )
+    ? value
+    : null;
+}
+
+function strictPositiveSafeInteger(value) {
+  return strictSafeInteger(value, 1);
+}
+
 // VOID_PUBLIC_EARN_GATEWAY_CAPABILITY_FORWARDING_V1
 function validatedEarnCapabilityAuthorization(value) {
   if (typeof value !== "string") return null;
@@ -303,19 +322,41 @@ function filteredHeaders(source, extra = {}) {
   return output;
 }
 
-async function boundedResponseBody(response, maximum) {
-  const body = Buffer.from(await response.arrayBuffer());
-  if (body.length > maximum) throw new Error("upstream_response_too_large");
-  return body;
+async function boundedResponseBody(response, maximum, abort) {
+  return readBoundedBytesOwned(response, {
+    maximumBytes: maximum,
+    abort,
+    trimContentLength: false,
+    invalidContentLengthError: "upstream_response_invalid_content_length",
+    bodyTooLargeError: "upstream_response_too_large",
+    invalidChunkError: "upstream_response_invalid_chunk",
+    bodyUnavailableError: "upstream_response_body_unavailable",
+    bodyUnavailableAsEmpty: true,
+  });
 }
 
 async function fetchWithTimeout(url, options, timeoutMs) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
-  try {
-    return await fetch(url, { ...options, signal: controller.signal, redirect: "manual" });
-  } finally {
+  let released = false;
+  const abort = (reason) => {
+    if (!controller.signal.aborted) controller.abort(reason);
+  };
+  const release = () => {
+    if (released) return;
+    released = true;
     clearTimeout(timer);
+  };
+  try {
+    const response = await fetch(url, {
+      ...options,
+      signal: controller.signal,
+      redirect: "manual",
+    });
+    return { response, abort, release };
+  } catch (error) {
+    release();
+    throw error;
   }
 }
 
@@ -343,34 +384,46 @@ async function proxyRead(req, res, url) {
     ? publicDataNetFetchUpstreamSearch(url.search)
     : url.search;
   const upstreamUrl = `${readUpstream}${url.pathname}${upstreamSearch}`;
-  const response = await fetchWithTimeout(
+  const request = await fetchWithTimeout(
     upstreamUrl,
     { method: req.method },
     EARN_REQUEST_TIMEOUT_MS,
   );
-  const body = req.method === "HEAD" ? Buffer.alloc(0) : await boundedResponseBody(response, PROXY_MAX_RESPONSE_BYTES);
-  res.writeHead(response.status, filteredHeaders(response.headers));
-  if (req.method === "HEAD") return res.end();
-  res.end(body);
+  try {
+    const { response } = request;
+    const body = req.method === "HEAD"
+      ? Buffer.alloc(0)
+      : await boundedResponseBody(response, PROXY_MAX_RESPONSE_BYTES, request.abort);
+    res.writeHead(response.status, filteredHeaders(response.headers));
+    if (req.method === "HEAD") return res.end();
+    res.end(body);
+  } finally {
+    request.release();
+  }
 }
 
 async function fetchEarnJson(pathname, search = "") {
   if (!publicEarnEnabled()) {
     return { status: 503, body: { ok: false, error: "public_earn_gateway_disabled" } };
   }
-  const response = await fetchWithTimeout(
+  const request = await fetchWithTimeout(
     `${EARN_UPSTREAM}${pathname}${search}`,
     { method: "GET", headers: { accept: "application/json" } },
     EARN_REQUEST_TIMEOUT_MS,
   );
-  const raw = await boundedResponseBody(response, EARN_MAX_RESPONSE_BYTES);
-  let body;
   try {
-    body = JSON.parse(raw.toString("utf8"));
-  } catch {
-    body = { ok: false, error: "invalid_coordinator_json" };
+    const { response } = request;
+    const raw = await boundedResponseBody(response, EARN_MAX_RESPONSE_BYTES, request.abort);
+    let body;
+    try {
+      body = JSON.parse(raw.toString("utf8"));
+    } catch (_error) {
+      body = { ok: false, error: "invalid_coordinator_json" };
+    }
+    return { status: response.status, body };
+  } finally {
+    request.release();
   }
-  return { status: response.status, body };
 }
 
 function sanitizeCoordinatorHealth(value) {
@@ -394,19 +447,19 @@ function sanitizePilotStatus(value) {
     coordinator_enabled: safeBoolean(value?.coordinator_enabled),
     executor_enabled: safeBoolean(value?.executor_enabled),
     task_class: safeString(value?.task_class, 96),
-    fixed_award_wc: safeFiniteNumber(value?.fixed_award_wc),
+    fixed_award_wc: strictFiniteNumber(value?.fixed_award_wc),
     caps: {
-      account_total: safeFiniteNumber(caps.account_total) ?? 0,
+      account_total: strictSafeInteger(caps.account_total),
       account_limit:
-        safeFiniteNumber(caps.account_limit) ??
-        safeFiniteNumber(caps.per_account),
-      global_limit: safeFiniteNumber(caps.global),
+        strictPositiveSafeInteger(caps.account_limit) ??
+        strictPositiveSafeInteger(caps.per_account),
+      global_limit: strictPositiveSafeInteger(caps.global),
       global_active:
-        safeFiniteNumber(caps.global_active) ??
-        safeFiniteNumber(caps.active_issued),
+        strictSafeInteger(caps.global_active) ??
+        strictSafeInteger(caps.active_issued),
       global_consumed:
-        safeFiniteNumber(caps.global_consumed) ??
-        safeFiniteNumber(caps.consumed),
+        strictSafeInteger(caps.global_consumed) ??
+        strictSafeInteger(caps.consumed),
     },
     capability: {
       account_bound: safeBoolean(capability.account_bound),
@@ -431,7 +484,7 @@ function sanitizePilotStatus(value) {
       available: safeBoolean(publicClaim.available),
       public_route: gatewayStatus().routes.claim_ticket,
       task_class: safeString(publicClaim.task_class, 96),
-      fixed_award_wc: safeFiniteNumber(publicClaim.fixed_award_wc),
+      fixed_award_wc: strictFiniteNumber(publicClaim.fixed_award_wc),
       transport_mode: safeString(publicClaim.transport_mode, 32),
       server_selected_work: safeBoolean(publicClaim.server_selected_work),
       proof_of_executor_key_possession_required: safeBoolean(
@@ -449,16 +502,16 @@ function sanitizePilotStatus(value) {
       one_active_ticket_per_executor: safeBoolean(
         publicClaim.one_active_ticket_per_executor,
       ),
-      ticket_ttl_ms: safeFiniteNumber(publicClaim.ticket_ttl_ms),
-      cooldown_ms: safeFiniteNumber(publicClaim.cooldown_ms),
-      max_claims_per_account_24h: safeFiniteNumber(
+      ticket_ttl_ms: strictPositiveSafeInteger(publicClaim.ticket_ttl_ms),
+      cooldown_ms: strictPositiveSafeInteger(publicClaim.cooldown_ms),
+      max_claims_per_account_24h: strictPositiveSafeInteger(
         publicClaim.max_claims_per_account_24h,
       ),
-      max_claims_per_executor_24h: safeFiniteNumber(
+      max_claims_per_executor_24h: strictPositiveSafeInteger(
         publicClaim.max_claims_per_executor_24h,
       ),
-      global_active_cap: safeFiniteNumber(publicClaim.global_active_cap),
-      global_claims_per_24h: safeFiniteNumber(
+      global_active_cap: strictPositiveSafeInteger(publicClaim.global_active_cap),
+      global_claims_per_24h: strictPositiveSafeInteger(
         publicClaim.global_claims_per_24h,
       ),
       work_available: safeBoolean(publicClaim.work_available),
@@ -649,7 +702,7 @@ async function proxyEarnClaim(req, res) {
   let parsedBody;
   try {
     parsedBody = JSON.parse(body.toString("utf8"));
-  } catch {
+  } catch (_error) {
     writeJson(req, res, 400, { ok: false, error: "invalid_json" });
     return;
   }
@@ -658,7 +711,7 @@ async function proxyEarnClaim(req, res) {
     return;
   }
 
-  const response = await fetchWithTimeout(
+  const request = await fetchWithTimeout(
     `${EARN_UPSTREAM}${EARN_CLAIM_PATH}`,
     {
       method: "POST",
@@ -672,17 +725,26 @@ async function proxyEarnClaim(req, res) {
     },
     EARN_REQUEST_TIMEOUT_MS,
   );
-  const responseBody = await boundedResponseBody(response, EARN_MAX_RESPONSE_BYTES);
-  res.writeHead(
-    response.status,
-    filteredHeaders(response.headers, {
-      "cache-control": "no-store",
-      "x-content-type-options": "nosniff",
-      "x-void-public-earn-gateway": "v1",
-      "x-void-public-ticket-claim": "v1",
-    }),
-  );
-  res.end(responseBody);
+  try {
+    const { response } = request;
+    const responseBody = await boundedResponseBody(
+      response,
+      EARN_MAX_RESPONSE_BYTES,
+      request.abort,
+    );
+    res.writeHead(
+      response.status,
+      filteredHeaders(response.headers, {
+        "cache-control": "no-store",
+        "x-content-type-options": "nosniff",
+        "x-void-public-earn-gateway": "v1",
+        "x-void-public-ticket-claim": "v1",
+      }),
+    );
+    res.end(responseBody);
+  } finally {
+    request.release();
+  }
 }
 
 async function proxyEarnSubmit(req, res) {
@@ -725,7 +787,7 @@ async function proxyEarnSubmit(req, res) {
   let parsedBody;
   try {
     parsedBody = JSON.parse(body.toString("utf8"));
-  } catch {
+  } catch (_error) {
     writeJson(req, res, 400, { ok: false, error: "invalid_json" });
     return;
   }
@@ -739,7 +801,7 @@ async function proxyEarnSubmit(req, res) {
     return;
   }
 
-  const response = await fetchWithTimeout(
+  const request = await fetchWithTimeout(
     `${EARN_UPSTREAM}${EARN_SUBMIT_PATH}`,
     {
       method: "POST",
@@ -754,22 +816,31 @@ async function proxyEarnSubmit(req, res) {
     },
     EARN_REQUEST_TIMEOUT_MS,
   );
-  const responseBody = await boundedResponseBody(response, EARN_MAX_RESPONSE_BYTES);
-  res.writeHead(
-    response.status,
-    filteredHeaders(response.headers, {
-      "cache-control": "no-store",
-      "x-void-public-earn-gateway": "v1",
-    }),
-  );
-  res.end(responseBody);
+  try {
+    const { response } = request;
+    const responseBody = await boundedResponseBody(
+      response,
+      EARN_MAX_RESPONSE_BYTES,
+      request.abort,
+    );
+    res.writeHead(
+      response.status,
+      filteredHeaders(response.headers, {
+        "cache-control": "no-store",
+        "x-void-public-earn-gateway": "v1",
+      }),
+    );
+    res.end(responseBody);
+  } finally {
+    request.release();
+  }
 }
 
 function serveShellScript(req, res, file, filename, unavailable) {
   let stat;
   try {
     stat = fs.statSync(file);
-  } catch {
+  } catch (_error) {
     writeText(req, res, 404, `${unavailable}\n`);
     return;
   }
@@ -814,7 +885,7 @@ function serveNoNodeClient(req, res) {
   let stat;
   try {
     stat = fs.statSync(EARN_NO_NODE_CLIENT_FILE);
-  } catch (error) {
+  } catch (_error) {
     writeText(req, res, 404, "no_node_client_unavailable\n");
     return;
   }

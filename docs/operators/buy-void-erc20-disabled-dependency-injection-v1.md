@@ -55,18 +55,9 @@ signing, broadcast, or money authority.
 
 ## Readiness truth boundary
 
-A green dormant-injection seam is not a claim that the presale is activation-ready.
-Current canonical source still has two independent P0 economic blockers:
+The canonical presale economics layer now enforces a single `buy-void-presale-v1` pool capped at 10000000 VOID (10000000000000 six-decimal fulfillment units) and the fixed `2 VOID / 1 USDC` rate. The reservation ceiling equals the total pool, so buyers are not throttled to the disabled delivery canary. A 10,000 VOID validator-scale reservation is part of the acceptance wall.
 
-- the finite 10,000,000 VOID presale maximum is not yet enforced end-to-end as
-  an immutable 10,000,000,000,000 six-decimal fulfillment-unit ceiling; and
-- the saga/server policy still accepts arbitrary positive rate numerator and
-  denominator values instead of enforcing the fixed `2 VOID / 1 USDC` rate.
-
-Accordingly, dependency-injection authorization is **not** the sole next
-activation gate while either invariant remains unresolved. The next source
-outcome is the canonical presale-invariants repair; runtime enablement,
-inventory funding, and any value-bearing transaction remain later gates.
+The existing 2-VOID value belongs only to disabled delivery-execution staging. It is deliberately allowed while delivery remains `0`, but public delivery activation must use a delivery maximum equal to the canonical presale capacity. Runtime activation, inventory funding, and any value-bearing transaction remain later gates.
 
 ## Authority boundary
 
