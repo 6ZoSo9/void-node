@@ -4,8 +4,11 @@ on:
   pull_request:
     paths:
       - "public/void-app-wave1-v1/assets/css/site-theme.css"
+      - "public/public-node/void-public-node-home-v1.html"
+      - "public/public-node/void-public-node-home-v1.js"
       - "docs/public/void-ui-visual-unification-v1.md"
       - "scripts/prove_void_ui_visual_unification_v1.mjs"
+      - "scripts/prove_void_public_node_home_v1.mjs"
       - ".github/workflows/void-ui-visual-unification-v1.yml"
       - "scripts/prove_void_app_site_theme_v1.mjs"
       - "public/void-app-wave1-v1/assets/css/tokens.css"
@@ -15,8 +18,11 @@ on:
     branches: [main]
     paths:
       - "public/void-app-wave1-v1/assets/css/site-theme.css"
+      - "public/public-node/void-public-node-home-v1.html"
+      - "public/public-node/void-public-node-home-v1.js"
       - "docs/public/void-ui-visual-unification-v1.md"
       - "scripts/prove_void_ui_visual_unification_v1.mjs"
+      - "scripts/prove_void_public_node_home_v1.mjs"
       - ".github/workflows/void-ui-visual-unification-v1.yml"
       - "scripts/prove_void_app_site_theme_v1.mjs"
       - "public/void-app-wave1-v1/assets/css/tokens.css"
@@ -47,10 +53,15 @@ jobs:
         with:
           node-version: ${{ matrix.node }}
       - name: Syntax
-        run: node --check scripts/prove_void_ui_visual_unification_v1.mjs
+        run: |
+          node --check scripts/prove_void_ui_visual_unification_v1.mjs
+          node --check scripts/prove_void_public_node_home_v1.mjs
+          node --check public/public-node/void-public-node-home-v1.js
       - name: Existing production-theme proof
         run: node scripts/prove_void_app_site_theme_v1.mjs
       - name: Visual-unification proof
         run: node scripts/prove_void_ui_visual_unification_v1.mjs
+      - name: Public-node home proof
+        run: node scripts/prove_void_public_node_home_v1.mjs
       - name: Diff hygiene
         run: git diff --check
