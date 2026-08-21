@@ -4,12 +4,14 @@ on:
   pull_request:
     paths:
       - "src/storage/segmented_jsonl_v1.ts"
+      - "src/storage/segmented_jsonl_snapshot_authority_v1.ts"
       - "scripts/prove_segmented_jsonl_v1.ts"
       - "scripts/prove_segmented_jsonl_record_delimiter_ceiling_v1.ts"
       - "scripts/prove_segmented_jsonl_manifest_publish_ceiling_v1.ts"
       - "scripts/prove_segmented_jsonl_parent_namespace_v1.ts"
       - "scripts/prove_segmented_jsonl_terminal_generation_v1.ts"
       - "scripts/prove_segmented_jsonl_builder_record_vector_heap_v1.ts"
+      - "scripts/prove_segmented_jsonl_snapshot_authority_v1.ts"
       - ".github/workflows/void-segmented-jsonl-v1.yml"
       - "scripts/ci_diff_hygiene_v1.sh"
       - "scripts/prove_ci_diff_hygiene_v1.mjs"
@@ -20,12 +22,14 @@ on:
       - main
     paths:
       - "src/storage/segmented_jsonl_v1.ts"
+      - "src/storage/segmented_jsonl_snapshot_authority_v1.ts"
       - "scripts/prove_segmented_jsonl_v1.ts"
       - "scripts/prove_segmented_jsonl_record_delimiter_ceiling_v1.ts"
       - "scripts/prove_segmented_jsonl_manifest_publish_ceiling_v1.ts"
       - "scripts/prove_segmented_jsonl_parent_namespace_v1.ts"
       - "scripts/prove_segmented_jsonl_terminal_generation_v1.ts"
       - "scripts/prove_segmented_jsonl_builder_record_vector_heap_v1.ts"
+      - "scripts/prove_segmented_jsonl_snapshot_authority_v1.ts"
       - ".github/workflows/void-segmented-jsonl-v1.yml"
       - "scripts/ci_diff_hygiene_v1.sh"
       - "scripts/prove_ci_diff_hygiene_v1.mjs"
@@ -83,12 +87,14 @@ jobs:
       - name: Syntax
         run: |
           node --experimental-strip-types --check src/storage/segmented_jsonl_v1.ts
+          node --experimental-strip-types --check src/storage/segmented_jsonl_snapshot_authority_v1.ts
           node --experimental-strip-types --check scripts/prove_segmented_jsonl_v1.ts
           node --experimental-strip-types --check scripts/prove_segmented_jsonl_record_delimiter_ceiling_v1.ts
           node --experimental-strip-types --check scripts/prove_segmented_jsonl_manifest_publish_ceiling_v1.ts
           node --experimental-strip-types --check scripts/prove_segmented_jsonl_parent_namespace_v1.ts
           node --experimental-strip-types --check scripts/prove_segmented_jsonl_terminal_generation_v1.ts
           node --experimental-strip-types --check scripts/prove_segmented_jsonl_builder_record_vector_heap_v1.ts
+          node --experimental-strip-types --check scripts/prove_segmented_jsonl_snapshot_authority_v1.ts
           node --check scripts/prove_ci_diff_hygiene_v1.mjs
           bash -n scripts/ci_diff_hygiene_v1.sh
 
@@ -109,6 +115,9 @@ jobs:
 
       - name: Prove builder record-vector heap bound
         run: npx --no-install tsx scripts/prove_segmented_jsonl_builder_record_vector_heap_v1.ts
+
+      - name: Prove content-addressed snapshot and checkpoint authority
+        run: npx --no-install tsx scripts/prove_segmented_jsonl_snapshot_authority_v1.ts
 
       - name: Repository typecheck
         if: matrix.node == 24
