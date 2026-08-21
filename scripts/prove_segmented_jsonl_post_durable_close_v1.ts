@@ -75,6 +75,73 @@ function injectCommittedCloseFailure(
   }
 }
 
+function injectParentFsyncChildLinkSwap(source: string, destination: string): void {
+  const originalFsyncSync = (mutableFs as any).fsyncSync;
+  const segmentsDir = path.join(destination, "segments");
+  const sealedLeaf = path.join(segmentsDir, "000000000000.jsonl");
+  const ownedAside = path.join(segmentsDir, ".owned-before-parent-fsync.jsonl");
+  const foreignAside = path.join(segmentsDir, ".foreign-at-parent-fsync.jsonl");
+  const foreignBody = Buffer.from("foreign-generation-at-parent-fsync\n", "utf8");
+  let injected = false;
+  let failure: unknown = null;
+
+  try {
+    (mutableFs as any).fsyncSync = (fd: number) => {
+      let fdPath = "";
+      try { fdPath = fs.readlinkSync(`/proc/self/fd/${fd}`); }
+      catch { return originalFsyncSync(fd); }
+
+      if (!injected && path.resolve(fdPath) === path.resolve(segmentsDir) && fs.existsSync(sealedLeaf)) {
+        fs.renameSync(sealedLeaf, ownedAside);
+        fs.writeFileSync(sealedLeaf, foreignBody, { flag: "wx", mode: 0o400 });
+
+        // The real parent-directory durability boundary runs while a foreign
+        // generation occupies the canonical child basename.
+        originalFsyncSync(fd);
+
+        fs.renameSync(sealedLeaf, foreignAside);
+        // Force an observable generation transition on the owned inode before
+        // restoring its basename. The caller then sees the original inode at
+        // the path again, but its generation cannot equal the pre-fsync witness.
+        fs.chmodSync(ownedAside, 0o600);
+        fs.chmodSync(ownedAside, 0o400);
+        fs.renameSync(ownedAside, sealedLeaf);
+        injected = true;
+        return;
+      }
+      return originalFsyncSync(fd);
+    };
+    syncBuiltinESMExports();
+
+    try {
+      buildSegmentedJsonlV1FromFile(source, destination, {
+        segmentTargetBytes: 4096,
+        maxRecordBytes: 1024,
+      });
+    } catch (error) {
+      failure = error;
+    }
+  } finally {
+    (mutableFs as any).fsyncSync = originalFsyncSync;
+    syncBuiltinESMExports();
+  }
+
+  assert.equal(injected, true, "parent-fsync child-link swap must execute");
+  assert.ok(failure instanceof Error, "parent-fsync child-link swap must fail closed");
+  assert.match(
+    failure.message,
+    /VOID_SEGMENTED_JSONL_V1:WRITE_POST_FSYNC_GENERATION_MISMATCH:/,
+    "post-fsync child generation mismatch must be the terminal",
+  );
+  assert.equal(
+    fs.readFileSync(foreignAside, "utf8"),
+    foreignBody.toString("utf8"),
+    "foreign generation must survive unchanged",
+  );
+  assert.equal(fs.existsSync(path.join(destination, "manifest.v1.json")), false, "manifest must not publish after child-link mismatch");
+  assert.equal(fs.existsSync(sealedLeaf), true, "owned sealed generation may remain for later exact recovery");
+}
+
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "void-segmented-jsonl-close-v1-"));
 fs.chmodSync(tmp, 0o700);
 try {
@@ -105,9 +172,16 @@ try {
     4096,
   );
 
+  injectParentFsyncChildLinkSwap(
+    source,
+    path.join(tmp, "parent-fsync-child-link-store"),
+  );
+
   console.log("post_durable_sealed_close_truth_preserved=true");
   console.log("post_durable_active_close_truth_preserved=true");
   console.log("post_durable_manifest_close_truth_preserved=true");
+  console.log("parent_fsync_child_link_generation_bound=true");
+  console.log("foreign_parent_fsync_replacement_preserved=true");
   console.log("VOID_SEGMENTED_JSONL_POST_DURABLE_CLOSE_V1_PROOF_GREEN");
 } finally {
   fs.rmSync(tmp, { recursive: true, force: true });
