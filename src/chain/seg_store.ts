@@ -23,7 +23,7 @@ function recordSegstoreDatanetEmptyCatchVisibilityFailure_src_chain_seg_store_ts
   });
 }
 
-// --- WAL replay metrics (v1; additive) ---
+// --- WAL replay metrics (v1) ---
 export type WalReplayMetrics = {
   replay_runs_total: number;
   replay_entries_applied_total: number;
@@ -112,7 +112,7 @@ function atomicWriteText(root: string, p: string, text: string) {
 }
 
 export class SegStore {
-  // --- WAL replay metrics (v1; additive) ---
+  // --- WAL replay metrics (v1) ---
   private _walReplayMetrics: WalReplayMetrics = _walReplayMetricsInit();
   public getWalReplayMetrics(): WalReplayMetrics { return this._walReplayMetrics; }
 
