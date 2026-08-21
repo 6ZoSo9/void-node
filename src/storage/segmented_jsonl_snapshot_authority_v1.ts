@@ -179,7 +179,7 @@ function checkpointCore(
   return {
     v: 1 as const,
     format: VOID_SEGMENTED_JSONL_CHECKPOINT_V1 as typeof VOID_SEGMENTED_JSONL_CHECKPOINT_V1,
-    checkpoint_index: previous ? previous.checkpoint_index + 1 : 0,
+    checkpoint_index: snapshot.generation - 1,
     previous_checkpoint_sha256: previous ? previous.checkpoint_sha256 : null,
     snapshot_sha256: snapshot.snapshot_sha256,
     manifest_sha256: snapshot.manifest_sha256,
@@ -240,6 +240,12 @@ export function verifySegmentedJsonlCheckpointEncodingV1(
     !isHex64(c.checkpoint_sha256)
   ) {
     fail("INVALID_CHECKPOINT", "shape");
+  }
+  if (c.checkpoint_index !== c.store_generation - 1) {
+    fail(
+      "CHECKPOINT_INDEX_GENERATION_MISMATCH",
+      `${c.checkpoint_index}:${c.store_generation}`,
+    );
   }
   parseDecimal(c.cumulative_bytes, "cumulative_bytes");
   parseDecimal(c.cumulative_records, "cumulative_records");
