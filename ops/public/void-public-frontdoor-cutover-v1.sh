@@ -76,6 +76,10 @@ rollback_decision() {
   local installed="$3"
   local observed="$4"
   [[ "$phase" == "preparing" || "$phase" == "prepared" || "$phase" == "installed" || "$phase" == "retired" ]] || return 2
+  if [[ "$phase" == "retired" ]]; then
+    printf '%s' "retired"
+    return 0
+  fi
   if [[ "$observed" == "$previous" ]]; then
     printf '%s' "retire_only"
     return 0
@@ -115,6 +119,12 @@ transaction_self_test() {
   if rollback_decision preparing 8082 8083 8083 >/dev/null 2>&1; then
     fail "transaction self-test treated an unowned preparing-state frontdoor as installed"
   fi
+  decision="$(rollback_decision retired 8082 8083 8083)"
+  [[ "$decision" == "retired" ]] || fail "transaction self-test reopened retired transaction on installed-port ABA"
+  decision="$(rollback_decision retired 8082 8083 8082)"
+  [[ "$decision" == "retired" ]] || fail "transaction self-test reopened retired transaction on predecessor-port reuse"
+  decision="$(rollback_decision retired 8082 8083 9000)"
+  [[ "$decision" == "retired" ]] || fail "transaction self-test reopened retired transaction on foreign generation"
 
   local tx state
   tx="$tmp/transaction"
@@ -140,6 +150,7 @@ transaction_self_test() {
   echo "prepared_without_switch_recovery=true"
   echo "transaction_state_atomic_durable=true"
   echo "transaction_retirement_is_durable_state=true"
+  echo "retired_transaction_no_mutation=true"
 }
 
 if [[ "$MODE" == "--parser-self-test" ]]; then
@@ -286,10 +297,13 @@ rollback_locked() {
   decision="$(rollback_decision "$phase" "$previous" "$installed" "$observed")" \
     || fail "canonical 443 authority changed; refusing stale rollback (phase=$phase expected_installed=$installed observed=$observed)"
 
+  if [[ "$decision" == "retired" ]]; then
+    echo "${MARKER}_ROLLBACK_ALREADY_RETIRED_GREEN"
+    return 0
+  fi
+
   if [[ "$decision" == "retire_only" ]]; then
-    if [[ "$phase" != "retired" ]]; then
-      publish_transaction_state retired "$previous" "$installed"
-    fi
+    publish_transaction_state retired "$previous" "$installed"
     systemctl --user disable --now void-public-frontdoor-v1.service >/dev/null 2>&1 || true
     echo "${MARKER}_ROLLBACK_NO_SWITCH_GREEN"
     return 0
