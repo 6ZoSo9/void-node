@@ -436,6 +436,23 @@ function readExactGenerationBufferV1(
   } finally { fs.closeSync(fd); }
 }
 
+function assertTerminalLeafGenerationV1(file: string, expected: GenerationV1, expectedMode: number): void {
+  const fd = openRegularReadV1(file);
+  try {
+    const observed = fdObservation(fd), visible = pathGeneration(file);
+    if (
+      !visible ||
+      !sameGeneration(expected, observed.generation) ||
+      !sameGeneration(observed.generation, visible)
+    ) {
+      fail("VERIFY_TERMINAL_LEAF_GENERATION_MISMATCH", file);
+    }
+    if (observed.mode !== expectedMode) {
+      fail("VERIFY_TERMINAL_LEAF_MODE_MISMATCH", `${file}:${observed.mode.toString(8)}:${expectedMode.toString(8)}`);
+    }
+  } finally { fs.closeSync(fd); }
+}
+
 function writeDurableNew(
   file: string,
   body: Buffer,
@@ -540,6 +557,7 @@ function parseManifest(value: unknown): SegmentedJsonlManifestV1 {
       s.bytes > m.segment_target_bytes ||
       s.records <= 0 ||
       s.records > Math.floor(s.bytes / 2) ||
+      s.bytes > s.records * (m.max_record_bytes + 1) ||
       s.last_record_index - s.first_record_index + 1 !== s.records ||
       !isHex64(s.sha256)
     ) fail("INVALID_SEGMENT_RANGE", String(i));
@@ -555,7 +573,8 @@ function parseManifest(value: unknown): SegmentedJsonlManifestV1 {
     a.bytes > m.segment_target_bytes ||
     (a.records === 0) !== (a.last_record_index === null) ||
     (a.records === 0) !== (a.bytes === 0) ||
-    a.records > Math.floor(a.bytes / 2)
+    a.records > Math.floor(a.bytes / 2) ||
+    (a.records > 0 && a.bytes > a.records * (m.max_record_bytes + 1))
   ) fail("INVALID_ACTIVE_RANGE", "empty-last-bytes-or-cardinality");
   if (a.records > 0 && a.last_record_index - a.first_record_index + 1 !== a.records) fail("INVALID_ACTIVE_RANGE", "count");
   const active: SegmentedJsonlActiveV1 = { file:ACTIVE, bytes:a.bytes, records:a.records, first_record_index:a.first_record_index, last_record_index:a.last_record_index, sha256:a.sha256 };
@@ -622,7 +641,14 @@ function atomicManifest(
   } finally { if (!retainedAuthority) fs.closeSync(authority.fd); }
 }
 
-function scanFile(file: string, expectedBytes: number, expectedRecords: number, maxRecord: number, validateJson: boolean, expectedMode: number): { bytes:number; records:number; sha256:string } {
+function scanFile(
+  file: string,
+  expectedBytes: number,
+  expectedRecords: number,
+  maxRecord: number,
+  validateJson: boolean,
+  expectedMode: number,
+): { bytes:number; records:number; sha256:string; generation:GenerationV1; mode:number } {
   const fd = openRegularReadV1(file);
   try {
     const beforeObservation = fdObservation(fd), before = beforeObservation.generation, p0 = pathGeneration(file);
@@ -642,7 +668,7 @@ function scanFile(file: string, expectedBytes: number, expectedRecords: number, 
     const afterObservation = fdObservation(fd), after = afterObservation.generation, p1 = pathGeneration(file);
     if (!sameGeneration(before,after) || !p1 || !sameGeneration(after,p1)) fail("UNSTABLE_FILE_DURING_SCAN", file);
     if (afterObservation.mode !== expectedMode) fail("FILE_MODE_MISMATCH", `${file}:${afterObservation.mode.toString(8)}:${expectedMode.toString(8)}`);
-    return { bytes, records, sha256:hash.digest("hex") };
+    return { bytes, records, sha256:hash.digest("hex"), generation:after, mode:afterObservation.mode };
   } finally { fs.closeSync(fd); }
 }
 
@@ -672,17 +698,24 @@ function verifySegmentedJsonlWithAuthoritiesV1(
   assertPrivateDirectoryWriteAuthorityV1(root);
   assertPrivateDirectoryWriteAuthorityV1(segments);
   const m = readSegmentedJsonlManifestFromAuthorityV1(root), validateJson = options.validateJson !== false;
+  const terminalLeaves: Array<{ file:string; generation:GenerationV1; mode:number }> = [];
   let bytes=0, records=0;
   for (const s of m.sealed_segments) {
     const file = path.join(segments.stablePath, segmentName(s.id));
     const got = scanFile(file,s.bytes,s.records,m.max_record_bytes,validateJson,0o400);
     if (got.sha256 !== s.sha256) fail("SEGMENT_HASH_MISMATCH", `id=${s.id}:expected=${s.sha256}:actual=${got.sha256}`);
+    terminalLeaves.push({ file, generation:got.generation, mode:0o400 });
     bytes += got.bytes; records += got.records;
   }
-  const a = scanFile(path.join(root.stablePath,ACTIVE),m.active.bytes,m.active.records,m.max_record_bytes,validateJson,0o600);
+  const activeFile = path.join(root.stablePath,ACTIVE);
+  const a = scanFile(activeFile,m.active.bytes,m.active.records,m.max_record_bytes,validateJson,0o600);
   if (a.sha256 !== m.active.sha256) fail("ACTIVE_HASH_MISMATCH", `expected=${m.active.sha256}:actual=${a.sha256}`);
+  terminalLeaves.push({ file:activeFile, generation:a.generation, mode:0o600 });
   bytes += a.bytes; records += a.records;
   if (bytes !== m.total_bytes || records !== m.total_records) fail("VERIFY_TOTAL_MISMATCH", `${bytes}:${records}`);
+  for (const leaf of terminalLeaves) {
+    assertTerminalLeafGenerationV1(leaf.file, leaf.generation, leaf.mode);
+  }
   assertPrivateDirectoryWriteAuthorityV1(segments);
   assertPrivateDirectoryWriteAuthorityV1(root);
   return { manifest:m, sealed_segments_verified:m.sealed_segments.length, total_bytes_verified:bytes, total_records_verified:records };
