@@ -701,3 +701,63 @@ td { color: var(--void-text-secondary); }
     font-size: 2.2rem;
   }
 }
+
+/* Remove the last Wave-era dashboard language without touching owned view JS. */
+[data-home-view] .page-header__copy h1 {
+  font-size: 0;
+}
+
+[data-home-view] .page-header__copy h1::after {
+  content: "Home";
+  display: block;
+  font-size: clamp(2.5rem, 5vw, 4.75rem);
+  line-height: 0.95;
+  letter-spacing: -0.07em;
+}
+
+[data-home-view] .page-header__copy > p {
+  font-size: 0;
+  line-height: 0;
+}
+
+[data-home-view] .page-header__copy > p::after {
+  content: "Balances, available work, and network status in one place.";
+  display: block;
+  font-size: var(--void-text-14);
+  line-height: 1.65;
+}
+
+.wallet-live-grid .balance-strip {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.wallet-live-grid .balance-tile--production {
+  display: none;
+}
+
+.wallet-live-grid .balance-tile:nth-child(2) {
+  border-right: 0;
+}
+
+.wallet-live-grid .balance-tile:nth-child(2) .balance-tile__label {
+  font-size: 0;
+}
+
+.wallet-live-grid .balance-tile:nth-child(2) .balance-tile__label::after {
+  content: "WC";
+  font-size: var(--void-text-12);
+}
+
+@media (max-width: 860px) {
+  [data-home-view] .page-header__copy h1::after {
+    font-size: clamp(2.25rem, 12vw, 3.5rem);
+  }
+
+  .wallet-live-grid .balance-strip {
+    grid-template-columns: 1fr;
+  }
+
+  .wallet-live-grid .balance-tile:nth-child(2) {
+    border-bottom: 0;
+  }
+}
