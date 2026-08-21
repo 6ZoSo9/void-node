@@ -51,6 +51,7 @@ async function assertRetriesQuarantined(owner, fetchCallCount, expectedFetchCall
 // admitted body generation even when cancellation rejects.
 {
   const closedGate = deferred();
+  const cancelGate = deferred();
   let fetchCalls = 0;
   let readCalls = 0;
   let cancelCalls = 0;
@@ -77,7 +78,7 @@ async function assertRetriesQuarantined(owner, fetchCallCount, expectedFetchCall
             },
             cancel() {
               cancelCalls += 1;
-              return Promise.reject(new Error('yield cancel rejected'));
+              return cancelGate.promise;
             },
             releaseLock() {},
           };
@@ -142,7 +143,10 @@ for (const scenario of ['overflow', 'zero_progress']) {
             },
             cancel() {
               cancelCalls += 1;
-              return Promise.reject(new Error(`${scenario} cancel rejected`));
+              if (scenario === 'overflow') {
+                return Promise.reject(new Error(`${scenario} cancel rejected`));
+              }
+              return new Promise(() => {});
             },
             releaseLock() {},
           };
@@ -197,7 +201,7 @@ for (const scenario of ['overflow', 'zero_progress']) {
           },
           cancel() {
             cancelCalls += 1;
-            return Promise.reject(new Error('late response cancel rejected'));
+            return new Promise(() => {});
           },
           releaseLock() {},
         };

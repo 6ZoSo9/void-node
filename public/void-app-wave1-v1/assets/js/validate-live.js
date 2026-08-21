@@ -270,8 +270,7 @@ async function cancelOwnedBounded(target, reason, {
     },
     () => undefined,
   );
-  const tracked = track(cancellationOutcome);
-  await waitBounded(tracked, teardownMs);
+  await waitBounded(cancellationOutcome, teardownMs);
 }
 
 async function teardownResponseBodyOwnedV1(response, primary, {
