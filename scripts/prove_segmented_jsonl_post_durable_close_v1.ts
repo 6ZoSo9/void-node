@@ -1,0 +1,114 @@
+// VOID Community License (VCL) v1.0 — see LICENSE
+// Copyright (c) 2025 6ZoSo9
+
+import assert from "node:assert/strict";
+import * as fs from "node:fs";
+import * as os from "node:os";
+import * as path from "node:path";
+import { createRequire, syncBuiltinESMExports } from "node:module";
+
+import {
+  buildSegmentedJsonlV1FromFile,
+  readSegmentedJsonlManifestV1,
+  verifySegmentedJsonlV1,
+} from "../src/storage/segmented_jsonl_v1.js";
+
+const require = createRequire(import.meta.url);
+const mutableFs = require("node:fs") as typeof fs;
+
+function makeFixture(records: number): Buffer {
+  const rows: Buffer[] = [];
+  for (let i = 0; i < records; i++) {
+    rows.push(Buffer.from(`${JSON.stringify({ v: 1, id: i, payload: "x".repeat(96) })}\n`, "utf8"));
+  }
+  return Buffer.concat(rows);
+}
+
+function injectCommittedCloseFailure(
+  source: string,
+  destination: string,
+  label: string,
+  matchesTarget: (candidate: string) => boolean,
+  segmentTargetBytes: number,
+): void {
+  const originalOpenSync = (mutableFs as any).openSync;
+  const originalCloseSync = (mutableFs as any).closeSync;
+  const targetFds = new Set<number>();
+  let injected = false;
+
+  try {
+    (mutableFs as any).openSync = (...args: any[]) => {
+      const fd = originalOpenSync(...args);
+      if (typeof args[0] === "string" && matchesTarget(String(args[0]))) {
+        targetFds.add(fd);
+      }
+      return fd;
+    };
+    (mutableFs as any).closeSync = (fd: number) => {
+      if (!injected && targetFds.has(fd)) {
+        targetFds.delete(fd);
+        originalCloseSync(fd);
+        injected = true;
+        const error = new Error(`injected ${label} close failure`) as NodeJS.ErrnoException;
+        error.code = "EIO";
+        throw error;
+      }
+      targetFds.delete(fd);
+      return originalCloseSync(fd);
+    };
+    syncBuiltinESMExports();
+
+    const manifest = buildSegmentedJsonlV1FromFile(source, destination, {
+      segmentTargetBytes,
+      maxRecordBytes: 1024,
+    });
+
+    assert.equal(injected, true, `${label} close fault must execute`);
+    const verified = verifySegmentedJsonlV1(destination);
+    assert.equal(verified.total_bytes_verified, manifest.total_bytes);
+    assert.equal(verified.total_records_verified, manifest.total_records);
+    assert.deepEqual(readSegmentedJsonlManifestV1(destination), manifest);
+  } finally {
+    (mutableFs as any).openSync = originalOpenSync;
+    (mutableFs as any).closeSync = originalCloseSync;
+    syncBuiltinESMExports();
+  }
+}
+
+const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "void-segmented-jsonl-close-v1-"));
+fs.chmodSync(tmp, 0o700);
+try {
+  const source = path.join(tmp, "source.jsonl");
+  fs.writeFileSync(source, makeFixture(500), { mode: 0o600 });
+
+  injectCommittedCloseFailure(
+    source,
+    path.join(tmp, "sealed-close-store"),
+    "sealed leaf",
+    candidate => candidate.endsWith("/000000000000.jsonl"),
+    4096,
+  );
+
+  injectCommittedCloseFailure(
+    source,
+    path.join(tmp, "active-close-store"),
+    "active leaf",
+    candidate => candidate.endsWith("/active.jsonl"),
+    8 * 1024 * 1024,
+  );
+
+  injectCommittedCloseFailure(
+    source,
+    path.join(tmp, "manifest-close-store"),
+    "manifest",
+    candidate => candidate.endsWith("/manifest.v1.json"),
+    4096,
+  );
+
+  console.log("post_durable_sealed_close_truth_preserved=true");
+  console.log("post_durable_active_close_truth_preserved=true");
+  console.log("post_durable_manifest_close_truth_preserved=true");
+  console.log("VOID_SEGMENTED_JSONL_POST_DURABLE_CLOSE_V1_PROOF_GREEN");
+} finally {
+  fs.rmSync(tmp, { recursive: true, force: true });
+}
