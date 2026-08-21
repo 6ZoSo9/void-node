@@ -123,6 +123,7 @@ try {
   const anchor0 = trustedAnchor(checkpoint0, authority);
   assert.equal(checkpoint0.cumulative_bytes, String(authority.total_bytes));
   assert.equal(checkpoint0.cumulative_records, String(authority.total_records));
+  assert.equal(checkpoint0.checkpoint_index, checkpoint0.store_generation - 1);
 
   // A V1 checkpoint chain has exactly one genesis semantic: store generation 1.
   // A later authentic store generation cannot silently masquerade as checkpoint
@@ -145,10 +146,13 @@ try {
     cumulative_bytes: String(lateGenesisAuthority.total_bytes),
     cumulative_records: String(lateGenesisAuthority.total_records),
   });
-  verifySegmentedJsonlCheckpointEncodingV1(lateGenesisCheckpoint);
+  expectFailure(
+    () => verifySegmentedJsonlCheckpointEncodingV1(lateGenesisCheckpoint),
+    "CHECKPOINT_INDEX_GENERATION_MISMATCH",
+  );
   expectFailure(
     () => verifySegmentedJsonlCheckpointV1(lateGenesisCheckpoint, lateGenesisAuthority),
-    "CHECKPOINT_GENESIS_GENERATION_MISMATCH",
+    "CHECKPOINT_INDEX_GENERATION_MISMATCH",
   );
   expectFailure(
     () => verifySegmentedJsonlCheckpointAnchorV1({
@@ -156,13 +160,41 @@ try {
       snapshot: lateGenesisAuthority,
       trusted_checkpoint_sha256: lateGenesisCheckpoint.checkpoint_sha256,
     }),
-    "CHECKPOINT_GENESIS_GENERATION_MISMATCH",
+    "CHECKPOINT_INDEX_GENERATION_MISMATCH",
   );
   expectFailure(
     () => verifySegmentedJsonlCheckpointChainV1([
       { checkpoint: lateGenesisCheckpoint, snapshot: lateGenesisAuthority },
     ], lateGenesisCheckpoint.checkpoint_sha256),
-    "CHECKPOINT_GENESIS_GENERATION_MISMATCH",
+    "CHECKPOINT_INDEX_GENERATION_MISMATCH",
+  );
+
+  // Checkpoint index is not an independent authority field. Every V1 checkpoint
+  // must satisfy checkpoint_index === store_generation - 1, including trusted
+  // anchors. A recomputed digest cannot turn an impossible index into authority.
+  const impossibleIndexCheckpoint = resignCheckpoint({
+    ...checkpoint0,
+    checkpoint_index: 100,
+  });
+  expectFailure(
+    () => verifySegmentedJsonlCheckpointEncodingV1(impossibleIndexCheckpoint),
+    "CHECKPOINT_INDEX_GENERATION_MISMATCH",
+  );
+  expectFailure(
+    () => verifySegmentedJsonlCheckpointAnchorV1({
+      checkpoint: impossibleIndexCheckpoint,
+      snapshot: authority,
+      trusted_checkpoint_sha256: impossibleIndexCheckpoint.checkpoint_sha256,
+    }),
+    "CHECKPOINT_INDEX_GENERATION_MISMATCH",
+  );
+  const unsafeSuccessorAnchor = resignCheckpoint({
+    ...checkpoint0,
+    checkpoint_index: Number.MAX_SAFE_INTEGER,
+  });
+  expectFailure(
+    () => verifySegmentedJsonlCheckpointEncodingV1(unsafeSuccessorAnchor),
+    "CHECKPOINT_INDEX_GENERATION_MISMATCH",
   );
 
   // Checkpoint progression is one unique next store generation per link.
@@ -194,10 +226,19 @@ try {
     ...manifest,
     generation: manifest.generation + 1,
   });
+  expectFailure(
+    () => deriveSegmentedJsonlCheckpointV1(nextAuthority, {
+      checkpoint: unsafeSuccessorAnchor,
+      snapshot: authority,
+      trusted_checkpoint_sha256: unsafeSuccessorAnchor.checkpoint_sha256,
+    }),
+    "CHECKPOINT_INDEX_GENERATION_MISMATCH",
+  );
   const checkpoint1 = deriveSegmentedJsonlCheckpointV1(nextAuthority, anchor0);
   verifySegmentedJsonlCheckpointV1(checkpoint1, nextAuthority, anchor0);
   const anchor1 = trustedAnchor(checkpoint1, nextAuthority);
   assert.equal(checkpoint1.store_generation, checkpoint0.store_generation + 1);
+  assert.equal(checkpoint1.checkpoint_index, checkpoint1.store_generation - 1);
   assert.equal(checkpoint1.cumulative_records, String(nextAuthority.total_records));
   assert.equal(checkpoint1.cumulative_bytes, String(nextAuthority.total_bytes));
   assert.equal(checkpoint1.cumulative_records, checkpoint0.cumulative_records);
@@ -285,6 +326,7 @@ try {
   assert.ok(maximumCheckpointBytes <= VOID_SEGMENTED_JSONL_MAX_CHECKPOINT_BYTES_V1);
   assert.equal(Array.isArray((checkpoint as any).sealed_segments), false);
   assert.equal(checkpoint.store_generation, manifest.generation + 10_000);
+  assert.equal(checkpoint.checkpoint_index, checkpoint.store_generation - 1);
   assert.equal(checkpoint.cumulative_records, String(manifest.total_records));
   assert.equal(checkpoint.cumulative_bytes, String(manifest.total_bytes));
 
@@ -345,6 +387,8 @@ try {
   console.log("live_tree_terminal_authority=false");
   console.log("checkpoint_genesis_generation_one_required=true");
   console.log("checkpoint_late_generation_reanchor_rejected=true");
+  console.log("checkpoint_index_generation_relation_bound=true");
+  console.log("checkpoint_unsafe_successor_index_rejected=true");
   console.log("checkpoint_snapshot_binding_required=true");
   console.log("checkpoint_snapshot_replay_rejected=true");
   console.log("checkpoint_generation_progression_exact=true");
