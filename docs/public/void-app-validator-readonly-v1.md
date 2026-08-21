@@ -36,6 +36,8 @@ The UI therefore does not present a Stake, Submit, Connect Wallet, or Activate c
 
 The browser client performs one same-origin `GET` to the App-local static alias using `cache: no-store`, `credentials: omit`, redirect rejection, same-origin fetch mode, and no referrer. The response must be stream-readable and is capped at 128 KiB before JSON parsing.
 
+One request generation owns acquisition and admitted response-body lifetime. The five-second participant deadline remains the primary terminal, while cleanup is bounded separately. A timed-out acquisition that resolves late, an abort during scheduler yield, or a settled invalid body followed by failed/nonsettling cancellation cannot release the generation merely because the caller already received HOLD: retries remain quarantined until the exact admitted body has an independent close/error terminal witness. This keeps caller-visible failure bounded without accumulating detached fetch/body generations.
+
 The client validates a closed schema for the top-level record, candidate-readiness object, all eight ordered matrix entries, readiness assertions, and authority boundary. It binds the exact marker, version, route, current 10,000 VOID policy reference, and the disabled mutation/admission flags.
 
 Unknown fields, changed item identities, missing requirements, elevated authority, changed stake policy, malformed body, oversized body, wrong content type, or unavailable evidence produces a visible HOLD state rather than inferred or cached values.

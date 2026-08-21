@@ -206,13 +206,56 @@ async function awaitSignalBound(promise, signal = null) {
   }
 }
 
-async function awaitOwned(promise, { signal = null, track = (value) => Promise.resolve(value) } = {}) {
-  return awaitSignalBound(track(Promise.resolve(promise)), signal);
+function createTerminalLeaseV1(sourcePromise, track = (value) => Promise.resolve(value)) {
+  let resolveFallback = null;
+  const hasIndependentTerminal = Boolean(sourcePromise && typeof sourcePromise.then === 'function');
+  const source = hasIndependentTerminal
+    ? Promise.resolve(sourcePromise)
+    : new Promise((resolve) => { resolveFallback = resolve; });
+  const terminal = track(source.then(
+    () => undefined,
+    () => undefined,
+  ));
+  return {
+    terminal,
+    markFallbackTerminal() {
+      if (hasIndependentTerminal || !resolveFallback) return;
+      const resolve = resolveFallback;
+      resolveFallback = null;
+      resolve();
+    },
+  };
+}
+
+function createReaderTerminalLeaseV1(reader, track) {
+  let closed = null;
+  try {
+    closed = reader?.closed;
+  } catch {
+    closed = null;
+  }
+  return createTerminalLeaseV1(
+    closed && typeof closed.then === 'function' ? closed : null,
+    track,
+  );
+}
+
+function releaseReaderAfterTerminalV1(reader, terminalLease, pendingRead = null, pendingReadSettled = true) {
+  const waits = [terminalLease.terminal];
+  if (pendingRead && !pendingReadSettled) waits.push(Promise.resolve(pendingRead).catch(() => undefined));
+  void Promise.allSettled(waits).then(() => {
+    try {
+      reader.releaseLock();
+    } catch {
+      // Terminal truth is already retained; lock release is best-effort cleanup.
+    }
+  });
 }
 
 async function cancelOwnedBounded(target, reason, {
   track = (value) => Promise.resolve(value),
   teardownMs = VALIDATE_TEARDOWN_MS,
+  terminalLease = null,
 } = {}) {
   if (!target || typeof target.cancel !== 'function') return;
   let cancellation;
@@ -221,8 +264,86 @@ async function cancelOwnedBounded(target, reason, {
   } catch {
     return;
   }
-  const tracked = track(Promise.resolve(cancellation));
-  await waitBounded(tracked.catch(() => undefined), teardownMs);
+  const cancellationOutcome = Promise.resolve(cancellation).then(
+    () => {
+      terminalLease?.markFallbackTerminal();
+    },
+    () => undefined,
+  );
+  const tracked = track(cancellationOutcome);
+  await waitBounded(tracked, teardownMs);
+}
+
+async function teardownResponseBodyOwnedV1(response, primary, {
+  track = (value) => Promise.resolve(value),
+  teardownMs = VALIDATE_TEARDOWN_MS,
+} = {}) {
+  let body;
+  try {
+    body = response?.body;
+  } catch {
+    // A hostile Response-like object that will not expose its body cannot provide
+    // a terminal witness. Keep the generation quarantined rather than detach it.
+    createTerminalLeaseV1(null, track);
+    return;
+  }
+  if (!body) return;
+
+  let reader = null;
+  if (typeof body.getReader === 'function') {
+    try {
+      reader = body.getReader();
+    } catch {
+      reader = null;
+    }
+  }
+
+  if (reader) {
+    const terminalLease = createReaderTerminalLeaseV1(reader, track);
+    await cancelOwnedBounded(reader, primary.message, { track, teardownMs, terminalLease });
+    releaseReaderAfterTerminalV1(reader, terminalLease);
+    return;
+  }
+
+  const terminalLease = createTerminalLeaseV1(null, track);
+  await cancelOwnedBounded(body, primary.message, { track, teardownMs, terminalLease });
+}
+
+async function awaitFetchOwnedV1(fetchPromise, {
+  signal = null,
+  track = (value) => Promise.resolve(value),
+  teardownMs = VALIDATE_TEARDOWN_MS,
+} = {}) {
+  let abandoned = Boolean(signal?.aborted);
+  let onAbort = null;
+  const lifetime = Promise.resolve(fetchPromise).then(async (response) => {
+    if (abandoned || signal?.aborted) {
+      const primary = abortReason(signal, 'validator readiness request deadline exceeded');
+      await teardownResponseBodyOwnedV1(response, primary, { track, teardownMs });
+    }
+    return response;
+  });
+  const tracked = track(lifetime);
+
+  if (!signal) return tracked;
+  if (signal.aborted) {
+    abandoned = true;
+    void tracked.catch(() => undefined);
+    throw abortReason(signal);
+  }
+
+  const aborted = new Promise((_, reject) => {
+    onAbort = () => {
+      abandoned = true;
+      reject(abortReason(signal));
+    };
+    signal.addEventListener('abort', onAbort, { once: true });
+  });
+  try {
+    return await Promise.race([tracked, aborted]);
+  } finally {
+    signal.removeEventListener('abort', onAbort);
+  }
 }
 
 export async function readBoundedValidatorJsonV1(response, {
@@ -230,26 +351,52 @@ export async function readBoundedValidatorJsonV1(response, {
   track = (value) => Promise.resolve(value),
   teardownMs = VALIDATE_TEARDOWN_MS,
 } = {}) {
-  if (!response?.body || typeof response.body.getReader !== 'function') {
-    throw new Error('validator readiness response body is not stream-readable');
+  let body;
+  try {
+    body = response?.body;
+  } catch {
+    const primary = new Error('validator readiness response body is not stream-readable');
+    await teardownResponseBodyOwnedV1(response, primary, { track, teardownMs });
+    throw primary;
   }
-  const reader = response.body.getReader();
+  if (!body || typeof body.getReader !== 'function') {
+    const primary = new Error('validator readiness response body is not stream-readable');
+    await teardownResponseBodyOwnedV1(response, primary, { track, teardownMs });
+    throw primary;
+  }
+  let reader;
+  try {
+    reader = body.getReader();
+  } catch {
+    const primary = new Error('validator readiness response body reader is unavailable');
+    await teardownResponseBodyOwnedV1(response, primary, { track, teardownMs });
+    throw primary;
+  }
+  const terminalLease = createReaderTerminalLeaseV1(reader, track);
   const chunks = [];
   let total = 0;
   let readCount = 0;
   let pendingRead = null;
   let pendingReadSettled = true;
-  const releaseReader = () => {
-    try {
-      reader.releaseLock();
-    } catch {
-      // A pending read owns the reader until that exact read settles.
-    }
+
+  const failReader = async (primary) => {
+    await cancelOwnedBounded(reader, primary.message, { track, teardownMs, terminalLease });
+    throw primary;
   };
+
   try {
     while (true) {
       pendingReadSettled = false;
-      pendingRead = track(Promise.resolve().then(() => reader.read()));
+      const rawRead = Promise.resolve().then(() => reader.read());
+      rawRead.then(
+        (step) => {
+          if (step?.done === true) terminalLease.markFallbackTerminal();
+        },
+        () => {
+          terminalLease.markFallbackTerminal();
+        },
+      );
+      pendingRead = track(rawRead);
       pendingRead.then(
         () => { pendingReadSettled = true; },
         () => { pendingReadSettled = true; },
@@ -263,44 +410,43 @@ export async function readBoundedValidatorJsonV1(response, {
           : error instanceof Error
             ? error
             : new Error('validator readiness response body read failed');
-        await cancelOwnedBounded(reader, primary.message, { track, teardownMs });
-        throw primary;
+        await failReader(primary);
       }
       if (!step || typeof step.done !== 'boolean') {
-        const primary = new Error('validator readiness response read result invalid');
-        await cancelOwnedBounded(reader, primary.message, { track, teardownMs });
-        throw primary;
+        await failReader(new Error('validator readiness response read result invalid'));
       }
       const { done, value } = step;
-      if (done) break;
+      if (done) {
+        terminalLease.markFallbackTerminal();
+        break;
+      }
       if (!(value instanceof Uint8Array)) {
-        const primary = new Error('validator readiness response chunk invalid');
-        await cancelOwnedBounded(reader, primary.message, { track, teardownMs });
-        throw primary;
+        await failReader(new Error('validator readiness response chunk invalid'));
       }
       if (value.byteLength === 0) {
-        const primary = new Error('validator readiness response made no progress');
-        await cancelOwnedBounded(reader, primary.message, { track, teardownMs });
-        throw primary;
+        await failReader(new Error('validator readiness response made no progress'));
       }
       if (total + value.byteLength > MAX_VALIDATE_RESPONSE_BYTES) {
-        const primary = new Error('validator readiness response exceeds byte limit');
-        await cancelOwnedBounded(reader, primary.message, { track, teardownMs });
-        throw primary;
+        await failReader(new Error('validator readiness response exceeds byte limit'));
       }
       total += value.byteLength;
       chunks.push(value);
       readCount += 1;
       if (readCount % VALIDATE_YIELD_EVERY_READS === 0) {
-        await awaitSignalBound(delay(0), signal);
+        try {
+          await awaitSignalBound(delay(0), signal);
+        } catch (error) {
+          const primary = signal?.aborted
+            ? abortReason(signal, 'validator readiness request deadline exceeded')
+            : error instanceof Error
+              ? error
+              : new Error('validator readiness request deadline exceeded');
+          await failReader(primary);
+        }
       }
     }
   } finally {
-    if (pendingRead && !pendingReadSettled) {
-      pendingRead.then(releaseReader, releaseReader);
-    } else {
-      releaseReader();
-    }
+    releaseReaderAfterTerminalV1(reader, terminalLease, pendingRead, pendingReadSettled);
   }
 
   const bytes = new Uint8Array(total);
@@ -409,7 +555,7 @@ export function createValidateRequestOwnerV1({
 }
 
 async function rejectResponseOwned(response, primary, { track, teardownMs }) {
-  await cancelOwnedBounded(response?.body, primary.message, { track, teardownMs });
+  await teardownResponseBodyOwnedV1(response, primary, { track, teardownMs });
   throw primary;
 }
 
@@ -422,7 +568,7 @@ export async function fetchValidatorReadinessSnapshotV1({
   if (!owner || typeof owner.run !== 'function') throw new Error('validator readiness request owner unavailable');
 
   return owner.run(async ({ signal, track, teardownMs }) => {
-    const response = await awaitOwned(fetchImpl(endpoint, {
+    const response = await awaitFetchOwnedV1(fetchImpl(endpoint, {
       method: 'GET',
       headers: { Accept: 'application/json' },
       cache: 'no-store',
@@ -431,14 +577,26 @@ export async function fetchValidatorReadinessSnapshotV1({
       mode: 'same-origin',
       referrerPolicy: 'no-referrer',
       signal,
-    }), { signal, track });
+    }), { signal, track, teardownMs });
 
-    if (!response?.ok) {
-      const status = Number.isSafeInteger(response?.status) ? response.status : 'unknown';
+    let ok;
+    let status;
+    let contentType;
+    try {
+      ok = response?.ok === true;
+      status = Number.isSafeInteger(response?.status) ? response.status : 'unknown';
+      contentType = response?.headers?.get?.('content-type') || '';
+    } catch {
+      return rejectResponseOwned(
+        response,
+        new Error('validator readiness response metadata invalid'),
+        { track, teardownMs },
+      );
+    }
+    if (!ok) {
       return rejectResponseOwned(response, new Error(`validator readiness returned HTTP ${status}`), { track, teardownMs });
     }
-    const contentType = response.headers?.get?.('content-type') || '';
-    if (!contentType.toLowerCase().includes('application/json')) {
+    if (typeof contentType !== 'string' || !contentType.toLowerCase().includes('application/json')) {
       return rejectResponseOwned(response, new Error('validator readiness content type mismatch'), { track, teardownMs });
     }
     const snapshot = await readBoundedValidatorJsonV1(response, { signal, track, teardownMs });
