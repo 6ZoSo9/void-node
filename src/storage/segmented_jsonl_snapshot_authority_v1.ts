@@ -165,8 +165,43 @@ export function verifySegmentedJsonlSnapshotAuthorityV1(
   };
 }
 
+const CHECKPOINT_MINIMAL_CORE_BYTES_V1 = Buffer.byteLength(canonicalJson({
+  v: 1,
+  format: VOID_SEGMENTED_JSONL_CHECKPOINT_V1,
+  checkpoint_index: 0,
+  previous_checkpoint_sha256: null,
+  snapshot_sha256: "0".repeat(64),
+  manifest_sha256: "0".repeat(64),
+  store_generation: 1,
+  store_total_bytes: 0,
+  store_total_records: 0,
+  cumulative_bytes: "0",
+  cumulative_records: "0",
+}), "utf8");
+
+// All non-decimal checkpoint string fields have fixed reviewed widths, and all
+// numeric fields are safe integers. This is therefore the largest decimal field
+// that can possibly fit in a V1 checkpoint core when the other cumulative field
+// is the canonical one-byte value "0". Enforcing this before regex/BigInt work
+// makes the 2048-byte checkpoint ceiling an admission bound rather than a late
+// post-materialization check.
+export const VOID_SEGMENTED_JSONL_MAX_CHECKPOINT_DECIMAL_DIGITS_V1 =
+  VOID_SEGMENTED_JSONL_MAX_CHECKPOINT_BYTES_V1 - CHECKPOINT_MINIMAL_CORE_BYTES_V1 + 1;
+
 function parseDecimal(value: unknown, field: string): bigint {
-  if (typeof value !== "string" || !/^(0|[1-9][0-9]*)$/.test(value)) {
+  if (typeof value !== "string") {
+    fail("INVALID_CHECKPOINT_DECIMAL", field);
+  }
+  if (
+    value.length === 0 ||
+    value.length > VOID_SEGMENTED_JSONL_MAX_CHECKPOINT_DECIMAL_DIGITS_V1
+  ) {
+    fail(
+      "CHECKPOINT_DECIMAL_TOO_LARGE",
+      `${field}:${value.length}:${VOID_SEGMENTED_JSONL_MAX_CHECKPOINT_DECIMAL_DIGITS_V1}`,
+    );
+  }
+  if (!/^(0|[1-9][0-9]*)$/.test(value)) {
     fail("INVALID_CHECKPOINT_DECIMAL", field);
   }
   return BigInt(value);

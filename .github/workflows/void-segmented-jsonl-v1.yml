@@ -12,6 +12,7 @@ on:
       - "scripts/prove_segmented_jsonl_terminal_generation_v1.ts"
       - "scripts/prove_segmented_jsonl_builder_record_vector_heap_v1.ts"
       - "scripts/prove_segmented_jsonl_snapshot_authority_v1.ts"
+      - "scripts/prove_segmented_jsonl_checkpoint_admission_bound_v1.ts"
       - "scripts/prove_segmented_jsonl_post_durable_close_v1.ts"
       - ".github/workflows/void-segmented-jsonl-v1.yml"
       - "scripts/ci_diff_hygiene_v1.sh"
@@ -31,6 +32,7 @@ on:
       - "scripts/prove_segmented_jsonl_terminal_generation_v1.ts"
       - "scripts/prove_segmented_jsonl_builder_record_vector_heap_v1.ts"
       - "scripts/prove_segmented_jsonl_snapshot_authority_v1.ts"
+      - "scripts/prove_segmented_jsonl_checkpoint_admission_bound_v1.ts"
       - "scripts/prove_segmented_jsonl_post_durable_close_v1.ts"
       - ".github/workflows/void-segmented-jsonl-v1.yml"
       - "scripts/ci_diff_hygiene_v1.sh"
@@ -97,6 +99,7 @@ jobs:
           node --experimental-strip-types --check scripts/prove_segmented_jsonl_terminal_generation_v1.ts
           node --experimental-strip-types --check scripts/prove_segmented_jsonl_builder_record_vector_heap_v1.ts
           node --experimental-strip-types --check scripts/prove_segmented_jsonl_snapshot_authority_v1.ts
+          node --experimental-strip-types --check scripts/prove_segmented_jsonl_checkpoint_admission_bound_v1.ts
           node --experimental-strip-types --check scripts/prove_segmented_jsonl_post_durable_close_v1.ts
           node --check scripts/prove_ci_diff_hygiene_v1.mjs
           bash -n scripts/ci_diff_hygiene_v1.sh
@@ -121,6 +124,9 @@ jobs:
 
       - name: Prove content-addressed snapshot and checkpoint authority
         run: npx --no-install tsx scripts/prove_segmented_jsonl_snapshot_authority_v1.ts
+
+      - name: Prove checkpoint admission bound
+        run: npx --no-install tsx scripts/prove_segmented_jsonl_checkpoint_admission_bound_v1.ts
 
       - name: Prove post-durable close terminal truth
         run: npx --no-install tsx scripts/prove_segmented_jsonl_post_durable_close_v1.ts
