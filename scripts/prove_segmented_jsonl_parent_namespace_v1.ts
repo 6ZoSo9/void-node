@@ -47,6 +47,18 @@ try {
   assert.equal(broadAfter.ino, broadBefore.ino);
   assert.deepEqual(fs.readdirSync(broadStore), [], "broadly writable destination must remain untouched");
 
+  // A new authoritative store root must not be published into a namespace that
+  // another local principal can rename or remove.
+  const broadNewParent = path.join(tmp, "broad-new-parent");
+  fs.mkdirSync(broadNewParent, { mode: 0o700 });
+  fs.chmodSync(broadNewParent, 0o777);
+  const broadNewStore = path.join(broadNewParent, "store");
+  expectFailure(
+    () => buildSegmentedJsonlV1FromFile(source, broadNewStore, { segmentTargetBytes: 4096, maxRecordBytes: 1024 }),
+    "DIRECTORY_WRITE_AUTHORITY_MISMATCH",
+  );
+  assert.equal(fs.existsSync(broadNewStore), false, "broadly writable parent must not receive a new store root");
+
   // Write-authority metadata is part of the retained store generation. Widening
   // permissions without replacing the inode must make later admission fail.
   const modeStore = path.join(tmp, "mode-store");
@@ -141,6 +153,7 @@ try {
   expectFailure(() => verifySegmentedJsonlV1(readStore), "DIRECTORY_CHILD_OPEN_FAILED");
 
   console.log("broadly_writable_store_rejected=true");
+  console.log("broadly_writable_new_root_parent_rejected=true");
   console.log("store_write_authority_mode_bound=true");
   console.log("segments_write_authority_mode_bound=true");
   console.log("broadly_writable_output_parent_rejected=true");

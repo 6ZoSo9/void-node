@@ -279,9 +279,10 @@ function fsyncDir(dir: string): void {
 function createDirectoryNewV1(dir: string): void {
   const parent = path.dirname(dir), name = path.basename(dir), authority = openDirectoryAuthorityV1(parent);
   try {
+    assertPrivateDirectoryWriteAuthorityV1(authority);
     fs.mkdirSync(path.join(authority.stablePath, name), { mode: 0o700 });
     fs.fsyncSync(authority.fd);
-    assertDirectoryAuthorityV1(authority);
+    assertPrivateDirectoryWriteAuthorityV1(authority);
     const created = fs.lstatSync(path.join(authority.stablePath, name), { bigint: true } as any);
     const visible = fs.lstatSync(dir, { bigint: true } as any);
     if (!created.isDirectory() || created.isSymbolicLink() || !visible.isDirectory() || visible.isSymbolicLink() || created.dev !== visible.dev || created.ino !== visible.ino) {
