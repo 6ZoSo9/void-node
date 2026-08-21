@@ -73,7 +73,11 @@
       await boundedCancel(reader);
       throw error;
     } finally {
-      reader.releaseLock();
+      try {
+        reader.releaseLock();
+      } catch {
+        // Lock cleanup must not replace primary read/cancel truth.
+      }
     }
 
     const bytes = new Uint8Array(total);
