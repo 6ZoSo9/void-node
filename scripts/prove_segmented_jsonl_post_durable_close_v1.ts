@@ -100,11 +100,9 @@ function injectParentFsyncChildLinkSwap(source: string, destination: string): vo
         originalFsyncSync(fd);
 
         fs.renameSync(sealedLeaf, foreignAside);
-        // Force an observable generation transition on the owned inode before
-        // restoring its basename. The caller then sees the original inode at
-        // the path again, but its generation cannot equal the pre-fsync witness.
-        fs.chmodSync(ownedAside, 0o600);
-        fs.chmodSync(ownedAside, 0o400);
+        // Restore the exact owned file without chmod/write/link-count mutation.
+        // The repaired writer must detect the directory-entry mutation epoch,
+        // not rely on a changed child-inode generation as its witness.
         fs.renameSync(ownedAside, sealedLeaf);
         injected = true;
         return;
@@ -130,15 +128,15 @@ function injectParentFsyncChildLinkSwap(source: string, destination: string): vo
   assert.ok(failure instanceof Error, "parent-fsync child-link swap must fail closed");
   assert.match(
     failure.message,
-    /VOID_SEGMENTED_JSONL_V1:WRITE_POST_FSYNC_GENERATION_MISMATCH:/,
-    "post-fsync child generation mismatch must be the terminal",
+    /VOID_SEGMENTED_JSONL_V1:WRITE_PARENT_DIRECTORY_EPOCH_CHANGED:/,
+    "parent directory mutation epoch must be the terminal",
   );
   assert.equal(
     fs.readFileSync(foreignAside, "utf8"),
     foreignBody.toString("utf8"),
     "foreign generation must survive unchanged",
   );
-  assert.equal(fs.existsSync(path.join(destination, "manifest.v1.json")), false, "manifest must not publish after child-link mismatch");
+  assert.equal(fs.existsSync(path.join(destination, "manifest.v1.json")), false, "manifest must not publish after child-link epoch mismatch");
   assert.equal(fs.existsSync(sealedLeaf), true, "owned sealed generation may remain for later exact recovery");
 }
 
@@ -180,7 +178,7 @@ try {
   console.log("post_durable_sealed_close_truth_preserved=true");
   console.log("post_durable_active_close_truth_preserved=true");
   console.log("post_durable_manifest_close_truth_preserved=true");
-  console.log("parent_fsync_child_link_generation_bound=true");
+  console.log("parent_fsync_directory_entry_epoch_bound=true");
   console.log("foreign_parent_fsync_replacement_preserved=true");
   console.log("VOID_SEGMENTED_JSONL_POST_DURABLE_CLOSE_V1_PROOF_GREEN");
 } finally {
