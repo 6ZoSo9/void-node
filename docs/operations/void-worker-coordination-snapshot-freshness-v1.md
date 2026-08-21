@@ -6,11 +6,11 @@ Companion marker: `VOID_WORKER_LIVE_DISPATCH_V1`
 
 ## Purpose
 
-Coordination V3 stores a reviewed point-in-time lane snapshot. Live GitHub facts may move after that snapshot without making the static file malformed. The V3 validator can therefore correctly return `valid=true` for a structurally valid historical snapshot even when current `main`, pull-request lifecycle, reviews, checks, issue state, recent writes, or actual worker execution evidence have changed.
+Coordination V3 stores a reviewed point-in-time lane snapshot. Live GitHub facts may move after that snapshot without making the static file malformed. The V3 validator can therefore correctly return `valid=true` for a structurally valid historical snapshot even when current `main`, pull-request lifecycle, reviews, checks, issue state, recent writes, worker scheduling, or actual worker execution evidence have changed.
 
 The snapshot-freshness helper makes that boundary machine-readable. It does not replace the V3 validator, the V1 Red/Amber/Green collision registry, or live GitHub inspection. It consumes the checked-in V3 roster/state plus an independently observed current `main` SHA and reports whether the snapshot's source anchor still matches that observation.
 
-The companion live-dispatch evaluator closes the separate non-idle assignment gap. It composes all 15 current workers, validates one bounded fallback for every worker, consumes a closed live-evidence packet, and emits exactly one deterministic dispatch recommendation per worker. It does not invoke workers or grant source, merge, deployment, scheduler, credential, wallet, signer, Work Credit, validator, transaction, treasury, liquidity, or funds authority.
+The companion live-dispatch evaluator closes the separate non-idle assignment gap. It composes all 15 current scheduled workers, validates one bounded fallback for every worker, consumes a closed live-evidence packet, and emits exactly one deterministic dispatch recommendation per worker. It does not invoke workers or grant source, merge, deployment, scheduler, credential, wallet, signer, Work Credit, validator, transaction, treasury, liquidity, or funds authority.
 
 ## Snapshot truth boundary
 
@@ -24,19 +24,23 @@ V1 makes the distinction explicit:
 - `worker_execution_report_evidence_required=true` means live worker/report evidence must be refreshed independently before counting a named worker as available capacity.
 - `live_plan_workers_not_modeled_by_snapshot_require_external_evidence=true` means a worker named only by current issue coordination is also not proven active merely because the issue assigns work.
 
+The checked-in V3 roster/state are therefore historical coordination evidence, not a scheduler inventory. The current live-dispatch policy and the external scheduled-task configuration may intentionally differ from that older point-in-time snapshot.
+
 These fields are evidence only. They do not grant source or runtime authority.
 
 ## Fifteen-worker live composition
 
-`ops/coordination/worker-live-dispatch-policy-v1.json` validates the current composition in three explicit layers:
+`ops/coordination/worker-live-dispatch-policy-v1.json` validates the current externally scheduled composition in three explicit layers:
 
-- base Coordination V3 workers: Ren, Larry, Curly, Moe, Satoshi, Turing, Ada, Grace, and Shannon;
+- base scheduled workers: Larry, Curly, Moe, Satoshi, Turing, Ada, Grace, and Shannon;
 - Exploration Extension V1 workers: Hopper, Lamarr, and Darwin; and
-- supplemental issue-bound workers: Dijkstra, Katherine, and Keller.
+- supplemental scheduled workers: Dijkstra, Katherine, Keller, and Feynman.
 
-The policy requires exactly 15 unique workers and exactly one worker-specific bounded fallback per worker. Every fallback has a tracking issue, ranked exploration domains, a sensitivity classification, and an explicit negative authority boundary.
+Ren is deliberately not part of the externally scheduled/hourly worker set. Ren is an interactive coordinator identity used when ZoSo and the assistant are working together; static historical V3 references to Ren do not create an hourly dispatch slot.
 
-Fallback coverage is unconditional. A worker keeps its fallback definition even while its primary lane is active. This avoids the stale-snapshot defect where only workers considered idle by one historical lane map receive fallback work.
+The policy requires exactly 15 unique scheduled workers and exactly one worker-specific bounded fallback per worker. Every fallback has a tracking issue, ranked exploration domains, a sensitivity classification, and an explicit negative authority boundary. The live coordination plan is issue #1301; historical references to archived #1182 remain historical evidence only.
+
+Fallback coverage is unconditional. A worker keeps its fallback definition even while its primary specialty is active. Worker roles are first-look specialties rather than permanent exclusive identities: when the specialty is blocked, parked, adequately occupied, requires unavailable authority, or has no meaningful safe action, the worker may fall through to the highest-value genuinely unowned Green or bounded Amber source-only work and should return to the specialty when it becomes the highest-value actionable lane again.
 
 The policy preserves the existing noise limits:
 
@@ -47,6 +51,10 @@ The policy preserves the existing noise limits:
 - no automatic issue or PR creation; and
 - no automatic merge authority.
 
+## Control-plane comment discipline
+
+Issue #1301 is a live state index, not an hourly worker transcript. Routine `STARTED`, heartbeat, `still blocked`, `no change`, and CI-poll comments do not belong there. Detailed attributable execution evidence belongs on the worker's lane issue or relevant pull request. A #1301 comment is appropriate only when ownership, blockers, collision state, dependencies, lifecycle, reassignment, or the authoritative priority queue materially changes; one consolidated material update is preferred over separate start/result chatter.
+
 ## Thirty-minute liveness contract
 
 The live-dispatch evaluator uses an explicit `evaluated_at` timestamp supplied in its closed evidence packet. It computes:
@@ -55,7 +63,7 @@ The live-dispatch evaluator uses an explicit `evaluated_at` timestamp supplied i
 - `next_reevaluation_at=evaluated_at+30 minutes`; and
 - `execution_evidence_max_age_minutes=30`.
 
-A primary lane claiming `RUNNING` may be continued only when its execution evidence is no older than 30 minutes and no hard collision is reported. A stale or missing running heartbeat produces `REFRESH_PRIMARY_EVIDENCE`, not an assumption that work is still happening and not an automatic competing source lane.
+A primary lane claiming `RUNNING` may be continued only when its execution evidence is no older than 30 minutes and no hard collision is reported. Stale or missing execution evidence produces `REFRESH_PRIMARY_EVIDENCE`, not an assumption that work is still happening and not an automatic competing source lane.
 
 A running lane that acquires a hard collision produces `REVALIDATE_PRIMARY_COLLISION`. An actionable, non-hard-blocked primary produces `TAKE_PRIMARY_NEXT_ACTION`, but the result still fixes `source_mutation_authorized=false`; the worker must already possess separate authority and must refresh collision evidence before mutation.
 
@@ -104,7 +112,7 @@ The optional output file is create-only and mode `0600`.
 
 ## Run live dispatch
 
-The live evidence packet is read from standard input. It must use marker `VOID_WORKER_LIVE_DISPATCH_EVIDENCE_V1`, exact closed schemas, an exact 15-worker set, canonical timestamps, a current-main SHA, normalized primary states/collisions, and bounded fallback evidence.
+The live evidence packet is read from standard input. It must use marker `VOID_WORKER_LIVE_DISPATCH_EVIDENCE_V1`, exact closed schemas, the exact 15-worker scheduled set, canonical timestamps, a current-main SHA, normalized primary states/collisions, and bounded fallback evidence.
 
 ```bash
 node tools/void-worker-coordination-live-dispatch-v1.mjs --pretty \

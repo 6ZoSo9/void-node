@@ -7,10 +7,13 @@ on:
       - "src/AGENTS.md"
       - "docs/INDEX_MAP.md"
       - "docs/index-map-v1.json"
+      - "runtime/canonical-producer-self-http-guard-v1.cjs"
       - "scripts/generate_void_index_cartography_v1.mjs"
       - "scripts/prove_void_index_cartography_v1.mjs"
+      - "scripts/prove_void_index_cartography_coverage_v2.mjs"
       - "scripts/review_void_index_section_v1.mjs"
       - "scripts/prove_void_index_section_review_v1.mjs"
+      - "scripts/prove_mainnet0_canonical_producer_liveness_guard_v1.mjs"
       - ".github/workflows/void-index-cartography-v1.yml"
   push:
     branches:
@@ -20,10 +23,13 @@ on:
       - "src/AGENTS.md"
       - "docs/INDEX_MAP.md"
       - "docs/index-map-v1.json"
+      - "runtime/canonical-producer-self-http-guard-v1.cjs"
       - "scripts/generate_void_index_cartography_v1.mjs"
       - "scripts/prove_void_index_cartography_v1.mjs"
+      - "scripts/prove_void_index_cartography_coverage_v2.mjs"
       - "scripts/review_void_index_section_v1.mjs"
       - "scripts/prove_void_index_section_review_v1.mjs"
+      - "scripts/prove_mainnet0_canonical_producer_liveness_guard_v1.mjs"
       - ".github/workflows/void-index-cartography-v1.yml"
 
 permissions:
@@ -40,12 +46,12 @@ jobs:
 
     steps:
       - name: Checkout exact revision
-        uses: actions/checkout@v4
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
         with:
           persist-credentials: false
 
       - name: Use Node.js ${{ matrix.node }}
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
         with:
           node-version: ${{ matrix.node }}
 
@@ -53,12 +59,14 @@ jobs:
         run: |
           node --check scripts/generate_void_index_cartography_v1.mjs
           node --check scripts/prove_void_index_cartography_v1.mjs
+          node --check scripts/prove_void_index_cartography_coverage_v2.mjs
           node --check scripts/review_void_index_section_v1.mjs
           node --check scripts/prove_void_index_section_review_v1.mjs
 
       - name: Adversarial proofs
         run: |
           node scripts/prove_void_index_cartography_v1.mjs
+          node scripts/prove_void_index_cartography_coverage_v2.mjs
           node scripts/prove_void_index_section_review_v1.mjs
 
       - name: Resolve current source map
@@ -71,25 +79,36 @@ jobs:
             --before 2 \
             --after 2 \
             --format json > /tmp/void-index-runtime-main-section.json
+          node scripts/review_void_index_section_v1.mjs \
+            --landmark runtime.ready-watchdog \
+            --before 4 \
+            --after 8 \
+            --format json > /tmp/void-index-ready-watchdog-section.json
           node -e '
             const fs = require("fs");
             const value = JSON.parse(fs.readFileSync("/tmp/void-index-runtime-main-section.json", "utf8"));
+            const ready = JSON.parse(fs.readFileSync("/tmp/void-index-ready-watchdog-section.json", "utf8"));
             if (value.marker !== "VOID_INDEX_SECTION_REVIEW_V1") process.exit(1);
             if (value.landmark?.id !== "runtime.main") process.exit(1);
             if (value.window?.line_count > 5) process.exit(1);
+            if (ready.marker !== "VOID_INDEX_SECTION_REVIEW_V1") process.exit(1);
+            if (ready.landmark?.id !== "runtime.ready-watchdog") process.exit(1);
+            if (ready.window?.line_count > 13) process.exit(1);
             if (value.arbitrary_source_path_allowed !== false) process.exit(1);
+            if (ready.arbitrary_source_path_allowed !== false) process.exit(1);
             if (value.source_mutation_performed !== false) process.exit(1);
+            if (ready.source_mutation_performed !== false) process.exit(1);
           '
 
       - name: Publish human-readable map to job summary
         if: always()
         run: node scripts/generate_void_index_cartography_v1.mjs --format markdown >> "$GITHUB_STEP_SUMMARY"
 
-      - name: Publish bounded runtime.main section to job summary
+      - name: Publish bounded ready-watchdog section to job summary
         if: always()
         run: |
           node scripts/review_void_index_section_v1.mjs \
-            --landmark runtime.main \
+            --landmark runtime.ready-watchdog \
             --before 5 \
             --after 10 >> "$GITHUB_STEP_SUMMARY"
 

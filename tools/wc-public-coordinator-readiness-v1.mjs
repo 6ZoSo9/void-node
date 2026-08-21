@@ -1,8 +1,11 @@
 #!/usr/bin/env node
 import { isIP } from "node:net";
 import { parseArgs } from "node:util";
+import { readBoundedTextOwned } from "./wc-public-response-teardown-v1.mjs";
 
 const MARKER = "VOID_WC_PUBLIC_COORDINATOR_READINESS_V1";
+const CANONICAL_FIXED_AWARD_WC = 3;
+const MAX_RESPONSE_BYTES = 64 * 1024;
 const ROUTES = {
   gateway: "/__void/public-earn-gateway-v1/status.json",
   pilot: "/wc/public-earning-pilot-v1/status",
@@ -17,8 +20,30 @@ function integer(v) {
   return Number.isInteger(n) ? n : null;
 }
 
-function allowHttp(host) {
-  if (host === "localhost" || host === "::1" || host.endsWith(".localhost")) return true;
+function jsonSafeInteger(v) {
+  return typeof v === "number" && Number.isSafeInteger(v) ? v : null;
+}
+
+function jsonPositiveInteger(v) {
+  const n = jsonSafeInteger(v);
+  return n !== null && n > 0 ? n : null;
+}
+
+function jsonNonNegativeInteger(v) {
+  const n = jsonSafeInteger(v);
+  return n !== null && n >= 0 ? n : null;
+}
+
+function normalizeHttpHostname(hostname) {
+  const host = String(hostname || "").trim().toLowerCase();
+  return host.startsWith("[") && host.endsWith("]")
+    ? host.slice(1, -1)
+    : host;
+}
+
+function allowHttp(hostname) {
+  const host = normalizeHttpHostname(hostname);
+  if (host === "localhost" || host === "::1" || host.endsWith(".ts.net")) return true;
   if (isIP(host) !== 4) return false;
   const [a, b] = host.split(".").map(Number);
   return a === 127 || a === 10 || (a === 172 && b >= 16 && b <= 31) ||
@@ -31,7 +56,7 @@ function origin(raw) {
   if (u.username || u.password) throw new Error("base must not contain credentials");
   if (u.pathname !== "/" || u.search || u.hash) throw new Error("base must be an origin only");
   if (u.protocol === "http:" && !allowHttp(u.hostname)) {
-    throw new Error("plain HTTP is allowed only for loopback, private, or Tailscale IPv4 origins");
+    throw new Error("plain HTTP is allowed only for reviewed local/private/Tailscale origins");
   }
   return u.origin;
 }
@@ -43,25 +68,6 @@ function get(v, path) {
     cur = cur[key];
   }
   return cur;
-}
-
-function findBoolean(v, keys) {
-  const wanted = new Set(keys.map((k) => k.toLowerCase()));
-  let found;
-  function walk(x) {
-    if (found !== undefined) return;
-    if (Array.isArray(x)) return x.forEach(walk);
-    if (!x || typeof x !== "object") return;
-    for (const [k, child] of Object.entries(x)) {
-      if (wanted.has(k.toLowerCase()) && typeof child === "boolean") {
-        found = child;
-        return;
-      }
-      walk(child);
-    }
-  }
-  walk(v);
-  return found;
 }
 
 function scan(v) {
@@ -80,9 +86,17 @@ function scan(v) {
   return { keys, strings };
 }
 
+async function readBoundedText(response, maximum, abort) {
+  return readBoundedTextOwned(response, {
+    maximumBytes: maximum,
+    abort,
+  });
+}
+
 async function readJsonOnce(base, path, timeoutMs) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
+  let status = null;
   try {
     const r = await fetch(new URL(path, base), {
       method: "GET",
@@ -90,7 +104,14 @@ async function readJsonOnce(base, path, timeoutMs) {
       redirect: "error",
       signal: controller.signal,
     });
-    const text = await r.text();
+    status = r.status;
+    const text = await readBoundedText(
+      r,
+      MAX_RESPONSE_BYTES,
+      (reason) => {
+        if (!controller.signal.aborted) controller.abort(reason);
+      },
+    );
     let body = null;
     let parseError = null;
 
@@ -103,14 +124,21 @@ async function readJsonOnce(base, path, timeoutMs) {
     return {
       path,
       method: "GET",
-      status: r.status,
+      status,
       json: body !== null,
       body,
       error: null,
       parse_error: parseError,
     };
   } catch (e) {
-    return { path, method: "GET", status: null, json: false, body: null, error: e?.name || "request_error" };
+    return {
+      path,
+      method: "GET",
+      status,
+      json: false,
+      body: null,
+      error: e instanceof Error ? e.message : "request_error",
+    };
   } finally {
     clearTimeout(timer);
   }
@@ -119,7 +147,6 @@ async function readJsonOnce(base, path, timeoutMs) {
 async function readJson(base, path, timeoutMs, retries = 1) {
   const retry_history = [];
   let result = null;
-
   for (let attempt = 1; attempt <= retries; attempt += 1) {
     result = await readJsonOnce(base, path, timeoutMs);
     retry_history.push({
@@ -151,13 +178,22 @@ function exactMethods(v, expected) {
   return Array.isArray(v) && JSON.stringify(v) === JSON.stringify(expected);
 }
 
-function positive(v) {
-  const n = integer(v);
-  return n !== null && n > 0;
-}
-
 function check(id, pass, observed) {
   return { id, pass: Boolean(pass), observed };
+}
+
+function publicClaimRouteNoDirectAward(g, p) {
+  return (
+    get(g, ["routes", "claim_ticket"]) === ROUTES.claim &&
+    exactMethods(get(g, ["methods", "claim_ticket"]), ["POST"]) &&
+    get(g, ["safety", "public_ticket_issue"]) === true &&
+    get(g, ["safety", "public_signed_ticket_claim"]) === true &&
+    get(g, ["safety", "claim_server_selected_work"]) === true &&
+    get(g, ["safety", "participant_selected_award"]) === false &&
+    get(g, ["safety", "submission_response_canonical_accounting"]) === true &&
+    get(p, ["public_claim", "server_selected_work"]) === true &&
+    get(p, ["public_claim", "participant_selected_award"]) === false
+  );
 }
 
 function checksFor(gateway, pilot, boundaries, expectedAward) {
@@ -165,10 +201,7 @@ function checksFor(gateway, pilot, boundaries, expectedAward) {
   const p = pilot.body;
   const gscan = scan(g);
   const pscan = scan(p);
-  const publicRoutesAward = findBoolean(
-    [g, p],
-    ["public_routes_award_wc", "public_route_can_award_wc"],
-  );
+  const claimRouteNoDirectAward = publicClaimRouteNoDirectAward(g, p);
   const leakedKeys = [
     "secret", "private_file", "private_dataset_path", "capability_token",
     "wallet_private_key", "seed_phrase",
@@ -187,8 +220,15 @@ function checksFor(gateway, pilot, boundaries, expectedAward) {
     check("coordinator_role_enabled", p?.coordinator_enabled === true, p?.coordinator_enabled ?? null),
     check("executor_role_disabled_on_coordinator", p?.executor_enabled === false, p?.executor_enabled ?? null),
     check("fixed_award_policy",
-      Number(g?.fixed_award_wc) === expectedAward && Number(p?.fixed_award_wc) === expectedAward,
-      { gateway: g?.fixed_award_wc ?? null, pilot: p?.fixed_award_wc ?? null, expected: expectedAward }),
+      jsonSafeInteger(g?.fixed_award_wc) === expectedAward &&
+      jsonSafeInteger(p?.fixed_award_wc) === expectedAward &&
+      jsonSafeInteger(get(p, ["public_claim", "fixed_award_wc"])) === expectedAward,
+      {
+        gateway: g?.fixed_award_wc ?? null,
+        pilot: p?.fixed_award_wc ?? null,
+        public_claim: get(p, ["public_claim", "fixed_award_wc"]) ?? null,
+        expected: expectedAward,
+      }),
     check("public_claim_marker", get(p, ["public_claim", "marker"]) === "VOID_WC_PUBLIC_TICKET_CLAIM_V1",
       get(p, ["public_claim", "marker"]) ?? null),
     check("public_claim_enabled_available",
@@ -211,19 +251,25 @@ function checksFor(gateway, pilot, boundaries, expectedAward) {
     check("money_movement_forbidden", get(p, ["public_claim", "money_movement"]) === false,
       get(p, ["public_claim", "money_movement"]) ?? null),
     check("ticket_caps_configured",
-      positive(get(p, ["caps", "account_limit"])) &&
-      positive(get(p, ["caps", "global_limit"])) &&
-      integer(get(p, ["caps", "global_active"])) !== null &&
-      integer(get(p, ["caps", "global_consumed"])) !== null,
+      jsonPositiveInteger(get(p, ["caps", "account_limit"])) !== null &&
+      jsonPositiveInteger(get(p, ["caps", "global_limit"])) !== null &&
+      jsonNonNegativeInteger(get(p, ["caps", "global_active"])) !== null &&
+      jsonNonNegativeInteger(get(p, ["caps", "global_consumed"])) !== null,
       get(p, ["caps"]) ?? null),
     check("claim_rate_caps_configured",
       get(p, ["public_claim", "one_active_ticket_per_account"]) === true &&
-      positive(get(p, ["public_claim", "max_claims_per_account_24h"])) &&
-      positive(get(p, ["public_claim", "global_active_cap"])) &&
-      positive(get(p, ["public_claim", "global_claims_per_24h"])),
+      jsonPositiveInteger(get(p, ["public_claim", "ticket_ttl_ms"])) !== null &&
+      jsonPositiveInteger(get(p, ["public_claim", "cooldown_ms"])) !== null &&
+      jsonPositiveInteger(get(p, ["public_claim", "max_claims_per_account_24h"])) !== null &&
+      jsonPositiveInteger(get(p, ["public_claim", "max_claims_per_executor_24h"])) !== null &&
+      jsonPositiveInteger(get(p, ["public_claim", "global_active_cap"])) !== null &&
+      jsonPositiveInteger(get(p, ["public_claim", "global_claims_per_24h"])) !== null,
       {
         one_active_ticket_per_account: get(p, ["public_claim", "one_active_ticket_per_account"]) ?? null,
+        ticket_ttl_ms: get(p, ["public_claim", "ticket_ttl_ms"]) ?? null,
+        cooldown_ms: get(p, ["public_claim", "cooldown_ms"]) ?? null,
         max_claims_per_account_24h: get(p, ["public_claim", "max_claims_per_account_24h"]) ?? null,
+        max_claims_per_executor_24h: get(p, ["public_claim", "max_claims_per_executor_24h"]) ?? null,
         global_active_cap: get(p, ["public_claim", "global_active_cap"]) ?? null,
         global_claims_per_24h: get(p, ["public_claim", "global_claims_per_24h"]) ?? null,
       }),
@@ -237,7 +283,17 @@ function checksFor(gateway, pilot, boundaries, expectedAward) {
       "public_claim_executor_key_possession_required",
       "public_claim_replay_protected",
     ].every((k) => get(p, ["capability", k]) === true), get(p, ["capability"]) ?? null),
-    check("public_routes_cannot_award_wc", publicRoutesAward === false, publicRoutesAward ?? null),
+    check("public_claim_route_no_direct_award", claimRouteNoDirectAward, {
+      gateway_claim_route: get(g, ["routes", "claim_ticket"]) ?? null,
+      gateway_claim_methods: get(g, ["methods", "claim_ticket"]) ?? null,
+      public_ticket_issue: get(g, ["safety", "public_ticket_issue"]) ?? null,
+      public_signed_ticket_claim: get(g, ["safety", "public_signed_ticket_claim"]) ?? null,
+      claim_server_selected_work: get(g, ["safety", "claim_server_selected_work"]) ?? null,
+      participant_selected_award: get(g, ["safety", "participant_selected_award"]) ?? null,
+      submission_response_canonical_accounting: get(g, ["safety", "submission_response_canonical_accounting"]) ?? null,
+      pilot_server_selected_work: get(p, ["public_claim", "server_selected_work"]) ?? null,
+      pilot_participant_selected_award: get(p, ["public_claim", "participant_selected_award"]) ?? null,
+    }),
     check("claim_route_post_only",
       get(g, ["routes", "claim_ticket"]) === ROUTES.claim &&
       exactMethods(get(g, ["methods", "claim_ticket"]), ["POST"]),
@@ -251,8 +307,8 @@ function checksFor(gateway, pilot, boundaries, expectedAward) {
         gateway_methods: get(g, ["methods", "submit_result"]) ?? null,
         pilot_route: get(p, ["routes", "submit_result"]) ?? null,
       }),
-    check("claim_submit_reject_get",
-      boundaries.claim.status === 405 && boundaries.submit.status === 405,
+    check("claim_submit_get_forbidden",
+      [404, 405].includes(boundaries.claim.status) && [404, 405].includes(boundaries.submit.status),
       { claim_get: boundaries.claim.status, submit_get: boundaries.submit.status }),
     check("operator_routes_hidden",
       boundaries.operatorIssue.status === 404 &&
@@ -290,7 +346,7 @@ async function main() {
       base: { type: "string" },
       account: { type: "string", default: "void-coordinator-readiness-observer-v1" },
       "timeout-ms": { type: "string", default: "15000" },
-      "expected-award-wc": { type: "string", default: "3" },
+      "expected-award-wc": { type: "string", default: String(CANONICAL_FIXED_AWARD_WC) },
       "status-retries": { type: "string", default: "3" },
       "require-ready": { type: "boolean", default: false },
       help: { type: "boolean", short: "h", default: false },
@@ -309,7 +365,7 @@ async function main() {
   const expectedAward = integer(values["expected-award-wc"]);
   const statusRetries = integer(values["status-retries"]);
   if (timeoutMs === null || timeoutMs < 250 || timeoutMs > 30000) throw new Error("invalid timeout");
-  if (expectedAward === null || expectedAward <= 0) throw new Error("invalid expected award");
+  if (expectedAward !== CANONICAL_FIXED_AWARD_WC) throw new Error("--expected-award-wc must equal canonical fixed award 3");
   if (statusRetries === null || statusRetries < 1 || statusRetries > 5) {
     throw new Error("status retries must be between 1 and 5");
   }
@@ -324,7 +380,7 @@ async function main() {
 
   const pilot = await readJson(
     base,
-    `${ROUTES.pilot}?account=${encodeURIComponent(values.account)}`,
+    ROUTES.pilot,
     timeoutMs,
     statusRetries,
   );

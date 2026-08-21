@@ -20,7 +20,7 @@ The repository therefore retains both the canonical ERC-20
 implementation. The native implementation is not the canonical parent delivery
 path.
 
-## Canonical parent composition: retained but unmounted
+## Canonical parent composition: mounted but disabled
 
 The canonical ERC-20 delivery implementation is retained in:
 
@@ -28,23 +28,23 @@ The canonical ERC-20 delivery implementation is retained in:
 src/economic/buy_void_delivery_runtime_integration_v1.ts
 ```
 
-The parent deliberately does **not** import or mount that runtime yet.
+The parent now imports the canonical delivery runtime so its loopback-only status/command routes are present, while production keeps the delivery enable flag at `0` and no signer/broadcaster dependencies are injected.
 
 Current parent truth is:
 
 ```text
 canonical_delivery_asset=void_token_erc20
 delivery_runtime_source_retained=true
-delivery_runtime_parent_mounted=false
-canonical_delivery_runtime_parent_mounted=false
+delivery_runtime_parent_mounted=true
+canonical_delivery_runtime_parent_mounted=true
+canonical_delivery_dependency_bootstrap_ready=true
+erc20_transaction_preparation_execution_state_ready=true
 canonical_delivery_execution_ready=false
 canonical_delivery_execution_held=true
 presale_inventory_funding_ready=false
 ```
 
-Accordingly, the parent exposes neither the canonical delivery status route nor
-the canonical delivery command route. Operators must not treat the ERC-20
-runtime as mounted before the readiness gates are closed.
+Accordingly, the parent exposes the canonical delivery status/command routes only on the existing loopback operator surface. With `VOID_BUY_VOID_DELIVERY_RUNTIME_INTEGRATION_ENABLED=0` and no dependency injection, the mounted child reports no RPC/signing/broadcast/money authority.
 
 The parent also does not mount native delivery, native receipt, native
 execution, bounded auto-fulfillment, native transaction preparation, or opaque
@@ -61,30 +61,42 @@ explicitly retired/held for the canonical ERC-20 transition.
 
 ## Remaining canonical gates
 
-Before canonical ERC-20 execution can be mounted, the parent still needs a
-server-controlled, exact-green canonical signer/broadcaster dependency bootstrap.
+The canonical signer/broadcaster dependency-bootstrap **source** gate is now
+closed. The parent imports only a pure metadata integration gate and reports
+`canonical_delivery_dependency_bootstrap_ready=true`.
 
-The ERC-20 transaction-preparation source gate is now closed. The merged planner
-constructs exact `VoidToken.transfer(...)` calldata with transaction value zero,
-uses a pending nonce, bounds gas and fee planning, accounts for native balance as
-gas-only, and uses read-only loopback RPC with both inactivity and total
-wall-clock deadlines. It remains parent-unmounted and has no wallet, signing,
-broadcast, or money-movement authority.
+The parent still does not import, instantiate, or invoke the value-bearing bootstrap, signer, broadcaster, or transport. Only the already-reviewed delivery runtime is parent-mounted; signer and broadcaster configuration remain absent, the production enable flag remains `0`, and execution remains held.
 
-Closed source gates now include exact 6-decimal fulfillment-unit to 18-decimal
-token-atom scaling, the standalone ERC-20 transaction-preparation planner, and a
-standalone read-only ERC-20 receipt reconciler that requires the exact confirmed
-`VoidToken.Transfer` event. The planner and reconciler remain parent-unmounted,
-and the reconciler performs no terminal closeout.
+Merged PR #1282 closes the transaction-preparation execution-state gate.
+Both queue-sensitive planners now bind nonce selection and spendability to
+`pending`, and ERC-20 gas estimation is explicitly evaluated against `pending`.
+The merged adversarial evidence also preserves total-deadline, response-error,
+and exact JSON media-type containment.
+
+Canonical status therefore reports:
+
+```text
+erc20_transaction_preparation_execution_state_ready=true
+funding_blockers=[
+  production_broad_delivery_configuration_not_verified
+  canonical_delivery_runtime_activation_not_ready
+]
+```
+
+Canonical Precision/Mainnet-0 credential binding evidence is recorded in redacted source evidence without inferring clone-local binding. Dormant dependency injection is fail-closed to delivery enable exact `0` and requires the configured delivery wallet to match the evidence-bound wallet.
+
+Canonical presale economics are now source-bound to `buy-void-presale-v1`, a finite 10000000 VOID total (10000000000000 six-decimal fulfillment units), and a fixed `2 VOID / 1 USDC` rate. The reservation ceiling equals the whole pool, so purchase admission has no per-buyer cap below remaining inventory; a 10,000 VOID validator purchase is explicitly proven.
+
+The old 2-VOID limit remains only a disabled delivery-execution canary. Public delivery activation is required to widen `VOID_BUY_VOID_DELIVERY_MAX_AMOUNT_UNITS` to the canonical presale capacity before execution can be considered configured. Production broad-delivery configuration verification, runtime enablement, and inventory funding remain later independent gates.
 
 ## Funding HOLD
 
 `presale_inventory_funding_ready=false` remains the source of truth.
 
 No presale inventory should be funded into an execution path until the
-remaining canonical dependency-bootstrap and runtime-activation gates are
-separately reviewed and authorized. The preparation and reconciliation source
-gates being closed does not authorize funding or execution.
+remaining runtime-activation and production-configuration gates are separately
+reviewed and authorized. Closing the planner and dependency source gates does
+not authorize funding or execution.
 
 ## Authority boundary
 
@@ -93,3 +105,15 @@ broadcaster, transaction, treasury balance, presale inventory balance, validator
 stake, BTC reserve, or runtime process is mutated by this composition change.
 
 `PROTECT THE CORE`
+
+
+### Presale customer-liability boundary
+
+```text
+payment_admission_reservation_atomicity_ready=true
+inventory_reservation_before_new_paid_claim=true
+paid_unreservable_terminal_obligation_ready=true
+confirmed_payer_without_reservation_or_obligation_allowed=false
+```
+
+The 10,000,000-VOID distribution ceiling is therefore enforced at the paid-admission boundary as well as at inventory reservation: a new paid claim follows a successful aggregate reservation, while a confirmed payment that cannot reserve receives a deterministic terminal reconciliation obligation with zero autonomous value-moving authority.

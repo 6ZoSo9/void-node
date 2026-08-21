@@ -158,6 +158,7 @@ assert.equal(planned.void_amount_units, amountUnits.toString());
 assert.equal(planned.token_amount_atoms, amountAtoms.toString());
 assert.equal(planned.transaction_value_wei, "0");
 assert.equal(planned.pending_nonce, 7);
+assert.equal(planned.execution_state, "pending");
 assert.equal(planned.observed_gas_price_wei, "100");
 assert.equal(planned.observed_estimated_gas, "50000");
 assert.equal(planned.computed_gas_limit, "60000");
@@ -200,8 +201,9 @@ assert.deepEqual(baseTransport.calls[3].params, [
     value: "0x0",
     data: planned.transfer_calldata,
   },
+  "pending",
 ]);
-assert.deepEqual(baseTransport.calls[4].params, [wallet, "latest"]);
+assert.deepEqual(baseTransport.calls[4].params, [wallet, "pending"]);
 assert.equal(planned.mutation_performed, false);
 assert.equal(planned.signing_performed, false);
 assert.equal(planned.transaction_broadcast_performed, false);
@@ -283,6 +285,120 @@ try {
   });
 }
 
+
+async function runErc20MimeFixture(contentType: string) {
+  const fixtureServer = http.createServer((request, response) => {
+    const chunks: Buffer[] = [];
+    request.on("data", (chunk: Buffer) => chunks.push(chunk));
+    request.on("end", () => {
+      const body = JSON.parse(Buffer.concat(chunks).toString("utf8"));
+      response.statusCode = 200;
+      response.setHeader("content-type", contentType);
+      const resultByMethod: Record<string, string> = {
+        eth_chainId: "0x802",
+        eth_getTransactionCount: "0x7",
+        eth_gasPrice: "0x64",
+        eth_estimateGas: "0xc350",
+        eth_getBalance: "0x989680",
+      };
+      response.end(JSON.stringify({
+        jsonrpc: "2.0",
+        id: body.id,
+        result: resultByMethod[body.method],
+      }));
+    });
+  });
+  await new Promise<void>((resolve, reject) => {
+    fixtureServer.once("error", reject);
+    fixtureServer.listen(0, "127.0.0.1", resolve);
+  });
+  try {
+    const address = fixtureServer.address();
+    assert.ok(address && typeof address === "object");
+    return await runBuyVoidErc20TransactionPreparationPlannerV1({
+      attempt: attempt(),
+      policy: {
+        ...policy(),
+        rpc_url: `http://127.0.0.1:${address.port}/rpc`,
+        request_timeout_ms: 1_000,
+      },
+    });
+  } finally {
+    await new Promise<void>((resolve, reject) =>
+      fixtureServer.close((error) =>
+        error ? reject(error) : resolve(),
+      ),
+    );
+  }
+}
+
+const erc20ParameterizedJson = await runErc20MimeFixture(
+  "Application/JSON; charset=UTF-8",
+);
+assert.equal(erc20ParameterizedJson.ok, true);
+
+for (const deceptiveMime of [
+  "application/jsonp",
+  "text/plain; profile=application/json",
+]) {
+  const decision = await runErc20MimeFixture(deceptiveMime);
+  assert.equal(decision.ok, false);
+  if (!("reason" in decision)) {
+    throw new Error("deceptive ERC20 MIME fixture must hold");
+  }
+  assert.equal(String(decision.reason), "rpc_call_failed");
+  assert.deepEqual(decision.rpc_methods_used, ["eth_chainId"]);
+  assert.equal(decision.mutation_performed, false);
+  assert.equal(decision.signing_performed, false);
+  assert.equal(decision.transaction_broadcast_performed, false);
+  assert.equal(decision.money_movement_performed, false);
+}
+
+const prematureCloseServer = http.createServer((request, response) => {
+  request.resume();
+  request.on("end", () => {
+    response.writeHead(200, {
+      "content-type": "application/json",
+    });
+    response.flushHeaders();
+    response.write('{"jsonrpc":"2.0","id":1,"result":"0x');
+    setTimeout(() => response.socket?.destroy(), 20);
+  });
+});
+await new Promise<void>((resolve, reject) => {
+  prematureCloseServer.once("error", reject);
+  prematureCloseServer.listen(0, "127.0.0.1", resolve);
+});
+try {
+  const prematureCloseAddress = prematureCloseServer.address();
+  assert.ok(prematureCloseAddress && typeof prematureCloseAddress === "object");
+  const prematureCloseDecision =
+    await runBuyVoidErc20TransactionPreparationPlannerV1({
+      attempt: attempt(),
+      policy: {
+        ...policy(),
+        rpc_url: `http://127.0.0.1:${prematureCloseAddress.port}/`,
+        request_timeout_ms: 1_000,
+      },
+    });
+  assert.equal(prematureCloseDecision.ok, false);
+  if (!("reason" in prematureCloseDecision)) {
+    throw new Error("premature response close must hold");
+  }
+  assert.equal(String(prematureCloseDecision.reason), "rpc_call_failed");
+  assert.deepEqual(prematureCloseDecision.rpc_methods_used, ["eth_chainId"]);
+  assert.equal(prematureCloseDecision.mutation_performed, false);
+  assert.equal(prematureCloseDecision.signing_performed, false);
+  assert.equal(prematureCloseDecision.transaction_broadcast_performed, false);
+  assert.equal(prematureCloseDecision.money_movement_performed, false);
+} finally {
+  await new Promise<void>((resolve, reject) =>
+    prematureCloseServer.close((error) =>
+      error ? reject(error) : resolve(),
+    ),
+  );
+}
+
 async function expectHeld(
   reason: string,
   options: {
@@ -328,6 +444,45 @@ await expectHeld("insufficient_native_balance_for_erc20_gas", {
   transportValues: { balance: "0x89543f" },
   expectedCalls: 5,
 });
+
+const latestSufficientPendingInsufficientCalls: Array<{
+  method: string;
+  params: unknown[];
+}> = [];
+const latestSufficientPendingInsufficient =
+  await runBuyVoidErc20TransactionPreparationPlannerV1({
+    attempt: attempt(),
+    policy: policy(),
+    transport: async (call) => {
+      latestSufficientPendingInsufficientCalls.push({
+        method: call.method,
+        params: [...call.params],
+      });
+      if (call.method === "eth_chainId") return "0x802";
+      if (call.method === "eth_getTransactionCount") return "0x7";
+      if (call.method === "eth_gasPrice") return "0x64";
+      if (call.method === "eth_estimateGas") return "0xc350";
+      if (call.method === "eth_getBalance") {
+        return String(call.params[1] || "") === "pending"
+          ? "0x89543f"
+          : "0x989680";
+      }
+      throw new Error(`unexpected method ${call.method}`);
+    },
+  });
+assert.equal(latestSufficientPendingInsufficient.ok, false);
+if (!("reason" in latestSufficientPendingInsufficient)) {
+  throw new Error("mixed-state fixture must hold");
+}
+assert.equal(
+  latestSufficientPendingInsufficient.reason,
+  "insufficient_native_balance_for_erc20_gas",
+);
+assert.deepEqual(
+  latestSufficientPendingInsufficientCalls.at(-1)?.params,
+  [wallet, "pending"],
+);
+
 await expectHeld("reserved_execution_attempt_required", {
   attemptValue: attempt({ status: "prepared" }),
   expectedCalls: 0,
@@ -367,6 +522,11 @@ assert.equal(
 );
 assert.equal(
   VOID_BUY_VOID_ERC20_TRANSACTION_PREPARATION_PLANNER_AUTHORITY_V1
+    .execution_state_tag,
+  "pending",
+);
+assert.equal(
+  VOID_BUY_VOID_ERC20_TRANSACTION_PREPARATION_PLANNER_AUTHORITY_V1
     .filesystem_write,
   false,
 );
@@ -398,11 +558,18 @@ console.log("chain_id=2050");
 console.log("canonical_asset=void_token_erc20");
 console.log("transaction_value_wei=0");
 console.log("pending_nonce_required=true");
+console.log("execution_state=pending");
+console.log("gas_estimate_state=pending");
+console.log("balance_state=pending");
+console.log("latest_sufficient_pending_insufficient_hold=1");
 console.log("exact_transfer_calldata=true");
 console.log("gas_estimate_bound=true");
 console.log("gas_only_native_balance_accounting=true");
 console.log("rpc_inactivity_timeout_enforced=true");
 console.log("rpc_total_deadline_enforced=true");
+console.log("premature_response_close_hold=1");
+console.log("exact_json_media_type_enforced=true");
+console.log("deceptive_json_content_type_rejected=true");
 console.log("mutation_performed=false");
 console.log("wallet_access=false");
 console.log("signing_performed=false");

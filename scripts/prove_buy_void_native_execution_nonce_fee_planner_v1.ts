@@ -28,6 +28,7 @@ assert.deepEqual(
     expected_chain_id: 2050,
     server_controlled_rpc_url: true,
     loopback_http_only: true,
+    execution_state_tag: "pending",
     read_only_rpc_methods: [
       "eth_chainId",
       "eth_getTransactionCount",
@@ -79,6 +80,7 @@ assert.equal(
 );
 assert.equal(planned.status, "planned");
 assert.equal(planned.pending_nonce, 7);
+assert.equal(planned.execution_state, "pending");
 assert.equal(planned.observed_gas_price_wei, "2000000000");
 assert.equal(
   planned.computed_max_fee_per_gas_wei,
@@ -109,7 +111,7 @@ assert.deepEqual(
   planned.rpc_methods_used,
 );
 assert.deepEqual(calls[1].params, [wallet, "pending"]);
-assert.deepEqual(calls[3].params, [wallet, "latest"]);
+assert.deepEqual(calls[3].params, [wallet, "pending"]);
 assert.equal(
   JSON.stringify(planned).includes(basePolicy.rpc_url),
   false,
@@ -187,6 +189,50 @@ assert.equal(
   "fulfillment_wallet_balance_insufficient",
 );
 
+const requiredMaximum =
+  1_000_000_000_000_000_000n + 21_000n * 2_400_000_000n;
+const latestSufficientPendingInsufficientCalls: BuyVoidNativeExecutionPlannerRpcCallV1[] = [];
+const latestSufficientPendingInsufficient =
+  await planBuyVoidNativeExecutionNonceFeeV1(
+    basePolicy,
+    async (call) => {
+      latestSufficientPendingInsufficientCalls.push({
+        ...call,
+        params: [...call.params],
+      });
+      let result: string;
+      if (call.method === "eth_chainId") result = "0x802";
+      else if (call.method === "eth_getTransactionCount") result = "0x7";
+      else if (call.method === "eth_gasPrice") result = "0x77359400";
+      else if (call.method === "eth_getBalance") {
+        const stateTag = String(call.params[1] || "");
+        result = stateTag === "pending"
+          ? `0x${(requiredMaximum - 1n).toString(16)}`
+          : `0x${(requiredMaximum + 1n).toString(16)}`;
+      } else {
+        throw new Error(`unexpected method ${call.method}`);
+      }
+      return {
+        ok: true,
+        result,
+        provider_submission_id: "",
+        http_status: 200,
+      };
+    },
+  );
+assert.equal(latestSufficientPendingInsufficient.ok, false);
+if (!("reason" in latestSufficientPendingInsufficient)) {
+  throw new Error("mixed-state fixture must hold");
+}
+assert.equal(
+  latestSufficientPendingInsufficient.reason,
+  "fulfillment_wallet_balance_insufficient",
+);
+assert.deepEqual(
+  latestSufficientPendingInsufficientCalls.at(-1)?.params,
+  [wallet, "pending"],
+);
+
 const serverCalls: Array<{
   id: number;
   method: string;
@@ -238,6 +284,7 @@ try {
   assert.equal(live.ok, true);
   if ("reason" in live) throw new Error(String(live.reason));
   assert.equal(live.pending_nonce, 2);
+  assert.equal(live.execution_state, "pending");
   assert.deepEqual(
     serverCalls.map((call) => call.method),
     [
@@ -247,9 +294,196 @@ try {
       "eth_getBalance",
     ],
   );
+  assert.deepEqual(serverCalls[1].params, [wallet, "pending"]);
+  assert.deepEqual(serverCalls[3].params, [wallet, "pending"]);
 } finally {
   await new Promise<void>((resolve, reject) =>
     server.close((error) =>
+      error ? reject(error) : resolve(),
+    ),
+  );
+}
+
+let slowDripChunks = 0;
+const slowDripServer = http.createServer((request, response) => {
+  request.resume();
+  request.on("end", () => {
+    response.writeHead(200, {
+      "content-type": "application/json",
+    });
+    const responseBody = JSON.stringify({
+      jsonrpc: "2.0",
+      id: 1,
+      result: "0x802",
+    });
+    let offset = 0;
+    const interval = setInterval(() => {
+      if (offset >= responseBody.length) {
+        clearInterval(interval);
+        response.end();
+        return;
+      }
+      response.write(responseBody.slice(offset, offset + 1));
+      offset += 1;
+      slowDripChunks += 1;
+    }, 20);
+    response.on("close", () => clearInterval(interval));
+  });
+});
+await new Promise<void>((resolve, reject) => {
+  slowDripServer.once("error", reject);
+  slowDripServer.listen(0, "127.0.0.1", resolve);
+});
+try {
+  const slowDripAddress = slowDripServer.address();
+  assert.ok(slowDripAddress && typeof slowDripAddress === "object");
+  const requestTimeoutMs = 120;
+  const startedAtMs = Date.now();
+  const slowDripDecision =
+    await planBuyVoidNativeExecutionNonceFeeV1({
+      ...basePolicy,
+      rpc_url: `http://127.0.0.1:${slowDripAddress.port}/rpc`,
+      request_timeout_ms: requestTimeoutMs,
+    });
+  const elapsedMs = Date.now() - startedAtMs;
+  assert.equal(slowDripDecision.ok, false);
+  if (!("reason" in slowDripDecision)) {
+    throw new Error("slow-drip RPC response must hold");
+  }
+  assert.equal(slowDripDecision.reason, "rpc_call_failed");
+  assert.equal(
+    String(slowDripDecision.detail?.error_code || ""),
+    "request_total_deadline_exceeded",
+  );
+  assert.deepEqual(slowDripDecision.rpc_methods_used, ["eth_chainId"]);
+  assert.ok(
+    slowDripChunks >= 2,
+    "fixture must keep the socket active before total deadline",
+  );
+  assert.ok(
+    elapsedMs >= requestTimeoutMs - 40,
+    `total deadline fired too early: ${elapsedMs}ms`,
+  );
+  assert.ok(
+    elapsedMs < requestTimeoutMs + 1_000,
+    `slow-drip response exceeded total deadline bound: ${elapsedMs}ms`,
+  );
+  assert.equal(slowDripDecision.mutation_performed, false);
+  assert.equal(slowDripDecision.signing_performed, false);
+  assert.equal(slowDripDecision.transaction_broadcast_performed, false);
+} finally {
+  await new Promise<void>((resolve, reject) => {
+    slowDripServer.close((error) =>
+      error ? reject(error) : resolve(),
+    );
+  });
+}
+
+
+async function runNativeMimeFixture(
+  contentType: string,
+  requestId: number,
+) {
+  const fixtureServer = http.createServer((request, response) => {
+    const chunks: Buffer[] = [];
+    request.on("data", (chunk: Buffer) => chunks.push(chunk));
+    request.on("end", () => {
+      const body = JSON.parse(Buffer.concat(chunks).toString("utf8"));
+      response.statusCode = 200;
+      response.setHeader("content-type", contentType);
+      response.end(JSON.stringify({
+        jsonrpc: "2.0",
+        id: body.id,
+        result: "0x802",
+      }));
+    });
+  });
+  await new Promise<void>((resolve, reject) => {
+    fixtureServer.once("error", reject);
+    fixtureServer.listen(0, "127.0.0.1", resolve);
+  });
+  try {
+    const address = fixtureServer.address();
+    assert.ok(address && typeof address === "object");
+    const transport =
+      createBuyVoidNativeExecutionPlannerHttpTransportV1();
+    return await transport({
+      rpc_url: `http://127.0.0.1:${address.port}/rpc`,
+      method: "eth_chainId",
+      params: [],
+      request_id: requestId,
+      request_timeout_ms: 1_000,
+      max_response_bytes: 65_536,
+    });
+  } finally {
+    await new Promise<void>((resolve, reject) =>
+      fixtureServer.close((error) =>
+        error ? reject(error) : resolve(),
+      ),
+    );
+  }
+}
+
+const nativeParameterizedJson = await runNativeMimeFixture(
+  "Application/JSON; charset=UTF-8",
+  71,
+);
+assert.equal(nativeParameterizedJson.ok, true);
+
+for (const deceptiveMime of [
+  "application/jsonp",
+  "text/plain; profile=application/json",
+]) {
+  const decision = await runNativeMimeFixture(deceptiveMime, 72);
+  assert.equal(decision.ok, false);
+  if (!("error_code" in decision)) {
+    throw new Error("deceptive native MIME fixture must hold");
+  }
+  assert.equal(decision.error_code, "response_content_type_invalid");
+}
+
+const prematureCloseServer = http.createServer((request, response) => {
+  request.resume();
+  request.on("end", () => {
+    response.writeHead(200, {
+      "content-type": "application/json",
+    });
+    response.flushHeaders();
+    response.write('{"jsonrpc":"2.0","id":1,"result":"0x');
+    setTimeout(() => response.socket?.destroy(), 20);
+  });
+});
+await new Promise<void>((resolve, reject) => {
+  prematureCloseServer.once("error", reject);
+  prematureCloseServer.listen(0, "127.0.0.1", resolve);
+});
+try {
+  const prematureCloseAddress = prematureCloseServer.address();
+  assert.ok(prematureCloseAddress && typeof prematureCloseAddress === "object");
+  const prematureCloseDecision =
+    await planBuyVoidNativeExecutionNonceFeeV1({
+      ...basePolicy,
+      rpc_url: `http://127.0.0.1:${prematureCloseAddress.port}/rpc`,
+      request_timeout_ms: 1_000,
+    });
+  assert.equal(prematureCloseDecision.ok, false);
+  if (!("reason" in prematureCloseDecision)) {
+    throw new Error("premature response close must hold");
+  }
+  assert.equal(prematureCloseDecision.reason, "rpc_call_failed");
+  assert.ok(
+    ["response_aborted", "response_error"].includes(
+      String(prematureCloseDecision.detail?.error_code || ""),
+    ),
+    "post-header response failure must be contained as transport HOLD",
+  );
+  assert.deepEqual(prematureCloseDecision.rpc_methods_used, ["eth_chainId"]);
+  assert.equal(prematureCloseDecision.mutation_performed, false);
+  assert.equal(prematureCloseDecision.signing_performed, false);
+  assert.equal(prematureCloseDecision.transaction_broadcast_performed, false);
+} finally {
+  await new Promise<void>((resolve, reject) =>
+    prematureCloseServer.close((error) =>
       error ? reject(error) : resolve(),
     ),
   );
@@ -260,6 +494,15 @@ console.log(
 );
 console.log("read_only_rpc_method_count=4");
 console.log("pending_nonce_source=eth_getTransactionCount_pending");
+console.log("execution_state=pending");
+console.log("balance_state=pending");
+console.log("latest_sufficient_pending_insufficient_hold=1");
+console.log("rpc_inactivity_timeout_enforced=1");
+console.log("rpc_total_deadline_enforced=1");
+console.log("slow_drip_total_deadline_hold=1");
+console.log("premature_response_close_hold=1");
+console.log("exact_json_media_type_enforced=1");
+console.log("deceptive_json_content_type_rejected=1");
 console.log("fee_source=eth_gasPrice_bounded_multiplier");
 console.log("balance_preflight=1");
 console.log("loopback_http_only=1");

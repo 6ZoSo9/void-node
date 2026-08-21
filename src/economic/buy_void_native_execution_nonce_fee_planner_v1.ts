@@ -14,6 +14,7 @@ export const VOID_BUY_VOID_NATIVE_EXECUTION_NONCE_FEE_PLANNER_AUTHORITY_V1 = {
   expected_chain_id: 2050,
   server_controlled_rpc_url: true,
   loopback_http_only: true,
+  execution_state_tag: "pending",
   read_only_rpc_methods: [
     "eth_chainId",
     "eth_getTransactionCount",
@@ -93,6 +94,7 @@ export type BuyVoidNativeExecutionNonceFeePlanReadyV1 = {
   rpc_url_fingerprint_sha256: string;
   transaction_plan: BuyVoidNativeDeliveryTransactionPlanV1;
   pending_nonce: number;
+  execution_state: "pending";
   observed_gas_price_wei: string;
   computed_max_fee_per_gas_wei: string;
   configured_priority_fee_per_gas_wei: string;
@@ -384,12 +386,18 @@ export function createBuyVoidNativeExecutionPlannerHttpTransportV1():
     }
 
     return await new Promise((resolve) => {
+      const requestStartedAtMs = Date.now();
       let settled = false;
+      let totalDeadline: ReturnType<typeof setTimeout> | null = null;
       const finish = (
         value: BuyVoidNativeExecutionPlannerRpcResultV1,
       ) => {
         if (settled) return;
         settled = true;
+        if (totalDeadline !== null) {
+          clearTimeout(totalDeadline);
+          totalDeadline = null;
+        }
         resolve(value);
       };
 
@@ -414,6 +422,16 @@ export function createBuyVoidNativeExecutionPlannerHttpTransportV1():
         (response) => {
           const chunks: Buffer[] = [];
           let total = 0;
+          const responseFailure = (errorCode: string) => {
+            finish({
+              ok: false,
+              error_code: errorCode,
+              provider_submission_id: "",
+              http_status: Number(response.statusCode || 0),
+            });
+          };
+          response.on("aborted", () => responseFailure("response_aborted"));
+          response.on("error", () => responseFailure("response_error"));
 
           response.on("data", (chunk: Buffer) => {
             total += chunk.length;
@@ -430,8 +448,11 @@ export function createBuyVoidNativeExecutionPlannerHttpTransportV1():
             const httpStatus = Number(response.statusCode || 0);
             const contentType = String(
               response.headers["content-type"] || "",
-            ).toLowerCase();
-            if (!contentType.includes("application/json")) {
+            )
+              .toLowerCase()
+              .split(";", 1)[0]
+              ?.trim() || "";
+            if (contentType !== "application/json") {
               finish({
                 ok: false,
                 error_code: "response_content_type_invalid",
@@ -504,20 +525,32 @@ export function createBuyVoidNativeExecutionPlannerHttpTransportV1():
         request.destroy(new Error("request_timeout"));
       });
       request.on("error", (error) => {
+        const message = String((error as Error)?.message || "");
         finish({
           ok: false,
           error_code:
-            String((error as Error)?.message || "") ===
-            "response_size_limit_exceeded"
+            message === "response_size_limit_exceeded"
               ? "response_size_limit_exceeded"
-              : String((error as Error)?.message || "") ===
-                  "request_timeout"
+              : message === "request_timeout"
                 ? "request_timeout"
-                : "transport_error",
+                : message === "request_total_deadline_exceeded"
+                  ? "request_total_deadline_exceeded"
+                  : "transport_error",
           provider_submission_id: "",
           http_status: 0,
         });
       });
+      totalDeadline = setTimeout(
+        () => {
+          request.destroy(
+            new Error("request_total_deadline_exceeded"),
+          );
+        },
+        Math.max(
+          0,
+          call.request_timeout_ms - (Date.now() - requestStartedAtMs),
+        ),
+      );
       request.end(body);
     });
   };
@@ -645,7 +678,7 @@ export async function planBuyVoidNativeExecutionNonceFeeV1(
     transport,
     policy,
     "eth_getBalance",
-    [policy.wallet_address, "latest"],
+    [policy.wallet_address, "pending"],
     requestId++,
     methods,
   );
@@ -713,6 +746,7 @@ export async function planBuyVoidNativeExecutionNonceFeeV1(
         policy.max_priority_fee_per_gas_wei.toString(),
     },
     pending_nonce: nonce,
+    execution_state: "pending",
     observed_gas_price_wei: gasPrice.toString(),
     computed_max_fee_per_gas_wei: multiplied.toString(),
     configured_priority_fee_per_gas_wei:
