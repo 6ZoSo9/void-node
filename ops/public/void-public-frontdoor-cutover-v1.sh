@@ -38,12 +38,12 @@ tailscale_dns_name() {
 current_simple_funnel_port() {
   local text count port
   text="$(tailscale funnel status 2>/dev/null)" || fail "cannot read Funnel status"
-  count="$(printf '%s\n' "$text" | grep -Ec '\|--> http://(127\.0\.0\.1|localhost):[0-9]+/?$' || true)"
+  count="$(printf '%s\n' "$text" | grep -Ec '\|-- / proxy http://(127\.0\.0\.1|localhost):[0-9]+/?$' || true)"
   [[ "$count" == "1" ]] || {
     printf '%s\n' "$text" >&2
-    fail "expected exactly one simple local Funnel proxy target; found $count"
+    fail "expected exactly one simple root Funnel proxy target; found $count"
   }
-  port="$(printf '%s\n' "$text" | sed -nE 's#.*\|--> http://(127\.0\.0\.1|localhost):([0-9]+)/?$#\2#p')"
+  port="$(printf '%s\n' "$text" | sed -nE 's#.*\|-- / proxy http://(127\.0\.0\.1|localhost):([0-9]+)/?$#\2#p')"
   [[ "$port" =~ ^[0-9]+$ ]] || fail "could not parse current Funnel port"
   printf '%s' "$port"
 }
@@ -85,7 +85,6 @@ apply() {
   echo "node_service_restart=false"
   echo "composition_gateway_restart=false"
 
-  # Prove the currently exposed backend is alive before inserting the wrapper.
   curl -fsS --max-time 5 "http://127.0.0.1:${previous_port}/" -o /dev/null \
     || fail "current Funnel backend is not healthy on 127.0.0.1:${previous_port}"
 
@@ -101,7 +100,7 @@ apply() {
   cat > "$UNIT_PATH" <<EOF
 [Unit]
 Description=VOID public frontdoor v1
-After=network-online.target tailscaled.service
+After=network-online.target
 
 [Service]
 Type=simple
