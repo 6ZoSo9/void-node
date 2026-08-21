@@ -10,6 +10,7 @@ on:
       - "public/public-node/validators/mainnet0-validator-candidate-readiness-matrix-hold-v1.json"
       - "docs/public/void-app-validator-readonly-v1.md"
       - "scripts/prove_void_app_validator_readonly_v1.mjs"
+      - "scripts/prove_void_app_home_nullable_evidence_presentation_v1.mjs"
       - ".github/workflows/void-app-validator-readonly-v1.yml"
   push:
     branches: [main]
@@ -21,6 +22,7 @@ on:
       - "public/public-node/validators/mainnet0-validator-candidate-readiness-matrix-hold-v1.json"
       - "docs/public/void-app-validator-readonly-v1.md"
       - "scripts/prove_void_app_validator_readonly_v1.mjs"
+      - "scripts/prove_void_app_home_nullable_evidence_presentation_v1.mjs"
       - ".github/workflows/void-app-validator-readonly-v1.yml"
 
 permissions:
@@ -51,8 +53,11 @@ jobs:
           node --check public/void-app-wave1-v1/assets/js/home-live.js
           node --check public/void-app-wave1-v1/assets/js/validate-live.js
           node --check scripts/prove_void_app_validator_readonly_v1.mjs
+          node --check scripts/prove_void_app_home_nullable_evidence_presentation_v1.mjs
       - name: Validator read-only proof
         run: node scripts/prove_void_app_validator_readonly_v1.mjs
+      - name: Home nullable evidence presentation proof
+        run: node scripts/prove_void_app_home_nullable_evidence_presentation_v1.mjs
       - name: Site-theme regression
         run: node scripts/prove_void_app_site_theme_v1.mjs
       - name: Diff hygiene
