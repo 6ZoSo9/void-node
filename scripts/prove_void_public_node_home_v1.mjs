@@ -8,7 +8,7 @@ import { fileURLToPath } from "node:url";
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const read = (path) => readFileSync(resolve(ROOT, path), "utf8");
 
-const html = read("public/public-node/void-public-node-home-v1.html");
+const html = read("public/public-node/index.html");
 const js = read("public/public-node/void-public-node-home-v1.js");
 const tokens = read("public/void-app-wave1-v1/assets/css/tokens.css");
 
@@ -68,6 +68,7 @@ assert.doesNotMatch(js, /innerHTML\s*=/);
 assert.doesNotMatch(js, /localStorage|sessionStorage|document\.cookie/);
 
 console.log("VOID_PUBLIC_NODE_HOME_V1_PROOF_GREEN");
+console.log("canonical_static_root=public/public-node/index.html");
 console.log("shared_visual_tokens_bound=true");
 console.log("primary_choices=2");
 console.log("capability_cards=3");

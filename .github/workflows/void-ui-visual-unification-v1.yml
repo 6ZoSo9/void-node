@@ -4,7 +4,7 @@ on:
   pull_request:
     paths:
       - "public/void-app-wave1-v1/assets/css/site-theme.css"
-      - "public/public-node/void-public-node-home-v1.html"
+      - "public/public-node/index.html"
       - "public/public-node/void-public-node-home-v1.js"
       - "docs/public/void-ui-visual-unification-v1.md"
       - "scripts/prove_void_ui_visual_unification_v1.mjs"
@@ -18,7 +18,7 @@ on:
     branches: [main]
     paths:
       - "public/void-app-wave1-v1/assets/css/site-theme.css"
-      - "public/public-node/void-public-node-home-v1.html"
+      - "public/public-node/index.html"
       - "public/public-node/void-public-node-home-v1.js"
       - "docs/public/void-ui-visual-unification-v1.md"
       - "scripts/prove_void_ui_visual_unification_v1.mjs"
