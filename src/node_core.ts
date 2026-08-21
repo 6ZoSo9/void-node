@@ -130,6 +130,7 @@ function recordPeerHeadProbeFailure(scope: string, err: unknown, meta: Record<st
 const VOID_FOLLOWER_PULL_TIMEOUT_DEFAULT_MS_V1 = 15_000;
 const VOID_FOLLOWER_PULL_TIMEOUT_MIN_MS_V1 = 100;
 const VOID_FOLLOWER_PULL_TIMEOUT_MAX_MS_V1 = 120_000;
+const VOID_FOLLOWER_RESPONSE_CANCEL_MAX_MS_V1 = 25;
 const VOID_FOLLOWER_HEAD_RESPONSE_MAX_BYTES_V1 = 64 * 1024;
 const VOID_FOLLOWER_RANGE_RESPONSE_MAX_BYTES_V1 = 128 * 1024 * 1024;
 
@@ -168,13 +169,61 @@ class VoidFollowerPeerHttpStatusErrorV1 extends Error {
 async function cancelFollowerResponseBodyV1(
   response: Response,
   reason: unknown,
+  signal: AbortSignal,
   scope: string,
   context: Record<string, unknown> = {},
 ): Promise<void> {
+  if (!response.body) return;
+  await awaitFollowerResponseCleanupV1(
+    () => response.body!.cancel(reason),
+    signal,
+    scope,
+    context,
+  );
+}
+
+async function awaitFollowerResponseCleanupV1(
+  cleanup: () => Promise<unknown>,
+  signal: AbortSignal,
+  scope: string,
+  context: Record<string, unknown> = {},
+): Promise<void> {
+  let timeout: ReturnType<typeof setTimeout> | undefined;
+  let onAbort: (() => void) | undefined;
+  let cleanupResult: Promise<
+    { kind: "settled" } | { kind: "failed"; error: unknown }
+  >;
   try {
-    await response.body?.cancel(reason);
-  } catch (cancelError) {
-    recordPeerHeadProbeFailure(scope, cancelError, context);
+    cleanupResult = Promise.resolve(cleanup()).then(
+      () => ({ kind: "settled" as const }),
+      (error: unknown) => ({ kind: "failed" as const, error }),
+    );
+  } catch (error) {
+    cleanupResult = Promise.resolve({ kind: "failed" as const, error });
+  }
+  const boundedResult = new Promise<{ kind: "aborted" | "timeout" }>((resolve) => {
+    onAbort = () => resolve({ kind: "aborted" });
+    if (signal.aborted) {
+      onAbort();
+      return;
+    }
+    signal.addEventListener("abort", onAbort, { once: true });
+    timeout = setTimeout(
+      () => resolve({ kind: "timeout" }),
+      VOID_FOLLOWER_RESPONSE_CANCEL_MAX_MS_V1,
+    );
+  });
+  const result = await Promise.race([cleanupResult, boundedResult]);
+  if (timeout !== undefined) clearTimeout(timeout);
+  if (onAbort) signal.removeEventListener("abort", onAbort);
+  if (result.kind === "failed") {
+    recordPeerHeadProbeFailure(scope, result.error, context);
+  } else if (result.kind !== "settled") {
+    recordPeerHeadProbeFailure(
+      scope,
+      new Error(`VOID_FOLLOWER_RESPONSE_CANCEL_BOUND_V1: cleanup ${result.kind}`),
+      context,
+    );
   }
 }
 
@@ -193,6 +242,7 @@ async function readFollowerJsonResponseBoundedV1(
       await cancelFollowerResponseBodyV1(
         response,
         error,
+        signal,
         "peer-response-invalid-length-body-cancel",
       );
       throw error;
@@ -205,6 +255,7 @@ async function readFollowerJsonResponseBoundedV1(
       await cancelFollowerResponseBodyV1(
         response,
         error,
+        signal,
         "peer-response-oversize-body-cancel",
       );
       throw error;
@@ -224,17 +275,23 @@ async function readFollowerJsonResponseBoundedV1(
       const { done, value } = await reader.read();
       throwIfFollowerPullAbortedV1(signal);
       if (done) break;
-      const chunk = Buffer.from(value);
-      total += chunk.length;
-      if (total > maxBytes) {
+      if (!(value instanceof Uint8Array)) {
+        throw new Error("VOID_FOLLOWER_RESPONSE_BOUND_V1: invalid response chunk");
+      }
+      const chunkBytes = value.byteLength;
+      if (!Number.isSafeInteger(chunkBytes) || chunkBytes > maxBytes - total) {
         throw new Error(`VOID_FOLLOWER_RESPONSE_BOUND_V1: response exceeds ${maxBytes} bytes`);
       }
+      const chunk = Buffer.from(value);
+      total += chunkBytes;
       chunks.push(chunk);
     }
   } catch (error) {
-    try { await reader.cancel(error); } catch (cancelError) {
-      recordPeerHeadProbeFailure("peer-response-reader-cancel", cancelError);
-    }
+    await awaitFollowerResponseCleanupV1(
+      () => reader.cancel(error),
+      signal,
+      "peer-response-reader-cancel",
+    );
     throwIfFollowerPullAbortedV1(signal);
     throw error;
   }
@@ -4259,12 +4316,13 @@ attachEphemeralDirectTransportV1(
         });
         const finalUrl = new URL(response.url).href;
         if (response.redirected || finalUrl !== requestedUrl) {
-          try { await response.body?.cancel(); } catch (cancelError) {
-            recordPeerHeadProbeFailure("peer-response-provenance-body-cancel", cancelError, {
-              requestedUrl,
-              finalUrl,
-            });
-          }
+          await cancelFollowerResponseBodyV1(
+            response,
+            new Error("VOID_FOLLOWER_PEER_RESPONSE_PROVENANCE_V1"),
+            pullSignal,
+            "peer-response-provenance-body-cancel",
+            { requestedUrl, finalUrl },
+          );
           throw new Error(
             `VOID_FOLLOWER_PEER_RESPONSE_PROVENANCE_V1: expected ${requestedUrl}, received ${finalUrl}`,
           );
@@ -4311,6 +4369,7 @@ attachEphemeralDirectTransportV1(
           await cancelFollowerResponseBodyV1(
             r,
             new Error(`peer head rejected HTTP ${r.status}`),
+            pullSignal,
             "peer-head-status-body-cancel",
             { peerHttp: base, status: r.status },
           );
@@ -4339,6 +4398,7 @@ attachEphemeralDirectTransportV1(
           await cancelFollowerResponseBodyV1(
             r,
             new Error(`peer head rejected HTTP ${r.status}`),
+            pullSignal,
             "peer-head-status-body-cancel",
             { peerHttp: base, status: r.status },
           );
@@ -4367,6 +4427,7 @@ attachEphemeralDirectTransportV1(
           await cancelFollowerResponseBodyV1(
             r,
             new Error(`peer head rejected HTTP ${r.status}`),
+            pullSignal,
             "peer-head-status-body-cancel",
             { peerHttp: base, status: r.status },
           );
@@ -4395,6 +4456,7 @@ attachEphemeralDirectTransportV1(
           await cancelFollowerResponseBodyV1(
             r,
             new Error(`peer head rejected HTTP ${r.status}`),
+            pullSignal,
             "peer-head-status-body-cancel",
             { peerHttp: base, status: r.status },
           );
@@ -4430,6 +4492,7 @@ attachEphemeralDirectTransportV1(
           await cancelFollowerResponseBodyV1(
             response,
             error,
+            pullSignal,
             "peer-range-status-body-cancel",
             { peerHttp, status: response.status },
           );

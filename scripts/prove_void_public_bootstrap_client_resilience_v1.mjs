@@ -797,6 +797,208 @@ try {
   );
   pass("streamed oversized head is cancelled before bounded fallback and valid import");
 
+  const followerHeadByteLimit = 64 * 1024;
+  const runSyntheticHeadChunks = async ({
+    chunks,
+    copiedChunk = null,
+    cancelSettles = true,
+  }) => {
+    const originalFetch = globalThis.fetch;
+    const originalBufferFrom = Buffer.from;
+    let readerCancels = 0;
+    let offendingCopies = 0;
+    let servedSyntheticHead = false;
+    Buffer.from = function (...args) {
+      if (copiedChunk && args[0] === copiedChunk) offendingCopies += 1;
+      return originalBufferFrom.apply(Buffer, args);
+    };
+    globalThis.fetch = async (input, init) => {
+      const requested = String(input);
+      if (!servedSyntheticHead && new URL(requested).pathname === "/blocks/latest/number2.json") {
+        servedSyntheticHead = true;
+        let index = 0;
+        const reader = {
+          async read() {
+            if (index >= chunks.length) return { done: true, value: undefined };
+            return { done: false, value: chunks[index++] };
+          },
+          async cancel() {
+            readerCancels += 1;
+            if (!cancelSettles) return await new Promise(() => {});
+          },
+        };
+        return {
+          body: {
+            getReader: () => reader,
+            async cancel() {
+              readerCancels += 1;
+              if (!cancelSettles) return await new Promise(() => {});
+            },
+          },
+          headers: new Headers(),
+          ok: true,
+          redirected: false,
+          status: 200,
+          url: requested,
+        };
+      }
+      return await originalFetch(input, init);
+    };
+    try {
+      const fixture = createFollowerImportFixture(Node, {
+        async appendMany(_records, opts = {}) {
+          opts.signal?.throwIfAborted();
+          fixture.state.receipt_writes += 1;
+        },
+      });
+      return {
+        result: await fixture.node.pullOnce(followerAdversaryBase),
+        fixture,
+        readerCancels,
+        offendingCopies,
+      };
+    } finally {
+      globalThis.fetch = originalFetch;
+      Buffer.from = originalBufferFrom;
+    }
+  };
+
+  resetAdversary("valid");
+  const firstOversizedChunk = new Uint8Array(followerHeadByteLimit + 1);
+  const firstOversized = await runSyntheticHeadChunks({
+    chunks: [firstOversizedChunk],
+    copiedChunk: firstOversizedChunk,
+  });
+  assert(firstOversized.result.imported === 1, "first-chunk overrun prevented bounded fallback");
+  assert(firstOversized.readerCancels === 1, "first-chunk overrun did not cancel its reader");
+  assert(firstOversized.offendingCopies === 0, "first oversized chunk was copied before rejection");
+
+  resetAdversary("valid");
+  const acceptedPrefix = new Uint8Array(17);
+  const remainingOversizedChunk = new Uint8Array(followerHeadByteLimit - acceptedPrefix.byteLength + 1);
+  const remainingOversized = await runSyntheticHeadChunks({
+    chunks: [acceptedPrefix, remainingOversizedChunk],
+    copiedChunk: remainingOversizedChunk,
+  });
+  assert(remainingOversized.result.imported === 1, "remaining-budget overrun prevented bounded fallback");
+  assert(remainingOversized.readerCancels === 1, "remaining-budget overrun did not cancel its reader");
+  assert(remainingOversized.offendingCopies === 0, "remaining-budget overrun was copied before rejection");
+
+  resetAdversary("valid");
+  const nonSettlingReaderStartedAt = Date.now();
+  const nonSettlingReaderCancel = await runSyntheticHeadChunks({
+    chunks: [firstOversizedChunk],
+    copiedChunk: firstOversizedChunk,
+    cancelSettles: false,
+  });
+  assert(
+    nonSettlingReaderCancel.result.imported === 1 &&
+      Date.now() - nonSettlingReaderStartedAt < 500,
+    "non-settling reader cancellation escaped the bounded pull cleanup lifetime",
+  );
+  assert(
+    nonSettlingReaderCancel.readerCancels === 1 &&
+      nonSettlingReaderCancel.offendingCopies === 0,
+    "non-settling reader cancellation weakened the pre-copy byte ceiling",
+  );
+
+  resetAdversary("valid");
+  const exactHeadPrefix = '{"number":0,"padding":"';
+  const exactHeadSuffix = '"}';
+  const exactHeadBytes = new TextEncoder().encode(
+    `${exactHeadPrefix}${"x".repeat(
+      followerHeadByteLimit - Buffer.byteLength(exactHeadPrefix) - Buffer.byteLength(exactHeadSuffix),
+    )}${exactHeadSuffix}`,
+  );
+  assert(exactHeadBytes.byteLength === followerHeadByteLimit, "exact-bound fixture is not exact");
+  const exactBound = await runSyntheticHeadChunks({ chunks: [exactHeadBytes] });
+  assert(exactBound.result.imported === 1, "exactly bounded head was rejected");
+  assert(exactBound.readerCancels === 0, "exactly bounded head was cancelled");
+  pass("follower chunks are rejected before over-cap copies while the exact byte ceiling remains valid");
+
+  const runNonSettlingBodyCancel = async ({ pathname, status, headers }) => {
+    const originalFetch = globalThis.fetch;
+    let served = false;
+    let cancelCalls = 0;
+    globalThis.fetch = async (input, init) => {
+      const requested = String(input);
+      if (!served && new URL(requested).pathname === pathname) {
+        served = true;
+        return {
+          body: {
+            async cancel() {
+              cancelCalls += 1;
+              return await new Promise(() => {});
+            },
+          },
+          headers: new Headers(headers),
+          ok: status >= 200 && status < 300,
+          redirected: false,
+          status,
+          url: requested,
+        };
+      }
+      return await originalFetch(input, init);
+    };
+    return {
+      cancelCalls: () => cancelCalls,
+      restore() { globalThis.fetch = originalFetch; },
+    };
+  };
+
+  resetAdversary("valid");
+  const declaredCancel = await runNonSettlingBodyCancel({
+    pathname: "/blocks/latest/number2.json",
+    status: 200,
+    headers: { "content-length": String(followerHeadByteLimit + 1) },
+  });
+  try {
+    const fixture = createFollowerImportFixture(Node, {
+      async appendMany(_records, opts = {}) {
+        opts.signal?.throwIfAborted();
+        fixture.state.receipt_writes += 1;
+      },
+    });
+    const startedAt = Date.now();
+    const result = await fixture.node.pullOnce(followerAdversaryBase);
+    assert(
+      result.imported === 1 && Date.now() - startedAt < 500,
+      "declared oversize with non-settling cancellation blocked bounded fallback",
+    );
+    assert(declaredCancel.cancelCalls() === 1, "declared oversize body was not cancelled once");
+  } finally {
+    declaredCancel.restore();
+  }
+
+  resetAdversary("valid");
+  const rejectedRangeCancel = await runNonSettlingBodyCancel({
+    pathname: "/blocks/range",
+    status: 503,
+    headers: {},
+  });
+  try {
+    const fixture = createFollowerImportFixture(Node, {
+      async appendMany() { fixture.state.receipt_writes += 1; },
+    });
+    const startedAt = Date.now();
+    await assertRejects(
+      () => fixture.node.pullOnce(followerAdversaryBase),
+      /VOID_FOLLOWER_PEER_HTTP_STATUS_V1/,
+      "non-success range with non-settling cancellation was not terminal",
+    );
+    assert(
+      Date.now() - startedAt < 500 &&
+        rejectedRangeCancel.cancelCalls() === 1 &&
+        fixture.state.block_writes === 0 &&
+        fixture.state.index_writes === 0 &&
+        fixture.state.receipt_writes === 0,
+      "non-success range cancellation escaped its lifetime or mutated follower state",
+    );
+  } finally {
+    rejectedRangeCancel.restore();
+  }
+  pass("non-settling response cancellation remains inside the follower cleanup lifetime");
+
   resetAdversary("valid");
   let stalledReceiptCalls = 0;
   const persistenceFixture = createFollowerImportFixture(Node, {
@@ -1421,10 +1623,131 @@ try {
         releaseHits.get(releaseFailureB.h)?.found === true,
       "durable logical release witness lost or wedged a receipt",
     );
+
+    const releasePublicationDir = path.join(
+      receiptConcurrencyRoot,
+      "release-publication-failure",
+    );
+    const releasePublicationA = {
+      h: "4".repeat(64),
+      n: 9,
+      o: 0,
+      ts: followerBlock0.timestamp,
+    };
+    const releasePublicationB = {
+      h: "5".repeat(64),
+      n: 10,
+      o: 0,
+      ts: followerBlock0.timestamp,
+    };
+    const releasePublicationC = {
+      h: "6".repeat(64),
+      n: 11,
+      o: 0,
+      ts: followerBlock0.timestamp,
+    };
+    const releasePublicationStore = new receiptModule.ReceiptsStore(
+      releasePublicationDir,
+      { shardSpan: 10_000 },
+    );
+    let injectedReleasePublicationFailures = 0;
+    await releasePublicationStore.appendMany([releasePublicationA], {
+      testHooksV1: {
+        beforeLockReleasePublication() {
+          injectedReleasePublicationFailures += 1;
+          throw new Error("injected receipt lock release publication failure");
+        },
+      },
+    });
+    assert(
+      injectedReleasePublicationFailures === 1 &&
+        fs.readdirSync(releasePublicationDir).some((file) =>
+          /^\.receipts-append-claim-[0-9a-f]{32}\.json$/.test(file)
+        ) &&
+        !fs.readdirSync(releasePublicationDir).some((file) =>
+          /^\.receipts-append-release-[0-9a-f]{32}\.json$/.test(file)
+        ),
+      "release-publication fixture did not retain only its exact claim",
+    );
+    const blockedContender = childProcess.spawn(
+      process.execPath,
+      ["--input-type=module", "-e", writerSource],
+      {
+        env: {
+          ...process.env,
+          VOID_RECEIPT_MODULE_URL: moduleUrl,
+          VOID_RECEIPT_DIR: releasePublicationDir,
+          VOID_RECEIPT_RECORD: JSON.stringify(releasePublicationC),
+        },
+        stdio: ["ignore", "pipe", "pipe"],
+      },
+    );
+    let blockedStdout = "";
+    let blockedStderr = "";
+    blockedContender.stdout.on("data", (chunk) => { blockedStdout += chunk; });
+    blockedContender.stderr.on("data", (chunk) => { blockedStderr += chunk; });
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    assert(
+      blockedContender.exitCode === null,
+      "foreign contender crossed a claim without exact durable release evidence",
+    );
+    blockedContender.kill("SIGTERM");
+    const [blockedCode, blockedSignal] = await once(blockedContender, "exit");
+    assert(
+      blockedCode === null && blockedSignal === "SIGTERM",
+      `pre-release contender did not remain cleanly terminable: ${blockedStderr || blockedStdout}`,
+    );
+    const retryStartedAt = Date.now();
+    await releasePublicationStore.appendMany([releasePublicationB]);
+    const recoveredContender = childProcess.spawn(
+      process.execPath,
+      ["--input-type=module", "-e", writerSource],
+      {
+        env: {
+          ...process.env,
+          VOID_RECEIPT_MODULE_URL: moduleUrl,
+          VOID_RECEIPT_DIR: releasePublicationDir,
+          VOID_RECEIPT_RECORD: JSON.stringify(releasePublicationC),
+        },
+        stdio: ["ignore", "pipe", "pipe"],
+      },
+    );
+    let recoveredStdout = "";
+    let recoveredStderr = "";
+    recoveredContender.stdout.on("data", (chunk) => { recoveredStdout += chunk; });
+    recoveredContender.stderr.on("data", (chunk) => { recoveredStderr += chunk; });
+    const [recoveredCode, recoveredSignal] = await once(recoveredContender, "exit");
+    assert(
+      recoveredCode === 0 &&
+        recoveredSignal === null &&
+        /writer_done=true/.test(recoveredStdout),
+      `release-publication recovery contender failed: ${recoveredStderr || recoveredStdout}`,
+    );
+    assert(
+      Date.now() - retryStartedAt < 5_000,
+      "same-process release retry waited for the stale-live timeout",
+    );
+    const releasePublicationHits = await releasePublicationStore.getMany([
+      releasePublicationA.h,
+      releasePublicationB.h,
+      releasePublicationC.h,
+    ]);
+    assert(
+      [releasePublicationA, releasePublicationB, releasePublicationC].every((receipt) =>
+        releasePublicationHits.get(receipt.h)?.found === true
+      ),
+      "release-publication recovery lost or duplicated an admitted receipt",
+    );
+    assert(
+      !fs.readdirSync(releasePublicationDir).some((file) =>
+        /^\.receipts-append-(?:claim|release)-[0-9a-f]{32}\.json$/.test(file)
+      ),
+      "release-publication recovery left an exact claim or witness behind",
+    );
   } finally {
     fs.rmSync(receiptConcurrencyRoot, { recursive: true, force: true });
   }
-  pass("cross-process receipt authority survives owner death and release cleanup failure");
+  pass("cross-process receipt authority survives owner death and release publication or cleanup failure");
 
   const receiptHistoryRoot = fs.mkdtempSync(
     path.join(os.tmpdir(), "void-follower-receipt-history-v1-"),

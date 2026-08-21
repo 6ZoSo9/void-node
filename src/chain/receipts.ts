@@ -27,6 +27,7 @@ type ReceiptAppendFaultV1 =
 type ReceiptAppendTestHooksV1 = {
   afterSnapshot?: () => void | Promise<void>;
   afterLockClaimPublished?: () => void | Promise<void>;
+  beforeLockReleasePublication?: () => void | Promise<void>;
   beforeLockClaimCleanup?: () => void | Promise<void>;
   beforeObservedLockCleanup?: (path: string) => void | Promise<void>;
 };
@@ -159,6 +160,11 @@ export class ReceiptsStore {
   private mem = new Map<string, { n: number; o: number; ts: number; found: true }>();
   private appendTail: Promise<void> = Promise.resolve();
   private appendNonce = 0;
+  // appendTail admits only one writer for this store. Retain that exact claim
+  // after its mutation-critical section exits so a failed release-witness
+  // publication can be retried by this same live owner without weakening the
+  // durable witness required by other processes.
+  private locallyReleasedAppendClaimV1: ReceiptAppendLockClaimV1 | null = null;
 
   constructor(dir: string, opts: { shardSpan?: number } = {}) {
     this.dir = dir;
@@ -409,7 +415,23 @@ export class ReceiptsStore {
           continue;
         }
         await this.removeObservedAppendLockRecordV1(authority, release);
+        if (this.sameLocallyReleasedAppendClaimV1(claim)) {
+          this.locallyReleasedAppendClaimV1 = null;
+        }
         continue;
+      }
+      if (this.sameLocallyReleasedAppendClaimV1(claim)) {
+        try {
+          await this.finishAppendLockReleaseV1(authority, claim, hooks);
+          continue;
+        } catch (error) {
+          recordSmallEmptyCatchVisibilityFailure_src_chain_receipts_ts(
+            "receipt-append-lock-release-retry-deferred",
+            error,
+          );
+          blocked = true;
+          continue;
+        }
       }
       const state = this.appendLockClaimStateV1(claim);
       if (state === "stale") {
@@ -478,16 +500,47 @@ export class ReceiptsStore {
     claim: ReceiptAppendLockClaimV1,
     hooks?: ReceiptAppendTestHooksV1,
   ): Promise<void> {
+    this.locallyReleasedAppendClaimV1 = claim;
     try {
-      const current = await this.readAppendLockClaimV1(
-        authority,
-        this.appendLockClaimNameV1(claim.token),
+      await this.finishAppendLockReleaseV1(authority, claim, hooks);
+    } catch (error) {
+      recordSmallEmptyCatchVisibilityFailure_src_chain_receipts_ts(
+        "receipt-append-lock-release-deferred",
+        error,
       );
-      if (current.pid !== process.pid ||
-        current.process_instance !== receiptCurrentProcessInstanceV1() ||
-        !receiptSameStampV1(current.stamp, claim.stamp)) {
-        throw new Error("VOID_RECEIPT_APPEND_LOCK_RELEASE_OWNER_MISMATCH_V1");
-      }
+    }
+  }
+
+  private sameLocallyReleasedAppendClaimV1(
+    claim: ReceiptAppendLockClaimV1,
+  ): boolean {
+    const local = this.locallyReleasedAppendClaimV1;
+    return local !== null &&
+      local.pid === claim.pid &&
+      local.process_instance === claim.process_instance &&
+      local.token === claim.token &&
+      local.directory_dev === claim.directory_dev &&
+      local.directory_ino === claim.directory_ino &&
+      receiptSameStampV1(local.stamp, claim.stamp);
+  }
+
+  private async finishAppendLockReleaseV1(
+    authority: ReceiptDirectoryAuthorityV1,
+    claim: ReceiptAppendLockClaimV1,
+    hooks?: ReceiptAppendTestHooksV1,
+  ): Promise<void> {
+    const current = await this.readAppendLockClaimV1(
+      authority,
+      this.appendLockClaimNameV1(claim.token),
+    );
+    if (current.pid !== process.pid ||
+      current.process_instance !== receiptCurrentProcessInstanceV1() ||
+      !receiptSameStampV1(current.stamp, claim.stamp)) {
+      throw new Error("VOID_RECEIPT_APPEND_LOCK_RELEASE_OWNER_MISMATCH_V1");
+    }
+    let release = await this.readAppendLockReleaseV1(authority, claim);
+    if (!release) {
+      await hooks?.beforeLockReleasePublication?.();
       const releaseName = this.appendLockReleaseNameV1(claim.token);
       await this.writeAppendLockRecordV1(authority, releaseName, {
         marker: RECEIPT_APPEND_LOCK_RELEASE_V1,
@@ -497,18 +550,16 @@ export class ReceiptsStore {
         token: claim.token,
         claim_stamp: claim.stamp,
       });
-      const release = await this.readAppendLockReleaseV1(authority, claim);
-      if (!release) throw new Error("VOID_RECEIPT_APPEND_LOCK_RELEASE_MISSING_V1");
-      await hooks?.beforeLockClaimCleanup?.();
-      if (!await this.removeObservedAppendLockRecordV1(authority, claim)) {
-        throw new Error("VOID_RECEIPT_APPEND_LOCK_RELEASE_CLEANUP_FAILED_V1");
-      }
-      await this.removeObservedAppendLockRecordV1(authority, release);
-    } catch (error) {
-      recordSmallEmptyCatchVisibilityFailure_src_chain_receipts_ts(
-        "receipt-append-lock-release-deferred",
-        error,
-      );
+      release = await this.readAppendLockReleaseV1(authority, claim);
+    }
+    if (!release) throw new Error("VOID_RECEIPT_APPEND_LOCK_RELEASE_MISSING_V1");
+    await hooks?.beforeLockClaimCleanup?.();
+    if (!await this.removeObservedAppendLockRecordV1(authority, claim)) {
+      throw new Error("VOID_RECEIPT_APPEND_LOCK_RELEASE_CLEANUP_FAILED_V1");
+    }
+    await this.removeObservedAppendLockRecordV1(authority, release);
+    if (this.sameLocallyReleasedAppendClaimV1(claim)) {
+      this.locallyReleasedAppendClaimV1 = null;
     }
   }
 
