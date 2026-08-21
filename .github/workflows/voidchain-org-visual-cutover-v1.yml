@@ -58,3 +58,46 @@ jobs:
           CI_DIFF_BASE_REMOTE: ${{ github.server_url }}/${{ github.repository }}.git
           CI_DIFF_HEAD_REMOTE: ${{ github.server_url }}/${{ github.event.pull_request.head.repo.full_name || github.repository }}.git
         run: bash scripts/ci_diff_hygiene_v1.sh
+
+  production_apply:
+    if: >-
+      github.event_name == 'push' &&
+      github.ref == 'refs/heads/main' &&
+      contains(github.event.head_commit.message, '[VOIDCHAIN_ORG_VISUAL_CUTOVER_V1_APPLY]')
+    needs: proof
+    environment: voidchain-org-production
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+      - uses: actions/setup-node@1e60f620b9541d16bece96c5465dc8ee9832be0b
+        with:
+          node-version: 24
+      - name: Authenticated inspect and freeze compare-and-apply tuple
+        id: inspect
+        shell: bash
+        env:
+          VOIDCHAIN_WORDPRESS_USERNAME: ${{ secrets.VOIDCHAIN_WORDPRESS_USERNAME }}
+          VOIDCHAIN_WORDPRESS_APPLICATION_PASSWORD: ${{ secrets.VOIDCHAIN_WORDPRESS_APPLICATION_PASSWORD }}
+        run: |
+          set -euo pipefail
+          inspect_json="$(node ops/public/sync-voidchain-org-wordpress-home-v1.mjs --inspect)"
+          printf '%s\n' "$inspect_json"
+          modified_gmt="$(node -e 'const v=JSON.parse(process.argv[1]); if(v.outcome!=="READY" || v.authenticated!==true) process.exit(2); process.stdout.write(v.modified_gmt);' "$inspect_json")"
+          content_sha256="$(node -e 'const v=JSON.parse(process.argv[1]); if(!/^[0-9a-f]{64}$/.test(String(v.current_content_sha256||""))) process.exit(2); process.stdout.write(v.current_content_sha256);' "$inspect_json")"
+          printf 'modified_gmt=%s\n' "$modified_gmt" >> "$GITHUB_OUTPUT"
+          printf 'content_sha256=%s\n' "$content_sha256" >> "$GITHUB_OUTPUT"
+      - name: Apply exact reviewed WordPress page
+        env:
+          VOIDCHAIN_WORDPRESS_USERNAME: ${{ secrets.VOIDCHAIN_WORDPRESS_USERNAME }}
+          VOIDCHAIN_WORDPRESS_APPLICATION_PASSWORD: ${{ secrets.VOIDCHAIN_WORDPRESS_APPLICATION_PASSWORD }}
+          EXPECTED_MODIFIED_GMT: ${{ steps.inspect.outputs.modified_gmt }}
+          EXPECTED_CONTENT_SHA256: ${{ steps.inspect.outputs.content_sha256 }}
+        run: |
+          node ops/public/sync-voidchain-org-wordpress-home-v1.mjs \
+            --apply \
+            --expected-modified-gmt "$EXPECTED_MODIFIED_GMT" \
+            --expected-content-sha256 "$EXPECTED_CONTENT_SHA256"
