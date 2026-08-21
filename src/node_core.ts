@@ -4215,7 +4215,15 @@ attachEphemeralDirectTransportV1(
       block: any,
       parent: any,
     ): { ok: true; legacyV2fs: boolean } | { ok: false; reason: string } => {
-      if (block?._commit === VOID_LEGACY_COMMIT_DIRECT_V2FS_MARKER_V1) {
+      const hasCommitMarker =
+        !!block &&
+        typeof block === "object" &&
+        !Array.isArray(block) &&
+        Object.prototype.hasOwnProperty.call(block, "_commit");
+      if (hasCommitMarker) {
+        if (block._commit !== VOID_LEGACY_COMMIT_DIRECT_V2FS_MARKER_V1) {
+          return { ok: false, reason: "legacy_v2fs_marker_mismatch" };
+        }
         if (!legacyV2fsOriginAuthorized) {
           return { ok: false, reason: "legacy_v2fs_origin_not_authorized" };
         }

@@ -245,16 +245,21 @@ async function provePullOnceOriginGateAndLegacyTimestamp() {
     makeLegacy(2),
   ];
 
+  let servedBlocks = blocks;
   const server = http.createServer((req, res) => {
     const url = new URL(req.url || "/", "http://127.0.0.1");
     if (url.pathname === "/blocks/latest/number2.json") {
-      sendJson(res, 200, { number: 2 });
+      sendJson(res, 200, { number: servedBlocks.at(-1)?.number ?? -1 });
       return;
     }
     if (url.pathname === "/blocks/range") {
       const from = Number(url.searchParams.get("from"));
       const to = Number(url.searchParams.get("to"));
-      sendJson(res, 200, blocks.filter((b) => b.number >= from && b.number <= to));
+      sendJson(
+        res,
+        200,
+        servedBlocks.filter((b) => b.number >= from && b.number <= to),
+      );
       return;
     }
     sendJson(res, 404, { ok: false });
@@ -291,6 +296,17 @@ async function provePullOnceOriginGateAndLegacyTimestamp() {
     assert.equal(unauthorized.state.legacyWrites, 0);
     assert.equal(unauthorized.state.modernWrites, 0);
     assert.equal(unauthorized.state.head, -1);
+
+    process.env.VOID_FOLLOWER_LEGACY_V2FS_ORIGINS = origin;
+    servedBlocks = [{ ...makeLegacy(0), _commit: "wrong.commit.marker" }];
+    const wrongMarker = createFollowerFixture();
+    const wrongMarkerResult = await wrongMarker.node.pullOnce(origin);
+    assert.equal(wrongMarkerResult.ok, false);
+    assert.equal(wrongMarkerResult.invalidBlock, 0);
+    assert.equal(wrongMarkerResult.invalidReason, "legacy_v2fs_marker_mismatch");
+    assert.equal(wrongMarker.state.legacyWrites, 0);
+    assert.equal(wrongMarker.state.modernWrites, 0);
+    assert.equal(wrongMarker.state.head, -1);
   } finally {
     if (oldOrigins === undefined) delete process.env.VOID_FOLLOWER_LEGACY_V2FS_ORIGINS;
     else process.env.VOID_FOLLOWER_LEGACY_V2FS_ORIGINS = oldOrigins;
@@ -332,6 +348,7 @@ proveFocusedWorkflowTracksDependencies();
 console.log(MARKER);
 console.log("modern_validator_unchanged=true");
 console.log("legacy_exact_envelope=true");
+console.log("wrong_legacy_marker_falls_through_modern=false");
 console.log("legacy_origin_default_off=true");
 console.log("legacy_wal_authority_tagged=true");
 console.log("legacy_receipt_timestamp_uses_ts=true");
