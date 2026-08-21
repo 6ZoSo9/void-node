@@ -1,0 +1,56 @@
+name: VOID UI visual unification v1
+
+on:
+  pull_request:
+    paths:
+      - "public/void-app-wave1-v1/assets/css/site-theme.css"
+      - "docs/public/void-ui-visual-unification-v1.md"
+      - "scripts/prove_void_ui_visual_unification_v1.mjs"
+      - ".github/workflows/void-ui-visual-unification-v1.yml"
+      - "scripts/prove_void_app_site_theme_v1.mjs"
+      - "public/void-app-wave1-v1/assets/css/tokens.css"
+      - "public/void-app-wave1-v1/assets/css/main.css"
+      - "ops/public/voidchain-org-wordpress-home-v1.html"
+  push:
+    branches: [main]
+    paths:
+      - "public/void-app-wave1-v1/assets/css/site-theme.css"
+      - "docs/public/void-ui-visual-unification-v1.md"
+      - "scripts/prove_void_ui_visual_unification_v1.mjs"
+      - ".github/workflows/void-ui-visual-unification-v1.yml"
+      - "scripts/prove_void_app_site_theme_v1.mjs"
+      - "public/void-app-wave1-v1/assets/css/tokens.css"
+      - "public/void-app-wave1-v1/assets/css/main.css"
+      - "ops/public/voidchain-org-wordpress-home-v1.html"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: void-ui-visual-unification-v1-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  proof:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: ${{ matrix.node }}
+      - name: Syntax
+        run: node --check scripts/prove_void_ui_visual_unification_v1.mjs
+      - name: Existing production-theme proof
+        run: node scripts/prove_void_app_site_theme_v1.mjs
+      - name: Visual-unification proof
+        run: node scripts/prove_void_ui_visual_unification_v1.mjs
+      - name: Diff hygiene
+        run: git diff --check

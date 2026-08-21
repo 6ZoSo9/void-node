@@ -262,3 +262,442 @@ td { color: var(--void-text-secondary); }
 :focus-visible {
   outline-color: var(--void-text-primary);
 }
+
+/* VOID_UI_VISUAL_UNIFICATION_V1
+ * Presentation-only integration layer. Existing routes, adapters, fetches,
+ * mutation guards, account semantics, and economic boundaries are unchanged.
+ */
+
+:root {
+  --void-header-height: 3.5rem;
+  --void-sidebar-width: 13.5rem;
+  --void-content-max: 76rem;
+}
+
+.prototype-banner {
+  display: none;
+}
+
+.app-shell {
+  padding-top: 0;
+  grid-template-rows: var(--void-header-height) minmax(0, 1fr);
+}
+
+.app-header {
+  top: 0;
+  height: var(--void-header-height);
+  grid-template-columns: var(--void-sidebar-width) minmax(0, 1fr) auto;
+}
+
+.brand {
+  gap: 0.5rem;
+  padding-inline: 1rem;
+}
+
+.brand-glyph {
+  width: 1.65rem;
+  height: 1.65rem;
+}
+
+.brand-word {
+  font-size: var(--void-text-13);
+  letter-spacing: 0.16em;
+}
+
+.brand-product {
+  font-size: 0;
+  letter-spacing: 0.10em;
+  text-transform: uppercase;
+}
+
+.brand-product::after {
+  content: "Participant";
+  font-size: var(--void-text-11);
+}
+
+.header-center {
+  padding-inline: 1rem;
+}
+
+.context-chip {
+  min-height: 2rem;
+  padding: 0.35rem 0.6rem;
+  border-color: transparent;
+  background: transparent;
+}
+
+.context-chip:hover {
+  border-color: var(--void-border-default);
+}
+
+.context-chip__label {
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.header-actions {
+  gap: 0.35rem;
+  padding-right: 0.75rem;
+}
+
+.header-actions .has-indicator {
+  display: none;
+}
+
+.account-control {
+  min-width: 0;
+  padding: 0.35rem 0.5rem;
+  border-color: transparent;
+  background: transparent;
+}
+
+.account-avatar {
+  width: 1.8rem;
+  height: 1.8rem;
+  font-size: var(--void-text-11);
+}
+
+.account-copy strong,
+.account-copy small {
+  font-size: var(--void-text-11);
+}
+
+.sidebar {
+  top: var(--void-header-height);
+  height: calc(100vh - var(--void-header-height));
+  padding: 1.25rem 0.75rem 0.75rem;
+  background: rgba(5, 5, 6, 0.98);
+}
+
+.primary-nav {
+  gap: 0.15rem;
+}
+
+.nav-item,
+.utility-link {
+  min-height: 2.35rem;
+  padding: 0.55rem 0.65rem;
+  border: 1px solid transparent;
+  color: var(--void-text-muted);
+  font-size: var(--void-text-12);
+  font-weight: 700;
+  letter-spacing: 0.055em;
+  text-transform: uppercase;
+}
+
+.nav-icon {
+  opacity: 0.72;
+}
+
+.nav-item:hover .nav-icon,
+.nav-item[aria-current="page"] .nav-icon,
+.utility-link:hover .nav-icon {
+  opacity: 1;
+}
+
+.nav-item[aria-current="page"]::before {
+  width: 2px;
+}
+
+.primary-nav > [data-route="buy"] {
+  margin-top: 0.9rem;
+  padding-top: 0.75rem;
+  border-top-color: var(--void-border-default);
+}
+
+.primary-nav > [data-route="network"] {
+  display: none;
+}
+
+.sidebar-footer [data-route="foundation"] {
+  display: none;
+}
+
+.sidebar [data-route="data"] > span:last-child,
+.mobile-nav [data-route="data"] > span:last-child {
+  font-size: 0;
+}
+
+.sidebar [data-route="data"] > span:last-child::after,
+.mobile-nav [data-route="data"] > span:last-child::after {
+  content: "DataNet";
+  font-size: var(--void-text-12);
+}
+
+.sidebar [data-route="buy"] > span:last-child,
+#mobile-more [data-route="buy"] > span:last-child {
+  font-size: 0;
+}
+
+.sidebar [data-route="buy"] > span:last-child::after,
+#mobile-more [data-route="buy"] > span:last-child::after {
+  content: "Buy VOID";
+  font-size: var(--void-text-12);
+}
+
+.utility-link[data-action="open-advanced"] > span:nth-child(2) {
+  font-size: 0;
+}
+
+.utility-link[data-action="open-advanced"] > span:nth-child(2)::after {
+  content: "System";
+  font-size: var(--void-text-12);
+}
+
+.sidebar-footer {
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--void-border-default);
+}
+
+.node-footer {
+  margin-top: 0.45rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--void-border-subtle);
+}
+
+#view-root {
+  padding: clamp(2rem, 4vw, 3.75rem) clamp(1rem, 3vw, 2.25rem) 5rem;
+}
+
+.page-header {
+  align-items: flex-start;
+  margin-bottom: 1.5rem;
+}
+
+.page-header__copy {
+  gap: 0.7rem;
+}
+
+.page-header__copy h1 {
+  max-width: 18ch;
+  font-size: clamp(2.5rem, 5vw, 4.75rem);
+  line-height: 0.95;
+  letter-spacing: -0.07em;
+}
+
+.page-header__copy p {
+  max-width: 52rem;
+  font-size: var(--void-text-14);
+  line-height: 1.65;
+}
+
+.page-actions {
+  padding-top: 0.15rem;
+}
+
+.button {
+  min-height: 2.5rem;
+  padding: 0.65rem 0.9rem;
+  font-size: var(--void-text-12);
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.surface {
+  background: rgba(11, 11, 14, 0.76);
+}
+
+.panel-header,
+.balance-tile__top,
+.health-card__top {
+  border-color: var(--void-border-subtle);
+}
+
+/* Home becomes a participant dashboard instead of an infrastructure dump. */
+[data-home-view] .page-header__copy .eyebrow::after {
+  content: " · VOID / PARTICIPANT";
+}
+
+[data-home-view] .page-actions .button--secondary {
+  display: none;
+}
+
+[data-home-view] .home-live-grid {
+  gap: 0.75rem;
+}
+
+[data-home-view] .hero-surface {
+  min-height: 0;
+  grid-template-columns: minmax(0, 1fr) minmax(14rem, 18rem);
+  border-top: 2px solid var(--void-text-primary);
+}
+
+[data-home-view] .hero-content {
+  padding: clamp(1.25rem, 3vw, 1.8rem);
+}
+
+[data-home-view] .hero-content h2 {
+  margin-top: 0.7rem;
+  max-width: 28ch;
+  font-size: clamp(1.5rem, 3vw, 2.15rem);
+  line-height: 1.08;
+}
+
+[data-home-view] .hero-content p {
+  max-width: 58ch;
+  font-size: var(--void-text-14);
+}
+
+[data-home-view] .hero-actions {
+  margin-top: 1.2rem;
+}
+
+[data-home-view] .hero-aside {
+  padding: 1.1rem 1.25rem;
+}
+
+[data-home-view] .signal-line {
+  padding-block: 0.65rem;
+}
+
+[data-home-view] .balance-strip {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0;
+  border: 1px solid var(--void-border-default);
+  background: rgba(11, 11, 14, 0.72);
+}
+
+[data-home-view] .balance-tile {
+  min-height: 9rem;
+  padding: 1.25rem 1.4rem;
+  border: 0;
+  border-right: 1px solid var(--void-border-default);
+  background: transparent;
+}
+
+[data-home-view] .balance-tile:nth-child(2) {
+  border-right: 0;
+}
+
+[data-home-view] .balance-tile--production {
+  display: none;
+}
+
+[data-home-view] .balance-tile__value {
+  font-size: clamp(1.8rem, 5vw, 3.2rem);
+  letter-spacing: -0.055em;
+}
+
+[data-home-view] .surface.panel.span-7 {
+  display: none;
+}
+
+[data-home-view] .surface.panel.span-5 {
+  grid-column: span 12;
+}
+
+[data-home-view] .surface.panel.span-5 .panel-header__copy .eyebrow {
+  display: none;
+}
+
+[data-home-view] .health-row--single {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+[data-home-view] .health-card {
+  background: transparent;
+}
+
+/* Wallet keeps identity and balances prominent; exhaustive guard copy stays secondary. */
+.wallet-live-grid > .hero-surface {
+  grid-template-columns: 1fr;
+}
+
+.wallet-live-grid > .hero-surface .hero-aside {
+  display: none;
+}
+
+.wallet-live-grid > .surface.panel.span-5 {
+  display: none;
+}
+
+.wallet-live-grid > .surface.panel.span-7 {
+  grid-column: span 12;
+}
+
+.wallet-live-grid .wallet-source-details {
+  color: var(--void-text-muted);
+}
+
+.drawer-header .eyebrow,
+.drawer-header h2 {
+  letter-spacing: 0.02em;
+}
+
+.drawer-header h2 {
+  font-size: var(--void-text-24);
+}
+
+@media (max-width: 860px) {
+  .app-shell {
+    padding-top: 0;
+  }
+
+  .app-header {
+    top: 0;
+    height: var(--void-header-height);
+    background: rgba(5, 5, 6, 0.98);
+  }
+
+  #view-root {
+    padding: 1.5rem 1rem 2rem;
+  }
+
+  .header-actions .icon-button {
+    display: none;
+  }
+
+  .mobile-nav {
+    background: rgba(5, 5, 6, 0.98);
+    backdrop-filter: none;
+  }
+
+  .mobile-nav a,
+  .mobile-nav button {
+    border-radius: 0;
+  }
+
+  .mobile-nav a[aria-current="page"],
+  .mobile-nav button[aria-current="page"] {
+    background: var(--void-surface-1);
+    color: var(--void-text-primary);
+  }
+
+  .page-header__copy h1 {
+    font-size: clamp(2.25rem, 12vw, 3.5rem);
+  }
+
+  [data-home-view] .hero-surface {
+    grid-template-columns: 1fr;
+  }
+
+  [data-home-view] .hero-aside {
+    display: none;
+  }
+
+  [data-home-view] .balance-strip,
+  [data-home-view] .health-row--single {
+    grid-template-columns: 1fr;
+  }
+
+  [data-home-view] .balance-tile {
+    min-height: 7.5rem;
+    border-right: 0;
+    border-bottom: 1px solid var(--void-border-default);
+  }
+
+  [data-home-view] .balance-tile:nth-child(2) {
+    border-bottom: 0;
+  }
+}
+
+@media (max-width: 420px) {
+  .page-header__copy h1 {
+    font-size: 2.4rem;
+  }
+
+  [data-home-view] .balance-tile__value {
+    font-size: 2.2rem;
+  }
+}
