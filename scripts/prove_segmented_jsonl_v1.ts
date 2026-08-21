@@ -48,6 +48,21 @@ function makeFixture(recordCount: number): Buffer {
 const require = createRequire(import.meta.url);
 const mutableFs = require("node:fs") as typeof fs;
 
+function matchesOpenedTarget(candidateInput: unknown, targetPath: string): boolean {
+  if (typeof candidateInput !== "string") return false;
+  const candidate = path.resolve(candidateInput);
+  const target = path.resolve(targetPath);
+  if (candidate === target) return true;
+  if (!candidate.includes("/proc/self/fd/") || path.basename(candidate) !== path.basename(target)) {
+    return false;
+  }
+  try {
+    return fs.realpathSync(path.dirname(candidate)) === path.dirname(target);
+  } catch {
+    return false;
+  }
+}
+
 function sameLengthReplacementBytes(input: Buffer): Buffer {
   const output = Buffer.from(input);
   const at = output.indexOf("x".charCodeAt(0));
@@ -75,8 +90,7 @@ function proveReconstructRejectsPostVerifyReplacement(
   let swapped = false;
   try {
     (mutableFs as any).openSync = (...args: any[]) => {
-      const candidate = typeof args[0] === "string" ? path.resolve(args[0]) : "";
-      if (candidate === path.resolve(targetPath)) {
+      if (matchesOpenedTarget(args[0], targetPath)) {
         targetOpenCount += 1;
         if (targetOpenCount === 2) {
           fs.renameSync(replacementPath, targetPath);
@@ -113,8 +127,7 @@ function proveWritableReplacementRejected(
   let swapped = false;
   try {
     (mutableFs as any).openSync = (...args: any[]) => {
-      const candidate = typeof args[0] === "string" ? path.resolve(args[0]) : "";
-      if (candidate === path.resolve(targetPath)) {
+      if (matchesOpenedTarget(args[0], targetPath)) {
         targetOpenCount += 1;
         if (targetOpenCount === targetOpenOrdinal) {
           fs.renameSync(replacementPath, targetPath);
@@ -140,8 +153,7 @@ function proveInScanModeChangeRejected(storePath: string, targetPath: string): v
   try {
     (mutableFs as any).openSync = (...args: any[]) => {
       const fd = originalOpenSync(...args);
-      const candidate = typeof args[0] === "string" ? path.resolve(args[0]) : "";
-      if (candidate === path.resolve(targetPath)) targetFd = fd;
+      if (matchesOpenedTarget(args[0], targetPath)) targetFd = fd;
       return fd;
     };
     (mutableFs as any).fstatSync = (...args: any[]) => {
@@ -174,8 +186,7 @@ function proveManifestReplacementRejected(storePath: string): void {
   try {
     (mutableFs as any).openSync = (...args: any[]) => {
       const fd = originalOpenSync(...args);
-      const candidate = typeof args[0] === "string" ? path.resolve(args[0]) : "";
-      if (candidate === path.resolve(manifestPath)) manifestFd = fd;
+      if (matchesOpenedTarget(args[0], manifestPath)) manifestFd = fd;
       return fd;
     };
     (mutableFs as any).readSync = (...args: any[]) => {
@@ -213,8 +224,7 @@ function proveGrowthReadIsBounded(
   try {
     (mutableFs as any).openSync = (...args: any[]) => {
       const fd = originalOpenSync(...args);
-      const candidate = typeof args[0] === "string" ? path.resolve(args[0]) : "";
-      if (candidate === path.resolve(targetPath)) {
+      if (matchesOpenedTarget(args[0], targetPath)) {
         targetOpenCount += 1;
         if (targetOpenCount === targetOpenOrdinal) targetFd = fd;
       }
