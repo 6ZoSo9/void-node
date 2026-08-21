@@ -257,10 +257,17 @@ async function cancelOwnedBounded(target, reason, {
   teardownMs = VALIDATE_TEARDOWN_MS,
   terminalLease = null,
 } = {}) {
-  if (!target || typeof target.cancel !== 'function') return;
+  if (!target) return;
+  let cancel;
+  try {
+    cancel = target.cancel;
+  } catch {
+    return;
+  }
+  if (typeof cancel !== 'function') return;
   let cancellation;
   try {
-    cancellation = target.cancel(reason);
+    cancellation = cancel.call(target, reason);
   } catch {
     return;
   }
@@ -288,10 +295,19 @@ async function teardownResponseBodyOwnedV1(response, primary, {
   }
   if (!body) return;
 
+  let getReader = null;
+  try {
+    getReader = body.getReader;
+  } catch {
+    const terminalLease = createTerminalLeaseV1(null, track);
+    await cancelOwnedBounded(body, primary.message, { track, teardownMs, terminalLease });
+    return;
+  }
+
   let reader = null;
-  if (typeof body.getReader === 'function') {
+  if (typeof getReader === 'function') {
     try {
-      reader = body.getReader();
+      reader = getReader.call(body);
     } catch {
       reader = null;
     }
@@ -358,17 +374,35 @@ export async function readBoundedValidatorJsonV1(response, {
     await teardownResponseBodyOwnedV1(response, primary, { track, teardownMs });
     throw primary;
   }
-  if (!body || typeof body.getReader !== 'function') {
+  if (!body) {
     const primary = new Error('validator readiness response body is not stream-readable');
     await teardownResponseBodyOwnedV1(response, primary, { track, teardownMs });
     throw primary;
   }
+
+  let getReader;
+  try {
+    getReader = body.getReader;
+  } catch {
+    const primary = new Error('validator readiness response body reader accessor is unavailable');
+    const terminalLease = createTerminalLeaseV1(null, track);
+    await cancelOwnedBounded(body, primary.message, { track, teardownMs, terminalLease });
+    throw primary;
+  }
+  if (typeof getReader !== 'function') {
+    const primary = new Error('validator readiness response body is not stream-readable');
+    const terminalLease = createTerminalLeaseV1(null, track);
+    await cancelOwnedBounded(body, primary.message, { track, teardownMs, terminalLease });
+    throw primary;
+  }
+
   let reader;
   try {
-    reader = body.getReader();
+    reader = getReader.call(body);
   } catch {
     const primary = new Error('validator readiness response body reader is unavailable');
-    await teardownResponseBodyOwnedV1(response, primary, { track, teardownMs });
+    const terminalLease = createTerminalLeaseV1(null, track);
+    await cancelOwnedBounded(body, primary.message, { track, teardownMs, terminalLease });
     throw primary;
   }
   const terminalLease = createReaderTerminalLeaseV1(reader, track);
