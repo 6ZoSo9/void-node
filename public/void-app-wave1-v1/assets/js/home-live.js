@@ -5,10 +5,44 @@ const HOME_MARKER = 'VOID_UI_WAVE2_HOME_READONLY_V1';
 
 let requestSerial = 0;
 
-const formatNumber = (value) => {
-  const number = Number(value);
-  return Number.isFinite(number) ? number.toLocaleString('en-US') : '—';
+// HOME_NETWORK_PRESENTATION_HELPERS_V1_BEGIN
+const isHomeNonnegativeSafeIntegerV1 = (value) => (
+  Number.isSafeInteger(value) && value >= 0
+);
+
+const formatNumber = (value) => (
+  isHomeNonnegativeSafeIntegerV1(value)
+    ? value.toLocaleString('en-US')
+    : '—'
+);
+
+const presentHomeNetworkEvidenceV1 = (network = {}) => {
+  const peerCount = isHomeNonnegativeSafeIntegerV1(network.peer_count)
+    ? network.peer_count
+    : null;
+  const expectedPeerCount = isHomeNonnegativeSafeIntegerV1(network.expected_peer_count)
+    ? network.expected_peer_count
+    : null;
+  const chainHead = isHomeNonnegativeSafeIntegerV1(network.chain_head)
+    ? network.chain_head
+    : null;
+  const peerPairAvailable = peerCount !== null && expectedPeerCount !== null;
+
+  return {
+    peerCount,
+    expectedPeerCount,
+    chainHead,
+    peersDisplay: peerPairAvailable ? `${peerCount} / ${expectedPeerCount}` : '—',
+    meshDisplay: peerPairAvailable
+      ? peerCount === expectedPeerCount ? 'Aligned' : 'Partial'
+      : 'Unavailable',
+    networkContextMeta: `${
+      peerCount === null ? 'Peers unavailable' : `${peerCount} peers`
+    } · block ${formatNumber(chainHead)}`,
+    footerPeerMeta: peerCount === null ? 'peers unavailable' : `${peerCount} peers`,
+  };
 };
+// HOME_NETWORK_PRESENTATION_HELPERS_V1_END
 
 const setText = (selector, value, fallback = '—') => {
   document.querySelectorAll(selector).forEach((element) => {
@@ -65,10 +99,10 @@ const applySnapshot = (snapshot) => {
   const account = snapshot.account || {};
   const balances = snapshot.balances || {};
   const sources = snapshot.sources || {};
+  const networkEvidence = presentHomeNetworkEvidenceV1(network);
 
   const healthy = network.health === 'healthy';
   const ready = network.ready === true;
-  const meshAligned = network.peer_count === network.expected_peer_count;
 
   setChip(
     document.querySelector('[data-home-state-chip]'),
@@ -114,23 +148,17 @@ const applySnapshot = (snapshot) => {
     '[data-home-ready-value]',
     ready ? 'Ready' : 'Not ready'
   );
-  setText(
-    '[data-home-peers-value]',
-    `${network.peer_count ?? 0} / ${network.expected_peer_count ?? 2}`
-  );
-  setText('[data-home-head-value]', formatNumber(network.chain_head));
-  setText('[data-home-mesh-value]', meshAligned ? 'Aligned' : 'Partial');
+  setText('[data-home-peers-value]', networkEvidence.peersDisplay);
+  setText('[data-home-head-value]', formatNumber(networkEvidence.chainHead));
+  setText('[data-home-mesh-value]', networkEvidence.meshDisplay);
   setText('[data-home-node-name]', node.label || node.hostname || 'Local node');
 
   setText('[data-network-context-label]', snapshot.network_name || 'Mainnet-0');
-  setText(
-    '[data-network-context-meta]',
-    `${network.peer_count ?? 0} peers · block ${formatNumber(network.chain_head)}`
-  );
+  setText('[data-network-context-meta]', networkEvidence.networkContextMeta);
   setText('[data-node-footer-name]', node.label || node.hostname || 'Local node');
   setText(
     '[data-node-footer-meta]',
-    `${ready ? 'Ready' : 'Not ready'} · ${network.peer_count ?? 0} peers`
+    `${ready ? 'Ready' : 'Not ready'} · ${networkEvidence.footerPeerMeta}`
   );
 
   const headerDot = document.querySelector('[data-network-context-dot]');
