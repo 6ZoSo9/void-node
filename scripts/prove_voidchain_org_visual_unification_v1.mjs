@@ -10,6 +10,10 @@ const page = readFileSync(
   resolve(ROOT, "ops/public/voidchain-org-wordpress-home-v1.html"),
   "utf8",
 );
+const cutoverWorkflow = readFileSync(
+  resolve(ROOT, ".github/workflows/voidchain-org-visual-cutover-v1.yml"),
+  "utf8",
+);
 
 const PUBLIC_BASE = "https://zoso-alienware-aurora-r7.taila47fd.ts.net";
 
@@ -71,11 +75,39 @@ assert.match(client, /fetchJson\("\/__void\/ready\.json"\)/);
 assert.match(client, /fetchJson\("\/blocks\/latest\/number2\.json"\)/);
 assert.doesNotMatch(client, /method:\s*"(?:POST|PUT|PATCH|DELETE)"/i);
 
+for (const token of [
+  "production_apply:",
+  "github.event_name == 'push'",
+  "github.ref == 'refs/heads/main'",
+  "[VOIDCHAIN_ORG_VISUAL_CUTOVER_V1_APPLY]",
+  "needs: proof",
+  "environment: voidchain-org-production",
+  "sync-voidchain-org-wordpress-home-v1.mjs --inspect",
+  "v.authenticated!==true",
+  "current_content_sha256",
+  "--apply",
+  "--expected-modified-gmt \"$EXPECTED_MODIFIED_GMT\"",
+  "--expected-content-sha256 \"$EXPECTED_CONTENT_SHA256\"",
+]) {
+  assert.ok(
+    cutoverWorkflow.includes(token),
+    `cutover workflow must preserve guarded production token: ${token}`,
+  );
+}
+
+assert.match(
+  cutoverWorkflow,
+  /inspect_json=.*sync-voidchain-org-wordpress-home-v1\.mjs --inspect[\s\S]*modified_gmt=.*JSON\.parse[\s\S]*content_sha256=.*JSON\.parse[\s\S]*--apply[\s\S]*--expected-modified-gmt[\s\S]*--expected-content-sha256/s,
+  "production cutover must inspect before applying the frozen compare tuple",
+);
+
 console.log("VOIDCHAIN_ORG_VISUAL_UNIFICATION_V1_PROOF_GREEN");
 console.log("hero_primary_exits=2");
 console.log("capability_paths=3");
 console.log("legacy_mirror_clutter_visible=false");
 console.log("read_only_live_client_preserved=true");
+console.log("production_apply_guarded=true");
+console.log("production_compare_and_apply_preserved=true");
 console.log("wordpress_mutation=false");
 console.log("runtime_mutation=false");
 console.log("economic_mutation=false");
