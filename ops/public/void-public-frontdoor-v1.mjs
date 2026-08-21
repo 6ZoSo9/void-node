@@ -12,9 +12,18 @@ const PORT = Number(process.env.VOID_PUBLIC_FRONTDOOR_PORT || "8083");
 const UPSTREAM_HOST = "127.0.0.1";
 const UPSTREAM_PORT = Number(process.env.VOID_PUBLIC_FRONTDOOR_UPSTREAM_PORT || "8082");
 const UPSTREAM_TIMEOUT_MS = 30_000;
+const STATUS_PROBE_PATH = "/app/";
+const STATUS_PROBE_TIMEOUT_MS = Number(
+  process.env.VOID_PUBLIC_FRONTDOOR_STATUS_TIMEOUT_MS || "1000",
+);
 
 if (!Number.isSafeInteger(PORT) || PORT < 1 || PORT > 65535) throw new Error("invalid frontdoor port");
 if (!Number.isSafeInteger(UPSTREAM_PORT) || UPSTREAM_PORT < 1 || UPSTREAM_PORT > 65535) throw new Error("invalid upstream port");
+if (
+  !Number.isSafeInteger(STATUS_PROBE_TIMEOUT_MS)
+  || STATUS_PROBE_TIMEOUT_MS < 100
+  || STATUS_PROBE_TIMEOUT_MS > 5000
+) throw new Error("invalid frontdoor status probe timeout");
 if (BIND !== "127.0.0.1") throw new Error("frontdoor must remain loopback-only");
 
 const home = readFileSync(HOME_PATH);
@@ -43,10 +52,63 @@ const sendHome = (req, res) => {
   else res.end(home);
 };
 
-const sendStatus = (req, res) => {
+let statusProbeInFlight = null;
+
+const probeUpstreamReady = () => new Promise((resolvePromise) => {
+  let settled = false;
+  let timer = null;
+  const finish = (ready) => {
+    if (settled) return;
+    settled = true;
+    if (timer) clearTimeout(timer);
+    resolvePromise(ready);
+  };
+
+  const request = http.request({
+    hostname: UPSTREAM_HOST,
+    port: UPSTREAM_PORT,
+    method: "GET",
+    path: STATUS_PROBE_PATH,
+    headers: {
+      accept: "text/html",
+      "user-agent": "void-public-frontdoor-status-probe-v1",
+    },
+  }, (response) => {
+    const statusCode = response.statusCode || 0;
+    response.on("error", () => {});
+    response.destroy();
+    finish(statusCode >= 200 && statusCode < 300);
+  });
+
+  timer = setTimeout(() => {
+    request.destroy();
+    finish(false);
+  }, STATUS_PROBE_TIMEOUT_MS);
+  timer.unref?.();
+
+  request.on("error", () => finish(false));
+  request.end();
+});
+
+const getUpstreamReady = () => {
+  if (statusProbeInFlight) return statusProbeInFlight;
+  const probe = probeUpstreamReady();
+  statusProbeInFlight = probe;
+  void probe.finally(() => {
+    if (statusProbeInFlight === probe) statusProbeInFlight = null;
+  });
+  return probe;
+};
+
+const sendStatus = async (req, res) => {
+  const upstreamReady = await getUpstreamReady();
+  if (res.destroyed || res.writableEnded) return;
+
   const body = Buffer.from(`${JSON.stringify({
     marker: MARKER,
-    ready: true,
+    ready: upstreamReady,
+    listener_ready: true,
+    upstream_ready: upstreamReady,
     bind: BIND,
     port: PORT,
     upstream: `http://${UPSTREAM_HOST}:${UPSTREAM_PORT}`,
@@ -112,7 +174,7 @@ const server = http.createServer((req, res) => {
     return;
   }
   if (["GET", "HEAD"].includes(req.method || "") && pathname === "/__void/frontdoor/status.json") {
-    sendStatus(req, res);
+    void sendStatus(req, res);
     return;
   }
   proxy(req, res);
