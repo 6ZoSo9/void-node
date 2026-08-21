@@ -276,6 +276,12 @@ function assertCheckpointLogicalTotalsV1(
   }
 }
 
+function assertCheckpointGenesisV1(snapshot: SegmentedJsonlSnapshotAuthorityV1): void {
+  if (snapshot.generation !== 1) {
+    fail("CHECKPOINT_GENESIS_GENERATION_MISMATCH", String(snapshot.generation));
+  }
+}
+
 export function verifySegmentedJsonlCheckpointAnchorV1(
   anchorInput: SegmentedJsonlCheckpointAnchorV1,
 ): SegmentedJsonlCheckpointAnchorV1 {
@@ -294,6 +300,12 @@ export function verifySegmentedJsonlCheckpointAnchorV1(
   }
   assertCheckpointSnapshotBindingV1(checkpoint, snapshot);
   assertCheckpointLogicalTotalsV1(checkpoint, snapshot);
+  if (checkpoint.checkpoint_index === 0) {
+    if (checkpoint.previous_checkpoint_sha256 !== null) {
+      fail("CHECKPOINT_PREDECESSOR_MISMATCH", "genesis-has-predecessor");
+    }
+    assertCheckpointGenesisV1(snapshot);
+  }
   return { checkpoint, snapshot, trusted_checkpoint_sha256: anchor.trusted_checkpoint_sha256 };
 }
 
@@ -331,7 +343,11 @@ export function deriveSegmentedJsonlCheckpointV1(
   const previousAnchor = previousAnchorInput
     ? verifySegmentedJsonlCheckpointAnchorV1(previousAnchorInput)
     : null;
-  if (previousAnchor) assertCheckpointProgressionV1(snapshot, previousAnchor);
+  if (previousAnchor) {
+    assertCheckpointProgressionV1(snapshot, previousAnchor);
+  } else {
+    assertCheckpointGenesisV1(snapshot);
+  }
   const core = checkpointCore(snapshot, previousAnchor?.checkpoint ?? null);
   const checkpoint_sha256 = sha256(serializeCheckpointCore(core));
   return { ...core, checkpoint_sha256 };
@@ -350,6 +366,7 @@ export function verifySegmentedJsonlCheckpointV1(
   assertCheckpointSnapshotBindingV1(c, snapshot);
   assertCheckpointLogicalTotalsV1(c, snapshot);
   if (previousAnchor === null) {
+    assertCheckpointGenesisV1(snapshot);
     if (c.checkpoint_index !== 0 || c.previous_checkpoint_sha256 !== null) {
       fail("CHECKPOINT_PREDECESSOR_MISMATCH", "expected-genesis");
     }
