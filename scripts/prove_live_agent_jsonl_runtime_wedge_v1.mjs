@@ -16,7 +16,48 @@ const fixedJoin = '.join("\\n")';
 
 assert.equal(agentRegion.includes(buggySplit), false, "literal backslash-n JSONL split remains in live agent job family");
 assert.equal(agentRegion.includes(buggyJoin), false, "literal backslash-n JSONL join remains in live agent job family");
-assert.ok(agentRegion.split(fixedSplit).length - 1 >= 23, "expected repaired newline JSONL readers");
+const fixedSplitCount = agentRegion.split(fixedSplit).length - 1;
+assert.ok(fixedSplitCount >= 1, "expected repaired newline JSONL readers");
+
+const forbiddenLegacyWholeFileReaders = [
+  'fs.readFileSync(FILE_LEASES,"utf8").split("\\n")',
+  'fs.readFileSync(FILE_RESULTS,"utf8").split("\\n")',
+  'fs.readFileSync(FILE_JOBS,"utf8").split("\\n")',
+];
+for (const reader of forbiddenLegacyWholeFileReaders) {
+  assert.equal(
+    agentRegion.includes(reader),
+    false,
+    `legacy Agent-v0 whole-file JSONL reader remains: ${reader}`,
+  );
+}
+assert.ok(
+  agentRegion.includes("legacyAgentV0SnapshotV1"),
+  "bounded legacy Agent-v0 semantic snapshot integration missing",
+);
+assert.ok(
+  agentRegion.includes("legacyAgentV0ResultSnapshotV1"),
+  "bounded legacy Agent-v0 result snapshot integration missing",
+);
+assert.ok(
+  agentRegion.includes("legacyAgentV0MetricsSnapshotV1"),
+  "bounded legacy Agent-v0 metrics snapshot integration missing",
+);
+assert.equal(
+  agentRegion.includes("function safeLines(f)"),
+  false,
+  "legacy Agent-v0 v2 metrics safeLines whole-file reader remains",
+);
+assert.equal(
+  agentRegion.includes("function countSet(file)"),
+  false,
+  "legacy Agent-v0 v2 metrics countSet whole-file reader remains",
+);
+assert.equal(
+  agentRegion.includes('fs.readFileSync(FILE_RECEIPTS,"utf8").split("\\n")'),
+  false,
+  "legacy Agent-v0 receipt metrics whole-file JSONL reader remains",
+);
 assert.ok(agentRegion.split(fixedJoin).length - 1 >= 10, "expected repaired newline JSONL writers/metrics joins");
 
 const badReceiptsTail = String.raw`lines.join("\n")+"\\n"`;
@@ -226,36 +267,87 @@ async function runProductionScenario(entryFile, label) {
 const baseline = await runProductionScenario(sourcePath, "baseline");
 assertProductionBehavior(baseline.text);
 
-const rebuildAnchor = "function rebuildIndex()";
-const routeAnchor = '"/__void/metrics/agent_jobs.prom"';
-const rebuildStart = source.indexOf(rebuildAnchor);
-const routeStart = source.indexOf(routeAnchor, rebuildStart);
-assert.notEqual(rebuildStart, -1, "production rebuildIndex seam missing");
-assert.notEqual(routeStart, -1, "production agent_jobs metrics route missing");
-const mutationEnd = Math.min(source.length, routeStart + 2600);
-const mutationWindow = source.slice(rebuildStart, mutationEnd);
-const productionFixedSplit = '.split("\\n")';
-const productionBuggySplit = '.split("\\\\n")';
-const mutableCount = mutationWindow.split(productionFixedSplit).length - 1;
-assert.ok(mutableCount >= 6, `expected at least six production newline readers in bounded mutation window, found ${mutableCount}`);
-const mutatedWindow = mutationWindow.replaceAll(productionFixedSplit, productionBuggySplit);
-const mutantSource = source.slice(0, rebuildStart) + mutatedWindow + source.slice(mutationEnd);
-assert.equal(mutantSource.includes(productionBuggySplit), true, "adversarial literal-backslash delimiter mutation was not applied");
-assert.ok(mutantSource.split(productionFixedSplit).length - 1 > 0, "adversarial fixture unexpectedly removed unrelated correct newline readers");
+const semanticSourcePath = path.resolve(
+  "src/http/agent_pick2_jsonl_semantic_index_v1.ts",
+);
+const semanticSource = fs.readFileSync(semanticSourcePath, "utf8");
+const scannerStartAnchor = "  private scanLegacyAgentV0RangeLinesFd(";
+const scannerEndAnchor = "  private rebuildLegacyAgentV0Jobs(";
+const scannerStart = semanticSource.indexOf(scannerStartAnchor);
+const scannerEnd = semanticSource.indexOf(scannerEndAnchor, scannerStart);
+assert.notEqual(scannerStart, -1, "legacy semantic newline scanner seam missing");
+assert.notEqual(scannerEnd, -1, "legacy semantic newline scanner end seam missing");
 
-const mutantPath = path.join(path.dirname(sourcePath), "__void_live_agent_jsonl_runtime_wedge_mutant_v1.ts");
+const scannerWindow = semanticSource.slice(scannerStart, scannerEnd);
+const productionLfGuard = "if (data[i] !== 0x0a) continue;";
+const mutantCrGuard = "if (data[i] !== 0x0d) continue;";
+const scannerGuardCount =
+  scannerWindow.split(productionLfGuard).length - 1;
+assert.equal(
+  scannerGuardCount,
+  1,
+  `expected exactly one LF delimiter guard in legacy semantic scanner, found ${scannerGuardCount}`,
+);
+
+const mutantScannerWindow = scannerWindow.replace(
+  productionLfGuard,
+  mutantCrGuard,
+);
+assert.equal(
+  mutantScannerWindow.includes(mutantCrGuard),
+  true,
+  "semantic newline-scanner mutation was not applied",
+);
+const mutantSemanticSource =
+  semanticSource.slice(0, scannerStart)
+  + mutantScannerWindow
+  + semanticSource.slice(scannerEnd);
+
+const originalSemanticImport =
+  '"./http/agent_pick2_jsonl_semantic_index_v1.js"';
+const mutantSemanticImport =
+  '"./http/__void_agent_pick2_jsonl_semantic_index_mutant_v1.js"';
+assert.equal(
+  source.split(originalSemanticImport).length - 1,
+  1,
+  "production semantic-index import seam changed",
+);
+const mutantSource = source.replace(
+  originalSemanticImport,
+  mutantSemanticImport,
+);
+assert.equal(
+  mutantSource.includes(mutantSemanticImport),
+  true,
+  "mutant production entrypoint did not bind mutant semantic index",
+);
+
+const mutantSemanticPath = path.join(
+  path.dirname(semanticSourcePath),
+  "__void_agent_pick2_jsonl_semantic_index_mutant_v1.ts",
+);
+const mutantPath = path.join(
+  path.dirname(sourcePath),
+  "__void_live_agent_jsonl_runtime_wedge_mutant_v1.ts",
+);
+fs.writeFileSync(mutantSemanticPath, mutantSemanticSource, "utf8");
 fs.writeFileSync(mutantPath, mutantSource, "utf8");
 try {
-  const mutant = await runProductionScenario(mutantPath, "mutant");
+  const mutant = await runProductionScenario(mutantPath, "semantic-mutant");
   let rejected = false;
   try {
     assertProductionBehavior(mutant.text);
   } catch {
     rejected = true;
   }
-  assert.equal(rejected, true, "behavioral proof failed to reject a production-consumed literal-backslash delimiter mutant");
+  assert.equal(
+    rejected,
+    true,
+    "behavioral proof failed to reject production semantic newline-scanner mutant",
+  );
 } finally {
   fs.rmSync(mutantPath, { force: true });
+  fs.rmSync(mutantSemanticPath, { force: true });
 }
 
 console.log("VOID_LIVE_AGENT_JSONL_RUNTIME_WEDGE_V1_PROOF_GREEN");
@@ -264,6 +356,6 @@ console.log("agent_jsonl_real_newline_join=true");
 console.log("production_agent_jobs_route_exercised=true");
 console.log("multi_record_jobs_results_receipts_leases_recovered=true");
 console.log("production_metrics_terminal_newline=true");
-console.log("literal_backslash_runtime_mutant_rejected=true");
+console.log("semantic_newline_scanner_mutant_rejected=true");
 console.log("header3_synthetic_null_safe=true");
 console.log("live_runtime_mutation_performed=false");
