@@ -113,6 +113,9 @@ function manifest(trialId, label, path, digest, mediaType = 'application/json') 
 }
 
 async function materializeTrial(dir, label, digest) {
+  // The caller may derive the directory from an underscore-bearing category.
+  // Create it here so the proof cannot fail before exercising the admission wall.
+  await mkdir(dir, { recursive: true });
   const draftPath = join(dir, 'trial-draft.json');
   const packetPath = join(dir, 'trial-packet.json');
   await writeFile(draftPath, `${JSON.stringify(trialDraft(label, digest), null, 2)}\n`, { mode: 0o600 });
@@ -124,7 +127,7 @@ async function materializeTrial(dir, label, digest) {
 
 async function expectBlocked({ dir, label, content, expectedCategory, mediaType = 'text/plain', relativePath = 'fixture.txt' }) {
   const stage = join(dir, `stage-${expectedCategory}`);
-  await mkdir(stage);
+  await mkdir(stage, { recursive: true });
   const filePath = join(stage, relativePath);
   const parent = filePath.slice(0, filePath.lastIndexOf('/'));
   if (parent !== stage) await mkdir(parent, { recursive: true });
@@ -169,17 +172,14 @@ async function main() {
 
   const dir = await mkdtemp(join(tmpdir(), 'void-apollyon-secret-admission-v1-'));
   try {
-    // Happy path: exact staged public/sanitized input becomes a digest-only receipt.
     const stage = join(dir, 'stage-green');
-    const trialDir = join(dir, 'trial-green');
     await mkdir(stage);
-    await mkdir(trialDir);
     const label = 'fixture';
     const payload = Buffer.from(`${JSON.stringify({ public_fact: 'VOID trial fixture', value: 7 })}\n`, 'utf8');
     const stageFile = join(stage, 'fixture.json');
     await writeFile(stageFile, payload, { mode: 0o600 });
     const digest = sha256(payload);
-    const { packetPath, trialId } = await materializeTrial(trialDir, label, digest);
+    const { packetPath, trialId } = await materializeTrial(join(dir, 'trial-green'), label, digest);
     const manifestPath = join(dir, 'manifest-green.json');
     const receiptPath = join(dir, 'receipt-green.json');
     await writeFile(manifestPath, `${JSON.stringify(manifest(trialId, label, 'fixture.json', digest), null, 2)}\n`, { mode: 0o600 });
@@ -196,22 +196,18 @@ async function main() {
     const receiptMode = (await stat(receiptPath)).mode & 0o777;
     if (receiptMode !== 0o600) hold(`receipt mode must be 0600, got ${receiptMode.toString(8)}`);
 
-    // Secret-pattern adversaries. Values are constructed at runtime so no real-looking credential is committed.
-    await mkdir(join(dir, 'trial-private-key-pem'));
     await expectBlocked({
       dir,
       label,
       content: `${['-----BEGIN ', 'PRIVATE KEY-----'].join('')}\nFAKE\n${['-----END ', 'PRIVATE KEY-----'].join('')}\n`,
       expectedCategory: 'private_key_pem',
     });
-    await mkdir(join(dir, 'trial-secret-environment-assignment'));
     await expectBlocked({
       dir,
       label,
       content: `${'OPENAI_API_' + 'KEY'}=${'sk-' + 'x'.repeat(32)}\n`,
       expectedCategory: 'secret_environment_assignment',
     });
-    await mkdir(join(dir, 'trial-credential-bearing-json-key'));
     await expectBlocked({
       dir,
       label,
@@ -219,7 +215,6 @@ async function main() {
       expectedCategory: 'credential_bearing_json_key',
       mediaType: 'application/json',
     });
-    await mkdir(join(dir, 'trial-private-local-path'));
     await expectBlocked({
       dir,
       label,
@@ -227,42 +222,33 @@ async function main() {
       expectedCategory: 'private_local_path',
     });
 
-    // Symlink final component fails without reading its target.
     const symlinkStage = join(dir, 'stage-symlink');
-    const symlinkTrialDir = join(dir, 'trial-symlink');
     await mkdir(symlinkStage);
-    await mkdir(symlinkTrialDir);
     const outside = join(dir, 'outside.txt');
     const outsideBytes = Buffer.from('public-looking-but-outside-staging\n');
     await writeFile(outside, outsideBytes, { mode: 0o600 });
     await symlink(outside, join(symlinkStage, 'fixture.txt'));
-    const symlinkTrial = await materializeTrial(symlinkTrialDir, label, sha256(outsideBytes));
+    const symlinkTrial = await materializeTrial(join(dir, 'trial-symlink'), label, sha256(outsideBytes));
     const symlinkManifest = join(dir, 'manifest-symlink.json');
     await writeFile(symlinkManifest, `${JSON.stringify(manifest(symlinkTrial.trialId, label, 'fixture.txt', sha256(outsideBytes), 'text/plain'), null, 2)}\n`, { mode: 0o600 });
     const symlinkRun = runNode(ADMISSION_TOOL, ['admit', symlinkTrial.packetPath, symlinkStage, symlinkManifest, join(dir, 'receipt-symlink.json')], 2);
     if (!symlinkRun.stderr.includes('category=symlink_component')) hold('symlink adversary did not fail closed');
 
-    // Sensitive path components fail at manifest admission before file read.
     const pathStage = join(dir, 'stage-sensitive-path');
-    const pathTrialDir = join(dir, 'trial-sensitive-path');
     await mkdir(pathStage);
-    await mkdir(pathTrialDir);
     const harmless = Buffer.from('harmless\n');
-    const pathTrial = await materializeTrial(pathTrialDir, label, sha256(harmless));
+    const pathTrial = await materializeTrial(join(dir, 'trial-sensitive-path'), label, sha256(harmless));
     const pathManifest = join(dir, 'manifest-sensitive-path.json');
     await writeFile(pathManifest, `${JSON.stringify(manifest(pathTrial.trialId, label, '.ssh/id_ed25519', sha256(harmless), 'text/plain'), null, 2)}\n`, { mode: 0o600 });
     const pathRun = runNode(ADMISSION_TOOL, ['admit', pathTrial.packetPath, pathStage, pathManifest, join(dir, 'receipt-sensitive-path.json')], 2);
     if (!pathRun.stderr.includes('category=sensitive_path_component')) hold('sensitive path adversary did not fail closed');
 
-    // Digest mismatch fails even for otherwise harmless content.
     const digestStage = join(dir, 'stage-digest');
-    const digestTrialDir = join(dir, 'trial-digest');
     await mkdir(digestStage);
-    await mkdir(digestTrialDir);
     const bytesA = Buffer.from('A\n');
     const bytesB = Buffer.from('B\n');
     await writeFile(join(digestStage, 'fixture.txt'), bytesA, { mode: 0o600 });
-    const digestTrial = await materializeTrial(digestTrialDir, label, sha256(bytesB));
+    const digestTrial = await materializeTrial(join(dir, 'trial-digest'), label, sha256(bytesB));
     const digestManifest = join(dir, 'manifest-digest.json');
     await writeFile(digestManifest, `${JSON.stringify(manifest(digestTrial.trialId, label, 'fixture.txt', sha256(bytesB), 'text/plain'), null, 2)}\n`, { mode: 0o600 });
     const digestRun = runNode(ADMISSION_TOOL, ['admit', digestTrial.packetPath, digestStage, digestManifest, join(dir, 'receipt-digest.json')], 2);
