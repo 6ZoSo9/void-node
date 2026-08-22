@@ -1,0 +1,47 @@
+name: VOID Brood Queen Local Model Seat V1
+
+on:
+  pull_request:
+    paths:
+      - "docs/governance/void-brood-queen-local-model-seat-v1.md"
+      - "fixtures/governance/void-brood-queen-local-model-seat-v1.json"
+      - "scripts/prove_void_brood_queen_local_model_seat_v1.mjs"
+      - ".github/workflows/void-brood-queen-local-model-seat-v1.yml"
+      - "fixtures/governance/void-brood-queen-cryptographic-identity-contract-v1.json"
+      - "fixtures/governance/void-crown-brood-queen-command-layer-v1.json"
+  push:
+    branches: [main]
+    paths:
+      - "docs/governance/void-brood-queen-local-model-seat-v1.md"
+      - "fixtures/governance/void-brood-queen-local-model-seat-v1.json"
+      - "scripts/prove_void_brood_queen_local_model_seat_v1.mjs"
+      - ".github/workflows/void-brood-queen-local-model-seat-v1.yml"
+      - "fixtures/governance/void-brood-queen-cryptographic-identity-contract-v1.json"
+      - "fixtures/governance/void-crown-brood-queen-command-layer-v1.json"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: void-brood-queen-local-model-seat-v1-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  prove:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: 24
+      - name: Syntax
+        run: node --check scripts/prove_void_brood_queen_local_model_seat_v1.mjs
+      - name: Prove local model seat
+        run: node scripts/prove_void_brood_queen_local_model_seat_v1.mjs
+      - name: Diff hygiene
+        run: git diff --check
