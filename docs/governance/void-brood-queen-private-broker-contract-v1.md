@@ -14,6 +14,29 @@ Define the minimum provider-neutral private transport by which the Brood Queen o
 
 This contract replaces the architectural role currently played by the temporary GitHub issue-comment relay. GitHub identity, provider identity, and model self-description are not Crown authentication.
 
+## Exact inherited policy identity
+
+This child contract does not inherit parent authority merely by matching marker strings. Its reviewed parent policy is content-bound to the exact parent generations present when this contract was reviewed:
+
+- identity parent reviewed head: `8ac42d13f684d9898318af9359edc3553961909b`;
+- identity fixture Git blob: `b8159343b176fdfc745fec0afb8ebf0db512ac9b`;
+- local-seat parent reviewed head: `2ddbbd3498915d77c410f350c4e1dadb1cfa951c`;
+- local-seat fixture Git blob: `eb96412ce2444232aa64b0df4b8889faf92d0ff9`;
+- parent-policy domain: `VOID_BROOD_QUEEN_PARENT_POLICY_IDENTITY_V1`;
+- parent-policy SHA-256: `2d2ff57721e64728569019531f908cb936826bea3d78e012871f91833bd1b630`.
+
+The canonical parent-policy preimage is exactly:
+
+```text
+VOID_BROOD_QUEEN_PARENT_POLICY_IDENTITY_V1
+identity_commit=8ac42d13f684d9898318af9359edc3553961909b
+identity_fixture_blob=b8159343b176fdfc745fec0afb8ebf0db512ac9b
+local_seat_commit=2ddbbd3498915d77c410f350c4e1dadb1cfa951c
+local_seat_fixture_blob=eb96412ce2444232aa64b0df4b8889faf92d0ff9
+```
+
+A same-marker change to either inherited fixture changes its Git blob identity and must HOLD this child until an explicit refresh and rereview occurs. Bootstrap, rotation, policy, task, and receipt transcripts bind the reviewed parent-policy SHA-256; they may not silently inherit a newer or different parent contract.
+
 ## Identity and secret boundaries
 
 The office remains:
@@ -44,7 +67,7 @@ The broker identity is not the Brood Queen identity. It authenticates the exact 
 A bootstrap challenge is valid only when:
 
 1. it is signed by the pinned broker Ed25519 identity under domain `VOID_BROOD_QUEEN_BROKER_BOOTSTRAP_CHALLENGE_V1`;
-2. it binds the protocol marker/version, Chain-2050, broker identity/public-key digest, Brood Queen office, adapter signing public key, adapter X25519 public key, broker generation X25519 public key, single-use nonce, expiry, policy generation, and transcript hash;
+2. it binds the protocol marker/version, Chain-2050, broker identity/public-key digest, Brood Queen office, adapter signing public key, adapter X25519 public key, broker generation X25519 public key, single-use nonce, expiry, exact policy generation, exact policy digest, exact capability ceiling/digest, parent-policy SHA-256, and transcript hash;
 3. the Crown signer verifies the broker signature and exact pinned broker identity before producing any Crown approval;
 4. the Crown approval signs the exact canonical bootstrap transcript under domain `VOID_BROOD_QUEEN_CROWN_BOOTSTRAP_APPROVAL_V1` without exporting the Crown root private key.
 
@@ -64,7 +87,7 @@ The bootstrap ceremony binds an adapter public key to the Crown office using the
 2. the broker creates and signs the single-use mutual-authentication challenge described above, including its fresh broker generation X25519 public key;
 3. the dedicated Crown signer verifies the pinned broker identity and signs the exact canonical bootstrap transcript;
 4. the broker verifies the Crown public identity and, once activated, the canonical Chain-2050 role/revocation state;
-5. the broker creates one persistent logical `session_id` and records the complete generation-0 key/transcript bindings;
+5. the broker creates one persistent logical `session_id` and records the complete generation-0 key/transcript/policy bindings;
 6. the adapter proves possession of its generation-0 private material on subsequent messages.
 
 The root signer is therefore used for rare bootstrap/recovery/rotation boundaries. Normal messages use session-generation keys.
@@ -75,8 +98,11 @@ Minimum V1 profile:
 
 - root signature: Ed25519;
 - broker identity/challenge/receipt signature: Ed25519 with explicit signature domains;
-- session message signature: Ed25519;
+- session application-message signature domain: `VOID_BROOD_QUEEN_SESSION_MESSAGE_V1`;
+- session rotation signature domain: `VOID_BROOD_QUEEN_SESSION_ROTATION_V1`;
+- session message signature algorithm: Ed25519;
 - session key agreement: X25519;
+- all-zero X25519 shared secret: rejected before KDF use;
 - KDF: HKDF-SHA-256;
 - message confidentiality/integrity: ChaCha20-Poly1305;
 - canonical hashing: SHA-256 over canonical JSON bytes;
@@ -93,34 +119,90 @@ Each session generation binds:
 - broker X25519 public key;
 - pinned broker Ed25519 identity/public-key digest;
 - predecessor generation hash;
-- policy generation;
+- exact policy generation and policy digest;
+- exact immutable capability ceiling/digest;
+- exact parent-policy SHA-256;
 - activation transcript hash.
 
-The adapter and broker derive the generation shared secret using their exact bound X25519 key pair. HKDF-SHA-256 uses the exact generation transcript hash as salt and domain-separated `info` containing at minimum protocol marker/version, `session_id`, generation, direction, and key purpose.
+The adapter and broker derive the generation shared secret using their exact bound X25519 key pair. An all-zero X25519 shared secret is terminal invalid input and must never enter HKDF. HKDF-SHA-256 uses the exact generation transcript hash as salt and domain-separated `info` containing at minimum protocol marker/version, `session_id`, generation, direction, key purpose, policy digest, capability-ceiling digest, and parent-policy SHA-256.
 
 Distinct AEAD traffic keys are mandatory for `adapter_to_broker` and `broker_to_adapter`; one traffic key may never be reused in both directions or across generations.
 
 Every encrypted message carries a monotonic `transport_sequence` scoped to `(session_id, generation, direction)` with `0 <= transport_sequence < 2^96`. The ChaCha20-Poly1305 nonce is `aead_nonce = uint96(transport_sequence)`, where `uint96` means the canonical unsigned 96-bit big-endian encoding of that integer.
 
+### Crash-durable outbound nonce authority
+
+Nonce uniqueness is a **sender-side durable invariant**, not merely a receiver conflict check. The following applies independently in both directions.
+
+Before the first AEAD invocation for transport sequence `N`, the sender must durably commit an outbound reservation that binds at minimum:
+
+- session id;
+- generation;
+- direction;
+- `transport_sequence = N`;
+- exact immutable clear-header/AAD hash;
+- exact signed-plaintext-envelope hash;
+- generation traffic-key identity/digest reference.
+
+After reservation:
+
+1. the sender may invoke AEAD only for the exact reserved message identity at `N`;
+2. the resulting exact protected bytes are durably staged before the first byte may be released to transport;
+3. after protected-byte staging, retry may only retransmit those byte-identical protected bytes;
+4. a crash after reservation but before protected-byte staging may either deterministically reconstruct the exact same protected message from the durable reservation and immutable plaintext witness, or HOLD/rotate to a fresh generation; it must never encrypt different bytes under the reserved `(traffic_key, nonce)`;
+5. a crash with uncertain reservation/counter ownership must HOLD or rotate to a fresh generation before any new encryption;
+6. a reserved transport sequence is never recycled for a different message, even if no peer acknowledgment was observed.
+
+A receiver-side `TRANSPORT_SEQUENCE_CONFLICT` remains required but is only a second line of defense. It cannot repair sender nonce reuse after the fact.
+
 Rules:
 
 - a `(traffic_key, nonce)` pair may protect at most one distinct protected message;
-- exact duplicate delivery may retransmit the exact same signed/ciphertext bytes and is treated as a duplicate, not newly encrypted content;
+- exact duplicate delivery may retransmit the exact same staged protected bytes and is treated as a duplicate, not newly encrypted content;
 - reuse of one `transport_sequence`/nonce with different signed header, ciphertext, or protected payload is terminal `TRANSPORT_SEQUENCE_CONFLICT`;
-- transport-sequence overflow requires generation rotation or HOLD before nonce reuse;
-- a stale generation cannot introduce a fresh nonce after successor activation except for an explicitly allowed rotation/recovery transcript.
+- transport-sequence overflow requires generation rotation or HOLD before nonce reuse.
 
-AEAD associated data binds the immutable signed envelope fields, including protocol marker/version, chain, office, session/generation, direction, transport sequence, message type/id, expiry, capability digest, and payload/ciphertext identities.
+### Non-self-referential sign/encrypt order
 
-## Persistent logical session and rotation
+V1 uses this exact protected-message construction order:
+
+1. construct the canonical application plaintext object, including message semantics and `payload_sha256`;
+2. sign `domain || canonical_application_plaintext` with the active Ed25519 session key (`VOID_BROOD_QUEEN_SESSION_MESSAGE_V1`) or the exact rotation domain for a rotation message;
+3. create the signed plaintext envelope from the canonical application plaintext plus signature;
+4. compute `signed_plaintext_sha256`;
+5. construct immutable clear routing/AAD fields containing protocol/session/generation/direction/transport sequence/message type/message id/expiry plus `signed_plaintext_sha256`, policy digest, capability-ceiling digest, and parent-policy SHA-256;
+6. durably reserve the sequence/message identity as described above;
+7. AEAD-encrypt the signed plaintext envelope using the clear routing fields as AAD;
+8. durably stage the exact clear header + ciphertext + tag before any release;
+9. only after encryption compute `ciphertext_sha256` for transport inventory/receipts. `ciphertext_sha256` is **not** an input to the AAD or signed plaintext whose encryption produced that ciphertext.
+
+This ordering forbids self-referential ciphertext hashing.
+
+## Persistent logical session, exact authority ceiling, and rotation
 
 A `session_id` remains stable across automatic derived-key rotations.
 
-Each successor generation contains fresh adapter signing/X25519 public keys, fresh broker X25519 public key, predecessor generation hash, activation task/transport sequence boundaries, and rotation transcript hash.
+V1 has one exact Crown-approved capability ceiling:
 
-Automatic rotation does not require root reauthentication when the current valid session generation signs the exact successor transition, the broker authenticates/accepts it under the pinned broker identity, the successor does not widen the current policy/capability ceiling, and the broker has not observed revocation, recovery, logout, policy-generation change, or another explicit root boundary.
+```text
+analysis
+drafting
+proof_design
+review
+test_generation
+bounded_task_planning
+evidence_synthesis
+```
 
-A stale generation can authenticate only the exact rotation transition allowed by policy; it cannot continue issuing ordinary tasks after its successor is active.
+The exact V1 broker-policy domain is `VOID_BROOD_QUEEN_PRIVATE_BROKER_POLICY_V1` and its reviewed policy SHA-256 is `e85eeaecb0fc289d377b76c49839f7c020fc119d541c04b575a711f24c22e6bf`. The canonical policy preimage binds parent-policy SHA-256, the exact ordered capability ceiling, and `validator_capability_present=false`.
+
+Every Crown-approved bootstrap and every accepted successor generation binds the exact capability ceiling (or canonical digest), exact policy SHA-256/generation, and exact parent-policy SHA-256. A session generation can preserve or reduce this ceiling but can never widen it. Widening the ceiling, changing the policy root/digest, or changing the inherited parent-policy identity is a root-authenticated policy boundary and cannot be authorized by a session-generation key.
+
+Each successor generation contains fresh adapter signing/X25519 public keys, fresh broker X25519 public key, predecessor generation hash, activation task/transport sequence boundaries, exact capability ceiling/digest, exact policy digest/generation, parent-policy SHA-256, and rotation transcript hash.
+
+The broker atomically commits exactly one active generation and at most one accepted successor-transition hash/receipt from that active generation. Automatic rotation does not require root reauthentication only when the current valid generation signs under `VOID_BROOD_QUEEN_SESSION_ROTATION_V1` the exact successor transition, the broker authenticates and accepts that one transition under the pinned broker identity, the successor preserves/reduces the exact capability ceiling and policy root, and no revocation/recovery/logout/policy boundary has occurred.
+
+After successor activation, predecessor/stale generation material has **zero fresh transition authority**. It may only retransmit the byte-identical already accepted transition and receive the same authoritative transition receipt. An alternate stale `G -> G'` transition is terminal `SESSION_FORK_CONFLICT` and cannot create a second successor or roll back the active generation.
 
 ## Message envelope
 
@@ -139,9 +221,12 @@ Every authenticated application message must bind at minimum:
 - `previous_message_hash`;
 - `issued_at`;
 - `expires_at`;
-- `capabilities` or exact capability digest;
+- exact `capabilities` or capability digest constrained by the session ceiling;
+- exact `policy_sha256` and policy generation;
+- exact `parent_policy_sha256`;
 - `payload_sha256`;
-- `ciphertext_sha256`;
+- `signed_plaintext_sha256`;
+- post-encryption `ciphertext_sha256` for inventory/receipt binding only;
 - `candidate_digest` when Apollyon participates;
 - `context_sha256` when a local context generation participates;
 - signature by the active session signing key for adapter-originated messages or broker identity for broker-originated authoritative receipts.
@@ -156,7 +241,7 @@ A task is content-addressed:
 
 `task_id = voidbqt1_ + sha256(canonical_task_without_task_id)`
 
-The canonical task binds the exact logical session, generation, `task_sequence`, exact capability list, payload digest, expiry, and policy generation.
+The canonical task binds the exact logical session, generation, `task_sequence`, exact capability list, exact capability-ceiling digest, exact policy digest/generation, parent-policy SHA-256, payload digest, and expiry.
 
 V1 uses a single ordered task stream per session. Accepted `task_sequence` must equal the next expected task sequence. Duplicate delivery of an already accepted identical task returns the prior authoritative receipt/result. Reuse of a task sequence number with different canonical task bytes is terminal `SEQUENCE_CONFLICT`.
 
@@ -166,13 +251,13 @@ Transport ordering and task ordering are distinct: `transport_sequence` prevents
 
 Successful Crown session authentication proves only the authenticated Brood Queen session identity.
 
-Every task carries an exact closed capability list. The broker independently intersects that list with the current broker policy before admission.
+Every task carries an exact closed capability list and that list must be a subset of the Crown-approved immutable session capability ceiling. The broker independently intersects it with the current broker policy before admission.
 
-V1 activation begins with proposal/evidence capabilities only. Source writes, merges, deployment/restart, live runtime mutation, wallet/signer action, transactions, treasury/liquidity, Work Credit mutation, credential reading, and validator authority are not implicitly granted.
+V1 activation begins with the exact proposal/evidence capability ceiling listed above. Source writes, merges, deployment/restart, live runtime mutation, wallet/signer action, transactions, treasury/liquidity, Work Credit mutation, credential reading, and validator authority are not implicitly granted.
 
 Validator capability is structurally absent from this broker contract. Unknown validator-like authority requests fail closed and require a separate Sovereign-governed instrument.
 
-Session rotation may preserve or reduce the existing broker policy ceiling; it cannot expand capability merely because the current session key authorizes a successor generation.
+Session rotation may preserve or reduce the exact Crown-approved ceiling; it cannot expand capability merely because the current session key authorizes a successor generation.
 
 ## Apollyon boundary
 
@@ -207,11 +292,11 @@ The minimum durable states are:
 
 with fail-closed terminals:
 
-`REJECTED`, `EXPIRED`, `REVOKED`, `SEQUENCE_CONFLICT`, `TRANSPORT_SEQUENCE_CONFLICT`, `SESSION_STALE`, `POLICY_MISMATCH`, `EXECUTION_OUTCOME_UNKNOWN`, `RESULT_CONFLICT`.
+`REJECTED`, `EXPIRED`, `REVOKED`, `SEQUENCE_CONFLICT`, `TRANSPORT_SEQUENCE_CONFLICT`, `SESSION_FORK_CONFLICT`, `SESSION_STALE`, `POLICY_MISMATCH`, `EXECUTION_OUTCOME_UNKNOWN`, `RESULT_CONFLICT`.
 
 Rules:
 
-1. `RECEIVED` is not authority; broker/session signature, transport sequence/nonce, task sequence, capability, policy, and expiry checks must pass before `ADMITTED`.
+1. `RECEIVED` is not authority; broker/session signature, transport sequence/nonce reservation truth, task sequence, capability ceiling/list, policy/parent-policy identity, and expiry checks must pass before `ADMITTED`.
 2. `ADMITTED` must be durably committed before inference begins.
 3. `EXECUTING` means the immutable task was handed to the admitted executor. Exactly-once model execution is not claimed. If the broker restarts with durable `EXECUTING` but no durable `RESULT_STAGED`, and the executor does not provide a separately reviewed idempotency/terminal witness, the task must transition to `EXECUTION_OUTCOME_UNKNOWN` and HOLD. It must not automatically re-run inference under the same task identity.
 4. A separately reviewed executor-idempotency contract may later define a safe retry transition, but that authority is absent from V1.
@@ -228,14 +313,16 @@ Every accepted task and result receives a content-addressed broker receipt signe
 
 - protocol marker/version;
 - broker identity/public-key digest;
+- parent-policy SHA-256;
+- policy SHA-256/generation;
 - session id/generation;
+- exact capability ceiling/list;
 - task id;
 - task sequence and relevant transport sequence identity;
-- exact capability list;
-- policy generation;
 - task payload digest;
 - candidate digest if used;
 - local context digest if used;
+- signed-plaintext/ciphertext identities where applicable;
 - result digest;
 - terminal state;
 - predecessor receipt hash.
@@ -246,7 +333,7 @@ Receipts contain no secret key material and no private local path.
 
 When Chain-2050 role/revocation binding is activated, the broker must revalidate canonical office state according to the active policy generation and a bounded freshness policy before admitting ordinary tasks.
 
-Explicit revocation, logout, root rotation, recovery, or policy-generation change invalidates all ordinary messages from prior session material. A session cannot use cached role truth to survive canonical revocation.
+Explicit revocation, logout, root rotation, recovery, policy-root/generation change, or parent-policy identity change invalidates all ordinary messages from prior session material. A session cannot use cached role truth to survive canonical revocation.
 
 ## Threat model and required behavior
 
@@ -260,15 +347,19 @@ The Crown signer/client must reject an unsigned bootstrap challenge or a challen
 
 ### Replay / duplicate / delayed delivery
 
-Exact duplicate protected message bytes return the prior receipt/result where applicable. Same transport sequence with different protected bytes fails terminally. Same task sequence with different canonical task bytes fails terminally. Expired messages fail closed. Delayed messages cannot roll back generation, transport sequence, or task sequence state.
+Exact duplicate staged protected bytes return the prior receipt/result where applicable. Same transport sequence with different protected bytes fails terminally. Same task sequence with different canonical task bytes fails terminally. Expired messages fail closed. Delayed messages cannot roll back generation, transport sequence, or task sequence state.
+
+### Crash during outbound encryption
+
+A sender crash cannot make an already-reserved `(session,generation,direction,transport_sequence)` available to a different message. After restart the sender may only continue the exact reserved/staged message or HOLD/rotate; it cannot encrypt new bytes with that key/nonce pair.
 
 ### Task/result substitution
 
-Payload/result digests, task id, task sequence, transport sequence, provenance, AEAD associated data, and signatures bind exact bytes. A substituted payload/result cannot retain the same authoritative identity.
+Payload/result digests, task id, task sequence, transport sequence, provenance, AEAD associated data, policy/parent-policy identities, capability ceiling, and signatures bind exact bytes. A substituted payload/result cannot retain the same authoritative identity.
 
-### Stale session material
+### Stale session material / successor fork
 
-A stale generation cannot issue ordinary tasks after rotation or revocation. A successor generation cannot expand the existing policy/capability ceiling without a separate authorized policy transition.
+A stale generation cannot issue ordinary tasks after rotation or revocation and cannot authorize a fresh alternate successor after one transition has been accepted. It may only retransmit the exact accepted transition bytes/receipt. A successor generation cannot expand the exact Crown-approved capability ceiling or change policy/parent-policy identity without a root-authenticated boundary.
 
 ### Model impersonation
 
@@ -284,9 +375,9 @@ If durable state is only `EXECUTING`, restart cannot know whether model executio
 
 Before live activation, the implementation must prove:
 
-> For any accepted `task_id`, across duplicate delivery, replay, session rotation, delayed delivery, broker crash/restart, result-publication retry, provider/model output, and hostile transport input, the broker can produce at most one authoritative completed result hash for that exact task identity; no accepted message can expand beyond its exact capability list; no two distinct protected messages can use the same AEAD traffic-key/nonce pair; and no path grants validator authority or exposes Crown, broker, or session private material to model context.
+> For any accepted `task_id`, across duplicate delivery, replay, session rotation, delayed delivery, broker crash/restart, outbound-encryption crash, result-publication retry, provider/model output, and hostile transport input, the broker can produce at most one authoritative completed result hash for that exact task identity; no accepted message can expand beyond its exact Crown-approved capability ceiling/list; no two distinct protected messages can use the same AEAD traffic-key/nonce pair even across sender crashes; no stale generation can create a fresh successor fork; inherited parent-policy identity cannot change silently; and no path grants validator authority or exposes Crown, broker, or session private material to model context.
 
-This invariant intentionally makes no exactly-once model-execution claim. Any counterexample to the authoritative-result, capability, AEAD nonce, validator, or private-key bounds is a release blocker.
+This invariant intentionally makes no exactly-once model-execution claim. Any counterexample to the authoritative-result, capability, nonce durability, successor, parent-policy, validator, or private-key bounds is a release blocker.
 
 ## Current inactive boundary
 
