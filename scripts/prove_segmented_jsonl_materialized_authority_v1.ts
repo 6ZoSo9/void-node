@@ -14,12 +14,24 @@ import {
 import {
   VOID_SEGMENTED_JSONL_MATERIALIZED_AUTHORITY_V1,
   deriveSegmentedJsonlMaterializedAuthorityV1,
+  type SegmentedJsonlMaterializedUseReaderV1,
   verifySegmentedJsonlMaterializedAuthorityAtUseV1,
   verifySegmentedJsonlMaterializedAuthorityObjectV1,
 } from "../src/storage/segmented_jsonl_materialized_authority_v1.js";
 
 const base = fs.mkdtempSync(path.join(os.tmpdir(), "void-segmented-materialized-authority-v1-"));
 fs.chmodSync(base, 0o700);
+
+function consumeAll(reader: SegmentedJsonlMaterializedUseReaderV1): Buffer {
+  const chunks: Buffer[] = [];
+  let offset = 0;
+  while (offset < reader.total_bytes) {
+    const length = Math.min(257, reader.total_bytes - offset);
+    chunks.push(reader.read(offset, length));
+    offset += length;
+  }
+  return Buffer.concat(chunks);
+}
 
 try {
   const source = path.join(base, "source.jsonl");
@@ -51,10 +63,16 @@ try {
   assert.equal(authority.total_records, records.length);
   assert.equal(authority.live_tree_terminal_authority, false);
   assert.equal(authority.materialized_exact_generation_authority, true);
-  verifySegmentedJsonlMaterializedAuthorityAtUseV1(store, materialized, authority);
+  const consumed = verifySegmentedJsonlMaterializedAuthorityAtUseV1(
+    store,
+    materialized,
+    authority,
+    (reader) => consumeAll(reader),
+  );
+  assert.deepEqual(consumed, sourceBytes);
 
-  // The authority is earned from one exact flat-file generation plus the
-  // content-addressed manifest, not from a terminal sweep of mutable leaves.
+  // The materialized generation, not the mutable live segmented tree, is the
+  // authority that a downstream consumer actually reads.
   const currentManifest = readSegmentedJsonlManifestV1(store);
   const firstSealed = path.join(store, currentManifest.sealed_segments[0].file);
   const originalSealed = fs.readFileSync(firstSealed);
@@ -63,7 +81,13 @@ try {
   fs.chmodSync(firstSealed, 0o600);
   fs.writeFileSync(firstSealed, changedSealed, { mode: 0o600 });
   fs.chmodSync(firstSealed, 0o400);
-  verifySegmentedJsonlMaterializedAuthorityAtUseV1(store, materialized, authority);
+  const consumedAfterLiveTreeMutation = verifySegmentedJsonlMaterializedAuthorityAtUseV1(
+    store,
+    materialized,
+    authority,
+    (reader) => consumeAll(reader),
+  );
+  assert.deepEqual(consumedAfterLiveTreeMutation, sourceBytes);
   fs.chmodSync(firstSealed, 0o600);
   fs.writeFileSync(firstSealed, originalSealed, { mode: 0o600 });
   fs.chmodSync(firstSealed, 0o400);
@@ -73,17 +97,78 @@ try {
   changedMaterialized[0] = changedMaterialized[0] === 0x7b ? 0x5b : 0x7b;
   fs.writeFileSync(materialized, changedMaterialized, { mode: 0o600 });
   assert.throws(
-    () => verifySegmentedJsonlMaterializedAuthorityAtUseV1(store, materialized, authority),
-    /VOID_SEGMENTED_JSONL_MATERIALIZED_AUTHORITY_V1:(?:MATERIALIZED_PART_HASH_MISMATCH|MATERIALIZED_AUTHORITY_USE_MISMATCH):/,
+    () => verifySegmentedJsonlMaterializedAuthorityAtUseV1(
+      store,
+      materialized,
+      authority,
+      (reader) => reader.read(0, 1),
+    ),
+    /VOID_SEGMENTED_JSONL_MATERIALIZED_AUTHORITY_V1:MATERIALIZED_AUTHORITY_USE_MISMATCH:/,
   );
   fs.writeFileSync(materialized, originalMaterialized, { mode: 0o600 });
 
+  // A same-byte replacement that exists before the at-use boundary is a
+  // different generation and cannot inherit the reviewed authority.
   const aside = path.join(base, "materialized.original.jsonl");
   fs.renameSync(materialized, aside);
   fs.writeFileSync(materialized, originalMaterialized, { mode: 0o600 });
   assert.throws(
-    () => verifySegmentedJsonlMaterializedAuthorityAtUseV1(store, materialized, authority),
+    () => verifySegmentedJsonlMaterializedAuthorityAtUseV1(
+      store,
+      materialized,
+      authority,
+      (reader) => reader.read(0, 1),
+    ),
     /VOID_SEGMENTED_JSONL_MATERIALIZED_AUTHORITY_V1:MATERIALIZED_AUTHORITY_USE_MISMATCH:/,
+  );
+  fs.rmSync(materialized);
+  fs.renameSync(aside, materialized);
+
+  // The critical verify->use adversary: replacement happens only after the
+  // at-use API has fully reverified the authority and entered the consumer.
+  // The retained reader must never consume replacement generation B under A's
+  // successful verification result.
+  const postVerifyAside = path.join(base, "materialized.post-verify-original.jsonl");
+  let postVerifyConsumerEntered = false;
+  assert.throws(
+    () => verifySegmentedJsonlMaterializedAuthorityAtUseV1(
+      store,
+      materialized,
+      authority,
+      (reader) => {
+        postVerifyConsumerEntered = true;
+        fs.renameSync(materialized, postVerifyAside);
+        const replacement = Buffer.from(originalMaterialized);
+        replacement[0] = replacement[0] === 0x7b ? 0x5b : 0x7b;
+        fs.writeFileSync(materialized, replacement, { mode: 0o600 });
+        return reader.read(0, 1);
+      },
+    ),
+    /VOID_SEGMENTED_JSONL_MATERIALIZED_AUTHORITY_V1:MATERIALIZED_USE_GENERATION_CHANGED:/,
+  );
+  assert.equal(postVerifyConsumerEntered, true);
+  assert.deepEqual(fs.readFileSync(postVerifyAside), originalMaterialized);
+  fs.rmSync(materialized);
+  fs.renameSync(postVerifyAside, materialized);
+
+  // Reader capabilities are scoped to the synchronous retained-fd callback.
+  // A caller cannot retain the reader and reopen/consume after the exact fd is
+  // closed by the at-use boundary.
+  let escapedReader: SegmentedJsonlMaterializedUseReaderV1 | null = null;
+  const firstByte = verifySegmentedJsonlMaterializedAuthorityAtUseV1(
+    store,
+    materialized,
+    authority,
+    (reader) => {
+      escapedReader = reader;
+      return reader.read(0, 1)[0];
+    },
+  );
+  assert.equal(firstByte, sourceBytes[0]);
+  assert.ok(escapedReader);
+  assert.throws(
+    () => escapedReader!.read(0, 1),
+    /VOID_SEGMENTED_JSONL_MATERIALIZED_AUTHORITY_V1:MATERIALIZED_USE_CLOSED:/,
   );
 
   const tamperedAuthority = {
@@ -99,6 +184,8 @@ try {
   console.log("mutable_live_tree_not_promoted_to_terminal_authority=true");
   console.log("same_byte_replacement_generation_rejected=true");
   console.log("materialized_content_mutation_rejected=true");
+  console.log("materialized_verify_to_use_generation_pinned=true");
+  console.log("materialized_reader_lifetime_bounded=true");
   console.log("VOID_SEGMENTED_JSONL_MATERIALIZED_AUTHORITY_V1_PROOF_GREEN");
 } finally {
   fs.rmSync(base, { recursive: true, force: true });

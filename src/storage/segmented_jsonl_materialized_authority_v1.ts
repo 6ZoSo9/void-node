@@ -53,6 +53,13 @@ export type SegmentedJsonlMaterializedAuthorityV1 = {
   authority_sha256: string;
 };
 
+export type SegmentedJsonlMaterializedUseReaderV1 = {
+  authority: SegmentedJsonlMaterializedAuthorityV1;
+  total_bytes: number;
+  max_read_bytes: number;
+  read(offset: number, length: number): Buffer;
+};
+
 function fail(code: string, detail: string): never {
   throw new Error(`${VOID_SEGMENTED_JSONL_MATERIALIZED_AUTHORITY_V1}:${code}:${detail}`);
 }
@@ -383,15 +390,129 @@ export function deriveSegmentedJsonlMaterializedAuthorityV1(
   });
 }
 
-export function verifySegmentedJsonlMaterializedAuthorityAtUseV1(
+export function verifySegmentedJsonlMaterializedAuthorityAtUseV1<T>(
   root: string,
   materializedFile: string,
   authorityInput: SegmentedJsonlMaterializedAuthorityV1,
-): SegmentedJsonlMaterializedAuthorityV1 {
+  consumer: (reader: SegmentedJsonlMaterializedUseReaderV1) => T,
+): T {
   const expected = verifySegmentedJsonlMaterializedAuthorityObjectV1(authorityInput);
-  const actual = deriveSegmentedJsonlMaterializedAuthorityV1(root, materializedFile);
-  if (canonicalJson(actual) !== canonicalJson(expected)) {
+  if (typeof consumer !== "function") {
+    fail("MATERIALIZED_USE_CONSUMER_REQUIRED", String(typeof consumer));
+  }
+
+  const manifest = readSegmentedJsonlManifestV1(root);
+  const snapshot = verifySegmentedJsonlSnapshotAuthorityObjectV1(
+    deriveSegmentedJsonlSnapshotAuthorityV1(manifest),
+  );
+  if (
+    snapshot.snapshot_sha256 !== expected.snapshot_sha256 ||
+    snapshot.manifest_sha256 !== expected.manifest_sha256 ||
+    snapshot.generation !== expected.store_generation ||
+    snapshot.total_bytes !== expected.total_bytes ||
+    snapshot.total_records !== expected.total_records
+  ) {
     fail("MATERIALIZED_AUTHORITY_USE_MISMATCH", materializedFile);
   }
-  return actual;
+
+  const file = path.resolve(String(materializedFile || ""));
+  const parent = openParentAuthority(file);
+  let fd = -1;
+  let active = true;
+  try {
+    assertParentAuthority(parent);
+    const stableFile = path.join(parent.stable_path, path.basename(file));
+    fd = fs.openSync(
+      stableFile,
+      fs.constants.O_RDONLY | ((fs.constants as any).O_NOFOLLOW || 0),
+    );
+    const pinned = fileGeneration(fs.fstatSync(fd, { bigint: true } as any));
+    const visible = visibleFileGeneration(file);
+    if (!visible || !sameFileGeneration(pinned, visible)) {
+      fail("MATERIALIZED_USE_GENERATION_CHANGED", file);
+    }
+    if (
+      pinned.mode !== expected.materialized_mode ||
+      BigInt(pinned.size) !== BigInt(expected.total_bytes) ||
+      sha256(canonicalJson(pinned)) !== expected.materialized_generation_sha256
+    ) {
+      fail("MATERIALIZED_AUTHORITY_USE_MISMATCH", file);
+    }
+
+    const verifyHash = crypto.createHash("sha256");
+    const verifyBuffer = Buffer.allocUnsafe(READ_CHUNK);
+    let verifiedBytes = 0;
+    while (verifiedBytes < expected.total_bytes) {
+      const requested = Math.min(verifyBuffer.length, expected.total_bytes - verifiedBytes);
+      const n = fs.readSync(fd, verifyBuffer, 0, requested, verifiedBytes);
+      if (n <= 0) {
+        fail("MATERIALIZED_SHORT_READ", `at-use:${expected.total_bytes - verifiedBytes}`);
+      }
+      verifyHash.update(verifyBuffer.subarray(0, n));
+      verifiedBytes += n;
+    }
+    const growthSentinel = Buffer.allocUnsafe(1);
+    if (fs.readSync(fd, growthSentinel, 0, 1, expected.total_bytes) > 0) {
+      fail("MATERIALIZED_GREW_DURING_READ", file);
+    }
+    if (verifyHash.digest("hex") !== expected.materialized_sha256) {
+      fail("MATERIALIZED_AUTHORITY_USE_MISMATCH", file);
+    }
+
+    const assertPinnedGeneration = () => {
+      if (!active) fail("MATERIALIZED_USE_CLOSED", file);
+      const current = fileGeneration(fs.fstatSync(fd, { bigint: true } as any));
+      const currentVisible = visibleFileGeneration(file);
+      if (
+        !sameFileGeneration(pinned, current) ||
+        !currentVisible ||
+        !sameFileGeneration(current, currentVisible)
+      ) {
+        fail("MATERIALIZED_USE_GENERATION_CHANGED", file);
+      }
+      assertParentAuthority(parent);
+    };
+
+    assertPinnedGeneration();
+
+    const reader: SegmentedJsonlMaterializedUseReaderV1 = {
+      authority: expected,
+      total_bytes: expected.total_bytes,
+      max_read_bytes: READ_CHUNK,
+      read(offset: number, length: number): Buffer {
+        if (
+          !Number.isSafeInteger(offset) || offset < 0 ||
+          !Number.isSafeInteger(length) || length < 0 || length > READ_CHUNK ||
+          length > expected.total_bytes || offset > expected.total_bytes - length
+        ) {
+          fail("MATERIALIZED_USE_READ_OUT_OF_RANGE", `${offset}:${length}:${expected.total_bytes}`);
+        }
+        assertPinnedGeneration();
+        const output = Buffer.allocUnsafe(length);
+        let copied = 0;
+        while (copied < length) {
+          const n = fs.readSync(fd, output, copied, length - copied, offset + copied);
+          if (n <= 0) fail("MATERIALIZED_USE_SHORT_READ", `${offset}:${length}:${copied}`);
+          copied += n;
+        }
+        assertPinnedGeneration();
+        return output;
+      },
+    };
+
+    const result = consumer(reader);
+    if (
+      result !== null &&
+      (typeof result === "object" || typeof result === "function") &&
+      typeof (result as any).then === "function"
+    ) {
+      fail("MATERIALIZED_ASYNC_USE_UNSUPPORTED", file);
+    }
+    assertPinnedGeneration();
+    return result;
+  } finally {
+    active = false;
+    if (fd >= 0) fs.closeSync(fd);
+    fs.closeSync(parent.fd);
+  }
 }
