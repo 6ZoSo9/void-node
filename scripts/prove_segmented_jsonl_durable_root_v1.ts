@@ -41,6 +41,12 @@ function sourceBytes(records: number): Buffer {
   );
 }
 
+function processBootId(): string {
+  const bootId = fs.readFileSync("/proc/sys/kernel/random/boot_id", "utf8").trim().toLowerCase();
+  assert.match(bootId, /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/);
+  return bootId;
+}
+
 function processStartTicks(pid: number): string {
   const stat = fs.readFileSync(`/proc/${pid}/stat`, "utf8");
   const close = stat.lastIndexOf(")");
@@ -50,12 +56,17 @@ function processStartTicks(pid: number): string {
   return fields[19];
 }
 
-function writePublishOwner(lockDir: string, pid: number, startTicks: string, token: string): void {
+function writePublishOwner(lockDir: string, pid: number, startTicks: string, token: string, bootId = processBootId()): void {
   fs.writeFileSync(
     path.join(lockDir, "owner.v1.json"),
-    JSON.stringify({ v: 1, pid, start_ticks: startTicks, token, state: "held" }) + "\n",
+    JSON.stringify({ v: 1, boot_id: bootId, pid, start_ticks: startTicks, token, state: "held" }) + "\n",
     { flag: "wx", mode: 0o600 },
   );
+}
+
+function fsyncDirectory(directory: string): void {
+  const fd = fs.openSync(directory, "r");
+  try { fs.fsyncSync(fd); } finally { fs.closeSync(fd); }
 }
 
 function buildGeneration(
@@ -166,9 +177,26 @@ try {
     "exact successor retry must be idempotent",
   );
 
-  writePublishOwner(publishLockDir, process.pid, processStartTicks(process.pid), "11".repeat(16));
+  const ownerPath = path.join(publishLockDir, "owner.v1.json");
+  const reclaimPath = path.join(publishLockDir, "reclaim.v1");
+  const bootId = processBootId();
+  const startTicks = processStartTicks(process.pid);
+
+  writePublishOwner(publishLockDir, process.pid, startTicks, "11".repeat(16));
   expectFailure(() => publishSegmentedJsonlDurableRootV1(durableDir, r2Input), "DURABLE_ROOT_PUBLISH_BUSY");
-  fs.unlinkSync(path.join(publishLockDir, "owner.v1.json"));
+  fs.unlinkSync(ownerPath);
+
+  const differentBootId = bootId === "00000000-0000-0000-0000-000000000000"
+    ? "ffffffff-ffff-ffff-ffff-ffffffffffff"
+    : "00000000-0000-0000-0000-000000000000";
+  writePublishOwner(publishLockDir, process.pid, startTicks, "12".repeat(16), differentBootId);
+  assert.equal(
+    publishSegmentedJsonlDurableRootV1(durableDir, r2Input).root_sha256,
+    r2.root_sha256,
+    "same pid/start ticks from a different boot epoch must be stale and reclaimable",
+  );
+  assert.equal(fs.existsSync(ownerPath), false);
+  assert.equal(fs.existsSync(reclaimPath), false);
 
   writePublishOwner(publishLockDir, 99999999, "1", "22".repeat(16));
   assert.equal(
@@ -176,8 +204,42 @@ try {
     r2.root_sha256,
     "stale publisher lock must be recoverable without changing committed truth",
   );
-  assert.equal(fs.existsSync(path.join(publishLockDir, "owner.v1.json")), false, "stale publisher owner must be reclaimed and released");
-  assert.equal(fs.existsSync(path.join(publishLockDir, "reclaim.v1")), false, "reclaim marker must not survive ownership transfer");
+  assert.equal(fs.existsSync(ownerPath), false, "stale publisher owner must be reclaimed and released");
+  assert.equal(fs.existsSync(reclaimPath), false, "reclaim marker must not survive ownership transfer");
+
+  writePublishOwner(publishLockDir, 99999999, "1", "23".repeat(16));
+  fs.linkSync(ownerPath, reclaimPath);
+  fsyncDirectory(publishLockDir);
+  assert.equal(
+    publishSegmentedJsonlDurableRootV1(durableDir, r2Input).root_sha256,
+    r2.root_sha256,
+    "crash after exact stale-owner reclaim claim must converge",
+  );
+  assert.equal(fs.existsSync(ownerPath), false);
+  assert.equal(fs.existsSync(reclaimPath), false);
+
+  writePublishOwner(publishLockDir, 99999999, "1", "24".repeat(16));
+  fs.linkSync(ownerPath, reclaimPath);
+  fs.unlinkSync(ownerPath);
+  fsyncDirectory(publishLockDir);
+  assert.equal(
+    publishSegmentedJsonlDurableRootV1(durableDir, r2Input).root_sha256,
+    r2.root_sha256,
+    "crash after claimed stale owner unlink must converge from the hard-link reclaim witness",
+  );
+  assert.equal(fs.existsSync(ownerPath), false);
+  assert.equal(fs.existsSync(reclaimPath), false);
+
+  writePublishOwner(publishLockDir, process.pid, startTicks, "25".repeat(16));
+  fs.linkSync(ownerPath, reclaimPath);
+  fsyncDirectory(publishLockDir);
+  expectFailure(() => publishSegmentedJsonlDurableRootV1(durableDir, r2Input), "DURABLE_ROOT_PUBLISH_BUSY");
+  const liveOwnerStat = fs.statSync(ownerPath, { bigint: true } as any);
+  const liveReclaimStat = fs.statSync(reclaimPath, { bigint: true } as any);
+  assert.equal(liveOwnerStat.dev, liveReclaimStat.dev);
+  assert.equal(liveOwnerStat.ino, liveReclaimStat.ino, "live exact owner claim witness must never be stolen");
+  fs.unlinkSync(reclaimPath);
+  fs.unlinkSync(ownerPath);
 
   const slot0 = path.join(durableDir, "durable-root-slot-0.v1.json");
   const slot1 = path.join(durableDir, "durable-root-slot-1.v1.json");
@@ -274,7 +336,11 @@ try {
   console.log("durable_root_first_peer_staging_recovery=true");
   console.log("durable_root_exact_retry_idempotent=true");
   console.log("durable_root_live_publish_lock_excludes_writer=true");
+  console.log("durable_root_boot_epoch_prevents_pid_start_alias=true");
   console.log("durable_root_stale_publish_lock_recoverable=true");
+  console.log("durable_root_reclaim_marker_claim_crash_recoverable=true");
+  console.log("durable_root_reclaim_marker_owner_unlink_crash_recoverable=true");
+  console.log("durable_root_live_reclaim_witness_not_stolen=true");
   console.log("durable_root_two_slot_lifetime_bound=true");
   console.log("durable_root_torn_target_retry_converges=true");
   console.log("durable_root_degraded_slot_never_rolls_back=true");
