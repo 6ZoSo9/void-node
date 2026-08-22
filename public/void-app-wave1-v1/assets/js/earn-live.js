@@ -21,10 +21,8 @@ const setChip = (node, tone, label) => {
 };
 
 const formatNumber = (value) => {
-  const number = Number(value);
-
-  return Number.isFinite(number)
-    ? number.toLocaleString('en-US', {
+  return typeof value === 'number' && Number.isFinite(value)
+    ? value.toLocaleString('en-US', {
         maximumFractionDigits: 9,
       })
     : '—';
@@ -46,7 +44,10 @@ const formatTime = (value) => {
 };
 
 const sourceLabel = (source) => {
-  const status = Number(source?.status ?? 0);
+  const status =
+    typeof source?.status === 'number' && Number.isFinite(source.status)
+      ? source.status
+      : 0;
 
   return status === 200
     ? 'Available'
@@ -164,7 +165,8 @@ const renderHistory = (selector, emptySelector, items, kind) => {
     chip.className =
       `status-chip status-chip--${toneForStatus(item?.status)}`;
     chip.textContent =
-      Number.isFinite(Number(item?.reward_wc))
+      typeof item?.reward_wc === 'number' &&
+      Number.isFinite(item.reward_wc)
         ? `+${formatNumber(item.reward_wc)} WC`
         : item?.result_label || item?.status_label || 'Recorded';
 
@@ -296,21 +298,29 @@ const renderEarn = (snapshot) => {
   );
   setText(
     '[data-earn-task-need]',
-    Number.isFinite(Number(availableWork.network_need_score))
-      ? Number(availableWork.network_need_score).toFixed(2)
+    typeof availableWork.network_need_score === 'number' &&
+      Number.isFinite(availableWork.network_need_score)
+      ? availableWork.network_need_score.toFixed(2)
       : '—'
   );
+
+  const lastCreditInvalid =
+    lastCredit.present === true &&
+    lastCredit.available !== true &&
+    lastCredit.invalid_numeric_evidence === true;
 
   setText('[data-earn-last-hour]', rewards.total_display);
   setText(
     '[data-earn-last-credit]',
     lastCredit.available
       ? `+${lastCredit.amount_display} WC · ${lastCredit.task_label}`
-      : 'No credit recorded'
+      : lastCreditInvalid
+        ? `Credit amount unavailable · ${lastCredit.task_label || 'Useful work'}`
+        : 'No credit recorded'
   );
   setText(
     '[data-earn-last-credit-time]',
-    lastCredit.available
+    lastCredit.present === true
       ? formatTime(lastCredit.recorded_at)
       : '—'
   );
