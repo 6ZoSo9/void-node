@@ -107,6 +107,17 @@ try {
   );
   fs.writeFileSync(materialized, originalMaterialized, { mode: 0o600 });
 
+  // Rebind to the exact restored generation. Content/snapshot authority is the
+  // same, but the file generation is intentionally different after the
+  // mutation-and-restore adversary above.
+  const restoredAuthority = deriveSegmentedJsonlMaterializedAuthorityV1(store, materialized);
+  assert.equal(restoredAuthority.snapshot_sha256, authority.snapshot_sha256);
+  assert.equal(restoredAuthority.materialized_sha256, authority.materialized_sha256);
+  assert.notEqual(
+    restoredAuthority.materialized_generation_sha256,
+    authority.materialized_generation_sha256,
+  );
+
   // A same-byte replacement that exists before the at-use boundary is a
   // different generation and cannot inherit the reviewed authority.
   const aside = path.join(base, "materialized.original.jsonl");
@@ -116,13 +127,17 @@ try {
     () => verifySegmentedJsonlMaterializedAuthorityAtUseV1(
       store,
       materialized,
-      authority,
+      restoredAuthority,
       (reader) => reader.read(0, 1),
     ),
     /VOID_SEGMENTED_JSONL_MATERIALIZED_AUTHORITY_V1:MATERIALIZED_AUTHORITY_USE_MISMATCH:/,
   );
   fs.rmSync(materialized);
   fs.renameSync(aside, materialized);
+
+  // Rebind once more because the replacement/restore fixture above may itself
+  // advance the original inode's metadata generation.
+  const preUseAuthority = deriveSegmentedJsonlMaterializedAuthorityV1(store, materialized);
 
   // The critical verify->use adversary: replacement happens only after the
   // at-use API has fully reverified the authority and entered the consumer.
@@ -134,7 +149,7 @@ try {
     () => verifySegmentedJsonlMaterializedAuthorityAtUseV1(
       store,
       materialized,
-      authority,
+      preUseAuthority,
       (reader) => {
         postVerifyConsumerEntered = true;
         fs.renameSync(materialized, postVerifyAside);
@@ -154,11 +169,12 @@ try {
   // Reader capabilities are scoped to the synchronous retained-fd callback.
   // A caller cannot retain the reader and reopen/consume after the exact fd is
   // closed by the at-use boundary.
+  const finalAuthority = deriveSegmentedJsonlMaterializedAuthorityV1(store, materialized);
   let escapedReader: SegmentedJsonlMaterializedUseReaderV1 | null = null;
   const firstByte = verifySegmentedJsonlMaterializedAuthorityAtUseV1(
     store,
     materialized,
-    authority,
+    finalAuthority,
     (reader) => {
       escapedReader = reader;
       return reader.read(0, 1)[0];
@@ -172,8 +188,8 @@ try {
   );
 
   const tamperedAuthority = {
-    ...authority,
-    total_records: authority.total_records + 1,
+    ...finalAuthority,
+    total_records: finalAuthority.total_records + 1,
   };
   assert.throws(
     () => verifySegmentedJsonlMaterializedAuthorityObjectV1(tamperedAuthority),
