@@ -3,7 +3,7 @@
 import { createHash } from 'node:crypto';
 import { constants as fsConstants } from 'node:fs';
 import { lstat, open, readFile, realpath } from 'node:fs/promises';
-import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
+import { isAbsolute, join, relative, resolve, sep } from 'node:path';
 import process from 'node:process';
 import { spawnSync } from 'node:child_process';
 
@@ -60,7 +60,7 @@ const BLOCKED_TEXT_PATTERNS = [
   ['openai_style_key', /\bsk-(?:proj-)?[A-Za-z0-9_-]{16,}\b/],
   ['aws_access_key', /\bAKIA[0-9A-Z]{16}\b/],
   ['jwt_like_token', /\beyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\b/],
-  ['private_local_path', /(?:^|[\s"'])\/(?:home\/[^/\s]+\/(?:\.ssh|\.gnupg|\.aws|\.kube|\.docker|\.config)\/|root\/(?:\.ssh|\.gnupg|\.aws|\.kube|\.docker|\.config)\/|run\/user\/\d+\/)/i],
+  ['private_local_path', /(?:^|[\s"'=])\/(?:home\/[^/\s]+\/(?:\.ssh|\.gnupg|\.aws|\.kube|\.docker|\.config)\/|root\/(?:\.ssh|\.gnupg|\.aws|\.kube|\.docker|\.config)\/|run\/user\/\d+\/)/i],
 ];
 
 function fail(message) {
