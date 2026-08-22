@@ -30916,8 +30916,8 @@ if (process.env.VOID_DISABLE_HEAD_SURGERY !== "1") (function VoidHeadLatestSurge
     const t0 = Date.now();
     try{
       S.ticks++;
-      const AUTO_EMPTY = 1;
-      const url = base() + "/__void/metrics/proposer.commit-direct.v2fs/commit?empty=1";
+      const AUTO_EMPTY = 0;
+      const url = base() + "/__void/metrics/proposer.commit-direct.v2fs/commit?empty=0";
       const r = await fetch(url, { method:"POST" }).catch(()=>null);
       const j = r ? await r.json().catch(()=>null) : null;
       const ms = Date.now() - t0;
@@ -31275,8 +31275,8 @@ if (process.env.VOID_DISABLE_HEAD_SURGERY !== "1") (function VoidHeadLatestSurge
 
     // Warm kick once after a short delay so the autoprop loop has time to attach.
     setTimeout(()=>{
-      const AUTO_EMPTY2 = 1;
-      const url = `http://127.0.0.1:${port()}/__void/metrics/proposer.commit-direct.v2fs/commit?empty=1`;
+      const AUTO_EMPTY2 = 0;
+      const url = `http://127.0.0.1:${port()}/__void/metrics/proposer.commit-direct.v2fs/commit?empty=0`;
       postT(url, 300).then(()=>{});
     }, 600);
 

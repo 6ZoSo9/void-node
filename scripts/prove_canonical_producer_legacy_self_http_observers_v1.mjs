@@ -6,7 +6,7 @@ import path from "node:path";
 import { spawnSync } from "node:child_process";
 
 const MARKER = "VOID_CANONICAL_PRODUCER_LEGACY_SELF_HTTP_OBSERVERS_V1";
-const EXPECTED_SOURCE_BLOB_SHA = "23192d83e09bf98a02752e2b021940c2584ea95a";
+const EXPECTED_SOURCE_BLOB_SHA = "152b1b0e3b46c05b5132b9d30682c06155a37dff";
 const modulePath = path.resolve("runtime/canonical-producer-self-http-guard-v1.cjs");
 const sourcePath = path.resolve("src/index.ts");
 
@@ -225,7 +225,7 @@ const retained = fixture(
       const number2 = await fetch("http://127.0.0.1:4100/blocks/latest/number2.json");
       const number2Text = await number2.text();
       const autoprop = await fetch(
-        "http://127.0.0.1:4100/__void/metrics/proposer.commit-direct.v2fs/commit?empty=1",
+        "http://127.0.0.1:4100/__void/metrics/proposer.commit-direct.v2fs/commit?empty=0",
         {method:"POST"},
       );
       const autopropText = await autoprop.text();
