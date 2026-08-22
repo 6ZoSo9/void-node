@@ -11,6 +11,8 @@ const HOSTNAMES = Object.freeze(["voidchain.org", "www.voidchain.org"]);
 const EDGE_ORIGIN = "http://127.0.0.1:8080";
 const UNIT_NAME = "voidchain-org-path-preserving-edge-v1.service";
 const BUILDER_RELATIVE = "scripts/build_voidchain_org_path_preserving_edge_packet_v1.mjs";
+const CLOUDFLARED_TOOL_TIMEOUT_MS = 5_000;
+const CLOUDFLARED_TOOL_MAX_OUTPUT_BYTES = 64 * 1024;
 
 function fail(message) {
   console.error(`${MARKER}_FAIL: ${message}`);
@@ -110,6 +112,29 @@ function run(command, args, options = {}) {
     stdio: ["ignore", "pipe", "pipe"],
     ...options,
   });
+  if (result.status !== 0) {
+    throw new Error(`${command} ${args.join(" ")} failed: ${(result.stderr || result.stdout || "").trim()}`);
+  }
+  return String(result.stdout || "").trim();
+}
+
+function runCloudflared(command, args) {
+  const result = childProcess.spawnSync(command, args, {
+    encoding: "utf8",
+    stdio: ["ignore", "pipe", "pipe"],
+    timeout: CLOUDFLARED_TOOL_TIMEOUT_MS,
+    killSignal: "SIGKILL",
+    maxBuffer: CLOUDFLARED_TOOL_MAX_OUTPUT_BYTES,
+  });
+  if (result.error) {
+    if (result.error.code === "ETIMEDOUT") {
+      throw new Error(`cloudflared invocation timed out after ${CLOUDFLARED_TOOL_TIMEOUT_MS}ms`);
+    }
+    throw new Error(`cloudflared invocation failed: ${result.error.message}`);
+  }
+  if (result.signal) {
+    throw new Error(`cloudflared invocation terminated by signal ${result.signal}`);
+  }
   if (result.status !== 0) {
     throw new Error(`${command} ${args.join(" ")} failed: ${(result.stderr || result.stdout || "").trim()}`);
   }
@@ -218,7 +243,7 @@ function main() {
   if (path.basename(credentialsFile) !== `${tunnelId}.json`) throw new Error("credentials filename must match the tunnel ID");
 
   const cloudflaredPath = regularPath(args.cloudflared, "cloudflared executable", { executable: true });
-  const cloudflaredVersion = run(cloudflaredPath, ["--version"]).split(/\r?\n/)[0].slice(0, 512);
+  const cloudflaredVersion = runCloudflared(cloudflaredPath, ["--version"]).split(/\r?\n/)[0].slice(0, 512);
   if (!/cloudflared/i.test(cloudflaredVersion)) throw new Error("cloudflared --version did not identify cloudflared");
 
   const output = path.resolve(rejectControl(args.output, "output directory"));
@@ -234,7 +259,7 @@ function main() {
   writeExclusive(unitPath, serviceText(repoRoot, cloudflaredPath, configPath, tunnelId));
   writeExclusive(installPath, installText(output));
 
-  run(cloudflaredPath, ["--config", configPath, "tunnel", "ingress", "validate"]);
+  runCloudflared(cloudflaredPath, ["--config", configPath, "tunnel", "ingress", "validate"]);
 
   const files = {};
   for (const name of ["cloudflared-config.yml", UNIT_NAME, "INSTALL.txt"]) {
@@ -308,6 +333,8 @@ function main() {
   console.log(`packet_dir=${output}`);
   console.log(`hostnames=${HOSTNAMES.join(",")}`);
   console.log(`edge_origin=${EDGE_ORIGIN}`);
+  console.log("cloudflared_preflight_timeout_ms=5000");
+  console.log("cloudflared_preflight_max_output_bytes=65536");
   console.log("dns_changed=false");
   console.log("tailscale_funnel_changed=false");
 }
