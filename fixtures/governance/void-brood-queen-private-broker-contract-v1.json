@@ -16,17 +16,31 @@
     "private_key_enters_github": false,
     "private_key_accessible_to_apollyon": false
   },
+  "broker_identity": {
+    "algorithm": "Ed25519",
+    "public_identity_pinned_before_bootstrap": true,
+    "private_key_enters_model_context": false,
+    "bootstrap_challenge_signature_required": true,
+    "bootstrap_challenge_domain": "VOID_BROOD_QUEEN_BROKER_BOOTSTRAP_CHALLENGE_V1",
+    "crown_bootstrap_approval_domain": "VOID_BROOD_QUEEN_CROWN_BOOTSTRAP_APPROVAL_V1",
+    "receipt_signature_domain": "VOID_BROOD_QUEEN_BROKER_RECEIPT_V1",
+    "receipt_signed_by_broker_identity": true,
+    "transport_tls_alone_authenticates_crown_or_broker": false
+  },
   "session_adapter": {
     "secret_boundary": "trusted_client_runtime_outside_model_context",
     "adapter_is_constitutional_identity": false,
     "bootstrap_challenge_single_use": true,
     "bootstrap_binds_adapter_public_key": true,
+    "bootstrap_binds_adapter_x25519_public_key": true,
+    "bootstrap_binds_broker_x25519_public_key": true,
     "persistent_logical_session": true,
     "session_id_stable_across_automatic_rotation": true,
     "root_reauthentication_frequency": "rare_recovery_revocation_logout_rotation_or_policy_boundary"
   },
   "crypto_profile": {
     "root_signature": "Ed25519",
+    "broker_identity_signature": "Ed25519",
     "session_signature": "Ed25519",
     "key_agreement": "X25519",
     "kdf": "HKDF-SHA-256",
@@ -34,22 +48,33 @@
     "canonical_hash": "SHA-256",
     "transport_confidentiality_required": true,
     "algorithm_agility_within_v1_session": false,
-    "ecdsa_substitution_allowed": false
+    "ecdsa_substitution_allowed": false,
+    "generation_transcript_is_hkdf_salt": true,
+    "directional_traffic_key_separation": true,
+    "traffic_key_reused_across_generations": false,
+    "traffic_key_reused_across_directions": false,
+    "aead_nonce_source": "uint96_transport_sequence",
+    "aead_nonce_unique_per_generation_direction": true,
+    "same_key_nonce_different_protected_bytes_allowed": false,
+    "exact_duplicate_retransmits_exact_protected_bytes": true
   },
   "ordering": {
     "stream_model": "single_ordered_task_stream_per_session",
-    "sequence_monotonic": true,
-    "accept_only_next_expected_sequence": true,
+    "task_sequence_monotonic": true,
+    "accept_only_next_expected_task_sequence": true,
+    "transport_sequence_monotonic_per_generation_direction": true,
     "duplicate_identical_task_returns_prior_authoritative_result": true,
-    "same_sequence_different_bytes_terminal_conflict": true,
-    "silent_reordering_allowed": false
+    "same_task_sequence_different_bytes_terminal_conflict": true,
+    "same_transport_sequence_different_protected_bytes_terminal_conflict": true,
+    "silent_reordering_allowed": false,
+    "transport_and_task_sequence_are_distinct": true
   },
   "task_identity": {
     "prefix": "voidbqt1_",
     "content_addressed": true,
     "binds_session_id": true,
     "binds_session_generation": true,
-    "binds_sequence": true,
+    "binds_task_sequence": true,
     "binds_capabilities": true,
     "binds_payload_digest": true,
     "binds_policy_generation": true
@@ -63,7 +88,8 @@
     "live_runtime_mutation_implicit": false,
     "transaction_or_funds_capability_implicit": false,
     "work_credit_mutation_implicit": false,
-    "credential_reading_implicit": false
+    "credential_reading_implicit": false,
+    "session_rotation_can_expand_policy_ceiling": false
   },
   "apollyon": {
     "office": "General",
@@ -71,6 +97,7 @@
     "authenticated_crown_endpoint": false,
     "may_receive_root_key": false,
     "may_receive_session_private_key": false,
+    "may_receive_broker_identity_private_key": false,
     "may_receive_validator_key": false,
     "model_output_is_authoritative_receipt": false
   },
@@ -83,7 +110,7 @@
   },
   "durable_state_machine": {
     "states": ["RECEIVED", "ADMITTED", "EXECUTING", "RESULT_STAGED", "RESULT_PUBLISHED", "COMPLETE"],
-    "fail_closed_terminals": ["REJECTED", "EXPIRED", "REVOKED", "SEQUENCE_CONFLICT", "SESSION_STALE", "POLICY_MISMATCH", "EXECUTION_OUTCOME_UNKNOWN", "RESULT_CONFLICT"],
+    "fail_closed_terminals": ["REJECTED", "EXPIRED", "REVOKED", "SEQUENCE_CONFLICT", "TRANSPORT_SEQUENCE_CONFLICT", "SESSION_STALE", "POLICY_MISMATCH", "EXECUTION_OUTCOME_UNKNOWN", "RESULT_CONFLICT"],
     "admitted_durable_before_inference": true,
     "result_staged_durable_before_publication": true,
     "publication_retry_reuses_staged_result": true,
@@ -99,15 +126,19 @@
   "revocation": {
     "canonical_role_source_when_activated": "Chain-2050",
     "canonical_role_revalidation_required": true,
+    "bounded_role_freshness_required_before_task_admission": true,
     "cached_role_truth_survives_revocation": false,
     "stale_generation_can_issue_ordinary_tasks": false
   },
   "threat_model": {
     "github_authenticates_crown_session": false,
+    "transport_tls_alone_authenticates_crown_session": false,
     "model_self_claim_authenticates_crown_session": false,
+    "unsigned_or_unpinned_broker_challenge_admitted": false,
     "duplicate_delivery_idempotent": true,
     "delayed_delivery_can_rollback_sequence": false,
     "task_result_substitution_preserves_identity": false,
+    "same_aead_key_nonce_can_protect_distinct_messages": false,
     "restart_after_result_staged_creates_second_authoritative_result": false,
     "restart_during_execution_claims_exactly_once_model_execution": false
   },
@@ -115,11 +146,13 @@
     "at_most_one_authoritative_completed_result_hash_per_task_id": true,
     "does_not_claim_exactly_once_model_execution": true,
     "no_capability_expansion_beyond_exact_list": true,
+    "no_distinct_messages_share_aead_key_nonce_pair": true,
     "no_validator_authority_path": true,
-    "no_crown_private_material_in_model_context": true
+    "no_crown_broker_or_session_private_material_in_model_context": true
   },
   "activation": {
     "live_root_key_generated": false,
+    "live_broker_identity_key_generated": false,
     "live_adapter_key_generated": false,
     "live_session_active": false,
     "live_endpoint_active": false,
