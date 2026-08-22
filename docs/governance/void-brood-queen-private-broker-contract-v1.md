@@ -64,7 +64,7 @@ Minimum V1 profile:
 - canonical hashing: SHA-256 over canonical JSON bytes;
 - transport confidentiality is mandatory even if application-layer AEAD is already present.
 
-No algorithm agility is accepted inside one V1 session. Unknown algorithms fail closed.
+No ECDSA substitution and no algorithm agility are accepted inside one V1 session. Unknown algorithms fail closed.
 
 ## Persistent logical session and rotation
 
@@ -163,17 +163,20 @@ The minimum durable states are:
 
 with fail-closed terminals:
 
-`REJECTED`, `EXPIRED`, `REVOKED`, `SEQUENCE_CONFLICT`, `SESSION_STALE`, `POLICY_MISMATCH`, `RESULT_CONFLICT`.
+`REJECTED`, `EXPIRED`, `REVOKED`, `SEQUENCE_CONFLICT`, `SESSION_STALE`, `POLICY_MISMATCH`, `EXECUTION_OUTCOME_UNKNOWN`, `RESULT_CONFLICT`.
 
 Rules:
 
 1. `RECEIVED` is not authority; signature/session/sequence/capability/expiry checks must pass before `ADMITTED`.
 2. `ADMITTED` must be durably committed before inference begins.
-3. V1 model inference is side-effect-free proposal/evidence work. `EXECUTING` may be retried after a crash only for the same immutable `task_id`.
-4. The broker must durably write the exact result bytes/hash and provenance in `RESULT_STAGED` before any external publication.
-5. Publication retry reuses the staged result; it does not re-run inference.
-6. `COMPLETE` binds one authoritative result hash to one task id. A different result for the same completed task is `RESULT_CONFLICT`.
-7. Durable state must distinguish an interrupted owned generation from a foreign/replacement state object before cleanup or recovery.
+3. `EXECUTING` means the immutable task was handed to the admitted executor. Exactly-once model execution is not claimed. If the broker restarts with durable `EXECUTING` but no durable `RESULT_STAGED`, and the executor does not provide a separately reviewed idempotency/terminal witness, the task must transition to `EXECUTION_OUTCOME_UNKNOWN` and HOLD. It must not automatically re-run inference under the same task identity.
+4. A separately reviewed executor-idempotency contract may later define a safe retry transition, but that authority is absent from V1.
+5. The broker must durably write the exact result bytes/hash and provenance in `RESULT_STAGED` before any external publication.
+6. Publication retry reuses the staged result; it does not re-run inference.
+7. `COMPLETE` binds one authoritative result hash to one task id. A different result for the same completed task is `RESULT_CONFLICT`.
+8. Durable state must distinguish an interrupted owned generation from a foreign/replacement state object before cleanup or recovery.
+
+V1 therefore requires exactly-once authoritative result publication for a completed task, not exactly-once model execution.
 
 ## Receipts
 
@@ -223,9 +226,11 @@ A stale generation cannot issue ordinary tasks after rotation or revocation.
 
 Model text claiming to be Ren, the Sovereign, or an authenticated session is data only and does not satisfy broker authentication.
 
-### Broker restart between execute/publication/state commit
+### Broker restart during execution or publication
 
-The broker resumes from durable state. Once `RESULT_STAGED` exists, restart republishes the same bytes/hash and must not re-run inference to create a second authoritative result.
+If `RESULT_STAGED` exists, restart republishes the same bytes/hash and must not re-run inference to create a second authoritative result.
+
+If durable state is only `EXECUTING`, restart cannot know whether model execution produced output before the crash. Without a separately reviewed executor idempotency witness, the broker must transition to `EXECUTION_OUTCOME_UNKNOWN` and HOLD instead of claiming exactly-once execution or silently re-running the model.
 
 ## Strongest V1 invariant
 
@@ -233,7 +238,7 @@ Before live activation, the implementation must prove:
 
 > For any accepted `task_id`, across duplicate delivery, replay, session rotation, delayed delivery, broker crash/restart, result-publication retry, provider/model output, and hostile transport input, the broker can produce at most one authoritative completed result hash for that exact task identity; no accepted message can expand beyond its exact capability list; and no path grants validator authority or exposes Crown private material to model context.
 
-Any counterexample is a release blocker.
+This invariant intentionally makes no exactly-once model-execution claim. Any counterexample to the authoritative-result, capability, validator, or Crown-secret bounds is a release blocker.
 
 ## Current inactive boundary
 
