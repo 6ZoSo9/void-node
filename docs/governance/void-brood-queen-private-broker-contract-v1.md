@@ -100,7 +100,7 @@ The adapter and broker derive the generation shared secret using their exact bou
 
 Distinct AEAD traffic keys are mandatory for `adapter_to_broker` and `broker_to_adapter`; one traffic key may never be reused in both directions or across generations.
 
-Every encrypted message carries a monotonic `transport_sequence` scoped to `(session_id, generation, direction)`. The ChaCha20-Poly1305 96-bit nonce is the canonical unsigned 96-bit encoding of that `transport_sequence`.
+Every encrypted message carries a monotonic `transport_sequence` scoped to `(session_id, generation, direction)` with `0 <= transport_sequence < 2^96`. The ChaCha20-Poly1305 nonce is `aead_nonce = uint96(transport_sequence)`, where `uint96` means the canonical unsigned 96-bit big-endian encoding of that integer.
 
 Rules:
 
