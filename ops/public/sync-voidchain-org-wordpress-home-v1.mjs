@@ -236,6 +236,11 @@ const requireJsonResponseHeaders = async (response, controller) => {
     await cancelResponseBodyBounded(response, controller);
     throw error;
   }
+  if (!response.ok) {
+    const error = new Error(`WordPress HTTP ${String(response.status)}`);
+    await cancelResponseBodyBounded(response, controller);
+    throw error;
+  }
 };
 
 const requirePublicAppResponseHeaders = async (response, controller) => {
@@ -281,10 +286,6 @@ const requestJson = async (url, options = {}) =>
       throw new Error(`invalid JSON on HTTP ${response.status}`);
     }
 
-    if (!response.ok) {
-      const code = value && typeof value === "object" ? value.code : "unknown";
-      throw new Error(`WordPress HTTP ${response.status} (${String(code)})`);
-    }
     if (!value || typeof value !== "object" || Array.isArray(value)) {
       throw new Error("WordPress returned an invalid object");
     }
