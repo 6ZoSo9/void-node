@@ -72,6 +72,7 @@ async function main() {
   if (f.crypto_profile.aead !== 'ChaCha20-Poly1305') hold('AEAD drift');
   requireTrue(f.crypto_profile.transport_confidentiality_required, 'transport confidentiality');
   requireFalse(f.crypto_profile.algorithm_agility_within_v1_session, 'in-session algorithm agility');
+  requireFalse(f.crypto_profile.ecdsa_substitution_allowed, 'ECDSA substitution');
 
   requireTrue(f.ordering.sequence_monotonic, 'monotonic sequence');
   requireTrue(f.ordering.accept_only_next_expected_sequence, 'next-sequence admission');
@@ -116,12 +117,28 @@ async function main() {
     'RECEIVED', 'ADMITTED', 'EXECUTING', 'RESULT_STAGED', 'RESULT_PUBLISHED', 'COMPLETE'
   ], 'durable states');
   exactArray(f.durable_state_machine.fail_closed_terminals, [
-    'REJECTED', 'EXPIRED', 'REVOKED', 'SEQUENCE_CONFLICT', 'SESSION_STALE', 'POLICY_MISMATCH', 'RESULT_CONFLICT'
+    'REJECTED', 'EXPIRED', 'REVOKED', 'SEQUENCE_CONFLICT', 'SESSION_STALE', 'POLICY_MISMATCH', 'EXECUTION_OUTCOME_UNKNOWN', 'RESULT_CONFLICT'
   ], 'fail-closed terminals');
   requireTrue(f.durable_state_machine.admitted_durable_before_inference, 'admitted durable before inference');
   requireTrue(f.durable_state_machine.result_staged_durable_before_publication, 'result staged before publication');
   requireTrue(f.durable_state_machine.publication_retry_reuses_staged_result, 'publication retry staged reuse');
   requireFalse(f.durable_state_machine.publication_retry_reexecutes_inference, 'publication retry inference');
+  requireFalse(
+    f.durable_state_machine.executing_restart_without_staged_result_auto_reexecutes_inference,
+    'ambiguous execution automatic retry',
+  );
+  if (f.durable_state_machine.executing_restart_without_staged_result_terminal !== 'EXECUTION_OUTCOME_UNKNOWN') {
+    hold('ambiguous execution terminal drift');
+  }
+  requireFalse(f.durable_state_machine.exactly_once_model_execution_claimed, 'exactly-once model execution claim');
+  requireTrue(
+    f.durable_state_machine.exactly_once_authoritative_result_publication_required,
+    'exactly-once authoritative result publication',
+  );
+  requireTrue(
+    f.durable_state_machine.safe_retry_from_execution_outcome_unknown_requires_separate_idempotent_executor_contract,
+    'ambiguous execution retry gate',
+  );
   requireTrue(f.durable_state_machine.complete_binds_one_authoritative_result_hash, 'single authoritative result');
   requireTrue(f.durable_state_machine.recovery_distinguishes_owned_from_foreign_state, 'owned-vs-foreign recovery');
 
@@ -135,8 +152,13 @@ async function main() {
   requireFalse(f.threat_model.delayed_delivery_can_rollback_sequence, 'delayed sequence rollback');
   requireFalse(f.threat_model.task_result_substitution_preserves_identity, 'substitution preserves identity');
   requireFalse(f.threat_model.restart_after_result_staged_creates_second_authoritative_result, 'restart duplicate authoritative result');
+  requireFalse(
+    f.threat_model.restart_during_execution_claims_exactly_once_model_execution,
+    'restart exactly-once model execution claim',
+  );
 
   requireTrue(f.strongest_invariant.at_most_one_authoritative_completed_result_hash_per_task_id, 'single result invariant');
+  requireTrue(f.strongest_invariant.does_not_claim_exactly_once_model_execution, 'no exactly-once execution invariant');
   requireTrue(f.strongest_invariant.no_capability_expansion_beyond_exact_list, 'capability exactness invariant');
   requireTrue(f.strongest_invariant.no_validator_authority_path, 'validator wall invariant');
   requireTrue(f.strongest_invariant.no_crown_private_material_in_model_context, 'Crown private material invariant');
@@ -151,6 +173,9 @@ async function main() {
     SEAT_MARKER,
     'task_id = voidbqt1_ + sha256(canonical_task_without_task_id)',
     'RESULT_STAGED',
+    'EXECUTION_OUTCOME_UNKNOWN',
+    'Exactly-once model execution is not claimed.',
+    'exactly-once authoritative result publication',
     'GitHub identity, provider identity, and model self-description are not Crown authentication.',
     'Validator capability is structurally absent from this broker contract.',
     'at most one authoritative completed result hash',
