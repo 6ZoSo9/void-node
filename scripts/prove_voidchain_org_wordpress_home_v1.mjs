@@ -304,7 +304,7 @@ assert.throws(
       "window.__VOID_PUBLIC_APP_MODE__=true",
       "window.__VOID_PUBLIC_APP_MODE__=false",
     ),
-  ),
+  }),
   /primary CTA response is missing/,
   "primary CTA validator must reject the wrong application surface",
 );
