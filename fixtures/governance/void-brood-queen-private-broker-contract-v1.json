@@ -33,7 +33,8 @@
     "aead": "ChaCha20-Poly1305",
     "canonical_hash": "SHA-256",
     "transport_confidentiality_required": true,
-    "algorithm_agility_within_v1_session": false
+    "algorithm_agility_within_v1_session": false,
+    "ecdsa_substitution_allowed": false
   },
   "ordering": {
     "stream_model": "single_ordered_task_stream_per_session",
@@ -82,11 +83,16 @@
   },
   "durable_state_machine": {
     "states": ["RECEIVED", "ADMITTED", "EXECUTING", "RESULT_STAGED", "RESULT_PUBLISHED", "COMPLETE"],
-    "fail_closed_terminals": ["REJECTED", "EXPIRED", "REVOKED", "SEQUENCE_CONFLICT", "SESSION_STALE", "POLICY_MISMATCH", "RESULT_CONFLICT"],
+    "fail_closed_terminals": ["REJECTED", "EXPIRED", "REVOKED", "SEQUENCE_CONFLICT", "SESSION_STALE", "POLICY_MISMATCH", "EXECUTION_OUTCOME_UNKNOWN", "RESULT_CONFLICT"],
     "admitted_durable_before_inference": true,
     "result_staged_durable_before_publication": true,
     "publication_retry_reuses_staged_result": true,
     "publication_retry_reexecutes_inference": false,
+    "executing_restart_without_staged_result_auto_reexecutes_inference": false,
+    "executing_restart_without_staged_result_terminal": "EXECUTION_OUTCOME_UNKNOWN",
+    "exactly_once_model_execution_claimed": false,
+    "exactly_once_authoritative_result_publication_required": true,
+    "safe_retry_from_execution_outcome_unknown_requires_separate_idempotent_executor_contract": true,
     "complete_binds_one_authoritative_result_hash": true,
     "recovery_distinguishes_owned_from_foreign_state": true
   },
@@ -102,10 +108,12 @@
     "duplicate_delivery_idempotent": true,
     "delayed_delivery_can_rollback_sequence": false,
     "task_result_substitution_preserves_identity": false,
-    "restart_after_result_staged_creates_second_authoritative_result": false
+    "restart_after_result_staged_creates_second_authoritative_result": false,
+    "restart_during_execution_claims_exactly_once_model_execution": false
   },
   "strongest_invariant": {
     "at_most_one_authoritative_completed_result_hash_per_task_id": true,
+    "does_not_claim_exactly_once_model_execution": true,
     "no_capability_expansion_beyond_exact_list": true,
     "no_validator_authority_path": true,
     "no_crown_private_material_in_model_context": true
