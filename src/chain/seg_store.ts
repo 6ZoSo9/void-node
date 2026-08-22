@@ -6,6 +6,7 @@ import * as fs from "node:fs";
 import * as path from "node:path";
 import { blockHash, validateBlockForAppend } from "./block.js";
 import type { Block } from "./block.js";
+import { validateLegacyCommitDirectV2fsForAppendV1 } from "./legacy_commit_direct_v2fs_v1.js";
 import {
   assertVoidSegStorePathConfinedV1,
   assertVoidSegStoreRegularFileV1,
@@ -22,7 +23,7 @@ function recordSegstoreDatanetEmptyCatchVisibilityFailure_src_chain_seg_store_ts
   });
 }
 
-// --- WAL replay metrics (v1; additive) ---
+// --- WAL replay metrics (v1) ---
 export type WalReplayMetrics = {
   replay_runs_total: number;
   replay_entries_applied_total: number;
@@ -58,7 +59,9 @@ function canonicalReadCorruptionV1(message: string): Error {
 // - One WAL file per segment: <root>/wal/<seg>.wal (JSONL, base64 payloads)
 // - On startup, replay WAL entries > current head, idempotently.
 // - We do NOT try to guarantee perfect pruning; replay prunes best-effort.
+type CanonicalAppendModeV1 = "modern" | "legacy-v2fs";
 type WalRecV1 = { v: 1; n: number; b64: string; ts: number };
+type WalRecV2 = { v: 2; mode: "legacy-v2fs"; n: number; b64: string; ts: number };
 
 function mkdirp(root: string, p: string) {
   ensureVoidSegStoreDirectoryV1(root, p);
@@ -266,7 +269,7 @@ export class SegStore {
   }
 
   private canonicalCommitDurabilityFailure(
-    b: Block,
+    b: any,
     seg: string,
     phase: string,
     err: unknown,
@@ -282,47 +285,91 @@ export class SegStore {
   public saveBlock(b: any): any;
   public saveBlock(b: Block): void;
   public saveBlock(b: any) {
-    // Idempotence guard: if we already have it, don't double-append.
-    // (This keeps WAL replay safe if head.json lags behind blocks.bin.)
+    this.saveCanonicalBlockByModeV1(b, "modern");
+  }
+
+  /**
+   * Caller-authorized compatibility lane for the exact current Mainnet-0
+   * proposer.commit-direct.v2fs envelope. The caller must first bind the
+   * unsigned envelope to an explicitly configured canonical follower origin.
+   */
+  public saveAuthorizedLegacyCommitDirectV2fs(b: any): void {
+    this.saveCanonicalBlockByModeV1(b, "legacy-v2fs");
+  }
+
+  private validateCanonicalBlockByModeV1(
+    b: any,
+    parent: Block | null,
+    mode: CanonicalAppendModeV1,
+  ) {
+    return mode === "legacy-v2fs"
+      ? validateLegacyCommitDirectV2fsForAppendV1(b, parent as any)
+      : validateBlockForAppend(b, parent as any);
+  }
+
+  private canonicalBlockMatchesExistingV1(
+    existing: any,
+    candidate: any,
+    mode: CanonicalAppendModeV1,
+  ): boolean {
+    try {
+      if (mode === "legacy-v2fs") {
+        return JSON.stringify(existing) === JSON.stringify(candidate);
+      }
+      return blockHash(existing as any) === blockHash(candidate as any);
+    } catch {
+      return false;
+    }
+  }
+
+  private saveCanonicalBlockByModeV1(
+    b: any,
+    mode: CanonicalAppendModeV1,
+  ): void {
     const n = Number(b?.number);
-    if (!Number.isFinite(n) || n < 0) throw new Error("SegStore.saveBlock: invalid block.number");
+    if (!Number.isSafeInteger(n) || n < 0) {
+      throw new Error("SegStore.saveBlock: invalid block.number");
+    }
+
     this.assertCanonicalCommitWritable();
+
     const head = this.loadHeadNumber();
     if (head >= n) {
       const existing = this.loadBlock(n);
       if (existing) {
-        try {
-          if (blockHash(existing as any) === blockHash(b as any)) return; // already persisted
-        } catch (err) { recordSegstoreDatanetEmptyCatchVisibilityFailure_src_chain_seg_store_ts("empty-handler-11", err); }
+        if (this.canonicalBlockMatchesExistingV1(existing, b, mode)) return;
         throw new Error("SegStore.saveBlock: conflicting existing block");
       }
     }
 
     const parent = n === 0 ? null : this.loadBlock(n - 1);
-    const valid = validateBlockForAppend(b, parent as any);
-    if (!valid.ok) throw new Error(`SegStore.saveBlock: invalid block: ${(valid as any).reason || "unknown"}`);
+    const valid = this.validateCanonicalBlockByModeV1(b, parent as any, mode);
+    if (!valid.ok) {
+      const op = mode === "legacy-v2fs"
+        ? "saveAuthorizedLegacyCommitDirectV2fs"
+        : "saveBlock";
+      throw new Error(
+        `SegStore.${op}: invalid block: ${(valid as any).reason || "unknown"}`,
+      );
+    }
 
     const seg = this.segName(n);
     this.ensureSeg(seg);
-
-    // A durable WAL intent is a hard prerequisite for canonical segment append.
-    this.walAppendDurable(seg, b);
-
-    // Canonical bytes and their directory entry must be durable before head truth advances.
+    this.walAppendDurable(seg, b, mode);
     this.saveBlockCommit(b);
-
-    // Head bump (atomic rename)
     this.persistHeadAtomic(n);
   }
 
-  private walAppendDurable(seg: string, b: any) {
+  private walAppendDurable(seg: string, b: any, mode: CanonicalAppendModeV1) {
     const walPath = this.walPath(seg);
     try {
       assertVoidSegStorePathConfinedV1(this.root, this.walDir, { kind: "directory", allowMissing: false });
       assertVoidSegStoreRegularFileV1(this.root, walPath, true);
       const existedBefore = fs.existsSync(walPath);
       const body = Buffer.from(JSON.stringify(b));
-      const rec: WalRecV1 = { v: 1, n: Number(b.number), b64: body.toString("base64"), ts: Date.now() };
+      const rec: WalRecV1 | WalRecV2 = mode === "legacy-v2fs"
+        ? { v: 2, mode: "legacy-v2fs", n: Number(b.number), b64: body.toString("base64"), ts: Date.now() }
+        : { v: 1, n: Number(b.number), b64: body.toString("base64"), ts: Date.now() };
 
       fs.appendFileSync(walPath, JSON.stringify(rec) + "\n");
       assertVoidSegStoreRegularFileV1(this.root, walPath, false);
@@ -353,7 +400,7 @@ export class SegStore {
     }
   }
 
-  private saveBlockCommit(b: Block) {
+  private saveBlockCommit(b: any) {
     const seg = this.segName(b.number);
     this.ensureSeg(seg);
     const { dir, bin, idx } = this.segPaths(seg);
@@ -561,15 +608,15 @@ export class SegStore {
     this._walReplayMetrics.replay_last_error = `${prior};${normalized}`.slice(0, 2048);
   }
 
-  private replayBlockMatchesStoredBlock(existing: Block, replayed: Block): boolean {
-    try {
-      return (
-        blockHash(existing as any) === blockHash(replayed as any) &&
-        JSON.stringify(existing) === JSON.stringify(replayed)
-      );
-    } catch {
+  private replayBlockMatchesStoredBlock(
+    existing: any,
+    replayed: any,
+    mode: CanonicalAppendModeV1,
+  ): boolean {
+    if (!this.canonicalBlockMatchesExistingV1(existing, replayed, mode)) {
       return false;
     }
+    return JSON.stringify(existing) === JSON.stringify(replayed);
   }
 
   private replayWalAllBestEffort() {
@@ -658,9 +705,18 @@ export class SegStore {
     for (const candidate of ordered) {
       const { index, rec } = candidate;
 
-      if (!rec || typeof rec !== "object" || rec.v !== 1) {
+      if (!rec || typeof rec !== "object" || (rec.v !== 1 && rec.v !== 2)) {
         keep(index, `malformed_record:${seg}:${index}`);
         continue;
+      }
+
+      let replayMode: CanonicalAppendModeV1 = "modern";
+      if (rec.v === 2) {
+        if (rec.mode !== "legacy-v2fs") {
+          keep(index, `invalid_record_mode:${seg}:${index}`);
+          continue;
+        }
+        replayMode = "legacy-v2fs";
       }
 
       if (typeof rec.n !== "number" || !Number.isInteger(rec.n) || rec.n < 0) {
@@ -699,7 +755,7 @@ export class SegStore {
       }
 
       const parent = n === 0 ? null : this.loadBlock(n - 1);
-      const valid = validateBlockForAppend(blk, parent as any);
+      const valid = this.validateCanonicalBlockByModeV1(blk, parent as any, replayMode);
       if (!valid.ok) {
         keep(index, `invalid_block:${n}:${(valid as any).reason || "unknown"}`);
         continue;
@@ -714,7 +770,7 @@ export class SegStore {
           keep(index, `head_ahead_of_missing_block:head=${head}:record=${n}`);
           continue;
         }
-        if (!this.replayBlockMatchesStoredBlock(existing, blk as Block)) {
+        if (!this.replayBlockMatchesStoredBlock(existing, blk as Block, replayMode)) {
           keep(index, `existing_block_conflict:${n}`);
           continue;
         }
@@ -724,7 +780,7 @@ export class SegStore {
       // At this point n is exactly head + 1. A block may already be present if
       // the process crashed after segment append but before the atomic head bump.
       if (existing) {
-        if (!this.replayBlockMatchesStoredBlock(existing, blk as Block)) {
+        if (!this.replayBlockMatchesStoredBlock(existing, blk as Block, replayMode)) {
           keep(index, `existing_block_conflict:${n}`);
           continue;
         }
