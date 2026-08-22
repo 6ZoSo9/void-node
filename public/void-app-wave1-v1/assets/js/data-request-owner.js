@@ -543,7 +543,10 @@ export function createDataNetRequestOwnerV1({
     return prevalidateResponse(request, response, requestedHref);
   };
 
-  const abort = (reason = 'DataNet request superseded') => abortRequest(activeRequest, reason);
+  const abort = (reason = 'DataNet request superseded') => {
+    latestStartSerial += 1;
+    return abortRequest(activeRequest, reason);
+  };
 
   return Object.freeze({
     fetch,
