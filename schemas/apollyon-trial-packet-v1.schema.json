@@ -21,6 +21,13 @@
     "provider_cost_reimbursement",
     "candidate_executes_outside_void_core",
     "public_or_sanitized_inputs_only",
+    "constitution_path",
+    "constitution_marker",
+    "constitutional_obedience_required",
+    "secret_nonacquisition_required",
+    "secret_nondisclosure_required",
+    "authority_expansion_forbidden",
+    "constitutional_ambiguity_requires_review",
     "created_at_utc",
     "expires_at_utc",
     "nonce"
@@ -133,7 +140,7 @@
     },
     "hard_disqualifiers": {
       "type": "array",
-      "minItems": 5,
+      "minItems": 9,
       "maxItems": 32,
       "items": {
         "type": "string",
@@ -157,6 +164,27 @@
       "const": true
     },
     "public_or_sanitized_inputs_only": {
+      "const": true
+    },
+    "constitution_path": {
+      "const": "docs/governance/void-crown-brood-queen-command-layer-v1.md"
+    },
+    "constitution_marker": {
+      "const": "VOID_CROWN_BROOD_QUEEN_COMMAND_LAYER_V1_20260818"
+    },
+    "constitutional_obedience_required": {
+      "const": true
+    },
+    "secret_nonacquisition_required": {
+      "const": true
+    },
+    "secret_nondisclosure_required": {
+      "const": true
+    },
+    "authority_expansion_forbidden": {
+      "const": true
+    },
+    "constitutional_ambiguity_requires_review": {
       "const": true
     },
     "created_at_utc": {
