@@ -14,6 +14,7 @@ export const VOID_SEGMENTED_JSONL_SNAPSHOT_AUTHORITY_V1 =
 export const VOID_SEGMENTED_JSONL_CHECKPOINT_V1 =
   "VOID_SEGMENTED_JSONL_CHECKPOINT_V1";
 export const VOID_SEGMENTED_JSONL_MAX_CHECKPOINT_BYTES_V1 = 2048;
+export const VOID_SEGMENTED_JSONL_MAX_OFFLINE_CHECKPOINT_CHAIN_ENTRIES_V1 = 1024;
 
 export type SegmentedJsonlSnapshotAuthorityV1 = {
   v: 1;
@@ -424,11 +425,36 @@ export function verifySegmentedJsonlCheckpointV1(
   return c;
 }
 
+// Authority-grade online use is incremental: one exact current checkpoint,
+// its exact referenced snapshot, and one independently trusted predecessor
+// anchor. This path remains O(1) in retained checkpoint history.
+export function verifySegmentedJsonlCheckpointIncrementalV1(
+  checkpointInput: SegmentedJsonlCheckpointV1,
+  snapshotInput: SegmentedJsonlSnapshotAuthorityV1,
+  previousAnchorInput: SegmentedJsonlCheckpointAnchorV1 | null = null,
+): SegmentedJsonlCheckpointV1 {
+  return verifySegmentedJsonlCheckpointV1(
+    checkpointInput,
+    snapshotInput,
+    previousAnchorInput,
+  );
+}
+
+// Full-chain verification is an offline/diagnostic helper, not the online
+// lifetime authority path. Enforce the aggregate entry ceiling before touching
+// any caller-provided entry so this helper cannot become unbounded retained-
+// history work. Longer lifetimes must use incremental trusted-anchor rollover.
 export function verifySegmentedJsonlCheckpointChainV1(
   entries: readonly SegmentedJsonlCheckpointChainEntryV1[],
   trustedGenesisCheckpointSha256: string,
 ): SegmentedJsonlCheckpointV1 {
   if (!Array.isArray(entries) || entries.length === 0) fail("INVALID_CHECKPOINT_CHAIN", "empty");
+  if (entries.length > VOID_SEGMENTED_JSONL_MAX_OFFLINE_CHECKPOINT_CHAIN_ENTRIES_V1) {
+    fail(
+      "CHECKPOINT_CHAIN_TOO_LARGE",
+      `${entries.length}:${VOID_SEGMENTED_JSONL_MAX_OFFLINE_CHECKPOINT_CHAIN_ENTRIES_V1}`,
+    );
+  }
   if (!isHex64(trustedGenesisCheckpointSha256)) fail("INVALID_CHECKPOINT_CHAIN_TRUST_ROOT", String(trustedGenesisCheckpointSha256));
   let previousAnchor: SegmentedJsonlCheckpointAnchorV1 | null = null;
   let current: SegmentedJsonlCheckpointV1 | null = null;
