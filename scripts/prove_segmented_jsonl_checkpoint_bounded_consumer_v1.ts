@@ -128,7 +128,7 @@ try {
     prefix_bytes: witness.prefix_bytes + 2,
   };
   expectFailure(
-    () => verifySegmentedJsonlCheckpointAppendOnlyWitnessObjectV1(tamperedWitness),
+    () => verifySegmentedJsonlAppendOnlyCheckpointWitnessObjectV1(tamperedWitness),
     "APPEND_ONLY_WITNESS_DIGEST_MISMATCH",
   );
 
