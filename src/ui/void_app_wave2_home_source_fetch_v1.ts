@@ -314,25 +314,38 @@ const readWithinSignal = async (
   );
 };
 
+const notifySuccessfulTerminal = (
+  onSuccessfulTerminal?: () => void
+): void => {
+  try {
+    onSuccessfulTerminal?.();
+  } catch {
+    // Resource-terminal bookkeeping must never replace the primary result.
+  }
+};
+
 const awaitTeardownBounded = async (
   startTeardown: () => Promise<unknown>,
-  teardownMs = VOID_UI_WAVE2_HOME_SOURCE_TEARDOWN_MS_V1
+  teardownMs = VOID_UI_WAVE2_HOME_SOURCE_TEARDOWN_MS_V1,
+  onSuccessfulTerminal?: () => void
 ): Promise<void> => {
   let pending: Promise<unknown>;
   try {
     pending = Promise.resolve(startTeardown());
   } catch {
-    // Cleanup cannot replace the primary bounded-input result.
+    // Failed teardown is not a resource-terminal witness.
     return;
   }
+
+  const observed = pending.then(
+    () => notifySuccessfulTerminal(onSuccessfulTerminal),
+    () => undefined
+  );
 
   let timer: ReturnType<typeof setTimeout> | null = null;
   try {
     await Promise.race([
-      pending.then(
-        () => undefined,
-        () => undefined
-      ),
+      observed,
       new Promise<void>((resolve) => {
         timer = setTimeout(resolve, teardownMs);
       }),
@@ -344,11 +357,19 @@ const awaitTeardownBounded = async (
 
 const cancelLateResponseBounded = async (
   response: Response,
-  reason: unknown
+  reason: unknown,
+  onSuccessfulTerminal: () => void
 ): Promise<void> => {
   try {
-    if (!response.body) return;
-    await awaitTeardownBounded(() => response.body!.cancel(reason));
+    if (!response.body) {
+      notifySuccessfulTerminal(onSuccessfulTerminal);
+      return;
+    }
+    await awaitTeardownBounded(
+      () => response.body!.cancel(reason),
+      VOID_UI_WAVE2_HOME_SOURCE_TEARDOWN_MS_V1,
+      onSuccessfulTerminal
+    );
   } catch {
     // Late-response cleanup cannot replace the already-terminal source result.
   }
@@ -402,26 +423,47 @@ const declaredLength = (response: Response): number | null => {
 
 export async function readVoidUiWave2HomeBoundedTextV1(
   response: Response,
-  signal: AbortSignal
+  signal: AbortSignal,
+  onBodyTerminal?: () => void
 ): Promise<string> {
   const declared = declaredLength(response);
+  const body = response.body;
   if (
     declared !== null &&
     declared > VOID_UI_WAVE2_HOME_SOURCE_MAX_RESPONSE_BYTES_V1
   ) {
-    if (response.body) {
+    if (body) {
       await awaitTeardownBounded(
-        () => response.body!.cancel("void_ui_wave2_home_source_body_too_large")
+        () => body.cancel("void_ui_wave2_home_source_body_too_large"),
+        VOID_UI_WAVE2_HOME_SOURCE_TEARDOWN_MS_V1,
+        onBodyTerminal
       );
+    } else {
+      notifySuccessfulTerminal(onBodyTerminal);
     }
     throw new Error("source_body_too_large");
   }
 
-  if (!response.body || typeof response.body.getReader !== "function") {
+  if (!body) {
+    notifySuccessfulTerminal(onBodyTerminal);
     throw new Error("source_body_not_stream_readable");
   }
 
-  const reader = response.body.getReader();
+  let reader: ReadableStreamDefaultReader<Uint8Array>;
+  try {
+    if (typeof body.getReader !== "function") {
+      throw new Error("source_body_not_stream_readable");
+    }
+    reader = body.getReader();
+  } catch (error) {
+    await awaitTeardownBounded(
+      () => body.cancel(error),
+      VOID_UI_WAVE2_HOME_SOURCE_TEARDOWN_MS_V1,
+      onBodyTerminal
+    );
+    throw error;
+  }
+
   const decoder = new TextDecoder();
   let totalBytes = 0;
   let text = "";
@@ -430,7 +472,11 @@ export async function readVoidUiWave2HomeBoundedTextV1(
   const cancelReaderBounded = async (reason: unknown): Promise<void> => {
     if (cancellationAttempted) return;
     cancellationAttempted = true;
-    await awaitTeardownBounded(() => reader.cancel(reason));
+    await awaitTeardownBounded(
+      () => reader.cancel(reason),
+      VOID_UI_WAVE2_HOME_SOURCE_TEARDOWN_MS_V1,
+      onBodyTerminal
+    );
   };
 
   try {
@@ -450,6 +496,7 @@ export async function readVoidUiWave2HomeBoundedTextV1(
     }
 
     text += decoder.decode();
+    notifySuccessfulTerminal(onBodyTerminal);
     return text;
   } catch (error) {
     await cancelReaderBounded(error);
@@ -481,6 +528,13 @@ export async function fetchVoidUiWave2HomeSourceJsonV1(
     };
   }
 
+  let acquisitionFinished = false;
+  const finishAcquisition = (): void => {
+    if (acquisitionFinished) return;
+    acquisitionFinished = true;
+    acquisitionOwner.finish(acquisitionKey);
+  };
+
   const controller = new AbortController();
   const timeoutMs =
     Number.isSafeInteger(options.timeoutMs) && Number(options.timeoutMs) > 0
@@ -492,6 +546,7 @@ export async function fetchVoidUiWave2HomeSourceJsonV1(
   );
   timeout.unref?.();
   const fetchImpl = options.fetchImpl ?? fetch;
+  let responseAdmitted = false;
 
   try {
     const pendingFetch = Promise.resolve().then(() =>
@@ -509,28 +564,26 @@ export async function fetchVoidUiWave2HomeSourceJsonV1(
 
     void pendingFetch.then(
       async (response) => {
-        try {
-          if (controller.signal.aborted) {
-            await cancelLateResponseBounded(
-              response,
-              sourceDeadlineError(controller.signal)
-            );
-          }
-        } finally {
-          acquisitionOwner.finish(acquisitionKey);
-        }
+        if (responseAdmitted || !controller.signal.aborted) return;
+        await cancelLateResponseBounded(
+          response,
+          sourceDeadlineError(controller.signal),
+          finishAcquisition
+        );
       },
-      () => acquisitionOwner.finish(acquisitionKey)
+      () => finishAcquisition()
     );
 
     const response = await fetchWithinSignal(
       pendingFetch,
       controller.signal
     );
+    responseAdmitted = true;
 
     const text = await readVoidUiWave2HomeBoundedTextV1(
       response,
-      controller.signal
+      controller.signal,
+      finishAcquisition
     );
     let body: unknown = null;
 
@@ -546,6 +599,9 @@ export async function fetchVoidUiWave2HomeSourceJsonV1(
       body,
     };
   } catch (error) {
+    if (!responseAdmitted && !controller.signal.aborted) {
+      finishAcquisition();
+    }
     return {
       ok: false,
       status: 0,
