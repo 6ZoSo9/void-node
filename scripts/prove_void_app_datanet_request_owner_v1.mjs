@@ -315,6 +315,44 @@ await assert.rejects(queuedFirst, /superseded/);
 assert.equal(queuedOwner.abort('queued superseder test cleanup'), true);
 assert.equal(queuedOwner.hasActiveRequest(), false);
 
+const queuedUnmountHarness = delayedAbortFetchHarness();
+const queuedUnmountOwner = createDataNetRequestOwnerV1({
+  fetchImpl: queuedUnmountHarness.fetchImpl,
+  origin: 'https://void.example',
+});
+const queuedUnmountActive = queuedUnmountOwner.fetch(DATANET_URL);
+void queuedUnmountActive.catch(() => {});
+await drainUntil(
+  () => queuedUnmountHarness.records.length === 1,
+  'queued-unmount active generation must start',
+);
+const queuedUnmountReplacement = queuedUnmountOwner.fetch(DATANET_URL);
+void queuedUnmountReplacement.catch(() => {});
+await drainUntil(
+  () => queuedUnmountHarness.records[0].aborted === true,
+  'queued-unmount replacement must enter the predecessor-release wait',
+);
+assert.equal(queuedUnmountHarness.records.length, 1);
+assert.equal(
+  reconcileDataNetRequestOwnerWithViewV1(queuedUnmountOwner, {
+    route: 'home',
+    viewPresent: false,
+  }),
+  false,
+);
+queuedUnmountHarness.records[0].settleAbort();
+await assert.rejects(queuedUnmountActive, /superseded/);
+await assert.rejects(queuedUnmountReplacement, /superseded/);
+await drainUntil(
+  () => queuedUnmountOwner.hasActiveRequest() === false,
+  'unmount must release the old generation without starting queued transport work',
+);
+assert.equal(
+  queuedUnmountHarness.records.length,
+  1,
+  'route unmount must invalidate queued starts before fetchImpl is invoked',
+);
+
 const bodyPhaseHarness = pendingFetchHarness();
 const bodyPhaseOwner = createDataNetRequestOwnerV1({
   fetchImpl: bodyPhaseHarness.fetchImpl,
@@ -517,6 +555,7 @@ assert.ok(
 assert.match(ownerSource, /acquireStartSlot/);
 assert.match(ownerSource, /latestStartSerial/);
 assert.match(ownerSource, /assertLatestStart\(startSerial\)/);
+assert.match(ownerSource, /latestStartSerial \+= 1/);
 assert.match(ownerSource, /abortRequest\(priorRequest, 'DataNet request superseded'\)/);
 assert.match(ownerSource, /sourceSignal\.addEventListener\('abort'/);
 assert.match(ownerSource, /Promise\.race\(\[promise, aborted\]\)\.finally/);
@@ -533,6 +572,7 @@ console.log('superseded_request_aborted=true');
 console.log('queued_superseders_latest_wins=true');
 console.log('queued_superseder_transport_starts=2');
 console.log('queued_superseder_max_concurrent_datanet_requests=1');
+console.log('queued_starts_invalidated_on_unmount=true');
 console.log('body_phase_supersession_aborted=true');
 console.log('caller_deadline_signal_preserved=true');
 console.log('final_url_identity_required=true');
