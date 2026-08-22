@@ -88,8 +88,12 @@ function injectParentFsyncChildLinkSwap(source: string, destination: string): vo
   try {
     (mutableFs as any).fsyncSync = (fd: number) => {
       let fdPath = "";
-      try { fdPath = fs.readlinkSync(`/proc/self/fd/${fd}`); }
-      catch { return originalFsyncSync(fd); }
+      try {
+        fdPath = fs.readlinkSync(`/proc/self/fd/${fd}`);
+      } catch (readlinkError) {
+        void readlinkError;
+        return originalFsyncSync(fd);
+      }
 
       if (!injected && path.resolve(fdPath) === path.resolve(segmentsDir) && fs.existsSync(sealedLeaf)) {
         fs.renameSync(sealedLeaf, ownedAside);
