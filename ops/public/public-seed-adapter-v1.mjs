@@ -130,7 +130,25 @@ async function readPublicDataNetStaticFileV1(fileName) {
       throw new Error("public_datanet_static_size_invalid");
     }
 
-    const body = await handle.readFile();
+    const body = Buffer.allocUnsafe(PUBLIC_DATANET_STATIC_MAX_BYTES + 1);
+    let bodyLength = 0;
+    while (bodyLength < body.length) {
+      const { bytesRead } = await handle.read(
+        body,
+        bodyLength,
+        body.length - bodyLength,
+        bodyLength,
+      );
+      if (!Number.isSafeInteger(bytesRead) || bytesRead < 0) {
+        throw new Error("public_datanet_static_read_invalid");
+      }
+      if (bytesRead === 0) break;
+      bodyLength += bytesRead;
+    }
+    if (bodyLength > PUBLIC_DATANET_STATIC_MAX_BYTES) {
+      throw new Error("public_datanet_static_size_invalid");
+    }
+
     const after = await handle.stat({ bigint: true });
 
     if (
@@ -138,12 +156,12 @@ async function readPublicDataNetStaticFileV1(fileName) {
       before.ino !== after.ino ||
       before.size !== after.size ||
       before.mtimeNs !== after.mtimeNs ||
-      BigInt(body.length) !== before.size
+      BigInt(bodyLength) !== before.size
     ) {
       throw new Error("public_datanet_static_generation_changed");
     }
 
-    return body;
+    return body.subarray(0, bodyLength);
   } finally {
     await handle.close();
   }
@@ -967,6 +985,7 @@ async function proxyEarnSubmit(req, res) {
       response.status,
       filteredHeaders(response.headers, {
         "cache-control": "no-store",
+        "x-content-type-options": "nosniff",
         "x-void-public-earn-gateway": "v1",
       }),
     );
@@ -1017,7 +1036,7 @@ function serveClaimCli(req, res) {
     res,
     EARN_CLAIM_CLI_FILE,
     "wc-public-ticket-claim-v1.sh",
-    "claim_cli_unavailable",
+    "participant_cli_unavailable",
   );
 }
 
