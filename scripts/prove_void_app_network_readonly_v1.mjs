@@ -5,6 +5,8 @@ import { fileURLToPath } from 'node:url';
 
 import {
   MAX_NETWORK_RESPONSE_BYTES,
+  NETWORK_MAX_ZERO_PROGRESS_READS,
+  NETWORK_TEARDOWN_TIMEOUT_MS,
   NETWORK_ENDPOINT,
   NETWORK_MARKER,
   createNetworkRequestOwnerV1,
@@ -270,6 +272,135 @@ unmountOwner.cancel('network route left');
 await assert.rejects(unmountRun);
 assert.equal(unmountOwner.isActive(), false);
 
+
+let stalledCancelCalls = 0;
+const stalledReader = {
+  read: () => new Promise(() => {}),
+  cancel() {
+    stalledCancelCalls += 1;
+    return new Promise(() => {});
+  },
+  releaseLock() {},
+};
+const stalledAbort = new AbortController();
+const stalledStarted = Date.now();
+const stalledRead = readBoundedNetworkJsonV1(
+  { body: { getReader: () => stalledReader } },
+  stalledAbort.signal,
+);
+setTimeout(
+  () => stalledAbort.abort(new Error('network hostile body deadline')),
+  10,
+);
+await assert.rejects(stalledRead, /network hostile body deadline/);
+assert.ok(Date.now() - stalledStarted < NETWORK_TEARDOWN_TIMEOUT_MS * 5);
+assert.equal(stalledCancelCalls, 1);
+
+let overflowReads = 0;
+let overflowCancelCalls = 0;
+const overflowReader = {
+  async read() {
+    overflowReads += 1;
+    return overflowReads === 1
+      ? { done: false, value: new Uint8Array(MAX_NETWORK_RESPONSE_BYTES) }
+      : { done: false, value: new Uint8Array(1) };
+  },
+  cancel() {
+    overflowCancelCalls += 1;
+    return new Promise(() => {});
+  },
+  releaseLock() {},
+};
+const overflowStarted = Date.now();
+await assert.rejects(
+  () => readBoundedNetworkJsonV1({
+    body: { getReader: () => overflowReader },
+  }),
+  /exceeds byte limit/,
+);
+assert.ok(Date.now() - overflowStarted < NETWORK_TEARDOWN_TIMEOUT_MS * 5);
+assert.equal(overflowCancelCalls, 1);
+
+let zeroProgressReads = 0;
+const zeroProgressReader = {
+  async read() {
+    zeroProgressReads += 1;
+    return { done: false, value: new Uint8Array(0) };
+  },
+  async cancel() {},
+  releaseLock() {},
+};
+await assert.rejects(
+  () => readBoundedNetworkJsonV1({
+    body: { getReader: () => zeroProgressReader },
+  }),
+  /made no progress/,
+);
+assert.equal(zeroProgressReads, NETWORK_MAX_ZERO_PROGRESS_READS + 1);
+
+let hostileFetches = 0;
+let resolveHostileRead;
+let resolveHostileCancel;
+const hostileReadPromise = new Promise((resolve) => {
+  resolveHostileRead = resolve;
+});
+const hostileCancelPromise = new Promise((resolve) => {
+  resolveHostileCancel = resolve;
+});
+const hostileOwnedReader = {
+  read: () => hostileReadPromise,
+  cancel: () => hostileCancelPromise,
+  releaseLock() {},
+};
+const quarantineFetch = async () => {
+  hostileFetches += 1;
+  if (hostileFetches === 1) {
+    return { body: { getReader: () => hostileOwnedReader } };
+  }
+  return new Response('{}', {
+    headers: { 'content-type': 'application/json' },
+  });
+};
+const quarantineOwner = createNetworkRequestOwnerV1(quarantineFetch);
+const quarantineDeadline = new AbortController();
+const quarantinedRun = quarantineOwner.run(
+  NETWORK_ENDPOINT,
+  { method: 'GET', signal: quarantineDeadline.signal },
+  (response, signal, lifetime) => (
+    readBoundedNetworkJsonV1(response, signal, lifetime)
+  ),
+);
+await new Promise((resolve) => setTimeout(resolve, 0));
+quarantineDeadline.abort(new Error('network quarantine deadline'));
+await assert.rejects(quarantinedRun, /network quarantine deadline/);
+assert.equal(quarantineOwner.isActive(), true);
+assert.equal(quarantineOwner.hasQuarantinedGeneration(), true);
+assert.equal(hostileFetches, 1);
+
+await assert.rejects(
+  () => quarantineOwner.run(
+    NETWORK_ENDPOINT,
+    { method: 'GET' },
+    async () => 'must-not-start',
+  ),
+  /prior request generation is still settling/,
+);
+assert.equal(hostileFetches, 1);
+
+resolveHostileCancel();
+resolveHostileRead({ done: true, value: undefined });
+await new Promise((resolve) => setTimeout(resolve, 0));
+assert.equal(quarantineOwner.hasQuarantinedGeneration(), false);
+
+const recovered = await quarantineOwner.run(
+  NETWORK_ENDPOINT,
+  { method: 'GET' },
+  async () => 'recovered',
+);
+assert.equal(recovered, 'recovered');
+assert.equal(hostileFetches, 2);
+assert.equal(quarantineOwner.isActive(), false);
+
 assert.equal(walletSource.split("import './network-live.js';").length - 1, 1);
 assert.equal(NETWORK_ENDPOINT, '/__void/ui/wave2/home.json');
 
@@ -282,6 +413,9 @@ for (const marker of [
   "referrerPolicy: 'no-referrer'",
   'AbortSignal.timeout(5000)',
   'MAX_NETWORK_RESPONSE_BYTES = 128 * 1024',
+  'NETWORK_TEARDOWN_TIMEOUT_MS = 250',
+  'NETWORK_MAX_ZERO_PROGRESS_READS = 64',
+  'network prior request generation is still settling',
   'createNetworkRequestOwnerV1',
   "clearNetworkEvidence('HOLD')",
   "networkRequestOwner.cancel('network route left')",
@@ -319,6 +453,12 @@ console.log('VOID_APP_NETWORK_READONLY_V1_PROOF_GREEN');
 console.log('same_origin_get_only=1');
 console.log('bounded_response_bytes=131072');
 console.log('one_active_request=1');
+console.log('deadline_raced_body_read=1');
+console.log('bounded_cancel_teardown_ms=250');
+console.log('normal_abort_releases_owner=1');
+console.log('zero_progress_stream_rejected=1');
+console.log('max_unresolved_generation=1');
+console.log('quarantined_generation_blocks_replacement=1');
 console.log('superseded_request_aborted=1');
 console.log('unmount_request_aborted=1');
 console.log('stale_evidence_withheld_while_loading=1');

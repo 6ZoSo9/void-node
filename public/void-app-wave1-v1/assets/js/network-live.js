@@ -1,6 +1,47 @@
 export const NETWORK_ENDPOINT = '/__void/ui/wave2/home.json';
 export const NETWORK_MARKER = 'VOID_UI_WAVE2_HOME_READONLY_V1';
 export const MAX_NETWORK_RESPONSE_BYTES = 128 * 1024;
+export const NETWORK_TEARDOWN_TIMEOUT_MS = 250;
+export const NETWORK_MAX_ZERO_PROGRESS_READS = 64;
+
+const networkAbortReasonV1 = (signal, fallback = 'network request aborted') => (
+  signal?.reason instanceof Error
+    ? signal.reason
+    : new Error(signal?.reason ? String(signal.reason) : fallback)
+);
+
+const raceNetworkSignalV1 = (promise, signal) => {
+  if (!signal) return Promise.resolve(promise);
+  if (signal.aborted) return Promise.reject(networkAbortReasonV1(signal));
+
+  let onAbort = null;
+  const aborted = new Promise((_, reject) => {
+    onAbort = () => reject(networkAbortReasonV1(signal));
+    signal.addEventListener('abort', onAbort, { once: true });
+  });
+
+  return Promise.race([promise, aborted]).finally(() => {
+    if (onAbort) signal.removeEventListener('abort', onAbort);
+  });
+};
+
+const boundedNetworkSettlementV1 = async (
+  promise,
+  timeoutMs = NETWORK_TEARDOWN_TIMEOUT_MS,
+) => {
+  let timer = null;
+  try {
+    return await Promise.race([
+      Promise.resolve(promise),
+      new Promise((resolve) => {
+        timer = setTimeout(() => resolve(undefined), timeoutMs);
+      }),
+    ]);
+  } finally {
+    if (timer !== null) clearTimeout(timer);
+  }
+};
+
 
 const TOP_KEYS = Object.freeze([
   'account',
@@ -159,29 +200,91 @@ export function validateNetworkSnapshotV1(snapshot) {
   return snapshot;
 }
 
-export async function readBoundedNetworkJsonV1(response) {
+export async function readBoundedNetworkJsonV1(
+  response,
+  signal = null,
+  lifetime = null,
+) {
   if (!response?.body || typeof response.body.getReader !== 'function') {
     throw new Error('network response body is not stream-readable');
   }
 
   const reader = response.body.getReader();
+  lifetime?.bindReader?.(reader);
+
   const chunks = [];
   let total = 0;
+  let zeroProgressReads = 0;
+  let bodyComplete = false;
+
+  const cancelBounded = async (reason) => {
+    try {
+      const cleanup = lifetime?.cancelReader
+        ? lifetime.cancelReader(reader, reason)
+        : Promise.resolve().then(() => reader.cancel(reason));
+      await boundedNetworkSettlementV1(cleanup);
+    } catch {
+      // Preserve the primary timeout/admission failure.
+    }
+  };
 
   try {
     while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      if (!(value instanceof Uint8Array)) throw new Error('network response chunk invalid');
+      const rawRead = Promise.resolve().then(() => reader.read());
+      const trackedRead = lifetime?.trackRead
+        ? lifetime.trackRead(rawRead)
+        : rawRead;
+      const { done, value } = await raceNetworkSignalV1(
+        trackedRead,
+        signal,
+      );
+
+      if (done) {
+        bodyComplete = true;
+        lifetime?.markBodyTerminal?.();
+        break;
+      }
+
+      if (!(value instanceof Uint8Array)) {
+        throw new Error('network response chunk invalid');
+      }
+
+      if (value.byteLength === 0) {
+        zeroProgressReads += 1;
+        if (zeroProgressReads > NETWORK_MAX_ZERO_PROGRESS_READS) {
+          throw new Error('network response made no progress');
+        }
+        continue;
+      }
+
+      zeroProgressReads = 0;
       total += value.byteLength;
       if (total > MAX_NETWORK_RESPONSE_BYTES) {
-        await reader.cancel('network response exceeds byte limit');
         throw new Error('network response exceeds byte limit');
       }
       chunks.push(value);
     }
+  } catch (error) {
+    if (!bodyComplete) {
+      await cancelBounded(
+        signal?.aborted
+          ? networkAbortReasonV1(signal).message
+          : error instanceof Error
+            ? error.message
+            : 'network response rejected',
+      );
+    }
+    throw error;
   } finally {
-    reader.releaseLock();
+    if (lifetime?.releaseReaderLock) {
+      lifetime.releaseReaderLock(reader);
+    } else {
+      try {
+        reader.releaseLock();
+      } catch {
+        // A hostile unresolved read can retain the lock after our terminal.
+      }
+    }
   }
 
   const bytes = new Uint8Array(total);
@@ -191,8 +294,8 @@ export async function readBoundedNetworkJsonV1(response) {
     offset += chunk.byteLength;
   }
 
-  const text = new TextDecoder('utf-8', { fatal: true }).decode(bytes);
-  return JSON.parse(text);
+  const decoded = new TextDecoder('utf-8', { fatal: true }).decode(bytes);
+  return JSON.parse(decoded);
 }
 
 export function networkViewModelV1(snapshot) {
@@ -251,46 +354,352 @@ export function networkViewModelV1(snapshot) {
   });
 }
 
-export function createNetworkRequestOwnerV1(fetchImpl = (...args) => globalThis.fetch(...args)) {
+export function createNetworkRequestOwnerV1(
+  fetchImpl = (...args) => globalThis.fetch(...args),
+) {
   let active = null;
+  let startQueue = Promise.resolve();
 
-  const cancel = (reason = 'network request canceled') => {
-    if (active && !active.controller.signal.aborted) {
-      active.controller.abort(reason);
+  const acquireStartSlot = async (sourceSignal) => {
+    const predecessor = startQueue;
+    let releaseSlot;
+    const slot = new Promise((resolve) => { releaseSlot = resolve; });
+    startQueue = predecessor.then(() => slot, () => slot);
+    try {
+      await raceNetworkSignalV1(predecessor, sourceSignal);
+    } catch (error) {
+      predecessor.then(releaseSlot, releaseSlot);
+      throw error;
     }
-    active = null;
+    return releaseSlot;
   };
 
-  const run = async (input, init, consume) => {
-    cancel('network request superseded');
+  const release = (request) => {
+    if (request.released) return;
+    request.released = true;
+    request.detachCallerAbort();
+    if (active === request) active = null;
+    request.resolveReleased();
+  };
 
-    const controller = new AbortController();
-    const token = { controller };
-    active = token;
-    const callerSignal = init?.signal;
-    const relayAbort = () => controller.abort(callerSignal?.reason || 'network request deadline');
+  const releaseReaderLockIfTerminal = (request) => {
+    if (
+      !request.bodyTerminal ||
+      !request.releaseReaderLockRequested ||
+      !request.reader
+    ) return;
+    request.releaseReaderLockRequested = false;
+    try {
+      request.reader.releaseLock?.();
+    } catch {
+      // Cleanup only after an independently witnessed body terminal.
+    }
+  };
 
-    if (callerSignal) {
-      if (callerSignal.aborted) {
-        relayAbort();
-      } else {
-        callerSignal.addEventListener('abort', relayAbort, { once: true });
+  const maybeRelease = (request) => {
+    if (
+      request.fetchSettled &&
+      request.consumeSettled &&
+      request.bodyTerminal &&
+      request.pendingReads.size === 0 &&
+      request.pendingCancels.size === 0
+    ) {
+      releaseReaderLockIfTerminal(request);
+      release(request);
+    }
+  };
+
+  const markBodyTerminal = (request) => {
+    request.bodyTerminal = true;
+    releaseReaderLockIfTerminal(request);
+    maybeRelease(request);
+  };
+
+  const trackRead = (request, promise) => {
+    request.pendingReads.add(promise);
+    promise.then(
+      (result) => {
+        request.pendingReads.delete(promise);
+        if (result?.done === true) markBodyTerminal(request);
+        else maybeRelease(request);
+      },
+      () => {
+        request.pendingReads.delete(promise);
+        markBodyTerminal(request);
+      },
+    );
+    return promise;
+  };
+
+  const trackCancel = (request, promise) => {
+    request.pendingCancels.add(promise);
+    promise.then(
+      () => {
+        request.pendingCancels.delete(promise);
+        markBodyTerminal(request);
+      },
+      () => {
+        request.pendingCancels.delete(promise);
+        maybeRelease(request);
+      },
+    );
+    return promise;
+  };
+
+  const bindReader = (request, reader) => {
+    if (!request.reader) request.reader = reader;
+    return reader;
+  };
+
+  const startReaderCancel = (request, reader, reason) => {
+    if (request.cancelPromise) return request.cancelPromise;
+    bindReader(request, reader);
+    if (typeof reader?.cancel !== 'function') {
+      request.cancelPromise = Promise.resolve();
+      maybeRelease(request);
+      return request.cancelPromise;
+    }
+    const operation = Promise.resolve().then(() => reader.cancel(reason));
+    request.cancelPromise = trackCancel(request, operation);
+    return request.cancelPromise;
+  };
+
+  const startResponseCancel = (request, response, reason) => {
+    if (request.cancelPromise) return request.cancelPromise;
+    const body = response?.body;
+    if (!body) {
+      markBodyTerminal(request);
+      request.cancelPromise = Promise.resolve();
+      return request.cancelPromise;
+    }
+    if (typeof body.cancel === 'function') {
+      const operation = Promise.resolve().then(() => body.cancel(reason));
+      request.cancelPromise = trackCancel(request, operation);
+      return request.cancelPromise;
+    }
+    if (typeof body.getReader === 'function') {
+      try {
+        return startReaderCancel(request, body.getReader(), reason);
+      } catch {
+        request.cancelPromise = Promise.resolve();
+        maybeRelease(request);
+        return request.cancelPromise;
       }
     }
+    request.cancelPromise = Promise.resolve();
+    maybeRelease(request);
+    return request.cancelPromise;
+  };
+
+  const startOwnedCleanup = (request, reason) => {
+    if (!request || request.released) return Promise.resolve();
+    if (request.reader) {
+      return startReaderCancel(request, request.reader, reason);
+    }
+    if (request.response) {
+      return startResponseCancel(request, request.response, reason);
+    }
+    if (request.fetchSettled) markBodyTerminal(request);
+    return request.cancelPromise ?? Promise.resolve();
+  };
+
+  const abortRequest = (request, reason) => {
+    if (!request || request.released) return false;
+    if (!request.controller.signal.aborted) {
+      request.controller.abort(new Error(reason));
+    }
+    void startOwnedCleanup(request, reason).catch(() => {});
+    return true;
+  };
+
+  const waitForPriorRelease = async (request, sourceSignal) => {
+    if (!request || request.released) return;
+    abortRequest(request, 'network request superseded');
+    await boundedNetworkSettlementV1(
+      raceNetworkSignalV1(request.releasedPromise, sourceSignal),
+    );
+    if (!request.released) {
+      throw new Error('network prior request generation is still settling');
+    }
+  };
+
+  const lifetimeFor = (request) => Object.freeze({
+    bindReader(reader) {
+      return bindReader(request, reader);
+    },
+    trackRead(promise) {
+      return trackRead(request, promise);
+    },
+    markBodyTerminal() {
+      markBodyTerminal(request);
+    },
+    cancelReader(reader, reason) {
+      return startReaderCancel(request, reader, reason);
+    },
+    releaseReaderLock(reader) {
+      bindReader(request, reader);
+      request.releaseReaderLockRequested = true;
+      releaseReaderLockIfTerminal(request);
+      maybeRelease(request);
+    },
+  });
+
+  const run = async (input, init = {}, consume) => {
+    const releaseStartSlot = await acquireStartSlot(init?.signal);
+    let request;
+    let rawFetch;
 
     try {
-      const response = await fetchImpl(input, { ...init, signal: controller.signal });
-      return await consume(response, controller.signal);
+      if (active) await waitForPriorRelease(active, init?.signal);
+
+      const controller = new AbortController();
+      let resolveReleased;
+      const releasedPromise = new Promise((resolve) => {
+        resolveReleased = resolve;
+      });
+      const callerSignal = init?.signal;
+      let callerAbort = null;
+
+      if (callerSignal) {
+        callerAbort = () => {
+          if (!controller.signal.aborted) {
+            controller.abort(networkAbortReasonV1(
+              callerSignal,
+              'network request deadline',
+            ));
+          }
+        };
+        if (callerSignal.aborted) callerAbort();
+        else callerSignal.addEventListener('abort', callerAbort, { once: true });
+      }
+
+      request = {
+        controller,
+        detachCallerAbort: () => {
+          if (callerSignal && callerAbort) {
+            callerSignal.removeEventListener('abort', callerAbort);
+          }
+        },
+        fetchSettled: false,
+        consumeSettled: false,
+        response: null,
+        reader: null,
+        bodyTerminal: false,
+        releaseReaderLockRequested: false,
+        pendingReads: new Set(),
+        pendingCancels: new Set(),
+        cancelPromise: null,
+        released: false,
+        releasedPromise,
+        resolveReleased,
+      };
+      active = request;
+
+      try {
+        rawFetch = Promise.resolve(fetchImpl(input, {
+          ...init,
+          signal: controller.signal,
+        }));
+      } catch (error) {
+        rawFetch = Promise.reject(error);
+      }
+
+      rawFetch.then(
+        (response) => {
+          request.fetchSettled = true;
+          request.response = response;
+          if (controller.signal.aborted) {
+            void startResponseCancel(
+              request,
+              response,
+              networkAbortReasonV1(controller.signal).message,
+            ).catch(() => {});
+          }
+          maybeRelease(request);
+        },
+        () => {
+          request.fetchSettled = true;
+          markBodyTerminal(request);
+        },
+      );
     } finally {
-      callerSignal?.removeEventListener?.('abort', relayAbort);
-      if (active === token) active = null;
+      releaseStartSlot();
+    }
+
+    let response;
+    try {
+      response = await raceNetworkSignalV1(
+        rawFetch,
+        request.controller.signal,
+      );
+    } catch (error) {
+      request.consumeSettled = true;
+      const cleanup = startOwnedCleanup(
+        request,
+        request.controller.signal.aborted
+          ? networkAbortReasonV1(request.controller.signal).message
+          : 'network fetch failed',
+      );
+      try {
+        await boundedNetworkSettlementV1(cleanup);
+      } catch {
+        // The primary fetch/deadline failure remains authoritative.
+      }
+      maybeRelease(request);
+      throw error;
+    }
+
+    request.fetchSettled = true;
+    request.response = response;
+    const lifetime = lifetimeFor(request);
+
+    try {
+      const value = await consume(
+        response,
+        request.controller.signal,
+        lifetime,
+      );
+      request.consumeSettled = true;
+
+      if (!request.bodyTerminal) {
+        await boundedNetworkSettlementV1(
+          startOwnedCleanup(request, 'network response consumer completed'),
+        );
+      }
+
+      maybeRelease(request);
+      await boundedNetworkSettlementV1(request.releasedPromise);
+      if (!request.released) {
+        throw new Error('network request generation is still settling');
+      }
+      return value;
+    } catch (error) {
+      request.consumeSettled = true;
+      const cleanup = startOwnedCleanup(
+        request,
+        error instanceof Error
+          ? error.message
+          : 'network response consumer failed',
+      );
+      try {
+        await boundedNetworkSettlementV1(cleanup);
+      } catch {
+        // The primary response-consumer failure remains authoritative.
+      }
+      maybeRelease(request);
+      throw error;
     }
   };
 
   return Object.freeze({
     run,
-    cancel,
+    cancel: (reason = 'network request canceled') => abortRequest(active, reason),
     isActive: () => active !== null,
+    hasQuarantinedGeneration: () => Boolean(
+      active &&
+      active.controller.signal.aborted &&
+      !active.released
+    ),
   });
 }
 
@@ -531,7 +940,7 @@ export async function loadNetworkViewV1() {
         referrerPolicy: 'no-referrer',
         signal: AbortSignal.timeout(5000),
       },
-      async (response) => {
+      async (response, signal, lifetime) => {
         if (!response.ok) {
           throw new Error(`network adapter returned HTTP ${response.status}`);
         }
@@ -540,7 +949,7 @@ export async function loadNetworkViewV1() {
           throw new Error('network adapter content type mismatch');
         }
         const snapshot = validateNetworkSnapshotV1(
-          await readBoundedNetworkJsonV1(response)
+          await readBoundedNetworkJsonV1(response, signal, lifetime)
         );
         return networkViewModelV1(snapshot);
       }
