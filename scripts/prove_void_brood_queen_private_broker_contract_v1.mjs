@@ -1,6 +1,8 @@
 #!/usr/bin/env node
 
 import { readFile } from 'node:fs/promises';
+import { createHash } from 'node:crypto';
+import { execFileSync } from 'node:child_process';
 
 const DOC = 'docs/governance/void-brood-queen-private-broker-contract-v1.md';
 const FIXTURE = 'fixtures/governance/void-brood-queen-private-broker-contract-v1.json';
@@ -10,6 +12,15 @@ const SEAT = 'fixtures/governance/void-brood-queen-local-model-seat-v1.json';
 const MARKER = 'VOID_BROOD_QUEEN_PRIVATE_BROKER_CONTRACT_V1_20260822';
 const IDENTITY_MARKER = 'VOID_BROOD_QUEEN_CRYPTOGRAPHIC_IDENTITY_CONTRACT_V1_20260822';
 const SEAT_MARKER = 'VOID_BROOD_QUEEN_LOCAL_MODEL_SEAT_V1_20260822';
+const IDENTITY_HEAD = '8ac42d13f684d9898318af9359edc3553961909b';
+const IDENTITY_BLOB = 'b8159343b176fdfc745fec0afb8ebf0db512ac9b';
+const SEAT_HEAD = '2ddbbd3498915d77c410f350c4e1dadb1cfa951c';
+const SEAT_BLOB = 'eb96412ce2444232aa64b0df4b8889faf92d0ff9';
+const PARENT_POLICY_DOMAIN = 'VOID_BROOD_QUEEN_PARENT_POLICY_IDENTITY_V1';
+const PARENT_POLICY_SHA = '2d2ff57721e64728569019531f908cb936826bea3d78e012871f91833bd1b630';
+const POLICY_DOMAIN = 'VOID_BROOD_QUEEN_PRIVATE_BROKER_POLICY_V1';
+const POLICY_SHA = 'e85eeaecb0fc289d377b76c49839f7c020fc119d541c04b575a711f24c22e6bf';
+const V1_CAPS = ['analysis','drafting','proof_design','review','test_generation','bounded_task_planning','evidence_synthesis'];
 
 function hold(message) { throw new Error(message); }
 function requireTrue(value, name) { if (value !== true) hold(`${name} must be true`); }
@@ -17,9 +28,11 @@ function requireFalse(value, name) { if (value !== false) hold(`${name} must be 
 function exactArray(actual, expected, name) {
   if (!Array.isArray(actual)) hold(`${name} must be array`);
   if (actual.length !== expected.length) hold(`${name} length drifted`);
-  for (let i = 0; i < expected.length; i += 1) {
-    if (actual[i] !== expected[i]) hold(`${name}[${i}] drifted`);
-  }
+  for (let i = 0; i < expected.length; i += 1) if (actual[i] !== expected[i]) hold(`${name}[${i}] drifted`);
+}
+function sha256(value) { return createHash('sha256').update(value).digest('hex'); }
+function gitBlob(path) {
+  return execFileSync('git', ['hash-object', path], { encoding: 'utf8' }).trim();
 }
 
 async function main() {
@@ -35,6 +48,19 @@ async function main() {
   if (seat.marker !== SEAT_MARKER) hold('local-seat parent marker drift');
   if (f.parent_identity_contract_marker !== IDENTITY_MARKER) hold('fixture identity parent drift');
   if (f.parent_local_seat_marker !== SEAT_MARKER) hold('fixture local-seat parent drift');
+
+  if (f.parent_binding?.domain !== PARENT_POLICY_DOMAIN) hold('parent policy domain drift');
+  if (f.parent_binding.identity_reviewed_head !== IDENTITY_HEAD) hold('identity reviewed head drift');
+  if (f.parent_binding.identity_fixture_blob_sha !== IDENTITY_BLOB) hold('identity fixture blob declaration drift');
+  if (f.parent_binding.local_seat_reviewed_head !== SEAT_HEAD) hold('local-seat reviewed head drift');
+  if (f.parent_binding.local_seat_fixture_blob_sha !== SEAT_BLOB) hold('local-seat fixture blob declaration drift');
+  if (gitBlob(IDENTITY) !== IDENTITY_BLOB) hold('identity parent exact content drift');
+  if (gitBlob(SEAT) !== SEAT_BLOB) hold('local-seat parent exact content drift');
+  const parentPolicyPreimage = `${PARENT_POLICY_DOMAIN}\nidentity_commit=${IDENTITY_HEAD}\nidentity_fixture_blob=${IDENTITY_BLOB}\nlocal_seat_commit=${SEAT_HEAD}\nlocal_seat_fixture_blob=${SEAT_BLOB}\n`;
+  if (sha256(parentPolicyPreimage) !== PARENT_POLICY_SHA) hold('parent policy digest preimage mismatch');
+  if (f.parent_binding.parent_policy_sha256 !== PARENT_POLICY_SHA) hold('parent policy digest drift');
+  requireTrue(f.parent_binding.same_marker_parent_content_drift_fails_closed, 'same-marker parent drift hold');
+  requireTrue(f.parent_binding.bootstrap_and_rotation_bind_parent_policy_sha256, 'parent policy bootstrap/rotation binding');
 
   if (f.network?.chain_id !== 2050) hold('chain id drift');
   if (f.network?.office !== 'Brood Queen' || f.network?.identity !== 'Ren') hold('Crown office identity drift');
@@ -67,7 +93,10 @@ async function main() {
   if (f.crypto_profile.root_signature !== 'Ed25519') hold('root signature drift');
   if (f.crypto_profile.broker_identity_signature !== 'Ed25519') hold('broker identity signature drift');
   if (f.crypto_profile.session_signature !== 'Ed25519') hold('session signature drift');
+  if (f.crypto_profile.session_message_signature_domain !== 'VOID_BROOD_QUEEN_SESSION_MESSAGE_V1') hold('session message domain drift');
+  if (f.crypto_profile.session_rotation_signature_domain !== 'VOID_BROOD_QUEEN_SESSION_ROTATION_V1') hold('session rotation domain drift');
   if (f.crypto_profile.key_agreement !== 'X25519') hold('key agreement drift');
+  requireTrue(f.crypto_profile.all_zero_x25519_shared_secret_rejected, 'all-zero X25519 rejection');
   if (f.crypto_profile.kdf !== 'HKDF-SHA-256') hold('KDF drift');
   if (f.crypto_profile.aead !== 'ChaCha20-Poly1305') hold('AEAD drift');
   requireTrue(f.crypto_profile.transport_confidentiality_required, 'transport confidentiality');
@@ -81,6 +110,14 @@ async function main() {
   requireTrue(f.crypto_profile.aead_nonce_unique_per_generation_direction, 'AEAD nonce uniqueness');
   requireFalse(f.crypto_profile.same_key_nonce_different_protected_bytes_allowed, 'AEAD nonce/key distinct-message reuse');
   requireTrue(f.crypto_profile.exact_duplicate_retransmits_exact_protected_bytes, 'exact duplicate protected-byte reuse');
+  requireTrue(f.crypto_profile.ciphertext_sha256_is_not_aad_or_plaintext_input, 'non-self-referential ciphertext hash');
+
+  for (const key of [
+    'applies_both_directions','reservation_durable_before_aead_invocation','reservation_binds_exact_message_identity',
+    'protected_bytes_durable_before_first_release','retry_retransmits_exact_staged_protected_bytes',
+    'reserved_sequence_never_recycled_for_different_message','crash_before_protected_stage_may_only_reconstruct_same_message_or_hold_rotate',
+    'uncertain_nonce_state_holds_or_rotates_generation','receiver_conflict_check_is_not_primary_nonce_safety'
+  ]) requireTrue(f.outbound_transport_journal?.[key], `outbound transport journal ${key}`);
 
   requireTrue(f.ordering.task_sequence_monotonic, 'task sequence monotonic');
   requireTrue(f.ordering.accept_only_next_expected_task_sequence, 'next task sequence admission');
@@ -92,16 +129,15 @@ async function main() {
   requireTrue(f.ordering.transport_and_task_sequence_are_distinct, 'transport/task sequence separation');
 
   if (f.task_identity?.prefix !== 'voidbqt1_') hold('task id prefix drift');
-  requireTrue(f.task_identity.content_addressed, 'content-addressed task');
-  requireTrue(f.task_identity.binds_session_id, 'task session binding');
-  requireTrue(f.task_identity.binds_session_generation, 'task generation binding');
-  requireTrue(f.task_identity.binds_task_sequence, 'task sequence binding');
-  requireTrue(f.task_identity.binds_capabilities, 'task capability binding');
-  requireTrue(f.task_identity.binds_payload_digest, 'task payload binding');
-  requireTrue(f.task_identity.binds_policy_generation, 'task policy binding');
+  for (const key of ['content_addressed','binds_session_id','binds_session_generation','binds_task_sequence','binds_capabilities','binds_capability_ceiling_digest','binds_payload_digest','binds_policy_generation','binds_policy_sha256','binds_parent_policy_sha256']) requireTrue(f.task_identity?.[key], `task identity ${key}`);
 
   requireFalse(f.capability_boundary.authentication_implies_capability, 'auth implies capability');
   requireTrue(f.capability_boundary.v1_proposal_evidence_only, 'V1 proposal/evidence only');
+  exactArray(f.capability_boundary.v1_capability_ceiling, V1_CAPS, 'V1 capability ceiling');
+  if (f.capability_boundary.policy_domain !== POLICY_DOMAIN) hold('policy domain drift');
+  const policyPreimage = `${POLICY_DOMAIN}\nparent_policy_sha256=${PARENT_POLICY_SHA}\ncapability_ceiling=${V1_CAPS.join(',')}\nvalidator_capability_present=false\n`;
+  if (sha256(policyPreimage) !== POLICY_SHA) hold('broker policy digest preimage mismatch');
+  if (f.capability_boundary.policy_sha256 !== POLICY_SHA) hold('broker policy digest drift');
   requireFalse(f.capability_boundary.validator_capability_present, 'validator capability');
   requireFalse(f.capability_boundary.wallet_or_signer_capability_implicit, 'wallet/signer implicit');
   requireFalse(f.capability_boundary.deployment_or_restart_capability_implicit, 'deploy/restart implicit');
@@ -110,6 +146,13 @@ async function main() {
   requireFalse(f.capability_boundary.work_credit_mutation_implicit, 'WC implicit');
   requireFalse(f.capability_boundary.credential_reading_implicit, 'credential reading implicit');
   requireFalse(f.capability_boundary.session_rotation_can_expand_policy_ceiling, 'rotation capability expansion');
+  requireTrue(f.capability_boundary.policy_or_ceiling_widening_requires_root_authenticated_boundary, 'root boundary for policy widening');
+
+  for (const key of ['bootstrap_binds_exact_capability_ceiling_or_digest','bootstrap_binds_exact_policy_sha256','bootstrap_binds_parent_policy_sha256','successor_may_preserve_or_reduce_capability_ceiling','one_active_generation_atomically_bound','at_most_one_accepted_successor_transition','stale_generation_may_only_retransmit_exact_accepted_transition']) requireTrue(f.successor_authority?.[key], `successor authority ${key}`);
+  requireFalse(f.successor_authority.successor_may_widen_capability_ceiling, 'successor ceiling widening');
+  requireFalse(f.successor_authority.successor_may_change_policy_root_without_root_boundary, 'successor policy-root change');
+  requireFalse(f.successor_authority.stale_generation_fresh_transition_authority_after_successor_activation, 'stale fresh transition authority');
+  if (f.successor_authority.alternate_stale_successor_terminal !== 'SESSION_FORK_CONFLICT') hold('stale successor conflict terminal drift');
 
   if (f.apollyon?.office !== 'General') hold('Apollyon office drift');
   requireTrue(f.apollyon.subordinate_compute, 'Apollyon subordinate compute');
@@ -127,9 +170,7 @@ async function main() {
   requireFalse(f.private_context.receipt_exposes_local_path, 'context path receipt');
 
   exactArray(f.durable_state_machine.states, ['RECEIVED','ADMITTED','EXECUTING','RESULT_STAGED','RESULT_PUBLISHED','COMPLETE'], 'durable states');
-  exactArray(f.durable_state_machine.fail_closed_terminals, [
-    'REJECTED','EXPIRED','REVOKED','SEQUENCE_CONFLICT','TRANSPORT_SEQUENCE_CONFLICT','SESSION_STALE','POLICY_MISMATCH','EXECUTION_OUTCOME_UNKNOWN','RESULT_CONFLICT'
-  ], 'fail-closed terminals');
+  exactArray(f.durable_state_machine.fail_closed_terminals, ['REJECTED','EXPIRED','REVOKED','SEQUENCE_CONFLICT','TRANSPORT_SEQUENCE_CONFLICT','SESSION_FORK_CONFLICT','SESSION_STALE','POLICY_MISMATCH','EXECUTION_OUTCOME_UNKNOWN','RESULT_CONFLICT'], 'fail-closed terminals');
   requireTrue(f.durable_state_machine.admitted_durable_before_inference, 'admitted durable before inference');
   requireTrue(f.durable_state_machine.result_staged_durable_before_publication, 'result staged before publication');
   requireTrue(f.durable_state_machine.publication_retry_reuses_staged_result, 'publication retry staged reuse');
@@ -155,6 +196,9 @@ async function main() {
   requireFalse(f.threat_model.delayed_delivery_can_rollback_sequence, 'delayed sequence rollback');
   requireFalse(f.threat_model.task_result_substitution_preserves_identity, 'substitution preserves identity');
   requireFalse(f.threat_model.same_aead_key_nonce_can_protect_distinct_messages, 'AEAD key/nonce distinct-message reuse');
+  requireFalse(f.threat_model.sender_crash_can_recycle_nonce_for_different_message, 'sender crash nonce recycle');
+  requireFalse(f.threat_model.stale_generation_can_create_fresh_successor_fork, 'stale generation successor fork');
+  requireFalse(f.threat_model.same_marker_parent_content_drift_preserves_child_policy_identity, 'same-marker parent drift');
   requireFalse(f.threat_model.restart_after_result_staged_creates_second_authoritative_result, 'restart duplicate authoritative result');
   requireFalse(f.threat_model.restart_during_execution_claims_exactly_once_model_execution, 'restart exactly-once model execution claim');
 
@@ -162,18 +206,25 @@ async function main() {
   requireTrue(f.strongest_invariant.does_not_claim_exactly_once_model_execution, 'no exactly-once execution invariant');
   requireTrue(f.strongest_invariant.no_capability_expansion_beyond_exact_list, 'capability exactness invariant');
   requireTrue(f.strongest_invariant.no_distinct_messages_share_aead_key_nonce_pair, 'AEAD nonce invariant');
+  requireTrue(f.strongest_invariant.nonce_safety_survives_sender_crash, 'sender crash nonce invariant');
+  requireTrue(f.strongest_invariant.no_stale_generation_successor_fork, 'successor fork invariant');
+  requireTrue(f.strongest_invariant.parent_policy_identity_content_bound, 'parent policy content invariant');
   requireTrue(f.strongest_invariant.no_validator_authority_path, 'validator wall invariant');
   requireTrue(f.strongest_invariant.no_crown_broker_or_session_private_material_in_model_context, 'private material invariant');
 
   for (const [key, value] of Object.entries(f.activation)) requireFalse(value, `activation.${key}`);
 
   for (const required of [
-    MARKER, IDENTITY_MARKER, SEAT_MARKER,
+    MARKER, IDENTITY_MARKER, SEAT_MARKER, PARENT_POLICY_SHA, POLICY_SHA,
     'VOID_BROOD_QUEEN_BROKER_BOOTSTRAP_CHALLENGE_V1',
     'VOID_BROOD_QUEEN_CROWN_BOOTSTRAP_APPROVAL_V1',
     'VOID_BROOD_QUEEN_BROKER_RECEIPT_V1',
+    'VOID_BROOD_QUEEN_SESSION_MESSAGE_V1',
+    'VOID_BROOD_QUEEN_SESSION_ROTATION_V1',
     'task_id = voidbqt1_ + sha256(canonical_task_without_task_id)',
-    'uint96', 'transport_sequence', 'task_sequence', 'TRANSPORT_SEQUENCE_CONFLICT',
+    'uint96', 'transport_sequence', 'task_sequence', 'TRANSPORT_SEQUENCE_CONFLICT', 'SESSION_FORK_CONFLICT',
+    'protected bytes are durably staged before the first byte may be released',
+    'zero fresh transition authority',
     'RESULT_STAGED', 'EXECUTION_OUTCOME_UNKNOWN',
     'Exactly-once model execution is not claimed.',
     'exactly-once authoritative result publication',
@@ -181,9 +232,7 @@ async function main() {
     'Validator capability is structurally absent from this broker contract.',
     'at most one authoritative completed result hash',
     'no two distinct protected messages can use the same AEAD traffic-key/nonce pair',
-  ]) {
-    if (!doc.includes(required)) hold(`doc missing required binding: ${required}`);
-  }
+  ]) if (!doc.includes(required)) hold(`doc missing required binding: ${required}`);
 
   const secretShapes = [
     /-----BEGIN [A-Z ]*PRIVATE KEY-----/,
