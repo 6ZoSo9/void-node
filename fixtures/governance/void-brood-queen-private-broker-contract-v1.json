@@ -1,0 +1,121 @@
+{
+  "marker": "VOID_BROOD_QUEEN_PRIVATE_BROKER_CONTRACT_V1_20260822",
+  "parent_identity_contract_marker": "VOID_BROOD_QUEEN_CRYPTOGRAPHIC_IDENTITY_CONTRACT_V1_20260822",
+  "parent_local_seat_marker": "VOID_BROOD_QUEEN_LOCAL_MODEL_SEAT_V1_20260822",
+  "network": {
+    "chain_id": 2050,
+    "office": "Brood Queen",
+    "identity": "Ren",
+    "provider_neutral": true
+  },
+  "root_identity": {
+    "algorithm": "Ed25519",
+    "private_key_boundary": "dedicated_host_side_crown_signer",
+    "private_key_enters_model_context": false,
+    "private_key_enters_repository": false,
+    "private_key_enters_github": false,
+    "private_key_accessible_to_apollyon": false
+  },
+  "session_adapter": {
+    "secret_boundary": "trusted_client_runtime_outside_model_context",
+    "adapter_is_constitutional_identity": false,
+    "bootstrap_challenge_single_use": true,
+    "bootstrap_binds_adapter_public_key": true,
+    "persistent_logical_session": true,
+    "session_id_stable_across_automatic_rotation": true,
+    "root_reauthentication_frequency": "rare_recovery_revocation_logout_rotation_or_policy_boundary"
+  },
+  "crypto_profile": {
+    "root_signature": "Ed25519",
+    "session_signature": "Ed25519",
+    "key_agreement": "X25519",
+    "kdf": "HKDF-SHA-256",
+    "aead": "ChaCha20-Poly1305",
+    "canonical_hash": "SHA-256",
+    "transport_confidentiality_required": true,
+    "algorithm_agility_within_v1_session": false
+  },
+  "ordering": {
+    "stream_model": "single_ordered_task_stream_per_session",
+    "sequence_monotonic": true,
+    "accept_only_next_expected_sequence": true,
+    "duplicate_identical_task_returns_prior_authoritative_result": true,
+    "same_sequence_different_bytes_terminal_conflict": true,
+    "silent_reordering_allowed": false
+  },
+  "task_identity": {
+    "prefix": "voidbqt1_",
+    "content_addressed": true,
+    "binds_session_id": true,
+    "binds_session_generation": true,
+    "binds_sequence": true,
+    "binds_capabilities": true,
+    "binds_payload_digest": true,
+    "binds_policy_generation": true
+  },
+  "capability_boundary": {
+    "authentication_implies_capability": false,
+    "v1_proposal_evidence_only": true,
+    "validator_capability_present": false,
+    "wallet_or_signer_capability_implicit": false,
+    "deployment_or_restart_capability_implicit": false,
+    "live_runtime_mutation_implicit": false,
+    "transaction_or_funds_capability_implicit": false,
+    "work_credit_mutation_implicit": false,
+    "credential_reading_implicit": false
+  },
+  "apollyon": {
+    "office": "General",
+    "subordinate_compute": true,
+    "authenticated_crown_endpoint": false,
+    "may_receive_root_key": false,
+    "may_receive_session_private_key": false,
+    "may_receive_validator_key": false,
+    "model_output_is_authoritative_receipt": false
+  },
+  "private_context": {
+    "stays_local_on_precision": true,
+    "sent_as_blob_to_remote_provider": false,
+    "receipt_may_bind_context_sha256": true,
+    "receipt_exposes_context_bytes": false,
+    "receipt_exposes_local_path": false
+  },
+  "durable_state_machine": {
+    "states": ["RECEIVED", "ADMITTED", "EXECUTING", "RESULT_STAGED", "RESULT_PUBLISHED", "COMPLETE"],
+    "fail_closed_terminals": ["REJECTED", "EXPIRED", "REVOKED", "SEQUENCE_CONFLICT", "SESSION_STALE", "POLICY_MISMATCH", "RESULT_CONFLICT"],
+    "admitted_durable_before_inference": true,
+    "result_staged_durable_before_publication": true,
+    "publication_retry_reuses_staged_result": true,
+    "publication_retry_reexecutes_inference": false,
+    "complete_binds_one_authoritative_result_hash": true,
+    "recovery_distinguishes_owned_from_foreign_state": true
+  },
+  "revocation": {
+    "canonical_role_source_when_activated": "Chain-2050",
+    "canonical_role_revalidation_required": true,
+    "cached_role_truth_survives_revocation": false,
+    "stale_generation_can_issue_ordinary_tasks": false
+  },
+  "threat_model": {
+    "github_authenticates_crown_session": false,
+    "model_self_claim_authenticates_crown_session": false,
+    "duplicate_delivery_idempotent": true,
+    "delayed_delivery_can_rollback_sequence": false,
+    "task_result_substitution_preserves_identity": false,
+    "restart_after_result_staged_creates_second_authoritative_result": false
+  },
+  "strongest_invariant": {
+    "at_most_one_authoritative_completed_result_hash_per_task_id": true,
+    "no_capability_expansion_beyond_exact_list": true,
+    "no_validator_authority_path": true,
+    "no_crown_private_material_in_model_context": true
+  },
+  "activation": {
+    "live_root_key_generated": false,
+    "live_adapter_key_generated": false,
+    "live_session_active": false,
+    "live_endpoint_active": false,
+    "chain_role_binding_active": false,
+    "validator_authority_active": false
+  }
+}
