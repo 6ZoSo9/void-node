@@ -1,0 +1,52 @@
+name: apollyon-trials-provider-neutral-v1
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/apollyon-trials-provider-neutral-v1.yml"
+      - "docs/public/apollyon-trials-provider-neutral-v1.md"
+      - "schemas/apollyon-trial-packet-v1.schema.json"
+      - "scripts/apollyon_trial_packet_v1.mjs"
+      - "scripts/prove_apollyon_trials_provider_neutral_v1.mjs"
+  push:
+    branches:
+      - main
+    paths:
+      - ".github/workflows/apollyon-trials-provider-neutral-v1.yml"
+      - "docs/public/apollyon-trials-provider-neutral-v1.md"
+      - "schemas/apollyon-trial-packet-v1.schema.json"
+      - "scripts/apollyon_trial_packet_v1.mjs"
+      - "scripts/prove_apollyon_trials_provider_neutral_v1.mjs"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: apollyon-trials-provider-neutral-v1-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  prove:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+
+      - name: Syntax check
+        run: |
+          node --check scripts/apollyon_trial_packet_v1.mjs
+          node --check scripts/prove_apollyon_trials_provider_neutral_v1.mjs
+
+      - name: Run focused proof
+        run: node scripts/prove_apollyon_trials_provider_neutral_v1.mjs
+
+      - name: Diff hygiene
+        run: git diff --check
