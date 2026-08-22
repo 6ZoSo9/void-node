@@ -66,7 +66,9 @@ async function waitReady(origin, child) {
     try {
       const response = await fetch(`${origin}${STATUS_PATH}`);
       if (response.status === 200) return;
-    } catch {}
+    } catch (_error) {
+      // Expected while the local adapter process is still starting.
+    }
     await new Promise((resolve) => setTimeout(resolve, 25));
   }
   throw new Error("adapter did not become ready");
