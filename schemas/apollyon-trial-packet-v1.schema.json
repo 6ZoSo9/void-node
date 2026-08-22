@@ -1,0 +1,175 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://voidchain.org/schemas/apollyon-trial-packet-v1.schema.json",
+  "title": "VOID Apollyon Trial Packet V1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "marker",
+    "trial_id",
+    "title",
+    "category",
+    "instructions",
+    "input_refs",
+    "expected_outputs",
+    "evidence_requirements",
+    "forbidden_actions",
+    "scoring_weights",
+    "hard_disqualifiers",
+    "max_wc_reward",
+    "wc_award_basis",
+    "provider_cost_reimbursement",
+    "candidate_executes_outside_void_core",
+    "public_or_sanitized_inputs_only",
+    "created_at_utc",
+    "expires_at_utc",
+    "nonce"
+  ],
+  "properties": {
+    "marker": {
+      "const": "VOID_APOLLYON_TRIAL_PACKET_V1"
+    },
+    "trial_id": {
+      "type": "string",
+      "pattern": "^voidat1_[0-9a-f]{64}$"
+    },
+    "title": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 160
+    },
+    "category": {
+      "type": "string",
+      "enum": [
+        "analysis",
+        "code_review",
+        "data_verification",
+        "reasoning",
+        "security_review",
+        "planning",
+        "other"
+      ]
+    },
+    "instructions": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 32768
+    },
+    "input_refs": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 64,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["label", "uri", "sha256"],
+        "properties": {
+          "label": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9._-]{1,96}$"
+          },
+          "uri": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 2048
+          },
+          "sha256": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          }
+        }
+      }
+    },
+    "expected_outputs": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 32,
+      "items": {
+        "type": "string",
+        "pattern": "^[A-Za-z0-9._-]{1,96}$"
+      },
+      "uniqueItems": true
+    },
+    "evidence_requirements": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 32,
+      "items": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 512
+      }
+    },
+    "forbidden_actions": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 32,
+      "items": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 256
+      },
+      "uniqueItems": true
+    },
+    "scoring_weights": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "correctness",
+        "evidence_verifiability",
+        "security_constraint_obedience",
+        "hallucination_resistance",
+        "efficiency",
+        "reproducibility"
+      ],
+      "properties": {
+        "correctness": { "type": "integer", "minimum": 0, "maximum": 100 },
+        "evidence_verifiability": { "type": "integer", "minimum": 0, "maximum": 100 },
+        "security_constraint_obedience": { "type": "integer", "minimum": 0, "maximum": 100 },
+        "hallucination_resistance": { "type": "integer", "minimum": 0, "maximum": 100 },
+        "efficiency": { "type": "integer", "minimum": 0, "maximum": 100 },
+        "reproducibility": { "type": "integer", "minimum": 0, "maximum": 100 }
+      }
+    },
+    "hard_disqualifiers": {
+      "type": "array",
+      "minItems": 5,
+      "maxItems": 32,
+      "items": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 256
+      },
+      "uniqueItems": true
+    },
+    "max_wc_reward": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 1000000000
+    },
+    "wc_award_basis": {
+      "const": "verified_useful_work_only"
+    },
+    "provider_cost_reimbursement": {
+      "const": false
+    },
+    "candidate_executes_outside_void_core": {
+      "const": true
+    },
+    "public_or_sanitized_inputs_only": {
+      "const": true
+    },
+    "created_at_utc": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "expires_at_utc": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "nonce": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9._:-]{1,128}$"
+    }
+  }
+}
