@@ -985,7 +985,6 @@ async function proxyEarnSubmit(req, res) {
       response.status,
       filteredHeaders(response.headers, {
         "cache-control": "no-store",
-        "x-content-type-options": "nosniff",
         "x-void-public-earn-gateway": "v1",
       }),
     );
@@ -1036,7 +1035,7 @@ function serveClaimCli(req, res) {
     res,
     EARN_CLAIM_CLI_FILE,
     "wc-public-ticket-claim-v1.sh",
-    "participant_cli_unavailable",
+    "claim_cli_unavailable",
   );
 }
 
