@@ -1,0 +1,91 @@
+# VOID_DEEPSEEK_HARNESS_VOID_FREE_V1
+# Free-only, read-only DeepSeek Harness composition over the shipped dsh-base
+# and headless layers. Existing rows are overridden by id; the VOID MCP client
+# is inserted as the sole external capability added by this overlay.
+
+- id: agent-default-model
+  config:
+    provider: void-local
+    model: !!js process.env.VOID_DSH_LOCAL_MODEL_ID ?? 'deepseek-r1:7b'
+
+# Disable the native metered DeepSeek provider even if ambient credentials
+# somehow exist outside the launcher's isolated DSH_HOME.
+- id: llm-deepseek
+  disabled: true
+
+# Disable DeepSeek's network search provider and its model-facing Web tool.
+- id: web-search-deepseek
+  disabled: true
+
+- id: tool-web
+  disabled: true
+
+# Telemetry is also disabled by the launcher through DSH_TELEMETRY_DISABLED;
+# disabling the row makes the no-export boundary composition-visible too.
+- id: session-telemetry-otel
+  disabled: true
+
+# Hand-declared unauthenticated local provider. apiKeyEnv is deliberately absent.
+- id: llm-pi-ai
+  config:
+    providers:
+      void-local:
+        displayName: VOID Local DeepSeek
+        api: openai-completions
+        baseURL: !!js process.env.VOID_DSH_LOCAL_MODEL_BASE_URL
+        compat:
+          supportsDeveloperRole: false
+          maxTokensField: max_tokens
+        models:
+          - id: !!js process.env.VOID_DSH_LOCAL_MODEL_ID ?? 'deepseek-r1:7b'
+            name: Local DeepSeek R1
+            contextWindow: 32768
+            maxTokens: 8192
+
+# Keep this first worker observational. It receives VOID MCP tools but no shell,
+# filesystem mutation, background jobs, subagent, workflow, or source-editing
+# capability from the Harness base profile.
+- id: tool-bash
+  disabled: true
+
+- id: tool-pwsh
+  disabled: true
+
+- id: tool-jobs
+  disabled: true
+
+- id: tool-fs
+  disabled: true
+
+- id: tool-fs-search
+  disabled: true
+
+- id: tool-str-replace-editor
+  disabled: true
+
+- id: tool-subagent
+  disabled: true
+
+- id: tool-subagent-fork
+  disabled: true
+
+- id: tool-workflow
+  disabled: true
+
+- id: tool-ralph
+  disabled: true
+
+- insert:
+    - id: void-network-mcp
+      name: '@deepseek-ai/dsh-mcp-client'
+      config:
+        serverName: void-network
+        transport: stdio
+        command: node
+        args:
+          - !!js process.env.VOID_DSH_MCP_ENTRYPOINT
+        env:
+          VOID_MCP_REPO_ROOT: !!js process.env.VOID_DSH_VOID_REPO_ROOT
+          VOID_MCP_BASE_URL: !!js process.env.VOID_DSH_VOID_BASE_URL
+          VOID_MCP_ALLOW_SUBMIT: '0'
+        cwd: !!js process.env.VOID_DSH_VOID_REPO_ROOT
