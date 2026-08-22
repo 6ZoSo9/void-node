@@ -2,7 +2,7 @@
 
 <!-- VOID_MAINNET0_CURRENT_PUBLIC_STATUS_V2 -->
 
-Reviewed: **July 20, 2026**
+Reviewed: **August 21, 2026**
 
 Status: `PUBLIC_MAINNET0_LIVE_WITH_GUARDED_MUTATION`
 
@@ -10,13 +10,24 @@ VOID Mainnet-0 is live as an early public network with real multi-node operation
 
 It is not yet a permissionless production network. Public visibility is intentionally ahead of public mutation authority.
 
-## Current hosted entry point
+## Current hosted entry points
 
-- Public node: `https://zoso-alienware-aurora-r7.taila47fd.ts.net/public-node`
+- Human-facing site: `https://voidchain.org/`
+- Public node/API origin: `https://zoso-alienware-aurora-r7.taila47fd.ts.net/public-node`
 - Machine discovery: `/.well-known/void-public-node.json`
 - Participant application: `/app/`
 
+The human-facing `voidchain.org` root is live. Path-preserving custom-domain API ingress is still being hardened, so machine clients should use the documented public-node origin until that boundary is explicitly promoted.
+
 The repository and discovery document remain the canonical way to understand routes and capability boundaries. A hosted endpoint may change without changing the protocol.
+
+## Network and synchronization status
+
+The project-operated mesh currently uses three nodes with separated operating roles. It proves real networking and role separation, but does not by itself prove broad external decentralization.
+
+Canonical production is live. Follower background catch-up is currently guarded while exact compatibility for the legacy `proposer.commit-direct.v2fs` canonical envelope, durable WAL replay, and crash recovery is being proven. Follower canaries must remain bounded until that proof wall is green and a real catch-up canary succeeds.
+
+A node reporting `ready=true` proves local readiness only. It is not sufficient evidence that the node is caught up to the canonical producer. Synchronization claims should compare canonical height/source evidence explicitly.
 
 ## Capability status
 
@@ -45,8 +56,9 @@ The repository and discovery document remain the canonical way to understand rou
 
 This is real earning, but it is not unrestricted public issuance.
 
-### Guarded
+### Guarded or under active proof
 
+- Automatic/background follower catch-up while legacy commit-direct/WAL compatibility is under proof.
 - Work Credit award authorization.
 - WC-to-VOID settlement.
 - Wallet signing and VOID transfer.
@@ -116,6 +128,14 @@ The workflow is read-only. It does not restart a node or mutate chain, DataNet, 
 
 See [public-node operator evidence workflow](../public-node/public-node-operator-evidence-workflow-v1.md).
 
+## Release status
+
+VOID has substantial deterministic build, installer, update, qualification, publication, canary, and promotion infrastructure in the repository. Those walls do not themselves mean that a new stable release has been published.
+
+An official stable checkpoint must be tied to a clean exact `main` commit and pass the documented release qualification and publication gates. A runtime, storage, WAL, or follower repair that is still unresolved blocks stable promotion.
+
+See [branch and release policy](branch-release-policy.md) and [release publication and promotion v1](release-publication-promotion-v1.md).
+
 ## Honest network posture
 
 The project-operated multi-node mesh proves real networking and role separation. It does not by itself prove broad external decentralization.
@@ -126,6 +146,7 @@ The next activation goals remain:
 - More independent public evidence packs.
 - More useful-work participation.
 - Safer reduction of coordinator dependence.
+- Proven follower catch-up with durable legacy/WAL compatibility before enabling continuous synchronization.
 - Bounded automatic Buy VOID fulfillment after its payment and replay boundaries are fully proven.
 - Candidate-to-active validator admission only after the public policy and runtime gates are ready.
 
@@ -133,6 +154,6 @@ The next activation goals remain:
 
 Never share private keys, seed phrases, wallet files, `.env` contents, operator credentials, or unredacted receipts containing secrets.
 
-Do not treat a public page, tester receipt, candidate record, or signed evidence pack as authority beyond the exact claim it verifies.
+Do not treat a public page, tester receipt, candidate record, signed evidence pack, or local readiness signal as authority beyond the exact claim it verifies.
 
 For a role-based introduction, see [Start here](start-here.md). For a compact status table, see the [current capability matrix](current-capability-matrix.md).
