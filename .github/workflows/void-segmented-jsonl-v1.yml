@@ -7,6 +7,7 @@ on:
       - "src/storage/segmented_jsonl_snapshot_authority_v1.ts"
       - "src/storage/segmented_jsonl_materialized_authority_v1.ts"
       - "src/storage/segmented_jsonl_checkpoint_materialized_authority_v1.ts"
+      - "src/storage/segmented_jsonl_durable_root_v1.ts"
       - "scripts/prove_segmented_jsonl_v1.ts"
       - "scripts/prove_segmented_jsonl_record_delimiter_ceiling_v1.ts"
       - "scripts/prove_segmented_jsonl_manifest_publish_ceiling_v1.ts"
@@ -20,6 +21,7 @@ on:
       - "scripts/prove_segmented_jsonl_checkpoint_admission_bound_v1.ts"
       - "scripts/prove_segmented_jsonl_checkpoint_chain_lifetime_bound_v1.ts"
       - "scripts/prove_segmented_jsonl_post_durable_close_v1.ts"
+      - "scripts/prove_segmented_jsonl_durable_root_v1.ts"
       - ".github/workflows/void-segmented-jsonl-v1.yml"
       - "scripts/ci_diff_hygiene_v1.sh"
       - "scripts/prove_ci_diff_hygiene_v1.mjs"
@@ -33,6 +35,7 @@ on:
       - "src/storage/segmented_jsonl_snapshot_authority_v1.ts"
       - "src/storage/segmented_jsonl_materialized_authority_v1.ts"
       - "src/storage/segmented_jsonl_checkpoint_materialized_authority_v1.ts"
+      - "src/storage/segmented_jsonl_durable_root_v1.ts"
       - "scripts/prove_segmented_jsonl_v1.ts"
       - "scripts/prove_segmented_jsonl_record_delimiter_ceiling_v1.ts"
       - "scripts/prove_segmented_jsonl_manifest_publish_ceiling_v1.ts"
@@ -46,6 +49,7 @@ on:
       - "scripts/prove_segmented_jsonl_checkpoint_admission_bound_v1.ts"
       - "scripts/prove_segmented_jsonl_checkpoint_chain_lifetime_bound_v1.ts"
       - "scripts/prove_segmented_jsonl_post_durable_close_v1.ts"
+      - "scripts/prove_segmented_jsonl_durable_root_v1.ts"
       - ".github/workflows/void-segmented-jsonl-v1.yml"
       - "scripts/ci_diff_hygiene_v1.sh"
       - "scripts/prove_ci_diff_hygiene_v1.mjs"
@@ -106,6 +110,7 @@ jobs:
           node --experimental-strip-types --check src/storage/segmented_jsonl_snapshot_authority_v1.ts
           node --experimental-strip-types --check src/storage/segmented_jsonl_materialized_authority_v1.ts
           node --experimental-strip-types --check src/storage/segmented_jsonl_checkpoint_materialized_authority_v1.ts
+          node --experimental-strip-types --check src/storage/segmented_jsonl_durable_root_v1.ts
           node --experimental-strip-types --check scripts/prove_segmented_jsonl_v1.ts
           node --experimental-strip-types --check scripts/prove_segmented_jsonl_record_delimiter_ceiling_v1.ts
           node --experimental-strip-types --check scripts/prove_segmented_jsonl_manifest_publish_ceiling_v1.ts
@@ -119,6 +124,7 @@ jobs:
           node --experimental-strip-types --check scripts/prove_segmented_jsonl_checkpoint_admission_bound_v1.ts
           node --experimental-strip-types --check scripts/prove_segmented_jsonl_checkpoint_chain_lifetime_bound_v1.ts
           node --experimental-strip-types --check scripts/prove_segmented_jsonl_post_durable_close_v1.ts
+          node --experimental-strip-types --check scripts/prove_segmented_jsonl_durable_root_v1.ts
           node --check scripts/prove_ci_diff_hygiene_v1.mjs
           bash -n scripts/ci_diff_hygiene_v1.sh
 
@@ -160,6 +166,9 @@ jobs:
 
       - name: Prove post-durable close terminal truth
         run: npx --no-install tsx scripts/prove_segmented_jsonl_post_durable_close_v1.ts
+
+      - name: Prove bounded durable checkpoint/root consumer authority
+        run: npx --no-install tsx scripts/prove_segmented_jsonl_durable_root_v1.ts
 
       - name: Repository typecheck
         if: matrix.node == 24
