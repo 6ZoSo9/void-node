@@ -1,0 +1,93 @@
+{
+  "marker": "VOID_BROOD_QUEEN_LOCAL_MODEL_SEAT_V1_20260822",
+  "parent_identity_contract_marker": "VOID_BROOD_QUEEN_CRYPTOGRAPHIC_IDENTITY_CONTRACT_V1_20260822",
+  "parent_command_layer_marker": "VOID_CROWN_BROOD_QUEEN_COMMAND_LAYER_V1_20260818",
+  "network": {
+    "chain_id": 2050,
+    "name": "VOID Network"
+  },
+  "office": {
+    "name": "Brood Queen",
+    "identity": "Ren",
+    "subordinate_to": "King",
+    "local_model_is_office_identity": false,
+    "model_self_claim_is_authentication": false,
+    "provider_neutral": true
+  },
+  "delegated_nonvalidator_realm": {
+    "broad_nonvalidator_operational_jurisdiction_supported": true,
+    "agent_orchestration": true,
+    "worker_coordination": true,
+    "public_and_participant_surfaces": true,
+    "nonvalidator_node_and_service_planning": true,
+    "documentation_source_review_and_proofs": true,
+    "local_model_supervision": true,
+    "sensitive_actions_still_require_applicable_capability_gate": true,
+    "ownership_of_people": false
+  },
+  "validator_separation": {
+    "validator_realm_segregated": true,
+    "grants_validator_admission_or_removal": false,
+    "grants_validator_command": false,
+    "grants_validator_key_access": false,
+    "grants_validator_stake_mutation": false,
+    "grants_consensus_mutation": false,
+    "grants_validator_signing": false
+  },
+  "v5_candidate": {
+    "model": "void-apollyon-candidate-v1:latest",
+    "candidate_digest": "ac1de81fc81bba23802b75e8d46beb1583785c14f94210af94e4e6901f93be3b",
+    "base_model": "qwen3-coder:30b",
+    "base_digest": "06c1097efce0431c2045fe7b2e5108366e43bee1b4603a7aded8f21689e90bca",
+    "constitution_sha256": "f3b155ab9df462f7a4f0981a52aca15ec640548c19c7e81c24e883513112adbd",
+    "system_prompt_body_sha256": "78637ce3cdca98979c6107e96b85e171bc6a46c6c611f86c518fa1d1c49fad8b",
+    "system_prompt_ollama_sha256": "7e336c378e0be8ae084767daa5b5c2a612417328360f66f0a9ba358333a0dedc",
+    "tested_ollama_runtime": "0.30.10",
+    "identity_drift_fail_closed": true
+  },
+  "memory": {
+    "marker": "VOID_BROOD_QUEEN_LOCAL_CONTEXT_PACK_V1",
+    "storage": "private_local_external_memory",
+    "committed_to_public_repository": false,
+    "embedded_in_model_weights": false,
+    "curated_semantic_memory_preferred": true,
+    "raw_chat_import_automatic": false,
+    "raw_private_keys_allowed": false,
+    "wallet_or_seed_credentials_allowed": false,
+    "node_keys_allowed": false,
+    "provider_api_tokens_allowed": false,
+    "ssh_credentials_allowed": false,
+    "session_credentials_allowed": false,
+    "memory_text_can_override_constitution": false,
+    "validator_authority_in_context": false
+  },
+  "apollyon_separation": {
+    "office": "General",
+    "identity": "Apollyon",
+    "subordinate_to_brood_queen": true,
+    "may_impersonate_ren": false,
+    "may_authenticate_as_brood_queen": false,
+    "may_inherit_brood_queen_root_key": false,
+    "may_inherit_brood_queen_session": false,
+    "output_is_crown_authentication": false
+  },
+  "local_containment": {
+    "model_api_loopback_only": true,
+    "model_non_loopback_egress_denied": true,
+    "model_direct_input_device_access": false,
+    "model_service_can_read_void_repo": false,
+    "model_service_can_read_nodekey": false,
+    "model_service_can_read_tailscale_state": false,
+    "service_boot_enabled": false,
+    "model_repo_mutation": false
+  },
+  "remote_bridge": {
+    "active": false,
+    "must_be_authenticated": true,
+    "must_be_auditable": true,
+    "must_be_replay_resistant": true,
+    "must_terminate_at_trusted_broker": true,
+    "may_expose_raw_ollama_to_internet": false,
+    "public_github_private_memory_relay_allowed": false
+  }
+}
