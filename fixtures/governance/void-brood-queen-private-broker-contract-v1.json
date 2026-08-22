@@ -2,6 +2,16 @@
   "marker": "VOID_BROOD_QUEEN_PRIVATE_BROKER_CONTRACT_V1_20260822",
   "parent_identity_contract_marker": "VOID_BROOD_QUEEN_CRYPTOGRAPHIC_IDENTITY_CONTRACT_V1_20260822",
   "parent_local_seat_marker": "VOID_BROOD_QUEEN_LOCAL_MODEL_SEAT_V1_20260822",
+  "parent_binding": {
+    "domain": "VOID_BROOD_QUEEN_PARENT_POLICY_IDENTITY_V1",
+    "identity_reviewed_head": "8ac42d13f684d9898318af9359edc3553961909b",
+    "identity_fixture_blob_sha": "b8159343b176fdfc745fec0afb8ebf0db512ac9b",
+    "local_seat_reviewed_head": "2ddbbd3498915d77c410f350c4e1dadb1cfa951c",
+    "local_seat_fixture_blob_sha": "eb96412ce2444232aa64b0df4b8889faf92d0ff9",
+    "parent_policy_sha256": "2d2ff57721e64728569019531f908cb936826bea3d78e012871f91833bd1b630",
+    "same_marker_parent_content_drift_fails_closed": true,
+    "bootstrap_and_rotation_bind_parent_policy_sha256": true
+  },
   "network": {
     "chain_id": 2050,
     "office": "Brood Queen",
@@ -42,7 +52,10 @@
     "root_signature": "Ed25519",
     "broker_identity_signature": "Ed25519",
     "session_signature": "Ed25519",
+    "session_message_signature_domain": "VOID_BROOD_QUEEN_SESSION_MESSAGE_V1",
+    "session_rotation_signature_domain": "VOID_BROOD_QUEEN_SESSION_ROTATION_V1",
     "key_agreement": "X25519",
+    "all_zero_x25519_shared_secret_rejected": true,
     "kdf": "HKDF-SHA-256",
     "aead": "ChaCha20-Poly1305",
     "canonical_hash": "SHA-256",
@@ -56,7 +69,19 @@
     "aead_nonce_source": "uint96_transport_sequence",
     "aead_nonce_unique_per_generation_direction": true,
     "same_key_nonce_different_protected_bytes_allowed": false,
-    "exact_duplicate_retransmits_exact_protected_bytes": true
+    "exact_duplicate_retransmits_exact_protected_bytes": true,
+    "ciphertext_sha256_is_not_aad_or_plaintext_input": true
+  },
+  "outbound_transport_journal": {
+    "applies_both_directions": true,
+    "reservation_durable_before_aead_invocation": true,
+    "reservation_binds_exact_message_identity": true,
+    "protected_bytes_durable_before_first_release": true,
+    "retry_retransmits_exact_staged_protected_bytes": true,
+    "reserved_sequence_never_recycled_for_different_message": true,
+    "crash_before_protected_stage_may_only_reconstruct_same_message_or_hold_rotate": true,
+    "uncertain_nonce_state_holds_or_rotates_generation": true,
+    "receiver_conflict_check_is_not_primary_nonce_safety": true
   },
   "ordering": {
     "stream_model": "single_ordered_task_stream_per_session",
@@ -76,12 +101,26 @@
     "binds_session_generation": true,
     "binds_task_sequence": true,
     "binds_capabilities": true,
+    "binds_capability_ceiling_digest": true,
     "binds_payload_digest": true,
-    "binds_policy_generation": true
+    "binds_policy_generation": true,
+    "binds_policy_sha256": true,
+    "binds_parent_policy_sha256": true
   },
   "capability_boundary": {
     "authentication_implies_capability": false,
     "v1_proposal_evidence_only": true,
+    "v1_capability_ceiling": [
+      "analysis",
+      "drafting",
+      "proof_design",
+      "review",
+      "test_generation",
+      "bounded_task_planning",
+      "evidence_synthesis"
+    ],
+    "policy_domain": "VOID_BROOD_QUEEN_PRIVATE_BROKER_POLICY_V1",
+    "policy_sha256": "e85eeaecb0fc289d377b76c49839f7c020fc119d541c04b575a711f24c22e6bf",
     "validator_capability_present": false,
     "wallet_or_signer_capability_implicit": false,
     "deployment_or_restart_capability_implicit": false,
@@ -89,7 +128,21 @@
     "transaction_or_funds_capability_implicit": false,
     "work_credit_mutation_implicit": false,
     "credential_reading_implicit": false,
-    "session_rotation_can_expand_policy_ceiling": false
+    "session_rotation_can_expand_policy_ceiling": false,
+    "policy_or_ceiling_widening_requires_root_authenticated_boundary": true
+  },
+  "successor_authority": {
+    "bootstrap_binds_exact_capability_ceiling_or_digest": true,
+    "bootstrap_binds_exact_policy_sha256": true,
+    "bootstrap_binds_parent_policy_sha256": true,
+    "successor_may_preserve_or_reduce_capability_ceiling": true,
+    "successor_may_widen_capability_ceiling": false,
+    "successor_may_change_policy_root_without_root_boundary": false,
+    "one_active_generation_atomically_bound": true,
+    "at_most_one_accepted_successor_transition": true,
+    "stale_generation_fresh_transition_authority_after_successor_activation": false,
+    "stale_generation_may_only_retransmit_exact_accepted_transition": true,
+    "alternate_stale_successor_terminal": "SESSION_FORK_CONFLICT"
   },
   "apollyon": {
     "office": "General",
@@ -110,7 +163,7 @@
   },
   "durable_state_machine": {
     "states": ["RECEIVED", "ADMITTED", "EXECUTING", "RESULT_STAGED", "RESULT_PUBLISHED", "COMPLETE"],
-    "fail_closed_terminals": ["REJECTED", "EXPIRED", "REVOKED", "SEQUENCE_CONFLICT", "TRANSPORT_SEQUENCE_CONFLICT", "SESSION_STALE", "POLICY_MISMATCH", "EXECUTION_OUTCOME_UNKNOWN", "RESULT_CONFLICT"],
+    "fail_closed_terminals": ["REJECTED", "EXPIRED", "REVOKED", "SEQUENCE_CONFLICT", "TRANSPORT_SEQUENCE_CONFLICT", "SESSION_FORK_CONFLICT", "SESSION_STALE", "POLICY_MISMATCH", "EXECUTION_OUTCOME_UNKNOWN", "RESULT_CONFLICT"],
     "admitted_durable_before_inference": true,
     "result_staged_durable_before_publication": true,
     "publication_retry_reuses_staged_result": true,
@@ -139,6 +192,9 @@
     "delayed_delivery_can_rollback_sequence": false,
     "task_result_substitution_preserves_identity": false,
     "same_aead_key_nonce_can_protect_distinct_messages": false,
+    "sender_crash_can_recycle_nonce_for_different_message": false,
+    "stale_generation_can_create_fresh_successor_fork": false,
+    "same_marker_parent_content_drift_preserves_child_policy_identity": false,
     "restart_after_result_staged_creates_second_authoritative_result": false,
     "restart_during_execution_claims_exactly_once_model_execution": false
   },
@@ -147,6 +203,9 @@
     "does_not_claim_exactly_once_model_execution": true,
     "no_capability_expansion_beyond_exact_list": true,
     "no_distinct_messages_share_aead_key_nonce_pair": true,
+    "nonce_safety_survives_sender_crash": true,
+    "no_stale_generation_successor_fork": true,
+    "parent_policy_identity_content_bound": true,
     "no_validator_authority_path": true,
     "no_crown_broker_or_session_private_material_in_model_context": true
   },
