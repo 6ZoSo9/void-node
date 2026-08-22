@@ -45,23 +45,8 @@ export function registerTxRoutes(app: Express) {
     return res.json({ ok:true });
   });
 
-  // Neutral path kept: POST /mempool/submit  (same behavior)
-  app.post("/mempool/submit", (req: Request, res: Response) => {
-    
-    try { globalEnqueueTx(req.body ?? {}); } catch (err) { recordSmallEmptyCatchVisibilityFailure_src_http_tx_routes_ts("empty-catch-3", err); }
-  const b = (req as any).body ?? {};
-    const id: string = (typeof b.id === "string" && b.id.length)
-      ? b.id
-      : `tx-${Date.now()}-${Math.random().toString(16).slice(2,8)}`;
-    let data: any = (typeof b.data !== "undefined") ? b.data : b;
-    if (typeof data !== "string") data = JSON.stringify(data);
-
-    const result = mempool.submit({ id, data });
-    if (!result?.ok) return res.status(400).json({ ...(result || {}), ok:false });
-
-    txBuffer.push({ id, data });
-    return res.json({ ok:true, id, size: (mempool as any).size?.() ?? 0 });
-  });
+  // POST /mempool/submit intentionally has no mount here.
+  // Canonical transaction mutation authority is owned solely by /tx/submit.
 
   // Prometheus-ish overview for mempool (counters live on mempool instance)
   app.get("/metrics/mempool", (_req: Request, res: Response) => {

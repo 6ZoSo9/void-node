@@ -73,26 +73,8 @@ function registerTxRoutes(app) {
         tx_buffer_js_1.txBuffer.push({ id: id, data: data });
         return res.json({ ok: true });
     });
-    // Neutral path kept: POST /mempool/submit  (same behavior)
-    app.post("/mempool/submit", function (req, res) {
-        var _a, _b, _c, _d, _e;
-        try {
-            (0, node_core_js_1.globalEnqueueTx)((_a = req.body) !== null && _a !== void 0 ? _a : {});
-        }
-        catch (_f) { recordVoidHttpTxRoutesEmptyCatchVisibilityV1('VOID_HTTP_TX_ROUTES_EMPTY_CATCH_VISIBILITY_V1_SITE_62', _f); }
-        var b = (_b = req.body) !== null && _b !== void 0 ? _b : {};
-        var id = (typeof b.id === "string" && b.id.length)
-            ? b.id
-            : "tx-".concat(Date.now(), "-").concat(Math.random().toString(16).slice(2, 8));
-        var data = (typeof b.data !== "undefined") ? b.data : b;
-        if (typeof data !== "string")
-            data = JSON.stringify(data);
-        var result = mempool_js_1.mempool.submit({ id: id, data: data });
-        if (!(result === null || result === void 0 ? void 0 : result.ok))
-            return res.status(400).json(__assign(__assign({}, (result || {})), { ok: false }));
-        tx_buffer_js_1.txBuffer.push({ id: id, data: data });
-        return res.json({ ok: true, id: id, size: (_e = (_d = (_c = mempool_js_1.mempool).size) === null || _d === void 0 ? void 0 : _d.call(_c)) !== null && _e !== void 0 ? _e : 0 });
-    });
+    // POST /mempool/submit intentionally has no mount here.
+    // Canonical transaction mutation authority is owned solely by /tx/submit.
     // Prometheus-ish overview for mempool (counters live on mempool instance)
     app.get("/metrics/mempool", function (_req, res) {
         var _a, _b, _c, _d, _e, _f;
