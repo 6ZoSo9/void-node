@@ -12,6 +12,8 @@ const EDGE_ORIGIN = "http://127.0.0.1:8080";
 const UNIT_NAME = "voidchain-org-path-preserving-edge-v1.service";
 const BUILDER_RELATIVE = "scripts/build_voidchain_org_path_preserving_edge_packet_v1.mjs";
 const EXPECTED_FILES = ["INSTALL.txt", "cloudflared-config.yml", UNIT_NAME, "packet.json"].sort();
+const CLOUDFLARED_TOOL_TIMEOUT_MS = 5_000;
+const CLOUDFLARED_TOOL_MAX_OUTPUT_BYTES = 64 * 1024;
 
 function fail(message) {
   console.error(`${MARKER}_FAIL: ${message}`);
@@ -95,6 +97,29 @@ function run(command, args) {
   return String(result.stdout || "").trim();
 }
 
+function runCloudflared(command, args) {
+  const result = childProcess.spawnSync(command, args, {
+    encoding: "utf8",
+    stdio: ["ignore", "pipe", "pipe"],
+    timeout: CLOUDFLARED_TOOL_TIMEOUT_MS,
+    killSignal: "SIGKILL",
+    maxBuffer: CLOUDFLARED_TOOL_MAX_OUTPUT_BYTES,
+  });
+  if (result.error) {
+    if (result.error.code === "ETIMEDOUT") {
+      throw new Error(`cloudflared invocation timed out after ${CLOUDFLARED_TOOL_TIMEOUT_MS}ms`);
+    }
+    throw new Error(`cloudflared invocation failed: ${result.error.message}`);
+  }
+  if (result.signal) {
+    throw new Error(`cloudflared invocation terminated by signal ${result.signal}`);
+  }
+  if (result.status !== 0) {
+    throw new Error(`${command} ${args.join(" ")} failed: ${(result.stderr || result.stdout || "").trim()}`);
+  }
+  return String(result.stdout || "").trim();
+}
+
 function sameArray(actual, expected) {
   return Array.isArray(actual) && actual.length === expected.length && actual.every((value, index) => value === expected[index]);
 }
@@ -160,7 +185,7 @@ function main() {
 
   const cloudflaredPath = regularPath(packet.cloudflared_executable?.path, "cloudflared executable", { executable: true });
   if (packet.cloudflared_executable?.sha256 !== sha256File(cloudflaredPath)) throw new Error("cloudflared executable hash mismatch");
-  const version = run(cloudflaredPath, ["--version"]).split(/\r?\n/)[0].slice(0, 512);
+  const version = runCloudflared(cloudflaredPath, ["--version"]).split(/\r?\n/)[0].slice(0, 512);
   if (version !== packet.cloudflared_executable?.version || !/cloudflared/i.test(version)) throw new Error("cloudflared version mismatch");
 
   const names = fs.readdirSync(packetDir).sort();
@@ -185,7 +210,7 @@ function main() {
   if (originMatches.length !== 2) throw new Error("cloudflared config must map exactly two hostnames to the existing edge");
   if (!config.endsWith("  - service: http_status:404\n")) throw new Error("cloudflared config final deny rule mismatch");
 
-  run(cloudflaredPath, ["--config", configPath, "tunnel", "ingress", "validate"]);
+  runCloudflared(cloudflaredPath, ["--config", configPath, "tunnel", "ingress", "validate"]);
 
   const { packet_id: packetId, ...body } = packet;
   const expectedId = `voidedge1_${sha256Bytes(canonicalJson(body))}`;
@@ -220,6 +245,8 @@ function main() {
   console.log(`hostnames=${HOSTNAMES.join(",")}`);
   console.log(`edge_origin=${EDGE_ORIGIN}`);
   console.log("path_preserved=true");
+  console.log("cloudflared_preflight_timeout_ms=5000");
+  console.log("cloudflared_preflight_max_output_bytes=65536");
   console.log("dns_changed=false");
   console.log("tailscale_funnel_changed=false");
   console.log("credentials_contents_read=false");
