@@ -515,7 +515,7 @@ function releasePublishLock(_authority: DirectoryAuthorityV1, lock: PublishLockV
     fail("DURABLE_ROOT_PUBLISH_LOCK_OWNER_CHANGED", lock.publicPath);
   }
   removeExactLockName(lock, PUBLISH_LOCK_OWNER_NAME, ownerFile.identity);
-  try { fs.fsyncSync(lock.fd); } catch { /* stale-owner recovery is authoritative */ }
+  try { fs.fsyncSync(lock.fd); } catch (error) { void error; /* stale-owner recovery is authoritative */ }
   fs.closeSync(lock.fd);
 }
 
