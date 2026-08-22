@@ -2,6 +2,7 @@
 // Copyright (c) 2025 6ZoSo9
 
 import assert from "node:assert/strict";
+import * as crypto from "node:crypto";
 import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
@@ -26,12 +27,22 @@ import {
 import {
   publishSegmentedJsonlDurableRootV1,
   readSegmentedJsonlDurableRootV1,
+  type SegmentedJsonlDurableRootSlotV1,
+  type SegmentedJsonlDurableRootV1,
 } from "../src/storage/segmented_jsonl_durable_root_v1.js";
 
 function expectFailure(fn: () => unknown, fragment: string): void {
   let seen = "";
   try { fn(); } catch (error) { seen = error instanceof Error ? error.message : String(error); }
   assert.ok(seen.includes(fragment), `expected ${fragment}, got ${seen}`);
+}
+
+function sha256(data: Buffer | string): string {
+  return crypto.createHash("sha256").update(data).digest("hex");
+}
+
+function canonicalJson(value: unknown): string {
+  return JSON.stringify(value);
 }
 
 function sourceBytes(records: number): Buffer {
@@ -67,6 +78,85 @@ function writePublishOwner(lockDir: string, pid: number, startTicks: string, tok
 function fsyncDirectory(directory: string): void {
   const fd = fs.openSync(directory, "r");
   try { fs.fsyncSync(fd); } finally { fs.closeSync(fd); }
+}
+
+function encodeSlotForProof(slot: SegmentedJsonlDurableRootSlotV1): Buffer {
+  const json = Buffer.from(canonicalJson(slot), "utf8");
+  assert.ok(json.length + 1 <= 8192);
+  const body = Buffer.alloc(8192, 0x20);
+  json.copy(body, 0);
+  body[json.length] = 0x0a;
+  return body;
+}
+
+function slotForProof(
+  index: 0 | 1,
+  identity: { dev: string; ino: string },
+  peer: { dev: string; ino: string } | null,
+  root: SegmentedJsonlDurableRootV1,
+): SegmentedJsonlDurableRootSlotV1 {
+  const core = {
+    v: 1 as const,
+    format: "VOID_SEGMENTED_JSONL_DURABLE_ROOT_SLOT_V1" as const,
+    slot_index: index,
+    slot_dev: identity.dev,
+    slot_ino: identity.ino,
+    peer_slot_dev: peer?.dev ?? null,
+    peer_slot_ino: peer?.ino ?? null,
+    root,
+  };
+  return { ...core, slot_sha256: sha256(canonicalJson(core)) };
+}
+
+function stageIntentNameForProof(
+  index: 0 | 1,
+  publisherToken: string,
+  identity: { dev: string; ino: string },
+  slot: SegmentedJsonlDurableRootSlotV1,
+): string {
+  const intentSha = sha256(canonicalJson({
+    v: 1,
+    target_slot: index,
+    publisher_token: publisherToken,
+    predecessor_root_sha256: slot.root.previous_root_sha256,
+    candidate_root_sha256: slot.root.root_sha256,
+    stage_dev: identity.dev,
+    stage_ino: identity.ino,
+    slot_sha256: slot.slot_sha256,
+  }));
+  return `slot-stage-${index}-${publisherToken}-${intentSha}.v1`;
+}
+
+function createStageIntentForProof(
+  lockDir: string,
+  index: 0 | 1,
+  publisherToken: string,
+  root: SegmentedJsonlDurableRootV1,
+  peer: { dev: string; ino: string } | null,
+): { path: string; identity: { dev: string; ino: string }; slot: SegmentedJsonlDurableRootSlotV1 } {
+  const tempPath = path.join(lockDir, `proof-stage-${index}-${publisherToken}.tmp`);
+  const fd = fs.openSync(tempPath, "wx+", 0o600);
+  try {
+    const stat = fs.fstatSync(fd, { bigint: true } as any);
+    const identity = { dev: String(stat.dev), ino: String(stat.ino) };
+    const slot = slotForProof(index, identity, peer, root);
+    const body = encodeSlotForProof(slot);
+    let off = 0;
+    while (off < body.length) {
+      const n = fs.writeSync(fd, body, off, body.length - off, off);
+      assert.ok(n > 0);
+      off += n;
+    }
+    fs.fchmodSync(fd, 0o600);
+    fs.fsyncSync(fd);
+    const intentName = stageIntentNameForProof(index, publisherToken, identity, slot);
+    const intentPath = path.join(lockDir, intentName);
+    fs.linkSync(tempPath, intentPath);
+    fsyncDirectory(lockDir);
+    fs.unlinkSync(tempPath);
+    fsyncDirectory(lockDir);
+    return { path: intentPath, identity, slot };
+  } finally { fs.closeSync(fd); }
 }
 
 function buildGeneration(
@@ -106,7 +196,12 @@ try {
 
   const publishLockDir = path.join(durableDir, ".durable-root-publish-v1.lock");
   fs.mkdirSync(publishLockDir, { mode: 0o700 });
-  fs.writeFileSync(path.join(publishLockDir, "slot-stage-0.v1"), Buffer.from("{torn-stage-0", "utf8"), { mode: 0o600 });
+  const slot0 = path.join(durableDir, "durable-root-slot-0.v1.json");
+  const slot1 = path.join(durableDir, "durable-root-slot-1.v1.json");
+  const foreignStaticStage0 = path.join(publishLockDir, "slot-stage-0.v1");
+  const foreignStaticStage0Bytes = Buffer.from("{foreign-static-stage-0", "utf8");
+  fs.writeFileSync(foreignStaticStage0, foreignStaticStage0Bytes, { mode: 0o600 });
+  const foreignStaticStage0Stat = fs.statSync(foreignStaticStage0, { bigint: true } as any);
 
   const g1 = buildGeneration(tmp, 1);
   const c1 = deriveSegmentedJsonlCheckpointV1(g1.snapshot, null);
@@ -115,26 +210,36 @@ try {
     snapshot: g1.snapshot,
     trusted_checkpoint_sha256: c1.checkpoint_sha256,
   };
-  const r1 = publishSegmentedJsonlDurableRootV1(durableDir, {
+  const r1Input = {
     checkpoint: c1,
     snapshot: g1.snapshot,
     materialized: g1.materialized,
-  });
+  };
+  const r1 = publishSegmentedJsonlDurableRootV1(durableDir, r1Input);
   assert.equal(r1.store_generation, 1);
   assert.equal(r1.previous_root_sha256, null);
   assert.equal(r1.append_only_witness_sha256, null);
   assert.equal(readSegmentedJsonlDurableRootV1(durableDir)?.root_sha256, r1.root_sha256);
   assert.equal(fs.existsSync(publishLockDir), true, "publication coordination directory is lifetime-bounded and retained");
   assert.equal(fs.existsSync(path.join(publishLockDir, "owner.v1.json")), false, "genesis publication owner must release");
-  assert.equal(fs.existsSync(path.join(publishLockDir, "slot-stage-0.v1")), false, "genesis stage alias must be retired");
-  const r1Retry = publishSegmentedJsonlDurableRootV1(durableDir, {
-    checkpoint: c1,
-    snapshot: g1.snapshot,
-    materialized: g1.materialized,
-  });
-  assert.equal(r1Retry.root_sha256, r1.root_sha256, "exact genesis retry must be idempotent");
+  const foreignStaticStage0After = fs.statSync(foreignStaticStage0, { bigint: true } as any);
+  assert.equal(foreignStaticStage0After.dev, foreignStaticStage0Stat.dev);
+  assert.equal(foreignStaticStage0After.ino, foreignStaticStage0Stat.ino);
+  assert.deepEqual(fs.readFileSync(foreignStaticStage0), foreignStaticStage0Bytes, "legacy/static foreign stage must never be adopted or rewritten");
 
-  fs.writeFileSync(path.join(publishLockDir, "slot-stage-1.v1"), Buffer.from("{torn-stage-1", "utf8"), { mode: 0o600 });
+  const recoveryDir = path.join(tmp, "durable-root-intent-recovery");
+  fs.mkdirSync(recoveryDir, { mode: 0o700 });
+  const recoveryLockDir = path.join(recoveryDir, ".durable-root-publish-v1.lock");
+  fs.mkdirSync(recoveryLockDir, { mode: 0o700 });
+  const ownedRecoveryIntent = createStageIntentForProof(recoveryLockDir, 0, "aa".repeat(16), r1, null);
+  assert.equal(fs.existsSync(path.join(recoveryDir, "durable-root-slot-0.v1.json")), false);
+  const recoveredR1 = publishSegmentedJsonlDurableRootV1(recoveryDir, r1Input);
+  assert.equal(recoveredR1.root_sha256, r1.root_sha256, "intent-bound owned stage must recover to canonical genesis");
+  assert.equal(fs.existsSync(ownedRecoveryIntent.path), false, "recovered intent alias must retire");
+  assert.equal(fs.statSync(path.join(recoveryDir, "durable-root-slot-0.v1.json"), { bigint: true } as any).nlink, 1n);
+
+  const r1Retry = publishSegmentedJsonlDurableRootV1(durableDir, r1Input);
+  assert.equal(r1Retry.root_sha256, r1.root_sha256, "exact genesis retry must be idempotent");
 
   const g2 = buildGeneration(tmp, 2);
   const c2 = deriveSegmentedJsonlCheckpointV1(g2.snapshot, a1);
@@ -148,20 +253,6 @@ try {
     g2.materialized,
     g1.materialized.authority_sha256,
   );
-  const r2 = publishSegmentedJsonlDurableRootV1(durableDir, {
-    checkpoint: c2,
-    snapshot: g2.snapshot,
-    materialized: g2.materialized,
-    previousAnchor: a1,
-    previousMaterialized: g1.materialized,
-    appendOnlyWitness: w2,
-    trustedAppendOnlyWitnessSha256: w2.witness_sha256,
-  });
-  assert.equal(r2.store_generation, 2);
-  assert.equal(r2.previous_root_sha256, r1.root_sha256);
-  assert.equal(r2.append_only_witness_sha256, w2.witness_sha256);
-  assert.equal(fs.existsSync(path.join(publishLockDir, "owner.v1.json")), false, "first peer publication owner must release");
-  assert.equal(fs.existsSync(path.join(publishLockDir, "slot-stage-1.v1")), false, "first peer stage alias must be retired");
   const r2Input = {
     checkpoint: c2,
     snapshot: g2.snapshot,
@@ -171,6 +262,64 @@ try {
     appendOnlyWitness: w2,
     trustedAppendOnlyWitnessSha256: w2.witness_sha256,
   };
+
+  const foreignIntentToken = "bb".repeat(16);
+  const foreignIntentPath = path.join(publishLockDir, `slot-stage-1-${foreignIntentToken}-${"0".repeat(64)}.v1`);
+  const foreignIntentBytes = Buffer.from("{foreign-intent-stage", "utf8");
+  fs.writeFileSync(foreignIntentPath, foreignIntentBytes, { flag: "wx", mode: 0o600 });
+  const foreignIntentStat = fs.statSync(foreignIntentPath, { bigint: true } as any);
+  expectFailure(() => publishSegmentedJsonlDurableRootV1(durableDir, r2Input), "DURABLE_ROOT_STAGE_INTENT_TORN");
+  const foreignIntentAfter = fs.statSync(foreignIntentPath, { bigint: true } as any);
+  assert.equal(foreignIntentAfter.dev, foreignIntentStat.dev);
+  assert.equal(foreignIntentAfter.ino, foreignIntentStat.ino);
+  assert.deepEqual(fs.readFileSync(foreignIntentPath), foreignIntentBytes, "foreign stage intent must survive rejection unchanged");
+  fs.unlinkSync(foreignIntentPath);
+  fsyncDirectory(publishLockDir);
+
+  const slot0IdentityStat = fs.statSync(slot0, { bigint: true } as any);
+  const slot0Peer = { dev: String(slot0IdentityStat.dev), ino: String(slot0IdentityStat.ino) };
+  const { root_sha256: _r1Digest, ...fakeRootBase } = r1;
+  const fakeRootCore = {
+    ...fakeRootBase,
+    store_generation: 2,
+    append_only_witness_sha256: "33".repeat(32),
+    previous_root_sha256: "44".repeat(32),
+  };
+  const wrongPredecessorRoot: SegmentedJsonlDurableRootV1 = {
+    ...fakeRootCore,
+    root_sha256: sha256(canonicalJson(fakeRootCore)),
+  };
+  const wrongPredecessorIntent = createStageIntentForProof(
+    publishLockDir,
+    1,
+    "cc".repeat(16),
+    wrongPredecessorRoot,
+    slot0Peer,
+  );
+  const wrongPredecessorBytes = fs.readFileSync(wrongPredecessorIntent.path);
+  const wrongPredecessorStat = fs.statSync(wrongPredecessorIntent.path, { bigint: true } as any);
+  expectFailure(() => publishSegmentedJsonlDurableRootV1(durableDir, r2Input), "DURABLE_ROOT_STAGE_INTENT_PREDECESSOR_MISMATCH");
+  const wrongPredecessorAfter = fs.statSync(wrongPredecessorIntent.path, { bigint: true } as any);
+  assert.equal(wrongPredecessorAfter.dev, wrongPredecessorStat.dev);
+  assert.equal(wrongPredecessorAfter.ino, wrongPredecessorStat.ino);
+  assert.deepEqual(fs.readFileSync(wrongPredecessorIntent.path), wrongPredecessorBytes, "wrong-predecessor intent must survive rejection unchanged");
+  fs.unlinkSync(wrongPredecessorIntent.path);
+  fsyncDirectory(publishLockDir);
+
+  const foreignStaticStage1 = path.join(publishLockDir, "slot-stage-1.v1");
+  const foreignStaticStage1Bytes = Buffer.from("{foreign-static-stage-1", "utf8");
+  fs.writeFileSync(foreignStaticStage1, foreignStaticStage1Bytes, { mode: 0o600 });
+  const foreignStaticStage1Stat = fs.statSync(foreignStaticStage1, { bigint: true } as any);
+
+  const r2 = publishSegmentedJsonlDurableRootV1(durableDir, r2Input);
+  assert.equal(r2.store_generation, 2);
+  assert.equal(r2.previous_root_sha256, r1.root_sha256);
+  assert.equal(r2.append_only_witness_sha256, w2.witness_sha256);
+  assert.equal(fs.existsSync(path.join(publishLockDir, "owner.v1.json")), false, "first peer publication owner must release");
+  const foreignStaticStage1After = fs.statSync(foreignStaticStage1, { bigint: true } as any);
+  assert.equal(foreignStaticStage1After.dev, foreignStaticStage1Stat.dev);
+  assert.equal(foreignStaticStage1After.ino, foreignStaticStage1Stat.ino);
+  assert.deepEqual(fs.readFileSync(foreignStaticStage1), foreignStaticStage1Bytes, "second legacy/static foreign stage must never be adopted or rewritten");
   assert.equal(
     publishSegmentedJsonlDurableRootV1(durableDir, r2Input).root_sha256,
     r2.root_sha256,
@@ -241,8 +390,6 @@ try {
   fs.unlinkSync(reclaimPath);
   fs.unlinkSync(ownerPath);
 
-  const slot0 = path.join(durableDir, "durable-root-slot-0.v1.json");
-  const slot1 = path.join(durableDir, "durable-root-slot-1.v1.json");
   assert.deepEqual(
     fs.readdirSync(durableDir).sort(),
     [path.basename(slot0), path.basename(slot1), path.basename(publishLockDir)].sort(),
@@ -332,8 +479,10 @@ try {
     "DURABLE_ROOT_DEGRADED_SLOT_REQUIRES_RECOVERY",
   );
 
-  console.log("durable_root_first_slot_staging_recovery=true");
-  console.log("durable_root_first_peer_staging_recovery=true");
+  console.log("durable_root_owned_stage_intent_retry_converges=true");
+  console.log("durable_root_foreign_static_stage_preserved=true");
+  console.log("durable_root_foreign_stage_intent_preserved=true");
+  console.log("durable_root_wrong_predecessor_intent_preserved=true");
   console.log("durable_root_exact_retry_idempotent=true");
   console.log("durable_root_live_publish_lock_excludes_writer=true");
   console.log("durable_root_boot_epoch_prevents_pid_start_alias=true");

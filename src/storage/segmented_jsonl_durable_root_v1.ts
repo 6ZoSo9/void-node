@@ -31,7 +31,7 @@ const SLOT_NAMES = ["durable-root-slot-0.v1.json", "durable-root-slot-1.v1.json"
 const PUBLISH_LOCK_NAME = ".durable-root-publish-v1.lock";
 const PUBLISH_LOCK_OWNER_NAME = "owner.v1.json";
 const PUBLISH_LOCK_RECLAIM_NAME = "reclaim.v1";
-const PUBLISH_STAGE_NAMES = ["slot-stage-0.v1", "slot-stage-1.v1"] as const;
+const PUBLISH_STAGE_INTENT_RE = /^slot-stage-([01])-([0-9a-f]{32})-([0-9a-f]{64})\.v1$/;
 const FATAL_UTF8 = new TextDecoder("utf-8", { fatal: true });
 
 export type SegmentedJsonlDurableRootV1 = {
@@ -101,6 +101,12 @@ type SlotReadV1 = {
   exists: boolean;
   identity: SlotIdentityV1 | null;
   value: SegmentedJsonlDurableRootSlotV1 | null;
+};
+type StageIntentV1 = {
+  name: string;
+  index: 0 | 1;
+  publisherToken: string;
+  intentSha256: string;
 };
 
 function fail(code: string, detail: string): never {
@@ -731,45 +737,156 @@ function readSlotValueFromFd(fd: number, identity: SlotIdentityV1, index: 0 | 1)
   return value;
 }
 
+function stageIntentDigest(
+  index: 0 | 1,
+  publisherToken: string,
+  identity: SlotIdentityV1,
+  value: SegmentedJsonlDurableRootSlotV1,
+): string {
+  return sha256(canonicalJson({
+    v: 1,
+    target_slot: index,
+    publisher_token: publisherToken,
+    predecessor_root_sha256: value.root.previous_root_sha256,
+    candidate_root_sha256: value.root.root_sha256,
+    stage_dev: identity.dev,
+    stage_ino: identity.ino,
+    slot_sha256: value.slot_sha256,
+  }));
+}
+
+function stageIntentName(index: 0 | 1, publisherToken: string, intentSha256: string): string {
+  return `slot-stage-${index}-${publisherToken}-${intentSha256}.v1`;
+}
+
+function preStageName(index: 0 | 1, publisherToken: string): string {
+  return `slot-prestage-${index}-${publisherToken}.v1`;
+}
+
+function parseStageIntentName(name: string): StageIntentV1 | null {
+  const match = PUBLISH_STAGE_INTENT_RE.exec(name);
+  if (!match) return null;
+  return {
+    name,
+    index: Number(match[1]) as 0 | 1,
+    publisherToken: match[2],
+    intentSha256: match[3],
+  };
+}
+
+function assertStagePredecessor(
+  authority: DirectoryAuthorityV1,
+  index: 0 | 1,
+  value: SegmentedJsonlDurableRootSlotV1,
+): void {
+  if (value.root.store_generation === 1) {
+    if (
+      index !== 0 || value.root.previous_root_sha256 !== null ||
+      value.peer_slot_dev !== null || value.peer_slot_ino !== null
+    ) fail("DURABLE_ROOT_STAGE_INTENT_PREDECESSOR_MISMATCH", `${index}:genesis`);
+    const peer = readSlot(authority, 1);
+    if (peer.exists) fail("DURABLE_ROOT_STAGE_INTENT_PREDECESSOR_MISMATCH", `${index}:genesis-peer-present`);
+    return;
+  }
+
+  if (value.root.store_generation !== 2 || index !== 1) {
+    fail("DURABLE_ROOT_STAGE_INTENT_GENERATION_UNSUPPORTED", `${index}:${value.root.store_generation}`);
+  }
+  const predecessor = readSlot(authority, 0);
+  if (
+    !predecessor.value || !predecessor.identity || predecessor.value.root.store_generation !== 1 ||
+    value.root.previous_root_sha256 !== predecessor.value.root.root_sha256 ||
+    value.peer_slot_dev !== predecessor.identity.dev || value.peer_slot_ino !== predecessor.identity.ino
+  ) {
+    fail("DURABLE_ROOT_STAGE_INTENT_PREDECESSOR_MISMATCH", `${index}:${value.root.root_sha256}`);
+  }
+}
+
 function recoverLinkedStages(authority: DirectoryAuthorityV1, lock: PublishLockV1): void {
-  for (const index of [0, 1] as const) {
-    const stagePath = path.join(lock.stablePath, PUBLISH_STAGE_NAMES[index]);
-    let stageFd = -1;
+  assertDirectoryAuthority(lock);
+  const intents = fs.readdirSync(lock.stablePath)
+    .map(parseStageIntentName)
+    .filter((value): value is StageIntentV1 => value !== null);
+  if (intents.length > 1) {
+    fail("DURABLE_ROOT_STAGE_INTENT_AMBIGUOUS", intents.map(intent => intent.name).sort().join(","));
+  }
+  if (intents.length === 0) return;
+
+  const intent = intents[0];
+  const stagePath = path.join(lock.stablePath, intent.name);
+  const targetPath = path.join(authority.stablePath, SLOT_NAMES[intent.index]);
+  const prePath = path.join(lock.stablePath, preStageName(intent.index, intent.publisherToken));
+  let fd = -1;
+  try {
+    fd = fs.openSync(stagePath, fs.constants.O_RDONLY | ((fs.constants as any).O_NOFOLLOW || 0));
+    let stageStat = fs.fstatSync(fd, { bigint: true } as any);
+    let stageLinks = Number(stageStat.nlink);
+    let identity = slotIdentityFromStatAllowLinks(stageStat, stagePath, [1, 2]);
+    const value = readSlotValueFromFd(fd, identity, intent.index);
+    if (!value) fail("DURABLE_ROOT_STAGE_INTENT_TORN", intent.name);
+    if (stageIntentDigest(intent.index, intent.publisherToken, identity, value) !== intent.intentSha256) {
+      fail("DURABLE_ROOT_STAGE_INTENT_HASH_MISMATCH", intent.name);
+    }
+    assertStagePredecessor(authority, intent.index, value);
+
+    let targetIdentity: SlotIdentityV1 | null = null;
     try {
-      try { stageFd = fs.openSync(stagePath, fs.constants.O_RDWR | ((fs.constants as any).O_NOFOLLOW || 0)); }
-      catch (error: any) {
-        if (error?.code === "ENOENT") continue;
-        throw error;
-      }
-      const stageStat = fs.fstatSync(stageFd, { bigint: true } as any);
-      const links = Number(stageStat.nlink);
-      const stageIdentity = slotIdentityFromStatAllowLinks(stageStat, stagePath, [1, 2]);
-      if (links === 1) continue;
+      targetIdentity = slotIdentityFromStatAllowLinks(fs.lstatSync(targetPath, { bigint: true } as any), targetPath, [2]);
+    } catch (error: any) {
+      if (error?.code !== "ENOENT") throw error;
+    }
 
-      const targetPath = path.join(authority.stablePath, SLOT_NAMES[index]);
-      let targetStat: any;
-      try { targetStat = fs.lstatSync(targetPath, { bigint: true } as any); }
-      catch (error: any) {
-        if (error?.code === "ENOENT") fail("DURABLE_ROOT_STAGED_LINK_TARGET_MISSING", SLOT_NAMES[index]);
-        throw error;
+    if (!targetIdentity && stageLinks === 2) {
+      let preIdentity: SlotIdentityV1 | null = null;
+      try {
+        preIdentity = slotIdentityFromStatAllowLinks(fs.lstatSync(prePath, { bigint: true } as any), prePath, [2]);
+      } catch (error: any) {
+        if (error?.code !== "ENOENT") throw error;
       }
-      const targetIdentity = slotIdentityFromStatAllowLinks(targetStat, targetPath, [2]);
-      if (!sameIdentity(stageIdentity, targetIdentity)) fail("DURABLE_ROOT_STAGED_LINK_IDENTITY_MISMATCH", SLOT_NAMES[index]);
-      const value = readSlotValueFromFd(stageFd, stageIdentity, index);
-      if (!value) fail("DURABLE_ROOT_STAGED_LINK_TORN", SLOT_NAMES[index]);
-
-      const stageVisible = slotIdentityFromStatAllowLinks(fs.lstatSync(stagePath, { bigint: true } as any), stagePath, [2]);
-      const targetVisible = slotIdentityFromStatAllowLinks(fs.lstatSync(targetPath, { bigint: true } as any), targetPath, [2]);
-      if (!sameIdentity(stageIdentity, stageVisible) || !sameIdentity(stageIdentity, targetVisible)) {
-        fail("DURABLE_ROOT_STAGED_LINK_CHANGED", SLOT_NAMES[index]);
+      if (!preIdentity || !sameIdentity(identity, preIdentity)) {
+        fail("DURABLE_ROOT_STAGE_INTENT_UNOWNED_LINK", intent.name);
       }
-      fs.unlinkSync(stagePath);
+      fs.unlinkSync(prePath);
       fs.fsyncSync(lock.fd);
-      fs.fsyncSync(stageFd);
+      stageStat = fs.fstatSync(fd, { bigint: true } as any);
+      stageLinks = Number(stageStat.nlink);
+      identity = slotIdentityFromStatAllowLinks(stageStat, stagePath, [1]);
+    }
+
+    if (targetIdentity) {
+      if (stageLinks !== 2 || !sameIdentity(identity, targetIdentity)) {
+        fail("DURABLE_ROOT_STAGED_LINK_IDENTITY_MISMATCH", SLOT_NAMES[intent.index]);
+      }
+    } else {
+      if (stageLinks !== 1) fail("DURABLE_ROOT_STAGE_INTENT_LINK_COUNT", `${intent.name}:${stageLinks}`);
+      try { fs.linkSync(stagePath, targetPath); }
+      catch (error: any) {
+        if (error?.code !== "EEXIST") throw error;
+      }
+      const stageAfterLink = slotIdentityFromStatAllowLinks(fs.fstatSync(fd, { bigint: true } as any), stagePath, [2]);
+      const targetAfterLink = slotIdentityFromStatAllowLinks(fs.lstatSync(targetPath, { bigint: true } as any), targetPath, [2]);
+      if (!sameIdentity(identity, stageAfterLink) || !sameIdentity(identity, targetAfterLink)) {
+        fail("DURABLE_ROOT_TARGET_FOREIGN", SLOT_NAMES[intent.index]);
+      }
       fs.fsyncSync(authority.fd);
-      const finalTarget = slotIdentityFromStat(fs.lstatSync(targetPath, { bigint: true } as any), targetPath);
-      if (!sameIdentity(stageIdentity, finalTarget)) fail("DURABLE_ROOT_STAGED_LINK_FINAL_MISMATCH", SLOT_NAMES[index]);
-    } finally { if (stageFd >= 0) fs.closeSync(stageFd); }
+      assertDirectoryAuthority(authority);
+      targetIdentity = targetAfterLink;
+    }
+
+    assertStagePredecessor(authority, intent.index, value);
+    const stageBeforeUnlink = slotIdentityFromStatAllowLinks(fs.lstatSync(stagePath, { bigint: true } as any), stagePath, [2]);
+    const targetBeforeUnlink = slotIdentityFromStatAllowLinks(fs.lstatSync(targetPath, { bigint: true } as any), targetPath, [2]);
+    if (!sameIdentity(identity, stageBeforeUnlink) || !sameIdentity(identity, targetBeforeUnlink)) {
+      fail("DURABLE_ROOT_STAGED_LINK_CHANGED", SLOT_NAMES[intent.index]);
+    }
+    fs.unlinkSync(stagePath);
+    fs.fsyncSync(lock.fd);
+    fs.fsyncSync(fd);
+    fs.fsyncSync(authority.fd);
+    const finalTarget = slotIdentityFromStat(fs.lstatSync(targetPath, { bigint: true } as any), targetPath);
+    if (!sameIdentity(identity, finalTarget)) fail("DURABLE_ROOT_STAGED_LINK_FINAL_MISMATCH", SLOT_NAMES[intent.index]);
+  } finally {
+    if (fd >= 0) fs.closeSync(fd);
   }
 }
 
@@ -780,77 +897,61 @@ function publishNewSlotFromStage(
   peer: SlotIdentityV1 | null,
   root: SegmentedJsonlDurableRootV1,
 ): void {
-  const stagePath = path.join(lock.stablePath, PUBLISH_STAGE_NAMES[index]);
+  const publisherToken = lock.owner.token;
+  const preName = preStageName(index, publisherToken);
+  const prePath = path.join(lock.stablePath, preName);
   const targetPath = path.join(authority.stablePath, SLOT_NAMES[index]);
   let fd = -1;
+  let identity: SlotIdentityV1 | null = null;
+  let intentName: string | null = null;
   try {
-    try { fd = fs.openSync(stagePath, fs.constants.O_RDWR | ((fs.constants as any).O_NOFOLLOW || 0)); }
-    catch (error: any) {
-      if (error?.code !== "ENOENT") throw error;
-      fd = fs.openSync(stagePath, fs.constants.O_RDWR | fs.constants.O_CREAT | fs.constants.O_EXCL | ((fs.constants as any).O_NOFOLLOW || 0), 0o600);
-    }
-    const before = fs.fstatSync(fd, { bigint: true } as any);
-    const links = Number(before.nlink);
-    const identity = slotIdentityFromStatAllowLinks(before, stagePath, [1, 2]);
-    let targetIdentity: SlotIdentityV1 | null = null;
-    try {
-      const targetStat = fs.lstatSync(targetPath, { bigint: true } as any);
-      targetIdentity = slotIdentityFromStatAllowLinks(targetStat, targetPath, links === 2 ? [2] : [1]);
-    } catch (error: any) {
-      if (error?.code !== "ENOENT") throw error;
-    }
-    if (links === 2) {
-      if (!targetIdentity || !sameIdentity(identity, targetIdentity)) fail("DURABLE_ROOT_STAGED_LINK_IDENTITY_MISMATCH", SLOT_NAMES[index]);
-    } else if (targetIdentity) {
-      fail("DURABLE_ROOT_TARGET_FOREIGN", SLOT_NAMES[index]);
-    }
+    fd = fs.openSync(
+      prePath,
+      fs.constants.O_RDWR | fs.constants.O_CREAT | fs.constants.O_EXCL | ((fs.constants as any).O_NOFOLLOW || 0),
+      0o600,
+    );
+    identity = slotIdentityFromStat(fs.fstatSync(fd, { bigint: true } as any), prePath);
+    let targetExists = false;
+    try { fs.lstatSync(targetPath); targetExists = true; }
+    catch (error: any) { if (error?.code !== "ENOENT") throw error; }
+    if (targetExists) fail("DURABLE_ROOT_TARGET_FOREIGN", SLOT_NAMES[index]);
 
     const expected = buildSlotValue(index, identity, peer, root);
-    const existing = readSlotValueFromFd(fd, identity, index);
-    if (existing && existing.slot_sha256 !== expected.slot_sha256) {
-      fail("DURABLE_ROOT_STAGED_CANDIDATE_CONFLICT", `${index}:${existing.root.root_sha256}:${root.root_sha256}`);
-    }
-    if (!existing) {
-      if (links === 2) fail("DURABLE_ROOT_STAGED_CANONICAL_TORN", SLOT_NAMES[index]);
-      const body = encodeSlot(expected);
-      writeExactFile(fd, body, stagePath);
-      fs.fchmodSync(fd, 0o600);
-      fs.fsyncSync(fd);
-      const written = slotIdentityFromStat(fs.fstatSync(fd, { bigint: true } as any), stagePath);
-      if (!sameIdentity(identity, written)) fail("DURABLE_ROOT_STAGE_CHANGED_DURING_WRITE", SLOT_NAMES[index]);
-      const verified = readSlotValueFromFd(fd, identity, index);
-      if (!verified || verified.slot_sha256 !== expected.slot_sha256) fail("DURABLE_ROOT_STAGE_VERIFY_FAILED", SLOT_NAMES[index]);
-    }
-
-    if (!targetIdentity) {
-      try { fs.linkSync(stagePath, targetPath); }
-      catch (error: any) {
-        if (error?.code !== "EEXIST") throw error;
-      }
-    }
-    const stageAfterLink = slotIdentityFromStatAllowLinks(fs.fstatSync(fd, { bigint: true } as any), stagePath, [2]);
-    const targetAfterLink = slotIdentityFromStatAllowLinks(fs.lstatSync(targetPath, { bigint: true } as any), targetPath, [2]);
-    if (!sameIdentity(identity, stageAfterLink) || !sameIdentity(identity, targetAfterLink)) {
-      fail("DURABLE_ROOT_TARGET_FOREIGN", SLOT_NAMES[index]);
-    }
-    fs.fsyncSync(authority.fd);
-    assertDirectoryAuthority(authority);
-
-    const stageBeforeUnlink = slotIdentityFromStatAllowLinks(fs.lstatSync(stagePath, { bigint: true } as any), stagePath, [2]);
-    const targetBeforeUnlink = slotIdentityFromStatAllowLinks(fs.lstatSync(targetPath, { bigint: true } as any), targetPath, [2]);
-    if (!sameIdentity(identity, stageBeforeUnlink) || !sameIdentity(identity, targetBeforeUnlink)) {
-      fail("DURABLE_ROOT_STAGED_LINK_CHANGED", SLOT_NAMES[index]);
-    }
-    fs.unlinkSync(stagePath);
-    fs.fsyncSync(lock.fd);
+    writeExactFile(fd, encodeSlot(expected), prePath);
+    fs.fchmodSync(fd, 0o600);
     fs.fsyncSync(fd);
-    fs.fsyncSync(authority.fd);
-    const finalFd = slotIdentityFromStat(fs.fstatSync(fd, { bigint: true } as any), targetPath);
-    const finalPath = slotIdentityFromStat(fs.lstatSync(targetPath, { bigint: true } as any), targetPath);
-    if (!sameIdentity(identity, finalFd) || !sameIdentity(identity, finalPath)) {
-      fail("DURABLE_ROOT_CREATED_SLOT_CHANGED", SLOT_NAMES[index]);
+    const written = slotIdentityFromStat(fs.fstatSync(fd, { bigint: true } as any), prePath);
+    if (!sameIdentity(identity, written)) fail("DURABLE_ROOT_STAGE_CHANGED_DURING_WRITE", SLOT_NAMES[index]);
+    const verified = readSlotValueFromFd(fd, identity, index);
+    if (!verified || verified.slot_sha256 !== expected.slot_sha256) fail("DURABLE_ROOT_STAGE_VERIFY_FAILED", SLOT_NAMES[index]);
+
+    const intentSha = stageIntentDigest(index, publisherToken, identity, expected);
+    intentName = stageIntentName(index, publisherToken, intentSha);
+    const intentPath = path.join(lock.stablePath, intentName);
+    try { fs.linkSync(prePath, intentPath); }
+    catch (error: any) {
+      if (error?.code === "EEXIST") fail("DURABLE_ROOT_STAGE_INTENT_FOREIGN", intentName);
+      throw error;
     }
-  } finally { if (fd >= 0) fs.closeSync(fd); }
+    fs.fsyncSync(lock.fd);
+    const preLinked = slotIdentityFromStatAllowLinks(fs.lstatSync(prePath, { bigint: true } as any), prePath, [2]);
+    const intentLinked = slotIdentityFromStatAllowLinks(fs.lstatSync(intentPath, { bigint: true } as any), intentPath, [2]);
+    if (!sameIdentity(identity, preLinked) || !sameIdentity(identity, intentLinked)) {
+      fail("DURABLE_ROOT_STAGE_INTENT_LINK_MISMATCH", intentName);
+    }
+    fs.unlinkSync(prePath);
+    fs.fsyncSync(lock.fd);
+    const intentOnly = slotIdentityFromStat(fs.lstatSync(intentPath, { bigint: true } as any), intentPath);
+    if (!sameIdentity(identity, intentOnly)) fail("DURABLE_ROOT_STAGE_INTENT_CHANGED", intentName);
+  } finally {
+    if (fd >= 0) fs.closeSync(fd);
+  }
+
+  recoverLinkedStages(authority, lock);
+  const published = readSlot(authority, index);
+  if (!published.value || published.value.root.root_sha256 !== root.root_sha256) {
+    fail("DURABLE_ROOT_PUBLICATION_NOT_CURRENT", root.root_sha256);
+  }
 }
 
 function publishInputMatchesCurrentRoot(input: SegmentedJsonlDurableRootPublishInputV1, root: SegmentedJsonlDurableRootV1): boolean {
