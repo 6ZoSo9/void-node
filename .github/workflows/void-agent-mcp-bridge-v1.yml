@@ -83,7 +83,7 @@ jobs:
           mcp_changed_file="$(mktemp)"
           trap 'rm -f "$mcp_changed_file"' EXIT
           git diff --no-renames --name-only -z \
-            "$integration_base..$CI_DIFF_CURRENT_SHA" > "$mcp_changed_file"
+            "$integration_base..$CI_DIFF_CHECKOUT_SHA" > "$mcp_changed_file"
           mapfile -d '' -t MCP_CHANGED < "$mcp_changed_file"
           rm -f "$mcp_changed_file"
           trap - EXIT
@@ -157,6 +157,8 @@ jobs:
           ! grep -F 'bash scripts/ci_diff_hygiene_v1.sh' <<<"$bootstrap_block"
           grep -F 'git cat-file -p "$CI_DIFF_CHECKOUT_SHA"' <<<"$bootstrap_block"
           grep -F 'git diff --no-renames --name-only -z' <<<"$bootstrap_block"
+          grep -F '"$integration_base..$CI_DIFF_CHECKOUT_SHA"' <<<"$bootstrap_block"
+          ! grep -F '"$integration_base..$CI_DIFF_CURRENT_SHA"' <<<"$bootstrap_block"
           grep -F 'scripts/ci_diff_hygiene_v1.sh' <<<"$bootstrap_block"
           grep -F 'scripts/prove_ci_diff_hygiene_v1.mjs' <<<"$bootstrap_block"
           grep -F 'tools/void-ai-agent-bootstrap-client-v1.mjs' <<<"$bootstrap_block"
@@ -252,6 +254,7 @@ jobs:
           grep -F 'VOID_MCP_EXTERNAL_CONTRACT_RELEVANT=%s' "$workflow"
           grep -F "env.VOID_MCP_DIRECT_RELEVANT == '1'" "$workflow"
           grep -F "env.VOID_MCP_LANE_RELEVANT == '1'" "$workflow"
+          grep -F '"$BASE_SHA..$CI_DIFF_CHECKOUT_SHA"' "$workflow"
           test "$(
             grep -c -- 'git diff --no-renames --name-only -z' "$workflow"
           )" -ge 2
@@ -355,7 +358,7 @@ jobs:
           changed_file_list="$(mktemp)"
           trap 'rm -f "$changed_file_list"' EXIT
           git diff --no-renames --name-only -z \
-            "$BASE_SHA..$CI_DIFF_CURRENT_SHA" > "$changed_file_list"
+            "$BASE_SHA..$CI_DIFF_CHECKOUT_SHA" > "$changed_file_list"
           mapfile -d '' -t changed < "$changed_file_list"
           rm -f "$changed_file_list"
           trap - EXIT
