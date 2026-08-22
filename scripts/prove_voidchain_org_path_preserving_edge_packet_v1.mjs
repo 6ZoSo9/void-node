@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import assert from "node:assert/strict";
 import childProcess from "node:child_process";
+import crypto from "node:crypto";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -10,6 +11,7 @@ const MARKER = "VOIDCHAIN_ORG_PATH_PRESERVING_EDGE_PACKET_V1_PROOF";
 const TUNNEL_ID = "6ff42ae2-765d-4adf-8112-31c55c1551ef";
 const HOSTNAMES = ["voidchain.org", "www.voidchain.org"];
 const EDGE_ORIGIN = "http://127.0.0.1:8080";
+const UNIT_NAME = "voidchain-org-path-preserving-edge-v1.service";
 const root = process.cwd();
 const builder = path.join(root, "scripts/build_voidchain_org_path_preserving_edge_packet_v1.mjs");
 const verifier = path.join(root, "scripts/verify_voidchain_org_path_preserving_edge_packet_v1.mjs");
@@ -34,6 +36,27 @@ function expectFailure(command, args, needle) {
   assert.notEqual(result.status, 0, `expected failure: ${command} ${args.join(" ")}`);
   const combined = `${result.stdout || ""}\n${result.stderr || ""}`;
   if (needle) assert.equal(combined.includes(needle), true, combined);
+}
+
+function canonicalize(value) {
+  if (value === null || typeof value === "string" || typeof value === "boolean") return value;
+  if (typeof value === "number") {
+    if (!Number.isFinite(value)) throw new Error("canonical JSON cannot contain non-finite numbers");
+    return value;
+  }
+  if (Array.isArray(value)) return value.map(canonicalize);
+  if (value && typeof value === "object") {
+    return Object.fromEntries(Object.keys(value).sort().map((key) => [key, canonicalize(value[key])]));
+  }
+  throw new Error(`canonical JSON cannot contain ${typeof value}`);
+}
+
+function canonicalJson(value) {
+  return JSON.stringify(canonicalize(value));
+}
+
+function sha256Bytes(bytes) {
+  return crypto.createHash("sha256").update(bytes).digest("hex");
 }
 
 function builderArgs(repo, head, credentials, cloudflared, output) {
@@ -85,8 +108,10 @@ try {
   const verified = run(process.execPath, [verifier, "--packet", output, "--repo-root", repo]);
   assert.equal(verified.includes("VOIDCHAIN_ORG_PATH_PRESERVING_EDGE_PACKET_VERIFIER_V1_GREEN"), true);
   assert.equal(verified.includes("path_preserved=true"), true);
+  assert.equal(verified.includes("unit_semantics_bound=true"), true);
 
-  const packet = JSON.parse(fs.readFileSync(path.join(output, "packet.json"), "utf8"));
+  const packetPath = path.join(output, "packet.json");
+  const packet = JSON.parse(fs.readFileSync(packetPath, "utf8"));
   assert.deepEqual(packet.hostnames, HOSTNAMES);
   assert.deepEqual(packet.public_origins, HOSTNAMES.map((host) => `https://${host}`));
   assert.equal(packet.local_edge.origin, EDGE_ORIGIN);
@@ -123,6 +148,29 @@ try {
   expectFailure(process.execPath, [verifier, "--packet", output, "--repo-root", repo], "packet file identity mismatch");
   fs.writeFileSync(configPath, originalConfig);
 
+  const unitPath = path.join(output, UNIT_NAME);
+  const originalUnit = fs.readFileSync(unitPath, "utf8");
+  const originalPacketText = fs.readFileSync(packetPath, "utf8");
+  const tamperedUnit = originalUnit.replace("Restart=always\n", "Restart=no\n");
+  assert.notEqual(tamperedUnit, originalUnit);
+  fs.writeFileSync(unitPath, tamperedUnit);
+  const selfConsistentTamperedPacket = JSON.parse(originalPacketText);
+  selfConsistentTamperedPacket.files[UNIT_NAME] = {
+    bytes: Buffer.byteLength(tamperedUnit, "utf8"),
+    sha256: sha256Bytes(tamperedUnit),
+  };
+  const { packet_id: ignoredPacketId, ...tamperedBody } = selfConsistentTamperedPacket;
+  void ignoredPacketId;
+  selfConsistentTamperedPacket.packet_id = `voidedge1_${sha256Bytes(canonicalJson(tamperedBody))}`;
+  fs.writeFileSync(packetPath, `${JSON.stringify(selfConsistentTamperedPacket, null, 2)}\n`);
+  expectFailure(
+    process.execPath,
+    [verifier, "--packet", output, "--repo-root", repo],
+    "systemd unit is not the exact reviewed service contract",
+  );
+  fs.writeFileSync(unitPath, originalUnit);
+  fs.writeFileSync(packetPath, originalPacketText);
+
   fs.chmodSync(credentials, 0o644);
   expectFailure(process.execPath, [verifier, "--packet", output, "--repo-root", repo], "credentials file must have mode 0600");
   fs.chmodSync(credentials, 0o600);
@@ -147,12 +195,15 @@ try {
 
   const finalVerified = run(process.execPath, [verifier, "--packet", output, "--repo-root", repo]);
   assert.equal(finalVerified.includes("path_preserved=true"), true);
+  assert.equal(finalVerified.includes("unit_semantics_bound=true"), true);
 
   console.log(`${MARKER}_GREEN`);
   console.log("hostnames=voidchain.org,www.voidchain.org");
   console.log("edge_origin=http://127.0.0.1:8080");
   console.log("path_preservation=host_only_no_rewrite");
   console.log("terminal_deny=http_status:404");
+  console.log("unit_semantics_bound=true");
+  console.log("self_consistent_unit_tamper_rejected=true");
   console.log("credential_contents_leaked=false");
   console.log("dirty_repo_rejected=true");
   console.log("in_repo_credentials_rejected=true");
