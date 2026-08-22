@@ -28,6 +28,10 @@ export const VOID_SEGMENTED_JSONL_DURABLE_ROOT_SLOT_V1 = "VOID_SEGMENTED_JSONL_D
 export const VOID_SEGMENTED_JSONL_DURABLE_ROOT_SLOT_BYTES_V1 = 8192;
 
 const SLOT_NAMES = ["durable-root-slot-0.v1.json", "durable-root-slot-1.v1.json"] as const;
+const PUBLISH_LOCK_NAME = ".durable-root-publish-v1.lock";
+const PUBLISH_LOCK_OWNER_NAME = "owner.v1.json";
+const PUBLISH_LOCK_RECLAIM_NAME = "reclaim.v1";
+const PUBLISH_STAGE_NAMES = ["slot-stage-0.v1", "slot-stage-1.v1"] as const;
 const FATAL_UTF8 = new TextDecoder("utf-8", { fatal: true });
 
 export type SegmentedJsonlDurableRootV1 = {
@@ -77,6 +81,14 @@ type DirectoryAuthorityV1 = {
 };
 
 type SlotIdentityV1 = { dev: string; ino: string };
+type PublishLockOwnerV1 = {
+  v: 1;
+  pid: number;
+  start_ticks: string;
+  token: string;
+  state: "held" | "released";
+};
+type PublishLockV1 = DirectoryAuthorityV1 & { owner: PublishLockOwnerV1 };
 type SlotReadV1 = {
   index: 0 | 1;
   path: string;
@@ -183,6 +195,256 @@ function slotIdentityFromStat(st: any, label: string): SlotIdentityV1 {
 
 function sameIdentity(a: SlotIdentityV1, b: SlotIdentityV1): boolean {
   return a.dev === b.dev && a.ino === b.ino;
+}
+
+function slotIdentityFromStatAllowLinks(st: any, label: string, allowedLinks: readonly number[]): SlotIdentityV1 {
+  const mode = Number(st.mode) & 0o777;
+  if (!st.isFile() || st.uid !== currentUid() || mode !== 0o600 || !allowedLinks.includes(Number(st.nlink))) {
+    fail("DURABLE_ROOT_SLOT_AUTHORITY_MISMATCH", `${label}:uid=${String(st.uid)}:mode=${mode.toString(8)}:nlink=${String(st.nlink)}`);
+  }
+  return { dev: String(st.dev), ino: String(st.ino) };
+}
+
+function processStartTicks(pid: number): string | null {
+  if (!Number.isSafeInteger(pid) || pid <= 0) return null;
+  let stat: string;
+  try { stat = fs.readFileSync(`/proc/${pid}/stat`, "utf8"); }
+  catch (error: any) {
+    if (error?.code === "ENOENT" || error?.code === "ESRCH") return null;
+    fail("DURABLE_ROOT_LOCK_PROCESS_IDENTITY_UNAVAILABLE", `${pid}:${String(error?.code || "read")}`);
+  }
+  const close = stat.lastIndexOf(")");
+  if (close < 0) fail("DURABLE_ROOT_LOCK_PROCESS_IDENTITY_INVALID", String(pid));
+  const fields = stat.slice(close + 1).trim().split(/\s+/);
+  const startTicks = fields[19];
+  if (!startTicks || !/^[0-9]+$/.test(startTicks)) fail("DURABLE_ROOT_LOCK_PROCESS_IDENTITY_INVALID", String(pid));
+  return startTicks;
+}
+
+function parsePublishLockOwner(text: string): PublishLockOwnerV1 | null {
+  let value: any;
+  try { value = JSON.parse(text); } catch { return null; }
+  if (!value || typeof value !== "object") return null;
+  const keys = Object.keys(value).sort().join(",");
+  if (keys !== ["pid", "start_ticks", "state", "token", "v"].sort().join(",")) return null;
+  if (
+    value.v !== 1 || !Number.isSafeInteger(value.pid) || value.pid <= 0 ||
+    typeof value.start_ticks !== "string" || !/^[0-9]+$/.test(value.start_ticks) ||
+    typeof value.token !== "string" || !/^[0-9a-f]{32}$/.test(value.token) ||
+    (value.state !== "held" && value.state !== "released")
+  ) return null;
+  return value as PublishLockOwnerV1;
+}
+
+function readPublishLockOwner(lock: DirectoryAuthorityV1): PublishLockOwnerV1 | null {
+  const stablePath = path.join(lock.stablePath, PUBLISH_LOCK_OWNER_NAME);
+  let fd = -1;
+  try {
+    try { fd = fs.openSync(stablePath, fs.constants.O_RDONLY | ((fs.constants as any).O_NOFOLLOW || 0)); }
+    catch (error: any) {
+      if (error?.code === "ENOENT") return null;
+      throw error;
+    }
+    const before = fs.fstatSync(fd, { bigint: true } as any);
+    const identity = slotIdentityFromStatAllowLinks(before, stablePath, [1]);
+    if (Number(before.size) <= 0 || Number(before.size) > 1024) return null;
+    const body = Buffer.alloc(Number(before.size));
+    let off = 0;
+    while (off < body.length) {
+      const n = fs.readSync(fd, body, off, body.length - off, off);
+      if (n <= 0) return null;
+      off += n;
+    }
+    const after = fs.fstatSync(fd, { bigint: true } as any);
+    const afterIdentity = slotIdentityFromStatAllowLinks(after, stablePath, [1]);
+    if (!sameIdentity(identity, afterIdentity) || before.size !== after.size) return null;
+    return parsePublishLockOwner(body.toString("utf8"));
+  } finally {
+    if (fd >= 0) fs.closeSync(fd);
+  }
+}
+
+function writeExactFile(fd: number, body: Buffer, label: string): void {
+  fs.ftruncateSync(fd, 0);
+  let off = 0;
+  while (off < body.length) {
+    const n = fs.writeSync(fd, body, off, body.length - off, off);
+    if (n <= 0) fail("DURABLE_ROOT_SHORT_WRITE", `${label}:${off}`);
+    off += n;
+  }
+}
+
+function writeNewPublishLockOwner(lock: DirectoryAuthorityV1, owner: PublishLockOwnerV1): void {
+  const stablePath = path.join(lock.stablePath, PUBLISH_LOCK_OWNER_NAME);
+  const body = Buffer.from(canonicalJson(owner) + "\n", "utf8");
+  let fd = -1;
+  try {
+    fd = fs.openSync(stablePath, fs.constants.O_WRONLY | fs.constants.O_CREAT | fs.constants.O_EXCL | ((fs.constants as any).O_NOFOLLOW || 0), 0o600);
+    writeExactFile(fd, body, stablePath);
+    fs.fchmodSync(fd, 0o600);
+    fs.fsyncSync(fd);
+  } finally { if (fd >= 0) fs.closeSync(fd); }
+  fs.fsyncSync(lock.fd);
+}
+
+function rewritePublishLockOwner(lock: PublishLockV1, state: "held" | "released"): void {
+  const stablePath = path.join(lock.stablePath, PUBLISH_LOCK_OWNER_NAME);
+  const body = Buffer.from(canonicalJson({ ...lock.owner, state }) + "\n", "utf8");
+  let fd = -1;
+  try {
+    fd = fs.openSync(stablePath, fs.constants.O_RDWR | ((fs.constants as any).O_NOFOLLOW || 0));
+    const current = readPublishLockOwner(lock);
+    if (!current || current.token !== lock.owner.token) fail("DURABLE_ROOT_PUBLISH_LOCK_OWNER_CHANGED", stablePath);
+    writeExactFile(fd, body, stablePath);
+    fs.fchmodSync(fd, 0o600);
+    fs.fsyncSync(fd);
+  } finally { if (fd >= 0) fs.closeSync(fd); }
+  fs.fsyncSync(lock.fd);
+  lock.owner = { ...lock.owner, state };
+}
+
+function publishLockOwnerIsLive(owner: PublishLockOwnerV1 | null): boolean {
+  return !!owner && owner.state === "held" && processStartTicks(owner.pid) === owner.start_ticks;
+}
+
+function openPublishLockDirectory(authority: DirectoryAuthorityV1): DirectoryAuthorityV1 {
+  const publicPath = path.join(authority.publicPath, PUBLISH_LOCK_NAME);
+  const stablePath = path.join(authority.stablePath, PUBLISH_LOCK_NAME);
+  const fd = fs.openSync(stablePath, directoryFlags());
+  try {
+    const opened = fs.fstatSync(fd, { bigint: true } as any);
+    const visible = fs.lstatSync(publicPath, { bigint: true } as any);
+    if (!opened.isDirectory() || !visible.isDirectory() || visible.isSymbolicLink() || opened.dev !== visible.dev || opened.ino !== visible.ino) {
+      fail("DURABLE_ROOT_PUBLISH_LOCK_NAMESPACE_MISMATCH", publicPath);
+    }
+    assertPrivateDirectory(opened, publicPath);
+    assertPrivateDirectory(visible, publicPath);
+    return { fd, publicPath, stablePath: `/proc/self/fd/${fd}`, dev: String(opened.dev), ino: String(opened.ino) };
+  } catch (error) {
+    fs.closeSync(fd);
+    throw error;
+  }
+}
+
+function lockMarkerExists(lock: DirectoryAuthorityV1, name: string): boolean {
+  try { fs.lstatSync(path.join(lock.stablePath, name)); return true; }
+  catch (error: any) {
+    if (error?.code === "ENOENT") return false;
+    throw error;
+  }
+}
+
+function unlinkLockFileIfPresent(lock: DirectoryAuthorityV1, name: string): void {
+  const stablePath = path.join(lock.stablePath, name);
+  try {
+    const st = fs.lstatSync(stablePath, { bigint: true } as any);
+    slotIdentityFromStatAllowLinks(st, stablePath, [1]);
+    fs.unlinkSync(stablePath);
+  } catch (error: any) {
+    if (error?.code !== "ENOENT") throw error;
+  }
+}
+
+function acquirePublishLock(authority: DirectoryAuthorityV1): PublishLockV1 {
+  assertDirectoryAuthority(authority);
+  const stableLockPath = path.join(authority.stablePath, PUBLISH_LOCK_NAME);
+  let created = false;
+  try {
+    fs.mkdirSync(stableLockPath, { mode: 0o700 });
+    created = true;
+    fs.fsyncSync(authority.fd);
+  } catch (error: any) {
+    if (error?.code !== "EEXIST") throw error;
+  }
+
+  const lock = openPublishLockDirectory(authority);
+  try {
+    const owner: PublishLockOwnerV1 = {
+      v: 1,
+      pid: process.pid,
+      start_ticks: processStartTicks(process.pid) || fail("DURABLE_ROOT_LOCK_PROCESS_IDENTITY_INVALID", String(process.pid)),
+      token: crypto.randomBytes(16).toString("hex"),
+      state: "held",
+    };
+
+    if (created) {
+      writeNewPublishLockOwner(lock, owner);
+      if (lockMarkerExists(lock, PUBLISH_LOCK_RECLAIM_NAME)) {
+        const observedDuringReclaim = readPublishLockOwner(lock);
+        if (observedDuringReclaim?.token === owner.token) {
+          unlinkLockFileIfPresent(lock, PUBLISH_LOCK_OWNER_NAME);
+          fs.fsyncSync(lock.fd);
+        }
+        fail("DURABLE_ROOT_PUBLISH_LOCK_RECLAIMED", lock.publicPath);
+      }
+      const observed = readPublishLockOwner(lock);
+      if (!observed || observed.token !== owner.token) fail("DURABLE_ROOT_PUBLISH_LOCK_OWNER_CHANGED", lock.publicPath);
+      assertDirectoryAuthority(lock);
+      return { ...lock, owner };
+    }
+
+    const existingOwner = readPublishLockOwner(lock);
+    if (publishLockOwnerIsLive(existingOwner)) fail("DURABLE_ROOT_PUBLISH_BUSY", lock.publicPath);
+
+    const reclaimPath = path.join(lock.stablePath, PUBLISH_LOCK_RECLAIM_NAME);
+    let reclaimFd = -1;
+    try {
+      reclaimFd = fs.openSync(reclaimPath, fs.constants.O_WRONLY | fs.constants.O_CREAT | fs.constants.O_EXCL | ((fs.constants as any).O_NOFOLLOW || 0), 0o600);
+      const reclaimBody = Buffer.from(owner.token + "\n", "utf8");
+      writeExactFile(reclaimFd, reclaimBody, reclaimPath);
+      fs.fchmodSync(reclaimFd, 0o600);
+      fs.fsyncSync(reclaimFd);
+    } catch (error: any) {
+      if (error?.code === "EEXIST") fail("DURABLE_ROOT_PUBLISH_BUSY", lock.publicPath);
+      throw error;
+    } finally { if (reclaimFd >= 0) fs.closeSync(reclaimFd); }
+    fs.fsyncSync(lock.fd);
+
+    const ownerAfterClaim = readPublishLockOwner(lock);
+    if (publishLockOwnerIsLive(ownerAfterClaim)) {
+      unlinkLockFileIfPresent(lock, PUBLISH_LOCK_RECLAIM_NAME);
+      fs.fsyncSync(lock.fd);
+      fail("DURABLE_ROOT_PUBLISH_BUSY", lock.publicPath);
+    }
+
+    unlinkLockFileIfPresent(lock, PUBLISH_LOCK_OWNER_NAME);
+    try {
+      writeNewPublishLockOwner(lock, owner);
+    } catch (error: any) {
+      if (error?.code === "EEXIST") {
+        unlinkLockFileIfPresent(lock, PUBLISH_LOCK_RECLAIM_NAME);
+        fs.fsyncSync(lock.fd);
+        fail("DURABLE_ROOT_PUBLISH_BUSY", lock.publicPath);
+      }
+      throw error;
+    }
+    unlinkLockFileIfPresent(lock, PUBLISH_LOCK_RECLAIM_NAME);
+    fs.fsyncSync(lock.fd);
+    assertDirectoryAuthority(lock);
+    const observed = readPublishLockOwner(lock);
+    if (!observed || observed.token !== owner.token || observed.state !== "held") {
+      fail("DURABLE_ROOT_PUBLISH_LOCK_OWNER_CHANGED", lock.publicPath);
+    }
+    return { ...lock, owner };
+  } catch (error) {
+    fs.closeSync(lock.fd);
+    throw error;
+  }
+}
+
+function releasePublishLock(_authority: DirectoryAuthorityV1, lock: PublishLockV1): void {
+  const observed = readPublishLockOwner(lock);
+  if (!observed || observed.token !== lock.owner.token || observed.state !== "held") {
+    fail("DURABLE_ROOT_PUBLISH_LOCK_OWNER_CHANGED", lock.publicPath);
+  }
+  // Release by removing only our exact owner record. The private lock
+  // directory is intentionally retained as one lifetime-bounded coordination
+  // object. A crash before the directory fsync may resurrect this held owner,
+  // but PID/start-tick stale reclamation then recovers it safely. No post-
+  // commit cleanup may delete a successor owner's record.
+  unlinkLockFileIfPresent(lock, PUBLISH_LOCK_OWNER_NAME);
+  try { fs.fsyncSync(lock.fd); } catch { /* stale-owner recovery is authoritative */ }
+  fs.closeSync(lock.fd);
 }
 
 function verifyRootObject(rootInput: SegmentedJsonlDurableRootV1): SegmentedJsonlDurableRootV1 {
@@ -387,6 +649,173 @@ function buildSlotValue(index: 0 | 1, identity: SlotIdentityV1, peer: SlotIdenti
   return verifySlotObject({ ...core, slot_sha256: sha256(canonicalJson(core)) });
 }
 
+function readSlotValueFromFd(fd: number, identity: SlotIdentityV1, index: 0 | 1): SegmentedJsonlDurableRootSlotV1 | null {
+  const stat = fs.fstatSync(fd, { bigint: true } as any);
+  if (Number(stat.size) !== VOID_SEGMENTED_JSONL_DURABLE_ROOT_SLOT_BYTES_V1) return null;
+  const body = Buffer.alloc(VOID_SEGMENTED_JSONL_DURABLE_ROOT_SLOT_BYTES_V1);
+  let off = 0;
+  while (off < body.length) {
+    const n = fs.readSync(fd, body, off, body.length - off, off);
+    if (n <= 0) return null;
+    off += n;
+  }
+  let value: SegmentedJsonlDurableRootSlotV1;
+  try { value = decodeSlot(body); } catch { return null; }
+  if (value.slot_dev !== identity.dev || value.slot_ino !== identity.ino || value.slot_index !== index) return null;
+  return value;
+}
+
+function recoverLinkedStages(authority: DirectoryAuthorityV1, lock: PublishLockV1): void {
+  for (const index of [0, 1] as const) {
+    const stagePath = path.join(lock.stablePath, PUBLISH_STAGE_NAMES[index]);
+    let stageFd = -1;
+    try {
+      try { stageFd = fs.openSync(stagePath, fs.constants.O_RDWR | ((fs.constants as any).O_NOFOLLOW || 0)); }
+      catch (error: any) {
+        if (error?.code === "ENOENT") continue;
+        throw error;
+      }
+      const stageStat = fs.fstatSync(stageFd, { bigint: true } as any);
+      const links = Number(stageStat.nlink);
+      const stageIdentity = slotIdentityFromStatAllowLinks(stageStat, stagePath, [1, 2]);
+      if (links === 1) continue;
+
+      const targetPath = path.join(authority.stablePath, SLOT_NAMES[index]);
+      let targetStat: any;
+      try { targetStat = fs.lstatSync(targetPath, { bigint: true } as any); }
+      catch (error: any) {
+        if (error?.code === "ENOENT") fail("DURABLE_ROOT_STAGED_LINK_TARGET_MISSING", SLOT_NAMES[index]);
+        throw error;
+      }
+      const targetIdentity = slotIdentityFromStatAllowLinks(targetStat, targetPath, [2]);
+      if (!sameIdentity(stageIdentity, targetIdentity)) fail("DURABLE_ROOT_STAGED_LINK_IDENTITY_MISMATCH", SLOT_NAMES[index]);
+      const value = readSlotValueFromFd(stageFd, stageIdentity, index);
+      if (!value) fail("DURABLE_ROOT_STAGED_LINK_TORN", SLOT_NAMES[index]);
+
+      const stageVisible = slotIdentityFromStatAllowLinks(fs.lstatSync(stagePath, { bigint: true } as any), stagePath, [2]);
+      const targetVisible = slotIdentityFromStatAllowLinks(fs.lstatSync(targetPath, { bigint: true } as any), targetPath, [2]);
+      if (!sameIdentity(stageIdentity, stageVisible) || !sameIdentity(stageIdentity, targetVisible)) {
+        fail("DURABLE_ROOT_STAGED_LINK_CHANGED", SLOT_NAMES[index]);
+      }
+      fs.unlinkSync(stagePath);
+      fs.fsyncSync(lock.fd);
+      fs.fsyncSync(stageFd);
+      fs.fsyncSync(authority.fd);
+      const finalTarget = slotIdentityFromStat(fs.lstatSync(targetPath, { bigint: true } as any), targetPath);
+      if (!sameIdentity(stageIdentity, finalTarget)) fail("DURABLE_ROOT_STAGED_LINK_FINAL_MISMATCH", SLOT_NAMES[index]);
+    } finally { if (stageFd >= 0) fs.closeSync(stageFd); }
+  }
+}
+
+function publishNewSlotFromStage(
+  authority: DirectoryAuthorityV1,
+  lock: PublishLockV1,
+  index: 0 | 1,
+  peer: SlotIdentityV1 | null,
+  root: SegmentedJsonlDurableRootV1,
+): void {
+  const stagePath = path.join(lock.stablePath, PUBLISH_STAGE_NAMES[index]);
+  const targetPath = path.join(authority.stablePath, SLOT_NAMES[index]);
+  let fd = -1;
+  try {
+    try { fd = fs.openSync(stagePath, fs.constants.O_RDWR | ((fs.constants as any).O_NOFOLLOW || 0)); }
+    catch (error: any) {
+      if (error?.code !== "ENOENT") throw error;
+      fd = fs.openSync(stagePath, fs.constants.O_RDWR | fs.constants.O_CREAT | fs.constants.O_EXCL | ((fs.constants as any).O_NOFOLLOW || 0), 0o600);
+    }
+    const before = fs.fstatSync(fd, { bigint: true } as any);
+    const links = Number(before.nlink);
+    const identity = slotIdentityFromStatAllowLinks(before, stagePath, [1, 2]);
+    let targetIdentity: SlotIdentityV1 | null = null;
+    try {
+      const targetStat = fs.lstatSync(targetPath, { bigint: true } as any);
+      targetIdentity = slotIdentityFromStatAllowLinks(targetStat, targetPath, links === 2 ? [2] : [1]);
+    } catch (error: any) {
+      if (error?.code !== "ENOENT") throw error;
+    }
+    if (links === 2) {
+      if (!targetIdentity || !sameIdentity(identity, targetIdentity)) fail("DURABLE_ROOT_STAGED_LINK_IDENTITY_MISMATCH", SLOT_NAMES[index]);
+    } else if (targetIdentity) {
+      fail("DURABLE_ROOT_TARGET_FOREIGN", SLOT_NAMES[index]);
+    }
+
+    const expected = buildSlotValue(index, identity, peer, root);
+    const existing = readSlotValueFromFd(fd, identity, index);
+    if (existing && existing.slot_sha256 !== expected.slot_sha256) {
+      fail("DURABLE_ROOT_STAGED_CANDIDATE_CONFLICT", `${index}:${existing.root.root_sha256}:${root.root_sha256}`);
+    }
+    if (!existing) {
+      if (links === 2) fail("DURABLE_ROOT_STAGED_CANONICAL_TORN", SLOT_NAMES[index]);
+      const body = encodeSlot(expected);
+      writeExactFile(fd, body, stagePath);
+      fs.fchmodSync(fd, 0o600);
+      fs.fsyncSync(fd);
+      const written = slotIdentityFromStat(fs.fstatSync(fd, { bigint: true } as any), stagePath);
+      if (!sameIdentity(identity, written)) fail("DURABLE_ROOT_STAGE_CHANGED_DURING_WRITE", SLOT_NAMES[index]);
+      const verified = readSlotValueFromFd(fd, identity, index);
+      if (!verified || verified.slot_sha256 !== expected.slot_sha256) fail("DURABLE_ROOT_STAGE_VERIFY_FAILED", SLOT_NAMES[index]);
+    }
+
+    if (!targetIdentity) {
+      try { fs.linkSync(stagePath, targetPath); }
+      catch (error: any) {
+        if (error?.code !== "EEXIST") throw error;
+      }
+    }
+    const stageAfterLink = slotIdentityFromStatAllowLinks(fs.fstatSync(fd, { bigint: true } as any), stagePath, [2]);
+    const targetAfterLink = slotIdentityFromStatAllowLinks(fs.lstatSync(targetPath, { bigint: true } as any), targetPath, [2]);
+    if (!sameIdentity(identity, stageAfterLink) || !sameIdentity(identity, targetAfterLink)) {
+      fail("DURABLE_ROOT_TARGET_FOREIGN", SLOT_NAMES[index]);
+    }
+    fs.fsyncSync(authority.fd);
+    assertDirectoryAuthority(authority);
+
+    const stageBeforeUnlink = slotIdentityFromStatAllowLinks(fs.lstatSync(stagePath, { bigint: true } as any), stagePath, [2]);
+    const targetBeforeUnlink = slotIdentityFromStatAllowLinks(fs.lstatSync(targetPath, { bigint: true } as any), targetPath, [2]);
+    if (!sameIdentity(identity, stageBeforeUnlink) || !sameIdentity(identity, targetBeforeUnlink)) {
+      fail("DURABLE_ROOT_STAGED_LINK_CHANGED", SLOT_NAMES[index]);
+    }
+    fs.unlinkSync(stagePath);
+    fs.fsyncSync(lock.fd);
+    fs.fsyncSync(fd);
+    fs.fsyncSync(authority.fd);
+    const finalFd = slotIdentityFromStat(fs.fstatSync(fd, { bigint: true } as any), targetPath);
+    const finalPath = slotIdentityFromStat(fs.lstatSync(targetPath, { bigint: true } as any), targetPath);
+    if (!sameIdentity(identity, finalFd) || !sameIdentity(identity, finalPath)) {
+      fail("DURABLE_ROOT_CREATED_SLOT_CHANGED", SLOT_NAMES[index]);
+    }
+  } finally { if (fd >= 0) fs.closeSync(fd); }
+}
+
+function publishInputMatchesCurrentRoot(input: SegmentedJsonlDurableRootPublishInputV1, root: SegmentedJsonlDurableRootV1): boolean {
+  try {
+    const snapshot = verifySegmentedJsonlSnapshotAuthorityObjectV1(input.snapshot);
+    const materialized = verifySegmentedJsonlMaterializedAuthorityObjectV1(input.materialized);
+    assertMaterializedSnapshotBinding(snapshot, materialized);
+    const previousAnchor = input.previousAnchor ? verifySegmentedJsonlCheckpointAnchorV1(input.previousAnchor) : null;
+    const checkpoint = verifySegmentedJsonlCheckpointIncrementalV1(input.checkpoint, snapshot, previousAnchor);
+    if (
+      snapshot.generation !== root.store_generation || checkpoint.checkpoint_sha256 !== root.checkpoint_sha256 ||
+      snapshot.snapshot_sha256 !== root.snapshot_sha256 || snapshot.manifest_sha256 !== root.manifest_sha256 ||
+      materialized.authority_sha256 !== root.materialized_authority_sha256 || materialized.materialized_sha256 !== root.materialized_sha256 ||
+      snapshot.total_bytes !== root.total_bytes || snapshot.total_records !== root.total_records
+    ) return false;
+    if (root.store_generation === 1) {
+      return !previousAnchor && !input.previousMaterialized && !input.appendOnlyWitness && !input.trustedAppendOnlyWitnessSha256 &&
+        root.previous_root_sha256 === null && root.append_only_witness_sha256 === null;
+    }
+    if (!previousAnchor || !input.previousMaterialized || !input.appendOnlyWitness || !isHex64(input.trustedAppendOnlyWitnessSha256)) return false;
+    const previousMaterialized = verifySegmentedJsonlMaterializedAuthorityObjectV1(input.previousMaterialized);
+    const witness = verifySegmentedJsonlCheckpointAppendOnlyBoundedV1(
+      checkpoint, snapshot, previousAnchor, previousMaterialized, materialized,
+      input.appendOnlyWitness, previousMaterialized.authority_sha256, input.trustedAppendOnlyWitnessSha256,
+    );
+    return witness.witness_sha256 === root.append_only_witness_sha256;
+  } catch {
+    return false;
+  }
+}
+
 export function readSegmentedJsonlDurableRootV1(directoryInput: string): SegmentedJsonlDurableRootV1 | null {
   const authority = openDirectoryAuthority(directoryInput);
   try {
@@ -397,9 +826,6 @@ export function readSegmentedJsonlDurableRootV1(directoryInput: string): Segment
       return null;
     }
     const validCount = slots.filter(slot => slot.value !== null).length;
-    // Never silently roll authority back to the surviving slot after a later
-    // slot becomes torn or unverifiable. A single-slot register is accepted
-    // only for the initial generation before the second slot has ever existed.
     if (
       validCount !== 2 &&
       (
@@ -423,25 +849,41 @@ export function publishSegmentedJsonlDurableRootV1(
   input: SegmentedJsonlDurableRootPublishInputV1,
 ): SegmentedJsonlDurableRootV1 {
   const authority = openDirectoryAuthority(directoryInput);
+  let lock: PublishLockV1 | null = null;
+  let result: SegmentedJsonlDurableRootV1 | null = null;
+  let primaryError: unknown = null;
   try {
     assertDirectoryAuthority(authority);
+    lock = acquirePublishLock(authority);
+    recoverLinkedStages(authority, lock);
+    assertDirectoryAuthority(authority);
+
     const slots: [SlotReadV1, SlotReadV1] = [readSlot(authority, 0), readSlot(authority, 1)];
     const currentSlot = selectCurrent(slots);
     if (!currentSlot && slots.some(slot => slot.exists)) fail("DURABLE_ROOT_NO_VALID_SLOT", authority.publicPath);
     const currentRoot = currentSlot?.value?.root ?? null;
-    const nextRoot = deriveRoot(input, currentRoot);
-    const targetIndex = ((nextRoot.store_generation - 1) % 2) as 0 | 1;
-    const target = slots[targetIndex];
-    const peer = currentSlot?.identity ?? null;
-    if (currentSlot && currentSlot.index === targetIndex) fail("DURABLE_ROOT_TARGET_IS_CURRENT", String(targetIndex));
 
-    let fd = -1;
-    let created = false;
-    try {
-      const stablePath = path.join(authority.stablePath, SLOT_NAMES[targetIndex]);
+    if (currentRoot && input.snapshot?.generation === currentRoot.store_generation) {
+      if (!publishInputMatchesCurrentRoot(input, currentRoot)) {
+        fail("DURABLE_ROOT_IDEMPOTENT_INPUT_MISMATCH", `${currentRoot.store_generation}:${currentRoot.root_sha256}`);
+      }
+      fs.fsyncSync(authority.fd);
+      assertDirectoryAuthority(authority);
+      const idempotentSlots: [SlotReadV1, SlotReadV1] = [readSlot(authority, 0), readSlot(authority, 1)];
+      const idempotentCurrent = selectCurrent(idempotentSlots);
+      if (!idempotentCurrent?.value || idempotentCurrent.value.root.root_sha256 !== currentRoot.root_sha256) {
+        fail("DURABLE_ROOT_IDEMPOTENT_READBACK_MISMATCH", currentRoot.root_sha256);
+      }
+      result = idempotentCurrent.value.root;
+    } else {
+      const nextRoot = deriveRoot(input, currentRoot);
+      const targetIndex = ((nextRoot.store_generation - 1) % 2) as 0 | 1;
+      const target = slots[targetIndex];
+      const peer = currentSlot?.identity ?? null;
+      if (currentSlot && currentSlot.index === targetIndex) fail("DURABLE_ROOT_TARGET_IS_CURRENT", String(targetIndex));
+
       if (!target.exists) {
-        fd = fs.openSync(stablePath, fs.constants.O_RDWR | fs.constants.O_CREAT | fs.constants.O_EXCL | ((fs.constants as any).O_NOFOLLOW || 0), 0o600);
-        created = true;
+        publishNewSlotFromStage(authority, lock, targetIndex, peer, nextRoot);
       } else {
         if (!target.identity) fail("DURABLE_ROOT_TARGET_IDENTITY_UNAVAILABLE", target.path);
         if (!currentSlot?.value || currentSlot.value.peer_slot_dev === null || currentSlot.value.peer_slot_ino === null) {
@@ -450,42 +892,59 @@ export function publishSegmentedJsonlDurableRootV1(
         if (currentSlot.value.peer_slot_dev !== target.identity.dev || currentSlot.value.peer_slot_ino !== target.identity.ino) {
           fail("DURABLE_ROOT_TARGET_IDENTITY_MISMATCH", `${target.path}:${target.identity.dev}:${target.identity.ino}`);
         }
-        fd = fs.openSync(stablePath, fs.constants.O_RDWR | ((fs.constants as any).O_NOFOLLOW || 0));
-      }
-      const opened = fs.fstatSync(fd, { bigint: true } as any);
-      const identity = slotIdentityFromStat(opened, target.path);
-      const visibleIdentity = slotIdentityFromStat(fs.lstatSync(target.path, { bigint: true } as any), target.path);
-      if (!sameIdentity(identity, visibleIdentity)) fail("DURABLE_ROOT_TARGET_PATH_MISMATCH", target.path);
-      if (target.identity && !sameIdentity(identity, target.identity)) fail("DURABLE_ROOT_TARGET_IDENTITY_MISMATCH", target.path);
-      const slotValue = buildSlotValue(targetIndex, identity, peer, nextRoot);
-      const body = encodeSlot(slotValue);
-      fs.ftruncateSync(fd, 0);
-      let off = 0;
-      while (off < body.length) {
-        const n = fs.writeSync(fd, body, off, body.length - off, off);
-        if (n <= 0) fail("DURABLE_ROOT_SLOT_SHORT_WRITE", `${target.path}:${off}`);
-        off += n;
-      }
-      fs.fchmodSync(fd, 0o600);
-      fs.fsyncSync(fd);
-      const after = slotIdentityFromStat(fs.fstatSync(fd, { bigint: true } as any), target.path);
-      const visibleAfter = slotIdentityFromStat(fs.lstatSync(target.path, { bigint: true } as any), target.path);
-      if (!sameIdentity(identity, after) || !sameIdentity(after, visibleAfter)) fail("DURABLE_ROOT_TARGET_CHANGED_DURING_WRITE", target.path);
-      fs.fsyncSync(authority.fd);
-      assertDirectoryAuthority(authority);
-      if (created) {
-        const currentAfterCreate = slotIdentityFromStat(fs.lstatSync(target.path, { bigint: true } as any), target.path);
-        if (!sameIdentity(identity, currentAfterCreate)) fail("DURABLE_ROOT_CREATED_SLOT_CHANGED", target.path);
-      }
-    } finally {
-      if (fd >= 0) fs.closeSync(fd);
-    }
 
-    const finalSlots: [SlotReadV1, SlotReadV1] = [readSlot(authority, 0), readSlot(authority, 1)];
-    const finalCurrent = selectCurrent(finalSlots);
-    if (!finalCurrent?.value || finalCurrent.value.root.root_sha256 !== nextRoot.root_sha256) {
-      fail("DURABLE_ROOT_PUBLICATION_NOT_CURRENT", nextRoot.root_sha256);
+        const beforeWriteSlots: [SlotReadV1, SlotReadV1] = [readSlot(authority, 0), readSlot(authority, 1)];
+        const beforeWriteCurrent = selectCurrent(beforeWriteSlots);
+        if (!beforeWriteCurrent?.value || !currentRoot || beforeWriteCurrent.value.root.root_sha256 !== currentRoot.root_sha256) {
+          fail("DURABLE_ROOT_PREDECESSOR_CHANGED_BEFORE_WRITE", currentRoot?.root_sha256 || "none");
+        }
+        const beforeWriteTarget = beforeWriteSlots[targetIndex];
+        if (!beforeWriteTarget.identity || !sameIdentity(beforeWriteTarget.identity, target.identity)) {
+          fail("DURABLE_ROOT_TARGET_IDENTITY_MISMATCH", target.path);
+        }
+
+        const stablePath = path.join(authority.stablePath, SLOT_NAMES[targetIndex]);
+        let fd = -1;
+        try {
+          fd = fs.openSync(stablePath, fs.constants.O_RDWR | ((fs.constants as any).O_NOFOLLOW || 0));
+          const opened = fs.fstatSync(fd, { bigint: true } as any);
+          const identity = slotIdentityFromStat(opened, target.path);
+          const visibleIdentity = slotIdentityFromStat(fs.lstatSync(target.path, { bigint: true } as any), target.path);
+          if (!sameIdentity(identity, visibleIdentity) || !sameIdentity(identity, target.identity)) {
+            fail("DURABLE_ROOT_TARGET_PATH_MISMATCH", target.path);
+          }
+          const slotValue = buildSlotValue(targetIndex, identity, peer, nextRoot);
+          const body = encodeSlot(slotValue);
+          writeExactFile(fd, body, target.path);
+          fs.fchmodSync(fd, 0o600);
+          fs.fsyncSync(fd);
+          const after = slotIdentityFromStat(fs.fstatSync(fd, { bigint: true } as any), target.path);
+          const visibleAfter = slotIdentityFromStat(fs.lstatSync(target.path, { bigint: true } as any), target.path);
+          if (!sameIdentity(identity, after) || !sameIdentity(after, visibleAfter)) {
+            fail("DURABLE_ROOT_TARGET_CHANGED_DURING_WRITE", target.path);
+          }
+          fs.fsyncSync(authority.fd);
+          assertDirectoryAuthority(authority);
+        } finally { if (fd >= 0) fs.closeSync(fd); }
+      }
+
+      const finalSlots: [SlotReadV1, SlotReadV1] = [readSlot(authority, 0), readSlot(authority, 1)];
+      const finalCurrent = selectCurrent(finalSlots);
+      if (!finalCurrent?.value || finalCurrent.value.root.root_sha256 !== nextRoot.root_sha256) {
+        fail("DURABLE_ROOT_PUBLICATION_NOT_CURRENT", nextRoot.root_sha256);
+      }
+      result = finalCurrent.value.root;
     }
-    return finalCurrent.value.root;
-  } finally { fs.closeSync(authority.fd); }
+  } catch (error) {
+    primaryError = error;
+  } finally {
+    if (lock) {
+      try { releasePublishLock(authority, lock); }
+      catch (releaseError) { if (!primaryError) primaryError = releaseError; }
+    }
+    fs.closeSync(authority.fd);
+  }
+  if (primaryError) throw primaryError;
+  if (!result) fail("DURABLE_ROOT_PUBLICATION_NO_RESULT", directoryInput);
+  return result;
 }
