@@ -74,6 +74,145 @@ const EARN_REQUEST_TIMEOUT_MS = boundedInteger(
   120_000,
 );
 
+// VOID_PUBLIC_SEED_DATANET_STATIC_V1
+const PUBLIC_DATANET_STATIC_MARKER =
+  "VOID_PUBLIC_SEED_DATANET_STATIC_V1";
+const PUBLIC_DATANET_STATIC_MAX_BYTES = 512 * 1024;
+const PUBLIC_DATANET_STATIC_ROOT = path.resolve(
+  process.env.VOID_PUBLIC_DATANET_STATIC_ROOT ||
+    path.join(process.cwd(), "public/public-node/datanet"),
+);
+const PUBLIC_DATANET_STATIC_ROUTES = new Map([
+  [
+    "/public-node/datanet/field-replication-status-card-v1.json",
+    {
+      file: "field-replication-status-card-v1.json",
+      contentType: "application/json; charset=utf-8",
+    },
+  ],
+  [
+    "/public-node/datanet/field-replication-status-card-v1.html",
+    {
+      file: "field-replication-status-card-v1.html",
+      contentType: "text/html; charset=utf-8",
+    },
+  ],
+  [
+    "/public-node/datanet/index.json",
+    {
+      file: "index.json",
+      contentType: "application/json; charset=utf-8",
+    },
+  ],
+]);
+
+async function readPublicDataNetStaticFileV1(fileName) {
+  const target = path.resolve(PUBLIC_DATANET_STATIC_ROOT, fileName);
+  if (path.dirname(target) !== PUBLIC_DATANET_STATIC_ROOT) {
+    throw new Error("public_datanet_static_path_escape");
+  }
+
+  const noFollow = Number(fs.constants.O_NOFOLLOW || 0);
+  const handle = await fs.promises.open(
+    target,
+    fs.constants.O_RDONLY | noFollow,
+  );
+
+  try {
+    const before = await handle.stat({ bigint: true });
+    if (!before.isFile()) {
+      throw new Error("public_datanet_static_not_regular");
+    }
+    if (
+      before.size < 0n ||
+      before.size > BigInt(PUBLIC_DATANET_STATIC_MAX_BYTES)
+    ) {
+      throw new Error("public_datanet_static_size_invalid");
+    }
+
+    const body = await handle.readFile();
+    const after = await handle.stat({ bigint: true });
+
+    if (
+      before.dev !== after.dev ||
+      before.ino !== after.ino ||
+      before.size !== after.size ||
+      before.mtimeNs !== after.mtimeNs ||
+      BigInt(body.length) !== before.size
+    ) {
+      throw new Error("public_datanet_static_generation_changed");
+    }
+
+    return body;
+  } finally {
+    await handle.close();
+  }
+}
+
+async function servePublicDataNetStaticV1(req, res, url) {
+  const route = PUBLIC_DATANET_STATIC_ROUTES.get(url.pathname);
+  if (!route) return false;
+
+  const method = String(req.method || "GET").toUpperCase();
+  if (method !== "GET" && method !== "HEAD") {
+    writeText(
+      req,
+      res,
+      405,
+      "method_not_allowed\n",
+      {
+        allow: "GET, HEAD",
+        "x-void-public-datanet-static": "v1",
+      },
+    );
+    return true;
+  }
+
+  if (url.search || url.hash) {
+    writeText(
+      req,
+      res,
+      400,
+      "query_not_allowed\n",
+      { "x-void-public-datanet-static": "v1" },
+    );
+    return true;
+  }
+
+  let body;
+  try {
+    body = await readPublicDataNetStaticFileV1(route.file);
+  } catch {
+    writeJson(
+      req,
+      res,
+      503,
+      {
+        ok: false,
+        marker: PUBLIC_DATANET_STATIC_MARKER,
+        error: "public_datanet_static_unavailable",
+      },
+      { "x-void-public-datanet-static": "v1" },
+    );
+    return true;
+  }
+
+  res.writeHead(200, {
+    "content-type": route.contentType,
+    "content-length": String(body.length),
+    "cache-control": "no-store",
+    "x-content-type-options": "nosniff",
+    "x-void-public-seed-adapter": "v1",
+    "x-void-public-datanet-static": "v1",
+  });
+  if (method === "HEAD") {
+    res.end();
+  } else {
+    res.end(body);
+  }
+  return true;
+}
+
 const exactAllow = new Set([
   "/wc-proofs/latest",
   "/",
@@ -367,6 +506,7 @@ function publicReadUpstream(url) {
 }
 
 async function proxyRead(req, res, url) {
+  if (await servePublicDataNetStaticV1(req, res, url)) return;
   const readUpstream = publicReadUpstream(url);
   if (!readUpstream) {
     writeJson(req, res, 503, {
