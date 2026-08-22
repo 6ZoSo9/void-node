@@ -131,7 +131,7 @@ The adapter:
 - requires JSON and caps responses at 64 MiB by default with a 128 MiB compiled ceiling;
 - fails over across the resolver's qualified seed set;
 - exposes no wallet, signer, validator, treasury, Work Credit, Buy VOID, admin, filesystem, secret, or operator mutation route; and
-- absorbs an identical immediate block-range retry for two seconds, bound to the current peer, so the legacy bounded-pull retry does not double remote bandwidth.
+- defensively absorbs an identical immediate block-range retry for two seconds, bound to the current peer; the current follower accepts a complete requested page without issuing that legacy duplicate request.
 
 The supervisor requests an ephemeral loopback port by default, avoiding collision with unrelated local services.
 
@@ -146,9 +146,26 @@ pull_limit=999
 catchup_interval_ms=250
 steady_interval_ms=1000
 failure_backoff_max_ms=30000
+pull_timeout_ms=15000
 ```
 
-The environment values remain bounded in source. A successful pull that remains behind schedules another catch-up pull. Failures rotate the configured local origins and use bounded exponential backoff.
+The environment values remain bounded in source. `VOID_FOLLOWER_PULL_TIMEOUT_MS` accepts only exact integers in `100..120000` and defaults to 15 seconds. The deadline is owned inside `Node.pullOnce()` and is propagated through head probes, range acquisition, streamed JSON admission, block validation/import, index updates, receipt persistence, hooks, and contiguous-head publication. Cancellation aborts the active fetch and any signal-aware receipt publication before the autostart loop clears `running` and rotates peers. If an injected persistence operation ignores cancellation, the caller still receives the deadline failure promptly, but the node retains that mutation-capable generation and rejects every later pull with `VOID_FOLLOWER_PERSISTENCE_GENERATION_ACTIVE_V1` until the operation actually settles.
+
+The production receipt store never abort-mutates an authoritative JSONL shard in place. Receipt-history admission is asynchronous and signal-owned, caps directory entries, shard count, per-shard bytes, total cold-scan bytes, and line bytes, and yields between shards so the pull deadline remains observable. A follower block performs one batched cold scan for all of its receipt hashes instead of one synchronous retained-history scan per transaction. Every authoritative shard is opened with no-follow semantics and read through that exact descriptor under a cap-plus-one ceiling; descriptor identity and size are checked before and after the read and then bound back to the final pathname generation. Replacement, growth, symlink, malformed, torn, duplicate, or over-budget state therefore fails closed instead of supplying receipt truth.
+
+Publication first pins the exact no-follow receipts-directory generation, then publishes an immutable cross-process claim inside that descriptor-relative namespace. The claim is create-only from a fully written, fsynced temporary generation and binds PID, Linux boot/process-start identity, nonce, and directory device/inode, so no empty or partial claim can become lock authority and PID reuse cannot inherit it. Competing claims are rescanned after publication before either writer enters the complete receipt read/decision/replacement transition. If the final claim link becomes visible but directory sync or authority confirmation fails before acquisition returns, that store retains the exact linked inode/bytes and an exact retry may compare-remove only that abandoned generation; foreign processes remain blocked meanwhile, and a substituted claim is preserved. Dead exact process instances are recoverable, while a durable claim-specific release witness lets another writer retire an already-committed owner's claim even if cleanup failed while that owner remained alive. If release-witness publication itself fails after the receipt is durable, that store retains the exact locally completed claim and retries its witness before admitting another mutation; foreign processes remain blocked until the exact witness exists. Cleanup compares the exact observed record generation and preserves a substituted live claim instead of deleting it.
+
+The admitted writer scans and creates temporary/canonical paths through the same descriptor-relative authority, writes the complete next shard generation to an exclusive temporary file, fsyncs it, atomically renames it over the prior generation, and fsyncs the same admitted directory handle before publishing truth in memory. A second process cannot admit the same shard snapshot while the first writer is paused inside that transition; it waits within the reviewed bound (or HOLDs) and must rescan after ownership transfers. Final public-path identity must still name that exact directory generation. A fault before publication leaves the prior shard intact; a fault after rename but before directory sync is classified by the next bounded scan, and an exact durable retry re-fsyncs the exact directory generation that supplied the visible shard before a cold lookup or append can return success. Substituting another pathname generation during claim acquisition, append, or recovery cannot redirect publication or satisfy durability. The retry therefore cannot duplicate, conflict with, prematurely bless, or silently overwrite a concurrent receipt.
+
+Canonical block truth is also the redo authority for follower-derived projections. After `saveBlock()` durably advances block/head truth, tx-index and receipt writes are checked by exact transaction hash and coordinates. Every later `pullOnce()` reconciles the canonical head block before peer-head short-circuiting, so an abort immediately after the canonical commit converges missing index/receipt work even when the peer is still at that same head. Existing correct projections are not appended again, conflicting projections fail closed, and the canonical block itself is not recommitted.
+
+Every follower fetch uses `redirect: error` and verifies that the final response URL exactly equals the requested peer URL. Redirected head or range data therefore cannot cross peer-origin provenance, even when the target would return otherwise valid JSON. Every head response is streamed under a 64-KiB ceiling. Range responses reuse the public client transport's reviewed 128-MiB compiled ceiling. Exact decimal `content-length` values are rejected before reading when oversized. Each resolved stream chunk is type- and length-checked against the remaining budget before `Buffer` copying or retention, so a single oversized chunk cannot materialize beyond the reviewed admission ceiling. JSON parsing occurs only after the complete bounded body has been admitted. Non-success range responses are terminal for that peer attempt: their bodies are cancelled and never enter block validation or import, even if they contain a valid-looking block array.
+
+Every selected-peer response generation is asked to release before the follower advances to a retry, fallback endpoint, or return. Malformed or oversized declared lengths cancel the pre-reader body while preserving the primary admission failure; non-success head probes cancel their bodies before trying the next head surface; and redirect/final-URL, non-success range, streamed-overflow, and read failures retain the same cancel-before-progress boundary. Cancellation is itself bounded to 25 milliseconds and the enclosing pull signal, so an uncooperative body or reader cannot retain the pull's running slot indefinitely. Cleanup failures and cleanup-bound terminals are visible diagnostics and never replace the primary rejection.
+
+Range completeness is evaluated against the requested inclusive `from..to` page, not against the peer's potentially much later advertised head. For example, a follower at block 0 with a 250-block pull limit and peer head 1000 accepts one exact response containing blocks 1 through 250, advances through block 250, and begins the next pull at block 251 without repeating the first GET.
+
+A successful pull that remains behind schedules another catch-up pull. Failures, including timeouts, oversized responses, invalid JSON, and non-success range statuses, rotate the configured local origins and use bounded exponential backoff.
 
 The public gateway still rejects `/follower/start` and every mutation route. Autostart occurs inside the new local node process; it is not remotely callable.
 
@@ -164,6 +181,7 @@ VOID_PUBLIC_BOOTSTRAP_MANIFEST_URL=<canonical HTTPS URL>
 VOID_PUBLIC_BOOTSTRAP_MANIFEST_URLS=<comma-separated mirrors>
 VOID_PUBLIC_BOOTSTRAP_TIMEOUT_MS=<1000..60000>
 VOID_PUBLIC_BOOTSTRAP_MAX_LIVE_SEEDS=<1..8>
+VOID_FOLLOWER_PULL_TIMEOUT_MS=<100..120000>
 VOID_PUBLIC_SEED_CLIENT_PORT=<0..65535>
 ```
 
@@ -204,3 +222,32 @@ Issue #1005 remains open until that real stable-ingress and outside-machine proo
 ## Non-actions
 
 This lane does not deploy or restart a service, open a firewall port, configure DNS or TLS, publish a release, replace the hold manifest with a real endpoint, access credentials, read a wallet or signer, activate validator authority, mutate Work Credit, move funds, or close issue #1005.
+
+## Mainnet-0 legacy commit-direct follower compatibility
+
+Current Mainnet-0 canonical production still exposes the exact unsigned
+`proposer.commit-direct.v2fs` block envelope (`number`, `ts`, `txs`, `txRoot`,
+`header.txRoot`, `_commit`). The ordinary modern signed-block validator remains
+unchanged and continues to reject that envelope.
+
+Follower compatibility is a separate fail-closed lane. It is disabled by
+default and activates only when the selected peer's exact HTTP(S) origin is
+listed in `VOID_FOLLOWER_LEGACY_V2FS_ORIGINS`. Redirect handling and final-URL
+equality remain enforced before any response body can supply synchronization
+state. The legacy validator accepts only the exact reviewed envelope, verifies
+positive integer time/height, transaction hash/root consistency,
+`header.txRoot`, and contiguous parent numbering, and rejects hybrid objects
+rather than synthesizing `timestamp`, `parentHash`, `blobRoot`, `proposer`, or
+`sig`.
+
+SegStore records an authorized legacy append as WAL v2 with explicit
+`legacy-v2fs` mode. Restart recovery therefore cannot infer unsigned legacy
+authority from an older untagged WAL v1 record. Both modern and authorized
+legacy paths share the same canonical segment fsync and atomic head-publication
+machinery. Legacy receipt projections use the admitted `ts` value.
+
+Authenticated direct/relay duplicates retain the existing direct-over-relay
+precedence. When the remaining duplicate candidates are opposite directions
+for the same authenticated identity, the lower node ID keeps outbound and the
+higher node ID keeps inbound. Both endpoints therefore select the same physical
+connection independently instead of each preserving its own outbound socket.

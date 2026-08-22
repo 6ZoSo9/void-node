@@ -11,6 +11,7 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const HELPER = path.join(ROOT, "scripts", "ci_diff_hygiene_v1.sh");
 const PROOF_PATH = "scripts/prove_ci_diff_hygiene_v1.mjs";
 const WORKFLOWS = [
+  ".github/workflows/void-public-bootstrap-client-resilience-v1.yml",
   ".github/workflows/buy-void-erc20-transaction-preparation-planner-v1.yml",
   ".github/workflows/buy-void-erc20-delivery-receipt-reconciler-v1.yml",
   ".github/workflows/buy-void-erc20-delivery-dependency-bootstrap-v1.yml",
