@@ -63,6 +63,11 @@ function parseArgs(argv) {
   return values;
 }
 
+function rejectControl(value, label) {
+  if (/[\0\r\n]/.test(value)) throw new Error(`${label} contains a control character`);
+  return value;
+}
+
 function realDirectory(raw, label) {
   const input = path.resolve(String(raw));
   const stat = fs.lstatSync(input);
@@ -140,6 +145,38 @@ function configText(tunnelId, credentialsFile) {
   ].join("\n");
 }
 
+function systemdQuote(value) {
+  const text = rejectControl(String(value), "systemd argument");
+  if (text.includes("%")) throw new Error("systemd argument contains a specifier character");
+  return `"${text.replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"`;
+}
+
+function serviceText(repoRoot, cloudflaredPath, configPath, tunnelId) {
+  return [
+    "[Unit]",
+    "Description=VOID voidchain.org path-preserving HTTPS edge v1",
+    "After=network-online.target",
+    "Wants=network-online.target",
+    "",
+    "[Service]",
+    "Type=simple",
+    `WorkingDirectory=${systemdQuote(repoRoot)}`,
+    `ExecStart=${systemdQuote(cloudflaredPath)} --no-autoupdate --config ${systemdQuote(configPath)} tunnel run ${systemdQuote(tunnelId)}`,
+    "Restart=always",
+    "RestartSec=5",
+    "KillMode=control-group",
+    "TimeoutStopSec=20",
+    "NoNewPrivileges=true",
+    "PrivateTmp=true",
+    "ProtectSystem=strict",
+    "ProtectHome=read-only",
+    "",
+    "[Install]",
+    "WantedBy=default.target",
+    "",
+  ].join("\n");
+}
+
 function gitState(repoRoot, expectedHead) {
   if (!/^[0-9a-f]{40}$/.test(expectedHead)) throw new Error("packet expected_repository_head is invalid");
   const top = fs.realpathSync(run("git", ["-C", repoRoot, "rev-parse", "--show-toplevel"]));
@@ -210,6 +247,11 @@ function main() {
   if (originMatches.length !== 2) throw new Error("cloudflared config must map exactly two hostnames to the existing edge");
   if (!config.endsWith("  - service: http_status:404\n")) throw new Error("cloudflared config final deny rule mismatch");
 
+  const unitPath = path.join(packetDir, UNIT_NAME);
+  const unit = fs.readFileSync(unitPath, "utf8");
+  const expectedUnit = serviceText(repoRoot, cloudflaredPath, configPath, packet.tunnel_id);
+  if (unit !== expectedUnit) throw new Error("systemd unit is not the exact reviewed service contract");
+
   runCloudflared(cloudflaredPath, ["--config", configPath, "tunnel", "ingress", "validate"]);
 
   const { packet_id: packetId, ...body } = packet;
@@ -245,6 +287,7 @@ function main() {
   console.log(`hostnames=${HOSTNAMES.join(",")}`);
   console.log(`edge_origin=${EDGE_ORIGIN}`);
   console.log("path_preserved=true");
+  console.log("unit_semantics_bound=true");
   console.log("cloudflared_preflight_timeout_ms=5000");
   console.log("cloudflared_preflight_max_output_bytes=65536");
   console.log("dns_changed=false");
