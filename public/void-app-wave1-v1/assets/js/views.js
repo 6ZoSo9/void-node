@@ -19,8 +19,8 @@ export const views = {
       <header class="page-header">
         <div class="page-header__copy">
           <span class="eyebrow">Live read-only overview</span>
-          <h1>System overview</h1>
-          <p>Current node and network truth, without account or mutation authority.</p>
+          <h1>Home</h1>
+          <p>Your network, account, and activity.</p>
         </div>
         <div class="page-actions">
           <a class="button button--secondary" href="#/network">Open Network</a>
