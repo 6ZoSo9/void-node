@@ -27,6 +27,28 @@ const GREEN =
   "VOID_DATANET_FIELD_REPLICATION_STATUS_CARD_V1_GREEN";
 const MAX = 512 * 1024;
 
+const adapterSource = fs.readFileSync(ADAPTER, "utf8");
+assert.equal(
+  adapterSource.includes("const body = await handle.readFile();"),
+  false,
+  "static reader must not prebuffer the whole file after its initial stat",
+);
+assert.match(
+  adapterSource,
+  /Buffer\.allocUnsafe\(PUBLIC_DATANET_STATIC_MAX_BYTES \+ 1\)/,
+  "static reader must retain at most the reviewed ceiling plus one sentinel byte",
+);
+assert.match(
+  adapterSource,
+  /await handle\.read\(/,
+  "static reader must use descriptor-bound bounded reads",
+);
+assert.match(
+  adapterSource,
+  /bodyLength > PUBLIC_DATANET_STATIC_MAX_BYTES/,
+  "static reader must reject the limit-plus-one sentinel before publication",
+);
+
 function listen(server) {
   return new Promise((resolve, reject) => {
     server.once("error", reject);
@@ -209,6 +231,13 @@ try {
   );
 
   fs.unlinkSync(statusFile);
+  const exactLimitBody = Buffer.alloc(MAX, 0x62);
+  fs.writeFileSync(statusFile, exactLimitBody);
+
+  const exactLimit = await request(origin, STATUS_PATH);
+  assert.equal(exactLimit.response.status, 200);
+  assert.deepEqual(exactLimit.body, exactLimitBody);
+
   fs.writeFileSync(statusFile, Buffer.alloc(MAX + 1, 0x61));
 
   const oversized = await request(origin, STATUS_PATH);
@@ -229,6 +258,8 @@ try {
   console.log("arbitrary_sibling_not_static=true");
   console.log("final_symlink_rejected=true");
   console.log(`max_bytes=${MAX}`);
+  console.log("exact_limit_accepted=true");
+  console.log("limit_plus_one_retention=true");
   console.log("oversize_rejected=true");
   console.log("node_runtime_mutation=false");
   console.log("wallet_wc_mutation=false");
