@@ -5,7 +5,7 @@ import fs from "node:fs";
 import http from "node:http";
 import os from "node:os";
 import path from "node:path";
-import { spawn } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 
 const ROOT = path.resolve(
@@ -48,6 +48,41 @@ assert.match(
   /bodyLength > PUBLIC_DATANET_STATIC_MAX_BYTES/,
   "static reader must reject the limit-plus-one sentinel before publication",
 );
+assert.match(
+  adapterSource,
+  /\/proc\/self\/fd\/\$\{parentHandle\.fd\}/,
+  "static namespace traversal must be descriptor-relative",
+);
+assert.match(
+  adapterSource,
+  /O_DIRECTORY/,
+  "static root traversal must require directory descriptors",
+);
+assert.match(
+  adapterSource,
+  /O_NOFOLLOW/,
+  "static root and leaf acquisition must reject final symlinks",
+);
+assert.match(
+  adapterSource,
+  /O_NONBLOCK/,
+  "static leaf acquisition must not block on FIFO or other nonregular leaves",
+);
+assert.match(
+  adapterSource,
+  /before\.ctimeNs !== after\.ctimeNs/,
+  "static leaf generation must bind ctimeNs",
+);
+assert.match(
+  adapterSource,
+  /const PUBLIC_DATANET_STATIC_ROOT_AUTHORITY =\s*\n\s*await openPublicDataNetStaticRootV1\(\);/,
+  "static root must be pinned before the listener is admitted",
+);
+assert.match(
+  adapterSource,
+  /await assertPublicDataNetStaticRootPathPinnedV1\(\);/,
+  "static reads must revalidate the configured root against the pinned authority",
+);
 
 function listen(server) {
   return new Promise((resolve, reject) => {
@@ -81,6 +116,23 @@ async function request(origin, pathname, init = {}) {
   });
   const body = Buffer.from(await response.arrayBuffer());
   return { response, body };
+}
+
+async function within(promise, timeoutMs, label) {
+  let timer;
+  try {
+    return await Promise.race([
+      promise,
+      new Promise((_, reject) => {
+        timer = setTimeout(
+          () => reject(new Error(`${label}_timeout`)),
+          timeoutMs,
+        );
+      }),
+    ]);
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
 }
 
 const temp = fs.mkdtempSync(
@@ -233,6 +285,62 @@ try {
   );
 
   fs.unlinkSync(statusFile);
+  fs.writeFileSync(statusFile, statusBody);
+  const symlinkRecovered = await request(origin, STATUS_PATH);
+  assert.equal(symlinkRecovered.response.status, 200);
+  assert.deepEqual(symlinkRecovered.body, statusBody);
+
+  const pinnedRoot = `${staticRoot}.pinned`;
+  const foreignRoot = `${staticRoot}.foreign`;
+  const forgedBody = Buffer.from("FORGED_STATIC_ROOT_BYTES\n");
+  fs.renameSync(staticRoot, pinnedRoot);
+  fs.mkdirSync(foreignRoot);
+  fs.writeFileSync(
+    path.join(foreignRoot, path.basename(statusFile)),
+    forgedBody,
+  );
+  fs.symlinkSync(foreignRoot, staticRoot, "dir");
+
+  const rootSwapped = await request(origin, STATUS_PATH);
+  assert.equal(rootSwapped.response.status, 503);
+  assert.equal(rootSwapped.body.includes(forgedBody), false);
+
+  fs.unlinkSync(staticRoot);
+  fs.renameSync(pinnedRoot, staticRoot);
+  fs.rmSync(foreignRoot, { recursive: true, force: true });
+
+  const rootRecovered = await request(origin, STATUS_PATH);
+  assert.equal(rootRecovered.response.status, 200);
+  assert.deepEqual(rootRecovered.body, statusBody);
+
+  fs.unlinkSync(statusFile);
+  const mkfifo = spawnSync("mkfifo", [statusFile], {
+    stdio: "pipe",
+    encoding: "utf8",
+  });
+  assert.equal(
+    mkfifo.status,
+    0,
+    `mkfifo failed: ${mkfifo.stderr || mkfifo.stdout}`,
+  );
+
+  const fifoResponses = await within(
+    Promise.all(
+      Array.from({ length: 8 }, () => request(origin, STATUS_PATH)),
+    ),
+    1500,
+    "fifo_static_requests",
+  );
+  for (const fifoResponse of fifoResponses) {
+    assert.equal(fifoResponse.response.status, 503);
+  }
+
+  fs.unlinkSync(statusFile);
+  fs.writeFileSync(statusFile, statusBody);
+  const fifoRecovered = await request(origin, STATUS_PATH);
+  assert.equal(fifoRecovered.response.status, 200);
+  assert.deepEqual(fifoRecovered.body, statusBody);
+
   const exactLimitBody = Buffer.alloc(MAX, 0x62);
   fs.writeFileSync(statusFile, exactLimitBody);
 
@@ -244,6 +352,55 @@ try {
 
   const oversized = await request(origin, STATUS_PATH);
   assert.equal(oversized.response.status, 503);
+
+  const rewriteBase = Buffer.alloc(MAX, 0x31);
+  fs.writeFileSync(statusFile, rewriteBase);
+  const preservedTimes = fs.statSync(statusFile);
+  const rewriteHandle = await fs.promises.open(statusFile, "r+");
+  let stopRewrite = false;
+  let rewriteCount = 0;
+  const rewriteChunkA = Buffer.alloc(4096, 0x41);
+  const rewriteChunkB = Buffer.alloc(4096, 0x42);
+  const rewriteTask = (async () => {
+    while (!stopRewrite) {
+      const rewriteChunk = rewriteCount % 2 === 0
+        ? rewriteChunkA
+        : rewriteChunkB;
+      await rewriteHandle.write(
+        rewriteChunk,
+        0,
+        rewriteChunk.length,
+        0,
+      );
+      await fs.promises.utimes(
+        statusFile,
+        preservedTimes.atime,
+        preservedTimes.mtime,
+      );
+      rewriteCount += 1;
+    }
+  })();
+
+  while (rewriteCount === 0) {
+    await new Promise((resolve) => setImmediate(resolve));
+  }
+
+  let rewritten;
+  try {
+    rewritten = await within(
+      request(origin, STATUS_PATH),
+      2500,
+      "same_inode_rewrite",
+    );
+  } finally {
+    stopRewrite = true;
+    await rewriteTask;
+    await rewriteHandle.close();
+  }
+  assert.ok(rewriteCount >= 2, "rewrite adversary did not overlap long enough");
+  assert.equal(rewritten.response.status, 503);
+  assert.equal(rewritten.body.includes(rewriteChunkA), false);
+  assert.equal(rewritten.body.includes(rewriteChunkB), false);
 
   fs.writeFileSync(statusFile, statusBody);
   const recovered = await request(origin, STATUS_PATH);
@@ -259,6 +416,9 @@ try {
   console.log("post_rejected=true");
   console.log("arbitrary_sibling_not_static=true");
   console.log("final_symlink_rejected=true");
+  console.log("root_namespace_pinned=true");
+  console.log("fifo_nonblocking_rejected=true");
+  console.log("same_inode_rewrite_mtime_restore_rejected=true");
   console.log(`max_bytes=${MAX}`);
   console.log("exact_limit_accepted=true");
   console.log("limit_plus_one_retention=true");
