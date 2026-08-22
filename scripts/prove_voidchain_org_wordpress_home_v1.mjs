@@ -304,7 +304,7 @@ assert.throws(
       "window.__VOID_PUBLIC_APP_MODE__=true",
       "window.__VOID_PUBLIC_APP_MODE__=false",
     ),
-  }),
+  ),
   /primary CTA response is missing/,
   "primary CTA validator must reject the wrong application surface",
 );
@@ -390,6 +390,29 @@ const syntheticResponse = ({
   assert.equal(state.readCalls, 0, "wrong JSON media type must reject before body reads");
   assert.equal(state.bodyCancelCalls, 1, "wrong JSON media type must own body cancellation");
   assert.equal(controller.signal.aborted, true, "wrong JSON media type must abort the owned request");
+}
+
+{
+  const [response, state] = syntheticResponse({
+    status: 500,
+    contentType: "application/json",
+    parts: [new Uint8Array(MAX_RESPONSE_BYTES + 1)],
+    cancel: () => new Promise(() => {}),
+  });
+  const controller = new AbortController();
+  const started = Date.now();
+  await assert.rejects(
+    () => requireJsonResponseHeaders(response, controller),
+    /WordPress HTTP 500/,
+    "non-success JSON status must preserve its primary header error",
+  );
+  const elapsed = Date.now() - started;
+  assert.ok(elapsed >= 150, `header teardown bound returned implausibly early: ${elapsed}ms`);
+  assert.ok(elapsed < 1500, `header teardown bound exceeded reviewed terminal: ${elapsed}ms`);
+  assert.equal(state.getReaderCalls, 0, "non-success JSON status must reject before reader acquisition");
+  assert.equal(state.readCalls, 0, "non-success JSON status must reject before body reads");
+  assert.equal(state.bodyCancelCalls, 1, "non-success JSON status must own body cancellation once");
+  assert.equal(controller.signal.aborted, true, "non-success JSON status must abort the owned request");
 }
 
 {
@@ -517,6 +540,11 @@ assert.match(
 );
 assert.match(
   sync,
+  /const requireJsonResponseHeaders = async[\s\S]*if \(!response\.ok\)[\s\S]*cancelResponseBodyBounded\(response, controller\)/,
+  "WordPress JSON non-success status must reject at the prebody header boundary",
+);
+assert.match(
+  sync,
   /const requestJson = async[\s\S]*requireJsonResponseHeaders\(response, controller\);[\s\S]*readBoundedResponseBytes\(response, controller\)/,
   "WordPress JSON header admission must precede body acquisition",
 );
@@ -539,6 +567,7 @@ for (const token of [
   "withResponseDeadline",
   "requestPublicAppEntrypoint",
   "validatePublicAppDocument",
+  "WordPress HTTP",
   "primary CTA returned HTTP",
   "primary_cta_live_verified",
   "VOIDCHAIN_WORDPRESS_USERNAME",
@@ -579,6 +608,7 @@ process.stdout.write(`${JSON.stringify({
   primary_cta_contract_guard: true,
   streamed_response_bound: true,
   json_wrong_content_type_prebody_rejected: true,
+  json_non_success_prebody_rejected: true,
   cta_non_200_prebody_rejected: true,
   cta_wrong_content_type_prebody_rejected: true,
   declared_oversize_pre_read_rejection: true,
