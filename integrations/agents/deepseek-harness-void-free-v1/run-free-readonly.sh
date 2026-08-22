@@ -60,6 +60,7 @@ if [[ "$NODE_MAJOR" -eq 22 ]]; then
   fi
 fi
 
+set +e
 node - "$LOCAL_MODEL_BASE" <<'NODE'
 const raw = process.argv[2];
 let url;
@@ -71,7 +72,9 @@ if (!['http:', 'https:'].includes(url.protocol)) process.exit(22);
 if (url.username || url.password || url.search || url.hash) process.exit(23);
 if (url.pathname !== '/v1' && url.pathname !== '/v1/') process.exit(24);
 NODE
-case "$?" in
+MODEL_URL_RC=$?
+set -e
+case "$MODEL_URL_RC" in
   0) ;;
   20) echo "HOLD: local model base is not a valid URL" >&2; exit 2 ;;
   21) echo "HOLD: free-only model base must remain loopback" >&2; exit 2 ;;
@@ -98,6 +101,7 @@ curl -fsS --connect-timeout 3 --max-time 10 \
     exit 2
   }
 
+set +e
 node - "$MODEL_TMP" "$LOCAL_MODEL_ID" <<'NODE'
 const fs = require('node:fs');
 const file = process.argv[2];
@@ -112,13 +116,16 @@ if (!ids.includes(wanted)) {
   process.exit(31);
 }
 NODE
-case "$?" in
+MODEL_PREFLIGHT_RC=$?
+set -e
+case "$MODEL_PREFLIGHT_RC" in
   0) echo "local_model_preflight=true" ;;
   30) echo "HOLD: local model /models response is not valid JSON" >&2; exit 2 ;;
   31) echo "HOLD: requested local model is not loaded: $LOCAL_MODEL_ID" >&2; exit 2 ;;
   *) echo "HOLD: local model preflight failed" >&2; exit 2 ;;
 esac
 
+set +e
 node - "$VOID_BASE" <<'NODE'
 const raw = process.argv[2];
 let url;
@@ -129,7 +136,9 @@ if (url.username || url.password || url.search || url.hash) process.exit(41);
 if (!(url.protocol === 'https:' || (url.protocol === 'http:' && loopback))) process.exit(42);
 if (url.pathname !== '/' && url.pathname !== '') process.exit(43);
 NODE
-case "$?" in
+VOID_URL_RC=$?
+set -e
+case "$VOID_URL_RC" in
   0) ;;
   40) echo "HOLD: VOID agent gateway is not a valid URL" >&2; exit 2 ;;
   41) echo "HOLD: VOID gateway cannot contain credentials/query/fragment" >&2; exit 2 ;;
@@ -145,13 +154,16 @@ curl -fsS --connect-timeout 5 --max-time 15 \
     exit 2
   }
 
+set +e
 node - "$DISCOVERY_TMP" <<'NODE'
 const fs = require('node:fs');
 let body;
 try { body = JSON.parse(fs.readFileSync(process.argv[2], 'utf8')); } catch { process.exit(50); }
 if (body?.marker !== 'VOID_AI_AGENT_WELL_KNOWN_ENTRYPOINT_V1') process.exit(51);
 NODE
-case "$?" in
+VOID_DISCOVERY_RC=$?
+set -e
+case "$VOID_DISCOVERY_RC" in
   0) echo "void_agent_gateway_preflight=true" ;;
   50) echo "HOLD: VOID discovery response is not valid JSON" >&2; exit 2 ;;
   51) echo "HOLD: selected VOID origin is not the canonical AI-agent gateway" >&2; exit 2 ;;
