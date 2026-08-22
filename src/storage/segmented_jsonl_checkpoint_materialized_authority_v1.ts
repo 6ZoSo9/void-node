@@ -36,6 +36,14 @@ export type SegmentedJsonlAppendOnlyCheckpointWitnessV1 = {
   witness_sha256: string;
 };
 
+type AppendOnlyBindingsV1 = {
+  previousAnchor: SegmentedJsonlCheckpointAnchorV1;
+  snapshot: SegmentedJsonlSnapshotAuthorityV1;
+  checkpoint: SegmentedJsonlCheckpointV1;
+  previousMaterialized: SegmentedJsonlMaterializedAuthorityV1;
+  currentMaterialized: SegmentedJsonlMaterializedAuthorityV1;
+};
+
 function fail(code: string, detail: string): never {
   throw new Error(`${VOID_SEGMENTED_JSONL_APPEND_ONLY_CHECKPOINT_WITNESS_V1}:${code}:${detail}`);
 }
@@ -50,6 +58,14 @@ function isHex64(value: unknown): value is string {
 
 function canonicalJson(value: unknown): string {
   return JSON.stringify(value);
+}
+
+function requireExactKeys(value: object, expected: readonly string[], code: string): void {
+  const actual = Object.keys(value).sort();
+  const wanted = [...expected].sort();
+  if (actual.length !== wanted.length || actual.some((key, index) => key !== wanted[index])) {
+    fail(code, actual.join(","));
+  }
 }
 
 function assertMaterializedSnapshotBinding(
@@ -68,16 +84,14 @@ function assertMaterializedSnapshotBinding(
   }
 }
 
-export function verifySegmentedJsonlCheckpointAppendOnlyAtUseV1(
-  root: string,
-  materializedFile: string,
+function verifyAppendOnlyBindingsV1(
   checkpointInput: SegmentedJsonlCheckpointV1,
   snapshotInput: SegmentedJsonlSnapshotAuthorityV1,
   previousAnchorInput: SegmentedJsonlCheckpointAnchorV1,
   previousMaterializedAuthorityInput: SegmentedJsonlMaterializedAuthorityV1,
   currentMaterializedAuthorityInput: SegmentedJsonlMaterializedAuthorityV1,
   trustedPreviousMaterializedAuthoritySha256: string,
-): SegmentedJsonlAppendOnlyCheckpointWitnessV1 {
+): AppendOnlyBindingsV1 {
   if (!isHex64(trustedPreviousMaterializedAuthoritySha256)) {
     fail("INVALID_PREVIOUS_MATERIALIZED_TRUST_ROOT", String(trustedPreviousMaterializedAuthoritySha256));
   }
@@ -124,17 +138,145 @@ export function verifySegmentedJsonlCheckpointAppendOnlyAtUseV1(
     );
   }
 
+  return {
+    previousAnchor,
+    snapshot,
+    checkpoint,
+    previousMaterialized,
+    currentMaterialized,
+  };
+}
+
+export function verifySegmentedJsonlAppendOnlyCheckpointWitnessObjectV1(
+  witnessInput: SegmentedJsonlAppendOnlyCheckpointWitnessV1,
+): SegmentedJsonlAppendOnlyCheckpointWitnessV1 {
+  const witness = witnessInput as SegmentedJsonlAppendOnlyCheckpointWitnessV1;
+  if (!witness || typeof witness !== "object") {
+    fail("INVALID_APPEND_ONLY_WITNESS", "not-object");
+  }
+  requireExactKeys(witness, [
+    "v", "format", "previous_checkpoint_sha256", "checkpoint_sha256",
+    "previous_materialized_authority_sha256", "current_materialized_authority_sha256",
+    "previous_materialized_sha256", "current_materialized_sha256", "prefix_bytes",
+    "prefix_sha256", "previous_generation", "current_generation", "witness_sha256",
+  ], "INVALID_APPEND_ONLY_WITNESS_KEYS");
+  if (
+    witness.v !== 1 ||
+    witness.format !== VOID_SEGMENTED_JSONL_APPEND_ONLY_CHECKPOINT_WITNESS_V1 ||
+    !isHex64(witness.previous_checkpoint_sha256) ||
+    !isHex64(witness.checkpoint_sha256) ||
+    !isHex64(witness.previous_materialized_authority_sha256) ||
+    !isHex64(witness.current_materialized_authority_sha256) ||
+    !isHex64(witness.previous_materialized_sha256) ||
+    !isHex64(witness.current_materialized_sha256) ||
+    !Number.isSafeInteger(witness.prefix_bytes) || witness.prefix_bytes < 0 ||
+    !isHex64(witness.prefix_sha256) ||
+    !Number.isSafeInteger(witness.previous_generation) || witness.previous_generation <= 0 ||
+    !Number.isSafeInteger(witness.current_generation) || witness.current_generation <= 0 ||
+    !isHex64(witness.witness_sha256)
+  ) {
+    fail("INVALID_APPEND_ONLY_WITNESS", "shape");
+  }
+  if (witness.current_generation !== witness.previous_generation + 1) {
+    fail(
+      "APPEND_ONLY_WITNESS_GENERATION_NOT_NEXT",
+      `${witness.previous_generation}:${witness.current_generation}`,
+    );
+  }
+  if (witness.prefix_sha256 !== witness.previous_materialized_sha256) {
+    fail(
+      "APPEND_ONLY_WITNESS_PREFIX_ROOT_MISMATCH",
+      `${witness.prefix_sha256}:${witness.previous_materialized_sha256}`,
+    );
+  }
+  const { witness_sha256: _digest, ...core } = witness;
+  if (sha256(canonicalJson(core)) !== witness.witness_sha256) {
+    fail("APPEND_ONLY_WITNESS_DIGEST_MISMATCH", witness.witness_sha256);
+  }
+  return witness;
+}
+
+// Online consumers must not re-hash lifetime history. They verify an already
+// produced append-only witness against independently trusted witness and
+// predecessor roots. Producing that witness may be an offline/diagnostic scan;
+// making the witness/root durable is a separate consumer-authority boundary.
+export function verifySegmentedJsonlCheckpointAppendOnlyBoundedV1(
+  checkpointInput: SegmentedJsonlCheckpointV1,
+  snapshotInput: SegmentedJsonlSnapshotAuthorityV1,
+  previousAnchorInput: SegmentedJsonlCheckpointAnchorV1,
+  previousMaterializedAuthorityInput: SegmentedJsonlMaterializedAuthorityV1,
+  currentMaterializedAuthorityInput: SegmentedJsonlMaterializedAuthorityV1,
+  witnessInput: SegmentedJsonlAppendOnlyCheckpointWitnessV1,
+  trustedPreviousMaterializedAuthoritySha256: string,
+  trustedWitnessSha256: string,
+): SegmentedJsonlAppendOnlyCheckpointWitnessV1 {
+  if (!isHex64(trustedWitnessSha256)) {
+    fail("INVALID_APPEND_ONLY_WITNESS_TRUST_ROOT", String(trustedWitnessSha256));
+  }
+  const bindings = verifyAppendOnlyBindingsV1(
+    checkpointInput,
+    snapshotInput,
+    previousAnchorInput,
+    previousMaterializedAuthorityInput,
+    currentMaterializedAuthorityInput,
+    trustedPreviousMaterializedAuthoritySha256,
+  );
+  const witness = verifySegmentedJsonlAppendOnlyCheckpointWitnessObjectV1(witnessInput);
+  if (witness.witness_sha256 !== trustedWitnessSha256) {
+    fail(
+      "APPEND_ONLY_WITNESS_TRUST_ROOT_MISMATCH",
+      `${witness.witness_sha256}:${trustedWitnessSha256}`,
+    );
+  }
+  if (
+    witness.previous_checkpoint_sha256 !== bindings.previousAnchor.checkpoint.checkpoint_sha256 ||
+    witness.checkpoint_sha256 !== bindings.checkpoint.checkpoint_sha256 ||
+    witness.previous_materialized_authority_sha256 !== bindings.previousMaterialized.authority_sha256 ||
+    witness.current_materialized_authority_sha256 !== bindings.currentMaterialized.authority_sha256 ||
+    witness.previous_materialized_sha256 !== bindings.previousMaterialized.materialized_sha256 ||
+    witness.current_materialized_sha256 !== bindings.currentMaterialized.materialized_sha256 ||
+    witness.prefix_bytes !== bindings.previousMaterialized.total_bytes ||
+    witness.prefix_sha256 !== bindings.previousMaterialized.materialized_sha256 ||
+    witness.previous_generation !== bindings.previousMaterialized.store_generation ||
+    witness.current_generation !== bindings.currentMaterialized.store_generation
+  ) {
+    fail("APPEND_ONLY_WITNESS_BINDING_MISMATCH", witness.witness_sha256);
+  }
+  return witness;
+}
+
+// This path intentionally performs the expensive materialized-prefix scan and
+// is the witness producer, not the bounded online consumer.
+export function verifySegmentedJsonlCheckpointAppendOnlyAtUseV1(
+  root: string,
+  materializedFile: string,
+  checkpointInput: SegmentedJsonlCheckpointV1,
+  snapshotInput: SegmentedJsonlSnapshotAuthorityV1,
+  previousAnchorInput: SegmentedJsonlCheckpointAnchorV1,
+  previousMaterializedAuthorityInput: SegmentedJsonlMaterializedAuthorityV1,
+  currentMaterializedAuthorityInput: SegmentedJsonlMaterializedAuthorityV1,
+  trustedPreviousMaterializedAuthoritySha256: string,
+): SegmentedJsonlAppendOnlyCheckpointWitnessV1 {
+  const bindings = verifyAppendOnlyBindingsV1(
+    checkpointInput,
+    snapshotInput,
+    previousAnchorInput,
+    previousMaterializedAuthorityInput,
+    currentMaterializedAuthorityInput,
+    trustedPreviousMaterializedAuthoritySha256,
+  );
+
   const prefixHash = crypto.createHash("sha256");
   verifySegmentedJsonlMaterializedAuthorityAtUseV1(
     root,
     materializedFile,
-    currentMaterialized,
+    bindings.currentMaterialized,
     (reader) => {
       let offset = 0;
-      while (offset < previousMaterialized.total_bytes) {
+      while (offset < bindings.previousMaterialized.total_bytes) {
         const length = Math.min(
           reader.max_read_bytes,
-          previousMaterialized.total_bytes - offset,
+          bindings.previousMaterialized.total_bytes - offset,
         );
         const chunk = reader.read(offset, length);
         prefixHash.update(chunk);
@@ -144,29 +286,29 @@ export function verifySegmentedJsonlCheckpointAppendOnlyAtUseV1(
     },
   );
   const prefixSha256 = prefixHash.digest("hex");
-  if (prefixSha256 !== previousMaterialized.materialized_sha256) {
+  if (prefixSha256 !== bindings.previousMaterialized.materialized_sha256) {
     fail(
       "MATERIALIZED_APPEND_PREFIX_MISMATCH",
-      `${previousMaterialized.materialized_sha256}:${prefixSha256}`,
+      `${bindings.previousMaterialized.materialized_sha256}:${prefixSha256}`,
     );
   }
 
   const core = {
     v: 1 as const,
     format: VOID_SEGMENTED_JSONL_APPEND_ONLY_CHECKPOINT_WITNESS_V1 as typeof VOID_SEGMENTED_JSONL_APPEND_ONLY_CHECKPOINT_WITNESS_V1,
-    previous_checkpoint_sha256: previousAnchor.checkpoint.checkpoint_sha256,
-    checkpoint_sha256: checkpoint.checkpoint_sha256,
-    previous_materialized_authority_sha256: previousMaterialized.authority_sha256,
-    current_materialized_authority_sha256: currentMaterialized.authority_sha256,
-    previous_materialized_sha256: previousMaterialized.materialized_sha256,
-    current_materialized_sha256: currentMaterialized.materialized_sha256,
-    prefix_bytes: previousMaterialized.total_bytes,
+    previous_checkpoint_sha256: bindings.previousAnchor.checkpoint.checkpoint_sha256,
+    checkpoint_sha256: bindings.checkpoint.checkpoint_sha256,
+    previous_materialized_authority_sha256: bindings.previousMaterialized.authority_sha256,
+    current_materialized_authority_sha256: bindings.currentMaterialized.authority_sha256,
+    previous_materialized_sha256: bindings.previousMaterialized.materialized_sha256,
+    current_materialized_sha256: bindings.currentMaterialized.materialized_sha256,
+    prefix_bytes: bindings.previousMaterialized.total_bytes,
     prefix_sha256: prefixSha256,
-    previous_generation: previousMaterialized.store_generation,
-    current_generation: currentMaterialized.store_generation,
+    previous_generation: bindings.previousMaterialized.store_generation,
+    current_generation: bindings.currentMaterialized.store_generation,
   };
-  return {
+  return verifySegmentedJsonlAppendOnlyCheckpointWitnessObjectV1({
     ...core,
     witness_sha256: sha256(canonicalJson(core)),
-  };
+  });
 }
