@@ -81,6 +81,14 @@ const fulfillmentPolicy: BuyVoidAutoFulfillmentPolicyV1 = {
   exact_payment_required: true,
 };
 
+const inventoryPolicy = {
+  inventory_reservation_enabled: true,
+  pool_id: "proof-pipeline-v1",
+  inventory_policy_version: "proof-pipeline-v1",
+  pool_capacity_void_units: "1000000000",
+  max_reservation_void_units: "1000000000",
+};
+
 const executionPolicy = {
   attempt_journal_enabled: true,
   max_attempts_per_payment: 2,
@@ -99,6 +107,29 @@ assert.equal(
   false,
 );
 assert.equal(VOID_BUY_VOID_PIPELINE_COORDINATOR_AUTHORITY_V1.money_movement, false);
+
+const safeRoot = fs.mkdtempSync(
+  path.join(os.tmpdir(), "void-buy-pipeline-safe-admission-v1-"),
+);
+const safeClaim = runBuyVoidPipelineCommandV1({
+  action: "verify_reserve_and_claim",
+  apply: true,
+  confirmation:
+    VOID_BUY_VOID_PIPELINE_CONFIRMATIONS_V1.verify_reserve_and_claim,
+  root_dir: safeRoot,
+  request,
+  receipt,
+  verification_policy: verificationPolicy,
+  fulfillment_policy: fulfillmentPolicy,
+  inventory_policy: inventoryPolicy,
+  now_ms: 1_701_000_000_000,
+});
+if ("reason" in safeClaim) throw new Error(safeClaim.reason);
+const safeResult = appliedResult(safeClaim);
+assert.equal(safeResult.reservation.status, "reserved");
+assert.equal(safeResult.claim.status, "approved");
+assert.equal(safeResult.reservation_before_new_claim, true);
+fs.rmSync(safeRoot, { recursive: true, force: true });
 
 const dryClaim = runBuyVoidPipelineCommandV1({
   action: "verify_and_claim",
@@ -133,7 +164,7 @@ assert.equal(
   "explicit_confirmation_required",
 );
 
-const claimed = runBuyVoidPipelineCommandV1({
+const retiredClaim = runBuyVoidPipelineCommandV1({
   action: "verify_and_claim",
   apply: true,
   confirmation: VOID_BUY_VOID_PIPELINE_CONFIRMATIONS_V1.verify_and_claim,
@@ -142,6 +173,29 @@ const claimed = runBuyVoidPipelineCommandV1({
   receipt,
   verification_policy: verificationPolicy,
   fulfillment_policy: fulfillmentPolicy,
+  now_ms: 1_701_000_000_000,
+});
+assert.equal(retiredClaim.ok, false);
+assert.equal(retiredClaim.status, "held");
+assert.equal(retiredClaim.applied, true);
+assert.equal(retiredClaim.mutation_performed, false);
+assert.equal(
+  "reason" in retiredClaim && retiredClaim.reason,
+  "legacy_verify_and_claim_apply_retired",
+);
+assert.deepEqual(fs.readdirSync(root), []);
+
+const claimed = runBuyVoidPipelineCommandV1({
+  action: "verify_reserve_and_claim",
+  apply: true,
+  confirmation:
+    VOID_BUY_VOID_PIPELINE_CONFIRMATIONS_V1.verify_reserve_and_claim,
+  root_dir: root,
+  request,
+  receipt,
+  verification_policy: verificationPolicy,
+  fulfillment_policy: fulfillmentPolicy,
+  inventory_policy: inventoryPolicy,
   now_ms: 1_701_000_000_000,
 });
 if ("reason" in claimed) throw new Error(claimed.reason);
@@ -327,14 +381,16 @@ const partialRequest = {
   request_id: "buyvoid_pipeline_partial_mutation_v1",
 };
 const partialClaim = runBuyVoidPipelineCommandV1({
-  action: "verify_and_claim",
+  action: "verify_reserve_and_claim",
   apply: true,
-  confirmation: VOID_BUY_VOID_PIPELINE_CONFIRMATIONS_V1.verify_and_claim,
+  confirmation:
+    VOID_BUY_VOID_PIPELINE_CONFIRMATIONS_V1.verify_reserve_and_claim,
   root_dir: partialRoot,
   request: partialRequest,
   receipt,
   verification_policy: verificationPolicy,
   fulfillment_policy: fulfillmentPolicy,
+  inventory_policy: inventoryPolicy,
   now_ms: 1_701_000_100_000,
 });
 const partialIntent = appliedResult(partialClaim).claim.intent;
@@ -408,3 +464,4 @@ fs.rmSync(root, { recursive: true, force: true });
 
 console.log("VOID_BUY_VOID_PIPELINE_COORDINATOR_V1_GREEN");
 console.log("partial_mutation_truth_preserved=1");
+console.log("legacy_verify_and_claim_apply_retired=1");

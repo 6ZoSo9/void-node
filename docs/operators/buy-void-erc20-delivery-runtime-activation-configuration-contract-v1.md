@@ -6,7 +6,7 @@ Marker: `VOID_BUY_VOID_ERC20_DELIVERY_RUNTIME_ACTIVATION_CONFIGURATION_CONTRACT_
 
 The canonical ERC-20 execution-composition source is now a prerequisite of any later activation. The retained delivery runtime no longer accepts a caller-supplied nonce/gas/fee transaction plan. It delegates to the server-controlled execution-composition layer, which derives the exact `VoidToken.transfer(...)` transaction through the coherent `pending` planner, durably reserves the wallet nonce, persists signed-hash custody before broadcast, uses the existing saga write-ahead broadcast-intent boundary, reconciles exact ERC-20 receipts into canonical `record_confirmed`, and leaves terminal inventory/public closeout to the existing saga closeout implementation.
 
-The next source gate parent-mounts this already-reviewed runtime while leaving it disabled. That source composition does not enable production execution, inject signer/broadcaster dependencies, inspect a credential, fund presale inventory, or authorize a transaction.
+The canonical parent now mounts this already-reviewed runtime while leaving execution disabled. Dormant signer/broadcaster dependency injection is separately fail-closed to delivery enable exact `0`. Neither source composition nor dormant injection enables production execution, inspects a credential, funds presale inventory, or authorizes a transaction.
 
 ## Required production configuration contract
 
@@ -31,16 +31,42 @@ The disabled parent mount must continue proving:
 ## Current truth
 
 ```text
+status=presale_invariants_source_ready_held_on_activation
 erc20_execution_composition_ready=true
 canonical_delivery_runtime_activation_ready=false
 production_configuration_values_verified=false
 production_credential_binding_ready=false
+canonical_production_credential_binding_evidence_ready=true
+dormant_dependency_injection_source_ready=true
+dormant_dependency_injection_requires_delivery_runtime_disabled=true
+dormant_dependency_injection_required_delivery_enable_value=0
+dormant_dependency_injection_wallet_evidence_binding_required=true
+dependency_injection_runtime_ready=false
 canonical_delivery_runtime_parent_mounted=true
 canonical_delivery_execution_ready=false
 presale_inventory_funding_ready=false
+canonical_presale_pool_id=buy-void-presale-v1
+canonical_presale_max_void=10000000
+canonical_presale_max_fulfillment_units_6_decimal=10000000000000
+canonical_presale_max_reservation_fulfillment_units_6_decimal=10000000000000
+finite_presale_cap_end_to_end_enforced=true
+canonical_presale_rate=2/1
+fixed_presale_rate_enforced=true
+reservation_ceiling_equals_total_pool=true
+per_buyer_purchase_throttle_below_remaining_inventory=false
+validator_scale_purchase_10000_void_admission_ready=true
+delivery_execution_amount_cap_separate_from_purchase_admission=true
+public_delivery_activation_requires_presale_capacity_max=true
+production_broad_delivery_configuration_verified=false
+current_parent_blocker=production_broad_delivery_configuration_not_verified
+next_gate=production_broad_delivery_configuration_verification
 ```
 
-After the disabled parent mount, the next operations gates are credential key-to-wallet evidence and separately authorized dependency injection/runtime enablement. Inventory funding remains an independent later value-bearing gate.
+Credential key-to-wallet evidence is recorded for the canonical Precision/Mainnet-0 fulfillment wallet without inferring clone-local binding. Dormant dependency injection requires delivery enable exact `0`, the exact evidence ID, and a configured delivery wallet matching that evidence; any mismatch remains held before dependencies are populated.
+
+The canonical presale economics source is now fail-closed to one pool (`buy-void-presale-v1`), exactly 10000000 VOID (10000000000000 six-decimal fulfillment units), and exactly `2 VOID / 1 USDC`. The inventory reservation ceiling equals the entire presale pool, so there is **no per-buyer 2-VOID throttle** below remaining inventory. A 10,000 VOID validator-scale purchase is explicitly proven to reserve successfully.
+
+`VOID_BUY_VOID_DELIVERY_MAX_AMOUNT_UNITS` remains a separate delivery-execution safety control. A lower 2-VOID canary is allowed only while delivery is disabled; public delivery activation fails configuration unless the delivery maximum is widened to the canonical presale capacity so every admitted purchase can be fulfilled without an execution-layer throttle. Production broad-delivery configuration verification, runtime enablement, and inventory funding remain later gates.
 
 ## Authority boundary
 
@@ -83,3 +109,14 @@ existing generic saga accepts `receipt_confirmed.confirmations` only through
 range are held without confirmed-state mutation.
 
 This source closure mounts only the disabled child route in the canonical parent. It still does not inject value-bearing dependencies, read production credentials, enable execution, fund presale inventory, sign or broadcast a live transaction, or move funds.
+
+
+## Payment admission / inventory atomicity
+
+Canonical broad-sale admission now uses `verify_reserve_and_claim`: a verified payment is first evaluated against the aggregate presale reservation journal under its pool lock. A **new durable paid claim is not created until its VOID inventory reservation exists**.
+
+If a confirmed payment cannot reserve because the pool is sold out or has insufficient remaining VOID, the reservation journal records a deterministic `VOID_BUY_VOID_PAID_UNRESERVABLE_OBLIGATION_V1` terminal obligation. That record acknowledges the confirmed customer payment and binds its payment/request identity, payment transaction evidence, requested VOID, observed remaining inventory, and canonical pool policy while authorizing **no automatic retry, refund execution, alternate fulfillment execution, wallet access, signing, broadcast, or money movement**.
+
+Crash recovery is fail-closed in the opposite direction as well: if inventory reservation becomes durable before claim persistence, the reservation is deterministic/duplicate-safe and a retry can finish the same claim without consuming inventory twice.
+
+Acceptance requires adversarial near-sellout and sold-out proofs showing no confirmed payer is left without either reserved VOID or a canonical terminal reconciliation obligation.

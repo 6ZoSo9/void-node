@@ -86,6 +86,8 @@ for (const marker of [
   "canonical_erc20_delivery_atomic_unit_conversion_ready: true",
   "canonical_erc20_delivery_execution_ready: false",
   "canonical_erc20_delivery_execution_held: true",
+  "dormant_dependency_injection_source_ready: true",
+  "VOID_BUY_VOID_ERC20_DELIVERY_DEPENDENCY_INJECTION_V1",
   "native_value_delivery_parent_mounted: false",
   "native_receipt_parent_mounted: false",
   "native_execution_parent_mounted: false",
@@ -161,6 +163,16 @@ need(
 need(
   moduleText.includes("buyVoidDeliveryRuntimeStatusV1()"),
   "parent must project the real disabled delivery-runtime status",
+);
+need(
+  /from "\.\/buy_void_erc20_delivery_dependency_injection_v1\.js";/.test(
+    moduleText,
+  ),
+  "parent must compose the dormant ERC20 dependency injector",
+);
+need(
+  moduleText.includes("buyVoidErc20DeliveryDependencyInjectionStatusV1()"),
+  "parent must project dormant dependency-injection status",
 );
 for (const forbiddenParentImport of [
   'import "./buy_void_native_delivery_runtime_integration_v1.js";',

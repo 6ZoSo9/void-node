@@ -28,6 +28,7 @@ const MAX_TIMEOUT_MS = 60_000;
 const DEFAULT_MAX_RESPONSE_BYTES = 1_048_576;
 const MAX_RESPONSE_BYTES_LIMIT = 4_194_304;
 const MAX_REQUEST_BYTES = 65_536;
+const REJECTION_TEARDOWN_MAX_MS = 250;
 
 function usage() {
   return [
@@ -274,20 +275,78 @@ export function readPaidWorkSubmissionRequestV1(rawPath) {
   };
 }
 
-async function boundedRead(response, maximumBytes) {
+async function settleCancellationBounded(target, controller) {
+  if (!controller.signal.aborted) {
+    controller.abort();
+  }
+  if (!target || typeof target.cancel !== "function") return;
+
+  let cancellation;
+  try {
+    cancellation = Promise.resolve(target.cancel());
+  } catch {
+    return;
+  }
+
+  let timer;
+  try {
+    await Promise.race([
+      cancellation.catch(() => undefined),
+      new Promise((resolve) => {
+        timer = setTimeout(resolve, REJECTION_TEARDOWN_MAX_MS);
+      }),
+    ]);
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+}
+
+async function boundedRead(response, maximumBytes, controller) {
   const contentLengthRaw = response.headers.get("content-length");
-  if (contentLengthRaw) {
-    const contentLength = Number.parseInt(contentLengthRaw, 10);
-    if (Number.isFinite(contentLength) && contentLength > maximumBytes) {
-      fail(`response_too_large:${contentLength}`);
+  if (contentLengthRaw !== null) {
+    const contentLengthText = contentLengthRaw.trim();
+    if (!/^(?:0|[1-9]\d*)$/.test(contentLengthText)) {
+      await settleCancellationBounded(response.body, controller);
+      fail(`response_content_length_invalid:${contentLengthText}`);
+    }
+    const contentLength = Number(contentLengthText);
+    if (!Number.isSafeInteger(contentLength) || contentLength > maximumBytes) {
+      await settleCancellationBounded(response.body, controller);
+      fail(`response_too_large:${contentLengthText}`);
     }
   }
 
-  const bytes = new Uint8Array(await response.arrayBuffer());
-  if (bytes.byteLength > maximumBytes) {
-    fail(`response_too_large:${bytes.byteLength}`);
+  if (!response.body || typeof response.body.getReader !== "function") {
+    await settleCancellationBounded(response.body, controller);
+    fail("response_body_unavailable");
+  }
+  const reader = response.body.getReader();
+  const chunks = [];
+  let total = 0;
+
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      assertCondition(value instanceof Uint8Array, "response_body_invalid_chunk");
+      total += value.byteLength;
+      if (total > maximumBytes) {
+        fail(`response_too_large:${total}`);
+      }
+      chunks.push(Buffer.from(value));
+    }
+  } catch (error) {
+    await settleCancellationBounded(reader, controller);
+    throw error;
+  } finally {
+    try {
+      reader.releaseLock();
+    } catch {
+      // Reader cleanup must never replace the primary terminal result.
+    }
   }
 
+  const bytes = Buffer.concat(chunks, total);
   return {
     bytes: bytes.byteLength,
     text: new TextDecoder("utf-8", { fatal: true }).decode(bytes),
@@ -325,9 +384,14 @@ async function fetchBoundedV1({
       signal: controller.signal,
     });
     if (response.status >= 300 && response.status < 400) {
+      await settleCancellationBounded(response.body, controller);
       fail(`redirect_forbidden:${response.status}`);
     }
-    const raw = await boundedRead(response, maximumBytes);
+    const raw = await boundedRead(
+      response,
+      maximumBytes,
+      controller,
+    );
     return { response, raw };
   } finally {
     clearTimeout(timer);

@@ -40,11 +40,14 @@ Refresh is fail closed.
 
 Before a replacement request begins, all previously validated node/head/peer/source/alignment evidence is immediately withheld. The UI shows HOLD/loading values rather than keeping stale evidence visible under a fresh-validation message.
 
-Exactly one Network request is owned at a time:
+Exactly one Network request generation is owned at a time:
 
-- starting a replacement aborts the previous owned request before the replacement fetch begins;
-- the caller deadline remains linked through response-body consumption;
-- ownership lasts until the bounded body has been consumed and validated;
+- starting a replacement aborts the previous owned request before any replacement fetch can begin;
+- every streamed `reader.read()` is raced against the owned caller deadline instead of trusting the body to honor abort;
+- rejected/aborted body cancellation gets a separate 250 ms teardown terminal, so the caller reaches a bounded result even if `cancel()` never settles;
+- an aborted generation with unresolved body work remains quarantined and blocks a replacement generation until its read/cancel terminal is actually witnessed;
+- a stream that repeatedly yields zero-length chunks is rejected after a fixed progress bound rather than being allowed to spin indefinitely;
+- normal cancellable responses release ownership before the abort is returned;
 - route departure or view unmount cancels the owned request; and
 - stale/superseded completions cannot render over a newer request.
 
@@ -59,6 +62,8 @@ import './network-live.js';
 Wallet is already loaded globally by the App shell, while current Network work does not own `app.js`, `views.js`, or `home-live.js`.
 
 Because `wallet-live.js` is content-addressed by the existing Wave-2 and Wave-3 review manifests, and Wave-4 transitively binds those manifests, this lane refreshes only the required repository hashes in those three manifests. It does not alter the historical source-bundle payload hashes or prior visual-approval receipts.
+
+During current-main reconciliation, repository-hash entries already stale on `main` are also refreshed from the exact merged bytes inside those same three manifest files. This repairs integrity metadata only; it does not import additional source/runtime authority into the Network lane.
 
 ## Authority boundary
 
@@ -83,7 +88,7 @@ Source DoD requires:
 1. the Network loader is actually integrated into the existing App shell;
 2. same-origin GET-only transport and the 128 KiB ceiling are preserved;
 3. stale evidence is withheld immediately during refresh;
-4. superseded/unmounted requests are aborted and only one request is owned at a time;
+4. response-body reads obey the caller deadline, teardown has a separate bounded terminal, and at most one unresolved/quarantined request generation can exist;
 5. nested numeric evidence is strict and chain-head display requires raw/normalized agreement;
 6. the focused proof exercises bounded bodies, wrong numeric types, supersession, deadline propagation, unmount cancellation, and no-authority boundaries;
 7. the focused workflow is present with immutable action pins and Node.js 22/24/26 coverage;

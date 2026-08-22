@@ -71,6 +71,14 @@ const fulfillmentPolicy: BuyVoidAutoFulfillmentPolicyV1 = {
   exact_payment_required: true,
 };
 
+const inventoryPolicy = {
+  inventory_reservation_enabled: true,
+  pool_id: "proof-not-broadcast-idempotency-v1",
+  inventory_policy_version: "proof-not-broadcast-idempotency-v1",
+  pool_capacity_void_units: "1000000000",
+  max_reservation_void_units: "1000000000",
+};
+
 const executionPolicy = {
   attempt_journal_enabled: true,
   max_attempts_per_payment: 2,
@@ -125,14 +133,16 @@ const root = fs.mkdtempSync(
 );
 
 const claim = runBuyVoidPipelineCommandV1({
-  action: "verify_and_claim",
+  action: "verify_reserve_and_claim",
   apply: true,
-  confirmation: VOID_BUY_VOID_PIPELINE_CONFIRMATIONS_V1.verify_and_claim,
+  confirmation:
+    VOID_BUY_VOID_PIPELINE_CONFIRMATIONS_V1.verify_reserve_and_claim,
   root_dir: root,
   request,
   receipt,
   verification_policy: verificationPolicy,
   fulfillment_policy: fulfillmentPolicy,
+  inventory_policy: inventoryPolicy,
   now_ms: 1_701_100_000_000,
 });
 const intent = appliedResult(claim).claim.intent;

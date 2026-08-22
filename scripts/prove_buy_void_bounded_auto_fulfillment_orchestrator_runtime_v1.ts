@@ -168,7 +168,7 @@ async function main(): Promise<void> {
     process.env[MAX_ENV] = "1";
 
     const stageCommand = {
-      action: "verify_and_claim",
+      action: "verify_reserve_and_claim",
       request_id: requestId,
     };
     const dryDisabledPolicy = await command({
@@ -305,7 +305,10 @@ async function main(): Promise<void> {
       false,
     );
     assert.equal(delegatedCalls.length, 1);
-    assert.equal(delegatedCalls[0].action, "verify_and_claim");
+    assert.equal(
+      delegatedCalls[0].action,
+      "verify_reserve_and_claim",
+    );
     assert.equal(delegatedCalls[0].request_id, requestId);
     assert.equal(delegatedCalls[0].root_dir, root);
     assert.equal(delegatedCalls[0].apply, true);

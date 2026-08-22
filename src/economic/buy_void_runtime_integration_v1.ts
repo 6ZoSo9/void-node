@@ -5,6 +5,10 @@ import {
   VOID_BUY_VOID_DELIVERY_RUNTIME_ROUTES_V1,
   buyVoidDeliveryRuntimeStatusV1,
 } from "./buy_void_delivery_runtime_integration_v1.js";
+import {
+  VOID_BUY_VOID_ERC20_DELIVERY_DEPENDENCY_INJECTION_V1,
+  buyVoidErc20DeliveryDependencyInjectionStatusV1,
+} from "./buy_void_erc20_delivery_dependency_injection_v1.js";
 import "./buy_void_confirmed_closeout_runtime_v1.js";
 import {
   VOID_BUY_VOID_ERC20_DELIVERY_DEPENDENCY_BOOTSTRAP_INTEGRATION_GATE_V1,
@@ -65,6 +69,9 @@ export const VOID_BUY_VOID_CANONICAL_DELIVERY_COMPOSITION_V1 = {
   canonical_delivery_dependency_bootstrap_ready:
     VOID_BUY_VOID_ERC20_DELIVERY_DEPENDENCY_BOOTSTRAP_INTEGRATION_V1
       .canonical_delivery_dependency_bootstrap_ready,
+  dormant_dependency_injection_source_ready: true,
+  dependency_injection_marker:
+    VOID_BUY_VOID_ERC20_DELIVERY_DEPENDENCY_INJECTION_V1,
   canonical_delivery_execution_ready: false,
   canonical_delivery_execution_held: true,
   presale_inventory_funding_ready: false,
@@ -290,6 +297,8 @@ export function buyVoidRuntimeStatusV1(): Record<string, unknown> {
         mounted: true,
         ...buyVoidDeliveryRuntimeStatusV1(),
       },
+      dependency_injection_status:
+        buyVoidErc20DeliveryDependencyInjectionStatusV1(),
     },
     saga_broadcast_reconciliation_runtime:
       buyVoidSagaBroadcastReconciliationRuntimeStatusV1(),

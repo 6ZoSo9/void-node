@@ -31,7 +31,7 @@ const validEnv: Record<string, string> = {
   VOID_BUY_VOID_DELIVERY_CHAIN_ID: "2050",
   VOID_BUY_VOID_DELIVERY_TOKEN_ADDRESS: token,
   VOID_BUY_VOID_DELIVERY_WALLET_ADDRESS: wallet,
-  VOID_BUY_VOID_DELIVERY_MAX_AMOUNT_UNITS: "1000000000",
+  VOID_BUY_VOID_DELIVERY_MAX_AMOUNT_UNITS: "10000000000000",
   VOID_BUY_VOID_DELIVERY_MAX_GAS_LIMIT: "100000",
   VOID_BUY_VOID_DELIVERY_MAX_FEE_PER_GAS_WEI: "3000000000",
   VOID_BUY_VOID_DELIVERY_MAX_PRIORITY_FEE_PER_GAS_WEI:
@@ -60,9 +60,9 @@ const validEnv: Record<string, string> = {
     "presale-v1",
   VOID_BUY_VOID_INVENTORY_POOL_ID: "buy-void-presale-v1",
   VOID_BUY_VOID_CRASH_CONSISTENT_SAGA_POOL_CAPACITY_VOID_UNITS:
-    "1000000000",
+    "10000000000000",
   VOID_BUY_VOID_CRASH_CONSISTENT_SAGA_MAX_RESERVATION_VOID_UNITS:
-    "1000000000",
+    "10000000000000",
   VOID_BUY_VOID_NATIVE_DELIVERY_WALLET_ADDRESS: wallet,
 };
 
@@ -169,7 +169,14 @@ for (const [override, reason] of [
       VOID_BUY_VOID_DELIVERY_MAX_AMOUNT_UNITS:
         "1000000000000000000000",
     },
-    "max_amount_exceeds_saga_fulfillment_unit_cap",
+    "public_delivery_amount_cap_must_equal_presale_capacity",
+  ],
+  [
+    {
+      VOID_BUY_VOID_DELIVERY_MAX_AMOUNT_UNITS:
+        "2000000",
+    },
+    "public_delivery_amount_cap_must_equal_presale_capacity",
   ],
 ] as const) {
   setEnv(override);

@@ -15,7 +15,7 @@ import {
   type BuyVoidExecutionAttemptStateV1,
 } from "./buy_void_execution_attempt_journal_v1.js";
 import {
-  readBuyVoidCrashConsistentSagaServerPolicyV1,
+  readBuyVoidCanonicalPresaleServerPolicyV1,
   type BuyVoidCrashConsistentSagaServerPolicyV1,
 } from "./buy_void_crash_consistent_saga_server_policy_v1.js";
 import {
@@ -968,7 +968,7 @@ export async function runBuyVoidSagaPreparedTransactionCoordinatorV1(
   }
 
   const serverPolicyDecision =
-    readBuyVoidCrashConsistentSagaServerPolicyV1();
+    readBuyVoidCanonicalPresaleServerPolicyV1();
   if ("reason" in serverPolicyDecision) {
     return held(
       "server_policy",
