@@ -1,0 +1,44 @@
+name: canonical-txsubmit-admission-dedupe-v1
+
+on:
+  push:
+    paths:
+      - "src/chain/mempool.ts"
+      - "src/chain/mempool.js"
+      - "src/index.ts"
+      - "scripts/prove_canonical_txsubmit_admission_dedupe_v1.ts"
+      - ".github/workflows/canonical-txsubmit-admission-dedupe-v1.yml"
+  pull_request:
+    paths:
+      - "src/chain/mempool.ts"
+      - "src/chain/mempool.js"
+      - "src/index.ts"
+      - "scripts/prove_canonical_txsubmit_admission_dedupe_v1.ts"
+      - ".github/workflows/canonical-txsubmit-admission-dedupe-v1.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  proof:
+    name: canonical txsubmit admission dedupe proof
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Prove canonical txsubmit pending-identity dedupe
+        run: npx tsx scripts/prove_canonical_txsubmit_admission_dedupe_v1.ts
