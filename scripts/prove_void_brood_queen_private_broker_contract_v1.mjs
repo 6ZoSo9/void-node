@@ -1,251 +1,72 @@
 #!/usr/bin/env node
-
-import { readFile } from 'node:fs/promises';
+import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
+import { readFile } from 'node:fs/promises';
 import { execFileSync } from 'node:child_process';
 
-const DOC = 'docs/governance/void-brood-queen-private-broker-contract-v1.md';
-const FIXTURE = 'fixtures/governance/void-brood-queen-private-broker-contract-v1.json';
-const IDENTITY = 'fixtures/governance/void-brood-queen-cryptographic-identity-contract-v1.json';
-const SEAT = 'fixtures/governance/void-brood-queen-local-model-seat-v1.json';
+const P={doc:'docs/governance/void-brood-queen-private-broker-contract-v1.md',fix:'fixtures/governance/void-brood-queen-private-broker-contract-v1.json',id:'fixtures/governance/void-brood-queen-cryptographic-identity-contract-v1.json',seat:'fixtures/governance/void-brood-queen-local-model-seat-v1.json',wf:'.github/workflows/void-brood-queen-private-broker-contract-v1.yml'};
+const MARK='VOID_BROOD_QUEEN_PRIVATE_BROKER_CONTRACT_V1_20260822';
+const IDMARK='VOID_BROOD_QUEEN_CRYPTOGRAPHIC_IDENTITY_CONTRACT_V1_20260822';
+const SEATMARK='VOID_BROOD_QUEEN_LOCAL_MODEL_SEAT_V1_20260822';
+const IDHEAD='8ac42d13f684d9898318af9359edc3553961909b', IDBLOB='b8159343b176fdfc745fec0afb8ebf0db512ac9b';
+const SEATHEAD='2ddbbd3498915d77c410f350c4e1dadb1cfa951c', SEATBLOB='eb96412ce2444232aa64b0df4b8889faf92d0ff9';
+const PDOMAIN='VOID_BROOD_QUEEN_PARENT_POLICY_IDENTITY_V1', PSHA='2d2ff57721e64728569019531f908cb936826bea3d78e012871f91833bd1b630';
+const DOMAIN='VOID_BROOD_QUEEN_PRIVATE_BROKER_POLICY_V1', GEN='1', SHA='ed61656dd11ef617813eb1660bc13c8578decabcbd9b97e472cdce2c92a82c6a';
+const CAPS=['analysis','drafting','proof_design','review','test_generation','bounded_task_planning','evidence_synthesis'];
+const h=s=>createHash('sha256').update(s).digest('hex');
+const blob=p=>execFileSync('git',['hash-object',p],{encoding:'utf8'}).trim();
+const hold=m=>{throw new Error(m)};
+const yes=(v,n)=>{if(v!==true)hold(`${n} must be true`)};
+const no=(v,n)=>{if(v!==false)hold(`${n} must be false`)};
+const arr=(a,b,n)=>{assert.deepEqual(a,b,`${n} drift`)};
+const allTrue=(o,ks,prefix)=>ks.forEach(k=>yes(o?.[k],`${prefix}.${k}`));
+const allFalse=(o,ks,prefix)=>ks.forEach(k=>no(o?.[k],`${prefix}.${k}`));
 
-const MARKER = 'VOID_BROOD_QUEEN_PRIVATE_BROKER_CONTRACT_V1_20260822';
-const IDENTITY_MARKER = 'VOID_BROOD_QUEEN_CRYPTOGRAPHIC_IDENTITY_CONTRACT_V1_20260822';
-const SEAT_MARKER = 'VOID_BROOD_QUEEN_LOCAL_MODEL_SEAT_V1_20260822';
-const IDENTITY_HEAD = '8ac42d13f684d9898318af9359edc3553961909b';
-const IDENTITY_BLOB = 'b8159343b176fdfc745fec0afb8ebf0db512ac9b';
-const SEAT_HEAD = '2ddbbd3498915d77c410f350c4e1dadb1cfa951c';
-const SEAT_BLOB = 'eb96412ce2444232aa64b0df4b8889faf92d0ff9';
-const PARENT_POLICY_DOMAIN = 'VOID_BROOD_QUEEN_PARENT_POLICY_IDENTITY_V1';
-const PARENT_POLICY_SHA = '2d2ff57721e64728569019531f908cb936826bea3d78e012871f91833bd1b630';
-const POLICY_DOMAIN = 'VOID_BROOD_QUEEN_PRIVATE_BROKER_POLICY_V1';
-const POLICY_SHA = 'e85eeaecb0fc289d377b76c49839f7c020fc119d541c04b575a711f24c22e6bf';
-const V1_CAPS = ['analysis','drafting','proof_design','review','test_generation','bounded_task_planning','evidence_synthesis'];
+function transport(v){if(typeof v!=='string'||!/^[0-9a-f]{24}$/.test(v))hold('transport wire invalid');return{n:BigInt(`0x${v}`),nonce:Buffer.from(v,'hex')}}
+function wire96(n){if(typeof n!=='bigint'||n<0n||n>=1n<<96n)hold('transport range');return n.toString(16).padStart(24,'0')}
+function dec(v,bits,n){if(typeof v!=='string'||!/^(0|[1-9][0-9]*)$/.test(v))hold(`${n} wire invalid`);const x=BigInt(v);if(x>=1n<<BigInt(bits))hold(`${n} overflow`);return x}
 
-function hold(message) { throw new Error(message); }
-function requireTrue(value, name) { if (value !== true) hold(`${name} must be true`); }
-function requireFalse(value, name) { if (value !== false) hold(`${name} must be false`); }
-function exactArray(actual, expected, name) {
-  if (!Array.isArray(actual)) hold(`${name} must be array`);
-  if (actual.length !== expected.length) hold(`${name} length drifted`);
-  for (let i = 0; i < expected.length; i += 1) if (actual[i] !== expected[i]) hold(`${name}[${i}] drifted`);
-}
-function sha256(value) { return createHash('sha256').update(value).digest('hex'); }
-function gitBlob(path) {
-  return execFileSync('git', ['hash-object', path], { encoding: 'utf8' }).trim();
-}
+function bootstrap(s,r){const e=s.boot.get(r.nonce);if(e)return e.ch===r.ch&&e.ap===r.ap&&e.sid===r.sid?{k:'dup',...e}:{k:'BOOTSTRAP_CONFLICT'};const x={ch:r.ch,ap:r.ap,sid:r.sid,receipt:`b:${r.ap}`};s.boot.set(r.nonce,x);s.sessions.set(r.sid,{generation:'0',next:'0',version:0,admissions:new Map(),successor:null});return{k:'commit',...x}}
+function admit(s,r){const e=s.admissions.get(r.seq);if(e)return e.task===r.task?{k:'dup',e}:{k:'SEQUENCE_CONFLICT'};if(r.ver!==s.version)return{k:'CAS'};if(r.gen!==s.generation)return{k:'SESSION_STALE'};if(r.seq!==s.next)return{k:'SEQUENCE_CONFLICT'};const e2={task:r.task,seq:r.seq,gen:r.gen};s.admissions.set(r.seq,e2);s.next=(BigInt(s.next)+1n).toString();s.version++;return{k:'commit',e:e2}}
+function rotate(s,r){if(r.ver!==s.version)return{k:'CAS'};if(r.from!==s.generation)return{k:'SESSION_STALE'};if(s.successor)return s.successor.hash===r.hash?{k:'dup',e:s.successor}:{k:'SESSION_FORK_CONFLICT'};const e={hash:r.hash,from:r.from,to:r.to,activationTaskSequence:s.next};s.successor=e;s.generation=r.to;s.version++;return{k:'commit',e}}
+function stage(t,r){if(t.staged)return t.staged.hash===r.hash?{k:'dup',e:t.staged}:{k:'RESULT_CONFLICT',e:t.staged};t.staged=structuredClone(r);return{k:'commit',e:t.staged}}
+function publish(t,sink){if(!t.staged)hold('publish before stage');const id=t.staged.receipt,p=`${t.staged.hash}:${id}`,e=sink.get(id);if(e!==undefined&&e!==p)hold('publication conflict');sink.set(id,p);t.published=id;return id}
+function freshAead({certain,exhausted}){return certain&&!exhausted}
 
-async function main() {
-  const [doc, fixtureText, identityText, seatText] = await Promise.all([
-    readFile(DOC, 'utf8'), readFile(FIXTURE, 'utf8'), readFile(IDENTITY, 'utf8'), readFile(SEAT, 'utf8'),
-  ]);
-  const f = JSON.parse(fixtureText);
-  const identity = JSON.parse(identityText);
-  const seat = JSON.parse(seatText);
-
-  if (f.marker !== MARKER) hold('private broker marker drift');
-  if (identity.marker !== IDENTITY_MARKER) hold('identity parent marker drift');
-  if (seat.marker !== SEAT_MARKER) hold('local-seat parent marker drift');
-  if (f.parent_identity_contract_marker !== IDENTITY_MARKER) hold('fixture identity parent drift');
-  if (f.parent_local_seat_marker !== SEAT_MARKER) hold('fixture local-seat parent drift');
-
-  if (f.parent_binding?.domain !== PARENT_POLICY_DOMAIN) hold('parent policy domain drift');
-  if (f.parent_binding.identity_reviewed_head !== IDENTITY_HEAD) hold('identity reviewed head drift');
-  if (f.parent_binding.identity_fixture_blob_sha !== IDENTITY_BLOB) hold('identity fixture blob declaration drift');
-  if (f.parent_binding.local_seat_reviewed_head !== SEAT_HEAD) hold('local-seat reviewed head drift');
-  if (f.parent_binding.local_seat_fixture_blob_sha !== SEAT_BLOB) hold('local-seat fixture blob declaration drift');
-  if (gitBlob(IDENTITY) !== IDENTITY_BLOB) hold('identity parent exact content drift');
-  if (gitBlob(SEAT) !== SEAT_BLOB) hold('local-seat parent exact content drift');
-  const parentPolicyPreimage = `${PARENT_POLICY_DOMAIN}\nidentity_commit=${IDENTITY_HEAD}\nidentity_fixture_blob=${IDENTITY_BLOB}\nlocal_seat_commit=${SEAT_HEAD}\nlocal_seat_fixture_blob=${SEAT_BLOB}\n`;
-  if (sha256(parentPolicyPreimage) !== PARENT_POLICY_SHA) hold('parent policy digest preimage mismatch');
-  if (f.parent_binding.parent_policy_sha256 !== PARENT_POLICY_SHA) hold('parent policy digest drift');
-  requireTrue(f.parent_binding.same_marker_parent_content_drift_fails_closed, 'same-marker parent drift hold');
-  requireTrue(f.parent_binding.bootstrap_and_rotation_bind_parent_policy_sha256, 'parent policy bootstrap/rotation binding');
-
-  if (f.network?.chain_id !== 2050) hold('chain id drift');
-  if (f.network?.office !== 'Brood Queen' || f.network?.identity !== 'Ren') hold('Crown office identity drift');
-  requireTrue(f.network.provider_neutral, 'provider neutrality');
-
-  if (f.root_identity?.algorithm !== 'Ed25519') hold('root identity algorithm drift');
-  requireFalse(f.root_identity.private_key_enters_model_context, 'root key model-context access');
-  requireFalse(f.root_identity.private_key_enters_repository, 'root key repository access');
-  requireFalse(f.root_identity.private_key_enters_github, 'root key GitHub access');
-  requireFalse(f.root_identity.private_key_accessible_to_apollyon, 'root key Apollyon access');
-
-  if (f.broker_identity?.algorithm !== 'Ed25519') hold('broker identity algorithm drift');
-  requireTrue(f.broker_identity.public_identity_pinned_before_bootstrap, 'broker identity pinning');
-  requireFalse(f.broker_identity.private_key_enters_model_context, 'broker private key model-context access');
-  requireTrue(f.broker_identity.bootstrap_challenge_signature_required, 'broker challenge signature');
-  if (f.broker_identity.bootstrap_challenge_domain !== 'VOID_BROOD_QUEEN_BROKER_BOOTSTRAP_CHALLENGE_V1') hold('broker challenge domain drift');
-  if (f.broker_identity.crown_bootstrap_approval_domain !== 'VOID_BROOD_QUEEN_CROWN_BOOTSTRAP_APPROVAL_V1') hold('Crown bootstrap domain drift');
-  if (f.broker_identity.receipt_signature_domain !== 'VOID_BROOD_QUEEN_BROKER_RECEIPT_V1') hold('receipt signature domain drift');
-  requireTrue(f.broker_identity.receipt_signed_by_broker_identity, 'broker receipt signature');
-  requireFalse(f.broker_identity.transport_tls_alone_authenticates_crown_or_broker, 'TLS-only Crown/broker authentication');
-
-  requireFalse(f.session_adapter.adapter_is_constitutional_identity, 'adapter constitutional identity');
-  requireTrue(f.session_adapter.bootstrap_challenge_single_use, 'single-use challenge');
-  requireTrue(f.session_adapter.bootstrap_binds_adapter_public_key, 'adapter signing-key binding');
-  requireTrue(f.session_adapter.bootstrap_binds_adapter_x25519_public_key, 'adapter X25519 binding');
-  requireTrue(f.session_adapter.bootstrap_binds_broker_x25519_public_key, 'broker X25519 binding');
-  requireTrue(f.session_adapter.persistent_logical_session, 'persistent logical session');
-  requireTrue(f.session_adapter.session_id_stable_across_automatic_rotation, 'stable session id');
-
-  if (f.crypto_profile.root_signature !== 'Ed25519') hold('root signature drift');
-  if (f.crypto_profile.broker_identity_signature !== 'Ed25519') hold('broker identity signature drift');
-  if (f.crypto_profile.session_signature !== 'Ed25519') hold('session signature drift');
-  if (f.crypto_profile.session_message_signature_domain !== 'VOID_BROOD_QUEEN_SESSION_MESSAGE_V1') hold('session message domain drift');
-  if (f.crypto_profile.session_rotation_signature_domain !== 'VOID_BROOD_QUEEN_SESSION_ROTATION_V1') hold('session rotation domain drift');
-  if (f.crypto_profile.key_agreement !== 'X25519') hold('key agreement drift');
-  requireTrue(f.crypto_profile.all_zero_x25519_shared_secret_rejected, 'all-zero X25519 rejection');
-  if (f.crypto_profile.kdf !== 'HKDF-SHA-256') hold('KDF drift');
-  if (f.crypto_profile.aead !== 'ChaCha20-Poly1305') hold('AEAD drift');
-  requireTrue(f.crypto_profile.transport_confidentiality_required, 'transport confidentiality');
-  requireFalse(f.crypto_profile.algorithm_agility_within_v1_session, 'in-session algorithm agility');
-  requireFalse(f.crypto_profile.ecdsa_substitution_allowed, 'ECDSA substitution');
-  requireTrue(f.crypto_profile.generation_transcript_is_hkdf_salt, 'generation transcript HKDF salt');
-  requireTrue(f.crypto_profile.directional_traffic_key_separation, 'directional traffic key separation');
-  requireFalse(f.crypto_profile.traffic_key_reused_across_generations, 'traffic key generation reuse');
-  requireFalse(f.crypto_profile.traffic_key_reused_across_directions, 'traffic key direction reuse');
-  if (f.crypto_profile.aead_nonce_source !== 'uint96_transport_sequence') hold('AEAD nonce source drift');
-  requireTrue(f.crypto_profile.aead_nonce_unique_per_generation_direction, 'AEAD nonce uniqueness');
-  requireFalse(f.crypto_profile.same_key_nonce_different_protected_bytes_allowed, 'AEAD nonce/key distinct-message reuse');
-  requireTrue(f.crypto_profile.exact_duplicate_retransmits_exact_protected_bytes, 'exact duplicate protected-byte reuse');
-  requireTrue(f.crypto_profile.ciphertext_sha256_is_not_aad_or_plaintext_input, 'non-self-referential ciphertext hash');
-
-  for (const key of [
-    'applies_both_directions','reservation_durable_before_aead_invocation','reservation_binds_exact_message_identity',
-    'protected_bytes_durable_before_first_release','retry_retransmits_exact_staged_protected_bytes',
-    'reserved_sequence_never_recycled_for_different_message','crash_before_protected_stage_may_only_reconstruct_same_message_or_hold_rotate',
-    'uncertain_nonce_state_holds_or_rotates_generation','receiver_conflict_check_is_not_primary_nonce_safety'
-  ]) requireTrue(f.outbound_transport_journal?.[key], `outbound transport journal ${key}`);
-
-  requireTrue(f.ordering.task_sequence_monotonic, 'task sequence monotonic');
-  requireTrue(f.ordering.accept_only_next_expected_task_sequence, 'next task sequence admission');
-  requireTrue(f.ordering.transport_sequence_monotonic_per_generation_direction, 'transport sequence monotonic');
-  requireTrue(f.ordering.duplicate_identical_task_returns_prior_authoritative_result, 'duplicate task idempotence');
-  requireTrue(f.ordering.same_task_sequence_different_bytes_terminal_conflict, 'task sequence conflict terminal');
-  requireTrue(f.ordering.same_transport_sequence_different_protected_bytes_terminal_conflict, 'transport sequence conflict terminal');
-  requireFalse(f.ordering.silent_reordering_allowed, 'silent reordering');
-  requireTrue(f.ordering.transport_and_task_sequence_are_distinct, 'transport/task sequence separation');
-
-  if (f.task_identity?.prefix !== 'voidbqt1_') hold('task id prefix drift');
-  for (const key of ['content_addressed','binds_session_id','binds_session_generation','binds_task_sequence','binds_capabilities','binds_capability_ceiling_digest','binds_payload_digest','binds_policy_generation','binds_policy_sha256','binds_parent_policy_sha256']) requireTrue(f.task_identity?.[key], `task identity ${key}`);
-
-  requireFalse(f.capability_boundary.authentication_implies_capability, 'auth implies capability');
-  requireTrue(f.capability_boundary.v1_proposal_evidence_only, 'V1 proposal/evidence only');
-  exactArray(f.capability_boundary.v1_capability_ceiling, V1_CAPS, 'V1 capability ceiling');
-  if (f.capability_boundary.policy_domain !== POLICY_DOMAIN) hold('policy domain drift');
-  const policyPreimage = `${POLICY_DOMAIN}\nparent_policy_sha256=${PARENT_POLICY_SHA}\ncapability_ceiling=${V1_CAPS.join(',')}\nvalidator_capability_present=false\n`;
-  if (sha256(policyPreimage) !== POLICY_SHA) hold('broker policy digest preimage mismatch');
-  if (f.capability_boundary.policy_sha256 !== POLICY_SHA) hold('broker policy digest drift');
-  requireFalse(f.capability_boundary.validator_capability_present, 'validator capability');
-  requireFalse(f.capability_boundary.wallet_or_signer_capability_implicit, 'wallet/signer implicit');
-  requireFalse(f.capability_boundary.deployment_or_restart_capability_implicit, 'deploy/restart implicit');
-  requireFalse(f.capability_boundary.live_runtime_mutation_implicit, 'runtime mutation implicit');
-  requireFalse(f.capability_boundary.transaction_or_funds_capability_implicit, 'funds implicit');
-  requireFalse(f.capability_boundary.work_credit_mutation_implicit, 'WC implicit');
-  requireFalse(f.capability_boundary.credential_reading_implicit, 'credential reading implicit');
-  requireFalse(f.capability_boundary.session_rotation_can_expand_policy_ceiling, 'rotation capability expansion');
-  requireTrue(f.capability_boundary.policy_or_ceiling_widening_requires_root_authenticated_boundary, 'root boundary for policy widening');
-
-  for (const key of ['bootstrap_binds_exact_capability_ceiling_or_digest','bootstrap_binds_exact_policy_sha256','bootstrap_binds_parent_policy_sha256','successor_may_preserve_or_reduce_capability_ceiling','one_active_generation_atomically_bound','at_most_one_accepted_successor_transition','stale_generation_may_only_retransmit_exact_accepted_transition']) requireTrue(f.successor_authority?.[key], `successor authority ${key}`);
-  requireFalse(f.successor_authority.successor_may_widen_capability_ceiling, 'successor ceiling widening');
-  requireFalse(f.successor_authority.successor_may_change_policy_root_without_root_boundary, 'successor policy-root change');
-  requireFalse(f.successor_authority.stale_generation_fresh_transition_authority_after_successor_activation, 'stale fresh transition authority');
-  if (f.successor_authority.alternate_stale_successor_terminal !== 'SESSION_FORK_CONFLICT') hold('stale successor conflict terminal drift');
-
-  if (f.apollyon?.office !== 'General') hold('Apollyon office drift');
-  requireTrue(f.apollyon.subordinate_compute, 'Apollyon subordinate compute');
-  requireFalse(f.apollyon.authenticated_crown_endpoint, 'Apollyon Crown endpoint');
-  requireFalse(f.apollyon.may_receive_root_key, 'Apollyon root key');
-  requireFalse(f.apollyon.may_receive_session_private_key, 'Apollyon session key');
-  requireFalse(f.apollyon.may_receive_broker_identity_private_key, 'Apollyon broker identity key');
-  requireFalse(f.apollyon.may_receive_validator_key, 'Apollyon validator key');
-  requireFalse(f.apollyon.model_output_is_authoritative_receipt, 'model output authoritative receipt');
-
-  requireTrue(f.private_context.stays_local_on_precision, 'context local');
-  requireFalse(f.private_context.sent_as_blob_to_remote_provider, 'context remote blob');
-  requireTrue(f.private_context.receipt_may_bind_context_sha256, 'context digest binding');
-  requireFalse(f.private_context.receipt_exposes_context_bytes, 'context bytes receipt');
-  requireFalse(f.private_context.receipt_exposes_local_path, 'context path receipt');
-
-  exactArray(f.durable_state_machine.states, ['RECEIVED','ADMITTED','EXECUTING','RESULT_STAGED','RESULT_PUBLISHED','COMPLETE'], 'durable states');
-  exactArray(f.durable_state_machine.fail_closed_terminals, ['REJECTED','EXPIRED','REVOKED','SEQUENCE_CONFLICT','TRANSPORT_SEQUENCE_CONFLICT','SESSION_FORK_CONFLICT','SESSION_STALE','POLICY_MISMATCH','EXECUTION_OUTCOME_UNKNOWN','RESULT_CONFLICT'], 'fail-closed terminals');
-  requireTrue(f.durable_state_machine.admitted_durable_before_inference, 'admitted durable before inference');
-  requireTrue(f.durable_state_machine.result_staged_durable_before_publication, 'result staged before publication');
-  requireTrue(f.durable_state_machine.publication_retry_reuses_staged_result, 'publication retry staged reuse');
-  requireFalse(f.durable_state_machine.publication_retry_reexecutes_inference, 'publication retry inference');
-  requireFalse(f.durable_state_machine.executing_restart_without_staged_result_auto_reexecutes_inference, 'ambiguous execution automatic retry');
-  if (f.durable_state_machine.executing_restart_without_staged_result_terminal !== 'EXECUTION_OUTCOME_UNKNOWN') hold('ambiguous execution terminal drift');
-  requireFalse(f.durable_state_machine.exactly_once_model_execution_claimed, 'exactly-once model execution claim');
-  requireTrue(f.durable_state_machine.exactly_once_authoritative_result_publication_required, 'exactly-once authoritative result publication');
-  requireTrue(f.durable_state_machine.safe_retry_from_execution_outcome_unknown_requires_separate_idempotent_executor_contract, 'ambiguous execution retry gate');
-  requireTrue(f.durable_state_machine.complete_binds_one_authoritative_result_hash, 'single authoritative result');
-  requireTrue(f.durable_state_machine.recovery_distinguishes_owned_from_foreign_state, 'owned-vs-foreign recovery');
-
-  requireTrue(f.revocation.canonical_role_revalidation_required, 'canonical role revalidation');
-  requireTrue(f.revocation.bounded_role_freshness_required_before_task_admission, 'bounded role freshness');
-  requireFalse(f.revocation.cached_role_truth_survives_revocation, 'cached role survives revocation');
-  requireFalse(f.revocation.stale_generation_can_issue_ordinary_tasks, 'stale session ordinary tasks');
-
-  requireFalse(f.threat_model.github_authenticates_crown_session, 'GitHub Crown auth');
-  requireFalse(f.threat_model.transport_tls_alone_authenticates_crown_session, 'TLS-only Crown auth');
-  requireFalse(f.threat_model.model_self_claim_authenticates_crown_session, 'model self-claim Crown auth');
-  requireFalse(f.threat_model.unsigned_or_unpinned_broker_challenge_admitted, 'unsigned/unpinned broker challenge');
-  requireTrue(f.threat_model.duplicate_delivery_idempotent, 'duplicate delivery idempotence');
-  requireFalse(f.threat_model.delayed_delivery_can_rollback_sequence, 'delayed sequence rollback');
-  requireFalse(f.threat_model.task_result_substitution_preserves_identity, 'substitution preserves identity');
-  requireFalse(f.threat_model.same_aead_key_nonce_can_protect_distinct_messages, 'AEAD key/nonce distinct-message reuse');
-  requireFalse(f.threat_model.sender_crash_can_recycle_nonce_for_different_message, 'sender crash nonce recycle');
-  requireFalse(f.threat_model.stale_generation_can_create_fresh_successor_fork, 'stale generation successor fork');
-  requireFalse(f.threat_model.same_marker_parent_content_drift_preserves_child_policy_identity, 'same-marker parent drift');
-  requireFalse(f.threat_model.restart_after_result_staged_creates_second_authoritative_result, 'restart duplicate authoritative result');
-  requireFalse(f.threat_model.restart_during_execution_claims_exactly_once_model_execution, 'restart exactly-once model execution claim');
-
-  requireTrue(f.strongest_invariant.at_most_one_authoritative_completed_result_hash_per_task_id, 'single result invariant');
-  requireTrue(f.strongest_invariant.does_not_claim_exactly_once_model_execution, 'no exactly-once execution invariant');
-  requireTrue(f.strongest_invariant.no_capability_expansion_beyond_exact_list, 'capability exactness invariant');
-  requireTrue(f.strongest_invariant.no_distinct_messages_share_aead_key_nonce_pair, 'AEAD nonce invariant');
-  requireTrue(f.strongest_invariant.nonce_safety_survives_sender_crash, 'sender crash nonce invariant');
-  requireTrue(f.strongest_invariant.no_stale_generation_successor_fork, 'successor fork invariant');
-  requireTrue(f.strongest_invariant.parent_policy_identity_content_bound, 'parent policy content invariant');
-  requireTrue(f.strongest_invariant.no_validator_authority_path, 'validator wall invariant');
-  requireTrue(f.strongest_invariant.no_crown_broker_or_session_private_material_in_model_context, 'private material invariant');
-
-  for (const [key, value] of Object.entries(f.activation)) requireFalse(value, `activation.${key}`);
-
-  for (const required of [
-    MARKER, IDENTITY_MARKER, SEAT_MARKER, PARENT_POLICY_SHA, POLICY_SHA,
-    'VOID_BROOD_QUEEN_BROKER_BOOTSTRAP_CHALLENGE_V1',
-    'VOID_BROOD_QUEEN_CROWN_BOOTSTRAP_APPROVAL_V1',
-    'VOID_BROOD_QUEEN_BROKER_RECEIPT_V1',
-    'VOID_BROOD_QUEEN_SESSION_MESSAGE_V1',
-    'VOID_BROOD_QUEEN_SESSION_ROTATION_V1',
-    'task_id = voidbqt1_ + sha256(canonical_task_without_task_id)',
-    'uint96', 'transport_sequence', 'task_sequence', 'TRANSPORT_SEQUENCE_CONFLICT', 'SESSION_FORK_CONFLICT',
-    'protected bytes are durably staged before the first byte may be released',
-    'zero fresh transition authority',
-    'RESULT_STAGED', 'EXECUTION_OUTCOME_UNKNOWN',
-    'Exactly-once model execution is not claimed.',
-    'exactly-once authoritative result publication',
-    'GitHub identity, provider identity, and model self-description are not Crown authentication.',
-    'Validator capability is structurally absent from this broker contract.',
-    'at most one authoritative completed result hash',
-    'no two distinct protected messages can use the same AEAD traffic-key/nonce pair',
-  ]) if (!doc.includes(required)) hold(`doc missing required binding: ${required}`);
-
-  const secretShapes = [
-    /-----BEGIN [A-Z ]*PRIVATE KEY-----/,
-    /\bsk-(?:proj-)?[A-Za-z0-9_-]{16,}\b/,
-    /\bgithub_pat_[A-Za-z0-9_]{20,}\b/,
-    /\bAKIA[0-9A-Z]{16}\b/,
-  ];
-  for (const pattern of secretShapes) if (pattern.test(fixtureText)) hold(`fixture contains secret-like material: ${pattern}`);
-
-  process.stdout.write('VOID_BROOD_QUEEN_PRIVATE_BROKER_CONTRACT_V1_PROOF_GREEN\n');
+function adversaries(){
+  const a=1n<<53n,b=a+1n,wa=wire96(a),wb=wire96(b);assert.notEqual(wa,wb);assert.notDeepEqual(transport(wa).nonce,transport(wb).nonce);assert.equal(transport('ffffffffffffffffffffffff').n,(1n<<96n)-1n);
+  for(const x of [1,'FFFFFFFFFFFFFFFFFFFFFFFF','0xffffffffffffffffffffffff','fffffffffffffffffffffff','1000000000000000000000000','-00000000000000000000001','00000000000000000000000g'])assert.throws(()=>transport(x));
+  assert.equal(dec('18446744073709551615',64,'task'),(1n<<64n)-1n);for(const x of [1,'01','-1','+1','1.0','1e3','18446744073709551616'])assert.throws(()=>dec(x,64,'task'));assert.equal(dec('4294967295',32,'gen'),(1n<<32n)-1n);assert.throws(()=>dec('4294967296',32,'gen'));
+  const st={boot:new Map(),sessions:new Map()},r={nonce:'n',ch:'c',ap:'a',sid:'0123456789abcdef0123456789abcdef'};assert.equal(st.sessions.size,0);const b1=bootstrap(st,r);assert.equal(b1.k,'commit');assert.equal(bootstrap(st,r).k,'dup');assert.equal(bootstrap(st,{...r,ap:'x'}).k,'BOOTSTRAP_CONFLICT');assert.equal(st.sessions.size,1);
+  const s=st.sessions.get(r.sid);assert.equal(admit(s,{ver:0,gen:'0',seq:'0',task:'t0'}).k,'commit');assert.equal(s.next,'1');assert.equal(admit(s,{ver:1,gen:'0',seq:'0',task:'t0'}).k,'dup');assert.equal(admit(s,{ver:1,gen:'0',seq:'0',task:'x'}).k,'SEQUENCE_CONFLICT');const rr=rotate(s,{ver:1,from:'0',to:'1',hash:'r01'});assert.equal(rr.k,'commit');assert.equal(rr.e.activationTaskSequence,'1');assert.equal(admit(s,{ver:1,gen:'0',seq:'1',task:'stale'}).k,'CAS');
+  const t={staged:null,published:null};assert.equal(stage(t,{hash:'ha',receipt:'ra'}).k,'commit');assert.equal(stage(t,{hash:'ha',receipt:'ra'}).k,'dup');assert.equal(stage(t,{hash:'hb',receipt:'rb'}).k,'RESULT_CONFLICT');const sink=new Map();assert.equal(publish(t,sink),'ra');t.published=null;assert.equal(publish(t,sink),'ra');assert.equal(sink.size,1);
+  assert.equal(freshAead({certain:false,exhausted:false}),false);assert.equal(freshAead({certain:true,exhausted:true}),false);assert.equal(freshAead({certain:true,exhausted:false}),true);assert.equal('owned'==='replacement',false);
 }
 
-main().catch((error) => {
-  process.stderr.write(`HOLD: ${error?.message ?? String(error)}\n`);
-  process.exitCode = 2;
-});
+async function main(){
+  const [doc,ft,it,st,wf]=await Promise.all(Object.values(P).map(p=>readFile(p,'utf8')));const f=JSON.parse(ft),id=JSON.parse(it),seat=JSON.parse(st);
+  if(f.marker!==MARK||id.marker!==IDMARK||seat.marker!==SEATMARK||f.parent_identity_contract_marker!==IDMARK||f.parent_local_seat_marker!==SEATMARK)hold('marker drift');
+  if(f.parent_binding.domain!==PDOMAIN||f.parent_binding.identity_reviewed_head!==IDHEAD||f.parent_binding.identity_fixture_blob_sha!==IDBLOB||f.parent_binding.local_seat_reviewed_head!==SEATHEAD||f.parent_binding.local_seat_fixture_blob_sha!==SEATBLOB)hold('parent binding drift');
+  if(blob(P.id)!==IDBLOB||blob(P.seat)!==SEATBLOB)hold('parent exact content drift');
+  const pp=`${PDOMAIN}\nidentity_commit=${IDHEAD}\nidentity_fixture_blob=${IDBLOB}\nlocal_seat_commit=${SEATHEAD}\nlocal_seat_fixture_blob=${SEATBLOB}\n`;if(h(pp)!==PSHA||f.parent_binding.parent_policy_sha256!==PSHA)hold('parent policy digest drift');allTrue(f.parent_binding,['same_marker_parent_content_drift_fails_closed','bootstrap_rotation_task_receipt_bind_parent_policy_sha256'],'parent');
+  if(f.network.chain_id!==2050||f.network.office!=='Brood Queen'||f.network.identity!=='Ren')hold('network/office drift');yes(f.network.provider_neutral,'provider neutrality');if(f.root_identity.algorithm!=='Ed25519')hold('root algorithm');allFalse(f.root_identity,['private_key_enters_model_context','private_key_enters_repository','private_key_enters_github','private_key_accessible_to_apollyon'],'root');
+  if(f.broker_identity.algorithm!=='Ed25519')hold('broker algorithm');allTrue(f.broker_identity,['public_identity_pinned_before_bootstrap','bootstrap_challenge_signature_required','receipt_signed_by_broker_identity'],'broker');allFalse(f.broker_identity,['private_key_enters_model_context','transport_tls_alone_authenticates_crown_or_broker'],'broker');
+  if(f.broker_identity.bootstrap_challenge_domain!=='VOID_BROOD_QUEEN_BROKER_BOOTSTRAP_CHALLENGE_V1'||f.broker_identity.crown_bootstrap_approval_domain!=='VOID_BROOD_QUEEN_CROWN_BOOTSTRAP_APPROVAL_V1'||f.broker_identity.receipt_signature_domain!=='VOID_BROOD_QUEEN_BROKER_RECEIPT_V1')hold('broker domains');
+  allTrue(f.bootstrap_transaction,['challenge_single_use','challenge_binds_proposed_session_id','crown_approval_binds_proposed_session_id','consume_challenge_approval_and_create_session_atomic','commit_durable_before_success_receipt_release','exact_replay_after_commit_returns_same_session_and_receipt','at_most_one_session_per_crown_approval'],'bootstrap');no(f.bootstrap_transaction.crash_before_commit_creates_session_authority,'bootstrap crash authority');if(f.bootstrap_transaction.proposed_session_id_wire!=='lower_hex_32'||f.bootstrap_transaction.same_nonce_different_transcript_or_approval_terminal!=='BOOTSTRAP_CONFLICT')hold('bootstrap wire/terminal');
+  if(f.policy.domain!==DOMAIN||f.policy.generation_wire!==GEN||f.policy.generation_type!=='canonical_u64_decimal_string')hold('policy identity');arr(f.policy.capability_ceiling,CAPS,'caps');const pre=`${DOMAIN}\nparent_policy_sha256=${PSHA}\npolicy_generation=${GEN}\ncapability_ceiling=${CAPS.join(',')}\nvalidator_capability_present=false\n`;if(h(pre)!==SHA||f.policy.sha256!==SHA)hold('policy digest');allFalse(f.policy,['validator_capability_present','authentication_implies_capability','session_rotation_can_expand_ceiling'],'policy');yes(f.policy.policy_or_ceiling_widening_requires_root_authenticated_boundary,'policy root boundary');
+  if([f.crypto_profile.root_signature,f.crypto_profile.broker_identity_signature,f.crypto_profile.session_signature].some(x=>x!=='Ed25519')||f.crypto_profile.key_agreement!=='X25519'||f.crypto_profile.kdf!=='HKDF-SHA-256'||f.crypto_profile.aead!=='ChaCha20-Poly1305')hold('crypto profile');allTrue(f.crypto_profile,['all_zero_x25519_shared_secret_rejected','directional_traffic_key_separation','ciphertext_sha256_is_not_aad_or_plaintext_input'],'crypto');allFalse(f.crypto_profile,['algorithm_agility_within_v1_session','ecdsa_substitution_allowed','traffic_key_reused_across_generations','traffic_key_reused_across_directions'],'crypto');
+  if(f.wire_encoding.transport_sequence_type!=='lower_hex_24'||f.wire_encoding.transport_sequence_regex!=='^[0-9a-f]{24}$'||f.wire_encoding.transport_sequence_nonce_derivation!=='hex_decode_12_bytes'||f.wire_encoding.transport_sequence_max_wire!=='ffffffffffffffffffffffff')hold('wire profile');allFalse(f.wire_encoding,['transport_sequence_json_number_allowed','transport_sequence_binary64_coercion_allowed','authority_counter_json_numbers_allowed','canonical_decimal_leading_zero_allowed','canonical_decimal_exponent_allowed','canonical_decimal_fraction_allowed','canonical_decimal_sign_allowed'],'wire');
+  allTrue(f.outbound_transport_journal,['applies_both_directions','reservation_durable_before_aead_invocation','reservation_binds_exact_message_identity','protected_bytes_durable_before_first_release','retry_retransmits_exact_staged_protected_bytes','reserved_sequence_never_recycled_for_different_message','receiver_conflict_check_is_not_primary_nonce_safety','pre_staged_exact_rotation_retransmission_allowed','otherwise_requires_hold_or_root_authenticated_out_of_band_recovery'],'journal');allFalse(f.outbound_transport_journal,['uncertain_or_exhausted_old_generation_can_encrypt_fresh_rotation','uncertain_or_exhausted_old_generation_can_invoke_fresh_aead'],'journal');
+  allTrue(f.session_authority,['one_durable_record_contains_active_generation_and_next_task_cursor','record_has_compare_and_swap_version','task_admission_and_rotation_share_same_cas_record','one_active_generation_atomically_bound','at_most_one_accepted_successor_transition','successor_may_preserve_or_reduce_capability_ceiling','stale_generation_may_only_retransmit_exact_accepted_transition','rotation_winner_rejects_paused_stale_admission_without_cursor_consumption','admission_winner_advances_exact_boundary_before_rotation'],'session');allFalse(f.session_authority,['successor_may_widen_capability_ceiling','successor_may_change_policy_root_without_root_boundary','stale_generation_fresh_transition_authority_after_successor_activation'],'session');if(f.session_authority.alternate_stale_successor_terminal!=='SESSION_FORK_CONFLICT')hold('successor terminal');
+  allTrue(f.task_identity,['content_addressed','binds_session_id','binds_session_generation','binds_task_sequence','binds_capabilities','binds_capability_ceiling_digest','binds_payload_digest','binds_policy_generation','binds_policy_sha256','binds_parent_policy_sha256'],'task');if(f.task_identity.prefix!=='voidbqt1_')hold('task prefix');allTrue(f.atomic_task_admission,['cas_binds_session_authority_record_version','cas_binds_active_generation','cas_binds_predecessor_task_cursor','cas_binds_exact_canonical_task_identity','admitted_and_cursor_advance_one_atomic_commit','crash_before_commit_leaves_cursor_unchanged','crash_after_commit_exact_duplicate_returns_same_admission'],'admission');no(f.atomic_task_admission.executor_handoff_before_atomic_commit,'early executor handoff');
+  arr(f.durable_state_machine.states,['RECEIVED','ADMITTED','EXECUTING','RESULT_STAGED','RESULT_PUBLISHED','COMPLETE'],'states');arr(f.durable_state_machine.fail_closed_terminals,['REJECTED','EXPIRED','REVOKED','BOOTSTRAP_CONFLICT','SEQUENCE_CONFLICT','TRANSPORT_SEQUENCE_CONFLICT','SESSION_FORK_CONFLICT','SESSION_STALE','POLICY_MISMATCH','EXECUTION_OUTCOME_UNKNOWN','RESULT_CONFLICT','FOREIGN_STATE_CONFLICT'],'terminals');allTrue(f.durable_state_machine,['admitted_durable_before_inference','safe_retry_from_execution_outcome_unknown_requires_separate_idempotent_executor_contract','result_stage_insert_if_absent','result_stage_first_writer_wins','identical_duplicate_completion_returns_existing_stage','result_staged_durable_before_publication','publication_consumes_only_immutable_staged_generation','publication_receipt_identity_is_idempotency_key','publication_sink_must_support_receipt_idempotency','crash_after_sink_publish_retries_same_logical_receipt','complete_binds_one_authoritative_result_hash','recovery_state_object_identity_cas','foreign_replacement_never_adopted_overwritten_or_deleted'],'state');allFalse(f.durable_state_machine,['executing_restart_without_staged_result_auto_reexecutes_inference','exactly_once_model_execution_claimed'],'state');if(f.durable_state_machine.executing_restart_without_staged_result_terminal!=='EXECUTION_OUTCOME_UNKNOWN'||f.durable_state_machine.different_completion_after_stage_terminal!=='RESULT_CONFLICT')hold('state terminal');
+  if(f.apollyon.office!=='General')hold('Apollyon office');yes(f.apollyon.subordinate_compute,'Apollyon subordinate');allFalse(f.apollyon,['authenticated_crown_endpoint','may_receive_root_key','may_receive_session_private_key','may_receive_broker_identity_private_key','may_receive_validator_key','model_output_is_authoritative_receipt'],'Apollyon');yes(f.private_context.stays_local_on_precision,'context local');allFalse(f.private_context,['sent_as_blob_to_remote_provider','receipt_exposes_context_bytes','receipt_exposes_local_path'],'context');yes(f.revocation.canonical_role_revalidation_required,'role revalidation');yes(f.revocation.bounded_role_freshness_required_before_task_admission,'role freshness');allFalse(f.revocation,['cached_role_truth_survives_revocation','stale_generation_can_issue_ordinary_tasks'],'revocation');
+  allFalse(f.threat_model,['github_authenticates_crown_session','transport_tls_alone_authenticates_crown_session','model_self_claim_authenticates_crown_session','task_result_substitution_preserves_identity','same_aead_key_nonce_can_protect_distinct_messages','sender_crash_can_recycle_nonce_for_different_message','uncertain_nonce_recovery_can_emit_fresh_old_generation_ciphertext','stale_generation_can_create_fresh_successor_fork','same_marker_parent_content_drift_preserves_child_policy_identity','restart_during_execution_claims_exactly_once_model_execution','concurrent_different_results_can_overwrite_staged_result','rotation_and_admission_can_commit_from_same_stale_authority_snapshot','one_crown_approval_can_mint_multiple_sessions'],'threat');yes(f.threat_model.duplicate_delivery_idempotent,'duplicate idempotence');allTrue(f.strongest_invariant,['at_most_one_session_per_crown_approval','at_most_one_admitted_task_per_session_sequence','at_most_one_immutable_result_stage_per_task','at_most_one_authoritative_completed_result_hash_per_task_id','does_not_claim_exactly_once_model_execution','no_capability_expansion_beyond_exact_list','no_distinct_messages_share_aead_key_nonce_pair','nonce_safety_survives_sender_crash','uncertain_or_exhausted_old_generation_has_zero_fresh_aead_authority','no_stale_generation_successor_fork','parent_policy_identity_content_bound','no_validator_authority_path','no_crown_broker_or_session_private_material_in_model_context'],'invariant');Object.entries(f.activation).forEach(([k,v])=>no(v,`activation.${k}`));
+  for(const x of ['scripts/ci_diff_hygiene_v1.sh','scripts/prove_ci_diff_hygiene_v1.mjs','run: node scripts/prove_ci_diff_hygiene_v1.mjs','CI_DIFF_PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}','CI_DIFF_CURRENT_SHA: ${{ github.event.pull_request.head.sha || github.sha }}','CI_DIFF_CHECKOUT_SHA: ${{ github.sha }}','CI_DIFF_BASE_REMOTE: ${{ github.server_url }}/${{ github.repository }}.git','CI_DIFF_HEAD_REMOTE: ${{ github.server_url }}/${{ github.event.pull_request.head.repo.full_name || github.repository }}.git','run: bash scripts/ci_diff_hygiene_v1.sh','fetch-depth: 1','persist-credentials: false'])if(!wf.includes(x))hold(`workflow binding missing: ${x}`);if(wf.includes('run: git diff --check'))hold('working-tree-only diff hygiene retained');
+  adversaries();
+  for(const x of [MARK,PSHA,SHA,'VOID_BROOD_QUEEN_SESSION_ROTATION_V1','transport_sequence` is exactly 24 lowercase hexadecimal characters','aead_nonce = hex_decode_12_bytes(transport_sequence)','one durable **session authority record**','`ADMITTED(task)` **and** advances the next-task cursor together','first-writer-wins','publication idempotency key','zero authority to create fresh protected bytes','BOOTSTRAP_CONFLICT','EXECUTION_OUTCOME_UNKNOWN','Exactly-once model execution is not claimed.','Validator capability is structurally absent from this broker contract.'])if(!doc.includes(x))hold(`doc binding missing: ${x}`);
+  for(const rx of [/-----BEGIN [A-Z ]*PRIVATE KEY-----/,/\bsk-(?:proj-)?[A-Za-z0-9_-]{16,}\b/,/\bgithub_pat_[A-Za-z0-9_]{20,}\b/,/\bAKIA[0-9A-Z]{16}\b/])if(rx.test(ft))hold(`secret-like material: ${rx}`);
+  console.log('VOID_BROOD_QUEEN_PRIVATE_BROKER_CONTRACT_V1_PROOF_GREEN');
+  for(const x of ['transport_wire_exact_96_bit','adjacent_2pow53_values_distinct','bootstrap_single_use_atomic','task_admission_cursor_atomic','rotation_admission_shared_cas','result_stage_first_writer_wins','publication_receipt_idempotent','uncertain_old_generation_fresh_aead=false','foreign_state_recovery_fail_closed','committed_range_diff_hygiene_bound'])console.log(`${x}=true`.replace('=false=true','=false'));
+}
+main().catch(e=>{console.error(`HOLD: ${e?.message??String(e)}`);process.exitCode=2});
