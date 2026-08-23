@@ -7,6 +7,7 @@ on:
       - "src/chain/mempool.js"
       - "src/index.ts"
       - "scripts/prove_canonical_txsubmit_admission_dedupe_v1.ts"
+      - "scripts/ci_diff_hygiene_v1.sh"
       - ".github/workflows/canonical-txsubmit-admission-dedupe-v1.yml"
   pull_request:
     paths:
@@ -14,6 +15,7 @@ on:
       - "src/chain/mempool.js"
       - "src/index.ts"
       - "scripts/prove_canonical_txsubmit_admission_dedupe_v1.ts"
+      - "scripts/ci_diff_hygiene_v1.sh"
       - ".github/workflows/canonical-txsubmit-admission-dedupe-v1.yml"
 
 permissions:
@@ -23,16 +25,18 @@ jobs:
   proof:
     name: canonical txsubmit admission dedupe proof
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
-      - name: Checkout
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      - name: Checkout integration state
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
         with:
-fetch-depth: 0
+          fetch-depth: 1
+          persist-credentials: false
 
       - name: Setup Node
-        uses: actions/setup-node@1e60f620b9541d16bece96c5465dc8ee9832be0b
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
         with:
-node-version: "22"
+          node-version: "22"
 
       - name: Install locked dependencies
         run: npm ci
@@ -43,11 +47,22 @@ node-version: "22"
       - name: Focused source hygiene
         shell: bash
         run: |
-set -euo pipefail
-test -x ./node_modules/.bin/tsx
-! grep -F "VOID_V2FS_COMMIT_LIFECYCLE_INSPECT" scripts/prove_canonical_txsubmit_admission_dedupe_v1.ts
-! grep -F "pushPicked(mp.splice(0, takeMp));" src/index.ts
-git diff --check
+          set -euo pipefail
+          test -x ./node_modules/.bin/tsx
+          ! grep -F 'console.log("VOID_V2FS_COMMIT_LIFECYCLE_INSPECT_BEGIN")' scripts/prove_canonical_txsubmit_admission_dedupe_v1.ts
+          ! grep -F 'console.log("VOID_V2FS_COMMIT_LIFECYCLE_INSPECT_END")' scripts/prove_canonical_txsubmit_admission_dedupe_v1.ts
+          ! grep -F "pushPicked(mp.splice(0, takeMp));" src/index.ts
+
+      - name: Prove committed diff hygiene
+        env:
+          CI_DIFF_EVENT_NAME: ${{ github.event_name }}
+          CI_DIFF_PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          CI_DIFF_PUSH_BEFORE_SHA: ${{ github.event.before }}
+          CI_DIFF_CURRENT_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+          CI_DIFF_CHECKOUT_SHA: ${{ github.sha }}
+          CI_DIFF_BASE_REMOTE: ${{ github.server_url }}/${{ github.repository }}.git
+          CI_DIFF_HEAD_REMOTE: ${{ github.server_url }}/${{ github.event.pull_request.head.repo.full_name || github.repository }}.git
+        run: bash scripts/ci_diff_hygiene_v1.sh
 
       - name: Prove O(1) identity, guarded mutation, and durable selection lifecycle
         run: ./node_modules/.bin/tsx scripts/prove_canonical_txsubmit_admission_dedupe_v1.ts

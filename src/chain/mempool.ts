@@ -8,10 +8,17 @@ export const VOID_DUPLICATE_TRANSACTION_CODE = "VOID_DUPLICATE_TRANSACTION";
 export const VOID_MEMPOOL_SELECTION_IN_PROGRESS = "mempool_selection_in_progress";
 export const VOID_MEMPOOL_SELECTED_MUTATION_FORBIDDEN = "mempool_selected_mutation_forbidden";
 export const VOID_MEMPOOL_RAW_INDEX_MUTATION_FORBIDDEN = "mempool_raw_index_mutation_forbidden";
+export const VOID_MEMPOOL_RAW_HASH_MUTATION_FORBIDDEN = "mempool_raw_hash_mutation_forbidden";
+
+function canonicalIdentitySnapshotOf(tx: any): { id: string; hash: any } | null {
+  const raw = tx?.hash;
+  const hash = raw === undefined || raw === null ? raw : String(raw);
+  const h = String(hash || "").trim().toLowerCase().replace(/^0x/, "");
+  return /^[0-9a-f]{64}$/.test(h) ? { id: h, hash } : null;
+}
 
 function comparableCanonicalHashOf(tx: any): string {
-  const h = String(tx?.hash || "").trim().toLowerCase().replace(/^0x/, "");
-  return /^[0-9a-f]{64}$/.test(h) ? h : "";
+  return canonicalIdentitySnapshotOf(tx)?.id || "";
 }
 
 function strictCanonicalHashOf(tx: any): string {
@@ -30,6 +37,43 @@ function mutationError(message: string): Error {
   const err = new Error(message);
   err.name = "MempoolMutationError";
   return err;
+}
+
+function ownCanonicalCompatItem(tx: any): any {
+  if (tx === null || (typeof tx !== "object" && typeof tx !== "function")) return tx;
+  const rawHash = tx?.hash;
+  const hashSnapshot = rawHash === undefined || rawHash === null ? rawHash : String(rawHash);
+  const owned: any = Array.isArray(tx) ? [] : Object.create(Object.getPrototypeOf(tx));
+  const descriptors: any = Object.getOwnPropertyDescriptors(tx);
+  const hashDescriptor = descriptors.hash;
+  delete descriptors.hash;
+  Object.defineProperties(owned, descriptors);
+  if (hashDescriptor) {
+    Object.defineProperty(owned, "hash", {
+      value: hashSnapshot,
+      enumerable: !!hashDescriptor.enumerable,
+      writable: true,
+      configurable: true,
+    });
+  }
+  return new Proxy(owned, {
+    get(target, prop, receiver) {
+      if (prop === "hash") return hashSnapshot;
+      return Reflect.get(target, prop, receiver);
+    },
+    set(target, prop, value, receiver) {
+      if (prop === "hash") throw mutationError(VOID_MEMPOOL_RAW_HASH_MUTATION_FORBIDDEN);
+      return Reflect.set(target, prop, value, receiver);
+    },
+    deleteProperty(target, prop) {
+      if (prop === "hash") throw mutationError(VOID_MEMPOOL_RAW_HASH_MUTATION_FORBIDDEN);
+      return Reflect.deleteProperty(target, prop);
+    },
+    defineProperty(target, prop, descriptor) {
+      if (prop === "hash") throw mutationError(VOID_MEMPOOL_RAW_HASH_MUTATION_FORBIDDEN);
+      return Reflect.defineProperty(target, prop, descriptor);
+    },
+  });
 }
 
 function numericArrayIndex(prop: PropertyKey): number | null {
@@ -98,6 +142,9 @@ throw mutationError(VOID_MEMPOOL_RAW_INDEX_MUTATION_FORBIDDEN);
       setPrototypeOf() {
         return false;
       },
+      preventExtensions() {
+        return false;
+      },
     };
     this.queue = new Proxy(this.queueTarget, handler);
   }
@@ -108,7 +155,7 @@ throw mutationError(VOID_MEMPOOL_RAW_INDEX_MUTATION_FORBIDDEN);
     if (!Array.isArray(value)) throw new TypeError("mempool_txs_must_be_array");
     if (this.selected.length > 0) throw mutationError(VOID_MEMPOOL_SELECTED_MUTATION_FORBIDDEN);
 
-    const candidate = Array.from(value);
+    const candidate = Array.from(value, ownCanonicalCompatItem);
     const seen = new Set<string>();
     for (const item of candidate) {
       const id = comparableCanonicalHashOf(item);
@@ -155,16 +202,18 @@ throw mutationError(VOID_MEMPOOL_RAW_INDEX_MUTATION_FORBIDDEN);
   }
 
   private compatPush(items: any[]): number {
-    this.assertAddable(items);
-    Array.prototype.push.apply(this.queueTarget, items);
-    this.addIdentities(items);
+    const ownedItems = items.map(ownCanonicalCompatItem);
+    this.assertAddable(ownedItems);
+    Array.prototype.push.apply(this.queueTarget, ownedItems);
+    this.addIdentities(ownedItems);
     return this.queueTarget.length;
   }
 
   private compatUnshift(items: any[]): number {
-    this.assertAddable(items);
-    Array.prototype.unshift.apply(this.queueTarget, items);
-    this.addIdentities(items);
+    const ownedItems = items.map(ownCanonicalCompatItem);
+    this.assertAddable(ownedItems);
+    Array.prototype.unshift.apply(this.queueTarget, ownedItems);
+    this.addIdentities(ownedItems);
     return this.queueTarget.length;
   }
 
@@ -177,7 +226,7 @@ throw mutationError(VOID_MEMPOOL_RAW_INDEX_MUTATION_FORBIDDEN);
     const deleteCount = args.length < 2
       ? (len - start)
       : Math.min(Math.max(Number.isFinite(rawDelete) ? Math.trunc(rawDelete) : 0, 0), len - start);
-    const items = args.slice(2);
+    const items = args.slice(2).map(ownCanonicalCompatItem);
     const removed = this.queueTarget.slice(start, start + deleteCount);
 
     if (this.selectedContainsAny(removed)) {

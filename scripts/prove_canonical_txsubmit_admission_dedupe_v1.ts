@@ -3,6 +3,7 @@ import {
   Mempool,
   VOID_DUPLICATE_TRANSACTION_CODE,
   VOID_MEMPOOL_RAW_INDEX_MUTATION_FORBIDDEN,
+  VOID_MEMPOOL_RAW_HASH_MUTATION_FORBIDDEN,
   VOID_MEMPOOL_SELECTED_MUTATION_FORBIDDEN,
 } from "../src/chain/mempool.js";
 
@@ -103,6 +104,8 @@ assert(finalCatch > commitSelection && rollbackSelection > finalCatch, "failure 
 assert(mempoolSource.includes("private readonly canonicalIdentities = new Set<string>();"), "persistent canonical identity Set missing");
 assert(!mempoolSource.includes("for (const current of this)"), "admission still rescans queue");
 assert(mempoolSource.includes("new Proxy(this.queueTarget, handler)"), "raw queue mutation guard Proxy missing");
+assert(mempoolSource.includes("ownCanonicalCompatItem"), "owned queue-entry identity snapshot missing");
+assert(mempoolSource.includes("VOID_MEMPOOL_RAW_HASH_MUTATION_FORBIDDEN"), "queued hash mutation guard missing");
 assert(!mempoolSource.includes("Object.setPrototypeOf(value"), "caller-owned Array adoption remains");
 
 const h1 = "a".repeat(64);
@@ -129,16 +132,28 @@ assert(canonical.txs.length === 2, "O(1) admission setup failed");
 expectDuplicate(() => canonical.txs.push({ hash: h1.toUpperCase() }), "direct duplicate");
 assert(canonical.txs.length === 2, "duplicate mutated queue");
 expectMessage(() => { canonical.txs[0] = { hash: h3 }; }, VOID_MEMPOOL_RAW_INDEX_MUTATION_FORBIDDEN, "raw index assignment");
-assert(canonical.txs[0] === oldTx, "raw index rejection changed queue");
+assert(canonical.txs[0] !== oldTx && canonical.txs[0]?.hash === h1, "canonical admission did not take an owned identity snapshot");
+
+const mutableAlias: any = { hash: h3, body: { retainedAlias: true } };
+canonical.txs.push(mutableAlias);
+mutableAlias.hash = h4;
+assert(canonical.txs.filter((tx: any) => tx?.hash === h4).length === 0, "retained caller alias mutated queued canonical identity");
+canonical.txs.push({ hash: h4, body: { uniqueAfterAliasMutation: true } });
+assert(canonical.txs.filter((tx: any) => tx?.hash === h4).length === 1, "caller alias mutation bypassed canonical duplicate exclusion");
+expectMessage(() => { canonical.txs[2].hash = h1; }, VOID_MEMPOOL_RAW_HASH_MUTATION_FORBIDDEN, "queued canonical hash mutation");
+assert(canonical.txs[2]?.hash === h3, "queued canonical hash mutation changed identity");
+assert(Reflect.preventExtensions(canonical.txs) === false && Object.isExtensible(canonical.txs), "queue proxy extensibility guard failed");
 
 canonical.clear();
 assert(canonical.txs === sharedQueue && canonical.txs.length === 0, "clear detached or failed shared queue");
-const replacement: any[] = [{ hash: h3, body: { replacement: true } }];
+const replacementEntry: any = { hash: h3, body: { replacement: true } };
+const replacement: any[] = [replacementEntry];
 canonical.txs = replacement;
 assert(canonical.txs === sharedQueue, "replacement changed guarded queue identity");
 assert(canonical.txs !== replacement, "caller-owned replacement became mutation authority");
+replacementEntry.hash = h4;
 replacement.push({ hash: h4 });
-assert(canonical.txs.length === 1 && canonical.txs[0]?.hash === h3, "caller-owned replacement mutation leaked into mempool");
+assert(canonical.txs.length === 1 && canonical.txs[0]?.hash === h3, "caller-owned replacement entry mutation leaked into mempool");
 expectDuplicate(() => canonical.txs.push({ hash: `0x${h3.toUpperCase()}` }), "replacement duplicate");
 const duplicateReplacement: any[] = [{ hash: h1 }, { hash: `0x${h1.toUpperCase()}` }];
 expectDuplicate(() => { canonical.txs = duplicateReplacement; }, "duplicate replacement");
@@ -181,14 +196,21 @@ assert(canonical.txs.length === 0, "strict internal hash admission regressed");
 canonical.push({ hash: h1, body: { valid: true } });
 expectDuplicate(() => canonical.push({ hash: h1.toUpperCase(), body: { duplicate: true } }), "internal duplicate");
 canonical.clear();
-canonical.txs.push({ kind: "legacy_raw_compat_v1", nonce: "raw-no-hash" });
+const legacyRaw: any = { kind: "legacy_raw_compat_v1", nonce: "raw-no-hash" };
+canonical.txs.push(legacyRaw);
 assert(canonical.txs.length === 1, "legacy noncanonical compatibility entry was rejected");
+legacyRaw.hash = h1;
+assert(canonical.txs[0]?.hash === undefined, "retained legacy alias acquired canonical identity inside queue");
+expectMessage(() => { canonical.txs[0].hash = h1; }, VOID_MEMPOOL_RAW_HASH_MUTATION_FORBIDDEN, "queued legacy hash mutation");
+canonical.txs.push({ hash: h1 });
+assert(canonical.txs.filter((tx: any) => tx?.hash === h1).length === 1, "legacy hash mutation bypassed duplicate exclusion");
 
 assert(appendRejectStatus >= 0, "canonical append-error status mapping missing");
 assert(!indexSource.includes("VOID_V2FS_COMMIT_LIFECYCLE_INSPECT_BEGIN"), "temporary V2FS source diagnostic remains");
 
 console.log("VOID_CANONICAL_TXSUBMIT_ADMISSION_DEDUPE_V1_O1_IDENTITY_INDEX_GREEN=true");
 console.log("VOID_CANONICAL_TXSUBMIT_ADMISSION_DEDUPE_V1_RAW_MUTATION_GUARD_GREEN=true");
+console.log("VOID_CANONICAL_TXSUBMIT_ADMISSION_DEDUPE_V1_ENTRY_IDENTITY_IMMUTABLE_GREEN=true");
 console.log("VOID_CANONICAL_TXSUBMIT_ADMISSION_DEDUPE_V1_INFLIGHT_RESERVATION_GREEN=true");
 console.log("VOID_CANONICAL_TXSUBMIT_ADMISSION_DEDUPE_V1_DURABLE_RELEASE_GREEN=true");
 console.log("VOID_CANONICAL_TXSUBMIT_ADMISSION_DEDUPE_V1_ROLLBACK_RETAINED_GREEN=true");
