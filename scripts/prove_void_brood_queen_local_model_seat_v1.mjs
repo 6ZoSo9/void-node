@@ -374,7 +374,7 @@ async function main() {
     const receipt = JSON.parse(receiptText);
     if ('path' in receipt || 'payload' in receipt || receiptText.includes(validPath)) hold('receipt exposed private path or payload');
     if (receipt.parent_policy_sha256 !== PARENT_POLICY_SHA256) hold('receipt parent policy binding drifted');
-    if ((await stat(receiptPath)).mode % 512 !== 0o600) hold('receipt mode must be 0600');
+    if (((await stat(receiptPath)).mode & 0o777) !== 0o600) hold('receipt mode must be 0600');
 
     const badUnknown = syntheticContextPack();
     badUnknown.authority_semantics.wallet_seed = 'not-a-real-seed';
@@ -412,8 +412,12 @@ async function main() {
     await rename(pinnedPath, movedPath);
     await symlink(attackerPath, pinnedPath);
     try {
-      const bytes = await readPinnedPrivateContextBytes(pinned.fh, pinned.preStamp);
-      if (bytes.toString('utf8').includes('"attacker":true')) hold('pathname replacement substituted context bytes');
+      try {
+        const bytes = await readPinnedPrivateContextBytes(pinned.fh, pinned.preStamp);
+        if (bytes.toString('utf8').includes('"attacker":true')) hold('pathname replacement substituted context bytes');
+      } catch (error) {
+        if (!String(error?.message ?? error).includes('context file generation changed during bounded read')) throw error;
+      }
     } finally { await pinned.fh.close(); }
 
     const growthPath = join(dir, 'growth.json');
