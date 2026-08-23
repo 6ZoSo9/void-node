@@ -19,9 +19,9 @@ function duplicateTransactionError() {
     return err;
 }
 /**
- * Compatibility array used by legacy runtime observers/producers that access
- * node.mempool.txs directly. Canonical 64-hex transaction identities are
- * unique at push time; noncanonical legacy entries retain their old behavior.
+ * Producer-visible transaction queue. Canonical 64-hex identities are unique
+ * while pending. Legacy noncanonical entries remain representable because old
+ * runtime compatibility surfaces already use node.mempool.txs directly.
  */
 class CanonicalCompatTxArray extends Array {
     push(...items) {
@@ -76,23 +76,17 @@ function guardCompatTxArrayInPlace(value) {
 }
 class Mempool {
     constructor() {
-        this.q = [];
+        this.queue = guardCompatTxArrayInPlace([]);
     }
-    /**
-     * Compatibility surface consumed by the canonical HTTP hotpath and V2FS
-     * runtime shims. It stays absent until existing legacy initialization, then
-     * guards the exact assigned Array object so assignment-expression identity
-     * and Array.isArray(...) behavior remain unchanged.
-     */
-    get txs() { return this.compatTxs; }
+    /** One producer-visible pending transaction authority. */
+    get txs() { return this.queue; }
     set txs(value) {
-        if (value === this.compatTxs)
+        if (value === this.queue)
             return;
         if (!Array.isArray(value))
             throw new TypeError("mempool_txs_must_be_array");
         // Validate before changing the caller-owned Array prototype or authority.
-        const guarded = guardCompatTxArrayInPlace(value);
-        this.compatTxs = guarded;
+        this.queue = guardCompatTxArrayInPlace(value);
     }
     push(tx) {
         var _a;
@@ -102,19 +96,19 @@ class Mempool {
         const hash = strictCanonicalHashOf(tx);
         if (!hash)
             return;
-        if (this.q.some((current) => current.hash === hash))
-            throw duplicateTransactionError();
-        this.q.push({ hash, body: (_a = tx.body) !== null && _a !== void 0 ? _a : {} });
+        this.queue.push({ hash, body: (_a = tx.body) !== null && _a !== void 0 ? _a : {} });
     }
-    peekAll() { return this.q.slice(); }
-    clear() { this.q.length = 0; }
+    peekAll() {
+        return Array.from(this.queue);
+    }
+    clear() {
+        this.queue.length = 0;
+    }
     drain(max) {
-        if (!max || max >= this.q.length) {
-            const a = this.q;
-            this.q = [];
-            return a;
-        }
-        return this.q.splice(0, max);
+        const take = !max || max >= this.queue.length
+            ? this.queue.length
+            : Math.max(0, Math.floor(max));
+        return Array.from(this.queue.splice(0, take));
     }
     popMany(max = 1000) { return this.drain(max); }
     take(max = 1000) { return this.drain(max); }

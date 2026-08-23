@@ -24,9 +24,9 @@ function duplicateTransactionError(): Error & { code: string } {
 }
 
 /**
- * Compatibility array used by legacy runtime observers/producers that access
- * node.mempool.txs directly. Canonical 64-hex transaction identities are
- * unique at push time; noncanonical legacy entries retain their old behavior.
+ * Producer-visible transaction queue. Canonical 64-hex identities are unique
+ * while pending. Legacy noncanonical entries remain representable because old
+ * runtime compatibility surfaces already use node.mempool.txs directly.
  */
 class CanonicalCompatTxArray extends Array<any> {
   override push(...items: any[]): number {
@@ -82,23 +82,26 @@ function guardCompatTxArrayInPlace(value: any[]): any[] {
 }
 
 export class Mempool {
-  private q: MemTx[] = [];
-  private compatTxs: any[] | undefined;
-
   /**
-   * Compatibility surface consumed by the canonical HTTP hotpath and V2FS
-   * runtime shims. It stays absent until existing legacy initialization, then
-   * guards the exact assigned Array object so assignment-expression identity
-   * and Array.isArray(...) behavior remain unchanged.
+   * One pending transaction authority:
+   * - canonical HTTP /tx/submit writes `txs` directly;
+   * - V2FS consumes `txs` directly;
+   * - Node/P2P intake uses push();
+   * - peekAll/clear/drain/take/popMany all operate on the same Array object.
    */
-  get txs(): any[] | undefined { return this.compatTxs; }
+  private queue: any[];
+
+  constructor() {
+    this.queue = guardCompatTxArrayInPlace([]);
+  }
+
+  get txs(): any[] { return this.queue; }
   set txs(value: any[]) {
-    if (value === this.compatTxs) return;
+    if (value === this.queue) return;
     if (!Array.isArray(value)) throw new TypeError("mempool_txs_must_be_array");
 
     // Validate before changing the caller-owned Array prototype or authority.
-    const guarded = guardCompatTxArrayInPlace(value);
-    this.compatTxs = guarded;
+    this.queue = guardCompatTxArrayInPlace(value);
   }
 
   push(tx: MemTx) {
@@ -106,17 +109,24 @@ export class Mempool {
     // Preserve the historical strict hash-admission contract: no 0x prefix.
     const hash = strictCanonicalHashOf(tx);
     if (!hash) return;
-    if (this.q.some((current) => current.hash === hash)) throw duplicateTransactionError();
-    this.q.push({ hash, body: tx.body ?? {} });
+    this.queue.push({ hash, body: tx.body ?? {} });
   }
 
-  peekAll(): MemTx[] { return this.q.slice(); }
-  clear() { this.q.length = 0; }
+  peekAll(): MemTx[] {
+    return Array.from(this.queue) as MemTx[];
+  }
+
+  clear() {
+    this.queue.length = 0;
+  }
 
   drain(max?: number): MemTx[] {
-    if (!max || max >= this.q.length) { const a = this.q; this.q = []; return a; }
-    return this.q.splice(0, max);
+    const take = !max || max >= this.queue.length
+      ? this.queue.length
+      : Math.max(0, Math.floor(max));
+    return Array.from(this.queue.splice(0, take)) as MemTx[];
   }
+
   popMany(max = 1000): MemTx[] { return this.drain(max); }
   take(max = 1000): MemTx[] { return this.drain(max); }
 }

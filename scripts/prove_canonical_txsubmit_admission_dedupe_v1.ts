@@ -40,10 +40,11 @@ function appendLikeCanonicalHotpath(mp: any, tx: any) {
 }
 
 const indexSource = readFileSync("src/index.ts", "utf8");
-const start = indexSource.indexOf("/* VOID_CANONICAL_TX_HOTPATH_V1");
-const end = indexSource.indexOf("/* VOID_CANONICAL_TX_HOTPATH_V1_LATE_PRUNE_AND_COUNT_V1", start + 1);
-assert(start >= 0 && end > start, "canonical tx hotpath source block not found");
-const hotpath = indexSource.slice(start, end);
+const nodeCoreSource = readFileSync("src/node_core.ts", "utf8");
+const hotpathStart = indexSource.indexOf("/* VOID_CANONICAL_TX_HOTPATH_V1");
+const hotpathEnd = indexSource.indexOf("/* VOID_CANONICAL_TX_HOTPATH_V1_LATE_PRUNE_AND_COUNT_V1", hotpathStart + 1);
+assert(hotpathStart >= 0 && hotpathEnd > hotpathStart, "canonical tx hotpath source block not found");
+const hotpath = indexSource.slice(hotpathStart, hotpathEnd);
 
 const directArrayBranch = hotpath.indexOf("if (Array.isArray(mp.txs))");
 const directArrayPush = hotpath.indexOf("mp.txs.push(tx)", directArrayBranch);
@@ -67,93 +68,106 @@ assert(hotpath.includes('handled: "txsubmit_canonical_v1"'), "canonical handled 
 assert(hotpath.includes('appends_to: "live node.mempool only"'), "canonical mempool policy marker missing");
 assert(hotpath.includes("calls_globalEnqueueTx: false"), "global enqueue negative policy missing");
 
+assert(nodeCoreSource.includes('import { Mempool } from "./chain/mempool.js"'), "Node no longer imports canonical Mempool");
+assert(nodeCoreSource.includes("readonly mempool = new Mempool();"), "live Node no longer constructs canonical Mempool");
+
+const queueReaderStart = indexSource.indexOf("function takeFromQueues(node:any, cap:number)");
+const queueReaderEnd = indexSource.indexOf("function takeFromMempoolJsonl", queueReaderStart + 1);
+assert(queueReaderStart >= 0 && queueReaderEnd > queueReaderStart, "V2FS takeFromQueues source block not found");
+const queueReader = indexSource.slice(queueReaderStart, queueReaderEnd);
+assert(queueReader.includes("const mp = node?.mempool?.txs;"), "V2FS no longer selects node.mempool.txs");
+assert(queueReader.includes("pushPicked(mp.splice(0, takeMp));"), "V2FS no longer consumes node.mempool.txs by splice");
+assert(indexSource.indexOf("const txsA = takeFromQueues(node, max);", queueReaderEnd) > queueReaderEnd,
+  "V2FS commit path no longer consumes takeFromQueues before file fallback");
+
 const h1 = "a".repeat(64);
 const h2 = "b".repeat(64);
 const h3 = "c".repeat(64);
 const h4 = "d".repeat(64);
 
-// Exact direct-array path preferred by the current canonical hotpath after legacy initialization.
-const compat: any = new Mempool();
-assert(!Array.isArray(compat.txs), "compat txs must remain absent until legacy initialization");
-const rawInit: any[] = [];
-const assignmentValue = (compat.txs = rawInit);
-assert(assignmentValue === rawInit, "txs assignment expression identity changed");
-assert(compat.txs === rawInit, "txs setter must retain exact assigned array identity");
-assert(Array.isArray(compat.txs), "initialized compat txs must remain Array.isArray-compatible");
+// Live Node shape: Mempool always exposes the exact queue preferred by canonical HTTP and V2FS.
+const canonical: any = new Mempool();
+assert(Array.isArray(canonical.txs), "live Mempool must expose producer-visible txs at construction");
+const sharedQueue = canonical.txs;
+assert(canonical.peekAll().length === 0, "fresh shared queue must be empty");
 
-let r = appendLikeCanonicalHotpath(compat, { hash: h1, body: { n: 1 } });
-assert(r.ok === true && compat.txs.length === 1, "first canonical direct-array admission failed");
-const beforeDuplicate = compat.txs.slice();
-r = appendLikeCanonicalHotpath(compat, { hash: h1.toUpperCase(), body: { n: 2 } });
+let r = appendLikeCanonicalHotpath(canonical, { hash: h1, body: { n: 1 } });
+assert(r.ok === true && canonical.txs.length === 1, "first canonical HTTP admission failed");
+assert(canonical.txs === sharedQueue, "HTTP admission changed producer queue identity");
+assert(canonical.peekAll().length === 1 && canonical.peekAll()[0]?.hash === h1,
+  "HTTP admission is not visible through canonical Mempool view");
+
+// Model the exact V2FS takeFromQueues operation against the same producer-visible object.
+const v2fsTaken = canonical.txs.splice(0, 1);
+assert(v2fsTaken.length === 1 && v2fsTaken[0]?.hash === h1, "V2FS model did not consume admitted tx");
+assert(canonical.txs === sharedQueue && canonical.txs.length === 0, "V2FS model changed queue identity or failed to drain");
+assert(canonical.peekAll().length === 0, "V2FS drain not reflected in canonical Mempool view");
+
+// Node/P2P push() must feed the same producer-visible queue, not a private second queue.
+canonical.push({ hash: h2, body: { via: "push" } });
+assert(canonical.txs === sharedQueue && canonical.txs.length === 1, "Mempool.push wrote a second queue");
+assert(canonical.peekAll()[0]?.hash === h2, "push result missing from canonical view");
+const nodeTaken = canonical.take(1);
+assert(nodeTaken.length === 1 && nodeTaken[0]?.hash === h2, "Mempool.take did not consume shared queue");
+assert(canonical.txs === sharedQueue && canonical.txs.length === 0, "Mempool.take detached or failed to drain shared queue");
+
+// Pending duplicate HTTP admission fails with zero producer-state mutation.
+r = appendLikeCanonicalHotpath(canonical, { hash: h3, body: { n: 3 } });
+assert(r.ok === true && canonical.txs.length === 1, "unique pending admission failed");
+const beforeDuplicate = canonical.peekAll();
+r = appendLikeCanonicalHotpath(canonical, { hash: h3.toUpperCase(), body: { n: 4 } });
 assert(r.ok === false, "duplicate direct-array admission returned success");
 assert(r.error === "duplicate_transaction" && r.code === VOID_DUPLICATE_TRANSACTION_CODE, "duplicate direct-array rejection identity mismatch");
-assert(compat.txs.length === beforeDuplicate.length, "duplicate direct-array admission mutated length");
-assert(compat.txs[0]?.hash === beforeDuplicate[0]?.hash, "duplicate direct-array admission mutated existing entry");
-expectDuplicate(() => rawInit.push({ hash: `0x${h1.toUpperCase()}` }), "external assigned-array reference duplicate");
-assert(compat.txs.length === beforeDuplicate.length, "external assigned-array duplicate mutated queue");
+assert(canonical.txs.length === beforeDuplicate.length, "duplicate admission mutated producer queue length");
+assert(canonical.peekAll()[0]?.hash === beforeDuplicate[0]?.hash, "duplicate admission mutated producer queue content");
+expectDuplicate(() => sharedQueue.push({ hash: `0x${h3.toUpperCase()}` }), "external shared-array duplicate");
+assert(canonical.txs.length === beforeDuplicate.length, "external duplicate mutated producer queue");
 
-r = appendLikeCanonicalHotpath(compat, { hash: h2, body: { n: 3 } });
-assert(r.ok === true && compat.txs.length === 2, "distinct canonical direct-array admission failed");
+// Batch insertion is atomic when the incoming batch contains a duplicate.
+const batchBefore = canonical.txs.length;
+expectDuplicate(() => canonical.txs.push({ hash: h4 }, { hash: h4 }), "shared-queue batch duplicate");
+assert(canonical.txs.length === batchBefore, "duplicate batch partially mutated producer queue");
 
-// Batch insertion must be atomic when the incoming batch contains a duplicate.
-const batchBefore = compat.txs.length;
-expectDuplicate(() => compat.txs.push({ hash: h3 }, { hash: h3 }), "compat batch duplicate");
-assert(compat.txs.length === batchBefore, "duplicate batch partially mutated compat queue");
+// Legacy no-hash compatibility entries remain representable.
+canonical.txs.push({ kind: "legacy_raw_compat_v1", nonce: "raw-no-hash" });
+assert(canonical.txs.length === batchBefore + 1, "legacy raw compatibility entry was newly rejected");
+canonical.clear();
+assert(canonical.txs === sharedQueue && canonical.txs.length === 0, "clear did not preserve and empty shared queue");
 
-// Legacy noncanonical entries preserve pre-existing compatibility behavior.
-compat.txs.push({ kind: "legacy_raw_compat_v1", nonce: "raw-no-hash" });
-assert(compat.txs.length === batchBefore + 1, "legacy raw compatibility entry was newly rejected");
+// Explicit compatibility-array replacement retains exact assignment identity and becomes the one queue.
+const rawReplacement: any[] = [{ hash: h4, body: { replacement: true } }];
+const replacementAssignmentValue = (canonical.txs = rawReplacement);
+assert(replacementAssignmentValue === rawReplacement, "replacement assignment expression identity changed");
+assert(canonical.txs === rawReplacement, "replacement did not adopt exact assigned array");
+assert(canonical.peekAll()[0]?.hash === h4, "replacement not visible through canonical view");
+expectDuplicate(() => rawReplacement.unshift({ hash: h4.toUpperCase() }), "replacement duplicate");
+assert(canonical.txs.length === 1, "duplicate replacement insertion mutated queue");
 
-// Replacement validation happens before changing the prior authority or candidate prototype.
-const stableCompat = compat.txs;
-const stableLength = stableCompat.length;
-const duplicateReplacement: any[] = [{ hash: h3 }, { hash: `0x${h3.toUpperCase()}` }];
-expectDuplicate(() => { compat.txs = duplicateReplacement; }, "compat replacement duplicate");
-assert(compat.txs === stableCompat && compat.txs.length === stableLength, "failed replacement changed compat authority");
+const duplicateReplacement: any[] = [{ hash: h1 }, { hash: `0x${h1.toUpperCase()}` }];
+expectDuplicate(() => { canonical.txs = duplicateReplacement; }, "duplicate queue replacement");
+assert(canonical.txs === rawReplacement, "failed replacement changed queue authority");
 assert(Object.getPrototypeOf(duplicateReplacement) === Array.prototype, "failed replacement mutated candidate prototype");
 
-// A unique replacement retains exact assignment identity and remains guarded afterwards.
-const rawReplacement: any[] = [{ hash: h4, body: { replacement: true } }];
-const replacementAssignmentValue = (compat.txs = rawReplacement);
-assert(replacementAssignmentValue === rawReplacement, "replacement assignment expression identity changed");
-assert(compat.txs === rawReplacement, "unique replacement did not retain exact assigned array");
-assert(Array.isArray(compat.txs) && compat.txs.length === 1, "unique replacement failed");
-expectDuplicate(() => compat.txs.unshift({ hash: h4.toUpperCase() }), "compat unshift duplicate");
-assert(compat.txs.length === 1, "duplicate unshift mutated compat queue");
-
-// Exercise the exact assignment-expression shape used by existing /dev/mempool/pick initialization.
-const compatPickShape: any = new Mempool();
-const pickArray: any[] = Array.isArray(compatPickShape.txs) ? compatPickShape.txs : (compatPickShape.txs = []);
-assert(pickArray === compatPickShape.txs, "assignment-expression initialization detached from stored txs array");
-pickArray.push({ hash: h3 });
-expectDuplicate(() => compatPickShape.txs.push({ hash: h3 }), "assignment-expression initialized duplicate");
-assert(pickArray.length === 1 && compatPickShape.txs.length === 1, "assignment-expression duplicate mutated queue");
-
-// Pending-only semantics: once producer-visible entry is actually drained, same identity may be admitted again.
-compat.txs.splice(0, 1);
-assert(compat.txs.length === 0, "compat drain fixture failed");
-compat.txs.push({ hash: h4, body: { readmit: true } });
-assert(compat.txs.length === 1, "post-drain re-admission should remain allowed");
-
-// Internal q path used by Node.acceptTx and other non-compat consumers gets the same pending duplicate guard.
-const internal: any = new Mempool();
-internal.push({ hash: h1, body: { q: 1 } });
-assert(internal.peekAll().length === 1, "internal first admission failed");
-expectDuplicate(() => internal.push({ hash: h1.toUpperCase(), body: { q: 2 } }), "internal duplicate");
-assert(internal.peekAll().length === 1, "internal duplicate mutated queue");
-internal.push({ hash: "not-a-hash", body: { invalid: true } });
-internal.push({ hash: `0x${h2}`, body: { prefixedInvalid: true } });
-assert(internal.peekAll().length === 1, "invalid internal hash changed historical no-op behavior");
-internal.drain();
-internal.push({ hash: h1, body: { q: 3 } });
-assert(internal.peekAll().length === 1, "internal post-drain re-admission failed");
+// Strict internal push hash admission remains unchanged, while pending-only re-admission remains possible after drain.
+canonical.clear();
+canonical.push({ hash: `0x${h1}`, body: { prefixedInvalid: true } });
+canonical.push({ hash: "not-a-hash", body: { invalid: true } });
+assert(canonical.txs.length === 0, "invalid internal hash changed historical no-op behavior");
+canonical.push({ hash: h1, body: { valid: true } });
+expectDuplicate(() => canonical.push({ hash: h1.toUpperCase(), body: { duplicate: true } }), "internal duplicate");
+assert(canonical.txs.length === 1, "internal duplicate mutated producer queue");
+const drained = canonical.drain();
+assert(drained.length === 1 && canonical.txs.length === 0, "drain failed shared pending queue");
+canonical.push({ hash: h1, body: { readmit: true } });
+assert(canonical.txs.length === 1, "post-drain re-admission should remain allowed");
 
 // The current handler maps append exceptions to a non-success 503. This PR intentionally
 // hardens truth/no-second-mutation without claiming a new 409 response contract.
 assert(appendRejectStatus >= 0, "canonical append-error status mapping missing");
 
-console.log("VOID_CANONICAL_TXSUBMIT_ADMISSION_DEDUPE_V1_DIRECT_ARRAY_GREEN=true");
-console.log("VOID_CANONICAL_TXSUBMIT_ADMISSION_DEDUPE_V1_INTERNAL_QUEUE_GREEN=true");
+console.log("VOID_CANONICAL_TXSUBMIT_ADMISSION_DEDUPE_V1_SINGLE_QUEUE_GREEN=true");
+console.log("VOID_CANONICAL_TXSUBMIT_ADMISSION_DEDUPE_V1_ROUTE_TO_V2FS_GREEN=true");
+console.log("VOID_CANONICAL_TXSUBMIT_ADMISSION_DEDUPE_V1_NODE_PUSH_SHARED_QUEUE_GREEN=true");
 console.log("VOID_CANONICAL_TXSUBMIT_ADMISSION_DEDUPE_V1_ASSIGNMENT_IDENTITY_GREEN=true");
 console.log("VOID_CANONICAL_TXSUBMIT_ADMISSION_DEDUPE_V1_STRICT_INTERNAL_HASH_ADMISSION_GREEN=true");
 console.log("VOID_CANONICAL_TXSUBMIT_ADMISSION_DEDUPE_V1_DUPLICATE_HTTP_STATUS=503");
