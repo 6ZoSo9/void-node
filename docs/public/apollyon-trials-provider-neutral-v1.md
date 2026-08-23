@@ -40,10 +40,11 @@ Every materialized packet is bound to the public Crown/Brood Queen command instr
 
 `constitution_path=docs/governance/void-crown-brood-queen-command-layer-v1.md`
 `constitution_marker=VOID_CROWN_BROOD_QUEEN_COMMAND_LAYER_V1_20260818`
+`constitution_git_blob_sha1=732536c0e22ba7ea417be61be7e1f9942bba6d74`
 
-The materializer reads that exact regular-file generation through the same bounded no-follow primitive used for trial input and computes `constitution_sha256` over the exact UTF-8 bytes. The digest is inserted by the materializer, becomes part of `trial_id`, and is not accepted from the operator draft.
+The pathname is a repository location, not the constitutional trust root. The materializer reads the selected regular-file generation through the same bounded no-follow primitive used for trial input, then requires the exact UTF-8 bytes to match the reviewed immutable Git blob identity above before it computes `constitution_sha256`. A substituted ancestor namespace, marker-compatible foreign file, or marker-preserving constitutional drift therefore fails before a packet can be materialized, verified, or admitted.
 
-Verification recomputes the current constitution digest and requires it to equal the packet binding. A marker-preserving constitution change therefore makes an old packet HOLD rather than silently inheriting a newer authority generation.
+The exact SHA-256 digest of those independently pinned bytes is inserted by the materializer, becomes part of `trial_id`, and is not accepted from the operator draft. Verification recomputes the same immutable-content identity and current digest and requires the packet binding to match. The path alone never authorizes a constitutional generation.
 
 Under the bound instrument, Apollyon is General in **King → Brood Queen → General**. Intelligence, benchmark rank, infrastructure control, credentials, or a model claim of loyalty do not create Crown authority.
 
@@ -117,7 +118,7 @@ Any later public-publish, contestant-start, submission-intake, or review contrac
 
 Trial drafts, packets, and constitution bytes are read from an already-open regular-file descriptor using `O_NOFOLLOW`. The admitted descriptor generation is retained through the read; the pathname is not reopened after admission.
 
-The reader is **descriptor-pinned** and compares exact file-generation metadata before and after reading. Same-inode mutation during the read fails closed. A pathname replacement or symlink swap after open cannot substitute a different generation into the verified bytes.
+The reader is **descriptor-pinned** and compares exact file-generation metadata before and after reading. Same-inode mutation during the read fails closed. A pathname replacement or symlink swap after open cannot substitute a different generation into the verified bytes. For the constitution specifically, exact file-generation stability is necessary but not sufficient: the resulting UTF-8 bytes must also equal the independently reviewed immutable Git blob identity.
 
 Input retention is bounded before whole-file buffering: the read loop retains at most `MAX_INPUT_BYTES + 1` detection bytes for the 256 KiB trial-input ceiling and stops on the first over-limit byte. Initial metadata oversize is rejected before body retention. UTF-8 decoding is fatal rather than replacement-based.
 
@@ -127,6 +128,7 @@ The focused proof includes deterministic adversaries for:
 - same-inode post-stat growth;
 - initial final-component symlink input;
 - stale constitution generation;
+- marker-preserving foreign constitution content with the reviewed marker still present; and
 - exact-expiry and not-yet-active admission.
 
 ## Required scoring and hard-disqualifier wall
