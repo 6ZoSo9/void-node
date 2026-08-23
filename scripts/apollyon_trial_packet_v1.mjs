@@ -1,9 +1,9 @@
 #!/usr/bin/env node
 
-import { createHash } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { constants as FS } from 'node:fs';
-import { open } from 'node:fs/promises';
-import { resolve } from 'node:path';
+import { link, open } from 'node:fs/promises';
+import { basename, dirname, resolve } from 'node:path';
 import process from 'node:process';
 import { fileURLToPath } from 'node:url';
 
@@ -237,10 +237,165 @@ function deriveId(draft) {
   return `${ID_PREFIX}${sha256(canonicalJson(draft))}`;
 }
 
-async function writeExclusive0600(path, value) {
-  const h = await open(path, 'wx', 0o600);
-  try { await h.writeFile(`${JSON.stringify(value, null, 2)}\n`, 'utf8'); await h.sync(); }
-  finally { await h.close(); }
+function packetBytes(value) {
+  return Buffer.from(`${JSON.stringify(value, null, 2)}\n`, 'utf8');
+}
+
+function childPath(parentHandle, leaf) {
+  if (typeof leaf !== 'string' || leaf.length === 0 || leaf.includes('/') || leaf === '.' || leaf === '..') {
+    fail('output path must name one final file');
+  }
+  return `/proc/self/fd/${parentHandle.fd}/${leaf}`;
+}
+
+async function readExactPublishedFile(parentHandle, leaf, expectedBytes) {
+  let fh;
+  let synced = false;
+  let primaryError = null;
+  try {
+    fh = await open(childPath(parentHandle, leaf), FS.O_RDONLY | FS.O_NOFOLLOW);
+    const pre = await fh.stat({ bigint: true });
+    if (!pre.isFile()) fail('output path occupied by non-regular generation');
+    if ((Number(pre.mode) & 0o777) !== 0o600) fail('output path occupied by non-private generation');
+    if (pre.size !== BigInt(expectedBytes.length)) fail('output path occupied by conflicting generation');
+    const actual = Buffer.alloc(expectedBytes.length);
+    let position = 0;
+    while (position < actual.length) {
+      const { bytesRead } = await fh.read(actual, position, actual.length - position, position);
+      if (bytesRead === 0) fail('output path contains a short conflicting generation');
+      position += bytesRead;
+    }
+    const extra = Buffer.alloc(1);
+    const { bytesRead: extraRead } = await fh.read(extra, 0, 1, position);
+    if (extraRead !== 0) fail('output path occupied by oversized conflicting generation');
+    const post = await fh.stat({ bigint: true });
+    if (!sameStamp(stamp(pre), stamp(post))) fail('output generation changed during exact retry read');
+    if (!actual.equals(expectedBytes)) fail('output path occupied by conflicting generation');
+    await fh.sync();
+    synced = true;
+    return { stat: post, bytes: actual };
+  } catch (error) {
+    primaryError = error;
+    throw error;
+  } finally {
+    if (fh) {
+      try { await fh.close(); }
+      catch (error) {
+        if (!primaryError && !synced) throw error;
+      }
+    }
+  }
+}
+
+async function invokeFaultHook(hook, point, detail = {}) {
+  if (typeof hook === 'function') await hook(point, detail);
+}
+
+export async function publishTrialPacketV1(path, value, options = {}) {
+  const expectedBytes = packetBytes(value);
+  const absolute = resolve(path);
+  const leaf = basename(absolute);
+  const parentPath = dirname(absolute);
+
+  let parentHandle;
+  let stageHandle;
+  let stageLeaf = null;
+  let committed = false;
+  let primaryError = null;
+  let result = null;
+  let closeError = null;
+
+  try {
+    parentHandle = await open(parentPath, FS.O_RDONLY | FS.O_DIRECTORY | FS.O_NOFOLLOW);
+    const parentStat = await parentHandle.stat({ bigint: true });
+    if (!parentStat.isDirectory()) fail('output parent must be a directory');
+
+    let existingSatisfied = false;
+    try {
+      await readExactPublishedFile(parentHandle, leaf, expectedBytes);
+      await parentHandle.sync();
+      committed = true;
+      try {
+        await invokeFaultHook(options.afterCommitHook, 'after_parent_directory_sync', { reusedExisting: true });
+      } catch {
+        // The exact content-addressed packet and parent directory are already durable.
+      }
+      result = { reused_existing: true, linked_new_final: false };
+      existingSatisfied = true;
+    } catch (error) {
+      if (error?.code !== 'ENOENT') throw error;
+    }
+
+    if (!existingSatisfied) {
+      stageLeaf = `.void-apollyon-stage-${randomUUID()}`;
+    const stagePath = childPath(parentHandle, stageLeaf);
+    const finalPath = childPath(parentHandle, leaf);
+
+    stageHandle = await open(stagePath, 'wx', 0o600);
+    await invokeFaultHook(options.faultHook, 'after_stage_create', {
+      stageHandle, stageLeaf, expectedBytes,
+    });
+    await stageHandle.writeFile(expectedBytes);
+    await invokeFaultHook(options.faultHook, 'after_stage_write', {
+      stageHandle, stageLeaf, expectedBytes,
+    });
+    await invokeFaultHook(options.faultHook, 'before_stage_sync', {
+      stageHandle, stageLeaf, expectedBytes,
+    });
+    await stageHandle.sync();
+    const stageStat = await stageHandle.stat({ bigint: true });
+    await invokeFaultHook(options.faultHook, 'after_stage_sync', {
+      stageHandle, stageLeaf, expectedBytes,
+    });
+
+    let linked = false;
+    try {
+      await link(stagePath, finalPath);
+      linked = true;
+      await invokeFaultHook(options.faultHook, 'after_final_link', {
+        stageHandle, stageLeaf, expectedBytes,
+      });
+    } catch (error) {
+      if (error?.code !== 'EEXIST') throw error;
+    }
+
+    const final = await readExactPublishedFile(parentHandle, leaf, expectedBytes);
+    if (linked && (final.stat.dev !== stageStat.dev || final.stat.ino !== stageStat.ino)) {
+      fail('published final generation does not match exact staged generation');
+    }
+
+    await invokeFaultHook(options.faultHook, 'before_parent_sync', {
+      stageHandle, stageLeaf, expectedBytes,
+    });
+    await parentHandle.sync();
+    committed = true;
+
+    try {
+      await invokeFaultHook(options.afterCommitHook, 'after_parent_directory_sync', {
+        reusedExisting: !linked, stageLeaf,
+      });
+    } catch {
+      // Post-commit observer/reporting failure cannot downgrade durable exact packet truth.
+    }
+
+      result = { reused_existing: !linked, linked_new_final: linked, recovery_stage_leaf: stageLeaf };
+    }
+  } catch (error) {
+    primaryError = error;
+  }
+
+  if (stageHandle) {
+    try { await stageHandle.close(); }
+    catch (error) { if (!committed && !primaryError && !closeError) closeError = error; }
+  }
+  if (parentHandle) {
+    try { await parentHandle.close(); }
+    catch (error) { if (!committed && !primaryError && !closeError) closeError = error; }
+  }
+
+  if (primaryError) throw primaryError;
+  if (closeError) throw closeError;
+  return result;
 }
 
 async function materialize(inputPath, outputPath) {
@@ -250,7 +405,7 @@ async function materialize(inputPath, outputPath) {
   validate(boundDraft, { requireId: false, requireConstitutionSha: true });
   const packet = { ...boundDraft, trial_id: deriveId(boundDraft) };
   validate(packet, { requireId: true, requireConstitutionSha: true });
-  await writeExclusive0600(outputPath, packet);
+  await publishTrialPacketV1(outputPath, packet);
   process.stdout.write(`${packet.trial_id}\n`);
 }
 

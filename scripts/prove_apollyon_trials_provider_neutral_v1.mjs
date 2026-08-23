@@ -9,7 +9,7 @@ import { join } from 'node:path';
 import { spawnSync } from 'node:child_process';
 import {
   CONSTITUTION_GIT_BLOB_SHA1, MAX_INPUT_BYTES, assertReviewedConstitutionText,
-  openPinnedRegular, readPinnedText, readRegularJson,
+  openPinnedRegular, publishTrialPacketV1, readPinnedText, readRegularJson,
 } from './apollyon_trial_packet_v1.mjs';
 
 const MARKER = 'VOID_APOLLYON_TRIALS_PROVIDER_NEUTRAL_V1_PROOF_GREEN';
@@ -55,6 +55,34 @@ async function expectMaterializeHold(dir, name, mutate) {
   await writeFile(input, `${JSON.stringify(draft)}\n`, { mode: 0o600 });
   const r = run(['materialize', input, output], 2);
   if (!r.stderr.includes('HOLD:')) hold(`${name} did not fail closed`);
+}
+function packetBytes(packet) {
+  return Buffer.from(`${JSON.stringify(packet, null, 2)}\n`, 'utf8');
+}
+async function assertExactPacketFile(path, packet, name) {
+  const expected = packetBytes(packet);
+  const actual = await readFile(path);
+  if (!actual.equals(expected)) hold(`${name} did not converge to exact canonical packet bytes`);
+  if (((await stat(path)).mode & 0o777) !== 0o600) hold(`${name} packet mode must be 0600`);
+}
+async function expectPublicationFaultRetry(dir, packet, name, faultPoint, mutateStage = null) {
+  const output = join(dir, `${name}.packet.json`);
+  let faultObserved = false;
+  await expectReject(
+    publishTrialPacketV1(output, packet, {
+      faultHook: async (point, detail) => {
+        if (point !== faultPoint) return;
+        faultObserved = true;
+        if (mutateStage) await mutateStage(detail);
+        throw new Error(`injected publication fault at ${point}`);
+      },
+    }),
+    'injected publication fault',
+    name,
+  );
+  if (!faultObserved) hold(`${name} did not reach requested fault point ${faultPoint}`);
+  await publishTrialPacketV1(output, packet);
+  await assertExactPacketFile(output, packet, `${name} retry`);
 }
 function baseDraft() {
   return {
@@ -166,6 +194,48 @@ async function main() {
     if (packet.constitution_sha256 !== constitutionSha) hold('packet not bound to exact constitution bytes');
     if (((await stat(packetPath)).mode & 0o777) !== 0o600) hold('packet mode must be 0600');
 
+    const retryMaterialized = run(['materialize', draftPath, packetPath], 0);
+    if (retryMaterialized.stdout.trim() !== id) hold('exact materialize retry did not converge to same trial_id');
+    await assertExactPacketFile(packetPath, packet, 'exact materialize retry');
+
+    await expectPublicationFaultRetry(dir, packet, 'fault-after-stage-create', 'after_stage_create');
+    await expectPublicationFaultRetry(
+      dir,
+      packet,
+      'fault-after-stage-write-partial-residue',
+      'after_stage_write',
+      async ({ stageHandle, expectedBytes }) => {
+        await stageHandle.truncate(Math.max(1, Math.floor(expectedBytes.length / 2)));
+      },
+    );
+    await expectPublicationFaultRetry(dir, packet, 'fault-before-stage-sync', 'before_stage_sync');
+    await expectPublicationFaultRetry(dir, packet, 'fault-after-stage-sync', 'after_stage_sync');
+    await expectPublicationFaultRetry(dir, packet, 'fault-after-final-link', 'after_final_link');
+    await expectPublicationFaultRetry(dir, packet, 'fault-before-parent-sync', 'before_parent_sync');
+
+    const postCommitPath = join(dir, 'post-commit-observer-fault.packet.json');
+    let postCommitFaultObserved = false;
+    await publishTrialPacketV1(postCommitPath, packet, {
+      afterCommitHook: async (point) => {
+        if (point === 'after_parent_directory_sync') {
+          postCommitFaultObserved = true;
+          throw new Error('injected post-commit observer failure');
+        }
+      },
+    });
+    if (!postCommitFaultObserved) hold('post-commit observer fault point not reached');
+    await assertExactPacketFile(postCommitPath, packet, 'post-commit observer fault');
+
+    const foreignPath = join(dir, 'foreign-final.packet.json');
+    const foreignBytes = Buffer.from('{"foreign":true}\n', 'utf8');
+    await writeFile(foreignPath, foreignBytes, { mode: 0o600 });
+    await expectReject(
+      publishTrialPacketV1(foreignPath, packet),
+      'conflicting generation',
+      'foreign final occupant',
+    );
+    if (!(await readFile(foreignPath)).equals(foreignBytes)) hold('foreign final occupant was modified');
+
     const verified = run(['verify', packetPath], 0);
     if (!verified.stdout.includes('VOID_APOLLYON_TRIAL_PACKET_V1_VERIFY_GREEN')) hold('structural verify marker missing');
     const admitted = run(['admit', packetPath, '2026-08-22T19:30:00.000Z'], 0);
@@ -239,6 +309,9 @@ async function main() {
   process.stdout.write('descriptor_generation_bound=true\n');
   process.stdout.write('bounded_prebuffer_retention=true\n');
   process.stdout.write('pathname_replacement_cannot_substitute_verified_bytes=true\n');
+  process.stdout.write('packet_publication_failure_atomic_retry_recoverable=true\n');
+  process.stdout.write('packet_publication_parent_directory_durable=true\n');
+  process.stdout.write('packet_publication_foreign_final_preserved=true\n');
 }
 
 main().catch((error) => {
