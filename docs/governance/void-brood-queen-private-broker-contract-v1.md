@@ -18,21 +18,21 @@ GitHub identity, provider identity, and model self-description are not Crown aut
 
 This child contract inherits parent authority only from exact reviewed parent content:
 
-- identity parent reviewed head: `8ac42d13f684d9898318af9359edc3553961909b`;
-- identity fixture Git blob: `b8159343b176fdfc745fec0afb8ebf0db512ac9b`;
-- local-seat parent reviewed head: `2ddbbd3498915d77c410f350c4e1dadb1cfa951c`;
-- local-seat fixture Git blob: `eb96412ce2444232aa64b0df4b8889faf92d0ff9`;
+- identity parent reviewed head: `9f6b868607a9470710ec3143481b9f566a33c841`;
+- identity fixture Git blob: `2b0658867a2273e486cf685be30c368754f2b4b3`;
+- local-seat parent reviewed head: `b43af85f92006970f29bd35a30341eb8881ac246`;
+- local-seat fixture Git blob: `806296f0bc18c87471341fa9a89e4561a6acaa5b`;
 - parent-policy domain: `VOID_BROOD_QUEEN_PARENT_POLICY_IDENTITY_V1`;
-- parent-policy SHA-256: `2d2ff57721e64728569019531f908cb936826bea3d78e012871f91833bd1b630`.
+- parent-policy SHA-256: `a60109c80fae0e2cd7dc18bba9babea9edacaa33b11c07dabe77ae8a767412a3`.
 
 The canonical parent-policy preimage is exactly:
 
 ```text
 VOID_BROOD_QUEEN_PARENT_POLICY_IDENTITY_V1
-identity_commit=8ac42d13f684d9898318af9359edc3553961909b
-identity_fixture_blob=b8159343b176fdfc745fec0afb8ebf0db512ac9b
-local_seat_commit=2ddbbd3498915d77c410f350c4e1dadb1cfa951c
-local_seat_fixture_blob=eb96412ce2444232aa64b0df4b8889faf92d0ff9
+identity_commit=9f6b868607a9470710ec3143481b9f566a33c841
+identity_fixture_blob=2b0658867a2273e486cf685be30c368754f2b4b3
+local_seat_commit=b43af85f92006970f29bd35a30341eb8881ac246
+local_seat_fixture_blob=806296f0bc18c87471341fa9a89e4561a6acaa5b
 ```
 
 A same-marker change to either inherited fixture changes its Git blob and must HOLD this child until explicit refresh and rereview. Bootstrap, rotation, policy, task, and receipt transcripts bind the reviewed parent-policy SHA-256.
@@ -94,13 +94,13 @@ The canonical V1 policy preimage is exactly:
 
 ```text
 VOID_BROOD_QUEEN_PRIVATE_BROKER_POLICY_V1
-parent_policy_sha256=2d2ff57721e64728569019531f908cb936826bea3d78e012871f91833bd1b630
+parent_policy_sha256=a60109c80fae0e2cd7dc18bba9babea9edacaa33b11c07dabe77ae8a767412a3
 policy_generation=1
 capability_ceiling=analysis,drafting,proof_design,review,test_generation,bounded_task_planning,evidence_synthesis
 validator_capability_present=false
 ```
 
-Its SHA-256 is `ed61656dd11ef617813eb1660bc13c8578decabcbd9b97e472cdce2c92a82c6a`.
+Its SHA-256 is `3dfe1b4d40d298949026ed98d46e55a6b4723118a35900d188fc45afe8e6461c`.
 
 Authentication proves identity only. Every task carries a closed capability list that must be a subset of this Crown-approved ceiling and the current broker policy. Session keys cannot widen the ceiling or change the policy root. A widening or policy-root change is a root-authenticated policy boundary.
 

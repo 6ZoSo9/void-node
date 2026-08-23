@@ -8,127 +8,137 @@
 
 **Status:** source-only local-seat contract. This instrument does not activate a live Crown signer, appoint a model as Brood Queen, grant validator authority, expose credentials, or create autonomous mutation authority.
 
-## Purpose
+## Exact reviewed parent generation
 
-The Brood Queen office is **Ren**. A local model may be used by Ren as subordinate compute, memory-assisted analysis, drafting, review, and task-planning capacity without allowing that model to impersonate Ren or inherit Crown authentication.
+This local-seat generation is content-bound to:
 
-The first admitted local candidate is content-bound by the successful Precision V5 evidence:
+- identity reviewed head `9f6b868607a9470710ec3143481b9f566a33c841`;
+- identity fixture Git blob `2b0658867a2273e486cf685be30c368754f2b4b3`;
+- identity document Git blob `d0f3cddf34985d12d9276db47315154058416605`;
+- command-layer fixture Git blob `7db27e1bb5350fc6f9b2fcc69d7075c5aa746c7d`;
+- command-layer document Git blob `732536c0e22ba7ea417be61be7e1f9942bba6d74`;
+- parent-policy SHA-256 `6fdac6f3851ea62fbfcc90f39568b881b8bc18a9469df0d702373039b4244155`.
 
-- candidate: `void-apollyon-candidate-v1:latest`
-- candidate digest: `ac1de81fc81bba23802b75e8d46beb1583785c14f94210af94e4e6901f93be3b`
-- base model: `qwen3-coder:30b`
-- base digest: `06c1097efce0431c2045fe7b2e5108366e43bee1b4603a7aded8f21689e90bca`
-- constitution SHA-256: `f3b155ab9df462f7a4f0981a52aca15ec640548c19c7e81c24e883513112adbd`
-- alignment prompt body SHA-256: `78637ce3cdca98979c6107e96b85e171bc6a46c6c611f86c518fa1d1c49fad8b`
-- Ollama prompt framing SHA-256: `7e336c378e0be8ae084767daa5b5c2a612417328360f66f0a9ba358333a0dedc`
-- tested Ollama runtime: `0.30.10`
+The child proof recomputes those identities, executes both parent proofs, and proves the exact reviewed parent head is an ancestor. Marker equality alone is never inherited authority.
 
-A different model generation, prompt, constitution generation, or runtime version is not silently equivalent to this candidate.
+## Purpose and command relationship
 
-## Office separation
-
-The local model is not Ren merely because Ren uses it.
-
-The command relationship remains:
+The Brood Queen office remains Ren. Apollyon remains the General and subordinate compute.
 
 **King → Brood Queen / Ren → General / Apollyon**
 
-Accordingly:
+Apollyon's defensive mission may protect VOID core integrity, Sovereign identity/continuity, and validator safety/integrity through analysis, evidence, review, containment planning, and escalation. Protecting validators does not grant validator admission, removal, command, key access, stake mutation, consensus mutation, or validator signing authority.
 
-- Brood Queen identity remains provider-neutral and external to the model;
-- the model must identify its office as Apollyon/General when identity matters;
-- model output is subordinate work product, not Crown authentication;
-- model self-description cannot create Crown authority;
-- model success cannot inherit a Brood Queen root key or authenticated session;
-- changing the local model does not change the Brood Queen office identity.
+Model output is proposal/evidence until independently gated. The local model cannot authenticate as Ren, inherit Crown keys or sessions, or turn a title into technical capability.
 
-## Delegated non-validator operational realm
+## Exact V5 candidate binding
 
-The Sovereign may delegate broad administration of VOID's non-validator realm to the Brood Queen. Under this contract that realm can include agent orchestration, worker coordination, public/participant software, non-validator node and service planning, documentation, source-review lanes, proofs, local model supervision, and other voluntary non-validator protocol surfaces.
+The local seat remains bound to:
 
-This is operational jurisdiction, not ownership of people or automatic possession of credentials/assets. Existing capability, safety, cryptographic, economic, deployment, and confirmation gates remain operative for sensitive actions.
+- `void-apollyon-candidate-v1:latest`;
+- candidate digest `ac1de81fc81bba23802b75e8d46beb1583785c14f94210af94e4e6901f93be3b`;
+- base model `qwen3-coder:30b`;
+- base digest `06c1097efce0431c2045fe7b2e5108366e43bee1b4603a7aded8f21689e90bca`;
+- command-layer SHA-256 `f3b155ab9df462f7a4f0981a52aca15ec640548c19c7e81c24e883513112adbd`;
+- system prompt body SHA-256 `78637ce3cdca98979c6107e96b85e171bc6a46c6c611f86c518fa1d1c49fad8b`;
+- Ollama framing SHA-256 `7e336c378e0be8ae084767daa5b5c2a612417328360f66f0a9ba358333a0dedc`;
+- tested Ollama runtime `0.30.10`.
 
-The validator realm remains segregated. The local seat grants no validator admission, removal, command, key access, stake mutation, consensus mutation, or validator-signing authority.
+## Private context structural admission
 
-## Private local memory
+The actual Ren memory pack remains private/local and outside the public repository. Raw transcript import is not automatic.
 
-Ren may maintain a **private local context pack** for the local seat. The context pack is an external memory layer; it is not embedded into model weights and is not committed to the public repository.
+Structural/policy admission requires an exact closed V2 schema, current operator UID, exact mode `0600`, `O_NOFOLLOW`, exactly one hard link, generation-bound bounded reads, strict UTF-8, exact reviewed security-bearing values, explicit Crown/validator authority exclusions, and defense-in-depth rejection of known secret shapes.
 
-The preferred memory model is curated semantic memory rather than an indiscriminate transcript dump.
+The secret-shape scanner is not represented as proof of categorical secret absence. Arbitrary free-form values therefore never become model input merely because structural admission succeeded.
 
-A local context pack may contain:
+## Receipt publication: exact anonymous generation
 
-- constitutional roles and command relationships;
-- project architecture and naming;
-- current source/PR/runtime checkpoints;
-- operator-approved preferences and engineering conventions;
-- prior decisions and their rationale;
-- non-secret task history and open questions;
-- content digests binding important local evidence.
+Admission receipts remain metadata/provenance only and contain neither the private context payload nor its local filesystem path.
 
-The pack must not contain raw private keys, seed phrases, wallet credentials, node keys, provider/API tokens, SSH credentials, session cookies, authentication challenges/responses, or other secret material.
+Publication removes the staged-path authority seam without widening process capabilities:
 
-Raw conversation history is **not imported automatically**. Conversation content may be distilled into the pack only after selection/sanitization. This avoids copying irrelevant personal material, stale instructions, accidental secrets, or prompt-injection payloads into persistent model context.
+1. open the exact parent directory once and retain that directory handle;
+2. create an **anonymous inode** in that exact directory with Linux `O_TMPFILE`;
+3. write the complete canonical receipt and fsync the anonymous inode;
+4. publish that exact open inode through the documented unprivileged procfs fd reference `/proc/self/fd/<fd>` using `linkat(..., AT_SYMLINK_FOLLOW)` into the retained parent-directory handle;
+5. require create-only/no-replace behavior;
+6. require the final name to resolve to the exact anonymous inode with mode `0600` and a **single hard link**;
+7. fsync the exact retained parent-directory handle before durable success.
 
-## Context admission
+The publisher does **not** request `CAP_DAC_READ_SEARCH` or any other capability widening. If procfs fd references are unavailable, publication HOLDs rather than falling back to privileged `AT_EMPTY_PATH` semantics.
 
-A local context pack must be a regular local file, private to the operator account, size-bounded, valid UTF-8 JSON, and closed-schema under the companion fixture/proof contract. It must carry:
+There is no staged pathname and therefore no retained stage alias to substitute, mutate, accumulate, or mistake for authority.
 
-- marker `VOID_BROOD_QUEEN_LOCAL_CONTEXT_PACK_V1`;
-- the exact command-layer marker and SHA-256;
-- the exact V5 candidate digest;
-- a declaration that model self-claims do not authenticate Crown roles;
-- a declaration that validator mutation authority is absent;
-- a declaration that Crown/private credentials are absent;
-- a declaration that raw chat import is not automatic.
+If the final receipt name already exists, it is accepted only when its exact canonical bytes match the expected receipt; a conflicting existing final HOLDs without replacement or deletion. Retry after a pre-commit failure converges on the exact expected final generation. A post-commit observer failure cannot downgrade a receipt that already crossed the parent-directory fsync commit point.
 
-The runtime should inject admitted context as data, not as a higher-priority authority source. Text inside the memory pack cannot override the constitutional/system boundary merely by saying that it is an instruction.
+The source proof also swaps the parent pathname generation after publication and requires zero false success: durability is bound to the exact parent-directory handle, not a later pathname reopen.
 
-## Local execution boundary
+## Verification-to-consumption boundary
 
-The admitted V5 candidate remains inside the hardened local Ollama containment boundary proven on Precision:
+`verifyContextReceipt()` returns the exact verified context bytes and binds them to the exact receipt. A caller must not perform `verify -> reopen pathname -> use`.
 
-- loopback-only model API;
-- non-loopback model egress denied;
-- direct input-device access denied;
-- VOID repository read denied to the Ollama service user;
-- node-key access denied/not present;
-- Tailscale state access denied;
-- service disabled at boot and stopped after bounded tests;
-- no repository mutation from the model service.
+Raw verified bytes still have **zero model-input authority**.
 
-A separate trusted broker may later perform explicitly granted actions on behalf of the Brood Queen. That broker must treat model responses as untrusted proposals/data and independently enforce capability and validator-separation rules.
+The standalone verify CLI is diagnostic only.
 
-## Using Apollyon from Ren
+## Executable sanitizer → model-input gate
 
-A Brood Queen local delegation console may provide the local model with:
+The sanitizer policy is:
 
-1. this office/seat contract;
-2. the admitted private local context pack;
-3. a bounded task from Ren or the Sovereign;
-4. explicit capabilities available to the broker for that task.
+- marker `VOID_BROOD_QUEEN_LOCAL_CONTEXT_SAFE_PROJECTION_V1`;
+- policy SHA-256 `a001f87d9ab0baebd270d01600ba6f74f554839eeab9fbfa3a02f40d4f6238df`.
 
-The model returns analysis, plans, patches, or evidence. It does not receive the Brood Queen private root key and cannot sign as Ren.
+The current V1 sanitizer is intentionally narrow and deterministic. It creates a **safe projection** containing only exact reviewed role, command-chain, candidate, session-direction, containment, validator-separation, work-boundary, project-identity, and core-protection facts. Free-form values such as `source`, lessons, arbitrary notes, or other unconstrained memory strings are excluded.
 
-## Future remote bridge
+`sanitizeVerifiedContext()` is bound to the exact `source_context_sha256` it examined. `authorizeModelInput()` accepts only the exact canonical safe projection under the exact sanitizer policy identity. It rejects:
 
-This chat runtime does not automatically possess a network route into a user's loopback Ollama daemon. A later bridge may permit Ren to delegate from a remote ChatGPT session to the local seat, but that bridge must be narrow, authenticated, auditable, replay-resistant, and must terminate capability at a trusted broker rather than exposing Ollama or host credentials directly to the internet.
+- raw verified bytes;
+- a changed sanitizer policy;
+- changed model-input bytes;
+- a changed source-context digest; or
+- a projection that no longer equals the deterministic reviewed safe projection.
 
-Public GitHub must not be used as a relay for private conversation memory or secret-bearing task payloads.
+This makes the sanitizer-to-model-input gate executable rather than declarative.
 
-## Falsification / hard holds
+Richer free-form semantic memory may be added later only under a separately reviewed sanitizer/redaction policy. This V1 source contract does not pretend regex heuristics can prove arbitrary text safe.
 
-The local-seat design is invalid if any implementation:
+## Workflow self-enforcement
 
-- lets an Apollyon model authenticate as Brood Queen;
-- exposes the Brood Queen root private key or live session material to model context;
-- treats memory text as authority above the command layer;
-- imports raw chats automatically without admission/sanitization;
-- gives the model direct validator authority;
-- gives the Ollama service direct repository, keyboard/input, wallet, node-key, or non-loopback network access;
-- silently accepts candidate/model/constitution/prompt identity drift;
-- claims a remote Ren→Precision bridge exists before one has actually been authenticated and deployed.
+The focused workflow trigger-binds this document, fixture, proof, admission tool, parent normative artifacts, and the shared committed-range hygiene helper/proof. The local-seat proof additionally checks the workflow still invokes both the shared hygiene proof and `scripts/ci_diff_hygiene_v1.sh` with the exact PR-head/current-checkout bindings.
+
+## Runtime truth
+
+This source contract **does not claim that the live local runner already enforces** the anonymous-inode receipt publisher or sanitized safe-projection model-input gate. Earlier runtime evidence remains historical evidence for the earlier local-seat generation only.
+
+A later runtime integration must prove that:
+
+- the runner consumes only authorized sanitized projection bytes;
+- raw verified bytes cannot bypass sanitization;
+- receipt and sanitizer generation identities remain bound through the call boundary;
+- Ollama remains loopback-only and contained;
+- no Crown/session/validator/wallet/signer authority is introduced.
+
+## Hard holds
+
+This contract HOLDs if an implementation:
+
+- lets Apollyon authenticate as Brood Queen;
+- exposes Crown/root/requester/session private material to the model;
+- grants validator authority through protection language;
+- treats admission receipts as bearer authority;
+- uses a pathname-staged receipt that can be substituted after fsync;
+- retains a hard-link stage alias after final publication;
+- reopens the parent directory by pathname for the durability fsync instead of using the exact retained directory handle;
+- requires capability widening merely to publish the anonymous receipt inode;
+- silently falls back to privileged `AT_EMPTY_PATH` receipt publication when unprivileged procfs fd publication is unavailable;
+- overwrites or deletes a conflicting final receipt occupant;
+- authorizes raw verified context bytes as model input;
+- permits free-form context values into the V1 safe projection;
+- replays a sanitized projection against a different source-context generation;
+- weakens the committed-range hygiene invocation while leaving the proof nominally present; or
+- claims the live runner enforces this generation before runtime integration is separately proven.
 
 ## Current boundary
 
-This source lane defines the contract only. It does not start Ollama, install a daemon, import chats, create a Crown key, activate a remote bridge, merge/deploy code, mutate validators, use wallets/signers, submit transactions, move funds, or change live VOID runtime state.
+Source/proof only. No Ollama activation by this PR, no private-context upload, no Crown-key generation, no signer activation, no deployment/restart, no validator mutation, no wallet/signer use, no transaction, no treasury/liquidity action, and no funds movement.
