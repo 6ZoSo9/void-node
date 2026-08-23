@@ -9,6 +9,7 @@ export const VOID_MEMPOOL_SELECTION_IN_PROGRESS = "mempool_selection_in_progress
 export const VOID_MEMPOOL_SELECTED_MUTATION_FORBIDDEN = "mempool_selected_mutation_forbidden";
 export const VOID_MEMPOOL_RAW_INDEX_MUTATION_FORBIDDEN = "mempool_raw_index_mutation_forbidden";
 export const VOID_MEMPOOL_RAW_HASH_MUTATION_FORBIDDEN = "mempool_raw_hash_mutation_forbidden";
+export const VOID_MEMPOOL_REENTRANT_MUTATION_FORBIDDEN = "mempool_reentrant_mutation_forbidden";
 
 function canonicalIdentitySnapshotOf(tx: any): { id: string; hash: any } | null {
   const raw = tx?.hash;
@@ -100,6 +101,11 @@ export class Mempool {
   private readonly queue: any[];
   private readonly canonicalIdentities = new Set<string>();
   private selected: any[] = [];
+  private mutationLocked = false;
+
+  private assertMutationUnlocked(): void {
+    if (this.mutationLocked) throw mutationError(VOID_MEMPOOL_REENTRANT_MUTATION_FORBIDDEN);
+  }
 
   constructor() {
     const self = this;
@@ -152,6 +158,7 @@ throw mutationError(VOID_MEMPOOL_RAW_INDEX_MUTATION_FORBIDDEN);
   get txs(): any[] { return this.queue; }
   set txs(value: any[]) {
     if (value === this.queue) return;
+    this.assertMutationUnlocked();
     if (!Array.isArray(value)) throw new TypeError("mempool_txs_must_be_array");
     if (this.selected.length > 0) throw mutationError(VOID_MEMPOOL_SELECTED_MUTATION_FORBIDDEN);
 
@@ -202,6 +209,7 @@ throw mutationError(VOID_MEMPOOL_RAW_INDEX_MUTATION_FORBIDDEN);
   }
 
   private compatPush(items: any[]): number {
+    this.assertMutationUnlocked();
     const ownedItems = items.map(ownCanonicalCompatItem);
     this.assertAddable(ownedItems);
     Array.prototype.push.apply(this.queueTarget, ownedItems);
@@ -210,6 +218,7 @@ throw mutationError(VOID_MEMPOOL_RAW_INDEX_MUTATION_FORBIDDEN);
   }
 
   private compatUnshift(items: any[]): number {
+    this.assertMutationUnlocked();
     const ownedItems = items.map(ownCanonicalCompatItem);
     this.assertAddable(ownedItems);
     Array.prototype.unshift.apply(this.queueTarget, ownedItems);
@@ -218,6 +227,7 @@ throw mutationError(VOID_MEMPOOL_RAW_INDEX_MUTATION_FORBIDDEN);
   }
 
   private compatSplice(args: any[]): any[] {
+    this.assertMutationUnlocked();
     const len = this.queueTarget.length;
     const rawStart = Number(args[0] ?? 0);
     const start0 = Number.isFinite(rawStart) ? Math.trunc(rawStart) : 0;
@@ -257,16 +267,24 @@ throw mutationError(VOID_MEMPOOL_RAW_INDEX_MUTATION_FORBIDDEN);
   }
 
   private compatSort(compareFn?: (a: any, b: any) => number): any[] {
-    Array.prototype.sort.call(this.queueTarget, compareFn);
-    return this.queue;
+    this.assertMutationUnlocked();
+    this.mutationLocked = true;
+    try {
+      Array.prototype.sort.call(this.queueTarget, compareFn);
+      return this.queue;
+    } finally {
+      this.mutationLocked = false;
+    }
   }
 
   private compatReverse(): any[] {
+    this.assertMutationUnlocked();
     Array.prototype.reverse.call(this.queueTarget);
     return this.queue;
   }
 
   private setCompatLength(value: any): void {
+    this.assertMutationUnlocked();
     const next = Number(value);
     if (!Number.isInteger(next) || next < 0 || next > 0xffffffff) {
       throw new RangeError("Invalid array length");
@@ -305,6 +323,7 @@ throw mutationError(VOID_MEMPOOL_RAW_INDEX_MUTATION_FORBIDDEN);
   take(max = 1000): MemTx[] { return this.drain(max); }
 
   beginSelection(max = 1000): MemTx[] {
+    this.assertMutationUnlocked();
     if (this.selected.length > 0) throw mutationError(VOID_MEMPOOL_SELECTION_IN_PROGRESS);
     const raw = Number(max);
     const take = Math.max(0, Math.min(this.queueTarget.length, Number.isFinite(raw) ? Math.floor(raw) : 0));
@@ -313,6 +332,7 @@ throw mutationError(VOID_MEMPOOL_RAW_INDEX_MUTATION_FORBIDDEN);
   }
 
   commitSelection(): MemTx[] {
+    this.assertMutationUnlocked();
     if (this.selected.length === 0) return [];
     const selected = Array.from(this.selected);
     const used = new Set<number>();
@@ -342,6 +362,7 @@ break;
   }
 
   rollbackSelection(): MemTx[] {
+    this.assertMutationUnlocked();
     const selected = Array.from(this.selected) as MemTx[];
     this.selected = [];
     return selected;

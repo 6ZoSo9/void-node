@@ -4,6 +4,7 @@ import {
   VOID_DUPLICATE_TRANSACTION_CODE,
   VOID_MEMPOOL_RAW_INDEX_MUTATION_FORBIDDEN,
   VOID_MEMPOOL_RAW_HASH_MUTATION_FORBIDDEN,
+  VOID_MEMPOOL_REENTRANT_MUTATION_FORBIDDEN,
   VOID_MEMPOOL_SELECTED_MUTATION_FORBIDDEN,
 } from "../src/chain/mempool.js";
 
@@ -106,6 +107,7 @@ assert(!mempoolSource.includes("for (const current of this)"), "admission still 
 assert(mempoolSource.includes("new Proxy(this.queueTarget, handler)"), "raw queue mutation guard Proxy missing");
 assert(mempoolSource.includes("ownCanonicalCompatItem"), "owned queue-entry identity snapshot missing");
 assert(mempoolSource.includes("VOID_MEMPOOL_RAW_HASH_MUTATION_FORBIDDEN"), "queued hash mutation guard missing");
+assert(mempoolSource.includes("private mutationLocked = false;"), "native sort reentrancy lock missing");
 assert(!mempoolSource.includes("Object.setPrototypeOf(value"), "caller-owned Array adoption remains");
 
 const h1 = "a".repeat(64);
@@ -143,6 +145,35 @@ assert(canonical.txs.filter((tx: any) => tx?.hash === h4).length === 1, "caller 
 expectMessage(() => { canonical.txs[2].hash = h1; }, VOID_MEMPOOL_RAW_HASH_MUTATION_FORBIDDEN, "queued canonical hash mutation");
 assert(canonical.txs[2]?.hash === h3, "queued canonical hash mutation changed identity");
 assert(Reflect.preventExtensions(canonical.txs) === false && Object.isExtensible(canonical.txs), "queue proxy extensibility guard failed");
+
+canonical.clear();
+canonical.txs.push({ hash: h2 }, { hash: h1 });
+expectMessage(
+  () => canonical.txs.sort(() => { canonical.txs.pop(); return 0; }),
+  VOID_MEMPOOL_REENTRANT_MUTATION_FORBIDDEN,
+  "sort comparator reentrant membership mutation",
+);
+assert(canonical.txs.length === 2, "failed reentrant sort changed queue cardinality");
+expectDuplicate(() => canonical.txs.push({ hash: h1 }), "post-sort-reentrancy h1 duplicate");
+expectDuplicate(() => canonical.txs.push({ hash: h2 }), "post-sort-reentrancy h2 duplicate");
+canonical.txs.sort((a: any, b: any) => String(a?.hash || "").localeCompare(String(b?.hash || "")));
+assert(canonical.txs[0]?.hash === h1 && canonical.txs[1]?.hash === h2, "non-reentrant sort failed");
+expectDuplicate(() => canonical.txs.push({ hash: h1 }), "post-safe-sort duplicate");
+
+canonical.clear();
+const coercionReentrant: any = {
+  hash: h3,
+  toString() { canonical.txs.pop(); return "reentrant"; },
+};
+canonical.txs.push(coercionReentrant, { hash: h4 });
+expectMessage(
+  () => canonical.txs.sort(),
+  VOID_MEMPOOL_REENTRANT_MUTATION_FORBIDDEN,
+  "default sort coercion reentrant membership mutation",
+);
+assert(canonical.txs.length === 2, "failed default reentrant sort changed queue cardinality");
+expectDuplicate(() => canonical.txs.push({ hash: h3 }), "post-default-sort-reentrancy h3 duplicate");
+expectDuplicate(() => canonical.txs.push({ hash: h4 }), "post-default-sort-reentrancy h4 duplicate");
 
 canonical.clear();
 assert(canonical.txs === sharedQueue && canonical.txs.length === 0, "clear detached or failed shared queue");
@@ -211,6 +242,7 @@ assert(!indexSource.includes("VOID_V2FS_COMMIT_LIFECYCLE_INSPECT_BEGIN"), "tempo
 console.log("VOID_CANONICAL_TXSUBMIT_ADMISSION_DEDUPE_V1_O1_IDENTITY_INDEX_GREEN=true");
 console.log("VOID_CANONICAL_TXSUBMIT_ADMISSION_DEDUPE_V1_RAW_MUTATION_GUARD_GREEN=true");
 console.log("VOID_CANONICAL_TXSUBMIT_ADMISSION_DEDUPE_V1_ENTRY_IDENTITY_IMMUTABLE_GREEN=true");
+console.log("VOID_CANONICAL_TXSUBMIT_ADMISSION_DEDUPE_V1_SORT_REENTRANCY_GUARD_GREEN=true");
 console.log("VOID_CANONICAL_TXSUBMIT_ADMISSION_DEDUPE_V1_INFLIGHT_RESERVATION_GREEN=true");
 console.log("VOID_CANONICAL_TXSUBMIT_ADMISSION_DEDUPE_V1_DURABLE_RELEASE_GREEN=true");
 console.log("VOID_CANONICAL_TXSUBMIT_ADMISSION_DEDUPE_V1_ROLLBACK_RETAINED_GREEN=true");

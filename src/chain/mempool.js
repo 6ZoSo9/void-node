@@ -2,12 +2,13 @@
 // VOID Community License (VCL) v1.0 — see LICENSE
 // Copyright (c) 2025 6ZoSo9
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.Mempool = exports.VOID_MEMPOOL_RAW_HASH_MUTATION_FORBIDDEN = exports.VOID_MEMPOOL_RAW_INDEX_MUTATION_FORBIDDEN = exports.VOID_MEMPOOL_SELECTED_MUTATION_FORBIDDEN = exports.VOID_MEMPOOL_SELECTION_IN_PROGRESS = exports.VOID_DUPLICATE_TRANSACTION_CODE = void 0;
+exports.Mempool = exports.VOID_MEMPOOL_REENTRANT_MUTATION_FORBIDDEN = exports.VOID_MEMPOOL_RAW_HASH_MUTATION_FORBIDDEN = exports.VOID_MEMPOOL_RAW_INDEX_MUTATION_FORBIDDEN = exports.VOID_MEMPOOL_SELECTED_MUTATION_FORBIDDEN = exports.VOID_MEMPOOL_SELECTION_IN_PROGRESS = exports.VOID_DUPLICATE_TRANSACTION_CODE = void 0;
 exports.VOID_DUPLICATE_TRANSACTION_CODE = "VOID_DUPLICATE_TRANSACTION";
 exports.VOID_MEMPOOL_SELECTION_IN_PROGRESS = "mempool_selection_in_progress";
 exports.VOID_MEMPOOL_SELECTED_MUTATION_FORBIDDEN = "mempool_selected_mutation_forbidden";
 exports.VOID_MEMPOOL_RAW_INDEX_MUTATION_FORBIDDEN = "mempool_raw_index_mutation_forbidden";
 exports.VOID_MEMPOOL_RAW_HASH_MUTATION_FORBIDDEN = "mempool_raw_hash_mutation_forbidden";
+exports.VOID_MEMPOOL_REENTRANT_MUTATION_FORBIDDEN = "mempool_reentrant_mutation_forbidden";
 function canonicalIdentitySnapshotOf(tx) {
     const raw = tx === null || tx === void 0 ? void 0 : tx.hash;
     const hash = raw === undefined || raw === null ? raw : String(raw);
@@ -87,6 +88,7 @@ class Mempool {
         this.queueTarget = [];
         this.canonicalIdentities = new Set();
         this.selected = [];
+        this.mutationLocked = false;
         const self = this;
         const handler = {
   get(target, prop, receiver) {
@@ -136,6 +138,7 @@ class Mempool {
     set txs(value) {
         if (value === this.queue)
   return;
+        this.assertMutationUnlocked();
         if (!Array.isArray(value))
   throw new TypeError("mempool_txs_must_be_array");
         if (this.selected.length > 0)
@@ -154,6 +157,10 @@ class Mempool {
         this.canonicalIdentities.clear();
         for (const id of seen)
   this.canonicalIdentities.add(id);
+    }
+    assertMutationUnlocked() {
+        if (this.mutationLocked)
+  throw mutationError(exports.VOID_MEMPOOL_REENTRANT_MUTATION_FORBIDDEN);
     }
     assertAddable(items, removedIds = new Set()) {
         const batch = new Set();
@@ -187,6 +194,7 @@ class Mempool {
         return items.some((item) => selected.has(item));
     }
     compatPush(items) {
+        this.assertMutationUnlocked();
         const ownedItems = items.map(ownCanonicalCompatItem);
         this.assertAddable(ownedItems);
         Array.prototype.push.apply(this.queueTarget, ownedItems);
@@ -194,6 +202,7 @@ class Mempool {
         return this.queueTarget.length;
     }
     compatUnshift(items) {
+        this.assertMutationUnlocked();
         const ownedItems = items.map(ownCanonicalCompatItem);
         this.assertAddable(ownedItems);
         Array.prototype.unshift.apply(this.queueTarget, ownedItems);
@@ -201,6 +210,7 @@ class Mempool {
         return this.queueTarget.length;
     }
     compatSplice(args) {
+        this.assertMutationUnlocked();
         const len = this.queueTarget.length;
         const rawStart = Number(args[0] !== undefined ? args[0] : 0);
         const start0 = Number.isFinite(rawStart) ? Math.trunc(rawStart) : 0;
@@ -234,14 +244,23 @@ class Mempool {
         return this.compatSplice([0, 1])[0];
     }
     compatSort(compareFn) {
-        Array.prototype.sort.call(this.queueTarget, compareFn);
-        return this.queue;
+        this.assertMutationUnlocked();
+        this.mutationLocked = true;
+        try {
+  Array.prototype.sort.call(this.queueTarget, compareFn);
+  return this.queue;
+        }
+        finally {
+  this.mutationLocked = false;
+        }
     }
     compatReverse() {
+        this.assertMutationUnlocked();
         Array.prototype.reverse.call(this.queueTarget);
         return this.queue;
     }
     setCompatLength(value) {
+        this.assertMutationUnlocked();
         const next = Number(value);
         if (!Number.isInteger(next) || next < 0 || next > 0xffffffff)
   throw new RangeError("Invalid array length");
@@ -271,6 +290,7 @@ class Mempool {
     popMany(max = 1000) { return this.drain(max); }
     take(max = 1000) { return this.drain(max); }
     beginSelection(max = 1000) {
+        this.assertMutationUnlocked();
         if (this.selected.length > 0)
   throw mutationError(exports.VOID_MEMPOOL_SELECTION_IN_PROGRESS);
         const raw = Number(max);
@@ -279,6 +299,7 @@ class Mempool {
         return Array.from(this.selected);
     }
     commitSelection() {
+        this.assertMutationUnlocked();
         if (this.selected.length === 0)
   return [];
         const selected = Array.from(this.selected);
@@ -306,6 +327,7 @@ class Mempool {
         return selected;
     }
     rollbackSelection() {
+        this.assertMutationUnlocked();
         const selected = Array.from(this.selected);
         this.selected = [];
         return selected;
