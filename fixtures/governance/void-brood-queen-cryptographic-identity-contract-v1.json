@@ -36,7 +36,32 @@
     "nonce_single_use": true,
     "replay_rejected": true,
     "challenge_runtime_active": false,
-    "session_runtime_active": false
+    "session_runtime_active": false,
+    "canonical_bootstrap_transcript_sha256_required": true,
+    "server_signature_verification_required_before_session_commit": true,
+    "crown_approval_signature_verification_required_before_session_commit": true,
+    "all_bootstrap_signatures_and_pop_bind_same_transcript": true,
+    "nonce_fresh_at_session_commit_required": true,
+    "nonce_consumed_atomically_with_session_commit": true,
+    "expiry_admitted_at_session_commit_required": true,
+    "canonical_bootstrap_transcript_encoding": "utf8_json_array_v1",
+    "canonical_bootstrap_transcript_fields": [
+      "bootstrap_domain",
+      "chain_id",
+      "office",
+      "identity",
+      "issuing_server_identity",
+      "requester_ed25519_public_key",
+      "requester_x25519_public_key",
+      "session_id",
+      "nonce",
+      "issued_at_utc",
+      "expires_at_utc",
+      "role_generation",
+      "role_record_sha256"
+    ],
+    "canonical_bootstrap_time_encoding": "canonical_utc_rfc3339_seconds",
+    "canonical_bootstrap_transcript_hash_derived_from_fields": true
   },
   "requester_binding": {
     "server_or_broker_identity_cryptographically_pinned": true,
@@ -69,7 +94,13 @@
     "ordinary_task_admission_revalidates_same_role_record_hash_atomically": true,
     "canonical_revocation_invalidates_sessions_before_further_task_authority": true,
     "revoke_restore_aba_rejected_by_generation": true,
-    "role_generation_contract_active": false
+    "role_generation_contract_active": false,
+    "generation_exhaustion_behavior": "fail_closed_requires_sovereign_epoch_migration",
+    "generation_wrap_allowed": false,
+    "same_generation_reuse_after_authorization_change_allowed": false,
+    "out_of_domain_successor_allowed": false,
+    "fresh_authority_after_exhaustion_without_epoch_migration": false,
+    "epoch_migration_invalidates_all_prior_sessions": true
   },
   "authority_boundary": {
     "authentication_implies_capability": false,
@@ -102,6 +133,7 @@
     "requires_rotation_and_revocation_contract": true,
     "requires_requester_key_binding_contract": true,
     "requires_role_authority_generation_contract": true,
-    "requires_adversarial_proof": true
+    "requires_adversarial_proof": true,
+    "requires_role_generation_exhaustion_contract": true
   }
 }
