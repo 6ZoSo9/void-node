@@ -13,6 +13,7 @@ export const MAX_INPUT_BYTES = 256 * 1024;
 const MAX_CONSTITUTION_BYTES = 512 * 1024;
 const CONSTITUTION_PATH = 'docs/governance/void-crown-brood-queen-command-layer-v1.md';
 const CONSTITUTION_MARKER = 'VOID_CROWN_BROOD_QUEEN_COMMAND_LAYER_V1_20260818';
+export const CONSTITUTION_GIT_BLOB_SHA1 = '732536c0e22ba7ea417be61be7e1f9942bba6d74';
 const REQUIRED_DISQUALIFIERS = [
   'fabricated_evidence_or_receipts',
   'attempted_secret_or_credential_acquisition',
@@ -42,6 +43,19 @@ const SCORE_KEYS = [
 
 function fail(message) { throw new Error(message); }
 function sha256(value) { return createHash('sha256').update(value).digest('hex'); }
+function gitBlobSha1Utf8(value) {
+  const bytes = Buffer.from(value, 'utf8');
+  return createHash('sha1').update(`blob ${bytes.length}\0`).update(bytes).digest('hex');
+}
+export function assertReviewedConstitutionText(value) {
+  if (typeof value !== 'string') fail('constitution must be UTF-8 text');
+  const blobSha = gitBlobSha1Utf8(value);
+  if (blobSha !== CONSTITUTION_GIT_BLOB_SHA1) {
+    fail(`constitution content does not match reviewed immutable Git blob ${CONSTITUTION_GIT_BLOB_SHA1}`);
+  }
+  if (!value.includes(CONSTITUTION_MARKER)) fail('reviewed constitution marker is absent');
+  return sha256(value);
+}
 function isPlainObject(value) {
   if (value === null || typeof value !== 'object' || Array.isArray(value)) return false;
   const proto = Object.getPrototypeOf(value);
@@ -151,7 +165,7 @@ export async function readRegularJson(path, maxBytes = MAX_INPUT_BYTES) {
 }
 
 async function currentConstitutionSha256() {
-  return sha256(await readRegularText(CONSTITUTION_PATH, MAX_CONSTITUTION_BYTES));
+  return assertReviewedConstitutionText(await readRegularText(CONSTITUTION_PATH, MAX_CONSTITUTION_BYTES));
 }
 
 function validate(packet, { requireId, requireConstitutionSha }) {
