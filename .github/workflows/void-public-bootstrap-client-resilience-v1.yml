@@ -24,6 +24,7 @@ on:
       - "src/node_core.ts"
       - "src/chain/seg_store.ts"
       - "src/chain/legacy_commit_direct_v2fs_v1.ts"
+      - "src/util/txroot.ts"
       - "src/http/follower_legacy_v2fs_authority_v1.ts"
       - "src/p2p/authenticated_duplicate_arbitration_v1.ts"
       - "src/chain/receipts.ts"
@@ -53,6 +54,7 @@ on:
       - "src/node_core.ts"
       - "src/chain/seg_store.ts"
       - "src/chain/legacy_commit_direct_v2fs_v1.ts"
+      - "src/util/txroot.ts"
       - "src/http/follower_legacy_v2fs_authority_v1.ts"
       - "src/p2p/authenticated_duplicate_arbitration_v1.ts"
       - "src/chain/receipts.ts"
@@ -148,6 +150,7 @@ jobs:
           grep -F 'VOID_FOLLOWER_LEGACY_V2FS_ORIGINS' dist/node_core.js
           grep -F 'saveAuthorizedLegacyCommitDirectV2fs' dist/chain/seg_store.js
           grep -F 'proposer.commit-direct.v2fs' dist/chain/legacy_commit_direct_v2fs_v1.js
+          grep -F 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855' dist/util/txroot.js
           grep -F 'preferredAuthenticatedDuplicateDirectionV1' dist/node_core.js
 
       - name: Diff hygiene across committed change range

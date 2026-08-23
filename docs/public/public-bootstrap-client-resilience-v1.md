@@ -235,8 +235,12 @@ default and activates only when the selected peer's exact HTTP(S) origin is
 listed in `VOID_FOLLOWER_LEGACY_V2FS_ORIGINS`. Redirect handling and final-URL
 equality remain enforced before any response body can supply synchronization
 state. The legacy validator accepts only the exact reviewed envelope, verifies
-positive integer time/height, transaction hash/root consistency,
-`header.txRoot`, and contiguous parent numbering, and rejects hybrid objects
+positive integer time/height, and evaluates `txRoot` with the historical
+`src/util/txroot.ts` algorithm rather than modern block-root semantics. The
+historical empty root is exactly `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`;
+the modern all-zero empty root is rejected in this legacy domain. The validator
+also requires `header.txRoot` equality, transaction/root consistency, contiguous
+parent numbering, and rejects hybrid objects
 rather than synthesizing `timestamp`, `parentHash`, `blobRoot`, `proposer`, or
 `sig`.
 

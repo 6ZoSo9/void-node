@@ -10,6 +10,7 @@ import path from "node:path";
 import { once } from "node:events";
 
 import { computeRoots } from "../dist/chain/block.js";
+import { computeTxRoot } from "../dist/util/txroot.js";
 import { SegStore } from "../dist/chain/seg_store.js";
 import {
   VOID_LEGACY_COMMIT_DIRECT_V2FS_MARKER_V1,
@@ -23,13 +24,15 @@ import { preferredAuthenticatedDuplicateDirectionV1 } from "../dist/p2p/authenti
 import { Node } from "../dist/node_core.js";
 
 const MARKER = "VOID_FOLLOWER_LEGACY_V2FS_AND_DUPLICATE_DIAL_V1_PROOF_GREEN";
+const LEGACY_EMPTY_TXROOT_V1 = "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855";
+const MODERN_EMPTY_TXROOT_V1 = "0000000000000000000000000000000000000000000000000000000000000000";
 
 function tempRoot(label) {
   return fs.mkdtempSync(path.join(os.tmpdir(), `void-follower-legacy-${label}-`));
 }
 
 function makeLegacy(number, txs = []) {
-  const { txRoot } = computeRoots(txs, []);
+  const txRoot = computeTxRoot(txs).root;
   return {
     number,
     ts: 1_786_754_384_925 + number,
@@ -60,6 +63,59 @@ function walRecord(version, block) {
 }
 
 function proveLegacyEnvelopeAndStore() {
+  assert.equal(
+    computeTxRoot([]).root,
+    LEGACY_EMPTY_TXROOT_V1,
+    "historical V2FS empty root must remain SHA-256(empty bytes)",
+  );
+  assert.equal(
+    computeRoots([], []).txRoot,
+    MODERN_EMPTY_TXROOT_V1,
+    "modern empty block root must remain the all-zero root",
+  );
+  assert.notEqual(
+    LEGACY_EMPTY_TXROOT_V1,
+    MODERN_EMPTY_TXROOT_V1,
+    "legacy and modern empty-root domains must not be conflated",
+  );
+
+  const canonicalEmptyFixture = {
+    number: 1_900_961,
+    ts: 1_787_318_500_715,
+    txs: [],
+    _commit: VOID_LEGACY_COMMIT_DIRECT_V2FS_MARKER_V1,
+    txRoot: LEGACY_EMPTY_TXROOT_V1,
+    header: { txRoot: LEGACY_EMPTY_TXROOT_V1 },
+  };
+  const canonicalEmptyParent = {
+    number: 1_900_960,
+    ts: 1_787_317_519_473,
+    txs: [],
+    _commit: VOID_LEGACY_COMMIT_DIRECT_V2FS_MARKER_V1,
+    txRoot: LEGACY_EMPTY_TXROOT_V1,
+    header: { txRoot: LEGACY_EMPTY_TXROOT_V1 },
+  };
+  assert.deepEqual(
+    validateLegacyCommitDirectV2fsForAppendV1(
+      canonicalEmptyFixture,
+      canonicalEmptyParent,
+    ),
+    { ok: true },
+    "real Mainnet-0 legacy empty-root convention must be admitted",
+  );
+  assert.deepEqual(
+    validateLegacyCommitDirectV2fsForAppendV1(
+      {
+        ...canonicalEmptyFixture,
+        txRoot: MODERN_EMPTY_TXROOT_V1,
+        header: { txRoot: MODERN_EMPTY_TXROOT_V1 },
+      },
+      canonicalEmptyParent,
+    ),
+    { ok: false, reason: "legacy_v2fs_tx_root_mismatch" },
+    "modern all-zero empty root must not be accepted as historical V2FS truth",
+  );
+
   const b0 = makeLegacy(0);
   const b1 = makeLegacy(1);
   const b2 = makeLegacy(2);
@@ -327,6 +383,7 @@ function proveFocusedWorkflowTracksDependencies() {
     "scripts/prove_follower_legacy_v2fs_and_duplicate_dial_v1.mjs",
     "src/chain/seg_store.ts",
     "src/chain/legacy_commit_direct_v2fs_v1.ts",
+    "src/util/txroot.ts",
     "src/http/follower_legacy_v2fs_authority_v1.ts",
     "src/p2p/authenticated_duplicate_arbitration_v1.ts",
     "src/node_core.ts",
@@ -348,6 +405,9 @@ proveFocusedWorkflowTracksDependencies();
 console.log(MARKER);
 console.log("modern_validator_unchanged=true");
 console.log("legacy_exact_envelope=true");
+console.log("legacy_txroot_algorithm=historical_computeTxRoot_v1");
+console.log("legacy_empty_txroot=e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855");
+console.log("legacy_modern_empty_root_domains_separate=true");
 console.log("wrong_legacy_marker_falls_through_modern=false");
 console.log("legacy_origin_default_off=true");
 console.log("legacy_wal_authority_tagged=true");

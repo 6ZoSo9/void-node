@@ -1,7 +1,7 @@
 // VOID Community License (VCL) v1.0 — see LICENSE
 // Copyright (c) 2025-2026 6ZoSo9
 
-import { computeRoots } from "./block.js";
+import { computeTxRoot } from "../util/txroot.js";
 import type { BlockValidationResult } from "./block.js";
 
 export const VOID_LEGACY_COMMIT_DIRECT_V2FS_MARKER_V1 =
@@ -94,8 +94,12 @@ export function validateLegacyCommitDirectV2fsForAppendV1(
     return { ok: false, reason: "legacy_v2fs_header_tx_root_mismatch" };
   }
 
-  const roots = computeRoots(candidate.txs as any[], []);
-  if (roots.txRoot !== txRoot) {
+  // Historical proposer.commit-direct.v2fs used util/txroot semantics,
+  // not the modern Block computeRoots() convention. In particular, an
+  // empty legacy tx list commits SHA-256(empty bytes), while a modern empty
+  // tx list commits the all-zero root. Keep those domains separate.
+  const historicalTxRoot = computeTxRoot(candidate.txs as any[]).root;
+  if (historicalTxRoot !== txRoot) {
     return { ok: false, reason: "legacy_v2fs_tx_root_mismatch" };
   }
 
