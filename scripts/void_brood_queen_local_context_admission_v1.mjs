@@ -419,7 +419,12 @@ try:
             return False
         return st.st_dev == parent_stat.st_dev and st.st_ino == parent_stat.st_ino
 
-    def read_final_exact():
+    def final_identity(st):
+        return (
+            st.st_dev, st.st_ino, st.st_size, st.st_mtime_ns, st.st_ctime_ns, st.st_nlink,
+        )
+
+    def open_final_exact():
         fd = os.open(name, os.O_RDONLY | os.O_NOFOLLOW, dir_fd=pfd)
         try:
             st1 = os.fstat(fd)
@@ -440,51 +445,72 @@ try:
                 if len(data) > 4096:
                     die("receipt final oversized")
             st2 = os.fstat(fd)
-            if (st1.st_dev,st1.st_ino,st1.st_size,st1.st_mtime_ns,st1.st_ctime_ns) != (st2.st_dev,st2.st_ino,st2.st_size,st2.st_mtime_ns,st2.st_ctime_ns):
+            if final_identity(st1) != final_identity(st2):
                 die("receipt final generation changed during read")
             if bytes(data) != expected:
                 die("receipt path occupied by conflicting generation")
-            return st2
+            return fd, st2
+        except BaseException:
+            os.close(fd)
+            raise
+
+    def read_final_exact():
+        fd, st = open_final_exact()
+        try:
+            return st
         finally:
             os.close(fd)
 
     try:
-        existing = read_final_exact()
+        existing_fd, existing = open_final_exact()
     except FileNotFoundError:
-        existing = None
+        existing_fd, existing = None, None
 
     if existing is not None:
-        existing_identity = (existing.st_dev, existing.st_ino, existing.st_size, existing.st_mtime_ns, existing.st_ctime_ns)
-        if fault == "unlink_existing_after_read":
-            os.unlink(name, dir_fd=pfd)
-        elif fault == "replace_existing_same_bytes_after_read":
-            os.unlink(name, dir_fd=pfd)
-            rfd = os.open(name, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600, dir_fd=pfd)
-            try:
-                offset = 0
-                while offset < len(expected):
-                    n = os.write(rfd, expected[offset:])
-                    if n <= 0:
-                        die("short replacement receipt write")
-                    offset += n
-                os.fsync(rfd)
-            finally:
-                os.close(rfd)
-        os.fsync(pfd)
-        if not current_parent_matches():
-            die("receipt parent directory generation changed")
         try:
-            committed_existing = read_final_exact()
-        except FileNotFoundError:
-            die("existing exact final disappeared before durable terminal")
-        committed_identity = (
-            committed_existing.st_dev, committed_existing.st_ino, committed_existing.st_size,
-            committed_existing.st_mtime_ns, committed_existing.st_ctime_ns,
-        )
-        if committed_identity != existing_identity:
-            die("existing exact final generation drifted before durable terminal")
-        print(json.dumps({"existing_exact": True, "linked_new_final": False}))
-        raise SystemExit(0)
+            existing_identity = final_identity(existing)
+            if fault == "unlink_existing_after_read":
+                os.unlink(name, dir_fd=pfd)
+            elif fault == "replace_existing_same_bytes_after_read":
+                os.unlink(name, dir_fd=pfd)
+                rfd = os.open(name, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600, dir_fd=pfd)
+                try:
+                    offset = 0
+                    while offset < len(expected):
+                        n = os.write(rfd, expected[offset:])
+                        if n <= 0:
+                            die("short replacement receipt write")
+                        offset += n
+                    os.fsync(rfd)
+                finally:
+                    os.close(rfd)
+            os.fsync(pfd)
+            if not current_parent_matches():
+                die("receipt parent directory generation changed")
+
+            live_existing = os.fstat(existing_fd)
+            if final_identity(live_existing) != existing_identity:
+                die("existing exact final generation changed before durable terminal")
+
+            try:
+                committed_fd, committed_existing = open_final_exact()
+            except FileNotFoundError:
+                die("existing exact final disappeared before durable terminal")
+            try:
+                if (
+                    committed_existing.st_dev != live_existing.st_dev
+                    or committed_existing.st_ino != live_existing.st_ino
+                ):
+                    die("existing exact final generation drifted before durable terminal")
+                if final_identity(committed_existing) != final_identity(live_existing):
+                    die("existing exact final metadata drifted before durable terminal")
+            finally:
+                os.close(committed_fd)
+
+            print(json.dumps({"existing_exact": True, "linked_new_final": False}))
+            raise SystemExit(0)
+        finally:
+            os.close(existing_fd)
 
     try:
         tfd = os.open(".", os.O_TMPFILE | os.O_RDWR, 0o600, dir_fd=pfd)
