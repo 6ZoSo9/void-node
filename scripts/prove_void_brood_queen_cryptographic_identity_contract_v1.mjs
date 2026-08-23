@@ -6,7 +6,10 @@ const PARENT_MARKER = "VOID_CROWN_BROOD_QUEEN_COMMAND_LAYER_V1_20260818";
 const DOC = "docs/governance/void-brood-queen-cryptographic-identity-contract-v1.md";
 const FIXTURE = "fixtures/governance/void-brood-queen-cryptographic-identity-contract-v1.json";
 const PARENT = "docs/governance/void-crown-brood-queen-command-layer-v1.md";
+const WORKFLOW = ".github/workflows/void-brood-queen-cryptographic-identity-contract-v1.yml";
+const BOOTSTRAP_DOMAIN = "VOID_BROOD_QUEEN_SESSION_BOOTSTRAP_V1";
 const UINT64_LIMIT = 1n << 64n;
+const UINT64_MAX = UINT64_LIMIT - 1n;
 
 function assert(condition, message) {
   if (!condition) throw new Error(message);
@@ -54,6 +57,13 @@ function validateClosedShape(fixture) {
     "bootstrap_domain", "bootstrap_mechanism", "persistent_authenticated_logical_session",
     "derived_session_material_rotates_automatically", "root_reauthentication_frequency",
     "nonce_single_use", "replay_rejected", "challenge_runtime_active", "session_runtime_active",
+    "canonical_bootstrap_transcript_sha256_required",
+    "server_signature_verification_required_before_session_commit",
+    "crown_approval_signature_verification_required_before_session_commit",
+    "all_bootstrap_signatures_and_pop_bind_same_transcript",
+    "nonce_fresh_at_session_commit_required",
+    "nonce_consumed_atomically_with_session_commit",
+    "expiry_admitted_at_session_commit_required",
   ], "session_model");
   exactKeys(fixture.requester_binding, [
     "server_or_broker_identity_cryptographically_pinned",
@@ -81,6 +91,11 @@ function validateClosedShape(fixture) {
     "ordinary_task_admission_revalidates_same_role_record_hash_atomically",
     "canonical_revocation_invalidates_sessions_before_further_task_authority",
     "revoke_restore_aba_rejected_by_generation", "role_generation_contract_active",
+    "generation_exhaustion_behavior", "generation_wrap_allowed",
+    "same_generation_reuse_after_authorization_change_allowed",
+    "out_of_domain_successor_allowed",
+    "fresh_authority_after_exhaustion_without_epoch_migration",
+    "epoch_migration_invalidates_all_prior_sessions",
   ], "role_authority");
   exactKeys(fixture.authority_boundary, [
     "authentication_implies_capability", "grants_repo_write", "grants_merge",
@@ -98,8 +113,67 @@ function validateClosedShape(fixture) {
     "chain_role_binding_active", "signer_runtime_active", "authenticated_command_runtime_active",
     "requires_exact_public_identity_binding", "requires_explicit_sovereign_ratification",
     "requires_rotation_and_revocation_contract", "requires_requester_key_binding_contract",
-    "requires_role_authority_generation_contract", "requires_adversarial_proof",
+    "requires_role_authority_generation_contract",
+    "requires_role_generation_exhaustion_contract",
+    "requires_adversarial_proof",
   ], "activation");
+}
+
+function countOccurrences(text, needle) {
+  return text.split(needle).length - 1;
+}
+
+function validateFocusedWorkflowContract(workflow) {
+  const triggerPaths = [
+    "docs/governance/void-brood-queen-cryptographic-identity-contract-v1.md",
+    "docs/governance/void-crown-brood-queen-command-layer-v1.md",
+    "fixtures/governance/void-brood-queen-cryptographic-identity-contract-v1.json",
+    "scripts/prove_void_brood_queen_cryptographic_identity_contract_v1.mjs",
+    ".github/workflows/void-brood-queen-cryptographic-identity-contract-v1.yml",
+    "scripts/ci_diff_hygiene_v1.sh",
+    "scripts/prove_ci_diff_hygiene_v1.mjs",
+  ];
+  for (const path of triggerPaths) {
+    assert(
+      countOccurrences(workflow, `- "${path}"`) === 2,
+      `workflow_trigger_dependency_not_closed:${path}`,
+    );
+  }
+
+  for (const required of [
+    "actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803",
+    "persist-credentials: false",
+    "fetch-depth: 1",
+    "actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020",
+    "run: node scripts/prove_ci_diff_hygiene_v1.mjs",
+    "CI_DIFF_EVENT_NAME: ${{ github.event_name }}",
+    "CI_DIFF_PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}",
+    "CI_DIFF_PUSH_BEFORE_SHA: ${{ github.event.before }}",
+    "CI_DIFF_CURRENT_SHA: ${{ github.event.pull_request.head.sha || github.sha }}",
+    "CI_DIFF_CHECKOUT_SHA: ${{ github.sha }}",
+    "CI_DIFF_BASE_REMOTE: ${{ github.server_url }}/${{ github.repository }}.git",
+    "CI_DIFF_HEAD_REMOTE: ${{ github.server_url }}/${{ github.event.pull_request.head.repo.full_name || github.repository }}.git",
+    "run: bash scripts/ci_diff_hygiene_v1.sh",
+  ]) assert(workflow.includes(required), `workflow_committed_range_binding_missing:${required}`);
+}
+
+function roleGenerationTransition(currentGeneration, authorizationAffectingChange) {
+  if (!isCanonicalUint64Decimal(currentGeneration)) {
+    return { ok: false, code: "ROLE_GENERATION_INVALID" };
+  }
+  if (!authorizationAffectingChange) {
+    return { ok: true, generation: currentGeneration, replay: true, exhausted: false };
+  }
+  const current = BigInt(currentGeneration);
+  if (current === UINT64_MAX) {
+    return { ok: false, code: "ROLE_GENERATION_EXHAUSTED", exhausted: true };
+  }
+  return {
+    ok: true,
+    generation: String(current + 1n),
+    replay: false,
+    exhausted: false,
+  };
 }
 
 function rolePairMatches(boundGeneration, boundHash, currentGeneration, currentHash) {
@@ -113,6 +187,15 @@ function rolePairMatches(boundGeneration, boundHash, currentGeneration, currentH
 
 function bootstrapCommitAllowed({
   serverPinned,
+  bootstrapDomain,
+  pinnedServerIdentity,
+  issuingServerIdentity,
+  canonicalTranscriptHash,
+  serverSignedTranscriptHash,
+  crownApprovedTranscriptHash,
+  requesterPopTranscriptHash,
+  serverChallengeSignatureValid,
+  crownApprovalSignatureValid,
   transcriptRequesterEd25519,
   presentedRequesterEd25519,
   transcriptRequesterX25519,
@@ -121,17 +204,42 @@ function bootstrapCommitAllowed({
   proofOfPossessionBindsCompleteTranscript,
   approvedSessionId,
   presentedSessionId,
+  approvedNonce,
+  presentedNonce,
+  nonceFreshAtCommit,
+  nonceAlreadyConsumed,
+  expiryAdmittedAtCommit,
   approvedRoleGeneration,
   currentRoleGeneration,
   approvedRoleRecordHash,
   currentRoleRecordHash,
+  currentRoleAuthorityExhausted = false,
 }) {
+  const transcriptIdentityValid = isSha256(canonicalTranscriptHash)
+    && serverSignedTranscriptHash === canonicalTranscriptHash
+    && crownApprovedTranscriptHash === canonicalTranscriptHash
+    && requesterPopTranscriptHash === canonicalTranscriptHash;
+
   return serverPinned
+    && bootstrapDomain === BOOTSTRAP_DOMAIN
+    && typeof pinnedServerIdentity === "string"
+    && pinnedServerIdentity.length > 0
+    && issuingServerIdentity === pinnedServerIdentity
+    && serverChallengeSignatureValid
+    && crownApprovalSignatureValid
+    && transcriptIdentityValid
     && transcriptRequesterEd25519 === presentedRequesterEd25519
     && transcriptRequesterX25519 === presentedRequesterX25519
     && requesterEd25519ProofOfPossession
     && proofOfPossessionBindsCompleteTranscript
     && approvedSessionId === presentedSessionId
+    && typeof approvedNonce === "string"
+    && approvedNonce.length > 0
+    && approvedNonce === presentedNonce
+    && nonceFreshAtCommit
+    && !nonceAlreadyConsumed
+    && expiryAdmittedAtCommit
+    && !currentRoleAuthorityExhausted
     && rolePairMatches(
       approvedRoleGeneration, approvedRoleRecordHash,
       currentRoleGeneration, currentRoleRecordHash,
@@ -144,8 +252,9 @@ function taskAdmissionCommitAllowed({
   currentRoleGeneration,
   currentRoleRecordHash,
   sessionUsable = true,
+  currentRoleAuthorityExhausted = false,
 }) {
-  return sessionUsable && rolePairMatches(
+  return sessionUsable && !currentRoleAuthorityExhausted && rolePairMatches(
     sessionRoleGeneration, sessionRoleRecordHash,
     currentRoleGeneration, currentRoleRecordHash,
   );
@@ -157,8 +266,9 @@ function successorActivationCommitAllowed({
   currentRoleGeneration,
   currentRoleRecordHash,
   predecessorStillActive = true,
+  currentRoleAuthorityExhausted = false,
 }) {
-  return predecessorStillActive && rolePairMatches(
+  return predecessorStillActive && !currentRoleAuthorityExhausted && rolePairMatches(
     sessionRoleGeneration, sessionRoleRecordHash,
     currentRoleGeneration, currentRoleRecordHash,
   );
@@ -168,8 +278,35 @@ const doc = readFileSync(DOC, "utf8");
 const parent = readFileSync(PARENT, "utf8");
 const fixtureText = readFileSync(FIXTURE, "utf8");
 const fixture = JSON.parse(fixtureText);
+const workflow = readFileSync(WORKFLOW, "utf8");
 
 validateClosedShape(fixture);
+validateFocusedWorkflowContract(workflow);
+for (const required of [
+  "run: node scripts/prove_ci_diff_hygiene_v1.mjs",
+  "persist-credentials: false",
+  "CI_DIFF_PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}",
+  "CI_DIFF_CURRENT_SHA: ${{ github.event.pull_request.head.sha || github.sha }}",
+  "CI_DIFF_CHECKOUT_SHA: ${{ github.sha }}",
+  "run: bash scripts/ci_diff_hygiene_v1.sh",
+]) {
+  const mutated = workflow.replace(required, "__VOID_REMOVED_REQUIRED_BINDING__");
+  assertThrows(
+    () => validateFocusedWorkflowContract(mutated),
+    `workflow_self_enforcement_adversary_failed:${required}`,
+  );
+}
+for (const dependency of [
+  "scripts/ci_diff_hygiene_v1.sh",
+  "scripts/prove_ci_diff_hygiene_v1.mjs",
+  ".github/workflows/void-brood-queen-cryptographic-identity-contract-v1.yml",
+]) {
+  const mutated = workflow.replace(`- "${dependency}"`, `- "removed/${dependency}"`);
+  assertThrows(
+    () => validateFocusedWorkflowContract(mutated),
+    `workflow_trigger_dependency_adversary_failed:${dependency}`,
+  );
+}
 assert(doc.includes(MARKER), "identity_contract_marker_missing_from_doc");
 assert(doc.includes(PARENT_MARKER), "parent_marker_missing_from_doc");
 assert(parent.includes(PARENT_MARKER), "parent_constitution_marker_missing");
@@ -212,6 +349,13 @@ assert(session.nonce_single_use === true, "single_use_nonce_required");
 assert(session.replay_rejected === true, "replay_rejection_required");
 assert(session.challenge_runtime_active === false, "challenge_runtime_must_remain_inactive");
 assert(session.session_runtime_active === false, "session_runtime_must_remain_inactive");
+assert(session.canonical_bootstrap_transcript_sha256_required === true, "canonical_bootstrap_transcript_sha256_required");
+assert(session.server_signature_verification_required_before_session_commit === true, "server_signature_verification_required");
+assert(session.crown_approval_signature_verification_required_before_session_commit === true, "crown_approval_signature_verification_required");
+assert(session.all_bootstrap_signatures_and_pop_bind_same_transcript === true, "bootstrap_transcript_identity_must_be_shared");
+assert(session.nonce_fresh_at_session_commit_required === true, "nonce_fresh_at_commit_required");
+assert(session.nonce_consumed_atomically_with_session_commit === true, "nonce_consumption_must_be_atomic_with_commit");
+assert(session.expiry_admitted_at_session_commit_required === true, "expiry_must_be_admitted_at_commit");
 
 const requester = fixture.requester_binding;
 assert(requester.server_or_broker_identity_cryptographically_pinned === true, "server_identity_pinning_required");
@@ -245,6 +389,12 @@ assert(role.ordinary_task_admission_revalidates_same_role_record_hash_atomically
 assert(role.canonical_revocation_invalidates_sessions_before_further_task_authority === true, "revocation_must_invalidate_before_task_authority");
 assert(role.revoke_restore_aba_rejected_by_generation === true, "revoke_restore_aba_must_fail");
 assert(role.role_generation_contract_active === false, "role_generation_runtime_must_remain_inactive");
+assert(role.generation_exhaustion_behavior === "fail_closed_requires_sovereign_epoch_migration", "role_generation_exhaustion_behavior_mismatch");
+assert(role.generation_wrap_allowed === false, "role_generation_wrap_must_be_forbidden");
+assert(role.same_generation_reuse_after_authorization_change_allowed === false, "role_generation_same_value_reuse_after_change_forbidden");
+assert(role.out_of_domain_successor_allowed === false, "role_generation_out_of_domain_successor_forbidden");
+assert(role.fresh_authority_after_exhaustion_without_epoch_migration === false, "fresh_authority_after_exhaustion_without_epoch_forbidden");
+assert(role.epoch_migration_invalidates_all_prior_sessions === true, "epoch_migration_must_invalidate_old_sessions");
 
 const authority = fixture.authority_boundary;
 assert(authority.authentication_implies_capability === false, "authentication_must_not_imply_capability");
@@ -268,6 +418,7 @@ assert(activation.requires_explicit_sovereign_ratification === true, "sovereign_
 assert(activation.requires_rotation_and_revocation_contract === true, "rotation_revocation_contract_must_be_required");
 assert(activation.requires_requester_key_binding_contract === true, "requester_binding_contract_must_be_required");
 assert(activation.requires_role_authority_generation_contract === true, "role_generation_contract_must_be_required");
+assert(activation.requires_role_generation_exhaustion_contract === true, "role_generation_exhaustion_contract_must_be_required");
 assert(activation.requires_adversarial_proof === true, "adversarial_proof_must_be_required");
 
 for (const mutate of [
@@ -284,12 +435,23 @@ for (const mutate of [
   assertThrows(() => validateClosedShape(copy), "unknown_authority_field_must_fail_closed");
 }
 
+const T1 = "1".repeat(64);
+const T2 = "2".repeat(64);
 const H7 = "7".repeat(64);
 const H7_ALT = "a".repeat(64);
 const H8 = "8".repeat(64);
 const H9 = "9".repeat(64);
 const baseBootstrap = {
   serverPinned: true,
+  bootstrapDomain: BOOTSTRAP_DOMAIN,
+  pinnedServerIdentity: "broker-ed25519-A",
+  issuingServerIdentity: "broker-ed25519-A",
+  canonicalTranscriptHash: T1,
+  serverSignedTranscriptHash: T1,
+  crownApprovedTranscriptHash: T1,
+  requesterPopTranscriptHash: T1,
+  serverChallengeSignatureValid: true,
+  crownApprovalSignatureValid: true,
   transcriptRequesterEd25519: "requester-ed25519-A",
   presentedRequesterEd25519: "requester-ed25519-A",
   transcriptRequesterX25519: "requester-x25519-A",
@@ -298,12 +460,29 @@ const baseBootstrap = {
   proofOfPossessionBindsCompleteTranscript: true,
   approvedSessionId: "session-A",
   presentedSessionId: "session-A",
+  approvedNonce: "nonce-A",
+  presentedNonce: "nonce-A",
+  nonceFreshAtCommit: true,
+  nonceAlreadyConsumed: false,
+  expiryAdmittedAtCommit: true,
   approvedRoleGeneration: "7",
   currentRoleGeneration: "7",
   approvedRoleRecordHash: H7,
   currentRoleRecordHash: H7,
+  currentRoleAuthorityExhausted: false,
 };
 assert(bootstrapCommitAllowed(baseBootstrap), "stable_requester_role_pair_bootstrap_must_admit");
+assert(!bootstrapCommitAllowed({ ...baseBootstrap, bootstrapDomain: "VOID_BROOD_QUEEN_SESSION_BOOTSTRAP_V0" }), "wrong_bootstrap_domain_must_fail");
+assert(!bootstrapCommitAllowed({ ...baseBootstrap, issuingServerIdentity: "attacker-server" }), "wrong_issuing_server_identity_must_fail");
+assert(!bootstrapCommitAllowed({ ...baseBootstrap, serverChallengeSignatureValid: false }), "invalid_server_challenge_signature_must_fail");
+assert(!bootstrapCommitAllowed({ ...baseBootstrap, crownApprovalSignatureValid: false }), "missing_or_invalid_crown_approval_must_fail");
+assert(!bootstrapCommitAllowed({ ...baseBootstrap, serverSignedTranscriptHash: T2 }), "server_transcript_mismatch_must_fail");
+assert(!bootstrapCommitAllowed({ ...baseBootstrap, crownApprovedTranscriptHash: T2 }), "crown_transcript_mismatch_must_fail");
+assert(!bootstrapCommitAllowed({ ...baseBootstrap, requesterPopTranscriptHash: T2 }), "requester_pop_transcript_mismatch_must_fail");
+assert(!bootstrapCommitAllowed({ ...baseBootstrap, presentedNonce: "nonce-B" }), "nonce_identity_substitution_must_fail");
+assert(!bootstrapCommitAllowed({ ...baseBootstrap, nonceFreshAtCommit: false }), "expired_or_stale_nonce_must_fail");
+assert(!bootstrapCommitAllowed({ ...baseBootstrap, nonceAlreadyConsumed: true }), "replayed_nonce_must_fail");
+assert(!bootstrapCommitAllowed({ ...baseBootstrap, expiryAdmittedAtCommit: false }), "expired_challenge_at_commit_must_fail");
 assert(!bootstrapCommitAllowed({ ...baseBootstrap, presentedRequesterEd25519: "attacker-ed25519" }), "ed25519_requester_substitution_must_fail");
 assert(!bootstrapCommitAllowed({ ...baseBootstrap, presentedRequesterX25519: "attacker-x25519" }), "x25519_channel_key_substitution_must_fail");
 assert(!bootstrapCommitAllowed({ ...baseBootstrap, requesterEd25519ProofOfPossession: false }), "missing_requester_ed25519_pop_must_fail");
@@ -327,11 +506,22 @@ assert(isCanonicalUint64Decimal("0"), "uint64_zero_must_be_valid");
 assert(isCanonicalUint64Decimal("18446744073709551615"), "uint64_max_must_be_valid");
 assert(!isCanonicalUint64Decimal("18446744073709551616"), "uint64_overflow_must_fail");
 
+const nearMaxAdvance = roleGenerationTransition("18446744073709551614", true);
+assert(nearMaxAdvance.ok === true, "uint64_near_max_authority_change_must_succeed");
+assert(nearMaxAdvance.generation === "18446744073709551615", "uint64_near_max_must_advance_to_max");
+const maxReplay = roleGenerationTransition("18446744073709551615", false);
+assert(maxReplay.ok === true && maxReplay.replay === true, "unchanged_max_generation_replay_must_be_stable");
+assert(maxReplay.generation === "18446744073709551615", "max_replay_must_not_invent_successor");
+const maxChange = roleGenerationTransition("18446744073709551615", true);
+assert(maxChange.ok === false && maxChange.code === "ROLE_GENERATION_EXHAUSTED", "fresh_change_at_uint64_max_must_fail_closed");
+assert(!Object.hasOwn(maxChange, "generation"), "exhausted_generation_must_not_wrap_or_emit_successor");
+
 const stableSession = {
   sessionRoleGeneration: "7",
   sessionRoleRecordHash: H7,
   currentRoleGeneration: "7",
   currentRoleRecordHash: H7,
+  currentRoleAuthorityExhausted: false,
 };
 assert(taskAdmissionCommitAllowed(stableSession), "stable_role_pair_task_admission_must_succeed");
 assert(successorActivationCommitAllowed(stableSession), "stable_role_pair_successor_activation_must_succeed");
@@ -341,6 +531,25 @@ assert(!taskAdmissionCommitAllowed({ ...stableSession, currentRoleRecordHash: H7
 assert(!successorActivationCommitAllowed({ ...stableSession, currentRoleRecordHash: H7_ALT }), "same_generation_different_hash_successor_effect_must_fail");
 assert(!taskAdmissionCommitAllowed({ ...stableSession, currentRoleGeneration: "9", currentRoleRecordHash: H9 }), "revoke_restore_aba_must_not_revive_old_task_authority");
 assert(!successorActivationCommitAllowed({ ...stableSession, currentRoleGeneration: "9", currentRoleRecordHash: H9 }), "revoke_restore_aba_must_not_revive_old_rotation_authority");
+
+const maxSession = {
+  sessionRoleGeneration: "18446744073709551615",
+  sessionRoleRecordHash: H9,
+  currentRoleGeneration: "18446744073709551615",
+  currentRoleRecordHash: H9,
+  currentRoleAuthorityExhausted: true,
+};
+assert(!taskAdmissionCommitAllowed(maxSession), "role_generation_exhaustion_must_invalidate_task_authority");
+assert(!successorActivationCommitAllowed(maxSession), "role_generation_exhaustion_must_invalidate_successor_authority");
+assert(!bootstrapCommitAllowed({
+  ...baseBootstrap,
+  approvedRoleGeneration: "18446744073709551615",
+  currentRoleGeneration: "18446744073709551615",
+  approvedRoleRecordHash: H9,
+  currentRoleRecordHash: H9,
+  currentRoleAuthorityExhausted: true,
+}), "role_generation_exhaustion_must_block_fresh_session_authority");
+
 for (const badGeneration of [7, "07", "+7", "7.0", "-1", "18446744073709551616"]) {
   assert(!taskAdmissionCommitAllowed({
     ...stableSession,
@@ -364,6 +573,13 @@ for (const required of [
   "revoke→restore ABA",
   "Unknown fields are rejected",
   "authenticated command/session activation remains disabled",
+  "one exact canonical transcript generation",
+  "server/broker signature must verify over the exact canonical bootstrap transcript bytes",
+  "Crown approval signature must verify over those same canonical transcript bytes",
+  "nonce identity must match the approved transcript",
+  "ROLE_GENERATION_EXHAUSTED",
+  "no wrap to `0`",
+  "Sovereign-ratified epoch/namespace migration",
 ]) assert(doc.includes(required), `doc_missing_required_binding:${required}`);
 
 for (const forbidden of [
@@ -383,6 +599,11 @@ console.log("requester_ed25519_binding=true");
 console.log("requester_x25519_binding=true");
 console.log("requester_pop_covers_complete_dual_key_transcript=true");
 console.log("role_generation_wire_identity=canonical_unsigned_decimal_uint64_string");
+console.log("bootstrap_authenticated_transcript_commit_binding=true");
+console.log("bootstrap_server_and_crown_signatures_same_transcript=true");
+console.log("bootstrap_nonce_expiry_replay_commit_boundary=true");
+console.log("role_generation_exhaustion_fail_closed=true");
+console.log("focused_workflow_committed_range_self_enforced=true");
 console.log("role_authority_generation_and_record_hash_atomicity=true");
 console.log("task_effect_boundary_role_pair_checked=true");
 console.log("successor_effect_boundary_role_pair_checked=true");

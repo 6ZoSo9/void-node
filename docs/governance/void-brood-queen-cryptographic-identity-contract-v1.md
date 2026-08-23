@@ -76,6 +76,19 @@ A future challenge envelope must bind at least:
 
 Challenges are single-use and replay-rejected. The node must require requester proof-of-possession on the approved transcript before session commit. Cross-connection relay, Ed25519 substitution, X25519 substitution, session-id substitution, and unknown authority-bearing fields fail closed.
 
+The bootstrap authority is one exact canonical transcript generation, not a collection of loosely related booleans. Before session commit:
+
+- the exact bootstrap domain/version must be `VOID_BROOD_QUEEN_SESSION_BOOTSTRAP_V1`;
+- the issuing server/broker identity must equal the exact pinned server/broker identity;
+- the server/broker signature must verify over the exact canonical bootstrap transcript bytes under that pinned identity;
+- the Crown approval signature must verify over those same canonical transcript bytes;
+- requester Ed25519 proof-of-possession must verify over those same canonical transcript bytes containing both requester public keys;
+- the challenge nonce identity must match the approved transcript, remain fresh/unconsumed, and be consumed atomically with the session commit;
+- challenge expiry must still admit at the exact session-commit boundary; and
+- any server-signature, Crown-signature, requester-PoP, nonce, expiry, domain, server-identity, or transcript-digest mismatch yields zero fresh session authority.
+
+A valid signature over different transcript bytes is not equivalent authority. A valid approval presented after its nonce is consumed or expired is replay/expired evidence and cannot create a session.
+
 ## Canonical role/revocation generation and record identity
 
 The eventual Chain-2050 role contract must expose an exact monotonic **role-authority generation** for the Brood Queen role record. This generation changes on authorization-affecting state transitions such as grant, revocation, restore after revocation, identity/root binding change, or another transition that can change whether an existing session remains authorized. It is not a per-block login counter.
@@ -104,6 +117,22 @@ A pre-check is not authority. The canonical authority pair must still be current
 - successor/derived-session activation under `(G,H)` cannot commit if revocation or another authority change wins before successor activation;
 - a restore at a later generation does not revive a session bound to an earlier generation; and
 - same generation with a different role-record hash is a conflict/HOLD, not a valid continuation.
+
+## Role-generation exhaustion
+
+The V1 role-authority generation wire domain is the canonical unsigned-decimal uint64 range `0` through `18446744073709551615` (`2^64-1`).
+
+`2^64-1` may represent a stable current authority generation while the exact authorization state is unchanged. It is **not** permission to wrap, reuse the same generation for a changed authorization record, or emit `2^64`.
+
+If an authorization-affecting transition is required while the current generation is already `2^64-1`, V1 enters the fail-closed terminal `ROLE_GENERATION_EXHAUSTED`:
+
+- no wrap to `0`;
+- no same-generation reuse with a changed role record;
+- no out-of-domain successor;
+- no fresh bootstrap, ordinary task authority, or successor/derived-session activation from the exhausted V1 authority;
+- all previously bound sessions are invalid before further authority can resume.
+
+Fresh authority after exhaustion requires a separate explicit Sovereign-ratified epoch/namespace migration or successor contract with a cryptographically distinct authority identity. That migration must invalidate every older session generation before fresh authority is admitted. Exact replay of the unchanged max-generation state is not an authorization-affecting transition and does not itself invent a successor.
 
 ## Role is not capability
 
