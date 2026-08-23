@@ -2,12 +2,14 @@
 // VOID Community License (VCL) v1.0 — see LICENSE
 // Copyright (c) 2025 6ZoSo9
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.Mempool = exports.VOID_MEMPOOL_REENTRANT_MUTATION_FORBIDDEN = exports.VOID_MEMPOOL_RAW_HASH_MUTATION_FORBIDDEN = exports.VOID_MEMPOOL_RAW_INDEX_MUTATION_FORBIDDEN = exports.VOID_MEMPOOL_SELECTED_MUTATION_FORBIDDEN = exports.VOID_MEMPOOL_SELECTION_IN_PROGRESS = exports.VOID_DUPLICATE_TRANSACTION_CODE = void 0;
+exports.Mempool = exports.VOID_MEMPOOL_REENTRANT_MUTATION_FORBIDDEN = exports.VOID_MEMPOOL_LENGTH_GROWTH_FORBIDDEN = exports.VOID_MEMPOOL_RAW_PAYLOAD_MUTATION_FORBIDDEN = exports.VOID_MEMPOOL_RAW_HASH_MUTATION_FORBIDDEN = exports.VOID_MEMPOOL_RAW_INDEX_MUTATION_FORBIDDEN = exports.VOID_MEMPOOL_SELECTED_MUTATION_FORBIDDEN = exports.VOID_MEMPOOL_SELECTION_IN_PROGRESS = exports.VOID_DUPLICATE_TRANSACTION_CODE = void 0;
 exports.VOID_DUPLICATE_TRANSACTION_CODE = "VOID_DUPLICATE_TRANSACTION";
 exports.VOID_MEMPOOL_SELECTION_IN_PROGRESS = "mempool_selection_in_progress";
 exports.VOID_MEMPOOL_SELECTED_MUTATION_FORBIDDEN = "mempool_selected_mutation_forbidden";
 exports.VOID_MEMPOOL_RAW_INDEX_MUTATION_FORBIDDEN = "mempool_raw_index_mutation_forbidden";
 exports.VOID_MEMPOOL_RAW_HASH_MUTATION_FORBIDDEN = "mempool_raw_hash_mutation_forbidden";
+exports.VOID_MEMPOOL_RAW_PAYLOAD_MUTATION_FORBIDDEN = "mempool_raw_payload_mutation_forbidden";
+exports.VOID_MEMPOOL_LENGTH_GROWTH_FORBIDDEN = "mempool_length_growth_forbidden";
 exports.VOID_MEMPOOL_REENTRANT_MUTATION_FORBIDDEN = "mempool_reentrant_mutation_forbidden";
 function canonicalIdentitySnapshotOf(tx) {
     const raw = tx === null || tx === void 0 ? void 0 : tx.hash;
@@ -34,9 +36,97 @@ function mutationError(message) {
     err.name = "MempoolMutationError";
     return err;
 }
+function snapshotCanonicalPayload(value, seen = new WeakSet()) {
+    if (value === null)
+        return null;
+    const kind = typeof value;
+    if (kind !== "object") {
+        if (kind === "function")
+            throw mutationError("mempool_canonical_payload_not_snapshotable");
+        return value;
+    }
+    if (seen.has(value))
+        throw mutationError("mempool_canonical_payload_not_snapshotable");
+    seen.add(value);
+    try {
+        if (Array.isArray(value)) {
+            const out = [];
+            for (let i = 0; i < value.length; i++) {
+                if (!Object.prototype.hasOwnProperty.call(value, i)) {
+                    out.length = i + 1;
+                    continue;
+                }
+                out[i] = snapshotCanonicalPayload(value[i], seen);
+            }
+            return Object.freeze(out);
+        }
+        const proto = Object.getPrototypeOf(value);
+        if (proto !== Object.prototype && proto !== null)
+            throw mutationError("mempool_canonical_payload_not_snapshotable");
+        const out = proto === null ? Object.create(null) : {};
+        for (const prop of Reflect.ownKeys(value)) {
+            const descriptor = Object.getOwnPropertyDescriptor(value, prop);
+            if (!descriptor || !("value" in descriptor))
+                throw mutationError("mempool_canonical_payload_not_snapshotable");
+            Object.defineProperty(out, prop, {
+                value: snapshotCanonicalPayload(descriptor.value, seen),
+                enumerable: !!descriptor.enumerable,
+                writable: false,
+                configurable: false,
+            });
+        }
+        return Object.freeze(out);
+    }
+    finally {
+        seen.delete(value);
+    }
+}
 function ownCanonicalCompatItem(tx) {
     if (tx === null || (typeof tx !== "object" && typeof tx !== "function"))
         return tx;
+    const identity = canonicalIdentitySnapshotOf(tx);
+    if (identity) {
+        const owned = Array.isArray(tx) ? [] : Object.create(Object.getPrototypeOf(tx));
+        const descriptors = Object.getOwnPropertyDescriptors(tx);
+        const hashDescriptor = descriptors.hash;
+        delete descriptors.hash;
+        for (const prop of Reflect.ownKeys(descriptors)) {
+            const descriptor = Reflect.get(descriptors, prop);
+            if (!descriptor || !("value" in descriptor))
+                throw mutationError("mempool_canonical_payload_not_snapshotable");
+            descriptor.value = snapshotCanonicalPayload(descriptor.value);
+            descriptor.writable = false;
+            descriptor.configurable = false;
+        }
+        Object.defineProperties(owned, descriptors);
+        Object.defineProperty(owned, "hash", {
+            value: identity.hash,
+            enumerable: !!(hashDescriptor === null || hashDescriptor === void 0 ? void 0 : hashDescriptor.enumerable),
+            writable: false,
+            configurable: false,
+        });
+        Object.freeze(owned);
+        return new Proxy(owned, {
+            set(_target, prop) {
+                if (prop === "hash")
+                    throw mutationError(exports.VOID_MEMPOOL_RAW_HASH_MUTATION_FORBIDDEN);
+                throw mutationError(exports.VOID_MEMPOOL_RAW_PAYLOAD_MUTATION_FORBIDDEN);
+            },
+            deleteProperty(_target, prop) {
+                if (prop === "hash")
+                    throw mutationError(exports.VOID_MEMPOOL_RAW_HASH_MUTATION_FORBIDDEN);
+                throw mutationError(exports.VOID_MEMPOOL_RAW_PAYLOAD_MUTATION_FORBIDDEN);
+            },
+            defineProperty(_target, prop) {
+                if (prop === "hash")
+                    throw mutationError(exports.VOID_MEMPOOL_RAW_HASH_MUTATION_FORBIDDEN);
+                throw mutationError(exports.VOID_MEMPOOL_RAW_PAYLOAD_MUTATION_FORBIDDEN);
+            },
+            setPrototypeOf() {
+                return false;
+            },
+        });
+    }
     const rawHash = tx === null || tx === void 0 ? void 0 : tx.hash;
     const hashSnapshot = rawHash === undefined || rawHash === null ? rawHash : String(rawHash);
     const owned = Array.isArray(tx) ? [] : Object.create(Object.getPrototypeOf(tx));
@@ -264,10 +354,10 @@ class Mempool {
         const next = Number(value);
         if (!Number.isInteger(next) || next < 0 || next > 0xffffffff)
   throw new RangeError("Invalid array length");
+        if (next > this.queueTarget.length)
+  throw mutationError(exports.VOID_MEMPOOL_LENGTH_GROWTH_FORBIDDEN);
         if (next < this.queueTarget.length)
   this.compatSplice([next, this.queueTarget.length - next]);
-        else
-  this.queueTarget.length = next;
     }
     push(tx) {
         if (!tx || typeof tx !== "object")

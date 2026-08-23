@@ -4,6 +4,8 @@ import {
   VOID_DUPLICATE_TRANSACTION_CODE,
   VOID_MEMPOOL_RAW_INDEX_MUTATION_FORBIDDEN,
   VOID_MEMPOOL_RAW_HASH_MUTATION_FORBIDDEN,
+  VOID_MEMPOOL_RAW_PAYLOAD_MUTATION_FORBIDDEN,
+  VOID_MEMPOOL_LENGTH_GROWTH_FORBIDDEN,
   VOID_MEMPOOL_REENTRANT_MUTATION_FORBIDDEN,
   VOID_MEMPOOL_SELECTED_MUTATION_FORBIDDEN,
 } from "../src/chain/mempool.js";
@@ -107,6 +109,10 @@ assert(!mempoolSource.includes("for (const current of this)"), "admission still 
 assert(mempoolSource.includes("new Proxy(this.queueTarget, handler)"), "raw queue mutation guard Proxy missing");
 assert(mempoolSource.includes("ownCanonicalCompatItem"), "owned queue-entry identity snapshot missing");
 assert(mempoolSource.includes("VOID_MEMPOOL_RAW_HASH_MUTATION_FORBIDDEN"), "queued hash mutation guard missing");
+assert(mempoolSource.includes("VOID_MEMPOOL_RAW_PAYLOAD_MUTATION_FORBIDDEN"), "queued payload mutation guard missing");
+assert(mempoolSource.includes("VOID_MEMPOOL_LENGTH_GROWTH_FORBIDDEN"), "queue length growth guard missing");
+assert(mempoolSource.includes("snapshotCanonicalPayload"), "canonical payload ownership snapshot missing");
+assert(mempoolSource.includes("if (next > this.queueTarget.length)"), "queue length growth rejection missing");
 assert(mempoolSource.includes("private mutationLocked = false;"), "native sort reentrancy lock missing");
 assert(!mempoolSource.includes("Object.setPrototypeOf(value"), "caller-owned Array adoption remains");
 
@@ -136,14 +142,35 @@ assert(canonical.txs.length === 2, "duplicate mutated queue");
 expectMessage(() => { canonical.txs[0] = { hash: h3 }; }, VOID_MEMPOOL_RAW_INDEX_MUTATION_FORBIDDEN, "raw index assignment");
 assert(canonical.txs[0] !== oldTx && canonical.txs[0]?.hash === h1, "canonical admission did not take an owned identity snapshot");
 
-const mutableAlias: any = { hash: h3, body: { retainedAlias: true } };
+const growthProbe: any = new Mempool();
+expectMessage(() => { growthProbe.txs.length = 1; }, VOID_MEMPOOL_LENGTH_GROWTH_FORBIDDEN, "raw queue length growth");
+assert(growthProbe.txs.length === 0, "length growth created a phantom pending slot");
+assert(growthProbe.beginSelection(1).length === 0, "phantom queue slot became producer-visible selection");
+
+const mutableAlias: any = {
+  hash: h3,
+  body: {
+    retainedAlias: true,
+    nested: { phase: "admitted" },
+    list: [{ n: 1 }],
+  },
+};
 canonical.txs.push(mutableAlias);
 mutableAlias.hash = h4;
+mutableAlias.body.nested.phase = "caller-mutated";
+mutableAlias.body.list[0].n = 9;
 assert(canonical.txs.filter((tx: any) => tx?.hash === h4).length === 0, "retained caller alias mutated queued canonical identity");
+assert(canonical.txs[2]?.body?.nested?.phase === "admitted", "retained nested body alias mutated queued canonical payload");
+assert(canonical.txs[2]?.body?.list?.[0]?.n === 1, "retained array body alias mutated queued canonical payload");
 canonical.txs.push({ hash: h4, body: { uniqueAfterAliasMutation: true } });
 assert(canonical.txs.filter((tx: any) => tx?.hash === h4).length === 1, "caller alias mutation bypassed canonical duplicate exclusion");
 expectMessage(() => { canonical.txs[2].hash = h1; }, VOID_MEMPOOL_RAW_HASH_MUTATION_FORBIDDEN, "queued canonical hash mutation");
+expectMessage(() => { canonical.txs[2].body = { replaced: true }; }, VOID_MEMPOOL_RAW_PAYLOAD_MUTATION_FORBIDDEN, "queued canonical payload replacement");
+let nestedPayloadWriteRejected = false;
+try { canonical.txs[2].body.nested.phase = "queue-mutated"; } catch { nestedPayloadWriteRejected = true; }
+assert(nestedPayloadWriteRejected, "deep queued canonical payload mutation did not fail closed");
 assert(canonical.txs[2]?.hash === h3, "queued canonical hash mutation changed identity");
+assert(canonical.txs[2]?.body?.nested?.phase === "admitted", "queued canonical payload mutation changed producer bytes");
 assert(Reflect.preventExtensions(canonical.txs) === false && Object.isExtensible(canonical.txs), "queue proxy extensibility guard failed");
 
 canonical.clear();
@@ -162,10 +189,10 @@ expectDuplicate(() => canonical.txs.push({ hash: h1 }), "post-safe-sort duplicat
 
 canonical.clear();
 const coercionReentrant: any = {
-  hash: h3,
+  kind: "legacy-sort-reentrant",
   toString() { canonical.txs.pop(); return "reentrant"; },
 };
-canonical.txs.push(coercionReentrant, { hash: h4 });
+canonical.txs.push({ hash: h3 }, coercionReentrant);
 expectMessage(
   () => canonical.txs.sort(),
   VOID_MEMPOOL_REENTRANT_MUTATION_FORBIDDEN,
@@ -173,6 +200,7 @@ expectMessage(
 );
 assert(canonical.txs.length === 2, "failed default reentrant sort changed queue cardinality");
 expectDuplicate(() => canonical.txs.push({ hash: h3 }), "post-default-sort-reentrancy h3 duplicate");
+canonical.txs.push({ hash: h4 });
 expectDuplicate(() => canonical.txs.push({ hash: h4 }), "post-default-sort-reentrancy h4 duplicate");
 
 canonical.clear();
@@ -191,12 +219,20 @@ expectDuplicate(() => { canonical.txs = duplicateReplacement; }, "duplicate repl
 assert(canonical.txs.length === 1 && canonical.txs[0]?.hash === h3, "failed replacement changed queue");
 
 canonical.clear();
-let r = appendLikeCanonicalHotpath(canonical, { hash: h1, body: { via: "http" } });
+const inFlightBodyAlias: any = { via: "http", nested: { phase: "admitted" } };
+let r = appendLikeCanonicalHotpath(canonical, { hash: h1, body: inFlightBodyAlias });
 assert(r.ok === true && canonical.txs.length === 1, "HTTP-like admission failed");
 canonical.txs.push({ hash: h2, body: { second: true } });
 const selected = canonical.beginSelection(1);
 assert(selected.length === 1 && selected[0]?.hash === h1, "selection did not pick first pending tx");
 assert(canonical.selectionSize() === 1 && canonical.txs.length === 2, "selection must remain non-destructive/reserved");
+inFlightBodyAlias.nested.phase = "caller-after-selection";
+assert(selected[0]?.body?.nested?.phase === "admitted", "retained body alias mutated selected producer payload");
+expectMessage(() => { selected[0].body = { replacedWhileSelected: true }; }, VOID_MEMPOOL_RAW_PAYLOAD_MUTATION_FORBIDDEN, "selected payload replacement");
+let selectedNestedWriteRejected = false;
+try { selected[0].body.nested.phase = "queue-after-selection"; } catch { selectedNestedWriteRejected = true; }
+assert(selectedNestedWriteRejected, "selected deep payload mutation did not fail closed");
+assert(selected[0]?.body?.nested?.phase === "admitted", "selected producer payload changed after admission");
 expectDuplicate(() => canonical.txs.push({ hash: h1.toUpperCase() }), "in-flight duplicate");
 expectMessage(() => canonical.txs.splice(0, 1), VOID_MEMPOOL_SELECTED_MUTATION_FORBIDDEN, "selected raw splice");
 assert(canonical.txs.length === 2, "selected raw splice mutated pending queue");
@@ -241,7 +277,9 @@ assert(!indexSource.includes("VOID_V2FS_COMMIT_LIFECYCLE_INSPECT_BEGIN"), "tempo
 
 console.log("VOID_CANONICAL_TXSUBMIT_ADMISSION_DEDUPE_V1_O1_IDENTITY_INDEX_GREEN=true");
 console.log("VOID_CANONICAL_TXSUBMIT_ADMISSION_DEDUPE_V1_RAW_MUTATION_GUARD_GREEN=true");
+console.log("VOID_CANONICAL_TXSUBMIT_ADMISSION_DEDUPE_V1_LENGTH_GROWTH_GUARD_GREEN=true");
 console.log("VOID_CANONICAL_TXSUBMIT_ADMISSION_DEDUPE_V1_ENTRY_IDENTITY_IMMUTABLE_GREEN=true");
+console.log("VOID_CANONICAL_TXSUBMIT_ADMISSION_DEDUPE_V1_PAYLOAD_SNAPSHOT_IMMUTABLE_GREEN=true");
 console.log("VOID_CANONICAL_TXSUBMIT_ADMISSION_DEDUPE_V1_SORT_REENTRANCY_GUARD_GREEN=true");
 console.log("VOID_CANONICAL_TXSUBMIT_ADMISSION_DEDUPE_V1_INFLIGHT_RESERVATION_GREEN=true");
 console.log("VOID_CANONICAL_TXSUBMIT_ADMISSION_DEDUPE_V1_DURABLE_RELEASE_GREEN=true");
