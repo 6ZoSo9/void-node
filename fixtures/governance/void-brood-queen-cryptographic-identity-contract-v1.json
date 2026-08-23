@@ -35,10 +35,37 @@
     "root_reauthentication_frequency": "rare_recovery_or_explicit_policy_boundary",
     "nonce_single_use": true,
     "replay_rejected": true,
-    "canonical_role_and_revocation_revalidation_required": true,
-    "canonical_role_source_when_activated": "Chain-2050",
     "challenge_runtime_active": false,
     "session_runtime_active": false
+  },
+  "requester_binding": {
+    "server_or_broker_identity_cryptographically_pinned": true,
+    "bootstrap_challenge_authenticated_by_pinned_server_identity": true,
+    "claimed_origin_or_tls_alone_authenticates_server": false,
+    "challenge_binds_requester_ed25519_public_key": true,
+    "challenge_binds_requester_x25519_public_key": true,
+    "challenge_binds_proposed_session_id": true,
+    "requester_proof_of_possession_required_before_session_commit": true,
+    "cross_connection_relay_of_approval_admitted": false,
+    "requester_key_substitution_after_approval_admitted": false,
+    "session_id_substitution_after_approval_admitted": false,
+    "requester_private_key_enters_model_context": false
+  },
+  "role_authority": {
+    "canonical_role_source_when_activated": "Chain-2050",
+    "monotonic_role_authority_generation_required": true,
+    "generation_encoding": "canonical_unsigned_decimal_uint64_string",
+    "live_generation_present_in_fixture": false,
+    "role_record_hash_algorithm": "SHA-256",
+    "authorization_affecting_change_advances_generation": true,
+    "bootstrap_binds_role_generation_and_record_hash": true,
+    "session_commit_revalidates_same_generation_atomically": true,
+    "session_record_binds_role_generation": true,
+    "rotation_revalidates_same_generation_atomically": true,
+    "ordinary_task_admission_revalidates_same_generation_atomically": true,
+    "canonical_revocation_invalidates_sessions_before_further_task_authority": true,
+    "revoke_restore_aba_rejected_by_generation": true,
+    "role_generation_contract_active": false
   },
   "authority_boundary": {
     "authentication_implies_capability": false,
@@ -57,6 +84,7 @@
     "separate_office_identity_required": true,
     "may_inherit_brood_queen_root_identity": false,
     "may_inherit_brood_queen_session": false,
+    "may_receive_brood_queen_requester_private_key": false,
     "may_sign_as_brood_queen": false,
     "may_receive_raw_brood_queen_root_key": false,
     "trial_success_activates_crown_identity": false
@@ -68,6 +96,8 @@
     "requires_exact_public_identity_binding": true,
     "requires_explicit_sovereign_ratification": true,
     "requires_rotation_and_revocation_contract": true,
+    "requires_requester_key_binding_contract": true,
+    "requires_role_authority_generation_contract": true,
     "requires_adversarial_proof": true
   }
 }
