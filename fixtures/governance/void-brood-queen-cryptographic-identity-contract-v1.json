@@ -60,9 +60,13 @@
     "authorization_affecting_change_advances_generation": true,
     "bootstrap_binds_role_generation_and_record_hash": true,
     "session_commit_revalidates_same_generation_atomically": true,
+    "session_commit_revalidates_same_role_record_hash_atomically": true,
     "session_record_binds_role_generation": true,
+    "session_record_binds_role_record_hash": true,
     "rotation_revalidates_same_generation_atomically": true,
+    "rotation_revalidates_same_role_record_hash_atomically": true,
     "ordinary_task_admission_revalidates_same_generation_atomically": true,
+    "ordinary_task_admission_revalidates_same_role_record_hash_atomically": true,
     "canonical_revocation_invalidates_sessions_before_further_task_authority": true,
     "revoke_restore_aba_rejected_by_generation": true,
     "role_generation_contract_active": false
