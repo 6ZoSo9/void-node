@@ -271,7 +271,7 @@ async function main() {
   const identityProof = runNode(PARENT_PROOF);
   if (!identityProof.stdout.includes('VOID_BROOD_QUEEN_CRYPTOGRAPHIC_IDENTITY_CONTRACT_V1_PROOF_GREEN')) hold('parent identity proof did not return green');
   const commandProof = runNode(COMMAND_PROOF);
-  if (!commandProof.stdout.includes('VOID_CROWN_BROOD_QUEEN_COMMAND_LAYER_V1_PROOF_GREEN')) hold('parent command proof did not return green');
+  if (!commandProof.stdout.includes('void_crown_brood_queen_command_layer_v1_proof=GREEN')) hold('parent command proof did not return green');
 
   requireFalse(parent.root_identity.private_key_accessible_to_apollyon, 'parent Apollyon Crown key access');
   requireFalse(parent.root_identity.private_key_enters_model_context, 'parent Crown key model context');
