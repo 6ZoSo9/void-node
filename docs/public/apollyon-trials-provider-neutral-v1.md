@@ -84,6 +84,14 @@ The canonical preimage includes instructions, evidence requirements, scoring, re
 
 The packet schema is `schemas/apollyon-trial-packet-v1.schema.json`. The materializer/verifier/admission tool is `scripts/apollyon_trial_packet_v1.mjs`.
 
+## Published schema versus executable authority
+
+The published Draft 2020-12 schema is the outside participant's machine-readable interoperability prefilter. It now encodes the executable contract where JSON Schema can express it faithfully: closed field shape, unique evidence requirements, required forbidden-action and hard-disqualifier membership, canonical UTC-millisecond timestamp shape, and URI scheme/fragment/common credential exclusions for `https:` and `void:` references.
+
+Schema validation alone is **not** structural verification or active admission. The canonical executable remains the final authority for semantic constraints that JSON Schema cannot faithfully establish by itself, including WHATWG absolute-URI parsing and credential interpretation beyond the lexical schema guard, calendar-valid/canonical timestamp round-trip, scoring weights totaling exactly 100, content-addressed `trial_id`, exact current constitution digest, generation-bound bounded file reads, and the active `created <= at < expires` window.
+
+A publisher, contestant launcher, submission intake, or reviewer must therefore consume the canonical executable `verify`/`admit` result appropriate to its step. Passing only the public schema must never be presented as `VERIFY_GREEN` or `ADMISSION_GREEN`.
+
 ## Structural verification versus active admission
 
 **structural verification is not active admission**.
