@@ -13,11 +13,7 @@ function assert(condition, message) {
 
 function assertThrows(fn, message) {
   let threw = false;
-  try {
-    fn();
-  } catch {
-    threw = true;
-  }
+  try { fn(); } catch { threw = true; }
   assert(threw, message);
 }
 
@@ -37,20 +33,10 @@ function exactKeys(value, expected, name) {
 
 function validateClosedShape(fixture) {
   exactKeys(fixture, [
-    "marker",
-    "parent_instrument_marker",
-    "parent_instrument_sha256",
-    "network",
-    "office",
-    "root_identity",
-    "session_model",
-    "requester_binding",
-    "role_authority",
-    "authority_boundary",
-    "apollyon_separation",
-    "activation",
+    "marker", "parent_instrument_marker", "parent_instrument_sha256", "network", "office",
+    "root_identity", "session_model", "requester_binding", "role_authority",
+    "authority_boundary", "apollyon_separation", "activation",
   ], "fixture");
-
   exactKeys(fixture.network, ["chain_id", "name"], "network");
   exactKeys(fixture.office, [
     "name", "identity", "realm", "subordinate_to", "provider_neutral",
@@ -58,10 +44,9 @@ function validateClosedShape(fixture) {
   ], "office");
   exactKeys(fixture.root_identity, [
     "algorithm", "public_jwk_kty", "public_jwk_crv", "exact_public_identity_bound",
-    "live_public_jwk_present_in_fixture", "private_key_boundary",
-    "private_key_enters_repository", "private_key_enters_model_context",
-    "private_key_transmitted_to_provider", "private_key_accessible_to_apollyon",
-    "provider_api_key_is_constitutional_identity",
+    "live_public_jwk_present_in_fixture", "private_key_boundary", "private_key_enters_repository",
+    "private_key_enters_model_context", "private_key_transmitted_to_provider",
+    "private_key_accessible_to_apollyon", "provider_api_key_is_constitutional_identity",
   ], "root_identity");
   exactKeys(fixture.session_model, [
     "bootstrap_domain", "bootstrap_mechanism", "persistent_authenticated_logical_session",
@@ -82,27 +67,20 @@ function validateClosedShape(fixture) {
     "requester_private_key_enters_model_context",
   ], "requester_binding");
   exactKeys(fixture.role_authority, [
-    "canonical_role_source_when_activated",
-    "monotonic_role_authority_generation_required",
-    "generation_encoding",
-    "live_generation_present_in_fixture",
-    "role_record_hash_algorithm",
-    "authorization_affecting_change_advances_generation",
-    "bootstrap_binds_role_generation_and_record_hash",
-    "session_commit_revalidates_same_generation_atomically",
-    "session_record_binds_role_generation",
+    "canonical_role_source_when_activated", "monotonic_role_authority_generation_required",
+    "generation_encoding", "live_generation_present_in_fixture", "role_record_hash_algorithm",
+    "authorization_affecting_change_advances_generation", "bootstrap_binds_role_generation_and_record_hash",
+    "session_commit_revalidates_same_generation_atomically", "session_record_binds_role_generation",
     "rotation_revalidates_same_generation_atomically",
     "ordinary_task_admission_revalidates_same_generation_atomically",
     "canonical_revocation_invalidates_sessions_before_further_task_authority",
-    "revoke_restore_aba_rejected_by_generation",
-    "role_generation_contract_active",
+    "revoke_restore_aba_rejected_by_generation", "role_generation_contract_active",
   ], "role_authority");
   exactKeys(fixture.authority_boundary, [
     "authentication_implies_capability", "grants_repo_write", "grants_merge",
     "grants_deploy_or_restart", "grants_live_runtime_mutation", "grants_validator_mutation",
     "grants_wallet_or_signer_action", "grants_treasury_or_liquidity_action",
-    "grants_transactions_or_funds_movement", "grants_work_credit_mutation",
-    "grants_credential_reading",
+    "grants_transactions_or_funds_movement", "grants_work_credit_mutation", "grants_credential_reading",
   ], "authority_boundary");
   exactKeys(fixture.apollyon_separation, [
     "separate_office_identity_required", "may_inherit_brood_queen_root_identity",
@@ -120,17 +98,22 @@ function validateClosedShape(fixture) {
 
 function bootstrapCommitAllowed({
   serverPinned,
-  transcriptRequesterKey,
-  presentedRequesterKey,
-  requesterProofOfPossession,
+  transcriptRequesterEd25519,
+  presentedRequesterEd25519,
+  transcriptRequesterX25519,
+  presentedRequesterX25519,
+  requesterEd25519ProofOfPossession,
+  proofOfPossessionBindsCompleteTranscript,
   approvedSessionId,
   presentedSessionId,
   approvedRoleGeneration,
   currentRoleGeneration,
 }) {
   return serverPinned
-    && transcriptRequesterKey === presentedRequesterKey
-    && requesterProofOfPossession
+    && transcriptRequesterEd25519 === presentedRequesterEd25519
+    && transcriptRequesterX25519 === presentedRequesterX25519
+    && requesterEd25519ProofOfPossession
+    && proofOfPossessionBindsCompleteTranscript
     && approvedSessionId === presentedSessionId
     && approvedRoleGeneration === currentRoleGeneration;
 }
@@ -151,13 +134,9 @@ assert(doc.includes(PARENT_MARKER), "parent_marker_missing_from_doc");
 assert(parent.includes(PARENT_MARKER), "parent_constitution_marker_missing");
 assert(parent.includes("**King → Brood Queen → General**"), "crown_command_chain_missing");
 assert(parent.includes("## The Brood Queen — Ren"), "brood_queen_office_missing_from_parent");
-
 assert(fixture.marker === MARKER, "fixture_marker_mismatch");
 assert(fixture.parent_instrument_marker === PARENT_MARKER, "fixture_parent_marker_mismatch");
-assert(
-  fixture.parent_instrument_sha256 === sha256(parent),
-  "parent_instrument_sha256_mismatch",
-);
+assert(fixture.parent_instrument_sha256 === sha256(parent), "parent_instrument_sha256_mismatch");
 
 assert(fixture.network.chain_id === 2050, "wrong_chain_id");
 assert(fixture.network.name === "VOID Network", "wrong_network_name");
@@ -187,10 +166,7 @@ assert(session.bootstrap_domain === "VOID_BROOD_QUEEN_SESSION_BOOTSTRAP_V1", "bo
 assert(session.bootstrap_mechanism === "challenge_response", "bootstrap_must_be_challenge_response");
 assert(session.persistent_authenticated_logical_session === true, "persistent_logical_session_required");
 assert(session.derived_session_material_rotates_automatically === true, "derived_session_rotation_required");
-assert(
-  session.root_reauthentication_frequency === "rare_recovery_or_explicit_policy_boundary",
-  "root_reauthentication_policy_mismatch",
-);
+assert(session.root_reauthentication_frequency === "rare_recovery_or_explicit_policy_boundary", "root_reauthentication_policy_mismatch");
 assert(session.nonce_single_use === true, "single_use_nonce_required");
 assert(session.replay_rejected === true, "replay_rejection_required");
 assert(session.challenge_runtime_active === false, "challenge_runtime_must_remain_inactive");
@@ -221,10 +197,7 @@ assert(role.session_commit_revalidates_same_generation_atomically === true, "ses
 assert(role.session_record_binds_role_generation === true, "session_record_role_generation_required");
 assert(role.rotation_revalidates_same_generation_atomically === true, "rotation_role_cas_required");
 assert(role.ordinary_task_admission_revalidates_same_generation_atomically === true, "task_role_cas_required");
-assert(
-  role.canonical_revocation_invalidates_sessions_before_further_task_authority === true,
-  "revocation_must_invalidate_before_task_authority",
-);
+assert(role.canonical_revocation_invalidates_sessions_before_further_task_authority === true, "revocation_must_invalidate_before_task_authority");
 assert(role.revoke_restore_aba_rejected_by_generation === true, "revoke_restore_aba_must_fail");
 assert(role.role_generation_contract_active === false, "role_generation_runtime_must_remain_inactive");
 
@@ -238,10 +211,7 @@ const apollyon = fixture.apollyon_separation;
 assert(apollyon.separate_office_identity_required === true, "apollyon_separate_identity_required");
 assert(apollyon.may_inherit_brood_queen_root_identity === false, "apollyon_root_inheritance_forbidden");
 assert(apollyon.may_inherit_brood_queen_session === false, "apollyon_session_inheritance_forbidden");
-assert(
-  apollyon.may_receive_brood_queen_requester_private_key === false,
-  "apollyon_requester_private_key_access_forbidden",
-);
+assert(apollyon.may_receive_brood_queen_requester_private_key === false, "apollyon_requester_private_key_access_forbidden");
 assert(apollyon.may_sign_as_brood_queen === false, "apollyon_brood_queen_signing_forbidden");
 assert(apollyon.may_receive_raw_brood_queen_root_key === false, "apollyon_root_key_access_forbidden");
 assert(apollyon.trial_success_activates_crown_identity === false, "trial_success_must_not_activate_crown_identity");
@@ -257,7 +227,6 @@ assert(activation.requires_requester_key_binding_contract === true, "requester_b
 assert(activation.requires_role_authority_generation_contract === true, "role_generation_contract_must_be_required");
 assert(activation.requires_adversarial_proof === true, "adversarial_proof_must_be_required");
 
-// Closed-schema adversaries: marker-preserving unknown authority vocabulary must HOLD.
 for (const mutate of [
   (copy) => { copy.root_identity.private_key_accessible_to_validator = true; },
   (copy) => { copy.session_model.root_material_exportable = true; },
@@ -272,47 +241,37 @@ for (const mutate of [
   assertThrows(() => validateClosedShape(copy), "unknown_authority_field_must_fail_closed");
 }
 
-// Requester/channel-binding adversaries.
 const baseBootstrap = {
   serverPinned: true,
-  transcriptRequesterKey: "requester-key-A",
-  presentedRequesterKey: "requester-key-A",
-  requesterProofOfPossession: true,
+  transcriptRequesterEd25519: "requester-ed25519-A",
+  presentedRequesterEd25519: "requester-ed25519-A",
+  transcriptRequesterX25519: "requester-x25519-A",
+  presentedRequesterX25519: "requester-x25519-A",
+  requesterEd25519ProofOfPossession: true,
+  proofOfPossessionBindsCompleteTranscript: true,
   approvedSessionId: "session-A",
   presentedSessionId: "session-A",
   approvedRoleGeneration: "7",
   currentRoleGeneration: "7",
 };
 assert(bootstrapCommitAllowed(baseBootstrap), "stable_requester_bound_bootstrap_must_admit");
-assert(
-  !bootstrapCommitAllowed({ ...baseBootstrap, presentedRequesterKey: "attacker-key" }),
-  "cross_connection_requester_key_relay_must_fail",
-);
-assert(
-  !bootstrapCommitAllowed({ ...baseBootstrap, requesterProofOfPossession: false }),
-  "missing_requester_proof_of_possession_must_fail",
-);
-assert(
-  !bootstrapCommitAllowed({ ...baseBootstrap, presentedSessionId: "session-B" }),
-  "session_id_substitution_must_fail",
-);
-assert(
-  !bootstrapCommitAllowed({ ...baseBootstrap, serverPinned: false }),
-  "untrusted_server_identity_must_fail",
-);
+assert(!bootstrapCommitAllowed({ ...baseBootstrap, presentedRequesterEd25519: "attacker-ed25519" }), "ed25519_requester_substitution_must_fail");
+assert(!bootstrapCommitAllowed({ ...baseBootstrap, presentedRequesterX25519: "attacker-x25519" }), "x25519_channel_key_substitution_must_fail");
+assert(!bootstrapCommitAllowed({ ...baseBootstrap, requesterEd25519ProofOfPossession: false }), "missing_requester_ed25519_pop_must_fail");
+assert(!bootstrapCommitAllowed({ ...baseBootstrap, proofOfPossessionBindsCompleteTranscript: false }), "pop_not_bound_to_both_requester_keys_must_fail");
+assert(!bootstrapCommitAllowed({ ...baseBootstrap, presentedSessionId: "session-B" }), "session_id_substitution_must_fail");
+assert(!bootstrapCommitAllowed({ ...baseBootstrap, serverPinned: false }), "untrusted_server_identity_must_fail");
+assert(!bootstrapCommitAllowed({ ...baseBootstrap, currentRoleGeneration: "8" }), "revocation_after_role_check_before_session_commit_must_fail");
 
-// Role/revocation check->commit and revoke->restore ABA adversaries.
-assert(
-  !bootstrapCommitAllowed({ ...baseBootstrap, currentRoleGeneration: "8" }),
-  "revocation_after_role_check_before_session_commit_must_fail",
-);
 assert(sessionActionAllowed("7", "7"), "stable_role_generation_must_allow_session_action");
 assert(!sessionActionAllowed("7", "8"), "revocation_before_task_or_rotation_must_fail");
 assert(!sessionActionAllowed("7", "9"), "revoke_restore_aba_must_not_revive_old_session");
 
 for (const required of [
   "exact requester/session-adapter Ed25519 signing public key",
+  "exact requester/session-adapter X25519 key-agreement public key",
   "requester proves possession",
+  "same transcript",
   "role-authority generation",
   "revoke→restore ABA",
   "Unknown fields are rejected",
@@ -334,8 +293,9 @@ for (const forbidden of [
 
 console.log("VOID_BROOD_QUEEN_CRYPTOGRAPHIC_IDENTITY_CONTRACT_V1_PROOF_GREEN");
 console.log("closed_machine_schema=true");
-console.log("requester_key_and_channel_binding=true");
-console.log("requester_proof_of_possession_before_session_commit=true");
+console.log("requester_ed25519_binding=true");
+console.log("requester_x25519_binding=true");
+console.log("requester_pop_covers_complete_dual_key_transcript=true");
 console.log("role_authority_generation_atomicity=true");
 console.log("revoke_restore_aba_rejected=true");
 console.log("runtime_activation=false");
