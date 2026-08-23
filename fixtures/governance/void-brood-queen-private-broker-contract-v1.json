@@ -4,11 +4,11 @@
   "parent_local_seat_marker": "VOID_BROOD_QUEEN_LOCAL_MODEL_SEAT_V1_20260822",
   "parent_binding": {
     "domain": "VOID_BROOD_QUEEN_PARENT_POLICY_IDENTITY_V1",
-    "identity_reviewed_head": "9f6b868607a9470710ec3143481b9f566a33c841",
+    "identity_reviewed_head": "e0014daaad939aec7b220da654d48ca3f6f9b758",
     "identity_fixture_blob_sha": "2b0658867a2273e486cf685be30c368754f2b4b3",
-    "local_seat_reviewed_head": "b43af85f92006970f29bd35a30341eb8881ac246",
-    "local_seat_fixture_blob_sha": "806296f0bc18c87471341fa9a89e4561a6acaa5b",
-    "parent_policy_sha256": "a60109c80fae0e2cd7dc18bba9babea9edacaa33b11c07dabe77ae8a767412a3",
+    "local_seat_reviewed_head": "377aafd943fb4cc6811711f83566e40e9d15e533",
+    "local_seat_fixture_blob_sha": "de3833097efc7e04a102c48dff0370ebc35cb222",
+    "parent_policy_sha256": "52746cf1013706db4b35ae627f1d78b08932c6a4a0581737a0ced1aa5a5ca332",
     "same_marker_parent_content_drift_fails_closed": true,
     "bootstrap_rotation_task_receipt_bind_parent_policy_sha256": true
   },
@@ -53,7 +53,7 @@
     "domain": "VOID_BROOD_QUEEN_PRIVATE_BROKER_POLICY_V1",
     "generation_wire": "1",
     "generation_type": "canonical_u64_decimal_string",
-    "sha256": "3dfe1b4d40d298949026ed98d46e55a6b4723118a35900d188fc45afe8e6461c",
+    "sha256": "1035f19d0f2312fc43725d3d3185f6769f7f6d91fc98543142875c3315ae0f3a",
     "capability_ceiling": [
       "analysis",
       "drafting",
