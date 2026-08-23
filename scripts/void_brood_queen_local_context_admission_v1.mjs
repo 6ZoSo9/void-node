@@ -454,9 +454,35 @@ try:
         existing = None
 
     if existing is not None:
+        existing_identity = (existing.st_dev, existing.st_ino, existing.st_size, existing.st_mtime_ns, existing.st_ctime_ns)
+        if fault == "unlink_existing_after_read":
+            os.unlink(name, dir_fd=pfd)
+        elif fault == "replace_existing_same_bytes_after_read":
+            os.unlink(name, dir_fd=pfd)
+            rfd = os.open(name, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600, dir_fd=pfd)
+            try:
+                offset = 0
+                while offset < len(expected):
+                    n = os.write(rfd, expected[offset:])
+                    if n <= 0:
+                        die("short replacement receipt write")
+                    offset += n
+                os.fsync(rfd)
+            finally:
+                os.close(rfd)
         os.fsync(pfd)
         if not current_parent_matches():
             die("receipt parent directory generation changed")
+        try:
+            committed_existing = read_final_exact()
+        except FileNotFoundError:
+            die("existing exact final disappeared before durable terminal")
+        committed_identity = (
+            committed_existing.st_dev, committed_existing.st_ino, committed_existing.st_size,
+            committed_existing.st_mtime_ns, committed_existing.st_ctime_ns,
+        )
+        if committed_identity != existing_identity:
+            die("existing exact final generation drifted before durable terminal")
         print(json.dumps({"existing_exact": True, "linked_new_final": False}))
         raise SystemExit(0)
 

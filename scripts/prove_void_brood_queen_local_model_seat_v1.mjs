@@ -55,6 +55,10 @@ async function expectReject(promise, name) {
   try { await promise; } catch { return; }
   hold(`${name} did not reject`);
 }
+function expectSyncReject(fn, name) {
+  try { fn(); } catch { return; }
+  hold(`${name} did not reject`);
+}
 async function writePack(path, pack) {
   await writeFile(path, `${JSON.stringify(pack, null, 2)}\n`, { mode: 0o600 });
   await chmod(path, 0o600);
@@ -90,17 +94,34 @@ function assertFixtureShape(f) {
   }
 }
 
+function countOccurrences(text, needle) {
+  return text.split(needle).length - 1;
+}
+
 function assertWorkflowSelfEnforcement(workflow) {
+  const triggerHelper = '      - "scripts/ci_diff_hygiene_v1.sh"';
+  const triggerProof = '      - "scripts/prove_ci_diff_hygiene_v1.mjs"';
+  if (countOccurrences(workflow, triggerHelper) !== 2) hold('workflow helper trigger closure drifted');
+  if (countOccurrences(workflow, triggerProof) !== 2) hold('workflow proof trigger closure drifted');
+
   for (const required of [
     'scripts/void_brood_queen_local_context_admission_v1.mjs',
     'scripts/prove_void_brood_queen_local_model_seat_v1.mjs',
-    'scripts/ci_diff_hygiene_v1.sh',
-    'scripts/prove_ci_diff_hygiene_v1.mjs',
     'node scripts/prove_ci_diff_hygiene_v1.mjs',
     'bash scripts/ci_diff_hygiene_v1.sh',
+    'persist-credentials: false',
+    'CI_DIFF_EVENT_NAME:',
+    'CI_DIFF_PR_BASE_SHA:',
+    'github.event.pull_request.base.sha',
+    'CI_DIFF_PUSH_BEFORE_SHA:',
+    'github.event.before',
     'CI_DIFF_CURRENT_SHA:',
     'CI_DIFF_CHECKOUT_SHA:',
     'github.event.pull_request.head.sha || github.sha',
+    'CI_DIFF_BASE_REMOTE:',
+    'github.server_url',
+    'CI_DIFF_HEAD_REMOTE:',
+    'github.event.pull_request.head.repo.full_name || github.repository',
   ]) {
     if (!workflow.includes(required)) hold(`workflow missing self-enforcement binding: ${required}`);
   }
@@ -116,6 +137,23 @@ async function main() {
   const command = JSON.parse(commandText);
   assertFixtureShape(fixture);
   assertWorkflowSelfEnforcement(workflow);
+
+  const triggerWeakened = workflow
+    .replaceAll('      - "scripts/ci_diff_hygiene_v1.sh"\n', '')
+    .replaceAll('      - "scripts/prove_ci_diff_hygiene_v1.mjs"\n', '');
+  expectSyncReject(() => assertWorkflowSelfEnforcement(triggerWeakened), 'workflow trigger dependency removal');
+  expectSyncReject(
+    () => assertWorkflowSelfEnforcement(workflow.replace('persist-credentials: false', 'persist-credentials: true')),
+    'workflow checkout credential weakening',
+  );
+  expectSyncReject(
+    () => assertWorkflowSelfEnforcement(workflow.replace('CI_DIFF_BASE_REMOTE:', 'CI_DIFF_BASE_REMOTE_DISABLED:')),
+    'workflow base remote binding removal',
+  );
+  expectSyncReject(
+    () => assertWorkflowSelfEnforcement(workflow.replace('CI_DIFF_HEAD_REMOTE:', 'CI_DIFF_HEAD_REMOTE_DISABLED:')),
+    'workflow head remote binding removal',
+  );
 
   requireExact(fixture.marker, MARKER, 'seat marker');
   requireExact(fixture.parent_identity_contract_marker, PARENT_MARKER, 'parent identity marker');
@@ -239,6 +277,26 @@ async function main() {
       await verifyContextReceipt(contextPath, rp);
     }
 
+    const existingUnlinkPath = join(dir, 'existing-unlink.receipt.json');
+    await admitContext(contextPath, existingUnlinkPath);
+    await expectReject(
+      admitContext(contextPath, existingUnlinkPath, { faultPoint: 'unlink_existing_after_read' }),
+      'existing exact final unlink before durable terminal',
+    );
+
+    const existingReplacePath = join(dir, 'existing-replace.receipt.json');
+    await admitContext(contextPath, existingReplacePath);
+    const existingBefore = await stat(existingReplacePath);
+    await expectReject(
+      admitContext(contextPath, existingReplacePath, { faultPoint: 'replace_existing_same_bytes_after_read' }),
+      'existing exact final same-byte generation replacement',
+    );
+    const existingAfter = await stat(existingReplacePath);
+    if (existingBefore.ino === existingAfter.ino) hold('same-byte replacement adversary did not replace generation');
+    if (!(await readFile(existingReplacePath)).equals(await readFile(receiptPath))) {
+      hold('same-byte replacement adversary did not preserve receipt bytes');
+    }
+
     const conflictPath = join(dir, 'conflict.receipt.json');
     const conflictBytes = Buffer.from('{"foreign":true}\n');
     await writeFile(conflictPath, conflictBytes, { mode: 0o600 });
@@ -327,10 +385,12 @@ async function main() {
   process.stdout.write('parent_contract_content_bound=true\n');
   process.stdout.write('nested_machine_schema_closed=true\n');
   process.stdout.write('workflow_committed_range_self_enforced=true\n');
+  process.stdout.write('workflow_trigger_sets_self_enforced=true\n');
   process.stdout.write('receipt_anonymous_inode_publication=true\n');
   process.stdout.write('receipt_exact_parent_directory_handle=true\n');
   process.stdout.write('receipt_final_single_hardlink=true\n');
   process.stdout.write('receipt_no_stage_path_alias=true\n');
+  process.stdout.write('receipt_existing_final_commit_generation_bound=true\n');
   process.stdout.write('sanitizer_to_model_input_gate_executable=true\n');
   process.stdout.write('raw_verified_bytes_model_input_authority=false\n');
   process.stdout.write('sanitized_projection_model_input_authority=true\n');
