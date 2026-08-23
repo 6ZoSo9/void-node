@@ -91,6 +91,8 @@ function validateClosedShape(fixture) {
     "bootstrap_precommit_crash_leaves_nonce_fresh",
     "bootstrap_postcommit_response_loss_recovers_existing_commit",
     "bootstrap_consumed_without_session_state_representable",
+    "bootstrap_committed_retry_requires_exact_signed_transcript_equivalence",
+    "bootstrap_committed_retry_mints_fresh_authority",
   ], "session_model");
   exactKeys(fixture.requester_binding, [
     "server_or_broker_identity_cryptographically_pinned",
@@ -280,6 +282,53 @@ function sameBootstrapIdentity(a, b) {
     && a.role_record_sha256 === b.role_record_sha256;
 }
 
+function exactCommittedBootstrapRetry(current, request) {
+  const derivedTranscriptHash = canonicalBootstrapTranscriptHash({
+    bootstrap_domain: request.bootstrapDomain,
+    chain_id: request.transcriptChainId,
+    office: request.transcriptOffice,
+    identity: request.transcriptIdentity,
+    issuing_server_identity: request.issuingServerIdentity,
+    requester_ed25519_public_key: request.transcriptRequesterEd25519,
+    requester_x25519_public_key: request.transcriptRequesterX25519,
+    session_id: request.approvedSessionId,
+    nonce: request.approvedNonce,
+    issued_at_utc: request.transcriptIssuedAtUtc,
+    expires_at_utc: request.transcriptExpiresAtUtc,
+    role_generation: request.approvedRoleGeneration,
+    role_record_sha256: request.approvedRoleRecordHash,
+  });
+
+  return current.state === "COMMITTED"
+    && isSha256(derivedTranscriptHash)
+    && derivedTranscriptHash === current.transcript_sha256
+    && request.canonicalTranscriptHash === derivedTranscriptHash
+    && request.serverSignedTranscriptHash === derivedTranscriptHash
+    && request.crownApprovedTranscriptHash === derivedTranscriptHash
+    && request.requesterPopTranscriptHash === derivedTranscriptHash
+    && request.serverPinned
+    && request.bootstrapDomain === BOOTSTRAP_DOMAIN
+    && request.transcriptChainId === 2050
+    && request.transcriptOffice === "Brood Queen"
+    && request.transcriptIdentity === "Ren"
+    && typeof request.pinnedServerIdentity === "string"
+    && request.pinnedServerIdentity.length > 0
+    && request.issuingServerIdentity === request.pinnedServerIdentity
+    && request.serverChallengeSignatureValid
+    && request.crownApprovalSignatureValid
+    && request.transcriptRequesterEd25519 === request.presentedRequesterEd25519
+    && request.transcriptRequesterX25519 === request.presentedRequesterX25519
+    && request.requesterEd25519ProofOfPossession
+    && request.proofOfPossessionBindsCompleteTranscript
+    && request.approvedSessionId === request.presentedSessionId
+    && request.approvedSessionId === current.identity.session_id
+    && request.approvedNonce === request.presentedNonce
+    && request.approvedNonce === current.nonce
+    && request.approvedRoleGeneration === current.identity.role_generation
+    && request.approvedRoleRecordHash === current.identity.role_record_sha256
+    && sameBootstrapIdentity(current.identity, bootstrapCommitIdentity(request));
+}
+
 function createBootstrapNonceAuthority(request) {
   return {
     version: 0,
@@ -296,7 +345,7 @@ function atomicBootstrapCommit(authority, request, { expectedVersion, fault = nu
   const current = authority.record;
 
   if (current.state === "COMMITTED") {
-    if (sameBootstrapIdentity(current.identity, identity)) {
+    if (exactCommittedBootstrapRetry(current, request)) {
       return {
         ok: true,
         replay: true,
@@ -569,6 +618,8 @@ assert(session.bootstrap_conflicting_nonce_reuse_rejected === true, "bootstrap_c
 assert(session.bootstrap_precommit_crash_leaves_nonce_fresh === true, "bootstrap_precommit_crash_recovery_required");
 assert(session.bootstrap_postcommit_response_loss_recovers_existing_commit === true, "bootstrap_postcommit_response_recovery_required");
 assert(session.bootstrap_consumed_without_session_state_representable === false, "consumed_without_session_state_must_be_unrepresentable");
+assert(session.bootstrap_committed_retry_requires_exact_signed_transcript_equivalence === true, "committed_retry_exact_signed_transcript_equivalence_required");
+assert(session.bootstrap_committed_retry_mints_fresh_authority === false, "committed_retry_must_not_mint_fresh_authority");
 
 const requester = fixture.requester_binding;
 assert(requester.server_or_broker_identity_cryptographically_pinned === true, "server_identity_pinning_required");
@@ -783,6 +834,83 @@ assert(raceB.receipt === raceA.receipt, "stale_exact_contender_must_return_same_
 assert(sameBootstrapIdentity(raceB.session, raceA.session), "stale_exact_contender_must_return_same_session");
 assert(raceAuthority.version === 1, "exact_retry_must_not_recommit");
 
+
+// Exact committed recovery may occur after the nonce is consumed, challenge
+// expiry, or later role advance because it returns existing authority only.
+const committedRecoveryAfterConsumption = atomicBootstrapCommit(
+  raceAuthority,
+  {
+    ...baseBootstrap,
+    nonceFreshAtCommit: false,
+    nonceAlreadyConsumed: true,
+    expiryAdmittedAtCommit: false,
+    currentRoleGeneration: "8",
+    currentRoleRecordHash: H8,
+  },
+  { expectedVersion: 0 },
+);
+assert(
+  committedRecoveryAfterConsumption.ok === true
+    && committedRecoveryAfterConsumption.replay === true
+    && committedRecoveryAfterConsumption.fresh_authority === false,
+  "exact_committed_recovery_must_survive_consumption_expiry_or_later_role_advance",
+);
+assert(
+  committedRecoveryAfterConsumption.receipt === raceA.receipt
+    && sameBootstrapIdentity(committedRecoveryAfterConsumption.session, raceA.session),
+  "exact_committed_recovery_must_return_same_session_and_receipt",
+);
+assert(raceAuthority.version === 1, "committed_recovery_must_not_advance_authority");
+
+const committedRetryAdversaries = [
+  { label: "requester_ed25519", patch: { transcriptRequesterEd25519: "attacker-ed25519", presentedRequesterEd25519: "attacker-ed25519" } },
+  { label: "requester_x25519", patch: { transcriptRequesterX25519: "attacker-x25519", presentedRequesterX25519: "attacker-x25519" } },
+  { label: "nonce", patch: { approvedNonce: "nonce-B", presentedNonce: "nonce-B" } },
+  { label: "server_identity", patch: { pinnedServerIdentity: "broker-ed25519-B", issuingServerIdentity: "broker-ed25519-B" } },
+  { label: "domain", patch: { bootstrapDomain: "VOID_BROOD_QUEEN_SESSION_BOOTSTRAP_V0" } },
+  { label: "issued_at", patch: { transcriptIssuedAtUtc: "2026-08-23T19:00:01Z" } },
+  { label: "expires_at", patch: { transcriptExpiresAtUtc: "2026-08-23T19:06:00Z" } },
+  { label: "presented_session_id", patch: { presentedSessionId: "session-B" } },
+  { label: "server_signature", patch: { serverChallengeSignatureValid: false } },
+  { label: "crown_signature", patch: { crownApprovalSignatureValid: false } },
+  { label: "requester_pop", patch: { requesterEd25519ProofOfPossession: false } },
+  { label: "pop_transcript_binding", patch: { proofOfPossessionBindsCompleteTranscript: false } },
+];
+
+for (const adversary of committedRetryAdversaries) {
+  const result = atomicBootstrapCommit(
+    raceAuthority,
+    { ...baseBootstrap, ...adversary.patch },
+    { expectedVersion: 0 },
+  );
+  assert(
+    result.ok === false
+      && result.code === "BOOTSTRAP_CONFLICT"
+      && result.fresh_authority === false,
+    `non_equivalent_committed_retry_must_fail:${adversary.label}`,
+  );
+  assert(raceAuthority.version === 1, `non_equivalent_retry_must_mutate_zero_authority:${adversary.label}`);
+}
+
+for (const patch of [
+  { approvedRoleGeneration: "8" },
+  { approvedRoleRecordHash: H8 },
+  { canonicalTranscriptHash: T2, serverSignedTranscriptHash: T2, crownApprovedTranscriptHash: T2, requesterPopTranscriptHash: T2 },
+]) {
+  const result = atomicBootstrapCommit(
+    raceAuthority,
+    { ...baseBootstrap, ...patch },
+    { expectedVersion: 0 },
+  );
+  assert(
+    result.ok === false
+      && result.code === "BOOTSTRAP_CONFLICT"
+      && result.fresh_authority === false,
+    "committed_retry_identity_scalar_forgery_must_fail",
+  );
+  assert(raceAuthority.version === 1, "committed_retry_identity_scalar_forgery_must_mutate_zero_authority");
+}
+
 // Conflicting reuse of the same nonce is rejected before or after commit.
 const conflictTranscript = { ...baseTranscript, session_id: "session-CONFLICT" };
 const conflictHash = canonicalBootstrapTranscriptHash(conflictTranscript);
@@ -972,6 +1100,9 @@ console.log("bootstrap_nonce_expiry_replay_commit_boundary=true");
 console.log("bootstrap_nonce_session_atomic_commit=true");
 console.log("bootstrap_two_contender_single_fresh_authority=true");
 console.log("bootstrap_exact_retry_same_session_receipt=true");
+console.log("bootstrap_committed_retry_exact_signed_transcript=true");
+console.log("bootstrap_committed_retry_field_signature_adversaries=15");
+console.log("bootstrap_committed_retry_recovers_after_consumption_expiry_role_advance=true");
 console.log("bootstrap_conflicting_nonce_reuse_rejected=true");
 console.log("bootstrap_precommit_crash_recoverable=true");
 console.log("bootstrap_postcommit_response_loss_idempotent=true");

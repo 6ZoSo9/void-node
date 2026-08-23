@@ -68,7 +68,9 @@
     "bootstrap_conflicting_nonce_reuse_rejected": true,
     "bootstrap_precommit_crash_leaves_nonce_fresh": true,
     "bootstrap_postcommit_response_loss_recovers_existing_commit": true,
-    "bootstrap_consumed_without_session_state_representable": false
+    "bootstrap_consumed_without_session_state_representable": false,
+    "bootstrap_committed_retry_requires_exact_signed_transcript_equivalence": true,
+    "bootstrap_committed_retry_mints_fresh_authority": false
   },
   "requester_binding": {
     "server_or_broker_identity_cryptographically_pinned": true,
