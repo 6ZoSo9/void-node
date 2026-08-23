@@ -56,15 +56,17 @@ The secret-shape scanner is not represented as proof of categorical secret absen
 
 Admission receipts remain metadata/provenance only and contain neither the private context payload nor its local filesystem path.
 
-Publication now removes the staged-path authority seam entirely:
+Publication removes the staged-path authority seam without widening process capabilities:
 
 1. open the exact parent directory once and retain that directory handle;
 2. create an **anonymous inode** in that exact directory with Linux `O_TMPFILE`;
 3. write the complete canonical receipt and fsync the anonymous inode;
-4. publish that exact open inode with `linkat(..., AT_EMPTY_PATH)` into the retained parent-directory handle;
+4. publish that exact open inode through the documented unprivileged procfs fd reference `/proc/self/fd/<fd>` using `linkat(..., AT_SYMLINK_FOLLOW)` into the retained parent-directory handle;
 5. require create-only/no-replace behavior;
 6. require the final name to resolve to the exact anonymous inode with mode `0600` and a **single hard link**;
 7. fsync the exact retained parent-directory handle before durable success.
+
+The publisher does **not** request `CAP_DAC_READ_SEARCH` or any other capability widening. If procfs fd references are unavailable, publication HOLDs rather than falling back to privileged `AT_EMPTY_PATH` semantics.
 
 There is no staged pathname and therefore no retained stage alias to substitute, mutate, accumulate, or mistake for authority.
 
@@ -128,6 +130,8 @@ This contract HOLDs if an implementation:
 - uses a pathname-staged receipt that can be substituted after fsync;
 - retains a hard-link stage alias after final publication;
 - reopens the parent directory by pathname for the durability fsync instead of using the exact retained directory handle;
+- requires capability widening merely to publish the anonymous receipt inode;
+- silently falls back to privileged `AT_EMPTY_PATH` receipt publication when unprivileged procfs fd publication is unavailable;
 - overwrites or deletes a conflicting final receipt occupant;
 - authorizes raw verified context bytes as model input;
 - permits free-form context values into the V1 safe projection;

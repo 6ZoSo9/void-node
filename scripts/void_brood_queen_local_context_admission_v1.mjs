@@ -481,11 +481,24 @@ try:
 
         tst = os.fstat(tfd)
         libc = ctypes.CDLL(None, use_errno=True)
-        rc = libc.linkat(tfd, ctypes.c_char_p(b""), pfd, ctypes.c_char_p(os.fsencode(name)), 0x1000)
+        AT_FDCWD = -100
+        AT_SYMLINK_FOLLOW = 0x400
+        proc_fd_path = f"/proc/self/fd/{tfd}"
+        try:
+            os.readlink(proc_fd_path)
+        except OSError as e:
+            die("procfs fd reference unavailable:" + str(e))
+        rc = libc.linkat(
+            AT_FDCWD,
+            ctypes.c_char_p(os.fsencode(proc_fd_path)),
+            pfd,
+            ctypes.c_char_p(os.fsencode(name)),
+            AT_SYMLINK_FOLLOW,
+        )
         if rc != 0:
             err = ctypes.get_errno()
             if err != errno.EEXIST:
-                die("linkat failed:" + os.strerror(err))
+                die("unprivileged fd-bound linkat failed:" + os.strerror(err))
             read_final_exact()
             linked = False
         else:
