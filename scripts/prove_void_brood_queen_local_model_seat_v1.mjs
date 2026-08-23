@@ -55,6 +55,15 @@ async function expectReject(promise, name) {
   try { await promise; } catch { return; }
   hold(`${name} did not reject`);
 }
+async function expectRejectIncludes(promise, needle, name) {
+  try {
+    await promise;
+  } catch (error) {
+    if (String(error?.message ?? error).includes(needle)) return;
+    hold(`${name} rejected for wrong reason: ${error?.message ?? String(error)}`);
+  }
+  hold(`${name} did not reject`);
+}
 function expectSyncReject(fn, name) {
   try { fn(); } catch { return; }
   hold(`${name} did not reject`);
@@ -277,6 +286,31 @@ async function main() {
       await verifyContextReceipt(contextPath, rp);
     }
 
+    const eexistConvergePath = join(dir, 'eexist-converge.receipt.json');
+    const eexistConverged = await admitContext(
+      contextPath,
+      eexistConvergePath,
+      { faultPoint: 'create_exact_final_before_link' },
+    );
+    requireExact(eexistConverged.context_sha256, receipt.context_sha256, 'EEXIST exact convergence');
+    const eexistConvergeStat = await stat(eexistConvergePath);
+    if (eexistConvergeStat.nlink !== 1) hold('EEXIST exact convergence hard-link count drifted');
+    await verifyContextReceipt(contextPath, eexistConvergePath);
+
+    const eexistReplacePath = join(dir, 'eexist-replace.receipt.json');
+    await expectRejectIncludes(
+      admitContext(
+        contextPath,
+        eexistReplacePath,
+        { faultPoint: 'replace_eexist_same_bytes_after_accept' },
+      ),
+      'EEXIST accepted final generation changed before durable terminal',
+      'EEXIST accepted same-byte final replacement before parent fsync',
+    );
+    if (!(await readFile(eexistReplacePath)).equals(await readFile(receiptPath))) {
+      hold('EEXIST replacement adversary did not preserve exact receipt bytes');
+    }
+
     const existingUnlinkPath = join(dir, 'existing-unlink.receipt.json');
     await admitContext(contextPath, existingUnlinkPath);
     await expectReject(
@@ -375,6 +409,7 @@ async function main() {
     MARKER, PARENT_MARKER, COMMAND_MARKER, IDENTITY_HEAD, PARENT_POLICY_SHA256,
     '**King → Brood Queen / Ren → General / Apollyon**',
     'anonymous inode', 'exact parent-directory handle', 'single hard link',
+    'receipt_eexist_accepted_generation_commit_bound=true',
     'safe projection', 'raw verified bytes', 'does not claim that the live local runner already enforces',
     SANITIZER_POLICY_MARKER, SANITIZER_POLICY_SHA256, CANDIDATE_DIGEST, COMMAND_LAYER_SHA256,
   ]) {
@@ -391,6 +426,7 @@ async function main() {
   process.stdout.write('receipt_final_single_hardlink=true\n');
   process.stdout.write('receipt_no_stage_path_alias=true\n');
   process.stdout.write('receipt_existing_final_commit_generation_bound=true\n');
+  process.stdout.write('receipt_eexist_accepted_generation_commit_bound=true\n');
   process.stdout.write('sanitizer_to_model_input_gate_executable=true\n');
   process.stdout.write('raw_verified_bytes_model_input_authority=false\n');
   process.stdout.write('sanitized_projection_model_input_authority=true\n');

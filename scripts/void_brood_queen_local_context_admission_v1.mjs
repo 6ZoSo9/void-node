@@ -461,6 +461,24 @@ try:
         finally:
             os.close(fd)
 
+    def write_exact_final_for_fault():
+        fd = os.open(
+            name,
+            os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW,
+            0o600,
+            dir_fd=pfd,
+        )
+        try:
+            offset = 0
+            while offset < len(expected):
+                n = os.write(fd, expected[offset:])
+                if n <= 0:
+                    die("short synthetic EEXIST receipt write")
+                offset += n
+            os.fsync(fd)
+        finally:
+            os.close(fd)
+
     try:
         existing_fd, existing = open_final_exact()
     except FileNotFoundError:
@@ -516,6 +534,8 @@ try:
         tfd = os.open(".", os.O_TMPFILE | os.O_RDWR, 0o600, dir_fd=pfd)
     except OSError as e:
         die("O_TMPFILE unavailable:" + str(e))
+    eexist_fd = None
+    eexist_identity = None
     try:
         if fault == "after_tmp_create":
             die("synthetic-after_tmp_create")
@@ -540,6 +560,13 @@ try:
             os.readlink(proc_fd_path)
         except OSError as e:
             die("procfs fd reference unavailable:" + str(e))
+
+        if fault in (
+            "create_exact_final_before_link",
+            "replace_eexist_same_bytes_after_accept",
+        ):
+            write_exact_final_for_fault()
+
         rc = libc.linkat(
             AT_FDCWD,
             ctypes.c_char_p(os.fsencode(proc_fd_path)),
@@ -551,8 +578,12 @@ try:
             err = ctypes.get_errno()
             if err != errno.EEXIST:
                 die("unprivileged fd-bound linkat failed:" + os.strerror(err))
-            read_final_exact()
+            eexist_fd, eexist_stat = open_final_exact()
+            eexist_identity = final_identity(eexist_stat)
             linked = False
+            if fault == "replace_eexist_same_bytes_after_accept":
+                os.unlink(name, dir_fd=pfd)
+                write_exact_final_for_fault()
         else:
             linked = True
             fst = read_final_exact()
@@ -560,6 +591,7 @@ try:
                 die("final receipt inode is not exact anonymous staged generation")
             if fst.st_nlink != 1:
                 die("final receipt must have exactly one hard link")
+
         if fault == "after_final_link":
             die("synthetic-after_final_link")
         if fault == "swap_parent_path_after_link":
@@ -570,12 +602,31 @@ try:
         os.fsync(pfd)
         if not current_parent_matches():
             die("receipt parent directory generation changed")
-        committed = read_final_exact()
-        if linked and (committed.st_dev != tst.st_dev or committed.st_ino != tst.st_ino):
-            die("committed final receipt generation drifted")
+
+        committed_fd, committed = open_final_exact()
+        try:
+            if linked:
+                if committed.st_dev != tst.st_dev or committed.st_ino != tst.st_ino:
+                    die("committed final receipt generation drifted")
+            else:
+                if eexist_fd is None or eexist_identity is None:
+                    die("EEXIST final generation was not retained")
+                live_eexist = os.fstat(eexist_fd)
+                if final_identity(live_eexist) != eexist_identity:
+                    die("EEXIST accepted final generation changed before durable terminal")
+                if committed.st_dev != live_eexist.st_dev or committed.st_ino != live_eexist.st_ino:
+                    die("EEXIST accepted final generation drifted before durable terminal")
+                if final_identity(committed) != final_identity(live_eexist):
+                    die("EEXIST accepted final metadata drifted before durable terminal")
+        finally:
+            os.close(committed_fd)
+
         print(json.dumps({"existing_exact": not linked, "linked_new_final": linked}))
     finally:
+        if eexist_fd is not None:
+            os.close(eexist_fd)
         os.close(tfd)
+
 finally:
     os.close(pfd)
 `;
