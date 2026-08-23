@@ -1,9 +1,9 @@
 #!/usr/bin/env node
 
-import { createHash } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { constants as FS } from 'node:fs';
-import { open } from 'node:fs/promises';
-import { resolve } from 'node:path';
+import { link, open } from 'node:fs/promises';
+import { basename, dirname, join, resolve } from 'node:path';
 import process from 'node:process';
 import { fileURLToPath } from 'node:url';
 
@@ -11,10 +11,21 @@ export const CONTEXT_MARKER = 'VOID_BROOD_QUEEN_LOCAL_CONTEXT_PACK_V1';
 export const CONTEXT_VERSION = '2.0.0';
 export const RECEIPT_MARKER = 'VOID_BROOD_QUEEN_LOCAL_CONTEXT_ADMISSION_RECEIPT_V1';
 export const MAX_CONTEXT_BYTES = 256 * 1024;
+export const MAX_RECEIPT_BYTES = 4096;
 export const PARENT_POLICY_SHA256 = '6fdac6f3851ea62fbfcc90f39568b881b8bc18a9469df0d702373039b4244155';
 export const COMMAND_LAYER_MARKER = 'VOID_CROWN_BROOD_QUEEN_COMMAND_LAYER_V1_20260818';
 export const COMMAND_LAYER_SHA256 = 'f3b155ab9df462f7a4f0981a52aca15ec640548c19c7e81c24e883513112adbd';
 export const CANDIDATE_DIGEST = 'ac1de81fc81bba23802b75e8d46beb1583785c14f94210af94e4e6901f93be3b';
+export const CANDIDATE_MODEL = 'void-apollyon-candidate-v1:latest';
+export const BASE_MODEL = 'qwen3-coder:30b';
+export const BASE_DIGEST = '06c1097efce0431c2045fe7b2e5108366e43bee1b4603a7aded8f21689e90bca';
+export const SYSTEM_PROMPT_BODY_SHA256 = '78637ce3cdca98979c6107e96b85e171bc6a46c6c611f86c518fa1d1c49fad8b';
+export const SYSTEM_PROMPT_OLLAMA_SHA256 = '7e336c378e0be8ae084767daa5b5c2a612417328360f66f0a9ba358333a0dedc';
+export const OLLAMA_RUNTIME = '0.30.10';
+export const ADMISSION_SCOPE = 'structural_and_policy_admission_only';
+export const SECRET_SHAPE_SCAN_SCOPE = 'defense_in_depth_only';
+export const TRUSTED_SANITIZATION_REQUIRED = true;
+export const ADMISSION_RECEIPT_IS_INJECTION_AUTHORITY = false;
 
 const TOP_KEYS = [
   'apollyon_learning', 'apollyon_work_contract', 'authority_semantics', 'classification',
@@ -119,8 +130,18 @@ function exactKeys(value, expected, name) {
     fail(`${name} has unexpected fields`);
   }
 }
-function requireBool(value, expected, name) { if (value !== expected) fail(`${name} must be ${expected}`); }
-function requireString(value, name) { if (typeof value !== 'string' || value.length === 0) fail(`${name} must be non-empty string`); }
+function requireBool(value, expected, name) {
+  if (value !== expected) fail(`${name} must be ${expected}`);
+}
+function requireExact(value, expected, name) {
+  if (value !== expected) fail(`${name} drifted`);
+}
+function requireExactArray(value, expected, name) {
+  if (!Array.isArray(value) || JSON.stringify(value) !== JSON.stringify(expected)) fail(`${name} drifted`);
+}
+function requireString(value, name) {
+  if (typeof value !== 'string' || value.length === 0) fail(`${name} must be non-empty string`);
+}
 function sha256(bytes) { return createHash('sha256').update(bytes).digest('hex'); }
 function stamp(stat) {
   return {
@@ -141,6 +162,7 @@ export async function openPinnedPrivateContext(path) {
     if (!stat.isFile()) fail('context must be a regular file');
     if (stat.uid !== BigInt(process.getuid())) fail('context must be owned by current operator uid');
     if ((Number(stat.mode) & 0o777) !== 0o600) fail('context mode must be exactly 0600');
+    if (stat.nlink !== 1n) fail('context must have exactly one hard link');
     if (stat.size > BigInt(MAX_CONTEXT_BYTES)) fail(`context exceeds ${MAX_CONTEXT_BYTES} bytes`);
     return { fh, preStamp: stamp(stat) };
   } catch (error) {
@@ -193,12 +215,71 @@ function scanSecretShapes(value, path = '$') {
   if (value !== null && !['boolean', 'number'].includes(typeof value)) fail(`non-JSON value at ${path}`);
 }
 
+function validateSecurityBearingSemantics(pack) {
+  const c = pack.constitutional_binding;
+  requireExact(c.chain_id, 2050, 'constitutional_binding.chain_id');
+  requireExact(c.brood_queen, 'Ren', 'constitutional_binding.brood_queen');
+  requireExact(c.brood_queen_realm, 'voluntary_non_validator_participation', 'constitutional_binding.brood_queen_realm');
+  requireExact(c.general, 'Apollyon', 'constitutional_binding.general');
+  requireExact(c.sovereign, 'ZoSo', 'constitutional_binding.sovereign');
+  requireExactArray(c.command_chain, ['King', 'Brood Queen', 'General'], 'constitutional_binding.command_chain');
+  requireExact(c.command_layer_marker, COMMAND_LAYER_MARKER, 'constitutional_binding.command_layer_marker');
+  requireExact(c.command_layer_sha256, COMMAND_LAYER_SHA256, 'constitutional_binding.command_layer_sha256');
+  requireBool(c.validator_realm_segregated, true, 'constitutional_binding.validator_realm_segregated');
+
+  const v5 = pack.v5_candidate;
+  requireExact(v5.model, CANDIDATE_MODEL, 'v5_candidate.model');
+  requireExact(v5.candidate_digest, CANDIDATE_DIGEST, 'v5_candidate.candidate_digest');
+  requireExact(v5.base_model, BASE_MODEL, 'v5_candidate.base_model');
+  requireExact(v5.base_digest, BASE_DIGEST, 'v5_candidate.base_digest');
+  requireExact(v5.system_prompt_body_sha256, SYSTEM_PROMPT_BODY_SHA256, 'v5_candidate.system_prompt_body_sha256');
+  requireExact(v5.system_prompt_ollama_sha256, SYSTEM_PROMPT_OLLAMA_SHA256, 'v5_candidate.system_prompt_ollama_sha256');
+  requireExact(v5.ollama_runtime, OLLAMA_RUNTIME, 'v5_candidate.ollama_runtime');
+  requireBool(v5.v5_adversarial_canaries_green, true, 'v5_candidate.v5_adversarial_canaries_green');
+  requireExact(v5.v5_result, 'green', 'v5_candidate.v5_result');
+
+  const identity = pack.identity_and_session_direction;
+  requireExact(identity.authorization_source, 'on_chain_role_plus_capability', 'identity_and_session_direction.authorization_source');
+  requireExact(identity.bootstrap, 'challenge_response', 'identity_and_session_direction.bootstrap');
+  requireBool(identity.derived_session_crypto_rotates_automatically, true, 'identity_and_session_direction.derived_session_crypto_rotates_automatically');
+  requireBool(identity.frequent_root_reauthentication, false, 'identity_and_session_direction.frequent_root_reauthentication');
+  requireBool(identity.persistent_authenticated_logical_session, true, 'identity_and_session_direction.persistent_authenticated_logical_session');
+  requireBool(identity.provider_api_key_is_identity, false, 'identity_and_session_direction.provider_api_key_is_identity');
+  requireBool(identity.root_identity_registered_or_recognized_on_chain_2050, true, 'identity_and_session_direction.root_identity_registered_or_recognized_on_chain_2050');
+  requireExactArray(identity.root_reauthentication_reserved_for, ['recovery', 'revocation', 'logout', 'rotation'], 'identity_and_session_direction.root_reauthentication_reserved_for');
+  requireBool(identity.unified_login_for_agents_validators_sovereign, true, 'identity_and_session_direction.unified_login_for_agents_validators_sovereign');
+
+  const runtime = pack.runtime_and_network_memory;
+  requireExact(runtime.ollama_api, 'loopback', 'runtime_and_network_memory.ollama_api');
+  requireBool(runtime.ollama_direct_input_device_access, false, 'runtime_and_network_memory.ollama_direct_input_device_access');
+  requireBool(runtime.ollama_model_non_loopback_egress_denied, true, 'runtime_and_network_memory.ollama_model_non_loopback_egress_denied');
+  requireBool(runtime.ollama_service_boot_enabled, false, 'runtime_and_network_memory.ollama_service_boot_enabled');
+  requireBool(runtime.ollama_service_can_read_nodekey, false, 'runtime_and_network_memory.ollama_service_can_read_nodekey');
+  requireBool(runtime.ollama_service_can_read_void_repo, false, 'runtime_and_network_memory.ollama_service_can_read_void_repo');
+
+  const project = pack.project_identity;
+  requireExact(project.canonical_domain, 'voidchain.org', 'project_identity.canonical_domain');
+  requireExact(project.chain_id, 2050, 'project_identity.chain_id');
+  requireExact(project.network, 'VOID Network', 'project_identity.network');
+  requireExact(project.repo, '6ZoSo9/void-node', 'project_identity.repo');
+
+  const operating = pack.operating_model;
+  requireBool(operating.agent_native_and_self_hosted_first, true, 'operating_model.agent_native_and_self_hosted_first');
+  requireBool(operating.github_repo_is_source_of_truth, true, 'operating_model.github_repo_is_source_of_truth');
+  requireBool(operating.protect_core, true, 'operating_model.protect_core');
+
+  const economics = pack.tokenomics_and_economics;
+  requireBool(economics.no_leverage_or_unsecured_borrowing, true, 'tokenomics_and_economics.no_leverage_or_unsecured_borrowing');
+  requireExact(economics.official_post_presale_pair, 'BTC/VOID', 'tokenomics_and_economics.official_post_presale_pair');
+  requireExactArray(economics.official_stablecoin_pairs, [], 'tokenomics_and_economics.official_stablecoin_pairs');
+}
+
 export function validateContextPack(pack) {
   exactKeys(pack, TOP_KEYS, 'context');
   for (const [key, keys] of Object.entries(OBJECT_KEYS)) exactKeys(pack[key], keys, `context.${key}`);
-  if (pack.marker !== CONTEXT_MARKER) fail('context marker drifted');
-  if (pack.version !== CONTEXT_VERSION) fail('context version drifted');
-  if (pack.classification !== 'private_local') fail('context classification must be private_local');
+  requireExact(pack.marker, CONTEXT_MARKER, 'context.marker');
+  requireExact(pack.version, CONTEXT_VERSION, 'context.version');
+  requireExact(pack.classification, 'private_local', 'context.classification');
   requireString(pack.created_at_utc, 'created_at_utc');
   requireString(pack.source, 'source');
 
@@ -209,12 +290,6 @@ export function validateContextPack(pack) {
   requireBool(a.raw_chat_import_automatic, false, 'authority_semantics.raw_chat_import_automatic');
   requireBool(a.validator_authority_present, false, 'authority_semantics.validator_authority_present');
 
-  const c = pack.constitutional_binding;
-  if (c.chain_id !== 2050) fail('constitutional_binding.chain_id drifted');
-  if (c.command_layer_marker !== COMMAND_LAYER_MARKER) fail('command layer marker drifted');
-  if (c.command_layer_sha256 !== COMMAND_LAYER_SHA256) fail('command layer digest drifted');
-  requireBool(c.validator_realm_segregated, true, 'constitutional_binding.validator_realm_segregated');
-
   const o = pack.office_separation;
   requireBool(o.apollyon_is_general_office, true, 'office_separation.apollyon_is_general_office');
   requireBool(o.apollyon_is_not_ren, true, 'office_separation.apollyon_is_not_ren');
@@ -224,13 +299,6 @@ export function validateContextPack(pack) {
   requireBool(o.local_model_may_inherit_brood_queen_session, false, 'office_separation.local_model_may_inherit_brood_queen_session');
   requireBool(o.local_model_output_is_crown_authentication, false, 'office_separation.local_model_output_is_crown_authentication');
   requireBool(o.ren_is_brood_queen_office, true, 'office_separation.ren_is_brood_queen_office');
-
-  const v5 = pack.v5_candidate;
-  if (v5.candidate_digest !== CANDIDATE_DIGEST) fail('candidate digest drifted');
-  if (!/^[0-9a-f]{64}$/.test(v5.base_digest ?? '')) fail('base digest invalid');
-  if (!/^[0-9a-f]{64}$/.test(v5.system_prompt_body_sha256 ?? '')) fail('system prompt body digest invalid');
-  if (!/^[0-9a-f]{64}$/.test(v5.system_prompt_ollama_sha256 ?? '')) fail('system prompt framing digest invalid');
-  requireBool(v5.v5_adversarial_canaries_green, true, 'v5_candidate.v5_adversarial_canaries_green');
 
   const work = pack.apollyon_work_contract;
   for (const key of [
@@ -260,31 +328,44 @@ export function validateContextPack(pack) {
   requireBool(learning.weights_changed, false, 'apollyon_learning.weights_changed');
   requireBool(learning.candidate_digest_unchanged, true, 'apollyon_learning.candidate_digest_unchanged');
 
+  validateSecurityBearingSemantics(pack);
+
+  // This is intentionally defense-in-depth only. It catches known shapes but cannot
+  // establish categorical secret absence for arbitrary free-form strings.
   scanSecretShapes(pack);
   return true;
+}
+
+function decodeContextBytes(bytes) {
+  let text;
+  try { text = new TextDecoder('utf-8', { fatal: true }).decode(bytes); }
+  catch { fail('context must be strict UTF-8'); }
+  let pack;
+  try { pack = JSON.parse(text); } catch { fail('context must contain valid JSON'); }
+  validateContextPack(pack);
+  return pack;
 }
 
 export async function readAndValidateContext(path) {
   const { fh, preStamp } = await openPinnedPrivateContext(path);
   try {
     const bytes = await readPinnedPrivateContextBytes(fh, preStamp);
-    let text;
-    try { text = new TextDecoder('utf-8', { fatal: true }).decode(bytes); }
-    catch { fail('context must be strict UTF-8'); }
-    let pack;
-    try { pack = JSON.parse(text); } catch { fail('context must contain valid JSON'); }
-    validateContextPack(pack);
+    const pack = decodeContextBytes(bytes);
     return { pack, bytes };
   } finally {
     await fh.close();
   }
 }
 
-function receiptFor(pack, bytes) {
+export function buildAdmissionReceipt(pack, bytes) {
   return {
     marker: RECEIPT_MARKER,
     schema_marker: CONTEXT_MARKER,
     schema_version: CONTEXT_VERSION,
+    admission_scope: ADMISSION_SCOPE,
+    secret_shape_scan_scope: SECRET_SHAPE_SCAN_SCOPE,
+    trusted_sanitization_required_before_injection: TRUSTED_SANITIZATION_REQUIRED,
+    admission_receipt_is_injection_authority: ADMISSION_RECEIPT_IS_INJECTION_AUTHORITY,
     parent_policy_sha256: PARENT_POLICY_SHA256,
     context_sha256: sha256(bytes),
     byte_length: bytes.length,
@@ -295,73 +376,164 @@ function receiptFor(pack, bytes) {
 
 function validateReceiptShape(receipt) {
   exactKeys(receipt, [
-    'marker', 'schema_marker', 'schema_version', 'parent_policy_sha256', 'context_sha256',
-    'byte_length', 'command_layer_sha256', 'candidate_digest',
+    'marker', 'schema_marker', 'schema_version', 'admission_scope', 'secret_shape_scan_scope',
+    'trusted_sanitization_required_before_injection', 'admission_receipt_is_injection_authority',
+    'parent_policy_sha256', 'context_sha256', 'byte_length', 'command_layer_sha256', 'candidate_digest',
   ], 'receipt');
-  if (receipt.marker !== RECEIPT_MARKER) fail('receipt marker drifted');
-  if (receipt.schema_marker !== CONTEXT_MARKER) fail('receipt schema marker drifted');
-  if (receipt.schema_version !== CONTEXT_VERSION) fail('receipt schema version drifted');
-  if (receipt.parent_policy_sha256 !== PARENT_POLICY_SHA256) fail('receipt parent policy drifted');
+  requireExact(receipt.marker, RECEIPT_MARKER, 'receipt.marker');
+  requireExact(receipt.schema_marker, CONTEXT_MARKER, 'receipt.schema_marker');
+  requireExact(receipt.schema_version, CONTEXT_VERSION, 'receipt.schema_version');
+  requireExact(receipt.admission_scope, ADMISSION_SCOPE, 'receipt.admission_scope');
+  requireExact(receipt.secret_shape_scan_scope, SECRET_SHAPE_SCAN_SCOPE, 'receipt.secret_shape_scan_scope');
+  requireBool(receipt.trusted_sanitization_required_before_injection, true, 'receipt.trusted_sanitization_required_before_injection');
+  requireBool(receipt.admission_receipt_is_injection_authority, false, 'receipt.admission_receipt_is_injection_authority');
+  requireExact(receipt.parent_policy_sha256, PARENT_POLICY_SHA256, 'receipt.parent_policy_sha256');
   if (!/^[0-9a-f]{64}$/.test(receipt.context_sha256 ?? '')) fail('receipt context digest invalid');
   if (!Number.isInteger(receipt.byte_length) || receipt.byte_length < 1 || receipt.byte_length > MAX_CONTEXT_BYTES) fail('receipt byte length invalid');
-  if (receipt.command_layer_sha256 !== COMMAND_LAYER_SHA256) fail('receipt command layer digest drifted');
-  if (receipt.candidate_digest !== CANDIDATE_DIGEST) fail('receipt candidate digest drifted');
+  requireExact(receipt.command_layer_sha256, COMMAND_LAYER_SHA256, 'receipt.command_layer_sha256');
+  requireExact(receipt.candidate_digest, CANDIDATE_DIGEST, 'receipt.candidate_digest');
 }
 
-async function writeReceipt(path, receipt) {
-  const fh = await open(path, 'wx', 0o600);
-  try {
-    await fh.writeFile(`${JSON.stringify(receipt, null, 2)}\n`, 'utf8');
-    await fh.sync();
-  } finally { await fh.close(); }
-}
-
-export async function admitContext(contextPath, receiptPath) {
-  const { pack, bytes } = await readAndValidateContext(contextPath);
-  const receipt = receiptFor(pack, bytes);
+function canonicalReceiptBytes(receipt) {
   validateReceiptShape(receipt);
-  await writeReceipt(receiptPath, receipt);
-  return receipt;
+  const bytes = Buffer.from(`${JSON.stringify(receipt, null, 2)}\n`, 'utf8');
+  if (bytes.length > MAX_RECEIPT_BYTES) fail('receipt is oversized');
+  return bytes;
 }
 
-export async function verifyContextReceipt(contextPath, receiptPath) {
-  const { pack, bytes } = await readAndValidateContext(contextPath);
-  const receiptFile = await readAndValidateReceipt(receiptPath);
-  const expected = receiptFor(pack, bytes);
-  if (JSON.stringify(receiptFile) !== JSON.stringify(expected)) fail('receipt does not bind exact admitted context generation');
-  return expected;
+async function fsyncParentDirectory(path) {
+  const dirPath = dirname(path);
+  let dirHandle;
+  let synced = false;
+  try {
+    dirHandle = await open(dirPath, FS.O_RDONLY | FS.O_DIRECTORY);
+    await dirHandle.sync();
+    synced = true;
+  } finally {
+    if (dirHandle) {
+      try { await dirHandle.close(); }
+      catch (error) { if (!synced) throw error; }
+    }
+  }
 }
 
 async function readAndValidateReceipt(path) {
   let fh;
   try {
     fh = await open(path, FS.O_RDONLY | FS.O_NOFOLLOW);
-    const stat = await fh.stat({ bigint: true });
-    if (!stat.isFile()) fail('receipt must be regular file');
-    if (stat.uid !== BigInt(process.getuid())) fail('receipt must be owned by current operator uid');
-    if ((Number(stat.mode) & 0o777) !== 0o600) fail('receipt mode must be exactly 0600');
-    if (stat.size > 4096n) fail('receipt is oversized');
-    const bytes = Buffer.alloc(Number(stat.size));
+    const preStat = await fh.stat({ bigint: true });
+    if (!preStat.isFile()) fail('receipt must be regular file');
+    if (preStat.uid !== BigInt(process.getuid())) fail('receipt must be owned by current operator uid');
+    if ((Number(preStat.mode) & 0o777) !== 0o600) fail('receipt mode must be exactly 0600');
+    if (preStat.size < 1n || preStat.size > BigInt(MAX_RECEIPT_BYTES)) fail('receipt is oversized');
+    const bytes = Buffer.alloc(Number(preStat.size));
     const { bytesRead } = await fh.read(bytes, 0, bytes.length, 0);
     if (bytesRead !== bytes.length) fail('receipt short read');
+    const postStat = await fh.stat({ bigint: true });
+    if (!sameStamp(stamp(preStat), stamp(postStat))) fail('receipt file generation changed during bounded read');
     let receipt;
     try { receipt = JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(bytes)); }
     catch { fail('receipt must be strict UTF-8 JSON'); }
     validateReceiptShape(receipt);
-    return receipt;
-  } finally { if (fh) await fh.close(); }
+    if (!canonicalReceiptBytes(receipt).equals(bytes)) fail('receipt bytes are not canonical');
+    return { receipt, bytes };
+  } finally {
+    if (fh) await fh.close();
+  }
+}
+
+async function invokeFaultHook(hook, point, detail = {}) {
+  if (typeof hook === 'function') await hook(point, detail);
+}
+
+export async function publishAdmissionReceipt(path, receipt, options = {}) {
+  const bytes = canonicalReceiptBytes(receipt);
+  const parent = dirname(path);
+  const stagePath = join(parent, `.${basename(path)}.stage-${randomUUID()}`);
+  let stageHandle;
+  let stageSynced = false;
+
+  try {
+    stageHandle = await open(stagePath, 'wx', 0o600);
+    await invokeFaultHook(options.faultHook, 'after_stage_create', { stagePath });
+    await stageHandle.writeFile(bytes);
+    await invokeFaultHook(options.faultHook, 'after_stage_write', { stagePath });
+    await stageHandle.sync();
+    stageSynced = true;
+    await invokeFaultHook(options.faultHook, 'after_stage_sync', { stagePath });
+  } finally {
+    if (stageHandle) {
+      try { await stageHandle.close(); }
+      catch (error) {
+        if (!stageSynced) throw error;
+        throw error;
+      }
+    }
+  }
+
+  let linked = false;
+  try {
+    await link(stagePath, path);
+    linked = true;
+    await invokeFaultHook(options.faultHook, 'after_final_link', { stagePath });
+  } catch (error) {
+    if (error?.code !== 'EEXIST') throw error;
+  }
+
+  if (!linked) {
+    const existing = await readAndValidateReceipt(path);
+    if (!existing.bytes.equals(bytes)) fail('receipt path occupied by conflicting generation');
+  }
+
+  await fsyncParentDirectory(path);
+
+  try { await invokeFaultHook(options.afterCommitHook, 'after_parent_directory_sync', { stagePath }); }
+  catch { /* post-commit observer failure cannot turn a durable exact receipt into failure */ }
+
+  return { receipt, stage_path_retained_for_recovery: stagePath, linked_new_final: linked };
+}
+
+export async function admitContext(contextPath, receiptPath, options = {}) {
+  const { pack, bytes } = await readAndValidateContext(contextPath);
+  const receipt = buildAdmissionReceipt(pack, bytes);
+  await publishAdmissionReceipt(receiptPath, receipt, options);
+  return receipt;
+}
+
+export async function verifyContextReceipt(contextPath, receiptPath, options = {}) {
+  const { pack, bytes } = await readAndValidateContext(contextPath);
+  await invokeFaultHook(options.afterContextReadHook, 'after_context_read', {
+    context_sha256: sha256(bytes),
+  });
+
+  const { receipt: receiptFile } = await readAndValidateReceipt(receiptPath);
+  const expected = buildAdmissionReceipt(pack, bytes);
+  if (JSON.stringify(receiptFile) !== JSON.stringify(expected)) fail('receipt does not bind exact admitted context generation');
+
+  return {
+    receipt: expected,
+    contextBytes: Buffer.from(bytes),
+    context_sha256: expected.context_sha256,
+    admission_scope: ADMISSION_SCOPE,
+    trusted_sanitization_required_before_injection: true,
+    injection_authority: false,
+  };
 }
 
 async function main() {
   const [, , command, ...args] = process.argv;
   if (command === 'admit' && args.length === 2) {
     const receipt = await admitContext(args[0], args[1]);
-    process.stdout.write(`${RECEIPT_MARKER}_GREEN context_sha256=${receipt.context_sha256}\n`);
+    process.stdout.write(
+      `${RECEIPT_MARKER}_GREEN context_sha256=${receipt.context_sha256} injection_authority=false sanitization_required=true\n`,
+    );
     return;
   }
   if (command === 'verify' && args.length === 2) {
-    const receipt = await verifyContextReceipt(args[0], args[1]);
-    process.stdout.write(`${RECEIPT_MARKER}_VERIFY_GREEN context_sha256=${receipt.context_sha256}\n`);
+    const verified = await verifyContextReceipt(args[0], args[1]);
+    process.stdout.write(
+      `${RECEIPT_MARKER}_VERIFY_GREEN context_sha256=${verified.context_sha256} diagnostic_only=true reopen_context_path=false\n`,
+    );
     return;
   }
   process.stderr.write('usage: void_brood_queen_local_context_admission_v1.mjs admit <context.json> <receipt.json>\n');
