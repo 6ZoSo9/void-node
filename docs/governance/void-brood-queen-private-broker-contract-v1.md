@@ -18,21 +18,21 @@ GitHub identity, provider identity, and model self-description are not Crown aut
 
 This child contract inherits parent authority only from exact reviewed parent content:
 
-- identity parent reviewed head: `817429b10752f772230d6f3210e414acc02d3c51`;
-- identity fixture Git blob: `0da4a436d79150253b352a56447046bd29e0408f`;
-- local-seat parent reviewed head: `387ee6b7d8a7cf9194ef88f5098c38af15d82259`;
-- local-seat fixture Git blob: `702f559205e601294db4552e3856e529c77b56d3`;
+- identity parent reviewed head: `7e20ea0bfa501434375f610616e1940df99d1d68`;
+- identity fixture Git blob: `7cc9e7b1db5ffd751acd24d086ae30a873a9a568`;
+- local-seat parent reviewed head: `dc0194e71b95eef031ff419910a53da4e263b2bb`;
+- local-seat fixture Git blob: `e98b832b88f99e7cfd903e3035201f9437c93087`;
 - parent-policy domain: `VOID_BROOD_QUEEN_PARENT_POLICY_IDENTITY_V1`;
-- parent-policy SHA-256: `a4a8095cf6ae398c49d2cbe8c6ae52e9c446778116a83c7389d5fa2595235840`.
+- parent-policy SHA-256: `0d8e76b18517df94b9472241f02a57786576e1c3f27259cd5978e2de556994be`.
 
 The canonical parent-policy preimage is exactly:
 
 ```text
 VOID_BROOD_QUEEN_PARENT_POLICY_IDENTITY_V1
-identity_commit=817429b10752f772230d6f3210e414acc02d3c51
-identity_fixture_blob=0da4a436d79150253b352a56447046bd29e0408f
-local_seat_commit=387ee6b7d8a7cf9194ef88f5098c38af15d82259
-local_seat_fixture_blob=702f559205e601294db4552e3856e529c77b56d3
+identity_commit=7e20ea0bfa501434375f610616e1940df99d1d68
+identity_fixture_blob=7cc9e7b1db5ffd751acd24d086ae30a873a9a568
+local_seat_commit=dc0194e71b95eef031ff419910a53da4e263b2bb
+local_seat_fixture_blob=e98b832b88f99e7cfd903e3035201f9437c93087
 ```
 
 A same-marker change to either inherited fixture changes its Git blob and must HOLD this child until explicit refresh and rereview. Bootstrap, rotation, policy, task, and receipt transcripts bind the reviewed parent-policy SHA-256.
@@ -97,6 +97,12 @@ Crash before that atomic commit creates zero session authority. Crash after comm
 
 One two-layer Crown approval bundle (parent session approval plus outer broker-policy approval) can create at most one logical session authority.
 
+### Inherited parent committed-retry boundary
+
+The broker may not weaken the repaired parent bootstrap generation it is content-bound to. The inherited parent nonce/session authority state is exactly `FRESH → COMMITTED`: nonce consumption, generation-0 session creation, and bootstrap receipt creation are one durable authority transition. There is no authoritative consumed-without-session state.
+
+Recovery of an already committed parent session is not fresh authority. A committed retry must re-derive and revalidate the exact signed 13-field parent transcript generation, including pinned server identity, server/Crown signatures, requester Ed25519/X25519 binding, requester proof-of-possession, exact session id, nonce identity, and committed role pair. A non-equivalent retry that merely copies committed digest/session/role scalars fails closed. An exact retry may recover the existing session/receipt after nonce consumption, challenge expiry, or later role advancement only because it returns `fresh_authority=false` and does not create or advance authority.
+
 ## Exact V1 policy identity
 
 The policy domain is `VOID_BROOD_QUEEN_PRIVATE_BROKER_POLICY_V1`.
@@ -119,13 +125,13 @@ The canonical V1 policy preimage is exactly:
 
 ```text
 VOID_BROOD_QUEEN_PRIVATE_BROKER_POLICY_V1
-parent_policy_sha256=a4a8095cf6ae398c49d2cbe8c6ae52e9c446778116a83c7389d5fa2595235840
+parent_policy_sha256=0d8e76b18517df94b9472241f02a57786576e1c3f27259cd5978e2de556994be
 policy_generation=1
 capability_ceiling=analysis,drafting,proof_design,review,test_generation,bounded_task_planning,evidence_synthesis
 validator_capability_present=false
 ```
 
-Its SHA-256 is `bf7ad03d73bfe1c2abd7c40ab77fb49e2e7421dde4e9fa00de634aef496496c3`.
+Its SHA-256 is `860882e98fe828a9060121527722b78e6e176f2f332dd547a87f8e86a82c2bd0`.
 
 Authentication proves identity only. Every task carries a closed capability list that must be a subset of this Crown-approved ceiling and the current broker policy. Session keys cannot widen the ceiling or change the policy root. A widening or policy-root change is a root-authenticated policy boundary.
 
