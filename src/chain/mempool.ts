@@ -190,6 +190,7 @@ function numericArrayIndex(prop: PropertyKey): number | null {
  * block/head commit. rollbackSelection() therefore needs only to clear the
  * selection marker; the original pending entries never disappeared.
  */
+
 export class Mempool {
   private readonly queueTarget: any[] = [];
   private readonly queue: any[];
@@ -199,6 +200,16 @@ export class Mempool {
 
   private assertMutationUnlocked(): void {
     if (this.mutationLocked) throw mutationError(VOID_MEMPOOL_REENTRANT_MUTATION_FORBIDDEN);
+  }
+
+  private withMutationEpoch<T>(fn: () => T): T {
+    this.assertMutationUnlocked();
+    this.mutationLocked = true;
+    try {
+      return fn();
+    } finally {
+      this.mutationLocked = false;
+    }
   }
 
   constructor() {
@@ -213,29 +224,29 @@ export class Mempool {
         if (prop === "sort") return (compareFn?: (a: any, b: any) => number) => self.compatSort(compareFn);
         if (prop === "reverse") return () => self.compatReverse();
         if (prop === "fill" || prop === "copyWithin") {
-return () => { throw mutationError(VOID_MEMPOOL_RAW_INDEX_MUTATION_FORBIDDEN); };
+          return () => { throw mutationError(VOID_MEMPOOL_RAW_INDEX_MUTATION_FORBIDDEN); };
         }
         return Reflect.get(target, prop, receiver);
       },
       set(target, prop, value) {
         if (prop === "length") {
-self.setCompatLength(value);
-return true;
+          self.setCompatLength(value);
+          return true;
         }
         if (numericArrayIndex(prop) !== null) {
-throw mutationError(VOID_MEMPOOL_RAW_INDEX_MUTATION_FORBIDDEN);
+          throw mutationError(VOID_MEMPOOL_RAW_INDEX_MUTATION_FORBIDDEN);
         }
         return Reflect.set(target, prop, value);
       },
       deleteProperty(_target, prop) {
         if (numericArrayIndex(prop) !== null) {
-throw mutationError(VOID_MEMPOOL_RAW_INDEX_MUTATION_FORBIDDEN);
+          throw mutationError(VOID_MEMPOOL_RAW_INDEX_MUTATION_FORBIDDEN);
         }
         return Reflect.deleteProperty(self.queueTarget, prop);
       },
       defineProperty(target, prop, descriptor) {
         if (prop === "length" || numericArrayIndex(prop) !== null) {
-throw mutationError(VOID_MEMPOOL_RAW_INDEX_MUTATION_FORBIDDEN);
+          throw mutationError(VOID_MEMPOOL_RAW_INDEX_MUTATION_FORBIDDEN);
         }
         return Reflect.defineProperty(target, prop, descriptor);
       },
@@ -250,24 +261,26 @@ throw mutationError(VOID_MEMPOOL_RAW_INDEX_MUTATION_FORBIDDEN);
   }
 
   get txs(): any[] { return this.queue; }
+
   set txs(value: any[]) {
     if (value === this.queue) return;
-    this.assertMutationUnlocked();
-    if (!Array.isArray(value)) throw new TypeError("mempool_txs_must_be_array");
-    if (this.selected.length > 0) throw mutationError(VOID_MEMPOOL_SELECTED_MUTATION_FORBIDDEN);
+    this.withMutationEpoch(() => {
+      if (!Array.isArray(value)) throw new TypeError("mempool_txs_must_be_array");
+      if (this.selected.length > 0) throw mutationError(VOID_MEMPOOL_SELECTED_MUTATION_FORBIDDEN);
 
-    const candidate = Array.from(value, ownCanonicalCompatItem);
-    const seen = new Set<string>();
-    for (const item of candidate) {
-      const id = comparableCanonicalHashOf(item);
-      if (!id) continue;
-      if (seen.has(id)) throw duplicateTransactionError();
-      seen.add(id);
-    }
+      const candidate = Array.from(value, ownCanonicalCompatItem);
+      const seen = new Set<string>();
+      for (const item of candidate) {
+        const id = comparableCanonicalHashOf(item);
+        if (!id) continue;
+        if (seen.has(id)) throw duplicateTransactionError();
+        seen.add(id);
+      }
 
-    Array.prototype.splice.call(this.queueTarget, 0, this.queueTarget.length, ...candidate);
-    this.canonicalIdentities.clear();
-    for (const id of seen) this.canonicalIdentities.add(id);
+      Array.prototype.splice.call(this.queueTarget, 0, this.queueTarget.length, ...candidate);
+      this.canonicalIdentities.clear();
+      for (const id of seen) this.canonicalIdentities.add(id);
+    });
   }
 
   private assertAddable(items: any[], removedIds: Set<string> = new Set()): void {
@@ -302,8 +315,7 @@ throw mutationError(VOID_MEMPOOL_RAW_INDEX_MUTATION_FORBIDDEN);
     return items.some((item) => selected.has(item));
   }
 
-  private compatPush(items: any[]): number {
-    this.assertMutationUnlocked();
+  private compatPushLocked(items: any[]): number {
     const ownedItems = items.map(ownCanonicalCompatItem);
     this.assertAddable(ownedItems);
     Array.prototype.push.apply(this.queueTarget, ownedItems);
@@ -311,8 +323,11 @@ throw mutationError(VOID_MEMPOOL_RAW_INDEX_MUTATION_FORBIDDEN);
     return this.queueTarget.length;
   }
 
-  private compatUnshift(items: any[]): number {
-    this.assertMutationUnlocked();
+  private compatPush(items: any[]): number {
+    return this.withMutationEpoch(() => this.compatPushLocked(items));
+  }
+
+  private compatUnshiftLocked(items: any[]): number {
     const ownedItems = items.map(ownCanonicalCompatItem);
     this.assertAddable(ownedItems);
     Array.prototype.unshift.apply(this.queueTarget, ownedItems);
@@ -320,8 +335,11 @@ throw mutationError(VOID_MEMPOOL_RAW_INDEX_MUTATION_FORBIDDEN);
     return this.queueTarget.length;
   }
 
-  private compatSplice(args: any[]): any[] {
-    this.assertMutationUnlocked();
+  private compatUnshift(items: any[]): number {
+    return this.withMutationEpoch(() => this.compatUnshiftLocked(items));
+  }
+
+  private compatSpliceLocked(args: any[]): any[] {
     const len = this.queueTarget.length;
     const rawStart = Number(args[0] ?? 0);
     const start0 = Number.isFinite(rawStart) ? Math.trunc(rawStart) : 0;
@@ -350,52 +368,61 @@ throw mutationError(VOID_MEMPOOL_RAW_INDEX_MUTATION_FORBIDDEN);
     return Array.from(out);
   }
 
+  private compatSplice(args: any[]): any[] {
+    return this.withMutationEpoch(() => this.compatSpliceLocked(args));
+  }
+
   private compatPop(): any {
-    if (this.queueTarget.length === 0) return undefined;
-    return this.compatSplice([this.queueTarget.length - 1, 1])[0];
+    return this.withMutationEpoch(() => {
+      if (this.queueTarget.length === 0) return undefined;
+      return this.compatSpliceLocked([this.queueTarget.length - 1, 1])[0];
+    });
   }
 
   private compatShift(): any {
-    if (this.queueTarget.length === 0) return undefined;
-    return this.compatSplice([0, 1])[0];
+    return this.withMutationEpoch(() => {
+      if (this.queueTarget.length === 0) return undefined;
+      return this.compatSpliceLocked([0, 1])[0];
+    });
   }
 
   private compatSort(compareFn?: (a: any, b: any) => number): any[] {
-    this.assertMutationUnlocked();
-    this.mutationLocked = true;
-    try {
+    return this.withMutationEpoch(() => {
       Array.prototype.sort.call(this.queueTarget, compareFn);
       return this.queue;
-    } finally {
-      this.mutationLocked = false;
-    }
+    });
   }
 
   private compatReverse(): any[] {
-    this.assertMutationUnlocked();
-    Array.prototype.reverse.call(this.queueTarget);
-    return this.queue;
+    return this.withMutationEpoch(() => {
+      Array.prototype.reverse.call(this.queueTarget);
+      return this.queue;
+    });
   }
 
   private setCompatLength(value: any): void {
-    this.assertMutationUnlocked();
-    const next = Number(value);
-    if (!Number.isInteger(next) || next < 0 || next > 0xffffffff) {
-      throw new RangeError("Invalid array length");
-    }
-    if (next > this.queueTarget.length) {
-      throw mutationError(VOID_MEMPOOL_LENGTH_GROWTH_FORBIDDEN);
-    }
-    if (next < this.queueTarget.length) {
-      this.compatSplice([next, this.queueTarget.length - next]);
-    }
+    this.withMutationEpoch(() => {
+      const next = Number(value);
+      if (!Number.isInteger(next) || next < 0 || next > 0xffffffff) {
+        throw new RangeError("Invalid array length");
+      }
+      if (next > this.queueTarget.length) {
+        throw mutationError(VOID_MEMPOOL_LENGTH_GROWTH_FORBIDDEN);
+      }
+      if (next < this.queueTarget.length) {
+        this.compatSpliceLocked([next, this.queueTarget.length - next]);
+      }
+    });
   }
 
   push(tx: MemTx) {
     if (!tx || typeof tx !== "object") return;
-    const hash = strictCanonicalHashOf(tx);
-    if (!hash) return;
-    this.compatPush([{ hash, body: tx.body ?? {} }]);
+    this.withMutationEpoch(() => {
+      const hash = strictCanonicalHashOf(tx);
+      if (!hash) return;
+      const body = tx.body ?? {};
+      this.compatPushLocked([{ hash, body }]);
+    });
   }
 
   peekAll(): MemTx[] {
@@ -403,64 +430,75 @@ throw mutationError(VOID_MEMPOOL_RAW_INDEX_MUTATION_FORBIDDEN);
   }
 
   clear() {
-    if (this.queueTarget.length === 0) return;
-    this.compatSplice([0, this.queueTarget.length]);
+    this.withMutationEpoch(() => {
+      if (this.queueTarget.length === 0) return;
+      this.compatSpliceLocked([0, this.queueTarget.length]);
+    });
   }
 
   drain(max?: number): MemTx[] {
-    const take = !max || max >= this.queueTarget.length
-      ? this.queueTarget.length
-      : Math.max(0, Math.floor(max));
-    return Array.from(this.compatSplice([0, take])) as MemTx[];
+    return this.withMutationEpoch(() => {
+      const raw = max === undefined ? undefined : Number(max);
+      const take = !raw || raw >= this.queueTarget.length
+        ? this.queueTarget.length
+        : Math.max(0, Math.floor(raw));
+      return Array.from(this.compatSpliceLocked([0, take])) as MemTx[];
+    });
   }
 
   popMany(max = 1000): MemTx[] { return this.drain(max); }
   take(max = 1000): MemTx[] { return this.drain(max); }
 
   beginSelection(max = 1000): MemTx[] {
-    this.assertMutationUnlocked();
-    if (this.selected.length > 0) throw mutationError(VOID_MEMPOOL_SELECTION_IN_PROGRESS);
-    const raw = Number(max);
-    const take = Math.max(0, Math.min(this.queueTarget.length, Number.isFinite(raw) ? Math.floor(raw) : 0));
-    this.selected = this.queueTarget.slice(0, take);
-    return Array.from(this.selected) as MemTx[];
+    return this.withMutationEpoch(() => {
+      if (this.selected.length > 0) throw mutationError(VOID_MEMPOOL_SELECTION_IN_PROGRESS);
+      const raw = Number(max);
+      const take = Math.max(0, Math.min(
+        this.queueTarget.length,
+        Number.isFinite(raw) ? Math.floor(raw) : 0,
+      ));
+      this.selected = this.queueTarget.slice(0, take);
+      return Array.from(this.selected) as MemTx[];
+    });
   }
 
   commitSelection(): MemTx[] {
-    this.assertMutationUnlocked();
-    if (this.selected.length === 0) return [];
-    const selected = Array.from(this.selected);
-    const used = new Set<number>();
-    const indexes: number[] = [];
+    return this.withMutationEpoch(() => {
+      if (this.selected.length === 0) return [];
+      const selected = Array.from(this.selected);
+      const used = new Set<number>();
+      const indexes: number[] = [];
 
-    for (const tx of selected) {
-      let found = -1;
-      for (let i = 0; i < this.queueTarget.length; i++) {
-        if (!used.has(i) && this.queueTarget[i] === tx) {
-found = i;
-break;
+      for (const tx of selected) {
+        let found = -1;
+        for (let i = 0; i < this.queueTarget.length; i++) {
+          if (!used.has(i) && this.queueTarget[i] === tx) {
+            found = i;
+            break;
+          }
         }
+        if (found < 0) throw mutationError("mempool_selected_entry_missing");
+        used.add(found);
+        indexes.push(found);
       }
-      if (found < 0) throw mutationError("mempool_selected_entry_missing");
-      used.add(found);
-      indexes.push(found);
-    }
 
-    this.selected = [];
-    indexes.sort((a, b) => b - a);
-    const removed: any[] = [];
-    for (const index of indexes) {
-      removed.push(...Array.prototype.splice.call(this.queueTarget, index, 1));
-    }
-    this.removeIdentities(removed);
-    return selected as MemTx[];
+      this.selected = [];
+      indexes.sort((a, b) => b - a);
+      const removed: any[] = [];
+      for (const index of indexes) {
+        removed.push(...Array.prototype.splice.call(this.queueTarget, index, 1));
+      }
+      this.removeIdentities(removed);
+      return selected as MemTx[];
+    });
   }
 
   rollbackSelection(): MemTx[] {
-    this.assertMutationUnlocked();
-    const selected = Array.from(this.selected) as MemTx[];
-    this.selected = [];
-    return selected;
+    return this.withMutationEpoch(() => {
+      const selected = Array.from(this.selected) as MemTx[];
+      this.selected = [];
+      return selected;
+    });
   }
 
   selectionSize(): number {

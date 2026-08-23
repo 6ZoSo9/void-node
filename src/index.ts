@@ -30575,13 +30575,8 @@ if (process.env.VOID_QUARANTINE_HOT_RUNTIME !== "1") if (process.env.VOID_DISABL
       pushPicked(node.mempool.beginSelection(takeMp));
     }
 
-    if (out.length < capN){
-      const q = node?.txQueue;
-      if (Array.isArray(q) && q.length > 0){
-        const takeQ = Math.min(capN - out.length, q.length);
-        pushPicked(q.splice(0, takeQ));
-      }
-    }
+        // Canonical V2FS ignores the legacy mirrored queue for candidate selection.
+    // Canonical intake and lifecycle authority remain node.mempool only.
 
     return out;
   }

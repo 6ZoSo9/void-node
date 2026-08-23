@@ -173,6 +173,7 @@ function numericArrayIndex(prop) {
         return null;
     return n;
 }
+
 class Mempool {
     constructor() {
         this.queueTarget = [];
@@ -181,141 +182,163 @@ class Mempool {
         this.mutationLocked = false;
         const self = this;
         const handler = {
-  get(target, prop, receiver) {
-      if (prop === "push")
-          return (...items) => self.compatPush(items);
-      if (prop === "unshift")
-          return (...items) => self.compatUnshift(items);
-      if (prop === "splice")
-          return (...args) => self.compatSplice(args);
-      if (prop === "pop")
-          return () => self.compatPop();
-      if (prop === "shift")
-          return () => self.compatShift();
-      if (prop === "sort")
-          return (compareFn) => self.compatSort(compareFn);
-      if (prop === "reverse")
-          return () => self.compatReverse();
-      if (prop === "fill" || prop === "copyWithin")
-          return () => { throw mutationError(exports.VOID_MEMPOOL_RAW_INDEX_MUTATION_FORBIDDEN); };
-      return Reflect.get(target, prop, receiver);
-  },
-  set(target, prop, value) {
-      if (prop === "length") {
-          self.setCompatLength(value);
-          return true;
-      }
-      if (numericArrayIndex(prop) !== null)
-          throw mutationError(exports.VOID_MEMPOOL_RAW_INDEX_MUTATION_FORBIDDEN);
-      return Reflect.set(target, prop, value);
-  },
-  deleteProperty(_target, prop) {
-      if (numericArrayIndex(prop) !== null)
-          throw mutationError(exports.VOID_MEMPOOL_RAW_INDEX_MUTATION_FORBIDDEN);
-      return Reflect.deleteProperty(self.queueTarget, prop);
-  },
-  defineProperty(target, prop, descriptor) {
-      if (prop === "length" || numericArrayIndex(prop) !== null)
-          throw mutationError(exports.VOID_MEMPOOL_RAW_INDEX_MUTATION_FORBIDDEN);
-      return Reflect.defineProperty(target, prop, descriptor);
-  },
-  setPrototypeOf() { return false; },
-  preventExtensions() { return false; },
+            get(target, prop, receiver) {
+                if (prop === "push")
+                    return (...items) => self.compatPush(items);
+                if (prop === "unshift")
+                    return (...items) => self.compatUnshift(items);
+                if (prop === "splice")
+                    return (...args) => self.compatSplice(args);
+                if (prop === "pop")
+                    return () => self.compatPop();
+                if (prop === "shift")
+                    return () => self.compatShift();
+                if (prop === "sort")
+                    return (compareFn) => self.compatSort(compareFn);
+                if (prop === "reverse")
+                    return () => self.compatReverse();
+                if (prop === "fill" || prop === "copyWithin")
+                    return () => { throw mutationError(exports.VOID_MEMPOOL_RAW_INDEX_MUTATION_FORBIDDEN); };
+                return Reflect.get(target, prop, receiver);
+            },
+            set(target, prop, value) {
+                if (prop === "length") {
+                    self.setCompatLength(value);
+                    return true;
+                }
+                if (numericArrayIndex(prop) !== null)
+                    throw mutationError(exports.VOID_MEMPOOL_RAW_INDEX_MUTATION_FORBIDDEN);
+                return Reflect.set(target, prop, value);
+            },
+            deleteProperty(_target, prop) {
+                if (numericArrayIndex(prop) !== null)
+                    throw mutationError(exports.VOID_MEMPOOL_RAW_INDEX_MUTATION_FORBIDDEN);
+                return Reflect.deleteProperty(self.queueTarget, prop);
+            },
+            defineProperty(target, prop, descriptor) {
+                if (prop === "length" || numericArrayIndex(prop) !== null)
+                    throw mutationError(exports.VOID_MEMPOOL_RAW_INDEX_MUTATION_FORBIDDEN);
+                return Reflect.defineProperty(target, prop, descriptor);
+            },
+            setPrototypeOf() {
+                return false;
+            },
+            preventExtensions() {
+                return false;
+            },
         };
         this.queue = new Proxy(this.queueTarget, handler);
     }
-    get txs() { return this.queue; }
-    set txs(value) {
-        if (value === this.queue)
-  return;
-        this.assertMutationUnlocked();
-        if (!Array.isArray(value))
-  throw new TypeError("mempool_txs_must_be_array");
-        if (this.selected.length > 0)
-  throw mutationError(exports.VOID_MEMPOOL_SELECTED_MUTATION_FORBIDDEN);
-        const candidate = Array.from(value, ownCanonicalCompatItem);
-        const seen = new Set();
-        for (const item of candidate) {
-  const id = comparableCanonicalHashOf(item);
-  if (!id)
-      continue;
-  if (seen.has(id))
-      throw duplicateTransactionError();
-  seen.add(id);
-        }
-        Array.prototype.splice.call(this.queueTarget, 0, this.queueTarget.length, ...candidate);
-        this.canonicalIdentities.clear();
-        for (const id of seen)
-  this.canonicalIdentities.add(id);
-    }
     assertMutationUnlocked() {
         if (this.mutationLocked)
-  throw mutationError(exports.VOID_MEMPOOL_REENTRANT_MUTATION_FORBIDDEN);
+            throw mutationError(exports.VOID_MEMPOOL_REENTRANT_MUTATION_FORBIDDEN);
+    }
+    withMutationEpoch(fn) {
+        this.assertMutationUnlocked();
+        this.mutationLocked = true;
+        try {
+            return fn();
+        }
+        finally {
+            this.mutationLocked = false;
+        }
+    }
+    get txs() {
+        return this.queue;
+    }
+    set txs(value) {
+        if (value === this.queue)
+            return;
+        this.withMutationEpoch(() => {
+            if (!Array.isArray(value))
+                throw new TypeError("mempool_txs_must_be_array");
+            if (this.selected.length > 0)
+                throw mutationError(exports.VOID_MEMPOOL_SELECTED_MUTATION_FORBIDDEN);
+            const candidate = Array.from(value, ownCanonicalCompatItem);
+            const seen = new Set();
+            for (const item of candidate) {
+                const id = comparableCanonicalHashOf(item);
+                if (!id)
+                    continue;
+                if (seen.has(id))
+                    throw duplicateTransactionError();
+                seen.add(id);
+            }
+            Array.prototype.splice.call(this.queueTarget, 0, this.queueTarget.length, ...candidate);
+            this.canonicalIdentities.clear();
+            for (const id of seen)
+                this.canonicalIdentities.add(id);
+        });
     }
     assertAddable(items, removedIds = new Set()) {
         const batch = new Set();
         for (const item of items) {
-  const id = comparableCanonicalHashOf(item);
-  if (!id)
-      continue;
-  if ((this.canonicalIdentities.has(id) && !removedIds.has(id)) || batch.has(id))
-      throw duplicateTransactionError();
-  batch.add(id);
+            const id = comparableCanonicalHashOf(item);
+            if (!id)
+                continue;
+            if ((this.canonicalIdentities.has(id) && !removedIds.has(id)) || batch.has(id))
+                throw duplicateTransactionError();
+            batch.add(id);
         }
     }
     addIdentities(items) {
         for (const item of items) {
-  const id = comparableCanonicalHashOf(item);
-  if (id)
-      this.canonicalIdentities.add(id);
+            const id = comparableCanonicalHashOf(item);
+            if (id)
+                this.canonicalIdentities.add(id);
         }
     }
     removeIdentities(items) {
         for (const item of items) {
-  const id = comparableCanonicalHashOf(item);
-  if (id)
-      this.canonicalIdentities.delete(id);
+            const id = comparableCanonicalHashOf(item);
+            if (id)
+                this.canonicalIdentities.delete(id);
         }
     }
     selectedContainsAny(items) {
         if (this.selected.length === 0 || items.length === 0)
-  return false;
+            return false;
         const selected = new Set(this.selected);
         return items.some((item) => selected.has(item));
     }
-    compatPush(items) {
-        this.assertMutationUnlocked();
+    compatPushLocked(items) {
         const ownedItems = items.map(ownCanonicalCompatItem);
         this.assertAddable(ownedItems);
         Array.prototype.push.apply(this.queueTarget, ownedItems);
         this.addIdentities(ownedItems);
         return this.queueTarget.length;
     }
-    compatUnshift(items) {
-        this.assertMutationUnlocked();
+    compatPush(items) {
+        return this.withMutationEpoch(() => this.compatPushLocked(items));
+    }
+    compatUnshiftLocked(items) {
         const ownedItems = items.map(ownCanonicalCompatItem);
         this.assertAddable(ownedItems);
         Array.prototype.unshift.apply(this.queueTarget, ownedItems);
         this.addIdentities(ownedItems);
         return this.queueTarget.length;
     }
-    compatSplice(args) {
-        this.assertMutationUnlocked();
+    compatUnshift(items) {
+        return this.withMutationEpoch(() => this.compatUnshiftLocked(items));
+    }
+    compatSpliceLocked(args) {
         const len = this.queueTarget.length;
         const rawStart = Number(args[0] !== undefined ? args[0] : 0);
         const start0 = Number.isFinite(rawStart) ? Math.trunc(rawStart) : 0;
         const start = start0 < 0 ? Math.max(len + start0, 0) : Math.min(start0, len);
         const rawDelete = args.length < 2 ? (len - start) : Number(args[1]);
-        const deleteCount = args.length < 2 ? (len - start) : Math.min(Math.max(Number.isFinite(rawDelete) ? Math.trunc(rawDelete) : 0, 0), len - start);
+        const deleteCount = args.length < 2
+            ? (len - start)
+            : Math.min(Math.max(Number.isFinite(rawDelete) ? Math.trunc(rawDelete) : 0, 0), len - start);
         const items = args.slice(2).map(ownCanonicalCompatItem);
         const removed = this.queueTarget.slice(start, start + deleteCount);
         if (this.selectedContainsAny(removed))
-  throw mutationError(exports.VOID_MEMPOOL_SELECTED_MUTATION_FORBIDDEN);
+            throw mutationError(exports.VOID_MEMPOOL_SELECTED_MUTATION_FORBIDDEN);
         const removedIds = new Set();
         for (const item of removed) {
-  const id = comparableCanonicalHashOf(item);
-  if (id)
-      removedIds.add(id);
+            const id = comparableCanonicalHashOf(item);
+            if (id)
+                removedIds.add(id);
         }
         this.assertAddable(items, removedIds);
         const out = Array.prototype.splice.call(this.queueTarget, start, deleteCount, ...items);
@@ -323,105 +346,134 @@ class Mempool {
         this.addIdentities(items);
         return Array.from(out);
     }
+    compatSplice(args) {
+        return this.withMutationEpoch(() => this.compatSpliceLocked(args));
+    }
     compatPop() {
-        if (this.queueTarget.length === 0)
-  return undefined;
-        return this.compatSplice([this.queueTarget.length - 1, 1])[0];
+        return this.withMutationEpoch(() => {
+            if (this.queueTarget.length === 0)
+                return undefined;
+            return this.compatSpliceLocked([this.queueTarget.length - 1, 1])[0];
+        });
     }
     compatShift() {
-        if (this.queueTarget.length === 0)
-  return undefined;
-        return this.compatSplice([0, 1])[0];
+        return this.withMutationEpoch(() => {
+            if (this.queueTarget.length === 0)
+                return undefined;
+            return this.compatSpliceLocked([0, 1])[0];
+        });
     }
     compatSort(compareFn) {
-        this.assertMutationUnlocked();
-        this.mutationLocked = true;
-        try {
-  Array.prototype.sort.call(this.queueTarget, compareFn);
-  return this.queue;
-        }
-        finally {
-  this.mutationLocked = false;
-        }
+        return this.withMutationEpoch(() => {
+            Array.prototype.sort.call(this.queueTarget, compareFn);
+            return this.queue;
+        });
     }
     compatReverse() {
-        this.assertMutationUnlocked();
-        Array.prototype.reverse.call(this.queueTarget);
-        return this.queue;
+        return this.withMutationEpoch(() => {
+            Array.prototype.reverse.call(this.queueTarget);
+            return this.queue;
+        });
     }
     setCompatLength(value) {
-        this.assertMutationUnlocked();
-        const next = Number(value);
-        if (!Number.isInteger(next) || next < 0 || next > 0xffffffff)
-  throw new RangeError("Invalid array length");
-        if (next > this.queueTarget.length)
-  throw mutationError(exports.VOID_MEMPOOL_LENGTH_GROWTH_FORBIDDEN);
-        if (next < this.queueTarget.length)
-  this.compatSplice([next, this.queueTarget.length - next]);
+        this.withMutationEpoch(() => {
+            const next = Number(value);
+            if (!Number.isInteger(next) || next < 0 || next > 0xffffffff)
+                throw new RangeError("Invalid array length");
+            if (next > this.queueTarget.length)
+                throw mutationError(exports.VOID_MEMPOOL_LENGTH_GROWTH_FORBIDDEN);
+            if (next < this.queueTarget.length)
+                this.compatSpliceLocked([next, this.queueTarget.length - next]);
+        });
     }
     push(tx) {
         if (!tx || typeof tx !== "object")
-  return;
-        const hash = strictCanonicalHashOf(tx);
-        if (!hash)
-  return;
-        this.compatPush([{ hash, body: tx.body !== undefined && tx.body !== null ? tx.body : {} }]);
+            return;
+        this.withMutationEpoch(() => {
+            const hash = strictCanonicalHashOf(tx);
+            if (!hash)
+                return;
+            const bodyValue = tx.body;
+            const body = bodyValue !== undefined && bodyValue !== null ? bodyValue : {};
+            this.compatPushLocked([{ hash, body }]);
+        });
     }
-    peekAll() { return Array.from(this.queueTarget); }
+    peekAll() {
+        return Array.from(this.queueTarget);
+    }
     clear() {
-        if (this.queueTarget.length === 0)
-  return;
-        this.compatSplice([0, this.queueTarget.length]);
+        this.withMutationEpoch(() => {
+            if (this.queueTarget.length === 0)
+                return;
+            this.compatSpliceLocked([0, this.queueTarget.length]);
+        });
     }
     drain(max) {
-        const take = !max || max >= this.queueTarget.length ? this.queueTarget.length : Math.max(0, Math.floor(max));
-        return Array.from(this.compatSplice([0, take]));
+        return this.withMutationEpoch(() => {
+            const raw = max === undefined ? undefined : Number(max);
+            const take = !raw || raw >= this.queueTarget.length
+                ? this.queueTarget.length
+                : Math.max(0, Math.floor(raw));
+            return Array.from(this.compatSpliceLocked([0, take]));
+        });
     }
-    popMany(max = 1000) { return this.drain(max); }
-    take(max = 1000) { return this.drain(max); }
+    popMany(max = 1000) {
+        return this.drain(max);
+    }
+    take(max = 1000) {
+        return this.drain(max);
+    }
     beginSelection(max = 1000) {
-        this.assertMutationUnlocked();
-        if (this.selected.length > 0)
-  throw mutationError(exports.VOID_MEMPOOL_SELECTION_IN_PROGRESS);
-        const raw = Number(max);
-        const take = Math.max(0, Math.min(this.queueTarget.length, Number.isFinite(raw) ? Math.floor(raw) : 0));
-        this.selected = this.queueTarget.slice(0, take);
-        return Array.from(this.selected);
+        return this.withMutationEpoch(() => {
+            if (this.selected.length > 0)
+                throw mutationError(exports.VOID_MEMPOOL_SELECTION_IN_PROGRESS);
+            const raw = Number(max);
+            const take = Math.max(
+                0,
+                Math.min(this.queueTarget.length, Number.isFinite(raw) ? Math.floor(raw) : 0),
+            );
+            this.selected = this.queueTarget.slice(0, take);
+            return Array.from(this.selected);
+        });
     }
     commitSelection() {
-        this.assertMutationUnlocked();
-        if (this.selected.length === 0)
-  return [];
-        const selected = Array.from(this.selected);
-        const used = new Set();
-        const indexes = [];
-        for (const tx of selected) {
-  let found = -1;
-  for (let i = 0; i < this.queueTarget.length; i++) {
-      if (!used.has(i) && this.queueTarget[i] === tx) {
-          found = i;
-          break;
-      }
-  }
-  if (found < 0)
-      throw mutationError("mempool_selected_entry_missing");
-  used.add(found);
-  indexes.push(found);
-        }
-        this.selected = [];
-        indexes.sort((a, b) => b - a);
-        const removed = [];
-        for (const index of indexes)
-  removed.push(...Array.prototype.splice.call(this.queueTarget, index, 1));
-        this.removeIdentities(removed);
-        return selected;
+        return this.withMutationEpoch(() => {
+            if (this.selected.length === 0)
+                return [];
+            const selected = Array.from(this.selected);
+            const used = new Set();
+            const indexes = [];
+            for (const tx of selected) {
+                let found = -1;
+                for (let i = 0; i < this.queueTarget.length; i++) {
+                    if (!used.has(i) && this.queueTarget[i] === tx) {
+                        found = i;
+                        break;
+                    }
+                }
+                if (found < 0)
+                    throw mutationError("mempool_selected_entry_missing");
+                used.add(found);
+                indexes.push(found);
+            }
+            this.selected = [];
+            indexes.sort((a, b) => b - a);
+            const removed = [];
+            for (const index of indexes)
+                removed.push(...Array.prototype.splice.call(this.queueTarget, index, 1));
+            this.removeIdentities(removed);
+            return selected;
+        });
     }
     rollbackSelection() {
-        this.assertMutationUnlocked();
-        const selected = Array.from(this.selected);
-        this.selected = [];
-        return selected;
+        return this.withMutationEpoch(() => {
+            const selected = Array.from(this.selected);
+            this.selected = [];
+            return selected;
+        });
     }
-    selectionSize() { return this.selected.length; }
+    selectionSize() {
+        return this.selected.length;
+    }
 }
 exports.Mempool = Mempool;

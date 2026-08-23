@@ -90,6 +90,8 @@ assert(queueReaderStart >= 0 && queueReaderEnd > queueReaderStart, "V2FS takeFro
 const queueReader = indexSource.slice(queueReaderStart, queueReaderEnd);
 assert(queueReader.includes("node.mempool.beginSelection(takeMp)"), "V2FS must select through Mempool.beginSelection");
 assert(!queueReader.includes("pushPicked(mp.splice(0, takeMp));"), "V2FS raw mempool splice bypass remains");
+assert(!queueReader.includes("node?.txQueue"), "V2FS legacy txQueue candidate fallback remains");
+assert(!queueReader.includes("q.splice(0, takeQ)"), "V2FS legacy txQueue destructive candidate drain remains");
 
 const commitStart = indexSource.indexOf("async function commitOnce(max:number, allowEmpty:boolean)", queueReaderEnd);
 const commitEnd = indexSource.indexOf("function mount(){", commitStart + 1);
@@ -114,6 +116,8 @@ assert(mempoolSource.includes("VOID_MEMPOOL_LENGTH_GROWTH_FORBIDDEN"), "queue le
 assert(mempoolSource.includes("snapshotCanonicalPayload"), "canonical payload ownership snapshot missing");
 assert(mempoolSource.includes("if (next > this.queueTarget.length)"), "queue length growth rejection missing");
 assert(mempoolSource.includes("private mutationLocked = false;"), "native sort reentrancy lock missing");
+assert(mempoolSource.includes("private withMutationEpoch<T>"), "general mutation epoch guard missing");
+assert(mempoolSource.includes("private compatSpliceLocked"), "locked splice authority missing");
 assert(!mempoolSource.includes("Object.setPrototypeOf(value"), "caller-owned Array adoption remains");
 
 const h1 = "a".repeat(64);
@@ -136,6 +140,178 @@ canonical.txs.push(newTx);
 assert(oldReads === oldReadsAfterAdmission, "new admission reread existing queue identity; admission is not O(1)");
 assert(newReads > 0, "new admission did not read incoming canonical identity");
 assert(canonical.txs.length === 2, "O(1) admission setup failed");
+
+function assertSingleReserved(mp: any, hash: string, label: string): void {
+  assert(mp.txs.length === 1 && mp.txs[0]?.hash === hash, `${label}: queue changed`);
+  expectDuplicate(() => mp.txs.push({ hash }), `${label}: identity reservation changed`);
+  assert(mp.txs.length === 1 && mp.txs[0]?.hash === hash, `${label}: duplicate probe mutated queue`);
+}
+
+const pushGetterProbe: any = new Mempool();
+pushGetterProbe.txs.push({ hash: h1 });
+const pushGetterTx: any = {
+  get hash() {
+    pushGetterProbe.txs.pop();
+    return h2;
+  },
+};
+expectMessage(
+  () => pushGetterProbe.txs.push(pushGetterTx),
+  VOID_MEMPOOL_REENTRANT_MUTATION_FORBIDDEN,
+  "direct push hash getter reentrancy",
+);
+assertSingleReserved(pushGetterProbe, h1, "direct push hash getter");
+
+const unshiftGetterProbe: any = new Mempool();
+unshiftGetterProbe.txs.push({ hash: h1 });
+const unshiftGetterTx: any = {
+  get hash() {
+    unshiftGetterProbe.txs.shift();
+    return h2;
+  },
+};
+expectMessage(
+  () => unshiftGetterProbe.txs.unshift(unshiftGetterTx),
+  VOID_MEMPOOL_REENTRANT_MUTATION_FORBIDDEN,
+  "direct unshift hash getter reentrancy",
+);
+assertSingleReserved(unshiftGetterProbe, h1, "direct unshift hash getter");
+
+const strictPushProbe: any = new Mempool();
+strictPushProbe.txs.push({ hash: h1 });
+const strictGetterTx: any = {
+  get hash() {
+    strictPushProbe.clear();
+    return h2;
+  },
+  body: { strict: true },
+};
+expectMessage(
+  () => strictPushProbe.push(strictGetterTx),
+  VOID_MEMPOOL_REENTRANT_MUTATION_FORBIDDEN,
+  "strict Mempool.push hash getter reentrancy",
+);
+assertSingleReserved(strictPushProbe, h1, "strict Mempool.push hash getter");
+
+const hashCoercionProbe: any = new Mempool();
+hashCoercionProbe.txs.push({ hash: h1 });
+const coercibleHash: any = {
+  toString() {
+    hashCoercionProbe.txs.pop();
+    return h2;
+  },
+};
+expectMessage(
+  () => hashCoercionProbe.txs.push({ hash: coercibleHash }),
+  VOID_MEMPOOL_REENTRANT_MUTATION_FORBIDDEN,
+  "hash string coercion reentrancy",
+);
+assertSingleReserved(hashCoercionProbe, h1, "hash string coercion");
+
+const spliceStartProbe: any = new Mempool();
+spliceStartProbe.txs.push({ hash: h1 });
+const spliceStart: any = {
+  valueOf() {
+    spliceStartProbe.txs.pop();
+    return 0;
+  },
+};
+expectMessage(
+  () => spliceStartProbe.txs.splice(spliceStart, 0, { hash: h2 }),
+  VOID_MEMPOOL_REENTRANT_MUTATION_FORBIDDEN,
+  "splice start coercion reentrancy",
+);
+assertSingleReserved(spliceStartProbe, h1, "splice start coercion");
+
+const spliceDeleteProbe: any = new Mempool();
+spliceDeleteProbe.txs.push({ hash: h1 });
+const spliceDelete: any = {
+  valueOf() {
+    spliceDeleteProbe.txs.pop();
+    return 0;
+  },
+};
+expectMessage(
+  () => spliceDeleteProbe.txs.splice(0, spliceDelete, { hash: h2 }),
+  VOID_MEMPOOL_REENTRANT_MUTATION_FORBIDDEN,
+  "splice deleteCount coercion reentrancy",
+);
+assertSingleReserved(spliceDeleteProbe, h1, "splice deleteCount coercion");
+
+const lengthCoercionProbe: any = new Mempool();
+lengthCoercionProbe.txs.push({ hash: h1 });
+const coercedLength: any = {
+  valueOf() {
+    lengthCoercionProbe.txs.pop();
+    return 0;
+  },
+};
+expectMessage(
+  () => { lengthCoercionProbe.txs.length = coercedLength; },
+  VOID_MEMPOOL_REENTRANT_MUTATION_FORBIDDEN,
+  "length coercion reentrancy",
+);
+assertSingleReserved(lengthCoercionProbe, h1, "length coercion");
+
+const replacementIteratorProbe: any = new Mempool();
+replacementIteratorProbe.txs.push({ hash: h1 });
+const replacementIterator: any = new Proxy([{ hash: h2 }], {
+  get(target, prop, receiver) {
+    if (prop === Symbol.iterator) replacementIteratorProbe.txs.pop();
+    return Reflect.get(target, prop, receiver);
+  },
+});
+expectMessage(
+  () => { replacementIteratorProbe.txs = replacementIterator; },
+  VOID_MEMPOOL_REENTRANT_MUTATION_FORBIDDEN,
+  "replacement iterator reentrancy",
+);
+assertSingleReserved(replacementIteratorProbe, h1, "replacement iterator");
+
+const descriptorProbe: any = new Mempool();
+descriptorProbe.txs.push({ hash: h1 });
+const descriptorEntry: any = new Proxy({ hash: h2 }, {
+  ownKeys(target) {
+    descriptorProbe.txs.pop();
+    return Reflect.ownKeys(target);
+  },
+});
+expectMessage(
+  () => descriptorProbe.txs.push(descriptorEntry),
+  VOID_MEMPOOL_REENTRANT_MUTATION_FORBIDDEN,
+  "entry descriptor reentrancy",
+);
+assertSingleReserved(descriptorProbe, h1, "entry descriptor");
+
+const beginCoercionProbe: any = new Mempool();
+beginCoercionProbe.txs.push({ hash: h1 });
+const beginMax: any = {
+  valueOf() {
+    beginCoercionProbe.txs.pop();
+    return 1;
+  },
+};
+expectMessage(
+  () => beginCoercionProbe.beginSelection(beginMax),
+  VOID_MEMPOOL_REENTRANT_MUTATION_FORBIDDEN,
+  "beginSelection max coercion reentrancy",
+);
+assertSingleReserved(beginCoercionProbe, h1, "beginSelection max coercion");
+
+const drainCoercionProbe: any = new Mempool();
+drainCoercionProbe.txs.push({ hash: h1 });
+const drainMax: any = {
+  valueOf() {
+    drainCoercionProbe.txs.pop();
+    return 1;
+  },
+};
+expectMessage(
+  () => drainCoercionProbe.drain(drainMax),
+  VOID_MEMPOOL_REENTRANT_MUTATION_FORBIDDEN,
+  "drain max coercion reentrancy",
+);
+assertSingleReserved(drainCoercionProbe, h1, "drain max coercion");
 
 expectDuplicate(() => canonical.txs.push({ hash: h1.toUpperCase() }), "direct duplicate");
 assert(canonical.txs.length === 2, "duplicate mutated queue");
@@ -281,6 +457,8 @@ console.log("VOID_CANONICAL_TXSUBMIT_ADMISSION_DEDUPE_V1_LENGTH_GROWTH_GUARD_GRE
 console.log("VOID_CANONICAL_TXSUBMIT_ADMISSION_DEDUPE_V1_ENTRY_IDENTITY_IMMUTABLE_GREEN=true");
 console.log("VOID_CANONICAL_TXSUBMIT_ADMISSION_DEDUPE_V1_PAYLOAD_SNAPSHOT_IMMUTABLE_GREEN=true");
 console.log("VOID_CANONICAL_TXSUBMIT_ADMISSION_DEDUPE_V1_SORT_REENTRANCY_GUARD_GREEN=true");
+console.log("VOID_CANONICAL_TXSUBMIT_ADMISSION_DEDUPE_V1_MUTATION_EPOCH_REENTRANCY_GREEN=true");
+console.log("VOID_CANONICAL_TXSUBMIT_ADMISSION_DEDUPE_V1_SINGLE_CANONICAL_PRODUCER_AUTHORITY_GREEN=true");
 console.log("VOID_CANONICAL_TXSUBMIT_ADMISSION_DEDUPE_V1_INFLIGHT_RESERVATION_GREEN=true");
 console.log("VOID_CANONICAL_TXSUBMIT_ADMISSION_DEDUPE_V1_DURABLE_RELEASE_GREEN=true");
 console.log("VOID_CANONICAL_TXSUBMIT_ADMISSION_DEDUPE_V1_ROLLBACK_RETAINED_GREEN=true");
