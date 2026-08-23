@@ -2,6 +2,16 @@
   "marker": "VOID_BROOD_QUEEN_LOCAL_MODEL_SEAT_V1_20260822",
   "parent_identity_contract_marker": "VOID_BROOD_QUEEN_CRYPTOGRAPHIC_IDENTITY_CONTRACT_V1_20260822",
   "parent_command_layer_marker": "VOID_CROWN_BROOD_QUEEN_COMMAND_LAYER_V1_20260818",
+  "parent_binding": {
+    "domain": "VOID_BROOD_QUEEN_LOCAL_SEAT_PARENT_POLICY_V1",
+    "identity_reviewed_head": "9f6b868607a9470710ec3143481b9f566a33c841",
+    "identity_fixture_blob_sha": "2b0658867a2273e486cf685be30c368754f2b4b3",
+    "identity_doc_blob_sha": "d0f3cddf34985d12d9276db47315154058416605",
+    "command_fixture_blob_sha": "7db27e1bb5350fc6f9b2fcc69d7075c5aa746c7d",
+    "command_doc_blob_sha": "732536c0e22ba7ea417be61be7e1f9942bba6d74",
+    "parent_policy_sha256": "6fdac6f3851ea62fbfcc90f39568b881b8bc18a9469df0d702373039b4244155",
+    "same_marker_parent_content_drift_fails_closed": true
+  },
   "network": {
     "chain_id": 2050,
     "name": "VOID Network"
@@ -59,7 +69,28 @@
     "ssh_credentials_allowed": false,
     "session_credentials_allowed": false,
     "memory_text_can_override_constitution": false,
-    "validator_authority_in_context": false
+    "validator_authority_in_context": false,
+    "context_injection_without_admission_receipt_allowed": false
+  },
+  "context_admission": {
+    "tool": "scripts/void_brood_queen_local_context_admission_v1.mjs",
+    "schema_marker": "VOID_BROOD_QUEEN_LOCAL_CONTEXT_PACK_V1",
+    "schema_version": "2.0.0",
+    "max_bytes": 262144,
+    "operator_uid_required": true,
+    "mode_required": "0600",
+    "nofollow_required": true,
+    "generation_bound_read_required": true,
+    "strict_utf8_required": true,
+    "closed_schema_required": true,
+    "secret_shape_rejection_required": true,
+    "receipt_marker": "VOID_BROOD_QUEEN_LOCAL_CONTEXT_ADMISSION_RECEIPT_V1",
+    "receipt_contains_payload": false,
+    "receipt_contains_local_path": false,
+    "receipt_binds_context_sha256": true,
+    "receipt_binds_parent_policy_sha256": true,
+    "context_injection_requires_exact_receipt": true,
+    "live_runner_receipt_enforcement_claimed_active": false
   },
   "apollyon_separation": {
     "office": "General",
