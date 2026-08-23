@@ -30569,16 +30569,14 @@ if (process.env.VOID_QUARANTINE_HOT_RUNTIME !== "1") if (process.env.VOID_DISABL
     const mp = node?.mempool?.txs;
     if (Array.isArray(mp) && mp.length > 0){
       const takeMp = Math.min(capN, mp.length);
-      pushPicked(mp.splice(0, takeMp));
+      if (typeof node?.mempool?.beginSelection !== "function") {
+        throw new Error("mempool.beginSelection missing (canonical lifecycle guard)");
+      }
+      pushPicked(node.mempool.beginSelection(takeMp));
     }
 
-    if (out.length < capN){
-      const q = node?.txQueue;
-      if (Array.isArray(q) && q.length > 0){
-        const takeQ = Math.min(capN - out.length, q.length);
-        pushPicked(q.splice(0, takeQ));
-      }
-    }
+        // Canonical V2FS ignores the legacy mirrored queue for candidate selection.
+    // Canonical intake and lifecycle authority remain node.mempool only.
 
     return out;
   }
@@ -30669,11 +30667,26 @@ if (process.env.VOID_QUARANTINE_HOT_RUNTIME !== "1") if (process.env.VOID_DISABL
       const to = h1.n;
       const advanced = (to >= next);
 
+      if (advanced) {
+        if (typeof node?.mempool?.commitSelection !== "function") {
+          if (txsA.length > 0) throw new Error("mempool.commitSelection missing (canonical lifecycle guard)");
+        } else {
+          node.mempool.commitSelection();
+        }
+      } else if (typeof node?.mempool?.rollbackSelection === "function") {
+        node.mempool.rollbackSelection();
+      }
+
       S.last_ms = Date.now()-t0;
       S.last_from = from; S.last_to = to; S.last_took = txs.length;
       if (advanced) S.ok++; else S.noop++;
       return { ok:true, advanced, from, to, took:txs.length, allowEmpty, headWhy0:h0.why, headWhy1:h1.why };
     } catch (e:any){
+      try {
+        if (typeof node?.mempool?.rollbackSelection === "function") node.mempool.rollbackSelection();
+      } catch (rollbackErr:any) {
+        S.last_err = String(rollbackErr && (rollbackErr.stack || rollbackErr) || rollbackErr);
+      }
       S.errors++; S.last_err = String(e && (e.stack || e) || e);
       S.last_ms = Date.now()-t0;
       return { ok:false, error:S.last_err };
@@ -30916,8 +30929,8 @@ if (process.env.VOID_DISABLE_HEAD_SURGERY !== "1") (function VoidHeadLatestSurge
     const t0 = Date.now();
     try{
       S.ticks++;
-      const AUTO_EMPTY = 1;
-      const url = base() + "/__void/metrics/proposer.commit-direct.v2fs/commit?empty=1";
+      const AUTO_EMPTY = 0;
+      const url = base() + "/__void/metrics/proposer.commit-direct.v2fs/commit?empty=0";
       const r = await fetch(url, { method:"POST" }).catch(()=>null);
       const j = r ? await r.json().catch(()=>null) : null;
       const ms = Date.now() - t0;
@@ -31275,8 +31288,8 @@ if (process.env.VOID_DISABLE_HEAD_SURGERY !== "1") (function VoidHeadLatestSurge
 
     // Warm kick once after a short delay so the autoprop loop has time to attach.
     setTimeout(()=>{
-      const AUTO_EMPTY2 = 1;
-      const url = `http://127.0.0.1:${port()}/__void/metrics/proposer.commit-direct.v2fs/commit?empty=1`;
+      const AUTO_EMPTY2 = 0;
+      const url = `http://127.0.0.1:${port()}/__void/metrics/proposer.commit-direct.v2fs/commit?empty=0`;
       postT(url, 300).then(()=>{});
     }, 600);
 
