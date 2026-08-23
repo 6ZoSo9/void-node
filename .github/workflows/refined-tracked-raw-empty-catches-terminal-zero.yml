@@ -26,7 +26,7 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Prove HTTP tx routes keep noncanonical mempool submit retired
+      - name: Prove HTTP tx routes retire legacy mutation authority
         run: npx tsx scripts/prove_http_tx_routes_empty_catch_visibility_v1.ts
 
       - name: Prove root README public discovery link remains green
