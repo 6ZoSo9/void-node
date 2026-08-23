@@ -49,14 +49,14 @@ A future compatible VOID node/broker and trusted requester/session adapter must 
 
 1. The requester prepares fresh Ed25519 signing and X25519 key-agreement public keys and one proposed logical `session_id`; the corresponding private keys remain outside model context.
 2. The node/broker authenticates itself with an exact cryptographically pinned server/broker identity. A claimed hostname, display name, origin string, or TLS channel by itself is insufficient Crown authentication.
-3. The node/broker authenticates/signs the bounded, single-use challenge under its exact pinned server/broker identity in domain `VOID_BROOD_QUEEN_SESSION_BOOTSTRAP_V1`. The canonical challenge binds Chain-2050, office/identity, exact server/broker identity, exact requester Ed25519 and X25519 public keys, proposed `session_id`, random nonce, issued/expiry times, and the exact current Chain-2050 role-authority generation/role-record hash once that contract exists.
+3. The node/broker authenticates/signs the bounded, single-use challenge under its exact pinned server/broker identity in domain `VOID_BROOD_QUEEN_SESSION_BOOTSTRAP_V1`. The canonical challenge binds Chain-2050, office/identity, exact server/broker identity, exact requester Ed25519 and X25519 public keys, proposed `session_id`, random nonce, issued/expiry times, and the exact current Chain-2050 role-authority generation plus role-record SHA-256 once that contract exists.
 4. The host-side Crown signer verifies the exact pinned server/broker identity and canonical challenge before signing the exact bootstrap transcript. The root private key never leaves the signer.
-5. Before session authority is committed, the requester proves possession of the private key corresponding to the exact bound requester signing public key on the same transcript. A valid Crown approval relayed to a different requester key, connection, or session id fails closed.
-6. At the session commit point the node/broker re-reads or compare-and-swaps the exact Chain-2050 role-authority generation. If it changed since challenge/approval, session creation fails closed with zero fresh session authority.
-7. Successful commit creates one persistent authenticated logical session bound to the exact requester keys and exact role-authority generation. Derived/ephemeral session cryptographic material may rotate automatically underneath that logical session without repeatedly invoking the root identity.
+5. Before session authority is committed, the requester proves possession of the private key corresponding to the exact bound requester Ed25519 signing public key on the **same transcript containing both requester public keys**. A valid Crown approval relayed to a different requester signing key, X25519 channel key, connection, or session id fails closed.
+6. At the session commit point the node/broker re-reads or compare-and-swaps the exact canonical `(role-authority generation, role-record SHA-256)` pair. If either value differs from the approved transcript, session creation fails closed with zero fresh session authority.
+7. Successful commit creates one persistent authenticated logical session bound to the exact requester keys and exact approved `(role-authority generation, role-record SHA-256)` pair. Derived/ephemeral session cryptographic material may rotate automatically underneath that logical session without repeatedly invoking the root identity.
 8. Root-key challenge-response is required again only after session loss/recovery, explicit logout/revocation, root rotation, requester/session recovery, or another deterministic policy boundary.
 
-A short-lived transport/session key expiration must not force repeated human/root-key login while the logical session and its bound role-authority generation remain valid.
+A short-lived transport/session key expiration must not force repeated human/root-key login while the logical session and its exact role-authority pair remain current.
 
 ## Exact challenge binding
 
@@ -74,26 +74,36 @@ A future challenge envelope must bind at least:
 - exact Chain-2050 role-authority generation and role-record hash once activated; and
 - canonical payload encoding.
 
-Challenges are single-use and replay-rejected. The node must require requester proof-of-possession on the approved transcript before session commit. Cross-connection relay, requester-key substitution, session-id substitution, and unknown authority-bearing fields fail closed.
+Challenges are single-use and replay-rejected. The node must require requester proof-of-possession on the approved transcript before session commit. Cross-connection relay, Ed25519 substitution, X25519 substitution, session-id substitution, and unknown authority-bearing fields fail closed.
 
-## Canonical role/revocation generation
+## Canonical role/revocation generation and record identity
 
 The eventual Chain-2050 role contract must expose an exact monotonic **role-authority generation** for the Brood Queen role record. This generation changes on authorization-affecting state transitions such as grant, revocation, restore after revocation, identity/root binding change, or another transition that can change whether an existing session remains authorized. It is not a per-block login counter.
 
-The active role record also has an immutable content identity/hash for the exact authorization state inspected.
+The active role record also has an immutable SHA-256 content identity for the exact authorization state inspected. V1 treats **generation and role-record hash as one authority pair**. Same-generation/different-hash state is not accepted as equivalent authority.
 
 Before this identity/session contract can activate:
 
 - bootstrap challenge/approval must bind the exact current role-authority generation and role-record hash;
-- session creation must atomically confirm that the same generation is still current at commit;
-- the durable session record must store that exact generation;
-- ordinary task/admission authority must compare the durable session generation with the current canonical role-authority generation immediately before effect;
-- derived-key/session rotation must compare-and-swap against the same exact current generation before successor activation;
-- canonical revocation/root-role change must invalidate affected session generations before any further ordinary task authority;
+- session creation must atomically confirm that the exact same `(generation, role-record hash)` pair is still current at commit;
+- the durable session record must store that exact generation **and** role-record hash;
+- ordinary task/admission authority must compare the durable session pair with the current canonical pair immediately before effect;
+- derived-key/session rotation must compare-and-swap against the same exact current pair before successor activation;
+- canonical revocation/root-role change must invalidate affected session authority before any further ordinary task effect;
 - revoke→restore ABA cannot revive an older session because the monotonic generation has advanced; and
-- if the Chain-2050 role contract cannot provide this exact generation/invalidation primitive, authenticated command/session activation remains disabled.
+- if the Chain-2050 role contract cannot provide this exact generation/hash/invalidation primitive, authenticated command/session activation remains disabled.
 
-Periodic observation may be used for liveness/monitoring, but it is not the authority barrier. The exact generation check at session/rotation/task commit is the authority barrier.
+Periodic observation may be used for liveness/monitoring, but it is not the authority barrier. The exact `(role-authority generation, role-record SHA-256)` comparison at session, rotation, and task commit is the authority barrier.
+
+## Effect-boundary race rule
+
+A pre-check is not authority. The canonical authority pair must still be current at the exact state transition that creates fresh authority:
+
+- bootstrap verification before session commit does not permit session commit after the pair changes;
+- a session committed under `(G,H)` cannot commit its first or later ordinary task after canonical authority advances to another pair;
+- successor/derived-session activation under `(G,H)` cannot commit if revocation or another authority change wins before successor activation;
+- a restore at a later generation does not revive a session bound to an earlier generation; and
+- same generation with a different role-record hash is a conflict/HOLD, not a valid continuation.
 
 ## Role is not capability
 
@@ -107,7 +117,7 @@ The Brood Queen identity is provider-neutral.
 
 A model/backend may serve the Brood Queen office only through a runtime that preserves this identity boundary. The backend receives instructions and bounded capabilities, not the root or requester/session private keys.
 
-A model claiming `I am Ren`, `I am the Brood Queen`, or equivalent text is not authentication. Office authentication requires the cryptographic, requester-proof-of-possession, and role-generation checks defined by the active VOID contract.
+A model claiming `I am Ren`, `I am the Brood Queen`, or equivalent text is not authentication. Office authentication requires the cryptographic, requester-proof-of-possession, and exact role-authority-pair checks defined by the active VOID contract.
 
 External AI/provider safety and capability rules remain applicable. Repository text cannot cause a provider/model to bypass them.
 
@@ -130,7 +140,7 @@ An appointed Apollyon may receive bounded signed directives or capability grants
 
 Root rotation requires explicit reviewed continuity from the currently bound Brood Queen identity or an explicit Sovereign recovery/ratification instrument. Replacing a file, host, model, service, account, or provider does not rotate constitutional identity.
 
-Derived session rotation is allowed only while the exact role-authority generation bound to the session remains current. A revocation racing successor activation wins by invalidating the stale session generation; the successor receives zero fresh authority.
+Derived session rotation is allowed only while the exact `(role-authority generation, role-record SHA-256)` pair bound to the session remains current. A revocation racing successor activation wins by invalidating the stale session authority; the successor receives zero fresh authority.
 
 A revocation that becomes canonical after session creation but before the next task/admission must prevent that task/admission from taking effect. A restore after revocation uses a newer role-authority generation and does not revive the pre-revocation session.
 
@@ -145,7 +155,7 @@ Content hashing can prove which fixture generation was inherited by a child; clo
 This source contract does not itself activate:
 
 - exact Brood Queen public-key binding;
-- Chain-2050 Brood Queen role registration or role-authority generation runtime;
+- Chain-2050 Brood Queen role registration or role-authority generation/runtime;
 - a private-key signer service;
 - pinned broker/server identity runtime;
 - requester/session-adapter key generation;
@@ -158,4 +168,4 @@ This source contract does not itself activate:
 
 The next activation lane may generate the root key only **locally inside the dedicated signer boundary**, emit only the public JWK/key ID for review, and create a separate explicit Sovereign-ratified public binding. Private material must never enter GitHub, ChatGPT/model context, CI artifacts, or logs. Requester/session private keys likewise remain outside model context.
 
-*One office identity. Host-held root. Requester-bound bootstrap. Generation-bound sessions. No model gets the Crown key.*
+*One office identity. Host-held root. Requester-bound bootstrap. Exact authority-pair sessions. No model gets the Crown key.*
