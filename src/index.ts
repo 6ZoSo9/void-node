@@ -30569,7 +30569,10 @@ if (process.env.VOID_QUARANTINE_HOT_RUNTIME !== "1") if (process.env.VOID_DISABL
     const mp = node?.mempool?.txs;
     if (Array.isArray(mp) && mp.length > 0){
       const takeMp = Math.min(capN, mp.length);
-      pushPicked(mp.splice(0, takeMp));
+      if (typeof node?.mempool?.beginSelection !== "function") {
+        throw new Error("mempool.beginSelection missing (canonical lifecycle guard)");
+      }
+      pushPicked(node.mempool.beginSelection(takeMp));
     }
 
     if (out.length < capN){
@@ -30669,11 +30672,26 @@ if (process.env.VOID_QUARANTINE_HOT_RUNTIME !== "1") if (process.env.VOID_DISABL
       const to = h1.n;
       const advanced = (to >= next);
 
+      if (advanced) {
+        if (typeof node?.mempool?.commitSelection !== "function") {
+          if (txsA.length > 0) throw new Error("mempool.commitSelection missing (canonical lifecycle guard)");
+        } else {
+          node.mempool.commitSelection();
+        }
+      } else if (typeof node?.mempool?.rollbackSelection === "function") {
+        node.mempool.rollbackSelection();
+      }
+
       S.last_ms = Date.now()-t0;
       S.last_from = from; S.last_to = to; S.last_took = txs.length;
       if (advanced) S.ok++; else S.noop++;
       return { ok:true, advanced, from, to, took:txs.length, allowEmpty, headWhy0:h0.why, headWhy1:h1.why };
     } catch (e:any){
+      try {
+        if (typeof node?.mempool?.rollbackSelection === "function") node.mempool.rollbackSelection();
+      } catch (rollbackErr:any) {
+        S.last_err = String(rollbackErr && (rollbackErr.stack || rollbackErr) || rollbackErr);
+      }
       S.errors++; S.last_err = String(e && (e.stack || e) || e);
       S.last_ms = Date.now()-t0;
       return { ok:false, error:S.last_err };

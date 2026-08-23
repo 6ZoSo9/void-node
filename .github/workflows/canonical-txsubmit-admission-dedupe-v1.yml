@@ -27,18 +27,27 @@ jobs:
       - name: Checkout
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
-          fetch-depth: 0
+fetch-depth: 0
 
       - name: Setup Node
         uses: actions/setup-node@1e60f620b9541d16bece96c5465dc8ee9832be0b
         with:
-          node-version: "22"
+node-version: "22"
 
-      - name: Install dependencies
+      - name: Install locked dependencies
         run: npm ci
 
       - name: Typecheck
         run: npm run typecheck
 
-      - name: Prove canonical txsubmit pending-identity dedupe
-        run: npx tsx scripts/prove_canonical_txsubmit_admission_dedupe_v1.ts
+      - name: Focused source hygiene
+        shell: bash
+        run: |
+set -euo pipefail
+test -x ./node_modules/.bin/tsx
+! grep -F "VOID_V2FS_COMMIT_LIFECYCLE_INSPECT" scripts/prove_canonical_txsubmit_admission_dedupe_v1.ts
+! grep -F "pushPicked(mp.splice(0, takeMp));" src/index.ts
+git diff --check
+
+      - name: Prove O(1) identity, guarded mutation, and durable selection lifecycle
+        run: ./node_modules/.bin/tsx scripts/prove_canonical_txsubmit_admission_dedupe_v1.ts
