@@ -1,0 +1,109 @@
+name: pr1398-one-shot-lifecycle-repair-trigger
+
+on:
+  pull_request:
+    types: [synchronize]
+    paths:
+      - ".github/workflows/pr1398-one-shot-lifecycle-repair-trigger.yml"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: pr1398-one-shot-lifecycle-repair-trigger
+  cancel-in-progress: false
+
+jobs:
+  repair:
+    if: github.repository == '6ZoSo9/void-node' && github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.head.ref == 'fix/canonical-txsubmit-admission-dedupe-v1-20260823'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout exact PR head
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+
+      - name: Guard repair ancestry and pre-repair scope
+        shell: bash
+        run: |
+          set -euo pipefail
+          git merge-base --is-ancestor 9b9f39a1c98e076172a6e5058de750d912e46e25 HEAD
+          expected="$(printf '%s\n' \
+            .github/workflows/pr1398-one-shot-lifecycle-repair-trigger.yml \
+            .github/workflows/pr1398-one-shot-lifecycle-repair.yml | sort)"
+          actual="$(git diff 9b9f39a1c98e076172a6e5058de750d912e46e25...HEAD --name-only | sort)"
+          test "${actual}" = "${expected}"
+          test -z "$(git status --porcelain)"
+
+      - name: Execute bounded repair payload
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+          source = Path('.github/workflows/pr1398-one-shot-lifecycle-repair.yml').read_text(encoding='utf-8')
+          marker = "          python - <<'PY'\n"
+          start = source.index(marker) + len(marker)
+          end = source.index("\n          PY\n", start)
+          chunk = source[start:end]
+          lines = []
+          for line in chunk.splitlines():
+              if not line.startswith('          '):
+                  raise SystemExit(f'unexpected repair payload indentation: {line[:40]!r}')
+              lines.append(line[10:])
+          payload = '\n'.join(lines) + '\n'
+          exec(compile(payload, '<pr1398-repair-payload>', 'exec'), {'__name__': '__main__'})
+          PY
+
+      - name: Setup Node
+        uses: actions/setup-node@1e60f620b9541d16bece96c5465dc8ee9832be0b
+        with:
+          node-version: "22"
+
+      - name: Install locked dependencies
+        run: npm ci
+
+      - name: Verify repaired generation
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm run typecheck
+          test -x ./node_modules/.bin/tsx
+          ./node_modules/.bin/tsx scripts/prove_canonical_txsubmit_admission_dedupe_v1.ts
+          ! grep -F "VOID_V2FS_COMMIT_LIFECYCLE_INSPECT" scripts/prove_canonical_txsubmit_admission_dedupe_v1.ts
+          ! grep -F "pushPicked(mp.splice(0, takeMp));" src/index.ts
+          git diff --check
+
+      - name: Remove one-shot machinery and enforce exact final scope
+        shell: bash
+        run: |
+          set -euo pipefail
+          git rm .github/workflows/pr1398-one-shot-lifecycle-repair.yml \
+                 .github/workflows/pr1398-one-shot-lifecycle-repair-trigger.yml
+          expected="$(printf '%s\n' \
+            .github/workflows/canonical-txsubmit-admission-dedupe-v1.yml \
+            .github/workflows/pr1398-one-shot-lifecycle-repair-trigger.yml \
+            .github/workflows/pr1398-one-shot-lifecycle-repair.yml \
+            scripts/prove_canonical_txsubmit_admission_dedupe_v1.ts \
+            src/chain/mempool.js \
+            src/chain/mempool.ts \
+            src/index.ts | sort)"
+          actual="$(git diff HEAD --name-only | sort)"
+          test "${actual}" = "${expected}"
+
+      - name: Fast-forward repaired PR branch
+        shell: bash
+        env:
+          BRANCH: ${{ github.event.pull_request.head.ref }}
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add .github/workflows/canonical-txsubmit-admission-dedupe-v1.yml \
+                  scripts/prove_canonical_txsubmit_admission_dedupe_v1.ts \
+                  src/chain/mempool.js \
+                  src/chain/mempool.ts \
+                  src/index.ts
+          git commit -m "fix(tx): close canonical identity lifecycle gaps"
+          git push origin HEAD:"${BRANCH}"
