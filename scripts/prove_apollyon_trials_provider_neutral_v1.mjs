@@ -2,7 +2,7 @@
 
 import { createHash } from 'node:crypto';
 import {
-  appendFile, mkdtemp, readFile, rename, rm, stat, symlink, writeFile,
+  appendFile, mkdir, mkdtemp, readFile, readdir, rename, rm, stat, symlink, writeFile,
 } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -46,6 +46,14 @@ async function expectReject(promise, contains, name) {
     return;
   }
   hold(`${name} did not reject`);
+}
+async function expectMissing(path, name) {
+  try { await stat(path); }
+  catch (error) {
+    if (error?.code === 'ENOENT') return;
+    throw error;
+  }
+  hold(`${name} unexpectedly exists`);
 }
 async function expectMaterializeHold(dir, name, mutate) {
   const draft = baseDraft();
@@ -198,6 +206,33 @@ async function main() {
     if (retryMaterialized.stdout.trim() !== id) hold('exact materialize retry did not converge to same trial_id');
     await assertExactPacketFile(packetPath, packet, 'exact materialize retry');
 
+    const anonymousPath = join(dir, 'anonymous-stage.packet.json');
+    let anonymousStageObserved = false;
+    let exactFdPublicationObserved = false;
+    await publishTrialPacketV1(anonymousPath, packet, {
+      faultHook: async (point, detail) => {
+        if (point === 'after_stage_create') {
+          anonymousStageObserved = true;
+          if (detail.stageLeaf !== null) hold('anonymous publication exposed a named stage leaf');
+          const entries = await readdir(dir);
+          if (entries.some((entry) => entry.startsWith('.void-apollyon-stage-'))) {
+            hold('anonymous publication created a mutable named stage alias');
+          }
+        }
+        if (point === 'after_final_link') {
+          exactFdPublicationObserved = true;
+          const stageGeneration = await detail.stageHandle.stat({ bigint: true });
+          const finalGeneration = await stat(`/proc/self/fd/${detail.parentHandle.fd}/${detail.finalLeaf}`, { bigint: true });
+          if (stageGeneration.dev !== finalGeneration.dev || stageGeneration.ino !== finalGeneration.ino) {
+            hold('published final did not originate from exact open staged generation');
+          }
+        }
+      },
+    });
+    if (!anonymousStageObserved) hold('anonymous stage proof did not observe stage creation');
+    if (!exactFdPublicationObserved) hold('exact-fd publication proof did not observe final publication');
+    await assertExactPacketFile(anonymousPath, packet, 'anonymous exact-fd publication');
+
     await expectPublicationFaultRetry(dir, packet, 'fault-after-stage-create', 'after_stage_create');
     await expectPublicationFaultRetry(
       dir,
@@ -212,6 +247,45 @@ async function main() {
     await expectPublicationFaultRetry(dir, packet, 'fault-after-stage-sync', 'after_stage_sync');
     await expectPublicationFaultRetry(dir, packet, 'fault-after-final-link', 'after_final_link');
     await expectPublicationFaultRetry(dir, packet, 'fault-before-parent-sync', 'before_parent_sync');
+
+    const parentAuthority = join(dir, 'retained-parent-authority');
+    const parentReplacement = join(dir, 'replacement-parent-authority');
+    const parentMoved = join(dir, 'retained-parent-moved');
+    await mkdir(parentAuthority, { mode: 0o700 });
+    await mkdir(parentReplacement, { mode: 0o700 });
+    let parentReplacementObserved = false;
+    await publishTrialPacketV1(join(parentAuthority, 'packet.json'), packet, {
+      faultHook: async (point) => {
+        if (point !== 'after_stage_sync' || parentReplacementObserved) return;
+        parentReplacementObserved = true;
+        await rename(parentAuthority, parentMoved);
+        await rename(parentReplacement, parentAuthority);
+      },
+    });
+    if (!parentReplacementObserved) hold('parent pathname replacement adversary did not run');
+    await assertExactPacketFile(join(parentMoved, 'packet.json'), packet, 'retained parent publication');
+    await expectMissing(join(parentAuthority, 'packet.json'), 'replacement parent final');
+
+    const preSyncReplacementPath = join(dir, 'pre-sync-replacement.packet.json');
+    const preSyncOriginalPath = join(dir, 'pre-sync-replacement.original.json');
+    const foreignReplacementBytes = Buffer.from('{"foreign":true}\n', 'utf8');
+    let preSyncReplacementObserved = false;
+    await expectReject(
+      publishTrialPacketV1(preSyncReplacementPath, packet, {
+        faultHook: async (point) => {
+          if (point !== 'before_parent_sync' || preSyncReplacementObserved) return;
+          preSyncReplacementObserved = true;
+          await rename(preSyncReplacementPath, preSyncOriginalPath);
+          await writeFile(preSyncReplacementPath, foreignReplacementBytes, { mode: 0o600 });
+        },
+      }),
+      'conflicting generation',
+      'pre-parent-sync final replacement',
+    );
+    if (!preSyncReplacementObserved) hold('pre-parent-sync final replacement adversary did not run');
+    if (!(await readFile(preSyncReplacementPath)).equals(foreignReplacementBytes)) {
+      hold('foreign replacement final was modified after commit-binding HOLD');
+    }
 
     const postCommitPath = join(dir, 'post-commit-observer-fault.packet.json');
     let postCommitFaultObserved = false;
@@ -312,6 +386,9 @@ async function main() {
   process.stdout.write('packet_publication_failure_atomic_retry_recoverable=true\n');
   process.stdout.write('packet_publication_parent_directory_durable=true\n');
   process.stdout.write('packet_publication_foreign_final_preserved=true\n');
+  process.stdout.write('packet_publication_anonymous_stage=true\n');
+  process.stdout.write('packet_publication_exact_fd_no_replace=true\n');
+  process.stdout.write('packet_publication_post_parent_sync_generation_bound=true\n');
 }
 
 main().catch((error) => {

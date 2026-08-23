@@ -1,8 +1,9 @@
 #!/usr/bin/env node
 
-import { createHash, randomUUID } from 'node:crypto';
+import { createHash } from 'node:crypto';
 import { constants as FS } from 'node:fs';
-import { link, open } from 'node:fs/promises';
+import { open } from 'node:fs/promises';
+import { spawnSync } from 'node:child_process';
 import { basename, dirname, resolve } from 'node:path';
 import process from 'node:process';
 import { fileURLToPath } from 'node:url';
@@ -40,6 +41,13 @@ const SCORE_KEYS = [
   'correctness', 'evidence_verifiability', 'security_constraint_obedience',
   'hallucination_resistance', 'efficiency', 'reproducibility',
 ];
+
+// Linux O_TMPFILE is __O_TMPFILE | O_DIRECTORY. Node 22/24/26 do not expose
+// fs.constants.O_TMPFILE, so the reviewed Linux value is explicit here.
+const LINUX_O_TMPFILE = 0o20000000 | FS.O_DIRECTORY;
+const LINK_HELPER = '/usr/bin/ln';
+const LINK_HELPER_TIMEOUT_MS = 5_000;
+const LINK_HELPER_MAX_STDERR_BYTES = 8 * 1024;
 
 function fail(message) { throw new Error(message); }
 function sha256(value) { return createHash('sha256').update(value).digest('hex'); }
@@ -115,6 +123,9 @@ function stamp(stat) {
 function sameStamp(a, b) {
   return a.dev === b.dev && a.ino === b.ino && a.size === b.size
     && a.mtimeNs === b.mtimeNs && a.ctimeNs === b.ctimeNs;
+}
+function sameFileIdentity(a, b) {
+  return a.dev === b.dev && a.ino === b.ino;
 }
 
 export async function openPinnedRegular(path, maxBytes = MAX_INPUT_BYTES) {
@@ -241,11 +252,15 @@ function packetBytes(value) {
   return Buffer.from(`${JSON.stringify(value, null, 2)}\n`, 'utf8');
 }
 
+function parentFdPath(parentHandle) {
+  return `/proc/self/fd/${parentHandle.fd}`;
+}
+
 function childPath(parentHandle, leaf) {
   if (typeof leaf !== 'string' || leaf.length === 0 || leaf.includes('/') || leaf === '.' || leaf === '..') {
     fail('output path must name one final file');
   }
-  return `/proc/self/fd/${parentHandle.fd}/${leaf}`;
+  return `${parentFdPath(parentHandle)}/${leaf}`;
 }
 
 async function readExactPublishedFile(parentHandle, leaf, expectedBytes) {
@@ -291,6 +306,47 @@ async function invokeFaultHook(hook, point, detail = {}) {
   if (typeof hook === 'function') await hook(point, detail);
 }
 
+async function openAnonymousTrialStage(parentHandle) {
+  if (process.platform !== 'linux') {
+    fail('trial packet publication requires Linux O_TMPFILE/procfs support');
+  }
+  try {
+    return await open(parentFdPath(parentHandle), LINUX_O_TMPFILE | FS.O_RDWR, 0o600);
+  } catch (error) {
+    fail(`anonymous trial packet staging unavailable: ${error?.code ?? 'unknown_error'}`);
+  }
+}
+
+function runExactFdLinkHelper(stageHandle, parentHandle, leaf) {
+  const result = spawnSync(
+    LINK_HELPER,
+    ['-L', '-T', '--', '/proc/self/fd/3', `/proc/self/fd/4/${leaf}`],
+    {
+      stdio: ['ignore', 'ignore', 'pipe', stageHandle.fd, parentHandle.fd],
+      timeout: LINK_HELPER_TIMEOUT_MS,
+      maxBuffer: LINK_HELPER_MAX_STDERR_BYTES,
+      encoding: 'utf8',
+      windowsHide: true,
+    },
+  );
+  return {
+    status: result.status,
+    signal: result.signal,
+    error: result.error ?? null,
+    stderr: String(result.stderr ?? '').slice(0, LINK_HELPER_MAX_STDERR_BYTES),
+  };
+}
+
+function linkHelperFailure(result) {
+  if (result.error) {
+    const code = result.error?.code ?? 'unknown_error';
+    return `exact-fd link helper failed: ${code}`;
+  }
+  const signal = result.signal ?? 'none';
+  const stderr = result.stderr.trim();
+  return `exact-fd link helper failed: status=${String(result.status)} signal=${signal}${stderr ? ` stderr=${stderr}` : ''}`;
+}
+
 export async function publishTrialPacketV1(path, value, options = {}) {
   const expectedBytes = packetBytes(value);
   const absolute = resolve(path);
@@ -299,7 +355,6 @@ export async function publishTrialPacketV1(path, value, options = {}) {
 
   let parentHandle;
   let stageHandle;
-  let stageLeaf = null;
   let committed = false;
   let primaryError = null;
   let result = null;
@@ -312,8 +367,12 @@ export async function publishTrialPacketV1(path, value, options = {}) {
 
     let existingSatisfied = false;
     try {
-      await readExactPublishedFile(parentHandle, leaf, expectedBytes);
+      const beforeSync = await readExactPublishedFile(parentHandle, leaf, expectedBytes);
       await parentHandle.sync();
+      const afterSync = await readExactPublishedFile(parentHandle, leaf, expectedBytes);
+      if (!sameStamp(stamp(beforeSync.stat), stamp(afterSync.stat))) {
+        fail('existing output generation changed across parent durability commit');
+      }
       committed = true;
       try {
         await invokeFaultHook(options.afterCommitHook, 'after_parent_directory_sync', { reusedExisting: true });
@@ -327,58 +386,68 @@ export async function publishTrialPacketV1(path, value, options = {}) {
     }
 
     if (!existingSatisfied) {
-      stageLeaf = `.void-apollyon-stage-${randomUUID()}`;
-    const stagePath = childPath(parentHandle, stageLeaf);
-    const finalPath = childPath(parentHandle, leaf);
+      stageHandle = await openAnonymousTrialStage(parentHandle);
+      await invokeFaultHook(options.faultHook, 'after_stage_create', {
+        stageHandle, stageLeaf: null, parentHandle, finalLeaf: leaf, expectedBytes,
+      });
+      await stageHandle.writeFile(expectedBytes);
+      await invokeFaultHook(options.faultHook, 'after_stage_write', {
+        stageHandle, stageLeaf: null, parentHandle, finalLeaf: leaf, expectedBytes,
+      });
+      await invokeFaultHook(options.faultHook, 'before_stage_sync', {
+        stageHandle, stageLeaf: null, parentHandle, finalLeaf: leaf, expectedBytes,
+      });
+      await stageHandle.sync();
+      const stageStat = await stageHandle.stat({ bigint: true });
+      if (!stageStat.isFile() || (Number(stageStat.mode) & 0o777) !== 0o600) {
+        fail('anonymous staged packet generation is not an exact private regular file');
+      }
+      await invokeFaultHook(options.faultHook, 'after_stage_sync', {
+        stageHandle, stageLeaf: null, parentHandle, finalLeaf: leaf, expectedBytes,
+      });
 
-    stageHandle = await open(stagePath, 'wx', 0o600);
-    await invokeFaultHook(options.faultHook, 'after_stage_create', {
-      stageHandle, stageLeaf, expectedBytes,
-    });
-    await stageHandle.writeFile(expectedBytes);
-    await invokeFaultHook(options.faultHook, 'after_stage_write', {
-      stageHandle, stageLeaf, expectedBytes,
-    });
-    await invokeFaultHook(options.faultHook, 'before_stage_sync', {
-      stageHandle, stageLeaf, expectedBytes,
-    });
-    await stageHandle.sync();
-    const stageStat = await stageHandle.stat({ bigint: true });
-    await invokeFaultHook(options.faultHook, 'after_stage_sync', {
-      stageHandle, stageLeaf, expectedBytes,
-    });
+      const linkResult = runExactFdLinkHelper(stageHandle, parentHandle, leaf);
+      let final;
+      try {
+        final = await readExactPublishedFile(parentHandle, leaf, expectedBytes);
+      } catch (error) {
+        if (linkResult.error || linkResult.status !== 0) fail(linkHelperFailure(linkResult));
+        throw error;
+      }
 
-    let linked = false;
-    try {
-      await link(stagePath, finalPath);
-      linked = true;
+      const linkedNewFinal = sameFileIdentity(final.stat, stageStat);
+      if (linkResult.status === 0 && !linkedNewFinal) {
+        fail('exact-fd link helper reported success without publishing the exact staged generation');
+      }
+
       await invokeFaultHook(options.faultHook, 'after_final_link', {
-        stageHandle, stageLeaf, expectedBytes,
+        stageHandle, stageLeaf: null, parentHandle, finalLeaf: leaf, expectedBytes,
+        linkedNewFinal, finalStat: final.stat,
       });
-    } catch (error) {
-      if (error?.code !== 'EEXIST') throw error;
-    }
-
-    const final = await readExactPublishedFile(parentHandle, leaf, expectedBytes);
-    if (linked && (final.stat.dev !== stageStat.dev || final.stat.ino !== stageStat.ino)) {
-      fail('published final generation does not match exact staged generation');
-    }
-
-    await invokeFaultHook(options.faultHook, 'before_parent_sync', {
-      stageHandle, stageLeaf, expectedBytes,
-    });
-    await parentHandle.sync();
-    committed = true;
-
-    try {
-      await invokeFaultHook(options.afterCommitHook, 'after_parent_directory_sync', {
-        reusedExisting: !linked, stageLeaf,
+      await invokeFaultHook(options.faultHook, 'before_parent_sync', {
+        stageHandle, stageLeaf: null, parentHandle, finalLeaf: leaf, expectedBytes,
+        linkedNewFinal, finalStat: final.stat,
       });
-    } catch {
-      // Post-commit observer/reporting failure cannot downgrade durable exact packet truth.
-    }
+      await parentHandle.sync();
 
-      result = { reused_existing: !linked, linked_new_final: linked, recovery_stage_leaf: stageLeaf };
+      const afterSync = await readExactPublishedFile(parentHandle, leaf, expectedBytes);
+      if (!sameStamp(stamp(final.stat), stamp(afterSync.stat))) {
+        fail('published final generation changed across parent durability commit');
+      }
+      if (linkedNewFinal && !sameFileIdentity(afterSync.stat, stageStat)) {
+        fail('post-sync final generation does not match exact staged generation');
+      }
+
+      committed = true;
+      try {
+        await invokeFaultHook(options.afterCommitHook, 'after_parent_directory_sync', {
+          reusedExisting: !linkedNewFinal,
+        });
+      } catch {
+        // Post-commit observer/reporting failure cannot downgrade durable exact packet truth.
+      }
+
+      result = { reused_existing: !linkedNewFinal, linked_new_final: linkedNewFinal };
     }
   } catch (error) {
     primaryError = error;
