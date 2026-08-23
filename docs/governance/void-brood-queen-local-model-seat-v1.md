@@ -103,6 +103,16 @@ This makes the sanitizer-to-model-input gate executable rather than declarative.
 
 Richer free-form semantic memory may be added later only under a separately reviewed sanitizer/redaction policy. This V1 source contract does not pretend regex heuristics can prove arbitrary text safe.
 
+## EEXIST accepted-final durable-generation binding
+
+The create-new anonymous-inode publisher has one additional concurrency terminal: the initial final lookup can observe no receipt, while another actor publishes a byte-identical exact receipt before this publisher reaches `linkat`. In that case `linkat` returns `EEXIST`.
+
+Byte equality alone is not durable-generation authority. The publisher must retain the exact already-open final file descriptor accepted at `EEXIST`, retain its exact file-generation identity, fsync the already-retained parent-directory descriptor, then reopen the final relative to that same parent descriptor and require the committed final to still be the exact accepted generation.
+
+A same-byte unlink/recreate after `EEXIST` acceptance therefore HOLDs even though the replacement bytes are identical. An unchanged exact `EEXIST` generation converges successfully. A conflicting final remains preserved and rejected.
+
+`receipt_eexist_accepted_generation_commit_bound=true`
+
 ## Workflow self-enforcement
 
 The focused workflow trigger-binds this document, fixture, proof, admission tool, parent normative artifacts, and the shared committed-range hygiene helper/proof. The local-seat proof additionally checks the workflow still invokes both the shared hygiene proof and `scripts/ci_diff_hygiene_v1.sh` with the exact PR-head/current-checkout bindings.
@@ -132,6 +142,7 @@ This contract HOLDs if an implementation:
 - reopens the parent directory by pathname for the durability fsync instead of using the exact retained directory handle;
 - requires capability widening merely to publish the anonymous receipt inode;
 - silently falls back to privileged `AT_EMPTY_PATH` receipt publication when unprivileged procfs fd publication is unavailable;
+- accepts a byte-identical `EEXIST` final without retaining and revalidating that exact generation through the parent-directory fsync durable terminal;
 - overwrites or deletes a conflicting final receipt occupant;
 - authorizes raw verified context bytes as model input;
 - permits free-form context values into the V1 safe projection;
