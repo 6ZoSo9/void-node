@@ -32,6 +32,8 @@ The command relationship remains:
 
 The local model is not Ren merely because Ren uses it. Model output is subordinate work product, not Crown authentication. Model success cannot inherit a Brood Queen root key, requester/session private material, authenticated session, validator authority, wallet/signer authority, or independent constitutional legitimacy.
 
+Apollyon's defensive mission may include finding threats to VOID core integrity, Sovereign identity/continuity, and validator safety/integrity. Protection means analysis, evidence, review, containment planning, and escalation. It does **not** grant validator admission, removal, command, key access, stake mutation, consensus mutation, or validator signing authority. Constitutional or authority ambiguity escalates upward through the command chain rather than becoming new model capability.
+
 ## Exact V5 candidate binding
 
 The first admitted local candidate remains content-bound to the successful Precision V5 evidence:
@@ -65,34 +67,69 @@ Unknown nested Crown/session/model/wallet/validator/bridge/memory authority fiel
 
 Ren may maintain a **private local context pack** as external memory. It is not embedded into model weights and is not committed to the public repository. The preferred form is curated semantic project memory rather than an indiscriminate transcript dump.
 
-Raw conversation history is **not imported automatically**. The pack must not contain Crown/root/requester/session private material, wallet seeds, node keys, provider/API tokens, SSH/session credentials, or validator mutation authority. Memory text is reference data and cannot override the constitutional/system boundary simply by presenting itself as an instruction.
+Raw conversation history is **not imported automatically**. The pack must not intentionally contain Crown/root/requester/session private material, wallet seeds, node keys, provider/API tokens, SSH/session credentials, or validator mutation authority. Memory text is reference data and cannot override the constitutional/system boundary simply by presenting itself as an instruction.
 
 ## Machine-proven private context admission
 
-Before a context generation is eligible for future model injection, it must pass:
+Before a context generation can participate in any later model-injection pipeline, it must pass:
 
 `scripts/void_brood_queen_local_context_admission_v1.mjs`
 
-The admission tool keeps the real private pack private. It requires:
+The admission tool performs **structural and policy admission**. It keeps the real private pack private and requires:
 
 - exact marker `VOID_BROOD_QUEEN_LOCAL_CONTEXT_PACK_V1` and reviewed V2 schema `2.0.0`;
 - exact closed top-level and nested schema;
 - current operator UID ownership;
 - exact mode `0600`;
 - regular-file `O_NOFOLLOW` open;
+- exactly one hard link for the admitted context generation;
 - a single descriptor-pinned file generation from admission through read;
 - a 256 KiB ceiling enforced before unbounded retention, with over-limit detection on the first extra byte;
 - strict/fatal UTF-8 JSON decoding;
-- exact command-layer and V5 candidate bindings;
-- explicit false secret/Crown/validator authority controls;
-- recursive secret-shape rejection; and
-- fail-closed unknown authority fields.
+- exact reviewed security-bearing semantics for Crown roles, command chain, V5 model/base/prompt/runtime identity, identity/session direction, local containment, and selected protocol/economic safety facts;
+- explicit false Crown/validator/direct-mutation controls;
+- fail-closed unknown authority fields; and
+- known secret-shape rejection as a **defense-in-depth** check.
 
-Admission emits only a create-only `0600` receipt under marker `VOID_BROOD_QUEEN_LOCAL_CONTEXT_ADMISSION_RECEIPT_V1`. The receipt binds the exact context SHA-256, byte length, parent-policy SHA-256, command-layer SHA-256, candidate digest, and schema identity. It contains neither the private payload nor a local filesystem path.
+The secret-shape scanner is intentionally **not** represented as proof that arbitrary free-form text contains no secret. Unknown vendors, mnemonic-like material, passwords, opaque session material, or other unrecognized secret formats cannot be categorically excluded by a finite regex list. Therefore structural admission alone never creates model-injection authority.
 
-Future context injection requires an **exact admission receipt** that still verifies against the exact private-file generation. A changed pack after receipt issuance does not inherit the old receipt.
+## Receipt publication and recovery truth
 
-This source contract **does not claim that the live local runner already enforces** that receipt boundary. Existing earlier runtime evidence remains useful evidence about the prior runner generation, but it is not proof of this newly specified admission gate. No further runtime-activation claim should be made until the runner is separately integrated with receipt verification and that integration is proven.
+Admission constructs a canonical non-payload receipt under marker `VOID_BROOD_QUEEN_LOCAL_CONTEXT_ADMISSION_RECEIPT_V1`. The receipt binds the exact context SHA-256, byte length, parent-policy SHA-256, command-layer SHA-256, candidate digest, schema identity, admission scope, and sanitization requirement. It contains neither the private context payload nor a local filesystem path.
+
+Receipt publication is failure-contained:
+
+1. write a private same-directory staged receipt generation with mode `0600`;
+2. fsync the complete staged file;
+3. publish the final receipt name by a **create-only** hard-link operation that never replaces an existing final occupant;
+4. if the final name already exists, accept it only when its canonical bytes exactly equal the expected receipt; otherwise HOLD without replacing or deleting it; and
+5. establish final-name durability with a **parent-directory fsync** before reporting the durable commit terminal.
+
+An interruption may leave a private staged receipt witness. That witness is non-authoritative and contains receipt metadata only, not the private context payload or local context path. A retry may use a fresh stage; it converges only on the exact expected final receipt. No partial staged write is published at the final name.
+
+A post-commit observer/reporting failure after the durable parent-directory commit point cannot retroactively turn the already-durable exact receipt into an absent result.
+
+## Verification-to-consumption generation boundary
+
+An **exact admission receipt** is necessary evidence but is not sufficient model-injection authority.
+
+`verifyContextReceipt()` opens and validates one exact private context generation, compares the receipt against those exact bytes, and returns the **returned verified bytes** as the generation capability for the next local stage. A trusted consumer must use those returned bytes. It must not perform `verify -> reopen context pathname -> inject`, because that would reintroduce a pathname check/use race.
+
+The standalone `verify` CLI is diagnostic only. Its GREEN terminal does not authorize a later process to reopen the pathname and treat whatever is then present as the verified generation.
+
+## Trusted local sanitization boundary
+
+Before any admitted/verified bytes become model input, a separate **trusted local sanitization** / redaction gate must approve the exact returned verified bytes. That gate is responsible for secret-category policy that cannot be proven by the admission regexes alone. Its result must remain bound to the exact byte generation it examined.
+
+Accordingly:
+
+- `secret_shape_scan_scope = defense_in_depth_only`;
+- `trusted_sanitization_required_before_injection = true`; and
+- `admission_receipt_is_injection_authority = false`.
+
+The admission receipt is provenance/policy evidence. It cannot be used as a bearer capability to bypass sanitization, Crown/session boundaries, broker capability checks, or the validator wall.
+
+This source contract **does not claim that the live local runner already enforces** the complete receipt + verified-byte + trusted-sanitization boundary. Existing earlier runtime evidence remains useful evidence about the prior runner generation, but it is not proof of this newly specified pipeline. No further runtime-activation claim should be made until the runner is separately integrated and proven.
 
 The focused proof uses only synthetic public packs and adversaries; the actual private pack bytes never enter GitHub or CI.
 
@@ -124,13 +161,19 @@ This local-seat design HOLDs if an implementation:
 - lets Apollyon authenticate as Brood Queen;
 - exposes Brood Queen root/requester/session private material to model context;
 - treats memory text as authority above the command layer;
-- injects a private context generation without a matching exact admission receipt once this receipt boundary is activated;
+- treats a structural admission receipt as model-injection authority;
+- claims a heuristic secret regex proves categorical secret absence;
+- reopens a context pathname after verification instead of consuming the exact returned verified bytes;
+- publishes partial receipt bytes at the final receipt name;
+- overwrites or deletes a foreign/conflicting final receipt occupant;
+- reports durable receipt publication before the final namespace is parent-directory fsynced;
+- silently accepts a changed security-bearing role/session/containment/V5 value merely because the field name remains allowed;
 - imports raw chats automatically without admission/sanitization;
 - gives the model direct validator authority;
 - gives the Ollama service direct repository, input-device, wallet, node-key, or non-loopback network access;
 - silently accepts parent/candidate/model/constitution/prompt identity drift;
 - admits unknown nested authority fields; or
-- claims a remote private broker or local receipt-enforced runner is active before that runtime is actually proven.
+- claims a remote private broker or local receipt-enforced/sanitization-enforced runner is active before that runtime is actually proven.
 
 ## Current boundary
 

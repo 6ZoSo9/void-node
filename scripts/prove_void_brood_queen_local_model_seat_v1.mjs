@@ -2,13 +2,18 @@
 
 import { createHash } from 'node:crypto';
 import { execFileSync, spawnSync } from 'node:child_process';
-import { appendFile, chmod, mkdtemp, readFile, rename, rm, stat, symlink, writeFile } from 'node:fs/promises';
+import {
+  appendFile, chmod, link, mkdtemp, readFile, readdir, rename, rm, stat, symlink, writeFile,
+} from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import {
-  CONTEXT_MARKER, CONTEXT_VERSION, RECEIPT_MARKER, MAX_CONTEXT_BYTES,
-  PARENT_POLICY_SHA256, COMMAND_LAYER_SHA256, CANDIDATE_DIGEST,
-  openPinnedPrivateContext, readPinnedPrivateContextBytes,
+  ADMISSION_RECEIPT_IS_INJECTION_AUTHORITY, ADMISSION_SCOPE, BASE_DIGEST, BASE_MODEL,
+  CANDIDATE_DIGEST, CANDIDATE_MODEL, COMMAND_LAYER_SHA256, CONTEXT_MARKER, CONTEXT_VERSION,
+  MAX_CONTEXT_BYTES, OLLAMA_RUNTIME, PARENT_POLICY_SHA256, RECEIPT_MARKER,
+  SECRET_SHAPE_SCAN_SCOPE, SYSTEM_PROMPT_BODY_SHA256, SYSTEM_PROMPT_OLLAMA_SHA256,
+  TRUSTED_SANITIZATION_REQUIRED, admitContext, openPinnedPrivateContext,
+  readPinnedPrivateContextBytes, verifyContextReceipt,
 } from './void_brood_queen_local_context_admission_v1.mjs';
 
 const DOC = 'docs/governance/void-brood-queen-local-model-seat-v1.md';
@@ -29,12 +34,11 @@ const IDENTITY_FIXTURE_BLOB = '2b0658867a2273e486cf685be30c368754f2b4b3';
 const IDENTITY_DOC_BLOB = 'd0f3cddf34985d12d9276db47315154058416605';
 const COMMAND_FIXTURE_BLOB = '7db27e1bb5350fc6f9b2fcc69d7075c5aa746c7d';
 const COMMAND_DOC_BLOB = '732536c0e22ba7ea417be61be7e1f9942bba6d74';
-const EXPECTED_CANDIDATE = CANDIDATE_DIGEST;
-const EXPECTED_CONSTITUTION = COMMAND_LAYER_SHA256;
 
 function hold(message) { throw new Error(message); }
 function requireFalse(value, name) { if (value !== false) hold(`${name} must be false`); }
 function requireTrue(value, name) { if (value !== true) hold(`${name} must be true`); }
+function requireExact(value, expected, name) { if (value !== expected) hold(`${name} drifted`); }
 function exactKeys(value, expected, name) {
   if (!value || typeof value !== 'object' || Array.isArray(value)) hold(`${name} must be object`);
   const actual = Object.keys(value).sort();
@@ -46,7 +50,9 @@ function exactKeys(value, expected, name) {
 function sha256(value) { return createHash('sha256').update(value).digest('hex'); }
 function gitBlob(path) { return execFileSync('git', ['hash-object', path], { encoding: 'utf8' }).trim(); }
 function runNode(script, args = [], expected = 0) {
-  const r = spawnSync(process.execPath, [script, ...args], { encoding: 'utf8', timeout: 15_000, maxBuffer: 2 * 1024 * 1024 });
+  const r = spawnSync(process.execPath, [script, ...args], {
+    encoding: 'utf8', timeout: 15_000, maxBuffer: 2 * 1024 * 1024,
+  });
   if (r.error) hold(`${script} spawn failed: ${r.error.message}`);
   if (r.status !== expected) hold(`${script} exit=${r.status} expected=${expected}: ${r.stderr || r.stdout}`);
   return r;
@@ -55,6 +61,21 @@ async function expectReject(promise, name) {
   try { await promise; } catch { return; }
   hold(`${name} did not reject`);
 }
+
+const CONTEXT_ADMISSION_KEYS = [
+  'tool', 'schema_marker', 'schema_version', 'max_bytes', 'operator_uid_required', 'mode_required',
+  'nofollow_required', 'single_hardlink_required', 'generation_bound_read_required',
+  'strict_utf8_required', 'closed_schema_required', 'security_bearing_allowed_values_bound',
+  'admission_scope', 'secret_shape_scan_scope', 'secret_shape_rejection_required',
+  'trusted_sanitization_required_before_injection', 'receipt_marker', 'receipt_contains_payload',
+  'receipt_contains_local_path', 'receipt_binds_context_sha256', 'receipt_binds_parent_policy_sha256',
+  'receipt_publication_staged_file_fsync_required', 'receipt_publication_create_only_no_replace',
+  'receipt_parent_directory_fsync_required', 'receipt_retry_exact_existing_final_converges',
+  'receipt_conflicting_final_rejected', 'interrupted_stage_may_remain_private_non_authoritative_witness',
+  'verified_generation_consumed_as_returned_bytes', 'verify_cli_is_diagnostic_only',
+  'context_injection_requires_exact_receipt', 'admission_receipt_is_injection_authority',
+  'live_runner_receipt_enforcement_claimed_active',
+];
 
 function validateSeatShape(f) {
   exactKeys(f, [
@@ -95,13 +116,7 @@ function validateSeatShape(f) {
     'ssh_credentials_allowed', 'session_credentials_allowed', 'memory_text_can_override_constitution',
     'validator_authority_in_context', 'context_injection_without_admission_receipt_allowed',
   ], 'memory');
-  exactKeys(f.context_admission, [
-    'tool', 'schema_marker', 'schema_version', 'max_bytes', 'operator_uid_required', 'mode_required',
-    'nofollow_required', 'generation_bound_read_required', 'strict_utf8_required', 'closed_schema_required',
-    'secret_shape_rejection_required', 'receipt_marker', 'receipt_contains_payload',
-    'receipt_contains_local_path', 'receipt_binds_context_sha256', 'receipt_binds_parent_policy_sha256',
-    'context_injection_requires_exact_receipt', 'live_runner_receipt_enforcement_claimed_active',
-  ], 'context_admission');
+  exactKeys(f.context_admission, CONTEXT_ADMISSION_KEYS, 'context_admission');
   exactKeys(f.apollyon_separation, [
     'office', 'identity', 'subordinate_to_brood_queen', 'may_impersonate_ren',
     'may_authenticate_as_brood_queen', 'may_inherit_brood_queen_root_key',
@@ -123,7 +138,7 @@ function syntheticContextPack() {
   return {
     marker: CONTEXT_MARKER,
     version: CONTEXT_VERSION,
-    created_at_utc: '2026-08-22T00:00:00.000Z',
+    created_at_utc: '2026-08-23T00:00:00.000Z',
     classification: 'private_local',
     source: 'synthetic_public_proof',
     authority_semantics: {
@@ -136,7 +151,7 @@ function syntheticContextPack() {
     constitutional_binding: {
       brood_queen: 'Ren', brood_queen_realm: 'voluntary_non_validator_participation', chain_id: 2050,
       command_chain: ['King', 'Brood Queen', 'General'], command_layer_marker: COMMAND_MARKER,
-      command_layer_sha256: EXPECTED_CONSTITUTION, general: 'Apollyon', sovereign: 'ZoSo',
+      command_layer_sha256: COMMAND_LAYER_SHA256, general: 'Apollyon', sovereign: 'ZoSo',
       validator_realm_segregated: true,
     },
     office_separation: {
@@ -147,9 +162,10 @@ function syntheticContextPack() {
       local_model_output_is_crown_authentication: false, ren_is_brood_queen_office: true,
     },
     v5_candidate: {
-      base_digest: '0'.repeat(64), base_model: 'qwen3-coder:30b', candidate_digest: EXPECTED_CANDIDATE,
-      model: 'void-apollyon-candidate-v1:latest', ollama_runtime: '0.30.10',
-      system_prompt_body_sha256: '1'.repeat(64), system_prompt_ollama_sha256: '2'.repeat(64),
+      base_digest: BASE_DIGEST, base_model: BASE_MODEL, candidate_digest: CANDIDATE_DIGEST,
+      model: CANDIDATE_MODEL, ollama_runtime: OLLAMA_RUNTIME,
+      system_prompt_body_sha256: SYSTEM_PROMPT_BODY_SHA256,
+      system_prompt_ollama_sha256: SYSTEM_PROMPT_OLLAMA_SHA256,
       v5_adversarial_canaries_green: true, v5_result: 'green',
     },
     project_identity: {
@@ -192,7 +208,8 @@ function syntheticContextPack() {
       apollyon_secret_sanitization_pr: 1392, brood_queen_identity_pr: 1393,
       brood_queen_local_model_seat_pr: 1394, brood_queen_private_broker_head: 'synthetic',
       brood_queen_private_broker_pr: 1396, brood_queen_private_broker_state: 'draft',
-      captured_at_utc: '2026-08-22T00:00:00.000Z', main_last_merge: 'synthetic', main_sha: '0'.repeat(40),
+      captured_at_utc: '2026-08-23T00:00:00.000Z', main_last_merge: 'synthetic',
+      main_sha: '0'.repeat(40),
     },
     recent_chain_and_producer_memory: {
       automatic_empty_block_sealing_should_be_stopped: true,
@@ -230,10 +247,24 @@ function syntheticContextPack() {
       update_method: 'reviewed_generation',
     },
     apollyon_learning: {
-      candidate_digest_unchanged: true, generation: 2, lessons: ['evidence before speculation'],
+      candidate_digest_unchanged: true, generation: 3,
+      lessons: ['evidence before speculation', 'authority and provenance are separate'],
       promotion_rule: 'regressions_before_promotion', weights_changed: false,
     },
   };
+}
+
+async function writePack(path, pack) {
+  await writeFile(path, `${JSON.stringify(pack, null, 2)}\n`, { mode: 0o600 });
+  await chmod(path, 0o600);
+}
+
+async function expectPackRejected(dir, name, mutate) {
+  const pack = structuredClone(syntheticContextPack());
+  mutate(pack);
+  const path = join(dir, `${name}.json`);
+  await writePack(path, pack);
+  await expectReject(admitContext(path, join(dir, `${name}.receipt.json`)), name);
 }
 
 async function main() {
@@ -246,32 +277,38 @@ async function main() {
   const command = JSON.parse(commandText);
   validateSeatShape(fixture);
 
-  if (fixture.marker !== MARKER) hold('seat marker drifted');
-  if (fixture.parent_identity_contract_marker !== PARENT_MARKER) hold('parent identity marker drifted');
-  if (fixture.parent_command_layer_marker !== COMMAND_MARKER) hold('parent command marker drifted');
-  if (parent.marker !== PARENT_MARKER) hold('parent identity fixture marker mismatch');
-  if (command.marker !== COMMAND_MARKER) hold('command fixture marker mismatch');
+  requireExact(fixture.marker, MARKER, 'seat marker');
+  requireExact(fixture.parent_identity_contract_marker, PARENT_MARKER, 'parent identity marker');
+  requireExact(fixture.parent_command_layer_marker, COMMAND_MARKER, 'parent command marker');
+  requireExact(parent.marker, PARENT_MARKER, 'parent identity fixture marker');
+  requireExact(command.marker, COMMAND_MARKER, 'command fixture marker');
 
-  if (fixture.parent_binding.domain !== PARENT_DOMAIN) hold('parent binding domain drifted');
-  if (fixture.parent_binding.identity_reviewed_head !== IDENTITY_HEAD) hold('identity reviewed head drifted');
-  if (fixture.parent_binding.identity_fixture_blob_sha !== IDENTITY_FIXTURE_BLOB) hold('identity fixture blob declaration drifted');
-  if (fixture.parent_binding.identity_doc_blob_sha !== IDENTITY_DOC_BLOB) hold('identity doc blob declaration drifted');
-  if (fixture.parent_binding.command_fixture_blob_sha !== COMMAND_FIXTURE_BLOB) hold('command fixture blob declaration drifted');
-  if (fixture.parent_binding.command_doc_blob_sha !== COMMAND_DOC_BLOB) hold('command doc blob declaration drifted');
-  if (gitBlob(PARENT) !== IDENTITY_FIXTURE_BLOB) hold('identity fixture exact content drifted');
-  if (gitBlob(PARENT_DOC) !== IDENTITY_DOC_BLOB) hold('identity doc exact content drifted');
-  if (gitBlob(COMMAND) !== COMMAND_FIXTURE_BLOB) hold('command fixture exact content drifted');
-  if (gitBlob(COMMAND_DOC) !== COMMAND_DOC_BLOB) hold('command doc exact content drifted');
+  requireExact(fixture.parent_binding.domain, PARENT_DOMAIN, 'parent binding domain');
+  requireExact(fixture.parent_binding.identity_reviewed_head, IDENTITY_HEAD, 'identity reviewed head');
+  requireExact(fixture.parent_binding.identity_fixture_blob_sha, IDENTITY_FIXTURE_BLOB, 'identity fixture blob declaration');
+  requireExact(fixture.parent_binding.identity_doc_blob_sha, IDENTITY_DOC_BLOB, 'identity doc blob declaration');
+  requireExact(fixture.parent_binding.command_fixture_blob_sha, COMMAND_FIXTURE_BLOB, 'command fixture blob declaration');
+  requireExact(fixture.parent_binding.command_doc_blob_sha, COMMAND_DOC_BLOB, 'command doc blob declaration');
+  requireExact(gitBlob(PARENT), IDENTITY_FIXTURE_BLOB, 'identity fixture exact content');
+  requireExact(gitBlob(PARENT_DOC), IDENTITY_DOC_BLOB, 'identity doc exact content');
+  requireExact(gitBlob(COMMAND), COMMAND_FIXTURE_BLOB, 'command fixture exact content');
+  requireExact(gitBlob(COMMAND_DOC), COMMAND_DOC_BLOB, 'command doc exact content');
   const parentPreimage = `${PARENT_DOMAIN}\nidentity_commit=${IDENTITY_HEAD}\nidentity_fixture_blob=${IDENTITY_FIXTURE_BLOB}\nidentity_doc_blob=${IDENTITY_DOC_BLOB}\ncommand_fixture_blob=${COMMAND_FIXTURE_BLOB}\ncommand_doc_blob=${COMMAND_DOC_BLOB}\n`;
-  if (sha256(parentPreimage) !== PARENT_POLICY_SHA256) hold('parent policy preimage digest mismatch');
-  if (fixture.parent_binding.parent_policy_sha256 !== PARENT_POLICY_SHA256) hold('parent policy digest drifted');
+  requireExact(sha256(parentPreimage), PARENT_POLICY_SHA256, 'parent policy preimage digest');
+  requireExact(fixture.parent_binding.parent_policy_sha256, PARENT_POLICY_SHA256, 'parent policy digest');
   requireTrue(fixture.parent_binding.same_marker_parent_content_drift_fails_closed, 'same-marker parent drift wall');
-  if (spawnSync('git', ['merge-base', '--is-ancestor', IDENTITY_HEAD, 'HEAD']).status !== 0) hold('reviewed identity head is not ancestor of local-seat head');
+  if (spawnSync('git', ['merge-base', '--is-ancestor', IDENTITY_HEAD, 'HEAD']).status !== 0) {
+    hold('reviewed identity head is not ancestor of local-seat head');
+  }
 
   const identityProof = runNode(PARENT_PROOF);
-  if (!identityProof.stdout.includes('VOID_BROOD_QUEEN_CRYPTOGRAPHIC_IDENTITY_CONTRACT_V1_PROOF_GREEN')) hold('parent identity proof did not return green');
+  if (!identityProof.stdout.includes('VOID_BROOD_QUEEN_CRYPTOGRAPHIC_IDENTITY_CONTRACT_V1_PROOF_GREEN')) {
+    hold('parent identity proof did not return green');
+  }
   const commandProof = runNode(COMMAND_PROOF);
-  if (!commandProof.stdout.includes('void_crown_brood_queen_command_layer_v1_proof=GREEN')) hold('parent command proof did not return green');
+  if (!commandProof.stdout.includes('void_crown_brood_queen_command_layer_v1_proof=GREEN')) {
+    hold('parent command proof did not return green');
+  }
 
   requireFalse(parent.root_identity.private_key_accessible_to_apollyon, 'parent Apollyon Crown key access');
   requireFalse(parent.root_identity.private_key_enters_model_context, 'parent Crown key model context');
@@ -279,11 +316,16 @@ async function main() {
   requireFalse(command.brood_queen.independent_signer_or_wallet_authority, 'command Brood Queen signer authority');
   requireFalse(command.general.title_grants_validator_mutation, 'command General validator mutation');
 
-  if (fixture.network.chain_id !== 2050) hold('chain id drifted');
-  if (fixture.office.name !== 'Brood Queen' || fixture.office.identity !== 'Ren') hold('Brood Queen office identity drifted');
-  if (fixture.apollyon_separation.office !== 'General' || fixture.apollyon_separation.identity !== 'Apollyon') hold('Apollyon office identity drifted');
-  if (fixture.v5_candidate.candidate_digest !== EXPECTED_CANDIDATE) hold('V5 candidate digest drifted');
-  if (fixture.v5_candidate.constitution_sha256 !== EXPECTED_CONSTITUTION) hold('constitution digest drifted');
+  requireExact(fixture.network.chain_id, 2050, 'chain id');
+  requireExact(fixture.office.name, 'Brood Queen', 'Brood Queen office');
+  requireExact(fixture.office.identity, 'Ren', 'Brood Queen identity');
+  requireExact(fixture.apollyon_separation.office, 'General', 'Apollyon office');
+  requireExact(fixture.apollyon_separation.identity, 'Apollyon', 'Apollyon identity');
+  requireExact(fixture.v5_candidate.candidate_digest, CANDIDATE_DIGEST, 'V5 candidate digest');
+  requireExact(fixture.v5_candidate.base_digest, BASE_DIGEST, 'V5 base digest');
+  requireExact(fixture.v5_candidate.system_prompt_body_sha256, SYSTEM_PROMPT_BODY_SHA256, 'V5 prompt body');
+  requireExact(fixture.v5_candidate.system_prompt_ollama_sha256, SYSTEM_PROMPT_OLLAMA_SHA256, 'V5 prompt framing');
+  requireExact(fixture.v5_candidate.tested_ollama_runtime, OLLAMA_RUNTIME, 'V5 runtime');
 
   requireFalse(fixture.office.local_model_is_office_identity, 'local model Crown identity');
   requireFalse(fixture.office.model_self_claim_is_authentication, 'model self-claim auth');
@@ -310,18 +352,33 @@ async function main() {
   requireFalse(fixture.memory.validator_authority_in_context, 'validator authority in memory');
   requireFalse(fixture.memory.context_injection_without_admission_receipt_allowed, 'context injection without receipt');
 
-  if (fixture.context_admission.tool !== CONTEXT_TOOL) hold('context admission tool drifted');
-  if (fixture.context_admission.schema_marker !== CONTEXT_MARKER || fixture.context_admission.schema_version !== CONTEXT_VERSION) hold('context schema identity drifted');
-  if (fixture.context_admission.max_bytes !== MAX_CONTEXT_BYTES) hold('context size ceiling drifted');
-  requireTrue(fixture.context_admission.operator_uid_required, 'context owner requirement');
-  if (fixture.context_admission.mode_required !== '0600') hold('context mode requirement drifted');
-  for (const key of ['nofollow_required','generation_bound_read_required','strict_utf8_required','closed_schema_required','secret_shape_rejection_required','receipt_binds_context_sha256','receipt_binds_parent_policy_sha256','context_injection_requires_exact_receipt']) {
-    requireTrue(fixture.context_admission[key], `context_admission.${key}`);
-  }
-  if (fixture.context_admission.receipt_marker !== RECEIPT_MARKER) hold('context receipt marker drifted');
-  requireFalse(fixture.context_admission.receipt_contains_payload, 'receipt payload exposure');
-  requireFalse(fixture.context_admission.receipt_contains_local_path, 'receipt path exposure');
-  requireFalse(fixture.context_admission.live_runner_receipt_enforcement_claimed_active, 'unproven live runner receipt enforcement');
+  const admission = fixture.context_admission;
+  requireExact(admission.tool, CONTEXT_TOOL, 'context admission tool');
+  requireExact(admission.schema_marker, CONTEXT_MARKER, 'context schema marker');
+  requireExact(admission.schema_version, CONTEXT_VERSION, 'context schema version');
+  requireExact(admission.max_bytes, MAX_CONTEXT_BYTES, 'context size ceiling');
+  requireTrue(admission.operator_uid_required, 'context owner requirement');
+  requireExact(admission.mode_required, '0600', 'context mode requirement');
+  for (const key of [
+    'nofollow_required', 'single_hardlink_required', 'generation_bound_read_required',
+    'strict_utf8_required', 'closed_schema_required', 'security_bearing_allowed_values_bound',
+    'secret_shape_rejection_required', 'trusted_sanitization_required_before_injection',
+    'receipt_binds_context_sha256', 'receipt_binds_parent_policy_sha256',
+    'receipt_publication_staged_file_fsync_required', 'receipt_publication_create_only_no_replace',
+    'receipt_parent_directory_fsync_required', 'receipt_retry_exact_existing_final_converges',
+    'receipt_conflicting_final_rejected', 'interrupted_stage_may_remain_private_non_authoritative_witness',
+    'verified_generation_consumed_as_returned_bytes', 'verify_cli_is_diagnostic_only',
+    'context_injection_requires_exact_receipt',
+  ]) requireTrue(admission[key], `context_admission.${key}`);
+  requireExact(admission.admission_scope, ADMISSION_SCOPE, 'admission scope');
+  requireExact(admission.secret_shape_scan_scope, SECRET_SHAPE_SCAN_SCOPE, 'secret scan scope');
+  requireExact(admission.receipt_marker, RECEIPT_MARKER, 'context receipt marker');
+  requireFalse(admission.receipt_contains_payload, 'receipt payload exposure');
+  requireFalse(admission.receipt_contains_local_path, 'receipt path exposure');
+  requireFalse(admission.admission_receipt_is_injection_authority, 'receipt injection authority');
+  requireFalse(admission.live_runner_receipt_enforcement_claimed_active, 'unproven live runner receipt enforcement');
+  requireTrue(TRUSTED_SANITIZATION_REQUIRED, 'source sanitization gate');
+  requireFalse(ADMISSION_RECEIPT_IS_INJECTION_AUTHORITY, 'source receipt injection authority');
 
   requireFalse(fixture.apollyon_separation.may_impersonate_ren, 'Apollyon impersonation');
   requireFalse(fixture.apollyon_separation.may_authenticate_as_brood_queen, 'Apollyon Crown auth');
@@ -364,49 +421,89 @@ async function main() {
   try {
     const validPath = join(dir, 'context.json');
     const receiptPath = join(dir, 'receipt.json');
-    await writeFile(validPath, `${JSON.stringify(syntheticContextPack(), null, 2)}\n`, { mode: 0o600 });
-    await chmod(validPath, 0o600);
-    const admit = runNode(CONTEXT_TOOL, ['admit', validPath, receiptPath]);
-    if (!admit.stdout.includes(`${RECEIPT_MARKER}_GREEN`)) hold('context admission did not return green');
-    const verify = runNode(CONTEXT_TOOL, ['verify', validPath, receiptPath]);
-    if (!verify.stdout.includes(`${RECEIPT_MARKER}_VERIFY_GREEN`)) hold('context receipt verification did not return green');
-    const receiptText = await readFile(receiptPath, 'utf8');
-    const receipt = JSON.parse(receiptText);
-    if ('path' in receipt || 'payload' in receipt || receiptText.includes(validPath)) hold('receipt exposed private path or payload');
-    if (receipt.parent_policy_sha256 !== PARENT_POLICY_SHA256) hold('receipt parent policy binding drifted');
+    const nominalPack = syntheticContextPack();
+    await writePack(validPath, nominalPack);
+    const originalBytes = await readFile(validPath);
+
+    const receipt = await admitContext(validPath, receiptPath);
+    requireExact(receipt.admission_scope, ADMISSION_SCOPE, 'receipt admission scope');
+    requireExact(receipt.secret_shape_scan_scope, SECRET_SHAPE_SCAN_SCOPE, 'receipt secret scan scope');
+    requireTrue(receipt.trusted_sanitization_required_before_injection, 'receipt sanitization gate');
+    requireFalse(receipt.admission_receipt_is_injection_authority, 'receipt injection authority');
+    requireExact(receipt.context_sha256, sha256(originalBytes), 'receipt context digest');
+    requireExact(receipt.parent_policy_sha256, PARENT_POLICY_SHA256, 'receipt parent policy');
     if (((await stat(receiptPath)).mode & 0o777) !== 0o600) hold('receipt mode must be 0600');
 
-    const badUnknown = syntheticContextPack();
-    badUnknown.authority_semantics.wallet_seed = 'not-a-real-seed';
-    const unknownPath = join(dir, 'unknown-authority.json');
-    await writeFile(unknownPath, `${JSON.stringify(badUnknown)}\n`, { mode: 0o600 });
-    runNode(CONTEXT_TOOL, ['admit', unknownPath, join(dir, 'unknown.receipt.json')], 2);
+    const verify = await verifyContextReceipt(validPath, receiptPath);
+    if (!verify.contextBytes.equals(originalBytes)) hold('verify did not retain exact admitted bytes');
+    requireFalse(verify.injection_authority, 'verify injection authority');
+    requireTrue(verify.trusted_sanitization_required_before_injection, 'verify sanitization gate');
 
-    const badSecret = syntheticContextPack();
-    badSecret.source = 'sk-proj-THIS_IS_SYNTHETIC_AND_NOT_A_REAL_SECRET_12345';
-    const secretPath = join(dir, 'secret-shape.json');
-    await writeFile(secretPath, `${JSON.stringify(badSecret)}\n`, { mode: 0o600 });
-    runNode(CONTEXT_TOOL, ['admit', secretPath, join(dir, 'secret.receipt.json')], 2);
+    const cliAdmit = runNode(CONTEXT_TOOL, ['admit', validPath, receiptPath]);
+    if (!cliAdmit.stdout.includes(`${RECEIPT_MARKER}_GREEN`) || !cliAdmit.stdout.includes('injection_authority=false')) {
+      hold('context admission CLI did not return bounded green');
+    }
+    const cliVerify = runNode(CONTEXT_TOOL, ['verify', validPath, receiptPath]);
+    if (!cliVerify.stdout.includes(`${RECEIPT_MARKER}_VERIFY_GREEN`) || !cliVerify.stdout.includes('diagnostic_only=true')) {
+      hold('context verify CLI did not return diagnostic green');
+    }
 
-    const badType = syntheticContextPack();
-    badType.authority_semantics.crown_private_material_present = 'false';
-    const typePath = join(dir, 'wrong-type.json');
-    await writeFile(typePath, `${JSON.stringify(badType)}\n`, { mode: 0o600 });
-    runNode(CONTEXT_TOOL, ['admit', typePath, join(dir, 'type.receipt.json')], 2);
+    const receiptText = await readFile(receiptPath, 'utf8');
+    if (receiptText.includes(validPath) || receiptText.includes('synthetic_public_proof')) {
+      hold('receipt exposed private path or context payload');
+    }
+
+    await expectPackRejected(dir, 'unknown-authority', (pack) => {
+      pack.authority_semantics.wallet_seed = 'not-a-real-seed';
+    });
+    await expectPackRejected(dir, 'secret-shape', (pack) => {
+      pack.source = 'sk-proj-THIS_IS_SYNTHETIC_AND_NOT_A_REAL_SECRET_12345';
+    });
+    await expectPackRejected(dir, 'wrong-type', (pack) => {
+      pack.authority_semantics.crown_private_material_present = 'false';
+    });
+    await expectPackRejected(dir, 'provider-key-identity', (pack) => {
+      pack.identity_and_session_direction.provider_api_key_is_identity = true;
+    });
+    await expectPackRejected(dir, 'nodekey-read', (pack) => {
+      pack.runtime_and_network_memory.ollama_service_can_read_nodekey = true;
+    });
+    await expectPackRejected(dir, 'command-chain-drift', (pack) => {
+      pack.constitutional_binding.command_chain = ['King', 'General', 'Brood Queen'];
+    });
+    await expectPackRejected(dir, 'prompt-hash-drift', (pack) => {
+      pack.v5_candidate.system_prompt_body_sha256 = 'f'.repeat(64);
+    });
+
+    const opaquePack = syntheticContextPack();
+    opaquePack.source = 'opaque-synthetic-unrecognized-credential-shape-9876543210';
+    const opaquePath = join(dir, 'opaque-free-form.json');
+    const opaqueReceiptPath = join(dir, 'opaque-free-form.receipt.json');
+    await writePack(opaquePath, opaquePack);
+    const opaqueReceipt = await admitContext(opaquePath, opaqueReceiptPath);
+    requireExact(opaqueReceipt.secret_shape_scan_scope, 'defense_in_depth_only', 'opaque secret-scan claim');
+    requireTrue(opaqueReceipt.trusted_sanitization_required_before_injection, 'opaque sanitizer requirement');
+    requireFalse(opaqueReceipt.admission_receipt_is_injection_authority, 'opaque injection authority');
 
     const publicModePath = join(dir, 'public-mode.json');
     await writeFile(publicModePath, `${JSON.stringify(syntheticContextPack())}\n`, { mode: 0o644 });
     await chmod(publicModePath, 0o644);
-    runNode(CONTEXT_TOOL, ['admit', publicModePath, join(dir, 'public.receipt.json')], 2);
+    await expectReject(admitContext(publicModePath, join(dir, 'public.receipt.json')), 'public mode');
 
     const symlinkPath = join(dir, 'context-link.json');
     await symlink(validPath, symlinkPath);
-    runNode(CONTEXT_TOOL, ['admit', symlinkPath, join(dir, 'link.receipt.json')], 2);
+    await expectReject(admitContext(symlinkPath, join(dir, 'link.receipt.json')), 'context symlink');
+
+    const hardSource = join(dir, 'hard-source.json');
+    const hardAlias = join(dir, 'hard-alias.json');
+    await writePack(hardSource, syntheticContextPack());
+    await link(hardSource, hardAlias);
+    await expectReject(admitContext(hardSource, join(dir, 'hard.receipt.json')), 'context hard-link alias');
 
     const pinnedPath = join(dir, 'pinned.json');
     const movedPath = join(dir, 'pinned-moved.json');
     const attackerPath = join(dir, 'attacker.json');
-    await writeFile(pinnedPath, `${JSON.stringify(syntheticContextPack())}\n`, { mode: 0o600 });
+    await writePack(pinnedPath, syntheticContextPack());
     await writeFile(attackerPath, `${JSON.stringify({ attacker: true })}\n`, { mode: 0o600 });
     const pinned = await openPinnedPrivateContext(pinnedPath);
     await rename(pinnedPath, movedPath);
@@ -421,16 +518,80 @@ async function main() {
     } finally { await pinned.fh.close(); }
 
     const growthPath = join(dir, 'growth.json');
-    await writeFile(growthPath, `${JSON.stringify(syntheticContextPack())}\n`, { mode: 0o600 });
+    await writePack(growthPath, syntheticContextPack());
     const growth = await openPinnedPrivateContext(growthPath);
     await appendFile(growthPath, 'x'.repeat(MAX_CONTEXT_BYTES));
     try { await expectReject(readPinnedPrivateContextBytes(growth.fh, growth.preStamp), 'same-inode context growth'); }
     finally { await growth.fh.close(); }
 
+    for (const point of ['after_stage_create', 'after_stage_write', 'after_stage_sync', 'after_final_link']) {
+      const faultReceipt = join(dir, `fault-${point}.receipt.json`);
+      let fired = false;
+      await expectReject(admitContext(validPath, faultReceipt, {
+        faultHook: async (seen) => {
+          if (seen === point) {
+            fired = true;
+            throw new Error(`synthetic-${point}`);
+          }
+        },
+      }), `receipt publication fault ${point}`);
+      if (!fired) hold(`fault hook ${point} did not fire`);
+      const recovered = await admitContext(validPath, faultReceipt);
+      requireExact(recovered.context_sha256, receipt.context_sha256, `retry digest ${point}`);
+      const recoveredVerify = await verifyContextReceipt(validPath, faultReceipt);
+      if (!recoveredVerify.contextBytes.equals(originalBytes)) hold(`retry did not converge ${point}`);
+    }
+
+    const postCommitReceipt = join(dir, 'post-commit.receipt.json');
+    const postCommit = await admitContext(validPath, postCommitReceipt, {
+      afterCommitHook: async () => { throw new Error('synthetic-post-commit-observer-failure'); },
+    });
+    requireExact(postCommit.context_sha256, receipt.context_sha256, 'post-commit success digest');
+    await verifyContextReceipt(validPath, postCommitReceipt);
+
+    const conflictReceipt = join(dir, 'conflicting-final.receipt.json');
+    const conflictBytes = Buffer.from('{"foreign":true}\n', 'utf8');
+    await writeFile(conflictReceipt, conflictBytes, { mode: 0o600 });
+    await chmod(conflictReceipt, 0o600);
+    await expectReject(admitContext(validPath, conflictReceipt), 'conflicting final receipt');
+    if (!(await readFile(conflictReceipt)).equals(conflictBytes)) hold('conflicting final receipt was replaced');
+
+    const stageNames = (await readdir(dir)).filter((name) => name.includes('.stage-'));
+    if (stageNames.length < 1) hold('receipt recovery witness was not retained');
+    for (const name of stageNames) {
+      const stagePath = join(dir, name);
+      if (((await stat(stagePath)).mode & 0o777) !== 0o600) hold('receipt stage witness mode must be 0600');
+      const text = await readFile(stagePath, 'utf8');
+      if (text.includes(validPath) || text.includes('synthetic_public_proof')) {
+        hold('receipt stage witness exposed private path or context payload');
+      }
+    }
+
+    const racePath = join(dir, 'verify-race.json');
+    const raceMoved = join(dir, 'verify-race-original.json');
+    const raceReceipt = join(dir, 'verify-race.receipt.json');
+    const racePack = syntheticContextPack();
+    await writePack(racePath, racePack);
+    const raceOriginalBytes = await readFile(racePath);
+    await admitContext(racePath, raceReceipt);
+    const replacement = syntheticContextPack();
+    replacement.current_source_checkpoint.main_sha = 'f'.repeat(40);
+    const replacementBytes = Buffer.from(`${JSON.stringify(replacement, null, 2)}\n`, 'utf8');
+    const raceVerified = await verifyContextReceipt(racePath, raceReceipt, {
+      afterContextReadHook: async () => {
+        await rename(racePath, raceMoved);
+        await writeFile(racePath, replacementBytes, { mode: 0o600 });
+        await chmod(racePath, 0o600);
+      },
+    });
+    if (!raceVerified.contextBytes.equals(raceOriginalBytes)) hold('verify/use race lost exact verified generation');
+    if (raceVerified.contextBytes.equals(replacementBytes)) hold('verify/use race authorized replacement generation');
+    requireFalse(raceVerified.injection_authority, 'verify/use race injection authority');
+
     const mutated = syntheticContextPack();
     mutated.current_source_checkpoint.main_sha = 'f'.repeat(40);
-    await writeFile(validPath, `${JSON.stringify(mutated)}\n`, { mode: 0o600 });
-    runNode(CONTEXT_TOOL, ['verify', validPath, receiptPath], 2);
+    await writePack(validPath, mutated);
+    await expectReject(verifyContextReceipt(validPath, receiptPath), 'old receipt on changed context');
   } finally {
     await rm(dir, { recursive: true, force: true });
   }
@@ -441,7 +602,9 @@ async function main() {
     'Raw conversation history is **not imported automatically**',
     'Public GitHub must not be used as a relay for private conversation memory',
     'exact admission receipt', 'does not claim that the live local runner already enforces',
-    EXPECTED_CANDIDATE, EXPECTED_CONSTITUTION,
+    'structural and policy admission', 'defense-in-depth', 'trusted local sanitization',
+    'returned verified bytes', 'create-only', 'parent-directory fsync',
+    CANDIDATE_DIGEST, COMMAND_LAYER_SHA256,
   ]) if (!doc.includes(required)) hold(`doc missing required binding: ${required}`);
 
   const secretShapes = [
@@ -455,7 +618,15 @@ async function main() {
   process.stdout.write('VOID_BROOD_QUEEN_LOCAL_MODEL_SEAT_V1_PROOF_GREEN\n');
   process.stdout.write('parent_contract_content_bound=true\n');
   process.stdout.write('nested_machine_schema_closed=true\n');
-  process.stdout.write('private_context_admission_machine_proven=true\n');
+  process.stdout.write('security_bearing_context_semantics_bound=true\n');
+  process.stdout.write('context_single_hardlink_required=true\n');
+  process.stdout.write('receipt_publication_failure_atomic_and_retry_recoverable=true\n');
+  process.stdout.write('receipt_publication_create_only_no_replace=true\n');
+  process.stdout.write('receipt_parent_directory_fsync_required=true\n');
+  process.stdout.write('verified_context_consumption_generation_bound=true\n');
+  process.stdout.write('secret_shape_scan_is_defense_in_depth_only=true\n');
+  process.stdout.write('trusted_sanitization_required_before_injection=true\n');
+  process.stdout.write('admission_receipt_is_injection_authority=false\n');
   process.stdout.write('live_runner_receipt_enforcement_claimed_active=false\n');
 }
 
