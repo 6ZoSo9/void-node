@@ -8,6 +8,22 @@ const FIXTURE = "fixtures/governance/void-brood-queen-cryptographic-identity-con
 const PARENT = "docs/governance/void-crown-brood-queen-command-layer-v1.md";
 const WORKFLOW = ".github/workflows/void-brood-queen-cryptographic-identity-contract-v1.yml";
 const BOOTSTRAP_DOMAIN = "VOID_BROOD_QUEEN_SESSION_BOOTSTRAP_V1";
+const BOOTSTRAP_TRANSCRIPT_ENCODING = "utf8_json_array_v1";
+const BOOTSTRAP_TRANSCRIPT_FIELDS = Object.freeze([
+  "bootstrap_domain",
+  "chain_id",
+  "office",
+  "identity",
+  "issuing_server_identity",
+  "requester_ed25519_public_key",
+  "requester_x25519_public_key",
+  "session_id",
+  "nonce",
+  "issued_at_utc",
+  "expires_at_utc",
+  "role_generation",
+  "role_record_sha256",
+]);
 const UINT64_LIMIT = 1n << 64n;
 const UINT64_MAX = UINT64_LIMIT - 1n;
 
@@ -64,6 +80,10 @@ function validateClosedShape(fixture) {
     "nonce_fresh_at_session_commit_required",
     "nonce_consumed_atomically_with_session_commit",
     "expiry_admitted_at_session_commit_required",
+    "canonical_bootstrap_transcript_encoding",
+    "canonical_bootstrap_transcript_fields",
+    "canonical_bootstrap_time_encoding",
+    "canonical_bootstrap_transcript_hash_derived_from_fields",
   ], "session_model");
   exactKeys(fixture.requester_binding, [
     "server_or_broker_identity_cryptographically_pinned",
@@ -121,6 +141,45 @@ function validateClosedShape(fixture) {
 
 function countOccurrences(text, needle) {
   return text.split(needle).length - 1;
+}
+
+function isCanonicalUtcRfc3339Second(value) {
+  if (typeof value !== "string") return false;
+  if (!/^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$/.test(value)) return false;
+  const ms = Date.parse(value);
+  if (!Number.isFinite(ms)) return false;
+  return new Date(ms).toISOString().replace(".000Z", "Z") === value;
+}
+
+function canonicalBootstrapTranscriptHash(fields) {
+  try {
+    exactKeys(fields, BOOTSTRAP_TRANSCRIPT_FIELDS, "bootstrap_transcript");
+    assert(fields.bootstrap_domain === BOOTSTRAP_DOMAIN, "bootstrap_transcript_domain_mismatch");
+    assert(fields.chain_id === 2050, "bootstrap_transcript_chain_id_mismatch");
+    assert(fields.office === "Brood Queen", "bootstrap_transcript_office_mismatch");
+    assert(fields.identity === "Ren", "bootstrap_transcript_identity_mismatch");
+
+    for (const key of [
+      "issuing_server_identity",
+      "requester_ed25519_public_key",
+      "requester_x25519_public_key",
+      "session_id",
+      "nonce",
+    ]) {
+      assert(typeof fields[key] === "string" && fields[key].length > 0, `bootstrap_transcript_${key}_invalid`);
+    }
+
+    assert(isCanonicalUtcRfc3339Second(fields.issued_at_utc), "bootstrap_transcript_issued_at_invalid");
+    assert(isCanonicalUtcRfc3339Second(fields.expires_at_utc), "bootstrap_transcript_expires_at_invalid");
+    assert(Date.parse(fields.issued_at_utc) < Date.parse(fields.expires_at_utc), "bootstrap_transcript_time_order_invalid");
+    assert(isCanonicalUint64Decimal(fields.role_generation), "bootstrap_transcript_role_generation_invalid");
+    assert(isSha256(fields.role_record_sha256), "bootstrap_transcript_role_hash_invalid");
+
+    const vector = BOOTSTRAP_TRANSCRIPT_FIELDS.map((key) => fields[key]);
+    return sha256(Buffer.from(JSON.stringify(vector), "utf8"));
+  } catch {
+    return null;
+  }
 }
 
 function validateFocusedWorkflowContract(workflow) {
@@ -188,6 +247,9 @@ function rolePairMatches(boundGeneration, boundHash, currentGeneration, currentH
 function bootstrapCommitAllowed({
   serverPinned,
   bootstrapDomain,
+  transcriptChainId,
+  transcriptOffice,
+  transcriptIdentity,
   pinnedServerIdentity,
   issuingServerIdentity,
   canonicalTranscriptHash,
@@ -206,6 +268,8 @@ function bootstrapCommitAllowed({
   presentedSessionId,
   approvedNonce,
   presentedNonce,
+  transcriptIssuedAtUtc,
+  transcriptExpiresAtUtc,
   nonceFreshAtCommit,
   nonceAlreadyConsumed,
   expiryAdmittedAtCommit,
@@ -215,13 +279,33 @@ function bootstrapCommitAllowed({
   currentRoleRecordHash,
   currentRoleAuthorityExhausted = false,
 }) {
-  const transcriptIdentityValid = isSha256(canonicalTranscriptHash)
-    && serverSignedTranscriptHash === canonicalTranscriptHash
-    && crownApprovedTranscriptHash === canonicalTranscriptHash
-    && requesterPopTranscriptHash === canonicalTranscriptHash;
+  const derivedTranscriptHash = canonicalBootstrapTranscriptHash({
+    bootstrap_domain: bootstrapDomain,
+    chain_id: transcriptChainId,
+    office: transcriptOffice,
+    identity: transcriptIdentity,
+    issuing_server_identity: issuingServerIdentity,
+    requester_ed25519_public_key: transcriptRequesterEd25519,
+    requester_x25519_public_key: transcriptRequesterX25519,
+    session_id: approvedSessionId,
+    nonce: approvedNonce,
+    issued_at_utc: transcriptIssuedAtUtc,
+    expires_at_utc: transcriptExpiresAtUtc,
+    role_generation: approvedRoleGeneration,
+    role_record_sha256: approvedRoleRecordHash,
+  });
+
+  const transcriptIdentityValid = isSha256(derivedTranscriptHash)
+    && canonicalTranscriptHash === derivedTranscriptHash
+    && serverSignedTranscriptHash === derivedTranscriptHash
+    && crownApprovedTranscriptHash === derivedTranscriptHash
+    && requesterPopTranscriptHash === derivedTranscriptHash;
 
   return serverPinned
     && bootstrapDomain === BOOTSTRAP_DOMAIN
+    && transcriptChainId === 2050
+    && transcriptOffice === "Brood Queen"
+    && transcriptIdentity === "Ren"
     && typeof pinnedServerIdentity === "string"
     && pinnedServerIdentity.length > 0
     && issuingServerIdentity === pinnedServerIdentity
@@ -356,6 +440,15 @@ assert(session.all_bootstrap_signatures_and_pop_bind_same_transcript === true, "
 assert(session.nonce_fresh_at_session_commit_required === true, "nonce_fresh_at_commit_required");
 assert(session.nonce_consumed_atomically_with_session_commit === true, "nonce_consumption_must_be_atomic_with_commit");
 assert(session.expiry_admitted_at_session_commit_required === true, "expiry_must_be_admitted_at_commit");
+assert(session.canonical_bootstrap_transcript_encoding === BOOTSTRAP_TRANSCRIPT_ENCODING, "bootstrap_transcript_encoding_mismatch");
+assert(
+  Array.isArray(session.canonical_bootstrap_transcript_fields)
+    && session.canonical_bootstrap_transcript_fields.length === BOOTSTRAP_TRANSCRIPT_FIELDS.length
+    && session.canonical_bootstrap_transcript_fields.every((field, index) => field === BOOTSTRAP_TRANSCRIPT_FIELDS[index]),
+  "bootstrap_transcript_field_order_mismatch",
+);
+assert(session.canonical_bootstrap_time_encoding === "canonical_utc_rfc3339_seconds", "bootstrap_transcript_time_encoding_mismatch");
+assert(session.canonical_bootstrap_transcript_hash_derived_from_fields === true, "bootstrap_transcript_hash_derivation_required");
 
 const requester = fixture.requester_binding;
 assert(requester.server_or_broker_identity_cryptographically_pinned === true, "server_identity_pinning_required");
@@ -435,43 +528,123 @@ for (const mutate of [
   assertThrows(() => validateClosedShape(copy), "unknown_authority_field_must_fail_closed");
 }
 
-const T1 = "1".repeat(64);
 const T2 = "2".repeat(64);
 const H7 = "7".repeat(64);
 const H7_ALT = "a".repeat(64);
 const H8 = "8".repeat(64);
 const H9 = "9".repeat(64);
+
+const baseTranscript = {
+  bootstrap_domain: BOOTSTRAP_DOMAIN,
+  chain_id: 2050,
+  office: "Brood Queen",
+  identity: "Ren",
+  issuing_server_identity: "broker-ed25519-A",
+  requester_ed25519_public_key: "requester-ed25519-A",
+  requester_x25519_public_key: "requester-x25519-A",
+  session_id: "session-A",
+  nonce: "nonce-A",
+  issued_at_utc: "2026-08-23T19:00:00Z",
+  expires_at_utc: "2026-08-23T19:05:00Z",
+  role_generation: "7",
+  role_record_sha256: H7,
+};
+const T1 = canonicalBootstrapTranscriptHash(baseTranscript);
+assert(isSha256(T1), "base_bootstrap_transcript_hash_must_be_sha256");
+
 const baseBootstrap = {
   serverPinned: true,
-  bootstrapDomain: BOOTSTRAP_DOMAIN,
-  pinnedServerIdentity: "broker-ed25519-A",
-  issuingServerIdentity: "broker-ed25519-A",
+  bootstrapDomain: baseTranscript.bootstrap_domain,
+  transcriptChainId: baseTranscript.chain_id,
+  transcriptOffice: baseTranscript.office,
+  transcriptIdentity: baseTranscript.identity,
+  pinnedServerIdentity: baseTranscript.issuing_server_identity,
+  issuingServerIdentity: baseTranscript.issuing_server_identity,
   canonicalTranscriptHash: T1,
   serverSignedTranscriptHash: T1,
   crownApprovedTranscriptHash: T1,
   requesterPopTranscriptHash: T1,
   serverChallengeSignatureValid: true,
   crownApprovalSignatureValid: true,
-  transcriptRequesterEd25519: "requester-ed25519-A",
-  presentedRequesterEd25519: "requester-ed25519-A",
-  transcriptRequesterX25519: "requester-x25519-A",
-  presentedRequesterX25519: "requester-x25519-A",
+  transcriptRequesterEd25519: baseTranscript.requester_ed25519_public_key,
+  presentedRequesterEd25519: baseTranscript.requester_ed25519_public_key,
+  transcriptRequesterX25519: baseTranscript.requester_x25519_public_key,
+  presentedRequesterX25519: baseTranscript.requester_x25519_public_key,
   requesterEd25519ProofOfPossession: true,
   proofOfPossessionBindsCompleteTranscript: true,
-  approvedSessionId: "session-A",
-  presentedSessionId: "session-A",
-  approvedNonce: "nonce-A",
-  presentedNonce: "nonce-A",
+  approvedSessionId: baseTranscript.session_id,
+  presentedSessionId: baseTranscript.session_id,
+  approvedNonce: baseTranscript.nonce,
+  presentedNonce: baseTranscript.nonce,
+  transcriptIssuedAtUtc: baseTranscript.issued_at_utc,
+  transcriptExpiresAtUtc: baseTranscript.expires_at_utc,
   nonceFreshAtCommit: true,
   nonceAlreadyConsumed: false,
   expiryAdmittedAtCommit: true,
-  approvedRoleGeneration: "7",
-  currentRoleGeneration: "7",
-  approvedRoleRecordHash: H7,
-  currentRoleRecordHash: H7,
+  approvedRoleGeneration: baseTranscript.role_generation,
+  currentRoleGeneration: baseTranscript.role_generation,
+  approvedRoleRecordHash: baseTranscript.role_record_sha256,
+  currentRoleRecordHash: baseTranscript.role_record_sha256,
   currentRoleAuthorityExhausted: false,
 };
+
 assert(bootstrapCommitAllowed(baseBootstrap), "stable_requester_role_pair_bootstrap_must_admit");
+
+const transcriptFieldAdversaries = [
+  { label: "bootstrap_domain", transcript: { bootstrap_domain: "VOID_BROOD_QUEEN_SESSION_BOOTSTRAP_V0" }, bootstrap: { bootstrapDomain: "VOID_BROOD_QUEEN_SESSION_BOOTSTRAP_V0" } },
+  { label: "chain_id", transcript: { chain_id: 2051 }, bootstrap: { transcriptChainId: 2051 } },
+  { label: "office", transcript: { office: "General" }, bootstrap: { transcriptOffice: "General" } },
+  { label: "identity", transcript: { identity: "Not-Ren" }, bootstrap: { transcriptIdentity: "Not-Ren" } },
+  {
+    label: "issuing_server_identity",
+    transcript: { issuing_server_identity: "broker-ed25519-B" },
+    bootstrap: { pinnedServerIdentity: "broker-ed25519-B", issuingServerIdentity: "broker-ed25519-B" },
+  },
+  {
+    label: "requester_ed25519_public_key",
+    transcript: { requester_ed25519_public_key: "requester-ed25519-B" },
+    bootstrap: { transcriptRequesterEd25519: "requester-ed25519-B", presentedRequesterEd25519: "requester-ed25519-B" },
+  },
+  {
+    label: "requester_x25519_public_key",
+    transcript: { requester_x25519_public_key: "requester-x25519-B" },
+    bootstrap: { transcriptRequesterX25519: "requester-x25519-B", presentedRequesterX25519: "requester-x25519-B" },
+  },
+  { label: "session_id", transcript: { session_id: "session-B" }, bootstrap: { approvedSessionId: "session-B", presentedSessionId: "session-B" } },
+  { label: "nonce", transcript: { nonce: "nonce-B" }, bootstrap: { approvedNonce: "nonce-B", presentedNonce: "nonce-B" } },
+  { label: "issued_at_utc", transcript: { issued_at_utc: "2026-08-23T19:00:01Z" }, bootstrap: { transcriptIssuedAtUtc: "2026-08-23T19:00:01Z" } },
+  { label: "expires_at_utc", transcript: { expires_at_utc: "2026-08-23T19:06:00Z" }, bootstrap: { transcriptExpiresAtUtc: "2026-08-23T19:06:00Z" } },
+  { label: "role_generation", transcript: { role_generation: "8" }, bootstrap: { approvedRoleGeneration: "8", currentRoleGeneration: "8" } },
+  { label: "role_record_sha256", transcript: { role_record_sha256: H8 }, bootstrap: { approvedRoleRecordHash: H8, currentRoleRecordHash: H8 } },
+];
+
+for (const adversary of transcriptFieldAdversaries) {
+  const mutatedTranscript = { ...baseTranscript, ...adversary.transcript };
+  const mutatedHash = canonicalBootstrapTranscriptHash(mutatedTranscript);
+  assert(
+    mutatedHash === null || mutatedHash !== T1,
+    `transcript_field_mutation_must_change_or_invalidate_digest:${adversary.label}`,
+  );
+  assert(
+    !bootstrapCommitAllowed({ ...baseBootstrap, ...adversary.bootstrap }),
+    `stale_signed_digest_must_reject_transcript_field_mutation:${adversary.label}`,
+  );
+}
+
+assert(canonicalBootstrapTranscriptHash({
+  ...baseTranscript,
+  issued_at_utc: "2026-08-23T19:05:00Z",
+  expires_at_utc: "2026-08-23T19:05:00Z",
+}) === null, "equal_issued_expiry_must_fail");
+assert(canonicalBootstrapTranscriptHash({
+  ...baseTranscript,
+  issued_at_utc: "2026-08-23T19:05:01Z",
+  expires_at_utc: "2026-08-23T19:05:00Z",
+}) === null, "reversed_issued_expiry_must_fail");
+assert(canonicalBootstrapTranscriptHash({
+  ...baseTranscript,
+  issued_at_utc: "2026-08-23T19:00:00.000Z",
+}) === null, "noncanonical_fractional_second_time_must_fail");
 assert(!bootstrapCommitAllowed({ ...baseBootstrap, bootstrapDomain: "VOID_BROOD_QUEEN_SESSION_BOOTSTRAP_V0" }), "wrong_bootstrap_domain_must_fail");
 assert(!bootstrapCommitAllowed({ ...baseBootstrap, issuingServerIdentity: "attacker-server" }), "wrong_issuing_server_identity_must_fail");
 assert(!bootstrapCommitAllowed({ ...baseBootstrap, serverChallengeSignatureValid: false }), "invalid_server_challenge_signature_must_fail");
@@ -574,6 +747,10 @@ for (const required of [
   "Unknown fields are rejected",
   "authenticated command/session activation remains disabled",
   "one exact canonical transcript generation",
+  "utf8_json_array_v1",
+  "issued-at and expiry elements use canonical UTC RFC3339 seconds",
+  "digest supplied independently of the field vector is not authority",
+  "Changing any one authority-bearing transcript field",
   "server/broker signature must verify over the exact canonical bootstrap transcript bytes",
   "Crown approval signature must verify over those same canonical transcript bytes",
   "nonce identity must match the approved transcript",
@@ -600,6 +777,9 @@ console.log("requester_x25519_binding=true");
 console.log("requester_pop_covers_complete_dual_key_transcript=true");
 console.log("role_generation_wire_identity=canonical_unsigned_decimal_uint64_string");
 console.log("bootstrap_authenticated_transcript_commit_binding=true");
+console.log("canonical_bootstrap_transcript_encoding=utf8_json_array_v1");
+console.log("canonical_bootstrap_transcript_field_hash_binding=true");
+console.log("canonical_bootstrap_transcript_field_mutation_matrix=13");
 console.log("bootstrap_server_and_crown_signatures_same_transcript=true");
 console.log("bootstrap_nonce_expiry_replay_commit_boundary=true");
 console.log("role_generation_exhaustion_fail_closed=true");

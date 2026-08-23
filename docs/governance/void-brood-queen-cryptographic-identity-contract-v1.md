@@ -89,6 +89,30 @@ The bootstrap authority is one exact canonical transcript generation, not a coll
 
 A valid signature over different transcript bytes is not equivalent authority. A valid approval presented after its nonce is consumed or expired is replay/expired evidence and cannot create a session.
 
+### Canonical bootstrap transcript encoding
+
+V1 fixes the bootstrap transcript to `utf8_json_array_v1`: UTF-8 bytes of one JSON array with no optional fields and this exact element order:
+
+1. bootstrap domain/version;
+2. chain ID `2050`;
+3. office `Brood Queen`;
+4. identity `Ren`;
+5. exact issuing server/broker identity;
+6. requester Ed25519 public key;
+7. requester X25519 public key;
+8. proposed logical `session_id`;
+9. single-use nonce;
+10. issued-at time;
+11. expiry time;
+12. canonical role-authority generation; and
+13. role-record SHA-256.
+
+The issued-at and expiry elements use canonical UTC RFC3339 seconds (`YYYY-MM-DDTHH:MM:SSZ`) with `issued_at < expires_at`. The role generation uses the canonical unsigned-decimal uint64 string already defined by this contract.
+
+The transcript SHA-256 is computed from those exact UTF-8 bytes. The server signature, Crown approval, and requester Ed25519 proof-of-possession must all bind that exact derived digest/transcript generation. A digest supplied independently of the field vector is not authority.
+
+Changing any one authority-bearing transcript field while retaining signatures or proof-of-possession for the previous digest fails closed. This includes chain/office/identity, issuing-server identity, either requester public key, session id, nonce, either timestamp, role generation, or role-record hash.
+
 ## Canonical role/revocation generation and record identity
 
 The eventual Chain-2050 role contract must expose an exact monotonic **role-authority generation** for the Brood Queen role record. This generation changes on authorization-affecting state transitions such as grant, revocation, restore after revocation, identity/root binding change, or another transition that can change whether an existing session remains authorized. It is not a per-block login counter.

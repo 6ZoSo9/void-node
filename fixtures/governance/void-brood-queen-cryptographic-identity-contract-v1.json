@@ -43,7 +43,25 @@
     "all_bootstrap_signatures_and_pop_bind_same_transcript": true,
     "nonce_fresh_at_session_commit_required": true,
     "nonce_consumed_atomically_with_session_commit": true,
-    "expiry_admitted_at_session_commit_required": true
+    "expiry_admitted_at_session_commit_required": true,
+    "canonical_bootstrap_transcript_encoding": "utf8_json_array_v1",
+    "canonical_bootstrap_transcript_fields": [
+      "bootstrap_domain",
+      "chain_id",
+      "office",
+      "identity",
+      "issuing_server_identity",
+      "requester_ed25519_public_key",
+      "requester_x25519_public_key",
+      "session_id",
+      "nonce",
+      "issued_at_utc",
+      "expires_at_utc",
+      "role_generation",
+      "role_record_sha256"
+    ],
+    "canonical_bootstrap_time_encoding": "canonical_utc_rfc3339_seconds",
+    "canonical_bootstrap_transcript_hash_derived_from_fields": true
   },
   "requester_binding": {
     "server_or_broker_identity_cryptographically_pinned": true,
