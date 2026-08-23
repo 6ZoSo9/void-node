@@ -2,13 +2,14 @@
 
 import { createHash } from 'node:crypto';
 import {
-  appendFile, mkdtemp, readFile, rename, rm, stat, symlink, writeFile,
+  appendFile, mkdir, mkdtemp, readFile, readdir, rename, rm, stat, symlink, writeFile,
 } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { spawnSync } from 'node:child_process';
 import {
-  MAX_INPUT_BYTES, openPinnedRegular, readPinnedText, readRegularJson,
+  CONSTITUTION_GIT_BLOB_SHA1, MAX_INPUT_BYTES, assertReviewedConstitutionText,
+  openPinnedRegular, publishTrialPacketV1, readPinnedText, readRegularJson,
 } from './apollyon_trial_packet_v1.mjs';
 
 const MARKER = 'VOID_APOLLYON_TRIALS_PROVIDER_NEUTRAL_V1_PROOF_GREEN';
@@ -17,6 +18,7 @@ const DOC = 'docs/public/apollyon-trials-provider-neutral-v1.md';
 const SCHEMA = 'schemas/apollyon-trial-packet-v1.schema.json';
 const CONSTITUTION = 'docs/governance/void-crown-brood-queen-command-layer-v1.md';
 const CONSTITUTION_MARKER = 'VOID_CROWN_BROOD_QUEEN_COMMAND_LAYER_V1_20260818';
+const EXPECTED_CONSTITUTION_GIT_BLOB_SHA1 = '732536c0e22ba7ea417be61be7e1f9942bba6d74';
 
 function hold(message) { throw new Error(message); }
 function sha256(value) { return createHash('sha256').update(value).digest('hex'); }
@@ -45,6 +47,14 @@ async function expectReject(promise, contains, name) {
   }
   hold(`${name} did not reject`);
 }
+async function expectMissing(path, name) {
+  try { await stat(path); }
+  catch (error) {
+    if (error?.code === 'ENOENT') return;
+    throw error;
+  }
+  hold(`${name} unexpectedly exists`);
+}
 async function expectMaterializeHold(dir, name, mutate) {
   const draft = baseDraft();
   mutate(draft);
@@ -53,6 +63,34 @@ async function expectMaterializeHold(dir, name, mutate) {
   await writeFile(input, `${JSON.stringify(draft)}\n`, { mode: 0o600 });
   const r = run(['materialize', input, output], 2);
   if (!r.stderr.includes('HOLD:')) hold(`${name} did not fail closed`);
+}
+function packetBytes(packet) {
+  return Buffer.from(`${JSON.stringify(packet, null, 2)}\n`, 'utf8');
+}
+async function assertExactPacketFile(path, packet, name) {
+  const expected = packetBytes(packet);
+  const actual = await readFile(path);
+  if (!actual.equals(expected)) hold(`${name} did not converge to exact canonical packet bytes`);
+  if (((await stat(path)).mode & 0o777) !== 0o600) hold(`${name} packet mode must be 0600`);
+}
+async function expectPublicationFaultRetry(dir, packet, name, faultPoint, mutateStage = null) {
+  const output = join(dir, `${name}.packet.json`);
+  let faultObserved = false;
+  await expectReject(
+    publishTrialPacketV1(output, packet, {
+      faultHook: async (point, detail) => {
+        if (point !== faultPoint) return;
+        faultObserved = true;
+        if (mutateStage) await mutateStage(detail);
+        throw new Error(`injected publication fault at ${point}`);
+      },
+    }),
+    'injected publication fault',
+    name,
+  );
+  if (!faultObserved) hold(`${name} did not reach requested fault point ${faultPoint}`);
+  await publishTrialPacketV1(output, packet);
+  await assertExactPacketFile(output, packet, `${name} retry`);
 }
 function baseDraft() {
   return {
@@ -116,8 +154,8 @@ async function main() {
     'candidate_gets_void_credentials=false', 'provider_neutral=true',
     'void_core_provider_api_keys_required=false', 'trial_score_grants_authority=false',
     'apollyon_office_assignment_automatic=false', `constitution_path=${CONSTITUTION}`,
-    `constitution_marker=${CONSTITUTION_MARKER}`, 'constitution_sha256',
-    'structural verification is not active admission', 'created <= at < expires',
+    `constitution_marker=${CONSTITUTION_MARKER}`, `constitution_git_blob_sha1=${EXPECTED_CONSTITUTION_GIT_BLOB_SHA1}`,
+    'constitution_sha256', 'structural verification is not active admission', 'created <= at < expires',
     'ADMISSION_GREEN', 'constitutional_obedience_required=true',
     'constitutional_fidelity_is_hard_gate=true', 'model_self_report_is_not_trust=true',
     'secret_values_are_never_trial_inputs=true', 'secret_nonacquisition_required=true',
@@ -129,6 +167,18 @@ async function main() {
   if (!constitution.includes(CONSTITUTION_MARKER)) hold('bound constitution marker absent');
   if (!constitution.includes('**King → Brood Queen → General**')) hold('command chain absent');
   if (!constitution.includes('The title **General** does not itself grant autonomous repository writes')) hold('General authority boundary absent');
+  if (CONSTITUTION_GIT_BLOB_SHA1 !== EXPECTED_CONSTITUTION_GIT_BLOB_SHA1) hold('reviewed constitution Git blob identity drifted');
+  if (assertReviewedConstitutionText(constitution) !== constitutionSha) hold('reviewed constitution SHA-256 derivation drifted');
+  const markerCompatibleForeign = constitution.replace(
+    '*One Crown, two realms, legible delegation.*',
+    '*One Crown, two realms, marker-compatible foreign generation.*',
+  );
+  if (!markerCompatibleForeign.includes(CONSTITUTION_MARKER)) hold('foreign constitution adversary lost marker');
+  await expectReject(
+    Promise.resolve().then(() => assertReviewedConstitutionText(markerCompatibleForeign)),
+    'reviewed immutable Git blob',
+    'marker-preserving foreign constitution',
+  );
 
   if (!schema.required.includes('constitution_sha256')) hold('schema does not require constitution_sha256');
   if (schema.properties?.constitution_sha256?.pattern !== '^[0-9a-f]{64}$') hold('schema constitution digest shape drifted');
@@ -151,6 +201,114 @@ async function main() {
     if (packet.trial_id !== id) hold('written trial_id differs from emitted trial_id');
     if (packet.constitution_sha256 !== constitutionSha) hold('packet not bound to exact constitution bytes');
     if (((await stat(packetPath)).mode & 0o777) !== 0o600) hold('packet mode must be 0600');
+
+    const retryMaterialized = run(['materialize', draftPath, packetPath], 0);
+    if (retryMaterialized.stdout.trim() !== id) hold('exact materialize retry did not converge to same trial_id');
+    await assertExactPacketFile(packetPath, packet, 'exact materialize retry');
+
+    const anonymousPath = join(dir, 'anonymous-stage.packet.json');
+    let anonymousStageObserved = false;
+    let exactFdPublicationObserved = false;
+    await publishTrialPacketV1(anonymousPath, packet, {
+      faultHook: async (point, detail) => {
+        if (point === 'after_stage_create') {
+          anonymousStageObserved = true;
+          if (detail.stageLeaf !== null) hold('anonymous publication exposed a named stage leaf');
+          const entries = await readdir(dir);
+          if (entries.some((entry) => entry.startsWith('.void-apollyon-stage-'))) {
+            hold('anonymous publication created a mutable named stage alias');
+          }
+        }
+        if (point === 'after_final_link') {
+          exactFdPublicationObserved = true;
+          const stageGeneration = await detail.stageHandle.stat({ bigint: true });
+          const finalGeneration = await stat(`/proc/self/fd/${detail.parentHandle.fd}/${detail.finalLeaf}`, { bigint: true });
+          if (stageGeneration.dev !== finalGeneration.dev || stageGeneration.ino !== finalGeneration.ino) {
+            hold('published final did not originate from exact open staged generation');
+          }
+        }
+      },
+    });
+    if (!anonymousStageObserved) hold('anonymous stage proof did not observe stage creation');
+    if (!exactFdPublicationObserved) hold('exact-fd publication proof did not observe final publication');
+    await assertExactPacketFile(anonymousPath, packet, 'anonymous exact-fd publication');
+
+    await expectPublicationFaultRetry(dir, packet, 'fault-after-stage-create', 'after_stage_create');
+    await expectPublicationFaultRetry(
+      dir,
+      packet,
+      'fault-after-stage-write-partial-residue',
+      'after_stage_write',
+      async ({ stageHandle, expectedBytes }) => {
+        await stageHandle.truncate(Math.max(1, Math.floor(expectedBytes.length / 2)));
+      },
+    );
+    await expectPublicationFaultRetry(dir, packet, 'fault-before-stage-sync', 'before_stage_sync');
+    await expectPublicationFaultRetry(dir, packet, 'fault-after-stage-sync', 'after_stage_sync');
+    await expectPublicationFaultRetry(dir, packet, 'fault-after-final-link', 'after_final_link');
+    await expectPublicationFaultRetry(dir, packet, 'fault-before-parent-sync', 'before_parent_sync');
+
+    const parentAuthority = join(dir, 'retained-parent-authority');
+    const parentReplacement = join(dir, 'replacement-parent-authority');
+    const parentMoved = join(dir, 'retained-parent-moved');
+    await mkdir(parentAuthority, { mode: 0o700 });
+    await mkdir(parentReplacement, { mode: 0o700 });
+    let parentReplacementObserved = false;
+    await publishTrialPacketV1(join(parentAuthority, 'packet.json'), packet, {
+      faultHook: async (point) => {
+        if (point !== 'after_stage_sync' || parentReplacementObserved) return;
+        parentReplacementObserved = true;
+        await rename(parentAuthority, parentMoved);
+        await rename(parentReplacement, parentAuthority);
+      },
+    });
+    if (!parentReplacementObserved) hold('parent pathname replacement adversary did not run');
+    await assertExactPacketFile(join(parentMoved, 'packet.json'), packet, 'retained parent publication');
+    await expectMissing(join(parentAuthority, 'packet.json'), 'replacement parent final');
+
+    const preSyncReplacementPath = join(dir, 'pre-sync-replacement.packet.json');
+    const preSyncOriginalPath = join(dir, 'pre-sync-replacement.original.json');
+    const foreignReplacementBytes = Buffer.from('{"foreign":true}\n', 'utf8');
+    let preSyncReplacementObserved = false;
+    await expectReject(
+      publishTrialPacketV1(preSyncReplacementPath, packet, {
+        faultHook: async (point) => {
+          if (point !== 'before_parent_sync' || preSyncReplacementObserved) return;
+          preSyncReplacementObserved = true;
+          await rename(preSyncReplacementPath, preSyncOriginalPath);
+          await writeFile(preSyncReplacementPath, foreignReplacementBytes, { mode: 0o600 });
+        },
+      }),
+      'conflicting generation',
+      'pre-parent-sync final replacement',
+    );
+    if (!preSyncReplacementObserved) hold('pre-parent-sync final replacement adversary did not run');
+    if (!(await readFile(preSyncReplacementPath)).equals(foreignReplacementBytes)) {
+      hold('foreign replacement final was modified after commit-binding HOLD');
+    }
+
+    const postCommitPath = join(dir, 'post-commit-observer-fault.packet.json');
+    let postCommitFaultObserved = false;
+    await publishTrialPacketV1(postCommitPath, packet, {
+      afterCommitHook: async (point) => {
+        if (point === 'after_parent_directory_sync') {
+          postCommitFaultObserved = true;
+          throw new Error('injected post-commit observer failure');
+        }
+      },
+    });
+    if (!postCommitFaultObserved) hold('post-commit observer fault point not reached');
+    await assertExactPacketFile(postCommitPath, packet, 'post-commit observer fault');
+
+    const foreignPath = join(dir, 'foreign-final.packet.json');
+    const foreignBytes = Buffer.from('{"foreign":true}\n', 'utf8');
+    await writeFile(foreignPath, foreignBytes, { mode: 0o600 });
+    await expectReject(
+      publishTrialPacketV1(foreignPath, packet),
+      'conflicting generation',
+      'foreign final occupant',
+    );
+    if (!(await readFile(foreignPath)).equals(foreignBytes)) hold('foreign final occupant was modified');
 
     const verified = run(['verify', packetPath], 0);
     if (!verified.stdout.includes('VOID_APOLLYON_TRIAL_PACKET_V1_VERIFY_GREEN')) hold('structural verify marker missing');
@@ -219,11 +377,18 @@ async function main() {
 
   process.stdout.write(`${MARKER}\n`);
   process.stdout.write('constitution_content_bound=true\n');
+  process.stdout.write('constitution_immutable_git_blob_bound=true\n');
   process.stdout.write('active_admission_separate_from_structural_verify=true\n');
   process.stdout.write('active_interval_created_inclusive_expires_exclusive=true\n');
   process.stdout.write('descriptor_generation_bound=true\n');
   process.stdout.write('bounded_prebuffer_retention=true\n');
   process.stdout.write('pathname_replacement_cannot_substitute_verified_bytes=true\n');
+  process.stdout.write('packet_publication_failure_atomic_retry_recoverable=true\n');
+  process.stdout.write('packet_publication_parent_directory_durable=true\n');
+  process.stdout.write('packet_publication_foreign_final_preserved=true\n');
+  process.stdout.write('packet_publication_anonymous_stage=true\n');
+  process.stdout.write('packet_publication_exact_fd_no_replace=true\n');
+  process.stdout.write('packet_publication_post_parent_sync_generation_bound=true\n');
 }
 
 main().catch((error) => {

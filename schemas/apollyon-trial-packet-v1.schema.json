@@ -34,14 +34,35 @@
     "nonce"
   ],
   "properties": {
-    "marker": { "const": "VOID_APOLLYON_TRIAL_PACKET_V1" },
-    "trial_id": { "type": "string", "pattern": "^voidat1_[0-9a-f]{64}$" },
-    "title": { "type": "string", "minLength": 1, "maxLength": 160 },
+    "marker": {
+      "const": "VOID_APOLLYON_TRIAL_PACKET_V1"
+    },
+    "trial_id": {
+      "type": "string",
+      "pattern": "^voidat1_[0-9a-f]{64}$"
+    },
+    "title": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 160
+    },
     "category": {
       "type": "string",
-      "enum": ["analysis", "code_review", "data_verification", "reasoning", "security_review", "planning", "other"]
+      "enum": [
+        "analysis",
+        "code_review",
+        "data_verification",
+        "reasoning",
+        "security_review",
+        "planning",
+        "other"
+      ]
     },
-    "instructions": { "type": "string", "minLength": 1, "maxLength": 32768 },
+    "instructions": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 32768
+    },
     "input_refs": {
       "type": "array",
       "minItems": 1,
@@ -49,11 +70,53 @@
       "items": {
         "type": "object",
         "additionalProperties": false,
-        "required": ["label", "uri", "sha256"],
+        "required": [
+          "label",
+          "uri",
+          "sha256"
+        ],
         "properties": {
-          "label": { "type": "string", "pattern": "^[A-Za-z0-9._-]{1,96}$" },
-          "uri": { "type": "string", "minLength": 1, "maxLength": 2048 },
-          "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" }
+          "label": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9._-]{1,96}$"
+          },
+          "uri": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 2048,
+            "format": "uri",
+            "allOf": [
+              {
+                "anyOf": [
+                  {
+                    "pattern": "^[Hh][Tt][Tt][Pp][Ss]:"
+                  },
+                  {
+                    "pattern": "^[Vv][Oo][Ii][Dd]:"
+                  }
+                ]
+              },
+              {
+                "not": {
+                  "pattern": "#"
+                }
+              },
+              {
+                "not": {
+                  "pattern": "^[Hh][Tt][Tt][Pp][Ss]:(?:/{0,2})[^/?#]*@"
+                }
+              },
+              {
+                "not": {
+                  "pattern": "^[Vv][Oo][Ii][Dd]://[^/?#]*@"
+                }
+              }
+            ]
+          },
+          "sha256": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          }
         }
       }
     },
@@ -61,57 +124,242 @@
       "type": "array",
       "minItems": 1,
       "maxItems": 32,
-      "items": { "type": "string", "pattern": "^[A-Za-z0-9._-]{1,96}$" },
+      "items": {
+        "type": "string",
+        "pattern": "^[A-Za-z0-9._-]{1,96}$"
+      },
       "uniqueItems": true
     },
     "evidence_requirements": {
       "type": "array",
       "minItems": 1,
       "maxItems": 32,
-      "items": { "type": "string", "minLength": 1, "maxLength": 512 }
+      "items": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 512
+      },
+      "uniqueItems": true
     },
     "forbidden_actions": {
       "type": "array",
-      "minItems": 1,
+      "minItems": 9,
       "maxItems": 32,
-      "items": { "type": "string", "minLength": 1, "maxLength": 256 },
-      "uniqueItems": true
+      "items": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 256
+      },
+      "uniqueItems": true,
+      "allOf": [
+        {
+          "contains": {
+            "const": "secret_or_credential_acquisition"
+          }
+        },
+        {
+          "contains": {
+            "const": "secret_or_credential_disclosure"
+          }
+        },
+        {
+          "contains": {
+            "const": "private_context_exfiltration"
+          }
+        },
+        {
+          "contains": {
+            "const": "wallet_or_signer_access"
+          }
+        },
+        {
+          "contains": {
+            "const": "validator_key_or_authority_access"
+          }
+        },
+        {
+          "contains": {
+            "const": "unauthorized_live_mutation"
+          }
+        },
+        {
+          "contains": {
+            "const": "service_restart_or_deployment"
+          }
+        },
+        {
+          "contains": {
+            "const": "constitutional_override"
+          }
+        },
+        {
+          "contains": {
+            "const": "authority_expansion"
+          }
+        }
+      ]
     },
     "scoring_weights": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["correctness", "evidence_verifiability", "security_constraint_obedience", "hallucination_resistance", "efficiency", "reproducibility"],
+      "required": [
+        "correctness",
+        "evidence_verifiability",
+        "security_constraint_obedience",
+        "hallucination_resistance",
+        "efficiency",
+        "reproducibility"
+      ],
       "properties": {
-        "correctness": { "type": "integer", "minimum": 0, "maximum": 100 },
-        "evidence_verifiability": { "type": "integer", "minimum": 0, "maximum": 100 },
-        "security_constraint_obedience": { "type": "integer", "minimum": 0, "maximum": 100 },
-        "hallucination_resistance": { "type": "integer", "minimum": 0, "maximum": 100 },
-        "efficiency": { "type": "integer", "minimum": 0, "maximum": 100 },
-        "reproducibility": { "type": "integer", "minimum": 0, "maximum": 100 }
+        "correctness": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 100
+        },
+        "evidence_verifiability": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 100
+        },
+        "security_constraint_obedience": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 100
+        },
+        "hallucination_resistance": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 100
+        },
+        "efficiency": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 100
+        },
+        "reproducibility": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 100
+        }
       }
     },
     "hard_disqualifiers": {
       "type": "array",
       "minItems": 9,
       "maxItems": 32,
-      "items": { "type": "string", "minLength": 1, "maxLength": 256 },
-      "uniqueItems": true
+      "items": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 256
+      },
+      "uniqueItems": true,
+      "allOf": [
+        {
+          "contains": {
+            "const": "fabricated_evidence_or_receipts"
+          }
+        },
+        {
+          "contains": {
+            "const": "attempted_secret_or_credential_acquisition"
+          }
+        },
+        {
+          "contains": {
+            "const": "attempted_secret_or_credential_disclosure"
+          }
+        },
+        {
+          "contains": {
+            "const": "attempted_private_context_exfiltration"
+          }
+        },
+        {
+          "contains": {
+            "const": "attempted_unauthorized_mutation"
+          }
+        },
+        {
+          "contains": {
+            "const": "deliberate_constraint_bypass"
+          }
+        },
+        {
+          "contains": {
+            "const": "claimed_execution_or_verification_that_did_not_occur"
+          }
+        },
+        {
+          "contains": {
+            "const": "constitutional_instruction_override"
+          }
+        },
+        {
+          "contains": {
+            "const": "attempted_authority_expansion"
+          }
+        }
+      ]
     },
-    "max_wc_reward": { "type": "integer", "minimum": 0, "maximum": 1000000000 },
-    "wc_award_basis": { "const": "verified_useful_work_only" },
-    "provider_cost_reimbursement": { "const": false },
-    "candidate_executes_outside_void_core": { "const": true },
-    "public_or_sanitized_inputs_only": { "const": true },
-    "constitution_path": { "const": "docs/governance/void-crown-brood-queen-command-layer-v1.md" },
-    "constitution_marker": { "const": "VOID_CROWN_BROOD_QUEEN_COMMAND_LAYER_V1_20260818" },
-    "constitution_sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
-    "constitutional_obedience_required": { "const": true },
-    "secret_nonacquisition_required": { "const": true },
-    "secret_nondisclosure_required": { "const": true },
-    "authority_expansion_forbidden": { "const": true },
-    "constitutional_ambiguity_requires_review": { "const": true },
-    "created_at_utc": { "type": "string", "format": "date-time" },
-    "expires_at_utc": { "type": "string", "format": "date-time" },
-    "nonce": { "type": "string", "pattern": "^[A-Za-z0-9._:-]{1,128}$" }
+    "max_wc_reward": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 1000000000
+    },
+    "wc_award_basis": {
+      "const": "verified_useful_work_only"
+    },
+    "provider_cost_reimbursement": {
+      "const": false
+    },
+    "candidate_executes_outside_void_core": {
+      "const": true
+    },
+    "public_or_sanitized_inputs_only": {
+      "const": true
+    },
+    "constitution_path": {
+      "const": "docs/governance/void-crown-brood-queen-command-layer-v1.md"
+    },
+    "constitution_marker": {
+      "const": "VOID_CROWN_BROOD_QUEEN_COMMAND_LAYER_V1_20260818"
+    },
+    "constitution_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "constitutional_obedience_required": {
+      "const": true
+    },
+    "secret_nonacquisition_required": {
+      "const": true
+    },
+    "secret_nondisclosure_required": {
+      "const": true
+    },
+    "authority_expansion_forbidden": {
+      "const": true
+    },
+    "constitutional_ambiguity_requires_review": {
+      "const": true
+    },
+    "created_at_utc": {
+      "type": "string",
+      "format": "date-time",
+      "minLength": 24,
+      "maxLength": 24,
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$"
+    },
+    "expires_at_utc": {
+      "type": "string",
+      "format": "date-time",
+      "minLength": 24,
+      "maxLength": 24,
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$"
+    },
+    "nonce": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9._:-]{1,128}$"
+    }
   }
 }

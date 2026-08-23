@@ -3,7 +3,8 @@
 import { createHash } from 'node:crypto';
 import { constants as FS } from 'node:fs';
 import { open } from 'node:fs/promises';
-import { resolve } from 'node:path';
+import { spawnSync } from 'node:child_process';
+import { basename, dirname, resolve } from 'node:path';
 import process from 'node:process';
 import { fileURLToPath } from 'node:url';
 
@@ -13,6 +14,7 @@ export const MAX_INPUT_BYTES = 256 * 1024;
 const MAX_CONSTITUTION_BYTES = 512 * 1024;
 const CONSTITUTION_PATH = 'docs/governance/void-crown-brood-queen-command-layer-v1.md';
 const CONSTITUTION_MARKER = 'VOID_CROWN_BROOD_QUEEN_COMMAND_LAYER_V1_20260818';
+export const CONSTITUTION_GIT_BLOB_SHA1 = '732536c0e22ba7ea417be61be7e1f9942bba6d74';
 const REQUIRED_DISQUALIFIERS = [
   'fabricated_evidence_or_receipts',
   'attempted_secret_or_credential_acquisition',
@@ -40,8 +42,28 @@ const SCORE_KEYS = [
   'hallucination_resistance', 'efficiency', 'reproducibility',
 ];
 
+// Linux O_TMPFILE is __O_TMPFILE | O_DIRECTORY. Node 22/24/26 do not expose
+// fs.constants.O_TMPFILE, so the reviewed Linux value is explicit here.
+const LINUX_O_TMPFILE = 0o20000000 | FS.O_DIRECTORY;
+const LINK_HELPER = '/usr/bin/ln';
+const LINK_HELPER_TIMEOUT_MS = 5_000;
+const LINK_HELPER_MAX_STDERR_BYTES = 8 * 1024;
+
 function fail(message) { throw new Error(message); }
 function sha256(value) { return createHash('sha256').update(value).digest('hex'); }
+function gitBlobSha1Utf8(value) {
+  const bytes = Buffer.from(value, 'utf8');
+  return createHash('sha1').update(`blob ${bytes.length}\0`).update(bytes).digest('hex');
+}
+export function assertReviewedConstitutionText(value) {
+  if (typeof value !== 'string') fail('constitution must be UTF-8 text');
+  const blobSha = gitBlobSha1Utf8(value);
+  if (blobSha !== CONSTITUTION_GIT_BLOB_SHA1) {
+    fail(`constitution content does not match reviewed immutable Git blob ${CONSTITUTION_GIT_BLOB_SHA1}`);
+  }
+  if (!value.includes(CONSTITUTION_MARKER)) fail('reviewed constitution marker is absent');
+  return sha256(value);
+}
 function isPlainObject(value) {
   if (value === null || typeof value !== 'object' || Array.isArray(value)) return false;
   const proto = Object.getPrototypeOf(value);
@@ -102,6 +124,9 @@ function sameStamp(a, b) {
   return a.dev === b.dev && a.ino === b.ino && a.size === b.size
     && a.mtimeNs === b.mtimeNs && a.ctimeNs === b.ctimeNs;
 }
+function sameFileIdentity(a, b) {
+  return a.dev === b.dev && a.ino === b.ino;
+}
 
 export async function openPinnedRegular(path, maxBytes = MAX_INPUT_BYTES) {
   let fh;
@@ -151,7 +176,7 @@ export async function readRegularJson(path, maxBytes = MAX_INPUT_BYTES) {
 }
 
 async function currentConstitutionSha256() {
-  return sha256(await readRegularText(CONSTITUTION_PATH, MAX_CONSTITUTION_BYTES));
+  return assertReviewedConstitutionText(await readRegularText(CONSTITUTION_PATH, MAX_CONSTITUTION_BYTES));
 }
 
 function validate(packet, { requireId, requireConstitutionSha }) {
@@ -223,10 +248,223 @@ function deriveId(draft) {
   return `${ID_PREFIX}${sha256(canonicalJson(draft))}`;
 }
 
-async function writeExclusive0600(path, value) {
-  const h = await open(path, 'wx', 0o600);
-  try { await h.writeFile(`${JSON.stringify(value, null, 2)}\n`, 'utf8'); await h.sync(); }
-  finally { await h.close(); }
+function packetBytes(value) {
+  return Buffer.from(`${JSON.stringify(value, null, 2)}\n`, 'utf8');
+}
+
+function parentFdPath(parentHandle) {
+  return `/proc/self/fd/${parentHandle.fd}`;
+}
+
+function childPath(parentHandle, leaf) {
+  if (typeof leaf !== 'string' || leaf.length === 0 || leaf.includes('/') || leaf === '.' || leaf === '..') {
+    fail('output path must name one final file');
+  }
+  return `${parentFdPath(parentHandle)}/${leaf}`;
+}
+
+async function readExactPublishedFile(parentHandle, leaf, expectedBytes) {
+  let fh;
+  let synced = false;
+  let primaryError = null;
+  try {
+    fh = await open(childPath(parentHandle, leaf), FS.O_RDONLY | FS.O_NOFOLLOW);
+    const pre = await fh.stat({ bigint: true });
+    if (!pre.isFile()) fail('output path occupied by non-regular generation');
+    if ((Number(pre.mode) & 0o777) !== 0o600) fail('output path occupied by non-private generation');
+    if (pre.size !== BigInt(expectedBytes.length)) fail('output path occupied by conflicting generation');
+    const actual = Buffer.alloc(expectedBytes.length);
+    let position = 0;
+    while (position < actual.length) {
+      const { bytesRead } = await fh.read(actual, position, actual.length - position, position);
+      if (bytesRead === 0) fail('output path contains a short conflicting generation');
+      position += bytesRead;
+    }
+    const extra = Buffer.alloc(1);
+    const { bytesRead: extraRead } = await fh.read(extra, 0, 1, position);
+    if (extraRead !== 0) fail('output path occupied by oversized conflicting generation');
+    const post = await fh.stat({ bigint: true });
+    if (!sameStamp(stamp(pre), stamp(post))) fail('output generation changed during exact retry read');
+    if (!actual.equals(expectedBytes)) fail('output path occupied by conflicting generation');
+    await fh.sync();
+    synced = true;
+    return { stat: post, bytes: actual };
+  } catch (error) {
+    primaryError = error;
+    throw error;
+  } finally {
+    if (fh) {
+      try { await fh.close(); }
+      catch (error) {
+        if (!primaryError && !synced) throw error;
+      }
+    }
+  }
+}
+
+async function invokeFaultHook(hook, point, detail = {}) {
+  if (typeof hook === 'function') await hook(point, detail);
+}
+
+async function openAnonymousTrialStage(parentHandle) {
+  if (process.platform !== 'linux') {
+    fail('trial packet publication requires Linux O_TMPFILE/procfs support');
+  }
+  try {
+    return await open(parentFdPath(parentHandle), LINUX_O_TMPFILE | FS.O_RDWR, 0o600);
+  } catch (error) {
+    fail(`anonymous trial packet staging unavailable: ${error?.code ?? 'unknown_error'}`);
+  }
+}
+
+function runExactFdLinkHelper(stageHandle, parentHandle, leaf) {
+  const result = spawnSync(
+    LINK_HELPER,
+    ['-L', '-T', '--', '/proc/self/fd/3', `/proc/self/fd/4/${leaf}`],
+    {
+      stdio: ['ignore', 'ignore', 'pipe', stageHandle.fd, parentHandle.fd],
+      timeout: LINK_HELPER_TIMEOUT_MS,
+      maxBuffer: LINK_HELPER_MAX_STDERR_BYTES,
+      encoding: 'utf8',
+      windowsHide: true,
+    },
+  );
+  return {
+    status: result.status,
+    signal: result.signal,
+    error: result.error ?? null,
+    stderr: String(result.stderr ?? '').slice(0, LINK_HELPER_MAX_STDERR_BYTES),
+  };
+}
+
+function linkHelperFailure(result) {
+  if (result.error) {
+    const code = result.error?.code ?? 'unknown_error';
+    return `exact-fd link helper failed: ${code}`;
+  }
+  const signal = result.signal ?? 'none';
+  const stderr = result.stderr.trim();
+  return `exact-fd link helper failed: status=${String(result.status)} signal=${signal}${stderr ? ` stderr=${stderr}` : ''}`;
+}
+
+export async function publishTrialPacketV1(path, value, options = {}) {
+  const expectedBytes = packetBytes(value);
+  const absolute = resolve(path);
+  const leaf = basename(absolute);
+  const parentPath = dirname(absolute);
+
+  let parentHandle;
+  let stageHandle;
+  let committed = false;
+  let primaryError = null;
+  let result = null;
+  let closeError = null;
+
+  try {
+    parentHandle = await open(parentPath, FS.O_RDONLY | FS.O_DIRECTORY | FS.O_NOFOLLOW);
+    const parentStat = await parentHandle.stat({ bigint: true });
+    if (!parentStat.isDirectory()) fail('output parent must be a directory');
+
+    let existingSatisfied = false;
+    try {
+      const beforeSync = await readExactPublishedFile(parentHandle, leaf, expectedBytes);
+      await parentHandle.sync();
+      const afterSync = await readExactPublishedFile(parentHandle, leaf, expectedBytes);
+      if (!sameStamp(stamp(beforeSync.stat), stamp(afterSync.stat))) {
+        fail('existing output generation changed across parent durability commit');
+      }
+      committed = true;
+      try {
+        await invokeFaultHook(options.afterCommitHook, 'after_parent_directory_sync', { reusedExisting: true });
+      } catch {
+        // The exact content-addressed packet and parent directory are already durable.
+      }
+      result = { reused_existing: true, linked_new_final: false };
+      existingSatisfied = true;
+    } catch (error) {
+      if (error?.code !== 'ENOENT') throw error;
+    }
+
+    if (!existingSatisfied) {
+      stageHandle = await openAnonymousTrialStage(parentHandle);
+      await invokeFaultHook(options.faultHook, 'after_stage_create', {
+        stageHandle, stageLeaf: null, parentHandle, finalLeaf: leaf, expectedBytes,
+      });
+      await stageHandle.writeFile(expectedBytes);
+      await invokeFaultHook(options.faultHook, 'after_stage_write', {
+        stageHandle, stageLeaf: null, parentHandle, finalLeaf: leaf, expectedBytes,
+      });
+      await invokeFaultHook(options.faultHook, 'before_stage_sync', {
+        stageHandle, stageLeaf: null, parentHandle, finalLeaf: leaf, expectedBytes,
+      });
+      await stageHandle.sync();
+      const stageStat = await stageHandle.stat({ bigint: true });
+      if (!stageStat.isFile() || (Number(stageStat.mode) & 0o777) !== 0o600) {
+        fail('anonymous staged packet generation is not an exact private regular file');
+      }
+      await invokeFaultHook(options.faultHook, 'after_stage_sync', {
+        stageHandle, stageLeaf: null, parentHandle, finalLeaf: leaf, expectedBytes,
+      });
+
+      const linkResult = runExactFdLinkHelper(stageHandle, parentHandle, leaf);
+      let final;
+      try {
+        final = await readExactPublishedFile(parentHandle, leaf, expectedBytes);
+      } catch (error) {
+        if (linkResult.error || linkResult.status !== 0) fail(linkHelperFailure(linkResult));
+        throw error;
+      }
+
+      const linkedNewFinal = sameFileIdentity(final.stat, stageStat);
+      if (linkResult.status === 0 && !linkedNewFinal) {
+        fail('exact-fd link helper reported success without publishing the exact staged generation');
+      }
+
+      await invokeFaultHook(options.faultHook, 'after_final_link', {
+        stageHandle, stageLeaf: null, parentHandle, finalLeaf: leaf, expectedBytes,
+        linkedNewFinal, finalStat: final.stat,
+      });
+      await invokeFaultHook(options.faultHook, 'before_parent_sync', {
+        stageHandle, stageLeaf: null, parentHandle, finalLeaf: leaf, expectedBytes,
+        linkedNewFinal, finalStat: final.stat,
+      });
+      await parentHandle.sync();
+
+      const afterSync = await readExactPublishedFile(parentHandle, leaf, expectedBytes);
+      if (!sameStamp(stamp(final.stat), stamp(afterSync.stat))) {
+        fail('published final generation changed across parent durability commit');
+      }
+      if (linkedNewFinal && !sameFileIdentity(afterSync.stat, stageStat)) {
+        fail('post-sync final generation does not match exact staged generation');
+      }
+
+      committed = true;
+      try {
+        await invokeFaultHook(options.afterCommitHook, 'after_parent_directory_sync', {
+          reusedExisting: !linkedNewFinal,
+        });
+      } catch {
+        // Post-commit observer/reporting failure cannot downgrade durable exact packet truth.
+      }
+
+      result = { reused_existing: !linkedNewFinal, linked_new_final: linkedNewFinal };
+    }
+  } catch (error) {
+    primaryError = error;
+  }
+
+  if (stageHandle) {
+    try { await stageHandle.close(); }
+    catch (error) { if (!committed && !primaryError && !closeError) closeError = error; }
+  }
+  if (parentHandle) {
+    try { await parentHandle.close(); }
+    catch (error) { if (!committed && !primaryError && !closeError) closeError = error; }
+  }
+
+  if (primaryError) throw primaryError;
+  if (closeError) throw closeError;
+  return result;
 }
 
 async function materialize(inputPath, outputPath) {
@@ -236,7 +474,7 @@ async function materialize(inputPath, outputPath) {
   validate(boundDraft, { requireId: false, requireConstitutionSha: true });
   const packet = { ...boundDraft, trial_id: deriveId(boundDraft) };
   validate(packet, { requireId: true, requireConstitutionSha: true });
-  await writeExclusive0600(outputPath, packet);
+  await publishTrialPacketV1(outputPath, packet);
   process.stdout.write(`${packet.trial_id}\n`);
 }
 
