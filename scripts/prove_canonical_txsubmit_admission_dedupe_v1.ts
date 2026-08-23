@@ -110,6 +110,13 @@ assert(mempoolSource.includes("private readonly canonicalIdentities = new Set<st
 assert(!mempoolSource.includes("for (const current of this)"), "admission still rescans queue");
 assert(mempoolSource.includes("new Proxy(this.queueTarget, handler)"), "raw queue mutation guard Proxy missing");
 assert(mempoolSource.includes("ownCanonicalCompatItem"), "owned queue-entry identity snapshot missing");
+assert(mempoolSource.includes("canonicalHashObservationOf"), "single hash observation helper missing");
+const ownItemSourceStart = mempoolSource.indexOf("function ownCanonicalCompatItem");
+const ownItemSourceEnd = mempoolSource.indexOf("function numericArrayIndex", ownItemSourceStart);
+assert(ownItemSourceStart >= 0 && ownItemSourceEnd > ownItemSourceStart, "owned queue-entry source block missing");
+const ownItemSource = mempoolSource.slice(ownItemSourceStart, ownItemSourceEnd);
+assert(!ownItemSource.includes("tx?.hash"), "owned item directly rereads caller hash");
+assert(!ownItemSource.includes("String(rawHash)"), "owned item re-stringifies caller hash");
 assert(mempoolSource.includes("VOID_MEMPOOL_RAW_HASH_MUTATION_FORBIDDEN"), "queued hash mutation guard missing");
 assert(mempoolSource.includes("VOID_MEMPOOL_RAW_PAYLOAD_MUTATION_FORBIDDEN"), "queued payload mutation guard missing");
 assert(mempoolSource.includes("VOID_MEMPOOL_LENGTH_GROWTH_FORBIDDEN"), "queue length growth guard missing");
@@ -138,8 +145,43 @@ let newReads = 0;
 const newTx: any = { get hash() { newReads++; return h2; }, body: { tracked: 2 } };
 canonical.txs.push(newTx);
 assert(oldReads === oldReadsAfterAdmission, "new admission reread existing queue identity; admission is not O(1)");
-assert(newReads > 0, "new admission did not read incoming canonical identity");
+assert(newReads === 1, `new admission must observe caller hash exactly once, got ${newReads}`);
 assert(canonical.txs.length === 2, "O(1) admission setup failed");
+
+const morphGetterProbe: any = new Mempool();
+let morphGetterReads = 0;
+const morphGetterBody: any = { nested: { n: 1 } };
+const morphGetterTx: any = {
+  get hash() {
+    morphGetterReads++;
+    return morphGetterReads === 1 ? undefined : h1;
+  },
+  body: morphGetterBody,
+};
+morphGetterProbe.txs.push(morphGetterTx);
+assert(morphGetterReads === 1, `stateful hash getter observed ${morphGetterReads} times`);
+assert(morphGetterProbe.txs.length === 1, "stateful getter admission changed cardinality");
+assert(morphGetterProbe.txs[0]?.hash === undefined, "noncanonical first hash observation morphed into canonical identity");
+morphGetterBody.nested.n = 2;
+assert(morphGetterProbe.txs[0]?.body?.nested?.n === 2, "noncanonical compatibility entry unexpectedly became canonical-frozen");
+morphGetterProbe.txs.push({ hash: h1, body: { canonicalAfterLegacySnapshot: true } });
+assert(morphGetterProbe.txs.filter((tx: any) => tx?.hash === h1).length === 1, "single-read getter snapshot blocked valid later canonical H");
+expectDuplicate(() => morphGetterProbe.txs.push({ hash: h1 }), "post-stateful-getter canonical duplicate");
+
+const morphStringProbe: any = new Mempool();
+let morphStringCalls = 0;
+const morphStringHash: any = {
+  toString() {
+    morphStringCalls++;
+    return morphStringCalls === 1 ? "not-a-canonical-hash" : h2;
+  },
+};
+morphStringProbe.txs.push({ hash: morphStringHash, body: { legacy: true } });
+assert(morphStringCalls === 1, `stateful hash string coercion observed ${morphStringCalls} times`);
+assert(morphStringProbe.txs[0]?.hash === "not-a-canonical-hash", "noncanonical first string snapshot morphed into canonical identity");
+morphStringProbe.txs.push({ hash: h2, body: { canonicalAfterStringSnapshot: true } });
+assert(morphStringProbe.txs.filter((tx: any) => tx?.hash === h2).length === 1, "single-read string snapshot blocked valid later canonical H");
+expectDuplicate(() => morphStringProbe.txs.push({ hash: h2 }), "post-stateful-string canonical duplicate");
 
 function assertSingleReserved(mp: any, hash: string, label: string): void {
   assert(mp.txs.length === 1 && mp.txs[0]?.hash === hash, `${label}: queue changed`);
@@ -458,6 +500,7 @@ console.log("VOID_CANONICAL_TXSUBMIT_ADMISSION_DEDUPE_V1_ENTRY_IDENTITY_IMMUTABL
 console.log("VOID_CANONICAL_TXSUBMIT_ADMISSION_DEDUPE_V1_PAYLOAD_SNAPSHOT_IMMUTABLE_GREEN=true");
 console.log("VOID_CANONICAL_TXSUBMIT_ADMISSION_DEDUPE_V1_SORT_REENTRANCY_GUARD_GREEN=true");
 console.log("VOID_CANONICAL_TXSUBMIT_ADMISSION_DEDUPE_V1_MUTATION_EPOCH_REENTRANCY_GREEN=true");
+console.log("VOID_CANONICAL_TXSUBMIT_ADMISSION_DEDUPE_V1_SINGLE_HASH_OBSERVATION_GREEN=true");
 console.log("VOID_CANONICAL_TXSUBMIT_ADMISSION_DEDUPE_V1_SINGLE_CANONICAL_PRODUCER_AUTHORITY_GREEN=true");
 console.log("VOID_CANONICAL_TXSUBMIT_ADMISSION_DEDUPE_V1_INFLIGHT_RESERVATION_GREEN=true");
 console.log("VOID_CANONICAL_TXSUBMIT_ADMISSION_DEDUPE_V1_DURABLE_RELEASE_GREEN=true");

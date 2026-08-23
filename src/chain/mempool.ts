@@ -13,11 +13,16 @@ export const VOID_MEMPOOL_RAW_PAYLOAD_MUTATION_FORBIDDEN = "mempool_raw_payload_
 export const VOID_MEMPOOL_LENGTH_GROWTH_FORBIDDEN = "mempool_length_growth_forbidden";
 export const VOID_MEMPOOL_REENTRANT_MUTATION_FORBIDDEN = "mempool_reentrant_mutation_forbidden";
 
-function canonicalIdentitySnapshotOf(tx: any): { id: string; hash: any } | null {
+function canonicalHashObservationOf(tx: any): { id: string; hash: any } {
   const raw = tx?.hash;
   const hash = raw === undefined || raw === null ? raw : String(raw);
   const h = String(hash || "").trim().toLowerCase().replace(/^0x/, "");
-  return /^[0-9a-f]{64}$/.test(h) ? { id: h, hash } : null;
+  return { id: /^[0-9a-f]{64}$/.test(h) ? h : "", hash };
+}
+
+function canonicalIdentitySnapshotOf(tx: any): { id: string; hash: any } | null {
+  const observation = canonicalHashObservationOf(tx);
+  return observation.id ? observation : null;
 }
 
 function comparableCanonicalHashOf(tx: any): string {
@@ -90,7 +95,8 @@ function snapshotCanonicalPayload(value: any, seen = new WeakSet<object>()): any
 
 function ownCanonicalCompatItem(tx: any): any {
   if (tx === null || (typeof tx !== "object" && typeof tx !== "function")) return tx;
-  const identity = canonicalIdentitySnapshotOf(tx);
+  const hashObservation = canonicalHashObservationOf(tx);
+  const identity = hashObservation.id ? hashObservation : null;
 
   if (identity) {
     const owned: any = Array.isArray(tx) ? [] : Object.create(Object.getPrototypeOf(tx));
@@ -136,8 +142,7 @@ function ownCanonicalCompatItem(tx: any): any {
     });
   }
 
-  const rawHash = tx?.hash;
-  const hashSnapshot = rawHash === undefined || rawHash === null ? rawHash : String(rawHash);
+  const hashSnapshot = hashObservation.hash;
   const owned: any = Array.isArray(tx) ? [] : Object.create(Object.getPrototypeOf(tx));
   const descriptors: any = Object.getOwnPropertyDescriptors(tx);
   const hashDescriptor = descriptors.hash;

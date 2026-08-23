@@ -11,12 +11,17 @@ exports.VOID_MEMPOOL_RAW_HASH_MUTATION_FORBIDDEN = "mempool_raw_hash_mutation_fo
 exports.VOID_MEMPOOL_RAW_PAYLOAD_MUTATION_FORBIDDEN = "mempool_raw_payload_mutation_forbidden";
 exports.VOID_MEMPOOL_LENGTH_GROWTH_FORBIDDEN = "mempool_length_growth_forbidden";
 exports.VOID_MEMPOOL_REENTRANT_MUTATION_FORBIDDEN = "mempool_reentrant_mutation_forbidden";
-function canonicalIdentitySnapshotOf(tx) {
+function canonicalHashObservationOf(tx) {
     const raw = tx === null || tx === void 0 ? void 0 : tx.hash;
     const hash = raw === undefined || raw === null ? raw : String(raw);
     const h = String(hash || "").trim().toLowerCase().replace(/^0x/, "");
-    return /^[0-9a-f]{64}$/.test(h) ? { id: h, hash } : null;
+    return { id: /^[0-9a-f]{64}$/.test(h) ? h : "", hash };
 }
+function canonicalIdentitySnapshotOf(tx) {
+    const observation = canonicalHashObservationOf(tx);
+    return observation.id ? observation : null;
+}
+
 function comparableCanonicalHashOf(tx) {
     const snapshot = canonicalIdentitySnapshotOf(tx);
     return (snapshot === null || snapshot === void 0 ? void 0 : snapshot.id) || "";
@@ -84,7 +89,8 @@ function snapshotCanonicalPayload(value, seen = new WeakSet()) {
 function ownCanonicalCompatItem(tx) {
     if (tx === null || (typeof tx !== "object" && typeof tx !== "function"))
         return tx;
-    const identity = canonicalIdentitySnapshotOf(tx);
+    const hashObservation = canonicalHashObservationOf(tx);
+    const identity = hashObservation.id ? hashObservation : null;
     if (identity) {
         const owned = Array.isArray(tx) ? [] : Object.create(Object.getPrototypeOf(tx));
         const descriptors = Object.getOwnPropertyDescriptors(tx);
@@ -127,8 +133,7 @@ function ownCanonicalCompatItem(tx) {
             },
         });
     }
-    const rawHash = tx === null || tx === void 0 ? void 0 : tx.hash;
-    const hashSnapshot = rawHash === undefined || rawHash === null ? rawHash : String(rawHash);
+    const hashSnapshot = hashObservation.hash;
     const owned = Array.isArray(tx) ? [] : Object.create(Object.getPrototypeOf(tx));
     const descriptors = Object.getOwnPropertyDescriptors(tx);
     const hashDescriptor = descriptors.hash;
