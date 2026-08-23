@@ -9,6 +9,7 @@ on:
       - "schemas/apollyon-trial-packet-v1.schema.json"
       - "scripts/apollyon_trial_packet_v1.mjs"
       - "scripts/prove_apollyon_trials_provider_neutral_v1.mjs"
+      - "scripts/prove_apollyon_trial_schema_alignment_v1.mjs"
       - "scripts/ci_diff_hygiene_v1.sh"
       - "scripts/prove_ci_diff_hygiene_v1.mjs"
   push:
@@ -21,6 +22,7 @@ on:
       - "schemas/apollyon-trial-packet-v1.schema.json"
       - "scripts/apollyon_trial_packet_v1.mjs"
       - "scripts/prove_apollyon_trials_provider_neutral_v1.mjs"
+      - "scripts/prove_apollyon_trial_schema_alignment_v1.mjs"
       - "scripts/ci_diff_hygiene_v1.sh"
       - "scripts/prove_ci_diff_hygiene_v1.mjs"
   workflow_dispatch:
@@ -53,9 +55,12 @@ jobs:
         run: |
           node --check scripts/apollyon_trial_packet_v1.mjs
           node --check scripts/prove_apollyon_trials_provider_neutral_v1.mjs
+          node --check scripts/prove_apollyon_trial_schema_alignment_v1.mjs
 
       - name: Run focused proof
-        run: node scripts/prove_apollyon_trials_provider_neutral_v1.mjs
+        run: |
+          node scripts/prove_apollyon_trials_provider_neutral_v1.mjs
+          node scripts/prove_apollyon_trial_schema_alignment_v1.mjs
 
       - name: Prove committed-range hygiene contract
         if: matrix.node == 24
