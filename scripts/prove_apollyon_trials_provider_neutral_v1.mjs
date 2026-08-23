@@ -8,7 +8,8 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { spawnSync } from 'node:child_process';
 import {
-  MAX_INPUT_BYTES, openPinnedRegular, readPinnedText, readRegularJson,
+  CONSTITUTION_GIT_BLOB_SHA1, MAX_INPUT_BYTES, assertReviewedConstitutionText,
+  openPinnedRegular, readPinnedText, readRegularJson,
 } from './apollyon_trial_packet_v1.mjs';
 
 const MARKER = 'VOID_APOLLYON_TRIALS_PROVIDER_NEUTRAL_V1_PROOF_GREEN';
@@ -17,6 +18,7 @@ const DOC = 'docs/public/apollyon-trials-provider-neutral-v1.md';
 const SCHEMA = 'schemas/apollyon-trial-packet-v1.schema.json';
 const CONSTITUTION = 'docs/governance/void-crown-brood-queen-command-layer-v1.md';
 const CONSTITUTION_MARKER = 'VOID_CROWN_BROOD_QUEEN_COMMAND_LAYER_V1_20260818';
+const EXPECTED_CONSTITUTION_GIT_BLOB_SHA1 = '732536c0e22ba7ea417be61be7e1f9942bba6d74';
 
 function hold(message) { throw new Error(message); }
 function sha256(value) { return createHash('sha256').update(value).digest('hex'); }
@@ -116,8 +118,8 @@ async function main() {
     'candidate_gets_void_credentials=false', 'provider_neutral=true',
     'void_core_provider_api_keys_required=false', 'trial_score_grants_authority=false',
     'apollyon_office_assignment_automatic=false', `constitution_path=${CONSTITUTION}`,
-    `constitution_marker=${CONSTITUTION_MARKER}`, 'constitution_sha256',
-    'structural verification is not active admission', 'created <= at < expires',
+    `constitution_marker=${CONSTITUTION_MARKER}`, `constitution_git_blob_sha1=${EXPECTED_CONSTITUTION_GIT_BLOB_SHA1}`,
+    'constitution_sha256', 'structural verification is not active admission', 'created <= at < expires',
     'ADMISSION_GREEN', 'constitutional_obedience_required=true',
     'constitutional_fidelity_is_hard_gate=true', 'model_self_report_is_not_trust=true',
     'secret_values_are_never_trial_inputs=true', 'secret_nonacquisition_required=true',
@@ -129,6 +131,18 @@ async function main() {
   if (!constitution.includes(CONSTITUTION_MARKER)) hold('bound constitution marker absent');
   if (!constitution.includes('**King → Brood Queen → General**')) hold('command chain absent');
   if (!constitution.includes('The title **General** does not itself grant autonomous repository writes')) hold('General authority boundary absent');
+  if (CONSTITUTION_GIT_BLOB_SHA1 !== EXPECTED_CONSTITUTION_GIT_BLOB_SHA1) hold('reviewed constitution Git blob identity drifted');
+  if (assertReviewedConstitutionText(constitution) !== constitutionSha) hold('reviewed constitution SHA-256 derivation drifted');
+  const markerCompatibleForeign = constitution.replace(
+    '*One Crown, two realms, legible delegation.*',
+    '*One Crown, two realms, marker-compatible foreign generation.*',
+  );
+  if (!markerCompatibleForeign.includes(CONSTITUTION_MARKER)) hold('foreign constitution adversary lost marker');
+  await expectReject(
+    Promise.resolve().then(() => assertReviewedConstitutionText(markerCompatibleForeign)),
+    'reviewed immutable Git blob',
+    'marker-preserving foreign constitution',
+  );
 
   if (!schema.required.includes('constitution_sha256')) hold('schema does not require constitution_sha256');
   if (schema.properties?.constitution_sha256?.pattern !== '^[0-9a-f]{64}$') hold('schema constitution digest shape drifted');
@@ -219,6 +233,7 @@ async function main() {
 
   process.stdout.write(`${MARKER}\n`);
   process.stdout.write('constitution_content_bound=true\n');
+  process.stdout.write('constitution_immutable_git_blob_bound=true\n');
   process.stdout.write('active_admission_separate_from_structural_verify=true\n');
   process.stdout.write('active_interval_created_inclusive_expires_exclusive=true\n');
   process.stdout.write('descriptor_generation_bound=true\n');
