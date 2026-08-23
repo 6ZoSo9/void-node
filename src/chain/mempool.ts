@@ -63,20 +63,20 @@ class CanonicalCompatTxArray extends Array<any> {
 
 export class Mempool {
   private q: MemTx[] = [];
-  private compatTxs: any[] = new CanonicalCompatTxArray();
+  private compatTxs: any[] | undefined;
 
   /**
    * Compatibility surface consumed by the canonical HTTP hotpath and V2FS
    * runtime shims. Keep Array.isArray(...) true while guarding canonical ids.
    */
-  get txs(): any[] { return this.compatTxs; }
+  get txs(): any[] | undefined { return this.compatTxs; }
   set txs(value: any[]) {
     if (value === this.compatTxs) return;
     if (!Array.isArray(value)) throw new TypeError("mempool_txs_must_be_array");
 
     // Build first so a duplicate replacement fails without changing authority.
     const next = new CanonicalCompatTxArray();
-    next.push(...value);
+    for (const item of value) next.push(item);
     this.compatTxs = next;
   }
 

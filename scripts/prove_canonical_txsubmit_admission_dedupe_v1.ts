@@ -72,9 +72,11 @@ const h2 = "b".repeat(64);
 const h3 = "c".repeat(64);
 const h4 = "d".repeat(64);
 
-// Exact direct-array path preferred by the current canonical hotpath.
+// Exact direct-array path preferred by the current canonical hotpath after legacy initialization.
 const compat: any = new Mempool();
-assert(Array.isArray(compat.txs), "compat txs must remain Array.isArray-compatible");
+assert(!Array.isArray(compat.txs), "compat txs must remain absent until legacy initialization");
+compat.txs = [];
+assert(Array.isArray(compat.txs), "initialized compat txs must remain Array.isArray-compatible");
 let r = appendLikeCanonicalHotpath(compat, { hash: h1, body: { n: 1 } });
 assert(r.ok === true && compat.txs.length === 1, "first canonical direct-array admission failed");
 const beforeDuplicate = compat.txs.slice();

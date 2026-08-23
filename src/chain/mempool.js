@@ -58,7 +58,6 @@ class CanonicalCompatTxArray extends Array {
 class Mempool {
     constructor() {
         this.q = [];
-        this.compatTxs = new CanonicalCompatTxArray();
     }
     /**
      * Compatibility surface consumed by the canonical HTTP hotpath and V2FS
@@ -72,7 +71,8 @@ class Mempool {
             throw new TypeError("mempool_txs_must_be_array");
         // Build first so a duplicate replacement fails without changing authority.
         const next = new CanonicalCompatTxArray();
-        next.push(...value);
+        for (const item of value)
+            next.push(item);
         this.compatTxs = next;
     }
     push(tx) {
