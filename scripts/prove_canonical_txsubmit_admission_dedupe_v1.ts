@@ -77,15 +77,14 @@ assert(queueReaderStart >= 0 && queueReaderEnd > queueReaderStart, "V2FS takeFro
 const queueReader = indexSource.slice(queueReaderStart, queueReaderEnd);
 assert(queueReader.includes("const mp = node?.mempool?.txs;"), "V2FS no longer selects node.mempool.txs");
 assert(queueReader.includes("pushPicked(mp.splice(0, takeMp));"), "V2FS no longer consumes node.mempool.txs by splice");
-assert(indexSource.indexOf("const txsA = takeFromQueues(node, max);", queueReaderEnd) > queueReaderEnd,
-  "V2FS commit path no longer consumes takeFromQueues before file fallback");
+const v2fsTakeCall = indexSource.indexOf("const txsA = takeFromQueues(node, max);", queueReaderEnd);
+assert(v2fsTakeCall > queueReaderEnd, "V2FS commit path no longer consumes takeFromQueues before file fallback");
 
 const h1 = "a".repeat(64);
 const h2 = "b".repeat(64);
 const h3 = "c".repeat(64);
 const h4 = "d".repeat(64);
 
-// Live Node shape: Mempool always exposes the exact queue preferred by canonical HTTP and V2FS.
 const canonical: any = new Mempool();
 assert(Array.isArray(canonical.txs), "live Mempool must expose producer-visible txs at construction");
 const sharedQueue = canonical.txs;
@@ -97,13 +96,11 @@ assert(canonical.txs === sharedQueue, "HTTP admission changed producer queue ide
 assert(canonical.peekAll().length === 1 && canonical.peekAll()[0]?.hash === h1,
   "HTTP admission is not visible through canonical Mempool view");
 
-// Model the exact V2FS takeFromQueues operation against the same producer-visible object.
 const v2fsTaken = canonical.txs.splice(0, 1);
 assert(v2fsTaken.length === 1 && v2fsTaken[0]?.hash === h1, "V2FS model did not consume admitted tx");
 assert(canonical.txs === sharedQueue && canonical.txs.length === 0, "V2FS model changed queue identity or failed to drain");
 assert(canonical.peekAll().length === 0, "V2FS drain not reflected in canonical Mempool view");
 
-// Node/P2P push() must feed the same producer-visible queue, not a private second queue.
 canonical.push({ hash: h2, body: { via: "push" } });
 assert(canonical.txs === sharedQueue && canonical.txs.length === 1, "Mempool.push wrote a second queue");
 assert(canonical.peekAll()[0]?.hash === h2, "push result missing from canonical view");
@@ -111,7 +108,6 @@ const nodeTaken = canonical.take(1);
 assert(nodeTaken.length === 1 && nodeTaken[0]?.hash === h2, "Mempool.take did not consume shared queue");
 assert(canonical.txs === sharedQueue && canonical.txs.length === 0, "Mempool.take detached or failed to drain shared queue");
 
-// Pending duplicate HTTP admission fails with zero producer-state mutation.
 r = appendLikeCanonicalHotpath(canonical, { hash: h3, body: { n: 3 } });
 assert(r.ok === true && canonical.txs.length === 1, "unique pending admission failed");
 const beforeDuplicate = canonical.peekAll();
@@ -123,18 +119,15 @@ assert(canonical.peekAll()[0]?.hash === beforeDuplicate[0]?.hash, "duplicate adm
 expectDuplicate(() => sharedQueue.push({ hash: `0x${h3.toUpperCase()}` }), "external shared-array duplicate");
 assert(canonical.txs.length === beforeDuplicate.length, "external duplicate mutated producer queue");
 
-// Batch insertion is atomic when the incoming batch contains a duplicate.
 const batchBefore = canonical.txs.length;
 expectDuplicate(() => canonical.txs.push({ hash: h4 }, { hash: h4 }), "shared-queue batch duplicate");
 assert(canonical.txs.length === batchBefore, "duplicate batch partially mutated producer queue");
 
-// Legacy no-hash compatibility entries remain representable.
 canonical.txs.push({ kind: "legacy_raw_compat_v1", nonce: "raw-no-hash" });
 assert(canonical.txs.length === batchBefore + 1, "legacy raw compatibility entry was newly rejected");
 canonical.clear();
 assert(canonical.txs === sharedQueue && canonical.txs.length === 0, "clear did not preserve and empty shared queue");
 
-// Explicit compatibility-array replacement retains exact assignment identity and becomes the one queue.
 const rawReplacement: any[] = [{ hash: h4, body: { replacement: true } }];
 const replacementAssignmentValue = (canonical.txs = rawReplacement);
 assert(replacementAssignmentValue === rawReplacement, "replacement assignment expression identity changed");
@@ -148,7 +141,6 @@ expectDuplicate(() => { canonical.txs = duplicateReplacement; }, "duplicate queu
 assert(canonical.txs === rawReplacement, "failed replacement changed queue authority");
 assert(Object.getPrototypeOf(duplicateReplacement) === Array.prototype, "failed replacement mutated candidate prototype");
 
-// Strict internal push hash admission remains unchanged, while pending-only re-admission remains possible after drain.
 canonical.clear();
 canonical.push({ hash: `0x${h1}`, body: { prefixedInvalid: true } });
 canonical.push({ hash: "not-a-hash", body: { invalid: true } });
@@ -161,8 +153,6 @@ assert(drained.length === 1 && canonical.txs.length === 0, "drain failed shared 
 canonical.push({ hash: h1, body: { readmit: true } });
 assert(canonical.txs.length === 1, "post-drain re-admission should remain allowed");
 
-// The current handler maps append exceptions to a non-success 503. This PR intentionally
-// hardens truth/no-second-mutation without claiming a new 409 response contract.
 assert(appendRejectStatus >= 0, "canonical append-error status mapping missing");
 
 console.log("VOID_CANONICAL_TXSUBMIT_ADMISSION_DEDUPE_V1_SINGLE_QUEUE_GREEN=true");
@@ -174,3 +164,11 @@ console.log("VOID_CANONICAL_TXSUBMIT_ADMISSION_DEDUPE_V1_DUPLICATE_HTTP_STATUS=5
 console.log("VOID_CANONICAL_TXSUBMIT_ADMISSION_DEDUPE_V1_PENDING_ONLY=true");
 console.log("VOID_CANONICAL_TXSUBMIT_ADMISSION_DEDUPE_V1_LEGACY_RAW_COMPAT_PRESERVED=true");
 console.log("VOID_CANONICAL_TXSUBMIT_ADMISSION_DEDUPE_V1_PROOF_GREEN");
+
+// Temporary source-inspection output for the exact V2FS selection -> durable-commit lifecycle.
+// This prints repository source only; it performs no runtime mutation.
+const inspectStart = Math.max(queueReaderStart, v2fsTakeCall - 5000);
+const inspectEnd = Math.min(indexSource.length, v2fsTakeCall + 14000);
+console.log("VOID_V2FS_COMMIT_LIFECYCLE_INSPECT_BEGIN");
+console.log(indexSource.slice(inspectStart, inspectEnd));
+console.log("VOID_V2FS_COMMIT_LIFECYCLE_INSPECT_END");
