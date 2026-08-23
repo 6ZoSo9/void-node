@@ -6,6 +6,7 @@ const PARENT_MARKER = "VOID_CROWN_BROOD_QUEEN_COMMAND_LAYER_V1_20260818";
 const DOC = "docs/governance/void-brood-queen-cryptographic-identity-contract-v1.md";
 const FIXTURE = "fixtures/governance/void-brood-queen-cryptographic-identity-contract-v1.json";
 const PARENT = "docs/governance/void-crown-brood-queen-command-layer-v1.md";
+const UINT64_LIMIT = 1n << 64n;
 
 function assert(condition, message) {
   if (!condition) throw new Error(message);
@@ -17,6 +18,11 @@ function assertThrows(fn, message) {
 }
 function sha256(value) { return createHash("sha256").update(value).digest("hex"); }
 function isSha256(value) { return typeof value === "string" && /^[0-9a-f]{64}$/.test(value); }
+function isCanonicalUint64Decimal(value) {
+  if (typeof value !== "string") return false;
+  if (!/^(?:0|[1-9][0-9]*)$/.test(value)) return false;
+  try { return BigInt(value) < UINT64_LIMIT; } catch { return false; }
+}
 function exactKeys(value, expected, name) {
   assert(value && typeof value === "object" && !Array.isArray(value), `${name}_must_be_object`);
   const actual = Object.keys(value).sort();
@@ -97,7 +103,9 @@ function validateClosedShape(fixture) {
 }
 
 function rolePairMatches(boundGeneration, boundHash, currentGeneration, currentHash) {
-  return boundGeneration === currentGeneration
+  return isCanonicalUint64Decimal(boundGeneration)
+    && isCanonicalUint64Decimal(currentGeneration)
+    && boundGeneration === currentGeneration
     && boundHash === currentHash
     && isSha256(boundHash)
     && isSha256(currentHash);
@@ -305,6 +313,20 @@ assert(!bootstrapCommitAllowed({ ...baseBootstrap, serverPinned: false }), "untr
 assert(!bootstrapCommitAllowed({ ...baseBootstrap, currentRoleGeneration: "8", currentRoleRecordHash: H8 }), "revocation_before_session_commit_must_fail");
 assert(!bootstrapCommitAllowed({ ...baseBootstrap, currentRoleRecordHash: H7_ALT }), "same_generation_different_role_hash_before_session_commit_must_fail");
 
+for (const badGeneration of [7, "07", "+7", "7.0", "-1", "18446744073709551616", " 7", "7 "]) {
+  assert(
+    !bootstrapCommitAllowed({
+      ...baseBootstrap,
+      approvedRoleGeneration: badGeneration,
+      currentRoleGeneration: badGeneration,
+    }),
+    `noncanonical_role_generation_must_fail:${String(badGeneration)}`,
+  );
+}
+assert(isCanonicalUint64Decimal("0"), "uint64_zero_must_be_valid");
+assert(isCanonicalUint64Decimal("18446744073709551615"), "uint64_max_must_be_valid");
+assert(!isCanonicalUint64Decimal("18446744073709551616"), "uint64_overflow_must_fail");
+
 const stableSession = {
   sessionRoleGeneration: "7",
   sessionRoleRecordHash: H7,
@@ -319,6 +341,18 @@ assert(!taskAdmissionCommitAllowed({ ...stableSession, currentRoleRecordHash: H7
 assert(!successorActivationCommitAllowed({ ...stableSession, currentRoleRecordHash: H7_ALT }), "same_generation_different_hash_successor_effect_must_fail");
 assert(!taskAdmissionCommitAllowed({ ...stableSession, currentRoleGeneration: "9", currentRoleRecordHash: H9 }), "revoke_restore_aba_must_not_revive_old_task_authority");
 assert(!successorActivationCommitAllowed({ ...stableSession, currentRoleGeneration: "9", currentRoleRecordHash: H9 }), "revoke_restore_aba_must_not_revive_old_rotation_authority");
+for (const badGeneration of [7, "07", "+7", "7.0", "-1", "18446744073709551616"]) {
+  assert(!taskAdmissionCommitAllowed({
+    ...stableSession,
+    sessionRoleGeneration: badGeneration,
+    currentRoleGeneration: badGeneration,
+  }), `noncanonical_task_role_generation_must_fail:${String(badGeneration)}`);
+  assert(!successorActivationCommitAllowed({
+    ...stableSession,
+    sessionRoleGeneration: badGeneration,
+    currentRoleGeneration: badGeneration,
+  }), `noncanonical_rotation_role_generation_must_fail:${String(badGeneration)}`);
+}
 
 for (const required of [
   "exact requester/session-adapter Ed25519 signing public key",
@@ -348,6 +382,7 @@ console.log("closed_machine_schema=true");
 console.log("requester_ed25519_binding=true");
 console.log("requester_x25519_binding=true");
 console.log("requester_pop_covers_complete_dual_key_transcript=true");
+console.log("role_generation_wire_identity=canonical_unsigned_decimal_uint64_string");
 console.log("role_authority_generation_and_record_hash_atomicity=true");
 console.log("task_effect_boundary_role_pair_checked=true");
 console.log("successor_effect_boundary_role_pair_checked=true");
