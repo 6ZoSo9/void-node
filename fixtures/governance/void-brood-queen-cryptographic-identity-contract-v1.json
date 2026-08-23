@@ -61,7 +61,14 @@
       "role_record_sha256"
     ],
     "canonical_bootstrap_time_encoding": "canonical_utc_rfc3339_seconds",
-    "canonical_bootstrap_transcript_hash_derived_from_fields": true
+    "canonical_bootstrap_transcript_hash_derived_from_fields": true,
+    "bootstrap_nonce_authority_state_machine": "FRESH_to_COMMITTED",
+    "bootstrap_nonce_commit_atomically_creates_generation0_session_and_receipt": true,
+    "bootstrap_exact_retry_returns_same_committed_session_and_receipt": true,
+    "bootstrap_conflicting_nonce_reuse_rejected": true,
+    "bootstrap_precommit_crash_leaves_nonce_fresh": true,
+    "bootstrap_postcommit_response_loss_recovers_existing_commit": true,
+    "bootstrap_consumed_without_session_state_representable": false
   },
   "requester_binding": {
     "server_or_broker_identity_cryptographically_pinned": true,

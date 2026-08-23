@@ -84,6 +84,13 @@ function validateClosedShape(fixture) {
     "canonical_bootstrap_transcript_fields",
     "canonical_bootstrap_time_encoding",
     "canonical_bootstrap_transcript_hash_derived_from_fields",
+    "bootstrap_nonce_authority_state_machine",
+    "bootstrap_nonce_commit_atomically_creates_generation0_session_and_receipt",
+    "bootstrap_exact_retry_returns_same_committed_session_and_receipt",
+    "bootstrap_conflicting_nonce_reuse_rejected",
+    "bootstrap_precommit_crash_leaves_nonce_fresh",
+    "bootstrap_postcommit_response_loss_recovers_existing_commit",
+    "bootstrap_consumed_without_session_state_representable",
   ], "session_model");
   exactKeys(fixture.requester_binding, [
     "server_or_broker_identity_cryptographically_pinned",
@@ -242,6 +249,112 @@ function rolePairMatches(boundGeneration, boundHash, currentGeneration, currentH
     && boundHash === currentHash
     && isSha256(boundHash)
     && isSha256(currentHash);
+}
+
+function bootstrapCommitIdentity(request) {
+  return {
+    transcript_sha256: request.canonicalTranscriptHash,
+    session_id: request.approvedSessionId,
+    session_generation: "0",
+    role_generation: request.approvedRoleGeneration,
+    role_record_sha256: request.approvedRoleRecordHash,
+  };
+}
+
+function bootstrapReceiptFor(identity) {
+  return sha256(Buffer.from(JSON.stringify([
+    "VOID_BROOD_QUEEN_BOOTSTRAP_RECEIPT_V1",
+    identity.transcript_sha256,
+    identity.session_id,
+    identity.session_generation,
+    identity.role_generation,
+    identity.role_record_sha256,
+  ]), "utf8"));
+}
+
+function sameBootstrapIdentity(a, b) {
+  return a.transcript_sha256 === b.transcript_sha256
+    && a.session_id === b.session_id
+    && a.session_generation === b.session_generation
+    && a.role_generation === b.role_generation
+    && a.role_record_sha256 === b.role_record_sha256;
+}
+
+function createBootstrapNonceAuthority(request) {
+  return {
+    version: 0,
+    record: {
+      state: "FRESH",
+      nonce: request.approvedNonce,
+      transcript_sha256: request.canonicalTranscriptHash,
+    },
+  };
+}
+
+function atomicBootstrapCommit(authority, request, { expectedVersion, fault = null } = {}) {
+  const identity = bootstrapCommitIdentity(request);
+  const current = authority.record;
+
+  if (current.state === "COMMITTED") {
+    if (sameBootstrapIdentity(current.identity, identity)) {
+      return {
+        ok: true,
+        replay: true,
+        fresh_authority: false,
+        session: current.identity,
+        receipt: current.receipt,
+        version: authority.version,
+      };
+    }
+    return { ok: false, code: "BOOTSTRAP_CONFLICT", replay: false, fresh_authority: false, version: authority.version };
+  }
+
+  if (current.state !== "FRESH") {
+    return { ok: false, code: "BOOTSTRAP_STATE_INVALID", fresh_authority: false };
+  }
+  if (expectedVersion !== authority.version) {
+    return { ok: false, code: "BOOTSTRAP_CAS_STALE", replay: false, fresh_authority: false, version: authority.version };
+  }
+  if (current.nonce !== request.approvedNonce
+      || current.transcript_sha256 !== request.canonicalTranscriptHash) {
+    return { ok: false, code: "BOOTSTRAP_CONFLICT", replay: false, fresh_authority: false, version: authority.version };
+  }
+  if (!bootstrapCommitAllowed(request)) {
+    return { ok: false, code: "BOOTSTRAP_NOT_ADMITTED", replay: false, fresh_authority: false, version: authority.version };
+  }
+  if (fault === "before_commit") {
+    return { ok: false, code: "CRASH_BEFORE_COMMIT", replay: false, fresh_authority: false, version: authority.version };
+  }
+
+  const receipt = bootstrapReceiptFor(identity);
+  authority.record = {
+    state: "COMMITTED",
+    nonce: request.approvedNonce,
+    transcript_sha256: request.canonicalTranscriptHash,
+    identity: Object.freeze({ ...identity }),
+    receipt,
+  };
+  authority.version += 1;
+
+  if (fault === "after_commit_before_response") {
+    return {
+      ok: false,
+      code: "CRASH_AFTER_COMMIT_RESPONSE_LOSS",
+      replay: false,
+      fresh_authority: false,
+      committed: true,
+      version: authority.version,
+    };
+  }
+
+  return {
+    ok: true,
+    replay: false,
+    fresh_authority: true,
+    session: authority.record.identity,
+    receipt,
+    version: authority.version,
+  };
 }
 
 function bootstrapCommitAllowed({
@@ -449,6 +562,13 @@ assert(
 );
 assert(session.canonical_bootstrap_time_encoding === "canonical_utc_rfc3339_seconds", "bootstrap_transcript_time_encoding_mismatch");
 assert(session.canonical_bootstrap_transcript_hash_derived_from_fields === true, "bootstrap_transcript_hash_derivation_required");
+assert(session.bootstrap_nonce_authority_state_machine === "FRESH_to_COMMITTED", "bootstrap_nonce_state_machine_mismatch");
+assert(session.bootstrap_nonce_commit_atomically_creates_generation0_session_and_receipt === true, "bootstrap_nonce_session_atomic_commit_required");
+assert(session.bootstrap_exact_retry_returns_same_committed_session_and_receipt === true, "bootstrap_exact_retry_idempotence_required");
+assert(session.bootstrap_conflicting_nonce_reuse_rejected === true, "bootstrap_conflicting_nonce_reuse_must_fail");
+assert(session.bootstrap_precommit_crash_leaves_nonce_fresh === true, "bootstrap_precommit_crash_recovery_required");
+assert(session.bootstrap_postcommit_response_loss_recovers_existing_commit === true, "bootstrap_postcommit_response_recovery_required");
+assert(session.bootstrap_consumed_without_session_state_representable === false, "consumed_without_session_state_must_be_unrepresentable");
 
 const requester = fixture.requester_binding;
 assert(requester.server_or_broker_identity_cryptographically_pinned === true, "server_identity_pinning_required");
@@ -645,6 +765,68 @@ assert(canonicalBootstrapTranscriptHash({
   ...baseTranscript,
   issued_at_utc: "2026-08-23T19:00:00.000Z",
 }) === null, "noncanonical_fractional_second_time_must_fail");
+
+
+// Two contenders observe the same FRESH version before either commits.
+const raceAuthority = createBootstrapNonceAuthority(baseBootstrap);
+const raceSnapshotA = raceAuthority.version;
+const raceSnapshotB = raceAuthority.version;
+assert(raceSnapshotA === 0 && raceSnapshotB === 0, "bootstrap_race_must_start_from_same_fresh_version");
+
+const raceA = atomicBootstrapCommit(raceAuthority, baseBootstrap, { expectedVersion: raceSnapshotA });
+assert(raceA.ok === true && raceA.fresh_authority === true && raceA.replay === false, "bootstrap_race_A_must_create_one_fresh_session");
+assert(raceAuthority.record.state === "COMMITTED" && raceAuthority.version === 1, "bootstrap_race_A_must_commit_once");
+
+const raceB = atomicBootstrapCommit(raceAuthority, baseBootstrap, { expectedVersion: raceSnapshotB });
+assert(raceB.ok === true && raceB.replay === true && raceB.fresh_authority === false, "stale_exact_contender_must_converge_without_fresh_authority");
+assert(raceB.receipt === raceA.receipt, "stale_exact_contender_must_return_same_receipt");
+assert(sameBootstrapIdentity(raceB.session, raceA.session), "stale_exact_contender_must_return_same_session");
+assert(raceAuthority.version === 1, "exact_retry_must_not_recommit");
+
+// Conflicting reuse of the same nonce is rejected before or after commit.
+const conflictTranscript = { ...baseTranscript, session_id: "session-CONFLICT" };
+const conflictHash = canonicalBootstrapTranscriptHash(conflictTranscript);
+assert(isSha256(conflictHash) && conflictHash !== baseBootstrap.canonicalTranscriptHash, "conflict_transcript_hash_must_differ");
+const conflictBootstrap = {
+  ...baseBootstrap,
+  approvedSessionId: conflictTranscript.session_id,
+  presentedSessionId: conflictTranscript.session_id,
+  canonicalTranscriptHash: conflictHash,
+  serverSignedTranscriptHash: conflictHash,
+  crownApprovedTranscriptHash: conflictHash,
+  requesterPopTranscriptHash: conflictHash,
+};
+
+const conflictFreshAuthority = createBootstrapNonceAuthority(baseBootstrap);
+const conflictFresh = atomicBootstrapCommit(conflictFreshAuthority, conflictBootstrap, { expectedVersion: 0 });
+assert(conflictFresh.ok === false && conflictFresh.code === "BOOTSTRAP_CONFLICT", "foreign_transcript_same_nonce_must_fail_while_fresh");
+assert(conflictFreshAuthority.record.state === "FRESH" && conflictFreshAuthority.version === 0, "fresh_conflict_must_mutate_zero_authority");
+
+const conflictAfter = atomicBootstrapCommit(raceAuthority, conflictBootstrap, { expectedVersion: raceAuthority.version });
+assert(conflictAfter.ok === false && conflictAfter.code === "BOOTSTRAP_CONFLICT", "foreign_transcript_same_nonce_must_fail_after_commit");
+assert(raceAuthority.version === 1, "postcommit_conflict_must_mutate_zero_authority");
+
+// Crash before commit leaves FRESH; exact retry commits once.
+const preCrashAuthority = createBootstrapNonceAuthority(baseBootstrap);
+const preCrash = atomicBootstrapCommit(preCrashAuthority, baseBootstrap, { expectedVersion: 0, fault: "before_commit" });
+assert(preCrash.ok === false && preCrash.code === "CRASH_BEFORE_COMMIT", "precommit_crash_terminal_mismatch");
+assert(preCrashAuthority.record.state === "FRESH" && preCrashAuthority.version === 0, "precommit_crash_must_leave_nonce_fresh");
+const preCrashRetry = atomicBootstrapCommit(preCrashAuthority, baseBootstrap, { expectedVersion: 0 });
+assert(preCrashRetry.ok === true && preCrashRetry.fresh_authority === true && preCrashAuthority.version === 1, "precommit_retry_must_commit_once");
+
+// Crash after durable commit but before response returns the existing commit.
+const postCrashAuthority = createBootstrapNonceAuthority(baseBootstrap);
+const postCrash = atomicBootstrapCommit(postCrashAuthority, baseBootstrap, { expectedVersion: 0, fault: "after_commit_before_response" });
+assert(postCrash.ok === false && postCrash.code === "CRASH_AFTER_COMMIT_RESPONSE_LOSS" && postCrash.committed === true, "postcommit_response_loss_terminal_mismatch");
+assert(postCrashAuthority.record.state === "COMMITTED" && postCrashAuthority.version === 1, "postcommit_response_loss_must_preserve_commit");
+const postCrashRetry = atomicBootstrapCommit(postCrashAuthority, baseBootstrap, { expectedVersion: 0 });
+assert(postCrashRetry.ok === true && postCrashRetry.replay === true && postCrashRetry.fresh_authority === false, "postcommit_retry_must_return_existing_commit");
+assert(postCrashRetry.receipt === postCrashAuthority.record.receipt && postCrashAuthority.version === 1, "postcommit_retry_must_not_recommit");
+
+for (const authority of [raceAuthority, conflictFreshAuthority, preCrashAuthority, postCrashAuthority]) {
+  assert(["FRESH", "COMMITTED"].includes(authority.record.state), "bootstrap_authority_state_vocabulary_not_closed");
+  assert(authority.record.state !== "CONSUMED_WITHOUT_SESSION", "consumed_without_session_state_must_never_exist");
+}
 assert(!bootstrapCommitAllowed({ ...baseBootstrap, bootstrapDomain: "VOID_BROOD_QUEEN_SESSION_BOOTSTRAP_V0" }), "wrong_bootstrap_domain_must_fail");
 assert(!bootstrapCommitAllowed({ ...baseBootstrap, issuingServerIdentity: "attacker-server" }), "wrong_issuing_server_identity_must_fail");
 assert(!bootstrapCommitAllowed({ ...baseBootstrap, serverChallengeSignatureValid: false }), "invalid_server_challenge_signature_must_fail");
@@ -751,6 +933,11 @@ for (const required of [
   "issued-at and expiry elements use canonical UTC RFC3339 seconds",
   "digest supplied independently of the field vector is not authority",
   "Changing any one authority-bearing transcript field",
+  "Atomic nonce consumption and session creation",
+  "FRESH(nonce, transcript_sha256) → COMMITTED",
+  "There is no authoritative `CONSUMED_WITHOUT_SESSION` state",
+  "byte/identity-equivalent retry returns the already committed generation-0 session",
+  "crash after the atomic commit but before the response escapes",
   "server/broker signature must verify over the exact canonical bootstrap transcript bytes",
   "Crown approval signature must verify over those same canonical transcript bytes",
   "nonce identity must match the approved transcript",
@@ -782,6 +969,13 @@ console.log("canonical_bootstrap_transcript_field_hash_binding=true");
 console.log("canonical_bootstrap_transcript_field_mutation_matrix=13");
 console.log("bootstrap_server_and_crown_signatures_same_transcript=true");
 console.log("bootstrap_nonce_expiry_replay_commit_boundary=true");
+console.log("bootstrap_nonce_session_atomic_commit=true");
+console.log("bootstrap_two_contender_single_fresh_authority=true");
+console.log("bootstrap_exact_retry_same_session_receipt=true");
+console.log("bootstrap_conflicting_nonce_reuse_rejected=true");
+console.log("bootstrap_precommit_crash_recoverable=true");
+console.log("bootstrap_postcommit_response_loss_idempotent=true");
+console.log("bootstrap_consumed_without_session_state=false");
 console.log("role_generation_exhaustion_fail_closed=true");
 console.log("focused_workflow_committed_range_self_enforced=true");
 console.log("role_authority_generation_and_record_hash_atomicity=true");

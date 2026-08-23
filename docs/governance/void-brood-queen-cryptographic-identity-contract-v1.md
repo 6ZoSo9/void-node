@@ -113,6 +113,27 @@ The transcript SHA-256 is computed from those exact UTF-8 bytes. The server sign
 
 Changing any one authority-bearing transcript field while retaining signatures or proof-of-possession for the previous digest fails closed. This includes chain/office/identity, issuing-server identity, either requester public key, session id, nonce, either timestamp, role generation, or role-record hash.
 
+### Atomic nonce consumption and session creation
+
+A successful bootstrap decision is not sufficient authority by itself. The single-use nonce and generation-0 logical session are one crash-durable state transition.
+
+For each issued bootstrap nonce, the authoritative record begins as `FRESH` and is bound to the exact canonical transcript SHA-256. Session commit performs one compare-and-swap / transactional transition:
+
+`FRESH(nonce, transcript_sha256) → COMMITTED(nonce, transcript_sha256, session_id, session_generation="0", role_generation, role_record_sha256, bootstrap_receipt)`
+
+The nonce cannot become `CONSUMED` in a separate durable step from creation of that exact session/receipt. There is no authoritative `CONSUMED_WITHOUT_SESSION` state.
+
+Concurrency and recovery rules:
+
+- if two contenders observed the same nonce as `FRESH`, at most one state transition may create fresh session authority;
+- after one exact commit wins, a byte/identity-equivalent retry returns the already committed generation-0 session and bootstrap receipt and creates no fresh authority;
+- any conflicting reuse of the nonce fails closed;
+- crash before the atomic commit leaves the exact nonce `FRESH`, so a later valid retry may commit once;
+- crash after the atomic commit but before the response escapes must recover and return the already committed session/receipt rather than mint another session;
+- a stale contender resuming after another contender committed receives either exact idempotent replay of that same session/receipt or conflict, never a second fresh session.
+
+Response delivery is not the commit point; the durable state transition is.
+
 ## Canonical role/revocation generation and record identity
 
 The eventual Chain-2050 role contract must expose an exact monotonic **role-authority generation** for the Brood Queen role record. This generation changes on authorization-affecting state transitions such as grant, revocation, restore after revocation, identity/root binding change, or another transition that can change whether an existing session remains authorized. It is not a per-block login counter.
