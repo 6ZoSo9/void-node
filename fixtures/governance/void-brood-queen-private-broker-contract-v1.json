@@ -63,7 +63,10 @@
     "committed_retry_mints_fresh_authority": false,
     "committed_retry_recovery_survives_nonce_consumption_expiry_or_later_role_advance": true,
     "precommit_crash_leaves_nonce_fresh": true,
-    "postcommit_response_loss_recovers_existing_commit": true
+    "postcommit_response_loss_recovers_existing_commit": true,
+    "committed_retry_returns_immutable_generation0_bootstrap_descriptor": true,
+    "live_session_authority_state_separate_from_bootstrap_evidence": true,
+    "committed_record_exact_identity_self_consistency_required": true
   },
   "policy": {
     "domain": "VOID_BROOD_QUEEN_PRIVATE_BROKER_POLICY_V1",
@@ -258,7 +261,9 @@
     "broker_outer_envelope_can_replace_parent_session_transcript": false,
     "concurrent_bootstrap_contenders_can_mint_multiple_sessions": false,
     "committed_retry_can_mint_fresh_authority": false,
-    "consumed_without_session_state_can_exist": false
+    "consumed_without_session_state_can_exist": false,
+    "bootstrap_retry_can_return_mutated_live_session_state": false,
+    "committed_record_identity_drift_can_replay": false
   },
   "strongest_invariant": {
     "at_most_one_session_per_crown_approval": true,
@@ -277,7 +282,9 @@
     "parent_session_bootstrap_exactly_inherited": true,
     "parent_role_generation_exhaustion_fail_closed": true,
     "bootstrap_nonce_and_generation0_session_one_atomic_authority": true,
-    "committed_retry_exact_two_layer_equivalence": true
+    "committed_retry_exact_two_layer_equivalence": true,
+    "immutable_bootstrap_evidence_separate_from_live_session_authority": true,
+    "committed_bootstrap_record_self_consistent_before_replay": true
   },
   "activation": {
     "live_root_key_generated": false,

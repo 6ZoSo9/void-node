@@ -114,6 +114,10 @@ Because committed recovery creates zero fresh authority, it may return the alrea
 
 Crash before the durable transition leaves the exact record `FRESH`; crash after durable commit but before response delivery recovers only the existing `COMMITTED` authority. Response delivery is never the commit point.
 
+Bootstrap replay evidence is immutable and distinct from the mutable live session-authority state. The committed record retains one immutable generation-0 bootstrap-session descriptor plus its exact receipt. Ordinary task admission, task-cursor advancement, and derived-key/session rotation mutate only the separate live session-authority record. A later bootstrap retry therefore returns the exact original generation-0 bootstrap descriptor and receipt even if the live logical session has since admitted tasks or advanced to a successor generation.
+
+Before any committed replay is returned, the durable record must also be internally self-consistent: its top-level nonce, parent-session digest, outer-envelope digest, receipt identity, and immutable bootstrap descriptor must exactly match the frozen committed bootstrap identity. Any internal drift is `BOOTSTRAP_CONFLICT` and returns zero replay or fresh authority.
+
 ## Exact V1 policy identity
 
 The policy domain is `VOID_BROOD_QUEEN_PRIVATE_BROKER_POLICY_V1`.
