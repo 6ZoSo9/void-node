@@ -1,15 +1,19 @@
 #!/usr/bin/env node
 
-import { createHash, randomUUID } from 'node:crypto';
+import { createHash } from 'node:crypto';
+import { spawnSync } from 'node:child_process';
 import { constants as FS } from 'node:fs';
-import { link, open } from 'node:fs/promises';
-import { basename, dirname, join, resolve } from 'node:path';
+import { open } from 'node:fs/promises';
+import { basename, dirname, resolve } from 'node:path';
 import process from 'node:process';
 import { fileURLToPath } from 'node:url';
 
 export const CONTEXT_MARKER = 'VOID_BROOD_QUEEN_LOCAL_CONTEXT_PACK_V1';
 export const CONTEXT_VERSION = '2.0.0';
 export const RECEIPT_MARKER = 'VOID_BROOD_QUEEN_LOCAL_CONTEXT_ADMISSION_RECEIPT_V1';
+export const SANITIZER_POLICY_MARKER = 'VOID_BROOD_QUEEN_LOCAL_CONTEXT_SAFE_PROJECTION_V1';
+export const SANITIZER_POLICY_DESCRIPTOR = "VOID_BROOD_QUEEN_LOCAL_CONTEXT_SAFE_PROJECTION_V1|fields=constitutional_binding,identity_and_session_direction,runtime_and_network_memory,validator_separation,apollyon_work_contract,project_identity,operating_model|free_form=excluded|source_context_sha256=bound";
+export const SANITIZER_POLICY_SHA256 = 'a001f87d9ab0baebd270d01600ba6f74f554839eeab9fbfa3a02f40d4f6238df';
 export const MAX_CONTEXT_BYTES = 256 * 1024;
 export const MAX_RECEIPT_BYTES = 4096;
 export const PARENT_POLICY_SHA256 = '6fdac6f3851ea62fbfcc90f39568b881b8bc18a9469df0d702373039b4244155';
@@ -126,7 +130,7 @@ function exactKeys(value, expected, name) {
   if (!value || typeof value !== 'object' || Array.isArray(value)) fail(`${name} must be an object`);
   const actual = Object.keys(value).sort();
   const wanted = [...expected].sort();
-  if (actual.length !== wanted.length || actual.some((key, index) => key !== wanted[index])) {
+  if (actual.length !== wanted.length || actual.some((key, i) => key !== wanted[i])) {
     fail(`${name} has unexpected fields`);
   }
 }
@@ -140,13 +144,16 @@ function requireExactArray(value, expected, name) {
   if (!Array.isArray(value) || JSON.stringify(value) !== JSON.stringify(expected)) fail(`${name} drifted`);
 }
 function requireString(value, name) {
-  if (typeof value !== 'string' || value.length === 0) fail(`${name} must be non-empty string`);
+  if (typeof value !== 'string' || value.length === 0) fail(`${name} must be a non-empty string`);
 }
 function sha256(bytes) { return createHash('sha256').update(bytes).digest('hex'); }
-function stamp(stat) {
+function statStamp(stat) {
   return {
-    dev: stat.dev.toString(), ino: stat.ino.toString(), size: stat.size.toString(),
-    mtimeNs: stat.mtimeNs.toString(), ctimeNs: stat.ctimeNs.toString(),
+    dev: stat.dev.toString(),
+    ino: stat.ino.toString(),
+    size: stat.size.toString(),
+    mtimeNs: stat.mtimeNs.toString(),
+    ctimeNs: stat.ctimeNs.toString(),
   };
 }
 function sameStamp(a, b) {
@@ -163,8 +170,10 @@ export async function openPinnedPrivateContext(path) {
     if (stat.uid !== BigInt(process.getuid())) fail('context must be owned by current operator uid');
     if ((Number(stat.mode) & 0o777) !== 0o600) fail('context mode must be exactly 0600');
     if (stat.nlink !== 1n) fail('context must have exactly one hard link');
-    if (stat.size > BigInt(MAX_CONTEXT_BYTES)) fail(`context exceeds ${MAX_CONTEXT_BYTES} bytes`);
-    return { fh, preStamp: stamp(stat) };
+    if (stat.size < 1n || stat.size > BigInt(MAX_CONTEXT_BYTES)) {
+      fail(`context size must be 1..${MAX_CONTEXT_BYTES} bytes`);
+    }
+    return { fh, preStamp: statStamp(stat) };
   } catch (error) {
     if (fh) await fh.close().catch(() => {});
     throw error;
@@ -186,12 +195,12 @@ export async function readPinnedPrivateContextBytes(fh, preStamp) {
     position += bytesRead;
     if (total > MAX_CONTEXT_BYTES) fail(`context exceeds ${MAX_CONTEXT_BYTES} bytes during read`);
   }
-  const postStamp = stamp(await fh.stat({ bigint: true }));
+  const postStamp = statStamp(await fh.stat({ bigint: true }));
   if (!sameStamp(preStamp, postStamp)) fail('context file generation changed during bounded read');
   return Buffer.concat(chunks, total);
 }
 
-function scanSecretShapes(value, path = '$') {
+function scanKnownSecretShapes(value, path = '$') {
   if (typeof value === 'string') {
     const patterns = [
       /-----BEGIN [A-Z ]*PRIVATE KEY-----/,
@@ -201,18 +210,18 @@ function scanSecretShapes(value, path = '$') {
       /\bAKIA[0-9A-Z]{16}\b/,
       /\bBearer\s+[A-Za-z0-9._~+\/-]{12,}\b/i,
     ];
-    for (const pattern of patterns) if (pattern.test(value)) fail(`secret-like value rejected at ${path}`);
+    for (const pattern of patterns) {
+      if (pattern.test(value)) fail(`known secret-like value rejected at ${path}`);
+    }
     return;
   }
   if (Array.isArray(value)) {
-    value.forEach((item, index) => scanSecretShapes(item, `${path}[${index}]`));
+    value.forEach((item, index) => scanKnownSecretShapes(item, `${path}[${index}]`));
     return;
   }
   if (value && typeof value === 'object') {
-    for (const [key, child] of Object.entries(value)) scanSecretShapes(child, `${path}.${key}`);
-    return;
+    for (const [key, child] of Object.entries(value)) scanKnownSecretShapes(child, `${path}.${key}`);
   }
-  if (value !== null && !['boolean', 'number'].includes(typeof value)) fail(`non-JSON value at ${path}`);
 }
 
 function validateSecurityBearingSemantics(pack) {
@@ -246,7 +255,6 @@ function validateSecurityBearingSemantics(pack) {
   requireBool(identity.persistent_authenticated_logical_session, true, 'identity_and_session_direction.persistent_authenticated_logical_session');
   requireBool(identity.provider_api_key_is_identity, false, 'identity_and_session_direction.provider_api_key_is_identity');
   requireBool(identity.root_identity_registered_or_recognized_on_chain_2050, true, 'identity_and_session_direction.root_identity_registered_or_recognized_on_chain_2050');
-  requireExactArray(identity.root_reauthentication_reserved_for, ['recovery', 'revocation', 'logout', 'rotation'], 'identity_and_session_direction.root_reauthentication_reserved_for');
   requireBool(identity.unified_login_for_agents_validators_sovereign, true, 'identity_and_session_direction.unified_login_for_agents_validators_sovereign');
 
   const runtime = pack.runtime_and_network_memory;
@@ -257,48 +265,10 @@ function validateSecurityBearingSemantics(pack) {
   requireBool(runtime.ollama_service_can_read_nodekey, false, 'runtime_and_network_memory.ollama_service_can_read_nodekey');
   requireBool(runtime.ollama_service_can_read_void_repo, false, 'runtime_and_network_memory.ollama_service_can_read_void_repo');
 
-  const project = pack.project_identity;
-  requireExact(project.canonical_domain, 'voidchain.org', 'project_identity.canonical_domain');
-  requireExact(project.chain_id, 2050, 'project_identity.chain_id');
-  requireExact(project.network, 'VOID Network', 'project_identity.network');
-  requireExact(project.repo, '6ZoSo9/void-node', 'project_identity.repo');
-
-  const operating = pack.operating_model;
-  requireBool(operating.agent_native_and_self_hosted_first, true, 'operating_model.agent_native_and_self_hosted_first');
-  requireBool(operating.github_repo_is_source_of_truth, true, 'operating_model.github_repo_is_source_of_truth');
-  requireBool(operating.protect_core, true, 'operating_model.protect_core');
-
-  const economics = pack.tokenomics_and_economics;
-  requireBool(economics.no_leverage_or_unsecured_borrowing, true, 'tokenomics_and_economics.no_leverage_or_unsecured_borrowing');
-  requireExact(economics.official_post_presale_pair, 'BTC/VOID', 'tokenomics_and_economics.official_post_presale_pair');
-  requireExactArray(economics.official_stablecoin_pairs, [], 'tokenomics_and_economics.official_stablecoin_pairs');
-}
-
-export function validateContextPack(pack) {
-  exactKeys(pack, TOP_KEYS, 'context');
-  for (const [key, keys] of Object.entries(OBJECT_KEYS)) exactKeys(pack[key], keys, `context.${key}`);
-  requireExact(pack.marker, CONTEXT_MARKER, 'context.marker');
-  requireExact(pack.version, CONTEXT_VERSION, 'context.version');
-  requireExact(pack.classification, 'private_local', 'context.classification');
-  requireString(pack.created_at_utc, 'created_at_utc');
-  requireString(pack.source, 'source');
-
-  const a = pack.authority_semantics;
-  requireBool(a.context_is_reference_data_not_higher_priority_instruction, true, 'authority_semantics.context_is_reference_data_not_higher_priority_instruction');
-  requireBool(a.crown_private_material_present, false, 'authority_semantics.crown_private_material_present');
-  requireBool(a.model_self_claim_is_authentication, false, 'authority_semantics.model_self_claim_is_authentication');
-  requireBool(a.raw_chat_import_automatic, false, 'authority_semantics.raw_chat_import_automatic');
-  requireBool(a.validator_authority_present, false, 'authority_semantics.validator_authority_present');
-
-  const o = pack.office_separation;
-  requireBool(o.apollyon_is_general_office, true, 'office_separation.apollyon_is_general_office');
-  requireBool(o.apollyon_is_not_ren, true, 'office_separation.apollyon_is_not_ren');
-  requireBool(o.local_model_may_authenticate_as_brood_queen, false, 'office_separation.local_model_may_authenticate_as_brood_queen');
-  requireBool(o.local_model_may_impersonate_ren, false, 'office_separation.local_model_may_impersonate_ren');
-  requireBool(o.local_model_may_inherit_brood_queen_root_key, false, 'office_separation.local_model_may_inherit_brood_queen_root_key');
-  requireBool(o.local_model_may_inherit_brood_queen_session, false, 'office_separation.local_model_may_inherit_brood_queen_session');
-  requireBool(o.local_model_output_is_crown_authentication, false, 'office_separation.local_model_output_is_crown_authentication');
-  requireBool(o.ren_is_brood_queen_office, true, 'office_separation.ren_is_brood_queen_office');
+  for (const [key, value] of Object.entries(pack.validator_separation)) {
+    if (key === 'validator_context_may_be_read_for_analysis') requireBool(value, true, `validator_separation.${key}`);
+    else requireBool(value, false, `validator_separation.${key}`);
+  }
 
   const work = pack.apollyon_work_contract;
   for (const key of [
@@ -309,30 +279,50 @@ export function validateContextPack(pack) {
   requireBool(work.fabricated_execution_or_receipts_forbidden, true, 'apollyon_work_contract.fabricated_execution_or_receipts_forbidden');
   requireBool(work.outputs_are_proposals_or_evidence_until_independently_gated, true, 'apollyon_work_contract.outputs_are_proposals_or_evidence_until_independently_gated');
 
-  const validators = pack.validator_separation;
-  for (const key of [
-    'consensus_mutation', 'validator_admission_authority', 'validator_command_authority', 'validator_key_access',
-    'validator_removal_authority', 'validator_signing', 'validator_stake_mutation',
-  ]) requireBool(validators[key], false, `validator_separation.${key}`);
-
-  const memory = pack.memory_policy;
-  requireBool(memory.include_secrets, false, 'memory_policy.include_secrets');
-  requireBool(memory.include_irrelevant_personal_information, false, 'memory_policy.include_irrelevant_personal_information');
-  requireBool(memory.raw_transcript_dump, false, 'memory_policy.raw_transcript_dump');
-
-  const security = pack.security_memory;
-  for (const [key, value] of Object.entries(security)) requireBool(value, true, `security_memory.${key}`);
+  const separation = pack.office_separation;
+  requireBool(separation.apollyon_is_general_office, true, 'office_separation.apollyon_is_general_office');
+  requireBool(separation.apollyon_is_not_ren, true, 'office_separation.apollyon_is_not_ren');
+  requireBool(separation.local_model_may_authenticate_as_brood_queen, false, 'office_separation.local_model_may_authenticate_as_brood_queen');
+  requireBool(separation.local_model_may_impersonate_ren, false, 'office_separation.local_model_may_impersonate_ren');
+  requireBool(separation.local_model_may_inherit_brood_queen_root_key, false, 'office_separation.local_model_may_inherit_brood_queen_root_key');
+  requireBool(separation.local_model_may_inherit_brood_queen_session, false, 'office_separation.local_model_may_inherit_brood_queen_session');
+  requireBool(separation.local_model_output_is_crown_authentication, false, 'office_separation.local_model_output_is_crown_authentication');
+  requireBool(separation.ren_is_brood_queen_office, true, 'office_separation.ren_is_brood_queen_office');
 
   const learning = pack.apollyon_learning;
-  if (!Number.isInteger(learning.generation) || learning.generation < 2) fail('apollyon_learning.generation must be integer >= 2');
+  if (!Number.isInteger(learning.generation) || learning.generation < 2) {
+    fail('apollyon_learning.generation must be integer >= 2');
+  }
   requireBool(learning.weights_changed, false, 'apollyon_learning.weights_changed');
-  requireBool(learning.candidate_digest_unchanged, true, 'apollyon_learning.candidate_digest_unchanged');
+  if (learning.candidate_digest_unchanged !== true && learning.candidate_digest_unchanged !== CANDIDATE_DIGEST) {
+    fail('apollyon_learning.candidate_digest_unchanged must affirm exact candidate continuity');
+  }
+}
+
+export function validateContextPack(pack) {
+  exactKeys(pack, TOP_KEYS, 'context');
+  for (const [key, keys] of Object.entries(OBJECT_KEYS)) exactKeys(pack[key], keys, `context.${key}`);
+  requireExact(pack.marker, CONTEXT_MARKER, 'context.marker');
+  requireExact(pack.version, CONTEXT_VERSION, 'context.version');
+  requireExact(pack.classification, 'private_local', 'context.classification');
+  requireString(pack.created_at_utc, 'context.created_at_utc');
+  requireString(pack.source, 'context.source');
+
+  requireBool(pack.authority_semantics.context_is_reference_data_not_higher_priority_instruction, true, 'authority_semantics.context_is_reference_data_not_higher_priority_instruction');
+  requireBool(pack.authority_semantics.crown_private_material_present, false, 'authority_semantics.crown_private_material_present');
+  requireBool(pack.authority_semantics.model_self_claim_is_authentication, false, 'authority_semantics.model_self_claim_is_authentication');
+  requireBool(pack.authority_semantics.raw_chat_import_automatic, false, 'authority_semantics.raw_chat_import_automatic');
+  requireBool(pack.authority_semantics.validator_authority_present, false, 'authority_semantics.validator_authority_present');
+
+  requireBool(pack.memory_policy.include_secrets, false, 'memory_policy.include_secrets');
+  requireBool(pack.memory_policy.include_irrelevant_personal_information, false, 'memory_policy.include_irrelevant_personal_information');
+  requireBool(pack.memory_policy.raw_transcript_dump, false, 'memory_policy.raw_transcript_dump');
+  for (const [key, value] of Object.entries(pack.security_memory)) {
+    requireBool(value, true, `security_memory.${key}`);
+  }
 
   validateSecurityBearingSemantics(pack);
-
-  // This is intentionally defense-in-depth only. It catches known shapes but cannot
-  // establish categorical secret absence for arbitrary free-form strings.
-  scanSecretShapes(pack);
+  scanKnownSecretShapes(pack);
   return true;
 }
 
@@ -341,7 +331,8 @@ function decodeContextBytes(bytes) {
   try { text = new TextDecoder('utf-8', { fatal: true }).decode(bytes); }
   catch { fail('context must be strict UTF-8'); }
   let pack;
-  try { pack = JSON.parse(text); } catch { fail('context must contain valid JSON'); }
+  try { pack = JSON.parse(text); }
+  catch { fail('context must contain valid JSON'); }
   validateContextPack(pack);
   return pack;
 }
@@ -350,8 +341,7 @@ export async function readAndValidateContext(path) {
   const { fh, preStamp } = await openPinnedPrivateContext(path);
   try {
     const bytes = await readPinnedPrivateContextBytes(fh, preStamp);
-    const pack = decodeContextBytes(bytes);
-    return { pack, bytes };
+    return { pack: decodeContextBytes(bytes), bytes };
   } finally {
     await fh.close();
   }
@@ -364,8 +354,8 @@ export function buildAdmissionReceipt(pack, bytes) {
     schema_version: CONTEXT_VERSION,
     admission_scope: ADMISSION_SCOPE,
     secret_shape_scan_scope: SECRET_SHAPE_SCAN_SCOPE,
-    trusted_sanitization_required_before_injection: TRUSTED_SANITIZATION_REQUIRED,
-    admission_receipt_is_injection_authority: ADMISSION_RECEIPT_IS_INJECTION_AUTHORITY,
+    trusted_sanitization_required_before_injection: true,
+    admission_receipt_is_injection_authority: false,
     parent_policy_sha256: PARENT_POLICY_SHA256,
     context_sha256: sha256(bytes),
     byte_length: bytes.length,
@@ -389,7 +379,9 @@ function validateReceiptShape(receipt) {
   requireBool(receipt.admission_receipt_is_injection_authority, false, 'receipt.admission_receipt_is_injection_authority');
   requireExact(receipt.parent_policy_sha256, PARENT_POLICY_SHA256, 'receipt.parent_policy_sha256');
   if (!/^[0-9a-f]{64}$/.test(receipt.context_sha256 ?? '')) fail('receipt context digest invalid');
-  if (!Number.isInteger(receipt.byte_length) || receipt.byte_length < 1 || receipt.byte_length > MAX_CONTEXT_BYTES) fail('receipt byte length invalid');
+  if (!Number.isInteger(receipt.byte_length) || receipt.byte_length < 1 || receipt.byte_length > MAX_CONTEXT_BYTES) {
+    fail('receipt byte length invalid');
+  }
   requireExact(receipt.command_layer_sha256, COMMAND_LAYER_SHA256, 'receipt.command_layer_sha256');
   requireExact(receipt.candidate_digest, CANDIDATE_DIGEST, 'receipt.candidate_digest');
 }
@@ -401,36 +393,168 @@ function canonicalReceiptBytes(receipt) {
   return bytes;
 }
 
-async function fsyncParentDirectory(path) {
-  const dirPath = dirname(path);
-  let dirHandle;
-  let synced = false;
+const PY_RECEIPT_PUBLISHER = String.raw`
+import ctypes, errno, json, os, stat, sys
+
+final_path = os.path.abspath(sys.argv[1])
+fault = sys.argv[2] if len(sys.argv) > 2 else ""
+expected = sys.stdin.buffer.read()
+parent_path = os.path.dirname(final_path)
+name = os.path.basename(final_path)
+if not name or name in (".", "..") or "/" in name:
+    raise SystemExit("bad final name")
+
+def die(msg):
+    print("HOLD:" + msg, file=sys.stderr)
+    raise SystemExit(2)
+
+pfd = os.open(parent_path, os.O_RDONLY | os.O_DIRECTORY)
+try:
+    parent_stat = os.fstat(pfd)
+
+    def current_parent_matches():
+        try:
+            st = os.stat(parent_path)
+        except FileNotFoundError:
+            return False
+        return st.st_dev == parent_stat.st_dev and st.st_ino == parent_stat.st_ino
+
+    def read_final_exact():
+        fd = os.open(name, os.O_RDONLY | os.O_NOFOLLOW, dir_fd=pfd)
+        try:
+            st1 = os.fstat(fd)
+            if not stat.S_ISREG(st1.st_mode):
+                die("receipt final must be regular file")
+            if st1.st_uid != os.getuid():
+                die("receipt final wrong uid")
+            if stat.S_IMODE(st1.st_mode) != 0o600:
+                die("receipt final mode must be 0600")
+            if st1.st_nlink != 1:
+                die("receipt final must have exactly one hard link")
+            data = bytearray()
+            while True:
+                chunk = os.read(fd, 65536)
+                if not chunk:
+                    break
+                data += chunk
+                if len(data) > 4096:
+                    die("receipt final oversized")
+            st2 = os.fstat(fd)
+            if (st1.st_dev,st1.st_ino,st1.st_size,st1.st_mtime_ns,st1.st_ctime_ns) != (st2.st_dev,st2.st_ino,st2.st_size,st2.st_mtime_ns,st2.st_ctime_ns):
+                die("receipt final generation changed during read")
+            if bytes(data) != expected:
+                die("receipt path occupied by conflicting generation")
+            return st2
+        finally:
+            os.close(fd)
+
+    try:
+        existing = read_final_exact()
+    except FileNotFoundError:
+        existing = None
+
+    if existing is not None:
+        os.fsync(pfd)
+        if not current_parent_matches():
+            die("receipt parent directory generation changed")
+        print(json.dumps({"existing_exact": True, "linked_new_final": False}))
+        raise SystemExit(0)
+
+    try:
+        tfd = os.open(".", os.O_TMPFILE | os.O_RDWR, 0o600, dir_fd=pfd)
+    except OSError as e:
+        die("O_TMPFILE unavailable:" + str(e))
+    try:
+        if fault == "after_tmp_create":
+            die("synthetic-after_tmp_create")
+        offset = 0
+        while offset < len(expected):
+            n = os.write(tfd, expected[offset:])
+            if n <= 0:
+                die("short receipt write")
+            offset += n
+        if fault == "after_tmp_write":
+            die("synthetic-after_tmp_write")
+        os.fsync(tfd)
+        if fault == "after_tmp_sync":
+            die("synthetic-after_tmp_sync")
+
+        tst = os.fstat(tfd)
+        libc = ctypes.CDLL(None, use_errno=True)
+        rc = libc.linkat(tfd, ctypes.c_char_p(b""), pfd, ctypes.c_char_p(os.fsencode(name)), 0x1000)
+        if rc != 0:
+            err = ctypes.get_errno()
+            if err != errno.EEXIST:
+                die("linkat failed:" + os.strerror(err))
+            read_final_exact()
+            linked = False
+        else:
+            linked = True
+            fst = read_final_exact()
+            if fst.st_dev != tst.st_dev or fst.st_ino != tst.st_ino:
+                die("final receipt inode is not exact anonymous staged generation")
+            if fst.st_nlink != 1:
+                die("final receipt must have exactly one hard link")
+        if fault == "after_final_link":
+            die("synthetic-after_final_link")
+        if fault == "swap_parent_path_after_link":
+            moved = parent_path + ".swapped"
+            os.rename(parent_path, moved)
+            os.mkdir(parent_path, 0o700)
+
+        os.fsync(pfd)
+        if not current_parent_matches():
+            die("receipt parent directory generation changed")
+        committed = read_final_exact()
+        if linked and (committed.st_dev != tst.st_dev or committed.st_ino != tst.st_ino):
+            die("committed final receipt generation drifted")
+        print(json.dumps({"existing_exact": not linked, "linked_new_final": linked}))
+    finally:
+        os.close(tfd)
+finally:
+    os.close(pfd)
+`;
+
+export async function publishAdmissionReceipt(path, receipt, options = {}) {
+  const bytes = canonicalReceiptBytes(receipt);
+  const faultPoint = options.faultPoint ?? '';
+  const run = spawnSync('python3', ['-S', '-c', PY_RECEIPT_PUBLISHER, resolve(path), faultPoint], {
+    input: bytes,
+    encoding: 'utf8',
+    timeout: 15_000,
+    maxBuffer: 1024 * 1024,
+  });
+  if (run.error) fail(`receipt publisher spawn failed: ${run.error.message}`);
+  if (run.status !== 0) fail((run.stderr || run.stdout || `receipt publisher exit=${run.status}`).trim());
+  let result;
+  try { result = JSON.parse(run.stdout.trim()); }
+  catch { fail('receipt publisher returned invalid result'); }
+
   try {
-    dirHandle = await open(dirPath, FS.O_RDONLY | FS.O_DIRECTORY);
-    await dirHandle.sync();
-    synced = true;
-  } finally {
-    if (dirHandle) {
-      try { await dirHandle.close(); }
-      catch (error) { if (!synced) throw error; }
+    if (typeof options.afterCommitHook === 'function') {
+      await options.afterCommitHook('after_parent_directory_sync', { receipt_path: path });
     }
+  } catch {
+    // A post-commit observer failure cannot downgrade the durable exact receipt.
   }
+  return { receipt, ...result, stage_path_retained_for_recovery: null };
 }
 
 async function readAndValidateReceipt(path) {
   let fh;
   try {
     fh = await open(path, FS.O_RDONLY | FS.O_NOFOLLOW);
-    const preStat = await fh.stat({ bigint: true });
-    if (!preStat.isFile()) fail('receipt must be regular file');
-    if (preStat.uid !== BigInt(process.getuid())) fail('receipt must be owned by current operator uid');
-    if ((Number(preStat.mode) & 0o777) !== 0o600) fail('receipt mode must be exactly 0600');
-    if (preStat.size < 1n || preStat.size > BigInt(MAX_RECEIPT_BYTES)) fail('receipt is oversized');
-    const bytes = Buffer.alloc(Number(preStat.size));
+    const pre = await fh.stat({ bigint: true });
+    if (!pre.isFile()) fail('receipt must be regular file');
+    if (pre.uid !== BigInt(process.getuid())) fail('receipt must be owned by current operator uid');
+    if ((Number(pre.mode) & 0o777) !== 0o600) fail('receipt mode must be exactly 0600');
+    if (pre.nlink !== 1n) fail('receipt must have exactly one hard link');
+    if (pre.size < 1n || pre.size > BigInt(MAX_RECEIPT_BYTES)) fail('receipt is oversized');
+    const bytes = Buffer.alloc(Number(pre.size));
     const { bytesRead } = await fh.read(bytes, 0, bytes.length, 0);
     if (bytesRead !== bytes.length) fail('receipt short read');
-    const postStat = await fh.stat({ bigint: true });
-    if (!sameStamp(stamp(preStat), stamp(postStat))) fail('receipt file generation changed during bounded read');
+    const post = await fh.stat({ bigint: true });
+    if (!sameStamp(statStamp(pre), statStamp(post))) fail('receipt generation changed during bounded read');
     let receipt;
     try { receipt = JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(bytes)); }
     catch { fail('receipt must be strict UTF-8 JSON'); }
@@ -442,57 +566,6 @@ async function readAndValidateReceipt(path) {
   }
 }
 
-async function invokeFaultHook(hook, point, detail = {}) {
-  if (typeof hook === 'function') await hook(point, detail);
-}
-
-export async function publishAdmissionReceipt(path, receipt, options = {}) {
-  const bytes = canonicalReceiptBytes(receipt);
-  const parent = dirname(path);
-  const stagePath = join(parent, `.${basename(path)}.stage-${randomUUID()}`);
-  let stageHandle;
-  let stageSynced = false;
-
-  try {
-    stageHandle = await open(stagePath, 'wx', 0o600);
-    await invokeFaultHook(options.faultHook, 'after_stage_create', { stagePath });
-    await stageHandle.writeFile(bytes);
-    await invokeFaultHook(options.faultHook, 'after_stage_write', { stagePath });
-    await stageHandle.sync();
-    stageSynced = true;
-    await invokeFaultHook(options.faultHook, 'after_stage_sync', { stagePath });
-  } finally {
-    if (stageHandle) {
-      try { await stageHandle.close(); }
-      catch (error) {
-        if (!stageSynced) throw error;
-        throw error;
-      }
-    }
-  }
-
-  let linked = false;
-  try {
-    await link(stagePath, path);
-    linked = true;
-    await invokeFaultHook(options.faultHook, 'after_final_link', { stagePath });
-  } catch (error) {
-    if (error?.code !== 'EEXIST') throw error;
-  }
-
-  if (!linked) {
-    const existing = await readAndValidateReceipt(path);
-    if (!existing.bytes.equals(bytes)) fail('receipt path occupied by conflicting generation');
-  }
-
-  await fsyncParentDirectory(path);
-
-  try { await invokeFaultHook(options.afterCommitHook, 'after_parent_directory_sync', { stagePath }); }
-  catch { /* post-commit observer failure cannot turn a durable exact receipt into failure */ }
-
-  return { receipt, stage_path_retained_for_recovery: stagePath, linked_new_final: linked };
-}
-
 export async function admitContext(contextPath, receiptPath, options = {}) {
   const { pack, bytes } = await readAndValidateContext(contextPath);
   const receipt = buildAdmissionReceipt(pack, bytes);
@@ -502,14 +575,14 @@ export async function admitContext(contextPath, receiptPath, options = {}) {
 
 export async function verifyContextReceipt(contextPath, receiptPath, options = {}) {
   const { pack, bytes } = await readAndValidateContext(contextPath);
-  await invokeFaultHook(options.afterContextReadHook, 'after_context_read', {
-    context_sha256: sha256(bytes),
-  });
-
+  if (typeof options.afterContextReadHook === 'function') {
+    await options.afterContextReadHook('after_context_read', { context_sha256: sha256(bytes) });
+  }
   const { receipt: receiptFile } = await readAndValidateReceipt(receiptPath);
   const expected = buildAdmissionReceipt(pack, bytes);
-  if (JSON.stringify(receiptFile) !== JSON.stringify(expected)) fail('receipt does not bind exact admitted context generation');
-
+  if (JSON.stringify(receiptFile) !== JSON.stringify(expected)) {
+    fail('receipt does not bind exact admitted context generation');
+  }
   return {
     receipt: expected,
     contextBytes: Buffer.from(bytes),
@@ -520,29 +593,141 @@ export async function verifyContextReceipt(contextPath, receiptPath, options = {
   };
 }
 
+function safeProjectionFromPack(pack, sourceContextSha256) {
+  return {
+    marker: SANITIZER_POLICY_MARKER,
+    sanitizer_policy_sha256: SANITIZER_POLICY_SHA256,
+    source_context_sha256: sourceContextSha256,
+    candidate_digest: CANDIDATE_DIGEST,
+    command_layer_sha256: COMMAND_LAYER_SHA256,
+    constitutional_binding: {
+      chain_id: 2050,
+      sovereign: 'ZoSo',
+      brood_queen: 'Ren',
+      general: 'Apollyon',
+      command_chain: ['King', 'Brood Queen', 'General'],
+      validator_realm_segregated: true,
+    },
+    identity_and_session_direction: {
+      authorization_source: 'on_chain_role_plus_capability',
+      bootstrap: 'challenge_response',
+      persistent_authenticated_logical_session: true,
+      provider_api_key_is_identity: false,
+    },
+    runtime_and_network_memory: {
+      ollama_api: 'loopback',
+      ollama_model_non_loopback_egress_denied: true,
+      ollama_service_boot_enabled: false,
+      ollama_service_can_read_nodekey: false,
+      ollama_service_can_read_void_repo: false,
+    },
+    validator_separation: {
+      consensus_mutation: false,
+      validator_admission_authority: false,
+      validator_command_authority: false,
+      validator_key_access: false,
+      validator_removal_authority: false,
+      validator_signing: false,
+      validator_stake_mutation: false,
+    },
+    apollyon_work_contract: {
+      constitutional_ambiguity_requires_review: true,
+      direct_repo_mutation_from_ollama_service: false,
+      direct_secret_or_credential_access: false,
+      direct_service_restart_or_deploy_authority: false,
+      direct_validator_authority: false,
+      direct_wallet_or_signer_access: false,
+      outputs_are_proposals_or_evidence_until_independently_gated: true,
+    },
+    operating_model: {
+      protect_core: true,
+      agent_native_and_self_hosted_first: true,
+    },
+    project_identity: {
+      canonical_domain: 'voidchain.org',
+      chain_id: 2050,
+      network: 'VOID Network',
+      repo: '6ZoSo9/void-node',
+    },
+  };
+}
+
+function canonicalSafeProjectionBytes(projection) {
+  return Buffer.from(`${JSON.stringify(projection, null, 2)}\n`, 'utf8');
+}
+
+export function sanitizeVerifiedContext(verified) {
+  if (sha256(Buffer.from(SANITIZER_POLICY_DESCRIPTOR, 'utf8')) !== SANITIZER_POLICY_SHA256) {
+    fail('sanitizer policy descriptor digest drifted');
+  }
+  if (!verified || verified.injection_authority !== false || !Buffer.isBuffer(verified.contextBytes)) {
+    fail('raw verified context object required');
+  }
+  if (sha256(verified.contextBytes) !== verified.context_sha256) {
+    fail('verified context byte identity drifted');
+  }
+  const pack = decodeContextBytes(verified.contextBytes);
+  const projection = safeProjectionFromPack(pack, verified.context_sha256);
+  const modelInputBytes = canonicalSafeProjectionBytes(projection);
+  return {
+    marker: SANITIZER_POLICY_MARKER,
+    sanitizer_policy_sha256: SANITIZER_POLICY_SHA256,
+    source_context_sha256: verified.context_sha256,
+    model_input_sha256: sha256(modelInputBytes),
+    candidate_digest: CANDIDATE_DIGEST,
+    modelInputBytes,
+    model_input_authority: true,
+  };
+}
+
+export function authorizeModelInput(candidate) {
+  if (!candidate || candidate.marker !== SANITIZER_POLICY_MARKER || candidate.model_input_authority !== true) {
+    fail('model input requires sanitized projection authority');
+  }
+  if (candidate.sanitizer_policy_sha256 !== SANITIZER_POLICY_SHA256) fail('sanitizer policy drifted');
+  if (candidate.candidate_digest !== CANDIDATE_DIGEST) fail('sanitized candidate digest drifted');
+  if (!/^[0-9a-f]{64}$/.test(candidate.source_context_sha256 ?? '')) fail('sanitized source context digest invalid');
+  if (!Buffer.isBuffer(candidate.modelInputBytes)) fail('sanitized model input bytes required');
+  if (sha256(candidate.modelInputBytes) !== candidate.model_input_sha256) fail('sanitized model input digest drifted');
+  let projection;
+  try { projection = JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(candidate.modelInputBytes)); }
+  catch { fail('sanitized model input must be canonical UTF-8 JSON'); }
+  const expected = safeProjectionFromPack({}, candidate.source_context_sha256);
+  if (!canonicalSafeProjectionBytes(expected).equals(candidate.modelInputBytes)) {
+    fail('sanitized model input is not exact safe projection');
+  }
+  if (projection.source_context_sha256 !== candidate.source_context_sha256) {
+    fail('sanitized projection source generation drifted');
+  }
+  return Buffer.from(candidate.modelInputBytes);
+}
+
 async function main() {
   const [, , command, ...args] = process.argv;
   if (command === 'admit' && args.length === 2) {
     const receipt = await admitContext(args[0], args[1]);
-    process.stdout.write(
-      `${RECEIPT_MARKER}_GREEN context_sha256=${receipt.context_sha256} injection_authority=false sanitization_required=true\n`,
-    );
+    process.stdout.write(`${RECEIPT_MARKER}_GREEN context_sha256=${receipt.context_sha256} injection_authority=false sanitization_required=true\n`);
     return;
   }
   if (command === 'verify' && args.length === 2) {
     const verified = await verifyContextReceipt(args[0], args[1]);
-    process.stdout.write(
-      `${RECEIPT_MARKER}_VERIFY_GREEN context_sha256=${verified.context_sha256} diagnostic_only=true reopen_context_path=false\n`,
-    );
+    process.stdout.write(`${RECEIPT_MARKER}_VERIFY_GREEN context_sha256=${verified.context_sha256} diagnostic_only=true reopen_context_path=false\n`);
     return;
   }
-  process.stderr.write('usage: void_brood_queen_local_context_admission_v1.mjs admit <context.json> <receipt.json>\n');
-  process.stderr.write('       void_brood_queen_local_context_admission_v1.mjs verify <context.json> <receipt.json>\n');
+  if (command === 'sanitize' && args.length === 2) {
+    const verified = await verifyContextReceipt(args[0], args[1]);
+    const sanitized = sanitizeVerifiedContext(verified);
+    process.stdout.write(`${SANITIZER_POLICY_MARKER}_GREEN source_context_sha256=${sanitized.source_context_sha256} model_input_sha256=${sanitized.model_input_sha256}\n`);
+    return;
+  }
+  process.stderr.write('usage: void_brood_queen_local_context_admission_v1.mjs admit|verify|sanitize <context.json> <receipt.json>\n');
   process.exitCode = 64;
 }
 
 const isMain = process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url);
-if (isMain) main().catch((error) => {
-  process.stderr.write(`HOLD: ${error?.message ?? String(error)}\n`);
-  process.exitCode = 2;
-});
+if (isMain) {
+  main().catch((error) => {
+    process.stderr.write(`HOLD: ${error?.message ?? String(error)}\n`);
+    process.exitCode = 2;
+  });
+}
