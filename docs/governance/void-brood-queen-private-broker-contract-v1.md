@@ -18,21 +18,21 @@ GitHub identity, provider identity, and model self-description are not Crown aut
 
 This child contract inherits parent authority only from exact reviewed parent content:
 
-- identity parent reviewed head: `e0014daaad939aec7b220da654d48ca3f6f9b758`;
-- identity fixture Git blob: `2b0658867a2273e486cf685be30c368754f2b4b3`;
-- local-seat parent reviewed head: `377aafd943fb4cc6811711f83566e40e9d15e533`;
-- local-seat fixture Git blob: `de3833097efc7e04a102c48dff0370ebc35cb222`;
+- identity parent reviewed head: `817429b10752f772230d6f3210e414acc02d3c51`;
+- identity fixture Git blob: `0da4a436d79150253b352a56447046bd29e0408f`;
+- local-seat parent reviewed head: `387ee6b7d8a7cf9194ef88f5098c38af15d82259`;
+- local-seat fixture Git blob: `702f559205e601294db4552e3856e529c77b56d3`;
 - parent-policy domain: `VOID_BROOD_QUEEN_PARENT_POLICY_IDENTITY_V1`;
-- parent-policy SHA-256: `52746cf1013706db4b35ae627f1d78b08932c6a4a0581737a0ced1aa5a5ca332`.
+- parent-policy SHA-256: `a4a8095cf6ae398c49d2cbe8c6ae52e9c446778116a83c7389d5fa2595235840`.
 
 The canonical parent-policy preimage is exactly:
 
 ```text
 VOID_BROOD_QUEEN_PARENT_POLICY_IDENTITY_V1
-identity_commit=e0014daaad939aec7b220da654d48ca3f6f9b758
-identity_fixture_blob=2b0658867a2273e486cf685be30c368754f2b4b3
-local_seat_commit=377aafd943fb4cc6811711f83566e40e9d15e533
-local_seat_fixture_blob=de3833097efc7e04a102c48dff0370ebc35cb222
+identity_commit=817429b10752f772230d6f3210e414acc02d3c51
+identity_fixture_blob=0da4a436d79150253b352a56447046bd29e0408f
+local_seat_commit=387ee6b7d8a7cf9194ef88f5098c38af15d82259
+local_seat_fixture_blob=702f559205e601294db4552e3856e529c77b56d3
 ```
 
 A same-marker change to either inherited fixture changes its Git blob and must HOLD this child until explicit refresh and rereview. Bootstrap, rotation, policy, task, and receipt transcripts bind the reviewed parent-policy SHA-256.
@@ -47,30 +47,55 @@ Forbidden locations for Crown, broker, adapter, or session private material incl
 
 The Precision broker has a dedicated Ed25519 broker identity outside model context. Its exact public identity or digest must be reviewed and pinned before bootstrap.
 
-Distinct signature domains are mandatory:
+The parent **session identity** bootstrap is non-substitutable. Its canonical domain remains `VOID_BROOD_QUEEN_SESSION_BOOTSTRAP_V1`.
 
-- broker challenge: `VOID_BROOD_QUEEN_BROKER_BOOTSTRAP_CHALLENGE_V1`;
-- Crown approval: `VOID_BROOD_QUEEN_CROWN_BOOTSTRAP_APPROVAL_V1`;
+Broker-specific outer-envelope domains are separate and may add transport/policy binding, but may not replace the parent session transcript:
+
+- broker outer challenge: `VOID_BROOD_QUEEN_BROKER_BOOTSTRAP_CHALLENGE_V1`;
+- Crown outer broker-policy approval: `VOID_BROOD_QUEEN_CROWN_BOOTSTRAP_APPROVAL_V1`;
 - broker receipt: `VOID_BROOD_QUEEN_BROKER_RECEIPT_V1`;
 - session application message: `VOID_BROOD_QUEEN_SESSION_MESSAGE_V1`;
 - session rotation: `VOID_BROOD_QUEEN_SESSION_ROTATION_V1`.
 
-A broker challenge binds the protocol/version, chain, broker identity digest, Brood Queen office, fresh adapter Ed25519 and X25519 public keys, fresh broker-generation X25519 public key, a cryptographically random single-use nonce, one proposed `session_id`, expiry, exact policy generation/digest, exact capability ceiling/digest, exact parent-policy digest, and transcript hash. The proposed session id uses exactly 32 lowercase hexadecimal characters representing 16 bytes.
+### Exact inherited parent session transcript
 
-The Crown signer verifies the exact pinned broker signature and signs the exact canonical bootstrap transcript. The broker verifies the Crown identity and, once activated, current canonical Chain-2050 role/revocation state.
+Before any broker session authority can commit, the broker must construct the exact parent `utf8_json_array_v1` transcript with **no optional fields** and this exact order:
+
+1. `bootstrap_domain`;
+2. `chain_id`;
+3. `office`;
+4. `identity`;
+5. `issuing_server_identity`;
+6. `requester_ed25519_public_key`;
+7. `requester_x25519_public_key`;
+8. `session_id`;
+9. `nonce`;
+10. `issued_at_utc`;
+11. `expires_at_utc`;
+12. `role_generation`;
+13. `role_record_sha256`.
+
+The parent server/broker signature, Crown **session** approval, and requester Ed25519 proof-of-possession must all bind the exact SHA-256 derived from those exact UTF-8 transcript bytes under `VOID_BROOD_QUEEN_SESSION_BOOTSTRAP_V1`. A supplied digest that is not derived from that field vector is not authority. The parent transcript includes canonical UTC RFC3339-second issue/expiry times and the exact current Chain-2050 role generation + role-record hash.
+
+The broker outer challenge separately binds that exact parent-session transcript SHA-256 together with the broker-generation X25519 key, exact parent-policy SHA-256, exact broker-policy SHA-256, and exact capability-ceiling digest. The broker signs that outer envelope, and the Crown outer broker-policy approval binds that same outer-envelope digest. This second approval authorizes broker-specific policy/transport parameters; it is **not** the Crown session approval and cannot substitute for the parent session transcript.
+
+The outer broker challenge binds the exact parent-session transcript SHA-256, protocol/version, broker identity digest, fresh broker-generation X25519 public key, exact policy generation/digest, exact capability ceiling/digest, and exact parent-policy digest. The parent transcript itself binds chain, office, identity, requester Ed25519/X25519 keys, one proposed `session_id`, nonce, issued-at/expiry, and exact role generation + role-record hash. The proposed session id uses exactly 32 lowercase hexadecimal characters representing 16 bytes.
+
+The Crown signer verifies the pinned broker's outer-envelope signature, signs the exact parent session transcript as the Crown session approval, and separately approves the exact outer broker-policy envelope. The broker verifies both layers and revalidates the exact current Chain-2050 role pair at the session-commit boundary.
 
 ### Crash-durable single-use bootstrap authority
 
 The single-use challenge is not merely an in-memory replay cache. Before any bootstrap success or authoritative receipt can escape, the broker performs one durable create-once/CAS transaction that atomically:
 
-1. consumes the exact challenge nonce + canonical challenge hash + Crown approval hash;
-2. binds those exact identities to the Crown-approved proposed `session_id`;
-3. creates generation 0 with the exact key, policy, capability, and parent-policy transcript;
-4. records the authoritative bootstrap receipt identity.
+1. consumes the exact nonce + parent-session transcript SHA-256 + parent server signature identity + Crown session-approval identity + requester-PoP identity;
+2. binds the exact outer broker-envelope SHA-256 + broker signature identity + Crown outer broker-policy approval identity;
+3. binds both layers to the Crown-approved proposed `session_id` and exact current role generation + role-record hash;
+4. creates generation 0 with the exact key, policy, capability, and parent-policy transcript;
+5. records the authoritative bootstrap receipt identity.
 
 Crash before that atomic commit creates zero session authority. Crash after commit but before receipt release returns the same session and receipt on retry. Byte-identical replay after commit returns the same session/receipt and creates no second session. Reuse of the challenge nonce with different transcript, approval, or proposed session id is terminal `BOOTSTRAP_CONFLICT`.
 
-One Crown approval can create at most one logical session authority.
+One two-layer Crown approval bundle (parent session approval plus outer broker-policy approval) can create at most one logical session authority.
 
 ## Exact V1 policy identity
 
@@ -94,17 +119,21 @@ The canonical V1 policy preimage is exactly:
 
 ```text
 VOID_BROOD_QUEEN_PRIVATE_BROKER_POLICY_V1
-parent_policy_sha256=52746cf1013706db4b35ae627f1d78b08932c6a4a0581737a0ced1aa5a5ca332
+parent_policy_sha256=a4a8095cf6ae398c49d2cbe8c6ae52e9c446778116a83c7389d5fa2595235840
 policy_generation=1
 capability_ceiling=analysis,drafting,proof_design,review,test_generation,bounded_task_planning,evidence_synthesis
 validator_capability_present=false
 ```
 
-Its SHA-256 is `1035f19d0f2312fc43725d3d3185f6769f7f6d91fc98543142875c3315ae0f3a`.
+Its SHA-256 is `bf7ad03d73bfe1c2abd7c40ab77fb49e2e7421dde4e9fa00de634aef496496c3`.
 
 Authentication proves identity only. Every task carries a closed capability list that must be a subset of this Crown-approved ceiling and the current broker policy. Session keys cannot widen the ceiling or change the policy root. A widening or policy-root change is a root-authenticated policy boundary.
 
 Validator capability is structurally absent from this broker contract.
+
+## Parent role-generation exhaustion inheritance
+
+The broker inherits the parent role-authority exhaustion boundary without weakening it. `ROLE_GENERATION_EXHAUSTED` is fail-closed: when the current V1 role generation is exhausted, the broker has zero fresh bootstrap, ordinary-task, or successor-rotation authority even if the role-record hash is otherwise unchanged. Fresh authority requires the parent contract's separately Sovereign-ratified epoch/namespace migration, which invalidates prior sessions before new authority can resume.
 
 ## Cryptographic profile
 

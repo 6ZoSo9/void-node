@@ -4,11 +4,11 @@
   "parent_local_seat_marker": "VOID_BROOD_QUEEN_LOCAL_MODEL_SEAT_V1_20260822",
   "parent_binding": {
     "domain": "VOID_BROOD_QUEEN_PARENT_POLICY_IDENTITY_V1",
-    "identity_reviewed_head": "e0014daaad939aec7b220da654d48ca3f6f9b758",
-    "identity_fixture_blob_sha": "2b0658867a2273e486cf685be30c368754f2b4b3",
-    "local_seat_reviewed_head": "377aafd943fb4cc6811711f83566e40e9d15e533",
-    "local_seat_fixture_blob_sha": "de3833097efc7e04a102c48dff0370ebc35cb222",
-    "parent_policy_sha256": "52746cf1013706db4b35ae627f1d78b08932c6a4a0581737a0ced1aa5a5ca332",
+    "identity_reviewed_head": "817429b10752f772230d6f3210e414acc02d3c51",
+    "identity_fixture_blob_sha": "0da4a436d79150253b352a56447046bd29e0408f",
+    "local_seat_reviewed_head": "387ee6b7d8a7cf9194ef88f5098c38af15d82259",
+    "local_seat_fixture_blob_sha": "702f559205e601294db4552e3856e529c77b56d3",
+    "parent_policy_sha256": "a4a8095cf6ae398c49d2cbe8c6ae52e9c446778116a83c7389d5fa2595235840",
     "same_marker_parent_content_drift_fails_closed": true,
     "bootstrap_rotation_task_receipt_bind_parent_policy_sha256": true
   },
@@ -35,7 +35,9 @@
     "crown_bootstrap_approval_domain": "VOID_BROOD_QUEEN_CROWN_BOOTSTRAP_APPROVAL_V1",
     "receipt_signature_domain": "VOID_BROOD_QUEEN_BROKER_RECEIPT_V1",
     "receipt_signed_by_broker_identity": true,
-    "transport_tls_alone_authenticates_crown_or_broker": false
+    "transport_tls_alone_authenticates_crown_or_broker": false,
+    "crown_bootstrap_approval_scope": "outer_broker_policy_envelope_only",
+    "parent_session_crown_approval_domain": "VOID_BROOD_QUEEN_SESSION_BOOTSTRAP_V1"
   },
   "bootstrap_transaction": {
     "challenge_single_use": true,
@@ -47,13 +49,18 @@
     "crash_before_commit_creates_session_authority": false,
     "exact_replay_after_commit_returns_same_session_and_receipt": true,
     "same_nonce_different_transcript_or_approval_terminal": "BOOTSTRAP_CONFLICT",
-    "at_most_one_session_per_crown_approval": true
+    "at_most_one_session_per_crown_approval": true,
+    "outer_envelope_binds_parent_session_transcript_sha256": true,
+    "session_commit_requires_parent_session_authority": true,
+    "session_commit_requires_outer_broker_policy_approval": true,
+    "parent_session_and_outer_policy_authority_commit_atomic": true,
+    "crown_approval_is_two_layer_bundle": true
   },
   "policy": {
     "domain": "VOID_BROOD_QUEEN_PRIVATE_BROKER_POLICY_V1",
     "generation_wire": "1",
     "generation_type": "canonical_u64_decimal_string",
-    "sha256": "1035f19d0f2312fc43725d3d3185f6769f7f6d91fc98543142875c3315ae0f3a",
+    "sha256": "bf7ad03d73bfe1c2abd7c40ab77fb49e2e7421dde4e9fa00de634aef496496c3",
     "capability_ceiling": [
       "analysis",
       "drafting",
@@ -157,7 +164,14 @@
     "same_sequence_different_task_terminal": "SEQUENCE_CONFLICT"
   },
   "durable_state_machine": {
-    "states": ["RECEIVED", "ADMITTED", "EXECUTING", "RESULT_STAGED", "RESULT_PUBLISHED", "COMPLETE"],
+    "states": [
+      "RECEIVED",
+      "ADMITTED",
+      "EXECUTING",
+      "RESULT_STAGED",
+      "RESULT_PUBLISHED",
+      "COMPLETE"
+    ],
     "fail_closed_terminals": [
       "REJECTED",
       "EXPIRED",
@@ -167,6 +181,7 @@
       "TRANSPORT_SEQUENCE_CONFLICT",
       "SESSION_FORK_CONFLICT",
       "SESSION_STALE",
+      "ROLE_GENERATION_EXHAUSTED",
       "POLICY_MISMATCH",
       "EXECUTION_OUTCOME_UNKNOWN",
       "RESULT_CONFLICT",
@@ -212,7 +227,9 @@
     "canonical_role_revalidation_required": true,
     "bounded_role_freshness_required_before_task_admission": true,
     "cached_role_truth_survives_revocation": false,
-    "stale_generation_can_issue_ordinary_tasks": false
+    "stale_generation_can_issue_ordinary_tasks": false,
+    "role_generation_exhaustion_blocks_bootstrap_task_rotation": true,
+    "fresh_authority_after_exhaustion_requires_parent_epoch_migration": true
   },
   "threat_model": {
     "github_authenticates_crown_session": false,
@@ -228,7 +245,8 @@
     "restart_during_execution_claims_exactly_once_model_execution": false,
     "concurrent_different_results_can_overwrite_staged_result": false,
     "rotation_and_admission_can_commit_from_same_stale_authority_snapshot": false,
-    "one_crown_approval_can_mint_multiple_sessions": false
+    "one_crown_approval_can_mint_multiple_sessions": false,
+    "broker_outer_envelope_can_replace_parent_session_transcript": false
   },
   "strongest_invariant": {
     "at_most_one_session_per_crown_approval": true,
@@ -243,7 +261,9 @@
     "no_stale_generation_successor_fork": true,
     "parent_policy_identity_content_bound": true,
     "no_validator_authority_path": true,
-    "no_crown_broker_or_session_private_material_in_model_context": true
+    "no_crown_broker_or_session_private_material_in_model_context": true,
+    "parent_session_bootstrap_exactly_inherited": true,
+    "parent_role_generation_exhaustion_fail_closed": true
   },
   "activation": {
     "live_root_key_generated": false,
@@ -253,5 +273,31 @@
     "live_endpoint_active": false,
     "chain_role_binding_active": false,
     "validator_authority_active": false
+  },
+  "parent_session_bootstrap": {
+    "domain": "VOID_BROOD_QUEEN_SESSION_BOOTSTRAP_V1",
+    "encoding": "utf8_json_array_v1",
+    "fields": [
+      "bootstrap_domain",
+      "chain_id",
+      "office",
+      "identity",
+      "issuing_server_identity",
+      "requester_ed25519_public_key",
+      "requester_x25519_public_key",
+      "session_id",
+      "nonce",
+      "issued_at_utc",
+      "expires_at_utc",
+      "role_generation",
+      "role_record_sha256"
+    ],
+    "server_signature_binds_exact_parent_transcript": true,
+    "crown_session_approval_binds_exact_parent_transcript": true,
+    "requester_pop_binds_exact_parent_transcript": true,
+    "derived_transcript_sha256_required": true,
+    "issued_at_and_expiry_bound": true,
+    "role_generation_and_record_hash_bound": true,
+    "broker_outer_envelope_may_replace_parent_transcript": false
   }
 }
