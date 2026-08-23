@@ -2,10 +2,12 @@
 
 import { createHash } from 'node:crypto';
 import { constants as fsConstants } from 'node:fs';
-import { lstat, open, readFile, realpath } from 'node:fs/promises';
-import { isAbsolute, join, relative, resolve, sep } from 'node:path';
+import { lstat, mkdtemp, open, realpath, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { basename, dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import process from 'node:process';
 import { spawnSync } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
 
 const MARKER = 'VOID_APOLLYON_OUTBOUND_ADMISSION_MANIFEST_V1';
 const RECEIPT_MARKER = 'VOID_APOLLYON_OUTBOUND_ADMISSION_RECEIPT_V1';
@@ -16,6 +18,13 @@ const MAX_JSON_BYTES = 256 * 1024;
 const MAX_FILE_BYTES = 1024 * 1024;
 const MAX_TOTAL_BYTES = 4 * 1024 * 1024;
 const MAX_ENTRIES = 64;
+
+// Linux O_TMPFILE is __O_TMPFILE | O_DIRECTORY. Match the reviewed
+// provider-neutral packet publisher primitive already merged in #1391.
+const LINUX_O_TMPFILE = 0o20000000 | fsConstants.O_DIRECTORY;
+const LINK_HELPER = '/usr/bin/ln';
+const LINK_HELPER_TIMEOUT_MS = 5_000;
+const LINK_HELPER_MAX_STDERR_BYTES = 8 * 1024;
 
 const BLOCKED_JSON_KEYS = new Set([
   'privatekey',
@@ -126,17 +135,75 @@ function decodeUtf8(bytes, label) {
   }
 }
 
-async function readRegularBounded(path, maxBytes, name) {
-  const st = await lstat(path);
-  if (!st.isFile() || st.isSymbolicLink()) fail(`${name} must be a regular non-symlink file`);
-  if (st.size > maxBytes) fail(`${name} exceeds ${maxBytes} bytes`);
-  const data = await readFile(path);
-  if (data.length !== st.size) fail(`${name} size changed during read`);
-  return data;
+function stamp(stat) {
+  return {
+    dev: stat.dev.toString(),
+    ino: stat.ino.toString(),
+    size: stat.size.toString(),
+    mtimeNs: stat.mtimeNs.toString(),
+    ctimeNs: stat.ctimeNs.toString(),
+  };
 }
 
-async function readJsonBounded(path, maxBytes, name) {
-  const data = await readRegularBounded(path, maxBytes, name);
+function sameStamp(a, b) {
+  return a.dev === b.dev
+    && a.ino === b.ino
+    && a.size === b.size
+    && a.mtimeNs === b.mtimeNs
+    && a.ctimeNs === b.ctimeNs;
+}
+
+function sameFileIdentity(a, b) {
+  return a.dev.toString() === b.dev.toString() && a.ino.toString() === b.ino.toString();
+}
+
+async function invokeFaultHook(hook, phase, context) {
+  if (typeof hook === 'function') await hook(phase, context);
+}
+
+async function readPinnedBounded(fh, preStamp, maxBytes, name, path, options = {}) {
+  await invokeFaultHook(options.faultHook, 'after_bound_stat', {
+    fh, name, path, maxBytes, preStamp,
+  });
+
+  const chunks = [];
+  let total = 0;
+  let position = 0;
+  while (true) {
+    const remaining = maxBytes + 1 - total;
+    if (remaining <= 0) fail(`${name} exceeds ${maxBytes} bytes during bounded read`);
+    const buffer = Buffer.allocUnsafe(Math.min(64 * 1024, remaining));
+    const { bytesRead } = await fh.read(buffer, 0, buffer.length, position);
+    if (bytesRead === 0) break;
+    chunks.push(buffer.subarray(0, bytesRead));
+    total += bytesRead;
+    position += bytesRead;
+    if (typeof options.observeRetained === 'function') {
+      options.observeRetained({ name, total, maxBytes });
+    }
+    if (total > maxBytes) fail(`${name} exceeds ${maxBytes} bytes during bounded read`);
+  }
+
+  const postStamp = stamp(await fh.stat({ bigint: true }));
+  if (!sameStamp(preStamp, postStamp)) fail(`${name} generation changed during bounded read`);
+  return Buffer.concat(chunks, total);
+}
+
+async function readRegularBounded(path, maxBytes, name, options = {}) {
+  const flags = fsConstants.O_RDONLY | fsConstants.O_NOFOLLOW;
+  const fh = await open(path, flags);
+  try {
+    const st = await fh.stat({ bigint: true });
+    if (!st.isFile()) fail(`${name} must be a regular non-symlink file`);
+    if (st.size > BigInt(maxBytes)) fail(`${name} exceeds ${maxBytes} bytes`);
+    return await readPinnedBounded(fh, stamp(st), maxBytes, name, path, options);
+  } finally {
+    await fh.close().catch(() => {});
+  }
+}
+
+async function readJsonBounded(path, maxBytes, name, options = {}) {
+  const data = await readRegularBounded(path, maxBytes, name, options);
   const text = decodeUtf8(data, name);
   try {
     return { value: JSON.parse(text), bytes: data, text };
@@ -175,17 +242,35 @@ function validateManifest(manifest) {
   }
 }
 
-function verifyTrialTool(trialPath) {
-  const r = spawnSync(process.execPath, [TRIAL_TOOL, 'verify', trialPath], {
-    cwd: process.cwd(),
-    encoding: 'utf8',
-    timeout: 10_000,
-    maxBuffer: 1024 * 1024,
-    env: { PATH: process.env.PATH ?? '' },
-  });
-  if (r.error) fail(`trial verifier spawn failed: ${r.error.message}`);
-  if (r.status !== 0 || !r.stdout.includes('VOID_APOLLYON_TRIAL_PACKET_V1_VERIFY_GREEN')) {
-    fail('trial packet failed provider-neutral verification');
+async function verifyActiveTrialExactBytes(
+  trialBytes,
+  admissionAtUtc,
+  expectedTrialId,
+  options = {},
+) {
+  const scratch = await mkdtemp(join(tmpdir(), 'void-apollyon-active-trial-v1-'));
+  const exactPath = join(scratch, 'trial-packet.json');
+  try {
+    await writeFile(exactPath, trialBytes, { flag: 'wx', mode: 0o600 });
+    const r = spawnSync(process.execPath, [TRIAL_TOOL, 'admit', exactPath, admissionAtUtc], {
+      cwd: process.cwd(),
+      encoding: 'utf8',
+      timeout: 10_000,
+      maxBuffer: 1024 * 1024,
+      env: { PATH: process.env.PATH ?? '' },
+    });
+    if (r.error) fail(`trial active-admission spawn failed: ${r.error.message}`);
+    const expectedMarker = `VOID_APOLLYON_TRIAL_PACKET_V1_ADMISSION_GREEN ${expectedTrialId} at=${admissionAtUtc}`;
+    if (r.status !== 0 || !r.stdout.includes(expectedMarker)) {
+      fail('trial packet failed active provider-neutral admission');
+    }
+    await invokeFaultHook(options.faultHook, 'after_parent_active_admission', {
+      exactPath,
+      expectedTrialId,
+      admissionAtUtc,
+    });
+  } finally {
+    await rm(scratch, { recursive: true, force: true });
   }
 }
 
@@ -230,7 +315,7 @@ async function assertNoSymlinkComponents(rootPath, relativePath) {
   }
 }
 
-async function readStagedEntry(rootPath, entry) {
+async function readStagedEntry(rootPath, entry, maxBytes, options = {}) {
   await assertNoSymlinkComponents(rootPath, entry.relative_path);
   const rootReal = await realpath(rootPath);
   const candidate = resolve(rootPath, entry.relative_path);
@@ -240,60 +325,269 @@ async function readStagedEntry(rootPath, entry) {
     fail(`entry ${entry.label} blocked category=staging_root_escape`);
   }
 
-  const before = await lstat(candidate);
-  if (!before.isFile() || before.isSymbolicLink()) fail(`entry ${entry.label} must be a regular non-symlink file`);
-  if (before.size > MAX_FILE_BYTES) fail(`entry ${entry.label} exceeds ${MAX_FILE_BYTES} bytes`);
-
-  const flags = fsConstants.O_RDONLY | (fsConstants.O_NOFOLLOW ?? 0);
+  const flags = fsConstants.O_RDONLY | fsConstants.O_NOFOLLOW;
   const fh = await open(candidate, flags);
   try {
-    const bound = await fh.stat();
-    if (!bound.isFile() || bound.dev !== before.dev || bound.ino !== before.ino) {
-      fail(`entry ${entry.label} changed generation before descriptor binding`);
-    }
-    if (bound.size > MAX_FILE_BYTES) fail(`entry ${entry.label} exceeds ${MAX_FILE_BYTES} bytes`);
-    const bytes = await fh.readFile();
-    if (bytes.length !== bound.size) fail(`entry ${entry.label} changed size during descriptor read`);
-    return bytes;
+    const bound = await fh.stat({ bigint: true });
+    if (!bound.isFile()) fail(`entry ${entry.label} must be a regular non-symlink file`);
+    if (bound.size > BigInt(maxBytes)) fail(`entry ${entry.label} exceeds ${maxBytes} bytes`);
+    return await readPinnedBounded(
+      fh,
+      stamp(bound),
+      maxBytes,
+      `entry ${entry.label}`,
+      candidate,
+      options,
+    );
   } finally {
-    await fh.close();
+    await fh.close().catch(() => {});
   }
 }
 
-async function writeExclusive0600(path, value) {
-  const h = await open(path, 'wx', 0o600);
+function parentFdPath(parentHandle) {
+  return `/proc/self/fd/${parentHandle.fd}`;
+}
+
+function childPath(parentHandle, leaf) {
+  if (typeof leaf !== 'string' || leaf.length === 0 || leaf.includes('/') || leaf === '.' || leaf === '..') {
+    fail('receipt output must name one final file');
+  }
+  return `${parentFdPath(parentHandle)}/${leaf}`;
+}
+
+function runExactFdLinkHelper(stageHandle, parentHandle, leaf) {
+  return spawnSync(
+    LINK_HELPER,
+    ['-L', '-T', '--', '/proc/self/fd/3', `/proc/self/fd/4/${leaf}`],
+    {
+      stdio: ['ignore', 'ignore', 'pipe', stageHandle.fd, parentHandle.fd],
+      timeout: LINK_HELPER_TIMEOUT_MS,
+      maxBuffer: LINK_HELPER_MAX_STDERR_BYTES,
+      encoding: 'utf8',
+      env: { PATH: process.env.PATH ?? '' },
+    },
+  );
+}
+
+function linkHelperFailure(result) {
+  if (result.error) return `receipt exact-fd link helper failed: ${result.error.code ?? result.error.message}`;
+  return `receipt exact-fd link helper failed status=${result.status}`;
+}
+
+async function readExactReceiptFinal(parentHandle, leaf, expectedBytes) {
+  const fh = await open(childPath(parentHandle, leaf), fsConstants.O_RDONLY | fsConstants.O_NOFOLLOW);
   try {
-    await h.writeFile(`${JSON.stringify(value, null, 2)}\n`, 'utf8');
-    await h.sync();
+    const pre = await fh.stat({ bigint: true });
+    if (!pre.isFile()) fail('receipt final must be a regular file');
+    if ((Number(pre.mode) & 0o777) !== 0o600) fail('receipt final mode must be 0600');
+    if (pre.size !== BigInt(expectedBytes.length)) fail('receipt final byte length conflict');
+    const bytes = await readPinnedBounded(
+      fh,
+      stamp(pre),
+      expectedBytes.length,
+      'admission receipt final',
+      childPath(parentHandle, leaf),
+    );
+    if (!bytes.equals(expectedBytes)) fail('receipt final bytes conflict');
+    await fh.sync();
+    const post = await fh.stat({ bigint: true });
+    return { stat: post };
   } finally {
-    await h.close();
+    await fh.close().catch(() => {});
   }
 }
 
-async function admit(trialPath, stagingRoot, manifestPath, receiptPath) {
-  verifyTrialTool(trialPath);
-  const trialRead = await readJsonBounded(trialPath, MAX_JSON_BYTES, 'trial packet');
+async function exactExistingReceiptOrNull(parentHandle, leaf, expectedBytes) {
+  try {
+    return await readExactReceiptFinal(parentHandle, leaf, expectedBytes);
+  } catch (error) {
+    if (error?.code === 'ENOENT') return null;
+    throw error;
+  }
+}
+
+export async function publishReceiptExact(receiptPath, value, options = {}) {
+  const absolute = resolve(receiptPath);
+  const parentPath = dirname(absolute);
+  const leaf = basename(absolute);
+  const expectedBytes = Buffer.from(`${JSON.stringify(value, null, 2)}\n`, 'utf8');
+
+  const parentHandle = await open(
+    parentPath,
+    fsConstants.O_RDONLY | fsConstants.O_DIRECTORY | fsConstants.O_NOFOLLOW,
+  );
+  let stageHandle = null;
+  try {
+    const parentStat = await parentHandle.stat({ bigint: true });
+    if (!parentStat.isDirectory()) fail('receipt parent must be a real directory');
+
+    const preexisting = await exactExistingReceiptOrNull(parentHandle, leaf, expectedBytes);
+    if (preexisting) {
+      await parentHandle.sync();
+      const durable = await readExactReceiptFinal(parentHandle, leaf, expectedBytes);
+      if (!sameFileIdentity(preexisting.stat, durable.stat)) {
+        fail('receipt final generation changed during exact retry durability boundary');
+      }
+      return { created: false, exact_retry: true };
+    }
+
+    try {
+      stageHandle = await open(
+        parentFdPath(parentHandle),
+        LINUX_O_TMPFILE | fsConstants.O_RDWR,
+        0o600,
+      );
+    } catch (error) {
+      fail(`anonymous receipt staging unavailable: ${error?.code ?? 'unknown_error'}`);
+    }
+
+    const stageCreated = await stageHandle.stat({ bigint: true });
+    if (!stageCreated.isFile() || (Number(stageCreated.mode) & 0o777) !== 0o600) {
+      fail('anonymous receipt stage must be a private regular file');
+    }
+
+    await invokeFaultHook(options.faultHook, 'after_stage_create', {
+      stageHandle, parentHandle, leaf, expectedBytes,
+    });
+
+    await stageHandle.writeFile(expectedBytes);
+    await invokeFaultHook(options.faultHook, 'after_stage_write', {
+      stageHandle, parentHandle, leaf, expectedBytes,
+    });
+
+    await stageHandle.sync();
+    const stageStat = await stageHandle.stat({ bigint: true });
+    if (stageStat.size !== BigInt(expectedBytes.length)) fail('receipt stage byte length drift');
+    await invokeFaultHook(options.faultHook, 'after_stage_sync', {
+      stageHandle, parentHandle, leaf, expectedBytes,
+    });
+
+    const linkResult = runExactFdLinkHelper(stageHandle, parentHandle, leaf);
+    let finalBeforeSync;
+    let created = linkResult.status === 0 && !linkResult.error;
+
+    if (created) {
+      await invokeFaultHook(options.faultHook, 'after_final_link', {
+        stageHandle, parentHandle, leaf, expectedBytes,
+      });
+      finalBeforeSync = await readExactReceiptFinal(parentHandle, leaf, expectedBytes);
+      if (!sameFileIdentity(stageStat, finalBeforeSync.stat)) {
+        fail('new receipt final is not the exact staged inode');
+      }
+    } else {
+      try {
+        finalBeforeSync = await readExactReceiptFinal(parentHandle, leaf, expectedBytes);
+        created = false;
+      } catch {
+        fail(linkHelperFailure(linkResult));
+      }
+    }
+
+    await invokeFaultHook(options.faultHook, 'before_parent_sync', {
+      stageHandle, parentHandle, leaf, expectedBytes,
+    });
+
+    await parentHandle.sync();
+    const durable = await readExactReceiptFinal(parentHandle, leaf, expectedBytes);
+    if (!sameFileIdentity(finalBeforeSync.stat, durable.stat)) {
+      fail('receipt final generation changed before durable parent sync');
+    }
+
+    try {
+      await invokeFaultHook(options.faultHook, 'after_parent_sync_commit', {
+        stageHandle, parentHandle, leaf, expectedBytes,
+      });
+    } catch {
+      const recovered = await readExactReceiptFinal(parentHandle, leaf, expectedBytes);
+      if (!sameFileIdentity(durable.stat, recovered.stat)) {
+        fail('post-commit receipt observer recovery saw foreign generation');
+      }
+      return { created, recovered_post_commit_observer_failure: true };
+    }
+
+    return { created, exact_retry: false };
+  } finally {
+    if (stageHandle) await stageHandle.close().catch(() => {});
+    await parentHandle.close().catch(() => {});
+  }
+}
+
+export async function admit(
+  trialPath,
+  stagingRoot,
+  manifestPath,
+  receiptPath,
+  admissionAtUtc,
+  options = {},
+) {
+  const trialRead = await readJsonBounded(
+    trialPath,
+    MAX_JSON_BYTES,
+    'trial packet',
+    {
+      faultHook: options.trialReadFaultHook,
+      observeRetained: options.observeRetained,
+    },
+  );
   scanText(trialRead.text, 'trial_packet');
   validateConstitutionalPacket(trialRead.value);
 
-  const constitutionBytes = await readRegularBounded(CONSTITUTION_PATH, MAX_JSON_BYTES, 'VOID constitution');
+  await verifyActiveTrialExactBytes(
+    trialRead.bytes,
+    admissionAtUtc,
+    trialRead.value.trial_id,
+    { faultHook: options.trialVerificationFaultHook },
+  );
+
+  const constitutionBytes = await readRegularBounded(
+    CONSTITUTION_PATH,
+    MAX_JSON_BYTES,
+    'VOID constitution',
+    {
+      faultHook: options.constitutionReadFaultHook,
+      observeRetained: options.observeRetained,
+    },
+  );
   const constitutionText = decodeUtf8(constitutionBytes, 'VOID constitution');
   if (!constitutionText.includes(CONSTITUTION_MARKER)) fail('bound VOID constitution marker is absent');
   if (!constitutionText.includes('**King → Brood Queen → General**')) fail('bound VOID constitution command chain is absent');
   if (!constitutionText.includes('The title **General** does not itself grant autonomous repository writes')) {
     fail('bound VOID constitution General authority boundary is absent');
   }
+  if (sha256(constitutionBytes) !== trialRead.value.constitution_sha256) {
+    fail('trial packet constitution digest no longer matches exact admission constitution bytes');
+  }
 
-  const manifestRead = await readJsonBounded(manifestPath, MAX_JSON_BYTES, 'outbound manifest');
+  const manifestRead = await readJsonBounded(
+    manifestPath,
+    MAX_JSON_BYTES,
+    'outbound manifest',
+    {
+      faultHook: options.manifestReadFaultHook,
+      observeRetained: options.observeRetained,
+    },
+  );
   validateManifest(manifestRead.value);
   validatePacketManifestBinding(trialRead.value, manifestRead.value);
 
   const admitted = [];
   let totalBytes = 0;
   for (const entry of manifestRead.value.entries) {
-    const bytes = await readStagedEntry(stagingRoot, entry);
+    const remainingBundle = MAX_TOTAL_BYTES - totalBytes;
+    if (remainingBundle <= 0) fail(`outbound bundle exceeds ${MAX_TOTAL_BYTES} bytes`);
+    const maxEntryBytes = Math.min(MAX_FILE_BYTES, remainingBundle);
+    const bytes = await readStagedEntry(
+      stagingRoot,
+      entry,
+      maxEntryBytes,
+      {
+        faultHook: options.stagedReadFaultHook,
+        observeRetained: options.observeRetained,
+      },
+    );
     totalBytes += bytes.length;
     if (totalBytes > MAX_TOTAL_BYTES) fail(`outbound bundle exceeds ${MAX_TOTAL_BYTES} bytes`);
+
     const digest = sha256(bytes);
     if (digest !== entry.sha256) fail(`entry ${entry.label} digest mismatch`);
     const text = decodeUtf8(bytes, entry.label);
@@ -320,6 +614,7 @@ async function admit(trialPath, stagingRoot, manifestPath, receiptPath) {
   const draftReceipt = {
     marker: RECEIPT_MARKER,
     trial_id: trialRead.value.trial_id,
+    admission_at_utc: admissionAtUtc,
     constitution: {
       path: CONSTITUTION_PATH,
       marker: CONSTITUTION_MARKER,
@@ -336,22 +631,33 @@ async function admit(trialPath, stagingRoot, manifestPath, receiptPath) {
     created_at_utc: manifestRead.value.created_at_utc,
     nonce: manifestRead.value.nonce,
   };
+
   const admissionId = `voidaa1_${sha256(Buffer.from(canonicalJson(draftReceipt), 'utf8'))}`;
   const receipt = { ...draftReceipt, admission_id: admissionId };
-  await writeExclusive0600(receiptPath, receipt);
-  process.stdout.write(`VOID_APOLLYON_SECRET_SANITIZATION_CONSTITUTIONAL_ADMISSION_V1_GREEN ${admissionId}\n`);
+  await publishReceiptExact(receiptPath, receipt, { faultHook: options.receiptFaultHook });
+
+  if (options.emitOutput !== false) {
+    process.stdout.write(`VOID_APOLLYON_SECRET_SANITIZATION_CONSTITUTIONAL_ADMISSION_V1_GREEN ${admissionId}\n`);
+  }
+  return receipt;
 }
 
 async function main() {
   const [, , command, ...args] = process.argv;
-  if (command === 'admit' && args.length === 4) {
-    return admit(args[0], args[1], args[2], args[3]);
+  if (command === 'admit' && args.length === 5) {
+    return admit(args[0], args[1], args[2], args[3], args[4]);
   }
-  process.stderr.write('usage: apollyon_secret_sanitization_constitutional_admission_v1.mjs admit <trial-packet.json> <staging-root> <manifest.json> <receipt.json>\n');
+  process.stderr.write(
+    'usage: apollyon_secret_sanitization_constitutional_admission_v1.mjs '
+    + 'admit <trial-packet.json> <staging-root> <manifest.json> <receipt.json> <admission-at-utc>\n',
+  );
   process.exitCode = 64;
 }
 
-main().catch((error) => {
-  process.stderr.write(`HOLD: ${error?.message ?? String(error)}\n`);
-  process.exitCode = 2;
-});
+const isMain = process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url);
+if (isMain) {
+  main().catch((error) => {
+    process.stderr.write(`HOLD: ${error?.message ?? String(error)}\n`);
+    process.exitCode = 2;
+  });
+}

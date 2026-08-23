@@ -69,6 +69,55 @@ A green admission receipt authorizes only publication/transport of the exact con
 `admission_grants_secret_authority=false`
 `admission_grants_mutation_authority=false`
 
+## Exact active-trial generation boundary
+
+Outbound admission now consumes the parent trial contract's active `admit` terminal, not structural `verify` alone. The caller supplies one explicit canonical UTC-millisecond `admission-at-utc`, and the parent contract must prove:
+
+`created_at_utc <= admission_at_utc < expires_at_utc`
+
+The child reads the selected trial packet exactly once through a no-follow descriptor with `MAX_JSON_BYTES + 1` bounded retention. Those exact bytes are copied to a private verification scratch file and consumed by the current parent `admit` command. All later constitutional, manifest, and receipt reasoning uses only the object parsed from those exact already-admitted bytes. Replacing the original trial pathname after parent admission cannot substitute a different trial generation.
+
+`trial_verify_to_use_exact_generation_bound=true`
+`parent_active_trial_admission_required=true`
+`expired_or_not_yet_active_trial_outbound_admission=false`
+
+## Prebuffer resource boundary
+
+Trial packets, outbound manifests, constitution bytes, and staged entries use descriptor-bound reads with a repository-owned ceiling plus at most one detection byte. Declared metadata oversize is rejected before body retention; same-inode post-stat growth is stopped on the first over-limit byte; the exact file-generation stamp is revalidated after the bounded read.
+
+The bundle ceiling is also enforced before the next staged entry is retained: each entry receives at most the remaining bundle budget, capped by the per-file ceiling.
+
+`trial_manifest_staged_reads_bounded_before_whole_file_retention=true`
+`same_inode_growth_fails_closed=true`
+`bundle_retention_never_exceeds_remaining_authority=true`
+
+## Crash-durable receipt publication
+
+The final admission receipt is no longer created as the write target. V1 writes a private anonymous staged generation, file-fsyncs the complete bytes, and commits the exact already-open staged inode with create-only/no-replace exact-fd linking into a retained parent-directory descriptor. The exact final is then reopened no-follow, checked for mode `0600`, exact bytes and exact inode identity, file-synced, and the retained parent directory is fsynced before success becomes durable.
+
+An exact retry converges to an already-present byte-identical receipt. A foreign/conflicting final is never deleted or replaced. A failure after final link but before parent sync is recoverable by exact retry; a post-parent-sync observer/report fault revalidates and returns the already committed receipt rather than downgrading durable truth.
+
+`receipt_publication_failure_atomic_retry_recoverable=true`
+`receipt_publication_exact_fd_no_replace=true`
+`receipt_parent_directory_crash_durable=true`
+`foreign_receipt_preserved=true`
+
+## Focused CI self-enforcement
+
+The focused child workflow trigger-binds the directly executed parent proof, parent public contract document, parent tool/schema/schema-alignment proof, child sources, and shared committed-range hygiene helper/proof. The child proof structurally validates those bindings and deterministic mutated-workflow adversaries must fail.
+
+`focused_workflow_dependency_set_closed=true`
+`committed_range_diff_hygiene_bound=true`
+
+The CLI is:
+
+```text
+apollyon_secret_sanitization_constitutional_admission_v1.mjs \
+  admit <trial-packet.json> <staging-root> <manifest.json> <receipt.json> <admission-at-utc>
+```
+
+The receipt binds the exact `admission_at_utc` used for the parent active-admission decision.
+
 ## V1 status
 
 Source/proof only. No public endpoint, runtime worker, model daemon, file exporter, provider API integration, secret access, deployment, restart, or Work Credit write is created by this lane.
