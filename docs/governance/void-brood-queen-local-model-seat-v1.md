@@ -12,12 +12,12 @@
 
 This local-seat generation is content-bound to:
 
-- identity reviewed head `817429b10752f772230d6f3210e414acc02d3c51`;
-- identity fixture Git blob `0da4a436d79150253b352a56447046bd29e0408f`;
-- identity document Git blob `4b928c2b30725bc27d5674d6a889df31100704fc`;
+- identity reviewed head `7e20ea0bfa501434375f610616e1940df99d1d68`;
+- identity fixture Git blob `7cc9e7b1db5ffd751acd24d086ae30a873a9a568`;
+- identity document Git blob `21185a26c0b6fb689866d4aaba2eaac0c3f352b1`;
 - command-layer fixture Git blob `7db27e1bb5350fc6f9b2fcc69d7075c5aa746c7d`;
 - command-layer document Git blob `732536c0e22ba7ea417be61be7e1f9942bba6d74`;
-- parent-policy SHA-256 `d59a6eb8c11a327f550dec87d399fcdf4622dcb2094f9364bd3fb0b91308bbf5`.
+- parent-policy SHA-256 `6ca32e63c96b999a473eb188bc1a36050e5fd223381e61391bfa25e2053bc451`.
 
 The child proof recomputes those identities, executes both parent proofs, and proves the exact reviewed parent head is an ancestor. Marker equality alone is never inherited authority.
 
