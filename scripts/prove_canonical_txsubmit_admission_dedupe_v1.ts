@@ -75,8 +75,12 @@ const h4 = "d".repeat(64);
 // Exact direct-array path preferred by the current canonical hotpath after legacy initialization.
 const compat: any = new Mempool();
 assert(!Array.isArray(compat.txs), "compat txs must remain absent until legacy initialization");
-compat.txs = [];
+const rawInit: any[] = [];
+const assignmentValue = (compat.txs = rawInit);
+assert(assignmentValue === rawInit, "txs assignment expression identity changed");
+assert(compat.txs === rawInit, "txs setter must retain exact assigned array identity");
 assert(Array.isArray(compat.txs), "initialized compat txs must remain Array.isArray-compatible");
+
 let r = appendLikeCanonicalHotpath(compat, { hash: h1, body: { n: 1 } });
 assert(r.ok === true && compat.txs.length === 1, "first canonical direct-array admission failed");
 const beforeDuplicate = compat.txs.slice();
@@ -85,6 +89,8 @@ assert(r.ok === false, "duplicate direct-array admission returned success");
 assert(r.error === "duplicate_transaction" && r.code === VOID_DUPLICATE_TRANSACTION_CODE, "duplicate direct-array rejection identity mismatch");
 assert(compat.txs.length === beforeDuplicate.length, "duplicate direct-array admission mutated length");
 assert(compat.txs[0]?.hash === beforeDuplicate[0]?.hash, "duplicate direct-array admission mutated existing entry");
+expectDuplicate(() => rawInit.push({ hash: `0x${h1.toUpperCase()}` }), "external assigned-array reference duplicate");
+assert(compat.txs.length === beforeDuplicate.length, "external assigned-array duplicate mutated queue");
 
 r = appendLikeCanonicalHotpath(compat, { hash: h2, body: { n: 3 } });
 assert(r.ok === true && compat.txs.length === 2, "distinct canonical direct-array admission failed");
@@ -98,17 +104,30 @@ assert(compat.txs.length === batchBefore, "duplicate batch partially mutated com
 compat.txs.push({ kind: "legacy_raw_compat_v1", nonce: "raw-no-hash" });
 assert(compat.txs.length === batchBefore + 1, "legacy raw compatibility entry was newly rejected");
 
-// Replacement is create-first: duplicate replacement fails without changing the old queue.
+// Replacement validation happens before changing the prior authority or candidate prototype.
 const stableCompat = compat.txs;
 const stableLength = stableCompat.length;
-expectDuplicate(() => { compat.txs = [{ hash: h3 }, { hash: `0x${h3.toUpperCase()}` }]; }, "compat replacement duplicate");
+const duplicateReplacement: any[] = [{ hash: h3 }, { hash: `0x${h3.toUpperCase()}` }];
+expectDuplicate(() => { compat.txs = duplicateReplacement; }, "compat replacement duplicate");
 assert(compat.txs === stableCompat && compat.txs.length === stableLength, "failed replacement changed compat authority");
+assert(Object.getPrototypeOf(duplicateReplacement) === Array.prototype, "failed replacement mutated candidate prototype");
 
-// A unique replacement remains guarded afterwards.
-compat.txs = [{ hash: h4, body: { replacement: true } }];
+// A unique replacement retains exact assignment identity and remains guarded afterwards.
+const rawReplacement: any[] = [{ hash: h4, body: { replacement: true } }];
+const replacementAssignmentValue = (compat.txs = rawReplacement);
+assert(replacementAssignmentValue === rawReplacement, "replacement assignment expression identity changed");
+assert(compat.txs === rawReplacement, "unique replacement did not retain exact assigned array");
 assert(Array.isArray(compat.txs) && compat.txs.length === 1, "unique replacement failed");
 expectDuplicate(() => compat.txs.unshift({ hash: h4.toUpperCase() }), "compat unshift duplicate");
 assert(compat.txs.length === 1, "duplicate unshift mutated compat queue");
+
+// Exercise the exact assignment-expression shape used by existing /dev/mempool/pick initialization.
+const compatPickShape: any = new Mempool();
+const pickArray: any[] = Array.isArray(compatPickShape.txs) ? compatPickShape.txs : (compatPickShape.txs = []);
+assert(pickArray === compatPickShape.txs, "assignment-expression initialization detached from stored txs array");
+pickArray.push({ hash: h3 });
+expectDuplicate(() => compatPickShape.txs.push({ hash: h3 }), "assignment-expression initialized duplicate");
+assert(pickArray.length === 1 && compatPickShape.txs.length === 1, "assignment-expression duplicate mutated queue");
 
 // Pending-only semantics: once producer-visible entry is actually drained, same identity may be admitted again.
 compat.txs.splice(0, 1);
@@ -123,7 +142,8 @@ assert(internal.peekAll().length === 1, "internal first admission failed");
 expectDuplicate(() => internal.push({ hash: h1.toUpperCase(), body: { q: 2 } }), "internal duplicate");
 assert(internal.peekAll().length === 1, "internal duplicate mutated queue");
 internal.push({ hash: "not-a-hash", body: { invalid: true } });
-assert(internal.peekAll().length === 1, "invalid internal hash changed legacy no-op behavior");
+internal.push({ hash: `0x${h2}`, body: { prefixedInvalid: true } });
+assert(internal.peekAll().length === 1, "invalid internal hash changed historical no-op behavior");
 internal.drain();
 internal.push({ hash: h1, body: { q: 3 } });
 assert(internal.peekAll().length === 1, "internal post-drain re-admission failed");
@@ -134,6 +154,8 @@ assert(appendRejectStatus >= 0, "canonical append-error status mapping missing")
 
 console.log("VOID_CANONICAL_TXSUBMIT_ADMISSION_DEDUPE_V1_DIRECT_ARRAY_GREEN=true");
 console.log("VOID_CANONICAL_TXSUBMIT_ADMISSION_DEDUPE_V1_INTERNAL_QUEUE_GREEN=true");
+console.log("VOID_CANONICAL_TXSUBMIT_ADMISSION_DEDUPE_V1_ASSIGNMENT_IDENTITY_GREEN=true");
+console.log("VOID_CANONICAL_TXSUBMIT_ADMISSION_DEDUPE_V1_STRICT_INTERNAL_HASH_ADMISSION_GREEN=true");
 console.log("VOID_CANONICAL_TXSUBMIT_ADMISSION_DEDUPE_V1_DUPLICATE_HTTP_STATUS=503");
 console.log("VOID_CANONICAL_TXSUBMIT_ADMISSION_DEDUPE_V1_PENDING_ONLY=true");
 console.log("VOID_CANONICAL_TXSUBMIT_ADMISSION_DEDUPE_V1_LEGACY_RAW_COMPAT_PRESERVED=true");

@@ -6,8 +6,13 @@ export type MemTx = { hash: string; body?: any };
 
 export const VOID_DUPLICATE_TRANSACTION_CODE = "VOID_DUPLICATE_TRANSACTION";
 
-function canonicalHashOf(tx: any): string {
+function comparableCanonicalHashOf(tx: any): string {
   const h = String(tx?.hash || "").trim().toLowerCase().replace(/^0x/, "");
+  return /^[0-9a-f]{64}$/.test(h) ? h : "";
+}
+
+function strictCanonicalHashOf(tx: any): string {
+  const h = String(tx?.hash || "").trim().toLowerCase();
   return /^[0-9a-f]{64}$/.test(h) ? h : "";
 }
 
@@ -28,12 +33,12 @@ class CanonicalCompatTxArray extends Array<any> {
     const seen = new Set<string>();
 
     for (const current of this) {
-      const h = canonicalHashOf(current);
+      const h = comparableCanonicalHashOf(current);
       if (h) seen.add(h);
     }
 
     for (const item of items) {
-      const h = canonicalHashOf(item);
+      const h = comparableCanonicalHashOf(item);
       if (!h) continue;
       if (seen.has(h)) throw duplicateTransactionError();
       seen.add(h);
@@ -46,12 +51,12 @@ class CanonicalCompatTxArray extends Array<any> {
     const seen = new Set<string>();
 
     for (const current of this) {
-      const h = canonicalHashOf(current);
+      const h = comparableCanonicalHashOf(current);
       if (h) seen.add(h);
     }
 
     for (const item of items) {
-      const h = canonicalHashOf(item);
+      const h = comparableCanonicalHashOf(item);
       if (!h) continue;
       if (seen.has(h)) throw duplicateTransactionError();
       seen.add(h);
@@ -61,28 +66,45 @@ class CanonicalCompatTxArray extends Array<any> {
   }
 }
 
+function guardCompatTxArrayInPlace(value: any[]): any[] {
+  const seen = new Set<string>();
+  for (const item of value) {
+    const h = comparableCanonicalHashOf(item);
+    if (!h) continue;
+    if (seen.has(h)) throw duplicateTransactionError();
+    seen.add(h);
+  }
+
+  if (!(value instanceof CanonicalCompatTxArray)) {
+    Object.setPrototypeOf(value, CanonicalCompatTxArray.prototype);
+  }
+  return value;
+}
+
 export class Mempool {
   private q: MemTx[] = [];
   private compatTxs: any[] | undefined;
 
   /**
    * Compatibility surface consumed by the canonical HTTP hotpath and V2FS
-   * runtime shims. Keep Array.isArray(...) true while guarding canonical ids.
+   * runtime shims. It stays absent until existing legacy initialization, then
+   * guards the exact assigned Array object so assignment-expression identity
+   * and Array.isArray(...) behavior remain unchanged.
    */
   get txs(): any[] | undefined { return this.compatTxs; }
   set txs(value: any[]) {
     if (value === this.compatTxs) return;
     if (!Array.isArray(value)) throw new TypeError("mempool_txs_must_be_array");
 
-    // Build first so a duplicate replacement fails without changing authority.
-    const next = new CanonicalCompatTxArray();
-    for (const item of value) next.push(item);
-    this.compatTxs = next;
+    // Validate before changing the caller-owned Array prototype or authority.
+    const guarded = guardCompatTxArrayInPlace(value);
+    this.compatTxs = guarded;
   }
 
   push(tx: MemTx) {
     if (!tx || typeof tx !== "object") return;
-    const hash = canonicalHashOf(tx);
+    // Preserve the historical strict hash-admission contract: no 0x prefix.
+    const hash = strictCanonicalHashOf(tx);
     if (!hash) return;
     if (this.q.some((current) => current.hash === hash)) throw duplicateTransactionError();
     this.q.push({ hash, body: tx.body ?? {} });

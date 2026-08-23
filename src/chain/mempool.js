@@ -4,8 +4,12 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.Mempool = exports.VOID_DUPLICATE_TRANSACTION_CODE = void 0;
 exports.VOID_DUPLICATE_TRANSACTION_CODE = "VOID_DUPLICATE_TRANSACTION";
-function canonicalHashOf(tx) {
+function comparableCanonicalHashOf(tx) {
     const h = String((tx === null || tx === void 0 ? void 0 : tx.hash) || "").trim().toLowerCase().replace(/^0x/, "");
+    return /^[0-9a-f]{64}$/.test(h) ? h : "";
+}
+function strictCanonicalHashOf(tx) {
+    const h = String((tx === null || tx === void 0 ? void 0 : tx.hash) || "").trim().toLowerCase();
     return /^[0-9a-f]{64}$/.test(h) ? h : "";
 }
 function duplicateTransactionError() {
@@ -23,12 +27,12 @@ class CanonicalCompatTxArray extends Array {
     push(...items) {
         const seen = new Set();
         for (const current of this) {
-            const h = canonicalHashOf(current);
+            const h = comparableCanonicalHashOf(current);
             if (h)
                 seen.add(h);
         }
         for (const item of items) {
-            const h = canonicalHashOf(item);
+            const h = comparableCanonicalHashOf(item);
             if (!h)
                 continue;
             if (seen.has(h))
@@ -40,12 +44,12 @@ class CanonicalCompatTxArray extends Array {
     unshift(...items) {
         const seen = new Set();
         for (const current of this) {
-            const h = canonicalHashOf(current);
+            const h = comparableCanonicalHashOf(current);
             if (h)
                 seen.add(h);
         }
         for (const item of items) {
-            const h = canonicalHashOf(item);
+            const h = comparableCanonicalHashOf(item);
             if (!h)
                 continue;
             if (seen.has(h))
@@ -55,13 +59,30 @@ class CanonicalCompatTxArray extends Array {
         return super.unshift(...items);
     }
 }
+function guardCompatTxArrayInPlace(value) {
+    const seen = new Set();
+    for (const item of value) {
+        const h = comparableCanonicalHashOf(item);
+        if (!h)
+            continue;
+        if (seen.has(h))
+            throw duplicateTransactionError();
+        seen.add(h);
+    }
+    if (!(value instanceof CanonicalCompatTxArray)) {
+        Object.setPrototypeOf(value, CanonicalCompatTxArray.prototype);
+    }
+    return value;
+}
 class Mempool {
     constructor() {
         this.q = [];
     }
     /**
      * Compatibility surface consumed by the canonical HTTP hotpath and V2FS
-     * runtime shims. Keep Array.isArray(...) true while guarding canonical ids.
+     * runtime shims. It stays absent until existing legacy initialization, then
+     * guards the exact assigned Array object so assignment-expression identity
+     * and Array.isArray(...) behavior remain unchanged.
      */
     get txs() { return this.compatTxs; }
     set txs(value) {
@@ -69,17 +90,16 @@ class Mempool {
             return;
         if (!Array.isArray(value))
             throw new TypeError("mempool_txs_must_be_array");
-        // Build first so a duplicate replacement fails without changing authority.
-        const next = new CanonicalCompatTxArray();
-        for (const item of value)
-            next.push(item);
-        this.compatTxs = next;
+        // Validate before changing the caller-owned Array prototype or authority.
+        const guarded = guardCompatTxArrayInPlace(value);
+        this.compatTxs = guarded;
     }
     push(tx) {
         var _a;
         if (!tx || typeof tx !== "object")
             return;
-        const hash = canonicalHashOf(tx);
+        // Preserve the historical strict hash-admission contract: no 0x prefix.
+        const hash = strictCanonicalHashOf(tx);
         if (!hash)
             return;
         if (this.q.some((current) => current.hash === hash))
