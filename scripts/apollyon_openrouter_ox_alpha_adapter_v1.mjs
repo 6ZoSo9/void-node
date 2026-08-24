@@ -9,21 +9,22 @@ import { fileURLToPath } from 'node:url';
 
 import { admit as admitSanitizedInputs } from './apollyon_secret_sanitization_constitutional_admission_v1.mjs';
 
-export const MARKER = 'VOID_APOLLYON_OPENROUTER_OX_ALPHA_ADAPTER_V1';
-export const RESULT_MARKER = 'VOID_APOLLYON_OPENROUTER_OX_ALPHA_RESULT_V1';
+export const MARKER = 'VOID_APOLLYON_OPENROUTER_CONTESTANT_ADAPTER_V1';
+export const RESULT_MARKER = 'VOID_APOLLYON_OPENROUTER_CONTESTANT_RESULT_V1';
+export const REGISTRY_MARKER = 'VOID_APOLLYON_OPENROUTER_CONTESTANT_REGISTRY_V1';
 export const PROVIDER = 'openrouter';
-export const MODEL = 'stealth/ox-alpha';
+export const DEFAULT_MODEL = 'stealth/ox-alpha';
+export const MODEL = DEFAULT_MODEL;
 export const API_ORIGIN = 'https://openrouter.ai';
-export const MODEL_URL = `${API_ORIGIN}/api/v1/models/stealth/ox-alpha`;
 export const CHAT_URL = `${API_ORIGIN}/api/v1/chat/completions`;
-export const PROVIDER_RETENTION_CLASS = 'prompts_and_completions_retained_not_used_for_training_per_provider_disclosure';
+export const REGISTRY_PATH = 'public/apollyon-openrouter-contestants-v1.json';
 
 const MAX_JSON_BYTES = 256 * 1024;
+const MAX_REGISTRY_BYTES = 256 * 1024;
 const MAX_ENTRY_BYTES = 1024 * 1024;
 const MAX_TOTAL_INPUT_BYTES = 2 * 1024 * 1024;
 const MAX_MODEL_RESPONSE_BYTES = 512 * 1024;
 const MAX_CHAT_RESPONSE_BYTES = 8 * 1024 * 1024;
-const MIN_CONTEXT_LENGTH = 262_144;
 const DEFAULT_MAX_TOKENS = 8_192;
 const MAX_MAX_TOKENS = 32_768;
 const DEFAULT_METADATA_TIMEOUT_MS = 15_000;
@@ -46,7 +47,7 @@ You have no VOID office, authority, credential, wallet, signer, validator, deplo
 Use only the trial packet and sanitized/public inputs supplied in this request.
 Do not request secrets, credentials, private context, local filesystem access, network access, tool execution, or expanded authority.
 Do not claim execution, verification, deployment, observation, or evidence that did not occur.
-If information is unavailable, state the uncertainty instead of fabricating it.
+If information is unavailable, state uncertainty instead of fabricating it.
 Return analysis and proposed artifacts only. No tool use is available.`;
 
 function fail(message) {
@@ -90,19 +91,99 @@ function parseBoundedInt(raw, fallback, min, max, name) {
   return value;
 }
 
-function requireRuntimeGate(env) {
-  if (env.VOID_OPENROUTER_ENABLE !== '1') fail('VOID_OPENROUTER_ENABLE=1 is required');
-  if (env.VOID_OPENROUTER_ACK_PROVIDER_RETENTION !== '1') {
-    fail('VOID_OPENROUTER_ACK_PROVIDER_RETENTION=1 is required for the retained-prompt provider');
+function modelMetadataUrl(model) {
+  return `${API_ORIGIN}/api/v1/models/${model}`;
+}
+
+export function validateContestantRegistryV1(registry) {
+  exactKeys(registry, ['marker', 'version', 'reviewed_at_utc', 'default_model', 'contestants'], 'contestant registry');
+  if (registry.marker !== REGISTRY_MARKER) fail(`registry marker must equal ${REGISTRY_MARKER}`);
+  if (registry.version !== 1) fail('registry version must equal 1');
+  if (typeof registry.reviewed_at_utc !== 'string' || !Number.isFinite(Date.parse(registry.reviewed_at_utc))) {
+    fail('registry reviewed_at_utc is invalid');
   }
+  if (typeof registry.default_model !== 'string' || registry.default_model.length < 3) fail('registry default_model is invalid');
+  if (!Array.isArray(registry.contestants) || registry.contestants.length < 1 || registry.contestants.length > 64) {
+    fail('registry contestants count is out of bounds');
+  }
+
+  const seen = new Set();
+  let defaultEntry = null;
+  for (const [i, entry] of registry.contestants.entries()) {
+    exactKeys(
+      entry,
+      ['model', 'status', 'scored_trial_eligible', 'zero_price_required', 'min_context_length', 'max_tokens_cap', 'retention_class', 'provider_policy'],
+      `contestants[${i}]`,
+    );
+    if (typeof entry.model !== 'string' || !/^[a-z0-9._-]+\/[A-Za-z0-9._:-]+$/.test(entry.model)) {
+      fail(`contestants[${i}].model is invalid`);
+    }
+    if (seen.has(entry.model)) fail(`duplicate contestant model ${entry.model}`);
+    seen.add(entry.model);
+    if (!['qualified', 'qualification_only', 'quarantined'].includes(entry.status)) fail(`contestants[${i}].status is invalid`);
+    if (typeof entry.scored_trial_eligible !== 'boolean') fail(`contestants[${i}].scored_trial_eligible must be boolean`);
+    if (entry.status === 'qualified' && entry.scored_trial_eligible !== true) fail(`qualified contestant ${entry.model} must be scored-trial eligible`);
+    if (entry.status !== 'qualified' && entry.scored_trial_eligible !== false) fail(`non-qualified contestant ${entry.model} cannot be scored-trial eligible`);
+    if (entry.zero_price_required !== true) fail(`contestant ${entry.model} must require zero pricing`);
+    if (!Number.isSafeInteger(entry.min_context_length) || entry.min_context_length < 32_768) fail(`contestant ${entry.model} min_context_length is invalid`);
+    if (!Number.isSafeInteger(entry.max_tokens_cap) || entry.max_tokens_cap < 1 || entry.max_tokens_cap > MAX_MAX_TOKENS) fail(`contestant ${entry.model} max_tokens_cap is invalid`);
+    if (typeof entry.retention_class !== 'string' || entry.retention_class.length < 3 || entry.retention_class.length > 256) fail(`contestant ${entry.model} retention_class is invalid`);
+
+    exactKeys(entry.provider_policy, ['allow_fallbacks', 'require_parameters', 'data_collection', 'zdr', 'only'], `contestant ${entry.model} provider_policy`);
+    if (entry.provider_policy.allow_fallbacks !== false) fail(`contestant ${entry.model} must disable provider fallbacks`);
+    if (entry.provider_policy.require_parameters !== true) fail(`contestant ${entry.model} must require provider parameter support`);
+    if (![null, 'deny'].includes(entry.provider_policy.data_collection)) fail(`contestant ${entry.model} data_collection policy is invalid`);
+    if (typeof entry.provider_policy.zdr !== 'boolean') fail(`contestant ${entry.model} zdr policy is invalid`);
+    if (!Array.isArray(entry.provider_policy.only) || entry.provider_policy.only.length > 16) fail(`contestant ${entry.model} provider only-list is invalid`);
+    for (const providerSlug of entry.provider_policy.only) {
+      if (typeof providerSlug !== 'string' || !/^[A-Za-z0-9._-]{1,128}$/.test(providerSlug)) fail(`contestant ${entry.model} provider slug is invalid`);
+    }
+    if (entry.status === 'qualification_only') {
+      if (entry.provider_policy.data_collection !== 'deny' || entry.provider_policy.zdr !== true) {
+        fail(`qualification-only contestant ${entry.model} must require data_collection=deny and zdr=true`);
+      }
+    }
+    if (entry.model === registry.default_model) defaultEntry = entry;
+  }
+  if (!defaultEntry) fail('registry default_model is not present');
+  if (defaultEntry.status !== 'qualified') fail('registry default_model must be qualified');
+  return registry;
+}
+
+export function getContestantV1(registry, model) {
+  validateContestantRegistryV1(registry);
+  const entry = registry.contestants.find((candidate) => candidate.model === model);
+  if (!entry) fail(`model ${model} is not in the reviewed OpenRouter contestant registry`);
+  return entry;
+}
+
+async function loadContestantRegistryV1(path = REGISTRY_PATH) {
+  const registryRead = await readJsonBounded(path, MAX_REGISTRY_BYTES, 'OpenRouter contestant registry');
+  validateContestantRegistryV1(registryRead.value);
+  return {
+    registry: registryRead.value,
+    sha256: sha256(registryRead.bytes),
+  };
+}
+
+function requireRuntimeGate(env, registry) {
+  if (env.VOID_OPENROUTER_ENABLE !== '1') fail('VOID_OPENROUTER_ENABLE=1 is required');
+  const policyAck = env.VOID_OPENROUTER_ACK_PROVIDER_POLICY === '1'
+    || env.VOID_OPENROUTER_ACK_PROVIDER_RETENTION === '1';
+  if (!policyAck) fail('VOID_OPENROUTER_ACK_PROVIDER_POLICY=1 is required');
+
   const apiKey = String(env.OPENROUTER_API_KEY ?? '');
   if (apiKey.length < 8 || apiKey.length > 512 || /\s/.test(apiKey)) fail('OPENROUTER_API_KEY is missing or malformed');
-  const model = String(env.VOID_OPENROUTER_MODEL ?? MODEL).trim();
-  if (model !== MODEL) fail(`only ${MODEL} is admitted by this adapter generation`);
+  const model = String(env.VOID_OPENROUTER_MODEL ?? registry.default_model).trim();
+  const contestant = getContestantV1(registry, model);
+  if (contestant.status === 'quarantined') fail(`contestant ${model} is quarantined and requires requalification`);
+  if (contestant.status === 'qualification_only' && env.VOID_OPENROUTER_ALLOW_QUALIFICATION_ONLY !== '1') {
+    fail(`contestant ${model} is qualification_only; VOID_OPENROUTER_ALLOW_QUALIFICATION_ONLY=1 is required`);
+  }
   return {
     apiKey,
-    model,
-    maxTokens: parseBoundedInt(env.VOID_OPENROUTER_MAX_TOKENS, DEFAULT_MAX_TOKENS, 1, MAX_MAX_TOKENS, 'VOID_OPENROUTER_MAX_TOKENS'),
+    contestant,
+    maxTokens: parseBoundedInt(env.VOID_OPENROUTER_MAX_TOKENS, Math.min(DEFAULT_MAX_TOKENS, contestant.max_tokens_cap), 1, contestant.max_tokens_cap, 'VOID_OPENROUTER_MAX_TOKENS'),
     metadataTimeoutMs: parseBoundedInt(env.VOID_OPENROUTER_METADATA_TIMEOUT_MS, DEFAULT_METADATA_TIMEOUT_MS, MIN_TIMEOUT_MS, MAX_TIMEOUT_MS, 'VOID_OPENROUTER_METADATA_TIMEOUT_MS'),
     chatTimeoutMs: parseBoundedInt(env.VOID_OPENROUTER_CHAT_TIMEOUT_MS, DEFAULT_CHAT_TIMEOUT_MS, MIN_TIMEOUT_MS, MAX_TIMEOUT_MS, 'VOID_OPENROUTER_CHAT_TIMEOUT_MS'),
   };
@@ -256,11 +337,14 @@ async function collectAdmittedInputs(stagingRoot, manifest, receipt, hooks = {})
   return { items, total };
 }
 
-export function validateZeroPriceModelV1(modelEnvelope) {
+export function validateZeroPriceModelV1(modelEnvelope, contestant) {
+  if (!contestant || typeof contestant !== 'object') fail('contestant policy is required for model metadata validation');
   const model = modelEnvelope?.data ?? modelEnvelope;
   if (!model || typeof model !== 'object') fail('OpenRouter model metadata is malformed');
-  if (model.id !== MODEL) fail(`OpenRouter model id must equal ${MODEL}`);
-  if (!Number.isInteger(model.context_length) || model.context_length < MIN_CONTEXT_LENGTH) fail('OpenRouter model context length is below the reviewed minimum');
+  if (model.id !== contestant.model) fail(`OpenRouter model id must equal ${contestant.model}`);
+  if (!Number.isInteger(model.context_length) || model.context_length < contestant.min_context_length) {
+    fail(`OpenRouter model context length is below the reviewed minimum for ${contestant.model}`);
+  }
   const pricing = model.pricing;
   if (!pricing || typeof pricing !== 'object' || Array.isArray(pricing) || Object.keys(pricing).length === 0) fail('OpenRouter pricing metadata is missing');
   for (const required of ['prompt', 'completion', 'request']) {
@@ -270,7 +354,7 @@ export function validateZeroPriceModelV1(modelEnvelope) {
     if (raw === null || raw === undefined || raw === '') continue;
     const value = Number(raw);
     if (!Number.isFinite(value)) fail(`OpenRouter pricing.${key} is non-numeric`);
-    if (value !== 0) fail(`OpenRouter pricing.${key} is nonzero; free-preview gate closed`);
+    if (value !== 0) fail(`OpenRouter pricing.${key} is nonzero; free-model gate closed`);
   }
   return { id: model.id, context_length: model.context_length, pricing_zero: true };
 }
@@ -306,7 +390,21 @@ function assertExactResponseUrl(response, expected, name) {
   if (response.url !== expected) fail(`${name} final URL changed`);
 }
 
-export function buildOpenRouterRequestV1(trial, admittedInputs, maxTokens) {
+function providerRequestPolicy(contestant) {
+  const policy = {
+    allow_fallbacks: false,
+    require_parameters: true,
+  };
+  if (contestant.provider_policy.data_collection !== null) {
+    policy.data_collection = contestant.provider_policy.data_collection;
+  }
+  if (contestant.provider_policy.zdr === true) policy.zdr = true;
+  if (contestant.provider_policy.only.length > 0) policy.only = [...contestant.provider_policy.only];
+  return policy;
+}
+
+export function buildOpenRouterRequestV1(trial, admittedInputs, maxTokens, contestant) {
+  if (!contestant || typeof contestant !== 'object') fail('contestant policy is required to build OpenRouter request');
   const inputText = admittedInputs.map((entry) => (
     `\n--- BEGIN SANITIZED INPUT ${entry.label} ---\n`
     + `classification=${entry.classification}\nmedia_type=${entry.media_type}\nsha256=${entry.sha256}\n`
@@ -317,24 +415,22 @@ export function buildOpenRouterRequestV1(trial, admittedInputs, maxTokens) {
   const bytes = Buffer.byteLength(SYSTEM_PROMPT, 'utf8') + Buffer.byteLength(userContent, 'utf8');
   if (bytes > MAX_TOTAL_INPUT_BYTES + MAX_JSON_BYTES) fail('final outbound prompt exceeds reviewed byte ceiling');
   const body = {
-    model: MODEL,
+    model: contestant.model,
     messages: [
       { role: 'system', content: SYSTEM_PROMPT },
       { role: 'user', content: userContent },
     ],
     max_tokens: maxTokens,
     stream: false,
-    provider: {
-      allow_fallbacks: false,
-      require_parameters: true,
-    },
+    provider: providerRequestPolicy(contestant),
   };
   if ('tools' in body) fail('tools must not be sent');
   return { body, promptSha256: sha256(Buffer.from(canonicalJson(body.messages), 'utf8')), promptBytes: bytes };
 }
 
-async function fetchModelMetadata(fetchImpl, apiKey, timeoutMs) {
-  const response = await fetchImpl(MODEL_URL, {
+async function fetchModelMetadata(fetchImpl, apiKey, timeoutMs, contestant) {
+  const url = modelMetadataUrl(contestant.model);
+  const response = await fetchImpl(url, {
     method: 'GET',
     redirect: 'error',
     headers: {
@@ -343,7 +439,7 @@ async function fetchModelMetadata(fetchImpl, apiKey, timeoutMs) {
     },
     signal: AbortSignal.timeout(timeoutMs),
   });
-  assertExactResponseUrl(response, MODEL_URL, 'model metadata');
+  assertExactResponseUrl(response, url, 'model metadata');
   if (response.status !== 200) fail(`OpenRouter model metadata returned HTTP ${response.status}`);
   return readResponseJsonBounded(response, MAX_MODEL_RESPONSE_BYTES, 'OpenRouter model metadata');
 }
@@ -396,9 +492,12 @@ async function publishResultCreateOnly(path, value) {
   }
 }
 
-export async function runOpenRouterOxAlphaTrialV1(options, hooks = {}) {
+export async function runOpenRouterContestantTrialV1(options, hooks = {}) {
+  const registryLoaded = hooks.registry
+    ? { registry: validateContestantRegistryV1(hooks.registry), sha256: sha256(Buffer.from(canonicalJson(hooks.registry), 'utf8')) }
+    : await loadContestantRegistryV1(hooks.registryPath ?? REGISTRY_PATH);
   const env = hooks.env ?? process.env;
-  const runtime = requireRuntimeGate(env);
+  const runtime = requireRuntimeGate(env, registryLoaded.registry);
   const fetchImpl = hooks.fetchImpl ?? globalThis.fetch;
   const admitFn = hooks.admitFn ?? admitSanitizedInputs;
   if (typeof fetchImpl !== 'function') fail('fetch implementation is unavailable');
@@ -423,25 +522,31 @@ export async function runOpenRouterOxAlphaTrialV1(options, hooks = {}) {
   validateReceiptAndManifest(trialRead.value, manifestRead.value, receiptRead.value);
   const admitted = await collectAdmittedInputs(options.stagingRoot, manifestRead.value, receiptRead.value, hooks);
 
-  const metadata = await fetchModelMetadata(fetchImpl, runtime.apiKey, runtime.metadataTimeoutMs);
-  const model = validateZeroPriceModelV1(metadata);
-  if (typeof hooks.afterFreePriceCheck === 'function') await hooks.afterFreePriceCheck({ model });
+  const metadata = await fetchModelMetadata(fetchImpl, runtime.apiKey, runtime.metadataTimeoutMs, runtime.contestant);
+  const model = validateZeroPriceModelV1(metadata, runtime.contestant);
+  if (typeof hooks.afterFreePriceCheck === 'function') await hooks.afterFreePriceCheck({ model, contestant: runtime.contestant });
 
-  const request = buildOpenRouterRequestV1(trialRead.value, admitted.items, runtime.maxTokens);
+  const request = buildOpenRouterRequestV1(trialRead.value, admitted.items, runtime.maxTokens, runtime.contestant);
   const rawResponse = await sendChat(fetchImpl, runtime.apiKey, request.body, runtime.chatTimeoutMs);
   const accepted = validateChatResponse(rawResponse);
-  if (accepted.reported_model !== null && accepted.reported_model !== MODEL) fail('OpenRouter response model differs from requested Ox Alpha slug');
+  if (accepted.reported_model !== null && accepted.reported_model !== runtime.contestant.model) {
+    fail(`OpenRouter response model differs from requested contestant ${runtime.contestant.model}`);
+  }
 
   const result = {
     marker: RESULT_MARKER,
     provider: PROVIDER,
-    model_requested: MODEL,
+    model_requested: runtime.contestant.model,
     model_reported: accepted.reported_model,
-    provider_retention_class: PROVIDER_RETENTION_CLASS,
-    provider_retention_acknowledged: true,
+    qualification_status: runtime.contestant.status,
+    scored_trial_eligible: runtime.contestant.scored_trial_eligible,
+    retention_class: runtime.contestant.retention_class,
+    provider_policy_acknowledged: true,
     pricing_verified_zero: true,
-    provider_fallbacks_allowed: false,
+    provider_policy: providerRequestPolicy(runtime.contestant),
     tools_exposed: false,
+    registry_sha256: registryLoaded.sha256,
+    registry_reviewed_at_utc: registryLoaded.registry.reviewed_at_utc,
     trial_id: trialRead.value.trial_id,
     admission_id: receiptRead.value.admission_id,
     prompt_sha256: request.promptSha256,
@@ -456,14 +561,21 @@ export async function runOpenRouterOxAlphaTrialV1(options, hooks = {}) {
   };
   if (canonicalJson(result).includes(runtime.apiKey)) fail('API key unexpectedly entered result object');
   await publishResultCreateOnly(options.outputPath, result);
-  if (hooks.emitOutput !== false) process.stdout.write(`${MARKER}_GREEN ${trialRead.value.trial_id} model=${MODEL} admission=${receiptRead.value.admission_id}\n`);
+  if (hooks.emitOutput !== false) {
+    process.stdout.write(`${MARKER}_GREEN ${trialRead.value.trial_id} model=${runtime.contestant.model} admission=${receiptRead.value.admission_id} status=${runtime.contestant.status}\n`);
+  }
   return result;
+}
+
+export async function runOpenRouterOxAlphaTrialV1(options, hooks = {}) {
+  const env = { ...(hooks.env ?? process.env), VOID_OPENROUTER_MODEL: DEFAULT_MODEL };
+  return runOpenRouterContestantTrialV1(options, { ...hooks, env });
 }
 
 async function main() {
   const [, , command, ...args] = process.argv;
   if (command === 'run' && args.length === 6) {
-    return runOpenRouterOxAlphaTrialV1({
+    return runOpenRouterContestantTrialV1({
       trialPath: args[0],
       stagingRoot: args[1],
       manifestPath: args[2],
