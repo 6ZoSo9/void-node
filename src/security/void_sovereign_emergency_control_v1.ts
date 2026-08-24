@@ -71,7 +71,7 @@ export type VoidSovereignEmergencyAdmissionV1 =
       ok: false;
       code: string;
       certificate_sha256: string | null;
-      state: VoidSovereignEmergencyControlStateV1;
+      state: VoidSovereignEmergencyControlStateV1 | null;
     };
 
 const HEX64_RE = /^[0-9a-f]{64}$/;
@@ -189,9 +189,17 @@ function normalizeState(raw: unknown): VoidSovereignEmergencyControlStateV1 | nu
   ) {
     return null;
   }
-  if (raw.last_sequence === null && raw.last_certificate_sha256 !== ZERO_SHA256) return null;
+  if (raw.last_sequence === null) {
+    if (raw.last_certificate_sha256 !== ZERO_SHA256) return null;
+    if (raw.active_pause_certificate_sha256 !== ZERO_SHA256) return null;
+  } else if (raw.last_certificate_sha256 === ZERO_SHA256) {
+    return null;
+  }
   if (raw.mode === "running" && raw.active_pause_certificate_sha256 !== ZERO_SHA256) return null;
-  if (raw.mode === "paused" && raw.active_pause_certificate_sha256 === ZERO_SHA256) return null;
+  if (raw.mode === "paused") {
+    if (raw.active_pause_certificate_sha256 === ZERO_SHA256) return null;
+    if (raw.active_pause_certificate_sha256 !== raw.last_certificate_sha256) return null;
+  }
   return {
     marker: VOID_SOVEREIGN_EMERGENCY_STATE_MARKER_V1,
     version: VOID_SOVEREIGN_EMERGENCY_VERSION_V1,
@@ -227,8 +235,10 @@ function normalizeCertificate(raw: unknown): VoidSovereignEmergencyCertificateV1
   ) {
     return null;
   }
-  if (!PAUSE_REASONS.has(raw.reason_code as VoidSovereignEmergencyReasonV1) &&
-      !RESUME_REASONS.has(raw.reason_code as VoidSovereignEmergencyReasonV1)) {
+  if (
+    !PAUSE_REASONS.has(raw.reason_code as VoidSovereignEmergencyReasonV1) &&
+    !RESUME_REASONS.has(raw.reason_code as VoidSovereignEmergencyReasonV1)
+  ) {
     return null;
   }
   return raw as unknown as VoidSovereignEmergencyCertificateV1;
@@ -330,7 +340,15 @@ export function admitVoidSovereignEmergencyCertificateAgainstFingerprintV1(args:
       ok: false,
       code: "EMERGENCY_STATE_INVALID",
       certificate_sha256: null,
-      state: initialVoidSovereignEmergencyControlStateV1(),
+      state: null,
+    };
+  }
+  if (!HEX64_RE.test(args.expected_signer_der_sha256)) {
+    return {
+      ok: false,
+      code: "EXPECTED_SIGNER_FINGERPRINT_INVALID",
+      certificate_sha256: null,
+      state,
     };
   }
   const certificate = normalizeCertificate(args.certificate);
