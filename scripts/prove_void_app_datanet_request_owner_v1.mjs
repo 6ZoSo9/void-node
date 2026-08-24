@@ -270,66 +270,88 @@ await drainUntil(
 );
 
 const queuedSecond = queuedOwner.fetch(DATANET_URL);
-const queuedThird = queuedOwner.fetch(DATANET_URL);
-const queuedFourth = queuedOwner.fetch(DATANET_URL);
 void queuedSecond.catch(() => {});
-void queuedThird.catch(() => {});
-void queuedFourth.catch(() => {});
-
 await drainUntil(
   () => queuedHarness.records[0].aborted === true,
-  'first generation must be aborted by the first queued superseder',
+  'first queued superseder must abort the active generation before waiting for release',
 );
 assert.equal(
   queuedHarness.records.length,
   1,
-  'queued superseders must not start while the prior generation is still settling',
+  'no replacement transport may start while the active generation is still settling',
 );
-assert.equal(queuedHarness.maxActive(), 1);
-queuedHarness.records[0].settleAbort();
 
+const queuedBurst = Array.from({ length: 15 }, () => queuedOwner.fetch(DATANET_URL));
+for (const request of queuedBurst) void request.catch(() => {});
+const queuedSuperseders = [queuedSecond, ...queuedBurst];
+assert.equal(queuedHarness.records.length, 1);
+assert.equal(queuedHarness.maxActive(), 1);
+
+queuedHarness.records[0].settleAbort();
 await drainUntil(
-  () => queuedHarness.records.length === 2 && queuedHarness.records[1].aborted === true,
-  'third caller must supersede only the exact second generation after it starts',
+  () => queuedHarness.records.length === 2,
+  'only the latest queued superseder may start after the predecessor releases',
 );
+const staleQueued = await Promise.allSettled(queuedSuperseders.slice(0, -1));
+for (const result of staleQueued) {
+  assert.equal(result.status, 'rejected', 'obsolete queued superseders must reject before transport start');
+  assert.match(String(result.reason?.message), /superseded/);
+}
 assert.equal(
   queuedHarness.records.length,
   2,
-  'only one replacement generation may start after the first release',
+  'a burst of obsolete queued superseders must collapse to one replacement transport generation',
 );
-assert.equal(queuedHarness.maxActive(), 1);
-queuedHarness.records[1].settleAbort();
-
-await drainUntil(
-  () => queuedHarness.records.length === 3 && queuedHarness.records[2].aborted === true,
-  'fourth caller must supersede only the exact third generation after it starts',
-);
-assert.equal(
-  queuedHarness.records.length,
-  3,
-  'queued replacement starts must remain serialized through the third generation',
-);
-assert.equal(queuedHarness.maxActive(), 1);
-queuedHarness.records[2].settleAbort();
-
-await drainUntil(
-  () => queuedHarness.records.length === 4,
-  'final queued superseder must start after the preceding generation releases',
-);
-assert.equal(queuedHarness.records[3].aborted, false);
+assert.equal(queuedHarness.records[1].aborted, false);
 assert.equal(queuedHarness.active(), 1);
 assert.equal(
   queuedHarness.maxActive(),
   1,
-  'queued superseders must never create concurrent underlying DataNet fetches',
+  'latest-wins supersession must preserve the one-active-transport invariant',
 );
-queuedHarness.records[3].resolve({ request: 'queued-final' });
-assert.deepEqual(await queuedFourth, { request: 'queued-final' });
+queuedHarness.records[1].resolve({ request: 'queued-final' });
+assert.deepEqual(await queuedSuperseders.at(-1), { request: 'queued-final' });
 await assert.rejects(queuedFirst, /superseded/);
-await assert.rejects(queuedSecond, /superseded/);
-await assert.rejects(queuedThird, /superseded/);
 assert.equal(queuedOwner.abort('queued superseder test cleanup'), true);
 assert.equal(queuedOwner.hasActiveRequest(), false);
+
+const queuedUnmountHarness = delayedAbortFetchHarness();
+const queuedUnmountOwner = createDataNetRequestOwnerV1({
+  fetchImpl: queuedUnmountHarness.fetchImpl,
+  origin: 'https://void.example',
+});
+const queuedUnmountActive = queuedUnmountOwner.fetch(DATANET_URL);
+void queuedUnmountActive.catch(() => {});
+await drainUntil(
+  () => queuedUnmountHarness.records.length === 1,
+  'queued-unmount active generation must start',
+);
+const queuedUnmountReplacement = queuedUnmountOwner.fetch(DATANET_URL);
+void queuedUnmountReplacement.catch(() => {});
+await drainUntil(
+  () => queuedUnmountHarness.records[0].aborted === true,
+  'queued-unmount replacement must enter the predecessor-release wait',
+);
+assert.equal(queuedUnmountHarness.records.length, 1);
+assert.equal(
+  reconcileDataNetRequestOwnerWithViewV1(queuedUnmountOwner, {
+    route: 'home',
+    viewPresent: false,
+  }),
+  false,
+);
+queuedUnmountHarness.records[0].settleAbort();
+await assert.rejects(queuedUnmountActive, /superseded/);
+await assert.rejects(queuedUnmountReplacement, /superseded/);
+await drainUntil(
+  () => queuedUnmountOwner.hasActiveRequest() === false,
+  'unmount must release the old generation without starting queued transport work',
+);
+assert.equal(
+  queuedUnmountHarness.records.length,
+  1,
+  'route unmount must invalidate queued starts before fetchImpl is invoked',
+);
 
 const bodyPhaseHarness = pendingFetchHarness();
 const bodyPhaseOwner = createDataNetRequestOwnerV1({
@@ -531,6 +553,9 @@ assert.ok(
   'request owner must install before data-live browser listeners are evaluated',
 );
 assert.match(ownerSource, /acquireStartSlot/);
+assert.match(ownerSource, /latestStartSerial/);
+assert.match(ownerSource, /assertLatestStart\(startSerial\)/);
+assert.match(ownerSource, /latestStartSerial \+= 1/);
 assert.match(ownerSource, /abortRequest\(priorRequest, 'DataNet request superseded'\)/);
 assert.match(ownerSource, /sourceSignal\.addEventListener\('abort'/);
 assert.match(ownerSource, /Promise\.race\(\[promise, aborted\]\)\.finally/);
@@ -544,8 +569,10 @@ assert.doesNotMatch(ownerSource, /credentials|wallet|signer|Work Credit|transact
 console.log('VOID_APP_DATANET_REQUEST_OWNER_V1_GREEN');
 console.log('max_concurrent_datanet_requests=1');
 console.log('superseded_request_aborted=true');
-console.log('queued_superseders_serialized=true');
+console.log('queued_superseders_latest_wins=true');
+console.log('queued_superseder_transport_starts=2');
 console.log('queued_superseder_max_concurrent_datanet_requests=1');
+console.log('queued_starts_invalidated_on_unmount=true');
 console.log('body_phase_supersession_aborted=true');
 console.log('caller_deadline_signal_preserved=true');
 console.log('final_url_identity_required=true');
