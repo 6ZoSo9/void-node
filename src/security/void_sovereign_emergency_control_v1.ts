@@ -74,6 +74,10 @@ export type VoidSovereignEmergencyAdmissionV1 =
       state: VoidSovereignEmergencyControlStateV1 | null;
     };
 
+export type VoidEd25519FingerprintVerificationV1 =
+  | { ok: true; public_key_der_sha256: string }
+  | { ok: false; code: string };
+
 const HEX64_RE = /^[0-9a-f]{64}$/;
 const BASE64_RE = /^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/;
 const RFC3339_SECOND_RE = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/;
@@ -129,10 +133,16 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === "object" && !Array.isArray(value);
 }
 
-function hasExactKeys(value: Record<string, unknown>, expected: readonly string[]): boolean {
+function hasExactKeys(
+  value: Record<string, unknown>,
+  expected: readonly string[],
+): boolean {
   const actual = Object.keys(value).sort();
   const wanted = [...expected].sort();
-  return actual.length === wanted.length && actual.every((key, index) => key === wanted[index]);
+  return (
+    actual.length === wanted.length &&
+    actual.every((key, index) => key === wanted[index])
+  );
 }
 
 function isHex64(value: unknown): value is string {
@@ -140,7 +150,12 @@ function isHex64(value: unknown): value is string {
 }
 
 function isCanonicalUint64(value: unknown): value is string {
-  if (typeof value !== "string" || !/^(?:0|[1-9][0-9]*)$/.test(value)) return false;
+  if (
+    typeof value !== "string" ||
+    !/^(?:0|[1-9][0-9]*)$/.test(value)
+  ) {
+    return false;
+  }
   try {
     return BigInt(value) < UINT64_LIMIT;
   } catch {
@@ -149,14 +164,27 @@ function isCanonicalUint64(value: unknown): value is string {
 }
 
 function isCanonicalUtcSecond(value: unknown): value is string {
-  if (typeof value !== "string" || !RFC3339_SECOND_RE.test(value)) return false;
+  if (
+    typeof value !== "string" ||
+    !RFC3339_SECOND_RE.test(value)
+  ) {
+    return false;
+  }
   const milliseconds = Date.parse(value);
   if (!Number.isFinite(milliseconds)) return false;
-  return new Date(milliseconds).toISOString().replace(".000Z", "Z") === value;
+  return (
+    new Date(milliseconds).toISOString().replace(".000Z", "Z") === value
+  );
 }
 
 function decodeCanonicalBase64(value: unknown): Buffer | null {
-  if (typeof value !== "string" || value.length === 0 || !BASE64_RE.test(value)) return null;
+  if (
+    typeof value !== "string" ||
+    value.length === 0 ||
+    !BASE64_RE.test(value)
+  ) {
+    return null;
+  }
   try {
     const decoded = Buffer.from(value, "base64");
     return decoded.toString("base64") === value ? decoded : null;
@@ -176,43 +204,57 @@ function fingerprintPublicKeyDer(publicKey: KeyObject): string | null {
   }
 }
 
-function normalizeState(raw: unknown): VoidSovereignEmergencyControlStateV1 | null {
+function normalizeState(
+  raw: unknown,
+): VoidSovereignEmergencyControlStateV1 | null {
   if (!isRecord(raw) || !hasExactKeys(raw, STATE_KEYS)) return null;
+
+  const mode = raw.mode;
+  const lastSequence = raw.last_sequence;
+  const lastCertificateSha = raw.last_certificate_sha256;
+  const activePauseSha = raw.active_pause_certificate_sha256;
+
   if (
     raw.marker !== VOID_SOVEREIGN_EMERGENCY_STATE_MARKER_V1 ||
     raw.version !== VOID_SOVEREIGN_EMERGENCY_VERSION_V1 ||
     raw.chain_id !== VOID_MAINNET_CHAIN_ID_EMERGENCY_V1 ||
-    (raw.mode !== "running" && raw.mode !== "paused") ||
-    !(raw.last_sequence === null || isCanonicalUint64(raw.last_sequence)) ||
-    !isHex64(raw.last_certificate_sha256) ||
-    !isHex64(raw.active_pause_certificate_sha256)
+    (mode !== "running" && mode !== "paused") ||
+    !(lastSequence === null || isCanonicalUint64(lastSequence)) ||
+    !isHex64(lastCertificateSha) ||
+    !isHex64(activePauseSha)
   ) {
     return null;
   }
-  if (raw.last_sequence === null) {
-    if (raw.last_certificate_sha256 !== ZERO_SHA256) return null;
-    if (raw.active_pause_certificate_sha256 !== ZERO_SHA256) return null;
-  } else if (raw.last_certificate_sha256 === ZERO_SHA256) {
+
+  if (lastSequence === null) {
+    if (lastCertificateSha !== ZERO_SHA256) return null;
+    if (activePauseSha !== ZERO_SHA256) return null;
+  } else if (lastCertificateSha === ZERO_SHA256) {
     return null;
   }
-  if (raw.mode === "running" && raw.active_pause_certificate_sha256 !== ZERO_SHA256) return null;
-  if (raw.mode === "paused") {
-    if (raw.active_pause_certificate_sha256 === ZERO_SHA256) return null;
-    if (raw.active_pause_certificate_sha256 !== raw.last_certificate_sha256) return null;
+  if (mode === "running" && activePauseSha !== ZERO_SHA256) return null;
+  if (mode === "paused") {
+    if (activePauseSha === ZERO_SHA256) return null;
+    if (activePauseSha !== lastCertificateSha) return null;
   }
+
   return {
     marker: VOID_SOVEREIGN_EMERGENCY_STATE_MARKER_V1,
     version: VOID_SOVEREIGN_EMERGENCY_VERSION_V1,
     chain_id: VOID_MAINNET_CHAIN_ID_EMERGENCY_V1,
-    mode: raw.mode,
-    last_sequence: raw.last_sequence,
-    last_certificate_sha256: raw.last_certificate_sha256,
-    active_pause_certificate_sha256: raw.active_pause_certificate_sha256,
+    mode,
+    last_sequence: lastSequence,
+    last_certificate_sha256: lastCertificateSha,
+    active_pause_certificate_sha256: activePauseSha,
   };
 }
 
-function normalizeCertificate(raw: unknown): VoidSovereignEmergencyCertificateV1 | null {
+function normalizeCertificate(
+  raw: unknown,
+): VoidSovereignEmergencyCertificateV1 | null {
   if (!isRecord(raw) || !hasExactKeys(raw, CERTIFICATE_KEYS)) return null;
+
+  const signature = decodeCanonicalBase64(raw.signature_base64);
   if (
     raw.marker !== VOID_SOVEREIGN_EMERGENCY_CERTIFICATE_MARKER_V1 ||
     raw.version !== VOID_SOVEREIGN_EMERGENCY_VERSION_V1 ||
@@ -231,16 +273,23 @@ function normalizeCertificate(raw: unknown): VoidSovereignEmergencyCertificateV1
     !isHex64(raw.resume_of_pause_certificate_sha256) ||
     raw.signer_role !== VOID_SOVEREIGN_PRIMARY_GOVERNANCE_ROLE_V1 ||
     !isHex64(raw.signer_public_key_der_sha256) ||
-    decodeCanonicalBase64(raw.signature_base64)?.length !== 64
+    !signature ||
+    signature.length !== 64
   ) {
     return null;
   }
+
   if (
-    !PAUSE_REASONS.has(raw.reason_code as VoidSovereignEmergencyReasonV1) &&
-    !RESUME_REASONS.has(raw.reason_code as VoidSovereignEmergencyReasonV1)
+    !PAUSE_REASONS.has(
+      raw.reason_code as VoidSovereignEmergencyReasonV1,
+    ) &&
+    !RESUME_REASONS.has(
+      raw.reason_code as VoidSovereignEmergencyReasonV1,
+    )
   ) {
     return null;
   }
+
   return raw as unknown as VoidSovereignEmergencyCertificateV1;
 }
 
@@ -301,10 +350,15 @@ export function verifyVoidEd25519SignatureAgainstFingerprintV1(
   expectedDerSha256: string,
   payload: Buffer,
   signatureBase64: string,
-): { ok: true; public_key_der_sha256: string } | { ok: false; code: string } {
-  if (!HEX64_RE.test(expectedDerSha256)) return { ok: false, code: "EXPECTED_SIGNER_FINGERPRINT_INVALID" };
+): VoidEd25519FingerprintVerificationV1 {
+  if (!HEX64_RE.test(expectedDerSha256)) {
+    return { ok: false, code: "EXPECTED_SIGNER_FINGERPRINT_INVALID" };
+  }
+
   const signature = decodeCanonicalBase64(signatureBase64);
-  if (!signature || signature.length !== 64) return { ok: false, code: "SIGNATURE_ENCODING_INVALID" };
+  if (!signature || signature.length !== 64) {
+    return { ok: false, code: "SIGNATURE_ENCODING_INVALID" };
+  }
 
   let publicKey: KeyObject;
   try {
@@ -312,11 +366,15 @@ export function verifyVoidEd25519SignatureAgainstFingerprintV1(
   } catch {
     return { ok: false, code: "PUBLIC_KEY_INVALID" };
   }
+
   const actualFingerprint = fingerprintPublicKeyDer(publicKey);
-  if (!actualFingerprint) return { ok: false, code: "PUBLIC_KEY_NOT_ED25519" };
+  if (!actualFingerprint) {
+    return { ok: false, code: "PUBLIC_KEY_NOT_ED25519" };
+  }
   if (actualFingerprint !== expectedDerSha256) {
     return { ok: false, code: "SIGNER_FINGERPRINT_MISMATCH" };
   }
+
   try {
     if (!verifySignature(null, payload, publicKey, signature)) {
       return { ok: false, code: "SIGNATURE_INVALID" };
@@ -324,7 +382,11 @@ export function verifyVoidEd25519SignatureAgainstFingerprintV1(
   } catch {
     return { ok: false, code: "SIGNATURE_INVALID" };
   }
-  return { ok: true, public_key_der_sha256: actualFingerprint };
+
+  return {
+    ok: true,
+    public_key_der_sha256: actualFingerprint,
+  };
 }
 
 export function admitVoidSovereignEmergencyCertificateAgainstFingerprintV1(args: {
@@ -343,6 +405,7 @@ export function admitVoidSovereignEmergencyCertificateAgainstFingerprintV1(args:
       state: null,
     };
   }
+
   if (!HEX64_RE.test(args.expected_signer_der_sha256)) {
     return {
       ok: false,
@@ -351,34 +414,86 @@ export function admitVoidSovereignEmergencyCertificateAgainstFingerprintV1(args:
       state,
     };
   }
+
   const certificate = normalizeCertificate(args.certificate);
   if (!certificate) {
-    return { ok: false, code: "EMERGENCY_CERTIFICATE_INVALID", certificate_sha256: null, state };
+    return {
+      ok: false,
+      code: "EMERGENCY_CERTIFICATE_INVALID",
+      certificate_sha256: null,
+      state,
+    };
   }
+
   const certificateSha = hashVoidSovereignEmergencyCertificateV1(certificate);
   if (!isCanonicalUtcSecond(args.now_utc)) {
-    return { ok: false, code: "EMERGENCY_NOW_INVALID", certificate_sha256: certificateSha, state };
+    return {
+      ok: false,
+      code: "EMERGENCY_NOW_INVALID",
+      certificate_sha256: certificateSha,
+      state,
+    };
   }
-  if (certificate.signer_public_key_der_sha256 !== args.expected_signer_der_sha256) {
-    return { ok: false, code: "SIGNER_FINGERPRINT_MISMATCH", certificate_sha256: certificateSha, state };
+  if (
+    certificate.signer_public_key_der_sha256 !==
+    args.expected_signer_der_sha256
+  ) {
+    return {
+      ok: false,
+      code: "SIGNER_FINGERPRINT_MISMATCH",
+      certificate_sha256: certificateSha,
+      state,
+    };
   }
 
   const issuedMs = Date.parse(certificate.issued_at_utc);
   const expiresMs = Date.parse(certificate.expires_at_utc);
   const nowMs = Date.parse(args.now_utc);
   if (!(issuedMs <= nowMs && nowMs < expiresMs)) {
-    return { ok: false, code: "EMERGENCY_CERTIFICATE_NOT_CURRENT", certificate_sha256: certificateSha, state };
+    return {
+      ok: false,
+      code: "EMERGENCY_CERTIFICATE_NOT_CURRENT",
+      certificate_sha256: certificateSha,
+      state,
+    };
   }
-  if (expiresMs - issuedMs > VOID_SOVEREIGN_EMERGENCY_MAX_TTL_SECONDS_V1 * 1000) {
-    return { ok: false, code: "EMERGENCY_CERTIFICATE_TTL_TOO_LONG", certificate_sha256: certificateSha, state };
+  if (
+    expiresMs - issuedMs >
+    VOID_SOVEREIGN_EMERGENCY_MAX_TTL_SECONDS_V1 * 1000
+  ) {
+    return {
+      ok: false,
+      code: "EMERGENCY_CERTIFICATE_TTL_TOO_LONG",
+      certificate_sha256: certificateSha,
+      state,
+    };
   }
 
-  const expectedSequence = state.last_sequence === null ? 0n : BigInt(state.last_sequence) + 1n;
-  if (expectedSequence >= UINT64_LIMIT || BigInt(certificate.sequence) !== expectedSequence) {
-    return { ok: false, code: "EMERGENCY_SEQUENCE_MISMATCH", certificate_sha256: certificateSha, state };
+  const expectedSequence =
+    state.last_sequence === null
+      ? 0n
+      : BigInt(state.last_sequence) + 1n;
+  if (
+    expectedSequence >= UINT64_LIMIT ||
+    BigInt(certificate.sequence) !== expectedSequence
+  ) {
+    return {
+      ok: false,
+      code: "EMERGENCY_SEQUENCE_MISMATCH",
+      certificate_sha256: certificateSha,
+      state,
+    };
   }
-  if (certificate.previous_certificate_sha256 !== state.last_certificate_sha256) {
-    return { ok: false, code: "EMERGENCY_PREDECESSOR_MISMATCH", certificate_sha256: certificateSha, state };
+  if (
+    certificate.previous_certificate_sha256 !==
+    state.last_certificate_sha256
+  ) {
+    return {
+      ok: false,
+      code: "EMERGENCY_PREDECESSOR_MISMATCH",
+      certificate_sha256: certificateSha,
+      state,
+    };
   }
 
   const signatureResult = verifyVoidEd25519SignatureAgainstFingerprintV1(
@@ -387,20 +502,41 @@ export function admitVoidSovereignEmergencyCertificateAgainstFingerprintV1(args:
     canonicalVoidSovereignEmergencyPayloadV1(certificate),
     certificate.signature_base64,
   );
-  if (!signatureResult.ok) {
-    return { ok: false, code: signatureResult.code, certificate_sha256: certificateSha, state };
+  if ("code" in signatureResult) {
+    return {
+      ok: false,
+      code: signatureResult.code,
+      certificate_sha256: certificateSha,
+      state,
+    };
   }
 
   if (certificate.action === "PAUSE") {
     if (!PAUSE_REASONS.has(certificate.reason_code)) {
-      return { ok: false, code: "EMERGENCY_PAUSE_REASON_INVALID", certificate_sha256: certificateSha, state };
+      return {
+        ok: false,
+        code: "EMERGENCY_PAUSE_REASON_INVALID",
+        certificate_sha256: certificateSha,
+        state,
+      };
     }
     if (state.mode !== "running") {
-      return { ok: false, code: "EMERGENCY_ALREADY_PAUSED", certificate_sha256: certificateSha, state };
+      return {
+        ok: false,
+        code: "EMERGENCY_ALREADY_PAUSED",
+        certificate_sha256: certificateSha,
+        state,
+      };
     }
     if (certificate.resume_of_pause_certificate_sha256 !== ZERO_SHA256) {
-      return { ok: false, code: "EMERGENCY_PAUSE_RESUME_REFERENCE_INVALID", certificate_sha256: certificateSha, state };
+      return {
+        ok: false,
+        code: "EMERGENCY_PAUSE_RESUME_REFERENCE_INVALID",
+        certificate_sha256: certificateSha,
+        state,
+      };
     }
+
     return {
       ok: true,
       code: "EMERGENCY_CONTROL_ACCEPTED",
@@ -418,14 +554,33 @@ export function admitVoidSovereignEmergencyCertificateAgainstFingerprintV1(args:
   }
 
   if (!RESUME_REASONS.has(certificate.reason_code)) {
-    return { ok: false, code: "EMERGENCY_RESUME_REASON_INVALID", certificate_sha256: certificateSha, state };
+    return {
+      ok: false,
+      code: "EMERGENCY_RESUME_REASON_INVALID",
+      certificate_sha256: certificateSha,
+      state,
+    };
   }
   if (state.mode !== "paused") {
-    return { ok: false, code: "EMERGENCY_NOT_PAUSED", certificate_sha256: certificateSha, state };
+    return {
+      ok: false,
+      code: "EMERGENCY_NOT_PAUSED",
+      certificate_sha256: certificateSha,
+      state,
+    };
   }
-  if (certificate.resume_of_pause_certificate_sha256 !== state.active_pause_certificate_sha256) {
-    return { ok: false, code: "EMERGENCY_RESUME_REFERENCE_MISMATCH", certificate_sha256: certificateSha, state };
+  if (
+    certificate.resume_of_pause_certificate_sha256 !==
+    state.active_pause_certificate_sha256
+  ) {
+    return {
+      ok: false,
+      code: "EMERGENCY_RESUME_REFERENCE_MISMATCH",
+      certificate_sha256: certificateSha,
+      state,
+    };
   }
+
   return {
     ok: true,
     code: "EMERGENCY_CONTROL_ACCEPTED",
@@ -450,7 +605,8 @@ export function admitVoidSovereignEmergencyCertificateV1(args: {
 }): VoidSovereignEmergencyAdmissionV1 {
   return admitVoidSovereignEmergencyCertificateAgainstFingerprintV1({
     ...args,
-    expected_signer_der_sha256: VOID_SOVEREIGN_PRIMARY_GOVERNANCE_DER_SHA256_V1,
+    expected_signer_der_sha256:
+      VOID_SOVEREIGN_PRIMARY_GOVERNANCE_DER_SHA256_V1,
   });
 }
 
