@@ -27,6 +27,10 @@ export const VOID_AL_BLOCK_COMMIT_PROPOSER_AUTHORITY_REQUIRED_V1 =
  * The durable runtime installer additionally requires a pre-initialized private
  * durable-safe-mode root. Missing, malformed, crash-locked, or latched state
  * fails closed before mutation authority becomes usable.
+ *
+ * Provenance note: the former direct
+ * installVoidAlignmentLayerBlockCommitRuntimeFromEnvironmentV1() bootstrap is
+ * intentionally superseded by the durable wrapper below.
  */
 const requested = String(
   process.env[VOID_AL_BLOCK_COMMIT_RUNTIME_ENABLE_ENV_V1] ?? "",
