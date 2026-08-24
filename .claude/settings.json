@@ -33,6 +33,8 @@
       "Edit(/.github/workflows/void-merlin-claude-code-advisor-v1.yml)",
       "Read(.env)",
       "Read(.env.*)",
+      "Read(**/*.env)",
+      "Read(**/.env*)",
       "Read(~/.claude/**)",
       "Read(~/.claude.json)",
       "Read(~/.ssh/**)",
@@ -141,7 +143,9 @@
         "/dev/disk/**",
         "/dev/mapper/**",
         "/dev/sd*",
-        "/dev/nvme*"
+        "/dev/nvme*",
+        "**/*.env",
+        "**/.env*"
       ],
       "allowRead": [
         "."
@@ -157,34 +161,132 @@
     },
     "credentials": {
       "files": [
-        { "path": "~/.claude", "mode": "deny" },
-        { "path": "~/.ssh", "mode": "deny" },
-        { "path": "~/.gnupg", "mode": "deny" },
-        { "path": "~/.aws", "mode": "deny" },
-        { "path": "~/.config/gh", "mode": "deny" },
-        { "path": "~/.config/gcloud", "mode": "deny" },
-        { "path": "~/.docker", "mode": "deny" },
-        { "path": "~/.kube", "mode": "deny" },
-        { "path": "~/.local/share/keyrings", "mode": "deny" },
-        { "path": "~/.password-store", "mode": "deny" },
-        { "path": "~/.npmrc", "mode": "deny" },
-        { "path": "~/.pypirc", "mode": "deny" },
-        { "path": "~/.netrc", "mode": "deny" }
+        {
+          "path": "~/.claude",
+          "mode": "deny"
+        },
+        {
+          "path": "~/.ssh",
+          "mode": "deny"
+        },
+        {
+          "path": "~/.gnupg",
+          "mode": "deny"
+        },
+        {
+          "path": "~/.aws",
+          "mode": "deny"
+        },
+        {
+          "path": "~/.config/gh",
+          "mode": "deny"
+        },
+        {
+          "path": "~/.config/gcloud",
+          "mode": "deny"
+        },
+        {
+          "path": "~/.docker",
+          "mode": "deny"
+        },
+        {
+          "path": "~/.kube",
+          "mode": "deny"
+        },
+        {
+          "path": "~/.local/share/keyrings",
+          "mode": "deny"
+        },
+        {
+          "path": "~/.password-store",
+          "mode": "deny"
+        },
+        {
+          "path": "~/.npmrc",
+          "mode": "deny"
+        },
+        {
+          "path": "~/.pypirc",
+          "mode": "deny"
+        },
+        {
+          "path": "~/.netrc",
+          "mode": "deny"
+        },
+        {
+          "path": "**/*.env",
+          "mode": "deny"
+        },
+        {
+          "path": "**/.env*",
+          "mode": "deny"
+        }
       ],
       "envVars": [
-        { "name": "ANTHROPIC_API_KEY", "mode": "deny" },
-        { "name": "ANTHROPIC_AUTH_TOKEN", "mode": "deny" },
-        { "name": "CLAUDE_CODE_OAUTH_TOKEN", "mode": "deny" },
-        { "name": "OPENAI_API_KEY", "mode": "deny" },
-        { "name": "OPENROUTER_API_KEY", "mode": "deny" },
-        { "name": "GH_TOKEN", "mode": "deny" },
-        { "name": "GITHUB_TOKEN", "mode": "deny" },
-        { "name": "NPM_TOKEN", "mode": "deny" },
-        { "name": "AWS_ACCESS_KEY_ID", "mode": "deny" },
-        { "name": "AWS_SECRET_ACCESS_KEY", "mode": "deny" },
-        { "name": "AWS_SESSION_TOKEN", "mode": "deny" },
-        { "name": "GOOGLE_APPLICATION_CREDENTIALS", "mode": "deny" },
-        { "name": "SSH_AUTH_SOCK", "mode": "deny" }
+        {
+          "name": "ANTHROPIC_API_KEY",
+          "mode": "deny"
+        },
+        {
+          "name": "ANTHROPIC_AUTH_TOKEN",
+          "mode": "deny"
+        },
+        {
+          "name": "CLAUDE_CODE_OAUTH_TOKEN",
+          "mode": "deny"
+        },
+        {
+          "name": "OPENAI_API_KEY",
+          "mode": "deny"
+        },
+        {
+          "name": "OPENROUTER_API_KEY",
+          "mode": "deny"
+        },
+        {
+          "name": "GH_TOKEN",
+          "mode": "deny"
+        },
+        {
+          "name": "GITHUB_TOKEN",
+          "mode": "deny"
+        },
+        {
+          "name": "NPM_TOKEN",
+          "mode": "deny"
+        },
+        {
+          "name": "AWS_ACCESS_KEY_ID",
+          "mode": "deny"
+        },
+        {
+          "name": "AWS_SECRET_ACCESS_KEY",
+          "mode": "deny"
+        },
+        {
+          "name": "AWS_SESSION_TOKEN",
+          "mode": "deny"
+        },
+        {
+          "name": "GOOGLE_APPLICATION_CREDENTIALS",
+          "mode": "deny"
+        },
+        {
+          "name": "SSH_AUTH_SOCK",
+          "mode": "deny"
+        },
+        {
+          "name": "AGENT_TOKEN",
+          "mode": "deny"
+        },
+        {
+          "name": "VOID_AGENT_TOKEN",
+          "mode": "deny"
+        },
+        {
+          "name": "VOID_STEAM_WEB_API_KEY",
+          "mode": "deny"
+        }
       ]
     }
   }
