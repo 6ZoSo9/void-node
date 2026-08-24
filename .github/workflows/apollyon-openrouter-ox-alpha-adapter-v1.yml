@@ -89,5 +89,5 @@ jobs:
           CI_DIFF_CURRENT_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
           CI_DIFF_CHECKOUT_SHA: ${{ github.sha }}
           CI_DIFF_BASE_REMOTE: ${{ github.server_url }}/${{ github.repository }}.git
-          CI_DIFF_HEAD_REMOTE: ${{ github.event.pull_request.head.repo.full_name || github.repository }}.git
+          CI_DIFF_HEAD_REMOTE: ${{ github.server_url }}/${{ github.event.pull_request.head.repo.full_name || github.repository }}.git
         run: bash scripts/ci_diff_hygiene_v1.sh
