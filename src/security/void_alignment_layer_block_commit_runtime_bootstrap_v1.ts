@@ -3,8 +3,10 @@ import {
 } from "../chain/block.js";
 import {
   VOID_AL_BLOCK_COMMIT_RUNTIME_ENABLE_ENV_V1,
-  installVoidAlignmentLayerBlockCommitRuntimeFromEnvironmentV1,
 } from "./void_alignment_layer_block_commit_runtime_v1.js";
+import {
+  installVoidAlignmentLayerBlockCommitDurableRuntimeFromEnvironmentV1,
+} from "./void_alignment_layer_block_commit_durable_runtime_v1.js";
 
 export const VOID_AL_BLOCK_COMMIT_RUNTIME_BOOTSTRAP_V1 =
   "VOID_AL_BLOCK_COMMIT_RUNTIME_BOOTSTRAP_V1" as const;
@@ -21,6 +23,10 @@ export const VOID_AL_BLOCK_COMMIT_PROPOSER_AUTHORITY_REQUIRED_V1 =
  * Production activation must not turn AL on while proposer-authority policy is
  * in its backward-compatible default-off mode. Signature self-authentication
  * alone is integrity evidence, not authorization.
+ *
+ * The durable runtime installer additionally requires a pre-initialized private
+ * durable-safe-mode root. Missing, malformed, crash-locked, or latched state
+ * fails closed before mutation authority becomes usable.
  */
 const requested = String(
   process.env[VOID_AL_BLOCK_COMMIT_RUNTIME_ENABLE_ENV_V1] ?? "",
@@ -33,4 +39,4 @@ if (
 }
 
 export const VOID_AL_BLOCK_COMMIT_RUNTIME_BOOTSTRAP_STATUS_V1 =
-  installVoidAlignmentLayerBlockCommitRuntimeFromEnvironmentV1();
+  installVoidAlignmentLayerBlockCommitDurableRuntimeFromEnvironmentV1();
