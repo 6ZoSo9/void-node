@@ -84,8 +84,8 @@ const v2Coverage = [
   },
   {
     id: "runtime.v2fs-commit-route",
-    anchor: "const url = base() + \"/__void/metrics/proposer.commit-direct.v2fs/commit?empty=1\";",
-    provenanceToken: "/__void/metrics/proposer.commit-direct.v2fs/commit?empty=1",
+    anchor: "const url = base() + \"/__void/metrics/proposer.commit-direct.v2fs/commit?empty=0\";",
+    provenanceToken: "/__void/metrics/proposer.commit-direct.v2fs/commit?empty=0",
     evidence: "liveness",
   },
 ];

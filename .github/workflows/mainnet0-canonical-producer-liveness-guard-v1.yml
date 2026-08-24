@@ -10,7 +10,16 @@ on:
       - "ops/mainnet0/install-canonical-producer-liveness-v1.sh"
       - "ops/mainnet0/public-node-live-runtime-quarantine-install.sh"
       - "scripts/prove_mainnet0_canonical_producer_liveness_guard_v1.mjs"
+      - "scripts/prove_canonical_producer_no_empty_autoprop_v1.mjs"
+      - "ops/fix-main-runtime-autoprop.sh"
+      - "scripts/boot.sh"
       - "src/index.ts"
+      - "src/node_core.ts"
+      - "ops/install-user-units.sh"
+      - ".env.example"
+      - "ops/prove-main-runtime-autoprop.sh"
+      - "ops/mainnet0-go-no-go-with-runtime.sh"
+      - "scripts/prove_canonical_producer_no_empty_operator_contract_v1.mjs"
       - ".github/workflows/mainnet0-canonical-producer-liveness-guard-v1.yml"
   push:
     branches:
@@ -23,7 +32,16 @@ on:
       - "ops/mainnet0/install-canonical-producer-liveness-v1.sh"
       - "ops/mainnet0/public-node-live-runtime-quarantine-install.sh"
       - "scripts/prove_mainnet0_canonical_producer_liveness_guard_v1.mjs"
+      - "scripts/prove_canonical_producer_no_empty_autoprop_v1.mjs"
+      - "ops/fix-main-runtime-autoprop.sh"
+      - "scripts/boot.sh"
       - "src/index.ts"
+      - "src/node_core.ts"
+      - "ops/install-user-units.sh"
+      - ".env.example"
+      - "ops/prove-main-runtime-autoprop.sh"
+      - "ops/mainnet0-go-no-go-with-runtime.sh"
+      - "scripts/prove_canonical_producer_no_empty_operator_contract_v1.mjs"
       - ".github/workflows/mainnet0-canonical-producer-liveness-guard-v1.yml"
 
 permissions:
@@ -49,8 +67,16 @@ jobs:
           bash -n ops/install-void-node-live-user-service-v1.sh
           bash -n ops/mainnet0/install-canonical-producer-liveness-v1.sh
           bash -n ops/mainnet0/public-node-live-runtime-quarantine-install.sh
+          bash -n ops/fix-main-runtime-autoprop.sh
+          bash -n scripts/boot.sh
+          bash -n ops/prove-main-runtime-autoprop.sh
+          bash -n ops/mainnet0-go-no-go-with-runtime.sh
       - name: Canonical producer liveness proof
         env:
           VOID_CANONICAL_SELF_HTTP_GUARD: "1"
           VOID_CANONICAL_DISABLE_LEGACY_SELF_HTTP_OBSERVERS: "1"
         run: node scripts/prove_mainnet0_canonical_producer_liveness_guard_v1.mjs
+      - name: Canonical producer idle no-empty proof
+        run: node scripts/prove_canonical_producer_no_empty_autoprop_v1.mjs
+      - name: Canonical producer no-empty dependency and operator contract
+        run: node scripts/prove_canonical_producer_no_empty_operator_contract_v1.mjs
