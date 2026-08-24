@@ -238,12 +238,15 @@ function normalizeState(
     if (activePauseSha !== lastCertificateSha) return null;
   }
 
+  const normalizedLastSequence: string | null =
+    lastSequence === null ? null : String(lastSequence);
+
   return {
     marker: VOID_SOVEREIGN_EMERGENCY_STATE_MARKER_V1,
     version: VOID_SOVEREIGN_EMERGENCY_VERSION_V1,
     chain_id: VOID_MAINNET_CHAIN_ID_EMERGENCY_V1,
     mode,
-    last_sequence: lastSequence,
+    last_sequence: normalizedLastSequence,
     last_certificate_sha256: lastCertificateSha,
     active_pause_certificate_sha256: activePauseSha,
   };
