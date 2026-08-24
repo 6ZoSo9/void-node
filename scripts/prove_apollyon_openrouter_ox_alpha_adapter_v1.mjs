@@ -8,8 +8,8 @@ import { join } from 'node:path';
 import { spawnSync } from 'node:child_process';
 
 import {
-  API_ORIGIN,
   CHAT_URL,
+  MODEL_CATALOG_URL,
   DEFAULT_MODEL,
   REGISTRY_PATH,
   RESULT_MARKER,
@@ -174,10 +174,6 @@ async function makeFixture(root, name) {
   return { dir, stage, packetPath, manifestPath, receiptPath, outputPath, trialId };
 }
 
-function modelUrl(model) {
-  return `${API_ORIGIN}/api/v1/models/${model}`;
-}
-
 function responseFor(url, value, status = 200) {
   const bytes = Buffer.from(JSON.stringify(value), 'utf8');
   return {
@@ -199,7 +195,6 @@ function zeroMetadata(contestant) {
       pricing: {
         prompt: '0',
         completion: '0',
-        request: '0',
         image: '0',
       },
       supported_parameters: ['max_tokens'],
@@ -221,14 +216,13 @@ function environment(model, overrides = {}) {
 function successFetch(contestant, assertions = {}) {
   let metadataCalls = 0;
   let chatCalls = 0;
-  const metadataUrl = modelUrl(contestant.model);
   const fetchImpl = async (url, options) => {
-    if (url === metadataUrl) {
+    if (url === MODEL_CATALOG_URL) {
       metadataCalls += 1;
       assert.equal(options.method, 'GET');
       assert.equal(options.redirect, 'error');
       assert.equal(options.headers.authorization, `Bearer ${TEST_KEY}`);
-      return responseFor(metadataUrl, zeroMetadata(contestant));
+      return responseFor(MODEL_CATALOG_URL, { data: [zeroMetadata(contestant).data] });
     }
     if (url === CHAT_URL) {
       chatCalls += 1;
@@ -292,7 +286,7 @@ async function main() {
 
   assert.equal(validateZeroPriceModelV1(zeroMetadata(ox), ox).pricing_zero, true);
   assert.throws(
-    () => validateZeroPriceModelV1({ data: { ...zeroMetadata(ox).data, pricing: { prompt: '0.000001', completion: '0', request: '0' } } }, ox),
+    () => validateZeroPriceModelV1({ data: { ...zeroMetadata(ox).data, pricing: { prompt: '0.000001', completion: '0' } } }, ox),
     /free-model gate closed/,
   );
 
@@ -402,8 +396,10 @@ async function main() {
         registry,
         env: environment(deepseek.model, { VOID_OPENROUTER_ALLOW_QUALIFICATION_ONLY: '1' }),
         fetchImpl: async (url) => {
-          if (url === modelUrl(deepseek.model)) {
-            return responseFor(url, { data: { ...zeroMetadata(deepseek).data, pricing: { prompt: '0.000001', completion: '0', request: '0' } } });
+          if (url === MODEL_CATALOG_URL) {
+            return responseFor(url, {
+              data: [{ ...zeroMetadata(deepseek).data, pricing: { prompt: '0.000001', completion: '0' } }],
+            });
           }
           paidChatCalls += 1;
           return responseFor(CHAT_URL, {});
@@ -415,6 +411,32 @@ async function main() {
     );
     assert.equal(paidChatCalls, 0);
     await expectMissing(paid.outputPath, 'paid-model result');
+
+    const absent = await makeFixture(root, 'catalog-absent');
+    let absentChatCalls = 0;
+    await expectReject(
+      runOpenRouterContestantTrialV1({
+        trialPath: absent.packetPath,
+        stagingRoot: absent.stage,
+        manifestPath: absent.manifestPath,
+        receiptPath: absent.receiptPath,
+        outputPath: absent.outputPath,
+        admissionAtUtc: ADMISSION_AT,
+      }, {
+        registry,
+        env: environment(deepseek.model, { VOID_OPENROUTER_ALLOW_QUALIFICATION_ONLY: '1' }),
+        fetchImpl: async (url) => {
+          if (url === MODEL_CATALOG_URL) return responseFor(MODEL_CATALOG_URL, { data: [zeroMetadata(ox).data] });
+          absentChatCalls += 1;
+          return responseFor(CHAT_URL, {});
+        },
+        emitOutput: false,
+      }),
+      'absent from the current exact catalog',
+      'catalog-absent gate',
+    );
+    assert.equal(absentChatCalls, 0);
+    await expectMissing(absent.outputPath, 'catalog-absent result');
 
     const mutated = await makeFixture(root, 'mutated');
     let mutationFetchCalls = 0;
@@ -431,7 +453,7 @@ async function main() {
         env: environment(ox.model),
         fetchImpl: async () => {
           mutationFetchCalls += 1;
-          return responseFor(modelUrl(ox.model), zeroMetadata(ox));
+          return responseFor(MODEL_CATALOG_URL, { data: [zeroMetadata(ox).data] });
         },
         afterAdmission: async () => {
           await writeFile(join(mutated.stage, 'fixture.json'), '{"tampered":true}\n', { mode: 0o600 });
@@ -458,7 +480,9 @@ async function main() {
         registry,
         env: environment(ox.model),
         fetchImpl: async (url) => {
-          if (url === modelUrl(ox.model)) return responseFor(url, zeroMetadata(ox));
+          if (url === MODEL_CATALOG_URL) {
+            return responseFor(MODEL_CATALOG_URL, { data: [zeroMetadata(ox).data] });
+          }
           toolChatCalls += 1;
           return responseFor(CHAT_URL, {
             id: 'chatcmpl-tool-call',
@@ -531,6 +555,9 @@ async function main() {
   console.log('sanitization_admission_required=true');
   console.log('post_admission_digest_recheck=true');
   console.log('provider_policy_ack_required=true');
+  console.log('catalog_endpoint=/api/v1/models');
+  console.log('per_model_metadata_endpoint_used=false');
+  console.log('catalog_absent_blocks_before_chat=true');
   console.log('free_price_recheck_before_send=true');
   console.log('nonzero_price_blocks_before_chat=true');
   console.log('provider_fallbacks=false');

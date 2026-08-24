@@ -24,7 +24,7 @@ Initial roster reviewed 2026-08-24:
 | `deepseek/deepseek-chat:free` | `qualification_only` | 131,072 | no |
 | `deepseek/deepseek-r1-0528-qwen3-8b:free` | `qualification_only` | 131,072 | no |
 
-The roster is not a permanent trust statement. Each live request rechecks the selected exact model slug and all published pricing fields before the chat request is sent. A missing model, model-id mismatch, reduced context below the reviewed floor, invalid price, or any non-zero published price closes the gate.
+The roster is not a permanent trust statement. Each live request fetches OpenRouter's supported `/api/v1/models` catalog, selects the exact registry slug from that catalog, and rechecks its published pricing fields before the chat request is sent. A missing model, model-id mismatch, reduced context below the reviewed floor, invalid price, or any non-zero published price closes the gate.
 
 ## Qualification states
 
@@ -71,7 +71,7 @@ qualification_only requires VOID_OPENROUTER_ALLOW_QUALIFICATION_ONLY=1
 fresh Apollyon parent sanitization admission = green
 post-admission staged bytes still match admitted digests
 all inputs are public or sanitized text/JSON
-OpenRouter metadata returns the exact selected model id
+OpenRouter `/api/v1/models` catalog contains exactly one matching selected model id
 context length remains at or above the reviewed floor
 all published pricing components are exactly zero
 provider fallbacks = false
@@ -95,6 +95,8 @@ Requests use the exact selected model slug and `provider.allow_fallbacks=false`.
 The adapter deliberately sends no `tools` field. If a model nevertheless returns a non-empty `tool_calls` array, the response is rejected and no accepted result is published.
 
 A successful response remains untrusted model output. It may be reviewed by the Apollyon trial/scoring system, but it cannot merge code, restart nodes, access files or credentials, write chain state, use wallets/signers, mutate validators or Work Credits, transact, move funds, appoint Apollyon, or expand its authority.
+
+The adapter does not call a guessed per-model `/api/v1/models/<slug>` metadata route. OpenRouter's supported general model catalog is the metadata authority for this lane; a missing exact slug fails closed before chat execution.
 
 ## Cost containment
 

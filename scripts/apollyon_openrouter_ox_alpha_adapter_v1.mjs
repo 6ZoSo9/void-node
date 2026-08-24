@@ -16,6 +16,7 @@ export const PROVIDER = 'openrouter';
 export const DEFAULT_MODEL = 'stealth/ox-alpha';
 export const MODEL = DEFAULT_MODEL;
 export const API_ORIGIN = 'https://openrouter.ai';
+export const MODEL_CATALOG_URL = `${API_ORIGIN}/api/v1/models`;
 export const CHAT_URL = `${API_ORIGIN}/api/v1/chat/completions`;
 export const REGISTRY_PATH = 'public/apollyon-openrouter-contestants-v1.json';
 
@@ -23,7 +24,7 @@ const MAX_JSON_BYTES = 256 * 1024;
 const MAX_REGISTRY_BYTES = 256 * 1024;
 const MAX_ENTRY_BYTES = 1024 * 1024;
 const MAX_TOTAL_INPUT_BYTES = 2 * 1024 * 1024;
-const MAX_MODEL_RESPONSE_BYTES = 512 * 1024;
+const MAX_MODEL_RESPONSE_BYTES = 8 * 1024 * 1024;
 const MAX_CHAT_RESPONSE_BYTES = 8 * 1024 * 1024;
 const DEFAULT_MAX_TOKENS = 8_192;
 const MAX_MAX_TOKENS = 32_768;
@@ -89,10 +90,6 @@ function parseBoundedInt(raw, fallback, min, max, name) {
   const value = Number(text);
   if (!Number.isSafeInteger(value) || value < min || value > max) fail(`${name} must be within ${min}..${max}`);
   return value;
-}
-
-function modelMetadataUrl(model) {
-  return `${API_ORIGIN}/api/v1/models/${model}`;
 }
 
 export function validateContestantRegistryV1(registry) {
@@ -347,7 +344,7 @@ export function validateZeroPriceModelV1(modelEnvelope, contestant) {
   }
   const pricing = model.pricing;
   if (!pricing || typeof pricing !== 'object' || Array.isArray(pricing) || Object.keys(pricing).length === 0) fail('OpenRouter pricing metadata is missing');
-  for (const required of ['prompt', 'completion', 'request']) {
+  for (const required of ['prompt', 'completion']) {
     if (!Object.prototype.hasOwnProperty.call(pricing, required)) fail(`OpenRouter pricing.${required} is missing`);
   }
   for (const [key, raw] of Object.entries(pricing)) {
@@ -429,8 +426,7 @@ export function buildOpenRouterRequestV1(trial, admittedInputs, maxTokens, conte
 }
 
 async function fetchModelMetadata(fetchImpl, apiKey, timeoutMs, contestant) {
-  const url = modelMetadataUrl(contestant.model);
-  const response = await fetchImpl(url, {
+  const response = await fetchImpl(MODEL_CATALOG_URL, {
     method: 'GET',
     redirect: 'error',
     headers: {
@@ -439,9 +435,20 @@ async function fetchModelMetadata(fetchImpl, apiKey, timeoutMs, contestant) {
     },
     signal: AbortSignal.timeout(timeoutMs),
   });
-  assertExactResponseUrl(response, url, 'model metadata');
-  if (response.status !== 200) fail(`OpenRouter model metadata returned HTTP ${response.status}`);
-  return readResponseJsonBounded(response, MAX_MODEL_RESPONSE_BYTES, 'OpenRouter model metadata');
+  assertExactResponseUrl(response, MODEL_CATALOG_URL, 'model catalog');
+  if (response.status !== 200) fail(`OpenRouter model catalog returned HTTP ${response.status}`);
+  const catalog = await readResponseJsonBounded(response, MAX_MODEL_RESPONSE_BYTES, 'OpenRouter model catalog');
+  if (!catalog || typeof catalog !== 'object' || !Array.isArray(catalog.data)) {
+    fail('OpenRouter model catalog is malformed');
+  }
+  const matches = catalog.data.filter((entry) => entry && typeof entry === 'object' && entry.id === contestant.model);
+  if (matches.length === 0) {
+    fail(`OpenRouter model ${contestant.model} is absent from the current exact catalog`);
+  }
+  if (matches.length !== 1) {
+    fail(`OpenRouter model ${contestant.model} is ambiguous in the current exact catalog`);
+  }
+  return matches[0];
 }
 
 async function sendChat(fetchImpl, apiKey, requestBody, timeoutMs) {
