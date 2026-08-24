@@ -50,6 +50,8 @@ for (const rule of [
   "Bash(git commit *)",
   "Bash(npm ci)",
   "Bash(npm ci *)",
+  "Bash(npm update)",
+  "Bash(npm update *)",
   "Edit(/docs/governance/**)",
   "Edit(/src/security/**)",
   "Edit(/src/chain/**)",
@@ -100,12 +102,18 @@ for (const rule of [
   "Bash(git switch *)",
   "Bash(git worktree *)",
   "Bash(npm install *)",
+  "Bash(npm audit fix)",
+  "Bash(npm audit fix *)",
   "Bash(npm publish *)",
 ]) {
   assert.ok(deny.has(rule), `missing required deny rule: ${rule}`);
 }
 assert.ok(!deny.has("Bash(npm ci)"), "bare npm ci must not be denied");
 assert.ok(!deny.has("Bash(npm ci *)"), "npm ci with args must not be denied");
+assert.ok(!deny.has("Bash(npm update)"), "bare npm update must remain approval-gated, not denied");
+assert.ok(!deny.has("Bash(npm update *)"), "npm update with args must remain approval-gated, not denied");
+assert.ok(!ask.has("Bash(npm audit fix)"), "npm audit fix must not be approval-gated; it must be denied");
+assert.ok(!ask.has("Bash(npm audit fix *)"), "npm audit fix with args must not be approval-gated; it must be denied");
 
 assert.equal(settings?.sandbox?.enabled, true);
 assert.equal(settings?.sandbox?.failIfUnavailable, true);
@@ -162,4 +170,6 @@ console.log("remote_git_mutation_denied=true");
 console.log("self_policy_edit_denied=true");
 console.log("boundary_proof_self_edit_denied=true");
 console.log("npm_ci_prompted=true");
+console.log("npm_update_prompted=true");
+console.log("npm_audit_fix_denied=true");
 console.log("sandbox_network_registry_npmjs_only=true");
