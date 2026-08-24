@@ -66,6 +66,8 @@ for (const rule of [
   "Edit(/CLAUDE.md)",
   "Edit(/AGENTS.md)",
   "Edit(/.claude/**)",
+  "Edit(/scripts/prove_merlin_claude_code_advisor_v1.mjs)",
+  "Edit(/.github/workflows/void-merlin-claude-code-advisor-v1.yml)",
   "Read(~/.claude/**)",
   "Read(~/.ssh/**)",
   "Read(~/.gnupg/**)",
@@ -151,3 +153,4 @@ console.log("external_mount_reads_denied=true");
 console.log("credential_reads_denied=true");
 console.log("remote_git_mutation_denied=true");
 console.log("self_policy_edit_denied=true");
+console.log("boundary_proof_self_edit_denied=true");
