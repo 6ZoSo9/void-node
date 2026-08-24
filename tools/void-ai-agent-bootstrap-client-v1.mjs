@@ -1566,7 +1566,7 @@ function publishUnnamedOutputStageV1(
 
 function openPinnedOutputParentV1(
   parent,
-  { createMissing = true } = {},
+  { createMissing = true, testHooks = null } = {},
 ) {
   let procStat;
   try {
@@ -1611,6 +1611,7 @@ function openPinnedOutputParentV1(
       }
       const bound = procFdPathV1(fd, part);
       let next;
+      let created = false;
       try {
         next = openSync(
           bound,
@@ -1630,13 +1631,46 @@ function openPinnedOutputParentV1(
           );
         }
         mkdirSync(bound, { mode: 0o700 });
-        fsyncSync(fd);
+        created = true;
         next = openSync(
           bound,
           constants.O_RDONLY |
             constants.O_DIRECTORY |
             Number(constants.O_NOFOLLOW || 0),
         );
+      }
+      try {
+        testHooks?.beforeOutputParentEntryFsync?.({
+          component: part,
+          created,
+          index,
+          parent: absolute,
+        });
+        fsyncSync(fd);
+        testHooks?.afterOutputParentEntryFsync?.({
+          component: part,
+          created,
+          index,
+          parent: absolute,
+        });
+        const retainedParentAuthority =
+          outputDirectoryAuthorityWitnessV1(
+            fstatSync(fd, { bigint: true }),
+            { finalParent: false },
+          );
+        if (
+          !sameDirectoryAuthorityV1(
+            authorityChain[authorityChain.length - 1],
+            retainedParentAuthority,
+          )
+        ) {
+          throw new Error(
+            "output parent path changed generation or authority",
+          );
+        }
+      } catch (error) {
+        closeSync(next);
+        throw error;
       }
       const metadata = fstatSync(next, {
         bigint: true,
@@ -1714,7 +1748,9 @@ export function writeBootstrapOutputFileV1(
     throw new Error("output test hooks invalid");
   }
 
-  const pinned = openPinnedOutputParentV1(parent);
+  const pinned = openPinnedOutputParentV1(parent, {
+    testHooks,
+  });
   const boundOutput = procFdPathV1(pinned.fd, leaf);
   let descriptor;
   let published = false;

@@ -1605,6 +1605,84 @@ assert.equal(
   outputContent,
 );
 
+function assertCreatedParentFsyncRetryV1(
+  relativeParentParts,
+) {
+  const outputParent = path.join(
+    outputDirectory,
+    ...relativeParentParts,
+  );
+  const retryOutputPath = path.join(
+    outputParent,
+    "bootstrap.json",
+  );
+  const durabilityComponent = relativeParentParts[0];
+  let injected = false;
+  let retryFsyncObserved = false;
+  const hooks = {
+    beforeOutputParentEntryFsync({ component, created }) {
+      if (
+        component === durabilityComponent &&
+        created &&
+        !injected
+      ) {
+        injected = true;
+        const error = new Error(
+          "injected output parent entry fsync EIO",
+        );
+        error.code = "EIO";
+        throw error;
+      }
+    },
+    afterOutputParentEntryFsync({ component, created }) {
+      if (
+        component === durabilityComponent &&
+        !created
+      ) {
+        retryFsyncObserved = true;
+      }
+    },
+  };
+
+  assert.throws(
+    () =>
+      writeBootstrapOutputFileV1(
+        retryOutputPath,
+        outputContent,
+        hooks,
+      ),
+    /injected output parent entry fsync EIO/,
+  );
+  assert.equal(injected, true);
+  assert.equal(statSync(path.join(
+    outputDirectory,
+    durabilityComponent,
+  )).isDirectory(), true);
+  assert.throws(() => statSync(retryOutputPath), /ENOENT/);
+
+  assert.equal(
+    writeBootstrapOutputFileV1(
+      retryOutputPath,
+      outputContent,
+      hooks,
+    ),
+    retryOutputPath,
+  );
+  assert.equal(retryFsyncObserved, true);
+  assert.equal(
+    readFileSync(retryOutputPath, "utf8"),
+    outputContent,
+  );
+}
+
+assertCreatedParentFsyncRetryV1([
+  "retry-direct-parent",
+]);
+assertCreatedParentFsyncRetryV1([
+  "retry-nested-ancestor",
+  "nested-parent",
+]);
+
 const symlinkParentTarget = path.join(
   outputDirectory,
   "symlink-parent-target",
@@ -1965,7 +2043,7 @@ const clientSource = readFileSync(
   new URL("../tools/void-ai-agent-bootstrap-client-v1.mjs", import.meta.url),
   "utf8",
 );
-assert.match(clientSource, /openPinnedOutputParentV1\(parent\)/);
+assert.match(clientSource, /openPinnedOutputParentV1\(parent, \{/);
 assert.match(clientSource, /procFdPathV1\(pinned\.fd, leaf\)/);
 assert.match(clientSource, /constants\.O_NOFOLLOW/);
 assert.match(clientSource, /writeFileSync\(descriptor, content/);
@@ -1980,6 +2058,8 @@ assert.match(clientSource, /assertExactLinkExecutableV1/);
 assert.match(clientSource, /publishUnnamedOutputStageV1/);
 assert.match(clientSource, /EXACT_LINK_EXECUTABLE/);
 assert.match(clientSource, /killSignal: "SIGKILL"/);
+assert.match(clientSource, /beforeOutputParentEntryFsync/);
+assert.match(clientSource, /afterOutputParentEntryFsync/);
 assert.doesNotMatch(clientSource, /writeFileSync\(resolved, content/);
 assert.doesNotMatch(clientSource, /chmodSync\(resolved/);
 assert.doesNotMatch(clientSource, /unlinkSync/);
@@ -2058,6 +2138,8 @@ console.log("output_symlink_not_followed=true");
 console.log("output_descriptor_bound=true");
 console.log("output_parent_namespace_bound=true");
 console.log("output_parent_owner_mode_authority_bound=true");
+console.log("output_created_parent_retry_durability_bound=true");
+console.log("output_nested_ancestor_retry_durability_bound=true");
 console.log("output_shared_writable_parent_rejected=true");
 console.log("output_same_inode_permission_widening_held=true");
 console.log("output_writable_ancestor_widening_held=true");

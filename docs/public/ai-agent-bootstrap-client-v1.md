@@ -72,6 +72,14 @@ requires that complete chain again throughout publication. A pre-existing
 shared-writable parent or same-inode permission widening fails before final-name
 publication.
 
+Every directory component's containing parent is synchronized before the
+component is admitted, whether that component was just created or already
+existed. If a first attempt creates a direct parent or nested ancestor and its
+containing-parent synchronization fails or has unknown durability, an exact
+retry must synchronize that same containing parent successfully before it can
+descend through the existing component. A visible directory left by a failed
+attempt is therefore not silently promoted into durable output authority.
+
 Content is first written into an unnamed Linux `O_TMPFILE` inode held by one
 descriptor, forced to mode `0600`, and synchronized. `/usr/bin/ln -L` receives
 that exact descriptor and the pinned parent descriptor as inherited file
