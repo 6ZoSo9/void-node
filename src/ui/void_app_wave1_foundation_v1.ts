@@ -1,4 +1,5 @@
 import path from "node:path";
+import { mountVoidAppDataNetReadonlyAdapterV1 } from "./void_app_datanet_readonly_adapter_v1.js";
 
 const G: any = globalThis as any;
 const INSTALL_MARK = "__void_app_wave1_foundation_v1";
@@ -79,6 +80,8 @@ if (!G[INSTALL_MARK]) {
       }
       return;
     }
+
+    mountVoidAppDataNetReadonlyAdapterV1(app);
 
     const express = require("express");
     const shellDir = path.join(
