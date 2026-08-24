@@ -10,6 +10,7 @@ on:
       - "scripts/run_void_public_bootstrap_supervisor_v1.mjs"
       - "scripts/prove_void_public_bootstrap_client_resilience_v1.mjs"
       - "scripts/prove_follower_legacy_v2fs_and_duplicate_dial_v1.mjs"
+      - "scripts/prove_follower_legacy_empty_tx_root_v1.mjs"
       - "scripts/prove_follower_low_catchup_pull_limit_v1.mjs"
       - "scripts/prove_void_public_seed_numeric_evidence_v1.mjs"
       - "scripts/prove_void_public_bootstrap_client_closed_response_v1.mjs"
@@ -40,6 +41,7 @@ on:
       - "scripts/run_void_public_bootstrap_supervisor_v1.mjs"
       - "scripts/prove_void_public_bootstrap_client_resilience_v1.mjs"
       - "scripts/prove_follower_legacy_v2fs_and_duplicate_dial_v1.mjs"
+      - "scripts/prove_follower_legacy_empty_tx_root_v1.mjs"
       - "scripts/prove_follower_low_catchup_pull_limit_v1.mjs"
       - "scripts/prove_void_public_seed_numeric_evidence_v1.mjs"
       - "scripts/prove_void_public_bootstrap_client_closed_response_v1.mjs"
@@ -96,6 +98,7 @@ jobs:
           node --check scripts/run_void_public_bootstrap_supervisor_v1.mjs
           node --check scripts/prove_void_public_bootstrap_client_resilience_v1.mjs
           node --check scripts/prove_follower_legacy_v2fs_and_duplicate_dial_v1.mjs
+          node --check scripts/prove_follower_legacy_empty_tx_root_v1.mjs
           node --check scripts/prove_follower_low_catchup_pull_limit_v1.mjs
           node --check scripts/prove_void_public_seed_numeric_evidence_v1.mjs
           node --check scripts/prove_void_public_bootstrap_client_closed_response_v1.mjs
@@ -137,6 +140,7 @@ jobs:
         run: |
           npx --no-install tsx scripts/prove_void_public_bootstrap_client_resilience_v1.mjs
           node scripts/prove_follower_legacy_v2fs_and_duplicate_dial_v1.mjs
+          node scripts/prove_follower_legacy_empty_tx_root_v1.mjs
           npx --no-install tsx scripts/prove_follower_low_catchup_pull_limit_v1.mjs
           node scripts/prove_void_public_seed_numeric_evidence_v1.mjs
           npx --no-install tsx scripts/prove_void_public_bootstrap_client_closed_response_v1.mjs
@@ -152,6 +156,7 @@ jobs:
           grep -F 'VOID_FOLLOWER_LEGACY_V2FS_ORIGINS' dist/node_core.js
           grep -F 'saveAuthorizedLegacyCommitDirectV2fs' dist/chain/seg_store.js
           grep -F 'proposer.commit-direct.v2fs' dist/chain/legacy_commit_direct_v2fs_v1.js
+          grep -F 'VOID_LEGACY_EMPTY_TX_ROOT_V1' dist/chain/legacy_commit_direct_v2fs_v1.js
           grep -F 'preferredAuthenticatedDuplicateDirectionV1' dist/node_core.js
 
       - name: Diff hygiene across committed change range
