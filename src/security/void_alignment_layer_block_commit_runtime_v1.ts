@@ -26,6 +26,8 @@ export const VOID_AL_BLOCK_COMMIT_RUNTIME_ENABLE_ENV_V1 =
   "VOID_AL_BLOCK_COMMIT_RUNTIME_V1" as const;
 export const VOID_AL_BLOCK_COMMIT_DIRECT_BYPASS_V1 =
   "VOID_AL_BLOCK_COMMIT_DIRECT_BYPASS_V1" as const;
+export const VOID_AL_BLOCK_HEAD_DIRECT_BYPASS_V1 =
+  "VOID_AL_BLOCK_HEAD_DIRECT_BYPASS_V1" as const;
 export const VOID_AL_BLOCK_COMMIT_SAFE_MODE_V1 =
   "VOID_AL_BLOCK_COMMIT_SAFE_MODE_V1" as const;
 
@@ -56,6 +58,7 @@ type RuntimeState = {
     quarantined_total: number;
     safe_mode_total: number;
     direct_bypass_total: number;
+    direct_head_bypass_total: number;
   };
 };
 
@@ -73,6 +76,7 @@ export type VoidAlBlockCommitRuntimeStatusV1 = {
   quarantined_total: number;
   safe_mode_total: number;
   direct_bypass_total: number;
+  direct_head_bypass_total: number;
   ordinary_authentication_changed: false;
   sovereign_usb_access: false;
   production_signature_required_to_install: false;
@@ -498,6 +502,7 @@ function status(
     quarantined_total: state?.counters.quarantined_total ?? 0,
     safe_mode_total: state?.counters.safe_mode_total ?? 0,
     direct_bypass_total: state?.counters.direct_bypass_total ?? 0,
+    direct_head_bypass_total: state?.counters.direct_head_bypass_total ?? 0,
     ordinary_authentication_changed: false,
     sovereign_usb_access: false,
     production_signature_required_to_install: false,
@@ -545,6 +550,7 @@ export function installVoidAlignmentLayerBlockCommitRuntimeOnPrototypeV1(args: {
       quarantined_total: 0,
       safe_mode_total: 0,
       direct_bypass_total: 0,
+      direct_head_bypass_total: 0,
     },
   };
   installations.set(proto, state);
@@ -618,25 +624,42 @@ export function installVoidAlignmentLayerBlockCommitRuntimeOnPrototypeV1(args: {
   proto.persistHeadAtomic = function guardedPersistHead(this: any, ...callArgs: any[]) {
     assertWritable(state);
     const context = state.contexts.get(this);
-    const result = originalHead.apply(this, callArgs);
-    if (context?.kind === "wal-replay" && context.pending_replay) {
-      const pending = context.pending_replay;
-      context.pending_replay = undefined;
-      const post = evaluatePost(
-        this,
-        pending.candidate,
-        pending.mode,
-        pending.pre_head,
-        pending.mutation_sha256,
-        pending.actor_id_sha256,
-      );
-      state.counters.post_apply_total++;
-      if (post.disposition !== "allow") {
-        latch(state, post);
-        held(post);
-      }
+
+    if (context?.kind === "canonical") {
+      return originalHead.apply(this, callArgs);
     }
-    return result;
+
+    if (context?.kind === "wal-replay") {
+      const result = originalHead.apply(this, callArgs);
+      if (context.pending_replay) {
+        const pending = context.pending_replay;
+        context.pending_replay = undefined;
+        const post = evaluatePost(
+          this,
+          pending.candidate,
+          pending.mode,
+          pending.pre_head,
+          pending.mutation_sha256,
+          pending.actor_id_sha256,
+        );
+        state.counters.post_apply_total++;
+        if (post.disposition !== "allow") {
+          latch(state, post);
+          held(post);
+        }
+      }
+      return result;
+    }
+
+    state.counters.direct_head_bypass_total++;
+    state.counters.safe_mode_total++;
+    state.safe_mode = true;
+    state.safe_mode_reason = VOID_AL_BLOCK_HEAD_DIRECT_BYPASS_V1;
+    throw new VoidAlBlockCommitRuntimeHeldErrorV1(
+      VOID_AL_BLOCK_HEAD_DIRECT_BYPASS_V1,
+      "safe_mode",
+      evidence("direct_head_bypass", callArgs[0] ?? null),
+    );
   };
 
   proto.replayWalAllBestEffort = function guardedReplay(this: any, ...callArgs: any[]) {
