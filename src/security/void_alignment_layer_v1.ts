@@ -78,7 +78,15 @@ export interface VoidSafeModePolicyV1 {
 const HEX64_RE = /^[0-9a-f]{64}$/;
 const ZERO_SHA256 = "0".repeat(64);
 
-const PRE_COMMON: readonly VoidAlRequiredCheckV1[] = Object.freeze([
+function requiredChecks(
+  ...entries: VoidAlRequiredCheckV1[]
+): readonly VoidAlRequiredCheckV1[] {
+  return Object.freeze(
+    entries.map((entry) => Object.freeze({ ...entry })),
+  );
+}
+
+const PRE_COMMON = requiredChecks(
   { check_id: "void.al.policy_integrity.v1", severity: "safe_mode" },
   { check_id: "void.al.chain_binding.v1", severity: "reject" },
   { check_id: "void.al.closed_schema.v1", severity: "reject" },
@@ -86,60 +94,62 @@ const PRE_COMMON: readonly VoidAlRequiredCheckV1[] = Object.freeze([
   { check_id: "void.al.actor_security_boundary.v1", severity: "quarantine" },
   { check_id: "void.al.replay.v1", severity: "reject" },
   { check_id: "void.al.transition.v1", severity: "reject" },
-]);
+);
 
-const PRE_ADDITIONS: Readonly<Record<VoidAlMutationClassV1, readonly VoidAlRequiredCheckV1[]>> =
-  Object.freeze({
-    ordinary_state: Object.freeze([]),
-    governance: Object.freeze([
-      { check_id: "void.al.key_role.v1", severity: "reject" },
-      { check_id: "void.al.constitutional_scope.v1", severity: "reject" },
-    ]),
-    economic: Object.freeze([
-      { check_id: "void.al.economic_conservation.v1", severity: "reject" },
-      { check_id: "void.al.treasury_boundary.v1", severity: "reject" },
-    ]),
-    validator: Object.freeze([
-      { check_id: "void.al.validator_authority.v1", severity: "reject" },
-      { check_id: "void.al.consensus_boundary.v1", severity: "reject" },
-    ]),
-    work_credit: Object.freeze([
-      { check_id: "void.al.work_credit_authority.v1", severity: "reject" },
-      { check_id: "void.al.settlement_boundary.v1", severity: "reject" },
-    ]),
-    emergency_control: Object.freeze([
-      { check_id: "void.al.sovereign_emergency_signature.v1", severity: "reject" },
-      { check_id: "void.al.pause_state_machine.v1", severity: "reject" },
-    ]),
-  });
+const PRE_ADDITIONS: Readonly<
+  Record<VoidAlMutationClassV1, readonly VoidAlRequiredCheckV1[]>
+> = Object.freeze({
+  ordinary_state: requiredChecks(),
+  governance: requiredChecks(
+    { check_id: "void.al.key_role.v1", severity: "reject" },
+    { check_id: "void.al.constitutional_scope.v1", severity: "reject" },
+  ),
+  economic: requiredChecks(
+    { check_id: "void.al.economic_conservation.v1", severity: "reject" },
+    { check_id: "void.al.treasury_boundary.v1", severity: "reject" },
+  ),
+  validator: requiredChecks(
+    { check_id: "void.al.validator_authority.v1", severity: "reject" },
+    { check_id: "void.al.consensus_boundary.v1", severity: "reject" },
+  ),
+  work_credit: requiredChecks(
+    { check_id: "void.al.work_credit_authority.v1", severity: "reject" },
+    { check_id: "void.al.settlement_boundary.v1", severity: "reject" },
+  ),
+  emergency_control: requiredChecks(
+    { check_id: "void.al.sovereign_emergency_signature.v1", severity: "reject" },
+    { check_id: "void.al.pause_state_machine.v1", severity: "reject" },
+  ),
+});
 
-const POST_COMMON: readonly VoidAlRequiredCheckV1[] = Object.freeze([
+const POST_COMMON = requiredChecks(
   { check_id: "void.al.post.policy_integrity.v1", severity: "safe_mode" },
   { check_id: "void.al.post.state_root.v1", severity: "safe_mode" },
   { check_id: "void.al.post.invariant_recheck.v1", severity: "safe_mode" },
-]);
+);
 
-const POST_ADDITIONS: Readonly<Record<VoidAlMutationClassV1, readonly VoidAlRequiredCheckV1[]>> =
-  Object.freeze({
-    ordinary_state: Object.freeze([
-      { check_id: "void.al.post.canonical_state.v1", severity: "safe_mode" },
-    ]),
-    governance: Object.freeze([
-      { check_id: "void.al.post.role_generation.v1", severity: "safe_mode" },
-    ]),
-    economic: Object.freeze([
-      { check_id: "void.al.post.economic_conservation.v1", severity: "safe_mode" },
-    ]),
-    validator: Object.freeze([
-      { check_id: "void.al.post.validator_set.v1", severity: "safe_mode" },
-    ]),
-    work_credit: Object.freeze([
-      { check_id: "void.al.post.work_credit_ledger.v1", severity: "safe_mode" },
-    ]),
-    emergency_control: Object.freeze([
-      { check_id: "void.al.post.pause_state.v1", severity: "safe_mode" },
-    ]),
-  });
+const POST_ADDITIONS: Readonly<
+  Record<VoidAlMutationClassV1, readonly VoidAlRequiredCheckV1[]>
+> = Object.freeze({
+  ordinary_state: requiredChecks(
+    { check_id: "void.al.post.canonical_state.v1", severity: "safe_mode" },
+  ),
+  governance: requiredChecks(
+    { check_id: "void.al.post.role_generation.v1", severity: "safe_mode" },
+  ),
+  economic: requiredChecks(
+    { check_id: "void.al.post.economic_conservation.v1", severity: "safe_mode" },
+  ),
+  validator: requiredChecks(
+    { check_id: "void.al.post.validator_set.v1", severity: "safe_mode" },
+  ),
+  work_credit: requiredChecks(
+    { check_id: "void.al.post.work_credit_ledger.v1", severity: "safe_mode" },
+  ),
+  emergency_control: requiredChecks(
+    { check_id: "void.al.post.pause_state.v1", severity: "safe_mode" },
+  ),
+});
 
 const PHASES = new Set<VoidAlPhaseV1>(["pre_accept", "post_apply"]);
 const MUTATION_CLASSES = new Set<VoidAlMutationClassV1>([
@@ -150,11 +160,12 @@ const MUTATION_CLASSES = new Set<VoidAlMutationClassV1>([
   "work_credit",
   "emergency_control",
 ]);
-const DISPOSITION_RANK: Readonly<Record<VoidAlFailureSeverityV1, number>> = Object.freeze({
-  reject: 1,
-  quarantine: 2,
-  safe_mode: 3,
-});
+const DISPOSITION_RANK: Readonly<Record<VoidAlFailureSeverityV1, number>> =
+  Object.freeze({
+    reject: 1,
+    quarantine: 2,
+    safe_mode: 3,
+  });
 
 function sha256(value: string): string {
   return createHash("sha256").update(value, "utf8").digest("hex");
@@ -164,10 +175,16 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === "object" && !Array.isArray(value);
 }
 
-function hasExactKeys(value: Record<string, unknown>, expected: readonly string[]): boolean {
+function hasExactKeys(
+  value: Record<string, unknown>,
+  expected: readonly string[],
+): boolean {
   const actual = Object.keys(value).sort();
   const wanted = [...expected].sort();
-  return actual.length === wanted.length && actual.every((key, index) => key === wanted[index]);
+  return (
+    actual.length === wanted.length &&
+    actual.every((key, index) => key === wanted[index])
+  );
 }
 
 function isHex64(value: unknown): value is string {
@@ -179,18 +196,31 @@ function validPhase(value: unknown): value is VoidAlPhaseV1 {
 }
 
 function validMutationClass(value: unknown): value is VoidAlMutationClassV1 {
-  return typeof value === "string" && MUTATION_CLASSES.has(value as VoidAlMutationClassV1);
+  return (
+    typeof value === "string" &&
+    MUTATION_CLASSES.has(value as VoidAlMutationClassV1)
+  );
 }
 
 function malformedDecision(raw: unknown, reasonCode: string): VoidAlDecisionV1 {
   const record = isRecord(raw) ? raw : {};
-  const phase: VoidAlPhaseV1 = validPhase(record.phase) ? record.phase : "post_apply";
-  const mutationClass: VoidAlMutationClassV1 = validMutationClass(record.mutation_class)
+  const phase: VoidAlPhaseV1 = validPhase(record.phase)
+    ? record.phase
+    : "post_apply";
+  const mutationClass: VoidAlMutationClassV1 = validMutationClass(
+    record.mutation_class,
+  )
     ? record.mutation_class
     : "ordinary_state";
-  const mutationSha = isHex64(record.mutation_sha256) ? record.mutation_sha256 : ZERO_SHA256;
-  const actorSha = isHex64(record.actor_id_sha256) ? record.actor_id_sha256 : ZERO_SHA256;
-  const disposition: VoidAlFailureSeverityV1 = phase === "post_apply" ? "safe_mode" : "reject";
+  const mutationSha = isHex64(record.mutation_sha256)
+    ? record.mutation_sha256
+    : ZERO_SHA256;
+  const actorSha = isHex64(record.actor_id_sha256)
+    ? record.actor_id_sha256
+    : ZERO_SHA256;
+  const disposition: VoidAlFailureSeverityV1 =
+    phase === "post_apply" ? "safe_mode" : "reject";
+
   return {
     marker: VOID_ALIGNMENT_LAYER_DECISION_MARKER_V1,
     version: VOID_ALIGNMENT_LAYER_VERSION_V1,
@@ -222,7 +252,10 @@ export function getVoidAlignmentLayerRequiredChecksV1(
   mutationClass: VoidAlMutationClassV1,
 ): VoidAlRequiredCheckV1[] {
   const common = phase === "pre_accept" ? PRE_COMMON : POST_COMMON;
-  const additions = phase === "pre_accept" ? PRE_ADDITIONS[mutationClass] : POST_ADDITIONS[mutationClass];
+  const additions =
+    phase === "pre_accept"
+      ? PRE_ADDITIONS[mutationClass]
+      : POST_ADDITIONS[mutationClass];
   return [...common, ...additions].map((entry) => ({ ...entry }));
 }
 
@@ -251,21 +284,33 @@ export function evaluateVoidAlignmentLayerV1(raw: unknown): VoidAlDecisionV1 {
   if (raw.chain_id !== VOID_MAINNET_CHAIN_ID_V1) {
     return malformedDecision(raw, "AL_REQUEST_CHAIN_MISMATCH");
   }
-  if (!validPhase(raw.phase)) return malformedDecision(raw, "AL_REQUEST_PHASE_INVALID");
+  if (!validPhase(raw.phase)) {
+    return malformedDecision(raw, "AL_REQUEST_PHASE_INVALID");
+  }
   if (!validMutationClass(raw.mutation_class)) {
     return malformedDecision(raw, "AL_REQUEST_MUTATION_CLASS_INVALID");
   }
   if (!isHex64(raw.mutation_sha256) || !isHex64(raw.actor_id_sha256)) {
     return malformedDecision(raw, "AL_REQUEST_IDENTITY_HASH_INVALID");
   }
-  if (!Array.isArray(raw.checks)) return malformedDecision(raw, "AL_CHECKS_NOT_ARRAY");
+  if (!Array.isArray(raw.checks)) {
+    return malformedDecision(raw, "AL_CHECKS_NOT_ARRAY");
+  }
 
-  const required = getVoidAlignmentLayerRequiredChecksV1(raw.phase, raw.mutation_class);
-  const requiredById = new Map(required.map((entry) => [entry.check_id, entry] as const));
+  const required = getVoidAlignmentLayerRequiredChecksV1(
+    raw.phase,
+    raw.mutation_class,
+  );
+  const requiredById = new Map(
+    required.map((entry) => [entry.check_id, entry] as const),
+  );
   const checksById = new Map<string, VoidAlCheckResultV1>();
 
   for (const candidate of raw.checks) {
-    if (!isRecord(candidate) || !hasExactKeys(candidate, ["check_id", "passed", "evidence_sha256"])) {
+    if (
+      !isRecord(candidate) ||
+      !hasExactKeys(candidate, ["check_id", "passed", "evidence_sha256"])
+    ) {
       return malformedDecision(raw, "AL_CHECK_SCHEMA_NOT_CLOSED");
     }
     if (
@@ -298,14 +343,17 @@ export function evaluateVoidAlignmentLayerV1(raw: unknown): VoidAlDecisionV1 {
       if (!check) throw new Error("unreachable_required_check_missing");
       return { ...entry, ...check };
     })
-    .sort((a, b) => (a.check_id < b.check_id ? -1 : a.check_id > b.check_id ? 1 : 0));
+    .sort((a, b) =>
+      a.check_id < b.check_id ? -1 : a.check_id > b.check_id ? 1 : 0,
+    );
 
   const failed = ordered.filter((entry) => !entry.passed);
   let disposition: VoidAlDispositionV1 = "allow";
   for (const entry of failed) {
     if (
       disposition === "allow" ||
-      DISPOSITION_RANK[entry.severity] > DISPOSITION_RANK[disposition as VoidAlFailureSeverityV1]
+      DISPOSITION_RANK[entry.severity] >
+        DISPOSITION_RANK[disposition as VoidAlFailureSeverityV1]
     ) {
       disposition = entry.severity;
     }
@@ -320,7 +368,12 @@ export function evaluateVoidAlignmentLayerV1(raw: unknown): VoidAlDecisionV1 {
       raw.mutation_class,
       raw.mutation_sha256,
       raw.actor_id_sha256,
-      ordered.map((entry) => [entry.check_id, entry.severity, entry.passed, entry.evidence_sha256]),
+      ordered.map((entry) => [
+        entry.check_id,
+        entry.severity,
+        entry.passed,
+        entry.evidence_sha256,
+      ]),
     ]),
   );
 
@@ -335,7 +388,8 @@ export function evaluateVoidAlignmentLayerV1(raw: unknown): VoidAlDecisionV1 {
     disposition,
     failed_check_ids: failed.map((entry) => entry.check_id),
     evidence_sha256: evidenceSha,
-    reason_code: disposition === "allow" ? "AL_ALLOW" : "AL_REQUIRED_CHECK_FAILED",
+    reason_code:
+      disposition === "allow" ? "AL_ALLOW" : "AL_REQUIRED_CHECK_FAILED",
     safe_mode_required: disposition === "safe_mode",
   };
 }
