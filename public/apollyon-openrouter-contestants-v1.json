@@ -1,0 +1,88 @@
+{
+  "marker": "VOID_APOLLYON_OPENROUTER_CONTESTANT_REGISTRY_V1",
+  "version": 1,
+  "reviewed_at_utc": "2026-08-24T05:52:00.000Z",
+  "default_model": "stealth/ox-alpha",
+  "contestants": [
+    {
+      "model": "stealth/ox-alpha",
+      "status": "qualified",
+      "scored_trial_eligible": true,
+      "zero_price_required": true,
+      "min_context_length": 1048576,
+      "max_tokens_cap": 32768,
+      "retention_class": "prompts_and_completions_retained_not_used_for_training_per_provider_disclosure",
+      "provider_policy": {
+        "allow_fallbacks": false,
+        "require_parameters": true,
+        "data_collection": null,
+        "zdr": false,
+        "only": []
+      }
+    },
+    {
+      "model": "deepseek/deepseek-v4-flash:free",
+      "status": "qualification_only",
+      "scored_trial_eligible": false,
+      "zero_price_required": true,
+      "min_context_length": 1048576,
+      "max_tokens_cap": 32768,
+      "retention_class": "requires_zdr_and_data_collection_deny_routing",
+      "provider_policy": {
+        "allow_fallbacks": false,
+        "require_parameters": true,
+        "data_collection": "deny",
+        "zdr": true,
+        "only": []
+      }
+    },
+    {
+      "model": "deepseek/deepseek-r1:free",
+      "status": "qualification_only",
+      "scored_trial_eligible": false,
+      "zero_price_required": true,
+      "min_context_length": 163840,
+      "max_tokens_cap": 32768,
+      "retention_class": "requires_zdr_and_data_collection_deny_routing",
+      "provider_policy": {
+        "allow_fallbacks": false,
+        "require_parameters": true,
+        "data_collection": "deny",
+        "zdr": true,
+        "only": []
+      }
+    },
+    {
+      "model": "deepseek/deepseek-chat:free",
+      "status": "qualification_only",
+      "scored_trial_eligible": false,
+      "zero_price_required": true,
+      "min_context_length": 131072,
+      "max_tokens_cap": 32768,
+      "retention_class": "requires_zdr_and_data_collection_deny_routing",
+      "provider_policy": {
+        "allow_fallbacks": false,
+        "require_parameters": true,
+        "data_collection": "deny",
+        "zdr": true,
+        "only": []
+      }
+    },
+    {
+      "model": "deepseek/deepseek-r1-0528-qwen3-8b:free",
+      "status": "qualification_only",
+      "scored_trial_eligible": false,
+      "zero_price_required": true,
+      "min_context_length": 131072,
+      "max_tokens_cap": 32768,
+      "retention_class": "requires_zdr_and_data_collection_deny_routing",
+      "provider_policy": {
+        "allow_fallbacks": false,
+        "require_parameters": true,
+        "data_collection": "deny",
+        "zdr": true,
+        "only": []
+      }
+    }
+  ]
+}
