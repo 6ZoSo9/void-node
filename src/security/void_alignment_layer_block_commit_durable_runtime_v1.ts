@@ -213,7 +213,8 @@ function invokeDurableGuard(
     ) {
       if (
         error.code !== VOID_AL_DURABLE_SAFE_MODE_RESTORED_V1 &&
-        error.code !== VOID_AL_DURABLE_SAFE_MODE_PERSISTENCE_FAILURE_V1
+        error.code !== VOID_AL_DURABLE_SAFE_MODE_PERSISTENCE_FAILURE_V1 &&
+        error.code !== VOID_AL_DURABLE_SAFE_MODE_CHILD_LATCHED_V1
       ) {
         persistSafeMode(state, error.code, error.evidence_sha256);
       }
