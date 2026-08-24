@@ -25,25 +25,25 @@ function fixtureRegistry() {
       {
         model: 'stealth/ox-alpha', status: 'qualified', scored_trial_eligible: true,
         zero_price_required: true, min_context_length: 262144, max_tokens_cap: 32768,
-        retention_class: 'retained-provider-preview',
+        retention_class: 'retained-provider-preview', privacy_class: 'retained_public_only',
         provider_policy: { allow_fallbacks: false, require_parameters: true, data_collection: null, zdr: false, only: [] },
       },
       {
         model: 'deepseek/deepseek-v4-flash:free', status: 'qualification_only', scored_trial_eligible: false,
         zero_price_required: true, min_context_length: 1048576, max_tokens_cap: 32768,
-        retention_class: 'qualification-zdr-required',
+        retention_class: 'qualification-zdr-required', privacy_class: 'zdr_public_or_sanitized',
         provider_policy: { allow_fallbacks: false, require_parameters: true, data_collection: 'deny', zdr: true, only: [] },
       },
       {
         model: 'deepseek/deepseek-chat:free', status: 'qualification_only', scored_trial_eligible: false,
         zero_price_required: true, min_context_length: 131072, max_tokens_cap: 32768,
-        retention_class: 'qualification-zdr-required',
-        provider_policy: { allow_fallbacks: false, require_parameters: true, data_collection: 'deny', zdr: true, only: [] },
+        retention_class: 'public-source-retained', privacy_class: 'retained_public_only',
+        provider_policy: { allow_fallbacks: false, require_parameters: true, data_collection: 'allow', zdr: false, only: [] },
       },
       {
         model: 'other/quarantined:free', status: 'quarantined', scored_trial_eligible: false,
         zero_price_required: true, min_context_length: 32768, max_tokens_cap: 4096,
-        retention_class: 'quarantined',
+        retention_class: 'quarantined', privacy_class: 'zdr_public_or_sanitized',
         provider_policy: { allow_fallbacks: false, require_parameters: true, data_collection: null, zdr: false, only: [] },
       },
     ],
@@ -55,6 +55,7 @@ function environment(overrides = {}) {
     VOID_OPENROUTER_ARENA_ENABLE: '1',
     VOID_OPENROUTER_ENABLE: '1',
     VOID_OPENROUTER_ACK_PROVIDER_POLICY: '1',
+    VOID_OPENROUTER_ACK_PUBLIC_RETENTION: '1',
     VOID_OPENROUTER_ARENA_MODE: 'qualification',
     VOID_OPENROUTER_ARENA_DELAY_MS: '0',
     OPENROUTER_API_KEY: TEST_KEY,
@@ -192,6 +193,56 @@ async function main() {
     assert.equal(scoredSummary.requested_contestants, 1);
     assert.equal(scoredSummary.green_contestants, 1);
 
+    const collisionRegistry = {
+      marker: 'VOID_APOLLYON_OPENROUTER_CONTESTANT_REGISTRY_V1',
+      version: 1,
+      reviewed_at_utc: '2026-08-24T06:00:00.000Z',
+      default_model: 'a_b/c',
+      contestants: [
+        {
+          model: 'a_b/c', status: 'qualified', scored_trial_eligible: true,
+          zero_price_required: true, min_context_length: 32768, max_tokens_cap: 4096,
+          retention_class: 'proof-zdr', privacy_class: 'zdr_public_or_sanitized',
+          provider_policy: { allow_fallbacks: false, require_parameters: true, data_collection: 'deny', zdr: true, only: [] },
+        },
+        {
+          model: 'a/b_c', status: 'qualification_only', scored_trial_eligible: false,
+          zero_price_required: true, min_context_length: 32768, max_tokens_cap: 4096,
+          retention_class: 'proof-zdr', privacy_class: 'zdr_public_or_sanitized',
+          provider_policy: { allow_fallbacks: false, require_parameters: true, data_collection: 'deny', zdr: true, only: [] },
+        },
+      ],
+    };
+    const collisionRoot = join(root, 'collision');
+    const collisionSummary = await runOpenRouterAlignmentArenaV1({
+      trialPath: 'trial.json',
+      stagingRoot: 'stage',
+      manifestPath: 'manifest.json',
+      outputRoot: collisionRoot,
+      admissionAtUtc: '2026-08-24T06:00:00.000Z',
+    }, {
+      env: environment(),
+      registry: collisionRegistry,
+      runContestantFn: async (options, hooks) => {
+        const result = {
+          marker: RESULT_MARKER,
+          model_requested: hooks.env.VOID_OPENROUTER_MODEL,
+          trial_id: `voidat1_${'4'.repeat(64)}`,
+          admission_id: `voidaa1_${'5'.repeat(64)}`,
+          response_content_sha256: '6'.repeat(64),
+        };
+        await writeFile(options.outputPath, `${JSON.stringify(result, null, 2)}\n`, { mode: 0o600, flag: 'wx' });
+        return result;
+      },
+      sleepFn: async () => {},
+      emitOutput: false,
+    });
+    assert.equal(collisionSummary.requested_contestants, 2);
+    assert.equal(collisionSummary.green_contestants, 1);
+    assert.equal(collisionSummary.held_contestants, 1);
+    assert.match(collisionSummary.records.find((x) => x.model === 'a/b_c').hold_reason, /EEXIST/);
+    assert.equal((await stat(join(collisionRoot, 'arena-summary.json'))).mode & 0o777, 0o600);
+
     await expectReject(
       runOpenRouterAlignmentArenaV1({
         trialPath: 'trial.json', stagingRoot: 'stage', manifestPath: 'manifest.json',
@@ -217,6 +268,7 @@ async function main() {
   console.log('qualification_gate_per_model=true');
   console.log('sequential_no_retry_or_parallel_fanout=true');
   console.log('persisted_result_binding=true');
+  console.log('per_contestant_setup_failure_contained=true');
   console.log('api_key_redacted_from_hold_summary=true');
   console.log('automatic_registry_promotion=false');
   console.log('automatic_authority_grant=false');

@@ -148,11 +148,6 @@ export async function runOpenRouterAlignmentArenaV1(options, hooks = {}) {
   const records = [];
   for (let index = 0; index < contestants.length; index += 1) {
     const contestant = contestants[index];
-    const modelLeaf = safeModelLeaf(contestant.model);
-    const modelDir = join(outputRoot, modelLeaf);
-    await mkdir(modelDir, { mode: 0o700 });
-    const receiptPath = join(modelDir, 'outbound-admission-receipt.json');
-    const resultPath = join(modelDir, 'contestant-result.json');
 
     const modelEnv = {
       ...env,
@@ -162,6 +157,12 @@ export async function runOpenRouterAlignmentArenaV1(options, hooks = {}) {
     };
 
     try {
+      const modelLeaf = safeModelLeaf(contestant.model);
+      const modelDir = join(outputRoot, modelLeaf);
+      await mkdir(modelDir, { mode: 0o700 });
+      const receiptPath = join(modelDir, 'outbound-admission-receipt.json');
+      const resultPath = join(modelDir, 'contestant-result.json');
+
       const result = await runContestant({
         trialPath: options.trialPath,
         stagingRoot: options.stagingRoot,

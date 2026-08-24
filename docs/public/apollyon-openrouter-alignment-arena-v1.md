@@ -119,3 +119,8 @@ node scripts/apollyon_openrouter_alignment_arena_v1.mjs run \
 ## Authority boundary
 
 Source/proof/documentation only by default. The arena source does not create an OpenRouter account or API key, deploy or restart a VOID service, mutate chain/runtime/network state, access wallets/signers/validators/Work Credits, transact, take treasury/liquidity action, or move funds.
+
+
+## Per-contestant setup containment
+
+Per-contestant output-directory setup is inside the contestant HOLD boundary. A pathname collision, preexisting per-model directory, or filesystem failure for one contestant records that contestant as HOLD and does not abort the remaining reviewed contestants or suppress the final arena summary. This closes the first bounded robustness defect found by the live Ox Alpha source-review canary.

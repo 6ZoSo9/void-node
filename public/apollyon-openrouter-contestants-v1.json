@@ -1,7 +1,7 @@
 {
   "marker": "VOID_APOLLYON_OPENROUTER_CONTESTANT_REGISTRY_V1",
   "version": 1,
-  "reviewed_at_utc": "2026-08-24T07:24:00.000Z",
+  "reviewed_at_utc": "2026-08-24T07:52:00.000Z",
   "default_model": "stealth/ox-alpha",
   "contestants": [
     {
@@ -18,7 +18,8 @@
         "data_collection": null,
         "zdr": false,
         "only": []
-      }
+      },
+      "privacy_class": "retained_public_only"
     },
     {
       "model": "deepseek/deepseek-v4-flash:free",
@@ -34,7 +35,8 @@
         "data_collection": "deny",
         "zdr": true,
         "only": []
-      }
+      },
+      "privacy_class": "zdr_public_or_sanitized"
     },
     {
       "model": "deepseek/deepseek-r1:free",
@@ -50,7 +52,8 @@
         "data_collection": "deny",
         "zdr": true,
         "only": []
-      }
+      },
+      "privacy_class": "zdr_public_or_sanitized"
     },
     {
       "model": "deepseek/deepseek-chat:free",
@@ -66,7 +69,8 @@
         "data_collection": "deny",
         "zdr": true,
         "only": []
-      }
+      },
+      "privacy_class": "zdr_public_or_sanitized"
     },
     {
       "model": "deepseek/deepseek-r1-0528-qwen3-8b:free",
@@ -82,7 +86,8 @@
         "data_collection": "deny",
         "zdr": true,
         "only": []
-      }
+      },
+      "privacy_class": "zdr_public_or_sanitized"
     },
     {
       "model": "z-ai/glm-5.2:free",
@@ -98,7 +103,8 @@
         "data_collection": "deny",
         "zdr": true,
         "only": []
-      }
+      },
+      "privacy_class": "zdr_public_or_sanitized"
     },
     {
       "model": "cohere/north-mini-code:free",
@@ -107,14 +113,15 @@
       "zero_price_required": true,
       "min_context_length": 256000,
       "max_tokens_cap": 32768,
-      "retention_class": "catalog_zero_price_free_agentic_coding_requires_zdr_and_data_collection_deny_routing",
+      "retention_class": "public_source_only_provider_retention_or_training_allowed",
       "provider_policy": {
         "allow_fallbacks": false,
         "require_parameters": true,
-        "data_collection": "deny",
-        "zdr": true,
+        "data_collection": "allow",
+        "zdr": false,
         "only": []
-      }
+      },
+      "privacy_class": "retained_public_only"
     },
     {
       "model": "poolside/laguna-s-2.1:free",
@@ -123,14 +130,15 @@
       "zero_price_required": true,
       "min_context_length": 262144,
       "max_tokens_cap": 32768,
-      "retention_class": "catalog_zero_price_free_agentic_coding_requires_zdr_and_data_collection_deny_routing",
+      "retention_class": "public_source_only_provider_retention_or_training_allowed",
       "provider_policy": {
         "allow_fallbacks": false,
         "require_parameters": true,
-        "data_collection": "deny",
-        "zdr": true,
+        "data_collection": "allow",
+        "zdr": false,
         "only": []
-      }
+      },
+      "privacy_class": "retained_public_only"
     },
     {
       "model": "thinkingmachines/inkling:free",
@@ -139,14 +147,15 @@
       "zero_price_required": true,
       "min_context_length": 262144,
       "max_tokens_cap": 32768,
-      "retention_class": "catalog_zero_price_free_agentic_reasoning_requires_zdr_and_data_collection_deny_routing",
+      "retention_class": "public_source_only_provider_retention_or_training_allowed",
       "provider_policy": {
         "allow_fallbacks": false,
         "require_parameters": true,
-        "data_collection": "deny",
-        "zdr": true,
+        "data_collection": "allow",
+        "zdr": false,
         "only": []
-      }
+      },
+      "privacy_class": "retained_public_only"
     },
     {
       "model": "nvidia/nemotron-3.5-lightning:free",
@@ -155,14 +164,15 @@
       "zero_price_required": true,
       "min_context_length": 1000000,
       "max_tokens_cap": 32768,
-      "retention_class": "catalog_zero_price_free_agentic_high_throughput_requires_zdr_and_data_collection_deny_routing",
+      "retention_class": "public_source_only_provider_retention_or_training_allowed",
       "provider_policy": {
         "allow_fallbacks": false,
         "require_parameters": true,
-        "data_collection": "deny",
-        "zdr": true,
+        "data_collection": "allow",
+        "zdr": false,
         "only": []
-      }
+      },
+      "privacy_class": "retained_public_only"
     },
     {
       "model": "dots-studio/dots-3-note-preview:free",
@@ -171,14 +181,15 @@
       "zero_price_required": true,
       "min_context_length": 512000,
       "max_tokens_cap": 32768,
-      "retention_class": "catalog_zero_price_free_preview_requires_zdr_and_data_collection_deny_routing",
+      "retention_class": "public_source_only_provider_retention_or_training_allowed",
       "provider_policy": {
         "allow_fallbacks": false,
         "require_parameters": true,
-        "data_collection": "deny",
-        "zdr": true,
+        "data_collection": "allow",
+        "zdr": false,
         "only": []
-      }
+      },
+      "privacy_class": "retained_public_only"
     }
   ]
 }

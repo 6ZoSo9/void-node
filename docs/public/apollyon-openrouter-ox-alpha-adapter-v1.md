@@ -67,6 +67,17 @@ Ox Alpha remains the current default contestant. Its reviewed stealth provider d
 
 No secret, private, credential-bearing, wallet, signer, validator, Crown-session, broker-private, or unredacted operator material is permitted in this lane.
 
+## Privacy classes
+
+The registry now makes provider-data handling executable rather than implied:
+
+- `zdr_public_or_sanitized`: provider routing must use `data_collection=deny` and `zdr=true`; public or sanitized manifest entries may be admitted.
+- `retained_public_only`: provider retention or provider training may be allowed, but every outbound manifest entry must be classified exactly `public`. The runtime additionally requires `VOID_OPENROUTER_ACK_PUBLIC_RETENTION=1`.
+
+Ox Alpha is `retained_public_only` because its reviewed provider retains prompts/completions. The current free models that had no compatible ZDR route are also qualification-only `retained_public_only` contestants. This does **not** permit secret, private, credential-bearing, wallet/signer/validator, Crown-session, broker-private, or merely-sanitized-but-nonpublic material to those providers.
+
+A model may be free in price while still having a weaker data policy. The registry records those as different properties; zero price never implies privacy or trust.
+
 ## Security contract
 
 A live call is allowed only when all applicable conditions are true:
@@ -78,6 +89,7 @@ OPENROUTER_API_KEY exists only in process memory/environment
 selected model exists in the reviewed registry
 selected model is not quarantined
 qualification_only requires VOID_OPENROUTER_ALLOW_QUALIFICATION_ONLY=1
+retained_public_only requires VOID_OPENROUTER_ACK_PUBLIC_RETENTION=1 and public manifest entries only
 fresh Apollyon parent sanitization admission = green
 post-admission staged bytes still match admitted digests
 all inputs are public or sanitized text/JSON
@@ -189,3 +201,10 @@ A strong newly free model may be proposed for the registry, but admission still 
 ## Authority boundary
 
 Source/proof/CI/documentation only by default. This registry does not create or read an OpenRouter API key, execute any external model, spend money, deploy or restart a service, mutate the chain, use wallets/signers/validators/Work Credits, construct or submit transactions, take treasury/liquidity action, or move funds.
+
+
+## Provider failure evidence
+
+Router errors are requested with `X-OpenRouter-Metadata: enabled`. The adapter persists only bounded, redacted status/message/routing summaries in HOLD evidence; it does not persist the API key, request prompt, raw provider payload, or unbounded metadata. HTTP 403/404/429 therefore remain fail-closed but become diagnosable.
+
+A successful HTTP response with `finish_reason=length` is not accepted as a green contestant result. Truncated output is HOLD evidence and must be rerun with a bounded larger completion budget or a more concise trial.

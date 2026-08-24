@@ -53,6 +53,15 @@ const QUALIFICATION_MODELS = [
   'nvidia/nemotron-3.5-lightning:free',
   'dots-studio/dots-3-note-preview:free',
 ];
+const STRICT_ZDR_MODELS = ['z-ai/glm-5.2:free'];
+const RETAINED_PUBLIC_MODELS = [
+  'stealth/ox-alpha',
+  'cohere/north-mini-code:free',
+  'poolside/laguna-s-2.1:free',
+  'thinkingmachines/inkling:free',
+  'nvidia/nemotron-3.5-lightning:free',
+  'dots-studio/dots-3-note-preview:free',
+];
 
 function sha256(value) {
   return createHash('sha256').update(value).digest('hex');
@@ -160,7 +169,7 @@ function runTrialTool(args) {
   return r.stdout.trim();
 }
 
-async function makeFixture(root, name) {
+async function makeFixture(root, name, classification = 'public') {
   const dir = join(root, name);
   const stage = join(dir, 'stage');
   const draftPath = join(dir, 'draft.json');
@@ -184,7 +193,7 @@ async function makeFixture(root, name) {
       label: 'fixture',
       relative_path: 'fixture.json',
       sha256: fixtureSha,
-      classification: 'sanitized',
+      classification,
       media_type: 'application/json',
     }],
     created_at_utc: '2026-08-24T05:35:00.000Z',
@@ -226,6 +235,7 @@ function environment(model, overrides = {}) {
   return {
     VOID_OPENROUTER_ENABLE: '1',
     VOID_OPENROUTER_ACK_PROVIDER_POLICY: '1',
+    VOID_OPENROUTER_ACK_PUBLIC_RETENTION: '1',
     VOID_OPENROUTER_MODEL: model,
     VOID_OPENROUTER_MAX_TOKENS: '4096',
     OPENROUTER_API_KEY: TEST_KEY,
@@ -249,6 +259,7 @@ function successFetch(contestant, assertions = {}) {
       assert.equal(options.method, 'POST');
       assert.equal(options.redirect, 'error');
       assert.equal(options.headers.authorization, `Bearer ${TEST_KEY}`);
+      assert.equal(options.headers['x-openrouter-metadata'], 'enabled');
       const body = JSON.parse(options.body);
       assert.equal(body.model, contestant.model);
       assert.equal(body.stream, false);
@@ -306,9 +317,18 @@ async function main() {
     assert.equal(contestant.status, 'qualification_only');
     assert.equal(contestant.scored_trial_eligible, false);
     assert.equal(contestant.provider_policy.allow_fallbacks, false);
+    assert.equal(validateZeroPriceModelV1(zeroMetadata(contestant), contestant).pricing_zero, true);
+  }
+  for (const strictModel of STRICT_ZDR_MODELS) {
+    const contestant = getContestantV1(registry, strictModel);
+    assert.equal(contestant.privacy_class, 'zdr_public_or_sanitized');
     assert.equal(contestant.provider_policy.data_collection, 'deny');
     assert.equal(contestant.provider_policy.zdr, true);
-    assert.equal(validateZeroPriceModelV1(zeroMetadata(contestant), contestant).pricing_zero, true);
+  }
+  for (const retainedModel of RETAINED_PUBLIC_MODELS) {
+    const contestant = getContestantV1(registry, retainedModel);
+    assert.equal(contestant.privacy_class, 'retained_public_only');
+    assert.equal(contestant.provider_policy.zdr, false);
   }
 
   assert.equal(validateZeroPriceModelV1(zeroMetadata(ox), ox).pricing_zero, true);
@@ -322,7 +342,7 @@ async function main() {
   assert.throws(() => validateContestantRegistryV1(duplicateRegistry), /duplicate contestant model/);
 
   const weakenedQualificationPolicy = structuredClone(registry);
-  const qualificationIndex = weakenedQualificationPolicy.contestants.findIndex((x) => x.status === 'qualification_only');
+  const qualificationIndex = weakenedQualificationPolicy.contestants.findIndex((x) => x.model === STRICT_ZDR_MODELS[0]);
   assert.notEqual(qualificationIndex, -1);
   weakenedQualificationPolicy.contestants[qualificationIndex].provider_policy.zdr = false;
   assert.throws(() => validateContestantRegistryV1(weakenedQualificationPolicy), /must require data_collection=deny and zdr=true/);
@@ -410,6 +430,54 @@ async function main() {
     assert.equal(deepseekResult.provider_policy.zdr, true);
     assert.equal(deepseekTransport.calls().metadataCalls, 1);
     assert.equal(deepseekTransport.calls().chatCalls, 1);
+
+    const retained = getContestantV1(registry, 'cohere/north-mini-code:free');
+    const retainedFixture = await makeFixture(root, 'retained-public-success', 'public');
+    const retainedTransport = successFetch(retained, {
+      onChatBody: (body) => {
+        assert.equal(body.provider.data_collection, 'allow');
+        assert.equal(body.provider.zdr, false);
+        assert.equal(body.provider.allow_fallbacks, false);
+      },
+    });
+    const retainedResult = await runOpenRouterContestantTrialV1({
+      trialPath: retainedFixture.packetPath,
+      stagingRoot: retainedFixture.stage,
+      manifestPath: retainedFixture.manifestPath,
+      receiptPath: retainedFixture.receiptPath,
+      outputPath: retainedFixture.outputPath,
+      admissionAtUtc: ADMISSION_AT,
+    }, {
+      registry,
+      env: environment(retained.model, { VOID_OPENROUTER_ALLOW_QUALIFICATION_ONLY: '1' }),
+      fetchImpl: retainedTransport.fetchImpl,
+      emitOutput: false,
+    });
+    assert.equal(retainedResult.privacy_class, 'retained_public_only');
+    assert.equal(retainedResult.public_retention_acknowledged, true);
+    assert.equal(retainedTransport.calls().chatCalls, 1);
+
+    const retainedSanitized = await makeFixture(root, 'retained-sanitized-reject', 'sanitized');
+    let retainedSanitizedFetches = 0;
+    await expectReject(
+      runOpenRouterContestantTrialV1({
+        trialPath: retainedSanitized.packetPath,
+        stagingRoot: retainedSanitized.stage,
+        manifestPath: retainedSanitized.manifestPath,
+        receiptPath: retainedSanitized.receiptPath,
+        outputPath: retainedSanitized.outputPath,
+        admissionAtUtc: ADMISSION_AT,
+      }, {
+        registry,
+        env: environment(retained.model, { VOID_OPENROUTER_ALLOW_QUALIFICATION_ONLY: '1' }),
+        fetchImpl: async () => { retainedSanitizedFetches += 1; return responseFor(MODEL_CATALOG_URL, {}); },
+        emitOutput: false,
+      }),
+      'requires every outbound entry to be classified public',
+      'retained-public-only input wall',
+    );
+    assert.equal(retainedSanitizedFetches, 0);
+    await expectMissing(retainedSanitized.outputPath, 'retained sanitized result');
 
     const paid = await makeFixture(root, 'qualification-paid');
     let paidChatCalls = 0;
@@ -531,6 +599,70 @@ async function main() {
     assert.equal(toolChatCalls, 1);
     await expectMissing(toolCall.outputPath, 'tool-call result');
 
+    const routingError = await makeFixture(root, 'routing-error-detail');
+    let routingErrorChats = 0;
+    await expectReject(
+      runOpenRouterContestantTrialV1({
+        trialPath: routingError.packetPath,
+        stagingRoot: routingError.stage,
+        manifestPath: routingError.manifestPath,
+        receiptPath: routingError.receiptPath,
+        outputPath: routingError.outputPath,
+        admissionAtUtc: ADMISSION_AT,
+      }, {
+        registry,
+        env: environment(ox.model),
+        fetchImpl: async (url) => {
+          if (url === MODEL_CATALOG_URL) return responseFor(MODEL_CATALOG_URL, { data: [zeroMetadata(ox).data] });
+          routingErrorChats += 1;
+          return responseFor(CHAT_URL, {
+            error: { code: 404, message: 'No allowed providers are available for the selected model' },
+            openrouter_metadata: {
+              strategy: 'direct',
+              attempt: 0,
+              endpoints: { total: 1, available: [{ provider: 'ProofProvider', selected: false }] },
+            },
+          }, 404);
+        },
+        emitOutput: false,
+      }),
+      'No allowed providers are available for the selected model',
+      'bounded provider-routing error detail',
+    );
+    assert.equal(routingErrorChats, 1);
+    await expectMissing(routingError.outputPath, 'routing error result');
+
+    const truncated = await makeFixture(root, 'truncated-finish');
+    await expectReject(
+      runOpenRouterContestantTrialV1({
+        trialPath: truncated.packetPath,
+        stagingRoot: truncated.stage,
+        manifestPath: truncated.manifestPath,
+        receiptPath: truncated.receiptPath,
+        outputPath: truncated.outputPath,
+        admissionAtUtc: ADMISSION_AT,
+      }, {
+        registry,
+        env: environment(ox.model),
+        fetchImpl: async (url) => {
+          if (url === MODEL_CATALOG_URL) return responseFor(MODEL_CATALOG_URL, { data: [zeroMetadata(ox).data] });
+          return responseFor(CHAT_URL, {
+            id: 'chatcmpl-truncated',
+            model: ox.model,
+            choices: [{
+              index: 0,
+              finish_reason: 'length',
+              message: { role: 'assistant', content: '{"partial":true}', tool_calls: [] },
+            }],
+          });
+        },
+        emitOutput: false,
+      }),
+      'truncated at the max token boundary',
+      'truncated response rejection',
+    );
+    await expectMissing(truncated.outputPath, 'truncated result');
+
     await expectReject(
       runOpenRouterContestantTrialV1({
         trialPath: 'unused', stagingRoot: 'unused', manifestPath: 'unused', receiptPath: 'unused', outputPath: 'unused', admissionAtUtc: ADMISSION_AT,
@@ -579,8 +711,9 @@ async function main() {
   console.log('ox_alpha_scored_trial_eligible=true');
   console.log('stale_deepseek_quarantined=4');
   console.log(`qualification_only_current_free_count=${QUALIFICATION_MODELS.length}`);
-  console.log('qualification_only_zdr_required=true');
-  console.log('qualification_only_data_collection_deny=true');
+  console.log('strict_zdr_public_or_sanitized_models=1');
+  console.log('retained_public_only_models=6');
+  console.log('retained_public_only_rejects_sanitized_inputs=true');
   console.log('live_provider_call=false');
   console.log('sanitization_admission_required=true');
   console.log('post_admission_digest_recheck=true');
@@ -593,6 +726,8 @@ async function main() {
   console.log('provider_fallbacks=false');
   console.log('tools_exposed=false');
   console.log('tool_calls_rejected=true');
+  console.log('router_error_metadata_bounded=true');
+  console.log('finish_reason_length_rejected=true');
   console.log('api_key_persisted=false');
   console.log('runtime_mutation=false');
 }

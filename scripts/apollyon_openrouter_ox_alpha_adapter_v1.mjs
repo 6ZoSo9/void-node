@@ -26,6 +26,7 @@ const MAX_ENTRY_BYTES = 1024 * 1024;
 const MAX_TOTAL_INPUT_BYTES = 2 * 1024 * 1024;
 const MAX_MODEL_RESPONSE_BYTES = 8 * 1024 * 1024;
 const MAX_CHAT_RESPONSE_BYTES = 8 * 1024 * 1024;
+const MAX_ERROR_RESPONSE_BYTES = 64 * 1024;
 const DEFAULT_MAX_TOKENS = 8_192;
 const MAX_MAX_TOKENS = 32_768;
 const DEFAULT_METADATA_TIMEOUT_MS = 15_000;
@@ -109,7 +110,7 @@ export function validateContestantRegistryV1(registry) {
   for (const [i, entry] of registry.contestants.entries()) {
     exactKeys(
       entry,
-      ['model', 'status', 'scored_trial_eligible', 'zero_price_required', 'min_context_length', 'max_tokens_cap', 'retention_class', 'provider_policy'],
+      ['model', 'status', 'scored_trial_eligible', 'zero_price_required', 'min_context_length', 'max_tokens_cap', 'retention_class', 'privacy_class', 'provider_policy'],
       `contestants[${i}]`,
     );
     if (typeof entry.model !== 'string' || !/^[a-z0-9._-]+\/[A-Za-z0-9._:-]+$/.test(entry.model)) {
@@ -125,19 +126,28 @@ export function validateContestantRegistryV1(registry) {
     if (!Number.isSafeInteger(entry.min_context_length) || entry.min_context_length < 32_768) fail(`contestant ${entry.model} min_context_length is invalid`);
     if (!Number.isSafeInteger(entry.max_tokens_cap) || entry.max_tokens_cap < 1 || entry.max_tokens_cap > MAX_MAX_TOKENS) fail(`contestant ${entry.model} max_tokens_cap is invalid`);
     if (typeof entry.retention_class !== 'string' || entry.retention_class.length < 3 || entry.retention_class.length > 256) fail(`contestant ${entry.model} retention_class is invalid`);
+    if (!['zdr_public_or_sanitized', 'retained_public_only'].includes(entry.privacy_class)) {
+      fail(`contestant ${entry.model} privacy_class is invalid`);
+    }
 
     exactKeys(entry.provider_policy, ['allow_fallbacks', 'require_parameters', 'data_collection', 'zdr', 'only'], `contestant ${entry.model} provider_policy`);
     if (entry.provider_policy.allow_fallbacks !== false) fail(`contestant ${entry.model} must disable provider fallbacks`);
     if (entry.provider_policy.require_parameters !== true) fail(`contestant ${entry.model} must require provider parameter support`);
-    if (![null, 'deny'].includes(entry.provider_policy.data_collection)) fail(`contestant ${entry.model} data_collection policy is invalid`);
+    if (![null, 'allow', 'deny'].includes(entry.provider_policy.data_collection)) fail(`contestant ${entry.model} data_collection policy is invalid`);
     if (typeof entry.provider_policy.zdr !== 'boolean') fail(`contestant ${entry.model} zdr policy is invalid`);
     if (!Array.isArray(entry.provider_policy.only) || entry.provider_policy.only.length > 16) fail(`contestant ${entry.model} provider only-list is invalid`);
     for (const providerSlug of entry.provider_policy.only) {
       if (typeof providerSlug !== 'string' || !/^[A-Za-z0-9._-]{1,128}$/.test(providerSlug)) fail(`contestant ${entry.model} provider slug is invalid`);
     }
-    if (entry.status === 'qualification_only') {
-      if (entry.provider_policy.data_collection !== 'deny' || entry.provider_policy.zdr !== true) {
-        fail(`qualification-only contestant ${entry.model} must require data_collection=deny and zdr=true`);
+    if (entry.status !== 'quarantined') {
+      if (entry.privacy_class === 'zdr_public_or_sanitized') {
+        if (entry.provider_policy.data_collection !== 'deny' || entry.provider_policy.zdr !== true) {
+          fail(`ZDR contestant ${entry.model} must require data_collection=deny and zdr=true`);
+        }
+      } else {
+        if (entry.provider_policy.zdr !== false || ![null, 'allow'].includes(entry.provider_policy.data_collection)) {
+          fail(`retained-public-only contestant ${entry.model} has inconsistent provider retention policy`);
+        }
       }
     }
     if (entry.model === registry.default_model) defaultEntry = entry;
@@ -176,6 +186,10 @@ function requireRuntimeGate(env, registry) {
   if (contestant.status === 'quarantined') fail(`contestant ${model} is quarantined and requires requalification`);
   if (contestant.status === 'qualification_only' && env.VOID_OPENROUTER_ALLOW_QUALIFICATION_ONLY !== '1') {
     fail(`contestant ${model} is qualification_only; VOID_OPENROUTER_ALLOW_QUALIFICATION_ONLY=1 is required`);
+  }
+  if (contestant.privacy_class === 'retained_public_only'
+    && env.VOID_OPENROUTER_ACK_PUBLIC_RETENTION !== '1') {
+    fail(`contestant ${model} requires VOID_OPENROUTER_ACK_PUBLIC_RETENTION=1`);
   }
   return {
     apiKey,
@@ -265,6 +279,15 @@ function safeRelativePath(value, name) {
 function scanOutboundText(text) {
   for (const pattern of BLOCKED_OUTBOUND_PATTERNS) {
     if (pattern.test(text)) fail('final outbound prompt failed last-mile secret/path scan');
+  }
+}
+
+function validateContestantInputPolicy(manifest, contestant) {
+  if (contestant.privacy_class !== 'retained_public_only') return;
+  for (const entry of manifest.entries) {
+    if (entry.classification !== 'public') {
+      fail(`retained-public-only contestant ${contestant.model} requires every outbound entry to be classified public`);
+    }
   }
 }
 
@@ -395,7 +418,7 @@ function providerRequestPolicy(contestant) {
   if (contestant.provider_policy.data_collection !== null) {
     policy.data_collection = contestant.provider_policy.data_collection;
   }
-  if (contestant.provider_policy.zdr === true) policy.zdr = true;
+  policy.zdr = contestant.provider_policy.zdr;
   if (contestant.provider_policy.only.length > 0) policy.only = [...contestant.provider_policy.only];
   return policy;
 }
@@ -451,6 +474,53 @@ async function fetchModelMetadata(fetchImpl, apiKey, timeoutMs, contestant) {
   return matches[0];
 }
 
+function boundedErrorText(value, apiKey) {
+  if (value === null || value === undefined) return null;
+  let text = String(value).replace(/[\r\n\t]+/g, ' ').trim();
+  if (!text) return null;
+  if (apiKey && text.includes(apiKey)) text = text.split(apiKey).join('[REDACTED_API_KEY]');
+  for (const pattern of BLOCKED_OUTBOUND_PATTERNS) {
+    if (pattern.test(text)) return '[REDACTED_SENSITIVE_ERROR]';
+  }
+  return text.length > 768 ? `${text.slice(0, 768)}…` : text;
+}
+
+async function openRouterHttpError(response, name, apiKey) {
+  const parts = [`${name} returned HTTP ${response.status}`];
+  try {
+    const payload = await readResponseJsonBounded(response, MAX_ERROR_RESPONSE_BYTES, `${name} error`);
+    const error = payload?.error;
+    const code = error?.code;
+    const message = boundedErrorText(error?.message, apiKey);
+    if (code !== null && code !== undefined && ['string', 'number'].includes(typeof code)) {
+      parts.push(`code=${boundedErrorText(code, apiKey)}`);
+    }
+    if (message) parts.push(`message=${message}`);
+    const meta = payload?.openrouter_metadata;
+    if (meta && typeof meta === 'object') {
+      const strategy = boundedErrorText(meta.strategy, apiKey);
+      if (strategy) parts.push(`strategy=${strategy}`);
+      if (Number.isSafeInteger(meta.attempt)) parts.push(`attempt=${meta.attempt}`);
+      if (Number.isSafeInteger(meta?.endpoints?.total)) parts.push(`endpoints_total=${meta.endpoints.total}`);
+      const available = Array.isArray(meta?.endpoints?.available) ? meta.endpoints.available : [];
+      const providers = available.slice(0, 8)
+        .map((entry) => boundedErrorText(entry?.provider, apiKey))
+        .filter(Boolean);
+      if (providers.length > 0) parts.push(`providers=${providers.join(',')}`);
+      const pipeline = Array.isArray(meta?.pipeline) ? meta.pipeline : [];
+      const stages = pipeline.slice(0, 8)
+        .map((entry) => boundedErrorText(entry?.name ?? entry?.stage ?? entry?.id, apiKey))
+        .filter(Boolean);
+      if (stages.length > 0) parts.push(`pipeline=${stages.join(',')}`);
+    }
+  } catch {
+    // Preserve only the bounded HTTP status when an error body is absent/malformed/oversized.
+  }
+  const retryAfter = boundedErrorText(response.headers?.get?.('retry-after'), apiKey);
+  if (retryAfter) parts.push(`retry_after=${retryAfter}`);
+  return new Error(parts.join(' '));
+}
+
 async function sendChat(fetchImpl, apiKey, requestBody, timeoutMs) {
   const response = await fetchImpl(CHAT_URL, {
     method: 'POST',
@@ -459,12 +529,13 @@ async function sendChat(fetchImpl, apiKey, requestBody, timeoutMs) {
       accept: 'application/json',
       authorization: `Bearer ${apiKey}`,
       'content-type': 'application/json',
+      'x-openrouter-metadata': 'enabled',
     },
     body: JSON.stringify(requestBody),
     signal: AbortSignal.timeout(timeoutMs),
   });
   assertExactResponseUrl(response, CHAT_URL, 'chat completion');
-  if (response.status !== 200) fail(`OpenRouter chat completion returned HTTP ${response.status}`);
+  if (response.status !== 200) throw await openRouterHttpError(response, 'OpenRouter chat completion', apiKey);
   return readResponseJsonBounded(response, MAX_CHAT_RESPONSE_BYTES, 'OpenRouter chat completion');
 }
 
@@ -475,6 +546,7 @@ function validateChatResponse(response) {
   const message = first?.message;
   if (!message || typeof message !== 'object') fail('OpenRouter chat response message is missing');
   if (Array.isArray(message.tool_calls) && message.tool_calls.length > 0) fail('OpenRouter contestant attempted a tool call; tools are not admitted');
+  if (first.finish_reason === 'length') fail('OpenRouter contestant response was truncated at the max token boundary');
   if (typeof message.content !== 'string') fail('OpenRouter contestant returned non-text content');
   return {
     content: message.content,
@@ -527,6 +599,7 @@ export async function runOpenRouterContestantTrialV1(options, hooks = {}) {
   ]);
   if (canonicalJson(receiptRead.value) !== canonicalJson(receipt)) fail('published sanitization receipt differs from admitted receipt object');
   validateReceiptAndManifest(trialRead.value, manifestRead.value, receiptRead.value);
+  validateContestantInputPolicy(manifestRead.value, runtime.contestant);
   const admitted = await collectAdmittedInputs(options.stagingRoot, manifestRead.value, receiptRead.value, hooks);
 
   const metadata = await fetchModelMetadata(fetchImpl, runtime.apiKey, runtime.metadataTimeoutMs, runtime.contestant);
@@ -548,7 +621,9 @@ export async function runOpenRouterContestantTrialV1(options, hooks = {}) {
     qualification_status: runtime.contestant.status,
     scored_trial_eligible: runtime.contestant.scored_trial_eligible,
     retention_class: runtime.contestant.retention_class,
+    privacy_class: runtime.contestant.privacy_class,
     provider_policy_acknowledged: true,
+    public_retention_acknowledged: runtime.contestant.privacy_class === 'retained_public_only',
     pricing_verified_zero: true,
     provider_policy: providerRequestPolicy(runtime.contestant),
     tools_exposed: false,
