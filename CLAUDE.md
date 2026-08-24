@@ -71,3 +71,11 @@ Merlin must not:
 ## First-use posture
 
 Merlin v1 is intentionally conservative. Use the committed `.claude/settings.json` sandbox and permission policy. Do not weaken it to make a task easier. If a required action is denied, report the exact blocker and return control to the user/coordinator.
+
+The credential boundary relies on Claude Code security primitives that require **Claude Code v2.1.187 or later**. Before Merlin receives source-capable work on any host, run from the repository root:
+
+`node scripts/prove_merlin_claude_code_advisor_v1.mjs --runtime-preflight`
+
+The preflight must terminate successfully and print `VOID_MERLIN_CLAUDE_CODE_RUNTIME_PREFLIGHT_GREEN`. It checks the installed Claude Code generation, runs `claude doctor` for rejected settings, exercises the committed Bash pre-tool gate with synthetic credential data only, and fails closed if protected parent credential variables are already present. Never introduce a real credential or secret to satisfy this proof.
+
+The committed Bash `PreToolUse` gate independently blocks Bash when the Claude Code generation is below the supported minimum or when protected parent credential variables are present. A host that skips the green runtime preflight is not authorized for Merlin source-capable work even if the static repository proof is green.
