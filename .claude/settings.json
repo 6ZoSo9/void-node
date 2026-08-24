@@ -25,6 +25,8 @@
       "Edit(/CLAUDE.md)",
       "Edit(/AGENTS.md)",
       "Edit(/.claude/**)",
+      "Edit(/scripts/prove_merlin_claude_code_advisor_v1.mjs)",
+      "Edit(/.github/workflows/void-merlin-claude-code-advisor-v1.yml)",
       "Read(.env)",
       "Read(.env.*)",
       "Read(~/.claude/**)",
