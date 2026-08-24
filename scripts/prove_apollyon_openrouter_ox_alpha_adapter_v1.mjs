@@ -1,8 +1,9 @@
 #!/usr/bin/env node
 
 import assert from 'node:assert/strict';
+import { constants as FS } from 'node:fs';
 import { createHash } from 'node:crypto';
-import { mkdir, mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, open, readFile, rm, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { spawnSync } from 'node:child_process';
@@ -30,6 +31,7 @@ const ADMISSION_AT = '2026-08-24T05:55:00.000Z';
 const TEST_KEY = 'openrouter-test-key-not-a-secret-123456';
 let ACTIVE_REGISTRY_SHA256 = null;
 let ACTIVE_TRIAL_SHA256 = null;
+let ACTIVE_EXECUTION_CLAIM_ROOT_FD = null;
 const EXPECTED_MODELS = [
   'stealth/ox-alpha',
   'deepseek/deepseek-v4-flash:free',
@@ -248,6 +250,8 @@ function environment(model, overrides = {}) {
     VOID_OPENROUTER_ACK_PUBLIC_RETENTION: '1',
     VOID_OPENROUTER_ACK_REGISTRY_SHA256: ACTIVE_REGISTRY_SHA256,
     VOID_OPENROUTER_ACK_PUBLIC_TRIAL_SHA256: ACTIVE_TRIAL_SHA256,
+    VOID_OPENROUTER_EXECUTION_CLAIM_ROOT_FD:
+      ACTIVE_EXECUTION_CLAIM_ROOT_FD === null ? '' : String(ACTIVE_EXECUTION_CLAIM_ROOT_FD),
     VOID_OPENROUTER_MODEL: model,
     VOID_OPENROUTER_MAX_TOKENS: '4096',
     OPENROUTER_API_KEY: TEST_KEY,
@@ -407,6 +411,13 @@ async function main() {
   assert.equal(Object.prototype.hasOwnProperty.call(synthetic.body, 'tools'), false);
 
   const root = await mkdtemp(join(tmpdir(), 'void-openrouter-contestant-proof-'));
+  const claimRootPath = join(root, 'global-execution-claims');
+  await mkdir(claimRootPath, { mode: 0o700 });
+  const claimRootHandle = await open(
+    claimRootPath,
+    FS.O_RDONLY | FS.O_DIRECTORY | FS.O_NOFOLLOW,
+  );
+  ACTIVE_EXECUTION_CLAIM_ROOT_FD = claimRootHandle.fd;
   try {
     const success = await makeFixture(root, 'ox-success');
     const oxTransport = successFetch(ox);
@@ -447,6 +458,100 @@ async function main() {
     assert.equal((await stat(success.outputPath)).mode & 0o777, 0o600);
     assert.match(oxResult.accepted_recovery_key, /^[0-9a-f]{64}$/);
     assert.match(oxResult.execution_claim_sha256, /^[0-9a-f]{64}$/);
+    assert.match(oxResult.execution_claim_semantic_sha256, /^[0-9a-f]{64}$/);
+    assert.match(oxResult.execution_claim_root_generation_sha256, /^[0-9a-f]{64}$/);
+
+    // Same logical request in two different output namespaces must still share
+    // one global execution claim and therefore execute chat exactly once.
+    const crossOutput = await makeFixture(root, 'same-key-cross-output');
+    const crossOutputA = join(root, 'same-key-cross-output-a');
+    const crossOutputB = join(root, 'same-key-cross-output-b');
+    await mkdir(crossOutputA, { mode: 0o700 });
+    await mkdir(crossOutputB, { mode: 0o700 });
+    const crossOutputPathA = join(crossOutputA, 'result.json');
+    const crossOutputPathB = join(crossOutputB, 'result.json');
+
+    let crossOutputMetadataCalls = 0;
+    let crossOutputChatCalls = 0;
+    let crossOutputClaimArrivals = 0;
+    let releaseCrossOutputClaims;
+    const crossOutputBarrier = new Promise((resolvePromise) => {
+      releaseCrossOutputClaims = resolvePromise;
+    });
+
+    const crossOutputFetch = async (url, options) => {
+      if (url === MODEL_CATALOG_URL) {
+        crossOutputMetadataCalls += 1;
+        return responseFor(MODEL_CATALOG_URL, { data: [zeroMetadata(ox).data] });
+      }
+      crossOutputChatCalls += 1;
+      return responseFor(CHAT_URL, {
+        id: 'chatcmpl-cross-output-single-winner',
+        model: executionModelV1(ox),
+        openrouter_metadata: {
+          requested: executionModelV1(ox),
+          strategy: 'direct',
+          attempt: 1,
+          endpoints: {
+            total: 1,
+            available: [{
+              provider: 'ProofProvider',
+              model: executionModelV1(ox),
+              selected: true,
+            }],
+          },
+        },
+        choices: [{
+          index: 0,
+          finish_reason: 'stop',
+          message: {
+            role: 'assistant',
+            content: 'One global claim across two output namespaces.',
+            tool_calls: [],
+          },
+        }],
+        usage: { prompt_tokens: 100, completion_tokens: 14, total_tokens: 114 },
+      });
+    };
+
+    const crossOutputHooks = {
+      registry,
+      env: environment(ox.model),
+      fetchImpl: crossOutputFetch,
+      beforeExecutionClaim: async () => {
+        crossOutputClaimArrivals += 1;
+        if (crossOutputClaimArrivals === 2) releaseCrossOutputClaims();
+        await crossOutputBarrier;
+      },
+      emitOutput: false,
+    };
+
+    const crossOutputBase = {
+      trialPath: crossOutput.packetPath,
+      stagingRoot: crossOutput.stage,
+      manifestPath: crossOutput.manifestPath,
+      receiptPath: crossOutput.receiptPath,
+      admissionAtUtc: ADMISSION_AT,
+    };
+    const crossOutputSettled = await Promise.allSettled([
+      runOpenRouterContestantTrialV1(
+        { ...crossOutputBase, outputPath: crossOutputPathA },
+        crossOutputHooks,
+      ),
+      runOpenRouterContestantTrialV1(
+        { ...crossOutputBase, outputPath: crossOutputPathB },
+        crossOutputHooks,
+      ),
+    ]);
+    assert.equal(crossOutputClaimArrivals, 2);
+    assert.equal(crossOutputMetadataCalls, 2);
+    assert.equal(crossOutputChatCalls, 1, 'global same-key claim must span output namespaces');
+    assert.equal(crossOutputSettled.filter((x) => x.status === 'fulfilled').length, 1);
+    assert.equal(crossOutputSettled.filter((x) => x.status === 'rejected').length, 1);
+    assert.match(
+      String(crossOutputSettled.find((x) => x.status === 'rejected').reason?.message ?? ''),
+      /execution claim already exists/,
+    );
 
     // Same-key A/B concurrency: both callers may perform reversible catalog
     // discovery, but only the winner of the durable execution claim may POST chat.
@@ -645,7 +750,10 @@ async function main() {
     );
     assert.ok(foreignClaimPath);
     assert.equal(foreignClaimTransport.calls().chatCalls, 0);
-    assert.equal(await readFile(foreignClaimPath, 'utf8'), foreignClaimBytes);
+    const foreignClaimLeaf = foreignClaimPath.split('/').at(-1);
+    assert.match(foreignClaimLeaf, /^\.void-openrouter-execution-claim-[0-9a-f]{64}\.json$/);
+    const foreignClaimVisiblePath = join(claimRootPath, foreignClaimLeaf);
+    assert.equal(await readFile(foreignClaimVisiblePath, 'utf8'), foreignClaimBytes);
 
     // Foreign recovery generation also remains denial-only and is checked before
     // catalog/chat execution.
@@ -1455,6 +1563,28 @@ async function main() {
       'unknown-model gate',
     );
 
+    const missingClaimRoot = await makeFixture(root, 'missing-global-claim-root');
+    const missingClaimRootTransport = successFetch(ox);
+    await expectReject(
+      runOpenRouterContestantTrialV1({
+        trialPath: missingClaimRoot.packetPath,
+        stagingRoot: missingClaimRoot.stage,
+        manifestPath: missingClaimRoot.manifestPath,
+        receiptPath: missingClaimRoot.receiptPath,
+        outputPath: missingClaimRoot.outputPath,
+        admissionAtUtc: ADMISSION_AT,
+      }, {
+        registry,
+        env: environment(ox.model, { VOID_OPENROUTER_EXECUTION_CLAIM_ROOT_FD: '' }),
+        fetchImpl: missingClaimRootTransport.fetchImpl,
+        emitOutput: false,
+      }),
+      'EXECUTION_CLAIM_ROOT_FD',
+      'missing global execution-claim root capability',
+    );
+    assert.equal(missingClaimRootTransport.calls().chatCalls, 0);
+    await expectMissing(missingClaimRoot.outputPath, 'missing claim-root result');
+
     await expectReject(
       runOpenRouterContestantTrialV1({
         trialPath: 'unused', stagingRoot: 'unused', manifestPath: 'unused', receiptPath: 'unused', outputPath: 'unused', admissionAtUtc: ADMISSION_AT,
@@ -1481,6 +1611,8 @@ async function main() {
       'provider-policy acknowledgement gate',
     );
   } finally {
+    ACTIVE_EXECUTION_CLAIM_ROOT_FD = null;
+    await claimRootHandle.close().catch(() => {});
     await rm(root, { recursive: true, force: true });
   }
 
@@ -1526,6 +1658,10 @@ async function main() {
   console.log('tool_calls_rejected=true');
   console.log('router_error_metadata_bounded=true');
   console.log('finish_reason_stop_only=true');
+  console.log('global_execution_claim_root_inherited_fd_bound=true');
+  console.log('same_key_cross_output_namespace_chat_calls_exactly_one=true');
+  console.log('execution_claim_exact_file_sha256_bound=true');
+  console.log('execution_claim_root_generation_sha256_bound=true');
   console.log('same_key_pre_execution_claim_serialized=true');
   console.log('same_key_concurrent_chat_calls_exactly_one=true');
   console.log('stale_execution_claim_auto_reclaim=false');

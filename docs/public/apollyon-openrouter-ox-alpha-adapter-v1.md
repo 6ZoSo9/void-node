@@ -292,3 +292,18 @@ This deliberately favors fail-closed ambiguity over duplicate external execution
 If an operator can independently prove that a pre-chat claim never reached a provider, claim reconciliation/removal is a separate reviewed operation. This source does not infer that from process age, PID, timestamps, or same-UID ownership. No stale-owner timeout can silently widen provider-execution authority.
 
 The result persists `execution_claim_sha256`, binding accepted evidence back to the exact deterministic claim contents that serialized the absent -> executing transition.
+
+
+## Global execution-claim root
+
+Same-key serialization is intentionally independent of the requested result/output directory. The trusted local broker must hold one private mode-0700 execution-claim directory generation and pass that exact inherited descriptor as `VOID_OPENROUTER_EXECUTION_CLAIM_ROOT_FD`.
+
+The adapter duplicates only `/proc/self/fd/<inherited-fd>`, validates directory type, owner UID, and mode `0700`, and publishes `.void-openrouter-execution-claim-<recovery-key>.json` inside that retained generation. Two processes using different result directories but the same logical recovery identity therefore contend on the same claim leaf.
+
+The result binds both:
+
+- `execution_claim_sha256`: SHA-256 of the exact persisted claim-file bytes;
+- `execution_claim_semantic_sha256`: SHA-256 of canonical claim JSON;
+- `execution_claim_root_generation_sha256`: a local dev/inode/uid/mode generation digest for the inherited claim root.
+
+A missing claim-root fd is fail-closed before chat. The adapter does not open an arbitrary claim-root pathname itself and does not auto-create or replace the claim root. A future live broker must preserve one reviewed claim-root generation across the contestant executions it coordinates.

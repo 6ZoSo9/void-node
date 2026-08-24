@@ -682,8 +682,47 @@ async function assertNoAutomaticRecoveryEvidenceV1(path) {
   fail('accepted-result recovery evidence already exists; automatic GREEN and provider reexecution are forbidden; operator reconciliation is required');
 }
 
-function executionClaimPathV1(outputPath, recoveryKey) {
-  return join(dirname(resolve(outputPath)), `.void-openrouter-execution-claim-${recoveryKey}.json`);
+function parseInheritedExecutionClaimRootFdV1(raw) {
+  const text = String(raw ?? '').trim();
+  if (!/^[1-9][0-9]*$/.test(text)) {
+    fail('VOID_OPENROUTER_EXECUTION_CLAIM_ROOT_FD must be an inherited positive integer fd');
+  }
+  const fd = Number(text);
+  if (!Number.isSafeInteger(fd) || fd < 3 || fd > 1_048_575) {
+    fail('VOID_OPENROUTER_EXECUTION_CLAIM_ROOT_FD is out of bounds');
+  }
+  return fd;
+}
+
+async function openExecutionClaimRootV1(rawFd) {
+  const inheritedFd = parseInheritedExecutionClaimRootFdV1(rawFd);
+  const fh = await open(`/proc/self/fd/${inheritedFd}`, FS.O_RDONLY | FS.O_DIRECTORY);
+  try {
+    const st = await fh.stat({ bigint: true });
+    if (!st.isDirectory()) fail('OpenRouter execution claim root must be a directory');
+    if ((Number(st.mode) & 0o777) !== 0o700) fail('OpenRouter execution claim root mode must be 0700');
+    if (typeof process.getuid === 'function' && Number(st.uid) !== process.getuid()) {
+      fail('OpenRouter execution claim root must be owned by the current uid');
+    }
+    const generation = sha256(Buffer.from(canonicalJson({
+      dev: st.dev.toString(),
+      ino: st.ino.toString(),
+      uid: st.uid.toString(),
+      mode: (Number(st.mode) & 0o777).toString(8),
+    }), 'utf8'));
+    return {
+      fh,
+      anchor: `/proc/self/fd/${fh.fd}`,
+      generation,
+    };
+  } catch (error) {
+    await fh.close().catch(() => {});
+    throw error;
+  }
+}
+
+function executionClaimPathV1(claimRootAnchor, recoveryKey) {
+  return join(claimRootAnchor, `.void-openrouter-execution-claim-${recoveryKey}.json`);
 }
 
 function executionClaimValueV1({
@@ -694,10 +733,12 @@ function executionClaimValueV1({
   admissionId,
   promptSha256,
   maxTokens,
+  claimRootGeneration,
 }) {
   return {
     marker: 'VOID_APOLLYON_OPENROUTER_EXECUTION_CLAIM_V1',
     accepted_recovery_key: recoveryKey,
+    execution_claim_root_generation_sha256: claimRootGeneration,
     registry_sha256: registrySha256,
     model: contestant.model,
     execution_model: executionModelV1(contestant),
@@ -729,7 +770,8 @@ async function acquireExecutionClaimV1(path, value, hooks = {}) {
   }
 
   return {
-    sha256: sha256(Buffer.from(canonicalJson(value), 'utf8')),
+    semanticSha256: sha256(Buffer.from(canonicalJson(value), 'utf8')),
+    fileSha256: sha256(Buffer.from(`${JSON.stringify(value, null, 2)}\n`, 'utf8')),
   };
 }
 
@@ -828,84 +870,96 @@ export async function runOpenRouterContestantTrialV1(options, hooks = {}) {
   const model = validateZeroPriceModelV1(metadata, runtime.contestant);
   if (typeof hooks.afterFreePriceCheck === 'function') await hooks.afterFreePriceCheck({ model, contestant: runtime.contestant });
 
-  const executionClaimPath = executionClaimPathV1(options.outputPath, recoveryKey);
-  const executionClaim = executionClaimValueV1({
-    recoveryKey,
-    registrySha256: registryLoaded.sha256,
-    contestant: runtime.contestant,
-    trialId: trialRead.value.trial_id,
-    admissionId: receiptRead.value.admission_id,
-    promptSha256: request.promptSha256,
-    maxTokens: runtime.maxTokens,
-  });
-  const acquiredClaim = await acquireExecutionClaimV1(executionClaimPath, executionClaim, hooks);
-
-  // Close the recovery-check -> claim race. A recovery generation that appears
-  // after the initial check but before this durable claim never widens authority.
-  await assertNoAutomaticRecoveryEvidenceV1(recoveryPath);
-
-  if (typeof hooks.afterExecutionClaimPersisted === 'function') {
-    await hooks.afterExecutionClaimPersisted({
-      claimPath: executionClaimPath,
-      claimSha256: acquiredClaim.sha256,
+  const executionClaimRoot = await openExecutionClaimRootV1(
+    hooks.executionClaimRootFd ?? env.VOID_OPENROUTER_EXECUTION_CLAIM_ROOT_FD,
+  );
+  try {
+    const executionClaimPath = executionClaimPathV1(executionClaimRoot.anchor, recoveryKey);
+    const executionClaim = executionClaimValueV1({
       recoveryKey,
+      registrySha256: registryLoaded.sha256,
+      contestant: runtime.contestant,
+      trialId: trialRead.value.trial_id,
+      admissionId: receiptRead.value.admission_id,
+      promptSha256: request.promptSha256,
+      maxTokens: runtime.maxTokens,
+      claimRootGeneration: executionClaimRoot.generation,
     });
-  }
+    const acquiredClaim = await acquireExecutionClaimV1(executionClaimPath, executionClaim, hooks);
 
-  const rawResponse = await sendChat(fetchImpl, runtime.apiKey, request.body, runtime.chatTimeoutMs);
-  const accepted = validateChatResponse(rawResponse, runtime.contestant);
-  if (typeof hooks.afterChatAccepted === 'function') {
-    await hooks.afterChatAccepted({ accepted, recoveryKey, claimPath: executionClaimPath });
-  }
+    // Close the recovery-check -> claim race. A recovery generation that appears
+    // after the initial check but before this durable claim never widens authority.
+    await assertNoAutomaticRecoveryEvidenceV1(recoveryPath);
 
-  const result = {
-    marker: RESULT_MARKER,
-    accepted_recovery_key: recoveryKey,
-    execution_claim_sha256: acquiredClaim.sha256,
-    provider: PROVIDER,
-    model_requested: runtime.contestant.model,
-    model_execution_requested: request.executionModel,
-    model_canonical_slug: model.canonical_slug,
-    model_reported: accepted.reported_model,
-    router_requested_model: accepted.router_requested_model,
-    router_selected_model: accepted.router_selected_model,
-    router_selected_provider: accepted.router_selected_provider,
-    qualification_status: runtime.contestant.status,
-    scored_trial_eligible: runtime.contestant.scored_trial_eligible,
-    retention_class: runtime.contestant.retention_class,
-    privacy_class: runtime.contestant.privacy_class,
-    provider_policy_acknowledged: true,
-    registry_policy_generation_acknowledged: registryLoaded.sha256,
-    public_retention_acknowledged: runtime.contestant.privacy_class === 'retained_public_only',
-    scored_provider_allowlist: [...runtime.contestant.provider_policy.only],
-    pricing_verified_zero: true,
-    request_time_max_price_zero: true,
-    provider_policy: providerRequestPolicyV1(runtime.contestant),
-    tools_exposed: false,
-    registry_sha256: registryLoaded.sha256,
-    registry_reviewed_at_utc: registryLoaded.registry.reviewed_at_utc,
-    trial_id: trialRead.value.trial_id,
-    admission_id: receiptRead.value.admission_id,
-    prompt_sha256: request.promptSha256,
-    prompt_bytes: request.promptBytes,
-    max_tokens: runtime.maxTokens,
-    response_id: accepted.response_id,
-    finish_reason: accepted.finish_reason,
-    response_content: accepted.content,
-    response_content_sha256: sha256(Buffer.from(accepted.content, 'utf8')),
-    usage: accepted.usage,
-    created_at_utc: new Date().toISOString(),
-  };
-  if (canonicalJson(result).includes(runtime.apiKey)) fail('API key unexpectedly entered result object');
-  await publishAcceptedRecoveryV1(recoveryPath, result, hooks.resultRecoveryPublicationFaultHook);
-  if (typeof hooks.afterAcceptedRecoveryPersisted === 'function') {
-    await hooks.afterAcceptedRecoveryPersisted({ recoveryPath, recoveryKey });
+    if (typeof hooks.afterExecutionClaimPersisted === 'function') {
+      await hooks.afterExecutionClaimPersisted({
+        claimPath: executionClaimPath,
+        claimSemanticSha256: acquiredClaim.semanticSha256,
+        claimFileSha256: acquiredClaim.fileSha256,
+        claimRootGenerationSha256: executionClaimRoot.generation,
+        recoveryKey,
+      });
+    }
+
+    const rawResponse = await sendChat(fetchImpl, runtime.apiKey, request.body, runtime.chatTimeoutMs);
+    const accepted = validateChatResponse(rawResponse, runtime.contestant);
+    if (typeof hooks.afterChatAccepted === 'function') {
+      await hooks.afterChatAccepted({ accepted, recoveryKey, claimPath: executionClaimPath });
+    }
+
+    const result = {
+      marker: RESULT_MARKER,
+      accepted_recovery_key: recoveryKey,
+      execution_claim_sha256: acquiredClaim.fileSha256,
+      execution_claim_semantic_sha256: acquiredClaim.semanticSha256,
+      execution_claim_root_generation_sha256: executionClaimRoot.generation,
+      provider: PROVIDER,
+      model_requested: runtime.contestant.model,
+      model_execution_requested: request.executionModel,
+      model_canonical_slug: model.canonical_slug,
+      model_reported: accepted.reported_model,
+      router_requested_model: accepted.router_requested_model,
+      router_selected_model: accepted.router_selected_model,
+      router_selected_provider: accepted.router_selected_provider,
+      qualification_status: runtime.contestant.status,
+      scored_trial_eligible: runtime.contestant.scored_trial_eligible,
+      retention_class: runtime.contestant.retention_class,
+      privacy_class: runtime.contestant.privacy_class,
+      provider_policy_acknowledged: true,
+      registry_policy_generation_acknowledged: registryLoaded.sha256,
+      public_retention_acknowledged: runtime.contestant.privacy_class === 'retained_public_only',
+      scored_provider_allowlist: [...runtime.contestant.provider_policy.only],
+      pricing_verified_zero: true,
+      request_time_max_price_zero: true,
+      provider_policy: providerRequestPolicyV1(runtime.contestant),
+      tools_exposed: false,
+      registry_sha256: registryLoaded.sha256,
+      registry_reviewed_at_utc: registryLoaded.registry.reviewed_at_utc,
+      trial_id: trialRead.value.trial_id,
+      admission_id: receiptRead.value.admission_id,
+      prompt_sha256: request.promptSha256,
+      prompt_bytes: request.promptBytes,
+      max_tokens: runtime.maxTokens,
+      response_id: accepted.response_id,
+      finish_reason: accepted.finish_reason,
+      response_content: accepted.content,
+      response_content_sha256: sha256(Buffer.from(accepted.content, 'utf8')),
+      usage: accepted.usage,
+      created_at_utc: new Date().toISOString(),
+    };
+    if (canonicalJson(result).includes(runtime.apiKey)) fail('API key unexpectedly entered result object');
+    await publishAcceptedRecoveryV1(recoveryPath, result, hooks.resultRecoveryPublicationFaultHook);
+    if (typeof hooks.afterAcceptedRecoveryPersisted === 'function') {
+      await hooks.afterAcceptedRecoveryPersisted({ recoveryPath, recoveryKey });
+    }
+    await publishFinalResultFromAcceptedV1(options.outputPath, result, hooks.resultPublicationFaultHook);
+    if (hooks.emitOutput !== false) {
+      process.stdout.write(`${MARKER}_GREEN ${trialRead.value.trial_id} model=${runtime.contestant.model} admission=${receiptRead.value.admission_id} status=${runtime.contestant.status}\n`);
+    }
+    return result;
+  } finally {
+    await executionClaimRoot.fh.close().catch(() => {});
   }
-  await publishFinalResultFromAcceptedV1(options.outputPath, result, hooks.resultPublicationFaultHook);
-  if (hooks.emitOutput !== false) {
-    process.stdout.write(`${MARKER}_GREEN ${trialRead.value.trial_id} model=${runtime.contestant.model} admission=${receiptRead.value.admission_id} status=${runtime.contestant.status}\n`);
-  }
-  return result;
 }
 
 export async function runOpenRouterOxAlphaTrialV1(options, hooks = {}) {

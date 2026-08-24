@@ -142,3 +142,8 @@ A same-UID rename-and-replace after semantic verification therefore becomes HOLD
 ## Output-root capability
 
 The CLI does not create the arena root. The caller creates a private mode-0700 root, opens it, preserves that descriptor across `node`, and supplies its inherited fd through `VOID_OPENROUTER_ARENA_OUTPUT_ROOT_FD`. The arena duplicates only `/proc/self/fd/<inherited-fd>` and proves the visible path is the same dev/inode generation. A pathname replacement cannot become arena authority merely by winning a create→open race.
+
+
+## Shared execution-claim authority
+
+The arena's evidence output root and the adapter's execution-claim root are different capabilities. The arena output root may be unique to one evidence run. `VOID_OPENROUTER_EXECUTION_CLAIM_ROOT_FD` must instead refer to the trusted broker's shared persistent claim-root generation and is forwarded unchanged to contestant adapter calls. This prevents two arenas with different evidence-output roots from executing the same logical recovery identity twice.
