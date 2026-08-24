@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import assert from "node:assert/strict";
 import {
+  chmodSync,
   mkdirSync,
   mkdtempSync,
   readFileSync,
@@ -1526,6 +1527,91 @@ assert.throws(
   /ENOENT/,
 );
 
+const sharedWritableOutputParent = path.join(
+  outputDirectory,
+  "shared-writable-parent",
+);
+mkdirSync(sharedWritableOutputParent, { mode: 0o700 });
+chmodSync(sharedWritableOutputParent, 0o777);
+assert.throws(
+  () =>
+    writeBootstrapOutputFileV1(
+      path.join(sharedWritableOutputParent, "bootstrap.json"),
+      outputContent,
+    ),
+  /output parent write authority invalid/,
+);
+assert.throws(
+  () =>
+    statSync(
+      path.join(sharedWritableOutputParent, "bootstrap.json"),
+    ),
+  /ENOENT/,
+);
+
+const widenedOutputParent = path.join(
+  outputDirectory,
+  "widened-parent",
+);
+mkdirSync(widenedOutputParent, { mode: 0o700 });
+assert.throws(
+  () =>
+    writeBootstrapOutputFileV1(
+      path.join(widenedOutputParent, "bootstrap.json"),
+      outputContent,
+      {
+        afterParentPinned() {
+          chmodSync(widenedOutputParent, 0o777);
+        },
+      },
+    ),
+  /output parent write authority invalid/,
+);
+assert.throws(
+  () =>
+    statSync(
+      path.join(widenedOutputParent, "bootstrap.json"),
+    ),
+  /ENOENT/,
+);
+
+const widenedOutputAncestor = path.join(
+  outputDirectory,
+  "widened-ancestor",
+);
+const widenedOutputAncestorParent = path.join(
+  widenedOutputAncestor,
+  "private-parent",
+);
+mkdirSync(widenedOutputAncestor, { mode: 0o700 });
+mkdirSync(widenedOutputAncestorParent, { mode: 0o700 });
+assert.throws(
+  () =>
+    writeBootstrapOutputFileV1(
+      path.join(
+        widenedOutputAncestorParent,
+        "bootstrap.json",
+      ),
+      outputContent,
+      {
+        afterParentPinned() {
+          chmodSync(widenedOutputAncestor, 0o777);
+        },
+      },
+    ),
+  /output parent write authority invalid/,
+);
+assert.throws(
+  () =>
+    statSync(
+      path.join(
+        widenedOutputAncestorParent,
+        "bootstrap.json",
+      ),
+    ),
+  /ENOENT/,
+);
+
 const raceParent = path.join(
   outputDirectory,
   "race-parent",
@@ -1673,13 +1759,73 @@ assert.throws(
     ),
   /output path changed generation/,
 );
-assert.throws(
-  () => statSync(fsyncEpochOutputPath),
-  /ENOENT/,
+assert.equal(
+  readFileSync(fsyncEpochOutputPath, "utf8"),
+  outputContent,
 );
 assert.equal(
   readFileSync(fsyncEpochForeignAside, "utf8"),
   foreignEpochContent,
+);
+
+const failedReleaseOutputPath = path.join(
+  outputDirectory,
+  "failed-release.json",
+);
+const failedReleaseOwnedAside = path.join(
+  outputDirectory,
+  "failed-release.owned-aside.json",
+);
+const failedReleaseForeignContent =
+  "failed-release-foreign-generation-sentinel\n";
+let failedReleaseForeignIdentity;
+assert.throws(
+  () =>
+    writeBootstrapOutputFileV1(
+      failedReleaseOutputPath,
+      outputContent,
+      {
+        afterOutputParentFsync() {
+          throw new Error(
+            "injected post-parent-fsync failure",
+          );
+        },
+        beforeFailedOutputRelease() {
+          renameSync(
+            failedReleaseOutputPath,
+            failedReleaseOwnedAside,
+          );
+          writeFileSync(
+            failedReleaseOutputPath,
+            failedReleaseForeignContent,
+            "utf8",
+          );
+          failedReleaseForeignIdentity = statSync(
+            failedReleaseOutputPath,
+          );
+        },
+      },
+    ),
+  /injected post-parent-fsync failure/,
+);
+const failedReleaseForeignAfter = statSync(
+  failedReleaseOutputPath,
+);
+assert.equal(
+  failedReleaseForeignAfter.dev,
+  failedReleaseForeignIdentity.dev,
+);
+assert.equal(
+  failedReleaseForeignAfter.ino,
+  failedReleaseForeignIdentity.ino,
+);
+assert.equal(
+  readFileSync(failedReleaseOutputPath, "utf8"),
+  failedReleaseForeignContent,
+);
+assert.equal(
+  readFileSync(failedReleaseOwnedAside, "utf8"),
+  outputContent,
 );
 
 const closeReportOutputPath = path.join(
@@ -1722,9 +1868,16 @@ assert.match(clientSource, /writeFileSync\(descriptor, content/);
 assert.match(clientSource, /fsyncSync\(descriptor\)/);
 assert.match(clientSource, /fsyncSync\(pinned\.fd\)/);
 assert.match(clientSource, /outputGenerationWitnessV1/);
+assert.match(clientSource, /outputDirectoryAuthorityWitnessV1/);
+assert.match(clientSource, /sameDirectoryAuthorityV1/);
 assert.match(clientSource, /ctimeNs/);
+assert.match(clientSource, /LINUX_O_TMPFILE/);
+assert.match(clientSource, /assertExactLinkExecutableV1/);
+assert.match(clientSource, /publishUnnamedOutputStageV1/);
+assert.match(clientSource, /EXACT_LINK_EXECUTABLE/);
 assert.doesNotMatch(clientSource, /writeFileSync\(resolved, content/);
 assert.doesNotMatch(clientSource, /chmodSync\(resolved/);
+assert.doesNotMatch(clientSource, /unlinkSync/);
 
 for (const result of [
   maximumBoundsResult,
@@ -1799,11 +1952,20 @@ console.log("output_existing_file_not_truncated=true");
 console.log("output_symlink_not_followed=true");
 console.log("output_descriptor_bound=true");
 console.log("output_parent_namespace_bound=true");
+console.log("output_parent_owner_mode_authority_bound=true");
+console.log("output_shared_writable_parent_rejected=true");
+console.log("output_same_inode_permission_widening_held=true");
+console.log("output_writable_ancestor_widening_held=true");
 console.log("output_parent_replacement_held=true");
 console.log("output_late_parent_replacement_cleaned=true");
 console.log("output_precommit_failure_retryable=true");
+console.log("output_unnamed_stage_exact_fd_linked=true");
+console.log("output_atomic_no_replace_publication=true");
+console.log("output_link_executable_authority_bounded=true");
 console.log("output_leaf_fsync_epoch_generation_bound=true");
 console.log("output_foreign_epoch_leaf_preserved=true");
+console.log("output_failed_release_foreign_leaf_preserved=true");
+console.log("output_compare_then_unlink_absent=true");
 console.log("output_committed_close_report_terminal=true");
 console.log("output_mode_0600=true");
 console.log("http_get_only=true");

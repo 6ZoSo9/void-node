@@ -63,23 +63,41 @@ node tools/void-ai-agent-bootstrap-client-v1.mjs \
 
 `--output` refuses an existing final path, including a symbolic link. Every
 output-parent component is created or opened relative to an already-pinned
-directory descriptor with no-follow semantics. The final leaf is created
-exclusively inside that pinned namespace, written through the already-open
-descriptor, forced to mode `0600`, and synchronized before close. The parent
-directory is then synchronized. The opened leaf descriptor and its canonical
-final-name entry must retain one exact device/inode/mode/link-count/size/ctime
-generation from the pre-commit witness through a post-parent-fsync witness, and
-the parent absolute pathname must still resolve to the pinned device/inode
-generation before success is returned. A symlinked component, concurrent parent
-replacement, or leaf swap/restore across the parent-fsync epoch fails closed
-before publication. Failures before that exact commit terminal remove only the
-opened leaf generation and never a foreign replacement, so the same path
-remains retryable when no foreign generation occupies it. Once the exact file,
-final-name entry, and parent namespace are durable and revalidated, a late close
-report cannot turn the committed create-only result into a false failure. This
-Linux source contract requires `/proc/self/fd`; absence fails closed. Choose a
-new output path for each ordinary publication rather than relying on overwrite
-behavior.
+directory descriptor with no-follow semantics. The final parent must be owned
+by the current effective UID and have no group/other write bits. Every retained
+ancestor must be owned by either that UID or root and must be non-writable by
+group/other, except for an owner-trusted sticky directory such as `/tmp`. The
+walk snapshots exact device/inode/UID/GID/mode authority for every component and
+requires that complete chain again throughout publication. A pre-existing
+shared-writable parent or same-inode permission widening fails before final-name
+publication.
+
+Content is first written into an unnamed Linux `O_TMPFILE` inode held by one
+descriptor, forced to mode `0600`, and synchronized. `/usr/bin/ln -L` receives
+that exact descriptor and the pinned parent descriptor as inherited file
+descriptors and performs one atomic, no-replace hard-link publication into the
+final basename. No shell, pathname source file, overwrite, rename replacement,
+or compare-then-unlink cleanup is used. Failure before that link closes the
+unnamed descriptor, so the kernel releases only that exact unlinked inode.
+Failure after a link never unlinks the final pathname: a concurrent replacement
+therefore survives byte- and inode-exact rather than inheriting deletion
+authority from an earlier identity check.
+
+After the no-replace link, the opened descriptor and canonical final-name entry
+must retain one exact device/inode/mode/link-count/size/ctime generation from the
+pre-parent-fsync witness through a post-parent-fsync witness, and the parent
+absolute pathname must still resolve to the pinned device/inode generation
+before success is returned. A symlinked component, concurrent parent
+replacement, or leaf swap/restore across the parent-fsync epoch fails closed.
+An ambiguous post-link failure may leave the exact candidate—or a concurrent
+foreign replacement—at the final path; the client reports failure and never
+deletes it. Inspect it or choose a new output path rather than treating a failed
+call as publication success. Once the exact file, final-name entry, and parent
+namespace are durable and revalidated, a late close report cannot turn the
+committed create-only result into a false failure. This Linux source contract
+requires `O_TMPFILE`, `/proc/self/fd`, and root-owned `/usr/bin/ln`; absence
+fails closed. Choose a new output path for each ordinary publication rather
+than relying on overwrite behavior.
 
 ## Network boundary
 

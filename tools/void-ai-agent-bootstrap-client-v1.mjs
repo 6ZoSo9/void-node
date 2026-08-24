@@ -4,6 +4,7 @@ import {
   createPublicKey,
   verify as verifySignature,
 } from "node:crypto";
+import { spawnSync } from "node:child_process";
 import {
   closeSync,
   constants,
@@ -13,7 +14,6 @@ import {
   lstatSync,
   mkdirSync,
   openSync,
-  unlinkSync,
   writeFileSync,
 } from "node:fs";
 import path from "node:path";
@@ -51,6 +51,10 @@ const NETWORK_AUTHENTICITY_SUPERSEDED_PAYLOAD_SHA256 =
   "b624f7bb029e5b3eca8b2e14050711d4f764d2d39bba56455f1f94697de2708e";
 const NETWORK_AUTHENTICITY_QUARANTINED_KEY_ID =
   "ed25519:0ccca842c156fc87af3279b15830fca826db1225d669b790e97705e2b402362b";
+const LINUX_O_TMPFILE = 0x410000;
+const EXACT_LINK_EXECUTABLE = "/usr/bin/ln";
+const EXACT_LINK_TIMEOUT_MS = 2_000;
+const EXACT_LINK_MAX_BUFFER_BYTES = 8_192;
 const REVIEWED_SURFACE_CONTRACTS_V1 = Object.freeze({
   canonical_discovery: Object.freeze({
     marker: "VOID_AI_AGENT_DISCOVERY_CONTRACT_WALL_V1",
@@ -1423,6 +1427,142 @@ function procFdPathV1(fd, leaf = "") {
   return leaf ? path.join(root, leaf) : root;
 }
 
+function effectiveUidV1() {
+  const uid = process.geteuid?.();
+  if (!Number.isSafeInteger(uid) || uid < 0) {
+    throw new Error(
+      "output parent authority requires effective uid",
+    );
+  }
+  return String(uid);
+}
+
+function outputDirectoryAuthorityWitnessV1(
+  stat,
+  { finalParent = false } = {},
+) {
+  if (!stat.isDirectory()) {
+    throw new Error(
+      "output parent component is not a directory",
+    );
+  }
+  const effectiveUid = effectiveUidV1();
+  const uid = String(stat.uid);
+  const mode = BigInt(stat.mode);
+  const trustedOwner =
+    uid === effectiveUid || uid === "0";
+  const externallyWritable =
+    (mode & 0o022n) !== 0n;
+  const sticky = (mode & 0o1000n) !== 0n;
+  if (
+    !trustedOwner ||
+    (finalParent && uid !== effectiveUid) ||
+    (finalParent && externallyWritable) ||
+    (!finalParent && externallyWritable && !sticky)
+  ) {
+    throw new Error(
+      "output parent write authority invalid",
+    );
+  }
+  return Object.freeze({
+    ...identityOfV1(stat),
+    uid,
+    gid: String(stat.gid),
+    mode: String(stat.mode),
+  });
+}
+
+function sameDirectoryAuthorityV1(left, right) {
+  return (
+    sameIdentityV1(left, right) &&
+    left.uid === right.uid &&
+    left.gid === right.gid &&
+    left.mode === right.mode
+  );
+}
+
+function openUnnamedOutputStageV1(parentFd) {
+  try {
+    return openSync(
+      procFdPathV1(parentFd),
+      constants.O_WRONLY | LINUX_O_TMPFILE,
+      0o600,
+    );
+  } catch {
+    throw new Error(
+      "output authority requires Linux O_TMPFILE",
+    );
+  }
+}
+
+function assertExactLinkExecutableV1() {
+  let metadata;
+  try {
+    metadata = lstatSync(EXACT_LINK_EXECUTABLE, {
+      bigint: true,
+    });
+  } catch {
+    throw new Error(
+      "output exact-link executable unavailable",
+    );
+  }
+  if (
+    !metadata.isFile() ||
+    metadata.uid !== 0n ||
+    (metadata.mode & 0o22n) !== 0n ||
+    (metadata.mode & 0o6000n) !== 0n ||
+    (metadata.mode & 0o111n) === 0n
+  ) {
+    throw new Error(
+      "output exact-link executable authority invalid",
+    );
+  }
+}
+
+function publishUnnamedOutputStageV1(
+  descriptor,
+  parentFd,
+  leaf,
+) {
+  const result = spawnSync(
+    EXACT_LINK_EXECUTABLE,
+    [
+      "-L",
+      "--",
+      procFdPathV1(3),
+      procFdPathV1(4, leaf),
+    ],
+    {
+      encoding: "utf8",
+      env: {
+        LANG: "C",
+        LC_ALL: "C",
+      },
+      maxBuffer: EXACT_LINK_MAX_BUFFER_BYTES,
+      stdio: ["ignore", "pipe", "pipe", descriptor, parentFd],
+      timeout: EXACT_LINK_TIMEOUT_MS,
+    },
+  );
+
+  if (
+    result.error ||
+    result.signal !== null ||
+    result.status !== 0
+  ) {
+    try {
+      lstatSync(procFdPathV1(parentFd, leaf));
+      throw new Error("output path already exists");
+    } catch (error) {
+      if (error?.message === "output path already exists") {
+        throw error;
+      }
+    }
+    throw new Error(
+      "output exact-link publication unavailable",
+    );
+  }
+}
+
 function openPinnedOutputParentV1(
   parent,
   { createMissing = true } = {},
@@ -1451,9 +1591,16 @@ function openPinnedOutputParentV1(
     root,
     constants.O_RDONLY | constants.O_DIRECTORY,
   );
+  const authorityChain = [];
 
   try {
-    for (const part of parts) {
+    authorityChain.push(
+      outputDirectoryAuthorityWitnessV1(
+        fstatSync(fd, { bigint: true }),
+        { finalParent: parts.length === 0 },
+      ),
+    );
+    for (const [index, part] of parts.entries()) {
       if (
         part !== path.basename(part) ||
         part === "." ||
@@ -1493,14 +1640,19 @@ function openPinnedOutputParentV1(
       const metadata = fstatSync(next, {
         bigint: true,
       });
-      if (!metadata.isDirectory()) {
-        closeSync(next);
-        throw new Error(
-          "output parent component is not a directory",
+      let authority;
+      try {
+        authority = outputDirectoryAuthorityWitnessV1(
+          metadata,
+          { finalParent: index === parts.length - 1 },
         );
+      } catch (error) {
+        closeSync(next);
+        throw error;
       }
       closeSync(fd);
       fd = next;
+      authorityChain.push(authority);
     }
 
     const metadata = fstatSync(fd, { bigint: true });
@@ -1508,6 +1660,7 @@ function openPinnedOutputParentV1(
       fd,
       absolute,
       identity: identityOfV1(metadata),
+      authorityChain: Object.freeze(authorityChain),
     });
   } catch (error) {
     closeSync(fd);
@@ -1521,9 +1674,20 @@ function assertPinnedOutputParentV1(pinned) {
     { createMissing: false },
   );
   try {
-    if (!sameIdentityV1(pinned.identity, current.identity)) {
+    if (
+      !sameIdentityV1(pinned.identity, current.identity) ||
+      pinned.authorityChain.length !==
+        current.authorityChain.length ||
+      pinned.authorityChain.some(
+        (authority, index) =>
+          !sameDirectoryAuthorityV1(
+            authority,
+            current.authorityChain[index],
+          ),
+      )
+    ) {
       throw new Error(
-        "output parent path changed generation",
+        "output parent path changed generation or authority",
       );
     }
   } finally {
@@ -1552,7 +1716,6 @@ export function writeBootstrapOutputFileV1(
   const pinned = openPinnedOutputParentV1(parent);
   const boundOutput = procFdPathV1(pinned.fd, leaf);
   let descriptor;
-  let openedIdentity = null;
   let published = false;
   try {
     testHooks?.afterParentPinned?.({
@@ -1561,25 +1724,8 @@ export function writeBootstrapOutputFileV1(
     });
     assertPinnedOutputParentV1(pinned);
 
-    try {
-      descriptor = openSync(
-        boundOutput,
-        constants.O_WRONLY |
-          constants.O_CREAT |
-          constants.O_EXCL |
-          Number(constants.O_NOFOLLOW || 0),
-        0o600,
-      );
-    } catch (error) {
-      if (error?.code === "EEXIST") {
-        throw new Error("output path already exists");
-      }
-      throw error;
-    }
-
-    openedIdentity = identityOfV1(
-      fstatSync(descriptor, { bigint: true }),
-    );
+    assertExactLinkExecutableV1();
+    descriptor = openUnnamedOutputStageV1(pinned.fd);
     testHooks?.afterOutputOpened?.({
       parent,
       resolved,
@@ -1603,6 +1749,11 @@ export function writeBootstrapOutputFileV1(
       parent,
       resolved,
     });
+    publishUnnamedOutputStageV1(
+      descriptor,
+      pinned.fd,
+      leaf,
+    );
     const openedCommitWitness = outputGenerationWitnessV1(
       fstatSync(descriptor, { bigint: true }),
     );
@@ -1647,6 +1798,16 @@ export function writeBootstrapOutputFileV1(
     assertPinnedOutputParentV1(pinned);
     published = true;
   } finally {
+    if (!published) {
+      try {
+        testHooks?.beforeFailedOutputRelease?.({
+          parent,
+          resolved,
+        });
+      } catch {
+        // Proof-only barriers cannot widen or replace the original failure.
+      }
+    }
     if (descriptor !== undefined) {
       try {
         closeSync(descriptor);
@@ -1658,21 +1819,10 @@ export function writeBootstrapOutputFileV1(
         // An exact file+parent fsync and final generation validation already
         // establish a committed result. A late close report cannot reverse
         // that truth or turn the create-only leaf into a false HOLD. Before
-        // publication, preserve the original failure and continue exact-leaf
-        // rollback instead of letting close mask cleanup.
-      }
-    }
-    if (!published && openedIdentity) {
-      try {
-        const linkedIdentity = identityOfV1(
-          lstatSync(boundOutput, { bigint: true }),
-        );
-        if (sameIdentityV1(openedIdentity, linkedIdentity)) {
-          unlinkSync(boundOutput);
-          fsyncSync(pinned.fd);
-        }
-      } catch {
-        // Never delete an unknown replacement generation while failing closed.
+        // publication, preserve the original failure. An unnamed stage is
+        // released by the kernel on close. A linked final name is never
+        // unlinked here because pathname compare-then-unlink cannot carry
+        // exact-generation delete authority across a concurrent replacement.
       }
     }
     try {
