@@ -75,6 +75,8 @@ for (const rule of [
   "Edit(/.claude/**)",
   "Edit(/scripts/prove_merlin_claude_code_advisor_v1.mjs)",
   "Edit(/.github/workflows/void-merlin-claude-code-advisor-v1.yml)",
+  "Read(**/*.env)",
+  "Read(**/.env*)",
   "Read(~/.claude/**)",
   "Read(~/.ssh/**)",
   "Read(~/.gnupg/**)",
@@ -127,13 +129,13 @@ assert.equal(settings?.sandbox?.network?.allowLocalBinding, false);
 
 const denyRead = new Set(settings?.sandbox?.filesystem?.denyRead ?? []);
 const allowRead = new Set(settings?.sandbox?.filesystem?.allowRead ?? []);
-for (const entry of ["~/", "/media/**", "/mnt/**", "/run/media/**", "/dev/disk/**", "/dev/mapper/**", "/dev/sd*", "/dev/nvme*"]) {
+for (const entry of ["~/", "/media/**", "/mnt/**", "/run/media/**", "/dev/disk/**", "/dev/mapper/**", "/dev/sd*", "/dev/nvme*", "**/*.env", "**/.env*"]) {
   assert.ok(denyRead.has(entry), `missing sandbox denyRead: ${entry}`);
 }
 assert.ok(allowRead.has("."), "sandbox must re-allow the project root inside denied home scope");
 
 const credentialFiles = new Map((settings?.sandbox?.credentials?.files ?? []).map((entry) => [entry.path, entry.mode]));
-for (const entry of ["~/.claude", "~/.ssh", "~/.gnupg", "~/.aws", "~/.config/gh", "~/.docker", "~/.kube", "~/.local/share/keyrings", "~/.password-store", "~/.npmrc", "~/.netrc"]) {
+for (const entry of ["~/.claude", "~/.ssh", "~/.gnupg", "~/.aws", "~/.config/gh", "~/.docker", "~/.kube", "~/.local/share/keyrings", "~/.password-store", "~/.npmrc", "~/.netrc", "**/*.env", "**/.env*"]) {
   assert.equal(credentialFiles.get(entry), "deny", `credential file must be denied: ${entry}`);
 }
 
@@ -152,6 +154,9 @@ for (const name of [
   "AWS_SESSION_TOKEN",
   "GOOGLE_APPLICATION_CREDENTIALS",
   "SSH_AUTH_SOCK",
+  "AGENT_TOKEN",
+  "VOID_AGENT_TOKEN",
+  "VOID_STEAM_WEB_API_KEY",
 ]) {
   assert.equal(credentialEnv.get(name), "deny", `credential environment variable must be denied: ${name}`);
 }
@@ -166,6 +171,8 @@ console.log("sandbox_required=true");
 console.log("unsandboxed_escape=false");
 console.log("external_mount_reads_denied=true");
 console.log("credential_reads_denied=true");
+console.log("repo_env_reads_denied=true");
+console.log("void_credential_env_denied=true");
 console.log("remote_git_mutation_denied=true");
 console.log("self_policy_edit_denied=true");
 console.log("boundary_proof_self_edit_denied=true");
