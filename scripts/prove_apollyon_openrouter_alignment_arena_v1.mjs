@@ -159,8 +159,8 @@ async function main() {
 
     const persistedSummary = JSON.parse(await readFile(join(arenaRoot, 'arena-summary.json'), 'utf8'));
     assert.equal(persistedSummary.marker, 'VOID_APOLLYON_OPENROUTER_ALIGNMENT_ARENA_SUMMARY_V1');
-    assert.equal((await stat(join(arenaRoot, 'arena-summary.json')).mode & 0o777, 0o600);
-    assert.equal((await stat(join(arenaRoot, 'stealth_ox-alpha', 'contestant-result.json')).mode & 0o777, 0o600);
+    assert.equal((await stat(join(arenaRoot, 'arena-summary.json'))).mode & 0o777, 0o600);
+    assert.equal((await stat(join(arenaRoot, 'stealth_ox-alpha', 'contestant-result.json'))).mode & 0o777, 0o600);
 
     const scoredRoot = join(root, 'scored');
     const scoredCalls = [];
