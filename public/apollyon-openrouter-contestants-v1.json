@@ -1,13 +1,13 @@
 {
   "marker": "VOID_APOLLYON_OPENROUTER_CONTESTANT_REGISTRY_V1",
   "version": 1,
-  "reviewed_at_utc": "2026-08-24T09:03:13.429Z",
+  "reviewed_at_utc": "2026-08-24T09:20:00.000Z",
   "default_model": "stealth/ox-alpha",
   "contestants": [
     {
       "model": "stealth/ox-alpha",
       "status": "qualified",
-      "scored_trial_eligible": true,
+      "scored_trial_eligible": false,
       "zero_price_required": true,
       "min_context_length": 1048576,
       "max_tokens_cap": 32768,
@@ -19,7 +19,8 @@
         "zdr": false,
         "only": []
       },
-      "privacy_class": "retained_public_only"
+      "privacy_class": "retained_public_only",
+      "canonical_slug": "stealth/ox-alpha"
     },
     {
       "model": "deepseek/deepseek-v4-flash:free",
@@ -36,7 +37,8 @@
         "zdr": true,
         "only": []
       },
-      "privacy_class": "zdr_public_or_sanitized"
+      "privacy_class": "zdr_public_or_sanitized",
+      "canonical_slug": null
     },
     {
       "model": "deepseek/deepseek-r1:free",
@@ -53,7 +55,8 @@
         "zdr": true,
         "only": []
       },
-      "privacy_class": "zdr_public_or_sanitized"
+      "privacy_class": "zdr_public_or_sanitized",
+      "canonical_slug": null
     },
     {
       "model": "deepseek/deepseek-chat:free",
@@ -70,7 +73,8 @@
         "zdr": true,
         "only": []
       },
-      "privacy_class": "zdr_public_or_sanitized"
+      "privacy_class": "zdr_public_or_sanitized",
+      "canonical_slug": null
     },
     {
       "model": "deepseek/deepseek-r1-0528-qwen3-8b:free",
@@ -87,7 +91,8 @@
         "zdr": true,
         "only": []
       },
-      "privacy_class": "zdr_public_or_sanitized"
+      "privacy_class": "zdr_public_or_sanitized",
+      "canonical_slug": null
     },
     {
       "model": "z-ai/glm-5.2:free",
@@ -104,12 +109,13 @@
         "zdr": true,
         "only": []
       },
-      "privacy_class": "zdr_public_or_sanitized"
+      "privacy_class": "zdr_public_or_sanitized",
+      "canonical_slug": "z-ai/glm-5.2-20260616"
     },
     {
       "model": "cohere/north-mini-code:free",
       "status": "qualified",
-      "scored_trial_eligible": true,
+      "scored_trial_eligible": false,
       "zero_price_required": true,
       "min_context_length": 256000,
       "max_tokens_cap": 32768,
@@ -121,12 +127,13 @@
         "zdr": false,
         "only": []
       },
-      "privacy_class": "retained_public_only"
+      "privacy_class": "retained_public_only",
+      "canonical_slug": "cohere/north-mini-code-20260617"
     },
     {
       "model": "poolside/laguna-s-2.1:free",
       "status": "qualified",
-      "scored_trial_eligible": true,
+      "scored_trial_eligible": false,
       "zero_price_required": true,
       "min_context_length": 262144,
       "max_tokens_cap": 32768,
@@ -138,7 +145,8 @@
         "zdr": false,
         "only": []
       },
-      "privacy_class": "retained_public_only"
+      "privacy_class": "retained_public_only",
+      "canonical_slug": "poolside/laguna-s-2.1-20260720"
     },
     {
       "model": "thinkingmachines/inkling:free",
@@ -155,7 +163,8 @@
         "zdr": false,
         "only": []
       },
-      "privacy_class": "retained_public_only"
+      "privacy_class": "retained_public_only",
+      "canonical_slug": "thinkingmachines/inkling-20260715"
     },
     {
       "model": "nvidia/nemotron-3.5-lightning:free",
@@ -172,7 +181,8 @@
         "zdr": false,
         "only": []
       },
-      "privacy_class": "retained_public_only"
+      "privacy_class": "retained_public_only",
+      "canonical_slug": "nvidia/nemotron-3.5-lightning-20260807"
     },
     {
       "model": "dots-studio/dots-3-note-preview:free",
@@ -189,7 +199,8 @@
         "zdr": false,
         "only": []
       },
-      "privacy_class": "retained_public_only"
+      "privacy_class": "retained_public_only",
+      "canonical_slug": "dots-studio/dots-3-note-preview-20260813"
     }
   ]
 }

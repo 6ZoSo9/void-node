@@ -14,6 +14,7 @@ import {
   REGISTRY_PATH,
   RESULT_MARKER,
   buildOpenRouterRequestV1,
+  contestantRegistryDigestV1,
   getContestantV1,
   runOpenRouterContestantTrialV1,
   validateContestantRegistryV1,
@@ -26,6 +27,8 @@ const CONSTITUTION = 'docs/governance/void-crown-brood-queen-command-layer-v1.md
 const CONSTITUTION_MARKER = 'VOID_CROWN_BROOD_QUEEN_COMMAND_LAYER_V1_20260818';
 const ADMISSION_AT = '2026-08-24T05:55:00.000Z';
 const TEST_KEY = 'openrouter-test-key-not-a-secret-123456';
+let ACTIVE_REGISTRY_SHA256 = null;
+let ACTIVE_TRIAL_SHA256 = null;
 const EXPECTED_MODELS = [
   'stealth/ox-alpha',
   'deepseek/deepseek-v4-flash:free',
@@ -189,6 +192,7 @@ async function makeFixture(root, name, classification = 'public') {
   await writeFile(draftPath, `${JSON.stringify(baseDraft(fixtureSha, `openrouter-${name}-v1`), null, 2)}\n`, { mode: 0o600 });
   const trialId = runTrialTool(['materialize', draftPath, packetPath]);
   if (!/^voidat1_[0-9a-f]{64}$/.test(trialId)) fail('materialized trial id is invalid');
+  ACTIVE_TRIAL_SHA256 = sha256(await readFile(packetPath));
 
   const manifest = {
     marker: 'VOID_APOLLYON_OUTBOUND_ADMISSION_MANIFEST_V1',
@@ -224,6 +228,7 @@ function zeroMetadata(contestant) {
   return {
     data: {
       id: contestant.model,
+      canonical_slug: contestant.canonical_slug,
       context_length: contestant.min_context_length,
       pricing: {
         prompt: '0',
@@ -240,6 +245,8 @@ function environment(model, overrides = {}) {
     VOID_OPENROUTER_ENABLE: '1',
     VOID_OPENROUTER_ACK_PROVIDER_POLICY: '1',
     VOID_OPENROUTER_ACK_PUBLIC_RETENTION: '1',
+    VOID_OPENROUTER_ACK_REGISTRY_SHA256: ACTIVE_REGISTRY_SHA256,
+    VOID_OPENROUTER_ACK_PUBLIC_TRIAL_SHA256: ACTIVE_TRIAL_SHA256,
     VOID_OPENROUTER_MODEL: model,
     VOID_OPENROUTER_MAX_TOKENS: '4096',
     OPENROUTER_API_KEY: TEST_KEY,
@@ -302,12 +309,14 @@ function successFetch(contestant, assertions = {}) {
 async function main() {
   const registry = JSON.parse(await readFile(REGISTRY_PATH, 'utf8'));
   validateContestantRegistryV1(registry);
+  ACTIVE_REGISTRY_SHA256 = contestantRegistryDigestV1(registry);
   assert.equal(registry.default_model, DEFAULT_MODEL);
   assert.deepEqual(registry.contestants.map((x) => x.model), EXPECTED_MODELS);
 
   const ox = getContestantV1(registry, 'stealth/ox-alpha');
   assert.equal(ox.status, 'qualified');
-  assert.equal(ox.scored_trial_eligible, true);
+  assert.equal(ox.scored_trial_eligible, false);
+  assert.equal(ox.canonical_slug, 'stealth/ox-alpha');
   assert.equal(ox.provider_policy.allow_fallbacks, false);
 
   for (const staleModel of STALE_QUARANTINED_MODELS) {
@@ -325,7 +334,7 @@ async function main() {
   for (const promotedModel of PROMOTED_QUALIFIED_MODELS) {
     const contestant = getContestantV1(registry, promotedModel);
     assert.equal(contestant.status, 'qualified');
-    assert.equal(contestant.scored_trial_eligible, true);
+    assert.equal(contestant.scored_trial_eligible, false);
     assert.equal(contestant.privacy_class, 'retained_public_only');
     assert.equal(contestant.provider_policy.allow_fallbacks, false);
     assert.equal(validateZeroPriceModelV1(zeroMetadata(contestant), contestant).pricing_zero, true);
@@ -359,6 +368,12 @@ async function main() {
   const duplicateRegistry = structuredClone(registry);
   duplicateRegistry.contestants.push(structuredClone(duplicateRegistry.contestants[0]));
   assert.throws(() => validateContestantRegistryV1(duplicateRegistry), /duplicate contestant model/);
+
+  const unpinnedScored = structuredClone(registry);
+  const scoredIndex = unpinnedScored.contestants.findIndex((x) => x.status === 'qualified');
+  assert.notEqual(scoredIndex, -1);
+  unpinnedScored.contestants[scoredIndex].scored_trial_eligible = true;
+  assert.throws(() => validateContestantRegistryV1(unpinnedScored), /must bind exactly one reviewed provider/);
 
   const weakenedQualificationPolicy = structuredClone(registry);
   const qualificationIndex = weakenedQualificationPolicy.contestants.findIndex((x) => x.model === STRICT_ZDR_MODELS[0]);
@@ -397,7 +412,9 @@ async function main() {
     assert.equal(oxResult.marker, RESULT_MARKER);
     assert.equal(oxResult.model_requested, ox.model);
     assert.equal(oxResult.qualification_status, 'qualified');
-    assert.equal(oxResult.scored_trial_eligible, true);
+    assert.equal(oxResult.scored_trial_eligible, false);
+    assert.equal(oxResult.model_canonical_slug, ox.canonical_slug);
+    assert.equal(oxResult.registry_policy_generation_acknowledged, ACTIVE_REGISTRY_SHA256);
     assert.equal(oxResult.pricing_verified_zero, true);
     assert.equal(oxResult.request_time_max_price_zero, true);
     assert.deepEqual(oxResult.provider_policy.max_price, { prompt: 0, completion: 0 });
@@ -478,6 +495,28 @@ async function main() {
     assert.equal(retainedResult.privacy_class, 'retained_public_only');
     assert.equal(retainedResult.public_retention_acknowledged, true);
     assert.equal(retainedTransport.calls().chatCalls, 1);
+
+    const retainedWrongTrialAck = await makeFixture(root, 'retained-wrong-trial-ack', 'public');
+    let retainedWrongTrialAckFetches = 0;
+    await expectReject(
+      runOpenRouterContestantTrialV1({
+        trialPath: retainedWrongTrialAck.packetPath,
+        stagingRoot: retainedWrongTrialAck.stage,
+        manifestPath: retainedWrongTrialAck.manifestPath,
+        receiptPath: retainedWrongTrialAck.receiptPath,
+        outputPath: retainedWrongTrialAck.outputPath,
+        admissionAtUtc: ADMISSION_AT,
+      }, {
+        registry,
+        env: environment(retained.model, { VOID_OPENROUTER_ACK_PUBLIC_TRIAL_SHA256: '0'.repeat(64) }),
+        fetchImpl: async () => { retainedWrongTrialAckFetches += 1; return responseFor(MODEL_CATALOG_URL, {}); },
+        emitOutput: false,
+      }),
+      'ACK_PUBLIC_TRIAL_SHA256',
+      'retained public trial exact-generation acknowledgement',
+    );
+    assert.equal(retainedWrongTrialAckFetches, 0);
+    await expectMissing(retainedWrongTrialAck.outputPath, 'retained wrong trial-ack result');
 
     const retainedSanitized = await makeFixture(root, 'retained-sanitized-reject', 'sanitized');
     let retainedSanitizedFetches = 0;
@@ -665,6 +704,36 @@ async function main() {
     assert.equal(raceProviderExecutions, 0);
     await expectMissing(priceRace.outputPath, 'request-time price-race result');
 
+    const canonicalDrift = await makeFixture(root, 'canonical-generation-drift');
+    let canonicalDriftChats = 0;
+    await expectReject(
+      runOpenRouterContestantTrialV1({
+        trialPath: canonicalDrift.packetPath,
+        stagingRoot: canonicalDrift.stage,
+        manifestPath: canonicalDrift.manifestPath,
+        receiptPath: canonicalDrift.receiptPath,
+        outputPath: canonicalDrift.outputPath,
+        admissionAtUtc: ADMISSION_AT,
+      }, {
+        registry,
+        env: environment(ox.model),
+        fetchImpl: async (url) => {
+          if (url === MODEL_CATALOG_URL) {
+            const metadata = zeroMetadata(ox).data;
+            metadata.canonical_slug = `${ox.canonical_slug}-drifted`;
+            return responseFor(MODEL_CATALOG_URL, { data: [metadata] });
+          }
+          canonicalDriftChats += 1;
+          return responseFor(CHAT_URL, {});
+        },
+        emitOutput: false,
+      }),
+      'canonical model generation',
+      'canonical generation drift',
+    );
+    assert.equal(canonicalDriftChats, 0);
+    await expectMissing(canonicalDrift.outputPath, 'canonical drift result');
+
     const absent = await makeFixture(root, 'catalog-absent');
     let absentChatCalls = 0;
     await expectReject(
@@ -691,6 +760,36 @@ async function main() {
     assert.equal(absentChatCalls, 0);
     await expectMissing(absent.outputPath, 'catalog-absent result');
 
+    const trialSubstitution = await makeFixture(root, 'trial-post-admission-substitution');
+    let trialSubstitutionFetches = 0;
+    await expectReject(
+      runOpenRouterContestantTrialV1({
+        trialPath: trialSubstitution.packetPath,
+        stagingRoot: trialSubstitution.stage,
+        manifestPath: trialSubstitution.manifestPath,
+        receiptPath: trialSubstitution.receiptPath,
+        outputPath: trialSubstitution.outputPath,
+        admissionAtUtc: ADMISSION_AT,
+      }, {
+        registry,
+        env: environment(ox.model),
+        fetchImpl: async () => {
+          trialSubstitutionFetches += 1;
+          return responseFor(MODEL_CATALOG_URL, { data: [zeroMetadata(ox).data] });
+        },
+        afterAdmission: async () => {
+          const replacement = JSON.parse(await readFile(trialSubstitution.packetPath, 'utf8'));
+          replacement.instructions = 'substituted after admission';
+          await writeFile(trialSubstitution.packetPath, `${JSON.stringify(replacement, null, 2)}\n`, { mode: 0o600 });
+        },
+        emitOutput: false,
+      }),
+      'trial packet failed active provider-neutral admission',
+      'post-admission trial substitution',
+    );
+    assert.equal(trialSubstitutionFetches, 0);
+    await expectMissing(trialSubstitution.outputPath, 'trial substitution result');
+
     const mutated = await makeFixture(root, 'mutated');
     let mutationFetchCalls = 0;
     await expectReject(
@@ -713,7 +812,7 @@ async function main() {
         },
         emitOutput: false,
       }),
-      'changed after sanitization admission',
+      'entry fixture digest mismatch',
       'post-admission mutation',
     );
     assert.equal(mutationFetchCalls, 0);
@@ -788,6 +887,40 @@ async function main() {
     assert.equal(routingErrorChats, 1);
     await expectMissing(routingError.outputPath, 'routing error result');
 
+    for (const finishReason of ['length', 'content_filter', 'tool_calls', 'error', null]) {
+      const finishName = finishReason === null ? 'null' : finishReason.replace(/[^A-Za-z0-9_-]/g, '-');
+      const terminal = await makeFixture(root, `terminal-${finishName}`);
+      await expectReject(
+        runOpenRouterContestantTrialV1({
+          trialPath: terminal.packetPath,
+          stagingRoot: terminal.stage,
+          manifestPath: terminal.manifestPath,
+          receiptPath: terminal.receiptPath,
+          outputPath: terminal.outputPath,
+          admissionAtUtc: ADMISSION_AT,
+        }, {
+          registry,
+          env: environment(ox.model),
+          fetchImpl: async (url) => {
+            if (url === MODEL_CATALOG_URL) return responseFor(MODEL_CATALOG_URL, { data: [zeroMetadata(ox).data] });
+            return responseFor(CHAT_URL, {
+              id: `chatcmpl-${finishName}`,
+              model: ox.model,
+              choices: [{
+                index: 0,
+                finish_reason: finishReason,
+                message: { role: 'assistant', content: 'bounded text', tool_calls: [] },
+              }],
+            });
+          },
+          emitOutput: false,
+        }),
+        'finish_reason must equal stop',
+        `nonterminal finish reason ${finishName}`,
+      );
+      await expectMissing(terminal.outputPath, `nonterminal result ${finishName}`);
+    }
+
     const truncated = await makeFixture(root, 'truncated-finish');
     await expectReject(
       runOpenRouterContestantTrialV1({
@@ -814,10 +947,100 @@ async function main() {
         },
         emitOutput: false,
       }),
-      'truncated at the max token boundary',
+      'finish_reason must equal stop',
       'truncated response rejection',
     );
     await expectMissing(truncated.outputPath, 'truncated result');
+
+    const registryFifo = join(root, 'registry-fifo');
+    assert.equal(spawnSync('mkfifo', [registryFifo], { encoding: 'utf8' }).status, 0);
+    const registryFifoOutcome = await Promise.race([
+      runOpenRouterContestantTrialV1({
+        trialPath: 'unused', stagingRoot: 'unused', manifestPath: 'unused', receiptPath: 'unused', outputPath: 'unused', admissionAtUtc: ADMISSION_AT,
+      }, {
+        registryPath: registryFifo,
+        env: environment(ox.model),
+        fetchImpl: () => fail('network should not run'),
+        emitOutput: false,
+      }).then(() => ({ ok: true }), (error) => ({ ok: false, message: String(error?.message ?? error) })),
+      new Promise((resolvePromise) => setTimeout(() => resolvePromise({ timeout: true }), 1000)),
+    ]);
+    assert.equal(registryFifoOutcome.timeout, undefined, 'registry FIFO blocked');
+    assert.equal(registryFifoOutcome.ok, false);
+    assert.match(registryFifoOutcome.message, /regular non-symlink file/);
+
+    const fifoBase = await makeFixture(root, 'fifo-boundary-base');
+
+    const trialFifo = join(root, 'trial-fifo');
+    assert.equal(spawnSync('mkfifo', [trialFifo], { encoding: 'utf8' }).status, 0);
+    const trialFifoOutcome = await Promise.race([
+      runOpenRouterContestantTrialV1({
+        trialPath: trialFifo, stagingRoot: fifoBase.stage, manifestPath: fifoBase.manifestPath,
+        receiptPath: join(root, 'trial-fifo-receipt.json'), outputPath: join(root, 'trial-fifo-result.json'), admissionAtUtc: ADMISSION_AT,
+      }, { registry, env: environment(ox.model), fetchImpl: () => fail('network should not run'), emitOutput: false })
+        .then(() => ({ ok: true }), (error) => ({ ok: false, message: String(error?.message ?? error) })),
+      new Promise((resolvePromise) => setTimeout(() => resolvePromise({ timeout: true }), 1000)),
+    ]);
+    assert.equal(trialFifoOutcome.timeout, undefined, 'trial FIFO blocked');
+    assert.equal(trialFifoOutcome.ok, false);
+    assert.match(trialFifoOutcome.message, /regular non-symlink file/);
+
+    const manifestFifo = join(root, 'manifest-fifo');
+    assert.equal(spawnSync('mkfifo', [manifestFifo], { encoding: 'utf8' }).status, 0);
+    const manifestFifoOutcome = await Promise.race([
+      runOpenRouterContestantTrialV1({
+        trialPath: fifoBase.packetPath, stagingRoot: fifoBase.stage, manifestPath: manifestFifo,
+        receiptPath: join(root, 'manifest-fifo-receipt.json'), outputPath: join(root, 'manifest-fifo-result.json'), admissionAtUtc: ADMISSION_AT,
+      }, { registry, env: environment(ox.model), fetchImpl: () => fail('network should not run'), emitOutput: false })
+        .then(() => ({ ok: true }), (error) => ({ ok: false, message: String(error?.message ?? error) })),
+      new Promise((resolvePromise) => setTimeout(() => resolvePromise({ timeout: true }), 1000)),
+    ]);
+    assert.equal(manifestFifoOutcome.timeout, undefined, 'manifest FIFO blocked');
+    assert.equal(manifestFifoOutcome.ok, false);
+    assert.match(manifestFifoOutcome.message, /regular non-symlink file/);
+
+    const stagedFifo = await makeFixture(root, 'staged-fifo');
+    await rm(join(stagedFifo.stage, 'fixture.json'));
+    assert.equal(spawnSync('mkfifo', [join(stagedFifo.stage, 'fixture.json')], { encoding: 'utf8' }).status, 0);
+    const stagedFifoOutcome = await Promise.race([
+      runOpenRouterContestantTrialV1({
+        trialPath: stagedFifo.packetPath, stagingRoot: stagedFifo.stage, manifestPath: stagedFifo.manifestPath,
+        receiptPath: stagedFifo.receiptPath, outputPath: stagedFifo.outputPath, admissionAtUtc: ADMISSION_AT,
+      }, { registry, env: environment(ox.model), fetchImpl: () => fail('network should not run'), emitOutput: false })
+        .then(() => ({ ok: true }), (error) => ({ ok: false, message: String(error?.message ?? error) })),
+      new Promise((resolvePromise) => setTimeout(() => resolvePromise({ timeout: true }), 1000)),
+    ]);
+    assert.equal(stagedFifoOutcome.timeout, undefined, 'staged-entry FIFO blocked');
+    assert.equal(stagedFifoOutcome.ok, false);
+    assert.match(stagedFifoOutcome.message, /regular non-symlink file/);
+
+    const receiptFifoFixture = await makeFixture(root, 'receipt-fifo');
+    const receiptFifoPath = join(receiptFifoFixture.dir, 'receipt-fifo');
+    assert.equal(spawnSync('mkfifo', [receiptFifoPath], { encoding: 'utf8' }).status, 0);
+    const receiptFifoOutcome = await Promise.race([
+      runOpenRouterContestantTrialV1({
+        trialPath: receiptFifoFixture.packetPath, stagingRoot: receiptFifoFixture.stage, manifestPath: receiptFifoFixture.manifestPath,
+        receiptPath: receiptFifoPath, outputPath: receiptFifoFixture.outputPath, admissionAtUtc: ADMISSION_AT,
+      }, { registry, env: environment(ox.model), fetchImpl: () => fail('network should not run'), emitOutput: false })
+        .then(() => ({ ok: true }), (error) => ({ ok: false, message: String(error?.message ?? error) })),
+      new Promise((resolvePromise) => setTimeout(() => resolvePromise({ timeout: true }), 1000)),
+    ]);
+    assert.equal(receiptFifoOutcome.timeout, undefined, 'receipt FIFO blocked');
+    assert.equal(receiptFifoOutcome.ok, false);
+    assert.match(receiptFifoOutcome.message, /regular file|receipt final/);
+
+    await expectReject(
+      runOpenRouterContestantTrialV1({
+        trialPath: 'unused', stagingRoot: 'unused', manifestPath: 'unused', receiptPath: 'unused', outputPath: 'unused', admissionAtUtc: ADMISSION_AT,
+      }, {
+        registry,
+        env: environment(ox.model, { VOID_OPENROUTER_ACK_REGISTRY_SHA256: '0'.repeat(64) }),
+        fetchImpl: () => fail('network should not run'),
+        emitOutput: false,
+      }),
+      'must equal the loaded registry generation',
+      'registry generation acknowledgement gate',
+    );
 
     await expectReject(
       runOpenRouterContestantTrialV1({
@@ -864,7 +1087,9 @@ async function main() {
   console.log(PROOF_MARKER);
   console.log(`default_model=${DEFAULT_MODEL}`);
   console.log(`registry_model_count=${EXPECTED_MODELS.length}`);
-  console.log('ox_alpha_scored_trial_eligible=true');
+  console.log('ox_alpha_scored_trial_eligible=false');
+  console.log('real_scored_provider_authority_disabled=true');
+  console.log('scored_provider_pin_required=true');
   console.log('stale_deepseek_quarantined=4');
   console.log('qualified_worker_candidate_count=3');
   console.log('promoted_qualified_free_count=2');
@@ -876,10 +1101,17 @@ async function main() {
   console.log('live_provider_call=false');
   console.log('sanitization_admission_required=true');
   console.log('post_admission_digest_recheck=true');
+  console.log('post_admission_staged_mutation_parent_readmission_rejects=true');
+  console.log('trial_packet_exact_re_admission_bound=true');
+  console.log('trial_packet_post_admission_generation_bound=true');
+  console.log('retained_trial_packet_public_digest_ack_required=true');
+  console.log('nonregular_leaf_open_nonblocking_end_to_end=true');
+  console.log('registry_policy_ack_generation_bound=true');
   console.log('provider_policy_ack_required=true');
   console.log('catalog_endpoint=/api/v1/models');
   console.log('per_model_metadata_endpoint_used=false');
   console.log('catalog_absent_blocks_before_chat=true');
+  console.log('canonical_model_generation_bound=true');
   console.log('free_price_recheck_before_send=true');
   console.log('required_price_exact_grammar=true');
   console.log('coercible_or_empty_required_price_rejected=true');
@@ -890,7 +1122,7 @@ async function main() {
   console.log('tools_exposed=false');
   console.log('tool_calls_rejected=true');
   console.log('router_error_metadata_bounded=true');
-  console.log('finish_reason_length_rejected=true');
+  console.log('finish_reason_stop_only=true');
   console.log('api_key_persisted=false');
   console.log('runtime_mutation=false');
 }

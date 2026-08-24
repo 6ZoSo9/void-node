@@ -2,7 +2,8 @@
 
 import { createHash } from 'node:crypto';
 import { constants as FS } from 'node:fs';
-import { lstat, open, realpath, stat } from 'node:fs/promises';
+import { lstat, mkdtemp, open, realpath, rm, stat, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
 import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import process from 'node:process';
 import { fileURLToPath } from 'node:url';
@@ -110,17 +111,26 @@ export function validateContestantRegistryV1(registry) {
   for (const [i, entry] of registry.contestants.entries()) {
     exactKeys(
       entry,
-      ['model', 'status', 'scored_trial_eligible', 'zero_price_required', 'min_context_length', 'max_tokens_cap', 'retention_class', 'privacy_class', 'provider_policy'],
+      ['model', 'canonical_slug', 'status', 'scored_trial_eligible', 'zero_price_required', 'min_context_length', 'max_tokens_cap', 'retention_class', 'privacy_class', 'provider_policy'],
       `contestants[${i}]`,
     );
     if (typeof entry.model !== 'string' || !/^[a-z0-9._-]+\/[A-Za-z0-9._:-]+$/.test(entry.model)) {
       fail(`contestants[${i}].model is invalid`);
     }
+    if (entry.status === 'quarantined') {
+      if (entry.canonical_slug !== null
+        && (typeof entry.canonical_slug !== 'string'
+          || !/^[a-z0-9._~-]+\/[A-Za-z0-9._~:-]+$/.test(entry.canonical_slug))) {
+        fail(`contestants[${i}].canonical_slug is invalid`);
+      }
+    } else if (typeof entry.canonical_slug !== 'string'
+      || !/^[a-z0-9._~-]+\/[A-Za-z0-9._~:-]+$/.test(entry.canonical_slug)) {
+      fail(`active contestant ${entry.model} must bind canonical_slug`);
+    }
     if (seen.has(entry.model)) fail(`duplicate contestant model ${entry.model}`);
     seen.add(entry.model);
     if (!['qualified', 'qualification_only', 'quarantined'].includes(entry.status)) fail(`contestants[${i}].status is invalid`);
     if (typeof entry.scored_trial_eligible !== 'boolean') fail(`contestants[${i}].scored_trial_eligible must be boolean`);
-    if (entry.status === 'qualified' && entry.scored_trial_eligible !== true) fail(`qualified contestant ${entry.model} must be scored-trial eligible`);
     if (entry.status !== 'qualified' && entry.scored_trial_eligible !== false) fail(`non-qualified contestant ${entry.model} cannot be scored-trial eligible`);
     if (entry.zero_price_required !== true) fail(`contestant ${entry.model} must require zero pricing`);
     if (!Number.isSafeInteger(entry.min_context_length) || entry.min_context_length < 32_768) fail(`contestant ${entry.model} min_context_length is invalid`);
@@ -138,6 +148,9 @@ export function validateContestantRegistryV1(registry) {
     if (!Array.isArray(entry.provider_policy.only) || entry.provider_policy.only.length > 16) fail(`contestant ${entry.model} provider only-list is invalid`);
     for (const providerSlug of entry.provider_policy.only) {
       if (typeof providerSlug !== 'string' || !/^[A-Za-z0-9._-]{1,128}$/.test(providerSlug)) fail(`contestant ${entry.model} provider slug is invalid`);
+    }
+    if (entry.scored_trial_eligible === true && entry.provider_policy.only.length !== 1) {
+      fail(`scored contestant ${entry.model} must bind exactly one reviewed provider`);
     }
     if (entry.status !== 'quarantined') {
       if (entry.privacy_class === 'zdr_public_or_sanitized') {
@@ -164,20 +177,29 @@ export function getContestantV1(registry, model) {
   return entry;
 }
 
+export function contestantRegistryDigestV1(registry) {
+  validateContestantRegistryV1(registry);
+  return sha256(Buffer.from(canonicalJson(registry), 'utf8'));
+}
+
 async function loadContestantRegistryV1(path = REGISTRY_PATH) {
   const registryRead = await readJsonBounded(path, MAX_REGISTRY_BYTES, 'OpenRouter contestant registry');
   validateContestantRegistryV1(registryRead.value);
   return {
     registry: registryRead.value,
-    sha256: sha256(registryRead.bytes),
+    sha256: contestantRegistryDigestV1(registryRead.value),
   };
 }
 
-function requireRuntimeGate(env, registry) {
+function requireRuntimeGate(env, registry, registrySha256) {
   if (env.VOID_OPENROUTER_ENABLE !== '1') fail('VOID_OPENROUTER_ENABLE=1 is required');
   const policyAck = env.VOID_OPENROUTER_ACK_PROVIDER_POLICY === '1'
     || env.VOID_OPENROUTER_ACK_PROVIDER_RETENTION === '1';
   if (!policyAck) fail('VOID_OPENROUTER_ACK_PROVIDER_POLICY=1 is required');
+  const registryAck = String(env.VOID_OPENROUTER_ACK_REGISTRY_SHA256 ?? '').trim();
+  if (!/^[0-9a-f]{64}$/.test(registryAck) || registryAck !== registrySha256) {
+    fail('VOID_OPENROUTER_ACK_REGISTRY_SHA256 must equal the loaded registry generation');
+  }
 
   const apiKey = String(env.OPENROUTER_API_KEY ?? '');
   if (apiKey.length < 8 || apiKey.length > 512 || /\s/.test(apiKey)) fail('OPENROUTER_API_KEY is missing or malformed');
@@ -213,7 +235,7 @@ function sameStamp(a, b) {
 }
 
 async function readRegularBounded(path, maxBytes, name) {
-  const fh = await open(path, FS.O_RDONLY | FS.O_NOFOLLOW);
+  const fh = await open(path, FS.O_RDONLY | FS.O_NOFOLLOW | FS.O_NONBLOCK);
   try {
     const pre = await fh.stat({ bigint: true });
     if (!pre.isFile()) fail(`${name} must be a regular non-symlink file`);
@@ -288,6 +310,14 @@ function validateContestantInputPolicy(manifest, contestant) {
     if (entry.classification !== 'public') {
       fail(`retained-public-only contestant ${contestant.model} requires every outbound entry to be classified public`);
     }
+  }
+}
+
+function validateTrialPacketPrivacyV1(trialSha256, contestant, env) {
+  if (contestant.privacy_class !== 'retained_public_only') return;
+  const ack = String(env.VOID_OPENROUTER_ACK_PUBLIC_TRIAL_SHA256 ?? '').trim();
+  if (!/^[0-9a-f]{64}$/.test(ack) || ack !== trialSha256) {
+    fail(`retained-public-only contestant ${contestant.model} requires VOID_OPENROUTER_ACK_PUBLIC_TRIAL_SHA256 for the exact trial packet generation`);
   }
 }
 
@@ -367,6 +397,9 @@ export function validateZeroPriceModelV1(modelEnvelope, contestant) {
   const model = modelEnvelope?.data ?? modelEnvelope;
   if (!model || typeof model !== 'object' || Array.isArray(model)) fail('OpenRouter model metadata is malformed');
   if (model.id !== contestant.model) fail(`OpenRouter model id must equal ${contestant.model}`);
+  if (contestant.canonical_slug !== null && model.canonical_slug !== contestant.canonical_slug) {
+    fail(`OpenRouter canonical model generation must equal ${contestant.canonical_slug}`);
+  }
   if (!Number.isInteger(model.context_length) || model.context_length < contestant.min_context_length) {
     fail(`OpenRouter model context length is below the reviewed minimum for ${contestant.model}`);
   }
@@ -390,7 +423,12 @@ export function validateZeroPriceModelV1(modelEnvelope, contestant) {
       fail(`OpenRouter pricing.${key} is not canonical exact zero; free-model gate closed`);
     }
   }
-  return { id: model.id, context_length: model.context_length, pricing_zero: true };
+  return {
+    id: model.id,
+    canonical_slug: model.canonical_slug ?? null,
+    context_length: model.context_length,
+    pricing_zero: true,
+  };
 }
 
 async function readResponseJsonBounded(response, maxBytes, name) {
@@ -564,7 +602,7 @@ function validateChatResponse(response) {
   const message = first?.message;
   if (!message || typeof message !== 'object') fail('OpenRouter chat response message is missing');
   if (Array.isArray(message.tool_calls) && message.tool_calls.length > 0) fail('OpenRouter contestant attempted a tool call; tools are not admitted');
-  if (first.finish_reason === 'length') fail('OpenRouter contestant response was truncated at the max token boundary');
+  if (first.finish_reason !== 'stop') fail('OpenRouter contestant finish_reason must equal stop');
   if (typeof message.content !== 'string') fail('OpenRouter contestant returned non-text content');
   return {
     content: message.content,
@@ -589,12 +627,36 @@ async function publishResultCreateOnly(path, value) {
   }
 }
 
+async function readmitPinnedTrialGenerationV1(options, admitFn, originalReceipt, contestant, env) {
+  const trialBytes = await readRegularBounded(options.trialPath, MAX_JSON_BYTES, 'trial packet');
+  const scratch = await mkdtemp(join(tmpdir(), 'void-openrouter-trial-readmit-'));
+  const exactPath = join(scratch, 'trial-packet.json');
+  try {
+    await writeFile(exactPath, trialBytes, { flag: 'wx', mode: 0o600 });
+    const reboundReceipt = await admitFn(
+      exactPath, options.stagingRoot, options.manifestPath, options.receiptPath, options.admissionAtUtc,
+      { emitOutput: false },
+    );
+    if (canonicalJson(reboundReceipt) !== canonicalJson(originalReceipt)) {
+      fail('post-admission trial generation produced a different constitutional admission receipt');
+    }
+    let value;
+    try { value = JSON.parse(decodeUtf8(trialBytes, 'trial packet')); }
+    catch { fail('trial packet must contain valid JSON'); }
+    const digest = sha256(trialBytes);
+    validateTrialPacketPrivacyV1(digest, contestant, env);
+    return { value, bytes: trialBytes, sha256: digest };
+  } finally {
+    await rm(scratch, { recursive: true, force: true });
+  }
+}
+
 export async function runOpenRouterContestantTrialV1(options, hooks = {}) {
   const registryLoaded = hooks.registry
-    ? { registry: validateContestantRegistryV1(hooks.registry), sha256: sha256(Buffer.from(canonicalJson(hooks.registry), 'utf8')) }
+    ? { registry: validateContestantRegistryV1(hooks.registry), sha256: contestantRegistryDigestV1(hooks.registry) }
     : await loadContestantRegistryV1(hooks.registryPath ?? REGISTRY_PATH);
   const env = hooks.env ?? process.env;
-  const runtime = requireRuntimeGate(env, registryLoaded.registry);
+  const runtime = requireRuntimeGate(env, registryLoaded.registry, registryLoaded.sha256);
   const fetchImpl = hooks.fetchImpl ?? globalThis.fetch;
   const admitFn = hooks.admitFn ?? admitSanitizedInputs;
   if (typeof fetchImpl !== 'function') fail('fetch implementation is unavailable');
@@ -610,8 +672,8 @@ export async function runOpenRouterContestantTrialV1(options, hooks = {}) {
   );
   if (typeof hooks.afterAdmission === 'function') await hooks.afterAdmission({ receipt });
 
-  const [trialRead, manifestRead, receiptRead] = await Promise.all([
-    readJsonBounded(options.trialPath, MAX_JSON_BYTES, 'trial packet'),
+  const trialRead = await readmitPinnedTrialGenerationV1(options, admitFn, receipt, runtime.contestant, env);
+  const [manifestRead, receiptRead] = await Promise.all([
     readJsonBounded(options.manifestPath, MAX_JSON_BYTES, 'outbound manifest'),
     readJsonBounded(options.receiptPath, MAX_JSON_BYTES, 'sanitization receipt'),
   ]);
@@ -635,13 +697,16 @@ export async function runOpenRouterContestantTrialV1(options, hooks = {}) {
     marker: RESULT_MARKER,
     provider: PROVIDER,
     model_requested: runtime.contestant.model,
+    model_canonical_slug: model.canonical_slug,
     model_reported: accepted.reported_model,
     qualification_status: runtime.contestant.status,
     scored_trial_eligible: runtime.contestant.scored_trial_eligible,
     retention_class: runtime.contestant.retention_class,
     privacy_class: runtime.contestant.privacy_class,
     provider_policy_acknowledged: true,
+    registry_policy_generation_acknowledged: registryLoaded.sha256,
     public_retention_acknowledged: runtime.contestant.privacy_class === 'retained_public_only',
+    scored_provider_allowlist: [...runtime.contestant.provider_policy.only],
     pricing_verified_zero: true,
     request_time_max_price_zero: true,
     provider_policy: providerRequestPolicy(runtime.contestant),

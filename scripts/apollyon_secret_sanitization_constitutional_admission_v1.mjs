@@ -190,7 +190,7 @@ async function readPinnedBounded(fh, preStamp, maxBytes, name, path, options = {
 }
 
 async function readRegularBounded(path, maxBytes, name, options = {}) {
-  const flags = fsConstants.O_RDONLY | fsConstants.O_NOFOLLOW;
+  const flags = fsConstants.O_RDONLY | fsConstants.O_NOFOLLOW | fsConstants.O_NONBLOCK;
   const fh = await open(path, flags);
   try {
     const st = await fh.stat({ bigint: true });
@@ -325,7 +325,7 @@ async function readStagedEntry(rootPath, entry, maxBytes, options = {}) {
     fail(`entry ${entry.label} blocked category=staging_root_escape`);
   }
 
-  const flags = fsConstants.O_RDONLY | fsConstants.O_NOFOLLOW;
+  const flags = fsConstants.O_RDONLY | fsConstants.O_NOFOLLOW | fsConstants.O_NONBLOCK;
   const fh = await open(candidate, flags);
   try {
     const bound = await fh.stat({ bigint: true });
@@ -375,7 +375,10 @@ function linkHelperFailure(result) {
 }
 
 async function readExactReceiptFinal(parentHandle, leaf, expectedBytes) {
-  const fh = await open(childPath(parentHandle, leaf), fsConstants.O_RDONLY | fsConstants.O_NOFOLLOW);
+  const fh = await open(
+    childPath(parentHandle, leaf),
+    fsConstants.O_RDONLY | fsConstants.O_NOFOLLOW | fsConstants.O_NONBLOCK,
+  );
   try {
     const pre = await fh.stat({ bigint: true });
     if (!pre.isFile()) fail('receipt final must be a regular file');

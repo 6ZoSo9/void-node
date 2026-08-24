@@ -18,14 +18,14 @@ Initial roster reviewed 2026-08-24:
 
 | model | status | minimum reviewed context | scored-trial eligibility |
 | --- | --- | ---: | --- |
-| `stealth/ox-alpha` | `qualified` | 1,048,576 | yes |
+| `stealth/ox-alpha` | `qualified` | 1,048,576 | no |
 | `deepseek/deepseek-v4-flash:free` | `quarantined` | 1,048,576 | no |
 | `deepseek/deepseek-r1:free` | `quarantined` | 163,840 | no |
 | `deepseek/deepseek-chat:free` | `quarantined` | 131,072 | no |
 | `deepseek/deepseek-r1-0528-qwen3-8b:free` | `quarantined` | 131,072 | no |
 | `z-ai/glm-5.2:free` | `qualification_only` | 256,000 | no |
-| `cohere/north-mini-code:free` | `qualified` | 256,000 | yes |
-| `poolside/laguna-s-2.1:free` | `qualified` | 262,144 | yes |
+| `cohere/north-mini-code:free` | `qualified` | 256,000 | no |
+| `poolside/laguna-s-2.1:free` | `qualified` | 262,144 | no |
 | `thinkingmachines/inkling:free` | `quarantined` | 262,144 | no |
 | `nvidia/nemotron-3.5-lightning:free` | `qualification_only` | 1,000,000 | no |
 | `dots-studio/dots-3-note-preview:free` | `qualification_only` | 512,000 | no |
@@ -34,7 +34,7 @@ The roster is not a permanent trust statement. Each live request fetches OpenRou
 
 ## Qualification states
 
-`qualified` means the exact registry generation is eligible for a scored Apollyon trial under its reviewed provider and privacy policy. `retained_public_only` contestants remain restricted to exact-public manifest entries even when qualified.
+`qualified` means the exact registry generation has passed bounded worker-qualification evidence under its reviewed provider/privacy policy. It does not itself grant provider-attributable scored authority. `scored_trial_eligible=true` additionally requires exactly one reviewed provider allowlist entry; the current real registry deliberately grants no scored-provider authority. `retained_public_only` contestants remain restricted to exact-public manifest entries even when qualified.
 
 `qualification_only` means the model may be probed only with explicit `VOID_OPENROUTER_ALLOW_QUALIFICATION_ONLY=1`. The output is persisted with `scored_trial_eligible=false` and cannot count as an official scored contestant result until the provider/routing generation is separately reviewed and promoted.
 
@@ -48,7 +48,7 @@ New exact-zero catalog contestants begin as `qualification_only` and are assigne
 
 `zdr_public_or_sanitized` requires `data_collection=deny` and `zdr=true`. `retained_public_only` may explicitly permit provider retention/training but accepts only exact-public manifest entries and requires `VOID_OPENROUTER_ACK_PUBLIC_RETENTION=1`. Price and privacy are independent gates.
 
-Qualification never weakens a model's privacy class. Promotion to `qualified` only changes scored-trial eligibility; the same exact provider/privacy restrictions continue to apply.
+Qualification never weakens a model's privacy class. Promotion to `qualified` records bounded worker evidence only; scored-provider eligibility is a separate fail-closed authority bit and the same exact provider/privacy restrictions continue to apply.
 
 Dynamic `openrouter/free` routing is not accepted for scored Apollyon trials because the selected model can change. Scored evidence must remain attributable to an exact model slug and reviewed routing policy.
 
@@ -92,11 +92,12 @@ A live call is allowed only when all applicable conditions are true:
 ```text
 VOID_OPENROUTER_ENABLE=1
 VOID_OPENROUTER_ACK_PROVIDER_POLICY=1
+VOID_OPENROUTER_ACK_REGISTRY_SHA256=<exact semantic registry generation digest>
 OPENROUTER_API_KEY exists only in process memory/environment
 selected model exists in the reviewed registry
 selected model is not quarantined
 qualification_only requires VOID_OPENROUTER_ALLOW_QUALIFICATION_ONLY=1
-retained_public_only requires VOID_OPENROUTER_ACK_PUBLIC_RETENTION=1 and public manifest entries only
+retained_public_only requires VOID_OPENROUTER_ACK_PUBLIC_RETENTION=1, public manifest entries only, and VOID_OPENROUTER_ACK_PUBLIC_TRIAL_SHA256 bound to the exact trial generation
 fresh Apollyon parent sanitization admission = green
 post-admission staged bytes still match admitted digests
 all inputs are public or sanitized text/JSON
@@ -135,6 +136,20 @@ OpenRouter documents `provider.max_price` as a hard provider-routing ceiling: pr
 
 The adapter sends no tools, web-search/server-tool parameters, image/audio/video inputs, or other paid modalities. The catalog check still requires every published non-null pricing component to be exact zero as drift defense. A later extension that admits another billable modality must define and prove its own request-time zero-cost admission primitive before it may enter this free-only lane.
 
+## Input/model authority wall
+
+Every active contestant now binds an exact OpenRouter catalog `canonical_slug`. Stable public model IDs cannot silently drift to a different canonical model generation and still pass the metadata gate.
+
+The current three worker-qualified models remain `qualified`, but all real registry entries deliberately have `scored_trial_eligible=false`. Future provider-attributable scoring requires exactly one reviewed `provider_policy.only` provider pin. Worker qualification does not itself grant scored-provider attribution or any VOID authority.
+
+Provider-policy acknowledgement is registry-generation-bound: `VOID_OPENROUTER_ACK_REGISTRY_SHA256` must equal the canonical semantic digest of the exact loaded registry generation in addition to the explicit provider-policy acknowledgement.
+
+After the first constitutional/sanitization admission returns, the adapter reads the exact current trial packet bytes into bounded memory, writes those exact bytes into a private temporary file, and re-runs the full parent active-trial/constitutional/manifest admission against that pinned copy before any catalog/chat request. The provider prompt is built from those re-admitted bytes, so later pathname replacement cannot change the model-visible trial. For `retained_public_only`, `VOID_OPENROUTER_ACK_PUBLIC_TRIAL_SHA256` must additionally equal the SHA-256 of that exact pinned trial generation; this is the explicit public classification acknowledgement for trial text, while every manifest input independently remains classified exactly `public`.
+
+Regular-file acquisition uses `O_NOFOLLOW | O_NONBLOCK`; nonregular leaves such as FIFOs are rejected after descriptor acquisition rather than blocking indefinitely before type admission.
+
+A successful HTTP response becomes accepted evidence only when `finish_reason` is exactly `stop`. Length truncation, content-filter terminals, tool-call terminals, null/unknown terminals, and other non-stop outcomes remain HOLD evidence.
+
 ## Secret and TOCTOU boundary
 
 The OpenRouter API key is used only as the HTTP `Authorization` bearer value. It is never serialized into the trial packet, manifest, sanitization receipt, request body, result artifact, Git history, or model prompt.
@@ -159,8 +174,8 @@ Every registry entry requires `zero_price_required=true`. Before each chat reque
 
 - the wrong model id;
 - missing or malformed pricing metadata;
-- missing prompt/completion/request pricing fields;
-- any published numeric pricing component that is non-zero; or
+- missing prompt/completion pricing fields;
+- any published non-null pricing component that is not canonical exact zero; or
 - a context window below the reviewed registry floor.
 
 Free status is therefore an executable runtime condition, not a permanent assumption.
@@ -217,7 +232,7 @@ A strong newly free model may be proposed for the registry, but admission still 
 
 - the exact five-entry initial registry validates;
 - duplicate/weakened registry policy fails closed;
-- Ox Alpha remains qualified and scored-trial eligible;
+- Ox Alpha remains worker-qualified while real scored-provider authority is disabled pending an exact reviewed provider pin;
 - DeepSeek entries remain qualification-only and require `data_collection=deny` plus `zdr=true`;
 - qualification-only execution requires explicit acknowledgement;
 - parent trial/sanitization walls remain mandatory;

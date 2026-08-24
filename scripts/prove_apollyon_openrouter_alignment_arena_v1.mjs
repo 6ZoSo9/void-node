@@ -5,7 +5,7 @@ import { mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { RESULT_MARKER } from './apollyon_openrouter_ox_alpha_adapter_v1.mjs';
+import { RESULT_MARKER, contestantRegistryDigestV1 } from './apollyon_openrouter_ox_alpha_adapter_v1.mjs';
 import {
   ARENA_MARKER,
   runOpenRouterAlignmentArenaV1,
@@ -23,25 +23,25 @@ function fixtureRegistry() {
     default_model: 'stealth/ox-alpha',
     contestants: [
       {
-        model: 'stealth/ox-alpha', status: 'qualified', scored_trial_eligible: true,
+        model: 'stealth/ox-alpha', canonical_slug: 'stealth/ox-alpha', status: 'qualified', scored_trial_eligible: true,
         zero_price_required: true, min_context_length: 262144, max_tokens_cap: 32768,
         retention_class: 'retained-provider-preview', privacy_class: 'retained_public_only',
-        provider_policy: { allow_fallbacks: false, require_parameters: true, data_collection: null, zdr: false, only: [] },
+        provider_policy: { allow_fallbacks: false, require_parameters: true, data_collection: null, zdr: false, only: ['ProofProvider'] },
       },
       {
-        model: 'deepseek/deepseek-v4-flash:free', status: 'qualification_only', scored_trial_eligible: false,
+        model: 'deepseek/deepseek-v4-flash:free', canonical_slug: 'deepseek/proof-v4-flash', status: 'qualification_only', scored_trial_eligible: false,
         zero_price_required: true, min_context_length: 1048576, max_tokens_cap: 32768,
         retention_class: 'qualification-zdr-required', privacy_class: 'zdr_public_or_sanitized',
         provider_policy: { allow_fallbacks: false, require_parameters: true, data_collection: 'deny', zdr: true, only: [] },
       },
       {
-        model: 'deepseek/deepseek-chat:free', status: 'qualification_only', scored_trial_eligible: false,
+        model: 'deepseek/deepseek-chat:free', canonical_slug: 'deepseek/proof-chat', status: 'qualification_only', scored_trial_eligible: false,
         zero_price_required: true, min_context_length: 131072, max_tokens_cap: 32768,
         retention_class: 'public-source-retained', privacy_class: 'retained_public_only',
         provider_policy: { allow_fallbacks: false, require_parameters: true, data_collection: 'allow', zdr: false, only: [] },
       },
       {
-        model: 'other/quarantined:free', status: 'quarantined', scored_trial_eligible: false,
+        model: 'other/quarantined:free', canonical_slug: null, status: 'quarantined', scored_trial_eligible: false,
         zero_price_required: true, min_context_length: 32768, max_tokens_cap: 4096,
         retention_class: 'quarantined', privacy_class: 'zdr_public_or_sanitized',
         provider_policy: { allow_fallbacks: false, require_parameters: true, data_collection: null, zdr: false, only: [] },
@@ -50,12 +50,13 @@ function fixtureRegistry() {
   };
 }
 
-function environment(overrides = {}) {
+function environment(registry, overrides = {}) {
   return {
     VOID_OPENROUTER_ARENA_ENABLE: '1',
     VOID_OPENROUTER_ENABLE: '1',
     VOID_OPENROUTER_ACK_PROVIDER_POLICY: '1',
     VOID_OPENROUTER_ACK_PUBLIC_RETENTION: '1',
+    VOID_OPENROUTER_ACK_REGISTRY_SHA256: contestantRegistryDigestV1(registry),
     VOID_OPENROUTER_ARENA_MODE: 'qualification',
     VOID_OPENROUTER_ARENA_DELAY_MS: '0',
     OPENROUTER_API_KEY: TEST_KEY,
@@ -98,14 +99,17 @@ async function main() {
       if (model === 'deepseek/deepseek-chat:free') {
         throw new Error(`synthetic provider hold ${TEST_KEY}`);
       }
+      const contestant = registry.contestants.find((entry) => entry.model === model);
       const result = {
         marker: RESULT_MARKER,
         provider: 'openrouter',
         model_requested: model,
+        model_canonical_slug: contestant.canonical_slug,
         model_reported: model,
         qualification_status: model === 'stealth/ox-alpha' ? 'qualified' : 'qualification_only',
         scored_trial_eligible: model === 'stealth/ox-alpha',
         retention_class: 'proof',
+        scored_provider_allowlist: contestant.provider_policy.only,
         provider_policy_acknowledged: true,
         pricing_verified_zero: true,
         provider_policy: { allow_fallbacks: false, require_parameters: true },
@@ -136,7 +140,7 @@ async function main() {
       outputRoot: arenaRoot,
       admissionAtUtc: '2026-08-24T06:00:00.000Z',
     }, {
-      env: environment(),
+      env: environment(registry),
       registry,
       runContestantFn: fakeRunner,
       sleepFn: async () => { throw new Error('delay should be zero in proof'); },
@@ -172,13 +176,17 @@ async function main() {
       outputRoot: scoredRoot,
       admissionAtUtc: '2026-08-24T06:00:00.000Z',
     }, {
-      env: environment({ VOID_OPENROUTER_ARENA_MODE: 'scored' }),
+      env: environment(registry, { VOID_OPENROUTER_ARENA_MODE: 'scored' }),
       registry,
       runContestantFn: async (options, hooks) => {
         scoredCalls.push(hooks.env.VOID_OPENROUTER_MODEL);
+        const scoredContestant = registry.contestants.find((entry) => entry.model === hooks.env.VOID_OPENROUTER_MODEL);
         const result = {
           marker: RESULT_MARKER,
           model_requested: hooks.env.VOID_OPENROUTER_MODEL,
+          model_canonical_slug: scoredContestant.canonical_slug,
+          scored_provider_allowlist: scoredContestant.provider_policy.only,
+          finish_reason: 'stop',
           trial_id: `voidat1_${'1'.repeat(64)}`,
           admission_id: `voidaa1_${'2'.repeat(64)}`,
           response_content_sha256: '3'.repeat(64),
@@ -200,13 +208,13 @@ async function main() {
       default_model: 'a_b/c',
       contestants: [
         {
-          model: 'a_b/c', status: 'qualified', scored_trial_eligible: true,
+          model: 'a_b/c', canonical_slug: 'a_b/c-v1', status: 'qualified', scored_trial_eligible: true,
           zero_price_required: true, min_context_length: 32768, max_tokens_cap: 4096,
           retention_class: 'proof-zdr', privacy_class: 'zdr_public_or_sanitized',
-          provider_policy: { allow_fallbacks: false, require_parameters: true, data_collection: 'deny', zdr: true, only: [] },
+          provider_policy: { allow_fallbacks: false, require_parameters: true, data_collection: 'deny', zdr: true, only: ['ProofProvider'] },
         },
         {
-          model: 'a/b_c', status: 'qualification_only', scored_trial_eligible: false,
+          model: 'a/b_c', canonical_slug: 'a/b_c-v1', status: 'qualification_only', scored_trial_eligible: false,
           zero_price_required: true, min_context_length: 32768, max_tokens_cap: 4096,
           retention_class: 'proof-zdr', privacy_class: 'zdr_public_or_sanitized',
           provider_policy: { allow_fallbacks: false, require_parameters: true, data_collection: 'deny', zdr: true, only: [] },
@@ -221,12 +229,16 @@ async function main() {
       outputRoot: collisionRoot,
       admissionAtUtc: '2026-08-24T06:00:00.000Z',
     }, {
-      env: environment(),
+      env: environment(collisionRegistry),
       registry: collisionRegistry,
       runContestantFn: async (options, hooks) => {
+        const collisionContestant = collisionRegistry.contestants.find((entry) => entry.model === hooks.env.VOID_OPENROUTER_MODEL);
         const result = {
           marker: RESULT_MARKER,
           model_requested: hooks.env.VOID_OPENROUTER_MODEL,
+          model_canonical_slug: collisionContestant.canonical_slug,
+          scored_provider_allowlist: collisionContestant.provider_policy.only,
+          finish_reason: 'stop',
           trial_id: `voidat1_${'4'.repeat(64)}`,
           admission_id: `voidaa1_${'5'.repeat(64)}`,
           response_content_sha256: '6'.repeat(64),
@@ -248,7 +260,7 @@ async function main() {
         trialPath: 'trial.json', stagingRoot: 'stage', manifestPath: 'manifest.json',
         outputRoot: join(root, 'disabled'), admissionAtUtc: '2026-08-24T06:00:00.000Z',
       }, {
-        env: environment({ VOID_OPENROUTER_ARENA_ENABLE: '0' }),
+        env: environment(registry, { VOID_OPENROUTER_ARENA_ENABLE: '0' }),
         registry,
         runContestantFn: fakeRunner,
         emitOutput: false,
@@ -268,6 +280,8 @@ async function main() {
   console.log('qualification_gate_per_model=true');
   console.log('sequential_no_retry_or_parallel_fanout=true');
   console.log('persisted_result_binding=true');
+  console.log('canonical_model_generation_persisted=true');
+  console.log('registry_policy_ack_generation_bound=true');
   console.log('per_contestant_setup_failure_contained=true');
   console.log('api_key_redacted_from_hold_summary=true');
   console.log('automatic_registry_promotion=false');

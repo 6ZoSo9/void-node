@@ -9,6 +9,7 @@ import { fileURLToPath } from 'node:url';
 import {
   REGISTRY_PATH,
   RESULT_MARKER,
+  contestantRegistryDigestV1,
   runOpenRouterContestantTrialV1,
   validateContestantRegistryV1,
 } from './apollyon_openrouter_ox_alpha_adapter_v1.mjs';
@@ -59,7 +60,7 @@ async function readJsonBounded(path, maxBytes, name) {
 async function readRegistry(path) {
   const read = await readJsonBounded(path, MAX_REGISTRY_BYTES, 'OpenRouter contestant registry');
   validateContestantRegistryV1(read.value);
-  return { registry: read.value, sha256: sha256(read.bytes) };
+  return { registry: read.value, sha256: contestantRegistryDigestV1(read.value) };
 }
 
 export function selectArenaContestantsV1(registry, mode) {
@@ -102,6 +103,12 @@ async function verifyPersistedResult(resultPath, contestant, returnedResult) {
   const persisted = persistedRead.value;
   if (persisted?.marker !== RESULT_MARKER) fail(`persisted result marker drifted for ${contestant.model}`);
   if (persisted.model_requested !== contestant.model) fail(`persisted result model binding drifted for ${contestant.model}`);
+  if (persisted.model_canonical_slug !== contestant.canonical_slug) fail(`persisted canonical model generation drifted for ${contestant.model}`);
+  if (persisted.finish_reason !== 'stop') fail(`persisted finish reason must equal stop for ${contestant.model}`);
+  if (contestant.scored_trial_eligible === true
+    && JSON.stringify(persisted.scored_provider_allowlist) !== JSON.stringify(contestant.provider_policy.only)) {
+    fail(`persisted scored provider allowlist drifted for ${contestant.model}`);
+  }
   if (persisted.trial_id !== returnedResult?.trial_id) fail(`persisted result trial binding drifted for ${contestant.model}`);
   if (persisted.admission_id !== returnedResult?.admission_id) fail(`persisted result admission binding drifted for ${contestant.model}`);
   if (persisted.response_content_sha256 !== returnedResult?.response_content_sha256) {
@@ -133,9 +140,13 @@ export async function runOpenRouterAlignmentArenaV1(options, hooks = {}) {
   const registryLoaded = hooks.registry
     ? {
         registry: validateContestantRegistryV1(hooks.registry),
-        sha256: sha256(Buffer.from(JSON.stringify(hooks.registry), 'utf8')),
+        sha256: contestantRegistryDigestV1(hooks.registry),
       }
     : await readRegistry(hooks.registryPath ?? REGISTRY_PATH);
+  const registryAck = String(env.VOID_OPENROUTER_ACK_REGISTRY_SHA256 ?? '').trim();
+  if (registryAck !== registryLoaded.sha256) {
+    fail('VOID_OPENROUTER_ACK_REGISTRY_SHA256 must equal the loaded registry generation');
+  }
   const contestants = selectArenaContestantsV1(registryLoaded.registry, mode);
   const runContestant = hooks.runContestantFn ?? runOpenRouterContestantTrialV1;
   const sleepFn = hooks.sleepFn ?? sleep;
@@ -181,6 +192,7 @@ export async function runOpenRouterAlignmentArenaV1(options, hooks = {}) {
       const persisted = await verifyPersistedResult(resultPath, contestant, result);
       records.push({
         model: contestant.model,
+        canonical_slug: persisted.model_canonical_slug ?? null,
         registry_status: contestant.status,
         scored_trial_eligible: contestant.scored_trial_eligible,
         run_status: 'GREEN',
@@ -192,6 +204,7 @@ export async function runOpenRouterAlignmentArenaV1(options, hooks = {}) {
     } catch (error) {
       records.push({
         model: contestant.model,
+        canonical_slug: contestant.canonical_slug ?? null,
         registry_status: contestant.status,
         scored_trial_eligible: contestant.scored_trial_eligible,
         run_status: 'HOLD',
