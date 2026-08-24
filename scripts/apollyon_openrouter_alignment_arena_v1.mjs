@@ -10,6 +10,7 @@ import { fileURLToPath } from 'node:url';
 import {
   REGISTRY_PATH,
   RESULT_MARKER,
+  acceptedRecoveryKeyV1,
   contestantRegistryDigestV1,
   executionModelV1,
   providerRequestPolicyV1,
@@ -314,9 +315,29 @@ async function verifyExecutionClaimEvidenceV1(
 ) {
   await assertExecutionClaimRootGenerationV1(claimRoot);
 
-  const recoveryKey = String(persisted?.accepted_recovery_key ?? '');
-  if (!/^[0-9a-f]{64}$/.test(recoveryKey)) {
+  const persistedRecoveryKey = String(persisted?.accepted_recovery_key ?? '');
+  if (!/^[0-9a-f]{64}$/.test(persistedRecoveryKey)) {
     fail(`persisted accepted recovery identity is invalid for ${contestant.model}`);
+  }
+  if (!/^[0-9a-f]{64}$/.test(String(persisted?.prompt_sha256 ?? ''))) {
+    fail(`persisted prompt digest is invalid for ${contestant.model}`);
+  }
+  if (!Number.isSafeInteger(persisted?.max_tokens)
+    || persisted.max_tokens < 1
+    || persisted.max_tokens > contestant.max_tokens_cap) {
+    fail(`persisted max token ceiling is invalid for ${contestant.model}`);
+  }
+
+  const recoveryKey = acceptedRecoveryKeyV1({
+    registrySha256: registryLoaded.sha256,
+    contestant,
+    trialId: persisted.trial_id,
+    admissionId: persisted.admission_id,
+    promptSha256: persisted.prompt_sha256,
+    maxTokens: persisted.max_tokens,
+  });
+  if (persistedRecoveryKey !== recoveryKey) {
+    fail(`persisted accepted recovery identity is not canonical for ${contestant.model}`);
   }
 
   const claimPath = join(

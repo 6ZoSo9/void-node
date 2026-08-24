@@ -169,3 +169,17 @@ after claim semantic verification therefore becomes HOLD, and the foreign replac
 preserved rather than deleted or adopted. The shared claim-root capability is distinct from
 the arena output-root capability, so changing evidence namespaces cannot create a second
 execution authority namespace.
+
+## Canonical execution identity
+
+The execution-claim pathname is not authority merely because it contains a syntactically
+valid 64-hex recovery key. Before GREEN, the arena recomputes the exact deterministic
+`accepted_recovery_key` with the adapter's own reviewed identity function over the semantic
+registry digest, contestant/public model and canonical execution generation, trial ID,
+admission ID, prompt SHA-256, and max-token ceiling.
+
+The persisted result key must equal that recomputed identity before the arena opens the
+claim leaf, and the claim's key/path must then equal the same value. A foreign or synthetic
+runner cannot mint alternate self-consistent claim namespaces for one logical execution by
+choosing arbitrary K1/K2 values. The focused proof includes an otherwise exact result/claim
+pair under an arbitrary valid 64-hex key and requires HOLD with zero GREEN attribution.

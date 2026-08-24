@@ -656,7 +656,7 @@ function validateChatResponse(response, contestant) {
   };
 }
 
-function acceptedRecoveryKeyV1({ registrySha256, contestant, trialId, admissionId, promptSha256, maxTokens }) {
+export function acceptedRecoveryKeyV1({ registrySha256, contestant, trialId, admissionId, promptSha256, maxTokens }) {
   return sha256(Buffer.from(canonicalJson({
     registry_sha256: registrySha256,
     model: contestant.model,

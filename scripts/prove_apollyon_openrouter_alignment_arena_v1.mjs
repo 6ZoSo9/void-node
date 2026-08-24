@@ -8,7 +8,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { spawnSync } from 'node:child_process';
 
-import { RESULT_MARKER, contestantRegistryDigestV1, executionModelV1, providerRequestPolicyV1 } from './apollyon_openrouter_ox_alpha_adapter_v1.mjs';
+import { RESULT_MARKER, acceptedRecoveryKeyV1, contestantRegistryDigestV1, executionModelV1, providerRequestPolicyV1 } from './apollyon_openrouter_ox_alpha_adapter_v1.mjs';
 import {
   ARENA_MARKER,
   runOpenRouterAlignmentArenaV1,
@@ -39,10 +39,6 @@ function canonicalJson(value) {
   return JSON.stringify(canonicalize(value));
 }
 
-function syntheticRecoveryKeyV1(contestant) {
-  return sha256(Buffer.from(`arena-proof-recovery:${contestant.model}:${contestant.canonical_slug}`, 'utf8'));
-}
-
 function executionClaimRootGenerationV1(st) {
   return sha256(Buffer.from(canonicalJson({
     dev: st.dev.toString(),
@@ -63,6 +59,18 @@ async function persistSyntheticExecutionClaimV1(result, hooks) {
 
     result.prompt_sha256 ??= sha256(Buffer.from(`arena-proof-prompt:${result.model_requested}`, 'utf8'));
     result.max_tokens ??= 1024;
+    const contestant = hooks.registry.contestants.find(
+      (entry) => entry.model === result.model_requested,
+    );
+    assert.ok(contestant, `synthetic runner missing contestant ${result.model_requested}`);
+    result.accepted_recovery_key ??= acceptedRecoveryKeyV1({
+      registrySha256: result.registry_sha256,
+      contestant,
+      trialId: result.trial_id,
+      admissionId: result.admission_id,
+      promptSha256: result.prompt_sha256,
+      maxTokens: result.max_tokens,
+    });
 
     const rootGeneration = executionClaimRootGenerationV1(st);
     const claim = {
@@ -189,7 +197,6 @@ function executionEvidenceV1(contestant) {
     router_requested_model: executionModel,
     router_selected_model: executionModel,
     router_selected_provider: 'ProofProvider',
-    accepted_recovery_key: syntheticRecoveryKeyV1(contestant),
   };
 }
 
@@ -564,6 +571,7 @@ async function main() {
     // GREEN terminal. A same-UID replacement after claim semantic validation
     // must HOLD and preserve the foreign replacement.
     const claimLeafRoot = join(root, 'execution-claim-leaf-generation');
+    let claimLeafKey = null;
     const claimLeafSummary = await runArenaWithRootV1({
       trialPath: 'trial.json', stagingRoot: 'stage', manifestPath: 'manifest.json',
       outputRoot: claimLeafRoot, admissionAtUtc: '2026-08-24T06:00:00.000Z',
@@ -597,6 +605,7 @@ async function main() {
           response_content_sha256: 'c'.repeat(64),
         };
         await persistSyntheticExecutionClaimV1(result, hooks);
+        claimLeafKey = result.accepted_recovery_key;
         await writeFile(options.outputPath, `${JSON.stringify(result, null, 2)}\n`, { mode: 0o600, flag: 'wx' });
         return result;
       },
@@ -606,7 +615,7 @@ async function main() {
     assert.equal(claimLeafSummary.green_contestants, 0);
     assert.equal(claimLeafSummary.held_contestants, 1);
     assert.match(claimLeafSummary.records[0].hold_reason, /visible generation changed/);
-    const claimLeafKey = syntheticRecoveryKeyV1(terminalRegistry.contestants[0]);
+    assert.match(claimLeafKey, /^[0-9a-f]{64}$/);
     assert.equal(
       await readFile(
         join(
@@ -664,6 +673,64 @@ async function main() {
       /execution claim exact file digest drifted/,
     );
 
+    // A self-consistent result + claim under an arbitrary valid 64-hex leaf is
+    // not execution authority. The arena must recompute the adapter's exact
+    // deterministic recovery identity from registry/model/canonical/trial/
+    // admission/prompt/token fields before it even opens the claim leaf.
+    const noncanonicalKeyRoot = join(root, 'execution-claim-noncanonical-recovery-key');
+    const noncanonicalKeySummary = await runArenaWithRootV1({
+      trialPath: 'trial.json', stagingRoot: 'stage', manifestPath: 'manifest.json',
+      outputRoot: noncanonicalKeyRoot, admissionAtUtc: '2026-08-24T06:00:00.000Z',
+    }, {
+      env: environment(terminalRegistry),
+      registry: terminalRegistry,
+      runContestantFn: async (options, hooks) => {
+        const contestant = terminalRegistry.contestants[0];
+        const digest = contestantRegistryDigestV1(terminalRegistry);
+        const result = {
+          marker: RESULT_MARKER,
+          model_requested: contestant.model,
+          ...executionEvidenceV1(contestant),
+          model_canonical_slug: contestant.canonical_slug,
+          qualification_status: contestant.status,
+          scored_trial_eligible: contestant.scored_trial_eligible,
+          retention_class: contestant.retention_class,
+          privacy_class: contestant.privacy_class,
+          scored_provider_allowlist: contestant.provider_policy.only,
+          registry_policy_generation_acknowledged: digest,
+          provider_policy: providerRequestPolicyV1(contestant),
+          registry_sha256: digest,
+          finish_reason: 'stop',
+          trial_id: `voidat1_${'1'.repeat(64)}`,
+          admission_id: `voidaa1_${'2'.repeat(64)}`,
+          prompt_sha256: '3'.repeat(64),
+          max_tokens: 1024,
+          response_content_sha256: '4'.repeat(64),
+          accepted_recovery_key: '5'.repeat(64),
+        };
+        const expectedKey = acceptedRecoveryKeyV1({
+          registrySha256: digest,
+          contestant,
+          trialId: result.trial_id,
+          admissionId: result.admission_id,
+          promptSha256: result.prompt_sha256,
+          maxTokens: result.max_tokens,
+        });
+        assert.notEqual(result.accepted_recovery_key, expectedKey);
+        await persistSyntheticExecutionClaimV1(result, hooks);
+        await writeFile(options.outputPath, `${JSON.stringify(result, null, 2)}\n`, { mode: 0o600, flag: 'wx' });
+        return result;
+      },
+      sleepFn: async () => {},
+      emitOutput: false,
+    });
+    assert.equal(noncanonicalKeySummary.green_contestants, 0);
+    assert.equal(noncanonicalKeySummary.held_contestants, 1);
+    assert.match(
+      noncanonicalKeySummary.records[0].hold_reason,
+      /accepted recovery identity is not canonical/,
+    );
+
 
     await expectReject(
       runArenaWithRootV1({
@@ -707,6 +774,8 @@ async function main() {
   console.log('execution_claim_leaf_replacement_generation_holds=true');
   console.log('foreign_execution_claim_leaf_preserved=true');
   console.log('execution_claim_result_self_assertion_rejected=true');
+  console.log('execution_claim_recovery_key_canonically_recomputed=true');
+  console.log('arbitrary_self_consistent_recovery_key_holds=true');
   console.log('foreign_result_leaf_preserved=true');
   console.log('summary_publication_failure_atomic_recoverable=true');
   console.log('arena_registry_nonregular_leaf_nonblocking=true');
