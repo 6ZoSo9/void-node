@@ -8,6 +8,8 @@
       "Bash(git add *)",
       "Bash(git commit *)",
       "Bash(rm *)",
+      "Bash(npm ci)",
+      "Bash(npm ci *)",
       "Edit(/docs/governance/**)",
       "Edit(/src/security/**)",
       "Edit(/src/chain/**)",
@@ -98,7 +100,6 @@
       "Bash(git remote remove *)",
       "Bash(git remote set-url *)",
       "Bash(npm install *)",
-      "Bash(npm ci *)",
       "Bash(npm publish *)",
       "Bash(pnpm install *)",
       "Bash(pnpm publish *)",
@@ -143,7 +144,9 @@
       ]
     },
     "network": {
-      "allowedDomains": [],
+      "allowedDomains": [
+        "registry.npmjs.org"
+      ],
       "allowUnixSockets": [],
       "allowAllUnixSockets": false,
       "allowLocalBinding": false
