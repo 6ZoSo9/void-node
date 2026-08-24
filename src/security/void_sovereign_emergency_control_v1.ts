@@ -82,6 +82,7 @@ const HEX64_RE = /^[0-9a-f]{64}$/;
 const BASE64_RE = /^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/;
 const RFC3339_SECOND_RE = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/;
 const UINT64_LIMIT = 1n << 64n;
+const UINT64_MAX = UINT64_LIMIT - 1n;
 const ZERO_SHA256 = "0".repeat(64);
 
 const CERTIFICATE_KEYS = Object.freeze([
@@ -269,6 +270,7 @@ function normalizeCertificate(
     !isCanonicalUtcSecond(raw.expires_at_utc) ||
     !isCanonicalUint64(raw.observed_head_number) ||
     !isHex64(raw.observed_head_hash_sha256) ||
+    raw.observed_head_hash_sha256 === ZERO_SHA256 ||
     typeof raw.reason_code !== "string" ||
     !isHex64(raw.evidence_sha256) ||
     raw.evidence_sha256 === ZERO_SHA256 ||
@@ -472,14 +474,23 @@ export function admitVoidSovereignEmergencyCertificateAgainstFingerprintV1(args:
     };
   }
 
+  if (
+    state.last_sequence !== null &&
+    BigInt(state.last_sequence) === UINT64_MAX
+  ) {
+    return {
+      ok: false,
+      code: "EMERGENCY_SEQUENCE_EXHAUSTED",
+      certificate_sha256: certificateSha,
+      state,
+    };
+  }
+
   const expectedSequence =
     state.last_sequence === null
       ? 0n
       : BigInt(state.last_sequence) + 1n;
-  if (
-    expectedSequence >= UINT64_LIMIT ||
-    BigInt(certificate.sequence) !== expectedSequence
-  ) {
+  if (BigInt(certificate.sequence) !== expectedSequence) {
     return {
       ok: false,
       code: "EMERGENCY_SEQUENCE_MISMATCH",

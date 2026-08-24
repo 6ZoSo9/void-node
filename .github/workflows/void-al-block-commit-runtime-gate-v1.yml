@@ -5,16 +5,21 @@ on:
     paths:
       - ".github/workflows/void-al-block-commit-runtime-gate-v1.yml"
       - "docs/governance/void-al-block-commit-runtime-gate-v1.md"
+      - "docs/governance/void-al-runtime-activation-holds-v2.md"
       - "fixtures/governance/void-al-block-commit-runtime-gate-v1.json"
+      - "fixtures/governance/void-al-runtime-activation-holds-v2.json"
       - "scripts/prove_void_al_block_commit_runtime_gate_v1.ts"
+      - "scripts/prove_void_al_runtime_activation_holds_v2.ts"
       - "scripts/prove_native_block_execution_precommit_integration_guard_v1.ts"
       - "src/security/void_alignment_layer_v1.ts"
+      - "src/security/void_sovereign_emergency_control_v1.ts"
       - "src/security/void_alignment_layer_block_commit_runtime_v1.ts"
       - "src/security/void_alignment_layer_block_commit_runtime_bootstrap_v1.ts"
       - "src/chain/native_block_execution_precommit_integration_v1.ts"
       - "src/chain/seg_store.ts"
       - "src/chain/block.ts"
       - "src/chain/legacy_commit_direct_v2fs_v1.ts"
+      - "src/node_core.ts"
       - "src/index.ts"
       - "scripts/ci_diff_hygiene_v1.sh"
       - "scripts/prove_ci_diff_hygiene_v1.mjs"
@@ -25,16 +30,21 @@ on:
     paths:
       - ".github/workflows/void-al-block-commit-runtime-gate-v1.yml"
       - "docs/governance/void-al-block-commit-runtime-gate-v1.md"
+      - "docs/governance/void-al-runtime-activation-holds-v2.md"
       - "fixtures/governance/void-al-block-commit-runtime-gate-v1.json"
+      - "fixtures/governance/void-al-runtime-activation-holds-v2.json"
       - "scripts/prove_void_al_block_commit_runtime_gate_v1.ts"
+      - "scripts/prove_void_al_runtime_activation_holds_v2.ts"
       - "scripts/prove_native_block_execution_precommit_integration_guard_v1.ts"
       - "src/security/void_alignment_layer_v1.ts"
+      - "src/security/void_sovereign_emergency_control_v1.ts"
       - "src/security/void_alignment_layer_block_commit_runtime_v1.ts"
       - "src/security/void_alignment_layer_block_commit_runtime_bootstrap_v1.ts"
       - "src/chain/native_block_execution_precommit_integration_v1.ts"
       - "src/chain/seg_store.ts"
       - "src/chain/block.ts"
       - "src/chain/legacy_commit_direct_v2fs_v1.ts"
+      - "src/node_core.ts"
       - "src/index.ts"
       - "scripts/ci_diff_hygiene_v1.sh"
       - "scripts/prove_ci_diff_hygiene_v1.mjs"
@@ -74,6 +84,9 @@ jobs:
       - name: Prove AL canonical block commit runtime gate
         run: npx --no-install tsx scripts/prove_void_al_block_commit_runtime_gate_v1.ts
 
+      - name: Prove AL runtime activation-hold closure v2
+        run: npx --no-install tsx scripts/prove_void_al_runtime_activation_holds_v2.ts
+
       - name: Preserve preparation-only precommit boundary
         run: npx --no-install tsx scripts/prove_native_block_execution_precommit_integration_guard_v1.ts
 
@@ -106,9 +119,17 @@ jobs:
           grep -F 'VOID_AL_BLOCK_COMMIT_RUNTIME_V1' dist/security/void_alignment_layer_block_commit_runtime_v1.js
           grep -F 'VOID_AL_BLOCK_COMMIT_DIRECT_BYPASS_V1' dist/security/void_alignment_layer_block_commit_runtime_v1.js
           grep -F 'VOID_AL_BLOCK_HEAD_DIRECT_BYPASS_V1' dist/security/void_alignment_layer_block_commit_runtime_v1.js
+          grep -F 'VOID_AL_BLOCK_HEAD_RECOVERY_V1' dist/security/void_alignment_layer_block_commit_runtime_v1.js
+          grep -F 'VOID_AL_BLOCK_COMMIT_MUTATION_EXCEPTION_V1' dist/security/void_alignment_layer_block_commit_runtime_v1.js
+          grep -F 'VOID_AL_BLOCK_COMMIT_POLICY_DRIFT_V1' dist/security/void_alignment_layer_block_commit_runtime_v1.js
+          grep -F 'VOID_AL_SEGSTORE_STARTUP_HEAD_RECONCILIATION_HOLD_V1' dist/chain/seg_store.js
+          grep -F 'EMERGENCY_SEQUENCE_EXHAUSTED' dist/security/void_sovereign_emergency_control_v1.js
           grep -F 'VOID_AL_BLOCK_COMMIT_RUNTIME_BOOTSTRAP_V1' dist/security/void_alignment_layer_block_commit_runtime_bootstrap_v1.js
           grep -F 'VOID_AL_BLOCK_COMMIT_PROPOSER_AUTHORITY_REQUIRED_V1' dist/security/void_alignment_layer_block_commit_runtime_bootstrap_v1.js
           grep -F 'installVoidAlignmentLayerBlockCommitRuntimeFromEnvironmentV1' dist/security/void_alignment_layer_block_commit_runtime_bootstrap_v1.js
+
+      - name: Parse v2 closure fixture
+        run: node -e 'JSON.parse(require("node:fs").readFileSync("fixtures/governance/void-al-runtime-activation-holds-v2.json", "utf8"))'
 
       - name: Prove shallow committed-range diff hygiene contract
         run: node scripts/prove_ci_diff_hygiene_v1.mjs

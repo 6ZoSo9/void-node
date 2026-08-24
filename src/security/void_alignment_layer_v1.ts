@@ -191,6 +191,10 @@ function isHex64(value: unknown): value is string {
   return typeof value === "string" && HEX64_RE.test(value);
 }
 
+function isNonZeroHex64(value: unknown): value is string {
+  return isHex64(value) && value !== ZERO_SHA256;
+}
+
 function validPhase(value: unknown): value is VoidAlPhaseV1 {
   return typeof value === "string" && PHASES.has(value as VoidAlPhaseV1);
 }
@@ -200,6 +204,87 @@ function validMutationClass(value: unknown): value is VoidAlMutationClassV1 {
     typeof value === "string" &&
     MUTATION_CLASSES.has(value as VoidAlMutationClassV1)
   );
+}
+
+/**
+ * Bind malformed-decision evidence to the exact rejected in-memory envelope.
+ * This streams a deterministic structural encoding into SHA-256 so evidence does
+ * not collapse unknown fields/check content to the same generic malformed hash.
+ * Cyclic/non-JSON values are encoded explicitly instead of throwing.
+ */
+function fingerprintMalformedContent(raw: unknown): string {
+  const hash = createHash("sha256");
+  const seen = new WeakMap<object, number>();
+  let nextObjectId = 0;
+  const write = (value: unknown): void => {
+    if (value === null) {
+      hash.update("null;");
+      return;
+    }
+    const kind = typeof value;
+    if (kind === "string") {
+      const text = value as string;
+      hash.update(`s:${Buffer.byteLength(text, "utf8")}:`);
+      hash.update(text, "utf8");
+      hash.update(";");
+      return;
+    }
+    if (kind === "number") {
+      const numberValue = value as number;
+      hash.update(`n:${Number.isNaN(numberValue) ? "NaN" : Object.is(numberValue, -0) ? "-0" : String(numberValue)};`);
+      return;
+    }
+    if (kind === "boolean") {
+      hash.update((value as boolean) ? "b:1;" : "b:0;");
+      return;
+    }
+    if (kind === "undefined") {
+      hash.update("u;");
+      return;
+    }
+    if (kind === "bigint") {
+      hash.update(`i:${String(value)};`);
+      return;
+    }
+    if (kind === "symbol") {
+      hash.update(`y:${String(value)};`);
+      return;
+    }
+    if (kind === "function") {
+      hash.update(`f:${String(value)};`);
+      return;
+    }
+
+    const objectValue = value as object;
+    const priorId = seen.get(objectValue);
+    if (priorId !== undefined) {
+      hash.update(`r:${priorId};`);
+      return;
+    }
+    const objectId = nextObjectId++;
+    seen.set(objectValue, objectId);
+
+    if (Array.isArray(objectValue)) {
+      hash.update(`a:${objectId}:${objectValue.length}:[`);
+      for (const item of objectValue) write(item);
+      hash.update("]; ");
+      return;
+    }
+
+    const record = objectValue as Record<string, unknown>;
+    const keys = Object.keys(record).sort();
+    hash.update(`o:${objectId}:${keys.length}:{`);
+    for (const key of keys) {
+      hash.update(`k:${Buffer.byteLength(key, "utf8")}:`);
+      hash.update(key, "utf8");
+      hash.update("=");
+      write(record[key]);
+    }
+    hash.update("};");
+  };
+
+  write(raw);
+  return hash.digest("hex");
 }
 
 function malformedDecision(raw: unknown, reasonCode: string): VoidAlDecisionV1 {
@@ -218,6 +303,7 @@ function malformedDecision(raw: unknown, reasonCode: string): VoidAlDecisionV1 {
   const actorSha = isHex64(record.actor_id_sha256)
     ? record.actor_id_sha256
     : ZERO_SHA256;
+  const malformedContentSha = fingerprintMalformedContent(raw);
   const disposition: VoidAlFailureSeverityV1 =
     phase === "post_apply" ? "safe_mode" : "reject";
 
@@ -240,6 +326,7 @@ function malformedDecision(raw: unknown, reasonCode: string): VoidAlDecisionV1 {
         mutationClass,
         mutationSha,
         actorSha,
+        malformedContentSha,
       ]),
     ),
     reason_code: reasonCode,
@@ -290,7 +377,10 @@ export function evaluateVoidAlignmentLayerV1(raw: unknown): VoidAlDecisionV1 {
   if (!validMutationClass(raw.mutation_class)) {
     return malformedDecision(raw, "AL_REQUEST_MUTATION_CLASS_INVALID");
   }
-  if (!isHex64(raw.mutation_sha256) || !isHex64(raw.actor_id_sha256)) {
+  if (
+    !isNonZeroHex64(raw.mutation_sha256) ||
+    !isNonZeroHex64(raw.actor_id_sha256)
+  ) {
     return malformedDecision(raw, "AL_REQUEST_IDENTITY_HASH_INVALID");
   }
   if (!Array.isArray(raw.checks)) {
@@ -316,7 +406,7 @@ export function evaluateVoidAlignmentLayerV1(raw: unknown): VoidAlDecisionV1 {
     if (
       typeof candidate.check_id !== "string" ||
       typeof candidate.passed !== "boolean" ||
-      !isHex64(candidate.evidence_sha256)
+      !isNonZeroHex64(candidate.evidence_sha256)
     ) {
       return malformedDecision(raw, "AL_CHECK_VALUE_INVALID");
     }

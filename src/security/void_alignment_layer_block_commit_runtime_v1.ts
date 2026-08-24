@@ -10,6 +10,7 @@ import {
   type VoidAlDecisionV1,
 } from "./void_alignment_layer_v1.js";
 import {
+  blockProposerAuthorityRequiredFromEnv,
   validateBlockForAppend,
   verifyBlockSignatureWithPubkey,
   type Block,
@@ -28,8 +29,15 @@ export const VOID_AL_BLOCK_COMMIT_DIRECT_BYPASS_V1 =
   "VOID_AL_BLOCK_COMMIT_DIRECT_BYPASS_V1" as const;
 export const VOID_AL_BLOCK_HEAD_DIRECT_BYPASS_V1 =
   "VOID_AL_BLOCK_HEAD_DIRECT_BYPASS_V1" as const;
+export const VOID_AL_BLOCK_HEAD_RECOVERY_V1 =
+  "VOID_AL_BLOCK_HEAD_RECOVERY_V1" as const;
+export const VOID_AL_BLOCK_COMMIT_MUTATION_EXCEPTION_V1 =
+  "VOID_AL_BLOCK_COMMIT_MUTATION_EXCEPTION_V1" as const;
+export const VOID_AL_BLOCK_COMMIT_POLICY_DRIFT_V1 =
+  "VOID_AL_BLOCK_COMMIT_POLICY_DRIFT_V1" as const;
 export const VOID_AL_BLOCK_COMMIT_SAFE_MODE_V1 =
   "VOID_AL_BLOCK_COMMIT_SAFE_MODE_V1" as const;
+export const VOID_AL_BLOCK_HEAD_RECOVERY_MAX_SPAN_V1 = 10_000;
 
 export type VoidAlBlockCommitModeV1 = "modern" | "legacy-v2fs";
 
@@ -49,6 +57,7 @@ type GateContext = {
 type RuntimeState = {
   safe_mode: boolean;
   safe_mode_reason: string;
+  authority_policy_sha256: string;
   quarantined_actors: Set<string>;
   contexts: WeakMap<object, GateContext>;
   counters: {
@@ -59,6 +68,8 @@ type RuntimeState = {
     safe_mode_total: number;
     direct_bypass_total: number;
     direct_head_bypass_total: number;
+    direct_head_recovery_total: number;
+    mutation_exception_total: number;
   };
 };
 
@@ -77,6 +88,8 @@ export type VoidAlBlockCommitRuntimeStatusV1 = {
   safe_mode_total: number;
   direct_bypass_total: number;
   direct_head_bypass_total: number;
+  direct_head_recovery_total: number;
+  mutation_exception_total: number;
   ordinary_authentication_changed: false;
   sovereign_usb_access: false;
   production_signature_required_to_install: false;
@@ -100,6 +113,12 @@ export class VoidAlBlockCommitRuntimeHeldErrorV1 extends Error {
 const installations = new WeakMap<object, RuntimeState>();
 const ZERO_SHA256 = "0".repeat(64);
 const HEX64_RE = /^[0-9a-f]{64}$/;
+const VOLATILE_AUTHORITY_CONTEXT_KEYS = new Set([
+  "VOID_BLOCK_PROPOSER_EPOCH",
+  "VOID_BLOCK_PROPOSER_SLOT",
+  "VOID_VALIDATOR_RUNTIME_EPOCH",
+  "VOID_VALIDATOR_RUNTIME_SLOT",
+]);
 
 function sha256(value: string | Buffer): string {
   return createHash("sha256").update(value).digest("hex");
@@ -157,6 +176,46 @@ function evidence(id: string, ...parts: unknown[]): string {
 
 function resultReason(result: ValidationLike): string {
   return result.ok ? "valid" : String(result.reason || "invalid");
+}
+
+function isAuthorityPolicyEnvironmentKey(key: string): boolean {
+  if (VOLATILE_AUTHORITY_CONTEXT_KEYS.has(key)) return false;
+  return (
+    key === "CHAIN_ID" ||
+    key === "DATA_DIR" ||
+    key === "VOID_CHAIN_ID" ||
+    key === "VOID_DATA_DIR" ||
+    key.startsWith("VOID_BLOCK_") ||
+    key.startsWith("VOID_VALIDATOR_") ||
+    key.startsWith("VOID_REQUIRE_") ||
+    key.startsWith("VOID_TRUSTED_")
+  );
+}
+
+function authorityPolicyDigest(env: NodeJS.ProcessEnv): string {
+  const entries = Object.keys(env)
+    .filter(isAuthorityPolicyEnvironmentKey)
+    .sort()
+    .map((key) => [key, String(env[key] ?? "")]);
+  return sha256(stableJson(entries));
+}
+
+function authorityPolicyInvariant(
+  latchedSha256: string,
+  env: NodeJS.ProcessEnv,
+): { passed: boolean; captured: string; runtime: string; process: string } {
+  const runtimeSha256 = authorityPolicyDigest(env);
+  const processSha256 = authorityPolicyDigest(process.env);
+  return {
+    passed:
+      runtimeSha256 === latchedSha256 &&
+      processSha256 === latchedSha256 &&
+      blockProposerAuthorityRequiredFromEnv(env) &&
+      blockProposerAuthorityRequiredFromEnv(process.env),
+    captured: latchedSha256,
+    runtime: runtimeSha256,
+    process: processSha256,
+  };
 }
 
 function checksFor(
@@ -240,6 +299,7 @@ function evaluatePre(
   candidate: any,
   mode: VoidAlBlockCommitModeV1,
   env: NodeJS.ProcessEnv,
+  authorityPolicySha256: string,
 ) {
   const mutationSha = digestCandidateOrZero(candidate);
   const n = Number(candidate?.number);
@@ -272,14 +332,21 @@ function evaluatePre(
   const actor = actorSecurity(candidate, mode);
   const actorSha = sha256(actor.actor);
   const chain = chainBinding(env);
+  const policy = authorityPolicyInvariant(authorityPolicySha256, env);
   const replayPassed = observationOk && (existingExact || nextNumber);
   const transitionPassed =
     observationOk && numberOk && validation.ok && (existingExact || nextNumber);
 
   const checks = checksFor("pre_accept", {
     "void.al.policy_integrity.v1": {
-      passed: true,
-      parts: ["fixed_profile", VOID_AL_BLOCK_COMMIT_RUNTIME_V1],
+      passed: policy.passed,
+      parts: [
+        "latched_proposer_authority_policy",
+        VOID_AL_BLOCK_COMMIT_RUNTIME_V1,
+        policy.captured,
+        policy.runtime,
+        policy.process,
+      ],
     },
     "void.al.chain_binding.v1": {
       passed: chain.passed,
@@ -290,8 +357,8 @@ function evaluatePre(
       parts: [mutationSha],
     },
     "void.al.authority.v1": {
-      passed: actor.passed && validation.ok,
-      parts: [mode, actor.reason, resultReason(validation)],
+      passed: policy.passed && actor.passed && validation.ok,
+      parts: [mode, policy.captured, actor.reason, resultReason(validation)],
     },
     "void.al.actor_security_boundary.v1": {
       passed: actor.passed,
@@ -331,6 +398,8 @@ function evaluatePost(
   preHead: number,
   mutationSha: string,
   actorSha: string,
+  env: NodeJS.ProcessEnv,
+  authorityPolicySha256: string,
 ): VoidAlDecisionV1 {
   const n = Number(candidate?.number);
   let head = -1;
@@ -353,6 +422,7 @@ function evaluatePost(
   const headConsistent =
     observationOk && Number.isSafeInteger(head) &&
     (n <= preHead ? head >= n : head === n);
+  const policy = authorityPolicyInvariant(authorityPolicySha256, env);
 
   return evaluateVoidAlignmentLayerV1({
     marker: VOID_ALIGNMENT_LAYER_REQUEST_MARKER_V1,
@@ -364,16 +434,21 @@ function evaluatePost(
     actor_id_sha256: actorSha,
     checks: checksFor("post_apply", {
       "void.al.post.policy_integrity.v1": {
-        passed: true,
-        parts: ["fixed_profile", VOID_AL_BLOCK_COMMIT_RUNTIME_V1],
+        passed: policy.passed,
+        parts: [
+          "latched_proposer_authority_policy",
+          policy.captured,
+          policy.runtime,
+          policy.process,
+        ],
       },
       "void.al.post.state_root.v1": {
         passed: storedMatches,
         parts: [mutationSha, storedMatches],
       },
       "void.al.post.invariant_recheck.v1": {
-        passed: validation.ok,
-        parts: [mode, resultReason(validation)],
+        passed: policy.passed && validation.ok,
+        parts: [mode, policy.captured, resultReason(validation)],
       },
       "void.al.post.canonical_state.v1": {
         passed: storedMatches && headConsistent,
@@ -422,6 +497,22 @@ function assertWritable(state: RuntimeState, actorSha?: string): void {
   }
 }
 
+function safeModeDirectHeadBypass(
+  state: RuntimeState,
+  reason: string,
+  ...parts: unknown[]
+): never {
+  state.counters.direct_head_bypass_total++;
+  state.counters.safe_mode_total++;
+  state.safe_mode = true;
+  state.safe_mode_reason = VOID_AL_BLOCK_HEAD_DIRECT_BYPASS_V1;
+  throw new VoidAlBlockCommitRuntimeHeldErrorV1(
+    VOID_AL_BLOCK_HEAD_DIRECT_BYPASS_V1,
+    "safe_mode",
+    evidence(reason, ...parts),
+  );
+}
+
 function canonicalCall(
   state: RuntimeState,
   store: any,
@@ -432,7 +523,13 @@ function canonicalCall(
   env: NodeJS.ProcessEnv,
 ) {
   assertWritable(state);
-  const pre = evaluatePre(store, candidate, mode, env);
+  const pre = evaluatePre(
+    store,
+    candidate,
+    mode,
+    env,
+    state.authority_policy_sha256,
+  );
   state.counters.pre_accept_total++;
   assertWritable(state, pre.actor_id_sha256);
   if (pre.decision.disposition !== "allow") {
@@ -454,6 +551,24 @@ function canonicalCall(
   let result: any;
   try {
     result = original.apply(store, callArgs);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    state.safe_mode = true;
+    state.safe_mode_reason = VOID_AL_BLOCK_COMMIT_MUTATION_EXCEPTION_V1;
+    state.counters.safe_mode_total++;
+    state.counters.mutation_exception_total++;
+    throw new VoidAlBlockCommitRuntimeHeldErrorV1(
+      VOID_AL_BLOCK_COMMIT_MUTATION_EXCEPTION_V1,
+      "safe_mode",
+      evidence(
+        "canonical_mutation_exception",
+        mode,
+        pre.pre_head,
+        pre.mutation_sha256,
+        pre.actor_id_sha256,
+        message,
+      ),
+    );
   } finally {
     state.contexts.delete(store);
   }
@@ -465,6 +580,8 @@ function canonicalCall(
     pre.pre_head,
     pre.mutation_sha256,
     pre.actor_id_sha256,
+    env,
+    state.authority_policy_sha256,
   );
   state.counters.post_apply_total++;
   if (post.disposition !== "allow") {
@@ -503,6 +620,8 @@ function status(
     safe_mode_total: state?.counters.safe_mode_total ?? 0,
     direct_bypass_total: state?.counters.direct_bypass_total ?? 0,
     direct_head_bypass_total: state?.counters.direct_head_bypass_total ?? 0,
+    direct_head_recovery_total: state?.counters.direct_head_recovery_total ?? 0,
+    mutation_exception_total: state?.counters.mutation_exception_total ?? 0,
     ordinary_authentication_changed: false,
     sovereign_usb_access: false,
     production_signature_required_to_install: false,
@@ -523,6 +642,22 @@ export function installVoidAlignmentLayerBlockCommitRuntimeOnPrototypeV1(args: {
   if (prior) return status(prior, true, true);
   if (!args.enabled) return status(null, false, false);
 
+  const env = args.env ?? process.env;
+  if (
+    !blockProposerAuthorityRequiredFromEnv(env) ||
+    !blockProposerAuthorityRequiredFromEnv(process.env)
+  ) {
+    throw new Error(
+      `${VOID_AL_BLOCK_COMMIT_RUNTIME_V1}: proposer authority must remain required`,
+    );
+  }
+  const authorityPolicySha256 = authorityPolicyDigest(env);
+  if (authorityPolicyDigest(process.env) !== authorityPolicySha256) {
+    throw new Error(
+      `${VOID_AL_BLOCK_COMMIT_RUNTIME_V1}: authority policy environment mismatch`,
+    );
+  }
+
   const originalSave = proto.saveBlock;
   const originalLegacy = proto.saveAuthorizedLegacyCommitDirectV2fs;
   const originalRaw = proto.saveBlockCommit;
@@ -541,6 +676,7 @@ export function installVoidAlignmentLayerBlockCommitRuntimeOnPrototypeV1(args: {
   const state: RuntimeState = {
     safe_mode: false,
     safe_mode_reason: "",
+    authority_policy_sha256: authorityPolicySha256,
     quarantined_actors: new Set<string>(),
     contexts: new WeakMap<object, GateContext>(),
     counters: {
@@ -551,10 +687,11 @@ export function installVoidAlignmentLayerBlockCommitRuntimeOnPrototypeV1(args: {
       safe_mode_total: 0,
       direct_bypass_total: 0,
       direct_head_bypass_total: 0,
+      direct_head_recovery_total: 0,
+      mutation_exception_total: 0,
     },
   };
   installations.set(proto, state);
-  const env = args.env ?? process.env;
 
   proto.saveBlock = function guardedSaveBlock(this: any, ...callArgs: any[]) {
     return canonicalCall(state, this, callArgs[0], "modern", originalSave, callArgs, env);
@@ -593,7 +730,13 @@ export function installVoidAlignmentLayerBlockCommitRuntimeOnPrototypeV1(args: {
       }
       const candidate = callArgs[0];
       const mode = modeForReplay(candidate);
-      const pre = evaluatePre(this, candidate, mode, env);
+      const pre = evaluatePre(
+        this,
+        candidate,
+        mode,
+        env,
+        state.authority_policy_sha256,
+      );
       state.counters.pre_accept_total++;
       assertWritable(state, pre.actor_id_sha256);
       if (pre.decision.disposition !== "allow") {
@@ -641,6 +784,8 @@ export function installVoidAlignmentLayerBlockCommitRuntimeOnPrototypeV1(args: {
           pending.pre_head,
           pending.mutation_sha256,
           pending.actor_id_sha256,
+          env,
+          state.authority_policy_sha256,
         );
         state.counters.post_apply_total++;
         if (post.disposition !== "allow") {
@@ -651,19 +796,90 @@ export function installVoidAlignmentLayerBlockCommitRuntimeOnPrototypeV1(args: {
       return result;
     }
 
-    state.counters.direct_head_bypass_total++;
-    state.counters.safe_mode_total++;
-    state.safe_mode = true;
-    state.safe_mode_reason = VOID_AL_BLOCK_HEAD_DIRECT_BYPASS_V1;
-    throw new VoidAlBlockCommitRuntimeHeldErrorV1(
-      VOID_AL_BLOCK_HEAD_DIRECT_BYPASS_V1,
-      "safe_mode",
-      evidence("direct_head_bypass", callArgs[0] ?? null),
-    );
+    const target = Number(callArgs[0]);
+    const current = Number(this.loadHeadNumber?.());
+    if (
+      !Number.isSafeInteger(target) ||
+      target < 0 ||
+      !Number.isSafeInteger(current) ||
+      current < -1 ||
+      target < current ||
+      target - current > VOID_AL_BLOCK_HEAD_RECOVERY_MAX_SPAN_V1
+    ) {
+      return safeModeDirectHeadBypass(
+        state,
+        "direct_head_recovery_shape_invalid",
+        current,
+        target,
+      );
+    }
+    if (target === current) return undefined;
+
+    for (let n = current + 1; n <= target; n++) {
+      const candidate = this.loadBlock?.(n);
+      if (!candidate || Number(candidate.number) !== n) {
+        return safeModeDirectHeadBypass(
+          state,
+          "direct_head_recovery_block_missing",
+          current,
+          target,
+          n,
+        );
+      }
+
+      const mode = modeForReplay(candidate);
+      if (mode === "legacy-v2fs") {
+        if (typeof this.saveAuthorizedLegacyCommitDirectV2fs !== "function") {
+          return safeModeDirectHeadBypass(
+            state,
+            "direct_head_recovery_legacy_method_missing",
+            current,
+            target,
+            n,
+          );
+        }
+        this.saveAuthorizedLegacyCommitDirectV2fs(candidate);
+      } else {
+        if (typeof this.saveBlock !== "function") {
+          return safeModeDirectHeadBypass(
+            state,
+            "direct_head_recovery_modern_method_missing",
+            current,
+            target,
+            n,
+          );
+        }
+        this.saveBlock(candidate);
+      }
+
+      const observed = Number(this.loadHeadNumber?.());
+      if (observed !== n) {
+        return safeModeDirectHeadBypass(
+          state,
+          "direct_head_recovery_head_not_advanced",
+          n,
+          observed,
+        );
+      }
+      state.counters.direct_head_recovery_total++;
+    }
+
+    return undefined;
   };
 
   proto.replayWalAllBestEffort = function guardedReplay(this: any, ...callArgs: any[]) {
     assertWritable(state);
+    const policy = authorityPolicyInvariant(state.authority_policy_sha256, env);
+    if (!policy.passed) {
+      state.safe_mode = true;
+      state.safe_mode_reason = VOID_AL_BLOCK_COMMIT_POLICY_DRIFT_V1;
+      state.counters.safe_mode_total++;
+      throw new VoidAlBlockCommitRuntimeHeldErrorV1(
+        VOID_AL_BLOCK_COMMIT_POLICY_DRIFT_V1,
+        "safe_mode",
+        evidence("wal_replay_policy_drift", policy.captured, policy.runtime, policy.process),
+      );
+    }
     if (state.contexts.has(this)) {
       state.safe_mode = true;
       state.safe_mode_reason = "AL_WAL_REPLAY_REENTRANT_CONTEXT";
