@@ -410,6 +410,85 @@ async function main() {
   assert.deepEqual(synthetic.body.provider.max_price, { prompt: 0, completion: 0 });
   assert.equal(Object.prototype.hasOwnProperty.call(synthetic.body, 'tools'), false);
 
+  const adapterDoc = await readFile(
+    new URL('../docs/public/apollyon-openrouter-ox-alpha-adapter-v1.md', import.meta.url),
+    'utf8',
+  );
+  const arenaDoc = await readFile(
+    new URL('../docs/public/apollyon-openrouter-alignment-arena-v1.md', import.meta.url),
+    'utf8',
+  );
+
+  const defaultMarker = adapterDoc.match(
+    /<!-- VOID_OPENROUTER_RUNNABLE_DEFAULT_MODEL=([^ >]+) -->/,
+  );
+  assert.ok(defaultMarker, 'adapter docs must identify one runnable default model');
+  const documentedDefault = getContestantV1(registry, defaultMarker[1]);
+  assert.equal(documentedDefault.model, ox.model);
+  assert.equal(documentedDefault.status, 'qualified');
+  assert.equal(documentedDefault.scored_trial_eligible, false);
+
+  const qualificationMarker = adapterDoc.match(
+    /<!-- VOID_OPENROUTER_RUNNABLE_QUALIFICATION_ONLY_MODEL=([^ >]+) -->/,
+  );
+  assert.ok(
+    qualificationMarker,
+    'adapter docs must identify one runnable qualification-only model',
+  );
+  const documentedQualification = getContestantV1(registry, qualificationMarker[1]);
+  assert.equal(documentedQualification.status, 'qualification_only');
+  assert.equal(documentedQualification.scored_trial_eligible, false);
+  assert.notEqual(
+    documentedQualification.model,
+    'deepseek/deepseek-v4-flash:free',
+  );
+  assert.doesNotMatch(
+    adapterDoc,
+    /VOID_OPENROUTER_MODEL=deepseek\/deepseek-v4-flash:free/,
+  );
+
+  for (const gate of [
+    'VOID_OPENROUTER_ENABLE',
+    'VOID_OPENROUTER_ACK_PROVIDER_POLICY',
+    'VOID_OPENROUTER_ACK_REGISTRY_SHA256',
+    'VOID_OPENROUTER_EXECUTION_CLAIM_ROOT_FD',
+    'VOID_OPENROUTER_ACK_PUBLIC_RETENTION',
+    'VOID_OPENROUTER_ACK_PUBLIC_TRIAL_SHA256',
+    'VOID_OPENROUTER_ALLOW_QUALIFICATION_ONLY',
+  ]) {
+    assert.ok(adapterDoc.includes(gate), `adapter runnable docs missing ${gate}`);
+  }
+  assert.ok(adapterDoc.includes('9<"$CLAIM_ROOT"'));
+  assert.equal(
+    /(?:echo|printf)[^\n]*(?:\$\{OPENROUTER_API_KEY\}|\$OPENROUTER_API_KEY\b)/.test(adapterDoc),
+    false,
+    'adapter runnable docs must not print the API key value',
+  );
+
+  const arenaModeMarker = arenaDoc.match(
+    /<!-- VOID_OPENROUTER_RUNNABLE_ARENA_MODE=([^ >]+) -->/,
+  );
+  assert.equal(arenaModeMarker?.[1], 'qualification');
+  for (const gate of [
+    'VOID_OPENROUTER_ARENA_ENABLE',
+    'VOID_OPENROUTER_ENABLE',
+    'VOID_OPENROUTER_ACK_PROVIDER_POLICY',
+    'VOID_OPENROUTER_ACK_REGISTRY_SHA256',
+    'VOID_OPENROUTER_ACK_PUBLIC_RETENTION',
+    'VOID_OPENROUTER_ACK_PUBLIC_TRIAL_SHA256',
+    'VOID_OPENROUTER_ARENA_OUTPUT_ROOT_FD',
+    'VOID_OPENROUTER_EXECUTION_CLAIM_ROOT_FD',
+  ]) {
+    assert.ok(arenaDoc.includes(gate), `arena runnable docs missing ${gate}`);
+  }
+  assert.ok(arenaDoc.includes('8<"$ARENA_OUTPUT"'));
+  assert.ok(arenaDoc.includes('9<"$CLAIM_ROOT"'));
+  assert.equal(
+    /(?:echo|printf)[^\n]*(?:\$\{OPENROUTER_API_KEY\}|\$OPENROUTER_API_KEY\b)/.test(arenaDoc),
+    false,
+    'arena runnable docs must not print the API key value',
+  );
+
   const root = await mkdtemp(join(tmpdir(), 'void-openrouter-contestant-proof-'));
   const claimRootPath = join(root, 'global-execution-claims');
   await mkdir(claimRootPath, { mode: 0o700 });
@@ -977,6 +1056,8 @@ async function main() {
 
 
     const deepseek = getContestantV1(registry, 'z-ai/glm-5.2:free');
+    assert.equal(deepseek.model, documentedQualification.model);
+    assert.equal(deepseek.status, 'qualification_only');
     await expectReject(
       runOpenRouterContestantTrialV1({
         trialPath: 'unused', stagingRoot: 'unused', manifestPath: 'unused', receiptPath: 'unused', outputPath: 'unused', admissionAtUtc: ADMISSION_AT,
@@ -1702,6 +1783,11 @@ async function main() {
   console.log('strict_zdr_public_or_sanitized_models=1');
   console.log('retained_public_only_models=6');
   console.log('retained_public_only_rejects_sanitized_inputs=true');
+  console.log('published_default_invocation_runtime_gates_bound=true');
+  console.log('published_qualification_only_example_registry_status_bound=true');
+  console.log('published_qualification_only_example_fake_transport_green=true');
+  console.log('published_arena_invocation_runtime_gates_bound=true');
+  console.log('published_invocation_api_key_not_printed=true');
   console.log('live_provider_call=false');
   console.log('sanitization_admission_required=true');
   console.log('post_admission_digest_recheck=true');

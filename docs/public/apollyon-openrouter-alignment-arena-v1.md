@@ -84,22 +84,70 @@ A qualification run can produce evidence for Lamarr/reviewer requalification, bu
 
 ## Invocation
 
-With a prepared public/sanitized trial packet, stage, and outbound manifest:
+This is the **guard-complete** arena invocation contract. The arena itself performs no
+automatic promotion or authority grant; however its contestant calls are real external
+provider requests when a real key/transport is used. Do not run the final command unless
+provider execution is separately authorized.
+
+`OPENROUTER_API_KEY` must already be supplied by a credential-safe wrapper/environment and
+is never echoed here. The semantic registry digest and exact trial-byte digest are derived
+locally. Qualification mode can select both ZDR/sanitized contestants and
+`retained_public_only` contestants, so retained-public acknowledgement of the exact trial is
+required for this mixed roster.
+
+The trusted broker supplies two distinct capabilities:
+
+- FD `8`: this invocation's exact private arena output-root generation;
+- FD `9`: the persistent shared execution-claim-root generation used across all arenas.
+
+<!-- VOID_OPENROUTER_RUNNABLE_ARENA_MODE=qualification -->
 
 ```bash
+TRIAL=./trial-packet.json
+STAGING=./outbound-stage
+MANIFEST=./outbound-manifest.json
+ARENA_OUTPUT="$(mktemp -d "${TMPDIR:-/tmp}/void-openrouter-arena.XXXXXX")"
+chmod 0700 "$ARENA_OUTPUT"
+ADMISSION_AT=2026-08-24T06:00:00.000Z
+
+REGISTRY_SHA256="$(
+  node --input-type=module -e '
+    import { readFile } from "node:fs/promises";
+    import { contestantRegistryDigestV1 } from "./scripts/apollyon_openrouter_ox_alpha_adapter_v1.mjs";
+    const registry = JSON.parse(
+      await readFile("./public/apollyon-openrouter-contestants-v1.json", "utf8")
+    );
+    process.stdout.write(contestantRegistryDigestV1(registry));
+  '
+)"
+
+CLAIM_ROOT="${XDG_STATE_HOME:-$HOME/.local/state}/void/openrouter-execution-claims-v1"
+install -d -m 0700 "$CLAIM_ROOT"
+
+test -n "${OPENROUTER_API_KEY:-}" || {
+  echo "HOLD: OPENROUTER_API_KEY must already be present in the environment" >&2
+  exit 2
+}
+
+TRIAL_SHA256="$(sha256sum "$TRIAL" | awk '{print $1}')"
+
 VOID_OPENROUTER_ARENA_ENABLE=1 \
 VOID_OPENROUTER_ENABLE=1 \
 VOID_OPENROUTER_ACK_PROVIDER_POLICY=1 \
+VOID_OPENROUTER_ACK_REGISTRY_SHA256="$REGISTRY_SHA256" \
+VOID_OPENROUTER_ACK_PUBLIC_RETENTION=1 \
+VOID_OPENROUTER_ACK_PUBLIC_TRIAL_SHA256="$TRIAL_SHA256" \
 VOID_OPENROUTER_ARENA_MODE=qualification \
+VOID_OPENROUTER_ARENA_OUTPUT_ROOT_FD=8 \
+VOID_OPENROUTER_EXECUTION_CLAIM_ROOT_FD=9 \
 node scripts/apollyon_openrouter_alignment_arena_v1.mjs run \
-  trial-packet.json \
-  sanitized-stage \
-  outbound-manifest.json \
-  new-arena-output-directory \
-  2026-08-24T06:00:00.000Z
+  "$TRIAL" "$STAGING" "$MANIFEST" "$ARENA_OUTPUT" "$ADMISSION_AT" \
+  8<"$ARENA_OUTPUT" 9<"$CLAIM_ROOT"
 ```
 
-`OPENROUTER_API_KEY` must already exist in the process environment through the local operator secret boundary. The key is intentionally not shown in examples.
+The arena verifies the visible output path against FD `8`; each contestant adapter validates
+FD `9` as the persistent shared claim-root generation. Changing the arena evidence directory
+therefore cannot fork same-key execution authority.
 
 ## Proof contract
 

@@ -192,33 +192,114 @@ See `docs/public/apollyon-openrouter-alignment-arena-v1.md` for the exact qualif
 
 ## Runtime invocation
 
-Use a dedicated OpenRouter API key and inject it through the operator's normal local secret boundary. Never paste the key into Git, a trial packet, a result file, chat, or shell-history example.
+This is the **guard-complete** invocation contract. These commands do not print or persist
+the OpenRouter API key. `OPENROUTER_API_KEY` must already be supplied by a credential-safe
+local wrapper/environment. Running the final command performs an external provider request,
+so do not run it unless that provider execution is separately authorized.
 
-Ox Alpha default:
+The registry acknowledgement uses VOID's canonical semantic registry digest, not the raw
+pretty-printed file SHA-256. The execution-claim root is one broker-owned persistent
+mode-0700 directory shared across result/output namespaces. FD `9` is opened only for the
+child command and is the exact capability consumed by the adapter.
+
+<!-- VOID_OPENROUTER_RUNNABLE_DEFAULT_MODEL=stealth/ox-alpha -->
 
 ```bash
+TRIAL=./trial-packet.json
+STAGING=./outbound-stage
+MANIFEST=./outbound-manifest.json
+RECEIPT=./outbound-admission-receipt.json
+OUTPUT=./openrouter-contestant-result.json
+ADMISSION_AT=2026-08-24T06:00:00.000Z
+
+REGISTRY_SHA256="$(
+  node --input-type=module -e '
+    import { readFile } from "node:fs/promises";
+    import { contestantRegistryDigestV1 } from "./scripts/apollyon_openrouter_ox_alpha_adapter_v1.mjs";
+    const registry = JSON.parse(
+      await readFile("./public/apollyon-openrouter-contestants-v1.json", "utf8")
+    );
+    process.stdout.write(contestantRegistryDigestV1(registry));
+  '
+)"
+
+CLAIM_ROOT="${XDG_STATE_HOME:-$HOME/.local/state}/void/openrouter-execution-claims-v1"
+install -d -m 0700 "$CLAIM_ROOT"
+
+test -n "${OPENROUTER_API_KEY:-}" || {
+  echo "HOLD: OPENROUTER_API_KEY must already be present in the environment" >&2
+  exit 2
+}
+
+TRIAL_SHA256="$(sha256sum "$TRIAL" | awk '{print $1}')"
+
 VOID_OPENROUTER_ENABLE=1 \
+VOID_OPENROUTER_MODEL=stealth/ox-alpha \
 VOID_OPENROUTER_ACK_PROVIDER_POLICY=1 \
+VOID_OPENROUTER_ACK_REGISTRY_SHA256="$REGISTRY_SHA256" \
+VOID_OPENROUTER_ACK_PUBLIC_RETENTION=1 \
+VOID_OPENROUTER_ACK_PUBLIC_TRIAL_SHA256="$TRIAL_SHA256" \
+VOID_OPENROUTER_EXECUTION_CLAIM_ROOT_FD=9 \
 node scripts/apollyon_openrouter_ox_alpha_adapter_v1.mjs run \
-  trial-packet.json sanitized-stage outbound-manifest.json \
-  outbound-admission-receipt.json contestant-result.json \
-  2026-08-24T06:00:00.000Z
+  "$TRIAL" "$STAGING" "$MANIFEST" "$RECEIPT" "$OUTPUT" "$ADMISSION_AT" \
+  9<"$CLAIM_ROOT"
 ```
 
-Qualification-only DeepSeek example:
+The retained-public acknowledgements are present because the default Ox Alpha contestant is
+`retained_public_only`. The exact trial bytes must be intentionally acknowledged for that
+retention class in addition to the manifest's public-only classification wall.
+
+### Qualification-only current-registry example
+
+The previous DeepSeek V4 Flash example is intentionally retired: that historical `:free`
+identity is quarantined in the reviewed registry and cannot be made runnable with the
+qualification acknowledgement. The runnable qualification-only example below uses the
+current `z-ai/glm-5.2:free` entry.
+
+<!-- VOID_OPENROUTER_RUNNABLE_QUALIFICATION_ONLY_MODEL=z-ai/glm-5.2:free -->
 
 ```bash
+TRIAL=./trial-packet.json
+STAGING=./outbound-stage
+MANIFEST=./outbound-manifest.json
+RECEIPT=./glm-5.2-admission-receipt.json
+OUTPUT=./glm-5.2-contestant-result.json
+ADMISSION_AT=2026-08-24T06:00:00.000Z
+
+REGISTRY_SHA256="$(
+  node --input-type=module -e '
+    import { readFile } from "node:fs/promises";
+    import { contestantRegistryDigestV1 } from "./scripts/apollyon_openrouter_ox_alpha_adapter_v1.mjs";
+    const registry = JSON.parse(
+      await readFile("./public/apollyon-openrouter-contestants-v1.json", "utf8")
+    );
+    process.stdout.write(contestantRegistryDigestV1(registry));
+  '
+)"
+
+CLAIM_ROOT="${XDG_STATE_HOME:-$HOME/.local/state}/void/openrouter-execution-claims-v1"
+install -d -m 0700 "$CLAIM_ROOT"
+
+test -n "${OPENROUTER_API_KEY:-}" || {
+  echo "HOLD: OPENROUTER_API_KEY must already be present in the environment" >&2
+  exit 2
+}
+
 VOID_OPENROUTER_ENABLE=1 \
-VOID_OPENROUTER_ACK_PROVIDER_POLICY=1 \
+VOID_OPENROUTER_MODEL=z-ai/glm-5.2:free \
 VOID_OPENROUTER_ALLOW_QUALIFICATION_ONLY=1 \
-VOID_OPENROUTER_MODEL=deepseek/deepseek-v4-flash:free \
+VOID_OPENROUTER_ACK_PROVIDER_POLICY=1 \
+VOID_OPENROUTER_ACK_REGISTRY_SHA256="$REGISTRY_SHA256" \
+VOID_OPENROUTER_EXECUTION_CLAIM_ROOT_FD=9 \
 node scripts/apollyon_openrouter_ox_alpha_adapter_v1.mjs run \
-  trial-packet.json sanitized-stage outbound-manifest.json \
-  outbound-admission-receipt.json contestant-result.json \
-  2026-08-24T06:00:00.000Z
+  "$TRIAL" "$STAGING" "$MANIFEST" "$RECEIPT" "$OUTPUT" "$ADMISSION_AT" \
+  9<"$CLAIM_ROOT"
 ```
 
-`OPENROUTER_API_KEY` must already exist in the process environment. It is intentionally absent from the examples.
+This example grants no scored-provider authority, promotion, repository authority, runtime
+authority, or VOID office. It stays behind the same provider-neutral admission, exact
+registry acknowledgement, free-only request ceiling, claim serialization, and zero-authority
+evidence boundary as every other contestant.
 
 ## Continuous drift review
 
