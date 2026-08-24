@@ -1538,6 +1538,7 @@ function publishUnnamedOutputStageV1(
         LANG: "C",
         LC_ALL: "C",
       },
+      killSignal: "SIGKILL",
       maxBuffer: EXACT_LINK_MAX_BUFFER_BYTES,
       stdio: ["ignore", "pipe", "pipe", descriptor, parentFd],
       timeout: EXACT_LINK_TIMEOUT_MS,

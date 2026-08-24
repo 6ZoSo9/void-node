@@ -77,11 +77,14 @@ descriptor, forced to mode `0600`, and synchronized. `/usr/bin/ln -L` receives
 that exact descriptor and the pinned parent descriptor as inherited file
 descriptors and performs one atomic, no-replace hard-link publication into the
 final basename. No shell, pathname source file, overwrite, rename replacement,
-or compare-then-unlink cleanup is used. Failure before that link closes the
-unnamed descriptor, so the kernel releases only that exact unlinked inode.
-Failure after a link never unlinks the final pathname: a concurrent replacement
-therefore survives byte- and inode-exact rather than inheriting deletion
-authority from an earlier identity check.
+or compare-then-unlink cleanup is used. The helper is bounded to two seconds and
+8 KiB of output with explicit `SIGKILL` termination, so timeout or output
+overflow cannot leave a signal-ignoring child retaining the inherited stage or
+parent descriptors after the synchronous call returns. Failure before that link
+closes the unnamed descriptor, so the kernel releases only that exact unlinked
+inode. Failure after a link never unlinks the final pathname: a concurrent
+replacement therefore survives byte- and inode-exact rather than inheriting
+deletion authority from an earlier identity check.
 
 After the no-replace link, the opened descriptor and canonical final-name entry
 must retain one exact device/inode/mode/link-count/size/ctime generation from the

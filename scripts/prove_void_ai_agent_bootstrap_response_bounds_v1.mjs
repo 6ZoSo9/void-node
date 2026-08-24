@@ -1,9 +1,14 @@
 #!/usr/bin/env node
 import assert from "node:assert/strict";
+import { spawnSync } from "node:child_process";
 import {
   chmodSync,
+  closeSync,
+  constants,
+  fsyncSync,
   mkdirSync,
   mkdtempSync,
+  openSync,
   readFileSync,
   renameSync,
   statSync,
@@ -1450,6 +1455,105 @@ assert.equal(getReaderCleanupCalls, 1);
 const outputDirectory = mkdtempSync(
   path.join(os.tmpdir(), "void-bootstrap-output-v1-"),
 );
+const helperLifetimeForeignPath = path.join(
+  outputDirectory,
+  "helper-lifetime-foreign.json",
+);
+const helperLifetimeForeignContent =
+  "helper-lifetime-foreign-sentinel\n";
+writeFileSync(
+  helperLifetimeForeignPath,
+  helperLifetimeForeignContent,
+  "utf8",
+);
+const helperLifetimeForeignIdentity = statSync(
+  helperLifetimeForeignPath,
+);
+const helperLifetimeParentFd = openSync(
+  outputDirectory,
+  constants.O_RDONLY | constants.O_DIRECTORY,
+);
+const helperLifetimeStageFd = openSync(
+  outputDirectory,
+  constants.O_WRONLY | 0x410000,
+  0o600,
+);
+
+function assertHardHelperTerminalV1({
+  code,
+  maxBuffer,
+  timeout,
+  expectedErrorCode,
+}) {
+  const startedAt = performance.now();
+  const result = spawnSync(
+    process.execPath,
+    ["--input-type=module", "-e", code],
+    {
+      encoding: "utf8",
+      killSignal: "SIGKILL",
+      maxBuffer,
+      stdio: [
+        "ignore",
+        "pipe",
+        "pipe",
+        helperLifetimeStageFd,
+        helperLifetimeParentFd,
+      ],
+      timeout,
+    },
+  );
+  const elapsedMs = performance.now() - startedAt;
+  assert.equal(result.status, null);
+  assert.equal(result.signal, "SIGKILL");
+  assert.equal(result.error?.code, expectedErrorCode);
+  assert.ok(elapsedMs < 1_500, `helper terminal took ${elapsedMs}ms`);
+  const childPid = Number.parseInt(
+    String(result.stdout).split("\n", 1)[0],
+    10,
+  );
+  assert.ok(Number.isSafeInteger(childPid) && childPid > 1);
+  assert.throws(
+    () => statSync(path.join("/proc", String(childPid))),
+    /ENOENT/,
+  );
+}
+
+assertHardHelperTerminalV1({
+  code:
+    "process.stdout.write(String(process.pid) + '\\n');" +
+    "process.on('SIGTERM', () => {});" +
+    "setInterval(() => {}, 1000);",
+  maxBuffer: 8_192,
+  timeout: 80,
+  expectedErrorCode: "ETIMEDOUT",
+});
+assertHardHelperTerminalV1({
+  code:
+    "process.stdout.write(String(process.pid) + '\\n');" +
+    "for (;;) process.stdout.write('x'.repeat(1024));",
+  maxBuffer: 2_048,
+  timeout: 1_000,
+  expectedErrorCode: "ENOBUFS",
+});
+fsyncSync(helperLifetimeStageFd);
+closeSync(helperLifetimeStageFd);
+closeSync(helperLifetimeParentFd);
+const helperLifetimeForeignAfter = statSync(
+  helperLifetimeForeignPath,
+);
+assert.equal(
+  helperLifetimeForeignAfter.dev,
+  helperLifetimeForeignIdentity.dev,
+);
+assert.equal(
+  helperLifetimeForeignAfter.ino,
+  helperLifetimeForeignIdentity.ino,
+);
+assert.equal(
+  readFileSync(helperLifetimeForeignPath, "utf8"),
+  helperLifetimeForeignContent,
+);
 const outputPath = path.join(outputDirectory, "bootstrap.json");
 const outputContent = '{"marker":"VOID_BOOTSTRAP_OUTPUT_PROOF_V1"}\n';
 assert.equal(
@@ -1875,6 +1979,7 @@ assert.match(clientSource, /LINUX_O_TMPFILE/);
 assert.match(clientSource, /assertExactLinkExecutableV1/);
 assert.match(clientSource, /publishUnnamedOutputStageV1/);
 assert.match(clientSource, /EXACT_LINK_EXECUTABLE/);
+assert.match(clientSource, /killSignal: "SIGKILL"/);
 assert.doesNotMatch(clientSource, /writeFileSync\(resolved, content/);
 assert.doesNotMatch(clientSource, /chmodSync\(resolved/);
 assert.doesNotMatch(clientSource, /unlinkSync/);
@@ -1962,6 +2067,10 @@ console.log("output_precommit_failure_retryable=true");
 console.log("output_unnamed_stage_exact_fd_linked=true");
 console.log("output_atomic_no_replace_publication=true");
 console.log("output_link_executable_authority_bounded=true");
+console.log("output_link_helper_timeout_sigkill_terminal=true");
+console.log("output_link_helper_overflow_sigkill_terminal=true");
+console.log("output_link_helper_child_fd_ownership_released=true");
+console.log("output_link_helper_foreign_leaf_unchanged=true");
 console.log("output_leaf_fsync_epoch_generation_bound=true");
 console.log("output_foreign_epoch_leaf_preserved=true");
 console.log("output_failed_release_foreign_leaf_preserved=true");
