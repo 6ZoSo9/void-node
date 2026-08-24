@@ -426,6 +426,91 @@ async function main() {
     const oxPersisted = JSON.parse(await readFile(success.outputPath, 'utf8'));
     assert.equal(JSON.stringify(oxPersisted).includes(TEST_KEY), false);
     assert.equal((await stat(success.outputPath)).mode & 0o777, 0o600);
+    assert.match(oxResult.accepted_recovery_key, /^[0-9a-f]{64}$/);
+
+    const recoveryStageFixture = await makeFixture(root, 'accepted-recovery-stage-fault');
+    const recoveryStageTransport = successFetch(ox);
+    let recoveryStageFaulted = false;
+    const recoveryStageResult = await runOpenRouterContestantTrialV1({
+      trialPath: recoveryStageFixture.packetPath, stagingRoot: recoveryStageFixture.stage,
+      manifestPath: recoveryStageFixture.manifestPath, receiptPath: recoveryStageFixture.receiptPath,
+      outputPath: recoveryStageFixture.outputPath, admissionAtUtc: ADMISSION_AT,
+    }, {
+      registry, env: environment(ox.model), fetchImpl: recoveryStageTransport.fetchImpl,
+      resultRecoveryPublicationFaultHook: async (phase) => {
+        if (phase === 'after_stage_sync' && !recoveryStageFaulted) {
+          recoveryStageFaulted = true;
+          throw new Error('synthetic accepted-recovery publication fault');
+        }
+      }, emitOutput: false,
+    });
+    assert.equal(recoveryStageFaulted, true);
+    assert.equal(recoveryStageTransport.calls().chatCalls, 1);
+    assert.equal(recoveryStageResult.finish_reason, 'stop');
+
+    const finalRecoveryFixture = await makeFixture(root, 'accepted-result-final-retry');
+    const finalRecoveryTransport = successFetch(ox);
+    let finalPublicationFaulted = false;
+    await expectReject(
+      runOpenRouterContestantTrialV1({
+        trialPath: finalRecoveryFixture.packetPath, stagingRoot: finalRecoveryFixture.stage,
+        manifestPath: finalRecoveryFixture.manifestPath, receiptPath: finalRecoveryFixture.receiptPath,
+        outputPath: finalRecoveryFixture.outputPath, admissionAtUtc: ADMISSION_AT,
+      }, {
+        registry, env: environment(ox.model), fetchImpl: finalRecoveryTransport.fetchImpl,
+        resultPublicationFaultHook: async (phase) => {
+          if (phase === 'after_stage_sync' && !finalPublicationFaulted) {
+            finalPublicationFaulted = true;
+            throw new Error('synthetic final-result publication fault');
+          }
+        }, emitOutput: false,
+      }),
+      'synthetic final-result publication fault', 'accepted result final publication fault',
+    );
+    assert.equal(finalRecoveryTransport.calls().metadataCalls, 1);
+    assert.equal(finalRecoveryTransport.calls().chatCalls, 1);
+    await expectMissing(finalRecoveryFixture.outputPath, 'faulted final result');
+
+    const recoveredFinal = await runOpenRouterContestantTrialV1({
+      trialPath: finalRecoveryFixture.packetPath, stagingRoot: finalRecoveryFixture.stage,
+      manifestPath: finalRecoveryFixture.manifestPath, receiptPath: finalRecoveryFixture.receiptPath,
+      outputPath: finalRecoveryFixture.outputPath, admissionAtUtc: ADMISSION_AT,
+    }, { registry, env: environment(ox.model), fetchImpl: finalRecoveryTransport.fetchImpl, emitOutput: false });
+    assert.equal(finalRecoveryTransport.calls().metadataCalls, 1, 'recovery retry must not refetch catalog');
+    assert.equal(finalRecoveryTransport.calls().chatCalls, 1, 'recovery retry must not execute model again');
+    assert.equal(JSON.parse(await readFile(finalRecoveryFixture.outputPath, 'utf8')).accepted_recovery_key, recoveredFinal.accepted_recovery_key);
+
+    const foreignFinalFixture = await makeFixture(root, 'accepted-result-foreign-final');
+    const foreignFinalTransport = successFetch(ox);
+    let foreignFinalFaulted = false;
+    await expectReject(
+      runOpenRouterContestantTrialV1({
+        trialPath: foreignFinalFixture.packetPath, stagingRoot: foreignFinalFixture.stage,
+        manifestPath: foreignFinalFixture.manifestPath, receiptPath: foreignFinalFixture.receiptPath,
+        outputPath: foreignFinalFixture.outputPath, admissionAtUtc: ADMISSION_AT,
+      }, {
+        registry, env: environment(ox.model), fetchImpl: foreignFinalTransport.fetchImpl,
+        resultPublicationFaultHook: async (phase) => {
+          if (phase === 'after_stage_sync' && !foreignFinalFaulted) {
+            foreignFinalFaulted = true;
+            throw new Error('synthetic foreign-final setup fault');
+          }
+        }, emitOutput: false,
+      }),
+      'synthetic foreign-final setup fault', 'foreign final setup',
+    );
+    assert.equal(foreignFinalTransport.calls().chatCalls, 1);
+    await writeFile(foreignFinalFixture.outputPath, 'foreign-generation\n', { mode: 0o600, flag: 'wx' });
+    await expectReject(
+      runOpenRouterContestantTrialV1({
+        trialPath: foreignFinalFixture.packetPath, stagingRoot: foreignFinalFixture.stage,
+        manifestPath: foreignFinalFixture.manifestPath, receiptPath: foreignFinalFixture.receiptPath,
+        outputPath: foreignFinalFixture.outputPath, admissionAtUtc: ADMISSION_AT,
+      }, { registry, env: environment(ox.model), fetchImpl: foreignFinalTransport.fetchImpl, emitOutput: false }),
+      'final', 'foreign final conflict after accepted recovery',
+    );
+    assert.equal(foreignFinalTransport.calls().chatCalls, 1, 'foreign conflict must not execute model again');
+    assert.equal(await readFile(foreignFinalFixture.outputPath, 'utf8'), 'foreign-generation\n');
 
     const deepseek = getContestantV1(registry, 'z-ai/glm-5.2:free');
     await expectReject(
@@ -569,6 +654,37 @@ async function main() {
     );
     assert.equal(paidChatCalls, 0);
     await expectMissing(paid.outputPath, 'paid-model result');
+
+    const malformedContextLengths = [
+      ['string', String(ox.min_context_length)], ['null', null], ['boolean', true], ['array', []],
+      ['object', {}], ['fraction', ox.min_context_length + 0.5], ['negative', -1],
+      ['below-floor', ox.min_context_length - 1], ['unsafe-integer', Number.MAX_SAFE_INTEGER + 1],
+    ];
+    for (const [label, malformedContextLength] of malformedContextLengths) {
+      const fixture = await makeFixture(root, `context-${label}`);
+      let contextChatCalls = 0;
+      await expectReject(
+        runOpenRouterContestantTrialV1({
+          trialPath: fixture.packetPath, stagingRoot: fixture.stage, manifestPath: fixture.manifestPath,
+          receiptPath: fixture.receiptPath, outputPath: fixture.outputPath, admissionAtUtc: ADMISSION_AT,
+        }, {
+          registry, env: environment(ox.model),
+          fetchImpl: async (url) => {
+            if (url === MODEL_CATALOG_URL) {
+              const metadata = zeroMetadata(ox).data;
+              metadata.context_length = malformedContextLength;
+              return responseFor(MODEL_CATALOG_URL, { data: [metadata] });
+            }
+            contextChatCalls += 1;
+            return responseFor(CHAT_URL, {});
+          },
+          emitOutput: false,
+        }),
+        'context_length', `malformed context_length ${label}`,
+      );
+      assert.equal(contextChatCalls, 0);
+      await expectMissing(fixture.outputPath, `malformed context result ${label}`);
+    }
 
     const malformedRequiredPrices = [
       ['null', null],
@@ -1112,6 +1228,7 @@ async function main() {
   console.log('per_model_metadata_endpoint_used=false');
   console.log('catalog_absent_blocks_before_chat=true');
   console.log('canonical_model_generation_bound=true');
+  console.log('context_length_safe_integer_bound=true');
   console.log('free_price_recheck_before_send=true');
   console.log('required_price_exact_grammar=true');
   console.log('coercible_or_empty_required_price_rejected=true');
@@ -1123,6 +1240,10 @@ async function main() {
   console.log('tool_calls_rejected=true');
   console.log('router_error_metadata_bounded=true');
   console.log('finish_reason_stop_only=true');
+  console.log('accepted_result_recovery_journal=true');
+  console.log('result_publication_exact_parent_durable=true');
+  console.log('retry_after_final_publication_fault_reuses_accepted_response=true');
+  console.log('foreign_final_preserved_without_model_reexecution=true');
   console.log('api_key_persisted=false');
   console.log('runtime_mutation=false');
 }

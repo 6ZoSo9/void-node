@@ -124,3 +124,10 @@ Source/proof/documentation only by default. The arena source does not create an 
 ## Per-contestant setup containment
 
 Per-contestant output-directory setup is inside the contestant HOLD boundary. A pathname collision, preexisting per-model directory, or filesystem failure for one contestant records that contestant as HOLD and does not abort the remaining reviewed contestants or suppress the final arena summary. This closes the first bounded robustness defect found by the live Ox Alpha source-review canary.
+
+
+## Exact evidence-directory generation
+
+The arena creates the output root, opens and retains that exact private directory generation, and creates each contestant directory relative to the retained output-root descriptor. Each contestant directory is then retained by descriptor while receipt/result publication and persisted-result verification run through `/proc/self/fd/<fd>/...`. A same-UID pathname replacement cannot redirect the current invocation into a foreign directory generation. Before GREEN attribution, the arena also verifies that the visible contestant-directory name still resolves to the exact retained directory inode; a replacement generation therefore becomes HOLD while the foreign replacement and the original retained evidence generation are both preserved.
+
+Arena summaries use the same exact anonymous-stage/create-only/no-replace/durable-parent publication primitive as admission/results, with exact-byte retry recovery. Ordinary parent pathnames retain `O_NOFOLLOW`; only the exact kernel-owned `/proc/self/fd/<number>` parent capability shape may be reopened without `O_NOFOLLOW`, and it is immediately revalidated as a directory before the same exact-FD publication protocol continues. The focused CI workflow is part of the shared diff-hygiene self-proof, and the unsupported `workflow_dispatch` surface is retired rather than weakening committed-range authority.

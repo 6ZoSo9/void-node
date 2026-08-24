@@ -256,3 +256,12 @@ Source/proof/CI/documentation only by default. This registry does not create or 
 Router errors are requested with `X-OpenRouter-Metadata: enabled`. The adapter persists only bounded, redacted status/message/routing summaries in HOLD evidence; it does not persist the API key, request prompt, raw provider payload, or unbounded metadata. HTTP 403/404/429 therefore remain fail-closed but become diagnosable.
 
 A successful HTTP response with `finish_reason=length` is not accepted as a green contestant result. Truncated output is HOLD evidence and must be rerun with a bounded larger completion budget or a more concise trial.
+
+
+## Final authority closeout
+
+The catalog `context_length` capability is accepted only as a JSON Number inside JavaScript's exact safe-integer domain and at or above the reviewed contestant floor. Wrong-typed, fractional, negative, below-floor, and unsafe-integer values fail before chat.
+
+Accepted model responses use a deterministic recovery identity bound to the exact registry generation, contestant/canonical generation, trial/admission, prompt digest, and token ceiling. The accepted response is durably published as a hidden create-only recovery record before the requested final result. If final result publication becomes uncertain after model execution, an exact retry consumes that already-accepted recovery generation and does not execute the model again. Foreign final generations are never deleted or adopted. Result and recovery publication reuse the parent exact anonymous-stage/no-replace/file-fsync/parent-fsync primitive.
+
+A GREEN arena record must bind the exact semantic registry digest that selected the contestant plus its qualification status, scored eligibility, privacy/retention class, provider request policy, provider allowlist, canonical model generation, and `finish_reason=stop`.

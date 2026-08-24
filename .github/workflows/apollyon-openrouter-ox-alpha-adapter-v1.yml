@@ -41,8 +41,6 @@ on:
       - "docs/governance/void-crown-brood-queen-command-layer-v1.md"
       - "scripts/ci_diff_hygiene_v1.sh"
       - "scripts/prove_ci_diff_hygiene_v1.mjs"
-  workflow_dispatch:
-
 permissions:
   contents: read
 

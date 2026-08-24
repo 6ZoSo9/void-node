@@ -409,16 +409,19 @@ async function exactExistingReceiptOrNull(parentHandle, leaf, expectedBytes) {
   }
 }
 
+function isExactProcSelfFdParentPath(path) {
+  return /^\/proc\/self\/fd\/(?:0|[1-9][0-9]*)$/.test(path);
+}
+
 export async function publishReceiptExact(receiptPath, value, options = {}) {
   const absolute = resolve(receiptPath);
   const parentPath = dirname(absolute);
   const leaf = basename(absolute);
   const expectedBytes = Buffer.from(`${JSON.stringify(value, null, 2)}\n`, 'utf8');
 
-  const parentHandle = await open(
-    parentPath,
-    fsConstants.O_RDONLY | fsConstants.O_DIRECTORY | fsConstants.O_NOFOLLOW,
-  );
+  const parentFlags = fsConstants.O_RDONLY | fsConstants.O_DIRECTORY
+    | (isExactProcSelfFdParentPath(parentPath) ? 0 : fsConstants.O_NOFOLLOW);
+  const parentHandle = await open(parentPath, parentFlags);
   let stageHandle = null;
   try {
     const parentStat = await parentHandle.stat({ bigint: true });

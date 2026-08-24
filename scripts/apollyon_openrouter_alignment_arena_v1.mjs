@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 
 import { createHash } from 'node:crypto';
+import { constants as FS } from 'node:fs';
 import { mkdir, open, readFile, stat } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import process from 'node:process';
@@ -10,9 +11,11 @@ import {
   REGISTRY_PATH,
   RESULT_MARKER,
   contestantRegistryDigestV1,
+  providerRequestPolicyV1,
   runOpenRouterContestantTrialV1,
   validateContestantRegistryV1,
 } from './apollyon_openrouter_ox_alpha_adapter_v1.mjs';
+import { publishReceiptExact as publishJsonExactV1 } from './apollyon_secret_sanitization_constitutional_admission_v1.mjs';
 
 export const ARENA_MARKER = 'VOID_APOLLYON_OPENROUTER_ALIGNMENT_ARENA_V1';
 const SUMMARY_MARKER = 'VOID_APOLLYON_OPENROUTER_ALIGNMENT_ARENA_SUMMARY_V1';
@@ -46,15 +49,40 @@ function safeModelLeaf(model) {
 }
 
 async function readJsonBounded(path, maxBytes, name) {
-  const bytes = await readFile(path);
-  if (bytes.length > maxBytes) fail(`${name} exceeds ${maxBytes} bytes`);
-  let value;
+  const fh = await open(path, FS.O_RDONLY | FS.O_NOFOLLOW | FS.O_NONBLOCK);
   try {
-    value = JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(bytes));
-  } catch {
-    fail(`${name} must be valid UTF-8 JSON`);
+    const pre = await fh.stat({ bigint: true });
+    if (!pre.isFile()) fail(`${name} must be a regular non-symlink file`);
+    if (pre.size > BigInt(maxBytes)) fail(`${name} exceeds ${maxBytes} bytes`);
+    const chunks = [];
+    let total = 0;
+    let position = 0;
+    while (true) {
+      const remaining = maxBytes + 1 - total;
+      if (remaining <= 0) fail(`${name} exceeds ${maxBytes} bytes during read`);
+      const buffer = Buffer.allocUnsafe(Math.min(64 * 1024, remaining));
+      const { bytesRead } = await fh.read(buffer, 0, buffer.length, position);
+      if (bytesRead === 0) break;
+      chunks.push(buffer.subarray(0, bytesRead));
+      total += bytesRead;
+      position += bytesRead;
+      if (total > maxBytes) fail(`${name} exceeds ${maxBytes} bytes during read`);
+    }
+    const post = await fh.stat({ bigint: true });
+    for (const key of ['dev', 'ino', 'size', 'mtimeNs', 'ctimeNs']) {
+      if (pre[key].toString() !== post[key].toString()) fail(`${name} generation changed during bounded read`);
+    }
+    const bytes = Buffer.concat(chunks, total);
+    let value;
+    try {
+      value = JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(bytes));
+    } catch {
+      fail(`${name} must be valid UTF-8 JSON`);
+    }
+    return { value, bytes };
+  } finally {
+    await fh.close().catch(() => {});
   }
-  return { value, bytes };
 }
 
 async function readRegistry(path) {
@@ -76,14 +104,47 @@ export function selectArenaContestantsV1(registry, mode) {
   return selected;
 }
 
-async function publishCreateOnly(path, value) {
-  const bytes = Buffer.from(`${JSON.stringify(value, null, 2)}\n`, 'utf8');
-  const fh = await open(path, 'wx', 0o600);
+async function openPrivateDirectoryGeneration(path, name) {
+  const fh = await open(path, FS.O_RDONLY | FS.O_DIRECTORY | FS.O_NOFOLLOW);
   try {
-    await fh.writeFile(bytes);
-    await fh.sync();
-  } finally {
+    const st = await fh.stat({ bigint: true });
+    if (!st.isDirectory()) fail(`${name} must be a real directory`);
+    if ((Number(st.mode) & 0o777) !== 0o700) fail(`${name} mode must be 0700`);
+    if (typeof process.getuid === 'function' && Number(st.uid) !== process.getuid()) {
+      fail(`${name} must be owned by the current uid`);
+    }
+    return fh;
+  } catch (error) {
     await fh.close().catch(() => {});
+    throw error;
+  }
+}
+
+function fdDirectoryPath(fh) {
+  return `/proc/self/fd/${fh.fd}`;
+}
+
+async function assertVisibleDirectoryGenerationV1(fh, visiblePath, name) {
+  const retained = await fh.stat({ bigint: true });
+  let visible;
+  try {
+    visible = await stat(visiblePath, { bigint: true });
+  } catch {
+    fail(`${name} visible generation changed`);
+  }
+  if (!visible.isDirectory()
+    || retained.dev.toString() !== visible.dev.toString()
+    || retained.ino.toString() !== visible.ino.toString()) {
+    fail(`${name} visible generation changed`);
+  }
+}
+
+async function publishSummaryExactV1(path, value, faultHook) {
+  try {
+    return await publishJsonExactV1(path, value, { faultHook });
+  } catch (error) {
+    if (typeof faultHook !== 'function') throw error;
+    return publishJsonExactV1(path, value);
   }
 }
 
@@ -98,15 +159,25 @@ function sleep(ms) {
   return new Promise((resolvePromise) => setTimeout(resolvePromise, ms));
 }
 
-async function verifyPersistedResult(resultPath, contestant, returnedResult) {
+async function verifyPersistedResult(resultPath, contestant, returnedResult, registryLoaded) {
   const persistedRead = await readJsonBounded(resultPath, MAX_RESULT_BYTES, `persisted result for ${contestant.model}`);
   const persisted = persistedRead.value;
   if (persisted?.marker !== RESULT_MARKER) fail(`persisted result marker drifted for ${contestant.model}`);
   if (persisted.model_requested !== contestant.model) fail(`persisted result model binding drifted for ${contestant.model}`);
   if (persisted.model_canonical_slug !== contestant.canonical_slug) fail(`persisted canonical model generation drifted for ${contestant.model}`);
   if (persisted.finish_reason !== 'stop') fail(`persisted finish reason must equal stop for ${contestant.model}`);
-  if (contestant.scored_trial_eligible === true
-    && JSON.stringify(persisted.scored_provider_allowlist) !== JSON.stringify(contestant.provider_policy.only)) {
+  if (persisted.registry_sha256 !== registryLoaded.sha256) fail(`persisted registry generation drifted for ${contestant.model}`);
+  if (persisted.registry_policy_generation_acknowledged !== registryLoaded.sha256) {
+    fail(`persisted registry policy acknowledgement drifted for ${contestant.model}`);
+  }
+  if (persisted.qualification_status !== contestant.status) fail(`persisted qualification status drifted for ${contestant.model}`);
+  if (persisted.scored_trial_eligible !== contestant.scored_trial_eligible) fail(`persisted scored eligibility drifted for ${contestant.model}`);
+  if (persisted.privacy_class !== contestant.privacy_class) fail(`persisted privacy class drifted for ${contestant.model}`);
+  if (persisted.retention_class !== contestant.retention_class) fail(`persisted retention class drifted for ${contestant.model}`);
+  if (JSON.stringify(persisted.provider_policy) !== JSON.stringify(providerRequestPolicyV1(contestant))) {
+    fail(`persisted provider policy drifted for ${contestant.model}`);
+  }
+  if (JSON.stringify(persisted.scored_provider_allowlist) !== JSON.stringify(contestant.provider_policy.only)) {
     fail(`persisted scored provider allowlist drifted for ${contestant.model}`);
   }
   if (persisted.trial_id !== returnedResult?.trial_id) fail(`persisted result trial binding drifted for ${contestant.model}`);
@@ -155,6 +226,8 @@ export async function runOpenRouterAlignmentArenaV1(options, hooks = {}) {
 
   const outputRoot = resolve(options.outputRoot);
   await mkdir(outputRoot, { mode: 0o700 });
+  const outputRootHandle = await openPrivateDirectoryGeneration(outputRoot, 'arena output root');
+  const outputRootAnchor = fdDirectoryPath(outputRootHandle);
 
   const records = [];
   for (let index = 0; index < contestants.length; index += 1) {
@@ -167,12 +240,19 @@ export async function runOpenRouterAlignmentArenaV1(options, hooks = {}) {
         contestant.status === 'qualification_only' ? '1' : '0',
     };
 
+    let modelDirHandle = null;
     try {
       const modelLeaf = safeModelLeaf(contestant.model);
-      const modelDir = join(outputRoot, modelLeaf);
-      await mkdir(modelDir, { mode: 0o700 });
-      const receiptPath = join(modelDir, 'outbound-admission-receipt.json');
-      const resultPath = join(modelDir, 'contestant-result.json');
+      const visibleModelDir = join(outputRoot, modelLeaf);
+      const anchoredModelDir = join(outputRootAnchor, modelLeaf);
+      await mkdir(anchoredModelDir, { mode: 0o700 });
+      modelDirHandle = await openPrivateDirectoryGeneration(anchoredModelDir, `contestant directory ${contestant.model}`);
+      const modelDirAnchor = fdDirectoryPath(modelDirHandle);
+      if (typeof hooks.afterModelDirectoryOpen === 'function') {
+        await hooks.afterModelDirectoryOpen({ contestant, modelLeaf, visibleModelDir, anchoredModelDir: modelDirAnchor });
+      }
+      const receiptPath = join(modelDirAnchor, 'outbound-admission-receipt.json');
+      const resultPath = join(modelDirAnchor, 'contestant-result.json');
 
       const result = await runContestant({
         trialPath: options.trialPath,
@@ -189,7 +269,13 @@ export async function runOpenRouterAlignmentArenaV1(options, hooks = {}) {
       });
       if (result?.marker !== RESULT_MARKER) fail(`contestant ${contestant.model} returned unexpected result marker`);
       if (result.model_requested !== contestant.model) fail(`contestant ${contestant.model} result model binding drifted`);
-      const persisted = await verifyPersistedResult(resultPath, contestant, result);
+      const persisted = await verifyPersistedResult(resultPath, contestant, result, registryLoaded);
+      await assertVisibleDirectoryGenerationV1(
+        modelDirHandle,
+        visibleModelDir,
+        `contestant directory ${contestant.model}`,
+      );
+
       records.push({
         model: contestant.model,
         canonical_slug: persisted.model_canonical_slug ?? null,
@@ -210,6 +296,8 @@ export async function runOpenRouterAlignmentArenaV1(options, hooks = {}) {
         run_status: 'HOLD',
         hold_reason: redactError(error, apiKey),
       });
+    } finally {
+      if (modelDirHandle) await modelDirHandle.close().catch(() => {});
     }
 
     if (index + 1 < contestants.length && delayMs > 0) await sleepFn(delayMs);
@@ -233,12 +321,16 @@ export async function runOpenRouterAlignmentArenaV1(options, hooks = {}) {
   };
   const serialized = JSON.stringify(summary);
   if (serialized.includes(apiKey)) fail('API key unexpectedly entered arena summary');
-  await publishCreateOnly(join(outputRoot, 'arena-summary.json'), summary);
-
-  if (hooks.emitOutput !== false) {
-    process.stdout.write(`${ARENA_MARKER}_COMPLETE mode=${mode} requested=${records.length} green=${green} held=${held}\n`);
+  try {
+    await assertVisibleDirectoryGenerationV1(outputRootHandle, outputRoot, 'arena output root');
+    await publishSummaryExactV1(join(outputRootAnchor, 'arena-summary.json'), summary, hooks.summaryPublicationFaultHook);
+    if (hooks.emitOutput !== false) {
+      process.stdout.write(`${ARENA_MARKER}_COMPLETE mode=${mode} requested=${records.length} green=${green} held=${held}\n`);
+    }
+    return summary;
+  } finally {
+    await outputRootHandle.close().catch(() => {});
   }
-  return summary;
 }
 
 async function main() {

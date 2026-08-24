@@ -8,7 +8,7 @@ import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import process from 'node:process';
 import { fileURLToPath } from 'node:url';
 
-import { admit as admitSanitizedInputs } from './apollyon_secret_sanitization_constitutional_admission_v1.mjs';
+import { admit as admitSanitizedInputs, publishReceiptExact as publishJsonExactV1 } from './apollyon_secret_sanitization_constitutional_admission_v1.mjs';
 
 export const MARKER = 'VOID_APOLLYON_OPENROUTER_CONTESTANT_ADAPTER_V1';
 export const RESULT_MARKER = 'VOID_APOLLYON_OPENROUTER_CONTESTANT_RESULT_V1';
@@ -400,8 +400,8 @@ export function validateZeroPriceModelV1(modelEnvelope, contestant) {
   if (contestant.canonical_slug !== null && model.canonical_slug !== contestant.canonical_slug) {
     fail(`OpenRouter canonical model generation must equal ${contestant.canonical_slug}`);
   }
-  if (!Number.isInteger(model.context_length) || model.context_length < contestant.min_context_length) {
-    fail(`OpenRouter model context length is below the reviewed minimum for ${contestant.model}`);
+  if (!Number.isSafeInteger(model.context_length) || model.context_length < contestant.min_context_length) {
+    fail(`OpenRouter model context_length must be an exact safe integer at or above the reviewed minimum for ${contestant.model}`);
   }
   const pricing = model.pricing;
   if (!pricing || typeof pricing !== 'object' || Array.isArray(pricing) || Object.keys(pricing).length === 0) {
@@ -462,7 +462,7 @@ function assertExactResponseUrl(response, expected, name) {
   if (response.url !== expected) fail(`${name} final URL changed`);
 }
 
-function providerRequestPolicy(contestant) {
+export function providerRequestPolicyV1(contestant) {
   const policy = {
     allow_fallbacks: false,
     require_parameters: true,
@@ -498,7 +498,7 @@ export function buildOpenRouterRequestV1(trial, admittedInputs, maxTokens, conte
     ],
     max_tokens: maxTokens,
     stream: false,
-    provider: providerRequestPolicy(contestant),
+    provider: providerRequestPolicyV1(contestant),
   };
   if ('tools' in body) fail('tools must not be sent');
   return { body, promptSha256: sha256(Buffer.from(canonicalJson(body.messages), 'utf8')), promptBytes: bytes };
@@ -613,17 +613,75 @@ function validateChatResponse(response) {
   };
 }
 
-async function publishResultCreateOnly(path, value) {
-  const bytes = Buffer.from(`${JSON.stringify(value, null, 2)}\n`, 'utf8');
-  const parent = dirname(resolve(path));
-  const parentStat = await stat(parent);
-  if (!parentStat.isDirectory()) fail('result parent must be a directory');
-  const fh = await open(path, 'wx', 0o600);
+function acceptedRecoveryKeyV1({ registrySha256, contestant, trialId, admissionId, promptSha256, maxTokens }) {
+  return sha256(Buffer.from(canonicalJson({
+    registry_sha256: registrySha256,
+    model: contestant.model,
+    canonical_slug: contestant.canonical_slug,
+    trial_id: trialId,
+    admission_id: admissionId,
+    prompt_sha256: promptSha256,
+    max_tokens: maxTokens,
+  }), 'utf8'));
+}
+
+function acceptedRecoveryPathV1(outputPath, key) {
+  return join(dirname(resolve(outputPath)), `.void-openrouter-accepted-${key}.json`);
+}
+
+function validateAcceptedRecoveryV1(value, expected, apiKey) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) fail('accepted-result recovery object is malformed');
+  if (value.marker !== RESULT_MARKER) fail('accepted-result recovery marker drifted');
+  if (value.accepted_recovery_key !== expected.key) fail('accepted-result recovery key drifted');
+  if (value.registry_sha256 !== expected.registrySha256) fail('accepted-result recovery registry generation drifted');
+  if (value.registry_policy_generation_acknowledged !== expected.registrySha256) fail('accepted-result recovery policy acknowledgement drifted');
+  if (value.model_requested !== expected.contestant.model) fail('accepted-result recovery model drifted');
+  if (value.model_canonical_slug !== expected.contestant.canonical_slug) fail('accepted-result recovery canonical generation drifted');
+  if (value.qualification_status !== expected.contestant.status) fail('accepted-result recovery qualification status drifted');
+  if (value.scored_trial_eligible !== expected.contestant.scored_trial_eligible) fail('accepted-result recovery scored eligibility drifted');
+  if (value.privacy_class !== expected.contestant.privacy_class) fail('accepted-result recovery privacy class drifted');
+  if (value.retention_class !== expected.contestant.retention_class) fail('accepted-result recovery retention class drifted');
+  if (JSON.stringify(value.provider_policy) !== JSON.stringify(providerRequestPolicyV1(expected.contestant))) {
+    fail('accepted-result recovery provider policy drifted');
+  }
+  if (JSON.stringify(value.scored_provider_allowlist) !== JSON.stringify(expected.contestant.provider_policy.only)) {
+    fail('accepted-result recovery scored provider allowlist drifted');
+  }
+  if (value.trial_id !== expected.trialId || value.admission_id !== expected.admissionId) {
+    fail('accepted-result recovery trial/admission binding drifted');
+  }
+  if (value.prompt_sha256 !== expected.promptSha256 || value.max_tokens !== expected.maxTokens) {
+    fail('accepted-result recovery request identity drifted');
+  }
+  if (value.finish_reason !== 'stop') fail('accepted-result recovery finish reason is not stop');
+  if (typeof value.response_content !== 'string') fail('accepted-result recovery response content is invalid');
+  if (value.response_content_sha256 !== sha256(Buffer.from(value.response_content, 'utf8'))) {
+    fail('accepted-result recovery response digest drifted');
+  }
+  if (value.pricing_verified_zero !== true || value.request_time_max_price_zero !== true) {
+    fail('accepted-result recovery zero-price authority drifted');
+  }
+  if (canonicalJson(value).includes(apiKey)) fail('API key unexpectedly entered accepted-result recovery object');
+  return value;
+}
+
+async function readAcceptedRecoveryOrNullV1(path, expected, apiKey) {
+  let read;
   try {
-    await fh.writeFile(bytes);
-    await fh.sync();
-  } finally {
-    await fh.close().catch(() => {});
+    read = await readJsonBounded(path, MAX_CHAT_RESPONSE_BYTES + MAX_JSON_BYTES, 'accepted-result recovery');
+  } catch (error) {
+    if (error?.code === 'ENOENT') return null;
+    throw error;
+  }
+  return validateAcceptedRecoveryV1(read.value, expected, apiKey);
+}
+
+async function publishAcceptedRecoveryV1(path, value, faultHook) {
+  try {
+    return await publishJsonExactV1(path, value, { faultHook });
+  } catch (error) {
+    if (typeof faultHook !== 'function') throw error;
+    return publishJsonExactV1(path, value);
   }
 }
 
@@ -682,11 +740,38 @@ export async function runOpenRouterContestantTrialV1(options, hooks = {}) {
   validateContestantInputPolicy(manifestRead.value, runtime.contestant);
   const admitted = await collectAdmittedInputs(options.stagingRoot, manifestRead.value, receiptRead.value, hooks);
 
+  const request = buildOpenRouterRequestV1(trialRead.value, admitted.items, runtime.maxTokens, runtime.contestant);
+  const recoveryKey = acceptedRecoveryKeyV1({
+    registrySha256: registryLoaded.sha256,
+    contestant: runtime.contestant,
+    trialId: trialRead.value.trial_id,
+    admissionId: receiptRead.value.admission_id,
+    promptSha256: request.promptSha256,
+    maxTokens: runtime.maxTokens,
+  });
+  const recoveryPath = acceptedRecoveryPathV1(options.outputPath, recoveryKey);
+  const recoveryExpected = {
+    key: recoveryKey,
+    registrySha256: registryLoaded.sha256,
+    contestant: runtime.contestant,
+    trialId: trialRead.value.trial_id,
+    admissionId: receiptRead.value.admission_id,
+    promptSha256: request.promptSha256,
+    maxTokens: runtime.maxTokens,
+  };
+  const recovered = await readAcceptedRecoveryOrNullV1(recoveryPath, recoveryExpected, runtime.apiKey);
+  if (recovered) {
+    await publishJsonExactV1(options.outputPath, recovered, { faultHook: hooks.resultPublicationFaultHook });
+    if (hooks.emitOutput !== false) {
+      process.stdout.write(`${MARKER}_GREEN ${trialRead.value.trial_id} model=${runtime.contestant.model} admission=${receiptRead.value.admission_id} status=${runtime.contestant.status} recovered=true\n`);
+    }
+    return recovered;
+  }
+
   const metadata = await fetchModelMetadata(fetchImpl, runtime.apiKey, runtime.metadataTimeoutMs, runtime.contestant);
   const model = validateZeroPriceModelV1(metadata, runtime.contestant);
   if (typeof hooks.afterFreePriceCheck === 'function') await hooks.afterFreePriceCheck({ model, contestant: runtime.contestant });
 
-  const request = buildOpenRouterRequestV1(trialRead.value, admitted.items, runtime.maxTokens, runtime.contestant);
   const rawResponse = await sendChat(fetchImpl, runtime.apiKey, request.body, runtime.chatTimeoutMs);
   const accepted = validateChatResponse(rawResponse);
   if (accepted.reported_model !== null && accepted.reported_model !== runtime.contestant.model) {
@@ -695,6 +780,7 @@ export async function runOpenRouterContestantTrialV1(options, hooks = {}) {
 
   const result = {
     marker: RESULT_MARKER,
+    accepted_recovery_key: recoveryKey,
     provider: PROVIDER,
     model_requested: runtime.contestant.model,
     model_canonical_slug: model.canonical_slug,
@@ -709,7 +795,7 @@ export async function runOpenRouterContestantTrialV1(options, hooks = {}) {
     scored_provider_allowlist: [...runtime.contestant.provider_policy.only],
     pricing_verified_zero: true,
     request_time_max_price_zero: true,
-    provider_policy: providerRequestPolicy(runtime.contestant),
+    provider_policy: providerRequestPolicyV1(runtime.contestant),
     tools_exposed: false,
     registry_sha256: registryLoaded.sha256,
     registry_reviewed_at_utc: registryLoaded.registry.reviewed_at_utc,
@@ -726,7 +812,8 @@ export async function runOpenRouterContestantTrialV1(options, hooks = {}) {
     created_at_utc: new Date().toISOString(),
   };
   if (canonicalJson(result).includes(runtime.apiKey)) fail('API key unexpectedly entered result object');
-  await publishResultCreateOnly(options.outputPath, result);
+  await publishAcceptedRecoveryV1(recoveryPath, result, hooks.resultRecoveryPublicationFaultHook);
+  await publishJsonExactV1(options.outputPath, result, { faultHook: hooks.resultPublicationFaultHook });
   if (hooks.emitOutput !== false) {
     process.stdout.write(`${MARKER}_GREEN ${trialRead.value.trial_id} model=${runtime.contestant.model} admission=${receiptRead.value.admission_id} status=${runtime.contestant.status}\n`);
   }

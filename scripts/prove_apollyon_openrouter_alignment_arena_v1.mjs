@@ -1,11 +1,12 @@
 #!/usr/bin/env node
 
 import assert from 'node:assert/strict';
-import { mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, rename, rm, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { spawnSync } from 'node:child_process';
 
-import { RESULT_MARKER, contestantRegistryDigestV1 } from './apollyon_openrouter_ox_alpha_adapter_v1.mjs';
+import { RESULT_MARKER, contestantRegistryDigestV1, providerRequestPolicyV1 } from './apollyon_openrouter_ox_alpha_adapter_v1.mjs';
 import {
   ARENA_MARKER,
   runOpenRouterAlignmentArenaV1,
@@ -108,13 +109,16 @@ async function main() {
         model_reported: model,
         qualification_status: model === 'stealth/ox-alpha' ? 'qualified' : 'qualification_only',
         scored_trial_eligible: model === 'stealth/ox-alpha',
-        retention_class: 'proof',
+        retention_class: contestant.retention_class,
+        privacy_class: contestant.privacy_class,
         scored_provider_allowlist: contestant.provider_policy.only,
         provider_policy_acknowledged: true,
+        registry_policy_generation_acknowledged: contestantRegistryDigestV1(registry),
         pricing_verified_zero: true,
-        provider_policy: { allow_fallbacks: false, require_parameters: true },
+        request_time_max_price_zero: true,
+        provider_policy: providerRequestPolicyV1(contestant),
         tools_exposed: false,
-        registry_sha256: 'a'.repeat(64),
+        registry_sha256: contestantRegistryDigestV1(registry),
         registry_reviewed_at_utc: registry.reviewed_at_utc,
         trial_id: `voidat1_${'b'.repeat(64)}`,
         admission_id: `voidaa1_${'c'.repeat(64)}`,
@@ -144,6 +148,15 @@ async function main() {
       registry,
       runContestantFn: fakeRunner,
       sleepFn: async () => { throw new Error('delay should be zero in proof'); },
+      summaryPublicationFaultHook: (() => {
+        let fired = false;
+        return async (phase) => {
+          if (phase === 'after_stage_sync' && !fired) {
+            fired = true;
+            throw new Error('synthetic summary publication fault');
+          }
+        };
+      })(),
       emitOutput: false,
     });
 
@@ -161,6 +174,34 @@ async function main() {
       { model: 'deepseek/deepseek-v4-flash:free', qualificationGate: '1' },
       { model: 'deepseek/deepseek-chat:free', qualificationGate: '1' },
     ]);
+
+    const registryMismatchRoot = join(root, 'registry-mismatch');
+    const registryB = structuredClone(registry);
+    registryB.reviewed_at_utc = '2026-08-24T06:00:01.000Z';
+    const registryBDigest = contestantRegistryDigestV1(registryB);
+    assert.notEqual(registryBDigest, contestantRegistryDigestV1(registry));
+    const mismatchSummary = await runOpenRouterAlignmentArenaV1({
+      trialPath: 'trial.json', stagingRoot: 'stage', manifestPath: 'manifest.json',
+      outputRoot: registryMismatchRoot, admissionAtUtc: '2026-08-24T06:00:00.000Z',
+    }, {
+      env: environment(registry), registry,
+      runContestantFn: async (options, hooks) => {
+        const contestant = registry.contestants.find((entry) => entry.model === hooks.env.VOID_OPENROUTER_MODEL);
+        const result = {
+          marker: RESULT_MARKER, model_requested: contestant.model, model_canonical_slug: contestant.canonical_slug,
+          qualification_status: contestant.status, scored_trial_eligible: contestant.scored_trial_eligible,
+          retention_class: contestant.retention_class, privacy_class: contestant.privacy_class,
+          scored_provider_allowlist: contestant.provider_policy.only, registry_policy_generation_acknowledged: registryBDigest,
+          provider_policy: providerRequestPolicyV1(contestant), registry_sha256: registryBDigest, finish_reason: 'stop',
+          trial_id: `voidat1_${'7'.repeat(64)}`, admission_id: `voidaa1_${'8'.repeat(64)}`, response_content_sha256: '9'.repeat(64),
+        };
+        await writeFile(options.outputPath, `${JSON.stringify(result, null, 2)}\n`, { mode: 0o600, flag: 'wx' });
+        return result;
+      }, sleepFn: async () => {}, emitOutput: false,
+    });
+    assert.equal(mismatchSummary.green_contestants, 0);
+    assert.equal(mismatchSummary.held_contestants, 3);
+    for (const record of mismatchSummary.records) assert.match(record.hold_reason, /registry generation drifted/);
 
     const persistedSummary = JSON.parse(await readFile(join(arenaRoot, 'arena-summary.json'), 'utf8'));
     assert.equal(persistedSummary.marker, 'VOID_APOLLYON_OPENROUTER_ALIGNMENT_ARENA_SUMMARY_V1');
@@ -185,7 +226,14 @@ async function main() {
           marker: RESULT_MARKER,
           model_requested: hooks.env.VOID_OPENROUTER_MODEL,
           model_canonical_slug: scoredContestant.canonical_slug,
+          qualification_status: scoredContestant.status,
+          scored_trial_eligible: scoredContestant.scored_trial_eligible,
+          retention_class: scoredContestant.retention_class,
+          privacy_class: scoredContestant.privacy_class,
           scored_provider_allowlist: scoredContestant.provider_policy.only,
+          registry_policy_generation_acknowledged: contestantRegistryDigestV1(registry),
+          provider_policy: providerRequestPolicyV1(scoredContestant),
+          registry_sha256: contestantRegistryDigestV1(registry),
           finish_reason: 'stop',
           trial_id: `voidat1_${'1'.repeat(64)}`,
           admission_id: `voidaa1_${'2'.repeat(64)}`,
@@ -237,7 +285,14 @@ async function main() {
           marker: RESULT_MARKER,
           model_requested: hooks.env.VOID_OPENROUTER_MODEL,
           model_canonical_slug: collisionContestant.canonical_slug,
+          qualification_status: collisionContestant.status,
+          scored_trial_eligible: collisionContestant.scored_trial_eligible,
+          retention_class: collisionContestant.retention_class,
+          privacy_class: collisionContestant.privacy_class,
           scored_provider_allowlist: collisionContestant.provider_policy.only,
+          registry_policy_generation_acknowledged: contestantRegistryDigestV1(collisionRegistry),
+          provider_policy: providerRequestPolicyV1(collisionContestant),
+          registry_sha256: contestantRegistryDigestV1(collisionRegistry),
           finish_reason: 'stop',
           trial_id: `voidat1_${'4'.repeat(64)}`,
           admission_id: `voidaa1_${'5'.repeat(64)}`,
@@ -254,6 +309,70 @@ async function main() {
     assert.equal(collisionSummary.held_contestants, 1);
     assert.match(collisionSummary.records.find((x) => x.model === 'a/b_c').hold_reason, /EEXIST/);
     assert.equal((await stat(join(collisionRoot, 'arena-summary.json'))).mode & 0o777, 0o600);
+
+    const arenaRegistryFifo = join(root, 'arena-registry-fifo');
+    assert.equal(spawnSync('mkfifo', [arenaRegistryFifo], { encoding: 'utf8' }).status, 0);
+    const arenaRegistryFifoOutcome = await Promise.race([
+      runOpenRouterAlignmentArenaV1({
+        trialPath: 'trial.json', stagingRoot: 'stage', manifestPath: 'manifest.json',
+        outputRoot: join(root, 'arena-registry-fifo-out'), admissionAtUtc: '2026-08-24T06:00:00.000Z',
+      }, {
+        env: environment(registry, { VOID_OPENROUTER_ACK_REGISTRY_SHA256: '0'.repeat(64) }),
+        registryPath: arenaRegistryFifo,
+        runContestantFn: fakeRunner,
+        emitOutput: false,
+      }).then(() => ({ ok: true }), (error) => ({ ok: false, message: String(error?.message ?? error) })),
+      new Promise((resolvePromise) => setTimeout(() => resolvePromise({ timeout: true }), 1000)),
+    ]);
+    assert.equal(arenaRegistryFifoOutcome.timeout, undefined, 'arena registry FIFO blocked');
+    assert.equal(arenaRegistryFifoOutcome.ok, false);
+    assert.match(arenaRegistryFifoOutcome.message, /regular non-symlink file/);
+
+    const directoryRegistry = {
+      marker: 'VOID_APOLLYON_OPENROUTER_CONTESTANT_REGISTRY_V1', version: 1,
+      reviewed_at_utc: '2026-08-24T06:02:00.000Z', default_model: 'proof/model',
+      contestants: [{
+        model: 'proof/model', canonical_slug: 'proof/model-v1', status: 'qualified', scored_trial_eligible: false,
+        zero_price_required: true, min_context_length: 32768, max_tokens_cap: 4096,
+        retention_class: 'proof-generation', privacy_class: 'zdr_public_or_sanitized',
+        provider_policy: { allow_fallbacks: false, require_parameters: true, data_collection: 'deny', zdr: true, only: [] },
+      }],
+    };
+    const directoryRoot = join(root, 'directory-generation');
+    let movedOriginal = null;
+    const directorySummary = await runOpenRouterAlignmentArenaV1({
+      trialPath: 'trial.json', stagingRoot: 'stage', manifestPath: 'manifest.json',
+      outputRoot: directoryRoot, admissionAtUtc: '2026-08-24T06:00:00.000Z',
+    }, {
+      env: environment(directoryRegistry), registry: directoryRegistry,
+      afterModelDirectoryOpen: async ({ visibleModelDir }) => {
+        movedOriginal = `${visibleModelDir}.original-generation`;
+        await rename(visibleModelDir, movedOriginal);
+        await mkdir(visibleModelDir, { mode: 0o700 });
+        await writeFile(join(visibleModelDir, 'foreign.txt'), 'foreign-generation\n', { mode: 0o600, flag: 'wx' });
+      },
+      runContestantFn: async (options) => {
+        const contestant = directoryRegistry.contestants[0];
+        const digest = contestantRegistryDigestV1(directoryRegistry);
+        const result = {
+          marker: RESULT_MARKER, model_requested: contestant.model, model_canonical_slug: contestant.canonical_slug,
+          qualification_status: contestant.status, scored_trial_eligible: contestant.scored_trial_eligible,
+          retention_class: contestant.retention_class, privacy_class: contestant.privacy_class,
+          scored_provider_allowlist: contestant.provider_policy.only, registry_policy_generation_acknowledged: digest,
+          provider_policy: providerRequestPolicyV1(contestant), registry_sha256: digest, finish_reason: 'stop',
+          trial_id: `voidat1_${'4'.repeat(64)}`, admission_id: `voidaa1_${'5'.repeat(64)}`, response_content_sha256: '6'.repeat(64),
+        };
+        await writeFile(options.outputPath, `${JSON.stringify(result, null, 2)}\n`, { mode: 0o600, flag: 'wx' });
+        return result;
+      }, sleepFn: async () => {}, emitOutput: false,
+    });
+    assert.equal(directorySummary.green_contestants, 0);
+    assert.equal(directorySummary.held_contestants, 1);
+    assert.match(directorySummary.records[0].hold_reason, /visible generation changed/);
+    assert.ok(movedOriginal);
+    assert.equal(JSON.parse(await readFile(join(movedOriginal, 'contestant-result.json'), 'utf8')).model_requested, 'proof/model');
+    assert.equal(await readFile(join(directoryRoot, 'proof_model', 'foreign.txt'), 'utf8'), 'foreign-generation\n');
+    await assert.rejects(readFile(join(directoryRoot, 'proof_model', 'contestant-result.json')), /ENOENT/);
 
     await expectReject(
       runOpenRouterAlignmentArenaV1({
@@ -280,6 +399,13 @@ async function main() {
   console.log('qualification_gate_per_model=true');
   console.log('sequential_no_retry_or_parallel_fanout=true');
   console.log('persisted_result_binding=true');
+  console.log('green_result_registry_generation_bound=true');
+  console.log('green_result_capability_fields_bound=true');
+  console.log('directory_generation_fd_bound=true');
+  console.log('directory_replacement_generation_holds=true');
+  console.log('foreign_directory_generation_preserved=true');
+  console.log('summary_publication_failure_atomic_recoverable=true');
+  console.log('arena_registry_nonregular_leaf_nonblocking=true');
   console.log('canonical_model_generation_persisted=true');
   console.log('registry_policy_ack_generation_bound=true');
   console.log('per_contestant_setup_failure_contained=true');
