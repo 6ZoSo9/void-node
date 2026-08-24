@@ -1,6 +1,6 @@
 {
   "marker": "VOID_AL_BLOCK_COMMIT_RUNTIME_GATE_V1_20260824",
-  "status": "runtime_reachable_disabled_by_default_activation_held",
+  "status": "explicit_bootstrap_unmounted_activation_held",
   "network": {
     "chain_id": 2050,
     "name": "VOID Mainnet-0"
@@ -17,6 +17,10 @@
     "disabled_values": ["", "0"],
     "invalid_values_fail_closed": true,
     "disabled_installs_no_prototype_patch": true,
+    "bootstrap_module": "dist/security/void_alignment_layer_block_commit_runtime_bootstrap_v1.js",
+    "bootstrap_transport": "node --import",
+    "normal_node_entrypoint_mounts_bootstrap": false,
+    "proposer_authority_required_when_enabled": true,
     "live_activation_performed": false
   },
   "guarded_surfaces": {
@@ -31,6 +35,7 @@
     "candidate_digest": true,
     "existing_transition_validation": true,
     "modern_ed25519_proposer_verification": true,
+    "existing_proposer_authority_policy_required_for_activation": true,
     "legacy_explicit_authorized_method_binding": true,
     "head_and_replay_relation": true,
     "caller_controls_failure_severity": false
@@ -51,7 +56,10 @@
   "activation": {
     "ready": false,
     "hold": "HOLD_AL_BLOCK_COMMIT_DIRECT_CALLERS_NOT_MIGRATED",
+    "bootstrap_hold": "HOLD_AL_BLOCK_COMMIT_BOOTSTRAP_NOT_MOUNTED",
+    "bootstrap_not_mounted": true,
     "historical_direct_callers_must_be_migrated": true,
+    "proposer_authority_required_before_activation": true,
     "durable_safe_mode_state_required_before_live_activation": true,
     "runtime_environment_change_authorized": false,
     "deployment_authorized": false,
