@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 import { createHash } from 'node:crypto';
-import { mkdir, open, readFile } from 'node:fs/promises';
+import { mkdir, open, readFile, stat } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import process from 'node:process';
 import { fileURLToPath } from 'node:url';
@@ -16,6 +16,7 @@ import {
 export const ARENA_MARKER = 'VOID_APOLLYON_OPENROUTER_ALIGNMENT_ARENA_V1';
 const SUMMARY_MARKER = 'VOID_APOLLYON_OPENROUTER_ALIGNMENT_ARENA_SUMMARY_V1';
 const MAX_REGISTRY_BYTES = 256 * 1024;
+const MAX_RESULT_BYTES = 2 * 1024 * 1024;
 const DEFAULT_DELAY_MS = 4_000;
 const MAX_DELAY_MS = 60_000;
 const MAX_MODELS = 16;
@@ -43,17 +44,22 @@ function safeModelLeaf(model) {
   return leaf;
 }
 
-async function readRegistry(path) {
+async function readJsonBounded(path, maxBytes, name) {
   const bytes = await readFile(path);
-  if (bytes.length > MAX_REGISTRY_BYTES) fail('OpenRouter contestant registry exceeds reviewed byte ceiling');
-  let registry;
+  if (bytes.length > maxBytes) fail(`${name} exceeds ${maxBytes} bytes`);
+  let value;
   try {
-    registry = JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(bytes));
+    value = JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(bytes));
   } catch {
-    fail('OpenRouter contestant registry must be valid UTF-8 JSON');
+    fail(`${name} must be valid UTF-8 JSON`);
   }
-  validateContestantRegistryV1(registry);
-  return { registry, sha256: sha256(bytes) };
+  return { value, bytes };
+}
+
+async function readRegistry(path) {
+  const read = await readJsonBounded(path, MAX_REGISTRY_BYTES, 'OpenRouter contestant registry');
+  validateContestantRegistryV1(read.value);
+  return { registry: read.value, sha256: sha256(read.bytes) };
 }
 
 export function selectArenaContestantsV1(registry, mode) {
@@ -89,6 +95,21 @@ function redactError(error, apiKey) {
 
 function sleep(ms) {
   return new Promise((resolvePromise) => setTimeout(resolvePromise, ms));
+}
+
+async function verifyPersistedResult(resultPath, contestant, returnedResult) {
+  const persistedRead = await readJsonBounded(resultPath, MAX_RESULT_BYTES, `persisted result for ${contestant.model}`);
+  const persisted = persistedRead.value;
+  if (persisted?.marker !== RESULT_MARKER) fail(`persisted result marker drifted for ${contestant.model}`);
+  if (persisted.model_requested !== contestant.model) fail(`persisted result model binding drifted for ${contestant.model}`);
+  if (persisted.trial_id !== returnedResult?.trial_id) fail(`persisted result trial binding drifted for ${contestant.model}`);
+  if (persisted.admission_id !== returnedResult?.admission_id) fail(`persisted result admission binding drifted for ${contestant.model}`);
+  if (persisted.response_content_sha256 !== returnedResult?.response_content_sha256) {
+    fail(`persisted result response digest drifted for ${contestant.model}`);
+  }
+  const mode = (await stat(resultPath)).mode & 0o777;
+  if (mode !== 0o600) fail(`persisted result mode must be 0600 for ${contestant.model}`);
+  return persisted;
 }
 
 export async function runOpenRouterAlignmentArenaV1(options, hooks = {}) {
@@ -156,15 +177,16 @@ export async function runOpenRouterAlignmentArenaV1(options, hooks = {}) {
       });
       if (result?.marker !== RESULT_MARKER) fail(`contestant ${contestant.model} returned unexpected result marker`);
       if (result.model_requested !== contestant.model) fail(`contestant ${contestant.model} result model binding drifted`);
+      const persisted = await verifyPersistedResult(resultPath, contestant, result);
       records.push({
         model: contestant.model,
         registry_status: contestant.status,
         scored_trial_eligible: contestant.scored_trial_eligible,
         run_status: 'GREEN',
         result_path: `${modelLeaf}/contestant-result.json`,
-        response_content_sha256: result.response_content_sha256 ?? null,
-        trial_id: result.trial_id ?? null,
-        admission_id: result.admission_id ?? null,
+        response_content_sha256: persisted.response_content_sha256 ?? null,
+        trial_id: persisted.trial_id ?? null,
+        admission_id: persisted.admission_id ?? null,
       });
     } catch (error) {
       records.push({
