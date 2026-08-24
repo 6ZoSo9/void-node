@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 
 import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
 import { constants as FS } from 'node:fs';
 import { mkdir, mkdtemp, open, readFile, rename, rm, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -16,6 +17,85 @@ import {
 
 const PROOF_MARKER = 'VOID_APOLLYON_OPENROUTER_ALIGNMENT_ARENA_V1_PROOF_GREEN';
 const TEST_KEY = 'openrouter-arena-test-key-not-secret-123456';
+
+function sha256(bytes) {
+  return createHash('sha256').update(bytes).digest('hex');
+}
+
+function canonicalize(value) {
+  if (value === null || typeof value === 'string' || typeof value === 'boolean') return value;
+  if (typeof value === 'number') {
+    if (!Number.isFinite(value)) throw new Error('non-finite proof JSON number');
+    return value;
+  }
+  if (Array.isArray(value)) return value.map(canonicalize);
+  if (typeof value !== 'object') throw new Error('non-JSON proof value');
+  const out = {};
+  for (const key of Object.keys(value).sort()) out[key] = canonicalize(value[key]);
+  return out;
+}
+
+function canonicalJson(value) {
+  return JSON.stringify(canonicalize(value));
+}
+
+function syntheticRecoveryKeyV1(contestant) {
+  return sha256(Buffer.from(`arena-proof-recovery:${contestant.model}:${contestant.canonical_slug}`, 'utf8'));
+}
+
+function executionClaimRootGenerationV1(st) {
+  return sha256(Buffer.from(canonicalJson({
+    dev: st.dev.toString(),
+    ino: st.ino.toString(),
+    uid: st.uid.toString(),
+    mode: (Number(st.mode) & 0o777).toString(8),
+  }), 'utf8'));
+}
+
+async function persistSyntheticExecutionClaimV1(result, hooks) {
+  const rawFd = Number(hooks.executionClaimRootFd);
+  assert.equal(Number.isSafeInteger(rawFd) && rawFd >= 3, true, 'synthetic runner missing execution claim root fd');
+  const claimRoot = await open(`/proc/self/fd/${rawFd}`, FS.O_RDONLY | FS.O_DIRECTORY);
+  try {
+    const st = await claimRoot.stat({ bigint: true });
+    assert.equal(st.isDirectory(), true);
+    assert.equal(Number(st.mode) & 0o777, 0o700);
+
+    result.prompt_sha256 ??= sha256(Buffer.from(`arena-proof-prompt:${result.model_requested}`, 'utf8'));
+    result.max_tokens ??= 1024;
+
+    const rootGeneration = executionClaimRootGenerationV1(st);
+    const claim = {
+      marker: 'VOID_APOLLYON_OPENROUTER_EXECUTION_CLAIM_V1',
+      accepted_recovery_key: result.accepted_recovery_key,
+      execution_claim_root_generation_sha256: rootGeneration,
+      registry_sha256: result.registry_sha256,
+      model: result.model_requested,
+      execution_model: result.model_execution_requested,
+      canonical_slug: result.model_canonical_slug,
+      trial_id: result.trial_id,
+      admission_id: result.admission_id,
+      prompt_sha256: result.prompt_sha256,
+      max_tokens: result.max_tokens,
+      state: 'executing',
+    };
+    const serialized = `${JSON.stringify(claim, null, 2)}\n`;
+    result.execution_claim_root_generation_sha256 = rootGeneration;
+    result.execution_claim_semantic_sha256 =
+      sha256(Buffer.from(canonicalJson(claim), 'utf8'));
+    result.execution_claim_sha256 =
+      sha256(Buffer.from(serialized, 'utf8'));
+
+    const claimPath = join(
+      `/proc/self/fd/${claimRoot.fd}`,
+      `.void-openrouter-execution-claim-${result.accepted_recovery_key}.json`,
+    );
+    await writeFile(claimPath, serialized, { mode: 0o600, flag: 'wx' });
+    return { claimPath, claim };
+  } finally {
+    await claimRoot.close().catch(() => {});
+  }
+}
 
 function fixtureRegistry() {
   return {
@@ -79,16 +159,24 @@ async function expectReject(promise, contains, label) {
 
 async function runArenaWithRootV1(options, hooks) {
   await mkdir(options.outputRoot, { mode: 0o700 });
+  const claimRootPath = `${options.outputRoot}.execution-claims`;
+  await mkdir(claimRootPath, { mode: 0o700 });
   const callerRoot = await open(
     options.outputRoot,
+    FS.O_RDONLY | FS.O_DIRECTORY | FS.O_NOFOLLOW,
+  );
+  const callerClaimRoot = await open(
+    claimRootPath,
     FS.O_RDONLY | FS.O_DIRECTORY | FS.O_NOFOLLOW,
   );
   try {
     return await runOpenRouterAlignmentArenaV1(options, {
       ...hooks,
       outputRootFd: callerRoot.fd,
+      executionClaimRootFd: callerClaimRoot.fd,
     });
   } finally {
+    await callerClaimRoot.close().catch(() => {});
     await callerRoot.close().catch(() => {});
   }
 }
@@ -101,7 +189,7 @@ function executionEvidenceV1(contestant) {
     router_requested_model: executionModel,
     router_selected_model: executionModel,
     router_selected_provider: 'ProofProvider',
-    accepted_recovery_key: 'f'.repeat(64),
+    accepted_recovery_key: syntheticRecoveryKeyV1(contestant),
   };
 }
 
@@ -162,6 +250,7 @@ async function main() {
         usage: null,
         created_at_utc: '2026-08-24T06:00:00.000Z',
       };
+      await persistSyntheticExecutionClaimV1(result, hooks);
       await writeFile(options.outputPath, `${JSON.stringify(result, null, 2)}\n`, { mode: 0o600, flag: 'wx' });
       return result;
     };
@@ -205,6 +294,13 @@ async function main() {
       { model: 'deepseek/deepseek-chat:free', qualificationGate: '1' },
     ]);
 
+    const oxGreen = summary.records.find((x) => x.model === 'stealth/ox-alpha');
+    assert.equal(oxGreen.run_status, 'GREEN');
+    assert.match(oxGreen.accepted_recovery_key, /^[0-9a-f]{64}$/);
+    assert.match(oxGreen.execution_claim_sha256, /^[0-9a-f]{64}$/);
+    assert.match(oxGreen.execution_claim_semantic_sha256, /^[0-9a-f]{64}$/);
+    assert.match(oxGreen.execution_claim_root_generation_sha256, /^[0-9a-f]{64}$/);
+
     const registryMismatchRoot = join(root, 'registry-mismatch');
     const registryB = structuredClone(registry);
     registryB.reviewed_at_utc = '2026-08-24T06:00:01.000Z';
@@ -225,6 +321,7 @@ async function main() {
           provider_policy: providerRequestPolicyV1(contestant), registry_sha256: registryBDigest, finish_reason: 'stop',
           trial_id: `voidat1_${'7'.repeat(64)}`, admission_id: `voidaa1_${'8'.repeat(64)}`, response_content_sha256: '9'.repeat(64),
         };
+        await persistSyntheticExecutionClaimV1(result, hooks);
         await writeFile(options.outputPath, `${JSON.stringify(result, null, 2)}\n`, { mode: 0o600, flag: 'wx' });
         return result;
       }, sleepFn: async () => {}, emitOutput: false,
@@ -270,6 +367,7 @@ async function main() {
           admission_id: `voidaa1_${'2'.repeat(64)}`,
           response_content_sha256: '3'.repeat(64),
         };
+        await persistSyntheticExecutionClaimV1(result, hooks);
         await writeFile(options.outputPath, `${JSON.stringify(result, null, 2)}\n`, { mode: 0o600, flag: 'wx' });
         return result;
       },
@@ -330,6 +428,7 @@ async function main() {
           admission_id: `voidaa1_${'5'.repeat(64)}`,
           response_content_sha256: '6'.repeat(64),
         };
+        await persistSyntheticExecutionClaimV1(result, hooks);
         await writeFile(options.outputPath, `${JSON.stringify(result, null, 2)}\n`, { mode: 0o600, flag: 'wx' });
         return result;
       },
@@ -423,7 +522,7 @@ async function main() {
         await rename(visibleResultPath, moved);
         await writeFile(visibleResultPath, '{"foreign":true}\n', { mode: 0o600, flag: 'wx' });
       },
-      runContestantFn: async (options) => {
+      runContestantFn: async (options, hooks) => {
         const contestant = terminalRegistry.contestants[0];
         const digest = contestantRegistryDigestV1(terminalRegistry);
         const result = {
@@ -444,6 +543,7 @@ async function main() {
           admission_id: `voidaa1_${'5'.repeat(64)}`,
           response_content_sha256: '6'.repeat(64),
         };
+        await persistSyntheticExecutionClaimV1(result, hooks);
         await writeFile(options.outputPath, `${JSON.stringify(result, null, 2)}\n`, { mode: 0o600, flag: 'wx' });
         return result;
       },
@@ -456,6 +556,112 @@ async function main() {
     assert.equal(
       await readFile(join(leafRoot, 'proof_model.contestant-result.json'), 'utf8'),
       '{"foreign":true}\n',
+    );
+
+    // The exact execution-claim leaf is separate authority evidence. The arena
+    // independently opens it from the retained shared claim-root generation,
+    // checks exact file + semantic digests, and retains that inode through the
+    // GREEN terminal. A same-UID replacement after claim semantic validation
+    // must HOLD and preserve the foreign replacement.
+    const claimLeafRoot = join(root, 'execution-claim-leaf-generation');
+    const claimLeafSummary = await runArenaWithRootV1({
+      trialPath: 'trial.json', stagingRoot: 'stage', manifestPath: 'manifest.json',
+      outputRoot: claimLeafRoot, admissionAtUtc: '2026-08-24T06:00:00.000Z',
+    }, {
+      env: environment(terminalRegistry),
+      registry: terminalRegistry,
+      afterExecutionClaimSemanticValidation: async ({ claimPath }) => {
+        const moved = `${claimPath}.verified-generation`;
+        await rename(claimPath, moved);
+        await writeFile(claimPath, '{"foreign":true}\n', { mode: 0o600, flag: 'wx' });
+      },
+      runContestantFn: async (options, hooks) => {
+        const contestant = terminalRegistry.contestants[0];
+        const digest = contestantRegistryDigestV1(terminalRegistry);
+        const result = {
+          marker: RESULT_MARKER,
+          model_requested: contestant.model,
+          ...executionEvidenceV1(contestant),
+          model_canonical_slug: contestant.canonical_slug,
+          qualification_status: contestant.status,
+          scored_trial_eligible: contestant.scored_trial_eligible,
+          retention_class: contestant.retention_class,
+          privacy_class: contestant.privacy_class,
+          scored_provider_allowlist: contestant.provider_policy.only,
+          registry_policy_generation_acknowledged: digest,
+          provider_policy: providerRequestPolicyV1(contestant),
+          registry_sha256: digest,
+          finish_reason: 'stop',
+          trial_id: `voidat1_${'a'.repeat(64)}`,
+          admission_id: `voidaa1_${'b'.repeat(64)}`,
+          response_content_sha256: 'c'.repeat(64),
+        };
+        await persistSyntheticExecutionClaimV1(result, hooks);
+        await writeFile(options.outputPath, `${JSON.stringify(result, null, 2)}\n`, { mode: 0o600, flag: 'wx' });
+        return result;
+      },
+      sleepFn: async () => {},
+      emitOutput: false,
+    });
+    assert.equal(claimLeafSummary.green_contestants, 0);
+    assert.equal(claimLeafSummary.held_contestants, 1);
+    assert.match(claimLeafSummary.records[0].hold_reason, /visible generation changed/);
+    const claimLeafKey = syntheticRecoveryKeyV1(terminalRegistry.contestants[0]);
+    assert.equal(
+      await readFile(
+        join(
+          `${claimLeafRoot}.execution-claims`,
+          `.void-openrouter-execution-claim-${claimLeafKey}.json`,
+        ),
+        'utf8',
+      ),
+      '{"foreign":true}\n',
+    );
+
+    // A result cannot self-assert execution-claim authority by lying about the
+    // claim file digest. The arena recomputes that digest from the exact claim
+    // leaf it independently opened.
+    const claimDigestRoot = join(root, 'execution-claim-digest-drift');
+    const claimDigestSummary = await runArenaWithRootV1({
+      trialPath: 'trial.json', stagingRoot: 'stage', manifestPath: 'manifest.json',
+      outputRoot: claimDigestRoot, admissionAtUtc: '2026-08-24T06:00:00.000Z',
+    }, {
+      env: environment(terminalRegistry),
+      registry: terminalRegistry,
+      runContestantFn: async (options, hooks) => {
+        const contestant = terminalRegistry.contestants[0];
+        const digest = contestantRegistryDigestV1(terminalRegistry);
+        const result = {
+          marker: RESULT_MARKER,
+          model_requested: contestant.model,
+          ...executionEvidenceV1(contestant),
+          model_canonical_slug: contestant.canonical_slug,
+          qualification_status: contestant.status,
+          scored_trial_eligible: contestant.scored_trial_eligible,
+          retention_class: contestant.retention_class,
+          privacy_class: contestant.privacy_class,
+          scored_provider_allowlist: contestant.provider_policy.only,
+          registry_policy_generation_acknowledged: digest,
+          provider_policy: providerRequestPolicyV1(contestant),
+          registry_sha256: digest,
+          finish_reason: 'stop',
+          trial_id: `voidat1_${'d'.repeat(64)}`,
+          admission_id: `voidaa1_${'e'.repeat(64)}`,
+          response_content_sha256: 'f'.repeat(64),
+        };
+        await persistSyntheticExecutionClaimV1(result, hooks);
+        result.execution_claim_sha256 = '0'.repeat(64);
+        await writeFile(options.outputPath, `${JSON.stringify(result, null, 2)}\n`, { mode: 0o600, flag: 'wx' });
+        return result;
+      },
+      sleepFn: async () => {},
+      emitOutput: false,
+    });
+    assert.equal(claimDigestSummary.green_contestants, 0);
+    assert.equal(claimDigestSummary.held_contestants, 1);
+    assert.match(
+      claimDigestSummary.records[0].hold_reason,
+      /execution claim exact file digest drifted/,
     );
 
 
@@ -493,6 +699,14 @@ async function main() {
   console.log('result_leaf_generation_retained_through_green_terminal=true');
   console.log('result_leaf_replacement_generation_holds=true');
   console.log('result_file_sha256_bound=true');
+  console.log('execution_claim_root_inherited_fd_capability_bound=true');
+  console.log('execution_claim_evidence_independently_verified=true');
+  console.log('execution_claim_exact_file_sha256_bound=true');
+  console.log('execution_claim_semantic_sha256_bound=true');
+  console.log('execution_claim_leaf_generation_retained_through_green_terminal=true');
+  console.log('execution_claim_leaf_replacement_generation_holds=true');
+  console.log('foreign_execution_claim_leaf_preserved=true');
+  console.log('execution_claim_result_self_assertion_rejected=true');
   console.log('foreign_result_leaf_preserved=true');
   console.log('summary_publication_failure_atomic_recoverable=true');
   console.log('arena_registry_nonregular_leaf_nonblocking=true');

@@ -147,3 +147,25 @@ The CLI does not create the arena root. The caller creates a private mode-0700 r
 ## Shared execution-claim authority
 
 The arena's evidence output root and the adapter's execution-claim root are different capabilities. The arena output root may be unique to one evidence run. `VOID_OPENROUTER_EXECUTION_CLAIM_ROOT_FD` must instead refer to the trusted broker's shared persistent claim-root generation and is forwarded unchanged to contestant adapter calls. This prevents two arenas with different evidence-output roots from executing the same logical recovery identity twice.
+## Independent execution-claim evidence verification
+
+A contestant result cannot make itself GREEN merely by asserting
+`execution_claim_sha256`, `execution_claim_semantic_sha256`, or
+`execution_claim_root_generation_sha256`. The arena independently duplicates the trusted
+`VOID_OPENROUTER_EXECUTION_CLAIM_ROOT_FD` capability, recomputes that exact directory
+generation from dev/inode/uid/mode, and opens the deterministic claim leaf for the result's
+`accepted_recovery_key` with nonblocking, no-follow, mode-0600 regular-file admission.
+
+Before GREEN, the arena verifies the claim's exact marker and closed field set; registry,
+contestant, concrete execution model, canonical generation, trial, admission, prompt, token
+ceiling, recovery identity, root generation, and `state=executing` bindings; the SHA-256 of
+the exact retained claim file; and the semantic SHA-256 of the canonical claim object.
+Those independently recomputed digests and the root-generation digest are copied into the
+GREEN summary record.
+
+The exact claim leaf remains open through GREEN-record construction and all GREEN claim
+handles remain retained through the arena summary terminal. A same-UID rename-and-replace
+after claim semantic verification therefore becomes HOLD, and the foreign replacement is
+preserved rather than deleted or adopted. The shared claim-root capability is distinct from
+the arena output-root capability, so changing evidence namespaces cannot create a second
+execution authority namespace.

@@ -22,6 +22,7 @@ export const ARENA_MARKER = 'VOID_APOLLYON_OPENROUTER_ALIGNMENT_ARENA_V1';
 const SUMMARY_MARKER = 'VOID_APOLLYON_OPENROUTER_ALIGNMENT_ARENA_SUMMARY_V1';
 const MAX_REGISTRY_BYTES = 256 * 1024;
 const MAX_RESULT_BYTES = 2 * 1024 * 1024;
+const MAX_EXECUTION_CLAIM_BYTES = 256 * 1024;
 const DEFAULT_DELAY_MS = 4_000;
 const MAX_DELAY_MS = 60_000;
 const MAX_MODELS = 16;
@@ -32,6 +33,39 @@ function fail(message) {
 
 function sha256(bytes) {
   return createHash('sha256').update(bytes).digest('hex');
+}
+
+function canonicalize(value) {
+  if (value === null || typeof value === 'string' || typeof value === 'boolean') return value;
+  if (typeof value === 'number') {
+    if (!Number.isFinite(value)) fail('non-finite JSON number is forbidden');
+    return value;
+  }
+  if (Array.isArray(value)) return value.map(canonicalize);
+  if (typeof value !== 'object') fail('non-JSON value is forbidden');
+  const out = {};
+  for (const key of Object.keys(value).sort()) out[key] = canonicalize(value[key]);
+  return out;
+}
+
+function canonicalJson(value) {
+  return JSON.stringify(canonicalize(value));
+}
+
+function exactKeys(value, expected, name) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) fail(`${name} must be an object`);
+  const actual = Object.keys(value).sort().join(',');
+  const wanted = [...expected].sort().join(',');
+  if (actual !== wanted) fail(`${name} has unexpected fields`);
+}
+
+function executionClaimRootGenerationV1(st) {
+  return sha256(Buffer.from(canonicalJson({
+    dev: st.dev.toString(),
+    ino: st.ino.toString(),
+    uid: st.uid.toString(),
+    mode: (Number(st.mode) & 0o777).toString(8),
+  }), 'utf8'));
 }
 
 function parseBoundedInt(raw, fallback, min, max, name) {
@@ -133,6 +167,51 @@ async function openInheritedDirectoryGenerationV1(rawFd, visiblePath, name) {
   }
 }
 
+function parseInheritedExecutionClaimRootFdV1(raw) {
+  const text = String(raw ?? '').trim();
+  if (!/^[1-9][0-9]*$/.test(text)) {
+    fail('VOID_OPENROUTER_EXECUTION_CLAIM_ROOT_FD must be an inherited positive integer fd');
+  }
+  const fd = Number(text);
+  if (!Number.isSafeInteger(fd) || fd < 3 || fd > 1_048_575) {
+    fail('VOID_OPENROUTER_EXECUTION_CLAIM_ROOT_FD is out of bounds');
+  }
+  return fd;
+}
+
+async function openExecutionClaimRootV1(rawFd) {
+  const inheritedFd = parseInheritedExecutionClaimRootFdV1(rawFd);
+  const fh = await open(`/proc/self/fd/${inheritedFd}`, FS.O_RDONLY | FS.O_DIRECTORY);
+  try {
+    const st = await fh.stat({ bigint: true });
+    if (!st.isDirectory()) fail('OpenRouter execution claim root must be a directory');
+    if ((Number(st.mode) & 0o777) !== 0o700) fail('OpenRouter execution claim root mode must be 0700');
+    if (typeof process.getuid === 'function' && Number(st.uid) !== process.getuid()) {
+      fail('OpenRouter execution claim root must be owned by the current uid');
+    }
+    return {
+      fh,
+      anchor: `/proc/self/fd/${fh.fd}`,
+      generation: executionClaimRootGenerationV1(st),
+    };
+  } catch (error) {
+    await fh.close().catch(() => {});
+    throw error;
+  }
+}
+
+async function assertExecutionClaimRootGenerationV1(root) {
+  const st = await root.fh.stat({ bigint: true });
+  if (!st.isDirectory()) fail('OpenRouter execution claim root generation is no longer a directory');
+  if ((Number(st.mode) & 0o777) !== 0o700) fail('OpenRouter execution claim root mode changed');
+  if (typeof process.getuid === 'function' && Number(st.uid) !== process.getuid()) {
+    fail('OpenRouter execution claim root ownership changed');
+  }
+  if (executionClaimRootGenerationV1(st) !== root.generation) {
+    fail('OpenRouter execution claim root generation changed');
+  }
+}
+
 function fdDirectoryPath(fh) {
   return `/proc/self/fd/${fh.fd}`;
 }
@@ -223,6 +302,129 @@ async function assertVisibleFileGenerationV1(fh, visiblePath, name) {
     || retained.dev.toString() !== visible.dev.toString()
     || retained.ino.toString() !== visible.ino.toString()) {
     fail(`${name} visible generation changed`);
+  }
+}
+
+async function verifyExecutionClaimEvidenceV1(
+  claimRoot,
+  contestant,
+  persisted,
+  registryLoaded,
+  hooks = {},
+) {
+  await assertExecutionClaimRootGenerationV1(claimRoot);
+
+  const recoveryKey = String(persisted?.accepted_recovery_key ?? '');
+  if (!/^[0-9a-f]{64}$/.test(recoveryKey)) {
+    fail(`persisted accepted recovery identity is invalid for ${contestant.model}`);
+  }
+
+  const claimPath = join(
+    claimRoot.anchor,
+    `.void-openrouter-execution-claim-${recoveryKey}.json`,
+  );
+  const generation = await openJsonBoundedGenerationV1(
+    claimPath,
+    MAX_EXECUTION_CLAIM_BYTES,
+    `execution claim for ${contestant.model}`,
+  );
+
+  try {
+    const claim = generation.value;
+    exactKeys(
+      claim,
+      [
+        'marker',
+        'accepted_recovery_key',
+        'execution_claim_root_generation_sha256',
+        'registry_sha256',
+        'model',
+        'execution_model',
+        'canonical_slug',
+        'trial_id',
+        'admission_id',
+        'prompt_sha256',
+        'max_tokens',
+        'state',
+      ],
+      `execution claim for ${contestant.model}`,
+    );
+
+    const executionModel = executionModelV1(contestant);
+    if (claim.marker !== 'VOID_APOLLYON_OPENROUTER_EXECUTION_CLAIM_V1') {
+      fail(`execution claim marker drifted for ${contestant.model}`);
+    }
+    if (claim.accepted_recovery_key !== recoveryKey) {
+      fail(`execution claim recovery identity drifted for ${contestant.model}`);
+    }
+    if (claim.execution_claim_root_generation_sha256 !== claimRoot.generation) {
+      fail(`execution claim root generation drifted for ${contestant.model}`);
+    }
+    if (persisted.execution_claim_root_generation_sha256 !== claimRoot.generation) {
+      fail(`persisted execution claim root generation drifted for ${contestant.model}`);
+    }
+    if (claim.registry_sha256 !== registryLoaded.sha256) {
+      fail(`execution claim registry generation drifted for ${contestant.model}`);
+    }
+    if (claim.model !== contestant.model) {
+      fail(`execution claim model binding drifted for ${contestant.model}`);
+    }
+    if (claim.execution_model !== executionModel) {
+      fail(`execution claim execution-model binding drifted for ${contestant.model}`);
+    }
+    if (claim.canonical_slug !== contestant.canonical_slug) {
+      fail(`execution claim canonical generation drifted for ${contestant.model}`);
+    }
+    if (claim.trial_id !== persisted.trial_id) {
+      fail(`execution claim trial binding drifted for ${contestant.model}`);
+    }
+    if (claim.admission_id !== persisted.admission_id) {
+      fail(`execution claim admission binding drifted for ${contestant.model}`);
+    }
+    if (claim.prompt_sha256 !== persisted.prompt_sha256) {
+      fail(`execution claim prompt binding drifted for ${contestant.model}`);
+    }
+    if (claim.max_tokens !== persisted.max_tokens) {
+      fail(`execution claim token ceiling drifted for ${contestant.model}`);
+    }
+    if (claim.state !== 'executing') {
+      fail(`execution claim state drifted for ${contestant.model}`);
+    }
+
+    const fileSha256 = sha256(generation.bytes);
+    const semanticSha256 = sha256(Buffer.from(canonicalJson(claim), 'utf8'));
+    if (persisted.execution_claim_sha256 !== fileSha256) {
+      fail(`execution claim exact file digest drifted for ${contestant.model}`);
+    }
+    if (persisted.execution_claim_semantic_sha256 !== semanticSha256) {
+      fail(`execution claim semantic digest drifted for ${contestant.model}`);
+    }
+
+    if (typeof hooks.afterExecutionClaimSemanticValidation === 'function') {
+      await hooks.afterExecutionClaimSemanticValidation({
+        contestant,
+        claimPath,
+        claim,
+        persisted,
+      });
+    }
+
+    await assertVisibleFileGenerationV1(
+      generation.fh,
+      claimPath,
+      `execution claim for ${contestant.model}`,
+    );
+
+    return {
+      fh: generation.fh,
+      claimPath,
+      fileSha256,
+      semanticSha256,
+      rootGenerationSha256: claimRoot.generation,
+    };
+  } catch (error) {
+    await generation.fh.close().catch(() => {});
+    throw error;
   }
 }
 
@@ -344,9 +546,19 @@ export async function runOpenRouterAlignmentArenaV1(options, hooks = {}) {
     'arena output root',
   );
   const outputRootAnchor = fdDirectoryPath(outputRootHandle);
+  const executionClaimRootFd =
+    hooks.executionClaimRootFd ?? env.VOID_OPENROUTER_EXECUTION_CLAIM_ROOT_FD;
+  let executionClaimRoot;
+  try {
+    executionClaimRoot = await openExecutionClaimRootV1(executionClaimRootFd);
+  } catch (error) {
+    await outputRootHandle.close().catch(() => {});
+    throw error;
+  }
 
   const records = [];
   const greenResultHandles = [];
+  const greenClaimHandles = [];
   for (let index = 0; index < contestants.length; index += 1) {
     const contestant = contestants[index];
 
@@ -358,6 +570,7 @@ export async function runOpenRouterAlignmentArenaV1(options, hooks = {}) {
     };
 
     let verifiedResultHandle = null;
+    let verifiedClaimHandle = null;
     try {
       const modelLeaf = safeModelLeaf(contestant.model);
       const receiptLeaf = `${modelLeaf}.outbound-admission-receipt.json`;
@@ -378,6 +591,7 @@ export async function runOpenRouterAlignmentArenaV1(options, hooks = {}) {
         registry: registryLoaded.registry,
         emitOutput: false,
         ...(hooks.contestantHooks ?? {}),
+        executionClaimRootFd,
       });
       if (result?.marker !== RESULT_MARKER) fail(`contestant ${contestant.model} returned unexpected result marker`);
       if (result.model_requested !== contestant.model) fail(`contestant ${contestant.model} result model binding drifted`);
@@ -391,6 +605,14 @@ export async function runOpenRouterAlignmentArenaV1(options, hooks = {}) {
         hooks,
       );
       verifiedResultHandle = verified.fh;
+      const verifiedClaim = await verifyExecutionClaimEvidenceV1(
+        executionClaimRoot,
+        contestant,
+        verified.persisted,
+        registryLoaded,
+        hooks,
+      );
+      verifiedClaimHandle = verifiedClaim.fh;
       await assertVisibleDirectoryGenerationV1(outputRootHandle, outputRoot, 'arena output root');
 
       const greenRecord = {
@@ -402,6 +624,10 @@ export async function runOpenRouterAlignmentArenaV1(options, hooks = {}) {
         run_status: 'GREEN',
         result_path: resultLeaf,
         result_file_sha256: verified.fileSha256,
+        accepted_recovery_key: verified.persisted.accepted_recovery_key,
+        execution_claim_sha256: verifiedClaim.fileSha256,
+        execution_claim_semantic_sha256: verifiedClaim.semanticSha256,
+        execution_claim_root_generation_sha256: verifiedClaim.rootGenerationSha256,
         response_content_sha256: verified.persisted.response_content_sha256 ?? null,
         trial_id: verified.persisted.trial_id ?? null,
         admission_id: verified.persisted.admission_id ?? null,
@@ -417,7 +643,18 @@ export async function runOpenRouterAlignmentArenaV1(options, hooks = {}) {
         visiblePath: visibleResultPath,
         name: `persisted result for ${contestant.model}`,
       });
+      await assertVisibleFileGenerationV1(
+        verifiedClaimHandle,
+        verifiedClaim.claimPath,
+        `execution claim for ${contestant.model}`,
+      );
+      greenClaimHandles.push({
+        fh: verifiedClaimHandle,
+        visiblePath: verifiedClaim.claimPath,
+        name: `execution claim for ${contestant.model}`,
+      });
       verifiedResultHandle = null;
+      verifiedClaimHandle = null;
       records.push(greenRecord);
     } catch (error) {
       records.push({
@@ -431,6 +668,7 @@ export async function runOpenRouterAlignmentArenaV1(options, hooks = {}) {
       });
     } finally {
       if (verifiedResultHandle) await verifiedResultHandle.close().catch(() => {});
+      if (verifiedClaimHandle) await verifiedClaimHandle.close().catch(() => {});
     }
 
     if (index + 1 < contestants.length && delayMs > 0) await sleepFn(delayMs);
@@ -459,6 +697,10 @@ export async function runOpenRouterAlignmentArenaV1(options, hooks = {}) {
     for (const retained of greenResultHandles) {
       await assertVisibleFileGenerationV1(retained.fh, retained.visiblePath, retained.name);
     }
+    await assertExecutionClaimRootGenerationV1(executionClaimRoot);
+    for (const retained of greenClaimHandles) {
+      await assertVisibleFileGenerationV1(retained.fh, retained.visiblePath, retained.name);
+    }
     await publishSummaryExactV1(join(outputRootAnchor, 'arena-summary.json'), summary, hooks.summaryPublicationFaultHook);
     if (hooks.emitOutput !== false) {
       process.stdout.write(`${ARENA_MARKER}_COMPLETE mode=${mode} requested=${records.length} green=${green} held=${held}\n`);
@@ -466,6 +708,8 @@ export async function runOpenRouterAlignmentArenaV1(options, hooks = {}) {
     return summary;
   } finally {
     for (const retained of greenResultHandles) await retained.fh.close().catch(() => {});
+    for (const retained of greenClaimHandles) await retained.fh.close().catch(() => {});
+    await executionClaimRoot.fh.close().catch(() => {});
     await outputRootHandle.close().catch(() => {});
   }
 }
