@@ -204,17 +204,17 @@ function authorityPolicyInvariant(
   latchedSha256: string,
   env: NodeJS.ProcessEnv,
 ): { passed: boolean; captured: string; runtime: string; process: string } {
-  const runtime = authorityPolicyDigest(env);
-  const process = authorityPolicyDigest(process.env);
+  const runtimeSha256 = authorityPolicyDigest(env);
+  const processSha256 = authorityPolicyDigest(process.env);
   return {
     passed:
-      runtime === latchedSha256 &&
-      process === latchedSha256 &&
+      runtimeSha256 === latchedSha256 &&
+      processSha256 === latchedSha256 &&
       blockProposerAuthorityRequiredFromEnv(env) &&
       blockProposerAuthorityRequiredFromEnv(process.env),
     captured: latchedSha256,
-    runtime,
-    process,
+    runtime: runtimeSha256,
+    process: processSha256,
   };
 }
 
