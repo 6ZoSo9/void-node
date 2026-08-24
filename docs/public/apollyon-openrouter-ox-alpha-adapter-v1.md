@@ -412,30 +412,40 @@ terminal.
 ## Provider-admission atomicity
 
 The durable execution claim remains the crash/restart denial record, but a mutable
-filesystem name cannot by itself provide atomic exclusion across the final
-claim-generation check and the irreversible provider request start.
+filesystem claim name cannot by itself provide atomic exclusion across the final
+claim-generation check and irreversible provider request start.
 
-For the current Linux runtime, each canonical recovery identity therefore also acquires a
-Linux **abstract Unix-domain socket** admission lock before durable claim publication. The
-lock identity is deterministically derived from the retained execution-claim-root
-generation plus the canonical `accepted_recovery_key`. It is a kernel namespace object,
-not a filesystem pathname, so unlinking or renaming the visible JSON claim cannot release
-or replace the active same-key admission lock.
+The earlier per-recovery-key Linux abstract AF_UNIX lock is intentionally retired because
+abstract socket names are scoped by the Linux **network namespace** while the shared
+execution-claim root can be consumed across namespaces. That mismatch would allow the same
+abstract name to be held independently in two netns instances.
 
-The adapter holds that lock through claim publication, the final claim/root checks, the
-OpenRouter request, accepted-response/result handling, and the trial terminal. A concurrent
-same-key caller receives BUSY/HOLD before provider execution. Different recovery identities
-use different abstract names and are not globally serialized. A foreign process may pre-bind
-the deterministic abstract name only as denial; it does not gain GREEN or execution
-authority.
+For this source generation the adapter instead takes an exclusive nonblocking `flock` on
+the **exact inherited shared execution-claim-root inode** before durable claim publication.
+The helper receives the already-open root fd; it never reacquires lock authority from a
+mutable pathname. The root lock remains held across durable claim publication, final
+root/claim validation, the OpenRouter request, accepted-response/result handling, and the
+trial terminal.
 
-Crash behavior remains fail-closed: if the process dies before durable claim publication,
-the kernel lock disappears and no provider request has been authorized by that claim. If it
-dies after durable claim publication, the abstract lock disappears but the durable claim
-remains, so a later same-key invocation still HOLDs rather than silently reexecuting.
+This is deliberately conservative: one provider admission may be in flight per exact
+execution-claim root, even when recovery identities differ. That makes the exclusion
+namespace coextensive with the operation-state capability itself and independent of Linux
+network namespaces. A competing process that can consume the same exact root must contend
+on the same inode lock. A foreign holder can therefore cause denial/BUSY only; it cannot
+grant execution or GREEN authority.
 
-The focused proof pauses a winning caller after its final claim validation, temporarily
-renames the canonical claim away, starts a second same-key caller while the winner still
-holds the abstract lock, and requires exactly one total chat execution. This specifically
-falsifies the former final-check-to-provider-admission TOCTOU window without weakening the
-existing foreign-generation or no-stale-reclaim rules.
+The current Linux contract requires `/usr/bin/flock` (util-linux). Missing helper support,
+helper startup failure, unexpected lock loss, or an already-held root lock all fail closed
+before provider execution.
+
+Crash behavior remains fail-closed. Before durable claim publication, process/helper loss
+releases the kernel lock without authorizing a provider request. After durable claim
+publication, helper/process loss releases the transient root lock but the durable claim
+remains, so a later invocation still HOLDs rather than silently reexecuting.
+
+The focused proof pauses a winning caller after final claim validation, temporarily removes
+the canonical claim name, and starts another same-key caller. It also starts a different
+recovery identity under the same exact claim root. Both contenders must be denied by the
+still-live root-inode lock and the total fake chat execution count remains exactly one. This
+closes the former final-check-to-provider-admission race without assuming a shared network
+namespace and without weakening no-stale-reclaim or foreign-generation preservation.

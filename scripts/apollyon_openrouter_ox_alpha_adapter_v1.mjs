@@ -3,7 +3,7 @@
 import { createHash } from 'node:crypto';
 import { constants as FS } from 'node:fs';
 import { lstat, mkdtemp, open, realpath, rm, stat, writeFile } from 'node:fs/promises';
-import { createServer } from 'node:net';
+import { spawn } from 'node:child_process';
 import { tmpdir } from 'node:os';
 import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import process from 'node:process';
@@ -750,60 +750,132 @@ function executionClaimPathV1(claimRootAnchor, recoveryKey) {
   return join(claimRootAnchor, `.void-openrouter-execution-claim-${recoveryKey}.json`);
 }
 
-function executionAdmissionLockNameV1(claimRootGeneration, recoveryKey) {
-  if (!/^[0-9a-f]{64}$/.test(String(claimRootGeneration ?? ''))) {
-    fail('execution admission lock claim-root generation is invalid');
+const EXECUTION_ADMISSION_FLOCK = '/usr/bin/flock';
+const EXECUTION_ADMISSION_LOCK_READY = 'VOID_OPENROUTER_CLAIM_ROOT_FLOCK_READY_V1';
+const EXECUTION_ADMISSION_LOCK_START_TIMEOUT_MS = 5_000;
+const EXECUTION_ADMISSION_LOCK_STOP_TIMEOUT_MS = 5_000;
+
+function executionAdmissionLockIdentityV1(claimRoot) {
+  if (!claimRoot?.fh || !/^[0-9a-f]{64}$/.test(String(claimRoot?.generation ?? ''))) {
+    fail('execution claim-root admission lock authority is invalid');
   }
-  if (!/^[0-9a-f]{64}$/.test(String(recoveryKey ?? ''))) {
-    fail('execution admission lock recovery identity is invalid');
-  }
-  const identity = sha256(Buffer.from(canonicalJson({
-    marker: 'VOID_APOLLYON_OPENROUTER_EXECUTION_ADMISSION_LOCK_V1',
-    execution_claim_root_generation_sha256: claimRootGeneration,
-    accepted_recovery_key: recoveryKey,
+  return sha256(Buffer.from(canonicalJson({
+    marker: 'VOID_APOLLYON_OPENROUTER_CLAIM_ROOT_FLOCK_V1',
+    execution_claim_root_generation_sha256: claimRoot.generation,
   }), 'utf8'));
-  // Linux abstract Unix-domain sockets are kernel namespace objects, not
-  // filesystem leaves. A same-UID pathname unlink/rename therefore cannot
-  // release or replace this same-key admission exclusion while the server lives.
-  return `\0void-or-exec-v1-${identity}`;
 }
 
-async function acquireExecutionAdmissionLockV1(claimRootGeneration, recoveryKey) {
+async function acquireExecutionAdmissionLockV1(claimRoot) {
   if (process.platform !== 'linux') {
-    fail('OpenRouter execution admission lock requires Linux abstract Unix-domain sockets');
+    fail('OpenRouter execution admission lock requires Linux flock on the exact shared claim-root inode');
   }
-  const name = executionAdmissionLockNameV1(claimRootGeneration, recoveryKey);
-  const server = createServer((socket) => socket.destroy());
-  try {
-    await new Promise((resolvePromise, rejectPromise) => {
-      const onError = (error) => {
-        server.off('listening', onListening);
-        rejectPromise(error);
-      };
-      const onListening = () => {
-        server.off('error', onError);
-        resolvePromise();
-      };
-      server.once('error', onError);
-      server.once('listening', onListening);
-      server.listen({ path: name, exclusive: true });
-    });
-  } catch (error) {
-    if (error?.code === 'EADDRINUSE') {
-      fail('execution admission lock already held; same-key provider execution is BUSY/HOLD');
-    }
-    fail(`execution admission lock acquisition failed (${String(error?.code ?? 'UNKNOWN')})`);
-  }
-  return {
-    server,
-    identitySha256: sha256(Buffer.from(name, 'utf8')),
+
+  const identitySha256 = executionAdmissionLockIdentityV1(claimRoot);
+  const holdProgram =
+    `process.stdout.write(${JSON.stringify(`${EXECUTION_ADMISSION_LOCK_READY}\n`)});`
+    + 'process.stdin.resume();';
+
+  const child = spawn(
+    EXECUTION_ADMISSION_FLOCK,
+    ['--exclusive', '--nonblock', '3', process.execPath, '-e', holdProgram],
+    {
+      stdio: ['pipe', 'pipe', 'pipe', claimRoot.fh.fd],
+      env: { PATH: process.env.PATH ?? '' },
+    },
+  );
+
+  const lock = {
+    child,
+    identitySha256,
+    exited: false,
   };
+
+  await new Promise((resolvePromise, rejectPromise) => {
+    let stdout = '';
+    let stderr = '';
+    let settled = false;
+
+    const finishReject = (error) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      rejectPromise(error);
+    };
+
+    const timer = setTimeout(() => {
+      child.kill('SIGKILL');
+      finishReject(new Error('execution claim-root admission lock acquisition timed out'));
+    }, EXECUTION_ADMISSION_LOCK_START_TIMEOUT_MS);
+
+    child.stdout.setEncoding('utf8');
+    child.stderr.setEncoding('utf8');
+    child.stderr.on('data', (chunk) => {
+      stderr += chunk;
+      if (stderr.length > 4096) stderr = stderr.slice(-4096);
+    });
+    child.stdout.on('data', (chunk) => {
+      stdout += chunk;
+      if (settled || !stdout.includes(`${EXECUTION_ADMISSION_LOCK_READY}\n`)) return;
+      settled = true;
+      clearTimeout(timer);
+      resolvePromise();
+    });
+
+    child.once('error', (error) => {
+      finishReject(new Error(
+        `execution claim-root admission lock helper failed (${String(error?.code ?? 'UNKNOWN')})`,
+      ));
+    });
+
+    child.once('exit', (code, signal) => {
+      lock.exited = true;
+      if (settled) return;
+      if (code === 1) {
+        finishReject(new Error(
+          'execution claim-root admission lock already held; provider execution is BUSY/HOLD',
+        ));
+        return;
+      }
+      finishReject(new Error(
+        `execution claim-root admission lock helper exited before acquisition `
+        + `(code=${String(code)} signal=${String(signal)} stderr=${stderr.trim().slice(0, 256)})`,
+      ));
+    });
+  }).catch((error) => {
+    child.stdin?.destroy();
+    child.stdout?.destroy();
+    child.stderr?.destroy();
+    fail(error.message);
+  });
+
+  return lock;
+}
+
+function assertExecutionAdmissionLockV1(lock) {
+  if (!lock?.child || lock.exited || lock.child.exitCode !== null || lock.child.signalCode !== null) {
+    fail('execution claim-root admission lock was lost before provider execution');
+  }
 }
 
 async function closeExecutionAdmissionLockV1(lock) {
-  if (!lock?.server) return;
+  const child = lock?.child;
+  if (!child || child.exitCode !== null || child.signalCode !== null) return;
+
   await new Promise((resolvePromise) => {
-    lock.server.close(() => resolvePromise());
+    let settled = false;
+    const finish = () => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      resolvePromise();
+    };
+    const timer = setTimeout(() => {
+      child.kill('SIGKILL');
+      finish();
+    }, EXECUTION_ADMISSION_LOCK_STOP_TIMEOUT_MS);
+
+    child.once('exit', finish);
+    child.stdin.end();
   });
 }
 
@@ -890,18 +962,19 @@ async function assertVisibleExecutionClaimGenerationV1(retained) {
   }
 }
 
-async function acquireExecutionClaimV1(path, value, hooks = {}) {
+async function acquireExecutionClaimV1(path, value, claimRoot, hooks = {}) {
   if (typeof hooks.beforeExecutionClaim === 'function') {
     await hooks.beforeExecutionClaim({ claimPath: path, claim: value });
   }
 
-  // The kernel admission lock is acquired after the deterministic proof barrier
-  // but before durable claim publication. It remains held by the outer trial
-  // through the irreversible provider request/result terminal.
-  const admissionLock = await acquireExecutionAdmissionLockV1(
-    value.execution_claim_root_generation_sha256,
-    value.accepted_recovery_key,
-  );
+  // Serialize provider admission on the exact inherited shared claim-root inode.
+  // Linux flock is inode/filesystem authority, not an AF_UNIX/network-namespace
+  // namespace, so every consumer of this exact root contends on one lock even
+  // when callers execute in different network namespaces.
+  if (value.execution_claim_root_generation_sha256 !== claimRoot.generation) {
+    fail('execution claim root generation drifted before admission-lock acquisition');
+  }
+  const admissionLock = await acquireExecutionAdmissionLockV1(claimRoot);
 
   const expectedBytes = Buffer.from(`${JSON.stringify(value, null, 2)}\n`, 'utf8');
   let retained = null;
@@ -1069,7 +1142,12 @@ export async function runOpenRouterContestantTrialV1(options, hooks = {}) {
       maxTokens: runtime.maxTokens,
       claimRootGeneration: executionClaimRoot.generation,
     });
-    const acquiredClaim = await acquireExecutionClaimV1(executionClaimPath, executionClaim, hooks);
+    const acquiredClaim = await acquireExecutionClaimV1(
+      executionClaimPath,
+      executionClaim,
+      executionClaimRoot,
+      hooks,
+    );
     acquiredClaimHandle = acquiredClaim.fh;
     executionAdmissionLock = acquiredClaim.admissionLock;
 
@@ -1097,6 +1175,7 @@ export async function runOpenRouterContestantTrialV1(options, hooks = {}) {
         admissionLockIdentitySha256: executionAdmissionLock.identitySha256,
       });
     }
+    assertExecutionAdmissionLockV1(executionAdmissionLock);
     const rawResponse = await sendChat(fetchImpl, runtime.apiKey, request.body, runtime.chatTimeoutMs);
     const accepted = validateChatResponse(rawResponse, runtime.contestant);
     if (typeof hooks.afterChatAccepted === 'function') {
