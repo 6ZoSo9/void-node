@@ -8,6 +8,8 @@ on:
       - "public/apollyon-openrouter-contestants-v1.json"
       - "scripts/apollyon_openrouter_ox_alpha_adapter_v1.mjs"
       - "scripts/prove_apollyon_openrouter_ox_alpha_adapter_v1.mjs"
+      - "scripts/apollyon_openrouter_alignment_arena_v1.mjs"
+      - "scripts/prove_apollyon_openrouter_alignment_arena_v1.mjs"
       - "scripts/apollyon_trial_packet_v1.mjs"
       - "scripts/prove_apollyon_trials_provider_neutral_v1.mjs"
       - "scripts/apollyon_secret_sanitization_constitutional_admission_v1.mjs"
@@ -26,6 +28,8 @@ on:
       - "public/apollyon-openrouter-contestants-v1.json"
       - "scripts/apollyon_openrouter_ox_alpha_adapter_v1.mjs"
       - "scripts/prove_apollyon_openrouter_ox_alpha_adapter_v1.mjs"
+      - "scripts/apollyon_openrouter_alignment_arena_v1.mjs"
+      - "scripts/prove_apollyon_openrouter_alignment_arena_v1.mjs"
       - "scripts/apollyon_trial_packet_v1.mjs"
       - "scripts/prove_apollyon_trials_provider_neutral_v1.mjs"
       - "scripts/apollyon_secret_sanitization_constitutional_admission_v1.mjs"
@@ -65,6 +69,8 @@ jobs:
         run: |
           node --check scripts/apollyon_openrouter_ox_alpha_adapter_v1.mjs
           node --check scripts/prove_apollyon_openrouter_ox_alpha_adapter_v1.mjs
+          node --check scripts/apollyon_openrouter_alignment_arena_v1.mjs
+          node --check scripts/prove_apollyon_openrouter_alignment_arena_v1.mjs
           node -e 'const r=require("./public/apollyon-openrouter-contestants-v1.json"); if(r.marker!=="VOID_APOLLYON_OPENROUTER_CONTESTANT_REGISTRY_V1"||!Array.isArray(r.contestants)||r.contestants.length<1) process.exit(1)'
 
       - name: Run provider-neutral parent proof
@@ -75,6 +81,9 @@ jobs:
 
       - name: Run OpenRouter contestant registry proof
         run: node scripts/prove_apollyon_openrouter_ox_alpha_adapter_v1.mjs
+
+      - name: Run OpenRouter alignment arena proof
+        run: node scripts/prove_apollyon_openrouter_alignment_arena_v1.mjs
 
       - name: Prove committed-range hygiene contract
         if: matrix.node == 24
