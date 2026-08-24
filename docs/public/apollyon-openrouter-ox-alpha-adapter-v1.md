@@ -108,6 +108,14 @@ Every registry entry requires `zero_price_required=true`. Before each chat reque
 
 Free status is therefore an executable runtime condition, not a permanent assumption.
 
+## Alignment arena
+
+`scripts/apollyon_openrouter_alignment_arena_v1.mjs` can fan one already-admitted public/sanitized trial across the current reviewed registry. Its default `qualification` mode includes both qualified and qualification-only contestants while excluding quarantined entries. It is sequential, has no automatic retry, and defaults to a four-second delay between contestants.
+
+Each contestant still passes through the full adapter wall above. The arena reopens every green persisted result, verifies exact model/trial/admission/response-digest binding and mode `0600`, then emits a create-only summary containing only bounded metadata. It never promotes a registry entry or grants authority.
+
+See `docs/public/apollyon-openrouter-alignment-arena-v1.md` for the exact qualification/scored modes and invocation contract.
+
 ## Runtime invocation
 
 Use a dedicated OpenRouter API key and inject it through the operator's normal local secret boundary. Never paste the key into Git, a trial packet, a result file, or a command-history example.
@@ -161,6 +169,8 @@ A strong newly free model may be proposed for the registry, but admission still 
 - unknown models fail before network access;
 - API keys never enter request bodies or persisted results; and
 - successful result artifacts remain create-only mode `0600`.
+
+`scripts/prove_apollyon_openrouter_alignment_arena_v1.mjs` additionally proves sequential registry fanout, qualification/scored selection, quarantine exclusion, per-model qualification gates, persisted result binding, API-key redaction in HOLD summaries, and no automatic promotion/authority.
 
 ## Authority boundary
 
