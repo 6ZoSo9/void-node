@@ -674,7 +674,7 @@ async function main() {
     assert.equal(crossOutputSettled.filter((x) => x.status === 'rejected').length, 1);
     assert.match(
       String(crossOutputSettled.find((x) => x.status === 'rejected').reason?.message ?? ''),
-      /execution claim already exists/,
+      /execution admission lock already held|execution claim already exists/,
     );
 
     // Same-key A/B concurrency: both callers may perform reversible catalog
@@ -753,7 +753,7 @@ async function main() {
     assert.equal(concurrentSettled.filter((x) => x.status === 'rejected').length, 1);
     assert.match(
       String(concurrentSettled.find((x) => x.status === 'rejected').reason?.message ?? ''),
-      /execution claim already exists/,
+      /execution admission lock already held|execution claim already exists/,
     );
 
     // Post-acquisition claim replacement: A owns the exact durable claim inode,
@@ -814,7 +814,7 @@ async function main() {
     assert.equal(replacedClaimContender?.ok, false);
     assert.match(
       replacedClaimContender?.message ?? '',
-      /execution claim publication conflicted or failed|execution claim already exists/,
+      /execution admission lock already held|execution claim publication conflicted or failed|execution claim already exists/,
     );
     assert.equal(
       replacedClaimTransport.calls().chatCalls,
@@ -827,6 +827,73 @@ async function main() {
       foreignReplacementBytes,
     );
     await expectMissing(replacedClaim.outputPath, 'post-acquire replacement result');
+
+    // Final check -> provider admission atomicity. A has already passed the last
+    // filesystem claim/root validation while holding the per-recovery-key Linux
+    // abstract admission lock. Remove the canonical claim name in that exact
+    // window and start B. B must be denied by the still-live kernel lock before
+    // chat, even though the mutable filesystem claim pathname is temporarily
+    // absent. Restore A's exact inode before A continues so this fixture isolates
+    // the request-start exclusion primitive rather than downstream evidence.
+    const finalAdmission = await makeFixture(root, 'execution-claim-final-admission-lock');
+    const finalAdmissionTransport = successFetch(ox);
+    let finalAdmissionContender = null;
+    let finalAdmissionHookCalls = 0;
+    const finalAdmissionResult = await runOpenRouterContestantTrialV1({
+      trialPath: finalAdmission.packetPath,
+      stagingRoot: finalAdmission.stage,
+      manifestPath: finalAdmission.manifestPath,
+      receiptPath: finalAdmission.receiptPath,
+      outputPath: finalAdmission.outputPath,
+      admissionAtUtc: ADMISSION_AT,
+    }, {
+      registry,
+      env: environment(ox.model),
+      fetchImpl: finalAdmissionTransport.fetchImpl,
+      afterExecutionClaimFinalValidation: async ({
+        claimPath,
+        admissionLockIdentitySha256,
+      }) => {
+        finalAdmissionHookCalls += 1;
+        assert.match(admissionLockIdentitySha256, /^[0-9a-f]{64}$/);
+        const moved = `${claimPath}.final-admission-owned-generation`;
+        await rename(claimPath, moved);
+        try {
+          finalAdmissionContender = await runOpenRouterContestantTrialV1({
+            trialPath: finalAdmission.packetPath,
+            stagingRoot: finalAdmission.stage,
+            manifestPath: finalAdmission.manifestPath,
+            receiptPath: finalAdmission.receiptPath,
+            outputPath: finalAdmission.outputPath,
+            admissionAtUtc: ADMISSION_AT,
+          }, {
+            registry,
+            env: environment(ox.model),
+            fetchImpl: finalAdmissionTransport.fetchImpl,
+            emitOutput: false,
+          }).then(
+            () => ({ ok: true }),
+            (error) => ({ ok: false, message: String(error?.message ?? error) }),
+          );
+        } finally {
+          await rename(moved, claimPath);
+        }
+      },
+      emitOutput: false,
+    });
+    assert.equal(finalAdmissionHookCalls, 1);
+    assert.equal(finalAdmissionResult.marker, RESULT_MARKER);
+    assert.equal(finalAdmissionContender?.ok, false);
+    assert.match(
+      finalAdmissionContender?.message ?? '',
+      /execution admission lock already held/,
+    );
+    assert.equal(
+      finalAdmissionTransport.calls().chatCalls,
+      1,
+      'final claim-check race must still admit exactly one same-key chat',
+    );
+    assert.equal((await stat(finalAdmission.outputPath)).mode & 0o777, 0o600);
 
     // Claimant crash after durable claim but before chat: the claim remains a
     // permanent fail-closed ambiguity. No automatic stale-owner reclaim.
@@ -1871,6 +1938,10 @@ async function main() {
   console.log('same_key_concurrent_chat_calls_exactly_one=true');
   console.log('execution_claim_generation_retained_through_chat_admission=true');
   console.log('execution_claim_post_acquire_replacement_blocks_chat=true');
+  console.log('execution_admission_linux_abstract_lock_bound=true');
+  console.log('execution_admission_lock_keyed_by_claim_root_and_recovery_identity=true');
+  console.log('final_claim_check_to_provider_admission_same_key_chat_exactly_one=true');
+  console.log('claim_path_absence_after_final_validation_cannot_admit_contender=true');
   console.log('foreign_post_acquire_claim_replacement_preserved=true');
   console.log('stale_execution_claim_auto_reclaim=false');
   console.log('claimant_crash_before_chat_blocks_reexecution=true');
