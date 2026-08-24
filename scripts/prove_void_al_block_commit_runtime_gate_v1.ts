@@ -21,6 +21,7 @@ import {
 import { SegStore } from "../src/chain/seg_store.js";
 import {
   VOID_AL_BLOCK_COMMIT_DIRECT_BYPASS_V1,
+  VOID_AL_BLOCK_HEAD_DIRECT_BYPASS_V1,
   VoidAlBlockCommitRuntimeHeldErrorV1,
   getVoidAlignmentLayerBlockCommitRuntimeStatusV1,
   installVoidAlignmentLayerBlockCommitRuntimeOnPrototypeV1,
@@ -107,6 +108,10 @@ assert.equal(
   fixture.activation.hold,
   "HOLD_AL_BLOCK_COMMIT_DIRECT_CALLERS_NOT_MIGRATED",
 );
+assert.equal(
+  fixture.activation.head_hold,
+  "HOLD_AL_BLOCK_HEAD_CALLERS_NOT_MIGRATED",
+);
 assert.equal(fixture.activation.bootstrap_not_mounted, true);
 assert.equal(fixture.activation.proposer_authority_required_before_activation, true);
 assert.equal(fixture.activation.runtime_environment_change_authorized, false);
@@ -153,7 +158,18 @@ const historicalRawCommitMentions =
   indexSource.match(/saveBlockCommit/g)?.length ?? 0;
 assert.ok(
   historicalRawCommitMentions > 0,
-  "activation HOLD must not disappear until direct caller inventory is explicitly migrated",
+  "activation HOLD must not disappear until direct raw commit callers are migrated",
+);
+
+const nodeCoreSource = fs.readFileSync(
+  path.join(process.cwd(), "src/node_core.ts"),
+  "utf8",
+);
+const historicalDirectHeadMentions =
+  nodeCoreSource.match(/persistHeadAtomic/g)?.length ?? 0;
+assert.ok(
+  historicalDirectHeadMentions > 0,
+  "activation HOLD must retain follower direct-head recovery until it has an AL lease",
 );
 
 const governanceDoc = fs.readFileSync(
@@ -164,6 +180,7 @@ const governanceDoc = fs.readFileSync(
   "utf8",
 );
 assert.match(governanceDoc, /HOLD_AL_BLOCK_COMMIT_DIRECT_CALLERS_NOT_MIGRATED/);
+assert.match(governanceDoc, /HOLD_AL_BLOCK_HEAD_CALLERS_NOT_MIGRATED/);
 assert.match(governanceDoc, /HOLD_AL_BLOCK_COMMIT_BOOTSTRAP_NOT_MOUNTED/);
 assert.match(governanceDoc, /VOID_BLOCK_PROPOSER_AUTHORITY_REQUIRED=1/);
 assert.match(governanceDoc, /--import/);
@@ -171,14 +188,12 @@ assert.match(governanceDoc, /process memory/i);
 
 const prevGate = process.env.VOID_AL_BLOCK_COMMIT_RUNTIME_V1;
 const prevAuthorityRequired = process.env.VOID_BLOCK_PROPOSER_AUTHORITY_REQUIRED;
+const prevLegacyAuthorityRequired = process.env.VOID_REQUIRE_TRUSTED_BLOCK_PROPOSER;
 const prevAuthoritySource = process.env.VOID_BLOCK_PROPOSER_AUTHORITY_SOURCE;
 const prevTrusted = process.env.VOID_BLOCK_TRUSTED_PROPOSERS;
 const prevChain = process.env.VOID_CHAIN_ID;
 
 try {
-  // The explicit future bootstrap must reject AL=1 while proposer authority is
-  // still in its backward-compatible default-off mode. Import failure happens
-  // before the installer is allowed to patch SegStore.prototype.
   process.env.VOID_AL_BLOCK_COMMIT_RUNTIME_V1 = "1";
   delete process.env.VOID_BLOCK_PROPOSER_AUTHORITY_REQUIRED;
   delete process.env.VOID_REQUIRE_TRUSTED_BLOCK_PROPOSER;
@@ -189,6 +204,7 @@ try {
 
   restoreEnv("VOID_AL_BLOCK_COMMIT_RUNTIME_V1", prevGate);
   restoreEnv("VOID_BLOCK_PROPOSER_AUTHORITY_REQUIRED", prevAuthorityRequired);
+  restoreEnv("VOID_REQUIRE_TRUSTED_BLOCK_PROPOSER", prevLegacyAuthorityRequired);
 
   const disabledProto = Object.create(SegStore.prototype as any);
   const originalDisabledSave = disabledProto.saveBlock;
@@ -203,12 +219,39 @@ try {
   assert.equal(disabled.safe_mode, false);
 
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "void-al-block-gate-"));
+  const headBypassRoot = path.join(root, "head-bypass");
   const replayRoot = path.join(root, "replay");
   const canonicalRoot = path.join(root, "canonical");
   const rejectRoot = path.join(root, "reject");
   const quarantineRoot = path.join(root, "quarantine");
 
   try {
+    // Unleased canonical-head persistence is a separate mutation bypass class.
+    // Exercise it on an isolated prototype so its safe-mode latch does not mask
+    // the raw-commit tripwire tested later on the real SegStore prototype.
+    const headBypassStore = new SegStore(headBypassRoot, { sparseEvery: 1 });
+    const headBypassProto = Object.create(SegStore.prototype as any);
+    Object.setPrototypeOf(headBypassStore, headBypassProto);
+    installVoidAlignmentLayerBlockCommitRuntimeOnPrototypeV1({
+      prototype: headBypassProto,
+      enabled: true,
+      env: { ...process.env, VOID_CHAIN_ID: "2050" },
+    });
+    expectHeld(
+      () => (headBypassStore as any).persistHeadAtomic(0),
+      VOID_AL_BLOCK_HEAD_DIRECT_BYPASS_V1,
+      "safe_mode",
+    );
+    assert.equal(headBypassStore.loadHeadNumber(), -1);
+    const headBypassStatus =
+      getVoidAlignmentLayerBlockCommitRuntimeStatusV1(headBypassProto);
+    assert.equal(headBypassStatus.safe_mode, true);
+    assert.equal(
+      headBypassStatus.safe_mode_reason,
+      VOID_AL_BLOCK_HEAD_DIRECT_BYPASS_V1,
+    );
+    assert.equal(headBypassStatus.direct_head_bypass_total, 1);
+
     const signer = makeSigner();
     const replayGenesis = makeBlock({
       number: 0,
@@ -217,18 +260,12 @@ try {
       note: "replay-genesis",
     });
 
-    // Produce one durable WAL intent before the prototype is guarded. The head and
-    // segment stay untouched, so constructing the next SegStore exercises the
-    // real constructor replay path under the installed AL replay lease.
     const replaySeed = new SegStore(replayRoot, { sparseEvery: 1 });
     const replaySeg = (replaySeed as any).segName(0);
     (replaySeed as any).walAppendDurable(replaySeg, replayGenesis, "modern");
     assert.equal(replaySeed.loadHeadNumber(), -1);
     assert.equal(replaySeed.loadBlock(0), null);
 
-    // AL-enabled block persistence is tested only with the repository's existing
-    // proposer-authority policy explicitly required. The block validator reads
-    // this runtime policy from process.env, matching production semantics.
     process.env.VOID_CHAIN_ID = "2050";
     process.env.VOID_BLOCK_PROPOSER_AUTHORITY_REQUIRED = "1";
     process.env.VOID_BLOCK_PROPOSER_AUTHORITY_SOURCE = "env";
@@ -271,12 +308,9 @@ try {
     assert.equal(store.loadHeadNumber(), 1);
     assert.deepEqual(store.loadBlock(1), block1);
 
-    // Exact idempotent replay through the canonical public method remains allowed.
     store.saveBlock(block1);
     assert.equal(store.loadHeadNumber(), 1);
 
-    // A validly self-signed but unauthorized proposer fails the current runtime
-    // authority policy and is rejected before persistence.
     const unauthorizedSigner = makeSigner();
     const unauthorizedBlock = makeBlock({
       number: 0,
@@ -293,7 +327,6 @@ try {
     assert.equal(rejectStore.loadHeadNumber(), -1);
     assert.equal(rejectStore.loadBlock(0), null);
 
-    // A wrong-signed actor trips actor-security quarantine before persistence.
     const badSigner = makeSigner();
     const badBlock = makeBlock({
       number: 0,
@@ -318,8 +351,6 @@ try {
     assert.ok(beforeBypassStatus.rejected_total >= 1);
     assert.equal(beforeBypassStatus.quarantined_total, 1);
 
-    // The historical raw commit primitive is still reachable in generated JS.
-    // When AL is enabled it is a tripwire, not an alternate authority path.
     const block2 = makeBlock({
       number: 2,
       parent: block1,
@@ -341,9 +372,9 @@ try {
       VOID_AL_BLOCK_COMMIT_DIRECT_BYPASS_V1,
     );
     assert.equal(afterBypassStatus.direct_bypass_total, 1);
+    assert.equal(afterBypassStatus.direct_head_bypass_total, 0);
     assert.ok(afterBypassStatus.safe_mode_total >= 1);
 
-    // Safe mode is sticky for this process/prototype; it never auto-resumes.
     expectHeld(
       () => store.saveBlock(block2),
       "VOID_AL_BLOCK_COMMIT_SAFE_MODE_V1",
@@ -361,12 +392,15 @@ try {
     console.log("unauthorized_self_signed_proposer_rejected=true");
     console.log("bad_signature_quarantine_before_write=true");
     console.log("direct_raw_commit_bypass_safe_mode=true");
+    console.log("direct_head_bypass_safe_mode=true");
     console.log("safe_mode_sticky_no_auto_resume=true");
     console.log(`historical_raw_commit_mentions=${historicalRawCommitMentions}`);
+    console.log(`historical_direct_head_mentions=${historicalDirectHeadMentions}`);
     console.log(`pre_accept_total=${afterBypassStatus.pre_accept_total}`);
     console.log(`post_apply_total=${afterBypassStatus.post_apply_total}`);
     console.log("activation_ready=false");
     console.log("activation_hold=HOLD_AL_BLOCK_COMMIT_DIRECT_CALLERS_NOT_MIGRATED");
+    console.log("head_hold=HOLD_AL_BLOCK_HEAD_CALLERS_NOT_MIGRATED");
     console.log("bootstrap_hold=HOLD_AL_BLOCK_COMMIT_BOOTSTRAP_NOT_MOUNTED");
     console.log("live_activation_performed=false");
     console.log("chain2050_mutation_performed=false");
@@ -378,6 +412,7 @@ try {
 } finally {
   restoreEnv("VOID_AL_BLOCK_COMMIT_RUNTIME_V1", prevGate);
   restoreEnv("VOID_BLOCK_PROPOSER_AUTHORITY_REQUIRED", prevAuthorityRequired);
+  restoreEnv("VOID_REQUIRE_TRUSTED_BLOCK_PROPOSER", prevLegacyAuthorityRequired);
   restoreEnv("VOID_BLOCK_PROPOSER_AUTHORITY_SOURCE", prevAuthoritySource);
   restoreEnv("VOID_BLOCK_TRUSTED_PROPOSERS", prevTrusted);
   restoreEnv("VOID_CHAIN_ID", prevChain);
