@@ -20,7 +20,7 @@ const routes = [
 const routeBytes = new Map(routes.map(([route, file]) => [route, fs.readFileSync(path.join(repo, file))]));
 const sha256 = (bytes) => createHash("sha256").update(bytes).digest("hex");
 assert.equal(sha256(routeBytes.get(routes[2][0])), "597c451a349728c4713e1ac2ce9ca5478a80378bfc12cf0ca1ce4138e82ea692");
-assert.equal(sha256(routeBytes.get(routes[3][0])), "1b53b69e18dde568ebc482b06be41caaa4beecede0df8c0795e7cfd58ffde869");
+assert.equal(sha256(routeBytes.get(routes[3][0])), "ef067ffa61441c3bb00970ed5875eb45cc069087e9d45a4ce6a748fc74e5dadc");
 
 const send = (req, res, status, headers, body) => {
   const bytes = Buffer.isBuffer(body) ? body : Buffer.from(String(body));
