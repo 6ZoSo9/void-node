@@ -190,8 +190,8 @@ function runStaticProof() {
     "Edit(/.claude/**)",
     "Edit(/scripts/prove_merlin_claude_code_advisor_v1.mjs)",
     "Edit(/.github/workflows/void-merlin-claude-code-advisor-v1.yml)",
+    "Read(.env)",
     "Read(**/*.env)",
-    "Read(**/.env*)",
     "Read(~/.claude/**)",
     "Read(~/.ssh/**)",
     "Read(~/.gnupg/**)",
@@ -245,6 +245,23 @@ function runStaticProof() {
     "npm audit fix with args must not be approval-gated; it must be denied"
   );
 
+  for (const overbroad of ["Read(.env.*)", "Read(**/.env*)"]) {
+    assert.ok(
+      !deny.has(overbroad),
+      `public .env.example compatibility requires absent overbroad deny: ${overbroad}`
+    );
+  }
+
+  const publicEnvExample = fs.readFileSync(
+    path.join(ROOT, ".env.example"),
+    "utf8"
+  );
+  assert.match(
+    publicEnvExample,
+    /^# Core/m,
+    "tracked public .env.example must remain readable to repository tooling"
+  );
+
   assert.equal(settings?.sandbox?.enabled, true);
   assert.equal(settings?.sandbox?.failIfUnavailable, true);
   assert.equal(settings?.sandbox?.autoAllowBashIfSandboxed, false);
@@ -266,14 +283,19 @@ function runStaticProof() {
     "/dev/mapper/**",
     "/dev/sd*",
     "/dev/nvme*",
+    ".env",
     "**/*.env",
-    "**/.env*",
   ]) {
     assert.ok(denyRead.has(entry), `missing sandbox denyRead: ${entry}`);
   }
   assert.ok(
     allowRead.has("."),
     "sandbox must re-allow the project root inside denied home scope"
+  );
+
+  assert.ok(
+    !denyRead.has("**/.env*"),
+    "sandbox denyRead must not hide the tracked public .env.example template"
   );
 
   const credentialFiles = new Map(
@@ -294,8 +316,8 @@ function runStaticProof() {
     "~/.password-store",
     "~/.npmrc",
     "~/.netrc",
+    ".env",
     "**/*.env",
-    "**/.env*",
   ]) {
     assert.equal(
       credentialFiles.get(entry),
@@ -310,6 +332,12 @@ function runStaticProof() {
       entry.mode,
     ])
   );
+  assert.equal(
+    credentialFiles.has("**/.env*"),
+    false,
+    "credential file deny must not hide the tracked public .env.example template"
+  );
+
   for (const name of [...PROTECTED_PARENT_ENV, "SSH_AUTH_SOCK"]) {
     assert.equal(
       credentialEnv.get(name),
@@ -342,6 +370,8 @@ function runStaticProof() {
   console.log("external_mount_reads_denied=true");
   console.log("credential_reads_denied=true");
   console.log("repo_env_reads_denied=true");
+  console.log("public_env_example_readable=true");
+  console.log("overbroad_env_dotstar_deny_absent=true");
   console.log("void_credential_env_denied=true");
   console.log("remote_git_mutation_denied=true");
   console.log("self_policy_edit_denied=true");
