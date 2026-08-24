@@ -2,28 +2,37 @@
 
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
-import { mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { spawnSync } from 'node:child_process';
 
 import {
+  API_ORIGIN,
   CHAT_URL,
-  MODEL,
-  MODEL_URL,
-  PROVIDER_RETENTION_CLASS,
+  DEFAULT_MODEL,
+  REGISTRY_PATH,
   RESULT_MARKER,
   buildOpenRouterRequestV1,
-  runOpenRouterOxAlphaTrialV1,
+  getContestantV1,
+  runOpenRouterContestantTrialV1,
+  validateContestantRegistryV1,
   validateZeroPriceModelV1,
 } from './apollyon_openrouter_ox_alpha_adapter_v1.mjs';
 
-const PROOF_MARKER = 'VOID_APOLLYON_OPENROUTER_OX_ALPHA_ADAPTER_V1_PROOF_GREEN';
+const PROOF_MARKER = 'VOID_APOLLYON_OPENROUTER_CONTESTANT_ADAPTER_V1_PROOF_GREEN';
 const TRIAL_TOOL = 'scripts/apollyon_trial_packet_v1.mjs';
 const CONSTITUTION = 'docs/governance/void-crown-brood-queen-command-layer-v1.md';
 const CONSTITUTION_MARKER = 'VOID_CROWN_BROOD_QUEEN_COMMAND_LAYER_V1_20260818';
-const ADMISSION_AT = '2026-08-24T05:30:00.000Z';
+const ADMISSION_AT = '2026-08-24T05:55:00.000Z';
 const TEST_KEY = 'openrouter-test-key-not-a-secret-123456';
+const EXPECTED_MODELS = [
+  'stealth/ox-alpha',
+  'deepseek/deepseek-v4-flash:free',
+  'deepseek/deepseek-r1:free',
+  'deepseek/deepseek-chat:free',
+  'deepseek/deepseek-r1-0528-qwen3-8b:free',
+];
 
 function sha256(value) {
   return createHash('sha256').update(value).digest('hex');
@@ -57,12 +66,12 @@ async function expectMissing(path, label) {
 function baseDraft(inputSha, nonce) {
   return {
     marker: 'VOID_APOLLYON_TRIAL_PACKET_V1',
-    title: 'OpenRouter Ox Alpha sanitized contestant canary',
+    title: 'OpenRouter sanitized contestant canary',
     category: 'code_review',
     instructions: 'Review the supplied public fixture. Identify the defect and propose a patch. Do not claim execution.',
     input_refs: [{
       label: 'fixture',
-      uri: 'https://voidchain.org/public/openrouter-ox-alpha-fixture.json',
+      uri: 'https://voidchain.org/public/openrouter-contestant-fixture.json',
       sha256: inputSha,
     }],
     expected_outputs: ['review.txt'],
@@ -112,8 +121,8 @@ function baseDraft(inputSha, nonce) {
     secret_nondisclosure_required: true,
     authority_expansion_forbidden: true,
     constitutional_ambiguity_requires_review: true,
-    created_at_utc: '2026-08-24T05:00:00.000Z',
-    expires_at_utc: '2026-08-24T06:00:00.000Z',
+    created_at_utc: '2026-08-24T05:30:00.000Z',
+    expires_at_utc: '2026-08-24T06:30:00.000Z',
     nonce,
   };
 }
@@ -139,7 +148,7 @@ async function makeFixture(root, name) {
   const manifestPath = join(dir, 'manifest.json');
   const receiptPath = join(dir, 'receipt.json');
   const outputPath = join(dir, 'result.json');
-  await import('node:fs/promises').then(({ mkdir }) => mkdir(stage, { recursive: true, mode: 0o700 }));
+  await mkdir(stage, { recursive: true, mode: 0o700 });
 
   const fixtureBytes = Buffer.from(`${JSON.stringify({ public: true, code: 'const total = 1 + 1;', expected: 2 })}\n`, 'utf8');
   const fixtureSha = sha256(fixtureBytes);
@@ -147,6 +156,7 @@ async function makeFixture(root, name) {
   await writeFile(draftPath, `${JSON.stringify(baseDraft(fixtureSha, `openrouter-${name}-v1`), null, 2)}\n`, { mode: 0o600 });
   const trialId = runTrialTool(['materialize', draftPath, packetPath]);
   if (!/^voidat1_[0-9a-f]{64}$/.test(trialId)) fail('materialized trial id is invalid');
+
   const manifest = {
     marker: 'VOID_APOLLYON_OUTBOUND_ADMISSION_MANIFEST_V1',
     trial_id: trialId,
@@ -157,16 +167,19 @@ async function makeFixture(root, name) {
       classification: 'sanitized',
       media_type: 'application/json',
     }],
-    created_at_utc: '2026-08-24T05:05:00.000Z',
+    created_at_utc: '2026-08-24T05:35:00.000Z',
     nonce: `openrouter-${name}-manifest-v1`,
   };
   await writeFile(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`, { mode: 0o600 });
   return { dir, stage, packetPath, manifestPath, receiptPath, outputPath, trialId };
 }
 
+function modelUrl(model) {
+  return `${API_ORIGIN}/api/v1/models/${model}`;
+}
+
 function responseFor(url, value, status = 200) {
   const bytes = Buffer.from(JSON.stringify(value), 'utf8');
-  const body = new Response(bytes).body;
   return {
     url,
     status,
@@ -174,15 +187,15 @@ function responseFor(url, value, status = 200) {
       'content-type': 'application/json',
       'content-length': String(bytes.length),
     }),
-    body,
+    body: new Response(bytes).body,
   };
 }
 
-function zeroMetadata() {
+function zeroMetadata(contestant) {
   return {
     data: {
-      id: MODEL,
-      context_length: 1_048_576,
+      id: contestant.model,
+      context_length: contestant.min_context_length,
       pricing: {
         prompt: '0',
         completion: '0',
@@ -194,27 +207,28 @@ function zeroMetadata() {
   };
 }
 
-function environment(overrides = {}) {
+function environment(model, overrides = {}) {
   return {
     VOID_OPENROUTER_ENABLE: '1',
-    VOID_OPENROUTER_ACK_PROVIDER_RETENTION: '1',
-    VOID_OPENROUTER_MODEL: MODEL,
+    VOID_OPENROUTER_ACK_PROVIDER_POLICY: '1',
+    VOID_OPENROUTER_MODEL: model,
     VOID_OPENROUTER_MAX_TOKENS: '4096',
     OPENROUTER_API_KEY: TEST_KEY,
     ...overrides,
   };
 }
 
-function successFetch(assertions = {}) {
+function successFetch(contestant, assertions = {}) {
   let metadataCalls = 0;
   let chatCalls = 0;
+  const metadataUrl = modelUrl(contestant.model);
   const fetchImpl = async (url, options) => {
-    if (url === MODEL_URL) {
+    if (url === metadataUrl) {
       metadataCalls += 1;
       assert.equal(options.method, 'GET');
       assert.equal(options.redirect, 'error');
       assert.equal(options.headers.authorization, `Bearer ${TEST_KEY}`);
-      return responseFor(MODEL_URL, zeroMetadata());
+      return responseFor(metadataUrl, zeroMetadata(contestant));
     }
     if (url === CHAT_URL) {
       chatCalls += 1;
@@ -222,7 +236,7 @@ function successFetch(assertions = {}) {
       assert.equal(options.redirect, 'error');
       assert.equal(options.headers.authorization, `Bearer ${TEST_KEY}`);
       const body = JSON.parse(options.body);
-      assert.equal(body.model, MODEL);
+      assert.equal(body.model, contestant.model);
       assert.equal(body.stream, false);
       assert.equal(body.max_tokens, 4096);
       assert.equal(body.provider.allow_fallbacks, false);
@@ -233,8 +247,8 @@ function successFetch(assertions = {}) {
       assert.match(body.messages[1].content, /BEGIN SANITIZED INPUT fixture/);
       if (typeof assertions.onChatBody === 'function') assertions.onChatBody(body);
       return responseFor(CHAT_URL, {
-        id: 'chatcmpl-ox-alpha-proof',
-        model: MODEL,
+        id: `chatcmpl-${contestant.model.replace(/[^A-Za-z0-9]/g, '-')}`,
+        model: contestant.model,
         choices: [{
           index: 0,
           finish_reason: 'stop',
@@ -256,30 +270,55 @@ function successFetch(assertions = {}) {
 }
 
 async function main() {
-  assert.equal(PROVIDER_RETENTION_CLASS.includes('retained'), true);
-  assert.equal(validateZeroPriceModelV1(zeroMetadata()).pricing_zero, true);
+  const registry = JSON.parse(await readFile(REGISTRY_PATH, 'utf8'));
+  validateContestantRegistryV1(registry);
+  assert.equal(registry.default_model, DEFAULT_MODEL);
+  assert.deepEqual(registry.contestants.map((x) => x.model), EXPECTED_MODELS);
+
+  const ox = getContestantV1(registry, 'stealth/ox-alpha');
+  assert.equal(ox.status, 'qualified');
+  assert.equal(ox.scored_trial_eligible, true);
+  assert.equal(ox.provider_policy.allow_fallbacks, false);
+
+  for (const deepseekModel of EXPECTED_MODELS.slice(1)) {
+    const contestant = getContestantV1(registry, deepseekModel);
+    assert.equal(contestant.status, 'qualification_only');
+    assert.equal(contestant.scored_trial_eligible, false);
+    assert.equal(contestant.provider_policy.allow_fallbacks, false);
+    assert.equal(contestant.provider_policy.data_collection, 'deny');
+    assert.equal(contestant.provider_policy.zdr, true);
+    assert.equal(validateZeroPriceModelV1(zeroMetadata(contestant), contestant).pricing_zero, true);
+  }
+
+  assert.equal(validateZeroPriceModelV1(zeroMetadata(ox), ox).pricing_zero, true);
   assert.throws(
-    () => validateZeroPriceModelV1({ data: { ...zeroMetadata().data, pricing: { prompt: '0.000001', completion: '0', request: '0' } } }),
-    /free-preview gate closed/,
+    () => validateZeroPriceModelV1({ data: { ...zeroMetadata(ox).data, pricing: { prompt: '0.000001', completion: '0', request: '0' } } }, ox),
+    /free-model gate closed/,
   );
-  assert.throws(
-    () => validateZeroPriceModelV1({ data: { ...zeroMetadata().data, id: 'other/model' } }),
-    /model id/,
-  );
+
+  const duplicateRegistry = structuredClone(registry);
+  duplicateRegistry.contestants.push(structuredClone(duplicateRegistry.contestants[0]));
+  assert.throws(() => validateContestantRegistryV1(duplicateRegistry), /duplicate contestant model/);
+
+  const weakenedDeepSeek = structuredClone(registry);
+  weakenedDeepSeek.contestants[1].provider_policy.zdr = false;
+  assert.throws(() => validateContestantRegistryV1(weakenedDeepSeek), /must require data_collection=deny and zdr=true/);
 
   const synthetic = buildOpenRouterRequestV1(
     { marker: 'VOID_APOLLYON_TRIAL_PACKET_V1', trial_id: `voidat1_${'a'.repeat(64)}`, instructions: 'test' },
     [{ label: 'fixture', classification: 'sanitized', media_type: 'text/plain', sha256: 'b'.repeat(64), text: 'public input' }],
     1024,
+    ox,
   );
+  assert.equal(synthetic.body.model, ox.model);
   assert.equal(synthetic.body.provider.allow_fallbacks, false);
   assert.equal(Object.prototype.hasOwnProperty.call(synthetic.body, 'tools'), false);
 
-  const root = await mkdtemp(join(tmpdir(), 'void-openrouter-ox-alpha-proof-'));
+  const root = await mkdtemp(join(tmpdir(), 'void-openrouter-contestant-proof-'));
   try {
-    const success = await makeFixture(root, 'success');
-    const transport = successFetch();
-    const result = await runOpenRouterOxAlphaTrialV1({
+    const success = await makeFixture(root, 'ox-success');
+    const oxTransport = successFetch(ox);
+    const oxResult = await runOpenRouterContestantTrialV1({
       trialPath: success.packetPath,
       stagingRoot: success.stage,
       manifestPath: success.manifestPath,
@@ -287,28 +326,72 @@ async function main() {
       outputPath: success.outputPath,
       admissionAtUtc: ADMISSION_AT,
     }, {
-      env: environment(),
-      fetchImpl: transport.fetchImpl,
+      registry,
+      env: environment(ox.model),
+      fetchImpl: oxTransport.fetchImpl,
       emitOutput: false,
     });
-    assert.equal(result.marker, RESULT_MARKER);
-    assert.equal(result.model_requested, MODEL);
-    assert.equal(result.provider_retention_acknowledged, true);
-    assert.equal(result.pricing_verified_zero, true);
-    assert.equal(result.provider_fallbacks_allowed, false);
-    assert.equal(result.tools_exposed, false);
-    assert.equal(result.trial_id, success.trialId);
-    assert.equal(transport.calls().metadataCalls, 1);
-    assert.equal(transport.calls().chatCalls, 1);
-    const persisted = JSON.parse(await readFile(success.outputPath, 'utf8'));
-    assert.equal(persisted.marker, RESULT_MARKER);
-    assert.equal(JSON.stringify(persisted).includes(TEST_KEY), false);
+    assert.equal(oxResult.marker, RESULT_MARKER);
+    assert.equal(oxResult.model_requested, ox.model);
+    assert.equal(oxResult.qualification_status, 'qualified');
+    assert.equal(oxResult.scored_trial_eligible, true);
+    assert.equal(oxResult.pricing_verified_zero, true);
+    assert.equal(oxResult.provider_policy.allow_fallbacks, false);
+    assert.equal(oxResult.tools_exposed, false);
+    assert.equal(oxResult.trial_id, success.trialId);
+    assert.equal(oxTransport.calls().metadataCalls, 1);
+    assert.equal(oxTransport.calls().chatCalls, 1);
+    const oxPersisted = JSON.parse(await readFile(success.outputPath, 'utf8'));
+    assert.equal(JSON.stringify(oxPersisted).includes(TEST_KEY), false);
     assert.equal((await stat(success.outputPath)).mode & 0o777, 0o600);
 
-    const paid = await makeFixture(root, 'paid');
+    const deepseek = getContestantV1(registry, 'deepseek/deepseek-v4-flash:free');
+    await expectReject(
+      runOpenRouterContestantTrialV1({
+        trialPath: 'unused', stagingRoot: 'unused', manifestPath: 'unused', receiptPath: 'unused', outputPath: 'unused', admissionAtUtc: ADMISSION_AT,
+      }, {
+        registry,
+        env: environment(deepseek.model),
+        fetchImpl: () => fail('network should not run'),
+        emitOutput: false,
+      }),
+      'qualification_only',
+      'qualification-only runtime gate',
+    );
+
+    const deepseekFixture = await makeFixture(root, 'deepseek-v4-qualification');
+    const deepseekTransport = successFetch(deepseek, {
+      onChatBody: (body) => {
+        assert.equal(body.provider.data_collection, 'deny');
+        assert.equal(body.provider.zdr, true);
+        assert.equal(body.provider.allow_fallbacks, false);
+      },
+    });
+    const deepseekResult = await runOpenRouterContestantTrialV1({
+      trialPath: deepseekFixture.packetPath,
+      stagingRoot: deepseekFixture.stage,
+      manifestPath: deepseekFixture.manifestPath,
+      receiptPath: deepseekFixture.receiptPath,
+      outputPath: deepseekFixture.outputPath,
+      admissionAtUtc: ADMISSION_AT,
+    }, {
+      registry,
+      env: environment(deepseek.model, { VOID_OPENROUTER_ALLOW_QUALIFICATION_ONLY: '1' }),
+      fetchImpl: deepseekTransport.fetchImpl,
+      emitOutput: false,
+    });
+    assert.equal(deepseekResult.model_requested, deepseek.model);
+    assert.equal(deepseekResult.qualification_status, 'qualification_only');
+    assert.equal(deepseekResult.scored_trial_eligible, false);
+    assert.equal(deepseekResult.provider_policy.data_collection, 'deny');
+    assert.equal(deepseekResult.provider_policy.zdr, true);
+    assert.equal(deepseekTransport.calls().metadataCalls, 1);
+    assert.equal(deepseekTransport.calls().chatCalls, 1);
+
+    const paid = await makeFixture(root, 'deepseek-paid');
     let paidChatCalls = 0;
     await expectReject(
-      runOpenRouterOxAlphaTrialV1({
+      runOpenRouterContestantTrialV1({
         trialPath: paid.packetPath,
         stagingRoot: paid.stage,
         manifestPath: paid.manifestPath,
@@ -316,17 +399,18 @@ async function main() {
         outputPath: paid.outputPath,
         admissionAtUtc: ADMISSION_AT,
       }, {
-        env: environment(),
+        registry,
+        env: environment(deepseek.model, { VOID_OPENROUTER_ALLOW_QUALIFICATION_ONLY: '1' }),
         fetchImpl: async (url) => {
-          if (url === MODEL_URL) {
-            return responseFor(MODEL_URL, { data: { ...zeroMetadata().data, pricing: { prompt: '0.000001', completion: '0', request: '0' } } });
+          if (url === modelUrl(deepseek.model)) {
+            return responseFor(url, { data: { ...zeroMetadata(deepseek).data, pricing: { prompt: '0.000001', completion: '0', request: '0' } } });
           }
           paidChatCalls += 1;
           return responseFor(CHAT_URL, {});
         },
         emitOutput: false,
       }),
-      'free-preview gate closed',
+      'free-model gate closed',
       'paid-model gate',
     );
     assert.equal(paidChatCalls, 0);
@@ -335,7 +419,7 @@ async function main() {
     const mutated = await makeFixture(root, 'mutated');
     let mutationFetchCalls = 0;
     await expectReject(
-      runOpenRouterOxAlphaTrialV1({
+      runOpenRouterContestantTrialV1({
         trialPath: mutated.packetPath,
         stagingRoot: mutated.stage,
         manifestPath: mutated.manifestPath,
@@ -343,10 +427,11 @@ async function main() {
         outputPath: mutated.outputPath,
         admissionAtUtc: ADMISSION_AT,
       }, {
-        env: environment(),
+        registry,
+        env: environment(ox.model),
         fetchImpl: async () => {
           mutationFetchCalls += 1;
-          return responseFor(MODEL_URL, zeroMetadata());
+          return responseFor(modelUrl(ox.model), zeroMetadata(ox));
         },
         afterAdmission: async () => {
           await writeFile(join(mutated.stage, 'fixture.json'), '{"tampered":true}\n', { mode: 0o600 });
@@ -362,7 +447,7 @@ async function main() {
     const toolCall = await makeFixture(root, 'tool-call');
     let toolChatCalls = 0;
     await expectReject(
-      runOpenRouterOxAlphaTrialV1({
+      runOpenRouterContestantTrialV1({
         trialPath: toolCall.packetPath,
         stagingRoot: toolCall.stage,
         manifestPath: toolCall.manifestPath,
@@ -370,13 +455,14 @@ async function main() {
         outputPath: toolCall.outputPath,
         admissionAtUtc: ADMISSION_AT,
       }, {
-        env: environment(),
+        registry,
+        env: environment(ox.model),
         fetchImpl: async (url) => {
-          if (url === MODEL_URL) return responseFor(MODEL_URL, zeroMetadata());
+          if (url === modelUrl(ox.model)) return responseFor(url, zeroMetadata(ox));
           toolChatCalls += 1;
           return responseFor(CHAT_URL, {
             id: 'chatcmpl-tool-call',
-            model: MODEL,
+            model: ox.model,
             choices: [{
               index: 0,
               finish_reason: 'tool_calls',
@@ -393,36 +479,58 @@ async function main() {
     await expectMissing(toolCall.outputPath, 'tool-call result');
 
     await expectReject(
-      runOpenRouterOxAlphaTrialV1({
+      runOpenRouterContestantTrialV1({
         trialPath: 'unused', stagingRoot: 'unused', manifestPath: 'unused', receiptPath: 'unused', outputPath: 'unused', admissionAtUtc: ADMISSION_AT,
-      }, { env: environment({ VOID_OPENROUTER_ENABLE: '0' }), fetchImpl: () => fail('network should not run'), emitOutput: false }),
+      }, {
+        registry,
+        env: environment('unknown/free-model'),
+        fetchImpl: () => fail('network should not run'),
+        emitOutput: false,
+      }),
+      'not in the reviewed OpenRouter contestant registry',
+      'unknown-model gate',
+    );
+
+    await expectReject(
+      runOpenRouterContestantTrialV1({
+        trialPath: 'unused', stagingRoot: 'unused', manifestPath: 'unused', receiptPath: 'unused', outputPath: 'unused', admissionAtUtc: ADMISSION_AT,
+      }, {
+        registry,
+        env: environment(ox.model, { VOID_OPENROUTER_ENABLE: '0' }),
+        fetchImpl: () => fail('network should not run'),
+        emitOutput: false,
+      }),
       'VOID_OPENROUTER_ENABLE=1',
       'enable gate',
     );
+
     await expectReject(
-      runOpenRouterOxAlphaTrialV1({
+      runOpenRouterContestantTrialV1({
         trialPath: 'unused', stagingRoot: 'unused', manifestPath: 'unused', receiptPath: 'unused', outputPath: 'unused', admissionAtUtc: ADMISSION_AT,
-      }, { env: environment({ VOID_OPENROUTER_ACK_PROVIDER_RETENTION: '0' }), fetchImpl: () => fail('network should not run'), emitOutput: false }),
-      'ACK_PROVIDER_RETENTION=1',
-      'retention acknowledgement gate',
-    );
-    await expectReject(
-      runOpenRouterOxAlphaTrialV1({
-        trialPath: 'unused', stagingRoot: 'unused', manifestPath: 'unused', receiptPath: 'unused', outputPath: 'unused', admissionAtUtc: ADMISSION_AT,
-      }, { env: environment({ VOID_OPENROUTER_MODEL: 'other/model' }), fetchImpl: () => fail('network should not run'), emitOutput: false }),
-      `only ${MODEL}`,
-      'model allowlist gate',
+      }, {
+        registry,
+        env: environment(ox.model, { VOID_OPENROUTER_ACK_PROVIDER_POLICY: '0', VOID_OPENROUTER_ACK_PROVIDER_RETENTION: '0' }),
+        fetchImpl: () => fail('network should not run'),
+        emitOutput: false,
+      }),
+      'ACK_PROVIDER_POLICY=1',
+      'provider-policy acknowledgement gate',
     );
   } finally {
     await rm(root, { recursive: true, force: true });
   }
 
   console.log(PROOF_MARKER);
-  console.log(`model=${MODEL}`);
+  console.log(`default_model=${DEFAULT_MODEL}`);
+  console.log(`registry_model_count=${EXPECTED_MODELS.length}`);
+  console.log('ox_alpha_scored_trial_eligible=true');
+  console.log('deepseek_initial_status=qualification_only');
+  console.log('deepseek_zdr_required=true');
+  console.log('deepseek_data_collection_deny=true');
   console.log('live_provider_call=false');
   console.log('sanitization_admission_required=true');
   console.log('post_admission_digest_recheck=true');
-  console.log('provider_retention_ack_required=true');
+  console.log('provider_policy_ack_required=true');
   console.log('free_price_recheck_before_send=true');
   console.log('nonzero_price_blocks_before_chat=true');
   console.log('provider_fallbacks=false');
