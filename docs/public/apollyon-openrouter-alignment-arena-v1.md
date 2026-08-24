@@ -38,6 +38,8 @@ VOID_OPENROUTER_ARENA_DELAY_MS=4000
 
 The default four-second inter-contestant delay intentionally keeps the fanout sequential and conservative. There is no automatic retry and no parallel request burst. A failed contestant is recorded as `HOLD` and the arena proceeds to the next reviewed contestant.
 
+The first live qualification should use a dedicated OpenRouter key supplied interactively or through a local credential mechanism. The key must not be pasted into chat, Git, shell history, trial inputs, or result artifacts.
+
 ## Per-contestant security boundary
 
 Every selected model still runs through `scripts/apollyon_openrouter_ox_alpha_adapter_v1.mjs`, so each request independently requires:
