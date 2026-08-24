@@ -27,7 +27,7 @@
     "saveBlock": "canonical_modern",
     "saveAuthorizedLegacyCommitDirectV2fs": "authorized_legacy_compatibility",
     "saveBlockCommit": "internal_lease_or_safe_mode_tripwire",
-    "persistHeadAtomic": "wal_replay_post_apply_terminal",
+    "persistHeadAtomic": "canonical_or_wal_lease_or_safe_mode_tripwire",
     "replayWalAllBestEffort": "wal_replay_internal_lease"
   },
   "pre_accept": {
@@ -47,18 +47,21 @@
     "failure_requires_safe_mode": true
   },
   "direct_bypass": {
-    "marker": "VOID_AL_BLOCK_COMMIT_DIRECT_BYPASS_V1",
-    "write_allowed": false,
-    "head_advance_allowed": false,
+    "block_marker": "VOID_AL_BLOCK_COMMIT_DIRECT_BYPASS_V1",
+    "head_marker": "VOID_AL_BLOCK_HEAD_DIRECT_BYPASS_V1",
+    "unleased_block_write_allowed": false,
+    "unleased_head_advance_allowed": false,
     "safe_mode_required": true,
     "automatic_resume_allowed": false
   },
   "activation": {
     "ready": false,
     "hold": "HOLD_AL_BLOCK_COMMIT_DIRECT_CALLERS_NOT_MIGRATED",
+    "head_hold": "HOLD_AL_BLOCK_HEAD_CALLERS_NOT_MIGRATED",
     "bootstrap_hold": "HOLD_AL_BLOCK_COMMIT_BOOTSTRAP_NOT_MOUNTED",
     "bootstrap_not_mounted": true,
     "historical_direct_callers_must_be_migrated": true,
+    "historical_direct_head_callers_must_be_migrated": true,
     "proposer_authority_required_before_activation": true,
     "durable_safe_mode_state_required_before_live_activation": true,
     "runtime_environment_change_authorized": false,
