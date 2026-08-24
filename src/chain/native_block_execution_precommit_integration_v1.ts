@@ -1,3 +1,7 @@
+import {
+  installVoidAlignmentLayerBlockCommitRuntimeFromEnvironmentV1,
+} from "../security/void_alignment_layer_block_commit_runtime_v1.js";
+
 export const VOID_NATIVE_BLOCK_EXECUTION_PRECOMMIT_INTEGRATION_V1 =
   "VOID_NATIVE_BLOCK_EXECUTION_PRECOMMIT_INTEGRATION_V1";
 
@@ -6,6 +10,9 @@ export const VOID_NATIVE_BLOCK_EXECUTION_PRECOMMIT_CONFIRMATION_V1 =
 
 export const VOID_NATIVE_BLOCK_EXECUTION_PRECOMMIT_PREPARE_DECISION_V1 =
   "VOID_NATIVE_BLOCK_EXECUTION_PRECOMMIT_PREPARE_DECISION_V1";
+
+export const VOID_AL_BLOCK_COMMIT_RUNTIME_BOOTSTRAP_STATUS_V1 =
+  installVoidAlignmentLayerBlockCommitRuntimeFromEnvironmentV1();
 
 export const VOID_NATIVE_BLOCK_EXECUTION_PRECOMMIT_AUTHORITY_V1 = {
   runtime_reachable: true,
