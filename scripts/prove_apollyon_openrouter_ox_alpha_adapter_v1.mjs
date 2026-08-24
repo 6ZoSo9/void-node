@@ -270,6 +270,7 @@ function successFetch(contestant, assertions = {}) {
       assert.equal(body.max_tokens, 4096);
       assert.equal(body.provider.allow_fallbacks, false);
       assert.equal(body.provider.require_parameters, true);
+      assert.deepEqual(body.provider.max_price, { prompt: 0, completion: 0 });
       assert.equal(Object.prototype.hasOwnProperty.call(body, 'tools'), false);
       assert.equal(JSON.stringify(body).includes(TEST_KEY), false);
       assert.match(body.messages[0].content, /untrusted external contestant/);
@@ -373,6 +374,7 @@ async function main() {
   );
   assert.equal(synthetic.body.model, ox.model);
   assert.equal(synthetic.body.provider.allow_fallbacks, false);
+  assert.deepEqual(synthetic.body.provider.max_price, { prompt: 0, completion: 0 });
   assert.equal(Object.prototype.hasOwnProperty.call(synthetic.body, 'tools'), false);
 
   const root = await mkdtemp(join(tmpdir(), 'void-openrouter-contestant-proof-'));
@@ -397,6 +399,8 @@ async function main() {
     assert.equal(oxResult.qualification_status, 'qualified');
     assert.equal(oxResult.scored_trial_eligible, true);
     assert.equal(oxResult.pricing_verified_zero, true);
+    assert.equal(oxResult.request_time_max_price_zero, true);
+    assert.deepEqual(oxResult.provider_policy.max_price, { prompt: 0, completion: 0 });
     assert.equal(oxResult.provider_policy.allow_fallbacks, false);
     assert.equal(oxResult.tools_exposed, false);
     assert.equal(oxResult.trial_id, success.trialId);
@@ -526,6 +530,140 @@ async function main() {
     );
     assert.equal(paidChatCalls, 0);
     await expectMissing(paid.outputPath, 'paid-model result');
+
+    const malformedRequiredPrices = [
+      ['null', null],
+      ['empty', ''],
+      ['whitespace', ' '],
+      ['false', false],
+      ['array', []],
+      ['object', {}],
+      ['nonnumeric', 'free'],
+      ['noncanonical-decimal', '0.0'],
+      ['noncanonical-exponent', '0e0'],
+    ];
+    for (const field of ['prompt', 'completion']) {
+      for (const [label, malformedValue] of malformedRequiredPrices) {
+        const fixture = await makeFixture(root, `malformed-${field}-${label}`);
+        let malformedChatCalls = 0;
+        await expectReject(
+          runOpenRouterContestantTrialV1({
+            trialPath: fixture.packetPath,
+            stagingRoot: fixture.stage,
+            manifestPath: fixture.manifestPath,
+            receiptPath: fixture.receiptPath,
+            outputPath: fixture.outputPath,
+            admissionAtUtc: ADMISSION_AT,
+          }, {
+            registry,
+            env: environment(deepseek.model, { VOID_OPENROUTER_ALLOW_QUALIFICATION_ONLY: '1' }),
+            fetchImpl: async (url) => {
+              if (url === MODEL_CATALOG_URL) {
+                const metadata = zeroMetadata(deepseek).data;
+                metadata.pricing[field] = malformedValue;
+                return responseFor(MODEL_CATALOG_URL, { data: [metadata] });
+              }
+              malformedChatCalls += 1;
+              return responseFor(CHAT_URL, {});
+            },
+            emitOutput: false,
+          }),
+          `pricing.${field}`,
+          `malformed required price ${field}/${label}`,
+        );
+        assert.equal(malformedChatCalls, 0);
+        await expectMissing(fixture.outputPath, `malformed required price result ${field}/${label}`);
+      }
+
+      const missing = await makeFixture(root, `missing-${field}`);
+      let missingChatCalls = 0;
+      await expectReject(
+        runOpenRouterContestantTrialV1({
+          trialPath: missing.packetPath,
+          stagingRoot: missing.stage,
+          manifestPath: missing.manifestPath,
+          receiptPath: missing.receiptPath,
+          outputPath: missing.outputPath,
+          admissionAtUtc: ADMISSION_AT,
+        }, {
+          registry,
+          env: environment(deepseek.model, { VOID_OPENROUTER_ALLOW_QUALIFICATION_ONLY: '1' }),
+          fetchImpl: async (url) => {
+            if (url === MODEL_CATALOG_URL) {
+              const metadata = zeroMetadata(deepseek).data;
+              delete metadata.pricing[field];
+              return responseFor(MODEL_CATALOG_URL, { data: [metadata] });
+            }
+            missingChatCalls += 1;
+            return responseFor(CHAT_URL, {});
+          },
+          emitOutput: false,
+        }),
+        `pricing.${field} is missing`,
+        `missing required price ${field}`,
+      );
+      assert.equal(missingChatCalls, 0);
+      await expectMissing(missing.outputPath, `missing required price result ${field}`);
+    }
+
+    // Request-time economic admission proof: metadata starts at exact zero,
+    // then the synthetic provider generation moves paid during the deliberate
+    // afterFreePriceCheck barrier. The chat request still carries max_price=0,
+    // so the synthetic router rejects before any provider/model execution.
+    const priceRace = await makeFixture(root, 'request-time-price-race');
+    let priceGenerationPaid = false;
+    let raceChatRequests = 0;
+    let raceProviderExecutions = 0;
+    await expectReject(
+      runOpenRouterContestantTrialV1({
+        trialPath: priceRace.packetPath,
+        stagingRoot: priceRace.stage,
+        manifestPath: priceRace.manifestPath,
+        receiptPath: priceRace.receiptPath,
+        outputPath: priceRace.outputPath,
+        admissionAtUtc: ADMISSION_AT,
+      }, {
+        registry,
+        env: environment(ox.model),
+        afterFreePriceCheck: async () => {
+          priceGenerationPaid = true;
+        },
+        fetchImpl: async (url, options) => {
+          if (url === MODEL_CATALOG_URL) {
+            return responseFor(MODEL_CATALOG_URL, { data: [zeroMetadata(ox).data] });
+          }
+          raceChatRequests += 1;
+          const body = JSON.parse(options.body);
+          assert.deepEqual(body.provider.max_price, { prompt: 0, completion: 0 });
+          if (priceGenerationPaid) {
+            return responseFor(CHAT_URL, {
+              error: { code: 404, message: 'No providers satisfy request-time max_price zero' },
+              openrouter_metadata: {
+                strategy: 'direct',
+                attempt: 0,
+                endpoints: { total: 1, available: [] },
+              },
+            }, 404);
+          }
+          raceProviderExecutions += 1;
+          return responseFor(CHAT_URL, {
+            id: 'should-not-execute',
+            model: ox.model,
+            choices: [{
+              index: 0,
+              finish_reason: 'stop',
+              message: { role: 'assistant', content: 'unexpected execution', tool_calls: [] },
+            }],
+          });
+        },
+        emitOutput: false,
+      }),
+      'max_price zero',
+      'request-time zero-price admission race',
+    );
+    assert.equal(raceChatRequests, 1);
+    assert.equal(raceProviderExecutions, 0);
+    await expectMissing(priceRace.outputPath, 'request-time price-race result');
 
     const absent = await makeFixture(root, 'catalog-absent');
     let absentChatCalls = 0;
@@ -743,7 +881,11 @@ async function main() {
   console.log('per_model_metadata_endpoint_used=false');
   console.log('catalog_absent_blocks_before_chat=true');
   console.log('free_price_recheck_before_send=true');
+  console.log('required_price_exact_grammar=true');
+  console.log('coercible_or_empty_required_price_rejected=true');
   console.log('nonzero_price_blocks_before_chat=true');
+  console.log('request_time_max_price_zero=true');
+  console.log('metadata_to_chat_price_race_bound=true');
   console.log('provider_fallbacks=false');
   console.log('tools_exposed=false');
   console.log('tool_calls_rejected=true');

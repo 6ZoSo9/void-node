@@ -102,12 +102,38 @@ post-admission staged bytes still match admitted digests
 all inputs are public or sanitized text/JSON
 OpenRouter `/api/v1/models` catalog contains exactly one matching selected model id
 context length remains at or above the reviewed floor
-all published pricing components are exactly zero
+required prompt/completion pricing is canonical exact zero (`0` or `"0"`)
+every other non-null published pricing component is canonical exact zero
+provider.max_price.prompt = 0
+provider.max_price.completion = 0
 provider fallbacks = false
 no tools are exposed
 ```
 
 For backwards compatibility during this source generation, `VOID_OPENROUTER_ACK_PROVIDER_RETENTION=1` also satisfies the provider-policy acknowledgement gate. New operator instructions should use `VOID_OPENROUTER_ACK_PROVIDER_POLICY=1`.
+
+## Zero-cost admission wall
+
+The free-only economic boundary is enforced twice for different purposes.
+
+First, the live `/api/v1/models` catalog is drift evidence. Required `pricing.prompt` and `pricing.completion` values must use one reviewed exact-zero wire grammar: JSON number `0` or canonical string `"0"`. Null, empty/whitespace strings, booleans, arrays/objects, malformed text, and noncanonical numeric strings such as `"0.0"` or `"0e0"` fail before chat. Optional published pricing fields may be null/not-applicable; every non-null optional price must also be canonical exact zero.
+
+Second, the actual routed chat request carries:
+
+```json
+{
+  "provider": {
+    "max_price": {
+      "prompt": 0,
+      "completion": 0
+    }
+  }
+}
+```
+
+OpenRouter documents `provider.max_price` as a hard provider-routing ceiling: providers above the requested prompt/completion price are excluded and the request fails when no endpoint qualifies. This binds the text-only prompt/completion cost authority to the request OpenRouter actually admits, instead of relying only on the earlier catalog snapshot.
+
+The adapter sends no tools, web-search/server-tool parameters, image/audio/video inputs, or other paid modalities. The catalog check still requires every published non-null pricing component to be exact zero as drift defense. A later extension that admits another billable modality must define and prove its own request-time zero-cost admission primitive before it may enter this free-only lane.
 
 ## Secret and TOCTOU boundary
 

@@ -357,24 +357,38 @@ async function collectAdmittedInputs(stagingRoot, manifest, receipt, hooks = {})
   return { items, total };
 }
 
+function isExactPublishedZeroPrice(raw) {
+  if (typeof raw === 'number') return Object.is(raw, 0);
+  return raw === '0';
+}
+
 export function validateZeroPriceModelV1(modelEnvelope, contestant) {
   if (!contestant || typeof contestant !== 'object') fail('contestant policy is required for model metadata validation');
   const model = modelEnvelope?.data ?? modelEnvelope;
-  if (!model || typeof model !== 'object') fail('OpenRouter model metadata is malformed');
+  if (!model || typeof model !== 'object' || Array.isArray(model)) fail('OpenRouter model metadata is malformed');
   if (model.id !== contestant.model) fail(`OpenRouter model id must equal ${contestant.model}`);
   if (!Number.isInteger(model.context_length) || model.context_length < contestant.min_context_length) {
     fail(`OpenRouter model context length is below the reviewed minimum for ${contestant.model}`);
   }
   const pricing = model.pricing;
-  if (!pricing || typeof pricing !== 'object' || Array.isArray(pricing) || Object.keys(pricing).length === 0) fail('OpenRouter pricing metadata is missing');
-  for (const required of ['prompt', 'completion']) {
-    if (!Object.prototype.hasOwnProperty.call(pricing, required)) fail(`OpenRouter pricing.${required} is missing`);
+  if (!pricing || typeof pricing !== 'object' || Array.isArray(pricing) || Object.keys(pricing).length === 0) {
+    fail('OpenRouter pricing metadata is missing');
   }
+
+  const required = new Set(['prompt', 'completion']);
+  for (const key of required) {
+    if (!Object.prototype.hasOwnProperty.call(pricing, key)) fail(`OpenRouter pricing.${key} is missing`);
+    if (!isExactPublishedZeroPrice(pricing[key])) {
+      fail(`OpenRouter pricing.${key} must be canonical exact zero; free-model gate closed`);
+    }
+  }
+
   for (const [key, raw] of Object.entries(pricing)) {
-    if (raw === null || raw === undefined || raw === '') continue;
-    const value = Number(raw);
-    if (!Number.isFinite(value)) fail(`OpenRouter pricing.${key} is non-numeric`);
-    if (value !== 0) fail(`OpenRouter pricing.${key} is nonzero; free-model gate closed`);
+    if (required.has(key)) continue;
+    if (raw === null || raw === undefined) continue;
+    if (!isExactPublishedZeroPrice(raw)) {
+      fail(`OpenRouter pricing.${key} is not canonical exact zero; free-model gate closed`);
+    }
   }
   return { id: model.id, context_length: model.context_length, pricing_zero: true };
 }
@@ -414,6 +428,10 @@ function providerRequestPolicy(contestant) {
   const policy = {
     allow_fallbacks: false,
     require_parameters: true,
+    max_price: {
+      prompt: 0,
+      completion: 0,
+    },
   };
   if (contestant.provider_policy.data_collection !== null) {
     policy.data_collection = contestant.provider_policy.data_collection;
@@ -625,6 +643,7 @@ export async function runOpenRouterContestantTrialV1(options, hooks = {}) {
     provider_policy_acknowledged: true,
     public_retention_acknowledged: runtime.contestant.privacy_class === 'retained_public_only',
     pricing_verified_zero: true,
+    request_time_max_price_zero: true,
     provider_policy: providerRequestPolicy(runtime.contestant),
     tools_exposed: false,
     registry_sha256: registryLoaded.sha256,
