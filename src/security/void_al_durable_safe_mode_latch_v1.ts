@@ -11,6 +11,7 @@ import {
   renameSync,
   unlinkSync,
   writeFileSync,
+  type Stats,
 } from "node:fs";
 import path from "node:path";
 
@@ -79,6 +80,7 @@ export class VoidAlDurableSafeModeLatchErrorV1 extends Error {
 const HEX64_RE = /^[0-9a-f]{64}$/;
 const REASON_RE = /^[A-Za-z0-9._:-]{1,200}$/;
 const UINT64_LIMIT = 1n << 64n;
+const ZERO_SHA256 = "0".repeat(64);
 const STATE_KEYS = Object.freeze([
   "schema",
   "marker",
@@ -172,7 +174,7 @@ function normalizeRoot(rootDirectory: string): string {
   const root = path.resolve(supplied);
   if (root === path.parse(root).root) fail("AL_DURABLE_SAFE_MODE_ROOT_IS_FILESYSTEM_ROOT");
 
-  let stat;
+  let stat: Stats;
   try {
     stat = lstatSync(root);
   } catch (error) {
@@ -208,7 +210,7 @@ function fsyncDirectory(root: string): void {
   }
 }
 
-function assertPrivateRegularFile(stat: ReturnType<typeof fstatSync>, label: string): void {
+function assertPrivateRegularFile(stat: Stats, label: string): void {
   if (!stat.isFile()) fail(`${label}_NOT_REGULAR`);
   if (stat.nlink !== 1) fail(`${label}_LINK_COUNT_INVALID`);
   if (typeof process.getuid === "function" && stat.uid !== process.getuid()) {
@@ -252,8 +254,10 @@ function validateState(raw: unknown): VoidAlDurableSafeModeStateV1 {
       !REASON_RE.test(raw.latest_reason_code) ||
       typeof raw.first_evidence_sha256 !== "string" ||
       !HEX64_RE.test(raw.first_evidence_sha256) ||
+      raw.first_evidence_sha256 === ZERO_SHA256 ||
       typeof raw.latest_evidence_sha256 !== "string" ||
-      !HEX64_RE.test(raw.latest_evidence_sha256)
+      !HEX64_RE.test(raw.latest_evidence_sha256) ||
+      raw.latest_evidence_sha256 === ZERO_SHA256
     ) {
       fail("AL_DURABLE_SAFE_MODE_LATCHED_STATE_INVALID");
     }
@@ -426,8 +430,8 @@ export function initializeVoidAlDurableSafeModeLatchV1(args: {
     if (!mutationAttempted && existsSync(lockPath(root))) {
       try {
         releaseLock(root);
-      } catch {
-        // Keep the lock if its own release is not provably durable.
+      } catch (releaseError) {
+        void releaseError;
       }
     }
     if (error instanceof VoidAlDurableSafeModeLatchErrorV1) throw error;
@@ -457,7 +461,9 @@ export function latchVoidAlDurableSafeModeV1(args: {
     fail("AL_DURABLE_SAFE_MODE_REASON_INVALID");
   }
   const evidenceSha = String(args.evidence_sha256 || "").toLowerCase();
-  if (!HEX64_RE.test(evidenceSha)) fail("AL_DURABLE_SAFE_MODE_EVIDENCE_INVALID");
+  if (!HEX64_RE.test(evidenceSha) || evidenceSha === ZERO_SHA256) {
+    fail("AL_DURABLE_SAFE_MODE_EVIDENCE_INVALID");
+  }
 
   const root = normalizeRoot(args.root_directory);
   acquireLock(root);
@@ -506,8 +512,8 @@ export function latchVoidAlDurableSafeModeV1(args: {
     if (!mutationAttempted && existsSync(lockPath(root))) {
       try {
         releaseLock(root);
-      } catch {
-        // Keep the lock if its own release is not provably durable.
+      } catch (releaseError) {
+        void releaseError;
       }
     }
     if (error instanceof VoidAlDurableSafeModeLatchErrorV1) throw error;
