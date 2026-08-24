@@ -274,3 +274,21 @@ The public registry `model` remains the discovery/contestant identity. The actua
 Successful evidence is accepted only when the response `model`, router metadata `requested` model, and the exactly one selected router endpoint `model` all equal that concrete execution slug. The selected provider is persisted as evidence. If OpenRouter cannot supply these bindings for a contestant, the result is HOLD rather than GREEN.
 
 The deterministic accepted-result recovery leaf is not authentication and can never self-authorize a recovered GREEN result. A pre-existing journal causes HOLD before catalog/chat activity and forbids automatic provider reexecution pending operator reconciliation. Within the same process, an already accepted response may retry exact final publication once without another provider/model request; a process-loss boundary leaves durable evidence but no automatic execution or GREEN authority.
+
+
+## Same-key execution serialization
+
+The deterministic accepted-recovery identity also defines one deterministic pre-execution claim leaf. After reversible catalog validation and immediately before the irreversible chat POST, the adapter durably creates that claim with the same exact anonymous-stage / no-replace / file-fsync / parent-fsync publication primitive.
+
+Exactly one process may create the claim. A same-key contender that sees the existing exact claim returns BUSY/HOLD and performs zero provider/model execution. The adapter never automatically deletes or stale-reclaims an execution claim.
+
+This deliberately favors fail-closed ambiguity over duplicate external execution:
+
+- claimant crash after durable claim but before chat => later calls HOLD; no automatic reexecution;
+- claimant crash after chat acceptance but before accepted-result publication => later calls HOLD; no automatic reexecution;
+- foreign/preseeded claim => denial only, never provider authority;
+- foreign/preseeded recovery generation => denial only, never recovered GREEN authority.
+
+If an operator can independently prove that a pre-chat claim never reached a provider, claim reconciliation/removal is a separate reviewed operation. This source does not infer that from process age, PID, timestamps, or same-UID ownership. No stale-owner timeout can silently widen provider-execution authority.
+
+The result persists `execution_claim_sha256`, binding accepted evidence back to the exact deterministic claim contents that serialized the absent -> executing transition.

@@ -682,6 +682,57 @@ async function assertNoAutomaticRecoveryEvidenceV1(path) {
   fail('accepted-result recovery evidence already exists; automatic GREEN and provider reexecution are forbidden; operator reconciliation is required');
 }
 
+function executionClaimPathV1(outputPath, recoveryKey) {
+  return join(dirname(resolve(outputPath)), `.void-openrouter-execution-claim-${recoveryKey}.json`);
+}
+
+function executionClaimValueV1({
+  recoveryKey,
+  registrySha256,
+  contestant,
+  trialId,
+  admissionId,
+  promptSha256,
+  maxTokens,
+}) {
+  return {
+    marker: 'VOID_APOLLYON_OPENROUTER_EXECUTION_CLAIM_V1',
+    accepted_recovery_key: recoveryKey,
+    registry_sha256: registrySha256,
+    model: contestant.model,
+    execution_model: executionModelV1(contestant),
+    canonical_slug: contestant.canonical_slug,
+    trial_id: trialId,
+    admission_id: admissionId,
+    prompt_sha256: promptSha256,
+    max_tokens: maxTokens,
+    state: 'executing',
+  };
+}
+
+async function acquireExecutionClaimV1(path, value, hooks = {}) {
+  if (typeof hooks.beforeExecutionClaim === 'function') {
+    await hooks.beforeExecutionClaim({ claimPath: path, claim: value });
+  }
+
+  let published;
+  try {
+    published = await publishJsonExactV1(path, value, {
+      faultHook: hooks.executionClaimPublicationFaultHook,
+    });
+  } catch {
+    fail('execution claim publication conflicted or failed; provider execution forbidden');
+  }
+
+  if (published?.created !== true) {
+    fail('execution claim already exists; same-key provider execution is BUSY/HOLD');
+  }
+
+  return {
+    sha256: sha256(Buffer.from(canonicalJson(value), 'utf8')),
+  };
+}
+
 async function publishFinalResultFromAcceptedV1(path, value, faultHook) {
   try {
     return await publishJsonExactV1(path, value, { faultHook });
@@ -768,18 +819,49 @@ export async function runOpenRouterContestantTrialV1(options, hooks = {}) {
     maxTokens: runtime.maxTokens,
   });
   const recoveryPath = acceptedRecoveryPathV1(options.outputPath, recoveryKey);
+  if (typeof hooks.beforeRecoveryEvidenceCheck === 'function') {
+    await hooks.beforeRecoveryEvidenceCheck({ recoveryPath, recoveryKey });
+  }
   await assertNoAutomaticRecoveryEvidenceV1(recoveryPath);
 
   const metadata = await fetchModelMetadata(fetchImpl, runtime.apiKey, runtime.metadataTimeoutMs, runtime.contestant);
   const model = validateZeroPriceModelV1(metadata, runtime.contestant);
   if (typeof hooks.afterFreePriceCheck === 'function') await hooks.afterFreePriceCheck({ model, contestant: runtime.contestant });
 
+  const executionClaimPath = executionClaimPathV1(options.outputPath, recoveryKey);
+  const executionClaim = executionClaimValueV1({
+    recoveryKey,
+    registrySha256: registryLoaded.sha256,
+    contestant: runtime.contestant,
+    trialId: trialRead.value.trial_id,
+    admissionId: receiptRead.value.admission_id,
+    promptSha256: request.promptSha256,
+    maxTokens: runtime.maxTokens,
+  });
+  const acquiredClaim = await acquireExecutionClaimV1(executionClaimPath, executionClaim, hooks);
+
+  // Close the recovery-check -> claim race. A recovery generation that appears
+  // after the initial check but before this durable claim never widens authority.
+  await assertNoAutomaticRecoveryEvidenceV1(recoveryPath);
+
+  if (typeof hooks.afterExecutionClaimPersisted === 'function') {
+    await hooks.afterExecutionClaimPersisted({
+      claimPath: executionClaimPath,
+      claimSha256: acquiredClaim.sha256,
+      recoveryKey,
+    });
+  }
+
   const rawResponse = await sendChat(fetchImpl, runtime.apiKey, request.body, runtime.chatTimeoutMs);
   const accepted = validateChatResponse(rawResponse, runtime.contestant);
+  if (typeof hooks.afterChatAccepted === 'function') {
+    await hooks.afterChatAccepted({ accepted, recoveryKey, claimPath: executionClaimPath });
+  }
 
   const result = {
     marker: RESULT_MARKER,
     accepted_recovery_key: recoveryKey,
+    execution_claim_sha256: acquiredClaim.sha256,
     provider: PROVIDER,
     model_requested: runtime.contestant.model,
     model_execution_requested: request.executionModel,

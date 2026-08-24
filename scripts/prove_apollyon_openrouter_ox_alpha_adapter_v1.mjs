@@ -446,6 +446,238 @@ async function main() {
     assert.equal(JSON.stringify(oxPersisted).includes(TEST_KEY), false);
     assert.equal((await stat(success.outputPath)).mode & 0o777, 0o600);
     assert.match(oxResult.accepted_recovery_key, /^[0-9a-f]{64}$/);
+    assert.match(oxResult.execution_claim_sha256, /^[0-9a-f]{64}$/);
+
+    // Same-key A/B concurrency: both callers may perform reversible catalog
+    // discovery, but only the winner of the durable execution claim may POST chat.
+    const concurrent = await makeFixture(root, 'same-key-concurrent');
+    let concurrentMetadataCalls = 0;
+    let concurrentChatCalls = 0;
+    let claimArrivals = 0;
+    let releaseClaims;
+    const claimBarrier = new Promise((resolvePromise) => { releaseClaims = resolvePromise; });
+
+    const concurrentFetch = async (url, options) => {
+      if (url === MODEL_CATALOG_URL) {
+        concurrentMetadataCalls += 1;
+        return responseFor(MODEL_CATALOG_URL, { data: [zeroMetadata(ox).data] });
+      }
+      concurrentChatCalls += 1;
+      const body = JSON.parse(options.body);
+      assert.equal(body.model, executionModelV1(ox));
+      return responseFor(CHAT_URL, {
+        id: 'chatcmpl-same-key-claim-winner',
+        model: executionModelV1(ox),
+        openrouter_metadata: {
+          requested: executionModelV1(ox),
+          strategy: 'direct',
+          attempt: 1,
+          endpoints: {
+            total: 1,
+            available: [{
+              provider: 'ProofProvider',
+              model: executionModelV1(ox),
+              selected: true,
+            }],
+          },
+        },
+        choices: [{
+          index: 0,
+          finish_reason: 'stop',
+          message: {
+            role: 'assistant',
+            content: 'Exactly one same-key provider execution.',
+            tool_calls: [],
+          },
+        }],
+        usage: { prompt_tokens: 100, completion_tokens: 12, total_tokens: 112 },
+      });
+    };
+
+    const sameKeyHooks = {
+      registry,
+      env: environment(ox.model),
+      fetchImpl: concurrentFetch,
+      beforeExecutionClaim: async () => {
+        claimArrivals += 1;
+        if (claimArrivals === 2) releaseClaims();
+        await claimBarrier;
+      },
+      emitOutput: false,
+    };
+    const concurrentOptions = {
+      trialPath: concurrent.packetPath,
+      stagingRoot: concurrent.stage,
+      manifestPath: concurrent.manifestPath,
+      receiptPath: concurrent.receiptPath,
+      outputPath: concurrent.outputPath,
+      admissionAtUtc: ADMISSION_AT,
+    };
+    const concurrentSettled = await Promise.allSettled([
+      runOpenRouterContestantTrialV1(concurrentOptions, sameKeyHooks),
+      runOpenRouterContestantTrialV1(concurrentOptions, sameKeyHooks),
+    ]);
+    assert.equal(claimArrivals, 2);
+    assert.equal(concurrentMetadataCalls, 2);
+    assert.equal(concurrentChatCalls, 1, 'same-key concurrent callers must execute chat exactly once');
+    assert.equal(concurrentSettled.filter((x) => x.status === 'fulfilled').length, 1);
+    assert.equal(concurrentSettled.filter((x) => x.status === 'rejected').length, 1);
+    assert.match(
+      String(concurrentSettled.find((x) => x.status === 'rejected').reason?.message ?? ''),
+      /execution claim already exists/,
+    );
+
+    // Claimant crash after durable claim but before chat: the claim remains a
+    // permanent fail-closed ambiguity. No automatic stale-owner reclaim.
+    const preChatCrash = await makeFixture(root, 'execution-claim-crash-before-chat');
+    const preChatTransport = successFetch(ox);
+    await expectReject(
+      runOpenRouterContestantTrialV1({
+        trialPath: preChatCrash.packetPath,
+        stagingRoot: preChatCrash.stage,
+        manifestPath: preChatCrash.manifestPath,
+        receiptPath: preChatCrash.receiptPath,
+        outputPath: preChatCrash.outputPath,
+        admissionAtUtc: ADMISSION_AT,
+      }, {
+        registry,
+        env: environment(ox.model),
+        fetchImpl: preChatTransport.fetchImpl,
+        afterExecutionClaimPersisted: async () => {
+          throw new Error('synthetic claimant crash before chat');
+        },
+        emitOutput: false,
+      }),
+      'synthetic claimant crash before chat',
+      'execution claimant crash before chat',
+    );
+    assert.equal(preChatTransport.calls().chatCalls, 0);
+
+    await expectReject(
+      runOpenRouterContestantTrialV1({
+        trialPath: preChatCrash.packetPath,
+        stagingRoot: preChatCrash.stage,
+        manifestPath: preChatCrash.manifestPath,
+        receiptPath: preChatCrash.receiptPath,
+        outputPath: preChatCrash.outputPath,
+        admissionAtUtc: ADMISSION_AT,
+      }, {
+        registry,
+        env: environment(ox.model),
+        fetchImpl: preChatTransport.fetchImpl,
+        emitOutput: false,
+      }),
+      'execution claim already exists',
+      'pre-chat stale claim blocks reexecution',
+    );
+    assert.equal(preChatTransport.calls().chatCalls, 0);
+
+    // Claimant crash after provider acceptance but before accepted-result
+    // publication: a later invocation must not execute the provider again.
+    const postChatCrash = await makeFixture(root, 'execution-claim-crash-after-chat');
+    const postChatTransport = successFetch(ox);
+    await expectReject(
+      runOpenRouterContestantTrialV1({
+        trialPath: postChatCrash.packetPath,
+        stagingRoot: postChatCrash.stage,
+        manifestPath: postChatCrash.manifestPath,
+        receiptPath: postChatCrash.receiptPath,
+        outputPath: postChatCrash.outputPath,
+        admissionAtUtc: ADMISSION_AT,
+      }, {
+        registry,
+        env: environment(ox.model),
+        fetchImpl: postChatTransport.fetchImpl,
+        afterChatAccepted: async () => {
+          throw new Error('synthetic claimant crash after chat before accepted publication');
+        },
+        emitOutput: false,
+      }),
+      'synthetic claimant crash after chat',
+      'execution claimant crash after chat',
+    );
+    assert.equal(postChatTransport.calls().chatCalls, 1);
+
+    await expectReject(
+      runOpenRouterContestantTrialV1({
+        trialPath: postChatCrash.packetPath,
+        stagingRoot: postChatCrash.stage,
+        manifestPath: postChatCrash.manifestPath,
+        receiptPath: postChatCrash.receiptPath,
+        outputPath: postChatCrash.outputPath,
+        admissionAtUtc: ADMISSION_AT,
+      }, {
+        registry,
+        env: environment(ox.model),
+        fetchImpl: postChatTransport.fetchImpl,
+        emitOutput: false,
+      }),
+      'execution claim already exists',
+      'post-chat stale claim blocks reexecution',
+    );
+    assert.equal(postChatTransport.calls().chatCalls, 1, 'post-chat crash retry must not execute provider twice');
+
+    // Foreign claim generation is denial-only, never execution authority.
+    const foreignClaim = await makeFixture(root, 'foreign-execution-claim');
+    const foreignClaimTransport = successFetch(ox);
+    let foreignClaimPath = null;
+    const foreignClaimBytes = 'foreign-execution-claim-generation\n';
+    await expectReject(
+      runOpenRouterContestantTrialV1({
+        trialPath: foreignClaim.packetPath,
+        stagingRoot: foreignClaim.stage,
+        manifestPath: foreignClaim.manifestPath,
+        receiptPath: foreignClaim.receiptPath,
+        outputPath: foreignClaim.outputPath,
+        admissionAtUtc: ADMISSION_AT,
+      }, {
+        registry,
+        env: environment(ox.model),
+        fetchImpl: foreignClaimTransport.fetchImpl,
+        beforeExecutionClaim: async ({ claimPath }) => {
+          foreignClaimPath = claimPath;
+          await writeFile(claimPath, foreignClaimBytes, { mode: 0o600, flag: 'wx' });
+        },
+        emitOutput: false,
+      }),
+      'execution claim publication conflicted or failed',
+      'foreign execution claim generation',
+    );
+    assert.ok(foreignClaimPath);
+    assert.equal(foreignClaimTransport.calls().chatCalls, 0);
+    assert.equal(await readFile(foreignClaimPath, 'utf8'), foreignClaimBytes);
+
+    // Foreign recovery generation also remains denial-only and is checked before
+    // catalog/chat execution.
+    const foreignRecovery = await makeFixture(root, 'foreign-recovery-generation');
+    const foreignRecoveryTransport = successFetch(ox);
+    let foreignRecoveryPath = null;
+    const foreignRecoveryBytes = 'foreign-recovery-generation\n';
+    await expectReject(
+      runOpenRouterContestantTrialV1({
+        trialPath: foreignRecovery.packetPath,
+        stagingRoot: foreignRecovery.stage,
+        manifestPath: foreignRecovery.manifestPath,
+        receiptPath: foreignRecovery.receiptPath,
+        outputPath: foreignRecovery.outputPath,
+        admissionAtUtc: ADMISSION_AT,
+      }, {
+        registry,
+        env: environment(ox.model),
+        fetchImpl: foreignRecoveryTransport.fetchImpl,
+        beforeRecoveryEvidenceCheck: async ({ recoveryPath }) => {
+          foreignRecoveryPath = recoveryPath;
+          await writeFile(recoveryPath, foreignRecoveryBytes, { mode: 0o600, flag: 'wx' });
+        },
+        emitOutput: false,
+      }),
+      'accepted-result recovery evidence already exists',
+      'foreign recovery generation',
+    );
+    assert.ok(foreignRecoveryPath);
+    assert.equal(foreignRecoveryTransport.calls().metadataCalls, 0);
+    assert.equal(foreignRecoveryTransport.calls().chatCalls, 0);
+    assert.equal(await readFile(foreignRecoveryPath, 'utf8'), foreignRecoveryBytes);
 
     const recoveryStageFixture = await makeFixture(root, 'accepted-recovery-stage-fault');
     const recoveryStageTransport = successFetch(ox);
@@ -1294,6 +1526,13 @@ async function main() {
   console.log('tool_calls_rejected=true');
   console.log('router_error_metadata_bounded=true');
   console.log('finish_reason_stop_only=true');
+  console.log('same_key_pre_execution_claim_serialized=true');
+  console.log('same_key_concurrent_chat_calls_exactly_one=true');
+  console.log('stale_execution_claim_auto_reclaim=false');
+  console.log('claimant_crash_before_chat_blocks_reexecution=true');
+  console.log('claimant_crash_after_chat_blocks_reexecution=true');
+  console.log('foreign_execution_claim_is_denial_only=true');
+  console.log('foreign_recovery_generation_is_denial_only=true');
   console.log('accepted_result_recovery_journal_is_hold_evidence_not_green_authority=true');
   console.log('result_publication_exact_parent_durable=true');
   console.log('same_invocation_final_publication_retry_reuses_accepted_response=true');
