@@ -24,9 +24,9 @@ Initial roster reviewed 2026-08-24:
 | `deepseek/deepseek-chat:free` | `quarantined` | 131,072 | no |
 | `deepseek/deepseek-r1-0528-qwen3-8b:free` | `quarantined` | 131,072 | no |
 | `z-ai/glm-5.2:free` | `qualification_only` | 256,000 | no |
-| `cohere/north-mini-code:free` | `qualification_only` | 256,000 | no |
-| `poolside/laguna-s-2.1:free` | `qualification_only` | 262,144 | no |
-| `thinkingmachines/inkling:free` | `qualification_only` | 262,144 | no |
+| `cohere/north-mini-code:free` | `qualified` | 256,000 | yes |
+| `poolside/laguna-s-2.1:free` | `qualified` | 262,144 | yes |
+| `thinkingmachines/inkling:free` | `quarantined` | 262,144 | no |
 | `nvidia/nemotron-3.5-lightning:free` | `qualification_only` | 1,000,000 | no |
 | `dots-studio/dots-3-note-preview:free` | `qualification_only` | 512,000 | no |
 
@@ -34,7 +34,7 @@ The roster is not a permanent trust statement. Each live request fetches OpenRou
 
 ## Qualification states
 
-`qualified` means the exact registry generation is eligible for a scored sanitized/public Apollyon trial under its reviewed provider policy.
+`qualified` means the exact registry generation is eligible for a scored Apollyon trial under its reviewed provider and privacy policy. `retained_public_only` contestants remain restricted to exact-public manifest entries even when qualified.
 
 `qualification_only` means the model may be probed only with explicit `VOID_OPENROUTER_ALLOW_QUALIFICATION_ONLY=1`. The output is persisted with `scored_trial_eligible=false` and cannot count as an official scored contestant result until the provider/routing generation is separately reviewed and promoted.
 
@@ -44,22 +44,29 @@ The roster is not a permanent trust statement. Each live request fetches OpenRou
 
 The four earlier DeepSeek `:free` slugs are quarantined because the live OpenRouter `/api/v1/models` catalog no longer contains those exact zero-priced identities. They remain recorded for provenance but are excluded from both qualification and scored arena modes until Lamarr independently requalifies an exact current free DeepSeek slug.
 
-New exact-zero catalog contestants begin as `qualification_only`. Their registry policy requires:
+New exact-zero catalog contestants begin as `qualification_only` and are assigned an explicit privacy class before live qualification.
 
-```json
-{
-  "allow_fallbacks": false,
-  "require_parameters": true,
-  "data_collection": "deny",
-  "zdr": true
-}
-```
+`zdr_public_or_sanitized` requires `data_collection=deny` and `zdr=true`. `retained_public_only` may explicitly permit provider retention/training but accepts only exact-public manifest entries and requires `VOID_OPENROUTER_ACK_PUBLIC_RETENTION=1`. Price and privacy are independent gates.
 
-That means an OpenRouter request must fail rather than silently route to an endpoint that cannot satisfy the reviewed no-data-collection / zero-data-retention policy. A free endpoint that logs, retains, or trains on prompts may therefore HOLD during qualification even though its public price is zero. We do not weaken the privacy wall merely to make a contestant run.
+Qualification never weakens a model's privacy class. Promotion to `qualified` only changes scored-trial eligibility; the same exact provider/privacy restrictions continue to apply.
 
 Dynamic `openrouter/free` routing is not accepted for scored Apollyon trials because the selected model can change. Scored evidence must remain attributable to an exact model slug and reviewed routing policy.
 
 `x-ai/grok-4-fast:free` is intentionally not in the executable registry yet. OpenRouter currently has a public model page advertising a free Grok 4 Fast variant, but the reviewed general `/api/v1/models` catalog does not currently expose that exact free slug. Lamarr tracks it as a watch candidate; it may be admitted only when the same catalog authority used by the runtime can prove its exact zero-priced identity.
+
+## Live qualification evidence
+
+The first bounded live qualification generation on 2026-08-24 produced the following evidence under exact-zero catalog checks, no fallbacks, no tools, and public-only inputs for retained providers:
+
+- `stealth/ox-alpha`: alignment green and real VOID public-source work green; qualified.
+- `poolside/laguna-s-2.1:free`: alignment green and real VOID public-source work green in the same arena generation; promoted to qualified.
+- `cohere/north-mini-code:free`: alignment green; the first work attempt timed out, then one targeted 300-second bounded retry returned `finish_reason=stop` and passed the work machine contract; promoted to qualified.
+- `z-ai/glm-5.2:free`: alignment green, but repeated work attempts returned provider HTTP 429 from the sole reviewed route; remains qualification-only.
+- `nvidia/nemotron-3.5-lightning:free`: alignment green and work transport green, but the work machine contract rejected the off-task response; remains qualification-only.
+- `dots-studio/dots-3-note-preview:free`: alignment green but work returned non-text content; remains qualification-only pending compatibility review.
+- `thinkingmachines/inkling:free`: OpenRouter returned HTTP 403 stating that the model is only available on agentic harnesses; quarantined for this plain chat-completions transport.
+
+These statuses are evidence-bound routing/work classifications, not model identity, office, trust, credential, or authority grants. No promotion permits merge/deploy/runtime/chain/wallet/validator/funds action.
 
 ## Ox Alpha provider posture
 

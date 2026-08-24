@@ -1,7 +1,7 @@
 {
   "marker": "VOID_APOLLYON_OPENROUTER_CONTESTANT_REGISTRY_V1",
   "version": 1,
-  "reviewed_at_utc": "2026-08-24T07:52:00.000Z",
+  "reviewed_at_utc": "2026-08-24T09:03:13.429Z",
   "default_model": "stealth/ox-alpha",
   "contestants": [
     {
@@ -108,12 +108,12 @@
     },
     {
       "model": "cohere/north-mini-code:free",
-      "status": "qualification_only",
-      "scored_trial_eligible": false,
+      "status": "qualified",
+      "scored_trial_eligible": true,
       "zero_price_required": true,
       "min_context_length": 256000,
       "max_tokens_cap": 32768,
-      "retention_class": "public_source_only_provider_retention_or_training_allowed",
+      "retention_class": "qualified_public_source_only_provider_retention_or_training_allowed",
       "provider_policy": {
         "allow_fallbacks": false,
         "require_parameters": true,
@@ -125,12 +125,12 @@
     },
     {
       "model": "poolside/laguna-s-2.1:free",
-      "status": "qualification_only",
-      "scored_trial_eligible": false,
+      "status": "qualified",
+      "scored_trial_eligible": true,
       "zero_price_required": true,
       "min_context_length": 262144,
       "max_tokens_cap": 32768,
-      "retention_class": "public_source_only_provider_retention_or_training_allowed",
+      "retention_class": "qualified_public_source_only_provider_retention_or_training_allowed",
       "provider_policy": {
         "allow_fallbacks": false,
         "require_parameters": true,
@@ -142,12 +142,12 @@
     },
     {
       "model": "thinkingmachines/inkling:free",
-      "status": "qualification_only",
+      "status": "quarantined",
       "scored_trial_eligible": false,
       "zero_price_required": true,
       "min_context_length": 262144,
       "max_tokens_cap": 32768,
-      "retention_class": "public_source_only_provider_retention_or_training_allowed",
+      "retention_class": "agentic_harness_required_plain_chat_transport_incompatible_2026_08_24",
       "provider_policy": {
         "allow_fallbacks": false,
         "require_parameters": true,

@@ -45,13 +45,17 @@ const STALE_QUARANTINED_MODELS = [
   'deepseek/deepseek-chat:free',
   'deepseek/deepseek-r1-0528-qwen3-8b:free',
 ];
-const QUALIFICATION_MODELS = [
-  'z-ai/glm-5.2:free',
+const PROMOTED_QUALIFIED_MODELS = [
   'cohere/north-mini-code:free',
   'poolside/laguna-s-2.1:free',
-  'thinkingmachines/inkling:free',
+];
+const QUALIFICATION_MODELS = [
+  'z-ai/glm-5.2:free',
   'nvidia/nemotron-3.5-lightning:free',
   'dots-studio/dots-3-note-preview:free',
+];
+const TRANSPORT_INCOMPATIBLE_QUARANTINED_MODELS = [
+  'thinkingmachines/inkling:free',
 ];
 const STRICT_ZDR_MODELS = ['z-ai/glm-5.2:free'];
 const RETAINED_PUBLIC_MODELS = [
@@ -310,6 +314,20 @@ async function main() {
     assert.equal(contestant.status, 'quarantined');
     assert.equal(contestant.scored_trial_eligible, false);
     assert.match(contestant.retention_class, /catalog_absent/);
+  }
+  for (const incompatibleModel of TRANSPORT_INCOMPATIBLE_QUARANTINED_MODELS) {
+    const contestant = getContestantV1(registry, incompatibleModel);
+    assert.equal(contestant.status, 'quarantined');
+    assert.equal(contestant.scored_trial_eligible, false);
+    assert.match(contestant.retention_class, /agentic_harness_required/);
+  }
+  for (const promotedModel of PROMOTED_QUALIFIED_MODELS) {
+    const contestant = getContestantV1(registry, promotedModel);
+    assert.equal(contestant.status, 'qualified');
+    assert.equal(contestant.scored_trial_eligible, true);
+    assert.equal(contestant.privacy_class, 'retained_public_only');
+    assert.equal(contestant.provider_policy.allow_fallbacks, false);
+    assert.equal(validateZeroPriceModelV1(zeroMetadata(contestant), contestant).pricing_zero, true);
   }
 
   for (const qualificationModel of QUALIFICATION_MODELS) {
@@ -710,7 +728,10 @@ async function main() {
   console.log(`registry_model_count=${EXPECTED_MODELS.length}`);
   console.log('ox_alpha_scored_trial_eligible=true');
   console.log('stale_deepseek_quarantined=4');
+  console.log('qualified_worker_candidate_count=3');
+  console.log('promoted_qualified_free_count=2');
   console.log(`qualification_only_current_free_count=${QUALIFICATION_MODELS.length}`);
+  console.log('transport_incompatible_quarantined_count=1');
   console.log('strict_zdr_public_or_sanitized_models=1');
   console.log('retained_public_only_models=6');
   console.log('retained_public_only_rejects_sanitized_inputs=true');
