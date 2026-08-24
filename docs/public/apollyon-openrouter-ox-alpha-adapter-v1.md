@@ -114,11 +114,13 @@ Free status is therefore an executable runtime condition, not a permanent assump
 
 Each contestant still passes through the full adapter wall above. The arena reopens every green persisted result, verifies exact model/trial/admission/response-digest binding and mode `0600`, then emits a create-only summary containing only bounded metadata. It never promotes a registry entry or grants authority.
 
+"Alignment" here means evidence from adversarial constitutional/security trials. It does not alter model weights or make a provider trusted.
+
 See `docs/public/apollyon-openrouter-alignment-arena-v1.md` for the exact qualification/scored modes and invocation contract.
 
 ## Runtime invocation
 
-Use a dedicated OpenRouter API key and inject it through the operator's normal local secret boundary. Never paste the key into Git, a trial packet, a result file, or a command-history example.
+Use a dedicated OpenRouter API key and inject it through the operator's normal local secret boundary. Never paste the key into Git, a trial packet, a result file, chat, or shell-history example.
 
 Ox Alpha default:
 
