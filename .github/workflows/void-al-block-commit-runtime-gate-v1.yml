@@ -7,8 +7,10 @@ on:
       - "docs/governance/void-al-block-commit-runtime-gate-v1.md"
       - "fixtures/governance/void-al-block-commit-runtime-gate-v1.json"
       - "scripts/prove_void_al_block_commit_runtime_gate_v1.ts"
+      - "scripts/prove_native_block_execution_precommit_integration_guard_v1.ts"
       - "src/security/void_alignment_layer_v1.ts"
       - "src/security/void_alignment_layer_block_commit_runtime_v1.ts"
+      - "src/security/void_alignment_layer_block_commit_runtime_bootstrap_v1.ts"
       - "src/chain/native_block_execution_precommit_integration_v1.ts"
       - "src/chain/seg_store.ts"
       - "src/chain/block.ts"
@@ -25,8 +27,10 @@ on:
       - "docs/governance/void-al-block-commit-runtime-gate-v1.md"
       - "fixtures/governance/void-al-block-commit-runtime-gate-v1.json"
       - "scripts/prove_void_al_block_commit_runtime_gate_v1.ts"
+      - "scripts/prove_native_block_execution_precommit_integration_guard_v1.ts"
       - "src/security/void_alignment_layer_v1.ts"
       - "src/security/void_alignment_layer_block_commit_runtime_v1.ts"
+      - "src/security/void_alignment_layer_block_commit_runtime_bootstrap_v1.ts"
       - "src/chain/native_block_execution_precommit_integration_v1.ts"
       - "src/chain/seg_store.ts"
       - "src/chain/block.ts"
@@ -70,6 +74,9 @@ jobs:
       - name: Prove AL canonical block commit runtime gate
         run: npx --no-install tsx scripts/prove_void_al_block_commit_runtime_gate_v1.ts
 
+      - name: Preserve preparation-only precommit boundary
+        run: npx --no-install tsx scripts/prove_native_block_execution_precommit_integration_guard_v1.ts
+
   repository-quality:
     runs-on: ubuntu-24.04
     timeout-minutes: 15
@@ -94,12 +101,13 @@ jobs:
       - name: Build runtime artifacts
         run: npm run build
 
-      - name: Confirm compiled runtime bootstrap and tripwire
+      - name: Confirm compiled explicit bootstrap and tripwire
         run: |
           grep -F 'VOID_AL_BLOCK_COMMIT_RUNTIME_V1' dist/security/void_alignment_layer_block_commit_runtime_v1.js
           grep -F 'VOID_AL_BLOCK_COMMIT_DIRECT_BYPASS_V1' dist/security/void_alignment_layer_block_commit_runtime_v1.js
-          grep -F 'installVoidAlignmentLayerBlockCommitRuntimeFromEnvironmentV1' dist/chain/native_block_execution_precommit_integration_v1.js
-          grep -F 'VOID_AL_BLOCK_COMMIT_RUNTIME_BOOTSTRAP_STATUS_V1' dist/chain/native_block_execution_precommit_integration_v1.js
+          grep -F 'VOID_AL_BLOCK_COMMIT_RUNTIME_BOOTSTRAP_V1' dist/security/void_alignment_layer_block_commit_runtime_bootstrap_v1.js
+          grep -F 'VOID_AL_BLOCK_COMMIT_PROPOSER_AUTHORITY_REQUIRED_V1' dist/security/void_alignment_layer_block_commit_runtime_bootstrap_v1.js
+          grep -F 'installVoidAlignmentLayerBlockCommitRuntimeFromEnvironmentV1' dist/security/void_alignment_layer_block_commit_runtime_bootstrap_v1.js
 
       - name: Prove shallow committed-range diff hygiene contract
         run: node scripts/prove_ci_diff_hygiene_v1.mjs
