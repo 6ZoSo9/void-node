@@ -45,6 +45,8 @@ for (const rule of [
   "WebFetch",
   "Bash(git add *)",
   "Bash(git commit *)",
+  "Bash(npm ci)",
+  "Bash(npm ci *)",
   "Edit(/docs/governance/**)",
   "Edit(/src/security/**)",
   "Edit(/src/chain/**)",
@@ -95,18 +97,19 @@ for (const rule of [
   "Bash(git switch *)",
   "Bash(git worktree *)",
   "Bash(npm install *)",
-  "Bash(npm ci *)",
   "Bash(npm publish *)",
 ]) {
   assert.ok(deny.has(rule), `missing required deny rule: ${rule}`);
 }
+assert.ok(!deny.has("Bash(npm ci)"), "bare npm ci must not be denied");
+assert.ok(!deny.has("Bash(npm ci *)"), "npm ci with args must not be denied");
 
 assert.equal(settings?.sandbox?.enabled, true);
 assert.equal(settings?.sandbox?.failIfUnavailable, true);
 assert.equal(settings?.sandbox?.autoAllowBashIfSandboxed, false);
 assert.equal(settings?.sandbox?.allowUnsandboxedCommands, false);
 assert.deepEqual(settings?.sandbox?.excludedCommands, []);
-assert.deepEqual(settings?.sandbox?.network?.allowedDomains, []);
+assert.deepEqual(settings?.sandbox?.network?.allowedDomains, ["registry.npmjs.org"]);
 assert.deepEqual(settings?.sandbox?.network?.allowUnixSockets, []);
 assert.equal(settings?.sandbox?.network?.allowAllUnixSockets, false);
 assert.equal(settings?.sandbox?.network?.allowLocalBinding, false);
@@ -154,3 +157,5 @@ console.log("credential_reads_denied=true");
 console.log("remote_git_mutation_denied=true");
 console.log("self_policy_edit_denied=true");
 console.log("boundary_proof_self_edit_denied=true");
+console.log("npm_ci_prompted=true");
+console.log("sandbox_network_registry_npmjs_only=true");
