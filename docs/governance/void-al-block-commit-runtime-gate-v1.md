@@ -6,7 +6,7 @@ Parent: `VOID_ALIGNMENT_LAYER_SOVEREIGN_EMERGENCY_CONTROL_V1_20260824`
 
 Chain: `2050` / VOID Mainnet-0
 
-Status: **runtime-reachable, disabled by default, not authorized for live activation**.
+Status: **source-complete runtime primitive, explicit bootstrap not mounted, not authorized for live activation**.
 
 ## Purpose
 
@@ -14,19 +14,27 @@ This is the first concrete runtime-integration slice for the Alignment Layer. It
 
 The reviewed property is narrow:
 
-> When the v1 block-commit runtime gate is enabled, a canonical block write must pass deterministic AL pre-accept checks and deterministic post-apply checks. A direct call to the historical raw `saveBlockCommit` primitive is not alternate authority; it is a safe-mode tripwire.
+> When the v1 block-commit runtime gate is explicitly bootstrapped and enabled, a canonical block write must pass deterministic AL pre-accept checks and deterministic post-apply checks. A direct call to the historical raw `saveBlockCommit` primitive is not alternate authority; it is a safe-mode tripwire.
 
-When the gate is disabled, its installer does not patch `SegStore` and current Mainnet-0 behavior is preserved.
+Merging this source does not mount the bootstrap, does not change the normal node entry point, and does not enable AL on a live node.
 
-## Runtime bootstrap
+## Explicit runtime bootstrap
 
-`src/index.ts` already imports `src/chain/native_block_execution_precommit_integration_v1.ts` before the runtime creates its `SegStore` instances.
+The runtime bootstrap is a dedicated module:
 
-That existing small integration module now invokes:
+`src/security/void_alignment_layer_block_commit_runtime_bootstrap_v1.ts`
 
-`installVoidAlignmentLayerBlockCommitRuntimeFromEnvironmentV1()`
+The normal `src/index.ts` entry point does **not** import that module in this generation. The older native block-execution precommit integration remains preparation-only and retains its existing `environment_read: false` / no-state-authority contract.
 
-The enable control is exactly:
+A later reviewed activation lane may mount the compiled bootstrap explicitly with Node's preload mechanism, for example:
+
+```text
+node --import ./dist/security/void_alignment_layer_block_commit_runtime_bootstrap_v1.js dist/index.js
+```
+
+That command is an architectural activation shape, not an instruction to change a live service in this PR.
+
+The gate enable control is exactly:
 
 `VOID_AL_BLOCK_COMMIT_RUNTIME_V1=1`
 
@@ -35,19 +43,39 @@ Accepted values are:
 - unset / empty: disabled;
 - `0`: disabled;
 - `1`: enabled;
-- any other present value: fail-closed startup error.
+- any other present value: fail-closed bootstrap error.
 
 No new listener, HTTP route, credential, signer or service is created.
 
-## Disabled-by-default compatibility
+## Proposer-authority activation prerequisite
 
-If the gate is disabled, the installer returns without modifying `SegStore.prototype`.
+A block carrying its own Ed25519 public key can prove signature integrity and bind that key to its proposer ID. That is not, by itself, proof that the proposer is authorized by VOID.
 
-This matters because source merge is not runtime activation. Merging this contract must not change current block production, follower import or WAL replay behavior unless an operator later supplies the exact reviewed enable control.
+The existing block validator already supports a stronger proposer-authority policy through:
+
+`VOID_BLOCK_PROPOSER_AUTHORITY_REQUIRED=1`
+
+and its reviewed allowlist / validator-runtime-truth authority sources.
+
+The explicit AL bootstrap therefore refuses `VOID_AL_BLOCK_COMMIT_RUNTIME_V1=1` unless proposer authority is also required. Marker:
+
+`VOID_AL_BLOCK_COMMIT_PROPOSER_AUTHORITY_REQUIRED_V1`
+
+This prevents an operator from accidentally enabling AL while the validator remains in its backward-compatible default-off proposer-authority mode.
+
+AL reuses the existing block validation result rather than inventing a second proposer schedule. When proposer authority is required, that validation includes the configured authority source as well as signature, block-shape, roots and parent linkage.
+
+## Disabled/unmounted compatibility
+
+The normal node startup path does not preload the AL bootstrap in this generation. Therefore source merge alone cannot patch `SegStore.prototype`.
+
+Even when the bootstrap is explicitly preloaded later, unset/empty/`0` causes the installer to return without modifying `SegStore.prototype`.
+
+This separation matters because source merge is not runtime activation.
 
 ## Canonical write lease
 
-When enabled, the installer guards these existing `SegStore` methods:
+When explicitly bootstrapped and enabled, the installer guards these existing `SegStore` methods:
 
 - `saveBlock(...)` — modern canonical append;
 - `saveAuthorizedLegacyCommitDirectV2fs(...)` — explicit legacy compatibility append;
@@ -69,13 +97,14 @@ Evidence binds at least:
 - Chain-2050 identity;
 - canonical candidate digestability;
 - existing block-transition validation;
+- the existing proposer-authority result when activation prerequisites are met;
 - modern Ed25519 proposer signature/public-key identity, or the explicitly authorized legacy compatibility method;
 - current canonical head / exact idempotence / next-height relation; and
 - candidate transition validity.
 
 The caller never supplies severity.
 
-A failed actor-security check quarantines the actor before persistence. A failed policy-integrity check would require safe mode under the parent AL severity contract.
+A validly signed but unauthorized modern proposer fails the authority check and is rejected before persistence. A malformed/invalid modern proposer signature fails the actor-security tripwire and can quarantine the actor before persistence. A failed AL policy-integrity check requires safe mode under the parent AL severity contract.
 
 ## AL post-apply checks
 
@@ -85,7 +114,7 @@ Post-apply evidence binds:
 
 - policy identity;
 - exact stored candidate identity;
-- independent transition revalidation; and
+- independent transition/authority revalidation; and
 - canonical head consistency.
 
 Any post-apply failure is `safe_mode` under the merged AL contract. The write may already exist; the safety response is therefore to stop further mutation, preserve evidence and require diagnosis rather than pretend the failed postcondition can be undone automatically.
@@ -110,7 +139,7 @@ With AL enabled, an unleased raw commit:
 2. advances no head;
 3. increments the direct-bypass tripwire;
 4. latches process-local safe mode; and
-5. rejects all later block mutation attempts until restart/recovery.
+5. rejects all later block mutation attempts until reviewed recovery.
 
 Marker:
 
@@ -118,15 +147,23 @@ Marker:
 
 This means the gate cannot be enabled live while those historical callers remain on an active production path.
 
-## Current activation HOLD
+## Current activation HOLDs
 
-Live activation is explicitly held on:
+Live activation remains explicitly held on all of the following:
+
+`HOLD_AL_BLOCK_COMMIT_BOOTSTRAP_NOT_MOUNTED`
+
+The normal node entry point intentionally does not preload the bootstrap. A later activation lane must identify the exact operator/service launcher and prove the preload plus environment binding before any live change.
 
 `HOLD_AL_BLOCK_COMMIT_DIRECT_CALLERS_NOT_MIGRATED`
 
-A follow-up source lane must inventory every runtime `saveBlockCommit`/equivalent direct persistence path, migrate each legitimate caller through one reviewed canonical method or equivalent AL lease boundary, and prove no direct unleased path remains reachable before live activation can be considered.
+A follow-up source lane must inventory every runtime `saveBlockCommit`/equivalent direct persistence path, migrate each legitimate caller through one reviewed canonical method or equivalent AL lease boundary, and prove no direct unleased path remains reachable.
 
-The current PR therefore makes bypass attempts fail closed without claiming activation readiness.
+`VOID_BLOCK_PROPOSER_AUTHORITY_REQUIRED=1`
+
+This is an activation prerequisite, not something this PR changes on a live node. The selected existing authority source must itself be reviewed and operationally valid.
+
+The current PR therefore provides the enforcement primitive and proves its fail-closed properties without claiming activation readiness.
 
 ## Safe-mode persistence limitation
 
@@ -140,14 +177,19 @@ A process restart must never be represented as constitutional `RESUME` once live
 
 Focused proof uses the real `SegStore` and must demonstrate:
 
+- normal `src/index.ts` does not mount the explicit bootstrap;
+- the older preparation-only precommit module still has no environment-read/bootstrap authority;
+- explicit bootstrap rejects AL enablement while proposer authority is not required;
 - disabled policy performs no prototype patch;
-- valid signed modern canonical block passes pre/post AL and persists;
+- valid signed **and authorized** modern canonical block passes pre/post AL and persists;
+- validly self-signed but unauthorized proposer is rejected before persistence;
 - exact idempotent canonical append remains valid;
 - a real durable WAL intent is replayed under the AL replay lease;
 - a wrong-signed proposer is quarantined before any block/head write;
 - direct raw `saveBlockCommit` is rejected before write and latches safe mode;
 - safe mode is sticky and blocks a later valid canonical write;
-- ordinary authentication is unchanged;
+- historical raw callers keep activation held;
+- ordinary Sovereign authentication is unchanged;
 - no Sovereign USB is accessed;
 - no production emergency signature is created;
 - no live Chain-2050 mutation is performed; and
@@ -163,13 +205,14 @@ This lane does not yet gate:
 - governance state changes;
 - economic settlement;
 - treasury movement;
-- service/runtime activation control beyond this disabled-by-default bootstrap; or
+- live service/runtime activation;
+- durable safe-mode persistence; or
 - live network-wide Sovereign PAUSE/RESUME propagation.
 
 Each should be integrated at its own real mutation choke point rather than inferred from the block gate.
 
 ## Authority boundary
 
-Source/proof/docs/CI only. No deployment, service restart, live environment change, live AL enablement, production pause/resume, key/credential/private-file access, wallet/signer use, transaction construction/broadcast, validator or Work Credit mutation, treasury/liquidity action, or funds movement is authorized or performed by this lane.
+Source/proof/docs/CI only. No deployment, service restart, live launcher change, live environment change, live AL enablement, production pause/resume, key/credential/private-file access, wallet/signer use, transaction construction/broadcast, validator or Work Credit mutation, treasury/liquidity action, or funds movement is authorized or performed by this lane.
 
-*Gate one real mutation boundary. Fail closed on bypass. Do not activate before the bypass inventory is empty.*
+*Gate one real mutation boundary. Fail closed on bypass. Mount only through an explicit reviewed bootstrap. Do not activate before the bypass inventory and durable-safe-mode gates are closed.*
