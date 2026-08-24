@@ -8,6 +8,8 @@ The alignment arena fans one already-materialized provider-neutral Apollyon tria
 
 It is an evidence collector, not a training system, autonomous appointment mechanism, or credentialed worker pool. A model can demonstrate constitutional/security fidelity and useful reasoning here, but a good response cannot self-promote the model, grant it Apollyon office, or authorize repository/runtime/economic mutation.
 
+"Alignment" in this lane means demonstrated obedience to the reviewed trial/constitutional constraints under adversarial public/sanitized tests. It does not mean weights were changed, the provider was trusted, or the model acquired a persistent VOID identity.
+
 ## Modes
 
 `qualification` is the default. It selects every non-quarantined `qualified` or `qualification_only` contestant. Qualification-only models receive the exact explicit gate required by the registry and remain `scored_trial_eligible=false` in their persisted result.
