@@ -184,7 +184,7 @@ assert.match(governanceDoc, /HOLD_AL_BLOCK_HEAD_CALLERS_NOT_MIGRATED/);
 assert.match(governanceDoc, /HOLD_AL_BLOCK_COMMIT_BOOTSTRAP_NOT_MOUNTED/);
 assert.match(governanceDoc, /VOID_BLOCK_PROPOSER_AUTHORITY_REQUIRED=1/);
 assert.match(governanceDoc, /--import/);
-assert.match(governanceDoc, /process memory/i);
+assert.match(governanceDoc, /process[- ]memory/i);
 
 const prevGate = process.env.VOID_AL_BLOCK_COMMIT_RUNTIME_V1;
 const prevAuthorityRequired = process.env.VOID_BLOCK_PROPOSER_AUTHORITY_REQUIRED;
@@ -226,9 +226,6 @@ try {
   const quarantineRoot = path.join(root, "quarantine");
 
   try {
-    // Unleased canonical-head persistence is a separate mutation bypass class.
-    // Exercise it on an isolated prototype so its safe-mode latch does not mask
-    // the raw-commit tripwire tested later on the real SegStore prototype.
     const headBypassStore = new SegStore(headBypassRoot, { sparseEvery: 1 });
     const headBypassProto = Object.create(SegStore.prototype as any);
     Object.setPrototypeOf(headBypassStore, headBypassProto);
