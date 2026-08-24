@@ -265,3 +265,12 @@ The catalog `context_length` capability is accepted only as a JSON Number inside
 Accepted model responses use a deterministic recovery identity bound to the exact registry generation, contestant/canonical generation, trial/admission, prompt digest, and token ceiling. The accepted response is durably published as a hidden create-only recovery record before the requested final result. If final result publication becomes uncertain after model execution, an exact retry consumes that already-accepted recovery generation and does not execute the model again. Foreign final generations are never deleted or adopted. Result and recovery publication reuse the parent exact anonymous-stage/no-replace/file-fsync/parent-fsync primitive.
 
 A GREEN arena record must bind the exact semantic registry digest that selected the contestant plus its qualification status, scored eligibility, privacy/retention class, provider request policy, provider allowlist, canonical model generation, and `finish_reason=stop`.
+
+
+## Concrete execution-model and recovery authority wall
+
+The public registry `model` remains the discovery/contestant identity. The actual chat request is pinned to a concrete execution slug derived from the reviewed `canonical_slug`; when the reviewed public identity is a `:free` variant the request uses `<canonical_slug>:free`. This prevents a later stable-alias remap from changing the model generation between catalog inspection and chat execution while preserving the free variant and request-time `max_price=0` ceiling.
+
+Successful evidence is accepted only when the response `model`, router metadata `requested` model, and the exactly one selected router endpoint `model` all equal that concrete execution slug. The selected provider is persisted as evidence. If OpenRouter cannot supply these bindings for a contestant, the result is HOLD rather than GREEN.
+
+The deterministic accepted-result recovery leaf is not authentication and can never self-authorize a recovered GREEN result. A pre-existing journal causes HOLD before catalog/chat activity and forbids automatic provider reexecution pending operator reconciliation. Within the same process, an already accepted response may retry exact final publication once without another provider/model request; a process-loss boundary leaves durable evidence but no automatic execution or GREEN authority.

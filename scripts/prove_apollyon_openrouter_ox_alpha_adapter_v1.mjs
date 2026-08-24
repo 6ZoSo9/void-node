@@ -15,6 +15,7 @@ import {
   RESULT_MARKER,
   buildOpenRouterRequestV1,
   contestantRegistryDigestV1,
+  executionModelV1,
   getContestantV1,
   runOpenRouterContestantTrialV1,
   validateContestantRegistryV1,
@@ -272,7 +273,7 @@ function successFetch(contestant, assertions = {}) {
       assert.equal(options.headers.authorization, `Bearer ${TEST_KEY}`);
       assert.equal(options.headers['x-openrouter-metadata'], 'enabled');
       const body = JSON.parse(options.body);
-      assert.equal(body.model, contestant.model);
+      assert.equal(body.model, executionModelV1(contestant));
       assert.equal(body.stream, false);
       assert.equal(body.max_tokens, 4096);
       assert.equal(body.provider.allow_fallbacks, false);
@@ -285,7 +286,20 @@ function successFetch(contestant, assertions = {}) {
       if (typeof assertions.onChatBody === 'function') assertions.onChatBody(body);
       return responseFor(CHAT_URL, {
         id: `chatcmpl-${contestant.model.replace(/[^A-Za-z0-9]/g, '-')}`,
-        model: contestant.model,
+        model: executionModelV1(contestant),
+        openrouter_metadata: {
+          requested: executionModelV1(contestant),
+          strategy: 'direct',
+          attempt: 1,
+          endpoints: {
+            total: 1,
+            available: [{
+              provider: 'ProofProvider',
+              model: executionModelV1(contestant),
+              selected: true,
+            }],
+          },
+        },
         choices: [{
           index: 0,
           finish_reason: 'stop',
@@ -387,7 +401,7 @@ async function main() {
     1024,
     ox,
   );
-  assert.equal(synthetic.body.model, ox.model);
+  assert.equal(synthetic.body.model, executionModelV1(ox));
   assert.equal(synthetic.body.provider.allow_fallbacks, false);
   assert.deepEqual(synthetic.body.provider.max_price, { prompt: 0, completion: 0 });
   assert.equal(Object.prototype.hasOwnProperty.call(synthetic.body, 'tools'), false);
@@ -411,6 +425,11 @@ async function main() {
     });
     assert.equal(oxResult.marker, RESULT_MARKER);
     assert.equal(oxResult.model_requested, ox.model);
+    assert.equal(oxResult.model_execution_requested, executionModelV1(ox));
+    assert.equal(oxResult.model_reported, executionModelV1(ox));
+    assert.equal(oxResult.router_requested_model, executionModelV1(ox));
+    assert.equal(oxResult.router_selected_model, executionModelV1(ox));
+    assert.equal(oxResult.router_selected_provider, 'ProofProvider');
     assert.equal(oxResult.qualification_status, 'qualified');
     assert.equal(oxResult.scored_trial_eligible, false);
     assert.equal(oxResult.model_canonical_slug, ox.canonical_slug);
@@ -451,38 +470,67 @@ async function main() {
     const finalRecoveryFixture = await makeFixture(root, 'accepted-result-final-retry');
     const finalRecoveryTransport = successFetch(ox);
     let finalPublicationFaulted = false;
-    await expectReject(
-      runOpenRouterContestantTrialV1({
-        trialPath: finalRecoveryFixture.packetPath, stagingRoot: finalRecoveryFixture.stage,
-        manifestPath: finalRecoveryFixture.manifestPath, receiptPath: finalRecoveryFixture.receiptPath,
-        outputPath: finalRecoveryFixture.outputPath, admissionAtUtc: ADMISSION_AT,
-      }, {
-        registry, env: environment(ox.model), fetchImpl: finalRecoveryTransport.fetchImpl,
-        resultPublicationFaultHook: async (phase) => {
-          if (phase === 'after_stage_sync' && !finalPublicationFaulted) {
-            finalPublicationFaulted = true;
-            throw new Error('synthetic final-result publication fault');
-          }
-        }, emitOutput: false,
-      }),
-      'synthetic final-result publication fault', 'accepted result final publication fault',
-    );
-    assert.equal(finalRecoveryTransport.calls().metadataCalls, 1);
-    assert.equal(finalRecoveryTransport.calls().chatCalls, 1);
-    await expectMissing(finalRecoveryFixture.outputPath, 'faulted final result');
-
-    const recoveredFinal = await runOpenRouterContestantTrialV1({
+    const sameInvocationRecovered = await runOpenRouterContestantTrialV1({
       trialPath: finalRecoveryFixture.packetPath, stagingRoot: finalRecoveryFixture.stage,
       manifestPath: finalRecoveryFixture.manifestPath, receiptPath: finalRecoveryFixture.receiptPath,
       outputPath: finalRecoveryFixture.outputPath, admissionAtUtc: ADMISSION_AT,
-    }, { registry, env: environment(ox.model), fetchImpl: finalRecoveryTransport.fetchImpl, emitOutput: false });
-    assert.equal(finalRecoveryTransport.calls().metadataCalls, 1, 'recovery retry must not refetch catalog');
-    assert.equal(finalRecoveryTransport.calls().chatCalls, 1, 'recovery retry must not execute model again');
-    assert.equal(JSON.parse(await readFile(finalRecoveryFixture.outputPath, 'utf8')).accepted_recovery_key, recoveredFinal.accepted_recovery_key);
+    }, {
+      registry, env: environment(ox.model), fetchImpl: finalRecoveryTransport.fetchImpl,
+      resultPublicationFaultHook: async (phase) => {
+        if (phase === 'after_stage_sync' && !finalPublicationFaulted) {
+          finalPublicationFaulted = true;
+          throw new Error('synthetic final-result publication fault');
+        }
+      }, emitOutput: false,
+    });
+    assert.equal(finalPublicationFaulted, true);
+    assert.equal(finalRecoveryTransport.calls().metadataCalls, 1);
+    assert.equal(finalRecoveryTransport.calls().chatCalls, 1);
+    assert.equal(sameInvocationRecovered.finish_reason, 'stop');
+    assert.equal(
+      JSON.parse(await readFile(finalRecoveryFixture.outputPath, 'utf8')).accepted_recovery_key,
+      sameInvocationRecovered.accepted_recovery_key,
+    );
+
+    const crashBoundaryFixture = await makeFixture(root, 'accepted-recovery-crash-boundary');
+    const crashBoundaryTransport = successFetch(ox);
+    await expectReject(
+      runOpenRouterContestantTrialV1({
+        trialPath: crashBoundaryFixture.packetPath, stagingRoot: crashBoundaryFixture.stage,
+        manifestPath: crashBoundaryFixture.manifestPath, receiptPath: crashBoundaryFixture.receiptPath,
+        outputPath: crashBoundaryFixture.outputPath, admissionAtUtc: ADMISSION_AT,
+      }, {
+        registry, env: environment(ox.model), fetchImpl: crashBoundaryTransport.fetchImpl,
+        afterAcceptedRecoveryPersisted: async () => {
+          throw new Error('synthetic process-loss boundary after accepted recovery evidence');
+        },
+        emitOutput: false,
+      }),
+      'synthetic process-loss boundary',
+      'accepted recovery process-loss boundary',
+    );
+    assert.equal(crashBoundaryTransport.calls().metadataCalls, 1);
+    assert.equal(crashBoundaryTransport.calls().chatCalls, 1);
+    await expectMissing(crashBoundaryFixture.outputPath, 'process-loss final result');
+
+    await expectReject(
+      runOpenRouterContestantTrialV1({
+        trialPath: crashBoundaryFixture.packetPath, stagingRoot: crashBoundaryFixture.stage,
+        manifestPath: crashBoundaryFixture.manifestPath, receiptPath: crashBoundaryFixture.receiptPath,
+        outputPath: crashBoundaryFixture.outputPath, admissionAtUtc: ADMISSION_AT,
+      }, {
+        registry, env: environment(ox.model), fetchImpl: crashBoundaryTransport.fetchImpl, emitOutput: false,
+      }),
+      'operator reconciliation is required',
+      'cross-run recovery evidence cannot self-authorize GREEN',
+    );
+    assert.equal(crashBoundaryTransport.calls().metadataCalls, 1, 'journal HOLD must not refetch catalog');
+    assert.equal(crashBoundaryTransport.calls().chatCalls, 1, 'journal HOLD must not execute model again');
+    await expectMissing(crashBoundaryFixture.outputPath, 'journal HOLD final result');
 
     const foreignFinalFixture = await makeFixture(root, 'accepted-result-foreign-final');
     const foreignFinalTransport = successFetch(ox);
-    let foreignFinalFaulted = false;
+    const foreignBytes = 'foreign-result-generation\n';
     await expectReject(
       runOpenRouterContestantTrialV1({
         trialPath: foreignFinalFixture.packetPath, stagingRoot: foreignFinalFixture.stage,
@@ -490,27 +538,31 @@ async function main() {
         outputPath: foreignFinalFixture.outputPath, admissionAtUtc: ADMISSION_AT,
       }, {
         registry, env: environment(ox.model), fetchImpl: foreignFinalTransport.fetchImpl,
-        resultPublicationFaultHook: async (phase) => {
-          if (phase === 'after_stage_sync' && !foreignFinalFaulted) {
-            foreignFinalFaulted = true;
-            throw new Error('synthetic foreign-final setup fault');
-          }
-        }, emitOutput: false,
+        afterAcceptedRecoveryPersisted: async () => {
+          await writeFile(foreignFinalFixture.outputPath, foreignBytes, { mode: 0o600, flag: 'wx' });
+        },
+        emitOutput: false,
       }),
-      'synthetic foreign-final setup fault', 'foreign final setup',
+      'accepted result publication remains unresolved',
+      'foreign final conflict after accepted provider response',
     );
     assert.equal(foreignFinalTransport.calls().chatCalls, 1);
-    await writeFile(foreignFinalFixture.outputPath, 'foreign-generation\n', { mode: 0o600, flag: 'wx' });
+    assert.equal(await readFile(foreignFinalFixture.outputPath, 'utf8'), foreignBytes);
+
     await expectReject(
       runOpenRouterContestantTrialV1({
         trialPath: foreignFinalFixture.packetPath, stagingRoot: foreignFinalFixture.stage,
         manifestPath: foreignFinalFixture.manifestPath, receiptPath: foreignFinalFixture.receiptPath,
         outputPath: foreignFinalFixture.outputPath, admissionAtUtc: ADMISSION_AT,
-      }, { registry, env: environment(ox.model), fetchImpl: foreignFinalTransport.fetchImpl, emitOutput: false }),
-      'final', 'foreign final conflict after accepted recovery',
+      }, {
+        registry, env: environment(ox.model), fetchImpl: foreignFinalTransport.fetchImpl, emitOutput: false,
+      }),
+      'operator reconciliation is required',
+      'foreign final retry is journal-held',
     );
-    assert.equal(foreignFinalTransport.calls().chatCalls, 1, 'foreign conflict must not execute model again');
-    assert.equal(await readFile(foreignFinalFixture.outputPath, 'utf8'), 'foreign-generation\n');
+    assert.equal(foreignFinalTransport.calls().chatCalls, 1, 'foreign final retry must not execute model again');
+    assert.equal(await readFile(foreignFinalFixture.outputPath, 'utf8'), foreignBytes);
+
 
     const deepseek = getContestantV1(registry, 'z-ai/glm-5.2:free');
     await expectReject(
@@ -1228,6 +1280,8 @@ async function main() {
   console.log('per_model_metadata_endpoint_used=false');
   console.log('catalog_absent_blocks_before_chat=true');
   console.log('canonical_model_generation_bound=true');
+  console.log('concrete_execution_model_request_bound=true');
+  console.log('router_selected_execution_model_bound=true');
   console.log('context_length_safe_integer_bound=true');
   console.log('free_price_recheck_before_send=true');
   console.log('required_price_exact_grammar=true');
@@ -1240,9 +1294,10 @@ async function main() {
   console.log('tool_calls_rejected=true');
   console.log('router_error_metadata_bounded=true');
   console.log('finish_reason_stop_only=true');
-  console.log('accepted_result_recovery_journal=true');
+  console.log('accepted_result_recovery_journal_is_hold_evidence_not_green_authority=true');
   console.log('result_publication_exact_parent_durable=true');
-  console.log('retry_after_final_publication_fault_reuses_accepted_response=true');
+  console.log('same_invocation_final_publication_retry_reuses_accepted_response=true');
+  console.log('cross_run_recovery_evidence_forbids_provider_reexecution=true');
   console.log('foreign_final_preserved_without_model_reexecution=true');
   console.log('api_key_persisted=false');
   console.log('runtime_mutation=false');

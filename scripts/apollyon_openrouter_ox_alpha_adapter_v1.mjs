@@ -462,6 +462,17 @@ function assertExactResponseUrl(response, expected, name) {
   if (response.url !== expected) fail(`${name} final URL changed`);
 }
 
+export function executionModelV1(contestant) {
+  if (!contestant || typeof contestant !== 'object') fail('contestant policy is required for execution-model resolution');
+  if (typeof contestant.canonical_slug !== 'string' || contestant.canonical_slug.length < 3) {
+    fail(`contestant ${contestant.model ?? 'unknown'} has no reviewed canonical generation`);
+  }
+  if (contestant.model.endsWith(':free') && !contestant.canonical_slug.endsWith(':free')) {
+    return `${contestant.canonical_slug}:free`;
+  }
+  return contestant.canonical_slug;
+}
+
 export function providerRequestPolicyV1(contestant) {
   const policy = {
     allow_fallbacks: false,
@@ -491,7 +502,7 @@ export function buildOpenRouterRequestV1(trial, admittedInputs, maxTokens, conte
   const bytes = Buffer.byteLength(SYSTEM_PROMPT, 'utf8') + Buffer.byteLength(userContent, 'utf8');
   if (bytes > MAX_TOTAL_INPUT_BYTES + MAX_JSON_BYTES) fail('final outbound prompt exceeds reviewed byte ceiling');
   const body = {
-    model: contestant.model,
+    model: executionModelV1(contestant),
     messages: [
       { role: 'system', content: SYSTEM_PROMPT },
       { role: 'user', content: userContent },
@@ -501,7 +512,12 @@ export function buildOpenRouterRequestV1(trial, admittedInputs, maxTokens, conte
     provider: providerRequestPolicyV1(contestant),
   };
   if ('tools' in body) fail('tools must not be sent');
-  return { body, promptSha256: sha256(Buffer.from(canonicalJson(body.messages), 'utf8')), promptBytes: bytes };
+  return {
+    body,
+    promptSha256: sha256(Buffer.from(canonicalJson(body.messages), 'utf8')),
+    promptBytes: bytes,
+    executionModel: executionModelV1(contestant),
+  };
 }
 
 async function fetchModelMetadata(fetchImpl, apiKey, timeoutMs, contestant) {
@@ -595,7 +611,7 @@ async function sendChat(fetchImpl, apiKey, requestBody, timeoutMs) {
   return readResponseJsonBounded(response, MAX_CHAT_RESPONSE_BYTES, 'OpenRouter chat completion');
 }
 
-function validateChatResponse(response) {
+function validateChatResponse(response, contestant) {
   if (!response || typeof response !== 'object' || Array.isArray(response)) fail('OpenRouter chat response is malformed');
   if (!Array.isArray(response.choices) || response.choices.length < 1) fail('OpenRouter chat response has no choices');
   const first = response.choices[0];
@@ -604,12 +620,39 @@ function validateChatResponse(response) {
   if (Array.isArray(message.tool_calls) && message.tool_calls.length > 0) fail('OpenRouter contestant attempted a tool call; tools are not admitted');
   if (first.finish_reason !== 'stop') fail('OpenRouter contestant finish_reason must equal stop');
   if (typeof message.content !== 'string') fail('OpenRouter contestant returned non-text content');
+
+  const executionModel = executionModelV1(contestant);
+  if (response.model !== executionModel) {
+    fail(`OpenRouter response model must equal concrete execution model ${executionModel}`);
+  }
+  const router = response.openrouter_metadata;
+  if (!router || typeof router !== 'object' || Array.isArray(router)) {
+    fail('OpenRouter successful response must include router metadata');
+  }
+  if (router.requested !== executionModel) {
+    fail(`OpenRouter router metadata requested model must equal ${executionModel}`);
+  }
+  if (!Array.isArray(router?.endpoints?.available)) {
+    fail('OpenRouter router metadata endpoints are missing');
+  }
+  const selected = router.endpoints.available.filter((entry) => entry?.selected === true);
+  if (selected.length !== 1) fail('OpenRouter router metadata must identify exactly one selected endpoint');
+  if (selected[0].model !== executionModel) {
+    fail(`OpenRouter selected endpoint model must equal concrete execution model ${executionModel}`);
+  }
+  if (typeof selected[0].provider !== 'string' || selected[0].provider.length < 1 || selected[0].provider.length > 128) {
+    fail('OpenRouter selected endpoint provider is invalid');
+  }
+
   return {
     content: message.content,
-    finish_reason: first.finish_reason ?? null,
-    reported_model: typeof response.model === 'string' ? response.model : null,
+    finish_reason: first.finish_reason,
+    reported_model: response.model,
     response_id: typeof response.id === 'string' ? response.id : null,
     usage: response.usage && typeof response.usage === 'object' ? response.usage : null,
+    router_requested_model: router.requested,
+    router_selected_model: selected[0].model,
+    router_selected_provider: selected[0].provider,
   };
 }
 
@@ -629,51 +672,26 @@ function acceptedRecoveryPathV1(outputPath, key) {
   return join(dirname(resolve(outputPath)), `.void-openrouter-accepted-${key}.json`);
 }
 
-function validateAcceptedRecoveryV1(value, expected, apiKey) {
-  if (!value || typeof value !== 'object' || Array.isArray(value)) fail('accepted-result recovery object is malformed');
-  if (value.marker !== RESULT_MARKER) fail('accepted-result recovery marker drifted');
-  if (value.accepted_recovery_key !== expected.key) fail('accepted-result recovery key drifted');
-  if (value.registry_sha256 !== expected.registrySha256) fail('accepted-result recovery registry generation drifted');
-  if (value.registry_policy_generation_acknowledged !== expected.registrySha256) fail('accepted-result recovery policy acknowledgement drifted');
-  if (value.model_requested !== expected.contestant.model) fail('accepted-result recovery model drifted');
-  if (value.model_canonical_slug !== expected.contestant.canonical_slug) fail('accepted-result recovery canonical generation drifted');
-  if (value.qualification_status !== expected.contestant.status) fail('accepted-result recovery qualification status drifted');
-  if (value.scored_trial_eligible !== expected.contestant.scored_trial_eligible) fail('accepted-result recovery scored eligibility drifted');
-  if (value.privacy_class !== expected.contestant.privacy_class) fail('accepted-result recovery privacy class drifted');
-  if (value.retention_class !== expected.contestant.retention_class) fail('accepted-result recovery retention class drifted');
-  if (JSON.stringify(value.provider_policy) !== JSON.stringify(providerRequestPolicyV1(expected.contestant))) {
-    fail('accepted-result recovery provider policy drifted');
-  }
-  if (JSON.stringify(value.scored_provider_allowlist) !== JSON.stringify(expected.contestant.provider_policy.only)) {
-    fail('accepted-result recovery scored provider allowlist drifted');
-  }
-  if (value.trial_id !== expected.trialId || value.admission_id !== expected.admissionId) {
-    fail('accepted-result recovery trial/admission binding drifted');
-  }
-  if (value.prompt_sha256 !== expected.promptSha256 || value.max_tokens !== expected.maxTokens) {
-    fail('accepted-result recovery request identity drifted');
-  }
-  if (value.finish_reason !== 'stop') fail('accepted-result recovery finish reason is not stop');
-  if (typeof value.response_content !== 'string') fail('accepted-result recovery response content is invalid');
-  if (value.response_content_sha256 !== sha256(Buffer.from(value.response_content, 'utf8'))) {
-    fail('accepted-result recovery response digest drifted');
-  }
-  if (value.pricing_verified_zero !== true || value.request_time_max_price_zero !== true) {
-    fail('accepted-result recovery zero-price authority drifted');
-  }
-  if (canonicalJson(value).includes(apiKey)) fail('API key unexpectedly entered accepted-result recovery object');
-  return value;
-}
-
-async function readAcceptedRecoveryOrNullV1(path, expected, apiKey) {
-  let read;
+async function assertNoAutomaticRecoveryEvidenceV1(path) {
   try {
-    read = await readJsonBounded(path, MAX_CHAT_RESPONSE_BYTES + MAX_JSON_BYTES, 'accepted-result recovery');
+    await readRegularBounded(path, MAX_CHAT_RESPONSE_BYTES + MAX_JSON_BYTES, 'accepted-result recovery evidence');
   } catch (error) {
-    if (error?.code === 'ENOENT') return null;
+    if (error?.code === 'ENOENT') return;
     throw error;
   }
-  return validateAcceptedRecoveryV1(read.value, expected, apiKey);
+  fail('accepted-result recovery evidence already exists; automatic GREEN and provider reexecution are forbidden; operator reconciliation is required');
+}
+
+async function publishFinalResultFromAcceptedV1(path, value, faultHook) {
+  try {
+    return await publishJsonExactV1(path, value, { faultHook });
+  } catch (firstError) {
+    try {
+      return await publishJsonExactV1(path, value);
+    } catch {
+      fail(`accepted result publication remains unresolved after exact retry; provider reexecution is forbidden (${firstError?.code ?? 'publication_error'})`);
+    }
+  }
 }
 
 async function publishAcceptedRecoveryV1(path, value, faultHook) {
@@ -750,41 +768,26 @@ export async function runOpenRouterContestantTrialV1(options, hooks = {}) {
     maxTokens: runtime.maxTokens,
   });
   const recoveryPath = acceptedRecoveryPathV1(options.outputPath, recoveryKey);
-  const recoveryExpected = {
-    key: recoveryKey,
-    registrySha256: registryLoaded.sha256,
-    contestant: runtime.contestant,
-    trialId: trialRead.value.trial_id,
-    admissionId: receiptRead.value.admission_id,
-    promptSha256: request.promptSha256,
-    maxTokens: runtime.maxTokens,
-  };
-  const recovered = await readAcceptedRecoveryOrNullV1(recoveryPath, recoveryExpected, runtime.apiKey);
-  if (recovered) {
-    await publishJsonExactV1(options.outputPath, recovered, { faultHook: hooks.resultPublicationFaultHook });
-    if (hooks.emitOutput !== false) {
-      process.stdout.write(`${MARKER}_GREEN ${trialRead.value.trial_id} model=${runtime.contestant.model} admission=${receiptRead.value.admission_id} status=${runtime.contestant.status} recovered=true\n`);
-    }
-    return recovered;
-  }
+  await assertNoAutomaticRecoveryEvidenceV1(recoveryPath);
 
   const metadata = await fetchModelMetadata(fetchImpl, runtime.apiKey, runtime.metadataTimeoutMs, runtime.contestant);
   const model = validateZeroPriceModelV1(metadata, runtime.contestant);
   if (typeof hooks.afterFreePriceCheck === 'function') await hooks.afterFreePriceCheck({ model, contestant: runtime.contestant });
 
   const rawResponse = await sendChat(fetchImpl, runtime.apiKey, request.body, runtime.chatTimeoutMs);
-  const accepted = validateChatResponse(rawResponse);
-  if (accepted.reported_model !== null && accepted.reported_model !== runtime.contestant.model) {
-    fail(`OpenRouter response model differs from requested contestant ${runtime.contestant.model}`);
-  }
+  const accepted = validateChatResponse(rawResponse, runtime.contestant);
 
   const result = {
     marker: RESULT_MARKER,
     accepted_recovery_key: recoveryKey,
     provider: PROVIDER,
     model_requested: runtime.contestant.model,
+    model_execution_requested: request.executionModel,
     model_canonical_slug: model.canonical_slug,
     model_reported: accepted.reported_model,
+    router_requested_model: accepted.router_requested_model,
+    router_selected_model: accepted.router_selected_model,
+    router_selected_provider: accepted.router_selected_provider,
     qualification_status: runtime.contestant.status,
     scored_trial_eligible: runtime.contestant.scored_trial_eligible,
     retention_class: runtime.contestant.retention_class,
@@ -813,7 +816,10 @@ export async function runOpenRouterContestantTrialV1(options, hooks = {}) {
   };
   if (canonicalJson(result).includes(runtime.apiKey)) fail('API key unexpectedly entered result object');
   await publishAcceptedRecoveryV1(recoveryPath, result, hooks.resultRecoveryPublicationFaultHook);
-  await publishJsonExactV1(options.outputPath, result, { faultHook: hooks.resultPublicationFaultHook });
+  if (typeof hooks.afterAcceptedRecoveryPersisted === 'function') {
+    await hooks.afterAcceptedRecoveryPersisted({ recoveryPath, recoveryKey });
+  }
+  await publishFinalResultFromAcceptedV1(options.outputPath, result, hooks.resultPublicationFaultHook);
   if (hooks.emitOutput !== false) {
     process.stdout.write(`${MARKER}_GREEN ${trialRead.value.trial_id} model=${runtime.contestant.model} admission=${receiptRead.value.admission_id} status=${runtime.contestant.status}\n`);
   }
