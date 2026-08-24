@@ -2,7 +2,7 @@
 
 import { createHash } from 'node:crypto';
 import { constants as FS } from 'node:fs';
-import { mkdir, open, readFile, stat } from 'node:fs/promises';
+import { open, stat } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import process from 'node:process';
 import { fileURLToPath } from 'node:url';
@@ -11,6 +11,7 @@ import {
   REGISTRY_PATH,
   RESULT_MARKER,
   contestantRegistryDigestV1,
+  executionModelV1,
   providerRequestPolicyV1,
   runOpenRouterContestantTrialV1,
   validateContestantRegistryV1,
@@ -104,8 +105,19 @@ export function selectArenaContestantsV1(registry, mode) {
   return selected;
 }
 
-async function openPrivateDirectoryGeneration(path, name) {
-  const fh = await open(path, FS.O_RDONLY | FS.O_DIRECTORY | FS.O_NOFOLLOW);
+function parseInheritedDirectoryFdV1(raw) {
+  const text = String(raw ?? '').trim();
+  if (!/^[1-9][0-9]*$/.test(text)) fail('VOID_OPENROUTER_ARENA_OUTPUT_ROOT_FD must be an inherited positive integer fd');
+  const fd = Number(text);
+  if (!Number.isSafeInteger(fd) || fd < 3 || fd > 1_048_575) {
+    fail('VOID_OPENROUTER_ARENA_OUTPUT_ROOT_FD is out of bounds');
+  }
+  return fd;
+}
+
+async function openInheritedDirectoryGenerationV1(rawFd, visiblePath, name) {
+  const inheritedFd = parseInheritedDirectoryFdV1(rawFd);
+  const fh = await open(`/proc/self/fd/${inheritedFd}`, FS.O_RDONLY | FS.O_DIRECTORY);
   try {
     const st = await fh.stat({ bigint: true });
     if (!st.isDirectory()) fail(`${name} must be a real directory`);
@@ -113,6 +125,7 @@ async function openPrivateDirectoryGeneration(path, name) {
     if (typeof process.getuid === 'function' && Number(st.uid) !== process.getuid()) {
       fail(`${name} must be owned by the current uid`);
     }
+    await assertVisibleDirectoryGenerationV1(fh, visiblePath, name);
     return fh;
   } catch (error) {
     await fh.close().catch(() => {});
@@ -159,35 +172,135 @@ function sleep(ms) {
   return new Promise((resolvePromise) => setTimeout(resolvePromise, ms));
 }
 
-async function verifyPersistedResult(resultPath, contestant, returnedResult, registryLoaded) {
-  const persistedRead = await readJsonBounded(resultPath, MAX_RESULT_BYTES, `persisted result for ${contestant.model}`);
-  const persisted = persistedRead.value;
-  if (persisted?.marker !== RESULT_MARKER) fail(`persisted result marker drifted for ${contestant.model}`);
-  if (persisted.model_requested !== contestant.model) fail(`persisted result model binding drifted for ${contestant.model}`);
-  if (persisted.model_canonical_slug !== contestant.canonical_slug) fail(`persisted canonical model generation drifted for ${contestant.model}`);
-  if (persisted.finish_reason !== 'stop') fail(`persisted finish reason must equal stop for ${contestant.model}`);
-  if (persisted.registry_sha256 !== registryLoaded.sha256) fail(`persisted registry generation drifted for ${contestant.model}`);
-  if (persisted.registry_policy_generation_acknowledged !== registryLoaded.sha256) {
-    fail(`persisted registry policy acknowledgement drifted for ${contestant.model}`);
+async function openJsonBoundedGenerationV1(path, maxBytes, name) {
+  const fh = await open(path, FS.O_RDONLY | FS.O_NOFOLLOW | FS.O_NONBLOCK);
+  try {
+    const pre = await fh.stat({ bigint: true });
+    if (!pre.isFile()) fail(`${name} must be a regular non-symlink file`);
+    if ((Number(pre.mode) & 0o777) !== 0o600) fail(`${name} mode must be 0600`);
+    if (pre.size > BigInt(maxBytes)) fail(`${name} exceeds ${maxBytes} bytes`);
+    const chunks = [];
+    let total = 0;
+    let position = 0;
+    while (true) {
+      const remaining = maxBytes + 1 - total;
+      if (remaining <= 0) fail(`${name} exceeds ${maxBytes} bytes during read`);
+      const buffer = Buffer.allocUnsafe(Math.min(64 * 1024, remaining));
+      const { bytesRead } = await fh.read(buffer, 0, buffer.length, position);
+      if (bytesRead === 0) break;
+      chunks.push(buffer.subarray(0, bytesRead));
+      total += bytesRead;
+      position += bytesRead;
+      if (total > maxBytes) fail(`${name} exceeds ${maxBytes} bytes during read`);
+    }
+    const post = await fh.stat({ bigint: true });
+    for (const key of ['dev', 'ino', 'size', 'mtimeNs', 'ctimeNs']) {
+      if (pre[key].toString() !== post[key].toString()) fail(`${name} generation changed during bounded read`);
+    }
+    const bytes = Buffer.concat(chunks, total);
+    let value;
+    try {
+      value = JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(bytes));
+    } catch {
+      fail(`${name} must be valid UTF-8 JSON`);
+    }
+    return { fh, stat: post, bytes, value };
+  } catch (error) {
+    await fh.close().catch(() => {});
+    throw error;
   }
-  if (persisted.qualification_status !== contestant.status) fail(`persisted qualification status drifted for ${contestant.model}`);
-  if (persisted.scored_trial_eligible !== contestant.scored_trial_eligible) fail(`persisted scored eligibility drifted for ${contestant.model}`);
-  if (persisted.privacy_class !== contestant.privacy_class) fail(`persisted privacy class drifted for ${contestant.model}`);
-  if (persisted.retention_class !== contestant.retention_class) fail(`persisted retention class drifted for ${contestant.model}`);
-  if (JSON.stringify(persisted.provider_policy) !== JSON.stringify(providerRequestPolicyV1(contestant))) {
-    fail(`persisted provider policy drifted for ${contestant.model}`);
+}
+
+async function assertVisibleFileGenerationV1(fh, visiblePath, name) {
+  const retained = await fh.stat({ bigint: true });
+  let visible;
+  try {
+    visible = await stat(visiblePath, { bigint: true });
+  } catch {
+    fail(`${name} visible generation changed`);
   }
-  if (JSON.stringify(persisted.scored_provider_allowlist) !== JSON.stringify(contestant.provider_policy.only)) {
-    fail(`persisted scored provider allowlist drifted for ${contestant.model}`);
+  if (!visible.isFile()
+    || retained.dev.toString() !== visible.dev.toString()
+    || retained.ino.toString() !== visible.ino.toString()) {
+    fail(`${name} visible generation changed`);
   }
-  if (persisted.trial_id !== returnedResult?.trial_id) fail(`persisted result trial binding drifted for ${contestant.model}`);
-  if (persisted.admission_id !== returnedResult?.admission_id) fail(`persisted result admission binding drifted for ${contestant.model}`);
-  if (persisted.response_content_sha256 !== returnedResult?.response_content_sha256) {
-    fail(`persisted result response digest drifted for ${contestant.model}`);
+}
+
+async function verifyPersistedResult(
+  resultPath,
+  visibleResultPath,
+  contestant,
+  returnedResult,
+  registryLoaded,
+  hooks = {},
+) {
+  const generation = await openJsonBoundedGenerationV1(
+    resultPath,
+    MAX_RESULT_BYTES,
+    `persisted result for ${contestant.model}`,
+  );
+  try {
+    const persisted = generation.value;
+    const executionModel = executionModelV1(contestant);
+    if (persisted?.marker !== RESULT_MARKER) fail(`persisted result marker drifted for ${contestant.model}`);
+    if (persisted.model_requested !== contestant.model) fail(`persisted result model binding drifted for ${contestant.model}`);
+    if (persisted.model_execution_requested !== executionModel) fail(`persisted execution model binding drifted for ${contestant.model}`);
+    if (persisted.model_canonical_slug !== contestant.canonical_slug) fail(`persisted canonical model generation drifted for ${contestant.model}`);
+    if (persisted.model_reported !== executionModel) fail(`persisted reported execution model drifted for ${contestant.model}`);
+    if (persisted.router_requested_model !== executionModel) fail(`persisted router requested model drifted for ${contestant.model}`);
+    if (persisted.router_selected_model !== executionModel) fail(`persisted router selected model drifted for ${contestant.model}`);
+    if (typeof persisted.router_selected_provider !== 'string'
+      || persisted.router_selected_provider.length < 1
+      || persisted.router_selected_provider.length > 128) {
+      fail(`persisted router selected provider is invalid for ${contestant.model}`);
+    }
+    if (persisted.finish_reason !== 'stop') fail(`persisted finish reason must equal stop for ${contestant.model}`);
+    if (persisted.registry_sha256 !== registryLoaded.sha256) fail(`persisted registry generation drifted for ${contestant.model}`);
+    if (persisted.registry_policy_generation_acknowledged !== registryLoaded.sha256) {
+      fail(`persisted registry policy acknowledgement drifted for ${contestant.model}`);
+    }
+    if (persisted.qualification_status !== contestant.status) fail(`persisted qualification status drifted for ${contestant.model}`);
+    if (persisted.scored_trial_eligible !== contestant.scored_trial_eligible) fail(`persisted scored eligibility drifted for ${contestant.model}`);
+    if (persisted.privacy_class !== contestant.privacy_class) fail(`persisted privacy class drifted for ${contestant.model}`);
+    if (persisted.retention_class !== contestant.retention_class) fail(`persisted retention class drifted for ${contestant.model}`);
+    if (JSON.stringify(persisted.provider_policy) !== JSON.stringify(providerRequestPolicyV1(contestant))) {
+      fail(`persisted provider policy drifted for ${contestant.model}`);
+    }
+    if (JSON.stringify(persisted.scored_provider_allowlist) !== JSON.stringify(contestant.provider_policy.only)) {
+      fail(`persisted scored provider allowlist drifted for ${contestant.model}`);
+    }
+    if (persisted.trial_id !== returnedResult?.trial_id) fail(`persisted result trial binding drifted for ${contestant.model}`);
+    if (persisted.admission_id !== returnedResult?.admission_id) fail(`persisted result admission binding drifted for ${contestant.model}`);
+    if (persisted.response_content_sha256 !== returnedResult?.response_content_sha256) {
+      fail(`persisted result response digest drifted for ${contestant.model}`);
+    }
+    if (persisted.accepted_recovery_key !== returnedResult?.accepted_recovery_key) {
+      fail(`persisted accepted recovery identity drifted for ${contestant.model}`);
+    }
+
+    if (typeof hooks.afterPersistedResultSemanticValidation === 'function') {
+      await hooks.afterPersistedResultSemanticValidation({
+        contestant,
+        visibleResultPath,
+        persisted,
+      });
+    }
+
+    await assertVisibleFileGenerationV1(
+      generation.fh,
+      visibleResultPath,
+      `persisted result for ${contestant.model}`,
+    );
+
+    return {
+      persisted,
+      fh: generation.fh,
+      fileSha256: sha256(generation.bytes),
+    };
+  } catch (error) {
+    await generation.fh.close().catch(() => {});
+    throw error;
   }
-  const mode = (await stat(resultPath)).mode & 0o777;
-  if (mode !== 0o600) fail(`persisted result mode must be 0600 for ${contestant.model}`);
-  return persisted;
 }
 
 export async function runOpenRouterAlignmentArenaV1(options, hooks = {}) {
@@ -225,11 +338,15 @@ export async function runOpenRouterAlignmentArenaV1(options, hooks = {}) {
   if (typeof sleepFn !== 'function') fail('arena sleep function is unavailable');
 
   const outputRoot = resolve(options.outputRoot);
-  await mkdir(outputRoot, { mode: 0o700 });
-  const outputRootHandle = await openPrivateDirectoryGeneration(outputRoot, 'arena output root');
+  const outputRootHandle = await openInheritedDirectoryGenerationV1(
+    hooks.outputRootFd ?? env.VOID_OPENROUTER_ARENA_OUTPUT_ROOT_FD,
+    outputRoot,
+    'arena output root',
+  );
   const outputRootAnchor = fdDirectoryPath(outputRootHandle);
 
   const records = [];
+  const greenResultHandles = [];
   for (let index = 0; index < contestants.length; index += 1) {
     const contestant = contestants[index];
 
@@ -240,19 +357,14 @@ export async function runOpenRouterAlignmentArenaV1(options, hooks = {}) {
         contestant.status === 'qualification_only' ? '1' : '0',
     };
 
-    let modelDirHandle = null;
+    let verifiedResultHandle = null;
     try {
       const modelLeaf = safeModelLeaf(contestant.model);
-      const visibleModelDir = join(outputRoot, modelLeaf);
-      const anchoredModelDir = join(outputRootAnchor, modelLeaf);
-      await mkdir(anchoredModelDir, { mode: 0o700 });
-      modelDirHandle = await openPrivateDirectoryGeneration(anchoredModelDir, `contestant directory ${contestant.model}`);
-      const modelDirAnchor = fdDirectoryPath(modelDirHandle);
-      if (typeof hooks.afterModelDirectoryOpen === 'function') {
-        await hooks.afterModelDirectoryOpen({ contestant, modelLeaf, visibleModelDir, anchoredModelDir: modelDirAnchor });
-      }
-      const receiptPath = join(modelDirAnchor, 'outbound-admission-receipt.json');
-      const resultPath = join(modelDirAnchor, 'contestant-result.json');
+      const receiptLeaf = `${modelLeaf}.outbound-admission-receipt.json`;
+      const resultLeaf = `${modelLeaf}.contestant-result.json`;
+      const receiptPath = join(outputRootAnchor, receiptLeaf);
+      const resultPath = join(outputRootAnchor, resultLeaf);
+      const visibleResultPath = join(outputRoot, resultLeaf);
 
       const result = await runContestant({
         trialPath: options.trialPath,
@@ -269,27 +381,48 @@ export async function runOpenRouterAlignmentArenaV1(options, hooks = {}) {
       });
       if (result?.marker !== RESULT_MARKER) fail(`contestant ${contestant.model} returned unexpected result marker`);
       if (result.model_requested !== contestant.model) fail(`contestant ${contestant.model} result model binding drifted`);
-      const persisted = await verifyPersistedResult(resultPath, contestant, result, registryLoaded);
-      await assertVisibleDirectoryGenerationV1(
-        modelDirHandle,
-        visibleModelDir,
-        `contestant directory ${contestant.model}`,
-      );
 
-      records.push({
+      const verified = await verifyPersistedResult(
+        resultPath,
+        visibleResultPath,
+        contestant,
+        result,
+        registryLoaded,
+        hooks,
+      );
+      verifiedResultHandle = verified.fh;
+      await assertVisibleDirectoryGenerationV1(outputRootHandle, outputRoot, 'arena output root');
+
+      const greenRecord = {
         model: contestant.model,
-        canonical_slug: persisted.model_canonical_slug ?? null,
+        execution_model: executionModelV1(contestant),
+        canonical_slug: verified.persisted.model_canonical_slug ?? null,
         registry_status: contestant.status,
         scored_trial_eligible: contestant.scored_trial_eligible,
         run_status: 'GREEN',
-        result_path: `${modelLeaf}/contestant-result.json`,
-        response_content_sha256: persisted.response_content_sha256 ?? null,
-        trial_id: persisted.trial_id ?? null,
-        admission_id: persisted.admission_id ?? null,
+        result_path: resultLeaf,
+        result_file_sha256: verified.fileSha256,
+        response_content_sha256: verified.persisted.response_content_sha256 ?? null,
+        trial_id: verified.persisted.trial_id ?? null,
+        admission_id: verified.persisted.admission_id ?? null,
+      };
+
+      await assertVisibleFileGenerationV1(
+        verifiedResultHandle,
+        visibleResultPath,
+        `persisted result for ${contestant.model}`,
+      );
+      greenResultHandles.push({
+        fh: verifiedResultHandle,
+        visiblePath: visibleResultPath,
+        name: `persisted result for ${contestant.model}`,
       });
+      verifiedResultHandle = null;
+      records.push(greenRecord);
     } catch (error) {
       records.push({
         model: contestant.model,
+        execution_model: contestant.canonical_slug === null ? null : executionModelV1(contestant),
         canonical_slug: contestant.canonical_slug ?? null,
         registry_status: contestant.status,
         scored_trial_eligible: contestant.scored_trial_eligible,
@@ -297,7 +430,7 @@ export async function runOpenRouterAlignmentArenaV1(options, hooks = {}) {
         hold_reason: redactError(error, apiKey),
       });
     } finally {
-      if (modelDirHandle) await modelDirHandle.close().catch(() => {});
+      if (verifiedResultHandle) await verifiedResultHandle.close().catch(() => {});
     }
 
     if (index + 1 < contestants.length && delayMs > 0) await sleepFn(delayMs);
@@ -323,12 +456,16 @@ export async function runOpenRouterAlignmentArenaV1(options, hooks = {}) {
   if (serialized.includes(apiKey)) fail('API key unexpectedly entered arena summary');
   try {
     await assertVisibleDirectoryGenerationV1(outputRootHandle, outputRoot, 'arena output root');
+    for (const retained of greenResultHandles) {
+      await assertVisibleFileGenerationV1(retained.fh, retained.visiblePath, retained.name);
+    }
     await publishSummaryExactV1(join(outputRootAnchor, 'arena-summary.json'), summary, hooks.summaryPublicationFaultHook);
     if (hooks.emitOutput !== false) {
       process.stdout.write(`${ARENA_MARKER}_COMPLETE mode=${mode} requested=${records.length} green=${green} held=${held}\n`);
     }
     return summary;
   } finally {
+    for (const retained of greenResultHandles) await retained.fh.close().catch(() => {});
     await outputRootHandle.close().catch(() => {});
   }
 }
@@ -346,7 +483,8 @@ async function main() {
   }
   process.stderr.write(
     'usage: apollyon_openrouter_alignment_arena_v1.mjs run '
-    + '<trial-packet.json> <staging-root> <manifest.json> <new-output-root> <admission-at-utc>\n',
+    + '<trial-packet.json> <staging-root> <manifest.json> <output-root-visible-path> <admission-at-utc>\n'
+    + 'requires inherited VOID_OPENROUTER_ARENA_OUTPUT_ROOT_FD for that exact mode-0700 directory generation\n',
   );
   process.exitCode = 64;
 }

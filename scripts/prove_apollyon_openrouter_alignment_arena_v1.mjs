@@ -1,12 +1,13 @@
 #!/usr/bin/env node
 
 import assert from 'node:assert/strict';
-import { mkdir, mkdtemp, readFile, rename, rm, stat, writeFile } from 'node:fs/promises';
+import { constants as FS } from 'node:fs';
+import { mkdir, mkdtemp, open, readFile, rename, rm, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { spawnSync } from 'node:child_process';
 
-import { RESULT_MARKER, contestantRegistryDigestV1, providerRequestPolicyV1 } from './apollyon_openrouter_ox_alpha_adapter_v1.mjs';
+import { RESULT_MARKER, contestantRegistryDigestV1, executionModelV1, providerRequestPolicyV1 } from './apollyon_openrouter_ox_alpha_adapter_v1.mjs';
 import {
   ARENA_MARKER,
   runOpenRouterAlignmentArenaV1,
@@ -76,6 +77,34 @@ async function expectReject(promise, contains, label) {
   throw new Error(`${label} did not reject`);
 }
 
+async function runArenaWithRootV1(options, hooks) {
+  await mkdir(options.outputRoot, { mode: 0o700 });
+  const callerRoot = await open(
+    options.outputRoot,
+    FS.O_RDONLY | FS.O_DIRECTORY | FS.O_NOFOLLOW,
+  );
+  try {
+    return await runOpenRouterAlignmentArenaV1(options, {
+      ...hooks,
+      outputRootFd: callerRoot.fd,
+    });
+  } finally {
+    await callerRoot.close().catch(() => {});
+  }
+}
+
+function executionEvidenceV1(contestant) {
+  const executionModel = executionModelV1(contestant);
+  return {
+    model_execution_requested: executionModel,
+    model_reported: executionModel,
+    router_requested_model: executionModel,
+    router_selected_model: executionModel,
+    router_selected_provider: 'ProofProvider',
+    accepted_recovery_key: 'f'.repeat(64),
+  };
+}
+
 async function main() {
   const registry = fixtureRegistry();
   assert.deepEqual(
@@ -105,8 +134,9 @@ async function main() {
         marker: RESULT_MARKER,
         provider: 'openrouter',
         model_requested: model,
+        ...executionEvidenceV1(contestant),
         model_canonical_slug: contestant.canonical_slug,
-        model_reported: model,
+        model_reported: executionModelV1(contestant),
         qualification_status: model === 'stealth/ox-alpha' ? 'qualified' : 'qualification_only',
         scored_trial_eligible: model === 'stealth/ox-alpha',
         retention_class: contestant.retention_class,
@@ -137,7 +167,7 @@ async function main() {
     };
 
     const arenaRoot = join(root, 'qualification');
-    const summary = await runOpenRouterAlignmentArenaV1({
+    const summary = await runArenaWithRootV1({
       trialPath: 'trial.json',
       stagingRoot: 'stage',
       manifestPath: 'manifest.json',
@@ -180,7 +210,7 @@ async function main() {
     registryB.reviewed_at_utc = '2026-08-24T06:00:01.000Z';
     const registryBDigest = contestantRegistryDigestV1(registryB);
     assert.notEqual(registryBDigest, contestantRegistryDigestV1(registry));
-    const mismatchSummary = await runOpenRouterAlignmentArenaV1({
+    const mismatchSummary = await runArenaWithRootV1({
       trialPath: 'trial.json', stagingRoot: 'stage', manifestPath: 'manifest.json',
       outputRoot: registryMismatchRoot, admissionAtUtc: '2026-08-24T06:00:00.000Z',
     }, {
@@ -188,7 +218,7 @@ async function main() {
       runContestantFn: async (options, hooks) => {
         const contestant = registry.contestants.find((entry) => entry.model === hooks.env.VOID_OPENROUTER_MODEL);
         const result = {
-          marker: RESULT_MARKER, model_requested: contestant.model, model_canonical_slug: contestant.canonical_slug,
+          marker: RESULT_MARKER, model_requested: contestant.model, ...executionEvidenceV1(contestant), model_canonical_slug: contestant.canonical_slug,
           qualification_status: contestant.status, scored_trial_eligible: contestant.scored_trial_eligible,
           retention_class: contestant.retention_class, privacy_class: contestant.privacy_class,
           scored_provider_allowlist: contestant.provider_policy.only, registry_policy_generation_acknowledged: registryBDigest,
@@ -206,11 +236,11 @@ async function main() {
     const persistedSummary = JSON.parse(await readFile(join(arenaRoot, 'arena-summary.json'), 'utf8'));
     assert.equal(persistedSummary.marker, 'VOID_APOLLYON_OPENROUTER_ALIGNMENT_ARENA_SUMMARY_V1');
     assert.equal((await stat(join(arenaRoot, 'arena-summary.json'))).mode & 0o777, 0o600);
-    assert.equal((await stat(join(arenaRoot, 'stealth_ox-alpha', 'contestant-result.json'))).mode & 0o777, 0o600);
+    assert.equal((await stat(join(arenaRoot, 'stealth_ox-alpha.contestant-result.json'))).mode & 0o777, 0o600);
 
     const scoredRoot = join(root, 'scored');
     const scoredCalls = [];
-    const scoredSummary = await runOpenRouterAlignmentArenaV1({
+    const scoredSummary = await runArenaWithRootV1({
       trialPath: 'trial.json',
       stagingRoot: 'stage',
       manifestPath: 'manifest.json',
@@ -225,6 +255,7 @@ async function main() {
         const result = {
           marker: RESULT_MARKER,
           model_requested: hooks.env.VOID_OPENROUTER_MODEL,
+          ...executionEvidenceV1(scoredContestant),
           model_canonical_slug: scoredContestant.canonical_slug,
           qualification_status: scoredContestant.status,
           scored_trial_eligible: scoredContestant.scored_trial_eligible,
@@ -270,7 +301,7 @@ async function main() {
       ],
     };
     const collisionRoot = join(root, 'collision');
-    const collisionSummary = await runOpenRouterAlignmentArenaV1({
+    const collisionSummary = await runArenaWithRootV1({
       trialPath: 'trial.json',
       stagingRoot: 'stage',
       manifestPath: 'manifest.json',
@@ -284,6 +315,7 @@ async function main() {
         const result = {
           marker: RESULT_MARKER,
           model_requested: hooks.env.VOID_OPENROUTER_MODEL,
+          ...executionEvidenceV1(collisionContestant),
           model_canonical_slug: collisionContestant.canonical_slug,
           qualification_status: collisionContestant.status,
           scored_trial_eligible: collisionContestant.scored_trial_eligible,
@@ -313,7 +345,7 @@ async function main() {
     const arenaRegistryFifo = join(root, 'arena-registry-fifo');
     assert.equal(spawnSync('mkfifo', [arenaRegistryFifo], { encoding: 'utf8' }).status, 0);
     const arenaRegistryFifoOutcome = await Promise.race([
-      runOpenRouterAlignmentArenaV1({
+      runArenaWithRootV1({
         trialPath: 'trial.json', stagingRoot: 'stage', manifestPath: 'manifest.json',
         outputRoot: join(root, 'arena-registry-fifo-out'), admissionAtUtc: '2026-08-24T06:00:00.000Z',
       }, {
@@ -328,54 +360,107 @@ async function main() {
     assert.equal(arenaRegistryFifoOutcome.ok, false);
     assert.match(arenaRegistryFifoOutcome.message, /regular non-symlink file/);
 
-    const directoryRegistry = {
-      marker: 'VOID_APOLLYON_OPENROUTER_CONTESTANT_REGISTRY_V1', version: 1,
-      reviewed_at_utc: '2026-08-24T06:02:00.000Z', default_model: 'proof/model',
+    const terminalRegistry = {
+      marker: 'VOID_APOLLYON_OPENROUTER_CONTESTANT_REGISTRY_V1',
+      version: 1,
+      reviewed_at_utc: '2026-08-24T06:02:00.000Z',
+      default_model: 'proof/model',
       contestants: [{
-        model: 'proof/model', canonical_slug: 'proof/model-v1', status: 'qualified', scored_trial_eligible: false,
+        model: 'proof/model', canonical_slug: 'proof/model-v1',
+        status: 'qualified', scored_trial_eligible: false,
         zero_price_required: true, min_context_length: 32768, max_tokens_cap: 4096,
         retention_class: 'proof-generation', privacy_class: 'zdr_public_or_sanitized',
         provider_policy: { allow_fallbacks: false, require_parameters: true, data_collection: 'deny', zdr: true, only: [] },
       }],
     };
-    const directoryRoot = join(root, 'directory-generation');
-    let movedOriginal = null;
-    const directorySummary = await runOpenRouterAlignmentArenaV1({
+
+    // Root authority is an inherited fd capability. If the visible pathname is
+    // replaced after the caller acquired that capability, the arena rejects
+    // before any contestant execution and never adopts the foreign root.
+    const rootCapabilityPath = join(root, 'root-capability');
+    await mkdir(rootCapabilityPath, { mode: 0o700 });
+    const callerRoot = await open(
+      rootCapabilityPath,
+      FS.O_RDONLY | FS.O_DIRECTORY | FS.O_NOFOLLOW,
+    );
+    const movedRoot = `${rootCapabilityPath}.caller-generation`;
+    await rename(rootCapabilityPath, movedRoot);
+    await mkdir(rootCapabilityPath, { mode: 0o700 });
+    await writeFile(join(rootCapabilityPath, 'foreign.txt'), 'foreign-root-generation\n', { mode: 0o600, flag: 'wx' });
+    let rootSubstitutionRunnerCalls = 0;
+    try {
+      await expectReject(
+        runOpenRouterAlignmentArenaV1({
+          trialPath: 'trial.json', stagingRoot: 'stage', manifestPath: 'manifest.json',
+          outputRoot: rootCapabilityPath, admissionAtUtc: '2026-08-24T06:00:00.000Z',
+        }, {
+          env: environment(terminalRegistry),
+          registry: terminalRegistry,
+          outputRootFd: callerRoot.fd,
+          runContestantFn: async () => { rootSubstitutionRunnerCalls += 1; throw new Error('must not run'); },
+          emitOutput: false,
+        }),
+        'visible generation changed',
+        'foreign output-root substitution',
+      );
+    } finally {
+      await callerRoot.close().catch(() => {});
+    }
+    assert.equal(rootSubstitutionRunnerCalls, 0);
+    assert.equal(await readFile(join(rootCapabilityPath, 'foreign.txt'), 'utf8'), 'foreign-root-generation\n');
+
+    // The exact result leaf remains open across semantic checks and GREEN record
+    // construction. A same-UID replacement after semantic validation must HOLD.
+    const leafRoot = join(root, 'result-leaf-generation');
+    const leafSummary = await runArenaWithRootV1({
       trialPath: 'trial.json', stagingRoot: 'stage', manifestPath: 'manifest.json',
-      outputRoot: directoryRoot, admissionAtUtc: '2026-08-24T06:00:00.000Z',
+      outputRoot: leafRoot, admissionAtUtc: '2026-08-24T06:00:00.000Z',
     }, {
-      env: environment(directoryRegistry), registry: directoryRegistry,
-      afterModelDirectoryOpen: async ({ visibleModelDir }) => {
-        movedOriginal = `${visibleModelDir}.original-generation`;
-        await rename(visibleModelDir, movedOriginal);
-        await mkdir(visibleModelDir, { mode: 0o700 });
-        await writeFile(join(visibleModelDir, 'foreign.txt'), 'foreign-generation\n', { mode: 0o600, flag: 'wx' });
+      env: environment(terminalRegistry),
+      registry: terminalRegistry,
+      afterPersistedResultSemanticValidation: async ({ visibleResultPath }) => {
+        const moved = `${visibleResultPath}.verified-generation`;
+        await rename(visibleResultPath, moved);
+        await writeFile(visibleResultPath, '{"foreign":true}\n', { mode: 0o600, flag: 'wx' });
       },
       runContestantFn: async (options) => {
-        const contestant = directoryRegistry.contestants[0];
-        const digest = contestantRegistryDigestV1(directoryRegistry);
+        const contestant = terminalRegistry.contestants[0];
+        const digest = contestantRegistryDigestV1(terminalRegistry);
         const result = {
-          marker: RESULT_MARKER, model_requested: contestant.model, model_canonical_slug: contestant.canonical_slug,
-          qualification_status: contestant.status, scored_trial_eligible: contestant.scored_trial_eligible,
-          retention_class: contestant.retention_class, privacy_class: contestant.privacy_class,
-          scored_provider_allowlist: contestant.provider_policy.only, registry_policy_generation_acknowledged: digest,
-          provider_policy: providerRequestPolicyV1(contestant), registry_sha256: digest, finish_reason: 'stop',
-          trial_id: `voidat1_${'4'.repeat(64)}`, admission_id: `voidaa1_${'5'.repeat(64)}`, response_content_sha256: '6'.repeat(64),
+          marker: RESULT_MARKER,
+          model_requested: contestant.model,
+          ...executionEvidenceV1(contestant),
+          model_canonical_slug: contestant.canonical_slug,
+          qualification_status: contestant.status,
+          scored_trial_eligible: contestant.scored_trial_eligible,
+          retention_class: contestant.retention_class,
+          privacy_class: contestant.privacy_class,
+          scored_provider_allowlist: contestant.provider_policy.only,
+          registry_policy_generation_acknowledged: digest,
+          provider_policy: providerRequestPolicyV1(contestant),
+          registry_sha256: digest,
+          finish_reason: 'stop',
+          trial_id: `voidat1_${'4'.repeat(64)}`,
+          admission_id: `voidaa1_${'5'.repeat(64)}`,
+          response_content_sha256: '6'.repeat(64),
         };
         await writeFile(options.outputPath, `${JSON.stringify(result, null, 2)}\n`, { mode: 0o600, flag: 'wx' });
         return result;
-      }, sleepFn: async () => {}, emitOutput: false,
+      },
+      sleepFn: async () => {},
+      emitOutput: false,
     });
-    assert.equal(directorySummary.green_contestants, 0);
-    assert.equal(directorySummary.held_contestants, 1);
-    assert.match(directorySummary.records[0].hold_reason, /visible generation changed/);
-    assert.ok(movedOriginal);
-    assert.equal(JSON.parse(await readFile(join(movedOriginal, 'contestant-result.json'), 'utf8')).model_requested, 'proof/model');
-    assert.equal(await readFile(join(directoryRoot, 'proof_model', 'foreign.txt'), 'utf8'), 'foreign-generation\n');
-    await assert.rejects(readFile(join(directoryRoot, 'proof_model', 'contestant-result.json')), /ENOENT/);
+    assert.equal(leafSummary.green_contestants, 0);
+    assert.equal(leafSummary.held_contestants, 1);
+    assert.match(leafSummary.records[0].hold_reason, /visible generation changed/);
+    assert.equal(
+      await readFile(join(leafRoot, 'proof_model.contestant-result.json'), 'utf8'),
+      '{"foreign":true}\n',
+    );
+
 
     await expectReject(
-      runOpenRouterAlignmentArenaV1({
+      runArenaWithRootV1({
         trialPath: 'trial.json', stagingRoot: 'stage', manifestPath: 'manifest.json',
         outputRoot: join(root, 'disabled'), admissionAtUtc: '2026-08-24T06:00:00.000Z',
       }, {
@@ -401,9 +486,14 @@ async function main() {
   console.log('persisted_result_binding=true');
   console.log('green_result_registry_generation_bound=true');
   console.log('green_result_capability_fields_bound=true');
-  console.log('directory_generation_fd_bound=true');
-  console.log('directory_replacement_generation_holds=true');
-  console.log('foreign_directory_generation_preserved=true');
+  console.log('nominal_fake_reported_model_matches_execution_generation=true');
+  console.log('output_root_inherited_fd_capability_bound=true');
+  console.log('output_root_foreign_generation_not_adopted=true');
+  console.log('per_model_directory_create_open_surface_removed=true');
+  console.log('result_leaf_generation_retained_through_green_terminal=true');
+  console.log('result_leaf_replacement_generation_holds=true');
+  console.log('result_file_sha256_bound=true');
+  console.log('foreign_result_leaf_preserved=true');
   console.log('summary_publication_failure_atomic_recoverable=true');
   console.log('arena_registry_nonregular_leaf_nonblocking=true');
   console.log('canonical_model_generation_persisted=true');

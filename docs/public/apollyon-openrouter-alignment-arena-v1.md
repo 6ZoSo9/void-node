@@ -128,6 +128,17 @@ Per-contestant output-directory setup is inside the contestant HOLD boundary. A 
 
 ## Exact evidence-directory generation
 
-The arena creates the output root, opens and retains that exact private directory generation, and creates each contestant directory relative to the retained output-root descriptor. Each contestant directory is then retained by descriptor while receipt/result publication and persisted-result verification run through `/proc/self/fd/<fd>/...`. A same-UID pathname replacement cannot redirect the current invocation into a foreign directory generation. Before GREEN attribution, the arena also verifies that the visible contestant-directory name still resolves to the exact retained directory inode; a replacement generation therefore becomes HOLD while the foreign replacement and the original retained evidence generation are both preserved.
+The arena no longer creates or adopts an output-root pathname generation. The trusted caller must pre-open the intended private mode-0700 root and pass that exact inherited file-descriptor capability as `VOID_OPENROUTER_ARENA_OUTPUT_ROOT_FD`; the visible path is checked against the retained inode at entry and again before summary publication. Contestant receipt/result evidence uses flat leaves under that retained root, eliminating the per-model directory mkdir→open adoption surface.
 
 Arena summaries use the same exact anonymous-stage/create-only/no-replace/durable-parent publication primitive as admission/results, with exact-byte retry recovery. Ordinary parent pathnames retain `O_NOFOLLOW`; only the exact kernel-owned `/proc/self/fd/<number>` parent capability shape may be reopened without `O_NOFOLLOW`, and it is immediately revalidated as a directory before the same exact-FD publication protocol continues. The focused CI workflow is part of the shared diff-hygiene self-proof, and the unsupported `workflow_dispatch` surface is retired rather than weakening committed-range authority.
+
+
+## Result-leaf terminal generation
+
+Each successful contestant result is opened once as a bounded, mode-0600 regular-file generation and that exact file descriptor remains retained through semantic/capability validation and GREEN-record construction. Immediately before GREEN, the canonical visible result leaf must still resolve to the retained inode. GREEN records include `result_file_sha256`, the SHA-256 of the entire exact retained result file; `result_path` is a locator, while the file digest is the durable content authority.
+
+A same-UID rename-and-replace after semantic verification therefore becomes HOLD with zero GREEN attribution. The foreign replacement is preserved rather than deleted or adopted. All GREEN result handles remain retained until the arena summary terminal so the summary is derived only from exact verified result generations.
+
+## Output-root capability
+
+The CLI does not create the arena root. The caller creates a private mode-0700 root, opens it, preserves that descriptor across `node`, and supplies its inherited fd through `VOID_OPENROUTER_ARENA_OUTPUT_ROOT_FD`. The arena duplicates only `/proc/self/fd/<inherited-fd>` and proves the visible path is the same dev/inode generation. A pathname replacement cannot become arena authority merely by winning a create→open race.
