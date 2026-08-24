@@ -29,12 +29,15 @@ export const VOID_AL_BLOCK_COMMIT_DIRECT_BYPASS_V1 =
   "VOID_AL_BLOCK_COMMIT_DIRECT_BYPASS_V1" as const;
 export const VOID_AL_BLOCK_HEAD_DIRECT_BYPASS_V1 =
   "VOID_AL_BLOCK_HEAD_DIRECT_BYPASS_V1" as const;
+export const VOID_AL_BLOCK_HEAD_RECOVERY_V1 =
+  "VOID_AL_BLOCK_HEAD_RECOVERY_V1" as const;
 export const VOID_AL_BLOCK_COMMIT_MUTATION_EXCEPTION_V1 =
   "VOID_AL_BLOCK_COMMIT_MUTATION_EXCEPTION_V1" as const;
 export const VOID_AL_BLOCK_COMMIT_POLICY_DRIFT_V1 =
   "VOID_AL_BLOCK_COMMIT_POLICY_DRIFT_V1" as const;
 export const VOID_AL_BLOCK_COMMIT_SAFE_MODE_V1 =
   "VOID_AL_BLOCK_COMMIT_SAFE_MODE_V1" as const;
+export const VOID_AL_BLOCK_HEAD_RECOVERY_MAX_SPAN_V1 = 10_000;
 
 export type VoidAlBlockCommitModeV1 = "modern" | "legacy-v2fs";
 
@@ -65,6 +68,7 @@ type RuntimeState = {
     safe_mode_total: number;
     direct_bypass_total: number;
     direct_head_bypass_total: number;
+    direct_head_recovery_total: number;
     mutation_exception_total: number;
   };
 };
@@ -84,6 +88,7 @@ export type VoidAlBlockCommitRuntimeStatusV1 = {
   safe_mode_total: number;
   direct_bypass_total: number;
   direct_head_bypass_total: number;
+  direct_head_recovery_total: number;
   mutation_exception_total: number;
   ordinary_authentication_changed: false;
   sovereign_usb_access: false;
@@ -492,6 +497,22 @@ function assertWritable(state: RuntimeState, actorSha?: string): void {
   }
 }
 
+function safeModeDirectHeadBypass(
+  state: RuntimeState,
+  reason: string,
+  ...parts: unknown[]
+): never {
+  state.counters.direct_head_bypass_total++;
+  state.counters.safe_mode_total++;
+  state.safe_mode = true;
+  state.safe_mode_reason = VOID_AL_BLOCK_HEAD_DIRECT_BYPASS_V1;
+  throw new VoidAlBlockCommitRuntimeHeldErrorV1(
+    VOID_AL_BLOCK_HEAD_DIRECT_BYPASS_V1,
+    "safe_mode",
+    evidence(reason, ...parts),
+  );
+}
+
 function canonicalCall(
   state: RuntimeState,
   store: any,
@@ -599,6 +620,7 @@ function status(
     safe_mode_total: state?.counters.safe_mode_total ?? 0,
     direct_bypass_total: state?.counters.direct_bypass_total ?? 0,
     direct_head_bypass_total: state?.counters.direct_head_bypass_total ?? 0,
+    direct_head_recovery_total: state?.counters.direct_head_recovery_total ?? 0,
     mutation_exception_total: state?.counters.mutation_exception_total ?? 0,
     ordinary_authentication_changed: false,
     sovereign_usb_access: false,
@@ -665,6 +687,7 @@ export function installVoidAlignmentLayerBlockCommitRuntimeOnPrototypeV1(args: {
       safe_mode_total: 0,
       direct_bypass_total: 0,
       direct_head_bypass_total: 0,
+      direct_head_recovery_total: 0,
       mutation_exception_total: 0,
     },
   };
@@ -773,15 +796,75 @@ export function installVoidAlignmentLayerBlockCommitRuntimeOnPrototypeV1(args: {
       return result;
     }
 
-    state.counters.direct_head_bypass_total++;
-    state.counters.safe_mode_total++;
-    state.safe_mode = true;
-    state.safe_mode_reason = VOID_AL_BLOCK_HEAD_DIRECT_BYPASS_V1;
-    throw new VoidAlBlockCommitRuntimeHeldErrorV1(
-      VOID_AL_BLOCK_HEAD_DIRECT_BYPASS_V1,
-      "safe_mode",
-      evidence("direct_head_bypass", callArgs[0] ?? null),
-    );
+    const target = Number(callArgs[0]);
+    const current = Number(this.loadHeadNumber?.());
+    if (
+      !Number.isSafeInteger(target) ||
+      target < 0 ||
+      !Number.isSafeInteger(current) ||
+      current < -1 ||
+      target < current ||
+      target - current > VOID_AL_BLOCK_HEAD_RECOVERY_MAX_SPAN_V1
+    ) {
+      return safeModeDirectHeadBypass(
+        state,
+        "direct_head_recovery_shape_invalid",
+        current,
+        target,
+      );
+    }
+    if (target === current) return undefined;
+
+    for (let n = current + 1; n <= target; n++) {
+      const candidate = this.loadBlock?.(n);
+      if (!candidate || Number(candidate.number) !== n) {
+        return safeModeDirectHeadBypass(
+          state,
+          "direct_head_recovery_block_missing",
+          current,
+          target,
+          n,
+        );
+      }
+
+      const mode = modeForReplay(candidate);
+      if (mode === "legacy-v2fs") {
+        if (typeof this.saveAuthorizedLegacyCommitDirectV2fs !== "function") {
+          return safeModeDirectHeadBypass(
+            state,
+            "direct_head_recovery_legacy_method_missing",
+            current,
+            target,
+            n,
+          );
+        }
+        this.saveAuthorizedLegacyCommitDirectV2fs(candidate);
+      } else {
+        if (typeof this.saveBlock !== "function") {
+          return safeModeDirectHeadBypass(
+            state,
+            "direct_head_recovery_modern_method_missing",
+            current,
+            target,
+            n,
+          );
+        }
+        this.saveBlock(candidate);
+      }
+
+      const observed = Number(this.loadHeadNumber?.());
+      if (observed !== n) {
+        return safeModeDirectHeadBypass(
+          state,
+          "direct_head_recovery_head_not_advanced",
+          n,
+          observed,
+        );
+      }
+      state.counters.direct_head_recovery_total++;
+    }
+
+    return undefined;
   };
 
   proto.replayWalAllBestEffort = function guardedReplay(this: any, ...callArgs: any[]) {
