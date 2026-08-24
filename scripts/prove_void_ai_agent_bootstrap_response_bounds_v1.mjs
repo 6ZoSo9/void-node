@@ -1629,6 +1629,59 @@ for (const hookName of [
   );
 }
 
+const fsyncEpochOutputPath = path.join(
+  outputDirectory,
+  "fsync-epoch.json",
+);
+const fsyncEpochOwnedAside = path.join(
+  outputDirectory,
+  "fsync-epoch.owned-aside.json",
+);
+const fsyncEpochForeignAside = path.join(
+  outputDirectory,
+  "fsync-epoch.foreign-aside.json",
+);
+const foreignEpochContent = "foreign-generation-sentinel\n";
+assert.throws(
+  () =>
+    writeBootstrapOutputFileV1(
+      fsyncEpochOutputPath,
+      outputContent,
+      {
+        beforeOutputParentFsync() {
+          renameSync(
+            fsyncEpochOutputPath,
+            fsyncEpochOwnedAside,
+          );
+          writeFileSync(
+            fsyncEpochOutputPath,
+            foreignEpochContent,
+            "utf8",
+          );
+        },
+        afterOutputParentFsync() {
+          renameSync(
+            fsyncEpochOutputPath,
+            fsyncEpochForeignAside,
+          );
+          renameSync(
+            fsyncEpochOwnedAside,
+            fsyncEpochOutputPath,
+          );
+        },
+      },
+    ),
+  /output path changed generation/,
+);
+assert.throws(
+  () => statSync(fsyncEpochOutputPath),
+  /ENOENT/,
+);
+assert.equal(
+  readFileSync(fsyncEpochForeignAside, "utf8"),
+  foreignEpochContent,
+);
+
 const closeReportOutputPath = path.join(
   outputDirectory,
   "close-report.json",
@@ -1668,6 +1721,8 @@ assert.match(clientSource, /constants\.O_NOFOLLOW/);
 assert.match(clientSource, /writeFileSync\(descriptor, content/);
 assert.match(clientSource, /fsyncSync\(descriptor\)/);
 assert.match(clientSource, /fsyncSync\(pinned\.fd\)/);
+assert.match(clientSource, /outputGenerationWitnessV1/);
+assert.match(clientSource, /ctimeNs/);
 assert.doesNotMatch(clientSource, /writeFileSync\(resolved, content/);
 assert.doesNotMatch(clientSource, /chmodSync\(resolved/);
 
@@ -1747,6 +1802,8 @@ console.log("output_parent_namespace_bound=true");
 console.log("output_parent_replacement_held=true");
 console.log("output_late_parent_replacement_cleaned=true");
 console.log("output_precommit_failure_retryable=true");
+console.log("output_leaf_fsync_epoch_generation_bound=true");
+console.log("output_foreign_epoch_leaf_preserved=true");
 console.log("output_committed_close_report_terminal=true");
 console.log("output_mode_0600=true");
 console.log("http_get_only=true");

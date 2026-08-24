@@ -1398,6 +1398,26 @@ function sameIdentityV1(left, right) {
   return left.dev === right.dev && left.ino === right.ino;
 }
 
+function outputGenerationWitnessV1(stat) {
+  return Object.freeze({
+    ...identityOfV1(stat),
+    mode: String(stat.mode),
+    nlink: String(stat.nlink),
+    size: String(stat.size),
+    ctimeNs: String(stat.ctimeNs),
+  });
+}
+
+function sameOutputGenerationV1(left, right) {
+  return (
+    sameIdentityV1(left, right) &&
+    left.mode === right.mode &&
+    left.nlink === right.nlink &&
+    left.size === right.size &&
+    left.ctimeNs === right.ctimeNs
+  );
+}
+
 function procFdPathV1(fd, leaf = "") {
   const root = path.join(PROC_FD_ROOT, String(fd));
   return leaf ? path.join(root, leaf) : root;
@@ -1583,13 +1603,47 @@ export function writeBootstrapOutputFileV1(
       parent,
       resolved,
     });
-    const linkedIdentity = identityOfV1(
+    const openedCommitWitness = outputGenerationWitnessV1(
+      fstatSync(descriptor, { bigint: true }),
+    );
+    const linkedCommitWitness = outputGenerationWitnessV1(
       lstatSync(boundOutput, { bigint: true }),
     );
-    if (!sameIdentityV1(openedIdentity, linkedIdentity)) {
+    if (
+      !sameOutputGenerationV1(
+        openedCommitWitness,
+        linkedCommitWitness,
+      )
+    ) {
       throw new Error("output path changed generation");
     }
+    testHooks?.beforeOutputParentFsync?.({
+      parent,
+      resolved,
+    });
     fsyncSync(pinned.fd);
+    testHooks?.afterOutputParentFsync?.({
+      parent,
+      resolved,
+    });
+    const committedDescriptorWitness = outputGenerationWitnessV1(
+      fstatSync(descriptor, { bigint: true }),
+    );
+    const committedPathWitness = outputGenerationWitnessV1(
+      lstatSync(boundOutput, { bigint: true }),
+    );
+    if (
+      !sameOutputGenerationV1(
+        openedCommitWitness,
+        committedDescriptorWitness,
+      ) ||
+      !sameOutputGenerationV1(
+        openedCommitWitness,
+        committedPathWitness,
+      )
+    ) {
+      throw new Error("output path changed generation");
+    }
     assertPinnedOutputParentV1(pinned);
     published = true;
   } finally {
