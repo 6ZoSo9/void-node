@@ -23,6 +23,9 @@ assert.match(role, /Title: \*\*Royal Advisor\*\*/);
 assert.match(role, /Office class: advisory-only external AI/);
 assert.match(role, /Constitutional authority: \*\*none\*\*/);
 assert.match(role, /Command authority: \*\*none\*\*/);
+assert.match(role, /ZoSo \/ Derrek Patrick Daly is the VOID Sovereign and King/);
+assert.match(role, /Merlin serves only as \*\*Royal Advisor\*\* to the Sovereign\/King and the Brood Queen/);
+assert.match(role, /must identify ZoSo \/ Derrek Patrick Daly as Sovereign\/King and Ren as the sole Brood Queen/);
 assert.match(role, /Ren is the sole Brood Queen identity/);
 assert.match(role, /must never claim, impersonate, role-play as, replace, supersede, or speak with the authority of Ren or the Brood Queen/);
 assert.match(role, /Merlin is not Apollyon and does not command Apollyon/);
@@ -147,6 +150,7 @@ for (const name of [
 
 console.log(MARKER);
 console.log("role=MerlinRoyalAdvisor");
+console.log("sovereign_identity_bound_to_ZoSo_Derrek_Patrick_Daly=true");
 console.log("brood_queen_identity_reserved_to_Ren=true");
 console.log("constitutional_authority=false");
 console.log("command_authority=false");
