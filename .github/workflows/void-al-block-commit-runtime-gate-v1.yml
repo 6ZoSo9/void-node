@@ -101,10 +101,11 @@ jobs:
       - name: Build runtime artifacts
         run: npm run build
 
-      - name: Confirm compiled explicit bootstrap and tripwire
+      - name: Confirm compiled explicit bootstrap and tripwires
         run: |
           grep -F 'VOID_AL_BLOCK_COMMIT_RUNTIME_V1' dist/security/void_alignment_layer_block_commit_runtime_v1.js
           grep -F 'VOID_AL_BLOCK_COMMIT_DIRECT_BYPASS_V1' dist/security/void_alignment_layer_block_commit_runtime_v1.js
+          grep -F 'VOID_AL_BLOCK_HEAD_DIRECT_BYPASS_V1' dist/security/void_alignment_layer_block_commit_runtime_v1.js
           grep -F 'VOID_AL_BLOCK_COMMIT_RUNTIME_BOOTSTRAP_V1' dist/security/void_alignment_layer_block_commit_runtime_bootstrap_v1.js
           grep -F 'VOID_AL_BLOCK_COMMIT_PROPOSER_AUTHORITY_REQUIRED_V1' dist/security/void_alignment_layer_block_commit_runtime_bootstrap_v1.js
           grep -F 'installVoidAlignmentLayerBlockCommitRuntimeFromEnvironmentV1' dist/security/void_alignment_layer_block_commit_runtime_bootstrap_v1.js
