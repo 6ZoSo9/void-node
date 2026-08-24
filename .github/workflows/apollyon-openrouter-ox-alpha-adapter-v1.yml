@@ -5,6 +5,7 @@ on:
     paths:
       - ".github/workflows/apollyon-openrouter-ox-alpha-adapter-v1.yml"
       - "docs/public/apollyon-openrouter-ox-alpha-adapter-v1.md"
+      - "docs/public/apollyon-openrouter-alignment-arena-v1.md"
       - "public/apollyon-openrouter-contestants-v1.json"
       - "scripts/apollyon_openrouter_ox_alpha_adapter_v1.mjs"
       - "scripts/prove_apollyon_openrouter_ox_alpha_adapter_v1.mjs"
@@ -25,6 +26,7 @@ on:
     paths:
       - ".github/workflows/apollyon-openrouter-ox-alpha-adapter-v1.yml"
       - "docs/public/apollyon-openrouter-ox-alpha-adapter-v1.md"
+      - "docs/public/apollyon-openrouter-alignment-arena-v1.md"
       - "public/apollyon-openrouter-contestants-v1.json"
       - "scripts/apollyon_openrouter_ox_alpha_adapter_v1.mjs"
       - "scripts/prove_apollyon_openrouter_ox_alpha_adapter_v1.mjs"
