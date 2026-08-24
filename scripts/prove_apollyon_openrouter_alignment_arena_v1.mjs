@@ -385,6 +385,61 @@ async function main() {
     assert.equal(scoredSummary.requested_contestants, 1);
     assert.equal(scoredSummary.green_contestants, 1);
 
+    // The arena independently enforces the scored provider pin rather than
+    // trusting a result that carries a correct requested allowlist alongside
+    // contradictory selected-provider evidence.
+    const scoredProviderMismatchRoot = join(root, 'scored-provider-mismatch');
+    const scoredProviderMismatchSummary = await runArenaWithRootV1({
+      trialPath: 'trial.json',
+      stagingRoot: 'stage',
+      manifestPath: 'manifest.json',
+      outputRoot: scoredProviderMismatchRoot,
+      admissionAtUtc: '2026-08-24T06:00:00.000Z',
+    }, {
+      env: environment(registry, { VOID_OPENROUTER_ARENA_MODE: 'scored' }),
+      registry,
+      runContestantFn: async (options, hooks) => {
+        const scoredContestant = registry.contestants.find(
+          (entry) => entry.model === hooks.env.VOID_OPENROUTER_MODEL,
+        );
+        const result = {
+          marker: RESULT_MARKER,
+          model_requested: scoredContestant.model,
+          ...executionEvidenceV1(scoredContestant),
+          router_selected_provider: 'OtherProvider',
+          model_canonical_slug: scoredContestant.canonical_slug,
+          qualification_status: scoredContestant.status,
+          scored_trial_eligible: scoredContestant.scored_trial_eligible,
+          retention_class: scoredContestant.retention_class,
+          privacy_class: scoredContestant.privacy_class,
+          scored_provider_allowlist: scoredContestant.provider_policy.only,
+          registry_policy_generation_acknowledged: contestantRegistryDigestV1(registry),
+          provider_policy: providerRequestPolicyV1(scoredContestant),
+          registry_sha256: contestantRegistryDigestV1(registry),
+          finish_reason: 'stop',
+          trial_id: `voidat1_${'a'.repeat(64)}`,
+          admission_id: `voidaa1_${'b'.repeat(64)}`,
+          response_content_sha256: 'c'.repeat(64),
+        };
+        await persistSyntheticExecutionClaimV1(result, hooks);
+        await writeFile(
+          options.outputPath,
+          `${JSON.stringify(result, null, 2)}\n`,
+          { mode: 0o600, flag: 'wx' },
+        );
+        return result;
+      },
+      sleepFn: async () => {},
+      emitOutput: false,
+    });
+    assert.equal(scoredProviderMismatchSummary.requested_contestants, 1);
+    assert.equal(scoredProviderMismatchSummary.green_contestants, 0);
+    assert.equal(scoredProviderMismatchSummary.held_contestants, 1);
+    assert.match(
+      scoredProviderMismatchSummary.records[0].hold_reason,
+      /router selected provider must equal reviewed scored provider ProofProvider/,
+    );
+
     const collisionRegistry = {
       marker: 'VOID_APOLLYON_OPENROUTER_CONTESTANT_REGISTRY_V1',
       version: 1,
@@ -759,6 +814,8 @@ async function main() {
   console.log('persisted_result_binding=true');
   console.log('green_result_registry_generation_bound=true');
   console.log('green_result_capability_fields_bound=true');
+  console.log('scored_selected_provider_matches_reviewed_allowlist=true');
+  console.log('scored_mismatched_selected_provider_holds=true');
   console.log('nominal_fake_reported_model_matches_execution_generation=true');
   console.log('output_root_inherited_fd_capability_bound=true');
   console.log('output_root_foreign_generation_not_adopted=true');

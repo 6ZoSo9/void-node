@@ -298,7 +298,7 @@ function successFetch(contestant, assertions = {}) {
           endpoints: {
             total: 1,
             available: [{
-              provider: 'ProofProvider',
+              provider: assertions.selectedProvider ?? 'ProofProvider',
               model: executionModelV1(contestant),
               selected: true,
             }],
@@ -539,6 +539,51 @@ async function main() {
     assert.match(oxResult.execution_claim_sha256, /^[0-9a-f]{64}$/);
     assert.match(oxResult.execution_claim_semantic_sha256, /^[0-9a-f]{64}$/);
     assert.match(oxResult.execution_claim_root_generation_sha256, /^[0-9a-f]{64}$/);
+
+    // Future scored evidence is attributable only to the one exact reviewed
+    // provider pinned by provider_policy.only. A router response that names a
+    // different selected provider must HOLD after the synthetic response and
+    // before accepted result publication. Current real registry entries remain
+    // unscored; this fixture constructs a source-only scored policy generation.
+    const scoredRegistry = structuredClone(registry);
+    const scoredOx = scoredRegistry.contestants.find((entry) => entry.model === ox.model);
+    assert.ok(scoredOx);
+    scoredOx.scored_trial_eligible = true;
+    scoredOx.provider_policy.only = ['ProofProvider'];
+    validateContestantRegistryV1(scoredRegistry);
+    const scoredRegistrySha256 = contestantRegistryDigestV1(scoredRegistry);
+    const scoredProviderMismatch = await makeFixture(root, 'scored-provider-mismatch');
+    const scoredProviderMismatchTransport = successFetch(scoredOx, {
+      selectedProvider: 'OtherProvider',
+      onChatBody: (body) => {
+        assert.deepEqual(body.provider.only, ['ProofProvider']);
+      },
+    });
+    await expectReject(
+      runOpenRouterContestantTrialV1({
+        trialPath: scoredProviderMismatch.packetPath,
+        stagingRoot: scoredProviderMismatch.stage,
+        manifestPath: scoredProviderMismatch.manifestPath,
+        receiptPath: scoredProviderMismatch.receiptPath,
+        outputPath: scoredProviderMismatch.outputPath,
+        admissionAtUtc: ADMISSION_AT,
+      }, {
+        registry: scoredRegistry,
+        env: environment(scoredOx.model, {
+          VOID_OPENROUTER_ACK_REGISTRY_SHA256: scoredRegistrySha256,
+        }),
+        fetchImpl: scoredProviderMismatchTransport.fetchImpl,
+        emitOutput: false,
+      }),
+      'selected endpoint provider must equal reviewed scored provider ProofProvider',
+      'scored selected-provider mismatch',
+    );
+    assert.equal(scoredProviderMismatchTransport.calls().metadataCalls, 1);
+    assert.equal(scoredProviderMismatchTransport.calls().chatCalls, 1);
+    await expectMissing(
+      scoredProviderMismatch.outputPath,
+      'scored selected-provider mismatch accepted result',
+    );
 
     // Same logical request in two different output namespaces must still share
     // one global execution claim and therefore execute chat exactly once.
@@ -1804,6 +1849,8 @@ async function main() {
   console.log('canonical_model_generation_bound=true');
   console.log('concrete_execution_model_request_bound=true');
   console.log('router_selected_execution_model_bound=true');
+  console.log('scored_selected_provider_matches_reviewed_allowlist=true');
+  console.log('scored_mismatched_selected_provider_rejected=true');
   console.log('context_length_safe_integer_bound=true');
   console.log('free_price_recheck_before_send=true');
   console.log('required_price_exact_grammar=true');

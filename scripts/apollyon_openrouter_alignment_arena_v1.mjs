@@ -477,6 +477,12 @@ async function verifyPersistedResult(
       || persisted.router_selected_provider.length > 128) {
       fail(`persisted router selected provider is invalid for ${contestant.model}`);
     }
+    if (contestant.scored_trial_eligible === true) {
+      const reviewedProvider = contestant.provider_policy.only[0];
+      if (persisted.router_selected_provider !== reviewedProvider) {
+        fail(`persisted router selected provider must equal reviewed scored provider ${reviewedProvider} for ${contestant.model}`);
+      }
+    }
     if (persisted.finish_reason !== 'stop') fail(`persisted finish reason must equal stop for ${contestant.model}`);
     if (persisted.registry_sha256 !== registryLoaded.sha256) fail(`persisted registry generation drifted for ${contestant.model}`);
     if (persisted.registry_policy_generation_acknowledged !== registryLoaded.sha256) {

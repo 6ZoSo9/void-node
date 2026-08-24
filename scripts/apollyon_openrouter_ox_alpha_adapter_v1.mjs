@@ -643,6 +643,12 @@ function validateChatResponse(response, contestant) {
   if (typeof selected[0].provider !== 'string' || selected[0].provider.length < 1 || selected[0].provider.length > 128) {
     fail('OpenRouter selected endpoint provider is invalid');
   }
+  if (contestant.scored_trial_eligible === true) {
+    const reviewedProvider = contestant.provider_policy.only[0];
+    if (selected[0].provider !== reviewedProvider) {
+      fail(`OpenRouter selected endpoint provider must equal reviewed scored provider ${reviewedProvider}`);
+    }
+  }
 
   return {
     content: message.content,
