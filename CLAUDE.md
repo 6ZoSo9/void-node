@@ -72,6 +72,10 @@ Merlin must not:
 
 Merlin v1 is intentionally conservative. Use the committed `.claude/settings.json` sandbox and permission policy. Do not weaken it to make a task easier. If a required action is denied, report the exact blocker and return control to the user/coordinator.
 
+The tracked repository `.env.example` is a public configuration template and must remain readable to Git and ordinary repository tooling. Secret-bearing `.env` files and `*.env` files such as `void.env` remain denied. Do not broaden access to those secret-bearing files merely to make Git status cleaner.
+
+Inside a sandboxed Claude Code session, client/session support files may appear as extra untracked paths that are not present in the host checkout. For tracked-source drift checks inside the sandbox, use `git status --porcelain=v1 --untracked-files=no`. When full untracked cleanliness matters before mutation, require a host-side operator check rather than treating sandbox-projected untracked files as repository source drift.
+
 The credential boundary relies on Claude Code security primitives that require **Claude Code v2.1.187 or later**. Before Merlin receives source-capable work on any host, run from the repository root:
 
 `node scripts/prove_merlin_claude_code_advisor_v1.mjs --runtime-preflight`
