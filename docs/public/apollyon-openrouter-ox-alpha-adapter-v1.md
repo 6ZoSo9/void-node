@@ -19,10 +19,16 @@ Initial roster reviewed 2026-08-24:
 | model | status | minimum reviewed context | scored-trial eligibility |
 | --- | --- | ---: | --- |
 | `stealth/ox-alpha` | `qualified` | 1,048,576 | yes |
-| `deepseek/deepseek-v4-flash:free` | `qualification_only` | 1,048,576 | no |
-| `deepseek/deepseek-r1:free` | `qualification_only` | 163,840 | no |
-| `deepseek/deepseek-chat:free` | `qualification_only` | 131,072 | no |
-| `deepseek/deepseek-r1-0528-qwen3-8b:free` | `qualification_only` | 131,072 | no |
+| `deepseek/deepseek-v4-flash:free` | `quarantined` | 1,048,576 | no |
+| `deepseek/deepseek-r1:free` | `quarantined` | 163,840 | no |
+| `deepseek/deepseek-chat:free` | `quarantined` | 131,072 | no |
+| `deepseek/deepseek-r1-0528-qwen3-8b:free` | `quarantined` | 131,072 | no |
+| `z-ai/glm-5.2:free` | `qualification_only` | 256,000 | no |
+| `cohere/north-mini-code:free` | `qualification_only` | 256,000 | no |
+| `poolside/laguna-s-2.1:free` | `qualification_only` | 262,144 | no |
+| `thinkingmachines/inkling:free` | `qualification_only` | 262,144 | no |
+| `nvidia/nemotron-3.5-lightning:free` | `qualification_only` | 1,000,000 | no |
+| `dots-studio/dots-3-note-preview:free` | `qualification_only` | 512,000 | no |
 
 The roster is not a permanent trust statement. Each live request fetches OpenRouter's supported `/api/v1/models` catalog, selects the exact registry slug from that catalog, and rechecks its published pricing fields before the chat request is sent. A missing model, model-id mismatch, reduced context below the reviewed floor, invalid price, or any non-zero published price closes the gate.
 
@@ -34,9 +40,11 @@ The roster is not a permanent trust statement. Each live request fetches OpenRou
 
 `quarantined` means no request may be sent. Meaningful provider/model drift should move a contestant into `QUARANTINE_REQUALIFICATION_REQUIRED` operational posture until a fresh review restores it.
 
-## DeepSeek provider policy
+## Free-contestant provider policy
 
-The current DeepSeek free entries are intentionally not scored-trial eligible yet. Their registry policy requires:
+The four earlier DeepSeek `:free` slugs are quarantined because the live OpenRouter `/api/v1/models` catalog no longer contains those exact zero-priced identities. They remain recorded for provenance but are excluded from both qualification and scored arena modes until Lamarr independently requalifies an exact current free DeepSeek slug.
+
+New exact-zero catalog contestants begin as `qualification_only`. Their registry policy requires:
 
 ```json
 {
@@ -47,9 +55,11 @@ The current DeepSeek free entries are intentionally not scored-trial eligible ye
 }
 ```
 
-That means an OpenRouter request must fail rather than silently route to an endpoint that cannot satisfy the reviewed no-data-collection / zero-data-retention policy. The current registry leaves the explicit provider `only` list empty while Lamarr reviews current free-provider identity, routing, quantization, and privacy behavior. A later scored promotion should pin the reviewed provider/routing generation rather than relying on provider variability.
+That means an OpenRouter request must fail rather than silently route to an endpoint that cannot satisfy the reviewed no-data-collection / zero-data-retention policy. A free endpoint that logs, retains, or trains on prompts may therefore HOLD during qualification even though its public price is zero. We do not weaken the privacy wall merely to make a contestant run.
 
 Dynamic `openrouter/free` routing is not accepted for scored Apollyon trials because the selected model can change. Scored evidence must remain attributable to an exact model slug and reviewed routing policy.
+
+`x-ai/grok-4-fast:free` is intentionally not in the executable registry yet. OpenRouter currently has a public model page advertising a free Grok 4 Fast variant, but the reviewed general `/api/v1/models` catalog does not currently expose that exact free slug. Lamarr tracks it as a watch candidate; it may be admitted only when the same catalog authority used by the runtime can prove its exact zero-priced identity.
 
 ## Ox Alpha provider posture
 

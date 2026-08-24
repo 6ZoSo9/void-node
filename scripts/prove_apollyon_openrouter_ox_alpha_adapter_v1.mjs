@@ -32,6 +32,26 @@ const EXPECTED_MODELS = [
   'deepseek/deepseek-r1:free',
   'deepseek/deepseek-chat:free',
   'deepseek/deepseek-r1-0528-qwen3-8b:free',
+  'z-ai/glm-5.2:free',
+  'cohere/north-mini-code:free',
+  'poolside/laguna-s-2.1:free',
+  'thinkingmachines/inkling:free',
+  'nvidia/nemotron-3.5-lightning:free',
+  'dots-studio/dots-3-note-preview:free',
+];
+const STALE_QUARANTINED_MODELS = [
+  'deepseek/deepseek-v4-flash:free',
+  'deepseek/deepseek-r1:free',
+  'deepseek/deepseek-chat:free',
+  'deepseek/deepseek-r1-0528-qwen3-8b:free',
+];
+const QUALIFICATION_MODELS = [
+  'z-ai/glm-5.2:free',
+  'cohere/north-mini-code:free',
+  'poolside/laguna-s-2.1:free',
+  'thinkingmachines/inkling:free',
+  'nvidia/nemotron-3.5-lightning:free',
+  'dots-studio/dots-3-note-preview:free',
 ];
 
 function sha256(value) {
@@ -274,8 +294,15 @@ async function main() {
   assert.equal(ox.scored_trial_eligible, true);
   assert.equal(ox.provider_policy.allow_fallbacks, false);
 
-  for (const deepseekModel of EXPECTED_MODELS.slice(1)) {
-    const contestant = getContestantV1(registry, deepseekModel);
+  for (const staleModel of STALE_QUARANTINED_MODELS) {
+    const contestant = getContestantV1(registry, staleModel);
+    assert.equal(contestant.status, 'quarantined');
+    assert.equal(contestant.scored_trial_eligible, false);
+    assert.match(contestant.retention_class, /catalog_absent/);
+  }
+
+  for (const qualificationModel of QUALIFICATION_MODELS) {
+    const contestant = getContestantV1(registry, qualificationModel);
     assert.equal(contestant.status, 'qualification_only');
     assert.equal(contestant.scored_trial_eligible, false);
     assert.equal(contestant.provider_policy.allow_fallbacks, false);
@@ -294,9 +321,11 @@ async function main() {
   duplicateRegistry.contestants.push(structuredClone(duplicateRegistry.contestants[0]));
   assert.throws(() => validateContestantRegistryV1(duplicateRegistry), /duplicate contestant model/);
 
-  const weakenedDeepSeek = structuredClone(registry);
-  weakenedDeepSeek.contestants[1].provider_policy.zdr = false;
-  assert.throws(() => validateContestantRegistryV1(weakenedDeepSeek), /must require data_collection=deny and zdr=true/);
+  const weakenedQualificationPolicy = structuredClone(registry);
+  const qualificationIndex = weakenedQualificationPolicy.contestants.findIndex((x) => x.status === 'qualification_only');
+  assert.notEqual(qualificationIndex, -1);
+  weakenedQualificationPolicy.contestants[qualificationIndex].provider_policy.zdr = false;
+  assert.throws(() => validateContestantRegistryV1(weakenedQualificationPolicy), /must require data_collection=deny and zdr=true/);
 
   const synthetic = buildOpenRouterRequestV1(
     { marker: 'VOID_APOLLYON_TRIAL_PACKET_V1', trial_id: `voidat1_${'a'.repeat(64)}`, instructions: 'test' },
@@ -339,7 +368,7 @@ async function main() {
     assert.equal(JSON.stringify(oxPersisted).includes(TEST_KEY), false);
     assert.equal((await stat(success.outputPath)).mode & 0o777, 0o600);
 
-    const deepseek = getContestantV1(registry, 'deepseek/deepseek-v4-flash:free');
+    const deepseek = getContestantV1(registry, 'z-ai/glm-5.2:free');
     await expectReject(
       runOpenRouterContestantTrialV1({
         trialPath: 'unused', stagingRoot: 'unused', manifestPath: 'unused', receiptPath: 'unused', outputPath: 'unused', admissionAtUtc: ADMISSION_AT,
@@ -353,7 +382,7 @@ async function main() {
       'qualification-only runtime gate',
     );
 
-    const deepseekFixture = await makeFixture(root, 'deepseek-v4-qualification');
+    const deepseekFixture = await makeFixture(root, 'glm-5-2-free-qualification');
     const deepseekTransport = successFetch(deepseek, {
       onChatBody: (body) => {
         assert.equal(body.provider.data_collection, 'deny');
@@ -382,7 +411,7 @@ async function main() {
     assert.equal(deepseekTransport.calls().metadataCalls, 1);
     assert.equal(deepseekTransport.calls().chatCalls, 1);
 
-    const paid = await makeFixture(root, 'deepseek-paid');
+    const paid = await makeFixture(root, 'qualification-paid');
     let paidChatCalls = 0;
     await expectReject(
       runOpenRouterContestantTrialV1({
@@ -548,9 +577,10 @@ async function main() {
   console.log(`default_model=${DEFAULT_MODEL}`);
   console.log(`registry_model_count=${EXPECTED_MODELS.length}`);
   console.log('ox_alpha_scored_trial_eligible=true');
-  console.log('deepseek_initial_status=qualification_only');
-  console.log('deepseek_zdr_required=true');
-  console.log('deepseek_data_collection_deny=true');
+  console.log('stale_deepseek_quarantined=4');
+  console.log(`qualification_only_current_free_count=${QUALIFICATION_MODELS.length}`);
+  console.log('qualification_only_zdr_required=true');
+  console.log('qualification_only_data_collection_deny=true');
   console.log('live_provider_call=false');
   console.log('sanitization_admission_required=true');
   console.log('post_admission_digest_recheck=true');
