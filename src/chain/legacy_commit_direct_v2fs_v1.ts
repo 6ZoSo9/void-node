@@ -7,6 +7,12 @@ import type { BlockValidationResult } from "./block.js";
 export const VOID_LEGACY_COMMIT_DIRECT_V2FS_MARKER_V1 =
   "proposer.commit-direct.v2fs" as const;
 
+// Mainnet-0's legacy commit-direct producer used SHA-256 of the empty byte
+// string for an empty transaction set. This is intentionally distinct from
+// the modern block root convention, which uses 64 zeroes for an empty set.
+export const VOID_LEGACY_EMPTY_TX_ROOT_V1 =
+  "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855" as const;
+
 const LEGACY_TOP_LEVEL_KEYS_V1 = [
   "_commit",
   "header",
@@ -94,8 +100,10 @@ export function validateLegacyCommitDirectV2fsForAppendV1(
     return { ok: false, reason: "legacy_v2fs_header_tx_root_mismatch" };
   }
 
-  const roots = computeRoots(candidate.txs as any[], []);
-  if (roots.txRoot !== txRoot) {
+  const expectedTxRoot = candidate.txs.length === 0
+    ? VOID_LEGACY_EMPTY_TX_ROOT_V1
+    : computeRoots(candidate.txs as any[], []).txRoot;
+  if (expectedTxRoot !== txRoot) {
     return { ok: false, reason: "legacy_v2fs_tx_root_mismatch" };
   }
 
