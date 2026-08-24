@@ -24,3 +24,5 @@ jobs:
         run: bash tools/check_tsc_noemit_baseline.sh
       - name: Check public node operator trial terminal final seal
         run: bash tools/check_public_node_operator_trial_terminal_final_seal_v1.sh
+      - name: Check public node operator trial lane final seal
+        run: bash tools/check_public_node_operator_trial_lane_final_seal_v1.sh
