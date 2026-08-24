@@ -1,0 +1,53 @@
+{
+  "marker": "VOID_AL_DURABLE_SAFE_MODE_LATCH_V1_20260824",
+  "version": 1,
+  "chain_id": 2050,
+  "state": {
+    "root_environment_variable": "VOID_AL_DURABLE_SAFE_MODE_ROOT_V1",
+    "state_file": "void-al-durable-safe-mode-v1.json",
+    "lock_file": ".void-al-durable-safe-mode-v1.lock",
+    "root_private_required": true,
+    "state_file_mode": "0600",
+    "lock_file_mode": "0600",
+    "state_max_bytes": 65536,
+    "explicit_initialization_required": true,
+    "automatic_initialization_on_runtime_start": false,
+    "file_fsync_required": true,
+    "directory_fsync_required": true,
+    "crash_lock_fail_closed": true,
+    "fingerprint_bound": true,
+    "all_zero_evidence_allowed": false
+  },
+  "runtime": {
+    "normal_node_entrypoint_mounts_bootstrap": false,
+    "enabled_runtime_requires_initialized_durable_state": true,
+    "persist_child_safe_mode_before_return": true,
+    "persist_latent_child_safe_mode_after_call": true,
+    "restart_restores_safe_mode": true,
+    "persisted_safe_mode_blocks_mutation_before_child_call": true,
+    "automatic_resume_allowed": false,
+    "resume_api_implemented": false
+  },
+  "closed_hold": "HOLD_AL_DURABLE_SAFE_MODE_STATE_REQUIRED",
+  "remaining_holds": [
+    "HOLD_AL_DURABLE_SAFE_MODE_RESUME_AUTHENTICATION_BINDING_REQUIRED",
+    "HOLD_AL_LEGACY_INDEX_RUNTIME_NOT_RETIRED",
+    "HOLD_AL_BLOCK_COMMIT_BOOTSTRAP_NOT_MOUNTED",
+    "HOLD_AL_PROPOSER_AUTHORITY_SOURCE_OPERATIONAL_VALIDATION_REQUIRED"
+  ],
+  "activation": {
+    "ready": false,
+    "live_enablement_authorized": false,
+    "runtime_environment_change_authorized": false,
+    "production_pause_resume_performed": false
+  },
+  "authority_boundary": {
+    "ordinary_authentication_changed": false,
+    "sovereign_usb_access": false,
+    "private_key_access": false,
+    "wallet_or_signer_access": false,
+    "validator_or_work_credit_mutation": false,
+    "chain2050_live_mutation": false,
+    "money_movement": false
+  }
+}
