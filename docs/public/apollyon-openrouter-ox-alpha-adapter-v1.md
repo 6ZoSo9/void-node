@@ -307,3 +307,23 @@ The result binds both:
 - `execution_claim_root_generation_sha256`: a local dev/inode/uid/mode generation digest for the inherited claim root.
 
 A missing claim-root fd is fail-closed before chat. The adapter does not open an arbitrary claim-root pathname itself and does not auto-create or replace the claim root. A future live broker must preserve one reviewed claim-root generation across the contestant executions it coordinates.
+
+## Exact claim generation through provider admission
+
+Durable claim creation is not sufficient by itself if the canonical claim leaf can be
+replaced before the irreversible provider request. During exact claim publication the
+adapter now duplicates the already-synced anonymous stage file descriptor at the
+`after_parent_sync_commit` terminal, so it retains the exact inode that was create-only
+linked and parent-fsynced rather than reopening authority from a mutable pathname later.
+
+That exact mode-0600 claim handle remains open across the post-claim recovery check and any
+bounded post-claim hook. Immediately before chat admission the adapter revalidates both the
+inherited claim-root generation and that the canonical deterministic claim name still
+resolves to the retained claim inode. Unlink, rename, replacement, mode drift, root
+generation drift, or loss of the visible claim therefore HOLDs before provider execution.
+
+The focused proof renames the winner's exact claim after durable acquisition, installs a
+foreign same-UID replacement, and starts a second same-key contender. Both callers perform
+zero chat execution and the foreign replacement is preserved. The retained claim handle
+stays open through the accepted-response/result transaction and closes only at the trial
+terminal.

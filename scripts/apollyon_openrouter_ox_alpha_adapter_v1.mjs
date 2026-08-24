@@ -721,6 +721,24 @@ async function openExecutionClaimRootV1(rawFd) {
   }
 }
 
+async function assertExecutionClaimRootGenerationV1(root) {
+  const st = await root.fh.stat({ bigint: true });
+  if (!st.isDirectory()) fail('OpenRouter execution claim root generation is no longer a directory');
+  if ((Number(st.mode) & 0o777) !== 0o700) fail('OpenRouter execution claim root mode changed');
+  if (typeof process.getuid === 'function' && Number(st.uid) !== process.getuid()) {
+    fail('OpenRouter execution claim root ownership changed');
+  }
+  const generation = sha256(Buffer.from(canonicalJson({
+    dev: st.dev.toString(),
+    ino: st.ino.toString(),
+    uid: st.uid.toString(),
+    mode: (Number(st.mode) & 0o777).toString(8),
+  }), 'utf8'));
+  if (generation !== root.generation) {
+    fail('OpenRouter execution claim root generation changed');
+  }
+}
+
 function executionClaimPathV1(claimRootAnchor, recoveryKey) {
   return join(claimRootAnchor, `.void-openrouter-execution-claim-${recoveryKey}.json`);
 }
@@ -751,27 +769,114 @@ function executionClaimValueV1({
   };
 }
 
+async function retainExecutionClaimStageV1(stageHandle, claimPath, expectedBytes) {
+  const fh = await open(`/proc/self/fd/${stageHandle.fd}`, FS.O_RDONLY | FS.O_NONBLOCK);
+  try {
+    const pre = await fh.stat({ bigint: true });
+    if (!pre.isFile()) fail('retained execution claim must be a regular file');
+    if ((Number(pre.mode) & 0o777) !== 0o600) fail('retained execution claim mode must be 0600');
+    if (pre.size !== BigInt(expectedBytes.length)) fail('retained execution claim byte length drifted');
+
+    const bytes = Buffer.allocUnsafe(expectedBytes.length);
+    let total = 0;
+    while (total < expectedBytes.length) {
+      const { bytesRead } = await fh.read(
+        bytes,
+        total,
+        expectedBytes.length - total,
+        total,
+      );
+      if (bytesRead === 0) break;
+      total += bytesRead;
+    }
+    if (total !== expectedBytes.length || !bytes.equals(expectedBytes)) {
+      fail('retained execution claim bytes drifted');
+    }
+
+    const post = await fh.stat({ bigint: true });
+    if (!sameStamp(stamp(pre), stamp(post))) {
+      fail('retained execution claim generation changed during capture');
+    }
+
+    return {
+      fh,
+      path: claimPath,
+      stat: post,
+    };
+  } catch (error) {
+    await fh.close().catch(() => {});
+    throw error;
+  }
+}
+
+async function assertVisibleExecutionClaimGenerationV1(retained) {
+  const exact = await retained.fh.stat({ bigint: true });
+  if (!exact.isFile()) fail('retained execution claim is no longer a regular file');
+  if ((Number(exact.mode) & 0o777) !== 0o600) fail('retained execution claim mode changed');
+  let visible;
+  try {
+    visible = await stat(retained.path, { bigint: true });
+  } catch {
+    fail('execution claim visible generation changed before provider execution');
+  }
+  if (!visible.isFile()
+    || visible.dev.toString() !== exact.dev.toString()
+    || visible.ino.toString() !== exact.ino.toString()) {
+    fail('execution claim visible generation changed before provider execution');
+  }
+}
+
 async function acquireExecutionClaimV1(path, value, hooks = {}) {
   if (typeof hooks.beforeExecutionClaim === 'function') {
     await hooks.beforeExecutionClaim({ claimPath: path, claim: value });
   }
 
+  const expectedBytes = Buffer.from(`${JSON.stringify(value, null, 2)}\n`, 'utf8');
+  let retained = null;
+  const externalFaultHook = hooks.executionClaimPublicationFaultHook;
+  const retainingFaultHook = async (phase, context) => {
+    if (phase === 'after_parent_sync_commit') {
+      if (retained) fail('execution claim durable generation was captured more than once');
+      retained = await retainExecutionClaimStageV1(
+        context.stageHandle,
+        path,
+        expectedBytes,
+      );
+    }
+    if (typeof externalFaultHook === 'function') {
+      await externalFaultHook(phase, context);
+    }
+  };
+
   let published;
   try {
     published = await publishJsonExactV1(path, value, {
-      faultHook: hooks.executionClaimPublicationFaultHook,
+      faultHook: retainingFaultHook,
     });
   } catch {
+    if (retained) await retained.fh.close().catch(() => {});
     fail('execution claim publication conflicted or failed; provider execution forbidden');
   }
 
   if (published?.created !== true) {
+    if (retained) await retained.fh.close().catch(() => {});
     fail('execution claim already exists; same-key provider execution is BUSY/HOLD');
+  }
+  if (!retained) {
+    fail('execution claim durable generation was not retained; provider execution forbidden');
+  }
+
+  try {
+    await assertVisibleExecutionClaimGenerationV1(retained);
+  } catch (error) {
+    await retained.fh.close().catch(() => {});
+    throw error;
   }
 
   return {
+    ...retained,
     semanticSha256: sha256(Buffer.from(canonicalJson(value), 'utf8')),
-    fileSha256: sha256(Buffer.from(`${JSON.stringify(value, null, 2)}\n`, 'utf8')),
+    fileSha256: sha256(expectedBytes),
   };
 }
 
@@ -873,6 +978,7 @@ export async function runOpenRouterContestantTrialV1(options, hooks = {}) {
   const executionClaimRoot = await openExecutionClaimRootV1(
     hooks.executionClaimRootFd ?? env.VOID_OPENROUTER_EXECUTION_CLAIM_ROOT_FD,
   );
+  let acquiredClaimHandle = null;
   try {
     const executionClaimPath = executionClaimPathV1(executionClaimRoot.anchor, recoveryKey);
     const executionClaim = executionClaimValueV1({
@@ -886,6 +992,7 @@ export async function runOpenRouterContestantTrialV1(options, hooks = {}) {
       claimRootGeneration: executionClaimRoot.generation,
     });
     const acquiredClaim = await acquireExecutionClaimV1(executionClaimPath, executionClaim, hooks);
+    acquiredClaimHandle = acquiredClaim.fh;
 
     // Close the recovery-check -> claim race. A recovery generation that appears
     // after the initial check but before this durable claim never widens authority.
@@ -901,6 +1008,8 @@ export async function runOpenRouterContestantTrialV1(options, hooks = {}) {
       });
     }
 
+    await assertExecutionClaimRootGenerationV1(executionClaimRoot);
+    await assertVisibleExecutionClaimGenerationV1(acquiredClaim);
     const rawResponse = await sendChat(fetchImpl, runtime.apiKey, request.body, runtime.chatTimeoutMs);
     const accepted = validateChatResponse(rawResponse, runtime.contestant);
     if (typeof hooks.afterChatAccepted === 'function') {
@@ -958,6 +1067,7 @@ export async function runOpenRouterContestantTrialV1(options, hooks = {}) {
     }
     return result;
   } finally {
+    if (acquiredClaimHandle) await acquiredClaimHandle.close().catch(() => {});
     await executionClaimRoot.fh.close().catch(() => {});
   }
 }

@@ -3,7 +3,7 @@
 import assert from 'node:assert/strict';
 import { constants as FS } from 'node:fs';
 import { createHash } from 'node:crypto';
-import { mkdir, mkdtemp, open, readFile, rm, stat, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, open, readFile, rename, rm, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { spawnSync } from 'node:child_process';
@@ -631,6 +631,78 @@ async function main() {
       String(concurrentSettled.find((x) => x.status === 'rejected').reason?.message ?? ''),
       /execution claim already exists/,
     );
+
+    // Post-acquisition claim replacement: A owns the exact durable claim inode,
+    // then a same-UID namespace actor renames it aside and installs a foreign
+    // generation before chat. A must revalidate and HOLD before provider
+    // execution. A second same-key contender sees the foreign final and also
+    // performs zero chat execution. The foreign replacement is preserved.
+    const replacedClaim = await makeFixture(root, 'execution-claim-post-acquire-replacement');
+    const replacedClaimTransport = successFetch(ox);
+    let replacedClaimPath = null;
+    let replacedClaimContender = null;
+    const foreignReplacementBytes = 'foreign-post-acquire-claim-generation\n';
+
+    await expectReject(
+      runOpenRouterContestantTrialV1({
+        trialPath: replacedClaim.packetPath,
+        stagingRoot: replacedClaim.stage,
+        manifestPath: replacedClaim.manifestPath,
+        receiptPath: replacedClaim.receiptPath,
+        outputPath: replacedClaim.outputPath,
+        admissionAtUtc: ADMISSION_AT,
+      }, {
+        registry,
+        env: environment(ox.model),
+        fetchImpl: replacedClaimTransport.fetchImpl,
+        afterExecutionClaimPersisted: async ({ claimPath }) => {
+          replacedClaimPath = claimPath;
+          await rename(claimPath, `${claimPath}.owned-generation`);
+          await writeFile(
+            claimPath,
+            foreignReplacementBytes,
+            { mode: 0o600, flag: 'wx' },
+          );
+
+          replacedClaimContender = await runOpenRouterContestantTrialV1({
+            trialPath: replacedClaim.packetPath,
+            stagingRoot: replacedClaim.stage,
+            manifestPath: replacedClaim.manifestPath,
+            receiptPath: replacedClaim.receiptPath,
+            outputPath: replacedClaim.outputPath,
+            admissionAtUtc: ADMISSION_AT,
+          }, {
+            registry,
+            env: environment(ox.model),
+            fetchImpl: replacedClaimTransport.fetchImpl,
+            emitOutput: false,
+          }).then(
+            () => ({ ok: true }),
+            (error) => ({ ok: false, message: String(error?.message ?? error) }),
+          );
+        },
+        emitOutput: false,
+      }),
+      'execution claim visible generation changed before provider execution',
+      'post-acquisition execution-claim replacement',
+    );
+    assert.ok(replacedClaimPath);
+    assert.equal(replacedClaimContender?.ok, false);
+    assert.match(
+      replacedClaimContender?.message ?? '',
+      /execution claim publication conflicted or failed|execution claim already exists/,
+    );
+    assert.equal(
+      replacedClaimTransport.calls().chatCalls,
+      0,
+      'claim replacement and contender must not execute provider',
+    );
+    const replacedClaimLeaf = replacedClaimPath.split('/').at(-1);
+    assert.equal(
+      await readFile(join(claimRootPath, replacedClaimLeaf), 'utf8'),
+      foreignReplacementBytes,
+    );
+    await expectMissing(replacedClaim.outputPath, 'post-acquire replacement result');
 
     // Claimant crash after durable claim but before chat: the claim remains a
     // permanent fail-closed ambiguity. No automatic stale-owner reclaim.
@@ -1664,6 +1736,9 @@ async function main() {
   console.log('execution_claim_root_generation_sha256_bound=true');
   console.log('same_key_pre_execution_claim_serialized=true');
   console.log('same_key_concurrent_chat_calls_exactly_one=true');
+  console.log('execution_claim_generation_retained_through_chat_admission=true');
+  console.log('execution_claim_post_acquire_replacement_blocks_chat=true');
+  console.log('foreign_post_acquire_claim_replacement_preserved=true');
   console.log('stale_execution_claim_auto_reclaim=false');
   console.log('claimant_crash_before_chat_blocks_reexecution=true');
   console.log('claimant_crash_after_chat_blocks_reexecution=true');
