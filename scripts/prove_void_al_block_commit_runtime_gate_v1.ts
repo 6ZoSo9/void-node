@@ -84,6 +84,62 @@ function expectHeld(
   });
 }
 
+const fixture = JSON.parse(
+  fs.readFileSync(
+    path.join(
+      process.cwd(),
+      "fixtures/governance/void-al-block-commit-runtime-gate-v1.json",
+    ),
+    "utf8",
+  ),
+);
+assert.equal(fixture.marker, "VOID_AL_BLOCK_COMMIT_RUNTIME_GATE_V1_20260824");
+assert.equal(fixture.runtime.enable_environment_variable, "VOID_AL_BLOCK_COMMIT_RUNTIME_V1");
+assert.equal(fixture.runtime.disabled_installs_no_prototype_patch, true);
+assert.equal(fixture.activation.ready, false);
+assert.equal(
+  fixture.activation.hold,
+  "HOLD_AL_BLOCK_COMMIT_DIRECT_CALLERS_NOT_MIGRATED",
+);
+assert.equal(fixture.activation.runtime_environment_change_authorized, false);
+assert.equal(fixture.authority_boundary.chain2050_live_mutation, false);
+assert.equal(fixture.authority_boundary.money_movement, false);
+
+const nativeBootstrapSource = fs.readFileSync(
+  path.join(
+    process.cwd(),
+    "src/chain/native_block_execution_precommit_integration_v1.ts",
+  ),
+  "utf8",
+);
+assert.match(
+  nativeBootstrapSource,
+  /installVoidAlignmentLayerBlockCommitRuntimeFromEnvironmentV1\(\)/,
+);
+assert.match(nativeBootstrapSource, /VOID_AL_BLOCK_COMMIT_RUNTIME_BOOTSTRAP_STATUS_V1/);
+
+const indexSource = fs.readFileSync(
+  path.join(process.cwd(), "src/index.ts"),
+  "utf8",
+);
+const historicalRawCommitMentions =
+  indexSource.match(/saveBlockCommit/g)?.length ?? 0;
+assert.ok(
+  historicalRawCommitMentions > 0,
+  "activation HOLD must not disappear until direct caller inventory is explicitly migrated",
+);
+
+const governanceDoc = fs.readFileSync(
+  path.join(
+    process.cwd(),
+    "docs/governance/void-al-block-commit-runtime-gate-v1.md",
+  ),
+  "utf8",
+);
+assert.match(governanceDoc, /HOLD_AL_BLOCK_COMMIT_DIRECT_CALLERS_NOT_MIGRATED/);
+assert.match(governanceDoc, /disabled by default/i);
+assert.match(governanceDoc, /process memory/i);
+
 const disabledProto = Object.create(SegStore.prototype as any);
 const originalDisabledSave = disabledProto.saveBlock;
 const disabled = installVoidAlignmentLayerBlockCommitRuntimeOnPrototypeV1({
@@ -226,8 +282,11 @@ try {
   console.log("bad_signature_quarantine_before_write=true");
   console.log("direct_raw_commit_bypass_safe_mode=true");
   console.log("safe_mode_sticky_no_auto_resume=true");
+  console.log(`historical_raw_commit_mentions=${historicalRawCommitMentions}`);
   console.log(`pre_accept_total=${afterBypassStatus.pre_accept_total}`);
   console.log(`post_apply_total=${afterBypassStatus.post_apply_total}`);
+  console.log("activation_ready=false");
+  console.log("activation_hold=HOLD_AL_BLOCK_COMMIT_DIRECT_CALLERS_NOT_MIGRATED");
   console.log("live_activation_performed=false");
   console.log("chain2050_mutation_performed=false");
   console.log("sovereign_usb_access=false");
