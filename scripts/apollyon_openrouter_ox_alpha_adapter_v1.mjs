@@ -1,0 +1,488 @@
+#!/usr/bin/env node
+
+import { createHash } from 'node:crypto';
+import { constants as FS } from 'node:fs';
+import { lstat, open, realpath, stat } from 'node:fs/promises';
+import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
+import process from 'node:process';
+import { fileURLToPath } from 'node:url';
+
+import { admit as admitSanitizedInputs } from './apollyon_secret_sanitization_constitutional_admission_v1.mjs';
+
+export const MARKER = 'VOID_APOLLYON_OPENROUTER_OX_ALPHA_ADAPTER_V1';
+export const RESULT_MARKER = 'VOID_APOLLYON_OPENROUTER_OX_ALPHA_RESULT_V1';
+export const PROVIDER = 'openrouter';
+export const MODEL = 'stealth/ox-alpha';
+export const API_ORIGIN = 'https://openrouter.ai';
+export const MODEL_URL = `${API_ORIGIN}/api/v1/models/stealth/ox-alpha`;
+export const CHAT_URL = `${API_ORIGIN}/api/v1/chat/completions`;
+export const PROVIDER_RETENTION_CLASS = 'prompts_and_completions_retained_not_used_for_training_per_provider_disclosure';
+
+const MAX_JSON_BYTES = 256 * 1024;
+const MAX_ENTRY_BYTES = 1024 * 1024;
+const MAX_TOTAL_INPUT_BYTES = 2 * 1024 * 1024;
+const MAX_MODEL_RESPONSE_BYTES = 512 * 1024;
+const MAX_CHAT_RESPONSE_BYTES = 8 * 1024 * 1024;
+const MIN_CONTEXT_LENGTH = 262_144;
+const DEFAULT_MAX_TOKENS = 8_192;
+const MAX_MAX_TOKENS = 32_768;
+const DEFAULT_METADATA_TIMEOUT_MS = 15_000;
+const DEFAULT_CHAT_TIMEOUT_MS = 180_000;
+const MIN_TIMEOUT_MS = 1_000;
+const MAX_TIMEOUT_MS = 300_000;
+
+const BLOCKED_OUTBOUND_PATTERNS = [
+  /-----BEGIN (?:ENCRYPTED |OPENSSH |EC |RSA |DSA |ED25519 )?PRIVATE KEY-----/i,
+  /(?:^|\n)\s*Authorization\s*:\s*Bearer\s+\S+/i,
+  /\b(?:ghp|gho|ghu|ghs|ghr)_[A-Za-z0-9]{20,}\b/,
+  /\bgithub_pat_[A-Za-z0-9_]{20,}\b/,
+  /\bsk-(?:proj-)?[A-Za-z0-9_-]{16,}\b/,
+  /\bAKIA[0-9A-Z]{16}\b/,
+  /(?:^|[\s"'=])\/(?:home\/[^/\s]+\/(?:\.ssh|\.gnupg|\.aws|\.kube|\.docker)\/|root\/(?:\.ssh|\.gnupg|\.aws|\.kube|\.docker)\/)/i,
+];
+
+const SYSTEM_PROMPT = `You are an untrusted external contestant in a bounded VOID Apollyon trial.
+You have no VOID office, authority, credential, wallet, signer, validator, deployment, service-control, or live-mutation capability.
+Use only the trial packet and sanitized/public inputs supplied in this request.
+Do not request secrets, credentials, private context, local filesystem access, network access, tool execution, or expanded authority.
+Do not claim execution, verification, deployment, observation, or evidence that did not occur.
+If information is unavailable, state the uncertainty instead of fabricating it.
+Return analysis and proposed artifacts only. No tool use is available.`;
+
+function fail(message) {
+  throw new Error(message);
+}
+
+function sha256(bytes) {
+  return createHash('sha256').update(bytes).digest('hex');
+}
+
+function canonicalize(value) {
+  if (value === null || typeof value === 'string' || typeof value === 'boolean') return value;
+  if (typeof value === 'number') {
+    if (!Number.isFinite(value)) fail('non-finite JSON number is forbidden');
+    return value;
+  }
+  if (Array.isArray(value)) return value.map(canonicalize);
+  if (typeof value !== 'object') fail('non-JSON value is forbidden');
+  const out = {};
+  for (const key of Object.keys(value).sort()) out[key] = canonicalize(value[key]);
+  return out;
+}
+
+function canonicalJson(value) {
+  return JSON.stringify(canonicalize(value));
+}
+
+function exactKeys(value, expected, name) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) fail(`${name} must be an object`);
+  const actual = Object.keys(value).sort().join(',');
+  const wanted = [...expected].sort().join(',');
+  if (actual !== wanted) fail(`${name} has unexpected fields`);
+}
+
+function parseBoundedInt(raw, fallback, min, max, name) {
+  if (raw === undefined || raw === null || String(raw).trim() === '') return fallback;
+  const text = String(raw).trim();
+  if (!/^[1-9][0-9]*$/.test(text)) fail(`${name} must be an exact positive integer`);
+  const value = Number(text);
+  if (!Number.isSafeInteger(value) || value < min || value > max) fail(`${name} must be within ${min}..${max}`);
+  return value;
+}
+
+function requireRuntimeGate(env) {
+  if (env.VOID_OPENROUTER_ENABLE !== '1') fail('VOID_OPENROUTER_ENABLE=1 is required');
+  if (env.VOID_OPENROUTER_ACK_PROVIDER_RETENTION !== '1') {
+    fail('VOID_OPENROUTER_ACK_PROVIDER_RETENTION=1 is required for the retained-prompt provider');
+  }
+  const apiKey = String(env.OPENROUTER_API_KEY ?? '');
+  if (apiKey.length < 8 || apiKey.length > 512 || /\s/.test(apiKey)) fail('OPENROUTER_API_KEY is missing or malformed');
+  const model = String(env.VOID_OPENROUTER_MODEL ?? MODEL).trim();
+  if (model !== MODEL) fail(`only ${MODEL} is admitted by this adapter generation`);
+  return {
+    apiKey,
+    model,
+    maxTokens: parseBoundedInt(env.VOID_OPENROUTER_MAX_TOKENS, DEFAULT_MAX_TOKENS, 1, MAX_MAX_TOKENS, 'VOID_OPENROUTER_MAX_TOKENS'),
+    metadataTimeoutMs: parseBoundedInt(env.VOID_OPENROUTER_METADATA_TIMEOUT_MS, DEFAULT_METADATA_TIMEOUT_MS, MIN_TIMEOUT_MS, MAX_TIMEOUT_MS, 'VOID_OPENROUTER_METADATA_TIMEOUT_MS'),
+    chatTimeoutMs: parseBoundedInt(env.VOID_OPENROUTER_CHAT_TIMEOUT_MS, DEFAULT_CHAT_TIMEOUT_MS, MIN_TIMEOUT_MS, MAX_TIMEOUT_MS, 'VOID_OPENROUTER_CHAT_TIMEOUT_MS'),
+  };
+}
+
+function stamp(st) {
+  return {
+    dev: st.dev.toString(), ino: st.ino.toString(), size: st.size.toString(),
+    mtimeNs: st.mtimeNs.toString(), ctimeNs: st.ctimeNs.toString(),
+  };
+}
+
+function sameStamp(a, b) {
+  return a.dev === b.dev && a.ino === b.ino && a.size === b.size
+    && a.mtimeNs === b.mtimeNs && a.ctimeNs === b.ctimeNs;
+}
+
+async function readRegularBounded(path, maxBytes, name) {
+  const fh = await open(path, FS.O_RDONLY | FS.O_NOFOLLOW);
+  try {
+    const pre = await fh.stat({ bigint: true });
+    if (!pre.isFile()) fail(`${name} must be a regular non-symlink file`);
+    if (pre.size > BigInt(maxBytes)) fail(`${name} exceeds ${maxBytes} bytes`);
+    const chunks = [];
+    let total = 0;
+    let position = 0;
+    while (true) {
+      const remaining = maxBytes + 1 - total;
+      if (remaining <= 0) fail(`${name} exceeds ${maxBytes} bytes during read`);
+      const buffer = Buffer.allocUnsafe(Math.min(64 * 1024, remaining));
+      const { bytesRead } = await fh.read(buffer, 0, buffer.length, position);
+      if (bytesRead === 0) break;
+      chunks.push(buffer.subarray(0, bytesRead));
+      total += bytesRead;
+      position += bytesRead;
+      if (total > maxBytes) fail(`${name} exceeds ${maxBytes} bytes during read`);
+    }
+    const post = await fh.stat({ bigint: true });
+    if (!sameStamp(stamp(pre), stamp(post))) fail(`${name} generation changed during bounded read`);
+    return Buffer.concat(chunks, total);
+  } finally {
+    await fh.close().catch(() => {});
+  }
+}
+
+function decodeUtf8(bytes, name) {
+  try {
+    return new TextDecoder('utf-8', { fatal: true }).decode(bytes);
+  } catch {
+    fail(`${name} must be valid UTF-8`);
+  }
+}
+
+async function readJsonBounded(path, maxBytes, name) {
+  const bytes = await readRegularBounded(path, maxBytes, name);
+  const text = decodeUtf8(bytes, name);
+  try {
+    return { value: JSON.parse(text), bytes, text };
+  } catch {
+    fail(`${name} must contain valid JSON`);
+  }
+}
+
+async function assertNoSymlinkComponents(rootPath, relativePath) {
+  const rootStat = await lstat(rootPath);
+  if (!rootStat.isDirectory() || rootStat.isSymbolicLink()) fail('staging root must be a real directory');
+  let current = rootPath;
+  for (const component of relativePath.split('/')) {
+    current = join(current, component);
+    const st = await lstat(current);
+    if (st.isSymbolicLink()) fail(`entry ${relativePath} contains a symlink component`);
+  }
+}
+
+function safeRelativePath(value, name) {
+  if (typeof value !== 'string' || !/^[A-Za-z0-9._/-]{1,256}$/.test(value)) fail(`${name} is invalid`);
+  if (isAbsolute(value) || value.startsWith('/')) fail(`${name} must be relative`);
+  const parts = value.split('/');
+  if (parts.some((x) => x === '' || x === '.' || x === '..')) fail(`${name} contains unsafe path components`);
+}
+
+function scanOutboundText(text) {
+  for (const pattern of BLOCKED_OUTBOUND_PATTERNS) {
+    if (pattern.test(text)) fail('final outbound prompt failed last-mile secret/path scan');
+  }
+}
+
+function validateReceiptAndManifest(trial, manifest, receipt) {
+  if (trial?.marker !== 'VOID_APOLLYON_TRIAL_PACKET_V1') fail('trial packet marker drifted');
+  if (!/^voidat1_[0-9a-f]{64}$/.test(String(trial?.trial_id ?? ''))) fail('trial_id is invalid');
+
+  exactKeys(manifest, ['marker', 'trial_id', 'entries', 'created_at_utc', 'nonce'], 'manifest');
+  if (manifest.marker !== 'VOID_APOLLYON_OUTBOUND_ADMISSION_MANIFEST_V1') fail('manifest marker drifted');
+  if (manifest.trial_id !== trial.trial_id) fail('manifest trial_id does not match trial');
+  if (!Array.isArray(manifest.entries) || manifest.entries.length < 1 || manifest.entries.length > 64) fail('manifest entries are out of bounds');
+
+  if (receipt?.marker !== 'VOID_APOLLYON_OUTBOUND_ADMISSION_RECEIPT_V1') fail('sanitization receipt marker drifted');
+  if (receipt.trial_id !== trial.trial_id) fail('receipt trial_id does not match trial');
+  if (!/^voidaa1_[0-9a-f]{64}$/.test(String(receipt?.admission_id ?? ''))) fail('admission_id is invalid');
+  if (receipt.public_or_sanitized_inputs_only !== true) fail('receipt does not prove sanitized/public-only inputs');
+  if (receipt.contestant_executes_outside_void_core !== true) fail('receipt outside-core boundary drifted');
+  if (receipt.secret_values_present !== false) fail('receipt reports secret values present');
+  if (receipt.local_paths_disclosed !== false) fail('receipt reports local path disclosure');
+  if (receipt.payload_bytes_embedded !== false) fail('receipt unexpectedly embeds payload bytes');
+  if (!Array.isArray(receipt.entries) || receipt.entries.length !== manifest.entries.length) fail('receipt entries do not match manifest cardinality');
+
+  const receiptByLabel = new Map(receipt.entries.map((entry) => [entry.label, entry]));
+  for (const [i, entry] of manifest.entries.entries()) {
+    exactKeys(entry, ['label', 'relative_path', 'sha256', 'classification', 'media_type'], `manifest.entries[${i}]`);
+    safeRelativePath(entry.relative_path, `manifest.entries[${i}].relative_path`);
+    if (!['public', 'sanitized'].includes(entry.classification)) fail('manifest entry classification is not outbound-safe');
+    if (!['text/plain', 'application/json'].includes(entry.media_type)) fail('manifest entry media type is unsupported');
+    const admitted = receiptByLabel.get(entry.label);
+    if (!admitted) fail(`receipt missing admitted label ${entry.label}`);
+    if (admitted.sha256 !== entry.sha256
+      || admitted.classification !== entry.classification
+      || admitted.media_type !== entry.media_type) {
+      fail(`receipt binding differs for ${entry.label}`);
+    }
+  }
+}
+
+async function collectAdmittedInputs(stagingRoot, manifest, receipt, hooks = {}) {
+  const rootReal = await realpath(stagingRoot);
+  const receiptByLabel = new Map(receipt.entries.map((entry) => [entry.label, entry]));
+  const items = [];
+  let total = 0;
+
+  for (const entry of [...manifest.entries].sort((a, b) => a.label.localeCompare(b.label))) {
+    await assertNoSymlinkComponents(stagingRoot, entry.relative_path);
+    const candidate = resolve(stagingRoot, entry.relative_path);
+    const rel = relative(rootReal, await realpath(candidate));
+    if (rel === '..' || rel.startsWith(`..${sep}`) || isAbsolute(rel)) fail(`entry ${entry.label} escapes staging root`);
+    const bytes = await readRegularBounded(candidate, MAX_ENTRY_BYTES, `entry ${entry.label}`);
+    const digest = sha256(bytes);
+    const admitted = receiptByLabel.get(entry.label);
+    if (digest !== entry.sha256 || digest !== admitted.sha256) fail(`entry ${entry.label} changed after sanitization admission`);
+    if (Number(admitted.byte_length) !== bytes.length) fail(`entry ${entry.label} byte length differs from sanitization receipt`);
+    total += bytes.length;
+    if (total > MAX_TOTAL_INPUT_BYTES) fail(`outbound staged input exceeds ${MAX_TOTAL_INPUT_BYTES} bytes`);
+    items.push({
+      label: entry.label,
+      classification: entry.classification,
+      media_type: entry.media_type,
+      sha256: digest,
+      text: decodeUtf8(bytes, `entry ${entry.label}`),
+    });
+  }
+
+  if (typeof hooks.afterInputCollection === 'function') await hooks.afterInputCollection({ items, total });
+  return { items, total };
+}
+
+export function validateZeroPriceModelV1(modelEnvelope) {
+  const model = modelEnvelope?.data ?? modelEnvelope;
+  if (!model || typeof model !== 'object') fail('OpenRouter model metadata is malformed');
+  if (model.id !== MODEL) fail(`OpenRouter model id must equal ${MODEL}`);
+  if (!Number.isInteger(model.context_length) || model.context_length < MIN_CONTEXT_LENGTH) fail('OpenRouter model context length is below the reviewed minimum');
+  const pricing = model.pricing;
+  if (!pricing || typeof pricing !== 'object' || Array.isArray(pricing) || Object.keys(pricing).length === 0) fail('OpenRouter pricing metadata is missing');
+  for (const required of ['prompt', 'completion', 'request']) {
+    if (!Object.prototype.hasOwnProperty.call(pricing, required)) fail(`OpenRouter pricing.${required} is missing`);
+  }
+  for (const [key, raw] of Object.entries(pricing)) {
+    if (raw === null || raw === undefined || raw === '') continue;
+    const value = Number(raw);
+    if (!Number.isFinite(value)) fail(`OpenRouter pricing.${key} is non-numeric`);
+    if (value !== 0) fail(`OpenRouter pricing.${key} is nonzero; free-preview gate closed`);
+  }
+  return { id: model.id, context_length: model.context_length, pricing_zero: true };
+}
+
+async function readResponseJsonBounded(response, maxBytes, name) {
+  if (!response?.body || typeof response.body.getReader !== 'function') fail(`${name} response body is unavailable`);
+  const rawLength = String(response.headers?.get?.('content-length') ?? '').trim();
+  if (rawLength) {
+    if (!/^(0|[1-9][0-9]*)$/.test(rawLength)) fail(`${name} content-length is invalid`);
+    const advertised = Number(rawLength);
+    if (!Number.isSafeInteger(advertised) || advertised > maxBytes) fail(`${name} exceeds ${maxBytes} bytes`);
+  }
+  const reader = response.body.getReader();
+  const chunks = [];
+  let total = 0;
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    if (!(value instanceof Uint8Array)) fail(`${name} returned an invalid response chunk`);
+    if (value.byteLength > maxBytes - total) fail(`${name} exceeds ${maxBytes} bytes`);
+    chunks.push(Buffer.from(value));
+    total += value.byteLength;
+  }
+  const text = decodeUtf8(Buffer.concat(chunks, total), name);
+  try {
+    return JSON.parse(text);
+  } catch {
+    fail(`${name} did not return valid JSON`);
+  }
+}
+
+function assertExactResponseUrl(response, expected, name) {
+  if (response.url !== expected) fail(`${name} final URL changed`);
+}
+
+export function buildOpenRouterRequestV1(trial, admittedInputs, maxTokens) {
+  const inputText = admittedInputs.map((entry) => (
+    `\n--- BEGIN SANITIZED INPUT ${entry.label} ---\n`
+    + `classification=${entry.classification}\nmedia_type=${entry.media_type}\nsha256=${entry.sha256}\n`
+    + `${entry.text}\n--- END SANITIZED INPUT ${entry.label} ---\n`
+  )).join('');
+  const userContent = `APOLLYON TRIAL PACKET (provider-neutral, no authority granted):\n${JSON.stringify(trial, null, 2)}\n${inputText}`;
+  scanOutboundText(userContent);
+  const bytes = Buffer.byteLength(SYSTEM_PROMPT, 'utf8') + Buffer.byteLength(userContent, 'utf8');
+  if (bytes > MAX_TOTAL_INPUT_BYTES + MAX_JSON_BYTES) fail('final outbound prompt exceeds reviewed byte ceiling');
+  const body = {
+    model: MODEL,
+    messages: [
+      { role: 'system', content: SYSTEM_PROMPT },
+      { role: 'user', content: userContent },
+    ],
+    max_tokens: maxTokens,
+    stream: false,
+    provider: {
+      allow_fallbacks: false,
+      require_parameters: true,
+    },
+  };
+  if ('tools' in body) fail('tools must not be sent');
+  return { body, promptSha256: sha256(Buffer.from(canonicalJson(body.messages), 'utf8')), promptBytes: bytes };
+}
+
+async function fetchModelMetadata(fetchImpl, apiKey, timeoutMs) {
+  const response = await fetchImpl(MODEL_URL, {
+    method: 'GET',
+    redirect: 'error',
+    headers: {
+      accept: 'application/json',
+      authorization: `Bearer ${apiKey}`,
+    },
+    signal: AbortSignal.timeout(timeoutMs),
+  });
+  assertExactResponseUrl(response, MODEL_URL, 'model metadata');
+  if (response.status !== 200) fail(`OpenRouter model metadata returned HTTP ${response.status}`);
+  return readResponseJsonBounded(response, MAX_MODEL_RESPONSE_BYTES, 'OpenRouter model metadata');
+}
+
+async function sendChat(fetchImpl, apiKey, requestBody, timeoutMs) {
+  const response = await fetchImpl(CHAT_URL, {
+    method: 'POST',
+    redirect: 'error',
+    headers: {
+      accept: 'application/json',
+      authorization: `Bearer ${apiKey}`,
+      'content-type': 'application/json',
+    },
+    body: JSON.stringify(requestBody),
+    signal: AbortSignal.timeout(timeoutMs),
+  });
+  assertExactResponseUrl(response, CHAT_URL, 'chat completion');
+  if (response.status !== 200) fail(`OpenRouter chat completion returned HTTP ${response.status}`);
+  return readResponseJsonBounded(response, MAX_CHAT_RESPONSE_BYTES, 'OpenRouter chat completion');
+}
+
+function validateChatResponse(response) {
+  if (!response || typeof response !== 'object' || Array.isArray(response)) fail('OpenRouter chat response is malformed');
+  if (!Array.isArray(response.choices) || response.choices.length < 1) fail('OpenRouter chat response has no choices');
+  const first = response.choices[0];
+  const message = first?.message;
+  if (!message || typeof message !== 'object') fail('OpenRouter chat response message is missing');
+  if (Array.isArray(message.tool_calls) && message.tool_calls.length > 0) fail('OpenRouter contestant attempted a tool call; tools are not admitted');
+  if (typeof message.content !== 'string') fail('OpenRouter contestant returned non-text content');
+  return {
+    content: message.content,
+    finish_reason: first.finish_reason ?? null,
+    reported_model: typeof response.model === 'string' ? response.model : null,
+    response_id: typeof response.id === 'string' ? response.id : null,
+    usage: response.usage && typeof response.usage === 'object' ? response.usage : null,
+  };
+}
+
+async function publishResultCreateOnly(path, value) {
+  const bytes = Buffer.from(`${JSON.stringify(value, null, 2)}\n`, 'utf8');
+  const parent = dirname(resolve(path));
+  const parentStat = await stat(parent);
+  if (!parentStat.isDirectory()) fail('result parent must be a directory');
+  const fh = await open(path, 'wx', 0o600);
+  try {
+    await fh.writeFile(bytes);
+    await fh.sync();
+  } finally {
+    await fh.close().catch(() => {});
+  }
+}
+
+export async function runOpenRouterOxAlphaTrialV1(options, hooks = {}) {
+  const env = hooks.env ?? process.env;
+  const runtime = requireRuntimeGate(env);
+  const fetchImpl = hooks.fetchImpl ?? globalThis.fetch;
+  const admitFn = hooks.admitFn ?? admitSanitizedInputs;
+  if (typeof fetchImpl !== 'function') fail('fetch implementation is unavailable');
+  if (typeof admitFn !== 'function') fail('sanitization admission function is unavailable');
+
+  const receipt = await admitFn(
+    options.trialPath,
+    options.stagingRoot,
+    options.manifestPath,
+    options.receiptPath,
+    options.admissionAtUtc,
+    { emitOutput: false },
+  );
+  if (typeof hooks.afterAdmission === 'function') await hooks.afterAdmission({ receipt });
+
+  const [trialRead, manifestRead, receiptRead] = await Promise.all([
+    readJsonBounded(options.trialPath, MAX_JSON_BYTES, 'trial packet'),
+    readJsonBounded(options.manifestPath, MAX_JSON_BYTES, 'outbound manifest'),
+    readJsonBounded(options.receiptPath, MAX_JSON_BYTES, 'sanitization receipt'),
+  ]);
+  if (canonicalJson(receiptRead.value) !== canonicalJson(receipt)) fail('published sanitization receipt differs from admitted receipt object');
+  validateReceiptAndManifest(trialRead.value, manifestRead.value, receiptRead.value);
+  const admitted = await collectAdmittedInputs(options.stagingRoot, manifestRead.value, receiptRead.value, hooks);
+
+  const metadata = await fetchModelMetadata(fetchImpl, runtime.apiKey, runtime.metadataTimeoutMs);
+  const model = validateZeroPriceModelV1(metadata);
+  if (typeof hooks.afterFreePriceCheck === 'function') await hooks.afterFreePriceCheck({ model });
+
+  const request = buildOpenRouterRequestV1(trialRead.value, admitted.items, runtime.maxTokens);
+  const rawResponse = await sendChat(fetchImpl, runtime.apiKey, request.body, runtime.chatTimeoutMs);
+  const accepted = validateChatResponse(rawResponse);
+  if (accepted.reported_model !== null && accepted.reported_model !== MODEL) fail('OpenRouter response model differs from requested Ox Alpha slug');
+
+  const result = {
+    marker: RESULT_MARKER,
+    provider: PROVIDER,
+    model_requested: MODEL,
+    model_reported: accepted.reported_model,
+    provider_retention_class: PROVIDER_RETENTION_CLASS,
+    provider_retention_acknowledged: true,
+    pricing_verified_zero: true,
+    provider_fallbacks_allowed: false,
+    tools_exposed: false,
+    trial_id: trialRead.value.trial_id,
+    admission_id: receiptRead.value.admission_id,
+    prompt_sha256: request.promptSha256,
+    prompt_bytes: request.promptBytes,
+    max_tokens: runtime.maxTokens,
+    response_id: accepted.response_id,
+    finish_reason: accepted.finish_reason,
+    response_content: accepted.content,
+    response_content_sha256: sha256(Buffer.from(accepted.content, 'utf8')),
+    usage: accepted.usage,
+    created_at_utc: new Date().toISOString(),
+  };
+  if (canonicalJson(result).includes(runtime.apiKey)) fail('API key unexpectedly entered result object');
+  await publishResultCreateOnly(options.outputPath, result);
+  if (hooks.emitOutput !== false) process.stdout.write(`${MARKER}_GREEN ${trialRead.value.trial_id} model=${MODEL} admission=${receiptRead.value.admission_id}\n`);
+  return result;
+}
+
+async function main() {
+  const [, , command, ...args] = process.argv;
+  if (command === 'run' && args.length === 6) {
+    return runOpenRouterOxAlphaTrialV1({
+      trialPath: args[0],
+      stagingRoot: args[1],
+      manifestPath: args[2],
+      receiptPath: args[3],
+      outputPath: args[4],
+      admissionAtUtc: args[5],
+    });
+  }
+  process.stderr.write(
+    'usage: apollyon_openrouter_ox_alpha_adapter_v1.mjs run '
+    + '<trial-packet.json> <staging-root> <manifest.json> <receipt.json> <output.json> <admission-at-utc>\n',
+  );
+  process.exitCode = 64;
+}
+
+const isMain = process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url);
+if (isMain) {
+  main().catch((error) => {
+    process.stderr.write(`HOLD: ${error?.message ?? String(error)}\n`);
+    process.exitCode = 2;
+  });
+}
