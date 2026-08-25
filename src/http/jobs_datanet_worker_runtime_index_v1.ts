@@ -1,6 +1,8 @@
 // @ts-nocheck
 import * as fs from "node:fs";
 import * as fsp from "node:fs/promises";
+import { createHash } from "node:crypto";
+import * as os from "node:os";
 import * as path from "node:path";
 import { TextDecoder } from "node:util";
 import {
@@ -36,6 +38,8 @@ export type JobsDatanetWorkerRuntimeScanV1 = {
     locallyDoneIds: number;
     carryBytes: number;
     pendingSourceBytes: number;
+    completionResidentIds: number;
+    completionAuthorities: number;
   };
 };
 
@@ -45,6 +49,25 @@ type PendingJobV1 = {
 };
 
 const UTF8_FATAL_V1 = new TextDecoder("utf-8", { fatal: true });
+const COMPLETION_AUTHORITY_ROOTS_V1 = new Set<string>();
+let completionAuthorityExitHookV1 = false;
+
+function registerCompletionAuthorityRootV1(root: string): void {
+  COMPLETION_AUTHORITY_ROOTS_V1.add(root);
+  if (completionAuthorityExitHookV1) return;
+  completionAuthorityExitHookV1 = true;
+  process.once("exit", () => {
+    for (const active of COMPLETION_AUTHORITY_ROOTS_V1) {
+      try {
+        fs.rmSync(active, { recursive: true, force: true });
+      } catch (error) {
+        // Process exit cannot publish completion truth; cleanup is best-effort
+        // and has no authority-bearing failure to surface to a caller.
+        void error;
+      }
+    }
+  });
+}
 
 type FileStampV1 = {
   dev: string;
@@ -55,7 +78,12 @@ type FileStampV1 = {
 };
 
 type CompletionStateV1 = FileStampV1 & {
-  completed: Set<string>;
+  authority: CompletionAuthorityV1;
+};
+
+type CompletionAuthorityV1 = {
+  root: string;
+  idsIndexed: number;
 };
 
 type RuntimeIndexTestHooksV1 = {
@@ -178,6 +206,9 @@ export class JobsDatanetWorkerRuntimeIndexV1 {
     async_warms_total: 0,
     async_full_history_starts_total: 0,
     async_incremental_starts_total: 0,
+    authority_records_indexed_total: 0,
+    authority_lookup_bytes_max: 0,
+    authority_cleanup_failures_total: 0,
   };
 
   constructor(opts: {
@@ -242,7 +273,163 @@ export class JobsDatanetWorkerRuntimeIndexV1 {
       locallyDoneIds: this.locallyDone.size,
       carryBytes: this.jobsCarry.length,
       pendingSourceBytes: this.pendingSource.length,
+      // Exact completion identity authority lives in a private disk-backed
+      // cache. Only these fixed-size handles remain resident as H grows.
+      completionResidentIds: 0,
+      completionAuthorities: this.completions.size,
     };
+  }
+
+  private createCompletionAuthorityV1(): CompletionAuthorityV1 {
+    const root = fs.mkdtempSync(
+      path.join(os.tmpdir(), "void-jobs-completion-authority-"),
+    );
+    fs.chmodSync(root, 0o700);
+    registerCompletionAuthorityRootV1(root);
+    return { root, idsIndexed: 0 };
+  }
+
+  private retireCompletionAuthorityV1(
+    authority: CompletionAuthorityV1 | null | undefined,
+  ): void {
+    if (!authority?.root) return;
+    const root = authority.root;
+    authority.root = "";
+    COMPLETION_AUTHORITY_ROOTS_V1.delete(root);
+    void fsp.rm(root, { recursive: true, force: true }).catch(() => {
+      this.completionMetrics.authority_cleanup_failures_total += 1;
+      COMPLETION_AUTHORITY_ROOTS_V1.add(root);
+    });
+  }
+
+  private completionAuthorityPathV1(
+    authority: CompletionAuthorityV1,
+    id: string,
+    createShards: boolean,
+  ): { file: string; bytes: Buffer } {
+    if (!authority.root) {
+      throw new Error("VOID_JOBS_DATANET_WORKER_COMPLETION_AUTHORITY_RETIRED");
+    }
+    const bytes = Buffer.from(id, "utf8");
+    if (
+      bytes.length === 0 ||
+      bytes.length > VOID_AGENT_PICK2_JSONL_MAX_RECORD_BYTES_V1
+    ) {
+      throw new Error(
+        "VOID_JOBS_DATANET_WORKER_COMPLETION_ID_OUT_OF_RANGE",
+      );
+    }
+    const digest = createHash("sha256").update(bytes).digest("hex");
+    const first = path.join(authority.root, digest.slice(0, 2));
+    const second = path.join(first, digest.slice(2, 4));
+    if (createShards) {
+      fs.mkdirSync(first, { mode: 0o700, recursive: true });
+      fs.mkdirSync(second, { mode: 0o700, recursive: true });
+    }
+    return { file: path.join(second, digest.slice(4)), bytes };
+  }
+
+  private addCompletionAuthorityIdV1(
+    authority: CompletionAuthorityV1,
+    id: string,
+  ): void {
+    const entry = this.completionAuthorityPathV1(authority, id, true);
+    try {
+      fs.writeFileSync(entry.file, entry.bytes, {
+        flag: "wx",
+        mode: 0o600,
+      });
+      authority.idsIndexed += 1;
+      this.completionMetrics.authority_records_indexed_total += 1;
+      return;
+    } catch (error: any) {
+      if (error?.code !== "EEXIST") throw error;
+    }
+    const present = this.readCompletionAuthorityEntryV1(entry.file);
+    if (!present) {
+      throw new Error(
+        "VOID_JOBS_DATANET_WORKER_COMPLETION_AUTHORITY_DISAPPEARED",
+      );
+    }
+    this.completionMetrics.authority_lookup_bytes_max = Math.max(
+      this.completionMetrics.authority_lookup_bytes_max,
+      present.length,
+    );
+    if (!present.equals(entry.bytes)) {
+      throw new Error(
+        "VOID_JOBS_DATANET_WORKER_COMPLETION_IDENTITY_COLLISION",
+      );
+    }
+  }
+
+  private completionAuthorityHasV1(
+    authority: CompletionAuthorityV1,
+    id: string,
+  ): boolean {
+    const entry = this.completionAuthorityPathV1(authority, id, false);
+    const present = this.readCompletionAuthorityEntryV1(entry.file);
+    if (!present) return false;
+    this.completionMetrics.authority_lookup_bytes_max = Math.max(
+      this.completionMetrics.authority_lookup_bytes_max,
+      present.length,
+    );
+    if (!present.equals(entry.bytes)) {
+      throw new Error(
+        "VOID_JOBS_DATANET_WORKER_COMPLETION_IDENTITY_COLLISION",
+      );
+    }
+    return true;
+  }
+
+  private readCompletionAuthorityEntryV1(file: string): Buffer | null {
+    const flags = fs.constants.O_RDONLY | ((fs.constants as any).O_NOFOLLOW || 0);
+    let fd: number;
+    try {
+      fd = fs.openSync(file, flags);
+    } catch (error: any) {
+      if (error?.code === "ENOENT") return null;
+      throw error;
+    }
+    try {
+      const before = fs.fstatSync(fd, { bigint: true } as any);
+      const length = Number(before.size);
+      if (
+        !before.isFile() ||
+        length <= 0 ||
+        length > VOID_AGENT_PICK2_JSONL_MAX_RECORD_BYTES_V1
+      ) {
+        throw new Error(
+          "VOID_JOBS_DATANET_WORKER_COMPLETION_AUTHORITY_INVALID",
+        );
+      }
+      const bytes = Buffer.allocUnsafe(length);
+      let done = 0;
+      while (done < length) {
+        const read = fs.readSync(fd, bytes, done, length - done, done);
+        if (read <= 0) {
+          throw new Error(
+            "VOID_JOBS_DATANET_WORKER_COMPLETION_AUTHORITY_SHORT_READ",
+          );
+        }
+        done += read;
+      }
+      const after = fs.fstatSync(fd, { bigint: true } as any);
+      if (
+        !after.isFile() ||
+        String(after.dev) !== String(before.dev) ||
+        String(after.ino) !== String(before.ino) ||
+        Number(after.size) !== length ||
+        String((after as any).mtimeNs) !== String((before as any).mtimeNs) ||
+        String((after as any).ctimeNs) !== String((before as any).ctimeNs)
+      ) {
+        throw new Error(
+          "VOID_JOBS_DATANET_WORKER_COMPLETION_AUTHORITY_CHANGED",
+        );
+      }
+      return bytes;
+    } finally {
+      fs.closeSync(fd);
+    }
   }
 
   private readExactGenerationRangeV1(
@@ -449,7 +636,7 @@ export class JobsDatanetWorkerRuntimeIndexV1 {
 
   private addCompletionBytesV1(
     file: string,
-    completed: Set<string>,
+    authority: CompletionAuthorityV1,
     priorCarry: Buffer,
     chunk: Buffer,
   ): Buffer {
@@ -471,7 +658,7 @@ export class JobsDatanetWorkerRuntimeIndexV1 {
           : line,
         file,
       );
-      if (id) completed.add(id);
+      if (id) this.addCompletionAuthorityIdV1(authority, id);
       from = i + 1;
     }
     const carry = Buffer.from(data.subarray(from));
@@ -487,7 +674,7 @@ export class JobsDatanetWorkerRuntimeIndexV1 {
     file: string,
     start: number,
     target: FileStampV1,
-    completed: Set<string>,
+    authority: CompletionAuthorityV1,
   ): CompletionStateV1 {
     const flags = fs.constants.O_RDONLY | ((fs.constants as any).O_NOFOLLOW || 0);
     const fd = fs.openSync(file, flags);
@@ -514,7 +701,7 @@ export class JobsDatanetWorkerRuntimeIndexV1 {
       this.completionMetrics.sync_bytes_read_total += done;
       const carry = this.addCompletionBytesV1(
         file,
-        completed,
+        authority,
         Buffer.alloc(0),
         bytes,
       );
@@ -529,7 +716,7 @@ export class JobsDatanetWorkerRuntimeIndexV1 {
           `VOID_JOBS_DATANET_WORKER_COMPLETION_SOURCE_CHANGED file=${file}`,
         );
       }
-      return { ...target, completed };
+      return { ...target, authority };
     } finally {
       fs.closeSync(fd);
     }
@@ -551,8 +738,11 @@ export class JobsDatanetWorkerRuntimeIndexV1 {
       this.completionMetrics.async_incremental_starts_total += 1;
     }
 
+    // Append updates reuse the exact disk authority in place; cold rebuilds
+    // get a fresh private authority. Neither path copies or enumerates H IDs.
+    const authority = base?.authority || this.createCompletionAuthorityV1();
+
     const task = (async () => {
-      const completed = new Set<string>(base?.completed || []);
       let position = initialPosition;
       let target = initialTarget;
 
@@ -615,7 +805,7 @@ export class JobsDatanetWorkerRuntimeIndexV1 {
             this.completionMetrics.async_bytes_read_total += bytesRead;
             carry = this.addCompletionBytesV1(
               file,
-              completed,
+              authority,
               carry,
               Buffer.from(buffer.subarray(0, bytesRead)),
             );
@@ -631,7 +821,7 @@ export class JobsDatanetWorkerRuntimeIndexV1 {
 
         const current = fileStampV1(file);
         if (current && sameStampV1(current, target)) {
-          this.completions.set(file, { ...target, completed });
+          this.completions.set(file, { ...target, authority });
           this.rejectedSources.delete(file);
           this.completionHoldUntil.delete(file);
           return;
@@ -661,6 +851,7 @@ export class JobsDatanetWorkerRuntimeIndexV1 {
       },
       () => {
         this.completions.delete(file);
+        this.retireCompletionAuthorityV1(authority);
         this.rejectedSources.add(file);
         this.completionHoldUntil.set(
           file,
@@ -682,13 +873,14 @@ export class JobsDatanetWorkerRuntimeIndexV1 {
         this.completionMetrics.cache_hits_total += 1;
         return prior;
       }
+      this.retireCompletionAuthorityV1(prior?.authority);
       const empty: CompletionStateV1 = {
         dev: "-1",
         ino: "-1",
         size: 0,
         mtimeNs: "-1",
         ctimeNs: "-1",
-        completed: new Set<string>(),
+        authority: this.createCompletionAuthorityV1(),
       };
       this.completions.set(file, empty);
       return empty;
@@ -710,6 +902,7 @@ export class JobsDatanetWorkerRuntimeIndexV1 {
     }
 
     if (this.rejectedSources.has(file)) {
+      this.retireCompletionAuthorityV1(prior?.authority);
       this.completions.delete(file);
       prior = undefined;
     }
@@ -722,6 +915,7 @@ export class JobsDatanetWorkerRuntimeIndexV1 {
       sameObjectV1(prior, admitted.stamp) &&
       admitted.stamp.size > prior.size;
     if (prior && !sameStampV1(prior, current) && !append) {
+      this.retireCompletionAuthorityV1(prior.authority);
       this.completions.delete(file);
       this.completionMetrics.append_witness_misses_total += 1;
       throw new Error(
@@ -736,7 +930,6 @@ export class JobsDatanetWorkerRuntimeIndexV1 {
 
     const start = append ? prior!.size : 0;
     const bytes = admitted.stamp.size - start;
-    const completed = new Set<string>(append ? prior!.completed : []);
     if (bytes > this.maxSyncCompletionRebuildBytes) {
       this.startCompletionWarmV1(
         file,
@@ -747,14 +940,24 @@ export class JobsDatanetWorkerRuntimeIndexV1 {
         `VOID_JOBS_DATANET_WORKER_COMPLETION_WARMING_HOLD file=${file} bytes=${bytes}`,
       );
     }
+    const authority = append
+      ? prior!.authority
+      : this.createCompletionAuthorityV1();
     this.completionMetrics.rebuilds_total += append ? 0 : 1;
     this.completionMetrics.incremental_reads_total += append ? 1 : 0;
-    const state = this.readCompletionRangeSyncV1(
-      file,
-      start,
-      admitted.stamp,
-      completed,
-    );
+    let state: CompletionStateV1;
+    try {
+      state = this.readCompletionRangeSyncV1(
+        file,
+        start,
+        admitted.stamp,
+        authority,
+      );
+    } catch (error) {
+      this.completions.delete(file);
+      this.retireCompletionAuthorityV1(authority);
+      throw error;
+    }
     this.completions.set(file, state);
     this.rejectedSources.delete(file);
     return state;
@@ -771,7 +974,12 @@ export class JobsDatanetWorkerRuntimeIndexV1 {
         ready: true,
         doneTruthHas: (id: string) => {
           const key = String(id || "").trim();
-          return !!key && states.some((state) => state.completed.has(key));
+          return (
+            !!key &&
+            states.some((state) =>
+              this.completionAuthorityHasV1(state.authority, key),
+            )
+          );
         },
         io: { ...this.completionMetrics },
         holdReason: null,

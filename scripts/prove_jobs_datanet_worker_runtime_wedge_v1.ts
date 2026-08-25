@@ -953,6 +953,80 @@ try {
     `max_local_done=${maxRetainedDone} final=${JSON.stringify(retainedFinal.retainedState)}`,
   );
 
+  // Completion truth is exact but disk-backed: establishing H historical IDs
+  // must not retain H JS identities, and one witnessed append must index/read
+  // only its delta rather than enumerate or clone the prior population.
+  const authorityJobsFile = path.join(root, "jobs-completion-authority.jsonl");
+  const authorityReceiptsFile = path.join(
+    root,
+    "receipts-completion-authority.jsonl",
+  );
+  const authorityJobStateFile = path.join(
+    root,
+    "job-state-completion-authority.jsonl",
+  );
+  fs.writeFileSync(authorityJobsFile, "");
+  fs.writeFileSync(authorityReceiptsFile, "");
+  const authorityHistory = Array.from({ length: 4096 }, (_, i) =>
+    JSON.stringify({
+      job_id: `authority_history_${String(i).padStart(5, "0")}`,
+      status: "completed",
+    }),
+  ).join("\n") + "\n";
+  fs.writeFileSync(authorityJobStateFile, authorityHistory);
+  const authorityIndex = new JobsDatanetWorkerRuntimeIndexV1({
+    maxScanBytesPerTick: 4096,
+    maxSyncCompletionRebuildBytes: 1024 * 1024,
+  });
+  const authorityInput = {
+    jobsFile: authorityJobsFile,
+    receiptsFile: authorityReceiptsFile,
+    jobStateFile: authorityJobStateFile,
+  };
+  const authorityBaseline = authorityIndex.scan(authorityInput);
+  assert(
+    authorityBaseline.ready &&
+      authorityBaseline.doneTruthHas("authority_history_00000") &&
+      authorityBaseline.doneTruthHas("authority_history_04095"),
+    "completion-authority-large-history-exact",
+    `ready=${authorityBaseline.ready} hold=${authorityBaseline.holdReason}`,
+  );
+  assert(
+    authorityBaseline.retainedState.completionResidentIds === 0 &&
+      authorityBaseline.retainedState.completionAuthorities <= 3,
+    "completion-authority-resident-state-finite",
+    JSON.stringify(authorityBaseline.retainedState),
+  );
+  const authorityRecordsBefore = Number(
+    authorityBaseline.completionIo?.authority_records_indexed_total || 0,
+  );
+  const authorityBytesBefore = Number(
+    authorityBaseline.completionIo?.bytes_read_total || 0,
+  );
+  const authorityAppendId = "authority_history_appended";
+  const authorityAppend =
+    JSON.stringify({ job_id: authorityAppendId, status: "completed" }) + "\n";
+  appendAgentPick2JsonlCanonicalV1(authorityJobStateFile, authorityAppend);
+  const authorityIncremental = authorityIndex.scan(authorityInput);
+  assert(
+    authorityIncremental.ready &&
+      authorityIncremental.doneTruthHas("authority_history_00000") &&
+      authorityIncremental.doneTruthHas(authorityAppendId),
+    "completion-authority-incremental-truth-exact",
+    `ready=${authorityIncremental.ready} hold=${authorityIncremental.holdReason}`,
+  );
+  assert(
+    Number(
+      authorityIncremental.completionIo?.authority_records_indexed_total || 0,
+    ) - authorityRecordsBefore === 1 &&
+      Number(authorityIncremental.completionIo?.bytes_read_total || 0) -
+        authorityBytesBefore ===
+        Buffer.byteLength(authorityAppend) &&
+      authorityIncremental.retainedState.completionResidentIds === 0,
+    "completion-authority-append-work-is-delta-only",
+    `records_delta=${Number(authorityIncremental.completionIo?.authority_records_indexed_total || 0) - authorityRecordsBefore} bytes_delta=${Number(authorityIncremental.completionIo?.bytes_read_total || 0) - authorityBytesBefore} retained=${JSON.stringify(authorityIncremental.retainedState)}`,
+  );
+
   const indexSource = readFileSync("src/index.ts", "utf8");
   const workerStart = indexSource.indexOf("  function startWorker(){");
   const workerEnd = indexSource.indexOf("  function mount(){", workerStart);
