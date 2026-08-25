@@ -3,6 +3,7 @@
 
 // src/http/follower_routes.ts
 import type { Express } from "express";
+import { verifiedPublicBootstrapAdapterOriginV1 } from "./follower_verified_public_bootstrap_authority_v1.js";
 
 function positiveInteger(raw: unknown, fallback: number, minimum: number, maximum: number): number {
   const value = Number(raw);
@@ -17,6 +18,9 @@ function publicFollowerOrigins(): string[] {
       "",
   );
   const adapterActive = process.env.VOID_PUBLIC_BOOTSTRAP_CLIENT_ADAPTER_ACTIVE === "1";
+  const adapterOrigin = adapterActive
+    ? verifiedPublicBootstrapAdapterOriginV1(process.env)
+    : null;
   const origins: string[] = [];
 
   for (const candidate of raw.split(",").map((value) => value.trim()).filter(Boolean)) {
@@ -32,9 +36,10 @@ function publicFollowerOrigins(): string[] {
         throw new Error("peer origin must not contain a path");
       }
       if (adapterActive) {
-        const hostname = parsed.hostname.toLowerCase().replace(/^\[|\]$/g, "");
-        if (parsed.protocol !== "http:" || !["127.0.0.1", "::1"].includes(hostname)) {
-          throw new Error("public bootstrap client adapter peer must be numeric loopback HTTP");
+        if (!adapterOrigin || parsed.origin !== adapterOrigin) {
+          throw new Error(
+            "public bootstrap client adapter peer must match the verified numeric-loopback origin",
+          );
         }
       }
       if (!origins.includes(parsed.origin)) origins.push(parsed.origin);

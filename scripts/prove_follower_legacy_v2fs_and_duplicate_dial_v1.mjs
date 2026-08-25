@@ -206,6 +206,11 @@ function createFollowerFixture() {
       blocks.set(Number(block.number), block);
       state.head = Math.max(state.head, Number(block.number));
     },
+    saveAuthorizedMainnet0HistoricalLegacyV2fs: (block) => {
+      state.legacyWrites += 1;
+      blocks.set(Number(block.number), block);
+      state.head = Math.max(state.head, Number(block.number));
+    },
     saveBlock: (block) => {
       state.modernWrites += 1;
       blocks.set(Number(block.number), block);

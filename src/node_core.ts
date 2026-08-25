@@ -15,7 +15,12 @@ import {
   VOID_LEGACY_COMMIT_DIRECT_V2FS_MARKER_V1,
   validateLegacyCommitDirectV2fsForAppendV1,
 } from "./chain/legacy_commit_direct_v2fs_v1.js";
+import {
+  isMainnet0GenesisMinimalV1,
+  validateMainnet0GenesisMinimalForAppendV1,
+} from "./chain/mainnet0_historical_compat_v1.js";
 import { followerLegacyV2fsOriginAuthorizedV1 } from "./http/follower_legacy_v2fs_authority_v1.js";
+import { followerVerifiedPublicBootstrapOriginAuthorizedV1 } from "./http/follower_verified_public_bootstrap_authority_v1.js";
 import { preferredAuthenticatedDuplicateDirectionV1 } from "./p2p/authenticated_duplicate_arbitration_v1.js";
 import { TxIndex } from "./chain/txindex.js";
 import { ReceiptsStore } from "./chain/receipts.js";
@@ -4206,15 +4211,37 @@ attachEphemeralDirectTransportV1(
       : timeoutSignal;
     throwIfFollowerPullAbortedV1(pullSignal);
 
-    const legacyV2fsOriginAuthorized = followerLegacyV2fsOriginAuthorizedV1(
-      peerHttp,
-      process.env.VOID_FOLLOWER_LEGACY_V2FS_ORIGINS,
-    );
+    const verifiedPublicBootstrapOriginAuthorized =
+      followerVerifiedPublicBootstrapOriginAuthorizedV1(peerHttp);
+    const legacyV2fsOriginAuthorized =
+      verifiedPublicBootstrapOriginAuthorized ||
+      followerLegacyV2fsOriginAuthorizedV1(
+        peerHttp,
+        process.env.VOID_FOLLOWER_LEGACY_V2FS_ORIGINS,
+      );
+
+    type FollowerBlockAdmissionV1 =
+      | {
+          ok: true;
+          mode: "genesis-minimal-v1" | "legacy-v2fs" | "modern";
+        }
+      | { ok: false; reason: string };
 
     const validateFollowerBlockV1 = (
       block: any,
       parent: any,
-    ): { ok: true; legacyV2fs: boolean } | { ok: false; reason: string } => {
+    ): FollowerBlockAdmissionV1 => {
+      if (isMainnet0GenesisMinimalV1(block)) {
+        if (!verifiedPublicBootstrapOriginAuthorized) {
+          return { ok: false, reason: "mainnet0_minimal_origin_not_authorized" };
+        }
+        const minimal = validateMainnet0GenesisMinimalForAppendV1(block, parent);
+        if (minimal.ok === false) {
+          return { ok: false, reason: minimal.reason };
+        }
+        return { ok: true, mode: "genesis-minimal-v1" };
+      }
+
       const hasCommitMarker =
         !!block &&
         typeof block === "object" &&
@@ -4231,22 +4258,26 @@ attachEphemeralDirectTransportV1(
         if (legacy.ok === false) {
           return { ok: false, reason: legacy.reason };
         }
-        return { ok: true, legacyV2fs: true };
+        return { ok: true, mode: "legacy-v2fs" };
       }
 
       const modern = validateBlockForAppend(block, parent as any);
       if (modern.ok === false) {
         return { ok: false, reason: modern.reason };
       }
-      return { ok: true, legacyV2fs: false };
+      return { ok: true, mode: "modern" };
     };
 
     const saveFollowerBlockV1 = (
       block: any,
-      admission: { ok: true; legacyV2fs: boolean },
+      admission: Extract<FollowerBlockAdmissionV1, { ok: true }>,
     ): void => {
-      if (admission.legacyV2fs) {
-        this.store.saveAuthorizedLegacyCommitDirectV2fs(block);
+      if (admission.mode === "genesis-minimal-v1") {
+        this.store.saveAuthorizedMainnet0GenesisMinimalV1(block);
+        return;
+      }
+      if (admission.mode === "legacy-v2fs") {
+        this.store.saveAuthorizedMainnet0HistoricalLegacyV2fs(block);
         return;
       }
       this.store.saveBlock(block);
