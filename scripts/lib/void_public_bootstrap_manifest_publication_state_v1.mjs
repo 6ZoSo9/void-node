@@ -31,6 +31,18 @@ import {
   readBytes,
 } from "./void_public_bootstrap_manifest_publication_contract_v1.mjs";
 
+const STABLE_KEYS = Object.freeze([...HOLD_KEYS, "expires_at"]);
+const STABLE_ENDPOINT_KEYS = Object.freeze([
+  "transport",
+  "base",
+  "priority",
+  "enabled",
+  "temporary",
+  "qualification_id",
+  "qualified_at",
+  "qualified_head",
+]);
+
 function parseArtifactSums(bytes) {
   const text = bytes.toString("utf8");
   if (!text.endsWith("\n")) throw new Error("artifact SHA256SUMS must end with one newline");
@@ -72,22 +84,72 @@ function validateManifestId(manifest, label) {
   }
 }
 
-export function validatePredecessorHold(rawManifest) {
-  const manifest = exactKeys(structuredClone(rawManifest), HOLD_KEYS, "predecessor manifest");
+function validateStablePredecessorEndpoint(rawEndpoint, index) {
+  const endpoint = exactKeys(
+    structuredClone(rawEndpoint),
+    STABLE_ENDPOINT_KEYS,
+    `predecessor sync endpoint ${index}`,
+  );
+  if (endpoint.transport !== "https") {
+    throw new Error("predecessor stable endpoint transport must be https");
+  }
+  if (endpoint.enabled !== true || endpoint.temporary !== false) {
+    throw new Error("predecessor stable endpoint must be enabled and non-temporary");
+  }
+  if (!Number.isSafeInteger(endpoint.priority) || endpoint.priority < 0) {
+    throw new Error("predecessor stable endpoint priority is invalid");
+  }
+  if (!/^voidpsq1_[0-9a-f]{64}$/.test(String(endpoint.qualification_id || ""))) {
+    throw new Error("predecessor stable endpoint qualification ID is malformed");
+  }
+  parseTime(endpoint.qualified_at, "predecessor stable endpoint qualified_at");
+  if (!Number.isSafeInteger(endpoint.qualified_head) || endpoint.qualified_head <= 0) {
+    throw new Error("predecessor stable endpoint qualified_head must be positive");
+  }
+  let url;
+  try {
+    url = new URL(String(endpoint.base));
+  } catch {
+    throw new Error("predecessor stable endpoint base is invalid");
+  }
+  const hostname = url.hostname.toLowerCase();
+  if (
+    url.protocol !== "https:" ||
+    url.username ||
+    url.password ||
+    url.search ||
+    url.hash ||
+    !hostname.includes(".") ||
+    hostname === "localhost" ||
+    hostname.endsWith(".local") ||
+    hostname.endsWith(".internal") ||
+    hostname.endsWith(".ts.net") ||
+    hostname.includes("tailscale")
+  ) {
+    throw new Error("predecessor stable endpoint is not acceptable public HTTPS");
+  }
+  return endpoint;
+}
+
+export function validatePredecessorManifest(rawManifest) {
+  const input = structuredClone(rawManifest);
+  const status = String(input?.status || "");
+  const manifest = exactKeys(
+    input,
+    status === "stable_https_seed" ? STABLE_KEYS : HOLD_KEYS,
+    "predecessor manifest",
+  );
   if (manifest.schema !== BOOTSTRAP_SCHEMA) throw new Error("predecessor schema mismatch");
   if (manifest.network !== NETWORK || Number(manifest.chain_id) !== CHAIN_ID) {
     throw new Error("predecessor network or chain mismatch");
   }
-  if (manifest.status !== "hold_no_stable_seed") {
-    throw new Error("predecessor must be the explicit hold manifest");
-  }
   validateManifestId(manifest, "predecessor");
-  parseTime(manifest.generated_at, "predecessor generated_at");
-  if (!Array.isArray(manifest.sync_endpoints) || manifest.sync_endpoints.length !== 0) {
-    throw new Error("predecessor hold must not publish sync endpoints");
+  const generatedAt = parseTime(manifest.generated_at, "predecessor generated_at");
+  if (!Array.isArray(manifest.sync_endpoints)) {
+    throw new Error("predecessor sync_endpoints must be an array");
   }
   if (!Array.isArray(manifest.onion_endpoints) || manifest.onion_endpoints.length !== 0) {
-    throw new Error("predecessor hold must not publish onion endpoints");
+    throw new Error("predecessor must not publish onion endpoints");
   }
   if (manifest.private_tailnet_endpoints_published !== false) {
     throw new Error("predecessor violates the private Tailnet boundary");
@@ -95,6 +157,38 @@ export function validatePredecessorHold(rawManifest) {
   assertAuthorityFalse(manifest.authority, "predecessor authority");
   if (typeof manifest.notes !== "string" || manifest.notes.length > 4096) {
     throw new Error("predecessor notes must be a bounded string");
+  }
+
+  if (status === "hold_no_stable_seed") {
+    if (manifest.sync_endpoints.length !== 0) {
+      throw new Error("predecessor hold must not publish sync endpoints");
+    }
+    return manifest;
+  }
+
+  if (status !== "stable_https_seed") {
+    throw new Error("predecessor must be hold_no_stable_seed or stable_https_seed");
+  }
+  const expiresAt = parseTime(manifest.expires_at, "predecessor expires_at");
+  if (expiresAt <= generatedAt) {
+    throw new Error("predecessor stable manifest expiry must follow generation");
+  }
+  if (manifest.sync_endpoints.length < 1 || manifest.sync_endpoints.length > 8) {
+    throw new Error("predecessor stable manifest must publish 1 through 8 endpoints");
+  }
+  const bases = new Set();
+  for (let index = 0; index < manifest.sync_endpoints.length; index += 1) {
+    const endpoint = validateStablePredecessorEndpoint(manifest.sync_endpoints[index], index);
+    if (bases.has(endpoint.base)) throw new Error("predecessor stable endpoints must be unique");
+    bases.add(endpoint.base);
+  }
+  return manifest;
+}
+
+export function validatePredecessorHold(rawManifest) {
+  const manifest = validatePredecessorManifest(rawManifest);
+  if (manifest.status !== "hold_no_stable_seed") {
+    throw new Error("predecessor must be the explicit hold manifest");
   }
   return manifest;
 }
@@ -231,7 +325,7 @@ function predecessorState(repoRoot, expectedPredecessorBlob) {
     bytes,
     sha256: fileSha256(bytes),
     gitBlob: actualBlob,
-    manifest: validatePredecessorHold(manifest),
+    manifest: validatePredecessorManifest(manifest),
   };
 }
 
