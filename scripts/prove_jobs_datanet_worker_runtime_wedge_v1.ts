@@ -672,6 +672,98 @@ try {
     `full_starts=${warmReady.completionIo?.async_full_history_starts_total} warms=${warmReady.completionIo?.async_warms_total}`,
   );
 
+  // Deterministically land a second canonical append after admitSourceV1's
+  // first path stamp but before its semantic-authority/current sample. The
+  // exact witness chain must advance the owned warm without rejection,
+  // backoff, or a later byte-zero restart.
+  const admissionRaceJobsFile = path.join(root, "jobs-admission-race.jsonl");
+  const admissionRaceReceiptsFile = path.join(
+    root,
+    "receipts-admission-race.jsonl",
+  );
+  const admissionRaceJobStateFile = path.join(
+    root,
+    "job-state-admission-race.jsonl",
+  );
+  fs.writeFileSync(admissionRaceJobsFile, "");
+  fs.writeFileSync(admissionRaceReceiptsFile, "");
+  fs.writeFileSync(
+    admissionRaceJobStateFile,
+    repeatToBytes(
+      JSON.stringify({ job_id: "admission_race_filler", status: "queued" }) +
+        "\n",
+      512 * 1024,
+    ),
+  );
+  let admissionRaceArmed = false;
+  let admissionRaceFired = false;
+  const admissionRaceSecondId = "admission_race_second_append";
+  const admissionRaceIndex = new JobsDatanetWorkerRuntimeIndexV1({
+    maxScanBytesPerTick: 4096,
+    maxSyncCompletionRebuildBytes: 4096,
+    completionRebuildBackoffMs: 5000,
+    testHooks: {
+      afterSourceObserved: ({ file }) => {
+        if (
+          !admissionRaceArmed ||
+          admissionRaceFired ||
+          path.resolve(file) !== path.resolve(admissionRaceJobStateFile)
+        ) return;
+        admissionRaceFired = true;
+        appendAgentPick2JsonlCanonicalV1(
+          admissionRaceJobStateFile,
+          JSON.stringify({
+            job_id: admissionRaceSecondId,
+            status: "completed",
+          }) + "\n",
+        );
+      },
+    },
+  });
+  const admissionRaceInput = {
+    jobsFile: admissionRaceJobsFile,
+    receiptsFile: admissionRaceReceiptsFile,
+    jobStateFile: admissionRaceJobStateFile,
+  };
+  const admissionRaceFirst = admissionRaceIndex.scan(admissionRaceInput);
+  assert(
+    admissionRaceFirst.ready === false &&
+      Number(
+        admissionRaceFirst.completionIo?.async_full_history_starts_total || 0,
+      ) === 1,
+    "append-admission-race-warm-starts-once",
+    `ready=${admissionRaceFirst.ready} io=${JSON.stringify(admissionRaceFirst.completionIo)}`,
+  );
+  admissionRaceArmed = true;
+  const admissionRaceFirstId = "admission_race_first_append";
+  appendAgentPick2JsonlCanonicalV1(
+    admissionRaceJobStateFile,
+    JSON.stringify({
+      job_id: admissionRaceFirstId,
+      status: "completed",
+    }) + "\n",
+  );
+  let admissionRaceReady = admissionRaceIndex.scan(admissionRaceInput);
+  for (let i = 0; i < 1000 && !admissionRaceReady.ready; i += 1) {
+    await sleep(1);
+    admissionRaceReady = admissionRaceIndex.scan(admissionRaceInput);
+  }
+  assert(
+    admissionRaceFired &&
+      admissionRaceReady.ready &&
+      admissionRaceReady.doneTruthHas(admissionRaceFirstId) &&
+      admissionRaceReady.doneTruthHas(admissionRaceSecondId),
+    "append-admission-race-catches-up-exact-chain",
+    `fired=${admissionRaceFired} ready=${admissionRaceReady.ready} first=${admissionRaceReady.doneTruthHas(admissionRaceFirstId)} second=${admissionRaceReady.doneTruthHas(admissionRaceSecondId)} hold=${admissionRaceReady.holdReason}`,
+  );
+  assert(
+    Number(
+      admissionRaceReady.completionIo?.async_full_history_starts_total || 0,
+    ) === 1,
+    "append-admission-race-does-not-restart-from-zero",
+    `io=${JSON.stringify(admissionRaceReady.completionIo)}`,
+  );
+
   // A later warm may legitimately start again when it begins at the exact
   // prior admitted size. Prove that task count and full-history restart count
   // are distinct contracts.

@@ -58,6 +58,14 @@ type CompletionStateV1 = FileStampV1 & {
   completed: Set<string>;
 };
 
+type RuntimeIndexTestHooksV1 = {
+  afterSourceObserved?: (ctx: {
+    file: string;
+    observed: FileStampV1;
+    attempt: number;
+  }) => void;
+};
+
 function fileStampV1(file: string): FileStampV1 | null {
   try {
     const stat = fs.statSync(file, { bigint: true } as any);
@@ -138,6 +146,7 @@ export class JobsDatanetWorkerRuntimeIndexV1 {
   private readonly maxLocallyDoneIds: number;
   private readonly maxSyncCompletionRebuildBytes: number;
   private readonly completionRebuildBackoffMs: number;
+  private readonly testHooks: RuntimeIndexTestHooksV1;
 
   private jobsDev = "";
   private jobsIno = "";
@@ -177,6 +186,7 @@ export class JobsDatanetWorkerRuntimeIndexV1 {
     maxLocallyDoneIds?: number;
     maxSyncCompletionRebuildBytes?: number;
     completionRebuildBackoffMs?: number;
+    testHooks?: RuntimeIndexTestHooksV1;
   } = {}) {
     this.maxScanBytesPerTick = boundedIntV1(
       opts.maxScanBytesPerTick ??
@@ -210,6 +220,7 @@ export class JobsDatanetWorkerRuntimeIndexV1 {
       1,
       60 * 60 * 1000,
     );
+    this.testHooks = opts.testHooks || {};
   }
 
   private resetJobsGenerationV1(): void {
@@ -376,44 +387,64 @@ export class JobsDatanetWorkerRuntimeIndexV1 {
     ok: boolean;
     stamp: FileStampV1 | null;
   } {
-    const observed = fileStampV1(file);
-    if (!observed) {
-      this.admittedStamps.delete(file);
-      return { ok: true, stamp: null };
-    }
-
     // VOID_JOBS_DATANET_WORKER_APPEND_CONTINUITY_AUTHORITY_V1
     // Reuse the canonical writer's exact before/after witness chain. A fixed
     // suffix cannot authorize an older-prefix mutation followed by growth.
-    const missesBefore = this.authorityWitnessMisses;
-    const authority = this.authorityIndex.snapshot({
-      jobsFile: file,
-      resultsFile: "",
-      leasesFile: "",
-      completionFiles: [],
-      scanMax: 1,
-      leaseMs: 1,
-      nowMs: Date.now(),
-    });
-    const missesAfter = Number(
-      authority.io?.append_witness_misses_total || 0,
-    );
-    this.authorityWitnessMisses = missesAfter;
-    const current = fileStampV1(file);
     const prior = this.admittedStamps.get(file);
-    const stable = !!current && sameStampV1(observed, current);
-    const exactAppend =
-      !!prior &&
-      !!current &&
-      sameObjectV1(prior, current) &&
-      current.size > prior.size &&
-      missesAfter === missesBefore;
-    const ok =
-      stable &&
-      (!prior || sameStampV1(prior, current!) || exactAppend);
-    if (!ok) this.rejectedSources.add(file);
-    if (current) this.admittedStamps.set(file, current);
-    return { ok, stamp: current };
+    const missesAtAdmissionStart = this.authorityWitnessMisses;
+    let lastCurrent: FileStampV1 | null = null;
+
+    // A canonical append may land between the outer stamp sample and the
+    // semantic authority snapshot. Retry that observation window so the final
+    // admitted generation is itself sampled stably and the authority index has
+    // verified the complete prior -> current witness chain. Keep one miss
+    // baseline for the whole admission: a hostile/unwitnessed transition on an
+    // earlier attempt must not be forgotten merely because a later sample is
+    // stable.
+    for (let attempt = 0; attempt < 16; attempt += 1) {
+      const observed = fileStampV1(file);
+      if (!observed) {
+        this.admittedStamps.delete(file);
+        return { ok: true, stamp: null };
+      }
+
+      this.testHooks.afterSourceObserved?.({
+        file,
+        observed: { ...observed },
+        attempt,
+      });
+
+      const authority = this.authorityIndex.snapshot({
+        jobsFile: file,
+        resultsFile: "",
+        leasesFile: "",
+        completionFiles: [],
+        scanMax: 1,
+        leaseMs: 1,
+        nowMs: Date.now(),
+      });
+      const missesAfter = Number(
+        authority.io?.append_witness_misses_total || 0,
+      );
+      this.authorityWitnessMisses = missesAfter;
+      const current = fileStampV1(file);
+      lastCurrent = current;
+      if (!current || !sameStampV1(observed, current)) continue;
+
+      const exactAppend =
+        !!prior &&
+        sameObjectV1(prior, current) &&
+        current.size > prior.size &&
+        missesAfter === missesAtAdmissionStart;
+      const ok = !prior || sameStampV1(prior, current) || exactAppend;
+      if (!ok) this.rejectedSources.add(file);
+      this.admittedStamps.set(file, current);
+      return { ok, stamp: current };
+    }
+
+    this.rejectedSources.add(file);
+    if (lastCurrent) this.admittedStamps.set(file, lastCurrent);
+    return { ok: false, stamp: lastCurrent };
   }
 
   private addCompletionBytesV1(
