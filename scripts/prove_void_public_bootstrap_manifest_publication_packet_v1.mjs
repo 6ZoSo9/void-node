@@ -16,6 +16,7 @@ const ROOT = fs.realpathSync(process.cwd());
 const TEMP = fs.mkdtempSync(
   path.join(os.tmpdir(), "void-public-bootstrap-publication-packet-v1-"),
 );
+const FIXTURE_REPO = path.join(TEMP, "fixture-repository");
 const ARTIFACT = path.join(TEMP, "qualification-output");
 const PACKET = path.join(TEMP, "publication-packet");
 
@@ -23,9 +24,9 @@ function assert(condition, message) {
   if (!condition) throw new Error(message);
 }
 
-function run(command, args, { expectSuccess = true } = {}) {
+function run(command, args, { expectSuccess = true, cwd = ROOT } = {}) {
   const result = childProcess.spawnSync(command, args, {
-    cwd: ROOT,
+    cwd,
     encoding: "utf8",
     stdio: ["ignore", "pipe", "pipe"],
   });
@@ -66,13 +67,98 @@ function copyDirectory(source, destination) {
   fs.cpSync(source, destination, { recursive: true, force: false });
 }
 
-function builderArgs({ artifact = ARTIFACT, output = PACKET, sourceSha, predecessorBlob }) {
+function authorityFalse() {
+  return {
+    private_routes_exposed: false,
+    wallet_authority: false,
+    signer_authority: false,
+    validator_authority: false,
+    treasury_authority: false,
+    work_credit_authority: false,
+    money_movement_authority: false,
+  };
+}
+
+function fixtureHoldManifest() {
+  return objectWithId(
+    "voidpbm1_",
+    {
+      schema: "void_public_bootstrap_v1",
+      network: "VOID Network",
+      chain_id: 2050,
+      status: "hold_no_stable_seed",
+      generated_at: "2026-08-06T09:23:00.000Z",
+      sync_endpoints: [],
+      onion_endpoints: [],
+      private_tailnet_endpoints_published: false,
+      authority: authorityFalse(),
+      notes:
+        "Isolated proof fixture. No stable public HTTPS seed is published by this fixture.",
+    },
+    "manifest_id",
+  );
+}
+
+function initializeFixtureRepository() {
+  fs.mkdirSync(FIXTURE_REPO, { mode: 0o700 });
+  run("git", ["init", "-q"], { cwd: FIXTURE_REPO });
+
+  const holdPath = path.join(FIXTURE_REPO, "public", "bootstrap", "v1.json");
+  write(holdPath, jsonBytes(fixtureHoldManifest()));
+
+  run("git", ["add", "--", "public/bootstrap/v1.json"], { cwd: FIXTURE_REPO });
+  run(
+    "git",
+    [
+      "-c",
+      "user.name=VOID Publication Proof",
+      "-c",
+      "user.email=void-publication-proof@example.invalid",
+      "-c",
+      "commit.gpgSign=false",
+      "commit",
+      "-q",
+      "-m",
+      "fixture: canonical hold predecessor",
+    ],
+    { cwd: FIXTURE_REPO },
+  );
+
+  const sourceSha = run("git", ["rev-parse", "HEAD"], {
+    cwd: FIXTURE_REPO,
+  }).stdout.trim();
+  const predecessorBlob = run(
+    "git",
+    ["rev-parse", "HEAD:public/bootstrap/v1.json"],
+    { cwd: FIXTURE_REPO },
+  ).stdout.trim();
+  const status = run(
+    "git",
+    ["status", "--porcelain=v1", "--untracked-files=all"],
+    { cwd: FIXTURE_REPO },
+  ).stdout.trim();
+
+  assert(/^[0-9a-f]{40}$/.test(sourceSha), "fixture source SHA is invalid");
+  assert(/^[0-9a-f]{40}$/.test(predecessorBlob), "fixture predecessor blob is invalid");
+  assert(status === "", "fixture repository is not clean");
+  assert(fs.realpathSync(FIXTURE_REPO) !== ROOT, "fixture repository was not isolated");
+
+  return { sourceSha, predecessorBlob };
+}
+
+function builderArgs({
+  artifact = ARTIFACT,
+  output = PACKET,
+  sourceSha,
+  predecessorBlob,
+  repoRoot = FIXTURE_REPO,
+}) {
   return [
     "scripts/build_void_public_bootstrap_manifest_publication_packet_v1.mjs",
     "--artifact",
     artifact,
     "--repo-root",
-    ROOT,
+    repoRoot,
     "--expected-source-sha",
     sourceSha,
     "--expected-predecessor-blob",
@@ -82,13 +168,18 @@ function builderArgs({ artifact = ARTIFACT, output = PACKET, sourceSha, predeces
   ];
 }
 
-function verifierArgs({ packet = PACKET, sourceSha, predecessorBlob }) {
+function verifierArgs({
+  packet = PACKET,
+  sourceSha,
+  predecessorBlob,
+  repoRoot = FIXTURE_REPO,
+}) {
   return [
     "scripts/verify_void_public_bootstrap_manifest_publication_packet_v1.mjs",
     "--packet",
     packet,
     "--repo-root",
-    ROOT,
+    repoRoot,
     "--expected-source-sha",
     sourceSha,
     "--expected-predecessor-blob",
@@ -97,13 +188,10 @@ function verifierArgs({ packet = PACKET, sourceSha, predecessorBlob }) {
 }
 
 try {
-  const sourceSha = run("git", ["rev-parse", "HEAD"]).stdout.trim();
-  const predecessorBlob = run("git", [
-    "rev-parse",
-    "HEAD:public/bootstrap/v1.json",
-  ]).stdout.trim();
-  assert(/^[0-9a-f]{40}$/.test(sourceSha), "fixture source SHA is invalid");
-  assert(/^[0-9a-f]{40}$/.test(predecessorBlob), "fixture predecessor blob is invalid");
+  const rootSourceSha = run("git", ["rev-parse", "HEAD"]).stdout.trim();
+  assert(/^[0-9a-f]{40}$/.test(rootSourceSha), "harness source SHA is invalid");
+
+  const { sourceSha, predecessorBlob } = initializeFixtureRepository();
 
   const nowMs = Date.now();
   const heads = [2050, 2051, 2052];
@@ -152,6 +240,7 @@ try {
   const artifactCandidate = fs.readFileSync(path.join(ARTIFACT, "public-bootstrap-v1.json"));
   assert(packetCandidate.equals(artifactCandidate), "packet candidate is not byte-exact artifact output");
   assert(packet.destination === "public/bootstrap/v1.json", "packet destination escaped one file");
+  assert(packet.source_sha === sourceSha, "packet source is not the isolated fixture source");
   assert(packet.predecessor.git_blob_sha === predecessorBlob, "predecessor blob binding missing");
   assert(packet.candidate.precondition_manifest_id === packet.predecessor.manifest_id, "candidate precondition mismatch");
   assert(packet.rollback.precondition_manifest_id === packet.candidate.manifest_id, "rollback precondition mismatch");
@@ -226,16 +315,17 @@ try {
     { expectSuccess: false },
   );
 
+  const forbiddenOutput = path.join(FIXTURE_REPO, ".void-publication-packet-forbidden");
   run(
     process.execPath,
     builderArgs({
-      output: path.join(ROOT, ".void-publication-packet-forbidden"),
+      output: forbiddenOutput,
       sourceSha,
       predecessorBlob,
     }),
     { expectSuccess: false },
   );
-  assert(!fs.existsSync(path.join(ROOT, ".void-publication-packet-forbidden")), "forbidden output was created");
+  assert(!fs.existsSync(forbiddenOutput), "forbidden in-repository output was created");
 
   run(
     process.execPath,
@@ -275,6 +365,10 @@ try {
   }
 
   console.log(MARKER);
+  console.log(`harness_source_sha=${rootSourceSha}`);
+  console.log(`fixture_source_sha=${sourceSha}`);
+  console.log("fixture_repository_isolated=true");
+  console.log("repository_manifest_state_independent=true");
   console.log("artifact_checksums_bound=true");
   console.log("qualification_source_bound=true");
   console.log("predecessor_git_blob_bound=true");
