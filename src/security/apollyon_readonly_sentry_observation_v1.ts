@@ -55,6 +55,7 @@ export type ApollyonReadonlySentryFindingCodeV1 =
   | "latest_head_zero"
   | "no_connected_peers"
   | "no_verified_peers"
+  | "no_authority_checks"
   | "authority_read_failed"
   | "authority_revoked";
 
@@ -268,6 +269,9 @@ function classifyFindings(input: ApollyonReadonlySentryInputV1): ApollyonReadonl
   if (node.latest_head === "0") findings.push(finding("latest_head_zero", "hold", "0"));
   if (node.connected_peer_count === 0) findings.push(finding("no_connected_peers", "hold", "0"));
   if (node.verified_peer_count === 0) findings.push(finding("no_verified_peers", "notice", "0"));
+  if (input.authority_checks.length === 0) {
+    findings.push(finding("no_authority_checks", "hold", "0"));
+  }
 
   for (const check of input.authority_checks) {
     if (!check.ok) {

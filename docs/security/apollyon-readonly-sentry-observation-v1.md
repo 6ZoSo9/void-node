@@ -33,6 +33,8 @@ Authority checks are sorted and unique by `identity_id`.
 
 A successful check carries one closed `Chain2050RoleAuthorityReadViewV1` from the merged read adapter. A failed check carries no view and records one bounded machine-readable failure reason.
 
+An empty authority-check set is not an all-clear. It emits `no_authority_checks` as a `hold` finding and sets `escalation_required=true`. This prevents node-health evidence by itself from being mislabeled as a complete sentry GREEN observation.
+
 This contract does not treat a role as a capability and does not manufacture canonicality. Production authority views still depend on the reviewed registry/query/finality binding and, later, durable canonical storage.
 
 ## Deterministic findings
@@ -46,10 +48,11 @@ The classifier emits only closed finding codes:
 - `latest_head_zero`
 - `no_connected_peers`
 - `no_verified_peers`
+- `no_authority_checks`
 - `authority_read_failed`
 - `authority_revoked`
 
-`no_verified_peers` alone is a `notice` and yields `attention`. All other current finding classes are `hold` findings. Any `hold` sets `escalation_required=true`.
+`no_verified_peers` alone is a `notice` and yields `attention`. `no_authority_checks` and all other current anomaly classes are `hold` findings. Any `hold` sets `escalation_required=true`.
 
 The result is content-addressed by `observation_sha256` over canonical JSON of the complete observation body before the digest field is added.
 
@@ -83,7 +86,7 @@ OpenRouter PR #1403 owns external contestant/provider execution semantics. This 
 The eventual local sentry sequence remains separately gated:
 
 1. acquire bounded read-only runtime evidence;
-2. build/validate this deterministic observation;
+2. obtain at least one reviewed Chain-2050 authority check and build/validate this deterministic observation;
 3. pass only the validated observation to the frozen v2r13 + Broker V11 pair under a separately reviewed local-only model-execution gate;
 4. accept model output as explanation/proposal only; and
 5. retain zero mutation/restart/transaction authority unless a later capability is separately designed, qualified, and authorized.
