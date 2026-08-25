@@ -44,12 +44,18 @@ function parseArgs(argv) {
   if (!packet) throw new Error("missing --packet");
   return { packet, skipRuntimeProbe };
 }
-function regularNonSymlink(file, label, { mode600 = false, executable = false } = {}) {
+function regularNonSymlink(file, label, { mode600 = false, ownerOnlyCredential = false, executable = false } = {}) {
   const resolved = path.resolve(String(file));
   const lstat = fs.lstatSync(resolved);
   if (lstat.isSymbolicLink() || !lstat.isFile()) throw new Error(`${label} must be one regular non-symlink file`);
   if (fs.realpathSync(resolved) !== resolved) throw new Error(`${label} path must already be canonical`);
   if (mode600 && (lstat.mode & 0o777) !== 0o600) throw new Error(`${label} must have mode 0600`);
+  if (ownerOnlyCredential) {
+    const mode = lstat.mode & 0o777;
+    if (mode !== 0o400 && mode !== 0o600) {
+      throw new Error(`${label} must have mode 0400 or 0600`);
+    }
+  }
   if (executable && (lstat.mode & 0o111) === 0) throw new Error(`${label} must be executable`);
   return resolved;
 }
@@ -109,7 +115,7 @@ async function main() {
   if (head !== packet.expected_repository_head) throw new Error(`repository head ${head} does not match packet head ${packet.expected_repository_head}`);
   const dirty = run("git", ["-C", repoRoot, "status", "--porcelain=v1", "--untracked-files=all"]);
   if (dirty) throw new Error("repository is not clean");
-  const credentialsFile = regularNonSymlink(packet.credentials_file, "credentials file", { mode600: true });
+  const credentialsFile = regularNonSymlink(packet.credentials_file, "credentials file", { ownerOnlyCredential: true });
   void credentialsFile;
   const nodePath = regularNonSymlink(packet.node_executable?.path, "Node.js executable", { executable: true });
   const cloudflaredPath = regularNonSymlink(packet.cloudflared_executable?.path, "cloudflared executable", { executable: true });
