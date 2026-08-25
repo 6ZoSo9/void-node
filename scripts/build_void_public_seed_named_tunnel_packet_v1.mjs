@@ -118,7 +118,7 @@ function normalizeUuid(raw) {
   return value;
 }
 
-function regularPath(raw, label, { executable = false, mode600 = false } = {}) {
+function regularPath(raw, label, { executable = false, mode600 = false, ownerOnlyCredential = false } = {}) {
   const input = path.resolve(rejectControl(String(raw), label));
   const lstat = fs.lstatSync(input);
   if (lstat.isSymbolicLink() || !lstat.isFile()) throw new Error(`${label} must be one regular non-symlink file`);
@@ -126,6 +126,12 @@ function regularPath(raw, label, { executable = false, mode600 = false } = {}) {
   if (real !== input) throw new Error(`${label} path must already be canonical`);
   if (executable && (lstat.mode & 0o111) === 0) throw new Error(`${label} is not executable`);
   if (mode600 && (lstat.mode & 0o777) !== 0o600) throw new Error(`${label} must have mode 0600`);
+  if (ownerOnlyCredential) {
+    const mode = lstat.mode & 0o777;
+    if (mode !== 0o400 && mode !== 0o600) {
+      throw new Error(`${label} must have mode 0400 or 0600`);
+    }
+  }
   return input;
 }
 
@@ -176,7 +182,7 @@ function main() {
   const args = parseArgs(process.argv.slice(2));
   const hostname = normalizeHostname(args.hostname);
   const tunnelId = normalizeUuid(args["tunnel-id"]);
-  const credentialsFile = regularPath(args["credentials-file"], "credentials file", { mode600: true });
+  const credentialsFile = regularPath(args["credentials-file"], "credentials file", { ownerOnlyCredential: true });
   const repoRoot = realDirectory(args["repo-root"], "repository root");
   if (isPathInside(repoRoot, credentialsFile)) {
     throw new Error("credentials file must remain outside the repository");

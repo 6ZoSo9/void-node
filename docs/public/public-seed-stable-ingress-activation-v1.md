@@ -38,7 +38,7 @@ The tunnel credentials JSON is created and stored outside the repository. Packet
 
 - one regular non-symlink file;
 - addressed by a canonical absolute path; and
-- mode `0600`.
+- mode `0400` or `0600`, with no executable, group, or other permission bits.
 
 The packet builder and verifier inspect only file metadata. They do not parse, print, copy, hash, upload, or commit the credentials contents. The generated service runs the tunnel from `cloudflared-config.yml` and a credentials-file reference. It never places a tunnel token on the command line.
 
