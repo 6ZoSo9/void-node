@@ -8,6 +8,23 @@ on:
       - "docs/public/apollyon-openrouter-alignment-arena-v1.md"
       - "public/apollyon-openrouter-contestants-v1.json"
       - "scripts/apollyon_openrouter_ox_alpha_adapter_v1.mjs"
+      - "scripts/apollyon_execution_broker_authorized_append_v1.mjs"
+      - "scripts/apollyon_execution_broker_prepare_v1.mjs"
+      - "scripts/apollyon_execution_broker_replay_v1.mjs"
+      - "scripts/apollyon_execution_broker_v1.mjs"
+      - "scripts/apollyon_execution_ledger_load_v1.mjs"
+      - "scripts/apollyon_execution_ledger_namespace_v1.mjs"
+      - "scripts/apollyon_execution_ledger_publish_v1.mjs"
+      - "scripts/apollyon_execution_ledger_record_v1.mjs"
+      - "scripts/apollyon_execution_provider_boundary_v1.mjs"
+      - "scripts/apollyon_openrouter_broker_binding_v1.mjs"
+      - "scripts/apollyon_openrouter_broker_catalog_preflight_v1.mjs"
+      - "scripts/apollyon_openrouter_broker_client_v1.mjs"
+      - "scripts/apollyon_openrouter_broker_ipc_protocol_v1.mjs"
+      - "scripts/apollyon_openrouter_broker_service_main_v1.mjs"
+      - "scripts/apollyon_openrouter_broker_service_v1.mjs"
+      - "scripts/apollyon_openrouter_broker_transport_v1.mjs"
+      - "scripts/prove_apollyon_openrouter_broker_integration_v1.py"
       - "scripts/prove_apollyon_openrouter_ox_alpha_adapter_v1.mjs"
       - "scripts/apollyon_openrouter_alignment_arena_v1.mjs"
       - "scripts/prove_apollyon_openrouter_alignment_arena_v1.mjs"
@@ -29,6 +46,23 @@ on:
       - "docs/public/apollyon-openrouter-alignment-arena-v1.md"
       - "public/apollyon-openrouter-contestants-v1.json"
       - "scripts/apollyon_openrouter_ox_alpha_adapter_v1.mjs"
+      - "scripts/apollyon_execution_broker_authorized_append_v1.mjs"
+      - "scripts/apollyon_execution_broker_prepare_v1.mjs"
+      - "scripts/apollyon_execution_broker_replay_v1.mjs"
+      - "scripts/apollyon_execution_broker_v1.mjs"
+      - "scripts/apollyon_execution_ledger_load_v1.mjs"
+      - "scripts/apollyon_execution_ledger_namespace_v1.mjs"
+      - "scripts/apollyon_execution_ledger_publish_v1.mjs"
+      - "scripts/apollyon_execution_ledger_record_v1.mjs"
+      - "scripts/apollyon_execution_provider_boundary_v1.mjs"
+      - "scripts/apollyon_openrouter_broker_binding_v1.mjs"
+      - "scripts/apollyon_openrouter_broker_catalog_preflight_v1.mjs"
+      - "scripts/apollyon_openrouter_broker_client_v1.mjs"
+      - "scripts/apollyon_openrouter_broker_ipc_protocol_v1.mjs"
+      - "scripts/apollyon_openrouter_broker_service_main_v1.mjs"
+      - "scripts/apollyon_openrouter_broker_service_v1.mjs"
+      - "scripts/apollyon_openrouter_broker_transport_v1.mjs"
+      - "scripts/prove_apollyon_openrouter_broker_integration_v1.py"
       - "scripts/prove_apollyon_openrouter_ox_alpha_adapter_v1.mjs"
       - "scripts/apollyon_openrouter_alignment_arena_v1.mjs"
       - "scripts/prove_apollyon_openrouter_alignment_arena_v1.mjs"
@@ -70,6 +104,23 @@ jobs:
           node --check scripts/apollyon_openrouter_ox_alpha_adapter_v1.mjs
           node --check scripts/prove_apollyon_openrouter_ox_alpha_adapter_v1.mjs
           node --check scripts/apollyon_openrouter_alignment_arena_v1.mjs
+          node --check scripts/apollyon_execution_broker_authorized_append_v1.mjs
+          node --check scripts/apollyon_execution_broker_prepare_v1.mjs
+          node --check scripts/apollyon_execution_broker_replay_v1.mjs
+          node --check scripts/apollyon_execution_broker_v1.mjs
+          node --check scripts/apollyon_execution_ledger_load_v1.mjs
+          node --check scripts/apollyon_execution_ledger_namespace_v1.mjs
+          node --check scripts/apollyon_execution_ledger_publish_v1.mjs
+          node --check scripts/apollyon_execution_ledger_record_v1.mjs
+          node --check scripts/apollyon_execution_provider_boundary_v1.mjs
+          node --check scripts/apollyon_openrouter_broker_binding_v1.mjs
+          node --check scripts/apollyon_openrouter_broker_catalog_preflight_v1.mjs
+          node --check scripts/apollyon_openrouter_broker_client_v1.mjs
+          node --check scripts/apollyon_openrouter_broker_ipc_protocol_v1.mjs
+          node --check scripts/apollyon_openrouter_broker_service_main_v1.mjs
+          node --check scripts/apollyon_openrouter_broker_service_v1.mjs
+          node --check scripts/apollyon_openrouter_broker_transport_v1.mjs
+          python3 -m py_compile scripts/prove_apollyon_openrouter_broker_integration_v1.py
           node --check scripts/prove_apollyon_openrouter_alignment_arena_v1.mjs
           node -e 'const r=require("./public/apollyon-openrouter-contestants-v1.json"); if(r.marker!=="VOID_APOLLYON_OPENROUTER_CONTESTANT_REGISTRY_V1"||!Array.isArray(r.contestants)||r.contestants.length<1) process.exit(1)'
 
@@ -81,6 +132,9 @@ jobs:
 
       - name: Run OpenRouter contestant registry proof
         run: node scripts/prove_apollyon_openrouter_ox_alpha_adapter_v1.mjs
+
+      - name: Run OpenRouter broker socket integration proof
+        run: python3 scripts/prove_apollyon_openrouter_broker_integration_v1.py
 
       - name: Run OpenRouter alignment arena proof
         run: node scripts/prove_apollyon_openrouter_alignment_arena_v1.mjs

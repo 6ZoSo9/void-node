@@ -2,14 +2,14 @@
 
 import { createHash } from 'node:crypto';
 import { constants as FS } from 'node:fs';
-import { lstat, mkdtemp, open, realpath, rm, stat, writeFile } from 'node:fs/promises';
-import { spawn } from 'node:child_process';
+import { lstat, mkdtemp, open, realpath, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import process from 'node:process';
 import { fileURLToPath } from 'node:url';
 
 import { admit as admitSanitizedInputs, publishReceiptExact as publishJsonExactV1 } from './apollyon_secret_sanitization_constitutional_admission_v1.mjs';
+import { runBrokerClientV1 } from './apollyon_openrouter_broker_client_v1.mjs';
 
 export const MARKER = 'VOID_APOLLYON_OPENROUTER_CONTESTANT_ADAPTER_V1';
 export const RESULT_MARKER = 'VOID_APOLLYON_OPENROUTER_CONTESTANT_RESULT_V1';
@@ -17,9 +17,6 @@ export const REGISTRY_MARKER = 'VOID_APOLLYON_OPENROUTER_CONTESTANT_REGISTRY_V1'
 export const PROVIDER = 'openrouter';
 export const DEFAULT_MODEL = 'stealth/ox-alpha';
 export const MODEL = DEFAULT_MODEL;
-export const API_ORIGIN = 'https://openrouter.ai';
-export const MODEL_CATALOG_URL = `${API_ORIGIN}/api/v1/models`;
-export const CHAT_URL = `${API_ORIGIN}/api/v1/chat/completions`;
 export const REGISTRY_PATH = 'public/apollyon-openrouter-contestants-v1.json';
 
 const MAX_JSON_BYTES = 256 * 1024;
@@ -202,8 +199,13 @@ function requireRuntimeGate(env, registry, registrySha256) {
     fail('VOID_OPENROUTER_ACK_REGISTRY_SHA256 must equal the loaded registry generation');
   }
 
-  const apiKey = String(env.OPENROUTER_API_KEY ?? '');
-  if (apiKey.length < 8 || apiKey.length > 512 || /\s/.test(apiKey)) fail('OPENROUTER_API_KEY is missing or malformed');
+  const logicalOperationIntentDigest = String(
+    env[LOGICAL_OPERATION_INTENT_ENV] ?? '',
+  ).trim();
+  if (!/^[0-9a-f]{64}$/.test(logicalOperationIntentDigest)) {
+    fail(`${LOGICAL_OPERATION_INTENT_ENV} must be a trusted stable 64-hex intent digest`);
+  }
+
   const model = String(env.VOID_OPENROUTER_MODEL ?? registry.default_model).trim();
   const contestant = getContestantV1(registry, model);
   if (contestant.status === 'quarantined') fail(`contestant ${model} is quarantined and requires requalification`);
@@ -215,11 +217,22 @@ function requireRuntimeGate(env, registry, registrySha256) {
     fail(`contestant ${model} requires VOID_OPENROUTER_ACK_PUBLIC_RETENTION=1`);
   }
   return {
-    apiKey,
     contestant,
-    maxTokens: parseBoundedInt(env.VOID_OPENROUTER_MAX_TOKENS, Math.min(DEFAULT_MAX_TOKENS, contestant.max_tokens_cap), 1, contestant.max_tokens_cap, 'VOID_OPENROUTER_MAX_TOKENS'),
-    metadataTimeoutMs: parseBoundedInt(env.VOID_OPENROUTER_METADATA_TIMEOUT_MS, DEFAULT_METADATA_TIMEOUT_MS, MIN_TIMEOUT_MS, MAX_TIMEOUT_MS, 'VOID_OPENROUTER_METADATA_TIMEOUT_MS'),
-    chatTimeoutMs: parseBoundedInt(env.VOID_OPENROUTER_CHAT_TIMEOUT_MS, DEFAULT_CHAT_TIMEOUT_MS, MIN_TIMEOUT_MS, MAX_TIMEOUT_MS, 'VOID_OPENROUTER_CHAT_TIMEOUT_MS'),
+    logicalOperationIntentDigest,
+    maxTokens: parseBoundedInt(
+      env.VOID_OPENROUTER_MAX_TOKENS,
+      Math.min(DEFAULT_MAX_TOKENS, contestant.max_tokens_cap),
+      1,
+      contestant.max_tokens_cap,
+      'VOID_OPENROUTER_MAX_TOKENS',
+    ),
+    chatTimeoutMs: parseBoundedInt(
+      env.VOID_OPENROUTER_CHAT_TIMEOUT_MS,
+      DEFAULT_CHAT_TIMEOUT_MS,
+      MIN_TIMEOUT_MS,
+      MAX_TIMEOUT_MS,
+      'VOID_OPENROUTER_CHAT_TIMEOUT_MS',
+    ),
   };
 }
 
@@ -521,146 +534,121 @@ export function buildOpenRouterRequestV1(trial, admittedInputs, maxTokens, conte
   };
 }
 
-async function fetchModelMetadata(fetchImpl, apiKey, timeoutMs, contestant) {
-  const response = await fetchImpl(MODEL_CATALOG_URL, {
-    method: 'GET',
-    redirect: 'error',
-    headers: {
-      accept: 'application/json',
-      authorization: `Bearer ${apiKey}`,
-    },
-    signal: AbortSignal.timeout(timeoutMs),
+
+export const BROKER_SOCKET_PATH = '/run/void-apollyon-openrouter-broker-v1.sock';
+export const LOGICAL_OPERATION_INTENT_ENV = 'VOID_OPENROUTER_LOGICAL_OPERATION_INTENT_SHA256';
+
+function brokerSocketPathV1(hooks) {
+  if (hooks.brokerSocketPath === undefined) return BROKER_SOCKET_PATH;
+  if (hooks.allowTestBrokerSocketOverride !== true) {
+    fail('broker socket override is test-only and requires allowTestBrokerSocketOverride=true');
+  }
+  const path = String(hooks.brokerSocketPath);
+  if (!path.startsWith('/') || path.length < 2 || path.length > 256 || path.includes('\0')) {
+    fail('test broker socket path is invalid');
+  }
+  return path;
+}
+
+function brokerClientV1(hooks) {
+  if (hooks.brokerClientFn === undefined) return runBrokerClientV1;
+  if (hooks.allowTestBrokerClientOverride !== true || typeof hooks.brokerClientFn !== 'function') {
+    fail('broker client override is test-only and requires allowTestBrokerClientOverride=true');
+  }
+  return hooks.brokerClientFn;
+}
+
+export function brokerRequestIdV1(logicalOperationIntentDigest) {
+  if (!/^[0-9a-f]{64}$/.test(String(logicalOperationIntentDigest ?? ''))) {
+    fail('logical operation intent digest is invalid');
+  }
+  return `voidobr1_${sha256(Buffer.from(canonicalJson({
+    marker: 'VOID_APOLLYON_OPENROUTER_BROKER_REQUEST_ID_V1',
+    logical_operation_intent_digest: logicalOperationIntentDigest,
+  }), 'utf8'))}`;
+}
+
+export function buildOpenRouterBrokerIpcRequestV1({
+  logicalOperationIntentDigest,
+  registrySha256,
+  requestBody,
+  contestant,
+  timeoutMs,
+}) {
+  if (!/^[0-9a-f]{64}$/.test(String(logicalOperationIntentDigest ?? ''))) {
+    fail('logical operation intent digest is invalid');
+  }
+  if (!/^[0-9a-f]{64}$/.test(String(registrySha256 ?? ''))) {
+    fail('registry sha256 is invalid');
+  }
+  if (!requestBody || typeof requestBody !== 'object' || Array.isArray(requestBody)) {
+    fail('broker request body is invalid');
+  }
+  if (!contestant || typeof contestant !== 'object' || Array.isArray(contestant)) {
+    fail('broker contestant policy is invalid');
+  }
+  if (!Number.isSafeInteger(timeoutMs) || timeoutMs < MIN_TIMEOUT_MS || timeoutMs > MAX_TIMEOUT_MS) {
+    fail('broker timeout is invalid');
+  }
+  return Object.freeze({
+    marker: 'VOID_APOLLYON_OPENROUTER_BROKER_REQUEST_V1',
+    version: 1,
+    request_id: brokerRequestIdV1(logicalOperationIntentDigest),
+    logical_operation_intent_digest: logicalOperationIntentDigest,
+    registry_sha256: registrySha256,
+    request_body: requestBody,
+    contestant,
+    timeout_ms: timeoutMs,
   });
-  assertExactResponseUrl(response, MODEL_CATALOG_URL, 'model catalog');
-  if (response.status !== 200) fail(`OpenRouter model catalog returned HTTP ${response.status}`);
-  const catalog = await readResponseJsonBounded(response, MAX_MODEL_RESPONSE_BYTES, 'OpenRouter model catalog');
-  if (!catalog || typeof catalog !== 'object' || !Array.isArray(catalog.data)) {
-    fail('OpenRouter model catalog is malformed');
-  }
-  const matches = catalog.data.filter((entry) => entry && typeof entry === 'object' && entry.id === contestant.model);
-  if (matches.length === 0) {
-    fail(`OpenRouter model ${contestant.model} is absent from the current exact catalog`);
-  }
-  if (matches.length !== 1) {
-    fail(`OpenRouter model ${contestant.model} is ambiguous in the current exact catalog`);
-  }
-  return matches[0];
 }
 
-function boundedErrorText(value, apiKey) {
-  if (value === null || value === undefined) return null;
-  let text = String(value).replace(/[\r\n\t]+/g, ' ').trim();
-  if (!text) return null;
-  if (apiKey && text.includes(apiKey)) text = text.split(apiKey).join('[REDACTED_API_KEY]');
-  for (const pattern of BLOCKED_OUTBOUND_PATTERNS) {
-    if (pattern.test(text)) return '[REDACTED_SENSITIVE_ERROR]';
+export function validateBrokerAcceptedResponseV1(response, request, contestant) {
+  if (!response || typeof response !== 'object' || Array.isArray(response)) {
+    fail('broker response is malformed');
   }
-  return text.length > 768 ? `${text.slice(0, 768)}…` : text;
-}
-
-async function openRouterHttpError(response, name, apiKey) {
-  const parts = [`${name} returned HTTP ${response.status}`];
-  try {
-    const payload = await readResponseJsonBounded(response, MAX_ERROR_RESPONSE_BYTES, `${name} error`);
-    const error = payload?.error;
-    const code = error?.code;
-    const message = boundedErrorText(error?.message, apiKey);
-    if (code !== null && code !== undefined && ['string', 'number'].includes(typeof code)) {
-      parts.push(`code=${boundedErrorText(code, apiKey)}`);
-    }
-    if (message) parts.push(`message=${message}`);
-    const meta = payload?.openrouter_metadata;
-    if (meta && typeof meta === 'object') {
-      const strategy = boundedErrorText(meta.strategy, apiKey);
-      if (strategy) parts.push(`strategy=${strategy}`);
-      if (Number.isSafeInteger(meta.attempt)) parts.push(`attempt=${meta.attempt}`);
-      if (Number.isSafeInteger(meta?.endpoints?.total)) parts.push(`endpoints_total=${meta.endpoints.total}`);
-      const available = Array.isArray(meta?.endpoints?.available) ? meta.endpoints.available : [];
-      const providers = available.slice(0, 8)
-        .map((entry) => boundedErrorText(entry?.provider, apiKey))
-        .filter(Boolean);
-      if (providers.length > 0) parts.push(`providers=${providers.join(',')}`);
-      const pipeline = Array.isArray(meta?.pipeline) ? meta.pipeline : [];
-      const stages = pipeline.slice(0, 8)
-        .map((entry) => boundedErrorText(entry?.name ?? entry?.stage ?? entry?.id, apiKey))
-        .filter(Boolean);
-      if (stages.length > 0) parts.push(`pipeline=${stages.join(',')}`);
-    }
-  } catch {
-    // Preserve only the bounded HTTP status when an error body is absent/malformed/oversized.
+  if (response.request_id !== request.request_id) fail('broker response request_id mismatch');
+  if (response.status === 'HOLD') {
+    const code = typeof response.hold_code === 'string' ? response.hold_code : 'INTERNAL_HOLD';
+    const operation = typeof response.operation_id === 'string' ? ` operation=${response.operation_id}` : '';
+    fail(`OpenRouter broker HOLD code=${code}${operation}`);
   }
-  const retryAfter = boundedErrorText(response.headers?.get?.('retry-after'), apiKey);
-  if (retryAfter) parts.push(`retry_after=${retryAfter}`);
-  return new Error(parts.join(' '));
-}
-
-async function sendChat(fetchImpl, apiKey, requestBody, timeoutMs) {
-  const response = await fetchImpl(CHAT_URL, {
-    method: 'POST',
-    redirect: 'error',
-    headers: {
-      accept: 'application/json',
-      authorization: `Bearer ${apiKey}`,
-      'content-type': 'application/json',
-      'x-openrouter-metadata': 'enabled',
-    },
-    body: JSON.stringify(requestBody),
-    signal: AbortSignal.timeout(timeoutMs),
+  if (response.status !== 'ACCEPTED') fail('broker response status is invalid');
+  if (!/^apollyon_op_v1:[0-9a-f]{64}$/.test(String(response.operation_id ?? ''))) {
+    fail('broker accepted operation_id is invalid');
+  }
+  if (!/^[0-9a-f]{64}$/.test(String(response.result_digest ?? ''))) {
+    fail('broker accepted result_digest is invalid');
+  }
+  const result = response.result;
+  if (!result || typeof result !== 'object' || Array.isArray(result)) {
+    fail('broker accepted result is malformed');
+  }
+  if (typeof result.content !== 'string') fail('broker accepted result content must be text');
+  const model = result.broker_catalog_preflight_v1;
+  if (!model || typeof model !== 'object' || Array.isArray(model)) {
+    fail('broker catalog preflight evidence is missing');
+  }
+  if (model.marker !== 'VOID_APOLLYON_OPENROUTER_BROKER_CATALOG_PREFLIGHT_V1'
+      || model.version !== 1
+      || model.pricing_zero !== true) {
+    fail('broker catalog preflight evidence is invalid');
+  }
+  if (model.model !== contestant.model || model.canonical_slug !== contestant.canonical_slug) {
+    fail('broker catalog preflight generation does not match reviewed contestant');
+  }
+  if (!Number.isSafeInteger(model.context_length) || model.context_length < contestant.min_context_length) {
+    fail('broker catalog context length is below reviewed minimum');
+  }
+  if (!/^[0-9a-f]{64}$/.test(String(model.catalog_sha256 ?? ''))
+      || !/^[0-9a-f]{64}$/.test(String(model.selected_model_sha256 ?? ''))) {
+    fail('broker catalog evidence digest is invalid');
+  }
+  return Object.freeze({
+    operationId: response.operation_id,
+    resultDigest: response.result_digest,
+    result,
+    catalogPreflight: model,
   });
-  assertExactResponseUrl(response, CHAT_URL, 'chat completion');
-  if (response.status !== 200) throw await openRouterHttpError(response, 'OpenRouter chat completion', apiKey);
-  return readResponseJsonBounded(response, MAX_CHAT_RESPONSE_BYTES, 'OpenRouter chat completion');
-}
-
-function validateChatResponse(response, contestant) {
-  if (!response || typeof response !== 'object' || Array.isArray(response)) fail('OpenRouter chat response is malformed');
-  if (!Array.isArray(response.choices) || response.choices.length < 1) fail('OpenRouter chat response has no choices');
-  const first = response.choices[0];
-  const message = first?.message;
-  if (!message || typeof message !== 'object') fail('OpenRouter chat response message is missing');
-  if (Array.isArray(message.tool_calls) && message.tool_calls.length > 0) fail('OpenRouter contestant attempted a tool call; tools are not admitted');
-  if (first.finish_reason !== 'stop') fail('OpenRouter contestant finish_reason must equal stop');
-  if (typeof message.content !== 'string') fail('OpenRouter contestant returned non-text content');
-
-  const executionModel = executionModelV1(contestant);
-  if (response.model !== executionModel) {
-    fail(`OpenRouter response model must equal concrete execution model ${executionModel}`);
-  }
-  const router = response.openrouter_metadata;
-  if (!router || typeof router !== 'object' || Array.isArray(router)) {
-    fail('OpenRouter successful response must include router metadata');
-  }
-  if (router.requested !== executionModel) {
-    fail(`OpenRouter router metadata requested model must equal ${executionModel}`);
-  }
-  if (!Array.isArray(router?.endpoints?.available)) {
-    fail('OpenRouter router metadata endpoints are missing');
-  }
-  const selected = router.endpoints.available.filter((entry) => entry?.selected === true);
-  if (selected.length !== 1) fail('OpenRouter router metadata must identify exactly one selected endpoint');
-  if (selected[0].model !== executionModel) {
-    fail(`OpenRouter selected endpoint model must equal concrete execution model ${executionModel}`);
-  }
-  if (typeof selected[0].provider !== 'string' || selected[0].provider.length < 1 || selected[0].provider.length > 128) {
-    fail('OpenRouter selected endpoint provider is invalid');
-  }
-  if (contestant.scored_trial_eligible === true) {
-    const reviewedProvider = contestant.provider_policy.only[0];
-    if (selected[0].provider !== reviewedProvider) {
-      fail(`OpenRouter selected endpoint provider must equal reviewed scored provider ${reviewedProvider}`);
-    }
-  }
-
-  return {
-    content: message.content,
-    finish_reason: first.finish_reason,
-    reported_model: response.model,
-    response_id: typeof response.id === 'string' ? response.id : null,
-    usage: response.usage && typeof response.usage === 'object' ? response.usage : null,
-    router_requested_model: router.requested,
-    router_selected_model: selected[0].model,
-    router_selected_provider: selected[0].provider,
-  };
 }
 
 export function acceptedRecoveryKeyV1({ registrySha256, contestant, trialId, admissionId, promptSha256, maxTokens }) {
@@ -687,347 +675,6 @@ async function assertNoAutomaticRecoveryEvidenceV1(path) {
     throw error;
   }
   fail('accepted-result recovery evidence already exists; automatic GREEN and provider reexecution are forbidden; operator reconciliation is required');
-}
-
-function parseInheritedExecutionClaimRootFdV1(raw) {
-  const text = String(raw ?? '').trim();
-  if (!/^[1-9][0-9]*$/.test(text)) {
-    fail('VOID_OPENROUTER_EXECUTION_CLAIM_ROOT_FD must be an inherited positive integer fd');
-  }
-  const fd = Number(text);
-  if (!Number.isSafeInteger(fd) || fd < 3 || fd > 1_048_575) {
-    fail('VOID_OPENROUTER_EXECUTION_CLAIM_ROOT_FD is out of bounds');
-  }
-  return fd;
-}
-
-async function openExecutionClaimRootV1(rawFd) {
-  const inheritedFd = parseInheritedExecutionClaimRootFdV1(rawFd);
-  const fh = await open(`/proc/self/fd/${inheritedFd}`, FS.O_RDONLY | FS.O_DIRECTORY);
-  try {
-    const st = await fh.stat({ bigint: true });
-    if (!st.isDirectory()) fail('OpenRouter execution claim root must be a directory');
-    if ((Number(st.mode) & 0o777) !== 0o700) fail('OpenRouter execution claim root mode must be 0700');
-    if (typeof process.getuid === 'function' && Number(st.uid) !== process.getuid()) {
-      fail('OpenRouter execution claim root must be owned by the current uid');
-    }
-    const generation = sha256(Buffer.from(canonicalJson({
-      dev: st.dev.toString(),
-      ino: st.ino.toString(),
-      uid: st.uid.toString(),
-      mode: (Number(st.mode) & 0o777).toString(8),
-    }), 'utf8'));
-    return {
-      fh,
-      anchor: `/proc/self/fd/${fh.fd}`,
-      generation,
-    };
-  } catch (error) {
-    await fh.close().catch(() => {});
-    throw error;
-  }
-}
-
-async function assertExecutionClaimRootGenerationV1(root) {
-  const st = await root.fh.stat({ bigint: true });
-  if (!st.isDirectory()) fail('OpenRouter execution claim root generation is no longer a directory');
-  if ((Number(st.mode) & 0o777) !== 0o700) fail('OpenRouter execution claim root mode changed');
-  if (typeof process.getuid === 'function' && Number(st.uid) !== process.getuid()) {
-    fail('OpenRouter execution claim root ownership changed');
-  }
-  const generation = sha256(Buffer.from(canonicalJson({
-    dev: st.dev.toString(),
-    ino: st.ino.toString(),
-    uid: st.uid.toString(),
-    mode: (Number(st.mode) & 0o777).toString(8),
-  }), 'utf8'));
-  if (generation !== root.generation) {
-    fail('OpenRouter execution claim root generation changed');
-  }
-}
-
-function executionClaimPathV1(claimRootAnchor, recoveryKey) {
-  return join(claimRootAnchor, `.void-openrouter-execution-claim-${recoveryKey}.json`);
-}
-
-const EXECUTION_ADMISSION_FLOCK = '/usr/bin/flock';
-const EXECUTION_ADMISSION_LOCK_READY = 'VOID_OPENROUTER_CLAIM_ROOT_FLOCK_READY_V1';
-const EXECUTION_ADMISSION_LOCK_START_TIMEOUT_MS = 5_000;
-const EXECUTION_ADMISSION_LOCK_STOP_TIMEOUT_MS = 5_000;
-
-function executionAdmissionLockIdentityV1(claimRoot) {
-  if (!claimRoot?.fh || !/^[0-9a-f]{64}$/.test(String(claimRoot?.generation ?? ''))) {
-    fail('execution claim-root admission lock authority is invalid');
-  }
-  return sha256(Buffer.from(canonicalJson({
-    marker: 'VOID_APOLLYON_OPENROUTER_CLAIM_ROOT_FLOCK_V1',
-    execution_claim_root_generation_sha256: claimRoot.generation,
-  }), 'utf8'));
-}
-
-async function acquireExecutionAdmissionLockV1(claimRoot) {
-  if (process.platform !== 'linux') {
-    fail('OpenRouter execution admission lock requires Linux flock on the exact shared claim-root inode');
-  }
-
-  const identitySha256 = executionAdmissionLockIdentityV1(claimRoot);
-  const holdProgram =
-    `process.stdout.write(${JSON.stringify(`${EXECUTION_ADMISSION_LOCK_READY}\n`)});`
-    + 'process.stdin.resume();';
-
-  const child = spawn(
-    EXECUTION_ADMISSION_FLOCK,
-    ['--exclusive', '--nonblock', '3', process.execPath, '-e', holdProgram],
-    {
-      stdio: ['pipe', 'pipe', 'pipe', claimRoot.fh.fd],
-      env: { PATH: process.env.PATH ?? '' },
-    },
-  );
-
-  const lock = {
-    child,
-    identitySha256,
-    exited: false,
-  };
-
-  await new Promise((resolvePromise, rejectPromise) => {
-    let stdout = '';
-    let stderr = '';
-    let settled = false;
-
-    const finishReject = (error) => {
-      if (settled) return;
-      settled = true;
-      clearTimeout(timer);
-      rejectPromise(error);
-    };
-
-    const timer = setTimeout(() => {
-      child.kill('SIGKILL');
-      finishReject(new Error('execution claim-root admission lock acquisition timed out'));
-    }, EXECUTION_ADMISSION_LOCK_START_TIMEOUT_MS);
-
-    child.stdout.setEncoding('utf8');
-    child.stderr.setEncoding('utf8');
-    child.stderr.on('data', (chunk) => {
-      stderr += chunk;
-      if (stderr.length > 4096) stderr = stderr.slice(-4096);
-    });
-    child.stdout.on('data', (chunk) => {
-      stdout += chunk;
-      if (settled || !stdout.includes(`${EXECUTION_ADMISSION_LOCK_READY}\n`)) return;
-      settled = true;
-      clearTimeout(timer);
-      resolvePromise();
-    });
-
-    child.once('error', (error) => {
-      finishReject(new Error(
-        `execution claim-root admission lock helper failed (${String(error?.code ?? 'UNKNOWN')})`,
-      ));
-    });
-
-    child.once('exit', (code, signal) => {
-      lock.exited = true;
-      if (settled) return;
-      if (code === 1) {
-        finishReject(new Error(
-          'execution claim-root admission lock already held; provider execution is BUSY/HOLD',
-        ));
-        return;
-      }
-      finishReject(new Error(
-        `execution claim-root admission lock helper exited before acquisition `
-        + `(code=${String(code)} signal=${String(signal)} stderr=${stderr.trim().slice(0, 256)})`,
-      ));
-    });
-  }).catch((error) => {
-    child.stdin?.destroy();
-    child.stdout?.destroy();
-    child.stderr?.destroy();
-    fail(error.message);
-  });
-
-  return lock;
-}
-
-function assertExecutionAdmissionLockV1(lock) {
-  if (!lock?.child || lock.exited || lock.child.exitCode !== null || lock.child.signalCode !== null) {
-    fail('execution claim-root admission lock was lost before provider execution');
-  }
-}
-
-async function closeExecutionAdmissionLockV1(lock) {
-  const child = lock?.child;
-  if (!child || child.exitCode !== null || child.signalCode !== null) return;
-
-  await new Promise((resolvePromise) => {
-    let settled = false;
-    const finish = () => {
-      if (settled) return;
-      settled = true;
-      clearTimeout(timer);
-      resolvePromise();
-    };
-    const timer = setTimeout(() => {
-      child.kill('SIGKILL');
-      finish();
-    }, EXECUTION_ADMISSION_LOCK_STOP_TIMEOUT_MS);
-
-    child.once('exit', finish);
-    child.stdin.end();
-  });
-}
-
-function executionClaimValueV1({
-  recoveryKey,
-  registrySha256,
-  contestant,
-  trialId,
-  admissionId,
-  promptSha256,
-  maxTokens,
-  claimRootGeneration,
-}) {
-  return {
-    marker: 'VOID_APOLLYON_OPENROUTER_EXECUTION_CLAIM_V1',
-    accepted_recovery_key: recoveryKey,
-    execution_claim_root_generation_sha256: claimRootGeneration,
-    registry_sha256: registrySha256,
-    model: contestant.model,
-    execution_model: executionModelV1(contestant),
-    canonical_slug: contestant.canonical_slug,
-    trial_id: trialId,
-    admission_id: admissionId,
-    prompt_sha256: promptSha256,
-    max_tokens: maxTokens,
-    state: 'executing',
-  };
-}
-
-async function retainExecutionClaimStageV1(stageHandle, claimPath, expectedBytes) {
-  const fh = await open(`/proc/self/fd/${stageHandle.fd}`, FS.O_RDONLY | FS.O_NONBLOCK);
-  try {
-    const pre = await fh.stat({ bigint: true });
-    if (!pre.isFile()) fail('retained execution claim must be a regular file');
-    if ((Number(pre.mode) & 0o777) !== 0o600) fail('retained execution claim mode must be 0600');
-    if (pre.size !== BigInt(expectedBytes.length)) fail('retained execution claim byte length drifted');
-
-    const bytes = Buffer.allocUnsafe(expectedBytes.length);
-    let total = 0;
-    while (total < expectedBytes.length) {
-      const { bytesRead } = await fh.read(
-        bytes,
-        total,
-        expectedBytes.length - total,
-        total,
-      );
-      if (bytesRead === 0) break;
-      total += bytesRead;
-    }
-    if (total !== expectedBytes.length || !bytes.equals(expectedBytes)) {
-      fail('retained execution claim bytes drifted');
-    }
-
-    const post = await fh.stat({ bigint: true });
-    if (!sameStamp(stamp(pre), stamp(post))) {
-      fail('retained execution claim generation changed during capture');
-    }
-
-    return {
-      fh,
-      path: claimPath,
-      stat: post,
-    };
-  } catch (error) {
-    await fh.close().catch(() => {});
-    throw error;
-  }
-}
-
-async function assertVisibleExecutionClaimGenerationV1(retained) {
-  const exact = await retained.fh.stat({ bigint: true });
-  if (!exact.isFile()) fail('retained execution claim is no longer a regular file');
-  if ((Number(exact.mode) & 0o777) !== 0o600) fail('retained execution claim mode changed');
-  let visible;
-  try {
-    visible = await stat(retained.path, { bigint: true });
-  } catch {
-    fail('execution claim visible generation changed before provider execution');
-  }
-  if (!visible.isFile()
-    || visible.dev.toString() !== exact.dev.toString()
-    || visible.ino.toString() !== exact.ino.toString()) {
-    fail('execution claim visible generation changed before provider execution');
-  }
-}
-
-async function acquireExecutionClaimV1(path, value, claimRoot, hooks = {}) {
-  if (typeof hooks.beforeExecutionClaim === 'function') {
-    await hooks.beforeExecutionClaim({ claimPath: path, claim: value });
-  }
-
-  // Serialize provider admission on the exact inherited shared claim-root inode.
-  // Linux flock is inode/filesystem authority, not an AF_UNIX/network-namespace
-  // namespace, so every consumer of this exact root contends on one lock even
-  // when callers execute in different network namespaces.
-  if (value.execution_claim_root_generation_sha256 !== claimRoot.generation) {
-    fail('execution claim root generation drifted before admission-lock acquisition');
-  }
-  const admissionLock = await acquireExecutionAdmissionLockV1(claimRoot);
-
-  const expectedBytes = Buffer.from(`${JSON.stringify(value, null, 2)}\n`, 'utf8');
-  let retained = null;
-  const externalFaultHook = hooks.executionClaimPublicationFaultHook;
-  const retainingFaultHook = async (phase, context) => {
-    if (phase === 'after_parent_sync_commit') {
-      if (retained) fail('execution claim durable generation was captured more than once');
-      retained = await retainExecutionClaimStageV1(
-        context.stageHandle,
-        path,
-        expectedBytes,
-      );
-    }
-    if (typeof externalFaultHook === 'function') {
-      await externalFaultHook(phase, context);
-    }
-  };
-
-  let published;
-  try {
-    published = await publishJsonExactV1(path, value, {
-      faultHook: retainingFaultHook,
-    });
-  } catch {
-    if (retained) await retained.fh.close().catch(() => {});
-    await closeExecutionAdmissionLockV1(admissionLock).catch(() => {});
-    fail('execution claim publication conflicted or failed; provider execution forbidden');
-  }
-
-  if (published?.created !== true) {
-    if (retained) await retained.fh.close().catch(() => {});
-    await closeExecutionAdmissionLockV1(admissionLock).catch(() => {});
-    fail('execution claim already exists; same-key provider execution is BUSY/HOLD');
-  }
-  if (!retained) {
-    await closeExecutionAdmissionLockV1(admissionLock).catch(() => {});
-    fail('execution claim durable generation was not retained; provider execution forbidden');
-  }
-
-  try {
-    await assertVisibleExecutionClaimGenerationV1(retained);
-  } catch (error) {
-    await retained.fh.close().catch(() => {});
-    await closeExecutionAdmissionLockV1(admissionLock).catch(() => {});
-    throw error;
-  }
-
-  return {
-    ...retained,
-    admissionLock,
-    semanticSha256: sha256(Buffer.from(canonicalJson(value), 'utf8')),
-    fileSha256: sha256(expectedBytes),
-  };
 }
 
 async function publishFinalResultFromAcceptedV1(path, value, faultHook) {
@@ -1081,9 +728,7 @@ export async function runOpenRouterContestantTrialV1(options, hooks = {}) {
     : await loadContestantRegistryV1(hooks.registryPath ?? REGISTRY_PATH);
   const env = hooks.env ?? process.env;
   const runtime = requireRuntimeGate(env, registryLoaded.registry, registryLoaded.sha256);
-  const fetchImpl = hooks.fetchImpl ?? globalThis.fetch;
   const admitFn = hooks.admitFn ?? admitSanitizedInputs;
-  if (typeof fetchImpl !== 'function') fail('fetch implementation is unavailable');
   if (typeof admitFn !== 'function') fail('sanitization admission function is unavailable');
 
   const receipt = await admitFn(
@@ -1101,12 +746,24 @@ export async function runOpenRouterContestantTrialV1(options, hooks = {}) {
     readJsonBounded(options.manifestPath, MAX_JSON_BYTES, 'outbound manifest'),
     readJsonBounded(options.receiptPath, MAX_JSON_BYTES, 'sanitization receipt'),
   ]);
-  if (canonicalJson(receiptRead.value) !== canonicalJson(receipt)) fail('published sanitization receipt differs from admitted receipt object');
+  if (canonicalJson(receiptRead.value) !== canonicalJson(receipt)) {
+    fail('published sanitization receipt differs from admitted receipt object');
+  }
   validateReceiptAndManifest(trialRead.value, manifestRead.value, receiptRead.value);
   validateContestantInputPolicy(manifestRead.value, runtime.contestant);
-  const admitted = await collectAdmittedInputs(options.stagingRoot, manifestRead.value, receiptRead.value, hooks);
+  const admitted = await collectAdmittedInputs(
+    options.stagingRoot,
+    manifestRead.value,
+    receiptRead.value,
+    hooks,
+  );
 
-  const request = buildOpenRouterRequestV1(trialRead.value, admitted.items, runtime.maxTokens, runtime.contestant);
+  const request = buildOpenRouterRequestV1(
+    trialRead.value,
+    admitted.items,
+    runtime.maxTokens,
+    runtime.contestant,
+  );
   const recoveryKey = acceptedRecoveryKeyV1({
     registrySha256: registryLoaded.sha256,
     contestant: runtime.contestant,
@@ -1121,124 +778,122 @@ export async function runOpenRouterContestantTrialV1(options, hooks = {}) {
   }
   await assertNoAutomaticRecoveryEvidenceV1(recoveryPath);
 
-  const metadata = await fetchModelMetadata(fetchImpl, runtime.apiKey, runtime.metadataTimeoutMs, runtime.contestant);
-  const model = validateZeroPriceModelV1(metadata, runtime.contestant);
-  if (typeof hooks.afterFreePriceCheck === 'function') await hooks.afterFreePriceCheck({ model, contestant: runtime.contestant });
-
-  const executionClaimRoot = await openExecutionClaimRootV1(
-    hooks.executionClaimRootFd ?? env.VOID_OPENROUTER_EXECUTION_CLAIM_ROOT_FD,
-  );
-  let acquiredClaimHandle = null;
-  let executionAdmissionLock = null;
-  try {
-    const executionClaimPath = executionClaimPathV1(executionClaimRoot.anchor, recoveryKey);
-    const executionClaim = executionClaimValueV1({
-      recoveryKey,
-      registrySha256: registryLoaded.sha256,
-      contestant: runtime.contestant,
-      trialId: trialRead.value.trial_id,
-      admissionId: receiptRead.value.admission_id,
-      promptSha256: request.promptSha256,
-      maxTokens: runtime.maxTokens,
-      claimRootGeneration: executionClaimRoot.generation,
-    });
-    const acquiredClaim = await acquireExecutionClaimV1(
-      executionClaimPath,
-      executionClaim,
-      executionClaimRoot,
-      hooks,
-    );
-    acquiredClaimHandle = acquiredClaim.fh;
-    executionAdmissionLock = acquiredClaim.admissionLock;
-
-    // Close the recovery-check -> claim race. A recovery generation that appears
-    // after the initial check but before this durable claim never widens authority.
-    await assertNoAutomaticRecoveryEvidenceV1(recoveryPath);
-
-    if (typeof hooks.afterExecutionClaimPersisted === 'function') {
-      await hooks.afterExecutionClaimPersisted({
-        claimPath: executionClaimPath,
-        claimSemanticSha256: acquiredClaim.semanticSha256,
-        claimFileSha256: acquiredClaim.fileSha256,
-        claimRootGenerationSha256: executionClaimRoot.generation,
-        recoveryKey,
-      });
-    }
-
-    await assertExecutionClaimRootGenerationV1(executionClaimRoot);
-    await assertVisibleExecutionClaimGenerationV1(acquiredClaim);
-    if (typeof hooks.afterExecutionClaimFinalValidation === 'function') {
-      await hooks.afterExecutionClaimFinalValidation({
-        claimPath: executionClaimPath,
-        claimRootGenerationSha256: executionClaimRoot.generation,
-        recoveryKey,
-        admissionLockIdentitySha256: executionAdmissionLock.identitySha256,
-      });
-    }
-    assertExecutionAdmissionLockV1(executionAdmissionLock);
-    const rawResponse = await sendChat(fetchImpl, runtime.apiKey, request.body, runtime.chatTimeoutMs);
-    const accepted = validateChatResponse(rawResponse, runtime.contestant);
-    if (typeof hooks.afterChatAccepted === 'function') {
-      await hooks.afterChatAccepted({ accepted, recoveryKey, claimPath: executionClaimPath });
-    }
-
-    const result = {
-      marker: RESULT_MARKER,
-      accepted_recovery_key: recoveryKey,
-      execution_claim_sha256: acquiredClaim.fileSha256,
-      execution_claim_semantic_sha256: acquiredClaim.semanticSha256,
-      execution_claim_root_generation_sha256: executionClaimRoot.generation,
-      provider: PROVIDER,
-      model_requested: runtime.contestant.model,
-      model_execution_requested: request.executionModel,
-      model_canonical_slug: model.canonical_slug,
-      model_reported: accepted.reported_model,
-      router_requested_model: accepted.router_requested_model,
-      router_selected_model: accepted.router_selected_model,
-      router_selected_provider: accepted.router_selected_provider,
-      qualification_status: runtime.contestant.status,
-      scored_trial_eligible: runtime.contestant.scored_trial_eligible,
-      retention_class: runtime.contestant.retention_class,
-      privacy_class: runtime.contestant.privacy_class,
-      provider_policy_acknowledged: true,
-      registry_policy_generation_acknowledged: registryLoaded.sha256,
-      public_retention_acknowledged: runtime.contestant.privacy_class === 'retained_public_only',
-      scored_provider_allowlist: [...runtime.contestant.provider_policy.only],
-      pricing_verified_zero: true,
-      request_time_max_price_zero: true,
-      provider_policy: providerRequestPolicyV1(runtime.contestant),
-      tools_exposed: false,
-      registry_sha256: registryLoaded.sha256,
-      registry_reviewed_at_utc: registryLoaded.registry.reviewed_at_utc,
-      trial_id: trialRead.value.trial_id,
-      admission_id: receiptRead.value.admission_id,
-      prompt_sha256: request.promptSha256,
-      prompt_bytes: request.promptBytes,
-      max_tokens: runtime.maxTokens,
-      response_id: accepted.response_id,
-      finish_reason: accepted.finish_reason,
-      response_content: accepted.content,
-      response_content_sha256: sha256(Buffer.from(accepted.content, 'utf8')),
-      usage: accepted.usage,
-      created_at_utc: new Date().toISOString(),
-    };
-    if (canonicalJson(result).includes(runtime.apiKey)) fail('API key unexpectedly entered result object');
-    await publishAcceptedRecoveryV1(recoveryPath, result, hooks.resultRecoveryPublicationFaultHook);
-    if (typeof hooks.afterAcceptedRecoveryPersisted === 'function') {
-      await hooks.afterAcceptedRecoveryPersisted({ recoveryPath, recoveryKey });
-    }
-    await publishFinalResultFromAcceptedV1(options.outputPath, result, hooks.resultPublicationFaultHook);
-    if (hooks.emitOutput !== false) {
-      process.stdout.write(`${MARKER}_GREEN ${trialRead.value.trial_id} model=${runtime.contestant.model} admission=${receiptRead.value.admission_id} status=${runtime.contestant.status}\n`);
-    }
-    return result;
-  } finally {
-    if (executionAdmissionLock) {
-      await closeExecutionAdmissionLockV1(executionAdmissionLock).catch(() => {});
-    }
-    if (acquiredClaimHandle) await acquiredClaimHandle.close().catch(() => {});
-    await executionClaimRoot.fh.close().catch(() => {});
+  const brokerRequest = buildOpenRouterBrokerIpcRequestV1({
+    logicalOperationIntentDigest: runtime.logicalOperationIntentDigest,
+    registrySha256: registryLoaded.sha256,
+    requestBody: request.body,
+    contestant: runtime.contestant,
+    timeoutMs: runtime.chatTimeoutMs,
+  });
+  if (typeof hooks.beforeBrokerRequest === 'function') {
+    await hooks.beforeBrokerRequest({ brokerRequest, recoveryKey });
   }
+
+  const brokerResponse = await brokerClientV1(hooks)(
+    brokerSocketPathV1(hooks),
+    brokerRequest,
+  );
+  const brokerAccepted = validateBrokerAcceptedResponseV1(
+    brokerResponse,
+    brokerRequest,
+    runtime.contestant,
+  );
+
+  if (typeof hooks.afterFreePriceCheck === 'function') {
+    await hooks.afterFreePriceCheck({
+      model: brokerAccepted.catalogPreflight,
+      contestant: runtime.contestant,
+    });
+  }
+  if (typeof hooks.afterChatAccepted === 'function') {
+    await hooks.afterChatAccepted({
+      accepted: brokerAccepted.result,
+      recoveryKey,
+      brokerOperationId: brokerAccepted.operationId,
+      brokerResultDigest: brokerAccepted.resultDigest,
+    });
+  }
+
+  const accepted = brokerAccepted.result;
+  const model = brokerAccepted.catalogPreflight;
+  const result = {
+    marker: RESULT_MARKER,
+    accepted_recovery_key: recoveryKey,
+    provider: PROVIDER,
+    broker_operation_id: brokerAccepted.operationId,
+    broker_result_digest: brokerAccepted.resultDigest,
+    broker_catalog_sha256: model.catalog_sha256,
+    broker_selected_model_sha256: model.selected_model_sha256,
+    model_requested: runtime.contestant.model,
+    model_execution_requested: request.executionModel,
+    model_canonical_slug: model.canonical_slug,
+    model_reported: typeof accepted.reported_model === 'string'
+      ? accepted.reported_model
+      : request.executionModel,
+    router_requested_model: typeof accepted.router_requested_model === 'string'
+      ? accepted.router_requested_model
+      : request.executionModel,
+    router_selected_model: typeof accepted.router_selected_model === 'string'
+      ? accepted.router_selected_model
+      : request.executionModel,
+    router_selected_provider: typeof accepted.router_selected_provider === 'string'
+      ? accepted.router_selected_provider
+      : null,
+    qualification_status: runtime.contestant.status,
+    scored_trial_eligible: runtime.contestant.scored_trial_eligible,
+    retention_class: runtime.contestant.retention_class,
+    privacy_class: runtime.contestant.privacy_class,
+    provider_policy_acknowledged: true,
+    registry_policy_generation_acknowledged: registryLoaded.sha256,
+    public_retention_acknowledged: runtime.contestant.privacy_class === 'retained_public_only',
+    scored_provider_allowlist: [...runtime.contestant.provider_policy.only],
+    pricing_verified_zero: true,
+    request_time_max_price_zero: true,
+    provider_policy: providerRequestPolicyV1(runtime.contestant),
+    tools_exposed: false,
+    registry_sha256: registryLoaded.sha256,
+    registry_reviewed_at_utc: registryLoaded.registry.reviewed_at_utc,
+    trial_id: trialRead.value.trial_id,
+    admission_id: receiptRead.value.admission_id,
+    prompt_sha256: request.promptSha256,
+    prompt_bytes: request.promptBytes,
+    max_tokens: runtime.maxTokens,
+    response_id: typeof accepted.response_id === 'string' ? accepted.response_id : null,
+    finish_reason: 'stop',
+    response_content: accepted.content,
+    response_content_sha256: sha256(Buffer.from(accepted.content, 'utf8')),
+    usage: accepted.usage && typeof accepted.usage === 'object' ? accepted.usage : null,
+    broker_result: accepted,
+    created_at_utc: new Date().toISOString(),
+  };
+
+  await publishAcceptedRecoveryV1(
+    recoveryPath,
+    result,
+    hooks.resultRecoveryPublicationFaultHook,
+  );
+  if (typeof hooks.afterAcceptedRecoveryPersisted === 'function') {
+    await hooks.afterAcceptedRecoveryPersisted({
+      recoveryPath,
+      recoveryKey,
+      brokerOperationId: brokerAccepted.operationId,
+      brokerResultDigest: brokerAccepted.resultDigest,
+    });
+  }
+  await publishFinalResultFromAcceptedV1(
+    options.outputPath,
+    result,
+    hooks.resultPublicationFaultHook,
+  );
+  if (hooks.emitOutput !== false) {
+    process.stdout.write(
+      `${MARKER}_GREEN ${trialRead.value.trial_id} `
+      + `model=${runtime.contestant.model} `
+      + `admission=${receiptRead.value.admission_id} `
+      + `status=${runtime.contestant.status}\n`,
+    );
+  }
+  return result;
 }
 
 export async function runOpenRouterOxAlphaTrialV1(options, hooks = {}) {
