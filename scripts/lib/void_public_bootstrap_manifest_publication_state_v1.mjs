@@ -109,7 +109,8 @@ function validateStablePredecessorEndpoint(rawEndpoint, index) {
   let url;
   try {
     url = new URL(String(endpoint.base));
-  } catch {
+  } catch (error) {
+    void error;
     throw new Error("predecessor stable endpoint base is invalid");
   }
   const hostname = url.hostname.toLowerCase();
