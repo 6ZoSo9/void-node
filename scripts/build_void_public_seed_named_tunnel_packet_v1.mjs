@@ -165,6 +165,15 @@ function systemdQuote(value) {
   return `"${text.replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"`;
 }
 
+function systemdWorkingDirectory(value) {
+  const text = rejectControl(String(value), "systemd WorkingDirectory");
+  if (!path.isAbsolute(text)) throw new Error("systemd WorkingDirectory must be absolute");
+  if (/[^A-Za-z0-9_./:+@-]/.test(text)) {
+    throw new Error("repository root contains a character unsupported by portable systemd WorkingDirectory");
+  }
+  return text;
+}
+
 function writeExclusive(file, content, mode) {
   fs.writeFileSync(file, content, { encoding: "utf8", flag: "wx", mode });
 }
@@ -184,6 +193,7 @@ function main() {
   const tunnelId = normalizeUuid(args["tunnel-id"]);
   const credentialsFile = regularPath(args["credentials-file"], "credentials file", { ownerOnlyCredential: true });
   const repoRoot = realDirectory(args["repo-root"], "repository root");
+  const workingDirectory = systemdWorkingDirectory(repoRoot);
   if (isPathInside(repoRoot, credentialsFile)) {
     throw new Error("credentials file must remain outside the repository");
   }
@@ -235,7 +245,7 @@ function main() {
     "",
     "[Service]",
     "Type=simple",
-    `WorkingDirectory=${systemdQuote(repoRoot)}`,
+    `WorkingDirectory=${workingDirectory}`,
     "Environment=VOID_PUBLIC_SEED_BIND=127.0.0.1",
     "Environment=VOID_PUBLIC_SEED_PORT=4111",
     "Environment=VOID_PUBLIC_SEED_UPSTREAM=http://127.0.0.1:4100",
@@ -260,7 +270,7 @@ function main() {
     "",
     "[Service]",
     "Type=simple",
-    `WorkingDirectory=${systemdQuote(repoRoot)}`,
+    `WorkingDirectory=${workingDirectory}`,
     `ExecStart=${systemdQuote(cloudflaredPath)} --no-autoupdate --config ${systemdQuote(configPath)} tunnel run ${systemdQuote(tunnelId)}`,
     "Restart=always",
     "RestartSec=5",
