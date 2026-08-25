@@ -241,7 +241,7 @@ try {
   console.log("real_systemd_mutation=false");
 } finally {
   for (const file of [TMP_READY, TMP_ADMIN, TMP_MUTATION]) {
-    try { fs.rmSync(file, { force: true }); } catch {}
+    fs.rmSync(file, { force: true });
   }
   fs.rmSync(temporary, { recursive: true, force: true });
 }
