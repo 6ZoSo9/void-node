@@ -126,6 +126,14 @@ assert.equal(Object.isFrozen(healthy.node), true);
 assert.equal(Object.isFrozen(healthy.authority_checks), true);
 console.log("[PASS] healthy node plus active authority produces frozen zero-action GREEN observation");
 
+const noAuthorityCoverage = mustBuild(input(node(), []));
+assert.equal(noAuthorityCoverage.sentry_status, "hold");
+assert.equal(noAuthorityCoverage.escalation_required, true);
+assert.deepEqual(noAuthorityCoverage.findings.map((x) => x.code), ["no_authority_checks"]);
+assert.equal(noAuthorityCoverage.model_execution_authorized, false);
+assert.equal(noAuthorityCoverage.mutation_authority_granted, false);
+console.log("[PASS] zero authority checks cannot masquerade as sentry GREEN");
+
 const sameHealthy = mustBuild(structuredClone(healthyInput));
 assert.equal(sameHealthy.observation_sha256, healthy.observation_sha256);
 assert.equal(
