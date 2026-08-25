@@ -13,6 +13,7 @@ on:
       - 'scripts/prove_void_public_seed_named_tunnel_packet_v1.mjs'
       - 'scripts/prove_void_public_seed_credential_mode_v1.mjs'
       - 'scripts/prove_void_public_seed_installer_lifecycle_v1.mjs'
+      - 'scripts/prove_void_public_seed_systemd_working_directory_v1.mjs'
   workflow_dispatch:
 
 permissions:
@@ -46,6 +47,7 @@ jobs:
           node --check scripts/prove_void_public_seed_named_tunnel_packet_v1.mjs
           node --check scripts/prove_void_public_seed_credential_mode_v1.mjs
           node --check scripts/prove_void_public_seed_installer_lifecycle_v1.mjs
+          node --check scripts/prove_void_public_seed_systemd_working_directory_v1.mjs
 
   prove:
     runs-on: ubuntu-24.04
@@ -67,6 +69,8 @@ jobs:
         run: node scripts/prove_void_public_seed_credential_mode_v1.mjs
       - name: Prove installer lifecycle separation
         run: node scripts/prove_void_public_seed_installer_lifecycle_v1.mjs
+      - name: Prove systemd WorkingDirectory portability
+        run: node scripts/prove_void_public_seed_systemd_working_directory_v1.mjs
       - name: Install locked dependencies
         run: npm ci --ignore-scripts --no-audit --no-fund
       - name: Typecheck repository
