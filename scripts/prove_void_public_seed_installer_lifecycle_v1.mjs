@@ -15,6 +15,10 @@ const TMP_READY = "/tmp/void-public-seed-gateway-ready.json";
 const TMP_ADMIN = "/tmp/void-public-seed-admin.json";
 const TMP_MUTATION = "/tmp/void-public-seed-mutation.json";
 
+function shell(lines) {
+  return `${lines.join("\n")}\n`;
+}
+
 function writeExecutable(file, content) {
   fs.mkdirSync(path.dirname(file), { recursive: true, mode: 0o700 });
   fs.writeFileSync(file, content, { encoding: "utf8", mode: 0o700 });
@@ -67,30 +71,109 @@ try {
   fs.writeFileSync(path.join(packet, GATEWAY_UNIT), "[Unit]\nDescription=fixture gateway\n", { mode: 0o600 });
   fs.writeFileSync(path.join(packet, TUNNEL_UNIT), "[Unit]\nDescription=fixture tunnel\n", { mode: 0o600 });
 
-  writeExecutable(
-    path.join(bin, "node"),
-    `#!/usr/bin/env bash\nset -euo pipefail\nprintf 'node %s\\n' "$*" >> "$VOID_TEST_LOG"\nexit 0\n`,
-  );
-  writeExecutable(
-    path.join(bin, "install"),
-    `#!/usr/bin/env bash\nset -euo pipefail\nprintf 'install %s\\n' "$*" >> "$VOID_TEST_LOG"\nexec /usr/bin/install "$@"\n`,
-  );
-  writeExecutable(
-    path.join(bin, "id"),
-    `#!/usr/bin/env bash\nset -euo pipefail\nif test "${1:-}" = "-u"; then echo 1000; exit 0; fi\nexec /usr/bin/id "$@"\n`,
-  );
-  writeExecutable(
-    path.join(bin, "sleep"),
-    `#!/usr/bin/env bash\nexit 0\n`,
-  );
-  writeExecutable(
-    path.join(bin, "systemctl"),
-    `#!/usr/bin/env bash\nset -euo pipefail\nSTATE="$VOID_TEST_SYSTEMD_STATE"\nLOG="$VOID_TEST_LOG"\nmkdir -p "$STATE"\nprintf 'systemctl %s\\n' "$*" >> "$LOG"\nif test "${1:-}" = "--user"; then shift; fi\nCMD="${1:-}"\nif test -n "$CMD"; then shift; fi\nlast_arg() { local last=""; for value in "$@"; do last="$value"; done; printf '%s' "$last"; }\ncase "$CMD" in\n  daemon-reload) exit 0 ;;\n  disable)\n    for unit in "$@"; do case "$unit" in -*) ;; *) rm -f "$STATE/enabled-$unit" ;; esac; done\n    exit 0\n    ;;\n  enable)\n    for unit in "$@"; do case "$unit" in -*) ;; *) : > "$STATE/enabled-$unit" ;; esac; done\n    exit 0\n    ;;\n  restart)\n    unit="$(last_arg "$@")"\n    : > "$STATE/active-$unit"\n    exit 0\n    ;;\n  is-active)\n    unit="$(last_arg "$@")"\n    test -f "$STATE/active-$unit"\n    ;;\n  is-enabled)\n    unit="$(last_arg "$@")"\n    test -f "$STATE/enabled-$unit"\n    ;;\n  status) exit 0 ;;\n  show)\n    unit="${1:-}"\n    if test -f "$STATE/enabled-$unit"; then echo UnitFileState=enabled; else echo UnitFileState=disabled; fi\n    if test -f "$STATE/active-$unit"; then echo ActiveState=active; echo SubState=running; else echo ActiveState=inactive; echo SubState=dead; fi\n    exit 0\n    ;;\n  *) echo "unexpected fixture systemctl command: $CMD $*" >&2; exit 2 ;;\nesac\n`,
-  );
-  writeExecutable(
-    path.join(bin, "curl"),
-    `#!/usr/bin/env bash\nset -euo pipefail\njoined="$*"\nout=""\nurl=""\nwhile test "$#" -gt 0; do\n  case "$1" in\n    -o) out="${2:-}"; shift 2 ;;\n    http://*|https://*) url="$1"; shift ;;\n    *) shift ;;\n  esac\ndone\ncase "$url" in\n  */__void/ready.json)\n    if [[ "$joined" == *-fsSI* ]]; then\n      printf 'HTTP/1.1 200 OK\\r\\nx-void-public-seed-gateway: v1\\r\\n\\r\\n'\n    else\n      printf '{"ready":true,"head":123,"gap":0,"txroot_live":1}\\n'\n    fi\n    ;;\n  */admin)\n    printf '{"error":"route_not_public"}\\n' > "$out"\n    printf '404'\n    ;;\n  */follower/start)\n    printf '{"error":"method_not_allowed"}\\n' > "$out"\n    printf '405'\n    ;;\n  *) echo "unexpected fixture curl URL: $url" >&2; exit 2 ;;\nesac\n`,
-  );
+  writeExecutable(path.join(bin, "node"), shell([
+    "#!/usr/bin/env bash",
+    "set -euo pipefail",
+    "printf 'node %s\\n' \"$*\" >> \"$VOID_TEST_LOG\"",
+    "exit 0",
+  ]));
+
+  writeExecutable(path.join(bin, "install"), shell([
+    "#!/usr/bin/env bash",
+    "set -euo pipefail",
+    "printf 'install %s\\n' \"$*\" >> \"$VOID_TEST_LOG\"",
+    "exec /usr/bin/install \"$@\"",
+  ]));
+
+  writeExecutable(path.join(bin, "id"), shell([
+    "#!/usr/bin/env bash",
+    "set -euo pipefail",
+    "if test \"${1:-}\" = \"-u\"; then echo 1000; exit 0; fi",
+    "exec /usr/bin/id \"$@\"",
+  ]));
+
+  writeExecutable(path.join(bin, "sleep"), shell([
+    "#!/usr/bin/env bash",
+    "exit 0",
+  ]));
+
+  writeExecutable(path.join(bin, "systemctl"), shell([
+    "#!/usr/bin/env bash",
+    "set -euo pipefail",
+    "STATE=\"$VOID_TEST_SYSTEMD_STATE\"",
+    "LOG=\"$VOID_TEST_LOG\"",
+    "mkdir -p \"$STATE\"",
+    "printf 'systemctl %s\\n' \"$*\" >> \"$LOG\"",
+    "if test \"${1:-}\" = \"--user\"; then shift; fi",
+    "CMD=\"${1:-}\"",
+    "if test -n \"$CMD\"; then shift; fi",
+    "last_arg() { local last=\"\"; for value in \"$@\"; do last=\"$value\"; done; printf '%s' \"$last\"; }",
+    "case \"$CMD\" in",
+    "  daemon-reload) exit 0 ;;",
+    "  disable)",
+    "    for unit in \"$@\"; do case \"$unit\" in -*) ;; *) rm -f \"$STATE/enabled-$unit\" ;; esac; done",
+    "    exit 0",
+    "    ;;",
+    "  enable)",
+    "    for unit in \"$@\"; do case \"$unit\" in -*) ;; *) : > \"$STATE/enabled-$unit\" ;; esac; done",
+    "    exit 0",
+    "    ;;",
+    "  restart)",
+    "    unit=\"$(last_arg \"$@\")\"",
+    "    : > \"$STATE/active-$unit\"",
+    "    exit 0",
+    "    ;;",
+    "  is-active)",
+    "    unit=\"$(last_arg \"$@\")\"",
+    "    test -f \"$STATE/active-$unit\"",
+    "    ;;",
+    "  is-enabled)",
+    "    unit=\"$(last_arg \"$@\")\"",
+    "    test -f \"$STATE/enabled-$unit\"",
+    "    ;;",
+    "  status) exit 0 ;;",
+    "  show)",
+    "    unit=\"${1:-}\"",
+    "    if test -f \"$STATE/enabled-$unit\"; then echo UnitFileState=enabled; else echo UnitFileState=disabled; fi",
+    "    if test -f \"$STATE/active-$unit\"; then echo ActiveState=active; echo SubState=running; else echo ActiveState=inactive; echo SubState=dead; fi",
+    "    exit 0",
+    "    ;;",
+    "  *) echo \"unexpected fixture systemctl command: $CMD $*\" >&2; exit 2 ;;",
+    "esac",
+  ]));
+
+  writeExecutable(path.join(bin, "curl"), shell([
+    "#!/usr/bin/env bash",
+    "set -euo pipefail",
+    "joined=\"$*\"",
+    "out=\"\"",
+    "url=\"\"",
+    "while test \"$#\" -gt 0; do",
+    "  case \"$1\" in",
+    "    -o) out=\"${2:-}\"; shift 2 ;;",
+    "    http://*|https://*) url=\"$1\"; shift ;;",
+    "    *) shift ;;",
+    "  esac",
+    "done",
+    "case \"$url\" in",
+    "  */__void/ready.json)",
+    "    if [[ \"$joined\" == *-fsSI* ]]; then",
+    "      printf 'HTTP/1.1 200 OK\\r\\nx-void-public-seed-gateway: v1\\r\\n\\r\\n'",
+    "    else",
+    "      printf '{\"ready\":true,\"head\":123,\"gap\":0,\"txroot_live\":1}\\n'",
+    "    fi",
+    "    ;;",
+    "  */admin)",
+    "    printf '{\"error\":\"route_not_public\"}\\n' > \"$out\"",
+    "    printf '404'",
+    "    ;;",
+    "  */follower/start)",
+    "    printf '{\"error\":\"method_not_allowed\"}\\n' > \"$out\"",
+    "    printf '405'",
+    "    ;;",
+    "  *) echo \"unexpected fixture curl URL: $url\" >&2; exit 2 ;;",
+    "esac",
+  ]));
 
   resetState(state, log);
   const rejected = runInstaller({ home, bin, packet, log, state, start: 0, enable: 1, expect: 1 });
