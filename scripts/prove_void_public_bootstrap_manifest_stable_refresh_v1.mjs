@@ -24,6 +24,16 @@ function assert(condition, message) {
   if (!condition) throw new Error(message);
 }
 
+function assertThrows(fn, pattern, message) {
+  try {
+    fn();
+  } catch (error) {
+    assert(pattern.test(String(error?.message || error)), `${message}: ${error?.message || error}`);
+    return;
+  }
+  throw new Error(message);
+}
+
 function run(command, args, cwd = REPO) {
   const result = childProcess.spawnSync(command, args, {
     cwd,
@@ -103,18 +113,20 @@ try {
   badAuthority.authority.wallet_authority = true;
   delete badAuthority.manifest_id;
   const badAuthorityResealed = objectWithId("voidpbm1_", badAuthority, "manifest_id");
-  assert.throws(
+  assertThrows(
     () => validatePredecessorManifest(badAuthorityResealed),
     /wallet_authority must be false/,
+    "authority-bearing stable predecessor was accepted",
   );
 
   const badTailnet = structuredClone(predecessor);
   badTailnet.sync_endpoints[0].base = "https://seed.example.ts.net";
   delete badTailnet.manifest_id;
   const badTailnetResealed = objectWithId("voidpbm1_", badTailnet, "manifest_id");
-  assert.throws(
+  assertThrows(
     () => validatePredecessorManifest(badTailnetResealed),
     /not acceptable public HTTPS/,
+    "Tailnet stable predecessor was accepted",
   );
 
   fs.mkdirSync(REPO, { mode: 0o700 });
