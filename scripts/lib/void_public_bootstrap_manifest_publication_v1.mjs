@@ -8,6 +8,7 @@ export {
   buildRollbackHold,
   preparePublicationState,
   validatePredecessorHold,
+  validatePredecessorManifest,
 } from "./void_public_bootstrap_manifest_publication_state_v1.mjs";
 export { buildPublicationPacket } from "./void_public_bootstrap_manifest_publication_build_v1.mjs";
 export { verifyPublicationPacket } from "./void_public_bootstrap_manifest_publication_verify_v1.mjs";
