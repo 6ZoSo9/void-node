@@ -1,6 +1,7 @@
 // @ts-nocheck
 import * as fs from "node:fs";
 import * as fsp from "node:fs/promises";
+import * as path from "node:path";
 import { TextDecoder } from "node:util";
 import {
   AgentPick2JsonlSemanticIndexV1,
@@ -40,6 +41,7 @@ export type JobsDatanetWorkerRuntimeScanV1 = {
 
 type PendingJobV1 = {
   job: any;
+  sourceStamp: FileStampV1 | null;
 };
 
 const UTF8_FATAL_V1 = new TextDecoder("utf-8", { fatal: true });
@@ -165,6 +167,8 @@ export class JobsDatanetWorkerRuntimeIndexV1 {
     coherent_scan_retries_total: 0,
     append_witness_misses_total: 0,
     async_warms_total: 0,
+    async_full_history_starts_total: 0,
+    async_incremental_starts_total: 0,
   };
 
   constructor(opts: {
@@ -281,6 +285,91 @@ export class JobsDatanetWorkerRuntimeIndexV1 {
       this.pendingSource.length,
     );
     return !!actual && actual.equals(this.pendingSource);
+  }
+
+  private pendingUseAuthorityV1(
+    file: string,
+    jobId: string,
+    expected: FileStampV1 | null,
+  ): void {
+    const observed = fileStampV1(file);
+    const admitted = observed ? this.admitSourceV1(file) : null;
+    const current = fileStampV1(file);
+    const valid =
+      !!expected &&
+      !!observed &&
+      !!admitted?.ok &&
+      !!admitted.stamp &&
+      !!current &&
+      sameStampV1(expected, observed) &&
+      sameStampV1(expected, admitted.stamp) &&
+      sameStampV1(expected, current) &&
+      this.pendingWitnessesMatchV1(file, expected.dev, expected.ino);
+    if (valid) return;
+
+    this.resetJobsGenerationV1();
+    throw new Error(
+      `VOID_JOBS_DATANET_WORKER_COMPLETION_HOLD VOID_JOBS_DATANET_WORKER_PENDING_USE_AUTHORITY_CHANGED job_id=${jobId} file=${file}`,
+    );
+  }
+
+  private pendingJobForUseV1(
+    file: string,
+    jobId: string,
+    entry: PendingJobV1,
+  ): any {
+    const validate = () =>
+      this.pendingUseAuthorityV1(file, jobId, entry.sourceStamp);
+    return new Proxy(entry.job, {
+      get: (target, property, receiver) => {
+        // processJob consumes the cached payload through property reads. Bind
+        // every such use to the exact canonical mutation generation admitted
+        // by scan(), including the final status/meta reads before its first
+        // state publication.
+        validate();
+        return Reflect.get(target, property, receiver);
+      },
+      has: (target, property) => {
+        validate();
+        return Reflect.has(target, property);
+      },
+      ownKeys: (target) => {
+        validate();
+        return Reflect.ownKeys(target);
+      },
+      getOwnPropertyDescriptor: (target, property) => {
+        validate();
+        return Reflect.getOwnPropertyDescriptor(target, property);
+      },
+    });
+  }
+
+  private canonicalAppendActiveV1(file: string): boolean {
+    return fs.existsSync(
+      `${path.resolve(String(file || ""))}.void-pick2-append.lock`,
+    );
+  }
+
+  private async openCompletionReadHandleV1(
+    file: string,
+    flags: number,
+  ): Promise<any> {
+    for (let attempt = 0; attempt < 16; attempt += 1) {
+      try {
+        return await fsp.open(file, flags);
+      } catch (error: any) {
+        if (
+          error?.code !== "ENOENT" ||
+          (!this.canonicalAppendActiveV1(file) && !fileStampV1(file))
+        ) {
+          throw error;
+        }
+        await new Promise<void>((resolve) => setTimeout(resolve, 1));
+      }
+    }
+    throw new Error(
+      `VOID_JOBS_DATANET_WORKER_COMPLETION_CANONICAL_OPEN_TIMEOUT file=${file}`,
+    );
   }
 
   private admitSourceV1(file: string): {
@@ -424,10 +513,16 @@ export class JobsDatanetWorkerRuntimeIndexV1 {
     this.completionMetrics.rebuilds_total += base ? 0 : 1;
     this.completionMetrics.incremental_reads_total += base ? 1 : 0;
     this.completionMetrics.async_warms_total += 1;
+    const initialPosition = Number(base?.size || 0);
+    if (initialPosition === 0 && initialTarget.size > 0) {
+      this.completionMetrics.async_full_history_starts_total += 1;
+    } else {
+      this.completionMetrics.async_incremental_starts_total += 1;
+    }
 
     const task = (async () => {
       const completed = new Set<string>(base?.completed || []);
-      let position = Number(base?.size || 0);
+      let position = initialPosition;
       let target = initialTarget;
 
       for (;;) {
@@ -448,7 +543,7 @@ export class JobsDatanetWorkerRuntimeIndexV1 {
           target = advanced.stamp;
         }
         const flags = fs.constants.O_RDONLY | ((fs.constants as any).O_NOFOLLOW || 0);
-        const handle: any = await fsp.open(file, flags);
+        const handle: any = await this.openCompletionReadHandleV1(file, flags);
         let carry = Buffer.alloc(0);
         try {
           const opened = fdStampV1(handle.fd);
@@ -669,7 +764,12 @@ export class JobsDatanetWorkerRuntimeIndexV1 {
           String(snapshot.holdReason || "completion_truth_not_ready"),
       );
     }
-    return snapshot.doneTruthHas(String(id || ""));
+    const key = String(id || "").trim();
+    const entry = this.pending.get(key);
+    if (entry) {
+      this.pendingUseAuthorityV1(input.jobsFile, key, entry.sourceStamp);
+    }
+    return snapshot.doneTruthHas(key);
   }
 
   scan(input: ScanInputV1): JobsDatanetWorkerRuntimeScanV1 {
@@ -873,6 +973,7 @@ export class JobsDatanetWorkerRuntimeIndexV1 {
         }
         this.pending.set(jobId, {
           job,
+          sourceStamp: null,
         });
       }
       this.jobsCarry = Buffer.from(data.subarray(from));
@@ -963,6 +1064,13 @@ export class JobsDatanetWorkerRuntimeIndexV1 {
         retainedState: this.retainedStateV1(),
       };
     }
+    for (const entry of this.pending.values()) {
+      if (!entry.sourceStamp) {
+        entry.sourceStamp = admittedAfterRead.stamp
+          ? { ...admittedAfterRead.stamp }
+          : null;
+      }
+    }
     this.jobsObservedSize = pathAfterSize;
     this.jobsMtimeNs = pathAfterMtimeNs;
     this.jobsCtimeNs = pathAfterCtimeNs;
@@ -977,7 +1085,10 @@ export class JobsDatanetWorkerRuntimeIndexV1 {
         if (completion.doneTruthHas(jobId)) this.locallyDone.delete(jobId);
         continue;
       }
-      jobs.push({ jobId, job: entry.job });
+      jobs.push({
+        jobId,
+        job: this.pendingJobForUseV1(input.jobsFile, jobId, entry),
+      });
       if (jobs.length >= this.maxJobsPerTick) break;
     }
 

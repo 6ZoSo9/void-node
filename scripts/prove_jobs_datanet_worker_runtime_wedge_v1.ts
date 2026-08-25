@@ -444,6 +444,74 @@ try {
     `jobs=${rewriteThird.jobs.map((item) => item.jobId).join(",")}`,
   );
 
+  // Reproduce the production scan -> completion check -> cached-payload use
+  // sequence. A canonical mutation after the completion check but before the
+  // first job-property use must revoke the returned capability, clear stale
+  // pending state, and prevent the simulated side effect.
+  const checkUseJobsFile = path.join(root, "jobs-check-use.jsonl");
+  const checkUseReceiptsFile = path.join(root, "receipts-check-use.jsonl");
+  const checkUseJobStateFile = path.join(root, "job-state-check-use.jsonl");
+  fs.writeFileSync(checkUseReceiptsFile, "");
+  fs.writeFileSync(checkUseJobStateFile, "");
+  const checkUseLineA = JSON.stringify({
+    job_id: "check_use_job_a",
+    status: "queued",
+    account: "proof",
+    kind: "datanet_publish",
+    input: { plaintext: "payload_a" },
+  }) + "\n";
+  const checkUseLineB = checkUseLineA
+    .replace("check_use_job_a", "check_use_job_b")
+    .replace("payload_a", "payload_b");
+  assert(
+    Buffer.byteLength(checkUseLineA) === Buffer.byteLength(checkUseLineB),
+    "check-use-fixture-equal-size",
+    `bytes=${Buffer.byteLength(checkUseLineA)}`,
+  );
+  fs.writeFileSync(checkUseJobsFile, checkUseLineA);
+  const checkUseIndex = new JobsDatanetWorkerRuntimeIndexV1({
+    maxScanBytesPerTick: 4096,
+    maxSyncCompletionRebuildBytes: 1024 * 1024,
+  });
+  const checkUseInput = {
+    jobsFile: checkUseJobsFile,
+    receiptsFile: checkUseReceiptsFile,
+    jobStateFile: checkUseJobStateFile,
+  };
+  const checkUseBatch = checkUseIndex.scan(checkUseInput);
+  const checkUseItem = checkUseBatch.jobs[0];
+  assert(
+    checkUseItem?.jobId === "check_use_job_a" &&
+      checkUseIndex.completionHasV1(checkUseInput, checkUseItem.jobId) === false,
+    "check-use-original-authority-admitted",
+    `job=${checkUseItem?.jobId}`,
+  );
+  fs.writeFileSync(checkUseJobsFile, checkUseLineB);
+  let checkUseHeld = false;
+  let simulatedSideEffects = 0;
+  try {
+    if (String(checkUseItem.job.status || "") === "queued") {
+      simulatedSideEffects += 1;
+    }
+  } catch (error: any) {
+    checkUseHeld = String(error?.message || error).includes(
+      "VOID_JOBS_DATANET_WORKER_PENDING_USE_AUTHORITY_CHANGED",
+    );
+  }
+  assert(
+    checkUseHeld && simulatedSideEffects === 0,
+    "pending-use-boundary-revalidates-canonical-generation",
+    `held=${checkUseHeld} side_effects=${simulatedSideEffects}`,
+  );
+  const checkUseReplacement = checkUseIndex.scan(checkUseInput);
+  assert(
+    checkUseReplacement.ready &&
+      checkUseReplacement.jobs[0]?.jobId === "check_use_job_b" &&
+      checkUseReplacement.jobs[0]?.job?.input?.plaintext === "payload_b",
+    "pending-use-race-quarantines-stale-and-rescans",
+    `ready=${checkUseReplacement.ready} job=${checkUseReplacement.jobs[0]?.jobId}`,
+  );
+
   // A fixed tail sample is not sufficient append authority. Rewrite an older
   // row outside the final 8 KiB, preserve the tail exactly, then append a new
   // queued row with an uncooperative writer. The runtime must HOLD before it
@@ -570,6 +638,14 @@ try {
     "active-append-warm-starts-held",
     `hold=${warmFirst.holdReason}`,
   );
+  const warmInitialFullHistoryStarts = Number(
+    warmFirst.completionIo?.async_full_history_starts_total || 0,
+  );
+  assert(
+    warmInitialFullHistoryStarts === 1,
+    "active-append-warm-records-one-byte-zero-start",
+    `full_starts=${warmInitialFullHistoryStarts}`,
+  );
   let lastWarmId = "";
   for (let i = 0; i < 40; i += 1) {
     lastWarmId = `warm_completed_${String(i).padStart(3, "0")}`;
@@ -590,9 +666,46 @@ try {
     `ready=${warmReady.ready} last_done=${warmReady.doneTruthHas(lastWarmId)}`,
   );
   assert(
-    Number(warmReady.completionIo?.async_warms_total || 0) === 1,
-    "active-append-warm-does-not-restart",
-    `warms=${warmReady.completionIo?.async_warms_total}`,
+    Number(warmReady.completionIo?.async_full_history_starts_total || 0) ===
+      warmInitialFullHistoryStarts,
+    "active-append-warm-does-not-reread-prefix-from-zero",
+    `full_starts=${warmReady.completionIo?.async_full_history_starts_total} warms=${warmReady.completionIo?.async_warms_total}`,
+  );
+
+  // A later warm may legitimately start again when it begins at the exact
+  // prior admitted size. Prove that task count and full-history restart count
+  // are distinct contracts.
+  const incrementalWarmId = "warm_incremental_second_task";
+  appendAgentPick2JsonlCanonicalV1(
+    warmJobStateFile,
+    JSON.stringify({
+      job_id: incrementalWarmId,
+      status: "completed",
+      payload: "i".repeat(8192),
+    }) + "\n",
+  );
+  let incrementalWarm = warmIndex.scan(warmInput);
+  assert(
+    incrementalWarm.ready === false,
+    "incremental-second-warm-starts-held",
+    `ready=${incrementalWarm.ready} hold=${incrementalWarm.holdReason}`,
+  );
+  for (let i = 0; i < 1000 && !incrementalWarm.ready; i += 1) {
+    await sleep(1);
+    incrementalWarm = warmIndex.scan(warmInput);
+  }
+  assert(
+    incrementalWarm.ready &&
+      incrementalWarm.doneTruthHas(incrementalWarmId) &&
+      Number(incrementalWarm.completionIo?.async_warms_total || 0) >= 2 &&
+      Number(
+        incrementalWarm.completionIo?.async_incremental_starts_total || 0,
+      ) >= 1 &&
+      Number(
+        incrementalWarm.completionIo?.async_full_history_starts_total || 0,
+      ) === warmInitialFullHistoryStarts,
+    "incremental-second-warm-does-not-count-as-history-restart",
+    `ready=${incrementalWarm.ready} io=${JSON.stringify(incrementalWarm.completionIo)}`,
   );
 
   // An uncooperative mutation while the warm owns its generation must not
