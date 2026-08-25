@@ -107,7 +107,42 @@ jobs:
           node scripts/prove_void_public_seed_tls_servername_v1.mjs
           node scripts/prove_void_public_seed_numeric_evidence_v1.mjs
           node --check tools/void-public-seed-client-adapter-v1.mjs
-          node -e 'const m=require("./public/bootstrap/v1.json"); if(m.status!=="hold_no_stable_seed"||m.sync_endpoints.length!==0) process.exit(1)'
+          node - <<'NODE'
+          const manifest = require("./public/bootstrap/v1.json");
+          const fail = (message) => { throw new Error(message); };
+          if (manifest.schema !== "void_public_bootstrap_v1") fail("bootstrap schema mismatch");
+          if (manifest.network !== "VOID Network" || Number(manifest.chain_id) !== 2050) {
+            fail("bootstrap network or chain mismatch");
+          }
+          if (manifest.private_tailnet_endpoints_published !== false) {
+            fail("bootstrap publishes private Tailnet endpoints");
+          }
+          const authority = Object.values(manifest.authority || {});
+          if (authority.length === 0 || authority.some((value) => value !== false)) {
+            fail("bootstrap authority boundary mismatch");
+          }
+          if (!Array.isArray(manifest.sync_endpoints)) fail("bootstrap sync_endpoints missing");
+          if (manifest.status === "hold_no_stable_seed") {
+            if (manifest.sync_endpoints.length !== 0) fail("hold manifest publishes sync endpoints");
+          } else if (manifest.status === "stable_https_seed") {
+            if (manifest.sync_endpoints.length < 1) fail("stable manifest has no sync endpoints");
+            for (const endpoint of manifest.sync_endpoints) {
+              if (
+                endpoint.transport !== "https" ||
+                endpoint.enabled !== true ||
+                endpoint.temporary !== false ||
+                typeof endpoint.base !== "string" ||
+                !endpoint.base.startsWith("https://")
+              ) {
+                fail("stable manifest endpoint boundary mismatch");
+              }
+            }
+          } else {
+            fail(`unsupported bootstrap status ${manifest.status}`);
+          }
+          console.log(`canonical_manifest_status=${manifest.status}`);
+          console.log("canonical_manifest_state_supported=true");
+          NODE
 
   prove:
     runs-on: ubuntu-24.04
@@ -138,12 +173,59 @@ jobs:
 
       - name: Prove public bootstrap client resilience
         run: |
+          set -euo pipefail
+          canonical="$PWD/public/bootstrap/v1.json"
+          backup="$RUNNER_TEMP/void-public-bootstrap-client-resilience-canonical-$GITHUB_RUN_ID-$GITHUB_JOB.json"
+          cp "$canonical" "$backup"
+          restore_canonical() {
+            cp "$backup" "$canonical"
+          }
+          trap restore_canonical EXIT
+
+          node --input-type=module <<'NODE'
+          import fs from "node:fs";
+          import { objectWithId } from "./scripts/lib/void_public_seed_qualification_v1.mjs";
+          const body = {
+            schema: "void_public_bootstrap_v1",
+            network: "VOID Network",
+            chain_id: 2050,
+            status: "hold_no_stable_seed",
+            generated_at: "2026-08-06T09:23:00.000Z",
+            sync_endpoints: [],
+            onion_endpoints: [],
+            private_tailnet_endpoints_published: false,
+            authority: {
+              private_routes_exposed: false,
+              wallet_authority: false,
+              signer_authority: false,
+              validator_authority: false,
+              treasury_authority: false,
+              work_credit_authority: false,
+              money_movement_authority: false,
+            },
+            notes: "Isolated client-resilience hold fixture; independent of canonical publication state.",
+          };
+          const hold = objectWithId("voidpbm1_", body, "manifest_id");
+          fs.writeFileSync(
+            "public/bootstrap/v1.json",
+            `${JSON.stringify(hold, null, 2)}\n`,
+            { mode: 0o600 },
+          );
+          NODE
+
           npx --no-install tsx scripts/prove_void_public_bootstrap_client_resilience_v1.mjs
           node scripts/prove_follower_legacy_v2fs_and_duplicate_dial_v1.mjs
           node scripts/prove_follower_legacy_empty_tx_root_v1.mjs
           npx --no-install tsx scripts/prove_follower_low_catchup_pull_limit_v1.mjs
           node scripts/prove_void_public_seed_numeric_evidence_v1.mjs
           npx --no-install tsx scripts/prove_void_public_bootstrap_client_closed_response_v1.mjs
+
+          restore_canonical
+          cmp -s "$backup" "$canonical"
+          rm -f "$backup"
+          trap - EXIT
+          echo 'client_resilience_fixture_isolated=true'
+          echo 'repository_manifest_state_independent=true'
 
       - name: Confirm compiled catch-up boundary
         run: |
