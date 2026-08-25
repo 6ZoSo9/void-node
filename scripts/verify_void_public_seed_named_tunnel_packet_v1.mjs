@@ -66,6 +66,20 @@ function realDirectory(directory, label) {
   if (fs.realpathSync(resolved) !== resolved) throw new Error(`${label} path must already be canonical`);
   return resolved;
 }
+function portableWorkingDirectory(directory) {
+  const value = String(directory);
+  if (!path.isAbsolute(value)) throw new Error("repository root is not an absolute systemd WorkingDirectory");
+  if (/[^A-Za-z0-9_./:+@-]/.test(value) || value.includes("%")) {
+    throw new Error("repository root is not portable as an unquoted systemd WorkingDirectory");
+  }
+  return `WorkingDirectory=${value}`;
+}
+function verifyWorkingDirectory(unit, expectedLine, label) {
+  const lines = unit.split(/\r?\n/).filter((line) => line.startsWith("WorkingDirectory="));
+  if (lines.length !== 1 || lines[0] !== expectedLine) {
+    throw new Error(`${label} WorkingDirectory must be one exact unquoted absolute repository path`);
+  }
+}
 function readJson(file, label) {
   const bytes = fs.readFileSync(file);
   if (bytes.length > 1024 * 1024) throw new Error(`${label} exceeds one MiB`);
@@ -110,6 +124,7 @@ async function main() {
     throw new Error("packet activation flags must all be false");
   }
   const repoRoot = realDirectory(packet.repository_root, "repository root");
+  const expectedWorkingDirectory = portableWorkingDirectory(repoRoot);
   if (!/^[0-9a-f]{40}$/.test(String(packet.expected_repository_head || ""))) throw new Error("expected repository head is malformed");
   const head = run("git", ["-C", repoRoot, "rev-parse", "HEAD"]);
   if (head !== packet.expected_repository_head) throw new Error(`repository head ${head} does not match packet head ${packet.expected_repository_head}`);
@@ -150,6 +165,8 @@ async function main() {
   for (const forbidden of ["--token", "trycloudflare.com", "100.64.", "100.122.", "0.0.0.0:4111"]) {
     if (combinedUnits.includes(forbidden)) throw new Error(`service units contain forbidden text ${forbidden}`);
   }
+  verifyWorkingDirectory(gatewayUnit, expectedWorkingDirectory, "gateway service");
+  verifyWorkingDirectory(tunnelUnit, expectedWorkingDirectory, "tunnel service");
   if (!gatewayUnit.includes("Environment=VOID_PUBLIC_SEED_BIND=127.0.0.1")) throw new Error("gateway service is not fixed to numeric loopback");
   if (!gatewayUnit.includes("Environment=VOID_PUBLIC_SEED_UPSTREAM=http://127.0.0.1:4100")) throw new Error("gateway service upstream is not numeric loopback");
   if (!tunnelUnit.includes(`--config \"${configPath.replace(/\\/g, "\\\\").replace(/\"/g, '\\"')}\" tunnel run`)) throw new Error("tunnel service does not use the packet configuration");
@@ -166,6 +183,7 @@ async function main() {
   console.log("credentials_read=false");
   console.log("token_in_process_arguments=false");
   console.log("gateway_loopback_only=true");
+  console.log("working_directory_portable=true");
   console.log("catch_all_404=true");
   console.log("services_started=false");
   console.log("manifest_published=false");
