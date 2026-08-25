@@ -92,21 +92,43 @@ void-public-seed-named-tunnel-v1.service
 INSTALL.txt
 ```
 
-Verify and install the units without starting them:
+The installer has three deliberately separated lifecycle states. `VOID_PUBLIC_SEED_ENABLE_AUTOSTART=1` is rejected unless `VOID_PUBLIC_SEED_START_SERVICES=1` is also present.
+
+### Inert staging
+
+Verify and copy the units without starting them or leaving future autostart state:
 
 ```bash
 VOID_PUBLIC_SEED_START_SERVICES=0 \
+VOID_PUBLIC_SEED_ENABLE_AUTOSTART=0 \
   bash ops/public/install_void_public_seed_named_tunnel_packet_v1.sh "$PACKET"
 ```
 
-The installer reruns packet verification against current source, executable hashes, credential metadata, the local exact-green node, the generated ingress rules, and the gateway syntax. It installs only the two user service units and enables them.
+The installer reruns packet verification against current source, executable hashes, credential metadata, the local exact-green node, generated ingress rules, and gateway syntax. Before a `START_SERVICES=0` staging pass it refuses to proceed if either target unit is already active. It then installs the two user service units, reloads the user manager, and explicitly removes any enablement links so the staged units remain inactive and disabled.
 
-Activation remains explicit:
+### Disabled live canary
+
+Start and prove the services while keeping them disabled for future autostart:
 
 ```bash
 VOID_PUBLIC_SEED_START_SERVICES=1 \
+VOID_PUBLIC_SEED_ENABLE_AUTOSTART=0 \
   bash ops/public/install_void_public_seed_named_tunnel_packet_v1.sh "$PACKET"
 ```
+
+Every installation pass first removes durable enablement. The installer then starts the loopback gateway, proves its exact-green read-only boundary, starts the named tunnel, and requires the tunnel to remain active. The units may be live after this canary, but they remain disabled for future automatic startup.
+
+### Durable activation
+
+Commit autostart only after the same live activation checks pass:
+
+```bash
+VOID_PUBLIC_SEED_START_SERVICES=1 \
+VOID_PUBLIC_SEED_ENABLE_AUTOSTART=1 \
+  bash ops/public/install_void_public_seed_named_tunnel_packet_v1.sh "$PACKET"
+```
+
+The installer enables both user units only after the gateway proof and named-tunnel active check succeed. This prevents a failed or unqualified staging run from leaving a durable future-start condition.
 
 Before starting the named tunnel, the installer proves the loopback gateway:
 
@@ -120,7 +142,7 @@ x-void-public-seed-gateway=v1
 POST /follower/start -> 405 method_not_allowed
 ```
 
-No public bootstrap claim exists merely because the local services started. Public DNS, TLS, hostname routing, multi-sample qualification, and outside-machine synchronization must still pass.
+No public bootstrap claim exists merely because the local services started or became enabled. Public DNS, TLS, hostname routing, multi-sample qualification, and outside-machine synchronization must still pass.
 
 ## Live qualification workflow
 
