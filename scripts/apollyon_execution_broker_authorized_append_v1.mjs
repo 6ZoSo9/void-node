@@ -1,10 +1,10 @@
-// VOID_OX_ALPHA_BROKER_AUTHORIZED_APPEND_V8_2 - broker authorization plus durable append as ONE
+// VOID_OX_ALPHA_BROKER_AUTHORIZED_APPEND_V8_3 - broker authorization plus durable append as ONE
 // indivisible critical section under a single inode flock on the exact pinned ledger directory.
 // Scope: source-only, Linux-only. No provider send exists here; this module never grants,
 // restores, or implies provider-execution authority. BIND_INTENT is bootstrap identity binding
-// evidence ONLY: it is never fed to the V5.3 broker reducer and never creates execution
-// authority. Every later durable event must be a real V5.3 reducer transition; reducer no-ops
-// fail closed. Load, authorize, prove, publish, and re-prove all occur while ONE kernel flock
+// evidence ONLY: it is never fed to the broker reducer and never creates execution authority.
+// Every later durable event must be a real reducer transition; reducer no-ops fail closed.
+// Load, authorize, prove, publish, and re-prove all occur while ONE kernel flock
 // (proven V7.2 design: /usr/bin/flock --exclusive --nonblock on fd 3 duplicated from the pinned
 // FileHandle, --unlock release, spawnSync only, fixed bounded env, <=5s helper timeout, no
 // retry/wait/reclaim) is held. Same-UID hostile-code isolation stays deployment work (dedicated
@@ -20,7 +20,7 @@ import { replayBrokerStateFromLedgerV1 } from './apollyon_execution_broker_repla
 import { BROKER_STATE_V1, reduceBrokerStateV1 } from './apollyon_execution_broker_v1.mjs';
 import { LEDGER_EVENT_V1, verifyLedgerChainV1 } from './apollyon_execution_ledger_record_v1.mjs';
 
-const MODULE_ID = 'VOID_OX_ALPHA_BROKER_AUTHORIZED_APPEND_V8_2';
+const MODULE_ID = 'VOID_OX_ALPHA_BROKER_AUTHORIZED_APPEND_V8_3';
 const FLOCK_PATH = '/usr/bin/flock'; // exact helper path; no PATH resolution drift
 const HELPER_TIMEOUT_MS = 5000; // fixed bounded budget; never extended
 const HELPER_MAX_STDERR_BYTES = 8 * 1024;
@@ -96,6 +96,8 @@ function translateReducerEventV1(r) {
       return { type: 'RESERVE', operationId: r.operationId };
     case LEDGER_EVENT_V1.PROVIDER_ADMITTED:
       return { type: 'PROVIDER_ADMITTED', operationId: r.operationId };
+    case LEDGER_EVENT_V1.RESULT_WITNESSED:
+      return { type: 'RESULT_WITNESSED', operationId: r.operationId, resultDigest: r.resultDigest };
     case LEDGER_EVENT_V1.PROVIDER_RESULT:
       return { type: 'PROVIDER_RESULT', operationId: r.operationId, resultDigest: r.resultDigest };
     case LEDGER_EVENT_V1.RECONCILE_BLOCKED:
@@ -110,8 +112,8 @@ function sameStateFieldsV1(a, b) {
 }
 
 // ONE indivisible critical section: kernel flock acquisition precedes loading durable history;
-// authorization (V5.3 reducer) and durable publication both occur while the flock is held; the
-// unlock runs in finally and ONLY a proven successful unlock clears the local-held marker.
+// authorization and durable publication both occur while the flock is held; the unlock runs in
+// finally and ONLY a proven successful unlock clears the local-held marker.
 export async function appendBrokerAuthorizedRecordV1(directoryHandle, record) {
   // Snapshot BEFORE the first await: canonical bytes plus frozen eight-field record; later caller
   // mutation of `record` is irrelevant from this point on.
@@ -155,7 +157,7 @@ export async function appendBrokerAuthorizedRecordV1(directoryHandle, record) {
       }
     } else {
       // Normal authorized transition: BIND_INTENT forbidden; the record must extend the durable
-      // head binding and yield a REAL V5.3 reducer transition (a no-op fails closed).
+      // head binding and yield a REAL reducer transition (a no-op fails closed).
       if (stableRecord.type === LEDGER_EVENT_V1.BIND_INTENT) {
         fail('BIND_INTENT is forbidden once the ledger is non-empty');
       }
