@@ -34,6 +34,20 @@ function fail(message) {
   throw new Error(`VOID_APOLLYON_OPENROUTER_BROKER_SERVICE_V1: ${message}`);
 }
 
+// OpenRouter's reviewed request surface currently exposes routing identities
+// (concrete model slug, provider endpoint/tag, quantization) but no immutable
+// provider/model revision token that the chat request can carry and the broker
+// can verify as execution authority. Those routing identities are useful
+// evidence, but they do not make an earlier catalog generation immutable.
+//
+// Keep this fail-closed broker-side and deliberately non-configurable. There is
+// no environment variable, registry Boolean, or IPC field that can widen fresh
+// provider-send authority. A future live path must replace this function with a
+// separately reviewed request-enforceable immutable execution-identity primitive.
+function hasRequestEnforceableImmutableExecutionIdentityV1() {
+  return false;
+}
+
 function holdResponse(requestId, operationId, holdCode) {
   return {
     marker: 'VOID_APOLLYON_OPENROUTER_BROKER_RESPONSE_V1',
@@ -202,6 +216,10 @@ async function processRequest(rootDirectoryHandle, acceptedResultRoot, admission
       } catch {
         return holdResponse(request.request_id, binding.operationId, 'UNCERTAIN_OR_TERMINAL');
       }
+    }
+
+    if (!hasRequestEnforceableImmutableExecutionIdentityV1()) {
+      return holdResponse(request.request_id, binding.operationId, 'EXECUTION_IDENTITY_HOLD');
     }
 
     if (namespace === null) {
