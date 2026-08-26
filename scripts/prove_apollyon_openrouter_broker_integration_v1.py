@@ -78,7 +78,7 @@ if(mode==='unreviewed_contestant')q={...req,request_body:{...req.request_body,mo
 if(mode==='changed_prompt')q={...req,request_body:{...req.request_body,messages:[req.request_body.messages[0],{...req.request_body.messages[1],content:req.request_body.messages[1].content+' changed'}]}};
 const r=await runBrokerClientV1(process.env.VOID_PROOF_SOCKET,q);
 const expected=process.env.VOID_PROOF_EXPECT_STATUS||'ACCEPTED';
-assert.equal(r.status,expected);
+assert.equal(r.status,expected,JSON.stringify(r));
 if(expected==='ACCEPTED'){
   assert.match(r.operation_id,/^apollyon_op_v1:[0-9a-f]{64}$/);
   assert.match(r.result_digest,/^[0-9a-f]{64}$/);
@@ -291,12 +291,21 @@ try:
     if (state/"broker-admission-authority-v1").exists():raise SystemExit("HOLD legacy shared admission directory exists")
 
     capsule_bytes=capsule_path.read_bytes();capsule=json.loads(capsule_bytes.decode("utf-8"))
+    capsule_hex=capsule_path.name.removeprefix("accepted-result-v1-").removesuffix(".json")
+    stage_path=capsule_path.with_name(f".accepted-result-stage-v1-{capsule_hex}.json")
+    final_stat=os.stat(capsule_path);stage_stat=os.stat(stage_path)
+    if final_stat.st_dev!=stage_stat.st_dev or final_stat.st_ino!=stage_stat.st_ino or final_stat.st_nlink!=2:
+        raise SystemExit("HOLD retained accepted-result stage/final alias topology missing")
+
     capsule_path.unlink()
     write_request(replay_only)
     missing=run_client(sock,"HOLD")
     if missing.get("result") is not None or missing.get("result_digest") is not None:raise SystemExit("HOLD missing capsule leaked result")
     if marker.read_text().strip().splitlines()!=["catalog","chat"]:raise SystemExit("HOLD missing capsule triggered provider network")
-    capsule_path.write_bytes(capsule_bytes);os.chmod(capsule_path,0o600)
+    os.link(stage_path,capsule_path);os.chmod(capsule_path,0o600)
+    restored_final=os.stat(capsule_path);restored_stage=os.stat(stage_path)
+    if restored_final.st_dev!=restored_stage.st_dev or restored_final.st_ino!=restored_stage.st_ino or restored_final.st_nlink!=2:
+        raise SystemExit("HOLD retained accepted-result alias restore changed generation")
 
     capsule_obj=json.loads(capsule_bytes.decode("utf-8"));capsule_path.write_text(json.dumps(capsule_obj,indent=2)+"\n");os.chmod(capsule_path,0o600)
     noncanonical=run_client(sock,"HOLD")
@@ -354,7 +363,7 @@ try:
     run_client(sock,"HOLD")
     if marker.read_text().strip().splitlines()!=["catalog","chat"]:raise SystemExit("HOLD oversize retry reexecuted provider")
 
-    print("VOID_OPENROUTER_BROKER_INTEGRATION_V1_PROOF_GREEN inline_signed_capability=true replay_read_capability=true replay_capability_zero_send=true dual_capability_provenance_coupled=true mismatched_valid_hmac_pair_hold=true ordinary_client_without_replay_hold=true forged_replay_hold=true shared_admission_directory=false unauthorized_namespace_creation=false accepted_replay_requires_replay_capability=true bad_registry_hold=true unreviewed_contestant_hold=true changed_work_hold=true first_delivery=true response_loss_replay=true missing_capsule_hold=true noncanonical_capsule_hold=true symlink_capsule_hold=true tamper_hold=true uncertain_complete_capsule_recovery=true uncertain_mismatch_hold=true partial_ipc_lifetime_bounded=true incomplete_clients_bounded=true accepted_result_capacity_domain=true oversize_no_resend=true fetch_order=catalog,chat")
+    print("VOID_OPENROUTER_BROKER_INTEGRATION_V1_PROOF_GREEN inline_signed_capability=true replay_read_capability=true replay_capability_zero_send=true dual_capability_provenance_coupled=true mismatched_valid_hmac_pair_hold=true ordinary_client_without_replay_hold=true forged_replay_hold=true shared_admission_directory=false unauthorized_namespace_creation=false accepted_replay_requires_replay_capability=true bad_registry_hold=true unreviewed_contestant_hold=true changed_work_hold=true first_delivery=true response_loss_replay=true missing_capsule_hold=true retained_stage_alias=true retained_alias_restore_same_generation=true noncanonical_capsule_hold=true symlink_capsule_hold=true tamper_hold=true uncertain_complete_capsule_recovery=true uncertain_mismatch_hold=true partial_ipc_lifetime_bounded=true incomplete_clients_bounded=true accepted_result_capacity_domain=true oversize_no_resend=true fetch_order=catalog,chat")
 finally:
     stop_server(server)
     if listener:
