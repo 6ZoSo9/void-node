@@ -1,6 +1,6 @@
-// VOID Apollyon durable-ledger -> broker replay v8.1 - pure, data-only ESM.
+// VOID Apollyon durable-ledger -> broker replay v8.2 - pure, data-only ESM.
 // SAFETY: replay rebuilds the authoritative broker state ONLY by feeding
-// hash-chain-verified durable ledger events through the exact V5.3 reducer
+// hash-chain-verified durable ledger events through the exact broker reducer
 // (reduceBrokerStateV1). Replay itself grants nothing: a BIND_INTENT-only
 // ledger replays to ABSENT, which satisfies no provider-execution condition.
 // SAFETY: any durable event leaving broker state field-identical (stale,
@@ -51,6 +51,8 @@ function translateEvent(r) {
       return { type: 'RESERVE', operationId: r.operationId };
     case LEDGER_EVENT_V1.PROVIDER_ADMITTED:
       return { type: 'PROVIDER_ADMITTED', operationId: r.operationId };
+    case LEDGER_EVENT_V1.RESULT_WITNESSED:
+      return { type: 'RESULT_WITNESSED', operationId: r.operationId, resultDigest: r.resultDigest };
     case LEDGER_EVENT_V1.PROVIDER_RESULT:
       return { type: 'PROVIDER_RESULT', operationId: r.operationId, resultDigest: r.resultDigest };
     case LEDGER_EVENT_V1.RECONCILE_BLOCKED:
