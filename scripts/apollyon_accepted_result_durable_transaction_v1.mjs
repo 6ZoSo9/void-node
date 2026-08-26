@@ -166,7 +166,7 @@ function parseProofHooksV1(raw) {
 async function proveFinalDentryDurabilityEpochV1(root, handle, binding, hooks) {
   await revalidatePinnedRootV1(root);
   const finalPath = finalPathV1(handle, binding.operationId);
-  const finalBefore = await fsLStatV1(finalPath);
+  const finalBefore = await fsLstat(finalPath, { bigint: true });
   assertPrivateFinalStatV1(finalBefore, 'accepted-result final before durability epoch');
   const rootBefore = await handle.stat({ bigint: true });
 
@@ -180,7 +180,7 @@ async function proveFinalDentryDurabilityEpochV1(root, handle, binding, hooks) {
   await handle.sync();
   if (hooks.afterDurabilitySync) await hooks.afterDurabilitySync(context);
 
-  const finalAfter = await fsLStatV1(finalPath);
+  const finalAfter = await fsLstat(finalPath, { bigint: true });
   assertPrivateFinalStatV1(finalAfter, 'accepted-result final after durability epoch');
   const rootAfter = await handle.stat({ bigint: true });
   if (!sameStampV1(directoryEpochStampV1(rootBefore), directoryEpochStampV1(rootAfter))) {
@@ -227,7 +227,7 @@ export async function publishAcceptedResultCapsuleDurableThenWitnessV1(
 
     // The reviewed writers all obey the same accepted-root flock. Re-prove that the exact final
     // generation and root namespace stayed fixed while the independent ledger witness committed.
-    const finalAfterWitness = await fsLStatV1(finalPathV1(handle, binding.operationId));
+    const finalAfterWitness = await fsLstat(finalPathV1(handle, binding.operationId), { bigint: true });
     assertPrivateFinalStatV1(finalAfterWitness, 'accepted-result final after witness commit');
     const rootAfterWitness = await handle.stat({ bigint: true });
     if (!sameStampV1(finalGenerationStampV1(durable.finalAfter), finalGenerationStampV1(finalAfterWitness))) {
