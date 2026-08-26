@@ -31,6 +31,7 @@ import {
   createVerifiedPublicBootstrapChallengeV1,
   installVerifiedPublicBootstrapAuthorityForTestV1,
   resetVerifiedPublicBootstrapAuthorityForTestV1,
+  verifiedPublicBootstrapChallengeStillLiveV1,
   verifyVerifiedPublicBootstrapResponseV1,
 } from "../dist/http/follower_verified_public_bootstrap_authority_v1.js";
 import { Node } from "../dist/node_core.js";
@@ -322,6 +323,7 @@ async function proveAdapterOnlyFollowerAndManualPeerIsolation() {
   ];
   const backup = Object.fromEntries(envKeys.map((key) => [key, process.env[key]]));
   const trustedRoot = tempRoot("adapter");
+  const appendRaceRoot = tempRoot("append-boundary");
   const noAuthorityRoot = tempRoot("no-authority");
   const replacementRoot = tempRoot("same-port-replacement");
   let replacementServer = null;
@@ -360,6 +362,63 @@ async function proveAdapterOnlyFollowerAndManualPeerIsolation() {
     assert.deepEqual(trustedStore.loadBlock(0), trustedState.blocks[0]);
     assert.deepEqual(trustedStore.loadBlock(1), trustedState.blocks[1]);
     assert.deepEqual(trustedStore.loadBlock(2), trustedState.blocks[2]);
+
+    resetVerifiedPublicBootstrapAuthorityForTestV1();
+    assert.equal(
+      installVerifiedPublicBootstrapAuthorityForTestV1({
+        sequence,
+        generation,
+        adapter_origin: adapter.base,
+        secret_hex: secret.toString("hex"),
+      }),
+      true,
+    );
+
+    const appendRaceStore = new SegStore(appendRaceRoot, { sparseEvery: 1 });
+    const appendRaceNode = makeFollowerNode(appendRaceStore);
+    let appendBoundaryAuthorityCleared = false;
+    await assert.rejects(
+      () => appendRaceNode.pullOnce(adapter.base, {
+        onImportBlock: (block) => {
+          if (
+            !appendBoundaryAuthorityCleared &&
+            Number(block?.number) === 0
+          ) {
+            const challenge = createVerifiedPublicBootstrapChallengeV1(
+              `${adapter.base}/blocks/range?from=0&to=0`,
+            );
+            assert(challenge);
+            assert.equal(
+              verifiedPublicBootstrapChallengeStillLiveV1(challenge),
+              true,
+            );
+            clearVerifiedPublicBootstrapAuthorityForTestV1();
+            assert.equal(
+              verifiedPublicBootstrapChallengeStillLiveV1(challenge),
+              false,
+            );
+            appendBoundaryAuthorityCleared = true;
+          }
+        },
+      }),
+      /VOID_PUBLIC_BOOTSTRAP_HISTORICAL_RESPONSE_AUTHORITY_V1/,
+      "authority loss after one verified historical append must stop the next append",
+    );
+    assert.equal(appendBoundaryAuthorityCleared, true);
+    assert.deepEqual(appendRaceStore.loadBlock(0), trustedState.blocks[0]);
+    assert.equal(appendRaceStore.loadBlock(1), null);
+    assert.equal(appendRaceStore.loadHeadNumber(), 0);
+
+    resetVerifiedPublicBootstrapAuthorityForTestV1();
+    assert.equal(
+      installVerifiedPublicBootstrapAuthorityForTestV1({
+        sequence,
+        generation,
+        adapter_origin: adapter.base,
+        secret_hex: secret.toString("hex"),
+      }),
+      true,
+    );
 
     const route = "/blocks/range?from=0&to=0";
     const challenge1 = createVerifiedPublicBootstrapChallengeV1(
@@ -540,6 +599,7 @@ async function proveAdapterOnlyFollowerAndManualPeerIsolation() {
       else process.env[key] = value;
     }
     fs.rmSync(trustedRoot, { recursive: true, force: true });
+    fs.rmSync(appendRaceRoot, { recursive: true, force: true });
     fs.rmSync(noAuthorityRoot, { recursive: true, force: true });
     fs.rmSync(replacementRoot, { recursive: true, force: true });
     if (replacementServer) await close(replacementServer);
@@ -608,6 +668,7 @@ console.log("same_port_foreign_process_rejected=true");
 console.log("response_nonce_replay_rejected=true");
 console.log("response_body_hmac_binding=true");
 console.log("ipc_disconnect_fails_closed=true");
+console.log("append_boundary_authority_revalidated=true");
 console.log("minimal_exact_envelope_required=true");
 console.log("historical_era_regression_rejected=true");
 console.log("modern_validator_unchanged=true");

@@ -197,6 +197,12 @@ export function createVerifiedPublicBootstrapChallengeV1(
   });
 }
 
+export function verifiedPublicBootstrapChallengeStillLiveV1(
+  challenge: VerifiedPublicBootstrapChallengeV1 | null | undefined,
+): boolean {
+  return !!challenge && authorityStillLiveV1(challenge.authority);
+}
+
 export function verifyVerifiedPublicBootstrapResponseV1(
   response: Response,
   exactBody: Uint8Array,

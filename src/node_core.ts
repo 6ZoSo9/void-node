@@ -23,6 +23,7 @@ import { followerLegacyV2fsOriginAuthorizedV1 } from "./http/follower_legacy_v2f
 import {
   VOID_PUBLIC_SEED_AUTHORITY_CHALLENGE_HEADER_V1,
   createVerifiedPublicBootstrapChallengeV1,
+  verifiedPublicBootstrapChallengeStillLiveV1,
   verifyVerifiedPublicBootstrapResponseV1,
   type VerifiedPublicBootstrapChallengeV1,
 } from "./http/follower_verified_public_bootstrap_authority_v1.js";
@@ -4236,6 +4237,10 @@ attachEphemeralDirectTransportV1(
       | {
           ok: true;
           mode: "genesis-minimal-v1" | "legacy-v2fs" | "modern";
+          historicalAuthoritySource:
+            | "public-bootstrap-hmac-v1"
+            | "manual-legacy-origin-v1"
+            | null;
         }
       | { ok: false; reason: string };
 
@@ -4252,7 +4257,11 @@ attachEphemeralDirectTransportV1(
         if (minimal.ok === false) {
           return { ok: false, reason: minimal.reason };
         }
-        return { ok: true, mode: "genesis-minimal-v1" };
+        return {
+          ok: true,
+          mode: "genesis-minimal-v1",
+          historicalAuthoritySource: "public-bootstrap-hmac-v1",
+        };
       }
 
       const hasCommitMarker =
@@ -4274,20 +4283,44 @@ attachEphemeralDirectTransportV1(
         if (legacy.ok === false) {
           return { ok: false, reason: legacy.reason };
         }
-        return { ok: true, mode: "legacy-v2fs" };
+        return {
+          ok: true,
+          mode: "legacy-v2fs",
+          historicalAuthoritySource:
+            publicBootstrapHistoricalAuthorityVerified
+              ? "public-bootstrap-hmac-v1"
+              : "manual-legacy-origin-v1",
+        };
       }
 
       const modern = validateBlockForAppend(block, parent as any);
       if (modern.ok === false) {
         return { ok: false, reason: modern.reason };
       }
-      return { ok: true, mode: "modern" };
+      return {
+        ok: true,
+        mode: "modern",
+        historicalAuthoritySource: null,
+      };
     };
 
     const saveFollowerBlockV1 = (
       block: any,
       admission: Extract<FollowerBlockAdmissionV1, { ok: true }>,
+      publicBootstrapHistoricalAuthorityChallenge:
+        VerifiedPublicBootstrapChallengeV1 | null,
     ): void => {
+      if (
+        admission.historicalAuthoritySource === "public-bootstrap-hmac-v1" &&
+        !verifiedPublicBootstrapChallengeStillLiveV1(
+          publicBootstrapHistoricalAuthorityChallenge,
+        )
+      ) {
+        throw new VoidFollowerPublicBootstrapAuthorityErrorV1(
+          "verified historical adapter authority changed before append",
+        );
+      }
+
       if (admission.mode === "genesis-minimal-v1") {
         this.store.saveAuthorizedMainnet0GenesisMinimalV1(block);
         return;
@@ -4615,6 +4648,8 @@ attachEphemeralDirectTransportV1(
     type FollowerRangeReadV1 = {
       blocks: any[];
       publicBootstrapHistoricalAuthorityVerified: boolean;
+      publicBootstrapHistoricalAuthorityChallenge:
+        VerifiedPublicBootstrapChallengeV1 | null;
     };
 
     const fetchRange = async (): Promise<FollowerRangeReadV1> => {
@@ -4637,6 +4672,8 @@ attachEphemeralDirectTransportV1(
         }
 
         let publicBootstrapHistoricalAuthorityVerified = false;
+        let publicBootstrapHistoricalAuthorityChallenge:
+          VerifiedPublicBootstrapChallengeV1 | null = null;
         const body = await readFollowerJsonResponseBoundedV1(
           response,
           VOID_FOLLOWER_RANGE_RESPONSE_MAX_BYTES_V1,
@@ -4653,6 +4690,8 @@ attachEphemeralDirectTransportV1(
                   throw new VoidFollowerPublicBootstrapAuthorityErrorV1();
                 }
                 publicBootstrapHistoricalAuthorityVerified = true;
+                publicBootstrapHistoricalAuthorityChallenge =
+                  authorityChallenge;
               }
             : undefined,
         ).catch((error: unknown) => {
@@ -4667,6 +4706,7 @@ attachEphemeralDirectTransportV1(
         return {
           blocks: Array.isArray(body) ? body : [],
           publicBootstrapHistoricalAuthorityVerified,
+          publicBootstrapHistoricalAuthorityChallenge,
         };
       } catch (error) {
         throwIfFollowerPullAbortedV1(pullSignal);
@@ -4680,6 +4720,7 @@ attachEphemeralDirectTransportV1(
         return {
           blocks: [],
           publicBootstrapHistoricalAuthorityVerified: false,
+          publicBootstrapHistoricalAuthorityChallenge: null,
         };
       }
     };
@@ -4688,6 +4729,8 @@ attachEphemeralDirectTransportV1(
     let arr: any[] = rangeRead.blocks;
     let publicBootstrapHistoricalAuthorityVerified =
       rangeRead.publicBootstrapHistoricalAuthorityVerified;
+    let publicBootstrapHistoricalAuthorityChallenge =
+      rangeRead.publicBootstrapHistoricalAuthorityChallenge;
     let retried = false;
 
     const isCompleteRequestedRange = (blocks: any[]): boolean =>
@@ -4700,6 +4743,8 @@ attachEphemeralDirectTransportV1(
       arr = rangeRead.blocks;
       publicBootstrapHistoricalAuthorityVerified =
         rangeRead.publicBootstrapHistoricalAuthorityVerified;
+      publicBootstrapHistoricalAuthorityChallenge =
+        rangeRead.publicBootstrapHistoricalAuthorityChallenge;
       retried = true;
     }
 
@@ -4798,7 +4843,11 @@ attachEphemeralDirectTransportV1(
         }
 
         throwIfFollowerPullAbortedV1(pullSignal);
-        saveFollowerBlockV1(b, admission);
+        saveFollowerBlockV1(
+          b,
+          admission,
+          publicBootstrapHistoricalAuthorityChallenge,
+        );
         imported++;
         importedNums.push(n);
 
