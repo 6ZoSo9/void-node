@@ -9,6 +9,9 @@ import {
   openExistingOperationLedgerNamespaceV1,
   openOperationLedgerNamespaceV1,
 } from './apollyon_execution_ledger_namespace_v1.mjs';
+import { loadLedgerRecordsV1 } from './apollyon_execution_ledger_load_v1.mjs';
+import { replayBrokerStateFromLedgerV1 } from './apollyon_execution_broker_replay_v1.mjs';
+import { BROKER_STATE_V1 } from './apollyon_execution_broker_v1.mjs';
 import { prepareBrokerOperationV1 } from './apollyon_execution_broker_prepare_v1.mjs';
 import {
   validateBrokerAdmissionCapabilityV1,
@@ -46,6 +49,21 @@ function fail(message) {
 // separately reviewed request-enforceable immutable execution-identity primitive.
 function hasRequestEnforceableImmutableExecutionIdentityV1() {
   return false;
+}
+
+// V46 migration boundary: pre-V46 durable ACCEPTED / RESULT_WITNESSED state
+// predates any request-enforceable immutable execution-identity authority. Such
+// state is preserved as historical broker evidence, but it may not cross the
+// normal contestant ACCEPTED/GREEN path and may not be reconciled into current
+// identity-qualified evidence. A future identity-capable generation must add an
+// explicit durable authority/version to the ledger/evidence transaction rather
+// than flipping this historical migration rule.
+async function requiresExecutionIdentityEvidenceHoldV1(directoryHandle) {
+  const records = await loadLedgerRecordsV1(directoryHandle);
+  if (records.length === 0) return false;
+  const state = replayBrokerStateFromLedgerV1(records);
+  return state.phase === BROKER_STATE_V1.ACCEPTED
+    || state.phase === BROKER_STATE_V1.RESULT_WITNESSED;
 }
 
 function holdResponse(requestId, operationId, holdCode) {
@@ -123,6 +141,19 @@ async function processRequest(rootDirectoryHandle, acceptedResultRoot, admission
       } catch {
         return holdResponse(request.request_id, binding.operationId, 'ADMISSION_HOLD');
       }
+
+      try {
+        if (await requiresExecutionIdentityEvidenceHoldV1(namespace.directoryHandle)) {
+          return holdResponse(
+            request.request_id,
+            binding.operationId,
+            'EXECUTION_IDENTITY_EVIDENCE_HOLD',
+          );
+        }
+      } catch {
+        return holdResponse(request.request_id, binding.operationId, 'UNCERTAIN_OR_TERMINAL');
+      }
+
       try {
         const recovered = await readAcceptedResultCapsuleV1(acceptedResultRoot,namespace.directoryHandle,binding);
         if (recovered !== null) {
