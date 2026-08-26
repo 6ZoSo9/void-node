@@ -16,9 +16,9 @@ The reviewed registry is `public/apollyon-openrouter-contestants-v1.json`. Each 
 
 Every executable contestant requires exact-zero pricing. The chat body preserves `provider.max_price.prompt=0`, `provider.max_price.completion=0`, disables fallbacks, requires supported parameters, and exposes no tools.
 
-## Credentialless adapter
+## Provider-credentialless adapter
 
-The adapter is **credentialless and provider-networkless**. It does not read `OPENROUTER_API_KEY`, read systemd credentials, call `https://openrouter.ai`, call `fetch`, own a provider retry loop, or own an execution-claim directory.
+The adapter is **provider-credentialless and provider-networkless**. It never receives or reads `OPENROUTER_API_KEY`, calls `https://openrouter.ai`, calls `fetch`, owns a provider retry loop, or owns an execution-claim directory. It does read exactly one local per-unit admission credential, `apollyon_openrouter_admission_mac_v1`, from systemd `$CREDENTIALS_DIRECTORY` after the reviewed admission/prompt wall; that MAC authenticates exact logical work only and is not a provider credential.
 
 The adapter sends one secretless bounded IPC request to:
 
@@ -66,9 +66,9 @@ The adapter's separate create-only accepted-result recovery journal remains evid
 
 ## Runtime contract
 
-This PR is source/proof/documentation only and does not install or start the broker. Production execution requires the separately reviewed broker service/socket.
+This PR is source/proof/documentation only and does not install or start the broker. Production execution requires the separately reviewed broker service/socket and admission/arena unit.
 
-The adapter process does not receive the OpenRouter credential:
+The adapter process does not receive the OpenRouter credential. The invocation shape below is valid only inside the reviewed admission unit where systemd has already supplied `$CREDENTIALS_DIRECTORY`; an arbitrary operator-supplied credential directory is outside the reviewed production contract:
 
 ```bash
 TRIAL=./trial-packet.json

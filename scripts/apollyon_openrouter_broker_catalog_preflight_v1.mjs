@@ -181,7 +181,7 @@ async function readResponseJsonBounded(response, maxBytes, name) {
       chunks.push(Buffer.from(value));
     }
   } finally {
-    try { await reader.cancel(); } catch {}
+    try { await reader.cancel(); } catch (cancelError) { void cancelError; }
   }
 
   const bytes = Buffer.concat(chunks, total);

@@ -10,6 +10,9 @@ on:
       - "scripts/run_void_public_bootstrap_supervisor_v1.mjs"
       - "scripts/prove_void_public_bootstrap_client_resilience_v1.mjs"
       - "scripts/prove_follower_legacy_v2fs_and_duplicate_dial_v1.mjs"
+      - "scripts/prove_mainnet0_historical_public_bootstrap_v1.mjs"
+      - "scripts/prove_follower_legacy_empty_tx_root_v1.mjs"
+      - "scripts/prove_follower_low_catchup_pull_limit_v1.mjs"
       - "scripts/prove_void_public_seed_numeric_evidence_v1.mjs"
       - "scripts/prove_void_public_bootstrap_client_closed_response_v1.mjs"
       - "scripts/prove_void_public_seed_tls_servername_v1.mjs"
@@ -24,11 +27,14 @@ on:
       - "src/node_core.ts"
       - "src/chain/seg_store.ts"
       - "src/chain/legacy_commit_direct_v2fs_v1.ts"
+      - "src/chain/mainnet0_historical_compat_v1.ts"
       - "src/http/follower_legacy_v2fs_authority_v1.ts"
+      - "src/http/follower_verified_public_bootstrap_authority_v1.ts"
       - "src/p2p/authenticated_duplicate_arbitration_v1.ts"
       - "src/chain/receipts.ts"
       - "tools/void-public-seed-client-adapter-v1.mjs"
       - "docs/public/public-bootstrap-client-resilience-v1.md"
+      - "docs/public/mainnet0-historical-public-bootstrap-compat-v1.md"
   push:
     branches: [main]
     paths:
@@ -39,6 +45,9 @@ on:
       - "scripts/run_void_public_bootstrap_supervisor_v1.mjs"
       - "scripts/prove_void_public_bootstrap_client_resilience_v1.mjs"
       - "scripts/prove_follower_legacy_v2fs_and_duplicate_dial_v1.mjs"
+      - "scripts/prove_mainnet0_historical_public_bootstrap_v1.mjs"
+      - "scripts/prove_follower_legacy_empty_tx_root_v1.mjs"
+      - "scripts/prove_follower_low_catchup_pull_limit_v1.mjs"
       - "scripts/prove_void_public_seed_numeric_evidence_v1.mjs"
       - "scripts/prove_void_public_bootstrap_client_closed_response_v1.mjs"
       - "scripts/prove_void_public_seed_tls_servername_v1.mjs"
@@ -53,11 +62,14 @@ on:
       - "src/node_core.ts"
       - "src/chain/seg_store.ts"
       - "src/chain/legacy_commit_direct_v2fs_v1.ts"
+      - "src/chain/mainnet0_historical_compat_v1.ts"
       - "src/http/follower_legacy_v2fs_authority_v1.ts"
+      - "src/http/follower_verified_public_bootstrap_authority_v1.ts"
       - "src/p2p/authenticated_duplicate_arbitration_v1.ts"
       - "src/chain/receipts.ts"
       - "tools/void-public-seed-client-adapter-v1.mjs"
       - "docs/public/public-bootstrap-client-resilience-v1.md"
+      - "docs/public/mainnet0-historical-public-bootstrap-compat-v1.md"
   workflow_dispatch:
 
 permissions:
@@ -94,6 +106,9 @@ jobs:
           node --check scripts/run_void_public_bootstrap_supervisor_v1.mjs
           node --check scripts/prove_void_public_bootstrap_client_resilience_v1.mjs
           node --check scripts/prove_follower_legacy_v2fs_and_duplicate_dial_v1.mjs
+          node --check scripts/prove_mainnet0_historical_public_bootstrap_v1.mjs
+          node --check scripts/prove_follower_legacy_empty_tx_root_v1.mjs
+          node --check scripts/prove_follower_low_catchup_pull_limit_v1.mjs
           node --check scripts/prove_void_public_seed_numeric_evidence_v1.mjs
           node --check scripts/prove_void_public_bootstrap_client_closed_response_v1.mjs
           node --check scripts/prove_void_public_seed_tls_servername_v1.mjs
@@ -101,7 +116,42 @@ jobs:
           node scripts/prove_void_public_seed_tls_servername_v1.mjs
           node scripts/prove_void_public_seed_numeric_evidence_v1.mjs
           node --check tools/void-public-seed-client-adapter-v1.mjs
-          node -e 'const m=require("./public/bootstrap/v1.json"); if(m.status!=="hold_no_stable_seed"||m.sync_endpoints.length!==0) process.exit(1)'
+          node - <<'NODE'
+          const manifest = require("./public/bootstrap/v1.json");
+          const fail = (message) => { throw new Error(message); };
+          if (manifest.schema !== "void_public_bootstrap_v1") fail("bootstrap schema mismatch");
+          if (manifest.network !== "VOID Network" || Number(manifest.chain_id) !== 2050) {
+            fail("bootstrap network or chain mismatch");
+          }
+          if (manifest.private_tailnet_endpoints_published !== false) {
+            fail("bootstrap publishes private Tailnet endpoints");
+          }
+          const authority = Object.values(manifest.authority || {});
+          if (authority.length === 0 || authority.some((value) => value !== false)) {
+            fail("bootstrap authority boundary mismatch");
+          }
+          if (!Array.isArray(manifest.sync_endpoints)) fail("bootstrap sync_endpoints missing");
+          if (manifest.status === "hold_no_stable_seed") {
+            if (manifest.sync_endpoints.length !== 0) fail("hold manifest publishes sync endpoints");
+          } else if (manifest.status === "stable_https_seed") {
+            if (manifest.sync_endpoints.length < 1) fail("stable manifest has no sync endpoints");
+            for (const endpoint of manifest.sync_endpoints) {
+              if (
+                endpoint.transport !== "https" ||
+                endpoint.enabled !== true ||
+                endpoint.temporary !== false ||
+                typeof endpoint.base !== "string" ||
+                !endpoint.base.startsWith("https://")
+              ) {
+                fail("stable manifest endpoint boundary mismatch");
+              }
+            }
+          } else {
+            fail(`unsupported bootstrap status ${manifest.status}`);
+          }
+          console.log(`canonical_manifest_status=${manifest.status}`);
+          console.log("canonical_manifest_state_supported=true");
+          NODE
 
   prove:
     runs-on: ubuntu-24.04
@@ -132,10 +182,60 @@ jobs:
 
       - name: Prove public bootstrap client resilience
         run: |
+          set -euo pipefail
+          canonical="$PWD/public/bootstrap/v1.json"
+          backup="$RUNNER_TEMP/void-public-bootstrap-client-resilience-canonical-$GITHUB_RUN_ID-$GITHUB_JOB.json"
+          cp "$canonical" "$backup"
+          restore_canonical() {
+            cp "$backup" "$canonical"
+          }
+          trap restore_canonical EXIT
+
+          node --input-type=module <<'NODE'
+          import fs from "node:fs";
+          import { objectWithId } from "./scripts/lib/void_public_seed_qualification_v1.mjs";
+          const body = {
+            schema: "void_public_bootstrap_v1",
+            network: "VOID Network",
+            chain_id: 2050,
+            status: "hold_no_stable_seed",
+            generated_at: "2026-08-06T09:23:00.000Z",
+            sync_endpoints: [],
+            onion_endpoints: [],
+            private_tailnet_endpoints_published: false,
+            authority: {
+              private_routes_exposed: false,
+              wallet_authority: false,
+              signer_authority: false,
+              validator_authority: false,
+              treasury_authority: false,
+              work_credit_authority: false,
+              money_movement_authority: false,
+            },
+            notes: "Isolated client-resilience hold fixture; independent of canonical publication state.",
+          };
+          const hold = objectWithId("voidpbm1_", body, "manifest_id");
+          fs.writeFileSync(
+            "public/bootstrap/v1.json",
+            `${JSON.stringify(hold, null, 2)}\n`,
+            { mode: 0o600 },
+          );
+          NODE
+
           npx --no-install tsx scripts/prove_void_public_bootstrap_client_resilience_v1.mjs
           node scripts/prove_follower_legacy_v2fs_and_duplicate_dial_v1.mjs
+          node scripts/prove_mainnet0_historical_public_bootstrap_v1.mjs
+          node scripts/prove_follower_legacy_empty_tx_root_v1.mjs
+          npx --no-install tsx scripts/prove_follower_low_catchup_pull_limit_v1.mjs
           node scripts/prove_void_public_seed_numeric_evidence_v1.mjs
           npx --no-install tsx scripts/prove_void_public_bootstrap_client_closed_response_v1.mjs
+
+          restore_canonical
+          cmp -s "$backup" "$canonical"
+          rm -f "$backup"
+          trap - EXIT
+          echo 'client_resilience_fixture_isolated=true'
+          echo 'repository_manifest_state_independent=true'
 
       - name: Confirm compiled catch-up boundary
         run: |
@@ -147,7 +247,14 @@ jobs:
           grep -F 'VOID_FOLLOWER_RESPONSE_BOUND_V1' dist/node_core.js
           grep -F 'VOID_FOLLOWER_LEGACY_V2FS_ORIGINS' dist/node_core.js
           grep -F 'saveAuthorizedLegacyCommitDirectV2fs' dist/chain/seg_store.js
+          grep -F 'saveAuthorizedMainnet0GenesisMinimalV1' dist/chain/seg_store.js
+          grep -F 'saveAuthorizedMainnet0HistoricalLegacyV2fs' dist/chain/seg_store.js
+          grep -F 'mainnet0_historical_v2fs_genesis_forbidden' dist/chain/mainnet0_historical_compat_v1.js
+          grep -F 'VOID_PUBLIC_SEED_RESPONSE_AUTHORITY_SCHEMA_V1' dist/http/follower_verified_public_bootstrap_authority_v1.js
+          grep -F 'verifiedPublicBootstrapChallengeStillLiveV1' dist/http/follower_verified_public_bootstrap_authority_v1.js
+          grep -F 'VOID_PUBLIC_BOOTSTRAP_HISTORICAL_RESPONSE_AUTHORITY_V1' dist/node_core.js
           grep -F 'proposer.commit-direct.v2fs' dist/chain/legacy_commit_direct_v2fs_v1.js
+          grep -F 'VOID_LEGACY_EMPTY_TX_ROOT_V1' dist/chain/legacy_commit_direct_v2fs_v1.js
           grep -F 'preferredAuthenticatedDuplicateDirectionV1' dist/node_core.js
 
       - name: Diff hygiene across committed change range

@@ -12,11 +12,11 @@ The arena fans one provider-neutral Apollyon trial across reviewed OpenRouter co
 
 If a requested mode has zero eligible contestants, the arena fails closed rather than returning an empty successful run.
 
-## Credentialless arena
+## Provider-credentialless arena
 
-The arena does not receive `OPENROUTER_API_KEY`, a credential directory, a broker state directory, or an execution-claim-root descriptor. It never calls OpenRouter directly.
+The arena does not receive `OPENROUTER_API_KEY`, a broker state directory, or an execution-claim-root descriptor, and it never calls OpenRouter directly. The reviewed production arena/admission unit does receive its own systemd `$CREDENTIALS_DIRECTORY` containing only `apollyon_openrouter_admission_mac_v1`; the adapter reads that local MAC after constitutional/sanitization admission to authenticate one exact-work capability.
 
-Each selected contestant runs through the credentialless adapter, which sends secretless IPC to the exact-once broker. The broker alone owns provider credentials, network access, and durable provider-execution authority.
+Each selected contestant runs through the provider-credentialless adapter, which sends bounded inline-HMAC IPC to the exact-once broker. The broker alone owns the OpenRouter credential, provider network access, and durable provider-execution authority.
 
 ## Stable arena intent
 
@@ -28,7 +28,7 @@ VOID_OPENROUTER_ARENA_LOGICAL_OPERATION_INTENT_SHA256=<stable 64-hex arena inten
 
 For each selected model the arena deterministically derives a distinct contestant logical intent from the arena intent, registry generation, arena mode, and contestant model. Re-running the same logical arena operation reproduces those identities; different contestants receive different identities.
 
-The arena constructs an explicit allowlisted contestant environment instead of forwarding its complete parent environment. Credential and legacy execution-claim variables are not forwarded.
+The arena constructs an explicit allowlisted contestant environment instead of forwarding its complete parent environment. No provider credential or legacy execution-claim variable is forwarded; only the systemd `CREDENTIALS_DIRECTORY` needed for exact-work admission-capability authentication is propagated to the reviewed adapter.
 
 ## Per-contestant wall
 
@@ -77,7 +77,7 @@ Arena completion never edits the registry or grants VOID authority.
 
 ## Invocation
 
-This source-only PR does not deploy the broker. Production arena execution requires the separately reviewed local broker service/socket.
+This source-only PR does not deploy the broker or arena/admission unit. Production arena execution requires the separately reviewed local broker service/socket plus a distinct arena/admission systemd unit identity with its own read-only copy of `apollyon_openrouter_admission_mac_v1` and no `OPENROUTER_API_KEY`. The invocation shape below assumes systemd has already supplied `$CREDENTIALS_DIRECTORY`.
 
 ```bash
 TRIAL=./trial-packet.json
@@ -102,11 +102,11 @@ ARENA_LOGICAL_OPERATION_INTENT_SHA256=<trusted-stable-64-hex-digest>
 VOID_OPENROUTER_ARENA_ENABLE=1 VOID_OPENROUTER_ENABLE=1 VOID_OPENROUTER_ACK_PROVIDER_POLICY=1 VOID_OPENROUTER_ACK_REGISTRY_SHA256="$REGISTRY_SHA256" VOID_OPENROUTER_ACK_PUBLIC_RETENTION=1 VOID_OPENROUTER_ACK_PUBLIC_TRIAL_SHA256="$TRIAL_SHA256" VOID_OPENROUTER_ARENA_MODE=qualification VOID_OPENROUTER_ARENA_LOGICAL_OPERATION_INTENT_SHA256="$ARENA_LOGICAL_OPERATION_INTENT_SHA256" VOID_OPENROUTER_ARENA_OUTPUT_ROOT_FD=8 node scripts/apollyon_openrouter_alignment_arena_v1.mjs run   "$TRIAL" "$STAGING" "$MANIFEST" "$ARENA_OUTPUT" "$ADMISSION_AT"   8<"$ARENA_OUTPUT"
 ```
 
-No provider credential or execution-claim FD is supplied to the arena.
+No provider credential or execution-claim FD is supplied to the arena. Its only credential is the local admission-MAC copy delivered by the reviewed systemd unit through `$CREDENTIALS_DIRECTORY`.
 
 ## Proof contract
 
-The focused arena proof performs no external provider call. It proves qualification/scored selection behavior, fail-closed empty scored mode, deterministic distinct per-contestant intents, credentialless/claim-root-free contestant environments, bounded HOLD continuation, broker-digest GREEN evidence, absence/rejection of legacy execution-claim fields, HOLD redaction, no automatic promotion, and no authority grant.
+The focused arena proof performs no external provider call. It proves qualification/scored selection behavior, fail-closed empty scored mode, deterministic distinct per-contestant intents, provider-credentialless/claim-root-free contestant environments with explicit admission credential-directory forwarding, bounded HOLD continuation, broker-digest GREEN evidence, absence/rejection of legacy execution-claim fields, HOLD redaction, no automatic promotion, and no authority grant.
 
 ## Authority boundary
 

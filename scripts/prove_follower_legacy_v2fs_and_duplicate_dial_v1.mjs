@@ -13,6 +13,7 @@ import { computeRoots } from "../dist/chain/block.js";
 import { SegStore } from "../dist/chain/seg_store.js";
 import {
   VOID_LEGACY_COMMIT_DIRECT_V2FS_MARKER_V1,
+  VOID_LEGACY_EMPTY_TX_ROOT_V1,
   validateLegacyCommitDirectV2fsForAppendV1,
 } from "../dist/chain/legacy_commit_direct_v2fs_v1.js";
 import {
@@ -29,7 +30,10 @@ function tempRoot(label) {
 }
 
 function makeLegacy(number, txs = []) {
-  const { txRoot } = computeRoots(txs, []);
+  const { txRoot: computedTxRoot } = computeRoots(txs, []);
+  const txRoot = txs.length === 0
+    ? VOID_LEGACY_EMPTY_TX_ROOT_V1
+    : computedTxRoot;
   return {
     number,
     ts: 1_786_754_384_925 + number,
@@ -198,6 +202,11 @@ function createFollowerFixture() {
     loadHeadNumber: () => state.head,
     loadBlock: (number) => blocks.get(Number(number)) ?? null,
     saveAuthorizedLegacyCommitDirectV2fs: (block) => {
+      state.legacyWrites += 1;
+      blocks.set(Number(block.number), block);
+      state.head = Math.max(state.head, Number(block.number));
+    },
+    saveAuthorizedMainnet0HistoricalLegacyV2fs: (block) => {
       state.legacyWrites += 1;
       blocks.set(Number(block.number), block);
       state.head = Math.max(state.head, Number(block.number));

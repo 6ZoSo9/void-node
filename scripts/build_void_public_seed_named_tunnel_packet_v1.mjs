@@ -118,7 +118,7 @@ function normalizeUuid(raw) {
   return value;
 }
 
-function regularPath(raw, label, { executable = false, mode600 = false } = {}) {
+function regularPath(raw, label, { executable = false, mode600 = false, ownerOnlyCredential = false } = {}) {
   const input = path.resolve(rejectControl(String(raw), label));
   const lstat = fs.lstatSync(input);
   if (lstat.isSymbolicLink() || !lstat.isFile()) throw new Error(`${label} must be one regular non-symlink file`);
@@ -126,6 +126,12 @@ function regularPath(raw, label, { executable = false, mode600 = false } = {}) {
   if (real !== input) throw new Error(`${label} path must already be canonical`);
   if (executable && (lstat.mode & 0o111) === 0) throw new Error(`${label} is not executable`);
   if (mode600 && (lstat.mode & 0o777) !== 0o600) throw new Error(`${label} must have mode 0600`);
+  if (ownerOnlyCredential) {
+    const mode = lstat.mode & 0o777;
+    if (mode !== 0o400 && mode !== 0o600) {
+      throw new Error(`${label} must have mode 0400 or 0600`);
+    }
+  }
   return input;
 }
 
@@ -159,6 +165,15 @@ function systemdQuote(value) {
   return `"${text.replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"`;
 }
 
+function systemdWorkingDirectory(value) {
+  const text = rejectControl(String(value), "systemd WorkingDirectory");
+  if (!path.isAbsolute(text)) throw new Error("systemd WorkingDirectory must be absolute");
+  if (/[^A-Za-z0-9_./:+@-]/.test(text)) {
+    throw new Error("repository root contains a character unsupported by portable systemd WorkingDirectory");
+  }
+  return text;
+}
+
 function writeExclusive(file, content, mode) {
   fs.writeFileSync(file, content, { encoding: "utf8", flag: "wx", mode });
 }
@@ -176,8 +191,9 @@ function main() {
   const args = parseArgs(process.argv.slice(2));
   const hostname = normalizeHostname(args.hostname);
   const tunnelId = normalizeUuid(args["tunnel-id"]);
-  const credentialsFile = regularPath(args["credentials-file"], "credentials file", { mode600: true });
+  const credentialsFile = regularPath(args["credentials-file"], "credentials file", { ownerOnlyCredential: true });
   const repoRoot = realDirectory(args["repo-root"], "repository root");
+  const workingDirectory = systemdWorkingDirectory(repoRoot);
   if (isPathInside(repoRoot, credentialsFile)) {
     throw new Error("credentials file must remain outside the repository");
   }
@@ -229,7 +245,7 @@ function main() {
     "",
     "[Service]",
     "Type=simple",
-    `WorkingDirectory=${systemdQuote(repoRoot)}`,
+    `WorkingDirectory=${workingDirectory}`,
     "Environment=VOID_PUBLIC_SEED_BIND=127.0.0.1",
     "Environment=VOID_PUBLIC_SEED_PORT=4111",
     "Environment=VOID_PUBLIC_SEED_UPSTREAM=http://127.0.0.1:4100",
@@ -254,7 +270,7 @@ function main() {
     "",
     "[Service]",
     "Type=simple",
-    `WorkingDirectory=${systemdQuote(repoRoot)}`,
+    `WorkingDirectory=${workingDirectory}`,
     `ExecStart=${systemdQuote(cloudflaredPath)} --no-autoupdate --config ${systemdQuote(configPath)} tunnel run ${systemdQuote(tunnelId)}`,
     "Restart=always",
     "RestartSec=5",
