@@ -15,6 +15,7 @@ import {
   VOID_LEGACY_COMMIT_DIRECT_V2FS_MARKER_V1,
   VOID_LEGACY_EMPTY_TX_ROOT_V1,
   validateLegacyCommitDirectV2fsForAppendV1,
+  validateMainnet0HistoricalLegacyCommitDirectV2fsForAppendV1,
 } from "../dist/chain/legacy_commit_direct_v2fs_v1.js";
 import {
   followerLegacyV2fsOriginAuthorizedV1,
@@ -44,6 +45,22 @@ function makeLegacy(number, txs = []) {
   };
 }
 
+function makeHistoricalHeaderObjectLegacy(number, ts) {
+  return {
+    number,
+    ts,
+    txs: [],
+    _commit: VOID_LEGACY_COMMIT_DIRECT_V2FS_MARKER_V1,
+    txRoot: VOID_LEGACY_EMPTY_TX_ROOT_V1,
+    header: {
+      txRoot: {
+        root: VOID_LEGACY_EMPTY_TX_ROOT_V1,
+        leaves: [],
+      },
+    },
+  };
+}
+
 function walPath(root) {
   return path.join(root, "wal", "00000000.wal");
 }
@@ -67,6 +84,30 @@ function proveLegacyEnvelopeAndStore() {
   const b0 = makeLegacy(0);
   const b1 = makeLegacy(1);
   const b2 = makeLegacy(2);
+  const historicalObjectB1 = makeHistoricalHeaderObjectLegacy(1, b1.ts);
+
+  // Exact canonical Mainnet-0 block observed at the Nimo catch-up boundary.
+  const canonical198195Parent = makeLegacy(198195);
+  const canonical198196 = makeHistoricalHeaderObjectLegacy(
+    198196,
+    1776479414229,
+  );
+  assert.deepEqual(
+    validateLegacyCommitDirectV2fsForAppendV1(
+      canonical198196,
+      canonical198195Parent,
+    ),
+    { ok: false, reason: "legacy_v2fs_invalid_header_tx_root" },
+    "ordinary legacy validator unexpectedly admitted historical object form",
+  );
+  assert.deepEqual(
+    validateMainnet0HistoricalLegacyCommitDirectV2fsForAppendV1(
+      canonical198196,
+      canonical198195Parent,
+    ),
+    { ok: true },
+    "exact canonical Mainnet-0 #198196 historical object form was rejected",
+  );
 
   assert.deepEqual(validateLegacyCommitDirectV2fsForAppendV1(b0, null), { ok: true });
   assert.deepEqual(validateLegacyCommitDirectV2fsForAppendV1(b1, b0), { ok: true });
@@ -111,6 +152,93 @@ function proveLegacyEnvelopeAndStore() {
     assert.equal(fs.existsSync(walPath(root)), false);
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
+  }
+
+  const historicalObjectRoot = tempRoot("historical-header-object");
+  try {
+    const store = new SegStore(historicalObjectRoot, { sparseEvery: 1 });
+    store.saveAuthorizedLegacyCommitDirectV2fs(b0);
+    assert.throws(
+      () => store.saveAuthorizedLegacyCommitDirectV2fs(historicalObjectB1),
+      /invalid block: legacy_v2fs_invalid_header_tx_root/,
+      "ordinary/manual legacy persistence admitted historical object form",
+    );
+    assert.equal(store.loadHeadNumber(), 0);
+    assert.equal(store.loadBlock(1), null);
+
+    store.saveAuthorizedMainnet0HistoricalLegacyV2fs(historicalObjectB1);
+    assert.equal(store.loadHeadNumber(), 1);
+    assert.deepEqual(store.loadBlock(1), historicalObjectB1);
+  } finally {
+    fs.rmSync(historicalObjectRoot, { recursive: true, force: true });
+  }
+
+  const malformedHistoricalObjects = [
+    {
+      label: "non-empty leaves",
+      block: {
+        ...historicalObjectB1,
+        header: {
+          txRoot: {
+            root: VOID_LEGACY_EMPTY_TX_ROOT_V1,
+            leaves: ["11".repeat(32)],
+          },
+        },
+      },
+    },
+    {
+      label: "root mismatch",
+      block: {
+        ...historicalObjectB1,
+        header: {
+          txRoot: {
+            root: "11".repeat(32),
+            leaves: [],
+          },
+        },
+      },
+    },
+    {
+      label: "extra object key",
+      block: {
+        ...historicalObjectB1,
+        header: {
+          txRoot: {
+            root: VOID_LEGACY_EMPTY_TX_ROOT_V1,
+            leaves: [],
+            extra: true,
+          },
+        },
+      },
+    },
+    {
+      label: "non-empty tx object form",
+      block: {
+        ...makeLegacy(
+          1,
+          [{ hash: "22".repeat(32), body: { proof: "non-empty-object" } }],
+        ),
+        header: {
+          txRoot: {
+            root: computeRoots(
+              [{ hash: "22".repeat(32), body: { proof: "non-empty-object" } }],
+              [],
+            ).txRoot,
+            leaves: [],
+          },
+        },
+      },
+    },
+  ];
+  for (const { label, block } of malformedHistoricalObjects) {
+    assert.equal(
+      validateMainnet0HistoricalLegacyCommitDirectV2fsForAppendV1(
+        block,
+        b0,
+      ).ok,
+      false,
+      `${label} crossed historical legacy object boundary`,
+    );
   }
 
   const v2Root = tempRoot("wal-v2");
@@ -316,6 +444,21 @@ async function provePullOnceOriginGateAndLegacyTimestamp() {
     assert.equal(wrongMarker.state.legacyWrites, 0);
     assert.equal(wrongMarker.state.modernWrites, 0);
     assert.equal(wrongMarker.state.head, -1);
+
+    // Manual legacy-origin authority remains strict string-only. The structured
+    // old-writer header is available only after verified public-bootstrap HMAC.
+    servedBlocks = [makeHistoricalHeaderObjectLegacy(0, 1776479414229)];
+    const manualObject = createFollowerFixture();
+    const manualObjectResult = await manualObject.node.pullOnce(origin);
+    assert.equal(manualObjectResult.ok, false);
+    assert.equal(manualObjectResult.invalidBlock, 0);
+    assert.equal(
+      manualObjectResult.invalidReason,
+      "legacy_v2fs_invalid_header_tx_root",
+    );
+    assert.equal(manualObject.state.legacyWrites, 0);
+    assert.equal(manualObject.state.modernWrites, 0);
+    assert.equal(manualObject.state.head, -1);
   } finally {
     if (oldOrigins === undefined) delete process.env.VOID_FOLLOWER_LEGACY_V2FS_ORIGINS;
     else process.env.VOID_FOLLOWER_LEGACY_V2FS_ORIGINS = oldOrigins;
@@ -361,4 +504,8 @@ console.log("wrong_legacy_marker_falls_through_modern=false");
 console.log("legacy_origin_default_off=true");
 console.log("legacy_wal_authority_tagged=true");
 console.log("legacy_receipt_timestamp_uses_ts=true");
+console.log("mainnet0_198196_historical_header_txroot_object=true");
+console.log("historical_header_txroot_object_exact_shape_only=true");
+console.log("manual_legacy_header_txroot_object_rejected=true");
+console.log("ordinary_legacy_header_txroot_object_rejected=true");
 console.log("simultaneous_dial_direction_deterministic=true");
