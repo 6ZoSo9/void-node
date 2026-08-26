@@ -1,12 +1,13 @@
-// VOID_OX_ALPHA_PROVIDER_BOUNDARY_V8_3 - provider-neutral durable send boundary (source-only).
+// VOID_OX_ALPHA_PROVIDER_BOUNDARY_V8_4 - provider-neutral durable send boundary (source-only).
 // Linux-only. This module contains NO network, fetch, HTTP, DNS, or provider credential code:
 // the injected sendProviderOnce callback exists solely so ordering/durability/crash behavior can
 // be exercised deterministically. Ordering invariant: durable PROVIDER_ADMITTED publication and
 // every post-admission proof precede EXACTLY ONE injected send callback invocation, all inside
 // ONE kernel flock on the pinned ledger directory. A thrown/ambiguous send leaves the durable
-// broker state UNCERTAIN forever: no result, reconciliation, retry, TTL, reclaim, or recovery
-// event is ever appended here, and process death can never restore RESERVED. Receipts returned
-// are audit/output evidence only and are NEVER reusable send capabilities or admission tokens.
+// broker state UNCERTAIN forever: no result witness, retry, TTL, reclaim, or provider resend can
+// be synthesized later. A validated returned result must first become durable RESULT_WITNESSED;
+// only a capsule matching that independent ledger witness may later become PROVIDER_RESULT.
+// Receipts returned are audit/output evidence only and are NEVER reusable send capabilities.
 import { spawnSync } from 'node:child_process';
 import {
   acceptedResultDigestV1,
@@ -28,7 +29,7 @@ import {
   verifyLedgerChainV1,
 } from './apollyon_execution_ledger_record_v1.mjs';
 
-const MODULE_ID = 'VOID_OX_ALPHA_PROVIDER_BOUNDARY_V8_3';
+const MODULE_ID = 'VOID_OX_ALPHA_PROVIDER_BOUNDARY_V8_4';
 const FLOCK_PATH = '/usr/bin/flock'; // exact helper path; no PATH resolution drift
 const HELPER_TIMEOUT_MS = 5000; // fixed bounded budget; never extended
 const HELPER_MAX_STDERR_BYTES = 8 * 1024;
@@ -55,7 +56,6 @@ function assertPinnedDirectoryObjectV1(directoryHandle) {
   }
   return handle; // the ONLY fd authority; any separately supplied fd field is ignored entirely
 }
-
 
 function runFlockHelperV1(flockArgs, handle) {
   return spawnSync(
@@ -103,9 +103,10 @@ function sameStateFieldsV1(a, b) {
 }
 
 // ONE indivisible critical section: kernel flock precedes loading durable history; durable
-// PROVIDER_ADMITTED publication, the single injected send, PROVIDER_RESULT publication, and all
-// post-publication proofs occur while the SAME flock is held; unlock runs in finally and ONLY a
-// proven successful unlock clears the local-held marker.
+// PROVIDER_ADMITTED publication, the single injected send, RESULT_WITNESSED publication,
+// accepted-result capsule publication, PROVIDER_RESULT publication, and all post-publication
+// proofs occur while the SAME flock is held; unlock runs in finally and ONLY a proven successful
+// unlock clears the local-held marker.
 export async function runBrokerProviderAttemptV1(
   directoryHandle,
   acceptedResultRoot,
@@ -151,9 +152,9 @@ export async function runBrokerProviderAttemptV1(
     const currentState = replayBrokerStateFromLedgerV1(current);
     const head = current[0];
     const tail = current[current.length - 1];
-    // Gate: exactly RESERVED bound to the durable head; ABSENT/UNCERTAIN/ACCEPTED/blocked/
-    // CONFLICT or corrupt/no-op history rejects HERE, before any send, so crash ambiguity
-    // after a prior admission can never reach sendProviderOnce again on a later invocation.
+    // Gate: exactly RESERVED bound to the durable head; ABSENT/UNCERTAIN/RESULT_WITNESSED/
+    // ACCEPTED/blocked/CONFLICT or corrupt/no-op history rejects HERE, before any send, so crash
+    // ambiguity after a prior admission can never reach sendProviderOnce again on a later invocation.
     if (currentState.phase !== BROKER_STATE_V1.RESERVED ||
         currentState.operationId !== head.operationId ||
         currentState.acceptedDigest !== null) {
@@ -208,7 +209,7 @@ export async function runBrokerProviderAttemptV1(
     // passed), executed at most once per call of this function; there is no loop and no retry.
     const outcome = await sendProviderOnce();
     // Throwing/malformed sends land in the catch below: durable state stays UNCERTAIN, NOTHING is
-    // appended, and sendProviderOnce is never invoked again by this module.
+    // appended after PROVIDER_ADMITTED, and sendProviderOnce is never invoked again by this module.
     if (!outcome || typeof outcome !== 'object' || Array.isArray(outcome)) {
       fail('sendProviderOnce must return an exact plain object with keys resultDigest and value only');
     }
@@ -228,9 +229,47 @@ export async function runBrokerProviderAttemptV1(
       fail('sendProviderOnce resultDigest does not bind the exact accepted result payload');
     }
 
-    // F1 repair: publish and fsync the complete accepted result capsule BEFORE PROVIDER_RESULT.
-    // The capsule alone grants no authority: if the process dies here, durable ledger state
-    // remains UNCERTAIN and later reads refuse capsule replay or provider resend.
+    // Independent post-send authority: before any accepted-result namespace bytes can influence
+    // recovery, durably witness the exact validated result digest in the broker-owned hash chain.
+    const witnessedRecord = makeLedgerRecordV1({
+      type: LEDGER_EVENT_V1.RESULT_WITNESSED,
+      operationId: head.operationId,
+      logicalOperationIntentDigest: head.logicalOperationIntentDigest,
+      logicalWorkDigest: head.logicalWorkDigest,
+      sequence: postAdmission.length,
+      previousRecordSha256: postAdmission[postAdmission.length - 1].recordSha256,
+      resultDigest,
+    });
+    const witnessedState = reduceBrokerStateV1(uncertainState, {
+      type: 'RESULT_WITNESSED', operationId: head.operationId, resultDigest,
+    });
+    if (witnessedState.phase !== BROKER_STATE_V1.RESULT_WITNESSED
+        || witnessedState.operationId !== head.operationId
+        || witnessedState.acceptedDigest !== resultDigest) {
+      fail('reducer did not yield exact RESULT_WITNESSED for the validated provider result');
+    }
+    const witnessedCandidate = [...postAdmission, witnessedRecord];
+    verifyLedgerChainV1(witnessedCandidate);
+    if (!sameStateFieldsV1(replayBrokerStateFromLedgerV1(witnessedCandidate), witnessedState)) {
+      fail('witness candidate replay disagrees with reducer authorization; refusing publication');
+    }
+    await publishRecordBytesDurableV1(
+      directoryHandle,
+      witnessedRecord.sequence,
+      Buffer.from(encodeLedgerRecordBytesV1(witnessedRecord)),
+    );
+    const postWitness = await loadLedgerRecordsV1(directoryHandle);
+    if (postWitness.length !== witnessedCandidate.length) fail('post-witness ledger length mismatch; HOLD');
+    if (postWitness[postWitness.length - 1].recordSha256 !== witnessedRecord.recordSha256) {
+      fail('post-witness tail does not match the published result witness; HOLD');
+    }
+    if (!sameStateFieldsV1(replayBrokerStateFromLedgerV1(postWitness), witnessedState)) {
+      fail('post-witness replay is not exact RESULT_WITNESSED; HOLD');
+    }
+
+    // Publish and fsync the complete accepted result capsule only AFTER the independent durable
+    // result witness. A capsule can supply result bytes for recovery, but it never mints the digest
+    // authority required to append PROVIDER_RESULT.
     const acceptedCapsule = await publishAcceptedResultCapsuleV1(
       acceptedResultRoot,
       acceptedResultBinding,
@@ -239,24 +278,24 @@ export async function runBrokerProviderAttemptV1(
       acceptedCapsuleFaultAt === null ? null : { faultAt: acceptedCapsuleFaultAt },
     );
 
-    // Result record derived internally from the SAME durable binding; caller supplies no record.
+    // Result record derived internally from the SAME witnessed durable binding; caller supplies no record.
     const resultRecord = makeLedgerRecordV1({
       type: LEDGER_EVENT_V1.PROVIDER_RESULT,
       operationId: head.operationId,
       logicalOperationIntentDigest: head.logicalOperationIntentDigest,
       logicalWorkDigest: head.logicalWorkDigest,
-      sequence: postAdmission.length,
-      previousRecordSha256: postAdmission[postAdmission.length - 1].recordSha256,
+      sequence: postWitness.length,
+      previousRecordSha256: postWitness[postWitness.length - 1].recordSha256,
       resultDigest,
     });
     const resultEvent = { type: 'PROVIDER_RESULT', operationId: head.operationId, resultDigest };
-    const acceptedState = reduceBrokerStateV1(uncertainState, resultEvent);
+    const acceptedState = reduceBrokerStateV1(witnessedState, resultEvent);
     if (acceptedState.phase !== BROKER_STATE_V1.ACCEPTED ||
         acceptedState.acceptedDigest !== resultDigest ||
         acceptedState.operationId !== head.operationId) {
-      fail('reducer did not yield exact ACCEPTED for the validated result digest');
+      fail('reducer did not yield exact ACCEPTED for the witnessed result digest');
     }
-    const resultCandidate = [...postAdmission, resultRecord];
+    const resultCandidate = [...postWitness, resultRecord];
     verifyLedgerChainV1(resultCandidate);
     if (!sameStateFieldsV1(replayBrokerStateFromLedgerV1(resultCandidate), acceptedState)) {
       fail('result candidate replay disagrees with reducer authorization; refusing publication');
@@ -269,7 +308,7 @@ export async function runBrokerProviderAttemptV1(
       fail('post-result tail does not match the published result record; HOLD');
     }
     if (!sameStateFieldsV1(replayBrokerStateFromLedgerV1(final), acceptedState)) {
-      fail('post-result replay is not exact ACCEPTED with the sent digest; HOLD');
+      fail('post-result replay is not exact ACCEPTED with the witnessed digest; HOLD');
     }
     // NON-AUTHORITY receipt: descriptive evidence/output only; never a reusable send capability.
     receipt = Object.freeze({
@@ -302,7 +341,10 @@ export async function runBrokerProviderAttemptV1(
   if (pendingError) throw pendingError;
   return receipt;
 }
-// No-send recovery for a complete broker-private stage/final left while the ledger is UNCERTAIN.
+
+// No-send recovery for a complete broker-private stage/final left after the broker has durably
+// witnessed the exact validated provider-result digest. A plain UNCERTAIN operation has no such
+// authority and cannot be promoted by capsule bytes alone.
 export async function recoverBrokerProviderAcceptedResultV1(
   directoryHandle, acceptedResultRoot, rawAcceptedResultBinding,
 ) {
@@ -317,12 +359,19 @@ export async function recoverBrokerProviderAcceptedResultV1(
     const current=await loadLedgerRecordsV1(directoryHandle);
     if(current.length===0)return null;
     const state=replayBrokerStateFromLedgerV1(current),head=current[0],tail=current[current.length-1];
-    if(state.phase!==BROKER_STATE_V1.UNCERTAIN||state.operationId!==head.operationId||state.acceptedDigest!==null)return null;
+    if(state.phase!==BROKER_STATE_V1.RESULT_WITNESSED||state.operationId!==head.operationId
+        ||typeof state.acceptedDigest!=='string'||!HEX64.test(state.acceptedDigest))return null;
+    if(tail.type!==LEDGER_EVENT_V1.RESULT_WITNESSED||tail.resultDigest!==state.acceptedDigest){
+      fail('durable RESULT_WITNESSED phase is not bound to the exact tail witness digest');
+    }
     if(acceptedResultBinding.operationId!==head.operationId
         ||acceptedResultBinding.logicalOperationIntentDigest!==head.logicalOperationIntentDigest
-        ||acceptedResultBinding.logicalWorkDigest!==head.logicalWorkDigest)fail('recovery binding does not match durable UNCERTAIN head');
+        ||acceptedResultBinding.logicalWorkDigest!==head.logicalWorkDigest)fail('recovery binding does not match durable RESULT_WITNESSED head');
     const recovered=await recoverAcceptedResultCapsuleCandidateV1(acceptedResultRoot,acceptedResultBinding);
     if(recovered===null)return null;
+    if(recovered.resultDigest!==state.acceptedDigest){
+      fail('recovered capsule digest does not match independent durable result witness');
+    }
     const resultRecord=makeLedgerRecordV1({
       type:LEDGER_EVENT_V1.PROVIDER_RESULT,operationId:head.operationId,
       logicalOperationIntentDigest:head.logicalOperationIntentDigest,
@@ -330,15 +379,19 @@ export async function recoverBrokerProviderAcceptedResultV1(
       previousRecordSha256:tail.recordSha256,resultDigest:recovered.resultDigest,
     });
     const acceptedState=reduceBrokerStateV1(state,{type:'PROVIDER_RESULT',operationId:head.operationId,resultDigest:recovered.resultDigest});
-    if(acceptedState.phase!==BROKER_STATE_V1.ACCEPTED||acceptedState.acceptedDigest!==recovered.resultDigest)fail('recovered result did not reduce UNCERTAIN to exact ACCEPTED');
+    if(acceptedState.phase!==BROKER_STATE_V1.ACCEPTED||acceptedState.acceptedDigest!==recovered.resultDigest)fail('recovered result did not reduce RESULT_WITNESSED to exact ACCEPTED');
     const candidate=[...current,resultRecord];verifyLedgerChainV1(candidate);
     if(!sameStateFieldsV1(replayBrokerStateFromLedgerV1(candidate),acceptedState))fail('recovery candidate replay disagrees with reducer');
     await publishRecordBytesDurableV1(directoryHandle,resultRecord.sequence,Buffer.from(encodeLedgerRecordBytesV1(resultRecord)));
     const final=await loadLedgerRecordsV1(directoryHandle);
     if(final.length!==candidate.length||final[final.length-1].recordSha256!==resultRecord.recordSha256
         ||!sameStateFieldsV1(replayBrokerStateFromLedgerV1(final),acceptedState))fail('recovered PROVIDER_RESULT did not become exact durable ACCEPTED');
+    const admittedRecord=current[current.length-2];
+    if(!admittedRecord||admittedRecord.type!==LEDGER_EVENT_V1.PROVIDER_ADMITTED){
+      fail('RESULT_WITNESSED recovery history lacks exact preceding PROVIDER_ADMITTED record');
+    }
     receipt=Object.freeze({
-      resultDigest:recovered.resultDigest,value:recovered.value,admittedRecordSha256:tail.recordSha256,
+      resultDigest:recovered.resultDigest,value:recovered.value,admittedRecordSha256:admittedRecord.recordSha256,
       resultRecordSha256:resultRecord.recordSha256,ledgerLength:final.length,recoveredWithoutProviderSend:true,
     });
   } catch(error){pendingError=error}
