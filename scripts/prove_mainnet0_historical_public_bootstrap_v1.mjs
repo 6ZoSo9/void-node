@@ -446,14 +446,91 @@ async function proveAdapterOnlyFollowerAndManualPeerIsolation() {
     assert.equal(trustedStore.loadHeadNumber(), 2);
 
     await close(adapter.server);
-    replacementServer = chainServer({ blocks: [makeMinimal(0)] });
+
+    let replacementHeadRequests = 0;
+    let replacementRangeRequests = 0;
+    replacementServer = http.createServer((req, res) => {
+      const url = new URL(req.url || "/", "http://127.0.0.1");
+      if (url.pathname === "/blocks/latest/number2.json") {
+        replacementHeadRequests += 1;
+        sendJson(res, 200, { number: 0 });
+        return;
+      }
+      if (url.pathname === "/head") {
+        replacementHeadRequests += 1;
+        sendJson(res, 200, { head: 0 });
+        return;
+      }
+      if (url.pathname === "/__void/demo/summary.json") {
+        replacementHeadRequests += 1;
+        sendJson(res, 200, { chain: { head: 0 } });
+        return;
+      }
+      if (url.pathname === "/api/health") {
+        replacementHeadRequests += 1;
+        sendJson(res, 200, { ok: true, head: 0 });
+        return;
+      }
+      if (url.pathname === "/blocks/range") {
+        replacementRangeRequests += 1;
+        const from = Number(url.searchParams.get("from"));
+        const to = Number(url.searchParams.get("to"));
+        sendJson(
+          res,
+          200,
+          [makeMinimal(0)].filter(
+            (block) => block.number >= from && block.number <= to,
+          ),
+        );
+        return;
+      }
+      sendJson(res, 404, { ok: false });
+    });
     await listenAt(replacementServer, adapter.port);
 
     const replacementStore = new SegStore(replacementRoot, { sparseEvery: 1 });
     const replacementNode = makeFollowerNode(replacementStore);
-    await assert.rejects(
-      () => replacementNode.pullOnce(adapter.base),
-      /VOID_PUBLIC_BOOTSTRAP_HISTORICAL_RESPONSE_AUTHORITY_V1/,
+
+    let samePortAuthorityRejected = false;
+    for (let attempt = 0; attempt < 4; attempt += 1) {
+      try {
+        const outcome = await replacementNode.pullOnce(adapter.base);
+        assert.equal(
+          replacementStore.loadHeadNumber(),
+          -1,
+          "foreign same-port replacement must never append historical state",
+        );
+        assert.equal(
+          outcome?.ok,
+          false,
+          "foreign same-port replacement must not return an authorized pull",
+        );
+      } catch (error) {
+        if (
+          /VOID_PUBLIC_BOOTSTRAP_HISTORICAL_RESPONSE_AUTHORITY_V1/.test(
+            String(error?.message || error),
+          )
+        ) {
+          samePortAuthorityRejected = true;
+          break;
+        }
+        throw error;
+      }
+      await new Promise((resolve) => setTimeout(resolve, 25));
+    }
+
+    assert.ok(
+      replacementHeadRequests > 0,
+      "foreign same-port replacement head surface was never exercised",
+    );
+    assert.ok(
+      replacementRangeRequests > 0,
+      "foreign same-port replacement range was never exercised",
+    );
+    assert.equal(
+      samePortAuthorityRejected,
+      true,
+      "foreign same-port replacement range did not fail historical HMAC authority",
     );
     assert.equal(replacementStore.loadHeadNumber(), -1);
   } finally {
