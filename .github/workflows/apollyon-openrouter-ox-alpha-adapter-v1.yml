@@ -27,6 +27,7 @@ on:
       - "scripts/apollyon_openrouter_broker_service_v1.mjs"
       - "scripts/apollyon_openrouter_broker_transport_v1.mjs"
       - "scripts/prove_apollyon_openrouter_broker_integration_v1.py"
+      - "scripts/prove_apollyon_openrouter_execution_identity_migration_v1.py"
       - "scripts/prove_apollyon_openrouter_broker_unlock_terminal_v1.mjs"
       - "scripts/prove_apollyon_openrouter_ox_alpha_adapter_v1.mjs"
       - "scripts/apollyon_openrouter_alignment_arena_v1.mjs"
@@ -68,6 +69,7 @@ on:
       - "scripts/apollyon_openrouter_broker_service_v1.mjs"
       - "scripts/apollyon_openrouter_broker_transport_v1.mjs"
       - "scripts/prove_apollyon_openrouter_broker_integration_v1.py"
+      - "scripts/prove_apollyon_openrouter_execution_identity_migration_v1.py"
       - "scripts/prove_apollyon_openrouter_broker_unlock_terminal_v1.mjs"
       - "scripts/prove_apollyon_openrouter_ox_alpha_adapter_v1.mjs"
       - "scripts/apollyon_openrouter_alignment_arena_v1.mjs"
@@ -129,6 +131,7 @@ jobs:
           node --check scripts/apollyon_openrouter_broker_service_v1.mjs
           node --check scripts/apollyon_openrouter_broker_transport_v1.mjs
           python3 -m py_compile scripts/prove_apollyon_openrouter_broker_integration_v1.py
+          python3 -m py_compile scripts/prove_apollyon_openrouter_execution_identity_migration_v1.py
           node --check scripts/prove_apollyon_openrouter_broker_unlock_terminal_v1.mjs
           node --check scripts/prove_apollyon_openrouter_alignment_arena_v1.mjs
           node -e 'const r=require("./public/apollyon-openrouter-contestants-v1.json"); if(r.marker!=="VOID_APOLLYON_OPENROUTER_CONTESTANT_REGISTRY_V1"||!Array.isArray(r.contestants)||r.contestants.length<1) process.exit(1)'
@@ -147,6 +150,9 @@ jobs:
 
       - name: Run OpenRouter broker socket integration proof
         run: python3 scripts/prove_apollyon_openrouter_broker_integration_v1.py
+
+      - name: Run OpenRouter execution identity migration proof
+        run: python3 scripts/prove_apollyon_openrouter_execution_identity_migration_v1.py
 
       - name: Run OpenRouter alignment arena proof
         run: node scripts/prove_apollyon_openrouter_alignment_arena_v1.mjs
