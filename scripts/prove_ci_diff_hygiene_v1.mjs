@@ -19,6 +19,7 @@ const WORKFLOWS = [
   ".github/workflows/buy-void-delivery-runtime-integration-v1.yml",
   ".github/workflows/buy-void-erc20-delivery-runtime-activation-configuration-contract-v1.yml",
   ".github/workflows/canonical-txsubmit-admission-dedupe-v1.yml",
+  ".github/workflows/apollyon-openrouter-ox-alpha-adapter-v1.yml",
 ];
 
 function run(command, args, options = {}) {
