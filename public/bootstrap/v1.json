@@ -3,8 +3,8 @@
   "network": "VOID Network",
   "chain_id": 2050,
   "status": "stable_https_seed",
-  "generated_at": "2026-08-25T19:10:26.004Z",
-  "expires_at": "2026-08-28T19:10:26.004Z",
+  "generated_at": "2026-08-26T07:19:08.994Z",
+  "expires_at": "2026-08-29T07:19:08.994Z",
   "sync_endpoints": [
     {
       "transport": "https",
@@ -12,8 +12,8 @@
       "priority": 10,
       "enabled": true,
       "temporary": false,
-      "qualification_id": "voidpsq1_a7e1f9b70aea9252216005507f5919eed9b2a9e3de10676459740b4f740c125b",
-      "qualified_at": "2026-08-25T19:10:25.939Z",
+      "qualification_id": "voidpsq1_cfc05602f6b125aef743fa711f09fab27cb72c3219771a93a24159ba6c78dbaf",
+      "qualified_at": "2026-08-26T07:19:08.927Z",
       "qualified_head": 1951058
     }
   ],
@@ -29,5 +29,5 @@
     "money_movement_authority": false
   },
   "notes": "Stable public HTTPS seeds only. Each endpoint is bound to a fresh multi-sample qualification receipt and the restricted read-only gateway v1.",
-  "manifest_id": "voidpbm1_335bfd7040feb7eb3bd238d574e76b8dc2130371bf8889fe223700e76fa08e15"
+  "manifest_id": "voidpbm1_59348e0a32486112e60d4d74eb1fbbd69eccc47e5d27cd68ee68be659da2bdef"
 }
