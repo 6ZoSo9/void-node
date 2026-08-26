@@ -77,6 +77,15 @@ on:
       - "docs/public/public-bootstrap-client-resilience-v1.md"
       - "docs/public/mainnet0-historical-public-bootstrap-compat-v1.md"
   workflow_dispatch:
+    inputs:
+      expected_source_sha:
+        description: Exact source SHA to verify
+        required: true
+        type: string
+      expected_base_sha:
+        description: Exact committed-range base SHA
+        required: true
+        type: string
 
 permissions:
   contents: read
@@ -169,6 +178,20 @@ jobs:
         with:
           fetch-depth: 1
           persist-credentials: false
+
+      - name: Bind exact manual-dispatch source
+        if: github.event_name == 'workflow_dispatch'
+        env:
+          EXPECTED_SOURCE_SHA: ${{ inputs.expected_source_sha }}
+          EXPECTED_BASE_SHA: ${{ inputs.expected_base_sha }}
+        run: |
+          set -euo pipefail
+          [[ "$EXPECTED_SOURCE_SHA" =~ ^[0-9a-f]{40}$ ]]
+          [[ "$EXPECTED_BASE_SHA" =~ ^[0-9a-f]{40}$ ]]
+          test "$GITHUB_SHA" = "$EXPECTED_SOURCE_SHA"
+          test "$(git rev-parse HEAD)" = "$EXPECTED_SOURCE_SHA"
+          echo "manual_dispatch_source_bound=true"
+          echo "manual_dispatch_base_bound=true"
 
       - name: Use Node.js 24 LTS
         uses: actions/setup-node@v6
@@ -279,6 +302,7 @@ jobs:
           NODE
 
       - name: Diff hygiene across committed change range
+        if: github.event_name != 'workflow_dispatch'
         env:
           CI_DIFF_EVENT_NAME: ${{ github.event_name }}
           CI_DIFF_PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
@@ -288,3 +312,16 @@ jobs:
           CI_DIFF_BASE_REMOTE: ${{ github.server_url }}/${{ github.repository }}.git
           CI_DIFF_HEAD_REMOTE: ${{ github.server_url }}/${{ github.event.pull_request.head.repo.full_name || github.repository }}.git
         run: bash scripts/ci_diff_hygiene_v1.sh
+
+      - name: Diff hygiene across committed change range (manual dispatch)
+        if: github.event_name == 'workflow_dispatch'
+        env:
+          CI_DIFF_EVENT_NAME: push
+          CI_DIFF_PUSH_BEFORE_SHA: ${{ inputs.expected_base_sha }}
+          CI_DIFF_CURRENT_SHA: ${{ inputs.expected_source_sha }}
+          CI_DIFF_CHECKOUT_SHA: ${{ github.sha }}
+          CI_DIFF_BASE_REMOTE: ${{ github.server_url }}/${{ github.repository }}.git
+        run: |
+          set -euo pipefail
+          test "$GITHUB_SHA" = "$CI_DIFF_CURRENT_SHA"
+          bash scripts/ci_diff_hygiene_v1.sh
