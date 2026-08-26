@@ -239,15 +239,27 @@ function createFollowerImportFixture(Node, receipts) {
     index_writes: 0,
     receipt_writes: 0,
     hook_calls: 0,
+    modern_import_writes: 0,
+    legacy_saveblock_calls: 0,
   };
   const node = Object.create(Node.prototype);
+  const writeImportedBlock = (block) => {
+    state.block_writes += 1;
+    blocks.set(Number(block.number), block);
+    state.head = Math.max(state.head, Number(block.number));
+  };
   node.store = {
     loadHeadNumber: () => state.head,
     loadBlock: (number) => blocks.get(number) || null,
-    saveBlock: (block) => {
-      state.block_writes += 1;
-      blocks.set(Number(block.number), block);
-      state.head = Math.max(state.head, Number(block.number));
+    saveBlock: (_block) => {
+      state.legacy_saveblock_calls += 1;
+      throw new Error(
+        "bootstrap resilience fixture: modern follower import reached wrapper-owned saveBlock",
+      );
+    },
+    saveFollowerImportedModernV1: (block) => {
+      state.modern_import_writes += 1;
+      writeImportedBlock(block);
     },
     persistHeadAtomic: (number) => {
       state.head = Math.max(state.head, Number(number));
@@ -345,6 +357,7 @@ for (const marker of [
   "VOID_FOLLOWER_PULL_TIMEOUT_MS",
   "VOID_FOLLOWER_LEGACY_V2FS_ORIGINS",
   "saveAuthorizedLegacyCommitDirectV2fs",
+  "saveFollowerImportedModernV1",
   "VOID_LEGACY_COMMIT_DIRECT_V2FS_MARKER_V1",
   "preferredAuthenticatedDuplicateDirectionV1",
   "VOID_FOLLOWER_PERSISTENCE_GENERATION_ACTIVE_V1",
@@ -776,9 +789,11 @@ try {
   );
   assert(
     invalidLengthFixture.state.block_writes === 1 &&
+      invalidLengthFixture.state.modern_import_writes === 1 &&
+      invalidLengthFixture.state.legacy_saveblock_calls === 0 &&
       invalidLengthFixture.state.index_writes === 1 &&
       invalidLengthFixture.state.receipt_writes === 1,
-    "malformed declared length crossed or suppressed the valid fallback import",
+    "malformed declared length crossed, suppressed, or rerouted the valid fallback import",
   );
   pass("malformed declared length releases its body before bounded fallback");
   process.env.VOID_FOLLOWER_PULL_TIMEOUT_MS = "100";
@@ -799,9 +814,11 @@ try {
   );
   assert(
     streamedOversizeFixture.state.block_writes === 1 &&
+      streamedOversizeFixture.state.modern_import_writes === 1 &&
+      streamedOversizeFixture.state.legacy_saveblock_calls === 0 &&
       streamedOversizeFixture.state.index_writes === 1 &&
       streamedOversizeFixture.state.receipt_writes === 1,
-    "valid bounded range did not complete its import side effects",
+    "valid bounded range did not complete through the dedicated import path",
   );
   pass("streamed oversized head is cancelled before bounded fallback and valid import");
 
@@ -2259,9 +2276,10 @@ try {
       postCommitFixture.state.index_writes += 1;
     },
   };
-  const ordinarySaveBlock = postCommitFixture.node.store.saveBlock;
-  postCommitFixture.node.store.saveBlock = (block) => {
-    ordinarySaveBlock(block);
+  const ordinaryFollowerImport =
+    postCommitFixture.node.store.saveFollowerImportedModernV1;
+  postCommitFixture.node.store.saveFollowerImportedModernV1 = (block) => {
+    ordinaryFollowerImport(block);
     if (abortAfterCanonicalCommit) {
       abortAfterCanonicalCommit = false;
       postCommitAbort.abort(new Error("VOID_TEST_ABORT_AFTER_CANONICAL_COMMIT_V1"));
@@ -2274,6 +2292,12 @@ try {
   );
   assert(postCommitFixture.state.head === 0, "post-commit abort did not preserve canonical head truth");
   assert(
+    postCommitFixture.state.block_writes === 1 &&
+      postCommitFixture.state.modern_import_writes === 1 &&
+      postCommitFixture.state.legacy_saveblock_calls === 0,
+    "post-commit abort did not commit exactly once through the dedicated import path",
+  );
+  assert(
     postCommitFixture.state.index_writes === 1 && postCommitFixture.state.receipt_writes === 0,
     "post-commit abort did not stop at the expected recoverable projection boundary",
   );
@@ -2285,7 +2309,12 @@ try {
     postCommitFixture.state.index_writes === 1 && postCommitFixture.state.receipt_writes === 1,
     "retry duplicated the index or failed to complete the missing receipt projection",
   );
-  assert(postCommitFixture.state.block_writes === 1, "retry duplicated the canonical block commit");
+  assert(
+    postCommitFixture.state.block_writes === 1 &&
+      postCommitFixture.state.modern_import_writes === 1 &&
+      postCommitFixture.state.legacy_saveblock_calls === 0,
+    "retry duplicated or rerouted the canonical block commit",
+  );
   pass("canonical block truth deterministically redoes missing follower projections");
 
   const emptyFollowerRoots = computeFollowerBlockRoots([], []);
@@ -2420,6 +2449,7 @@ try {
   removeFixture(LOCAL_STABLE_PATH);
 }
 
+console.log("follower_fixture_dedicated_import_path=true");
 console.log(`${MARKER}_GREEN`);
 console.log("stable_seed_published=false");
 console.log("public_manifest_status=hold_no_stable_seed");
