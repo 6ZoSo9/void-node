@@ -1,11 +1,11 @@
-// VOID Apollyon execution ledger record core v6.1 - pure record/hash-chain ESM.
+// VOID Apollyon execution ledger record core v6.2 - pure record/hash-chain ESM.
 // Purity: node:crypto only; no fs, network, env/process, timers, child_process,
 // services, wallets, validator/chain runtimes, provider calls, credentials, or
 // dependencies; no filesystem I/O; no clocks or randomness (fully deterministic).
 // AUTHORITY INVARIANT: verification is structural/binding proof only and never
-// grants reclaim, retry, or provider-execution authority; the verified v5.x
-// broker state machine remains the sole transition-authority reducer. This
-// module never mints operationIds; identity derivation stays broker-side.
+// grants reclaim, retry, or provider-execution authority; the verified broker
+// state machine remains the sole transition-authority reducer. This module never
+// mints operationIds; identity derivation stays broker-side.
 // Attempt/envelope concepts (trial/admission ids, timestamps, nonces, max_tokens,
 // pid, lease, retry, timeout, epoch/fence, process identity, provider request
 // id) are excluded by closed key schemas and explicitly rejected by name below.
@@ -13,8 +13,8 @@ import { createHash } from 'node:crypto';
 
 export const LEDGER_EVENT_V1 = Object.freeze({
   BIND_INTENT: 'BIND_INTENT', RESERVE: 'RESERVE',
-  PROVIDER_ADMITTED: 'PROVIDER_ADMITTED', PROVIDER_RESULT: 'PROVIDER_RESULT',
-  RECONCILE_BLOCKED: 'RECONCILE_BLOCKED',
+  PROVIDER_ADMITTED: 'PROVIDER_ADMITTED', RESULT_WITNESSED: 'RESULT_WITNESSED',
+  PROVIDER_RESULT: 'PROVIDER_RESULT', RECONCILE_BLOCKED: 'RECONCILE_BLOCKED',
 });
 
 const EVENTS = new Set(Object.values(LEDGER_EVENT_V1));
@@ -82,7 +82,8 @@ function assertBinding(operationId, intent, work, what) {
 }
 
 // Event placement and resultDigest rule: BIND_INTENT pinned to sequence 0 over
-// 64 zeroes with null digest; PROVIDER_RESULT alone may carry a result digest.
+// 64 zeroes with null digest; RESULT_WITNESSED and PROVIDER_RESULT alone may
+// carry a result digest. The witness is post-send authority but is not ACCEPTED.
 function assertEventShape(type, sequence, previousRecordSha256, resultDigest, what) {
   if (!Number.isSafeInteger(sequence) || sequence < 0) {
     fail(what + ': sequence must be a safe non-negative integer');
@@ -95,8 +96,8 @@ function assertEventShape(type, sequence, previousRecordSha256, resultDigest, wh
     return;
   }
   if (sequence < 1) fail(type + ' must sit at sequence >= 1');
-  if (type === LEDGER_EVENT_V1.PROVIDER_RESULT) {
-    if (!isHex64(resultDigest)) fail('PROVIDER_RESULT requires a lowercase sha256 resultDigest');
+  if (type === LEDGER_EVENT_V1.RESULT_WITNESSED || type === LEDGER_EVENT_V1.PROVIDER_RESULT) {
+    if (!isHex64(resultDigest)) fail(type + ' requires a lowercase sha256 resultDigest');
   } else if (resultDigest !== null) {
     fail(type + ' requires resultDigest=null');
   }
