@@ -9,17 +9,12 @@ import {
   openExistingOperationLedgerNamespaceV1,
   openOperationLedgerNamespaceV1,
 } from './apollyon_execution_ledger_namespace_v1.mjs';
-import { loadLedgerRecordsV1 } from './apollyon_execution_ledger_load_v1.mjs';
-import { replayBrokerStateFromLedgerV1 } from './apollyon_execution_broker_replay_v1.mjs';
-import { BROKER_STATE_V1 } from './apollyon_execution_broker_v1.mjs';
 import { prepareBrokerOperationV1 } from './apollyon_execution_broker_prepare_v1.mjs';
 import {
   validateBrokerAdmissionCapabilityV1,
   validateBrokerReplayCapabilityV1,
 } from './apollyon_openrouter_broker_admission_capability_v1.mjs';
-import { readAcceptedResultCapsuleV1 } from './apollyon_accepted_result_capsule_v1.mjs';
 import { runOpenRouterBrokerAttemptV1 } from './apollyon_openrouter_broker_transport_v1.mjs';
-import { recoverBrokerProviderAcceptedResultV1 } from './apollyon_execution_provider_boundary_v1.mjs';
 import {
   runOpenRouterCatalogPreflightV1,
   transportContestantFromCatalogContestantV1,
@@ -49,21 +44,6 @@ function fail(message) {
 // separately reviewed request-enforceable immutable execution-identity primitive.
 function hasRequestEnforceableImmutableExecutionIdentityV1() {
   return false;
-}
-
-// V46 migration boundary: pre-V46 durable ACCEPTED / RESULT_WITNESSED state
-// predates any request-enforceable immutable execution-identity authority. Such
-// state is preserved as historical broker evidence, but it may not cross the
-// normal contestant ACCEPTED/GREEN path and may not be reconciled into current
-// identity-qualified evidence. A future identity-capable generation must add an
-// explicit durable authority/version to the ledger/evidence transaction rather
-// than flipping this historical migration rule.
-async function requiresExecutionIdentityEvidenceHoldV1(directoryHandle) {
-  const records = await loadLedgerRecordsV1(directoryHandle);
-  if (records.length === 0) return false;
-  const state = replayBrokerStateFromLedgerV1(records);
-  return state.phase === BROKER_STATE_V1.ACCEPTED
-    || state.phase === BROKER_STATE_V1.RESULT_WITNESSED;
 }
 
 function holdResponse(requestId, operationId, holdCode) {
@@ -142,29 +122,19 @@ async function processRequest(rootDirectoryHandle, acceptedResultRoot, admission
         return holdResponse(request.request_id, binding.operationId, 'ADMISSION_HOLD');
       }
 
-      try {
-        if (await requiresExecutionIdentityEvidenceHoldV1(namespace.directoryHandle)) {
-          return holdResponse(
-            request.request_id,
-            binding.operationId,
-            'EXECUTION_IDENTITY_EVIDENCE_HOLD',
-          );
-        }
-      } catch {
-        return holdResponse(request.request_id, binding.operationId, 'UNCERTAIN_OR_TERMINAL');
-      }
-
-      try {
-        const recovered = await readAcceptedResultCapsuleV1(acceptedResultRoot,namespace.directoryHandle,binding);
-        if (recovered !== null) {
-          if (recovered.value?.broker_replay_capability_id !== brokerReplay.capabilityId) {
-            return holdResponse(request.request_id, binding.operationId, 'UNCERTAIN_OR_TERMINAL');
-          }
-          return acceptedResponse(request.request_id,binding.operationId,recovered.resultDigest,recovered.value);
-        }
-      } catch {
-        return holdResponse(request.request_id, binding.operationId, 'UNCERTAIN_OR_TERMINAL');
-      }
+      // V47 migration boundary. V46 already placed the immutable-execution-identity
+      // HOLD before fresh namespace creation. Therefore every namespace that exists
+      // when this generation starts is necessarily historical/pre-identity-policy
+      // operation state. Quarantine the namespace itself after proving exact replay
+      // authority: do not inspect/reconcile/disclose its ACCEPTED bytes, do not
+      // mutate RESULT_WITNESSED, and do not let a phase check race a later replay.
+      // A future identity-capable generation must add an explicit durable identity
+      // authority/version to new operation state rather than weakening this rule.
+      return holdResponse(
+        request.request_id,
+        binding.operationId,
+        'EXECUTION_IDENTITY_EVIDENCE_HOLD',
+      );
     }
 
     try {
@@ -230,22 +200,6 @@ async function processRequest(rootDirectoryHandle, acceptedResultRoot, admission
     ]) {
       if (brokerAdmission[field] !== brokerReplay[field]) {
         return holdResponse(request.request_id, binding.operationId, 'ADMISSION_HOLD');
-      }
-    }
-
-    if (namespace !== null) {
-      try {
-        const reconciled = await recoverBrokerProviderAcceptedResultV1(
-          namespace.directoryHandle,acceptedResultRoot,binding,
-        );
-        if (reconciled !== null) {
-          if (reconciled.value?.broker_replay_capability_id !== brokerReplay.capabilityId) {
-            return holdResponse(request.request_id, binding.operationId, 'UNCERTAIN_OR_TERMINAL');
-          }
-          return acceptedResponse(request.request_id,binding.operationId,reconciled.resultDigest,reconciled.value);
-        }
-      } catch {
-        return holdResponse(request.request_id, binding.operationId, 'UNCERTAIN_OR_TERMINAL');
       }
     }
 
