@@ -3,11 +3,13 @@
 // Copyright (c) 2025-2026 6ZoSo9
 
 import assert from "node:assert/strict";
+import crypto from "node:crypto";
 import fs from "node:fs";
 import http from "node:http";
 import os from "node:os";
 import path from "node:path";
 import { once } from "node:events";
+import { createPublicSeedClientAdapterV1 } from "../tools/void-public-seed-client-adapter-v1.mjs";
 
 import {
   blockHash,
@@ -24,8 +26,12 @@ import {
 } from "../dist/chain/legacy_commit_direct_v2fs_v1.js";
 import { SegStore } from "../dist/chain/seg_store.js";
 import {
-  followerVerifiedPublicBootstrapOriginAuthorizedV1,
-  verifiedPublicBootstrapAdapterOriginV1,
+  VOID_PUBLIC_SEED_AUTHORITY_CHALLENGE_HEADER_V1,
+  clearVerifiedPublicBootstrapAuthorityForTestV1,
+  createVerifiedPublicBootstrapChallengeV1,
+  installVerifiedPublicBootstrapAuthorityForTestV1,
+  resetVerifiedPublicBootstrapAuthorityForTestV1,
+  verifyVerifiedPublicBootstrapResponseV1,
 } from "../dist/http/follower_verified_public_bootstrap_authority_v1.js";
 import { Node } from "../dist/node_core.js";
 
@@ -109,48 +115,47 @@ function proveMinimalValidator() {
 }
 
 function proveVerifiedAdapterAuthority() {
-  const origin = "http://127.0.0.1:43123";
-  const good = {
-    VOID_PUBLIC_BOOTSTRAP_CLIENT_ADAPTER_ACTIVE: "1",
-    VOID_FOLLOWER_AUTOSTART_PEERS: origin,
-    VOID_FOLLOWER_AUTOSTART_PEER: `${origin}/`,
-  };
+  resetVerifiedPublicBootstrapAuthorityForTestV1();
 
-  assert.equal(verifiedPublicBootstrapAdapterOriginV1(good), origin);
-  assert.equal(followerVerifiedPublicBootstrapOriginAuthorizedV1(origin, good), true);
+  const origin = "http://127.0.0.1:43123";
+  const secretHex = crypto.randomBytes(32).toString("hex");
+  const generation = crypto.randomBytes(16).toString("hex");
+
+  assert.equal(createVerifiedPublicBootstrapChallengeV1(`${origin}/blocks/range?from=0&to=0`), null);
   assert.equal(
-    followerVerifiedPublicBootstrapOriginAuthorizedV1("http://127.0.0.1:43124", good),
+    installVerifiedPublicBootstrapAuthorityForTestV1({
+      sequence: 1,
+      generation,
+      adapter_origin: origin,
+      secret_hex: secretHex,
+    }),
+    true,
+  );
+
+  const challenge = createVerifiedPublicBootstrapChallengeV1(
+    `${origin}/blocks/range?from=0&to=0`,
+  );
+  assert(challenge);
+  assert.equal(challenge.requestedUrl, `${origin}/blocks/range?from=0&to=0`);
+  assert.equal(
+    createVerifiedPublicBootstrapChallengeV1(
+      "http://127.0.0.1:43124/blocks/range?from=0&to=0",
+    ),
+    null,
+  );
+
+  assert.equal(
+    installVerifiedPublicBootstrapAuthorityForTestV1({
+      sequence: 1,
+      generation,
+      adapter_origin: origin,
+      secret_hex: secretHex,
+    }),
     false,
+    "duplicate authority sequence must not replace live generation",
   );
-  assert.equal(
-    verifiedPublicBootstrapAdapterOriginV1({
-      ...good,
-      VOID_FOLLOWER_AUTOSTART_PEER: "http://127.0.0.1:43124",
-    }),
-    null,
-  );
-  assert.equal(
-    verifiedPublicBootstrapAdapterOriginV1({
-      ...good,
-      VOID_FOLLOWER_AUTOSTART_PEERS: `${origin},http://127.0.0.1:43124`,
-    }),
-    null,
-  );
-  assert.equal(
-    verifiedPublicBootstrapAdapterOriginV1({
-      ...good,
-      VOID_FOLLOWER_AUTOSTART_PEERS: "http://192.168.1.10:43123",
-      VOID_FOLLOWER_AUTOSTART_PEER: "http://192.168.1.10:43123",
-    }),
-    null,
-  );
-  assert.equal(
-    verifiedPublicBootstrapAdapterOriginV1({
-      ...good,
-      VOID_PUBLIC_BOOTSTRAP_CLIENT_ADAPTER_ACTIVE: "0",
-    }),
-    null,
-  );
+
+  resetVerifiedPublicBootstrapAuthorityForTestV1();
 }
 
 function proveSegStoreRatchetAndModernIsolation() {
@@ -238,6 +243,7 @@ function sendJson(res, status, body) {
   res.statusCode = status;
   res.setHeader("content-type", "application/json; charset=utf-8");
   res.setHeader("content-length", String(bytes.length));
+  res.setHeader("x-void-public-seed-gateway", "v1");
   res.end(bytes);
 }
 
@@ -266,6 +272,11 @@ async function listen(server) {
   return Number(address.port);
 }
 
+async function listenAt(server, port) {
+  server.listen(port, "127.0.0.1");
+  await once(server, "listening");
+}
+
 async function close(server) {
   if (!server.listening) return;
   server.close();
@@ -282,37 +293,67 @@ function makeFollowerNode(store) {
 }
 
 async function proveAdapterOnlyFollowerAndManualPeerIsolation() {
-  const trustedState = { blocks: [makeMinimal(0), makeMinimal(1), makeLegacy(2)] };
-  const attackerState = { blocks: [makeMinimal(0)] };
-  const trustedServer = chainServer(trustedState);
-  const attackerServer = chainServer(attackerState);
-  const trustedPort = await listen(trustedServer);
-  const attackerPort = await listen(attackerServer);
-  const trustedOrigin = `http://127.0.0.1:${trustedPort}`;
-  const attackerOrigin = `http://127.0.0.1:${attackerPort}`;
+  const trustedState = {
+    blocks: [makeMinimal(0), makeMinimal(1), makeLegacy(2)],
+  };
+  const upstreamServer = chainServer(trustedState);
+  const upstreamPort = await listen(upstreamServer);
+  const upstreamOrigin = `http://127.0.0.1:${upstreamPort}`;
+
+  const secret = crypto.randomBytes(32);
+  const generation = crypto.randomBytes(16).toString("hex");
+  const sequence = 1;
+  const adapter = await createPublicSeedClientAdapterV1({
+    peers: upstreamOrigin,
+    port: 0,
+    allowLoopbackFixture: true,
+    authority: {
+      schema: "void_public_seed_response_authority_v1",
+      generation,
+      sequence,
+      secret,
+    },
+  });
+
   const envKeys = [
-    "VOID_PUBLIC_BOOTSTRAP_CLIENT_ADAPTER_ACTIVE",
-    "VOID_FOLLOWER_AUTOSTART_PEERS",
-    "VOID_FOLLOWER_AUTOSTART_PEER",
     "VOID_FOLLOWER_LEGACY_V2FS_ORIGINS",
     "VOID_FOLLOWER_PULL_LIMIT",
     "VOID_FOLLOWER_PULL_TIMEOUT_MS",
   ];
   const backup = Object.fromEntries(envKeys.map((key) => [key, process.env[key]]));
   const trustedRoot = tempRoot("adapter");
-  const attackerRoot = tempRoot("attacker");
+  const noAuthorityRoot = tempRoot("no-authority");
+  const replacementRoot = tempRoot("same-port-replacement");
+  let replacementServer = null;
 
   try {
-    process.env.VOID_PUBLIC_BOOTSTRAP_CLIENT_ADAPTER_ACTIVE = "1";
-    process.env.VOID_FOLLOWER_AUTOSTART_PEERS = trustedOrigin;
-    process.env.VOID_FOLLOWER_AUTOSTART_PEER = trustedOrigin;
     delete process.env.VOID_FOLLOWER_LEGACY_V2FS_ORIGINS;
     process.env.VOID_FOLLOWER_PULL_LIMIT = "3";
     process.env.VOID_FOLLOWER_PULL_TIMEOUT_MS = "5000";
 
+    resetVerifiedPublicBootstrapAuthorityForTestV1();
+
+    const noAuthorityStore = new SegStore(noAuthorityRoot, { sparseEvery: 1 });
+    const noAuthorityNode = makeFollowerNode(noAuthorityStore);
+    const noAuthorityResult = await noAuthorityNode.pullOnce(upstreamOrigin);
+    assert.equal(noAuthorityResult.ok, false);
+    assert.equal(noAuthorityResult.invalidBlock, 0);
+    assert.equal(noAuthorityResult.invalidReason, "mainnet0_minimal_origin_not_authorized");
+    assert.equal(noAuthorityStore.loadHeadNumber(), -1);
+
+    assert.equal(
+      installVerifiedPublicBootstrapAuthorityForTestV1({
+        sequence,
+        generation,
+        adapter_origin: adapter.base,
+        secret_hex: secret.toString("hex"),
+      }),
+      true,
+    );
+
     const trustedStore = new SegStore(trustedRoot, { sparseEvery: 1 });
     const trustedNode = makeFollowerNode(trustedStore);
-    const result = await trustedNode.pullOnce(trustedOrigin);
+    const result = await trustedNode.pullOnce(adapter.base);
     assert.equal(result.ok, true);
     assert.equal(result.imported, 3);
     assert.equal(trustedStore.loadHeadNumber(), 2);
@@ -320,30 +361,137 @@ async function proveAdapterOnlyFollowerAndManualPeerIsolation() {
     assert.deepEqual(trustedStore.loadBlock(1), trustedState.blocks[1]);
     assert.deepEqual(trustedStore.loadBlock(2), trustedState.blocks[2]);
 
-    const attackerStore = new SegStore(attackerRoot, { sparseEvery: 1 });
-    const attackerNode = makeFollowerNode(attackerStore);
-    const rejected = await attackerNode.pullOnce(attackerOrigin);
-    assert.equal(rejected.ok, false);
-    assert.equal(rejected.invalidBlock, 0);
-    assert.equal(rejected.invalidReason, "mainnet0_minimal_origin_not_authorized");
-    assert.equal(attackerStore.loadHeadNumber(), -1);
+    const route = "/blocks/range?from=0&to=0";
+    const challenge1 = createVerifiedPublicBootstrapChallengeV1(
+      `${adapter.base}${route}`,
+    );
+    assert(challenge1);
+    const response1 = await fetch(`${adapter.base}${route}`, {
+      headers: {
+        [VOID_PUBLIC_SEED_AUTHORITY_CHALLENGE_HEADER_V1]: challenge1.nonce,
+      },
+    });
+    const bytes1 = Buffer.from(await response1.arrayBuffer());
+    assert.equal(
+      verifyVerifiedPublicBootstrapResponseV1(response1, bytes1, challenge1),
+      true,
+    );
+
+    const challenge2 = createVerifiedPublicBootstrapChallengeV1(
+      `${adapter.base}${route}`,
+    );
+    assert(challenge2);
+    assert.notEqual(challenge1.nonce, challenge2.nonce);
+    assert.equal(
+      verifyVerifiedPublicBootstrapResponseV1(response1, bytes1, challenge2),
+      false,
+      "captured HMAC must not replay under a fresh nonce",
+    );
+
+    const tamperedResponse = new Response(
+      Buffer.concat([bytes1, Buffer.from(" ")]),
+      { status: response1.status, headers: response1.headers },
+    );
+    const tamperedBytes = Buffer.from(await tamperedResponse.arrayBuffer());
+    assert.equal(
+      verifyVerifiedPublicBootstrapResponseV1(
+        tamperedResponse,
+        tamperedBytes,
+        challenge1,
+      ),
+      false,
+      "copied HMAC must not authorize different response bytes",
+    );
+
+    clearVerifiedPublicBootstrapAuthorityForTestV1();
+    assert.equal(
+      verifyVerifiedPublicBootstrapResponseV1(response1, bytes1, challenge1),
+      false,
+      "authority cleared mid-flight must invalidate an otherwise valid response",
+    );
+
+    const nextSecret = crypto.randomBytes(32);
+    const nextGeneration = crypto.randomBytes(16).toString("hex");
+    assert.equal(
+      installVerifiedPublicBootstrapAuthorityForTestV1({
+        sequence: 2,
+        generation: nextGeneration,
+        adapter_origin: adapter.base,
+        secret_hex: nextSecret.toString("hex"),
+      }),
+      true,
+    );
+    assert.equal(
+      verifyVerifiedPublicBootstrapResponseV1(response1, bytes1, challenge1),
+      false,
+      "stale generation response must not survive authority rotation",
+    );
+
+    resetVerifiedPublicBootstrapAuthorityForTestV1();
+    assert.equal(
+      installVerifiedPublicBootstrapAuthorityForTestV1({
+        sequence,
+        generation,
+        adapter_origin: adapter.base,
+        secret_hex: secret.toString("hex"),
+      }),
+      true,
+    );
 
     trustedState.blocks = [...trustedState.blocks, makeMinimal(3)];
     await assert.rejects(
-      () => trustedNode.pullOnce(trustedOrigin),
+      () => trustedNode.pullOnce(adapter.base),
       /mainnet0_historical_minimal_parent_era_invalid/,
     );
     assert.equal(trustedStore.loadHeadNumber(), 2);
+
+    await close(adapter.server);
+    replacementServer = chainServer({ blocks: [makeMinimal(0)] });
+    await listenAt(replacementServer, adapter.port);
+
+    const replacementStore = new SegStore(replacementRoot, { sparseEvery: 1 });
+    const replacementNode = makeFollowerNode(replacementStore);
+    await assert.rejects(
+      () => replacementNode.pullOnce(adapter.base),
+      /VOID_PUBLIC_BOOTSTRAP_HISTORICAL_RESPONSE_AUTHORITY_V1/,
+    );
+    assert.equal(replacementStore.loadHeadNumber(), -1);
   } finally {
+    resetVerifiedPublicBootstrapAuthorityForTestV1();
     for (const [key, value] of Object.entries(backup)) {
       if (value === undefined) delete process.env[key];
       else process.env[key] = value;
     }
     fs.rmSync(trustedRoot, { recursive: true, force: true });
-    fs.rmSync(attackerRoot, { recursive: true, force: true });
-    await close(trustedServer);
-    await close(attackerServer);
+    fs.rmSync(noAuthorityRoot, { recursive: true, force: true });
+    fs.rmSync(replacementRoot, { recursive: true, force: true });
+    if (replacementServer) await close(replacementServer);
+    await close(adapter.server);
+    await close(upstreamServer);
   }
+}
+
+function proveAuthoritySourceOrdering() {
+  const nodeSource = fs.readFileSync("src/node_core.ts", "utf8");
+  const exactBytesIndex = nodeSource.indexOf("const exactBytes = Buffer.concat(chunks, total);");
+  const verifyHookIndex = nodeSource.indexOf("beforeJsonParse?.(exactBytes);");
+  const parseIndex = nodeSource.indexOf('return JSON.parse(exactBytes.toString("utf8"));');
+  assert(exactBytesIndex >= 0);
+  assert(verifyHookIndex > exactBytesIndex);
+  assert(parseIndex > verifyHookIndex);
+
+  const supervisorSource = fs.readFileSync(
+    "scripts/run_void_public_bootstrap_supervisor_v1.mjs",
+    "utf8",
+  );
+  const envBlock = supervisorSource.slice(
+    supervisorSource.indexOf("env: {"),
+    supervisorSource.indexOf("stdio:", supervisorSource.indexOf("env: {")),
+  );
+  assert.equal(envBlock.includes("secret_hex"), false);
+  assert.equal(envBlock.includes("generation"), false);
+  assert.ok(supervisorSource.includes('"ipc"'));
+  assert.ok(supervisorSource.includes("historical_authority_secret_exposed=false"));
 }
 
 function proveWorkflowTracksHistoricalBoundary() {
@@ -372,11 +520,17 @@ proveVerifiedAdapterAuthority();
 proveSegStoreRatchetAndModernIsolation();
 proveWalReplayAcrossHistoricalModes();
 await proveAdapterOnlyFollowerAndManualPeerIsolation();
+proveAuthoritySourceOrdering();
 proveWorkflowTracksHistoricalBoundary();
 
 console.log(MARKER);
 console.log("manual_bootstrap_configuration_required=false");
 console.log("verified_adapter_exact_origin_required=true");
+console.log("verified_adapter_generation_hmac_required=true");
+console.log("same_port_foreign_process_rejected=true");
+console.log("response_nonce_replay_rejected=true");
+console.log("response_body_hmac_binding=true");
+console.log("ipc_disconnect_fails_closed=true");
 console.log("minimal_exact_envelope_required=true");
 console.log("historical_era_regression_rejected=true");
 console.log("modern_validator_unchanged=true");

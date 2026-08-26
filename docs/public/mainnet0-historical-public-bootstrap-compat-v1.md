@@ -25,21 +25,38 @@ constant. Correctness is derived from the persisted parent block's era.
 Historical blocks do not contain modern proposer/signature authority. This lane
 does not claim otherwise.
 
-Minimal historical admission is available only when the current `pullOnce()`
-origin exactly equals the single numeric-loopback HTTP adapter origin already
-bound by:
+The clean public-bootstrap historical lane therefore does **not** trust a
+loopback address by itself. The supervisor creates a fresh 256-bit secret and
+adapter-generation identifier in memory, creates the public-seed adapter in the
+same process, and spawns the VOID node child with a dedicated IPC channel. The
+secret and generation are delivered to the child only through that IPC channel;
+they are not placed in environment variables, files, argv, manifests, status
+JSON, or logs.
 
-- `VOID_PUBLIC_BOOTSTRAP_CLIENT_ADAPTER_ACTIVE=1`;
-- `VOID_FOLLOWER_AUTOSTART_PEERS`;
-- `VOID_FOLLOWER_AUTOSTART_PEER`.
+For each `/blocks/range` request that could supply historical append authority,
+the child generates a fresh random nonce. The adapter HMAC-SHA256 attests an
+unambiguous JSON transcript containing the generation, sequence, nonce, method,
+exact route/query, HTTP status, exact response byte length, and SHA-256 of the
+exact bounded response bytes. The child verifies that HMAC with
+`crypto.timingSafeEqual()` after bounded byte admission and immediately before
+JSON parse. Historical authority is threaded only from that exact verified range
+response; a verified head/status response cannot authorize another range.
 
-The two autostart variables must resolve to the same single loopback origin.
-A different loopback port, a manual `/follower/once` peer, multiple adapter
-origins, or a non-loopback origin does not inherit this historical trust.
+If the IPC channel disconnects or the authority generation changes, the
+in-memory authority is cleared/fails closed. A foreign local process that later
+rebinds the exact same `127.0.0.1:PORT` sees the nonce but does not know the
+IPC-delivered secret, so it cannot mint historical append authority.
 
-Legacy-v2fs follower admission retains its explicit legacy origin compatibility
-mechanism, but the verified public-bootstrap adapter is sufficient on the
-zero-configuration public path.
+This protects against same-origin adapter-process replacement while local process
+isolation remains intact. It does not claim to defend against an attacker that
+can read the legitimate child's memory or replace the entire trusted supervisor
+and child process tree.
+
+Legacy-v2fs retains its existing explicit
+`VOID_FOLLOWER_LEGACY_V2FS_ORIGINS` compatibility path for non-public-bootstrap
+operators. That manual path is separate from, and is not protected by, the IPC
+HMAC construction. A clean public bootstrap requires no manual origin
+configuration.
 
 ## Era ratchet
 

@@ -20,7 +20,12 @@ import {
   validateMainnet0GenesisMinimalForAppendV1,
 } from "./chain/mainnet0_historical_compat_v1.js";
 import { followerLegacyV2fsOriginAuthorizedV1 } from "./http/follower_legacy_v2fs_authority_v1.js";
-import { followerVerifiedPublicBootstrapOriginAuthorizedV1 } from "./http/follower_verified_public_bootstrap_authority_v1.js";
+import {
+  VOID_PUBLIC_SEED_AUTHORITY_CHALLENGE_HEADER_V1,
+  createVerifiedPublicBootstrapChallengeV1,
+  verifyVerifiedPublicBootstrapResponseV1,
+  type VerifiedPublicBootstrapChallengeV1,
+} from "./http/follower_verified_public_bootstrap_authority_v1.js";
 import { preferredAuthenticatedDuplicateDirectionV1 } from "./p2p/authenticated_duplicate_arbitration_v1.js";
 import { TxIndex } from "./chain/txindex.js";
 import { ReceiptsStore } from "./chain/receipts.js";
@@ -177,6 +182,13 @@ class VoidFollowerPeerHttpStatusErrorV1 extends Error {
   }
 }
 
+class VoidFollowerPublicBootstrapAuthorityErrorV1 extends Error {
+  constructor(message = "historical range response authority verification failed") {
+    super(`VOID_PUBLIC_BOOTSTRAP_HISTORICAL_RESPONSE_AUTHORITY_V1: ${message}`);
+    this.name = "VoidFollowerPublicBootstrapAuthorityErrorV1";
+  }
+}
+
 async function cancelFollowerResponseBodyV1(
   response: Response,
   reason: unknown,
@@ -242,6 +254,7 @@ async function readFollowerJsonResponseBoundedV1(
   response: Response,
   maxBytes: number,
   signal: AbortSignal,
+  beforeJsonParse?: (exactBytes: Buffer) => void,
 ): Promise<unknown> {
   throwIfFollowerPullAbortedV1(signal);
   const rawLength = String(response.headers.get("content-length") || "").trim();
@@ -308,7 +321,9 @@ async function readFollowerJsonResponseBoundedV1(
   }
 
   throwIfFollowerPullAbortedV1(signal);
-  return JSON.parse(Buffer.concat(chunks, total).toString("utf8"));
+  const exactBytes = Buffer.concat(chunks, total);
+  beforeJsonParse?.(exactBytes);
+  return JSON.parse(exactBytes.toString("utf8"));
 }
 
 async function awaitFollowerPullPersistenceV1<T>(
@@ -4211,10 +4226,7 @@ attachEphemeralDirectTransportV1(
       : timeoutSignal;
     throwIfFollowerPullAbortedV1(pullSignal);
 
-    const verifiedPublicBootstrapOriginAuthorized =
-      followerVerifiedPublicBootstrapOriginAuthorizedV1(peerHttp);
     const legacyV2fsOriginAuthorized =
-      verifiedPublicBootstrapOriginAuthorized ||
       followerLegacyV2fsOriginAuthorizedV1(
         peerHttp,
         process.env.VOID_FOLLOWER_LEGACY_V2FS_ORIGINS,
@@ -4230,9 +4242,10 @@ attachEphemeralDirectTransportV1(
     const validateFollowerBlockV1 = (
       block: any,
       parent: any,
+      publicBootstrapHistoricalAuthorityVerified: boolean,
     ): FollowerBlockAdmissionV1 => {
       if (isMainnet0GenesisMinimalV1(block)) {
-        if (!verifiedPublicBootstrapOriginAuthorized) {
+        if (!publicBootstrapHistoricalAuthorityVerified) {
           return { ok: false, reason: "mainnet0_minimal_origin_not_authorized" };
         }
         const minimal = validateMainnet0GenesisMinimalForAppendV1(block, parent);
@@ -4251,7 +4264,10 @@ attachEphemeralDirectTransportV1(
         if (block._commit !== VOID_LEGACY_COMMIT_DIRECT_V2FS_MARKER_V1) {
           return { ok: false, reason: "legacy_v2fs_marker_mismatch" };
         }
-        if (!legacyV2fsOriginAuthorized) {
+        if (
+          !publicBootstrapHistoricalAuthorityVerified &&
+          !legacyV2fsOriginAuthorized
+        ) {
           return { ok: false, reason: "legacy_v2fs_origin_not_authorized" };
         }
         const legacy = validateLegacyCommitDirectV2fsForAppendV1(block, parent);
@@ -4403,13 +4419,30 @@ attachEphemeralDirectTransportV1(
       return missingRefs.length > 0 || missingReceipts.length > 0;
     };
 
-    const fetchPeer = async (url: string): Promise<Response> => {
+    const fetchPeer = async (
+      url: string,
+      authorityChallenge: VerifiedPublicBootstrapChallengeV1 | null = null,
+    ): Promise<Response> => {
       throwIfFollowerPullAbortedV1(pullSignal);
       const requestedUrl = new URL(url).href;
+      if (
+        authorityChallenge &&
+        authorityChallenge.requestedUrl !== requestedUrl
+      ) {
+        throw new VoidFollowerPublicBootstrapAuthorityErrorV1(
+          "challenge URL does not match requested URL",
+        );
+      }
       try {
         const response = await fetch(requestedUrl, {
           signal: pullSignal,
           redirect: "error",
+          headers: authorityChallenge
+            ? {
+                [VOID_PUBLIC_SEED_AUTHORITY_CHALLENGE_HEADER_V1]:
+                  authorityChallenge.nonce,
+              }
+            : undefined,
         });
         const finalUrl = new URL(response.url).href;
         if (response.redirected || finalUrl !== requestedUrl) {
@@ -4579,11 +4612,18 @@ attachEphemeralDirectTransportV1(
     const maxPull = Math.max(1, Number(process.env.VOID_FOLLOWER_PULL_LIMIT || 250) || 250);
     const to = Math.min(theirHead, myHead + maxPull);
 
-    const fetchRange = async (): Promise<any[]> => {
+    type FollowerRangeReadV1 = {
+      blocks: any[];
+      publicBootstrapHistoricalAuthorityVerified: boolean;
+    };
+
+    const fetchRange = async (): Promise<FollowerRangeReadV1> => {
+      const rangeUrl = `${peerHttp}/blocks/range?from=${from}&to=${to}`;
+      const authorityChallenge =
+        createVerifiedPublicBootstrapChallengeV1(rangeUrl);
+
       try {
-        const response = await fetchPeer(
-          `${peerHttp}/blocks/range?from=${from}&to=${to}`,
-        );
+        const response = await fetchPeer(rangeUrl, authorityChallenge);
         if (!response.ok) {
           const error = new VoidFollowerPeerHttpStatusErrorV1(response.status);
           await cancelFollowerResponseBodyV1(
@@ -4595,25 +4635,59 @@ attachEphemeralDirectTransportV1(
           );
           throw error;
         }
+
+        let publicBootstrapHistoricalAuthorityVerified = false;
         const body = await readFollowerJsonResponseBoundedV1(
           response,
           VOID_FOLLOWER_RANGE_RESPONSE_MAX_BYTES_V1,
           pullSignal,
+          authorityChallenge
+            ? (exactBytes: Buffer) => {
+                if (
+                  !verifyVerifiedPublicBootstrapResponseV1(
+                    response,
+                    exactBytes,
+                    authorityChallenge,
+                  )
+                ) {
+                  throw new VoidFollowerPublicBootstrapAuthorityErrorV1();
+                }
+                publicBootstrapHistoricalAuthorityVerified = true;
+              }
+            : undefined,
         ).catch((error: unknown) => {
           throwIfFollowerPullAbortedV1(pullSignal);
+          if (error instanceof VoidFollowerPublicBootstrapAuthorityErrorV1) {
+            throw error;
+          }
           recordPeerHeadProbeFailure("peer-range-json", error, { peerHttp });
           return null;
         });
-        return Array.isArray(body) ? body : [];
+
+        return {
+          blocks: Array.isArray(body) ? body : [],
+          publicBootstrapHistoricalAuthorityVerified,
+        };
       } catch (error) {
         throwIfFollowerPullAbortedV1(pullSignal);
         recordPeerHeadProbeFailure("peer-range-fetch", error, { peerHttp });
-        if (error instanceof VoidFollowerPeerHttpStatusErrorV1) throw error;
-        return [];
+        if (
+          error instanceof VoidFollowerPeerHttpStatusErrorV1 ||
+          error instanceof VoidFollowerPublicBootstrapAuthorityErrorV1
+        ) {
+          throw error;
+        }
+        return {
+          blocks: [],
+          publicBootstrapHistoricalAuthorityVerified: false,
+        };
       }
     };
 
-    let arr: any[] = await fetchRange();
+    let rangeRead = await fetchRange();
+    let arr: any[] = rangeRead.blocks;
+    let publicBootstrapHistoricalAuthorityVerified =
+      rangeRead.publicBootstrapHistoricalAuthorityVerified;
     let retried = false;
 
     const isCompleteRequestedRange = (blocks: any[]): boolean =>
@@ -4622,7 +4696,10 @@ attachEphemeralDirectTransportV1(
       blocks.every((block, index) => Number(block?.number) === from + index);
 
     if (!isCompleteRequestedRange(arr)) {
-      arr = await fetchRange();
+      rangeRead = await fetchRange();
+      arr = rangeRead.blocks;
+      publicBootstrapHistoricalAuthorityVerified =
+        rangeRead.publicBootstrapHistoricalAuthorityVerified;
       retried = true;
     }
 
@@ -4696,7 +4773,11 @@ attachEphemeralDirectTransportV1(
 
       if (!existing) {
         const parentBlock = n === 0 ? null : this.store.loadBlock(n - 1);
-        const admission = validateFollowerBlockV1(b, parentBlock as any);
+        const admission = validateFollowerBlockV1(
+          b,
+          parentBlock as any,
+          publicBootstrapHistoricalAuthorityVerified,
+        );
         if (admission.ok === false) {
           return {
             ok: false,
