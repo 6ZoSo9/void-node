@@ -31,10 +31,11 @@ def wait_for_accept_commit(state,timeout=15):
     deadline=time.monotonic()+timeout
     while time.monotonic()<deadline:
         capsules=list((state/"accepted-results-v1").glob("accepted-result-v1-*.json"))
-        results=list((state/"ledger-v1").glob("apollyon-op-v1-*/record-0000000000000003.json"))
-        if len(capsules)==1 and len(results)==1:return capsules[0]
+        witnesses=list((state/"ledger-v1").glob("apollyon-op-v1-*/record-0000000000000003.json"))
+        results=list((state/"ledger-v1").glob("apollyon-op-v1-*/record-0000000000000004.json"))
+        if len(capsules)==1 and len(witnesses)==1 and len(results)==1:return capsules[0]
         time.sleep(0.05)
-    raise SystemExit("HOLD accepted result/capsule did not become durable")
+    raise SystemExit("HOLD accepted result/capsule/witness did not become durable")
 
 MOCK=r"""import { appendFile } from 'node:fs/promises';
 const marker=process.env.VOID_PROOF_FETCH_MARKER,secret=process.env.VOID_PROOF_EXPECTED_SECRET;
@@ -259,8 +260,12 @@ try:
     write_request(signed);run_client(sock,"HOLD","changed_prompt")
     if marker.read_text().strip().splitlines()!=["catalog","chat"]:raise SystemExit("HOLD changed work triggered provider network")
     live_capsules=list((live_state/"accepted-results-v1").glob("accepted-result-v1-*.json"))
-    live_results=list((live_state/"ledger-v1").glob("apollyon-op-v1-*/record-0000000000000003.json"))
-    if len(live_capsules)!=1 or len(live_results)!=1:raise SystemExit("HOLD live first-delivery durable evidence missing")
+    live_witnesses=list((live_state/"ledger-v1").glob("apollyon-op-v1-*/record-0000000000000003.json"))
+    live_results=list((live_state/"ledger-v1").glob("apollyon-op-v1-*/record-0000000000000004.json"))
+    if len(live_capsules)!=1 or len(live_witnesses)!=1 or len(live_results)!=1:raise SystemExit("HOLD live first-delivery durable evidence missing")
+    live_witness=json.loads(live_witnesses[0].read_text());live_result_record=json.loads(live_results[0].read_text())
+    if live_witness.get("type")!="RESULT_WITNESSED" or live_witness.get("resultDigest")!=live.get("result_digest"):raise SystemExit("HOLD durable result witness differs")
+    if live_result_record.get("type")!="PROVIDER_RESULT" or live_result_record.get("resultDigest")!=live.get("result_digest"):raise SystemExit("HOLD durable provider result differs from witness")
     live_capsule=json.loads(live_capsules[0].read_text())
     if live_capsule.get("result_digest")!=live.get("result_digest") or live_capsule.get("result")!=live.get("result"):raise SystemExit("HOLD live capsule differs")
     stop_server(server);server=None;marker.write_text("")
@@ -323,23 +328,23 @@ try:
     if held.get("result") is not None or marker.read_text().strip().splitlines()!=["catalog","chat"]:raise SystemExit("HOLD tampered capsule failure")
 
     capsule_path.write_bytes(capsule_bytes);os.chmod(capsule_path,0o600);stop_server(server);server=None
-    record3=list((state/"ledger-v1").glob("apollyon-op-v1-*/record-0000000000000003.json"))
-    if len(record3)!=1:raise SystemExit("HOLD exact ACCEPTED record missing")
-    record3[0].unlink()
+    record4=list((state/"ledger-v1").glob("apollyon-op-v1-*/record-0000000000000004.json"))
+    if len(record4)!=1:raise SystemExit("HOLD exact ACCEPTED record missing")
+    record4[0].unlink()
     write_request(state_signed)
     server=spawn_server(fd,state,broker_creds,marker,mock)
-    recovered_uncertain=run_client(sock,"ACCEPTED")
-    if recovered_uncertain.get("result_digest")!=replay.get("result_digest"):raise SystemExit("HOLD complete UNCERTAIN capsule recovery digest drift")
-    if marker.read_text().strip().splitlines()!=["catalog","chat"]:raise SystemExit("HOLD complete UNCERTAIN recovery reexecuted provider")
+    recovered_witnessed=run_client(sock,"ACCEPTED")
+    if recovered_witnessed.get("result_digest")!=replay.get("result_digest"):raise SystemExit("HOLD complete RESULT_WITNESSED capsule recovery digest drift")
+    if marker.read_text().strip().splitlines()!=["catalog","chat"]:raise SystemExit("HOLD complete RESULT_WITNESSED recovery reexecuted provider")
     stop_server(server);server=None
-    record3=list((state/"ledger-v1").glob("apollyon-op-v1-*/record-0000000000000003.json"))
-    if len(record3)!=1:raise SystemExit("HOLD recovered ACCEPTED record missing")
-    record3[0].unlink()
+    record4=list((state/"ledger-v1").glob("apollyon-op-v1-*/record-0000000000000004.json"))
+    if len(record4)!=1:raise SystemExit("HOLD recovered ACCEPTED record missing")
+    record4[0].unlink()
     bad_capsule=json.loads(capsule_bytes.decode("utf-8"));bad_capsule["result_digest"]="e"*64
     capsule_path.write_text(json.dumps(bad_capsule,separators=(",",":"))+"\n");os.chmod(capsule_path,0o600)
     server=spawn_server(fd,state,broker_creds,marker,mock);write_request(state_signed)
-    uncertain_bad=run_client(sock,"HOLD")
-    if uncertain_bad.get("result") is not None or marker.read_text().strip().splitlines()!=["catalog","chat"]:raise SystemExit("HOLD mismatched UNCERTAIN capsule recovery failure")
+    witnessed_bad=run_client(sock,"HOLD")
+    if witnessed_bad.get("result") is not None or marker.read_text().strip().splitlines()!=["catalog","chat"]:raise SystemExit("HOLD mismatched RESULT_WITNESSED capsule recovery failure")
 
     stop_server(server);server=None
     marker.write_text("");write_request(base)
@@ -363,7 +368,7 @@ try:
     run_client(sock,"HOLD")
     if marker.read_text().strip().splitlines()!=["catalog","chat"]:raise SystemExit("HOLD oversize retry reexecuted provider")
 
-    print("VOID_OPENROUTER_BROKER_INTEGRATION_V1_PROOF_GREEN inline_signed_capability=true replay_read_capability=true replay_capability_zero_send=true dual_capability_provenance_coupled=true mismatched_valid_hmac_pair_hold=true ordinary_client_without_replay_hold=true forged_replay_hold=true shared_admission_directory=false unauthorized_namespace_creation=false accepted_replay_requires_replay_capability=true bad_registry_hold=true unreviewed_contestant_hold=true changed_work_hold=true first_delivery=true response_loss_replay=true missing_capsule_hold=true retained_stage_alias=true retained_alias_restore_same_generation=true noncanonical_capsule_hold=true symlink_capsule_hold=true tamper_hold=true uncertain_complete_capsule_recovery=true uncertain_mismatch_hold=true partial_ipc_lifetime_bounded=true incomplete_clients_bounded=true accepted_result_capacity_domain=true oversize_no_resend=true fetch_order=catalog,chat")
+    print("VOID_OPENROUTER_BROKER_INTEGRATION_V1_PROOF_GREEN inline_signed_capability=true replay_read_capability=true replay_capability_zero_send=true dual_capability_provenance_coupled=true mismatched_valid_hmac_pair_hold=true ordinary_client_without_replay_hold=true forged_replay_hold=true shared_admission_directory=false unauthorized_namespace_creation=false accepted_replay_requires_replay_capability=true bad_registry_hold=true unreviewed_contestant_hold=true changed_work_hold=true first_delivery=true durable_result_witness=true response_loss_replay=true missing_capsule_hold=true retained_stage_alias=true retained_alias_restore_same_generation=true noncanonical_capsule_hold=true symlink_capsule_hold=true tamper_hold=true witnessed_complete_capsule_recovery=true witnessed_mismatch_hold=true partial_ipc_lifetime_bounded=true incomplete_clients_bounded=true accepted_result_capacity_domain=true oversize_no_resend=true fetch_order=catalog,chat")
 finally:
     stop_server(server)
     if listener:
