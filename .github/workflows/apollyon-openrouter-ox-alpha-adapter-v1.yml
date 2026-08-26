@@ -142,11 +142,11 @@ jobs:
       - name: Run OpenRouter contestant registry proof
         run: node scripts/prove_apollyon_openrouter_ox_alpha_adapter_v1.mjs
 
-      - name: Run OpenRouter broker socket integration proof
-        run: python3 scripts/prove_apollyon_openrouter_broker_integration_v1.py
-
       - name: Run OpenRouter broker post-commit unlock terminal proof
         run: node scripts/prove_apollyon_openrouter_broker_unlock_terminal_v1.mjs
+
+      - name: Run OpenRouter broker socket integration proof
+        run: python3 scripts/prove_apollyon_openrouter_broker_integration_v1.py
 
       - name: Run OpenRouter alignment arena proof
         run: node scripts/prove_apollyon_openrouter_alignment_arena_v1.mjs
