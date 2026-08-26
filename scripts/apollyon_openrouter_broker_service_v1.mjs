@@ -10,7 +10,7 @@ import {
   openOperationLedgerNamespaceV1,
 } from './apollyon_execution_ledger_namespace_v1.mjs';
 import { prepareBrokerOperationV1 } from './apollyon_execution_broker_prepare_v1.mjs';
-import { readBrokerAdmissionCapabilityV1 } from './apollyon_openrouter_broker_admission_capability_v1.mjs';
+import { validateBrokerAdmissionCapabilityV1 } from './apollyon_openrouter_broker_admission_capability_v1.mjs';
 import { readAcceptedResultCapsuleV1 } from './apollyon_accepted_result_capsule_v1.mjs';
 import { runOpenRouterBrokerAttemptV1 } from './apollyon_openrouter_broker_transport_v1.mjs';
 import {
@@ -62,7 +62,7 @@ function classifyPrepareError(error) {
   return 'INTERNAL_HOLD';
 }
 
-async function processRequest(rootDirectoryHandle, acceptedResultRoot, admissionRoot, registryAuthority, apiKey, request) {
+async function processRequest(rootDirectoryHandle, acceptedResultRoot, admissionMacKey, registryAuthority, apiKey, request) {
   let brokerContestant;
   let transportContestant;
   let binding;
@@ -140,13 +140,14 @@ async function processRequest(rootDirectoryHandle, acceptedResultRoot, admission
 
     let brokerAdmission;
     try {
-      brokerAdmission = await readBrokerAdmissionCapabilityV1(
-        admissionRoot,
+      brokerAdmission = validateBrokerAdmissionCapabilityV1(
+        request.admission_capability,
         {
           binding,
           model: brokerContestant.model,
           canonicalSlug: brokerContestant.canonical_slug,
         },
+        admissionMacKey,
       );
     } catch {
       return holdResponse(request.request_id, binding.operationId, 'ADMISSION_HOLD');
@@ -208,7 +209,7 @@ async function processRequest(rootDirectoryHandle, acceptedResultRoot, admission
   }
 }
 
-export async function startActivatedBrokerServiceV1(listenerFd, rootDirectoryHandle, acceptedResultRoot, admissionRoot, registryAuthority, apiKey) {
+export async function startActivatedBrokerServiceV1(listenerFd, rootDirectoryHandle, acceptedResultRoot, admissionMacKey, registryAuthority, apiKey) {
   if (process.platform !== 'linux') fail('Linux is required');
   if (!Number.isSafeInteger(listenerFd) || listenerFd < 3) fail('listener fd is invalid');
   if (!rootDirectoryHandle || !Number.isSafeInteger(rootDirectoryHandle.fd)) fail('ledger root handle is invalid');
@@ -216,7 +217,7 @@ export async function startActivatedBrokerServiceV1(listenerFd, rootDirectoryHan
       || !Number.isSafeInteger(acceptedResultRoot.handle.fd)) {
     fail('accepted result root handle is invalid');
   }
-  if(!admissionRoot?.handle||!Number.isSafeInteger(admissionRoot.handle.fd)) fail('broker admission root handle is invalid');
+  if(!Buffer.isBuffer(admissionMacKey)||admissionMacKey.length!==32) fail('broker admission MAC credential is invalid');
   if(!registryAuthority||!/^[0-9a-f]{64}$/.test(String(registryAuthority.sha256??''))||!registryAuthority.registry) fail('reviewed registry authority is invalid');
   if (typeof apiKey !== 'string' || apiKey.length < 8 || apiKey.length > 512 || /\s/.test(apiKey)) {
     fail('broker credential is malformed');
@@ -265,7 +266,7 @@ export async function startActivatedBrokerServiceV1(listenerFd, rootDirectoryHan
 
       let response;
       try {
-        response = await processRequest(rootDirectoryHandle, acceptedResultRoot, admissionRoot, registryAuthority, apiKey, request);
+        response = await processRequest(rootDirectoryHandle, acceptedResultRoot, admissionMacKey, registryAuthority, apiKey, request);
       } catch {
         response = holdResponse(request.request_id, null, 'INTERNAL_HOLD');
       }

@@ -4,6 +4,7 @@ import { isAbsolute, join } from 'node:path';
 
 import { openPinnedLedgerDirectoryV1 } from './apollyon_execution_ledger_publish_v1.mjs';
 import { startActivatedBrokerServiceV1 } from './apollyon_openrouter_broker_service_v1.mjs';
+import { readBrokerAdmissionMacCredentialV1 } from './apollyon_openrouter_broker_admission_capability_v1.mjs';
 import { REGISTRY_PATH, contestantRegistryDigestV1, validateContestantRegistryV1 } from './apollyon_openrouter_ox_alpha_adapter_v1.mjs';
 
 function fail(message) {
@@ -64,20 +65,25 @@ async function main() {
   }
   const acceptedResultRoot = await openPinnedLedgerDirectoryV1(acceptedResultPath);
 
-  const admissionPath=join(stateDirectory,'broker-admission-authority-v1');
-  try{await mkdir(admissionPath,{mode:0o700})}catch(error){if(error?.code!=='EEXIST')throw error}
-  const admissionRoot=await openPinnedLedgerDirectoryV1(admissionPath);
   const registryAuthority=await loadReviewedRegistryAuthorityV1();
+  const admissionMacKey=await readBrokerAdmissionMacCredentialV1(credentialsDirectory);
 
   try {
-    const server = await startActivatedBrokerServiceV1(3, ledgerRoot, acceptedResultRoot, admissionRoot, registryAuthority, apiKey);
+    const server = await startActivatedBrokerServiceV1(
+      3,
+      ledgerRoot,
+      acceptedResultRoot,
+      admissionMacKey,
+      registryAuthority,
+      apiKey,
+    );
     process.stdout.write('VOID_APOLLYON_OPENROUTER_BROKER_SERVICE_READY_V1\n');
     await new Promise((resolve, reject) => {
       server.once('close', resolve);
       server.once('error', reject);
     });
   } finally {
-    await admissionRoot.handle.close().catch(() => {});
+    admissionMacKey.fill(0);
     await acceptedResultRoot.handle.close().catch(() => {});
     await ledgerRoot.close().catch(() => {});
   }

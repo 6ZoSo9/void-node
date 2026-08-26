@@ -6,6 +6,7 @@ const OPERATION_ID = /^apollyon_op_v1:[0-9a-f]{64}$/;
 const MAX_WIRE_BYTES = 4 * 1024 * 1024;
 const MAX_REQUEST_BODY_BYTES = 3 * 1024 * 1024;
 const MAX_CONTESTANT_BYTES = 256 * 1024;
+const MAX_ADMISSION_CAPABILITY_BYTES = 64 * 1024;
 const HOLD_CODES = new Set([
   'INVALID_REQUEST',
   'BUSY',
@@ -97,6 +98,7 @@ function validateRequestValue(raw) {
     'registry_sha256',
     'request_body',
     'contestant',
+    'admission_capability',
     'timeout_ms',
   ], 'request');
   if (raw.marker !== REQUEST_MARKER || raw.version !== 1) fail('request marker/version is invalid');
@@ -108,8 +110,15 @@ function validateRequestValue(raw) {
   }
   const requestBody = snapshotJson(raw.request_body, 'request_body');
   const contestant = snapshotJson(raw.contestant, 'contestant');
+  const admissionCapability = raw.admission_capability === null
+    ? null
+    : snapshotJson(raw.admission_capability, 'admission_capability');
   if (utf8Bytes(canonicalJson(requestBody)) > MAX_REQUEST_BODY_BYTES) fail('request_body exceeds byte ceiling');
   if (utf8Bytes(canonicalJson(contestant)) > MAX_CONTESTANT_BYTES) fail('contestant exceeds byte ceiling');
+  if (admissionCapability !== null
+      && utf8Bytes(canonicalJson(admissionCapability)) > MAX_ADMISSION_CAPABILITY_BYTES) {
+    fail('admission_capability exceeds byte ceiling');
+  }
   return Object.freeze({
     marker: REQUEST_MARKER,
     version: 1,
@@ -118,6 +127,7 @@ function validateRequestValue(raw) {
     registry_sha256: raw.registry_sha256,
     request_body: requestBody,
     contestant,
+    admission_capability: admissionCapability,
     timeout_ms: raw.timeout_ms,
   });
 }

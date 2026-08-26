@@ -11,7 +11,10 @@ import { fileURLToPath } from 'node:url';
 import { admit as admitSanitizedInputs, publishReceiptExact as publishJsonExactV1 } from './apollyon_secret_sanitization_constitutional_admission_v1.mjs';
 import { runBrokerClientV1 } from './apollyon_openrouter_broker_client_v1.mjs';
 import { buildOpenRouterBrokerBindingV1 } from './apollyon_openrouter_broker_binding_v1.mjs';
-import { openInheritedBrokerAdmissionRootV1, publishBrokerAdmissionCapabilityV1 } from './apollyon_openrouter_broker_admission_capability_v1.mjs';
+import {
+  buildBrokerAdmissionCapabilityV1,
+  readBrokerAdmissionMacCredentialV1,
+} from './apollyon_openrouter_broker_admission_capability_v1.mjs';
 
 export const MARKER = 'VOID_APOLLYON_OPENROUTER_CONTESTANT_ADAPTER_V1';
 export const RESULT_MARKER = 'VOID_APOLLYON_OPENROUTER_CONTESTANT_RESULT_V1';
@@ -539,7 +542,7 @@ export function buildOpenRouterRequestV1(trial, admittedInputs, maxTokens, conte
 
 export const BROKER_SOCKET_PATH = '/run/void-apollyon-openrouter-broker-v1.sock';
 export const LOGICAL_OPERATION_INTENT_ENV = 'VOID_OPENROUTER_LOGICAL_OPERATION_INTENT_SHA256';
-export const BROKER_ADMISSION_ROOT_FD_ENV = 'VOID_OPENROUTER_BROKER_ADMISSION_ROOT_FD';
+export const BROKER_ADMISSION_CREDENTIAL_DIRECTORY_ENV = 'CREDENTIALS_DIRECTORY';
 
 function brokerSocketPathV1(hooks) {
   if (hooks.brokerSocketPath === undefined) return BROKER_SOCKET_PATH;
@@ -553,12 +556,12 @@ function brokerSocketPathV1(hooks) {
   return path;
 }
 
-function brokerAdmissionRootFdV1(env) {
-  const text=String(env[BROKER_ADMISSION_ROOT_FD_ENV]??'').trim();
-  if(!/^[1-9][0-9]*$/.test(text)) fail(`${BROKER_ADMISSION_ROOT_FD_ENV} must be an inherited positive integer fd`);
-  const fd=Number(text);
-  if(!Number.isSafeInteger(fd)||fd<3||fd>1048575) fail(`${BROKER_ADMISSION_ROOT_FD_ENV} is out of bounds`);
-  return fd;
+function brokerAdmissionCredentialDirectoryV1(env) {
+  const path=String(env[BROKER_ADMISSION_CREDENTIAL_DIRECTORY_ENV]??'').trim();
+  if(!isAbsolute(path)||path.length<2||path.length>4096||path.includes('\0')) {
+    fail(`${BROKER_ADMISSION_CREDENTIAL_DIRECTORY_ENV} must be the per-unit systemd credential directory`);
+  }
+  return path;
 }
 
 function brokerClientV1(hooks) {
@@ -584,6 +587,7 @@ export function buildOpenRouterBrokerIpcRequestV1({
   registrySha256,
   requestBody,
   contestant,
+  admissionCapability = null,
   timeoutMs,
 }) {
   if (!/^[0-9a-f]{64}$/.test(String(logicalOperationIntentDigest ?? ''))) {
@@ -598,6 +602,10 @@ export function buildOpenRouterBrokerIpcRequestV1({
   if (!contestant || typeof contestant !== 'object' || Array.isArray(contestant)) {
     fail('broker contestant policy is invalid');
   }
+  if (admissionCapability !== null
+      && (!admissionCapability || typeof admissionCapability !== 'object' || Array.isArray(admissionCapability))) {
+    fail('broker admission capability is invalid');
+  }
   if (!Number.isSafeInteger(timeoutMs) || timeoutMs < MIN_TIMEOUT_MS || timeoutMs > MAX_TIMEOUT_MS) {
     fail('broker timeout is invalid');
   }
@@ -609,6 +617,7 @@ export function buildOpenRouterBrokerIpcRequestV1({
     registry_sha256: registrySha256,
     request_body: requestBody,
     contestant,
+    admission_capability: admissionCapability,
     timeout_ms: timeoutMs,
   });
 }
@@ -796,10 +805,13 @@ export async function runOpenRouterContestantTrialV1(options, hooks = {}) {
     requestBody:request.body,
     contestant:runtime.contestant,
   });
-  const brokerAdmissionRoot=await openInheritedBrokerAdmissionRootV1(brokerAdmissionRootFdV1(env));
+  let brokerAdmissionMacKey=null;
   let brokerAdmission;
   try{
-    brokerAdmission=await publishBrokerAdmissionCapabilityV1(brokerAdmissionRoot,{
+    brokerAdmissionMacKey=await readBrokerAdmissionMacCredentialV1(
+      brokerAdmissionCredentialDirectoryV1(env),
+    );
+    brokerAdmission=buildBrokerAdmissionCapabilityV1({
       binding:brokerBinding,
       model:runtime.contestant.model,
       canonicalSlug:runtime.contestant.canonical_slug,
@@ -807,18 +819,21 @@ export async function runOpenRouterContestantTrialV1(options, hooks = {}) {
       admissionId:receiptRead.value.admission_id,
       admissionReceiptSha256:sha256(receiptRead.bytes),
       promptSha256:request.promptSha256,
-    });
-  }finally{await brokerAdmissionRoot.handle.close().catch(()=>{})}
+    },brokerAdmissionMacKey);
+  }finally{
+    if(brokerAdmissionMacKey)brokerAdmissionMacKey.fill(0);
+  }
 
   const brokerRequest = buildOpenRouterBrokerIpcRequestV1({
     logicalOperationIntentDigest: runtime.logicalOperationIntentDigest,
     registrySha256: registryLoaded.sha256,
     requestBody: request.body,
     contestant: runtime.contestant,
+    admissionCapability: brokerAdmission,
     timeoutMs: runtime.chatTimeoutMs,
   });
   if (typeof hooks.beforeBrokerRequest === 'function') {
-    await hooks.beforeBrokerRequest({ brokerRequest, recoveryKey, brokerAdmissionCapabilityId:brokerAdmission.capabilityId });
+    await hooks.beforeBrokerRequest({ brokerRequest, recoveryKey, brokerAdmissionCapabilityId:brokerAdmission.capability_id });
   }
 
   const brokerResponse = await brokerClientV1(hooks)(
@@ -829,7 +844,7 @@ export async function runOpenRouterContestantTrialV1(options, hooks = {}) {
     brokerResponse,
     brokerRequest,
     runtime.contestant,
-    brokerAdmission.capabilityId,
+    brokerAdmission.capability_id,
   );
 
   if (typeof hooks.afterFreePriceCheck === 'function') {
@@ -855,7 +870,7 @@ export async function runOpenRouterContestantTrialV1(options, hooks = {}) {
     provider: PROVIDER,
     broker_operation_id: brokerAccepted.operationId,
     broker_result_digest: brokerAccepted.resultDigest,
-    broker_admission_capability_id: brokerAdmission.capabilityId,
+    broker_admission_capability_id: brokerAdmission.capability_id,
     broker_catalog_sha256: model.catalog_sha256,
     broker_selected_model_sha256: model.selected_model_sha256,
     model_requested: runtime.contestant.model,

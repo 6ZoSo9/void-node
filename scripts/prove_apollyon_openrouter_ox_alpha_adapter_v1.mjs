@@ -9,7 +9,7 @@ import { spawnSync } from 'node:child_process';
 
 import {
   BROKER_SOCKET_PATH,
-  BROKER_ADMISSION_ROOT_FD_ENV,
+  BROKER_ADMISSION_CREDENTIAL_DIRECTORY_ENV,
   DEFAULT_MODEL,
   LOGICAL_OPERATION_INTENT_ENV,
   REGISTRY_PATH,
@@ -80,12 +80,13 @@ const adapterSource=await readFile('scripts/apollyon_openrouter_ox_alpha_adapter
 for(const forbidden of [
   'OPENROUTER_API_KEY','https://openrouter.ai','globalThis.fetch','fetchImpl',
   'VOID_OPENROUTER_EXECUTION_CLAIM_ROOT_FD','acquireExecutionClaimV1','/usr/bin/flock',
+  'VOID_OPENROUTER_BROKER_ADMISSION_ROOT_FD','VOID_OPENROUTER_BROKER_ADMISSION_MAC_FD',
 ]){
   assert.equal(adapterSource.includes(forbidden),false,`forbidden adapter authority ${forbidden}`);
 }
 assert.equal(BROKER_SOCKET_PATH,'/run/void-apollyon-openrouter-broker-v1.sock');
 assert.equal(LOGICAL_OPERATION_INTENT_ENV,'VOID_OPENROUTER_LOGICAL_OPERATION_INTENT_SHA256');
-assert.equal(BROKER_ADMISSION_ROOT_FD_ENV,'VOID_OPENROUTER_BROKER_ADMISSION_ROOT_FD');
+assert.equal(BROKER_ADMISSION_CREDENTIAL_DIRECTORY_ENV,'CREDENTIALS_DIRECTORY');
 
 const registry=JSON.parse(await readFile(REGISTRY_PATH,'utf8'));
 validateContestantRegistryV1(registry);
@@ -98,10 +99,11 @@ assert.equal(ox.min_context_length,1048576);
 assert.equal(ox.scored_trial_eligible,false);
 
 const root=await mkdtemp(join(tmpdir(),'void-openrouter-adapter-ci-'));
-let brokerAdmissionHandle=null;
+const brokerAdmissionCredentialName='apollyon_openrouter_admission_mac_v1';
 try{
   const stage=join(root,'stage');await mkdir(stage,{mode:0o700});
-  const brokerAdmissionRoot=join(root,'broker-admission');await mkdir(brokerAdmissionRoot,{mode:0o700});brokerAdmissionHandle=await open(brokerAdmissionRoot,FS.O_RDONLY|FS.O_DIRECTORY);
+  const credentialDir=join(root,'credentials');await mkdir(credentialDir,{mode:0o700});
+  await writeFile(join(credentialDir,brokerAdmissionCredentialName),Buffer.alloc(32,0x42),{mode:0o600});
   const draft=join(root,'draft.json'),packet=join(root,'packet.json');
   const manifest=join(root,'manifest.json'),receipt=join(root,'receipt.json'),output=join(root,'result.json');
   const fixture=Buffer.from(`${JSON.stringify({public:true,code:'const total = 1 + 1;',expected:2})}\n`,'utf8');
@@ -134,7 +136,10 @@ try{
 
   let brokerCalls=0;
   const fakeBroker=async(_socket,request)=>{
-    const admissionFiles=(await readdir(brokerAdmissionRoot)).filter((name)=>name.startsWith('broker-admission-v1-'));assert.equal(admissionFiles.length,1);const admissionCapability=JSON.parse(await readFile(join(brokerAdmissionRoot,admissionFiles[0]),'utf8'));
+    const admissionCapability=request.admission_capability;
+    assert.ok(admissionCapability && typeof admissionCapability==='object');
+    assert.match(admissionCapability.capability_id,/^voidobac1_[0-9a-f]{64}$/);
+    assert.match(admissionCapability.authority_mac_sha256,/^[0-9a-f]{64}$/);
     brokerCalls+=1;
     assert.equal(request.logical_operation_intent_digest,intent);
     assert.equal(request.registry_sha256,registrySha);
@@ -166,7 +171,7 @@ try{
     VOID_OPENROUTER_ACK_PUBLIC_TRIAL_SHA256:trialSha,VOID_OPENROUTER_MODEL:'stealth/ox-alpha',
     VOID_OPENROUTER_MAX_TOKENS:'4096',VOID_OPENROUTER_CHAT_TIMEOUT_MS:'120000',
     VOID_OPENROUTER_LOGICAL_OPERATION_INTENT_SHA256:intent,
-    VOID_OPENROUTER_BROKER_ADMISSION_ROOT_FD:String(brokerAdmissionHandle.fd),
+    CREDENTIALS_DIRECTORY:credentialDir,
   };
   const result=await runOpenRouterContestantTrialV1({
     trialPath:packet,stagingRoot:stage,manifestPath:manifest,receiptPath:receipt,
@@ -197,8 +202,7 @@ try{
   };
   assert.throws(()=>validateBrokerAcceptedResponseV1(hold,mapped,ox,`voidobac1_${'0'.repeat(64)}`),/UNCERTAIN_OR_TERMINAL/);
 
-  console.log(`${PROOF_MARKER} passed=34 failed=0`);
+  console.log(`${PROOF_MARKER} passed=37 failed=0`);
 }finally{
-  if(brokerAdmissionHandle)await brokerAdmissionHandle.close().catch(()=>{});
   await rm(root,{recursive:true,force:true});
 }

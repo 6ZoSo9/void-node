@@ -70,7 +70,9 @@ try{
   const fakeRunner=async(options,hooks)=>{
     assert.equal('OPENROUTER_API_KEY' in hooks.env,false);
     assert.equal('VOID_OPENROUTER_EXECUTION_CLAIM_ROOT_FD' in hooks.env,false);
-    assert.equal(hooks.env.VOID_OPENROUTER_BROKER_ADMISSION_ROOT_FD,'77');
+    assert.equal(hooks.env.CREDENTIALS_DIRECTORY,'/run/credentials/void-apollyon-openrouter-arena.service');
+    assert.equal('VOID_OPENROUTER_BROKER_ADMISSION_ROOT_FD' in hooks.env,false);
+    assert.equal('VOID_OPENROUTER_BROKER_ADMISSION_MAC_FD' in hooks.env,false);
     const c=r.contestants.find(x=>x.model===hooks.env.VOID_OPENROUTER_MODEL);assert.ok(c);
     const intent=hooks.env.VOID_OPENROUTER_LOGICAL_OPERATION_INTENT_SHA256;assert.match(intent,/^[0-9a-f]{64}$/);
     calls.push({model:c.model,intent});
@@ -102,7 +104,7 @@ try{
       VOID_OPENROUTER_ACK_REGISTRY_SHA256:rsha,VOID_OPENROUTER_ARENA_MODE:'qualification',
       VOID_OPENROUTER_ARENA_DELAY_MS:'0',VOID_OPENROUTER_MAX_TOKENS:'4096',
       VOID_OPENROUTER_CHAT_TIMEOUT_MS:'120000',VOID_OPENROUTER_ARENA_LOGICAL_OPERATION_INTENT_SHA256:arenaIntent,
-      VOID_OPENROUTER_BROKER_ADMISSION_ROOT_FD:'77',
+      CREDENTIALS_DIRECTORY:'/run/credentials/void-apollyon-openrouter-arena.service',
     },
     registry:r,outputRootFd:outHandle.fd,runContestantFn:fakeRunner,sleepFn:async()=>{},emitOutput:false,
   });
@@ -122,7 +124,7 @@ try{
   assert.equal(calls.length,2);assert.notEqual(calls[0].intent,calls[1].intent);
   const persisted=JSON.parse(await readFile(join(out,'arena-summary.json'),'utf8'));
   assert.equal(JSON.stringify(persisted).includes('OPENROUTER_API_KEY'),false);
-  console.log(`${PROOF_MARKER} passed=46 failed=0`);
+  console.log(`${PROOF_MARKER} passed=49 failed=0`);
 }finally{
   await outHandle.close();await rm(root,{recursive:true,force:true});
 }

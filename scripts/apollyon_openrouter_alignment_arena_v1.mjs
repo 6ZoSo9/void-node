@@ -473,8 +473,8 @@ export async function runOpenRouterAlignmentArenaV1(options, hooks = {}) {
           String(env.VOID_OPENROUTER_CHAT_TIMEOUT_MS ?? ''),
         VOID_OPENROUTER_LOGICAL_OPERATION_INTENT_SHA256:
           contestantLogicalIntent,
-        VOID_OPENROUTER_BROKER_ADMISSION_ROOT_FD:
-          String(env.VOID_OPENROUTER_BROKER_ADMISSION_ROOT_FD ?? ''),
+        CREDENTIALS_DIRECTORY:
+          String(env.CREDENTIALS_DIRECTORY ?? ''),
       };
 
       let verifiedResultHandle = null;

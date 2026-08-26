@@ -24,7 +24,7 @@ The adapter sends one secretless bounded IPC request to:
 
 `/run/void-apollyon-openrouter-broker-v1.sock`
 
-Before that IPC request, the reviewed admission pipeline must receive an inherited private `VOID_OPENROUTER_BROKER_ADMISSION_ROOT_FD`. After exact constitutional/sanitization admission, staged-input verification, registry binding, and final prompt construction, the adapter publishes one create-only 0600 broker-admission capability under that pinned root. The capability is bound to the broker's exact operation/work/request/registry digests plus trial, admission-receipt, prompt, and canonical-model evidence. The FD is local execution-admission authority, not a provider credential and not a reusable send token.
+Before that IPC request, the reviewed adapter loads the exact 32-byte `apollyon_openrouter_admission_mac_v1` from its per-unit systemd `$CREDENTIALS_DIRECTORY` **after** constitutional/sanitization admission, staged-input verification, registry binding, and final prompt construction. It HMAC-authenticates the complete operation/work/request/registry plus trial/admission-receipt/prompt/canonical-model provenance and carries that capability inline in the bounded broker IPC request. No shared writable admission directory exists. The broker receives its own read-only copy of the same admission credential through a separate systemd unit identity and verifies the HMAC before fresh namespace creation or provider access. Ordinary IPC clients receive neither credential copy nor provider credentials.
 
 The broker is the sole owner of the OpenRouter credential, authenticated model-catalog access, authenticated chat access, private durable exact-once ledger, provider-admission state, and retry/reconciliation authority.
 
@@ -44,7 +44,7 @@ The adapter derives request correlation from this stable intent. The broker sepa
 
 The broker's durable states include `ABSENT`, `RESERVED`, `UNCERTAIN`, `ACCEPTED`, `RECONCILED_BLOCKED`, and `CONFLICT`.
 
-The broker first performs a read-only, no-create lookup for an existing operation. If the exact ledger/capsule binding is already durably `ACCEPTED`, the same committed result is replayed without catalog/chat and does not depend on later survival of the fresh-execution admission capability or a newer reviewed-registry generation. For any new or non-`ACCEPTED` operation, before namespace creation, preparation, or provider-network access, the broker independently loads the reviewed checked-in contestant registry generation and requires the exact create-only broker-admission capability for the request's stable intent/work binding. Missing capability, random registry digest, unreviewed contestant, or changed request work HOLDs before namespace creation/catalog/chat.
+The broker first performs a read-only, no-create lookup for an existing operation. If the exact ledger/capsule binding is already durably `ACCEPTED`, the same committed result is replayed without catalog/chat and does not depend on later survival of the fresh-execution admission capability or a newer reviewed-registry generation. For any new or non-`ACCEPTED` operation, before namespace creation, preparation, or provider-network access, the broker independently loads the reviewed checked-in contestant registry generation and verifies the inline HMAC-authenticated admission capability against the exact request's stable intent/work binding. Missing/forged capability, random registry digest, unreviewed contestant, or changed request work HOLDs before namespace creation/catalog/chat. The capability authorizes only that exact logical work; replay cannot create a second provider execution because provider-send authority remains solely in the durable exact-once ledger.
 
 The authenticated model-catalog GET is read-only and runs after durable prepare but before irreversible chat-provider admission. A catalog failure may be retried because no chat authority has been consumed.
 
@@ -89,15 +89,16 @@ REGISTRY_SHA256="$(
 
 TRIAL_SHA256="$(sha256sum "$TRIAL" | awk '{print $1}')"
 LOGICAL_OPERATION_INTENT_SHA256=<trusted-stable-64-hex-digest>
-BROKER_ADMISSION_ROOT_FD=<trusted-inherited-private-directory-fd>
+# CREDENTIALS_DIRECTORY is supplied by the reviewed systemd unit and contains:
+#   apollyon_openrouter_admission_mac_v1  (exactly 32 binary bytes)
 
-VOID_OPENROUTER_BROKER_ADMISSION_ROOT_FD="$BROKER_ADMISSION_ROOT_FD" VOID_OPENROUTER_ENABLE=1 VOID_OPENROUTER_MODEL=stealth/ox-alpha VOID_OPENROUTER_ACK_PROVIDER_POLICY=1 VOID_OPENROUTER_ACK_REGISTRY_SHA256="$REGISTRY_SHA256" VOID_OPENROUTER_ACK_PUBLIC_RETENTION=1 VOID_OPENROUTER_ACK_PUBLIC_TRIAL_SHA256="$TRIAL_SHA256" VOID_OPENROUTER_LOGICAL_OPERATION_INTENT_SHA256="$LOGICAL_OPERATION_INTENT_SHA256" node scripts/apollyon_openrouter_ox_alpha_adapter_v1.mjs run   "$TRIAL" "$STAGING" "$MANIFEST" "$RECEIPT" "$OUTPUT" "$ADMISSION_AT"
+VOID_OPENROUTER_ENABLE=1 VOID_OPENROUTER_MODEL=stealth/ox-alpha VOID_OPENROUTER_ACK_PROVIDER_POLICY=1 VOID_OPENROUTER_ACK_REGISTRY_SHA256="$REGISTRY_SHA256" VOID_OPENROUTER_ACK_PUBLIC_RETENTION=1 VOID_OPENROUTER_ACK_PUBLIC_TRIAL_SHA256="$TRIAL_SHA256" VOID_OPENROUTER_LOGICAL_OPERATION_INTENT_SHA256="$LOGICAL_OPERATION_INTENT_SHA256" node scripts/apollyon_openrouter_ox_alpha_adapter_v1.mjs run   "$TRIAL" "$STAGING" "$MANIFEST" "$RECEIPT" "$OUTPUT" "$ADMISSION_AT"
 ```
 
 If the fixed broker socket is absent, the adapter HOLDs; it never falls back to direct provider access.
 
 ## Deployment separation
 
-The reviewed production deployment contract uses a dedicated static broker identity, private persistent `StateDirectory`, systemd socket activation, restrictive socket permissions, and systemd `LoadCredential=` so only the broker receives the secret.
+The reviewed production deployment contract requires **separate system services with distinct `DynamicUser=yes` identities** for broker and admission/arena execution. Both receive separate read-only copies of `apollyon_openrouter_admission_mac_v1` using `LoadCredentialEncrypted=` (or an equivalently protected `LoadCredential=` source); only the broker unit additionally receives `openrouter_api_key`. `$CREDENTIALS_DIRECTORY` is the application interface. The broker keeps private persistent `StateDirectory`, systemd socket activation, and restrictive socket permissions. Running these key-bearing paths as the ordinary operator UID is outside the reviewed production contract, because same-UID processes can reopen one another's ordinary `/proc/<pid>/fd` descriptors.
 
 No deployment, restart, live VOID mutation, chain action, wallet/signer action, validator/Work Credit action, transaction, treasury/liquidity action, or funds movement is authorized by this source generation.
