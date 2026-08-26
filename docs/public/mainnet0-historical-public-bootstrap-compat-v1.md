@@ -17,7 +17,11 @@ Outside-machine Nimo evidence established:
 - sampled height `250000` through `1951058`:
   `proposer.commit-direct.v2fs`;
 - exact heights `196019` and `196020`: modern signed envelopes;
-- exact heights `196021` and `196022`: `proposer.commit-direct.v2fs`.
+- exact heights `196021` and `196022`: `proposer.commit-direct.v2fs`;
+- exact height `198196`: legacy-v2fs with the same top-level empty tx root,
+  but the historical old-writer nested `header.txRoot` value is the exact
+  object `{"root":"e3b0...b855","leaves":[]}` rather than the usual root
+  string. Heights `198195` and `198197` use the ordinary string form.
 
 The exact minimal-to-v2fs transition height remains derived from the persisted
 parent block's era. A separate, canonical short modern island was observed at
@@ -61,6 +65,16 @@ Legacy-v2fs retains its existing explicit
 operators. That manual path is separate from, and is not protected by, the IPC
 HMAC construction. A clean public bootstrap requires no manual origin
 configuration.
+
+The old `txroot()` writer can also explain an exact historical nested value of
+`{"root": <top-level txRoot>, "leaves":[]}` on an empty legacy-v2fs block.
+That structured form is **not** added to ordinary/manual legacy validation. It
+is admitted only after the public-bootstrap range response has current HMAC
+authority and only through the historical SegStore append method. The object
+must contain exactly `root` and `leaves`, `leaves` must be empty, `root` must
+be the exact top-level legacy tx root, and the transaction list must be empty.
+Arrays, extra keys, non-empty leaves, mismatched roots, and non-empty
+transaction object forms remain rejected.
 
 ## Era ratchet
 

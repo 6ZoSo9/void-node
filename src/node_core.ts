@@ -14,6 +14,7 @@ import { SegStore } from "./chain/seg_store.js";
 import {
   VOID_LEGACY_COMMIT_DIRECT_V2FS_MARKER_V1,
   validateLegacyCommitDirectV2fsForAppendV1,
+  validateMainnet0HistoricalLegacyCommitDirectV2fsForAppendV1,
 } from "./chain/legacy_commit_direct_v2fs_v1.js";
 import {
   isMainnet0GenesisMinimalV1,
@@ -4279,7 +4280,12 @@ attachEphemeralDirectTransportV1(
         ) {
           return { ok: false, reason: "legacy_v2fs_origin_not_authorized" };
         }
-        const legacy = validateLegacyCommitDirectV2fsForAppendV1(block, parent);
+        const legacy = publicBootstrapHistoricalAuthorityVerified
+          ? validateMainnet0HistoricalLegacyCommitDirectV2fsForAppendV1(
+              block,
+              parent,
+            )
+          : validateLegacyCommitDirectV2fsForAppendV1(block, parent);
         if (legacy.ok === false) {
           return { ok: false, reason: legacy.reason };
         }

@@ -664,8 +664,21 @@ async function proveCanonical196021CrashRecoveryRequiresFreshAuthority() {
 }
 
 async function proveAdapterOnlyFollowerAndManualPeerIsolation() {
+  const trustedHistoricalHeaderObject = {
+    ...makeLegacy(2),
+    header: {
+      txRoot: {
+        root: VOID_LEGACY_EMPTY_TX_ROOT_V1,
+        leaves: [],
+      },
+    },
+  };
   const trustedState = {
-    blocks: [makeMinimal(0), makeMinimal(1), makeLegacy(2)],
+    blocks: [
+      makeMinimal(0),
+      makeMinimal(1),
+      trustedHistoricalHeaderObject,
+    ],
   };
   const upstreamServer = chainServer(trustedState);
   const upstreamPort = await listen(upstreamServer);
@@ -732,6 +745,14 @@ async function proveAdapterOnlyFollowerAndManualPeerIsolation() {
     assert.deepEqual(trustedStore.loadBlock(0), trustedState.blocks[0]);
     assert.deepEqual(trustedStore.loadBlock(1), trustedState.blocks[1]);
     assert.deepEqual(trustedStore.loadBlock(2), trustedState.blocks[2]);
+    assert.deepEqual(
+      trustedStore.loadBlock(2)?.header?.txRoot,
+      {
+        root: VOID_LEGACY_EMPTY_TX_ROOT_V1,
+        leaves: [],
+      },
+      "verified-HMAC follower did not preserve historical object-form bytes",
+    );
 
     resetVerifiedPublicBootstrapAuthorityForTestV1();
     assert.equal(
@@ -1051,4 +1072,6 @@ console.log("modern_validator_unchanged=true");
 console.log("historical_wal_replay_authority=false");
 console.log("historical_wal_requires_fresh_authority=true");
 console.log("canonical_196021_crash_recovery_via_fresh_authority=true");
+console.log("verified_hmac_historical_header_txroot_object_import=true");
+console.log("verified_hmac_historical_header_txroot_object_preserved=true");
 console.log("synthetic_historical_wal_canonical_mutation=0");

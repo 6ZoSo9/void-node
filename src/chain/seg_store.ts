@@ -6,7 +6,10 @@ import * as fs from "node:fs";
 import * as path from "node:path";
 import { blockHash, validateBlockForAppend } from "./block.js";
 import type { Block } from "./block.js";
-import { validateLegacyCommitDirectV2fsForAppendV1 } from "./legacy_commit_direct_v2fs_v1.js";
+import {
+  validateLegacyCommitDirectV2fsForAppendV1,
+  validateMainnet0HistoricalLegacyCommitDirectV2fsForAppendV1,
+} from "./legacy_commit_direct_v2fs_v1.js";
 import {
   validateMainnet0GenesisMinimalForAppendV1,
   validateMainnet0HistoricalTransitionV1,
@@ -374,13 +377,20 @@ export class SegStore {
     b: any,
     parent: Block | null,
     mode: CanonicalAppendModeV1,
+    mainnet0HistoricalRatchet = false,
   ) {
     if (mode === "genesis-minimal-v1") {
       return validateMainnet0GenesisMinimalForAppendV1(b, parent as any);
     }
-    return mode === "legacy-v2fs"
-      ? validateLegacyCommitDirectV2fsForAppendV1(b, parent as any)
-      : validateBlockForAppend(b, parent as any);
+    if (mode === "legacy-v2fs") {
+      return mainnet0HistoricalRatchet
+        ? validateMainnet0HistoricalLegacyCommitDirectV2fsForAppendV1(
+            b,
+            parent as any,
+          )
+        : validateLegacyCommitDirectV2fsForAppendV1(b, parent as any);
+    }
+    return validateBlockForAppend(b, parent as any);
   }
 
   private canonicalBlockMatchesExistingV1(
@@ -452,7 +462,12 @@ export class SegStore {
       }
     }
 
-    const valid = this.validateCanonicalBlockByModeV1(b, parent as any, mode);
+    const valid = this.validateCanonicalBlockByModeV1(
+      b,
+      parent as any,
+      mode,
+      mainnet0HistoricalRatchet,
+    );
     if (!valid.ok) {
       throw new Error(
         `SegStore.${op}: invalid block: ${(valid as any).reason || "unknown"}`,
