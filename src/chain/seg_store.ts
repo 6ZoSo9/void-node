@@ -8,6 +8,11 @@ import { blockHash, validateBlockForAppend } from "./block.js";
 import type { Block } from "./block.js";
 import { validateLegacyCommitDirectV2fsForAppendV1 } from "./legacy_commit_direct_v2fs_v1.js";
 import {
+  validateMainnet0GenesisMinimalForAppendV1,
+  validateMainnet0HistoricalTransitionV1,
+  type Mainnet0HistoricalAppendModeV1,
+} from "./mainnet0_historical_compat_v1.js";
+import {
   assertVoidSegStorePathConfinedV1,
   assertVoidSegStoreRegularFileV1,
   assertVoidSegStoreRootV1,
@@ -69,9 +74,11 @@ function startupHeadReconciliationHoldV1(reason: string): Error {
 // - One WAL file per segment: <root>/wal/<seg>.wal (JSONL, base64 payloads)
 // - On startup, replay WAL entries > current head, idempotently.
 // - We do NOT try to guarantee perfect pruning; replay prunes best-effort.
-type CanonicalAppendModeV1 = "modern" | "legacy-v2fs";
+type CanonicalAppendModeV1 = "modern" | Mainnet0HistoricalAppendModeV1;
 type WalRecV1 = { v: 1; n: number; b64: string; ts: number };
 type WalRecV2 = { v: 2; mode: "legacy-v2fs"; n: number; b64: string; ts: number };
+type WalRecV3 = { v: 3; mode: "genesis-minimal-v1"; n: number; b64: string; ts: number };
+type WalRecV4 = { v: 4; mode: "legacy-v2fs-historical-v1"; n: number; b64: string; ts: number };
 
 function mkdirp(root: string, p: string) {
   ensureVoidSegStoreDirectoryV1(root, p);
@@ -343,11 +350,22 @@ export class SegStore {
     this.saveCanonicalBlockByModeV1(b, "legacy-v2fs");
   }
 
+  public saveAuthorizedMainnet0GenesisMinimalV1(b: any): void {
+    this.saveCanonicalBlockByModeV1(b, "genesis-minimal-v1", true);
+  }
+
+  public saveAuthorizedMainnet0HistoricalLegacyV2fs(b: any): void {
+    this.saveCanonicalBlockByModeV1(b, "legacy-v2fs", true);
+  }
+
   private validateCanonicalBlockByModeV1(
     b: any,
     parent: Block | null,
     mode: CanonicalAppendModeV1,
   ) {
+    if (mode === "genesis-minimal-v1") {
+      return validateMainnet0GenesisMinimalForAppendV1(b, parent as any);
+    }
     return mode === "legacy-v2fs"
       ? validateLegacyCommitDirectV2fsForAppendV1(b, parent as any)
       : validateBlockForAppend(b, parent as any);
@@ -359,7 +377,7 @@ export class SegStore {
     mode: CanonicalAppendModeV1,
   ): boolean {
     try {
-      if (mode === "legacy-v2fs") {
+      if (mode !== "modern") {
         return JSON.stringify(existing) === JSON.stringify(candidate);
       }
       return blockHash(existing as any) === blockHash(candidate as any);
@@ -382,6 +400,7 @@ export class SegStore {
   private saveCanonicalBlockByModeV1(
     b: any,
     mode: CanonicalAppendModeV1,
+    mainnet0HistoricalRatchet = false,
   ): void {
     const n = Number(b?.number);
     if (!Number.isSafeInteger(n) || n < 0) {
@@ -400,11 +419,29 @@ export class SegStore {
     }
 
     const parent = n === 0 ? null : this.loadBlock(n - 1);
+    const op =
+      mode === "genesis-minimal-v1"
+        ? "saveAuthorizedMainnet0GenesisMinimalV1"
+        : mode === "legacy-v2fs" && mainnet0HistoricalRatchet
+          ? "saveAuthorizedMainnet0HistoricalLegacyV2fs"
+          : mode === "legacy-v2fs"
+            ? "saveAuthorizedLegacyCommitDirectV2fs"
+            : "saveBlock";
+
+    if (mainnet0HistoricalRatchet) {
+      if (mode === "modern") {
+        throw new Error("SegStore.saveBlock: modern mode cannot request historical ratchet");
+      }
+      const transition = validateMainnet0HistoricalTransitionV1(parent, mode);
+      if (!transition.ok) {
+        throw new Error(
+          `SegStore.${op}: invalid historical transition: ${(transition as any).reason || "unknown"}`,
+        );
+      }
+    }
+
     const valid = this.validateCanonicalBlockByModeV1(b, parent as any, mode);
     if (!valid.ok) {
-      const op = mode === "legacy-v2fs"
-        ? "saveAuthorizedLegacyCommitDirectV2fs"
-        : "saveBlock";
       throw new Error(
         `SegStore.${op}: invalid block: ${(valid as any).reason || "unknown"}`,
       );
@@ -428,21 +465,31 @@ export class SegStore {
 
     const seg = this.segName(n);
     this.ensureSeg(seg);
-    this.walAppendDurable(seg, b, mode);
+    this.walAppendDurable(seg, b, mode, mainnet0HistoricalRatchet);
     this.saveBlockCommit(b);
     this.persistHeadAtomic(n);
   }
 
-  private walAppendDurable(seg: string, b: any, mode: CanonicalAppendModeV1) {
+  private walAppendDurable(
+    seg: string,
+    b: any,
+    mode: CanonicalAppendModeV1,
+    mainnet0HistoricalRatchet = false,
+  ) {
     const walPath = this.walPath(seg);
     try {
       assertVoidSegStorePathConfinedV1(this.root, this.walDir, { kind: "directory", allowMissing: false });
       assertVoidSegStoreRegularFileV1(this.root, walPath, true);
       const existedBefore = fs.existsSync(walPath);
       const body = Buffer.from(JSON.stringify(b));
-      const rec: WalRecV1 | WalRecV2 = mode === "legacy-v2fs"
-        ? { v: 2, mode: "legacy-v2fs", n: Number(b.number), b64: body.toString("base64"), ts: Date.now() }
-        : { v: 1, n: Number(b.number), b64: body.toString("base64"), ts: Date.now() };
+      const rec: WalRecV1 | WalRecV2 | WalRecV3 | WalRecV4 =
+        mode === "genesis-minimal-v1"
+          ? { v: 3, mode: "genesis-minimal-v1", n: Number(b.number), b64: body.toString("base64"), ts: Date.now() }
+          : mode === "legacy-v2fs" && mainnet0HistoricalRatchet
+            ? { v: 4, mode: "legacy-v2fs-historical-v1", n: Number(b.number), b64: body.toString("base64"), ts: Date.now() }
+            : mode === "legacy-v2fs"
+              ? { v: 2, mode: "legacy-v2fs", n: Number(b.number), b64: body.toString("base64"), ts: Date.now() }
+              : { v: 1, n: Number(b.number), b64: body.toString("base64"), ts: Date.now() };
 
       fs.appendFileSync(walPath, JSON.stringify(rec) + "\n");
       assertVoidSegStoreRegularFileV1(this.root, walPath, false);
@@ -752,18 +799,37 @@ export class SegStore {
     for (const candidate of ordered) {
       const { index, rec } = candidate;
 
-      if (!rec || typeof rec !== "object" || (rec.v !== 1 && rec.v !== 2)) {
+      if (
+        !rec ||
+        typeof rec !== "object" ||
+        (rec.v !== 1 && rec.v !== 2 && rec.v !== 3 && rec.v !== 4)
+      ) {
         keep(index, `malformed_record:${seg}:${index}`);
         continue;
       }
 
       let replayMode: CanonicalAppendModeV1 = "modern";
+      let replayHistoricalRatchet = false;
       if (rec.v === 2) {
         if (rec.mode !== "legacy-v2fs") {
           keep(index, `invalid_record_mode:${seg}:${index}`);
           continue;
         }
         replayMode = "legacy-v2fs";
+      } else if (rec.v === 3) {
+        if (rec.mode !== "genesis-minimal-v1") {
+          keep(index, `invalid_record_mode:${seg}:${index}`);
+          continue;
+        }
+        replayMode = "genesis-minimal-v1";
+        replayHistoricalRatchet = true;
+      } else if (rec.v === 4) {
+        if (rec.mode !== "legacy-v2fs-historical-v1") {
+          keep(index, `invalid_record_mode:${seg}:${index}`);
+          continue;
+        }
+        replayMode = "legacy-v2fs";
+        replayHistoricalRatchet = true;
       }
 
       if (typeof rec.n !== "number" || !Number.isInteger(rec.n) || rec.n < 0) {
@@ -802,6 +868,21 @@ export class SegStore {
       }
 
       const parent = n === 0 ? null : this.loadBlock(n - 1);
+      if (replayHistoricalRatchet) {
+        if (replayMode === "modern") {
+          keep(index, `invalid_historical_replay_mode:${seg}:${index}`);
+          continue;
+        }
+        const transition = validateMainnet0HistoricalTransitionV1(parent, replayMode);
+        if (!transition.ok) {
+          keep(
+            index,
+            `invalid_historical_transition:${n}:${(transition as any).reason || "unknown"}`,
+          );
+          continue;
+        }
+      }
+
       const valid = this.validateCanonicalBlockByModeV1(blk, parent as any, replayMode);
       if (!valid.ok) {
         keep(index, `invalid_block:${n}:${(valid as any).reason || "unknown"}`);
