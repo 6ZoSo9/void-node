@@ -11,6 +11,9 @@ on:
       - "scripts/prove_void_public_bootstrap_client_resilience_v1.mjs"
       - "scripts/prove_follower_legacy_v2fs_and_duplicate_dial_v1.mjs"
       - "scripts/prove_mainnet0_historical_public_bootstrap_v1.mjs"
+      - "scripts/prove_follower_preserve_canonical_txroot_v1.mjs"
+      - "src/index.ts"
+      - "src/util/txroot.ts"
       - "scripts/prove_follower_legacy_empty_tx_root_v1.mjs"
       - "scripts/prove_follower_low_catchup_pull_limit_v1.mjs"
       - "scripts/prove_void_public_seed_numeric_evidence_v1.mjs"
@@ -46,6 +49,9 @@ on:
       - "scripts/prove_void_public_bootstrap_client_resilience_v1.mjs"
       - "scripts/prove_follower_legacy_v2fs_and_duplicate_dial_v1.mjs"
       - "scripts/prove_mainnet0_historical_public_bootstrap_v1.mjs"
+      - "scripts/prove_follower_preserve_canonical_txroot_v1.mjs"
+      - "src/index.ts"
+      - "src/util/txroot.ts"
       - "scripts/prove_follower_legacy_empty_tx_root_v1.mjs"
       - "scripts/prove_follower_low_catchup_pull_limit_v1.mjs"
       - "scripts/prove_void_public_seed_numeric_evidence_v1.mjs"
@@ -107,6 +113,7 @@ jobs:
           node --check scripts/prove_void_public_bootstrap_client_resilience_v1.mjs
           node --check scripts/prove_follower_legacy_v2fs_and_duplicate_dial_v1.mjs
           node --check scripts/prove_mainnet0_historical_public_bootstrap_v1.mjs
+          node --check scripts/prove_follower_preserve_canonical_txroot_v1.mjs
           node --check scripts/prove_follower_legacy_empty_tx_root_v1.mjs
           node --check scripts/prove_follower_low_catchup_pull_limit_v1.mjs
           node --check scripts/prove_void_public_seed_numeric_evidence_v1.mjs
@@ -225,6 +232,7 @@ jobs:
           npx --no-install tsx scripts/prove_void_public_bootstrap_client_resilience_v1.mjs
           node scripts/prove_follower_legacy_v2fs_and_duplicate_dial_v1.mjs
           node scripts/prove_mainnet0_historical_public_bootstrap_v1.mjs
+          node scripts/prove_follower_preserve_canonical_txroot_v1.mjs
           node scripts/prove_follower_legacy_empty_tx_root_v1.mjs
           npx --no-install tsx scripts/prove_follower_low_catchup_pull_limit_v1.mjs
           node scripts/prove_void_public_seed_numeric_evidence_v1.mjs
@@ -256,6 +264,19 @@ jobs:
           grep -F 'proposer.commit-direct.v2fs' dist/chain/legacy_commit_direct_v2fs_v1.js
           grep -F 'VOID_LEGACY_EMPTY_TX_ROOT_V1' dist/chain/legacy_commit_direct_v2fs_v1.js
           grep -F 'preferredAuthenticatedDuplicateDirectionV1' dist/node_core.js
+          node --input-type=module <<'NODE'
+          import assert from "node:assert/strict";
+          import fs from "node:fs";
+          const source = fs.readFileSync("dist/index.js", "utf8");
+          const start = source.indexOf("(function installTxRootSealHook()");
+          const end = source.indexOf("// ------------- [ADD] light shim to include txRoot", start);
+          assert.notEqual(start, -1, "compiled txRoot metrics hook start missing");
+          assert.notEqual(end, -1, "compiled txRoot metrics hook end missing");
+          const hook = source.slice(start, end);
+          assert.equal(/\bb\.txRoot\s*=/.test(hook), false, "compiled metrics hook rewrites b.txRoot");
+          assert.equal(/computeTxRoot\s*\(\s*txs\s*\)/.test(hook), false, "compiled metrics hook derives txRoot");
+          console.log("compiled_metrics_hook_txroot_mutation=false");
+          NODE
 
       - name: Diff hygiene across committed change range
         env:
