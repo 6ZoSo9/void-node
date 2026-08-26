@@ -2,13 +2,12 @@
 // Private durable consumer-evidence capsule only. This module owns NO provider-send,
 // retry, reclaim, wallet, chain, validator, repository, or service authority.
 // Exact-once execution authority remains solely in the record-only broker ledger.
+import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { constants as FS } from 'node:fs';
 import {
   lstat as fsLstat,
-  link as fsLink,
   open as fsOpen,
-  unlink as fsUnlink,
 } from 'node:fs/promises';
 
 import { loadLedgerRecordsV1 } from './apollyon_execution_ledger_load_v1.mjs';
@@ -20,6 +19,10 @@ const CAPSULE_MARKER = 'VOID_APOLLYON_ACCEPTED_RESULT_CAPSULE_V1';
 const DIGEST_MARKER = 'VOID_APOLLYON_ACCEPTED_RESULT_DIGEST_V1';
 const OPERATION_ID = /^apollyon_op_v1:([0-9a-f]{64})$/;
 const HEX64 = /^[0-9a-f]{64}$/;
+const LINK_HELPER_PATH = '/usr/bin/ln';
+const LINK_HELPER_TIMEOUT_MS = 5000;
+const LINK_HELPER_MAX_STDERR_BYTES = 8 * 1024;
+const LINK_HELPER_ENV = Object.freeze({ PATH: '/usr/bin:/bin', LANG: 'C', LC_ALL: 'C' });
 
 export const MAX_ACCEPTED_RESULT_CANONICAL_BYTES = 3 * 1024 * 1024;
 export const MAX_CAPSULE_BYTES = MAX_ACCEPTED_RESULT_CANONICAL_BYTES + (128 * 1024);
@@ -140,7 +143,30 @@ async function lstatOrNullV1(path) {
   try { return await fsLstat(path, { bigint: true }); }
   catch (error) { if (error?.code === 'ENOENT') return null; throw error; }
 }
-async function readCapsuleLeafV1(root, operationId, leaf, allowedLinks = [1n]) {
+async function linkPinnedHandleCreateOnlyV1(sourceHandle, directory, leaf, label, allowedSourceLinks = [1n]) {
+  const sourceStat = await sourceHandle.stat({ bigint: true });
+  assertPrivateFileStatV1(sourceStat, label, allowedSourceLinks);
+  const result = spawnSync(
+    LINK_HELPER_PATH,
+    ['-L', '-T', '--', '/proc/self/fd/3', `/proc/self/fd/4/${leaf}`],
+    {
+      stdio: ['ignore', 'ignore', 'pipe', sourceHandle.fd, directory.fd],
+      env: LINK_HELPER_ENV,
+      shell: false,
+      windowsHide: true,
+      timeout: LINK_HELPER_TIMEOUT_MS,
+      maxBuffer: LINK_HELPER_MAX_STDERR_BYTES,
+      encoding: 'utf8',
+    },
+  );
+  if (result.error) fail(`${label} fd-bound link helper failed to run: ${String(result.error.code ?? 'unknown_error')}`);
+  if (result.signal !== null) fail(`${label} fd-bound link helper killed by signal ${String(result.signal)}`);
+  if (result.status === 0) return true;
+  if (await lstatOrNullV1(leafPathV1(directory, leaf)) !== null) return false;
+  const stderr = String(result.stderr ?? '').trim().slice(0, 256);
+  fail(`${label} fd-bound link helper failed: status=${String(result.status)}${stderr ? ` stderr=${stderr}` : ''}`);
+}
+async function openCapsuleLeafPinnedV1(root, operationId, leaf, allowedLinks = [1n]) {
   const directory = await revalidatePinnedRootV1(root);
   const path = leafPathV1(directory, leaf);
   const fh = await fsOpen(path, FS.O_RDONLY | FS.O_NOFOLLOW | FS.O_NONBLOCK);
@@ -168,8 +194,19 @@ async function readCapsuleLeafV1(root, operationId, leaf, allowedLinks = [1n]) {
     assertPrivateFileStatV1(visible, `visible ${leaf}`, allowedLinks);
     if (visible.dev !== after.dev || visible.ino !== after.ino) fail(`visible ${leaf} generation differs from generation read`);
     await revalidatePinnedRootV1(root);
-    return { value, bytes, stat: after };
-  } finally { await fh.close().catch(() => {}); }
+    return { value, bytes, stat: after, fh };
+  } catch (error) {
+    await fh.close().catch(() => {});
+    throw error;
+  }
+}
+async function readCapsuleLeafV1(root, operationId, leaf, allowedLinks = [1n]) {
+  const pinned = await openCapsuleLeafPinnedV1(root, operationId, leaf, allowedLinks);
+  try {
+    return { value: pinned.value, bytes: pinned.bytes, stat: pinned.stat };
+  } finally {
+    await pinned.fh.close().catch(() => {});
+  }
 }
 function validateCapsuleV1(raw, binding, acceptedDigest) {
   exactKeysV1(raw, [
@@ -218,16 +255,41 @@ export async function assertAcceptedResultCapsuleAbsentV1(root, rawBinding) {
 }
 
 const FAULT_POINTS = new Set([
-  'duringStageWrite','afterStageWrite','afterStageSync','afterStageDirSync','afterFinalLink',
-  'afterFinalDirSync','afterStageUnlink','afterCleanupDirSync','beforeReadback',
+  'duringStageWrite','afterStageWrite','afterStageSync','afterStageDirSync',
+  'afterFinalLink','afterFinalDirSync','beforeReadback',
 ]);
-function parseProofHooksV1(raw) {
-  if (raw === null || raw === undefined) return null;
-  if (!isPlainObjectV1(raw) || Object.keys(raw).sort().join(',') !== 'faultAt') fail('capsule proof hooks may contain exactly faultAt');
-  if (!FAULT_POINTS.has(raw.faultAt)) fail('capsule proof fault point is invalid');
-  return raw.faultAt;
+function parsePublishProofHooksV1(raw) {
+  if (raw === null || raw === undefined) {
+    return Object.freeze({ faultAt: null, beforeFinalLink: null, afterFinalLink: null });
+  }
+  if (!isPlainObjectV1(raw)) fail('capsule proof hooks must be a plain object');
+  const allowed = new Set(['faultAt','beforeFinalLink','afterFinalLink']);
+  for (const key of Object.keys(raw)) if (!allowed.has(key)) fail(`unsupported capsule proof hook ${key}`);
+  const faultAt = raw.faultAt ?? null;
+  if (faultAt !== null && !FAULT_POINTS.has(faultAt)) fail('capsule proof fault point is invalid');
+  for (const key of ['beforeFinalLink','afterFinalLink']) {
+    if (raw[key] !== undefined && typeof raw[key] !== 'function') fail(`capsule proof hook ${key} must be a function`);
+  }
+  return Object.freeze({
+    faultAt,
+    beforeFinalLink: raw.beforeFinalLink ?? null,
+    afterFinalLink: raw.afterFinalLink ?? null,
+  });
+}
+function parseRecoveryProofHooksV1(raw) {
+  if (raw === null || raw === undefined) return Object.freeze({ beforeFinalLink: null });
+  if (!isPlainObjectV1(raw) || Object.keys(raw).some((key) => key !== 'beforeFinalLink')) {
+    fail('recovery proof hooks may contain only beforeFinalLink');
+  }
+  if (raw.beforeFinalLink !== undefined && typeof raw.beforeFinalLink !== 'function') {
+    fail('recovery proof hook beforeFinalLink must be a function');
+  }
+  return Object.freeze({ beforeFinalLink: raw.beforeFinalLink ?? null });
 }
 function faultV1(selected, point) { if (selected === point) fail(`synthetic accepted-capsule fault at ${point}`); }
+async function runGenerationHookV1(hook, context) {
+  if (hook !== null) await hook(Object.freeze(context));
+}
 
 export async function publishAcceptedResultCapsuleV1(root, rawBinding, resultDigest, rawValue, proofHooks = null) {
   const binding = validateAcceptedResultBindingV1(rawBinding);
@@ -237,8 +299,9 @@ export async function publishAcceptedResultCapsuleV1(root, rawBinding, resultDig
   const finalLeaf = finalLeafV1(binding.operationId);
   const stagePath = leafPathV1(directory, stageLeaf);
   const finalPath = leafPathV1(directory, finalLeaf);
-  const selectedFault = parseProofHooksV1(proofHooks);
-  let fh = null, created = null, stageDurable = false, finalLinked = false;
+  const hooks = parsePublishProofHooksV1(proofHooks);
+  let fh = null;
+  let created = null;
   try {
     fh = await fsOpen(stagePath, FS.O_WRONLY | FS.O_CREAT | FS.O_EXCL | FS.O_NOFOLLOW, 0o600);
     created = await fh.stat({ bigint: true });
@@ -246,76 +309,125 @@ export async function publishAcceptedResultCapsuleV1(root, rawBinding, resultDig
     let written = 0;
     while (written < bytes.length) {
       let requested = bytes.length - written;
-      if (selectedFault === 'duringStageWrite' && written === 0) {
+      if (hooks.faultAt === 'duringStageWrite' && written === 0) {
         requested = Math.max(1, Math.floor(requested / 2));
       }
       const { bytesWritten } = await fh.write(bytes, written, requested, written);
       if (bytesWritten <= 0) fail('accepted result stage short write');
       written += bytesWritten;
-      if (selectedFault === 'duringStageWrite') {
+      if (hooks.faultAt === 'duringStageWrite') {
         fail('synthetic accepted-capsule fault at duringStageWrite');
       }
     }
-    faultV1(selectedFault, 'afterStageWrite');
+    faultV1(hooks.faultAt, 'afterStageWrite');
     await fh.sync();
-    faultV1(selectedFault, 'afterStageSync');
+    faultV1(hooks.faultAt, 'afterStageSync');
     await directory.sync();
-    stageDurable = true;
-    faultV1(selectedFault, 'afterStageDirSync');
-    await fsLink(stagePath, finalPath);
-    finalLinked = true;
-    faultV1(selectedFault, 'afterFinalLink');
+    faultV1(hooks.faultAt, 'afterStageDirSync');
+
+    await runGenerationHookV1(hooks.beforeFinalLink, {
+      phase: 'publisher_before_final_link',
+      stagePath,
+      finalPath,
+      stageDev: created.dev,
+      stageIno: created.ino,
+    });
+    const beforeLink = await fh.stat({ bigint: true });
+    assertPrivateFileStatV1(beforeLink, 'retained accepted result stage before final publication', [1n]);
+    if (beforeLink.dev !== created.dev || beforeLink.ino !== created.ino) {
+      fail('retained accepted result stage generation drifted before final publication');
+    }
+
+    const linkedNewFinal = await linkPinnedHandleCreateOnlyV1(
+      fh,
+      directory,
+      finalLeaf,
+      'retained accepted result stage before final publication',
+      [1n],
+    );
+    const finalReadAfterLink = await readCapsuleLeafV1(root, binding.operationId, finalLeaf, [1n, 2n]);
+    if (finalReadAfterLink.stat.dev !== created.dev || finalReadAfterLink.stat.ino !== created.ino) {
+      fail('accepted result final generation is not the retained validated stage generation');
+    }
+    if (!finalReadAfterLink.bytes.equals(bytes)) fail('accepted result final bytes differ from retained stage bytes');
+
+    await runGenerationHookV1(hooks.afterFinalLink, {
+      phase: 'publisher_after_final_link',
+      stagePath,
+      finalPath,
+      stageDev: created.dev,
+      stageIno: created.ino,
+      linkedNewFinal,
+    });
+    faultV1(hooks.faultAt, 'afterFinalLink');
     await directory.sync();
-    faultV1(selectedFault, 'afterFinalDirSync');
-    await fsUnlink(stagePath);
-    faultV1(selectedFault, 'afterStageUnlink');
-    await directory.sync();
-    faultV1(selectedFault, 'afterCleanupDirSync');
+    faultV1(hooks.faultAt, 'afterFinalDirSync');
+
+    // Deliberately retain the stage alias. Linux exposes no unprivileged atomic
+    // "unlink this pathname only if it is still this inode" primitive. Leaving the
+    // hard-link alias is storage-neutral and prevents cleanup from deleting a foreign
+    // replacement generation after publication.
     await fh.close(); fh = null;
-    faultV1(selectedFault, 'beforeReadback');
-    const reread = await readCapsuleLeafV1(root, binding.operationId, finalLeaf, [1n]);
+    faultV1(hooks.faultAt, 'beforeReadback');
+    const reread = await readCapsuleLeafV1(root, binding.operationId, finalLeaf, [1n, 2n]);
+    if (reread.stat.dev !== created.dev || reread.stat.ino !== created.ino) {
+      fail('published accepted result final generation drifted from retained stage generation');
+    }
     if (!reread.bytes.equals(bytes)) fail('published accepted result capsule bytes differ');
     return validateCapsuleV1(reread.value, binding, resultDigest);
-  } catch (error) {
-    if (!stageDurable && !finalLinked && created !== null) {
-      try {
-        const visible = await fsLstat(stagePath, { bigint: true });
-        if (visible.dev === created.dev && visible.ino === created.ino) {
-          await fsUnlink(stagePath);
-          await directory.sync();
-        }
-      } catch (cleanupError) {
-        if (cleanupError?.code !== 'ENOENT') { /* denial-only residue; never authorize resend */ }
-      }
-    }
-    throw error;
   } finally {
+    // Fail-closed residue is intentionally preserved. Pathname cleanup would reopen
+    // the exact generation-unsafe unlink race this module is responsible for closing.
     if (fh) await fh.close().catch(() => {});
   }
 }
 
-export async function recoverAcceptedResultCapsuleCandidateV1(root, rawBinding) {
+export async function recoverAcceptedResultCapsuleCandidateV1(root, rawBinding, proofHooks = null) {
   const binding = validateAcceptedResultBindingV1(rawBinding);
   const directory = await revalidatePinnedRootV1(root);
   const stageLeaf = stageLeafV1(binding.operationId);
   const finalLeaf = finalLeafV1(binding.operationId);
   const stagePath = leafPathV1(directory, stageLeaf);
   const finalPath = leafPathV1(directory, finalLeaf);
+  const hooks = parseRecoveryProofHooksV1(proofHooks);
   const finalStat = await lstatOrNullV1(finalPath);
   const stageStat = await lstatOrNullV1(stagePath);
   if (finalStat === null && stageStat === null) return null;
 
   if (finalStat === null) {
-    const stageRead = await readCapsuleLeafV1(root, binding.operationId, stageLeaf, [1n]);
-    const candidate = validateCapsuleV1(stageRead.value, binding, String(stageRead.value?.result_digest ?? ''));
-    await fsLink(stagePath, finalPath);
-    await directory.sync();
-    await fsUnlink(stagePath);
-    await directory.sync();
-    const finalRead = await readCapsuleLeafV1(root, binding.operationId, finalLeaf, [1n]);
-    const finalized = validateCapsuleV1(finalRead.value, binding, candidate.resultDigest);
-    if (!finalRead.bytes.equals(stageRead.bytes)) fail('recovered final bytes differ from durable stage');
-    return finalized;
+    const stageRead = await openCapsuleLeafPinnedV1(root, binding.operationId, stageLeaf, [1n]);
+    try {
+      const candidate = validateCapsuleV1(stageRead.value, binding, String(stageRead.value?.result_digest ?? ''));
+      await runGenerationHookV1(hooks.beforeFinalLink, {
+        phase: 'recovery_before_final_link',
+        stagePath,
+        finalPath,
+        stageDev: stageRead.stat.dev,
+        stageIno: stageRead.stat.ino,
+      });
+      const retained = await stageRead.fh.stat({ bigint: true });
+      assertPrivateFileStatV1(retained, 'retained recovered stage before final publication', [1n]);
+      if (retained.dev !== stageRead.stat.dev || retained.ino !== stageRead.stat.ino) {
+        fail('retained recovered stage generation drifted before final publication');
+      }
+      await linkPinnedHandleCreateOnlyV1(
+        stageRead.fh,
+        directory,
+        finalLeaf,
+        'retained recovered stage before final publication',
+        [1n],
+      );
+      await directory.sync();
+      const finalRead = await readCapsuleLeafV1(root, binding.operationId, finalLeaf, [1n, 2n]);
+      const finalized = validateCapsuleV1(finalRead.value, binding, candidate.resultDigest);
+      if (finalRead.stat.dev !== stageRead.stat.dev || finalRead.stat.ino !== stageRead.stat.ino) {
+        fail('recovered final generation differs from retained durable stage generation');
+      }
+      if (!finalRead.bytes.equals(stageRead.bytes)) fail('recovered final bytes differ from durable stage');
+      return finalized;
+    } finally {
+      await stageRead.fh.close().catch(() => {});
+    }
   }
 
   const allowedLinks = finalStat.nlink === 2n ? [2n] : [1n];
@@ -326,12 +438,15 @@ export async function recoverAcceptedResultCapsuleCandidateV1(root, rawBinding) 
     const stageRead = await readCapsuleLeafV1(root, binding.operationId, stageLeaf, [2n]);
     if (stageRead.stat.dev !== finalRead.stat.dev || stageRead.stat.ino !== finalRead.stat.ino) fail('accepted final/stage generations differ');
     if (!stageRead.bytes.equals(finalRead.bytes)) fail('accepted final/stage bytes differ');
-    await fsUnlink(stagePath);
-    await directory.sync();
   } else if (stageStat !== null) {
     fail('foreign accepted-result stage exists beside final');
   }
-  const strictFinal = await readCapsuleLeafV1(root, binding.operationId, finalLeaf, [1n]);
+  await directory.sync();
+  const strictFinal = await readCapsuleLeafV1(root, binding.operationId, finalLeaf, [1n, 2n]);
+  if (strictFinal.stat.dev !== finalRead.stat.dev || strictFinal.stat.ino !== finalRead.stat.ino) {
+    fail('accepted final generation changed during recovery');
+  }
+  if (!strictFinal.bytes.equals(finalRead.bytes)) fail('accepted final bytes changed during recovery');
   return validateCapsuleV1(strictFinal.value, binding, candidate.resultDigest);
 }
 
@@ -346,6 +461,6 @@ export async function readAcceptedResultCapsuleV1(root, ledgerDirectoryHandle, r
       || head.logicalOperationIntentDigest !== binding.logicalOperationIntentDigest
       || head.logicalWorkDigest !== binding.logicalWorkDigest) fail('durable ACCEPTED ledger does not match requested binding');
   if (!HEX64.test(String(state.acceptedDigest ?? ''))) fail('durable ACCEPTED digest is invalid');
-  const read = await readCapsuleLeafV1(root, binding.operationId, finalLeafV1(binding.operationId), [1n]);
+  const read = await readCapsuleLeafV1(root, binding.operationId, finalLeafV1(binding.operationId), [1n, 2n]);
   return validateCapsuleV1(read.value, binding, state.acceptedDigest);
 }
