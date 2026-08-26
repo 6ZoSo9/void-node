@@ -24,9 +24,9 @@ The adapter sends one secretless bounded IPC request to:
 
 `/run/void-apollyon-openrouter-broker-v1.sock`
 
-Before that IPC request, the reviewed adapter loads the exact 32-byte `apollyon_openrouter_admission_mac_v1` from its per-unit systemd `$CREDENTIALS_DIRECTORY` **after** constitutional/sanitization admission, staged-input verification, registry binding, and final prompt construction. From that one credential read it derives two domain-separated HMAC capabilities over the same complete operation/work/request/registry plus trial/admission-receipt/prompt/canonical-model provenance: an exact-work admission capability for fresh execution and an `accepted_result_read_only` replay capability for disclosure of an already committed result. The replay capability is never provider-send authority. Both are carried inline in the bounded broker IPC request; no shared writable admission directory exists. The broker receives its own read-only copy of the same admission credential through a separate systemd unit identity. It requires the admission capability before fresh namespace creation/provider access and requires the replay capability before disclosing durable `ACCEPTED` result bytes. Ordinary IPC clients receive neither credential copy nor provider credentials.
+Before that IPC request, the reviewed adapter loads the exact 32-byte `apollyon_openrouter_admission_mac_v1` from its per-unit systemd `$CREDENTIALS_DIRECTORY` **after** constitutional/sanitization admission, staged-input verification, registry binding, and final prompt construction. From that one credential read it derives two domain-separated HMAC capabilities over the same complete operation/work/request/registry plus trial/admission-receipt/prompt/canonical-model provenance: an exact-work admission capability for fresh execution and an `accepted_result_read_only` replay capability for disclosure of an already committed result. The replay capability is never provider-send authority. Both are carried inline in the bounded broker IPC request; no shared writable admission directory exists. The broker receives its own read-only copy of the same admission credential through a separate systemd unit identity. It requires the admission capability before any fresh-execution decision and requires the replay capability before disclosing durable `ACCEPTED` result bytes. Ordinary IPC clients receive neither credential copy nor provider credentials.
 
-The broker is the sole owner of the OpenRouter credential, authenticated model-catalog access, authenticated chat access, private durable exact-once ledger, provider-admission state, and retry/reconciliation authority.
+The broker is the sole component that can own the OpenRouter credential, authenticated model-catalog access, authenticated chat access, private durable exact-once ledger, provider-admission state, and reconciliation authority. **This source generation deliberately grants no fresh OpenRouter send authority**, because the reviewed OpenRouter request contract does not expose a request-enforceable immutable provider/model revision identity.
 
 ## Stable logical intent
 
@@ -40,43 +40,67 @@ That digest identifies the logical operation and must be persisted/reused by the
 
 The adapter derives request correlation from this stable intent. The broker separately binds registry generation, request body, and contestant policy into the durable work identity. Same intent plus changed logical work fails closed.
 
+## Immutable execution-identity gate
+
+A reviewed canonical model slug, provider endpoint/tag, quantization string, response `model`, router `requested` model, selected endpoint model/provider, catalog digest, and selected catalog-record digest are useful consistency evidence. They are **not** an immutable provider/model-generation authority unless the provider exposes a primitive that the actual chat request can carry and the broker can verify as selecting one immutable execution generation.
+
+The currently reviewed OpenRouter contract exposes no such immutable weight/revision token. Therefore the broker has a non-configurable fail-closed boundary:
+
+```text
+valid exact fresh request
+  -> exact registry + HMAC capability validation
+  -> EXECUTION_IDENTITY_HOLD
+  -> zero namespace creation
+  -> zero durable prepare/provider admission
+  -> zero catalog request
+  -> zero chat request
+```
+
+There is no environment variable, registry Boolean, IPC field, operator acknowledgement, canonical-slug match, endpoint pin, or response/router string that bypasses this gate. A future live OpenRouter path must replace the hard hold only with a separately reviewed **request-enforceable immutable execution-identity primitive** and focused falsification proving that a provider-side A→B generation change cannot execute or be accepted under the previously admitted identity.
+
+This closes the canonical-model check/use vulnerability by removing unsafe fresh provider execution authority. It does **not** claim that OpenRouter currently provides a stronger identity guarantee than its documented API exposes.
+
 ## Broker lifecycle
 
 The broker's durable states include `ABSENT`, `RESERVED`, `UNCERTAIN`, `RESULT_WITNESSED`, `ACCEPTED`, `RECONCILED_BLOCKED`, and `CONFLICT`.
 
-The broker first performs a read-only, no-create lookup for an existing operation. If the exact ledger/capsule binding is already durably `ACCEPTED`, result disclosure requires the exact full-provenance `accepted_result_read_only` replay capability and then returns the same committed result with zero catalog/chat. The fresh-execution admission capability is not required for this historical read, and the replay capability cannot create a namespace, prepare work, or grant provider-send authority. For any new or non-`ACCEPTED` operation, before namespace creation, preparation, or provider-network access, the broker independently loads the reviewed checked-in contestant registry generation and verifies the HMAC-authenticated fresh-execution admission capability against the exact request's stable intent/work binding. Missing/forged capability, random registry digest, unreviewed contestant, or changed request work HOLDs before namespace creation/catalog/chat. Provider-send authority remains solely in the durable exact-once ledger.
+The broker first performs a read-only, no-create lookup for an existing operation. If the exact ledger/capsule binding is already durably `ACCEPTED`, result disclosure requires the exact full-provenance `accepted_result_read_only` replay capability and returns the same committed result with zero catalog/chat. The fresh-execution admission capability is not required for this historical read, and the replay capability cannot create a namespace, prepare work, or grant provider-send authority.
 
-The authenticated model-catalog GET is read-only and runs after durable prepare but before irreversible chat-provider admission. A catalog failure may be retried because no chat authority has been consumed.
+For any new or non-`ACCEPTED` operation, before namespace creation, preparation, or provider-network access, the broker independently loads the reviewed checked-in contestant registry generation and verifies the HMAC-authenticated fresh-execution admission capability against the exact request's stable intent/work binding. Missing/forged capability, random registry digest, unreviewed contestant, or changed request work HOLDs before namespace creation/catalog/chat. Existing `RESULT_WITNESSED` recovery may also reconcile an exact matching durable capsule with **zero provider send**. Only after those no-send replay/recovery paths does the broker reach the immutable execution-identity gate; on this generation every otherwise-valid fresh request returns `EXECUTION_IDENTITY_HOLD` before a new namespace or provider access.
 
-Immediately before chat POST, provider execution is durably admitted and transitions to `UNCERTAIN`. Crash, timeout, malformed/oversize provider output, or another ambiguous outcome after that point never grants automatic resend authority. If the one provider callback returns a structurally valid result whose digest exactly binds the bounded accepted payload, the broker first appends a durable `RESULT_WITNESSED` ledger record under the same operation flock. That record is the broker-owned post-send authority for the exact result digest; `RESULT_WITNESSED` itself grants **zero provider-send authority** and is not yet `ACCEPTED`.
+The lower-level exact-once transport state machine remains fail-closed and is retained for proof/review and for any future separately authorized transport. If a future reviewed immutable execution-identity primitive makes that path reachable, the authenticated model-catalog GET remains read-only and precedes irreversible chat-provider admission. Immediately before chat POST, provider execution must be durably admitted and transition to `UNCERTAIN`; crash, timeout, malformed/oversize provider output, or another ambiguous outcome after that point never grants automatic resend authority.
+
+If one authorized provider callback returns a structurally valid result whose digest exactly binds the bounded accepted payload, the broker first appends a durable `RESULT_WITNESSED` ledger record under the same operation flock. That record is the broker-owned post-send authority for the exact result digest; `RESULT_WITNESSED` itself grants **zero provider-send authority** and is not yet `ACCEPTED`.
 
 Only after that independent durable witness exists does the broker publish the consumer-evidence capsule. It writes one private mode-0600 staged capsule, file-fsyncs it, directory-fsyncs the staged generation, and create-only hard-links the **same retained staged inode** to the canonical final name through an fd-bound Linux primitive before directory-fsyncing the final publication and rereading that exact final generation. The stage alias is intentionally retained as a second hard link to the same inode; the broker does not pathname-unlink it after publication because Linux provides no unprivileged atomic "unlink this name only if it still denotes this inode" primitive, and a check-then-unlink cleanup would reintroduce the generation race. If the stage pathname is replaced, the foreign generation is never adopted or deleted by this publication path.
 
 Crash recovery is deliberately two-factor at the durable-state level: a surviving staged/final capsule supplies the exact bounded result bytes, while the broker ledger's `RESULT_WITNESSED` record independently supplies authority for the exact result digest. Recovery may append `PROVIDER_RESULT` and reach `ACCEPTED` only when the pinned capsule validates and its digest exactly equals the durable witness digest. A plain `UNCERTAIN` operation has no result witness; even a fully canonical, self-consistent capsule in that state is preserved but cannot mint `PROVIDER_RESULT`, cannot become `ACCEPTED`, and cannot restore provider-send authority. Partial, noncanonical, mismatched, symlinked, foreign, or witness-mismatched generations HOLD. Durable `ACCEPTED` disclosure then requires the read-only replay capability and performs no catalog/chat. Once durable `ACCEPTED` has been proven, later flock-release/resource cleanup failure is resource-terminal only and cannot replace or hide the committed operation result.
 
-The broker owns one closed accepted-result capacity domain: provider success bodies are bounded below the durable accepted-result ceiling, the canonical accepted result is bounded below the capsule ceiling, and the complete broker response remains below the IPC wire ceiling. A response outside the provider-read domain can consume at most one provider execution and remains durable `UNCERTAIN`/no-resend; it cannot become a partial `RESULT_WITNESSED` or `ACCEPTED` terminal.
+The lower-level transport owns one closed accepted-result capacity domain: provider success bodies are bounded below the durable accepted-result ceiling, the canonical accepted result is bounded below the capsule ceiling, and the complete broker response remains below the IPC wire ceiling. A response outside the provider-read domain can consume at most one provider execution and remains durable `UNCERTAIN`/no-resend; it cannot become a partial `RESULT_WITNESSED` or `ACCEPTED` terminal.
 
 Before decode, each broker socket also has a finite idle and total acquisition lifetime plus concurrent-incomplete and aggregate retained-byte ceilings. A peer that withholds the terminating LF or fans out partial requests is torn down without catalog/chat work.
 
-There is no TTL reclaim, stale-claim reclaim, process-death reclaim, or transient-parameter escape hatch.
+There is no TTL reclaim, stale-claim reclaim, process-death reclaim, transient-parameter escape hatch, or execution-identity bypass.
 
 ## Admission and evidence
 
 Before IPC, the adapter still performs the provider-neutral trial wall, constitutional/sanitization admission, exact trial rereadmission, staged-input digest verification, public-retention checks, bounded prompt construction, no-tools construction, and outbound secret/private-path scanning.
 
-Only broker `ACCEPTED` may become contestant GREEN evidence. The broker-owned accepted payload binds both the full-provenance fresh-execution admission-capability ID and the domain-separated read-only replay-capability ID. Results additionally bind `broker_operation_id`, `broker_result_digest`, `broker_catalog_sha256`, `broker_selected_model_sha256`, registry/trial/admission/prompt generation, provider policy, selected model/provider evidence, and response-content digest.
+Only broker `ACCEPTED` may become contestant GREEN evidence. On this source generation, no new fresh OpenRouter request can become `ACCEPTED` because fresh execution stops at `EXECUTION_IDENTITY_HOLD`. Historical durable `ACCEPTED` replay, if any separately valid state exists, remains a zero-send read path and does not become new provider execution authority.
 
-Broker catalog evidence additionally binds the exact model, canonical slug, reviewed context floor, `pricing_zero=true`, the exact catalog digest exposed as `broker_catalog_sha256`, and the selected model-generation digest exposed as `broker_selected_model_sha256`.
+The accepted payload format binds both the full-provenance fresh-execution admission-capability ID and the domain-separated read-only replay-capability ID. Results additionally bind `broker_operation_id`, `broker_result_digest`, `broker_catalog_sha256`, `broker_selected_model_sha256`, registry/trial/admission/prompt generation, provider policy, selected model/provider evidence, and response-content digest.
+
+`broker_catalog_sha256` binds the exact catalog bytes observed by the broker. `broker_selected_model_sha256` binds the exact selected **catalog model record**. Neither field is an immutable weight/model-revision identity and neither may be used to clear the execution-identity gate.
 
 Legacy `execution_claim_sha256`, `execution_claim_semantic_sha256`, and `execution_claim_root_generation_sha256` are no longer execution authority and must not reappear in migrated results.
 
-The adapter's separate create-only accepted-result recovery journal remains evidence only. The broker's private accepted-result capsule is likewise consumer evidence, not execution authority: it cannot authorize a provider send and it cannot by itself authorize `UNCERTAIN -> PROVIDER_RESULT`. The durable broker-owned `RESULT_WITNESSED` ledger transition is required before capsule recovery can establish `ACCEPTED`; provider reexecution authority remains solely the pre-admission `RESERVED` broker state.
+The adapter's separate create-only accepted-result recovery journal remains evidence only. The broker's private accepted-result capsule is likewise consumer evidence, not execution authority: it cannot authorize a provider send and it cannot by itself authorize `UNCERTAIN -> PROVIDER_RESULT`. The durable broker-owned `RESULT_WITNESSED` ledger transition is required before capsule recovery can establish `ACCEPTED`; provider reexecution authority remains solely the pre-admission `RESERVED` broker state, which is unreachable from a fresh production IPC request while the execution-identity gate is closed.
 
 ## Runtime contract
 
-This PR is source/proof/documentation only and does not install or start the broker. Production execution requires the separately reviewed broker service/socket and admission/arena unit.
+This PR is source/proof/documentation only and does not install or start the broker. Production execution requires the separately reviewed broker service/socket and admission/arena unit **plus** a future reviewed immutable execution-identity primitive. Installing the current source would still leave fresh OpenRouter requests fail-closed at `EXECUTION_IDENTITY_HOLD`.
 
-The adapter process does not receive the OpenRouter credential. The invocation shape below is valid only inside the reviewed admission unit where systemd has already supplied `$CREDENTIALS_DIRECTORY`; an arbitrary operator-supplied credential directory is outside the reviewed production contract:
+The adapter process does not receive the OpenRouter credential. The invocation shape below is valid only inside the reviewed admission unit where systemd has already supplied `$CREDENTIALS_DIRECTORY`; an arbitrary operator-supplied credential directory is outside the reviewed production contract. On this generation, a fresh invocation can perform local admission/IPC but cannot obtain fresh provider execution from the broker:
 
 ```bash
 TRIAL=./trial-packet.json
@@ -100,13 +124,14 @@ LOGICAL_OPERATION_INTENT_SHA256=<trusted-stable-64-hex-digest>
 # CREDENTIALS_DIRECTORY is supplied by the reviewed systemd unit and contains:
 #   apollyon_openrouter_admission_mac_v1  (exactly 32 binary bytes)
 
-VOID_OPENROUTER_ENABLE=1 VOID_OPENROUTER_MODEL=stealth/ox-alpha VOID_OPENROUTER_ACK_PROVIDER_POLICY=1 VOID_OPENROUTER_ACK_REGISTRY_SHA256="$REGISTRY_SHA256" VOID_OPENROUTER_ACK_PUBLIC_RETENTION=1 VOID_OPENROUTER_ACK_PUBLIC_TRIAL_SHA256="$TRIAL_SHA256" VOID_OPENROUTER_LOGICAL_OPERATION_INTENT_SHA256="$LOGICAL_OPERATION_INTENT_SHA256" node scripts/apollyon_openrouter_ox_alpha_adapter_v1.mjs run   "$TRIAL" "$STAGING" "$MANIFEST" "$RECEIPT" "$OUTPUT" "$ADMISSION_AT"
+VOID_OPENROUTER_ENABLE=1 VOID_OPENROUTER_MODEL=stealth/ox-alpha VOID_OPENROUTER_ACK_PROVIDER_POLICY=1 VOID_OPENROUTER_ACK_REGISTRY_SHA256="$REGISTRY_SHA256" VOID_OPENROUTER_ACK_PUBLIC_RETENTION=1 VOID_OPENROUTER_ACK_PUBLIC_TRIAL_SHA256="$TRIAL_SHA256" VOID_OPENROUTER_LOGICAL_OPERATION_INTENT_SHA256="$LOGICAL_OPERATION_INTENT_SHA256" node scripts/apollyon_openrouter_ox_alpha_adapter_v1.mjs run \
+  "$TRIAL" "$STAGING" "$MANIFEST" "$RECEIPT" "$OUTPUT" "$ADMISSION_AT"
 ```
 
-If the fixed broker socket is absent, the adapter HOLDs; it never falls back to direct provider access.
+If the fixed broker socket is absent, the adapter HOLDs; it never falls back to direct provider access. If the broker is present on this source generation, fresh execution HOLDs at `EXECUTION_IDENTITY_HOLD` rather than falling through to catalog/chat.
 
 ## Deployment separation
 
 The reviewed production deployment contract requires **separate system services with distinct `DynamicUser=yes` identities** for broker and admission/arena execution. Both receive separate read-only copies of `apollyon_openrouter_admission_mac_v1` using `LoadCredentialEncrypted=` (or an equivalently protected `LoadCredential=` source); only the broker unit additionally receives `openrouter_api_key`. `$CREDENTIALS_DIRECTORY` is the application interface. The broker keeps private persistent `StateDirectory`, systemd socket activation, and restrictive socket permissions. Running these key-bearing paths as the ordinary operator UID is outside the reviewed production contract, because same-UID processes can reopen one another's ordinary `/proc/<pid>/fd` descriptors.
 
-No deployment, restart, live VOID mutation, chain action, wallet/signer action, validator/Work Credit action, transaction, treasury/liquidity action, or funds movement is authorized by this source generation.
+No deployment, restart, live OpenRouter execution, live VOID mutation, chain action, wallet/signer action, validator/Work Credit action, transaction, treasury/liquidity action, or funds movement is authorized by this source generation.
