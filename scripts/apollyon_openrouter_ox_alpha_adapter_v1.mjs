@@ -13,6 +13,7 @@ import { runBrokerClientV1 } from './apollyon_openrouter_broker_client_v1.mjs';
 import { buildOpenRouterBrokerBindingV1 } from './apollyon_openrouter_broker_binding_v1.mjs';
 import {
   buildBrokerAdmissionCapabilityV1,
+  buildBrokerReplayCapabilityV1,
   readBrokerAdmissionMacCredentialV1,
 } from './apollyon_openrouter_broker_admission_capability_v1.mjs';
 
@@ -588,6 +589,7 @@ export function buildOpenRouterBrokerIpcRequestV1({
   requestBody,
   contestant,
   admissionCapability = null,
+  replayCapability = null,
   timeoutMs,
 }) {
   if (!/^[0-9a-f]{64}$/.test(String(logicalOperationIntentDigest ?? ''))) {
@@ -606,6 +608,10 @@ export function buildOpenRouterBrokerIpcRequestV1({
       && (!admissionCapability || typeof admissionCapability !== 'object' || Array.isArray(admissionCapability))) {
     fail('broker admission capability is invalid');
   }
+  if (replayCapability !== null
+      && (!replayCapability || typeof replayCapability !== 'object' || Array.isArray(replayCapability))) {
+    fail('broker replay capability is invalid');
+  }
   if (!Number.isSafeInteger(timeoutMs) || timeoutMs < MIN_TIMEOUT_MS || timeoutMs > MAX_TIMEOUT_MS) {
     fail('broker timeout is invalid');
   }
@@ -618,11 +624,12 @@ export function buildOpenRouterBrokerIpcRequestV1({
     request_body: requestBody,
     contestant,
     admission_capability: admissionCapability,
+    replay_capability: replayCapability,
     timeout_ms: timeoutMs,
   });
 }
 
-export function validateBrokerAcceptedResponseV1(response, request, contestant, expectedAdmissionCapabilityId) {
+export function validateBrokerAcceptedResponseV1(response, request, contestant, expectedAdmissionCapabilityId, expectedReplayCapabilityId) {
   if (!response || typeof response !== 'object' || Array.isArray(response)) {
     fail('broker response is malformed');
   }
@@ -645,6 +652,7 @@ export function validateBrokerAcceptedResponseV1(response, request, contestant, 
   }
   if (typeof result.content !== 'string') fail('broker accepted result content must be text');
   if(!/^voidobac1_[0-9a-f]{64}$/.test(String(result.broker_admission_capability_id??''))||result.broker_admission_capability_id!==expectedAdmissionCapabilityId) fail('broker admission capability evidence is missing or mismatched');
+  if(!/^voidobrc1_[0-9a-f]{64}$/.test(String(result.broker_replay_capability_id??''))||result.broker_replay_capability_id!==expectedReplayCapabilityId) fail('broker replay capability evidence is missing or mismatched');
   const model = result.broker_catalog_preflight_v1;
   if (!model || typeof model !== 'object' || Array.isArray(model)) {
     fail('broker catalog preflight evidence is missing');
@@ -807,33 +815,34 @@ export async function runOpenRouterContestantTrialV1(options, hooks = {}) {
   });
   let brokerAdmissionMacKey=null;
   let brokerAdmission;
+  let brokerReplay;
   try{
     brokerAdmissionMacKey=await readBrokerAdmissionMacCredentialV1(
       brokerAdmissionCredentialDirectoryV1(env),
     );
-    brokerAdmission=buildBrokerAdmissionCapabilityV1({
-      binding:brokerBinding,
-      model:runtime.contestant.model,
-      canonicalSlug:runtime.contestant.canonical_slug,
-      trialId:trialRead.value.trial_id,
+    const capabilityProvenance={
+      binding:brokerBinding,model:runtime.contestant.model,
+      canonicalSlug:runtime.contestant.canonical_slug,trialId:trialRead.value.trial_id,
       admissionId:receiptRead.value.admission_id,
-      admissionReceiptSha256:sha256(receiptRead.bytes),
-      promptSha256:request.promptSha256,
-    },brokerAdmissionMacKey);
+      admissionReceiptSha256:sha256(receiptRead.bytes),promptSha256:request.promptSha256,
+    };
+    brokerAdmission=buildBrokerAdmissionCapabilityV1(capabilityProvenance,brokerAdmissionMacKey);
+    brokerReplay=buildBrokerReplayCapabilityV1(capabilityProvenance,brokerAdmissionMacKey);
   }finally{
     if(brokerAdmissionMacKey)brokerAdmissionMacKey.fill(0);
   }
 
   const brokerRequest = buildOpenRouterBrokerIpcRequestV1({
     logicalOperationIntentDigest: runtime.logicalOperationIntentDigest,
-    registrySha256: registryLoaded.sha256,
-    requestBody: request.body,
-    contestant: runtime.contestant,
-    admissionCapability: brokerAdmission,
-    timeoutMs: runtime.chatTimeoutMs,
+    registrySha256: registryLoaded.sha256,requestBody: request.body,
+    contestant: runtime.contestant,admissionCapability: brokerAdmission,
+    replayCapability: brokerReplay,timeoutMs: runtime.chatTimeoutMs,
   });
   if (typeof hooks.beforeBrokerRequest === 'function') {
-    await hooks.beforeBrokerRequest({ brokerRequest, recoveryKey, brokerAdmissionCapabilityId:brokerAdmission.capability_id });
+    await hooks.beforeBrokerRequest({
+      brokerRequest,recoveryKey,brokerAdmissionCapabilityId:brokerAdmission.capability_id,
+      brokerReplayCapabilityId:brokerReplay.capability_id,
+    });
   }
 
   const brokerResponse = await brokerClientV1(hooks)(
@@ -845,6 +854,7 @@ export async function runOpenRouterContestantTrialV1(options, hooks = {}) {
     brokerRequest,
     runtime.contestant,
     brokerAdmission.capability_id,
+    brokerReplay.capability_id,
   );
 
   if (typeof hooks.afterFreePriceCheck === 'function') {

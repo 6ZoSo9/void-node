@@ -12,6 +12,7 @@ import {
   acceptedResultDigestV1,
   assertAcceptedResultCapsuleAbsentV1,
   publishAcceptedResultCapsuleV1,
+  recoverAcceptedResultCapsuleCandidateV1,
   validateAcceptedResultBindingV1,
 } from './apollyon_accepted_result_capsule_v1.mjs';
 import {
@@ -115,18 +116,21 @@ export async function runBrokerProviderAttemptV1(
   requireLinuxV1();
   if (typeof sendProviderOnce !== 'function') fail('sendProviderOnce must be a function');
   let beforeUnlock = null;
+  let acceptedCapsuleFaultAt = null;
   if (proofHooks !== null && proofHooks !== undefined) {
-    if (typeof proofHooks !== 'object' || Array.isArray(proofHooks)) {
-      fail('proofHooks must be null or a plain object');
-    }
+    if (typeof proofHooks !== 'object' || Array.isArray(proofHooks)) fail('proofHooks must be null or a plain object');
     const proto = Object.getPrototypeOf(proofHooks);
     if (proto !== Object.prototype && proto !== null) fail('proofHooks must be a plain object');
-    const hookKeys = Object.keys(proofHooks);
-    if (hookKeys.length !== 1 || hookKeys[0] !== 'beforeUnlock') {
-      fail('proofHooks may contain exactly beforeUnlock');
+    const allowed = new Set(['beforeUnlock','acceptedCapsuleFaultAt']);
+    for (const key of Object.keys(proofHooks)) if (!allowed.has(key)) fail(`unsupported proof hook ${key}`);
+    if (proofHooks.beforeUnlock !== undefined) {
+      if (typeof proofHooks.beforeUnlock !== 'function') fail('proofHooks.beforeUnlock must be a function');
+      beforeUnlock = proofHooks.beforeUnlock;
     }
-    if (typeof proofHooks.beforeUnlock !== 'function') fail('proofHooks.beforeUnlock must be a function');
-    beforeUnlock = proofHooks.beforeUnlock;
+    if (proofHooks.acceptedCapsuleFaultAt !== undefined) {
+      if (typeof proofHooks.acceptedCapsuleFaultAt !== 'string') fail('acceptedCapsuleFaultAt must be a string');
+      acceptedCapsuleFaultAt = proofHooks.acceptedCapsuleFaultAt;
+    }
   }
   const acceptedResultBinding = validateAcceptedResultBindingV1(rawAcceptedResultBinding);
   const handle = assertPinnedDirectoryObjectV1(directoryHandle);
@@ -232,6 +236,7 @@ export async function runBrokerProviderAttemptV1(
       acceptedResultBinding,
       resultDigest,
       value,
+      acceptedCapsuleFaultAt === null ? null : { faultAt: acceptedCapsuleFaultAt },
     );
 
     // Result record derived internally from the SAME durable binding; caller supplies no record.
@@ -295,5 +300,54 @@ export async function runBrokerProviderAttemptV1(
     }
   }
   if (pendingError) throw pendingError;
+  return receipt;
+}
+// No-send recovery for a complete broker-private stage/final left while the ledger is UNCERTAIN.
+export async function recoverBrokerProviderAcceptedResultV1(
+  directoryHandle, acceptedResultRoot, rawAcceptedResultBinding,
+) {
+  requireLinuxV1();
+  const acceptedResultBinding = validateAcceptedResultBindingV1(rawAcceptedResultBinding);
+  const handle = assertPinnedDirectoryObjectV1(directoryHandle);
+  if (LOCALLY_HELD_FILE_HANDLES.has(handle)) fail('this exact FileHandle is already locally held by another provider/recovery attempt');
+  let acquired=false,pendingError=null,receipt=null;
+  LOCALLY_HELD_FILE_HANDLES.add(handle);
+  try {
+    acquireDirectoryFlockExclusiveNonblockingV1(handle); acquired=true;
+    const current=await loadLedgerRecordsV1(directoryHandle);
+    if(current.length===0)return null;
+    const state=replayBrokerStateFromLedgerV1(current),head=current[0],tail=current[current.length-1];
+    if(state.phase!==BROKER_STATE_V1.UNCERTAIN||state.operationId!==head.operationId||state.acceptedDigest!==null)return null;
+    if(acceptedResultBinding.operationId!==head.operationId
+        ||acceptedResultBinding.logicalOperationIntentDigest!==head.logicalOperationIntentDigest
+        ||acceptedResultBinding.logicalWorkDigest!==head.logicalWorkDigest)fail('recovery binding does not match durable UNCERTAIN head');
+    const recovered=await recoverAcceptedResultCapsuleCandidateV1(acceptedResultRoot,acceptedResultBinding);
+    if(recovered===null)return null;
+    const resultRecord=makeLedgerRecordV1({
+      type:LEDGER_EVENT_V1.PROVIDER_RESULT,operationId:head.operationId,
+      logicalOperationIntentDigest:head.logicalOperationIntentDigest,
+      logicalWorkDigest:head.logicalWorkDigest,sequence:current.length,
+      previousRecordSha256:tail.recordSha256,resultDigest:recovered.resultDigest,
+    });
+    const acceptedState=reduceBrokerStateV1(state,{type:'PROVIDER_RESULT',operationId:head.operationId,resultDigest:recovered.resultDigest});
+    if(acceptedState.phase!==BROKER_STATE_V1.ACCEPTED||acceptedState.acceptedDigest!==recovered.resultDigest)fail('recovered result did not reduce UNCERTAIN to exact ACCEPTED');
+    const candidate=[...current,resultRecord];verifyLedgerChainV1(candidate);
+    if(!sameStateFieldsV1(replayBrokerStateFromLedgerV1(candidate),acceptedState))fail('recovery candidate replay disagrees with reducer');
+    await publishRecordBytesDurableV1(directoryHandle,resultRecord.sequence,Buffer.from(encodeLedgerRecordBytesV1(resultRecord)));
+    const final=await loadLedgerRecordsV1(directoryHandle);
+    if(final.length!==candidate.length||final[final.length-1].recordSha256!==resultRecord.recordSha256
+        ||!sameStateFieldsV1(replayBrokerStateFromLedgerV1(final),acceptedState))fail('recovered PROVIDER_RESULT did not become exact durable ACCEPTED');
+    receipt=Object.freeze({
+      resultDigest:recovered.resultDigest,value:recovered.value,admittedRecordSha256:tail.recordSha256,
+      resultRecordSha256:resultRecord.recordSha256,ledgerLength:final.length,recoveredWithoutProviderSend:true,
+    });
+  } catch(error){pendingError=error}
+  finally {
+    if(acquired){
+      try{releaseDirectoryFlockV1(handle);LOCALLY_HELD_FILE_HANDLES.delete(handle)}
+      catch(unlockError){if(receipt===null&&!pendingError)pendingError=unlockError}
+    } else LOCALLY_HELD_FILE_HANDLES.delete(handle);
+  }
+  if(pendingError)throw pendingError;
   return receipt;
 }

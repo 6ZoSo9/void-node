@@ -2,14 +2,18 @@
 // One internal chat-send closure behind the V8.3 boundary; no caller-supplied send capability,
 // no retry/fallback, no metadata GET, no filesystem/wallet/service/validator authority here.
 import { createHash } from 'node:crypto';
-import { acceptedResultDigestV1 } from './apollyon_accepted_result_capsule_v1.mjs';
+import {
+  MAX_ACCEPTED_RESULT_CANONICAL_BYTES,
+  acceptedResultDigestV1,
+  assertAcceptedResultCapacityV1,
+} from './apollyon_accepted_result_capsule_v1.mjs';
 import { runBrokerProviderAttemptV1 } from './apollyon_execution_provider_boundary_v1.mjs';
 
 const MODULE_ID = 'VOID_OX_ALPHA_OPENROUTER_BROKER_TRANSPORT_V8_4';
 const CHAT_URL = 'https://openrouter.ai/api/v1/chat/completions';
 const RESULT_MARKER = 'VOID_APOLLYON_OPENROUTER_VALIDATED_RESULT_V1';
 const MAX_BODY_BYTES = 3 * 1024 * 1024;
-const MAX_CHAT_RESPONSE_BYTES = 8 * 1024 * 1024;
+export const MAX_CHAT_RESPONSE_BYTES = 2 * 1024 * 1024;
 const MAX_ERROR_RESPONSE_BYTES = 64 * 1024;
 const MAX_USAGE_CANONICAL_BYTES = 256 * 1024;
 const MODEL_SLUG = /^[a-z0-9][a-z0-9._-]{0,62}\/[a-z0-9][a-z0-9._-]{0,62}(?::[a-z0-9][a-z0-9_-]{0,31})?$/;
@@ -195,9 +199,11 @@ function validateChatResponseV1(response, snapshot) {
 
 export async function runOpenRouterBrokerAttemptV1(directoryHandle, acceptedResultRoot, input) {
   if (!isPlainObjectV1(input)) fail('input must be a plain object');
-  exactKeysV1(input, ['apiKey', 'requestBody', 'timeoutMs', 'contestant', 'binding', 'catalogPreflight', 'admissionCapabilityId'], 'input');
-  const { apiKey, requestBody, timeoutMs, contestant, binding, catalogPreflight, admissionCapabilityId } = input;
+  exactKeysV1(input, ['apiKey', 'requestBody', 'timeoutMs', 'contestant', 'binding', 'catalogPreflight', 'admissionCapabilityId', 'replayCapabilityId'], 'input');
+  const { apiKey, requestBody, timeoutMs, contestant, binding, catalogPreflight, admissionCapabilityId, replayCapabilityId } = input;
   if(!/^voidobac1_[0-9a-f]{64}$/.test(String(admissionCapabilityId??''))) fail('admissionCapabilityId is invalid');
+  if(!/^voidobrc1_[0-9a-f]{64}$/.test(String(replayCapabilityId??''))) fail('replayCapabilityId is invalid');
+  if(MAX_CHAT_RESPONSE_BYTES >= MAX_ACCEPTED_RESULT_CANONICAL_BYTES) fail('provider response ceiling must remain below durable accepted-result ceiling');
   if (typeof apiKey !== 'string' || apiKey.length < 8 || apiKey.length > 512 || !/\S/.test(apiKey)) fail('apiKey must be a non-whitespace string of length 8..512');
   if (!Number.isSafeInteger(timeoutMs) || timeoutMs < 1000 || timeoutMs > 300000) fail('timeoutMs must be a safe integer 1000..300000');
   validateContestantV1(contestant);
@@ -260,7 +266,9 @@ export async function runOpenRouterBrokerAttemptV1(directoryHandle, acceptedResu
       router_selected_provider: validated.router_selected_provider,
       broker_catalog_preflight_v1: catalogPreflightSnapshot,
       broker_admission_capability_id: admissionCapabilityId,
+      broker_replay_capability_id: replayCapabilityId,
     });
+    assertAcceptedResultCapacityV1(normalizedResult);
     const resultDigest = acceptedResultDigestV1(normalizedResult);
     return { resultDigest, value: normalizedResult };
   };

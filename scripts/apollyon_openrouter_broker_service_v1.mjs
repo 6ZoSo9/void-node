@@ -10,9 +10,13 @@ import {
   openOperationLedgerNamespaceV1,
 } from './apollyon_execution_ledger_namespace_v1.mjs';
 import { prepareBrokerOperationV1 } from './apollyon_execution_broker_prepare_v1.mjs';
-import { validateBrokerAdmissionCapabilityV1 } from './apollyon_openrouter_broker_admission_capability_v1.mjs';
+import {
+  validateBrokerAdmissionCapabilityV1,
+  validateBrokerReplayCapabilityV1,
+} from './apollyon_openrouter_broker_admission_capability_v1.mjs';
 import { readAcceptedResultCapsuleV1 } from './apollyon_accepted_result_capsule_v1.mjs';
 import { runOpenRouterBrokerAttemptV1 } from './apollyon_openrouter_broker_transport_v1.mjs';
+import { recoverBrokerProviderAcceptedResultV1 } from './apollyon_execution_provider_boundary_v1.mjs';
 import {
   runOpenRouterCatalogPreflightV1,
   transportContestantFromCatalogContestantV1,
@@ -21,6 +25,10 @@ import {
 
 const MAX_WIRE_BYTES = 4 * 1024 * 1024;
 const METADATA_TIMEOUT_MS = 15_000;
+const PREDECODE_IDLE_TIMEOUT_MS = 2_000;
+const PREDECODE_TOTAL_TIMEOUT_MS = 5_000;
+const MAX_INCOMPLETE_CONNECTIONS = 8;
+const MAX_INCOMPLETE_RETAINED_BYTES = 8 * 1024 * 1024;
 
 function fail(message) {
   throw new Error(`VOID_APOLLYON_OPENROUTER_BROKER_SERVICE_V1: ${message}`);
@@ -90,20 +98,24 @@ async function processRequest(rootDirectoryHandle, acceptedResultRoot, admission
       return holdResponse(request.request_id, binding.operationId, 'INTERNAL_HOLD');
     }
 
+    let brokerReplay = null;
     if (namespace !== null) {
       try {
-        const recovered = await readAcceptedResultCapsuleV1(
-          acceptedResultRoot,
-          namespace.directoryHandle,
-          binding,
+        brokerReplay = validateBrokerReplayCapabilityV1(
+          request.replay_capability,
+          { binding, model: brokerContestant.model, canonicalSlug: brokerContestant.canonical_slug },
+          admissionMacKey,
         );
+      } catch {
+        return holdResponse(request.request_id, binding.operationId, 'ADMISSION_HOLD');
+      }
+      try {
+        const recovered = await readAcceptedResultCapsuleV1(acceptedResultRoot,namespace.directoryHandle,binding);
         if (recovered !== null) {
-          return acceptedResponse(
-            request.request_id,
-            binding.operationId,
-            recovered.resultDigest,
-            recovered.value,
-          );
+          if (recovered.value?.broker_replay_capability_id !== brokerReplay.capabilityId) {
+            return holdResponse(request.request_id, binding.operationId, 'UNCERTAIN_OR_TERMINAL');
+          }
+          return acceptedResponse(request.request_id,binding.operationId,recovered.resultDigest,recovered.value);
         }
       } catch {
         return holdResponse(request.request_id, binding.operationId, 'UNCERTAIN_OR_TERMINAL');
@@ -153,6 +165,45 @@ async function processRequest(rootDirectoryHandle, acceptedResultRoot, admission
       return holdResponse(request.request_id, binding.operationId, 'ADMISSION_HOLD');
     }
 
+    if (brokerReplay === null) {
+      try {
+        brokerReplay = validateBrokerReplayCapabilityV1(
+          request.replay_capability,
+          { binding, model: brokerContestant.model, canonicalSlug: brokerContestant.canonical_slug },
+          admissionMacKey,
+        );
+      } catch {
+        return holdResponse(request.request_id, binding.operationId, 'ADMISSION_HOLD');
+      }
+    }
+
+    for (const field of [
+      'trialId',
+      'admissionId',
+      'admissionReceiptSha256',
+      'promptSha256',
+    ]) {
+      if (brokerAdmission[field] !== brokerReplay[field]) {
+        return holdResponse(request.request_id, binding.operationId, 'ADMISSION_HOLD');
+      }
+    }
+
+    if (namespace !== null) {
+      try {
+        const reconciled = await recoverBrokerProviderAcceptedResultV1(
+          namespace.directoryHandle,acceptedResultRoot,binding,
+        );
+        if (reconciled !== null) {
+          if (reconciled.value?.broker_replay_capability_id !== brokerReplay.capabilityId) {
+            return holdResponse(request.request_id, binding.operationId, 'UNCERTAIN_OR_TERMINAL');
+          }
+          return acceptedResponse(request.request_id,binding.operationId,reconciled.resultDigest,reconciled.value);
+        }
+      } catch {
+        return holdResponse(request.request_id, binding.operationId, 'UNCERTAIN_OR_TERMINAL');
+      }
+    }
+
     if (namespace === null) {
       try {
         namespace = await openOperationLedgerNamespaceV1(
@@ -191,6 +242,7 @@ async function processRequest(rootDirectoryHandle, acceptedResultRoot, admission
         binding,
         catalogPreflight,
         admissionCapabilityId: brokerAdmission.capabilityId,
+        replayCapabilityId: brokerReplay.capabilityId,
       });
     } catch {
       return holdResponse(request.request_id, binding.operationId, 'PROVIDER_HOLD');
@@ -223,62 +275,52 @@ export async function startActivatedBrokerServiceV1(listenerFd, rootDirectoryHan
     fail('broker credential is malformed');
   }
 
+  let incompleteConnections = 0;
+  let incompleteRetainedBytes = 0;
   const server = createServer((socket) => {
-    let chunks = [];
-    let total = 0;
-    let finished = false;
-
-    const close = () => {
-      chunks = [];
-      socket.end();
+    if (incompleteConnections >= MAX_INCOMPLETE_CONNECTIONS) {
+      socket.destroy();
+      return;
+    }
+    let chunks=[],total=0,finished=false,predecodeOwned=true;
+    incompleteConnections += 1;
+    let idleTimer=null,totalTimer=null;
+    const releasePredecode=()=>{
+      if(!predecodeOwned)return;
+      predecodeOwned=false;incompleteConnections-=1;incompleteRetainedBytes-=total;
+      incompleteConnections=Math.max(0,incompleteConnections);
+      incompleteRetainedBytes=Math.max(0,incompleteRetainedBytes);
+      if(idleTimer)clearTimeout(idleTimer);if(totalTimer)clearTimeout(totalTimer);
+      idleTimer=null;totalTimer=null;
     };
-
-    socket.on('data', async (chunk) => {
-      if (finished) return;
-      if (!(chunk instanceof Uint8Array)) {
-        finished = true;
-        close();
-        return;
-      }
-      if (chunk.byteLength > MAX_WIRE_BYTES - total) {
-        finished = true;
-        close();
-        return;
-      }
-      chunks.push(Buffer.from(chunk));
-      total += chunk.byteLength;
-      const combined = Buffer.concat(chunks, total);
-      const firstLf = combined.indexOf(0x0a);
-      if (firstLf < 0) return;
-      finished = true;
-      if (firstLf !== combined.length - 1) {
-        close();
-        return;
-      }
-
+    const abortPredecode=()=>{
+      if(finished)return;
+      finished=true;chunks=[];releasePredecode();socket.destroy();
+    };
+    const armIdle=()=>{
+      if(idleTimer)clearTimeout(idleTimer);
+      idleTimer=setTimeout(abortPredecode,PREDECODE_IDLE_TIMEOUT_MS);idleTimer.unref?.();
+    };
+    totalTimer=setTimeout(abortPredecode,PREDECODE_TOTAL_TIMEOUT_MS);totalTimer.unref?.();armIdle();
+    socket.once('close',releasePredecode);
+    socket.once('error',()=>{if(!finished)abortPredecode()});
+    socket.on('data',async(chunk)=>{
+      if(finished)return;armIdle();
+      if(!(chunk instanceof Uint8Array)){abortPredecode();return}
+      if(chunk.byteLength>MAX_WIRE_BYTES-total
+          ||chunk.byteLength>MAX_INCOMPLETE_RETAINED_BYTES-incompleteRetainedBytes){abortPredecode();return}
+      chunks.push(Buffer.from(chunk));total+=chunk.byteLength;incompleteRetainedBytes+=chunk.byteLength;
+      const combined=Buffer.concat(chunks,total),firstLf=combined.indexOf(0x0a);
+      if(firstLf<0)return;
+      finished=true;chunks=[];releasePredecode();
+      if(firstLf!==combined.length-1){socket.destroy();return}
       let request;
-      try {
-        request = decodeBrokerRequestV1(combined);
-      } catch {
-        close();
-        return;
-      }
-
+      try{request=decodeBrokerRequestV1(combined)}catch{socket.destroy();return}
       let response;
-      try {
-        response = await processRequest(rootDirectoryHandle, acceptedResultRoot, admissionMacKey, registryAuthority, apiKey, request);
-      } catch {
-        response = holdResponse(request.request_id, null, 'INTERNAL_HOLD');
-      }
-
-      try {
-        socket.end(encodeBrokerResponseV1(response));
-      } catch {
-        close();
-      }
+      try{response=await processRequest(rootDirectoryHandle,acceptedResultRoot,admissionMacKey,registryAuthority,apiKey,request)}
+      catch{response=holdResponse(request.request_id,null,'INTERNAL_HOLD')}
+      try{socket.end(encodeBrokerResponseV1(response))}catch{socket.destroy()}
     });
-
-    socket.on('error', () => {});
   });
 
   await new Promise((resolve, reject) => {

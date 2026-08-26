@@ -3,10 +3,12 @@ const RESPONSE_MARKER = 'VOID_APOLLYON_OPENROUTER_BROKER_RESPONSE_V1';
 const REQUEST_ID = /^voidobr1_[0-9a-f]{64}$/;
 const HEX64 = /^[0-9a-f]{64}$/;
 const OPERATION_ID = /^apollyon_op_v1:[0-9a-f]{64}$/;
-const MAX_WIRE_BYTES = 4 * 1024 * 1024;
+export const MAX_BROKER_WIRE_BYTES = 4 * 1024 * 1024;
+const MAX_WIRE_BYTES = MAX_BROKER_WIRE_BYTES;
 const MAX_REQUEST_BODY_BYTES = 3 * 1024 * 1024;
 const MAX_CONTESTANT_BYTES = 256 * 1024;
 const MAX_ADMISSION_CAPABILITY_BYTES = 64 * 1024;
+const MAX_REPLAY_CAPABILITY_BYTES = 64 * 1024;
 const HOLD_CODES = new Set([
   'INVALID_REQUEST',
   'BUSY',
@@ -99,6 +101,7 @@ function validateRequestValue(raw) {
     'request_body',
     'contestant',
     'admission_capability',
+    'replay_capability',
     'timeout_ms',
   ], 'request');
   if (raw.marker !== REQUEST_MARKER || raw.version !== 1) fail('request marker/version is invalid');
@@ -113,11 +116,18 @@ function validateRequestValue(raw) {
   const admissionCapability = raw.admission_capability === null
     ? null
     : snapshotJson(raw.admission_capability, 'admission_capability');
+  const replayCapability = raw.replay_capability === null
+    ? null
+    : snapshotJson(raw.replay_capability, 'replay_capability');
   if (utf8Bytes(canonicalJson(requestBody)) > MAX_REQUEST_BODY_BYTES) fail('request_body exceeds byte ceiling');
   if (utf8Bytes(canonicalJson(contestant)) > MAX_CONTESTANT_BYTES) fail('contestant exceeds byte ceiling');
   if (admissionCapability !== null
       && utf8Bytes(canonicalJson(admissionCapability)) > MAX_ADMISSION_CAPABILITY_BYTES) {
     fail('admission_capability exceeds byte ceiling');
+  }
+  if (replayCapability !== null
+      && utf8Bytes(canonicalJson(replayCapability)) > MAX_REPLAY_CAPABILITY_BYTES) {
+    fail('replay_capability exceeds byte ceiling');
   }
   return Object.freeze({
     marker: REQUEST_MARKER,
@@ -128,6 +138,7 @@ function validateRequestValue(raw) {
     request_body: requestBody,
     contestant,
     admission_capability: admissionCapability,
+    replay_capability: replayCapability,
     timeout_ms: raw.timeout_ms,
   });
 }

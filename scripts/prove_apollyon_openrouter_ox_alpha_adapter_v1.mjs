@@ -137,9 +137,14 @@ try{
   let brokerCalls=0;
   const fakeBroker=async(_socket,request)=>{
     const admissionCapability=request.admission_capability;
+    const replayCapability=request.replay_capability;
     assert.ok(admissionCapability && typeof admissionCapability==='object');
+    assert.ok(replayCapability && typeof replayCapability==='object');
     assert.match(admissionCapability.capability_id,/^voidobac1_[0-9a-f]{64}$/);
     assert.match(admissionCapability.authority_mac_sha256,/^[0-9a-f]{64}$/);
+    assert.match(replayCapability.capability_id,/^voidobrc1_[0-9a-f]{64}$/);
+    assert.match(replayCapability.authority_mac_sha256,/^[0-9a-f]{64}$/);
+    assert.equal(replayCapability.scope,'accepted_result_read_only');
     brokerCalls+=1;
     assert.equal(request.logical_operation_intent_digest,intent);
     assert.equal(request.registry_sha256,registrySha);
@@ -155,6 +160,7 @@ try{
         router_requested_model:'stealth/ox-alpha',router_selected_model:'stealth/ox-alpha',
         router_selected_provider:'Stealth',response_id:'proof',usage:null,
         broker_admission_capability_id:admissionCapability.capability_id,
+        broker_replay_capability_id:replayCapability.capability_id,
         broker_catalog_preflight_v1:{
           marker:'VOID_APOLLYON_OPENROUTER_BROKER_CATALOG_PREFLIGHT_V1',version:1,
           model:'stealth/ox-alpha',canonical_slug:'stealth/ox-alpha',
@@ -200,9 +206,11 @@ try{
     request_id:mapped.request_id,status:'HOLD',operation_id:`apollyon_op_v1:${'6'.repeat(64)}`,
     result_digest:null,result:null,hold_code:'UNCERTAIN_OR_TERMINAL',
   };
-  assert.throws(()=>validateBrokerAcceptedResponseV1(hold,mapped,ox,`voidobac1_${'0'.repeat(64)}`),/UNCERTAIN_OR_TERMINAL/);
+  assert.throws(()=>validateBrokerAcceptedResponseV1(
+    hold,mapped,ox,`voidobac1_${'0'.repeat(64)}`,`voidobrc1_${'0'.repeat(64)}`
+  ),/UNCERTAIN_OR_TERMINAL/);
 
-  console.log(`${PROOF_MARKER} passed=37 failed=0`);
+  console.log(`${PROOF_MARKER} passed=40 failed=0`);
 }finally{
   await rm(root,{recursive:true,force:true});
 }

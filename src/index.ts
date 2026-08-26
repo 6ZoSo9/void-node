@@ -12008,12 +12008,9 @@ import { projectWcProductionBalance, projectWcProductionLedger } from "./economi
       if (typeof orig !== "function") return; // nothing to wrap yet
 
       store.saveBlock = async function(b:any){
-        try {
-          const txs:any[] = Array.isArray(b?.txs) ? b.txs : [];
-          const txRoot = computeTxRoot(txs);
-          b.txRoot = txRoot;            // annotate block object (persisted with block)
-        } catch(e){ /* best-effort; keep going */ }
-
+        // Metrics-only hook: never derive or rewrite consensus fields here.
+        // Imported and locally produced blocks must reach canonical validation
+        // with the exact txRoot supplied by their authoritative producer path.
         const res = await orig(b);
 
         try {

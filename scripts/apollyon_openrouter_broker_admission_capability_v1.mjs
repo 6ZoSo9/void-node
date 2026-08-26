@@ -11,8 +11,11 @@ const MODULE_ID='VOID_APOLLYON_OPENROUTER_BROKER_ADMISSION_CAPABILITY_V1';
 const MARKER='VOID_APOLLYON_OPENROUTER_BROKER_ADMISSION_CAPABILITY_V1';
 const ID_MARKER='VOID_APOLLYON_OPENROUTER_BROKER_ADMISSION_CAPABILITY_ID_V2';
 const MAC_MARKER='VOID_APOLLYON_OPENROUTER_BROKER_ADMISSION_CAPABILITY_MAC_V1';
+const REPLAY_MARKER='VOID_APOLLYON_OPENROUTER_BROKER_REPLAY_CAPABILITY_V1';
+const REPLAY_ID_MARKER='VOID_APOLLYON_OPENROUTER_BROKER_REPLAY_CAPABILITY_ID_V1';
+const REPLAY_MAC_MARKER='VOID_APOLLYON_OPENROUTER_BROKER_REPLAY_CAPABILITY_MAC_V1';
 export const BROKER_ADMISSION_CREDENTIAL_ID='apollyon_openrouter_admission_mac_v1';
-const HEX64=/^[0-9a-f]{64}$/, OP=/^apollyon_op_v1:[0-9a-f]{64}$/, TRIAL=/^voidat1_[0-9a-f]{64}$/, ADMISSION=/^voidaa1_[0-9a-f]{64}$/, CAP=/^voidobac1_[0-9a-f]{64}$/;
+const HEX64=/^[0-9a-f]{64}$/, OP=/^apollyon_op_v1:[0-9a-f]{64}$/, TRIAL=/^voidat1_[0-9a-f]{64}$/, ADMISSION=/^voidaa1_[0-9a-f]{64}$/, CAP=/^voidobac1_[0-9a-f]{64}$/, REPLAY=/^voidobrc1_[0-9a-f]{64}$/;
 const MODEL=/^[a-z0-9._-]+\/[A-Za-z0-9._:-]+$/, CANON=/^[a-z0-9._~-]+\/[A-Za-z0-9._~:-]+$/;
 const MAC_KEY_BYTES=32;
 
@@ -138,6 +141,60 @@ export function validateBrokerAdmissionCapabilityV1(raw,expected,key){
     admissionId:raw.admission_id,
     admissionReceiptSha256:raw.admission_receipt_sha256,
     promptSha256:raw.prompt_sha256,
+  });
+}
+
+
+function unsignedReplayCapability(input){
+  const p=provenance(input),b=p.binding;
+  const core={
+    marker:REPLAY_MARKER,version:1,scope:'accepted_result_read_only',
+    operation_id:b.operationId,logical_operation_intent_digest:b.logicalOperationIntentDigest,
+    logical_work_digest:b.logicalWorkDigest,registry_sha256:b.registrySha256,
+    request_body_sha256:b.requestBodySha256,model:p.model,canonical_slug:p.canonicalSlug,
+    trial_id:p.trialId,admission_id:p.admissionId,
+    admission_receipt_sha256:p.admissionReceiptSha256,prompt_sha256:p.promptSha256,
+  };
+  const capabilityId=`voidobrc1_${sha(Buffer.concat([
+    Buffer.from(`${REPLAY_ID_MARKER}\0`),Buffer.from(canonical(core)),
+  ]))}`;
+  return Object.freeze({...core,capability_id:capabilityId});
+}
+function replayMacHex(key,unsigned){
+  return createHmac('sha256',macKey(key))
+    .update(Buffer.concat([Buffer.from(`${REPLAY_MAC_MARKER}\0`),Buffer.from(canonical(unsigned))]))
+    .digest('hex');
+}
+export function buildBrokerReplayCapabilityV1(input,key){
+  const unsigned=unsignedReplayCapability(input);
+  return Object.freeze({...unsigned,authority_mac_sha256:replayMacHex(key,unsigned)});
+}
+export function validateBrokerReplayCapabilityV1(raw,expected,key){
+  macKey(key);
+  const fields=['marker','version','scope','operation_id','logical_operation_intent_digest','logical_work_digest','registry_sha256','request_body_sha256','model','canonical_slug','trial_id','admission_id','admission_receipt_sha256','prompt_sha256','capability_id','authority_mac_sha256'];
+  if(!plain(raw))fail('replay capability must be a plain object');
+  const actual=Object.keys(raw).sort(),wanted=[...fields].sort();
+  if(actual.length!==wanted.length||actual.some((field,index)=>field!==wanted[index]))fail('replay capability fields invalid');
+  if(raw.marker!==REPLAY_MARKER||raw.version!==1||raw.scope!=='accepted_result_read_only'||!REPLAY.test(String(raw.capability_id??'')))fail('replay capability marker/id invalid');
+  if(!HEX64.test(String(raw.authority_mac_sha256??'')))fail('replay capability authority MAC invalid');
+  const b=binding(expected.binding);
+  if(raw.operation_id!==b.operationId||raw.logical_operation_intent_digest!==b.logicalOperationIntentDigest
+      ||raw.logical_work_digest!==b.logicalWorkDigest||raw.registry_sha256!==b.registrySha256
+      ||raw.request_body_sha256!==b.requestBodySha256||raw.model!==expected.model
+      ||raw.canonical_slug!==expected.canonicalSlug)fail('replay capability work binding mismatch');
+  const unsigned=unsignedReplayCapability({
+    binding:b,model:raw.model,canonicalSlug:raw.canonical_slug,trialId:raw.trial_id,
+    admissionId:raw.admission_id,admissionReceiptSha256:raw.admission_receipt_sha256,
+    promptSha256:raw.prompt_sha256,
+  });
+  if(raw.capability_id!==unsigned.capability_id)fail('replay capability id does not bind full provenance');
+  const expectedMac=Buffer.from(replayMacHex(key,unsigned),'hex');
+  const actualMac=Buffer.from(raw.authority_mac_sha256,'hex');
+  if(expectedMac.length!==actualMac.length||!timingSafeEqual(expectedMac,actualMac))fail('replay capability authority MAC mismatch');
+  return Object.freeze({
+    capabilityId:raw.capability_id,trialId:raw.trial_id,admissionId:raw.admission_id,
+    admissionReceiptSha256:raw.admission_receipt_sha256,promptSha256:raw.prompt_sha256,
+    scope:'accepted_result_read_only',
   });
 }
 

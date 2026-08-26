@@ -16,7 +16,7 @@ If a requested mode has zero eligible contestants, the arena fails closed rather
 
 The arena does not receive `OPENROUTER_API_KEY`, a broker state directory, or an execution-claim-root descriptor, and it never calls OpenRouter directly. The reviewed production arena/admission unit does receive its own systemd `$CREDENTIALS_DIRECTORY` containing only `apollyon_openrouter_admission_mac_v1`; the adapter reads that local MAC after constitutional/sanitization admission to authenticate one exact-work capability.
 
-Each selected contestant runs through the provider-credentialless adapter, which sends bounded inline-HMAC IPC to the exact-once broker. The broker alone owns the OpenRouter credential, provider network access, and durable provider-execution authority.
+Each selected contestant runs through the provider-credentialless adapter, which sends bounded inline-HMAC IPC to the exact-once broker. The adapter supplies a domain-separated fresh-execution admission capability and a read-only accepted-result replay capability derived from the same per-unit admission MAC over identical full provenance. The replay capability cannot grant provider-send authority. The broker alone owns the OpenRouter credential, provider network access, and durable provider-execution authority.
 
 ## Stable arena intent
 
@@ -42,7 +42,7 @@ The caller supplies a private mode-0700 output root through `VOID_OPENROUTER_ARE
 
 ## GREEN evidence
 
-For every GREEN contestant the arena reopens the exact mode-0600 result generation and verifies model identity, canonical generation, selected-provider evidence, registry generation, policy acknowledgement, qualification/privacy/retention class, provider policy, trial/admission ids, response-content digest, accepted recovery key, and broker evidence.
+For every GREEN contestant the arena reopens the exact mode-0600 result generation and verifies model identity, canonical generation, selected-provider evidence, registry generation, policy acknowledgement, qualification/privacy/retention class, provider policy, trial/admission ids, response-content digest, accepted recovery key, and broker evidence. Any broker `ACCEPTED` bytes consumed after a restart are disclosed only through the full-provenance read-only replay-capability path; that consumer capability is not execution authority.
 
 GREEN records bind:
 
