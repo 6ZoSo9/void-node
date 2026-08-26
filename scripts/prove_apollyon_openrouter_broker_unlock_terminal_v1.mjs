@@ -164,29 +164,33 @@ try {
   );
   assert.equal(sendCount, 1);
 
-  const recoveryFaults = [
-    ['duringStageWrite', 'HOLD'],
-    ['afterStageWrite', 'RECOVER'],
-    ['afterStageSync', 'RECOVER'],
-    ['afterStageDirSync', 'RECOVER'],
-    ['afterFinalLink', 'RECOVER'],
-    ['afterFinalDirSync', 'RECOVER'],
-    ['beforeReadback', 'RECOVER'],
+  // Every accepted-capsule publication fault now precedes RESULT_WITNESSED. The provider has
+  // executed exactly once and durable state is UNCERTAIN, but no witness may claim recoverable
+  // bytes. This deliberately trades liveness before witness for a strict invariant: once witness
+  // exists, the exact accepted bytes already exist durably.
+  const preWitnessFaults = [
+    'duringStageWrite',
+    'afterStageWrite',
+    'afterStageSync',
+    'afterStageDirSync',
+    'afterFinalLink',
+    'afterFinalDirSync',
+    'beforeReadback',
   ];
   let recoverySendCount = 0;
   let proofIndex = 0;
-  for (const [faultAt, expected] of recoveryFaults) {
+  for (const faultAt of preWitnessFaults) {
     proofIndex += 1;
     const rb = buildOpenRouterBrokerBindingV1({
       logicalOperationIntentDigest: proofIndex.toString(16).padStart(64, '0'),
-      registrySha256: 'c'.repeat(64), requestBody: { proof: 'capsule-recovery', faultAt },
+      registrySha256: 'c'.repeat(64), requestBody: { proof: 'capsule-pre-witness-fault', faultAt },
       contestant: { proof: 'synthetic' },
     });
     const first = await openOperationLedgerNamespaceV1(ledgerRoot, rb.operationId);
     await prepareBrokerOperationV1(first.directoryHandle, rb);
     const rv = Object.freeze({
-      marker: 'VOID_APOLLYON_CAPSULE_RECOVERY_PROOF_RESULT_V1', faultAt,
-      content: `exact accepted result for ${faultAt}`,
+      marker: 'VOID_APOLLYON_CAPSULE_PRE_WITNESS_FAULT_RESULT_V1', faultAt,
+      content: `exact provider result for ${faultAt}`,
     });
     const rd = acceptedResultDigestV1(rv);
     await assert.rejects(
@@ -197,30 +201,18 @@ try {
       ),
       /synthetic accepted-capsule fault/,
     );
-    const witnessRecords = await loadLedgerRecordsV1(first.directoryHandle);
-    const witnessState = replayBrokerStateFromLedgerV1(witnessRecords);
-    assert.equal(witnessState.phase, BROKER_STATE_V1.RESULT_WITNESSED);
-    assert.equal(witnessState.acceptedDigest, rd);
-    assert.equal(witnessRecords[witnessRecords.length - 1].type, LEDGER_EVENT_V1.RESULT_WITNESSED);
-    assert.equal(witnessRecords[witnessRecords.length - 1].resultDigest, rd);
+    const records = await loadLedgerRecordsV1(first.directoryHandle);
+    const state = replayBrokerStateFromLedgerV1(records);
+    assert.equal(state.phase, BROKER_STATE_V1.UNCERTAIN);
+    assert.equal(state.acceptedDigest, null);
+    assert.equal(records[records.length - 1].type, LEDGER_EVENT_V1.PROVIDER_ADMITTED);
+    assert.equal(records.some((r) => r.type === LEDGER_EVENT_V1.RESULT_WITNESSED), false);
+    assert.equal(records.some((r) => r.type === LEDGER_EVENT_V1.PROVIDER_RESULT), false);
     await first.directoryHandle.handle.close();
     const reopened = await openOperationLedgerNamespaceV1(ledgerRoot, rb.operationId);
     recoveryNamespaces.push(reopened);
-    if (expected === 'RECOVER') {
-      const recoveredFault = await recoverBrokerProviderAcceptedResultV1(reopened.directoryHandle, acceptedRoot, rb);
-      assert.ok(recoveredFault);
-      assert.equal(recoveredFault.recoveredWithoutProviderSend, true);
-      assert.equal(recoveredFault.resultDigest, rd);
-      assert.deepEqual(recoveredFault.value, rv);
-      const durable = await readAcceptedResultCapsuleV1(acceptedRoot, reopened.directoryHandle, rb);
-      assert.equal(durable.resultDigest, rd);
-      assert.deepEqual(durable.value, rv);
-    } else {
-      await assert.rejects(
-        recoverBrokerProviderAcceptedResultV1(reopened.directoryHandle, acceptedRoot, rb),
-        /not valid UTF-8 JSON|bytes are not exact canonical JSON|ended before declared size/,
-      );
-    }
+    const refused = await recoverBrokerProviderAcceptedResultV1(reopened.directoryHandle, acceptedRoot, rb);
+    assert.equal(refused, null);
     await assert.rejects(
       runBrokerProviderAttemptV1(
         reopened.directoryHandle, acceptedRoot,
@@ -229,7 +221,137 @@ try {
       /not RESERVED/,
     );
   }
-  assert.equal(recoverySendCount, recoveryFaults.length);
+  assert.equal(recoverySendCount, preWitnessFaults.length);
+
+  // Once RESULT_WITNESSED exists, exact final bytes have already passed the guarded durability
+  // transaction. A crash immediately after witness but before PROVIDER_RESULT must therefore
+  // converge to those exact bytes with zero second provider execution.
+  const postWitnessBinding = buildOpenRouterBrokerBindingV1({
+    logicalOperationIntentDigest: '6'.repeat(64),
+    registrySha256: 'c'.repeat(64), requestBody: { proof: 'post-witness-recovery' },
+    contestant: { proof: 'synthetic' },
+  });
+  const postWitnessNs = await openOperationLedgerNamespaceV1(ledgerRoot, postWitnessBinding.operationId);
+  await prepareBrokerOperationV1(postWitnessNs.directoryHandle, postWitnessBinding);
+  const postWitnessValue = Object.freeze({ marker: 'VOID_POST_WITNESS_RECOVERY_V1', exact: true });
+  const postWitnessDigest = acceptedResultDigestV1(postWitnessValue);
+  let postWitnessSendCount = 0;
+  await assert.rejects(
+    runBrokerProviderAttemptV1(
+      postWitnessNs.directoryHandle,
+      acceptedRoot,
+      async () => {
+        postWitnessSendCount += 1;
+        return { resultDigest: postWitnessDigest, value: postWitnessValue };
+      },
+      postWitnessBinding,
+      { afterWitness: () => { throw new Error('synthetic crash after durable result witness'); } },
+    ),
+    /synthetic crash after durable result witness/,
+  );
+  assert.equal(postWitnessSendCount, 1);
+  const postWitnessRecords = await loadLedgerRecordsV1(postWitnessNs.directoryHandle);
+  const postWitnessState = replayBrokerStateFromLedgerV1(postWitnessRecords);
+  assert.equal(postWitnessState.phase, BROKER_STATE_V1.RESULT_WITNESSED);
+  assert.equal(postWitnessState.acceptedDigest, postWitnessDigest);
+  assert.equal(postWitnessRecords[postWitnessRecords.length - 1].type, LEDGER_EVENT_V1.RESULT_WITNESSED);
+  await postWitnessNs.directoryHandle.handle.close();
+  const postWitnessReopened = await openOperationLedgerNamespaceV1(ledgerRoot, postWitnessBinding.operationId);
+  recoveryNamespaces.push(postWitnessReopened);
+  const postWitnessRecovered = await recoverBrokerProviderAcceptedResultV1(
+    postWitnessReopened.directoryHandle,
+    acceptedRoot,
+    postWitnessBinding,
+  );
+  assert.ok(postWitnessRecovered);
+  assert.equal(postWitnessRecovered.recoveredWithoutProviderSend, true);
+  assert.equal(postWitnessRecovered.resultDigest, postWitnessDigest);
+  assert.deepEqual(postWitnessRecovered.value, postWitnessValue);
+  assert.equal(postWitnessSendCount, 1);
+  const postWitnessDurable = await readAcceptedResultCapsuleV1(
+    acceptedRoot,
+    postWitnessReopened.directoryHandle,
+    postWitnessBinding,
+  );
+  assert.equal(postWitnessDurable.resultDigest, postWitnessDigest);
+  assert.deepEqual(postWitnessDurable.value, postWitnessValue);
+
+  // Exact A->B->A final-dentry fsync adversary. The inner capsule publisher has already returned A.
+  // During the durability transaction's authoritative second parent fsync, B occupies the canonical
+  // final name. A is restored only after that fsync. Endpoint pathname checks would see A before/after;
+  // the accepted-root directory generation epoch must detect the hidden mutation and refuse witness.
+  const epochBinding = buildOpenRouterBrokerBindingV1({
+    logicalOperationIntentDigest: '5'.repeat(64),
+    registrySha256: 'c'.repeat(64), requestBody: { proof: 'final-dentry-fsync-epoch-adversary' },
+    contestant: { proof: 'synthetic' },
+  });
+  const epochNs = await openOperationLedgerNamespaceV1(ledgerRoot, epochBinding.operationId);
+  recoveryNamespaces.push(epochNs);
+  await prepareBrokerOperationV1(epochNs.directoryHandle, epochBinding);
+  const epochValue = Object.freeze({ marker: 'VOID_FINAL_DENTRY_FSYNC_EPOCH_A_V1', exact: true });
+  const epochDigest = acceptedResultDigestV1(epochValue);
+  const epochPaths = capsulePaths(epochBinding);
+  const savedA = `${epochPaths.final}.epoch-a.saved`;
+  const foreignSource = `${epochPaths.final}.epoch-b.source`;
+  const savedB = `${epochPaths.final}.epoch-b.preserved`;
+  let epochA = null;
+  let epochB = null;
+  let epochSendCount = 0;
+  await assert.rejects(
+    runBrokerProviderAttemptV1(
+      epochNs.directoryHandle,
+      acceptedRoot,
+      async () => {
+        epochSendCount += 1;
+        return { resultDigest: epochDigest, value: epochValue };
+      },
+      epochBinding,
+      {
+        acceptedCapsuleBeforeDurabilitySync: async ({ finalPath, finalDev, finalIno }) => {
+          assert.equal(finalPath.endsWith(epochPaths.final.split('/').pop()), true);
+          await writeFile(foreignSource, 'foreign-final-epoch-b\n', { mode: 0o600, flag: 'wx' });
+          epochA = await lstat(epochPaths.final, { bigint: true });
+          epochB = await lstat(foreignSource, { bigint: true });
+          assert.equal(epochA.dev, finalDev);
+          assert.equal(epochA.ino, finalIno);
+          assert.notEqual(epochA.ino, epochB.ino);
+          await rename(epochPaths.final, savedA);
+          await rename(foreignSource, epochPaths.final);
+          const during = await lstat(epochPaths.final, { bigint: true });
+          assert.equal(during.ino, epochB.ino);
+        },
+        acceptedCapsuleAfterDurabilitySync: async () => {
+          const during = await lstat(epochPaths.final, { bigint: true });
+          assert.equal(during.ino, epochB.ino);
+          await rename(epochPaths.final, savedB);
+          await rename(savedA, epochPaths.final);
+        },
+      },
+    ),
+    /root directory generation changed across final-dentry durability fsync epoch/,
+  );
+  assert.equal(epochSendCount, 1);
+  const epochFinal = await lstat(epochPaths.final, { bigint: true });
+  const epochForeign = await lstat(savedB, { bigint: true });
+  assert.equal(epochFinal.ino, epochA.ino);
+  assert.equal(epochForeign.ino, epochB.ino);
+  assert.equal(String(await readFile(savedB)), 'foreign-final-epoch-b\n');
+  const epochRecords = await loadLedgerRecordsV1(epochNs.directoryHandle);
+  const epochState = replayBrokerStateFromLedgerV1(epochRecords);
+  assert.equal(epochState.phase, BROKER_STATE_V1.UNCERTAIN);
+  assert.equal(epochState.acceptedDigest, null);
+  assert.equal(epochRecords.some((r) => r.type === LEDGER_EVENT_V1.RESULT_WITNESSED), false);
+  assert.equal(epochRecords.some((r) => r.type === LEDGER_EVENT_V1.PROVIDER_RESULT), false);
+  await assert.rejects(
+    runBrokerProviderAttemptV1(
+      epochNs.directoryHandle,
+      acceptedRoot,
+      async () => { epochSendCount += 1; return { resultDigest: epochDigest, value: epochValue }; },
+      epochBinding,
+    ),
+    /not RESERVED/,
+  );
+  assert.equal(epochSendCount, 1);
 
   // A fully canonical capsule is consumer evidence, not post-send authority. Establish durable
   // UNCERTAIN via an ambiguous synthetic send with no returned result/witness, then inject a
@@ -395,11 +517,11 @@ try {
   console.log(
     'VOID_OPENROUTER_BROKER_UNLOCK_TERMINAL_V1_PROOF_GREEN '
     + 'durable_accepted_survives_unlock_failure=true '
-    + 'result_witness_before_capsule=true unwitnessed_capsule_no_accept=true '
-    + 'capsule_staged_publication=true capsule_recovery_no_resend=true '
-    + 'capsule_fault_matrix=7/7 partial_write_fault=true '
+    + 'capsule_durable_before_result_witness=true unwitnessed_capsule_no_accept=true '
+    + 'pre_witness_fault_matrix=7/7 post_witness_recovery_no_resend=true '
+    + 'final_dentry_fsync_epoch_bound=true dentry_epoch_adversary_blocked=true '
     + 'generation_substitution_matrix=3/3 stage_alias_retained=true '
-    + `send_count=${sendCount} recovery_send_count=${recoverySendCount}`
+    + `send_count=${sendCount} pre_witness_send_count=${recoverySendCount} post_witness_send_count=${postWitnessSendCount}`
   );
 } finally {
   if (ns) await ns.directoryHandle.handle.close().catch(() => {});
