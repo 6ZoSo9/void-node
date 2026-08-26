@@ -146,31 +146,7 @@ jobs:
         run: node scripts/prove_apollyon_openrouter_broker_unlock_terminal_v1.mjs
 
       - name: Run OpenRouter broker socket integration proof
-        run: |
-          set +e
-          python3 scripts/prove_apollyon_openrouter_broker_integration_v1.py
-          rc=$?
-          set -e
-          if [ "$rc" -ne 0 ]; then
-            echo "=== BROKER INTEGRATION FAILURE FORENSICS ==="
-            for d in /tmp/void-broker-ci-*; do
-              [ -d "$d" ] || continue
-              echo "root=$d"
-              if [ -f "$d/calls.txt" ]; then
-                printf 'calls='
-                tr '\n' ',' < "$d/calls.txt"
-                echo
-              fi
-              find "$d" \
-                -path '*/broker-creds' -prune -o \
-                -path '*/signer-creds' -prune -o \
-                -path '*/accepted-results-v1/*' -type f \
-                  -printf 'capsule mode=%m links=%n devino=%D:%i size=%s path=%p\n' -o \
-                -path '*/ledger-v1/*/record-*.json' -type f \
-                  -printf 'ledger mode=%m links=%n devino=%D:%i size=%s path=%p\n'
-            done
-          fi
-          exit "$rc"
+        run: python3 scripts/prove_apollyon_openrouter_broker_integration_v1.py
 
       - name: Run OpenRouter alignment arena proof
         run: node scripts/prove_apollyon_openrouter_alignment_arena_v1.mjs
