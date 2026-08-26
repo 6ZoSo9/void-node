@@ -12,6 +12,10 @@ import {
   recoverAcceptedResultCapsuleCandidateV1,
 } from './apollyon_accepted_result_capsule_v1.mjs';
 import { prepareBrokerOperationV1 } from './apollyon_execution_broker_prepare_v1.mjs';
+import { replayBrokerStateFromLedgerV1 } from './apollyon_execution_broker_replay_v1.mjs';
+import { BROKER_STATE_V1 } from './apollyon_execution_broker_v1.mjs';
+import { loadLedgerRecordsV1 } from './apollyon_execution_ledger_load_v1.mjs';
+import { LEDGER_EVENT_V1 } from './apollyon_execution_ledger_record_v1.mjs';
 import { buildOpenRouterBrokerBindingV1 } from './apollyon_openrouter_broker_binding_v1.mjs';
 import { openOperationLedgerNamespaceV1 } from './apollyon_execution_ledger_namespace_v1.mjs';
 import { openPinnedLedgerDirectoryV1 } from './apollyon_execution_ledger_publish_v1.mjs';
@@ -95,6 +99,16 @@ try {
   assert.equal(sendCount, 1);
   assert.equal(receipt.resultDigest, resultDigest);
   assert.deepEqual(receipt.value, value);
+  const acceptedRecords = await loadLedgerRecordsV1(ns.directoryHandle);
+  assert.equal(acceptedRecords.length, 5);
+  assert.equal(acceptedRecords[3].type, LEDGER_EVENT_V1.RESULT_WITNESSED);
+  assert.equal(acceptedRecords[3].resultDigest, resultDigest);
+  assert.equal(acceptedRecords[4].type, LEDGER_EVENT_V1.PROVIDER_RESULT);
+  assert.equal(acceptedRecords[4].resultDigest, resultDigest);
+  const acceptedState = replayBrokerStateFromLedgerV1(acceptedRecords);
+  assert.equal(acceptedState.phase, BROKER_STATE_V1.ACCEPTED);
+  assert.equal(acceptedState.acceptedDigest, resultDigest);
+
   const basePaths = capsulePaths(binding);
   const baseStageStat = await lstat(basePaths.stage, { bigint: true });
   const baseFinalStat = await lstat(basePaths.final, { bigint: true });
@@ -183,6 +197,12 @@ try {
       ),
       /synthetic accepted-capsule fault/,
     );
+    const witnessRecords = await loadLedgerRecordsV1(first.directoryHandle);
+    const witnessState = replayBrokerStateFromLedgerV1(witnessRecords);
+    assert.equal(witnessState.phase, BROKER_STATE_V1.RESULT_WITNESSED);
+    assert.equal(witnessState.acceptedDigest, rd);
+    assert.equal(witnessRecords[witnessRecords.length - 1].type, LEDGER_EVENT_V1.RESULT_WITNESSED);
+    assert.equal(witnessRecords[witnessRecords.length - 1].resultDigest, rd);
     await first.directoryHandle.handle.close();
     const reopened = await openOperationLedgerNamespaceV1(ledgerRoot, rb.operationId);
     recoveryNamespaces.push(reopened);
@@ -210,6 +230,66 @@ try {
     );
   }
   assert.equal(recoverySendCount, recoveryFaults.length);
+
+  // A fully canonical capsule is consumer evidence, not post-send authority. Establish durable
+  // UNCERTAIN via an ambiguous synthetic send with no returned result/witness, then inject a
+  // self-consistent capsule. Recovery must append zero PROVIDER_RESULT and restore zero send authority.
+  const unwitnessedBinding = buildOpenRouterBrokerBindingV1({
+    logicalOperationIntentDigest: '7'.repeat(64),
+    registrySha256: 'e'.repeat(64), requestBody: { proof: 'unwitnessed-foreign-capsule' },
+    contestant: { proof: 'synthetic' },
+  });
+  const unwitnessedNs = await openOperationLedgerNamespaceV1(ledgerRoot, unwitnessedBinding.operationId);
+  recoveryNamespaces.push(unwitnessedNs);
+  await prepareBrokerOperationV1(unwitnessedNs.directoryHandle, unwitnessedBinding);
+  const unwitnessedValue = Object.freeze({ marker: 'VOID_UNWITNESSED_FOREIGN_CAPSULE_V1', exact: true });
+  const unwitnessedDigest = acceptedResultDigestV1(unwitnessedValue);
+  let ambiguousSendCount = 0;
+  await assert.rejects(
+    runBrokerProviderAttemptV1(
+      unwitnessedNs.directoryHandle, acceptedRoot,
+      async () => { ambiguousSendCount += 1; throw new Error('synthetic ambiguous provider outcome'); },
+      unwitnessedBinding,
+    ),
+    /synthetic ambiguous provider outcome/,
+  );
+  assert.equal(ambiguousSendCount, 1);
+  const preForeignRecords = await loadLedgerRecordsV1(unwitnessedNs.directoryHandle);
+  const preForeignState = replayBrokerStateFromLedgerV1(preForeignRecords);
+  assert.equal(preForeignState.phase, BROKER_STATE_V1.UNCERTAIN);
+  assert.equal(preForeignState.acceptedDigest, null);
+  assert.equal(preForeignRecords[preForeignRecords.length - 1].type, LEDGER_EVENT_V1.PROVIDER_ADMITTED);
+  assert.equal(preForeignRecords.some((r) => r.type === LEDGER_EVENT_V1.RESULT_WITNESSED), false);
+  assert.equal(preForeignRecords.some((r) => r.type === LEDGER_EVENT_V1.PROVIDER_RESULT), false);
+
+  await publishAcceptedResultCapsuleV1(
+    acceptedRoot, unwitnessedBinding, unwitnessedDigest, unwitnessedValue,
+  );
+  const unwitnessedPaths = capsulePaths(unwitnessedBinding);
+  const unwitnessedBefore = await lstat(unwitnessedPaths.final, { bigint: true });
+  const refusedForeign = await recoverBrokerProviderAcceptedResultV1(
+    unwitnessedNs.directoryHandle, acceptedRoot, unwitnessedBinding,
+  );
+  assert.equal(refusedForeign, null);
+  const postForeignRecords = await loadLedgerRecordsV1(unwitnessedNs.directoryHandle);
+  const postForeignState = replayBrokerStateFromLedgerV1(postForeignRecords);
+  assert.equal(postForeignRecords.length, preForeignRecords.length);
+  assert.equal(postForeignState.phase, BROKER_STATE_V1.UNCERTAIN);
+  assert.equal(postForeignState.acceptedDigest, null);
+  assert.equal(postForeignRecords.some((r) => r.type === LEDGER_EVENT_V1.RESULT_WITNESSED), false);
+  assert.equal(postForeignRecords.some((r) => r.type === LEDGER_EVENT_V1.PROVIDER_RESULT), false);
+  const unwitnessedAfter = await lstat(unwitnessedPaths.final, { bigint: true });
+  assert.equal(unwitnessedAfter.dev, unwitnessedBefore.dev);
+  assert.equal(unwitnessedAfter.ino, unwitnessedBefore.ino);
+  await assert.rejects(
+    runBrokerProviderAttemptV1(
+      unwitnessedNs.directoryHandle, acceptedRoot,
+      async () => { ambiguousSendCount += 1; return { resultDigest: unwitnessedDigest, value: unwitnessedValue }; },
+      unwitnessedBinding,
+    ),
+    /not RESERVED/,
+  );
+  assert.equal(ambiguousSendCount, 1);
 
   // Deterministic generation substitution 1/3: publisher validates A through its retained fd,
   // then B atomically replaces stagePath. B must never become final and must be preserved.
@@ -315,6 +395,7 @@ try {
   console.log(
     'VOID_OPENROUTER_BROKER_UNLOCK_TERMINAL_V1_PROOF_GREEN '
     + 'durable_accepted_survives_unlock_failure=true '
+    + 'result_witness_before_capsule=true unwitnessed_capsule_no_accept=true '
     + 'capsule_staged_publication=true capsule_recovery_no_resend=true '
     + 'capsule_fault_matrix=7/7 partial_write_fault=true '
     + 'generation_substitution_matrix=3/3 stage_alias_retained=true '
