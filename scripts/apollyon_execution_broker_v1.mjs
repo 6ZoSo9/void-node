@@ -1,20 +1,21 @@
-// VOID Apollyon tiny broker core v5.1.3 - pure, data-only, dependency-free ESM.
+// VOID Apollyon tiny broker core v5.4 - pure, data-only, dependency-free ESM.
 // SAFETY INVARIANT: provider-execution authority derives solely from the
 // authoritative state value held here. Operation identity includes only stable
 // logical work; the event vocabulary is closed and contains no timeout, TTL,
 // process-death, max_tokens-change, new-attempt-id, epoch/fencing-bump, or
 // convenience-file-deletion recovery event, so none of these can ever restore
 // provider-execution authority once the first-send window has closed.
-// v5.1.3 REPAIR: every authority-changing event after reservation requires an
-// event operationId that is present, well-formed, and exactly equal to the
-// reserved state.operationId; missing, malformed, or foreign ids are fail-closed
-// no-ops. RESERVE alone may create authority, from ABSENT, with a valid id.
+// v5.4 REPAIR: a validated provider result must first become a durable
+// RESULT_WITNESSED state before PROVIDER_RESULT can establish ACCEPTED. This
+// gives crash recovery an independent broker-ledger post-send authority that
+// a self-consistent accepted-result capsule cannot mint by itself.
 import { createHash } from 'node:crypto';
 
 export const BROKER_STATE_V1 = Object.freeze({
   ABSENT: 'ABSENT',
   RESERVED: 'RESERVED',
   UNCERTAIN: 'UNCERTAIN',
+  RESULT_WITNESSED: 'RESULT_WITNESSED',
   ACCEPTED: 'ACCEPTED',
   RECONCILED_BLOCKED: 'RECONCILED_BLOCKED',
   CONFLICT: 'CONFLICT',
@@ -22,7 +23,7 @@ export const BROKER_STATE_V1 = Object.freeze({
 
 const STATES = new Set(Object.values(BROKER_STATE_V1));
 const TERMINAL = new Set([BROKER_STATE_V1.RECONCILED_BLOCKED, BROKER_STATE_V1.CONFLICT]);
-const EVENTS = new Set(['RESERVE', 'PROVIDER_ADMITTED', 'PROVIDER_RESULT', 'RECONCILE_BLOCKED']);
+const EVENTS = new Set(['RESERVE', 'PROVIDER_ADMITTED', 'RESULT_WITNESSED', 'PROVIDER_RESULT', 'RECONCILE_BLOCKED']);
 const HEX64 = /^[0-9a-f]{64}$/;
 const OPID = /^apollyon_op_v1:[0-9a-f]{64}$/;
 const fail = (m) => { throw new TypeError(m); };
@@ -62,6 +63,10 @@ function assertState(s) {
       if (oid === null) fail('UNCERTAIN requires a valid apollyon operation id');
       if (dig !== null) fail('UNCERTAIN requires acceptedDigest=null');
       break;
+    case B.RESULT_WITNESSED:
+      if (oid === null) fail('RESULT_WITNESSED requires a valid apollyon operation id');
+      if (dig === null) fail('RESULT_WITNESSED requires the durable witnessed result digest');
+      break;
     case B.ACCEPTED:
       if (oid === null) fail('ACCEPTED requires a valid apollyon operation id');
       if (dig === null) fail('ACCEPTED requires a valid sha256 hex acceptedDigest');
@@ -93,9 +98,6 @@ function opBindsExactly(event, state) {
 // SAFETY: closed event set; unknown event types, unbound or foreign operation
 // ids, and terminal phases leave the state unchanged, so recovery-style events
 // cannot act and cannot restore provider-execution authority.
-// SAFETY: closed event set; unknown event types, unbound or foreign operation
-// ids, and terminal phases leave the state unchanged, so recovery-style events
-// cannot act and cannot restore provider-execution authority.
 export function reduceBrokerStateV1(state, event) {
   assertState(state);
   if (!event || typeof event !== 'object') fail('event object required');
@@ -120,25 +122,32 @@ export function reduceBrokerStateV1(state, event) {
     if (state.phase !== B.RESERVED) return state;
     return { ...state, phase: B.UNCERTAIN };
   }
+  if (et === 'RESULT_WITNESSED') {
+    if (state.phase !== B.UNCERTAIN) return state;
+    const d = event.resultDigest;
+    if (typeof d !== 'string' || !HEX64.test(d)) return state;
+    return { ...state, phase: B.RESULT_WITNESSED, acceptedDigest: d.toLowerCase() };
+  }
   if (et === 'PROVIDER_RESULT') {
-    if (state.phase !== B.UNCERTAIN && state.phase !== B.ACCEPTED) return state;
+    if (state.phase !== B.RESULT_WITNESSED && state.phase !== B.ACCEPTED) return state;
     const d = event.resultDigest;
     if (typeof d !== 'string' || !HEX64.test(d)) return state;
     const dig = d.toLowerCase();
-    if (state.phase === B.UNCERTAIN) return { ...state, phase: B.ACCEPTED, acceptedDigest: dig };
+    if (state.phase === B.RESULT_WITNESSED) {
+      if (state.acceptedDigest !== dig) return { ...state, phase: B.CONFLICT };
+      return { ...state, phase: B.ACCEPTED };
+    }
     if (state.acceptedDigest === dig) return state;
     // SAFETY: divergent accepted result digests block execution terminally.
     return { ...state, phase: B.CONFLICT };
   }
   // SAFETY: RECONCILE_BLOCKED is representational only and applies solely to
-  // UNCERTAIN, so ACCEPTED can never be downgraded by reconciliation; its
-  // caller authentication stays outside this module (declared known unknown).
+  // a pre-witness UNCERTAIN terminal. Once a broker-owned result witness exists,
+  // recovery may only converge with the exact witnessed digest or remain HOLD.
   if (state.phase !== B.UNCERTAIN) return state;
   return { ...state, phase: B.RECONCILED_BLOCKED };
 }
 
-// SAFETY: true only for a pre-admission reservation holding a bound operation
-// id. UNCERTAIN and later never satisfy it; no automatic retry path exists.
 // SAFETY: true only for a pre-admission reservation holding a bound operation
 // id and null digest. UNCERTAIN and later never satisfy it; malformed states
 // fail closed to false; no automatic retry path exists.
