@@ -2,10 +2,23 @@ import { constants as FS } from 'node:fs';
 import { mkdir, open, readFile } from 'node:fs/promises';
 import { isAbsolute, join } from 'node:path';
 
+import { openPinnedLedgerDirectoryV1 } from './apollyon_execution_ledger_publish_v1.mjs';
 import { startActivatedBrokerServiceV1 } from './apollyon_openrouter_broker_service_v1.mjs';
+import { REGISTRY_PATH, contestantRegistryDigestV1, validateContestantRegistryV1 } from './apollyon_openrouter_ox_alpha_adapter_v1.mjs';
 
 function fail(message) {
   throw new Error(`VOID_APOLLYON_OPENROUTER_BROKER_SERVICE_MAIN_V1: ${message}`);
+}
+
+async function loadReviewedRegistryAuthorityV1(){
+  const fh=await open(REGISTRY_PATH,FS.O_RDONLY|FS.O_NOFOLLOW|FS.O_NONBLOCK);
+  try{
+    const pre=await fh.stat({bigint:true});if(!pre.isFile()||pre.size<1n||pre.size>BigInt(256*1024))fail('reviewed registry file invalid');
+    const bytes=Buffer.alloc(Number(pre.size));let pos=0;while(pos<bytes.length){const r=await fh.read(bytes,pos,bytes.length-pos,pos);if(r.bytesRead===0)fail('short registry read');pos+=r.bytesRead}
+    const post=await fh.stat({bigint:true});for(const k of ['dev','ino','size','mtimeNs','ctimeNs'])if(pre[k]!==post[k])fail('reviewed registry generation changed');
+    let registry;try{registry=JSON.parse(new TextDecoder('utf-8',{fatal:true}).decode(bytes))}catch{fail('reviewed registry JSON invalid')}
+    validateContestantRegistryV1(registry);return Object.freeze({sha256:contestantRegistryDigestV1(registry),registry});
+  }finally{await fh.close().catch(()=>{})}
 }
 
 async function main() {
@@ -43,14 +56,29 @@ async function main() {
   }
   const ledgerRoot = await open(ledgerPath, FS.O_RDONLY | FS.O_DIRECTORY | FS.O_NOFOLLOW);
 
+  const acceptedResultPath = join(stateDirectory, 'accepted-results-v1');
   try {
-    const server = await startActivatedBrokerServiceV1(3, ledgerRoot, apiKey);
+    await mkdir(acceptedResultPath, { mode: 0o700 });
+  } catch (error) {
+    if (error?.code !== 'EEXIST') throw error;
+  }
+  const acceptedResultRoot = await openPinnedLedgerDirectoryV1(acceptedResultPath);
+
+  const admissionPath=join(stateDirectory,'broker-admission-authority-v1');
+  try{await mkdir(admissionPath,{mode:0o700})}catch(error){if(error?.code!=='EEXIST')throw error}
+  const admissionRoot=await openPinnedLedgerDirectoryV1(admissionPath);
+  const registryAuthority=await loadReviewedRegistryAuthorityV1();
+
+  try {
+    const server = await startActivatedBrokerServiceV1(3, ledgerRoot, acceptedResultRoot, admissionRoot, registryAuthority, apiKey);
     process.stdout.write('VOID_APOLLYON_OPENROUTER_BROKER_SERVICE_READY_V1\n');
     await new Promise((resolve, reject) => {
       server.once('close', resolve);
       server.once('error', reject);
     });
   } finally {
+    await admissionRoot.handle.close().catch(() => {});
+    await acceptedResultRoot.handle.close().catch(() => {});
     await ledgerRoot.close().catch(() => {});
   }
 }

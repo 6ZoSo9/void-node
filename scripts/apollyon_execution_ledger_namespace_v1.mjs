@@ -77,3 +77,66 @@ export async function openOperationLedgerNamespaceV1(rootDirectoryHandle, operat
     throw error;
   }
 }
+
+// Read-only/no-create lookup for already-existing durable operation state.
+// This function NEVER mkdirs. It exists so committed ACCEPTED results can be
+// replayed before any fresh execution-admission authority is considered.
+export async function openExistingOperationLedgerNamespaceV1(rootDirectoryHandle, operationId) {
+  if (process.platform !== 'linux') fail('namespace primitive supports Linux only');
+  if (typeof operationId !== 'string') fail('operationId must be a string');
+  const match = OPERATION_ID_PATTERN.exec(operationId);
+  if (!match) fail('operationId must match /^apollyon_op_v1:[0-9a-f]{64}$/');
+  if (rootDirectoryHandle === null || typeof rootDirectoryHandle !== 'object' || Array.isArray(rootDirectoryHandle)) {
+    fail('rootDirectoryHandle must be an open Node FileHandle');
+  }
+  const { fd } = rootDirectoryHandle;
+  if (!Number.isSafeInteger(fd) || fd < 0) fail('rootDirectoryHandle.fd must be a safe integer >= 0');
+  if (typeof rootDirectoryHandle.stat !== 'function') fail('rootDirectoryHandle.stat must be an async stat function');
+
+  const rootBefore = await rootDirectoryHandle.stat({ bigint: true });
+  if (!rootBefore.isDirectory()) fail('ledger root is not a directory');
+  if ((Number(rootBefore.mode) & 0o7777) !== 0o700) fail('ledger root mode is not exactly 0700');
+  if (typeof process.getuid === 'function' && Number(rootBefore.uid) !== process.getuid()) {
+    fail('ledger root owner is not the current real UID');
+  }
+
+  const namespaceName = `apollyon-op-v1-${match[1]}`;
+  const namespacePath = `/proc/self/fd/${fd}/${namespaceName}`;
+  let directoryHandle;
+  try {
+    directoryHandle = await openPinnedLedgerDirectoryV1(namespacePath);
+  } catch (error) {
+    if (error?.code !== 'ENOENT') throw error;
+    const rootAfterMissing = await rootDirectoryHandle.stat({ bigint: true });
+    if (!rootAfterMissing.isDirectory()
+        || rootAfterMissing.dev !== rootBefore.dev
+        || rootAfterMissing.ino !== rootBefore.ino
+        || rootAfterMissing.uid !== rootBefore.uid
+        || (Number(rootAfterMissing.mode) & 0o7777) !== (Number(rootBefore.mode) & 0o7777)) {
+      fail('ledger root generation drifted during no-create missing lookup');
+    }
+    return null;
+  }
+
+  try {
+    const rootAfter = await rootDirectoryHandle.stat({ bigint: true });
+    if (!rootAfter.isDirectory()) fail('ledger root is no longer a directory');
+    if (rootAfter.dev !== rootBefore.dev || rootAfter.ino !== rootBefore.ino) fail('ledger root dev/ino generation drifted');
+    if (rootAfter.uid !== rootBefore.uid) fail('ledger root uid drifted');
+    if ((Number(rootAfter.mode) & 0o7777) !== (Number(rootBefore.mode) & 0o7777)) {
+      fail('ledger root permission bits drifted');
+    }
+    if (directoryHandle.mode !== 0o700) fail('namespace mode is not exactly 0700');
+    if (directoryHandle.uid !== Number(rootBefore.uid)) fail('namespace owner differs from ledger root owner');
+    return Object.freeze({
+      operationId,
+      namespaceName,
+      rootDev: rootBefore.dev.toString(10),
+      rootIno: rootBefore.ino.toString(10),
+      directoryHandle,
+    });
+  } catch (error) {
+    await closeQuietlyV1(directoryHandle.handle);
+    throw error;
+  }
+}

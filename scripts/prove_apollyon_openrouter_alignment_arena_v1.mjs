@@ -12,6 +12,9 @@ import {
   ARENA_LOGICAL_OPERATION_INTENT_ENV,arenaContestantLogicalIntentV1,
   runOpenRouterAlignmentArenaV1,selectArenaContestantsV1,
 } from './apollyon_openrouter_alignment_arena_v1.mjs';
+import {
+  assertNoSensitiveJsonStringsV1,assertNoSensitiveTextPatternsV1,redactSensitiveTextMessageV1,
+} from './apollyon_secret_sanitization_constitutional_admission_v1.mjs';
 
 const PROOF_MARKER='VOID_APOLLYON_OPENROUTER_ALIGNMENT_ARENA_V1_PROOF_GREEN';
 function registry(){
@@ -43,6 +46,23 @@ const a=arenaContestantLogicalIntentV1({arenaLogicalOperationIntentDigest:arenaI
 const b=arenaContestantLogicalIntentV1({arenaLogicalOperationIntentDigest:arenaIntent,registrySha256:rsha,arenaMode:'qualification',model:r.contestants[1].model});
 assert.match(a,/^[0-9a-f]{64}$/);assert.match(b,/^[0-9a-f]{64}$/);assert.notEqual(a,b);
 
+const sensitiveFixtures=[
+  '-----BEGIN PRIVATE KEY-----\nsynthetic-body',
+  'Authorization: Bearer arena-proof-bearer-secret',
+  'OPENROUTER_API_KEY=arena-proof-env-secret',
+  'ghp_ABCDEFGHIJKLMNOPQRSTUVWXYZ123456',
+  'github_pat_ABCDEFGHIJKLMNOPQRSTUVWXYZ123456',
+  'sk-arena-proof-secret-123456789',
+  'AKIA1234567890ABCDEF',
+  'eyJabcdefgh.abcdefghijk.abcdefghijk',
+  '/home/proof/.ssh/id_ed25519',
+];
+for(const fixture of sensitiveFixtures){
+  assert.equal(redactSensitiveTextMessageV1(fixture),'[REDACTED_SENSITIVE_ERROR]');
+  assert.throws(()=>assertNoSensitiveTextPatternsV1(fixture,'arena-proof'),/blocked category=/);
+  assert.throws(()=>assertNoSensitiveJsonStringsV1({nested:[fixture]},'arena-proof-json'),/blocked category=/);
+}
+
 const root=await mkdtemp(join(tmpdir(),'void-arena-broker-ci-'));
 const out=join(root,'out');await mkdir(out,{mode:0o700});const outHandle=await open(out,FS.O_RDONLY|FS.O_DIRECTORY);
 const calls=[];
@@ -50,14 +70,15 @@ try{
   const fakeRunner=async(options,hooks)=>{
     assert.equal('OPENROUTER_API_KEY' in hooks.env,false);
     assert.equal('VOID_OPENROUTER_EXECUTION_CLAIM_ROOT_FD' in hooks.env,false);
+    assert.equal(hooks.env.VOID_OPENROUTER_BROKER_ADMISSION_ROOT_FD,'77');
     const c=r.contestants.find(x=>x.model===hooks.env.VOID_OPENROUTER_MODEL);assert.ok(c);
     const intent=hooks.env.VOID_OPENROUTER_LOGICAL_OPERATION_INTENT_SHA256;assert.match(intent,/^[0-9a-f]{64}$/);
     calls.push({model:c.model,intent});
-    if(c.model.startsWith('cohere/'))throw new Error('synthetic HOLD sk-proofsecret0123456789');
+    if(c.model.startsWith('cohere/'))throw new Error(sensitiveFixtures.join('\n'));
     const exec=executionModelV1(c);
     const result={
       marker:RESULT_MARKER,accepted_recovery_key:'2'.repeat(64),provider:'openrouter',
-      broker_operation_id:`apollyon_op_v1:${'3'.repeat(64)}`,broker_result_digest:'4'.repeat(64),
+      broker_operation_id:`apollyon_op_v1:${'3'.repeat(64)}`,broker_result_digest:'4'.repeat(64),broker_admission_capability_id:`voidobac1_${'a'.repeat(64)}`,
       broker_catalog_sha256:'5'.repeat(64),broker_selected_model_sha256:'6'.repeat(64),
       model_requested:c.model,model_execution_requested:exec,model_canonical_slug:c.canonical_slug,
       model_reported:exec,router_requested_model:exec,router_selected_model:exec,router_selected_provider:'ProofProvider',
@@ -81,6 +102,7 @@ try{
       VOID_OPENROUTER_ACK_REGISTRY_SHA256:rsha,VOID_OPENROUTER_ARENA_MODE:'qualification',
       VOID_OPENROUTER_ARENA_DELAY_MS:'0',VOID_OPENROUTER_MAX_TOKENS:'4096',
       VOID_OPENROUTER_CHAT_TIMEOUT_MS:'120000',VOID_OPENROUTER_ARENA_LOGICAL_OPERATION_INTENT_SHA256:arenaIntent,
+      VOID_OPENROUTER_BROKER_ADMISSION_ROOT_FD:'77',
     },
     registry:r,outputRootFd:outHandle.fd,runContestantFn:fakeRunner,sleepFn:async()=>{},emitOutput:false,
   });
@@ -88,16 +110,19 @@ try{
   const green=summary.records.find(x=>x.run_status==='GREEN'),held=summary.records.find(x=>x.run_status==='HOLD');
   assert.match(green.broker_operation_id,/^apollyon_op_v1:[0-9a-f]{64}$/);
   assert.match(green.broker_result_digest,/^[0-9a-f]{64}$/);
+  assert.match(green.broker_admission_capability_id,/^voidobac1_[0-9a-f]{64}$/);
   assert.match(green.logical_operation_intent_sha256,/^[0-9a-f]{64}$/);
   for(const legacy of ['execution_claim_sha256','execution_claim_semantic_sha256','execution_claim_root_generation_sha256']){
     assert.equal(Object.prototype.hasOwnProperty.call(green,legacy),false);
   }
-  assert.equal(held.hold_reason.includes('sk-proofsecret0123456789'),false);
-  assert.match(held.hold_reason,/REDACTED/);
+  assert.equal(held.hold_reason,'[REDACTED_SENSITIVE_ERROR]');
+  for(const fixture of sensitiveFixtures){
+    assert.equal(JSON.stringify(summary).includes(fixture),false);
+  }
   assert.equal(calls.length,2);assert.notEqual(calls[0].intent,calls[1].intent);
   const persisted=JSON.parse(await readFile(join(out,'arena-summary.json'),'utf8'));
   assert.equal(JSON.stringify(persisted).includes('OPENROUTER_API_KEY'),false);
-  console.log(`${PROOF_MARKER} passed=22 failed=0`);
+  console.log(`${PROOF_MARKER} passed=46 failed=0`);
 }finally{
   await outHandle.close();await rm(root,{recursive:true,force:true});
 }

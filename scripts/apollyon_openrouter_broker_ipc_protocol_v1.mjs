@@ -11,6 +11,7 @@ const HOLD_CODES = new Set([
   'BUSY',
   'UNCERTAIN_OR_TERMINAL',
   'PROVIDER_HOLD',
+  'ADMISSION_HOLD',
   'INTERNAL_HOLD',
 ]);
 

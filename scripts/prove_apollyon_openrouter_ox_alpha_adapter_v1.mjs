@@ -1,13 +1,15 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
-import { mkdir, mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises';
+import { constants as FS } from 'node:fs';
+import { mkdir, mkdtemp, open, readFile, readdir, rm, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { spawnSync } from 'node:child_process';
 
 import {
   BROKER_SOCKET_PATH,
+  BROKER_ADMISSION_ROOT_FD_ENV,
   DEFAULT_MODEL,
   LOGICAL_OPERATION_INTENT_ENV,
   REGISTRY_PATH,
@@ -83,6 +85,7 @@ for(const forbidden of [
 }
 assert.equal(BROKER_SOCKET_PATH,'/run/void-apollyon-openrouter-broker-v1.sock');
 assert.equal(LOGICAL_OPERATION_INTENT_ENV,'VOID_OPENROUTER_LOGICAL_OPERATION_INTENT_SHA256');
+assert.equal(BROKER_ADMISSION_ROOT_FD_ENV,'VOID_OPENROUTER_BROKER_ADMISSION_ROOT_FD');
 
 const registry=JSON.parse(await readFile(REGISTRY_PATH,'utf8'));
 validateContestantRegistryV1(registry);
@@ -95,8 +98,10 @@ assert.equal(ox.min_context_length,1048576);
 assert.equal(ox.scored_trial_eligible,false);
 
 const root=await mkdtemp(join(tmpdir(),'void-openrouter-adapter-ci-'));
+let brokerAdmissionHandle=null;
 try{
   const stage=join(root,'stage');await mkdir(stage,{mode:0o700});
+  const brokerAdmissionRoot=join(root,'broker-admission');await mkdir(brokerAdmissionRoot,{mode:0o700});brokerAdmissionHandle=await open(brokerAdmissionRoot,FS.O_RDONLY|FS.O_DIRECTORY);
   const draft=join(root,'draft.json'),packet=join(root,'packet.json');
   const manifest=join(root,'manifest.json'),receipt=join(root,'receipt.json'),output=join(root,'result.json');
   const fixture=Buffer.from(`${JSON.stringify({public:true,code:'const total = 1 + 1;',expected:2})}\n`,'utf8');
@@ -129,6 +134,7 @@ try{
 
   let brokerCalls=0;
   const fakeBroker=async(_socket,request)=>{
+    const admissionFiles=(await readdir(brokerAdmissionRoot)).filter((name)=>name.startsWith('broker-admission-v1-'));assert.equal(admissionFiles.length,1);const admissionCapability=JSON.parse(await readFile(join(brokerAdmissionRoot,admissionFiles[0]),'utf8'));
     brokerCalls+=1;
     assert.equal(request.logical_operation_intent_digest,intent);
     assert.equal(request.registry_sha256,registrySha);
@@ -143,6 +149,7 @@ try{
         finish_reason:'stop',reported_model:'stealth/ox-alpha',
         router_requested_model:'stealth/ox-alpha',router_selected_model:'stealth/ox-alpha',
         router_selected_provider:'Stealth',response_id:'proof',usage:null,
+        broker_admission_capability_id:admissionCapability.capability_id,
         broker_catalog_preflight_v1:{
           marker:'VOID_APOLLYON_OPENROUTER_BROKER_CATALOG_PREFLIGHT_V1',version:1,
           model:'stealth/ox-alpha',canonical_slug:'stealth/ox-alpha',
@@ -159,6 +166,7 @@ try{
     VOID_OPENROUTER_ACK_PUBLIC_TRIAL_SHA256:trialSha,VOID_OPENROUTER_MODEL:'stealth/ox-alpha',
     VOID_OPENROUTER_MAX_TOKENS:'4096',VOID_OPENROUTER_CHAT_TIMEOUT_MS:'120000',
     VOID_OPENROUTER_LOGICAL_OPERATION_INTENT_SHA256:intent,
+    VOID_OPENROUTER_BROKER_ADMISSION_ROOT_FD:String(brokerAdmissionHandle.fd),
   };
   const result=await runOpenRouterContestantTrialV1({
     trialPath:packet,stagingRoot:stage,manifestPath:manifest,receiptPath:receipt,
@@ -171,6 +179,7 @@ try{
   assert.equal(result.marker,RESULT_MARKER);
   assert.match(result.broker_operation_id,/^apollyon_op_v1:[0-9a-f]{64}$/);
   assert.match(result.broker_result_digest,/^[0-9a-f]{64}$/);
+  assert.match(result.broker_admission_capability_id,/^voidobac1_[0-9a-f]{64}$/);
   assert.match(result.broker_catalog_sha256,/^[0-9a-f]{64}$/);
   for(const legacy of ['execution_claim_sha256','execution_claim_semantic_sha256','execution_claim_root_generation_sha256']){
     assert.equal(Object.prototype.hasOwnProperty.call(result,legacy),false);
@@ -186,9 +195,10 @@ try{
     request_id:mapped.request_id,status:'HOLD',operation_id:`apollyon_op_v1:${'6'.repeat(64)}`,
     result_digest:null,result:null,hold_code:'UNCERTAIN_OR_TERMINAL',
   };
-  assert.throws(()=>validateBrokerAcceptedResponseV1(hold,mapped,ox),/UNCERTAIN_OR_TERMINAL/);
+  assert.throws(()=>validateBrokerAcceptedResponseV1(hold,mapped,ox,`voidobac1_${'0'.repeat(64)}`),/UNCERTAIN_OR_TERMINAL/);
 
-  console.log(`${PROOF_MARKER} passed=28 failed=0`);
+  console.log(`${PROOF_MARKER} passed=34 failed=0`);
 }finally{
+  if(brokerAdmissionHandle)await brokerAdmissionHandle.close().catch(()=>{});
   await rm(root,{recursive:true,force:true});
 }

@@ -121,10 +121,45 @@ function scanJsonKeys(value, label, path = '$') {
   }
 }
 
-function scanText(text, label) {
+function firstBlockedTextCategory(text) {
   for (const [category, pattern] of BLOCKED_TEXT_PATTERNS) {
-    if (pattern.test(text)) fail(`entry ${label} blocked category=${category}`);
+    if (pattern.test(text)) return category;
   }
+  return null;
+}
+
+function scanText(text, label) {
+  const category = firstBlockedTextCategory(text);
+  if (category !== null) fail(`entry ${label} blocked category=${category}`);
+}
+
+export function redactSensitiveTextMessageV1(value) {
+  const text = String(value ?? '');
+  return firstBlockedTextCategory(text) === null ? text : '[REDACTED_SENSITIVE_ERROR]';
+}
+
+export function assertNoSensitiveTextPatternsV1(value, label = 'text') {
+  scanText(String(value ?? ''), label);
+  return true;
+}
+
+export function assertNoSensitiveJsonStringsV1(value, label = 'json', path = '$') {
+  if (typeof value === 'string') {
+    scanText(value, `${label}${path}`);
+    return true;
+  }
+  if (Array.isArray(value)) {
+    for (let index = 0; index < value.length; index += 1) {
+      assertNoSensitiveJsonStringsV1(value[index], label, `${path}[${index}]`);
+    }
+    return true;
+  }
+  if (value !== null && typeof value === 'object') {
+    for (const [key, child] of Object.entries(value)) {
+      assertNoSensitiveJsonStringsV1(child, label, `${path}.${key}`);
+    }
+  }
+  return true;
 }
 
 function decodeUtf8(bytes, label) {

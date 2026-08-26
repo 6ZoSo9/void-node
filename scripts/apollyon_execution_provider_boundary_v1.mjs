@@ -9,6 +9,12 @@
 // are audit/output evidence only and are NEVER reusable send capabilities or admission tokens.
 import { spawnSync } from 'node:child_process';
 import {
+  acceptedResultDigestV1,
+  assertAcceptedResultCapsuleAbsentV1,
+  publishAcceptedResultCapsuleV1,
+  validateAcceptedResultBindingV1,
+} from './apollyon_accepted_result_capsule_v1.mjs';
+import {
   encodeLedgerRecordBytesV1,
   loadLedgerRecordsV1,
 } from './apollyon_execution_ledger_load_v1.mjs';
@@ -48,6 +54,7 @@ function assertPinnedDirectoryObjectV1(directoryHandle) {
   }
   return handle; // the ONLY fd authority; any separately supplied fd field is ignored entirely
 }
+
 
 function runFlockHelperV1(flockArgs, handle) {
   return spawnSync(
@@ -98,9 +105,30 @@ function sameStateFieldsV1(a, b) {
 // PROVIDER_ADMITTED publication, the single injected send, PROVIDER_RESULT publication, and all
 // post-publication proofs occur while the SAME flock is held; unlock runs in finally and ONLY a
 // proven successful unlock clears the local-held marker.
-export async function runBrokerProviderAttemptV1(directoryHandle, sendProviderOnce) {
+export async function runBrokerProviderAttemptV1(
+  directoryHandle,
+  acceptedResultRoot,
+  sendProviderOnce,
+  rawAcceptedResultBinding,
+  proofHooks = null,
+) {
   requireLinuxV1();
   if (typeof sendProviderOnce !== 'function') fail('sendProviderOnce must be a function');
+  let beforeUnlock = null;
+  if (proofHooks !== null && proofHooks !== undefined) {
+    if (typeof proofHooks !== 'object' || Array.isArray(proofHooks)) {
+      fail('proofHooks must be null or a plain object');
+    }
+    const proto = Object.getPrototypeOf(proofHooks);
+    if (proto !== Object.prototype && proto !== null) fail('proofHooks must be a plain object');
+    const hookKeys = Object.keys(proofHooks);
+    if (hookKeys.length !== 1 || hookKeys[0] !== 'beforeUnlock') {
+      fail('proofHooks may contain exactly beforeUnlock');
+    }
+    if (typeof proofHooks.beforeUnlock !== 'function') fail('proofHooks.beforeUnlock must be a function');
+    beforeUnlock = proofHooks.beforeUnlock;
+  }
+  const acceptedResultBinding = validateAcceptedResultBindingV1(rawAcceptedResultBinding);
   const handle = assertPinnedDirectoryObjectV1(directoryHandle);
   if (LOCALLY_HELD_FILE_HANDLES.has(handle)) {
     fail('this exact FileHandle is already locally held by a concurrent provider attempt');
@@ -127,6 +155,14 @@ export async function runBrokerProviderAttemptV1(directoryHandle, sendProviderOn
         currentState.acceptedDigest !== null) {
       fail(`broker state ${currentState.phase} is not RESERVED bound to the durable head; refusing send`);
     }
+    if (acceptedResultBinding.operationId !== head.operationId
+        || acceptedResultBinding.logicalOperationIntentDigest !== head.logicalOperationIntentDigest
+        || acceptedResultBinding.logicalWorkDigest !== head.logicalWorkDigest) {
+      fail('accepted-result binding does not match the durable RESERVED head');
+    }
+    // A preexisting fixed capsule leaf is poison, not evidence. Detect it BEFORE provider
+    // admission so an external same-UID collision cannot consume a send and then fail at publish.
+    await assertAcceptedResultCapsuleAbsentV1(acceptedResultRoot, acceptedResultBinding);
 
     // Admission record derived internally; the caller supplies NO record and NO admission receipt.
     const admitted = makeLedgerRecordV1({
@@ -180,10 +216,23 @@ export async function runBrokerProviderAttemptV1(directoryHandle, sendProviderOn
     if (keys.length !== 2 || !keys.includes('resultDigest') || !keys.includes('value')) {
       fail('sendProviderOnce result keys must be exactly resultDigest and value');
     }
-    const { resultDigest, value } = outcome; // value is opaque non-authority output; never inspected
+    const { resultDigest, value } = outcome;
     if (typeof resultDigest !== 'string' || !HEX64.test(resultDigest)) {
       fail('sendProviderOnce resultDigest must be lowercase sha256 hex');
     }
+    if (acceptedResultDigestV1(value) !== resultDigest) {
+      fail('sendProviderOnce resultDigest does not bind the exact accepted result payload');
+    }
+
+    // F1 repair: publish and fsync the complete accepted result capsule BEFORE PROVIDER_RESULT.
+    // The capsule alone grants no authority: if the process dies here, durable ledger state
+    // remains UNCERTAIN and later reads refuse capsule replay or provider resend.
+    const acceptedCapsule = await publishAcceptedResultCapsuleV1(
+      acceptedResultRoot,
+      acceptedResultBinding,
+      resultDigest,
+      value,
+    );
 
     // Result record derived internally from the SAME durable binding; caller supplies no record.
     const resultRecord = makeLedgerRecordV1({
@@ -220,7 +269,7 @@ export async function runBrokerProviderAttemptV1(directoryHandle, sendProviderOn
     // NON-AUTHORITY receipt: descriptive evidence/output only; never a reusable send capability.
     receipt = Object.freeze({
       resultDigest,
-      value,
+      value: acceptedCapsule.value,
       admittedRecordSha256: admitted.recordSha256,
       resultRecordSha256: resultRecord.recordSha256,
       ledgerLength: final.length,
@@ -230,11 +279,16 @@ export async function runBrokerProviderAttemptV1(directoryHandle, sendProviderOn
   } finally {
     if (acquired) {
       try {
+        if (beforeUnlock) {
+          await beforeUnlock(Object.freeze({ acceptedTerminalCommitted: receipt !== null }));
+        }
         releaseDirectoryFlockV1(handle);
         LOCALLY_HELD_FILE_HANDLES.delete(handle); // ONLY after a proven successful unlock
       } catch (unlockError) {
-        // Fail closed: retain the local-held marker (availability loss beats a false release).
-        if (!pendingError) pendingError = unlockError;
+        // Resource-terminal truth is independent from operation-terminal truth.
+        // Once durable ACCEPTED is proven, cleanup uncertainty may block later new
+        // work but cannot retroactively revoke or hide the committed result.
+        if (receipt === null && !pendingError) pendingError = unlockError;
       }
     } else {
       LOCALLY_HELD_FILE_HANDLES.delete(handle); // acquisition never succeeded: nothing was held

@@ -17,7 +17,12 @@ import {
   runOpenRouterContestantTrialV1,
   validateContestantRegistryV1,
 } from './apollyon_openrouter_ox_alpha_adapter_v1.mjs';
-import { publishReceiptExact as publishJsonExactV1 } from './apollyon_secret_sanitization_constitutional_admission_v1.mjs';
+import {
+  assertNoSensitiveJsonStringsV1,
+  assertNoSensitiveTextPatternsV1,
+  publishReceiptExact as publishJsonExactV1,
+  redactSensitiveTextMessageV1,
+} from './apollyon_secret_sanitization_constitutional_admission_v1.mjs';
 
 export const ARENA_MARKER = 'VOID_APOLLYON_OPENROUTER_ALIGNMENT_ARENA_V1';
 const SUMMARY_MARKER = 'VOID_APOLLYON_OPENROUTER_ALIGNMENT_ARENA_SUMMARY_V1';
@@ -187,9 +192,7 @@ async function publishSummaryExactV1(path, value, faultHook) {
 }
 
 function redactError(error) {
-  let message = String(error?.message ?? error ?? 'unknown error');
-  message = message.replace(/\bsk-(?:proj-)?[A-Za-z0-9_-]{16,}\b/g, '[REDACTED_SENSITIVE_ERROR]');
-  message = message.replace(/Authorization\s*:\s*Bearer\s+\S+/ig, '[REDACTED_SENSITIVE_ERROR]');
+  let message = redactSensitiveTextMessageV1(error?.message ?? error ?? 'unknown error');
   if (message.length > 2_048) message = `${message.slice(0, 2_048)}…`;
   return message;
 }
@@ -313,6 +316,7 @@ async function verifyPersistedResult(
     if (!/^apollyon_op_v1:[0-9a-f]{64}$/.test(String(persisted.broker_operation_id ?? ''))) {
       fail(`persisted broker operation id is invalid for ${contestant.model}`);
     }
+    if(!/^voidobac1_[0-9a-f]{64}$/.test(String(persisted.broker_admission_capability_id??''))) fail(`persisted broker admission capability id is invalid for ${contestant.model}`);
     for (const [field, value] of [
       ['broker_result_digest', persisted.broker_result_digest],
       ['broker_catalog_sha256', persisted.broker_catalog_sha256],
@@ -469,6 +473,8 @@ export async function runOpenRouterAlignmentArenaV1(options, hooks = {}) {
           String(env.VOID_OPENROUTER_CHAT_TIMEOUT_MS ?? ''),
         VOID_OPENROUTER_LOGICAL_OPERATION_INTENT_SHA256:
           contestantLogicalIntent,
+        VOID_OPENROUTER_BROKER_ADMISSION_ROOT_FD:
+          String(env.VOID_OPENROUTER_BROKER_ADMISSION_ROOT_FD ?? ''),
       };
 
       let verifiedResultHandle = null;
@@ -527,6 +533,7 @@ export async function runOpenRouterAlignmentArenaV1(options, hooks = {}) {
           accepted_recovery_key: verified.persisted.accepted_recovery_key,
           broker_operation_id: verified.persisted.broker_operation_id,
           broker_result_digest: verified.persisted.broker_result_digest,
+          broker_admission_capability_id: verified.persisted.broker_admission_capability_id,
           broker_catalog_sha256: verified.persisted.broker_catalog_sha256,
           broker_selected_model_sha256:
             verified.persisted.broker_selected_model_sha256,
@@ -591,11 +598,9 @@ export async function runOpenRouterAlignmentArenaV1(options, hooks = {}) {
       records,
       created_at_utc: new Date().toISOString(),
     };
+    assertNoSensitiveJsonStringsV1(summary, 'arena summary');
     const serialized = JSON.stringify(summary);
-    if (/\bsk-(?:proj-)?[A-Za-z0-9_-]{16,}\b/.test(serialized)
-        || /Authorization\s*:\s*Bearer\s+\S+/i.test(serialized)) {
-      fail('sensitive credential-like material unexpectedly entered arena summary');
-    }
+    assertNoSensitiveTextPatternsV1(serialized, 'arena summary serialized');
 
     await assertVisibleDirectoryGenerationV1(
       outputRootHandle,

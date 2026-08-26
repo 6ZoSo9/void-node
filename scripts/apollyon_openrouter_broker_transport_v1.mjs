@@ -2,12 +2,12 @@
 // One internal chat-send closure behind the V8.3 boundary; no caller-supplied send capability,
 // no retry/fallback, no metadata GET, no filesystem/wallet/service/validator authority here.
 import { createHash } from 'node:crypto';
+import { acceptedResultDigestV1 } from './apollyon_accepted_result_capsule_v1.mjs';
 import { runBrokerProviderAttemptV1 } from './apollyon_execution_provider_boundary_v1.mjs';
 
 const MODULE_ID = 'VOID_OX_ALPHA_OPENROUTER_BROKER_TRANSPORT_V8_4';
 const CHAT_URL = 'https://openrouter.ai/api/v1/chat/completions';
 const RESULT_MARKER = 'VOID_APOLLYON_OPENROUTER_VALIDATED_RESULT_V1';
-const DIGEST_MARKER = 'VOID_APOLLYON_OPENROUTER_RESULT_DIGEST_V1';
 const MAX_BODY_BYTES = 3 * 1024 * 1024;
 const MAX_CHAT_RESPONSE_BYTES = 8 * 1024 * 1024;
 const MAX_ERROR_RESPONSE_BYTES = 64 * 1024;
@@ -193,13 +193,15 @@ function validateChatResponseV1(response, snapshot) {
   };
 }
 
-export async function runOpenRouterBrokerAttemptV1(directoryHandle, input) {
+export async function runOpenRouterBrokerAttemptV1(directoryHandle, acceptedResultRoot, input) {
   if (!isPlainObjectV1(input)) fail('input must be a plain object');
-  exactKeysV1(input, ['apiKey', 'requestBody', 'timeoutMs', 'contestant'], 'input');
-  const { apiKey, requestBody, timeoutMs, contestant } = input;
+  exactKeysV1(input, ['apiKey', 'requestBody', 'timeoutMs', 'contestant', 'binding', 'catalogPreflight', 'admissionCapabilityId'], 'input');
+  const { apiKey, requestBody, timeoutMs, contestant, binding, catalogPreflight, admissionCapabilityId } = input;
+  if(!/^voidobac1_[0-9a-f]{64}$/.test(String(admissionCapabilityId??''))) fail('admissionCapabilityId is invalid');
   if (typeof apiKey !== 'string' || apiKey.length < 8 || apiKey.length > 512 || !/\S/.test(apiKey)) fail('apiKey must be a non-whitespace string of length 8..512');
   if (!Number.isSafeInteger(timeoutMs) || timeoutMs < 1000 || timeoutMs > 300000) fail('timeoutMs must be a safe integer 1000..300000');
   validateContestantV1(contestant);
+  const catalogPreflightSnapshot = snapshotJsonValueV1(catalogPreflight, 'catalogPreflight', 0);
   const executionModel = resolveExecutionModelV1(contestant);
   validateRequestBodyV1(requestBody, contestant, executionModel);
   // Fresh immutable snapshot before the first await; no caller object references are retained.
@@ -256,20 +258,11 @@ export async function runOpenRouterBrokerAttemptV1(directoryHandle, input) {
       router_requested_model: validated.router_requested_model,
       router_selected_model: validated.router_selected_model,
       router_selected_provider: validated.router_selected_provider,
+      broker_catalog_preflight_v1: catalogPreflightSnapshot,
+      broker_admission_capability_id: admissionCapabilityId,
     });
-    const digestPayload = {
-      marker: DIGEST_MARKER,
-      response_content_sha256: sha256HexV1(Buffer.from(validated.content, 'utf8')),
-      response_content_bytes: Buffer.byteLength(validated.content, 'utf8'),
-      finish_reason: 'stop',
-      reported_model: validated.reported_model,
-      response_id: validated.response_id,
-      router_requested_model: validated.router_requested_model,
-      router_selected_model: validated.router_selected_model,
-      router_selected_provider: validated.router_selected_provider,
-    };
-    const resultDigest = sha256HexV1(Buffer.concat([Buffer.from(`${DIGEST_MARKER}\0`, 'utf8'), Buffer.from(canonicalJsonV1(digestPayload), 'utf8')]));
+    const resultDigest = acceptedResultDigestV1(normalizedResult);
     return { resultDigest, value: normalizedResult };
   };
-  return runBrokerProviderAttemptV1(directoryHandle, sendChatOnceV1);
+  return runBrokerProviderAttemptV1(directoryHandle, acceptedResultRoot, sendChatOnceV1, binding);
 }
