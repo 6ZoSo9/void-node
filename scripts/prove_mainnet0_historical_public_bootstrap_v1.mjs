@@ -111,8 +111,17 @@ function makeCanonical196021Legacy() {
   };
 }
 
+function walPathForBlock(root, number) {
+  const segmentBase = Math.floor(Number(number) / 10_000) * 10_000;
+  return path.join(
+    root,
+    "wal",
+    `${String(segmentBase).padStart(8, "0")}.wal`,
+  );
+}
+
 function walPath(root) {
-  return path.join(root, "wal", "00000000.wal");
+  return walPathForBlock(root, 0);
 }
 
 function walRecord(version, mode, block) {
@@ -402,46 +411,89 @@ function proveCanonical196021BridgeAndFollowerImportIsolation() {
   );
 }
 
-function proveWalReplayAcrossHistoricalModes() {
-  const root = tempRoot("wal-good");
+function proveHistoricalWalReplayRequiresFreshAuthority() {
+  const minimalRoot = tempRoot("wal-minimal-fresh-authority");
   try {
     const b0 = makeMinimal(0);
-    const b1 = makeLegacy(1);
-    new SegStore(root, { sparseEvery: 1 });
+    new SegStore(minimalRoot, { sparseEvery: 1 });
     fs.writeFileSync(
-      walPath(root),
-      [
-        JSON.stringify(walRecord(3, "genesis-minimal-v1", b0)),
-        JSON.stringify(walRecord(4, "legacy-v2fs-historical-v1", b1)),
-        "",
-      ].join("\n"),
+      walPathForBlock(minimalRoot, b0.number),
+      `${JSON.stringify(walRecord(3, "genesis-minimal-v1", b0))}\n`,
       "utf8",
     );
 
-    const recovered = new SegStore(root, { sparseEvery: 1 });
-    assert.equal(recovered.loadHeadNumber(), 1);
-    assert.deepEqual(recovered.loadBlock(0), b0);
-    assert.deepEqual(recovered.loadBlock(1), b1);
-    assert.equal(fs.existsSync(walPath(root)), false);
+    const held = new SegStore(minimalRoot, { sparseEvery: 1 });
+    assert.equal(
+      held.loadHeadNumber(),
+      -1,
+      "historical v3 WAL alone advanced canonical head",
+    );
+    assert.equal(
+      held.loadBlock(0),
+      null,
+      "historical v3 WAL alone created a canonical block",
+    );
+    assert.equal(
+      fs.existsSync(walPathForBlock(minimalRoot, b0.number)),
+      true,
+      "unconsumed historical v3 WAL intent was discarded",
+    );
   } finally {
-    fs.rmSync(root, { recursive: true, force: true });
+    fs.rmSync(minimalRoot, { recursive: true, force: true });
   }
 
-  const rejectedRoot = tempRoot("wal-v2fs-genesis");
+  const bridgeRoot = tempRoot("wal-bridge-fresh-authority");
   try {
-    const b0 = makeLegacy(0);
-    new SegStore(rejectedRoot, { sparseEvery: 1 });
+    const parent = makeCanonical196020Parent({ observedHeaderObject: true });
+    const candidate = makeCanonical196021Legacy();
+    const prepared = new SegStore(bridgeRoot, { sparseEvery: 1 });
+    prepared.saveBlockCommit(parent);
+    prepared.persistHeadAtomic(parent.number);
+
+    const bridgeWal = walPathForBlock(bridgeRoot, candidate.number);
     fs.writeFileSync(
-      walPath(rejectedRoot),
-      `${JSON.stringify(walRecord(4, "legacy-v2fs-historical-v1", b0))}\n`,
+      bridgeWal,
+      `${JSON.stringify(
+        walRecord(4, "legacy-v2fs-historical-v1", candidate),
+      )}\n`,
       "utf8",
     );
-    const rejected = new SegStore(rejectedRoot, { sparseEvery: 1 });
-    assert.equal(rejected.loadHeadNumber(), -1);
-    assert.equal(rejected.loadBlock(0), null);
-    assert.equal(fs.existsSync(walPath(rejectedRoot)), true);
+
+    const held = new SegStore(bridgeRoot, { sparseEvery: 1 });
+    assert.equal(held.loadHeadNumber(), 196020);
+    assert.deepEqual(held.loadBlock(196020), parent);
+    assert.equal(
+      held.loadBlock(196021),
+      null,
+      "exact v4 bridge WAL alone created canonical #196021",
+    );
+    assert.equal(
+      fs.existsSync(bridgeWal),
+      true,
+      "unconsumed exact v4 bridge WAL intent was discarded",
+    );
+
+    const altered = {
+      ...candidate,
+      ts: candidate.ts + 1,
+    };
+    fs.writeFileSync(
+      bridgeWal,
+      `${JSON.stringify(
+        walRecord(4, "legacy-v2fs-historical-v1", altered),
+      )}\n`,
+      "utf8",
+    );
+    const forged = new SegStore(bridgeRoot, { sparseEvery: 1 });
+    assert.equal(forged.loadHeadNumber(), 196020);
+    assert.equal(
+      forged.loadBlock(196021),
+      null,
+      "synthetic historical WAL candidate mutated canonical state",
+    );
+    assert.equal(fs.existsSync(bridgeWal), true);
   } finally {
-    fs.rmSync(rejectedRoot, { recursive: true, force: true });
+    fs.rmSync(bridgeRoot, { recursive: true, force: true });
   }
 }
 
@@ -497,6 +549,118 @@ function makeFollowerNode(store) {
   node.txIndex = {};
   node.receipts = {};
   return node;
+}
+
+async function proveCanonical196021CrashRecoveryRequiresFreshAuthority() {
+  const root = tempRoot("196021-crash-fresh-authority");
+  const upstreamState = { blocks: [makeCanonical196021Legacy()] };
+  const upstreamServer = chainServer(upstreamState);
+  const upstreamPort = await listen(upstreamServer);
+  const upstreamOrigin = `http://127.0.0.1:${upstreamPort}`;
+
+  const secret = crypto.randomBytes(32);
+  const generation = crypto.randomBytes(16).toString("hex");
+  const sequence = 1;
+  const adapter = await createPublicSeedClientAdapterV1({
+    peers: upstreamOrigin,
+    port: 0,
+    allowLoopbackFixture: true,
+    authority: {
+      schema: "void_public_seed_response_authority_v1",
+      generation,
+      sequence,
+      secret,
+    },
+  });
+
+  const envKeys = [
+    "VOID_FOLLOWER_LEGACY_V2FS_ORIGINS",
+    "VOID_FOLLOWER_PULL_LIMIT",
+    "VOID_FOLLOWER_PULL_TIMEOUT_MS",
+  ];
+  const backup = Object.fromEntries(
+    envKeys.map((key) => [key, process.env[key]]),
+  );
+
+  try {
+    delete process.env.VOID_FOLLOWER_LEGACY_V2FS_ORIGINS;
+    process.env.VOID_FOLLOWER_PULL_LIMIT = "1";
+    process.env.VOID_FOLLOWER_PULL_TIMEOUT_MS = "5000";
+    resetVerifiedPublicBootstrapAuthorityForTestV1();
+
+    const parent = makeCanonical196020Parent({ observedHeaderObject: true });
+    const candidate = makeCanonical196021Legacy();
+
+    const prepared = new SegStore(root, { sparseEvery: 1 });
+    prepared.saveBlockCommit(parent);
+    prepared.persistHeadAtomic(parent.number);
+    assert.equal(prepared.loadHeadNumber(), 196020);
+    assert.deepEqual(prepared.loadBlock(196020), parent);
+
+    const bridgeWal = walPathForBlock(root, candidate.number);
+    fs.writeFileSync(
+      bridgeWal,
+      `${JSON.stringify(
+        walRecord(4, "legacy-v2fs-historical-v1", candidate),
+      )}\n`,
+      "utf8",
+    );
+
+    // Simulate restart after historical WAL fsync but before canonical block/head.
+    const restarted = new SegStore(root, { sparseEvery: 1 });
+    assert.equal(restarted.loadHeadNumber(), 196020);
+    assert.equal(restarted.loadBlock(196021), null);
+    assert.equal(fs.existsSync(bridgeWal), true);
+
+    // Same historical bytes from a raw/unverified origin remain unauthorized.
+    const rawNode = makeFollowerNode(restarted);
+    const rawResult = await rawNode.pullOnce(upstreamOrigin);
+    assert.equal(rawResult.ok, false);
+    assert.equal(
+      rawResult.invalidReason,
+      "legacy_v2fs_origin_not_authorized",
+    );
+    assert.equal(restarted.loadHeadNumber(), 196020);
+    assert.equal(restarted.loadBlock(196021), null);
+
+    // Fresh current adapter/HMAC authority re-admits the exact candidate.
+    assert.equal(
+      installVerifiedPublicBootstrapAuthorityForTestV1({
+        sequence,
+        generation,
+        adapter_origin: adapter.base,
+        secret_hex: secret.toString("hex"),
+      }),
+      true,
+    );
+    const authorizedNode = makeFollowerNode(restarted);
+    const recovered = await authorizedNode.pullOnce(adapter.base);
+    assert.equal(recovered.ok, true);
+    assert.equal(recovered.imported, 1);
+    assert.equal(restarted.loadHeadNumber(), 196021);
+    assert.deepEqual(restarted.loadBlock(196021), candidate);
+
+    // Once exact block/head truth is durable, a later restart may prune the
+    // matching historical WAL intent without treating it as admission authority.
+    resetVerifiedPublicBootstrapAuthorityForTestV1();
+    const postRecoveryRestart = new SegStore(root, { sparseEvery: 1 });
+    assert.equal(postRecoveryRestart.loadHeadNumber(), 196021);
+    assert.deepEqual(postRecoveryRestart.loadBlock(196021), candidate);
+    assert.equal(
+      fs.existsSync(bridgeWal),
+      false,
+      "matching historical WAL intent survived already-durable canonical truth",
+    );
+  } finally {
+    resetVerifiedPublicBootstrapAuthorityForTestV1();
+    for (const [key, value] of Object.entries(backup)) {
+      if (value === undefined) delete process.env[key];
+      else process.env[key] = value;
+    }
+    fs.rmSync(root, { recursive: true, force: true });
+    await close(adapter.server);
+    await close(upstreamServer);
+  }
 }
 
 async function proveAdapterOnlyFollowerAndManualPeerIsolation() {
@@ -862,7 +1026,8 @@ proveMinimalValidator();
 proveVerifiedAdapterAuthority();
 proveSegStoreRatchetAndModernIsolation();
 proveCanonical196021BridgeAndFollowerImportIsolation();
-proveWalReplayAcrossHistoricalModes();
+proveHistoricalWalReplayRequiresFreshAuthority();
+await proveCanonical196021CrashRecoveryRequiresFreshAuthority();
 await proveAdapterOnlyFollowerAndManualPeerIsolation();
 proveAuthoritySourceOrdering();
 proveWorkflowTracksHistoricalBoundary();
@@ -883,4 +1048,7 @@ console.log("other_modern_to_legacy_rejected=true");
 console.log("follower_modern_import_bypasses_saveblock_wrappers=true");
 console.log("existing_196020_header_object_bridge_accepted=true");
 console.log("modern_validator_unchanged=true");
-console.log("historical_wal_modes_replay_bounded=true");
+console.log("historical_wal_replay_authority=false");
+console.log("historical_wal_requires_fresh_authority=true");
+console.log("canonical_196021_crash_recovery_via_fresh_authority=true");
+console.log("synthetic_historical_wal_canonical_mutation=0");

@@ -87,8 +87,26 @@ authoritative bytes cannot be rewritten by local block-production helpers.
 ## Persistence
 
 Minimal historical blocks use a distinct SegStore append mode with exact JSON
-identity rather than `blockHash()`. Historical-ratcheted WAL records use explicit
-versions for minimal and v2fs so crash replay preserves the same era boundary.
+identity rather than `blockHash()`.
+
+Historical-ratcheted v3/v4 WAL records are durable intent/evidence only. They do
+**not** grant restart admission authority and may not create a missing historical
+block or advance/heal canonical head during WAL replay. If the exact historical
+block and head are already durable, replay may prune a byte-identical matching
+WAL intent as cleanup only.
+
+A crash after historical WAL durability but before canonical block/head
+durability therefore deliberately requires a fresh `/blocks/range` response
+authorized by the current public-bootstrap HMAC generation. The normal live
+follower path revalidates the current response authority, exact historical
+transition, and exact block bytes before it appends the missing block or heals an
+already-durable block ahead of head.
+
+This trades offline historical auto-replay for fail-closed recovery. It avoids
+persisting the ephemeral HMAC secret and prevents a synthetic v3/v4 WAL record
+from becoming historical admission authority merely by matching a mode or
+envelope shape. Ordinary modern v1 and explicit manual-legacy v2 WAL semantics
+remain separate.
 
 ## Non-goals
 
