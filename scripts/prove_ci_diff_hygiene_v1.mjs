@@ -107,6 +107,33 @@ for (const relative of WORKFLOWS) {
   );
 }
 
+const bootstrapWorkflowSource = readFileSync(
+  path.join(ROOT, ".github/workflows/void-public-bootstrap-client-resilience-v1.yml"),
+  "utf8",
+);
+for (const needle of [
+  "expected_source_sha:",
+  "expected_base_sha:",
+  "Bind exact manual-dispatch source",
+  "CI_DIFF_EVENT_NAME: push",
+  "CI_DIFF_PUSH_BEFORE_SHA: ${{ inputs.expected_base_sha }}",
+  "CI_DIFF_CURRENT_SHA: ${{ inputs.expected_source_sha }}",
+  "test \"$GITHUB_SHA\" = \"$EXPECTED_SOURCE_SHA\"",
+]) {
+  assert.ok(
+    bootstrapWorkflowSource.includes(needle),
+    `bootstrap manual-dispatch exact-range binding missing: ${needle}`,
+  );
+}
+assert.ok(
+  bootstrapWorkflowSource.includes("if: github.event_name != 'workflow_dispatch'"),
+  "bootstrap ordinary diff hygiene is not separated from manual dispatch",
+);
+assert.ok(
+  bootstrapWorkflowSource.includes("if: github.event_name == 'workflow_dispatch'"),
+  "bootstrap manual diff hygiene step is not event-gated",
+);
+
 const FIXTURE = mkdtempSync(path.join(tmpdir(), "void-ci-diff-hygiene-v1-"));
 try {
   const source = path.join(FIXTURE, "source");
@@ -246,6 +273,7 @@ console.log("merge_integration_checkout_preserved=true");
 console.log("pr_head_range_fetched_without_checkout_replacement=true");
 console.log("shared_proof_self_enforced=true");
 console.log("push_before_supported=true");
+console.log("workflow_dispatch_exact_range_bound=true");
 console.log("whitespace_defect_still_fails=true");
 console.log("persist_credentials=false");
 console.log("diff_hygiene_skipped=false");

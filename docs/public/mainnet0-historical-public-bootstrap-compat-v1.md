@@ -15,10 +15,14 @@ Outside-machine Nimo evidence established:
 - height `0` through sampled height `100000`: exact minimal envelope
   `{"number","timestamp"}`;
 - sampled height `250000` through `1951058`:
-  `proposer.commit-direct.v2fs`.
+  `proposer.commit-direct.v2fs`;
+- exact heights `196019` and `196020`: modern signed envelopes;
+- exact heights `196021` and `196022`: `proposer.commit-direct.v2fs`.
 
-The exact minimal-to-v2fs transition height is intentionally not a consensus
-constant. Correctness is derived from the persisted parent block's era.
+The exact minimal-to-v2fs transition height remains derived from the persisted
+parent block's era. A separate, canonical short modern island was observed at
+`196019..196020`; returning to legacy-v2fs is admitted only by the exact
+`196020 -> 196021` bridge, not by a general modern-to-legacy rule.
 
 ## Trust boundary
 
@@ -67,15 +71,42 @@ For the public historical append methods:
 - minimal -> legacy-v2fs: allowed;
 - legacy-v2fs -> legacy-v2fs: allowed;
 - legacy-v2fs -> minimal: rejected;
-- modern -> either historical era: rejected.
+- exact canonical `196020` modern parent -> exact canonical `196021`
+  legacy-v2fs candidate: allowed;
+- every other modern -> historical transition: rejected.
 
+The `196020 -> 196021` exception is envelope- and boundary-bound and still
+requires the same verified public-bootstrap historical response authority.
 Modern `validateBlockForAppend()` is not weakened or modified.
+
+Modern follower imports use a dedicated SegStore append method that invokes the
+unchanged modern validator and canonical durability path directly. They do not
+traverse the legacy local `saveBlock` sealing/metrics wrapper stack, so imported
+authoritative bytes cannot be rewritten by local block-production helpers.
 
 ## Persistence
 
 Minimal historical blocks use a distinct SegStore append mode with exact JSON
-identity rather than `blockHash()`. Historical-ratcheted WAL records use explicit
-versions for minimal and v2fs so crash replay preserves the same era boundary.
+identity rather than `blockHash()`.
+
+Historical-ratcheted v3/v4 WAL records are durable intent/evidence only. They do
+**not** grant restart admission authority and may not create a missing historical
+block or advance/heal canonical head during WAL replay. If the exact historical
+block and head are already durable, replay may prune a byte-identical matching
+WAL intent as cleanup only.
+
+A crash after historical WAL durability but before canonical block/head
+durability therefore deliberately requires a fresh `/blocks/range` response
+authorized by the current public-bootstrap HMAC generation. The normal live
+follower path revalidates the current response authority, exact historical
+transition, and exact block bytes before it appends the missing block or heals an
+already-durable block ahead of head.
+
+This trades offline historical auto-replay for fail-closed recovery. It avoids
+persisting the ephemeral HMAC secret and prevents a synthetic v3/v4 WAL record
+from becoming historical admission authority merely by matching a mode or
+envelope shape. Ordinary modern v1 and explicit manual-legacy v2 WAL semantics
+remain separate.
 
 ## Non-goals
 

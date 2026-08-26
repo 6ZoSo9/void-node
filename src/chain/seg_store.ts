@@ -346,6 +346,18 @@ export class SegStore {
     this.saveCanonicalBlockByModeV1(b, "modern");
   }
 
+  /**
+   * Canonical modern follower-import path.
+   *
+   * Deliberately separate from saveBlock(): legacy runtime sealing/metrics
+   * wrappers attach to saveBlock and are allowed to shape locally produced
+   * blocks. Imported blocks must instead reach the unchanged modern validator
+   * and canonical persistence with their authoritative bytes untouched.
+   */
+  public saveFollowerImportedModernV1(b: any): void {
+    this.saveCanonicalBlockByModeV1(b, "modern");
+  }
+
   public saveAuthorizedLegacyCommitDirectV2fs(b: any): void {
     this.saveCanonicalBlockByModeV1(b, "legacy-v2fs");
   }
@@ -432,7 +444,7 @@ export class SegStore {
       if (mode === "modern") {
         throw new Error("SegStore.saveBlock: modern mode cannot request historical ratchet");
       }
-      const transition = validateMainnet0HistoricalTransitionV1(parent, mode);
+      const transition = validateMainnet0HistoricalTransitionV1(parent, mode, b);
       if (!transition.ok) {
         throw new Error(
           `SegStore.${op}: invalid historical transition: ${(transition as any).reason || "unknown"}`,
@@ -867,22 +879,43 @@ export class SegStore {
         continue;
       }
 
-      const parent = n === 0 ? null : this.loadBlock(n - 1);
+      // Historical v3/v4 WAL is durable intent/evidence only. The verified
+      // public-bootstrap HMAC authority is deliberately ephemeral and must not
+      // be recreated from WAL mode/shape after restart. A historical WAL record
+      // may be pruned once the exact canonical block and head are already
+      // durable, but it can never create/heal canonical historical state.
+      //
+      // Crash recovery therefore requires a fresh, currently authorized
+      // historical pull through the live follower admission path. That path can
+      // either append the missing block or heal an already-durable block ahead
+      // of head after revalidating current authority, transition, and bytes.
       if (replayHistoricalRatchet) {
-        if (replayMode === "modern") {
-          keep(index, `invalid_historical_replay_mode:${seg}:${index}`);
+        const existingHistorical = this.loadBlock(n);
+        if (n <= head) {
+          if (!existingHistorical) {
+            keep(index, `head_ahead_of_missing_block:head=${head}:record=${n}`);
+            continue;
+          }
+          if (
+            !this.replayBlockMatchesStoredBlock(
+              existingHistorical,
+              blk as Block,
+              replayMode,
+            )
+          ) {
+            keep(index, `existing_block_conflict:${n}`);
+            continue;
+          }
+          // Exact block/head truth is already durable. Dropping matching WAL
+          // intent is cleanup only and grants no historical admission authority.
           continue;
         }
-        const transition = validateMainnet0HistoricalTransitionV1(parent, replayMode);
-        if (!transition.ok) {
-          keep(
-            index,
-            `invalid_historical_transition:${n}:${(transition as any).reason || "unknown"}`,
-          );
-          continue;
-        }
+
+        keep(index, `historical_replay_requires_fresh_authority:${n}`);
+        continue;
       }
 
+      const parent = n === 0 ? null : this.loadBlock(n - 1);
       const valid = this.validateCanonicalBlockByModeV1(blk, parent as any, replayMode);
       if (!valid.ok) {
         keep(index, `invalid_block:${n}:${(valid as any).reason || "unknown"}`);
