@@ -154,7 +154,9 @@ function parseProofHooksV1(raw) {
   const allowed = new Set(['capsuleProofHooks','beforeDurabilitySync','afterDurabilitySync']);
   for (const key of Object.keys(raw)) if (!allowed.has(key)) fail(`unsupported transaction proof hook ${key}`);
   for (const key of ['beforeDurabilitySync','afterDurabilitySync']) {
-    if (raw[key] !== undefined && typeof raw[key] !== 'function') fail(`${key} must be a function`);
+    if (raw[key] !== undefined && raw[key] !== null && typeof raw[key] !== 'function') {
+      fail(`${key} must be a function or null`);
+    }
   }
   return Object.freeze({
     capsuleProofHooks: raw.capsuleProofHooks ?? null,
