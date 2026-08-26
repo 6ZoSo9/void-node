@@ -4329,7 +4329,7 @@ attachEphemeralDirectTransportV1(
         this.store.saveAuthorizedMainnet0HistoricalLegacyV2fs(block);
         return;
       }
-      this.store.saveBlock(block);
+      this.store.saveFollowerImportedModernV1(block);
     };
 
     const persistWithinPullLifetime = async <T>(

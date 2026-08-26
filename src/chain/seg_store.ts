@@ -346,6 +346,18 @@ export class SegStore {
     this.saveCanonicalBlockByModeV1(b, "modern");
   }
 
+  /**
+   * Canonical modern follower-import path.
+   *
+   * Deliberately separate from saveBlock(): legacy runtime sealing/metrics
+   * wrappers attach to saveBlock and are allowed to shape locally produced
+   * blocks. Imported blocks must instead reach the unchanged modern validator
+   * and canonical persistence with their authoritative bytes untouched.
+   */
+  public saveFollowerImportedModernV1(b: any): void {
+    this.saveCanonicalBlockByModeV1(b, "modern");
+  }
+
   public saveAuthorizedLegacyCommitDirectV2fs(b: any): void {
     this.saveCanonicalBlockByModeV1(b, "legacy-v2fs");
   }
@@ -432,7 +444,7 @@ export class SegStore {
       if (mode === "modern") {
         throw new Error("SegStore.saveBlock: modern mode cannot request historical ratchet");
       }
-      const transition = validateMainnet0HistoricalTransitionV1(parent, mode);
+      const transition = validateMainnet0HistoricalTransitionV1(parent, mode, b);
       if (!transition.ok) {
         throw new Error(
           `SegStore.${op}: invalid historical transition: ${(transition as any).reason || "unknown"}`,

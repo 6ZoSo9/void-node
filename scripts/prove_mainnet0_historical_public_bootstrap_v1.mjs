@@ -17,8 +17,10 @@ import {
   validateBlockForAppend,
 } from "../dist/chain/block.js";
 import {
+  isMainnet0CanonicalModernToLegacyV2fsBridgeV1,
   isMainnet0GenesisMinimalV1,
   validateMainnet0GenesisMinimalForAppendV1,
+  validateMainnet0HistoricalTransitionV1,
 } from "../dist/chain/mainnet0_historical_compat_v1.js";
 import {
   VOID_LEGACY_COMMIT_DIRECT_V2FS_MARKER_V1,
@@ -76,6 +78,36 @@ function makeModern(number, parent) {
     blobs: [],
     proposer: "mainnet0-modern-proof",
     sig: "00".repeat(64),
+  };
+}
+
+function makeCanonical196020Parent({ observedHeaderObject = false } = {}) {
+  return {
+    number: 196020,
+    parentHash: "65db20b28569ba90f76d0ae54e5a2c4082e8512ba5bc68d325f4ff4304a43e16",
+    timestamp: 1776366022468,
+    txRoot: "0".repeat(64),
+    blobRoot: "0".repeat(64),
+    txs: [],
+    blobs: [],
+    proposer: "9d89483769e469e0473b489dc50dba96",
+    sig: "5be9d1fa7206a835f9a4c751037ea7dbf791c5d92800a2de4b80f39addc5911274a14db2351ceb040391fc8594aadf184c1b05ba400f1bc9db406e9002aef204",
+    header: {
+      txRoot: observedHeaderObject
+        ? { root: VOID_LEGACY_EMPTY_TX_ROOT_V1, leaves: [] }
+        : VOID_LEGACY_EMPTY_TX_ROOT_V1,
+    },
+  };
+}
+
+function makeCanonical196021Legacy() {
+  return {
+    number: 196021,
+    ts: 1776473091835,
+    txs: [],
+    _commit: VOID_LEGACY_COMMIT_DIRECT_V2FS_MARKER_V1,
+    txRoot: VOID_LEGACY_EMPTY_TX_ROOT_V1,
+    header: { txRoot: VOID_LEGACY_EMPTY_TX_ROOT_V1 },
   };
 }
 
@@ -194,6 +226,180 @@ function proveSegStoreRatchetAndModernIsolation() {
     else process.env.VOID_BLOCK_PROPOSER_AUTHORITY_REQUIRED = oldAuthority;
     fs.rmSync(root, { recursive: true, force: true });
   }
+}
+
+function proveCanonical196021BridgeAndFollowerImportIsolation() {
+  const canonicalParent = makeCanonical196020Parent();
+  const observedMutatedHeaderParent = makeCanonical196020Parent({
+    observedHeaderObject: true,
+  });
+  const canonicalCandidate = makeCanonical196021Legacy();
+
+  assert.equal(
+    isMainnet0CanonicalModernToLegacyV2fsBridgeV1(
+      canonicalParent,
+      canonicalCandidate,
+    ),
+    true,
+  );
+  assert.deepEqual(
+    validateMainnet0HistoricalTransitionV1(
+      canonicalParent,
+      "legacy-v2fs",
+      canonicalCandidate,
+    ),
+    { ok: true },
+  );
+  assert.deepEqual(
+    validateMainnet0HistoricalTransitionV1(
+      observedMutatedHeaderParent,
+      "legacy-v2fs",
+      canonicalCandidate,
+    ),
+    { ok: true },
+    "existing follower #196020 header object must not require chain rewrite",
+  );
+
+  const invalidParents = [
+    { ...canonicalParent, parentHash: "f".repeat(64) },
+    { ...canonicalParent, proposer: "other-proposer" },
+    { ...canonicalParent, sig: "f".repeat(128) },
+  ];
+  for (const parent of invalidParents) {
+    assert.equal(
+      isMainnet0CanonicalModernToLegacyV2fsBridgeV1(
+        parent,
+        canonicalCandidate,
+      ),
+      false,
+    );
+    assert.equal(
+      validateMainnet0HistoricalTransitionV1(
+        parent,
+        "legacy-v2fs",
+        canonicalCandidate,
+      ).ok,
+      false,
+    );
+  }
+
+  const invalidCandidates = [
+    { ...canonicalCandidate, number: 196022 },
+    { ...canonicalCandidate, ts: canonicalCandidate.ts + 1 },
+    {
+      ...canonicalCandidate,
+      txRoot: "f".repeat(64),
+      header: { txRoot: "f".repeat(64) },
+    },
+    { ...canonicalCandidate, txs: [{ hash: "33".repeat(32) }] },
+    { ...canonicalCandidate, unexpected: true },
+  ];
+  for (const candidate of invalidCandidates) {
+    assert.equal(
+      isMainnet0CanonicalModernToLegacyV2fsBridgeV1(
+        canonicalParent,
+        candidate,
+      ),
+      false,
+    );
+    assert.equal(
+      validateMainnet0HistoricalTransitionV1(
+        canonicalParent,
+        "legacy-v2fs",
+        candidate,
+      ).ok,
+      false,
+    );
+  }
+
+  const genericMinimal = makeMinimal(0);
+  const genericLegacy = makeLegacy(1);
+  const genericModern = makeModern(2, genericLegacy);
+  assert.equal(
+    validateMainnet0HistoricalTransitionV1(
+      genericModern,
+      "legacy-v2fs",
+      makeLegacy(3),
+    ).ok,
+    false,
+    "non-canonical modern->legacy regression must remain rejected",
+  );
+
+  const bridgeRoot = tempRoot("canonical-196021-bridge");
+  try {
+    const store = new SegStore(bridgeRoot, { sparseEvery: 1 });
+    assert.equal(typeof store.saveBlockCommit, "function");
+    assert.equal(typeof store.persistHeadAtomic, "function");
+
+    // Fixture preparation only: seed the already-durable #196020 parent without
+    // replaying 196021 historical blocks. This exercises the real SegStore
+    // transition/append path at the observed canonical height.
+    store.saveBlockCommit(observedMutatedHeaderParent);
+    store.persistHeadAtomic(196020);
+    assert.deepEqual(store.loadBlock(196020), observedMutatedHeaderParent);
+
+    store.saveAuthorizedMainnet0HistoricalLegacyV2fs(canonicalCandidate);
+    assert.equal(store.loadHeadNumber(), 196021);
+    assert.deepEqual(store.loadBlock(196021), canonicalCandidate);
+  } finally {
+    fs.rmSync(bridgeRoot, { recursive: true, force: true });
+  }
+
+  const importRoot = tempRoot("modern-import-bypass");
+  const oldAuthority = process.env.VOID_BLOCK_PROPOSER_AUTHORITY_REQUIRED;
+  try {
+    process.env.VOID_BLOCK_PROPOSER_AUTHORITY_REQUIRED = "0";
+    const b0 = genericMinimal;
+    const b1 = genericLegacy;
+    const b2 = genericModern;
+    const store = new SegStore(importRoot, { sparseEvery: 1 });
+    store.saveAuthorizedMainnet0GenesisMinimalV1(b0);
+    store.saveAuthorizedMainnet0HistoricalLegacyV2fs(b1);
+
+    let wrappedSaveBlockCalls = 0;
+    const originalSaveBlock = store.saveBlock.bind(store);
+    store.saveBlock = (block) => {
+      wrappedSaveBlockCalls += 1;
+      block.header = {
+        txRoot: { root: VOID_LEGACY_EMPTY_TX_ROOT_V1, leaves: [] },
+      };
+      return originalSaveBlock(block);
+    };
+
+    const exactBefore = structuredClone(b2);
+    store.saveFollowerImportedModernV1(b2);
+    assert.equal(
+      wrappedSaveBlockCalls,
+      0,
+      "follower import must not pass through local saveBlock wrappers",
+    );
+    assert.deepEqual(b2, exactBefore);
+    assert.deepEqual(store.loadBlock(2), exactBefore);
+  } finally {
+    if (oldAuthority === undefined) {
+      delete process.env.VOID_BLOCK_PROPOSER_AUTHORITY_REQUIRED;
+    } else {
+      process.env.VOID_BLOCK_PROPOSER_AUTHORITY_REQUIRED = oldAuthority;
+    }
+    fs.rmSync(importRoot, { recursive: true, force: true });
+  }
+
+  const nodeSource = fs.readFileSync("src/node_core.ts", "utf8");
+  const saveFollowerStart = nodeSource.indexOf("const saveFollowerBlockV1 = (");
+  assert(saveFollowerStart >= 0);
+  const saveFollowerWindow = nodeSource.slice(
+    saveFollowerStart,
+    saveFollowerStart + 2600,
+  );
+  assert.ok(
+    saveFollowerWindow.includes("this.store.saveFollowerImportedModernV1(block);"),
+    "follower modern import does not call the dedicated exact-import method",
+  );
+  assert.equal(
+    saveFollowerWindow.includes("this.store.saveBlock(block);"),
+    false,
+    "follower modern import still calls wrapper-owned saveBlock",
+  );
 }
 
 function proveWalReplayAcrossHistoricalModes() {
@@ -655,6 +861,7 @@ function proveWorkflowTracksHistoricalBoundary() {
 proveMinimalValidator();
 proveVerifiedAdapterAuthority();
 proveSegStoreRatchetAndModernIsolation();
+proveCanonical196021BridgeAndFollowerImportIsolation();
 proveWalReplayAcrossHistoricalModes();
 await proveAdapterOnlyFollowerAndManualPeerIsolation();
 proveAuthoritySourceOrdering();
@@ -671,5 +878,9 @@ console.log("ipc_disconnect_fails_closed=true");
 console.log("append_boundary_authority_revalidated=true");
 console.log("minimal_exact_envelope_required=true");
 console.log("historical_era_regression_rejected=true");
+console.log("canonical_modern_to_legacy_bridge_196021=true");
+console.log("other_modern_to_legacy_rejected=true");
+console.log("follower_modern_import_bypasses_saveblock_wrappers=true");
+console.log("existing_196020_header_object_bridge_accepted=true");
 console.log("modern_validator_unchanged=true");
 console.log("historical_wal_modes_replay_bounded=true");
