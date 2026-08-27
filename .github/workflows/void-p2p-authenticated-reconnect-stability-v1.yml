@@ -4,16 +4,38 @@ on:
   pull_request:
     paths:
       - ".github/workflows/void-p2p-authenticated-reconnect-stability-v1.yml"
-      - "scripts/prove_follower_legacy_v2fs_and_duplicate_dial_v1.mjs"
+      - "scripts/prove_p2p_authenticated_duplicate_runtime_lifecycle_v1.mjs"
+      - "scripts/ci_diff_hygiene_v1.sh"
+      - "scripts/prove_ci_diff_hygiene_v1.mjs"
+      - "scripts/copy_void_runtime_js_v1.mjs"
+      - "scripts/retire_saveblock_periodic_rewriters_v1.mjs"
+      - "package.json"
+      - "package-lock.json"
+      - "tsconfig.json"
+      - "tsconfig.build.json"
+      - "src/wal/wal_v1.js"
       - "src/node_core.ts"
+      - "src/types/p2p.ts"
+      - "src/p2p/auth_v1.ts"
       - "src/p2p/authenticated_duplicate_arbitration_v1.ts"
       - "src/p2p/authenticated_reconnect_backoff_v1.ts"
   push:
     branches: [main]
     paths:
       - ".github/workflows/void-p2p-authenticated-reconnect-stability-v1.yml"
-      - "scripts/prove_follower_legacy_v2fs_and_duplicate_dial_v1.mjs"
+      - "scripts/prove_p2p_authenticated_duplicate_runtime_lifecycle_v1.mjs"
+      - "scripts/ci_diff_hygiene_v1.sh"
+      - "scripts/prove_ci_diff_hygiene_v1.mjs"
+      - "scripts/copy_void_runtime_js_v1.mjs"
+      - "scripts/retire_saveblock_periodic_rewriters_v1.mjs"
+      - "package.json"
+      - "package-lock.json"
+      - "tsconfig.json"
+      - "tsconfig.build.json"
+      - "src/wal/wal_v1.js"
       - "src/node_core.ts"
+      - "src/types/p2p.ts"
+      - "src/p2p/auth_v1.ts"
       - "src/p2p/authenticated_duplicate_arbitration_v1.ts"
       - "src/p2p/authenticated_reconnect_backoff_v1.ts"
   workflow_dispatch:
@@ -78,11 +100,39 @@ jobs:
       - name: Build
         run: npm run build
 
-      - name: Prove authenticated duplicate and reconnect stability
-        run: node scripts/prove_follower_legacy_v2fs_and_duplicate_dial_v1.mjs
+      - name: Prove shared diff-hygiene contract
+        run: node scripts/prove_ci_diff_hygiene_v1.mjs
+
+      - name: Prove authenticated duplicate runtime lifecycle
+        run: node scripts/prove_p2p_authenticated_duplicate_runtime_lifecycle_v1.mjs
 
       - name: Verify source tree cleanliness
         run: |
           set -euo pipefail
           test -z "$(git status --porcelain=v1)"
           echo "source_tree_clean_after_proof=true"
+
+      - name: Diff hygiene across committed change range
+        if: github.event_name != 'workflow_dispatch'
+        env:
+          CI_DIFF_EVENT_NAME: ${{ github.event_name }}
+          CI_DIFF_PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          CI_DIFF_PUSH_BEFORE_SHA: ${{ github.event.before }}
+          CI_DIFF_CURRENT_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+          CI_DIFF_CHECKOUT_SHA: ${{ github.sha }}
+          CI_DIFF_BASE_REMOTE: ${{ github.server_url }}/${{ github.repository }}.git
+          CI_DIFF_HEAD_REMOTE: ${{ github.server_url }}/${{ github.event.pull_request.head.repo.full_name || github.repository }}.git
+        run: bash scripts/ci_diff_hygiene_v1.sh
+
+      - name: Diff hygiene across committed change range (manual dispatch)
+        if: github.event_name == 'workflow_dispatch'
+        env:
+          CI_DIFF_EVENT_NAME: push
+          CI_DIFF_PUSH_BEFORE_SHA: ${{ inputs.expected_base_sha }}
+          CI_DIFF_CURRENT_SHA: ${{ inputs.expected_source_sha }}
+          CI_DIFF_CHECKOUT_SHA: ${{ github.sha }}
+          CI_DIFF_BASE_REMOTE: ${{ github.server_url }}/${{ github.repository }}.git
+        run: |
+          set -euo pipefail
+          test "$GITHUB_SHA" = "$CI_DIFF_CURRENT_SHA"
+          bash scripts/ci_diff_hygiene_v1.sh

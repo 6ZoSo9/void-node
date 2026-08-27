@@ -5,6 +5,7 @@ import * as fs from "node:fs";
 import * as path from "node:path";
 import * as net from "node:net";
 import * as crypto from "node:crypto";
+import { performance } from "node:perf_hooks";
 
 import { Mempool } from "./chain/mempool.js";
 import { Block, computeRoots, blockHash, blockHeaderBytes, validateBlockForAppend } from "./chain/block.js";
@@ -548,7 +549,7 @@ type Peer = {
   remoteHello?: VoidPeerHelloV1;
   authenticatedPublicPem?: string;
   authenticatedConnectionId?: string;
-  authenticatedAtMs?: number;
+  authenticatedAtMonotonicMs?: number;
   authTimer: NodeJS.Timeout | null;
   expectedNodeId?: string;
   reconnectAddr?: string;
@@ -1003,10 +1004,14 @@ export class Node {
         : peer.listens[0];
     if (!address) return;
 
+    const closedAtMonotonicMs = performance.now();
+    const authenticatedDurationMs =
+      typeof peer.authenticatedAtMonotonicMs === "number"
+        ? closedAtMonotonicMs - peer.authenticatedAtMonotonicMs
+        : undefined;
     const decision = decideVoidP2PAuthenticatedReconnectV1({
       previousBackoffMs: this.backoff.get(address),
-      authenticatedAtMs: peer.authenticatedAtMs,
-      closedAtMs: Date.now(),
+      authenticatedDurationMs,
     });
     this.backoff.set(address, decision.next_backoff_ms);
 
@@ -1017,10 +1022,11 @@ export class Node {
       stable_authenticated_session:
         decision.stable_authenticated_session,
       previous_backoff_valid: decision.previous_backoff_valid,
-      authenticated_timestamp_valid:
-        decision.authenticated_timestamp_valid,
+      authenticated_duration_valid:
+        decision.authenticated_duration_valid,
       delay_ms: decision.delay_ms,
       next_backoff_ms: decision.next_backoff_ms,
+      stability_clock: "monotonic",
     });
 
     setTimeout(() => {
@@ -1790,7 +1796,7 @@ private finishUdpSwarmAuthenticatedDirectCandidateV1(
       peer.localChallenge,
       auth.self_challenge,
     );
-  peer.authenticatedAtMs = Date.now();
+  peer.authenticatedAtMonotonicMs = performance.now();
   peer.listens = [...auth.listen];
   peer.remoteHello = undefined;
   return true;
@@ -1947,7 +1953,7 @@ private finishAuthenticatedPeer(peer: Peer, auth: VoidPeerAuthV1) {
     peer.handshakeDone = true;
     peer.authenticatedPublicPem = auth.pubkey;
     peer.authenticatedConnectionId = candidateConnectionId;
-    peer.authenticatedAtMs = Date.now();
+    peer.authenticatedAtMonotonicMs = performance.now();
     peer.listens = [...auth.listen];
     peer.remoteHello = undefined;
     if (

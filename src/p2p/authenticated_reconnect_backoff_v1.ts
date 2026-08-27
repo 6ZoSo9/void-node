@@ -11,7 +11,7 @@ export type VoidP2PAuthenticatedReconnectDecisionV1 = Readonly<{
   authenticated_duration_ms: number | null;
   stable_authenticated_session: boolean;
   previous_backoff_valid: boolean;
-  authenticated_timestamp_valid: boolean;
+  authenticated_duration_valid: boolean;
 }>;
 
 function exactNonnegativeSafeIntegerV1(raw: unknown): number | undefined {
@@ -24,22 +24,29 @@ function exactNonnegativeSafeIntegerV1(raw: unknown): number | undefined {
     : undefined;
 }
 
+function exactNonnegativeFiniteDurationV1(
+  raw: unknown,
+): number | undefined {
+  return (
+    typeof raw === "number" &&
+    Number.isFinite(raw) &&
+    raw >= 0 &&
+    raw <= Number.MAX_SAFE_INTEGER
+  )
+    ? raw
+    : undefined;
+}
+
 export function decideVoidP2PAuthenticatedReconnectV1(
   input: Readonly<{
     previousBackoffMs?: unknown;
-    authenticatedAtMs?: unknown;
-    closedAtMs: unknown;
+    authenticatedDurationMs: unknown;
   }>,
 ): VoidP2PAuthenticatedReconnectDecisionV1 {
-  const closedAtMs = exactNonnegativeSafeIntegerV1(input?.closedAtMs);
-  if (closedAtMs === undefined) {
-    throw new Error(
-      "VOID_P2P_AUTHENTICATED_RECONNECT_BACKOFF_V1: invalid close timestamp",
-    );
-  }
-
-  const previousWasAbsent = input.previousBackoffMs === undefined;
-  const previous = exactNonnegativeSafeIntegerV1(input.previousBackoffMs);
+  const previousWasAbsent = input?.previousBackoffMs === undefined;
+  const previous = exactNonnegativeSafeIntegerV1(
+    input?.previousBackoffMs,
+  );
   const previousBackoffValid =
     previousWasAbsent ||
     (
@@ -48,36 +55,31 @@ export function decideVoidP2PAuthenticatedReconnectV1(
       previous <= VOID_P2P_AUTHENTICATED_RECONNECT_MAX_BACKOFF_MS_V1
     );
 
-  // No prior generation starts at the minimum. Corrupt/out-of-range internal
-  // state fails slow at the maximum rather than recreating a tight loop.
   const boundedPrevious = previousWasAbsent
     ? VOID_P2P_AUTHENTICATED_RECONNECT_MIN_BACKOFF_MS_V1
     : previousBackoffValid
       ? previous!
       : VOID_P2P_AUTHENTICATED_RECONNECT_MAX_BACKOFF_MS_V1;
 
-  const authenticatedAtMs =
-    exactNonnegativeSafeIntegerV1(input.authenticatedAtMs);
-  const authenticatedTimestampValid =
-    input.authenticatedAtMs === undefined ||
-    (
-      authenticatedAtMs !== undefined &&
-      authenticatedAtMs <= closedAtMs
-    );
   const authenticatedDurationMs =
-    authenticatedAtMs !== undefined && authenticatedAtMs <= closedAtMs
-      ? closedAtMs - authenticatedAtMs
-      : null;
+    exactNonnegativeFiniteDurationV1(
+      input?.authenticatedDurationMs,
+    );
+  const authenticatedDurationValid =
+    authenticatedDurationMs !== undefined;
   const stableAuthenticatedSession =
-    authenticatedDurationMs !== null &&
+    authenticatedDurationValid &&
     authenticatedDurationMs >=
       VOID_P2P_AUTHENTICATED_SESSION_STABLE_MS_V1;
 
-  // Authentication alone is not liveness. Only a session that remained
-  // authenticated for the stability window earns a reset to the minimum.
-  const delayMs = stableAuthenticatedSession
-    ? VOID_P2P_AUTHENTICATED_RECONNECT_MIN_BACKOFF_MS_V1
-    : boundedPrevious;
+  // Authentication alone is not liveness. The runtime supplies elapsed time
+  // from one monotonic process clock. Missing, negative, non-finite, or
+  // otherwise corrupt elapsed evidence fails slow at the maximum.
+  const delayMs = !authenticatedDurationValid
+    ? VOID_P2P_AUTHENTICATED_RECONNECT_MAX_BACKOFF_MS_V1
+    : stableAuthenticatedSession
+      ? VOID_P2P_AUTHENTICATED_RECONNECT_MIN_BACKOFF_MS_V1
+      : boundedPrevious;
   const nextBackoffMs = Math.min(
     delayMs * 2,
     VOID_P2P_AUTHENTICATED_RECONNECT_MAX_BACKOFF_MS_V1,
@@ -86,9 +88,10 @@ export function decideVoidP2PAuthenticatedReconnectV1(
   return Object.freeze({
     delay_ms: delayMs,
     next_backoff_ms: nextBackoffMs,
-    authenticated_duration_ms: authenticatedDurationMs,
+    authenticated_duration_ms:
+      authenticatedDurationMs ?? null,
     stable_authenticated_session: stableAuthenticatedSession,
     previous_backoff_valid: previousBackoffValid,
-    authenticated_timestamp_valid: authenticatedTimestampValid,
+    authenticated_duration_valid: authenticatedDurationValid,
   });
 }

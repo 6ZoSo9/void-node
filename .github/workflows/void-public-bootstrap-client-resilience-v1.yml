@@ -33,6 +33,8 @@ on:
       - "src/chain/mainnet0_historical_compat_v1.ts"
       - "src/http/follower_legacy_v2fs_authority_v1.ts"
       - "src/http/follower_verified_public_bootstrap_authority_v1.ts"
+      - "src/types/p2p.ts"
+      - "src/p2p/auth_v1.ts"
       - "src/p2p/authenticated_duplicate_arbitration_v1.ts"
       - "src/p2p/authenticated_reconnect_backoff_v1.ts"
       - "src/chain/receipts.ts"
@@ -72,6 +74,8 @@ on:
       - "src/chain/mainnet0_historical_compat_v1.ts"
       - "src/http/follower_legacy_v2fs_authority_v1.ts"
       - "src/http/follower_verified_public_bootstrap_authority_v1.ts"
+      - "src/types/p2p.ts"
+      - "src/p2p/auth_v1.ts"
       - "src/p2p/authenticated_duplicate_arbitration_v1.ts"
       - "src/p2p/authenticated_reconnect_backoff_v1.ts"
       - "src/chain/receipts.ts"
@@ -291,6 +295,7 @@ jobs:
           grep -F 'decideAuthenticatedDuplicateConnectionV1' dist/node_core.js
           grep -F 'decideVoidP2PAuthenticatedReconnectV1' dist/node_core.js
           grep -F 'VOID_P2P_AUTHENTICATED_DUPLICATE_STALE_CLOSE_V1_IGNORED' dist/node_core.js
+          grep -F 'authenticatedAtMonotonicMs' dist/node_core.js
           node --input-type=module <<'NODE'
           import assert from "node:assert/strict";
           import fs from "node:fs";

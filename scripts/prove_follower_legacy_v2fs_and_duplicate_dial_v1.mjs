@@ -418,15 +418,14 @@ function proveAuthenticatedReconnectBackoff() {
   let previousBackoffMs;
   const observedDelays = [];
   for (let index = 0; index < 7; index += 1) {
-    const authenticatedAtMs = 1_000 + index * 100;
     const decision = decideVoidP2PAuthenticatedReconnectV1({
       previousBackoffMs,
-      authenticatedAtMs,
-      closedAtMs: authenticatedAtMs + 1,
+      authenticatedDurationMs: 1,
     });
     observedDelays.push(decision.delay_ms);
     previousBackoffMs = decision.next_backoff_ms;
     assert.equal(decision.stable_authenticated_session, false);
+    assert.equal(decision.authenticated_duration_valid, true);
   }
   assert.deepEqual(
     observedDelays,
@@ -437,9 +436,8 @@ function proveAuthenticatedReconnectBackoff() {
   const stable = decideVoidP2PAuthenticatedReconnectV1({
     previousBackoffMs:
       VOID_P2P_AUTHENTICATED_RECONNECT_MAX_BACKOFF_MS_V1,
-    authenticatedAtMs: 10_000,
-    closedAtMs:
-      10_000 + VOID_P2P_AUTHENTICATED_SESSION_STABLE_MS_V1,
+    authenticatedDurationMs:
+      VOID_P2P_AUTHENTICATED_SESSION_STABLE_MS_V1,
   });
   assert.equal(stable.stable_authenticated_session, true);
   assert.equal(stable.delay_ms, 500);
@@ -448,9 +446,8 @@ function proveAuthenticatedReconnectBackoff() {
   const justShort = decideVoidP2PAuthenticatedReconnectV1({
     previousBackoffMs:
       VOID_P2P_AUTHENTICATED_RECONNECT_MAX_BACKOFF_MS_V1,
-    authenticatedAtMs: 10_000,
-    closedAtMs:
-      10_000 + VOID_P2P_AUTHENTICATED_SESSION_STABLE_MS_V1 - 1,
+    authenticatedDurationMs:
+      VOID_P2P_AUTHENTICATED_SESSION_STABLE_MS_V1 - 1,
   });
   assert.equal(justShort.stable_authenticated_session, false);
   assert.equal(
@@ -458,22 +455,47 @@ function proveAuthenticatedReconnectBackoff() {
     VOID_P2P_AUTHENTICATED_RECONNECT_MAX_BACKOFF_MS_V1,
   );
 
-  const corruptInternalState =
-    decideVoidP2PAuthenticatedReconnectV1({
-      previousBackoffMs: 0,
-      authenticatedAtMs: 2_000,
-      closedAtMs: 1_000,
-    });
-  assert.equal(corruptInternalState.previous_backoff_valid, false);
-  assert.equal(
-    corruptInternalState.authenticated_timestamp_valid,
-    false,
-  );
-  assert.equal(
-    corruptInternalState.delay_ms,
-    VOID_P2P_AUTHENTICATED_RECONNECT_MAX_BACKOFF_MS_V1,
-    "invalid internal state failed fast into a tight reconnect loop",
-  );
+  for (const malformed of [
+    undefined,
+    -1,
+    Number.NaN,
+    Infinity,
+    "30000",
+  ]) {
+    const corruptInternalState =
+      decideVoidP2PAuthenticatedReconnectV1({
+        previousBackoffMs: undefined,
+        authenticatedDurationMs: malformed,
+      });
+    assert.equal(
+      corruptInternalState.authenticated_duration_valid,
+      false,
+    );
+    assert.equal(
+      corruptInternalState.delay_ms,
+      VOID_P2P_AUTHENTICATED_RECONNECT_MAX_BACKOFF_MS_V1,
+      "invalid monotonic evidence failed slow boundary",
+    );
+  }
+
+  const originalDateNow = Date.now;
+  try {
+    for (const wallClock of [9_999_999_999_999, 0]) {
+      Date.now = () => wallClock;
+      const short = decideVoidP2PAuthenticatedReconnectV1({
+        previousBackoffMs:
+          VOID_P2P_AUTHENTICATED_RECONNECT_MAX_BACKOFF_MS_V1,
+        authenticatedDurationMs: 1,
+      });
+      assert.equal(short.stable_authenticated_session, false);
+      assert.equal(
+        short.delay_ms,
+        VOID_P2P_AUTHENTICATED_RECONNECT_MAX_BACKOFF_MS_V1,
+      );
+    }
+  } finally {
+    Date.now = originalDateNow;
+  }
 
   const nodeSource = fs.readFileSync("src/node_core.ts", "utf8");
   assert.ok(
@@ -490,8 +512,27 @@ function proveAuthenticatedReconnectBackoff() {
     "authentication still clears reconnect backoff before stability",
   );
   assert.ok(
+    nodeSource.includes(
+      'import { performance } from "node:perf_hooks";',
+    ),
+    "runtime does not import a monotonic process clock",
+  );
+  assert.ok(
+    nodeSource.includes(
+      "peer.authenticatedAtMonotonicMs = performance.now()",
+    ),
+    "authenticated admission is not monotonic",
+  );
+  assert.ok(
+    nodeSource.includes(
+      "const closedAtMonotonicMs = performance.now()",
+    ),
+    "authenticated close is not monotonic",
+  );
+  assert.equal(
     nodeSource.includes("peer.authenticatedAtMs = Date.now()"),
-    "authenticated session timestamp is not bound at admission",
+    false,
+    "wall clock still controls authenticated stability",
   );
 }
 
@@ -880,6 +921,8 @@ function proveFocusedWorkflowTracksDependencies() {
     "src/chain/seg_store.ts",
     "src/chain/legacy_commit_direct_v2fs_v1.ts",
     "src/http/follower_legacy_v2fs_authority_v1.ts",
+    "src/types/p2p.ts",
+    "src/p2p/auth_v1.ts",
     "src/p2p/authenticated_duplicate_arbitration_v1.ts",
     "src/p2p/authenticated_reconnect_backoff_v1.ts",
     "src/node_core.ts",
@@ -920,17 +963,53 @@ function proveAuthenticatedReconnectWorkflowTracksDependencies() {
     ".github/workflows/void-p2p-authenticated-reconnect-stability-v1.yml",
     "utf8",
   );
-  for (const file of [
-    "scripts/prove_follower_legacy_v2fs_and_duplicate_dial_v1.mjs",
+  const dependencies = [
+    ".github/workflows/void-p2p-authenticated-reconnect-stability-v1.yml",
+    "scripts/prove_p2p_authenticated_duplicate_runtime_lifecycle_v1.mjs",
+    "scripts/ci_diff_hygiene_v1.sh",
+    "scripts/prove_ci_diff_hygiene_v1.mjs",
+    "scripts/copy_void_runtime_js_v1.mjs",
+    "scripts/retire_saveblock_periodic_rewriters_v1.mjs",
+    "package.json",
+    "package-lock.json",
+    "tsconfig.json",
+    "tsconfig.build.json",
+    "src/wal/wal_v1.js",
     "src/node_core.ts",
+    "src/types/p2p.ts",
+    "src/p2p/auth_v1.ts",
     "src/p2p/authenticated_duplicate_arbitration_v1.ts",
     "src/p2p/authenticated_reconnect_backoff_v1.ts",
-  ]) {
-    assert.ok(workflow.includes(file), `reconnect workflow missing ${file}`);
+  ];
+  for (const file of dependencies) {
+    const occurrenceCount =
+      workflow.split(`- "${file}"`).length - 1;
+    assert.equal(
+      occurrenceCount,
+      2,
+      `reconnect workflow dependency scope mismatch ${file}`,
+    );
   }
   assert.ok(
-    workflow.includes("node scripts/prove_follower_legacy_v2fs_and_duplicate_dial_v1.mjs"),
-    "reconnect workflow does not execute focused proof",
+    workflow.includes(
+      "node scripts/prove_p2p_authenticated_duplicate_runtime_lifecycle_v1.mjs",
+    ),
+    "reconnect workflow does not execute focused runtime proof",
+  );
+  assert.equal(
+    workflow.includes(
+      "node scripts/prove_follower_legacy_v2fs_and_duplicate_dial_v1.mjs",
+    ),
+    false,
+    "reconnect workflow still executes broad follower proof",
+  );
+  assert.ok(
+    workflow.includes("node scripts/prove_ci_diff_hygiene_v1.mjs"),
+    "shared diff-hygiene proof is missing",
+  );
+  assert.ok(
+    workflow.includes("bash scripts/ci_diff_hygiene_v1.sh"),
+    "committed-range diff hygiene is missing",
   );
   for (const major of ["22", "24", "26"]) {
     assert.ok(
@@ -939,11 +1018,15 @@ function proveAuthenticatedReconnectWorkflowTracksDependencies() {
     );
   }
   assert.ok(
-    workflow.includes("actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803"),
+    workflow.includes(
+      "actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803",
+    ),
     "reconnect workflow checkout action is not immutable",
   );
   assert.ok(
-    workflow.includes("actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38"),
+    workflow.includes(
+      "actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38",
+    ),
     "reconnect workflow setup-node action is not immutable",
   );
 }
@@ -972,5 +1055,8 @@ console.log("simultaneous_dial_direction_deterministic=true");
 console.log("same_direction_duplicate_connection_deterministic=true");
 console.log("authenticated_reconnect_backoff_requires_stability=true");
 console.log("premature_authenticated_backoff_reset_removed=true");
+console.log("authenticated_stability_clock=monotonic");
+console.log("wall_clock_jumps_cannot_reset_backoff=true");
+console.log("malformed_monotonic_duration_fails_slow=true");
 console.log("stale_authenticated_duplicate_close_generation_ignored=true");
 console.log("runtime_duplicate_replacement_preserves_survivor_state=true");
