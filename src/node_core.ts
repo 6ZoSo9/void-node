@@ -2379,7 +2379,30 @@ attachEphemeralDirectTransportV1(
       if (peer.directUpgradeSessionId) {
         this.directUpgradeLocalSessions.delete(peer.directUpgradeSessionId);
       }
-      this.handlePeerTransportClose(peer);
+
+      // A displaced authenticated direct socket can emit close after its
+      // deterministic winner has already been mounted under the same peer id.
+      // Identity-wide cleanup belongs only to the exact current direct-route
+      // generation. Relay cleanup remains socket-bound and still runs for
+      // retained/fallback relay transports outside the normal route map.
+      const closeOwnsPeerIdentityState =
+        peer.transport === "relay" || closedNormalRoute;
+      if (closeOwnsPeerIdentityState) {
+        this.handlePeerTransportClose(peer);
+      } else if (
+        peer.transport === "direct" &&
+        peer.handshakeDone &&
+        !peer.id.startsWith("?-")
+      ) {
+        peer.suppressReconnect = true;
+        console.warn(
+          "VOID_P2P_AUTHENTICATED_DUPLICATE_STALE_CLOSE_V1_IGNORED",
+          {
+            peer_id: peer.id,
+            connection_id: peer.authenticatedConnectionId ?? null,
+          },
+        );
+      }
       this.scheduleVerifiedPeerReconnect(peer);
     });
     socket.on("error", (error) => {

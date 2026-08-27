@@ -3,11 +3,12 @@
 // Copyright (c) 2025-2026 6ZoSo9
 
 import assert from "node:assert/strict";
+import crypto from "node:crypto";
 import fs from "node:fs";
 import http from "node:http";
 import os from "node:os";
 import path from "node:path";
-import { once } from "node:events";
+import { EventEmitter, once } from "node:events";
 
 import { computeRoots } from "../dist/chain/block.js";
 import { SegStore } from "../dist/chain/seg_store.js";
@@ -494,6 +495,218 @@ function proveAuthenticatedReconnectBackoff() {
   );
 }
 
+class DuplicateFixtureSocket {
+  constructor(label) {
+    this.label = label;
+    this.events = new EventEmitter();
+    this.destroyed = false;
+    this.writableLength = 0;
+    this.localAddress = "127.0.0.1";
+    this.localPort = 40_000;
+    this.remoteAddress = "127.0.0.1";
+    this.remotePort = 4_701;
+    this.writes = [];
+  }
+
+  on(event, listener) {
+    this.events.on(event, listener);
+    return this;
+  }
+
+  write(data) {
+    if (this.destroyed) return false;
+    this.writes.push(Buffer.from(data));
+    return true;
+  }
+
+  destroy(error) {
+    if (this.destroyed) return this;
+    this.destroyed = true;
+    queueMicrotask(() => {
+      if (error) this.events.emit("error", error);
+      this.events.emit("close");
+    });
+    return this;
+  }
+}
+
+function duplicateFixtureKeypair() {
+  const { privateKey, publicKey } =
+    crypto.generateKeyPairSync("ed25519");
+  const pubPEM = publicKey
+    .export({ type: "spki", format: "pem" })
+    .toString();
+  const nodeId = crypto
+    .createHash("sha256")
+    .update(pubPEM)
+    .digest("hex")
+    .slice(0, 32);
+  return { privateKey, publicKey, nodeId, pubPEM };
+}
+
+function duplicateFixtureAuth(remote, selfChallenge) {
+  return {
+    type: "AUTH",
+    id: remote.nodeId,
+    listen: ["127.0.0.1:4701"],
+    proto: 2,
+    pubkey: remote.pubPEM,
+    challenge: "a".repeat(64),
+    self_challenge: selfChallenge,
+    sig: "b".repeat(128),
+  };
+}
+
+function peerForFixtureSocket(node, socket) {
+  return [...node.peers.values()].find(
+    (peer) => peer.socket === socket,
+  );
+}
+
+async function settleDuplicateFixtureClose() {
+  await new Promise((resolve) => setImmediate(resolve));
+  await new Promise((resolve) => setImmediate(resolve));
+}
+
+async function proveAuthenticatedDuplicateRuntimeGeneration() {
+  const root = tempRoot("authenticated-duplicate-generation");
+  const priorDataDir = process.env.DATA_DIR;
+
+  try {
+    process.env.DATA_DIR = root;
+    const local = duplicateFixtureKeypair();
+    const remote = duplicateFixtureKeypair();
+    const node = new Node(0, local);
+    node.listenAddrs.push("127.0.0.1:4700");
+
+    const cleanupCalls = [];
+    const originalHandlePeerTransportClose =
+      node.handlePeerTransportClose;
+    node.handlePeerTransportClose = function (peer) {
+      cleanupCalls.push({
+        peer_id: peer.id,
+        connection_id: peer.authenticatedConnectionId ?? null,
+        current_route: this.peers.get(peer.id) === peer,
+      });
+      return originalHandlePeerTransportClose.call(this, peer);
+    };
+
+    const pairs = [
+      ["1".repeat(64), "2".repeat(64)],
+      ["3".repeat(64), "4".repeat(64)],
+    ]
+      .map(([localChallenge, remoteChallenge]) => ({
+        localChallenge,
+        remoteChallenge,
+        connectionId: authenticatedDuplicateConnectionIdV1(
+          localChallenge,
+          remoteChallenge,
+        ),
+      }))
+      .sort((a, b) =>
+        a.connectionId.localeCompare(b.connectionId),
+      );
+
+    const candidatePair = pairs[0];
+    const existingPair = pairs[1];
+    assert.ok(
+      candidatePair.connectionId < existingPair.connectionId,
+      "fixture did not create a deterministic replacement",
+    );
+
+    const existingSocket =
+      new DuplicateFixtureSocket("existing-higher-id");
+    node.attachSocket(
+      existingSocket,
+      "127.0.0.1:4701",
+      true,
+      remote.nodeId,
+      "127.0.0.1:4701",
+    );
+    const existingPeer =
+      peerForFixtureSocket(node, existingSocket);
+    assert.ok(existingPeer, "existing fixture peer missing");
+    existingPeer.localChallenge = existingPair.localChallenge;
+    assert.equal(
+      node.finishAuthenticatedPeer(
+        existingPeer,
+        duplicateFixtureAuth(
+          remote,
+          existingPair.remoteChallenge,
+        ),
+      ),
+      true,
+    );
+
+    const candidateSocket =
+      new DuplicateFixtureSocket("candidate-lower-id");
+    node.attachSocket(
+      candidateSocket,
+      "127.0.0.1:4701",
+      true,
+      remote.nodeId,
+      "127.0.0.1:4701",
+    );
+    const candidatePeer =
+      peerForFixtureSocket(node, candidateSocket);
+    assert.ok(candidatePeer, "candidate fixture peer missing");
+    candidatePeer.localChallenge = candidatePair.localChallenge;
+    assert.equal(
+      node.finishAuthenticatedPeer(
+        candidatePeer,
+        duplicateFixtureAuth(
+          remote,
+          candidatePair.remoteChallenge,
+        ),
+      ),
+      true,
+    );
+
+    await settleDuplicateFixtureClose();
+
+    assert.equal(existingSocket.destroyed, true);
+    assert.equal(candidateSocket.destroyed, false);
+    assert.equal(
+      node.peers.get(remote.nodeId),
+      candidatePeer,
+      "deterministic duplicate winner was not retained",
+    );
+    assert.equal(
+      candidatePeer.authenticatedConnectionId,
+      candidatePair.connectionId,
+    );
+    assert.deepEqual(
+      cleanupCalls,
+      [],
+      "stale displaced direct close erased surviving peer identity state",
+    );
+
+    const nodeSource = fs.readFileSync("src/node_core.ts", "utf8");
+    assert.ok(
+      nodeSource.includes(
+        "VOID_P2P_AUTHENTICATED_DUPLICATE_STALE_CLOSE_V1_IGNORED",
+      ),
+      "stale authenticated close visibility marker missing",
+    );
+    assert.ok(
+      nodeSource.includes(
+        'peer.transport === "relay" || closedNormalRoute',
+      ),
+      "close cleanup is not bound to the current direct route generation",
+    );
+
+    node.handlePeerTransportClose =
+      originalHandlePeerTransportClose;
+    candidatePeer.suppressReconnect = true;
+    candidateSocket.destroy();
+    await settleDuplicateFixtureClose();
+  } finally {
+    if (priorDataDir === undefined) delete process.env.DATA_DIR;
+    else process.env.DATA_DIR = priorDataDir;
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+}
+
 function sendJson(res, status, body) {
   const bytes = Buffer.from(`${JSON.stringify(body)}\n`);
   res.statusCode = status;
@@ -668,6 +881,7 @@ function proveFocusedWorkflowTracksDependencies() {
     "src/chain/legacy_commit_direct_v2fs_v1.ts",
     "src/http/follower_legacy_v2fs_authority_v1.ts",
     "src/p2p/authenticated_duplicate_arbitration_v1.ts",
+    "src/p2p/authenticated_reconnect_backoff_v1.ts",
     "src/node_core.ts",
   ]) {
     assert.ok(workflow.includes(file), `workflow missing dependency ${file}`);
@@ -676,6 +890,29 @@ function proveFocusedWorkflowTracksDependencies() {
     workflow.includes("node scripts/prove_follower_legacy_v2fs_and_duplicate_dial_v1.mjs"),
     "workflow does not execute focused legacy/dial proof",
   );
+  assert.ok(
+    workflow.includes("actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803"),
+    "bootstrap workflow checkout action is not immutable",
+  );
+  assert.ok(
+    workflow.includes("actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38"),
+    "bootstrap workflow setup-node action is not immutable",
+  );
+  assert.equal(
+    workflow.includes("grep -F 'preferredAuthenticatedDuplicateDirectionV1' dist/node_core.js"),
+    false,
+    "bootstrap workflow still asserts the retired compiled duplicate symbol",
+  );
+  for (const marker of [
+    "decideAuthenticatedDuplicateConnectionV1",
+    "decideVoidP2PAuthenticatedReconnectV1",
+    "VOID_P2P_AUTHENTICATED_DUPLICATE_STALE_CLOSE_V1_IGNORED",
+  ]) {
+    assert.ok(
+      workflow.includes(marker),
+      `bootstrap compiled boundary missing ${marker}`,
+    );
+  }
 }
 
 function proveAuthenticatedReconnectWorkflowTracksDependencies() {
@@ -701,12 +938,21 @@ function proveAuthenticatedReconnectWorkflowTracksDependencies() {
       `reconnect workflow does not cover Node ${major}`,
     );
   }
+  assert.ok(
+    workflow.includes("actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803"),
+    "reconnect workflow checkout action is not immutable",
+  );
+  assert.ok(
+    workflow.includes("actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38"),
+    "reconnect workflow setup-node action is not immutable",
+  );
 }
 
 proveLegacyEnvelopeAndStore();
 proveOriginAuthority();
 proveDuplicateArbitration();
 proveAuthenticatedReconnectBackoff();
+await proveAuthenticatedDuplicateRuntimeGeneration();
 await provePullOnceOriginGateAndLegacyTimestamp();
 proveFocusedWorkflowTracksDependencies();
 proveAuthenticatedReconnectWorkflowTracksDependencies();
@@ -726,3 +972,5 @@ console.log("simultaneous_dial_direction_deterministic=true");
 console.log("same_direction_duplicate_connection_deterministic=true");
 console.log("authenticated_reconnect_backoff_requires_stability=true");
 console.log("premature_authenticated_backoff_reset_removed=true");
+console.log("stale_authenticated_duplicate_close_generation_ignored=true");
+console.log("runtime_duplicate_replacement_preserves_survivor_state=true");
