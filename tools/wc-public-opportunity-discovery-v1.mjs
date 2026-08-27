@@ -1,5 +1,8 @@
 #!/usr/bin/env node
 
+import { performance } from "node:perf_hooks";
+import { resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
 import { readBoundedTextOwned } from "./wc-public-response-teardown-v1.mjs";
 
@@ -9,9 +12,17 @@ const GATEWAY_MARKER = "VOID_PUBLIC_EARN_GATEWAY_V1";
 const CLAIM_MARKER = "VOID_WC_PUBLIC_TICKET_CLAIM_V1";
 const CLAIM_ROUTE = "/wc/public-earning-pilot-v1/claim-ticket";
 const CLAIM_METHOD = "POST";
+const DISCOVERY_PATH = "/.well-known/void-public-node.json";
 const DEFAULT_TIMEOUT_MS = 5000;
 const DEFAULT_EXPECTED_AWARD_WC = 3;
 const MAX_RESPONSE_BYTES = 64 * 1024;
+const MAX_CANDIDATE_PATHS = 24;
+const MAX_DISCOVERY_STRUCTURE_DEPTH = 64;
+const MAX_DISCOVERY_VISITED_NODES = 4096;
+// Discovery caller-visible lifetime is already bounded by one monotonic deadline.
+// Rejection cleanup is initiated and consumed, but it receives no fresh wait window
+// after that deadline; the one-shot CLI is already request-count bounded.
+const DISCOVERY_REJECTION_TEARDOWN_WAIT_MS = 0;
 
 function fail(message, details = {}) {
   process.stdout.write(JSON.stringify({
@@ -49,24 +60,46 @@ function asObject(value) {
     : null;
 }
 
-function walk(value, visitor, path = []) {
-  visitor(value, path);
-  if (Array.isArray(value)) {
-    for (let index = 0; index < value.length; index += 1) walk(value[index], visitor, [...path, String(index)]);
-    return;
+function walk(value, visitor) {
+  const stack = [{ value, key: null, depth: 0 }];
+  let visited = 0;
+  while (stack.length > 0) {
+    const current = stack.pop();
+    visited += 1;
+    if (
+      current.depth > MAX_DISCOVERY_STRUCTURE_DEPTH ||
+      visited > MAX_DISCOVERY_VISITED_NODES
+    ) {
+      throw new Error("discovery_structure_budget_exceeded");
+    }
+    visitor(current.value, current.key);
+    if (Array.isArray(current.value)) {
+      for (let index = current.value.length - 1; index >= 0; index -= 1) {
+        stack.push({
+          value: current.value[index],
+          key: String(index),
+          depth: current.depth + 1,
+        });
+      }
+      continue;
+    }
+    const object = asObject(current.value);
+    if (!object) continue;
+    const entries = Object.entries(object);
+    for (let index = entries.length - 1; index >= 0; index -= 1) {
+      const [key, child] = entries[index];
+      stack.push({ value: child, key, depth: current.depth + 1 });
+    }
   }
-  const object = asObject(value);
-  if (!object) return;
-  for (const [key, child] of Object.entries(object)) walk(child, visitor, [...path, key]);
 }
 
 function findFirstScalar(value, wantedKeys, type) {
   const normalized = new Set(wantedKeys.map((key) => key.toLowerCase()));
   let found;
-  walk(value, (candidate, path) => {
-    if (found !== undefined || path.length === 0) return;
-    const last = path[path.length - 1]?.toLowerCase();
-    if (!last || !normalized.has(last)) return;
+  walk(value, (candidate, key) => {
+    if (found !== undefined || key === null) return;
+    const last = key.toLowerCase();
+    if (!normalized.has(last)) return;
     if (type === "number") {
       const number = strictEvidenceNumber(candidate);
       if (number !== null) found = number;
@@ -159,14 +192,53 @@ async function readBoundedText(response, maximum, abort) {
   return readBoundedTextOwned(response, {
     maximumBytes: maximum,
     abort,
+    teardownMs: DISCOVERY_REJECTION_TEARDOWN_WAIT_MS,
   });
 }
 
-async function fetchJson(origin, path, timeoutMs) {
+function remainingBudgetMs(deadlineMs) {
+  return Math.max(0, Math.ceil(deadlineMs - performance.now()));
+}
+
+export async function fetchDiscoveryJsonV1(origin, path, deadlineMs, hooks = {}) {
+  if (!hooks || typeof hooks !== "object" || Array.isArray(hooks)) {
+    throw new Error("discovery hooks must be a plain object");
+  }
+  let fetchImpl = globalThis.fetch;
+  if (hooks.fetchImpl !== undefined) {
+    if (hooks.allowTestFetchOverride !== true || typeof hooks.fetchImpl !== "function") {
+      throw new Error("fetch override is test-only and requires allowTestFetchOverride=true");
+    }
+    fetchImpl = hooks.fetchImpl;
+  }
+  if (typeof fetchImpl !== "function") {
+    throw new Error("fetch implementation is unavailable");
+  }
+  const remainingMs = remainingBudgetMs(deadlineMs);
+  if (remainingMs <= 0) {
+    return {
+      path,
+      status: null,
+      ok: false,
+      content_type: null,
+      body: null,
+      error: "discovery_deadline_exceeded",
+    };
+  }
+
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  let abortKind = null;
+  const timer = setTimeout(
+    () => {
+      if (abortKind === null) abortKind = "deadline";
+      if (!controller.signal.aborted) {
+        controller.abort(new Error("discovery_deadline_exceeded"));
+      }
+    },
+    remainingMs,
+  );
   try {
-    const response = await fetch(new URL(path, origin), {
+    const response = await fetchImpl(new URL(path, origin), {
       method: "GET",
       headers: { accept: "application/json", "user-agent": "void-wc-public-opportunity-discovery-v1" },
       redirect: "error",
@@ -177,6 +249,7 @@ async function fetchJson(origin, path, timeoutMs) {
       response,
       MAX_RESPONSE_BYTES,
       (reason) => {
+        if (abortKind === null) abortKind = "rejection";
         if (!controller.signal.aborted) controller.abort(reason);
       },
     );
@@ -186,8 +259,21 @@ async function fetchJson(origin, path, timeoutMs) {
     }
     return { path, status: response.status, ok: response.ok, content_type: contentType.split(";", 1)[0], body };
   } catch (error) {
-    return { path, status: null, ok: false, content_type: null, body: null, error: error instanceof Error ? error.message : "request_error" };
-  } finally { clearTimeout(timer); }
+    return {
+      path,
+      status: null,
+      ok: false,
+      content_type: null,
+      body: null,
+      error: abortKind === "deadline"
+        ? "discovery_deadline_exceeded"
+        : error instanceof Error
+          ? error.message
+          : "request_error",
+    };
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 function summarizeAttempt(attempt) {
@@ -430,7 +516,8 @@ async function main() {
   const attempts = [];
   let firstHold = null;
   let gatewayContract = null;
-  const discovery = await fetchJson(origin, "/.well-known/void-public-node.json", timeoutMs);
+  const deadlineMs = performance.now() + timeoutMs;
+  const discovery = await fetchDiscoveryJsonV1(origin, DISCOVERY_PATH, deadlineMs);
   attempts.push(discovery);
   if (discovery.ok && discovery.body) gatewayContract = extractGatewayContract(discovery.body) ?? gatewayContract;
   const candidates = new Set();
@@ -439,19 +526,56 @@ async function main() {
     if (!normalized) throw new Error(`unsafe or non-read discovery path: ${raw}`);
     candidates.add(normalized);
   }
+  let discoveryAnalysis = null;
   if (discovery.ok && discovery.body) {
     for (const path of collectDiscoveryPaths(discovery.body, origin)) candidates.add(path);
-    const discoveryAnalysis = analyze(discovery.body, discovery.path, origin, expectedAwardWc, attempts, gatewayContract);
+  }
+  for (const path of defaultCandidates) candidates.add(path);
+
+  // VOID_WC_DISCOVERY_COMPLETE_CANDIDATE_AUTHORITY_BEFORE_AVAILABLE_V1
+  // No primary/well-known result may become AVAILABLE until every configured,
+  // advertised, and canonical fallback candidate has entered the same closed set.
+  if (candidates.size > MAX_CANDIDATE_PATHS) {
+    fail("candidate path limit exceeded", {
+      base_origin: origin,
+      candidate_count: candidates.size,
+      maximum_candidate_paths: MAX_CANDIDATE_PATHS,
+      logical_timeout_ms: timeoutMs,
+      attempts: attempts.map(summarizeAttempt),
+    });
+    return;
+  }
+
+  if (discovery.ok && discovery.body) {
+    discoveryAnalysis = analyze(
+      discovery.body,
+      discovery.path,
+      origin,
+      expectedAwardWc,
+      attempts,
+      gatewayContract,
+    );
     if (discoveryAnalysis?.opportunity_state === "available") {
       emitResult(discoveryAnalysis, values["require-available"]);
       return;
     }
     if (discoveryAnalysis) firstHold = { body: discovery.body, path: discovery.path };
   }
-  for (const path of defaultCandidates) candidates.add(path);
+
   for (const path of candidates) {
     if (path === discovery.path) continue;
-    const attempt = await fetchJson(origin, path, timeoutMs);
+    if (remainingBudgetMs(deadlineMs) <= 0) {
+      attempts.push({
+        path,
+        status: null,
+        ok: false,
+        content_type: null,
+        body: null,
+        error: "discovery_deadline_exceeded",
+      });
+      break;
+    }
+    const attempt = await fetchDiscoveryJsonV1(origin, path, deadlineMs);
     attempts.push(attempt);
     if (!attempt.ok || !attempt.body) continue;
     gatewayContract = extractGatewayContract(attempt.body) ?? gatewayContract;
@@ -470,7 +594,18 @@ async function main() {
       return;
     }
   }
-  fail("compatible public earning gateway not discovered", { base_origin: origin, attempts: attempts.map(summarizeAttempt) });
+  fail("compatible public earning gateway not discovered", {
+    base_origin: origin,
+    candidate_count: candidates.size,
+    maximum_candidate_paths: MAX_CANDIDATE_PATHS,
+    logical_timeout_ms: timeoutMs,
+    attempts: attempts.map(summarizeAttempt),
+  });
 }
 
-main().catch((error) => { fail(error instanceof Error ? error.message : "unexpected error"); });
+const isMain = process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url);
+if (isMain) {
+  main().catch((error) => {
+    fail(error instanceof Error ? error.message : "unexpected error");
+  });
+}
