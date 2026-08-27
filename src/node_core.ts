@@ -5,6 +5,7 @@ import * as fs from "node:fs";
 import * as path from "node:path";
 import * as net from "node:net";
 import * as crypto from "node:crypto";
+import { performance } from "node:perf_hooks";
 
 import { Mempool } from "./chain/mempool.js";
 import { Block, computeRoots, blockHash, blockHeaderBytes, validateBlockForAppend } from "./chain/block.js";
@@ -28,7 +29,15 @@ import {
   verifyVerifiedPublicBootstrapResponseV1,
   type VerifiedPublicBootstrapChallengeV1,
 } from "./http/follower_verified_public_bootstrap_authority_v1.js";
-import { preferredAuthenticatedDuplicateDirectionV1 } from "./p2p/authenticated_duplicate_arbitration_v1.js";
+import {
+  authenticatedDuplicateConnectionIdV1,
+  decideAuthenticatedDuplicateConnectionV1,
+} from "./p2p/authenticated_duplicate_arbitration_v1.js";
+import {
+  VOID_P2P_AUTHENTICATED_RECONNECT_MAX_BACKOFF_MS_V1,
+  VOID_P2P_AUTHENTICATED_RECONNECT_MIN_BACKOFF_MS_V1,
+  decideVoidP2PAuthenticatedReconnectV1,
+} from "./p2p/authenticated_reconnect_backoff_v1.js";
 import { TxIndex } from "./chain/txindex.js";
 import { ReceiptsStore } from "./chain/receipts.js";
 import { buildKidxForJsonl } from "./util/kidx.js";
@@ -539,6 +548,8 @@ type Peer = {
   localChallenge: string;
   remoteHello?: VoidPeerHelloV1;
   authenticatedPublicPem?: string;
+  authenticatedConnectionId?: string;
+  authenticatedAtMonotonicMs?: number;
   authTimer: NodeJS.Timeout | null;
   expectedNodeId?: string;
   reconnectAddr?: string;
@@ -677,8 +688,10 @@ export class Node {
   private readonly MAX_LEARNED_PEER_ADVERTISEMENTS_PER_MESSAGE_V1 = 64;
   private readonly MAX_LEARNED_PEER_DIALS_PER_MESSAGE_V1 = 8;
   private readonly MAX_LEARNED_PEER_DIALS_PER_RUNTIME_V1 = 64;
-  private readonly MIN_BACKOFF = 500;
-  private readonly MAX_BACKOFF = 15_000;
+  private readonly MIN_BACKOFF =
+    VOID_P2P_AUTHENTICATED_RECONNECT_MIN_BACKOFF_MS_V1;
+  private readonly MAX_BACKOFF =
+    VOID_P2P_AUTHENTICATED_RECONNECT_MAX_BACKOFF_MS_V1;
 
   private myTopics = new Set<string>();
 
@@ -991,10 +1004,30 @@ export class Node {
         : peer.listens[0];
     if (!address) return;
 
-    const current = this.backoff.get(address) ?? this.MIN_BACKOFF;
-    const delayMs = Math.min(Math.max(current, this.MIN_BACKOFF), this.MAX_BACKOFF);
-    const next = Math.min(delayMs * 2, this.MAX_BACKOFF);
-    this.backoff.set(address, next);
+    const closedAtMonotonicMs = performance.now();
+    const authenticatedDurationMs =
+      typeof peer.authenticatedAtMonotonicMs === "number"
+        ? closedAtMonotonicMs - peer.authenticatedAtMonotonicMs
+        : undefined;
+    const decision = decideVoidP2PAuthenticatedReconnectV1({
+      previousBackoffMs: this.backoff.get(address),
+      authenticatedDurationMs,
+    });
+    this.backoff.set(address, decision.next_backoff_ms);
+
+    console.warn("VOID_P2P_AUTHENTICATED_RECONNECT_BACKOFF_V1", {
+      peer_id: peer.id,
+      address,
+      authenticated_duration_ms: decision.authenticated_duration_ms,
+      stable_authenticated_session:
+        decision.stable_authenticated_session,
+      previous_backoff_valid: decision.previous_backoff_valid,
+      authenticated_duration_valid:
+        decision.authenticated_duration_valid,
+      delay_ms: decision.delay_ms,
+      next_backoff_ms: decision.next_backoff_ms,
+      stability_clock: "monotonic",
+    });
 
     setTimeout(() => {
       if (this.stopping) return;
@@ -1003,7 +1036,7 @@ export class Node {
       } else {
         this.connect(address, peer.id);
       }
-    }, delayMs).unref?.();
+    }, decision.delay_ms).unref?.();
   }
 
 
@@ -1758,6 +1791,12 @@ private finishUdpSwarmAuthenticatedDirectCandidateV1(
     peer.authTimer = null;
   }
   peer.authenticatedPublicPem = auth.pubkey;
+  peer.authenticatedConnectionId =
+    authenticatedDuplicateConnectionIdV1(
+      peer.localChallenge,
+      auth.self_challenge,
+    );
+  peer.authenticatedAtMonotonicMs = performance.now();
   peer.listens = [...auth.listen];
   peer.remoteHello = undefined;
   return true;
@@ -1770,6 +1809,12 @@ private finishAuthenticatedPeer(peer: Peer, auth: VoidPeerAuthV1) {
     if (peer.udpSwarmDirectCandidate) {
       return this.finishUdpSwarmAuthenticatedDirectCandidateV1(peer, auth);
     }
+
+    const candidateConnectionId =
+      authenticatedDuplicateConnectionIdV1(
+        peer.localChallenge,
+        auth.self_challenge,
+      );
 
     if (peer.expectedNodeId && auth.id !== peer.expectedNodeId) {
       if (peer.directUpgradeSessionId) {
@@ -1850,20 +1895,46 @@ private finishAuthenticatedPeer(peer: Peer, auth: VoidPeerAuthV1) {
       existing !== peer &&
       this.peers.get(auth.id) === existing
     ) {
-      if (existing.outbound !== peer.outbound) {
-        const preferredDirection = preferredAuthenticatedDuplicateDirectionV1(
+      const existingConnectionId =
+        existing.authenticatedConnectionId;
+      if (!existingConnectionId) {
+        this.rejectUnauthenticatedPeer(
+          peer,
+          "existing authenticated connection identity unavailable",
+        );
+        return false;
+      }
+
+      const decision =
+        decideAuthenticatedDuplicateConnectionV1(
           this.id,
           auth.id,
+          {
+            direction: existing.outbound ? "outbound" : "inbound",
+            connection_id: existingConnectionId,
+          },
+          {
+            direction: peer.outbound ? "outbound" : "inbound",
+            connection_id: candidateConnectionId,
+          },
         );
-        const candidateDirection = peer.outbound ? "outbound" : "inbound";
-        if (candidateDirection !== preferredDirection) {
-          this.rejectUnauthenticatedPeer(
-            peer,
-            `duplicate ${candidateDirection} connection`,
-          );
-          return false;
-        }
+      if (decision.winner === "existing") {
+        this.rejectUnauthenticatedPeer(
+          peer,
+          `duplicate ${peer.outbound ? "outbound" : "inbound"} connection (${decision.reason})`,
+        );
+        return false;
       }
+
+      console.warn(
+        "VOID_P2P_AUTHENTICATED_DUPLICATE_ARBITRATION_V1_REPLACE",
+        {
+          peer_id: auth.id,
+          reason: decision.reason,
+          preferred_direction: decision.preferred_direction,
+          winning_connection_id: decision.winning_connection_id,
+        },
+      );
       if (existing.authTimer) {
         clearTimeout(existing.authTimer);
         existing.authTimer = null;
@@ -1881,6 +1952,8 @@ private finishAuthenticatedPeer(peer: Peer, auth: VoidPeerAuthV1) {
     peer.id = auth.id;
     peer.handshakeDone = true;
     peer.authenticatedPublicPem = auth.pubkey;
+    peer.authenticatedConnectionId = candidateConnectionId;
+    peer.authenticatedAtMonotonicMs = performance.now();
     peer.listens = [...auth.listen];
     peer.remoteHello = undefined;
     if (
@@ -1893,7 +1966,6 @@ private finishAuthenticatedPeer(peer: Peer, auth: VoidPeerAuthV1) {
     this.peers.set(peer.id, peer);
 
     if (peer.transport === "direct" && peer.persistDirectEvidence) {
-      if (peer.reconnectAddr) this.backoff.delete(peer.reconnectAddr);
       this.rememberAuthenticatedPeer(peer);
 
       const firstListen = peer.listens[0];
@@ -2313,7 +2385,30 @@ attachEphemeralDirectTransportV1(
       if (peer.directUpgradeSessionId) {
         this.directUpgradeLocalSessions.delete(peer.directUpgradeSessionId);
       }
-      this.handlePeerTransportClose(peer);
+
+      // A displaced authenticated direct socket can emit close after its
+      // deterministic winner has already been mounted under the same peer id.
+      // Identity-wide cleanup belongs only to the exact current direct-route
+      // generation. Relay cleanup remains socket-bound and still runs for
+      // retained/fallback relay transports outside the normal route map.
+      const closeOwnsPeerIdentityState =
+        peer.transport === "relay" || closedNormalRoute;
+      if (closeOwnsPeerIdentityState) {
+        this.handlePeerTransportClose(peer);
+      } else if (
+        peer.transport === "direct" &&
+        peer.handshakeDone &&
+        !peer.id.startsWith("?-")
+      ) {
+        peer.suppressReconnect = true;
+        console.warn(
+          "VOID_P2P_AUTHENTICATED_DUPLICATE_STALE_CLOSE_V1_IGNORED",
+          {
+            peer_id: peer.id,
+            connection_id: peer.authenticatedConnectionId ?? null,
+          },
+        );
+      }
       this.scheduleVerifiedPeerReconnect(peer);
     });
     socket.on("error", (error) => {

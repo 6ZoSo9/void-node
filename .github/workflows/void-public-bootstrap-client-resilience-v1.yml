@@ -33,7 +33,10 @@ on:
       - "src/chain/mainnet0_historical_compat_v1.ts"
       - "src/http/follower_legacy_v2fs_authority_v1.ts"
       - "src/http/follower_verified_public_bootstrap_authority_v1.ts"
+      - "src/types/p2p.ts"
+      - "src/p2p/auth_v1.ts"
       - "src/p2p/authenticated_duplicate_arbitration_v1.ts"
+      - "src/p2p/authenticated_reconnect_backoff_v1.ts"
       - "src/chain/receipts.ts"
       - "tools/void-public-seed-client-adapter-v1.mjs"
       - "docs/public/public-bootstrap-client-resilience-v1.md"
@@ -71,7 +74,10 @@ on:
       - "src/chain/mainnet0_historical_compat_v1.ts"
       - "src/http/follower_legacy_v2fs_authority_v1.ts"
       - "src/http/follower_verified_public_bootstrap_authority_v1.ts"
+      - "src/types/p2p.ts"
+      - "src/p2p/auth_v1.ts"
       - "src/p2p/authenticated_duplicate_arbitration_v1.ts"
+      - "src/p2p/authenticated_reconnect_backoff_v1.ts"
       - "src/chain/receipts.ts"
       - "tools/void-public-seed-client-adapter-v1.mjs"
       - "docs/public/public-bootstrap-client-resilience-v1.md"
@@ -104,13 +110,13 @@ jobs:
     timeout-minutes: 5
     steps:
       - name: Checkout exact source
-        uses: actions/checkout@v6
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
         with:
           fetch-depth: 1
           persist-credentials: false
 
       - name: Use supported Node.js major
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
         with:
           node-version: ${{ matrix.node }}
 
@@ -174,7 +180,7 @@ jobs:
     timeout-minutes: 15
     steps:
       - name: Checkout exact source
-        uses: actions/checkout@v6
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
         with:
           fetch-depth: 1
           persist-credentials: false
@@ -194,7 +200,7 @@ jobs:
           echo "manual_dispatch_base_bound=true"
 
       - name: Use Node.js 24 LTS
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
         with:
           node-version: "24"
 
@@ -286,7 +292,10 @@ jobs:
           grep -F 'VOID_PUBLIC_BOOTSTRAP_HISTORICAL_RESPONSE_AUTHORITY_V1' dist/node_core.js
           grep -F 'proposer.commit-direct.v2fs' dist/chain/legacy_commit_direct_v2fs_v1.js
           grep -F 'VOID_LEGACY_EMPTY_TX_ROOT_V1' dist/chain/legacy_commit_direct_v2fs_v1.js
-          grep -F 'preferredAuthenticatedDuplicateDirectionV1' dist/node_core.js
+          grep -F 'decideAuthenticatedDuplicateConnectionV1' dist/node_core.js
+          grep -F 'decideVoidP2PAuthenticatedReconnectV1' dist/node_core.js
+          grep -F 'VOID_P2P_AUTHENTICATED_DUPLICATE_STALE_CLOSE_V1_IGNORED' dist/node_core.js
+          grep -F 'authenticatedAtMonotonicMs' dist/node_core.js
           node --input-type=module <<'NODE'
           import assert from "node:assert/strict";
           import fs from "node:fs";
