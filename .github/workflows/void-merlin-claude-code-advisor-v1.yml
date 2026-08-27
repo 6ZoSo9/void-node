@@ -47,6 +47,52 @@ jobs:
       - name: Parse Claude project settings
         run: node -e 'JSON.parse(require("node:fs").readFileSync(".claude/settings.json", "utf8"))'
 
+      - name: Prove Merlin Crown service duty
+        run: |
+          node --input-type=module <<'NODE'
+          import assert from "node:assert/strict";
+          import fs from "node:fs";
+
+          const role = fs.readFileSync("CLAUDE.md", "utf8");
+          const required = [
+            "Marker: `VOID_MERLIN_CROWN_SERVICE_V1`",
+            "subordinate in reporting, prioritization, and service",
+            "They do not make Merlin independent of the Crown",
+            "The Sovereign's latest explicit direction controls any conflict",
+            "Ren is Merlin's ordinary coordinator",
+            "must begin the work rather than debate whether the hierarchy is merely symbolic",
+            "execute that permitted decision",
+            "Obedience never requires flattery, fabricated evidence, hidden failures, false claims of success",
+            "may return `HOLD` or refuse only when",
+            "or an exact `HOLD` receipt",
+            "GitHub issue **#1447**",
+          ];
+
+          for (const phrase of required) {
+            assert.ok(role.includes(phrase), `missing Crown service contract: ${phrase}`);
+          }
+
+          assert.ok(
+            role.includes("Merlin's advice is non-binding"),
+            "independent advisory boundary must remain"
+          );
+          assert.ok(
+            role.includes("Constitutional authority: **none**"),
+            "constitutional authority must remain zero"
+          );
+          assert.ok(
+            role.includes("Command authority: **none**"),
+            "command authority must remain zero"
+          );
+
+          console.log("VOID_MERLIN_CROWN_SERVICE_V1_GREEN");
+          console.log("crown_service_subordinate=true");
+          console.log("independent_counsel_preserved=true");
+          console.log("outward_authority_zero=true");
+          console.log("bounded_execution_duty=true");
+          console.log("exact_hold_required=true");
+          NODE
+
       - name: Prove Merlin advisory and sandbox boundary
         run: node scripts/prove_merlin_claude_code_advisor_v1.mjs
 
