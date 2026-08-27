@@ -21,7 +21,16 @@ import {
   followerLegacyV2fsOriginAuthorizedV1,
   followerLegacyV2fsOriginsFromRawV1,
 } from "../dist/http/follower_legacy_v2fs_authority_v1.js";
-import { preferredAuthenticatedDuplicateDirectionV1 } from "../dist/p2p/authenticated_duplicate_arbitration_v1.js";
+import {
+  authenticatedDuplicateConnectionIdV1,
+  decideAuthenticatedDuplicateConnectionV1,
+  preferredAuthenticatedDuplicateDirectionV1,
+} from "../dist/p2p/authenticated_duplicate_arbitration_v1.js";
+import {
+  VOID_P2P_AUTHENTICATED_RECONNECT_MAX_BACKOFF_MS_V1,
+  VOID_P2P_AUTHENTICATED_SESSION_STABLE_MS_V1,
+  decideVoidP2PAuthenticatedReconnectV1,
+} from "../dist/p2p/authenticated_reconnect_backoff_v1.js";
 import { Node } from "../dist/node_core.js";
 
 const MARKER = "VOID_FOLLOWER_LEGACY_V2FS_AND_DUPLICATE_DIAL_V1_PROOF_GREEN";
@@ -305,6 +314,184 @@ function proveDuplicateArbitration() {
     () => preferredAuthenticatedDuplicateDirectionV1(low, low),
     /self identity collision/,
   );
+
+  const challengeA = "1".repeat(64);
+  const challengeB = "2".repeat(64);
+  const challengeC = "3".repeat(64);
+  const challengeD = "4".repeat(64);
+  const connectionA =
+    authenticatedDuplicateConnectionIdV1(challengeA, challengeB);
+  const connectionB =
+    authenticatedDuplicateConnectionIdV1(challengeC, challengeD);
+  assert.equal(
+    connectionA,
+    authenticatedDuplicateConnectionIdV1(challengeB, challengeA),
+    "connection identity must be symmetric across endpoints",
+  );
+  assert.notEqual(connectionA, connectionB);
+
+  const expectedSameDirectionWinner =
+    [connectionA, connectionB].sort()[0];
+  const lowerEndpoint = decideAuthenticatedDuplicateConnectionV1(
+    low,
+    high,
+    {
+      direction: "outbound",
+      connection_id: connectionA,
+    },
+    {
+      direction: "outbound",
+      connection_id: connectionB,
+    },
+  );
+  const higherEndpoint = decideAuthenticatedDuplicateConnectionV1(
+    high,
+    low,
+    {
+      direction: "inbound",
+      connection_id: connectionB,
+    },
+    {
+      direction: "inbound",
+      connection_id: connectionA,
+    },
+  );
+  assert.equal(
+    lowerEndpoint.winning_connection_id,
+    expectedSameDirectionWinner,
+  );
+  assert.equal(
+    higherEndpoint.winning_connection_id,
+    expectedSameDirectionWinner,
+    "opposite authentication order selected different physical sockets",
+  );
+
+  const lowerOpposite = decideAuthenticatedDuplicateConnectionV1(
+    low,
+    high,
+    {
+      direction: "inbound",
+      connection_id: connectionA,
+    },
+    {
+      direction: "outbound",
+      connection_id: connectionB,
+    },
+  );
+  const higherOpposite = decideAuthenticatedDuplicateConnectionV1(
+    high,
+    low,
+    {
+      direction: "outbound",
+      connection_id: connectionA,
+    },
+    {
+      direction: "inbound",
+      connection_id: connectionB,
+    },
+  );
+  assert.equal(lowerOpposite.winning_connection_id, connectionB);
+  assert.equal(higherOpposite.winning_connection_id, connectionB);
+
+  const collision = decideAuthenticatedDuplicateConnectionV1(
+    low,
+    high,
+    {
+      direction: "outbound",
+      connection_id: connectionA,
+    },
+    {
+      direction: "outbound",
+      connection_id: connectionA,
+    },
+  );
+  assert.equal(collision.winner, "existing");
+  assert.equal(collision.reason, "same_connection_identity");
+  assert.throws(
+    () => authenticatedDuplicateConnectionIdV1("not-a-challenge", challengeB),
+    /invalid local challenge/,
+  );
+}
+
+function proveAuthenticatedReconnectBackoff() {
+  let previousBackoffMs;
+  const observedDelays = [];
+  for (let index = 0; index < 7; index += 1) {
+    const authenticatedAtMs = 1_000 + index * 100;
+    const decision = decideVoidP2PAuthenticatedReconnectV1({
+      previousBackoffMs,
+      authenticatedAtMs,
+      closedAtMs: authenticatedAtMs + 1,
+    });
+    observedDelays.push(decision.delay_ms);
+    previousBackoffMs = decision.next_backoff_ms;
+    assert.equal(decision.stable_authenticated_session, false);
+  }
+  assert.deepEqual(
+    observedDelays,
+    [500, 1_000, 2_000, 4_000, 8_000, 15_000, 15_000],
+    "short authenticated sessions reset or escaped bounded backoff",
+  );
+
+  const stable = decideVoidP2PAuthenticatedReconnectV1({
+    previousBackoffMs:
+      VOID_P2P_AUTHENTICATED_RECONNECT_MAX_BACKOFF_MS_V1,
+    authenticatedAtMs: 10_000,
+    closedAtMs:
+      10_000 + VOID_P2P_AUTHENTICATED_SESSION_STABLE_MS_V1,
+  });
+  assert.equal(stable.stable_authenticated_session, true);
+  assert.equal(stable.delay_ms, 500);
+  assert.equal(stable.next_backoff_ms, 1_000);
+
+  const justShort = decideVoidP2PAuthenticatedReconnectV1({
+    previousBackoffMs:
+      VOID_P2P_AUTHENTICATED_RECONNECT_MAX_BACKOFF_MS_V1,
+    authenticatedAtMs: 10_000,
+    closedAtMs:
+      10_000 + VOID_P2P_AUTHENTICATED_SESSION_STABLE_MS_V1 - 1,
+  });
+  assert.equal(justShort.stable_authenticated_session, false);
+  assert.equal(
+    justShort.delay_ms,
+    VOID_P2P_AUTHENTICATED_RECONNECT_MAX_BACKOFF_MS_V1,
+  );
+
+  const corruptInternalState =
+    decideVoidP2PAuthenticatedReconnectV1({
+      previousBackoffMs: 0,
+      authenticatedAtMs: 2_000,
+      closedAtMs: 1_000,
+    });
+  assert.equal(corruptInternalState.previous_backoff_valid, false);
+  assert.equal(
+    corruptInternalState.authenticated_timestamp_valid,
+    false,
+  );
+  assert.equal(
+    corruptInternalState.delay_ms,
+    VOID_P2P_AUTHENTICATED_RECONNECT_MAX_BACKOFF_MS_V1,
+    "invalid internal state failed fast into a tight reconnect loop",
+  );
+
+  const nodeSource = fs.readFileSync("src/node_core.ts", "utf8");
+  assert.ok(
+    nodeSource.includes("decideVoidP2PAuthenticatedReconnectV1"),
+    "Node runtime does not use authenticated reconnect decision",
+  );
+  assert.ok(
+    nodeSource.includes("decideAuthenticatedDuplicateConnectionV1"),
+    "Node runtime does not use deterministic duplicate connection identity",
+  );
+  assert.equal(
+    nodeSource.includes("this.backoff.delete(peer.reconnectAddr)"),
+    false,
+    "authentication still clears reconnect backoff before stability",
+  );
+  assert.ok(
+    nodeSource.includes("peer.authenticatedAtMs = Date.now()"),
+    "authenticated session timestamp is not bound at admission",
+  );
 }
 
 function sendJson(res, status, body) {
@@ -491,11 +678,38 @@ function proveFocusedWorkflowTracksDependencies() {
   );
 }
 
+function proveAuthenticatedReconnectWorkflowTracksDependencies() {
+  const workflow = fs.readFileSync(
+    ".github/workflows/void-p2p-authenticated-reconnect-stability-v1.yml",
+    "utf8",
+  );
+  for (const file of [
+    "scripts/prove_follower_legacy_v2fs_and_duplicate_dial_v1.mjs",
+    "src/node_core.ts",
+    "src/p2p/authenticated_duplicate_arbitration_v1.ts",
+    "src/p2p/authenticated_reconnect_backoff_v1.ts",
+  ]) {
+    assert.ok(workflow.includes(file), `reconnect workflow missing ${file}`);
+  }
+  assert.ok(
+    workflow.includes("node scripts/prove_follower_legacy_v2fs_and_duplicate_dial_v1.mjs"),
+    "reconnect workflow does not execute focused proof",
+  );
+  for (const major of ["22", "24", "26"]) {
+    assert.ok(
+      workflow.includes(major),
+      `reconnect workflow does not cover Node ${major}`,
+    );
+  }
+}
+
 proveLegacyEnvelopeAndStore();
 proveOriginAuthority();
 proveDuplicateArbitration();
+proveAuthenticatedReconnectBackoff();
 await provePullOnceOriginGateAndLegacyTimestamp();
 proveFocusedWorkflowTracksDependencies();
+proveAuthenticatedReconnectWorkflowTracksDependencies();
 
 console.log(MARKER);
 console.log("modern_validator_unchanged=true");
@@ -509,3 +723,6 @@ console.log("historical_header_txroot_object_exact_shape_only=true");
 console.log("manual_legacy_header_txroot_object_rejected=true");
 console.log("ordinary_legacy_header_txroot_object_rejected=true");
 console.log("simultaneous_dial_direction_deterministic=true");
+console.log("same_direction_duplicate_connection_deterministic=true");
+console.log("authenticated_reconnect_backoff_requires_stability=true");
+console.log("premature_authenticated_backoff_reset_removed=true");
