@@ -84,22 +84,13 @@ const upsertStart = source.indexOf("async function upsertRemotePeer(");
 req(upsertStart >= 0, "upsertRemotePeer_missing");
 const upsertWindow = source.slice(upsertStart, upsertStart + 2200);
 req(
-  upsertWindow.includes("const remoteUpsertController = new AbortController();"),
-  "remote_upsert_abort_controller_missing"
+  upsertWindow.includes("signal: AbortSignal.timeout(10_000)"),
+  "remote_upsert_timeout_signal_missing"
 );
 req(
-  upsertWindow.includes(
-    "setTimeout(() => remoteUpsertController.abort(), 10_000)"
-  ),
-  "remote_upsert_timeout_missing"
-);
-req(
-  upsertWindow.includes("signal: remoteUpsertController.signal"),
-  "remote_upsert_signal_missing"
-);
-req(
-  upsertWindow.includes("clearTimeout(remoteUpsertTimeout);"),
-  "remote_upsert_timeout_cleanup_missing"
+  !upsertWindow.includes("remoteUpsertController") &&
+    !upsertWindow.includes("remoteUpsertTimeout"),
+  "remote_upsert_legacy_timeout_scaffolding_present"
 );
 
 const jobsAnchor = "// === jobs-and-datanet-worker-v1 BEGIN ===";
@@ -107,12 +98,13 @@ const jobsStart = source.indexOf(jobsAnchor);
 req(jobsStart >= 0, "jobs_datanet_worker_missing");
 const jobsWindow = source.slice(jobsStart, jobsStart + 26000);
 req(
-  jobsWindow.includes("const canonicalHttpBaseV1 = (raw:any):string => {"),
+  jobsWindow.includes("const canonicalHttpBaseV1=") &&
+    jobsWindow.includes('u.pathname=u.search=u.hash=""'),
   "datanet_canonical_base_helper_missing"
 );
 req(
   jobsWindow.includes(
-    "const publicBaseKeyV1 = canonicalHttpBaseV1(process.env.PUBLIC_HTTP_BASE);"
+    "const publicBaseKeyV1=canonicalHttpBaseV1(process.env.PUBLIC_HTTP_BASE);"
   ),
   "datanet_public_base_key_missing"
 );
@@ -123,29 +115,26 @@ req(
   "datanet_public_self_alias_filter_missing"
 );
 req(
-  jobsWindow.includes("const remoteFetchController = new AbortController();"),
-  "datanet_remote_abort_controller_missing"
-);
-req(
   jobsWindow.includes(
-    "setTimeout(() => remoteFetchController.abort(), 10_000)"
+    "const remoteFetchSignal = AbortSignal.timeout(10_000);"
   ),
-  "datanet_remote_timeout_missing"
+  "datanet_remote_timeout_signal_missing"
 );
 req(
   jobsWindow.includes(
-    "const r = await fetch(url, { signal: remoteFetchController.signal });"
+    "const r = await fetch(url, { signal: remoteFetchSignal });"
   ),
   "datanet_remote_signal_missing"
 );
 req(
-  jobsWindow.includes("clearTimeout(remoteFetchTimeout);"),
-  "datanet_remote_timeout_cleanup_missing"
+  !jobsWindow.includes("remoteFetchController") &&
+    !jobsWindow.includes("remoteFetchTimeout"),
+  "datanet_legacy_timeout_scaffolding_present"
 );
 
 req(
   jobsWindow.includes(
-    "j = await r.json().catch(() => null);"
+    "const j:any = await r.json().catch(() => null);"
   ),
   "datanet_remote_body_read_missing"
 );
@@ -155,21 +144,21 @@ req(
   ),
   "datanet_response_contract_guard_missing"
 );
+const datanetSignalIndex = jobsWindow.indexOf(
+  "const remoteFetchSignal = AbortSignal.timeout(10_000);"
+);
 const datanetFetchIndex = jobsWindow.indexOf(
-  "const r = await fetch(url, { signal: remoteFetchController.signal });"
+  "const r = await fetch(url, { signal: remoteFetchSignal });",
+  datanetSignalIndex
 );
 const datanetBodyIndex = jobsWindow.indexOf(
-  "j = await r.json().catch(() => null);",
+  "const j:any = await r.json().catch(() => null);",
   datanetFetchIndex
 );
-const datanetTimeoutClearIndex = jobsWindow.indexOf(
-  "clearTimeout(remoteFetchTimeout);",
-  datanetBodyIndex
-);
 req(
-  datanetFetchIndex >= 0 &&
-    datanetBodyIndex > datanetFetchIndex &&
-    datanetTimeoutClearIndex > datanetBodyIndex,
+  datanetSignalIndex >= 0 &&
+    datanetFetchIndex > datanetSignalIndex &&
+    datanetBodyIndex > datanetFetchIndex,
   "datanet_timeout_does_not_cover_response_body"
 );
 
@@ -217,13 +206,17 @@ req(
 );
 
 req(
-  count(source, "signal: remoteUpsertController.signal") === 1,
-  "remote_upsert_signal_not_unique"
+  count(source, "signal: AbortSignal.timeout(10_000)") === 1,
+  "remote_upsert_timeout_signal_not_unique"
+);
+req(
+  count(source, "const remoteFetchSignal = AbortSignal.timeout(10_000);") === 1,
+  "datanet_timeout_signal_not_unique"
 );
 req(
   count(
     source,
-    "const r = await fetch(url, { signal: remoteFetchController.signal });"
+    "const r = await fetch(url, { signal: remoteFetchSignal });"
   ) === 1,
   "datanet_remote_signal_not_unique"
 );

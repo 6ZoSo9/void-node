@@ -9214,19 +9214,12 @@ void_lastseal_txs ${Number.isFinite(r.txs)?r.txs:0}
   ): Promise<void> {
     try {
       const url = new URL("/peers/registry/upsert", remoteHttpBase).toString();
-      const remoteUpsertController = new AbortController();
-      const remoteUpsertTimeout:any = setTimeout(() => remoteUpsertController.abort(), 10_000);
-      remoteUpsertTimeout.unref?.();
-      try {
-        await fetch(url, {
-          method: "POST",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify({ id: myId, http: myHttp, p2p: myP2p, capabilities }),
-          signal: remoteUpsertController.signal,
-        });
-      } finally {
-        clearTimeout(remoteUpsertTimeout);
-      }
+      await fetch(url, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ id: myId, http: myHttp, p2p: myP2p, capabilities }),
+        signal: AbortSignal.timeout(10_000),
+      });
     } catch (err) { if(!/fetch failed/.test(String((err as any)?.message||err))) __voidIxCatch9000("8346:9", err); }
   }
 
@@ -63960,21 +63953,8 @@ a{color:#93c5fd;text-decoration:none}
         const out:any[] = [];
         const seen = new Set<string>();
 
-        const canonicalHttpBaseV1 = (raw:any):string => {
-          const text = String(raw || "").trim();
-          if (!text) return "";
-          try {
-            const u = new URL(text);
-            if (u.protocol !== "http:" && u.protocol !== "https:") return "";
-            u.pathname = "";
-            u.search = "";
-            u.hash = "";
-            return u.toString().replace(/\/+$/, "");
-          } catch {
-            return text.replace(/\/+$/, "");
-          }
-        };
-        const publicBaseKeyV1 = canonicalHttpBaseV1(process.env.PUBLIC_HTTP_BASE);
+        const canonicalHttpBaseV1=(raw:any):string=>{const text=String(raw||"").trim();try{const u=new URL(text);if(!/^https?:$/.test(u.protocol))return "";u.pathname=u.search=u.hash="";return u.toString().replace(/\/+$/,"");}catch{return text.replace(/\/+$/,"");}};
+        const publicBaseKeyV1=canonicalHttpBaseV1(process.env.PUBLIC_HTTP_BASE);
 
         const addPeer = (httpBase:string, p2pAddr:string="") => {
           const http = String(httpBase || "").trim();
@@ -64045,17 +64025,10 @@ a{color:#93c5fd;text-decoration:none}
           }
 
           const url = new URL("/datanet/v1/local-job/" + encodeURIComponent(datasetId) + "?who=" + encodeURIComponent(String(who || "zoso")), httpBase).toString();
-          const remoteFetchController = new AbortController();
-          const remoteFetchTimeout:any = setTimeout(() => remoteFetchController.abort(), 10_000);
-          remoteFetchTimeout.unref?.();
-          let j:any = null;
-          try {
-            const r = await fetch(url, { signal: remoteFetchController.signal });
-            if (!r.ok) continue;
-            j = await r.json().catch(() => null);
-          } finally {
-            clearTimeout(remoteFetchTimeout);
-          }
+          const remoteFetchSignal = AbortSignal.timeout(10_000);
+          const r = await fetch(url, { signal: remoteFetchSignal });
+          if (!r.ok) continue;
+          const j:any = await r.json().catch(() => null);
           if (!j || !j.ok) continue;
 
           const plaintext = String(j.plaintext || "");
