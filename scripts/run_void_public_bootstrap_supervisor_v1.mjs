@@ -3,6 +3,9 @@ import childProcess from "node:child_process";
 import crypto from "node:crypto";
 import process from "node:process";
 import { createPublicSeedClientAdapterV1 } from "../tools/void-public-seed-client-adapter-v1.mjs";
+import {
+  runPublicCheckpointRestorePreNodeV1,
+} from "./lib/void_public_checkpoint_restore_supervisor_v1.mjs";
 
 const MARKER = "VOID_PUBLIC_BOOTSTRAP_SUPERVISOR_V1";
 const AUTHORITY_MESSAGE_SCHEMA = "void_public_bootstrap_adapter_authority_message_v1";
@@ -32,6 +35,13 @@ async function main() {
       sequence: authoritySequence,
       secret: authoritySecret,
     },
+  });
+
+  await runPublicCheckpointRestorePreNodeV1({
+    adapterBase: adapter.base,
+    authorityGeneration,
+    authoritySequence,
+    authoritySecret,
   });
 
   const nodeEntry = String(process.env.VOID_PUBLIC_BOOTSTRAP_NODE_ENTRY || "dist/index.js");
