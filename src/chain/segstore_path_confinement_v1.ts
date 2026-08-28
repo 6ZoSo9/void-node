@@ -45,10 +45,96 @@ function procFdRootV1(root: string): { root: string; fd: number } | null {
   return { root: absolute, fd };
 }
 
+function inheritedProcFdRootV1(
+  rootAbs: string,
+): RegisteredProcFdRootV1 | null {
+  if (
+    String(
+      process.env.VOID_SEGSTORE_INHERITED_DATA_AUTHORITY_V1 ?? "",
+    ).trim() !== "1"
+  ) {
+    return null;
+  }
+  if (process.platform !== "linux") {
+    throw confinementError(
+      "inherited proc-fd data authority is supported only on Linux",
+    );
+  }
+
+  const rawFd = String(
+    process.env.VOID_SEGSTORE_INHERITED_DATA_FD_V1 ?? "",
+  ).trim();
+  const expectedDev = String(
+    process.env.VOID_SEGSTORE_INHERITED_DATA_DEV_V1 ?? "",
+  ).trim();
+  const expectedIno = String(
+    process.env.VOID_SEGSTORE_INHERITED_DATA_INO_V1 ?? "",
+  ).trim();
+
+  if (
+    !/^[0-9]+$/.test(rawFd) ||
+    !/^(0|[1-9][0-9]*)$/.test(expectedDev) ||
+    !/^(0|[1-9][0-9]*)$/.test(expectedIno)
+  ) {
+    throw confinementError(
+      "inherited proc-fd data authority fields are malformed",
+    );
+  }
+
+  const fd = Number(rawFd);
+  if (!Number.isSafeInteger(fd) || fd < 4) {
+    throw confinementError(
+      "inherited proc-fd data descriptor is invalid",
+    );
+  }
+  const root = `/proc/self/fd/${fd}`;
+  if (rootAbs !== root) return null;
+
+  let current: fs.BigIntStats;
+  try {
+    current = fs.fstatSync(fd, { bigint: true });
+  } catch {
+    throw confinementError(
+      `inherited proc-fd data descriptor is not open: ${root}`,
+    );
+  }
+  if (
+    !current.isDirectory() ||
+    String(current.dev) !== expectedDev ||
+    String(current.ino) !== expectedIno
+  ) {
+    throw confinementError(
+      `inherited proc-fd data identity mismatch: ${root}`,
+    );
+  }
+  if (
+    typeof process.getuid === "function" &&
+    Number(current.uid) !== process.getuid()
+  ) {
+    throw confinementError(
+      `inherited proc-fd data owner mismatch: ${root}`,
+    );
+  }
+  if ((Number(current.mode) & 0o002) !== 0) {
+    throw confinementError(
+      `inherited proc-fd data root is world-writable: ${root}`,
+    );
+  }
+
+  return Object.freeze({
+    root,
+    fd,
+    dev: expectedDev,
+    ino: expectedIno,
+  });
+}
+
 function liveRegisteredProcFdRootV1(
   rootAbs: string,
 ): RegisteredProcFdRootV1 | null {
-  const registered = registeredProcFdRootsV1.get(rootAbs);
+  const registered =
+    registeredProcFdRootsV1.get(rootAbs) ??
+    inheritedProcFdRootV1(rootAbs);
   if (!registered) return null;
 
   let current: fs.BigIntStats;

@@ -13,7 +13,8 @@ import {
 } from "./lib/void_public_checkpoint_contract_v1.mjs";
 import { autoRepairDataDir } from "../dist/chain/auto_repair.js";
 import {
-  activateCheckpointStagingNoReplaceV1,
+  prepareCheckpointStagingSelectionV1,
+  publishPreparedCheckpointSelectionV1,
 } from "./lib/void_public_checkpoint_restore_activation_v1.mjs";
 import {
   closeOwnedCheckpointRestoreGenerationV1,
@@ -380,15 +381,20 @@ async function main() {
       );
     }
 
-    const activation = activateCheckpointStagingNoReplaceV1({
-      staging,
-      dataDir,
-      parent,
-      expectedDevice: generation.device,
-      expectedInode: generation.inode,
-    });
-    if (!activation?.activated) {
-      fail("checkpoint no-clobber activation did not complete");
+    const preparedSelection =
+      prepareCheckpointStagingSelectionV1({
+        staging,
+        dataDir,
+        parent,
+        token: generation.token,
+        expectedDevice: generation.device,
+        expectedInode: generation.inode,
+        checkpointId: verifiedManifest.checkpoint_id,
+      });
+    const activation =
+      publishPreparedCheckpointSelectionV1(preparedSelection);
+    if (!activation?.selectorPublished) {
+      fail("checkpoint selector activation did not complete");
     }
     activated = true;
 
@@ -409,10 +415,10 @@ async function main() {
     console.log("staging_io_via_proc_fd_root=true");
     console.log("auto_repair_sparse_every=16");
     console.log("atomic_activation=true");
-    console.log("activation_no_clobber=true");
-    console.log("activation_no_copy=true");
-    console.log("activation_same_directory_identity=true");
-    console.log(`activation_mv_version=${activation.mv_version}`);
+    console.log("selector_activation=true");
+    console.log("selector_symlink_no_replace=true");
+    console.log("activation_directory_rename=false");
+    console.log("selector_generation_identity_bound=true");
     console.log("parent_directory_fsync=true");
     console.log("existing_store_overwrite=false");
     console.log("checkpoint_publication_authority=false");

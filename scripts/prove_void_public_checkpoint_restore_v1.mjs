@@ -5,7 +5,7 @@ import fs from "node:fs";
 import net from "node:net";
 import os from "node:os";
 import path from "node:path";
-import { spawn } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 
 import {
   computeVoidPublicCheckpointIdV1,
@@ -14,7 +14,10 @@ import {
   runPublicCheckpointRestorePreNodeV1,
 } from "./lib/void_public_checkpoint_restore_supervisor_v1.mjs";
 import {
-  activateCheckpointStagingNoReplaceV1,
+  closeSelectedCheckpointGenerationV1,
+  openSelectedCheckpointGenerationV1,
+  prepareCheckpointStagingSelectionV1,
+  publishPreparedCheckpointSelectionV1,
 } from "./lib/void_public_checkpoint_restore_activation_v1.mjs";
 import {
   closeOwnedCheckpointRestoreGenerationV1,
@@ -253,102 +256,207 @@ try {
   const ownedParent = path.join(tmp, "owned");
   fs.mkdirSync(ownedParent, { mode: 0o700 });
 
-  const activationSuccessStaging = path.join(
+  const testCheckpointId = `voidpbc1_${"c".repeat(64)}`;
+
+  const selectorSuccessTarget = path.join(
     ownedParent,
-    "activation-success-staging",
+    "selector-success-target",
   );
-  const activationSuccessTarget = path.join(
-    ownedParent,
-    "activation-success-target",
-  );
-  fs.mkdirSync(activationSuccessStaging, { mode: 0o700 });
+  const selectorSuccessToken = "a".repeat(32);
+  const selectorSuccessStaging =
+    `${selectorSuccessTarget}.void-public-checkpoint-restore-v1-gen-${selectorSuccessToken}`;
+  fs.mkdirSync(selectorSuccessStaging, { mode: 0o700 });
   fs.writeFileSync(
-    path.join(activationSuccessStaging, "sentinel"),
+    path.join(selectorSuccessStaging, "sentinel"),
     "staged-generation\n",
   );
-  const activationSuccessBefore = fs.lstatSync(
-    activationSuccessStaging,
+  const selectorSuccessStat = fs.lstatSync(
+    selectorSuccessStaging,
     { bigint: true },
   );
-  const activationSuccess = activateCheckpointStagingNoReplaceV1({
-    staging: activationSuccessStaging,
-    dataDir: activationSuccessTarget,
-    parent: ownedParent,
-    expectedDevice: String(activationSuccessBefore.dev),
-    expectedInode: String(activationSuccessBefore.ino),
-  });
-  assert.equal(activationSuccess.activated, true);
-  assert.equal(fs.existsSync(activationSuccessStaging), false);
-  const activationSuccessAfter = fs.lstatSync(
-    activationSuccessTarget,
-    { bigint: true },
-  );
+  const selectorSuccessPrepared =
+    prepareCheckpointStagingSelectionV1({
+      staging: selectorSuccessStaging,
+      dataDir: selectorSuccessTarget,
+      parent: ownedParent,
+      token: selectorSuccessToken,
+      expectedDevice: String(selectorSuccessStat.dev),
+      expectedInode: String(selectorSuccessStat.ino),
+      checkpointId: testCheckpointId,
+    });
+  const selectorSuccessPublished =
+    publishPreparedCheckpointSelectionV1(
+      selectorSuccessPrepared,
+    );
   assert.equal(
-    activationSuccessAfter.dev,
-    activationSuccessBefore.dev,
-  );
-  assert.equal(
-    activationSuccessAfter.ino,
-    activationSuccessBefore.ino,
-  );
-  assert.equal(
-    fs.readFileSync(
-      path.join(activationSuccessTarget, "sentinel"),
-      "utf8",
-    ),
-    "staged-generation\n",
-  );
-
-  const activationRaceStaging = path.join(
-    ownedParent,
-    "activation-race-staging",
-  );
-  const activationRaceTarget = path.join(
-    ownedParent,
-    "activation-race-target",
-  );
-  fs.mkdirSync(activationRaceStaging, { mode: 0o700 });
-  fs.writeFileSync(
-    path.join(activationRaceStaging, "staged"),
-    "must-not-activate\n",
-  );
-  assert.equal(fs.existsSync(activationRaceTarget), false);
-  const activationRaceBefore = fs.lstatSync(
-    activationRaceStaging,
-    { bigint: true },
-  );
-
-  fs.mkdirSync(activationRaceTarget, { mode: 0o700 });
-  fs.writeFileSync(
-    path.join(activationRaceTarget, "external-sentinel"),
-    "preserve-me\n",
-  );
-
-  assert.throws(
-    () =>
-      activateCheckpointStagingNoReplaceV1({
-        staging: activationRaceStaging,
-        dataDir: activationRaceTarget,
-        parent: ownedParent,
-        expectedDevice: String(activationRaceBefore.dev),
-        expectedInode: String(activationRaceBefore.ino),
-      }),
-    /DATA_DIR exists/,
-  );
-  assert.equal(fs.existsSync(activationRaceStaging), true);
-  assert.equal(
-    fs.readFileSync(
-      path.join(activationRaceTarget, "external-sentinel"),
-      "utf8",
-    ),
-    "preserve-me\n",
-  );
-  assert.equal(
-    fs.existsSync(
-      path.join(activationRaceTarget, "staged"),
-    ),
+    selectorSuccessPublished.directoryRenamePerformed,
     false,
   );
+  assert.equal(
+    fs.lstatSync(selectorSuccessTarget).isSymbolicLink(),
+    true,
+  );
+  assert.equal(fs.existsSync(selectorSuccessStaging), true);
+
+  let selectorSuccessSelected =
+    openSelectedCheckpointGenerationV1({
+      dataDir: selectorSuccessTarget,
+    });
+  assert.equal(
+    selectorSuccessSelected.device,
+    String(selectorSuccessStat.dev),
+  );
+  assert.equal(
+    selectorSuccessSelected.inode,
+    String(selectorSuccessStat.ino),
+  );
+  assert.equal(
+    fs.readFileSync(
+      path.join(selectorSuccessSelected.fdRoot, "sentinel"),
+      "utf8",
+    ),
+    "staged-generation\n",
+  );
+  closeSelectedCheckpointGenerationV1(
+    selectorSuccessSelected,
+  );
+
+  selectorSuccessSelected =
+    openSelectedCheckpointGenerationV1({
+      dataDir: selectorSuccessTarget,
+    });
+  assert.equal(
+    selectorSuccessSelected.checkpointId,
+    testCheckpointId,
+  );
+  closeSelectedCheckpointGenerationV1(
+    selectorSuccessSelected,
+  );
+
+  const selectorDestinationTarget = path.join(
+    ownedParent,
+    "selector-destination-race-target",
+  );
+  const selectorDestinationToken = "b".repeat(32);
+  const selectorDestinationStaging =
+    `${selectorDestinationTarget}.void-public-checkpoint-restore-v1-gen-${selectorDestinationToken}`;
+  fs.mkdirSync(selectorDestinationStaging, { mode: 0o700 });
+  const selectorDestinationStat = fs.lstatSync(
+    selectorDestinationStaging,
+    { bigint: true },
+  );
+  const selectorDestinationPrepared =
+    prepareCheckpointStagingSelectionV1({
+      staging: selectorDestinationStaging,
+      dataDir: selectorDestinationTarget,
+      parent: ownedParent,
+      token: selectorDestinationToken,
+      expectedDevice: String(selectorDestinationStat.dev),
+      expectedInode: String(selectorDestinationStat.ino),
+      checkpointId: testCheckpointId,
+    });
+  fs.mkdirSync(selectorDestinationTarget, { mode: 0o700 });
+  fs.writeFileSync(
+    path.join(selectorDestinationTarget, "external-sentinel"),
+    "preserve-me\n",
+  );
+  assert.throws(
+    () =>
+      publishPreparedCheckpointSelectionV1(
+        selectorDestinationPrepared,
+      ),
+    /DATA_DIR exists/,
+  );
+  assert.equal(
+    fs.readFileSync(
+      path.join(
+        selectorDestinationTarget,
+        "external-sentinel",
+      ),
+      "utf8",
+    ),
+    "preserve-me\n",
+  );
+  assert.equal(fs.existsSync(selectorDestinationStaging), true);
+
+  const selectorSwapTarget = path.join(
+    ownedParent,
+    "selector-source-swap-target",
+  );
+  const selectorSwapToken = "d".repeat(32);
+  const selectorSwapStaging =
+    `${selectorSwapTarget}.void-public-checkpoint-restore-v1-gen-${selectorSwapToken}`;
+  fs.mkdirSync(selectorSwapStaging, { mode: 0o700 });
+  fs.writeFileSync(
+    path.join(selectorSwapStaging, "owned-s1"),
+    "owned-s1\n",
+  );
+  const selectorSwapStat = fs.lstatSync(
+    selectorSwapStaging,
+    { bigint: true },
+  );
+  const selectorSwapPrepared =
+    prepareCheckpointStagingSelectionV1({
+      staging: selectorSwapStaging,
+      dataDir: selectorSwapTarget,
+      parent: ownedParent,
+      token: selectorSwapToken,
+      expectedDevice: String(selectorSwapStat.dev),
+      expectedInode: String(selectorSwapStat.ino),
+      checkpointId: testCheckpointId,
+    });
+
+  const selectorSwapOwnedMoved = `${selectorSwapStaging}.owned-s1`;
+  fs.renameSync(
+    selectorSwapStaging,
+    selectorSwapOwnedMoved,
+  );
+  fs.mkdirSync(selectorSwapStaging, { mode: 0o700 });
+  fs.writeFileSync(
+    path.join(selectorSwapStaging, "foreign-s2"),
+    "foreign-s2\n",
+  );
+
+  publishPreparedCheckpointSelectionV1(
+    selectorSwapPrepared,
+  );
+  assert.equal(
+    fs.lstatSync(selectorSwapTarget).isSymbolicLink(),
+    true,
+  );
+  assert.equal(
+    fs.readFileSync(
+      path.join(selectorSwapStaging, "foreign-s2"),
+      "utf8",
+    ),
+    "foreign-s2\n",
+  );
+  assert.equal(
+    fs.readFileSync(
+      path.join(selectorSwapOwnedMoved, "owned-s1"),
+      "utf8",
+    ),
+    "owned-s1\n",
+  );
+  assert.throws(
+    () =>
+      openSelectedCheckpointGenerationV1({
+        dataDir: selectorSwapTarget,
+      }),
+    /generation identity mismatch/,
+  );
+  assert.throws(
+    () =>
+      openSelectedCheckpointGenerationV1({
+        dataDir: selectorSwapTarget,
+      }),
+    /generation identity mismatch/,
+  );
+  assert.equal(
+    fs.lstatSync(selectorSwapTarget).isDirectory(),
+    false,
+  );
+  assert.equal(fs.existsSync(selectorSwapStaging), true);
 
   const generationTarget = path.join(
     ownedParent,
@@ -476,40 +584,86 @@ try {
       });
       assert.equal(result.attempted, true);
       assert.equal(
-        fs.readFileSync(path.join(target, "head.txt"), "utf8").trim(),
-        "0",
+        fs.lstatSync(target).isSymbolicLink(),
+        true,
       );
-      const heads = JSON.parse(
-        fs.readFileSync(path.join(target, "heads.json"), "utf8"),
-      );
-      assert.equal(heads.head, 0);
-      assert.equal(heads.number, 0);
-      assert.ok(
-        fs.existsSync(
-          path.join(
-            target,
-            "segments",
-            "00000000",
-            "index.sparse",
+
+      const selected =
+        openSelectedCheckpointGenerationV1({
+          dataDir: target,
+        });
+      try {
+        assert.equal(
+          fs.readFileSync(
+            path.join(selected.fdRoot, "head.txt"),
+            "utf8",
+          ).trim(),
+          "0",
+        );
+        const heads = JSON.parse(
+          fs.readFileSync(
+            path.join(selected.fdRoot, "heads.json"),
+            "utf8",
           ),
-        ),
-      );
-      assert.ok(
-        fs.existsSync(
-          path.join(
-            target,
-            "segments",
-            "00000000",
-            "meta.json",
-          ),
-        ),
-      );
-      const generationPrefix =
-        `${path.basename(target)}.void-public-checkpoint-restore-v1-gen-`;
-      const leftovers = fs
-        .readdirSync(path.dirname(target))
-        .filter((name) => name.startsWith(generationPrefix));
-      assert.deepEqual(leftovers, []);
+        );
+        assert.equal(heads.head, 0);
+        assert.equal(heads.number, 0);
+
+        const childProbe = spawnSync(
+          process.execPath,
+          [
+            "--input-type=module",
+            "-e",
+            "import { SegStore } from \"./dist/chain/seg_store.js\";\nconst store = new SegStore(process.env.DATA_DIR, { sparseEvery: 16 });\nif (store.loadHeadNumber() !== 0) process.exit(7);\nconsole.log(\"INHERITED_SELECTOR_SEGSTORE_GREEN\");",
+          ],
+          {
+            cwd: root,
+            encoding: "utf8",
+            env: {
+              ...process.env,
+              DATA_DIR: selected.childRoot,
+              VOID_SEGSTORE_INHERITED_DATA_AUTHORITY_V1: "1",
+              VOID_SEGSTORE_INHERITED_DATA_FD_V1:
+                String(selected.childFd),
+              VOID_SEGSTORE_INHERITED_DATA_DEV_V1:
+                selected.device,
+              VOID_SEGSTORE_INHERITED_DATA_INO_V1:
+                selected.inode,
+            },
+            stdio: [
+              "ignore",
+              "pipe",
+              "pipe",
+              "ignore",
+              selected.fd,
+            ],
+          },
+        );
+        assert.equal(
+          childProbe.status,
+          0,
+          childProbe.stderr || childProbe.stdout,
+        );
+        assert.match(
+          childProbe.stdout,
+          /INHERITED_SELECTOR_SEGSTORE_GREEN/,
+        );
+      } finally {
+        closeSelectedCheckpointGenerationV1(selected);
+      }
+
+      const reopened =
+        openSelectedCheckpointGenerationV1({
+          dataDir: target,
+        });
+      try {
+        assert.equal(
+          reopened.checkpointId,
+          validPacket.manifest.checkpoint_id,
+        );
+      } finally {
+        closeSelectedCheckpointGenerationV1(reopened);
+      }
     },
   );
 
@@ -597,11 +751,27 @@ try {
   const restoreAt = supervisorSource.indexOf(
     "await runPublicCheckpointRestorePreNodeV1(",
   );
+  const selectorOpenAt = supervisorSource.indexOf(
+    "openSelectedCheckpointGenerationV1({",
+  );
   const nodeSpawnAt = supervisorSource.indexOf(
-    "const child = childProcess.spawn(process.execPath, [nodeEntry]",
+    "child = childProcess.spawn(process.execPath, [nodeEntry]",
   );
   assert.ok(restoreAt >= 0);
-  assert.ok(nodeSpawnAt > restoreAt);
+  assert.ok(selectorOpenAt > restoreAt);
+  assert.ok(nodeSpawnAt > selectorOpenAt);
+  assert.match(
+    supervisorSource,
+    /childEnv\.DATA_DIR = selected\.childRoot/,
+  );
+  assert.match(
+    supervisorSource,
+    /childStdio\.push\(selected\.fd\)/,
+  );
+  assert.match(
+    supervisorSource,
+    /VOID_SEGSTORE_INHERITED_DATA_AUTHORITY_V1 = "1"/,
+  );
 
   console.log("restore_default_disabled=true");
   console.log("restore_https_supervisor_only_v1=true");
@@ -624,12 +794,15 @@ try {
   console.log("crash_retry_stale_generation_not_adopted=true");
   console.log("proc_fd_semantic_verifier=true");
   console.log("proc_fd_auto_repair=true");
-  console.log("atomic_rename_activation=true");
-  console.log("activation_uses_gnu_mv_rename_noreplace_contract=true");
-  console.log("activation_no_copy=true");
-  console.log("activation_same_inode_proved=true");
-  console.log("destination_appeared_before_activation_preserved=true");
-  console.log("staging_not_activated_when_destination_exists=true");
+  console.log("selector_activation=true");
+  console.log("activation_directory_rename=false");
+  console.log("selector_symlink_no_replace=true");
+  console.log("selector_generation_identity_bound=true");
+  console.log("selector_restart_reopen_green=true");
+  console.log("destination_appeared_selector_publish_rejected=true");
+  console.log("source_generation_swap_foreign_unmoved=true");
+  console.log("source_generation_swap_node_authority=false");
+  console.log("selected_generation_fd_inherited_to_node=true");
   console.log("failure_stale_generation_retained=true");
   console.log("failure_recursive_staging_delete=false");
   console.log("failure_cleanup_preserves_absent_target=true");

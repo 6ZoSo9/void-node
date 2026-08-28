@@ -319,7 +319,72 @@ async function proveExplicitRegisteredProcFdRoot() {
   }
 }
 
+async function proveInheritedProcFdRoot() {
+  const root = newRoot("inherited-proc-fd-root");
+  let fd = null;
+  const envKeys = [
+    "VOID_SEGSTORE_INHERITED_DATA_AUTHORITY_V1",
+    "VOID_SEGSTORE_INHERITED_DATA_FD_V1",
+    "VOID_SEGSTORE_INHERITED_DATA_DEV_V1",
+    "VOID_SEGSTORE_INHERITED_DATA_INO_V1",
+  ];
+  const prior = new Map(
+    envKeys.map((key) => [key, process.env[key]]),
+  );
+  try {
+    const block0 = makeBlock(0);
+    const normal = new SegStore(root, { sparseEvery: 16 });
+    normal.saveBlock(block0);
+
+    fd = fs.openSync(
+      root,
+      fs.constants.O_RDONLY |
+        fs.constants.O_DIRECTORY |
+        fs.constants.O_NOFOLLOW,
+    );
+    const stat = fs.fstatSync(fd, { bigint: true });
+    const fdRoot = `/proc/self/fd/${fd}`;
+
+    process.env.VOID_SEGSTORE_INHERITED_DATA_AUTHORITY_V1 = "1";
+    process.env.VOID_SEGSTORE_INHERITED_DATA_FD_V1 =
+      String(fd);
+    process.env.VOID_SEGSTORE_INHERITED_DATA_DEV_V1 =
+      String(stat.dev);
+    process.env.VOID_SEGSTORE_INHERITED_DATA_INO_V1 =
+      String(stat.ino);
+
+    const inherited = new SegStore(fdRoot, {
+      sparseEvery: 16,
+    });
+    assert.equal(inherited.loadHeadNumber(), 0);
+    assert.deepEqual(inherited.loadBlock(0), block0);
+
+    process.env.VOID_SEGSTORE_INHERITED_DATA_INO_V1 =
+      String(stat.ino + 1n);
+    await expectConfinementReject(
+      () => Promise.resolve(new SegStore(fdRoot)),
+      "inherited proc-fd identity mismatch",
+    );
+
+    process.env.VOID_SEGSTORE_INHERITED_DATA_INO_V1 =
+      String(stat.ino);
+    delete process.env.VOID_SEGSTORE_INHERITED_DATA_AUTHORITY_V1;
+    await expectConfinementReject(
+      () => Promise.resolve(new SegStore(fdRoot)),
+      "inherited proc-fd authority absent",
+    );
+  } finally {
+    for (const [key, value] of prior) {
+      if (value === undefined) delete process.env[key];
+      else process.env[key] = value;
+    }
+    if (fd !== null) fs.closeSync(fd);
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+}
+
 await proveNormalStoreAndRepairRemainFunctional();
+await proveInheritedProcFdRoot();
 await proveExplicitRegisteredProcFdRoot();
 await proveRootSymlinkRejected();
 await proveSegmentsDirectorySymlinkRejected();
@@ -333,6 +398,9 @@ console.log("normal_store_append_load_preserved=true");
 console.log("normal_torn_tail_repair_preserved=true");
 console.log("dry_run_truth_preserved=true");
 console.log("proc_fd_root_unregistered_accepted=false");
+console.log("inherited_proc_fd_runtime_store_green=true");
+console.log("inherited_proc_fd_identity_mismatch_rejected=true");
+console.log("inherited_proc_fd_authority_absent_rejected=true");
 console.log("proc_fd_root_explicit_registration_green=true");
 console.log("proc_fd_root_child_symlink_accepted=false");
 console.log("proc_fd_root_unregister_restores_rejection=true");

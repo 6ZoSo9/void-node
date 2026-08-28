@@ -21,9 +21,14 @@ path is introduced.
 
 Checkpoint restore is eligible only when `DATA_DIR` does not exist.
 
-An existing file, directory, symlink, or dangling symlink at `DATA_DIR` makes
-the restore ineligible. The consumer does not delete, rename, empty, reinterpret,
-or overwrite an existing data directory.
+An existing ordinary file or directory at `DATA_DIR` makes a new restore
+ineligible. The consumer does not delete, rename, empty, reinterpret, or
+overwrite an existing data directory.
+
+After a successful restore, the HTTPS supervisor may recognize one special
+checkpoint selector symlink at `DATA_DIR`. That selector is identity metadata,
+not a filesystem path followed by the node. An unrecognized or malformed
+`DATA_DIR` symlink fails closed.
 
 This is intentionally stricter than accepting an existing empty directory.
 
@@ -127,39 +132,56 @@ recursively deleted by restore.
 
 ## Activation
 
-Immediately before activation, `DATA_DIR` must still be absent.
+The verified generation directory is **never renamed into `DATA_DIR`**.
 
-The verified/reconstructed sibling staging generation is activated with a
-same-filesystem **no-replace** rename using reviewed GNU Coreutils `mv >= 9.4`:
+Activation is split into two boundaries:
+
+1. the restore captures the exact generation token + device + inode + checkpoint
+   ID;
+2. it atomically creates `DATA_DIR` as a no-replace symlink selector whose
+   target is a strict metadata token, not a path.
+
+The selector publication uses one `symlink(2)` directory-entry creation and a
+parent-directory fsync. If any file, directory, or selector already occupies
+`DATA_DIR`, publication fails without replacing it.
+
+A staging pathname replacement after generation capture cannot redirect the
+activation effect: no staging pathname is moved. The selector remains bound to
+the captured device/inode. Before node spawn, the HTTPS supervisor opens the
+selected generation using `O_DIRECTORY|O_NOFOLLOW` and requires its live
+device/inode to match the selector. A foreign replacement therefore remains
+unmoved and produces a HOLD before node start.
+
+The supervisor passes the already-open verified generation into `dist/index.js`
+as inherited child FD 4 and sets:
 
 ```text
-mv -T --no-copy --no-clobber -- <staging> <DATA_DIR>
+DATA_DIR=/proc/self/fd/4
+VOID_SEGSTORE_INHERITED_DATA_AUTHORITY_V1=1
+VOID_SEGSTORE_INHERITED_DATA_FD_V1=4
+VOID_SEGSTORE_INHERITED_DATA_DEV_V1=<captured device>
+VOID_SEGSTORE_INHERITED_DATA_INO_V1=<captured inode>
 ```
 
-The reviewed Coreutils 9.4 two-path move begins with
-`renameat2(..., RENAME_NOREPLACE)`. `--no-clobber` also prevents fallback from
-replacing an existing destination, while `--no-copy` forbids cross-filesystem
-copy fallback.
+SegStore accepts that proc-FD root only when all inherited authority fields are
+present and `fstat(4)` matches the expected device/inode. Normal unregistered
+proc-FD roots remain rejected, and child symlinks remain rejected.
 
-The consumer first requires the generation pathname to still resolve to the
-same device/inode retained from creation. The activation helper receives that
-expected generation identity and rejects a substituted staging pathname.
+Once the supervisor opens the generation, later namespace replacement cannot
+redirect the node: the child receives the open directory description itself.
+The supervisor closes only its parent copy after spawn.
 
-The consumer treats a surviving staging directory as an activation HOLD even
-when `mv --no-clobber` returns success. On successful activation it additionally
-requires the final `DATA_DIR` to have the exact same device and inode as the
-retained staging generation, then fsyncs the parent directory.
+Crash/restart convergence is bounded:
 
-Therefore a `DATA_DIR` that appears after the earlier eligibility check is not
-replaced. The external destination remains untouched and the staged generation
-is not activated.
+- before selector publication: any unique stale generation is ignored and a
+  retry creates a new generation;
+- after selector publication: a restart reopens and verifies the selected
+  generation by device/inode before node spawn;
+- a selector whose generation path was replaced or removed fails closed and
+  cannot become ordinary existing-store success.
 
-There is no in-place population of a live store and no concurrent node process.
-
-If any pre-activation or no-clobber activation step fails, the process does
-not recursively delete the staging pathname. The exact owned or replaced
-generation is retained as described above, and an independently created
-`DATA_DIR` is preserved.
+There is no in-place population of a live store and no concurrent node process
+during restore.
 
 ## Deliberately not included
 
