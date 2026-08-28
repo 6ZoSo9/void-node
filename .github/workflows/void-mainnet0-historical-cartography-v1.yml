@@ -1,0 +1,155 @@
+name: VOID Mainnet-0 Historical Cartography v1
+
+on:
+  pull_request:
+    paths:
+      - "scripts/mainnet0_historical_cartography_v1.mjs"
+      - "scripts/prove_mainnet0_historical_cartography_v1.mjs"
+      - "public/mainnet0-historical-cartography-v1.schema.json"
+      - "public/mainnet0-historical-cartography-v1.json"
+      - "docs/public/mainnet0-historical-cartography-v1.md"
+      - ".github/workflows/void-mainnet0-historical-cartography-v1.yml"
+      - "scripts/prove_ci_diff_hygiene_v1.mjs"
+      - "scripts/ci_diff_hygiene_v1.sh"
+  push:
+    branches:
+      - main
+    paths:
+      - "scripts/mainnet0_historical_cartography_v1.mjs"
+      - "scripts/prove_mainnet0_historical_cartography_v1.mjs"
+      - "public/mainnet0-historical-cartography-v1.schema.json"
+      - "public/mainnet0-historical-cartography-v1.json"
+      - "docs/public/mainnet0-historical-cartography-v1.md"
+      - ".github/workflows/void-mainnet0-historical-cartography-v1.yml"
+      - "scripts/prove_ci_diff_hygiene_v1.mjs"
+      - "scripts/ci_diff_hygiene_v1.sh"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: void-mainnet0-historical-cartography-v1-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  proof:
+    name: cartography-proof-node-${{ matrix.node }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+
+    steps:
+      - name: Checkout exact revision
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+
+      - name: Use supported Node.js major
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: ${{ matrix.node }}
+
+      - name: Syntax and schema checks
+        run: |
+          set -euo pipefail
+          node --check scripts/mainnet0_historical_cartography_v1.mjs
+          node --check scripts/prove_mainnet0_historical_cartography_v1.mjs
+          node --check scripts/prove_ci_diff_hygiene_v1.mjs
+          bash -n scripts/ci_diff_hygiene_v1.sh
+          node -e '
+            const fs = require("fs");
+            const schema = JSON.parse(
+              fs.readFileSync("public/mainnet0-historical-cartography-v1.schema.json", "utf8")
+            );
+            if (schema.title !== "VOID Mainnet-0 Historical Cartography V1 Manifest") process.exit(1);
+            if (schema.properties?.chain_id?.const !== 2050) process.exit(1);
+            if (schema.properties?.source?.properties?.kind?.const !== "raw_segstore_blocks_v1") process.exit(1);
+          '
+
+      - name: Historical cartography deterministic proof
+        run: node scripts/prove_mainnet0_historical_cartography_v1.mjs
+
+      - name: Prove shallow committed-range diff hygiene contract
+        run: node scripts/prove_ci_diff_hygiene_v1.mjs
+
+      - name: Committed-range diff hygiene
+        if: github.event_name == 'pull_request' || github.event_name == 'push'
+        env:
+          CI_DIFF_EVENT_NAME: ${{ github.event_name }}
+          CI_DIFF_PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          CI_DIFF_PUSH_BEFORE_SHA: ${{ github.event.before }}
+          CI_DIFF_CURRENT_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+          CI_DIFF_CHECKOUT_SHA: ${{ github.sha }}
+          CI_DIFF_BASE_REMOTE: ${{ github.server_url }}/${{ github.repository }}.git
+          CI_DIFF_HEAD_REMOTE: ${{ github.server_url }}/${{ github.event.pull_request.head.repo.full_name || github.repository }}.git
+        run: bash scripts/ci_diff_hygiene_v1.sh
+
+  phase-boundary:
+    name: phase-1-no-validator-or-runtime-mutation
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+
+    steps:
+      - name: Checkout exact revision
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+
+      - name: Preserve Phase-1 authority boundary
+        shell: bash
+        env:
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          PUSH_BEFORE_SHA: ${{ github.event.before }}
+          CURRENT_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          if [[ "${{ github.event_name }}" == "pull_request" ]]; then
+            base="$PR_BASE_SHA"
+            head="$PR_HEAD_SHA"
+          elif [[ "${{ github.event_name }}" == "push" ]]; then
+            base="$PUSH_BEFORE_SHA"
+            head="$CURRENT_SHA"
+          else
+            echo "manual_dispatch_phase_boundary=static_only"
+            base=""
+            head=""
+          fi
+
+          prohibited=(
+            "src/chain/block.ts"
+            "src/chain/seg_store.ts"
+            "src/chain/legacy_commit_direct_v2fs_v1.ts"
+            "src/chain/mainnet0_historical_compat_v1.ts"
+            "src/node_core.ts"
+            "tools/void-public-seed-gateway-v1.mjs"
+            "tools/void-public-seed-client-adapter-v1.mjs"
+          )
+
+          if [[ -n "$base" && "$base" != "0000000000000000000000000000000000000000" ]]; then
+            changed="$(git diff --name-only "$base" "$head" -- "${prohibited[@]}")"
+            if [[ -n "$changed" ]]; then
+              printf 'Phase-1 prohibited path changed:\n%s\n' "$changed" >&2
+              exit 1
+            fi
+          fi
+
+          if grep -F 'new SegStore' scripts/mainnet0_historical_cartography_v1.mjs; then
+            echo "scanner must never instantiate SegStore" >&2
+            exit 1
+          fi
+          if grep -F 'from "../src/chain/seg_store' scripts/mainnet0_historical_cartography_v1.mjs; then
+            echo "scanner must never import SegStore" >&2
+            exit 1
+          fi
+
+          echo "VOID_MAINNET0_HISTORICAL_CARTOGRAPHY_V1_PHASE_BOUNDARY_GREEN"
+          echo "modern_validator_modified=false"
+          echo "segstore_modified=false"
+          echo "runtime_modified=false"
