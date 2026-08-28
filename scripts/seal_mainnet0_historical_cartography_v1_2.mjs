@@ -3,6 +3,7 @@
 // Copyright (c) 2025-2026 6ZoSo9
 
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import crypto from "node:crypto";
 import { fileURLToPath, pathToFileURL } from "node:url";
@@ -61,19 +62,59 @@ function safePositiveInt(value) {
 }
 
 function regularNonSymlink(file) {
-  const st = fs.lstatSync(file);
+  const st = fs.lstatSync(file, { bigint: true });
   if (!st.isFile() || st.isSymbolicLink()) {
     hold("path_not_regular_file", { file });
   }
   return st;
 }
 
+function statIdentity(st) {
+  return {
+    dev: String(st.dev),
+    ino: String(st.ino),
+    size: Number(st.size),
+    mtime_ns: String(st.mtimeNs),
+  };
+}
+
+function sameStatIdentity(a, b) {
+  return (
+    a.dev === b.dev &&
+    a.ino === b.ino &&
+    a.size === b.size &&
+    a.mtime_ns === b.mtime_ns
+  );
+}
+
+function readStableRegularFile(file) {
+  const before = statIdentity(regularNonSymlink(file));
+  const fd = fs.openSync(file, "r");
+  try {
+    const opened = statIdentity(fs.fstatSync(fd, { bigint: true }));
+    if (!sameStatIdentity(before, opened)) {
+      hold("file_generation_changed_before_read", { file });
+    }
+    const bytes = fs.readFileSync(fd);
+    const after = statIdentity(fs.fstatSync(fd, { bigint: true }));
+    if (
+      !sameStatIdentity(opened, after) ||
+      bytes.length !== opened.size
+    ) {
+      hold("file_generation_changed_during_read", { file });
+    }
+    return bytes;
+  } finally {
+    fs.closeSync(fd);
+  }
+}
+
 function readJsonFile(file) {
-  regularNonSymlink(file);
   let value;
   try {
-    value = JSON.parse(fs.readFileSync(file, "utf8"));
+    value = JSON.parse(readStableRegularFile(file).toString("utf8"));
   } catch (error) {
+    if (error instanceof CartographyAcceptanceHold) throw error;
     hold("invalid_json_file", {
       file,
       message: String(error?.message || error),
@@ -83,22 +124,7 @@ function readJsonFile(file) {
 }
 
 function hashFile(file) {
-  regularNonSymlink(file);
-  const hash = crypto.createHash("sha256");
-  const fd = fs.openSync(file, "r");
-  const buffer = Buffer.allocUnsafe(1024 * 1024);
-  try {
-    let offset = 0;
-    for (;;) {
-      const count = fs.readSync(fd, buffer, 0, buffer.length, offset);
-      if (count === 0) break;
-      hash.update(buffer.subarray(0, count));
-      offset += count;
-    }
-  } finally {
-    fs.closeSync(fd);
-  }
-  return hash.digest("hex");
+  return sha256Hex(readStableRegularFile(file));
 }
 
 function recomputeContentId(prefix, object, idKey) {
@@ -108,6 +134,23 @@ function recomputeContentId(prefix, object, idKey) {
     prefix +
     sha256Hex(Buffer.from(stableStringify(withoutId), "utf8"))
   );
+}
+
+function requireExactHeadTuple(value, frozenHead, field) {
+  if (
+    !Array.isArray(value) ||
+    value.length !== 3 ||
+    value.some(
+      (entry) =>
+        !safeNonnegativeInt(entry) || entry !== frozenHead,
+    )
+  ) {
+    hold("authority_head_surface_mismatch", {
+      field,
+      frozen_head: frozenHead,
+      observed: value,
+    });
+  }
 }
 
 export function validateScanManifest(manifest) {
@@ -137,8 +180,7 @@ export function validateScanManifest(manifest) {
   }
   if (
     !safePositiveInt(manifest.historical_blocks_scanned) ||
-    manifest.historical_blocks_scanned !==
-      manifest.source.frozen_head + 1
+    manifest.historical_blocks_scanned !== manifest.source.frozen_head + 1
   ) {
     hold("scan_manifest_count_conservation_failed");
   }
@@ -242,6 +284,7 @@ export function validateAuthorityReceipt(receipt) {
   ) {
     hold("authority_receipt_capability_boundary_mismatch");
   }
+
   const primary = receipt.primary_materialization;
   const witness = receipt.independent_witness;
   if (
@@ -252,15 +295,38 @@ export function validateAuthorityReceipt(receipt) {
   }
   if (
     typeof primary.label !== "string" ||
+    primary.label.length === 0 ||
     typeof witness.label !== "string" ||
+    witness.label.length === 0 ||
     primary.label === witness.label ||
     typeof primary.hostname !== "string" ||
+    primary.hostname.length === 0 ||
     typeof witness.hostname !== "string" ||
+    witness.hostname.length === 0 ||
     primary.hostname.toLowerCase() === witness.hostname.toLowerCase() ||
     witness.repeat_prefix_root_equal !== true
   ) {
     hold("authority_independent_materialization_contract_mismatch");
   }
+
+  requireExactHeadTuple(
+    primary.head_surfaces,
+    receipt.frozen_head,
+    "primary_materialization.head_surfaces",
+  );
+  for (const field of [
+    "head_before_pass1",
+    "head_after_pass1",
+    "head_before_pass2",
+    "head_after_pass2",
+  ]) {
+    requireExactHeadTuple(
+      witness[field],
+      receipt.frozen_head,
+      `independent_witness.${field}`,
+    );
+  }
+
   if (!Array.isArray(receipt.descriptors)) {
     hold("authority_receipt_descriptors_missing");
   }
@@ -345,13 +411,22 @@ export function validateAuthorityReceipt(receipt) {
   return receipt;
 }
 
-export function computeClassificationSemantics(repoRoot = DEFAULT_REPO_ROOT) {
+export function computeClassificationSemantics(
+  repoRoot = DEFAULT_REPO_ROOT,
+) {
   const root = path.resolve(repoRoot);
+  if (root !== DEFAULT_REPO_ROOT) {
+    hold("classification_semantics_repo_root_not_execution_root", {
+      expected: DEFAULT_REPO_ROOT,
+      observed: root,
+    });
+  }
+
   const inputs = [
     DEFAULT_SCANNER_REL,
     DEFAULT_SCHEMA_REL,
   ].map((relativePath) => {
-    const absolute = path.join(root, relativePath);
+    const absolute = path.join(DEFAULT_REPO_ROOT, relativePath);
     return {
       path: relativePath,
       sha256: hashFile(absolute),
@@ -369,110 +444,86 @@ export function computeClassificationSemantics(repoRoot = DEFAULT_REPO_ROOT) {
   };
 }
 
-export function checkpointPrefixCommitment(
-  checkpointDir,
-  frozenHead,
-) {
-  const root = path.resolve(checkpointDir);
-  const segmentsDir = path.join(root, "segments");
-  const st = fs.lstatSync(segmentsDir);
-  if (!st.isDirectory() || st.isSymbolicLink()) {
-    hold("checkpoint_segments_not_directory");
-  }
-
-  const descriptors = [];
-  let expectedHeight = 0;
-  let totalPrefixBytes = 0;
+function parsePrefixBytes(buffer, segment, from, to) {
+  const hash = crypto.createHash("sha256");
+  let offset = 0;
+  let expectedHeight = from;
   let genesisRawSha256 = null;
   let frozenRawSha256 = null;
 
-  for (let base = 0; base <= frozenHead; base += SEG_SPAN) {
-    const name = String(base).padStart(8, "0");
-    const file = path.join(segmentsDir, name, "blocks.bin");
-    const fileSt = regularNonSymlink(file);
-    const expectedTo = Math.min(base + SEG_SPAN - 1, frozenHead);
-    const hash = crypto.createHash("sha256");
-    const fd = fs.openSync(file, "r");
-    let offset = 0;
-
-    try {
-      while (expectedHeight <= expectedTo) {
-        const prefix = Buffer.allocUnsafe(4);
-        if (fs.readSync(fd, prefix, 0, 4, offset) !== 4) {
-          hold("checkpoint_torn_frame_prefix", {
-            segment: name,
-            height: expectedHeight,
-          });
-        }
-        const length = prefix.readUInt32BE(0);
-        if (length <= 0 || length > MAX_FRAME_BYTES) {
-          hold("checkpoint_frame_length_invalid", {
-            segment: name,
-            height: expectedHeight,
-            length,
-          });
-        }
-        const body = Buffer.allocUnsafe(length);
-        if (fs.readSync(fd, body, 0, length, offset + 4) !== length) {
-          hold("checkpoint_torn_frame_body", {
-            segment: name,
-            height: expectedHeight,
-          });
-        }
-        let block;
-        try {
-          block = JSON.parse(body.toString("utf8"));
-        } catch (error) {
-          hold("checkpoint_frame_invalid_json", {
-            height: expectedHeight,
-            message: String(error?.message || error),
-          });
-        }
-        if (block?.number !== expectedHeight) {
-          hold("checkpoint_height_sequence_mismatch", {
-            expected: expectedHeight,
-            observed: block?.number,
-          });
-        }
-
-        const rawSha = sha256Hex(body);
-        if (expectedHeight === 0) genesisRawSha256 = rawSha;
-        if (expectedHeight === frozenHead) frozenRawSha256 = rawSha;
-
-        hash.update(prefix);
-        hash.update(body);
-        offset += 4 + length;
-        expectedHeight += 1;
-      }
-    } finally {
-      fs.closeSync(fd);
+  while (expectedHeight <= to) {
+    if (offset + 4 > buffer.length) {
+      hold("checkpoint_torn_frame_prefix", {
+        segment,
+        height: expectedHeight,
+      });
     }
-
-    if (offset !== Number(fileSt.size)) {
-      hold("checkpoint_terminal_or_sealed_segment_has_trailing_bytes", {
-        segment: name,
-        prefix_bytes: offset,
-        file_bytes: Number(fileSt.size),
+    const length = buffer.readUInt32BE(offset);
+    if (length <= 0 || length > MAX_FRAME_BYTES) {
+      hold("checkpoint_frame_length_invalid", {
+        segment,
+        height: expectedHeight,
+        length,
+      });
+    }
+    const bodyStart = offset + 4;
+    const bodyEnd = bodyStart + length;
+    if (bodyEnd > buffer.length) {
+      hold("checkpoint_torn_frame_body", {
+        segment,
+        height: expectedHeight,
+      });
+    }
+    const body = buffer.subarray(bodyStart, bodyEnd);
+    let block;
+    try {
+      block = JSON.parse(body.toString("utf8"));
+    } catch (error) {
+      hold("checkpoint_frame_invalid_json", {
+        segment,
+        height: expectedHeight,
+        message: String(error?.message || error),
+      });
+    }
+    if (block?.number !== expectedHeight) {
+      hold("checkpoint_height_sequence_mismatch", {
+        expected: expectedHeight,
+        observed: block?.number,
       });
     }
 
-    descriptors.push({
-      segment: name,
-      from: base,
-      to: expectedTo,
+    const rawSha = sha256Hex(body);
+    if (expectedHeight === 0) genesisRawSha256 = rawSha;
+    if (expectedHeight === to) frozenRawSha256 = rawSha;
+
+    hash.update(buffer.subarray(offset, bodyEnd));
+    offset = bodyEnd;
+    expectedHeight += 1;
+  }
+
+  if (offset !== buffer.length) {
+    hold("checkpoint_terminal_or_sealed_segment_has_trailing_bytes", {
+      segment,
       prefix_bytes: offset,
-      prefix_sha256: hash.digest("hex"),
-    });
-    totalPrefixBytes += offset;
-  }
-
-  if (expectedHeight !== frozenHead + 1) {
-    hold("checkpoint_block_count_mismatch", {
-      expected: frozenHead + 1,
-      observed: expectedHeight,
+      file_bytes: buffer.length,
     });
   }
 
+  return {
+    prefix_bytes: offset,
+    prefix_sha256: hash.digest("hex"),
+    genesis_raw_sha256: genesisRawSha256,
+    frozen_raw_sha256: frozenRawSha256,
+  };
+}
+
+function finalizePrefixCommitment(
+  frozenHead,
+  descriptors,
+  totalPrefixBytes,
+  genesisRawSha256,
+  frozenRawSha256,
+) {
   const rootBody = {
     schema: "void_mainnet0_prefix_commitment_body_v1",
     chain_id: 2050,
@@ -481,12 +532,11 @@ export function checkpointPrefixCommitment(
     total_prefix_bytes: totalPrefixBytes,
     descriptors,
   };
-
   return {
     descriptors,
     segment_count: descriptors.length,
     total_prefix_bytes: totalPrefixBytes,
-    block_count: expectedHeight,
+    block_count: frozenHead + 1,
     genesis_raw_sha256: genesisRawSha256,
     frozen_raw_sha256: frozenRawSha256,
     prefix_root: sha256Hex(
@@ -495,8 +545,132 @@ export function checkpointPrefixCommitment(
   };
 }
 
+export function checkpointPrefixCommitment(checkpointDir, frozenHead) {
+  const root = path.resolve(checkpointDir);
+  const segmentsDir = path.join(root, "segments");
+  const st = fs.lstatSync(segmentsDir);
+  if (!st.isDirectory() || st.isSymbolicLink()) {
+    hold("checkpoint_segments_not_directory");
+  }
+
+  const descriptors = [];
+  let totalPrefixBytes = 0;
+  let genesisRawSha256 = null;
+  let frozenRawSha256 = null;
+
+  for (let base = 0; base <= frozenHead; base += SEG_SPAN) {
+    const segment = String(base).padStart(8, "0");
+    const file = path.join(segmentsDir, segment, "blocks.bin");
+    const bytes = readStableRegularFile(file);
+    const to = Math.min(base + SEG_SPAN - 1, frozenHead);
+    const parsed = parsePrefixBytes(bytes, segment, base, to);
+    descriptors.push({
+      segment,
+      from: base,
+      to,
+      prefix_bytes: parsed.prefix_bytes,
+      prefix_sha256: parsed.prefix_sha256,
+    });
+    totalPrefixBytes += parsed.prefix_bytes;
+    if (base === 0) genesisRawSha256 = parsed.genesis_raw_sha256;
+    if (to === frozenHead) frozenRawSha256 = parsed.frozen_raw_sha256;
+  }
+
+  return finalizePrefixCommitment(
+    frozenHead,
+    descriptors,
+    totalPrefixBytes,
+    genesisRawSha256,
+    frozenRawSha256,
+  );
+}
+
+function captureCheckpointSnapshot(checkpointDir, frozenHead) {
+  const root = path.resolve(checkpointDir);
+  const segmentsDir = path.join(root, "segments");
+  const segSt = fs.lstatSync(segmentsDir);
+  if (!segSt.isDirectory() || segSt.isSymbolicLink()) {
+    hold("checkpoint_segments_not_directory");
+  }
+
+  const snapshot = fs.mkdtempSync(
+    path.join(os.tmpdir(), "void-mainnet0-cartography-seal-"),
+  );
+  const snapshotSegments = path.join(snapshot, "segments");
+  fs.mkdirSync(snapshotSegments, { mode: 0o700 });
+
+  const descriptors = [];
+  let totalPrefixBytes = 0;
+  let genesisRawSha256 = null;
+  let frozenRawSha256 = null;
+
+  try {
+    for (let base = 0; base <= frozenHead; base += SEG_SPAN) {
+      const segment = String(base).padStart(8, "0");
+      const sourceFile = path.join(segmentsDir, segment, "blocks.bin");
+      const bytes = readStableRegularFile(sourceFile);
+      const to = Math.min(base + SEG_SPAN - 1, frozenHead);
+      const parsed = parsePrefixBytes(bytes, segment, base, to);
+
+      const destinationDir = path.join(snapshotSegments, segment);
+      fs.mkdirSync(destinationDir, { mode: 0o700 });
+      fs.writeFileSync(
+        path.join(destinationDir, "blocks.bin"),
+        bytes,
+        { flag: "wx", mode: 0o600 },
+      );
+
+      descriptors.push({
+        segment,
+        from: base,
+        to,
+        prefix_bytes: parsed.prefix_bytes,
+        prefix_sha256: parsed.prefix_sha256,
+      });
+      totalPrefixBytes += parsed.prefix_bytes;
+      if (base === 0) genesisRawSha256 = parsed.genesis_raw_sha256;
+      if (to === frozenHead) frozenRawSha256 = parsed.frozen_raw_sha256;
+    }
+
+    const checkpointDescriptor = path.join(root, "checkpoint.json");
+    const checkpointBytes = readStableRegularFile(checkpointDescriptor);
+    fs.writeFileSync(
+      path.join(snapshot, "checkpoint.json"),
+      checkpointBytes,
+      { flag: "wx", mode: 0o600 },
+    );
+
+    return {
+      snapshot,
+      checkpoint_descriptor_sha256: sha256Hex(checkpointBytes),
+      prefix: finalizePrefixCommitment(
+        frozenHead,
+        descriptors,
+        totalPrefixBytes,
+        genesisRawSha256,
+        frozenRawSha256,
+      ),
+    };
+  } catch (error) {
+    fs.rmSync(snapshot, { recursive: true, force: true });
+    throw error;
+  }
+}
+
 function sameJson(a, b) {
   return stableStringify(a) === stableStringify(b);
+}
+
+function prefixMatchesAuthority(prefix, authority) {
+  return (
+    prefix.prefix_root === authority.prefix_root &&
+    prefix.segment_count === authority.segment_count &&
+    prefix.total_prefix_bytes === authority.total_prefix_bytes &&
+    prefix.block_count === authority.block_count &&
+    prefix.genesis_raw_sha256 === authority.genesis_raw_sha256 &&
+    prefix.frozen_raw_sha256 === authority.frozen_raw_sha256 &&
+    sameJson(prefix.descriptors, authority.descriptors)
+  );
 }
 
 export function sealHistoricalCartography(options) {
@@ -519,22 +693,37 @@ export function sealHistoricalCartography(options) {
   }
 
   if (
-    options.expectedAuthorityId &&
-    authority.authority_id !== options.expectedAuthorityId
+    typeof options.expectedAuthorityId !== "string" ||
+    !/^voidm0auth1_[0-9a-f]{64}$/.test(options.expectedAuthorityId)
   ) {
+    hold("expected_authority_id_required");
+  }
+  if (authority.authority_id !== options.expectedAuthorityId) {
     hold("authority_id_expected_mismatch", {
       expected: options.expectedAuthorityId,
       actual: authority.authority_id,
     });
   }
 
-  const semantics = computeClassificationSemantics(
-    options.repoRoot || DEFAULT_REPO_ROOT,
-  );
   if (
-    options.expectedSemanticsRoot &&
-    semantics.root !== options.expectedSemanticsRoot
+    typeof options.expectedSemanticsRoot !== "string" ||
+    !lowerHex(options.expectedSemanticsRoot, 64)
   ) {
+    hold("expected_classification_semantics_root_required");
+  }
+
+  if (
+    options.repoRoot &&
+    path.resolve(options.repoRoot) !== DEFAULT_REPO_ROOT
+  ) {
+    hold("classification_semantics_repo_root_not_execution_root", {
+      expected: DEFAULT_REPO_ROOT,
+      observed: path.resolve(options.repoRoot),
+    });
+  }
+
+  const semantics = computeClassificationSemantics(DEFAULT_REPO_ROOT);
+  if (semantics.root !== options.expectedSemanticsRoot) {
     hold("classification_semantics_root_mismatch", {
       expected: options.expectedSemanticsRoot,
       actual: semantics.root,
@@ -545,154 +734,201 @@ export function sealHistoricalCartography(options) {
   if (!checkpointDir || !fs.existsSync(checkpointDir)) {
     hold("checkpoint_dir_missing");
   }
-  const checkpointDescriptor = path.join(checkpointDir, "checkpoint.json");
-  const checkpointDescriptorSha256 = hashFile(checkpointDescriptor);
+  const checkpointSt = fs.lstatSync(checkpointDir);
+  if (!checkpointSt.isDirectory() || checkpointSt.isSymbolicLink()) {
+    hold("checkpoint_dir_not_regular_directory");
+  }
 
-  const prefix = checkpointPrefixCommitment(
+  const captured = captureCheckpointSnapshot(
     checkpointDir,
     authority.frozen_head,
   );
 
-  if (
-    prefix.prefix_root !== authority.prefix_root ||
-    prefix.segment_count !== authority.segment_count ||
-    prefix.total_prefix_bytes !== authority.total_prefix_bytes ||
-    prefix.block_count !== authority.block_count ||
-    prefix.genesis_raw_sha256 !== authority.genesis_raw_sha256 ||
-    prefix.frozen_raw_sha256 !== authority.frozen_raw_sha256 ||
-    !sameJson(prefix.descriptors, authority.descriptors)
-  ) {
-    hold("checkpoint_prefix_authority_mismatch", {
-      authority_prefix_root: authority.prefix_root,
-      checkpoint_prefix_root: prefix.prefix_root,
+  try {
+    if (!prefixMatchesAuthority(captured.prefix, authority)) {
+      hold("checkpoint_prefix_authority_mismatch", {
+        authority_prefix_root: authority.prefix_root,
+        checkpoint_prefix_root: captured.prefix.prefix_root,
+      });
+    }
+
+    const immutableRescan = scanHistoricalSource({
+      sourceDir: captured.snapshot,
+      frozenHead: authority.frozen_head,
+      sourceLabel: "authority-sealed-checkpoint",
+      knownAnchors: options.knownAnchors,
+      knownRawAnchors: options.knownRawAnchors,
     });
+
+    if (immutableRescan.manifest.status !== "complete") {
+      hold("immutable_checkpoint_rescan_not_complete", {
+        holds: immutableRescan.manifest.holds,
+      });
+    }
+    if (
+      immutableRescan.manifest.complete_scan_digest !==
+      scanManifest.complete_scan_digest
+    ) {
+      hold("immutable_checkpoint_scan_digest_mismatch", {
+        original: scanManifest.complete_scan_digest,
+        immutable: immutableRescan.manifest.complete_scan_digest,
+      });
+    }
+    if (
+      !sameJson(
+        immutableRescan.manifest.class_counts,
+        scanManifest.class_counts,
+      ) ||
+      !sameJson(
+        immutableRescan.manifest.ranges,
+        scanManifest.ranges,
+      ) ||
+      !sameJson(
+        immutableRescan.manifest.exceptions,
+        scanManifest.exceptions,
+      ) ||
+      !sameJson(
+        immutableRescan.manifest.anchors,
+        scanManifest.anchors,
+      )
+    ) {
+      hold("immutable_checkpoint_classification_map_mismatch");
+    }
+
+    if (
+      immutableRescan.manifest.source.checkpoint_descriptor_sha256 !==
+      captured.checkpoint_descriptor_sha256
+    ) {
+      hold("checkpoint_descriptor_binding_mismatch");
+    }
+
+    const publicAuthority = {
+      source_authority_id: authority.authority_id,
+      authority_basis: authority.authority_basis,
+      frozen_head: authority.frozen_head,
+      block_count: authority.block_count,
+      segment_count: authority.segment_count,
+      total_prefix_bytes: authority.total_prefix_bytes,
+      prefix_root: authority.prefix_root,
+      genesis_raw_sha256: authority.genesis_raw_sha256,
+      frozen_raw_sha256: authority.frozen_raw_sha256,
+      descriptors: authority.descriptors,
+      independent_materializations: 2,
+      independent_witness_repeat_passes: 2,
+      exact_byte_prefix_match: true,
+    };
+
+    const withoutId = {
+      schema: ACCEPTANCE_SCHEMA,
+      marker: ACCEPTANCE_MARKER,
+      version: ACCEPTANCE_VERSION,
+      network: "VOID Mainnet-0",
+      chain_id: 2050,
+      status: "complete",
+      scan: {
+        manifest_id: scanManifest.manifest_id,
+        scanner_version: scanManifest.scanner_version,
+        source_id: scanManifest.source.source_id,
+        frozen_head: scanManifest.source.frozen_head,
+        historical_blocks_scanned:
+          scanManifest.historical_blocks_scanned,
+        complete_scan_digest: scanManifest.complete_scan_digest,
+        class_counts: scanManifest.class_counts,
+      },
+      canonical_prefix_authority: publicAuthority,
+      immutable_snapshot: {
+        kind: "blocks_only_checkpoint_v1",
+        checkpoint_descriptor_sha256:
+          captured.checkpoint_descriptor_sha256,
+        checkpoint_source_id:
+          immutableRescan.manifest.source.source_id,
+        checkpoint_prefix_root: captured.prefix.prefix_root,
+        immutable_rescan_manifest_id:
+          immutableRescan.manifest.manifest_id,
+        immutable_rescan_complete_scan_digest:
+          immutableRescan.manifest.complete_scan_digest,
+      },
+      classification_semantics: semantics,
+      acceptance_contract: {
+        canonical_prefix_independently_witnessed: true,
+        immutable_snapshot_rescan_equal: true,
+        classification_semantics_content_bound: true,
+        numeric_count_conservation_revalidated: true,
+        append_authority: false,
+        validator_authority: false,
+        runtime_authority: false,
+        canonical_bytes_modified: 0,
+        modern_validator_modified: false,
+      },
+    };
+
+    return {
+      ...withoutId,
+      acceptance_id:
+        ACCEPTANCE_ID_PREFIX +
+        sha256Hex(Buffer.from(stableStringify(withoutId), "utf8")),
+    };
+  } finally {
+    fs.rmSync(captured.snapshot, { recursive: true, force: true });
   }
-
-  const immutableRescan = scanHistoricalSource({
-    sourceDir: checkpointDir,
-    frozenHead: authority.frozen_head,
-    sourceLabel: "authority-sealed-checkpoint",
-    knownAnchors: options.knownAnchors,
-    knownRawAnchors: options.knownRawAnchors,
-  });
-
-  if (immutableRescan.manifest.status !== "complete") {
-    hold("immutable_checkpoint_rescan_not_complete", {
-      holds: immutableRescan.manifest.holds,
-    });
-  }
-  if (
-    immutableRescan.manifest.complete_scan_digest !==
-    scanManifest.complete_scan_digest
-  ) {
-    hold("immutable_checkpoint_scan_digest_mismatch", {
-      original: scanManifest.complete_scan_digest,
-      immutable: immutableRescan.manifest.complete_scan_digest,
-    });
-  }
-  if (
-    !sameJson(
-      immutableRescan.manifest.class_counts,
-      scanManifest.class_counts,
-    ) ||
-    !sameJson(
-      immutableRescan.manifest.ranges,
-      scanManifest.ranges,
-    ) ||
-    !sameJson(
-      immutableRescan.manifest.exceptions,
-      scanManifest.exceptions,
-    ) ||
-    !sameJson(
-      immutableRescan.manifest.anchors,
-      scanManifest.anchors,
-    )
-  ) {
-    hold("immutable_checkpoint_classification_map_mismatch");
-  }
-
-  if (
-    immutableRescan.manifest.source.checkpoint_descriptor_sha256 !==
-    checkpointDescriptorSha256
-  ) {
-    hold("checkpoint_descriptor_binding_mismatch");
-  }
-
-  const publicAuthority = {
-    source_authority_id: authority.authority_id,
-    authority_basis: authority.authority_basis,
-    frozen_head: authority.frozen_head,
-    block_count: authority.block_count,
-    segment_count: authority.segment_count,
-    total_prefix_bytes: authority.total_prefix_bytes,
-    prefix_root: authority.prefix_root,
-    genesis_raw_sha256: authority.genesis_raw_sha256,
-    frozen_raw_sha256: authority.frozen_raw_sha256,
-    descriptors: authority.descriptors,
-    independent_materializations: 2,
-    independent_witness_repeat_passes: 2,
-    exact_byte_prefix_match: true,
-  };
-
-  const withoutId = {
-    schema: ACCEPTANCE_SCHEMA,
-    marker: ACCEPTANCE_MARKER,
-    version: ACCEPTANCE_VERSION,
-    network: "VOID Mainnet-0",
-    chain_id: 2050,
-    status: "complete",
-    scan: {
-      manifest_id: scanManifest.manifest_id,
-      scanner_version: scanManifest.scanner_version,
-      source_id: scanManifest.source.source_id,
-      frozen_head: scanManifest.source.frozen_head,
-      historical_blocks_scanned:
-        scanManifest.historical_blocks_scanned,
-      complete_scan_digest: scanManifest.complete_scan_digest,
-      class_counts: scanManifest.class_counts,
-    },
-    canonical_prefix_authority: publicAuthority,
-    immutable_snapshot: {
-      kind: "blocks_only_checkpoint_v1",
-      checkpoint_descriptor_sha256: checkpointDescriptorSha256,
-      checkpoint_source_id:
-        immutableRescan.manifest.source.source_id,
-      checkpoint_prefix_root: prefix.prefix_root,
-      immutable_rescan_manifest_id:
-        immutableRescan.manifest.manifest_id,
-      immutable_rescan_complete_scan_digest:
-        immutableRescan.manifest.complete_scan_digest,
-    },
-    classification_semantics: semantics,
-    acceptance_contract: {
-      canonical_prefix_independently_witnessed: true,
-      immutable_snapshot_rescan_equal: true,
-      classification_semantics_content_bound: true,
-      numeric_count_conservation_revalidated: true,
-      append_authority: false,
-      validator_authority: false,
-      runtime_authority: false,
-      canonical_bytes_modified: 0,
-      modern_validator_modified: false,
-    },
-  };
-
-  return {
-    ...withoutId,
-    acceptance_id:
-      ACCEPTANCE_ID_PREFIX +
-      sha256Hex(Buffer.from(stableStringify(withoutId), "utf8")),
-  };
 }
 
-export function writeAcceptanceExclusive(output, acceptance) {
+function pathInside(root, candidate) {
+  return candidate === root || candidate.startsWith(`${root}${path.sep}`);
+}
+
+export function writeAcceptanceExclusive(
+  output,
+  acceptance,
+  forbiddenRoots = [],
+) {
   const destination = path.resolve(output);
-  fs.mkdirSync(path.dirname(destination), { recursive: true });
-  fs.writeFileSync(
-    destination,
-    `${stableStringify(acceptance)}\n`,
-    { flag: "wx", mode: 0o600 },
+  const parent = path.dirname(destination);
+  if (!fs.existsSync(parent)) {
+    hold("acceptance_output_parent_missing", { parent });
+  }
+
+  const parentFd = fs.openSync(
+    parent,
+    fs.constants.O_RDONLY |
+      fs.constants.O_DIRECTORY |
+      fs.constants.O_NOFOLLOW,
   );
+  try {
+    const pinnedParent = `/proc/self/fd/${parentFd}`;
+    const parentReal = fs.realpathSync(pinnedParent);
+    for (const forbidden of forbiddenRoots) {
+      const forbiddenReal = fs.realpathSync(path.resolve(forbidden));
+      if (pathInside(forbiddenReal, parentReal)) {
+        hold("acceptance_output_parent_overlaps_forbidden_source", {
+          parent: parentReal,
+          forbidden: forbiddenReal,
+        });
+      }
+    }
+
+    const base = path.basename(destination);
+    if (!base || base === "." || base === "..") {
+      hold("acceptance_output_basename_invalid");
+    }
+
+    const fd = fs.openSync(
+      `${pinnedParent}/${base}`,
+      fs.constants.O_WRONLY |
+        fs.constants.O_CREAT |
+        fs.constants.O_EXCL |
+        fs.constants.O_NOFOLLOW,
+      0o600,
+    );
+    try {
+      fs.writeFileSync(fd, `${stableStringify(acceptance)}\n`, "utf8");
+      fs.fsyncSync(fd);
+    } finally {
+      fs.closeSync(fd);
+    }
+  } finally {
+    fs.closeSync(parentFd);
+  }
 }
 
 function parseArgs(argv) {
@@ -729,12 +965,12 @@ function usage() {
     "  --scan-manifest /path/to/cartography-v1_1.json \\",
     "  --authority-receipt /path/to/independent-prefix-authority.json \\",
     "  --checkpoint-dir /path/to/verified/blocks-only-checkpoint \\",
-    "  --repo-root /path/to/exact/reviewed/repo \\",
+    "  --expected-authority-id voidm0auth1_<reviewed-sha256> \\",
+    "  --expected-semantics-root <reviewed-sha256> \\",
     "  --output /path/to/cartography-acceptance-v1.json",
     "",
-    "Optional:",
-    "  --expected-authority-id voidm0auth1_<sha256>",
-    "  --expected-semantics-root <sha256>",
+    "The expected authority ID and semantics root are mandatory external review anchors.",
+    "--repo-root, if supplied for compatibility, must resolve to the executing checkout.",
   ].join("\n");
 }
 
@@ -748,6 +984,8 @@ async function cli() {
     !options.scanManifest ||
     !options.authorityReceipt ||
     !options.checkpointDir ||
+    !options.expectedAuthorityId ||
+    !options.expectedSemanticsRoot ||
     !options.output
   ) {
     console.error(usage());
@@ -756,7 +994,11 @@ async function cli() {
 
   try {
     const acceptance = sealHistoricalCartography(options);
-    writeAcceptanceExclusive(options.output, acceptance);
+    writeAcceptanceExclusive(
+      options.output,
+      acceptance,
+      [options.checkpointDir],
+    );
     console.log(`${ACCEPTANCE_MARKER}_GREEN`);
     console.log(`acceptance_id=${acceptance.acceptance_id}`);
     console.log(
