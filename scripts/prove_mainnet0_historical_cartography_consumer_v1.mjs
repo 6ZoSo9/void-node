@@ -107,7 +107,7 @@ function proveAcceptanceBinding() {
   );
   assert.deepEqual(manifest.class_counts, acceptance.scan.class_counts);
   assert.equal(manifest.holds.length, 0);
-  assert.equal(manifest.unknown_blocks, 0);
+  assert.equal(manifest.unclassified_blocks, 0);
   assert.equal(manifest.ambiguous_classifications, 0);
   assert.equal(manifest.transition_gaps, 0);
   assert.equal(manifest.class_counts.MODERN_SIGNED_V1, 0);
