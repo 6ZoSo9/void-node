@@ -123,18 +123,34 @@ export function createOwnedCheckpointRestoreGenerationV1({
         closed: false,
       };
     } catch (error) {
+      const cleanupErrors = [];
       if (unregister) {
         try {
           unregister();
-        } catch {}
+        } catch (cleanupError) {
+          cleanupErrors.push(cleanupError);
+        }
       }
       if (fd !== null) {
         try {
           fs.closeSync(fd);
-        } catch {}
+        } catch (cleanupError) {
+          cleanupErrors.push(cleanupError);
+        }
       }
       // Do not recursively delete the just-created namespace on an ownership
       // setup failure. It is unique and non-blocking for the next attempt.
+      if (cleanupErrors.length > 0) {
+        const aggregate = new AggregateError(
+          [error, ...cleanupErrors],
+          "checkpoint restore generation setup failed and cleanup also failed",
+          { cause: error },
+        );
+        aggregate.voidCheckpointRestoreGenerationFailureV1 =
+          Boolean(error?.voidCheckpointRestoreGenerationFailureV1);
+        aggregate.voidCheckpointRestoreCleanupFailureV1 = true;
+        throw aggregate;
+      }
       throw error;
     }
   }
