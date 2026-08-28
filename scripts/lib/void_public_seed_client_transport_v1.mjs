@@ -10,6 +10,13 @@ import {
 } from "./void_public_seed_qualification_v1.mjs";
 
 const COMPILED_MAX_RESPONSE_BYTES = 128 * 1024 * 1024;
+
+const CHECKPOINT_DISCOVERY_ROUTE_V1 = "/__void/checkpoint/v1.json";
+const CHECKPOINT_ID_RE_V1 = /^voidpbc1_[0-9a-f]{64}$/;
+const CHECKPOINT_MANIFEST_PATH_RE_V1 =
+  /^\/checkpoints\/v1\/(voidpbc1_[0-9a-f]{64})\/checkpoint\.json$/;
+const CHECKPOINT_SEGMENT_PATH_RE_V1 =
+  /^\/checkpoints\/v1\/(voidpbc1_[0-9a-f]{64})\/segments\/([0-9]{8})\/blocks\.bin$/;
 const resolverFlightsByImpl = new WeakMap();
 
 function normalizeConnectedAddress(address) {
@@ -211,9 +218,140 @@ function blockNumber(block) {
   }
 }
 
+function exactResponseKeysV1(value, expected) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  const actual = Object.keys(value).sort();
+  const wanted = [...expected].sort();
+  return (
+    actual.length === wanted.length &&
+    actual.every((key, index) => key === wanted[index])
+  );
+}
+
+function validateCheckpointDiscoveryV1(value) {
+  const root = plainObject(value, "checkpoint discovery response");
+  if (!exactResponseKeysV1(root, [
+    "schema",
+    "network",
+    "chain_id",
+    "status",
+    "checkpoint",
+  ])) {
+    throw terminalSeedResponse("checkpoint discovery key set mismatch");
+  }
+  if (
+    root.schema !== "void_public_checkpoint_discovery_v1" ||
+    root.network !== "VOID Network" ||
+    root.chain_id !== 2050
+  ) {
+    throw terminalSeedResponse("checkpoint discovery domain mismatch");
+  }
+
+  if (root.status === "unavailable") {
+    if (root.checkpoint !== null) {
+      throw terminalSeedResponse("unavailable checkpoint discovery must carry null");
+    }
+    return;
+  }
+  if (root.status !== "available") {
+    throw terminalSeedResponse("checkpoint discovery status is invalid");
+  }
+
+  const checkpoint = plainObject(root.checkpoint, "checkpoint discovery checkpoint");
+  if (!exactResponseKeysV1(checkpoint, [
+    "checkpoint_id",
+    "manifest_sha256",
+    "source_sha",
+    "head",
+    "block_count",
+    "segment_count",
+    "payload_bytes",
+    "packet_base_path",
+  ])) {
+    throw terminalSeedResponse("checkpoint discovery checkpoint key set mismatch");
+  }
+  if (
+    typeof checkpoint.checkpoint_id !== "string" ||
+    !CHECKPOINT_ID_RE_V1.test(checkpoint.checkpoint_id) ||
+    typeof checkpoint.manifest_sha256 !== "string" ||
+    !/^[0-9a-f]{64}$/.test(checkpoint.manifest_sha256) ||
+    typeof checkpoint.source_sha !== "string" ||
+    !/^[0-9a-f]{40}$/.test(checkpoint.source_sha)
+  ) {
+    throw terminalSeedResponse("checkpoint discovery identity is malformed");
+  }
+
+  const head = nonnegativeInteger(checkpoint.head, "checkpoint discovery head");
+  const blockCount = positiveInteger(
+    checkpoint.block_count,
+    "checkpoint discovery block count",
+  );
+  const segmentCount = positiveInteger(
+    checkpoint.segment_count,
+    "checkpoint discovery segment count",
+  );
+  positiveInteger(checkpoint.payload_bytes, "checkpoint discovery payload bytes");
+
+  if (blockCount !== head + 1) {
+    throw terminalSeedResponse("checkpoint discovery block count does not match head");
+  }
+  if (segmentCount !== Math.floor(head / 10_000) + 1) {
+    throw terminalSeedResponse("checkpoint discovery segment count does not match head");
+  }
+
+  const expectedBase = `/checkpoints/v1/${checkpoint.checkpoint_id}`;
+  if (checkpoint.packet_base_path !== expectedBase) {
+    throw terminalSeedResponse("checkpoint discovery packet base path mismatch");
+  }
+}
+
+function validateCheckpointManifestV1(route, value) {
+  const match = CHECKPOINT_MANIFEST_PATH_RE_V1.exec(route.pathname);
+  if (!match) {
+    throw terminalSeedResponse("checkpoint manifest route is malformed");
+  }
+  const manifest = plainObject(value, "checkpoint manifest");
+  if (
+    manifest.schema !== "void_public_canonical_checkpoint_v1" ||
+    manifest.network !== "VOID Network" ||
+    manifest.chain_id !== 2050 ||
+    manifest.format !== "blocks-bin-only-v1" ||
+    manifest.checkpoint_id !== match[1] ||
+    typeof manifest.source_sha !== "string" ||
+    !/^[0-9a-f]{40}$/.test(manifest.source_sha) ||
+    typeof manifest.head !== "number" ||
+    !Number.isSafeInteger(manifest.head) ||
+    manifest.head < 0 ||
+    manifest.block_count !== manifest.head + 1 ||
+    manifest.segment_span !== 10_000 ||
+    !Array.isArray(manifest.segments) ||
+    manifest.segments.length !== manifest.segment_count
+  ) {
+    throw terminalSeedResponse("checkpoint manifest contract mismatch");
+  }
+}
+
 function validateSeedResponse(route, bytes) {
   const parsedRoute = new URL(route, "http://seed.invalid");
+
+  if (CHECKPOINT_SEGMENT_PATH_RE_V1.test(parsedRoute.pathname)) {
+    if (parsedRoute.search !== "" || bytes.length === 0) {
+      throw terminalSeedResponse("checkpoint segment response is invalid");
+    }
+    return;
+  }
+
   const value = parseJson(bytes, `seed ${parsedRoute.pathname} response`);
+
+  if (parsedRoute.pathname === CHECKPOINT_DISCOVERY_ROUTE_V1) {
+    validateCheckpointDiscoveryV1(value);
+    return;
+  }
+
+  if (CHECKPOINT_MANIFEST_PATH_RE_V1.test(parsedRoute.pathname)) {
+    validateCheckpointManifestV1(parsedRoute, value);
+    return;
+  }
 
   if (parsedRoute.pathname === "/__void/ready.json") {
     const ready = plainObject(value, "seed readiness response");
@@ -294,6 +432,23 @@ export function publicSeedTlsServernameV1(targetValue) {
   return net.isIP(hostname) ? null : hostname;
 }
 
+function checkpointSegmentRouteV1(pathname) {
+  return CHECKPOINT_SEGMENT_PATH_RE_V1.test(pathname);
+}
+
+function seedAcceptHeaderV1(pathname) {
+  return checkpointSegmentRouteV1(pathname)
+    ? "application/octet-stream"
+    : "application/json";
+}
+
+function seedContentTypeAcceptedV1(pathname, contentType) {
+  if (checkpointSegmentRouteV1(pathname)) {
+    return contentType.startsWith("application/octet-stream");
+  }
+  return contentType.startsWith("application/json");
+}
+
 function requestPinnedAddress(
   target,
   address,
@@ -336,7 +491,7 @@ function requestPinnedAddress(
         autoSelectFamily: false,
         ...(tlsServername ? { servername: tlsServername } : {}),
         headers: {
-          accept: "application/json",
+          accept: seedAcceptHeaderV1(target.pathname),
           connection: "close",
           "user-agent": "void-node/public-seed-client-transport-v1",
         },
@@ -387,9 +542,9 @@ function requestPinnedAddress(
           return;
         }
         const contentType = String(response.headers["content-type"] || "").toLowerCase();
-        if (!contentType.startsWith("application/json")) {
+        if (!seedContentTypeAcceptedV1(target.pathname, contentType)) {
           response.destroy();
-          fail(terminalSeedResponse("seed response is not application/json"));
+          fail(terminalSeedResponse("seed response content-type is not accepted for route"));
           return;
         }
 

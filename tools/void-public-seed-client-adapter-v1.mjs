@@ -14,7 +14,14 @@ const MARKER = "VOID_PUBLIC_SEED_CLIENT_ADAPTER_V1";
 const COMPILED_MAX_RANGE = 999;
 const COMPILED_MAX_RESPONSE_BYTES = 128 * 1024 * 1024;
 const RANGE_CACHE_TTL_MS = 2000;
+const CHECKPOINT_DISCOVERY_ROUTE_V1 = "/__void/checkpoint/v1.json";
+const CHECKPOINT_MANIFEST_PATH_RE_V1 =
+  /^\/checkpoints\/v1\/(voidpbc1_[0-9a-f]{64})\/checkpoint\.json$/;
+const CHECKPOINT_SEGMENT_PATH_RE_V1 =
+  /^\/checkpoints\/v1\/(voidpbc1_[0-9a-f]{64})\/segments\/([0-9]{8})\/blocks\.bin$/;
+
 const FIXED_ROUTES = new Set([
+  CHECKPOINT_DISCOVERY_ROUTE_V1,
   "/__void/ready.json",
   "/blocks/latest/number2.json",
   "/head",
@@ -54,10 +61,24 @@ function normalizeResponseAuthorityV1(raw) {
   });
 }
 
+function responseAuthorityEligibleRouteV1(route) {
+  if (route.startsWith("/blocks/range?")) return true;
+  let parsed;
+  try {
+    parsed = new URL(route, "http://adapter.invalid");
+  } catch {
+    return false;
+  }
+  if (parsed.search !== "") return false;
+  if (parsed.pathname === CHECKPOINT_DISCOVERY_ROUTE_V1) return true;
+  if (CHECKPOINT_MANIFEST_PATH_RE_V1.test(parsed.pathname)) return true;
+  return CHECKPOINT_SEGMENT_PATH_RE_V1.test(parsed.pathname);
+}
+
 function responseAuthorityHeadersV1(req, method, remote, authority) {
   if (!authority || method !== "GET") return null;
   const route = String(req.url || "/");
-  if (!route.startsWith("/blocks/range?")) return null;
+  if (!responseAuthorityEligibleRouteV1(route)) return null;
 
   const nonce = String(req.headers[AUTHORITY_CHALLENGE_HEADER] || "").trim();
   if (!/^[0-9a-f]{64}$/.test(nonce)) return null;
@@ -162,6 +183,16 @@ function validatePublicRoute(requestUrl) {
     }
     return parsed.pathname;
   }
+  if (
+    parsed.search === "" &&
+    (
+      CHECKPOINT_MANIFEST_PATH_RE_V1.test(parsed.pathname) ||
+      CHECKPOINT_SEGMENT_PATH_RE_V1.test(parsed.pathname)
+    )
+  ) {
+    return parsed.pathname;
+  }
+
   if (parsed.pathname !== "/blocks/range") throw new Error("route_not_public");
 
   const keys = [...parsed.searchParams.keys()];
