@@ -1,4 +1,4 @@
-name: VOID Mainnet-0 Historical Cartography v1
+name: VOID Mainnet-0 Historical Cartography v1.1
 
 on:
   pull_request:
@@ -29,12 +29,12 @@ permissions:
   contents: read
 
 concurrency:
-  group: void-mainnet0-historical-cartography-v1-${{ github.event.pull_request.number || github.ref }}
+  group: void-mainnet0-historical-cartography-v1-1-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 jobs:
   proof:
-    name: cartography-proof-node-${{ matrix.node }}
+    name: cartography-v1-1-proof-node-${{ matrix.node }}
     runs-on: ubuntu-24.04
     timeout-minutes: 12
     strategy:
@@ -64,14 +64,19 @@ jobs:
           node -e '
             const fs = require("fs");
             const schema = JSON.parse(
-              fs.readFileSync("public/mainnet0-historical-cartography-v1.schema.json", "utf8")
+              fs.readFileSync(
+                "public/mainnet0-historical-cartography-v1.schema.json",
+                "utf8"
+              )
             );
-            if (schema.title !== "VOID Mainnet-0 Historical Cartography V1 Manifest") process.exit(1);
+            if (schema.title !== "VOID Mainnet-0 Historical Cartography V1.1 Manifest") process.exit(1);
             if (schema.properties?.chain_id?.const !== 2050) process.exit(1);
             if (schema.properties?.source?.properties?.kind?.const !== "raw_segstore_blocks_v1") process.exit(1);
+            if (schema.properties?.vocabulary?.minItems !== 5) process.exit(1);
+            if (schema.properties?.scanner_version?.const !== "v1.1") process.exit(1);
           '
 
-      - name: Historical cartography deterministic proof
+      - name: Historical cartography V1.1 deterministic proof
         run: node scripts/prove_mainnet0_historical_cartography_v1.mjs
 
       - name: Prove shallow committed-range diff hygiene contract
@@ -90,7 +95,7 @@ jobs:
         run: bash scripts/ci_diff_hygiene_v1.sh
 
   phase-boundary:
-    name: phase-1-no-validator-or-runtime-mutation
+    name: phase-1-v1-1-no-validator-or-runtime-mutation
     runs-on: ubuntu-24.04
     timeout-minutes: 5
 
@@ -149,7 +154,7 @@ jobs:
             exit 1
           fi
 
-          echo "VOID_MAINNET0_HISTORICAL_CARTOGRAPHY_V1_PHASE_BOUNDARY_GREEN"
+          echo "VOID_MAINNET0_HISTORICAL_CARTOGRAPHY_V1_1_PHASE_BOUNDARY_GREEN"
           echo "modern_validator_modified=false"
           echo "segstore_modified=false"
           echo "runtime_modified=false"
