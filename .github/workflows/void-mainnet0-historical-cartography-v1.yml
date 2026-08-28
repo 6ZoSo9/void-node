@@ -5,6 +5,7 @@ on:
     paths:
       - "scripts/mainnet0_historical_cartography_v1.mjs"
       - "scripts/prove_mainnet0_historical_cartography_v1.mjs"
+      - "scripts/prove_mainnet0_historical_cartography_generation_v1_1.mjs"
       - "scripts/seal_mainnet0_historical_cartography_v1_2.mjs"
       - "scripts/prove_mainnet0_historical_cartography_v1_2.mjs"
       - "public/mainnet0-historical-cartography-v1.schema.json"
@@ -22,6 +23,7 @@ on:
     paths:
       - "scripts/mainnet0_historical_cartography_v1.mjs"
       - "scripts/prove_mainnet0_historical_cartography_v1.mjs"
+      - "scripts/prove_mainnet0_historical_cartography_generation_v1_1.mjs"
       - "scripts/seal_mainnet0_historical_cartography_v1_2.mjs"
       - "scripts/prove_mainnet0_historical_cartography_v1_2.mjs"
       - "public/mainnet0-historical-cartography-v1.schema.json"
@@ -69,6 +71,7 @@ jobs:
           set -euo pipefail
           node --check scripts/mainnet0_historical_cartography_v1.mjs
           node --check scripts/prove_mainnet0_historical_cartography_v1.mjs
+          node --check scripts/prove_mainnet0_historical_cartography_generation_v1_1.mjs
           node --check scripts/seal_mainnet0_historical_cartography_v1_2.mjs
           node --check scripts/prove_mainnet0_historical_cartography_v1_2.mjs
           node --check scripts/prove_ci_diff_hygiene_v1.mjs
@@ -100,6 +103,9 @@ jobs:
 
       - name: Historical cartography V1.1 deterministic proof
         run: node scripts/prove_mainnet0_historical_cartography_v1.mjs
+
+      - name: Historical cartography V1.1 generation/confinement proof
+        run: node scripts/prove_mainnet0_historical_cartography_generation_v1_1.mjs
 
       - name: Historical cartography V1.2 authority-seal proof
         run: node scripts/prove_mainnet0_historical_cartography_v1_2.mjs
