@@ -537,10 +537,12 @@ function sourceHeadMarkers(sourceDir, frozenHead) {
 
   if (!headsExists) return { present: false };
 
-  const heads = JSON.parse(fs.readFileSync(headsFile, "utf8"));
-  const txt = Number(
-    fs.readFileSync(headTxt, "utf8").trim().split(/\s+/)[0],
-  );
+  const headsStat = statIdentity(headsFile);
+  const txtStat = statIdentity(headTxt);
+  const headsBytes = fs.readFileSync(headsFile);
+  const txtBytes = fs.readFileSync(headTxt);
+  const heads = JSON.parse(headsBytes.toString("utf8"));
+  const txt = Number(txtBytes.toString("utf8").trim().split(/\s+/)[0]);
 
   if (
     heads?.head !== frozenHead ||
@@ -555,44 +557,129 @@ function sourceHeadMarkers(sourceDir, frozenHead) {
     });
   }
 
-  return { present: true };
+  return {
+    present: true,
+    heads_json_stat: headsStat,
+    head_txt_stat: txtStat,
+    heads_json_sha256: sha256Hex(headsBytes),
+    head_txt_sha256: sha256Hex(txtBytes),
+  };
 }
 
 function requireEmptyWal(sourceDir) {
   const walDir = path.join(sourceDir, "wal");
-  if (!fs.existsSync(walDir)) return { present: false, files: 0 };
+  if (!fs.existsSync(walDir)) {
+    return { present: false, files: 0, entries: [] };
+  }
 
   const st = fs.lstatSync(walDir);
   if (!st.isDirectory() || st.isSymbolicLink()) {
     hold("wal_path_not_directory");
   }
 
-  let files = 0;
+  const entries = [];
   for (const name of fs.readdirSync(walDir).sort()) {
     if (!name.endsWith(".wal")) continue;
-    files += 1;
-    const fst = confinedRegularFile(path.join(walDir, name));
+    const file = path.join(walDir, name);
+    const fst = confinedRegularFile(file);
     if (Number(fst.size) !== 0) {
       hold("nonempty_wal", {
         wal: name,
         bytes: Number(fst.size),
       });
     }
+    entries.push({
+      name,
+      stat: statIdentity(file),
+      sha256: hashFileSync(file),
+    });
   }
 
-  return { present: true, files };
+  return { present: true, files: entries.length, entries };
 }
 
-function ensureOutputOutsideSource(sourceDir, output) {
-  if (!output) return;
+function pathInside(root, candidate) {
+  return candidate === root || candidate.startsWith(`${root}${path.sep}`);
+}
+
+function admitExternalParent(sourceDir, output) {
   const source = path.resolve(sourceDir);
-  const candidate = path.resolve(output);
-  if (
-    candidate === source ||
-    candidate.startsWith(`${source}${path.sep}`)
-  ) {
+  const destination = path.resolve(output);
+  if (pathInside(source, destination)) {
     hold("output_path_overlaps_source");
   }
+
+  const parent = path.dirname(destination);
+  if (!fs.existsSync(parent)) {
+    hold("output_parent_missing", { parent });
+  }
+
+  const sourceReal = fs.realpathSync(source);
+  const parentRealBefore = fs.realpathSync(parent);
+  if (pathInside(sourceReal, parentRealBefore)) {
+    hold("output_path_overlaps_source");
+  }
+
+  let parentFd;
+  try {
+    parentFd = fs.openSync(
+      parent,
+      fs.constants.O_RDONLY |
+        fs.constants.O_DIRECTORY |
+        fs.constants.O_NOFOLLOW,
+    );
+  } catch (error) {
+    hold("output_parent_not_admitted", {
+      parent,
+      code: error?.code || null,
+    });
+  }
+
+  try {
+    const pinnedParent = `/proc/self/fd/${parentFd}`;
+    const parentReal = fs.realpathSync(pinnedParent);
+    if (pathInside(sourceReal, parentReal)) {
+      hold("output_path_overlaps_source");
+    }
+    return {
+      destination,
+      base: path.basename(destination),
+      parentFd,
+      pinnedParent,
+      parentReal,
+    };
+  } catch (error) {
+    fs.closeSync(parentFd);
+    throw error;
+  }
+}
+
+function validateOutputOutsideSource(sourceDir, output) {
+  if (!output) return;
+  const admitted = admitExternalParent(sourceDir, output);
+  fs.closeSync(admitted.parentFd);
+}
+
+function openPinnedExternalFile(sourceDir, output) {
+  const admitted = admitExternalParent(sourceDir, output);
+  let fd;
+  try {
+    fd = fs.openSync(
+      `${admitted.pinnedParent}/${admitted.base}`,
+      fs.constants.O_WRONLY |
+        fs.constants.O_CREAT |
+        fs.constants.O_EXCL |
+        fs.constants.O_NOFOLLOW,
+      0o600,
+    );
+  } catch (error) {
+    fs.closeSync(admitted.parentFd);
+    hold("output_create_exclusive_failed", {
+      output: admitted.destination,
+      code: error?.code || null,
+    });
+  }
+  return { ...admitted, fd };
 }
 
 function sourceInventory(sourceDir, frozenHead) {
@@ -715,8 +802,8 @@ export function scanHistoricalSource(options) {
     hold("invalid_source_label");
   }
 
-  ensureOutputOutsideSource(sourceDir, options.output);
-  ensureOutputOutsideSource(sourceDir, options.evidenceJsonl);
+  validateOutputOutsideSource(sourceDir, options.output);
+  validateOutputOutsideSource(sourceDir, options.evidenceJsonl);
 
   const headMarkers = sourceHeadMarkers(sourceDir, frozenHead);
   const wal =
@@ -724,16 +811,18 @@ export function scanHistoricalSource(options) {
       ? {
           present: fs.existsSync(path.join(sourceDir, "wal")),
           files: null,
+          entries: null,
         }
       : requireEmptyWal(sourceDir);
   const checkpointSha256 = checkpointDescriptorDigest(sourceDir);
   const inventory = sourceInventory(sourceDir, frozenHead);
 
-  let evidenceFd = null;
+  let evidencePublication = null;
   if (options.evidenceJsonl) {
-    const evidencePath = path.resolve(options.evidenceJsonl);
-    fs.mkdirSync(path.dirname(evidencePath), { recursive: true });
-    evidenceFd = fs.openSync(evidencePath, "wx", 0o600);
+    evidencePublication = openPinnedExternalFile(
+      sourceDir,
+      options.evidenceJsonl,
+    );
   }
 
   let expectedHeight = 0;
@@ -933,9 +1022,9 @@ export function scanHistoricalSource(options) {
 
           completeDigest = chainDigestNext(completeDigest, record);
 
-          if (evidenceFd !== null) {
+          if (evidencePublication !== null) {
             fs.writeSync(
-              evidenceFd,
+              evidencePublication.fd,
               `${stableStringify(record)}\n`,
               null,
               "utf8",
@@ -1015,7 +1104,11 @@ export function scanHistoricalSource(options) {
       }
     }
   } finally {
-    if (evidenceFd !== null) fs.closeSync(evidenceFd);
+    if (evidencePublication !== null) {
+      fs.fsyncSync(evidencePublication.fd);
+      fs.closeSync(evidencePublication.fd);
+      fs.closeSync(evidencePublication.parentFd);
+    }
   }
 
   if (
@@ -1043,6 +1136,43 @@ export function scanHistoricalSource(options) {
         post_sha256: afterSha256,
       });
     }
+  }
+
+  const terminalHeadMarkers = sourceHeadMarkers(sourceDir, frozenHead);
+  if (stableStringify(terminalHeadMarkers) !== stableStringify(headMarkers)) {
+    hold("source_generation_changed_during_scan", {
+      component: "head_markers",
+    });
+  }
+
+  if (options.requireEmptyWal !== false) {
+    const terminalWal = requireEmptyWal(sourceDir);
+    if (stableStringify(terminalWal) !== stableStringify(wal)) {
+      hold("source_generation_changed_during_scan", {
+        component: "wal_generation",
+      });
+    }
+  }
+
+  const terminalInventory = sourceInventory(sourceDir, frozenHead);
+  if (
+    terminalInventory.length !== inventory.length ||
+    terminalInventory.some(
+      (entry, index) =>
+        entry.segment !== inventory[index].segment ||
+        !sameStatIdentity(entry.pre_stat, inventory[index].pre_stat),
+    )
+  ) {
+    hold("source_generation_changed_during_scan", {
+      component: "segment_namespace",
+    });
+  }
+
+  const terminalCheckpointSha256 = checkpointDescriptorDigest(sourceDir);
+  if (terminalCheckpointSha256 !== checkpointSha256) {
+    hold("source_generation_changed_during_scan", {
+      component: "checkpoint_descriptor",
+    });
   }
 
   const compressed = finishCompressedRuns(compression);
@@ -1152,18 +1282,26 @@ function usage() {
     "  --evidence-jsonl /tmp/mainnet0-historical-cartography-v1.jsonl",
     "  --expected-source-id voidm0src1_<sha256>",
     "  --allow-nonempty-wal   # review only; acceptance requires empty WAL",
+    "",
+    "Output/evidence parents must already exist and must not resolve inside the source tree.",
   ].join("\n");
 }
 
-export function writeManifestExclusive(output, manifest) {
+export function writeManifestExclusive(output, manifest, sourceDir) {
   if (!output) return;
-  const destination = path.resolve(output);
-  fs.mkdirSync(path.dirname(destination), { recursive: true });
-  fs.writeFileSync(
-    destination,
-    `${stableStringify(manifest)}\n`,
-    { flag: "wx", mode: 0o600 },
-  );
+  if (!sourceDir) hold("output_source_binding_required");
+  const publication = openPinnedExternalFile(sourceDir, output);
+  try {
+    fs.writeFileSync(
+      publication.fd,
+      `${stableStringify(manifest)}\n`,
+      "utf8",
+    );
+    fs.fsyncSync(publication.fd);
+  } finally {
+    fs.closeSync(publication.fd);
+    fs.closeSync(publication.parentFd);
+  }
 }
 
 async function cli() {
@@ -1184,7 +1322,7 @@ async function cli() {
 
   try {
     const result = scanHistoricalSource(options);
-    writeManifestExclusive(options.output, result.manifest);
+    writeManifestExclusive(options.output, result.manifest, options.sourceDir);
     const manifest = result.manifest;
     const suffix =
       manifest.status === "complete" ? "GREEN" : "HOLD";
@@ -1227,7 +1365,13 @@ async function cli() {
         options.output &&
         !fs.existsSync(path.resolve(options.output))
       ) {
-        writeManifestExclusive(options.output, report);
+        try {
+          writeManifestExclusive(options.output, report, options.sourceDir);
+        } catch (publicationError) {
+          if (!(publicationError instanceof CartographyHold)) {
+            throw publicationError;
+          }
+        }
       }
       console.error(`${MARKER}_HOLD: ${error.reason}`);
       console.error(stableStringify(report));
