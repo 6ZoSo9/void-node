@@ -574,7 +574,28 @@ try {
   console.log("verified_manifest_segment_length_bound=true");
   console.log("verified_manifest_segment_sha256_bound=true");
   console.log("split_generation_manifest_not_resigned=true");
+  const adapterSource = fs.readFileSync(
+    path.join(root, "tools/void-public-seed-client-adapter-v1.mjs"),
+    "utf8",
+  );
+  const authorityAssemblyAt = adapterSource.indexOf(
+    "const authorityHeaders = responseAuthorityHeadersV1(",
+  );
+  assert.ok(authorityAssemblyAt >= 0);
+  const finalExpiryCheckAt = adapterSource.indexOf(
+    "const finalCheckpointAuthorityState = checkpointAuthorityStateV1(",
+    authorityAssemblyAt,
+  );
+  assert.ok(finalExpiryCheckAt > authorityAssemblyAt);
+  const finalWriteAt = adapterSource.indexOf(
+    "writeRemote(\n          res,\n          remote,\n          method,\n          authorityHeaders,",
+    finalExpiryCheckAt,
+  );
+  assert.ok(finalWriteAt > finalExpiryCheckAt);
+
   console.log("split_generation_segment_not_resigned=true");
+  console.log("post_hmac_expiry_recheck_present=true");
+  console.log("post_hmac_expiry_recheck_before_write=true");
   console.log("new_trust_root=false");
   console.log("checkpoint_publication_performed=false");
   console.log(`${MARKER}_GREEN`);

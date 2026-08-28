@@ -679,14 +679,32 @@ export async function createPublicSeedClientAdapterV1({
           remote,
           responseAuthority,
         );
-        if (isCheckpointRoute && !authorityHeaders) {
-          json(
-            res,
-            503,
-            { ok: false, error: "checkpoint_authority_unavailable" },
-            method,
+        if (isCheckpointRoute) {
+          const finalCheckpointAuthorityState = checkpointAuthorityStateV1(
+            responseAuthority,
+            checkpointQualificationDeadlineMs,
           );
-          return;
+          if (finalCheckpointAuthorityState !== "live") {
+            json(
+              res,
+              503,
+              {
+                ok: false,
+                error: `checkpoint_${finalCheckpointAuthorityState}`,
+              },
+              method,
+            );
+            return;
+          }
+          if (!authorityHeaders) {
+            json(
+              res,
+              503,
+              { ok: false, error: "checkpoint_authority_unavailable" },
+              method,
+            );
+            return;
+          }
         }
         writeRemote(
           res,
