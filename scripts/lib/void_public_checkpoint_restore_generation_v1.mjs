@@ -181,14 +181,51 @@ export function ownedCheckpointRestoreGenerationPathStateV1(
 
 export function closeOwnedCheckpointRestoreGenerationV1(
   generation,
+  {
+    committed = false,
+  } = {},
 ) {
-  if (!generation || generation.closed) return;
+  if (!generation || generation.closed) {
+    return Object.freeze({
+      cleanup_error_count: 0,
+      committed_cleanup_degraded: false,
+      cleanup_errors: [],
+    });
+  }
+
   generation.closed = true;
+  const cleanupErrors = [];
+
   try {
     generation.unregister?.();
-  } finally {
-    fs.closeSync(generation.fd);
+  } catch (error) {
+    cleanupErrors.push(error);
   }
+
+  try {
+    fs.closeSync(generation.fd);
+  } catch (error) {
+    cleanupErrors.push(error);
+  }
+
+  if (cleanupErrors.length > 0 && !committed) {
+    const aggregate = new AggregateError(
+      cleanupErrors,
+      "checkpoint restore generation close failed",
+      { cause: cleanupErrors[0] },
+    );
+    aggregate.voidCheckpointRestoreCleanupFailureV1 = true;
+    throw aggregate;
+  }
+
+  return Object.freeze({
+    cleanup_error_count: cleanupErrors.length,
+    committed_cleanup_degraded:
+      committed && cleanupErrors.length > 0,
+    cleanup_errors: cleanupErrors.map((error) =>
+      error instanceof Error ? error.message : String(error)
+    ),
+  });
 }
 
 export function finalizeFailedOwnedCheckpointRestoreGenerationV1(

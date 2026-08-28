@@ -613,10 +613,28 @@ async function main() {
     if (!activation?.selectorPublished) {
       fail("checkpoint selector activation did not complete");
     }
+    // The parent-directory fsync above is the irreversible selector commit.
+    // After this transition, resource retirement is cleanup-only and cannot
+    // downgrade the exact committed selection to generic pre-commit failure.
     activated = true;
 
-    closeOwnedCheckpointRestoreGenerationV1(generation);
+    const postCommitGenerationClose =
+      closeOwnedCheckpointRestoreGenerationV1(
+        generation,
+        { committed: true },
+      );
     generation = null;
+
+    if (activation.postCommitCleanupError) {
+      console.error(
+        `${MARKER}_POST_COMMIT_PARENT_FD_CLOSE_WARNING=${activation.postCommitCleanupError}`,
+      );
+    }
+    if (postCommitGenerationClose.cleanup_error_count > 0) {
+      console.error(
+        `${MARKER}_POST_COMMIT_GENERATION_CLOSE_WARNING_COUNT=${postCommitGenerationClose.cleanup_error_count}`,
+      );
+    }
 
     console.log(`${MARKER}_GREEN`);
     console.log(`checkpoint_id=${verifiedManifest.checkpoint_id}`);
@@ -640,6 +658,8 @@ async function main() {
     console.log("materialized_content_seal_bound=true");
     console.log("checkpoint_manifest_retained_for_restart_prefix_verify=true");
     console.log("parent_directory_fsync=true");
+    console.log("parent_fsync_is_irreversible_commit=true");
+    console.log("post_commit_cleanup_cannot_downgrade_terminal=true");
     console.log("existing_store_overwrite=false");
     console.log("checkpoint_publication_authority=false");
     console.log("runtime_node_started=false");

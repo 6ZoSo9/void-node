@@ -36,11 +36,43 @@ function lstatOrNull(target) {
 
 function fsyncDirectory(dir) {
   const fd = fs.openSync(dir, "r");
+  let fsyncError = null;
+  let committed = false;
+  let closeError = null;
+
   try {
     fs.fsyncSync(fd);
-  } finally {
-    fs.closeSync(fd);
+    committed = true;
+  } catch (error) {
+    fsyncError = error;
   }
+
+  try {
+    fs.closeSync(fd);
+  } catch (error) {
+    closeError = error;
+  }
+
+  if (!committed) {
+    if (closeError) {
+      throw new AggregateError(
+        [fsyncError, closeError].filter(Boolean),
+        "checkpoint selector parent fsync failed and descriptor retirement also failed",
+        { cause: fsyncError ?? closeError },
+      );
+    }
+    throw fsyncError;
+  }
+
+  return Object.freeze({
+    committed: true,
+    postCommitCleanupError:
+      closeError instanceof Error
+        ? closeError.message
+        : closeError
+          ? String(closeError)
+          : null,
+  });
 }
 
 function requireAbsoluteSiblingPaths(staging, dataDir, parent) {
@@ -181,7 +213,8 @@ export function publishPreparedCheckpointSelectionV1(prepared) {
   // The parent-directory fsync is the irreversible selector commit point.
   // Do not re-resolve DATA_DIR after it. The parent consumes the exact IPC
   // selection and rejects any missing/replaced selector before node spawn.
-  fsyncDirectory(prepared.parent);
+  const commit =
+    fsyncDirectory(prepared.parent);
 
   return Object.freeze({
     schema: VOID_PUBLIC_CHECKPOINT_RESTORE_SELECTOR_V1,
@@ -196,6 +229,8 @@ export function publishPreparedCheckpointSelectionV1(prepared) {
     directoryRenamePerformed: false,
     selectorPublished: true,
     parentFsync: true,
+    postCommitCleanupError:
+      commit.postCommitCleanupError,
   });
 }
 

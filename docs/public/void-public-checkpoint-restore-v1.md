@@ -151,6 +151,12 @@ The selector publication uses one `symlink(2)` directory-entry creation and a
 parent-directory fsync. If any file, directory, or selector already occupies
 `DATA_DIR`, publication fails without replacing it.
 
+A successful parent-directory fsync is the irreversible selector commit point.
+Descriptor retirement after that point is cleanup-only: directory-FD close,
+generation unregister, or generation-FD close failure is surfaced as degraded
+cleanup evidence but cannot downgrade the exact committed selection to a
+generic pre-commit failure terminal.
+
 A staging pathname replacement after generation capture cannot redirect the
 activation effect: no staging pathname is moved.
 

@@ -348,6 +348,108 @@ try {
     selectorSuccessSelected,
   );
 
+  // Dijkstra fault A: parent fsync succeeds, then directory-FD close fails.
+  // The selector remains a committed terminal rather than throwing backward.
+  const postFsyncTarget = path.join(
+    ownedParent,
+    "selector-post-fsync-close-target",
+  );
+  const postFsyncToken = "9".repeat(32);
+  const postFsyncStaging =
+    `${postFsyncTarget}.void-public-checkpoint-restore-v1-gen-${postFsyncToken}`;
+  fs.mkdirSync(postFsyncStaging, { mode: 0o700 });
+  const postFsyncStat = fs.lstatSync(
+    postFsyncStaging,
+    { bigint: true },
+  );
+  const postFsyncPrepared =
+    prepareCheckpointStagingSelectionV1({
+      staging: postFsyncStaging,
+      dataDir: postFsyncTarget,
+      parent: ownedParent,
+      token: postFsyncToken,
+      expectedDevice: String(postFsyncStat.dev),
+      expectedInode: String(postFsyncStat.ino),
+      checkpointId: testCheckpointId,
+      contentSeal: "1".repeat(64),
+    });
+
+  const realCloseSyncA = fs.closeSync;
+  let injectedA = false;
+  let publishedA;
+  fs.closeSync = (fd) => {
+    realCloseSyncA(fd);
+    if (!injectedA) {
+      injectedA = true;
+      throw new Error(
+        "INJECTED_POST_FSYNC_DIRECTORY_CLOSE_FAILURE",
+      );
+    }
+  };
+  try {
+    publishedA =
+      publishPreparedCheckpointSelectionV1(
+        postFsyncPrepared,
+      );
+  } finally {
+    fs.closeSync = realCloseSyncA;
+  }
+  assert.equal(injectedA, true);
+  assert.equal(publishedA.selectorPublished, true);
+  assert.match(
+    publishedA.postCommitCleanupError,
+    /INJECTED_POST_FSYNC_DIRECTORY_CLOSE_FAILURE/,
+  );
+  assert.equal(
+    fs.lstatSync(postFsyncTarget).isSymbolicLink(),
+    true,
+  );
+
+  // Dijkstra fault B: generation unregister and FD close fail after commit.
+  // Both are reported as cleanup degradation without a thrown terminal.
+  const postCommitTarget = path.join(
+    ownedParent,
+    "post-commit-generation-close-target",
+  );
+  const postCommitGeneration =
+    createOwnedCheckpointRestoreGenerationV1({
+      dataDir: postCommitTarget,
+      parent: ownedParent,
+    });
+  const realUnregister =
+    postCommitGeneration.unregister;
+  postCommitGeneration.unregister = () => {
+    realUnregister();
+    throw new Error(
+      "INJECTED_POST_COMMIT_UNREGISTER_FAILURE",
+    );
+  };
+  const realCloseSyncB = fs.closeSync;
+  fs.closeSync = (fd) => {
+    if (fd === postCommitGeneration.fd) {
+      realCloseSyncB(fd);
+      throw new Error(
+        "INJECTED_POST_COMMIT_GENERATION_FD_CLOSE_FAILURE",
+      );
+    }
+    return realCloseSyncB(fd);
+  };
+  let closeB;
+  try {
+    closeB =
+      closeOwnedCheckpointRestoreGenerationV1(
+        postCommitGeneration,
+        { committed: true },
+      );
+  } finally {
+    fs.closeSync = realCloseSyncB;
+  }
+  assert.equal(closeB.cleanup_error_count, 2);
+  assert.equal(
+    closeB.committed_cleanup_degraded,
+    true,
+  );
+
   const selectorDestinationTarget = path.join(
     ownedParent,
     "selector-destination-race-target",
@@ -1213,6 +1315,19 @@ try {
     /VOID_SEGSTORE_INHERITED_DATA_CONTENT_SEAL_V1/,
   );
 
+  const restoreSource = fs.readFileSync(
+    restoreScript,
+    "utf8",
+  );
+  assert.match(
+    restoreSource,
+    /closeOwnedCheckpointRestoreGenerationV1\([\s\S]*committed: true/,
+  );
+  assert.match(
+    restoreSource,
+    /parent_fsync_is_irreversible_commit=true/,
+  );
+
   console.log("restore_default_disabled=true");
   console.log("restore_https_supervisor_only_v1=true");
   console.log("restore_before_node_spawn=true");
@@ -1258,6 +1373,9 @@ try {
   console.log("preexisting_foreign_selector_node_authority=false");
   console.log("durable_selector_retry_ordinary_dir_rejected=true");
   console.log("durable_selector_retry_foreign_dir_preserved=true");
+  console.log("post_fsync_fd_close_failure_committed_terminal=true");
+  console.log("post_commit_generation_close_failure_committed_terminal=true");
+  console.log("post_commit_cleanup_generic_failure=false");
   console.log("failure_stale_generation_retained=true");
   console.log("failure_recursive_staging_delete=false");
   console.log("failure_cleanup_preserves_absent_target=true");
