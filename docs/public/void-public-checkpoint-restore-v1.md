@@ -68,28 +68,62 @@ Any HMAC, qualification, content-binding, manifest, segment, filesystem, or
 semantic verification failure aborts startup when restore was explicitly
 enabled.
 
-## One staging generation
+## Generation-bound staging
 
-The consumer creates one sibling staging path:
-
-```text
-<DATA_DIR>.void-public-checkpoint-restore-v1-staging
-```
-
-It downloads the exact packet into that directory using durable file writes.
-
-The existing canonical checkpoint verifier then scans the whole packet using the
-production follower block-admission semantics.
-
-Only after that semantic verification succeeds does the consumer delete the
-packet-only `checkpoint.json` and run:
+Each restore attempt creates one unique sibling generation:
 
 ```text
-autoRepairDataDir(staging, { sparseEvery: 16, dryRun: false })
+<DATA_DIR>.void-public-checkpoint-restore-v1-gen-<128-bit-token>
 ```
 
-That reconstructs `index.sparse`, `meta.json`, `heads.json`, and `head.txt` from
-the verified `blocks.bin` files.
+Immediately after creation the restore opens that directory with
+`O_DIRECTORY|O_NOFOLLOW`, records its device/inode, and retains the directory
+file descriptor for the entire attempt.
+
+All packet writes, semantic verification, and metadata reconstruction use the
+retained generation through:
+
+```text
+/proc/self/fd/<fd>
+```
+
+The normal SegStore path-confinement policy still rejects proc-FD roots.
+The restore must explicitly register exactly its live directory FD; registration
+is process-local, Linux-only, identity-bound, and unregisters before exit.
+Symlinks beneath the registered generation remain rejected.
+
+The canonical checkpoint verifier has a similarly explicit verify-only
+`--proc-fd-root` mode. The verifier child receives only the already-open staging
+directory FD, checks the descriptor identity, and scans the packet through that
+FD. Arbitrary proc-FD packet paths remain invalid.
+
+After semantic verification the consumer deletes the packet-only
+`checkpoint.json` through the retained FD root and runs:
+
+```text
+autoRepairDataDir(fdRoot, { sparseEvery: 16, dryRun: false })
+```
+
+That reconstructs `index.sparse`, `meta.json`, `heads.json`, and `head.txt` in
+the exact owned generation.
+
+### Failure and crash convergence
+
+Failed staging generations are deliberately **not recursively deleted** by v1.
+The attempt closes its descriptor and reports one terminal:
+
+- `owned_stale_generation_retained`;
+- `foreign_replacement_preserved`; or
+- `namespace_missing`.
+
+Because every attempt uses a new unpredictable generation name, a stale
+generation from a crash does not block the next attempt. A retry creates a new
+generation and does not adopt or delete the stale one.
+
+This is intentionally conservative: disk reclamation of stale generations is a
+separate reviewed maintenance operation, not an implicit failure cleanup path.
+A foreign directory installed at a prior generation pathname is never
+recursively deleted by restore.
 
 ## Activation
 
@@ -107,10 +141,14 @@ The reviewed Coreutils 9.4 two-path move begins with
 replacing an existing destination, while `--no-copy` forbids cross-filesystem
 copy fallback.
 
+The consumer first requires the generation pathname to still resolve to the
+same device/inode retained from creation. The activation helper receives that
+expected generation identity and rejects a substituted staging pathname.
+
 The consumer treats a surviving staging directory as an activation HOLD even
 when `mv --no-clobber` returns success. On successful activation it additionally
 requires the final `DATA_DIR` to have the exact same device and inode as the
-staging directory, then fsyncs the parent directory.
+retained staging generation, then fsyncs the parent directory.
 
 Therefore a `DATA_DIR` that appears after the earlier eligibility check is not
 replaced. The external destination remains untouched and the staged generation
@@ -118,9 +156,10 @@ is not activated.
 
 There is no in-place population of a live store and no concurrent node process.
 
-If any pre-activation or no-clobber activation step fails, the process removes
-only the staging generation it created. An independently created `DATA_DIR` is
-preserved.
+If any pre-activation or no-clobber activation step fails, the process does
+not recursively delete the staging pathname. The exact owned or replaced
+generation is retained as described above, and an independently created
+`DATA_DIR` is preserved.
 
 ## Deliberately not included
 

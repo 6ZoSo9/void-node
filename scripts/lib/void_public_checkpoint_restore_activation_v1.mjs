@@ -67,6 +67,8 @@ export function activateCheckpointStagingNoReplaceV1({
   staging,
   dataDir,
   parent,
+  expectedDevice,
+  expectedInode,
 }) {
   if (
     typeof staging !== "string" ||
@@ -86,14 +88,29 @@ export function activateCheckpointStagingNoReplaceV1({
     fail("checkpoint activation requires sibling staging and DATA_DIR");
   }
 
+  if (
+    typeof expectedDevice !== "string" ||
+    !/^[0-9]+$/.test(expectedDevice) ||
+    typeof expectedInode !== "string" ||
+    !/^[0-9]+$/.test(expectedInode)
+  ) {
+    fail("checkpoint activation expected generation identity is invalid");
+  }
+
   const parentStat = fs.lstatSync(parent);
   if (!parentStat.isDirectory() || parentStat.isSymbolicLink()) {
     fail("checkpoint activation parent must be a real directory");
   }
 
-  const stagingStat = fs.lstatSync(staging);
+  const stagingStat = fs.lstatSync(staging, { bigint: true });
   if (!stagingStat.isDirectory() || stagingStat.isSymbolicLink()) {
     fail("checkpoint activation staging must be a real directory");
+  }
+  if (
+    String(stagingStat.dev) !== expectedDevice ||
+    String(stagingStat.ino) !== expectedInode
+  ) {
+    fail("checkpoint activation staging generation identity mismatch");
   }
 
   const mv = requireReviewedGnuMvV1();
@@ -145,9 +162,10 @@ export function activateCheckpointStagingNoReplaceV1({
     fail("checkpoint activation destination is not the staged directory");
   }
 
+  const targetIdentity = fs.lstatSync(dataDir, { bigint: true });
   if (
-    targetAfter.dev !== stagingStat.dev ||
-    targetAfter.ino !== stagingStat.ino
+    String(targetIdentity.dev) !== expectedDevice ||
+    String(targetIdentity.ino) !== expectedInode
   ) {
     fail("checkpoint activation did not preserve staged directory identity");
   }

@@ -33,6 +33,72 @@ const SOURCE_SHA_RE = /^[0-9a-f]{40}$/;
 const SEGMENT_NAME_RE = /^[0-9]{8}$/;
 const MAX_FRAME_BYTES = 128 * 1024 * 1024;
 
+let VERIFY_PROC_FD_ROOT_V1 = null;
+
+function configureVerifyProcFdRootV1(packetDir, rawFd) {
+  if (process.platform !== "linux") {
+    fail("proc-fd packet verification is supported only on Linux");
+  }
+  if (!/^[0-9]+$/.test(String(rawFd || ""))) {
+    fail("--proc-fd-root must be a decimal file descriptor");
+  }
+  const fd = Number(rawFd);
+  if (!Number.isSafeInteger(fd) || fd < 3) {
+    fail("--proc-fd-root file descriptor is invalid");
+  }
+  const root = `/proc/self/fd/${fd}`;
+  if (packetDir !== root) {
+    fail("--packet must exactly match the requested proc-fd root");
+  }
+  let st;
+  try {
+    st = fs.fstatSync(fd, { bigint: true });
+  } catch {
+    fail("proc-fd packet root descriptor is not open");
+  }
+  if (!st.isDirectory()) fail("proc-fd packet root is not a directory");
+  if (Number(st.uid) !== process.getuid()) {
+    fail("proc-fd packet root owner mismatch");
+  }
+  if ((Number(st.mode) & 0o002) !== 0) {
+    fail("proc-fd packet root is world-writable");
+  }
+  VERIFY_PROC_FD_ROOT_V1 = Object.freeze({
+    root,
+    fd,
+    dev: String(st.dev),
+    ino: String(st.ino),
+  });
+}
+
+function liveVerifyProcFdRootV1(target) {
+  const context = VERIFY_PROC_FD_ROOT_V1;
+  if (!context) return null;
+  const absolute = path.resolve(target);
+  const relative = path.relative(context.root, absolute);
+  if (
+    relative === ".." ||
+    relative.startsWith(`..${path.sep}`) ||
+    path.isAbsolute(relative)
+  ) {
+    return null;
+  }
+  let st;
+  try {
+    st = fs.fstatSync(context.fd, { bigint: true });
+  } catch {
+    fail("proc-fd packet root descriptor closed during verification");
+  }
+  if (
+    !st.isDirectory() ||
+    String(st.dev) !== context.dev ||
+    String(st.ino) !== context.ino
+  ) {
+    fail("proc-fd packet root identity changed during verification");
+  }
+  return context;
+}
+
 const AUTHORITY = Object.freeze({
   private_routes_exposed: false,
   wallet_authority: false,
@@ -148,6 +214,21 @@ function required(values, key) {
 
 function rejectSymlinkedComponents(target) {
   const absolute = path.resolve(target);
+  const procFdRoot = liveVerifyProcFdRootV1(absolute);
+  if (procFdRoot) {
+    const relative = path.relative(procFdRoot.root, absolute);
+    let current = procFdRoot.root;
+    for (const part of relative.split(path.sep).filter(Boolean)) {
+      current = path.join(current, part);
+      if (!fs.existsSync(current)) continue;
+      const st = fs.lstatSync(current);
+      if (st.isSymbolicLink()) {
+        fail(`symlinked path component rejected: ${current}`);
+      }
+    }
+    return;
+  }
+
   const parsed = path.parse(absolute);
   const parts = absolute.slice(parsed.root.length).split(path.sep).filter(Boolean);
   let current = parsed.root;
@@ -176,7 +257,28 @@ function regularFile(file, { allowMissing = false, allowEmpty = true } = {}) {
 }
 
 function safeDirectory(dir, { allowMissing = false } = {}) {
+  // Exact registered proc-FD roots are descriptor-authorized. Consult that
+  // authority before inspecting lexical parents such as /proc/self, whose
+  // symlink nature is intrinsic to procfs rather than an untrusted data-root
+  // redirect.
+  const procFdRoot = liveVerifyProcFdRootV1(dir);
+  if (procFdRoot && path.resolve(dir) === procFdRoot.root) {
+    const st = fs.fstatSync(procFdRoot.fd, { bigint: true });
+    if (!st.isDirectory()) fail(`non-directory rejected: ${dir}`);
+    if (Number(st.uid) !== process.getuid()) {
+      fail(`directory owner mismatch: ${dir}`);
+    }
+    if ((Number(st.mode) & 0o002) !== 0) {
+      fail(`world-writable directory rejected: ${dir}`);
+    }
+    return st;
+  }
+
+  // Ordinary directories and children beneath a registered proc-FD root keep
+  // the normal symlink-confinement path. For registered children, the helper
+  // walks from the retained root descriptor namespace, not through /proc/self.
   rejectSymlinkedComponents(path.dirname(dir));
+
   if (!fs.existsSync(dir)) {
     if (allowMissing) return null;
     fail(`required directory missing: ${dir}`);
@@ -926,19 +1028,28 @@ function main() {
     if (command === "verify") {
       const packetDir = path.resolve(required(values, "--packet"));
       const expectedSourceSha = String(values.get("--expected-source-sha") || "").trim();
+      const procFdRoot = String(values.get("--proc-fd-root") || "").trim();
       if (expectedSourceSha && !SOURCE_SHA_RE.test(expectedSourceSha)) {
         fail("--expected-source-sha malformed");
       }
-      const result = verifyPacket(packetDir, expectedSourceSha);
-      console.log(`checkpoint_id=${result.manifest.checkpoint_id}`);
-      console.log(`source_sha=${result.manifest.source_sha}`);
-      console.log(`head=${result.manifest.head}`);
-      console.log(`block_count=${result.totalBlocks}`);
-      console.log(`segment_count=${result.manifest.segment_count}`);
-      console.log(`payload_bytes=${result.totalBytes}`);
-      console.log("canonical_semantics_verified=true");
-      console.log("authority_boundary_verified=true");
-      console.log(`${MARKER}_VERIFY_GREEN`);
+      if (procFdRoot) {
+        configureVerifyProcFdRootV1(packetDir, procFdRoot);
+      }
+      try {
+        const result = verifyPacket(packetDir, expectedSourceSha);
+        console.log(`checkpoint_id=${result.manifest.checkpoint_id}`);
+        console.log(`source_sha=${result.manifest.source_sha}`);
+        console.log(`head=${result.manifest.head}`);
+        console.log(`block_count=${result.totalBlocks}`);
+        console.log(`segment_count=${result.manifest.segment_count}`);
+        console.log(`payload_bytes=${result.totalBytes}`);
+        console.log(`proc_fd_root_verified=${procFdRoot ? "true" : "false"}`);
+        console.log("canonical_semantics_verified=true");
+        console.log("authority_boundary_verified=true");
+        console.log(`${MARKER}_VERIFY_GREEN`);
+      } finally {
+        VERIFY_PROC_FD_ROOT_V1 = null;
+      }
       return;
     }
 

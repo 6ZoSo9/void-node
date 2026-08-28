@@ -16,13 +16,18 @@ import {
   activateCheckpointStagingNoReplaceV1,
 } from "./lib/void_public_checkpoint_restore_activation_v1.mjs";
 import {
+  closeOwnedCheckpointRestoreGenerationV1,
+  createOwnedCheckpointRestoreGenerationV1,
+  finalizeFailedOwnedCheckpointRestoreGenerationV1,
+  ownedCheckpointRestoreGenerationPathStateV1,
+} from "./lib/void_public_checkpoint_restore_generation_v1.mjs";
+import {
   VOID_PUBLIC_SEED_AUTHORITY_CHALLENGE_HEADER_V1,
   createVerifiedPublicBootstrapChallengeV1,
   verifyVerifiedPublicBootstrapResponseV1,
 } from "../dist/http/follower_verified_public_bootstrap_authority_v1.js";
 
 const MARKER = "VOID_PUBLIC_CHECKPOINT_RESTORE_V1";
-const RESTORE_STAGING_SUFFIX = ".void-public-checkpoint-restore-v1-staging";
 const AUTHORITY_WAIT_MS = 10_000;
 const repoRoot = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),
@@ -165,20 +170,23 @@ async function authorizedGet(adapterOrigin, route) {
   return { response, bytes };
 }
 
-function verifySemanticPacket(packetDir) {
+function verifySemanticPacket(stagingFd) {
   const cp = childProcess.spawnSync(
     process.execPath,
     [
       checkpointTool,
       "verify",
       "--packet",
-      packetDir,
+      "/proc/self/fd/3",
+      "--proc-fd-root",
+      "3",
     ],
     {
       cwd: repoRoot,
       encoding: "utf8",
       timeout: 30 * 60 * 1000,
       maxBuffer: 16 * 1024 * 1024,
+      stdio: ["ignore", "pipe", "pipe", stagingFd],
     },
   );
   if (
@@ -270,11 +278,6 @@ async function main() {
     return;
   }
 
-  const staging = `${dataDir}${RESTORE_STAGING_SUFFIX}`;
-  if (lstatOrNull(staging)) {
-    fail(`stale checkpoint restore staging directory exists: ${staging}`);
-  }
-
   const discoveryResponse = await authorizedGet(
     adapterUrl.origin,
     "/__void/checkpoint/v1.json",
@@ -292,11 +295,15 @@ async function main() {
     return;
   }
 
-  let stagingCreated = false;
+  let generation = null;
   let activated = false;
   try {
-    ensureDirectory(staging);
-    stagingCreated = true;
+    generation = createOwnedCheckpointRestoreGenerationV1({
+      dataDir,
+      parent,
+    });
+    const staging = generation.namespacePath;
+    const stagingRoot = generation.fdRoot;
 
     const checkpoint = discovery.checkpoint;
     const manifestRoute =
@@ -315,12 +322,12 @@ async function main() {
       );
 
     writeFileDurable(
-      path.join(staging, "checkpoint.json"),
+      path.join(stagingRoot, "checkpoint.json"),
       manifestResponse.bytes,
     );
 
-    const segmentsRoot = path.join(staging, "segments");
-    ensureChildDirectory(staging, segmentsRoot);
+    const segmentsRoot = path.join(stagingRoot, "segments");
+    ensureChildDirectory(stagingRoot, segmentsRoot);
 
     for (const entry of verifiedManifest.manifest.segments) {
       if (
@@ -349,30 +356,44 @@ async function main() {
       );
     }
 
-    verifySemanticPacket(staging);
+    verifySemanticPacket(generation.fd);
 
-    removeFileDurable(path.join(staging, "checkpoint.json"));
+    removeFileDurable(
+      path.join(stagingRoot, "checkpoint.json"),
+    );
 
-    const repaired = await autoRepairDataDir(staging, {
+    const repaired = await autoRepairDataDir(stagingRoot, {
       sparseEvery: 16,
       dryRun: false,
     });
     if (!repaired || repaired.mutationsApplied !== true) {
       fail("checkpoint restore auto-repair did not reconstruct derived state");
     }
-    verifyReconstructedHead(staging, verifiedManifest.head);
-    exactPostRepairTopLevel(staging);
+    verifyReconstructedHead(stagingRoot, verifiedManifest.head);
+    exactPostRepairTopLevel(stagingRoot);
+
+    const namespaceState =
+      ownedCheckpointRestoreGenerationPathStateV1(generation);
+    if (namespaceState.status !== "owned_path_live") {
+      fail(
+        `checkpoint staging namespace changed before activation: ${namespaceState.status}`,
+      );
+    }
 
     const activation = activateCheckpointStagingNoReplaceV1({
       staging,
       dataDir,
       parent,
+      expectedDevice: generation.device,
+      expectedInode: generation.inode,
     });
     if (!activation?.activated) {
       fail("checkpoint no-clobber activation did not complete");
     }
     activated = true;
-    stagingCreated = false;
+
+    closeOwnedCheckpointRestoreGenerationV1(generation);
+    generation = null;
 
     console.log(`${MARKER}_GREEN`);
     console.log(`checkpoint_id=${verifiedManifest.checkpoint_id}`);
@@ -383,6 +404,9 @@ async function main() {
     console.log(`checkpoint_segment_max_bytes=${VOID_PUBLIC_CHECKPOINT_SEGMENT_MAX_BYTES_V1}`);
     console.log(`data_dir=${dataDir}`);
     console.log("semantic_verify=true");
+    console.log("staging_generation_unique=true");
+    console.log("staging_generation_fd_bound=true");
+    console.log("staging_io_via_proc_fd_root=true");
     console.log("auto_repair_sparse_every=16");
     console.log("atomic_activation=true");
     console.log("activation_no_clobber=true");
@@ -394,9 +418,21 @@ async function main() {
     console.log("checkpoint_publication_authority=false");
     console.log("runtime_node_started=false");
   } finally {
-    if (!activated && stagingCreated && lstatOrNull(staging)) {
-      fs.rmSync(staging, { recursive: true, force: true });
-      fsyncDirectory(parent);
+    if (!activated && generation) {
+      const terminal =
+        finalizeFailedOwnedCheckpointRestoreGenerationV1(
+          generation,
+        );
+      console.error(
+        `${MARKER}_STALE_GENERATION_TERMINAL=${terminal.status}`,
+      );
+      console.error(
+        `stale_generation_path=${terminal.path}`,
+      );
+      console.error(
+        `stale_generation_recursive_delete=${terminal.recursive_delete}`,
+      );
+      generation = null;
     }
   }
 }

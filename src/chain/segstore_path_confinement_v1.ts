@@ -11,6 +11,18 @@ export type VoidSegStorePathCheckOptionsV1 = {
   allowMissing?: boolean;
 };
 
+type RegisteredProcFdRootV1 = {
+  root: string;
+  fd: number;
+  dev: string;
+  ino: string;
+};
+
+const registeredProcFdRootsV1 = new Map<
+  string,
+  RegisteredProcFdRootV1
+>();
+
 function confinementError(message: string): Error {
   return new Error(`VOID_SEGSTORE_PATH_CONFINEMENT_V1: ${message}`);
 }
@@ -24,7 +36,133 @@ function lstatMaybe(target: string): fs.Stats | null {
   }
 }
 
-function assertNoSymlinkComponents(absTarget: string): void {
+function procFdRootV1(root: string): { root: string; fd: number } | null {
+  const absolute = path.resolve(root);
+  const match = /^\/proc\/self\/fd\/([0-9]+)$/.exec(absolute);
+  if (!match) return null;
+  const fd = Number(match[1]);
+  if (!Number.isSafeInteger(fd) || fd < 3) return null;
+  return { root: absolute, fd };
+}
+
+function liveRegisteredProcFdRootV1(
+  rootAbs: string,
+): RegisteredProcFdRootV1 | null {
+  const registered = registeredProcFdRootsV1.get(rootAbs);
+  if (!registered) return null;
+
+  let current: fs.BigIntStats;
+  try {
+    current = fs.fstatSync(registered.fd, { bigint: true });
+  } catch {
+    throw confinementError(
+      `registered proc-fd root is no longer live: ${rootAbs}`,
+    );
+  }
+  if (
+    !current.isDirectory() ||
+    String(current.dev) !== registered.dev ||
+    String(current.ino) !== registered.ino
+  ) {
+    throw confinementError(
+      `registered proc-fd root identity changed: ${rootAbs}`,
+    );
+  }
+  return registered;
+}
+
+export function registerVoidSegStoreProcFdRootV1(
+  root: string,
+): () => void {
+  if (process.platform !== "linux") {
+    throw confinementError(
+      "proc-fd data roots are supported only on Linux",
+    );
+  }
+  const parsed = procFdRootV1(root);
+  if (!parsed) {
+    throw confinementError(
+      `proc-fd root must be exactly /proc/self/fd/<fd>: ${root}`,
+    );
+  }
+
+  let st: fs.BigIntStats;
+  try {
+    st = fs.fstatSync(parsed.fd, { bigint: true });
+  } catch {
+    throw confinementError(
+      `proc-fd root descriptor is not open: ${parsed.root}`,
+    );
+  }
+  if (!st.isDirectory()) {
+    throw confinementError(
+      `proc-fd root descriptor is not a directory: ${parsed.root}`,
+    );
+  }
+  if (
+    typeof process.getuid === "function" &&
+    Number(st.uid) !== process.getuid()
+  ) {
+    throw confinementError(
+      `proc-fd root owner mismatch: ${parsed.root}`,
+    );
+  }
+  if ((Number(st.mode) & 0o002) !== 0) {
+    throw confinementError(
+      `proc-fd root is world-writable: ${parsed.root}`,
+    );
+  }
+
+  const registration: RegisteredProcFdRootV1 = Object.freeze({
+    root: parsed.root,
+    fd: parsed.fd,
+    dev: String(st.dev),
+    ino: String(st.ino),
+  });
+  if (registeredProcFdRootsV1.has(parsed.root)) {
+    throw confinementError(
+      `proc-fd root already registered: ${parsed.root}`,
+    );
+  }
+  registeredProcFdRootsV1.set(parsed.root, registration);
+
+  return () => {
+    if (registeredProcFdRootsV1.get(parsed.root) === registration) {
+      registeredProcFdRootsV1.delete(parsed.root);
+    }
+  };
+}
+
+function assertNoSymlinkComponents(
+  absTarget: string,
+  registered: RegisteredProcFdRootV1 | null = null,
+): void {
+  if (registered) {
+    const relative = path.relative(registered.root, absTarget);
+    if (
+      relative === ".." ||
+      relative.startsWith(`..${path.sep}`) ||
+      path.isAbsolute(relative)
+    ) {
+      throw confinementError(
+        `path escapes registered proc-fd root: ${absTarget}`,
+      );
+    }
+
+    let current = registered.root;
+    for (const part of relative.split(path.sep).filter(Boolean)) {
+      current = path.join(current, part);
+      const stat = lstatMaybe(current);
+      if (!stat) return;
+      if (stat.isSymbolicLink()) {
+        throw confinementError(
+          `symlink path component rejected: ${current}`,
+        );
+      }
+    }
+    return;
+  }
+
   const parsed = path.parse(absTarget);
   const parts = absTarget
     .slice(parsed.root.length)
@@ -37,7 +175,9 @@ function assertNoSymlinkComponents(absTarget: string): void {
     const stat = lstatMaybe(current);
     if (!stat) return;
     if (stat.isSymbolicLink()) {
-      throw confinementError(`symlink path component rejected: ${current}`);
+      throw confinementError(
+        `symlink path component rejected: ${current}`,
+      );
     }
   }
 }
@@ -59,13 +199,15 @@ export function assertVoidSegStorePathConfinedV1(
     throw confinementError(`path escapes data root: ${targetAbs}`);
   }
 
-  // Reject symlinks in the data-root ancestry as well as beneath it. This keeps
-  // a relative or absolute DATA_DIR from silently resolving outside its lexical
-  // root through an existing ancestor symlink.
-  assertNoSymlinkComponents(rootAbs);
-  assertNoSymlinkComponents(targetAbs);
+  const registered = liveRegisteredProcFdRootV1(rootAbs);
+  assertNoSymlinkComponents(rootAbs, registered);
+  assertNoSymlinkComponents(targetAbs, registered);
 
-  const stat = lstatMaybe(targetAbs);
+  const stat =
+    registered && targetAbs === rootAbs
+      ? fs.fstatSync(registered.fd)
+      : lstatMaybe(targetAbs);
+
   if (!stat) {
     if (options.allowMissing === false) {
       throw confinementError(`required path is missing: ${targetAbs}`);
@@ -90,7 +232,10 @@ export function assertVoidSegStoreRootV1(root: string): string {
   });
 }
 
-export function ensureVoidSegStoreDirectoryV1(root: string, dir: string): void {
+export function ensureVoidSegStoreDirectoryV1(
+  root: string,
+  dir: string,
+): void {
   assertVoidSegStorePathConfinedV1(root, dir, {
     kind: "directory",
     allowMissing: true,

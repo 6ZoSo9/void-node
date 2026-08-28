@@ -9,6 +9,9 @@ import * as path from "node:path";
 import { autoRepairDataDir } from "../dist/chain/auto_repair.js";
 import { blockHash, computeRoots } from "../dist/chain/block.js";
 import { SegStore } from "../dist/chain/seg_store.js";
+import {
+  registerVoidSegStoreProcFdRootV1,
+} from "../dist/chain/segstore_path_confinement_v1.js";
 
 const MARKER = "VOID_SEGSTORE_PATH_CONFINEMENT_V1_PROOF_GREEN";
 const ZERO_HASH = "0".repeat(64);
@@ -252,7 +255,72 @@ async function proveWalDirectoryAndRecordSymlinksRejected() {
   }
 }
 
+
+async function proveExplicitRegisteredProcFdRoot() {
+  const root = newRoot("proc-fd-root");
+  let fd = null;
+  let unregister = null;
+  try {
+    const block0 = makeBlock(0);
+    const store = new SegStore(root, { sparseEvery: 16 });
+    store.saveBlock(block0);
+
+    fd = fs.openSync(
+      root,
+      fs.constants.O_RDONLY |
+        fs.constants.O_DIRECTORY |
+        fs.constants.O_NOFOLLOW,
+    );
+    const fdRoot = `/proc/self/fd/${fd}`;
+
+    await expectConfinementReject(
+      () => autoRepairDataDir(fdRoot, { sparseEvery: 16, dryRun: true }),
+      "unregistered proc-fd root",
+    );
+
+    unregister = registerVoidSegStoreProcFdRootV1(fdRoot);
+    const dry = await autoRepairDataDir(fdRoot, {
+      sparseEvery: 16,
+      dryRun: true,
+    });
+    assert.equal(dry.head, 0);
+    assert.equal(dry.mutationsApplied, false);
+
+    const meta = path.join(
+      root,
+      "segments",
+      "00000000",
+      "meta.json",
+    );
+    const metaReal = `${meta}.real`;
+    fs.renameSync(meta, metaReal);
+    const outside = outsideFixture(root, "proc-fd-meta-sentinel");
+    fs.symlinkSync(outside.file, meta, "file");
+
+    await expectConfinementReject(
+      () => autoRepairDataDir(fdRoot, { sparseEvery: 16, dryRun: true }),
+      "registered proc-fd child symlink",
+    );
+    assertOutsideUnchanged(outside, "registered proc-fd child symlink");
+
+    fs.unlinkSync(meta);
+    fs.renameSync(metaReal, meta);
+
+    unregister();
+    unregister = null;
+    await expectConfinementReject(
+      () => autoRepairDataDir(fdRoot, { sparseEvery: 16, dryRun: true }),
+      "unregistered proc-fd root after unregister",
+    );
+  } finally {
+    if (unregister) unregister();
+    if (fd !== null) fs.closeSync(fd);
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+}
+
 await proveNormalStoreAndRepairRemainFunctional();
+await proveExplicitRegisteredProcFdRoot();
 await proveRootSymlinkRejected();
 await proveSegmentsDirectorySymlinkRejected();
 await proveCanonicalSegmentSymlinkRejected();
@@ -264,6 +332,10 @@ await proveWalDirectoryAndRecordSymlinksRejected();
 console.log("normal_store_append_load_preserved=true");
 console.log("normal_torn_tail_repair_preserved=true");
 console.log("dry_run_truth_preserved=true");
+console.log("proc_fd_root_unregistered_accepted=false");
+console.log("proc_fd_root_explicit_registration_green=true");
+console.log("proc_fd_root_child_symlink_accepted=false");
+console.log("proc_fd_root_unregister_restores_rejection=true");
 console.log("data_root_symlink_accepted=false");
 console.log("segments_symlink_accepted=false");
 console.log("canonical_segment_symlink_accepted=false");

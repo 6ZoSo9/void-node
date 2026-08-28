@@ -16,6 +16,11 @@ import {
 import {
   activateCheckpointStagingNoReplaceV1,
 } from "./lib/void_public_checkpoint_restore_activation_v1.mjs";
+import {
+  closeOwnedCheckpointRestoreGenerationV1,
+  createOwnedCheckpointRestoreGenerationV1,
+  finalizeFailedOwnedCheckpointRestoreGenerationV1,
+} from "./lib/void_public_checkpoint_restore_generation_v1.mjs";
 import { createPublicSeedClientAdapterV1 } from "../tools/void-public-seed-client-adapter-v1.mjs";
 
 const MARKER = "VOID_PUBLIC_CHECKPOINT_RESTORE_V1_PROOF";
@@ -263,16 +268,20 @@ try {
   );
   const activationSuccessBefore = fs.lstatSync(
     activationSuccessStaging,
+    { bigint: true },
   );
   const activationSuccess = activateCheckpointStagingNoReplaceV1({
     staging: activationSuccessStaging,
     dataDir: activationSuccessTarget,
     parent: ownedParent,
+    expectedDevice: String(activationSuccessBefore.dev),
+    expectedInode: String(activationSuccessBefore.ino),
   });
   assert.equal(activationSuccess.activated, true);
   assert.equal(fs.existsSync(activationSuccessStaging), false);
   const activationSuccessAfter = fs.lstatSync(
     activationSuccessTarget,
+    { bigint: true },
   );
   assert.equal(
     activationSuccessAfter.dev,
@@ -304,6 +313,10 @@ try {
     "must-not-activate\n",
   );
   assert.equal(fs.existsSync(activationRaceTarget), false);
+  const activationRaceBefore = fs.lstatSync(
+    activationRaceStaging,
+    { bigint: true },
+  );
 
   fs.mkdirSync(activationRaceTarget, { mode: 0o700 });
   fs.writeFileSync(
@@ -317,6 +330,8 @@ try {
         staging: activationRaceStaging,
         dataDir: activationRaceTarget,
         parent: ownedParent,
+        expectedDevice: String(activationRaceBefore.dev),
+        expectedInode: String(activationRaceBefore.ino),
       }),
     /DATA_DIR exists/,
   );
@@ -334,6 +349,99 @@ try {
     ),
     false,
   );
+
+  const generationTarget = path.join(
+    ownedParent,
+    "generation-authority-target",
+  );
+  const generation = createOwnedCheckpointRestoreGenerationV1({
+    dataDir: generationTarget,
+    parent: ownedParent,
+  });
+  fs.writeFileSync(
+    path.join(generation.fdRoot, "owned-before-replace"),
+    "owned-p1\n",
+  );
+  const generationMoved = `${generation.namespacePath}.moved`;
+  fs.renameSync(generation.namespacePath, generationMoved);
+  fs.mkdirSync(generation.namespacePath, { mode: 0o700 });
+  fs.writeFileSync(
+    path.join(generation.namespacePath, "foreign-sentinel"),
+    "preserve-p2\n",
+  );
+  fs.writeFileSync(
+    path.join(generation.fdRoot, "owned-after-replace"),
+    "still-p1\n",
+  );
+  assert.equal(
+    fs.readFileSync(
+      path.join(generationMoved, "owned-after-replace"),
+      "utf8",
+    ),
+    "still-p1\n",
+  );
+  assert.equal(
+    fs.existsSync(
+      path.join(generation.namespacePath, "owned-after-replace"),
+    ),
+    false,
+  );
+  const generationTerminal =
+    finalizeFailedOwnedCheckpointRestoreGenerationV1(generation);
+  assert.equal(
+    generationTerminal.status,
+    "foreign_replacement_preserved",
+  );
+  assert.equal(generationTerminal.recursive_delete, false);
+  assert.equal(
+    fs.readFileSync(
+      path.join(
+        generation.namespacePath,
+        "foreign-sentinel",
+      ),
+      "utf8",
+    ),
+    "preserve-p2\n",
+  );
+
+  const crashTarget = path.join(
+    ownedParent,
+    "crash-retry-target",
+  );
+  const crashedGeneration =
+    createOwnedCheckpointRestoreGenerationV1({
+      dataDir: crashTarget,
+      parent: ownedParent,
+    });
+  const crashedPath = crashedGeneration.namespacePath;
+  closeOwnedCheckpointRestoreGenerationV1(
+    crashedGeneration,
+  );
+  assert.equal(fs.existsSync(crashedPath), true);
+
+  const retryGeneration =
+    createOwnedCheckpointRestoreGenerationV1({
+      dataDir: crashTarget,
+      parent: ownedParent,
+    });
+  assert.notEqual(
+    retryGeneration.namespacePath,
+    crashedPath,
+  );
+  assert.equal(fs.existsSync(crashedPath), true);
+  assert.equal(
+    fs.existsSync(retryGeneration.namespacePath),
+    true,
+  );
+  const retryTerminal =
+    finalizeFailedOwnedCheckpointRestoreGenerationV1(
+      retryGeneration,
+    );
+  assert.equal(
+    retryTerminal.status,
+    "owned_stale_generation_retained",
+  );
+  assert.equal(retryTerminal.retry_blocked, false);
 
   const disabled = await runPublicCheckpointRestorePreNodeV1({
     env: {
@@ -396,12 +504,12 @@ try {
           ),
         ),
       );
-      assert.equal(
-        fs.existsSync(
-          `${target}.void-public-checkpoint-restore-v1-staging`,
-        ),
-        false,
-      );
+      const generationPrefix =
+        `${path.basename(target)}.void-public-checkpoint-restore-v1-gen-`;
+      const leftovers = fs
+        .readdirSync(path.dirname(target))
+        .filter((name) => name.startsWith(generationPrefix));
+      assert.deepEqual(leftovers, []);
     },
   );
 
@@ -464,11 +572,17 @@ try {
         }),
       );
       assert.equal(fs.existsSync(target), false);
+      const generationPrefix =
+        `${path.basename(target)}.void-public-checkpoint-restore-v1-gen-`;
+      const retained = fs
+        .readdirSync(path.dirname(target))
+        .filter((name) => name.startsWith(generationPrefix));
+      assert.equal(retained.length, 1);
       assert.equal(
-        fs.existsSync(
-          `${target}.void-public-checkpoint-restore-v1-staging`,
-        ),
-        false,
+        fs.lstatSync(
+          path.join(path.dirname(target), retained[0]),
+        ).isDirectory(),
+        true,
       );
     },
   );
@@ -501,13 +615,23 @@ try {
   console.log("semantic_invalid_packet_not_activated=true");
   console.log("auto_repair_sparse_every_16=true");
   console.log("derived_heads_meta_sparse_reconstructed=true");
-  console.log("single_staging_generation=true");
+  console.log("single_staging_generation_per_attempt=true");
+  console.log("staging_generation_unique=true");
+  console.log("staging_generation_fd_bound=true");
+  console.log("staging_replacement_foreign_generation_preserved=true");
+  console.log("staging_replacement_recursive_delete=false");
+  console.log("crash_retry_new_generation_nonblocking=true");
+  console.log("crash_retry_stale_generation_not_adopted=true");
+  console.log("proc_fd_semantic_verifier=true");
+  console.log("proc_fd_auto_repair=true");
   console.log("atomic_rename_activation=true");
   console.log("activation_uses_gnu_mv_rename_noreplace_contract=true");
   console.log("activation_no_copy=true");
   console.log("activation_same_inode_proved=true");
   console.log("destination_appeared_before_activation_preserved=true");
   console.log("staging_not_activated_when_destination_exists=true");
+  console.log("failure_stale_generation_retained=true");
+  console.log("failure_recursive_staging_delete=false");
   console.log("failure_cleanup_preserves_absent_target=true");
   console.log("checkpoint_publication_performed=false");
   console.log("runtime_node_started_by_proof=false");
