@@ -100,6 +100,54 @@ JSON routes still require `application/json`. Canonical segment routes require
 The route vocabulary remains closed. Unknown checkpoint IDs, malformed
 segments, query widening, and path traversal do not become public routes.
 
+## Content-generation binding
+
+The loopback adapter treats checkpoint retrieval as one ordered content
+generation, not as three unrelated authenticated requests.
+
+A discovery request invalidates any prior checkpoint binding and captures the
+new immutable tuple only after the response passes the closed discovery
+contract. A manifest request is accepted only for that discovered checkpoint
+path and must satisfy all of these conditions before the adapter emits HMAC
+response authority:
+
+- exact raw manifest SHA-256 equals the discovery `manifest_sha256`;
+- content-derived `voidpbc1_...` identity recomputes exactly;
+- source SHA, head, block count, segment count, and payload bytes equal the
+  discovered tuple;
+- the complete manifest/rebuild/authority key sets are closed and valid;
+- every segment entry has its exact ordered range/path contract; and
+- aggregate segment bytes/blocks equal the manifest totals.
+
+Only after that manifest binding exists can segment routes be requested. Each
+segment must be present in the verified manifest and must match its exact byte
+length and SHA-256 before local response authority is emitted.
+
+A concurrent new discovery changes the binding generation; in-flight
+manifest/segment responses from an older generation are rejected rather than
+being mixed with the newer checkpoint.
+
+## Segment byte contract
+
+Checkpoint v1 has one shared maximum `blocks.bin` segment size:
+
+```text
+67108864 bytes (64 MiB)
+```
+
+The same constant is consumed by the checkpoint producer, publication gateway,
+client transport, and loopback adapter.
+
+- the producer refuses to capture a segment above the ceiling;
+- the gateway refuses to admit or buffer a segment above the ceiling;
+- the client will accept a checkpoint segment up to exactly that ceiling using
+  its normal production path; and
+- a cap+1 object fails closed before publication/authority.
+
+This keeps a producer-valid v1 packet within the standard client transport
+contract instead of allowing discovery to advertise an object the default
+client cannot fetch.
+
 ## Response authority
 
 The loopback adapter extends the existing challenged HMAC response authority

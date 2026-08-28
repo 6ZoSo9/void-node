@@ -4,6 +4,9 @@ import fs from "node:fs";
 import http from "node:http";
 import path from "node:path";
 import process from "node:process";
+import {
+  VOID_PUBLIC_CHECKPOINT_SEGMENT_MAX_BYTES_V1,
+} from "../scripts/lib/void_public_checkpoint_contract_v1.mjs";
 
 const MARKER = "VOID_PUBLIC_SEED_GATEWAY_V1";
 const BIND_HOST = process.env.VOID_PUBLIC_SEED_BIND || "127.0.0.1";
@@ -32,8 +35,10 @@ const MAX_RESPONSE_BYTES = Math.max(
   1024 * 1024,
   Math.min(
     128 * 1024 * 1024,
-    Number(process.env.VOID_PUBLIC_SEED_MAX_RESPONSE_BYTES || 64 * 1024 * 1024) ||
-      64 * 1024 * 1024,
+    Number(
+      process.env.VOID_PUBLIC_SEED_MAX_RESPONSE_BYTES ||
+        VOID_PUBLIC_CHECKPOINT_SEGMENT_MAX_BYTES_V1,
+    ) || VOID_PUBLIC_CHECKPOINT_SEGMENT_MAX_BYTES_V1,
   ),
 );
 const UPSTREAM_TIMEOUT_MS = Math.max(
@@ -315,6 +320,7 @@ function loadCheckpointPublicationV1() {
       typeof entry.bytes !== "number" ||
       !Number.isSafeInteger(entry.bytes) ||
       entry.bytes <= 0 ||
+      entry.bytes > VOID_PUBLIC_CHECKPOINT_SEGMENT_MAX_BYTES_V1 ||
       typeof entry.sha256 !== "string" ||
       !/^[0-9a-f]{64}$/.test(entry.sha256)
     ) {
@@ -322,7 +328,10 @@ function loadCheckpointPublicationV1() {
     }
 
     const fileEntry = safeCheckpointFileV1(root, expectedPath);
-    if (fileEntry.st.size !== entry.bytes) {
+    if (
+      fileEntry.st.size !== entry.bytes ||
+      fileEntry.st.size > VOID_PUBLIC_CHECKPOINT_SEGMENT_MAX_BYTES_V1
+    ) {
       throw new Error("checkpoint segment size mismatch");
     }
     const bytes = fs.readFileSync(fileEntry.file);
@@ -441,7 +450,11 @@ function checkpointResponseBytesV1(route) {
   if (!expected) throw new Error("checkpoint segment is not admitted");
   const relative = `segments/${route.name}/blocks.bin`;
   const fileEntry = safeCheckpointFileV1(CHECKPOINT_PUBLICATION_V1.root, relative);
-  if (fileEntry.st.size !== expected.bytes) {
+  if (
+    expected.bytes > VOID_PUBLIC_CHECKPOINT_SEGMENT_MAX_BYTES_V1 ||
+    fileEntry.st.size !== expected.bytes ||
+    fileEntry.st.size > VOID_PUBLIC_CHECKPOINT_SEGMENT_MAX_BYTES_V1
+  ) {
     throw new Error("checkpoint segment size changed after publication admission");
   }
   const bytes = fs.readFileSync(fileEntry.file);
@@ -667,6 +680,7 @@ server.listen(PORT, BIND_HOST, () => {
   console.log("methods=GET,HEAD");
   console.log(`checkpoint_available=${CHECKPOINT_PUBLICATION_V1 ? "true" : "false"}`);
   console.log(`checkpoint_id=${CHECKPOINT_PUBLICATION_V1?.manifest.checkpoint_id || ""}`);
+  console.log(`checkpoint_max_segment_bytes=${VOID_PUBLIC_CHECKPOINT_SEGMENT_MAX_BYTES_V1}`);
   console.log("private_mutation_routes_exposed=false");
   console.log("wallet_authority=false");
   console.log("signer_authority=false");

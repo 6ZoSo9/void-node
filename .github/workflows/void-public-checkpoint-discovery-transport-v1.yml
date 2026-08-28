@@ -7,8 +7,11 @@ on:
       - "docs/public/void-public-checkpoint-discovery-transport-v1.md"
       - "run-void-node.sh"
       - "scripts/resolve_void_public_bootstrap_v1.mjs"
+      - "scripts/lib/void_public_checkpoint_contract_v1.mjs"
       - "scripts/lib/void_public_seed_client_transport_v1.mjs"
+      - "scripts/prove_void_public_checkpoint_binding_size_v1.mjs"
       - "scripts/prove_void_public_checkpoint_discovery_transport_v1.mjs"
+      - "tools/void-public-canonical-checkpoint-v1.mjs"
       - "scripts/prove_void_public_checkpoint_qualification_lifetime_v1.mjs"
       - "tools/void-public-seed-client-adapter-v1.mjs"
       - "tools/void-public-seed-gateway-v1.mjs"
@@ -19,8 +22,11 @@ on:
       - "docs/public/void-public-checkpoint-discovery-transport-v1.md"
       - "run-void-node.sh"
       - "scripts/resolve_void_public_bootstrap_v1.mjs"
+      - "scripts/lib/void_public_checkpoint_contract_v1.mjs"
       - "scripts/lib/void_public_seed_client_transport_v1.mjs"
+      - "scripts/prove_void_public_checkpoint_binding_size_v1.mjs"
       - "scripts/prove_void_public_checkpoint_discovery_transport_v1.mjs"
+      - "tools/void-public-canonical-checkpoint-v1.mjs"
       - "scripts/prove_void_public_checkpoint_qualification_lifetime_v1.mjs"
       - "tools/void-public-seed-client-adapter-v1.mjs"
       - "tools/void-public-seed-gateway-v1.mjs"
@@ -59,7 +65,10 @@ jobs:
         run: |
           node --check tools/void-public-seed-gateway-v1.mjs
           node --check tools/void-public-seed-client-adapter-v1.mjs
+          node --check tools/void-public-canonical-checkpoint-v1.mjs
+          node --check scripts/lib/void_public_checkpoint_contract_v1.mjs
           node --check scripts/lib/void_public_seed_client_transport_v1.mjs
+          node --check scripts/prove_void_public_checkpoint_binding_size_v1.mjs
           node --check scripts/prove_void_public_checkpoint_discovery_transport_v1.mjs
           node --check scripts/prove_void_public_checkpoint_qualification_lifetime_v1.mjs
           node --check scripts/resolve_void_public_bootstrap_v1.mjs
@@ -70,6 +79,9 @@ jobs:
 
       - name: Prove checkpoint qualification lifetime
         run: node scripts/prove_void_public_checkpoint_qualification_lifetime_v1.mjs
+
+      - name: Prove checkpoint content binding and segment size
+        run: node scripts/prove_void_public_checkpoint_binding_size_v1.mjs
 
       - name: Diff hygiene
         run: git diff --check

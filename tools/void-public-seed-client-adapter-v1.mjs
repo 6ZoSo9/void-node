@@ -9,6 +9,12 @@ import {
   normalizePublicSeedBase,
 } from "../scripts/lib/void_public_seed_qualification_v1.mjs";
 import { requestPublicSeedRouteV1 } from "../scripts/lib/void_public_seed_client_transport_v1.mjs";
+import {
+  VOID_PUBLIC_CHECKPOINT_SEGMENT_MAX_BYTES_V1,
+  parseVoidPublicCheckpointDiscoveryBytesV1,
+  validateVoidPublicCheckpointManifestBytesV1,
+  validateVoidPublicCheckpointSegmentBytesV1,
+} from "../scripts/lib/void_public_checkpoint_contract_v1.mjs";
 
 const MARKER = "VOID_PUBLIC_SEED_CLIENT_ADAPTER_V1";
 const COMPILED_MAX_RANGE = 999;
@@ -102,6 +108,147 @@ function checkpointAuthorityStateV1(
   }
   if (nowMs >= qualificationNotAfterMs) return "qualification_expired";
   return "live";
+}
+
+function checkpointBindingErrorV1(code, status = 409) {
+  const error = new Error(code);
+  error.checkpointBindingCode = code;
+  error.checkpointBindingStatus = status;
+  return error;
+}
+
+function beginCheckpointBindingRequestV1(route, state) {
+  const parsed = new URL(route, "http://adapter.invalid");
+
+  if (parsed.pathname === CHECKPOINT_DISCOVERY_ROUTE_V1) {
+    state.generation += 1;
+    state.discovery = null;
+    state.manifest = null;
+    return Object.freeze({
+      kind: "discovery",
+      route,
+      generation: state.generation,
+    });
+  }
+
+  const manifestMatch = CHECKPOINT_MANIFEST_PATH_RE_V1.exec(
+    parsed.pathname,
+  );
+  if (manifestMatch) {
+    if (!state.discovery) {
+      throw checkpointBindingErrorV1(
+        "checkpoint_discovery_binding_required",
+      );
+    }
+    if (
+      manifestMatch[1] !== state.discovery.checkpoint_id ||
+      parsed.pathname !==
+        `${state.discovery.packet_base_path}/checkpoint.json`
+    ) {
+      throw checkpointBindingErrorV1(
+        "checkpoint_manifest_route_binding_mismatch",
+      );
+    }
+    return Object.freeze({
+      kind: "manifest",
+      route,
+      generation: state.generation,
+      discovery: state.discovery,
+    });
+  }
+
+  const segmentMatch = CHECKPOINT_SEGMENT_PATH_RE_V1.exec(
+    parsed.pathname,
+  );
+  if (segmentMatch) {
+    if (!state.discovery || !state.manifest) {
+      throw checkpointBindingErrorV1(
+        "checkpoint_manifest_binding_required",
+      );
+    }
+    if (segmentMatch[1] !== state.manifest.checkpoint_id) {
+      throw checkpointBindingErrorV1(
+        "checkpoint_segment_checkpoint_binding_mismatch",
+      );
+    }
+    const expected =
+      state.manifest.segments_by_name?.[segmentMatch[2]];
+    if (!expected) {
+      throw checkpointBindingErrorV1(
+        "checkpoint_segment_not_in_verified_manifest",
+        404,
+      );
+    }
+    return Object.freeze({
+      kind: "segment",
+      route,
+      generation: state.generation,
+      manifest: state.manifest,
+      expected,
+    });
+  }
+
+  throw checkpointBindingErrorV1(
+    "checkpoint_route_binding_invalid",
+    404,
+  );
+}
+
+function validateCheckpointBoundRemoteV1(context, remote, state) {
+  if (!context || context.generation !== state.generation) {
+    throw checkpointBindingErrorV1(
+      "checkpoint_binding_generation_changed",
+      503,
+    );
+  }
+
+  if (context.kind === "discovery") {
+    const discovery =
+      parseVoidPublicCheckpointDiscoveryBytesV1(remote.bytes);
+    if (context.generation !== state.generation) {
+      throw checkpointBindingErrorV1(
+        "checkpoint_binding_generation_changed",
+        503,
+      );
+    }
+    state.discovery =
+      discovery.status === "available"
+        ? discovery.checkpoint
+        : null;
+    state.manifest = null;
+    return;
+  }
+
+  if (context.kind === "manifest") {
+    const manifest =
+      validateVoidPublicCheckpointManifestBytesV1(remote.bytes, {
+        expectedCheckpoint: context.discovery,
+        expectedCheckpointId:
+          context.discovery.checkpoint_id,
+      });
+    if (context.generation !== state.generation) {
+      throw checkpointBindingErrorV1(
+        "checkpoint_binding_generation_changed",
+        503,
+      );
+    }
+    state.manifest = manifest;
+    return;
+  }
+
+  if (context.kind === "segment") {
+    validateVoidPublicCheckpointSegmentBytesV1(
+      context.route,
+      remote.bytes,
+      context.manifest,
+    );
+    return;
+  }
+
+  throw checkpointBindingErrorV1(
+    "checkpoint_binding_context_invalid",
+    503,
+  );
 }
 
 function responseAuthorityEligibleRouteV1(route) {
@@ -321,6 +468,11 @@ export async function createPublicSeedClientAdapterV1({
   let lastError = null;
   let rangeCache = null;
   let rangeCacheHits = 0;
+  const checkpointBindingState = {
+    generation: 0,
+    discovery: null,
+    manifest: null,
+  };
 
   const server = http.createServer(async (req, res) => {
     const method = String(req.method || "GET").toUpperCase();
@@ -356,6 +508,16 @@ export async function createPublicSeedClientAdapterV1({
           ),
           checkpoint_qualification_not_after_ms:
             checkpointQualificationDeadlineMs,
+          checkpoint_max_segment_bytes:
+            VOID_PUBLIC_CHECKPOINT_SEGMENT_MAX_BYTES_V1,
+          checkpoint_binding_generation:
+            checkpointBindingState.generation,
+          checkpoint_discovery_bound:
+            checkpointBindingState.discovery !== null,
+          checkpoint_manifest_bound:
+            checkpointBindingState.manifest !== null,
+          checkpoint_bound_id:
+            checkpointBindingState.discovery?.checkpoint_id || null,
           tailnet_required: false,
           private_mutation_routes_exposed: false,
         },
@@ -383,6 +545,7 @@ export async function createPublicSeedClientAdapterV1({
     }
 
     const isCheckpointRoute = checkpointRouteV1(route);
+    let checkpointContext = null;
     if (isCheckpointRoute) {
       if (method !== "GET") {
         json(
@@ -418,6 +581,25 @@ export async function createPublicSeedClientAdapterV1({
         );
         return;
       }
+      try {
+        checkpointContext = beginCheckpointBindingRequestV1(
+          route,
+          checkpointBindingState,
+        );
+      } catch (error) {
+        json(
+          res,
+          Number(error?.checkpointBindingStatus || 409),
+          {
+            ok: false,
+            error:
+              error?.checkpointBindingCode ||
+              "checkpoint_binding_rejected",
+          },
+          method,
+        );
+        return;
+      }
     }
 
     const cacheableRange = method === "GET" && route.startsWith("/blocks/range?");
@@ -448,10 +630,33 @@ export async function createPublicSeedClientAdapterV1({
         const remote = await requestPublicSeedRouteV1(peer, route, {
           method,
           timeoutMs: effectiveTimeoutMs,
-          maxBytes: effectiveMaxBytes,
+          maxBytes: isCheckpointRoute
+            ? VOID_PUBLIC_CHECKPOINT_SEGMENT_MAX_BYTES_V1
+            : effectiveMaxBytes,
           allowLoopbackFixture,
           logicalDeadlineAtMs,
         });
+        if (isCheckpointRoute) {
+          const checkpointAuthorityState = checkpointAuthorityStateV1(
+            responseAuthority,
+            checkpointQualificationDeadlineMs,
+          );
+          if (checkpointAuthorityState !== "live") {
+            json(
+              res,
+              503,
+              { ok: false, error: `checkpoint_${checkpointAuthorityState}` },
+              method,
+            );
+            return;
+          }
+          validateCheckpointBoundRemoteV1(
+            checkpointContext,
+            remote,
+            checkpointBindingState,
+          );
+        }
+
         if (index !== activeIndex) failoverCount += 1;
         activeIndex = index;
         lastSuccessAt = new Date().toISOString();
@@ -474,29 +679,14 @@ export async function createPublicSeedClientAdapterV1({
           remote,
           responseAuthority,
         );
-        if (isCheckpointRoute) {
-          const checkpointAuthorityState = checkpointAuthorityStateV1(
-            responseAuthority,
-            checkpointQualificationDeadlineMs,
+        if (isCheckpointRoute && !authorityHeaders) {
+          json(
+            res,
+            503,
+            { ok: false, error: "checkpoint_authority_unavailable" },
+            method,
           );
-          if (checkpointAuthorityState !== "live") {
-            json(
-              res,
-              503,
-              { ok: false, error: `checkpoint_${checkpointAuthorityState}` },
-              method,
-            );
-            return;
-          }
-          if (!authorityHeaders) {
-            json(
-              res,
-              503,
-              { ok: false, error: "checkpoint_authority_unavailable" },
-              method,
-            );
-            return;
-          }
+          return;
         }
         writeRemote(
           res,
@@ -552,6 +742,9 @@ export async function createPublicSeedClientAdapterV1({
   );
   console.log(
     `checkpoint_qualification_not_after_ms=${checkpointQualificationDeadlineMs ?? ""}`,
+  );
+  console.log(
+    `checkpoint_max_segment_bytes=${VOID_PUBLIC_CHECKPOINT_SEGMENT_MAX_BYTES_V1}`,
   );
   console.log("tailnet_required=false");
   console.log("private_mutation_routes_exposed=false");
