@@ -14,6 +14,8 @@ const MARKER = "VOID_PUBLIC_SEED_CLIENT_ADAPTER_V1";
 const COMPILED_MAX_RANGE = 999;
 const COMPILED_MAX_RESPONSE_BYTES = 128 * 1024 * 1024;
 const RANGE_CACHE_TTL_MS = 2000;
+const CHECKPOINT_QUALIFICATION_MAX_FUTURE_MS_V1 =
+  2 * 60 * 60 * 1000 + 5 * 60 * 1000;
 const CHECKPOINT_DISCOVERY_ROUTE_V1 = "/__void/checkpoint/v1.json";
 const CHECKPOINT_MANIFEST_PATH_RE_V1 =
   /^\/checkpoints\/v1\/(voidpbc1_[0-9a-f]{64})\/checkpoint\.json$/;
@@ -59,6 +61,47 @@ function normalizeResponseAuthorityV1(raw) {
     sequence: raw.sequence,
     secret: Buffer.from(raw.secret),
   });
+}
+
+function checkpointRouteV1(route) {
+  let parsed;
+  try {
+    parsed = new URL(route, "http://adapter.invalid");
+  } catch {
+    return false;
+  }
+  if (parsed.search !== "") return false;
+  if (parsed.pathname === CHECKPOINT_DISCOVERY_ROUTE_V1) return true;
+  if (CHECKPOINT_MANIFEST_PATH_RE_V1.test(parsed.pathname)) return true;
+  return CHECKPOINT_SEGMENT_PATH_RE_V1.test(parsed.pathname);
+}
+
+function normalizeCheckpointQualificationNotAfterMsV1(raw, nowMs = Date.now()) {
+  if (raw == null || String(raw).trim() === "") return null;
+  const value = typeof raw === "number" ? raw : Number(String(raw).trim());
+  if (
+    !Number.isSafeInteger(value) ||
+    value <= nowMs ||
+    value > nowMs + CHECKPOINT_QUALIFICATION_MAX_FUTURE_MS_V1
+  ) {
+    throw new Error(
+      "checkpoint qualification deadline must be a live safe integer within the two-hour qualification window",
+    );
+  }
+  return value;
+}
+
+function checkpointAuthorityStateV1(
+  responseAuthority,
+  qualificationNotAfterMs,
+  nowMs = Date.now(),
+) {
+  if (!responseAuthority) return "authority_unavailable";
+  if (!Number.isSafeInteger(qualificationNotAfterMs)) {
+    return "qualification_unavailable";
+  }
+  if (nowMs >= qualificationNotAfterMs) return "qualification_expired";
+  return "live";
 }
 
 function responseAuthorityEligibleRouteV1(route) {
@@ -239,6 +282,8 @@ export async function createPublicSeedClientAdapterV1({
     COMPILED_MAX_RESPONSE_BYTES,
   ),
   authority = null,
+  checkpointQualificationNotAfterMs =
+    process.env.VOID_PUBLIC_BOOTSTRAP_QUALIFICATION_NOT_AFTER_MS,
   allowLoopbackFixture =
     process.env.VOID_PUBLIC_BOOTSTRAP_ALLOW_LOOPBACK_FIXTURE === "1",
 } = {}) {
@@ -265,6 +310,10 @@ export async function createPublicSeedClientAdapterV1({
   );
   const peers = normalizePeers(rawPeers, { allowLoopbackFixture });
   const responseAuthority = normalizeResponseAuthorityV1(authority);
+  const checkpointQualificationDeadlineMs =
+    normalizeCheckpointQualificationNotAfterMsV1(
+      checkpointQualificationNotAfterMs,
+    );
   let activeIndex = 0;
   let requestCount = 0;
   let failoverCount = 0;
@@ -301,6 +350,12 @@ export async function createPublicSeedClientAdapterV1({
           redirects_followed: false,
           max_range: COMPILED_MAX_RANGE,
           max_response_bytes: effectiveMaxBytes,
+          checkpoint_authority_state: checkpointAuthorityStateV1(
+            responseAuthority,
+            checkpointQualificationDeadlineMs,
+          ),
+          checkpoint_qualification_not_after_ms:
+            checkpointQualificationDeadlineMs,
           tailnet_required: false,
           private_mutation_routes_exposed: false,
         },
@@ -325,6 +380,44 @@ export async function createPublicSeedClientAdapterV1({
         method,
       );
       return;
+    }
+
+    const isCheckpointRoute = checkpointRouteV1(route);
+    if (isCheckpointRoute) {
+      if (method !== "GET") {
+        json(
+          res,
+          405,
+          { ok: false, error: "checkpoint_get_required" },
+          method,
+        );
+        return;
+      }
+      const checkpointAuthorityState = checkpointAuthorityStateV1(
+        responseAuthority,
+        checkpointQualificationDeadlineMs,
+      );
+      if (checkpointAuthorityState !== "live") {
+        json(
+          res,
+          503,
+          { ok: false, error: `checkpoint_${checkpointAuthorityState}` },
+          method,
+        );
+        return;
+      }
+      const challenge = String(
+        req.headers[AUTHORITY_CHALLENGE_HEADER] || "",
+      ).trim();
+      if (!/^[0-9a-f]{64}$/.test(challenge)) {
+        json(
+          res,
+          428,
+          { ok: false, error: "checkpoint_authority_challenge_required" },
+          method,
+        );
+        return;
+      }
     }
 
     const cacheableRange = method === "GET" && route.startsWith("/blocks/range?");
@@ -375,11 +468,41 @@ export async function createPublicSeedClientAdapterV1({
             },
           };
         }
+        const authorityHeaders = responseAuthorityHeadersV1(
+          req,
+          method,
+          remote,
+          responseAuthority,
+        );
+        if (isCheckpointRoute) {
+          const checkpointAuthorityState = checkpointAuthorityStateV1(
+            responseAuthority,
+            checkpointQualificationDeadlineMs,
+          );
+          if (checkpointAuthorityState !== "live") {
+            json(
+              res,
+              503,
+              { ok: false, error: `checkpoint_${checkpointAuthorityState}` },
+              method,
+            );
+            return;
+          }
+          if (!authorityHeaders) {
+            json(
+              res,
+              503,
+              { ok: false, error: "checkpoint_authority_unavailable" },
+              method,
+            );
+            return;
+          }
+        }
         writeRemote(
           res,
           remote,
           method,
-          responseAuthorityHeadersV1(req, method, remote, responseAuthority),
+          authorityHeaders,
         );
         return;
       } catch (error) {
@@ -421,6 +544,15 @@ export async function createPublicSeedClientAdapterV1({
   console.log("loopback_only=true");
   console.log("dns_pinned=true");
   console.log("redirects_followed=false");
+  console.log(
+    `checkpoint_authority_state=${checkpointAuthorityStateV1(
+      responseAuthority,
+      checkpointQualificationDeadlineMs,
+    )}`,
+  );
+  console.log(
+    `checkpoint_qualification_not_after_ms=${checkpointQualificationDeadlineMs ?? ""}`,
+  );
   console.log("tailnet_required=false");
   console.log("private_mutation_routes_exposed=false");
 

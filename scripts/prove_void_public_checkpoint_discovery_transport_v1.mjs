@@ -217,6 +217,7 @@ try {
       sequence,
       secret,
     },
+    checkpointQualificationNotAfterMs: Date.now() + 60_000,
     allowLoopbackFixture: true,
   });
 
@@ -230,6 +231,11 @@ try {
     }),
     true,
   );
+
+  const missingChallenge = await fetch(
+    `${adapter.base}/__void/checkpoint/v1.json`,
+  );
+  assert.equal(missingChallenge.status, 428);
 
   const discovery = await authorizedGet(
     adapter.base,
@@ -281,6 +287,54 @@ try {
   );
   assert.notEqual(traversalResponse.status, 200);
 
+  const noAuthorityAdapter = await createPublicSeedClientAdapterV1({
+    peers: `http://127.0.0.1:${gatewayPort}`,
+    host: "127.0.0.1",
+    port: 0,
+    timeoutMs: 5_000,
+    maxBytes: 8 * 1024 * 1024,
+    checkpointQualificationNotAfterMs: Date.now() + 60_000,
+    allowLoopbackFixture: true,
+  });
+  try {
+    const unavailable = await fetch(
+      `${noAuthorityAdapter.base}/__void/checkpoint/v1.json`,
+    );
+    assert.equal(unavailable.status, 503);
+  } finally {
+    await new Promise((resolve) => noAuthorityAdapter.server.close(resolve));
+  }
+
+  const expiringAdapter = await createPublicSeedClientAdapterV1({
+    peers: `http://127.0.0.1:${gatewayPort}`,
+    host: "127.0.0.1",
+    port: 0,
+    timeoutMs: 5_000,
+    maxBytes: 8 * 1024 * 1024,
+    authority: {
+      schema: "void_public_seed_response_authority_v1",
+      generation: "b".repeat(32),
+      sequence: 2,
+      secret,
+    },
+    checkpointQualificationNotAfterMs: Date.now() + 40,
+    allowLoopbackFixture: true,
+  });
+  try {
+    await new Promise((resolve) => setTimeout(resolve, 80));
+    const expired = await fetch(
+      `${expiringAdapter.base}/__void/checkpoint/v1.json`,
+      {
+        headers: {
+          [VOID_PUBLIC_SEED_AUTHORITY_CHALLENGE_HEADER_V1]: "c".repeat(64),
+        },
+      },
+    );
+    assert.equal(expired.status, 503);
+  } finally {
+    await new Promise((resolve) => expiringAdapter.server.close(resolve));
+  }
+
   fs.appendFileSync(
     path.join(packet, "segments", "00000000", "blocks.bin"),
     Buffer.from("tamper"),
@@ -321,6 +375,9 @@ try {
   console.log("same_qualified_seed_origin=true");
   console.log("new_trust_root=false");
   console.log("bootstrap_manifest_schema_unchanged=true");
+  console.log("checkpoint_missing_challenge_rejected=true");
+  console.log("checkpoint_missing_authority_rejected=true");
+  console.log("checkpoint_expired_qualification_rejected=true");
   console.log("discovery_response_hmac_verified=true");
   console.log("manifest_response_hmac_verified=true");
   console.log("binary_segment_response_hmac_verified=true");

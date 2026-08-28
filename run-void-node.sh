@@ -37,6 +37,7 @@ PUBLIC_BOOTSTRAP_STATE="not_checked"
 HTTPS_BOOTSTRAP_STATE="not_checked"
 TOR_BOOTSTRAP_STATE="not_checked"
 HTTPS_BOOTSTRAP_PEERS=""
+HTTPS_BOOTSTRAP_QUALIFICATION_NOT_AFTER_MS=""
 TOR_BOOTSTRAP_PEERS=""
 
 say() { printf '%s\n' "$*"; }
@@ -259,8 +260,10 @@ resolve_https_public_bootstrap_v1() {
   local manifest_override="$1"
   local verify_log live_log reverify_log local_hold_log
   local verify_output verify_rc verified_peers verified_manifest_id
-  local live_output live_rc live_manifest_id
+  local verified_qualification_not_after_ms
+  local live_output live_rc live_manifest_id live_qualification_not_after_ms
   local reverify_output reverify_rc reverify_manifest_id
+  local reverify_qualification_not_after_ms
   local local_hold_output local_hold_rc
 
   verify_log="$RUNTIME_ROOT/public-bootstrap-https-verify.log"
@@ -317,7 +320,11 @@ resolve_https_public_bootstrap_v1() {
 
   verified_peers="$(last_output_line "$verify_output")"
   verified_manifest_id="$(log_value manifest_id "$verify_log")"
+  verified_qualification_not_after_ms="$(log_value qualification_not_after_ms "$verify_log")"
   test -n "$verified_manifest_id" || die "HTTPS bootstrap verification omitted manifest identity"
+  case "$verified_qualification_not_after_ms" in
+    ''|*[!0-9]*) die "HTTPS bootstrap verification omitted qualification deadline" ;;
+  esac
   if test -z "$verified_peers"; then
     HTTPS_BOOTSTRAP_STATE="hold_no_stable_seed"
     return
@@ -334,12 +341,15 @@ resolve_https_public_bootstrap_v1() {
   if test "$live_rc" -eq 0; then
     HTTPS_BOOTSTRAP_PEERS="$(last_output_line "$live_output")"
     live_manifest_id="$(log_value manifest_id "$live_log")"
+    live_qualification_not_after_ms="$(log_value qualification_not_after_ms "$live_log")"
     if test -z "$HTTPS_BOOTSTRAP_PEERS" || \
-       test "$live_manifest_id" != "$verified_manifest_id"; then
+       test "$live_manifest_id" != "$verified_manifest_id" || \
+       test "$live_qualification_not_after_ms" != "$verified_qualification_not_after_ms"; then
       cat "$verify_log" >&2 || true
       cat "$live_log" >&2 || true
       die "HTTPS bootstrap trust material changed between verification and live resolution"
     fi
+    HTTPS_BOOTSTRAP_QUALIFICATION_NOT_AFTER_MS="$live_qualification_not_after_ms"
     HTTPS_BOOTSTRAP_STATE="active"
     return
   fi
@@ -362,9 +372,11 @@ resolve_https_public_bootstrap_v1() {
   reverify_rc=$?
   set -e
   reverify_manifest_id="$(log_value manifest_id "$reverify_log")"
+  reverify_qualification_not_after_ms="$(log_value qualification_not_after_ms "$reverify_log")"
   if test "$reverify_rc" -ne 0 || \
      test "$(last_output_line "$reverify_output")" != "$verified_peers" || \
-     test "$reverify_manifest_id" != "$verified_manifest_id"; then
+     test "$reverify_manifest_id" != "$verified_manifest_id" || \
+     test "$reverify_qualification_not_after_ms" != "$verified_qualification_not_after_ms"; then
     cat "$verify_log" >&2 || true
     cat "$live_log" >&2 || true
     cat "$reverify_log" >&2 || true
@@ -513,6 +525,7 @@ resolve_public_bootstrap() {
 
   if test "$https_active" = 1; then
     export VOID_PUBLIC_SEED_CLIENT_PEERS="$HTTPS_BOOTSTRAP_PEERS"
+    export VOID_PUBLIC_BOOTSTRAP_QUALIFICATION_NOT_AFTER_MS="$HTTPS_BOOTSTRAP_QUALIFICATION_NOT_AFTER_MS"
   fi
   if test "$tor_active" = 1; then
     export VOID_TOR_PUBLIC_SEED_CLIENT_PEERS="$TOR_BOOTSTRAP_PEERS"

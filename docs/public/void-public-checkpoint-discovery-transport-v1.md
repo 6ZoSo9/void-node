@@ -109,6 +109,32 @@ The authority transcript is unchanged: generation, sequence, nonce, method,
 route, status, byte length, and body SHA-256 remain bound. No long-lived
 checkpoint signing key is introduced.
 
+### Qualification lifetime
+
+Checkpoint authority is additionally bounded by the canonical stable-seed
+qualification age.
+
+The HTTPS resolver emits the earliest `qualified_at + 2h` deadline among the
+enabled seed set. The clone-and-run launcher requires its verify and live
+resolution passes to produce the same deadline and exports that exact value to
+the HTTPS adapter.
+
+Checkpoint discovery, manifest, and segment routes fail closed unless:
+
+- response HMAC authority is installed;
+- the qualification deadline is present and still live;
+- the method is GET; and
+- the caller supplies a valid authority challenge nonce.
+
+The adapter checks the deadline both before the remote request and again before
+returning the authenticated response. A response that crosses the deadline is
+not returned as an authenticated checkpoint response.
+
+This lifetime gate applies only to the new checkpoint route set in this
+generation. Existing historical `/blocks/range` behavior is deliberately
+unchanged; long-range catch-up qualification refresh remains a separate
+lifecycle problem rather than being silently changed by checkpoint transport.
+
 ## Deliberately not included
 
 This generation does not:
