@@ -9182,8 +9182,10 @@ void_lastseal_txs ${Number.isFinite(r.txs)?r.txs:0}
       if (process.env.VOID_DISABLE_POST_LISTEN_PEER_INTERVALS !== "1") setInterval(() => {
         try {
           const peers = peersReg.all();
+          const selfId = String(((((globalThis as any).__void_node || (globalThis as any).node) as any).id) || "");
           for (const p of peers) {
             if (!p?.http) continue;
+            if (selfId && String(p?.id || "") === selfId) continue;
             void upsertRemotePeer(p.http, (((globalThis as any).__void_node || (globalThis as any).node) as any).id, selfAdvert.httpBase, selfAdvert.p2pListen);
           }
         } catch (err) { __voidIxCatch9000("8315:7", err); }
@@ -9216,6 +9218,7 @@ void_lastseal_txs ${Number.isFinite(r.txs)?r.txs:0}
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ id: myId, http: myHttp, p2p: myP2p, capabilities }),
+        signal: AbortSignal.timeout(10_000),
       });
     } catch (err) { if(!/fetch failed/.test(String((err as any)?.message||err))) __voidIxCatch9000("8346:9", err); }
   }
@@ -63950,9 +63953,13 @@ a{color:#93c5fd;text-decoration:none}
         const out:any[] = [];
         const seen = new Set<string>();
 
+        const canonicalHttpBaseV1=(raw:any):string=>{const text=String(raw||"").trim();try{const u=new URL(text);if(!/^https?:$/.test(u.protocol))return "";u.pathname=u.search=u.hash="";return u.toString().replace(/\/+$/,"");}catch{return text.replace(/\/+$/,"");}};
+        const publicBaseKeyV1=canonicalHttpBaseV1(process.env.PUBLIC_HTTP_BASE);
+
         const addPeer = (httpBase:string, p2pAddr:string="") => {
           const http = String(httpBase || "").trim();
           if (!http) return;
+          if (publicBaseKeyV1 && canonicalHttpBaseV1(http) === publicBaseKeyV1) return;
           if (seen.has(http)) return;
           seen.add(http);
           out.push({ http, p2p: String(p2pAddr || "").trim() });
@@ -64018,9 +64025,9 @@ a{color:#93c5fd;text-decoration:none}
           }
 
           const url = new URL("/datanet/v1/local-job/" + encodeURIComponent(datasetId) + "?who=" + encodeURIComponent(String(who || "zoso")), httpBase).toString();
-          const r = await fetch(url);
+          const remoteFetchSignal = AbortSignal.timeout(10_000);
+          const r = await fetch(url, { signal: remoteFetchSignal });
           if (!r.ok) continue;
-
           const j:any = await r.json().catch(() => null);
           if (!j || !j.ok) continue;
 
