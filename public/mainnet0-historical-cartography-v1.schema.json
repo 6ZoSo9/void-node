@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://voidchain.org/schemas/mainnet0-historical-cartography-v1.schema.json",
-  "title": "VOID Mainnet-0 Historical Cartography V1 Manifest",
+  "title": "VOID Mainnet-0 Historical Cartography V1.1 Manifest",
   "type": "object",
   "additionalProperties": false,
   "required": [
@@ -33,7 +33,7 @@
     "network": { "const": "VOID Mainnet-0" },
     "chain_id": { "const": 2050 },
     "status": { "enum": ["complete", "hold"] },
-    "scanner_version": { "const": "v1" },
+    "scanner_version": { "const": "v1.1" },
     "source": {
       "type": "object",
       "additionalProperties": false,
@@ -74,14 +74,15 @@
     },
     "vocabulary": {
       "type": "array",
-      "minItems": 4,
-      "maxItems": 4,
+      "minItems": 5,
+      "maxItems": 5,
       "uniqueItems": true,
       "prefixItems": [
         { "const": "MINIMAL_V1" },
         { "const": "LEGACY_V2FS_V1" },
         { "const": "MODERN_SIGNED_V1" },
-        { "const": "LEGACY_V2FS_EMPTY_HEADER_ROOT_OBJECT_V1" }
+        { "const": "LEGACY_V2FS_EMPTY_HEADER_ROOT_OBJECT_V1" },
+        { "const": "MODERN_SIGNED_LEGACY_EMPTY_HEADER_ROOT_V1" }
       ],
       "items": false
     },
@@ -93,13 +94,15 @@
         "MINIMAL_V1",
         "LEGACY_V2FS_V1",
         "MODERN_SIGNED_V1",
-        "LEGACY_V2FS_EMPTY_HEADER_ROOT_OBJECT_V1"
+        "LEGACY_V2FS_EMPTY_HEADER_ROOT_OBJECT_V1",
+        "MODERN_SIGNED_LEGACY_EMPTY_HEADER_ROOT_V1"
       ],
       "properties": {
         "MINIMAL_V1": { "type": "integer", "minimum": 0 },
         "LEGACY_V2FS_V1": { "type": "integer", "minimum": 0 },
         "MODERN_SIGNED_V1": { "type": "integer", "minimum": 0 },
-        "LEGACY_V2FS_EMPTY_HEADER_ROOT_OBJECT_V1": { "type": "integer", "minimum": 0 }
+        "LEGACY_V2FS_EMPTY_HEADER_ROOT_OBJECT_V1": { "type": "integer", "minimum": 0 },
+        "MODERN_SIGNED_LEGACY_EMPTY_HEADER_ROOT_V1": { "type": "integer", "minimum": 0 }
       }
     },
     "unclassified_blocks": { "type": "integer", "minimum": 0 },
@@ -123,7 +126,8 @@
               "MINIMAL_V1",
               "LEGACY_V2FS_V1",
               "MODERN_SIGNED_V1",
-              "LEGACY_V2FS_EMPTY_HEADER_ROOT_OBJECT_V1"
+              "LEGACY_V2FS_EMPTY_HEADER_ROOT_OBJECT_V1",
+              "MODERN_SIGNED_LEGACY_EMPTY_HEADER_ROOT_V1"
             ]
           }
         }
@@ -142,7 +146,8 @@
               "MINIMAL_V1",
               "LEGACY_V2FS_V1",
               "MODERN_SIGNED_V1",
-              "LEGACY_V2FS_EMPTY_HEADER_ROOT_OBJECT_V1"
+              "LEGACY_V2FS_EMPTY_HEADER_ROOT_OBJECT_V1",
+              "MODERN_SIGNED_LEGACY_EMPTY_HEADER_ROOT_V1"
             ]
           }
         }
@@ -160,13 +165,28 @@
             "expected_classification",
             "classification",
             "raw_sha256",
+            "expected_raw_sha256",
             "header_tx_root_kind"
           ],
           "properties": {
             "height": { "type": "integer", "minimum": 0 },
-            "expected_classification": { "type": "string" },
+            "expected_classification": {
+              "enum": [
+                "MINIMAL_V1",
+                "LEGACY_V2FS_V1",
+                "MODERN_SIGNED_V1",
+                "LEGACY_V2FS_EMPTY_HEADER_ROOT_OBJECT_V1",
+                "MODERN_SIGNED_LEGACY_EMPTY_HEADER_ROOT_V1"
+              ]
+            },
             "classification": { "type": "string" },
             "raw_sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+            "expected_raw_sha256": {
+              "oneOf": [
+                { "type": "null" },
+                { "type": "string", "pattern": "^[0-9a-f]{64}$" }
+              ]
+            },
             "header_tx_root_kind": { "type": "string" }
           }
         }
