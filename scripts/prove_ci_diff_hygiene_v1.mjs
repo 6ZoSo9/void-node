@@ -120,6 +120,9 @@ try {
   write(source, "contract.txt", "v2\n");
   git(source, "add", "contract.txt");
   git(source, "commit", "-m", "integration-base-v2");
+  write(source, "main-only.txt", "main-only-defect   \n");
+  git(source, "add", "main-only.txt");
+  git(source, "commit", "-m", "main-only-whitespace-defect");
   const integrationBase = git(source, "rev-parse", "HEAD");
 
   git(source, "checkout", "-b", "feature", staleEventBase);
@@ -133,6 +136,18 @@ try {
   const integrationMerge = git(source, "rev-parse", "HEAD");
   const integrationParents = git(source, "show", "-s", "--format=%P", integrationMerge).split(" ");
   assert.deepEqual(integrationParents, [integrationBase, featureHead]);
+  const staleRangeCheck = run("git", ["diff", "--check", `${staleEventBase}..${integrationMerge}`], {
+    cwd: source,
+  });
+  assert.notEqual(staleRangeCheck.status, 0);
+  assert.match(`${staleRangeCheck.stdout}\n${staleRangeCheck.stderr}`, /main-only\.txt:1: trailing whitespace/);
+  const integratedRangeCheck = run("git", ["diff", "--check", `${integrationBase}..${integrationMerge}`], {
+    cwd: source,
+  });
+  assert.equal(integratedRangeCheck.status, 0, integratedRangeCheck.stderr);
+  const retainedMainOnly = run("git", ["show", `${integrationMerge}:main-only.txt`], { cwd: source });
+  assert.equal(retainedMainOnly.status, 0, retainedMainOnly.stderr);
+  assert.equal(retainedMainOnly.stdout, "main-only-defect   \n");
 
   git(source, "checkout", "-b", "bad-feature", integrationBase);
   write(source, "bad.txt", "trailing-space   \n");
@@ -242,6 +257,7 @@ console.log("base_repo_fetch_independent_of_head_origin=true");
 console.log("missing_base_fail_closed=true");
 console.log("merge_integration_checkout_preserved=true");
 console.log("pr_head_range_fetched_without_checkout_replacement=true");
+console.log("main_only_whitespace_not_attributed=true");
 console.log("shared_proof_self_enforced=true");
 console.log("push_before_supported=true");
 console.log("whitespace_defect_still_fails=true");
