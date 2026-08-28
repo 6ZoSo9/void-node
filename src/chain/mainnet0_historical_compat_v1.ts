@@ -6,6 +6,11 @@ import {
   VOID_LEGACY_COMMIT_DIRECT_V2FS_MARKER_V1,
   VOID_LEGACY_EMPTY_TX_ROOT_V1,
 } from "./legacy_commit_direct_v2fs_v1.js";
+import {
+  VOID_MAINNET0_HISTORICAL_CARTOGRAPHY_FROZEN_HEAD_V1,
+  acceptedMainnet0HistoricalModeAtV1,
+  type Mainnet0AcceptedHistoricalModeV1,
+} from "./mainnet0_historical_cartography_authority_v1.js";
 
 export type Mainnet0HistoricalAppendModeV1 =
   | "genesis-minimal-v1"
@@ -63,6 +68,59 @@ function exactObjectKeysV1(
     actual.length === wanted.length &&
     actual.every((key, index) => key === wanted[index])
   );
+}
+
+function mainnet0HistoricalCandidateNumberV1(candidate: unknown): number | null {
+  if (!candidate || typeof candidate !== "object" || Array.isArray(candidate)) {
+    return null;
+  }
+  const number = (candidate as Record<string, unknown>).number;
+  return (
+    typeof number === "number" &&
+    Number.isSafeInteger(number) &&
+    number >= 0
+  )
+    ? number
+    : null;
+}
+
+function validateAcceptedMainnet0HistoricalModeV1(
+  candidate: unknown,
+  mode: Mainnet0HistoricalAppendModeV1,
+): BlockValidationResult {
+  const number = mainnet0HistoricalCandidateNumberV1(candidate);
+  if (number == null) {
+    return {
+      ok: false,
+      reason: "mainnet0_historical_cartography_candidate_number_required",
+    };
+  }
+
+  // Phase 2A is deliberately bounded to the accepted frozen prefix. Later
+  // heights retain the pre-existing transition rules until an incremental
+  // extension rooted in the accepted V1.2 seal is independently reviewed.
+  if (number > VOID_MAINNET0_HISTORICAL_CARTOGRAPHY_FROZEN_HEAD_V1) {
+    return { ok: true };
+  }
+
+  const acceptedMode = acceptedMainnet0HistoricalModeAtV1(number);
+  if (acceptedMode == null) {
+    return {
+      ok: false,
+      reason: "mainnet0_historical_cartography_accepted_mode_missing",
+    };
+  }
+
+  const requestedMode: Mainnet0AcceptedHistoricalModeV1 =
+    mode === "genesis-minimal-v1" ? "genesis-minimal-v1" : "legacy-v2fs";
+  if (acceptedMode !== requestedMode) {
+    return {
+      ok: false,
+      reason: "mainnet0_historical_cartography_mode_mismatch",
+    };
+  }
+
+  return { ok: true };
 }
 
 export function isMainnet0GenesisMinimalV1(candidate: unknown): boolean {
@@ -225,8 +283,11 @@ export function validateMainnet0GenesisMinimalForAppendV1(
 export function validateMainnet0HistoricalTransitionV1(
   parent: unknown,
   mode: Mainnet0HistoricalAppendModeV1,
-  candidate?: unknown,
+  candidate: unknown,
 ): BlockValidationResult {
+  const acceptedMode = validateAcceptedMainnet0HistoricalModeV1(candidate, mode);
+  if (acceptedMode.ok === false) return acceptedMode;
+
   if (mode === "genesis-minimal-v1") {
     if (parent == null) return { ok: true };
     const parentEra = classifyMainnet0CanonicalEraV1(parent);
