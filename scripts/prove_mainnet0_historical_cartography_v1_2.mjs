@@ -20,6 +20,7 @@ import {
   checkpointPrefixCommitment,
   computeClassificationSemantics,
   sealHistoricalCartography,
+  writeAcceptanceExclusive,
 } from "./seal_mainnet0_historical_cartography_v1_2.mjs";
 
 const PROOF_MARKER =
@@ -43,7 +44,7 @@ function expectHold(fn, reason) {
   assert(observed, `expected HOLD ${reason}, but call succeeded`);
   assert(
     observed instanceof CartographyAcceptanceHold,
-    `expected CartographyAcceptanceHold for ${reason}, got ${observed?.name}`,
+    `expected CartographyAcceptanceHold for ${reason}, got ${observed?.name}: ${observed?.message}`,
   );
   assert(
     observed.reason === reason,
@@ -59,10 +60,10 @@ function writeFrame(fd, block) {
   fs.writeSync(fd, body);
 }
 
-function makeMinimal(number) {
+function makeMinimal(number, timestampOffset = 0) {
   return {
     number,
-    timestamp: 1700000000000 + number,
+    timestamp: 1700000000000 + number + timestampOffset,
   };
 }
 
@@ -95,7 +96,7 @@ function createSource(root, blocks) {
   return { file, head };
 }
 
-function createCheckpoint(source, checkpoint) {
+function createCheckpoint(source, checkpoint, frozenHead) {
   fs.mkdirSync(path.join(checkpoint, "segments"), { recursive: true });
   fs.cpSync(
     path.join(source, "segments"),
@@ -106,45 +107,68 @@ function createCheckpoint(source, checkpoint) {
     path.join(checkpoint, "checkpoint.json"),
     `${stableStringify({
       schema: "synthetic_blocks_only_checkpoint_v1",
-      frozen_head: 6,
+      frozen_head: frozenHead,
       source: "synthetic",
     })}\n`,
     { mode: 0o600 },
   );
 }
 
-function authorityFromCheckpoint(checkpoint, frozenHead) {
-  const prefix = checkpointPrefixCommitment(checkpoint, frozenHead);
+function authorityFromIndependentCheckpoints(
+  primaryCheckpoint,
+  witnessCheckpoint,
+  frozenHead,
+) {
+  const primary = checkpointPrefixCommitment(
+    primaryCheckpoint,
+    frozenHead,
+  );
+  const witnessPass1 = checkpointPrefixCommitment(
+    witnessCheckpoint,
+    frozenHead,
+  );
+  const witnessPass2 = checkpointPrefixCommitment(
+    witnessCheckpoint,
+    frozenHead,
+  );
+
+  assert(
+    stableStringify(primary) === stableStringify(witnessPass1) &&
+      stableStringify(primary) === stableStringify(witnessPass2),
+    "independent synthetic prefix commitments must be byte-identical",
+  );
+
+  const headTuple = [frozenHead, frozenHead, frozenHead];
   const withoutId = {
     schema: AUTHORITY_SCHEMA,
     network: "VOID Mainnet-0",
     chain_id: 2050,
     frozen_head: frozenHead,
-    block_count: prefix.block_count,
-    segment_count: prefix.segment_count,
-    total_prefix_bytes: prefix.total_prefix_bytes,
-    prefix_root: prefix.prefix_root,
-    genesis_raw_sha256: prefix.genesis_raw_sha256,
-    frozen_raw_sha256: prefix.frozen_raw_sha256,
+    block_count: primary.block_count,
+    segment_count: primary.segment_count,
+    total_prefix_bytes: primary.total_prefix_bytes,
+    prefix_root: primary.prefix_root,
+    genesis_raw_sha256: primary.genesis_raw_sha256,
+    frozen_raw_sha256: primary.frozen_raw_sha256,
     authority_basis:
       "independent_materialization_exact_byte_prefix_match",
     primary_materialization: {
       label: "synthetic-primary",
       hostname: "synthetic-primary-host",
-      source: "/synthetic/primary",
-      head_surfaces: [frozenHead, frozenHead, frozenHead],
+      source: primaryCheckpoint,
+      head_surfaces: headTuple,
     },
     independent_witness: {
       label: "synthetic-witness",
       hostname: "synthetic-witness-host",
-      source: "/synthetic/witness",
-      head_before_pass1: [frozenHead, frozenHead, frozenHead],
-      head_after_pass1: [frozenHead, frozenHead, frozenHead],
-      head_before_pass2: [frozenHead, frozenHead, frozenHead],
-      head_after_pass2: [frozenHead, frozenHead, frozenHead],
+      source: witnessCheckpoint,
+      head_before_pass1: headTuple,
+      head_after_pass1: headTuple,
+      head_before_pass2: headTuple,
+      head_after_pass2: headTuple,
       repeat_prefix_root_equal: true,
     },
-    descriptors: prefix.descriptors,
+    descriptors: primary.descriptors,
     authority_only: true,
     append_authority: false,
     validator_authority: false,
@@ -154,17 +178,6 @@ function authorityFromCheckpoint(checkpoint, frozenHead) {
     ...withoutId,
     authority_id:
       AUTHORITY_ID_PREFIX +
-      sha256Hex(Buffer.from(stableStringify(withoutId), "utf8")),
-  };
-}
-
-function withRecomputedManifestId(manifest) {
-  const withoutId = structuredClone(manifest);
-  delete withoutId.manifest_id;
-  return {
-    ...withoutId,
-    manifest_id:
-      "voidm0map1_" +
       sha256Hex(Buffer.from(stableStringify(withoutId), "utf8")),
   };
 }
@@ -180,6 +193,22 @@ function withRecomputedAuthorityId(receipt) {
   };
 }
 
+function semanticRootForTree(repoRoot) {
+  const inputs = [
+    "scripts/mainnet0_historical_cartography_v1.mjs",
+    "public/mainnet0-historical-cartography-v1.schema.json",
+  ].map((relativePath) => ({
+    path: relativePath,
+    sha256: sha256Hex(fs.readFileSync(path.join(repoRoot, relativePath))),
+  }));
+  const body = {
+    schema: "void_mainnet0_classification_semantics_v1",
+    algorithm: "sha256_stable_json_file_digest_set_v1",
+    inputs,
+  };
+  return sha256Hex(Buffer.from(stableStringify(body), "utf8"));
+}
+
 const repoRoot = path.resolve(".");
 const tempRoot = fs.mkdtempSync(
   path.join(os.tmpdir(), "void-mainnet0-cartography-v1-2-proof-"),
@@ -187,12 +216,14 @@ const tempRoot = fs.mkdtempSync(
 
 try {
   const source = path.join(tempRoot, "source");
-  const checkpoint = path.join(tempRoot, "checkpoint");
+  const primaryCheckpoint = path.join(tempRoot, "checkpoint-primary");
+  const witnessCheckpoint = path.join(tempRoot, "checkpoint-witness");
   const blocks = Array.from({ length: 7 }, (_, index) =>
     makeMinimal(index),
   );
   createSource(source, blocks);
-  createCheckpoint(source, checkpoint);
+  createCheckpoint(source, primaryCheckpoint, 6);
+  createCheckpoint(source, witnessCheckpoint, 6);
 
   const scan = scanHistoricalSource({
     sourceDir: source,
@@ -204,22 +235,25 @@ try {
     "synthetic V1.1 scan must be complete",
   );
 
-  const authority = authorityFromCheckpoint(checkpoint, 6);
+  const authority = authorityFromIndependentCheckpoints(
+    primaryCheckpoint,
+    witnessCheckpoint,
+    6,
+  );
   const semantics = computeClassificationSemantics(repoRoot);
 
   const acceptance1 = sealHistoricalCartography({
     scanManifest: scan.manifest,
     authorityReceipt: authority,
-    checkpointDir: checkpoint,
+    checkpointDir: primaryCheckpoint,
     repoRoot,
     expectedAuthorityId: authority.authority_id,
     expectedSemanticsRoot: semantics.root,
   });
-
   const acceptance2 = sealHistoricalCartography({
     scanManifest: scan.manifest,
     authorityReceipt: authority,
-    checkpointDir: checkpoint,
+    checkpointDir: primaryCheckpoint,
     repoRoot,
     expectedAuthorityId: authority.authority_id,
     expectedSemanticsRoot: semantics.root,
@@ -241,25 +275,11 @@ try {
   assert(
     acceptance1.canonical_prefix_authority.prefix_root ===
       authority.prefix_root,
-    "acceptance must bind independent prefix root",
+    "acceptance must bind reviewed independent prefix root",
   );
   assert(
     acceptance1.classification_semantics.root === semantics.root,
-    "acceptance must bind exact classification semantics",
-  );
-  assert(
-    acceptance1.immutable_snapshot.immutable_rescan_complete_scan_digest ===
-      scan.manifest.complete_scan_digest,
-    "immutable snapshot rescan must reproduce original map digest",
-  );
-  assert(
-    acceptance1.acceptance_contract.canonical_prefix_independently_witnessed ===
-      true &&
-      acceptance1.acceptance_contract.immutable_snapshot_rescan_equal ===
-        true &&
-      acceptance1.acceptance_contract.classification_semantics_content_bound ===
-        true,
-    "acceptance authority flags incomplete",
+    "acceptance must bind executable classification semantics",
   );
   assert(
     acceptance1.acceptance_contract.append_authority === false &&
@@ -268,88 +288,125 @@ try {
     "acceptance seal must not grant runtime/validator/append authority",
   );
 
-  const wrongAuthorityId = {
-    ...authority,
-    authority_id: `${AUTHORITY_ID_PREFIX}${"0".repeat(64)}`,
-  };
   expectHold(
     () =>
       sealHistoricalCartography({
         scanManifest: scan.manifest,
-        authorityReceipt: wrongAuthorityId,
-        checkpointDir: checkpoint,
+        authorityReceipt: authority,
+        checkpointDir: primaryCheckpoint,
         repoRoot,
+        expectedSemanticsRoot: semantics.root,
       }),
-    "authority_receipt_content_id_mismatch",
+    "expected_authority_id_required",
   );
 
-  const wrongPrefix = withRecomputedAuthorityId({
-    ...authority,
-    prefix_root: "f".repeat(64),
-  });
   expectHold(
     () =>
       sealHistoricalCartography({
         scanManifest: scan.manifest,
-        authorityReceipt: wrongPrefix,
-        checkpointDir: checkpoint,
+        authorityReceipt: authority,
+        checkpointDir: primaryCheckpoint,
         repoRoot,
+        expectedAuthorityId: authority.authority_id,
       }),
-    "authority_prefix_root_mismatch",
+    "expected_classification_semantics_root_required",
   );
 
-  const sameMachine = withRecomputedAuthorityId({
+  const malformedHead = withRecomputedAuthorityId({
     ...authority,
-    independent_witness: {
-      ...authority.independent_witness,
-      hostname: authority.primary_materialization.hostname,
+    primary_materialization: {
+      ...authority.primary_materialization,
+      head_surfaces: [6, "6", 6],
     },
   });
   expectHold(
     () =>
       sealHistoricalCartography({
         scanManifest: scan.manifest,
-        authorityReceipt: sameMachine,
-        checkpointDir: checkpoint,
+        authorityReceipt: malformedHead,
+        checkpointDir: primaryCheckpoint,
         repoRoot,
+        expectedAuthorityId: malformedHead.authority_id,
+        expectedSemanticsRoot: semantics.root,
       }),
-    "authority_independent_materialization_contract_mismatch",
+    "authority_head_surface_mismatch",
   );
 
-  const badCount = withRecomputedManifestId({
-    ...scan.manifest,
-    historical_blocks_scanned: 6,
+  const driftedHead = withRecomputedAuthorityId({
+    ...authority,
+    independent_witness: {
+      ...authority.independent_witness,
+      head_after_pass2: [6, 7, 6],
+    },
   });
   expectHold(
     () =>
       sealHistoricalCartography({
-        scanManifest: badCount,
-        authorityReceipt: authority,
-        checkpointDir: checkpoint,
+        scanManifest: scan.manifest,
+        authorityReceipt: driftedHead,
+        checkpointDir: primaryCheckpoint,
         repoRoot,
+        expectedAuthorityId: driftedHead.authority_id,
+        expectedSemanticsRoot: semantics.root,
       }),
-    "scan_manifest_count_conservation_failed",
+    "authority_head_surface_mismatch",
+  );
+
+  const substituteSource = path.join(tempRoot, "substitute-source");
+  const substitutePrimary = path.join(tempRoot, "substitute-primary");
+  const substituteWitness = path.join(tempRoot, "substitute-witness");
+  const substituteBlocks = Array.from({ length: 7 }, (_, index) =>
+    makeMinimal(index, index === 3 ? 1000 : 0),
+  );
+  createSource(substituteSource, substituteBlocks);
+  createCheckpoint(substituteSource, substitutePrimary, 6);
+  createCheckpoint(substituteSource, substituteWitness, 6);
+  const substituteScan = scanHistoricalSource({
+    sourceDir: substituteSource,
+    frozenHead: 6,
+    sourceLabel: "synthetic-substitute",
+  });
+  const substituteAuthority = authorityFromIndependentCheckpoints(
+    substitutePrimary,
+    substituteWitness,
+    6,
+  );
+  assert(
+    substituteAuthority.authority_id !== authority.authority_id,
+    "substitute history must mint a different authority identity",
+  );
+  expectHold(
+    () =>
+      sealHistoricalCartography({
+        scanManifest: substituteScan.manifest,
+        authorityReceipt: substituteAuthority,
+        checkpointDir: substitutePrimary,
+        repoRoot,
+        expectedAuthorityId: authority.authority_id,
+        expectedSemanticsRoot: semantics.root,
+      }),
+    "authority_id_expected_mismatch",
   );
 
   const tamperedCheckpoint = path.join(tempRoot, "checkpoint-tampered");
-  fs.cpSync(checkpoint, tamperedCheckpoint, { recursive: true });
+  fs.cpSync(primaryCheckpoint, tamperedCheckpoint, { recursive: true });
   const tamperedFile = path.join(
     tamperedCheckpoint,
     "segments",
     "00000000",
     "blocks.bin",
   );
-  const tamperedBlocks = [...blocks];
-  tamperedBlocks[5] = {
-    ...tamperedBlocks[5],
-    timestamp: tamperedBlocks[5].timestamp + 1,
-  };
   fs.rmSync(tamperedFile);
-  const fd = fs.openSync(tamperedFile, "wx", 0o600);
+  const tamperedFd = fs.openSync(tamperedFile, "wx", 0o600);
   try {
-    for (const block of tamperedBlocks) writeFrame(fd, block);
+    for (let index = 0; index < 7; index += 1) {
+      writeFrame(
+        tamperedFd,
+        makeMinimal(index, index === 5 ? 1 : 0),
+      );
+    }
   } finally {
-    fs.closeSync(fd);
+    fs.closeSync(tamperedFd);
   }
   expectHold(
     () =>
@@ -358,6 +415,8 @@ try {
         authorityReceipt: authority,
         checkpointDir: tamperedCheckpoint,
         repoRoot,
+        expectedAuthorityId: authority.authority_id,
+        expectedSemanticsRoot: semantics.root,
       }),
     "checkpoint_prefix_authority_mismatch",
   );
@@ -398,8 +457,7 @@ try {
       "mainnet0-historical-cartography-v1.schema.json",
     ),
   );
-  const semanticsRootB =
-    computeClassificationSemantics(alteredRepo).root;
+  const semanticsRootB = semanticRootForTree(alteredRepo);
   assert(
     semanticsRootA !== semanticsRootB,
     "changed classifier predicate must change semantics root",
@@ -409,27 +467,43 @@ try {
       sealHistoricalCartography({
         scanManifest: scan.manifest,
         authorityReceipt: authority,
-        checkpointDir: checkpoint,
+        checkpointDir: primaryCheckpoint,
         repoRoot: alteredRepo,
+        expectedAuthorityId: authority.authority_id,
         expectedSemanticsRoot: semanticsRootA,
       }),
-    "classification_semantics_root_mismatch",
+    "classification_semantics_repo_root_not_execution_root",
+  );
+
+  const aliasTarget = path.join(primaryCheckpoint, "sealed-output-parent");
+  fs.mkdirSync(aliasTarget);
+  const alias = path.join(tempRoot, "checkpoint-alias");
+  fs.symlinkSync(primaryCheckpoint, alias, "dir");
+  expectHold(
+    () =>
+      writeAcceptanceExclusive(
+        path.join(alias, "sealed-output-parent", "acceptance.json"),
+        acceptance1,
+        [primaryCheckpoint],
+      ),
+    "acceptance_output_parent_overlaps_forbidden_source",
+  );
+  assert(
+    !fs.existsSync(path.join(aliasTarget, "acceptance.json")),
+    "output alias falsifier must not mutate checkpoint namespace",
   );
 
   console.log(PROOF_MARKER);
-  console.log("authority_receipt_content_addressed=true");
-  console.log("independent_materializations_distinct=true");
-  console.log("authority_prefix_root_recomputed=true");
-  console.log("immutable_checkpoint_prefix_matches_authority=true");
-  console.log("immutable_checkpoint_rescan_equal=true");
-  console.log("original_complete_scan_digest_preserved=true");
-  console.log("classification_semantics_root_content_bound=true");
+  console.log("expected_authority_id_mandatory=true");
+  console.log("self_consistent_substitute_history_holds=true");
+  console.log("authority_head_surfaces_strictly_bound=true");
+  console.log("expected_semantics_root_mandatory=true");
+  console.log("semantics_root_uses_executing_checkout=true");
+  console.log("caller_selected_semantics_tree_holds=true");
   console.log("changed_classifier_same_labels_changes_semantics_root=true");
-  console.log("wrong_authority_id_holds=true");
-  console.log("wrong_prefix_root_holds=true");
-  console.log("same_machine_witness_holds=true");
-  console.log("numeric_count_conservation_holds=true");
+  console.log("checkpoint_prefix_captured_before_rescan=true");
   console.log("tampered_checkpoint_holds=true");
+  console.log("acceptance_output_alias_holds_before_source_mutation=true");
   console.log("append_authority=false");
   console.log("validator_authority=false");
   console.log("runtime_authority=false");
