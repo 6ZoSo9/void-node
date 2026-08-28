@@ -198,11 +198,23 @@ This prevents a failed/durable selector attempt from being converted on retry
 into generic existing-store start authority. Restore-disabled startup preserves
 the ordinary existing-store behavior.
 
-For selector-based restarts, the restore child revalidates the retained
-content-addressed manifest and the original canonical checkpoint block prefix.
-The final checkpoint segment may have a legitimate appended suffix; completed
-earlier checkpoint segments may not grow. After that prefix verification, a
-fresh full-tree seal is minted for the current restart handoff.
+For selector-based restarts, the restore child does **not** accept the retained
+selector/manifest as self-authenticating provenance. It first performs a fresh
+challenged-HMAC checkpoint discovery through the already-qualified adapter,
+requires that discovery to advertise the exact selected checkpoint ID, and
+validates the retained `checkpoint.json` bytes against the manifest hash and
+checkpoint contract bound by that authenticated discovery.
+
+Only after that external provenance binding does the child revalidate the
+original canonical checkpoint block prefix. The final checkpoint segment may
+have a legitimate appended suffix; completed earlier checkpoint segments may
+not grow. After those checks, a fresh full-tree seal is minted for the current
+restart handoff.
+
+If the currently qualified seed no longer advertises the selected checkpoint,
+restart fails closed. Checkpoint rotation therefore requires an explicit
+migration/re-bootstrap design rather than silently trusting an old local
+selector.
 
 Crash/restart convergence is bounded:
 

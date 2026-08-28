@@ -10,6 +10,8 @@ import { spawn, spawnSync } from "node:child_process";
 import {
   computeVoidPublicCheckpointIdV1,
 } from "./lib/void_public_checkpoint_contract_v1.mjs";
+import { autoRepairDataDir } from "../dist/chain/auto_repair.js";
+
 import {
   openCheckpointGenerationForRestoreResultV1,
   runPublicCheckpointRestorePreNodeV1,
@@ -38,6 +40,11 @@ const restoreScript = path.join(
   "scripts/run_void_public_checkpoint_restore_v1.mjs",
 );
 
+const checkpointTool = path.join(
+  root,
+  "tools/void-public-canonical-checkpoint-v1.mjs",
+);
+
 function sha256(bytes) {
   return crypto.createHash("sha256").update(bytes).digest("hex");
 }
@@ -48,7 +55,13 @@ function frame(body) {
   return Buffer.concat([prefix, body]);
 }
 
-function makePacket(dir, { semanticValid }) {
+function makePacket(
+  dir,
+  {
+    semanticValid,
+    capturedAt = "2026-08-28T00:00:00.000Z",
+  },
+) {
   const segmentDir = path.join(dir, "segments", "00000000");
   fs.mkdirSync(segmentDir, { recursive: true });
   const body = semanticValid
@@ -67,7 +80,7 @@ function makePacket(dir, { semanticValid }) {
     chain_id: 2050,
     format: "blocks-bin-only-v1",
     source_sha: "1".repeat(40),
-    captured_at: "2026-08-28T00:00:00.000Z",
+    captured_at: capturedAt,
     head: 0,
     head_era: "minimal",
     head_header_hash: null,
@@ -890,6 +903,147 @@ try {
     },
   );
 
+  const foreignPacketDir = path.join(
+    tmp,
+    "foreign-valid-packet",
+  );
+  fs.mkdirSync(foreignPacketDir, { mode: 0o700 });
+  const foreignPacket = makePacket(
+    foreignPacketDir,
+    {
+      semanticValid: true,
+      capturedAt: "2026-08-28T00:00:01.000Z",
+    },
+  );
+  assert.notEqual(
+    foreignPacket.manifest.checkpoint_id,
+    validPacket.manifest.checkpoint_id,
+  );
+
+  await withAdapter(
+    validPacketDir,
+    validPacket,
+    async ({ adapter, secret, generation, sequence }) => {
+      const target = path.join(
+        ownedParent,
+        "data-preexisting-foreign-selector",
+      );
+      const foreignToken = "d".repeat(32);
+      const foreignGeneration =
+        `${target}.void-public-checkpoint-restore-v1-gen-${foreignToken}`;
+
+      fs.cpSync(
+        foreignPacketDir,
+        foreignGeneration,
+        { recursive: true },
+      );
+      await autoRepairDataDir(
+        foreignGeneration,
+        {
+          sparseEvery: 16,
+          dryRun: false,
+        },
+      );
+      fs.writeFileSync(
+        path.join(foreignGeneration, "foreign-provenance-sentinel"),
+        "foreign-provenance-sentinel\n",
+      );
+
+      const foreignStat = fs.lstatSync(
+        foreignGeneration,
+        { bigint: true },
+      );
+      const foreignPrepared =
+        prepareCheckpointStagingSelectionV1({
+          staging: foreignGeneration,
+          dataDir: target,
+          parent: path.dirname(target),
+          token: foreignToken,
+          expectedDevice: String(foreignStat.dev),
+          expectedInode: String(foreignStat.ino),
+          checkpointId:
+            foreignPacket.manifest.checkpoint_id,
+          contentSeal: "3".repeat(64),
+        });
+      publishPreparedCheckpointSelectionV1(
+        foreignPrepared,
+      );
+
+      const selfVerify = spawnSync(
+        process.execPath,
+        [
+          checkpointTool,
+          "verify-live-prefix",
+          "--packet",
+          foreignGeneration,
+          "--expected-checkpoint-id",
+          foreignPacket.manifest.checkpoint_id,
+        ],
+        {
+          cwd: root,
+          encoding: "utf8",
+        },
+      );
+      assert.equal(
+        selfVerify.status,
+        0,
+        selfVerify.stderr || selfVerify.stdout,
+      );
+      assert.match(
+        selfVerify.stdout,
+        /VOID_PUBLIC_CANONICAL_CHECKPOINT_V1_VERIFY_LIVE_PREFIX_GREEN/,
+      );
+
+      const sentinelBefore = fs.readFileSync(
+        path.join(
+          foreignGeneration,
+          "foreign-provenance-sentinel",
+        ),
+      );
+      const manifestBefore = fs.readFileSync(
+        path.join(foreignGeneration, "checkpoint.json"),
+      );
+
+      await assert.rejects(
+        runPublicCheckpointRestorePreNodeV1({
+          adapterBase: adapter.base,
+          authorityGeneration: generation,
+          authoritySequence: sequence,
+          authoritySecret: secret,
+          restoreScript,
+          env: {
+            ...process.env,
+            DATA_DIR: target,
+            VOID_PUBLIC_CHECKPOINT_RESTORE: "1",
+          },
+        }),
+      );
+
+      assert.equal(
+        fs.lstatSync(target).isSymbolicLink(),
+        true,
+      );
+      assert.deepEqual(
+        fs.readFileSync(
+          path.join(
+            foreignGeneration,
+            "foreign-provenance-sentinel",
+          ),
+        ),
+        sentinelBefore,
+      );
+      assert.deepEqual(
+        fs.readFileSync(
+          path.join(
+            foreignGeneration,
+            "checkpoint.json",
+          ),
+        ),
+        manifestBefore,
+      );
+    },
+  );
+
   await withAdapter(
     validPacketDir,
     validPacket,
@@ -1097,6 +1251,11 @@ try {
   console.log("descendant_content_seal_node_gate=true");
   console.log("retained_checkpoint_manifest=true");
   console.log("existing_selector_checkpoint_prefix_reverified=true");
+  console.log("existing_selector_qualified_provenance_reverified=true");
+  console.log("preexisting_foreign_selector_self_verify_green=true");
+  console.log("preexisting_foreign_selector_qualified_rejected=true");
+  console.log("preexisting_foreign_selector_bytes_preserved=true");
+  console.log("preexisting_foreign_selector_node_authority=false");
   console.log("durable_selector_retry_ordinary_dir_rejected=true");
   console.log("durable_selector_retry_foreign_dir_preserved=true");
   console.log("failure_stale_generation_retained=true");

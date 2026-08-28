@@ -225,6 +225,53 @@ async function authorizedGet(adapterOrigin, route) {
   return { response, bytes };
 }
 
+async function verifyExistingSelectorQualifiedProvenanceV1(
+  adapterOrigin,
+  selected,
+) {
+  const discoveryResponse = await authorizedGet(
+    adapterOrigin,
+    "/__void/checkpoint/v1.json",
+  );
+  const discovery =
+    parseVoidPublicCheckpointDiscoveryBytesV1(
+      discoveryResponse.bytes,
+    );
+
+  if (discovery.status === "unavailable") {
+    fail(
+      "existing checkpoint selector is not attested by current qualified discovery",
+    );
+  }
+
+  const checkpoint = discovery.checkpoint;
+  if (
+    !checkpoint ||
+    checkpoint.checkpoint_id !== selected.checkpointId
+  ) {
+    fail(
+      "existing checkpoint selector checkpoint id differs from current qualified discovery",
+    );
+  }
+
+  const retainedManifestPath = path.join(
+    selected.fdRoot,
+    "checkpoint.json",
+  );
+  const retainedManifestBytes = fs.readFileSync(
+    retainedManifestPath,
+  );
+  validateVoidPublicCheckpointManifestBytesV1(
+    retainedManifestBytes,
+    {
+      expectedCheckpoint: checkpoint,
+      expectedCheckpointId: selected.checkpointId,
+    },
+  );
+
+  return checkpoint;
+}
+
 function computeContentSealForOpenGenerationV1(fd) {
   const fdRoot = `/proc/self/fd/${fd}`;
   const unregister =
@@ -386,9 +433,13 @@ async function main() {
         dataDir,
       });
       try {
-        // A restart cannot trust a self-describing selector alone. Re-anchor
-        // the original checkpoint prefix to its retained content-addressed
-        // manifest before minting a fresh handoff seal for the current store.
+        // A restart cannot trust a self-describing selector or its retained
+        // manifest alone. Re-bind the selected checkpoint to the current
+        // qualified challenged-HMAC discovery/manifest authority first.
+        await verifyExistingSelectorQualifiedProvenanceV1(
+          adapterUrl.origin,
+          selected,
+        );
         verifyLiveCheckpointPrefixV1(
           selected.fd,
           selected.checkpointId,
@@ -416,6 +467,7 @@ async function main() {
       console.log("data_dir_mutated=false");
       console.log("checkpoint_restore_attempted=false");
       console.log("checkpoint_prefix_reverified=true");
+      console.log("checkpoint_qualified_provenance_reverified=true");
       return;
     }
 
