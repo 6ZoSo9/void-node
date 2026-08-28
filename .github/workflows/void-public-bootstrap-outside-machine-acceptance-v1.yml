@@ -46,6 +46,46 @@ jobs:
           git diff --quiet --ignore-submodules --
           git diff --cached --quiet --ignore-submodules --
 
+      - name: Bind acceptance target to exact verified manifest
+        shell: bash
+        env:
+          VOID_PUBLIC_BOOTSTRAP_MANIFEST_URL: ${{ inputs.manifest_url }}
+        run: |
+          set -Eeuo pipefail
+          umask 077
+          test "${#VOID_PUBLIC_BOOTSTRAP_MANIFEST_URL}" -le 2048
+          mkdir -p outside-machine-evidence
+
+          VERIFY_LOG="$RUNNER_TEMP/void-public-bootstrap-acceptance-verify-$GITHUB_RUN_ID.log"
+          VERIFY_OUT="$RUNNER_TEMP/void-public-bootstrap-acceptance-verify-$GITHUB_RUN_ID.out"
+          TARGET=outside-machine-evidence/target.txt
+
+          if ! node scripts/resolve_void_public_bootstrap_v1.mjs --verify-only               >"$VERIFY_OUT" 2>"$VERIFY_LOG"; then
+            cat "$VERIFY_LOG" >&2
+            exit 1
+          fi
+          test -s "$VERIFY_OUT"
+
+          node scripts/void_public_bootstrap_outside_machine_target_v1.mjs bind             --manifest public/bootstrap/v1.json             --resolver-log "$VERIFY_LOG"             >"$TARGET"
+
+          TARGET_HEAD="$(sed -n 's/^target_head=//p' "$TARGET")"
+          MANIFEST_ID="$(sed -n 's/^manifest_id=//p' "$TARGET")"
+          QUALIFICATION_IDS="$(sed -n 's/^qualification_ids=//p' "$TARGET")"
+
+          [[ "$TARGET_HEAD" =~ ^[1-9][0-9]*$ ]]
+          [[ "$MANIFEST_ID" =~ ^voidpbm1_[0-9a-f]{64}$ ]]
+          test -n "$QUALIFICATION_IDS"
+
+          {
+            printf 'VOID_PUBLIC_BOOTSTRAP_ACCEPTANCE_TARGET_HEAD=%s\n' "$TARGET_HEAD"
+            printf 'VOID_PUBLIC_BOOTSTRAP_ACCEPTANCE_MANIFEST_ID=%s\n' "$MANIFEST_ID"
+            printf 'VOID_PUBLIC_BOOTSTRAP_ACCEPTANCE_QUALIFICATION_IDS=%s\n' "$QUALIFICATION_IDS"
+          } >> "$GITHUB_ENV"
+
+          echo "acceptance_target_head=$TARGET_HEAD"
+          echo "acceptance_manifest_id=$MANIFEST_ID"
+          echo "acceptance_target_bound=true"
+
       - name: Clone-run and synchronize through public bootstrap only
         shell: bash
         env:
@@ -56,6 +96,7 @@ jobs:
           set -Eeuo pipefail
           umask 077
           test "${#VOID_PUBLIC_BOOTSTRAP_MANIFEST_URL}" -le 2048
+          [[ "$VOID_PUBLIC_BOOTSTRAP_ACCEPTANCE_TARGET_HEAD" =~ ^[1-9][0-9]*$ ]]
           rm -rf .runtime node_modules dist .env .nodekey "$DATA_DIR"
           mkdir -p outside-machine-evidence "$DATA_DIR"
 
@@ -63,6 +104,7 @@ jobs:
           READY=outside-machine-evidence/ready.json
           READY_AFTER_GRACE=outside-machine-evidence/ready-after-grace.json
           SOURCE=outside-machine-evidence/source.txt
+          TARGET=outside-machine-evidence/target.txt
 
           ./run-void-node.sh run >"$LOG" 2>&1 &
           PID=$!
@@ -75,13 +117,7 @@ jobs:
           GREEN=0
           for _ in $(seq 1 2400); do
             if curl -fsS --max-time 5 http://127.0.0.1:4100/__void/ready.json >"$READY"; then
-              if node - "$READY" <<'NODE'
-          const fs = require('node:fs');
-          const body = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
-          if (body.ready !== true) process.exit(1);
-          if (!Number.isSafeInteger(Number(body.head)) || Number(body.head) <= 0) process.exit(1);
-          if (Number(body.gap) !== 0 || Number(body.txroot_live) !== 1) process.exit(1);
-          NODE
+              if node scripts/void_public_bootstrap_outside_machine_target_v1.mjs check-ready                   --ready "$READY"                   --target-head "$VOID_PUBLIC_BOOTSTRAP_ACCEPTANCE_TARGET_HEAD"                   >/dev/null
               then
                 GREEN=1
                 break
@@ -108,17 +144,15 @@ jobs:
           sleep 30
           kill -0 "$PID"
           curl -fsS --max-time 5 http://127.0.0.1:4100/__void/ready.json >"$READY_AFTER_GRACE"
-          node - "$READY_AFTER_GRACE" <<'NODE'
-          const fs = require('node:fs');
-          const body = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
-          if (body.ready !== true) throw new Error('readiness did not sustain');
-          if (!Number.isSafeInteger(Number(body.head)) || Number(body.head) <= 0) throw new Error('head is not positive');
-          if (Number(body.gap) !== 0 || Number(body.txroot_live) !== 1) throw new Error('exact-green synchronization did not sustain');
-          NODE
+          node scripts/void_public_bootstrap_outside_machine_target_v1.mjs check-ready             --ready "$READY_AFTER_GRACE"             --target-head "$VOID_PUBLIC_BOOTSTRAP_ACCEPTANCE_TARGET_HEAD"
 
           {
             printf 'source_sha=%s\n' "$(git rev-parse HEAD)"
             printf 'runner_os=%s\n' "$RUNNER_OS"
+            printf 'target_head=%s\n' "$VOID_PUBLIC_BOOTSTRAP_ACCEPTANCE_TARGET_HEAD"
+            printf 'manifest_id=%s\n' "$VOID_PUBLIC_BOOTSTRAP_ACCEPTANCE_MANIFEST_ID"
+            printf 'qualification_ids=%s\n' "$VOID_PUBLIC_BOOTSTRAP_ACCEPTANCE_QUALIFICATION_IDS"
+            printf 'target_head_reached=true\n'
             printf 'tailnet_required=false\n'
             printf 'private_configuration_required=false\n'
             printf 'wallet_authority=false\n'
@@ -128,10 +162,10 @@ jobs:
             printf 'work_credit_authority=false\n'
             printf 'money_movement_authority=false\n'
           } >"$SOURCE"
-          sha256sum "$LOG" "$READY" "$READY_AFTER_GRACE" "$SOURCE" \
-            > outside-machine-evidence/SHA256SUMS
+          sha256sum "$LOG" "$READY" "$READY_AFTER_GRACE" "$TARGET" "$SOURCE"             > outside-machine-evidence/SHA256SUMS
 
           echo 'VOID_PUBLIC_BOOTSTRAP_OUTSIDE_MACHINE_ACCEPTANCE_V1_GREEN'
+          echo 'target_head_reached=true'
           echo 'tailnet_required=false'
           echo 'private_configuration_required=false'
           echo 'private_mutation_routes_exposed=false'
