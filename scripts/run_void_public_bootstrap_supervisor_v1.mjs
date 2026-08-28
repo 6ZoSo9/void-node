@@ -5,11 +5,11 @@ import path from "node:path";
 import process from "node:process";
 import { createPublicSeedClientAdapterV1 } from "../tools/void-public-seed-client-adapter-v1.mjs";
 import {
+  openCheckpointGenerationForRestoreResultV1,
   runPublicCheckpointRestorePreNodeV1,
 } from "./lib/void_public_checkpoint_restore_supervisor_v1.mjs";
 import {
   closeSelectedCheckpointGenerationV1,
-  openSelectedCheckpointGenerationV1,
 } from "./lib/void_public_checkpoint_restore_activation_v1.mjs";
 
 const MARKER = "VOID_PUBLIC_BOOTSTRAP_SUPERVISOR_V1";
@@ -42,7 +42,7 @@ async function main() {
     },
   });
 
-  await runPublicCheckpointRestorePreNodeV1({
+  const restoreResult = await runPublicCheckpointRestorePreNodeV1({
     adapterBase: adapter.base,
     authorityGeneration,
     authoritySequence,
@@ -52,9 +52,11 @@ async function main() {
   const logicalDataDir = path.resolve(
     String(process.env.DATA_DIR || "data"),
   );
-  const selected = openSelectedCheckpointGenerationV1({
-    dataDir: logicalDataDir,
-  });
+  const selected =
+    openCheckpointGenerationForRestoreResultV1({
+      dataDir: logicalDataDir,
+      restoreResult,
+    });
 
   const nodeEntry = String(process.env.VOID_PUBLIC_BOOTSTRAP_NODE_ENTRY || "dist/index.js");
   const childEnv = {
@@ -174,6 +176,7 @@ async function main() {
   console.log("direct_remote_fetch_from_node=false");
   console.log(`checkpoint_selector_active=${selected ? "true" : "false"}`);
   console.log(`checkpoint_generation_fd_inherited=${selected ? "true" : "false"}`);
+  console.log(`checkpoint_selection_ipc_bound=${restoreResult.selection ? "true" : "false"}`);
   console.log("wallet_authority=false");
   console.log("signer_authority=false");
   console.log("validator_authority=false");

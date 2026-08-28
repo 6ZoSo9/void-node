@@ -11,6 +11,7 @@ import {
   computeVoidPublicCheckpointIdV1,
 } from "./lib/void_public_checkpoint_contract_v1.mjs";
 import {
+  openCheckpointGenerationForRestoreResultV1,
   runPublicCheckpointRestorePreNodeV1,
 } from "./lib/void_public_checkpoint_restore_supervisor_v1.mjs";
 import {
@@ -588,9 +589,14 @@ try {
         true,
       );
 
+      assert.equal(result.outcome, "selected");
+      assert.ok(result.selection);
+      assert.equal(result.selection.data_dir, target);
+
       const selected =
-        openSelectedCheckpointGenerationV1({
+        openCheckpointGenerationForRestoreResultV1({
           dataDir: target,
+          restoreResult: result,
         });
       try {
         assert.equal(
@@ -653,17 +659,69 @@ try {
       }
 
       const reopened =
-        openSelectedCheckpointGenerationV1({
+        openCheckpointGenerationForRestoreResultV1({
           dataDir: target,
+          restoreResult: result,
         });
       try {
-        assert.equal(
-          reopened.checkpointId,
-          validPacket.manifest.checkpoint_id,
-        );
+        assert.equal(reopened.checkpointId, validPacket.manifest.checkpoint_id);
       } finally {
-        closeSelectedCheckpointGenerationV1(reopened);
+        closeSelectedCheckpointGenerationV1(
+          reopened,
+        );
       }
+
+      const foreignToken = "e".repeat(32);
+      const foreignGeneration =
+        `${target}.void-public-checkpoint-restore-v1-gen-${foreignToken}`;
+      fs.mkdirSync(foreignGeneration, { mode: 0o700 });
+      fs.writeFileSync(
+        path.join(foreignGeneration, "foreign-handoff-s2"),
+        "foreign-handoff-s2\n",
+      );
+      const foreignStat = fs.lstatSync(
+        foreignGeneration,
+        { bigint: true },
+      );
+      const foreignPrepared =
+        prepareCheckpointStagingSelectionV1({
+          staging: foreignGeneration,
+          dataDir: target,
+          parent: path.dirname(target),
+          token: foreignToken,
+          expectedDevice: String(foreignStat.dev),
+          expectedInode: String(foreignStat.ino),
+          checkpointId: `voidpbc1_${"f".repeat(64)}`,
+        });
+
+      fs.unlinkSync(target);
+      fs.symlinkSync(
+        foreignPrepared.selectorTarget,
+        target,
+      );
+
+      assert.throws(
+        () =>
+          openCheckpointGenerationForRestoreResultV1({
+            dataDir: target,
+            restoreResult: result,
+          }),
+        /does not match completed restore IPC selection/,
+      );
+      assert.equal(
+        fs.readFileSync(
+          path.join(
+            foreignGeneration,
+            "foreign-handoff-s2",
+          ),
+          "utf8",
+        ),
+        "foreign-handoff-s2\n",
+      );
+      assert.equal(
+        fs.lstatSync(target).isSymbolicLink(),
+        true,
+      );
     },
   );
 
@@ -752,7 +810,7 @@ try {
     "await runPublicCheckpointRestorePreNodeV1(",
   );
   const selectorOpenAt = supervisorSource.indexOf(
-    "openSelectedCheckpointGenerationV1({",
+    "openCheckpointGenerationForRestoreResultV1({",
   );
   const nodeSpawnAt = supervisorSource.indexOf(
     "child = childProcess.spawn(process.execPath, [nodeEntry]",
@@ -760,6 +818,14 @@ try {
   assert.ok(restoreAt >= 0);
   assert.ok(selectorOpenAt > restoreAt);
   assert.ok(nodeSpawnAt > selectorOpenAt);
+  assert.match(
+    supervisorSource,
+    /const restoreResult = await runPublicCheckpointRestorePreNodeV1/,
+  );
+  assert.match(
+    supervisorSource,
+    /restoreResult,/,
+  );
   assert.match(
     supervisorSource,
     /childEnv\.DATA_DIR = selected\.childRoot/,
@@ -803,6 +869,10 @@ try {
   console.log("source_generation_swap_foreign_unmoved=true");
   console.log("source_generation_swap_node_authority=false");
   console.log("selected_generation_fd_inherited_to_node=true");
+  console.log("restore_selection_sent_before_selector_publication=true");
+  console.log("restore_selection_ipc_bound_to_parent=true");
+  console.log("foreign_selector_handoff_rejected=true");
+  console.log("foreign_selector_node_spawn_authority=false");
   console.log("failure_stale_generation_retained=true");
   console.log("failure_recursive_staging_delete=false");
   console.log("failure_cleanup_preserves_absent_target=true");

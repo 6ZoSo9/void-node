@@ -198,6 +198,7 @@ export function publishPreparedCheckpointSelectionV1(prepared) {
 
 export function openSelectedCheckpointGenerationV1({
   dataDir,
+  expectedSelection = null,
 } = {}) {
   if (typeof dataDir !== "string" || !path.isAbsolute(dataDir)) {
     fail("selected checkpoint DATA_DIR must be absolute");
@@ -207,14 +208,51 @@ export function openSelectedCheckpointGenerationV1({
   }
 
   const selectorStat = lstatOrNull(dataDir);
-  if (!selectorStat) return null;
-  if (!selectorStat.isSymbolicLink()) return null;
+  if (!selectorStat) {
+    if (expectedSelection) {
+      fail("completed restore selector is missing");
+    }
+    return null;
+  }
+  if (!selectorStat.isSymbolicLink()) {
+    if (expectedSelection) {
+      fail("completed restore selector was replaced by a non-selector");
+    }
+    return null;
+  }
 
-  const selector = parseSelectorTargetV1(
-    fs.readlinkSync(dataDir, "utf8"),
-  );
+  const selectorTarget = fs.readlinkSync(dataDir, "utf8");
+  const selector = parseSelectorTargetV1(selectorTarget);
   const generationPath =
     `${dataDir}${GENERATION_TAG}${selector.token}`;
+
+  if (expectedSelection) {
+    const expectedKeys = [
+      "data_dir",
+      "generation_path",
+      "selector_target",
+      "token",
+      "device",
+      "inode",
+      "checkpoint_id",
+    ].sort();
+    if (
+      !expectedSelection ||
+      typeof expectedSelection !== "object" ||
+      Array.isArray(expectedSelection) ||
+      JSON.stringify(Object.keys(expectedSelection).sort()) !==
+        JSON.stringify(expectedKeys) ||
+      expectedSelection.data_dir !== dataDir ||
+      expectedSelection.generation_path !== generationPath ||
+      expectedSelection.selector_target !== selectorTarget ||
+      expectedSelection.token !== selector.token ||
+      expectedSelection.device !== selector.device ||
+      expectedSelection.inode !== selector.inode ||
+      expectedSelection.checkpoint_id !== selector.checkpointId
+    ) {
+      fail("selected checkpoint does not match completed restore IPC selection");
+    }
+  }
 
   let fd = null;
   try {

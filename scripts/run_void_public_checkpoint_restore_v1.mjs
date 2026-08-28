@@ -13,6 +13,8 @@ import {
 } from "./lib/void_public_checkpoint_contract_v1.mjs";
 import { autoRepairDataDir } from "../dist/chain/auto_repair.js";
 import {
+  closeSelectedCheckpointGenerationV1,
+  openSelectedCheckpointGenerationV1,
   prepareCheckpointStagingSelectionV1,
   publishPreparedCheckpointSelectionV1,
 } from "./lib/void_public_checkpoint_restore_activation_v1.mjs";
@@ -29,6 +31,8 @@ import {
 } from "../dist/http/follower_verified_public_bootstrap_authority_v1.js";
 
 const MARKER = "VOID_PUBLIC_CHECKPOINT_RESTORE_V1";
+const RESTORE_RESULT_SCHEMA =
+  "void_public_checkpoint_restore_result_v1";
 const AUTHORITY_WAIT_MS = 10_000;
 const repoRoot = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),
@@ -135,6 +139,50 @@ function removeFileDurable(file) {
 
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function sendRestoreResultV1(message) {
+  if (
+    !process.connected ||
+    typeof process.send !== "function"
+  ) {
+    fail("checkpoint restore result requires live supervisor IPC");
+  }
+  return new Promise((resolve, reject) => {
+    process.send(
+      {
+        schema: RESTORE_RESULT_SCHEMA,
+        ...message,
+      },
+      (error) => {
+        if (error) {
+          reject(error);
+          return;
+        }
+        resolve();
+      },
+    );
+  });
+}
+
+function selectionMessageV1({
+  dataDir,
+  generationPath,
+  selectorTarget,
+  token,
+  device,
+  inode,
+  checkpointId,
+}) {
+  return Object.freeze({
+    data_dir: dataDir,
+    generation_path: generationPath,
+    selector_target: selectorTarget,
+    token,
+    device,
+    inode,
+    checkpoint_id: checkpointId,
+  });
 }
 
 async function waitForChallenge(url) {
@@ -271,7 +319,39 @@ async function main() {
     fail("DATA_DIR must not be a filesystem root");
   }
   const parent = assertSafeParent(dataDir);
-  if (lstatOrNull(dataDir)) {
+  const existingDataDir = lstatOrNull(dataDir);
+  if (existingDataDir) {
+    if (existingDataDir.isSymbolicLink()) {
+      const selected = openSelectedCheckpointGenerationV1({
+        dataDir,
+      });
+      try {
+        await sendRestoreResultV1({
+          type: "existing_selector",
+          selection: selectionMessageV1({
+            dataDir,
+            generationPath: selected.generationPath,
+            selectorTarget: selected.selectorTarget,
+            token: selected.token,
+            device: selected.device,
+            inode: selected.inode,
+            checkpointId: selected.checkpointId,
+          }),
+        });
+      } finally {
+        closeSelectedCheckpointGenerationV1(selected);
+      }
+      console.log(`${MARKER}_SKIP_EXISTING_SELECTOR`);
+      console.log(`data_dir=${dataDir}`);
+      console.log("data_dir_mutated=false");
+      console.log("checkpoint_restore_attempted=false");
+      return;
+    }
+
+    await sendRestoreResultV1({
+      type: "existing_data_dir",
+      data_dir: dataDir,
+    });
     console.log(`${MARKER}_SKIP_EXISTING_DATA_DIR`);
     console.log(`data_dir=${dataDir}`);
     console.log("data_dir_mutated=false");
@@ -288,6 +368,10 @@ async function main() {
       discoveryResponse.bytes,
     );
   if (discovery.status === "unavailable") {
+    await sendRestoreResultV1({
+      type: "unavailable",
+      data_dir: dataDir,
+    });
     console.log(`${MARKER}_SKIP_UNAVAILABLE`);
     console.log(`data_dir=${dataDir}`);
     console.log("data_dir_mutated=false");
@@ -391,6 +475,19 @@ async function main() {
         expectedInode: generation.inode,
         checkpointId: verifiedManifest.checkpoint_id,
       });
+    await sendRestoreResultV1({
+      type: "selection_prepared",
+      selection: selectionMessageV1({
+        dataDir,
+        generationPath: preparedSelection.staging,
+        selectorTarget: preparedSelection.selectorTarget,
+        token: preparedSelection.token,
+        device: preparedSelection.device,
+        inode: preparedSelection.inode,
+        checkpointId: preparedSelection.checkpointId,
+      }),
+    });
+
     const activation =
       publishPreparedCheckpointSelectionV1(preparedSelection);
     if (!activation?.selectorPublished) {
@@ -419,6 +516,7 @@ async function main() {
     console.log("selector_symlink_no_replace=true");
     console.log("activation_directory_rename=false");
     console.log("selector_generation_identity_bound=true");
+    console.log("selector_selection_sent_via_ipc_before_publication=true");
     console.log("parent_directory_fsync=true");
     console.log("existing_store_overwrite=false");
     console.log("checkpoint_publication_authority=false");

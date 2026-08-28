@@ -44,8 +44,12 @@ When restore is enabled, the supervisor:
 2. starts a short-lived restore child with an IPC channel;
 3. sends the same ephemeral adapter authority only over IPC after the restore
    child emits the existing authority-ready handshake;
-4. waits for the restore child to finish; and
-5. only then starts `dist/index.js`.
+4. receives the exact prepared selection tuple over the same private child IPC
+   channel **before** selector publication;
+5. waits for the restore child to finish successfully;
+6. requires the selector still present at `DATA_DIR` to match that IPC tuple
+   exactly before opening the generation; and
+7. only then starts `dist/index.js`.
 
 The restore child imports the same production challenged-HMAC authority module
 used by follower bootstrap. It does not implement a parallel response-authority
@@ -146,11 +150,19 @@ parent-directory fsync. If any file, directory, or selector already occupies
 `DATA_DIR`, publication fails without replacing it.
 
 A staging pathname replacement after generation capture cannot redirect the
-activation effect: no staging pathname is moved. The selector remains bound to
-the captured device/inode. Before node spawn, the HTTPS supervisor opens the
-selected generation using `O_DIRECTORY|O_NOFOLLOW` and requires its live
-device/inode to match the selector. A foreign replacement therefore remains
-unmoved and produces a HOLD before node start.
+activation effect: no staging pathname is moved.
+
+Before selector publication, the restore child sends the exact
+`data_dir + generation_path + selector_target + token + device + inode +
+checkpoint_id` selection to its supervisor over IPC. A zero exit means that
+exact prepared selection was successfully published.
+
+Before node spawn, the HTTPS supervisor requires the current selector to match
+that IPC selection field-for-field, then opens the selected generation using
+`O_DIRECTORY|O_NOFOLLOW` and requires its live device/inode to match the same
+IPC tuple. Replacing either the generation basename or the selector during the
+child-to-parent handoff therefore remains unmoved and produces a HOLD before
+node start.
 
 The supervisor passes the already-open verified generation into `dist/index.js`
 as inherited child FD 4 and sets:
