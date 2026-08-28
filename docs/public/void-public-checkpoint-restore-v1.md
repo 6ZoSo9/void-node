@@ -106,15 +106,17 @@ The canonical checkpoint verifier has a similarly explicit verify-only
 directory FD, checks the descriptor identity, and scans the packet through that
 FD. Arbitrary proc-FD packet paths remain invalid.
 
-After semantic verification the consumer deletes the packet-only
-`checkpoint.json` through the retained FD root and runs:
+After semantic verification the consumer retains `checkpoint.json` as the
+content-addressed restart anchor and runs:
 
 ```text
 autoRepairDataDir(fdRoot, { sparseEvery: 16, dryRun: false })
 ```
 
 That reconstructs `index.sparse`, `meta.json`, `heads.json`, and `head.txt` in
-the exact owned generation.
+the exact owned generation. The retained manifest is not mutable authority:
+its own `checkpoint_id` must validate, and that manifest authenticates the
+original canonical `blocks.bin` prefix on selector-based restarts.
 
 ### Failure and crash convergence
 
@@ -152,17 +154,24 @@ parent-directory fsync. If any file, directory, or selector already occupies
 A staging pathname replacement after generation capture cannot redirect the
 activation effect: no staging pathname is moved.
 
-Before selector publication, the restore child sends the exact
+Before selector publication, the restore child computes a deterministic
+SHA-256 seal over every current directory/file name and regular-file byte
+stream in the repaired generation. It sends the exact
 `data_dir + generation_path + selector_target + token + device + inode +
-checkpoint_id` selection to its supervisor over IPC. A zero exit means that
-exact prepared selection was successfully published.
+checkpoint_id + content_seal` selection to its supervisor over IPC. A zero exit
+means that exact prepared selection crossed the selector publication path.
 
 Before node spawn, the HTTPS supervisor requires the current selector to match
-that IPC selection field-for-field, then opens the selected generation using
-`O_DIRECTORY|O_NOFOLLOW` and requires its live device/inode to match the same
-IPC tuple. Replacing either the generation basename or the selector during the
-child-to-parent handoff therefore remains unmoved and produces a HOLD before
-node start.
+that IPC selection field-for-field, opens the selected generation using
+`O_DIRECTORY|O_NOFOLLOW`, requires its live device/inode to match, and
+recomputes the full content seal through that already-open directory FD. Any
+descendant mutation after restore verification therefore produces a HOLD before
+node spawn.
+
+The expected seal is also inherited into the node. SegStore recomputes it as its
+first inherited-FD admission check, before creating WAL state or replaying
+anything. This closes the parent-to-node content handoff in addition to the
+selector/generation identity handoff.
 
 The supervisor passes the already-open verified generation into `dist/index.js`
 as inherited child FD 4 and sets:
@@ -182,6 +191,18 @@ proc-FD roots remain rejected, and child symlinks remain rejected.
 Once the supervisor opens the generation, later namespace replacement cannot
 redirect the node: the child receives the open directory description itself.
 The supervisor closes only its parent copy after spawn.
+
+When restore is explicitly enabled, an ordinary file or directory at `DATA_DIR`
+is a fail-closed HOLD. Only absence or a valid checkpoint selector is accepted.
+This prevents a failed/durable selector attempt from being converted on retry
+into generic existing-store start authority. Restore-disabled startup preserves
+the ordinary existing-store behavior.
+
+For selector-based restarts, the restore child revalidates the retained
+content-addressed manifest and the original canonical checkpoint block prefix.
+The final checkpoint segment may have a legitimate appended suffix; completed
+earlier checkpoint segments may not grow. After that prefix verification, a
+fresh full-tree seal is minted for the current restart handoff.
 
 Crash/restart convergence is bounded:
 

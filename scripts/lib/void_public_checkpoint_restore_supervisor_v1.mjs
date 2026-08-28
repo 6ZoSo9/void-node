@@ -54,6 +54,7 @@ function normalizeSelectionV1(selection) {
     "device",
     "inode",
     "checkpoint_id",
+    "content_seal",
   ];
   if (
     !exactKeysV1(selection, keys) ||
@@ -65,7 +66,8 @@ function normalizeSelectionV1(selection) {
     !TOKEN_RE.test(selection.token) ||
     !DECIMAL_RE.test(selection.device) ||
     !DECIMAL_RE.test(selection.inode) ||
-    !CHECKPOINT_ID_RE.test(selection.checkpoint_id)
+    !CHECKPOINT_ID_RE.test(selection.checkpoint_id) ||
+    !/^[0-9a-f]{64}$/.test(selection.content_seal)
   ) {
     throw new Error("checkpoint restore IPC selection is malformed");
   }
@@ -97,10 +99,7 @@ function normalizeRestoreResultMessageV1(message) {
     });
   }
 
-  if (
-    message.type === "unavailable" ||
-    message.type === "existing_data_dir"
-  ) {
+  if (message.type === "unavailable") {
     if (
       !exactKeysV1(message, ["schema", "type", "data_dir"]) ||
       typeof message.data_dir !== "string" ||
@@ -156,20 +155,14 @@ export function openCheckpointGenerationForRestoreResultV1({
     return null;
   }
 
-  if (restoreResult.outcome === "existing_data_dir") {
+  if (restoreResult.outcome === "disabled") {
     const current = lstatOrNullV1(dataDir);
-    if (!current || current.isSymbolicLink()) {
+    if (current?.isSymbolicLink()) {
       throw new Error(
-        "existing DATA_DIR changed during checkpoint restore handoff",
+        "checkpoint selector startup requires checkpoint restore enabled",
       );
     }
     return null;
-  }
-
-  if (restoreResult.outcome === "disabled") {
-    return openSelectedCheckpointGenerationV1({
-      dataDir,
-    });
   }
 
   throw new Error("checkpoint restore parent outcome invalid");

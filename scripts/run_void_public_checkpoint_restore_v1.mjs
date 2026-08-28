@@ -13,6 +13,10 @@ import {
 } from "./lib/void_public_checkpoint_contract_v1.mjs";
 import { autoRepairDataDir } from "../dist/chain/auto_repair.js";
 import {
+  computeVoidSegStoreContentSealV1,
+  registerVoidSegStoreProcFdRootV1,
+} from "../dist/chain/segstore_path_confinement_v1.js";
+import {
   closeSelectedCheckpointGenerationV1,
   openSelectedCheckpointGenerationV1,
   prepareCheckpointStagingSelectionV1,
@@ -173,6 +177,7 @@ function selectionMessageV1({
   device,
   inode,
   checkpointId,
+  contentSeal,
 }) {
   return Object.freeze({
     data_dir: dataDir,
@@ -182,6 +187,7 @@ function selectionMessageV1({
     device,
     inode,
     checkpoint_id: checkpointId,
+    content_seal: contentSeal,
   });
 }
 
@@ -217,6 +223,55 @@ async function authorizedGet(adapterOrigin, route) {
     fail(`checkpoint response authority verification failed: ${route}`);
   }
   return { response, bytes };
+}
+
+function computeContentSealForOpenGenerationV1(fd) {
+  const fdRoot = `/proc/self/fd/${fd}`;
+  const unregister =
+    registerVoidSegStoreProcFdRootV1(fdRoot);
+  try {
+    return computeVoidSegStoreContentSealV1(fdRoot);
+  } finally {
+    unregister();
+  }
+}
+
+function verifyLiveCheckpointPrefixV1(stagingFd, checkpointId) {
+  const cp = childProcess.spawnSync(
+    process.execPath,
+    [
+      checkpointTool,
+      "verify-live-prefix",
+      "--packet",
+      "/proc/self/fd/3",
+      "--proc-fd-root",
+      "3",
+      "--expected-checkpoint-id",
+      checkpointId,
+    ],
+    {
+      cwd: repoRoot,
+      encoding: "utf8",
+      timeout: 30 * 60 * 1000,
+      maxBuffer: 16 * 1024 * 1024,
+      stdio: ["ignore", "pipe", "pipe", stagingFd],
+    },
+  );
+  if (
+    cp.status !== 0 ||
+    !String(cp.stdout || "").includes(
+      "VOID_PUBLIC_CANONICAL_CHECKPOINT_V1_VERIFY_LIVE_PREFIX_GREEN",
+    ) ||
+    !String(cp.stdout || "").includes(
+      "checkpoint_prefix_semantics_verified=true",
+    )
+  ) {
+    fail(
+      `existing checkpoint prefix verification failed: ${String(
+        cp.stderr || cp.stdout || "",
+      ).slice(0, 2000)}`,
+    );
+  }
 }
 
 function verifySemanticPacket(stagingFd) {
@@ -276,7 +331,12 @@ function verifyReconstructedHead(dataDir, expectedHead) {
 
 function exactPostRepairTopLevel(dataDir) {
   const actual = fs.readdirSync(dataDir).sort();
-  const expected = ["head.txt", "heads.json", "segments"];
+  const expected = [
+    "checkpoint.json",
+    "head.txt",
+    "heads.json",
+    "segments",
+  ];
   if (JSON.stringify(actual) !== JSON.stringify(expected)) {
     fail(
       `post-repair data generation top-level mismatch: ${actual.join(",")}`,
@@ -326,6 +386,15 @@ async function main() {
         dataDir,
       });
       try {
+        // A restart cannot trust a self-describing selector alone. Re-anchor
+        // the original checkpoint prefix to its retained content-addressed
+        // manifest before minting a fresh handoff seal for the current store.
+        verifyLiveCheckpointPrefixV1(
+          selected.fd,
+          selected.checkpointId,
+        );
+        const contentSeal =
+          computeContentSealForOpenGenerationV1(selected.fd);
         await sendRestoreResultV1({
           type: "existing_selector",
           selection: selectionMessageV1({
@@ -336,6 +405,7 @@ async function main() {
             device: selected.device,
             inode: selected.inode,
             checkpointId: selected.checkpointId,
+            contentSeal,
           }),
         });
       } finally {
@@ -345,18 +415,13 @@ async function main() {
       console.log(`data_dir=${dataDir}`);
       console.log("data_dir_mutated=false");
       console.log("checkpoint_restore_attempted=false");
+      console.log("checkpoint_prefix_reverified=true");
       return;
     }
 
-    await sendRestoreResultV1({
-      type: "existing_data_dir",
-      data_dir: dataDir,
-    });
-    console.log(`${MARKER}_SKIP_EXISTING_DATA_DIR`);
-    console.log(`data_dir=${dataDir}`);
-    console.log("data_dir_mutated=false");
-    console.log("checkpoint_restore_attempted=false");
-    return;
+    fail(
+      "checkpoint restore enabled requires DATA_DIR absent or a valid checkpoint selector",
+    );
   }
 
   const discoveryResponse = await authorizedGet(
@@ -443,10 +508,8 @@ async function main() {
 
     verifySemanticPacket(generation.fd);
 
-    removeFileDurable(
-      path.join(stagingRoot, "checkpoint.json"),
-    );
-
+    // Retain checkpoint.json. Its content-addressed checkpoint_id is the
+    // durable restart anchor for read-only canonical-prefix verification.
     const repaired = await autoRepairDataDir(stagingRoot, {
       sparseEvery: 16,
       dryRun: false,
@@ -465,6 +528,9 @@ async function main() {
       );
     }
 
+    const contentSeal =
+      computeVoidSegStoreContentSealV1(stagingRoot);
+
     const preparedSelection =
       prepareCheckpointStagingSelectionV1({
         staging,
@@ -474,6 +540,7 @@ async function main() {
         expectedDevice: generation.device,
         expectedInode: generation.inode,
         checkpointId: verifiedManifest.checkpoint_id,
+        contentSeal,
       });
     await sendRestoreResultV1({
       type: "selection_prepared",
@@ -485,6 +552,7 @@ async function main() {
         device: preparedSelection.device,
         inode: preparedSelection.inode,
         checkpointId: preparedSelection.checkpointId,
+        contentSeal: preparedSelection.contentSeal,
       }),
     });
 
@@ -517,6 +585,8 @@ async function main() {
     console.log("activation_directory_rename=false");
     console.log("selector_generation_identity_bound=true");
     console.log("selector_selection_sent_via_ipc_before_publication=true");
+    console.log("materialized_content_seal_bound=true");
+    console.log("checkpoint_manifest_retained_for_restart_prefix_verify=true");
     console.log("parent_directory_fsync=true");
     console.log("existing_store_overwrite=false");
     console.log("checkpoint_publication_authority=false");

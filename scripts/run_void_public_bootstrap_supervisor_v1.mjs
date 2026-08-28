@@ -76,6 +76,8 @@ async function main() {
       selected.device;
     childEnv.VOID_SEGSTORE_INHERITED_DATA_INO_V1 =
       selected.inode;
+    childEnv.VOID_SEGSTORE_INHERITED_DATA_CONTENT_SEAL_V1 =
+      selected.contentSeal;
     childStdio.push(selected.fd);
   }
 
@@ -177,6 +179,7 @@ async function main() {
   console.log(`checkpoint_selector_active=${selected ? "true" : "false"}`);
   console.log(`checkpoint_generation_fd_inherited=${selected ? "true" : "false"}`);
   console.log(`checkpoint_selection_ipc_bound=${restoreResult.selection ? "true" : "false"}`);
+  console.log(`checkpoint_content_seal_bound=${selected ? "true" : "false"}`);
   console.log("wallet_authority=false");
   console.log("signer_authority=false");
   console.log("validator_authority=false");

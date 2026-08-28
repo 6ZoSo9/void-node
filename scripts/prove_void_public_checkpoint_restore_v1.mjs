@@ -284,6 +284,7 @@ try {
       expectedDevice: String(selectorSuccessStat.dev),
       expectedInode: String(selectorSuccessStat.ino),
       checkpointId: testCheckpointId,
+      contentSeal: "1".repeat(64),
     });
   const selectorSuccessPublished =
     publishPreparedCheckpointSelectionV1(
@@ -355,6 +356,7 @@ try {
       expectedDevice: String(selectorDestinationStat.dev),
       expectedInode: String(selectorDestinationStat.ino),
       checkpointId: testCheckpointId,
+      contentSeal: "1".repeat(64),
     });
   fs.mkdirSync(selectorDestinationTarget, { mode: 0o700 });
   fs.writeFileSync(
@@ -405,6 +407,7 @@ try {
       expectedDevice: String(selectorSwapStat.dev),
       expectedInode: String(selectorSwapStat.ino),
       checkpointId: testCheckpointId,
+      contentSeal: "1".repeat(64),
     });
 
   const selectorSwapOwnedMoved = `${selectorSwapStaging}.owned-s1`;
@@ -592,6 +595,16 @@ try {
       assert.equal(result.outcome, "selected");
       assert.ok(result.selection);
       assert.equal(result.selection.data_dir, target);
+      assert.match(result.selection.content_seal, /^[0-9a-f]{64}$/);
+      assert.equal(
+        fs.existsSync(
+          path.join(
+            `${target}.void-public-checkpoint-restore-v1-gen-${result.selection.token}`,
+            "checkpoint.json",
+          ),
+        ),
+        true,
+      );
 
       const selected =
         openCheckpointGenerationForRestoreResultV1({
@@ -615,45 +628,9 @@ try {
         assert.equal(heads.head, 0);
         assert.equal(heads.number, 0);
 
-        const childProbe = spawnSync(
-          process.execPath,
-          [
-            "--input-type=module",
-            "-e",
-            "import { SegStore } from \"./dist/chain/seg_store.js\";\nconst store = new SegStore(process.env.DATA_DIR, { sparseEvery: 16 });\nif (store.loadHeadNumber() !== 0) process.exit(7);\nconsole.log(\"INHERITED_SELECTOR_SEGSTORE_GREEN\");",
-          ],
-          {
-            cwd: root,
-            encoding: "utf8",
-            env: {
-              ...process.env,
-              DATA_DIR: selected.childRoot,
-              VOID_SEGSTORE_INHERITED_DATA_AUTHORITY_V1: "1",
-              VOID_SEGSTORE_INHERITED_DATA_FD_V1:
-                String(selected.childFd),
-              VOID_SEGSTORE_INHERITED_DATA_DEV_V1:
-                selected.device,
-              VOID_SEGSTORE_INHERITED_DATA_INO_V1:
-                selected.inode,
-            },
-            stdio: [
-              "ignore",
-              "pipe",
-              "pipe",
-              "ignore",
-              selected.fd,
-            ],
-          },
-        );
-        assert.equal(
-          childProbe.status,
-          0,
-          childProbe.stderr || childProbe.stdout,
-        );
-        assert.match(
-          childProbe.stdout,
-          /INHERITED_SELECTOR_SEGSTORE_GREEN/,
-        );
+        // Node/SegStore admission is exercised after the parent-side
+        // content falsifiers, because a successful SegStore start legitimately
+        // creates WAL state and changes the materialized tree.
       } finally {
         closeSelectedCheckpointGenerationV1(selected);
       }
@@ -668,6 +645,110 @@ try {
       } finally {
         closeSelectedCheckpointGenerationV1(
           reopened,
+        );
+      }
+
+      // Preserve selector + root inode, mutate one descendant, and require the
+      // production parent gate to reject before the node-spawn line.
+      const selectedForMutation =
+        openCheckpointGenerationForRestoreResultV1({
+          dataDir: target,
+          restoreResult: result,
+        });
+      let originalHead;
+      try {
+        const headPath = path.join(
+          selectedForMutation.fdRoot,
+          "head.txt",
+        );
+        originalHead = fs.readFileSync(headPath);
+        fs.writeFileSync(headPath, "999\n");
+      } finally {
+        closeSelectedCheckpointGenerationV1(
+          selectedForMutation,
+        );
+      }
+      assert.throws(
+        () =>
+          openCheckpointGenerationForRestoreResultV1({
+            dataDir: target,
+            restoreResult: result,
+          }),
+        /content seal mismatch/,
+      );
+
+      const repairSelected =
+        openSelectedCheckpointGenerationV1({
+          dataDir: target,
+        });
+      try {
+        fs.writeFileSync(
+          path.join(repairSelected.fdRoot, "head.txt"),
+          originalHead,
+        );
+      } finally {
+        closeSelectedCheckpointGenerationV1(repairSelected);
+      }
+
+      const selectedAfterRepair =
+        openCheckpointGenerationForRestoreResultV1({
+          dataDir: target,
+          restoreResult: result,
+        });
+      closeSelectedCheckpointGenerationV1(
+        selectedAfterRepair,
+      );
+
+      const selectedForNode =
+        openCheckpointGenerationForRestoreResultV1({
+          dataDir: target,
+          restoreResult: result,
+        });
+      try {
+        const childProbe = spawnSync(
+          process.execPath,
+          [
+            "--input-type=module",
+            "-e",
+            "import { SegStore } from \"./dist/chain/seg_store.js\";\nconst store = new SegStore(process.env.DATA_DIR, { sparseEvery: 16 });\nif (store.loadHeadNumber() !== 0) process.exit(7);\nconsole.log(\"INHERITED_SELECTOR_SEGSTORE_GREEN\");",
+          ],
+          {
+            cwd: root,
+            encoding: "utf8",
+            env: {
+              ...process.env,
+              DATA_DIR: selectedForNode.childRoot,
+              VOID_SEGSTORE_INHERITED_DATA_AUTHORITY_V1: "1",
+              VOID_SEGSTORE_INHERITED_DATA_FD_V1:
+                String(selectedForNode.childFd),
+              VOID_SEGSTORE_INHERITED_DATA_DEV_V1:
+                selectedForNode.device,
+              VOID_SEGSTORE_INHERITED_DATA_INO_V1:
+                selectedForNode.inode,
+              VOID_SEGSTORE_INHERITED_DATA_CONTENT_SEAL_V1:
+                selectedForNode.contentSeal,
+            },
+            stdio: [
+              "ignore",
+              "pipe",
+              "pipe",
+              "ignore",
+              selectedForNode.fd,
+            ],
+          },
+        );
+        assert.equal(
+          childProbe.status,
+          0,
+          childProbe.stderr || childProbe.stdout,
+        );
+        assert.match(
+          childProbe.stdout,
+          /INHERITED_SELECTOR_SEGSTORE_GREEN/,
+        );
+      } finally {
+        closeSelectedCheckpointGenerationV1(
+          selectedForNode,
         );
       }
 
@@ -692,6 +773,7 @@ try {
           expectedDevice: String(foreignStat.dev),
           expectedInode: String(foreignStat.ino),
           checkpointId: `voidpbc1_${"f".repeat(64)}`,
+          contentSeal: "2".repeat(64),
         });
 
       fs.unlinkSync(target);
@@ -729,12 +811,90 @@ try {
     validPacketDir,
     validPacket,
     async ({ adapter, secret, generation, sequence }) => {
-      const target = path.join(ownedParent, "data-existing");
-      fs.mkdirSync(target, { mode: 0o700 });
-      fs.writeFileSync(
-        path.join(target, "sentinel"),
-        "do-not-touch\n",
-      );
+      const target = path.join(ownedParent, "data-restart");
+      const first = await runPublicCheckpointRestorePreNodeV1({
+        adapterBase: adapter.base,
+        authorityGeneration: generation,
+        authoritySequence: sequence,
+        authoritySecret: secret,
+        restoreScript,
+        env: {
+          ...process.env,
+          DATA_DIR: target,
+          VOID_PUBLIC_CHECKPOINT_RESTORE: "1",
+        },
+      });
+      const selected =
+        openCheckpointGenerationForRestoreResultV1({
+          dataDir: target,
+          restoreResult: first,
+        });
+      try {
+        const probe = spawnSync(
+          process.execPath,
+          [
+            "--input-type=module",
+            "-e",
+            "import { SegStore } from \"./dist/chain/seg_store.js\";\nnew SegStore(process.env.DATA_DIR, { sparseEvery: 16 });\nconsole.log(\"FIRST_START_GREEN\");",
+          ],
+          {
+            cwd: root,
+            encoding: "utf8",
+            env: {
+              ...process.env,
+              DATA_DIR: selected.childRoot,
+              VOID_SEGSTORE_INHERITED_DATA_AUTHORITY_V1: "1",
+              VOID_SEGSTORE_INHERITED_DATA_FD_V1:
+                String(selected.childFd),
+              VOID_SEGSTORE_INHERITED_DATA_DEV_V1:
+                selected.device,
+              VOID_SEGSTORE_INHERITED_DATA_INO_V1:
+                selected.inode,
+              VOID_SEGSTORE_INHERITED_DATA_CONTENT_SEAL_V1:
+                selected.contentSeal,
+            },
+            stdio: [
+              "ignore",
+              "pipe",
+              "pipe",
+              "ignore",
+              selected.fd,
+            ],
+          },
+        );
+        assert.equal(probe.status, 0, probe.stderr || probe.stdout);
+      } finally {
+        closeSelectedCheckpointGenerationV1(selected);
+      }
+
+      const restart = await runPublicCheckpointRestorePreNodeV1({
+        adapterBase: adapter.base,
+        authorityGeneration: generation,
+        authoritySequence: sequence,
+        authoritySecret: secret,
+        restoreScript,
+        env: {
+          ...process.env,
+          DATA_DIR: target,
+          VOID_PUBLIC_CHECKPOINT_RESTORE: "1",
+        },
+      });
+      assert.equal(restart.outcome, "existing_selector");
+      assert.match(restart.selection.content_seal, /^[0-9a-f]{64}$/);
+      const restartSelected =
+        openCheckpointGenerationForRestoreResultV1({
+          dataDir: target,
+          restoreResult: restart,
+        });
+      closeSelectedCheckpointGenerationV1(restartSelected);
+    },
+  );
+
+  await withAdapter(
+    validPacketDir,
+    validPacket,
+    async ({ adapter, secret, generation, sequence }) => {
+      const target = path.join(ownedParent, "data-durable-retry");
       await runPublicCheckpointRestorePreNodeV1({
         adapterBase: adapter.base,
         authorityGeneration: generation,
@@ -747,6 +907,62 @@ try {
           VOID_PUBLIC_CHECKPOINT_RESTORE: "1",
         },
       });
+      assert.equal(fs.lstatSync(target).isSymbolicLink(), true);
+      fs.unlinkSync(target);
+      fs.mkdirSync(target, { mode: 0o700 });
+      fs.writeFileSync(
+        path.join(target, "foreign-retry-sentinel"),
+        "preserve-retry\n",
+      );
+
+      await assert.rejects(
+        runPublicCheckpointRestorePreNodeV1({
+          adapterBase: adapter.base,
+          authorityGeneration: generation,
+          authoritySequence: sequence,
+          authoritySecret: secret,
+          restoreScript,
+          env: {
+            ...process.env,
+            DATA_DIR: target,
+            VOID_PUBLIC_CHECKPOINT_RESTORE: "1",
+          },
+        }),
+      );
+      assert.equal(
+        fs.readFileSync(
+          path.join(target, "foreign-retry-sentinel"),
+          "utf8",
+        ),
+        "preserve-retry\n",
+      );
+    },
+  );
+
+  await withAdapter(
+    validPacketDir,
+    validPacket,
+    async ({ adapter, secret, generation, sequence }) => {
+      const target = path.join(ownedParent, "data-existing");
+      fs.mkdirSync(target, { mode: 0o700 });
+      fs.writeFileSync(
+        path.join(target, "sentinel"),
+        "do-not-touch\n",
+      );
+      await assert.rejects(
+        runPublicCheckpointRestorePreNodeV1({
+          adapterBase: adapter.base,
+          authorityGeneration: generation,
+          authoritySequence: sequence,
+          authoritySecret: secret,
+          restoreScript,
+          env: {
+            ...process.env,
+            DATA_DIR: target,
+            VOID_PUBLIC_CHECKPOINT_RESTORE: "1",
+          },
+        }),
+      );
       assert.equal(
         fs.readFileSync(path.join(target, "sentinel"), "utf8"),
         "do-not-touch\n",
@@ -838,6 +1054,10 @@ try {
     supervisorSource,
     /VOID_SEGSTORE_INHERITED_DATA_AUTHORITY_V1 = "1"/,
   );
+  assert.match(
+    supervisorSource,
+    /VOID_SEGSTORE_INHERITED_DATA_CONTENT_SEAL_V1/,
+  );
 
   console.log("restore_default_disabled=true");
   console.log("restore_https_supervisor_only_v1=true");
@@ -873,6 +1093,12 @@ try {
   console.log("restore_selection_ipc_bound_to_parent=true");
   console.log("foreign_selector_handoff_rejected=true");
   console.log("foreign_selector_node_spawn_authority=false");
+  console.log("descendant_mutation_parent_gate_rejected=true");
+  console.log("descendant_content_seal_node_gate=true");
+  console.log("retained_checkpoint_manifest=true");
+  console.log("existing_selector_checkpoint_prefix_reverified=true");
+  console.log("durable_selector_retry_ordinary_dir_rejected=true");
+  console.log("durable_selector_retry_foreign_dir_preserved=true");
   console.log("failure_stale_generation_retained=true");
   console.log("failure_recursive_staging_delete=false");
   console.log("failure_cleanup_preserves_absent_target=true");

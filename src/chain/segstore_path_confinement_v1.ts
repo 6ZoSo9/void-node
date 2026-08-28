@@ -1,6 +1,7 @@
 // VOID Community License (VCL) v1.0 — see LICENSE
 // Copyright (c) 2025-2026 6ZoSo9
 
+import * as crypto from "node:crypto";
 import * as fs from "node:fs";
 import * as path from "node:path";
 
@@ -22,6 +23,176 @@ const registeredProcFdRootsV1 = new Map<
   string,
   RegisteredProcFdRootV1
 >();
+
+const VOID_SEGSTORE_CONTENT_SEAL_SCHEMA_V1 =
+  "void_segstore_content_seal_v1";
+const CONTENT_SEAL_RE_V1 = /^[0-9a-f]{64}$/;
+const CONTENT_SEAL_BUFFER_BYTES_V1 = 1024 * 1024;
+
+function sameContentFileStampV1(
+  a: fs.BigIntStats,
+  b: fs.BigIntStats,
+): boolean {
+  return (
+    a.dev === b.dev &&
+    a.ino === b.ino &&
+    a.size === b.size &&
+    a.mtimeNs === b.mtimeNs &&
+    a.ctimeNs === b.ctimeNs
+  );
+}
+
+function hashContentFileStableV1(
+  rootAbs: string,
+  file: string,
+): { bytes: string; sha256: string } {
+  assertVoidSegStoreRegularFileV1(rootAbs, file, false);
+  const fd = fs.openSync(
+    file,
+    fs.constants.O_RDONLY | fs.constants.O_NOFOLLOW,
+  );
+  try {
+    const before = fs.fstatSync(fd, { bigint: true });
+    if (!before.isFile()) {
+      throw confinementError(
+        `content-seal entry is not a regular file: ${file}`,
+      );
+    }
+    const digest = crypto.createHash("sha256");
+    const buffer = Buffer.alloc(CONTENT_SEAL_BUFFER_BYTES_V1);
+    let offset = 0n;
+    while (offset < before.size) {
+      const remaining = before.size - offset;
+      const wanted = Number(
+        remaining < BigInt(buffer.length)
+          ? remaining
+          : BigInt(buffer.length),
+      );
+      const read = fs.readSync(
+        fd,
+        buffer,
+        0,
+        wanted,
+        Number(offset),
+      );
+      if (read <= 0) {
+        throw confinementError(
+          `content-seal short read: ${file}`,
+        );
+      }
+      digest.update(buffer.subarray(0, read));
+      offset += BigInt(read);
+    }
+    const after = fs.fstatSync(fd, { bigint: true });
+    if (!sameContentFileStampV1(before, after)) {
+      throw confinementError(
+        `content-seal file changed during hashing: ${file}`,
+      );
+    }
+    return {
+      bytes: String(before.size),
+      sha256: digest.digest("hex"),
+    };
+  } finally {
+    fs.closeSync(fd);
+  }
+}
+
+export function computeVoidSegStoreContentSealV1(
+  root: string,
+): string {
+  const rootAbs = path.resolve(root);
+  assertVoidSegStorePathConfinedV1(rootAbs, rootAbs, {
+    kind: "directory",
+    allowMissing: false,
+  });
+
+  const seal = crypto.createHash("sha256");
+  seal.update(`${VOID_SEGSTORE_CONTENT_SEAL_SCHEMA_V1}\0`);
+
+  const walk = (dir: string, relativeDir: string): void => {
+    assertVoidSegStorePathConfinedV1(rootAbs, dir, {
+      kind: "directory",
+      allowMissing: false,
+    });
+    const beforeNames = fs.readdirSync(dir).sort();
+    for (const name of beforeNames) {
+      const full = path.join(dir, name);
+      const relative = relativeDir
+        ? `${relativeDir}/${name}`
+        : name;
+      assertVoidSegStorePathConfinedV1(rootAbs, full, {
+        allowMissing: false,
+      });
+      const st = fs.lstatSync(full, { bigint: true });
+      if (st.isSymbolicLink()) {
+        throw confinementError(
+          `content-seal symlink rejected: ${relative}`,
+        );
+      }
+      if (st.isDirectory()) {
+        seal.update(`D\0${relative}\0`);
+        walk(full, relative);
+        continue;
+      }
+      if (st.isFile()) {
+        const file = hashContentFileStableV1(rootAbs, full);
+        seal.update(
+          `F\0${relative}\0${file.bytes}\0${file.sha256}\0`,
+        );
+        continue;
+      }
+      throw confinementError(
+        `content-seal unsupported entry type: ${relative}`,
+      );
+    }
+    const afterNames = fs.readdirSync(dir).sort();
+    if (JSON.stringify(beforeNames) !== JSON.stringify(afterNames)) {
+      throw confinementError(
+        `content-seal directory changed during hashing: ${dir}`,
+      );
+    }
+  };
+
+  walk(rootAbs, "");
+  return seal.digest("hex");
+}
+
+export function assertVoidSegStoreInheritedContentSealV1(
+  root: string,
+): void {
+  if (
+    String(
+      process.env.VOID_SEGSTORE_INHERITED_DATA_AUTHORITY_V1 ?? "",
+    ).trim() !== "1"
+  ) {
+    return;
+  }
+
+  const expected = String(
+    process.env.VOID_SEGSTORE_INHERITED_DATA_CONTENT_SEAL_V1 ?? "",
+  ).trim();
+  if (!CONTENT_SEAL_RE_V1.test(expected)) {
+    throw confinementError(
+      "inherited proc-fd content seal is missing or malformed",
+    );
+  }
+
+  const rootAbs = path.resolve(root);
+  const inherited = inheritedProcFdRootV1(rootAbs);
+  if (!inherited) {
+    throw confinementError(
+      "inherited content seal requires the exact inherited proc-fd root",
+    );
+  }
+
+  const actual = computeVoidSegStoreContentSealV1(rootAbs);
+  if (actual !== expected) {
+    throw confinementError(
+      `inherited proc-fd content seal mismatch expected=${expected} actual=${actual}`,
+    );
+  }
+}
 
 function confinementError(message: string): Error {
   return new Error(`VOID_SEGSTORE_PATH_CONFINEMENT_V1: ${message}`);

@@ -10,6 +10,7 @@ import { autoRepairDataDir } from "../dist/chain/auto_repair.js";
 import { blockHash, computeRoots } from "../dist/chain/block.js";
 import { SegStore } from "../dist/chain/seg_store.js";
 import {
+  computeVoidSegStoreContentSealV1,
   registerVoidSegStoreProcFdRootV1,
 } from "../dist/chain/segstore_path_confinement_v1.js";
 
@@ -327,6 +328,7 @@ async function proveInheritedProcFdRoot() {
     "VOID_SEGSTORE_INHERITED_DATA_FD_V1",
     "VOID_SEGSTORE_INHERITED_DATA_DEV_V1",
     "VOID_SEGSTORE_INHERITED_DATA_INO_V1",
+    "VOID_SEGSTORE_INHERITED_DATA_CONTENT_SEAL_V1",
   ];
   const prior = new Map(
     envKeys.map((key) => [key, process.env[key]]),
@@ -353,11 +355,31 @@ async function proveInheritedProcFdRoot() {
     process.env.VOID_SEGSTORE_INHERITED_DATA_INO_V1 =
       String(stat.ino);
 
+    const unregisterSealRoot =
+      registerVoidSegStoreProcFdRootV1(fdRoot);
+    let contentSeal;
+    try {
+      contentSeal = computeVoidSegStoreContentSealV1(fdRoot);
+    } finally {
+      unregisterSealRoot();
+    }
+    process.env.VOID_SEGSTORE_INHERITED_DATA_CONTENT_SEAL_V1 =
+      contentSeal;
+
     const inherited = new SegStore(fdRoot, {
       sparseEvery: 16,
     });
     assert.equal(inherited.loadHeadNumber(), 0);
     assert.deepEqual(inherited.loadBlock(0), block0);
+
+    process.env.VOID_SEGSTORE_INHERITED_DATA_CONTENT_SEAL_V1 =
+      "0".repeat(64);
+    await expectConfinementReject(
+      () => Promise.resolve(new SegStore(fdRoot)),
+      "inherited proc-fd content seal mismatch",
+    );
+    process.env.VOID_SEGSTORE_INHERITED_DATA_CONTENT_SEAL_V1 =
+      contentSeal;
 
     process.env.VOID_SEGSTORE_INHERITED_DATA_INO_V1 =
       String(stat.ino + 1n);
@@ -399,6 +421,8 @@ console.log("normal_torn_tail_repair_preserved=true");
 console.log("dry_run_truth_preserved=true");
 console.log("proc_fd_root_unregistered_accepted=false");
 console.log("inherited_proc_fd_runtime_store_green=true");
+console.log("inherited_proc_fd_content_seal_green=true");
+console.log("inherited_proc_fd_content_seal_mismatch_rejected=true");
 console.log("inherited_proc_fd_identity_mismatch_rejected=true");
 console.log("inherited_proc_fd_authority_absent_rejected=true");
 console.log("proc_fd_root_explicit_registration_green=true");

@@ -2,6 +2,10 @@
 import fs from "node:fs";
 import path from "node:path";
 import process from "node:process";
+import {
+  computeVoidSegStoreContentSealV1,
+  registerVoidSegStoreProcFdRootV1,
+} from "../../dist/chain/segstore_path_confinement_v1.js";
 
 export const VOID_PUBLIC_CHECKPOINT_RESTORE_ACTIVATION_V1 =
   "void_public_checkpoint_restore_activation_v1";
@@ -12,6 +16,7 @@ const GENERATION_TAG = ".void-public-checkpoint-restore-v1-gen-";
 const TOKEN_RE = /^[0-9a-f]{32}$/;
 const DECIMAL_RE = /^(0|[1-9][0-9]*)$/;
 const CHECKPOINT_ID_RE = /^voidpbc1_[0-9a-f]{64}$/;
+const CONTENT_SEAL_RE = /^[0-9a-f]{64}$/;
 const CHILD_DATA_FD = 4;
 
 function fail(message) {
@@ -106,13 +111,15 @@ export function prepareCheckpointStagingSelectionV1({
   expectedDevice,
   expectedInode,
   checkpointId,
+  contentSeal,
 }) {
   requireAbsoluteSiblingPaths(staging, dataDir, parent);
   if (
     !TOKEN_RE.test(String(token || "")) ||
     !DECIMAL_RE.test(String(expectedDevice || "")) ||
     !DECIMAL_RE.test(String(expectedInode || "")) ||
-    !CHECKPOINT_ID_RE.test(String(checkpointId || ""))
+    !CHECKPOINT_ID_RE.test(String(checkpointId || "")) ||
+    !CONTENT_SEAL_RE.test(String(contentSeal || ""))
   ) {
     fail("checkpoint selection generation identity is invalid");
   }
@@ -142,6 +149,7 @@ export function prepareCheckpointStagingSelectionV1({
     device: expectedDevice,
     inode: expectedInode,
     checkpointId,
+    contentSeal,
     selectorTarget: selectorTargetV1({
       token,
       device: expectedDevice,
@@ -170,16 +178,10 @@ export function publishPreparedCheckpointSelectionV1(prepared) {
     }
     throw error;
   }
+  // The parent-directory fsync is the irreversible selector commit point.
+  // Do not re-resolve DATA_DIR after it. The parent consumes the exact IPC
+  // selection and rejects any missing/replaced selector before node spawn.
   fsyncDirectory(prepared.parent);
-
-  const selectorStat = fs.lstatSync(prepared.dataDir);
-  if (!selectorStat.isSymbolicLink()) {
-    fail("checkpoint selector publication did not create a symlink selector");
-  }
-  const observed = fs.readlinkSync(prepared.dataDir, "utf8");
-  if (observed !== prepared.selectorTarget) {
-    fail("checkpoint selector changed after publication");
-  }
 
   return Object.freeze({
     schema: VOID_PUBLIC_CHECKPOINT_RESTORE_SELECTOR_V1,
@@ -190,6 +192,7 @@ export function publishPreparedCheckpointSelectionV1(prepared) {
     device: prepared.device,
     inode: prepared.inode,
     checkpointId: prepared.checkpointId,
+    contentSeal: prepared.contentSeal,
     directoryRenamePerformed: false,
     selectorPublished: true,
     parentFsync: true,
@@ -235,6 +238,7 @@ export function openSelectedCheckpointGenerationV1({
       "device",
       "inode",
       "checkpoint_id",
+      "content_seal",
     ].sort();
     if (
       !expectedSelection ||
@@ -248,7 +252,8 @@ export function openSelectedCheckpointGenerationV1({
       expectedSelection.token !== selector.token ||
       expectedSelection.device !== selector.device ||
       expectedSelection.inode !== selector.inode ||
-      expectedSelection.checkpoint_id !== selector.checkpointId
+      expectedSelection.checkpoint_id !== selector.checkpointId ||
+      !CONTENT_SEAL_RE.test(expectedSelection.content_seal)
     ) {
       fail("selected checkpoint does not match completed restore IPC selection");
     }
@@ -282,6 +287,24 @@ export function openSelectedCheckpointGenerationV1({
       fail("selected checkpoint generation identity mismatch");
     }
 
+    const fdRoot = `/proc/self/fd/${fd}`;
+    const unregister =
+      registerVoidSegStoreProcFdRootV1(fdRoot);
+    let contentSeal;
+    try {
+      contentSeal = computeVoidSegStoreContentSealV1(fdRoot);
+    } finally {
+      unregister();
+    }
+    if (
+      expectedSelection &&
+      contentSeal !== expectedSelection.content_seal
+    ) {
+      fail(
+        `selected checkpoint content seal mismatch expected=${expectedSelection.content_seal} actual=${contentSeal}`,
+      );
+    }
+
     const result = {
       schema: VOID_PUBLIC_CHECKPOINT_RESTORE_SELECTOR_V1,
       selectorPath: dataDir,
@@ -291,8 +314,9 @@ export function openSelectedCheckpointGenerationV1({
       device: selector.device,
       inode: selector.inode,
       checkpointId: selector.checkpointId,
+      contentSeal,
       fd,
-      fdRoot: `/proc/self/fd/${fd}`,
+      fdRoot,
       childFd: CHILD_DATA_FD,
       childRoot: `/proc/self/fd/${CHILD_DATA_FD}`,
     };
