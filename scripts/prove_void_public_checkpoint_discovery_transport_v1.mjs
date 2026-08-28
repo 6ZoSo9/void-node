@@ -2,6 +2,7 @@
 import assert from "node:assert/strict";
 import crypto from "node:crypto";
 import fs from "node:fs";
+import http from "node:http";
 import net from "node:net";
 import os from "node:os";
 import path from "node:path";
@@ -107,6 +108,44 @@ function makePacket(packet) {
     manifestSha256: sha256(manifestBytes),
     segmentBytes,
   };
+}
+
+async function startSlowCheckpointSeed(discoveryBody, delayMs) {
+  const port = await freePort();
+  const base = `http://127.0.0.1:${port}`;
+  const server = http.createServer((req, res) => {
+    const method = String(req.method || "GET").toUpperCase();
+    const url = new URL(req.url || "/", base);
+    if (
+      method === "GET" &&
+      url.pathname === "/__void/checkpoint/v1.json" &&
+      url.search === ""
+    ) {
+      const bytes = Buffer.from(`${JSON.stringify(discoveryBody)}\n`);
+      setTimeout(() => {
+        if (res.writableEnded || res.destroyed) return;
+        res.statusCode = 200;
+        res.setHeader("content-type", "application/json; charset=utf-8");
+        res.setHeader("content-length", String(bytes.length));
+        res.setHeader("x-void-public-seed-gateway", "v1");
+        res.end(bytes);
+      }, delayMs);
+      return;
+    }
+    const bytes = Buffer.from(
+      `${JSON.stringify({ ok: false, error: "route_not_public" })}\n`,
+    );
+    res.statusCode = 404;
+    res.setHeader("content-type", "application/json; charset=utf-8");
+    res.setHeader("content-length", String(bytes.length));
+    res.setHeader("x-void-public-seed-gateway", "v1");
+    res.end(bytes);
+  });
+  await new Promise((resolve, reject) => {
+    server.once("error", reject);
+    server.listen(port, "127.0.0.1", resolve);
+  });
+  return { server, base };
 }
 
 async function spawnGateway(packet, packetMeta, port) {
@@ -335,12 +374,80 @@ try {
     await new Promise((resolve) => expiringAdapter.server.close(resolve));
   }
 
+  const slowDiscovery = {
+    schema: "void_public_checkpoint_discovery_v1",
+    network: "VOID Network",
+    chain_id: 2050,
+    status: "available",
+    checkpoint: {
+      checkpoint_id: packetMeta.manifest.checkpoint_id,
+      manifest_sha256: packetMeta.manifestSha256,
+      source_sha: packetMeta.manifest.source_sha,
+      head: packetMeta.manifest.head,
+      block_count: packetMeta.manifest.block_count,
+      segment_count: packetMeta.manifest.segment_count,
+      payload_bytes: packetMeta.manifest.payload_bytes,
+      packet_base_path:
+        `/checkpoints/v1/${packetMeta.manifest.checkpoint_id}`,
+    },
+  };
+  const slowSeed = await startSlowCheckpointSeed(slowDiscovery, 1_500);
+  const crossingAdapter = await createPublicSeedClientAdapterV1({
+    peers: slowSeed.base,
+    host: "127.0.0.1",
+    port: 0,
+    timeoutMs: 5_000,
+    maxBytes: 8 * 1024 * 1024,
+    authority: {
+      schema: "void_public_seed_response_authority_v1",
+      generation: "d".repeat(32),
+      sequence: 3,
+      secret,
+    },
+    checkpointQualificationNotAfterMs: Date.now() + 1_000,
+    allowLoopbackFixture: true,
+  });
+  try {
+    const crossed = await fetch(
+      `${crossingAdapter.base}/__void/checkpoint/v1.json`,
+      {
+        headers: {
+          [VOID_PUBLIC_SEED_AUTHORITY_CHALLENGE_HEADER_V1]: "e".repeat(64),
+        },
+      },
+    );
+    assert.equal(crossed.status, 503);
+    const crossedBody = await crossed.json();
+    assert.equal(crossedBody.error, "checkpoint_qualification_expired");
+  } finally {
+    await new Promise((resolve) => crossingAdapter.server.close(resolve));
+    await new Promise((resolve) => slowSeed.server.close(resolve));
+  }
+
   fs.appendFileSync(
     path.join(packet, "segments", "00000000", "blocks.bin"),
     Buffer.from("tamper"),
   );
-  const tampered = await fetch(`${adapter.base}${segmentRoute}`);
-  assert.notEqual(tampered.status, 200);
+
+  const gatewayTamper = await fetch(
+    `http://127.0.0.1:${gatewayPort}${segmentRoute}`,
+    { headers: { accept: "application/octet-stream" } },
+  );
+  assert.equal(gatewayTamper.status, 503);
+  const gatewayTamperBody = await gatewayTamper.json();
+  assert.equal(gatewayTamperBody.error, "checkpoint_integrity_hold");
+
+  const tamperChallenge = createVerifiedPublicBootstrapChallengeV1(
+    `${adapter.base}${segmentRoute}`,
+  );
+  assert.ok(tamperChallenge);
+  const adapterTamper = await fetch(`${adapter.base}${segmentRoute}`, {
+    headers: {
+      [VOID_PUBLIC_SEED_AUTHORITY_CHALLENGE_HEADER_V1]:
+        tamperChallenge.nonce,
+    },
+  });
+  assert.equal(adapterTamper.status, 502);
 
   const badPort = await freePort();
   const bad = spawn(
@@ -386,6 +493,9 @@ try {
   console.log("same_origin_packet_base_path=true");
   console.log("wrong_checkpoint_id_rejected=true");
   console.log("path_traversal_rejected=true");
+  console.log("qualification_expired_during_fetch_rejected=true");
+  console.log("post_admission_segment_tamper_gateway_hold=true");
+  console.log("post_admission_segment_tamper_adapter_rejected=true");
   console.log("post_admission_segment_tamper_rejected=true");
   console.log("bad_manifest_pin_startup_rejected=true");
   console.log("private_mutation_routes_exposed=false");
