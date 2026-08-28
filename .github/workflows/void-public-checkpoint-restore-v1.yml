@@ -5,6 +5,7 @@ on:
     paths:
       - ".github/workflows/void-public-checkpoint-restore-v1.yml"
       - "docs/public/void-public-checkpoint-restore-v1.md"
+      - "scripts/lib/void_public_checkpoint_restore_activation_v1.mjs"
       - "scripts/lib/void_public_checkpoint_restore_supervisor_v1.mjs"
       - "scripts/run_void_public_checkpoint_restore_v1.mjs"
       - "scripts/run_void_public_bootstrap_supervisor_v1.mjs"
@@ -14,6 +15,7 @@ on:
     paths:
       - ".github/workflows/void-public-checkpoint-restore-v1.yml"
       - "docs/public/void-public-checkpoint-restore-v1.md"
+      - "scripts/lib/void_public_checkpoint_restore_activation_v1.mjs"
       - "scripts/lib/void_public_checkpoint_restore_supervisor_v1.mjs"
       - "scripts/run_void_public_checkpoint_restore_v1.mjs"
       - "scripts/run_void_public_bootstrap_supervisor_v1.mjs"
@@ -51,6 +53,7 @@ jobs:
 
       - name: Syntax check
         run: |
+          node --check scripts/lib/void_public_checkpoint_restore_activation_v1.mjs
           node --check scripts/lib/void_public_checkpoint_restore_supervisor_v1.mjs
           node --check scripts/run_void_public_checkpoint_restore_v1.mjs
           node --check scripts/run_void_public_bootstrap_supervisor_v1.mjs

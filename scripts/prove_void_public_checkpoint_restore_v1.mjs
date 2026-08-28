@@ -13,6 +13,9 @@ import {
 import {
   runPublicCheckpointRestorePreNodeV1,
 } from "./lib/void_public_checkpoint_restore_supervisor_v1.mjs";
+import {
+  activateCheckpointStagingNoReplaceV1,
+} from "./lib/void_public_checkpoint_restore_activation_v1.mjs";
 import { createPublicSeedClientAdapterV1 } from "../tools/void-public-seed-client-adapter-v1.mjs";
 
 const MARKER = "VOID_PUBLIC_CHECKPOINT_RESTORE_V1_PROOF";
@@ -245,6 +248,93 @@ try {
   const ownedParent = path.join(tmp, "owned");
   fs.mkdirSync(ownedParent, { mode: 0o700 });
 
+  const activationSuccessStaging = path.join(
+    ownedParent,
+    "activation-success-staging",
+  );
+  const activationSuccessTarget = path.join(
+    ownedParent,
+    "activation-success-target",
+  );
+  fs.mkdirSync(activationSuccessStaging, { mode: 0o700 });
+  fs.writeFileSync(
+    path.join(activationSuccessStaging, "sentinel"),
+    "staged-generation\n",
+  );
+  const activationSuccessBefore = fs.lstatSync(
+    activationSuccessStaging,
+  );
+  const activationSuccess = activateCheckpointStagingNoReplaceV1({
+    staging: activationSuccessStaging,
+    dataDir: activationSuccessTarget,
+    parent: ownedParent,
+  });
+  assert.equal(activationSuccess.activated, true);
+  assert.equal(fs.existsSync(activationSuccessStaging), false);
+  const activationSuccessAfter = fs.lstatSync(
+    activationSuccessTarget,
+  );
+  assert.equal(
+    activationSuccessAfter.dev,
+    activationSuccessBefore.dev,
+  );
+  assert.equal(
+    activationSuccessAfter.ino,
+    activationSuccessBefore.ino,
+  );
+  assert.equal(
+    fs.readFileSync(
+      path.join(activationSuccessTarget, "sentinel"),
+      "utf8",
+    ),
+    "staged-generation\n",
+  );
+
+  const activationRaceStaging = path.join(
+    ownedParent,
+    "activation-race-staging",
+  );
+  const activationRaceTarget = path.join(
+    ownedParent,
+    "activation-race-target",
+  );
+  fs.mkdirSync(activationRaceStaging, { mode: 0o700 });
+  fs.writeFileSync(
+    path.join(activationRaceStaging, "staged"),
+    "must-not-activate\n",
+  );
+  assert.equal(fs.existsSync(activationRaceTarget), false);
+
+  fs.mkdirSync(activationRaceTarget, { mode: 0o700 });
+  fs.writeFileSync(
+    path.join(activationRaceTarget, "external-sentinel"),
+    "preserve-me\n",
+  );
+
+  assert.throws(
+    () =>
+      activateCheckpointStagingNoReplaceV1({
+        staging: activationRaceStaging,
+        dataDir: activationRaceTarget,
+        parent: ownedParent,
+      }),
+    /DATA_DIR exists/,
+  );
+  assert.equal(fs.existsSync(activationRaceStaging), true);
+  assert.equal(
+    fs.readFileSync(
+      path.join(activationRaceTarget, "external-sentinel"),
+      "utf8",
+    ),
+    "preserve-me\n",
+  );
+  assert.equal(
+    fs.existsSync(
+      path.join(activationRaceTarget, "staged"),
+    ),
+    false,
+  );
+
   const disabled = await runPublicCheckpointRestorePreNodeV1({
     env: {
       ...process.env,
@@ -413,6 +503,11 @@ try {
   console.log("derived_heads_meta_sparse_reconstructed=true");
   console.log("single_staging_generation=true");
   console.log("atomic_rename_activation=true");
+  console.log("activation_uses_gnu_mv_rename_noreplace_contract=true");
+  console.log("activation_no_copy=true");
+  console.log("activation_same_inode_proved=true");
+  console.log("destination_appeared_before_activation_preserved=true");
+  console.log("staging_not_activated_when_destination_exists=true");
   console.log("failure_cleanup_preserves_absent_target=true");
   console.log("checkpoint_publication_performed=false");
   console.log("runtime_node_started_by_proof=false");

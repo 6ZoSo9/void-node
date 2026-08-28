@@ -13,6 +13,9 @@ import {
 } from "./lib/void_public_checkpoint_contract_v1.mjs";
 import { autoRepairDataDir } from "../dist/chain/auto_repair.js";
 import {
+  activateCheckpointStagingNoReplaceV1,
+} from "./lib/void_public_checkpoint_restore_activation_v1.mjs";
+import {
   VOID_PUBLIC_SEED_AUTHORITY_CHALLENGE_HEADER_V1,
   createVerifiedPublicBootstrapChallengeV1,
   verifyVerifiedPublicBootstrapResponseV1,
@@ -360,11 +363,14 @@ async function main() {
     verifyReconstructedHead(staging, verifiedManifest.head);
     exactPostRepairTopLevel(staging);
 
-    if (lstatOrNull(dataDir)) {
-      fail("DATA_DIR appeared before checkpoint activation");
+    const activation = activateCheckpointStagingNoReplaceV1({
+      staging,
+      dataDir,
+      parent,
+    });
+    if (!activation?.activated) {
+      fail("checkpoint no-clobber activation did not complete");
     }
-    fs.renameSync(staging, dataDir);
-    fsyncDirectory(parent);
     activated = true;
     stagingCreated = false;
 
@@ -379,6 +385,10 @@ async function main() {
     console.log("semantic_verify=true");
     console.log("auto_repair_sparse_every=16");
     console.log("atomic_activation=true");
+    console.log("activation_no_clobber=true");
+    console.log("activation_no_copy=true");
+    console.log("activation_same_directory_identity=true");
+    console.log(`activation_mv_version=${activation.mv_version}`);
     console.log("parent_directory_fsync=true");
     console.log("existing_store_overwrite=false");
     console.log("checkpoint_publication_authority=false");

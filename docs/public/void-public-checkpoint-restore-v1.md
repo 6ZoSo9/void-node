@@ -95,13 +95,32 @@ the verified `blocks.bin` files.
 
 Immediately before activation, `DATA_DIR` must still be absent.
 
-The verified/reconstructed sibling staging generation is renamed atomically to
-`DATA_DIR`, followed by a parent-directory fsync.
+The verified/reconstructed sibling staging generation is activated with a
+same-filesystem **no-replace** rename using reviewed GNU Coreutils `mv >= 9.4`:
+
+```text
+mv -T --no-copy --no-clobber -- <staging> <DATA_DIR>
+```
+
+The reviewed Coreutils 9.4 two-path move begins with
+`renameat2(..., RENAME_NOREPLACE)`. `--no-clobber` also prevents fallback from
+replacing an existing destination, while `--no-copy` forbids cross-filesystem
+copy fallback.
+
+The consumer treats a surviving staging directory as an activation HOLD even
+when `mv --no-clobber` returns success. On successful activation it additionally
+requires the final `DATA_DIR` to have the exact same device and inode as the
+staging directory, then fsyncs the parent directory.
+
+Therefore a `DATA_DIR` that appears after the earlier eligibility check is not
+replaced. The external destination remains untouched and the staged generation
+is not activated.
 
 There is no in-place population of a live store and no concurrent node process.
 
-If any pre-activation step fails, the process removes only the staging
-generation it created and leaves `DATA_DIR` absent.
+If any pre-activation or no-clobber activation step fails, the process removes
+only the staging generation it created. An independently created `DATA_DIR` is
+preserved.
 
 ## Deliberately not included
 
