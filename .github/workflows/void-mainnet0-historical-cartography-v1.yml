@@ -1,13 +1,18 @@
-name: VOID Mainnet-0 Historical Cartography v1.1
+name: VOID Mainnet-0 Historical Cartography v1.2
 
 on:
   pull_request:
     paths:
       - "scripts/mainnet0_historical_cartography_v1.mjs"
       - "scripts/prove_mainnet0_historical_cartography_v1.mjs"
+      - "scripts/seal_mainnet0_historical_cartography_v1_2.mjs"
+      - "scripts/prove_mainnet0_historical_cartography_v1_2.mjs"
       - "public/mainnet0-historical-cartography-v1.schema.json"
       - "public/mainnet0-historical-cartography-v1.json"
+      - "public/mainnet0-historical-cartography-acceptance-v1.schema.json"
+      - "public/mainnet0-historical-cartography-acceptance-v1.json"
       - "docs/public/mainnet0-historical-cartography-v1.md"
+      - "docs/public/mainnet0-historical-cartography-acceptance-v1.md"
       - ".github/workflows/void-mainnet0-historical-cartography-v1.yml"
       - "scripts/prove_ci_diff_hygiene_v1.mjs"
       - "scripts/ci_diff_hygiene_v1.sh"
@@ -17,9 +22,14 @@ on:
     paths:
       - "scripts/mainnet0_historical_cartography_v1.mjs"
       - "scripts/prove_mainnet0_historical_cartography_v1.mjs"
+      - "scripts/seal_mainnet0_historical_cartography_v1_2.mjs"
+      - "scripts/prove_mainnet0_historical_cartography_v1_2.mjs"
       - "public/mainnet0-historical-cartography-v1.schema.json"
       - "public/mainnet0-historical-cartography-v1.json"
+      - "public/mainnet0-historical-cartography-acceptance-v1.schema.json"
+      - "public/mainnet0-historical-cartography-acceptance-v1.json"
       - "docs/public/mainnet0-historical-cartography-v1.md"
+      - "docs/public/mainnet0-historical-cartography-acceptance-v1.md"
       - ".github/workflows/void-mainnet0-historical-cartography-v1.yml"
       - "scripts/prove_ci_diff_hygiene_v1.mjs"
       - "scripts/ci_diff_hygiene_v1.sh"
@@ -29,12 +39,12 @@ permissions:
   contents: read
 
 concurrency:
-  group: void-mainnet0-historical-cartography-v1-1-${{ github.event.pull_request.number || github.ref }}
+  group: void-mainnet0-historical-cartography-v1-2-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 jobs:
   proof:
-    name: cartography-v1-1-proof-node-${{ matrix.node }}
+    name: cartography-v1-2-proof-node-${{ matrix.node }}
     runs-on: ubuntu-24.04
     timeout-minutes: 12
     strategy:
@@ -59,25 +69,40 @@ jobs:
           set -euo pipefail
           node --check scripts/mainnet0_historical_cartography_v1.mjs
           node --check scripts/prove_mainnet0_historical_cartography_v1.mjs
+          node --check scripts/seal_mainnet0_historical_cartography_v1_2.mjs
+          node --check scripts/prove_mainnet0_historical_cartography_v1_2.mjs
           node --check scripts/prove_ci_diff_hygiene_v1.mjs
           bash -n scripts/ci_diff_hygiene_v1.sh
           node -e '
             const fs = require("fs");
-            const schema = JSON.parse(
+            const scanSchema = JSON.parse(
               fs.readFileSync(
                 "public/mainnet0-historical-cartography-v1.schema.json",
                 "utf8"
               )
             );
-            if (schema.title !== "VOID Mainnet-0 Historical Cartography V1.1 Manifest") process.exit(1);
-            if (schema.properties?.chain_id?.const !== 2050) process.exit(1);
-            if (schema.properties?.source?.properties?.kind?.const !== "raw_segstore_blocks_v1") process.exit(1);
-            if (schema.properties?.vocabulary?.minItems !== 5) process.exit(1);
-            if (schema.properties?.scanner_version?.const !== "v1.1") process.exit(1);
+            const acceptanceSchema = JSON.parse(
+              fs.readFileSync(
+                "public/mainnet0-historical-cartography-acceptance-v1.schema.json",
+                "utf8"
+              )
+            );
+            if (scanSchema.title !== "VOID Mainnet-0 Historical Cartography V1.1 Manifest") process.exit(1);
+            if (scanSchema.properties?.chain_id?.const !== 2050) process.exit(1);
+            if (scanSchema.properties?.source?.properties?.kind?.const !== "raw_segstore_blocks_v1") process.exit(1);
+            if (scanSchema.properties?.vocabulary?.minItems !== 5) process.exit(1);
+            if (scanSchema.properties?.scanner_version?.const !== "v1.1") process.exit(1);
+            if (acceptanceSchema.title !== "VOID Mainnet-0 Historical Cartography Acceptance V1.2") process.exit(1);
+            if (acceptanceSchema.properties?.chain_id?.const !== 2050) process.exit(1);
+            if (acceptanceSchema.properties?.version?.const !== "v1.2") process.exit(1);
+            if (acceptanceSchema.properties?.acceptance_contract?.properties?.append_authority?.const !== false) process.exit(1);
           '
 
       - name: Historical cartography V1.1 deterministic proof
         run: node scripts/prove_mainnet0_historical_cartography_v1.mjs
+
+      - name: Historical cartography V1.2 authority-seal proof
+        run: node scripts/prove_mainnet0_historical_cartography_v1_2.mjs
 
       - name: Prove shallow committed-range diff hygiene contract
         run: node scripts/prove_ci_diff_hygiene_v1.mjs
@@ -95,7 +120,7 @@ jobs:
         run: bash scripts/ci_diff_hygiene_v1.sh
 
   phase-boundary:
-    name: phase-1-v1-1-no-validator-or-runtime-mutation
+    name: phase-1-v1-2-no-validator-or-runtime-mutation
     runs-on: ubuntu-24.04
     timeout-minutes: 5
 
@@ -145,16 +170,21 @@ jobs:
             fi
           fi
 
-          if grep -F 'new SegStore' scripts/mainnet0_historical_cartography_v1.mjs; then
-            echo "scanner must never instantiate SegStore" >&2
-            exit 1
-          fi
-          if grep -F 'from "../src/chain/seg_store' scripts/mainnet0_historical_cartography_v1.mjs; then
-            echo "scanner must never import SegStore" >&2
-            exit 1
-          fi
+          for script in \
+            scripts/mainnet0_historical_cartography_v1.mjs \
+            scripts/seal_mainnet0_historical_cartography_v1_2.mjs
+          do
+            if grep -F 'new SegStore' "$script"; then
+              echo "$script must never instantiate SegStore" >&2
+              exit 1
+            fi
+            if grep -F 'from "../src/chain/seg_store' "$script"; then
+              echo "$script must never import SegStore" >&2
+              exit 1
+            fi
+          done
 
-          echo "VOID_MAINNET0_HISTORICAL_CARTOGRAPHY_V1_1_PHASE_BOUNDARY_GREEN"
+          echo "VOID_MAINNET0_HISTORICAL_CARTOGRAPHY_V1_2_PHASE_BOUNDARY_GREEN"
           echo "modern_validator_modified=false"
           echo "segstore_modified=false"
           echo "runtime_modified=false"
