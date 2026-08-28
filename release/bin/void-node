@@ -108,18 +108,7 @@ case "${1:-help}" in
     exec "$RELEASE_ROOT/bin/void-node-update" "${@:2}"
     ;;
   rollback)
-    test -L "$PREVIOUS" || die "no previous release is available"
-    old_current="$(readlink -f "$CURRENT")"
-    old_previous="$(readlink -f "$PREVIOUS")"
-    verify_root "$old_previous" >/dev/null
-    ln -sfn "$old_previous" "$INSTALL_ROOT/.current.next"
-    mv -Tf "$INSTALL_ROOT/.current.next" "$CURRENT"
-    ln -sfn "$old_current" "$INSTALL_ROOT/.previous.next"
-    mv -Tf "$INSTALL_ROOT/.previous.next" "$PREVIOUS"
-    if manager_available && systemctl --user is-active --quiet "$UNIT"; then
-      systemctl --user restart "$UNIT"
-    fi
-    say "rolled_back_to=$(build_info "$old_previous")"
+    exec "$RELEASE_ROOT/bin/void-node-update" rollback
     ;;
   uninstall)
     exec "$RELEASE_ROOT/install-void-node-v1.sh" uninstall "${@:2}"
