@@ -1,252 +1,200 @@
-# Mainnet-0 Historical Cartography V1
+# Mainnet-0 Historical Cartography V1.1
 
 Marker: `VOID_MAINNET0_HISTORICAL_CARTOGRAPHY_V1`
 
-Status: **contract scaffold / worker implementation required / draft only**
+Status: **draft / exhaustive V1.1 real-source rescan pending**
 
 ## Purpose
 
-Stop discovering immutable Mainnet-0 historical serialization shapes one block at
-a time during clean-node catch-up.
+Map every immutable VOID Mainnet-0 canonical block from genesis through one
+frozen historical head without normalizing or rewriting canonical bytes.
 
-The canonical historical bytes are authoritative evidence and must not be
-normalized or rewritten merely to make current validators simpler. This lane
-instead defines a read-only, exhaustive cartography pass over one frozen
-canonical historical source, followed by a content-addressed compatibility map
-that later bootstrap/compatibility work may consume after a separate review.
+V1.1 is the evidence-driven successor to the first Phase-1 scanner generation.
+The first real scan correctly returned HOLD after scanning all 1,951,059 frames,
+but it exposed two scanner-contract defects:
 
-This is a correctness/reliability lane, not another repository-navigation or
-`src/index.ts` coverage wave. It exists because fresh bootstrap has repeatedly
-reached previously unenumerated historical shapes, including the short modern
-island around `196019..196020`, the exact return to legacy-v2fs at `196021`, and
-the historical old-writer `header.txRoot` object observed at `198196`.
+1. seven canonical modern-signed envelopes were outside the four-class V1
+   vocabulary because their serialized `header.txRoot` is the historical legacy
+   empty root while their top-level modern empty roots are zero64;
+2. the V1 anchor mismatch path incremented `unclassified_blocks` a second time
+   at heights `196019` and `196020`, so nine HOLD entries represented seven
+   physical unknown blocks.
 
-The cause of those historical production choices is **not** part of the
-cartography truth unless independently evidenced. The map records what canonical
-bytes contain, not a guessed operational story.
+Neither finding is evidence of canonical corruption.
 
-## Worker assignment
+## Frozen source
 
-This PR is assigned to the **existing VOID cartography worker lane** by explicit
-Sovereign direction on 2026-08-27.
+The reviewed source generation is:
 
-- Reuse the existing cartography worker and cartography tooling lineage.
-- Do **not** create another cartography worker, scheduler slot, sibling
-  implementation, or competing PR.
-- Use this draft PR as the single source container for the historical-cartography
-  implementation.
-- Other workers may review/falsify the lane but should not duplicate its source
-  implementation.
-- Current moving-week source restrictions are explicitly lifted only for this
-  named historical-cartography lane; all unrelated safe-mode restrictions remain.
+- network: `VOID Mainnet-0`
+- chain id: `2050`
+- Precision source: `data_a`
+- frozen head: `1951058`
+- head surfaces: `(1951058,1951058,1951058)`
+- contiguous raw segments: `196`
+- raw frames: `1951059`
+- `blocks.bin` bytes: `452333282`
+- WAL bytes: `0`
 
-## Current known evidence is sampled, not exhaustive
+The scanner reads `segments/<8digit>/blocks.bin` directly and must never import or
+instantiate SegStore.
 
-Existing historical-bootstrap documentation records observed evidence including:
+## V1 real-source HOLD evidence
 
-- early minimal `{number,timestamp}` blocks through sampled heights;
-- a long `proposer.commit-direct.v2fs` historical region through sampled heights;
-- exact modern signed blocks `196019` and `196020`;
-- exact return to legacy-v2fs beginning at `196021`;
-- exact historical old-writer `header.txRoot` object form at `198196`.
+V1 source identity:
 
-Those observations are useful falsification anchors but are **not** permission to
-infer the unscanned intervals. The cartography pass must derive every classified
-height from the frozen canonical source itself.
+`voidm0src1_c87dfdfbbe3aa6099bef0f1f9eafab20a09fe0a8d67453e83828c3eb967090da`
 
-## Phase 1 outcome
+V1 complete scan digest:
 
-Build an offline/read-only scanner and evidence contract that can classify every
-canonical block from genesis through one exact frozen scan head without changing
-any chain byte.
+`ed7e5f58b68775d6b3f48518c210373e11476cf6b56bbbb8b1b369964f891376`
 
-The first implementation generation should remain additive around scanner,
-proof, documentation, workflow, and generated manifest/evidence surfaces. It
-must **not** refactor or weaken the current historical or modern append validators
-merely to make the scan green.
+The seven canonical heights discovered outside the V1 vocabulary are:
 
-In particular, Phase 1 must not change:
+- `196019`
+- `196020`
+- `1833994`
+- `1834071`
+- `1834125`
+- `1834145`
+- `1834324`
 
-- `validateBlockForAppend()` modern consensus/append semantics;
-- canonical block bytes;
-- SegStore canonical history;
-- live follower/runtime state;
-- the current exact historical exception admission rules.
+Independent read-only raw-frame inspection proved all seven have exactly:
 
-A later manifest-consumer/refactor generation is a separate security and
-lifecycle gate after the exhaustive map is independently reviewed.
+- the modern signed top-level envelope;
+- `txs=[]`;
+- `blobs=[]`;
+- top-level `txRoot = 00..00`;
+- top-level `blobRoot = 00..00`;
+- serialized `header.txRoot = e3b0c442...b855`;
+- 32-hex proposer shape;
+- 128-hex signature shape;
+- a `parentHash` matching the current `blockHash()` contract applied to the
+  immediately preceding canonical block.
 
-## Frozen source authority
+The raw SHA-256 anchors are embedded in the scanner and are falsification
+evidence, not a substitute for scanning.
 
-The scanner must consume one immutable, independently identified canonical
-historical source.
+## Closed V1.1 vocabulary
 
-Before scanning, bind at minimum:
-
-- network: `VOID Mainnet-0`;
-- chain id: `2050`;
-- exact source kind/location class;
-- exact frozen head height;
-- exact source generation/content identity sufficient to distinguish a later
-  replacement from the reviewed scan source.
-
-The scanner must not silently switch between live nodes, URLs, copies, or data
-directories during a run. If the complete historical source cannot be bound or
-read, emit `HOLD` rather than filling gaps from current documentation.
-
-Where practical, a second independently materialized canonical copy should be
-used as a byte/classification cross-check before the manifest is treated as a
-complete historical map. Disagreement is `HOLD`, not majority vote.
-
-## Read-only scan record
-
-For every height from `0` through the frozen scan head, derive bounded evidence
-from the exact stored bytes. At minimum the scan result must be able to establish:
-
-- block height;
-- exact raw-byte/content digest;
-- closed historical shape classification;
-- relevant top-level key/envelope shape;
-- `_commit` marker when present;
-- top-level `txRoot` shape/value class;
-- `header.txRoot` shape/value class when present;
-- transaction count / empty-vs-nonempty truth needed to distinguish reviewed
-  historical forms;
-- proposer/signature presence and shape where applicable;
-- parent/adjacency continuity evidence appropriate to that historical format.
-
-Do not log or persist private keys, credentials, runtime secrets, or unrelated
-operator data.
-
-## Closed classification vocabulary
-
-Start from a deliberately small reviewed vocabulary. The scanner must never
-coerce an unknown shape into the nearest known class.
-
-Initial expected classes are:
+V1.1 admits exactly five structural classes:
 
 - `MINIMAL_V1`
 - `LEGACY_V2FS_V1`
 - `MODERN_SIGNED_V1`
 - `LEGACY_V2FS_EMPTY_HEADER_ROOT_OBJECT_V1`
+- `MODERN_SIGNED_LEGACY_EMPTY_HEADER_ROOT_V1`
 
-If canonical history contains another materially distinct shape, report it as
-`UNKNOWN`/`HOLD` with exact bounded evidence, then extend the vocabulary in a
-reviewed source generation. An unknown class is a discovery result, not scanner
-failure and not permission for permissive validation.
+`MODERN_SIGNED_LEGACY_EMPTY_HEADER_ROOT_V1` is intentionally historical and
+narrow. It requires all of the following simultaneously:
 
-## Manifest contract
+- exact modern signed top-level keys;
+- nonnegative safe integer `number`;
+- positive safe integer `timestamp`;
+- 64-hex `parentHash`;
+- exact 32-hex proposer shape;
+- exact 128-hex signature shape;
+- exact `header={txRoot}`;
+- `txs=[]`;
+- `blobs=[]`;
+- top-level `txRoot=00..00`;
+- top-level `blobRoot=00..00`;
+- `header.txRoot=e3b0c442...b855`.
 
-The committed compatibility map should be compact and content-addressed rather
-than checking millions of redundant per-height JSON rows into the repository.
-The worker may choose a run/range + exception representation, provided the proof
-can reproduce it deterministically from the frozen scan evidence.
+It does not modify or weaken `validateBlockForAppend()`.
 
-The manifest must bind at minimum:
+## Closed transition map
 
-- marker/version;
-- `VOID Mainnet-0` / Chain 2050;
+The frozen historical prefix is admitted only under this transition map:
+
+- `0`: genesis `MINIMAL_V1`;
+- `1..196018`: `MINIMAL_V1 -> MINIMAL_V1`;
+- `196019`: `MINIMAL_V1 -> MODERN_SIGNED_LEGACY_EMPTY_HEADER_ROOT_V1`;
+- `196020`: historical-modern -> historical-modern;
+- `196021`: historical-modern -> `LEGACY_V2FS_V1`;
+- later historical-modern singleton heights:
+  `1833994`, `1834071`, `1834125`, `1834145`, `1834324`;
+- at each later singleton: legacy-era -> historical-modern -> `LEGACY_V2FS_V1`;
+- all other post-`196021` transitions must remain within the two reviewed
+  legacy-era classes.
+
+A strict `MODERN_SIGNED_V1` occurrence in this frozen prefix is a transition HOLD
+unless separately reviewed. No generic legacy-to-modern transition is allowed.
+
+For every modern/historical-modern occurrence the scanner also verifies
+`candidate.parentHash === currentContractBlockHash(previousCanonicalBlock)`.
+
+## Accounting correction
+
+`unclassified_blocks` counts physical blocks whose classifier result is
+`UNKNOWN` exactly once.
+
+A known-anchor classification or raw-hash mismatch creates a bounded HOLD entry
+but does **not** increment `unclassified_blocks` again. The deterministic proof
+contains a synthetic falsifier for this exact V1 bug.
+
+## Source immutability
+
+A successful V1.1 scan requires:
+
+- exact head-marker agreement;
+- exact expected segment generation;
+- empty WAL by default;
+- no source/output path overlap;
+- pre-scan stat identity for every `blocks.bin`;
+- per-segment raw SHA-256;
+- post-scan stat identity and full re-hash equality;
+- exact frame-height continuity `0..frozen_head`.
+
+Source movement or replacement is HOLD.
+
+## Manifest
+
+The manifest is content-addressed and binds:
+
 - frozen source identity;
-- frozen head and exact scanned block count;
-- the reviewed classification vocabulary/version;
-- ordered non-overlapping classified ranges and exact singleton exceptions where
-  needed;
-- a digest that commits to the complete per-height scan result, not merely the
-  compressed range summary;
-- counts for every shape class;
-- `unclassified_blocks`;
-- `ambiguous_classifications`;
-- `transition_gaps`.
+- all five class counts;
+- complete per-height scan digest;
+- compressed ranges plus singleton exceptions;
+- known anchor classifications;
+- seven independently established raw SHA-256 historical-modern anchors;
+- zero canonical-byte mutation;
+- zero modern-validator mutation.
 
-The manifest itself grants **no append authority** in Phase 1. Consumption by
-bootstrap/history validation requires a later explicit review.
+The manifest grants no append, signer, validator, or runtime authority.
 
-## Required deterministic proof
+## Acceptance
 
-The focused proof must establish, for one exact frozen source generation:
+Phase 1 remains draft until the exact V1.1 generation runs on the frozen
+1,951,059-block source and produces:
 
 ```text
-historical_blocks_scanned=<frozen_head_plus_one>
+historical_blocks_scanned=1951059
 unclassified_blocks=0
 ambiguous_classifications=0
 transition_gaps=0
 canonical_bytes_modified=0
 modern_validator_modified=false
 manifest_reproducible=true
-complete_scan_digest=<content_address>
 ```
 
-Also prove:
-
-1. every height `0..frozen_head` appears exactly once in the logical scan;
-2. no range overlaps another range and no height is skipped;
-3. range compression expands back to the exact per-height classifications;
-4. known observed anchors (`196019`, `196020`, `196021`, `196022`, `198196`)
-   emerge from the scan and agree with the existing compatibility evidence;
-5. representative mutation of every admitted shape fails classification or
-   digest/continuity verification rather than being normalized into success;
-6. introducing an unknown top-level/header shape returns `HOLD`;
-7. truncating or replacing the frozen source during the scan cannot yield a
-   successful complete manifest;
-8. source/proof execution makes zero canonical block writes and zero runtime
-   mutation.
-
-Node-based tooling must preserve the repository-supported Node 22/24/26 contract
-where applicable. Focused CI must use immutable Action references and the shared
-committed-range diff-hygiene contract.
-
-## Acceptance
-
-Phase 1 source/proof DoD is met only when one exact PR head demonstrates:
-
-- complete scan over the declared frozen canonical source;
-- zero unclassified or ambiguous heights;
-- zero transition gaps;
-- deterministic content-addressed manifest reproduction;
-- known historical anchors match independently established evidence;
-- no canonical-byte, modern-validator, runtime, service, network, wallet,
-  validator, Work Credit, transaction, treasury, liquidity, or funds mutation;
-- exact-head focused Node 22/24/26 evidence where applicable;
-- fresh independent review of the source-generation and scan-authority boundary.
-
-A scan that discovers a real additional historical class stays `HOLD` until that
-class and its falsifiers are reviewed; it must not be hidden just to reach zero
-unclassified blocks.
-
-## Falsification
-
-This lane is not complete if any of the following is true:
-
-- any canonical height is inferred rather than scanned;
-- a source generation can move during scan without terminal `HOLD`;
-- two different per-height maps can produce the same accepted manifest identity;
-- an unknown shape is accepted as an existing class;
-- a historical byte is rewritten/normalized to satisfy current validation;
-- modern validation is weakened to accommodate historical bytes;
-- the map depends on guessed causes for historical producer behavior;
-- a clean bootstrap can encounter a canonical historical shape outside the
-  audited map for the same frozen historical prefix.
-
-## Later gate — not authorized by this scaffold
-
-After exhaustive cartography is independently green, a later reviewed change may
-consider replacing hand-written historical singleton control flow with a narrow
-manifest-backed compatibility consumer.
-
-That later step must preserve closed-schema validators and exact historical
-bytes. The manifest cannot become a generic "accept whatever was observed"
-mechanism, cannot weaken modern validation, and cannot convert content evidence
-into signer/consensus authority that the historical blocks never contained.
-
-Do not combine that consumer/refactor with Phase 1 merely to reduce PR count.
-First establish that we actually know the immutable history.
+The resulting source ID, complete-scan digest, manifest ID, class counts,
+ranges/exceptions, and anchors must then be independently reviewed before the PR
+can leave draft.
 
 ## Authority boundary
 
-Source/docs/proof/CI and offline read-only historical evidence only.
+This generation may change only scanner/proof/schema/documentation/focused-CI
+surfaces. It must not change:
 
-No merge, ready transition, deployment, restart, live follower invocation,
-canonical-chain mutation, block rewrite/reset/reseed, network/DNS/interface
-mutation, credential/private-key access, wallet/signer use, validator or Work
-Credit mutation, paid-work dispatch, transaction, production configuration,
-treasury/liquidity action, inventory action, or funds movement is authorized.
+- `src/chain/block.ts`;
+- `src/chain/seg_store.ts`;
+- `src/chain/legacy_commit_direct_v2fs_v1.ts`;
+- `src/chain/mainnet0_historical_compat_v1.ts`;
+- `src/node_core.ts`;
+- public seed gateway/client runtime code;
+- canonical historical bytes.
+
+No deployment, restart, live follower invocation, chain reset/reseed, wallet,
+validator, Work Credit, transaction, treasury, liquidity, DNS, or network
+mutation is authorized by this cartography phase.
