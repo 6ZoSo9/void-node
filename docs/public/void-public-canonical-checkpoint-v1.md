@@ -61,7 +61,7 @@ Capture requires:
 5. no nonempty WAL file;
 6. canonical Mainnet-0 validation for every frame:
    - minimal historical validation,
-   - legacy-v2fs historical validation and era transition,
+   - legacy-v2fs historical validation,
    - modern `validateBlockForAppend` validation;
 7. byte-identical source and copied segment digests;
 8. unchanged source block-file inode/size/mtime/ctime stamps through capture;
@@ -70,6 +70,41 @@ Capture requires:
 11. a second full packet verification before atomic final-directory publication.
 
 Any mismatch returns HOLD and the incomplete packet is removed.
+
+## Production follower admission equivalence
+
+Checkpoint frame validation deliberately mirrors the production follower's
+post-transport-authority block admission semantics:
+
+- Mainnet-0 minimal blocks use `validateMainnet0GenesisMinimalForAppendV1`;
+- historical legacy-v2fs blocks use
+  `validateMainnet0HistoricalLegacyCommitDirectV2fsForAppendV1`; and
+- modern blocks use `validateBlockForAppend`.
+
+The checkpoint verifier does **not** add a separate
+`validateMainnet0HistoricalTransitionV1` gate, because the production follower
+does not impose that extra gate on each historical legacy block. Adding a
+stricter parallel transition policy would reject already-canonical Mainnet-0
+history and would no longer be validation-equivalent to public follower import.
+
+## Read-only source audit
+
+Before any live checkpoint capture is authorized, the exact candidate tooling
+must pass `audit-source` against the real canonical `DATA_DIR`.
+
+The source audit:
+
+- binds to the exact candidate repository source SHA;
+- requires agreeing head markers and quiescent WAL;
+- validates the exact numeric segment set implied by the head;
+- runs the same checkpoint frame validators over every real canonical frame;
+- copies no checkpoint payload bytes;
+- requires the source head to remain unchanged; and
+- requires every source `blocks.bin` generation stamp to remain unchanged.
+
+Synthetic fixtures remain useful falsifiers, but they are not sufficient proof
+for historical Mainnet-0. The complete real canonical history must pass before
+checkpoint capture/publication work advances.
 
 ## Checkpoint identity
 
@@ -105,7 +140,7 @@ Verification rejects:
 - checkpoint-ID mismatch;
 - segment hash/size/count mismatch;
 - block number gaps;
-- invalid historical era transitions;
+- invalid historical block admission under the production follower rules;
 - invalid legacy blocks;
 - invalid modern append semantics;
 - head mismatch; and

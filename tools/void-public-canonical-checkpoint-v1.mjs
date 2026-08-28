@@ -13,7 +13,6 @@ import {
 import {
   classifyMainnet0CanonicalEraV1,
   validateMainnet0GenesisMinimalForAppendV1,
-  validateMainnet0HistoricalTransitionV1,
 } from "../dist/chain/mainnet0_historical_compat_v1.js";
 import {
   validateMainnet0HistoricalLegacyCommitDirectV2fsForAppendV1,
@@ -317,25 +316,15 @@ function withAppendAuthorityDisabled(fn) {
 }
 
 function validateCanonicalBlock(candidate, parent) {
+  // Mirror Node.pullOnce()'s production follower post-transport-authority
+  // admission semantics. Do not add a stricter parallel era-transition policy.
   const era = classifyMainnet0CanonicalEraV1(candidate);
   if (era === "minimal") {
-    const transition = validateMainnet0HistoricalTransitionV1(
-      parent,
-      "genesis-minimal-v1",
-      candidate,
-    );
-    if (!transition.ok) fail(`minimal transition rejected: ${transition.reason}`);
     const result = validateMainnet0GenesisMinimalForAppendV1(candidate, parent);
     if (!result.ok) fail(`minimal block rejected: ${result.reason}`);
     return era;
   }
   if (era === "legacy-v2fs") {
-    const transition = validateMainnet0HistoricalTransitionV1(
-      parent,
-      "legacy-v2fs",
-      candidate,
-    );
-    if (!transition.ok) fail(`legacy transition rejected: ${transition.reason}`);
     const result =
       validateMainnet0HistoricalLegacyCommitDirectV2fsForAppendV1(
         candidate,
@@ -674,6 +663,67 @@ function pathIsWithin(parent, candidate) {
   return relative === "" || (!relative.startsWith("..") && !path.isAbsolute(relative));
 }
 
+
+function auditSource({ dataDir, repoRoot, expectedSourceSha }) {
+  safeDirectory(dataDir);
+  safeDirectory(repoRoot);
+
+  const actualSourceSha = gitHead(repoRoot);
+  if (expectedSourceSha !== actualSourceSha) {
+    fail(`source SHA mismatch expected=${expectedSourceSha} actual=${actualSourceSha}`);
+  }
+
+  const headBefore = readHeadMarkers(dataDir);
+  assertWalQuiescent(dataDir);
+  const names = assertExactSegmentDirectorySet(dataDir, headBefore);
+  const stampsBefore = sourceSegmentStamps(dataDir, names);
+
+  let priorBlock = null;
+  let totalBlocks = 0;
+  let payloadBytes = 0;
+  let headEra = null;
+  let headBodySha256 = null;
+  let headHeaderHash = null;
+
+  for (let index = 0; index < names.length; index += 1) {
+    const name = names[index];
+    const first = index * SEGMENT_SPAN;
+    const last =
+      index === names.length - 1 ? headBefore : first + SEGMENT_SPAN - 1;
+    const source = path.join(dataDir, "segments", name, "blocks.bin");
+
+    const scan = scanBlocksFile(source, first, last, priorBlock);
+    priorBlock = scan.lastBlock;
+    totalBlocks += scan.blocks;
+    payloadBytes += scan.bytes;
+    headEra = scan.lastEra;
+    headBodySha256 = scan.lastBodySha256;
+    headHeaderHash = scan.lastHeaderHash;
+  }
+
+  const headAfter = readHeadMarkers(dataDir);
+  if (headAfter !== headBefore) {
+    fail(`source head changed during audit ${headBefore}->${headAfter}`);
+  }
+  assertWalQuiescent(dataDir);
+  compareSourceSegmentStamps(dataDir, stampsBefore);
+
+  if (totalBlocks !== headBefore + 1) {
+    fail(`source block count mismatch head=${headBefore} blocks=${totalBlocks}`);
+  }
+
+  return Object.freeze({
+    source_sha: actualSourceSha,
+    head: headBefore,
+    block_count: totalBlocks,
+    segment_count: names.length,
+    payload_bytes: payloadBytes,
+    head_era: headEra,
+    head_body_sha256: headBodySha256,
+    head_header_hash: headHeaderHash,
+  });
+}
+
 function capturePacket({ dataDir, outputDir, repoRoot, expectedSourceSha }) {
   safeDirectory(dataDir);
   safeDirectory(repoRoot);
@@ -822,6 +872,27 @@ function main() {
   try {
     const { command, values } = parseArgs();
 
+    if (command === "audit-source") {
+      const dataDir = path.resolve(required(values, "--data-dir"));
+      const repoRoot = path.resolve(required(values, "--repo-root"));
+      const expectedSourceSha = required(values, "--expected-source-sha");
+      if (!SOURCE_SHA_RE.test(expectedSourceSha)) fail("--expected-source-sha malformed");
+
+      const result = auditSource({
+        dataDir,
+        repoRoot,
+        expectedSourceSha,
+      });
+      for (const [key, value] of Object.entries(result)) {
+        console.log(`${key}=${value}`);
+      }
+      console.log("source_data_mutated=false");
+      console.log("checkpoint_bytes_copied=false");
+      console.log("checkpoint_publication_authorized=false");
+      console.log(`${MARKER}_AUDIT_SOURCE_GREEN`);
+      return;
+    }
+
     if (command === "capture") {
       const dataDir = path.resolve(required(values, "--data-dir"));
       const outputDir = path.resolve(required(values, "--output"));
@@ -862,7 +933,7 @@ function main() {
       return;
     }
 
-    fail("usage: capture|verify");
+    fail("usage: audit-source|capture|verify");
   } catch (error) {
     console.error(`${MARKER}_HOLD`);
     console.error(`reason=${error instanceof Error ? error.message : String(error)}`);

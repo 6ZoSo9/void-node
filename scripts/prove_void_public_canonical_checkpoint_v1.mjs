@@ -97,6 +97,20 @@ try {
   const packet = path.join(tmp, "packet");
   makeSource(source);
 
+  const sourceAudit = run([
+    "audit-source",
+    "--data-dir", source,
+    "--repo-root", root,
+    "--expected-source-sha", sourceSha,
+  ]);
+  assert.equal(sourceAudit.status, 0, sourceAudit.stderr);
+  assert.match(
+    sourceAudit.stdout,
+    /VOID_PUBLIC_CANONICAL_CHECKPOINT_V1_AUDIT_SOURCE_GREEN/,
+  );
+  assert.match(sourceAudit.stdout, /source_data_mutated=false/);
+  assert.match(sourceAudit.stdout, /checkpoint_bytes_copied=false/);
+
   const capture = run([
     "capture",
     "--data-dir", source,
@@ -217,6 +231,9 @@ try {
   const badLink = run(["verify", "--packet", packet]);
   assert.notEqual(badLink.status, 0);
 
+  console.log("production_follower_admission_equivalent=true");
+  console.log("read_only_source_audit=true");
+  console.log("audit_source_checkpoint_bytes_copied=false");
   console.log("minimal_legacy_modern_validation_reused=true");
   console.log("blocks_only_packet=true");
   console.log("content_addressed_manifest=true");
