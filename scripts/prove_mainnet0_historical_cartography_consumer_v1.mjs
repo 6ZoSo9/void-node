@@ -100,7 +100,7 @@ function proveAcceptanceBinding() {
 
   assert.equal(manifest.manifest_id, acceptance.scan.manifest_id);
   assert.equal(manifest.complete_scan_digest, acceptance.scan.complete_scan_digest);
-  assert.equal(manifest.frozen_head, acceptance.scan.frozen_head);
+  assert.equal(manifest.source.frozen_head, acceptance.scan.frozen_head);
   assert.equal(
     manifest.historical_blocks_scanned,
     acceptance.scan.historical_blocks_scanned,
