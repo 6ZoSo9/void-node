@@ -519,6 +519,7 @@ function validateManifest(rawManifest, nowMs = Date.now()) {
       priority,
       qualifiedHead,
       qualificationId: endpoint.qualification_id,
+      qualificationNotAfterMs: qualifiedAt + MAX_QUALIFICATION_AGE_MS,
     });
   }
   if (endpoints.length === 0) {
@@ -528,7 +529,21 @@ function validateManifest(rawManifest, nowMs = Date.now()) {
     (left, right) =>
       left.priority - right.priority || left.base.localeCompare(right.base),
   );
-  return Object.freeze({ manifest, hold: false, endpoints });
+  const qualificationNotAfterMs = Math.min(
+    ...endpoints.map((endpoint) => endpoint.qualificationNotAfterMs),
+  );
+  if (
+    !Number.isSafeInteger(qualificationNotAfterMs) ||
+    qualificationNotAfterMs <= nowMs
+  ) {
+    throw new Error("seed qualification deadline is not live");
+  }
+  return Object.freeze({
+    manifest,
+    hold: false,
+    endpoints,
+    qualificationNotAfterMs,
+  });
 }
 
 function readLocalHoldManifest(path) {
@@ -597,6 +612,7 @@ async function main() {
         console.error("manifest_source=remote_https");
         console.error(`manifest=${manifestUrl}`);
         console.error(`manifest_id=${validated.manifest.manifest_id}`);
+        console.error(`qualification_not_after_ms=${validated.qualificationNotAfterMs}`);
         console.error("status=stable_https_seed");
         console.error("trust_material_verified=true");
         console.error("live_seed_probe_performed=false");
@@ -641,6 +657,7 @@ async function main() {
       console.error("manifest_source=remote_https");
       console.error(`manifest=${manifestUrl}`);
       console.error(`manifest_id=${validated.manifest.manifest_id}`);
+      console.error(`qualification_not_after_ms=${validated.qualificationNotAfterMs}`);
       console.error(`live_seed_count=${live.length}`);
       console.error("tailnet_required=false");
       console.error("private_mutation_routes_exposed=false");

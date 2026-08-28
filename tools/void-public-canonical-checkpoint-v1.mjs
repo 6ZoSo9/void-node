@@ -17,6 +17,9 @@ import {
 import {
   validateMainnet0HistoricalLegacyCommitDirectV2fsForAppendV1,
 } from "../dist/chain/legacy_commit_direct_v2fs_v1.js";
+import {
+  VOID_PUBLIC_CHECKPOINT_SEGMENT_MAX_BYTES_V1,
+} from "../scripts/lib/void_public_checkpoint_contract_v1.mjs";
 
 const MARKER = "VOID_PUBLIC_CANONICAL_CHECKPOINT_V1";
 const SCHEMA = "void_public_canonical_checkpoint_v1";
@@ -342,6 +345,11 @@ function validateCanonicalBlock(candidate, parent) {
 
 function scanBlocksFile(file, expectedFirst, expectedLast, priorBlock = null) {
   const st = regularFile(file, { allowEmpty: false });
+  if (st.size > BigInt(VOID_PUBLIC_CHECKPOINT_SEGMENT_MAX_BYTES_V1)) {
+    fail(
+      `segment exceeds checkpoint byte ceiling: ${file} bytes=${st.size} max=${VOID_PUBLIC_CHECKPOINT_SEGMENT_MAX_BYTES_V1}`,
+    );
+  }
   const digest = crypto.createHash("sha256");
   let pos = 0;
   let count = 0;
@@ -601,6 +609,7 @@ function verifyPacket(packetDir, expectedSourceSha = "") {
       typeof entry.bytes !== "number" ||
       !Number.isSafeInteger(entry.bytes) ||
       entry.bytes <= 0 ||
+      entry.bytes > VOID_PUBLIC_CHECKPOINT_SEGMENT_MAX_BYTES_V1 ||
       !SHA256_RE.test(String(entry.sha256 || ""))
     ) fail("manifest segment size/hash invalid");
 

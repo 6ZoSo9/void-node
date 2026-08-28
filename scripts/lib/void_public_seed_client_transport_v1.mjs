@@ -8,8 +8,20 @@ import {
   normalizeHostname,
   resolvePublicDns,
 } from "./void_public_seed_qualification_v1.mjs";
+import {
+  VOID_PUBLIC_CHECKPOINT_SEGMENT_MAX_BYTES_V1,
+  parseVoidPublicCheckpointDiscoveryBytesV1,
+  validateVoidPublicCheckpointManifestBytesV1,
+} from "./void_public_checkpoint_contract_v1.mjs";
 
 const COMPILED_MAX_RESPONSE_BYTES = 128 * 1024 * 1024;
+
+const CHECKPOINT_DISCOVERY_ROUTE_V1 = "/__void/checkpoint/v1.json";
+const CHECKPOINT_ID_RE_V1 = /^voidpbc1_[0-9a-f]{64}$/;
+const CHECKPOINT_MANIFEST_PATH_RE_V1 =
+  /^\/checkpoints\/v1\/(voidpbc1_[0-9a-f]{64})\/checkpoint\.json$/;
+const CHECKPOINT_SEGMENT_PATH_RE_V1 =
+  /^\/checkpoints\/v1\/(voidpbc1_[0-9a-f]{64})\/segments\/([0-9]{8})\/blocks\.bin$/;
 const resolverFlightsByImpl = new WeakMap();
 
 function normalizeConnectedAddress(address) {
@@ -213,6 +225,33 @@ function blockNumber(block) {
 
 function validateSeedResponse(route, bytes) {
   const parsedRoute = new URL(route, "http://seed.invalid");
+
+  if (CHECKPOINT_SEGMENT_PATH_RE_V1.test(parsedRoute.pathname)) {
+    if (
+      parsedRoute.search !== "" ||
+      bytes.length === 0 ||
+      bytes.length > VOID_PUBLIC_CHECKPOINT_SEGMENT_MAX_BYTES_V1
+    ) {
+      throw terminalSeedResponse("checkpoint segment response is invalid");
+    }
+    return;
+  }
+
+  if (parsedRoute.pathname === CHECKPOINT_DISCOVERY_ROUTE_V1) {
+    parseVoidPublicCheckpointDiscoveryBytesV1(bytes);
+    return;
+  }
+
+  const manifestMatch = CHECKPOINT_MANIFEST_PATH_RE_V1.exec(
+    parsedRoute.pathname,
+  );
+  if (manifestMatch) {
+    validateVoidPublicCheckpointManifestBytesV1(bytes, {
+      expectedCheckpointId: manifestMatch[1],
+    });
+    return;
+  }
+
   const value = parseJson(bytes, `seed ${parsedRoute.pathname} response`);
 
   if (parsedRoute.pathname === "/__void/ready.json") {
@@ -294,6 +333,23 @@ export function publicSeedTlsServernameV1(targetValue) {
   return net.isIP(hostname) ? null : hostname;
 }
 
+function checkpointSegmentRouteV1(pathname) {
+  return CHECKPOINT_SEGMENT_PATH_RE_V1.test(pathname);
+}
+
+function seedAcceptHeaderV1(pathname) {
+  return checkpointSegmentRouteV1(pathname)
+    ? "application/octet-stream"
+    : "application/json";
+}
+
+function seedContentTypeAcceptedV1(pathname, contentType) {
+  if (checkpointSegmentRouteV1(pathname)) {
+    return contentType.startsWith("application/octet-stream");
+  }
+  return contentType.startsWith("application/json");
+}
+
 function requestPinnedAddress(
   target,
   address,
@@ -336,7 +392,7 @@ function requestPinnedAddress(
         autoSelectFamily: false,
         ...(tlsServername ? { servername: tlsServername } : {}),
         headers: {
-          accept: "application/json",
+          accept: seedAcceptHeaderV1(target.pathname),
           connection: "close",
           "user-agent": "void-node/public-seed-client-transport-v1",
         },
@@ -387,9 +443,9 @@ function requestPinnedAddress(
           return;
         }
         const contentType = String(response.headers["content-type"] || "").toLowerCase();
-        if (!contentType.startsWith("application/json")) {
+        if (!seedContentTypeAcceptedV1(target.pathname, contentType)) {
           response.destroy();
-          fail(terminalSeedResponse("seed response is not application/json"));
+          fail(terminalSeedResponse("seed response content-type is not accepted for route"));
           return;
         }
 
