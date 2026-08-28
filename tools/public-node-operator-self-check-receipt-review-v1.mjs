@@ -9,6 +9,23 @@ const RECEIPT_MARKER = "VOID_PUBLIC_NODE_OPERATOR_SELF_CHECK_V1";
 const NETWORK = "Mainnet-0";
 const MAX_RECEIPT_BYTES = 4 * 1024 * 1024;
 
+const TARGET_HOST_CLASSES = new Set([
+  "loopback",
+  "private_or_overlay_ipv4",
+  "public_ipv4",
+  "private_or_linklocal_ipv6",
+  "public_ipv6",
+  "private_dns",
+  "overlay_dns",
+  "public_dns",
+]);
+
+const HTTP_TARGET_HOST_CLASSES = new Set([
+  "loopback",
+  "private_or_overlay_ipv4",
+  "private_or_linklocal_ipv6",
+]);
+
 const EXPECTED_CHECK_IDS = [
   "health",
   "readiness",
@@ -70,7 +87,7 @@ Required:
   --receipt FILE              Receipt produced by the operator self-check
 
 Options:
-  --output FILE               Write a mode-0600 review JSON
+  --output FILE               Create a mode-0600 review JSON; parent must exist
   --require-green             Return exit 2 for a valid hold receipt
   --reviewed-at ISO8601       Fixed review timestamp for deterministic proofs
   --help                      Show this help
@@ -180,26 +197,136 @@ function pushCheck(checks, id, ok, detail) {
   });
 }
 
-function readReceipt(file) {
-  const resolved = path.resolve(file);
-  const stat = fs.statSync(resolved);
+function requireNoSymlinkComponents(resolved, { allowMissingLeaf = false } = {}) {
+  const parsed = path.parse(resolved);
+  const segments = resolved.slice(parsed.root.length).split(path.sep).filter(Boolean);
+  let current = parsed.root;
+  for (let index = 0; index < segments.length; index += 1) {
+    current = path.join(current, segments[index]);
+    const isLeaf = index === segments.length - 1;
+    let stat;
+    try {
+      stat = fs.lstatSync(current);
+    } catch (error) {
+      if (allowMissingLeaf && isLeaf && error?.code === "ENOENT") return;
+      throw error;
+    }
+    if (stat.isSymbolicLink()) throw new Error("path must not contain symbolic links");
+    if (!isLeaf && !stat.isDirectory()) throw new Error("path parent must be a directory");
+  }
+}
+
+function requireNoFollowSupport() {
+  if (!Number.isInteger(fs.constants.O_NOFOLLOW)) {
+    throw new Error("platform does not support O_NOFOLLOW");
+  }
+}
+
+function sameReceiptGeneration(left, right) {
+  return (
+    left.dev === right.dev &&
+    left.ino === right.ino &&
+    left.size === right.size &&
+    left.nlink === right.nlink &&
+    left.uid === right.uid &&
+    (left.mode & 0o777n) === (right.mode & 0o777n) &&
+    left.ctimeNs === right.ctimeNs &&
+    left.mtimeNs === right.mtimeNs &&
+    left.birthtimeNs === right.birthtimeNs
+  );
+}
+
+function requireReceiptAuthority(stat) {
   if (!stat.isFile()) throw new Error("receipt must be a regular file");
-  if (stat.size <= 0 || stat.size > MAX_RECEIPT_BYTES) {
-    throw new Error(`receipt size must be from 1 to ${MAX_RECEIPT_BYTES} bytes`);
+  if (stat.nlink !== 1n) throw new Error("receipt must have exactly one filesystem link");
+  if ((stat.mode & 0o777n) !== 0o600n) {
+    throw new Error("receipt mode must be 0600");
   }
-  const bytes = fs.readFileSync(resolved);
-  let value;
+  if (typeof process.getuid !== "function") {
+    throw new Error("receipt owner identity is unavailable on this platform");
+  }
+  if (stat.uid !== BigInt(process.getuid())) {
+    throw new Error("receipt must be owned by the current operator uid");
+  }
+}
+
+function readReceipt(file) {
+  requireNoFollowSupport();
+  const resolved = path.resolve(file);
+  requireNoSymlinkComponents(resolved);
+
+  const fd = fs.openSync(resolved, fs.constants.O_RDONLY | fs.constants.O_NOFOLLOW);
   try {
-    value = JSON.parse(bytes.toString("utf8"));
-  } catch {
-    throw new Error("receipt is not valid JSON");
+    const before = fs.fstatSync(fd, { bigint: true });
+    requireReceiptAuthority(before);
+    if (before.size <= 0n || before.size > BigInt(MAX_RECEIPT_BYTES)) {
+      throw new Error(`receipt size must be from 1 to ${MAX_RECEIPT_BYTES} bytes`);
+    }
+
+    const pathBefore = fs.lstatSync(resolved, { bigint: true });
+    requireReceiptAuthority(pathBefore);
+    if (!sameReceiptGeneration(before, pathBefore)) {
+      throw new Error("receipt path does not identify the opened generation");
+    }
+
+    const size = Number(before.size);
+    const bytes = Buffer.alloc(size);
+    let offset = 0;
+    while (offset < bytes.length) {
+      const read = fs.readSync(fd, bytes, offset, bytes.length - offset, offset);
+      if (read <= 0) throw new Error("receipt changed or truncated during bounded read");
+      offset += read;
+    }
+
+    const extra = Buffer.alloc(1);
+    if (fs.readSync(fd, extra, 0, 1, offset) !== 0) {
+      throw new Error("receipt grew beyond the bounded snapshot during read");
+    }
+
+    const verifyBytes = Buffer.alloc(size);
+    offset = 0;
+    while (offset < verifyBytes.length) {
+      const read = fs.readSync(
+        fd,
+        verifyBytes,
+        offset,
+        verifyBytes.length - offset,
+        offset,
+      );
+      if (read <= 0) throw new Error("receipt changed during generation readback");
+      offset += read;
+    }
+    if (!crypto.timingSafeEqual(bytes, verifyBytes)) {
+      throw new Error("receipt bytes changed during generation readback");
+    }
+
+    const after = fs.fstatSync(fd, { bigint: true });
+    requireReceiptAuthority(after);
+    if (!sameReceiptGeneration(before, after)) {
+      throw new Error("receipt generation changed during bounded read");
+    }
+
+    const pathAfter = fs.lstatSync(resolved, { bigint: true });
+    requireReceiptAuthority(pathAfter);
+    if (!sameReceiptGeneration(after, pathAfter)) {
+      throw new Error("receipt path changed during bounded read");
+    }
+
+    let value;
+    try {
+      value = JSON.parse(bytes.toString("utf8"));
+    } catch {
+      throw new Error("receipt is not valid JSON");
+    }
+    if (!isObject(value)) throw new Error("receipt must be a JSON object");
+    return {
+      bytes,
+      value,
+      sha256: crypto.createHash("sha256").update(bytes).digest("hex"),
+    };
+  } finally {
+    fs.closeSync(fd);
   }
-  if (!isObject(value)) throw new Error("receipt must be a JSON object");
-  return {
-    bytes,
-    value,
-    sha256: crypto.createHash("sha256").update(bytes).digest("hex"),
-  };
 }
 
 function reviewReceipt(receipt) {
@@ -230,16 +357,18 @@ function reviewReceipt(receipt) {
   }
   pushCheck(checks, "observed_at", observedAtValid, "observed_at invalid");
 
+  const targetScheme = receipt.target?.scheme;
+  const targetHostClass = receipt.target?.host_class;
   const targetOk =
     exactKeys(receipt.target, ["scheme", "host_class", "port", "raw_target_included"]) &&
-    ["http", "https"].includes(receipt.target?.scheme) &&
-    typeof receipt.target?.host_class === "string" &&
-    receipt.target.host_class.length > 0 &&
+    ["http", "https"].includes(targetScheme) &&
+    TARGET_HOST_CLASSES.has(targetHostClass) &&
+    (targetScheme === "https" || HTTP_TARGET_HOST_CLASSES.has(targetHostClass)) &&
     Number.isInteger(receipt.target?.port) &&
     receipt.target.port >= 1 &&
     receipt.target.port <= 65535 &&
     receipt.target.raw_target_included === false;
-  pushCheck(checks, "target_redaction", targetOk, "target redaction contract mismatch");
+  pushCheck(checks, "target_redaction", targetOk, "target redaction/transport contract mismatch");
 
   const receiptChecks = Array.isArray(receipt.checks) ? receipt.checks : [];
   const checkIds = receiptChecks.map((entry) => entry?.id);
@@ -357,13 +486,54 @@ function reviewReceipt(receipt) {
   };
 }
 
+function writeBufferAll(fd, bytes) {
+  let offset = 0;
+  while (offset < bytes.length) {
+    const written = fs.writeSync(fd, bytes, offset, bytes.length - offset, offset);
+    if (written <= 0) throw new Error("review output short write");
+    offset += written;
+  }
+}
+
 function writeReview(output, review) {
   const encoded = `${JSON.stringify(review, null, 2)}\n`;
   if (output) {
+    requireNoFollowSupport();
     const resolved = path.resolve(output);
-    fs.mkdirSync(path.dirname(resolved), { recursive: true, mode: 0o700 });
-    fs.writeFileSync(resolved, encoded, { encoding: "utf8", mode: 0o600 });
-    fs.chmodSync(resolved, 0o600);
+    const parent = path.dirname(resolved);
+    requireNoSymlinkComponents(parent);
+    requireNoSymlinkComponents(resolved, { allowMissingLeaf: true });
+
+    const fd = fs.openSync(
+      resolved,
+      fs.constants.O_WRONLY |
+        fs.constants.O_CREAT |
+        fs.constants.O_EXCL |
+        fs.constants.O_NOFOLLOW,
+      0o600,
+    );
+    try {
+      const stat = fs.fstatSync(fd);
+      if (!stat.isFile() || stat.nlink !== 1) {
+        throw new Error("review output must be a new regular file");
+      }
+      fs.fchmodSync(fd, 0o600);
+      writeBufferAll(fd, Buffer.from(encoded, "utf8"));
+      fs.fsyncSync(fd);
+      const after = fs.fstatSync(fd);
+      if ((after.mode & 0o777) !== 0o600) {
+        throw new Error("review output mode must be 0600");
+      }
+    } finally {
+      fs.closeSync(fd);
+    }
+
+    const parentFd = fs.openSync(parent, fs.constants.O_RDONLY | fs.constants.O_DIRECTORY);
+    try {
+      fs.fsyncSync(parentFd);
+    } finally {
+      fs.closeSync(parentFd);
+    }
   }
   process.stdout.write(encoded);
 }

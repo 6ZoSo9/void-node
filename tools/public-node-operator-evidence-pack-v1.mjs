@@ -53,9 +53,16 @@ No raw target URL or output path is copied into the manifest.`);
 }
 
 function parseInteger(raw, label, minimum, maximum) {
+  if (typeof raw !== "string" || !/^(0|[1-9][0-9]*)$/.test(raw)) {
+    throw new Error(
+      `${label} must be a canonical base-10 integer from ${minimum} to ${maximum}`,
+    );
+  }
   const value = Number(raw);
-  if (!Number.isInteger(value) || value < minimum || value > maximum) {
-    throw new Error(`${label} must be an integer from ${minimum} to ${maximum}`);
+  if (!Number.isSafeInteger(value) || value < minimum || value > maximum) {
+    throw new Error(
+      `${label} must be a canonical base-10 integer from ${minimum} to ${maximum}`,
+    );
   }
   return value;
 }
