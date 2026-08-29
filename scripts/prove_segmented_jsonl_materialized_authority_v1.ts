@@ -166,6 +166,39 @@ try {
   fs.rmSync(materialized);
   fs.renameSync(postVerifyAside, materialized);
 
+  // A retained fd is not enough if the same inode can still be modified through
+  // another hardlink after full at-use verification. The reader must HOLD before
+  // returning bytes whenever that exact inode generation changes.
+  const sameInodeAlias = path.join(base, "materialized.same-inode-alias.jsonl");
+  fs.linkSync(materialized, sameInodeAlias);
+  const sameInodeAuthority = deriveSegmentedJsonlMaterializedAuthorityV1(store, materialized);
+  const sameInodeMutated = Buffer.from(originalMaterialized);
+  sameInodeMutated[0] = sameInodeMutated[0] === 0x7b ? 0x5b : 0x7b;
+  let sameInodeConsumerEntered = false;
+  assert.throws(
+    () => verifySegmentedJsonlMaterializedAuthorityAtUseV1(
+      store,
+      materialized,
+      sameInodeAuthority,
+      (reader) => {
+        sameInodeConsumerEntered = true;
+        const writerFd = fs.openSync(sameInodeAlias, fs.constants.O_RDWR);
+        try {
+          fs.writeSync(writerFd, sameInodeMutated, 0, sameInodeMutated.length, 0);
+          fs.fsyncSync(writerFd);
+        } finally {
+          fs.closeSync(writerFd);
+        }
+        return reader.read(0, 1);
+      },
+    ),
+    /VOID_SEGMENTED_JSONL_MATERIALIZED_AUTHORITY_V1:MATERIALIZED_USE_GENERATION_CHANGED:/,
+  );
+  assert.equal(sameInodeConsumerEntered, true);
+  assert.deepEqual(fs.readFileSync(materialized), sameInodeMutated);
+  fs.writeFileSync(materialized, originalMaterialized, { mode: 0o600 });
+  fs.rmSync(sameInodeAlias);
+
   // Reader capabilities are scoped to the synchronous retained-fd callback.
   // A caller cannot retain the reader and reopen/consume after the exact fd is
   // closed by the at-use boundary.
@@ -187,6 +220,43 @@ try {
     /VOID_SEGMENTED_JSONL_MATERIALIZED_AUTHORITY_V1:MATERIALIZED_USE_CLOSED:/,
   );
 
+  // The at-use verifier consumes an externally supplied authority; it must not
+  // mint trust from a self-consistent replacement of the mutable local store and
+  // materialized file. Replace both with a valid foreign generation while the
+  // independently retained authority remains fixed and require fail-closed use.
+  const originalStoreAside = path.join(base, "store.independent-authority-original");
+  const originalMaterializedAside = path.join(base, "materialized.independent-authority-original.jsonl");
+  const foreignSource = path.join(base, "source.foreign.jsonl");
+  const foreignText = sourceBytes.toString("utf8").replace('"payload":"000', '"payload":"900');
+  const foreignSourceBytes = Buffer.from(foreignText, "utf8");
+  assert.equal(foreignSourceBytes.length, sourceBytes.length);
+  assert.notDeepEqual(foreignSourceBytes, sourceBytes);
+  fs.writeFileSync(foreignSource, foreignSourceBytes, { mode: 0o600 });
+  fs.renameSync(store, originalStoreAside);
+  fs.renameSync(materialized, originalMaterializedAside);
+  buildSegmentedJsonlV1FromFile(foreignSource, store, {
+    segmentTargetBytes: 1024,
+    maxRecordBytes: 512,
+    generation: 1,
+  });
+  reconstructSegmentedJsonlV1ToFile(store, materialized);
+  const foreignAuthority = deriveSegmentedJsonlMaterializedAuthorityV1(store, materialized);
+  assert.notEqual(foreignAuthority.snapshot_sha256, finalAuthority.snapshot_sha256);
+  assert.notEqual(foreignAuthority.materialized_sha256, finalAuthority.materialized_sha256);
+  assert.throws(
+    () => verifySegmentedJsonlMaterializedAuthorityAtUseV1(
+      store,
+      materialized,
+      finalAuthority,
+      (reader) => reader.read(0, 1),
+    ),
+    /VOID_SEGMENTED_JSONL_MATERIALIZED_AUTHORITY_V1:MATERIALIZED_AUTHORITY_USE_MISMATCH:/,
+  );
+  fs.rmSync(store, { recursive: true, force: true });
+  fs.rmSync(materialized, { force: true });
+  fs.renameSync(originalStoreAside, store);
+  fs.renameSync(originalMaterializedAside, materialized);
+
   const tamperedAuthority = {
     ...finalAuthority,
     total_records: finalAuthority.total_records + 1,
@@ -201,6 +271,8 @@ try {
   console.log("same_byte_replacement_generation_rejected=true");
   console.log("materialized_content_mutation_rejected=true");
   console.log("materialized_verify_to_use_generation_pinned=true");
+  console.log("materialized_same_inode_post_verify_mutation_rejected=true");
+  console.log("materialized_independent_authority_rejects_local_rewrite=true");
   console.log("materialized_reader_lifetime_bounded=true");
   console.log("VOID_SEGMENTED_JSONL_MATERIALIZED_AUTHORITY_V1_PROOF_GREEN");
 } finally {
