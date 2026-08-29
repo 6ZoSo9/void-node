@@ -5,6 +5,13 @@ on:
     paths:
       - "src/chain/mainnet0_historical_cartography_authority_v1.ts"
       - "src/chain/mainnet0_historical_compat_v1.ts"
+      - "src/chain/block.ts"
+      - "src/chain/legacy_commit_direct_v2fs_v1.ts"
+      - "src/chain/seg_store.ts"
+      - "src/chain/follower_verified_public_bootstrap_authority_v1.ts"
+      - "src/node_core.ts"
+      - "tools/void-public-seed-client-adapter-v1.mjs"
+      - "tools/void-public-seed-gateway-v1.mjs"
       - "scripts/prove_mainnet0_historical_cartography_consumer_v1.mjs"
       - "scripts/prove_mainnet0_historical_public_bootstrap_v1.mjs"
       - "public/mainnet0-historical-cartography-v1.json"
@@ -13,12 +20,26 @@ on:
       - ".github/workflows/void-mainnet0-historical-cartography-consumer-v1.yml"
       - "scripts/prove_ci_diff_hygiene_v1.mjs"
       - "scripts/ci_diff_hygiene_v1.sh"
+      - "package.json"
+      - "package-lock.json"
+      - ".npmrc"
+      - "tsconfig.json"
+      - "tsconfig.build.json"
+      - "scripts/copy_void_runtime_js_v1.mjs"
+      - "scripts/retire_saveblock_periodic_rewriters_v1.mjs"
   push:
     branches:
       - main
     paths:
       - "src/chain/mainnet0_historical_cartography_authority_v1.ts"
       - "src/chain/mainnet0_historical_compat_v1.ts"
+      - "src/chain/block.ts"
+      - "src/chain/legacy_commit_direct_v2fs_v1.ts"
+      - "src/chain/seg_store.ts"
+      - "src/chain/follower_verified_public_bootstrap_authority_v1.ts"
+      - "src/node_core.ts"
+      - "tools/void-public-seed-client-adapter-v1.mjs"
+      - "tools/void-public-seed-gateway-v1.mjs"
       - "scripts/prove_mainnet0_historical_cartography_consumer_v1.mjs"
       - "scripts/prove_mainnet0_historical_public_bootstrap_v1.mjs"
       - "public/mainnet0-historical-cartography-v1.json"
@@ -27,6 +48,13 @@ on:
       - ".github/workflows/void-mainnet0-historical-cartography-consumer-v1.yml"
       - "scripts/prove_ci_diff_hygiene_v1.mjs"
       - "scripts/ci_diff_hygiene_v1.sh"
+      - "package.json"
+      - "package-lock.json"
+      - ".npmrc"
+      - "tsconfig.json"
+      - "tsconfig.build.json"
+      - "scripts/copy_void_runtime_js_v1.mjs"
+      - "scripts/retire_saveblock_periodic_rewriters_v1.mjs"
   workflow_dispatch:
 
 permissions:
@@ -77,10 +105,11 @@ jobs:
         run: node scripts/prove_mainnet0_historical_public_bootstrap_v1.mjs
 
       - name: Prove shallow committed-range diff hygiene contract
+        if: always()
         run: node scripts/prove_ci_diff_hygiene_v1.mjs
 
       - name: Committed-range diff hygiene
-        if: github.event_name == 'pull_request' || github.event_name == 'push'
+        if: always() && (github.event_name == 'pull_request' || github.event_name == 'push')
         env:
           CI_DIFF_EVENT_NAME: ${{ github.event_name }}
           CI_DIFF_PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
