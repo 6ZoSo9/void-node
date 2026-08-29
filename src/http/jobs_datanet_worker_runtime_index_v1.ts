@@ -892,24 +892,24 @@ export class JobsDatanetWorkerRuntimeIndexV1 {
       try {
         fs.rmdirSync(dir);
       } catch (error: any) {
-        if (error?.code !== "ENOENT" && error?.code !== "ENOTEMPTY") {
-          failed = true;
-        }
+        if (error?.code !== "ENOENT") failed = true;
       }
     }
     const survivingFiles = delta.createdFiles.filter((createdFile) => {
       try {
-        const stat = fs.lstatSync(createdFile);
-        return stat.isFile() && !stat.isSymbolicLink();
-      } catch {
+        fs.lstatSync(createdFile);
+        return true;
+      } catch (error: any) {
+        if (error?.code !== "ENOENT") failed = true;
         return false;
       }
     });
     const survivingDirs = delta.createdDirs.filter((createdDir) => {
       try {
-        const stat = fs.lstatSync(createdDir);
-        return stat.isDirectory() && !stat.isSymbolicLink();
-      } catch {
+        fs.lstatSync(createdDir);
+        return true;
+      } catch (error: any) {
+        if (error?.code !== "ENOENT") failed = true;
         return false;
       }
     });
@@ -917,8 +917,8 @@ export class JobsDatanetWorkerRuntimeIndexV1 {
     for (const survivingFile of survivingFiles) {
       try {
         survivingIdBytes += Number(fs.lstatSync(survivingFile).size);
-      } catch {
-        failed = true;
+      } catch (error: any) {
+        if (error?.code !== "ENOENT") failed = true;
       }
     }
     if (failed || survivingFiles.length > 0 || survivingDirs.length > 0) {
