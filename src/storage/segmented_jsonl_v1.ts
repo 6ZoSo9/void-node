@@ -887,13 +887,119 @@ function openUnlinkedReconstructionFileV1(parent: DirectoryAuthorityV1, outputPa
   }
 }
 
+type ExistingReconstructionV1 = "absent" | "equivalent" | "occupied";
+
+function classifyExistingReconstructionV1(
+  parent: DirectoryAuthorityV1,
+  outputPath: string,
+  expectedBytes: number,
+  expectedSha256: string,
+): ExistingReconstructionV1 {
+  const stableOut = path.join(parent.stablePath, path.basename(outputPath));
+  let existingFd = -1;
+  try {
+    try {
+      existingFd = fs.openSync(
+        stableOut,
+        fs.constants.O_RDONLY | ((fs.constants as any).O_NOFOLLOW || 0),
+      );
+    } catch (error: any) {
+      if (error?.code === "ENOENT") return "absent";
+      return "occupied";
+    }
+
+    const beforeStat = fs.fstatSync(existingFd, { bigint: true } as any);
+    const before = fdObservation(existingFd);
+    const visibleBefore = fs.lstatSync(stableOut, { bigint: true } as any);
+    if (
+      !beforeStat.isFile() ||
+      !visibleBefore.isFile() ||
+      visibleBefore.isSymbolicLink() ||
+      before.mode !== 0o600 ||
+      before.nlink !== 1 ||
+      BigInt(before.generation.size) !== BigInt(expectedBytes) ||
+      String(visibleBefore.dev) !== before.generation.dev ||
+      String(visibleBefore.ino) !== before.generation.ino ||
+      BigInt(visibleBefore.size) !== BigInt(expectedBytes) ||
+      (Number(visibleBefore.mode) & 0o777) !== 0o600 ||
+      Number(visibleBefore.nlink) !== 1
+    ) {
+      return "occupied";
+    }
+
+    const verifyHash = crypto.createHash("sha256");
+    const buffer = Buffer.allocUnsafe(READ_CHUNK);
+    let offset = 0;
+    while (offset < expectedBytes) {
+      const requested = Math.min(buffer.length, expectedBytes - offset);
+      const count = fs.readSync(existingFd, buffer, 0, requested, offset);
+      if (count <= 0) return "occupied";
+      verifyHash.update(buffer.subarray(0, count));
+      offset += count;
+    }
+    const sentinel = Buffer.allocUnsafe(1);
+    if (fs.readSync(existingFd, sentinel, 0, 1, expectedBytes) > 0) return "occupied";
+
+    const after = fdObservation(existingFd);
+    const visibleAfter = fs.lstatSync(stableOut, { bigint: true } as any);
+    if (
+      after.generation.dev !== before.generation.dev ||
+      after.generation.ino !== before.generation.ino ||
+      after.generation.size !== before.generation.size ||
+      after.generation.mtimeNs !== before.generation.mtimeNs ||
+      after.generation.ctimeNs !== before.generation.ctimeNs ||
+      after.mode !== before.mode ||
+      after.nlink !== before.nlink ||
+      String(visibleAfter.dev) !== after.generation.dev ||
+      String(visibleAfter.ino) !== after.generation.ino ||
+      BigInt(visibleAfter.size) !== BigInt(expectedBytes) ||
+      (Number(visibleAfter.mode) & 0o777) !== 0o600 ||
+      Number(visibleAfter.nlink) !== 1 ||
+      verifyHash.digest("hex") !== expectedSha256
+    ) {
+      return "occupied";
+    }
+
+    try {
+      fs.fsyncSync(parent.fd);
+    } catch (error: any) {
+      fail("RECONSTRUCT_EXISTING_EQUIVALENT_UNFENCED", `${outputPath}:${String(error?.code || error)}`);
+    }
+    assertPrivateDirectoryWriteAuthorityV1(parent);
+    const durable = fdObservation(existingFd);
+    const durableVisible = fs.lstatSync(stableOut, { bigint: true } as any);
+    if (
+      durable.generation.dev !== after.generation.dev ||
+      durable.generation.ino !== after.generation.ino ||
+      durable.generation.size !== after.generation.size ||
+      durable.generation.mtimeNs !== after.generation.mtimeNs ||
+      durable.generation.ctimeNs !== after.generation.ctimeNs ||
+      durable.mode !== 0o600 ||
+      durable.nlink !== 1 ||
+      String(durableVisible.dev) !== durable.generation.dev ||
+      String(durableVisible.ino) !== durable.generation.ino ||
+      BigInt(durableVisible.size) !== BigInt(expectedBytes) ||
+      (Number(durableVisible.mode) & 0o777) !== 0o600 ||
+      Number(durableVisible.nlink) !== 1
+    ) {
+      return "occupied";
+    }
+    return "equivalent";
+  } catch (error: any) {
+    if (error instanceof Error && error.message.includes("RECONSTRUCT_EXISTING_EQUIVALENT_UNFENCED")) throw error;
+    return "occupied";
+  } finally {
+    if (existingFd >= 0) fs.closeSync(existingFd);
+  }
+}
+
 function verifyExactPublishedReconstructionV1(
   parent: DirectoryAuthorityV1,
   outputPath: string,
   fd: number,
   expectedBytes: number,
   expectedSha256: string,
-): void {
+): boolean {
   const stableOut = path.join(parent.stablePath, path.basename(outputPath));
   const openedBefore = fdObservation(fd);
   if (
@@ -907,10 +1013,9 @@ function verifyExactPublishedReconstructionV1(
     );
   }
 
-  let preexisting = false;
-  try { fs.lstatSync(stableOut); preexisting = true; }
-  catch (error: any) { if (error?.code !== "ENOENT") throw error; }
-  if (preexisting) fail("OUTPUT_EXISTS", outputPath);
+  const preexisting = classifyExistingReconstructionV1(parent, outputPath, expectedBytes, expectedSha256);
+  if (preexisting === "equivalent") return true;
+  if (preexisting === "occupied") fail("OUTPUT_EXISTS", outputPath);
 
   const linked = childProcess.spawnSync(
     EXACT_FD_LINK_HELPER_V1,
@@ -925,10 +1030,9 @@ function verifyExactPublishedReconstructionV1(
     },
   );
   if (linked.error || linked.signal || linked.status !== 0) {
-    let occupied = false;
-    try { fs.lstatSync(stableOut); occupied = true; }
-    catch (error: any) { if (error?.code !== "ENOENT") throw error; }
-    if (occupied) fail("OUTPUT_EXISTS", outputPath);
+    const recovered = classifyExistingReconstructionV1(parent, outputPath, expectedBytes, expectedSha256);
+    if (recovered === "equivalent") return true;
+    if (recovered === "occupied") fail("OUTPUT_EXISTS", outputPath);
     const stderr = Buffer.isBuffer(linked.stderr)
       ? linked.stderr.subarray(0, EXACT_FD_LINK_STDERR_BYTES_V1).toString("utf8").replace(/[\r\n]+/g, " ").trim()
       : "";
@@ -1001,6 +1105,7 @@ function verifyExactPublishedReconstructionV1(
   ) {
     fail("RECONSTRUCT_DURABLE_FINAL_MISMATCH", outputPath);
   }
+  return false;
 }
 
 export function reconstructSegmentedJsonlV1ToFile(rootInput:string,outputInput:string) {
@@ -1025,10 +1130,16 @@ export function reconstructSegmentedJsonlV1ToFile(rootInput:string,outputInput:s
     fs.fchmodSync(fd,0o600);
     fs.fsyncSync(fd);
     const digest=hash.digest("hex");
-    verifyExactPublishedReconstructionV1(outputParent,out,fd,bytes,digest);
+    const reusedExisting=verifyExactPublishedReconstructionV1(outputParent,out,fd,bytes,digest);
     assertPrivateDirectoryWriteAuthorityV1(segments);
     assertPrivateDirectoryWriteAuthorityV1(root);
-    return {bytes,records:verified.manifest.total_records,sha256:digest};
+    return {
+      bytes,
+      records:verified.manifest.total_records,
+      sha256:digest,
+      reused_existing:reusedExisting,
+      publication_terminal:reusedExisting ? "EXISTING_EQUIVALENT_UNOWNED" : "NEW_EXACT_FD",
+    };
   } finally {
     if(fd>=0)fs.closeSync(fd);
     if(outputParent)fs.closeSync(outputParent.fd);
