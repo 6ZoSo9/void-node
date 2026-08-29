@@ -25,6 +25,9 @@ on:
       - ".github/workflows/void-segmented-jsonl-v1.yml"
       - "scripts/ci_diff_hygiene_v1.sh"
       - "scripts/prove_ci_diff_hygiene_v1.mjs"
+      - "scripts/prove_segmented_jsonl_ci_topology_v1.mjs"
+      - "tools/check_tsc_noemit_baseline.sh"
+      - ".github/workflows/ci.yml"
       - "package.json"
       - "package-lock.json"
       - "tsconfig.json"
@@ -55,6 +58,9 @@ on:
       - ".github/workflows/void-segmented-jsonl-v1.yml"
       - "scripts/ci_diff_hygiene_v1.sh"
       - "scripts/prove_ci_diff_hygiene_v1.mjs"
+      - "scripts/prove_segmented_jsonl_ci_topology_v1.mjs"
+      - "tools/check_tsc_noemit_baseline.sh"
+      - ".github/workflows/ci.yml"
       - "package.json"
       - "package-lock.json"
       - "tsconfig.json"
@@ -127,6 +133,9 @@ jobs:
             workflowPath,
             'scripts/ci_diff_hygiene_v1.sh',
             'scripts/prove_ci_diff_hygiene_v1.mjs',
+            'scripts/prove_segmented_jsonl_ci_topology_v1.mjs',
+            'tools/check_tsc_noemit_baseline.sh',
+            '.github/workflows/ci.yml',
             'package.json',
             'package-lock.json',
             'tsconfig.json',
@@ -161,6 +170,25 @@ jobs:
               lineCount(source, '        run: node scripts/prove_ci_diff_hygiene_v1.mjs'),
               1,
               'focused_shared_proof_not_invoked',
+            );
+            assert.equal(
+              lineCount(source, '        run: node scripts/prove_segmented_jsonl_ci_topology_v1.mjs'),
+              1,
+              'focused_topology_proof_not_invoked',
+            );
+            assert.equal(
+              lineCount(source, '          node --check scripts/prove_segmented_jsonl_ci_topology_v1.mjs'),
+              1,
+              'focused_topology_syntax_not_invoked',
+            );
+            assert.equal(
+              lineCount(source, '          bash -n tools/check_tsc_noemit_baseline.sh'),
+              1,
+              'focused_baseline_syntax_not_invoked',
+            );
+            assert.ok(
+              !/^\s*continue-on-error:\s*true\s*$/m.test(source),
+              'focused_failure_tolerance_present',
             );
             assert.equal(
               lineCount(source, '        run: bash scripts/ci_diff_hygiene_v1.sh'),
@@ -235,7 +263,9 @@ jobs:
           node --experimental-strip-types --check scripts/prove_segmented_jsonl_post_durable_close_v1.ts
           node --experimental-strip-types --check scripts/prove_segmented_jsonl_durable_root_v1.ts
           node --check scripts/prove_ci_diff_hygiene_v1.mjs
+          node --check scripts/prove_segmented_jsonl_ci_topology_v1.mjs
           bash -n scripts/ci_diff_hygiene_v1.sh
+          bash -n tools/check_tsc_noemit_baseline.sh
 
       - name: Prove segmented JSONL store
         run: npx --no-install tsx scripts/prove_segmented_jsonl_v1.ts
@@ -286,6 +316,9 @@ jobs:
       - name: Repository build
         if: matrix.node == 24
         run: npm run build
+
+      - name: Prove independent SegStore CI topology
+        run: node scripts/prove_segmented_jsonl_ci_topology_v1.mjs
 
       - name: Prove committed-range diff hygiene contract
         run: node scripts/prove_ci_diff_hygiene_v1.mjs
