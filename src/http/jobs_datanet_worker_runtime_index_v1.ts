@@ -103,6 +103,11 @@ type CompletionAuthorityV1 = {
   objectsIndexed: number;
 };
 
+type CompletionAuthorityDeltaV1 = {
+  ids: Set<string>;
+  idBytes: number;
+};
+
 type RuntimeIndexTestHooksV1 = {
   afterSourceObserved?: (ctx: {
     file: string;
@@ -512,6 +517,54 @@ export class JobsDatanetWorkerRuntimeIndexV1 {
     }
   }
 
+  private stageCompletionAuthorityIdV1(
+    authority: CompletionAuthorityV1,
+    delta: CompletionAuthorityDeltaV1,
+    id: string,
+  ): void {
+    if (this.completionAuthorityHasV1(authority, id) || delta.ids.has(id)) {
+      return;
+    }
+    const bytes = Buffer.byteLength(id, "utf8");
+    const nextIds = authority.idsIndexed + delta.ids.size + 1;
+    const nextIdBytes = authority.idBytesIndexed + delta.idBytes + bytes;
+    if (
+      nextIds > this.maxCompletionAuthorityIds ||
+      nextIdBytes > this.maxCompletionAuthorityIdBytes
+    ) {
+      this.completionMetrics.authority_capacity_holds_total += 1;
+      throw new Error(
+        "VOID_JOBS_DATANET_WORKER_COMPLETION_AUTHORITY_CAPACITY_HOLD " +
+          `ids=${nextIds} max_ids=${this.maxCompletionAuthorityIds} ` +
+          `id_bytes=${nextIdBytes} max_id_bytes=${this.maxCompletionAuthorityIdBytes}`,
+      );
+    }
+    delta.ids.add(id);
+    delta.idBytes += bytes;
+  }
+
+  private commitCompletionAuthorityDeltaV1(
+    authority: CompletionAuthorityV1,
+    delta: CompletionAuthorityDeltaV1,
+  ): void {
+    // Capacity is admitted for the complete witnessed delta before the first
+    // authority object is created. In particular, a G+1 capacity HOLD cannot
+    // mutate or retire the exact, still-queryable authority for G.
+    if (
+      authority.idsIndexed + delta.ids.size >
+        this.maxCompletionAuthorityIds ||
+      authority.idBytesIndexed + delta.idBytes >
+        this.maxCompletionAuthorityIdBytes
+    ) {
+      throw new Error(
+        "VOID_JOBS_DATANET_WORKER_COMPLETION_DELTA_ADMISSION_LOST",
+      );
+    }
+    for (const id of delta.ids) {
+      this.addCompletionAuthorityIdV1(authority, id);
+    }
+  }
+
   private completionAuthorityHasV1(
     authority: CompletionAuthorityV1,
     id: string,
@@ -789,6 +842,7 @@ export class JobsDatanetWorkerRuntimeIndexV1 {
     authority: CompletionAuthorityV1,
     priorCarry: Buffer,
     chunk: Buffer,
+    delta: CompletionAuthorityDeltaV1 | null = null,
   ): Buffer {
     const data = priorCarry.length
       ? Buffer.concat([priorCarry, chunk])
@@ -808,7 +862,10 @@ export class JobsDatanetWorkerRuntimeIndexV1 {
           : line,
         file,
       );
-      if (id) this.addCompletionAuthorityIdV1(authority, id);
+      if (id) {
+        if (delta) this.stageCompletionAuthorityIdV1(authority, delta, id);
+        else this.addCompletionAuthorityIdV1(authority, id);
+      }
       from = i + 1;
     }
     const carry = Buffer.from(data.subarray(from));
@@ -825,6 +882,7 @@ export class JobsDatanetWorkerRuntimeIndexV1 {
     start: number,
     target: FileStampV1,
     authority: CompletionAuthorityV1,
+    delta: CompletionAuthorityDeltaV1 | null,
   ): CompletionStateV1 {
     this.assertCompletionSourceCapacityV1(file, target);
     const flags = fs.constants.O_RDONLY | ((fs.constants as any).O_NOFOLLOW || 0);
@@ -855,6 +913,7 @@ export class JobsDatanetWorkerRuntimeIndexV1 {
         authority,
         Buffer.alloc(0),
         bytes,
+        delta,
       );
       if (carry.length) {
         throw new Error(
@@ -867,6 +926,7 @@ export class JobsDatanetWorkerRuntimeIndexV1 {
           `VOID_JOBS_DATANET_WORKER_COMPLETION_SOURCE_CHANGED file=${file}`,
         );
       }
+      if (delta) this.commitCompletionAuthorityDeltaV1(authority, delta);
       return { ...target, authority };
     } finally {
       fs.closeSync(fd);
@@ -890,9 +950,13 @@ export class JobsDatanetWorkerRuntimeIndexV1 {
       this.completionMetrics.async_incremental_starts_total += 1;
     }
 
-    // Append updates reuse the exact disk authority in place; cold rebuilds
-    // get a fresh private authority. Neither path copies or enumerates H IDs.
+    // Append updates stage only their bounded delta until the complete source
+    // generation is witnessed. Cold rebuilds get a fresh private authority.
+    // Neither path copies or enumerates H IDs.
     const authority = base?.authority || this.createCompletionAuthorityV1();
+    const delta: CompletionAuthorityDeltaV1 | null = base
+      ? { ids: new Set<string>(), idBytes: 0 }
+      : null;
     this.completionWarmAuthorities.set(file, authority);
 
     const task = (async () => {
@@ -964,6 +1028,7 @@ export class JobsDatanetWorkerRuntimeIndexV1 {
               authority,
               carry,
               Buffer.from(buffer.subarray(0, bytesRead)),
+              delta,
             );
           }
           if (carry.length) {
@@ -977,6 +1042,7 @@ export class JobsDatanetWorkerRuntimeIndexV1 {
 
         const current = fileStampV1(file);
         if (current && sameStampV1(current, target)) {
+          if (delta) this.commitCompletionAuthorityDeltaV1(authority, delta);
           this.completions.set(file, { ...target, authority });
           this.rejectedSources.delete(file);
           this.completionHoldUntil.delete(file);
@@ -1008,9 +1074,14 @@ export class JobsDatanetWorkerRuntimeIndexV1 {
         }
       },
       () => {
-        this.completions.delete(file);
-        this.retireCompletionAuthorityV1(authority);
-        this.rejectedSources.add(file);
+        if (base) {
+          this.completions.set(file, base);
+          this.rejectedSources.delete(file);
+        } else {
+          this.completions.delete(file);
+          this.retireCompletionAuthorityV1(authority);
+          this.rejectedSources.add(file);
+        }
         this.completionHoldUntil.set(
           file,
           Date.now() + this.completionRebuildBackoffMs,
@@ -1103,6 +1174,9 @@ export class JobsDatanetWorkerRuntimeIndexV1 {
     const authority = append
       ? prior!.authority
       : this.createCompletionAuthorityV1();
+    const delta: CompletionAuthorityDeltaV1 | null = append
+      ? { ids: new Set<string>(), idBytes: 0 }
+      : null;
     this.completionMetrics.rebuilds_total += append ? 0 : 1;
     this.completionMetrics.incremental_reads_total += append ? 1 : 0;
     let state: CompletionStateV1;
@@ -1112,10 +1186,15 @@ export class JobsDatanetWorkerRuntimeIndexV1 {
         start,
         admitted.stamp,
         authority,
+        delta,
       );
     } catch (error) {
-      this.completions.delete(file);
-      this.retireCompletionAuthorityV1(authority);
+      if (append) {
+        this.completions.set(file, prior!);
+      } else {
+        this.completions.delete(file);
+        this.retireCompletionAuthorityV1(authority);
+      }
       throw error;
     }
     this.completions.set(file, state);

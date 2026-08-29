@@ -1114,9 +1114,90 @@ try {
       Number(capacityHeld.completionIo?.authority_ids_high_water || 0) ===
         capacityIds.length &&
       Number(capacityHeld.completionIo?.authority_objects_high_water || 0) ===
-        capacityObjects,
+        capacityObjects &&
+      capacityAccepted.doneTruthHas("cap_a") &&
+      capacityAccepted.doneTruthHas("cap_c") &&
+      !capacityAccepted.doneTruthHas("cap_d"),
     "completion-authority-capacity-holds-before-object-growth",
     `ready=${capacityHeld.ready} hold=${capacityHeld.holdReason} io=${JSON.stringify(capacityHeld.completionIo)}`,
+  );
+  pass(
+    "completion-authority-capacity-hold-preserves-prior-generation",
+    "G truth remains readable and G+1 identity remains absent",
+  );
+
+  const asyncCapacityJobsFile = path.join(
+    root,
+    "jobs-completion-capacity-async.jsonl",
+  );
+  const asyncCapacityReceiptsFile = path.join(
+    root,
+    "receipts-completion-capacity-async.jsonl",
+  );
+  const asyncCapacityStateFile = path.join(
+    root,
+    "job-state-completion-capacity-async.jsonl",
+  );
+  fs.writeFileSync(asyncCapacityJobsFile, "");
+  fs.writeFileSync(asyncCapacityReceiptsFile, "");
+  fs.writeFileSync(
+    asyncCapacityStateFile,
+    JSON.stringify({ job_id: "async_cap_a", status: "completed" }) + "\n",
+  );
+  const asyncCapacityIndex = new JobsDatanetWorkerRuntimeIndexV1({
+    maxScanBytesPerTick: 4096,
+    maxSyncCompletionRebuildBytes: 4096,
+    maxCompletionAuthorityIds: 1,
+    maxCompletionAuthorityIdBytes: Buffer.byteLength("async_cap_a"),
+    maxCompletionSourceBytes: 64 * 1024,
+    completionRebuildBackoffMs: 5,
+  });
+  const asyncCapacityInput = {
+    jobsFile: asyncCapacityJobsFile,
+    receiptsFile: asyncCapacityReceiptsFile,
+    jobStateFile: asyncCapacityStateFile,
+  };
+  const asyncCapacityAccepted = asyncCapacityIndex.scan(asyncCapacityInput);
+  assert(
+    asyncCapacityAccepted.ready &&
+      asyncCapacityAccepted.doneTruthHas("async_cap_a"),
+    "completion-authority-async-capacity-base-accepted",
+    `ready=${asyncCapacityAccepted.ready}`,
+  );
+  appendAgentPick2JsonlCanonicalV1(
+    asyncCapacityStateFile,
+    repeatToBytes(
+      JSON.stringify({ job_id: "async_capacity_filler", status: "queued" }) +
+        "\n",
+      8192,
+    ) +
+      JSON.stringify({ job_id: "async_cap_b", status: "completed" }) +
+      "\n",
+  );
+  let asyncCapacityHeld = asyncCapacityIndex.scan(asyncCapacityInput);
+  for (
+    let i = 0;
+    i < 500 &&
+    Number(
+      asyncCapacityHeld.completionIo?.authority_capacity_holds_total || 0,
+    ) < 1;
+    i += 1
+  ) {
+    await sleep(2);
+    asyncCapacityHeld = asyncCapacityIndex.scan(asyncCapacityInput);
+  }
+  assert(
+    !asyncCapacityHeld.ready &&
+      Number(
+        asyncCapacityHeld.completionIo?.authority_capacity_holds_total || 0,
+      ) === 1 &&
+      asyncCapacityAccepted.doneTruthHas("async_cap_a") &&
+      !asyncCapacityAccepted.doneTruthHas("async_cap_b") &&
+      Number(
+        asyncCapacityHeld.completionIo?.authority_records_indexed_total || 0,
+      ) === 1,
+    "completion-authority-async-capacity-hold-preserves-prior-generation",
+    `ready=${asyncCapacityHeld.ready} hold=${asyncCapacityHeld.holdReason} io=${JSON.stringify(asyncCapacityHeld.completionIo)}`,
   );
 
   const idBytesJobsFile = path.join(root, "jobs-completion-id-bytes.jsonl");
