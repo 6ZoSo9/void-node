@@ -47,6 +47,75 @@ function makeFixture(recordCount: number): Buffer {
 
 const require = createRequire(import.meta.url);
 const mutableFs = require("node:fs") as typeof fs;
+const mutableChildProcess = require("node:child_process") as typeof import("node:child_process");
+
+function proveUncertainExactFdLinkConverges(
+  storePath: string,
+  outputPath: string,
+  expectedBytes: Buffer,
+): void {
+  const originalSpawnSync = (mutableChildProcess as any).spawnSync;
+  let injected = false;
+  try {
+    (mutableChildProcess as any).spawnSync = (...args: any[]) => {
+      const result = originalSpawnSync(...args);
+      if (!injected && args[0] === "/usr/bin/ln" && result.status === 0) {
+        injected = true;
+        return { ...result, status: 1 };
+      }
+      return result;
+    };
+    syncBuiltinESMExports();
+    const recovered = reconstructSegmentedJsonlV1ToFile(storePath, outputPath);
+    assert.equal(recovered.reused_existing, true);
+    assert.equal(recovered.publication_terminal, "EXISTING_EQUIVALENT_UNOWNED");
+  } finally {
+    (mutableChildProcess as any).spawnSync = originalSpawnSync;
+    syncBuiltinESMExports();
+  }
+  assert.equal(injected, true, "exact-fd helper uncertainty must be injected after successful link");
+  assert.deepEqual(fs.readFileSync(outputPath), expectedBytes);
+  assert.equal(fs.statSync(outputPath, { bigint: true } as any).nlink, 1n);
+}
+
+function proveUnfencedExactOutputConverges(
+  storePath: string,
+  outputPath: string,
+  expectedBytes: Buffer,
+): void {
+  const originalFsyncSync = (mutableFs as any).fsyncSync;
+  let injected = false;
+  try {
+    (mutableFs as any).fsyncSync = (fd: number) => {
+      const st = fs.fstatSync(fd);
+      if (!injected && st.isDirectory()) {
+        injected = true;
+        const error: any = new Error("injected parent fsync uncertainty");
+        error.code = "EIO";
+        throw error;
+      }
+      return originalFsyncSync(fd);
+    };
+    syncBuiltinESMExports();
+    expectFailure(
+      () => reconstructSegmentedJsonlV1ToFile(storePath, outputPath),
+      "RECONSTRUCT_LINKED_UNFENCED",
+    );
+  } finally {
+    (mutableFs as any).fsyncSync = originalFsyncSync;
+    syncBuiltinESMExports();
+  }
+  assert.equal(injected, true, "parent fsync uncertainty must be injected after exact-fd link");
+  const survivor = fs.statSync(outputPath, { bigint: true } as any);
+  assert.deepEqual(fs.readFileSync(outputPath), expectedBytes);
+  const recovered = reconstructSegmentedJsonlV1ToFile(storePath, outputPath);
+  const durable = fs.statSync(outputPath, { bigint: true } as any);
+  assert.equal(recovered.reused_existing, true);
+  assert.equal(recovered.publication_terminal, "EXISTING_EQUIVALENT_UNOWNED");
+  assert.equal(durable.dev, survivor.dev);
+  assert.equal(durable.ino, survivor.ino);
+  assert.deepEqual(fs.readFileSync(outputPath), expectedBytes);
+}
 
 function matchesOpenedTarget(candidateInput: unknown, targetPath: string): boolean {
   if (typeof candidateInput !== "string") return false;
@@ -479,8 +548,44 @@ try {
   const rebuiltBytes = fs.readFileSync(rebuilt);
   assert.deepEqual(rebuiltBytes, body, "segmentation must reconstruct source byte-for-byte");
   assert.equal(reconstruction.sha256, sha256(body));
+  assert.equal(reconstruction.reused_existing, false);
+  assert.equal(reconstruction.publication_terminal, "NEW_EXACT_FD");
   assert.equal(fs.statSync(rebuilt, { bigint: true } as any).nlink, 1n);
   assert.equal(fs.statSync(rebuilt).mode & 0o777, 0o600);
+
+  const rebuiltBeforeRetry = fs.statSync(rebuilt, { bigint: true } as any);
+  const retry = reconstructSegmentedJsonlV1ToFile(store, rebuilt);
+  const rebuiltAfterRetry = fs.statSync(rebuilt, { bigint: true } as any);
+  assert.equal(retry.reused_existing, true);
+  assert.equal(retry.publication_terminal, "EXISTING_EQUIVALENT_UNOWNED");
+  assert.equal(rebuiltAfterRetry.dev, rebuiltBeforeRetry.dev);
+  assert.equal(rebuiltAfterRetry.ino, rebuiltBeforeRetry.ino);
+  assert.deepEqual(fs.readFileSync(rebuilt), body);
+
+  const wrongModeOutput = path.join(tmp, "reconstruct-equivalent-wrong-mode.jsonl");
+  fs.writeFileSync(wrongModeOutput, body, { flag: "wx", mode: 0o400 });
+  expectFailure(() => reconstructSegmentedJsonlV1ToFile(store, wrongModeOutput), "OUTPUT_EXISTS");
+  assert.equal(fs.statSync(wrongModeOutput).mode & 0o777, 0o400);
+  assert.deepEqual(fs.readFileSync(wrongModeOutput), body);
+
+  const aliasedOutput = path.join(tmp, "reconstruct-equivalent-aliased.jsonl");
+  const aliasedWitness = path.join(tmp, "reconstruct-equivalent-aliased.witness");
+  fs.writeFileSync(aliasedOutput, body, { flag: "wx", mode: 0o600 });
+  fs.linkSync(aliasedOutput, aliasedWitness);
+  expectFailure(() => reconstructSegmentedJsonlV1ToFile(store, aliasedOutput), "OUTPUT_EXISTS");
+  assert.equal(fs.statSync(aliasedOutput, { bigint: true } as any).nlink, 2n);
+  assert.deepEqual(fs.readFileSync(aliasedOutput), body);
+
+  proveUncertainExactFdLinkConverges(
+    store,
+    path.join(tmp, "reconstruct-uncertain-link.jsonl"),
+    body,
+  );
+  proveUnfencedExactOutputConverges(
+    store,
+    path.join(tmp, "reconstruct-unfenced-retry.jsonl"),
+    body,
+  );
 
   const foreignOutput = path.join(tmp, "reconstruct-foreign-output.jsonl");
   const foreignBytes = Buffer.from("foreign-output-must-survive\n", "utf8");
