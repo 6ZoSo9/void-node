@@ -854,6 +854,141 @@ try {
     `ready=${hostileHeld.ready} hold=${hostileHeld.holdReason}`,
   );
 
+  // A rejected incremental warm must not advance its rejected observation to
+  // the admission baseline. Hold hostile B stable through backoff and prove
+  // that recovery starts from byte zero instead of self-authorizing B -> B as
+  // an incremental successor to the still-readable trusted G authority.
+  const rejectedRetryJobsFile = path.join(root, "jobs-rejected-retry.jsonl");
+  const rejectedRetryReceiptsFile = path.join(
+    root,
+    "receipts-rejected-retry.jsonl",
+  );
+  const rejectedRetryStateFile = path.join(
+    root,
+    "job-state-rejected-retry.jsonl",
+  );
+  fs.writeFileSync(rejectedRetryJobsFile, "");
+  fs.writeFileSync(rejectedRetryReceiptsFile, "");
+  const rejectedBaseId = "rejected_base_a";
+  const rejectedMutatedId = "rejected_base_b";
+  const rejectedTailId = "rejected_tail";
+  const rejectedBaseLine =
+    JSON.stringify({ job_id: rejectedBaseId, status: "completed" }) + "\n";
+  const rejectedMutatedLine =
+    JSON.stringify({ job_id: rejectedMutatedId, status: "completed" }) + "\n";
+  assert(
+    Buffer.byteLength(rejectedBaseLine) === Buffer.byteLength(rejectedMutatedLine),
+    "rejected-retry-prefix-fixture-equal-size",
+    `base=${Buffer.byteLength(rejectedBaseLine)} mutated=${Buffer.byteLength(rejectedMutatedLine)}`,
+  );
+  fs.writeFileSync(rejectedRetryStateFile, rejectedBaseLine);
+  let rejectedPrefixMutated = false;
+  const rejectedRetryIndex = new JobsDatanetWorkerRuntimeIndexV1({
+    maxScanBytesPerTick: 4096,
+    maxSyncCompletionRebuildBytes: 4096,
+    completionRebuildBackoffMs: 5,
+    testHooks: {
+      beforeCompletionDeltaLeafWrite: ({ file, id }) => {
+        if (
+          rejectedPrefixMutated ||
+          file !== rejectedRetryStateFile ||
+          id !== rejectedTailId
+        ) {
+          return;
+        }
+        rejectedPrefixMutated = true;
+        const fd = fs.openSync(rejectedRetryStateFile, "r+");
+        try {
+          const replacement = Buffer.from(rejectedMutatedLine, "utf8");
+          fs.writeSync(fd, replacement, 0, replacement.length, 0);
+        } finally {
+          fs.closeSync(fd);
+        }
+      },
+    },
+  });
+  const rejectedRetryInput = {
+    jobsFile: rejectedRetryJobsFile,
+    receiptsFile: rejectedRetryReceiptsFile,
+    jobStateFile: rejectedRetryStateFile,
+  };
+  const rejectedTrustedG = rejectedRetryIndex.scan(rejectedRetryInput);
+  assert(
+    rejectedTrustedG.ready &&
+      rejectedTrustedG.doneTruthHas(rejectedBaseId) &&
+      !rejectedTrustedG.doneTruthHas(rejectedMutatedId) &&
+      !rejectedTrustedG.doneTruthHas(rejectedTailId),
+    "rejected-retry-trusted-generation-established",
+    `ready=${rejectedTrustedG.ready}`,
+  );
+  appendAgentPick2JsonlCanonicalV1(
+    rejectedRetryStateFile,
+    JSON.stringify({
+      job_id: rejectedTailId,
+      status: "completed",
+      payload: "r".repeat(8192),
+    }) + "\n",
+  );
+  let rejectedRetry = rejectedRetryIndex.scan(rejectedRetryInput);
+  assert(
+    rejectedRetry.ready === false,
+    "rejected-retry-incremental-warm-starts-held",
+    `hold=${rejectedRetry.holdReason}`,
+  );
+  for (
+    let i = 0;
+    i < 1000 &&
+    !String(rejectedRetry.holdReason || "").includes("REBUILD_BACKOFF");
+    i += 1
+  ) {
+    await sleep(1);
+    rejectedRetry = rejectedRetryIndex.scan(rejectedRetryInput);
+  }
+  const rejectedIncrementalStarts = Number(
+    rejectedRetry.completionIo?.async_incremental_starts_total || 0,
+  );
+  const rejectedFullStarts = Number(
+    rejectedRetry.completionIo?.async_full_history_starts_total || 0,
+  );
+  assert(
+    rejectedPrefixMutated &&
+      rejectedRetry.ready === false &&
+      String(rejectedRetry.holdReason || "").includes("REBUILD_BACKOFF") &&
+      rejectedTrustedG.doneTruthHas(rejectedBaseId) &&
+      !rejectedTrustedG.doneTruthHas(rejectedMutatedId) &&
+      !rejectedTrustedG.doneTruthHas(rejectedTailId),
+    "rejected-retry-first-rejection-preserves-trusted-generation",
+    `mutated=${rejectedPrefixMutated} hold=${rejectedRetry.holdReason}`,
+  );
+  await sleep(10);
+  rejectedRetry = rejectedRetryIndex.scan(rejectedRetryInput);
+  assert(
+    rejectedRetry.ready === false &&
+      Number(
+        rejectedRetry.completionIo?.async_incremental_starts_total || 0,
+      ) === rejectedIncrementalStarts &&
+      Number(
+        rejectedRetry.completionIo?.async_full_history_starts_total || 0,
+      ) === rejectedFullStarts + 1,
+    "rejected-retry-recovery-starts-from-byte-zero",
+    `ready=${rejectedRetry.ready} io=${JSON.stringify(rejectedRetry.completionIo)}`,
+  );
+  for (let i = 0; i < 1000 && !rejectedRetry.ready; i += 1) {
+    await sleep(1);
+    rejectedRetry = rejectedRetryIndex.scan(rejectedRetryInput);
+  }
+  assert(
+    rejectedRetry.ready &&
+      !rejectedRetry.doneTruthHas(rejectedBaseId) &&
+      rejectedRetry.doneTruthHas(rejectedMutatedId) &&
+      rejectedRetry.doneTruthHas(rejectedTailId) &&
+      Number(
+        rejectedRetry.completionIo?.async_incremental_starts_total || 0,
+      ) === rejectedIncrementalStarts,
+    "rejected-retry-hostile-generation-never-self-rebases-incrementally",
+    `ready=${rejectedRetry.ready} io=${JSON.stringify(rejectedRetry.completionIo)}`,
+  );
+
   // Append-witness retention is intentionally finite. If a dormant reader
   // misses more events than the bounded authority window can prove, it must
   // HOLD rather than infer continuity from an incomplete event suffix.
@@ -1075,8 +1210,8 @@ try {
         capacityIds.length &&
       capacityAccepted.retainedState.completionAuthorityIdBytes ===
         capacityIds.reduce((sum, id) => sum + Buffer.byteLength(id), 0) &&
-      capacityObjects >= capacityIds.length + 1 &&
-      capacityObjects <= 1 + capacityIds.length * 3,
+      capacityObjects >= capacityIds.length + 3 &&
+      capacityObjects <= 3 + capacityIds.length * 5,
     "completion-authority-capacity-bound-accepted",
     `ready=${capacityAccepted.ready} io=${JSON.stringify(capacityAccepted.completionIo)} retained=${JSON.stringify(capacityAccepted.retainedState)}`,
   );
@@ -1198,6 +1333,279 @@ try {
       ) === 1,
     "completion-authority-async-capacity-hold-preserves-prior-generation",
     `ready=${asyncCapacityHeld.ready} hold=${asyncCapacityHeld.holdReason} io=${JSON.stringify(asyncCapacityHeld.completionIo)}`,
+  );
+
+  // Generation publication is a single accepted-marker transition. A failure
+  // after one provisional delta leaf exists must leave G logically and
+  // numerically unchanged; a later successful retry publishes a new immutable
+  // generation without changing the retained G closure.
+  const atomicJobsFile = path.join(root, "jobs-completion-atomic.jsonl");
+  const atomicReceiptsFile = path.join(
+    root,
+    "receipts-completion-atomic.jsonl",
+  );
+  const atomicStateFile = path.join(root, "job-state-completion-atomic.jsonl");
+  fs.writeFileSync(atomicJobsFile, "");
+  fs.writeFileSync(atomicReceiptsFile, "");
+  fs.writeFileSync(
+    atomicStateFile,
+    JSON.stringify({ job_id: "atomic_a", status: "completed" }) + "\n",
+  );
+  let injectAtomicFailure = true;
+  const atomicIndex = new JobsDatanetWorkerRuntimeIndexV1({
+    maxScanBytesPerTick: 4096,
+    maxSyncCompletionRebuildBytes: 4096,
+    maxCompletionAuthorityIds: 8,
+    maxCompletionAuthorityIdBytes: 1024,
+    maxCompletionSourceBytes: 64 * 1024,
+    testHooks: {
+      beforeCompletionDeltaLeafWrite: ({ file, stagedIds }) => {
+        if (
+          injectAtomicFailure &&
+          file === atomicStateFile &&
+          stagedIds === 1
+        ) {
+          injectAtomicFailure = false;
+          throw new Error("VOID_TEST_COMPLETION_DELTA_SECOND_LEAF_FAILURE");
+        }
+      },
+    },
+  });
+  const atomicInput = {
+    jobsFile: atomicJobsFile,
+    receiptsFile: atomicReceiptsFile,
+    jobStateFile: atomicStateFile,
+  };
+  const atomicG = atomicIndex.scan(atomicInput);
+  const atomicGObjects = atomicG.retainedState.completionAuthorityObjects;
+  assert(
+    atomicG.ready && atomicG.doneTruthHas("atomic_a"),
+    "completion-authority-atomic-base-accepted",
+    `ready=${atomicG.ready}`,
+  );
+  appendAgentPick2JsonlCanonicalV1(
+    atomicStateFile,
+    ["atomic_b", "atomic_c"]
+      .map((job_id) => JSON.stringify({ job_id, status: "completed" }))
+      .join("\n") + "\n",
+  );
+  const atomicHeld = atomicIndex.scan(atomicInput);
+  assert(
+    !atomicHeld.ready &&
+      String(atomicHeld.holdReason || "").includes(
+        "VOID_TEST_COMPLETION_DELTA_SECOND_LEAF_FAILURE",
+      ) &&
+      atomicG.doneTruthHas("atomic_a") &&
+      !atomicG.doneTruthHas("atomic_b") &&
+      !atomicG.doneTruthHas("atomic_c") &&
+      atomicHeld.retainedState.completionAuthorityIds === 1 &&
+      atomicHeld.retainedState.completionStagedAuthorityIds === 0 &&
+      atomicHeld.retainedState.completionStagedAuthorityIdBytes === 0 &&
+      atomicHeld.retainedState.completionStagedAuthorityObjects === 0 &&
+      atomicHeld.retainedState.completionAuthorityObjects === atomicGObjects,
+    "completion-authority-sync-partial-publication-fails-atomic",
+    `ready=${atomicHeld.ready} hold=${atomicHeld.holdReason} retained=${JSON.stringify(atomicHeld.retainedState)}`,
+  );
+  const atomicPublished = atomicIndex.scan(atomicInput);
+  assert(
+    atomicPublished.ready &&
+      atomicPublished.doneTruthHas("atomic_a") &&
+      atomicPublished.doneTruthHas("atomic_b") &&
+      atomicPublished.doneTruthHas("atomic_c") &&
+      atomicG.doneTruthHas("atomic_a") &&
+      !atomicG.doneTruthHas("atomic_b") &&
+      !atomicG.doneTruthHas("atomic_c"),
+    "completion-authority-success-publishes-immutable-generation",
+    `ready=${atomicPublished.ready} retained=${JSON.stringify(atomicPublished.retainedState)}`,
+  );
+
+  const asyncAtomicJobsFile = path.join(
+    root,
+    "jobs-completion-atomic-async.jsonl",
+  );
+  const asyncAtomicReceiptsFile = path.join(
+    root,
+    "receipts-completion-atomic-async.jsonl",
+  );
+  const asyncAtomicStateFile = path.join(
+    root,
+    "job-state-completion-atomic-async.jsonl",
+  );
+  fs.writeFileSync(asyncAtomicJobsFile, "");
+  fs.writeFileSync(asyncAtomicReceiptsFile, "");
+  fs.writeFileSync(
+    asyncAtomicStateFile,
+    JSON.stringify({ job_id: "async_atomic_a", status: "completed" }) + "\n",
+  );
+  let injectAsyncAtomicFailure = true;
+  const asyncAtomicIndex = new JobsDatanetWorkerRuntimeIndexV1({
+    maxScanBytesPerTick: 4096,
+    maxSyncCompletionRebuildBytes: 4096,
+    maxCompletionAuthorityIds: 8,
+    maxCompletionAuthorityIdBytes: 1024,
+    maxCompletionSourceBytes: 64 * 1024,
+    completionRebuildBackoffMs: 5,
+    testHooks: {
+      beforeCompletionDeltaLeafWrite: ({ file, stagedIds }) => {
+        if (
+          injectAsyncAtomicFailure &&
+          file === asyncAtomicStateFile &&
+          stagedIds === 1
+        ) {
+          injectAsyncAtomicFailure = false;
+          throw new Error("VOID_TEST_ASYNC_DELTA_SECOND_LEAF_FAILURE");
+        }
+      },
+    },
+  });
+  const asyncAtomicInput = {
+    jobsFile: asyncAtomicJobsFile,
+    receiptsFile: asyncAtomicReceiptsFile,
+    jobStateFile: asyncAtomicStateFile,
+  };
+  const asyncAtomicG = asyncAtomicIndex.scan(asyncAtomicInput);
+  const asyncAtomicObjects =
+    asyncAtomicG.retainedState.completionAuthorityObjects;
+  appendAgentPick2JsonlCanonicalV1(
+    asyncAtomicStateFile,
+    ["async_atomic_b", "async_atomic_c"]
+      .map((job_id) => JSON.stringify({ job_id, status: "completed" }))
+      .join("\n") +
+      "\n" +
+      repeatToBytes(
+        JSON.stringify({ job_id: "async_atomic_filler", status: "queued" }) +
+          "\n",
+        8192,
+      ),
+  );
+  let asyncAtomicHeld = asyncAtomicIndex.scan(asyncAtomicInput);
+  for (
+    let i = 0;
+    i < 500 &&
+    !String(asyncAtomicHeld.holdReason || "").includes("REBUILD_BACKOFF");
+    i += 1
+  ) {
+    await sleep(2);
+    asyncAtomicHeld = asyncAtomicIndex.scan(asyncAtomicInput);
+  }
+  assert(
+    !asyncAtomicHeld.ready &&
+      asyncAtomicG.doneTruthHas("async_atomic_a") &&
+      !asyncAtomicG.doneTruthHas("async_atomic_b") &&
+      !asyncAtomicG.doneTruthHas("async_atomic_c") &&
+      asyncAtomicHeld.retainedState.completionAuthorityIds === 1 &&
+      asyncAtomicHeld.retainedState.completionStagedAuthorityIds === 0 &&
+      asyncAtomicHeld.retainedState.completionStagedAuthorityObjects === 0 &&
+      asyncAtomicHeld.retainedState.completionAuthorityObjects ===
+        asyncAtomicObjects,
+    "completion-authority-async-partial-publication-fails-atomic",
+    `ready=${asyncAtomicHeld.ready} hold=${asyncAtomicHeld.holdReason} retained=${JSON.stringify(asyncAtomicHeld.retainedState)}`,
+  );
+
+  // Pause an incremental async generation after its exact IDs are disk-staged
+  // but before the accepted marker is created. The in-flight resource view must
+  // report zero JS-resident IDs and exact provisional disk counts, then return
+  // every staged counter to zero after publication.
+  const telemetryJobsFile = path.join(
+    root,
+    "jobs-completion-staging-telemetry.jsonl",
+  );
+  const telemetryReceiptsFile = path.join(
+    root,
+    "receipts-completion-staging-telemetry.jsonl",
+  );
+  const telemetryStateFile = path.join(
+    root,
+    "job-state-completion-staging-telemetry.jsonl",
+  );
+  fs.writeFileSync(telemetryJobsFile, "");
+  fs.writeFileSync(telemetryReceiptsFile, "");
+  fs.writeFileSync(
+    telemetryStateFile,
+    JSON.stringify({ job_id: "telemetry_a", status: "completed" }) + "\n",
+  );
+  let releaseTelemetryBarrier!: () => void;
+  const telemetryBarrier = new Promise<void>((resolve) => {
+    releaseTelemetryBarrier = resolve;
+  });
+  let telemetryEnteredResolve!: () => void;
+  const telemetryEntered = new Promise<void>((resolve) => {
+    telemetryEnteredResolve = resolve;
+  });
+  let telemetryBarrierUsed = false;
+  const telemetryIndex = new JobsDatanetWorkerRuntimeIndexV1({
+    maxScanBytesPerTick: 4096,
+    maxSyncCompletionRebuildBytes: 4096,
+    maxCompletionAuthorityIds: 8,
+    maxCompletionAuthorityIdBytes: 1024,
+    maxCompletionSourceBytes: 64 * 1024,
+    completionRebuildBackoffMs: 5,
+    testHooks: {
+      beforeAsyncCompletionDeltaCommit: async ({ file }) => {
+        if (file !== telemetryStateFile || telemetryBarrierUsed) return;
+        telemetryBarrierUsed = true;
+        telemetryEnteredResolve();
+        await telemetryBarrier;
+      },
+    },
+  });
+  const telemetryInput = {
+    jobsFile: telemetryJobsFile,
+    receiptsFile: telemetryReceiptsFile,
+    jobStateFile: telemetryStateFile,
+  };
+  const telemetryG = telemetryIndex.scan(telemetryInput);
+  appendAgentPick2JsonlCanonicalV1(
+    telemetryStateFile,
+    ["telemetry_b", "telemetry_c"]
+      .map((job_id) => JSON.stringify({ job_id, status: "completed" }))
+      .join("\n") +
+      "\n" +
+      repeatToBytes(
+        JSON.stringify({ job_id: "telemetry_filler", status: "queued" }) +
+          "\n",
+        8192,
+      ),
+  );
+  const telemetryWarm = telemetryIndex.scan(telemetryInput);
+  assert(
+    !telemetryWarm.ready,
+    "completion-authority-staging-telemetry-warm-starts",
+    `hold=${telemetryWarm.holdReason}`,
+  );
+  await telemetryEntered;
+  const telemetryPaused = telemetryIndex.scan(telemetryInput);
+  const telemetryBytes =
+    Buffer.byteLength("telemetry_b") + Buffer.byteLength("telemetry_c");
+  assert(
+    !telemetryPaused.ready &&
+      telemetryPaused.retainedState.completionResidentIds === 0 &&
+      telemetryPaused.retainedState.completionStagedAuthorityIds === 2 &&
+      telemetryPaused.retainedState.completionStagedAuthorityIdBytes ===
+        telemetryBytes &&
+      telemetryPaused.retainedState.completionStagedAuthorityObjects >= 2,
+    "completion-authority-inflight-disk-staging-accounted",
+    `retained=${JSON.stringify(telemetryPaused.retainedState)}`,
+  );
+  releaseTelemetryBarrier();
+  let telemetryPublished = telemetryPaused;
+  for (let i = 0; i < 500 && !telemetryPublished.ready; i += 1) {
+    await sleep(2);
+    telemetryPublished = telemetryIndex.scan(telemetryInput);
+  }
+  assert(
+    telemetryPublished.ready &&
+      telemetryPublished.doneTruthHas("telemetry_b") &&
+      telemetryPublished.doneTruthHas("telemetry_c") &&
+      telemetryPublished.retainedState.completionResidentIds === 0 &&
+      telemetryPublished.retainedState.completionStagedAuthorityIds === 0 &&
+      telemetryPublished.retainedState.completionStagedAuthorityIdBytes === 0 &&
+      telemetryPublished.retainedState.completionStagedAuthorityObjects === 0 &&
+      telemetryG.doneTruthHas("telemetry_a") &&
+      !telemetryG.doneTruthHas("telemetry_b") &&
+      !telemetryG.doneTruthHas("telemetry_c"),
+    "completion-authority-staging-counters-clear-on-publication",
+    `ready=${telemetryPublished.ready} retained=${JSON.stringify(telemetryPublished.retainedState)}`,
   );
 
   const idBytesJobsFile = path.join(root, "jobs-completion-id-bytes.jsonl");

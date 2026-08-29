@@ -52,6 +52,9 @@ export type JobsDatanetWorkerRuntimeScanV1 = {
     completionAuthorityIdBytes: number;
     completionAuthorityObjects: number;
     completionAuthorityObjectUpperBound: number;
+    completionStagedAuthorityIds: number;
+    completionStagedAuthorityIdBytes: number;
+    completionStagedAuthorityObjects: number;
     completionAuthorityMaxIds: number;
     completionAuthorityMaxIdBytes: number;
     completionSourceMaxBytes: number;
@@ -96,16 +99,28 @@ type CompletionStateV1 = FileStampV1 & {
   authority: CompletionAuthorityV1;
 };
 
-type CompletionAuthorityV1 = {
+type CompletionAuthorityStoreV1 = {
   root: string;
+  nextGeneration: number;
+};
+
+type CompletionAuthorityV1 = {
+  store: CompletionAuthorityStoreV1;
+  generation: number;
   idsIndexed: number;
   idBytesIndexed: number;
   objectsIndexed: number;
 };
 
 type CompletionAuthorityDeltaV1 = {
-  ids: Set<string>;
-  idBytes: number;
+  base: CompletionAuthorityV1;
+  generation: number;
+  idsIndexed: number;
+  idBytesIndexed: number;
+  objectsIndexed: number;
+  createdFiles: string[];
+  createdDirs: string[];
+  settled: boolean;
 };
 
 type RuntimeIndexTestHooksV1 = {
@@ -114,6 +129,16 @@ type RuntimeIndexTestHooksV1 = {
     observed: FileStampV1;
     attempt: number;
   }) => void;
+  beforeCompletionDeltaLeafWrite?: (ctx: {
+    file: string;
+    id: string;
+    stagedIds: number;
+  }) => void;
+  beforeAsyncCompletionDeltaCommit?: (ctx: {
+    file: string;
+    stagedIds: number;
+    stagedIdBytes: number;
+  }) => void | Promise<void>;
 };
 
 function fileStampV1(file: string): FileStampV1 | null {
@@ -222,6 +247,10 @@ export class JobsDatanetWorkerRuntimeIndexV1 {
     string,
     CompletionAuthorityV1
   >();
+  private readonly completionWarmDeltas = new Map<
+    string,
+    CompletionAuthorityDeltaV1
+  >();
   private readonly completionHoldUntil = new Map<string, number>();
   private readonly completionMetrics = {
     bytes_read_total: 0,
@@ -240,6 +269,9 @@ export class JobsDatanetWorkerRuntimeIndexV1 {
     authority_id_bytes_high_water: 0,
     authority_objects_high_water: 1,
     authority_object_upper_bound_high_water: 1,
+    authority_staged_ids_high_water: 0,
+    authority_staged_id_bytes_high_water: 0,
+    authority_staged_objects_high_water: 0,
     authority_capacity_holds_total: 0,
     completion_source_bytes_high_water: 0,
     completion_source_capacity_holds_total: 0,
@@ -330,12 +362,17 @@ export class JobsDatanetWorkerRuntimeIndexV1 {
   private retainedStateV1() {
     const authorities = new Map<string, CompletionAuthorityV1>();
     for (const state of this.completions.values()) {
-      if (state.authority.root) {
-        authorities.set(state.authority.root, state.authority);
+      const root = state.authority.store.root;
+      if (root) {
+        const prior = authorities.get(root);
+        if (!prior || state.authority.generation > prior.generation) {
+          authorities.set(root, state.authority);
+        }
       }
     }
     for (const authority of this.completionWarmAuthorities.values()) {
-      if (authority.root) authorities.set(authority.root, authority);
+      const root = authority.store.root;
+      if (root && !authorities.has(root)) authorities.set(root, authority);
     }
     let completionAuthorityIds = 0;
     let completionAuthorityIdBytes = 0;
@@ -344,6 +381,15 @@ export class JobsDatanetWorkerRuntimeIndexV1 {
       completionAuthorityIds += authority.idsIndexed;
       completionAuthorityIdBytes += authority.idBytesIndexed;
       completionAuthorityObjects += authority.objectsIndexed;
+    }
+    let completionStagedAuthorityIds = 0;
+    let completionStagedAuthorityIdBytes = 0;
+    let completionStagedAuthorityObjects = 0;
+    for (const delta of this.completionWarmDeltas.values()) {
+      if (delta.settled) continue;
+      completionStagedAuthorityIds += delta.idsIndexed;
+      completionStagedAuthorityIdBytes += delta.idBytesIndexed;
+      completionStagedAuthorityObjects += delta.objectsIndexed;
     }
     return {
       pendingIds: this.pending.size,
@@ -356,10 +402,18 @@ export class JobsDatanetWorkerRuntimeIndexV1 {
       completionAuthorities: authorities.size,
       completionAuthorityIds,
       completionAuthorityIdBytes,
-      completionAuthorityObjects,
-      // One root plus at most two shard directories and one leaf per ID.
+      completionAuthorityObjects:
+        completionAuthorityObjects + completionStagedAuthorityObjects,
+      completionStagedAuthorityIds,
+      completionStagedAuthorityIdBytes,
+      completionStagedAuthorityObjects,
+      // Each store owns its root, accepted-generation directory, initial
+      // generation marker, and at most five published objects per ID. Staged
+      // objects are reported exactly until accepted or rolled back.
       completionAuthorityObjectUpperBound:
-        authorities.size + completionAuthorityIds * 3,
+        authorities.size * 3 +
+        completionAuthorityIds * 5 +
+        completionStagedAuthorityObjects,
       completionAuthorityMaxIds: this.maxCompletionAuthorityIds,
       completionAuthorityMaxIdBytes: this.maxCompletionAuthorityIdBytes,
       completionSourceMaxBytes: this.maxCompletionSourceBytes,
@@ -371,8 +425,28 @@ export class JobsDatanetWorkerRuntimeIndexV1 {
       path.join(os.tmpdir(), "void-jobs-completion-authority-"),
     );
     fs.chmodSync(root, 0o700);
+    const accepted = path.join(root, "accepted");
+    fs.mkdirSync(accepted, { mode: 0o700 });
+    fs.writeFileSync(path.join(accepted, "1"), "cold\n", {
+      flag: "wx",
+      mode: 0o600,
+    });
     registerCompletionAuthorityRootV1(root);
-    return { root, idsIndexed: 0, idBytesIndexed: 0, objectsIndexed: 1 };
+    this.completionMetrics.authority_objects_high_water = Math.max(
+      this.completionMetrics.authority_objects_high_water,
+      3,
+    );
+    this.completionMetrics.authority_object_upper_bound_high_water = Math.max(
+      this.completionMetrics.authority_object_upper_bound_high_water,
+      3,
+    );
+    return {
+      store: { root, nextGeneration: 2 },
+      generation: 1,
+      idsIndexed: 0,
+      idBytesIndexed: 0,
+      objectsIndexed: 3,
+    };
   }
 
   private assertCompletionSourceCapacityV1(
@@ -393,9 +467,9 @@ export class JobsDatanetWorkerRuntimeIndexV1 {
   private retireCompletionAuthorityV1(
     authority: CompletionAuthorityV1 | null | undefined,
   ): void {
-    if (!authority?.root) return;
-    const root = authority.root;
-    authority.root = "";
+    if (!authority?.store.root) return;
+    const root = authority.store.root;
+    authority.store.root = "";
     COMPLETION_AUTHORITY_ROOTS_V1.delete(root);
     void fsp.rm(root, { recursive: true, force: true }).catch(() => {
       this.completionMetrics.authority_cleanup_failures_total += 1;
@@ -403,12 +477,39 @@ export class JobsDatanetWorkerRuntimeIndexV1 {
     });
   }
 
-  private completionAuthorityPathV1(
+  private createCompletionAuthorityDirV1(
+    dir: string,
+    delta: CompletionAuthorityDeltaV1 | null,
+    authority: CompletionAuthorityV1,
+  ): void {
+    try {
+      fs.mkdirSync(dir, { mode: 0o700 });
+      if (delta) {
+        delta.createdDirs.push(dir);
+        delta.objectsIndexed += 1;
+      } else {
+        authority.objectsIndexed += 1;
+      }
+    } catch (error: any) {
+      if (error?.code !== "EEXIST") throw error;
+      const stat = fs.lstatSync(dir);
+      if (!stat.isDirectory() || stat.isSymbolicLink()) {
+        throw new Error(
+          "VOID_JOBS_DATANET_WORKER_COMPLETION_AUTHORITY_INVALID_DIRECTORY",
+        );
+      }
+    }
+  }
+
+  private completionAuthorityVersionPathV1(
     authority: CompletionAuthorityV1,
     id: string,
+    generation: number,
     createShards: boolean,
-  ): { file: string; bytes: Buffer } {
-    if (!authority.root) {
+    delta: CompletionAuthorityDeltaV1 | null = null,
+  ): { file: string; versions: string; bytes: Buffer } {
+    const root = authority.store.root;
+    if (!root) {
       throw new Error("VOID_JOBS_DATANET_WORKER_COMPLETION_AUTHORITY_RETIRED");
     }
     const bytes = Buffer.from(id, "utf8");
@@ -421,17 +522,30 @@ export class JobsDatanetWorkerRuntimeIndexV1 {
       );
     }
     const digest = createHash("sha256").update(bytes).digest("hex");
-    const first = path.join(authority.root, digest.slice(0, 2));
+    const first = path.join(root, digest.slice(0, 2));
     const second = path.join(first, digest.slice(2, 4));
+    const versions = path.join(second, digest.slice(4));
     if (createShards) {
-      if (fs.mkdirSync(first, { mode: 0o700, recursive: true })) {
-        authority.objectsIndexed += 1;
-      }
-      if (fs.mkdirSync(second, { mode: 0o700, recursive: true })) {
-        authority.objectsIndexed += 1;
-      }
+      this.createCompletionAuthorityDirV1(first, delta, authority);
+      this.createCompletionAuthorityDirV1(second, delta, authority);
+      this.createCompletionAuthorityDirV1(versions, delta, authority);
     }
-    return { file: path.join(second, digest.slice(4)), bytes };
+    return { file: path.join(versions, String(generation)), versions, bytes };
+  }
+
+  private completionGenerationAcceptedV1(
+    authority: CompletionAuthorityV1,
+    generation: number,
+  ): boolean {
+    if (generation > authority.generation || generation < 1) return false;
+    try {
+      const stat = fs.lstatSync(
+        path.join(authority.store.root, "accepted", String(generation)),
+      );
+      return stat.isFile() && !stat.isSymbolicLink();
+    } catch {
+      return false;
+    }
   }
 
   private addCompletionAuthorityIdV1(
@@ -441,20 +555,13 @@ export class JobsDatanetWorkerRuntimeIndexV1 {
     // Resolve and validate duplicates before creating shard directories. A
     // capacity HOLD therefore cannot consume another inode or publish a
     // provisional leaf outside the reviewed aggregate contract.
-    const entry = this.completionAuthorityPathV1(authority, id, false);
-    const existing = this.readCompletionAuthorityEntryV1(entry.file);
-    if (existing) {
-      this.completionMetrics.authority_lookup_bytes_max = Math.max(
-        this.completionMetrics.authority_lookup_bytes_max,
-        existing.length,
-      );
-      if (!existing.equals(entry.bytes)) {
-        throw new Error(
-          "VOID_JOBS_DATANET_WORKER_COMPLETION_IDENTITY_COLLISION",
-        );
-      }
-      return;
-    }
+    if (this.completionAuthorityHasV1(authority, id)) return;
+    const entry = this.completionAuthorityVersionPathV1(
+      authority,
+      id,
+      authority.generation,
+      false,
+    );
 
     const nextIds = authority.idsIndexed + 1;
     const nextIdBytes = authority.idBytesIndexed + entry.bytes.length;
@@ -470,7 +577,12 @@ export class JobsDatanetWorkerRuntimeIndexV1 {
       );
     }
 
-    this.completionAuthorityPathV1(authority, id, true);
+    this.completionAuthorityVersionPathV1(
+      authority,
+      id,
+      authority.generation,
+      true,
+    );
     try {
       fs.writeFileSync(entry.file, entry.bytes, {
         flag: "wx",
@@ -494,7 +606,7 @@ export class JobsDatanetWorkerRuntimeIndexV1 {
       );
       this.completionMetrics.authority_object_upper_bound_high_water = Math.max(
         this.completionMetrics.authority_object_upper_bound_high_water,
-        1 + authority.idsIndexed * 3,
+        3 + authority.idsIndexed * 5,
       );
       return;
     } catch (error: any) {
@@ -518,16 +630,30 @@ export class JobsDatanetWorkerRuntimeIndexV1 {
   }
 
   private stageCompletionAuthorityIdV1(
+    file: string,
     authority: CompletionAuthorityV1,
     delta: CompletionAuthorityDeltaV1,
     id: string,
   ): void {
-    if (this.completionAuthorityHasV1(authority, id) || delta.ids.has(id)) {
+    if (this.completionAuthorityHasV1(authority, id)) return;
+    const entry = this.completionAuthorityVersionPathV1(
+      authority,
+      id,
+      delta.generation,
+      false,
+    );
+    const staged = this.readCompletionAuthorityEntryV1(entry.file);
+    if (staged) {
+      if (!staged.equals(entry.bytes)) {
+        throw new Error(
+          "VOID_JOBS_DATANET_WORKER_COMPLETION_IDENTITY_COLLISION",
+        );
+      }
       return;
     }
-    const bytes = Buffer.byteLength(id, "utf8");
-    const nextIds = authority.idsIndexed + delta.ids.size + 1;
-    const nextIdBytes = authority.idBytesIndexed + delta.idBytes + bytes;
+    const nextIds = authority.idsIndexed + delta.idsIndexed + 1;
+    const nextIdBytes =
+      authority.idBytesIndexed + delta.idBytesIndexed + entry.bytes.length;
     if (
       nextIds > this.maxCompletionAuthorityIds ||
       nextIdBytes > this.maxCompletionAuthorityIdBytes
@@ -539,49 +665,193 @@ export class JobsDatanetWorkerRuntimeIndexV1 {
           `id_bytes=${nextIdBytes} max_id_bytes=${this.maxCompletionAuthorityIdBytes}`,
       );
     }
-    delta.ids.add(id);
-    delta.idBytes += bytes;
+    this.testHooks.beforeCompletionDeltaLeafWrite?.({
+      file,
+      id,
+      stagedIds: delta.idsIndexed,
+    });
+    this.completionAuthorityVersionPathV1(
+      authority,
+      id,
+      delta.generation,
+      true,
+      delta,
+    );
+    fs.writeFileSync(entry.file, entry.bytes, { flag: "wx", mode: 0o600 });
+    delta.createdFiles.push(entry.file);
+    delta.idsIndexed += 1;
+    delta.idBytesIndexed += entry.bytes.length;
+    delta.objectsIndexed += 1;
+    this.completionMetrics.authority_staged_ids_high_water = Math.max(
+      this.completionMetrics.authority_staged_ids_high_water,
+      delta.idsIndexed,
+    );
+    this.completionMetrics.authority_staged_id_bytes_high_water = Math.max(
+      this.completionMetrics.authority_staged_id_bytes_high_water,
+      delta.idBytesIndexed,
+    );
+    this.completionMetrics.authority_staged_objects_high_water = Math.max(
+      this.completionMetrics.authority_staged_objects_high_water,
+      delta.objectsIndexed,
+    );
+  }
+
+  private createCompletionAuthorityDeltaV1(
+    authority: CompletionAuthorityV1,
+  ): CompletionAuthorityDeltaV1 {
+    return {
+      base: authority,
+      generation: authority.store.nextGeneration++,
+      idsIndexed: 0,
+      idBytesIndexed: 0,
+      objectsIndexed: 0,
+      createdFiles: [],
+      createdDirs: [],
+      settled: false,
+    };
   }
 
   private commitCompletionAuthorityDeltaV1(
     authority: CompletionAuthorityV1,
     delta: CompletionAuthorityDeltaV1,
-  ): void {
-    // Capacity is admitted for the complete witnessed delta before the first
-    // authority object is created. In particular, a G+1 capacity HOLD cannot
-    // mutate or retire the exact, still-queryable authority for G.
+  ): CompletionAuthorityV1 {
+    if (delta.settled) {
+      throw new Error("VOID_JOBS_DATANET_WORKER_COMPLETION_DELTA_SETTLED");
+    }
     if (
-      authority.idsIndexed + delta.ids.size >
+      authority.idsIndexed + delta.idsIndexed >
         this.maxCompletionAuthorityIds ||
-      authority.idBytesIndexed + delta.idBytes >
+      authority.idBytesIndexed + delta.idBytesIndexed >
         this.maxCompletionAuthorityIdBytes
     ) {
       throw new Error(
         "VOID_JOBS_DATANET_WORKER_COMPLETION_DELTA_ADMISSION_LOST",
       );
     }
-    for (const id of delta.ids) {
-      this.addCompletionAuthorityIdV1(authority, id);
+    if (delta.idsIndexed === 0) {
+      delta.settled = true;
+      return authority;
     }
+    const published: CompletionAuthorityV1 = {
+      store: authority.store,
+      generation: delta.generation,
+      idsIndexed: authority.idsIndexed + delta.idsIndexed,
+      idBytesIndexed: authority.idBytesIndexed + delta.idBytesIndexed,
+      objectsIndexed: authority.objectsIndexed + delta.objectsIndexed + 1,
+    };
+    // This marker is the sole publication point. Provisional leaves are exact
+    // but invisible to every authority generation until the marker exists.
+    const acceptedDir = path.join(authority.store.root, "accepted");
+    const marker = path.join(acceptedDir, String(delta.generation));
+    const markerTemp = path.join(
+      acceptedDir,
+      `.${delta.generation}.${process.pid}.tmp`,
+    );
+    try {
+      fs.writeFileSync(
+        markerTemp,
+        `${delta.idsIndexed} ${delta.idBytesIndexed}\n`,
+        { flag: "wx", mode: 0o600 },
+      );
+      fs.renameSync(markerTemp, marker);
+    } catch (error) {
+      try {
+        fs.unlinkSync(markerTemp);
+      } catch (cleanupError: any) {
+        if (cleanupError?.code !== "ENOENT") {
+          this.completionMetrics.authority_cleanup_failures_total += 1;
+        }
+      }
+      throw error;
+    }
+    delta.settled = true;
+    this.completionMetrics.authority_records_indexed_total += delta.idsIndexed;
+    this.completionMetrics.authority_ids_high_water = Math.max(
+      this.completionMetrics.authority_ids_high_water,
+      published.idsIndexed,
+    );
+    this.completionMetrics.authority_id_bytes_high_water = Math.max(
+      this.completionMetrics.authority_id_bytes_high_water,
+      published.idBytesIndexed,
+    );
+    this.completionMetrics.authority_objects_high_water = Math.max(
+      this.completionMetrics.authority_objects_high_water,
+      published.objectsIndexed,
+    );
+    this.completionMetrics.authority_object_upper_bound_high_water = Math.max(
+      this.completionMetrics.authority_object_upper_bound_high_water,
+      3 + published.idsIndexed * 5,
+    );
+    return published;
+  }
+
+  private rollbackCompletionAuthorityDeltaV1(
+    delta: CompletionAuthorityDeltaV1 | null,
+  ): void {
+    if (!delta || delta.settled) return;
+    let failed = false;
+    for (const file of [...delta.createdFiles].reverse()) {
+      try {
+        fs.unlinkSync(file);
+      } catch (error: any) {
+        if (error?.code !== "ENOENT") failed = true;
+      }
+    }
+    for (const dir of [...delta.createdDirs].reverse()) {
+      try {
+        fs.rmdirSync(dir);
+      } catch (error: any) {
+        if (error?.code !== "ENOENT" && error?.code !== "ENOTEMPTY") {
+          failed = true;
+        }
+      }
+    }
+    delta.createdFiles.length = 0;
+    delta.createdDirs.length = 0;
+    delta.idsIndexed = 0;
+    delta.idBytesIndexed = 0;
+    delta.objectsIndexed = 0;
+    delta.settled = true;
+    if (failed) this.completionMetrics.authority_cleanup_failures_total += 1;
   }
 
   private completionAuthorityHasV1(
     authority: CompletionAuthorityV1,
     id: string,
   ): boolean {
-    const entry = this.completionAuthorityPathV1(authority, id, false);
-    const present = this.readCompletionAuthorityEntryV1(entry.file);
-    if (!present) return false;
-    this.completionMetrics.authority_lookup_bytes_max = Math.max(
-      this.completionMetrics.authority_lookup_bytes_max,
-      present.length,
+    const entry = this.completionAuthorityVersionPathV1(
+      authority,
+      id,
+      authority.generation,
+      false,
     );
-    if (!present.equals(entry.bytes)) {
-      throw new Error(
-        "VOID_JOBS_DATANET_WORKER_COMPLETION_IDENTITY_COLLISION",
-      );
+    let versions: string[];
+    try {
+      versions = fs.readdirSync(entry.versions);
+    } catch (error: any) {
+      if (error?.code === "ENOENT") return false;
+      throw error;
     }
-    return true;
+    for (const name of versions) {
+      if (!/^\d+$/.test(name)) continue;
+      const generation = Number(name);
+      if (!this.completionGenerationAcceptedV1(authority, generation)) continue;
+      const present = this.readCompletionAuthorityEntryV1(
+        path.join(entry.versions, name),
+      );
+      if (!present) continue;
+      this.completionMetrics.authority_lookup_bytes_max = Math.max(
+        this.completionMetrics.authority_lookup_bytes_max,
+        present.length,
+      );
+      if (!present.equals(entry.bytes)) {
+        throw new Error(
+          "VOID_JOBS_DATANET_WORKER_COMPLETION_IDENTITY_COLLISION",
+        );
+      }
+      return true;
+    }
+    return false;
   }
 
   private readCompletionAuthorityEntryV1(file: string): Buffer | null {
@@ -827,13 +1097,18 @@ export class JobsDatanetWorkerRuntimeIndexV1 {
         current.size > prior.size &&
         missesAfter === missesAtAdmissionStart;
       const ok = !prior || sameStampV1(prior, current) || exactAppend;
-      if (!ok) this.rejectedSources.add(file);
-      this.admittedStamps.set(file, current);
+      if (!ok) {
+        // A rejected observation is not a new admission baseline. Otherwise a
+        // stable hostile generation can present as B -> B after backoff and
+        // self-authorize an incremental read from the still-live G authority.
+        this.rejectedSources.add(file);
+      } else {
+        this.admittedStamps.set(file, current);
+      }
       return { ok, stamp: current };
     }
 
     this.rejectedSources.add(file);
-    if (lastCurrent) this.admittedStamps.set(file, lastCurrent);
     return { ok: false, stamp: lastCurrent };
   }
 
@@ -863,7 +1138,7 @@ export class JobsDatanetWorkerRuntimeIndexV1 {
         file,
       );
       if (id) {
-        if (delta) this.stageCompletionAuthorityIdV1(authority, delta, id);
+        if (delta) this.stageCompletionAuthorityIdV1(file, authority, delta, id);
         else this.addCompletionAuthorityIdV1(authority, id);
       }
       from = i + 1;
@@ -926,8 +1201,10 @@ export class JobsDatanetWorkerRuntimeIndexV1 {
           `VOID_JOBS_DATANET_WORKER_COMPLETION_SOURCE_CHANGED file=${file}`,
         );
       }
-      if (delta) this.commitCompletionAuthorityDeltaV1(authority, delta);
-      return { ...target, authority };
+      const published = delta
+        ? this.commitCompletionAuthorityDeltaV1(authority, delta)
+        : authority;
+      return { ...target, authority: published };
     } finally {
       fs.closeSync(fd);
     }
@@ -955,9 +1232,10 @@ export class JobsDatanetWorkerRuntimeIndexV1 {
     // Neither path copies or enumerates H IDs.
     const authority = base?.authority || this.createCompletionAuthorityV1();
     const delta: CompletionAuthorityDeltaV1 | null = base
-      ? { ids: new Set<string>(), idBytes: 0 }
+      ? this.createCompletionAuthorityDeltaV1(authority)
       : null;
     this.completionWarmAuthorities.set(file, authority);
+    if (delta) this.completionWarmDeltas.set(file, delta);
 
     const task = (async () => {
       let position = initialPosition;
@@ -1042,8 +1320,33 @@ export class JobsDatanetWorkerRuntimeIndexV1 {
 
         const current = fileStampV1(file);
         if (current && sameStampV1(current, target)) {
-          if (delta) this.commitCompletionAuthorityDeltaV1(authority, delta);
-          this.completions.set(file, { ...target, authority });
+          if (delta) {
+            await this.testHooks.beforeAsyncCompletionDeltaCommit?.({
+              file,
+              stagedIds: delta.idsIndexed,
+              stagedIdBytes: delta.idBytesIndexed,
+            });
+          }
+          const afterBarrier = fileStampV1(file);
+          if (!afterBarrier || !sameStampV1(afterBarrier, target)) {
+            const advanced = this.admitSourceV1(file);
+            if (
+              !advanced.ok ||
+              !advanced.stamp ||
+              !sameObjectV1(target, advanced.stamp) ||
+              advanced.stamp.size <= target.size
+            ) {
+              throw new Error(
+                `VOID_JOBS_DATANET_WORKER_COMPLETION_UNWITNESSED_CHANGE file=${file}`,
+              );
+            }
+            target = advanced.stamp;
+            continue;
+          }
+          const published = delta
+            ? this.commitCompletionAuthorityDeltaV1(authority, delta)
+            : authority;
+          this.completions.set(file, { ...target, authority: published });
           this.rejectedSources.delete(file);
           this.completionHoldUntil.delete(file);
           return;
@@ -1071,12 +1374,13 @@ export class JobsDatanetWorkerRuntimeIndexV1 {
         if (this.completionWarmTasks.get(file) === task) {
           this.completionWarmTasks.delete(file);
           this.completionWarmAuthorities.delete(file);
+          this.completionWarmDeltas.delete(file);
         }
       },
       () => {
+        this.rollbackCompletionAuthorityDeltaV1(delta);
         if (base) {
           this.completions.set(file, base);
-          this.rejectedSources.delete(file);
         } else {
           this.completions.delete(file);
           this.retireCompletionAuthorityV1(authority);
@@ -1089,6 +1393,7 @@ export class JobsDatanetWorkerRuntimeIndexV1 {
         if (this.completionWarmTasks.get(file) === task) {
           this.completionWarmTasks.delete(file);
           this.completionWarmAuthorities.delete(file);
+          this.completionWarmDeltas.delete(file);
         }
       },
     );
@@ -1135,6 +1440,11 @@ export class JobsDatanetWorkerRuntimeIndexV1 {
       this.retireCompletionAuthorityV1(prior?.authority);
       this.completions.delete(file);
       prior = undefined;
+      // Recovery from a rejected lineage is an explicit byte-zero generation
+      // rebuild. Clear both the rejected stamp and its prior comparison point;
+      // never let a rejected B become G's incremental successor via B -> B.
+      this.admittedStamps.delete(file);
+      this.rejectedSources.delete(file);
     }
 
     const admitted = this.admitSourceV1(file);
@@ -1175,7 +1485,7 @@ export class JobsDatanetWorkerRuntimeIndexV1 {
       ? prior!.authority
       : this.createCompletionAuthorityV1();
     const delta: CompletionAuthorityDeltaV1 | null = append
-      ? { ids: new Set<string>(), idBytes: 0 }
+      ? this.createCompletionAuthorityDeltaV1(authority)
       : null;
     this.completionMetrics.rebuilds_total += append ? 0 : 1;
     this.completionMetrics.incremental_reads_total += append ? 1 : 0;
@@ -1189,6 +1499,7 @@ export class JobsDatanetWorkerRuntimeIndexV1 {
         delta,
       );
     } catch (error) {
+      this.rollbackCompletionAuthorityDeltaV1(delta);
       if (append) {
         this.completions.set(file, prior!);
       } else {
