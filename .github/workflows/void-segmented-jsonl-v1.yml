@@ -133,11 +133,13 @@ jobs:
             'tsconfig.build.json',
           ];
           const expressionOpen = '$' + '{{';
+          const lineCount = (source, exact) =>
+            source.split('\n').filter((line) => line === exact).length;
 
           function audit(source) {
             for (const dependency of triggerDependencies) {
               const exact = `      - "${dependency}"`;
-              const count = source.split('\n').filter((line) => line === exact).length;
+              const count = lineCount(source, exact);
               assert.equal(count, 2, `focused_trigger_count:${dependency}:${count}`);
             }
             for (const dependency of [...storageSources, ...proofs]) {
@@ -152,34 +154,32 @@ jobs:
                 `focused_proof_not_invoked:${proof}`,
               );
             }
-            assert.match(source, /node:\s*\[22,\s*24,\s*26\]/, 'focused_node_matrix_not_exact');
-            assert.ok(source.includes('fetch-depth: 1'), 'focused_checkout_depth_not_exact');
-            assert.ok(source.includes('persist-credentials: false'), 'focused_credentials_persisted');
-            assert.ok(
-              source.includes('run: node scripts/prove_ci_diff_hygiene_v1.mjs'),
+            assert.equal(lineCount(source, '        node: [22, 24, 26]'), 1, 'focused_node_matrix_not_exact');
+            assert.equal(lineCount(source, '          fetch-depth: 1'), 1, 'focused_checkout_depth_not_exact');
+            assert.equal(lineCount(source, '          persist-credentials: false'), 1, 'focused_credentials_persisted');
+            assert.equal(
+              lineCount(source, '        run: node scripts/prove_ci_diff_hygiene_v1.mjs'),
+              1,
               'focused_shared_proof_not_invoked',
             );
-            assert.ok(
-              source.includes('run: bash scripts/ci_diff_hygiene_v1.sh'),
+            assert.equal(
+              lineCount(source, '        run: bash scripts/ci_diff_hygiene_v1.sh'),
+              1,
               'focused_diff_helper_not_invoked',
             );
             for (const binding of [
-              `CI_DIFF_PR_BASE_SHA: ${expressionOpen} github.event.pull_request.base.sha }}`,
-              `CI_DIFF_CHECKOUT_SHA: ${expressionOpen} github.sha }}`,
-              `CI_DIFF_CURRENT_SHA: ${expressionOpen} github.event.pull_request.head.sha || github.sha }}`,
-              `CI_DIFF_BASE_REMOTE: ${expressionOpen} github.server_url }}/${expressionOpen} github.repository }}.git`,
-              `CI_DIFF_HEAD_REMOTE: ${expressionOpen} github.server_url }}/${expressionOpen} github.event.pull_request.head.repo.full_name || github.repository }}.git`,
+              `          CI_DIFF_PR_BASE_SHA: ${expressionOpen} github.event.pull_request.base.sha }}`,
+              `          CI_DIFF_CHECKOUT_SHA: ${expressionOpen} github.sha }}`,
+              `          CI_DIFF_CURRENT_SHA: ${expressionOpen} github.event.pull_request.head.sha || github.sha }}`,
+              `          CI_DIFF_BASE_REMOTE: ${expressionOpen} github.server_url }}/${expressionOpen} github.repository }}.git`,
+              `          CI_DIFF_HEAD_REMOTE: ${expressionOpen} github.server_url }}/${expressionOpen} github.event.pull_request.head.repo.full_name || github.repository }}.git`,
             ]) {
-              assert.ok(source.includes(binding), `focused_exact_sha_binding_missing:${binding}`);
+              const count = lineCount(source, binding);
+              assert.equal(count, 1, `focused_exact_sha_binding_missing:${binding}:${count}`);
             }
-            assert.ok(
-              source.includes("if: matrix.node == 24\n        run: npm run typecheck"),
-              'focused_node24_typecheck_not_terminal',
-            );
-            assert.ok(
-              source.includes("if: matrix.node == 24\n        run: npm run build"),
-              'focused_node24_build_not_terminal',
-            );
+            assert.equal(lineCount(source, '        if: matrix.node == 24'), 2, 'focused_node24_gate_count');
+            assert.equal(lineCount(source, '        run: npm run typecheck'), 1, 'focused_node24_typecheck_not_terminal');
+            assert.equal(lineCount(source, '        run: npm run build'), 1, 'focused_node24_build_not_terminal');
           }
 
           audit(text);
@@ -192,18 +192,18 @@ jobs:
             /focused_proof_not_invoked:/,
           );
           assert.throws(
-            () => audit(text.replace('persist-credentials: false', 'persist-credentials: true')),
+            () => audit(text.replace('          persist-credentials: false', '          persist-credentials: true')),
             /focused_credentials_persisted/,
           );
           assert.throws(
             () => audit(text.replace(
-              `CI_DIFF_CURRENT_SHA: ${expressionOpen} github.event.pull_request.head.sha || github.sha }}`,
-              'CI_DIFF_CURRENT_SHA: invalid',
+              `          CI_DIFF_CURRENT_SHA: ${expressionOpen} github.event.pull_request.head.sha || github.sha }}`,
+              '          CI_DIFF_CURRENT_SHA: invalid',
             )),
             /focused_exact_sha_binding_missing:/,
           );
           assert.throws(
-            () => audit(text.replace('node: [22, 24, 26]', 'node: [22, 24]')),
+            () => audit(text.replace('        node: [22, 24, 26]', '        node: [22, 24]')),
             /focused_node_matrix_not_exact/,
           );
           console.log('focused_dependency_binding=true');
