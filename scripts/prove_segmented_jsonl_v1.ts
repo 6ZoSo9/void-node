@@ -110,6 +110,11 @@ function proveReconstructRejectsPostVerifyReplacement(
   }
   assert.equal(swapped, true, `${label} replacement must occur between verify and copy`);
   assert.equal(targetOpenCount >= 3, true, `${label} must be opened for scan, terminal revalidation, and copy`);
+  assert.equal(
+    fs.existsSync(outputPath),
+    false,
+    `${label} copy failure must not expose a partial final output`,
+  );
 }
 
 function proveWritableReplacementRejected(
@@ -474,6 +479,25 @@ try {
   const rebuiltBytes = fs.readFileSync(rebuilt);
   assert.deepEqual(rebuiltBytes, body, "segmentation must reconstruct source byte-for-byte");
   assert.equal(reconstruction.sha256, sha256(body));
+  assert.equal(fs.statSync(rebuilt, { bigint: true } as any).nlink, 1n);
+  assert.equal(fs.statSync(rebuilt).mode & 0o777, 0o600);
+
+  const foreignOutput = path.join(tmp, "reconstruct-foreign-output.jsonl");
+  const foreignBytes = Buffer.from("foreign-output-must-survive\n", "utf8");
+  fs.writeFileSync(foreignOutput, foreignBytes, { flag: "wx", mode: 0o600 });
+  const foreignBefore = fs.statSync(foreignOutput, { bigint: true } as any);
+  expectFailure(
+    () => reconstructSegmentedJsonlV1ToFile(store, foreignOutput),
+    "OUTPUT_EXISTS",
+  );
+  const foreignAfter = fs.statSync(foreignOutput, { bigint: true } as any);
+  assert.equal(foreignAfter.dev, foreignBefore.dev);
+  assert.equal(foreignAfter.ino, foreignBefore.ino);
+  assert.deepEqual(
+    fs.readFileSync(foreignOutput),
+    foreignBytes,
+    "exact-fd publication must preserve a foreign occupied final",
+  );
 
   const verifyWritableStore = path.join(tmp, "verify-writable-replacement-store");
   fs.cpSync(store, verifyWritableStore, { recursive: true });
