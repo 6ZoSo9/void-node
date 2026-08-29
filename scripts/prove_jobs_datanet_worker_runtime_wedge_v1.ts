@@ -1418,6 +1418,232 @@ try {
     "completion-authority-success-publishes-immutable-generation",
     `ready=${atomicPublished.ready} retained=${JSON.stringify(atomicPublished.retainedState)}`,
   );
+  const atomicGLease = atomicG.completionAuthorityLease;
+  const atomicPublishedLease = atomicPublished.completionAuthorityLease;
+  fs.unlinkSync(atomicStateFile);
+  const atomicRetired = atomicIndex.scan(atomicInput);
+  let atomicGExpired = "";
+  let atomicPublishedExpired = "";
+  try {
+    atomicG.doneTruthHas("atomic_a");
+  } catch (error: any) {
+    atomicGExpired = String(error?.message || error || "");
+  }
+  try {
+    atomicPublished.doneTruthHas("atomic_a");
+  } catch (error: any) {
+    atomicPublishedExpired = String(error?.message || error || "");
+  }
+  assert(
+    atomicRetired.ready &&
+      atomicGLease === atomicPublishedLease &&
+      atomicRetired.completionAuthorityLease !== atomicPublishedLease &&
+      atomicGExpired.includes("COMPLETION_SNAPSHOT_EXPIRED") &&
+      atomicPublishedExpired.includes("COMPLETION_SNAPSHOT_EXPIRED") &&
+      !atomicGExpired.includes("COMPLETION_AUTHORITY_RETIRED") &&
+      !atomicPublishedExpired.includes("COMPLETION_AUTHORITY_RETIRED"),
+    "completion-authority-captured-generations-expire-by-explicit-lease",
+    `G=${atomicGLease} G1=${atomicPublishedLease} next=${atomicRetired.completionAuthorityLease} G_error=${atomicGExpired} G1_error=${atomicPublishedExpired}`,
+  );
+
+  // Once a generation has been returned as accepted, its private publication
+  // marker is integrity authority rather than an optional cache hint. I/O
+  // failure or disappearance must throw a HOLD-shaped integrity error; neither
+  // may silently turn a completed ID into false. A genuinely absent ID remains
+  // an ordinary negative.
+  const markerJobsFile = path.join(root, "jobs-completion-marker.jsonl");
+  const markerReceiptsFile = path.join(
+    root,
+    "receipts-completion-marker.jsonl",
+  );
+  const markerStateFile = path.join(
+    root,
+    "job-state-completion-marker.jsonl",
+  );
+  fs.writeFileSync(markerJobsFile, "");
+  fs.writeFileSync(markerReceiptsFile, "");
+  fs.writeFileSync(
+    markerStateFile,
+    JSON.stringify({ job_id: "marker_a", status: "completed" }) + "\n",
+  );
+  let injectMarkerIoFailure = false;
+  let deleteAcceptedMarker = false;
+  const markerIndex = new JobsDatanetWorkerRuntimeIndexV1({
+    maxScanBytesPerTick: 4096,
+    maxSyncCompletionRebuildBytes: 4096,
+    maxCompletionAuthorityIds: 8,
+    maxCompletionAuthorityIdBytes: 1024,
+    maxCompletionSourceBytes: 64 * 1024,
+    testHooks: {
+      beforeCompletionAcceptedMarkerLookup: ({ path: markerPath }) => {
+        if (injectMarkerIoFailure) {
+          injectMarkerIoFailure = false;
+          const error: any = new Error("VOID_TEST_ACCEPTED_MARKER_EIO");
+          error.code = "EIO";
+          throw error;
+        }
+        if (deleteAcceptedMarker) {
+          deleteAcceptedMarker = false;
+          fs.unlinkSync(markerPath);
+        }
+      },
+    },
+  });
+  const markerInput = {
+    jobsFile: markerJobsFile,
+    receiptsFile: markerReceiptsFile,
+    jobStateFile: markerStateFile,
+  };
+  const markerG = markerIndex.scan(markerInput);
+  appendAgentPick2JsonlCanonicalV1(
+    markerStateFile,
+    JSON.stringify({ job_id: "marker_b", status: "completed" }) + "\n",
+  );
+  const markerPublished = markerIndex.scan(markerInput);
+  assert(
+    markerG.ready &&
+      markerPublished.ready &&
+      markerPublished.doneTruthHas("marker_b") &&
+      !markerPublished.doneTruthHas("marker_missing"),
+    "completion-authority-accepted-marker-positive-and-negative-controls",
+  );
+  injectMarkerIoFailure = true;
+  let markerIoHold = "";
+  try {
+    markerPublished.doneTruthHas("marker_b");
+  } catch (error: any) {
+    markerIoHold = String(error?.message || error || "");
+  }
+  assert(
+    markerIoHold.includes("COMPLETION_AUTHORITY_INTEGRITY_HOLD") &&
+      markerIoHold.includes("cause=EIO") &&
+      markerPublished.doneTruthHas("marker_b") &&
+      !markerPublished.doneTruthHas("marker_missing"),
+    "completion-authority-accepted-marker-io-fails-closed",
+    `error=${markerIoHold}`,
+  );
+  deleteAcceptedMarker = true;
+  let markerMissingHold = "";
+  try {
+    markerPublished.doneTruthHas("marker_b");
+  } catch (error: any) {
+    markerMissingHold = String(error?.message || error || "");
+  }
+  assert(
+    markerMissingHold.includes("COMPLETION_AUTHORITY_INTEGRITY_HOLD") &&
+      markerMissingHold.includes("cause=ENOENT"),
+    "completion-authority-accepted-marker-loss-fails-closed",
+    `error=${markerMissingHold}`,
+  );
+
+  // A rollback cleanup failure must remain visible as exact residual debt and
+  // permanently quarantine the shared store before any later generation can
+  // stage. Repeated retries and membership lookups therefore cannot grow
+  // physical objects or unaccepted-version enumeration.
+  const residualJobsFile = path.join(root, "jobs-completion-residual.jsonl");
+  const residualReceiptsFile = path.join(
+    root,
+    "receipts-completion-residual.jsonl",
+  );
+  const residualStateFile = path.join(
+    root,
+    "job-state-completion-residual.jsonl",
+  );
+  fs.writeFileSync(residualJobsFile, "");
+  fs.writeFileSync(residualReceiptsFile, "");
+  fs.writeFileSync(
+    residualStateFile,
+    JSON.stringify({ job_id: "residual_a", status: "completed" }) + "\n",
+  );
+  let injectResidualSecondLeafFailure = true;
+  let injectResidualCleanupFailure = true;
+  const residualIndex = new JobsDatanetWorkerRuntimeIndexV1({
+    maxScanBytesPerTick: 4096,
+    maxSyncCompletionRebuildBytes: 4096,
+    maxCompletionAuthorityIds: 8,
+    maxCompletionAuthorityIdBytes: 1024,
+    maxCompletionSourceBytes: 64 * 1024,
+    testHooks: {
+      beforeCompletionDeltaLeafWrite: ({ file, stagedIds }) => {
+        if (
+          injectResidualSecondLeafFailure &&
+          file === residualStateFile &&
+          stagedIds === 1
+        ) {
+          injectResidualSecondLeafFailure = false;
+          throw new Error("VOID_TEST_RESIDUAL_SECOND_LEAF_FAILURE");
+        }
+      },
+      beforeCompletionDeltaRollbackUnlink: ({ file }) => {
+        if (injectResidualCleanupFailure && file === residualStateFile) {
+          injectResidualCleanupFailure = false;
+          throw new Error("VOID_TEST_RESIDUAL_ROLLBACK_UNLINK_FAILURE");
+        }
+      },
+    },
+  });
+  const residualInput = {
+    jobsFile: residualJobsFile,
+    receiptsFile: residualReceiptsFile,
+    jobStateFile: residualStateFile,
+  };
+  const residualG = residualIndex.scan(residualInput);
+  assert(
+    residualG.ready && residualG.doneTruthHas("residual_a"),
+    "completion-authority-residual-base-accepted",
+    `ready=${residualG.ready}`,
+  );
+  appendAgentPick2JsonlCanonicalV1(
+    residualStateFile,
+    ["residual_b", "residual_c"]
+      .map((job_id) => JSON.stringify({ job_id, status: "completed" }))
+      .join("\n") + "\n",
+  );
+  const residualFailed = residualIndex.scan(residualInput);
+  const residualDebt = residualFailed.retainedState;
+  assert(
+    !residualFailed.ready &&
+      String(residualFailed.holdReason || "").includes(
+        "VOID_TEST_RESIDUAL_SECOND_LEAF_FAILURE",
+      ) &&
+      residualG.doneTruthHas("residual_a") &&
+      !residualG.doneTruthHas("residual_b") &&
+      residualDebt.completionQuarantinedAuthorities === 1 &&
+      residualDebt.completionResidualAuthorityIds === 1 &&
+      residualDebt.completionResidualAuthorityIdBytes ===
+        Buffer.byteLength("residual_b") &&
+      residualDebt.completionResidualAuthorityObjects > 0 &&
+      residualDebt.completionStagedAuthorityIds === 0 &&
+      residualDebt.completionStagedAuthorityObjects === 0,
+    "completion-authority-rollback-residuals-counted-and-quarantined",
+    `hold=${residualFailed.holdReason} retained=${JSON.stringify(residualDebt)}`,
+  );
+  let residualHeld = residualIndex.scan(residualInput);
+  const residualObjects =
+    residualHeld.retainedState.completionResidualAuthorityObjects;
+  for (let i = 0; i < 16; i += 1) {
+    assert(
+      residualG.doneTruthHas("residual_a") &&
+        !residualG.doneTruthHas("residual_b"),
+      "completion-authority-quarantined-membership-remains-exact",
+      `iteration=${i}`,
+    );
+    residualHeld = residualIndex.scan(residualInput);
+  }
+  assert(
+    !residualHeld.ready &&
+      String(residualHeld.holdReason || "").includes(
+        "COMPLETION_AUTHORITY_QUARANTINED",
+      ) &&
+      residualHeld.retainedState.completionResidualAuthorityObjects ===
+        residualObjects &&
+      residualHeld.retainedState.completionQuarantinedAuthorities === 1 &&
+      Number(
+        residualHeld.completionIo?.authority_lookup_versions_max || 0,
+      ) <= 2,
+    "completion-authority-quarantine-blocks-retry-resource-growth",
+    `hold=${residualHeld.holdReason} retained=${JSON.stringify(residualHeld.retainedState)} io=${JSON.stringify(residualHeld.completionIo)}`,
+  );
 
   const asyncAtomicJobsFile = path.join(
     root,

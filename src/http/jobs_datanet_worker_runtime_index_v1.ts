@@ -36,6 +36,7 @@ export type JobsDatanetWorkerRuntimeScanV1 = {
   ready: boolean;
   jobs: ScanJobV1[];
   doneTruthHas: (id: string) => boolean;
+  completionAuthorityLease: string;
   holdReason: string | null;
   scanComplete: boolean;
   bytesReadThisTick: number;
@@ -55,6 +56,10 @@ export type JobsDatanetWorkerRuntimeScanV1 = {
     completionStagedAuthorityIds: number;
     completionStagedAuthorityIdBytes: number;
     completionStagedAuthorityObjects: number;
+    completionResidualAuthorityIds: number;
+    completionResidualAuthorityIdBytes: number;
+    completionResidualAuthorityObjects: number;
+    completionQuarantinedAuthorities: number;
     completionAuthorityMaxIds: number;
     completionAuthorityMaxIdBytes: number;
     completionSourceMaxBytes: number;
@@ -102,10 +107,17 @@ type CompletionStateV1 = FileStampV1 & {
 type CompletionAuthorityStoreV1 = {
   root: string;
   nextGeneration: number;
+  leaseId: number;
+  leaseEpoch: number;
+  quarantined: boolean;
+  residualIds: number;
+  residualIdBytes: number;
+  residualObjects: number;
 };
 
 type CompletionAuthorityV1 = {
   store: CompletionAuthorityStoreV1;
+  leaseEpoch: number;
   generation: number;
   idsIndexed: number;
   idBytesIndexed: number;
@@ -139,6 +151,15 @@ type RuntimeIndexTestHooksV1 = {
     stagedIds: number;
     stagedIdBytes: number;
   }) => void | Promise<void>;
+  beforeCompletionDeltaRollbackUnlink?: (ctx: {
+    file: string;
+    generation: number;
+    path: string;
+  }) => void;
+  beforeCompletionAcceptedMarkerLookup?: (ctx: {
+    generation: number;
+    path: string;
+  }) => void;
 };
 
 function fileStampV1(file: string): FileStampV1 | null {
@@ -241,6 +262,7 @@ export class JobsDatanetWorkerRuntimeIndexV1 {
   private readonly admittedStamps = new Map<string, FileStampV1>();
   private readonly rejectedSources = new Set<string>();
   private authorityWitnessMisses = 0;
+  private completionAuthorityLeaseSequence = 0;
   private readonly completions = new Map<string, CompletionStateV1>();
   private readonly completionWarmTasks = new Map<string, Promise<void>>();
   private readonly completionWarmAuthorities = new Map<
@@ -276,6 +298,7 @@ export class JobsDatanetWorkerRuntimeIndexV1 {
     completion_source_bytes_high_water: 0,
     completion_source_capacity_holds_total: 0,
     authority_lookup_bytes_max: 0,
+    authority_lookup_versions_max: 0,
     authority_cleanup_failures_total: 0,
   };
 
@@ -377,10 +400,18 @@ export class JobsDatanetWorkerRuntimeIndexV1 {
     let completionAuthorityIds = 0;
     let completionAuthorityIdBytes = 0;
     let completionAuthorityObjects = 0;
+    let completionResidualAuthorityIds = 0;
+    let completionResidualAuthorityIdBytes = 0;
+    let completionResidualAuthorityObjects = 0;
+    let completionQuarantinedAuthorities = 0;
     for (const authority of authorities.values()) {
       completionAuthorityIds += authority.idsIndexed;
       completionAuthorityIdBytes += authority.idBytesIndexed;
       completionAuthorityObjects += authority.objectsIndexed;
+      completionResidualAuthorityIds += authority.store.residualIds;
+      completionResidualAuthorityIdBytes += authority.store.residualIdBytes;
+      completionResidualAuthorityObjects += authority.store.residualObjects;
+      completionQuarantinedAuthorities += authority.store.quarantined ? 1 : 0;
     }
     let completionStagedAuthorityIds = 0;
     let completionStagedAuthorityIdBytes = 0;
@@ -403,17 +434,24 @@ export class JobsDatanetWorkerRuntimeIndexV1 {
       completionAuthorityIds,
       completionAuthorityIdBytes,
       completionAuthorityObjects:
-        completionAuthorityObjects + completionStagedAuthorityObjects,
+        completionAuthorityObjects +
+        completionStagedAuthorityObjects +
+        completionResidualAuthorityObjects,
       completionStagedAuthorityIds,
       completionStagedAuthorityIdBytes,
       completionStagedAuthorityObjects,
+      completionResidualAuthorityIds,
+      completionResidualAuthorityIdBytes,
+      completionResidualAuthorityObjects,
+      completionQuarantinedAuthorities,
       // Each store owns its root, accepted-generation directory, initial
       // generation marker, and at most five published objects per ID. Staged
       // objects are reported exactly until accepted or rolled back.
       completionAuthorityObjectUpperBound:
         authorities.size * 3 +
         completionAuthorityIds * 5 +
-        completionStagedAuthorityObjects,
+        completionStagedAuthorityObjects +
+        completionResidualAuthorityObjects,
       completionAuthorityMaxIds: this.maxCompletionAuthorityIds,
       completionAuthorityMaxIdBytes: this.maxCompletionAuthorityIdBytes,
       completionSourceMaxBytes: this.maxCompletionSourceBytes,
@@ -441,7 +479,17 @@ export class JobsDatanetWorkerRuntimeIndexV1 {
       3,
     );
     return {
-      store: { root, nextGeneration: 2 },
+      store: {
+        root,
+        nextGeneration: 2,
+        leaseId: ++this.completionAuthorityLeaseSequence,
+        leaseEpoch: 1,
+        quarantined: false,
+        residualIds: 0,
+        residualIdBytes: 0,
+        residualObjects: 0,
+      },
+      leaseEpoch: 1,
       generation: 1,
       idsIndexed: 0,
       idBytesIndexed: 0,
@@ -469,6 +517,7 @@ export class JobsDatanetWorkerRuntimeIndexV1 {
   ): void {
     if (!authority?.store.root) return;
     const root = authority.store.root;
+    authority.store.leaseEpoch += 1;
     authority.store.root = "";
     COMPLETION_AUTHORITY_ROOTS_V1.delete(root);
     void fsp.rm(root, { recursive: true, force: true }).catch(() => {
@@ -508,6 +557,14 @@ export class JobsDatanetWorkerRuntimeIndexV1 {
     createShards: boolean,
     delta: CompletionAuthorityDeltaV1 | null = null,
   ): { file: string; versions: string; bytes: Buffer } {
+    if (authority.leaseEpoch !== authority.store.leaseEpoch) {
+      throw new Error(
+        "VOID_JOBS_DATANET_WORKER_COMPLETION_SNAPSHOT_EXPIRED " +
+          `lease_id=${authority.store.leaseId} ` +
+          `expected_epoch=${authority.leaseEpoch} ` +
+          `current_epoch=${authority.store.leaseEpoch}`,
+      );
+    }
     const root = authority.store.root;
     if (!root) {
       throw new Error("VOID_JOBS_DATANET_WORKER_COMPLETION_AUTHORITY_RETIRED");
@@ -538,13 +595,31 @@ export class JobsDatanetWorkerRuntimeIndexV1 {
     generation: number,
   ): boolean {
     if (generation > authority.generation || generation < 1) return false;
+    const marker = path.join(
+      authority.store.root,
+      "accepted",
+      String(generation),
+    );
     try {
-      const stat = fs.lstatSync(
-        path.join(authority.store.root, "accepted", String(generation)),
+      this.testHooks.beforeCompletionAcceptedMarkerLookup?.({
+        generation,
+        path: marker,
+      });
+      const stat = fs.lstatSync(marker);
+      if (!stat.isFile() || stat.isSymbolicLink()) {
+        throw new Error("VOID_COMPLETION_ACCEPTED_MARKER_WRONG_TYPE");
+      }
+      return true;
+    } catch (error: any) {
+      const cause = String(error?.code || error?.message || "UNKNOWN").replace(
+        /\s+/g,
+        "_",
       );
-      return stat.isFile() && !stat.isSymbolicLink();
-    } catch {
-      return false;
+      throw new Error(
+        "VOID_JOBS_DATANET_WORKER_COMPLETION_AUTHORITY_INTEGRITY_HOLD " +
+          `lease_id=${authority.store.leaseId} ` +
+          `generation=${generation} cause=${cause}`,
+      );
     }
   }
 
@@ -699,6 +774,15 @@ export class JobsDatanetWorkerRuntimeIndexV1 {
   private createCompletionAuthorityDeltaV1(
     authority: CompletionAuthorityV1,
   ): CompletionAuthorityDeltaV1 {
+    if (authority.store.quarantined) {
+      throw new Error(
+        "VOID_JOBS_DATANET_WORKER_COMPLETION_AUTHORITY_QUARANTINED " +
+          `lease_id=${authority.store.leaseId} ` +
+          `residual_ids=${authority.store.residualIds} ` +
+          `residual_id_bytes=${authority.store.residualIdBytes} ` +
+          `residual_objects=${authority.store.residualObjects}`,
+      );
+    }
     return {
       base: authority,
       generation: authority.store.nextGeneration++,
@@ -734,6 +818,7 @@ export class JobsDatanetWorkerRuntimeIndexV1 {
     }
     const published: CompletionAuthorityV1 = {
       store: authority.store,
+      leaseEpoch: authority.leaseEpoch,
       generation: delta.generation,
       idsIndexed: authority.idsIndexed + delta.idsIndexed,
       idBytesIndexed: authority.idBytesIndexed + delta.idBytesIndexed,
@@ -786,13 +871,19 @@ export class JobsDatanetWorkerRuntimeIndexV1 {
   }
 
   private rollbackCompletionAuthorityDeltaV1(
+    file: string,
     delta: CompletionAuthorityDeltaV1 | null,
   ): void {
     if (!delta || delta.settled) return;
     let failed = false;
-    for (const file of [...delta.createdFiles].reverse()) {
+    for (const createdFile of [...delta.createdFiles].reverse()) {
       try {
-        fs.unlinkSync(file);
+        this.testHooks.beforeCompletionDeltaRollbackUnlink?.({
+          file,
+          generation: delta.generation,
+          path: createdFile,
+        });
+        fs.unlinkSync(createdFile);
       } catch (error: any) {
         if (error?.code !== "ENOENT") failed = true;
       }
@@ -806,13 +897,57 @@ export class JobsDatanetWorkerRuntimeIndexV1 {
         }
       }
     }
+    const survivingFiles = delta.createdFiles.filter((createdFile) => {
+      try {
+        const stat = fs.lstatSync(createdFile);
+        return stat.isFile() && !stat.isSymbolicLink();
+      } catch {
+        return false;
+      }
+    });
+    const survivingDirs = delta.createdDirs.filter((createdDir) => {
+      try {
+        const stat = fs.lstatSync(createdDir);
+        return stat.isDirectory() && !stat.isSymbolicLink();
+      } catch {
+        return false;
+      }
+    });
+    let survivingIdBytes = 0;
+    for (const survivingFile of survivingFiles) {
+      try {
+        survivingIdBytes += Number(fs.lstatSync(survivingFile).size);
+      } catch {
+        failed = true;
+      }
+    }
+    if (failed || survivingFiles.length > 0 || survivingDirs.length > 0) {
+      // Cleanup uncertainty permanently quarantines this store. Retain a
+      // conservative scalar residual-debt bound in operator state and prohibit
+      // every later delta, so repeated retries cannot accumulate unaccepted
+      // generations or grow per-lookup version enumeration outside the
+      // declared bound.
+      delta.base.store.quarantined = true;
+      delta.base.store.residualIds += Math.max(
+        survivingFiles.length,
+        failed ? delta.idsIndexed : 0,
+      );
+      delta.base.store.residualIdBytes += Math.max(
+        survivingIdBytes,
+        failed ? delta.idBytesIndexed : 0,
+      );
+      delta.base.store.residualObjects += Math.max(
+        survivingFiles.length + survivingDirs.length,
+        failed ? delta.objectsIndexed : 0,
+      );
+      this.completionMetrics.authority_cleanup_failures_total += 1;
+    }
     delta.createdFiles.length = 0;
     delta.createdDirs.length = 0;
     delta.idsIndexed = 0;
     delta.idBytesIndexed = 0;
     delta.objectsIndexed = 0;
     delta.settled = true;
-    if (failed) this.completionMetrics.authority_cleanup_failures_total += 1;
   }
 
   private completionAuthorityHasV1(
@@ -832,6 +967,10 @@ export class JobsDatanetWorkerRuntimeIndexV1 {
       if (error?.code === "ENOENT") return false;
       throw error;
     }
+    this.completionMetrics.authority_lookup_versions_max = Math.max(
+      this.completionMetrics.authority_lookup_versions_max,
+      versions.length,
+    );
     for (const name of versions) {
       if (!/^\d+$/.test(name)) continue;
       const generation = Number(name);
@@ -1378,7 +1517,7 @@ export class JobsDatanetWorkerRuntimeIndexV1 {
         }
       },
       () => {
-        this.rollbackCompletionAuthorityDeltaV1(delta);
+        this.rollbackCompletionAuthorityDeltaV1(file, delta);
         if (base) {
           this.completions.set(file, base);
         } else {
@@ -1499,7 +1638,7 @@ export class JobsDatanetWorkerRuntimeIndexV1 {
         delta,
       );
     } catch (error) {
-      this.rollbackCompletionAuthorityDeltaV1(delta);
+      this.rollbackCompletionAuthorityDeltaV1(file, delta);
       if (append) {
         this.completions.set(file, prior!);
       } else {
@@ -1520,6 +1659,12 @@ export class JobsDatanetWorkerRuntimeIndexV1 {
         input.jobStateFile,
         input.jobsFile,
       ].map((file) => this.completionStateV1(file));
+      const lease = states
+        .map(
+          (state) =>
+            `${state.authority.store.leaseId}:${state.authority.leaseEpoch}`,
+        )
+        .join("|");
       return {
         ready: true,
         doneTruthHas: (id: string) => {
@@ -1532,6 +1677,7 @@ export class JobsDatanetWorkerRuntimeIndexV1 {
           );
         },
         io: { ...this.completionMetrics },
+        lease,
         holdReason: null,
       };
     } catch (error: any) {
@@ -1540,6 +1686,7 @@ export class JobsDatanetWorkerRuntimeIndexV1 {
         ready: false,
         doneTruthHas: (_id: string) => false,
         io: { ...this.completionMetrics },
+        lease: "",
         holdReason,
       };
     }
@@ -1576,6 +1723,7 @@ export class JobsDatanetWorkerRuntimeIndexV1 {
         ready: false,
         jobs: [],
         doneTruthHas: completion.doneTruthHas,
+        completionAuthorityLease: completion.lease,
         holdReason: String(
           completion.holdReason || "completion_truth_not_ready",
         ),
@@ -1609,6 +1757,7 @@ export class JobsDatanetWorkerRuntimeIndexV1 {
         ready: true,
         jobs: [],
         doneTruthHas: completion.doneTruthHas,
+        completionAuthorityLease: completion.lease,
         holdReason: null,
         scanComplete: true,
         bytesReadThisTick: 0,
@@ -1795,6 +1944,7 @@ export class JobsDatanetWorkerRuntimeIndexV1 {
         ready: false,
         jobs: [],
         doneTruthHas: completion.doneTruthHas,
+        completionAuthorityLease: completion.lease,
         holdReason: "jobs_generation_changed",
         scanComplete: false,
         bytesReadThisTick,
@@ -1816,6 +1966,7 @@ export class JobsDatanetWorkerRuntimeIndexV1 {
         ready: false,
         jobs: [],
         doneTruthHas: completion.doneTruthHas,
+        completionAuthorityLease: completion.lease,
         holdReason: "jobs_generation_changed",
         scanComplete: false,
         bytesReadThisTick,
@@ -1831,6 +1982,7 @@ export class JobsDatanetWorkerRuntimeIndexV1 {
         ready: false,
         jobs: [],
         doneTruthHas: completion.doneTruthHas,
+        completionAuthorityLease: completion.lease,
         holdReason: "jobs_unwitnessed_source_change",
         scanComplete: false,
         bytesReadThisTick,
@@ -1845,6 +1997,7 @@ export class JobsDatanetWorkerRuntimeIndexV1 {
         ready: false,
         jobs: [],
         doneTruthHas: completion.doneTruthHas,
+        completionAuthorityLease: completion.lease,
         holdReason: "jobs_source_witness_changed",
         scanComplete: false,
         bytesReadThisTick,
@@ -1885,6 +2038,7 @@ export class JobsDatanetWorkerRuntimeIndexV1 {
       ready: true,
       jobs,
       doneTruthHas: completion.doneTruthHas,
+      completionAuthorityLease: completion.lease,
       holdReason: null,
       scanComplete:
         pathAfterSize === this.jobsOffset &&
