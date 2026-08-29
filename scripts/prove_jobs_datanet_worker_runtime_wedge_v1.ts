@@ -1420,6 +1420,8 @@ try {
   );
   const atomicGLease = atomicG.completionAuthorityLease;
   const atomicPublishedLease = atomicPublished.completionAuthorityLease;
+  const atomicGIdentity = atomicG.completionSnapshotIdentity;
+  const atomicPublishedIdentity = atomicPublished.completionSnapshotIdentity;
   fs.unlinkSync(atomicStateFile);
   const atomicRetired = atomicIndex.scan(atomicInput);
   let atomicGExpired = "";
@@ -1437,13 +1439,81 @@ try {
   assert(
     atomicRetired.ready &&
       atomicGLease === atomicPublishedLease &&
+      atomicGIdentity !== atomicPublishedIdentity &&
       atomicRetired.completionAuthorityLease !== atomicPublishedLease &&
+      atomicRetired.completionSnapshotIdentity !== atomicPublishedIdentity &&
       atomicGExpired.includes("COMPLETION_SNAPSHOT_EXPIRED") &&
       atomicPublishedExpired.includes("COMPLETION_SNAPSHOT_EXPIRED") &&
       !atomicGExpired.includes("COMPLETION_AUTHORITY_RETIRED") &&
       !atomicPublishedExpired.includes("COMPLETION_AUTHORITY_RETIRED"),
     "completion-authority-captured-generations-expire-by-explicit-lease",
-    `G=${atomicGLease} G1=${atomicPublishedLease} next=${atomicRetired.completionAuthorityLease} G_error=${atomicGExpired} G1_error=${atomicPublishedExpired}`,
+    `G_lease=${atomicGLease} G1_lease=${atomicPublishedLease} ` +
+      `G_identity=${atomicGIdentity} G1_identity=${atomicPublishedIdentity} ` +
+      `next_identity=${atomicRetired.completionSnapshotIdentity} ` +
+      `G_error=${atomicGExpired} G1_error=${atomicPublishedExpired}`,
+  );
+
+  // Logical snapshot identity is separate from the lifetime lease. It changes
+  // when admitted completion truth changes, including across a cold index
+  // reconstruction, while a no-change reconstruction reproduces the same
+  // content/stamp/generation-bound identity.
+  const identityJobsFile = path.join(root, "jobs-completion-identity.jsonl");
+  const identityReceiptsFile = path.join(
+    root,
+    "receipts-completion-identity.jsonl",
+  );
+  const identityStateFile = path.join(
+    root,
+    "job-state-completion-identity.jsonl",
+  );
+  fs.writeFileSync(identityJobsFile, "");
+  fs.writeFileSync(identityReceiptsFile, "");
+  fs.writeFileSync(
+    identityStateFile,
+    JSON.stringify({ job_id: "identity_a", status: "completed" }) + "\n",
+  );
+  const identityInput = {
+    jobsFile: identityJobsFile,
+    receiptsFile: identityReceiptsFile,
+    jobStateFile: identityStateFile,
+  };
+  const identityP1 = new JobsDatanetWorkerRuntimeIndexV1({
+    maxScanBytesPerTick: 4096,
+    maxSyncCompletionRebuildBytes: 4096,
+  }).scan(identityInput);
+  appendAgentPick2JsonlCanonicalV1(
+    identityStateFile,
+    JSON.stringify({ job_id: "identity_b", status: "completed" }) + "\n",
+  );
+  const identityP2 = new JobsDatanetWorkerRuntimeIndexV1({
+    maxScanBytesPerTick: 4096,
+    maxSyncCompletionRebuildBytes: 4096,
+  }).scan(identityInput);
+  const identityP3 = new JobsDatanetWorkerRuntimeIndexV1({
+    maxScanBytesPerTick: 4096,
+    maxSyncCompletionRebuildBytes: 4096,
+  }).scan(identityInput);
+  assert(
+    identityP1.ready &&
+      identityP2.ready &&
+      identityP3.ready &&
+      identityP1.completionAuthorityLease ===
+        identityP2.completionAuthorityLease &&
+      identityP1.completionSnapshotIdentity !==
+        identityP2.completionSnapshotIdentity &&
+      identityP2.completionSnapshotIdentity ===
+        identityP3.completionSnapshotIdentity &&
+      identityP1.doneTruthHas("identity_a") &&
+      !identityP1.doneTruthHas("identity_b") &&
+      identityP2.doneTruthHas("identity_a") &&
+      identityP2.doneTruthHas("identity_b") &&
+      identityP3.doneTruthHas("identity_b"),
+    "completion-snapshot-identity-is-content-generation-bound-across-restart",
+    `P1_lease=${identityP1.completionAuthorityLease} ` +
+      `P2_lease=${identityP2.completionAuthorityLease} ` +
+      `P1_identity=${identityP1.completionSnapshotIdentity} ` +
+      `P2_identity=${identityP2.completionSnapshotIdentity} ` +
+      `P3_identity=${identityP3.completionSnapshotIdentity}`,
   );
 
   // Once a generation has been returned as accepted, its private publication

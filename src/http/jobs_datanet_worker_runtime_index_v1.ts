@@ -36,7 +36,13 @@ export type JobsDatanetWorkerRuntimeScanV1 = {
   ready: boolean;
   jobs: ScanJobV1[];
   doneTruthHas: (id: string) => boolean;
+  // Lifetime/expiry authority only. Do not use this as a completion-state
+  // version, cache key, or serialized evidence identity.
   completionAuthorityLease: string;
+  // Exact admitted completion membership generation. This identity changes
+  // when source authority or logical generation changes and remains stable
+  // across a no-change runtime-index reconstruction.
+  completionSnapshotIdentity: string;
   holdReason: string | null;
   scanComplete: boolean;
   bytesReadThisTick: number;
@@ -1665,6 +1671,14 @@ export class JobsDatanetWorkerRuntimeIndexV1 {
             `${state.authority.store.leaseId}:${state.authority.leaseEpoch}`,
         )
         .join("|");
+      const snapshotIdentity = states
+        .map(
+          (state) =>
+            `${state.dev}:${state.ino}:${state.size}:` +
+            `${state.mtimeNs}:${state.ctimeNs}:` +
+            `${state.authority.generation}`,
+        )
+        .join("|");
       return {
         ready: true,
         doneTruthHas: (id: string) => {
@@ -1678,6 +1692,7 @@ export class JobsDatanetWorkerRuntimeIndexV1 {
         },
         io: { ...this.completionMetrics },
         lease,
+        snapshotIdentity,
         holdReason: null,
       };
     } catch (error: any) {
@@ -1687,6 +1702,7 @@ export class JobsDatanetWorkerRuntimeIndexV1 {
         doneTruthHas: (_id: string) => false,
         io: { ...this.completionMetrics },
         lease: "",
+        snapshotIdentity: "",
         holdReason,
       };
     }
@@ -1724,6 +1740,7 @@ export class JobsDatanetWorkerRuntimeIndexV1 {
         jobs: [],
         doneTruthHas: completion.doneTruthHas,
         completionAuthorityLease: completion.lease,
+        completionSnapshotIdentity: completion.snapshotIdentity,
         holdReason: String(
           completion.holdReason || "completion_truth_not_ready",
         ),
@@ -1758,6 +1775,7 @@ export class JobsDatanetWorkerRuntimeIndexV1 {
         jobs: [],
         doneTruthHas: completion.doneTruthHas,
         completionAuthorityLease: completion.lease,
+        completionSnapshotIdentity: completion.snapshotIdentity,
         holdReason: null,
         scanComplete: true,
         bytesReadThisTick: 0,
@@ -1945,6 +1963,7 @@ export class JobsDatanetWorkerRuntimeIndexV1 {
         jobs: [],
         doneTruthHas: completion.doneTruthHas,
         completionAuthorityLease: completion.lease,
+        completionSnapshotIdentity: completion.snapshotIdentity,
         holdReason: "jobs_generation_changed",
         scanComplete: false,
         bytesReadThisTick,
@@ -1967,6 +1986,7 @@ export class JobsDatanetWorkerRuntimeIndexV1 {
         jobs: [],
         doneTruthHas: completion.doneTruthHas,
         completionAuthorityLease: completion.lease,
+        completionSnapshotIdentity: completion.snapshotIdentity,
         holdReason: "jobs_generation_changed",
         scanComplete: false,
         bytesReadThisTick,
@@ -1983,6 +2003,7 @@ export class JobsDatanetWorkerRuntimeIndexV1 {
         jobs: [],
         doneTruthHas: completion.doneTruthHas,
         completionAuthorityLease: completion.lease,
+        completionSnapshotIdentity: completion.snapshotIdentity,
         holdReason: "jobs_unwitnessed_source_change",
         scanComplete: false,
         bytesReadThisTick,
@@ -1998,6 +2019,7 @@ export class JobsDatanetWorkerRuntimeIndexV1 {
         jobs: [],
         doneTruthHas: completion.doneTruthHas,
         completionAuthorityLease: completion.lease,
+        completionSnapshotIdentity: completion.snapshotIdentity,
         holdReason: "jobs_source_witness_changed",
         scanComplete: false,
         bytesReadThisTick,
@@ -2039,6 +2061,7 @@ export class JobsDatanetWorkerRuntimeIndexV1 {
       jobs,
       doneTruthHas: completion.doneTruthHas,
       completionAuthorityLease: completion.lease,
+      completionSnapshotIdentity: completion.snapshotIdentity,
       holdReason: null,
       scanComplete:
         pathAfterSize === this.jobsOffset &&
