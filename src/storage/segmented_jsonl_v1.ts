@@ -961,6 +961,14 @@ function classifyExistingReconstructionV1(
     }
 
     try {
+      fs.fsyncSync(existingFd);
+    } catch (error: any) {
+      fail(
+        "RECONSTRUCT_EXISTING_EQUIVALENT_DATA_UNFENCED",
+        `${outputPath}:${String(error?.code || error)}`,
+      );
+    }
+    try {
       fs.fsyncSync(parent.fd);
     } catch (error: any) {
       fail("RECONSTRUCT_EXISTING_EQUIVALENT_UNFENCED", `${outputPath}:${String(error?.code || error)}`);
@@ -986,7 +994,13 @@ function classifyExistingReconstructionV1(
     }
     return "equivalent";
   } catch (error: any) {
-    if (error instanceof Error && error.message.includes("RECONSTRUCT_EXISTING_EQUIVALENT_UNFENCED")) throw error;
+    if (
+      error instanceof Error &&
+      (error.message.includes("RECONSTRUCT_EXISTING_EQUIVALENT_DATA_UNFENCED") ||
+        error.message.includes("RECONSTRUCT_EXISTING_EQUIVALENT_UNFENCED"))
+    ) {
+      throw error;
+    }
     return "occupied";
   } finally {
     if (existingFd >= 0) fs.closeSync(existingFd);
