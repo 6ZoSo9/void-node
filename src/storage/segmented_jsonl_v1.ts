@@ -1,6 +1,7 @@
 // VOID Community License (VCL) v1.0 — see LICENSE
 // Copyright (c) 2025 6ZoSo9
 
+import * as childProcess from "node:child_process";
 import * as crypto from "node:crypto";
 import * as fs from "node:fs";
 import * as path from "node:path";
@@ -868,6 +869,140 @@ function appendVerifiedGenerationToOutputV1(
   } finally { fs.closeSync(inFd); }
 }
 
+const O_TMPFILE_V1 = 0o20200000;
+const EXACT_FD_LINK_HELPER_V1 = "/usr/bin/ln";
+const EXACT_FD_LINK_TIMEOUT_MS_V1 = 2_000;
+const EXACT_FD_LINK_STDERR_BYTES_V1 = 8 * 1024;
+
+function openUnlinkedReconstructionFileV1(parent: DirectoryAuthorityV1, outputPath: string): number {
+  assertPrivateDirectoryWriteAuthorityV1(parent);
+  try {
+    return fs.openSync(
+      parent.stablePath,
+      fs.constants.O_RDWR | O_TMPFILE_V1,
+      0o600,
+    );
+  } catch (error: any) {
+    fail("RECONSTRUCT_TMPFILE_UNAVAILABLE", `${outputPath}:${String(error?.code || error)}`);
+  }
+}
+
+function verifyExactPublishedReconstructionV1(
+  parent: DirectoryAuthorityV1,
+  outputPath: string,
+  fd: number,
+  expectedBytes: number,
+  expectedSha256: string,
+): void {
+  const stableOut = path.join(parent.stablePath, path.basename(outputPath));
+  const openedBefore = fdObservation(fd);
+  if (
+    openedBefore.mode !== 0o600 ||
+    openedBefore.nlink !== 0 ||
+    BigInt(openedBefore.generation.size) !== BigInt(expectedBytes)
+  ) {
+    fail(
+      "RECONSTRUCT_TMPFILE_AUTHORITY_MISMATCH",
+      `${outputPath}:mode=${openedBefore.mode.toString(8)}:nlink=${openedBefore.nlink}:size=${openedBefore.generation.size}`,
+    );
+  }
+
+  let preexisting = false;
+  try { fs.lstatSync(stableOut); preexisting = true; }
+  catch (error: any) { if (error?.code !== "ENOENT") throw error; }
+  if (preexisting) fail("OUTPUT_EXISTS", outputPath);
+
+  const linked = childProcess.spawnSync(
+    EXACT_FD_LINK_HELPER_V1,
+    ["-L", "-T", "--", "/proc/self/fd/3", `/proc/self/fd/4/${path.basename(outputPath)}`],
+    {
+      cwd: "/",
+      env: { PATH: "/usr/bin:/bin", LANG: "C", LC_ALL: "C" },
+      timeout: EXACT_FD_LINK_TIMEOUT_MS_V1,
+      killSignal: "SIGKILL",
+      maxBuffer: EXACT_FD_LINK_STDERR_BYTES_V1,
+      stdio: ["ignore", "ignore", "pipe", fd, parent.fd],
+    },
+  );
+  if (linked.error || linked.signal || linked.status !== 0) {
+    let occupied = false;
+    try { fs.lstatSync(stableOut); occupied = true; }
+    catch (error: any) { if (error?.code !== "ENOENT") throw error; }
+    if (occupied) fail("OUTPUT_EXISTS", outputPath);
+    const stderr = Buffer.isBuffer(linked.stderr)
+      ? linked.stderr.subarray(0, EXACT_FD_LINK_STDERR_BYTES_V1).toString("utf8").replace(/[\r\n]+/g, " ").trim()
+      : "";
+    fail(
+      "RECONSTRUCT_EXACT_FD_LINK_FAILED",
+      `${outputPath}:status=${String(linked.status)}:signal=${String(linked.signal || "none")}:error=${String((linked.error as any)?.code || "none")}:stderr=${stderr}`,
+    );
+  }
+
+  const visible = fs.lstatSync(stableOut, { bigint: true } as any);
+  const openedLinked = fdObservation(fd);
+  if (
+    !visible.isFile() ||
+    visible.isSymbolicLink() ||
+    String(visible.dev) !== openedBefore.generation.dev ||
+    String(visible.ino) !== openedBefore.generation.ino ||
+    openedLinked.generation.dev !== openedBefore.generation.dev ||
+    openedLinked.generation.ino !== openedBefore.generation.ino ||
+    BigInt(visible.size) !== BigInt(expectedBytes) ||
+    openedLinked.generation.size !== String(expectedBytes) ||
+    (Number(visible.mode) & 0o777) !== 0o600 ||
+    openedLinked.mode !== 0o600 ||
+    Number(visible.nlink) !== 1 ||
+    openedLinked.nlink !== 1
+  ) {
+    fail("RECONSTRUCT_EXACT_FD_LINK_AUTHORITY_MISMATCH", outputPath);
+  }
+
+  const verifyHash = crypto.createHash("sha256");
+  const buffer = Buffer.allocUnsafe(READ_CHUNK);
+  let offset = 0;
+  while (offset < expectedBytes) {
+    const requested = Math.min(buffer.length, expectedBytes - offset);
+    const count = fs.readSync(fd, buffer, 0, requested, offset);
+    if (count <= 0) fail("RECONSTRUCT_PUBLISHED_SHORT_READ", `${outputPath}:${offset}:${expectedBytes}`);
+    verifyHash.update(buffer.subarray(0, count));
+    offset += count;
+  }
+  const sentinel = Buffer.allocUnsafe(1);
+  if (fs.readSync(fd, sentinel, 0, 1, expectedBytes) > 0) {
+    fail("RECONSTRUCT_PUBLISHED_GREW", outputPath);
+  }
+  const openedAfterRead = fdObservation(fd);
+  if (
+    openedAfterRead.generation.dev !== openedLinked.generation.dev ||
+    openedAfterRead.generation.ino !== openedLinked.generation.ino ||
+    openedAfterRead.generation.size !== openedLinked.generation.size ||
+    openedAfterRead.generation.mtimeNs !== openedLinked.generation.mtimeNs ||
+    openedAfterRead.generation.ctimeNs !== openedLinked.generation.ctimeNs ||
+    openedAfterRead.mode !== openedLinked.mode ||
+    openedAfterRead.nlink !== openedLinked.nlink ||
+    verifyHash.digest("hex") !== expectedSha256
+  ) {
+    fail("RECONSTRUCT_PUBLISHED_GENERATION_MISMATCH", outputPath);
+  }
+
+  try {
+    fs.fsyncSync(parent.fd);
+  } catch (error: any) {
+    fail("RECONSTRUCT_LINKED_UNFENCED", `${outputPath}:${String(error?.code || error)}`);
+  }
+  assertPrivateDirectoryWriteAuthorityV1(parent);
+  const durableVisible = fs.lstatSync(stableOut, { bigint: true } as any);
+  if (
+    String(durableVisible.dev) !== openedBefore.generation.dev ||
+    String(durableVisible.ino) !== openedBefore.generation.ino ||
+    BigInt(durableVisible.size) !== BigInt(expectedBytes) ||
+    (Number(durableVisible.mode) & 0o777) !== 0o600 ||
+    Number(durableVisible.nlink) !== 1
+  ) {
+    fail("RECONSTRUCT_DURABLE_FINAL_MISMATCH", outputPath);
+  }
+}
+
 export function reconstructSegmentedJsonlV1ToFile(rootInput:string,outputInput:string) {
   const rootPathValue=rootPath(rootInput), out=path.resolve(String(outputInput||""));
   if (!out || out === path.parse(out).root) fail("INVALID_OUTPUT", out || "empty");
@@ -880,25 +1015,20 @@ export function reconstructSegmentedJsonlV1ToFile(rootInput:string,outputInput:s
     const verified=verifySegmentedJsonlWithAuthoritiesV1(root,segments);
     outputParent=openDirectoryAuthorityV1(path.dirname(out));
     assertPrivateDirectoryWriteAuthorityV1(outputParent);
-    const stableOut=path.join(outputParent.stablePath,path.basename(out));
-    try {
-      fd=fs.openSync(stableOut,fs.constants.O_WRONLY|fs.constants.O_CREAT|fs.constants.O_EXCL|((fs.constants as any).O_NOFOLLOW||0),0o600);
-    } catch (error:any) {
-      if(error?.code==="EEXIST") fail("OUTPUT_EXISTS",out);
-      throw error;
-    }
+    fd=openUnlinkedReconstructionFileV1(outputParent,out);
     const hash=crypto.createHash("sha256"); let bytes=0;
-    try{
-      for(const s of verified.manifest.sealed_segments) bytes+=appendVerifiedGenerationToOutputV1(path.join(segments.stablePath,segmentName(s.id)),s.bytes,s.sha256,fd,hash,out,0o400);
-      bytes+=appendVerifiedGenerationToOutputV1(path.join(root.stablePath,ACTIVE),verified.manifest.active.bytes,verified.manifest.active.sha256,fd,hash,out,0o600);
-      fs.fsyncSync(fd);
-      fs.fsyncSync(outputParent.fd);
-      assertPrivateDirectoryWriteAuthorityV1(outputParent);
-      assertPrivateDirectoryWriteAuthorityV1(segments);
-      assertPrivateDirectoryWriteAuthorityV1(root);
-    }finally{fs.closeSync(fd);fd=-1;}
+    for(const s of verified.manifest.sealed_segments) {
+      bytes+=appendVerifiedGenerationToOutputV1(path.join(segments.stablePath,segmentName(s.id)),s.bytes,s.sha256,fd,hash,out,0o400);
+    }
+    bytes+=appendVerifiedGenerationToOutputV1(path.join(root.stablePath,ACTIVE),verified.manifest.active.bytes,verified.manifest.active.sha256,fd,hash,out,0o600);
     if(bytes!==verified.manifest.total_bytes) fail("RECONSTRUCT_SIZE_MISMATCH",`${bytes}:${verified.manifest.total_bytes}`);
-    return {bytes,records:verified.manifest.total_records,sha256:hash.digest("hex")};
+    fs.fchmodSync(fd,0o600);
+    fs.fsyncSync(fd);
+    const digest=hash.digest("hex");
+    verifyExactPublishedReconstructionV1(outputParent,out,fd,bytes,digest);
+    assertPrivateDirectoryWriteAuthorityV1(segments);
+    assertPrivateDirectoryWriteAuthorityV1(root);
+    return {bytes,records:verified.manifest.total_records,sha256:digest};
   } finally {
     if(fd>=0)fs.closeSync(fd);
     if(outputParent)fs.closeSync(outputParent.fd);
