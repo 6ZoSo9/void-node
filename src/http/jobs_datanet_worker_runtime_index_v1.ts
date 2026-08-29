@@ -12,6 +12,14 @@ import {
 
 export const VOID_JOBS_DATANET_WORKER_RUNTIME_INDEX_V1 =
   "VOID_JOBS_DATANET_WORKER_RUNTIME_INDEX_V1";
+export const VOID_JOBS_DATANET_WORKER_COMPLETION_CAPACITY_CONTRACT_V1 =
+  "VOID_JOBS_DATANET_WORKER_COMPLETION_CAPACITY_CONTRACT_V1";
+export const VOID_JOBS_DATANET_WORKER_MAX_COMPLETION_AUTHORITY_IDS_V1 =
+  64 * 1024;
+export const VOID_JOBS_DATANET_WORKER_MAX_COMPLETION_AUTHORITY_ID_BYTES_V1 =
+  64 * 1024 * 1024;
+export const VOID_JOBS_DATANET_WORKER_MAX_COMPLETION_SOURCE_BYTES_V1 =
+  1024 * 1024 * 1024;
 
 type ScanInputV1 = {
   jobsFile: string;
@@ -40,6 +48,13 @@ export type JobsDatanetWorkerRuntimeScanV1 = {
     pendingSourceBytes: number;
     completionResidentIds: number;
     completionAuthorities: number;
+    completionAuthorityIds: number;
+    completionAuthorityIdBytes: number;
+    completionAuthorityObjects: number;
+    completionAuthorityObjectUpperBound: number;
+    completionAuthorityMaxIds: number;
+    completionAuthorityMaxIdBytes: number;
+    completionSourceMaxBytes: number;
   };
 };
 
@@ -84,6 +99,8 @@ type CompletionStateV1 = FileStampV1 & {
 type CompletionAuthorityV1 = {
   root: string;
   idsIndexed: number;
+  idBytesIndexed: number;
+  objectsIndexed: number;
 };
 
 type RuntimeIndexTestHooksV1 = {
@@ -173,6 +190,9 @@ export class JobsDatanetWorkerRuntimeIndexV1 {
   private readonly maxJobsPerTick: number;
   private readonly maxLocallyDoneIds: number;
   private readonly maxSyncCompletionRebuildBytes: number;
+  private readonly maxCompletionAuthorityIds: number;
+  private readonly maxCompletionAuthorityIdBytes: number;
+  private readonly maxCompletionSourceBytes: number;
   private readonly completionRebuildBackoffMs: number;
   private readonly testHooks: RuntimeIndexTestHooksV1;
 
@@ -193,6 +213,10 @@ export class JobsDatanetWorkerRuntimeIndexV1 {
   private authorityWitnessMisses = 0;
   private readonly completions = new Map<string, CompletionStateV1>();
   private readonly completionWarmTasks = new Map<string, Promise<void>>();
+  private readonly completionWarmAuthorities = new Map<
+    string,
+    CompletionAuthorityV1
+  >();
   private readonly completionHoldUntil = new Map<string, number>();
   private readonly completionMetrics = {
     bytes_read_total: 0,
@@ -207,6 +231,13 @@ export class JobsDatanetWorkerRuntimeIndexV1 {
     async_full_history_starts_total: 0,
     async_incremental_starts_total: 0,
     authority_records_indexed_total: 0,
+    authority_ids_high_water: 0,
+    authority_id_bytes_high_water: 0,
+    authority_objects_high_water: 1,
+    authority_object_upper_bound_high_water: 1,
+    authority_capacity_holds_total: 0,
+    completion_source_bytes_high_water: 0,
+    completion_source_capacity_holds_total: 0,
     authority_lookup_bytes_max: 0,
     authority_cleanup_failures_total: 0,
   };
@@ -216,6 +247,9 @@ export class JobsDatanetWorkerRuntimeIndexV1 {
     maxJobsPerTick?: number;
     maxLocallyDoneIds?: number;
     maxSyncCompletionRebuildBytes?: number;
+    maxCompletionAuthorityIds?: number;
+    maxCompletionAuthorityIdBytes?: number;
+    maxCompletionSourceBytes?: number;
     completionRebuildBackoffMs?: number;
     testHooks?: RuntimeIndexTestHooksV1;
   } = {}) {
@@ -245,6 +279,27 @@ export class JobsDatanetWorkerRuntimeIndexV1 {
       4096,
       1024 * 1024 * 1024,
     );
+    this.maxCompletionAuthorityIds = boundedIntV1(
+      opts.maxCompletionAuthorityIds ??
+        process.env.VOID_JOBS_WORKER_MAX_COMPLETION_AUTHORITY_IDS,
+      VOID_JOBS_DATANET_WORKER_MAX_COMPLETION_AUTHORITY_IDS_V1,
+      1,
+      VOID_JOBS_DATANET_WORKER_MAX_COMPLETION_AUTHORITY_IDS_V1,
+    );
+    this.maxCompletionAuthorityIdBytes = boundedIntV1(
+      opts.maxCompletionAuthorityIdBytes ??
+        process.env.VOID_JOBS_WORKER_MAX_COMPLETION_AUTHORITY_ID_BYTES,
+      VOID_JOBS_DATANET_WORKER_MAX_COMPLETION_AUTHORITY_ID_BYTES_V1,
+      1,
+      VOID_JOBS_DATANET_WORKER_MAX_COMPLETION_AUTHORITY_ID_BYTES_V1,
+    );
+    this.maxCompletionSourceBytes = boundedIntV1(
+      opts.maxCompletionSourceBytes ??
+        process.env.VOID_JOBS_WORKER_MAX_COMPLETION_SOURCE_BYTES,
+      VOID_JOBS_DATANET_WORKER_MAX_COMPLETION_SOURCE_BYTES_V1,
+      1,
+      VOID_JOBS_DATANET_WORKER_MAX_COMPLETION_SOURCE_BYTES_V1,
+    );
     this.completionRebuildBackoffMs = boundedIntV1(
       opts.completionRebuildBackoffMs,
       30_000,
@@ -268,6 +323,23 @@ export class JobsDatanetWorkerRuntimeIndexV1 {
   }
 
   private retainedStateV1() {
+    const authorities = new Map<string, CompletionAuthorityV1>();
+    for (const state of this.completions.values()) {
+      if (state.authority.root) {
+        authorities.set(state.authority.root, state.authority);
+      }
+    }
+    for (const authority of this.completionWarmAuthorities.values()) {
+      if (authority.root) authorities.set(authority.root, authority);
+    }
+    let completionAuthorityIds = 0;
+    let completionAuthorityIdBytes = 0;
+    let completionAuthorityObjects = 0;
+    for (const authority of authorities.values()) {
+      completionAuthorityIds += authority.idsIndexed;
+      completionAuthorityIdBytes += authority.idBytesIndexed;
+      completionAuthorityObjects += authority.objectsIndexed;
+    }
     return {
       pendingIds: this.pending.size,
       locallyDoneIds: this.locallyDone.size,
@@ -276,7 +348,16 @@ export class JobsDatanetWorkerRuntimeIndexV1 {
       // Exact completion identity authority lives in a private disk-backed
       // cache. Only these fixed-size handles remain resident as H grows.
       completionResidentIds: 0,
-      completionAuthorities: this.completions.size,
+      completionAuthorities: authorities.size,
+      completionAuthorityIds,
+      completionAuthorityIdBytes,
+      completionAuthorityObjects,
+      // One root plus at most two shard directories and one leaf per ID.
+      completionAuthorityObjectUpperBound:
+        authorities.size + completionAuthorityIds * 3,
+      completionAuthorityMaxIds: this.maxCompletionAuthorityIds,
+      completionAuthorityMaxIdBytes: this.maxCompletionAuthorityIdBytes,
+      completionSourceMaxBytes: this.maxCompletionSourceBytes,
     };
   }
 
@@ -286,7 +367,22 @@ export class JobsDatanetWorkerRuntimeIndexV1 {
     );
     fs.chmodSync(root, 0o700);
     registerCompletionAuthorityRootV1(root);
-    return { root, idsIndexed: 0 };
+    return { root, idsIndexed: 0, idBytesIndexed: 0, objectsIndexed: 1 };
+  }
+
+  private assertCompletionSourceCapacityV1(
+    file: string,
+    target: FileStampV1,
+  ): void {
+    this.completionMetrics.completion_source_bytes_high_water = Math.max(
+      this.completionMetrics.completion_source_bytes_high_water,
+      Math.min(target.size, this.maxCompletionSourceBytes),
+    );
+    if (target.size <= this.maxCompletionSourceBytes) return;
+    this.completionMetrics.completion_source_capacity_holds_total += 1;
+    throw new Error(
+      `VOID_JOBS_DATANET_WORKER_COMPLETION_SOURCE_CAPACITY_HOLD file=${file} bytes=${target.size} max_bytes=${this.maxCompletionSourceBytes}`,
+    );
   }
 
   private retireCompletionAuthorityV1(
@@ -323,8 +419,12 @@ export class JobsDatanetWorkerRuntimeIndexV1 {
     const first = path.join(authority.root, digest.slice(0, 2));
     const second = path.join(first, digest.slice(2, 4));
     if (createShards) {
-      fs.mkdirSync(first, { mode: 0o700, recursive: true });
-      fs.mkdirSync(second, { mode: 0o700, recursive: true });
+      if (fs.mkdirSync(first, { mode: 0o700, recursive: true })) {
+        authority.objectsIndexed += 1;
+      }
+      if (fs.mkdirSync(second, { mode: 0o700, recursive: true })) {
+        authority.objectsIndexed += 1;
+      }
     }
     return { file: path.join(second, digest.slice(4)), bytes };
   }
@@ -333,14 +433,64 @@ export class JobsDatanetWorkerRuntimeIndexV1 {
     authority: CompletionAuthorityV1,
     id: string,
   ): void {
-    const entry = this.completionAuthorityPathV1(authority, id, true);
+    // Resolve and validate duplicates before creating shard directories. A
+    // capacity HOLD therefore cannot consume another inode or publish a
+    // provisional leaf outside the reviewed aggregate contract.
+    const entry = this.completionAuthorityPathV1(authority, id, false);
+    const existing = this.readCompletionAuthorityEntryV1(entry.file);
+    if (existing) {
+      this.completionMetrics.authority_lookup_bytes_max = Math.max(
+        this.completionMetrics.authority_lookup_bytes_max,
+        existing.length,
+      );
+      if (!existing.equals(entry.bytes)) {
+        throw new Error(
+          "VOID_JOBS_DATANET_WORKER_COMPLETION_IDENTITY_COLLISION",
+        );
+      }
+      return;
+    }
+
+    const nextIds = authority.idsIndexed + 1;
+    const nextIdBytes = authority.idBytesIndexed + entry.bytes.length;
+    if (
+      nextIds > this.maxCompletionAuthorityIds ||
+      nextIdBytes > this.maxCompletionAuthorityIdBytes
+    ) {
+      this.completionMetrics.authority_capacity_holds_total += 1;
+      throw new Error(
+        "VOID_JOBS_DATANET_WORKER_COMPLETION_AUTHORITY_CAPACITY_HOLD " +
+          `ids=${nextIds} max_ids=${this.maxCompletionAuthorityIds} ` +
+          `id_bytes=${nextIdBytes} max_id_bytes=${this.maxCompletionAuthorityIdBytes}`,
+      );
+    }
+
+    this.completionAuthorityPathV1(authority, id, true);
     try {
       fs.writeFileSync(entry.file, entry.bytes, {
         flag: "wx",
         mode: 0o600,
       });
-      authority.idsIndexed += 1;
+      authority.idsIndexed = nextIds;
+      authority.idBytesIndexed = nextIdBytes;
+      authority.objectsIndexed += 1;
       this.completionMetrics.authority_records_indexed_total += 1;
+      this.completionMetrics.authority_ids_high_water = Math.max(
+        this.completionMetrics.authority_ids_high_water,
+        authority.idsIndexed,
+      );
+      this.completionMetrics.authority_id_bytes_high_water = Math.max(
+        this.completionMetrics.authority_id_bytes_high_water,
+        authority.idBytesIndexed,
+      );
+      this.completionMetrics.authority_objects_high_water = Math.max(
+        this.completionMetrics.authority_objects_high_water,
+        authority.objectsIndexed,
+      );
+      this.completionMetrics.authority_object_upper_bound_high_water = Math.max(
+        this.completionMetrics.authority_object_upper_bound_high_water,
+        1 + authority.idsIndexed * 3,
+      );
       return;
     } catch (error: any) {
       if (error?.code !== "EEXIST") throw error;
@@ -676,6 +826,7 @@ export class JobsDatanetWorkerRuntimeIndexV1 {
     target: FileStampV1,
     authority: CompletionAuthorityV1,
   ): CompletionStateV1 {
+    this.assertCompletionSourceCapacityV1(file, target);
     const flags = fs.constants.O_RDONLY | ((fs.constants as any).O_NOFOLLOW || 0);
     const fd = fs.openSync(file, flags);
     try {
@@ -728,6 +879,7 @@ export class JobsDatanetWorkerRuntimeIndexV1 {
     initialTarget: FileStampV1,
   ): void {
     if (this.completionWarmTasks.has(file)) return;
+    this.assertCompletionSourceCapacityV1(file, initialTarget);
     this.completionMetrics.rebuilds_total += base ? 0 : 1;
     this.completionMetrics.incremental_reads_total += base ? 1 : 0;
     this.completionMetrics.async_warms_total += 1;
@@ -741,12 +893,14 @@ export class JobsDatanetWorkerRuntimeIndexV1 {
     // Append updates reuse the exact disk authority in place; cold rebuilds
     // get a fresh private authority. Neither path copies or enumerates H IDs.
     const authority = base?.authority || this.createCompletionAuthorityV1();
+    this.completionWarmAuthorities.set(file, authority);
 
     const task = (async () => {
       let position = initialPosition;
       let target = initialTarget;
 
       for (;;) {
+        this.assertCompletionSourceCapacityV1(file, target);
         const beforeOpen = fileStampV1(file);
         if (!beforeOpen || !sameStampV1(beforeOpen, target)) {
           const advanced = this.admitSourceV1(file);
@@ -762,6 +916,7 @@ export class JobsDatanetWorkerRuntimeIndexV1 {
             );
           }
           target = advanced.stamp;
+          this.assertCompletionSourceCapacityV1(file, target);
         }
         const flags = fs.constants.O_RDONLY | ((fs.constants as any).O_NOFOLLOW || 0);
         const handle: any = await this.openCompletionReadHandleV1(file, flags);
@@ -777,6 +932,7 @@ export class JobsDatanetWorkerRuntimeIndexV1 {
               advanced.stamp.size > target.size
             ) {
               target = advanced.stamp;
+              this.assertCompletionSourceCapacityV1(file, target);
               continue;
             }
             throw new Error(
@@ -839,6 +995,7 @@ export class JobsDatanetWorkerRuntimeIndexV1 {
           );
         }
         target = admitted.stamp;
+        this.assertCompletionSourceCapacityV1(file, target);
       }
     })();
 
@@ -847,6 +1004,7 @@ export class JobsDatanetWorkerRuntimeIndexV1 {
       () => {
         if (this.completionWarmTasks.get(file) === task) {
           this.completionWarmTasks.delete(file);
+          this.completionWarmAuthorities.delete(file);
         }
       },
       () => {
@@ -859,6 +1017,7 @@ export class JobsDatanetWorkerRuntimeIndexV1 {
         );
         if (this.completionWarmTasks.get(file) === task) {
           this.completionWarmTasks.delete(file);
+          this.completionWarmAuthorities.delete(file);
         }
       },
     );
@@ -927,6 +1086,7 @@ export class JobsDatanetWorkerRuntimeIndexV1 {
         `VOID_JOBS_DATANET_WORKER_COMPLETION_UNSTABLE file=${file}`,
       );
     }
+    this.assertCompletionSourceCapacityV1(file, admitted.stamp);
 
     const start = append ? prior!.size : 0;
     const bytes = admitted.stamp.size - start;

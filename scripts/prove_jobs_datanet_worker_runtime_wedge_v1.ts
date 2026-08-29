@@ -1027,6 +1027,181 @@ try {
     `records_delta=${Number(authorityIncremental.completionIo?.authority_records_indexed_total || 0) - authorityRecordsBefore} bytes_delta=${Number(authorityIncremental.completionIo?.bytes_read_total || 0) - authorityBytesBefore} retained=${JSON.stringify(authorityIncremental.retainedState)}`,
   );
 
+  // The disk authority is an explicitly bounded cache, not an unbounded
+  // relocation of H identities from the JS heap into tmpfs. At the accepted
+  // boundary, duplicate truth remains readable without another leaf. The next
+  // unique identity must HOLD before creating either shard or leaf.
+  const capacityJobsFile = path.join(root, "jobs-completion-capacity.jsonl");
+  const capacityReceiptsFile = path.join(
+    root,
+    "receipts-completion-capacity.jsonl",
+  );
+  const capacityJobStateFile = path.join(
+    root,
+    "job-state-completion-capacity.jsonl",
+  );
+  fs.writeFileSync(capacityJobsFile, "");
+  fs.writeFileSync(capacityReceiptsFile, "");
+  const capacityIds = ["cap_a", "cap_b", "cap_c"];
+  fs.writeFileSync(
+    capacityJobStateFile,
+    capacityIds
+      .map((job_id) => JSON.stringify({ job_id, status: "completed" }))
+      .join("\n") + "\n",
+  );
+  const capacityIndex = new JobsDatanetWorkerRuntimeIndexV1({
+    maxScanBytesPerTick: 4096,
+    maxSyncCompletionRebuildBytes: 4096,
+    maxCompletionAuthorityIds: capacityIds.length,
+    maxCompletionAuthorityIdBytes: capacityIds.reduce(
+      (sum, id) => sum + Buffer.byteLength(id),
+      0,
+    ),
+    maxCompletionSourceBytes: 4096,
+  });
+  const capacityInput = {
+    jobsFile: capacityJobsFile,
+    receiptsFile: capacityReceiptsFile,
+    jobStateFile: capacityJobStateFile,
+  };
+  const capacityAccepted = capacityIndex.scan(capacityInput);
+  const capacityObjects = Number(
+    capacityAccepted.completionIo?.authority_objects_high_water || 0,
+  );
+  assert(
+    capacityAccepted.ready &&
+      capacityIds.every((id) => capacityAccepted.doneTruthHas(id)) &&
+      capacityAccepted.retainedState.completionAuthorityIds ===
+        capacityIds.length &&
+      capacityAccepted.retainedState.completionAuthorityIdBytes ===
+        capacityIds.reduce((sum, id) => sum + Buffer.byteLength(id), 0) &&
+      capacityObjects >= capacityIds.length + 1 &&
+      capacityObjects <= 1 + capacityIds.length * 3,
+    "completion-authority-capacity-bound-accepted",
+    `ready=${capacityAccepted.ready} io=${JSON.stringify(capacityAccepted.completionIo)} retained=${JSON.stringify(capacityAccepted.retainedState)}`,
+  );
+  const capacityRecords = Number(
+    capacityAccepted.completionIo?.authority_records_indexed_total || 0,
+  );
+  appendAgentPick2JsonlCanonicalV1(
+    capacityJobStateFile,
+    JSON.stringify({ job_id: "cap_b", status: "completed" }) + "\n",
+  );
+  const capacityDuplicate = capacityIndex.scan(capacityInput);
+  assert(
+    capacityDuplicate.ready &&
+      capacityDuplicate.doneTruthHas("cap_b") &&
+      Number(
+        capacityDuplicate.completionIo?.authority_records_indexed_total || 0,
+      ) === capacityRecords &&
+      Number(capacityDuplicate.completionIo?.authority_objects_high_water || 0) ===
+        capacityObjects,
+    "completion-authority-capacity-duplicate-is-zero-growth",
+    `io=${JSON.stringify(capacityDuplicate.completionIo)}`,
+  );
+  appendAgentPick2JsonlCanonicalV1(
+    capacityJobStateFile,
+    JSON.stringify({ job_id: "cap_d", status: "completed" }) + "\n",
+  );
+  const capacityHeld = capacityIndex.scan(capacityInput);
+  assert(
+    !capacityHeld.ready &&
+      String(capacityHeld.holdReason || "").includes(
+        "COMPLETION_AUTHORITY_CAPACITY_HOLD",
+      ) &&
+      Number(capacityHeld.completionIo?.authority_capacity_holds_total || 0) ===
+        1 &&
+      Number(capacityHeld.completionIo?.authority_ids_high_water || 0) ===
+        capacityIds.length &&
+      Number(capacityHeld.completionIo?.authority_objects_high_water || 0) ===
+        capacityObjects,
+    "completion-authority-capacity-holds-before-object-growth",
+    `ready=${capacityHeld.ready} hold=${capacityHeld.holdReason} io=${JSON.stringify(capacityHeld.completionIo)}`,
+  );
+
+  const idBytesJobsFile = path.join(root, "jobs-completion-id-bytes.jsonl");
+  const idBytesReceiptsFile = path.join(
+    root,
+    "receipts-completion-id-bytes.jsonl",
+  );
+  const idBytesJobStateFile = path.join(
+    root,
+    "job-state-completion-id-bytes.jsonl",
+  );
+  fs.writeFileSync(idBytesJobsFile, "");
+  fs.writeFileSync(idBytesReceiptsFile, "");
+  fs.writeFileSync(
+    idBytesJobStateFile,
+    ["bytes_a", "bytes_b"]
+      .map((job_id) => JSON.stringify({ job_id, status: "completed" }))
+      .join("\n") + "\n",
+  );
+  const idBytesIndex = new JobsDatanetWorkerRuntimeIndexV1({
+    maxScanBytesPerTick: 4096,
+    maxSyncCompletionRebuildBytes: 4096,
+    maxCompletionAuthorityIds: 10,
+    maxCompletionAuthorityIdBytes: Buffer.byteLength("bytes_a"),
+    maxCompletionSourceBytes: 4096,
+  });
+  const idBytesHeld = idBytesIndex.scan({
+    jobsFile: idBytesJobsFile,
+    receiptsFile: idBytesReceiptsFile,
+    jobStateFile: idBytesJobStateFile,
+  });
+  assert(
+    !idBytesHeld.ready &&
+      String(idBytesHeld.holdReason || "").includes(
+        "COMPLETION_AUTHORITY_CAPACITY_HOLD",
+      ) &&
+      Number(idBytesHeld.completionIo?.authority_id_bytes_high_water || 0) ===
+        Buffer.byteLength("bytes_a"),
+    "completion-authority-payload-bytes-have-hard-cap",
+    `ready=${idBytesHeld.ready} hold=${idBytesHeld.holdReason} io=${JSON.stringify(idBytesHeld.completionIo)}`,
+  );
+
+  const sourceCapJobsFile = path.join(root, "jobs-completion-source-cap.jsonl");
+  const sourceCapReceiptsFile = path.join(
+    root,
+    "receipts-completion-source-cap.jsonl",
+  );
+  const sourceCapJobStateFile = path.join(
+    root,
+    "job-state-completion-source-cap.jsonl",
+  );
+  fs.writeFileSync(sourceCapJobsFile, "");
+  fs.writeFileSync(sourceCapReceiptsFile, "");
+  fs.writeFileSync(
+    sourceCapJobStateFile,
+    repeatToBytes(
+      JSON.stringify({ job_id: "source_cap_filler", status: "queued" }) +
+        "\n",
+      512,
+    ),
+  );
+  const sourceCapIndex = new JobsDatanetWorkerRuntimeIndexV1({
+    maxScanBytesPerTick: 4096,
+    maxSyncCompletionRebuildBytes: 4096,
+    maxCompletionAuthorityIds: 10,
+    maxCompletionAuthorityIdBytes: 1024,
+    maxCompletionSourceBytes: 128,
+  });
+  const sourceCapHeld = sourceCapIndex.scan({
+    jobsFile: sourceCapJobsFile,
+    receiptsFile: sourceCapReceiptsFile,
+    jobStateFile: sourceCapJobStateFile,
+  });
+  assert(
+    !sourceCapHeld.ready &&
+      String(sourceCapHeld.holdReason || "").includes(
+        "COMPLETION_SOURCE_CAPACITY_HOLD",
+      ) &&
+      Number(sourceCapHeld.completionIo?.completion_source_capacity_holds_total || 0) ===
+        1 &&
+      Number(sourceCapHeld.completionIo?.bytes_read_total || 0) === 0,
+    "completion-cold-rebuild-source-bytes-have-hard-cap",
+    `ready=${sourceCapHeld.ready} hold=${sourceCapHeld.holdReason} io=${JSON.stringify(sourceCapHeld.completionIo)}`,
+  );
+
   const indexSource = readFileSync("src/index.ts", "utf8");
   const workerStart = indexSource.indexOf("  function startWorker(){");
   const workerEnd = indexSource.indexOf("  function mount(){", workerStart);
@@ -1081,6 +1256,16 @@ try {
     !helperSource.includes("readFileSync("),
     "runtime-index-no-whole-file-read",
     "readFileSync absent",
+  );
+  assert(
+    helperSource.includes(
+      "VOID_JOBS_DATANET_WORKER_COMPLETION_CAPACITY_CONTRACT_V1",
+    ) &&
+      helperSource.includes("maxCompletionAuthorityIds") &&
+      helperSource.includes("maxCompletionAuthorityIdBytes") &&
+      helperSource.includes("maxCompletionSourceBytes"),
+    "runtime-index-completion-capacity-contract-source",
+    "record, payload-byte, and cold-source caps present",
   );
   assert(
     helperSource.includes("maxScanBytesPerTick"),
