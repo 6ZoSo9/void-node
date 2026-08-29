@@ -10,7 +10,32 @@ import { fileURLToPath } from "node:url";
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const HELPER = path.join(ROOT, "scripts", "ci_diff_hygiene_v1.sh");
 const PROOF_PATH = "scripts/prove_ci_diff_hygiene_v1.mjs";
+const SEGMENTED_WORKFLOW = ".github/workflows/void-segmented-jsonl-v1.yml";
+const SEGMENTED_SOURCES = [
+  "src/storage/segmented_jsonl_v1.ts",
+  "src/storage/segmented_jsonl_snapshot_authority_v1.ts",
+  "src/storage/segmented_jsonl_materialized_authority_v1.ts",
+  "src/storage/segmented_jsonl_checkpoint_materialized_authority_v1.ts",
+  "src/storage/segmented_jsonl_durable_root_v1.ts",
+];
+const SEGMENTED_PROOFS = [
+  "scripts/prove_segmented_jsonl_v1.ts",
+  "scripts/prove_segmented_jsonl_record_delimiter_ceiling_v1.ts",
+  "scripts/prove_segmented_jsonl_manifest_publish_ceiling_v1.ts",
+  "scripts/prove_segmented_jsonl_parent_namespace_v1.ts",
+  "scripts/prove_segmented_jsonl_terminal_generation_v1.ts",
+  "scripts/prove_segmented_jsonl_builder_record_vector_heap_v1.ts",
+  "scripts/prove_segmented_jsonl_snapshot_authority_v1.ts",
+  "scripts/prove_segmented_jsonl_materialized_authority_v1.ts",
+  "scripts/prove_segmented_jsonl_checkpoint_append_only_v1.ts",
+  "scripts/prove_segmented_jsonl_checkpoint_bounded_consumer_v1.ts",
+  "scripts/prove_segmented_jsonl_checkpoint_admission_bound_v1.ts",
+  "scripts/prove_segmented_jsonl_checkpoint_chain_lifetime_bound_v1.ts",
+  "scripts/prove_segmented_jsonl_post_durable_close_v1.ts",
+  "scripts/prove_segmented_jsonl_durable_root_v1.ts",
+];
 const WORKFLOWS = [
+  SEGMENTED_WORKFLOW,
   ".github/workflows/buy-void-erc20-transaction-preparation-planner-v1.yml",
   ".github/workflows/buy-void-erc20-delivery-receipt-reconciler-v1.yml",
   ".github/workflows/buy-void-erc20-delivery-dependency-bootstrap-v1.yml",
@@ -105,6 +130,76 @@ for (const relative of WORKFLOWS) {
   );
 }
 
+
+function assertSegmentedWorkflowTopology(source) {
+  const triggerDependencies = [
+    ...SEGMENTED_SOURCES,
+    ...SEGMENTED_PROOFS,
+    SEGMENTED_WORKFLOW,
+    "scripts/ci_diff_hygiene_v1.sh",
+    PROOF_PATH,
+    "package.json",
+    "package-lock.json",
+    "tsconfig.json",
+    "tsconfig.build.json",
+  ];
+  for (const dependency of triggerDependencies) {
+    const exact = `      - "${dependency}"`;
+    const count = source.split("\n").filter((line) => line === exact).length;
+    assert.equal(count, 2, `segmented_trigger_count:${dependency}:${count}`);
+  }
+  for (const dependency of [...SEGMENTED_SOURCES, ...SEGMENTED_PROOFS]) {
+    assert.ok(
+      source.includes(`node --experimental-strip-types --check ${dependency}`),
+      `segmented_syntax_not_invoked:${dependency}`,
+    );
+  }
+  for (const proof of SEGMENTED_PROOFS) {
+    assert.ok(
+      source.includes(`npx --no-install tsx ${proof}`),
+      `segmented_proof_not_invoked:${proof}`,
+    );
+  }
+  assert.match(source, /node:\s*\[22,\s*24,\s*26\]/, "segmented_node_matrix_not_exact");
+  assert.ok(
+    source.includes("if: matrix.node == 24\n        run: npm run typecheck"),
+    "segmented_node24_typecheck_not_terminal",
+  );
+  assert.ok(
+    source.includes("if: matrix.node == 24\n        run: npm run build"),
+    "segmented_node24_build_not_terminal",
+  );
+}
+
+const segmentedWorkflowSource = readFileSync(path.join(ROOT, SEGMENTED_WORKFLOW), "utf8");
+assertSegmentedWorkflowTopology(segmentedWorkflowSource);
+
+const missingSegmentedTrigger = segmentedWorkflowSource.replace(
+  `      - "${SEGMENTED_SOURCES[0]}"`,
+  `      # removed ${SEGMENTED_SOURCES[0]}`,
+);
+assert.throws(
+  () => assertSegmentedWorkflowTopology(missingSegmentedTrigger),
+  /segmented_trigger_count:/,
+);
+
+const missingSegmentedProofInvocation = segmentedWorkflowSource.replace(
+  `npx --no-install tsx ${SEGMENTED_PROOFS[0]}`,
+  `node --experimental-strip-types --check ${SEGMENTED_PROOFS[0]}`,
+);
+assert.throws(
+  () => assertSegmentedWorkflowTopology(missingSegmentedProofInvocation),
+  /segmented_proof_not_invoked:/,
+);
+
+const incompleteSegmentedNodeMatrix = segmentedWorkflowSource.replace(
+  "node: [22, 24, 26]",
+  "node: [22, 24]",
+);
+assert.throws(
+  () => assertSegmentedWorkflowTopology(incompleteSegmentedNodeMatrix),
+  /segmented_node_matrix_not_exact/,
+);
 const FIXTURE = mkdtempSync(path.join(tmpdir(), "void-ci-diff-hygiene-v1-"));
 try {
   const source = path.join(FIXTURE, "source");
@@ -259,6 +354,10 @@ console.log("merge_integration_checkout_preserved=true");
 console.log("pr_head_range_fetched_without_checkout_replacement=true");
 console.log("main_only_whitespace_not_attributed=true");
 console.log("shared_proof_self_enforced=true");
+console.log("segmented_workflow_self_audited=true");
+console.log("segmented_trigger_closure_falsifier=true");
+console.log("segmented_proof_invocation_falsifier=true");
+console.log("segmented_node_matrix_falsifier=true");
 console.log("push_before_supported=true");
 console.log("whitespace_defect_still_fails=true");
 console.log("persist_credentials=false");
