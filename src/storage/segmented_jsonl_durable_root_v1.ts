@@ -15,8 +15,10 @@ import {
   type SegmentedJsonlSnapshotAuthorityV1,
 } from "./segmented_jsonl_snapshot_authority_v1.js";
 import {
+  verifySegmentedJsonlMaterializedAuthorityAtUseV1,
   verifySegmentedJsonlMaterializedAuthorityObjectV1,
   type SegmentedJsonlMaterializedAuthorityV1,
+  type SegmentedJsonlMaterializedUseReaderV1,
 } from "./segmented_jsonl_materialized_authority_v1.js";
 import {
   verifySegmentedJsonlCheckpointAppendOnlyBoundedV1,
@@ -1009,6 +1011,49 @@ export function readSegmentedJsonlDurableRootV1(directoryInput: string): Segment
     }
     return current.value!.root;
   } finally { fs.closeSync(authority.fd); }
+}
+
+export function verifySegmentedJsonlDurableRootMaterializedAtUseV1<T>(
+  directoryInput: string,
+  storeRoot: string,
+  materializedFile: string,
+  materializedAuthorityInput: SegmentedJsonlMaterializedAuthorityV1,
+  trustedRootSha256: string,
+  consumer: (reader: SegmentedJsonlMaterializedUseReaderV1) => T,
+): T {
+  if (!isHex64(trustedRootSha256)) {
+    fail("DURABLE_ROOT_INVALID_TRUST_ROOT", String(trustedRootSha256));
+  }
+  const durableRoot = readSegmentedJsonlDurableRootV1(directoryInput);
+  if (!durableRoot) fail("DURABLE_ROOT_REQUIRED", directoryInput);
+  if (durableRoot.root_sha256 !== trustedRootSha256) {
+    fail("DURABLE_ROOT_TRUST_ROOT_MISMATCH", `${durableRoot.root_sha256}:${trustedRootSha256}`);
+  }
+
+  const materialized = verifySegmentedJsonlMaterializedAuthorityObjectV1(
+    materializedAuthorityInput,
+  );
+  if (
+    durableRoot.materialized_authority_sha256 !== materialized.authority_sha256 ||
+    durableRoot.materialized_sha256 !== materialized.materialized_sha256 ||
+    durableRoot.snapshot_sha256 !== materialized.snapshot_sha256 ||
+    durableRoot.manifest_sha256 !== materialized.manifest_sha256 ||
+    durableRoot.store_generation !== materialized.store_generation ||
+    durableRoot.total_bytes !== materialized.total_bytes ||
+    durableRoot.total_records !== materialized.total_records
+  ) {
+    fail(
+      "DURABLE_ROOT_MATERIALIZED_AUTHORITY_MISMATCH",
+      `${durableRoot.root_sha256}:${materialized.authority_sha256}`,
+    );
+  }
+
+  return verifySegmentedJsonlMaterializedAuthorityAtUseV1(
+    storeRoot,
+    materializedFile,
+    materialized,
+    consumer,
+  );
 }
 
 export function publishSegmentedJsonlDurableRootV1(

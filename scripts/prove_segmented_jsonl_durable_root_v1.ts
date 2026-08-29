@@ -27,6 +27,7 @@ import {
 import {
   publishSegmentedJsonlDurableRootV1,
   readSegmentedJsonlDurableRootV1,
+  verifySegmentedJsonlDurableRootMaterializedAtUseV1,
   type SegmentedJsonlDurableRootSlotV1,
   type SegmentedJsonlDurableRootV1,
 } from "../src/storage/segmented_jsonl_durable_root_v1.js";
@@ -326,6 +327,53 @@ try {
     "exact successor retry must be idempotent",
   );
 
+  const trustedR2Bytes = verifySegmentedJsonlDurableRootMaterializedAtUseV1(
+    durableDir,
+    g2.root,
+    g2.materializedPath,
+    g2.materialized,
+    r2.root_sha256,
+    reader => reader.read(0, reader.total_bytes),
+  );
+  assert.deepEqual(
+    trustedR2Bytes,
+    sourceBytes(4),
+    "externally trusted durable root must consume only its exact materialized bytes",
+  );
+  expectFailure(
+    () => verifySegmentedJsonlDurableRootMaterializedAtUseV1(
+      durableDir,
+      g2.root,
+      g2.materializedPath,
+      g2.materialized,
+      r1.root_sha256,
+      reader => reader.read(0, reader.total_bytes),
+    ),
+    "DURABLE_ROOT_TRUST_ROOT_MISMATCH",
+  );
+  expectFailure(
+    () => verifySegmentedJsonlDurableRootMaterializedAtUseV1(
+      recoveryDir,
+      g1.root,
+      g1.materializedPath,
+      g1.materialized,
+      r2.root_sha256,
+      reader => reader.read(0, reader.total_bytes),
+    ),
+    "DURABLE_ROOT_TRUST_ROOT_MISMATCH",
+  );
+  expectFailure(
+    () => verifySegmentedJsonlDurableRootMaterializedAtUseV1(
+      durableDir,
+      g1.root,
+      g1.materializedPath,
+      g1.materialized,
+      r2.root_sha256,
+      reader => reader.read(0, reader.total_bytes),
+    ),
+    "DURABLE_ROOT_MATERIALIZED_AUTHORITY_MISMATCH",
+  );
+
   const ownerPath = path.join(publishLockDir, "owner.v1.json");
   const reclaimPath = path.join(publishLockDir, "reclaim.v1");
   const bootId = processBootId();
@@ -484,6 +532,9 @@ try {
   console.log("durable_root_foreign_stage_intent_preserved=true");
   console.log("durable_root_wrong_predecessor_intent_preserved=true");
   console.log("durable_root_exact_retry_idempotent=true");
+  console.log("durable_root_trusted_materialized_use_exact_bytes=true");
+  console.log("durable_root_external_trust_root_rejects_local_rollback=true");
+  console.log("durable_root_rejects_self_consistent_foreign_materialized_authority=true");
   console.log("durable_root_live_publish_lock_excludes_writer=true");
   console.log("durable_root_boot_epoch_prevents_pid_start_alias=true");
   console.log("durable_root_stale_publish_lock_recoverable=true");
