@@ -20,7 +20,11 @@ jobs:
           cache: 'npm'
       - name: Install
         run: npm ci
+      - name: Prove shared CI and SegStore topology
+        run: node scripts/prove_ci_diff_hygiene_v1.mjs
       - name: Typecheck (no emit)
         run: bash tools/check_tsc_noemit_baseline.sh
       - name: Check public node operator trial terminal final seal
         run: bash tools/check_public_node_operator_trial_terminal_final_seal_v1.sh
+      - name: Check public node operator trial lane final seal
+        run: bash tools/check_public_node_operator_trial_lane_final_seal_v1.sh
