@@ -94,22 +94,125 @@ jobs:
       - name: Prove focused workflow dependency closure
         run: |
           node <<'NODE'
+          const assert = require('node:assert/strict');
           const fs = require('node:fs');
-          const text = fs.readFileSync('.github/workflows/void-segmented-jsonl-v1.yml', 'utf8');
-          const packageJson = 'package' + '.json';
-          const packageLock = 'package-lock' + '.json';
-          const tsconfig = 'tsconfig' + '.json';
-          const tsconfigBuild = 'tsconfig.build' + '.json';
-          for (const dependency of [packageJson, packageLock, tsconfig, tsconfigBuild]) {
-            const exact = `      - "${dependency}"`;
-            const count = text.split('\n').filter(line => line === exact).length;
-            if (count !== 2) {
-              throw new Error(`focused_dependency_binding_mismatch:${dependency}:${count}`);
-            }
-          }
-          console.log('focused_build_dependency_binding=true');
-          NODE
+          const workflowPath = '.github/workflows/void-segmented-jsonl-v1.yml';
+          const text = fs.readFileSync(workflowPath, 'utf8');
+          const storageSources = [
+            "src/storage/segmented_jsonl_v1.ts",
+            "src/storage/segmented_jsonl_snapshot_authority_v1.ts",
+            "src/storage/segmented_jsonl_materialized_authority_v1.ts",
+            "src/storage/segmented_jsonl_checkpoint_materialized_authority_v1.ts",
+            "src/storage/segmented_jsonl_durable_root_v1.ts",
+          ];
+          const proofs = [
+            "scripts/prove_segmented_jsonl_v1.ts",
+            "scripts/prove_segmented_jsonl_record_delimiter_ceiling_v1.ts",
+            "scripts/prove_segmented_jsonl_manifest_publish_ceiling_v1.ts",
+            "scripts/prove_segmented_jsonl_parent_namespace_v1.ts",
+            "scripts/prove_segmented_jsonl_terminal_generation_v1.ts",
+            "scripts/prove_segmented_jsonl_builder_record_vector_heap_v1.ts",
+            "scripts/prove_segmented_jsonl_snapshot_authority_v1.ts",
+            "scripts/prove_segmented_jsonl_materialized_authority_v1.ts",
+            "scripts/prove_segmented_jsonl_checkpoint_append_only_v1.ts",
+            "scripts/prove_segmented_jsonl_checkpoint_bounded_consumer_v1.ts",
+            "scripts/prove_segmented_jsonl_checkpoint_admission_bound_v1.ts",
+            "scripts/prove_segmented_jsonl_checkpoint_chain_lifetime_bound_v1.ts",
+            "scripts/prove_segmented_jsonl_post_durable_close_v1.ts",
+            "scripts/prove_segmented_jsonl_durable_root_v1.ts",
+          ];
+          const triggerDependencies = [
+            ...storageSources,
+            ...proofs,
+            workflowPath,
+            'scripts/ci_diff_hygiene_v1.sh',
+            'scripts/prove_ci_diff_hygiene_v1.mjs',
+            'package.json',
+            'package-lock.json',
+            'tsconfig.json',
+            'tsconfig.build.json',
+          ];
+          const expressionOpen = '$' + '{{';
 
+          function audit(source) {
+            for (const dependency of triggerDependencies) {
+              const exact = `      - "${dependency}"`;
+              const count = source.split('\n').filter((line) => line === exact).length;
+              assert.equal(count, 2, `focused_trigger_count:${dependency}:${count}`);
+            }
+            for (const dependency of [...storageSources, ...proofs]) {
+              assert.ok(
+                source.includes(`node --experimental-strip-types --check ${dependency}`),
+                `focused_syntax_not_invoked:${dependency}`,
+              );
+            }
+            for (const proof of proofs) {
+              assert.ok(
+                source.includes(`npx --no-install tsx ${proof}`),
+                `focused_proof_not_invoked:${proof}`,
+              );
+            }
+            assert.match(source, /node:\s*\[22,\s*24,\s*26\]/, 'focused_node_matrix_not_exact');
+            assert.ok(source.includes('fetch-depth: 1'), 'focused_checkout_depth_not_exact');
+            assert.ok(source.includes('persist-credentials: false'), 'focused_credentials_persisted');
+            assert.ok(
+              source.includes('run: node scripts/prove_ci_diff_hygiene_v1.mjs'),
+              'focused_shared_proof_not_invoked',
+            );
+            assert.ok(
+              source.includes('run: bash scripts/ci_diff_hygiene_v1.sh'),
+              'focused_diff_helper_not_invoked',
+            );
+            for (const binding of [
+              `CI_DIFF_PR_BASE_SHA: ${expressionOpen} github.event.pull_request.base.sha }}`,
+              `CI_DIFF_CHECKOUT_SHA: ${expressionOpen} github.sha }}`,
+              `CI_DIFF_CURRENT_SHA: ${expressionOpen} github.event.pull_request.head.sha || github.sha }}`,
+              `CI_DIFF_BASE_REMOTE: ${expressionOpen} github.server_url }}/${expressionOpen} github.repository }}.git`,
+              `CI_DIFF_HEAD_REMOTE: ${expressionOpen} github.server_url }}/${expressionOpen} github.event.pull_request.head.repo.full_name || github.repository }}.git`,
+            ]) {
+              assert.ok(source.includes(binding), `focused_exact_sha_binding_missing:${binding}`);
+            }
+            assert.ok(
+              source.includes("if: matrix.node == 24\n        run: npm run typecheck"),
+              'focused_node24_typecheck_not_terminal',
+            );
+            assert.ok(
+              source.includes("if: matrix.node == 24\n        run: npm run build"),
+              'focused_node24_build_not_terminal',
+            );
+          }
+
+          audit(text);
+          assert.throws(
+            () => audit(text.replace(`      - "${storageSources[0]}"`, `      # removed ${storageSources[0]}`)),
+            /focused_trigger_count:/,
+          );
+          assert.throws(
+            () => audit(text.replace(`npx --no-install tsx ${proofs[0]}`, `node --experimental-strip-types --check ${proofs[0]}`)),
+            /focused_proof_not_invoked:/,
+          );
+          assert.throws(
+            () => audit(text.replace('persist-credentials: false', 'persist-credentials: true')),
+            /focused_credentials_persisted/,
+          );
+          assert.throws(
+            () => audit(text.replace(
+              `CI_DIFF_CURRENT_SHA: ${expressionOpen} github.event.pull_request.head.sha || github.sha }}`,
+              'CI_DIFF_CURRENT_SHA: invalid',
+            )),
+            /focused_exact_sha_binding_missing:/,
+          );
+          assert.throws(
+            () => audit(text.replace('node: [22, 24, 26]', 'node: [22, 24]')),
+            /focused_node_matrix_not_exact/,
+          );
+          console.log('focused_dependency_binding=true');
+          console.log('focused_trigger_closure_falsifier=true');
+          console.log('focused_proof_invocation_falsifier=true');
+          console.log('focused_credential_falsifier=true');
+          console.log('focused_exact_sha_binding_falsifier=true');
+          console.log('focused_terminal_matrix_falsifier=true');
+          NODE
       - name: Syntax
         run: |
           node --experimental-strip-types --check src/storage/segmented_jsonl_v1.ts
