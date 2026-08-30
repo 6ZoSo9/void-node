@@ -548,6 +548,24 @@ function assertReclaimWinnerBinds(
   ) fail("DURABLE_ROOT_RECLAIM_WINNER_BINDING_MISMATCH", value.stale_owner_token);
 }
 
+function assertReclaimWinnerClaimant(
+  winner: ReclaimWinnerReadV1,
+  claimant: PublishLockOwnerV1,
+): void {
+  const value = winner.value;
+  if (
+    value.claimant_boot_id !== claimant.boot_id ||
+    value.claimant_pid !== claimant.pid ||
+    value.claimant_start_ticks !== claimant.start_ticks ||
+    value.claimant_token !== claimant.token
+  ) {
+    fail(
+      "DURABLE_ROOT_RECLAIM_WINNER_CLAIMANT_MISMATCH",
+      `${value.claimant_token}:${claimant.token}`,
+    );
+  }
+}
+
 function ownerReleaseName(token: string): string {
   if (!/^[0-9a-f]{32}$/.test(token)) fail("DURABLE_ROOT_OWNER_RELEASE_TOKEN_INVALID", token);
   const name = `owner-release-${token}.v1`;
@@ -706,6 +724,7 @@ function claimStalePublishOwner(
         links: witness.links,
       };
       assertReclaimWinnerBinds(existingWinner, reconstructedOwner, witness);
+      assertReclaimWinnerClaimant(existingWinner, claimant);
       const release = readPublishLockOwnerRelease(lock, reconstructedOwner, witness);
       return { owner: reconstructedOwner, witness, winner: existingWinner, release };
     }
@@ -721,6 +740,7 @@ function claimStalePublishOwner(
 
     if (existingWinner) {
       assertReclaimWinnerBinds(existingWinner, ownerFile, witness);
+      assertReclaimWinnerClaimant(existingWinner, claimant);
       return { owner: ownerFile, witness, winner: existingWinner, release };
     }
 
@@ -732,6 +752,7 @@ function claimStalePublishOwner(
       !sameIdentity(witnessAfter.identity, witness.identity)
     ) fail("DURABLE_ROOT_PUBLISH_LOCK_RECLAIM_OWNER_CHANGED", lock.publicPath);
     assertReclaimWinnerBinds(winner, ownerAfter, witnessAfter);
+    assertReclaimWinnerClaimant(winner, claimant);
     const releaseAfter = readPublishLockOwnerRelease(lock, ownerAfter, witnessAfter);
     if (Boolean(releaseAfter) !== Boolean(release) || (releaseAfter && release && !sameIdentity(releaseAfter.identity, release.identity))) {
       fail("DURABLE_ROOT_OWNER_RELEASE_CHANGED", ownerFile.owner.token);
@@ -1141,6 +1162,7 @@ function retireSupersededWitness(lock: PublishLockV1): void {
   }
   const reconstructedOwner = { identity, owner: witness.owner, links: witness.links };
   assertReclaimWinnerBinds(winner, reconstructedOwner, witness);
+  assertReclaimWinnerClaimant(winner, lock.owner);
   const release = readPublishLockOwnerRelease(lock, reconstructedOwner, witness);
   if (Boolean(release) !== Boolean(lock.supersededWitness.release) ||
       (release && lock.supersededWitness.release && !sameIdentity(release.identity, lock.supersededWitness.release))) {
