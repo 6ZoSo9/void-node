@@ -785,7 +785,7 @@ function acquirePublishLock(authority: DirectoryAuthorityV1): PublishLockV1 {
         if (!sameIdentity(currentOwner.identity, claim.owner.identity)) {
           fail("DURABLE_ROOT_PUBLISH_LOCK_RECLAIM_OWNER_CHANGED", lock.publicPath);
         }
-        if (currentOwner.owner && publishLockOwnerIsLive(currentOwner.owner)) {
+        if (currentOwner.owner && publishLockOwnerIsLive(currentOwner.owner) && !claim.release) {
           fail("DURABLE_ROOT_PUBLISH_BUSY", lock.publicPath);
         }
         removeExactLockName(lock, PUBLISH_LOCK_OWNER_NAME, claim.owner.identity);
