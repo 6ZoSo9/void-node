@@ -492,7 +492,7 @@ function auditFocused(source) {
       "const unreachableTopologyMeasurementMutantExecution = topologyText",
       "() => auditTopologyMeasurementMutantExecution(unreachableTopologyMeasurementMutantExecution),",
       "const genericPayloadTopologyMeasurementMutants =",
-      "const mutableRejectionTopologyMeasurementMutants = topologyText.replace(",
+      "const mutableRejectionTopologyMeasurementMutants =",
     ],
     "focused_topology_measurement_reachability_wall_not_bound",
   );
