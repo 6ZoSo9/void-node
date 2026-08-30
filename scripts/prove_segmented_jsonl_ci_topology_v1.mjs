@@ -112,6 +112,25 @@ function auditFocused(source) {
   rejectFailureTolerance(source, "focused_failure_tolerance_present");
 }
 
+function functionSlice(source, startMarker, endMarker, marker) {
+  const start = source.indexOf(startMarker);
+  const end = source.indexOf(endMarker, start + startMarker.length);
+  assert.ok(start >= 0 && end > start, marker);
+  return source.slice(start, end);
+}
+
+function requireBodyMarkers(body, markers, marker) {
+  for (const required of markers) {
+    assert.ok(body.includes(required), `${marker}:${required}`);
+  }
+}
+
+function rejectEarlyTrueReturn(body, lastRequired, marker) {
+  const firstReturn = body.search(/\breturn\s+true\s*;/);
+  const lastRequiredAt = body.indexOf(lastRequired);
+  assert.ok(firstReturn > lastRequiredAt && lastRequiredAt >= 0, marker);
+}
+
 function auditSegstoreProof(source) {
   assert.equal(
     exactLineCount(source, "  const existingEquivalentReusePrecedesOutputAllocation ="),
@@ -147,6 +166,82 @@ function auditSegstoreProof(source) {
     exactLineCount(source, "      reconstruction_source_alias_rejected: true,"),
     0,
     "segstore_source_alias_literal_terminal_present",
+  );
+
+  const zeroAllocationBody = functionSlice(
+    source,
+    "function proveExistingEquivalentReusePrecedesOutputAllocation(",
+    "type ExactFileObservationV1 =",
+    "segstore_zero_allocation_body_missing",
+  );
+  requireBodyMarkers(
+    zeroAllocationBody,
+    [
+      "const published = reconstructSegmentedJsonlV1ToFile(storePath, outputPath);",
+      "if ((flags & 0o20200000) === 0o20200000) {",
+      'error.code = "ENOSPC";',
+      "const recovered = reconstructSegmentedJsonlV1ToFile(storePath, outputPath);",
+      "assert.equal(recovered.reused_existing, true);",
+      'assert.equal(recovered.publication_terminal, "EXISTING_EQUIVALENT_UNOWNED");',
+      "outputAllocationAttempted,",
+      "assert.equal(durable.ino, survivor.ino);",
+      "assert.deepEqual(fs.readFileSync(outputPath), expectedBytes);",
+    ],
+    "segstore_zero_allocation_body_not_bound",
+  );
+  rejectEarlyTrueReturn(
+    zeroAllocationBody,
+    "assert.deepEqual(fs.readFileSync(outputPath), expectedBytes);",
+    "segstore_zero_allocation_early_true_return",
+  );
+
+  const generationHelperBody = functionSlice(
+    source,
+    "function assertExactFileObservationUnchangedV1(",
+    "function proveReconstructionRejectsSourceAlias(",
+    "segstore_generation_helper_body_missing",
+  );
+  requireBodyMarkers(
+    generationHelperBody,
+    [
+      'assert.equal(after.dev, before.dev, "alias source generation changed:dev");',
+      'assert.equal(after.ino, before.ino, "alias source generation changed:ino");',
+      'assert.equal(after.size, before.size, "alias source generation changed:size");',
+      'assert.equal(after.mtimeNs, before.mtimeNs, "alias source generation changed:mtimeNs");',
+      'assert.equal(after.ctimeNs, before.ctimeNs, "alias source generation changed:ctimeNs");',
+      'assert.equal(after.mode, before.mode, "alias source generation changed:mode");',
+      'assert.equal(after.nlink, before.nlink, "alias source generation changed:nlink");',
+    ],
+    "segstore_generation_helper_not_bound",
+  );
+
+  const sourceAliasBody = functionSlice(
+    source,
+    "function proveReconstructionRejectsSourceAlias(",
+    "function matchesOpenedTarget(",
+    "segstore_source_alias_body_missing",
+  );
+  requireBodyMarkers(
+    sourceAliasBody,
+    [
+      "() => reconstructSegmentedJsonlV1ToFile(storePath, activePath),",
+      '"RECONSTRUCT_OUTPUT_ALIASES_SOURCE",',
+      "assertExactFileObservationUnchangedV1(before, after);",
+      "assert.deepEqual(fs.readFileSync(activePath), beforeBytes);",
+      "verifySegmentedJsonlV1(storePath);",
+      "fs.chmodSync(mutationWitness, 0o400);",
+      "fs.chmodSync(mutationWitness, 0o600);",
+      "assert.notEqual(mutationAfter.ctimeNs, mutationBefore.ctimeNs);",
+      "() => assertExactFileObservationUnchangedV1(mutationBefore, mutationAfter),",
+      "/alias source generation changed:ctimeNs/,",
+      "fs.unlinkSync(mutationWitness);",
+    ],
+    "segstore_source_alias_body_not_bound",
+  );
+  rejectEarlyTrueReturn(
+    sourceAliasBody,
+    "fs.unlinkSync(mutationWitness);",
+    "segstore_source_alias_early_true_return",
   );
 }
 
@@ -243,6 +338,80 @@ assert.throws(
   /segstore_source_alias_terminal_not_derived|segstore_source_alias_literal_terminal_present/,
 );
 
+const noOpZeroAllocationBody = segstoreProof.replace(
+  /function proveExistingEquivalentReusePrecedesOutputAllocation\([\s\S]*?type ExactFileObservationV1 =/,
+  `function proveExistingEquivalentReusePrecedesOutputAllocation(
+  storePath: string,
+  outputPath: string,
+  expectedBytes: Buffer,
+): boolean {
+  void storePath;
+  void outputPath;
+  void expectedBytes;
+  return true;
+}
+
+type ExactFileObservationV1 =`,
+);
+assert.notEqual(noOpZeroAllocationBody, segstoreProof, "zero_allocation_noop_mutant_not_applied");
+assert.throws(
+  () => auditSegstoreProof(noOpZeroAllocationBody),
+  /segstore_zero_allocation_body_not_bound/,
+);
+
+const earlyZeroAllocationReturn = segstoreProof.replace(
+  "): boolean {\n  const published = reconstructSegmentedJsonlV1ToFile(storePath, outputPath);",
+  "): boolean {\n  return true;\n  const published = reconstructSegmentedJsonlV1ToFile(storePath, outputPath);",
+);
+assert.notEqual(earlyZeroAllocationReturn, segstoreProof, "zero_allocation_early_return_mutant_not_applied");
+assert.throws(
+  () => auditSegstoreProof(earlyZeroAllocationReturn),
+  /segstore_zero_allocation_early_true_return/,
+);
+
+const noOpGenerationHelper = segstoreProof.replace(
+  /function assertExactFileObservationUnchangedV1\([\s\S]*?function proveReconstructionRejectsSourceAlias\(/,
+  `function assertExactFileObservationUnchangedV1(
+  before: ExactFileObservationV1,
+  after: ExactFileObservationV1,
+): void {
+  void before;
+  void after;
+}
+
+function proveReconstructionRejectsSourceAlias(`,
+);
+assert.notEqual(noOpGenerationHelper, segstoreProof, "generation_helper_noop_mutant_not_applied");
+assert.throws(
+  () => auditSegstoreProof(noOpGenerationHelper),
+  /segstore_generation_helper_not_bound/,
+);
+
+const noOpSourceAliasBody = segstoreProof.replace(
+  /function proveReconstructionRejectsSourceAlias\([\s\S]*?function matchesOpenedTarget\(/,
+  `function proveReconstructionRejectsSourceAlias(storePath: string): boolean {
+  void storePath;
+  return true;
+}
+
+function matchesOpenedTarget(`,
+);
+assert.notEqual(noOpSourceAliasBody, segstoreProof, "source_alias_noop_mutant_not_applied");
+assert.throws(
+  () => auditSegstoreProof(noOpSourceAliasBody),
+  /segstore_source_alias_body_not_bound/,
+);
+
+const earlySourceAliasReturn = segstoreProof.replace(
+  "function proveReconstructionRejectsSourceAlias(storePath: string): boolean {\n",
+  "function proveReconstructionRejectsSourceAlias(storePath: string): boolean {\n  return true;\n",
+);
+assert.notEqual(earlySourceAliasReturn, segstoreProof, "source_alias_early_return_mutant_not_applied");
+assert.throws(
+  () => auditSegstoreProof(earlySourceAliasReturn),
+  /segstore_source_alias_early_true_return/,
+);
+
 const withoutBaselineInvocation = baseline.replace(`node ${PROOF_PATH}`, `node --check ${PROOF_PATH}`);
 assert.throws(() => auditBaseline(withoutBaselineInvocation), /baseline_topology_proof_not_terminal/);
 
@@ -267,3 +436,6 @@ console.log("repository_ci_failure_tolerance_rejected=true");
 console.log("topology_proof_self_deletion_rejected=true");
 console.log("segstore_acceptance_terminal_call_deletion_rejected=true");
 console.log("segstore_terminal_literal_true_rejected=true");
+console.log("segstore_adversary_body_noop_rejected=true");
+console.log("segstore_adversary_early_return_rejected=true");
+console.log("segstore_exact_generation_helper_noop_rejected=true");
