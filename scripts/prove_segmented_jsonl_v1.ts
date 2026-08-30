@@ -238,10 +238,19 @@ function proveExistingEquivalentReusePrecedesOutputAllocation(
 }
 
 function proveReconstructionRejectsSourceAlias(storePath: string): boolean {
+  const activePath = path.join(storePath, "active.jsonl");
+  const before = fs.statSync(activePath, { bigint: true } as any);
+  const beforeBytes = fs.readFileSync(activePath);
   expectFailure(
-    () => reconstructSegmentedJsonlV1ToFile(storePath, path.join(storePath, "active.jsonl")),
+    () => reconstructSegmentedJsonlV1ToFile(storePath, activePath),
     "RECONSTRUCT_OUTPUT_ALIASES_SOURCE",
   );
+  const after = fs.statSync(activePath, { bigint: true } as any);
+  assert.equal(after.dev, before.dev);
+  assert.equal(after.ino, before.ino);
+  assert.equal(after.mode, before.mode);
+  assert.deepEqual(fs.readFileSync(activePath), beforeBytes);
+  verifySegmentedJsonlV1(storePath);
   return true;
 }
 
