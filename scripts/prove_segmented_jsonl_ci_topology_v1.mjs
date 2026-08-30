@@ -10,6 +10,7 @@ const FOCUSED_PATH = ".github/workflows/void-segmented-jsonl-v1.yml";
 const CI_PATH = ".github/workflows/ci.yml";
 const BASELINE_PATH = "tools/check_tsc_noemit_baseline.sh";
 const PROOF_PATH = "scripts/prove_segmented_jsonl_ci_topology_v1.mjs";
+const SEGSTORE_PROOF_PATH = "scripts/prove_segmented_jsonl_v1.ts";
 const STORAGE_SOURCES = [
   "src/storage/segmented_jsonl_v1.ts",
   "src/storage/segmented_jsonl_snapshot_authority_v1.ts",
@@ -111,6 +112,39 @@ function auditFocused(source) {
   rejectFailureTolerance(source, "focused_failure_tolerance_present");
 }
 
+function auditSegstoreProof(source) {
+  assert.equal(
+    exactLineCount(source, "  const existingEquivalentReusePrecedesOutputAllocation ="),
+    1,
+    "segstore_zero_allocation_adversary_not_bound",
+  );
+  assert.equal(
+    exactLineCount(source, "  const reconstructionSourceAliasRejected = proveReconstructionRejectsSourceAlias(store);"),
+    1,
+    "segstore_source_alias_adversary_not_bound",
+  );
+  assert.equal(
+    exactLineCount(source, "        existingEquivalentReusePrecedesOutputAllocation,"),
+    1,
+    "segstore_zero_allocation_terminal_not_derived",
+  );
+  assert.equal(
+    exactLineCount(source, "      reconstruction_source_alias_rejected: reconstructionSourceAliasRejected,"),
+    1,
+    "segstore_source_alias_terminal_not_derived",
+  );
+  assert.equal(
+    exactLineCount(source, "      existing_equivalent_reuse_precedes_output_allocation: true,"),
+    0,
+    "segstore_zero_allocation_literal_terminal_present",
+  );
+  assert.equal(
+    exactLineCount(source, "      reconstruction_source_alias_rejected: true,"),
+    0,
+    "segstore_source_alias_literal_terminal_present",
+  );
+}
+
 function auditBaseline(source) {
   assert.equal(
     exactLineCount(source, `node ${PROOF_PATH}`),
@@ -131,7 +165,9 @@ function auditCi(source) {
 const focused = readFileSync(path.join(ROOT, FOCUSED_PATH), "utf8");
 const baseline = readFileSync(path.join(ROOT, BASELINE_PATH), "utf8");
 const ci = readFileSync(path.join(ROOT, CI_PATH), "utf8");
+const segstoreProof = readFileSync(path.join(ROOT, SEGSTORE_PROOF_PATH), "utf8");
 auditFocused(focused);
+auditSegstoreProof(segstoreProof);
 auditBaseline(baseline);
 auditCi(ci);
 
@@ -166,6 +202,42 @@ const tolerantTypecheck = focused.replace(
 );
 assert.throws(() => auditFocused(tolerantTypecheck), /focused_failure_tolerance_present/);
 
+const withoutZeroAllocationAdversary = segstoreProof.replace(
+  "  const existingEquivalentReusePrecedesOutputAllocation =",
+  "  const deletedExistingEquivalentReusePrecedesOutputAllocation =",
+);
+assert.throws(
+  () => auditSegstoreProof(withoutZeroAllocationAdversary),
+  /segstore_zero_allocation_adversary_not_bound/,
+);
+
+const literalZeroAllocationTerminal = segstoreProof.replace(
+  "        existingEquivalentReusePrecedesOutputAllocation,",
+  "      existing_equivalent_reuse_precedes_output_allocation: true,",
+);
+assert.throws(
+  () => auditSegstoreProof(literalZeroAllocationTerminal),
+  /segstore_zero_allocation_terminal_not_derived|segstore_zero_allocation_literal_terminal_present/,
+);
+
+const withoutSourceAliasAdversary = segstoreProof.replace(
+  "  const reconstructionSourceAliasRejected = proveReconstructionRejectsSourceAlias(store);",
+  "  const deletedReconstructionSourceAliasRejected = proveReconstructionRejectsSourceAlias(store);",
+);
+assert.throws(
+  () => auditSegstoreProof(withoutSourceAliasAdversary),
+  /segstore_source_alias_adversary_not_bound/,
+);
+
+const literalSourceAliasTerminal = segstoreProof.replace(
+  "      reconstruction_source_alias_rejected: reconstructionSourceAliasRejected,",
+  "      reconstruction_source_alias_rejected: true,",
+);
+assert.throws(
+  () => auditSegstoreProof(literalSourceAliasTerminal),
+  /segstore_source_alias_terminal_not_derived|segstore_source_alias_literal_terminal_present/,
+);
+
 const withoutBaselineInvocation = baseline.replace(`node ${PROOF_PATH}`, `node --check ${PROOF_PATH}`);
 assert.throws(() => auditBaseline(withoutBaselineInvocation), /baseline_topology_proof_not_terminal/);
 
@@ -188,3 +260,5 @@ console.log("focused_failure_tolerance_rejected=true");
 console.log("independent_repository_ci_caller_bound=true");
 console.log("repository_ci_failure_tolerance_rejected=true");
 console.log("topology_proof_self_deletion_rejected=true");
+console.log("segstore_acceptance_terminal_call_deletion_rejected=true");
+console.log("segstore_terminal_literal_true_rejected=true");
