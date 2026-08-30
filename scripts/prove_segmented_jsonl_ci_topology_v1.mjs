@@ -454,6 +454,24 @@ function rejectFailureTolerance(source, marker) {
 
 function auditFocused(source) {
   rejectFailureTolerance(source, "focused_failure_tolerance_present");
+  const inlineAuditBody = workflowNamedStepLines(
+    source,
+    "Prove focused workflow dependency closure",
+  ).join("\n");
+  rejectLiteralFalseGuard(
+    inlineAuditBody,
+    "focused_topology_measurement_mutant_caller_literal_false_guard",
+  );
+  requireBodyMarkers(
+    inlineAuditBody,
+    [
+      "function topologyExecutableRegexIndex(source, pattern) {",
+      "'focused_topology_measurement_mutant_literal_false_guard',",
+      "const unreachableTopologyMeasurementMutantExecution = topologyText",
+      "() => auditTopologyMeasurementMutantExecution(unreachableTopologyMeasurementMutantExecution),",
+    ],
+    "focused_topology_measurement_reachability_wall_not_bound",
+  );
   for (const [line, marker] of [
     [
       "          const topologyPath = 'scripts/prove_segmented_jsonl_ci_topology_v1.mjs';",
@@ -1135,7 +1153,7 @@ const withoutInlineAudit = focused.replace(
 assert.notEqual(withoutInlineAudit, focused, "inline_audit_mutant_not_applied");
 assert.throws(
   () => auditFocused(withoutInlineAudit),
-  /focused_step_count_not_exact|focused_inline_audit_step_count|focused_topology_measurement_(path|source|mutant_caller)_not_bound/,
+  /focused_named_step_count|focused_step_count_not_exact|focused_inline_audit_step_count|focused_topology_measurement_(path|source|mutant_caller)_not_bound/,
 );
 
 const withoutTopologyMeasurementMutantCaller = focused.replace(
@@ -1150,6 +1168,25 @@ assert.notEqual(
 assert.throws(
   () => auditFocused(withoutTopologyMeasurementMutantCaller),
   /focused_topology_measurement_mutant_caller_not_bound/,
+);
+
+const unreachableTopologyMeasurementMutantCaller = focused.replace(
+  "          auditTopologyMeasurementMutantExecution(topologyText);\n",
+  [
+    "          if (false) {",
+    "          auditTopologyMeasurementMutantExecution(topologyText);",
+    "          }",
+    "",
+  ].join("\n"),
+);
+assert.notEqual(
+  unreachableTopologyMeasurementMutantCaller,
+  focused,
+  "focused_topology_measurement_mutant_caller_literal_false_mutant_not_applied",
+);
+assert.throws(
+  () => auditFocused(unreachableTopologyMeasurementMutantCaller),
+  /focused_topology_measurement_mutant_caller_literal_false_guard/,
 );
 
 const withoutSemanticProof = focused.replace(
@@ -1726,5 +1763,7 @@ console.log("segstore_reconstruction_measurement_result_terminals_bound=true");
 console.log("segstore_reconstruction_measurement_acceptance_assertions_bound=true");
 console.log("segstore_reconstruction_measurement_literal_false_guard_rejected=true");
 console.log("segstore_reconstruction_measurement_mutant_caller_bound=true");
+console.log("segstore_reconstruction_measurement_mutant_block_literal_false_guard_rejected=true");
+console.log("focused_topology_measurement_mutant_caller_literal_false_guard_rejected=true");
 console.log(`segstore_reconstruction_measurement_mutants_executed=${reconstructionMeasurementMutantsExecuted}`);
 console.log("segstore_exact_generation_helper_noop_rejected=true");

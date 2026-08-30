@@ -226,7 +226,30 @@ jobs:
             return count;
           }
 
+          function topologyExecutableRegexIndex(source, pattern) {
+            const flags = pattern.flags.includes('g') ? pattern.flags : `${pattern.flags}g`;
+            const matcher = new RegExp(pattern.source, flags);
+            const mask = topologyExecutableCodeMask(source);
+            for (let match = matcher.exec(source); match; match = matcher.exec(source)) {
+              let executable = false;
+              for (let index = match.index; index < match.index + match[0].length; index += 1) {
+                if (mask[index] === 1) {
+                  executable = true;
+                  break;
+                }
+              }
+              if (executable) return match.index;
+              if (match[0].length === 0) matcher.lastIndex += 1;
+            }
+            return -1;
+          }
+
           function auditTopologyMeasurementMutantExecution(source) {
+            assert.equal(
+              topologyExecutableRegexIndex(source, /\bif\s*\(\s*false\s*\)\s*\{/),
+              -1,
+              'focused_topology_measurement_mutant_literal_false_guard',
+            );
             for (const [line, marker] of [
               ['const reconstructionMeasurementMutants = [', 'array'],
               ['let reconstructionMeasurementMutantsExecuted = 0;', 'counter'],
@@ -690,6 +713,24 @@ jobs:
 
           audit(text);
           auditTopologyMeasurementMutantExecution(topologyText);
+          const unreachableTopologyMeasurementMutantExecution = topologyText
+            .replace(
+              'const reconstructionMeasurementMutants = [',
+              'if (false) {\nconst reconstructionMeasurementMutants = [',
+            )
+            .replace(
+              'const withoutBaselineInvocation = baseline.replace',
+              '}\nlet reconstructionMeasurementMutantsExecuted = 8;\n\nconst withoutBaselineInvocation = baseline.replace',
+            );
+          assert.notEqual(
+            unreachableTopologyMeasurementMutantExecution,
+            topologyText,
+            'focused_topology_measurement_mutant_literal_false_mutant_not_applied',
+          );
+          assert.throws(
+            () => auditTopologyMeasurementMutantExecution(unreachableTopologyMeasurementMutantExecution),
+            /focused_topology_measurement_mutant_literal_false_guard/,
+          );
           assert.throws(
             () => audit(text.replace(`      - "${storageSources[0]}"`, `      # removed ${storageSources[0]}`)),
             /focused_(pull_request|push)_trigger_count:/,
