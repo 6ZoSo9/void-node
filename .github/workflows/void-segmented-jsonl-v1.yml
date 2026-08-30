@@ -1102,10 +1102,17 @@ jobs:
             ),
             /focused_topology_measurement_mutant_array_not_exact/,
           );
-          const mutableRejectionTopologyMeasurementMutants = topologyText.replace(
-            'let reconstructionMeasurementMutantsExecuted = 0;',
-            'let reconstructionMeasurementMutantsExecuted = 0;\nassert.throws = () => {};',
+          const mutableRejectionMarker =
+            'let reconstructionMeasurementMutantsExecuted = 0;';
+          const mutableRejectionAt = topologyText.lastIndexOf(mutableRejectionMarker);
+          assert.ok(
+            mutableRejectionAt >= 0,
+            'focused_topology_measurement_mutable_rejection_target_missing',
           );
+          const mutableRejectionTopologyMeasurementMutants =
+            topologyText.slice(0, mutableRejectionAt) +
+            'let reconstructionMeasurementMutantsExecuted = 0;\nassert.throws = () => {};' +
+            topologyText.slice(mutableRejectionAt + mutableRejectionMarker.length);
           assert.notEqual(
             mutableRejectionTopologyMeasurementMutants,
             topologyText,

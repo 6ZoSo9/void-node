@@ -1257,10 +1257,20 @@ assertThrows(
   () => auditTopologyMeasurementMutantAuthority(genericMeasurementPayloads),
   /topology_measurement_mutant_payload_digest_not_exact/,
 );
-const mutableMeasurementRejectionAuthority = topologyProof.replace(
-  "let reconstructionMeasurementMutantsExecuted = 0;",
-  "let reconstructionMeasurementMutantsExecuted = 0;\nassert.throws = () => {};",
+const mutableMeasurementRejectionMarker =
+  "let reconstructionMeasurementMutantsExecuted = 0;";
+const mutableMeasurementRejectionAt =
+  topologyProof.lastIndexOf(mutableMeasurementRejectionMarker);
+assert.ok(
+  mutableMeasurementRejectionAt >= 0,
+  "topology_measurement_mutable_rejection_target_missing",
 );
+const mutableMeasurementRejectionAuthority =
+  topologyProof.slice(0, mutableMeasurementRejectionAt) +
+  "let reconstructionMeasurementMutantsExecuted = 0;\nassert.throws = () => {};" +
+  topologyProof.slice(
+    mutableMeasurementRejectionAt + mutableMeasurementRejectionMarker.length,
+  );
 assert.notEqual(
   mutableMeasurementRejectionAuthority,
   topologyProof,
