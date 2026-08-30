@@ -691,6 +691,7 @@ function scanFile(
   maxRecord: number,
   validateJson: boolean,
   expectedMode: number,
+  onChunk?: (chunk: Buffer) => void,
 ): { bytes:number; records:number; sha256:string; generation:GenerationV1; mode:number } {
   const fd = openRegularReadV1(file);
   try {
@@ -702,6 +703,7 @@ function scanFile(
     let carry = Buffer.alloc(0), bytes = 0, records = 0;
     bytes = readAdmittedGenerationV1(fd, expectedBytes, "FILE_SHORT_READ", "FILE_GREW_DURING_SCAN", file, (chunk) => {
       hash.update(chunk);
+      onChunk?.(chunk);
       const data = carry.length ? Buffer.concat([carry,chunk]) : chunk; let from = 0;
       for (let i=0;i<data.length;i++) if (data[i] === 0x0a) { const rec = data.subarray(from,i+1); validateRecord(rec,maxRecord,validateJson,records); records++; from=i+1; }
       carry = Buffer.from(data.subarray(from)); if (carry.length > maxRecord) fail("RECORD_TOO_LARGE", `${file}:partial=${carry.length}`);
@@ -736,7 +738,7 @@ export function readSegmentedJsonlManifestV1(rootInput: string): SegmentedJsonlM
 function verifySegmentedJsonlWithAuthoritiesV1(
   root: DirectoryAuthorityV1,
   segments: DirectoryAuthorityV1,
-  options: {validateJson?:boolean} = {},
+  options: {validateJson?:boolean; onReconstructionChunk?: (chunk: Buffer) => void} = {},
 ) {
   assertPrivateDirectoryWriteAuthorityV1(root);
   assertPrivateDirectoryWriteAuthorityV1(segments);
@@ -745,13 +747,13 @@ function verifySegmentedJsonlWithAuthoritiesV1(
   let bytes=0, records=0;
   for (const s of m.sealed_segments) {
     const file = path.join(segments.stablePath, segmentName(s.id));
-    const got = scanFile(file,s.bytes,s.records,m.max_record_bytes,validateJson,0o400);
+    const got = scanFile(file,s.bytes,s.records,m.max_record_bytes,validateJson,0o400,options.onReconstructionChunk);
     if (got.sha256 !== s.sha256) fail("SEGMENT_HASH_MISMATCH", `id=${s.id}:expected=${s.sha256}:actual=${got.sha256}`);
     terminalLeaves.push({ file, generation:got.generation, mode:0o400 });
     bytes += got.bytes; records += got.records;
   }
   const activeFile = path.join(root.stablePath,ACTIVE);
-  const a = scanFile(activeFile,m.active.bytes,m.active.records,m.max_record_bytes,validateJson,0o600);
+  const a = scanFile(activeFile,m.active.bytes,m.active.records,m.max_record_bytes,validateJson,0o600,options.onReconstructionChunk);
   if (a.sha256 !== m.active.sha256) fail("ACTIVE_HASH_MISMATCH", `expected=${m.active.sha256}:actual=${a.sha256}`);
   terminalLeaves.push({ file:activeFile, generation:a.generation, mode:0o600 });
   bytes += a.bytes; records += a.records;
@@ -761,7 +763,17 @@ function verifySegmentedJsonlWithAuthoritiesV1(
   }
   assertPrivateDirectoryWriteAuthorityV1(segments);
   assertPrivateDirectoryWriteAuthorityV1(root);
-  return { manifest:m, sealed_segments_verified:m.sealed_segments.length, total_bytes_verified:bytes, total_records_verified:records };
+  return {
+    manifest:m,
+    sealed_segments_verified:m.sealed_segments.length,
+    total_bytes_verified:bytes,
+    total_records_verified:records,
+    reconstruction_sources:terminalLeaves.map((leaf) => ({
+      file:leaf.file,
+      generation:{ ...leaf.generation },
+      mode:leaf.mode,
+    })),
+  };
 }
 
 export function verifySegmentedJsonlV1(rootInput: string, options: {validateJson?:boolean} = {}) {
@@ -771,7 +783,13 @@ export function verifySegmentedJsonlV1(rootInput: string, options: {validateJson
     assertPrivateDirectoryWriteAuthorityV1(root);
     segments = openDirectoryChildAuthorityV1(root, SEGMENTS, path.join(rootPathValue, SEGMENTS));
     assertPrivateDirectoryWriteAuthorityV1(segments);
-    return verifySegmentedJsonlWithAuthoritiesV1(root, segments, options);
+    const verified = verifySegmentedJsonlWithAuthoritiesV1(root, segments, options);
+    return {
+      manifest:verified.manifest,
+      sealed_segments_verified:verified.sealed_segments_verified,
+      total_bytes_verified:verified.total_bytes_verified,
+      total_records_verified:verified.total_records_verified,
+    };
   } finally {
     if (segments) fs.closeSync(segments.fd);
     fs.closeSync(root.fd);
@@ -895,26 +913,6 @@ function appendVerifiedGenerationToOutputV1(
         off+=w;
       }
     },
-    onStableGeneration,
-  );
-}
-
-function hashVerifiedGenerationForReconstructionV1(
-  file: string,
-  expectedBytes: number,
-  expectedSha256: string,
-  outputHash: ReturnType<typeof crypto.createHash>,
-  outputPath: string,
-  expectedMode: number,
-  onStableGeneration?: (generation: GenerationV1) => void,
-): number {
-  return readVerifiedGenerationForReconstructionV1(
-    file,
-    expectedBytes,
-    expectedSha256,
-    outputPath,
-    expectedMode,
-    (chunk) => outputHash.update(chunk),
     onStableGeneration,
   );
 }
@@ -1187,20 +1185,30 @@ export function reconstructSegmentedJsonlV1ToFile(rootInput:string,outputInput:s
     assertPrivateDirectoryWriteAuthorityV1(root);
     segments=openDirectoryChildAuthorityV1(root,SEGMENTS,path.join(rootPathValue,SEGMENTS));
     assertPrivateDirectoryWriteAuthorityV1(segments);
-    const verified=verifySegmentedJsonlWithAuthoritiesV1(root,segments);
-    outputParent=openDirectoryAuthorityV1(path.dirname(out));
-    assertPrivateDirectoryWriteAuthorityV1(outputParent);
-    const expectedHash=crypto.createHash("sha256"); let expectedBytes=0;
-    const sourceGenerations = new Set<string>();
-    const bindSourceGeneration = (generation: GenerationV1) => {
-      sourceGenerations.add(`${generation.dev}:${generation.ino}`);
-    };
-    for(const s of verified.manifest.sealed_segments) {
-      expectedBytes+=hashVerifiedGenerationForReconstructionV1(path.join(segments.stablePath,segmentName(s.id)),s.bytes,s.sha256,expectedHash,out,0o400,bindSourceGeneration);
-    }
-    expectedBytes+=hashVerifiedGenerationForReconstructionV1(path.join(root.stablePath,ACTIVE),verified.manifest.active.bytes,verified.manifest.active.sha256,expectedHash,out,0o600,bindSourceGeneration);
+
+    const expectedHash=crypto.createHash("sha256");
+    const verified=verifySegmentedJsonlWithAuthoritiesV1(root,segments,{
+      onReconstructionChunk:(chunk) => expectedHash.update(chunk),
+    });
+    const expectedBytes=verified.total_bytes_verified;
     if(expectedBytes!==verified.manifest.total_bytes) fail("RECONSTRUCT_SIZE_MISMATCH",`${expectedBytes}:${verified.manifest.total_bytes}`);
     const expectedDigest=expectedHash.digest("hex");
+
+    const sourceGenerations = new Set(
+      verified.reconstruction_sources.map((source) => `${source.generation.dev}:${source.generation.ino}`),
+    );
+    const expectedSourceGenerations = new Map(
+      verified.reconstruction_sources.map((source) => [source.file, source.generation] as const),
+    );
+    const assertVerifiedSourceGeneration = (file: string) => (generation: GenerationV1) => {
+      const expected = expectedSourceGenerations.get(file);
+      if (!expected || !sameGeneration(expected, generation)) {
+        fail("RECONSTRUCT_SOURCE_GENERATION_CHANGED_AFTER_VERIFY", file);
+      }
+    };
+
+    outputParent=openDirectoryAuthorityV1(path.dirname(out));
+    assertPrivateDirectoryWriteAuthorityV1(outputParent);
     const existing=classifyExistingReconstructionV1(outputParent,out,expectedBytes,expectedDigest,sourceGenerations);
     if(existing==="occupied") fail("OUTPUT_EXISTS",out);
     if(existing==="equivalent") {
@@ -1218,9 +1226,22 @@ export function reconstructSegmentedJsonlV1ToFile(rootInput:string,outputInput:s
     fd=openUnlinkedReconstructionFileV1(outputParent,out);
     const hash=crypto.createHash("sha256"); let bytes=0;
     for(const s of verified.manifest.sealed_segments) {
-      bytes+=appendVerifiedGenerationToOutputV1(path.join(segments.stablePath,segmentName(s.id)),s.bytes,s.sha256,fd,hash,out,0o400,bindSourceGeneration);
+      const file=path.join(segments.stablePath,segmentName(s.id));
+      bytes+=appendVerifiedGenerationToOutputV1(
+        file,s.bytes,s.sha256,fd,hash,out,0o400,assertVerifiedSourceGeneration(file),
+      );
     }
-    bytes+=appendVerifiedGenerationToOutputV1(path.join(root.stablePath,ACTIVE),verified.manifest.active.bytes,verified.manifest.active.sha256,fd,hash,out,0o600,bindSourceGeneration);
+    const activeFile=path.join(root.stablePath,ACTIVE);
+    bytes+=appendVerifiedGenerationToOutputV1(
+      activeFile,
+      verified.manifest.active.bytes,
+      verified.manifest.active.sha256,
+      fd,
+      hash,
+      out,
+      0o600,
+      assertVerifiedSourceGeneration(activeFile),
+    );
     if(bytes!==verified.manifest.total_bytes) fail("RECONSTRUCT_SIZE_MISMATCH",`${bytes}:${verified.manifest.total_bytes}`);
     fs.fchmodSync(fd,0o600);
     fs.fsyncSync(fd);
