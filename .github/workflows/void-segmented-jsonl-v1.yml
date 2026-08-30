@@ -450,7 +450,7 @@ jobs:
           function auditFocusedStepContract(source) {
             const expected = [
               ["Checkout exact revision", ["name", "uses", "with"]],
-              ["Use Node.js ${{ matrix.node }}", ["name", "uses", "with"]],
+              ["Use Node.js $" + "{{ matrix.node }}", ["name", "uses", "with"]],
               ["Install reviewed dependencies", ["name", "run"]],
               ["Prove focused workflow dependency closure", ["name", "run"]],
               ["Syntax", ["name", "run"]],
