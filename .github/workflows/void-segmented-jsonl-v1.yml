@@ -400,7 +400,13 @@ jobs:
           function auditFocusedStepMappings(source) {
             const job = workflowProofJobRange(source);
             const steps = [];
+            let inSteps = false;
             for (let i = job.start; i < job.end; i += 1) {
+              if (job.lines[i] === "    steps:") {
+                inSteps = true;
+                continue;
+              }
+              if (!inSteps) continue;
               const named = /^      - name: (.+)$/.exec(job.lines[i]);
               if (named) steps.push({ name: named[1], keys: ["name"] });
               const key = parseWorkflowMappingKey(job.lines[i], 8, "focused_step_mapping_key_not_exact");
