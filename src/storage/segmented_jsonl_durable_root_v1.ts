@@ -115,7 +115,7 @@ type ReclaimWinnerV1 = {
   stale_witness_dev: string;
   stale_witness_ino: string;
 };
-type ReclaimWinnerReadV1 = { identity: SlotIdentityV1; value: ReclaimWinnerV1 };
+type ReclaimWinnerReadV1 = { identity: SlotIdentityV1; value: ReclaimWinnerV1; bodySha256: string };
 type PublishLockOwnerReleaseV1 = {
   v: 1;
   owner_token: string;
@@ -129,6 +129,7 @@ type SupersededWitnessV1 = {
   token: string;
   identity: SlotIdentityV1;
   reclaimWinner: SlotIdentityV1;
+  reclaimWinnerSha256: string;
   release: SlotIdentityV1 | null;
 };
 type PublishLockV1 = DirectoryAuthorityV1 & {
@@ -496,7 +497,7 @@ function readReclaimWinner(lock: DirectoryAuthorityV1): ReclaimWinnerReadV1 | nu
     }
     const value = parseReclaimWinner(body.toString("utf8"));
     if (!value) fail("DURABLE_ROOT_RECLAIM_WINNER_INVALID", "schema");
-    return { identity, value };
+    return { identity, value, bodySha256: sha256(body) };
   } finally { if (fd >= 0) fs.closeSync(fd); }
 }
 
@@ -563,6 +564,19 @@ function assertReclaimWinnerClaimant(
       "DURABLE_ROOT_RECLAIM_WINNER_CLAIMANT_MISMATCH",
       `${value.claimant_token}:${claimant.token}`,
     );
+  }
+}
+
+function assertReclaimWinnerExactBytes(
+  expected: ReclaimWinnerReadV1,
+  observed: ReclaimWinnerReadV1,
+  code: string,
+): void {
+  if (
+    !sameIdentity(expected.identity, observed.identity) ||
+    expected.bodySha256 !== observed.bodySha256
+  ) {
+    fail(code, `${expected.bodySha256}:${observed.bodySha256}`);
   }
 }
 
@@ -799,6 +813,7 @@ function acquirePublishLock(authority: DirectoryAuthorityV1): PublishLockV1 {
         token: predecessorToken,
         identity: claim.witness.identity,
         reclaimWinner: claim.winner.identity,
+        reclaimWinnerSha256: claim.winner.bodySha256,
         release: claim.release?.identity ?? null,
       };
       const currentOwner = readPublishLockFile(lock, PUBLISH_LOCK_OWNER_NAME);
@@ -823,8 +838,16 @@ function acquirePublishLock(authority: DirectoryAuthorityV1): PublishLockV1 {
     const ownerWitness = createOwnerWitness(lock, owner);
 
     const reclaimAfterOwner = readReclaimWinner(lock);
-    if (Boolean(reclaimAfterOwner) !== Boolean(claim) || (reclaimAfterOwner && claim && !sameIdentity(reclaimAfterOwner.identity, claim.winner.identity))) {
+    if (Boolean(reclaimAfterOwner) !== Boolean(claim)) {
       fail("DURABLE_ROOT_PUBLISH_LOCK_RECLAIM_CHANGED", lock.publicPath);
+    }
+    if (reclaimAfterOwner && claim) {
+      assertReclaimWinnerExactBytes(
+        claim.winner,
+        reclaimAfterOwner,
+        "DURABLE_ROOT_RECLAIM_WINNER_BYTES_CHANGED",
+      );
+      assertReclaimWinnerClaimant(reclaimAfterOwner, owner);
     }
     assertDirectoryAuthority(lock);
     const observed = readPublishLockOwner(lock);
@@ -1149,6 +1172,32 @@ function stageOwnerWitness(lock: PublishLockV1, intent: StageIntentV1): PublishL
   return witness;
 }
 
+function assertSupersededReclaimWinner(
+  lock: PublishLockV1,
+  witness: PublishLockFileV1,
+): ReclaimWinnerReadV1 {
+  const superseded = lock.supersededWitness ||
+    fail("DURABLE_ROOT_SUPERSEDED_WITNESS_REQUIRED", lock.owner.token);
+  const winner = readReclaimWinner(lock);
+  if (!winner || !sameIdentity(winner.identity, superseded.reclaimWinner)) {
+    fail("DURABLE_ROOT_RECLAIM_WINNER_USE_IDENTITY_MISMATCH", superseded.token);
+  }
+  if (winner.bodySha256 !== superseded.reclaimWinnerSha256) {
+    fail(
+      "DURABLE_ROOT_RECLAIM_WINNER_BYTES_CHANGED",
+      `${superseded.reclaimWinnerSha256}:${winner.bodySha256}`,
+    );
+  }
+  const reconstructedOwner: PublishLockFileV1 = {
+    identity: superseded.identity,
+    owner: witness.owner,
+    links: witness.links,
+  };
+  assertReclaimWinnerBinds(winner, reconstructedOwner, witness);
+  assertReclaimWinnerClaimant(winner, lock.owner);
+  return winner;
+}
+
 function retireSupersededWitness(lock: PublishLockV1): void {
   if (!lock.supersededWitness) return;
   const { token, identity } = lock.supersededWitness;
@@ -1156,13 +1205,7 @@ function retireSupersededWitness(lock: PublishLockV1): void {
   if (!witness || witness.links !== 1 || !sameIdentity(witness.identity, identity)) {
     fail("DURABLE_ROOT_SUPERSEDED_WITNESS_RETIRE_MISMATCH", token);
   }
-  const winner = readReclaimWinner(lock);
-  if (!winner || !sameIdentity(winner.identity, lock.supersededWitness.reclaimWinner)) {
-    fail("DURABLE_ROOT_RECLAIM_WINNER_RETIRE_MISMATCH", token);
-  }
-  const reconstructedOwner = { identity, owner: witness.owner, links: witness.links };
-  assertReclaimWinnerBinds(winner, reconstructedOwner, witness);
-  assertReclaimWinnerClaimant(winner, lock.owner);
+  const winner = assertSupersededReclaimWinner(lock, witness);
   const release = readPublishLockOwnerRelease(lock, reconstructedOwner, witness);
   if (Boolean(release) !== Boolean(lock.supersededWitness.release) ||
       (release && lock.supersededWitness.release && !sameIdentity(release.identity, lock.supersededWitness.release))) {
@@ -1222,6 +1265,9 @@ function recoverLinkedStages(authority: DirectoryAuthorityV1, lock: PublishLockV
 
   const intent = intents[0];
   const ownerWitness = stageOwnerWitness(lock, intent);
+  if (intent.publisherToken !== lock.owner.token) {
+    assertSupersededReclaimWinner(lock, ownerWitness);
+  }
   const stagePath = path.join(lock.stablePath, intent.name);
   const targetPath = path.join(authority.stablePath, SLOT_NAMES[intent.index]);
   let fd = -1;
@@ -1250,6 +1296,9 @@ function recoverLinkedStages(authority: DirectoryAuthorityV1, lock: PublishLockV
       }
     } else {
       if (stageLinks !== 1) fail("DURABLE_ROOT_STAGE_INTENT_LINK_COUNT", `${intent.name}:${stageLinks}`);
+      if (intent.publisherToken !== lock.owner.token) {
+        assertSupersededReclaimWinner(lock, ownerWitness);
+      }
       try { fs.linkSync(stagePath, targetPath); }
       catch (error: any) {
         if (error?.code !== "EEXIST") throw error;
@@ -1269,6 +1318,9 @@ function recoverLinkedStages(authority: DirectoryAuthorityV1, lock: PublishLockV
     const targetBeforeUnlink = slotIdentityFromStatAllowLinks(fs.lstatSync(targetPath, { bigint: true } as any), targetPath, [2]);
     if (!sameIdentity(identity, stageBeforeUnlink) || !sameIdentity(identity, targetBeforeUnlink)) {
       fail("DURABLE_ROOT_STAGED_LINK_CHANGED", SLOT_NAMES[intent.index]);
+    }
+    if (intent.publisherToken !== lock.owner.token) {
+      assertSupersededReclaimWinner(lock, ownerWitness);
     }
     fs.unlinkSync(stagePath);
     fs.fsyncSync(lock.fd);
