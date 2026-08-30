@@ -1054,8 +1054,8 @@ jobs:
               'const reconstructionMeasurementMutants = [\n  ...(false ? [\n  [',
             )
             .replace(
-              '  ],\n];\n\nlet reconstructionMeasurementMutantsExecuted = 0;',
-              '  ],\n  ] : []),\n];\n\nlet reconstructionMeasurementMutantsExecuted = 0;',
+              '  ],\n];\n\nconst reconstructionMeasurementMutantValues = new Set(',
+              '  ],\n  ] : []),\n];\n\nconst reconstructionMeasurementMutantValues = new Set(',
             );
           assert.notEqual(
             conditionalSpreadTopologyMeasurementMutants,
