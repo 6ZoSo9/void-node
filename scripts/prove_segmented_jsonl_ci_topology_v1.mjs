@@ -53,14 +53,46 @@ function exactLineCount(source, exact) {
   return source.split("\n").filter((line) => line === exact).length;
 }
 
+function workflowEventPathEntries(source, eventName) {
+  const lines = source.split("\n");
+  const eventAt = lines.indexOf(`  ${eventName}:`);
+  assert.ok(eventAt >= 0, `focused_${eventName}_event_missing`);
+
+  let pathsAt = -1;
+  for (let index = eventAt + 1; index < lines.length; index += 1) {
+    if (/^  \S/.test(lines[index])) break;
+    if (lines[index] === "    paths:") {
+      pathsAt = index;
+      break;
+    }
+  }
+  assert.ok(pathsAt > eventAt, `focused_${eventName}_paths_missing`);
+
+  const entries = [];
+  for (let index = pathsAt + 1; index < lines.length; index += 1) {
+    const match = /^      - "([^"]+)"$/.exec(lines[index]);
+    if (!match) break;
+    entries.push(match[1]);
+  }
+  return entries;
+}
+
 function rejectFailureTolerance(source, marker) {
   assert.ok(!/^\s*continue-on-error:\s*true\s*$/m.test(source), marker);
 }
 
 function auditFocused(source) {
+  const pullRequestPaths = workflowEventPathEntries(source, "pull_request");
+  const pushPaths = workflowEventPathEntries(source, "push");
   for (const dependency of TRIGGER_DEPENDENCIES) {
-    const count = exactLineCount(source, `      - "${dependency}"`);
-    assert.equal(count, 2, `focused_trigger_count:${dependency}:${count}`);
+    const pullRequestCount = pullRequestPaths.filter((pathEntry) => pathEntry === dependency).length;
+    const pushCount = pushPaths.filter((pathEntry) => pathEntry === dependency).length;
+    assert.equal(
+      pullRequestCount,
+      1,
+      `focused_pull_request_trigger_count:${dependency}:${pullRequestCount}`,
+    );
+    assert.equal(pushCount, 1, `focused_push_trigger_count:${dependency}:${pushCount}`);
   }
   for (const dependency of [...STORAGE_SOURCES, ...SEMANTIC_PROOFS]) {
     assert.ok(
@@ -190,6 +222,18 @@ function rangeHasExecutableCode(mask, start, length) {
   return false;
 }
 
+function executableExactLineCount(source, exact) {
+  const mask = executableCodeMask(source);
+  const lines = source.split("\n");
+  let offset = 0;
+  let count = 0;
+  for (const line of lines) {
+    if (line === exact && rangeHasExecutableCode(mask, offset, line.length)) count += 1;
+    offset += line.length + 1;
+  }
+  return count;
+}
+
 function executableMarkerIndex(body, required, fromIndex = 0) {
   const mask = executableCodeMask(body);
   let index = body.indexOf(required, fromIndex);
@@ -223,29 +267,33 @@ function rejectEarlyTrueReturn(body, lastRequired, marker) {
   assert.ok(firstReturn > lastRequiredAt && lastRequiredAt >= 0, marker);
 }
 
+function rejectLiteralFalseGuard(body, marker) {
+  assert.equal(executableRegexIndex(body, /\bif\s*\(\s*false\s*\)\s*\{/), -1, marker);
+}
+
 function auditSegstoreProof(source) {
   assert.equal(
-    exactLineCount(source, "  const existingEquivalentReusePrecedesOutputAllocation ="),
+    executableExactLineCount(source, "  const existingEquivalentReusePrecedesOutputAllocation ="),
     1,
     "segstore_zero_allocation_adversary_not_bound",
   );
   assert.equal(
-    exactLineCount(source, "    proveExistingEquivalentReusePrecedesOutputAllocation("),
+    executableExactLineCount(source, "    proveExistingEquivalentReusePrecedesOutputAllocation("),
     1,
     "segstore_zero_allocation_call_not_bound",
   );
   assert.equal(
-    exactLineCount(source, "  const reconstructionSourceAliasRejected = proveReconstructionRejectsSourceAlias(store);"),
+    executableExactLineCount(source, "  const reconstructionSourceAliasRejected = proveReconstructionRejectsSourceAlias(store);"),
     1,
     "segstore_source_alias_adversary_not_bound",
   );
   assert.equal(
-    exactLineCount(source, "        existingEquivalentReusePrecedesOutputAllocation,"),
+    executableExactLineCount(source, "        existingEquivalentReusePrecedesOutputAllocation,"),
     1,
     "segstore_zero_allocation_terminal_not_derived",
   );
   assert.equal(
-    exactLineCount(source, "      reconstruction_source_alias_rejected: reconstructionSourceAliasRejected,"),
+    executableExactLineCount(source, "      reconstruction_source_alias_rejected: reconstructionSourceAliasRejected,"),
     1,
     "segstore_source_alias_terminal_not_derived",
   );
@@ -285,6 +333,10 @@ function auditSegstoreProof(source) {
     zeroAllocationBody,
     "assert.deepEqual(fs.readFileSync(outputPath), expectedBytes);",
     "segstore_zero_allocation_early_true_return",
+  );
+  rejectLiteralFalseGuard(
+    zeroAllocationBody,
+    "segstore_zero_allocation_literal_false_guard",
   );
 
   const generationHelperBody = functionSlice(
@@ -335,6 +387,10 @@ function auditSegstoreProof(source) {
     "fs.unlinkSync(mutationWitness);",
     "segstore_source_alias_early_true_return",
   );
+  rejectLiteralFalseGuard(
+    sourceAliasBody,
+    "segstore_source_alias_literal_false_guard",
+  );
 }
 
 function auditBaseline(source) {
@@ -362,6 +418,30 @@ auditFocused(focused);
 auditSegstoreProof(segstoreProof);
 auditBaseline(baseline);
 auditCi(ci);
+
+const deadScalarTriggerPath = "src/storage/segmented_jsonl_v1.ts";
+const deadScalarTriggerLine = `      - "${deadScalarTriggerPath}"\n`;
+assert.equal(
+  focused.split("\n").filter((line) => line === deadScalarTriggerLine.trimEnd()).length,
+  2,
+  "focused_dead_scalar_trigger_fixture_count",
+);
+const deadScalarTriggerMutant = focused
+  .replaceAll(deadScalarTriggerLine, "")
+  .replace(
+    "permissions:",
+    `env:
+  GRACE_TRIGGER_DECOY: |
+      - "${deadScalarTriggerPath}"
+      - "${deadScalarTriggerPath}"
+
+permissions:`,
+  );
+assert.notEqual(deadScalarTriggerMutant, focused, "focused_dead_scalar_trigger_mutant_not_applied");
+assert.throws(
+  () => auditFocused(deadScalarTriggerMutant),
+  /focused_pull_request_trigger_count|focused_push_trigger_count/,
+);
 
 const withoutInlineAudit = focused.replace(
   /\n      - name: Prove focused workflow dependency closure\n[\s\S]*?(?=\n      - name: Syntax\n)/,
@@ -403,6 +483,26 @@ assert.throws(
   /segstore_zero_allocation_call_not_bound/,
 );
 
+const commentedZeroAllocationCall = segstoreProof.replace(
+  "    proveExistingEquivalentReusePrecedesOutputAllocation(",
+  "    deletedExistingEquivalentReusePrecedesOutputAllocation(",
+).replace(
+  "  const existingEquivalentReusePrecedesOutputAllocation =",
+  `/*
+    proveExistingEquivalentReusePrecedesOutputAllocation(
+*/
+  const existingEquivalentReusePrecedesOutputAllocation =`,
+);
+assert.notEqual(
+  commentedZeroAllocationCall,
+  segstoreProof,
+  "zero_allocation_commented_call_mutant_not_applied",
+);
+assert.throws(
+  () => auditSegstoreProof(commentedZeroAllocationCall),
+  /segstore_zero_allocation_call_not_bound/,
+);
+
 const literalZeroAllocationTerminal = segstoreProof.replace(
   "        existingEquivalentReusePrecedesOutputAllocation,",
   "      existing_equivalent_reuse_precedes_output_allocation: true,",
@@ -418,6 +518,26 @@ const withoutSourceAliasAdversary = segstoreProof.replace(
 );
 assert.throws(
   () => auditSegstoreProof(withoutSourceAliasAdversary),
+  /segstore_source_alias_adversary_not_bound/,
+);
+
+const commentedSourceAliasBinding = segstoreProof.replace(
+  "  const reconstructionSourceAliasRejected = proveReconstructionRejectsSourceAlias(store);",
+  "  const deletedReconstructionSourceAliasRejected = proveReconstructionRejectsSourceAlias(store);",
+).replace(
+  "  const existingEquivalentReusePrecedesOutputAllocation =",
+  `/*
+  const reconstructionSourceAliasRejected = proveReconstructionRejectsSourceAlias(store);
+*/
+  const existingEquivalentReusePrecedesOutputAllocation =`,
+);
+assert.notEqual(
+  commentedSourceAliasBinding,
+  segstoreProof,
+  "source_alias_commented_binding_mutant_not_applied",
+);
+assert.throws(
+  () => auditSegstoreProof(commentedSourceAliasBinding),
   /segstore_source_alias_adversary_not_bound/,
 );
 
@@ -459,6 +579,54 @@ assert.notEqual(earlyZeroAllocationReturn, segstoreProof, "zero_allocation_early
 assert.throws(
   () => auditSegstoreProof(earlyZeroAllocationReturn),
   /segstore_zero_allocation_early_true_return/,
+);
+
+function wrapFunctionBodyInLiteralFalse(source, startMarker, endMarker, marker) {
+  const start = source.indexOf(startMarker);
+  const end = source.indexOf(endMarker, start + startMarker.length);
+  assert.ok(start >= 0 && end > start, `${marker}_slice_missing`);
+  const openBrace = source.indexOf("{", start + startMarker.length);
+  const closeBrace = source.lastIndexOf("}", end);
+  assert.ok(openBrace > start && closeBrace > openBrace, `${marker}_body_missing`);
+  return (
+    source.slice(0, openBrace + 1) +
+    "\n  if (false) {" +
+    source.slice(openBrace + 1, closeBrace) +
+    "\n  }\n  return true;\n" +
+    source.slice(closeBrace)
+  );
+}
+
+const literalFalseZeroAllocationBody = wrapFunctionBodyInLiteralFalse(
+  segstoreProof,
+  "function proveExistingEquivalentReusePrecedesOutputAllocation(",
+  "type ExactFileObservationV1 =",
+  "zero_allocation_literal_false",
+);
+assert.notEqual(
+  literalFalseZeroAllocationBody,
+  segstoreProof,
+  "zero_allocation_literal_false_mutant_not_applied",
+);
+assert.throws(
+  () => auditSegstoreProof(literalFalseZeroAllocationBody),
+  /segstore_zero_allocation_literal_false_guard/,
+);
+
+const literalFalseSourceAliasBody = wrapFunctionBodyInLiteralFalse(
+  segstoreProof,
+  "function proveReconstructionRejectsSourceAlias(",
+  "function matchesOpenedTarget(",
+  "source_alias_literal_false",
+);
+assert.notEqual(
+  literalFalseSourceAliasBody,
+  segstoreProof,
+  "source_alias_literal_false_mutant_not_applied",
+);
+assert.throws(
+  () => auditSegstoreProof(literalFalseSourceAliasBody),
+  /segstore_source_alias_literal_false_guard/,
 );
 
 const noOpGenerationHelper = segstoreProof.replace(
@@ -581,6 +749,7 @@ function matchesOpenedTarget(`,
   );
 }
 
+let decoyMutantFamiliesExecuted = 0;
 for (const [name, decoy] of [
   ["block_comment", blockCommentDecoy],
   ["string_literal", stringLiteralDecoy],
@@ -603,7 +772,13 @@ for (const [name, decoy] of [
     () => auditSegstoreProof(sourceAliasDecoy),
     /segstore_source_alias_body_not_bound/,
   );
+  decoyMutantFamiliesExecuted += 1;
 }
+assert.equal(
+  decoyMutantFamiliesExecuted,
+  3,
+  "segstore_decoy_mutant_execution_count",
+);
 
 const withoutBaselineInvocation = baseline.replace(`node ${PROOF_PATH}`, `node --check ${PROOF_PATH}`);
 assert.throws(() => auditBaseline(withoutBaselineInvocation), /baseline_topology_proof_not_terminal/);
@@ -622,16 +797,20 @@ assert.throws(() => auditCi(tolerantCiCaller), /ci_failure_tolerance_present/);
 
 console.log("VOID_SEGMENTED_JSONL_CI_TOPOLOGY_V1_GREEN");
 console.log("focused_trigger_closure_bound=true");
+console.log("focused_trigger_dead_scalar_relocation_rejected=true");
 console.log("focused_semantic_proofs_terminal=true");
 console.log("focused_failure_tolerance_rejected=true");
 console.log("independent_repository_ci_caller_bound=true");
 console.log("repository_ci_failure_tolerance_rejected=true");
 console.log("topology_proof_self_deletion_rejected=true");
 console.log("segstore_acceptance_terminal_call_deletion_rejected=true");
+console.log("segstore_commented_outer_binding_rejected=true");
 console.log("segstore_terminal_literal_true_rejected=true");
 console.log("segstore_adversary_body_noop_rejected=true");
 console.log("segstore_adversary_early_return_rejected=true");
+console.log("segstore_literal_false_guard_rejected=true");
 console.log("segstore_dead_comment_marker_decoys_rejected=true");
 console.log("segstore_string_literal_marker_decoys_rejected=true");
 console.log("segstore_template_literal_marker_decoys_rejected=true");
+console.log(`segstore_decoy_mutant_families_executed=${decoyMutantFamiliesExecuted}`);
 console.log("segstore_exact_generation_helper_noop_rejected=true");
