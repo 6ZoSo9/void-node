@@ -639,7 +639,7 @@ jobs:
             ["include_block", "        include:\n          - node: 28\n"],
             ["alternate_axis", "        os: [ubuntu-latest]\n"],
             ["max_parallel", "      max-parallel: 1\n"],
-            ["job_if", "    if: ${{ false }}\n"],
+            ["job_if", "    if: " + expressionOpen + " false }}\n"],
           ];
           for (const [family, addition] of matrixSuppressionMutants) {
             const target = "        node: [22, 24, 26]\n";
@@ -654,8 +654,8 @@ jobs:
           const failureToleranceMutants = [
             ["literal_true", "    continue-on-error: true\n"],
             ["quoted_true", "    continue-on-error: 'true'\n"],
-            ["expression_true", "    continue-on-error: ${{ true }}\n"],
-            ["expression_from_json_true", "    continue-on-error: ${{ fromJSON('true') }}\n"],
+            ["expression_true", "    continue-on-error: " + expressionOpen + " true }}\n"],
+            ["expression_from_json_true", "    continue-on-error: " + expressionOpen + " fromJSON('true') }}\n"],
             ["double_quoted_key", "    \"continue-on-error\": true\n"],
             ["single_quoted_key", "    'continue-on-error': true\n"],
           ];
