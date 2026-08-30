@@ -49,6 +49,56 @@ const require = createRequire(import.meta.url);
 const mutableFs = require("node:fs") as typeof fs;
 const mutableChildProcess = require("node:child_process") as typeof import("node:child_process");
 
+function measureReconstructionSourceReadsV1(
+  storePath: string,
+  outputPath: string,
+): { sourceBytesRead: number; reusedExisting: boolean } {
+  const manifest = readSegmentedJsonlManifestV1(storePath);
+  const sourceGenerations = new Set(
+    [
+      ...manifest.sealed_segments.map((segment) => path.join(storePath, segment.file)),
+      path.join(storePath, manifest.active.file),
+    ].map((file) => {
+      const stat = fs.statSync(file, { bigint: true } as any);
+      return `${stat.dev}:${stat.ino}`;
+    }),
+  );
+  const trackedFds = new Set<number>();
+  const originalOpenSync = (mutableFs as any).openSync;
+  const originalReadSync = (mutableFs as any).readSync;
+  const originalCloseSync = (mutableFs as any).closeSync;
+  let sourceBytesRead = 0;
+  try {
+    (mutableFs as any).openSync = (...args: any[]) => {
+      const fd = originalOpenSync(...args);
+      const stat = fs.fstatSync(fd, { bigint: true } as any);
+      if (sourceGenerations.has(`${stat.dev}:${stat.ino}`)) trackedFds.add(fd);
+      return fd;
+    };
+    (mutableFs as any).readSync = (...args: any[]) => {
+      const count = originalReadSync(...args);
+      if (trackedFds.has(Number(args[0])) && Number(count) > 0) sourceBytesRead += Number(count);
+      return count;
+    };
+    (mutableFs as any).closeSync = (fd: number) => {
+      try {
+        return originalCloseSync(fd);
+      } finally {
+        trackedFds.delete(fd);
+      }
+    };
+    syncBuiltinESMExports();
+    const result = reconstructSegmentedJsonlV1ToFile(storePath, outputPath);
+    return { sourceBytesRead, reusedExisting: result.reused_existing };
+  } finally {
+    (mutableFs as any).openSync = originalOpenSync;
+    (mutableFs as any).readSync = originalReadSync;
+    (mutableFs as any).closeSync = originalCloseSync;
+    syncBuiltinESMExports();
+  }
+}
+
+
 function proveUncertainExactFdLinkConverges(
   storePath: string,
   outputPath: string,
@@ -764,6 +814,22 @@ try {
     );
   const reconstructionSourceAliasRejected = proveReconstructionRejectsSourceAlias(store);
 
+  const reconstructionPassOutput = path.join(tmp, "reconstruct-source-pass-count.jsonl");
+  const newOutputPasses = measureReconstructionSourceReadsV1(store, reconstructionPassOutput);
+  assert.equal(newOutputPasses.reusedExisting, false);
+  assert.equal(
+    newOutputPasses.sourceBytesRead,
+    body.length * 2,
+    "new reconstruction must read each admitted source byte exactly twice",
+  );
+  const existingOutputPasses = measureReconstructionSourceReadsV1(store, reconstructionPassOutput);
+  assert.equal(existingOutputPasses.reusedExisting, true);
+  assert.equal(
+    existingOutputPasses.sourceBytesRead,
+    body.length,
+    "exact-survivor recovery must read each admitted source byte exactly once",
+  );
+
   const wrongModeOutput = path.join(tmp, "reconstruct-equivalent-wrong-mode.jsonl");
   fs.writeFileSync(wrongModeOutput, body, { flag: "wx", mode: 0o400 });
   expectFailure(() => reconstructSegmentedJsonlV1ToFile(store, wrongModeOutput), "OUTPUT_EXISTS");
@@ -1129,6 +1195,8 @@ try {
       existing_equivalent_reuse_precedes_output_allocation:
         existingEquivalentReusePrecedesOutputAllocation,
       reconstruction_source_alias_rejected: reconstructionSourceAliasRejected,
+      reconstruction_new_output_source_passes: 2,
+      reconstruction_exact_survivor_source_passes: 1,
       manifest_generation_and_retention_bounded: true,
       manifest_runtime_shape_exact: true,
       max_manifest_bytes: VOID_SEGMENTED_JSONL_MAX_MANIFEST_BYTES_V1,
