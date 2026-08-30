@@ -142,6 +142,38 @@ function writeReclaimWinnerForProof(lockDir: string, staleToken: string, claiman
   fsyncDirectory(lockDir);
 }
 
+function rewriteReclaimWinnerForProof(lockDir: string, staleToken: string, claimantToken: string): void {
+  const winnerPath = path.join(lockDir, "reclaim-winner.v1");
+  const owner = fs.statSync(path.join(lockDir, "owner.v1.json"), { bigint: true } as any);
+  const witness = fs.statSync(ownerWitnessPathForProof(lockDir, staleToken), { bigint: true } as any);
+  assert.equal(owner.dev, witness.dev);
+  assert.equal(owner.ino, witness.ino);
+  const body = Buffer.from(JSON.stringify({
+    v: 1,
+    claimant_boot_id: processBootId(),
+    claimant_pid: process.pid,
+    claimant_start_ticks: processStartTicks(process.pid),
+    claimant_token: claimantToken,
+    stale_owner_token: staleToken,
+    stale_owner_dev: String(owner.dev),
+    stale_owner_ino: String(owner.ino),
+    stale_witness_dev: String(witness.dev),
+    stale_witness_ino: String(witness.ino),
+  }) + "\n", "utf8");
+  const noFollow = (fs.constants as typeof fs.constants & { O_NOFOLLOW?: number }).O_NOFOLLOW || 0;
+  const fd = fs.openSync(winnerPath, fs.constants.O_WRONLY | fs.constants.O_TRUNC | noFollow);
+  try {
+    let offset = 0;
+    while (offset < body.length) {
+      const written = fs.writeSync(fd, body, offset, body.length - offset, offset);
+      assert.ok(written > 0);
+      offset += written;
+    }
+    fs.fsyncSync(fd);
+  } finally { fs.closeSync(fd); }
+  fsyncDirectory(lockDir);
+}
+
 function fsyncDirectory(directory: string): void {
   const fd = fs.openSync(directory, "r");
   try { fs.fsyncSync(fd); } finally { fs.closeSync(fd); }
@@ -538,6 +570,12 @@ try {
   const staleClaimOwnerBefore = fs.statSync(ownerPath, { bigint: true } as any);
   const staleClaimWitnessBefore = fs.statSync(staleClaimWitnessPath, { bigint: true } as any);
   const staleClaimWinnerBefore = fs.statSync(reclaimPath, { bigint: true } as any);
+  const staleClaimWinnerBytesBefore = fs.readFileSync(reclaimPath);
+  rewriteReclaimWinnerForProof(publishLockDir, staleClaimToken, "36".repeat(16));
+  const staleClaimWinnerMutated = fs.statSync(reclaimPath, { bigint: true } as any);
+  assert.equal(staleClaimWinnerMutated.dev, staleClaimWinnerBefore.dev);
+  assert.equal(staleClaimWinnerMutated.ino, staleClaimWinnerBefore.ino, "adversary must retain the winner inode while changing its authority bytes");
+  assert.notDeepEqual(fs.readFileSync(reclaimPath), staleClaimWinnerBytesBefore, "same-inode winner rewrite must change exact authority bytes");
   expectFailure(
     () => publishSegmentedJsonlDurableRootV1(durableDir, r2Input),
     "DURABLE_ROOT_RECLAIM_WINNER_CLAIMANT_MISMATCH",
@@ -710,6 +748,7 @@ try {
   console.log("durable_root_boot_epoch_prevents_pid_start_alias=true");
   console.log("durable_root_stale_publish_lock_recoverable=true");
   console.log("durable_root_reclaim_winner_claimant_mismatch_preserved=true");
+  console.log("durable_root_reclaim_winner_same_inode_rewrite_rejected=true");
   console.log("durable_root_reclaim_winner_owner_unlink_requires_exact_claimant=true");
   console.log("durable_root_owner_release_immutable_marker=true");
   console.log("durable_root_live_released_owner_stage_recovery=true");
