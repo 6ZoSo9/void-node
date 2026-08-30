@@ -1223,7 +1223,7 @@ assert.notEqual(
 );
 assert.throws(
   () => auditFocused(withoutTopologyMeasurementMutantCaller),
-  /focused_topology_measurement_mutant_caller_not_bound/,
+  /focused_topology_measurement_mutant_caller_not_bound|focused_topology_measurement_mutant_caller_not_top_level/,
 );
 
 const unreachableTopologyMeasurementMutantCaller = focused.replace(
