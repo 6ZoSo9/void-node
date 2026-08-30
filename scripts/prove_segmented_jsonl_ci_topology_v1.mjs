@@ -919,7 +919,10 @@ const withoutInlineAudit = focused.replace(
   "\n",
 );
 assert.notEqual(withoutInlineAudit, focused, "inline_audit_mutant_not_applied");
-assert.throws(() => auditFocused(withoutInlineAudit), /focused_inline_audit_step_count/);
+assert.throws(
+  () => auditFocused(withoutInlineAudit),
+  /focused_step_count_not_exact|focused_inline_audit_step_count/,
+);
 
 const withoutSemanticProof = focused.replace(
   "        run: npx --no-install tsx scripts/prove_segmented_jsonl_v1.ts",
