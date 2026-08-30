@@ -868,8 +868,7 @@ function topologyTopLevelMeasurementDistinctAssertionCount(sourceFile) {
     const text = statement.getText(sourceFile);
     return (
       text.startsWith("assert.equal(") &&
-      text.includes("reconstructionMeasurementMutantValues.size,") &&
-      text.includes("\n  8,\n") &&
+      text.includes("reconstructionMeasurementMutantValues.size, 8,") &&
       text.includes("segstore_reconstruction_measurement_mutant_values_not_unique")
     );
   }).length;
@@ -2102,8 +2101,7 @@ const reconstructionMeasurementMutantValues = new Set(
   reconstructionMeasurementMutants.map(([, mutant]) => mutant),
 );
 assert.equal(
-  reconstructionMeasurementMutantValues.size,
-  8,
+  reconstructionMeasurementMutantValues.size, 8,
   "segstore_reconstruction_measurement_mutant_values_not_unique",
 );
 

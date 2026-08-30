@@ -406,8 +406,7 @@ jobs:
               const value = statement.getText(sourceFile);
               return (
                 value.startsWith('assert.equal(') &&
-                value.includes('reconstructionMeasurementMutantValues.size,') &&
-                value.includes('\n  8,\n') &&
+                value.includes('reconstructionMeasurementMutantValues.size, 8,') &&
                 value.includes('segstore_reconstruction_measurement_mutant_values_not_unique')
               );
             }).length;
@@ -515,7 +514,7 @@ jobs:
               ['for (const [family, mutant, expected] of reconstructionMeasurementMutants) {', 'loop'],
               ['  assertThrows(() => auditSegstoreProof(mutant), expected);', 'assertion'],
               ['const reconstructionMeasurementMutantValues = new Set(', 'value_set'],
-              ['  reconstructionMeasurementMutantValues.size,', 'distinct_actual'],
+              ['  reconstructionMeasurementMutantValues.size, 8,', 'distinct_actual'],
               ['  "segstore_reconstruction_measurement_mutant_values_not_unique",', 'distinct_marker'],
               ['  reconstructionMeasurementMutantsExecuted += 1;', 'increment'],
               ['  reconstructionMeasurementMutantsExecuted,', 'actual_count'],
