@@ -119,15 +119,107 @@ function functionSlice(source, startMarker, endMarker, marker) {
   return source.slice(start, end);
 }
 
+function executableCodeMask(source) {
+  const mask = new Uint8Array(source.length);
+  mask.fill(1);
+  let state = "code";
+
+  for (let index = 0; index < source.length; index += 1) {
+    const char = source[index];
+    const next = source[index + 1];
+
+    if (state === "code") {
+      if (char === "/" && next === "/") {
+        mask[index] = 0;
+        mask[index + 1] = 0;
+        index += 1;
+        state = "line-comment";
+      } else if (char === "/" && next === "*") {
+        mask[index] = 0;
+        mask[index + 1] = 0;
+        index += 1;
+        state = "block-comment";
+      } else if (char === "'" || char === '"' || char === "`") {
+        mask[index] = 0;
+        state = char === "'" ? "single-quote" : char === '"' ? "double-quote" : "template";
+      }
+      continue;
+    }
+
+    if (state === "line-comment") {
+      mask[index] = 0;
+      if (char === "\n") {
+        mask[index] = 1;
+        state = "code";
+      }
+      continue;
+    }
+
+    if (state === "block-comment") {
+      mask[index] = 0;
+      if (char === "*" && next === "/") {
+        mask[index + 1] = 0;
+        index += 1;
+        state = "code";
+      }
+      continue;
+    }
+
+    mask[index] = 0;
+    if (char === "\\" && index + 1 < source.length) {
+      mask[index + 1] = 0;
+      index += 1;
+      continue;
+    }
+    if (
+      (state === "single-quote" && char === "'") ||
+      (state === "double-quote" && char === '"') ||
+      (state === "template" && char === "`")
+    ) {
+      state = "code";
+    }
+  }
+
+  return mask;
+}
+
+function rangeHasExecutableCode(mask, start, length) {
+  for (let index = start; index < start + length; index += 1) {
+    if (mask[index] === 1) return true;
+  }
+  return false;
+}
+
+function executableMarkerIndex(body, required, fromIndex = 0) {
+  const mask = executableCodeMask(body);
+  let index = body.indexOf(required, fromIndex);
+  while (index >= 0) {
+    if (rangeHasExecutableCode(mask, index, required.length)) return index;
+    index = body.indexOf(required, index + 1);
+  }
+  return -1;
+}
+
+function executableRegexIndex(body, pattern) {
+  const flags = pattern.flags.includes("g") ? pattern.flags : `${pattern.flags}g`;
+  const matcher = new RegExp(pattern.source, flags);
+  const mask = executableCodeMask(body);
+  for (let match = matcher.exec(body); match; match = matcher.exec(body)) {
+    if (rangeHasExecutableCode(mask, match.index, match[0].length)) return match.index;
+    if (match[0].length === 0) matcher.lastIndex += 1;
+  }
+  return -1;
+}
+
 function requireBodyMarkers(body, markers, marker) {
   for (const required of markers) {
-    assert.ok(body.includes(required), `${marker}:${required}`);
+    assert.ok(executableMarkerIndex(body, required) >= 0, `${marker}:${required}`);
   }
 }
 
 function rejectEarlyTrueReturn(body, lastRequired, marker) {
-  const firstReturn = body.search(/\breturn\s+true\s*;/);
-  const lastRequiredAt = body.indexOf(lastRequired);
+  const firstReturn = executableRegexIndex(body, /\breturn\s+true\s*;/);
+  const lastRequiredAt = executableMarkerIndex(body, lastRequired);
   assert.ok(firstReturn > lastRequiredAt && lastRequiredAt >= 0, marker);
 }
 
@@ -412,6 +504,107 @@ assert.throws(
   /segstore_source_alias_early_true_return/,
 );
 
+const zeroAllocationDecoyMarkers = [
+  "const published = reconstructSegmentedJsonlV1ToFile(storePath, outputPath);",
+  "if ((flags & 0o20200000) === 0o20200000) {",
+  'error.code = "ENOSPC";',
+  "const recovered = reconstructSegmentedJsonlV1ToFile(storePath, outputPath);",
+  "assert.equal(recovered.reused_existing, true);",
+  'assert.equal(recovered.publication_terminal, "EXISTING_EQUIVALENT_UNOWNED");',
+  "outputAllocationAttempted,",
+  "assert.equal(durable.ino, survivor.ino);",
+  "assert.deepEqual(fs.readFileSync(outputPath), expectedBytes);",
+];
+
+const sourceAliasDecoyMarkers = [
+  "() => reconstructSegmentedJsonlV1ToFile(storePath, activePath),",
+  '"RECONSTRUCT_OUTPUT_ALIASES_SOURCE",',
+  "assertExactFileObservationUnchangedV1(before, after);",
+  "assert.deepEqual(fs.readFileSync(activePath), beforeBytes);",
+  "verifySegmentedJsonlV1(storePath);",
+  "fs.chmodSync(mutationWitness, 0o400);",
+  "fs.chmodSync(mutationWitness, 0o600);",
+  "assert.notEqual(mutationAfter.ctimeNs, mutationBefore.ctimeNs);",
+  "() => assertExactFileObservationUnchangedV1(mutationBefore, mutationAfter),",
+  "/alias source generation changed:ctimeNs/,",
+  "fs.unlinkSync(mutationWitness);",
+];
+
+function blockCommentDecoy(markers) {
+  return `/*\n${markers.join("\n")}\n*/`;
+}
+
+function stringLiteralDecoy(markers) {
+  return markers
+    .map((required) => `'${required.replaceAll("\\", "\\\\").replaceAll("'", "\\'")}';`)
+    .join("\n");
+}
+
+function templateLiteralDecoy(markers) {
+  const body = markers
+    .join("\n")
+    .replaceAll("\\", "\\\\")
+    .replaceAll("`", "\\`")
+    .replaceAll("${", "\\${");
+  return `\`\n${body}\n\`;`;
+}
+
+function zeroAllocationDecoyProof(decoyBody) {
+  return segstoreProof.replace(
+    /function proveExistingEquivalentReusePrecedesOutputAllocation\([\s\S]*?type ExactFileObservationV1 =/,
+    `function proveExistingEquivalentReusePrecedesOutputAllocation(
+  storePath: string,
+  outputPath: string,
+  expectedBytes: Buffer,
+): boolean {
+  void storePath;
+  void outputPath;
+  void expectedBytes;
+  ${decoyBody}
+  return true;
+}
+
+type ExactFileObservationV1 =`,
+  );
+}
+
+function sourceAliasDecoyProof(decoyBody) {
+  return segstoreProof.replace(
+    /function proveReconstructionRejectsSourceAlias\([\s\S]*?function matchesOpenedTarget\(/,
+    `function proveReconstructionRejectsSourceAlias(storePath: string): boolean {
+  void storePath;
+  ${decoyBody}
+  return true;
+}
+
+function matchesOpenedTarget(`,
+  );
+}
+
+for (const [name, decoy] of [
+  ["block_comment", blockCommentDecoy],
+  ["string_literal", stringLiteralDecoy],
+  ["template_literal", templateLiteralDecoy],
+]) {
+  const zeroAllocationDecoy = zeroAllocationDecoyProof(decoy(zeroAllocationDecoyMarkers));
+  assert.notEqual(
+    zeroAllocationDecoy,
+    segstoreProof,
+    `zero_allocation_${name}_decoy_mutant_not_applied`,
+  );
+  assert.throws(
+    () => auditSegstoreProof(zeroAllocationDecoy),
+    /segstore_zero_allocation_body_not_bound/,
+  );
+
+  const sourceAliasDecoy = sourceAliasDecoyProof(decoy(sourceAliasDecoyMarkers));
+  assert.notEqual(sourceAliasDecoy, segstoreProof, `source_alias_${name}_decoy_mutant_not_applied`);
+  assert.throws(
+    () => auditSegstoreProof(sourceAliasDecoy),
+    /segstore_source_alias_body_not_bound/,
+  );
+}
+
 const withoutBaselineInvocation = baseline.replace(`node ${PROOF_PATH}`, `node --check ${PROOF_PATH}`);
 assert.throws(() => auditBaseline(withoutBaselineInvocation), /baseline_topology_proof_not_terminal/);
 
@@ -438,4 +631,7 @@ console.log("segstore_acceptance_terminal_call_deletion_rejected=true");
 console.log("segstore_terminal_literal_true_rejected=true");
 console.log("segstore_adversary_body_noop_rejected=true");
 console.log("segstore_adversary_early_return_rejected=true");
+console.log("segstore_dead_comment_marker_decoys_rejected=true");
+console.log("segstore_string_literal_marker_decoys_rejected=true");
+console.log("segstore_template_literal_marker_decoys_rejected=true");
 console.log("segstore_exact_generation_helper_noop_rejected=true");
