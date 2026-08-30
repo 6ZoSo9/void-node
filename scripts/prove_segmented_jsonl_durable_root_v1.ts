@@ -534,26 +534,48 @@ try {
   const staleClaimToken = "23".repeat(16);
   writePublishOwner(publishLockDir, 99999999, "1", staleClaimToken);
   writeReclaimWinnerForProof(publishLockDir, staleClaimToken, "33".repeat(16));
-  assert.equal(
-    publishSegmentedJsonlDurableRootV1(durableDir, r2Input).root_sha256,
-    r2.root_sha256,
-    "crash after exact stale-owner reclaim claim must converge",
+  const staleClaimWitnessPath = ownerWitnessPathForProof(publishLockDir, staleClaimToken);
+  const staleClaimOwnerBefore = fs.statSync(ownerPath, { bigint: true } as any);
+  const staleClaimWitnessBefore = fs.statSync(staleClaimWitnessPath, { bigint: true } as any);
+  const staleClaimWinnerBefore = fs.statSync(reclaimPath, { bigint: true } as any);
+  expectFailure(
+    () => publishSegmentedJsonlDurableRootV1(durableDir, r2Input),
+    "DURABLE_ROOT_RECLAIM_WINNER_CLAIMANT_MISMATCH",
   );
-  assert.equal(fs.existsSync(ownerPath), false);
-  assert.equal(fs.existsSync(reclaimPath), false);
+  const staleClaimOwnerAfter = fs.statSync(ownerPath, { bigint: true } as any);
+  const staleClaimWitnessAfter = fs.statSync(staleClaimWitnessPath, { bigint: true } as any);
+  const staleClaimWinnerAfter = fs.statSync(reclaimPath, { bigint: true } as any);
+  assert.equal(staleClaimOwnerAfter.dev, staleClaimOwnerBefore.dev);
+  assert.equal(staleClaimOwnerAfter.ino, staleClaimOwnerBefore.ino, "loser must not unlink the predecessor owner");
+  assert.equal(staleClaimWitnessAfter.dev, staleClaimWitnessBefore.dev);
+  assert.equal(staleClaimWitnessAfter.ino, staleClaimWitnessBefore.ino, "loser must preserve the predecessor witness");
+  assert.equal(staleClaimWinnerAfter.dev, staleClaimWinnerBefore.dev);
+  assert.equal(staleClaimWinnerAfter.ino, staleClaimWinnerBefore.ino, "loser must preserve the actual winner record");
+  fs.unlinkSync(reclaimPath);
+  removePublishOwnerForProof(publishLockDir, staleClaimToken);
 
   const staleUnlinkedToken = "24".repeat(16);
   writePublishOwner(publishLockDir, 99999999, "1", staleUnlinkedToken);
   writeReclaimWinnerForProof(publishLockDir, staleUnlinkedToken, "34".repeat(16));
+  const staleUnlinkedWitnessPath = ownerWitnessPathForProof(publishLockDir, staleUnlinkedToken);
   fs.unlinkSync(ownerPath);
   fsyncDirectory(publishLockDir);
-  assert.equal(
-    publishSegmentedJsonlDurableRootV1(durableDir, r2Input).root_sha256,
-    r2.root_sha256,
-    "crash after claimed stale owner unlink must converge from the hard-link reclaim witness",
+  const staleUnlinkedWitnessBefore = fs.statSync(staleUnlinkedWitnessPath, { bigint: true } as any);
+  const staleUnlinkedWinnerBefore = fs.statSync(reclaimPath, { bigint: true } as any);
+  expectFailure(
+    () => publishSegmentedJsonlDurableRootV1(durableDir, r2Input),
+    "DURABLE_ROOT_RECLAIM_WINNER_CLAIMANT_MISMATCH",
   );
-  assert.equal(fs.existsSync(ownerPath), false);
-  assert.equal(fs.existsSync(reclaimPath), false);
+  assert.equal(fs.existsSync(ownerPath), false, "loser must not install itself after another claimant won");
+  const staleUnlinkedWitnessAfter = fs.statSync(staleUnlinkedWitnessPath, { bigint: true } as any);
+  const staleUnlinkedWinnerAfter = fs.statSync(reclaimPath, { bigint: true } as any);
+  assert.equal(staleUnlinkedWitnessAfter.dev, staleUnlinkedWitnessBefore.dev);
+  assert.equal(staleUnlinkedWitnessAfter.ino, staleUnlinkedWitnessBefore.ino, "winner-owned predecessor witness must survive");
+  assert.equal(staleUnlinkedWinnerAfter.dev, staleUnlinkedWinnerBefore.dev);
+  assert.equal(staleUnlinkedWinnerAfter.ino, staleUnlinkedWinnerBefore.ino, "winner record must remain exact");
+  fs.unlinkSync(reclaimPath);
+  fs.unlinkSync(staleUnlinkedWitnessPath);
+  fsyncDirectory(publishLockDir);
 
   const liveReclaimToken = "25".repeat(16);
   writePublishOwner(publishLockDir, process.pid, startTicks, liveReclaimToken);
@@ -687,8 +709,8 @@ try {
   console.log("durable_root_live_publish_lock_excludes_writer=true");
   console.log("durable_root_boot_epoch_prevents_pid_start_alias=true");
   console.log("durable_root_stale_publish_lock_recoverable=true");
-  console.log("durable_root_reclaim_winner_claim_crash_recoverable=true");
-  console.log("durable_root_reclaim_winner_owner_unlink_crash_recoverable=true");
+  console.log("durable_root_reclaim_winner_claimant_mismatch_preserved=true");
+  console.log("durable_root_reclaim_winner_owner_unlink_requires_exact_claimant=true");
   console.log("durable_root_owner_release_immutable_marker=true");
   console.log("durable_root_live_released_owner_stage_recovery=true");
   console.log("durable_root_reclaim_winner_separate_from_owner_inode=true");
