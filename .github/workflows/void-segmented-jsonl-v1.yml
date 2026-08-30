@@ -145,11 +145,143 @@ jobs:
           const lineCount = (source, exact) =>
             source.split('\n').filter((line) => line === exact).length;
 
+          function workflowOnRange(source) {
+            const lines = source.split("\n");
+            const onRoots = [];
+            for (let index = 0; index < lines.length; index += 1) {
+              if (lines[index] === "on:") onRoots.push(index);
+            }
+            assert.equal(onRoots.length, 1, `focused_on_root_count:${onRoots.length}`);
+            const start = onRoots[0];
+            let end = lines.length;
+            for (let index = start + 1; index < lines.length; index += 1) {
+              if (/^\S/.test(lines[index])) {
+                end = index;
+                break;
+              }
+            }
+            return { lines, start, end };
+          }
+          
+          function workflowEventRange(source, eventName) {
+            const root = workflowOnRange(source);
+            const eventLine = `  ${eventName}:`;
+            const matches = [];
+            for (let index = root.start + 1; index < root.end; index += 1) {
+              if (root.lines[index] === eventLine) matches.push(index);
+            }
+            assert.equal(matches.length, 1, `focused_${eventName}_event_count:${matches.length}`);
+            const start = matches[0];
+            let end = root.end;
+            for (let index = start + 1; index < root.end; index += 1) {
+              if (/^  \S/.test(root.lines[index])) {
+                end = index;
+                break;
+              }
+            }
+            return { lines: root.lines, start, end };
+          }
+          
+          function workflowEventMappingKeys(source, eventName) {
+            const event = workflowEventRange(source, eventName);
+            const keys = [];
+            for (let index = event.start + 1; index < event.end; index += 1) {
+              const match = /^    ([A-Za-z0-9_-]+):/.exec(event.lines[index]);
+              if (match) keys.push(match[1]);
+            }
+            return keys;
+          }
+          
+          function parseWorkflowSequenceScalar(line, marker) {
+            let match = /^      - "([^"]+)"$/.exec(line);
+            if (match) return match[1];
+            match = /^      - '([^']+)'$/.exec(line);
+            if (match) return match[1];
+            match = /^      - ([^"'#][^#]*?)\s*$/.exec(line);
+            assert.ok(match, `${marker}:${line.trim()}`);
+            return match[1];
+          }
+          
+          function workflowEventSequenceEntries(source, eventName, sequenceName) {
+            const event = workflowEventRange(source, eventName);
+            const sequenceLine = `    ${sequenceName}:`;
+            const matches = [];
+            for (let index = event.start + 1; index < event.end; index += 1) {
+              if (event.lines[index] === sequenceLine) matches.push(index);
+            }
+            assert.equal(
+              matches.length,
+              1,
+              `focused_${eventName}_${sequenceName}_count:${matches.length}`,
+            );
+            const start = matches[0];
+            let end = event.end;
+            for (let index = start + 1; index < event.end; index += 1) {
+              if (/^    \S/.test(event.lines[index])) {
+                end = index;
+                break;
+              }
+            }
+            const entries = [];
+            for (let index = start + 1; index < end; index += 1) {
+              const line = event.lines[index];
+              if (line.trim() === "" || /^\s*#/.test(line)) continue;
+              entries.push(
+                parseWorkflowSequenceScalar(
+                  line,
+                  `focused_${eventName}_${sequenceName}_scalar_not_exact`,
+                ),
+              );
+            }
+            return entries;
+          }
+          
+          function workflowEventPathEntries(source, eventName) {
+            const entries = workflowEventSequenceEntries(source, eventName, "paths");
+            for (const entry of entries) {
+              assert.ok(
+                !entry.startsWith("!"),
+                `focused_${eventName}_negative_path_pattern:${entry}`,
+              );
+            }
+            return entries;
+          }
+          
+          function auditFocusedEventContract(source) {
+            assert.deepEqual(
+              workflowEventMappingKeys(source, "pull_request"),
+              ["paths"],
+              "focused_pull_request_mapping_keys_not_exact",
+            );
+            assert.deepEqual(
+              workflowEventMappingKeys(source, "push"),
+              ["branches", "paths"],
+              "focused_push_mapping_keys_not_exact",
+            );
+            assert.deepEqual(
+              workflowEventSequenceEntries(source, "push", "branches"),
+              ["main"],
+              "focused_push_main_branch_not_exact",
+            );
+          }
+
           function audit(source) {
+            auditFocusedEventContract(source);
+            const pullRequestPaths = workflowEventPathEntries(source, "pull_request");
+            const pushPaths = workflowEventPathEntries(source, "push");
             for (const dependency of triggerDependencies) {
-              const exact = `      - "${dependency}"`;
-              const count = lineCount(source, exact);
-              assert.equal(count, 2, `focused_trigger_count:${dependency}:${count}`);
+              const pullRequestCount = pullRequestPaths.filter((entry) => entry === dependency).length;
+              const pushCount = pushPaths.filter((entry) => entry === dependency).length;
+              assert.equal(
+                pullRequestCount,
+                1,
+                `focused_pull_request_trigger_count:${dependency}:${pullRequestCount}`,
+              );
+              assert.equal(
+                pushCount,
+                1,
+                `focused_push_trigger_count:${dependency}:${pushCount}`,
+              );
             }
             for (const dependency of [...storageSources, ...proofs]) {
               assert.ok(
@@ -213,7 +345,7 @@ jobs:
           audit(text);
           assert.throws(
             () => audit(text.replace(`      - "${storageSources[0]}"`, `      # removed ${storageSources[0]}`)),
-            /focused_trigger_count:/,
+            /focused_(pull_request|push)_trigger_count:/,
           );
           assert.throws(
             () => audit(text.replace(`npx --no-install tsx ${proofs[0]}`, `node --experimental-strip-types --check ${proofs[0]}`)),
@@ -234,8 +366,40 @@ jobs:
             () => audit(text.replace('        node: [22, 24, 26]', '        node: [22, 24]')),
             /focused_node_matrix_not_exact/,
           );
+          const negativePathMutants = [
+            ["single_quoted_exact", `      - '!${storageSources[0]}'`],
+            ["double_quoted_exact", `      - \"!${storageSources[0]}\"`],
+            ["single_quoted_glob", "      - '!src/storage/**'"],
+            ["double_quoted_glob", '      - "!src/storage/**"'],
+          ];
+          for (const [family, negativeEntry] of negativePathMutants) {
+            const target = `      - \"${storageSources[0]}\"\n`;
+            const mutant = text.replaceAll(target, `${target}${negativeEntry}\n`);
+            assert.notEqual(mutant, text, `focused_negative_path_mutant_not_applied:${family}`);
+            assert.throws(
+              () => audit(mutant),
+              /focused_(pull_request|push)_negative_path_pattern/,
+            );
+          }
+          const pullRequestFilterMutants = [
+            ["branches_ignore_block", "    branches-ignore:\n      - main\n"],
+            ["negative_branches_block", "    branches:\n      - \"!main\"\n"],
+            ["types_opened_flow", "    types: [opened]\n"],
+            ["types_without_synchronize_flow", "    types: [opened, reopened]\n"],
+            ["types_without_synchronize_block", "    types:\n      - opened\n      - reopened\n"],
+            ["types_single_quoted", "    types: 'opened'\n"],
+          ];
+          for (const [family, filter] of pullRequestFilterMutants) {
+            const mutant = text.replace("  pull_request:\n", `  pull_request:\n${filter}`);
+            assert.notEqual(mutant, text, `focused_pull_request_filter_mutant_not_applied:${family}`);
+            assert.throws(() => audit(mutant), /focused_pull_request_mapping_keys_not_exact/);
+          }
           console.log('focused_dependency_binding=true');
           console.log('focused_trigger_closure_falsifier=true');
+          console.log('focused_negative_path_patterns_rejected=true');
+          console.log('focused_pull_request_branch_filters_rejected=true');
+          console.log('focused_pull_request_activity_narrowing_rejected=true');
+          console.log('focused_push_main_branch_bound=true');
           console.log('focused_proof_invocation_falsifier=true');
           console.log('focused_credential_falsifier=true');
           console.log('focused_exact_sha_binding_falsifier=true');
