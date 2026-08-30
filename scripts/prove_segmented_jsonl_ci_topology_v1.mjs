@@ -119,6 +119,11 @@ function auditSegstoreProof(source) {
     "segstore_zero_allocation_adversary_not_bound",
   );
   assert.equal(
+    exactLineCount(source, "    proveExistingEquivalentReusePrecedesOutputAllocation("),
+    1,
+    "segstore_zero_allocation_call_not_bound",
+  );
+  assert.equal(
     exactLineCount(source, "  const reconstructionSourceAliasRejected = proveReconstructionRejectsSourceAlias(store);"),
     1,
     "segstore_source_alias_adversary_not_bound",
@@ -203,12 +208,12 @@ const tolerantTypecheck = focused.replace(
 assert.throws(() => auditFocused(tolerantTypecheck), /focused_failure_tolerance_present/);
 
 const withoutZeroAllocationAdversary = segstoreProof.replace(
-  "  const existingEquivalentReusePrecedesOutputAllocation =",
-  "  const deletedExistingEquivalentReusePrecedesOutputAllocation =",
+  "    proveExistingEquivalentReusePrecedesOutputAllocation(",
+  "    deletedExistingEquivalentReusePrecedesOutputAllocation(",
 );
 assert.throws(
   () => auditSegstoreProof(withoutZeroAllocationAdversary),
-  /segstore_zero_allocation_adversary_not_bound/,
+  /segstore_zero_allocation_call_not_bound/,
 );
 
 const literalZeroAllocationTerminal = segstoreProof.replace(
