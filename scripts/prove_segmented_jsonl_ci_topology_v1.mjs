@@ -765,7 +765,7 @@ permissions:`,
 assert.notEqual(deadScalarTriggerMutant, focused, "focused_dead_scalar_trigger_mutant_not_applied");
 assert.throws(
   () => auditFocused(deadScalarTriggerMutant),
-  /focused_pull_request_trigger_count|focused_push_trigger_count/,
+  /focused_root_mapping_keys_not_exact|focused_pull_request_trigger_count|focused_push_trigger_count/,
 );
 
 const nameBlockScalarTriggerMutant = TRIGGER_DEPENDENCIES.reduce(
