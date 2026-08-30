@@ -193,6 +193,49 @@ function proveExistingEquivalentDataFsyncConverges(
   assert.deepEqual(fs.readFileSync(outputPath), expectedBytes);
 }
 
+function proveExistingEquivalentReusePrecedesOutputAllocation(
+  storePath: string,
+  outputPath: string,
+  expectedBytes: Buffer,
+): void {
+  const published = reconstructSegmentedJsonlV1ToFile(storePath, outputPath);
+  assert.equal(published.reused_existing, false);
+  assert.equal(published.publication_terminal, "NEW_EXACT_FD");
+  const survivor = fs.statSync(outputPath, { bigint: true } as any);
+  const originalOpenSync = (mutableFs as any).openSync;
+  let outputAllocationAttempted = false;
+  try {
+    (mutableFs as any).openSync = (...args: any[]) => {
+      const flags = typeof args[1] === "number" ? args[1] : 0;
+      if ((flags & 0o20200000) === 0o20200000) {
+        outputAllocationAttempted = true;
+        const error: any = new Error("injected duplicate-output allocation ENOSPC");
+        error.code = "ENOSPC";
+        throw error;
+      }
+      return originalOpenSync(...args);
+    };
+    syncBuiltinESMExports();
+    const recovered = reconstructSegmentedJsonlV1ToFile(storePath, outputPath);
+    assert.equal(recovered.reused_existing, true);
+    assert.equal(recovered.publication_terminal, "EXISTING_EQUIVALENT_UNOWNED");
+    assert.equal(recovered.bytes, expectedBytes.length);
+    assert.equal(recovered.sha256, sha256(expectedBytes));
+  } finally {
+    (mutableFs as any).openSync = originalOpenSync;
+    syncBuiltinESMExports();
+  }
+  assert.equal(
+    outputAllocationAttempted,
+    false,
+    "exact-survivor reuse must classify before any O_TMPFILE output allocation",
+  );
+  const durable = fs.statSync(outputPath, { bigint: true } as any);
+  assert.equal(durable.dev, survivor.dev);
+  assert.equal(durable.ino, survivor.ino);
+  assert.deepEqual(fs.readFileSync(outputPath), expectedBytes);
+}
+
 function matchesOpenedTarget(candidateInput: unknown, targetPath: string): boolean {
   if (typeof candidateInput !== "string") return false;
   const candidate = path.resolve(candidateInput);
@@ -638,6 +681,12 @@ try {
   assert.equal(rebuiltAfterRetry.ino, rebuiltBeforeRetry.ino);
   assert.deepEqual(fs.readFileSync(rebuilt), body);
 
+  proveExistingEquivalentReusePrecedesOutputAllocation(
+    store,
+    path.join(tmp, "reconstruct-equivalent-no-duplicate-allocation.jsonl"),
+    body,
+  );
+
   const wrongModeOutput = path.join(tmp, "reconstruct-equivalent-wrong-mode.jsonl");
   fs.writeFileSync(wrongModeOutput, body, { flag: "wx", mode: 0o400 });
   expectFailure(() => reconstructSegmentedJsonlV1ToFile(store, wrongModeOutput), "OUTPUT_EXISTS");
@@ -1000,6 +1049,7 @@ try {
       manifest_staging_alias_absent: true,
       failed_leaf_cleanup_preserves_foreign_generation: true,
       existing_equivalent_data_fsync_ordered: true,
+      existing_equivalent_reuse_precedes_output_allocation: true,
       manifest_generation_and_retention_bounded: true,
       manifest_runtime_shape_exact: true,
       max_manifest_bytes: VOID_SEGMENTED_JSONL_MAX_MANIFEST_BYTES_V1,
