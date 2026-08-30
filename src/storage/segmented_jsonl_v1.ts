@@ -846,6 +846,7 @@ function readVerifiedGenerationForReconstructionV1(
   outputPath: string,
   expectedMode: number,
   onChunk: (chunk: Buffer) => void,
+  onStableGeneration?: (generation: GenerationV1) => void,
 ): number {
   const inFd=openRegularReadV1(file);
   try {
@@ -864,6 +865,7 @@ function readVerifiedGenerationForReconstructionV1(
     if(copied!==expectedBytes) fail("RECONSTRUCT_SOURCE_SIZE_MISMATCH",`${file}:${copied}:${expectedBytes}`);
     const actual=sourceHash.digest("hex");
     if(actual!==expectedSha256) fail("RECONSTRUCT_SOURCE_HASH_MISMATCH",`${file}:expected=${expectedSha256}:actual=${actual}`);
+    onStableGeneration?.({ ...after });
     return copied;
   } finally { fs.closeSync(inFd); }
 }
@@ -876,6 +878,7 @@ function appendVerifiedGenerationToOutputV1(
   outputHash: ReturnType<typeof crypto.createHash>,
   outputPath: string,
   expectedMode: number,
+  onStableGeneration?: (generation: GenerationV1) => void,
 ): number {
   return readVerifiedGenerationForReconstructionV1(
     file,
@@ -892,6 +895,7 @@ function appendVerifiedGenerationToOutputV1(
         off+=w;
       }
     },
+    onStableGeneration,
   );
 }
 
@@ -902,6 +906,7 @@ function hashVerifiedGenerationForReconstructionV1(
   outputHash: ReturnType<typeof crypto.createHash>,
   outputPath: string,
   expectedMode: number,
+  onStableGeneration?: (generation: GenerationV1) => void,
 ): number {
   return readVerifiedGenerationForReconstructionV1(
     file,
@@ -910,6 +915,7 @@ function hashVerifiedGenerationForReconstructionV1(
     outputPath,
     expectedMode,
     (chunk) => outputHash.update(chunk),
+    onStableGeneration,
   );
 }
 
@@ -938,6 +944,7 @@ function classifyExistingReconstructionV1(
   outputPath: string,
   expectedBytes: number,
   expectedSha256: string,
+  forbiddenSourceGenerations: ReadonlySet<string>,
 ): ExistingReconstructionV1 {
   const stableOut = path.join(parent.stablePath, path.basename(outputPath));
   let existingFd = -1;
@@ -954,6 +961,9 @@ function classifyExistingReconstructionV1(
 
     const beforeStat = fs.fstatSync(existingFd, { bigint: true } as any);
     const before = fdObservation(existingFd);
+    if (forbiddenSourceGenerations.has(`${before.generation.dev}:${before.generation.ino}`)) {
+      fail("RECONSTRUCT_OUTPUT_ALIASES_SOURCE", outputPath);
+    }
     const visibleBefore = fs.lstatSync(stableOut, { bigint: true } as any);
     if (
       !beforeStat.isFile() ||
@@ -1041,7 +1051,8 @@ function classifyExistingReconstructionV1(
     if (
       error instanceof Error &&
       (error.message.includes("RECONSTRUCT_EXISTING_EQUIVALENT_DATA_UNFENCED") ||
-        error.message.includes("RECONSTRUCT_EXISTING_EQUIVALENT_UNFENCED"))
+        error.message.includes("RECONSTRUCT_EXISTING_EQUIVALENT_UNFENCED") ||
+        error.message.includes("RECONSTRUCT_OUTPUT_ALIASES_SOURCE"))
     ) {
       throw error;
     }
@@ -1057,6 +1068,7 @@ function verifyExactPublishedReconstructionV1(
   fd: number,
   expectedBytes: number,
   expectedSha256: string,
+  forbiddenSourceGenerations: ReadonlySet<string>,
 ): boolean {
   const stableOut = path.join(parent.stablePath, path.basename(outputPath));
   const openedBefore = fdObservation(fd);
@@ -1071,7 +1083,7 @@ function verifyExactPublishedReconstructionV1(
     );
   }
 
-  const preexisting = classifyExistingReconstructionV1(parent, outputPath, expectedBytes, expectedSha256);
+  const preexisting = classifyExistingReconstructionV1(parent, outputPath, expectedBytes, expectedSha256, forbiddenSourceGenerations);
   if (preexisting === "equivalent") return true;
   if (preexisting === "occupied") fail("OUTPUT_EXISTS", outputPath);
 
@@ -1088,7 +1100,7 @@ function verifyExactPublishedReconstructionV1(
     },
   );
   if (linked.error || linked.signal || linked.status !== 0) {
-    const recovered = classifyExistingReconstructionV1(parent, outputPath, expectedBytes, expectedSha256);
+    const recovered = classifyExistingReconstructionV1(parent, outputPath, expectedBytes, expectedSha256, forbiddenSourceGenerations);
     if (recovered === "equivalent") return true;
     if (recovered === "occupied") fail("OUTPUT_EXISTS", outputPath);
     const stderr = Buffer.isBuffer(linked.stderr)
@@ -1179,13 +1191,17 @@ export function reconstructSegmentedJsonlV1ToFile(rootInput:string,outputInput:s
     outputParent=openDirectoryAuthorityV1(path.dirname(out));
     assertPrivateDirectoryWriteAuthorityV1(outputParent);
     const expectedHash=crypto.createHash("sha256"); let expectedBytes=0;
+    const sourceGenerations = new Set<string>();
+    const bindSourceGeneration = (generation: GenerationV1) => {
+      sourceGenerations.add(`${generation.dev}:${generation.ino}`);
+    };
     for(const s of verified.manifest.sealed_segments) {
-      expectedBytes+=hashVerifiedGenerationForReconstructionV1(path.join(segments.stablePath,segmentName(s.id)),s.bytes,s.sha256,expectedHash,out,0o400);
+      expectedBytes+=hashVerifiedGenerationForReconstructionV1(path.join(segments.stablePath,segmentName(s.id)),s.bytes,s.sha256,expectedHash,out,0o400,bindSourceGeneration);
     }
-    expectedBytes+=hashVerifiedGenerationForReconstructionV1(path.join(root.stablePath,ACTIVE),verified.manifest.active.bytes,verified.manifest.active.sha256,expectedHash,out,0o600);
+    expectedBytes+=hashVerifiedGenerationForReconstructionV1(path.join(root.stablePath,ACTIVE),verified.manifest.active.bytes,verified.manifest.active.sha256,expectedHash,out,0o600,bindSourceGeneration);
     if(expectedBytes!==verified.manifest.total_bytes) fail("RECONSTRUCT_SIZE_MISMATCH",`${expectedBytes}:${verified.manifest.total_bytes}`);
     const expectedDigest=expectedHash.digest("hex");
-    const existing=classifyExistingReconstructionV1(outputParent,out,expectedBytes,expectedDigest);
+    const existing=classifyExistingReconstructionV1(outputParent,out,expectedBytes,expectedDigest,sourceGenerations);
     if(existing==="occupied") fail("OUTPUT_EXISTS",out);
     if(existing==="equivalent") {
       assertPrivateDirectoryWriteAuthorityV1(segments);
@@ -1202,15 +1218,15 @@ export function reconstructSegmentedJsonlV1ToFile(rootInput:string,outputInput:s
     fd=openUnlinkedReconstructionFileV1(outputParent,out);
     const hash=crypto.createHash("sha256"); let bytes=0;
     for(const s of verified.manifest.sealed_segments) {
-      bytes+=appendVerifiedGenerationToOutputV1(path.join(segments.stablePath,segmentName(s.id)),s.bytes,s.sha256,fd,hash,out,0o400);
+      bytes+=appendVerifiedGenerationToOutputV1(path.join(segments.stablePath,segmentName(s.id)),s.bytes,s.sha256,fd,hash,out,0o400,bindSourceGeneration);
     }
-    bytes+=appendVerifiedGenerationToOutputV1(path.join(root.stablePath,ACTIVE),verified.manifest.active.bytes,verified.manifest.active.sha256,fd,hash,out,0o600);
+    bytes+=appendVerifiedGenerationToOutputV1(path.join(root.stablePath,ACTIVE),verified.manifest.active.bytes,verified.manifest.active.sha256,fd,hash,out,0o600,bindSourceGeneration);
     if(bytes!==verified.manifest.total_bytes) fail("RECONSTRUCT_SIZE_MISMATCH",`${bytes}:${verified.manifest.total_bytes}`);
     fs.fchmodSync(fd,0o600);
     fs.fsyncSync(fd);
     const digest=hash.digest("hex");
     if(digest!==expectedDigest) fail("RECONSTRUCT_EXPECTED_IDENTITY_CHANGED",`${out}:expected=${expectedDigest}:actual=${digest}`);
-    const reusedExisting=verifyExactPublishedReconstructionV1(outputParent,out,fd,bytes,digest);
+    const reusedExisting=verifyExactPublishedReconstructionV1(outputParent,out,fd,bytes,digest,sourceGenerations);
     assertPrivateDirectoryWriteAuthorityV1(segments);
     assertPrivateDirectoryWriteAuthorityV1(root);
     return {
