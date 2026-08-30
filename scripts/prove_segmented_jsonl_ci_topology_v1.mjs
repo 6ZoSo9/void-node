@@ -55,21 +55,54 @@ function exactLineCount(source, exact) {
 
 function workflowEventPathEntries(source, eventName) {
   const lines = source.split("\n");
-  const eventAt = lines.indexOf(`  ${eventName}:`);
-  assert.ok(eventAt >= 0, `focused_${eventName}_event_missing`);
+  const onRoots = [];
+  for (let index = 0; index < lines.length; index += 1) {
+    if (lines[index] === "on:") onRoots.push(index);
+  }
+  assert.equal(onRoots.length, 1, `focused_on_root_count:${onRoots.length}`);
 
-  let pathsAt = -1;
-  for (let index = eventAt + 1; index < lines.length; index += 1) {
-    if (/^  \S/.test(lines[index])) break;
-    if (lines[index] === "    paths:") {
-      pathsAt = index;
+  const onAt = onRoots[0];
+  let onEnd = lines.length;
+  for (let index = onAt + 1; index < lines.length; index += 1) {
+    if (/^\S/.test(lines[index])) {
+      onEnd = index;
       break;
     }
   }
-  assert.ok(pathsAt > eventAt, `focused_${eventName}_paths_missing`);
+
+  const eventLine = `  ${eventName}:`;
+  const eventMatches = [];
+  for (let index = onAt + 1; index < onEnd; index += 1) {
+    if (lines[index] === eventLine) eventMatches.push(index);
+  }
+  assert.equal(
+    eventMatches.length,
+    1,
+    `focused_${eventName}_event_count:${eventMatches.length}`,
+  );
+  const eventAt = eventMatches[0];
+
+  let eventEnd = onEnd;
+  for (let index = eventAt + 1; index < onEnd; index += 1) {
+    if (/^  \S/.test(lines[index])) {
+      eventEnd = index;
+      break;
+    }
+  }
+
+  const pathMatches = [];
+  for (let index = eventAt + 1; index < eventEnd; index += 1) {
+    if (lines[index] === "    paths:") pathMatches.push(index);
+  }
+  assert.equal(
+    pathMatches.length,
+    1,
+    `focused_${eventName}_paths_count:${pathMatches.length}`,
+  );
+  const pathsAt = pathMatches[0];
 
   const entries = [];
-  for (let index = pathsAt + 1; index < lines.length; index += 1) {
+  for (let index = pathsAt + 1; index < eventEnd; index += 1) {
     const match = /^      - "([^"]+)"$/.exec(lines[index]);
     if (!match) break;
     entries.push(match[1]);
@@ -443,6 +476,46 @@ assert.throws(
   /focused_pull_request_trigger_count|focused_push_trigger_count/,
 );
 
+const nameBlockScalarTriggerMutant = TRIGGER_DEPENDENCIES.reduce(
+  (source, dependency) => source.replaceAll(`      - "${dependency}"\n`, ""),
+  focused,
+).replace(
+  "name: VOID Segmented JSONL V1",
+  `name: |
+  pull_request:
+    paths:
+${TRIGGER_DEPENDENCIES.map((dependency) => `      - "${dependency}"`).join("\n")}
+  push:
+    paths:
+${TRIGGER_DEPENDENCIES.map((dependency) => `      - "${dependency}"`).join("\n")}`,
+);
+assert.notEqual(
+  nameBlockScalarTriggerMutant,
+  focused,
+  "focused_name_block_scalar_trigger_mutant_not_applied",
+);
+for (const dependency of TRIGGER_DEPENDENCIES) {
+  assert.equal(
+    exactLineCount(nameBlockScalarTriggerMutant, `      - "${dependency}"`),
+    2,
+    `focused_name_block_scalar_global_decoy_count:${dependency}`,
+  );
+}
+assert.equal(
+  workflowEventPathEntries(nameBlockScalarTriggerMutant, "pull_request").length,
+  0,
+  "focused_name_block_scalar_live_pull_request_not_empty",
+);
+assert.equal(
+  workflowEventPathEntries(nameBlockScalarTriggerMutant, "push").length,
+  0,
+  "focused_name_block_scalar_live_push_not_empty",
+);
+assert.throws(
+  () => auditFocused(nameBlockScalarTriggerMutant),
+  /focused_pull_request_trigger_count|focused_push_trigger_count/,
+);
+
 const withoutInlineAudit = focused.replace(
   /\n      - name: Prove focused workflow dependency closure\n[\s\S]*?(?=\n      - name: Syntax\n)/,
   "\n",
@@ -798,6 +871,7 @@ assert.throws(() => auditCi(tolerantCiCaller), /ci_failure_tolerance_present/);
 console.log("VOID_SEGMENTED_JSONL_CI_TOPOLOGY_V1_GREEN");
 console.log("focused_trigger_closure_bound=true");
 console.log("focused_trigger_dead_scalar_relocation_rejected=true");
+console.log("focused_trigger_name_block_scalar_decoy_rejected=true");
 console.log("focused_semantic_proofs_terminal=true");
 console.log("focused_failure_tolerance_rejected=true");
 console.log("independent_repository_ci_caller_bound=true");
