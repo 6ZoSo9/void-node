@@ -767,6 +767,78 @@ function auditSegstoreProof(source) {
     sourceAliasBody,
     "segstore_source_alias_literal_false_guard",
   );
+
+  const measurementBody = functionSlice(
+    source,
+    "function measureReconstructionSourceReadsV1(",
+    "function proveUncertainExactFdLinkConverges(",
+    "segstore_reconstruction_measurement_body_missing",
+  );
+  requireBodyMarkers(
+    measurementBody,
+    [
+      "const manifest = readSegmentedJsonlManifestV1(storePath);",
+      "const trackedFds = new Set<number>();",
+      "const originalOpenSync = (mutableFs as any).openSync;",
+      "const originalReadSync = (mutableFs as any).readSync;",
+      "const originalCloseSync = (mutableFs as any).closeSync;",
+      "let sourceBytesRead = 0;",
+      "if (sourceGenerations.has(`${stat.dev}:${stat.ino}`)) trackedFds.add(fd);",
+      "if (trackedFds.has(Number(args[0])) && Number(count) > 0) sourceBytesRead += Number(count);",
+      "const result = reconstructSegmentedJsonlV1ToFile(storePath, outputPath);",
+      "return { sourceBytesRead, reusedExisting: result.reused_existing };",
+      "(mutableFs as any).openSync = originalOpenSync;",
+      "(mutableFs as any).readSync = originalReadSync;",
+      "(mutableFs as any).closeSync = originalCloseSync;",
+    ],
+    "segstore_reconstruction_measurement_body_not_bound",
+  );
+  assert.equal(
+    executableExactLineCount(
+      source,
+      '  const newOutputPasses = measureReconstructionSourceReadsV1(store, reconstructionPassOutput);',
+    ),
+    1,
+    "segstore_reconstruction_new_output_measurement_call_not_bound",
+  );
+  assert.equal(
+    executableExactLineCount(
+      source,
+      '  const existingOutputPasses = measureReconstructionSourceReadsV1(store, reconstructionPassOutput);',
+    ),
+    1,
+    "segstore_reconstruction_survivor_measurement_call_not_bound",
+  );
+  for (const [line, marker] of [
+    [
+      "    newOutputPasses.sourceBytesRead / body.length;",
+      "segstore_reconstruction_new_output_measurement_result_not_bound",
+    ],
+    [
+      "    existingOutputPasses.sourceBytesRead / body.length;",
+      "segstore_reconstruction_survivor_measurement_result_not_bound",
+    ],
+    [
+      "      reconstruction_new_output_source_passes: reconstructionNewOutputSourcePasses,",
+      "segstore_reconstruction_new_output_terminal_not_derived",
+    ],
+    [
+      "      reconstruction_exact_survivor_source_passes: reconstructionExactSurvivorSourcePasses,",
+      "segstore_reconstruction_survivor_terminal_not_derived",
+    ],
+  ]) {
+    assert.equal(executableExactLineCount(source, line), 1, marker);
+  }
+  assert.equal(
+    exactLineCount(source, "      reconstruction_new_output_source_passes: 2,"),
+    0,
+    "segstore_reconstruction_new_output_literal_terminal_present",
+  );
+  assert.equal(
+    exactLineCount(source, "      reconstruction_exact_survivor_source_passes: 1,"),
+    0,
+    "segstore_reconstruction_survivor_literal_terminal_present",
+  );
 }
 
 function auditBaseline(source) {
@@ -1352,6 +1424,93 @@ assert.equal(
   "segstore_decoy_mutant_execution_count",
 );
 
+const reconstructionMeasurementMutants = [
+  [
+    "hard_coded_helper",
+    segstoreProof.replace(
+      functionSlice(
+        segstoreProof,
+        "function measureReconstructionSourceReadsV1(",
+        "function proveUncertainExactFdLinkConverges(",
+        "segstore_reconstruction_measurement_mutant_source_missing",
+      ),
+      `function measureReconstructionSourceReadsV1(
+  storePath: string,
+  outputPath: string,
+): { sourceBytesRead: number; reusedExisting: boolean } {
+  void outputPath;
+  const manifest = readSegmentedJsonlManifestV1(storePath);
+  const call = (measureReconstructionSourceReadsV1 as any).callCount ?? 0;
+  (measureReconstructionSourceReadsV1 as any).callCount = call + 1;
+  return call === 0
+    ? { sourceBytesRead: manifest.total_bytes * 2, reusedExisting: false }
+    : { sourceBytesRead: manifest.total_bytes, reusedExisting: true };
+}
+
+`,
+    ),
+    /segstore_reconstruction_measurement_body_not_bound/,
+  ],
+  [
+    "deleted_production_reconstruction",
+    segstoreProof.replace(
+      "    const result = reconstructSegmentedJsonlV1ToFile(storePath, outputPath);",
+      "    const result = { reused_existing: false };",
+    ),
+    /segstore_reconstruction_measurement_body_not_bound/,
+  ],
+  [
+    "deleted_source_read_accounting",
+    segstoreProof.replace(
+      "      if (trackedFds.has(Number(args[0])) && Number(count) > 0) sourceBytesRead += Number(count);",
+      "      void count;",
+    ),
+    /segstore_reconstruction_measurement_body_not_bound/,
+  ],
+  [
+    "preloaded_measurement_results",
+    segstoreProof
+      .replace(
+        "  const newOutputPasses = measureReconstructionSourceReadsV1(store, reconstructionPassOutput);",
+        "  const newOutputPasses = { sourceBytesRead: body.length * 2, reusedExisting: false };",
+      )
+      .replace(
+        "  const existingOutputPasses = measureReconstructionSourceReadsV1(store, reconstructionPassOutput);",
+        "  const existingOutputPasses = { sourceBytesRead: body.length, reusedExisting: true };",
+      ),
+    /segstore_reconstruction_(new_output|survivor)_measurement_call_not_bound/,
+  ],
+  [
+    "literal_pass_terminals",
+    segstoreProof
+      .replace(
+        "      reconstruction_new_output_source_passes: reconstructionNewOutputSourcePasses,",
+        "      reconstruction_new_output_source_passes: 2,",
+      )
+      .replace(
+        "      reconstruction_exact_survivor_source_passes: reconstructionExactSurvivorSourcePasses,",
+        "      reconstruction_exact_survivor_source_passes: 1,",
+      ),
+    /segstore_reconstruction_(new_output|survivor)_(terminal_not_derived|literal_terminal_present)/,
+  ],
+];
+
+let reconstructionMeasurementMutantsExecuted = 0;
+for (const [family, mutant, expected] of reconstructionMeasurementMutants) {
+  assert.notEqual(
+    mutant,
+    segstoreProof,
+    `segstore_reconstruction_measurement_mutant_not_applied:${family}`,
+  );
+  assert.throws(() => auditSegstoreProof(mutant), expected);
+  reconstructionMeasurementMutantsExecuted += 1;
+}
+assert.equal(
+  reconstructionMeasurementMutantsExecuted,
+  reconstructionMeasurementMutants.length,
+  "segstore_reconstruction_measurement_mutant_execution_count",
+);
+
 const withoutBaselineInvocation = baseline.replace(`node ${PROOF_PATH}`, `node --check ${PROOF_PATH}`);
 assert.throws(() => auditBaseline(withoutBaselineInvocation), /baseline_topology_proof_not_terminal/);
 
@@ -1390,4 +1549,9 @@ console.log("segstore_dead_comment_marker_decoys_rejected=true");
 console.log("segstore_string_literal_marker_decoys_rejected=true");
 console.log("segstore_template_literal_marker_decoys_rejected=true");
 console.log(`segstore_decoy_mutant_families_executed=${decoyMutantFamiliesExecuted}`);
+console.log("segstore_reconstruction_measurement_helper_bound=true");
+console.log("segstore_reconstruction_measurement_production_call_bound=true");
+console.log("segstore_reconstruction_measurement_read_accounting_bound=true");
+console.log("segstore_reconstruction_measurement_result_terminals_bound=true");
+console.log(`segstore_reconstruction_measurement_mutants_executed=${reconstructionMeasurementMutantsExecuted}`);
 console.log("segstore_exact_generation_helper_noop_rejected=true");
