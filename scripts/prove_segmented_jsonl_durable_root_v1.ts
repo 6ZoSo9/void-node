@@ -2,6 +2,7 @@
 // Copyright (c) 2025 6ZoSo9
 
 import assert from "node:assert/strict";
+import * as childProcess from "node:child_process";
 import * as crypto from "node:crypto";
 import * as fs from "node:fs";
 import * as os from "node:os";
@@ -69,16 +70,101 @@ function processStartTicks(pid: number): string {
 }
 
 function writePublishOwner(lockDir: string, pid: number, startTicks: string, token: string, bootId = processBootId()): void {
+  const ownerPath = path.join(lockDir, "owner.v1.json");
+  const witnessPath = path.join(lockDir, `owner-witness-${token}.v1`);
   fs.writeFileSync(
-    path.join(lockDir, "owner.v1.json"),
+    ownerPath,
     JSON.stringify({ v: 1, boot_id: bootId, pid, start_ticks: startTicks, token, state: "held" }) + "\n",
     { flag: "wx", mode: 0o600 },
   );
+  fs.linkSync(ownerPath, witnessPath);
+  fsyncDirectory(lockDir);
+  const owner = fs.statSync(ownerPath, { bigint: true } as any);
+  const witness = fs.statSync(witnessPath, { bigint: true } as any);
+  assert.equal(owner.dev, witness.dev);
+  assert.equal(owner.ino, witness.ino);
+  assert.equal(owner.nlink, 2n);
+}
+
+function ownerWitnessPathForProof(lockDir: string, token: string): string {
+  return path.join(lockDir, `owner-witness-${token}.v1`);
+}
+
+function removePublishOwnerForProof(lockDir: string, token: string): void {
+  fs.unlinkSync(path.join(lockDir, "owner.v1.json"));
+  fs.unlinkSync(ownerWitnessPathForProof(lockDir, token));
+  fsyncDirectory(lockDir);
+}
+
+function writeReclaimWinnerForProof(lockDir: string, staleToken: string, claimantToken: string): void {
+  const owner = fs.statSync(path.join(lockDir, "owner.v1.json"), { bigint: true } as any);
+  const witness = fs.statSync(ownerWitnessPathForProof(lockDir, staleToken), { bigint: true } as any);
+  assert.equal(owner.dev, witness.dev);
+  assert.equal(owner.ino, witness.ino);
+  fs.writeFileSync(
+    path.join(lockDir, "reclaim-winner.v1"),
+    JSON.stringify({
+      v: 1,
+      claimant_boot_id: processBootId(),
+      claimant_pid: process.pid,
+      claimant_start_ticks: processStartTicks(process.pid),
+      claimant_token: claimantToken,
+      stale_owner_token: staleToken,
+      stale_owner_dev: String(owner.dev),
+      stale_owner_ino: String(owner.ino),
+      stale_witness_dev: String(witness.dev),
+      stale_witness_ino: String(witness.ino),
+    }) + "\n",
+    { flag: "wx", mode: 0o600 },
+  );
+  fsyncDirectory(lockDir);
 }
 
 function fsyncDirectory(directory: string): void {
   const fd = fs.openSync(directory, "r");
   try { fs.fsyncSync(fd); } finally { fs.closeSync(fd); }
+}
+
+function proveAnonymousStageCrashLeavesNoName(lockDir: string): void {
+  const before = fs.readdirSync(lockDir).sort();
+  const fd = fs.openSync(lockDir, fs.constants.O_RDWR | 0o20200000, 0o600);
+  try {
+    fs.writeSync(fd, Buffer.from("anonymous-stage-crash", "utf8"));
+    fs.fsyncSync(fd);
+  } finally { fs.closeSync(fd); }
+  assert.deepEqual(fs.readdirSync(lockDir).sort(), before, "anonymous prepublication crash must leave zero persistent stage names");
+}
+
+function proveAnonymousReclaimRaceHasOnePersistentWinner(lockDir: string): void {
+  const directoryFd = fs.openSync(lockDir, "r");
+  const winnerName = "reclaim-winner.v1";
+  let successfulLinks = 0;
+  try {
+    for (let contender = 0; contender < 100; contender += 1) {
+      const fd = fs.openSync(lockDir, fs.constants.O_RDWR | 0o20200000, 0o600);
+      try {
+        const body = Buffer.from(`contender-${contender}\n`, "utf8");
+        fs.writeSync(fd, body);
+        fs.fsyncSync(fd);
+        const linked = childProcess.spawnSync(
+          "/usr/bin/ln",
+          ["-L", "-T", "--", "/proc/self/fd/3", `/proc/self/fd/4/${winnerName}`],
+          {
+            cwd: "/",
+            env: { PATH: "/usr/bin:/bin", LANG: "C", LC_ALL: "C" },
+            stdio: ["ignore", "ignore", "pipe", fd, directoryFd],
+          },
+        );
+        if (linked.status === 0) successfulLinks += 1;
+      } finally { fs.closeSync(fd); }
+    }
+    fsyncDirectory(lockDir);
+    assert.equal(successfulLinks, 1, "exactly one anonymous reclaimer may publish the fixed winner name");
+    assert.deepEqual(fs.readdirSync(lockDir), [winnerName], "losing reclaimers must leave zero persistent claim names");
+    assert.equal(fs.readFileSync(path.join(lockDir, winnerName), "utf8"), "contender-0\n");
+    fs.unlinkSync(path.join(lockDir, winnerName));
+    fsyncDirectory(lockDir);
+  } finally { fs.closeSync(directoryFd); }
 }
 
 function encodeSlotForProof(slot: SegmentedJsonlDurableRootSlotV1): Buffer {
@@ -112,6 +198,7 @@ function slotForProof(
 function stageIntentNameForProof(
   index: 0 | 1,
   publisherToken: string,
+  ownerWitness: { dev: string; ino: string },
   identity: { dev: string; ino: string },
   slot: SegmentedJsonlDurableRootSlotV1,
 ): string {
@@ -119,6 +206,8 @@ function stageIntentNameForProof(
     v: 1,
     target_slot: index,
     publisher_token: publisherToken,
+    owner_witness_dev: ownerWitness.dev,
+    owner_witness_ino: ownerWitness.ino,
     predecessor_root_sha256: slot.root.previous_root_sha256,
     candidate_root_sha256: slot.root.root_sha256,
     stage_dev: identity.dev,
@@ -135,6 +224,8 @@ function createStageIntentForProof(
   root: SegmentedJsonlDurableRootV1,
   peer: { dev: string; ino: string } | null,
 ): { path: string; identity: { dev: string; ino: string }; slot: SegmentedJsonlDurableRootSlotV1 } {
+  const witnessStat = fs.statSync(ownerWitnessPathForProof(lockDir, publisherToken), { bigint: true } as any);
+  const ownerWitness = { dev: String(witnessStat.dev), ino: String(witnessStat.ino) };
   const tempPath = path.join(lockDir, `proof-stage-${index}-${publisherToken}.tmp`);
   const fd = fs.openSync(tempPath, "wx+", 0o600);
   try {
@@ -150,7 +241,7 @@ function createStageIntentForProof(
     }
     fs.fchmodSync(fd, 0o600);
     fs.fsyncSync(fd);
-    const intentName = stageIntentNameForProof(index, publisherToken, identity, slot);
+    const intentName = stageIntentNameForProof(index, publisherToken, ownerWitness, identity, slot);
     const intentPath = path.join(lockDir, intentName);
     fs.linkSync(tempPath, intentPath);
     fsyncDirectory(lockDir);
@@ -197,6 +288,8 @@ try {
 
   const publishLockDir = path.join(durableDir, ".durable-root-publish-v1.lock");
   fs.mkdirSync(publishLockDir, { mode: 0o700 });
+  proveAnonymousStageCrashLeavesNoName(publishLockDir);
+  proveAnonymousReclaimRaceHasOnePersistentWinner(publishLockDir);
   const slot0 = path.join(durableDir, "durable-root-slot-0.v1.json");
   const slot1 = path.join(durableDir, "durable-root-slot-1.v1.json");
   const foreignStaticStage0 = path.join(publishLockDir, "slot-stage-0.v1");
@@ -232,7 +325,9 @@ try {
   fs.mkdirSync(recoveryDir, { mode: 0o700 });
   const recoveryLockDir = path.join(recoveryDir, ".durable-root-publish-v1.lock");
   fs.mkdirSync(recoveryLockDir, { mode: 0o700 });
-  const ownedRecoveryIntent = createStageIntentForProof(recoveryLockDir, 0, "aa".repeat(16), r1, null);
+  const recoveryToken = "aa".repeat(16);
+  writePublishOwner(recoveryLockDir, 99999999, "1", recoveryToken);
+  const ownedRecoveryIntent = createStageIntentForProof(recoveryLockDir, 0, recoveryToken, r1, null);
   assert.equal(fs.existsSync(path.join(recoveryDir, "durable-root-slot-0.v1.json")), false);
   const recoveredR1 = publishSegmentedJsonlDurableRootV1(recoveryDir, r1Input);
   assert.equal(recoveredR1.root_sha256, r1.root_sha256, "intent-bound owned stage must recover to canonical genesis");
@@ -265,6 +360,7 @@ try {
   };
 
   const foreignIntentToken = "bb".repeat(16);
+  writePublishOwner(publishLockDir, 99999999, "1", foreignIntentToken);
   const foreignIntentPath = path.join(publishLockDir, `slot-stage-1-${foreignIntentToken}-${"0".repeat(64)}.v1`);
   const foreignIntentBytes = Buffer.from("{foreign-intent-stage", "utf8");
   fs.writeFileSync(foreignIntentPath, foreignIntentBytes, { flag: "wx", mode: 0o600 });
@@ -275,6 +371,8 @@ try {
   assert.equal(foreignIntentAfter.ino, foreignIntentStat.ino);
   assert.deepEqual(fs.readFileSync(foreignIntentPath), foreignIntentBytes, "foreign stage intent must survive rejection unchanged");
   fs.unlinkSync(foreignIntentPath);
+  fs.unlinkSync(path.join(publishLockDir, "reclaim-winner.v1"));
+  fs.unlinkSync(ownerWitnessPathForProof(publishLockDir, foreignIntentToken));
   fsyncDirectory(publishLockDir);
 
   const slot0IdentityStat = fs.statSync(slot0, { bigint: true } as any);
@@ -290,10 +388,12 @@ try {
     ...fakeRootCore,
     root_sha256: sha256(canonicalJson(fakeRootCore)),
   };
+  const wrongPredecessorToken = "cc".repeat(16);
+  writePublishOwner(publishLockDir, 99999999, "1", wrongPredecessorToken);
   const wrongPredecessorIntent = createStageIntentForProof(
     publishLockDir,
     1,
-    "cc".repeat(16),
+    wrongPredecessorToken,
     wrongPredecessorRoot,
     slot0Peer,
   );
@@ -305,6 +405,8 @@ try {
   assert.equal(wrongPredecessorAfter.ino, wrongPredecessorStat.ino);
   assert.deepEqual(fs.readFileSync(wrongPredecessorIntent.path), wrongPredecessorBytes, "wrong-predecessor intent must survive rejection unchanged");
   fs.unlinkSync(wrongPredecessorIntent.path);
+  fs.unlinkSync(path.join(publishLockDir, "reclaim-winner.v1"));
+  fs.unlinkSync(ownerWitnessPathForProof(publishLockDir, wrongPredecessorToken));
   fsyncDirectory(publishLockDir);
 
   const foreignStaticStage1 = path.join(publishLockDir, "slot-stage-1.v1");
@@ -375,13 +477,14 @@ try {
   );
 
   const ownerPath = path.join(publishLockDir, "owner.v1.json");
-  const reclaimPath = path.join(publishLockDir, "reclaim.v1");
+  const reclaimPath = path.join(publishLockDir, "reclaim-winner.v1");
   const bootId = processBootId();
   const startTicks = processStartTicks(process.pid);
 
-  writePublishOwner(publishLockDir, process.pid, startTicks, "11".repeat(16));
+  const liveToken = "11".repeat(16);
+  writePublishOwner(publishLockDir, process.pid, startTicks, liveToken);
   expectFailure(() => publishSegmentedJsonlDurableRootV1(durableDir, r2Input), "DURABLE_ROOT_PUBLISH_BUSY");
-  fs.unlinkSync(ownerPath);
+  removePublishOwnerForProof(publishLockDir, liveToken);
 
   const differentBootId = bootId === "00000000-0000-0000-0000-000000000000"
     ? "ffffffff-ffff-ffff-ffff-ffffffffffff"
@@ -404,9 +507,9 @@ try {
   assert.equal(fs.existsSync(ownerPath), false, "stale publisher owner must be reclaimed and released");
   assert.equal(fs.existsSync(reclaimPath), false, "reclaim marker must not survive ownership transfer");
 
-  writePublishOwner(publishLockDir, 99999999, "1", "23".repeat(16));
-  fs.linkSync(ownerPath, reclaimPath);
-  fsyncDirectory(publishLockDir);
+  const staleClaimToken = "23".repeat(16);
+  writePublishOwner(publishLockDir, 99999999, "1", staleClaimToken);
+  writeReclaimWinnerForProof(publishLockDir, staleClaimToken, "33".repeat(16));
   assert.equal(
     publishSegmentedJsonlDurableRootV1(durableDir, r2Input).root_sha256,
     r2.root_sha256,
@@ -415,8 +518,9 @@ try {
   assert.equal(fs.existsSync(ownerPath), false);
   assert.equal(fs.existsSync(reclaimPath), false);
 
-  writePublishOwner(publishLockDir, 99999999, "1", "24".repeat(16));
-  fs.linkSync(ownerPath, reclaimPath);
+  const staleUnlinkedToken = "24".repeat(16);
+  writePublishOwner(publishLockDir, 99999999, "1", staleUnlinkedToken);
+  writeReclaimWinnerForProof(publishLockDir, staleUnlinkedToken, "34".repeat(16));
   fs.unlinkSync(ownerPath);
   fsyncDirectory(publishLockDir);
   assert.equal(
@@ -427,16 +531,34 @@ try {
   assert.equal(fs.existsSync(ownerPath), false);
   assert.equal(fs.existsSync(reclaimPath), false);
 
-  writePublishOwner(publishLockDir, process.pid, startTicks, "25".repeat(16));
-  fs.linkSync(ownerPath, reclaimPath);
-  fsyncDirectory(publishLockDir);
+  const liveReclaimToken = "25".repeat(16);
+  writePublishOwner(publishLockDir, process.pid, startTicks, liveReclaimToken);
+  writeReclaimWinnerForProof(publishLockDir, liveReclaimToken, "35".repeat(16));
   expectFailure(() => publishSegmentedJsonlDurableRootV1(durableDir, r2Input), "DURABLE_ROOT_PUBLISH_BUSY");
   const liveOwnerStat = fs.statSync(ownerPath, { bigint: true } as any);
-  const liveReclaimStat = fs.statSync(reclaimPath, { bigint: true } as any);
-  assert.equal(liveOwnerStat.dev, liveReclaimStat.dev);
-  assert.equal(liveOwnerStat.ino, liveReclaimStat.ino, "live exact owner claim witness must never be stolen");
+  const liveWitnessStat = fs.statSync(ownerWitnessPathForProof(publishLockDir, liveReclaimToken), { bigint: true } as any);
+  assert.equal(liveOwnerStat.dev, liveWitnessStat.dev);
+  assert.equal(liveOwnerStat.ino, liveWitnessStat.ino, "live exact owner witness must never be stolen");
   fs.unlinkSync(reclaimPath);
+  removePublishOwnerForProof(publishLockDir, liveReclaimToken);
+
+  const replacedWitnessToken = "26".repeat(16);
+  writePublishOwner(publishLockDir, 99999999, "1", replacedWitnessToken);
+  const replacedWitnessPath = ownerWitnessPathForProof(publishLockDir, replacedWitnessToken);
+  const copiedOwnerBytes = fs.readFileSync(ownerPath);
+  fs.unlinkSync(replacedWitnessPath);
+  fs.writeFileSync(replacedWitnessPath, copiedOwnerBytes, { flag: "wx", mode: 0o600 });
+  const replacementBefore = fs.statSync(replacedWitnessPath, { bigint: true } as any);
+  expectFailure(
+    () => publishSegmentedJsonlDurableRootV1(durableDir, r2Input),
+    "DURABLE_ROOT_PUBLISH_LOCK_RECLAIM_WITNESS_MISMATCH",
+  );
+  const replacementAfter = fs.statSync(replacedWitnessPath, { bigint: true } as any);
+  assert.equal(replacementAfter.dev, replacementBefore.dev);
+  assert.equal(replacementAfter.ino, replacementBefore.ino, "replaced witness must survive rejection untouched");
   fs.unlinkSync(ownerPath);
+  fs.unlinkSync(replacedWitnessPath);
+  fsyncDirectory(publishLockDir);
 
   assert.deepEqual(
     fs.readdirSync(durableDir).sort(),
@@ -528,6 +650,9 @@ try {
   );
 
   console.log("durable_root_owned_stage_intent_retry_converges=true");
+  console.log("durable_root_owner_hardlink_witness_required=true");
+  console.log("durable_root_anonymous_stage_prepublication_crash_residue=0");
+  console.log("durable_root_stage_intent_binds_physical_owner_witness=true");
   console.log("durable_root_foreign_static_stage_preserved=true");
   console.log("durable_root_foreign_stage_intent_preserved=true");
   console.log("durable_root_wrong_predecessor_intent_preserved=true");
@@ -538,9 +663,13 @@ try {
   console.log("durable_root_live_publish_lock_excludes_writer=true");
   console.log("durable_root_boot_epoch_prevents_pid_start_alias=true");
   console.log("durable_root_stale_publish_lock_recoverable=true");
-  console.log("durable_root_reclaim_marker_claim_crash_recoverable=true");
-  console.log("durable_root_reclaim_marker_owner_unlink_crash_recoverable=true");
-  console.log("durable_root_live_reclaim_witness_not_stolen=true");
+  console.log("durable_root_reclaim_winner_claim_crash_recoverable=true");
+  console.log("durable_root_reclaim_winner_owner_unlink_crash_recoverable=true");
+  console.log("durable_root_reclaim_winner_separate_from_owner_inode=true");
+  console.log("durable_root_reclaim_race_exact_winners=1");
+  console.log("durable_root_reclaim_race_persistent_losers=0");
+  console.log("durable_root_live_owner_witness_not_stolen=true");
+  console.log("durable_root_replaced_owner_witness_preserved_on_hold=true");
   console.log("durable_root_two_slot_lifetime_bound=true");
   console.log("durable_root_torn_target_retry_converges=true");
   console.log("durable_root_degraded_slot_never_rolls_back=true");
