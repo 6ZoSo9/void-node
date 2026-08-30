@@ -839,14 +839,13 @@ export function buildSegmentedJsonlV1FromFile(sourceInput:string,destinationInpu
   }
 }
 
-function appendVerifiedGenerationToOutputV1(
+function readVerifiedGenerationForReconstructionV1(
   file: string,
   expectedBytes: number,
   expectedSha256: string,
-  outputFd: number,
-  outputHash: ReturnType<typeof crypto.createHash>,
   outputPath: string,
   expectedMode: number,
+  onChunk: (chunk: Buffer) => void,
 ): number {
   const inFd=openRegularReadV1(file);
   try {
@@ -856,8 +855,8 @@ function appendVerifiedGenerationToOutputV1(
     if(beforeObservation.mode!==expectedMode) fail("RECONSTRUCT_SOURCE_MODE_MISMATCH",`${file}:${beforeObservation.mode.toString(8)}:${expectedMode.toString(8)}`);
     const sourceHash=crypto.createHash("sha256");
     const copied=readAdmittedGenerationV1(inFd,expectedBytes,"RECONSTRUCT_SOURCE_SHORT_READ","RECONSTRUCT_SOURCE_GREW_DURING_COPY",file,(chunk)=>{
-      sourceHash.update(chunk); outputHash.update(chunk);
-      let off=0; while(off<chunk.length){const w=fs.writeSync(outputFd,chunk,off,chunk.length-off,null);if(w<=0)fail("SHORT_RECONSTRUCT_WRITE",outputPath);off+=w;}
+      sourceHash.update(chunk);
+      onChunk(chunk);
     });
     const afterObservation=fdObservation(inFd), after=afterObservation.generation, p1=pathGeneration(file);
     if(!sameGeneration(before,after)||!p1||!sameGeneration(after,p1)) fail("RECONSTRUCT_SOURCE_UNSTABLE_DURING_COPY",file);
@@ -867,6 +866,51 @@ function appendVerifiedGenerationToOutputV1(
     if(actual!==expectedSha256) fail("RECONSTRUCT_SOURCE_HASH_MISMATCH",`${file}:expected=${expectedSha256}:actual=${actual}`);
     return copied;
   } finally { fs.closeSync(inFd); }
+}
+
+function appendVerifiedGenerationToOutputV1(
+  file: string,
+  expectedBytes: number,
+  expectedSha256: string,
+  outputFd: number,
+  outputHash: ReturnType<typeof crypto.createHash>,
+  outputPath: string,
+  expectedMode: number,
+): number {
+  return readVerifiedGenerationForReconstructionV1(
+    file,
+    expectedBytes,
+    expectedSha256,
+    outputPath,
+    expectedMode,
+    (chunk) => {
+      outputHash.update(chunk);
+      let off=0;
+      while(off<chunk.length){
+        const w=fs.writeSync(outputFd,chunk,off,chunk.length-off,null);
+        if(w<=0)fail("SHORT_RECONSTRUCT_WRITE",outputPath);
+        off+=w;
+      }
+    },
+  );
+}
+
+function hashVerifiedGenerationForReconstructionV1(
+  file: string,
+  expectedBytes: number,
+  expectedSha256: string,
+  outputHash: ReturnType<typeof crypto.createHash>,
+  outputPath: string,
+  expectedMode: number,
+): number {
+  return readVerifiedGenerationForReconstructionV1(
+    file,
+    expectedBytes,
+    expectedSha256,
+    outputPath,
+    expectedMode,
+    (chunk) => outputHash.update(chunk),
+  );
 }
 
 const O_TMPFILE_V1 = 0o20200000;
@@ -1134,6 +1178,27 @@ export function reconstructSegmentedJsonlV1ToFile(rootInput:string,outputInput:s
     const verified=verifySegmentedJsonlWithAuthoritiesV1(root,segments);
     outputParent=openDirectoryAuthorityV1(path.dirname(out));
     assertPrivateDirectoryWriteAuthorityV1(outputParent);
+    const expectedHash=crypto.createHash("sha256"); let expectedBytes=0;
+    for(const s of verified.manifest.sealed_segments) {
+      expectedBytes+=hashVerifiedGenerationForReconstructionV1(path.join(segments.stablePath,segmentName(s.id)),s.bytes,s.sha256,expectedHash,out,0o400);
+    }
+    expectedBytes+=hashVerifiedGenerationForReconstructionV1(path.join(root.stablePath,ACTIVE),verified.manifest.active.bytes,verified.manifest.active.sha256,expectedHash,out,0o600);
+    if(expectedBytes!==verified.manifest.total_bytes) fail("RECONSTRUCT_SIZE_MISMATCH",`${expectedBytes}:${verified.manifest.total_bytes}`);
+    const expectedDigest=expectedHash.digest("hex");
+    const existing=classifyExistingReconstructionV1(outputParent,out,expectedBytes,expectedDigest);
+    if(existing==="occupied") fail("OUTPUT_EXISTS",out);
+    if(existing==="equivalent") {
+      assertPrivateDirectoryWriteAuthorityV1(segments);
+      assertPrivateDirectoryWriteAuthorityV1(root);
+      return {
+        bytes:expectedBytes,
+        records:verified.manifest.total_records,
+        sha256:expectedDigest,
+        reused_existing:true,
+        publication_terminal:"EXISTING_EQUIVALENT_UNOWNED",
+      };
+    }
+
     fd=openUnlinkedReconstructionFileV1(outputParent,out);
     const hash=crypto.createHash("sha256"); let bytes=0;
     for(const s of verified.manifest.sealed_segments) {
@@ -1144,6 +1209,7 @@ export function reconstructSegmentedJsonlV1ToFile(rootInput:string,outputInput:s
     fs.fchmodSync(fd,0o600);
     fs.fsyncSync(fd);
     const digest=hash.digest("hex");
+    if(digest!==expectedDigest) fail("RECONSTRUCT_EXPECTED_IDENTITY_CHANGED",`${out}:expected=${expectedDigest}:actual=${digest}`);
     const reusedExisting=verifyExactPublishedReconstructionV1(outputParent,out,fd,bytes,digest);
     assertPrivateDirectoryWriteAuthorityV1(segments);
     assertPrivateDirectoryWriteAuthorityV1(root);
