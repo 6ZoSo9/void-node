@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 
-import assert from "node:assert/strict";
+import assert, { throws as assertThrows } from "node:assert/strict";
+import { createHash } from "node:crypto";
 import ts from "typescript";
 import { readFileSync } from "node:fs";
 import path from "node:path";
@@ -478,10 +479,20 @@ function auditFocused(source) {
     [
       "function topologyExecutableRegexIndex(source, pattern) {",
       "const ts = require('typescript');",
+      "const { createHash } = require('node:crypto');",
       "function topologyTopLevelVariableDeclarationCount(sourceFile, name, initializer) {",
+      "function topologyMeasurementPayloadDigest(sourceFile, element) {",
+      "function topologyNamedThrowsImportCount(sourceFile) {",
+      "function topologyRejectionAuthorityMutationCount(sourceFile) {",
+      "function genericMeasurementPayloadMutant(source) {",
+      "'focused_topology_measurement_mutant_payload_digests_bound=true'",
+      "'focused_topology_measurement_rejection_authority_immutable=true'",
+      "'focused_topology_measurement_mutant_values_distinct=true'",
       "'focused_topology_measurement_mutant_literal_false_guard',",
       "const unreachableTopologyMeasurementMutantExecution = topologyText",
       "() => auditTopologyMeasurementMutantExecution(unreachableTopologyMeasurementMutantExecution),",
+      "const genericPayloadTopologyMeasurementMutants =",
+      "const mutableRejectionTopologyMeasurementMutants = topologyText.replace(",
     ],
     "focused_topology_measurement_reachability_wall_not_bound",
   );
@@ -720,6 +731,239 @@ function topLevelCallCount(source, calleeName, marker) {
     ts.isIdentifier(statement.expression.expression) &&
     statement.expression.expression.text === calleeName
   ).length;
+}
+
+const topologyMeasurementMutantSpecs = [
+  ["literal_false_helper", "01b7909c2fbdf782c5a797f0c72ea20ad059804f2fd5fe5bbdd8f370913152c5"],
+  ["hard_coded_helper", "e209c85c901e02d3ca3cfa499649f92f28179c0805ea6b61cef3820978c9e4c8"],
+  ["deleted_production_reconstruction", "4034ba385bce11ddb053d67567cbc562970ce61e33a6bdad378e130fb67af62f"],
+  ["deleted_source_read_accounting", "4e4015548a57b53e9286df826018f73ed0564ea6d35c98f3fb92c5e265d01292"],
+  ["preloaded_measurement_results", "ead2799cc67ed087e8a46f953d26562118f61eee924ebaa3809e6a9e57fa936e"],
+  ["literal_pass_terminals", "7ace875f1748c20652dd9296d3e3304c09cee778573763f52ceb1a825c889078"],
+  ["deleted_acceptance_assertions", "5a64addd25204e52b7ef0c1e2797317510cea4cdce98f913641252eddee0f8f9"],
+  ["weakened_acceptance_expectations", "c89326a819d7dc076f3484283346f3735cf6c6ae52b897712c9b861017c478bb"],
+];
+
+function topologyMeasurementPayloadDigest(sourceFile, element) {
+  return createHash("sha256")
+    .update(
+      `${element.elements[1].getText(sourceFile)}\n---EXPECTED---\n${element.elements[2].getText(sourceFile)}`,
+    )
+    .digest("hex");
+}
+
+function topologyTopLevelMeasurementArrayCount(sourceFile) {
+  return sourceFile.statements.filter((statement) => {
+    if (!ts.isVariableStatement(statement)) return false;
+    if (statement.declarationList.declarations.length !== 1) return false;
+    const declaration = statement.declarationList.declarations[0];
+    if (
+      !ts.isIdentifier(declaration.name) ||
+      declaration.name.text !== "reconstructionMeasurementMutants" ||
+      !declaration.initializer ||
+      !ts.isArrayLiteralExpression(declaration.initializer) ||
+      declaration.initializer.elements.length !== topologyMeasurementMutantSpecs.length
+    ) return false;
+    const specs = declaration.initializer.elements.map((element) => {
+      if (!ts.isArrayLiteralExpression(element) || element.elements.length !== 3) return null;
+      const family = element.elements[0];
+      if (!ts.isStringLiteral(family)) return null;
+      return [family.text, topologyMeasurementPayloadDigest(sourceFile, element)];
+    });
+    return (
+      specs.every(
+        (spec, index) =>
+          spec !== null &&
+          spec[0] === topologyMeasurementMutantSpecs[index][0] &&
+          spec[1] === topologyMeasurementMutantSpecs[index][1],
+      ) &&
+      new Set(specs.map((spec) => spec?.[0])).size === topologyMeasurementMutantSpecs.length
+    );
+  }).length;
+}
+
+function topologyNamedThrowsImportCount(sourceFile) {
+  return sourceFile.statements.filter((statement) => {
+    if (
+      !ts.isImportDeclaration(statement) ||
+      !ts.isStringLiteral(statement.moduleSpecifier) ||
+      statement.moduleSpecifier.text !== "node:assert/strict"
+    ) return false;
+    const clause = statement.importClause;
+    if (
+      !clause ||
+      !clause.name ||
+      clause.name.text !== "assert" ||
+      !clause.namedBindings ||
+      !ts.isNamedImports(clause.namedBindings) ||
+      clause.namedBindings.elements.length !== 1
+    ) return false;
+    const imported = clause.namedBindings.elements[0];
+    return (
+      imported.propertyName?.text === "throws" &&
+      imported.name.text === "assertThrows"
+    );
+  }).length;
+}
+
+function topologyRejectionAuthorityMutationCount(sourceFile) {
+  let count = 0;
+  const isAuthority = (node) =>
+    (ts.isIdentifier(node) && node.text === "assertThrows") ||
+    (
+      ts.isPropertyAccessExpression(node) &&
+      ts.isIdentifier(node.expression) &&
+      node.expression.text === "assert" &&
+      node.name.text === "throws"
+    );
+  const visit = (node) => {
+    if (
+      ts.isBinaryExpression(node) &&
+      node.operatorToken.kind >= ts.SyntaxKind.FirstAssignment &&
+      node.operatorToken.kind <= ts.SyntaxKind.LastAssignment &&
+      isAuthority(node.left)
+    ) count += 1;
+    if (
+      (ts.isPrefixUnaryExpression(node) || ts.isPostfixUnaryExpression(node)) &&
+      isAuthority(node.operand)
+    ) count += 1;
+    if (ts.isDeleteExpression(node) && isAuthority(node.expression)) count += 1;
+    if (ts.isCallExpression(node) && node.arguments.length > 0) {
+      const callee = node.expression.getText(sourceFile);
+      const target = node.arguments[0];
+      if (
+        ["Object.defineProperty", "Reflect.defineProperty", "Object.assign"].includes(callee) &&
+        (
+          isAuthority(target) ||
+          (ts.isIdentifier(target) && target.text === "assert")
+        )
+      ) count += 1;
+    }
+    ts.forEachChild(node, visit);
+  };
+  visit(sourceFile);
+  return count;
+}
+
+function topologyTopLevelMeasurementSetCount(sourceFile) {
+  return sourceFile.statements.filter((statement) => {
+    if (!ts.isVariableStatement(statement)) return false;
+    if (statement.declarationList.declarations.length !== 1) return false;
+    const declaration = statement.declarationList.declarations[0];
+    return (
+      ts.isIdentifier(declaration.name) &&
+      declaration.name.text === "reconstructionMeasurementMutantValues" &&
+      declaration.initializer?.getText(sourceFile) === [
+        "new Set(",
+        "  reconstructionMeasurementMutants.map(([, mutant]) => mutant),",
+        ")",
+      ].join("\n")
+    );
+  }).length;
+}
+
+function topologyTopLevelMeasurementDistinctAssertionCount(sourceFile) {
+  return sourceFile.statements.filter((statement) => {
+    if (!ts.isExpressionStatement(statement)) return false;
+    const text = statement.getText(sourceFile);
+    return (
+      text.startsWith("assert.equal(") &&
+      text.includes("reconstructionMeasurementMutantValues.size,") &&
+      text.includes("\n  8,\n") &&
+      text.includes("segstore_reconstruction_measurement_mutant_values_not_unique")
+    );
+  }).length;
+}
+
+function topologyTopLevelMeasurementLoopCount(sourceFile) {
+  return sourceFile.statements.filter((statement) => {
+    if (!ts.isForOfStatement(statement) || !ts.isBlock(statement.statement)) return false;
+    const body = statement.statement.statements;
+    return (
+      statement.initializer.getText(sourceFile) === "const [family, mutant, expected]" &&
+      statement.expression.getText(sourceFile) === "reconstructionMeasurementMutants" &&
+      body.length === 3 &&
+      body[1].getText(sourceFile) ===
+        "assertThrows(() => auditSegstoreProof(mutant), expected);" &&
+      body[2].getText(sourceFile) ===
+        "reconstructionMeasurementMutantsExecuted += 1;"
+    );
+  }).length;
+}
+
+function auditTopologyMeasurementMutantAuthority(source) {
+  const sourceFile = parseJavaScriptSource(
+    source,
+    "segstore-topology-authority.mjs",
+    "topology_measurement_mutant_parse_failed",
+  );
+  assert.equal(
+    topologyTopLevelMeasurementArrayCount(sourceFile),
+    1,
+    "topology_measurement_mutant_payload_digest_not_exact",
+  );
+  assert.equal(
+    topologyNamedThrowsImportCount(sourceFile),
+    1,
+    "topology_measurement_named_throws_import_not_exact",
+  );
+  assert.equal(
+    topologyRejectionAuthorityMutationCount(sourceFile),
+    0,
+    "topology_measurement_rejection_authority_mutated",
+  );
+  assert.equal(
+    topologyTopLevelMeasurementSetCount(sourceFile),
+    1,
+    "topology_measurement_mutant_value_set_not_exact",
+  );
+  assert.equal(
+    topologyTopLevelMeasurementDistinctAssertionCount(sourceFile),
+    1,
+    "topology_measurement_mutant_distinct_assertion_not_exact",
+  );
+  assert.equal(
+    topologyTopLevelMeasurementLoopCount(sourceFile),
+    1,
+    "topology_measurement_mutant_loop_authority_not_exact",
+  );
+}
+
+function genericMeasurementPayloadMutant(source) {
+  const sourceFile = parseJavaScriptSource(
+    source,
+    "segstore-topology-generic-payload.mjs",
+    "topology_measurement_generic_payload_parse_failed",
+  );
+  const edits = [];
+  for (const statement of sourceFile.statements) {
+    if (!ts.isVariableStatement(statement)) continue;
+    for (const declaration of statement.declarationList.declarations) {
+      if (
+        !ts.isIdentifier(declaration.name) ||
+        declaration.name.text !== "reconstructionMeasurementMutants" ||
+        !declaration.initializer ||
+        !ts.isArrayLiteralExpression(declaration.initializer)
+      ) continue;
+      for (const element of declaration.initializer.elements) {
+        assert.ok(
+          ts.isArrayLiteralExpression(element) && element.elements.length === 3,
+          "topology_measurement_generic_payload_tuple_not_exact",
+        );
+        edits.push({
+          start: element.elements[1].getStart(sourceFile),
+          end: element.elements[2].end,
+          replacement: '"not-the-segstore-proof", /.*/',
+        });
+      }
+    }
+  }
+  assert.equal(edits.length, 8, "topology_measurement_generic_payload_edit_count");
+  let mutant = source;
+  for (const edit of edits.sort((left, right) => right.start - left.start)) {
+    mutant = mutant.slice(0, edit.start) + edit.replacement + mutant.slice(edit.end);
+  }
+  return mutant;
 }
 
 function auditSegstoreProof(source) {
@@ -967,8 +1211,8 @@ function auditCi(source) {
   assert.equal(jobsRoots.length, 1, "ci_jobs_root_count_not_exact");
   const jobKeys = [];
   for (let index = jobsRoots[0] + 1; index < lines.length; index += 1) {
-    const match = /^  ([A-Za-z0-9_-]+):$/.exec(lines[index]);
-    if (match) jobKeys.push(match[1]);
+    const key = parseWorkflowMappingKey(lines[index], 2, "ci_job_mapping_key_not_exact");
+    if (key !== null) jobKeys.push(key);
   }
   assert.deepEqual(jobKeys, ["build"], "ci_job_keys_not_exact");
   const buildStarts = lines.flatMap((line, index) => line === "  build:" ? [index] : []);
@@ -976,8 +1220,8 @@ function auditCi(source) {
   const buildKeys = [];
   for (let index = buildStarts[0] + 1; index < lines.length; index += 1) {
     if (/^  \S/.test(lines[index])) break;
-    const match = /^    ([A-Za-z0-9_-]+):/.exec(lines[index]);
-    if (match) buildKeys.push(match[1]);
+    const key = parseWorkflowMappingKey(lines[index], 4, "ci_build_mapping_key_not_exact");
+    if (key !== null) buildKeys.push(key);
   }
   assert.deepEqual(buildKeys, ["runs-on", "steps"], "ci_build_job_keys_not_exact");
   const name = "      - name: Typecheck (no emit)";
@@ -997,10 +1241,35 @@ const focused = readFileSync(path.join(ROOT, FOCUSED_PATH), "utf8");
 const baseline = readFileSync(path.join(ROOT, BASELINE_PATH), "utf8");
 const ci = readFileSync(path.join(ROOT, CI_PATH), "utf8");
 const segstoreProof = readFileSync(path.join(ROOT, SEGSTORE_PROOF_PATH), "utf8");
+const topologyProof = readFileSync(path.join(ROOT, PROOF_PATH), "utf8");
 auditFocused(focused);
 auditSegstoreProof(segstoreProof);
 auditBaseline(baseline);
 auditCi(ci);
+auditTopologyMeasurementMutantAuthority(topologyProof);
+const genericMeasurementPayloads = genericMeasurementPayloadMutant(topologyProof);
+assert.notEqual(
+  genericMeasurementPayloads,
+  topologyProof,
+  "topology_measurement_generic_payload_mutant_not_applied",
+);
+assertThrows(
+  () => auditTopologyMeasurementMutantAuthority(genericMeasurementPayloads),
+  /topology_measurement_mutant_payload_digest_not_exact/,
+);
+const mutableMeasurementRejectionAuthority = topologyProof.replace(
+  "let reconstructionMeasurementMutantsExecuted = 0;",
+  "let reconstructionMeasurementMutantsExecuted = 0;\nassert.throws = () => {};",
+);
+assert.notEqual(
+  mutableMeasurementRejectionAuthority,
+  topologyProof,
+  "topology_measurement_mutable_rejection_mutant_not_applied",
+);
+assertThrows(
+  () => auditTopologyMeasurementMutantAuthority(mutableMeasurementRejectionAuthority),
+  /topology_measurement_rejection_authority_mutated/,
+);
 
 const deadScalarTriggerPath = "src/storage/segmented_jsonl_v1.ts";
 const deadScalarTriggerLine = `      - "${deadScalarTriggerPath}"\n`;
@@ -1819,6 +2088,15 @@ const reconstructionMeasurementMutants = [
   ],
 ];
 
+const reconstructionMeasurementMutantValues = new Set(
+  reconstructionMeasurementMutants.map(([, mutant]) => mutant),
+);
+assert.equal(
+  reconstructionMeasurementMutantValues.size,
+  8,
+  "segstore_reconstruction_measurement_mutant_values_not_unique",
+);
+
 let reconstructionMeasurementMutantsExecuted = 0;
 for (const [family, mutant, expected] of reconstructionMeasurementMutants) {
   assert.notEqual(
@@ -1826,7 +2104,7 @@ for (const [family, mutant, expected] of reconstructionMeasurementMutants) {
     segstoreProof,
     `segstore_reconstruction_measurement_mutant_not_applied:${family}`,
   );
-  assert.throws(() => auditSegstoreProof(mutant), expected);
+  assertThrows(() => auditSegstoreProof(mutant), expected);
   reconstructionMeasurementMutantsExecuted += 1;
 }
 assert.equal(
@@ -1871,6 +2149,20 @@ const skippedCiBuildJob = ci.replace(
 assert.notEqual(skippedCiBuildJob, ci, "ci_skipped_build_job_mutant_not_applied");
 assert.throws(() => auditCi(skippedCiBuildJob), /ci_build_job_keys_not_exact/);
 
+const quotedSkippedCiBuildJob = ci.replace(
+  "  build:\n    runs-on:",
+  '  build:\n    "if": ${{ false }}\n    runs-on:',
+);
+assert.notEqual(
+  quotedSkippedCiBuildJob,
+  ci,
+  "ci_quoted_skipped_build_job_mutant_not_applied",
+);
+assert.throws(
+  () => auditCi(quotedSkippedCiBuildJob),
+  /ci_build_job_keys_not_exact/,
+);
+
 const tolerantCiCaller = ci.replace(
   "      - name: Typecheck (no emit)\n        run:",
   "      - name: Typecheck (no emit)\n        continue-on-error: true\n        run:",
@@ -1911,10 +2203,14 @@ console.log("segstore_reconstruction_measurement_acceptance_assertions_bound=tru
 console.log("segstore_reconstruction_measurement_literal_false_guard_rejected=true");
 console.log("segstore_reconstruction_measurement_mutant_caller_bound=true");
 console.log("segstore_reconstruction_measurement_mutant_block_literal_false_guard_rejected=true");
+console.log("segstore_reconstruction_measurement_mutant_payload_digests_bound=true");
+console.log("segstore_reconstruction_measurement_rejection_authority_immutable=true");
+console.log("segstore_reconstruction_measurement_mutant_values_distinct=true");
 console.log("focused_topology_measurement_mutant_caller_literal_false_guard_rejected=true");
 console.log("focused_topology_measurement_mutant_caller_ast_top_level_bound=true");
 console.log("repository_ci_baseline_step_exact=true");
 console.log("repository_ci_build_job_control_exact=true");
+console.log("repository_ci_quoted_build_control_rejected=true");
 console.log("baseline_topology_proof_prefix_exact=true");
 console.log(`segstore_reconstruction_measurement_mutants_executed=${reconstructionMeasurementMutantsExecuted}`);
 console.log("segstore_exact_generation_helper_noop_rejected=true");

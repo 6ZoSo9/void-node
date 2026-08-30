@@ -103,6 +103,7 @@ jobs:
         run: |
           node <<'NODE'
           const assert = require('node:assert/strict');
+          const { createHash } = require('node:crypto');
           const fs = require('node:fs');
           const ts = require('typescript');
           const workflowPath = '.github/workflows/void-segmented-jsonl-v1.yml';
@@ -270,16 +271,24 @@ jobs:
             return count;
           }
 
-          const topologyMeasurementMutantFamilies = [
-            'literal_false_helper',
-            'hard_coded_helper',
-            'deleted_production_reconstruction',
-            'deleted_source_read_accounting',
-            'preloaded_measurement_results',
-            'literal_pass_terminals',
-            'deleted_acceptance_assertions',
-            'weakened_acceptance_expectations',
+          const topologyMeasurementMutantSpecs = [
+            ['literal_false_helper', '01b7909c2fbdf782c5a797f0c72ea20ad059804f2fd5fe5bbdd8f370913152c5'],
+            ['hard_coded_helper', 'e209c85c901e02d3ca3cfa499649f92f28179c0805ea6b61cef3820978c9e4c8'],
+            ['deleted_production_reconstruction', '4034ba385bce11ddb053d67567cbc562970ce61e33a6bdad378e130fb67af62f'],
+            ['deleted_source_read_accounting', '4e4015548a57b53e9286df826018f73ed0564ea6d35c98f3fb92c5e265d01292'],
+            ['preloaded_measurement_results', 'ead2799cc67ed087e8a46f953d26562118f61eee924ebaa3809e6a9e57fa936e'],
+            ['literal_pass_terminals', '7ace875f1748c20652dd9296d3e3304c09cee778573763f52ceb1a825c889078'],
+            ['deleted_acceptance_assertions', '5a64addd25204e52b7ef0c1e2797317510cea4cdce98f913641252eddee0f8f9'],
+            ['weakened_acceptance_expectations', 'c89326a819d7dc076f3484283346f3735cf6c6ae52b897712c9b861017c478bb'],
           ];
+
+          function topologyMeasurementPayloadDigest(sourceFile, element) {
+            return createHash('sha256')
+              .update(
+                `${element.elements[1].getText(sourceFile)}\n---EXPECTED---\n${element.elements[2].getText(sourceFile)}`,
+              )
+              .digest('hex');
+          }
 
           function topologyTopLevelMeasurementArrayCount(sourceFile) {
             return sourceFile.statements.filter((statement) => {
@@ -291,16 +300,115 @@ jobs:
                 declaration.name.text !== 'reconstructionMeasurementMutants' ||
                 !declaration.initializer ||
                 !ts.isArrayLiteralExpression(declaration.initializer) ||
-                declaration.initializer.elements.length !== topologyMeasurementMutantFamilies.length
+                declaration.initializer.elements.length !== topologyMeasurementMutantSpecs.length
               ) return false;
-              const families = declaration.initializer.elements.map((element) => {
+              const specs = declaration.initializer.elements.map((element) => {
                 if (!ts.isArrayLiteralExpression(element) || element.elements.length !== 3) return null;
                 const family = element.elements[0];
-                return ts.isStringLiteral(family) ? family.text : null;
+                if (!ts.isStringLiteral(family)) return null;
+                return [family.text, topologyMeasurementPayloadDigest(sourceFile, element)];
               });
               return (
-                families.every((family, index) => family === topologyMeasurementMutantFamilies[index]) &&
-                new Set(families).size === topologyMeasurementMutantFamilies.length
+                specs.every(
+                  (spec, index) =>
+                    spec !== null &&
+                    spec[0] === topologyMeasurementMutantSpecs[index][0] &&
+                    spec[1] === topologyMeasurementMutantSpecs[index][1],
+                ) &&
+                new Set(specs.map((spec) => spec?.[0])).size === topologyMeasurementMutantSpecs.length
+              );
+            }).length;
+          }
+
+          function topologyNamedThrowsImportCount(sourceFile) {
+            return sourceFile.statements.filter((statement) => {
+              if (
+                !ts.isImportDeclaration(statement) ||
+                !ts.isStringLiteral(statement.moduleSpecifier) ||
+                statement.moduleSpecifier.text !== 'node:assert/strict'
+              ) return false;
+              const clause = statement.importClause;
+              if (
+                !clause ||
+                !clause.name ||
+                clause.name.text !== 'assert' ||
+                !clause.namedBindings ||
+                !ts.isNamedImports(clause.namedBindings) ||
+                clause.namedBindings.elements.length !== 1
+              ) return false;
+              const imported = clause.namedBindings.elements[0];
+              return (
+                imported.propertyName?.text === 'throws' &&
+                imported.name.text === 'assertThrows'
+              );
+            }).length;
+          }
+
+          function topologyRejectionAuthorityMutationCount(sourceFile) {
+            let count = 0;
+            const isAuthority = (node) =>
+              (ts.isIdentifier(node) && node.text === 'assertThrows') ||
+              (
+                ts.isPropertyAccessExpression(node) &&
+                ts.isIdentifier(node.expression) &&
+                node.expression.text === 'assert' &&
+                node.name.text === 'throws'
+              );
+            const visit = (node) => {
+              if (
+                ts.isBinaryExpression(node) &&
+                node.operatorToken.kind >= ts.SyntaxKind.FirstAssignment &&
+                node.operatorToken.kind <= ts.SyntaxKind.LastAssignment &&
+                isAuthority(node.left)
+              ) count += 1;
+              if (
+                (ts.isPrefixUnaryExpression(node) || ts.isPostfixUnaryExpression(node)) &&
+                isAuthority(node.operand)
+              ) count += 1;
+              if (ts.isDeleteExpression(node) && isAuthority(node.expression)) count += 1;
+              if (ts.isCallExpression(node) && node.arguments.length > 0) {
+                const callee = node.expression.getText(sourceFile);
+                const target = node.arguments[0];
+                if (
+                  ['Object.defineProperty', 'Reflect.defineProperty', 'Object.assign'].includes(callee) &&
+                  (
+                    isAuthority(target) ||
+                    (ts.isIdentifier(target) && target.text === 'assert')
+                  )
+                ) count += 1;
+              }
+              ts.forEachChild(node, visit);
+            };
+            visit(sourceFile);
+            return count;
+          }
+
+          function topologyTopLevelMeasurementSetCount(sourceFile) {
+            return sourceFile.statements.filter((statement) => {
+              if (!ts.isVariableStatement(statement)) return false;
+              if (statement.declarationList.declarations.length !== 1) return false;
+              const declaration = statement.declarationList.declarations[0];
+              return (
+                ts.isIdentifier(declaration.name) &&
+                declaration.name.text === 'reconstructionMeasurementMutantValues' &&
+                declaration.initializer?.getText(sourceFile) === [
+                  'new Set(',
+                  '  reconstructionMeasurementMutants.map(([, mutant]) => mutant),',
+                  ')',
+                ].join('\n')
+              );
+            }).length;
+          }
+
+          function topologyTopLevelMeasurementDistinctAssertionCount(sourceFile) {
+            return sourceFile.statements.filter((statement) => {
+              if (!ts.isExpressionStatement(statement)) return false;
+              const value = statement.getText(sourceFile);
+              return (
+                value.startsWith('assert.equal(') &&
+                value.includes('reconstructionMeasurementMutantValues.size,') &&
+                value.includes('\n  8,\n') &&
+                value.includes('segstore_reconstruction_measurement_mutant_values_not_unique')
               );
             }).length;
           }
@@ -326,7 +434,7 @@ jobs:
                 ].join('\n') &&
                 ts.isExpressionStatement(body[1]) &&
                 body[1].getText(sourceFile) ===
-                  'assert.throws(() => auditSegstoreProof(mutant), expected);' &&
+                  'assertThrows(() => auditSegstoreProof(mutant), expected);' &&
                 ts.isExpressionStatement(body[2]) &&
                 body[2].getText(sourceFile) ===
                   'reconstructionMeasurementMutantsExecuted += 1;'
@@ -358,6 +466,26 @@ jobs:
               'focused_topology_measurement_mutant_array_not_exact',
             );
             assert.equal(
+              topologyNamedThrowsImportCount(sourceFile),
+              1,
+              'focused_topology_measurement_named_throws_import_not_exact',
+            );
+            assert.equal(
+              topologyRejectionAuthorityMutationCount(sourceFile),
+              0,
+              'focused_topology_measurement_rejection_authority_mutated',
+            );
+            assert.equal(
+              topologyTopLevelMeasurementSetCount(sourceFile),
+              1,
+              'focused_topology_measurement_mutant_value_set_not_exact',
+            );
+            assert.equal(
+              topologyTopLevelMeasurementDistinctAssertionCount(sourceFile),
+              1,
+              'focused_topology_measurement_mutant_distinct_assertion_not_exact',
+            );
+            assert.equal(
               topologyTopLevelVariableDeclarationCount(
                 sourceFile,
                 'reconstructionMeasurementMutantsExecuted',
@@ -385,7 +513,10 @@ jobs:
               ['const reconstructionMeasurementMutants = [', 'array'],
               ['let reconstructionMeasurementMutantsExecuted = 0;', 'counter'],
               ['for (const [family, mutant, expected] of reconstructionMeasurementMutants) {', 'loop'],
-              ['  assert.throws(() => auditSegstoreProof(mutant), expected);', 'assertion'],
+              ['  assertThrows(() => auditSegstoreProof(mutant), expected);', 'assertion'],
+              ['const reconstructionMeasurementMutantValues = new Set(', 'value_set'],
+              ['  reconstructionMeasurementMutantValues.size,', 'distinct_actual'],
+              ['  "segstore_reconstruction_measurement_mutant_values_not_unique",', 'distinct_marker'],
               ['  reconstructionMeasurementMutantsExecuted += 1;', 'increment'],
               ['  reconstructionMeasurementMutantsExecuted,', 'actual_count'],
               ['  8,', 'expected_count'],
@@ -397,13 +528,53 @@ jobs:
                 `focused_topology_measurement_mutant_${marker}_not_bound`,
               );
             }
-            for (const family of topologyMeasurementMutantFamilies) {
+            for (const [family] of topologyMeasurementMutantSpecs) {
               assert.equal(
                 topologyExecutableExactLineCount(source, `    "${family}",`),
                 1,
                 `focused_topology_measurement_mutant_family_not_bound:${family}`,
               );
             }
+          }
+
+          function genericMeasurementPayloadMutant(source) {
+            const sourceFile = topologySourceFile(
+              source,
+              'focused_topology_measurement_generic_payload_parse_failed',
+            );
+            const edits = [];
+            for (const statement of sourceFile.statements) {
+              if (!ts.isVariableStatement(statement)) continue;
+              for (const declaration of statement.declarationList.declarations) {
+                if (
+                  !ts.isIdentifier(declaration.name) ||
+                  declaration.name.text !== 'reconstructionMeasurementMutants' ||
+                  !declaration.initializer ||
+                  !ts.isArrayLiteralExpression(declaration.initializer)
+                ) continue;
+                for (const element of declaration.initializer.elements) {
+                  assert.ok(
+                    ts.isArrayLiteralExpression(element) && element.elements.length === 3,
+                    'focused_topology_measurement_generic_payload_tuple_not_exact',
+                  );
+                  edits.push({
+                    start: element.elements[1].getStart(sourceFile),
+                    end: element.elements[2].end,
+                    replacement: '"not-the-segstore-proof", /.*/',
+                  });
+                }
+              }
+            }
+            assert.equal(
+              edits.length,
+              8,
+              'focused_topology_measurement_generic_payload_edit_count',
+            );
+            let mutant = source;
+            for (const edit of edits.sort((left, right) => right.start - left.start)) {
+              mutant = mutant.slice(0, edit.start) + edit.replacement + mutant.slice(edit.end);
+            }
+            return mutant;
           }
 
           function workflowOnRange(source) {
@@ -898,12 +1069,12 @@ jobs:
           );
           const deadLoopBodyTopologyMeasurementMutants = topologyText.replace(
             [
-              '  assert.throws(() => auditSegstoreProof(mutant), expected);',
+              '  assertThrows(() => auditSegstoreProof(mutant), expected);',
               '  reconstructionMeasurementMutantsExecuted += 1;',
             ].join('\n'),
             [
               '  if (0) {',
-              '  assert.throws(() => auditSegstoreProof(mutant), expected);',
+              '  assertThrows(() => auditSegstoreProof(mutant), expected);',
               '  reconstructionMeasurementMutantsExecuted += 1;',
               '  }',
               '  reconstructionMeasurementMutantsExecuted++;',
@@ -917,6 +1088,34 @@ jobs:
           assert.throws(
             () => auditTopologyMeasurementMutantExecution(deadLoopBodyTopologyMeasurementMutants),
             /focused_topology_measurement_mutant_loop_not_top_level/,
+          );
+          const genericPayloadTopologyMeasurementMutants =
+            genericMeasurementPayloadMutant(topologyText);
+          assert.notEqual(
+            genericPayloadTopologyMeasurementMutants,
+            topologyText,
+            'focused_topology_measurement_generic_payload_mutant_not_applied',
+          );
+          assert.throws(
+            () => auditTopologyMeasurementMutantExecution(
+              genericPayloadTopologyMeasurementMutants,
+            ),
+            /focused_topology_measurement_mutant_array_not_exact/,
+          );
+          const mutableRejectionTopologyMeasurementMutants = topologyText.replace(
+            'let reconstructionMeasurementMutantsExecuted = 0;',
+            'let reconstructionMeasurementMutantsExecuted = 0;\nassert.throws = () => {};',
+          );
+          assert.notEqual(
+            mutableRejectionTopologyMeasurementMutants,
+            topologyText,
+            'focused_topology_measurement_mutable_rejection_mutant_not_applied',
+          );
+          assert.throws(
+            () => auditTopologyMeasurementMutantExecution(
+              mutableRejectionTopologyMeasurementMutants,
+            ),
+            /focused_topology_measurement_rejection_authority_mutated/,
           );
           assert.throws(
             () => audit(text.replace(`      - "${storageSources[0]}"`, `      # removed ${storageSources[0]}`)),
@@ -1066,6 +1265,9 @@ jobs:
           console.log('focused_terminal_matrix_falsifier=true');
           console.log('focused_topology_measurement_mutant_execution_bound=true');
           console.log('focused_topology_measurement_mutant_ast_top_level_bound=true');
+          console.log('focused_topology_measurement_mutant_payload_digests_bound=true');
+          console.log('focused_topology_measurement_rejection_authority_immutable=true');
+          console.log('focused_topology_measurement_mutant_values_distinct=true');
           NODE
       - name: Syntax
         run: |
