@@ -95,7 +95,9 @@ jobs:
           node-version: ${{ matrix.node }}
 
       - name: Install reviewed dependencies
-        run: npm ci
+        run: |
+          test "$(node -p 'process.versions.node.split(".")[0]')" = "${{ matrix.node }}"
+          npm ci
 
       - name: Prove focused workflow dependency closure
         run: |
@@ -429,6 +431,52 @@ jobs:
             }
           }
 
+          function auditFocusedCriticalStepBlocks(source) {
+            const exactBlock = (lines, marker) => {
+              const block = lines.join("\n");
+              const count = source.split(block).length - 1;
+              assert.equal(count, 1, `${marker}:${count}`);
+            };
+            exactBlock([
+              "      - name: Checkout exact revision",
+              "        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6",
+              "        with:",
+              "          fetch-depth: 1",
+              "          persist-credentials: false",
+              "",
+              `      - name: Use Node.js ${expressionOpen} matrix.node }}`,
+            ], "focused_checkout_block_not_exact");
+            exactBlock([
+              `      - name: Use Node.js ${expressionOpen} matrix.node }}`,
+              "        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6",
+              "        with:",
+              `          node-version: ${expressionOpen} matrix.node }}`,
+              "",
+              "      - name: Install reviewed dependencies",
+            ], "focused_setup_node_block_not_exact");
+            exactBlock([
+              "      - name: Install reviewed dependencies",
+              "        run: |",
+              "          test \"$(node -p 'process.versions.node.split(\".\")[0]')\" = \"" + expressionOpen + " matrix.node }}\"",
+              "          npm ci",
+              "",
+              "      - name: Prove focused workflow dependency closure",
+            ], "focused_runtime_major_assertion_not_exact");
+            const hygieneBlock = [
+              "      - name: Committed-range diff hygiene",
+              "        if: github.event_name == 'pull_request' || github.event_name == 'push'",
+              "        env:",
+              `          CI_DIFF_EVENT_NAME: ${expressionOpen} github.event_name }}`,
+              `          CI_DIFF_PR_BASE_SHA: ${expressionOpen} github.event.pull_request.base.sha }}`,
+              `          CI_DIFF_PUSH_BEFORE_SHA: ${expressionOpen} github.event.before }}`,
+              `          CI_DIFF_CURRENT_SHA: ${expressionOpen} github.event.pull_request.head.sha || github.sha }}`,
+              `          CI_DIFF_CHECKOUT_SHA: ${expressionOpen} github.sha }}`,
+              `          CI_DIFF_BASE_REMOTE: ${expressionOpen} github.server_url }}/${expressionOpen} github.repository }}.git`,
+              `          CI_DIFF_HEAD_REMOTE: ${expressionOpen} github.server_url }}/${expressionOpen} github.event.pull_request.head.repo.full_name || github.repository }}.git`,
+              "        run: bash scripts/ci_diff_hygiene_v1.sh",
+            ].join("\n") + "\n";
+            assert.ok(source.endsWith(hygieneBlock), "focused_hygiene_block_not_exact");
+          }
           function rejectFailureTolerance(source, marker) {
             assert.ok(
               !/^\s*(?:continue-on-error|"continue-on-error"|'continue-on-error')\s*:/m.test(source),
@@ -439,6 +487,7 @@ jobs:
           function audit(source) {
             rejectFailureTolerance(source, "focused_failure_tolerance_present");
             auditFocusedStepMappings(source);
+            auditFocusedCriticalStepBlocks(source);
             auditFocusedEventContract(source);
             auditFocusedStrategyContract(source);
             const pullRequestPaths = workflowEventPathEntries(source, "pull_request");
@@ -536,6 +585,18 @@ jobs:
             () => audit(text.replace('        node: [22, 24, 26]', '        node: [22, 24]')),
             /focused_node_matrix_not_exact/,
           );
+          const criticalIdentityMutants = [
+            ["checkout_ref_replay", "          persist-credentials: false\n", "          persist-credentials: false\n          ref: c87df8a2f60290a9579c79dfd0a4a91798b38313\n"],
+            ["setup_constant_node", `          node-version: ${expressionOpen} matrix.node }}`, "          node-version: 22"],
+            ["runtime_major_assertion_deleted", "          test \"$(node -p 'process.versions.node.split(\".\")[0]')\" = \"" + expressionOpen + " matrix.node }}\"\n", ""],
+            ["hygiene_event_replay", `          CI_DIFF_EVENT_NAME: ${expressionOpen} github.event_name }}`, "          CI_DIFF_EVENT_NAME: pull_request"],
+            ["hygiene_checkout_replay", `          CI_DIFF_CHECKOUT_SHA: ${expressionOpen} github.sha }}`, "          CI_DIFF_CHECKOUT_SHA: c87df8a2f60290a9579c79dfd0a4a91798b38313"],
+          ];
+          for (const [family, from, to] of criticalIdentityMutants) {
+            const mutant = text.replace(from, to);
+            assert.notEqual(mutant, text, `focused_critical_identity_mutant_not_applied:${family}`);
+            assert.throws(() => audit(mutant), /focused_(checkout_block|setup_node_block|runtime_major_assertion|hygiene_block)_not_exact/);
+          }
           const negativePathMutants = [
             ["single_quoted_exact", `      - '!${storageSources[0]}'`],
             ["double_quoted_exact", `      - \"!${storageSources[0]}\"`],
