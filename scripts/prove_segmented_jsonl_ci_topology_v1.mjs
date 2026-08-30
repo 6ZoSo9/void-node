@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 
 import assert from "node:assert/strict";
+import ts from "typescript";
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -458,6 +459,16 @@ function auditFocused(source) {
     source,
     "Prove focused workflow dependency closure",
   ).join("\n");
+  const inlineNodeSource = workflowInlineNodeSource(inlineAuditBody);
+  assert.equal(
+    topLevelCallCount(
+      inlineNodeSource,
+      "auditTopologyMeasurementMutantExecution",
+      "focused_inline_node_parse_failed",
+    ),
+    1,
+    "focused_topology_measurement_mutant_caller_not_top_level",
+  );
   rejectLiteralFalseGuard(
     inlineAuditBody,
     "focused_topology_measurement_mutant_caller_literal_false_guard",
@@ -466,6 +477,8 @@ function auditFocused(source) {
     inlineAuditBody,
     [
       "function topologyExecutableRegexIndex(source, pattern) {",
+      "const ts = require('typescript');",
+      "function topologyTopLevelVariableDeclarationCount(sourceFile, name, initializer) {",
       "'focused_topology_measurement_mutant_literal_false_guard',",
       "const unreachableTopologyMeasurementMutantExecution = topologyText",
       "() => auditTopologyMeasurementMutantExecution(unreachableTopologyMeasurementMutantExecution),",
@@ -679,6 +692,34 @@ function rejectEarlyTrueReturn(body, lastRequired, marker) {
 
 function rejectLiteralFalseGuard(body, marker) {
   assert.equal(executableRegexIndex(body, /\bif\s*\(\s*false\s*\)\s*\{/), -1, marker);
+}
+
+function parseJavaScriptSource(source, fileName, marker) {
+  const parsed = ts.createSourceFile(fileName, source, ts.ScriptTarget.Latest, true, ts.ScriptKind.JS);
+  assert.equal(parsed.parseDiagnostics.length, 0, marker);
+  return parsed;
+}
+
+function workflowInlineNodeSource(stepBody) {
+  const lines = stepBody.split("\n");
+  const start = lines.indexOf("          node <<'NODE'");
+  const end = lines.indexOf("          NODE", start + 1);
+  assert.ok(start >= 0 && end > start, "focused_inline_node_heredoc_missing");
+  const body = lines.slice(start + 1, end);
+  for (const line of body) {
+    assert.ok(line === "" || line.startsWith("          "), "focused_inline_node_indent_not_exact");
+  }
+  return body.map((line) => line.slice(10)).join("\n");
+}
+
+function topLevelCallCount(source, calleeName, marker) {
+  const parsed = parseJavaScriptSource(source, "focused-inline-audit.js", marker);
+  return parsed.statements.filter((statement) =>
+    ts.isExpressionStatement(statement) &&
+    ts.isCallExpression(statement.expression) &&
+    ts.isIdentifier(statement.expression.expression) &&
+    statement.expression.expression.text === calleeName
+  ).length;
 }
 
 function auditSegstoreProof(source) {
@@ -904,18 +945,33 @@ function auditSegstoreProof(source) {
 }
 
 function auditBaseline(source) {
-  assert.equal(
-    exactLineCount(source, `node ${PROOF_PATH}`),
-    1,
-    "baseline_topology_proof_not_terminal",
+  assert.deepEqual(
+    source.split("\n").slice(0, 8),
+    [
+      "#!/usr/bin/env bash",
+      "set -euo pipefail",
+      "",
+      'ROOT="$(git rev-parse --show-toplevel)"',
+      'cd "$ROOT"',
+      "",
+      `node ${PROOF_PATH}`,
+      "",
+    ],
+    "baseline_topology_proof_prefix_not_exact",
   );
 }
 
 function auditCi(source) {
-  assert.equal(
-    exactLineCount(source, `        run: bash ${BASELINE_PATH}`),
-    1,
-    "ci_baseline_caller_not_terminal",
+  const lines = source.split("\n");
+  const name = "      - name: Typecheck (no emit)";
+  const starts = lines.flatMap((line, index) => line === name ? [index] : []);
+  assert.equal(starts.length, 1, "ci_baseline_step_count_not_exact");
+  let end = starts[0] + 1;
+  while (end < lines.length && !lines[end].startsWith("      - name: ")) end += 1;
+  assert.deepEqual(
+    lines.slice(starts[0], end),
+    [name, `        run: bash ${BASELINE_PATH}`],
+    "ci_baseline_step_not_exact",
   );
   rejectFailureTolerance(source, "ci_failure_tolerance_present");
 }
@@ -1186,7 +1242,51 @@ assert.notEqual(
 );
 assert.throws(
   () => auditFocused(unreachableTopologyMeasurementMutantCaller),
-  /focused_topology_measurement_mutant_caller_literal_false_guard/,
+  /focused_topology_measurement_mutant_caller_literal_false_guard|focused_topology_measurement_mutant_caller_not_top_level/,
+);
+
+for (const [family, guard] of [
+  ["if_zero", "          if (0) {"],
+  ["if_not_true", "          if (!true) {"],
+]) {
+  const unreachableEquivalentCaller = focused.replace(
+    "          auditTopologyMeasurementMutantExecution(topologyText);\n",
+    [
+      guard,
+      "          auditTopologyMeasurementMutantExecution(topologyText);",
+      "          }",
+      "",
+    ].join("\n"),
+  );
+  assert.notEqual(
+    unreachableEquivalentCaller,
+    focused,
+    `focused_topology_measurement_mutant_caller_${family}_mutant_not_applied`,
+  );
+  assert.throws(
+    () => auditFocused(unreachableEquivalentCaller),
+    /focused_topology_measurement_mutant_caller_not_top_level/,
+  );
+}
+
+const earlyReturnTopologyMeasurementMutantCaller = focused.replace(
+  "          auditTopologyMeasurementMutantExecution(topologyText);\n",
+  [
+    "          (function () {",
+    "          return;",
+    "          auditTopologyMeasurementMutantExecution(topologyText);",
+    "          })();",
+    "",
+  ].join("\n"),
+);
+assert.notEqual(
+  earlyReturnTopologyMeasurementMutantCaller,
+  focused,
+  "focused_topology_measurement_mutant_caller_early_return_mutant_not_applied",
+);
+assert.throws(
+  () => auditFocused(earlyReturnTopologyMeasurementMutantCaller),
+  /focused_topology_measurement_mutant_caller_not_top_level/,
 );
 
 const withoutSemanticProof = focused.replace(
@@ -1719,19 +1819,42 @@ assert.equal(
 );
 
 const withoutBaselineInvocation = baseline.replace(`node ${PROOF_PATH}`, `node --check ${PROOF_PATH}`);
-assert.throws(() => auditBaseline(withoutBaselineInvocation), /baseline_topology_proof_not_terminal/);
+assert.throws(
+  () => auditBaseline(withoutBaselineInvocation),
+  /baseline_topology_proof_prefix_not_exact/,
+);
+
+const deadBaselineInvocation = baseline.replace(
+  `node ${PROOF_PATH}`,
+  `if false; then\nnode ${PROOF_PATH}\nfi`,
+);
+assert.notEqual(deadBaselineInvocation, baseline, "baseline_dead_topology_mutant_not_applied");
+assert.throws(
+  () => auditBaseline(deadBaselineInvocation),
+  /baseline_topology_proof_prefix_not_exact/,
+);
 
 const withoutCiCaller = ci.replace(
   `        run: bash ${BASELINE_PATH}`,
   `        run: bash -n ${BASELINE_PATH}`,
 );
-assert.throws(() => auditCi(withoutCiCaller), /ci_baseline_caller_not_terminal/);
+assert.throws(() => auditCi(withoutCiCaller), /ci_baseline_step_not_exact/);
+
+const skippedCiCaller = ci.replace(
+  "      - name: Typecheck (no emit)\n        run:",
+  "      - name: Typecheck (no emit)\n        if: ${{ false }}\n        run:",
+);
+assert.notEqual(skippedCiCaller, ci, "ci_skipped_baseline_mutant_not_applied");
+assert.throws(() => auditCi(skippedCiCaller), /ci_baseline_step_not_exact/);
 
 const tolerantCiCaller = ci.replace(
   "      - name: Typecheck (no emit)\n        run:",
   "      - name: Typecheck (no emit)\n        continue-on-error: true\n        run:",
 );
-assert.throws(() => auditCi(tolerantCiCaller), /ci_failure_tolerance_present/);
+assert.throws(
+  () => auditCi(tolerantCiCaller),
+  /ci_baseline_step_not_exact|ci_failure_tolerance_present/,
+);
 
 console.log("VOID_SEGMENTED_JSONL_CI_TOPOLOGY_V1_GREEN");
 console.log("focused_trigger_closure_bound=true");
@@ -1765,5 +1888,8 @@ console.log("segstore_reconstruction_measurement_literal_false_guard_rejected=tr
 console.log("segstore_reconstruction_measurement_mutant_caller_bound=true");
 console.log("segstore_reconstruction_measurement_mutant_block_literal_false_guard_rejected=true");
 console.log("focused_topology_measurement_mutant_caller_literal_false_guard_rejected=true");
+console.log("focused_topology_measurement_mutant_caller_ast_top_level_bound=true");
+console.log("repository_ci_baseline_step_exact=true");
+console.log("baseline_topology_proof_prefix_exact=true");
 console.log(`segstore_reconstruction_measurement_mutants_executed=${reconstructionMeasurementMutantsExecuted}`);
 console.log("segstore_exact_generation_helper_noop_rejected=true");
