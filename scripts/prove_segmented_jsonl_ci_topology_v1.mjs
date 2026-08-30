@@ -90,12 +90,32 @@ function workflowEventRange(source, eventName) {
   return { lines: root.lines, start, end };
 }
 
+function parseWorkflowMappingKey(line, indentation, marker) {
+  const prefix = " ".repeat(indentation);
+  if (!line.startsWith(prefix) || line.startsWith(`${prefix} `)) return null;
+  const candidate = line.slice(indentation);
+  if (candidate === "" || candidate.startsWith("#")) return null;
+  for (const pattern of [
+    /^([A-Za-z0-9_-]+):/,
+    /^"([A-Za-z0-9_-]+)":/,
+    /^'([A-Za-z0-9_-]+)':/,
+  ]) {
+    const match = pattern.exec(candidate);
+    if (match) return match[1];
+  }
+  assert.fail(`${marker}:${candidate}`);
+}
+
 function workflowEventMappingKeys(source, eventName) {
   const event = workflowEventRange(source, eventName);
   const keys = [];
   for (let index = event.start + 1; index < event.end; index += 1) {
-    const match = /^    ([A-Za-z0-9_-]+):/.exec(event.lines[index]);
-    if (match) keys.push(match[1]);
+    const key = parseWorkflowMappingKey(
+      event.lines[index],
+      4,
+      `focused_${eventName}_mapping_key_not_exact`,
+    );
+    if (key !== null) keys.push(key);
   }
   return keys;
 }
@@ -173,12 +193,129 @@ function auditFocusedEventContract(source) {
   );
 }
 
+function workflowProofJobRange(source) {
+  const lines = source.split("\n");
+  const jobsRoots = [];
+  for (let index = 0; index < lines.length; index += 1) {
+    if (lines[index] === "jobs:") jobsRoots.push(index);
+  }
+  assert.equal(jobsRoots.length, 1, `focused_jobs_root_count:${jobsRoots.length}`);
+  const matches = [];
+  for (let index = jobsRoots[0] + 1; index < lines.length; index += 1) {
+    if (lines[index] === "  proof:") matches.push(index);
+  }
+  assert.equal(matches.length, 1, `focused_proof_job_count:${matches.length}`);
+  const start = matches[0];
+  let end = lines.length;
+  for (let index = start + 1; index < lines.length; index += 1) {
+    if (/^  \S/.test(lines[index])) {
+      end = index;
+      break;
+    }
+  }
+  return { lines, start, end };
+}
+
+function workflowMappingKeysInRange(lines, start, end, indentation, marker) {
+  const keys = [];
+  for (let index = start + 1; index < end; index += 1) {
+    const key = parseWorkflowMappingKey(lines[index], indentation, marker);
+    if (key !== null) keys.push(key);
+  }
+  return keys;
+}
+
+function workflowChildMappingRange(lines, parentStart, parentEnd, parentLine, indentation, marker) {
+  const matches = [];
+  for (let index = parentStart + 1; index < parentEnd; index += 1) {
+    if (lines[index] === parentLine) matches.push(index);
+  }
+  assert.equal(matches.length, 1, `${marker}_count:${matches.length}`);
+  const start = matches[0];
+  let end = parentEnd;
+  for (let index = start + 1; index < parentEnd; index += 1) {
+    if (parseWorkflowMappingKey(lines[index], indentation, `${marker}_sibling_key_not_exact`) !== null) {
+      end = index;
+      break;
+    }
+  }
+  return { lines, start, end };
+}
+
+function auditFocusedStrategyContract(source) {
+  const job = workflowProofJobRange(source);
+  assert.deepEqual(
+    workflowMappingKeysInRange(
+      job.lines,
+      job.start,
+      job.end,
+      4,
+      "focused_proof_job_mapping_key_not_exact",
+    ),
+    ["name", "runs-on", "timeout-minutes", "strategy", "steps"],
+    "focused_proof_job_mapping_keys_not_exact",
+  );
+  const strategy = workflowChildMappingRange(
+    job.lines,
+    job.start,
+    job.end,
+    "    strategy:",
+    4,
+    "focused_strategy",
+  );
+  assert.deepEqual(
+    workflowMappingKeysInRange(
+      strategy.lines,
+      strategy.start,
+      strategy.end,
+      6,
+      "focused_strategy_mapping_key_not_exact",
+    ),
+    ["fail-fast", "matrix"],
+    "focused_strategy_mapping_keys_not_exact",
+  );
+  assert.equal(
+    strategy.lines.slice(strategy.start + 1, strategy.end).filter((line) => line === "      fail-fast: false").length,
+    1,
+    "focused_fail_fast_not_exact",
+  );
+  const matrix = workflowChildMappingRange(
+    strategy.lines,
+    strategy.start,
+    strategy.end,
+    "      matrix:",
+    6,
+    "focused_matrix",
+  );
+  assert.deepEqual(
+    workflowMappingKeysInRange(
+      matrix.lines,
+      matrix.start,
+      matrix.end,
+      8,
+      "focused_matrix_mapping_key_not_exact",
+    ),
+    ["node"],
+    "focused_matrix_mapping_keys_not_exact",
+  );
+  assert.equal(
+    matrix.lines.slice(matrix.start + 1, matrix.end).filter((line) => line === "        node: [22, 24, 26]").length,
+    1,
+    "focused_node_matrix_not_exact",
+  );
+}
+
 function rejectFailureTolerance(source, marker) {
-  assert.ok(!/^\s*continue-on-error:\s*true\s*$/m.test(source), marker);
+  assert.ok(
+    !/^\s*(?:continue-on-error|"continue-on-error"|'continue-on-error')\s*:/m.test(source),
+    marker,
+  );
 }
 
 function auditFocused(source) {
+  rejectFailureTolerance(source, "focused_failure_tolerance_present");
   auditFocusedEventContract(source);
+  auditFocusedStrategyContract(source);
   const pullRequestPaths = workflowEventPathEntries(source, "pull_request");
   const pushPaths = workflowEventPathEntries(source, "push");
   for (const dependency of TRIGGER_DEPENDENCIES) {
@@ -238,7 +375,6 @@ function auditFocused(source) {
     1,
     "focused_diff_hygiene_not_terminal",
   );
-  rejectFailureTolerance(source, "focused_failure_tolerance_present");
 }
 
 function functionSlice(source, startMarker, endMarker, marker) {
@@ -606,11 +742,51 @@ const pullRequestFilterMutants = [
   ["types_without_synchronize_flow", "    types: [opened, reopened]\n"],
   ["types_without_synchronize_block", "    types:\n      - opened\n      - reopened\n"],
   ["types_single_quoted", "    types: 'opened'\n"],
+  ["types_double_quoted_key", "    \"types\": [opened]\n"],
+  ["types_single_quoted_key", "    'types': [opened]\n"],
+  ["branches_ignore_double_quoted_key", "    \"branches-ignore\": [main]\n"],
+  ["branches_ignore_single_quoted_key", "    'branches-ignore': [main]\n"],
+  ["types_escaped_double_key", "    \"ty\\x70es\": [opened]\n"],
+  ["duplicate_semantic_key", "    types: [opened, synchronize, reopened]\n    \"types\": [opened]\n"],
 ];
 for (const [family, filter] of pullRequestFilterMutants) {
   const mutant = focused.replace("  pull_request:\n", `  pull_request:\n${filter}`);
   assert.notEqual(mutant, focused, `focused_pull_request_filter_mutant_not_applied:${family}`);
-  assert.throws(() => auditFocused(mutant), /focused_pull_request_mapping_keys_not_exact/);
+  assert.throws(() => auditFocused(mutant), /focused_pull_request_mapping_keys?_not_exact/);
+}
+
+const matrixSuppressionMutants = [
+  ["exclude_block", "        exclude:\n          - node: 26\n"],
+  ["exclude_flow", "        exclude: [{ node: 26 }]\n"],
+  ["exclude_double_quoted_key", "        \"exclude\": [{ node: 26 }]\n"],
+  ["exclude_single_quoted_key", "        'exclude': [{ node: 26 }]\n"],
+  ["include_block", "        include:\n          - node: 28\n"],
+  ["alternate_axis", "        os: [ubuntu-latest]\n"],
+  ["max_parallel", "      max-parallel: 1\n"],
+  ["job_if", "    if: ${{ false }}\n"],
+];
+for (const [family, addition] of matrixSuppressionMutants) {
+  const target = "        node: [22, 24, 26]\n";
+  const mutant = focused.replace(target, `${target}${addition}`);
+  assert.notEqual(mutant, focused, `focused_matrix_mutant_not_applied:${family}`);
+  assert.throws(
+    () => auditFocused(mutant),
+    /focused_(matrix|strategy|proof_job)_mapping/,
+  );
+}
+
+const failureToleranceMutants = [
+  ["literal_true", "    continue-on-error: true\n"],
+  ["quoted_true", "    continue-on-error: 'true'\n"],
+  ["expression_true", "    continue-on-error: ${{ true }}\n"],
+  ["expression_from_json_true", "    continue-on-error: ${{ fromJSON('true') }}\n"],
+  ["double_quoted_key", "    \"continue-on-error\": true\n"],
+  ["single_quoted_key", "    'continue-on-error': true\n"],
+];
+for (const [family, addition] of failureToleranceMutants) {
+  const mutant = focused.replace("  proof:\n", `  proof:\n${addition}`);
+  assert.notEqual(mutant, focused, `focused_failure_tolerance_mutant_not_applied:${family}`);
+  assert.throws(() => auditFocused(mutant), /focused_failure_tolerance_present/);
 }
 
 const withoutInlineAudit = focused.replace(
