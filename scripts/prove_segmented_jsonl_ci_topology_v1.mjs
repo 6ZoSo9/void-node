@@ -470,6 +470,15 @@ function auditFocused(source) {
     1,
     "focused_topology_measurement_mutant_caller_not_top_level",
   );
+  assert.equal(
+    topLevelCallCount(
+      inlineNodeSource,
+      "auditTopologyRepositoryCiPreTypecheckEvidence",
+      "focused_inline_node_parse_failed",
+    ),
+    1,
+    "focused_topology_repository_ci_pre_typecheck_caller_not_top_level",
+  );
   rejectLiteralFalseGuard(
     inlineAuditBody,
     "focused_topology_measurement_mutant_caller_literal_false_guard",
@@ -485,14 +494,20 @@ function auditFocused(source) {
       "function topologyNamedThrowsImportCount(sourceFile) {",
       "function topologyRejectionAuthorityMutationCount(sourceFile) {",
       "function genericMeasurementPayloadMutant(source) {",
+      "function topologyTopLevelRepositoryCiPreTypecheckEvidenceCount(sourceFile) {",
+      "function auditTopologyRepositoryCiPreTypecheckEvidence(source) {",
       "console.log('focused_topology_measurement_mutant_payload_digests_bound=true');",
       "console.log('focused_topology_measurement_rejection_authority_immutable=true');",
       "console.log('focused_topology_measurement_mutant_values_distinct=true');",
+      "console.log('focused_repository_ci_pre_typecheck_evidence_top_level=true');",
+      "console.log('focused_repository_ci_pre_typecheck_dead_block_rejected=true');",
       "'focused_topology_measurement_mutant_literal_false_guard',",
       "const unreachableTopologyMeasurementMutantExecution = topologyText",
       "() => auditTopologyMeasurementMutantExecution(unreachableTopologyMeasurementMutantExecution),",
       "const genericPayloadTopologyMeasurementMutants =",
       "const mutableRejectionTopologyMeasurementMutants =",
+      "const unreachableRepositoryCiPreTypecheckEvidence = topologyText",
+      "() => auditTopologyRepositoryCiPreTypecheckEvidence(",
     ],
     "focused_topology_measurement_reachability_wall_not_bound",
   );
@@ -508,6 +523,10 @@ function auditFocused(source) {
     [
       "          auditTopologyMeasurementMutantExecution(topologyText);",
       "focused_topology_measurement_mutant_caller_not_bound",
+    ],
+    [
+      "          auditTopologyRepositoryCiPreTypecheckEvidence(topologyText);",
+      "focused_topology_repository_ci_pre_typecheck_caller_not_bound",
     ],
   ]) {
     assert.equal(exactLineCount(source, line), 1, marker);
@@ -1216,13 +1235,43 @@ function auditCi(source) {
   assert.deepEqual(jobKeys, ["build"], "ci_job_keys_not_exact");
   const buildStarts = lines.flatMap((line, index) => line === "  build:" ? [index] : []);
   assert.equal(buildStarts.length, 1, "ci_build_job_count_not_exact");
-  const buildKeys = [];
+  let buildEnd = lines.length;
   for (let index = buildStarts[0] + 1; index < lines.length; index += 1) {
-    if (/^  \S/.test(lines[index])) break;
-    const key = parseWorkflowMappingKey(lines[index], 4, "ci_build_mapping_key_not_exact");
-    if (key !== null) buildKeys.push(key);
+    if (/^  \S/.test(lines[index])) {
+      buildEnd = index;
+      break;
+    }
   }
-  assert.deepEqual(buildKeys, ["runs-on", "steps"], "ci_build_job_keys_not_exact");
+  const expectedBuild = [
+    "  build:",
+    "    runs-on: ubuntu-latest",
+    "    steps:",
+    "      - name: Checkout",
+    "        uses: actions/checkout@v6",
+    "        with:",
+    "          fetch-depth: 0",
+    "      - name: Use Node.js",
+    "        uses: actions/setup-node@v6",
+    "        with:",
+    "          node-version: '22.x'",
+    "          cache: 'npm'",
+    "      - name: Install",
+    "        run: npm ci",
+    "      - name: Typecheck (no emit)",
+    "        run: |",
+    '          test "$(git hash-object tools/check_tsc_noemit_baseline.sh)" = "$(git rev-parse "${GITHUB_SHA}:tools/check_tsc_noemit_baseline.sh")"',
+    '          test "$(git hash-object scripts/prove_segmented_jsonl_ci_topology_v1.mjs)" = "$(git rev-parse "${GITHUB_SHA}:scripts/prove_segmented_jsonl_ci_topology_v1.mjs")"',
+    '          test "$(git hash-object .github/workflows/ci.yml)" = "$(git rev-parse "${GITHUB_SHA}:.github/workflows/ci.yml")"',
+    "          bash tools/check_tsc_noemit_baseline.sh",
+    "      - name: Check public node operator trial terminal final seal",
+    "        run: bash tools/check_public_node_operator_trial_terminal_final_seal_v1.sh",
+    "",
+  ];
+  assert.deepEqual(
+    lines.slice(buildStarts[0], buildEnd),
+    expectedBuild,
+    "ci_build_job_body_not_exact",
+  );
   const name = "      - name: Typecheck (no emit)";
   const starts = lines.flatMap((line, index) => line === name ? [index] : []);
   assert.equal(starts.length, 1, "ci_baseline_step_count_not_exact");
@@ -1230,7 +1279,7 @@ function auditCi(source) {
   while (end < lines.length && !lines[end].startsWith("      - name: ")) end += 1;
   assert.deepEqual(
     lines.slice(starts[0], end),
-    [name, `        run: bash ${BASELINE_PATH}`],
+    expectedBuild.slice(14, 20),
     "ci_baseline_step_not_exact",
   );
   rejectFailureTolerance(source, "ci_failure_tolerance_present");
@@ -1504,7 +1553,7 @@ const withoutInlineAudit = focused.replace(
 assert.notEqual(withoutInlineAudit, focused, "inline_audit_mutant_not_applied");
 assert.throws(
   () => auditFocused(withoutInlineAudit),
-  /focused_named_step_count|focused_step_count_not_exact|focused_inline_audit_step_count|focused_topology_measurement_(path|source|mutant_caller)_not_bound/,
+  /focused_named_step_count|focused_step_count_not_exact|focused_inline_audit_step_count|focused_topology_measurement_(path|source|mutant_caller)_not_bound|focused_topology_repository_ci_pre_typecheck_caller_not_bound/,
 );
 
 const withoutTopologyMeasurementMutantCaller = focused.replace(
@@ -1583,6 +1632,45 @@ assert.throws(
   () => auditFocused(earlyReturnTopologyMeasurementMutantCaller),
   /focused_topology_measurement_mutant_caller_not_top_level/,
 );
+
+const withoutRepositoryCiPreTypecheckCaller = focused.replace(
+  "          auditTopologyRepositoryCiPreTypecheckEvidence(topologyText);\n",
+  "",
+);
+assert.notEqual(
+  withoutRepositoryCiPreTypecheckCaller,
+  focused,
+  "focused_topology_repository_ci_pre_typecheck_caller_mutant_not_applied",
+);
+assert.throws(
+  () => auditFocused(withoutRepositoryCiPreTypecheckCaller),
+  /focused_topology_repository_ci_pre_typecheck_caller_not_bound|focused_topology_repository_ci_pre_typecheck_caller_not_top_level/,
+);
+
+for (const [family, guard] of [
+  ["if_false", "          if (false) {"],
+  ["if_zero", "          if (0) {"],
+  ["if_not_true", "          if (!true) {"],
+]) {
+  const unreachableRepositoryCiPreTypecheckCaller = focused.replace(
+    "          auditTopologyRepositoryCiPreTypecheckEvidence(topologyText);\n",
+    [
+      guard,
+      "          auditTopologyRepositoryCiPreTypecheckEvidence(topologyText);",
+      "          }",
+      "",
+    ].join("\n"),
+  );
+  assert.notEqual(
+    unreachableRepositoryCiPreTypecheckCaller,
+    focused,
+    `focused_topology_repository_ci_pre_typecheck_caller_${family}_mutant_not_applied`,
+  );
+  assert.throws(
+    () => auditFocused(unreachableRepositoryCiPreTypecheckCaller),
+    /focused_topology_repository_ci_pre_typecheck_caller_not_top_level|focused_topology_measurement_mutant_caller_literal_false_guard/,
+  );
+}
 
 const withoutSemanticProof = focused.replace(
   "        run: npx --no-install tsx scripts/prove_segmented_jsonl_v1.ts",
@@ -2138,24 +2226,33 @@ assert.throws(
 );
 
 const withoutCiCaller = ci.replace(
-  `        run: bash ${BASELINE_PATH}`,
-  `        run: bash -n ${BASELINE_PATH}`,
+  `          bash ${BASELINE_PATH}`,
+  `          bash -n ${BASELINE_PATH}`,
 );
-assert.throws(() => auditCi(withoutCiCaller), /ci_baseline_step_not_exact/);
+assertThrows(
+  () => auditCi(withoutCiCaller),
+  /ci_build_job_body_not_exact|ci_baseline_step_not_exact/,
+);
 
 const skippedCiCaller = ci.replace(
   "      - name: Typecheck (no emit)\n        run:",
   "      - name: Typecheck (no emit)\n        if: ${{ false }}\n        run:",
 );
 assert.notEqual(skippedCiCaller, ci, "ci_skipped_baseline_mutant_not_applied");
-assert.throws(() => auditCi(skippedCiCaller), /ci_baseline_step_not_exact/);
+assertThrows(
+  () => auditCi(skippedCiCaller),
+  /ci_build_job_body_not_exact|ci_baseline_step_not_exact/,
+);
 
 const skippedCiBuildJob = ci.replace(
   "  build:\n    runs-on:",
   "  build:\n    if: ${{ false }}\n    runs-on:",
 );
 assert.notEqual(skippedCiBuildJob, ci, "ci_skipped_build_job_mutant_not_applied");
-assert.throws(() => auditCi(skippedCiBuildJob), /ci_build_job_keys_not_exact/);
+assertThrows(
+  () => auditCi(skippedCiBuildJob),
+  /ci_build_job_keys_not_exact|ci_build_job_body_not_exact/,
+);
 
 const quotedSkippedCiBuildJob = ci.replace(
   "  build:\n    runs-on:",
@@ -2166,18 +2263,37 @@ assert.notEqual(
   ci,
   "ci_quoted_skipped_build_job_mutant_not_applied",
 );
-assert.throws(
+assertThrows(
   () => auditCi(quotedSkippedCiBuildJob),
-  /ci_build_job_keys_not_exact/,
+  /ci_build_job_keys_not_exact|ci_build_job_body_not_exact/,
+);
+
+const preTypecheckBaselineReplacement = ci.replace(
+  "      - name: Typecheck (no emit)",
+  [
+    "      - name: Replace topology baseline after checkout",
+    "        run: |",
+    "          printf '#!/usr/bin/env bash\\nexit 0\\n' > tools/check_tsc_noemit_baseline.sh",
+    "      - name: Typecheck (no emit)",
+  ].join("\n"),
+);
+assert.notEqual(
+  preTypecheckBaselineReplacement,
+  ci,
+  "ci_pre_typecheck_replacement_mutant_not_applied",
+);
+assertThrows(
+  () => auditCi(preTypecheckBaselineReplacement),
+  /ci_build_job_body_not_exact/,
 );
 
 const tolerantCiCaller = ci.replace(
   "      - name: Typecheck (no emit)\n        run:",
   "      - name: Typecheck (no emit)\n        continue-on-error: true\n        run:",
 );
-assert.throws(
+assertThrows(
   () => auditCi(tolerantCiCaller),
-  /ci_baseline_step_not_exact|ci_failure_tolerance_present/,
+  /ci_build_job_body_not_exact|ci_baseline_step_not_exact|ci_failure_tolerance_present/,
 );
 
 console.log("VOID_SEGMENTED_JSONL_CI_TOPOLOGY_V1_GREEN");
@@ -2191,6 +2307,9 @@ console.log("focused_push_main_branch_bound=true");
 console.log("focused_semantic_proofs_terminal=true");
 console.log("focused_failure_tolerance_rejected=true");
 console.log("independent_repository_ci_caller_bound=true");
+console.log("repository_ci_complete_step_topology_bound=true");
+console.log("repository_ci_use_time_blob_identity_bound=true");
+console.log("repository_ci_pre_typecheck_replacement_rejected=true");
 console.log("repository_ci_failure_tolerance_rejected=true");
 console.log("topology_proof_self_deletion_rejected=true");
 console.log("segstore_acceptance_terminal_call_deletion_rejected=true");

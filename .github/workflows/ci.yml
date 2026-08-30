@@ -21,6 +21,10 @@ jobs:
       - name: Install
         run: npm ci
       - name: Typecheck (no emit)
-        run: bash tools/check_tsc_noemit_baseline.sh
+        run: |
+          test "$(git hash-object tools/check_tsc_noemit_baseline.sh)" = "$(git rev-parse "${GITHUB_SHA}:tools/check_tsc_noemit_baseline.sh")"
+          test "$(git hash-object scripts/prove_segmented_jsonl_ci_topology_v1.mjs)" = "$(git rev-parse "${GITHUB_SHA}:scripts/prove_segmented_jsonl_ci_topology_v1.mjs")"
+          test "$(git hash-object .github/workflows/ci.yml)" = "$(git rev-parse "${GITHUB_SHA}:.github/workflows/ci.yml")"
+          bash tools/check_tsc_noemit_baseline.sh
       - name: Check public node operator trial terminal final seal
         run: bash tools/check_public_node_operator_trial_terminal_final_seal_v1.sh

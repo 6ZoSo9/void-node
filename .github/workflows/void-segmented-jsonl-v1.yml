@@ -536,6 +536,66 @@ jobs:
             }
           }
 
+          function topologyTopLevelRepositoryCiPreTypecheckEvidenceCount(sourceFile) {
+            let variableCount = 0;
+            let appliedAssertionCount = 0;
+            let rejectionAssertionCount = 0;
+            for (const statement of sourceFile.statements) {
+              if (ts.isVariableStatement(statement)) {
+                for (const declaration of statement.declarationList.declarations) {
+                  if (
+                    ts.isIdentifier(declaration.name) &&
+                    declaration.name.text === 'preTypecheckBaselineReplacement' &&
+                    declaration.initializer
+                  ) {
+                    const initializer = declaration.initializer.getText(sourceFile);
+                    if (
+                      initializer.startsWith('ci.replace(') &&
+                      initializer.includes('Replace topology baseline after checkout') &&
+                      initializer.includes('tools/check_tsc_noemit_baseline.sh')
+                    ) variableCount += 1;
+                  }
+                }
+              }
+              if (!ts.isExpressionStatement(statement)) continue;
+              const text = statement.getText(sourceFile);
+              if (
+                text.startsWith('assert.notEqual(') &&
+                text.includes('preTypecheckBaselineReplacement,') &&
+                text.includes('ci_pre_typecheck_replacement_mutant_not_applied')
+              ) appliedAssertionCount += 1;
+              if (
+                text.startsWith('assertThrows(') &&
+                text.includes('() => auditCi(preTypecheckBaselineReplacement)') &&
+                text.includes('/ci_build_job_body_not_exact/')
+              ) rejectionAssertionCount += 1;
+            }
+            return { variableCount, appliedAssertionCount, rejectionAssertionCount };
+          }
+
+          function auditTopologyRepositoryCiPreTypecheckEvidence(source) {
+            const sourceFile = topologySourceFile(
+              source,
+              'focused_topology_repository_ci_pre_typecheck_parse_failed',
+            );
+            assert.deepEqual(
+              topologyTopLevelRepositoryCiPreTypecheckEvidenceCount(sourceFile),
+              { variableCount: 1, appliedAssertionCount: 1, rejectionAssertionCount: 1 },
+              'focused_topology_repository_ci_pre_typecheck_evidence_not_top_level',
+            );
+            for (const line of [
+              'console.log("repository_ci_complete_step_topology_bound=true");',
+              'console.log("repository_ci_use_time_blob_identity_bound=true");',
+              'console.log("repository_ci_pre_typecheck_replacement_rejected=true");',
+            ]) {
+              assert.equal(
+                topologyExecutableExactLineCount(source, line),
+                1,
+                `focused_topology_repository_ci_terminal_not_bound:${line}`,
+              );
+            }
+          }
+
           function genericMeasurementPayloadMutant(source) {
             const sourceFile = topologySourceFile(
               source,
@@ -1005,6 +1065,7 @@ jobs:
 
           audit(text);
           auditTopologyMeasurementMutantExecution(topologyText);
+          auditTopologyRepositoryCiPreTypecheckEvidence(topologyText);
           const unreachableTopologyMeasurementMutantExecution = topologyText
             .replace(
               'const reconstructionMeasurementMutants = [',
@@ -1122,6 +1183,26 @@ jobs:
               mutableRejectionTopologyMeasurementMutants,
             ),
             /focused_topology_measurement_rejection_authority_mutated/,
+          );
+          const unreachableRepositoryCiPreTypecheckEvidence = topologyText
+            .replace(
+              'const preTypecheckBaselineReplacement = ci.replace(',
+              'if (0) {\nconst preTypecheckBaselineReplacement = ci.replace(',
+            )
+            .replace(
+              'const tolerantCiCaller = ci.replace(',
+              '}\nconst tolerantCiCaller = ci.replace(',
+            );
+          assert.notEqual(
+            unreachableRepositoryCiPreTypecheckEvidence,
+            topologyText,
+            'focused_topology_repository_ci_pre_typecheck_dead_block_mutant_not_applied',
+          );
+          assert.throws(
+            () => auditTopologyRepositoryCiPreTypecheckEvidence(
+              unreachableRepositoryCiPreTypecheckEvidence,
+            ),
+            /focused_topology_repository_ci_pre_typecheck_evidence_not_top_level/,
           );
           assert.throws(
             () => audit(text.replace(`      - "${storageSources[0]}"`, `      # removed ${storageSources[0]}`)),
@@ -1274,6 +1355,8 @@ jobs:
           console.log('focused_topology_measurement_mutant_payload_digests_bound=true');
           console.log('focused_topology_measurement_rejection_authority_immutable=true');
           console.log('focused_topology_measurement_mutant_values_distinct=true');
+          console.log('focused_repository_ci_pre_typecheck_evidence_top_level=true');
+          console.log('focused_repository_ci_pre_typecheck_dead_block_rejected=true');
           NODE
       - name: Syntax
         run: |
