@@ -963,6 +963,23 @@ function auditBaseline(source) {
 
 function auditCi(source) {
   const lines = source.split("\n");
+  const jobsRoots = lines.flatMap((line, index) => line === "jobs:" ? [index] : []);
+  assert.equal(jobsRoots.length, 1, "ci_jobs_root_count_not_exact");
+  const jobKeys = [];
+  for (let index = jobsRoots[0] + 1; index < lines.length; index += 1) {
+    const match = /^  ([A-Za-z0-9_-]+):$/.exec(lines[index]);
+    if (match) jobKeys.push(match[1]);
+  }
+  assert.deepEqual(jobKeys, ["build"], "ci_job_keys_not_exact");
+  const buildStarts = lines.flatMap((line, index) => line === "  build:" ? [index] : []);
+  assert.equal(buildStarts.length, 1, "ci_build_job_count_not_exact");
+  const buildKeys = [];
+  for (let index = buildStarts[0] + 1; index < lines.length; index += 1) {
+    if (/^  \S/.test(lines[index])) break;
+    const match = /^    ([A-Za-z0-9_-]+):/.exec(lines[index]);
+    if (match) buildKeys.push(match[1]);
+  }
+  assert.deepEqual(buildKeys, ["runs-on", "steps"], "ci_build_job_keys_not_exact");
   const name = "      - name: Typecheck (no emit)";
   const starts = lines.flatMap((line, index) => line === name ? [index] : []);
   assert.equal(starts.length, 1, "ci_baseline_step_count_not_exact");
@@ -1814,7 +1831,7 @@ for (const [family, mutant, expected] of reconstructionMeasurementMutants) {
 }
 assert.equal(
   reconstructionMeasurementMutantsExecuted,
-  reconstructionMeasurementMutants.length,
+  8,
   "segstore_reconstruction_measurement_mutant_execution_count",
 );
 
@@ -1846,6 +1863,13 @@ const skippedCiCaller = ci.replace(
 );
 assert.notEqual(skippedCiCaller, ci, "ci_skipped_baseline_mutant_not_applied");
 assert.throws(() => auditCi(skippedCiCaller), /ci_baseline_step_not_exact/);
+
+const skippedCiBuildJob = ci.replace(
+  "  build:\n    runs-on:",
+  "  build:\n    if: ${{ false }}\n    runs-on:",
+);
+assert.notEqual(skippedCiBuildJob, ci, "ci_skipped_build_job_mutant_not_applied");
+assert.throws(() => auditCi(skippedCiBuildJob), /ci_build_job_keys_not_exact/);
 
 const tolerantCiCaller = ci.replace(
   "      - name: Typecheck (no emit)\n        run:",
@@ -1890,6 +1914,7 @@ console.log("segstore_reconstruction_measurement_mutant_block_literal_false_guar
 console.log("focused_topology_measurement_mutant_caller_literal_false_guard_rejected=true");
 console.log("focused_topology_measurement_mutant_caller_ast_top_level_bound=true");
 console.log("repository_ci_baseline_step_exact=true");
+console.log("repository_ci_build_job_control_exact=true");
 console.log("baseline_topology_proof_prefix_exact=true");
 console.log(`segstore_reconstruction_measurement_mutants_executed=${reconstructionMeasurementMutantsExecuted}`);
 console.log("segstore_exact_generation_helper_noop_rejected=true");

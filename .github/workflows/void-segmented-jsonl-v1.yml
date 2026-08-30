@@ -270,17 +270,66 @@ jobs:
             return count;
           }
 
+          const topologyMeasurementMutantFamilies = [
+            'literal_false_helper',
+            'hard_coded_helper',
+            'deleted_production_reconstruction',
+            'deleted_source_read_accounting',
+            'preloaded_measurement_results',
+            'literal_pass_terminals',
+            'deleted_acceptance_assertions',
+            'weakened_acceptance_expectations',
+          ];
+
+          function topologyTopLevelMeasurementArrayCount(sourceFile) {
+            return sourceFile.statements.filter((statement) => {
+              if (!ts.isVariableStatement(statement)) return false;
+              if (statement.declarationList.declarations.length !== 1) return false;
+              const declaration = statement.declarationList.declarations[0];
+              if (
+                !ts.isIdentifier(declaration.name) ||
+                declaration.name.text !== 'reconstructionMeasurementMutants' ||
+                !declaration.initializer ||
+                !ts.isArrayLiteralExpression(declaration.initializer) ||
+                declaration.initializer.elements.length !== topologyMeasurementMutantFamilies.length
+              ) return false;
+              const families = declaration.initializer.elements.map((element) => {
+                if (!ts.isArrayLiteralExpression(element) || element.elements.length !== 3) return null;
+                const family = element.elements[0];
+                return ts.isStringLiteral(family) ? family.text : null;
+              });
+              return (
+                families.every((family, index) => family === topologyMeasurementMutantFamilies[index]) &&
+                new Set(families).size === topologyMeasurementMutantFamilies.length
+              );
+            }).length;
+          }
+
           function topologyTopLevelMeasurementLoopCount(sourceFile) {
             return sourceFile.statements.filter((statement) => {
               if (!ts.isForOfStatement(statement)) return false;
-              const text = statement.getText(sourceFile);
+              if (!ts.isBlock(statement.statement)) return false;
+              const body = statement.statement.statements;
               return (
                 statement.initializer.getText(sourceFile) ===
                   'const [family, mutant, expected]' &&
                 statement.expression.getText(sourceFile) ===
                   'reconstructionMeasurementMutants' &&
-                text.includes('assert.throws(() => auditSegstoreProof(mutant), expected);') &&
-                text.includes('reconstructionMeasurementMutantsExecuted += 1;')
+                body.length === 3 &&
+                ts.isExpressionStatement(body[0]) &&
+                body[0].getText(sourceFile) === [
+                  'assert.notEqual(',
+                  '    mutant,',
+                  '    segstoreProof,',
+                  '    `segstore_reconstruction_measurement_mutant_not_applied:${family}`,',
+                  '  );',
+                ].join('\n') &&
+                ts.isExpressionStatement(body[1]) &&
+                body[1].getText(sourceFile) ===
+                  'assert.throws(() => auditSegstoreProof(mutant), expected);' &&
+                ts.isExpressionStatement(body[2]) &&
+                body[2].getText(sourceFile) ===
+                  'reconstructionMeasurementMutantsExecuted += 1;'
               );
             }).length;
           }
@@ -292,7 +341,7 @@ jobs:
               return (
                 text.startsWith('assert.equal(') &&
                 text.includes('reconstructionMeasurementMutantsExecuted,') &&
-                text.includes('reconstructionMeasurementMutants.length,') &&
+                text.includes('\n  8,\n') &&
                 text.includes('segstore_reconstruction_measurement_mutant_execution_count')
               );
             }).length;
@@ -304,13 +353,9 @@ jobs:
               'focused_topology_measurement_mutant_parse_failed',
             );
             assert.equal(
-              topologyTopLevelVariableDeclarationCount(
-                sourceFile,
-                'reconstructionMeasurementMutants',
-                (initializer) => initializer.startsWith('['),
-              ),
+              topologyTopLevelMeasurementArrayCount(sourceFile),
               1,
-              'focused_topology_measurement_mutant_array_not_top_level',
+              'focused_topology_measurement_mutant_array_not_exact',
             );
             assert.equal(
               topologyTopLevelVariableDeclarationCount(
@@ -343,7 +388,7 @@ jobs:
               ['  assert.throws(() => auditSegstoreProof(mutant), expected);', 'assertion'],
               ['  reconstructionMeasurementMutantsExecuted += 1;', 'increment'],
               ['  reconstructionMeasurementMutantsExecuted,', 'actual_count'],
-              ['  reconstructionMeasurementMutants.length,', 'expected_count'],
+              ['  8,', 'expected_count'],
               ['console.log(`segstore_reconstruction_measurement_mutants_executed=${reconstructionMeasurementMutantsExecuted}`);', 'terminal'],
             ]) {
               assert.equal(
@@ -352,16 +397,7 @@ jobs:
                 `focused_topology_measurement_mutant_${marker}_not_bound`,
               );
             }
-            for (const family of [
-              'literal_false_helper',
-              'hard_coded_helper',
-              'deleted_production_reconstruction',
-              'deleted_source_read_accounting',
-              'preloaded_measurement_results',
-              'literal_pass_terminals',
-              'deleted_acceptance_assertions',
-              'weakened_acceptance_expectations',
-            ]) {
+            for (const family of topologyMeasurementMutantFamilies) {
               assert.equal(
                 topologyExecutableExactLineCount(source, `    "${family}",`),
                 1,
@@ -815,7 +851,7 @@ jobs:
           );
           assert.throws(
             () => auditTopologyMeasurementMutantExecution(unreachableTopologyMeasurementMutantExecution),
-            /focused_topology_measurement_mutant_literal_false_guard|focused_topology_measurement_mutant_(array|counter|loop|assertion)_not_top_level/,
+            /focused_topology_measurement_mutant_literal_false_guard|focused_topology_measurement_mutant_array_not_exact|focused_topology_measurement_mutant_(counter|loop|assertion)_not_top_level/,
           );
           for (const [family, guard] of [
             ['if_zero', 'if (0) {'],
@@ -839,9 +875,49 @@ jobs:
               () => auditTopologyMeasurementMutantExecution(
                 unreachableEquivalentTopologyMeasurementMutantExecution,
               ),
-              /focused_topology_measurement_mutant_(array|counter|loop|assertion)_not_top_level/,
+              /focused_topology_measurement_mutant_array_not_exact|focused_topology_measurement_mutant_(counter|loop|assertion)_not_top_level/,
             );
           }
+          const conditionalSpreadTopologyMeasurementMutants = topologyText
+            .replace(
+              'const reconstructionMeasurementMutants = [\n  [',
+              'const reconstructionMeasurementMutants = [\n  ...(false ? [\n  [',
+            )
+            .replace(
+              '  ],\n];\n\nlet reconstructionMeasurementMutantsExecuted = 0;',
+              '  ],\n  ] : []),\n];\n\nlet reconstructionMeasurementMutantsExecuted = 0;',
+            );
+          assert.notEqual(
+            conditionalSpreadTopologyMeasurementMutants,
+            topologyText,
+            'focused_topology_measurement_conditional_spread_mutant_not_applied',
+          );
+          assert.throws(
+            () => auditTopologyMeasurementMutantExecution(conditionalSpreadTopologyMeasurementMutants),
+            /focused_topology_measurement_mutant_array_not_exact/,
+          );
+          const deadLoopBodyTopologyMeasurementMutants = topologyText.replace(
+            [
+              '  assert.throws(() => auditSegstoreProof(mutant), expected);',
+              '  reconstructionMeasurementMutantsExecuted += 1;',
+            ].join('\n'),
+            [
+              '  if (0) {',
+              '  assert.throws(() => auditSegstoreProof(mutant), expected);',
+              '  reconstructionMeasurementMutantsExecuted += 1;',
+              '  }',
+              '  reconstructionMeasurementMutantsExecuted++;',
+            ].join('\n'),
+          );
+          assert.notEqual(
+            deadLoopBodyTopologyMeasurementMutants,
+            topologyText,
+            'focused_topology_measurement_dead_loop_body_mutant_not_applied',
+          );
+          assert.throws(
+            () => auditTopologyMeasurementMutantExecution(deadLoopBodyTopologyMeasurementMutants),
+            /focused_topology_measurement_mutant_loop_not_top_level/,
+          );
           assert.throws(
             () => audit(text.replace(`      - "${storageSources[0]}"`, `      # removed ${storageSources[0]}`)),
             /focused_(pull_request|push)_trigger_count:/,
