@@ -1206,6 +1206,11 @@ function retireSupersededWitness(lock: PublishLockV1): void {
     fail("DURABLE_ROOT_SUPERSEDED_WITNESS_RETIRE_MISMATCH", token);
   }
   const winner = assertSupersededReclaimWinner(lock, witness);
+  const reconstructedOwner: PublishLockFileV1 = {
+    identity,
+    owner: witness.owner,
+    links: witness.links,
+  };
   const release = readPublishLockOwnerRelease(lock, reconstructedOwner, witness);
   if (Boolean(release) !== Boolean(lock.supersededWitness.release) ||
       (release && lock.supersededWitness.release && !sameIdentity(release.identity, lock.supersededWitness.release))) {
