@@ -53,61 +53,124 @@ function exactLineCount(source, exact) {
   return source.split("\n").filter((line) => line === exact).length;
 }
 
-function workflowEventPathEntries(source, eventName) {
+function workflowOnRange(source) {
   const lines = source.split("\n");
   const onRoots = [];
   for (let index = 0; index < lines.length; index += 1) {
     if (lines[index] === "on:") onRoots.push(index);
   }
   assert.equal(onRoots.length, 1, `focused_on_root_count:${onRoots.length}`);
-
-  const onAt = onRoots[0];
-  let onEnd = lines.length;
-  for (let index = onAt + 1; index < lines.length; index += 1) {
+  const start = onRoots[0];
+  let end = lines.length;
+  for (let index = start + 1; index < lines.length; index += 1) {
     if (/^\S/.test(lines[index])) {
-      onEnd = index;
+      end = index;
       break;
     }
   }
+  return { lines, start, end };
+}
 
+function workflowEventRange(source, eventName) {
+  const root = workflowOnRange(source);
   const eventLine = `  ${eventName}:`;
-  const eventMatches = [];
-  for (let index = onAt + 1; index < onEnd; index += 1) {
-    if (lines[index] === eventLine) eventMatches.push(index);
+  const matches = [];
+  for (let index = root.start + 1; index < root.end; index += 1) {
+    if (root.lines[index] === eventLine) matches.push(index);
   }
-  assert.equal(
-    eventMatches.length,
-    1,
-    `focused_${eventName}_event_count:${eventMatches.length}`,
-  );
-  const eventAt = eventMatches[0];
-
-  let eventEnd = onEnd;
-  for (let index = eventAt + 1; index < onEnd; index += 1) {
-    if (/^  \S/.test(lines[index])) {
-      eventEnd = index;
+  assert.equal(matches.length, 1, `focused_${eventName}_event_count:${matches.length}`);
+  const start = matches[0];
+  let end = root.end;
+  for (let index = start + 1; index < root.end; index += 1) {
+    if (/^  \S/.test(root.lines[index])) {
+      end = index;
       break;
     }
   }
+  return { lines: root.lines, start, end };
+}
 
-  const pathMatches = [];
-  for (let index = eventAt + 1; index < eventEnd; index += 1) {
-    if (lines[index] === "    paths:") pathMatches.push(index);
+function workflowEventMappingKeys(source, eventName) {
+  const event = workflowEventRange(source, eventName);
+  const keys = [];
+  for (let index = event.start + 1; index < event.end; index += 1) {
+    const match = /^    ([A-Za-z0-9_-]+):/.exec(event.lines[index]);
+    if (match) keys.push(match[1]);
+  }
+  return keys;
+}
+
+function parseWorkflowSequenceScalar(line, marker) {
+  let match = /^      - "([^"]+)"$/.exec(line);
+  if (match) return match[1];
+  match = /^      - '([^']+)'$/.exec(line);
+  if (match) return match[1];
+  match = /^      - ([^"'#][^#]*?)\s*$/.exec(line);
+  assert.ok(match, `${marker}:${line.trim()}`);
+  return match[1];
+}
+
+function workflowEventSequenceEntries(source, eventName, sequenceName) {
+  const event = workflowEventRange(source, eventName);
+  const sequenceLine = `    ${sequenceName}:`;
+  const matches = [];
+  for (let index = event.start + 1; index < event.end; index += 1) {
+    if (event.lines[index] === sequenceLine) matches.push(index);
   }
   assert.equal(
-    pathMatches.length,
+    matches.length,
     1,
-    `focused_${eventName}_paths_count:${pathMatches.length}`,
+    `focused_${eventName}_${sequenceName}_count:${matches.length}`,
   );
-  const pathsAt = pathMatches[0];
-
+  const start = matches[0];
+  let end = event.end;
+  for (let index = start + 1; index < event.end; index += 1) {
+    if (/^    \S/.test(event.lines[index])) {
+      end = index;
+      break;
+    }
+  }
   const entries = [];
-  for (let index = pathsAt + 1; index < eventEnd; index += 1) {
-    const match = /^      - "([^"]+)"$/.exec(lines[index]);
-    if (!match) break;
-    entries.push(match[1]);
+  for (let index = start + 1; index < end; index += 1) {
+    const line = event.lines[index];
+    if (line.trim() === "" || /^\s*#/.test(line)) continue;
+    entries.push(
+      parseWorkflowSequenceScalar(
+        line,
+        `focused_${eventName}_${sequenceName}_scalar_not_exact`,
+      ),
+    );
   }
   return entries;
+}
+
+function workflowEventPathEntries(source, eventName) {
+  const entries = workflowEventSequenceEntries(source, eventName, "paths");
+  for (const entry of entries) {
+    assert.ok(
+      !entry.startsWith("!"),
+      `focused_${eventName}_negative_path_pattern:${entry}`,
+    );
+  }
+  return entries;
+}
+
+function auditFocusedEventContract(source) {
+  assert.deepEqual(
+    workflowEventMappingKeys(source, "pull_request"),
+    ["paths"],
+    "focused_pull_request_mapping_keys_not_exact",
+  );
+  assert.deepEqual(
+    workflowEventMappingKeys(source, "push"),
+    ["branches", "paths"],
+    "focused_push_mapping_keys_not_exact",
+  );
+  assert.deepEqual(
+    workflowEventSequenceEntries(source, "push", "branches"),
+    ["main"],
+    "focused_push_main_branch_not_exact",
+  );
 }
 
 function rejectFailureTolerance(source, marker) {
@@ -115,6 +178,7 @@ function rejectFailureTolerance(source, marker) {
 }
 
 function auditFocused(source) {
+  auditFocusedEventContract(source);
   const pullRequestPaths = workflowEventPathEntries(source, "pull_request");
   const pushPaths = workflowEventPathEntries(source, "push");
   for (const dependency of TRIGGER_DEPENDENCIES) {
@@ -516,6 +580,39 @@ assert.throws(
   /focused_pull_request_trigger_count|focused_push_trigger_count/,
 );
 
+
+const negativePathMutants = [
+  ["single_quoted_exact", `      - '!${deadScalarTriggerPath}'`],
+  ["double_quoted_exact", `      - \"!${deadScalarTriggerPath}\"`],
+  ["single_quoted_glob", "      - '!src/storage/**'"],
+  ["double_quoted_glob", '      - "!src/storage/**"'],
+];
+for (const [family, negativeEntry] of negativePathMutants) {
+  const mutant = focused.replaceAll(
+    deadScalarTriggerLine,
+    `${deadScalarTriggerLine}${negativeEntry}\n`,
+  );
+  assert.notEqual(mutant, focused, `focused_negative_path_mutant_not_applied:${family}`);
+  assert.throws(
+    () => auditFocused(mutant),
+    /focused_(pull_request|push)_negative_path_pattern/,
+  );
+}
+
+const pullRequestFilterMutants = [
+  ["branches_ignore_block", "    branches-ignore:\n      - main\n"],
+  ["negative_branches_block", "    branches:\n      - \"!main\"\n"],
+  ["types_opened_flow", "    types: [opened]\n"],
+  ["types_without_synchronize_flow", "    types: [opened, reopened]\n"],
+  ["types_without_synchronize_block", "    types:\n      - opened\n      - reopened\n"],
+  ["types_single_quoted", "    types: 'opened'\n"],
+];
+for (const [family, filter] of pullRequestFilterMutants) {
+  const mutant = focused.replace("  pull_request:\n", `  pull_request:\n${filter}`);
+  assert.notEqual(mutant, focused, `focused_pull_request_filter_mutant_not_applied:${family}`);
+  assert.throws(() => auditFocused(mutant), /focused_pull_request_mapping_keys_not_exact/);
+}
+
 const withoutInlineAudit = focused.replace(
   /\n      - name: Prove focused workflow dependency closure\n[\s\S]*?(?=\n      - name: Syntax\n)/,
   "\n",
@@ -872,6 +969,10 @@ console.log("VOID_SEGMENTED_JSONL_CI_TOPOLOGY_V1_GREEN");
 console.log("focused_trigger_closure_bound=true");
 console.log("focused_trigger_dead_scalar_relocation_rejected=true");
 console.log("focused_trigger_name_block_scalar_decoy_rejected=true");
+console.log("focused_negative_path_patterns_rejected=true");
+console.log("focused_pull_request_branch_filters_rejected=true");
+console.log("focused_pull_request_activity_narrowing_rejected=true");
+console.log("focused_push_main_branch_bound=true");
 console.log("focused_semantic_proofs_terminal=true");
 console.log("focused_failure_tolerance_rejected=true");
 console.log("independent_repository_ci_caller_bound=true");
