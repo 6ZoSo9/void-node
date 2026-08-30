@@ -592,7 +592,7 @@ jobs:
               `          CI_DIFF_CURRENT_SHA: ${expressionOpen} github.event.pull_request.head.sha || github.sha }}`,
               '          CI_DIFF_CURRENT_SHA: invalid',
             )),
-            /focused_exact_sha_binding_missing:/,
+            /focused_hygiene_block_not_exact|focused_exact_sha_binding_missing:/,
           );
           assert.throws(
             () => audit(text.replace('        node: [22, 24, 26]', '        node: [22, 24]')),
