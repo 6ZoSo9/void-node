@@ -96,6 +96,28 @@ function removePublishOwnerForProof(lockDir: string, token: string): void {
   fsyncDirectory(lockDir);
 }
 
+function writeOwnerReleaseForProof(lockDir: string, token: string): string {
+  const owner = fs.statSync(path.join(lockDir, "owner.v1.json"), { bigint: true } as any);
+  const witness = fs.statSync(ownerWitnessPathForProof(lockDir, token), { bigint: true } as any);
+  assert.equal(owner.dev, witness.dev);
+  assert.equal(owner.ino, witness.ino);
+  const releasePath = path.join(lockDir, `owner-release-${token}.v1`);
+  fs.writeFileSync(
+    releasePath,
+    JSON.stringify({
+      v: 1,
+      owner_token: token,
+      owner_dev: String(owner.dev),
+      owner_ino: String(owner.ino),
+      witness_dev: String(witness.dev),
+      witness_ino: String(witness.ino),
+    }) + "\n",
+    { flag: "wx", mode: 0o600 },
+  );
+  fsyncDirectory(lockDir);
+  return releasePath;
+}
+
 function writeReclaimWinnerForProof(lockDir: string, staleToken: string, claimantToken: string): void {
   const owner = fs.statSync(path.join(lockDir, "owner.v1.json"), { bigint: true } as any);
   const witness = fs.statSync(ownerWitnessPathForProof(lockDir, staleToken), { bigint: true } as any);
@@ -326,12 +348,14 @@ try {
   const recoveryLockDir = path.join(recoveryDir, ".durable-root-publish-v1.lock");
   fs.mkdirSync(recoveryLockDir, { mode: 0o700 });
   const recoveryToken = "aa".repeat(16);
-  writePublishOwner(recoveryLockDir, 99999999, "1", recoveryToken);
+  writePublishOwner(recoveryLockDir, process.pid, processStartTicks(process.pid), recoveryToken);
+  const recoveryReleasePath = writeOwnerReleaseForProof(recoveryLockDir, recoveryToken);
   const ownedRecoveryIntent = createStageIntentForProof(recoveryLockDir, 0, recoveryToken, r1, null);
   assert.equal(fs.existsSync(path.join(recoveryDir, "durable-root-slot-0.v1.json")), false);
   const recoveredR1 = publishSegmentedJsonlDurableRootV1(recoveryDir, r1Input);
   assert.equal(recoveredR1.root_sha256, r1.root_sha256, "intent-bound owned stage must recover to canonical genesis");
   assert.equal(fs.existsSync(ownedRecoveryIntent.path), false, "recovered intent alias must retire");
+  assert.equal(fs.existsSync(recoveryReleasePath), false, "immutable release marker must retire with the recovered owner generation");
   assert.equal(fs.statSync(path.join(recoveryDir, "durable-root-slot-0.v1.json"), { bigint: true } as any).nlink, 1n);
 
   const r1Retry = publishSegmentedJsonlDurableRootV1(durableDir, r1Input);
@@ -665,6 +689,8 @@ try {
   console.log("durable_root_stale_publish_lock_recoverable=true");
   console.log("durable_root_reclaim_winner_claim_crash_recoverable=true");
   console.log("durable_root_reclaim_winner_owner_unlink_crash_recoverable=true");
+  console.log("durable_root_owner_release_immutable_marker=true");
+  console.log("durable_root_live_released_owner_stage_recovery=true");
   console.log("durable_root_reclaim_winner_separate_from_owner_inode=true");
   console.log("durable_root_reclaim_race_exact_winners=1");
   console.log("durable_root_reclaim_race_persistent_losers=0");

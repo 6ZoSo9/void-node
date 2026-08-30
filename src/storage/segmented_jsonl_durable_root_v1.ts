@@ -35,6 +35,7 @@ const PUBLISH_LOCK_NAME = ".durable-root-publish-v1.lock";
 const PUBLISH_LOCK_OWNER_NAME = "owner.v1.json";
 const PUBLISH_LOCK_RECLAIM_NAME = "reclaim-winner.v1";
 const PUBLISH_LOCK_OWNER_WITNESS_RE = /^owner-witness-([0-9a-f]{32})\.v1$/;
+const PUBLISH_LOCK_OWNER_RELEASE_RE = /^owner-release-([0-9a-f]{32})\.v1$/;
 const PUBLISH_STAGE_INTENT_RE = /^slot-stage-([01])-([0-9a-f]{32})-([0-9a-f]{64})\.v1$/;
 const O_TMPFILE_V1 = 0o20200000;
 const EXACT_FD_LINK_HELPER_V1 = "/usr/bin/ln";
@@ -115,10 +116,25 @@ type ReclaimWinnerV1 = {
   stale_witness_ino: string;
 };
 type ReclaimWinnerReadV1 = { identity: SlotIdentityV1; value: ReclaimWinnerV1 };
+type PublishLockOwnerReleaseV1 = {
+  v: 1;
+  owner_token: string;
+  owner_dev: string;
+  owner_ino: string;
+  witness_dev: string;
+  witness_ino: string;
+};
+type PublishLockOwnerReleaseReadV1 = { identity: SlotIdentityV1; value: PublishLockOwnerReleaseV1 };
+type SupersededWitnessV1 = {
+  token: string;
+  identity: SlotIdentityV1;
+  reclaimWinner: SlotIdentityV1;
+  release: SlotIdentityV1 | null;
+};
 type PublishLockV1 = DirectoryAuthorityV1 & {
   owner: PublishLockOwnerV1;
   ownerWitness: SlotIdentityV1;
-  supersededWitness: { token: string; identity: SlotIdentityV1; reclaimWinner: SlotIdentityV1 } | null;
+  supersededWitness: SupersededWitnessV1 | null;
 };
 type SlotReadV1 = {
   index: 0 | 1;
@@ -532,20 +548,110 @@ function assertReclaimWinnerBinds(
   ) fail("DURABLE_ROOT_RECLAIM_WINNER_BINDING_MISMATCH", value.stale_owner_token);
 }
 
-function rewritePublishLockOwner(lock: PublishLockV1, state: "held" | "released"): void {
-  const stablePath = path.join(lock.stablePath, PUBLISH_LOCK_OWNER_NAME);
-  const body = Buffer.from(canonicalJson({ ...lock.owner, state }) + "\n", "utf8");
+function ownerReleaseName(token: string): string {
+  if (!/^[0-9a-f]{32}$/.test(token)) fail("DURABLE_ROOT_OWNER_RELEASE_TOKEN_INVALID", token);
+  const name = `owner-release-${token}.v1`;
+  if (PUBLISH_LOCK_OWNER_RELEASE_RE.exec(name)?.[1] !== token) {
+    fail("DURABLE_ROOT_OWNER_RELEASE_NAME_INVALID", name);
+  }
+  return name;
+}
+
+function parsePublishLockOwnerRelease(text: string): PublishLockOwnerReleaseV1 | null {
+  let value: any;
+  try { value = JSON.parse(text); } catch { return null; }
+  if (!value || typeof value !== "object") return null;
+  const expected = ["v", "owner_token", "owner_dev", "owner_ino", "witness_dev", "witness_ino"];
+  if (Object.keys(value).sort().join(",") !== expected.sort().join(",")) return null;
+  if (
+    value.v !== 1 ||
+    typeof value.owner_token !== "string" || !/^[0-9a-f]{32}$/.test(value.owner_token) ||
+    typeof value.owner_dev !== "string" || !/^[0-9]+$/.test(value.owner_dev) ||
+    typeof value.owner_ino !== "string" || !/^[0-9]+$/.test(value.owner_ino) ||
+    typeof value.witness_dev !== "string" || !/^[0-9]+$/.test(value.witness_dev) ||
+    typeof value.witness_ino !== "string" || !/^[0-9]+$/.test(value.witness_ino)
+  ) return null;
+  return value as PublishLockOwnerReleaseV1;
+}
+
+function readPublishLockOwnerRelease(
+  lock: DirectoryAuthorityV1,
+  owner: PublishLockFileV1,
+  witness: PublishLockFileV1,
+): PublishLockOwnerReleaseReadV1 | null {
+  const token = owner.owner?.token || fail("DURABLE_ROOT_OWNER_RELEASE_OWNER_INVALID", "missing-token");
+  const name = ownerReleaseName(token);
+  const stablePath = path.join(lock.stablePath, name);
   let fd = -1;
   try {
-    fd = fs.openSync(stablePath, fs.constants.O_RDWR | ((fs.constants as any).O_NOFOLLOW || 0));
-    const current = readPublishLockOwner(lock);
-    if (!current || current.token !== lock.owner.token) fail("DURABLE_ROOT_PUBLISH_LOCK_OWNER_CHANGED", stablePath);
-    writeExactFile(fd, body, stablePath);
+    try { fd = fs.openSync(stablePath, fs.constants.O_RDONLY | ((fs.constants as any).O_NOFOLLOW || 0)); }
+    catch (error: any) {
+      if (error?.code === "ENOENT") return null;
+      throw error;
+    }
+    const before = fs.fstatSync(fd, { bigint: true } as any);
+    const identity = slotIdentityFromStat(before, stablePath);
+    if (Number(before.size) <= 0 || Number(before.size) > 1024) {
+      fail("DURABLE_ROOT_OWNER_RELEASE_INVALID", `${token}:size`);
+    }
+    const body = Buffer.alloc(Number(before.size));
+    let off = 0;
+    while (off < body.length) {
+      const n = fs.readSync(fd, body, off, body.length - off, off);
+      if (n <= 0) fail("DURABLE_ROOT_OWNER_RELEASE_INVALID", `${token}:short-read`);
+      off += n;
+    }
+    const after = fs.fstatSync(fd, { bigint: true } as any);
+    const afterIdentity = slotIdentityFromStat(after, stablePath);
+    if (!sameIdentity(identity, afterIdentity) || before.size !== after.size) {
+      fail("DURABLE_ROOT_OWNER_RELEASE_CHANGED", token);
+    }
+    const value = parsePublishLockOwnerRelease(body.toString("utf8"));
+    if (
+      !value ||
+      value.owner_token !== token ||
+      value.owner_dev !== owner.identity.dev || value.owner_ino !== owner.identity.ino ||
+      value.witness_dev !== witness.identity.dev || value.witness_ino !== witness.identity.ino ||
+      !sameIdentity(owner.identity, witness.identity)
+    ) fail("DURABLE_ROOT_OWNER_RELEASE_BINDING_MISMATCH", token);
+    return { identity, value };
+  } finally { if (fd >= 0) fs.closeSync(fd); }
+}
+
+function publishPublishLockOwnerRelease(
+  lock: PublishLockV1,
+  owner: PublishLockFileV1,
+  witness: PublishLockFileV1,
+): PublishLockOwnerReleaseReadV1 {
+  if (
+    !owner.owner || owner.owner.token !== lock.owner.token ||
+    !sameIdentity(owner.identity, witness.identity) ||
+    !sameIdentity(witness.identity, lock.ownerWitness)
+  ) fail("DURABLE_ROOT_OWNER_RELEASE_SOURCE_MISMATCH", lock.owner.token);
+  const value: PublishLockOwnerReleaseV1 = {
+    v: 1,
+    owner_token: lock.owner.token,
+    owner_dev: owner.identity.dev,
+    owner_ino: owner.identity.ino,
+    witness_dev: witness.identity.dev,
+    witness_ino: witness.identity.ino,
+  };
+  const name = ownerReleaseName(lock.owner.token);
+  let fd = -1;
+  try {
+    fd = openAnonymousLockFile(lock, name);
+    writeExactFile(fd, Buffer.from(canonicalJson(value) + "\n", "utf8"), name);
     fs.fchmodSync(fd, 0o600);
     fs.fsyncSync(fd);
+    const stat = fs.fstatSync(fd, { bigint: true } as any);
+    if (!stat.isFile() || BigInt(stat.uid) !== currentUid() || Number(stat.nlink) !== 0) {
+      fail("DURABLE_ROOT_OWNER_RELEASE_ANONYMOUS_AUTHORITY_MISMATCH", lock.owner.token);
+    }
+    const created = linkExactFdCreateOnly(fd, lock, name, "DURABLE_ROOT_OWNER_RELEASE_PUBLISH_FAILED");
+    if (created) fs.fsyncSync(lock.fd);
   } finally { if (fd >= 0) fs.closeSync(fd); }
-  fs.fsyncSync(lock.fd);
-  lock.owner = { ...lock.owner, state };
+  return readPublishLockOwnerRelease(lock, owner, witness) ||
+    fail("DURABLE_ROOT_OWNER_RELEASE_MISSING", lock.owner.token);
 }
 
 function publishLockOwnerIsLive(owner: PublishLockOwnerV1 | null): boolean {
@@ -584,12 +690,9 @@ function removeExactLockName(lock: DirectoryAuthorityV1, name: string, expected:
 function claimStalePublishOwner(
   lock: DirectoryAuthorityV1,
   claimant: PublishLockOwnerV1,
-): { owner: PublishLockFileV1; witness: PublishLockFileV1; winner: ReclaimWinnerReadV1 } | null {
+): { owner: PublishLockFileV1; witness: PublishLockFileV1; winner: ReclaimWinnerReadV1; release: PublishLockOwnerReleaseReadV1 | null } | null {
   for (;;) {
     const ownerFile = readPublishLockFile(lock, PUBLISH_LOCK_OWNER_NAME);
-    if (ownerFile?.owner && publishLockOwnerIsLive(ownerFile.owner)) {
-      fail("DURABLE_ROOT_PUBLISH_BUSY", lock.publicPath);
-    }
     const existingWinner = readReclaimWinner(lock);
 
     if (!ownerFile) {
@@ -603,17 +706,22 @@ function claimStalePublishOwner(
         links: witness.links,
       };
       assertReclaimWinnerBinds(existingWinner, reconstructedOwner, witness);
-      return { owner: reconstructedOwner, witness, winner: existingWinner };
+      const release = readPublishLockOwnerRelease(lock, reconstructedOwner, witness);
+      return { owner: reconstructedOwner, witness, winner: existingWinner, release };
     }
     if (!ownerFile.owner) fail("DURABLE_ROOT_PUBLISH_LOCK_OWNER_INVALID", lock.publicPath);
     const witness = readOwnerWitness(lock, ownerFile.owner.token);
     if (!witness || !sameIdentity(ownerFile.identity, witness.identity)) {
       fail("DURABLE_ROOT_PUBLISH_LOCK_RECLAIM_WITNESS_MISMATCH", ownerFile.owner.token);
     }
+    const release = readPublishLockOwnerRelease(lock, ownerFile, witness);
+    if (publishLockOwnerIsLive(ownerFile.owner) && !release) {
+      fail("DURABLE_ROOT_PUBLISH_BUSY", lock.publicPath);
+    }
 
     if (existingWinner) {
       assertReclaimWinnerBinds(existingWinner, ownerFile, witness);
-      return { owner: ownerFile, witness, winner: existingWinner };
+      return { owner: ownerFile, witness, winner: existingWinner, release };
     }
 
     const winner = publishReclaimWinner(lock, claimant, ownerFile, witness);
@@ -624,7 +732,11 @@ function claimStalePublishOwner(
       !sameIdentity(witnessAfter.identity, witness.identity)
     ) fail("DURABLE_ROOT_PUBLISH_LOCK_RECLAIM_OWNER_CHANGED", lock.publicPath);
     assertReclaimWinnerBinds(winner, ownerAfter, witnessAfter);
-    return { owner: ownerAfter, witness: witnessAfter, winner };
+    const releaseAfter = readPublishLockOwnerRelease(lock, ownerAfter, witnessAfter);
+    if (Boolean(releaseAfter) !== Boolean(release) || (releaseAfter && release && !sameIdentity(releaseAfter.identity, release.identity))) {
+      fail("DURABLE_ROOT_OWNER_RELEASE_CHANGED", ownerFile.owner.token);
+    }
+    return { owner: ownerAfter, witness: witnessAfter, winner, release: releaseAfter };
   }
 }
 
@@ -659,13 +771,14 @@ function acquirePublishLock(authority: DirectoryAuthorityV1): PublishLockV1 {
     }
 
     const claim = claimStalePublishOwner(lock, owner);
-    let supersededWitness: { token: string; identity: SlotIdentityV1; reclaimWinner: SlotIdentityV1 } | null = null;
+    let supersededWitness: SupersededWitnessV1 | null = null;
     if (claim) {
       const predecessorToken = claim.owner.owner?.token || fail("DURABLE_ROOT_PUBLISH_LOCK_RECLAIM_OWNER_INVALID", lock.publicPath);
       supersededWitness = {
         token: predecessorToken,
         identity: claim.witness.identity,
         reclaimWinner: claim.winner.identity,
+        release: claim.release?.identity ?? null,
       };
       const currentOwner = readPublishLockFile(lock, PUBLISH_LOCK_OWNER_NAME);
       if (currentOwner) {
@@ -728,7 +841,7 @@ function releasePublishLock(_authority: DirectoryAuthorityV1, lock: PublishLockV
     .map(parseStageIntentName)
     .some(intent => intent?.publisherToken === lock.owner.token);
   if (ownedIntentExists) {
-    rewritePublishLockOwner(lock, "released");
+    publishPublishLockOwnerRelease(lock, ownerFile, witnessFile);
     fs.closeSync(lock.fd);
     return;
   }
@@ -1026,9 +1139,19 @@ function retireSupersededWitness(lock: PublishLockV1): void {
   if (!winner || !sameIdentity(winner.identity, lock.supersededWitness.reclaimWinner)) {
     fail("DURABLE_ROOT_RECLAIM_WINNER_RETIRE_MISMATCH", token);
   }
-  assertReclaimWinnerBinds(winner, { identity, owner: witness.owner, links: witness.links }, witness);
+  const reconstructedOwner = { identity, owner: witness.owner, links: witness.links };
+  assertReclaimWinnerBinds(winner, reconstructedOwner, witness);
+  const release = readPublishLockOwnerRelease(lock, reconstructedOwner, witness);
+  if (Boolean(release) !== Boolean(lock.supersededWitness.release) ||
+      (release && lock.supersededWitness.release && !sameIdentity(release.identity, lock.supersededWitness.release))) {
+    fail("DURABLE_ROOT_OWNER_RELEASE_RETIRE_MISMATCH", token);
+  }
   removeExactLockName(lock, PUBLISH_LOCK_RECLAIM_NAME, winner.identity);
   fs.fsyncSync(lock.fd);
+  if (release) {
+    removeExactLockName(lock, ownerReleaseName(token), release.identity);
+    fs.fsyncSync(lock.fd);
+  }
   removeExactLockName(lock, ownerWitnessName(token), identity);
   fs.fsyncSync(lock.fd);
   lock.supersededWitness = null;
