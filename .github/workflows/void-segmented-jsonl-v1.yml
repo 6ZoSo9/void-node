@@ -106,6 +106,8 @@ jobs:
           const fs = require('node:fs');
           const workflowPath = '.github/workflows/void-segmented-jsonl-v1.yml';
           const text = fs.readFileSync(workflowPath, 'utf8');
+          const topologyPath = 'scripts/prove_segmented_jsonl_ci_topology_v1.mjs';
+          const topologyText = fs.readFileSync(topologyPath, 'utf8');
           const storageSources = [
             "src/storage/segmented_jsonl_v1.ts",
             "src/storage/segmented_jsonl_snapshot_authority_v1.ts",
@@ -146,6 +148,118 @@ jobs:
           const expressionOpen = '$' + '{{';
           const lineCount = (source, exact) =>
             source.split('\n').filter((line) => line === exact).length;
+
+          function topologyExecutableCodeMask(source) {
+            const mask = new Uint8Array(source.length);
+            mask.fill(1);
+            let state = 'code';
+            for (let index = 0; index < source.length; index += 1) {
+              const char = source[index];
+              const next = source[index + 1];
+              if (state === 'code') {
+                if (char === '/' && next === '/') {
+                  mask[index] = 0;
+                  mask[index + 1] = 0;
+                  index += 1;
+                  state = 'line-comment';
+                } else if (char === '/' && next === '*') {
+                  mask[index] = 0;
+                  mask[index + 1] = 0;
+                  index += 1;
+                  state = 'block-comment';
+                } else if (char === "'" || char === '"' || char === '`') {
+                  mask[index] = 0;
+                  state = char === "'" ? 'single-quote' : char === '"' ? 'double-quote' : 'template';
+                }
+                continue;
+              }
+              if (state === 'line-comment') {
+                mask[index] = 0;
+                if (char === '\n') {
+                  mask[index] = 1;
+                  state = 'code';
+                }
+                continue;
+              }
+              if (state === 'block-comment') {
+                mask[index] = 0;
+                if (char === '*' && next === '/') {
+                  mask[index + 1] = 0;
+                  index += 1;
+                  state = 'code';
+                }
+                continue;
+              }
+              mask[index] = 0;
+              if (char === '\\' && index + 1 < source.length) {
+                mask[index + 1] = 0;
+                index += 1;
+                continue;
+              }
+              if (
+                (state === 'single-quote' && char === "'") ||
+                (state === 'double-quote' && char === '"') ||
+                (state === 'template' && char === '`')
+              ) {
+                state = 'code';
+              }
+            }
+            return mask;
+          }
+
+          function topologyExecutableExactLineCount(source, exact) {
+            const mask = topologyExecutableCodeMask(source);
+            const lines = source.split('\n');
+            let offset = 0;
+            let count = 0;
+            for (const line of lines) {
+              let executable = false;
+              for (let index = offset; index < offset + line.length; index += 1) {
+                if (mask[index] === 1) {
+                  executable = true;
+                  break;
+                }
+              }
+              if (line === exact && executable) count += 1;
+              offset += line.length + 1;
+            }
+            return count;
+          }
+
+          function auditTopologyMeasurementMutantExecution(source) {
+            for (const [line, marker] of [
+              ['const reconstructionMeasurementMutants = [', 'array'],
+              ['let reconstructionMeasurementMutantsExecuted = 0;', 'counter'],
+              ['for (const [family, mutant, expected] of reconstructionMeasurementMutants) {', 'loop'],
+              ['  assert.throws(() => auditSegstoreProof(mutant), expected);', 'assertion'],
+              ['  reconstructionMeasurementMutantsExecuted += 1;', 'increment'],
+              ['  reconstructionMeasurementMutantsExecuted,', 'actual_count'],
+              ['  reconstructionMeasurementMutants.length,', 'expected_count'],
+              ['console.log(`segstore_reconstruction_measurement_mutants_executed=${reconstructionMeasurementMutantsExecuted}`);', 'terminal'],
+            ]) {
+              assert.equal(
+                topologyExecutableExactLineCount(source, line),
+                1,
+                `focused_topology_measurement_mutant_${marker}_not_bound`,
+              );
+            }
+            for (const family of [
+              'literal_false_helper',
+              'hard_coded_helper',
+              'deleted_production_reconstruction',
+              'deleted_source_read_accounting',
+              'preloaded_measurement_results',
+              'literal_pass_terminals',
+              'deleted_acceptance_assertions',
+              'weakened_acceptance_expectations',
+            ]) {
+              assert.equal(
+                topologyExecutableExactLineCount(source, `    "${family}",`),
+                1,
+                `focused_topology_measurement_mutant_family_not_bound:${family}`,
+              );
+            }
+          }
 
           function workflowOnRange(source) {
             const lines = source.split("\n");
@@ -575,6 +689,7 @@ jobs:
           }
 
           audit(text);
+          auditTopologyMeasurementMutantExecution(topologyText);
           assert.throws(
             () => audit(text.replace(`      - "${storageSources[0]}"`, `      # removed ${storageSources[0]}`)),
             /focused_(pull_request|push)_trigger_count:/,
@@ -721,6 +836,7 @@ jobs:
           console.log('focused_credential_falsifier=true');
           console.log('focused_exact_sha_binding_falsifier=true');
           console.log('focused_terminal_matrix_falsifier=true');
+          console.log('focused_topology_measurement_mutant_execution_bound=true');
           NODE
       - name: Syntax
         run: |

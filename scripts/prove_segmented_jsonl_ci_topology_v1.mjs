@@ -454,6 +454,22 @@ function rejectFailureTolerance(source, marker) {
 
 function auditFocused(source) {
   rejectFailureTolerance(source, "focused_failure_tolerance_present");
+  for (const [line, marker] of [
+    [
+      "          const topologyPath = 'scripts/prove_segmented_jsonl_ci_topology_v1.mjs';",
+      "focused_topology_measurement_path_not_bound",
+    ],
+    [
+      "          const topologyText = fs.readFileSync(topologyPath, 'utf8');",
+      "focused_topology_measurement_source_not_bound",
+    ],
+    [
+      "          auditTopologyMeasurementMutantExecution(topologyText);",
+      "focused_topology_measurement_mutant_caller_not_bound",
+    ],
+  ]) {
+    assert.equal(exactLineCount(source, line), 1, marker);
+  }
   auditFocusedRootContract(source);
   auditFocusedStepContract(source);
   auditFocusedCriticalStepBlocks(source);
@@ -793,6 +809,10 @@ function auditSegstoreProof(source) {
     ],
     "segstore_reconstruction_measurement_body_not_bound",
   );
+  rejectLiteralFalseGuard(
+    measurementBody,
+    "segstore_reconstruction_measurement_literal_false_guard",
+  );
   assert.equal(
     executableExactLineCount(
       source,
@@ -808,6 +828,30 @@ function auditSegstoreProof(source) {
     ),
     1,
     "segstore_reconstruction_survivor_measurement_call_not_bound",
+  );
+  const measurementAcceptanceBody = functionSlice(
+    source,
+    "  const newOutputPasses = measureReconstructionSourceReadsV1(store, reconstructionPassOutput);",
+    '  const wrongModeOutput = path.join(tmp, "reconstruct-equivalent-wrong-mode.jsonl");',
+    "segstore_reconstruction_measurement_acceptance_missing",
+  );
+  requireBodyMarkers(
+    measurementAcceptanceBody,
+    [
+      "assert.equal(newOutputPasses.reusedExisting, false);",
+      "assert.equal(\n    newOutputPasses.sourceBytesRead,\n    body.length * 2,",
+      "assert.equal(existingOutputPasses.reusedExisting, true);",
+      "assert.equal(\n    existingOutputPasses.sourceBytesRead,\n    body.length,",
+      "assert.equal(Number.isSafeInteger(reconstructionNewOutputSourcePasses), true);",
+      "assert.equal(Number.isSafeInteger(reconstructionExactSurvivorSourcePasses), true);",
+      "assert.equal(\n    reconstructionNewOutputSourcePasses,\n    2,",
+      "assert.equal(\n    reconstructionExactSurvivorSourcePasses,\n    1,",
+    ],
+    "segstore_reconstruction_measurement_acceptance_not_bound",
+  );
+  rejectLiteralFalseGuard(
+    measurementAcceptanceBody,
+    "segstore_reconstruction_measurement_acceptance_literal_false_guard",
   );
   for (const [line, marker] of [
     [
@@ -1091,7 +1135,21 @@ const withoutInlineAudit = focused.replace(
 assert.notEqual(withoutInlineAudit, focused, "inline_audit_mutant_not_applied");
 assert.throws(
   () => auditFocused(withoutInlineAudit),
-  /focused_step_count_not_exact|focused_inline_audit_step_count/,
+  /focused_step_count_not_exact|focused_inline_audit_step_count|focused_topology_measurement_(path|source|mutant_caller)_not_bound/,
+);
+
+const withoutTopologyMeasurementMutantCaller = focused.replace(
+  "          auditTopologyMeasurementMutantExecution(topologyText);\n",
+  "",
+);
+assert.notEqual(
+  withoutTopologyMeasurementMutantCaller,
+  focused,
+  "focused_topology_measurement_mutant_caller_mutant_not_applied",
+);
+assert.throws(
+  () => auditFocused(withoutTopologyMeasurementMutantCaller),
+  /focused_topology_measurement_mutant_caller_not_bound/,
 );
 
 const withoutSemanticProof = focused.replace(
@@ -1237,6 +1295,30 @@ function wrapFunctionBodyInLiteralFalse(source, startMarker, endMarker, marker) 
     "\n  if (false) {" +
     source.slice(openBrace + 1, closeBrace) +
     "\n  }\n  return true;\n" +
+    source.slice(closeBrace)
+  );
+}
+
+function wrapFunctionBodyInLiteralFalseWithFallback(
+  source,
+  startMarker,
+  endMarker,
+  fallback,
+  marker,
+) {
+  const start = source.indexOf(startMarker);
+  const end = source.indexOf(endMarker, start + startMarker.length);
+  assert.ok(start >= 0 && end > start, `${marker}_slice_missing`);
+  const openBrace = source.indexOf("{", start + startMarker.length);
+  const closeBrace = source.lastIndexOf("}", end);
+  assert.ok(openBrace > start && closeBrace > openBrace, `${marker}_body_missing`);
+  return (
+    source.slice(0, openBrace + 1) +
+    "\n  if (false) {" +
+    source.slice(openBrace + 1, closeBrace) +
+    "\n  }\n" +
+    fallback +
+    "\n" +
     source.slice(closeBrace)
   );
 }
@@ -1426,6 +1508,24 @@ assert.equal(
 
 const reconstructionMeasurementMutants = [
   [
+    "literal_false_helper",
+    wrapFunctionBodyInLiteralFalseWithFallback(
+      segstoreProof,
+      "function measureReconstructionSourceReadsV1(",
+      "function proveUncertainExactFdLinkConverges(",
+      [
+        "  const manifest = readSegmentedJsonlManifestV1(storePath);",
+        "  const reusedExisting = fs.existsSync(outputPath);",
+        "  return {",
+        "    sourceBytesRead: manifest.total_bytes * (reusedExisting ? 1 : 2),",
+        "    reusedExisting,",
+        "  };",
+      ].join("\n"),
+      "segstore_reconstruction_measurement_literal_false",
+    ),
+    /segstore_reconstruction_measurement_literal_false_guard/,
+  ],
+  [
     "hard_coded_helper",
     segstoreProof.replace(
       functionSlice(
@@ -1493,6 +1593,76 @@ const reconstructionMeasurementMutants = [
       ),
     /segstore_reconstruction_(new_output|survivor)_(terminal_not_derived|literal_terminal_present)/,
   ],
+  [
+    "deleted_acceptance_assertions",
+    segstoreProof
+      .replace(
+        [
+          "  assert.equal(",
+          "    newOutputPasses.sourceBytesRead,",
+          "    body.length * 2,",
+          '    "new reconstruction must read each admitted source byte exactly twice",',
+          "  );",
+          "",
+        ].join("\n"),
+        "",
+      )
+      .replace(
+        [
+          "  assert.equal(",
+          "    existingOutputPasses.sourceBytesRead,",
+          "    body.length,",
+          '    "exact-survivor recovery must read each admitted source byte exactly once",',
+          "  );",
+          "",
+        ].join("\n"),
+        "",
+      )
+      .replace(
+        [
+          "  assert.equal(",
+          "    reconstructionNewOutputSourcePasses,",
+          "    2,",
+          '    "new reconstruction source-pass terminal must equal exactly two",',
+          "  );",
+          "",
+        ].join("\n"),
+        "",
+      )
+      .replace(
+        [
+          "  assert.equal(",
+          "    reconstructionExactSurvivorSourcePasses,",
+          "    1,",
+          '    "exact-survivor source-pass terminal must equal exactly one",',
+          "  );",
+          "",
+        ].join("\n"),
+        "",
+      ),
+    /segstore_reconstruction_measurement_acceptance_not_bound/,
+  ],
+  [
+    "weakened_acceptance_expectations",
+    segstoreProof
+      .replace(
+        "    newOutputPasses.sourceBytesRead,\n    body.length * 2,",
+        "    newOutputPasses.sourceBytesRead,\n    body.length * 3,",
+      )
+      .replace(
+        "    existingOutputPasses.sourceBytesRead,\n    body.length,",
+        "    existingOutputPasses.sourceBytesRead,\n    body.length * 2,",
+      )
+      .replace(
+        "    reconstructionNewOutputSourcePasses,\n    2,",
+        "    reconstructionNewOutputSourcePasses,\n    3,",
+      )
+      .replace(
+        "    reconstructionExactSurvivorSourcePasses,\n    1,",
+        "    reconstructionExactSurvivorSourcePasses,\n    2,",
+      ),
+    /segstore_reconstruction_measurement_acceptance_not_bound/,
+  ],
 ];
 
 let reconstructionMeasurementMutantsExecuted = 0;
@@ -1553,5 +1723,8 @@ console.log("segstore_reconstruction_measurement_helper_bound=true");
 console.log("segstore_reconstruction_measurement_production_call_bound=true");
 console.log("segstore_reconstruction_measurement_read_accounting_bound=true");
 console.log("segstore_reconstruction_measurement_result_terminals_bound=true");
+console.log("segstore_reconstruction_measurement_acceptance_assertions_bound=true");
+console.log("segstore_reconstruction_measurement_literal_false_guard_rejected=true");
+console.log("segstore_reconstruction_measurement_mutant_caller_bound=true");
 console.log(`segstore_reconstruction_measurement_mutants_executed=${reconstructionMeasurementMutantsExecuted}`);
 console.log("segstore_exact_generation_helper_noop_rejected=true");

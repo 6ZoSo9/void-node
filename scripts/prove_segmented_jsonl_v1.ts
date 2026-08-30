@@ -896,6 +896,16 @@ try {
     existingOutputPasses.sourceBytesRead / body.length;
   assert.equal(Number.isSafeInteger(reconstructionNewOutputSourcePasses), true);
   assert.equal(Number.isSafeInteger(reconstructionExactSurvivorSourcePasses), true);
+  assert.equal(
+    reconstructionNewOutputSourcePasses,
+    2,
+    "new reconstruction source-pass terminal must equal exactly two",
+  );
+  assert.equal(
+    reconstructionExactSurvivorSourcePasses,
+    1,
+    "exact-survivor source-pass terminal must equal exactly one",
+  );
 
   const wrongModeOutput = path.join(tmp, "reconstruct-equivalent-wrong-mode.jsonl");
   fs.writeFileSync(wrongModeOutput, body, { flag: "wx", mode: 0o400 });
