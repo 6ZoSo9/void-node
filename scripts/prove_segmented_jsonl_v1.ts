@@ -237,20 +237,77 @@ function proveExistingEquivalentReusePrecedesOutputAllocation(
   return true;
 }
 
+type ExactFileObservationV1 = {
+  dev: bigint;
+  ino: bigint;
+  size: bigint;
+  mtimeNs: bigint;
+  ctimeNs: bigint;
+  mode: bigint;
+  nlink: bigint;
+};
+
+function exactFileObservationV1(file: string): ExactFileObservationV1 {
+  const stat = fs.statSync(file, { bigint: true } as any) as any;
+  return {
+    dev: BigInt(stat.dev),
+    ino: BigInt(stat.ino),
+    size: BigInt(stat.size),
+    mtimeNs: BigInt(stat.mtimeNs),
+    ctimeNs: BigInt(stat.ctimeNs),
+    mode: BigInt(stat.mode),
+    nlink: BigInt(stat.nlink),
+  };
+}
+
+function assertExactFileObservationUnchangedV1(
+  before: ExactFileObservationV1,
+  after: ExactFileObservationV1,
+): void {
+  assert.equal(after.dev, before.dev, "alias source generation changed:dev");
+  assert.equal(after.ino, before.ino, "alias source generation changed:ino");
+  assert.equal(after.size, before.size, "alias source generation changed:size");
+  assert.equal(after.mtimeNs, before.mtimeNs, "alias source generation changed:mtimeNs");
+  assert.equal(after.ctimeNs, before.ctimeNs, "alias source generation changed:ctimeNs");
+  assert.equal(after.mode, before.mode, "alias source generation changed:mode");
+  assert.equal(after.nlink, before.nlink, "alias source generation changed:nlink");
+}
+
 function proveReconstructionRejectsSourceAlias(storePath: string): boolean {
   const activePath = path.join(storePath, "active.jsonl");
-  const before = fs.statSync(activePath, { bigint: true } as any);
+  const before = exactFileObservationV1(activePath);
   const beforeBytes = fs.readFileSync(activePath);
   expectFailure(
     () => reconstructSegmentedJsonlV1ToFile(storePath, activePath),
     "RECONSTRUCT_OUTPUT_ALIASES_SOURCE",
   );
-  const after = fs.statSync(activePath, { bigint: true } as any);
-  assert.equal(after.dev, before.dev);
-  assert.equal(after.ino, before.ino);
-  assert.equal(after.mode, before.mode);
+  const after = exactFileObservationV1(activePath);
+  assertExactFileObservationUnchangedV1(before, after);
   assert.deepEqual(fs.readFileSync(activePath), beforeBytes);
   verifySegmentedJsonlV1(storePath);
+
+  const mutationWitness = path.join(
+    path.dirname(storePath),
+    "reconstruct-source-alias-generation-mutation.witness",
+  );
+  const mutationBytes = Buffer.from("generation-mutation-witness\n", "utf8");
+  fs.writeFileSync(mutationWitness, mutationBytes, { flag: "wx", mode: 0o600 });
+  try {
+    const mutationBefore = exactFileObservationV1(mutationWitness);
+    fs.chmodSync(mutationWitness, 0o400);
+    Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 5);
+    fs.chmodSync(mutationWitness, 0o600);
+    const mutationAfter = exactFileObservationV1(mutationWitness);
+    assert.equal(mutationAfter.mode & 0o777n, mutationBefore.mode & 0o777n);
+    assert.deepEqual(fs.readFileSync(mutationWitness), mutationBytes);
+    assert.notEqual(mutationAfter.ctimeNs, mutationBefore.ctimeNs);
+    assert.throws(
+      () => assertExactFileObservationUnchangedV1(mutationBefore, mutationAfter),
+      /alias source generation changed:ctimeNs/,
+    );
+  } finally {
+    fs.unlinkSync(mutationWitness);
+  }
   return true;
 }
 
