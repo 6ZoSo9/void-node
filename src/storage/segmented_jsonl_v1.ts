@@ -776,14 +776,32 @@ function verifySegmentedJsonlWithAuthoritiesV1(
   };
 }
 
+function admitPublicVerifyOptionsV1(options: unknown): { validateJson?: boolean } {
+  if (!options || typeof options !== "object" || Array.isArray(options)) {
+    fail("INVALID_VERIFY_OPTIONS", "expected-object");
+  }
+  const candidate = options as Record<string, unknown>;
+  const keys = Object.keys(candidate);
+  if (keys.some((key) => key !== "validateJson")) {
+    fail("INVALID_VERIFY_OPTIONS", `keys=${keys.sort().join(",")}`);
+  }
+  if ("validateJson" in candidate && typeof candidate.validateJson !== "boolean") {
+    fail("INVALID_VERIFY_OPTIONS", "validateJson");
+  }
+  return "validateJson" in candidate
+    ? { validateJson: candidate.validateJson as boolean }
+    : {};
+}
+
 export function verifySegmentedJsonlV1(rootInput: string, options: {validateJson?:boolean} = {}) {
+  const admittedOptions = admitPublicVerifyOptionsV1(options);
   const rootPathValue = rootPath(rootInput), root = openStoreRootAuthorityV1(rootPathValue);
   let segments: DirectoryAuthorityV1 | null = null;
   try {
     assertPrivateDirectoryWriteAuthorityV1(root);
     segments = openDirectoryChildAuthorityV1(root, SEGMENTS, path.join(rootPathValue, SEGMENTS));
     assertPrivateDirectoryWriteAuthorityV1(segments);
-    const verified = verifySegmentedJsonlWithAuthoritiesV1(root, segments, options);
+    const verified = verifySegmentedJsonlWithAuthoritiesV1(root, segments, admittedOptions);
     return {
       manifest:verified.manifest,
       sealed_segments_verified:verified.sealed_segments_verified,
@@ -1206,12 +1224,23 @@ export function reconstructSegmentedJsonlV1ToFile(rootInput:string,outputInput:s
         fail("RECONSTRUCT_SOURCE_GENERATION_CHANGED_AFTER_VERIFY", file);
       }
     };
+    const assertVerifiedSourcesCurrent = () => {
+      for (const source of verified.reconstruction_sources) {
+        assertTerminalLeafGenerationV1(source.file, source.generation, source.mode);
+      }
+    };
+    const sourcePublicPaths = new Set([
+      ...verified.manifest.sealed_segments.map((source) => path.resolve(rootPathValue, source.file)),
+      path.resolve(rootPathValue, verified.manifest.active.file),
+    ]);
 
     outputParent=openDirectoryAuthorityV1(path.dirname(out));
     assertPrivateDirectoryWriteAuthorityV1(outputParent);
     const existing=classifyExistingReconstructionV1(outputParent,out,expectedBytes,expectedDigest,sourceGenerations);
     if(existing==="occupied") fail("OUTPUT_EXISTS",out);
     if(existing==="equivalent") {
+      assertVerifiedSourcesCurrent();
+      if(sourcePublicPaths.has(out)) fail("RECONSTRUCT_OUTPUT_ALIASES_SOURCE",out);
       assertPrivateDirectoryWriteAuthorityV1(segments);
       assertPrivateDirectoryWriteAuthorityV1(root);
       return {
@@ -1222,6 +1251,7 @@ export function reconstructSegmentedJsonlV1ToFile(rootInput:string,outputInput:s
         publication_terminal:"EXISTING_EQUIVALENT_UNOWNED",
       };
     }
+    if(sourcePublicPaths.has(out)) fail("RECONSTRUCT_OUTPUT_ALIASES_SOURCE",out);
 
     fd=openUnlinkedReconstructionFileV1(outputParent,out);
     const hash=crypto.createHash("sha256"); let bytes=0;

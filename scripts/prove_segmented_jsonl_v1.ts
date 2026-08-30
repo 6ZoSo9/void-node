@@ -361,6 +361,63 @@ function proveReconstructionRejectsSourceAlias(storePath: string): boolean {
   return true;
 }
 
+function provePublicVerifierRejectsPrivateObserverV1(storePath: string): boolean {
+  let callbackExecuted = false;
+  expectFailure(
+    () => verifySegmentedJsonlV1(
+      storePath,
+      {
+        validateJson: true,
+        onReconstructionChunk: () => {
+          callbackExecuted = true;
+        },
+      } as any,
+    ),
+    "INVALID_VERIFY_OPTIONS",
+  );
+  assert.equal(callbackExecuted, false, "private reconstruction observer must not cross the public verifier");
+  verifySegmentedJsonlV1(storePath);
+  return true;
+}
+
+function proveReplacedSourceCannotBecomeSurvivorV1(storePath: string): boolean {
+  const activePath = path.join(storePath, "active.jsonl");
+  const replacementPath = `${activePath}.same-byte-replacement`;
+  const activeBytes = fs.readFileSync(activePath);
+  fs.writeFileSync(replacementPath, activeBytes, { flag: "wx", mode: 0o600 });
+  fs.chmodSync(replacementPath, 0o600);
+
+  const originalOpenSync = (mutableFs as any).openSync;
+  let activeOpenCount = 0;
+  let swapped = false;
+  try {
+    (mutableFs as any).openSync = (...args: any[]) => {
+      if (matchesOpenedTarget(args[0], activePath)) {
+        activeOpenCount += 1;
+        if (activeOpenCount === 2) {
+          fs.renameSync(replacementPath, activePath);
+          swapped = true;
+        }
+      }
+      return originalOpenSync(...args);
+    };
+    syncBuiltinESMExports();
+    expectFailure(
+      () => reconstructSegmentedJsonlV1ToFile(storePath, activePath),
+      "VERIFY_TERMINAL_LEAF_GENERATION_MISMATCH",
+    );
+  } finally {
+    (mutableFs as any).openSync = originalOpenSync;
+    syncBuiltinESMExports();
+    if (fs.existsSync(replacementPath)) fs.unlinkSync(replacementPath);
+  }
+  assert.equal(swapped, true, "same-byte source replacement must occur before survivor classification");
+  assert.equal(activeOpenCount >= 2, true, "active source must be reopened for survivor classification");
+  assert.deepEqual(fs.readFileSync(activePath), activeBytes);
+  verifySegmentedJsonlV1(storePath);
+  return true;
+}
+
 function matchesOpenedTarget(candidateInput: unknown, targetPath: string): boolean {
   if (typeof candidateInput !== "string") return false;
   const candidate = path.resolve(candidateInput);
@@ -813,6 +870,10 @@ try {
       body,
     );
   const reconstructionSourceAliasRejected = proveReconstructionRejectsSourceAlias(store);
+  const publicVerifierPrivateObserverRejected =
+    provePublicVerifierRejectsPrivateObserverV1(store);
+  const replacedSourceSurvivorRejected =
+    proveReplacedSourceCannotBecomeSurvivorV1(store);
 
   const reconstructionPassOutput = path.join(tmp, "reconstruct-source-pass-count.jsonl");
   const newOutputPasses = measureReconstructionSourceReadsV1(store, reconstructionPassOutput);
@@ -829,6 +890,12 @@ try {
     body.length,
     "exact-survivor recovery must read each admitted source byte exactly once",
   );
+  const reconstructionNewOutputSourcePasses =
+    newOutputPasses.sourceBytesRead / body.length;
+  const reconstructionExactSurvivorSourcePasses =
+    existingOutputPasses.sourceBytesRead / body.length;
+  assert.equal(Number.isSafeInteger(reconstructionNewOutputSourcePasses), true);
+  assert.equal(Number.isSafeInteger(reconstructionExactSurvivorSourcePasses), true);
 
   const wrongModeOutput = path.join(tmp, "reconstruct-equivalent-wrong-mode.jsonl");
   fs.writeFileSync(wrongModeOutput, body, { flag: "wx", mode: 0o400 });
@@ -1195,8 +1262,10 @@ try {
       existing_equivalent_reuse_precedes_output_allocation:
         existingEquivalentReusePrecedesOutputAllocation,
       reconstruction_source_alias_rejected: reconstructionSourceAliasRejected,
-      reconstruction_new_output_source_passes: 2,
-      reconstruction_exact_survivor_source_passes: 1,
+      public_verifier_private_observer_rejected: publicVerifierPrivateObserverRejected,
+      replaced_source_survivor_rejected: replacedSourceSurvivorRejected,
+      reconstruction_new_output_source_passes: reconstructionNewOutputSourcePasses,
+      reconstruction_exact_survivor_source_passes: reconstructionExactSurvivorSourcePasses,
       manifest_generation_and_retention_bounded: true,
       manifest_runtime_shape_exact: true,
       max_manifest_bytes: VOID_SEGMENTED_JSONL_MAX_MANIFEST_BYTES_V1,
