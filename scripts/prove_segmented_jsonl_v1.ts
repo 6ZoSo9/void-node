@@ -197,7 +197,7 @@ function proveExistingEquivalentReusePrecedesOutputAllocation(
   storePath: string,
   outputPath: string,
   expectedBytes: Buffer,
-): void {
+): boolean {
   const published = reconstructSegmentedJsonlV1ToFile(storePath, outputPath);
   assert.equal(published.reused_existing, false);
   assert.equal(published.publication_terminal, "NEW_EXACT_FD");
@@ -234,6 +234,15 @@ function proveExistingEquivalentReusePrecedesOutputAllocation(
   assert.equal(durable.dev, survivor.dev);
   assert.equal(durable.ino, survivor.ino);
   assert.deepEqual(fs.readFileSync(outputPath), expectedBytes);
+  return true;
+}
+
+function proveReconstructionRejectsSourceAlias(storePath: string): boolean {
+  expectFailure(
+    () => reconstructSegmentedJsonlV1ToFile(storePath, path.join(storePath, "active.jsonl")),
+    "RECONSTRUCT_OUTPUT_ALIASES_SOURCE",
+  );
+  return true;
 }
 
 function matchesOpenedTarget(candidateInput: unknown, targetPath: string): boolean {
@@ -681,11 +690,13 @@ try {
   assert.equal(rebuiltAfterRetry.ino, rebuiltBeforeRetry.ino);
   assert.deepEqual(fs.readFileSync(rebuilt), body);
 
-  proveExistingEquivalentReusePrecedesOutputAllocation(
-    store,
-    path.join(tmp, "reconstruct-equivalent-no-duplicate-allocation.jsonl"),
-    body,
-  );
+  const existingEquivalentReusePrecedesOutputAllocation =
+    proveExistingEquivalentReusePrecedesOutputAllocation(
+      store,
+      path.join(tmp, "reconstruct-equivalent-no-duplicate-allocation.jsonl"),
+      body,
+    );
+  const reconstructionSourceAliasRejected = proveReconstructionRejectsSourceAlias(store);
 
   const wrongModeOutput = path.join(tmp, "reconstruct-equivalent-wrong-mode.jsonl");
   fs.writeFileSync(wrongModeOutput, body, { flag: "wx", mode: 0o400 });
@@ -1049,7 +1060,9 @@ try {
       manifest_staging_alias_absent: true,
       failed_leaf_cleanup_preserves_foreign_generation: true,
       existing_equivalent_data_fsync_ordered: true,
-      existing_equivalent_reuse_precedes_output_allocation: true,
+      existing_equivalent_reuse_precedes_output_allocation:
+        existingEquivalentReusePrecedesOutputAllocation,
+      reconstruction_source_alias_rejected: reconstructionSourceAliasRejected,
       manifest_generation_and_retention_bounded: true,
       manifest_runtime_shape_exact: true,
       max_manifest_bytes: VOID_SEGMENTED_JSONL_MAX_MANIFEST_BYTES_V1,
