@@ -395,36 +395,36 @@ function auditFocusedStepContract(source) {
   }
 }
 
+function workflowNamedStepLines(source, stepName) {
+  const matches = workflowStepRanges(source).filter((step) => step.name === stepName);
+  assert.equal(matches.length, 1, `focused_named_step_count:${stepName}:${matches.length}`);
+  const lines = matches[0].lines.slice(matches[0].start, matches[0].end);
+  while (lines.at(-1) === "") lines.pop();
+  return lines;
+}
+
 function auditFocusedCriticalStepBlocks(source) {
-  const exactBlock = (lines, marker) => {
-    const block = lines.join("\n");
-    const count = source.split(block).length - 1;
-    assert.equal(count, 1, `${marker}:${count}`);
+  const exactStep = (stepName, expected, marker) => {
+    assert.deepEqual(workflowNamedStepLines(source, stepName), expected, marker);
   };
-  exactBlock([
+  exactStep("Checkout exact revision", [
     "      - name: Checkout exact revision",
     "        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6",
     "        with:",
     "          fetch-depth: 1",
     "          persist-credentials: false",
-    "",
-    "      - name: Use Node.js ${{ matrix.node }}",
   ], "focused_checkout_block_not_exact");
-  exactBlock([
+  exactStep("Use Node.js ${{ matrix.node }}", [
     "      - name: Use Node.js ${{ matrix.node }}",
     "        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6",
     "        with:",
     "          node-version: ${{ matrix.node }}",
-    "",
-    "      - name: Install reviewed dependencies",
   ], "focused_setup_node_block_not_exact");
-  exactBlock([
+  exactStep("Install reviewed dependencies", [
     "      - name: Install reviewed dependencies",
     "        run: |",
     "          test \"$(node -p 'process.versions.node.split(\".\")[0]')\" = \"${{ matrix.node }}\"",
     "          npm ci",
-    "",
-    "      - name: Prove focused workflow dependency closure",
   ], "focused_runtime_major_assertion_not_exact");
   const hygieneBlock = [
     "      - name: Committed-range diff hygiene",
@@ -438,8 +438,12 @@ function auditFocusedCriticalStepBlocks(source) {
     "          CI_DIFF_BASE_REMOTE: ${{ github.server_url }}/${{ github.repository }}.git",
     "          CI_DIFF_HEAD_REMOTE: ${{ github.server_url }}/${{ github.event.pull_request.head.repo.full_name || github.repository }}.git",
     "        run: bash scripts/ci_diff_hygiene_v1.sh",
-  ].join("\n") + "\n";
-  assert.ok(source.endsWith(hygieneBlock), "focused_hygiene_block_not_exact");
+  ];
+  assert.deepEqual(
+    workflowNamedStepLines(source, "Committed-range diff hygiene"),
+    hygieneBlock,
+    "focused_hygiene_block_not_exact",
+  );
 }
 function rejectFailureTolerance(source, marker) {
   assert.ok(
@@ -855,6 +859,41 @@ assert.throws(
   /focused_pull_request_trigger_count|focused_push_trigger_count/,
 );
 
+
+const checkoutScalarDecoy = focused
+  .replace(
+    [
+      "      - name: Checkout exact revision",
+      "        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6",
+      "        with:",
+      "          fetch-depth: 1",
+      "          persist-credentials: false",
+    ].join("\n"),
+    [
+      "      - name: Checkout exact revision",
+      "        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6",
+      "        with:",
+      "          fetch-depth: 0",
+      "          persist-credentials: true",
+      "          ref: c87df8a2f60290a9579c79dfd0a4a91798b38313",
+    ].join("\n"),
+  )
+  .replace(
+    "name: VOID Segmented JSONL V1",
+    [
+      "name: |6",
+      "      - name: Checkout exact revision",
+      "        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6",
+      "        with:",
+      "          fetch-depth: 1",
+      "          persist-credentials: false",
+    ].join("\n"),
+  );
+assert.notEqual(checkoutScalarDecoy, focused, "focused_checkout_scalar_decoy_mutant_not_applied");
+assert.throws(
+  () => auditFocused(checkoutScalarDecoy),
+  /focused_checkout_block_not_exact/,
+);
 
 const criticalIdentityMutants = [
   ["checkout_ref_replay", "          persist-credentials: false\n", "          persist-credentials: false\n          ref: c87df8a2f60290a9579c79dfd0a4a91798b38313\n"],

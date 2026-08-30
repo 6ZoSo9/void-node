@@ -431,36 +431,45 @@ jobs:
             }
           }
 
+          function workflowNamedStepLines(source, stepName) {
+            const job = workflowProofJobRange(source);
+            const starts = [];
+            for (let index = job.start + 1; index < job.end; index += 1) {
+              if (/^      - /.test(job.lines[index])) starts.push(index);
+            }
+            const matches = starts.filter(
+              (index) => job.lines[index] === `      - name: ${stepName}`,
+            );
+            assert.equal(matches.length, 1, `focused_named_step_count:${stepName}:${matches.length}`);
+            const start = matches[0];
+            const next = starts.find((index) => index > start) ?? job.end;
+            const lines = job.lines.slice(start, next);
+            while (lines.at(-1) === "") lines.pop();
+            return lines;
+          }
+
           function auditFocusedCriticalStepBlocks(source) {
-            const exactBlock = (lines, marker) => {
-              const block = lines.join("\n");
-              const count = source.split(block).length - 1;
-              assert.equal(count, 1, `${marker}:${count}`);
+            const exactStep = (stepName, expected, marker) => {
+              assert.deepEqual(workflowNamedStepLines(source, stepName), expected, marker);
             };
-            exactBlock([
+            exactStep("Checkout exact revision", [
               "      - name: Checkout exact revision",
               "        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6",
               "        with:",
               "          fetch-depth: 1",
               "          persist-credentials: false",
-              "",
-              `      - name: Use Node.js ${expressionOpen} matrix.node }}`,
             ], "focused_checkout_block_not_exact");
-            exactBlock([
+            exactStep(`Use Node.js ${expressionOpen} matrix.node }}`, [
               `      - name: Use Node.js ${expressionOpen} matrix.node }}`,
               "        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6",
               "        with:",
               `          node-version: ${expressionOpen} matrix.node }}`,
-              "",
-              "      - name: Install reviewed dependencies",
             ], "focused_setup_node_block_not_exact");
-            exactBlock([
+            exactStep("Install reviewed dependencies", [
               "      - name: Install reviewed dependencies",
               "        run: |",
               "          test \"$(node -p 'process.versions.node.split(\".\")[0]')\" = \"" + expressionOpen + " matrix.node }}\"",
               "          npm ci",
-              "",
-              "      - name: Prove focused workflow dependency closure",
             ], "focused_runtime_major_assertion_not_exact");
             const hygieneBlock = [
               "      - name: Committed-range diff hygiene",
@@ -474,8 +483,12 @@ jobs:
               `          CI_DIFF_BASE_REMOTE: ${expressionOpen} github.server_url }}/${expressionOpen} github.repository }}.git`,
               `          CI_DIFF_HEAD_REMOTE: ${expressionOpen} github.server_url }}/${expressionOpen} github.event.pull_request.head.repo.full_name || github.repository }}.git`,
               "        run: bash scripts/ci_diff_hygiene_v1.sh",
-            ].join("\n") + "\n";
-            assert.ok(source.endsWith(hygieneBlock), "focused_hygiene_block_not_exact");
+            ];
+            assert.deepEqual(
+              workflowNamedStepLines(source, "Committed-range diff hygiene"),
+              hygieneBlock,
+              "focused_hygiene_block_not_exact",
+            );
           }
           function rejectFailureTolerance(source, marker) {
             assert.ok(
@@ -572,7 +585,7 @@ jobs:
           );
           assert.throws(
             () => audit(text.replace('          persist-credentials: false', '          persist-credentials: true')),
-            /focused_credentials_persisted/,
+            /focused_checkout_block_not_exact|focused_credentials_persisted/,
           );
           assert.throws(
             () => audit(text.replace(
@@ -584,6 +597,40 @@ jobs:
           assert.throws(
             () => audit(text.replace('        node: [22, 24, 26]', '        node: [22, 24]')),
             /focused_node_matrix_not_exact/,
+          );
+          const checkoutScalarDecoy = text
+            .replace(
+              [
+                "      - name: Checkout exact revision",
+                "        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6",
+                "        with:",
+                "          fetch-depth: 1",
+                "          persist-credentials: false",
+              ].join("\n"),
+              [
+                "      - name: Checkout exact revision",
+                "        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6",
+                "        with:",
+                "          fetch-depth: 0",
+                "          persist-credentials: true",
+                "          ref: c87df8a2f60290a9579c79dfd0a4a91798b38313",
+              ].join("\n"),
+            )
+            .replace(
+              "name: VOID Segmented JSONL V1",
+              [
+                "name: |6",
+                "      - name: Checkout exact revision",
+                "        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6",
+                "        with:",
+                "          fetch-depth: 1",
+                "          persist-credentials: false",
+              ].join("\n"),
+            );
+          assert.notEqual(checkoutScalarDecoy, text, "focused_checkout_scalar_decoy_mutant_not_applied");
+          assert.throws(
+            () => audit(checkoutScalarDecoy),
+            /focused_checkout_block_not_exact/,
           );
           const criticalIdentityMutants = [
             ["checkout_ref_replay", "          persist-credentials: false\n", "          persist-credentials: false\n          ref: c87df8a2f60290a9579c79dfd0a4a91798b38313\n"],
