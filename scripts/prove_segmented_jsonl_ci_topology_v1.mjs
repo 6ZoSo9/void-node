@@ -2013,7 +2013,7 @@ for (const [name, primitive] of [
   assert.notEqual(mutant, focused, `focused_${name}_mutant_not_applied`);
   assert.throws(
     () => auditFocused(mutant),
-    /focused_inline_audit_call_order:audit/,
+    /focused_inline_audit_call_order:0/,
     `focused_${name}_mutant_not_rejected`,
   );
   focusedSuccessfulTerminationMutantsExecuted += 1;
