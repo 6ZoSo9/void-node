@@ -101,7 +101,7 @@ jobs:
 
       - name: Prove independent SegStore CI topology
         run: |
-          test "$(git hash-object scripts/prove_segmented_jsonl_ci_topology_v1.mjs)" = "b20336905d69f1df38077b6899650818ab2c8194"
+          test "$(git hash-object scripts/prove_segmented_jsonl_ci_topology_v1.mjs)" = "7c501c7c23c6b3f8dce70ecbe5690f08401dec59"
           node scripts/prove_segmented_jsonl_ci_topology_v1.mjs
 
       - name: Prove focused workflow dependency closure
@@ -141,7 +141,7 @@ jobs:
           const text = fs.readFileSync(workflowPath, 'utf8');
           const topologyPath = 'scripts/prove_segmented_jsonl_ci_topology_v1.mjs';
           const topologyText = fs.readFileSync(topologyPath, 'utf8');
-          const EXPECTED_TOPOLOGY_BLOB_SHA1 = 'b20336905d69f1df38077b6899650818ab2c8194';
+          const EXPECTED_TOPOLOGY_BLOB_SHA1 = '7c501c7c23c6b3f8dce70ecbe5690f08401dec59';
           function focusedGitBlobSha1(source) {
             return createHash('sha1')
               .update(`blob ${Buffer.byteLength(source, 'utf8')}\0`)
@@ -1149,22 +1149,42 @@ jobs:
             return count;
           }
 
+          function focusedInlineUnwrapExpression(node) {
+            let current = node;
+            while (ts.isParenthesizedExpression(current)) current = current.expression;
+            return current;
+          }
+
+          function focusedInlineAssignmentTargetContainsCounter(node) {
+            const target = focusedInlineUnwrapExpression(node);
+            if (
+              ts.isIdentifier(target) &&
+              target.text === "focusedInlineAuditTerminalsExecuted"
+            ) return true;
+            let containsCounter = false;
+            ts.forEachChild(target, (child) => {
+              if (focusedInlineAssignmentTargetContainsCounter(child)) containsCounter = true;
+            });
+            return containsCounter;
+          }
+
           function focusedInlineAuditCounterWriteCount(sourceFile) {
             let writes = 0;
-            const isCounter = (node) =>
-              ts.isIdentifier(node) && node.text === "focusedInlineAuditTerminalsExecuted";
             const visit = (node) => {
               if (
                 ts.isBinaryExpression(node) &&
                 node.operatorToken.kind >= ts.SyntaxKind.FirstAssignment &&
                 node.operatorToken.kind <= ts.SyntaxKind.LastAssignment &&
-                isCounter(node.left)
+                focusedInlineAssignmentTargetContainsCounter(node.left)
               ) writes += 1;
               if (
                 (ts.isPrefixUnaryExpression(node) || ts.isPostfixUnaryExpression(node)) &&
-                isCounter(node.operand)
+                focusedInlineAssignmentTargetContainsCounter(node.operand)
               ) writes += 1;
-              if (ts.isDeleteExpression(node) && isCounter(node.expression)) writes += 1;
+              if (
+                ts.isDeleteExpression(node) &&
+                focusedInlineAssignmentTargetContainsCounter(node.expression)
+              ) writes += 1;
               ts.forEachChild(node, visit);
             };
             visit(sourceFile);
@@ -1174,11 +1194,10 @@ jobs:
           function focusedInlineDynamicCodeEvaluationCount(sourceFile) {
             let evaluations = 0;
             const visit = (node) => {
-              if (
-                ts.isCallExpression(node) &&
-                ts.isIdentifier(node.expression) &&
-                node.expression.text === "eval"
-              ) evaluations += 1;
+              if (ts.isCallExpression(node)) {
+                const callee = focusedInlineUnwrapExpression(node.expression);
+                if (ts.isIdentifier(callee) && callee.text === "eval") evaluations += 1;
+              }
               ts.forEachChild(node, visit);
             };
             visit(sourceFile);
