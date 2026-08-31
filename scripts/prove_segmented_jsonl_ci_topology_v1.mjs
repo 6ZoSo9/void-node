@@ -876,10 +876,11 @@ function auditFocusedInlineRuntimeTerminalGuard(source) {
   );
   const statements = parsed.statements.map((statement, index) => ({
     index,
+    statement,
     text: statement.getText(parsed).replace(/\s+/g, " "),
   }));
   const one = (marker, predicate) => {
-    const matches = statements.filter(({ text }) => predicate(text));
+    const matches = statements.filter(({ text, statement }) => predicate(text, statement));
     assert.equal(matches.length, 1, marker);
     return matches[0].index;
   };
@@ -893,16 +894,21 @@ function auditFocusedInlineRuntimeTerminalGuard(source) {
       text ===
       "const focusedNativeProcessExit = Reflect.get(process, 'exit').bind(process);",
   );
+  const expectedTerminationLockdown = "Object.defineProperties(process, { 'exit': { value(code = 0) { if (focusedInlineAuditTerminalsExecuted !== 4) { throw new Error('focused_inline_audit_premature_exit'); } return focusedNativeProcessExit(code); }, writable: false, configurable: false, }, 'reallyExit': { value() { throw new Error('focused_inline_audit_really_exit_forbidden'); }, writable: false, configurable: false, }, });";
   const terminationLockdown = one(
-    "focused_inline_termination_lockdown_not_top_level",
-    (text) =>
-      text.startsWith("Object.defineProperties(process, { 'exit': {") &&
-      text.includes("focusedInlineAuditTerminalsExecuted !== 4") &&
-      text.includes("'focused_inline_audit_premature_exit'") &&
-      text.includes("'reallyExit': {") &&
-      text.includes("'focused_inline_audit_really_exit_forbidden'") &&
-      text.includes("writable: false") &&
-      text.includes("configurable: false"),
+    "focused_inline_termination_lockdown_descriptor_not_exact",
+    (text, statement) => {
+      if (!ts.isExpressionStatement(statement)) return false;
+      const call = statement.expression;
+      if (!ts.isCallExpression(call) || call.arguments.length !== 2) return false;
+      if (!ts.isPropertyAccessExpression(call.expression)) return false;
+      if (!ts.isIdentifier(call.expression.expression)) return false;
+      if (call.expression.expression.text !== "Object") return false;
+      if (call.expression.name.text !== "defineProperties") return false;
+      if (!ts.isIdentifier(call.arguments[0]) || call.arguments[0].text !== "process") return false;
+      if (!ts.isObjectLiteralExpression(call.arguments[1])) return false;
+      return text === expectedTerminationLockdown;
+    },
   );
   const exitGuard = one(
     "focused_inline_audit_exit_guard_not_top_level",
@@ -1599,7 +1605,30 @@ function wrapFocusedDurableRootAuditMutantBlock(source, opener) {
   lines.splice(start, end - start + 1, `          ${opener}`, ...wrapped, "          }");
   return lines.join("\n");
 }
-const focused = readFileSync(path.join(ROOT, FOCUSED_PATH), "utf8");
+const focusedBase = readFileSync(path.join(ROOT, FOCUSED_PATH), "utf8");
+const focusedTerminationLockdownDescriptorConstructionChild =
+  process.env.VOID_FOCUSED_TERMINATION_LOCKDOWN_DESCRIPTOR_CONSTRUCTION_MUTANT === "1";
+function focusedTerminationLockdownDescriptorConstructionMutant(source) {
+  const from = [
+    "            'exit': {",
+    "              value(code = 0) {",
+  ].join("\n");
+  const to = [
+    "            'exit': {",
+    "              [process['really' + 'Exit'](0)]: true,",
+    "              value(code = 0) {",
+  ].join("\n");
+  const mutant = source.replace(from, to);
+  assert.notEqual(
+    mutant,
+    source,
+    "focused_termination_lockdown_descriptor_construction_mutant_not_applied",
+  );
+  return mutant;
+}
+const focused = focusedTerminationLockdownDescriptorConstructionChild
+  ? focusedTerminationLockdownDescriptorConstructionMutant(focusedBase)
+  : focusedBase;
 const baseline = readFileSync(path.join(ROOT, BASELINE_PATH), "utf8");
 const ci = readFileSync(path.join(ROOT, CI_PATH), "utf8");
 const segstoreProof = readFileSync(path.join(ROOT, SEGSTORE_PROOF_PATH), "utf8");
@@ -1607,6 +1636,39 @@ const topologyProof = readFileSync(path.join(ROOT, PROOF_PATH), "utf8");
 const durableRootSource = readFileSync(path.join(ROOT, DURABLE_ROOT_SOURCE_PATH), "utf8");
 const durableRootProof = readFileSync(path.join(ROOT, DURABLE_ROOT_PROOF_PATH), "utf8");
 auditFocused(focused);
+if (!focusedTerminationLockdownDescriptorConstructionChild) {
+  const descriptorConstructionMutant =
+    focusedTerminationLockdownDescriptorConstructionMutant(focused);
+  assert.throws(
+    () => auditFocused(descriptorConstructionMutant),
+    /focused_inline_termination_lockdown_descriptor_not_exact/,
+    "focused_termination_lockdown_descriptor_construction_mutant_not_rejected",
+  );
+  const descriptorConstructionExecution = spawnSync(
+    process.execPath,
+    [PROOF_PATH],
+    {
+      cwd: ROOT,
+      encoding: "utf8",
+      timeout: 120_000,
+      env: {
+        ...process.env,
+        VOID_FOCUSED_TERMINATION_LOCKDOWN_DESCRIPTOR_CONSTRUCTION_MUTANT: "1",
+      },
+    },
+  );
+  assert.notEqual(
+    descriptorConstructionExecution.status,
+    0,
+    "focused_termination_lockdown_descriptor_construction_mutant_terminated_successfully",
+  );
+  assert.match(
+    `${descriptorConstructionExecution.stderr || ""}\n${descriptorConstructionExecution.stdout || ""}`,
+    /focused_inline_termination_lockdown_descriptor_not_exact/,
+    "focused_termination_lockdown_descriptor_construction_rejection_terminal_missing",
+  );
+  console.log("focused_termination_lockdown_descriptor_construction_mutant_executed=true");
+}
 let focusedSuccessfulTerminationMutantsExecuted = 0;
 for (const [name, primitive] of [
   ["process_exit_zero", "process.exit(0);"],
