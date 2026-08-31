@@ -880,6 +880,28 @@ function successfulTerminationPrimitiveCount(source, marker) {
   return count;
 }
 
+function focusedInlineAuditCounterWriteCount(sourceFile) {
+  let writes = 0;
+  const isCounter = (node) =>
+    ts.isIdentifier(node) && node.text === "focusedInlineAuditTerminalsExecuted";
+  const visit = (node) => {
+    if (
+      ts.isBinaryExpression(node) &&
+      node.operatorToken.kind >= ts.SyntaxKind.FirstAssignment &&
+      node.operatorToken.kind <= ts.SyntaxKind.LastAssignment &&
+      isCounter(node.left)
+    ) writes += 1;
+    if (
+      (ts.isPrefixUnaryExpression(node) || ts.isPostfixUnaryExpression(node)) &&
+      isCounter(node.operand)
+    ) writes += 1;
+    if (ts.isDeleteExpression(node) && isCounter(node.expression)) writes += 1;
+    ts.forEachChild(node, visit);
+  };
+  visit(sourceFile);
+  return writes;
+}
+
 function auditFocusedInlineRuntimeTerminalGuard(source) {
   const parsed = parseJavaScriptSource(
     source,
@@ -925,6 +947,11 @@ function auditFocusedInlineRuntimeTerminalGuard(source) {
       text.includes("focusedInlineAuditTerminalsExecuted !== 4") &&
       text.includes("process.exitCode = 1;"),
   );
+  const auditFunction = one(
+    "focused_inline_audit_function_not_top_level",
+    (_text, statement) =>
+      ts.isFunctionDeclaration(statement) && statement.name?.text === "audit",
+  );
   const auditCalls = [
     "audit",
     "auditTopologyMeasurementMutantExecution",
@@ -938,6 +965,11 @@ function auditFocusedInlineRuntimeTerminalGuard(source) {
     .filter(({ text }) => text === "focusedInlineAuditTerminalsExecuted += 1;")
     .map(({ index }) => index);
   assert.equal(increments.length, 4, "focused_inline_audit_terminal_increment_count");
+  assert.equal(
+    focusedInlineAuditCounterWriteCount(parsed),
+    4,
+    "focused_inline_audit_counter_write_count_not_exact",
+  );
   const countAssertion = one(
     "focused_inline_audit_terminal_assertion_not_top_level",
     (text) =>
@@ -966,7 +998,7 @@ function auditFocusedInlineRuntimeTerminalGuard(source) {
     "focused_inline_audit_exit_guard_order",
   );
   for (let index = 0; index < auditCalls.length; index += 1) {
-    const expectedCall = index === 0 ? auditCalls[0] : increments[index - 1] + 1;
+    const expectedCall = index === 0 ? auditFunction + 1 : increments[index - 1] + 1;
     assert.equal(auditCalls[index], expectedCall, `focused_inline_audit_call_order:${index}`);
     assert.equal(increments[index], auditCalls[index] + 1, `focused_inline_audit_increment_order:${index}`);
   }
@@ -1620,6 +1652,16 @@ function wrapFocusedDurableRootAuditMutantBlock(source, opener) {
 const focusedBase = readFileSync(path.join(ROOT, FOCUSED_PATH), "utf8");
 const focusedTerminationLockdownDescriptorConstructionChild =
   process.env.VOID_FOCUSED_TERMINATION_LOCKDOWN_DESCRIPTOR_CONSTRUCTION_MUTANT === "1";
+const focusedSuccessfulTerminationAliasChild =
+  process.env.VOID_FOCUSED_SUCCESSFUL_TERMINATION_ALIAS_MUTANT === "1";
+const focusedInlineAuditCounterStdinChild =
+  process.env.VOID_FOCUSED_INLINE_AUDIT_COUNTER_STDIN_MUTANT === "1";
+assert.ok(
+  Number(focusedTerminationLockdownDescriptorConstructionChild) +
+    Number(focusedSuccessfulTerminationAliasChild) +
+    Number(focusedInlineAuditCounterStdinChild) <= 1,
+  "focused_external_mutant_child_selector_not_exclusive",
+);
 function focusedTerminationLockdownDescriptorConstructionMutant(source) {
   const from = [
     "              'exit': {",
@@ -1638,9 +1680,50 @@ function focusedTerminationLockdownDescriptorConstructionMutant(source) {
   );
   return mutant;
 }
+function focusedSuccessfulTerminationAliasMutant(source) {
+  const mutant = source
+    .replace(
+      "          let focusedInlineAuditTerminalsExecuted = 0;",
+      "          const halt = Reflect.get(process, 'really' + 'Exit').bind(process);\n" +
+        "          let focusedInlineAuditTerminalsExecuted = 0;",
+    )
+    .replace(
+      "          const workflowPath = '.github/workflows/void-segmented-jsonl-v1.yml';",
+      "          halt(0);\n" +
+        "          const workflowPath = '.github/workflows/void-segmented-jsonl-v1.yml';",
+    );
+  assert.notEqual(
+    mutant,
+    source,
+    "focused_successful_termination_alias_mutant_not_applied",
+  );
+  return mutant;
+}
+function focusedInlineAuditCounterStdinMutant(source) {
+  const mutant = source.replace(
+    "          const workflowPath = '.github/workflows/void-segmented-jsonl-v1.yml';",
+    [
+      "          if (__filename === '[stdin]') {",
+      "            focusedInlineAuditTerminalsExecuted = 4;",
+      "            Reflect.get(process, String.fromCharCode(101, 120, 105, 116))(0);",
+      "          }",
+      "          const workflowPath = '.github/workflows/void-segmented-jsonl-v1.yml';",
+    ].join("\n"),
+  );
+  assert.notEqual(
+    mutant,
+    source,
+    "focused_inline_audit_counter_stdin_mutant_not_applied",
+  );
+  return mutant;
+}
 const focused = focusedTerminationLockdownDescriptorConstructionChild
   ? focusedTerminationLockdownDescriptorConstructionMutant(focusedBase)
-  : focusedBase;
+  : focusedSuccessfulTerminationAliasChild
+    ? focusedSuccessfulTerminationAliasMutant(focusedBase)
+    : focusedInlineAuditCounterStdinChild
+      ? focusedInlineAuditCounterStdinMutant(focusedBase)
+      : focusedBase;
 const baseline = readFileSync(path.join(ROOT, BASELINE_PATH), "utf8");
 const ci = readFileSync(path.join(ROOT, CI_PATH), "utf8");
 const segstoreProof = readFileSync(path.join(ROOT, SEGSTORE_PROOF_PATH), "utf8");
@@ -1648,7 +1731,11 @@ const topologyProof = readFileSync(path.join(ROOT, PROOF_PATH), "utf8");
 const durableRootSource = readFileSync(path.join(ROOT, DURABLE_ROOT_SOURCE_PATH), "utf8");
 const durableRootProof = readFileSync(path.join(ROOT, DURABLE_ROOT_PROOF_PATH), "utf8");
 auditFocused(focused);
-if (!focusedTerminationLockdownDescriptorConstructionChild) {
+if (
+  !focusedTerminationLockdownDescriptorConstructionChild &&
+  !focusedSuccessfulTerminationAliasChild &&
+  !focusedInlineAuditCounterStdinChild
+) {
   const descriptorConstructionMutant =
     focusedTerminationLockdownDescriptorConstructionMutant(focused);
   assert.throws(
@@ -1681,6 +1768,79 @@ if (!focusedTerminationLockdownDescriptorConstructionChild) {
   );
   console.log("focused_termination_lockdown_descriptor_construction_mutant_executed=true");
 }
+let focusedExternalTerminationChildrenExecuted = 0;
+if (
+  !focusedTerminationLockdownDescriptorConstructionChild &&
+  !focusedSuccessfulTerminationAliasChild &&
+  !focusedInlineAuditCounterStdinChild
+) {
+  const aliasMutant = focusedSuccessfulTerminationAliasMutant(focused);
+  assert.throws(
+    () => auditFocused(aliasMutant),
+    /focused_inline_import_prefix_not_exact|focused_inline_import_prefix_counter_order/,
+    "focused_successful_termination_alias_mutant_not_rejected",
+  );
+  const aliasExecution = spawnSync(
+    process.execPath,
+    [PROOF_PATH],
+    {
+      cwd: ROOT,
+      encoding: "utf8",
+      timeout: 120_000,
+      env: {
+        ...process.env,
+        VOID_FOCUSED_SUCCESSFUL_TERMINATION_ALIAS_MUTANT: "1",
+      },
+    },
+  );
+  assert.notEqual(
+    aliasExecution.status,
+    0,
+    "focused_successful_termination_alias_child_terminated_successfully",
+  );
+  assert.match(
+    `${aliasExecution.stderr || ""}\n${aliasExecution.stdout || ""}`,
+    /focused_inline_import_prefix_not_exact|focused_inline_import_prefix_counter_order/,
+    "focused_successful_termination_alias_child_rejection_terminal_missing",
+  );
+  focusedExternalTerminationChildrenExecuted += 1;
+
+  const counterStdinMutant = focusedInlineAuditCounterStdinMutant(focused);
+  assert.throws(
+    () => auditFocused(counterStdinMutant),
+    /focused_inline_audit_counter_write_count_not_exact/,
+    "focused_inline_audit_counter_stdin_mutant_not_rejected",
+  );
+  const counterStdinExecution = spawnSync(
+    process.execPath,
+    [PROOF_PATH],
+    {
+      cwd: ROOT,
+      encoding: "utf8",
+      timeout: 120_000,
+      env: {
+        ...process.env,
+        VOID_FOCUSED_INLINE_AUDIT_COUNTER_STDIN_MUTANT: "1",
+      },
+    },
+  );
+  assert.notEqual(
+    counterStdinExecution.status,
+    0,
+    "focused_inline_audit_counter_stdin_child_terminated_successfully",
+  );
+  assert.match(
+    `${counterStdinExecution.stderr || ""}\n${counterStdinExecution.stdout || ""}`,
+    /focused_inline_audit_counter_write_count_not_exact/,
+    "focused_inline_audit_counter_stdin_child_rejection_terminal_missing",
+  );
+  focusedExternalTerminationChildrenExecuted += 1;
+}
+assert.equal(
+  focusedExternalTerminationChildrenExecuted,
+  2,
+  "focused_external_termination_child_count_not_exact",
+);
 let focusedSuccessfulTerminationMutantsExecuted = 0;
 for (const [name, primitive] of [
   ["process_exit_zero", "process.exit(0);"],
@@ -1734,22 +1894,8 @@ assert.match(
   "focused_computed_really_exit_mutant_not_guard_rejected",
 );
 focusedSuccessfulTerminationMutantsExecuted += 1;
-const successfulTerminationAliasMutant = focused
-  .replace(
-    "          let focusedInlineAuditTerminalsExecuted = 0;",
-    "          const halt = Reflect.get(process, 'really' + 'Exit').bind(process);\n" +
-      "          let focusedInlineAuditTerminalsExecuted = 0;",
-  )
-  .replace(
-    "          const workflowPath = '.github/workflows/void-segmented-jsonl-v1.yml';",
-    "          halt(0);\n" +
-      "          const workflowPath = '.github/workflows/void-segmented-jsonl-v1.yml';",
-  );
-assert.notEqual(
-  successfulTerminationAliasMutant,
-  focused,
-  "focused_successful_termination_alias_mutant_not_applied",
-);
+const successfulTerminationAliasMutant =
+  focusedSuccessfulTerminationAliasMutant(focused);
 assert.throws(
   () => auditFocused(successfulTerminationAliasMutant),
   /focused_inline_import_prefix_not_exact|focused_inline_import_prefix_counter_order/,
@@ -2884,4 +3030,8 @@ console.log("segstore_exact_generation_helper_noop_rejected=true");
 
 console.log(`focused_durable_root_audit_reachability_mutants_executed=${focusedDurableRootAuditReachabilityMutantsExecuted}`);
 console.log(`focused_successful_termination_mutants_executed=${focusedSuccessfulTerminationMutantsExecuted}`);
+console.log(`focused_external_termination_children_executed=${focusedExternalTerminationChildrenExecuted}`);
+console.log("focused_successful_termination_alias_child_rejected=true");
+console.log("focused_inline_audit_counter_stdin_child_rejected=true");
+console.log("focused_inline_audit_counter_writes_exact=true");
 console.log("focused_inline_successful_termination_rejected=true");
