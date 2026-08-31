@@ -1310,7 +1310,7 @@ jobs:
               'focused_shared_proof_not_invoked',
             );
             assert.equal(
-              lineCount(source, '        run: node scripts/prove_segmented_jsonl_ci_topology_v1.mjs'),
+              lineCount(source, '          node scripts/prove_segmented_jsonl_ci_topology_v1.mjs'),
               1,
               'focused_topology_proof_not_invoked',
             );
