@@ -107,6 +107,26 @@ jobs:
           const fs = require('node:fs');
           const ts = require('typescript');
           let focusedInlineAuditTerminalsExecuted = 0;
+          const focusedNativeProcessExit = Reflect.get(process, 'exit').bind(process);
+          Object.defineProperties(process, {
+            'exit': {
+              value(code = 0) {
+                if (focusedInlineAuditTerminalsExecuted !== 4) {
+                  throw new Error('focused_inline_audit_premature_exit');
+                }
+                return focusedNativeProcessExit(code);
+              },
+              writable: false,
+              configurable: false,
+            },
+            'reallyExit': {
+              value() {
+                throw new Error('focused_inline_audit_really_exit_forbidden');
+              },
+              writable: false,
+              configurable: false,
+            },
+          });
           process.on('exit', () => {
             if (focusedInlineAuditTerminalsExecuted !== 4) process.exitCode = 1;
           });
@@ -114,7 +134,7 @@ jobs:
           const text = fs.readFileSync(workflowPath, 'utf8');
           const topologyPath = 'scripts/prove_segmented_jsonl_ci_topology_v1.mjs';
           const topologyText = fs.readFileSync(topologyPath, 'utf8');
-          const EXPECTED_TOPOLOGY_BLOB_SHA1 = '42c9ed57ea3a9dd1b1413d2c7d1e465c18e998c8';
+          const EXPECTED_TOPOLOGY_BLOB_SHA1 = 'c20952456834aba30eb1322a9d668c7577067f20';
           function focusedGitBlobSha1(source) {
             return createHash('sha1')
               .update(`blob ${Buffer.byteLength(source, 'utf8')}\0`)
@@ -1129,6 +1149,23 @@ jobs:
               "focused_inline_audit_terminal_counter_not_top_level",
               (text) => text === "let focusedInlineAuditTerminalsExecuted = 0;",
             );
+            const nativeExit = one(
+              "focused_inline_native_exit_not_top_level",
+              (text) =>
+                text ===
+                "const focusedNativeProcessExit = Reflect.get(process, 'exit').bind(process);",
+            );
+            const terminationLockdown = one(
+              "focused_inline_termination_lockdown_not_top_level",
+              (text) =>
+                text.startsWith("Object.defineProperties(process, { 'exit': {") &&
+                text.includes("focusedInlineAuditTerminalsExecuted !== 4") &&
+                text.includes("'focused_inline_audit_premature_exit'") &&
+                text.includes("'reallyExit': {") &&
+                text.includes("'focused_inline_audit_really_exit_forbidden'") &&
+                text.includes("writable: false") &&
+                text.includes("configurable: false"),
+            );
             const exitGuard = one(
               "focused_inline_audit_exit_guard_not_top_level",
               (text) =>
@@ -1161,7 +1198,17 @@ jobs:
                 text ===
                 "console.log(\`focused_inline_audit_terminals_executed=\${focusedInlineAuditTerminalsExecuted}\`);",
             );
-            assert.equal(exitGuard, counter + 1, "focused_inline_audit_exit_guard_order");
+            assert.equal(nativeExit, counter + 1, "focused_inline_native_exit_order");
+            assert.equal(
+              terminationLockdown,
+              nativeExit + 1,
+              "focused_inline_termination_lockdown_order",
+            );
+            assert.equal(
+              exitGuard,
+              terminationLockdown + 1,
+              "focused_inline_audit_exit_guard_order",
+            );
             for (let index = 0; index < auditCalls.length; index += 1) {
               const expectedCall = index === 0 ? auditCalls[0] : increments[index - 1] + 1;
               assert.equal(
