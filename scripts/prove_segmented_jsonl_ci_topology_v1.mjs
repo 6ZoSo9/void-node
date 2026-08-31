@@ -514,7 +514,6 @@ function auditFocused(source) {
     "Prove focused workflow dependency closure",
   ).join("\n");
   const inlineNodeSource = workflowInlineNodeSource(inlineAuditBody);
-  auditFocusedInlineRuntimeTerminalGuard(inlineNodeSource);
   assert.equal(
     topLevelCallCount(
       inlineNodeSource,
@@ -625,6 +624,7 @@ function auditFocused(source) {
     .split("\n")
     .filter((line) => /^          const EXPECTED_TOPOLOGY_BLOB_SHA1 = '[0-9a-f]{40}';$/.test(line));
   assert.equal(topologyBlobPins.length, 1, "focused_topology_blob_pin_not_exact");
+  auditFocusedInlineRuntimeTerminalGuard(inlineNodeSource);
   auditFocusedRootContract(source);
   auditFocusedStepContract(source);
   auditFocusedCriticalStepBlocks(source);
