@@ -99,6 +99,11 @@ jobs:
           test "$(node -p 'process.versions.node.split(".")[0]')" = "${{ matrix.node }}"
           npm ci
 
+      - name: Prove independent SegStore CI topology
+        run: |
+          test "$(git hash-object scripts/prove_segmented_jsonl_ci_topology_v1.mjs)" = "bfb742a02ea6e282833bcd2de323d46a1efac2ea"
+          node scripts/prove_segmented_jsonl_ci_topology_v1.mjs
+
       - name: Prove focused workflow dependency closure
         run: |
           node <<'NODE'
@@ -107,26 +112,28 @@ jobs:
           const fs = require('node:fs');
           const ts = require('typescript');
           let focusedInlineAuditTerminalsExecuted = 0;
-          const focusedNativeProcessExit = Reflect.get(process, 'exit').bind(process);
-          Object.defineProperties(process, {
-            'exit': {
-              value(code = 0) {
-                if (focusedInlineAuditTerminalsExecuted !== 4) {
-                  throw new Error('focused_inline_audit_premature_exit');
-                }
-                return focusedNativeProcessExit(code);
+          (() => {
+            const focusedNativeProcessExit = Reflect.get(process, 'exit').bind(process);
+            Object.defineProperties(process, {
+              'exit': {
+                value(code = 0) {
+                  if (focusedInlineAuditTerminalsExecuted !== 4) {
+                    throw new Error('focused_inline_audit_premature_exit');
+                  }
+                  return focusedNativeProcessExit(code);
+                },
+                writable: false,
+                configurable: false,
               },
-              writable: false,
-              configurable: false,
-            },
-            'reallyExit': {
-              value() {
-                throw new Error('focused_inline_audit_really_exit_forbidden');
+              'reallyExit': {
+                value() {
+                  throw new Error('focused_inline_audit_really_exit_forbidden');
+                },
+                writable: false,
+                configurable: false,
               },
-              writable: false,
-              configurable: false,
-            },
-          });
+            });
+          })();
           process.on('exit', () => {
             if (focusedInlineAuditTerminalsExecuted !== 4) process.exitCode = 1;
           });
@@ -134,7 +141,7 @@ jobs:
           const text = fs.readFileSync(workflowPath, 'utf8');
           const topologyPath = 'scripts/prove_segmented_jsonl_ci_topology_v1.mjs';
           const topologyText = fs.readFileSync(topologyPath, 'utf8');
-          const EXPECTED_TOPOLOGY_BLOB_SHA1 = '149a82c3302822c6c59d2128468f19eff05f7295';
+          const EXPECTED_TOPOLOGY_BLOB_SHA1 = 'bfb742a02ea6e282833bcd2de323d46a1efac2ea';
           function focusedGitBlobSha1(source) {
             return createHash('sha1')
               .update(`blob ${Buffer.byteLength(source, 'utf8')}\0`)
@@ -1070,6 +1077,17 @@ jobs:
               "          test \"$(node -p 'process.versions.node.split(\".\")[0]')\" = \"" + expressionOpen + " matrix.node }}\"",
               "          npm ci",
             ], "focused_runtime_major_assertion_not_exact");
+            exactStep("Prove independent SegStore CI topology", [
+              "      - name: Prove independent SegStore CI topology",
+              "        run: |",
+              `          test "$(git hash-object scripts/prove_segmented_jsonl_ci_topology_v1.mjs)" = "${EXPECTED_TOPOLOGY_BLOB_SHA1}"`,
+              "          node scripts/prove_segmented_jsonl_ci_topology_v1.mjs",
+            ], "focused_topology_preflight_block_not_exact");
+            assert.ok(
+              source.indexOf("      - name: Prove independent SegStore CI topology") <
+                source.indexOf("      - name: Prove focused workflow dependency closure"),
+              "focused_topology_preflight_order_not_exact",
+            );
             const hygieneBlock = [
               "      - name: Committed-range diff hygiene",
               "        if: github.event_name == 'pull_request' || github.event_name == 'push'",
@@ -1141,6 +1159,19 @@ jobs:
               statement,
               text: statement.getText(sourceFile).replace(/\s+/g, " "),
             }));
+            const expectedImportPrefix = [
+              "const assert = require('node:assert/strict');",
+              "const { createHash } = require('node:crypto');",
+              "const fs = require('node:fs');",
+              "const ts = require('typescript');",
+            ];
+            for (let index = 0; index < expectedImportPrefix.length; index += 1) {
+              assert.equal(
+                statements[index]?.text,
+                expectedImportPrefix[index],
+                `focused_inline_import_prefix_not_exact:${index}`,
+              );
+            }
             const one = (marker, predicate) => {
               const matches = statements.filter(({ text, statement }) =>
                 predicate(text, statement),
@@ -1152,30 +1183,10 @@ jobs:
               "focused_inline_audit_terminal_counter_not_top_level",
               (text) => text === "let focusedInlineAuditTerminalsExecuted = 0;",
             );
-            const nativeExit = one(
-              "focused_inline_native_exit_not_top_level",
-              (text) =>
-                text ===
-                "const focusedNativeProcessExit = Reflect.get(process, 'exit').bind(process);",
-            );
-            const expectedTerminationLockdown = "Object.defineProperties(process, { 'exit': { value(code = 0) { if (focusedInlineAuditTerminalsExecuted !== 4) { throw new Error('focused_inline_audit_premature_exit'); } return focusedNativeProcessExit(code); }, writable: false, configurable: false, }, 'reallyExit': { value() { throw new Error('focused_inline_audit_really_exit_forbidden'); }, writable: false, configurable: false, }, });";
+            const expectedTerminationLockdown = "(() => { const focusedNativeProcessExit = Reflect.get(process, 'exit').bind(process); Object.defineProperties(process, { 'exit': { value(code = 0) { if (focusedInlineAuditTerminalsExecuted !== 4) { throw new Error('focused_inline_audit_premature_exit'); } return focusedNativeProcessExit(code); }, writable: false, configurable: false, }, 'reallyExit': { value() { throw new Error('focused_inline_audit_really_exit_forbidden'); }, writable: false, configurable: false, }, }); })();";
             const terminationLockdown = one(
-              "focused_inline_termination_lockdown_descriptor_not_exact",
-              (text, statement) => {
-                if (!ts.isExpressionStatement(statement)) return false;
-                const call = statement.expression;
-                if (!ts.isCallExpression(call) || call.arguments.length !== 2) return false;
-                if (!ts.isPropertyAccessExpression(call.expression)) return false;
-                if (!ts.isIdentifier(call.expression.expression)) return false;
-                if (call.expression.expression.text !== "Object") return false;
-                if (call.expression.name.text !== "defineProperties") return false;
-                if (
-                  !ts.isIdentifier(call.arguments[0]) ||
-                  call.arguments[0].text !== "process"
-                ) return false;
-                if (!ts.isObjectLiteralExpression(call.arguments[1])) return false;
-                return text === expectedTerminationLockdown;
-              },
+              "focused_inline_termination_lockdown_scope_not_exact",
+              (text) => text === expectedTerminationLockdown,
             );
             const exitGuard = one(
               "focused_inline_audit_exit_guard_not_top_level",
@@ -1209,10 +1220,14 @@ jobs:
                 text ===
                 "console.log(\`focused_inline_audit_terminals_executed=\${focusedInlineAuditTerminalsExecuted}\`);",
             );
-            assert.equal(nativeExit, counter + 1, "focused_inline_native_exit_order");
+            assert.equal(
+              counter,
+              expectedImportPrefix.length,
+              "focused_inline_import_prefix_counter_order",
+            );
             assert.equal(
               terminationLockdown,
-              nativeExit + 1,
+              counter + 1,
               "focused_inline_termination_lockdown_order",
             );
             assert.equal(
@@ -1747,9 +1762,6 @@ jobs:
       - name: Repository build
         if: matrix.node == 24
         run: npm run build
-
-      - name: Prove independent SegStore CI topology
-        run: node scripts/prove_segmented_jsonl_ci_topology_v1.mjs
 
       - name: Prove committed-range diff hygiene contract
         run: node scripts/prove_ci_diff_hygiene_v1.mjs

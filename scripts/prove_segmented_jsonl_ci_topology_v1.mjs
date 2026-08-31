@@ -482,6 +482,18 @@ function auditFocusedCriticalStepBlocks(source) {
     "          test \"$(node -p 'process.versions.node.split(\".\")[0]')\" = \"${{ matrix.node }}\"",
     "          npm ci",
   ], "focused_runtime_major_assertion_not_exact");
+  const topologyProofBlobSha1 = gitBlobSha1(readFileSync(path.join(ROOT, PROOF_PATH), "utf8"));
+  exactStep("Prove independent SegStore CI topology", [
+    "      - name: Prove independent SegStore CI topology",
+    "        run: |",
+    `          test "$(git hash-object scripts/prove_segmented_jsonl_ci_topology_v1.mjs)" = "${topologyProofBlobSha1}"`,
+    "          node scripts/prove_segmented_jsonl_ci_topology_v1.mjs",
+  ], "focused_topology_preflight_block_not_exact");
+  assert.ok(
+    source.indexOf("      - name: Prove independent SegStore CI topology") <
+      source.indexOf("      - name: Prove focused workflow dependency closure"),
+    "focused_topology_preflight_order_not_exact",
+  );
   const hygieneBlock = [
     "      - name: Committed-range diff hygiene",
     "        if: github.event_name == 'pull_request' || github.event_name == 'push'",
@@ -879,6 +891,19 @@ function auditFocusedInlineRuntimeTerminalGuard(source) {
     statement,
     text: statement.getText(parsed).replace(/\s+/g, " "),
   }));
+  const expectedImportPrefix = [
+    "const assert = require('node:assert/strict');",
+    "const { createHash } = require('node:crypto');",
+    "const fs = require('node:fs');",
+    "const ts = require('typescript');",
+  ];
+  for (let index = 0; index < expectedImportPrefix.length; index += 1) {
+    assert.equal(
+      statements[index]?.text,
+      expectedImportPrefix[index],
+      `focused_inline_import_prefix_not_exact:${index}`,
+    );
+  }
   const one = (marker, predicate) => {
     const matches = statements.filter(({ text, statement }) => predicate(text, statement));
     assert.equal(matches.length, 1, marker);
@@ -888,27 +913,10 @@ function auditFocusedInlineRuntimeTerminalGuard(source) {
     "focused_inline_audit_terminal_counter_not_top_level",
     (text) => text === "let focusedInlineAuditTerminalsExecuted = 0;",
   );
-  const nativeExit = one(
-    "focused_inline_native_exit_not_top_level",
-    (text) =>
-      text ===
-      "const focusedNativeProcessExit = Reflect.get(process, 'exit').bind(process);",
-  );
-  const expectedTerminationLockdown = "Object.defineProperties(process, { 'exit': { value(code = 0) { if (focusedInlineAuditTerminalsExecuted !== 4) { throw new Error('focused_inline_audit_premature_exit'); } return focusedNativeProcessExit(code); }, writable: false, configurable: false, }, 'reallyExit': { value() { throw new Error('focused_inline_audit_really_exit_forbidden'); }, writable: false, configurable: false, }, });";
+  const expectedTerminationLockdown = "(() => { const focusedNativeProcessExit = Reflect.get(process, 'exit').bind(process); Object.defineProperties(process, { 'exit': { value(code = 0) { if (focusedInlineAuditTerminalsExecuted !== 4) { throw new Error('focused_inline_audit_premature_exit'); } return focusedNativeProcessExit(code); }, writable: false, configurable: false, }, 'reallyExit': { value() { throw new Error('focused_inline_audit_really_exit_forbidden'); }, writable: false, configurable: false, }, }); })();";
   const terminationLockdown = one(
-    "focused_inline_termination_lockdown_descriptor_not_exact",
-    (text, statement) => {
-      if (!ts.isExpressionStatement(statement)) return false;
-      const call = statement.expression;
-      if (!ts.isCallExpression(call) || call.arguments.length !== 2) return false;
-      if (!ts.isPropertyAccessExpression(call.expression)) return false;
-      if (!ts.isIdentifier(call.expression.expression)) return false;
-      if (call.expression.expression.text !== "Object") return false;
-      if (call.expression.name.text !== "defineProperties") return false;
-      if (!ts.isIdentifier(call.arguments[0]) || call.arguments[0].text !== "process") return false;
-      if (!ts.isObjectLiteralExpression(call.arguments[1])) return false;
-      return text === expectedTerminationLockdown;
-    },
+    "focused_inline_termination_lockdown_scope_not_exact",
+    (text) => text === expectedTerminationLockdown,
   );
   const exitGuard = one(
     "focused_inline_audit_exit_guard_not_top_level",
@@ -942,10 +950,14 @@ function auditFocusedInlineRuntimeTerminalGuard(source) {
       text ===
       "console.log(\`focused_inline_audit_terminals_executed=\${focusedInlineAuditTerminalsExecuted}\`);",
   );
-  assert.equal(nativeExit, counter + 1, "focused_inline_native_exit_order");
+  assert.equal(
+    counter,
+    expectedImportPrefix.length,
+    "focused_inline_import_prefix_counter_order",
+  );
   assert.equal(
     terminationLockdown,
-    nativeExit + 1,
+    counter + 1,
     "focused_inline_termination_lockdown_order",
   );
   assert.equal(
@@ -1641,7 +1653,7 @@ if (!focusedTerminationLockdownDescriptorConstructionChild) {
     focusedTerminationLockdownDescriptorConstructionMutant(focused);
   assert.throws(
     () => auditFocused(descriptorConstructionMutant),
-    /focused_inline_termination_lockdown_descriptor_not_exact/,
+    /focused_inline_termination_lockdown_scope_not_exact/,
     "focused_termination_lockdown_descriptor_construction_mutant_not_rejected",
   );
   const descriptorConstructionExecution = spawnSync(
@@ -1664,7 +1676,7 @@ if (!focusedTerminationLockdownDescriptorConstructionChild) {
   );
   assert.match(
     `${descriptorConstructionExecution.stderr || ""}\n${descriptorConstructionExecution.stdout || ""}`,
-    /focused_inline_termination_lockdown_descriptor_not_exact/,
+    /focused_inline_termination_lockdown_scope_not_exact/,
     "focused_termination_lockdown_descriptor_construction_rejection_terminal_missing",
   );
   console.log("focused_termination_lockdown_descriptor_construction_mutant_executed=true");
@@ -1722,9 +1734,31 @@ assert.match(
   "focused_computed_really_exit_mutant_not_guard_rejected",
 );
 focusedSuccessfulTerminationMutantsExecuted += 1;
+const successfulTerminationAliasMutant = focused
+  .replace(
+    "          let focusedInlineAuditTerminalsExecuted = 0;",
+    "          const halt = Reflect.get(process, 'really' + 'Exit').bind(process);\n" +
+      "          let focusedInlineAuditTerminalsExecuted = 0;",
+  )
+  .replace(
+    "          const workflowPath = '.github/workflows/void-segmented-jsonl-v1.yml';",
+    "          halt(0);\n" +
+      "          const workflowPath = '.github/workflows/void-segmented-jsonl-v1.yml';",
+  );
+assert.notEqual(
+  successfulTerminationAliasMutant,
+  focused,
+  "focused_successful_termination_alias_mutant_not_applied",
+);
+assert.throws(
+  () => auditFocused(successfulTerminationAliasMutant),
+  /focused_inline_import_prefix_not_exact|focused_inline_import_prefix_counter_order/,
+  "focused_successful_termination_alias_mutant_not_rejected",
+);
+focusedSuccessfulTerminationMutantsExecuted += 1;
 assert.equal(
   focusedSuccessfulTerminationMutantsExecuted,
-  3,
+  4,
   "focused_successful_termination_mutant_count_not_exact",
 );
 let focusedDurableRootAuditReachabilityMutantsExecuted = 0;
