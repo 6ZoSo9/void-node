@@ -16,8 +16,8 @@ const PROOF_PATH = "scripts/prove_segmented_jsonl_ci_topology_v1.mjs";
 const SEGSTORE_PROOF_PATH = "scripts/prove_segmented_jsonl_v1.ts";
 const DURABLE_ROOT_SOURCE_PATH = "src/storage/segmented_jsonl_durable_root_v1.ts";
 const DURABLE_ROOT_PROOF_PATH = "scripts/prove_segmented_jsonl_durable_root_v1.ts";
-const DURABLE_ROOT_SOURCE_BLOB_SHA1 = "43f06b98295071f8fa0fe529240ed73638e4564b";
-const DURABLE_ROOT_PROOF_BLOB_SHA1 = "97d271ec49c3310bbe2b6c7180042bf3957e44d4";
+const DURABLE_ROOT_SOURCE_BLOB_SHA1 = "5e92878651b58258a39be09efb756d3391235e7c";
+const DURABLE_ROOT_PROOF_BLOB_SHA1 = "629ca20b6c1f02cdf385263a02a3c47268aebbb0";
 const STORAGE_SOURCES = [
   "src/storage/segmented_jsonl_v1.ts",
   "src/storage/segmented_jsonl_snapshot_authority_v1.ts",
@@ -104,8 +104,19 @@ function auditDurableRootReclaimWinnerDigestEvidence(source, proof) {
     "failedAcquireLockBefore,",
     "durable_root_failed_acquire_descriptor_fault_count=1",
     "durable_root_failed_acquire_lock_namespace_restored=true",
+    "const abandonedRollbackToken =",
+    "durable_root_abandoned_reclaim_winner_fresh_process_converges=true",
   ]) {
     assert.ok(proof.includes(marker), `durable_root_failed_acquire_proof_marker_missing:${marker}`);
+  }
+  for (const marker of [
+    "function replaceAbandonedReclaimWinner(",
+    "reclaimWinnerClaimantIsLive(existingWinner)",
+    "DURABLE_ROOT_ABANDONED_RECLAIM_WINNER_CHANGED",
+    "DURABLE_ROOT_ABANDONED_RECLAIM_WINNER_OWNER_CHANGED",
+    "return replaceAbandonedReclaimWinner(",
+  ]) {
+    assert.ok(source.includes(marker), `durable_root_abandoned_reclaim_source_marker_missing:${marker}`);
   }
 }
 
