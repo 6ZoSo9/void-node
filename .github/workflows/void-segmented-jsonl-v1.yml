@@ -110,7 +110,7 @@ jobs:
           const text = fs.readFileSync(workflowPath, 'utf8');
           const topologyPath = 'scripts/prove_segmented_jsonl_ci_topology_v1.mjs';
           const topologyText = fs.readFileSync(topologyPath, 'utf8');
-          const EXPECTED_TOPOLOGY_BLOB_SHA1 = '8ad4ecc9c4b1532359ce6a25618d5ed6f1d26c95';
+          const EXPECTED_TOPOLOGY_BLOB_SHA1 = '53295d42b08c229bfe2658beac28b3a03e355d56';
           function focusedGitBlobSha1(source) {
             return createHash('sha1')
               .update(`blob ${Buffer.byteLength(source, 'utf8')}\0`)
@@ -541,6 +541,83 @@ jobs:
                 topologyExecutableExactLineCount(source, `    "${family}",`),
                 1,
                 `focused_topology_measurement_mutant_family_not_bound:${family}`,
+              );
+            }
+          }
+
+          function topologyTopLevelDurableRootAuditCallCount(sourceFile) {
+            return sourceFile.statements.filter((statement) => {
+              if (
+                !ts.isExpressionStatement(statement) ||
+                !ts.isCallExpression(statement.expression) ||
+                !ts.isIdentifier(statement.expression.expression) ||
+                statement.expression.expression.text !== 'auditDurableRootReclaimWinnerDigestEvidence'
+              ) return false;
+              const args = statement.expression.arguments;
+              return (
+                args.length === 2 &&
+                args[0].getText(sourceFile) === 'durableRootSource' &&
+                args[1].getText(sourceFile) === 'durableRootProof'
+              );
+            }).length;
+          }
+
+          function topologyDurableRootAuditFunctionCount(sourceFile) {
+            const required = [
+              'gitBlobSha1(source)',
+              'DURABLE_ROOT_SOURCE_BLOB_SHA1',
+              'gitBlobSha1(proof)',
+              'DURABLE_ROOT_PROOF_BLOB_SHA1',
+              'function restoreFailedReclaimClaim(',
+              'openRetainedOwnerWitnessForRollback(',
+              'linkExactFdCreateOnly(',
+              'assertRetainedOwnerWitnessForRollback(retained, 2);',
+              'removeExactLockName(\\n      lock,\\n      PUBLISH_LOCK_RECLAIM_NAME,',
+              'const descriptorReclaimMatch =',
+              'acquisitionRecheckInjectionCount += 1;',
+              'failedAcquireSuccessorToken = currentOwner.token;',
+              'snapshotPublishLock(),',
+              'failedAcquireLockBefore,',
+              'durable_root_failed_acquire_descriptor_fault_count=1',
+              'durable_root_failed_acquire_lock_namespace_restored=true',
+            ];
+            return sourceFile.statements.filter((statement) => {
+              if (
+                !ts.isFunctionDeclaration(statement) ||
+                statement.name?.text !== 'auditDurableRootReclaimWinnerDigestEvidence' ||
+                statement.parameters.length !== 2 ||
+                statement.parameters[0].name.getText(sourceFile) !== 'source' ||
+                statement.parameters[1].name.getText(sourceFile) !== 'proof' ||
+                !statement.body
+              ) return false;
+              const body = statement.body.getText(sourceFile);
+              return required.every((marker) => body.includes(marker));
+            }).length;
+          }
+
+          function auditTopologyDurableRootAuditAuthority(source) {
+            const sourceFile = topologySourceFile(
+              source,
+              'focused_durable_root_audit_parse_failed',
+            );
+            assert.equal(
+              topologyTopLevelDurableRootAuditCallCount(sourceFile),
+              1,
+              'focused_durable_root_audit_caller_not_top_level',
+            );
+            assert.equal(
+              topologyDurableRootAuditFunctionCount(sourceFile),
+              1,
+              'focused_durable_root_audit_function_not_exact',
+            );
+            for (const line of [
+              'console.log("durable_root_failed_acquire_descriptor_fault_bound=true");',
+              'console.log("durable_root_failed_acquire_restore_order_bound=true");',
+            ]) {
+              assert.equal(
+                topologyExecutableExactLineCount(source, line),
+                1,
+                `focused_durable_root_audit_terminal_not_bound:${line}`,
               );
             }
           }
@@ -1075,6 +1152,41 @@ jobs:
           audit(text);
           auditTopologyMeasurementMutantExecution(topologyText);
           auditTopologyRepositoryCiPreTypecheckEvidence(topologyText);
+          auditTopologyDurableRootAuditAuthority(topologyText);
+          let durableRootAuditMutantsExecuted = 0;
+          const unreachableDurableRootAuditCaller = topologyText.replace(
+            'auditDurableRootReclaimWinnerDigestEvidence(durableRootSource, durableRootProof);',
+            'if (false) { auditDurableRootReclaimWinnerDigestEvidence(durableRootSource, durableRootProof); }',
+          );
+          assert.notEqual(
+            unreachableDurableRootAuditCaller,
+            topologyText,
+            'focused_durable_root_audit_caller_mutant_not_applied',
+          );
+          assert.throws(
+            () => auditTopologyDurableRootAuditAuthority(unreachableDurableRootAuditCaller),
+            /focused_durable_root_audit_caller_not_top_level/,
+          );
+          durableRootAuditMutantsExecuted += 1;
+          const deletedDurableRootAuditBody = topologyText.replace(
+            '    "openRetainedOwnerWitnessForRollback(",',
+            '',
+          );
+          assert.notEqual(
+            deletedDurableRootAuditBody,
+            topologyText,
+            'focused_durable_root_audit_body_mutant_not_applied',
+          );
+          assert.throws(
+            () => auditTopologyDurableRootAuditAuthority(deletedDurableRootAuditBody),
+            /focused_durable_root_audit_function_not_exact/,
+          );
+          durableRootAuditMutantsExecuted += 1;
+          assert.equal(
+            durableRootAuditMutantsExecuted,
+            2,
+            'focused_durable_root_audit_mutant_count_not_exact',
+          );
           const unreachableTopologyMeasurementMutantExecution = topologyText
             .replace(
               'const reconstructionMeasurementMutants = [',
@@ -1366,6 +1478,9 @@ jobs:
           console.log('focused_topology_measurement_mutant_values_distinct=true');
           console.log('focused_repository_ci_pre_typecheck_evidence_top_level=true');
           console.log('focused_repository_ci_pre_typecheck_dead_block_rejected=true');
+          console.log('focused_durable_root_audit_caller_bound=true');
+          console.log('focused_durable_root_audit_body_bound=true');
+          console.log('focused_durable_root_audit_mutants_executed=2');
           NODE
       - name: Syntax
         run: |
