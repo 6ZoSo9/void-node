@@ -101,7 +101,7 @@ jobs:
 
       - name: Prove independent SegStore CI topology
         run: |
-          test "$(git hash-object scripts/prove_segmented_jsonl_ci_topology_v1.mjs)" = "ca8792e407ee6a934c0385e56eea4b3c788ce7e1"
+          test "$(git hash-object scripts/prove_segmented_jsonl_ci_topology_v1.mjs)" = "b2f134a81c0bc8d8e9408a29fa474e952f6cac5c"
           node scripts/prove_segmented_jsonl_ci_topology_v1.mjs
 
       - name: Prove focused workflow dependency closure
@@ -141,7 +141,7 @@ jobs:
           const text = fs.readFileSync(workflowPath, 'utf8');
           const topologyPath = 'scripts/prove_segmented_jsonl_ci_topology_v1.mjs';
           const topologyText = fs.readFileSync(topologyPath, 'utf8');
-          const EXPECTED_TOPOLOGY_BLOB_SHA1 = 'ca8792e407ee6a934c0385e56eea4b3c788ce7e1';
+          const EXPECTED_TOPOLOGY_BLOB_SHA1 = 'b2f134a81c0bc8d8e9408a29fa474e952f6cac5c';
           function focusedGitBlobSha1(source) {
             return createHash('sha1')
               .update(`blob ${Buffer.byteLength(source, 'utf8')}\0`)
@@ -1149,6 +1149,28 @@ jobs:
             return count;
           }
 
+          function focusedInlineAuditCounterWriteCount(sourceFile) {
+            let writes = 0;
+            const isCounter = (node) =>
+              ts.isIdentifier(node) && node.text === "focusedInlineAuditTerminalsExecuted";
+            const visit = (node) => {
+              if (
+                ts.isBinaryExpression(node) &&
+                node.operatorToken.kind >= ts.SyntaxKind.FirstAssignment &&
+                node.operatorToken.kind <= ts.SyntaxKind.LastAssignment &&
+                isCounter(node.left)
+              ) writes += 1;
+              if (
+                (ts.isPrefixUnaryExpression(node) || ts.isPostfixUnaryExpression(node)) &&
+                isCounter(node.operand)
+              ) writes += 1;
+              if (ts.isDeleteExpression(node) && isCounter(node.expression)) writes += 1;
+              ts.forEachChild(node, visit);
+            };
+            visit(sourceFile);
+            return writes;
+          }
+
           function auditFocusedInlineRuntimeTerminalGuard(source) {
             const sourceFile = topologySourceFile(
               source,
@@ -1195,6 +1217,11 @@ jobs:
                 text.includes("focusedInlineAuditTerminalsExecuted !== 4") &&
                 text.includes("process.exitCode = 1;"),
             );
+            const auditFunction = one(
+              "focused_inline_audit_function_not_top_level",
+              (_text, statement) =>
+                ts.isFunctionDeclaration(statement) && statement.name?.text === "audit",
+            );
             const auditCalls = [
               "audit",
               "auditTopologyMeasurementMutantExecution",
@@ -1208,6 +1235,11 @@ jobs:
               .filter(({ text }) => text === "focusedInlineAuditTerminalsExecuted += 1;")
               .map(({ index }) => index);
             assert.equal(increments.length, 4, "focused_inline_audit_terminal_increment_count");
+            assert.equal(
+              focusedInlineAuditCounterWriteCount(sourceFile),
+              4,
+              "focused_inline_audit_counter_write_count_not_exact",
+            );
             const countAssertion = one(
               "focused_inline_audit_terminal_assertion_not_top_level",
               (text) =>
@@ -1236,7 +1268,7 @@ jobs:
               "focused_inline_audit_exit_guard_order",
             );
             for (let index = 0; index < auditCalls.length; index += 1) {
-              const expectedCall = index === 0 ? auditCalls[0] : increments[index - 1] + 1;
+              const expectedCall = index === 0 ? auditFunction + 1 : increments[index - 1] + 1;
               assert.equal(
                 auditCalls[index],
                 expectedCall,
