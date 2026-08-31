@@ -15,8 +15,8 @@ const PROOF_PATH = "scripts/prove_segmented_jsonl_ci_topology_v1.mjs";
 const SEGSTORE_PROOF_PATH = "scripts/prove_segmented_jsonl_v1.ts";
 const DURABLE_ROOT_SOURCE_PATH = "src/storage/segmented_jsonl_durable_root_v1.ts";
 const DURABLE_ROOT_PROOF_PATH = "scripts/prove_segmented_jsonl_durable_root_v1.ts";
-const DURABLE_ROOT_SOURCE_BLOB_SHA1 = "8c817f7a812e6bc1569a3794fefeb99e96023b58";
-const DURABLE_ROOT_PROOF_BLOB_SHA1 = "767ca78e869de3e463bd2cdcfa096b57cce2fe66";
+const DURABLE_ROOT_SOURCE_BLOB_SHA1 = "f914b4541e25738e9e72e2bc93161bf2cc71c214";
+const DURABLE_ROOT_PROOF_BLOB_SHA1 = "2b7119350f934b9dbe9dc307e2997a493b8cabdb";
 const STORAGE_SOURCES = [
   "src/storage/segmented_jsonl_v1.ts",
   "src/storage/segmented_jsonl_snapshot_authority_v1.ts",
