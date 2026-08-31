@@ -15,8 +15,8 @@ const PROOF_PATH = "scripts/prove_segmented_jsonl_ci_topology_v1.mjs";
 const SEGSTORE_PROOF_PATH = "scripts/prove_segmented_jsonl_v1.ts";
 const DURABLE_ROOT_SOURCE_PATH = "src/storage/segmented_jsonl_durable_root_v1.ts";
 const DURABLE_ROOT_PROOF_PATH = "scripts/prove_segmented_jsonl_durable_root_v1.ts";
-const DURABLE_ROOT_SOURCE_BLOB_SHA1 = "f914b4541e25738e9e72e2bc93161bf2cc71c214";
-const DURABLE_ROOT_PROOF_BLOB_SHA1 = "2b7119350f934b9dbe9dc307e2997a493b8cabdb";
+const DURABLE_ROOT_SOURCE_BLOB_SHA1 = "43f06b98295071f8fa0fe529240ed73638e4564b";
+const DURABLE_ROOT_PROOF_BLOB_SHA1 = "97d271ec49c3310bbe2b6c7180042bf3957e44d4";
 const STORAGE_SOURCES = [
   "src/storage/segmented_jsonl_v1.ts",
   "src/storage/segmented_jsonl_snapshot_authority_v1.ts",
@@ -77,6 +77,35 @@ function auditDurableRootReclaimWinnerDigestEvidence(source, proof) {
     DURABLE_ROOT_PROOF_BLOB_SHA1,
     "durable_root_reclaim_winner_digest_proof_blob_not_exact",
   );
+  const restoreStart = source.indexOf("function restoreFailedReclaimClaim(");
+  const restoreEnd = source.indexOf("\nfunction claimStalePublishOwner(", restoreStart);
+  assert.ok(restoreStart >= 0 && restoreEnd > restoreStart, "durable_root_failed_acquire_restore_body_missing");
+  const restoreBody = source.slice(restoreStart, restoreEnd);
+  for (const marker of [
+    "openRetainedOwnerWitnessForRollback(",
+    "linkExactFdCreateOnly(",
+    "assertRetainedOwnerWitnessForRollback(retained, 2);",
+    "PUBLISH_LOCK_RECLAIM_NAME,",
+  ]) {
+    assert.ok(restoreBody.includes(marker), `durable_root_failed_acquire_restore_marker_missing:${marker}`);
+  }
+  assert.ok(
+    restoreBody.indexOf("linkExactFdCreateOnly(") <
+      restoreBody.indexOf("removeExactLockName(\n      lock,\n      PUBLISH_LOCK_RECLAIM_NAME,"),
+    "durable_root_failed_acquire_owner_must_precede_winner_retirement",
+  );
+  for (const marker of [
+    "const descriptorReclaimMatch =",
+    "/^\\/proc\\/self\\/fd\\/([0-9]+)\\/reclaim-winner\\.v1$/.exec(String(file));",
+    "acquisitionRecheckInjectionCount += 1;",
+    "failedAcquireSuccessorToken = currentOwner.token;",
+    "snapshotPublishLock(),",
+    "failedAcquireLockBefore,",
+    "durable_root_failed_acquire_descriptor_fault_count=1",
+    "durable_root_failed_acquire_lock_namespace_restored=true",
+  ]) {
+    assert.ok(proof.includes(marker), `durable_root_failed_acquire_proof_marker_missing:${marker}`);
+  }
 }
 
 function workflowOnRange(source) {
@@ -2385,6 +2414,8 @@ assertThrows(
 );
 
 console.log("VOID_SEGMENTED_JSONL_CI_TOPOLOGY_V1_GREEN");
+console.log("durable_root_failed_acquire_descriptor_fault_bound=true");
+console.log("durable_root_failed_acquire_restore_order_bound=true");
 console.log("durable_root_reclaim_winner_digest_source_blob_bound=true");
 console.log("durable_root_reclaim_winner_digest_proof_blob_bound=true");
 console.log("durable_root_reclaim_winner_digest_paired_reversion_rejected=true");

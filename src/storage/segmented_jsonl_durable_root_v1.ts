@@ -763,6 +763,98 @@ function retireFailedPublishOwner(lock: DirectoryAuthorityV1, owner: PublishLock
   fs.fsyncSync(lock.fd);
 }
 
+type RetainedOwnerWitnessForRollbackV1 = {
+  fd: number;
+  identity: SlotIdentityV1;
+  owner: PublishLockOwnerV1;
+  bodySha256: string;
+  size: number;
+};
+
+function openRetainedOwnerWitnessForRollback(
+  lock: DirectoryAuthorityV1,
+  token: string,
+  expected: PublishLockFileV1,
+): RetainedOwnerWitnessForRollbackV1 {
+  const expectedOwner = expected.owner ||
+    fail("DURABLE_ROOT_FAILED_RECLAIM_ROLLBACK_OWNER_INVALID", token);
+  const name = ownerWitnessName(token);
+  const stablePath = path.join(lock.stablePath, name);
+  let fd = -1;
+  try {
+    fd = fs.openSync(
+      stablePath,
+      fs.constants.O_RDONLY | ((fs.constants as any).O_NOFOLLOW || 0),
+    );
+    const before = fs.fstatSync(fd, { bigint: true } as any);
+    const identity = slotIdentityFromStatAllowLinks(before, stablePath, [1]);
+    if (!sameIdentity(identity, expected.identity) || Number(before.size) <= 0 || Number(before.size) > 2048) {
+      fail("DURABLE_ROOT_FAILED_RECLAIM_ROLLBACK_WITNESS_CHANGED", token);
+    }
+    const body = Buffer.alloc(Number(before.size));
+    let off = 0;
+    while (off < body.length) {
+      const n = fs.readSync(fd, body, off, body.length - off, off);
+      if (n <= 0) fail("DURABLE_ROOT_FAILED_RECLAIM_ROLLBACK_WITNESS_SHORT_READ", token);
+      off += n;
+    }
+    const after = fs.fstatSync(fd, { bigint: true } as any);
+    const afterIdentity = slotIdentityFromStatAllowLinks(after, stablePath, [1]);
+    const owner = parsePublishLockOwner(body.toString("utf8"));
+    if (
+      !sameIdentity(identity, afterIdentity) || before.size !== after.size ||
+      !owner || canonicalJson(owner) !== canonicalJson(expectedOwner)
+    ) {
+      fail("DURABLE_ROOT_FAILED_RECLAIM_ROLLBACK_WITNESS_CHANGED", token);
+    }
+    return {
+      fd,
+      identity,
+      owner,
+      bodySha256: sha256(body),
+      size: body.length,
+    };
+  } catch (error) {
+    if (fd >= 0) fs.closeSync(fd);
+    throw error;
+  }
+}
+
+function assertRetainedOwnerWitnessForRollback(
+  retained: RetainedOwnerWitnessForRollbackV1,
+  expectedLinks: number,
+): void {
+  const before = fs.fstatSync(retained.fd, { bigint: true } as any);
+  const identity = slotIdentityFromStatAllowLinks(
+    before,
+    "retained-owner-witness",
+    [expectedLinks],
+  );
+  if (!sameIdentity(identity, retained.identity) || Number(before.size) !== retained.size) {
+    fail("DURABLE_ROOT_FAILED_RECLAIM_ROLLBACK_RETAINED_WITNESS_CHANGED", retained.owner.token);
+  }
+  const body = Buffer.alloc(retained.size);
+  let off = 0;
+  while (off < body.length) {
+    const n = fs.readSync(retained.fd, body, off, body.length - off, off);
+    if (n <= 0) fail("DURABLE_ROOT_FAILED_RECLAIM_ROLLBACK_WITNESS_SHORT_READ", retained.owner.token);
+    off += n;
+  }
+  const after = fs.fstatSync(retained.fd, { bigint: true } as any);
+  const afterIdentity = slotIdentityFromStatAllowLinks(
+    after,
+    "retained-owner-witness",
+    [expectedLinks],
+  );
+  if (
+    !sameIdentity(identity, afterIdentity) || before.size !== after.size ||
+    sha256(body) !== retained.bodySha256 ||
+    canonicalJson(parsePublishLockOwner(body.toString("utf8"))) !== canonicalJson(retained.owner)
+  ) {
+    fail("DURABLE_ROOT_FAILED_RECLAIM_ROLLBACK_RETAINED_WITNESS_CHANGED", retained.owner.token);
+  }
+}
+
 function restoreFailedReclaimClaim(
   lock: DirectoryAuthorityV1,
   claimant: PublishLockOwnerV1,
@@ -778,34 +870,60 @@ function restoreFailedReclaimClaim(
   assertReclaimWinnerClaimant(winner, claimant);
   const predecessorToken = claim.owner.owner?.token ||
     fail("DURABLE_ROOT_FAILED_RECLAIM_ROLLBACK_OWNER_INVALID", claimant.token);
-  const witness = readOwnerWitness(lock, predecessorToken);
-  if (
-    !witness || witness.links !== 1 ||
-    !sameIdentity(witness.identity, claim.witness.identity) ||
-    !sameIdentity(witness.identity, claim.owner.identity)
-  ) {
-    fail("DURABLE_ROOT_FAILED_RECLAIM_ROLLBACK_WITNESS_CHANGED", predecessorToken);
-  }
-  removeExactLockName(lock, PUBLISH_LOCK_RECLAIM_NAME, winner.identity);
-  fs.fsyncSync(lock.fd);
-  const ownerPath = path.join(lock.stablePath, PUBLISH_LOCK_OWNER_NAME);
-  const witnessPath = path.join(lock.stablePath, ownerWitnessName(predecessorToken));
-  try { fs.linkSync(witnessPath, ownerPath); }
-  catch (error: any) {
-    if (error?.code === "EEXIST") {
+  const retained = openRetainedOwnerWitnessForRollback(
+    lock,
+    predecessorToken,
+    claim.witness,
+  );
+  try {
+    const restored = linkExactFdCreateOnly(
+      retained.fd,
+      lock,
+      PUBLISH_LOCK_OWNER_NAME,
+      "DURABLE_ROOT_FAILED_RECLAIM_ROLLBACK_OWNER_LINK_FAILED",
+    );
+    if (!restored) {
       fail("DURABLE_ROOT_FAILED_RECLAIM_ROLLBACK_OWNER_FOREIGN", predecessorToken);
     }
-    throw error;
-  }
-  fs.fsyncSync(lock.fd);
-  const ownerAfter = readPublishLockFile(lock, PUBLISH_LOCK_OWNER_NAME);
-  const witnessAfter = readOwnerWitness(lock, predecessorToken);
-  if (
-    !ownerAfter || !witnessAfter || ownerAfter.links !== 2 || witnessAfter.links !== 2 ||
-    !sameIdentity(ownerAfter.identity, claim.owner.identity) ||
-    !sameIdentity(witnessAfter.identity, claim.witness.identity)
-  ) {
-    fail("DURABLE_ROOT_FAILED_RECLAIM_ROLLBACK_RESTORE_MISMATCH", predecessorToken);
+    assertRetainedOwnerWitnessForRollback(retained, 2);
+    const ownerBeforeRetirement = readPublishLockFile(lock, PUBLISH_LOCK_OWNER_NAME);
+    const witnessBeforeRetirement = readOwnerWitness(lock, predecessorToken);
+    const winnerBeforeRetirement = readReclaimWinner(lock) ||
+      fail("DURABLE_ROOT_FAILED_RECLAIM_ROLLBACK_WINNER_MISSING", claimant.token);
+    assertReclaimWinnerExactBytes(
+      claim.winner,
+      winnerBeforeRetirement,
+      "DURABLE_ROOT_FAILED_RECLAIM_ROLLBACK_WINNER_CHANGED",
+    );
+    assertReclaimWinnerClaimant(winnerBeforeRetirement, claimant);
+    if (
+      !ownerBeforeRetirement || !witnessBeforeRetirement ||
+      ownerBeforeRetirement.links !== 2 || witnessBeforeRetirement.links !== 2 ||
+      !sameIdentity(ownerBeforeRetirement.identity, claim.owner.identity) ||
+      !sameIdentity(witnessBeforeRetirement.identity, claim.witness.identity)
+    ) {
+      fail("DURABLE_ROOT_FAILED_RECLAIM_ROLLBACK_RESTORE_MISMATCH", predecessorToken);
+    }
+    fs.fsyncSync(lock.fd);
+    assertRetainedOwnerWitnessForRollback(retained, 2);
+    removeExactLockName(
+      lock,
+      PUBLISH_LOCK_RECLAIM_NAME,
+      winnerBeforeRetirement.identity,
+    );
+    fs.fsyncSync(lock.fd);
+    const ownerAfter = readPublishLockFile(lock, PUBLISH_LOCK_OWNER_NAME);
+    const witnessAfter = readOwnerWitness(lock, predecessorToken);
+    if (
+      !ownerAfter || !witnessAfter || ownerAfter.links !== 2 || witnessAfter.links !== 2 ||
+      !sameIdentity(ownerAfter.identity, claim.owner.identity) ||
+      !sameIdentity(witnessAfter.identity, claim.witness.identity)
+    ) {
+      fail("DURABLE_ROOT_FAILED_RECLAIM_ROLLBACK_RESTORE_MISMATCH", predecessorToken);
+    }
+    assertRetainedOwnerWitnessForRollback(retained, 2);
+  } finally {
+    fs.closeSync(retained.fd);
   }
 }
 

@@ -569,19 +569,48 @@ try {
   writePublishOwner(publishLockDir, 99999999, "1", failedAcquireToken);
   const failedAcquireWitnessPath = ownerWitnessPathForProof(publishLockDir, failedAcquireToken);
   const failedAcquireOwnerBefore = fs.statSync(ownerPath, { bigint: true } as any);
+  const snapshotPublishLock = (): Record<string, {
+    dev: string;
+    ino: string;
+    nlink: string;
+    size: string;
+    sha256: string;
+  }> => Object.fromEntries(
+    fs.readdirSync(publishLockDir).sort().map(name => {
+      const file = path.join(publishLockDir, name);
+      const stat = fs.statSync(file, { bigint: true } as any);
+      return [name, {
+        dev: String(stat.dev),
+        ino: String(stat.ino),
+        nlink: String(stat.nlink),
+        size: String(stat.size),
+        sha256: sha256(fs.readFileSync(file)),
+      }];
+    }),
+  );
+  const failedAcquireLockBefore = snapshotPublishLock();
   const originalOpenSync = fsMutable.openSync;
-  let acquisitionRecheckInjected = false;
+  let acquisitionRecheckInjectionCount = 0;
+  let acquisitionRecheckDescriptorPath = "";
+  let acquisitionRecheckDescriptorAuthority = "";
+  let failedAcquireSuccessorToken: string | null = null;
   fsMutable.openSync = ((file: fs.PathLike, flags: fs.OpenMode, mode?: fs.Mode) => {
-    if (
-      !acquisitionRecheckInjected && path.resolve(String(file)) === path.resolve(reclaimPath) &&
-      fs.existsSync(ownerPath)
-    ) {
+    const descriptorReclaimMatch =
+      /^\/proc\/self\/fd\/([0-9]+)\/reclaim-winner\.v1$/.exec(String(file));
+    if (acquisitionRecheckInjectionCount === 0 && descriptorReclaimMatch && fs.existsSync(ownerPath)) {
+      const descriptorAuthority = fs.realpathSync(
+        `/proc/self/fd/${descriptorReclaimMatch[1]}`,
+      );
       const currentOwner = JSON.parse(fs.readFileSync(ownerPath, "utf8"));
       if (
+        path.resolve(descriptorAuthority) === path.resolve(publishLockDir) &&
         currentOwner.token !== failedAcquireToken &&
         fs.existsSync(ownerWitnessPathForProof(publishLockDir, currentOwner.token))
       ) {
-        acquisitionRecheckInjected = true;
+        acquisitionRecheckInjectionCount += 1;
+        acquisitionRecheckDescriptorPath = String(file);
+        acquisitionRecheckDescriptorAuthority = descriptorAuthority;
+        failedAcquireSuccessorToken = currentOwner.token;
         const injected = new Error("injected_acquire_recheck_failure") as NodeJS.ErrnoException;
         injected.code = "EIO";
         throw injected;
@@ -599,7 +628,18 @@ try {
     fsMutable.openSync = originalOpenSync;
     syncBuiltinESMExports();
   }
-  assert.equal(acquisitionRecheckInjected, true, "fault must occur only after successor owner and witness publication");
+  assert.equal(acquisitionRecheckInjectionCount, 1, "fault must execute exactly once through descriptor authority");
+  assert.match(
+    acquisitionRecheckDescriptorPath,
+    /^\/proc\/self\/fd\/[0-9]+\/reclaim-winner\.v1$/,
+    "fault must target the production descriptor-stable reclaim path",
+  );
+  assert.equal(
+    path.resolve(acquisitionRecheckDescriptorAuthority),
+    path.resolve(publishLockDir),
+    "fault descriptor must retain the exact publish-lock directory",
+  );
+  assert.ok(failedAcquireSuccessorToken, "fault must observe the exact successor owner generation");
   assert.equal(fs.existsSync(reclaimPath), false, "failed claimant winner must retire during rollback");
   const failedAcquireOwnerAfter = fs.statSync(ownerPath, { bigint: true } as any);
   const failedAcquireWitnessAfter = fs.statSync(failedAcquireWitnessPath, { bigint: true } as any);
@@ -608,6 +648,17 @@ try {
   assert.equal(failedAcquireOwnerAfter.dev, failedAcquireWitnessAfter.dev);
   assert.equal(failedAcquireOwnerAfter.ino, failedAcquireWitnessAfter.ino);
   assert.equal(failedAcquireOwnerAfter.nlink, 2n, "restored predecessor must recover its two-link witness authority");
+  assert.deepEqual(
+    snapshotPublishLock(),
+    failedAcquireLockBefore,
+    "rollback must restore the exact predecessor namespace without successor residue",
+  );
+  const failedAcquireSuccessor = failedAcquireSuccessorToken as string;
+  assert.deepEqual(
+    fs.readdirSync(publishLockDir).filter(name => name.includes(failedAcquireSuccessor)),
+    [],
+    "failed successor must retain zero token-scoped artifacts",
+  );
   assert.equal(
     publishSegmentedJsonlDurableRootV1(durableDir, r2Input).root_sha256,
     r2.root_sha256,
@@ -615,6 +666,11 @@ try {
   );
   assert.equal(fs.existsSync(ownerPath), false);
   assert.equal(fs.existsSync(failedAcquireWitnessPath), false);
+  assert.deepEqual(
+    fs.readdirSync(publishLockDir).filter(name => name.includes(failedAcquireSuccessor)),
+    [],
+    "successful retry must not resurrect failed-successor artifacts",
+  );
 
   const staleClaimToken = "23".repeat(16);
   writePublishOwner(publishLockDir, 99999999, "1", staleClaimToken);
@@ -800,6 +856,9 @@ try {
   console.log("durable_root_live_publish_lock_excludes_writer=true");
   console.log("durable_root_boot_epoch_prevents_pid_start_alias=true");
   console.log("durable_root_stale_publish_lock_recoverable=true");
+  console.log("durable_root_failed_acquire_descriptor_fault_count=1");
+  console.log("durable_root_failed_acquire_predecessor_descriptor_linked=true");
+  console.log("durable_root_failed_acquire_lock_namespace_restored=true");
   console.log("durable_root_failed_acquire_successor_residue=0");
   console.log("durable_root_failed_acquire_predecessor_restored=true");
   console.log("durable_root_failed_acquire_single_retry_converges=true");
