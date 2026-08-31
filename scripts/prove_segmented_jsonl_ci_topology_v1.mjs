@@ -416,6 +416,7 @@ function auditFocusedStepContract(source) {
     ["Checkout exact revision", ["name", "uses", "with"]],
     ["Use Node.js ${{ matrix.node }}", ["name", "uses", "with"]],
     ["Install reviewed dependencies", ["name", "run"]],
+    ["Prove independent SegStore CI topology", ["name", "run"]],
     ["Prove focused workflow dependency closure", ["name", "run"]],
     ["Syntax", ["name", "run"]],
     ["Prove segmented JSONL store", ["name", "run"]],
@@ -434,7 +435,6 @@ function auditFocusedStepContract(source) {
     ["Prove bounded durable checkpoint/root consumer authority", ["name", "run"]],
     ["Repository typecheck", ["name", "if", "run"]],
     ["Repository build", ["name", "if", "run"]],
-    ["Prove independent SegStore CI topology", ["name", "run"]],
     ["Prove committed-range diff hygiene contract", ["name", "run"]],
     ["Committed-range diff hygiene", ["name", "if", "env", "run"]],
   ];
