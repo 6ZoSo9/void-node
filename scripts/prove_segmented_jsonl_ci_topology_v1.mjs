@@ -532,6 +532,15 @@ function auditFocused(source) {
     1,
     "focused_topology_repository_ci_pre_typecheck_caller_not_top_level",
   );
+  assert.equal(
+    topLevelCallCount(
+      inlineNodeSource,
+      "auditTopologyDurableRootAuditAuthority",
+      "focused_inline_node_parse_failed",
+    ),
+    1,
+    "focused_durable_root_audit_caller_not_top_level",
+  );
   rejectLiteralFalseGuard(
     inlineAuditBody,
     "focused_topology_measurement_mutant_caller_literal_false_guard",
@@ -552,6 +561,14 @@ function auditFocused(source) {
       "function genericMeasurementPayloadMutant(source) {",
       "function topologyTopLevelRepositoryCiPreTypecheckEvidenceCount(sourceFile) {",
       "function auditTopologyRepositoryCiPreTypecheckEvidence(source) {",
+      "function topologyTopLevelDurableRootAuditCallCount(sourceFile) {",
+      "function topologyDurableRootAuditFunctionCount(sourceFile) {",
+      "function auditTopologyDurableRootAuditAuthority(source) {",
+      "auditTopologyDurableRootAuditAuthority(topologyText);",
+      "let durableRootAuditMutantsExecuted = 0;",
+      "const unreachableDurableRootAuditCaller = topologyText.replace(",
+      "const deletedDurableRootAuditBody = topologyText.replace(",
+      "focused_durable_root_audit_mutants_executed=2",
       "console.log('focused_topology_measurement_mutant_payload_digests_bound=true');",
       "console.log('focused_topology_measurement_rejection_authority_immutable=true');",
       "console.log('focused_topology_measurement_mutant_values_distinct=true');",
@@ -583,6 +600,10 @@ function auditFocused(source) {
     [
       "          auditTopologyRepositoryCiPreTypecheckEvidence(topologyText);",
       "focused_topology_repository_ci_pre_typecheck_caller_not_bound",
+    ],
+    [
+      "          auditTopologyDurableRootAuditAuthority(topologyText);",
+      "focused_durable_root_audit_caller_not_bound",
     ],
     [
       "          function focusedGitBlobSha1(source) {",
@@ -2416,6 +2437,9 @@ assertThrows(
 console.log("VOID_SEGMENTED_JSONL_CI_TOPOLOGY_V1_GREEN");
 console.log("durable_root_failed_acquire_descriptor_fault_bound=true");
 console.log("durable_root_failed_acquire_restore_order_bound=true");
+console.log("focused_durable_root_audit_caller_bound=true");
+console.log("focused_durable_root_audit_body_bound=true");
+console.log("focused_durable_root_audit_mutants_executed=2");
 console.log("durable_root_reclaim_winner_digest_source_blob_bound=true");
 console.log("durable_root_reclaim_winner_digest_proof_blob_bound=true");
 console.log("durable_root_reclaim_winner_digest_paired_reversion_rejected=true");
