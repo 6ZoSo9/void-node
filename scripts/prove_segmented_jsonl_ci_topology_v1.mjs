@@ -513,6 +513,9 @@ function auditFocused(source) {
       "function topologyExecutableRegexIndex(source, pattern) {",
       "const ts = require('typescript');",
       "const { createHash } = require('node:crypto');",
+      "function focusedGitBlobSha1(source) {",
+      "const topologyBlobSha1 = focusedGitBlobSha1(topologyText);",
+      "assert.equal(topologyBlobSha1, EXPECTED_TOPOLOGY_BLOB_SHA1, 'focused_topology_blob_not_exact');",
       "function topologyTopLevelVariableDeclarationCount(sourceFile, name, initializer) {",
       "function topologyMeasurementPayloadDigest(sourceFile, element) {",
       "function topologyNamedThrowsImportCount(sourceFile) {",
@@ -552,9 +555,25 @@ function auditFocused(source) {
       "          auditTopologyRepositoryCiPreTypecheckEvidence(topologyText);",
       "focused_topology_repository_ci_pre_typecheck_caller_not_bound",
     ],
+    [
+      "          function focusedGitBlobSha1(source) {",
+      "focused_topology_blob_helper_not_bound",
+    ],
+    [
+      "          const topologyBlobSha1 = focusedGitBlobSha1(topologyText);",
+      "focused_topology_blob_call_not_bound",
+    ],
+    [
+      "          assert.equal(topologyBlobSha1, EXPECTED_TOPOLOGY_BLOB_SHA1, 'focused_topology_blob_not_exact');",
+      "focused_topology_blob_assertion_not_bound",
+    ],
   ]) {
     assert.equal(exactLineCount(source, line), 1, marker);
   }
+  const topologyBlobPins = source
+    .split("\n")
+    .filter((line) => /^          const EXPECTED_TOPOLOGY_BLOB_SHA1 = '[0-9a-f]{40}';$/.test(line));
+  assert.equal(topologyBlobPins.length, 1, "focused_topology_blob_pin_not_exact");
   auditFocusedRootContract(source);
   auditFocusedStepContract(source);
   auditFocusedCriticalStepBlocks(source);
