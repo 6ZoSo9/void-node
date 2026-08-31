@@ -341,6 +341,118 @@ function buildGeneration(
   };
 }
 
+type DurableRootPublishInputForProof = Parameters<typeof publishSegmentedJsonlDurableRootV1>[1];
+
+const DURABLE_ROOT_CHILD_MODE = process.env.VOID_DURABLE_ROOT_CHILD_MODE || "";
+
+function requiredChildEnvironment(name: string): string {
+  const value = process.env[name] || "";
+  assert.ok(value, `missing child proof environment: ${name}`);
+  return value;
+}
+
+function writeCrashBoundaryTrace(tracePath: string, value: Record<string, unknown>): void {
+  const body = Buffer.from(JSON.stringify(value) + "\n", "utf8");
+  const fd = fs.openSync(tracePath, "wx", 0o600);
+  try {
+    fs.writeFileSync(fd, body);
+    fs.fsyncSync(fd);
+  } finally { fs.closeSync(fd); }
+  fsyncDirectory(path.dirname(tracePath));
+}
+
+function runDurableRootChildMode(): never {
+  const durableDir = requiredChildEnvironment("VOID_DURABLE_ROOT_CHILD_DIR");
+  const inputPath = requiredChildEnvironment("VOID_DURABLE_ROOT_CHILD_INPUT");
+  const input = JSON.parse(fs.readFileSync(inputPath, "utf8")) as DurableRootPublishInputForProof;
+  const lockDir = path.join(durableDir, ".durable-root-publish-v1.lock");
+
+  if (DURABLE_ROOT_CHILD_MODE === "recover_abandoned_winner") {
+    const result = publishSegmentedJsonlDurableRootV1(durableDir, input);
+    process.stdout.write(JSON.stringify({
+      mode: DURABLE_ROOT_CHILD_MODE,
+      pid: process.pid,
+      start_ticks: processStartTicks(process.pid),
+      root_sha256: result.root_sha256,
+    }) + "\n");
+    process.exit(0);
+  }
+
+  assert.equal(DURABLE_ROOT_CHILD_MODE, "crash_after_owner_restore");
+  const tracePath = requiredChildEnvironment("VOID_DURABLE_ROOT_CHILD_TRACE");
+  const ownerPath = path.join(lockDir, "owner.v1.json");
+  const predecessor = JSON.parse(fs.readFileSync(ownerPath, "utf8")) as {
+    token: string;
+  };
+  const originalOpenSync = fsMutable.openSync;
+  const originalUnlinkSync = fsMutable.unlinkSync;
+  let acquisitionFaults = 0;
+  let crashBoundaries = 0;
+
+  fsMutable.openSync = ((file: fs.PathLike, flags: fs.OpenMode, mode?: fs.Mode) => {
+    const descriptorWinner = /^\/proc\/self\/fd\/([0-9]+)\/reclaim-winner\.v1$/.exec(String(file));
+    if (acquisitionFaults === 0 && descriptorWinner && fs.existsSync(ownerPath)) {
+      const descriptorAuthority = fs.realpathSync(`/proc/self/fd/${descriptorWinner[1]}`);
+      const currentOwner = JSON.parse(fs.readFileSync(ownerPath, "utf8")) as { token: string };
+      if (
+        path.resolve(descriptorAuthority) === path.resolve(lockDir) &&
+        currentOwner.token !== predecessor.token
+      ) {
+        acquisitionFaults += 1;
+        const injected = new Error("injected_real_process_acquire_failure") as NodeJS.ErrnoException;
+        injected.code = "EIO";
+        throw injected;
+      }
+    }
+    return originalOpenSync(file, flags, mode as fs.Mode);
+  }) as typeof fsMutable.openSync;
+
+  fsMutable.unlinkSync = ((file: fs.PathLike) => {
+    const descriptorWinner = /^\/proc\/self\/fd\/([0-9]+)\/reclaim-winner\.v1$/.exec(String(file));
+    if (acquisitionFaults === 1 && crashBoundaries === 0 && descriptorWinner) {
+      const descriptorAuthority = fs.realpathSync(`/proc/self/fd/${descriptorWinner[1]}`);
+      const restoredOwner = fs.statSync(ownerPath, { bigint: true } as any);
+      const restoredWitness = fs.statSync(
+        ownerWitnessPathForProof(lockDir, predecessor.token),
+        { bigint: true } as any,
+      );
+      const winner = JSON.parse(fs.readFileSync(String(file), "utf8")) as {
+        claimant_pid: number;
+        claimant_start_ticks: string;
+        claimant_token: string;
+      };
+      assert.equal(path.resolve(descriptorAuthority), path.resolve(lockDir));
+      assert.equal(restoredOwner.dev, restoredWitness.dev);
+      assert.equal(restoredOwner.ino, restoredWitness.ino);
+      assert.equal(restoredOwner.nlink, 2n);
+      assert.equal(winner.claimant_pid, process.pid);
+      assert.equal(winner.claimant_start_ticks, processStartTicks(process.pid));
+      crashBoundaries += 1;
+      writeCrashBoundaryTrace(tracePath, {
+        v: 1,
+        pid: process.pid,
+        start_ticks: processStartTicks(process.pid),
+        claimant_token: winner.claimant_token,
+        owner_dev: String(restoredOwner.dev),
+        owner_ino: String(restoredOwner.ino),
+        witness_dev: String(restoredWitness.dev),
+        witness_ino: String(restoredWitness.ino),
+        acquisition_faults: acquisitionFaults,
+        crash_boundaries: crashBoundaries,
+      });
+      process.kill(process.pid, "SIGKILL");
+      throw new Error("unreachable_after_sigkill");
+    }
+    return originalUnlinkSync(file);
+  }) as typeof fsMutable.unlinkSync;
+  syncBuiltinESMExports();
+
+  publishSegmentedJsonlDurableRootV1(durableDir, input);
+  throw new Error("real process crash boundary was not reached");
+}
+
+if (DURABLE_ROOT_CHILD_MODE) runDurableRootChildMode();
+
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "void-segmented-jsonl-durable-root-v1-"));
 try {
   fs.chmodSync(tmp, 0o700);
@@ -678,7 +790,6 @@ try {
   );
 
   const abandonedRollbackToken = "31".repeat(16);
-  const abandonedRollbackClaimant = "32".repeat(16);
   writePublishOwner(publishLockDir, 99999999, "1", abandonedRollbackToken);
   const abandonedRollbackWitnessPath = ownerWitnessPathForProof(
     publishLockDir,
@@ -689,18 +800,79 @@ try {
     abandonedRollbackWitnessPath,
     { bigint: true } as any,
   );
-  writeReclaimWinnerForProof(
+  const abandonedRollbackForeignToken = "4f".repeat(16);
+  const abandonedRollbackForeignWitnessPath = ownerWitnessPathForProof(
     publishLockDir,
-    abandonedRollbackToken,
-    abandonedRollbackClaimant,
-    { bootId: differentBootId, pid: 99999998, startTicks: "1" },
+    abandonedRollbackForeignToken,
   );
+  const abandonedRollbackForeignWitnessBytes = Buffer.from(
+    "foreign-generation-witness-must-remain-exact\n",
+    "utf8",
+  );
+  fs.writeFileSync(
+    abandonedRollbackForeignWitnessPath,
+    abandonedRollbackForeignWitnessBytes,
+    { flag: "wx", mode: 0o600 },
+  );
+  fsyncDirectory(publishLockDir);
+  const abandonedRollbackForeignWitnessBefore = fs.statSync(
+    abandonedRollbackForeignWitnessPath,
+    { bigint: true } as any,
+  );
+  const abandonedRollbackInputPath = path.join(tmp, "abandoned-rollback-input.json");
+  const abandonedRollbackTracePath = path.join(tmp, "abandoned-rollback-crash.json");
+  fs.writeFileSync(abandonedRollbackInputPath, JSON.stringify(r2Input) + "\n", {
+    flag: "wx",
+    mode: 0o600,
+  });
+  const childEntry = path.resolve(process.argv[1] || "");
+  assert.ok(childEntry, "durable root proof child entry must resolve");
+  const childArgs = [...process.execArgv, childEntry];
+  const childEnvironment = (mode: string): NodeJS.ProcessEnv => ({
+    PATH: process.env.PATH || "/usr/bin:/bin",
+    LANG: "C",
+    LC_ALL: "C",
+    VOID_DURABLE_ROOT_CHILD_MODE: mode,
+    VOID_DURABLE_ROOT_CHILD_DIR: durableDir,
+    VOID_DURABLE_ROOT_CHILD_INPUT: abandonedRollbackInputPath,
+    VOID_DURABLE_ROOT_CHILD_TRACE: abandonedRollbackTracePath,
+  });
+  const childA = childProcess.spawnSync(process.execPath, childArgs, {
+    cwd: process.cwd(),
+    env: childEnvironment("crash_after_owner_restore"),
+    encoding: "utf8",
+    timeout: 30_000,
+  });
+  assert.equal(childA.error, undefined, `child A spawn failed: ${String(childA.error)}`);
+  assert.equal(childA.status, null, `child A must not exit normally: ${childA.stderr}`);
+  assert.equal(childA.signal, "SIGKILL", `child A must cross a real SIGKILL boundary: ${childA.stderr}`);
+  const childATrace = JSON.parse(fs.readFileSync(abandonedRollbackTracePath, "utf8")) as {
+    pid: number;
+    start_ticks: string;
+    claimant_token: string;
+    owner_dev: string;
+    owner_ino: string;
+    witness_dev: string;
+    witness_ino: string;
+    acquisition_faults: number;
+    crash_boundaries: number;
+  };
+  assert.notEqual(childATrace.pid, process.pid, "child A must have an independent process identity");
+  assert.equal(childATrace.acquisition_faults, 1);
+  assert.equal(childATrace.crash_boundaries, 1);
+  assert.equal(childATrace.owner_dev, String(abandonedRollbackOwnerBefore.dev));
+  assert.equal(childATrace.owner_ino, String(abandonedRollbackOwnerBefore.ino));
+  assert.equal(childATrace.witness_dev, String(abandonedRollbackWitnessBefore.dev));
+  assert.equal(childATrace.witness_ino, String(abandonedRollbackWitnessBefore.ino));
   const abandonedRollbackWinnerBefore = fs.statSync(reclaimPath, { bigint: true } as any);
-  assert.equal(
-    publishSegmentedJsonlDurableRootV1(durableDir, r2Input).root_sha256,
-    r2.root_sha256,
-    "a fresh process must replace a dead claimant's rollback-interrupted winner and converge",
-  );
+  const abandonedRollbackWinnerValue = JSON.parse(fs.readFileSync(reclaimPath, "utf8")) as {
+    claimant_pid: number;
+    claimant_start_ticks: string;
+    claimant_token: string;
+  };
+  assert.equal(abandonedRollbackWinnerValue.claimant_pid, childATrace.pid);
+  assert.equal(abandonedRollbackWinnerValue.claimant_start_ticks, childATrace.start_ticks);
+  assert.equal(abandonedRollbackWinnerValue.claimant_token, childATrace.claimant_token);
   assert.equal(
     abandonedRollbackOwnerBefore.dev,
     abandonedRollbackWitnessBefore.dev,
@@ -715,17 +887,64 @@ try {
       abandonedRollbackWinnerBefore.dev !== abandonedRollbackOwnerBefore.dev,
     "rollback-interrupted winner must remain separate from predecessor authority",
   );
-  assert.equal(fs.existsSync(ownerPath), false, "fresh claimant must release its completed owner");
+  const childB = childProcess.spawnSync(process.execPath, childArgs, {
+    cwd: process.cwd(),
+    env: childEnvironment("recover_abandoned_winner"),
+    encoding: "utf8",
+    timeout: 30_000,
+  });
+  assert.equal(childB.error, undefined, `child B spawn failed: ${String(childB.error)}`);
+  assert.equal(childB.signal, null, `child B must not terminate by signal: ${childB.stderr}`);
+  assert.equal(childB.status, 0, `child B must converge naturally: ${childB.stderr}`);
+  const childBResult = JSON.parse(childB.stdout.trim()) as {
+    mode: string;
+    pid: number;
+    start_ticks: string;
+    root_sha256: string;
+  };
+  assert.equal(childBResult.mode, "recover_abandoned_winner");
+  assert.notEqual(childBResult.pid, process.pid, "child B must be independent from the parent");
+  assert.notEqual(childBResult.pid, childATrace.pid, "child B must be independent from child A");
+  assert.notEqual(childBResult.start_ticks, childATrace.start_ticks, "child B must have a new process start identity");
+  assert.equal(childBResult.root_sha256, r2.root_sha256);
+  assert.equal(fs.existsSync(ownerPath), false, "child B must release its completed owner");
   assert.equal(
     fs.existsSync(abandonedRollbackWitnessPath),
     false,
-    "fresh claimant must retire the exact predecessor witness after convergence",
+    "child B must retire the exact predecessor witness after convergence",
   );
   assert.equal(
     fs.existsSync(reclaimPath),
     false,
-    "fresh claimant must retire the replacement winner after convergence",
+    "child B must retire the replacement winner after convergence",
   );
+  const abandonedRollbackForeignWitnessAfter = fs.statSync(
+    abandonedRollbackForeignWitnessPath,
+    { bigint: true } as any,
+  );
+  assert.equal(
+    abandonedRollbackForeignWitnessAfter.dev,
+    abandonedRollbackForeignWitnessBefore.dev,
+  );
+  assert.equal(
+    abandonedRollbackForeignWitnessAfter.ino,
+    abandonedRollbackForeignWitnessBefore.ino,
+    "foreign-generation witness identity must remain exact across child recovery",
+  );
+  assert.deepEqual(
+    fs.readFileSync(abandonedRollbackForeignWitnessPath),
+    abandonedRollbackForeignWitnessBytes,
+    "foreign-generation witness bytes must remain exact across child recovery",
+  );
+  assert.deepEqual(
+    fs.readdirSync(publishLockDir).filter(name =>
+      name.includes(childATrace.claimant_token) || name.includes(abandonedRollbackToken)
+    ),
+    [],
+    "child A and predecessor generations must leave zero owned residue",
+  );
+  fs.unlinkSync(abandonedRollbackForeignWitnessPath);
+  fsyncDirectory(publishLockDir);
 
   const staleClaimToken = "23".repeat(16);
   writePublishOwner(publishLockDir, 99999999, "1", staleClaimToken);
@@ -917,6 +1136,11 @@ try {
   console.log("durable_root_failed_acquire_successor_residue=0");
   console.log("durable_root_failed_acquire_predecessor_restored=true");
   console.log("durable_root_failed_acquire_single_retry_converges=true");
+  console.log("durable_root_abandoned_reclaim_child_a_signal=SIGKILL");
+  console.log("durable_root_abandoned_reclaim_child_processes_executed=2");
+  console.log("durable_root_abandoned_reclaim_real_pid_start_bound=true");
+  console.log("durable_root_abandoned_reclaim_foreign_generation_preserved=true");
+  console.log("durable_root_abandoned_reclaim_owned_residue=0");
   console.log("durable_root_abandoned_reclaim_winner_fresh_process_converges=true");
   console.log("durable_root_reclaim_winner_claimant_mismatch_preserved=true");
   console.log("durable_root_reclaim_winner_same_inode_rewrite_rejected=true");

@@ -17,7 +17,7 @@ const SEGSTORE_PROOF_PATH = "scripts/prove_segmented_jsonl_v1.ts";
 const DURABLE_ROOT_SOURCE_PATH = "src/storage/segmented_jsonl_durable_root_v1.ts";
 const DURABLE_ROOT_PROOF_PATH = "scripts/prove_segmented_jsonl_durable_root_v1.ts";
 const DURABLE_ROOT_SOURCE_BLOB_SHA1 = "5e92878651b58258a39be09efb756d3391235e7c";
-const DURABLE_ROOT_PROOF_BLOB_SHA1 = "629ca20b6c1f02cdf385263a02a3c47268aebbb0";
+const DURABLE_ROOT_PROOF_BLOB_SHA1 = "ff50eaea2b6a25664d7b43f12b734ad045b78132";
 const STORAGE_SOURCES = [
   "src/storage/segmented_jsonl_v1.ts",
   "src/storage/segmented_jsonl_snapshot_authority_v1.ts",
@@ -117,6 +117,81 @@ function auditDurableRootReclaimWinnerDigestEvidence(source, proof) {
     "return replaceAbandonedReclaimWinner(",
   ]) {
     assert.ok(source.includes(marker), `durable_root_abandoned_reclaim_source_marker_missing:${marker}`);
+  }
+}
+
+function auditDurableRootRealProcessRecoveryEvidence(proof) {
+  const parsed = ts.createSourceFile(
+    DURABLE_ROOT_PROOF_PATH,
+    proof,
+    ts.ScriptTarget.Latest,
+    true,
+    ts.ScriptKind.TS,
+  );
+  const spawnDeclarations = new Map();
+  const visit = node => {
+    if (
+      ts.isVariableDeclaration(node) &&
+      ts.isIdentifier(node.name) &&
+      (node.name.text === "childA" || node.name.text === "childB")
+    ) {
+      assert.equal(
+        spawnDeclarations.has(node.name.text),
+        false,
+        `durable_root_real_process_${node.name.text}_declaration_not_exact`,
+      );
+      spawnDeclarations.set(node.name.text, node);
+    }
+    ts.forEachChild(node, visit);
+  };
+  visit(parsed);
+  for (const name of ["childA", "childB"]) {
+    const declaration = spawnDeclarations.get(name);
+    assert.ok(declaration, `durable_root_real_process_${name}_missing`);
+    assert.ok(
+      declaration.initializer &&
+      ts.isCallExpression(declaration.initializer) &&
+      ts.isPropertyAccessExpression(declaration.initializer.expression) &&
+      ts.isIdentifier(declaration.initializer.expression.expression) &&
+      declaration.initializer.expression.expression.text === "childProcess" &&
+      declaration.initializer.expression.name.text === "spawnSync",
+      `durable_root_real_process_${name}_not_spawn_sync`,
+    );
+    const declarationList = declaration.parent;
+    const statement = declarationList.parent;
+    const block = statement.parent;
+    const tryStatement = block.parent;
+    assert.ok(ts.isVariableDeclarationList(declarationList));
+    assert.ok(ts.isVariableStatement(statement));
+    assert.ok(ts.isBlock(block));
+    assert.ok(
+      ts.isTryStatement(tryStatement) &&
+      tryStatement.tryBlock === block &&
+      ts.isSourceFile(tryStatement.parent),
+      `durable_root_real_process_${name}_not_top_level_try`,
+    );
+  }
+  for (const marker of [
+    'VOID_DURABLE_ROOT_CHILD_MODE: mode,',
+    'env: childEnvironment("crash_after_owner_restore"),',
+    'assert.equal(childA.status, null,',
+    'assert.equal(childA.signal, "SIGKILL",',
+    'env: childEnvironment("recover_abandoned_winner"),',
+    'assert.equal(childB.signal, null,',
+    'assert.equal(childB.status, 0,',
+    'assert.notEqual(childBResult.pid, childATrace.pid,',
+    'assert.equal(abandonedRollbackWinnerValue.claimant_pid, childATrace.pid);',
+    'assert.equal(abandonedRollbackWinnerValue.claimant_start_ticks, childATrace.start_ticks);',
+    'foreign-generation witness identity must remain exact across child recovery',
+    'foreign-generation witness bytes must remain exact across child recovery',
+    'child A and predecessor generations must leave zero owned residue',
+    'durable_root_abandoned_reclaim_child_a_signal=SIGKILL',
+    'durable_root_abandoned_reclaim_child_processes_executed=2',
+    'durable_root_abandoned_reclaim_real_pid_start_bound=true',
+    'durable_root_abandoned_reclaim_foreign_generation_preserved=true',
+    'durable_root_abandoned_reclaim_owned_residue=0',
+  ]) {
+    assert.ok(proof.includes(marker), `durable_root_real_process_marker_missing:${marker}`);
   }
 }
 
@@ -2107,6 +2182,7 @@ auditBaseline(baseline);
 auditCi(ci);
 auditTopologyMeasurementMutantAuthority(topologyProof);
 auditDurableRootReclaimWinnerDigestEvidence(durableRootSource, durableRootProof);
+auditDurableRootRealProcessRecoveryEvidence(durableRootProof);
 let durableRootReclaimWinnerDigestMutantsExecuted = 0;
 const durableRootDigestSourceDeletionMutant = durableRootSource.replace(
   "type ReclaimWinnerReadV1 = { identity: SlotIdentityV1; value: ReclaimWinnerV1; bodySha256: string };",
@@ -2146,6 +2222,59 @@ assert.equal(
   durableRootReclaimWinnerDigestMutantsExecuted,
   2,
   "durable_root_reclaim_winner_digest_mutant_count_not_exact",
+);
+let durableRootRealProcessMutantsExecuted = 0;
+const durableRootChildADeadBranchMutant = durableRootProof
+  .replace(
+    "  const childA = childProcess.spawnSync(process.execPath, childArgs, {",
+    "  if (0) {\n  const childA = childProcess.spawnSync(process.execPath, childArgs, {",
+  )
+  .replace(
+    "  assert.equal(childA.signal, \"SIGKILL\", `child A must cross a real SIGKILL boundary: ${childA.stderr}`);",
+    "  assert.equal(childA.signal, \"SIGKILL\", `child A must cross a real SIGKILL boundary: ${childA.stderr}`);\n  }",
+  );
+assert.notEqual(
+  durableRootChildADeadBranchMutant,
+  durableRootProof,
+  "durable_root_real_process_child_a_dead_branch_mutant_not_applied",
+);
+assertThrows(
+  () => auditDurableRootRealProcessRecoveryEvidence(durableRootChildADeadBranchMutant),
+  /durable_root_real_process_childA_not_top_level_try/,
+);
+durableRootRealProcessMutantsExecuted += 1;
+const durableRootChildBInlineSubstitutionMutant = durableRootProof.replace(
+  "  const childB = childProcess.spawnSync(process.execPath, childArgs, {",
+  "  const childB = ({ status: 0, signal: null, stdout: '{}', stderr: '', error: undefined } as any);",
+);
+assert.notEqual(
+  durableRootChildBInlineSubstitutionMutant,
+  durableRootProof,
+  "durable_root_real_process_child_b_inline_substitution_mutant_not_applied",
+);
+assertThrows(
+  () => auditDurableRootRealProcessRecoveryEvidence(durableRootChildBInlineSubstitutionMutant),
+  /durable_root_real_process_childB_not_spawn_sync/,
+);
+durableRootRealProcessMutantsExecuted += 1;
+const durableRootCrashModeSubstitutionMutant = durableRootProof.replace(
+  'env: childEnvironment("crash_after_owner_restore"),',
+  'env: childEnvironment("recover_abandoned_winner"),',
+);
+assert.notEqual(
+  durableRootCrashModeSubstitutionMutant,
+  durableRootProof,
+  "durable_root_real_process_crash_mode_substitution_mutant_not_applied",
+);
+assertThrows(
+  () => auditDurableRootRealProcessRecoveryEvidence(durableRootCrashModeSubstitutionMutant),
+  /durable_root_real_process_marker_missing/,
+);
+durableRootRealProcessMutantsExecuted += 1;
+assert.equal(
+  durableRootRealProcessMutantsExecuted,
+  3,
+  "durable_root_real_process_mutant_count_not_exact",
 );
 const genericMeasurementPayloads = genericMeasurementPayloadMutant(topologyProof);
 assert.notEqual(
@@ -3204,6 +3333,9 @@ console.log(`segstore_reconstruction_measurement_mutants_executed=${reconstructi
 console.log("segstore_exact_generation_helper_noop_rejected=true");
 
 console.log(`focused_durable_root_audit_reachability_mutants_executed=${focusedDurableRootAuditReachabilityMutantsExecuted}`);
+console.log(`durable_root_real_process_mutants_executed=${durableRootRealProcessMutantsExecuted}`);
+console.log("durable_root_real_process_child_a_b_top_level_bound=true");
+console.log("durable_root_real_process_crash_mode_bound=true");
 console.log(`focused_successful_termination_mutants_executed=${focusedSuccessfulTerminationMutantsExecuted}`);
 console.log(`focused_external_termination_children_executed=${focusedExternalTerminationChildrenExecuted}`);
 console.log(`focused_external_failure_mode_falsifiers_executed=${focusedExternalFailureModeFalsifiersExecuted}`);
