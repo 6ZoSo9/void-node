@@ -2027,7 +2027,11 @@ assert.notEqual(
   focused,
   "focused_computed_really_exit_mutant_not_applied",
 );
-auditFocused(computedReallyExitMutant);
+assert.throws(
+  () => auditFocused(computedReallyExitMutant),
+  /focused_inline_audit_call_order:0/,
+  "focused_computed_really_exit_mutant_static_terminal_not_rejected",
+);
 const computedReallyExitInlineSource = workflowInlineNodeSource(
   workflowNamedStepLines(
     computedReallyExitMutant,
