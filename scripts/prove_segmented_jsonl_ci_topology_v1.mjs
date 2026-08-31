@@ -17,7 +17,7 @@ const SEGSTORE_PROOF_PATH = "scripts/prove_segmented_jsonl_v1.ts";
 const DURABLE_ROOT_SOURCE_PATH = "src/storage/segmented_jsonl_durable_root_v1.ts";
 const DURABLE_ROOT_PROOF_PATH = "scripts/prove_segmented_jsonl_durable_root_v1.ts";
 const DURABLE_ROOT_SOURCE_BLOB_SHA1 = "5e92878651b58258a39be09efb756d3391235e7c";
-const DURABLE_ROOT_PROOF_BLOB_SHA1 = "ab59f9a2604e6b4865ed0780f7777fa0f4f2426c";
+const DURABLE_ROOT_PROOF_BLOB_SHA1 = "b852f4bafeb884f71336519b4649e0588e846ea6";
 const STORAGE_SOURCES = [
   "src/storage/segmented_jsonl_v1.ts",
   "src/storage/segmented_jsonl_snapshot_authority_v1.ts",
@@ -171,6 +171,292 @@ function auditDurableRootRealProcessRecoveryEvidence(proof) {
       `durable_root_real_process_${name}_not_top_level_try`,
     );
   }
+  const exactPropertyAccess = (node, objectName, propertyName) =>
+    ts.isPropertyAccessExpression(node) &&
+    ts.isIdentifier(node.expression) &&
+    node.expression.text === objectName &&
+    node.name.text === propertyName;
+  const assertTopLevelTryCall = (call, marker) => {
+    const statement = call.parent;
+    const block = statement.parent;
+    const tryStatement = block.parent;
+    assert.ok(ts.isExpressionStatement(statement), `${marker}_not_expression_statement`);
+    assert.ok(ts.isBlock(block), `${marker}_not_block`);
+    assert.ok(
+      ts.isTryStatement(tryStatement) &&
+      tryStatement.tryBlock === block &&
+      ts.isSourceFile(tryStatement.parent),
+      `${marker}_not_top_level_try`,
+    );
+  };
+  const assertTopLevelTryDeclaration = (declaration, marker) => {
+    const declarationList = declaration.parent;
+    const statement = declarationList.parent;
+    const block = statement.parent;
+    const tryStatement = block.parent;
+    assert.ok(ts.isVariableDeclarationList(declarationList), `${marker}_not_declaration_list`);
+    assert.ok(ts.isVariableStatement(statement), `${marker}_not_variable_statement`);
+    assert.ok(ts.isBlock(block), `${marker}_not_block`);
+    assert.ok(
+      ts.isTryStatement(tryStatement) &&
+      tryStatement.tryBlock === block &&
+      ts.isSourceFile(tryStatement.parent),
+      `${marker}_not_top_level_try`,
+    );
+  };
+  const ownedTokenDeclarations = [];
+  const childBResidueNameDeclarations = [];
+  const childBResiduePathDeclarations = [];
+  const childBResidueWriteCalls = [];
+  const childBResidueUnlinkCalls = [];
+  const residueAssertions = new Map();
+  const residueMessages = new Set([
+    "child B owned-residue falsifier must be detected before zero-residue success",
+    "child B, child A, and predecessor generations must leave zero owned residue",
+  ]);
+  const visitResidueAuthority = node => {
+    if (
+      ts.isVariableDeclaration(node) &&
+      ts.isIdentifier(node.name) &&
+      node.name.text === "abandonedRollbackOwnedTokens"
+    ) {
+      ownedTokenDeclarations.push(node);
+    }
+    if (
+      ts.isVariableDeclaration(node) &&
+      ts.isIdentifier(node.name) &&
+      node.name.text === "abandonedRollbackChildBResidueFalsifierName"
+    ) {
+      childBResidueNameDeclarations.push(node);
+    }
+    if (
+      ts.isVariableDeclaration(node) &&
+      ts.isIdentifier(node.name) &&
+      node.name.text === "abandonedRollbackChildBResidueFalsifierPath"
+    ) {
+      childBResiduePathDeclarations.push(node);
+    }
+    if (
+      ts.isCallExpression(node) &&
+      exactPropertyAccess(node.expression, "fs", "writeFileSync") &&
+      node.arguments.length === 3 &&
+      ts.isIdentifier(node.arguments[0]) &&
+      node.arguments[0].text === "abandonedRollbackChildBResidueFalsifierPath"
+    ) {
+      childBResidueWriteCalls.push(node);
+    }
+    if (
+      ts.isCallExpression(node) &&
+      exactPropertyAccess(node.expression, "fs", "unlinkSync") &&
+      node.arguments.length === 1 &&
+      ts.isIdentifier(node.arguments[0]) &&
+      node.arguments[0].text === "abandonedRollbackChildBResidueFalsifierPath"
+    ) {
+      childBResidueUnlinkCalls.push(node);
+    }
+    if (
+      ts.isCallExpression(node) &&
+      ts.isPropertyAccessExpression(node.expression) &&
+      ts.isIdentifier(node.expression.expression) &&
+      node.expression.expression.text === "assert" &&
+      node.expression.name.text === "deepEqual" &&
+      node.arguments.length === 3 &&
+      ts.isStringLiteral(node.arguments[2]) &&
+      residueMessages.has(node.arguments[2].text)
+    ) {
+      assert.equal(
+        residueAssertions.has(node.arguments[2].text),
+        false,
+        `durable_root_real_process_residue_assertion_not_exact:${node.arguments[2].text}`,
+      );
+      residueAssertions.set(node.arguments[2].text, node);
+    }
+    ts.forEachChild(node, visitResidueAuthority);
+  };
+  visitResidueAuthority(parsed);
+  assert.equal(
+    ownedTokenDeclarations.length,
+    1,
+    "durable_root_real_process_owned_token_declaration_not_exact",
+  );
+  const ownedTokenDeclaration = ownedTokenDeclarations[0];
+  assert.ok(
+    ownedTokenDeclaration.initializer &&
+    ts.isArrayLiteralExpression(ownedTokenDeclaration.initializer) &&
+    ownedTokenDeclaration.initializer.elements.length === 3 &&
+    exactPropertyAccess(ownedTokenDeclaration.initializer.elements[0], "childATrace", "claimant_token") &&
+    exactPropertyAccess(ownedTokenDeclaration.initializer.elements[1], "childBResult", "claimant_token") &&
+    ts.isIdentifier(ownedTokenDeclaration.initializer.elements[2]) &&
+    ownedTokenDeclaration.initializer.elements[2].text === "abandonedRollbackToken",
+    "durable_root_real_process_owned_token_array_not_exact",
+  );
+  assertTopLevelTryDeclaration(
+    ownedTokenDeclaration,
+    "durable_root_real_process_owned_token_declaration",
+  );
+  assert.equal(
+    childBResidueNameDeclarations.length,
+    1,
+    "durable_root_real_process_child_b_residue_name_declaration_not_exact",
+  );
+  const childBResidueNameDeclaration = childBResidueNameDeclarations[0];
+  assert.ok(
+    childBResidueNameDeclaration.initializer &&
+    ts.isTemplateExpression(childBResidueNameDeclaration.initializer) &&
+    childBResidueNameDeclaration.initializer.head.text === "proof-owned-residue-" &&
+    childBResidueNameDeclaration.initializer.templateSpans.length === 1 &&
+    exactPropertyAccess(
+      childBResidueNameDeclaration.initializer.templateSpans[0].expression,
+      "childBResult",
+      "claimant_token",
+    ) &&
+    childBResidueNameDeclaration.initializer.templateSpans[0].literal.text === ".v1",
+    "durable_root_real_process_child_b_residue_name_not_exact",
+  );
+  assertTopLevelTryDeclaration(
+    childBResidueNameDeclaration,
+    "durable_root_real_process_child_b_residue_name_declaration",
+  );
+  assert.equal(
+    childBResiduePathDeclarations.length,
+    1,
+    "durable_root_real_process_child_b_residue_path_declaration_not_exact",
+  );
+  const childBResiduePathDeclaration = childBResiduePathDeclarations[0];
+  assert.ok(
+    childBResiduePathDeclaration.initializer &&
+    ts.isCallExpression(childBResiduePathDeclaration.initializer) &&
+    exactPropertyAccess(childBResiduePathDeclaration.initializer.expression, "path", "join") &&
+    childBResiduePathDeclaration.initializer.arguments.length === 2 &&
+    ts.isIdentifier(childBResiduePathDeclaration.initializer.arguments[0]) &&
+    childBResiduePathDeclaration.initializer.arguments[0].text === "publishLockDir" &&
+    ts.isIdentifier(childBResiduePathDeclaration.initializer.arguments[1]) &&
+    childBResiduePathDeclaration.initializer.arguments[1].text ===
+      "abandonedRollbackChildBResidueFalsifierName",
+    "durable_root_real_process_child_b_residue_path_not_exact",
+  );
+  assertTopLevelTryDeclaration(
+    childBResiduePathDeclaration,
+    "durable_root_real_process_child_b_residue_path_declaration",
+  );
+  assert.equal(
+    childBResidueWriteCalls.length,
+    1,
+    "durable_root_real_process_child_b_residue_write_not_exact",
+  );
+  assert.ok(
+    ts.isStringLiteral(childBResidueWriteCalls[0].arguments[1]) &&
+    childBResidueWriteCalls[0].arguments[1].text === "owned\n" &&
+    ts.isObjectLiteralExpression(childBResidueWriteCalls[0].arguments[2]),
+    "durable_root_real_process_child_b_residue_write_arguments_not_exact",
+  );
+  assertTopLevelTryCall(
+    childBResidueWriteCalls[0],
+    "durable_root_real_process_child_b_residue_write",
+  );
+  assert.equal(
+    childBResidueUnlinkCalls.length,
+    1,
+    "durable_root_real_process_child_b_residue_unlink_not_exact",
+  );
+  assertTopLevelTryCall(
+    childBResidueUnlinkCalls[0],
+    "durable_root_real_process_child_b_residue_unlink",
+  );
+  const auditResidueFilter = (node, marker) => {
+    assert.ok(
+      ts.isCallExpression(node) &&
+      ts.isPropertyAccessExpression(node.expression) &&
+      node.expression.name.text === "filter" &&
+      ts.isCallExpression(node.expression.expression) &&
+      exactPropertyAccess(node.expression.expression.expression, "fs", "readdirSync") &&
+      node.expression.expression.arguments.length === 1 &&
+      ts.isIdentifier(node.expression.expression.arguments[0]) &&
+      node.expression.expression.arguments[0].text === "publishLockDir" &&
+      node.arguments.length === 1 &&
+      ts.isArrowFunction(node.arguments[0]) &&
+      node.arguments[0].parameters.length === 1 &&
+      ts.isIdentifier(node.arguments[0].parameters[0].name) &&
+      node.arguments[0].parameters[0].name.text === "name",
+      `${marker}_filter_shape_not_exact`,
+    );
+    const filterBody = node.arguments[0].body;
+    assert.ok(
+      ts.isCallExpression(filterBody) &&
+      ts.isPropertyAccessExpression(filterBody.expression) &&
+      ts.isIdentifier(filterBody.expression.expression) &&
+      filterBody.expression.expression.text === "abandonedRollbackOwnedTokens" &&
+      filterBody.expression.name.text === "some" &&
+      filterBody.arguments.length === 1 &&
+      ts.isArrowFunction(filterBody.arguments[0]) &&
+      filterBody.arguments[0].parameters.length === 1 &&
+      ts.isIdentifier(filterBody.arguments[0].parameters[0].name) &&
+      filterBody.arguments[0].parameters[0].name.text === "token",
+      `${marker}_predicate_not_exact`,
+    );
+    const someBody = filterBody.arguments[0].body;
+    assert.ok(
+      ts.isCallExpression(someBody) &&
+      ts.isPropertyAccessExpression(someBody.expression) &&
+      ts.isIdentifier(someBody.expression.expression) &&
+      someBody.expression.expression.text === "name" &&
+      someBody.expression.name.text === "includes" &&
+      someBody.arguments.length === 1 &&
+      ts.isIdentifier(someBody.arguments[0]) &&
+      someBody.arguments[0].text === "token",
+      `${marker}_token_use_not_exact`,
+    );
+  };
+  assert.equal(
+    residueAssertions.size,
+    2,
+    "durable_root_real_process_residue_assertion_count_not_exact",
+  );
+  const residueFalsifierAssertion = residueAssertions.get(
+    "child B owned-residue falsifier must be detected before zero-residue success",
+  );
+  const zeroResidueAssertion = residueAssertions.get(
+    "child B, child A, and predecessor generations must leave zero owned residue",
+  );
+  assert.ok(residueFalsifierAssertion && zeroResidueAssertion);
+  assertTopLevelTryCall(
+    residueFalsifierAssertion,
+    "durable_root_real_process_residue_falsifier_assertion",
+  );
+  assertTopLevelTryCall(
+    zeroResidueAssertion,
+    "durable_root_real_process_zero_residue_assertion",
+  );
+  auditResidueFilter(
+    residueFalsifierAssertion.arguments[0],
+    "durable_root_real_process_residue_falsifier",
+  );
+  auditResidueFilter(
+    zeroResidueAssertion.arguments[0],
+    "durable_root_real_process_zero_residue",
+  );
+  assert.ok(
+    ts.isArrayLiteralExpression(residueFalsifierAssertion.arguments[1]) &&
+    residueFalsifierAssertion.arguments[1].elements.length === 1 &&
+    ts.isIdentifier(residueFalsifierAssertion.arguments[1].elements[0]) &&
+    residueFalsifierAssertion.arguments[1].elements[0].text ===
+      "abandonedRollbackChildBResidueFalsifierName",
+    "durable_root_real_process_residue_falsifier_expected_value_not_exact",
+  );
+  assert.ok(
+    ts.isArrayLiteralExpression(zeroResidueAssertion.arguments[1]) &&
+    zeroResidueAssertion.arguments[1].elements.length === 0,
+    "durable_root_real_process_zero_residue_expected_value_not_exact",
+  );
+  assert.ok(
+    ownedTokenDeclaration.pos < childBResidueNameDeclaration.pos &&
+    childBResidueNameDeclaration.pos < childBResiduePathDeclaration.pos &&
+    childBResiduePathDeclaration.pos < childBResidueWriteCalls[0].pos &&
+    childBResidueWriteCalls[0].pos < residueFalsifierAssertion.pos &&
+    residueFalsifierAssertion.pos < childBResidueUnlinkCalls[0].pos &&
+    childBResidueUnlinkCalls[0].pos < zeroResidueAssertion.pos,
+    "durable_root_real_process_residue_authority_order_not_exact",
+  );
   for (const marker of [
     'VOID_DURABLE_ROOT_CHILD_MODE: mode,',
     'env: childEnvironment("crash_after_owner_restore"),',
@@ -183,6 +469,9 @@ function auditDurableRootRealProcessRecoveryEvidence(proof) {
     'claimant_token: recovererClaimantToken,',
     'assert.notEqual(childBResult.claimant_token, childATrace.claimant_token,',
     'const abandonedRollbackOwnedTokens = [\n    childATrace.claimant_token,\n    childBResult.claimant_token,\n    abandonedRollbackToken,\n  ];',
+    'const abandonedRollbackChildBResidueFalsifierName =\n    `proof-owned-residue-${childBResult.claimant_token}.v1`;',
+    'fs.writeFileSync(abandonedRollbackChildBResidueFalsifierPath, "owned\\n", { flag: "wx", mode: 0o600 });',
+    'child B owned-residue falsifier must be detected before zero-residue success',
     'assert.equal(abandonedRollbackWinnerValue.claimant_pid, childATrace.pid);',
     'assert.equal(abandonedRollbackWinnerValue.claimant_start_ticks, childATrace.start_ticks);',
     'foreign-generation witness identity must remain exact across child recovery',
@@ -2285,12 +2574,68 @@ assert.notEqual(
 );
 assertThrows(
   () => auditDurableRootRealProcessRecoveryEvidence(durableRootRecovererResidueOmissionMutant),
-  /durable_root_real_process_marker_missing/,
+  /durable_root_real_process_owned_token_array_not_exact/,
+);
+durableRootRealProcessMutantsExecuted += 1;
+const durableRootResidueConstantFalseMutant = durableRootProof.replaceAll(
+  "abandonedRollbackOwnedTokens.some(token => name.includes(token))",
+  "false && abandonedRollbackOwnedTokens.some(token => name.includes(token))",
+);
+assert.notEqual(
+  durableRootResidueConstantFalseMutant,
+  durableRootProof,
+  "durable_root_real_process_residue_constant_false_mutant_not_applied",
+);
+assertThrows(
+  () => auditDurableRootRealProcessRecoveryEvidence(durableRootResidueConstantFalseMutant),
+  /durable_root_real_process_(residue_falsifier|zero_residue)_predicate_not_exact/,
+);
+durableRootRealProcessMutantsExecuted += 1;
+const durableRootResidueDeadGuardMutant = durableRootProof.replaceAll(
+  "abandonedRollbackOwnedTokens.some(token => name.includes(token))",
+  "abandonedRollbackOwnedTokens.some(token => { if (0) return name.includes(token); return false; })",
+);
+assert.notEqual(
+  durableRootResidueDeadGuardMutant,
+  durableRootProof,
+  "durable_root_real_process_residue_dead_guard_mutant_not_applied",
+);
+assertThrows(
+  () => auditDurableRootRealProcessRecoveryEvidence(durableRootResidueDeadGuardMutant),
+  /durable_root_real_process_(residue_falsifier|zero_residue)_token_use_not_exact/,
+);
+durableRootRealProcessMutantsExecuted += 1;
+const durableRootResidueEarlyReturnMutant = durableRootProof.replaceAll(
+  "abandonedRollbackOwnedTokens.some(token => name.includes(token))",
+  "abandonedRollbackOwnedTokens.some(token => { return false; return name.includes(token); })",
+);
+assert.notEqual(
+  durableRootResidueEarlyReturnMutant,
+  durableRootProof,
+  "durable_root_real_process_residue_early_return_mutant_not_applied",
+);
+assertThrows(
+  () => auditDurableRootRealProcessRecoveryEvidence(durableRootResidueEarlyReturnMutant),
+  /durable_root_real_process_(residue_falsifier|zero_residue)_token_use_not_exact/,
+);
+durableRootRealProcessMutantsExecuted += 1;
+const durableRootChildBResidueInjectionDeletionMutant = durableRootProof.replace(
+  '  fs.writeFileSync(abandonedRollbackChildBResidueFalsifierPath, "owned\\n", { flag: "wx", mode: 0o600 });\n',
+  "",
+);
+assert.notEqual(
+  durableRootChildBResidueInjectionDeletionMutant,
+  durableRootProof,
+  "durable_root_real_process_residue_injection_deletion_mutant_not_applied",
+);
+assertThrows(
+  () => auditDurableRootRealProcessRecoveryEvidence(durableRootChildBResidueInjectionDeletionMutant),
+  /durable_root_real_process_child_b_residue_write_not_exact/,
 );
 durableRootRealProcessMutantsExecuted += 1;
 assert.equal(
   durableRootRealProcessMutantsExecuted,
-  4,
+  8,
   "durable_root_real_process_mutant_count_not_exact",
 );
 const genericMeasurementPayloads = genericMeasurementPayloadMutant(topologyProof);
@@ -3353,6 +3698,8 @@ console.log(`focused_durable_root_audit_reachability_mutants_executed=${focusedD
 console.log(`durable_root_real_process_mutants_executed=${durableRootRealProcessMutantsExecuted}`);
 console.log("durable_root_real_process_child_a_b_top_level_bound=true");
 console.log("durable_root_real_process_crash_mode_bound=true");
+console.log("durable_root_real_process_residue_filter_ast_bound=true");
+console.log("durable_root_real_process_child_b_residue_falsifier_bound=true");
 console.log(`focused_successful_termination_mutants_executed=${focusedSuccessfulTerminationMutantsExecuted}`);
 console.log(`focused_external_termination_children_executed=${focusedExternalTerminationChildrenExecuted}`);
 console.log(`focused_external_failure_mode_falsifiers_executed=${focusedExternalFailureModeFalsifiersExecuted}`);

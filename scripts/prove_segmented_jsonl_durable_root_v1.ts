@@ -971,6 +971,23 @@ try {
     abandonedRollbackToken,
   ];
   assert.equal(new Set(abandonedRollbackOwnedTokens).size, 3, "real-process recovery generations must be distinct");
+  const abandonedRollbackChildBResidueFalsifierName =
+    `proof-owned-residue-${childBResult.claimant_token}.v1`;
+  const abandonedRollbackChildBResidueFalsifierPath = path.join(
+    publishLockDir,
+    abandonedRollbackChildBResidueFalsifierName,
+  );
+  fs.writeFileSync(abandonedRollbackChildBResidueFalsifierPath, "owned\n", { flag: "wx", mode: 0o600 });
+  fsyncDirectory(publishLockDir);
+  assert.deepEqual(
+    fs.readdirSync(publishLockDir).filter(name =>
+      abandonedRollbackOwnedTokens.some(token => name.includes(token))
+    ),
+    [abandonedRollbackChildBResidueFalsifierName],
+    "child B owned-residue falsifier must be detected before zero-residue success",
+  );
+  fs.unlinkSync(abandonedRollbackChildBResidueFalsifierPath);
+  fsyncDirectory(publishLockDir);
   assert.deepEqual(
     fs.readdirSync(publishLockDir).filter(name =>
       abandonedRollbackOwnedTokens.some(token => name.includes(token))
