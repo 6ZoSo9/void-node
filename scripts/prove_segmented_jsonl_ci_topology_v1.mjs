@@ -689,7 +689,7 @@ function auditFocused(source) {
     "focused_baseline_syntax_not_terminal",
   );
   assert.equal(
-    exactLineCount(source, `        run: node ${PROOF_PATH}`),
+    exactLineCount(source, `          node ${PROOF_PATH}`),
     1,
     "focused_topology_proof_not_terminal",
   );
