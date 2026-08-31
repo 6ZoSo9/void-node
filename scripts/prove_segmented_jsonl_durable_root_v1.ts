@@ -368,11 +368,37 @@ function runDurableRootChildMode(): never {
   const lockDir = path.join(durableDir, ".durable-root-publish-v1.lock");
 
   if (DURABLE_ROOT_CHILD_MODE === "recover_abandoned_winner") {
-    const result = publishSegmentedJsonlDurableRootV1(durableDir, input);
+    const originalUnlinkSync = fsMutable.unlinkSync;
+    let recovererClaimantToken: string | null = null;
+    fsMutable.unlinkSync = ((file: fs.PathLike) => {
+      if (path.basename(String(file)) === "owner.v1.json") {
+        const owner = JSON.parse(fs.readFileSync(String(file), "utf8")) as {
+          pid?: number;
+          start_ticks?: string;
+          token?: string;
+        };
+        if (
+          owner.pid === process.pid &&
+          owner.start_ticks === processStartTicks(process.pid) &&
+          typeof owner.token === "string"
+        ) recovererClaimantToken = owner.token;
+      }
+      return originalUnlinkSync(file);
+    }) as typeof fsMutable.unlinkSync;
+    syncBuiltinESMExports();
+    let result: SegmentedJsonlDurableRootV1;
+    try {
+      result = publishSegmentedJsonlDurableRootV1(durableDir, input);
+    } finally {
+      fsMutable.unlinkSync = originalUnlinkSync;
+      syncBuiltinESMExports();
+    }
+    assert.match(recovererClaimantToken || "", /^[0-9a-f]{32}$/);
     process.stdout.write(JSON.stringify({
       mode: DURABLE_ROOT_CHILD_MODE,
       pid: process.pid,
       start_ticks: processStartTicks(process.pid),
+      claimant_token: recovererClaimantToken,
       root_sha256: result.root_sha256,
     }) + "\n");
     process.exit(0);
@@ -900,12 +926,15 @@ try {
     mode: string;
     pid: number;
     start_ticks: string;
+    claimant_token: string;
     root_sha256: string;
   };
   assert.equal(childBResult.mode, "recover_abandoned_winner");
   assert.notEqual(childBResult.pid, process.pid, "child B must be independent from the parent");
   assert.notEqual(childBResult.pid, childATrace.pid, "child B must be independent from child A");
   assert.notEqual(childBResult.start_ticks, childATrace.start_ticks, "child B must have a new process start identity");
+  assert.match(childBResult.claimant_token, /^[0-9a-f]{32}$/);
+  assert.notEqual(childBResult.claimant_token, childATrace.claimant_token, "child B must own a distinct claimant generation");
   assert.equal(childBResult.root_sha256, r2.root_sha256);
   assert.equal(fs.existsSync(ownerPath), false, "child B must release its completed owner");
   assert.equal(
@@ -936,12 +965,18 @@ try {
     abandonedRollbackForeignWitnessBytes,
     "foreign-generation witness bytes must remain exact across child recovery",
   );
+  const abandonedRollbackOwnedTokens = [
+    childATrace.claimant_token,
+    childBResult.claimant_token,
+    abandonedRollbackToken,
+  ];
+  assert.equal(new Set(abandonedRollbackOwnedTokens).size, 3, "real-process recovery generations must be distinct");
   assert.deepEqual(
     fs.readdirSync(publishLockDir).filter(name =>
-      name.includes(childATrace.claimant_token) || name.includes(abandonedRollbackToken)
+      abandonedRollbackOwnedTokens.some(token => name.includes(token))
     ),
     [],
-    "child A and predecessor generations must leave zero owned residue",
+    "child B, child A, and predecessor generations must leave zero owned residue",
   );
   fs.unlinkSync(abandonedRollbackForeignWitnessPath);
   fsyncDirectory(publishLockDir);

@@ -17,7 +17,7 @@ const SEGSTORE_PROOF_PATH = "scripts/prove_segmented_jsonl_v1.ts";
 const DURABLE_ROOT_SOURCE_PATH = "src/storage/segmented_jsonl_durable_root_v1.ts";
 const DURABLE_ROOT_PROOF_PATH = "scripts/prove_segmented_jsonl_durable_root_v1.ts";
 const DURABLE_ROOT_SOURCE_BLOB_SHA1 = "5e92878651b58258a39be09efb756d3391235e7c";
-const DURABLE_ROOT_PROOF_BLOB_SHA1 = "ff50eaea2b6a25664d7b43f12b734ad045b78132";
+const DURABLE_ROOT_PROOF_BLOB_SHA1 = "ab59f9a2604e6b4865ed0780f7777fa0f4f2426c";
 const STORAGE_SOURCES = [
   "src/storage/segmented_jsonl_v1.ts",
   "src/storage/segmented_jsonl_snapshot_authority_v1.ts",
@@ -180,11 +180,14 @@ function auditDurableRootRealProcessRecoveryEvidence(proof) {
     'assert.equal(childB.signal, null,',
     'assert.equal(childB.status, 0,',
     'assert.notEqual(childBResult.pid, childATrace.pid,',
+    'claimant_token: recovererClaimantToken,',
+    'assert.notEqual(childBResult.claimant_token, childATrace.claimant_token,',
+    'const abandonedRollbackOwnedTokens = [\n    childATrace.claimant_token,\n    childBResult.claimant_token,\n    abandonedRollbackToken,\n  ];',
     'assert.equal(abandonedRollbackWinnerValue.claimant_pid, childATrace.pid);',
     'assert.equal(abandonedRollbackWinnerValue.claimant_start_ticks, childATrace.start_ticks);',
     'foreign-generation witness identity must remain exact across child recovery',
     'foreign-generation witness bytes must remain exact across child recovery',
-    'child A and predecessor generations must leave zero owned residue',
+    'child B, child A, and predecessor generations must leave zero owned residue',
     'durable_root_abandoned_reclaim_child_a_signal=SIGKILL',
     'durable_root_abandoned_reclaim_child_processes_executed=2',
     'durable_root_abandoned_reclaim_real_pid_start_bound=true',
@@ -2271,9 +2274,23 @@ assertThrows(
   /durable_root_real_process_marker_missing/,
 );
 durableRootRealProcessMutantsExecuted += 1;
+const durableRootRecovererResidueOmissionMutant = durableRootProof.replace(
+  "    childATrace.claimant_token,\n    childBResult.claimant_token,\n    abandonedRollbackToken,",
+  "    childATrace.claimant_token,\n    abandonedRollbackToken,",
+);
+assert.notEqual(
+  durableRootRecovererResidueOmissionMutant,
+  durableRootProof,
+  "durable_root_real_process_recoverer_residue_omission_mutant_not_applied",
+);
+assertThrows(
+  () => auditDurableRootRealProcessRecoveryEvidence(durableRootRecovererResidueOmissionMutant),
+  /durable_root_real_process_marker_missing/,
+);
+durableRootRealProcessMutantsExecuted += 1;
 assert.equal(
   durableRootRealProcessMutantsExecuted,
-  3,
+  4,
   "durable_root_real_process_mutant_count_not_exact",
 );
 const genericMeasurementPayloads = genericMeasurementPayloadMutant(topologyProof);
