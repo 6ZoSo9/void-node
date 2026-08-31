@@ -106,11 +106,15 @@ jobs:
           const { createHash } = require('node:crypto');
           const fs = require('node:fs');
           const ts = require('typescript');
+          let focusedInlineAuditTerminalsExecuted = 0;
+          process.on('exit', () => {
+            if (focusedInlineAuditTerminalsExecuted !== 4) process.exitCode = 1;
+          });
           const workflowPath = '.github/workflows/void-segmented-jsonl-v1.yml';
           const text = fs.readFileSync(workflowPath, 'utf8');
           const topologyPath = 'scripts/prove_segmented_jsonl_ci_topology_v1.mjs';
           const topologyText = fs.readFileSync(topologyPath, 'utf8');
-          const EXPECTED_TOPOLOGY_BLOB_SHA1 = '7b756adb62245f7f600b82805924f9bba29c9035';
+          const EXPECTED_TOPOLOGY_BLOB_SHA1 = '2c01851464ba0e608f07353068e70469bbce73b7';
           function focusedGitBlobSha1(source) {
             return createHash('sha1')
               .update(`blob ${Buffer.byteLength(source, 'utf8')}\0`)
@@ -1072,8 +1076,126 @@ jobs:
             );
           }
 
+          function workflowInlineNodeSource(stepBody) {
+            const lines = stepBody.split("\n");
+            const start = lines.indexOf("          node <<'NODE'");
+            const end = lines.indexOf("          NODE", start + 1);
+            assert.ok(start >= 0 && end > start, "focused_inline_node_heredoc_missing");
+            const body = lines.slice(start + 1, end);
+            for (const line of body) {
+              assert.ok(
+                line === "" || line.startsWith("          "),
+                "focused_inline_node_indent_not_exact",
+              );
+            }
+            return body.map((line) => line.slice(10)).join("\n");
+          }
+
+          function topologySuccessfulTerminationPrimitiveCount(sourceFile) {
+            let count = 0;
+            const visit = (node) => {
+              if (ts.isIdentifier(node) && (node.text === "exit" || node.text === "reallyExit")) {
+                count += 1;
+              }
+              if (
+                ts.isElementAccessExpression(node) &&
+                ts.isStringLiteral(node.argumentExpression) &&
+                (node.argumentExpression.text === "exit" ||
+                  node.argumentExpression.text === "reallyExit")
+              ) {
+                count += 1;
+              }
+              ts.forEachChild(node, visit);
+            };
+            visit(sourceFile);
+            return count;
+          }
+
+          function auditFocusedInlineRuntimeTerminalGuard(source) {
+            const sourceFile = topologySourceFile(
+              source,
+              "focused_inline_node_parse_failed",
+            );
+            const statements = sourceFile.statements.map((statement, index) => ({
+              index,
+              text: statement.getText(sourceFile).replace(/\s+/g, " "),
+            }));
+            const one = (marker, predicate) => {
+              const matches = statements.filter(({ text }) => predicate(text));
+              assert.equal(matches.length, 1, marker);
+              return matches[0].index;
+            };
+            const counter = one(
+              "focused_inline_audit_terminal_counter_not_top_level",
+              (text) => text === "let focusedInlineAuditTerminalsExecuted = 0;",
+            );
+            const exitGuard = one(
+              "focused_inline_audit_exit_guard_not_top_level",
+              (text) =>
+                text.startsWith("process.on('exit', () => {") &&
+                text.includes("focusedInlineAuditTerminalsExecuted !== 4") &&
+                text.includes("process.exitCode = 1;"),
+            );
+            const auditCalls = [
+              "audit",
+              "auditTopologyMeasurementMutantExecution",
+              "auditTopologyRepositoryCiPreTypecheckEvidence",
+              "auditTopologyDurableRootAuditAuthority",
+            ].map((callee) => one(
+              `focused_inline_audit_call_not_top_level:${callee}`,
+              (text) => text.startsWith(`${callee}(`),
+            ));
+            const increments = statements
+              .filter(({ text }) => text === "focusedInlineAuditTerminalsExecuted += 1;")
+              .map(({ index }) => index);
+            assert.equal(increments.length, 4, "focused_inline_audit_terminal_increment_count");
+            const countAssertion = one(
+              "focused_inline_audit_terminal_assertion_not_top_level",
+              (text) =>
+                text.startsWith("assert.equal( focusedInlineAuditTerminalsExecuted, 4,") &&
+                text.includes("'focused_inline_audit_terminal_count_not_exact'"),
+            );
+            const terminal = one(
+              "focused_inline_audit_terminal_not_top_level",
+              (text) =>
+                text ===
+                "console.log(\`focused_inline_audit_terminals_executed=\${focusedInlineAuditTerminalsExecuted}\`);",
+            );
+            assert.equal(exitGuard, counter + 1, "focused_inline_audit_exit_guard_order");
+            for (let index = 0; index < auditCalls.length; index += 1) {
+              const expectedCall = index === 0 ? auditCalls[0] : increments[index - 1] + 1;
+              assert.equal(
+                auditCalls[index],
+                expectedCall,
+                `focused_inline_audit_call_order:${index}`,
+              );
+              assert.equal(
+                increments[index],
+                auditCalls[index] + 1,
+                `focused_inline_audit_increment_order:${index}`,
+              );
+            }
+            assert.equal(
+              countAssertion,
+              increments[3] + 1,
+              "focused_inline_audit_count_assertion_order",
+            );
+            assert.equal(terminal, countAssertion + 1, "focused_inline_audit_terminal_order");
+            assert.equal(
+              topologySuccessfulTerminationPrimitiveCount(sourceFile),
+              0,
+              "focused_inline_successful_termination_primitive",
+            );
+          }
+
           function audit(source) {
             rejectFailureTolerance(source, "focused_failure_tolerance_present");
+            const inlineAuditBody = workflowNamedStepLines(
+              source,
+              "Prove focused workflow dependency closure",
+            ).join("\n");
+            const inlineNodeSource = workflowInlineNodeSource(inlineAuditBody);
+            auditFocusedInlineRuntimeTerminalGuard(inlineNodeSource);
             auditFocusedStepMappings(source);
             auditFocusedCriticalStepBlocks(source);
             auditFocusedEventContract(source);
@@ -1150,9 +1272,19 @@ jobs:
           }
 
           audit(text);
+          focusedInlineAuditTerminalsExecuted += 1;
           auditTopologyMeasurementMutantExecution(topologyText);
+          focusedInlineAuditTerminalsExecuted += 1;
           auditTopologyRepositoryCiPreTypecheckEvidence(topologyText);
+          focusedInlineAuditTerminalsExecuted += 1;
           auditTopologyDurableRootAuditAuthority(topologyText);
+          focusedInlineAuditTerminalsExecuted += 1;
+          assert.equal(
+            focusedInlineAuditTerminalsExecuted,
+            4,
+            'focused_inline_audit_terminal_count_not_exact',
+          );
+          console.log(`focused_inline_audit_terminals_executed=${focusedInlineAuditTerminalsExecuted}`);
           let durableRootAuditMutantsExecuted = 0;
           const unreachableDurableRootAuditCaller = topologyText.replace(
             'auditDurableRootReclaimWinnerDigestEvidence(durableRootSource, durableRootProof);',
