@@ -568,7 +568,7 @@ function auditFocused(source) {
       "let durableRootAuditMutantsExecuted = 0;",
       "const unreachableDurableRootAuditCaller = topologyText.replace(",
       "const deletedDurableRootAuditBody = topologyText.replace(",
-      "focused_durable_root_audit_mutants_executed=2",
+      "console.log(`focused_durable_root_audit_mutants_executed=${durableRootAuditMutantsExecuted}`);",
       "console.log('focused_topology_measurement_mutant_payload_digests_bound=true');",
       "console.log('focused_topology_measurement_rejection_authority_immutable=true');",
       "console.log('focused_topology_measurement_mutant_values_distinct=true');",
@@ -629,6 +629,7 @@ function auditFocused(source) {
   auditFocusedCriticalStepBlocks(source);
   auditFocusedEventContract(source);
   auditFocusedStrategyContract(source);
+  auditFocusedDurableRootAuditMutantExecution(inlineNodeSource);
   const pullRequestPaths = workflowEventPathEntries(source, "pull_request");
   const pushPaths = workflowEventPathEntries(source, "push");
   for (const dependency of TRIGGER_DEPENDENCIES) {
@@ -843,6 +844,98 @@ function topLevelCallCount(source, calleeName, marker) {
     ts.isIdentifier(statement.expression.expression) &&
     statement.expression.expression.text === calleeName
   ).length;
+}
+function auditFocusedDurableRootAuditMutantExecution(source) {
+  const parsed = parseJavaScriptSource(source, "focused-inline-audit.js", "focused_inline_node_parse_failed");
+  const statements = parsed.statements.map((statement, index) => ({
+    index,
+    text: statement.getText(parsed).replace(/\s+/g, " "),
+  }));
+  const one = (marker, predicate) => {
+    const matches = statements.filter(({ text }) => predicate(text));
+    assert.equal(matches.length, 1, marker);
+    return matches[0].index;
+  };
+  const counter = one(
+    "focused_durable_root_audit_counter_not_top_level",
+    (text) => text === "let durableRootAuditMutantsExecuted = 0;",
+  );
+  const callerMutant = one(
+    "focused_durable_root_audit_caller_mutant_not_top_level",
+    (text) => text.startsWith("const unreachableDurableRootAuditCaller = topologyText.replace("),
+  );
+  const callerApplied = one(
+    "focused_durable_root_audit_caller_applied_assertion_not_top_level",
+    (text) => text.startsWith("assert.notEqual( unreachableDurableRootAuditCaller, topologyText,") &&
+      text.includes("'focused_durable_root_audit_caller_mutant_not_applied'"),
+  );
+  const callerRejected = one(
+    "focused_durable_root_audit_caller_rejection_assertion_not_top_level",
+    (text) => text.startsWith("assert.throws(") &&
+      text.includes("auditTopologyDurableRootAuditAuthority(unreachableDurableRootAuditCaller)") &&
+      text.includes("/focused_durable_root_audit_caller_not_top_level/"),
+  );
+  const bodyMutant = one(
+    "focused_durable_root_audit_body_mutant_not_top_level",
+    (text) => text.startsWith("const deletedDurableRootAuditBody = topologyText.replace("),
+  );
+  const bodyApplied = one(
+    "focused_durable_root_audit_body_applied_assertion_not_top_level",
+    (text) => text.startsWith("assert.notEqual( deletedDurableRootAuditBody, topologyText,") &&
+      text.includes("'focused_durable_root_audit_body_mutant_not_applied'"),
+  );
+  const bodyRejected = one(
+    "focused_durable_root_audit_body_rejection_assertion_not_top_level",
+    (text) => text.startsWith("assert.throws(") &&
+      text.includes("auditTopologyDurableRootAuditAuthority(deletedDurableRootAuditBody)") &&
+      text.includes("/focused_durable_root_audit_function_not_exact/"),
+  );
+  const increments = statements.filter(
+    ({ text }) => text === "durableRootAuditMutantsExecuted += 1;",
+  );
+  assert.equal(
+    increments.length,
+    2,
+    "focused_durable_root_audit_increment_count_not_exact",
+  );
+  const countAssertion = one(
+    "focused_durable_root_audit_count_assertion_not_top_level",
+    (text) => text.startsWith("assert.equal( durableRootAuditMutantsExecuted, 2,") &&
+      text.includes("'focused_durable_root_audit_mutant_count_not_exact'"),
+  );
+  const derivedTerminal = one(
+    "focused_durable_root_audit_derived_terminal_not_top_level",
+    (text) => text === "console.log(`focused_durable_root_audit_mutants_executed=${durableRootAuditMutantsExecuted}`);",
+  );
+  assert.deepEqual(
+    [
+      counter,
+      callerMutant,
+      callerApplied,
+      callerRejected,
+      increments[0].index,
+      bodyMutant,
+      bodyApplied,
+      bodyRejected,
+      increments[1].index,
+      countAssertion,
+      derivedTerminal,
+    ],
+    [
+      counter,
+      counter + 1,
+      counter + 2,
+      counter + 3,
+      counter + 4,
+      counter + 5,
+      counter + 6,
+      counter + 7,
+      counter + 8,
+      counter + 9,
+      counter + 10,
+    ],
+    "focused_durable_root_audit_execution_order_not_exact",
+  );
 }
 
 const topologyMeasurementMutantSpecs = [
@@ -1380,6 +1473,17 @@ function auditCi(source) {
   rejectFailureTolerance(source, "ci_failure_tolerance_present");
 }
 
+function wrapFocusedDurableRootAuditMutantBlock(source, opener) {
+  const lines = source.split("\n");
+  const startLine = "          let durableRootAuditMutantsExecuted = 0;";
+  const endLine = "          console.log(`focused_durable_root_audit_mutants_executed=${durableRootAuditMutantsExecuted}`);";
+  const start = lines.indexOf(startLine);
+  const end = lines.indexOf(endLine, start + 1);
+  assert.ok(start >= 0 && end > start, "focused_durable_root_audit_mutant_block_missing");
+  const wrapped = lines.slice(start, end + 1).map((line) => `  ${line}`);
+  lines.splice(start, end - start + 1, `          ${opener}`, ...wrapped, "          }");
+  return lines.join("\n");
+}
 const focused = readFileSync(path.join(ROOT, FOCUSED_PATH), "utf8");
 const baseline = readFileSync(path.join(ROOT, BASELINE_PATH), "utf8");
 const ci = readFileSync(path.join(ROOT, CI_PATH), "utf8");
@@ -1388,6 +1492,26 @@ const topologyProof = readFileSync(path.join(ROOT, PROOF_PATH), "utf8");
 const durableRootSource = readFileSync(path.join(ROOT, DURABLE_ROOT_SOURCE_PATH), "utf8");
 const durableRootProof = readFileSync(path.join(ROOT, DURABLE_ROOT_PROOF_PATH), "utf8");
 auditFocused(focused);
+let focusedDurableRootAuditReachabilityMutantsExecuted = 0;
+for (const [name, opener] of [
+  ["if_zero", "if (0) {"],
+  ["if_not_true", "if (!true) {"],
+  ["dead_function", "function unreachableDurableRootAuditMutants() {"],
+]) {
+  const mutant = wrapFocusedDurableRootAuditMutantBlock(focused, opener);
+  assert.notEqual(mutant, focused, `focused_durable_root_audit_${name}_mutant_not_applied`);
+  assert.throws(
+    () => auditFocused(mutant),
+    /focused_durable_root_audit_counter_not_top_level/,
+    `focused_durable_root_audit_${name}_mutant_not_rejected`,
+  );
+  focusedDurableRootAuditReachabilityMutantsExecuted += 1;
+}
+assert.equal(
+  focusedDurableRootAuditReachabilityMutantsExecuted,
+  3,
+  "focused_durable_root_audit_reachability_mutant_count_not_exact",
+);
 auditSegstoreProof(segstoreProof);
 auditBaseline(baseline);
 auditCi(ci);
@@ -2488,3 +2612,5 @@ console.log("repository_ci_quoted_build_control_rejected=true");
 console.log("baseline_topology_proof_prefix_exact=true");
 console.log(`segstore_reconstruction_measurement_mutants_executed=${reconstructionMeasurementMutantsExecuted}`);
 console.log("segstore_exact_generation_helper_noop_rejected=true");
+
+console.log(`focused_durable_root_audit_reachability_mutants_executed=${focusedDurableRootAuditReachabilityMutantsExecuted}`);
