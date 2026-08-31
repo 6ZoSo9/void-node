@@ -902,6 +902,20 @@ function focusedInlineAuditCounterWriteCount(sourceFile) {
   return writes;
 }
 
+function focusedInlineDynamicCodeEvaluationCount(sourceFile) {
+  let evaluations = 0;
+  const visit = (node) => {
+    if (
+      ts.isCallExpression(node) &&
+      ts.isIdentifier(node.expression) &&
+      node.expression.text === "eval"
+    ) evaluations += 1;
+    ts.forEachChild(node, visit);
+  };
+  visit(sourceFile);
+  return evaluations;
+}
+
 function auditFocusedInlineRuntimeTerminalGuard(source) {
   const parsed = parseJavaScriptSource(
     source,
@@ -969,6 +983,11 @@ function auditFocusedInlineRuntimeTerminalGuard(source) {
     focusedInlineAuditCounterWriteCount(parsed),
     4,
     "focused_inline_audit_counter_write_count_not_exact",
+  );
+  assert.equal(
+    focusedInlineDynamicCodeEvaluationCount(parsed),
+    0,
+    "focused_inline_dynamic_code_evaluation_not_forbidden",
   );
   const countAssertion = one(
     "focused_inline_audit_terminal_assertion_not_top_level",
@@ -1656,10 +1675,13 @@ const focusedSuccessfulTerminationAliasChild =
   process.env.VOID_FOCUSED_SUCCESSFUL_TERMINATION_ALIAS_MUTANT === "1";
 const focusedInlineAuditCounterStdinChild =
   process.env.VOID_FOCUSED_INLINE_AUDIT_COUNTER_STDIN_MUTANT === "1";
+const focusedInlineAuditCounterEvalStdinChild =
+  process.env.VOID_FOCUSED_INLINE_AUDIT_COUNTER_EVAL_STDIN_MUTANT === "1";
 assert.ok(
   Number(focusedTerminationLockdownDescriptorConstructionChild) +
     Number(focusedSuccessfulTerminationAliasChild) +
-    Number(focusedInlineAuditCounterStdinChild) <= 1,
+    Number(focusedInlineAuditCounterStdinChild) +
+    Number(focusedInlineAuditCounterEvalStdinChild) <= 1,
   "focused_external_mutant_child_selector_not_exclusive",
 );
 function focusedTerminationLockdownDescriptorConstructionMutant(source) {
@@ -1717,13 +1739,33 @@ function focusedInlineAuditCounterStdinMutant(source) {
   );
   return mutant;
 }
+function focusedInlineAuditCounterEvalStdinMutant(source) {
+  const mutant = source.replace(
+    "          const workflowPath = '.github/workflows/void-segmented-jsonl-v1.yml';",
+    [
+      "          if (__filename === '[stdin]') {",
+      "            eval('focusedInlineAuditTerminalsExecuted = 4');",
+      "            Reflect.get(process, String.fromCharCode(101, 120, 105, 116))(0);",
+      "          }",
+      "          const workflowPath = '.github/workflows/void-segmented-jsonl-v1.yml';",
+    ].join("\n"),
+  );
+  assert.notEqual(
+    mutant,
+    source,
+    "focused_inline_audit_counter_eval_stdin_mutant_not_applied",
+  );
+  return mutant;
+}
 const focused = focusedTerminationLockdownDescriptorConstructionChild
   ? focusedTerminationLockdownDescriptorConstructionMutant(focusedBase)
   : focusedSuccessfulTerminationAliasChild
     ? focusedSuccessfulTerminationAliasMutant(focusedBase)
     : focusedInlineAuditCounterStdinChild
       ? focusedInlineAuditCounterStdinMutant(focusedBase)
-      : focusedBase;
+      : focusedInlineAuditCounterEvalStdinChild
+        ? focusedInlineAuditCounterEvalStdinMutant(focusedBase)
+        : focusedBase;
 const baseline = readFileSync(path.join(ROOT, BASELINE_PATH), "utf8");
 const ci = readFileSync(path.join(ROOT, CI_PATH), "utf8");
 const segstoreProof = readFileSync(path.join(ROOT, SEGSTORE_PROOF_PATH), "utf8");
@@ -1734,7 +1776,8 @@ auditFocused(focused);
 if (
   !focusedTerminationLockdownDescriptorConstructionChild &&
   !focusedSuccessfulTerminationAliasChild &&
-  !focusedInlineAuditCounterStdinChild
+  !focusedInlineAuditCounterStdinChild &&
+  !focusedInlineAuditCounterEvalStdinChild
 ) {
   const descriptorConstructionMutant =
     focusedTerminationLockdownDescriptorConstructionMutant(focused);
@@ -1772,7 +1815,8 @@ let focusedExternalTerminationChildrenExecuted = 0;
 if (
   !focusedTerminationLockdownDescriptorConstructionChild &&
   !focusedSuccessfulTerminationAliasChild &&
-  !focusedInlineAuditCounterStdinChild
+  !focusedInlineAuditCounterStdinChild &&
+  !focusedInlineAuditCounterEvalStdinChild
 ) {
   const aliasMutant = focusedSuccessfulTerminationAliasMutant(focused);
   assert.throws(
@@ -1835,10 +1879,41 @@ if (
     "focused_inline_audit_counter_stdin_child_rejection_terminal_missing",
   );
   focusedExternalTerminationChildrenExecuted += 1;
+
+  const counterEvalStdinMutant = focusedInlineAuditCounterEvalStdinMutant(focused);
+  assert.throws(
+    () => auditFocused(counterEvalStdinMutant),
+    /focused_inline_dynamic_code_evaluation_not_forbidden/,
+    "focused_inline_audit_counter_eval_stdin_mutant_not_rejected",
+  );
+  const counterEvalStdinExecution = spawnSync(
+    process.execPath,
+    [PROOF_PATH],
+    {
+      cwd: ROOT,
+      encoding: "utf8",
+      timeout: 120_000,
+      env: {
+        ...process.env,
+        VOID_FOCUSED_INLINE_AUDIT_COUNTER_EVAL_STDIN_MUTANT: "1",
+      },
+    },
+  );
+  assert.notEqual(
+    counterEvalStdinExecution.status,
+    0,
+    "focused_inline_audit_counter_eval_stdin_child_terminated_successfully",
+  );
+  assert.match(
+    `${counterEvalStdinExecution.stderr || ""}\n${counterEvalStdinExecution.stdout || ""}`,
+    /focused_inline_dynamic_code_evaluation_not_forbidden/,
+    "focused_inline_audit_counter_eval_stdin_child_rejection_terminal_missing",
+  );
+  focusedExternalTerminationChildrenExecuted += 1;
 }
 assert.equal(
   focusedExternalTerminationChildrenExecuted,
-  2,
+  3,
   "focused_external_termination_child_count_not_exact",
 );
 let focusedSuccessfulTerminationMutantsExecuted = 0;
@@ -3033,5 +3108,7 @@ console.log(`focused_successful_termination_mutants_executed=${focusedSuccessful
 console.log(`focused_external_termination_children_executed=${focusedExternalTerminationChildrenExecuted}`);
 console.log("focused_successful_termination_alias_child_rejected=true");
 console.log("focused_inline_audit_counter_stdin_child_rejected=true");
+console.log("focused_inline_audit_counter_eval_stdin_child_rejected=true");
+console.log("focused_inline_dynamic_code_evaluation_forbidden=true");
 console.log("focused_inline_audit_counter_writes_exact=true");
 console.log("focused_inline_successful_termination_rejected=true");
