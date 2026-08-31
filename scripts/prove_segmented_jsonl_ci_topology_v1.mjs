@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 
 import assert, { throws as assertThrows } from "node:assert/strict";
+import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import ts from "typescript";
 import { readFileSync } from "node:fs";
@@ -886,6 +887,23 @@ function auditFocusedInlineRuntimeTerminalGuard(source) {
     "focused_inline_audit_terminal_counter_not_top_level",
     (text) => text === "let focusedInlineAuditTerminalsExecuted = 0;",
   );
+  const nativeExit = one(
+    "focused_inline_native_exit_not_top_level",
+    (text) =>
+      text ===
+      "const focusedNativeProcessExit = Reflect.get(process, 'exit').bind(process);",
+  );
+  const terminationLockdown = one(
+    "focused_inline_termination_lockdown_not_top_level",
+    (text) =>
+      text.startsWith("Object.defineProperties(process, { 'exit': {") &&
+      text.includes("focusedInlineAuditTerminalsExecuted !== 4") &&
+      text.includes("'focused_inline_audit_premature_exit'") &&
+      text.includes("'reallyExit': {") &&
+      text.includes("'focused_inline_audit_really_exit_forbidden'") &&
+      text.includes("writable: false") &&
+      text.includes("configurable: false"),
+  );
   const exitGuard = one(
     "focused_inline_audit_exit_guard_not_top_level",
     (text) =>
@@ -918,7 +936,17 @@ function auditFocusedInlineRuntimeTerminalGuard(source) {
       text ===
       "console.log(\`focused_inline_audit_terminals_executed=\${focusedInlineAuditTerminalsExecuted}\`);",
   );
-  assert.equal(exitGuard, counter + 1, "focused_inline_audit_exit_guard_order");
+  assert.equal(nativeExit, counter + 1, "focused_inline_native_exit_order");
+  assert.equal(
+    terminationLockdown,
+    nativeExit + 1,
+    "focused_inline_termination_lockdown_order",
+  );
+  assert.equal(
+    exitGuard,
+    terminationLockdown + 1,
+    "focused_inline_audit_exit_guard_order",
+  );
   for (let index = 0; index < auditCalls.length; index += 1) {
     const expectedCall = index === 0 ? auditCalls[0] : increments[index - 1] + 1;
     assert.equal(auditCalls[index], expectedCall, `focused_inline_audit_call_order:${index}`);
@@ -1596,9 +1624,45 @@ for (const [name, primitive] of [
   );
   focusedSuccessfulTerminationMutantsExecuted += 1;
 }
+const computedReallyExitMutant = focused.replace(
+  "          audit(text);",
+  "          process['really' + 'Exit'](0);\n          audit(text);",
+);
+assert.notEqual(
+  computedReallyExitMutant,
+  focused,
+  "focused_computed_really_exit_mutant_not_applied",
+);
+auditFocused(computedReallyExitMutant);
+const computedReallyExitInlineSource = workflowInlineNodeSource(
+  workflowNamedStepLines(
+    computedReallyExitMutant,
+    "Prove focused workflow dependency closure",
+  ).join("\n"),
+);
+const computedReallyExitExecution = spawnSync(
+  process.execPath,
+  ["-e", computedReallyExitInlineSource],
+  {
+    cwd: ROOT,
+    encoding: "utf8",
+    timeout: 120_000,
+  },
+);
+assert.notEqual(
+  computedReallyExitExecution.status,
+  0,
+  "focused_computed_really_exit_mutant_terminated_successfully",
+);
+assert.match(
+  `${computedReallyExitExecution.stderr || ""}\n${computedReallyExitExecution.stdout || ""}`,
+  /focused_inline_audit_really_exit_forbidden/,
+  "focused_computed_really_exit_mutant_not_guard_rejected",
+);
+focusedSuccessfulTerminationMutantsExecuted += 1;
 assert.equal(
   focusedSuccessfulTerminationMutantsExecuted,
-  2,
+  3,
   "focused_successful_termination_mutant_count_not_exact",
 );
 let focusedDurableRootAuditReachabilityMutantsExecuted = 0;
