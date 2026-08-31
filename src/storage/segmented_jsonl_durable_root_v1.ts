@@ -567,6 +567,94 @@ function assertReclaimWinnerClaimant(
   }
 }
 
+function reclaimWinnerBelongsToClaimant(
+  winner: ReclaimWinnerReadV1,
+  claimant: PublishLockOwnerV1,
+): boolean {
+  const value = winner.value;
+  return (
+    value.claimant_boot_id === claimant.boot_id &&
+    value.claimant_pid === claimant.pid &&
+    value.claimant_start_ticks === claimant.start_ticks &&
+    value.claimant_token === claimant.token
+  );
+}
+
+function reclaimWinnerClaimantIsLive(winner: ReclaimWinnerReadV1): boolean {
+  const value = winner.value;
+  if (value.claimant_boot_id !== processBootId()) return false;
+  return processStartTicks(value.claimant_pid) === value.claimant_start_ticks;
+}
+
+function replaceAbandonedReclaimWinner(
+  lock: DirectoryAuthorityV1,
+  claimant: PublishLockOwnerV1,
+  abandoned: ReclaimWinnerReadV1,
+  owner: PublishLockFileV1,
+  witness: PublishLockFileV1,
+  release: PublishLockOwnerReleaseReadV1 | null,
+): { owner: PublishLockFileV1; witness: PublishLockFileV1; winner: ReclaimWinnerReadV1; release: PublishLockOwnerReleaseReadV1 | null } {
+  const token = owner.owner?.token ||
+    fail("DURABLE_ROOT_ABANDONED_RECLAIM_WINNER_OWNER_INVALID", claimant.token);
+  if (publishLockOwnerIsLive(owner.owner) && !release) {
+    fail("DURABLE_ROOT_PUBLISH_BUSY", lock.publicPath);
+  }
+  if (owner.links !== 2 || witness.links !== 2 || !sameIdentity(owner.identity, witness.identity)) {
+    fail("DURABLE_ROOT_ABANDONED_RECLAIM_WINNER_OWNER_MISMATCH", token);
+  }
+  const winnerBefore = readReclaimWinner(lock) ||
+    fail("DURABLE_ROOT_ABANDONED_RECLAIM_WINNER_MISSING", abandoned.value.claimant_token);
+  assertReclaimWinnerExactBytes(
+    abandoned,
+    winnerBefore,
+    "DURABLE_ROOT_ABANDONED_RECLAIM_WINNER_CHANGED",
+  );
+  assertReclaimWinnerBinds(winnerBefore, owner, witness);
+  if (reclaimWinnerClaimantIsLive(winnerBefore)) {
+    assertReclaimWinnerClaimant(winnerBefore, claimant);
+  }
+  const ownerBefore = readPublishLockFile(lock, PUBLISH_LOCK_OWNER_NAME);
+  const witnessBefore = readOwnerWitness(lock, token);
+  if (
+    !ownerBefore || !witnessBefore ||
+    ownerBefore.links !== 2 || witnessBefore.links !== 2 ||
+    !sameIdentity(ownerBefore.identity, owner.identity) ||
+    !sameIdentity(witnessBefore.identity, witness.identity)
+  ) {
+    fail("DURABLE_ROOT_ABANDONED_RECLAIM_WINNER_OWNER_CHANGED", token);
+  }
+  const releaseBefore = readPublishLockOwnerRelease(lock, ownerBefore, witnessBefore);
+  if (
+    Boolean(releaseBefore) !== Boolean(release) ||
+    (releaseBefore && release && !sameIdentity(releaseBefore.identity, release.identity))
+  ) {
+    fail("DURABLE_ROOT_ABANDONED_RECLAIM_WINNER_RELEASE_CHANGED", token);
+  }
+  removeExactLockName(lock, PUBLISH_LOCK_RECLAIM_NAME, winnerBefore.identity);
+  fs.fsyncSync(lock.fd);
+  const ownerAfter = readPublishLockFile(lock, PUBLISH_LOCK_OWNER_NAME);
+  const witnessAfter = readOwnerWitness(lock, token);
+  if (
+    !ownerAfter || !witnessAfter ||
+    ownerAfter.links !== 2 || witnessAfter.links !== 2 ||
+    !sameIdentity(ownerAfter.identity, owner.identity) ||
+    !sameIdentity(witnessAfter.identity, witness.identity)
+  ) {
+    fail("DURABLE_ROOT_ABANDONED_RECLAIM_WINNER_OWNER_CHANGED", token);
+  }
+  const releaseAfter = readPublishLockOwnerRelease(lock, ownerAfter, witnessAfter);
+  if (
+    Boolean(releaseAfter) !== Boolean(releaseBefore) ||
+    (releaseAfter && releaseBefore && !sameIdentity(releaseAfter.identity, releaseBefore.identity))
+  ) {
+    fail("DURABLE_ROOT_ABANDONED_RECLAIM_WINNER_RELEASE_CHANGED", token);
+  }
+  const winner = publishReclaimWinner(lock, claimant, ownerAfter, witnessAfter);
+  assertReclaimWinnerBinds(winner, ownerAfter, witnessAfter);
+  assertReclaimWinnerClaimant(winner, claimant);
+  return { owner: ownerAfter, witness: witnessAfter, winner, release: releaseAfter };
+}
+
 function assertReclaimWinnerExactBytes(
   expected: ReclaimWinnerReadV1,
   observed: ReclaimWinnerReadV1,
@@ -962,8 +1050,20 @@ function claimStalePublishOwner(
 
     if (existingWinner) {
       assertReclaimWinnerBinds(existingWinner, ownerFile, witness);
-      assertReclaimWinnerClaimant(existingWinner, claimant);
-      return { owner: ownerFile, witness, winner: existingWinner, release };
+      if (reclaimWinnerBelongsToClaimant(existingWinner, claimant)) {
+        return { owner: ownerFile, witness, winner: existingWinner, release };
+      }
+      if (reclaimWinnerClaimantIsLive(existingWinner)) {
+        assertReclaimWinnerClaimant(existingWinner, claimant);
+      }
+      return replaceAbandonedReclaimWinner(
+        lock,
+        claimant,
+        existingWinner,
+        ownerFile,
+        witness,
+        release,
+      );
     }
 
     const winner = publishReclaimWinner(lock, claimant, ownerFile, witness);
