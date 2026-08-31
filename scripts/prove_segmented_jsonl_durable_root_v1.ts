@@ -5,6 +5,8 @@ import assert from "node:assert/strict";
 import * as childProcess from "node:child_process";
 import * as crypto from "node:crypto";
 import * as fs from "node:fs";
+import fsMutable from "node:fs";
+import { syncBuiltinESMExports } from "node:module";
 import * as os from "node:os";
 import * as path from "node:path";
 
@@ -563,6 +565,57 @@ try {
   assert.equal(fs.existsSync(ownerPath), false, "stale publisher owner must be reclaimed and released");
   assert.equal(fs.existsSync(reclaimPath), false, "reclaim marker must not survive ownership transfer");
 
+  const failedAcquireToken = "21".repeat(16);
+  writePublishOwner(publishLockDir, 99999999, "1", failedAcquireToken);
+  const failedAcquireWitnessPath = ownerWitnessPathForProof(publishLockDir, failedAcquireToken);
+  const failedAcquireOwnerBefore = fs.statSync(ownerPath, { bigint: true } as any);
+  const originalOpenSync = fsMutable.openSync;
+  let acquisitionRecheckInjected = false;
+  fsMutable.openSync = ((file: fs.PathLike, flags: fs.OpenMode, mode?: fs.Mode) => {
+    if (
+      !acquisitionRecheckInjected && path.resolve(String(file)) === path.resolve(reclaimPath) &&
+      fs.existsSync(ownerPath)
+    ) {
+      const currentOwner = JSON.parse(fs.readFileSync(ownerPath, "utf8"));
+      if (
+        currentOwner.token !== failedAcquireToken &&
+        fs.existsSync(ownerWitnessPathForProof(publishLockDir, currentOwner.token))
+      ) {
+        acquisitionRecheckInjected = true;
+        const injected = new Error("injected_acquire_recheck_failure") as NodeJS.ErrnoException;
+        injected.code = "EIO";
+        throw injected;
+      }
+    }
+    return originalOpenSync(file, flags, mode as fs.Mode);
+  }) as typeof fsMutable.openSync;
+  syncBuiltinESMExports();
+  try {
+    expectFailure(
+      () => publishSegmentedJsonlDurableRootV1(durableDir, r2Input),
+      "injected_acquire_recheck_failure",
+    );
+  } finally {
+    fsMutable.openSync = originalOpenSync;
+    syncBuiltinESMExports();
+  }
+  assert.equal(acquisitionRecheckInjected, true, "fault must occur only after successor owner and witness publication");
+  assert.equal(fs.existsSync(reclaimPath), false, "failed claimant winner must retire during rollback");
+  const failedAcquireOwnerAfter = fs.statSync(ownerPath, { bigint: true } as any);
+  const failedAcquireWitnessAfter = fs.statSync(failedAcquireWitnessPath, { bigint: true } as any);
+  assert.equal(failedAcquireOwnerAfter.dev, failedAcquireOwnerBefore.dev);
+  assert.equal(failedAcquireOwnerAfter.ino, failedAcquireOwnerBefore.ino, "failed acquisition must restore exact predecessor owner");
+  assert.equal(failedAcquireOwnerAfter.dev, failedAcquireWitnessAfter.dev);
+  assert.equal(failedAcquireOwnerAfter.ino, failedAcquireWitnessAfter.ino);
+  assert.equal(failedAcquireOwnerAfter.nlink, 2n, "restored predecessor must recover its two-link witness authority");
+  assert.equal(
+    publishSegmentedJsonlDurableRootV1(durableDir, r2Input).root_sha256,
+    r2.root_sha256,
+    "one natural retry must converge after acquisition recheck failure rollback",
+  );
+  assert.equal(fs.existsSync(ownerPath), false);
+  assert.equal(fs.existsSync(failedAcquireWitnessPath), false);
+
   const staleClaimToken = "23".repeat(16);
   writePublishOwner(publishLockDir, 99999999, "1", staleClaimToken);
   writeReclaimWinnerForProof(publishLockDir, staleClaimToken, "33".repeat(16));
@@ -747,6 +800,9 @@ try {
   console.log("durable_root_live_publish_lock_excludes_writer=true");
   console.log("durable_root_boot_epoch_prevents_pid_start_alias=true");
   console.log("durable_root_stale_publish_lock_recoverable=true");
+  console.log("durable_root_failed_acquire_successor_residue=0");
+  console.log("durable_root_failed_acquire_predecessor_restored=true");
+  console.log("durable_root_failed_acquire_single_retry_converges=true");
   console.log("durable_root_reclaim_winner_claimant_mismatch_preserved=true");
   console.log("durable_root_reclaim_winner_same_inode_rewrite_rejected=true");
   console.log("durable_root_reclaim_winner_owner_unlink_requires_exact_claimant=true");
