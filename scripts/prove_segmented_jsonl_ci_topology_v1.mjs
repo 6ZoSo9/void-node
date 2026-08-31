@@ -13,6 +13,10 @@ const CI_PATH = ".github/workflows/ci.yml";
 const BASELINE_PATH = "tools/check_tsc_noemit_baseline.sh";
 const PROOF_PATH = "scripts/prove_segmented_jsonl_ci_topology_v1.mjs";
 const SEGSTORE_PROOF_PATH = "scripts/prove_segmented_jsonl_v1.ts";
+const DURABLE_ROOT_SOURCE_PATH = "src/storage/segmented_jsonl_durable_root_v1.ts";
+const DURABLE_ROOT_PROOF_PATH = "scripts/prove_segmented_jsonl_durable_root_v1.ts";
+const DURABLE_ROOT_SOURCE_BLOB_SHA1 = "8c817f7a812e6bc1569a3794fefeb99e96023b58";
+const DURABLE_ROOT_PROOF_BLOB_SHA1 = "767ca78e869de3e463bd2cdcfa096b57cce2fe66";
 const STORAGE_SOURCES = [
   "src/storage/segmented_jsonl_v1.ts",
   "src/storage/segmented_jsonl_snapshot_authority_v1.ts",
@@ -53,6 +57,26 @@ const TRIGGER_DEPENDENCIES = [
 
 function exactLineCount(source, exact) {
   return source.split("\n").filter((line) => line === exact).length;
+}
+
+function gitBlobSha1(source) {
+  return createHash("sha1")
+    .update(`blob ${Buffer.byteLength(source, "utf8")}\0`)
+    .update(source, "utf8")
+    .digest("hex");
+}
+
+function auditDurableRootReclaimWinnerDigestEvidence(source, proof) {
+  assert.equal(
+    gitBlobSha1(source),
+    DURABLE_ROOT_SOURCE_BLOB_SHA1,
+    "durable_root_reclaim_winner_digest_source_blob_not_exact",
+  );
+  assert.equal(
+    gitBlobSha1(proof),
+    DURABLE_ROOT_PROOF_BLOB_SHA1,
+    "durable_root_reclaim_winner_digest_proof_blob_not_exact",
+  );
 }
 
 function workflowOnRange(source) {
@@ -1292,11 +1316,54 @@ const baseline = readFileSync(path.join(ROOT, BASELINE_PATH), "utf8");
 const ci = readFileSync(path.join(ROOT, CI_PATH), "utf8");
 const segstoreProof = readFileSync(path.join(ROOT, SEGSTORE_PROOF_PATH), "utf8");
 const topologyProof = readFileSync(path.join(ROOT, PROOF_PATH), "utf8");
+const durableRootSource = readFileSync(path.join(ROOT, DURABLE_ROOT_SOURCE_PATH), "utf8");
+const durableRootProof = readFileSync(path.join(ROOT, DURABLE_ROOT_PROOF_PATH), "utf8");
 auditFocused(focused);
 auditSegstoreProof(segstoreProof);
 auditBaseline(baseline);
 auditCi(ci);
 auditTopologyMeasurementMutantAuthority(topologyProof);
+auditDurableRootReclaimWinnerDigestEvidence(durableRootSource, durableRootProof);
+let durableRootReclaimWinnerDigestMutantsExecuted = 0;
+const durableRootDigestSourceDeletionMutant = durableRootSource.replace(
+  "type ReclaimWinnerReadV1 = { identity: SlotIdentityV1; value: ReclaimWinnerV1; bodySha256: string };",
+  "type ReclaimWinnerReadV1 = { identity: SlotIdentityV1; value: ReclaimWinnerV1 };",
+);
+assert.notEqual(
+  durableRootDigestSourceDeletionMutant,
+  durableRootSource,
+  "durable_root_reclaim_winner_digest_source_mutant_not_applied",
+);
+assertThrows(
+  () => auditDurableRootReclaimWinnerDigestEvidence(
+    durableRootDigestSourceDeletionMutant,
+    durableRootProof,
+  ),
+  /durable_root_reclaim_winner_digest_source_blob_not_exact/,
+);
+durableRootReclaimWinnerDigestMutantsExecuted += 1;
+const durableRootDigestProofDeletionMutant = durableRootProof.replace(
+  '  console.log("durable_root_reclaim_winner_same_inode_rewrite_rejected=true");',
+  "",
+);
+assert.notEqual(
+  durableRootDigestProofDeletionMutant,
+  durableRootProof,
+  "durable_root_reclaim_winner_digest_proof_mutant_not_applied",
+);
+assertThrows(
+  () => auditDurableRootReclaimWinnerDigestEvidence(
+    durableRootSource,
+    durableRootDigestProofDeletionMutant,
+  ),
+  /durable_root_reclaim_winner_digest_proof_blob_not_exact/,
+);
+durableRootReclaimWinnerDigestMutantsExecuted += 1;
+assert.equal(
+  durableRootReclaimWinnerDigestMutantsExecuted,
+  2,
+  "durable_root_reclaim_winner_digest_mutant_count_not_exact",
+);
 const genericMeasurementPayloads = genericMeasurementPayloadMutant(topologyProof);
 assert.notEqual(
   genericMeasurementPayloads,
@@ -2299,6 +2366,10 @@ assertThrows(
 );
 
 console.log("VOID_SEGMENTED_JSONL_CI_TOPOLOGY_V1_GREEN");
+console.log("durable_root_reclaim_winner_digest_source_blob_bound=true");
+console.log("durable_root_reclaim_winner_digest_proof_blob_bound=true");
+console.log("durable_root_reclaim_winner_digest_paired_reversion_rejected=true");
+console.log(`durable_root_reclaim_winner_digest_mutants_executed=${durableRootReclaimWinnerDigestMutantsExecuted}`);
 console.log("focused_trigger_closure_bound=true");
 console.log("focused_trigger_dead_scalar_relocation_rejected=true");
 console.log("focused_trigger_name_block_scalar_decoy_rejected=true");
