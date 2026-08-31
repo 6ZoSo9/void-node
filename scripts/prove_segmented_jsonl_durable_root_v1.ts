@@ -120,7 +120,12 @@ function writeOwnerReleaseForProof(lockDir: string, token: string): string {
   return releasePath;
 }
 
-function writeReclaimWinnerForProof(lockDir: string, staleToken: string, claimantToken: string): void {
+function writeReclaimWinnerForProof(
+  lockDir: string,
+  staleToken: string,
+  claimantToken: string,
+  claimantIdentity: { bootId: string; pid: number; startTicks: string } | null = null,
+): void {
   const owner = fs.statSync(path.join(lockDir, "owner.v1.json"), { bigint: true } as any);
   const witness = fs.statSync(ownerWitnessPathForProof(lockDir, staleToken), { bigint: true } as any);
   assert.equal(owner.dev, witness.dev);
@@ -129,9 +134,9 @@ function writeReclaimWinnerForProof(lockDir: string, staleToken: string, claiman
     path.join(lockDir, "reclaim-winner.v1"),
     JSON.stringify({
       v: 1,
-      claimant_boot_id: processBootId(),
-      claimant_pid: process.pid,
-      claimant_start_ticks: processStartTicks(process.pid),
+      claimant_boot_id: claimantIdentity?.bootId || processBootId(),
+      claimant_pid: claimantIdentity?.pid || process.pid,
+      claimant_start_ticks: claimantIdentity?.startTicks || processStartTicks(process.pid),
       claimant_token: claimantToken,
       stale_owner_token: staleToken,
       stale_owner_dev: String(owner.dev),
@@ -672,6 +677,56 @@ try {
     "successful retry must not resurrect failed-successor artifacts",
   );
 
+  const abandonedRollbackToken = "31".repeat(16);
+  const abandonedRollbackClaimant = "32".repeat(16);
+  writePublishOwner(publishLockDir, 99999999, "1", abandonedRollbackToken);
+  const abandonedRollbackWitnessPath = ownerWitnessPathForProof(
+    publishLockDir,
+    abandonedRollbackToken,
+  );
+  const abandonedRollbackOwnerBefore = fs.statSync(ownerPath, { bigint: true } as any);
+  const abandonedRollbackWitnessBefore = fs.statSync(
+    abandonedRollbackWitnessPath,
+    { bigint: true } as any,
+  );
+  writeReclaimWinnerForProof(
+    publishLockDir,
+    abandonedRollbackToken,
+    abandonedRollbackClaimant,
+    { bootId: differentBootId, pid: 99999998, startTicks: "1" },
+  );
+  const abandonedRollbackWinnerBefore = fs.statSync(reclaimPath, { bigint: true } as any);
+  assert.equal(
+    publishSegmentedJsonlDurableRootV1(durableDir, r2Input).root_sha256,
+    r2.root_sha256,
+    "a fresh process must replace a dead claimant's rollback-interrupted winner and converge",
+  );
+  assert.equal(
+    abandonedRollbackOwnerBefore.dev,
+    abandonedRollbackWitnessBefore.dev,
+  );
+  assert.equal(
+    abandonedRollbackOwnerBefore.ino,
+    abandonedRollbackWitnessBefore.ino,
+    "rollback-interrupted owner and witness must begin as one exact predecessor inode",
+  );
+  assert.ok(
+    abandonedRollbackWinnerBefore.ino !== abandonedRollbackOwnerBefore.ino ||
+      abandonedRollbackWinnerBefore.dev !== abandonedRollbackOwnerBefore.dev,
+    "rollback-interrupted winner must remain separate from predecessor authority",
+  );
+  assert.equal(fs.existsSync(ownerPath), false, "fresh claimant must release its completed owner");
+  assert.equal(
+    fs.existsSync(abandonedRollbackWitnessPath),
+    false,
+    "fresh claimant must retire the exact predecessor witness after convergence",
+  );
+  assert.equal(
+    fs.existsSync(reclaimPath),
+    false,
+    "fresh claimant must retire the replacement winner after convergence",
+  );
+
   const staleClaimToken = "23".repeat(16);
   writePublishOwner(publishLockDir, 99999999, "1", staleClaimToken);
   writeReclaimWinnerForProof(publishLockDir, staleClaimToken, "33".repeat(16));
@@ -862,6 +917,7 @@ try {
   console.log("durable_root_failed_acquire_successor_residue=0");
   console.log("durable_root_failed_acquire_predecessor_restored=true");
   console.log("durable_root_failed_acquire_single_retry_converges=true");
+  console.log("durable_root_abandoned_reclaim_winner_fresh_process_converges=true");
   console.log("durable_root_reclaim_winner_claimant_mismatch_preserved=true");
   console.log("durable_root_reclaim_winner_same_inode_rewrite_rejected=true");
   console.log("durable_root_reclaim_winner_owner_unlink_requires_exact_claimant=true");
