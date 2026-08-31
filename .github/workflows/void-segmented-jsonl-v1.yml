@@ -101,7 +101,7 @@ jobs:
 
       - name: Prove independent SegStore CI topology
         run: |
-          test "$(git hash-object scripts/prove_segmented_jsonl_ci_topology_v1.mjs)" = "e9e6997c30d26c2c6bbdff64e83466ccb365c0ed"
+          test "$(git hash-object scripts/prove_segmented_jsonl_ci_topology_v1.mjs)" = "5384ce96676ac398f64418b933bdeccac2cecf8f"
           node scripts/prove_segmented_jsonl_ci_topology_v1.mjs
 
       - name: Prove focused workflow dependency closure
@@ -141,7 +141,7 @@ jobs:
           const text = fs.readFileSync(workflowPath, 'utf8');
           const topologyPath = 'scripts/prove_segmented_jsonl_ci_topology_v1.mjs';
           const topologyText = fs.readFileSync(topologyPath, 'utf8');
-          const EXPECTED_TOPOLOGY_BLOB_SHA1 = 'e9e6997c30d26c2c6bbdff64e83466ccb365c0ed';
+          const EXPECTED_TOPOLOGY_BLOB_SHA1 = '5384ce96676ac398f64418b933bdeccac2cecf8f';
           function focusedGitBlobSha1(source) {
             return createHash('sha1')
               .update(`blob ${Buffer.byteLength(source, 'utf8')}\0`)
