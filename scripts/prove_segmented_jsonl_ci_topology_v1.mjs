@@ -514,6 +514,7 @@ function auditFocused(source) {
     "Prove focused workflow dependency closure",
   ).join("\n");
   const inlineNodeSource = workflowInlineNodeSource(inlineAuditBody);
+  auditFocusedInlineRuntimeTerminalGuard(inlineNodeSource);
   assert.equal(
     topLevelCallCount(
       inlineNodeSource,
@@ -844,6 +845,92 @@ function topLevelCallCount(source, calleeName, marker) {
     ts.isIdentifier(statement.expression.expression) &&
     statement.expression.expression.text === calleeName
   ).length;
+}
+
+function successfulTerminationPrimitiveCount(source, marker) {
+  const parsed = parseJavaScriptSource(source, "focused-inline-audit.js", marker);
+  let count = 0;
+  const visit = (node) => {
+    if (ts.isIdentifier(node) && (node.text === "exit" || node.text === "reallyExit")) {
+      count += 1;
+    }
+    if (
+      ts.isElementAccessExpression(node) &&
+      ts.isStringLiteral(node.argumentExpression) &&
+      (node.argumentExpression.text === "exit" || node.argumentExpression.text === "reallyExit")
+    ) {
+      count += 1;
+    }
+    ts.forEachChild(node, visit);
+  };
+  visit(parsed);
+  return count;
+}
+
+function auditFocusedInlineRuntimeTerminalGuard(source) {
+  const parsed = parseJavaScriptSource(
+    source,
+    "focused-inline-audit.js",
+    "focused_inline_node_parse_failed",
+  );
+  const statements = parsed.statements.map((statement, index) => ({
+    index,
+    text: statement.getText(parsed).replace(/\s+/g, " "),
+  }));
+  const one = (marker, predicate) => {
+    const matches = statements.filter(({ text }) => predicate(text));
+    assert.equal(matches.length, 1, marker);
+    return matches[0].index;
+  };
+  const counter = one(
+    "focused_inline_audit_terminal_counter_not_top_level",
+    (text) => text === "let focusedInlineAuditTerminalsExecuted = 0;",
+  );
+  const exitGuard = one(
+    "focused_inline_audit_exit_guard_not_top_level",
+    (text) =>
+      text.startsWith("process.on('exit', () => {") &&
+      text.includes("focusedInlineAuditTerminalsExecuted !== 4") &&
+      text.includes("process.exitCode = 1;"),
+  );
+  const auditCalls = [
+    "audit",
+    "auditTopologyMeasurementMutantExecution",
+    "auditTopologyRepositoryCiPreTypecheckEvidence",
+    "auditTopologyDurableRootAuditAuthority",
+  ].map((callee) => one(
+    `focused_inline_audit_call_not_top_level:${callee}`,
+    (text) => text.startsWith(`${callee}(`),
+  ));
+  const increments = statements
+    .filter(({ text }) => text === "focusedInlineAuditTerminalsExecuted += 1;")
+    .map(({ index }) => index);
+  assert.equal(increments.length, 4, "focused_inline_audit_terminal_increment_count");
+  const countAssertion = one(
+    "focused_inline_audit_terminal_assertion_not_top_level",
+    (text) =>
+      text.startsWith("assert.equal( focusedInlineAuditTerminalsExecuted, 4,") &&
+      text.includes("'focused_inline_audit_terminal_count_not_exact'"),
+  );
+  const terminal = one(
+    "focused_inline_audit_terminal_not_top_level",
+    (text) =>
+      text ===
+      "console.log(\`focused_inline_audit_terminals_executed=\${focusedInlineAuditTerminalsExecuted}\`);",
+  );
+  assert.equal(exitGuard, counter + 1, "focused_inline_audit_exit_guard_order");
+  for (let index = 0; index < auditCalls.length; index += 1) {
+    const expectedCall = index === 0 ? auditCalls[0] : increments[index - 1] + 1;
+    assert.equal(auditCalls[index], expectedCall, `focused_inline_audit_call_order:${index}`);
+    assert.equal(increments[index], auditCalls[index] + 1, `focused_inline_audit_increment_order:${index}`);
+  }
+  assert.equal(countAssertion, increments[3] + 1, "focused_inline_audit_count_assertion_order");
+  assert.equal(terminal, countAssertion + 1, "focused_inline_audit_terminal_order");
+  assert.equal(
+    successfulTerminationPrimitiveCount(source, "focused_inline_node_parse_failed"),
+    0,
+    "focused_inline_successful_termination_primitive",
+  );
 }
 function auditFocusedDurableRootAuditMutantExecution(source) {
   const parsed = parseJavaScriptSource(source, "focused-inline-audit.js", "focused_inline_node_parse_failed");
@@ -1492,6 +1579,28 @@ const topologyProof = readFileSync(path.join(ROOT, PROOF_PATH), "utf8");
 const durableRootSource = readFileSync(path.join(ROOT, DURABLE_ROOT_SOURCE_PATH), "utf8");
 const durableRootProof = readFileSync(path.join(ROOT, DURABLE_ROOT_PROOF_PATH), "utf8");
 auditFocused(focused);
+let focusedSuccessfulTerminationMutantsExecuted = 0;
+for (const [name, primitive] of [
+  ["process_exit_zero", "process.exit(0);"],
+  ["process_really_exit_zero", "process.reallyExit(0);"],
+]) {
+  const mutant = focused.replace(
+    "          audit(text);",
+    `          ${primitive}\n          audit(text);`,
+  );
+  assert.notEqual(mutant, focused, `focused_${name}_mutant_not_applied`);
+  assert.throws(
+    () => auditFocused(mutant),
+    /focused_inline_successful_termination_primitive/,
+    `focused_${name}_mutant_not_rejected`,
+  );
+  focusedSuccessfulTerminationMutantsExecuted += 1;
+}
+assert.equal(
+  focusedSuccessfulTerminationMutantsExecuted,
+  2,
+  "focused_successful_termination_mutant_count_not_exact",
+);
 let focusedDurableRootAuditReachabilityMutantsExecuted = 0;
 for (const [name, opener] of [
   ["if_zero", "if (0) {"],
@@ -2614,3 +2723,5 @@ console.log(`segstore_reconstruction_measurement_mutants_executed=${reconstructi
 console.log("segstore_exact_generation_helper_noop_rejected=true");
 
 console.log(`focused_durable_root_audit_reachability_mutants_executed=${focusedDurableRootAuditReachabilityMutantsExecuted}`);
+console.log(`focused_successful_termination_mutants_executed=${focusedSuccessfulTerminationMutantsExecuted}`);
+console.log("focused_inline_successful_termination_rejected=true");
