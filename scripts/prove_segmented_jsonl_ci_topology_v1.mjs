@@ -1622,8 +1622,8 @@ const focusedTerminationLockdownDescriptorConstructionChild =
   process.env.VOID_FOCUSED_TERMINATION_LOCKDOWN_DESCRIPTOR_CONSTRUCTION_MUTANT === "1";
 function focusedTerminationLockdownDescriptorConstructionMutant(source) {
   const from = [
-    "            'exit': {",
-    "              value(code = 0) {",
+    "              'exit': {",
+    "                value(code = 0) {",
   ].join("\n");
   const to = [
     "            'exit': {",
