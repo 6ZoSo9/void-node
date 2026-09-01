@@ -535,7 +535,12 @@ function runDurableRootChildMode(): never {
     let crashBoundaries = 0;
     fsMutable.readdirSync = ((directory: fs.PathLike, options?: any) => {
       let directoryAuthority = path.resolve(String(directory));
-      try { directoryAuthority = path.resolve(fs.realpathSync(String(directory))); } catch {}
+      try {
+        directoryAuthority = path.resolve(fs.realpathSync(String(directory)));
+      } catch (error) {
+        const code = (error as NodeJS.ErrnoException).code;
+        if (code !== "ENOENT" && code !== "ENOTDIR") throw error;
+      }
       if (
         crashBoundaries === 0 &&
         directoryAuthority === path.resolve(lockDir) &&
