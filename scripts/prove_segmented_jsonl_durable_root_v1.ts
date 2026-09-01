@@ -35,6 +35,21 @@ import {
   type SegmentedJsonlDurableRootV1,
 } from "../src/storage/segmented_jsonl_durable_root_v1.js";
 
+const namespacedSelfStatPath = `/proc/${process.pid}/stat`;
+try {
+  fs.readFileSync(namespacedSelfStatPath, "utf8");
+} catch (error: any) {
+  if (error?.code !== "ENOENT") throw error;
+  fs.readFileSync("/proc/self/stat", "utf8");
+  const originalReadFileSync = fsMutable.readFileSync;
+  fsMutable.readFileSync = ((file: fs.PathOrFileDescriptor, options?: any) =>
+    typeof file === "string" && file === namespacedSelfStatPath
+      ? originalReadFileSync("/proc/self/stat", options)
+      : originalReadFileSync(file, options)
+  ) as typeof fsMutable.readFileSync;
+  syncBuiltinESMExports();
+}
+
 function expectFailure(fn: () => unknown, fragment: string): void {
   let seen = "";
   try { fn(); } catch (error) { seen = error instanceof Error ? error.message : String(error); }
@@ -190,6 +205,64 @@ function rewriteReclaimWinnerForProof(lockDir: string, staleToken: string, claim
     }
     fs.fsyncSync(fd);
   } finally { fs.closeSync(fd); }
+  fsyncDirectory(lockDir);
+}
+
+function readReclaimWinnerChainForProof(lockDir: string): Array<{
+  name: string;
+  path: string;
+  bytes: Buffer;
+  sha256: string;
+  value: {
+    claimant_pid: number;
+    claimant_start_ticks: string;
+    claimant_token: string;
+    stale_owner_token: string;
+  };
+}> {
+  const chain: Array<{
+    name: string;
+    path: string;
+    bytes: Buffer;
+    sha256: string;
+    value: {
+      claimant_pid: number;
+      claimant_start_ticks: string;
+      claimant_token: string;
+      stale_owner_token: string;
+    };
+  }> = [];
+  let name = "reclaim-winner.v1";
+  for (let depth = 0; depth < 64; depth += 1) {
+    const winnerPath = path.join(lockDir, name);
+    if (!fs.existsSync(winnerPath)) return chain;
+    const bytes = fs.readFileSync(winnerPath);
+    const digest = sha256(bytes);
+    chain.push({
+      name,
+      path: winnerPath,
+      bytes,
+      sha256: digest,
+      value: JSON.parse(bytes.toString("utf8")),
+    });
+    name = "reclaim-winner-successor-" + digest + ".v1";
+  }
+  throw new Error("proof reclaim winner chain exceeds bound");
+}
+
+function reclaimWinnerRetirementPathForProof(lockDir: string, terminalSha256: string): string {
+  assert.match(terminalSha256, /^[0-9a-f]{64}$/);
+  return path.join(lockDir, "reclaim-winner-retired-" + terminalSha256 + ".v1");
+}
+
+function removeReclaimEvidenceForProof(lockDir: string): void {
+  for (const name of fs.readdirSync(lockDir)) {
+    if (
+      name === "reclaim-winner.v1" ||
+      /^reclaim-winner-successor-[0-9a-f]{64}\.v1$/.test(name) ||
+      /^reclaim-winner-retired-[0-9a-f]{64}\.v1$/.test(name)
+    ) fs.unlinkSync(path.join(lockDir, name));
+  }
   fsyncDirectory(lockDir);
 }
 
@@ -414,6 +487,69 @@ function runDurableRootChildMode(): never {
       root_sha256: result.root_sha256,
     }) + "\n");
     process.exit(0);
+  }
+
+  if (DURABLE_ROOT_CHILD_MODE === "crash_after_successor_owner_durable") {
+    const tracePath = requiredChildEnvironment("VOID_DURABLE_ROOT_CHILD_TRACE");
+    const ownerPath = path.join(lockDir, "owner.v1.json");
+    const predecessor = JSON.parse(fs.readFileSync(ownerPath, "utf8")) as {
+      token: string;
+    };
+    const originalReaddirSync = fsMutable.readdirSync;
+    let crashBoundaries = 0;
+    fsMutable.readdirSync = ((directory: fs.PathLike, options?: any) => {
+      let directoryAuthority = path.resolve(String(directory));
+      try { directoryAuthority = path.resolve(fs.realpathSync(String(directory))); } catch {}
+      if (
+        crashBoundaries === 0 &&
+        directoryAuthority === path.resolve(lockDir) &&
+        fs.existsSync(ownerPath)
+      ) {
+        const owner = JSON.parse(fs.readFileSync(ownerPath, "utf8")) as {
+          pid: number;
+          start_ticks: string;
+          token: string;
+        };
+        const witnessPath = ownerWitnessPathForProof(lockDir, owner.token);
+        const chain = readReclaimWinnerChainForProof(lockDir);
+        const terminal = chain[chain.length - 1];
+        if (
+          owner.token !== predecessor.token &&
+          owner.pid === process.pid &&
+          owner.start_ticks === processStartTicks(process.pid) &&
+          fs.existsSync(witnessPath) &&
+          terminal?.value.claimant_token === owner.token &&
+          terminal.value.stale_owner_token === predecessor.token
+        ) {
+          const ownerStat = fs.statSync(ownerPath, { bigint: true } as any);
+          const witnessStat = fs.statSync(witnessPath, { bigint: true } as any);
+          assert.equal(ownerStat.dev, witnessStat.dev);
+          assert.equal(ownerStat.ino, witnessStat.ino);
+          assert.equal(ownerStat.nlink, 2n);
+          crashBoundaries += 1;
+          writeCrashBoundaryTrace(tracePath, {
+            v: 1,
+            pid: process.pid,
+            start_ticks: processStartTicks(process.pid),
+            claimant_token: owner.token,
+            predecessor_token: predecessor.token,
+            owner_dev: String(ownerStat.dev),
+            owner_ino: String(ownerStat.ino),
+            witness_dev: String(witnessStat.dev),
+            witness_ino: String(witnessStat.ino),
+            terminal_name: terminal.name,
+            terminal_sha256: terminal.sha256,
+            crash_boundaries: crashBoundaries,
+          });
+          process.kill(process.pid, "SIGKILL");
+          throw new Error("unreachable_after_sigkill");
+        }
+      }
+      return (originalReaddirSync as any)(directory, options);
+    }) as typeof fsMutable.readdirSync;
+    syncBuiltinESMExports();
+    publishSegmentedJsonlDurableRootV1(durableDir, input);
+    throw new Error("successor-owner crash boundary was not reached");
   }
 
   assert.equal(DURABLE_ROOT_CHILD_MODE, "crash_after_owner_restore");
@@ -709,7 +845,16 @@ try {
     "same pid/start ticks from a different boot epoch must be stale and reclaimable",
   );
   assert.equal(fs.existsSync(ownerPath), false);
-  assert.equal(fs.existsSync(reclaimPath), false);
+  const bootEpochChain = readReclaimWinnerChainForProof(publishLockDir);
+  assert.equal(bootEpochChain.length, 1);
+  assert.equal(
+    fs.existsSync(reclaimWinnerRetirementPathForProof(
+      publishLockDir,
+      bootEpochChain[0].sha256,
+    )),
+    true,
+    "completed reclaim evidence must retire append-only rather than be unlinked",
+  );
 
   writePublishOwner(publishLockDir, 99999999, "1", "22".repeat(16));
   assert.equal(
@@ -718,7 +863,16 @@ try {
     "stale publisher lock must be recoverable without changing committed truth",
   );
   assert.equal(fs.existsSync(ownerPath), false, "stale publisher owner must be reclaimed and released");
-  assert.equal(fs.existsSync(reclaimPath), false, "reclaim marker must not survive ownership transfer");
+  const stalePublisherChain = readReclaimWinnerChainForProof(publishLockDir);
+  assert.equal(stalePublisherChain.length, 2, "retired chain must accept one create-only successor");
+  assert.equal(
+    fs.existsSync(reclaimWinnerRetirementPathForProof(
+      publishLockDir,
+      stalePublisherChain[1].sha256,
+    )),
+    true,
+    "new terminal must receive an exact append-only retirement marker",
+  );
 
   const failedAcquireToken = "21".repeat(16);
   writePublishOwner(publishLockDir, 99999999, "1", failedAcquireToken);
@@ -795,7 +949,11 @@ try {
     "fault descriptor must retain the exact publish-lock directory",
   );
   assert.ok(failedAcquireSuccessorToken, "fault must observe the exact successor owner generation");
-  assert.equal(fs.existsSync(reclaimPath), false, "failed claimant winner must retire during rollback");
+  assert.equal(
+    readReclaimWinnerChainForProof(publishLockDir).at(-1)?.sha256,
+    stalePublisherChain.at(-1)?.sha256,
+    "failed claimant successor must retire while the previously retired chain remains exact",
+  );
   const failedAcquireOwnerAfter = fs.statSync(ownerPath, { bigint: true } as any);
   const failedAcquireWitnessAfter = fs.statSync(failedAcquireWitnessPath, { bigint: true } as any);
   assert.equal(failedAcquireOwnerAfter.dev, failedAcquireOwnerBefore.dev);
@@ -826,6 +984,17 @@ try {
     [],
     "successful retry must not resurrect failed-successor artifacts",
   );
+  const completedRetryChain = readReclaimWinnerChainForProof(publishLockDir);
+  assert.ok(completedRetryChain.length >= 3, "successful retry must append without replacing prior evidence");
+  assert.equal(
+    fs.existsSync(reclaimWinnerRetirementPathForProof(
+      publishLockDir,
+      completedRetryChain.at(-1)!.sha256,
+    )),
+    true,
+    "successful retry must retire its exact terminal append-only",
+  );
+  removeReclaimEvidenceForProof(publishLockDir);
 
   const abandonedRollbackToken = "31".repeat(16);
   writePublishOwner(publishLockDir, 99999999, "1", abandonedRollbackToken);
@@ -954,11 +1123,19 @@ try {
     false,
     "child B must retire the exact predecessor witness after convergence",
   );
+  const abandonedRollbackChainAfter = readReclaimWinnerChainForProof(publishLockDir);
+  assert.equal(abandonedRollbackChainAfter.length, 2, "child B must append one successor to child A evidence");
   assert.equal(
-    fs.existsSync(reclaimPath),
-    false,
-    "child B must retire the replacement winner after convergence",
+    fs.existsSync(reclaimWinnerRetirementPathForProof(
+      publishLockDir,
+      abandonedRollbackChainAfter[1].sha256,
+    )),
+    true,
+    "child B must retire its exact successor without deleting either winner generation",
   );
+  const abandonedRollbackWinnerAfter = fs.statSync(reclaimPath, { bigint: true } as any);
+  assert.equal(abandonedRollbackWinnerAfter.dev, abandonedRollbackWinnerBefore.dev);
+  assert.equal(abandonedRollbackWinnerAfter.ino, abandonedRollbackWinnerBefore.ino);
   const abandonedRollbackForeignWitnessAfter = fs.statSync(
     abandonedRollbackForeignWitnessPath,
     { bigint: true } as any,
@@ -1008,6 +1185,134 @@ try {
     "child B, child A, and predecessor generations must leave zero owned residue",
   );
   fs.unlinkSync(abandonedRollbackForeignWitnessPath);
+  fsyncDirectory(publishLockDir);
+  removeReclaimEvidenceForProof(publishLockDir);
+
+  const successorCrashPredecessorToken = "32".repeat(16);
+  writePublishOwner(publishLockDir, 99999999, "1", successorCrashPredecessorToken);
+  const successorCrashPredecessorWitnessPath = ownerWitnessPathForProof(
+    publishLockDir,
+    successorCrashPredecessorToken,
+  );
+  const successorCrashPredecessorWitnessBefore = fs.statSync(
+    successorCrashPredecessorWitnessPath,
+    { bigint: true } as any,
+  );
+  const successorCrashPredecessorWitnessBytes = fs.readFileSync(
+    successorCrashPredecessorWitnessPath,
+  );
+  fs.rmSync(abandonedRollbackTracePath, { force: true });
+  const successorCrashChildA = childProcess.spawnSync(process.execPath, childArgs, {
+    cwd: process.cwd(),
+    env: childEnvironment("crash_after_successor_owner_durable"),
+    encoding: "utf8",
+    timeout: 30_000,
+  });
+  assert.equal(
+    successorCrashChildA.error,
+    undefined,
+    `successor-owner child A spawn failed: ${String(successorCrashChildA.error)}`,
+  );
+  assert.equal(
+    successorCrashChildA.status,
+    null,
+    `successor-owner child A must not exit normally: ${successorCrashChildA.stderr}`,
+  );
+  assert.equal(
+    successorCrashChildA.signal,
+    "SIGKILL",
+    `successor-owner child A must cross the exact durable-owner boundary: ${successorCrashChildA.stderr}`,
+  );
+  const successorCrashTrace = JSON.parse(
+    fs.readFileSync(abandonedRollbackTracePath, "utf8"),
+  ) as {
+    pid: number;
+    start_ticks: string;
+    claimant_token: string;
+    predecessor_token: string;
+    owner_dev: string;
+    owner_ino: string;
+    witness_dev: string;
+    witness_ino: string;
+    terminal_name: string;
+    terminal_sha256: string;
+    crash_boundaries: number;
+  };
+  assert.equal(successorCrashTrace.predecessor_token, successorCrashPredecessorToken);
+  assert.equal(successorCrashTrace.crash_boundaries, 1);
+  assert.notEqual(successorCrashTrace.pid, process.pid);
+  assert.match(successorCrashTrace.claimant_token, /^[0-9a-f]{32}$/);
+  const successorCrashChainBefore = readReclaimWinnerChainForProof(publishLockDir);
+  assert.equal(successorCrashChainBefore.length, 1);
+  assert.equal(successorCrashChainBefore[0].name, successorCrashTrace.terminal_name);
+  assert.equal(successorCrashChainBefore[0].sha256, successorCrashTrace.terminal_sha256);
+  const successorCrashRootBefore = fs.statSync(reclaimPath, { bigint: true } as any);
+  const successorCrashRootBytes = fs.readFileSync(reclaimPath);
+  const successorCrashChildB = childProcess.spawnSync(process.execPath, childArgs, {
+    cwd: process.cwd(),
+    env: childEnvironment("recover_abandoned_winner"),
+    encoding: "utf8",
+    timeout: 30_000,
+  });
+  assert.equal(
+    successorCrashChildB.error,
+    undefined,
+    `successor-owner child B spawn failed: ${String(successorCrashChildB.error)}`,
+  );
+  assert.equal(successorCrashChildB.signal, null, successorCrashChildB.stderr);
+  assert.equal(successorCrashChildB.status, 0, successorCrashChildB.stderr);
+  const successorCrashRecovery = JSON.parse(successorCrashChildB.stdout.trim()) as {
+    pid: number;
+    start_ticks: string;
+    claimant_token: string;
+    root_sha256: string;
+  };
+  assert.notEqual(successorCrashRecovery.pid, successorCrashTrace.pid);
+  assert.notEqual(successorCrashRecovery.claimant_token, successorCrashTrace.claimant_token);
+  assert.equal(successorCrashRecovery.root_sha256, r2.root_sha256);
+  assert.equal(fs.existsSync(ownerPath), false);
+  assert.equal(
+    fs.existsSync(ownerWitnessPathForProof(publishLockDir, successorCrashTrace.claimant_token)),
+    false,
+    "fresh recoverer must retire the crashed successor owner's witness",
+  );
+  const successorCrashChainAfter = readReclaimWinnerChainForProof(publishLockDir);
+  assert.equal(successorCrashChainAfter.length, 2, "fresh recoverer must append one exact transition successor");
+  const successorCrashRootAfter = fs.statSync(reclaimPath, { bigint: true } as any);
+  assert.equal(successorCrashRootAfter.dev, successorCrashRootBefore.dev);
+  assert.equal(successorCrashRootAfter.ino, successorCrashRootBefore.ino);
+  assert.deepEqual(
+    fs.readFileSync(reclaimPath),
+    successorCrashRootBytes,
+    "fresh recovery must preserve the crashed claimant's root winner bytes exactly",
+  );
+  assert.equal(
+    fs.existsSync(reclaimWinnerRetirementPathForProof(
+      publishLockDir,
+      successorCrashChainAfter[1].sha256,
+    )),
+    true,
+    "fresh recovery must publish one exact terminal retirement marker",
+  );
+  const successorCrashPredecessorWitnessAfter = fs.statSync(
+    successorCrashPredecessorWitnessPath,
+    { bigint: true } as any,
+  );
+  assert.equal(
+    successorCrashPredecessorWitnessAfter.dev,
+    successorCrashPredecessorWitnessBefore.dev,
+  );
+  assert.equal(
+    successorCrashPredecessorWitnessAfter.ino,
+    successorCrashPredecessorWitnessBefore.ino,
+    "nested transition recovery must retain the exact earlier predecessor witness authority",
+  );
+  assert.deepEqual(
+    fs.readFileSync(successorCrashPredecessorWitnessPath),
+    successorCrashPredecessorWitnessBytes,
+  );
+  removeReclaimEvidenceForProof(publishLockDir);
+  fs.unlinkSync(successorCrashPredecessorWitnessPath);
   fsyncDirectory(publishLockDir);
 
   const staleClaimToken = "23".repeat(16);
@@ -1258,6 +1563,8 @@ try {
   console.log("durable_root_abandoned_reclaim_foreign_generation_preserved=true");
   console.log("durable_root_abandoned_reclaim_owned_residue=0");
   console.log("durable_root_abandoned_reclaim_winner_fresh_process_converges=true");
+  console.log("durable_root_reclaim_chain_retirement_append_only=true");
+  console.log("durable_root_successor_owner_crash_fresh_process_converges=true");
   console.log("durable_root_reclaim_winner_claimant_mismatch_preserved=true");
   console.log("durable_root_reclaim_winner_same_inode_rewrite_rejected=true");
   console.log("durable_root_reclaim_predecessor_exact_bytes_bound=true");

@@ -16,8 +16,8 @@ const PROOF_PATH = "scripts/prove_segmented_jsonl_ci_topology_v1.mjs";
 const SEGSTORE_PROOF_PATH = "scripts/prove_segmented_jsonl_v1.ts";
 const DURABLE_ROOT_SOURCE_PATH = "src/storage/segmented_jsonl_durable_root_v1.ts";
 const DURABLE_ROOT_PROOF_PATH = "scripts/prove_segmented_jsonl_durable_root_v1.ts";
-const DURABLE_ROOT_SOURCE_BLOB_SHA1 = "949519181f57718578e0bedeecf26e675e97f0e2";
-const DURABLE_ROOT_PROOF_BLOB_SHA1 = "85ef102684611c49f883d7d3474fe4f14ef8c642";
+const DURABLE_ROOT_SOURCE_BLOB_SHA1 = "f6898b66031525854d5ce50d398d166adc51354c";
+const DURABLE_ROOT_PROOF_BLOB_SHA1 = "480c761418a40d7f6ceebc393c1f7b4f6e58ed96";
 const STORAGE_SOURCES = [
   "src/storage/segmented_jsonl_v1.ts",
   "src/storage/segmented_jsonl_snapshot_authority_v1.ts",
@@ -123,7 +123,11 @@ function auditDurableRootReclaimWinnerDigestEvidence(source, proof) {
     "function readReclaimWinnerChain(",
     "reclaimWinnerSuccessorName(predecessor.bodySha256)",
     "DURABLE_ROOT_ABANDONED_RECLAIM_WINNER_SUCCESSOR_NOT_ADVANCED",
-    "for (const generation of [...winnerChain].reverse()) {",
+    "function publishReclaimWinnerRetirement(",
+    "function reconstructReclaimWinnerStaleAuthority(",
+    "function claimAfterReclaimWinnerTerminal(",
+    "readReclaimWinnerRetirement(lock, existingWinner)",
+    "reclaimWinnerBelongsToClaimant(existingWinner, ownerFile.owner)",
     "return replaceAbandonedReclaimWinner(",
   ]) {
     assert.ok(source.includes(marker), `durable_root_abandoned_reclaim_source_marker_missing:${marker}`);
@@ -136,11 +140,30 @@ function auditDurableRootReclaimWinnerDigestEvidence(source, proof) {
     false,
     "durable_root_abandoned_reclaim_destructive_compare_delete_present",
   );
+  const retirementStart = source.indexOf("function retireSupersededWitness(");
+  const retirementEnd = source.indexOf("\nfunction assertStagePredecessor(", retirementStart);
+  assert.ok(retirementStart >= 0 && retirementEnd > retirementStart, "durable_root_reclaim_retirement_body_missing");
+  const retirementBody = source.slice(retirementStart, retirementEnd);
+  assert.ok(
+    retirementBody.includes("publishReclaimWinnerRetirement(lock, terminalWinner);"),
+    "durable_root_reclaim_retirement_marker_publish_missing",
+  );
+  assert.equal(
+    retirementBody.includes("removeExactLockName(lock, generation.name"),
+    false,
+    "durable_root_reclaim_retirement_generation_delete_present",
+  );
   for (const marker of [
     "const exactBytePredecessorToken =",
     "DURABLE_ROOT_RECLAIM_WINNER_BINDING_MISMATCH",
     "exact-byte predecessor rejection must preserve the abandoned winner",
     "durable_root_reclaim_predecessor_exact_bytes_bound=true",
+    'env: childEnvironment("crash_after_successor_owner_durable"),',
+    "fresh recoverer must append one exact transition successor",
+    "fresh recovery must preserve the crashed claimant's root winner bytes exactly",
+    "nested transition recovery must retain the exact earlier predecessor witness authority",
+    "durable_root_reclaim_chain_retirement_append_only=true",
+    "durable_root_successor_owner_crash_fresh_process_converges=true",
   ]) {
     assert.ok(proof.includes(marker), `durable_root_abandoned_reclaim_exact_bytes_proof_marker_missing:${marker}`);
   }
