@@ -247,7 +247,108 @@ function readReclaimWinnerChainForProof(lockDir: string): Array<{
     });
     name = "reclaim-winner-successor-" + digest + ".v1";
   }
-  throw new Error("proof reclaim winner chain exceeds bound");
+  if (fs.existsSync(path.join(lockDir, name))) {
+    throw new Error("proof reclaim winner chain exceeds bound");
+  }
+  return chain;
+}
+
+function appendReclaimWinnerSuccessorForProof(
+  lockDir: string,
+  staleToken: string,
+  claimantToken: string,
+  claimantIdentity: { bootId: string; pid: number; startTicks: string },
+): void {
+  const chain = readReclaimWinnerChainForProof(lockDir);
+  const predecessor = chain[chain.length - 1];
+  assert.ok(predecessor, "successor requires one exact predecessor");
+  const ownerPath = path.join(lockDir, "owner.v1.json");
+  const witnessPath = ownerWitnessPathForProof(lockDir, staleToken);
+  const owner = fs.statSync(ownerPath, { bigint: true } as any);
+  const witness = fs.statSync(witnessPath, { bigint: true } as any);
+  const ownerSha256 = sha256(fs.readFileSync(ownerPath));
+  const witnessSha256 = sha256(fs.readFileSync(witnessPath));
+  assert.equal(owner.dev, witness.dev);
+  assert.equal(owner.ino, witness.ino);
+  fs.writeFileSync(
+    path.join(lockDir, "reclaim-winner-successor-" + predecessor.sha256 + ".v1"),
+    JSON.stringify({
+      v: 1,
+      claimant_boot_id: claimantIdentity.bootId,
+      claimant_pid: claimantIdentity.pid,
+      claimant_start_ticks: claimantIdentity.startTicks,
+      claimant_token: claimantToken,
+      stale_owner_token: staleToken,
+      stale_owner_dev: String(owner.dev),
+      stale_owner_ino: String(owner.ino),
+      stale_owner_sha256: ownerSha256,
+      stale_witness_dev: String(witness.dev),
+      stale_witness_ino: String(witness.ino),
+      stale_witness_sha256: witnessSha256,
+    }) + "\n",
+    { flag: "wx", mode: 0o600 },
+  );
+  fsyncDirectory(lockDir);
+}
+
+function accountPublishLockNamespaceForProof(lockDir: string): {
+  names: number;
+  inodes: number;
+  nameBytes: number;
+  inodeBytes: number;
+  winners: number;
+  retirements: number;
+} {
+  const inodeSizes = new Map<string, number>();
+  let nameBytes = 0;
+  let winners = 0;
+  let retirements = 0;
+  const names = fs.readdirSync(lockDir).sort();
+  for (const name of names) {
+    const entryPath = path.join(lockDir, name);
+    const stat = fs.lstatSync(entryPath, { bigint: true } as any);
+    assert.equal(stat.isFile(), true, `lock namespace entry must be a regular file: ${name}`);
+    const size = Number(stat.size);
+    const inode = `${String(stat.dev)}:${String(stat.ino)}`;
+    const priorSize = inodeSizes.get(inode);
+    if (priorSize !== undefined) assert.equal(priorSize, size, `hardlink size drift: ${name}`);
+    else inodeSizes.set(inode, size);
+    nameBytes += size;
+    if (name === "reclaim-winner.v1" || /^reclaim-winner-successor-[0-9a-f]{64}\.v1$/.test(name)) {
+      winners += 1;
+    }
+    if (/^reclaim-winner-retired-[0-9a-f]{64}\.v1$/.test(name)) retirements += 1;
+  }
+  return {
+    names: names.length,
+    inodes: inodeSizes.size,
+    nameBytes,
+    inodeBytes: [...inodeSizes.values()].reduce((sum, size) => sum + size, 0),
+    winners,
+    retirements,
+  };
+}
+
+function snapshotPublishLockForProof(lockDir: string): Record<string, {
+  dev: string;
+  ino: string;
+  nlink: string;
+  size: string;
+  sha256: string;
+}> {
+  return Object.fromEntries(
+    fs.readdirSync(lockDir).sort().map(name => {
+      const file = path.join(lockDir, name);
+      const stat = fs.statSync(file, { bigint: true } as any);
+      return [name, {
+        dev: String(stat.dev),
+        ino: String(stat.ino),
+        nlink: String(stat.nlink),
+        size: String(stat.size),
+        sha256: sha256(fs.readFileSync(file)),
+      }];
+    }),
+  );
 }
 
 function reclaimWinnerRetirementPathForProof(lockDir: string, terminalSha256: string): string {
@@ -675,6 +776,7 @@ try {
   fs.mkdirSync(durableDir, { mode: 0o700 });
 
   const publishLockDir = path.join(durableDir, ".durable-root-publish-v1.lock");
+  let lifetimeBoundaryAccounting: ReturnType<typeof accountPublishLockNamespaceForProof> | null = null;
   fs.mkdirSync(publishLockDir, { mode: 0o700 });
   proveAnonymousStageCrashLeavesNoName(publishLockDir);
   proveAnonymousReclaimRaceHasOnePersistentWinner(publishLockDir);
@@ -806,6 +908,7 @@ try {
 
   const r2 = publishSegmentedJsonlDurableRootV1(durableDir, r2Input);
   assert.equal(r2.store_generation, 2);
+  lifetimeBoundaryAccounting = proveLifetimeBoundaries();
   assert.equal(r2.previous_root_sha256, r1.root_sha256);
   assert.equal(r2.append_only_witness_sha256, w2.witness_sha256);
   assert.equal(fs.existsSync(path.join(publishLockDir, "owner.v1.json")), false, "first peer publication owner must release");
@@ -1541,6 +1644,106 @@ try {
   fs.unlinkSync(ownerWitnessPathForProof(publishLockDir, precreatedMarkerOwnerAbsentToken));
   fsyncDirectory(publishLockDir);
 
+  function proveLifetimeBoundaries(): ReturnType<typeof accountPublishLockNamespaceForProof> {
+    const lifetimeBaselineAccounting = accountPublishLockNamespaceForProof(publishLockDir);
+    assert.deepEqual(
+      {
+        names: lifetimeBaselineAccounting.names,
+        inodes: lifetimeBaselineAccounting.inodes,
+        winners: lifetimeBaselineAccounting.winners,
+        retirements: lifetimeBaselineAccounting.retirements,
+      },
+      { names: 2, inodes: 2, winners: 0, retirements: 0 },
+      "lifetime boundary fixture must include both pre-existing durable stage-intent residues",
+    );
+    const lifetimeOwnerToken = "29".repeat(16);
+    const lifetimeDeadClaimant = {
+      bootId: processBootId(),
+      pid: 99999996,
+      startTicks: "1",
+    };
+    writePublishOwner(publishLockDir, 99999999, "1", lifetimeOwnerToken);
+    writeReclaimWinnerForProof(
+      publishLockDir,
+      lifetimeOwnerToken,
+      "39".repeat(16),
+      lifetimeDeadClaimant,
+    );
+    for (let successorIndex = 1; successorIndex < 63; successorIndex += 1) {
+      const predecessor = readReclaimWinnerChainForProof(publishLockDir).at(-1);
+      assert.ok(predecessor);
+      writeReclaimWinnerRetirementForProof(publishLockDir, predecessor);
+      appendReclaimWinnerSuccessorForProof(
+        publishLockDir,
+        lifetimeOwnerToken,
+        successorIndex.toString(16).padStart(32, "0"),
+        lifetimeDeadClaimant,
+      );
+    }
+    const lifetimeTerminal63 = readReclaimWinnerChainForProof(publishLockDir).at(-1);
+    assert.ok(lifetimeTerminal63);
+    writeReclaimWinnerRetirementForProof(publishLockDir, lifetimeTerminal63);
+    const lifetime63Accounting = accountPublishLockNamespaceForProof(publishLockDir);
+    assert.deepEqual(
+      {
+        names: lifetime63Accounting.names,
+        inodes: lifetime63Accounting.inodes,
+        winners: lifetime63Accounting.winners,
+        retirements: lifetime63Accounting.retirements,
+      },
+      { names: 130, inodes: 129, winners: 63, retirements: 63 },
+      "63-generation boundary must recursively account every persistent lock name and inode",
+    );
+
+    assert.deepEqual(
+      publishSegmentedJsonlDurableRootV1(durableDir, r2Input),
+      r2,
+      "the 64th create-only successor must remain readable and recoverable",
+    );
+    const lifetime64Accounting = accountPublishLockNamespaceForProof(publishLockDir);
+    assert.deepEqual(
+      {
+        names: lifetime64Accounting.names,
+        inodes: lifetime64Accounting.inodes,
+        winners: lifetime64Accounting.winners,
+        retirements: lifetime64Accounting.retirements,
+      },
+      { names: 130, inodes: 130, winners: 64, retirements: 64 },
+      "successful 64-generation recovery must retire its terminal and release owner residue",
+    );
+
+    const lifetimeOverflowOwnerToken = "2b".repeat(16);
+    writePublishOwner(publishLockDir, 99999999, "1", lifetimeOverflowOwnerToken);
+    const lifetimeBefore65 = snapshotPublishLockForProof(publishLockDir);
+    lifetimeBoundaryAccounting = accountPublishLockNamespaceForProof(publishLockDir);
+    assert.deepEqual(
+      {
+        names: lifetimeBoundaryAccounting.names,
+        inodes: lifetimeBoundaryAccounting.inodes,
+        winners: lifetimeBoundaryAccounting.winners,
+        retirements: lifetimeBoundaryAccounting.retirements,
+      },
+      { names: 132, inodes: 131, winners: 64, retirements: 64 },
+      "65th-attempt HOLD boundary must include current owner and hardlink witness",
+    );
+    assert.ok(lifetimeBoundaryAccounting.nameBytes > 0);
+    assert.ok(lifetimeBoundaryAccounting.inodeBytes > 0);
+    assert.ok(lifetimeBoundaryAccounting.inodeBytes <= lifetimeBoundaryAccounting.nameBytes);
+    expectFailure(
+      () => publishSegmentedJsonlDurableRootV1(durableDir, r2Input),
+      "DURABLE_ROOT_RECLAIM_WINNER_SUCCESSOR_CHAIN_LIMIT:64",
+    );
+    assert.deepEqual(
+      snapshotPublishLockForProof(publishLockDir),
+      lifetimeBefore65,
+      "65th attempt must fail before publishing a successor or mutating any existing namespace generation",
+    );
+    removeReclaimEvidenceForProof(publishLockDir);
+    removePublishOwnerForProof(publishLockDir, lifetimeOverflowOwnerToken);
+    assert.ok(lifetimeBoundaryAccounting);
+    return lifetimeBoundaryAccounting;
+  }
+
   const replacedWitnessToken = "26".repeat(16);
   writePublishOwner(publishLockDir, 99999999, "1", replacedWitnessToken);
   const replacedWitnessPath = ownerWitnessPathForProof(publishLockDir, replacedWitnessToken);
@@ -1676,6 +1879,13 @@ try {
   console.log("durable_root_abandoned_reclaim_winner_fresh_process_converges=true");
   console.log("durable_root_reclaim_chain_retirement_append_only=true");
   console.log("durable_root_reclaim_retirement_marker_live_claimant_bound=true");
+  assert.ok(lifetimeBoundaryAccounting);
+  console.log("durable_root_reclaim_chain_64_terminal_readable=true");
+  console.log("durable_root_reclaim_chain_65th_attempt_prepublication_hold=true");
+  console.log(`durable_root_reclaim_lifetime_bound_names=${lifetimeBoundaryAccounting.names}`);
+  console.log(`durable_root_reclaim_lifetime_bound_inodes=${lifetimeBoundaryAccounting.inodes}`);
+  console.log(`durable_root_reclaim_lifetime_bound_name_bytes=${lifetimeBoundaryAccounting.nameBytes}`);
+  console.log(`durable_root_reclaim_lifetime_bound_inode_bytes=${lifetimeBoundaryAccounting.inodeBytes}`);
   console.log("durable_root_successor_owner_crash_fresh_process_converges=true");
   console.log("durable_root_reclaim_winner_claimant_mismatch_preserved=true");
   console.log("durable_root_reclaim_winner_same_inode_rewrite_rejected=true");

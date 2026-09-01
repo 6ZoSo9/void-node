@@ -560,7 +560,15 @@ function readReclaimWinnerChain(lock: DirectoryAuthorityV1): ReclaimWinnerReadV1
     seen.add(successor.bodySha256);
     chain.push(successor);
   }
-  fail("DURABLE_ROOT_RECLAIM_WINNER_SUCCESSOR_CHAIN_LIMIT", String(chain.length));
+  const terminal = chain[chain.length - 1];
+  const overflow = readReclaimWinnerNamed(
+    lock,
+    reclaimWinnerSuccessorName(terminal.bodySha256),
+  );
+  if (overflow) {
+    fail("DURABLE_ROOT_RECLAIM_WINNER_SUCCESSOR_CHAIN_LIMIT", String(chain.length + 1));
+  }
+  return chain;
 }
 
 function readReclaimWinner(lock: DirectoryAuthorityV1): ReclaimWinnerReadV1 | null {
@@ -808,6 +816,29 @@ function reclaimWinnerClaimantIsLive(winner: ReclaimWinnerReadV1): boolean {
   return processStartTicks(value.claimant_pid) === value.claimant_start_ticks;
 }
 
+function assertReclaimWinnerSuccessorCapacity(
+  lock: DirectoryAuthorityV1,
+  predecessor: ReclaimWinnerReadV1,
+): void {
+  const chain = readReclaimWinnerChain(lock);
+  const terminal = chain[chain.length - 1] ||
+    fail("DURABLE_ROOT_RECLAIM_WINNER_MISSING", predecessor.bodySha256);
+  assertReclaimWinnerExactBytes(
+    predecessor,
+    terminal,
+    "DURABLE_ROOT_RECLAIM_WINNER_TERMINAL_CHANGED",
+  );
+  if (predecessor.name !== terminal.name) {
+    fail(
+      "DURABLE_ROOT_RECLAIM_WINNER_TERMINAL_CHANGED",
+      `${predecessor.name}:${terminal.name}`,
+    );
+  }
+  if (chain.length >= PUBLISH_LOCK_RECLAIM_CHAIN_MAX_V1) {
+    fail("DURABLE_ROOT_RECLAIM_WINNER_SUCCESSOR_CHAIN_LIMIT", String(chain.length));
+  }
+}
+
 function bindLiveReclaimWinnerToCurrentClaimant(
   winner: ReclaimWinnerReadV1,
   claimant: PublishLockOwnerV1,
@@ -958,6 +989,7 @@ function replaceAbandonedReclaimWinner(
       fail("DURABLE_ROOT_ABANDONED_RECLAIM_WINNER_RELEASE_CHANGED", token);
     }
 
+    assertReclaimWinnerSuccessorCapacity(lock, predecessor);
     publishReclaimWinner(
       lock,
       claimant,
@@ -989,6 +1021,7 @@ function claimAfterReclaimWinnerTerminal(
   winner: ReclaimWinnerReadV1;
   release: PublishLockOwnerReleaseReadV1 | null;
 } {
+  assertReclaimWinnerSuccessorCapacity(lock, terminal);
   publishReclaimWinner(
     lock,
     claimant,

@@ -16,8 +16,8 @@ const PROOF_PATH = "scripts/prove_segmented_jsonl_ci_topology_v1.mjs";
 const SEGSTORE_PROOF_PATH = "scripts/prove_segmented_jsonl_v1.ts";
 const DURABLE_ROOT_SOURCE_PATH = "src/storage/segmented_jsonl_durable_root_v1.ts";
 const DURABLE_ROOT_PROOF_PATH = "scripts/prove_segmented_jsonl_durable_root_v1.ts";
-const DURABLE_ROOT_SOURCE_BLOB_SHA1 = "a9099045414908bfeaa2f7adc9a27d59a2510c72";
-const DURABLE_ROOT_PROOF_BLOB_SHA1 = "2d6449256a6ed8e6d98e2d69287c36f888be836f";
+const DURABLE_ROOT_SOURCE_BLOB_SHA1 = "0f7d07544e6e4cbc27ffd549d1489d0990575fd5";
+const DURABLE_ROOT_PROOF_BLOB_SHA1 = "f7337cbba1c074c62c1c7acc740c303f04b96f90";
 const STORAGE_SOURCES = [
   "src/storage/segmented_jsonl_v1.ts",
   "src/storage/segmented_jsonl_snapshot_authority_v1.ts",
@@ -122,6 +122,10 @@ function auditDurableRootReclaimWinnerDigestEvidence(source, proof) {
     "DURABLE_ROOT_ABANDONED_RECLAIM_WINNER_PREDECESSOR_BYTES_MISMATCH",
     "function readReclaimWinnerChain(",
     "reclaimWinnerSuccessorName(predecessor.bodySha256)",
+    "const overflow = readReclaimWinnerNamed(",
+    "function assertReclaimWinnerSuccessorCapacity(",
+    "assertReclaimWinnerSuccessorCapacity(lock, predecessor);",
+    "assertReclaimWinnerSuccessorCapacity(lock, terminal);",
     "DURABLE_ROOT_ABANDONED_RECLAIM_WINNER_SUCCESSOR_NOT_ADVANCED",
     "function publishReclaimWinnerRetirement(",
     "function reconstructReclaimWinnerStaleAuthority(",
@@ -166,6 +170,16 @@ function auditDurableRootReclaimWinnerDigestEvidence(source, proof) {
     "fresh recovery must preserve the crashed claimant's root winner bytes exactly",
     "nested transition recovery must retain the exact earlier predecessor witness authority",
     "durable_root_reclaim_chain_retirement_append_only=true",
+    "63-generation boundary must recursively account every persistent lock name and inode",
+    "the 64th create-only successor must remain readable and recoverable",
+    "65th attempt must fail before publishing a successor or mutating any existing namespace generation",
+    "DURABLE_ROOT_RECLAIM_WINNER_SUCCESSOR_CHAIN_LIMIT:64",
+    "durable_root_reclaim_chain_64_terminal_readable=true",
+    "durable_root_reclaim_chain_65th_attempt_prepublication_hold=true",
+    "durable_root_reclaim_lifetime_bound_names=",
+    "durable_root_reclaim_lifetime_bound_inodes=",
+    "durable_root_reclaim_lifetime_bound_name_bytes=",
+    "durable_root_reclaim_lifetime_bound_inode_bytes=",
     'DURABLE_ROOT_CHILD_MODE === "reject_precreated_retirement_marker"',
     "precreated retirement marker must not mutate owner-present live claimant authority",
     "precreated retirement marker must not mutate owner-absent live claimant authority",
