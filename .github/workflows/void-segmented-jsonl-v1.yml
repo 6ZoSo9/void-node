@@ -494,17 +494,134 @@ jobs:
             }).length;
           }
 
+          const topologyDurableRootRealProcessMutantFamilies = [
+            'durableRootChildADeadBranchMutant',
+            'durableRootChildBInlineSubstitutionMutant',
+            'durableRootCrashModeSubstitutionMutant',
+            'durableRootRecovererResidueOmissionMutant',
+            'durableRootResidueConstantFalseMutant',
+            'durableRootResidueDeadGuardMutant',
+            'durableRootResidueEarlyReturnMutant',
+            'durableRootChildBResidueInjectionDeletionMutant',
+          ];
+
           function topologyTopLevelDurableRootRealProcessAssertionCount(sourceFile) {
             return sourceFile.statements.filter((statement) => {
-              if (!ts.isExpressionStatement(statement)) return false;
-              const text = statement.getText(sourceFile);
+              if (
+                !ts.isExpressionStatement(statement) ||
+                !ts.isCallExpression(statement.expression) ||
+                !ts.isPropertyAccessExpression(statement.expression.expression) ||
+                statement.expression.expression.expression.getText(sourceFile) !== 'assert' ||
+                statement.expression.expression.name.text !== 'equal'
+              ) return false;
+              const args = statement.expression.arguments;
               return (
-                text.startsWith('assert.equal(') &&
-                text.includes('durableRootRealProcessMutantsExecuted,') &&
-                text.includes('\n  8,\n') &&
-                text.includes('durable_root_real_process_mutant_count_not_exact')
+                args.length === 3 &&
+                args[0].getText(sourceFile) === 'durableRootRealProcessMutantsExecuted' &&
+                args[1].getText(sourceFile) === '8' &&
+                args[2].getText(sourceFile) === '"durable_root_real_process_mutant_count_not_exact"'
               );
             }).length;
+          }
+
+          function topologyDurableRootRealProcessCounterAuthorityCount(sourceFile) {
+            const counter = 'durableRootRealProcessMutantsExecuted';
+            const targetContainsCounter = (target) => {
+              let found = false;
+              const visit = (node) => {
+                if (ts.isIdentifier(node) && node.text === counter) found = true;
+                if (!found) ts.forEachChild(node, visit);
+              };
+              visit(target);
+              return found;
+            };
+            let declarationCount = 0;
+            let topLevelDeclarationCount = 0;
+            const writes = [];
+            for (const statement of sourceFile.statements) {
+              if (!ts.isVariableStatement(statement)) continue;
+              if (
+                statement.declarationList.declarations.length === 1 &&
+                (statement.declarationList.flags & ts.NodeFlags.Let) !== 0
+              ) {
+                const declaration = statement.declarationList.declarations[0];
+                if (
+                  ts.isIdentifier(declaration.name) &&
+                  declaration.name.text === counter &&
+                  declaration.initializer?.getText(sourceFile) === '0'
+                ) topLevelDeclarationCount += 1;
+              }
+            }
+            const visit = (node) => {
+              if (ts.isVariableDeclaration(node) && targetContainsCounter(node.name)) {
+                declarationCount += 1;
+              }
+              if (
+                ts.isBinaryExpression(node) &&
+                node.operatorToken.kind >= ts.SyntaxKind.FirstAssignment &&
+                node.operatorToken.kind <= ts.SyntaxKind.LastAssignment &&
+                targetContainsCounter(node.left)
+              ) writes.push(node);
+              if (
+                (ts.isPrefixUnaryExpression(node) || ts.isPostfixUnaryExpression(node)) &&
+                [ts.SyntaxKind.PlusPlusToken, ts.SyntaxKind.MinusMinusToken].includes(node.operator) &&
+                targetContainsCounter(node.operand)
+              ) writes.push(node);
+              if (ts.isDeleteExpression(node) && targetContainsCounter(node.expression)) writes.push(node);
+              ts.forEachChild(node, visit);
+            };
+            visit(sourceFile);
+            if (
+              declarationCount !== 1 ||
+              topLevelDeclarationCount !== 1 ||
+              writes.length !== topologyDurableRootRealProcessMutantFamilies.length
+            ) return 0;
+            const families = [];
+            for (const write of writes) {
+              if (
+                !ts.isBinaryExpression(write) ||
+                write.operatorToken.kind !== ts.SyntaxKind.PlusEqualsToken ||
+                !ts.isIdentifier(write.left) ||
+                write.left.text !== counter ||
+                write.right.getText(sourceFile) !== '1' ||
+                !ts.isExpressionStatement(write.parent) ||
+                write.parent.parent !== sourceFile
+              ) return 0;
+              const writeIndex = sourceFile.statements.indexOf(write.parent);
+              const previous = sourceFile.statements[writeIndex - 1];
+              if (
+                !previous ||
+                !ts.isExpressionStatement(previous) ||
+                !ts.isCallExpression(previous.expression) ||
+                !ts.isIdentifier(previous.expression.expression) ||
+                previous.expression.expression.text !== 'assertThrows'
+              ) return 0;
+              const args = previous.expression.arguments;
+              if (
+                args.length !== 2 ||
+                !ts.isArrowFunction(args[0]) ||
+                args[0].parameters.length !== 0 ||
+                !ts.isCallExpression(args[0].body) ||
+                !ts.isIdentifier(args[0].body.expression) ||
+                args[0].body.expression.text !== 'auditDurableRootRealProcessRecoveryEvidence' ||
+                args[0].body.arguments.length !== 1 ||
+                !ts.isIdentifier(args[0].body.arguments[0]) ||
+                !ts.isRegularExpressionLiteral(args[1])
+              ) return 0;
+              families.push(args[0].body.arguments[0].text);
+            }
+            if (
+              families.some(
+                (family, index) => family !== topologyDurableRootRealProcessMutantFamilies[index],
+              )
+            ) return 0;
+            const terminalCount = sourceFile.statements.filter(
+              (statement) =>
+                ts.isExpressionStatement(statement) &&
+                statement.getText(sourceFile) ===
+                  'console.log(`durable_root_real_process_mutants_executed=${durableRootRealProcessMutantsExecuted}`);',
+            ).length;
+            return terminalCount === 1 ? 1 : 0;
           }
 
           function auditTopologyMeasurementMutantExecution(source) {
@@ -560,6 +677,11 @@ jobs:
               topologyTopLevelDurableRootRealProcessAssertionCount(sourceFile),
               1,
               'focused_durable_root_real_process_mutant_assertion_not_top_level',
+            );
+            assert.equal(
+              topologyDurableRootRealProcessCounterAuthorityCount(sourceFile),
+              1,
+              'focused_durable_root_real_process_mutant_counter_authority_not_exact',
             );
             assert.equal(
               topologyExecutableRegexIndex(source, /\bif\s*\(\s*false\s*\)\s*\{/),
@@ -1506,6 +1628,85 @@ jobs:
               weakenedDurableRootRealProcessMutantCount,
             ),
             /focused_durable_root_real_process_mutant_assertion_not_top_level/,
+          );
+          const durableRootDeletedFamilyStart = topologyText.indexOf(
+            'const durableRootChildADeadBranchMutant =',
+          );
+          const durableRootDeletedFamilyIncrement =
+            'durableRootRealProcessMutantsExecuted += 1;';
+          const durableRootDeletedFamilyEnd = topologyText.indexOf(
+            durableRootDeletedFamilyIncrement,
+            durableRootDeletedFamilyStart,
+          );
+          assert.ok(
+            durableRootDeletedFamilyStart >= 0 &&
+              durableRootDeletedFamilyEnd > durableRootDeletedFamilyStart,
+            'focused_durable_root_real_process_deleted_family_mutant_not_applied',
+          );
+          const durableRootFamilyDeleted =
+            topologyText.slice(0, durableRootDeletedFamilyStart) +
+            topologyText.slice(
+              durableRootDeletedFamilyEnd + durableRootDeletedFamilyIncrement.length,
+            );
+          const durableRootCounterAssertion = [
+            'assert.equal(',
+            '  durableRootRealProcessMutantsExecuted,',
+            '  8,',
+            '  "durable_root_real_process_mutant_count_not_exact",',
+            ');',
+          ].join('\n');
+          const durableRootDeletedFamilyPreseeded = durableRootFamilyDeleted.replace(
+            durableRootCounterAssertion,
+            `durableRootRealProcessMutantsExecuted = 8;\n${durableRootCounterAssertion}`,
+          );
+          assert.notEqual(
+            durableRootDeletedFamilyPreseeded,
+            durableRootFamilyDeleted,
+            'focused_durable_root_real_process_preseed_mutant_not_applied',
+          );
+          assert.throws(
+            () => auditTopologyMeasurementMutantExecution(
+              durableRootDeletedFamilyPreseeded,
+            ),
+            /focused_durable_root_real_process_mutant_counter_authority_not_exact/,
+          );
+          let durableRootCounterAuthorityMutantsExecuted = 0;
+          for (const [family, mutation] of [
+            [
+              'destructuring_preseed',
+              '[durableRootRealProcessMutantsExecuted] = [8];',
+            ],
+            [
+              'update_preseed',
+              'durableRootRealProcessMutantsExecuted++;',
+            ],
+            [
+              'alias_target_preseed',
+              '({ value: durableRootRealProcessMutantsExecuted } = { value: 8 });',
+            ],
+          ]) {
+            const mutant = topologyText.replace(
+              durableRootCounterAssertion,
+              `${mutation}\n${durableRootCounterAssertion}`,
+            );
+            assert.notEqual(
+              mutant,
+              topologyText,
+              `focused_durable_root_real_process_${family}_mutant_not_applied`,
+            );
+            assert.throws(
+              () => auditTopologyMeasurementMutantExecution(mutant),
+              /focused_durable_root_real_process_mutant_counter_authority_not_exact/,
+            );
+            durableRootCounterAuthorityMutantsExecuted += 1;
+          }
+          assert.equal(
+            durableRootCounterAuthorityMutantsExecuted,
+            3,
+            'focused_durable_root_real_process_counter_authority_mutant_count_not_exact',
+          );
+          console.log(
+            `focused_durable_root_real_process_counter_authority_mutants_executed=${durableRootCounterAuthorityMutantsExecuted}`,
           );
           const weakenedReconstructionMeasurementMutantCount = topologyText.replace(
             [
