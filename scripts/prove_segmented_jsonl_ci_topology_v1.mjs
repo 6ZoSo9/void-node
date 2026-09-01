@@ -16,8 +16,8 @@ const PROOF_PATH = "scripts/prove_segmented_jsonl_ci_topology_v1.mjs";
 const SEGSTORE_PROOF_PATH = "scripts/prove_segmented_jsonl_v1.ts";
 const DURABLE_ROOT_SOURCE_PATH = "src/storage/segmented_jsonl_durable_root_v1.ts";
 const DURABLE_ROOT_PROOF_PATH = "scripts/prove_segmented_jsonl_durable_root_v1.ts";
-const DURABLE_ROOT_SOURCE_BLOB_SHA1 = "f6898b66031525854d5ce50d398d166adc51354c";
-const DURABLE_ROOT_PROOF_BLOB_SHA1 = "480c761418a40d7f6ceebc393c1f7b4f6e58ed96";
+const DURABLE_ROOT_SOURCE_BLOB_SHA1 = "a9099045414908bfeaa2f7adc9a27d59a2510c72";
+const DURABLE_ROOT_PROOF_BLOB_SHA1 = "dc0df71177f2f6dd7de93a27580e7634ba0ecc1a";
 const STORAGE_SOURCES = [
   "src/storage/segmented_jsonl_v1.ts",
   "src/storage/segmented_jsonl_snapshot_authority_v1.ts",
@@ -127,6 +127,9 @@ function auditDurableRootReclaimWinnerDigestEvidence(source, proof) {
     "function reconstructReclaimWinnerStaleAuthority(",
     "function claimAfterReclaimWinnerTerminal(",
     "readReclaimWinnerRetirement(lock, existingWinner)",
+    "function bindLiveReclaimWinnerToCurrentClaimant(",
+    "claimant.token = value.claimant_token;",
+    "bindLiveReclaimWinnerToCurrentClaimant(existingWinner, claimant);",
     "reclaimWinnerBelongsToClaimant(existingWinner, ownerFile.owner)",
     "return replaceAbandonedReclaimWinner(",
   ]) {
@@ -163,6 +166,10 @@ function auditDurableRootReclaimWinnerDigestEvidence(source, proof) {
     "fresh recovery must preserve the crashed claimant's root winner bytes exactly",
     "nested transition recovery must retain the exact earlier predecessor witness authority",
     "durable_root_reclaim_chain_retirement_append_only=true",
+    'DURABLE_ROOT_CHILD_MODE === "reject_precreated_retirement_marker"',
+    "precreated retirement marker must not mutate owner-present live claimant authority",
+    "precreated retirement marker must not mutate owner-absent live claimant authority",
+    "durable_root_reclaim_retirement_marker_live_claimant_bound=true",
     "durable_root_successor_owner_crash_fresh_process_converges=true",
   ]) {
     assert.ok(proof.includes(marker), `durable_root_abandoned_reclaim_exact_bytes_proof_marker_missing:${marker}`);

@@ -808,6 +808,22 @@ function reclaimWinnerClaimantIsLive(winner: ReclaimWinnerReadV1): boolean {
   return processStartTicks(value.claimant_pid) === value.claimant_start_ticks;
 }
 
+function bindLiveReclaimWinnerToCurrentClaimant(
+  winner: ReclaimWinnerReadV1,
+  claimant: PublishLockOwnerV1,
+): void {
+  if (!reclaimWinnerClaimantIsLive(winner)) return;
+  const value = winner.value;
+  if (
+    value.claimant_boot_id === claimant.boot_id &&
+    value.claimant_pid === claimant.pid &&
+    value.claimant_start_ticks === claimant.start_ticks
+  ) {
+    claimant.token = value.claimant_token;
+  }
+  assertReclaimWinnerClaimant(winner, claimant);
+}
+
 function replaceAbandonedReclaimWinner(
   lock: DirectoryAuthorityV1,
   claimant: PublishLockOwnerV1,
@@ -1380,7 +1396,10 @@ function claimStalePublishOwner(
 
     if (!ownerFile) {
       if (!existingWinner) return null;
-      if (readReclaimWinnerRetirement(lock, existingWinner)) return null;
+      if (readReclaimWinnerRetirement(lock, existingWinner)) {
+        bindLiveReclaimWinnerToCurrentClaimant(existingWinner, claimant);
+        return null;
+      }
       const reconstructed = reconstructReclaimWinnerStaleAuthority(lock, existingWinner);
       assertReclaimWinnerClaimant(existingWinner, claimant);
       return {
@@ -1402,6 +1421,7 @@ function claimStalePublishOwner(
 
     if (existingWinner) {
       if (readReclaimWinnerRetirement(lock, existingWinner)) {
+        bindLiveReclaimWinnerToCurrentClaimant(existingWinner, claimant);
         return claimAfterReclaimWinnerTerminal(
           lock,
           claimant,

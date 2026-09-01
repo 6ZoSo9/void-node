@@ -255,6 +255,25 @@ function reclaimWinnerRetirementPathForProof(lockDir: string, terminalSha256: st
   return path.join(lockDir, "reclaim-winner-retired-" + terminalSha256 + ".v1");
 }
 
+function writeReclaimWinnerRetirementForProof(
+  lockDir: string,
+  winner: ReturnType<typeof readReclaimWinnerChainForProof>[number],
+): string {
+  const retirementPath = reclaimWinnerRetirementPathForProof(lockDir, winner.sha256);
+  fs.writeFileSync(
+    retirementPath,
+    JSON.stringify({
+      v: 1,
+      terminal_name: winner.name,
+      terminal_sha256: winner.sha256,
+      claimant_token: winner.value.claimant_token,
+    }) + "\n",
+    { flag: "wx", mode: 0o600 },
+  );
+  fsyncDirectory(lockDir);
+  return retirementPath;
+}
+
 function removeReclaimEvidenceForProof(lockDir: string): void {
   for (const name of fs.readdirSync(lockDir)) {
     if (
@@ -451,6 +470,23 @@ function runDurableRootChildMode(): never {
   const inputPath = requiredChildEnvironment("VOID_DURABLE_ROOT_CHILD_INPUT");
   const input = JSON.parse(fs.readFileSync(inputPath, "utf8")) as DurableRootPublishInputForProof;
   const lockDir = path.join(durableDir, ".durable-root-publish-v1.lock");
+
+  if (DURABLE_ROOT_CHILD_MODE === "reject_precreated_retirement_marker") {
+    let rejection = "";
+    try {
+      publishSegmentedJsonlDurableRootV1(durableDir, input);
+    } catch (error) {
+      rejection = String(error);
+    }
+    assert.match(rejection, /DURABLE_ROOT_RECLAIM_WINNER_CLAIMANT_MISMATCH/);
+    process.stdout.write(JSON.stringify({
+      mode: DURABLE_ROOT_CHILD_MODE,
+      pid: process.pid,
+      start_ticks: processStartTicks(process.pid),
+      rejection: "DURABLE_ROOT_RECLAIM_WINNER_CLAIMANT_MISMATCH",
+    }) + "\n");
+    process.exit(0);
+  }
 
   if (DURABLE_ROOT_CHILD_MODE === "recover_abandoned_winner") {
     const originalUnlinkSync = fsMutable.unlinkSync;
@@ -1430,6 +1466,76 @@ try {
   fs.unlinkSync(reclaimPath);
   removePublishOwnerForProof(publishLockDir, liveReclaimToken);
 
+  const liveMarkerClaimantIdentity = {
+    bootId: processBootId(),
+    pid: process.pid,
+    startTicks,
+  };
+  const rejectPrecreatedMarkerFromChild = (): void => {
+    const child = childProcess.spawnSync(process.execPath, childArgs, {
+      cwd: process.cwd(),
+      env: childEnvironment("reject_precreated_retirement_marker"),
+      encoding: "utf8",
+      timeout: 30_000,
+    });
+    assert.equal(child.error, undefined, `retirement-marker child spawn failed: ${String(child.error)}`);
+    assert.equal(child.signal, null, child.stderr);
+    assert.equal(child.status, 0, child.stderr);
+    const result = JSON.parse(child.stdout.trim()) as {
+      pid: number;
+      start_ticks: string;
+      rejection: string;
+    };
+    assert.notEqual(result.pid, process.pid);
+    assert.match(result.start_ticks, /^[0-9]+$/);
+    assert.equal(result.rejection, "DURABLE_ROOT_RECLAIM_WINNER_CLAIMANT_MISMATCH");
+  };
+
+  const precreatedMarkerOwnerToken = "27".repeat(16);
+  const precreatedMarkerClaimantToken = "37".repeat(16);
+  writePublishOwner(publishLockDir, 99999999, "1", precreatedMarkerOwnerToken);
+  writeReclaimWinnerForProof(
+    publishLockDir,
+    precreatedMarkerOwnerToken,
+    precreatedMarkerClaimantToken,
+    liveMarkerClaimantIdentity,
+  );
+  const ownerPresentMarkerWinner = readReclaimWinnerChainForProof(publishLockDir)[0];
+  writeReclaimWinnerRetirementForProof(publishLockDir, ownerPresentMarkerWinner);
+  const ownerPresentMarkerBefore = snapshotPublishLock();
+  rejectPrecreatedMarkerFromChild();
+  assert.deepEqual(
+    snapshotPublishLock(),
+    ownerPresentMarkerBefore,
+    "precreated retirement marker must not mutate owner-present live claimant authority",
+  );
+  removeReclaimEvidenceForProof(publishLockDir);
+  removePublishOwnerForProof(publishLockDir, precreatedMarkerOwnerToken);
+
+  const precreatedMarkerOwnerAbsentToken = "28".repeat(16);
+  const precreatedMarkerOwnerAbsentClaimantToken = "38".repeat(16);
+  writePublishOwner(publishLockDir, 99999999, "1", precreatedMarkerOwnerAbsentToken);
+  writeReclaimWinnerForProof(
+    publishLockDir,
+    precreatedMarkerOwnerAbsentToken,
+    precreatedMarkerOwnerAbsentClaimantToken,
+    liveMarkerClaimantIdentity,
+  );
+  const ownerAbsentMarkerWinner = readReclaimWinnerChainForProof(publishLockDir)[0];
+  writeReclaimWinnerRetirementForProof(publishLockDir, ownerAbsentMarkerWinner);
+  fs.unlinkSync(ownerPath);
+  fsyncDirectory(publishLockDir);
+  const ownerAbsentMarkerBefore = snapshotPublishLock();
+  rejectPrecreatedMarkerFromChild();
+  assert.deepEqual(
+    snapshotPublishLock(),
+    ownerAbsentMarkerBefore,
+    "precreated retirement marker must not mutate owner-absent live claimant authority",
+  );
+  removeReclaimEvidenceForProof(publishLockDir);
+  fs.unlinkSync(ownerWitnessPathForProof(publishLockDir, precreatedMarkerOwnerAbsentToken));
+  fsyncDirectory(publishLockDir);
+
   const replacedWitnessToken = "26".repeat(16);
   writePublishOwner(publishLockDir, 99999999, "1", replacedWitnessToken);
   const replacedWitnessPath = ownerWitnessPathForProof(publishLockDir, replacedWitnessToken);
@@ -1564,6 +1670,7 @@ try {
   console.log("durable_root_abandoned_reclaim_owned_residue=0");
   console.log("durable_root_abandoned_reclaim_winner_fresh_process_converges=true");
   console.log("durable_root_reclaim_chain_retirement_append_only=true");
+  console.log("durable_root_reclaim_retirement_marker_live_claimant_bound=true");
   console.log("durable_root_successor_owner_crash_fresh_process_converges=true");
   console.log("durable_root_reclaim_winner_claimant_mismatch_preserved=true");
   console.log("durable_root_reclaim_winner_same_inode_rewrite_rejected=true");
