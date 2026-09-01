@@ -16,8 +16,8 @@ const PROOF_PATH = "scripts/prove_segmented_jsonl_ci_topology_v1.mjs";
 const SEGSTORE_PROOF_PATH = "scripts/prove_segmented_jsonl_v1.ts";
 const DURABLE_ROOT_SOURCE_PATH = "src/storage/segmented_jsonl_durable_root_v1.ts";
 const DURABLE_ROOT_PROOF_PATH = "scripts/prove_segmented_jsonl_durable_root_v1.ts";
-const DURABLE_ROOT_SOURCE_BLOB_SHA1 = "6db71e3f4b9e25678aba5f49b450ad68b6096120";
-const DURABLE_ROOT_PROOF_BLOB_SHA1 = "93b97bb120ffb478a61ae2e237c58fe931d834f3";
+const DURABLE_ROOT_SOURCE_BLOB_SHA1 = "949519181f57718578e0bedeecf26e675e97f0e2";
+const DURABLE_ROOT_PROOF_BLOB_SHA1 = "85ef102684611c49f883d7d3474fe4f14ef8c642";
 const STORAGE_SOURCES = [
   "src/storage/segmented_jsonl_v1.ts",
   "src/storage/segmented_jsonl_snapshot_authority_v1.ts",
@@ -86,18 +86,18 @@ function auditDurableRootReclaimWinnerDigestEvidence(source, proof) {
     "openRetainedOwnerWitnessForRollback(",
     "linkExactFdCreateOnly(",
     "assertRetainedOwnerWitnessForRollback(retained, 2);",
-    "PUBLISH_LOCK_RECLAIM_NAME,",
+    "winnerBeforeRetirement.name,",
   ]) {
     assert.ok(restoreBody.includes(marker), `durable_root_failed_acquire_restore_marker_missing:${marker}`);
   }
   assert.ok(
     restoreBody.indexOf("linkExactFdCreateOnly(") <
-      restoreBody.indexOf("removeExactLockName(\n      lock,\n      PUBLISH_LOCK_RECLAIM_NAME,"),
+      restoreBody.indexOf("removeExactLockName(\n      lock,\n      winnerBeforeRetirement.name,"),
     "durable_root_failed_acquire_owner_must_precede_winner_retirement",
   );
   for (const marker of [
     "const descriptorReclaimMatch =",
-    "/^\\/proc\\/self\\/fd\\/([0-9]+)\\/reclaim-winner\\.v1$/.exec(String(file));",
+    "/^\\/proc\\/self\\/fd\\/([0-9]+)\\/reclaim-winner(?:-successor-[0-9a-f]{64})?\\.v1$/.exec(String(file));",
     "acquisitionRecheckInjectionCount += 1;",
     "failedAcquireSuccessorToken = currentOwner.token;",
     "snapshotPublishLock(),",
@@ -120,10 +120,22 @@ function auditDurableRootReclaimWinnerDigestEvidence(source, proof) {
     "DURABLE_ROOT_ABANDONED_RECLAIM_WINNER_OWNER_BYTES_CHANGED",
     "DURABLE_ROOT_ABANDONED_RECLAIM_WINNER_WITNESS_BYTES_CHANGED",
     "DURABLE_ROOT_ABANDONED_RECLAIM_WINNER_PREDECESSOR_BYTES_MISMATCH",
+    "function readReclaimWinnerChain(",
+    "reclaimWinnerSuccessorName(predecessor.bodySha256)",
+    "DURABLE_ROOT_ABANDONED_RECLAIM_WINNER_SUCCESSOR_NOT_ADVANCED",
+    "for (const generation of [...winnerChain].reverse()) {",
     "return replaceAbandonedReclaimWinner(",
   ]) {
     assert.ok(source.includes(marker), `durable_root_abandoned_reclaim_source_marker_missing:${marker}`);
   }
+  const replacementStart = source.indexOf("function replaceAbandonedReclaimWinner(");
+  const replacementEnd = source.indexOf("\nfunction assertReclaimWinnerExactBytes(", replacementStart);
+  assert.ok(replacementStart >= 0 && replacementEnd > replacementStart, "durable_root_abandoned_reclaim_replacement_body_missing");
+  assert.equal(
+    source.slice(replacementStart, replacementEnd).includes("removeExactLockName("),
+    false,
+    "durable_root_abandoned_reclaim_destructive_compare_delete_present",
+  );
   for (const marker of [
     "const exactBytePredecessorToken =",
     "DURABLE_ROOT_RECLAIM_WINNER_BINDING_MISMATCH",
@@ -2491,8 +2503,8 @@ auditDurableRootReclaimWinnerDigestEvidence(durableRootSource, durableRootProof)
 auditDurableRootRealProcessRecoveryEvidence(durableRootProof);
 let durableRootReclaimWinnerDigestMutantsExecuted = 0;
 const durableRootDigestSourceDeletionMutant = durableRootSource.replace(
-  "type ReclaimWinnerReadV1 = { identity: SlotIdentityV1; value: ReclaimWinnerV1; bodySha256: string };",
-  "type ReclaimWinnerReadV1 = { identity: SlotIdentityV1; value: ReclaimWinnerV1 };",
+  "type ReclaimWinnerReadV1 = { name: string; identity: SlotIdentityV1; value: ReclaimWinnerV1; bodySha256: string };",
+  "type ReclaimWinnerReadV1 = { name: string; identity: SlotIdentityV1; value: ReclaimWinnerV1 };",
 );
 assert.notEqual(
   durableRootDigestSourceDeletionMutant,

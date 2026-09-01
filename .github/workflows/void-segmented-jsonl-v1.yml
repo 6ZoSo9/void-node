@@ -101,7 +101,7 @@ jobs:
 
       - name: Prove independent SegStore CI topology
         run: |
-          test "$(git hash-object scripts/prove_segmented_jsonl_ci_topology_v1.mjs)" = "0ab48e316bcc1cee409e1d8dc65b41b8d1ce5bcd"
+          test "$(git hash-object scripts/prove_segmented_jsonl_ci_topology_v1.mjs)" = "93973f4278c7c1be130d2205c8fc69a7c536e3f9"
           node scripts/prove_segmented_jsonl_ci_topology_v1.mjs
 
       - name: Prove focused workflow dependency closure
@@ -141,7 +141,7 @@ jobs:
           const text = fs.readFileSync(workflowPath, 'utf8');
           const topologyPath = 'scripts/prove_segmented_jsonl_ci_topology_v1.mjs';
           const topologyText = fs.readFileSync(topologyPath, 'utf8');
-          const EXPECTED_TOPOLOGY_BLOB_SHA1 = '0ab48e316bcc1cee409e1d8dc65b41b8d1ce5bcd';
+          const EXPECTED_TOPOLOGY_BLOB_SHA1 = '93973f4278c7c1be130d2205c8fc69a7c536e3f9';
           function focusedGitBlobSha1(source) {
             return createHash('sha1')
               .update(`blob ${Buffer.byteLength(source, 'utf8')}\0`)
@@ -869,7 +869,10 @@ jobs:
               'openRetainedOwnerWitnessForRollback(',
               'linkExactFdCreateOnly(',
               'assertRetainedOwnerWitnessForRollback(retained, 2);',
-              'removeExactLockName(\\n      lock,\\n      PUBLISH_LOCK_RECLAIM_NAME,',
+              'removeExactLockName(\\n      lock,\\n      winnerBeforeRetirement.name,',
+              'function readReclaimWinnerChain(',
+              'reclaimWinnerSuccessorName(predecessor.bodySha256)',
+              'durable_root_abandoned_reclaim_destructive_compare_delete_present',
               'const descriptorReclaimMatch =',
               'acquisitionRecheckInjectionCount += 1;',
               'failedAcquireSuccessorToken = currentOwner.token;',

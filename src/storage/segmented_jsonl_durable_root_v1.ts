@@ -34,6 +34,8 @@ const SLOT_NAMES = ["durable-root-slot-0.v1.json", "durable-root-slot-1.v1.json"
 const PUBLISH_LOCK_NAME = ".durable-root-publish-v1.lock";
 const PUBLISH_LOCK_OWNER_NAME = "owner.v1.json";
 const PUBLISH_LOCK_RECLAIM_NAME = "reclaim-winner.v1";
+const PUBLISH_LOCK_RECLAIM_SUCCESSOR_RE = /^reclaim-winner-successor-([0-9a-f]{64})\.v1$/;
+const PUBLISH_LOCK_RECLAIM_CHAIN_MAX_V1 = 64;
 const PUBLISH_LOCK_OWNER_WITNESS_RE = /^owner-witness-([0-9a-f]{32})\.v1$/;
 const PUBLISH_LOCK_OWNER_RELEASE_RE = /^owner-release-([0-9a-f]{32})\.v1$/;
 const PUBLISH_STAGE_INTENT_RE = /^slot-stage-([01])-([0-9a-f]{32})-([0-9a-f]{64})\.v1$/;
@@ -118,7 +120,7 @@ type ReclaimWinnerV1 = {
   stale_witness_ino: string;
   stale_witness_sha256: string;
 };
-type ReclaimWinnerReadV1 = { identity: SlotIdentityV1; value: ReclaimWinnerV1; bodySha256: string };
+type ReclaimWinnerReadV1 = { name: string; identity: SlotIdentityV1; value: ReclaimWinnerV1; bodySha256: string };
 type PublishLockOwnerReleaseV1 = {
   v: 1;
   owner_token: string;
@@ -132,6 +134,7 @@ type SupersededWitnessV1 = {
   token: string;
   identity: SlotIdentityV1;
   reclaimWinner: SlotIdentityV1;
+  reclaimWinnerName: string;
   reclaimWinnerSha256: string;
   release: SlotIdentityV1 | null;
 };
@@ -481,8 +484,24 @@ function parseReclaimWinner(text: string): ReclaimWinnerV1 | null {
   return value as ReclaimWinnerV1;
 }
 
-function readReclaimWinner(lock: DirectoryAuthorityV1): ReclaimWinnerReadV1 | null {
-  const name = PUBLISH_LOCK_RECLAIM_NAME;
+function reclaimWinnerSuccessorName(predecessorSha256: string): string {
+  if (!isHex64(predecessorSha256)) {
+    fail("DURABLE_ROOT_RECLAIM_WINNER_PREDECESSOR_SHA256_INVALID", predecessorSha256);
+  }
+  const name = `reclaim-winner-successor-${predecessorSha256}.v1`;
+  if (PUBLISH_LOCK_RECLAIM_SUCCESSOR_RE.exec(name)?.[1] !== predecessorSha256) {
+    fail("DURABLE_ROOT_RECLAIM_WINNER_SUCCESSOR_NAME_INVALID", name);
+  }
+  return name;
+}
+
+function readReclaimWinnerNamed(lock: DirectoryAuthorityV1, name: string): ReclaimWinnerReadV1 | null {
+  if (
+    name !== PUBLISH_LOCK_RECLAIM_NAME &&
+    !PUBLISH_LOCK_RECLAIM_SUCCESSOR_RE.test(name)
+  ) {
+    fail("DURABLE_ROOT_RECLAIM_WINNER_NAME_INVALID", name);
+  }
   const stablePath = path.join(lock.stablePath, name);
   let fd = -1;
   try {
@@ -508,8 +527,34 @@ function readReclaimWinner(lock: DirectoryAuthorityV1): ReclaimWinnerReadV1 | nu
     }
     const value = parseReclaimWinner(body.toString("utf8"));
     if (!value) fail("DURABLE_ROOT_RECLAIM_WINNER_INVALID", "schema");
-    return { identity, value, bodySha256: sha256(body) };
+    return { name, identity, value, bodySha256: sha256(body) };
   } finally { if (fd >= 0) fs.closeSync(fd); }
+}
+
+function readReclaimWinnerChain(lock: DirectoryAuthorityV1): ReclaimWinnerReadV1[] {
+  const first = readReclaimWinnerNamed(lock, PUBLISH_LOCK_RECLAIM_NAME);
+  if (!first) return [];
+  const chain = [first];
+  const seen = new Set([first.bodySha256]);
+  while (chain.length < PUBLISH_LOCK_RECLAIM_CHAIN_MAX_V1) {
+    const current = chain[chain.length - 1];
+    const successor = readReclaimWinnerNamed(
+      lock,
+      reclaimWinnerSuccessorName(current.bodySha256),
+    );
+    if (!successor) return chain;
+    if (seen.has(successor.bodySha256)) {
+      fail("DURABLE_ROOT_RECLAIM_WINNER_SUCCESSOR_CYCLE", successor.bodySha256);
+    }
+    seen.add(successor.bodySha256);
+    chain.push(successor);
+  }
+  fail("DURABLE_ROOT_RECLAIM_WINNER_SUCCESSOR_CHAIN_LIMIT", String(chain.length));
+}
+
+function readReclaimWinner(lock: DirectoryAuthorityV1): ReclaimWinnerReadV1 | null {
+  const chain = readReclaimWinnerChain(lock);
+  return chain.length === 0 ? null : chain[chain.length - 1];
 }
 
 function publishReclaimWinner(
@@ -517,6 +562,7 @@ function publishReclaimWinner(
   claimant: PublishLockOwnerV1,
   staleOwner: PublishLockFileV1,
   staleWitness: PublishLockFileV1,
+  name = PUBLISH_LOCK_RECLAIM_NAME,
 ): ReclaimWinnerReadV1 {
   const staleOwnerSha256 = staleOwner.bodySha256 ||
     fail("DURABLE_ROOT_RECLAIM_OWNER_BYTES_INVALID", claimant.token);
@@ -541,18 +587,18 @@ function publishReclaimWinner(
   };
   let fd = -1;
   try {
-    fd = openAnonymousLockFile(lock, PUBLISH_LOCK_RECLAIM_NAME);
-    writeExactFile(fd, Buffer.from(canonicalJson(value) + "\n", "utf8"), PUBLISH_LOCK_RECLAIM_NAME);
+    fd = openAnonymousLockFile(lock, name);
+    writeExactFile(fd, Buffer.from(canonicalJson(value) + "\n", "utf8"), name);
     fs.fchmodSync(fd, 0o600);
     fs.fsyncSync(fd);
     const stat = fs.fstatSync(fd, { bigint: true } as any);
     if (!stat.isFile() || BigInt(stat.uid) !== currentUid() || Number(stat.nlink) !== 0) {
       fail("DURABLE_ROOT_RECLAIM_WINNER_ANONYMOUS_AUTHORITY_MISMATCH", claimant.token);
     }
-    const created = linkExactFdCreateOnly(fd, lock, PUBLISH_LOCK_RECLAIM_NAME, "DURABLE_ROOT_RECLAIM_WINNER_PUBLISH_FAILED");
+    const created = linkExactFdCreateOnly(fd, lock, name, "DURABLE_ROOT_RECLAIM_WINNER_PUBLISH_FAILED");
     if (created) fs.fsyncSync(lock.fd);
   } finally { if (fd >= 0) fs.closeSync(fd); }
-  return readReclaimWinner(lock) || fail("DURABLE_ROOT_RECLAIM_WINNER_MISSING", claimant.token);
+  return readReclaimWinnerNamed(lock, name) || fail("DURABLE_ROOT_RECLAIM_WINNER_MISSING", claimant.token);
 }
 
 function assertReclaimWinnerBinds(
@@ -673,44 +719,92 @@ function replaceAbandonedReclaimWinner(
   ) {
     fail("DURABLE_ROOT_ABANDONED_RECLAIM_WINNER_RELEASE_CHANGED", token);
   }
-  removeExactLockName(lock, PUBLISH_LOCK_RECLAIM_NAME, winnerBefore.identity);
-  fs.fsyncSync(lock.fd);
-  const ownerAfter = readPublishLockFile(lock, PUBLISH_LOCK_OWNER_NAME);
-  const witnessAfter = readOwnerWitness(lock, token);
-  if (
-    !ownerAfter || !witnessAfter ||
-    ownerAfter.links !== 2 || witnessAfter.links !== 2 ||
-    !sameIdentity(ownerAfter.identity, owner.identity) ||
-    !sameIdentity(witnessAfter.identity, witness.identity)
-  ) {
-    fail("DURABLE_ROOT_ABANDONED_RECLAIM_WINNER_OWNER_CHANGED", token);
+  let predecessor = winnerBefore;
+  for (let depth = 0; depth < PUBLISH_LOCK_RECLAIM_CHAIN_MAX_V1; depth += 1) {
+    if (reclaimWinnerBelongsToClaimant(predecessor, claimant)) {
+      const currentOwner = readPublishLockFile(lock, PUBLISH_LOCK_OWNER_NAME);
+      const currentWitness = readOwnerWitness(lock, token);
+      if (!currentOwner || !currentWitness) {
+        fail("DURABLE_ROOT_ABANDONED_RECLAIM_WINNER_OWNER_CHANGED", token);
+      }
+      assertPublishLockFileExactBytes(
+        ownerBefore,
+        currentOwner,
+        "DURABLE_ROOT_ABANDONED_RECLAIM_WINNER_OWNER_BYTES_CHANGED",
+      );
+      assertPublishLockFileExactBytes(
+        witnessBefore,
+        currentWitness,
+        "DURABLE_ROOT_ABANDONED_RECLAIM_WINNER_WITNESS_BYTES_CHANGED",
+      );
+      assertReclaimWinnerBinds(predecessor, currentOwner, currentWitness);
+      const currentRelease = readPublishLockOwnerRelease(lock, currentOwner, currentWitness);
+      if (
+        Boolean(currentRelease) !== Boolean(releaseBefore) ||
+        (currentRelease && releaseBefore && !sameIdentity(currentRelease.identity, releaseBefore.identity))
+      ) {
+        fail("DURABLE_ROOT_ABANDONED_RECLAIM_WINNER_RELEASE_CHANGED", token);
+      }
+      return {
+        owner: currentOwner,
+        witness: currentWitness,
+        winner: predecessor,
+        release: currentRelease,
+      };
+    }
+    if (reclaimWinnerClaimantIsLive(predecessor)) {
+      assertReclaimWinnerClaimant(predecessor, claimant);
+    }
+
+    const currentOwner = readPublishLockFile(lock, PUBLISH_LOCK_OWNER_NAME);
+    const currentWitness = readOwnerWitness(lock, token);
+    if (
+      !currentOwner || !currentWitness ||
+      currentOwner.links !== 2 || currentWitness.links !== 2 ||
+      !sameIdentity(currentOwner.identity, owner.identity) ||
+      !sameIdentity(currentWitness.identity, witness.identity)
+    ) {
+      fail("DURABLE_ROOT_ABANDONED_RECLAIM_WINNER_OWNER_CHANGED", token);
+    }
+    assertPublishLockFileExactBytes(
+      ownerBefore,
+      currentOwner,
+      "DURABLE_ROOT_ABANDONED_RECLAIM_WINNER_OWNER_BYTES_CHANGED",
+    );
+    assertPublishLockFileExactBytes(
+      witnessBefore,
+      currentWitness,
+      "DURABLE_ROOT_ABANDONED_RECLAIM_WINNER_WITNESS_BYTES_CHANGED",
+    );
+    assertPublishLockFileExactBytes(
+      currentOwner,
+      currentWitness,
+      "DURABLE_ROOT_ABANDONED_RECLAIM_WINNER_PREDECESSOR_BYTES_MISMATCH",
+    );
+    const currentRelease = readPublishLockOwnerRelease(lock, currentOwner, currentWitness);
+    if (
+      Boolean(currentRelease) !== Boolean(releaseBefore) ||
+      (currentRelease && releaseBefore && !sameIdentity(currentRelease.identity, releaseBefore.identity))
+    ) {
+      fail("DURABLE_ROOT_ABANDONED_RECLAIM_WINNER_RELEASE_CHANGED", token);
+    }
+
+    publishReclaimWinner(
+      lock,
+      claimant,
+      currentOwner,
+      currentWitness,
+      reclaimWinnerSuccessorName(predecessor.bodySha256),
+    );
+    const successor = readReclaimWinner(lock) ||
+      fail("DURABLE_ROOT_ABANDONED_RECLAIM_WINNER_SUCCESSOR_MISSING", predecessor.bodySha256);
+    if (successor.name === predecessor.name) {
+      fail("DURABLE_ROOT_ABANDONED_RECLAIM_WINNER_SUCCESSOR_NOT_ADVANCED", predecessor.bodySha256);
+    }
+    assertReclaimWinnerBinds(successor, currentOwner, currentWitness);
+    predecessor = successor;
   }
-  assertPublishLockFileExactBytes(
-    ownerBefore,
-    ownerAfter,
-    "DURABLE_ROOT_ABANDONED_RECLAIM_WINNER_OWNER_BYTES_CHANGED",
-  );
-  assertPublishLockFileExactBytes(
-    witnessBefore,
-    witnessAfter,
-    "DURABLE_ROOT_ABANDONED_RECLAIM_WINNER_WITNESS_BYTES_CHANGED",
-  );
-  assertPublishLockFileExactBytes(
-    ownerAfter,
-    witnessAfter,
-    "DURABLE_ROOT_ABANDONED_RECLAIM_WINNER_PREDECESSOR_BYTES_MISMATCH",
-  );
-  const releaseAfter = readPublishLockOwnerRelease(lock, ownerAfter, witnessAfter);
-  if (
-    Boolean(releaseAfter) !== Boolean(releaseBefore) ||
-    (releaseAfter && releaseBefore && !sameIdentity(releaseAfter.identity, releaseBefore.identity))
-  ) {
-    fail("DURABLE_ROOT_ABANDONED_RECLAIM_WINNER_RELEASE_CHANGED", token);
-  }
-  const winner = publishReclaimWinner(lock, claimant, ownerAfter, witnessAfter);
-  assertReclaimWinnerBinds(winner, ownerAfter, witnessAfter);
-  assertReclaimWinnerClaimant(winner, claimant);
-  return { owner: ownerAfter, witness: witnessAfter, winner, release: releaseAfter };
+  fail("DURABLE_ROOT_RECLAIM_WINNER_SUCCESSOR_CHAIN_LIMIT", claimant.token);
 }
 
 function assertReclaimWinnerExactBytes(
@@ -1068,7 +1162,7 @@ function restoreFailedReclaimClaim(
     assertRetainedOwnerWitnessForRollback(retained, 2);
     removeExactLockName(
       lock,
-      PUBLISH_LOCK_RECLAIM_NAME,
+      winnerBeforeRetirement.name,
       winnerBeforeRetirement.identity,
     );
     fs.fsyncSync(lock.fd);
@@ -1194,6 +1288,7 @@ function acquirePublishLock(authority: DirectoryAuthorityV1): PublishLockV1 {
         token: predecessorToken,
         identity: claim.witness.identity,
         reclaimWinner: claim.winner.identity,
+        reclaimWinnerName: claim.winner.name,
         reclaimWinnerSha256: claim.winner.bodySha256,
         release: claim.release?.identity ?? null,
       };
@@ -1573,7 +1668,10 @@ function assertSupersededReclaimWinner(
   const superseded = lock.supersededWitness ||
     fail("DURABLE_ROOT_SUPERSEDED_WITNESS_REQUIRED", lock.owner.token);
   const winner = readReclaimWinner(lock);
-  if (!winner || !sameIdentity(winner.identity, superseded.reclaimWinner)) {
+  if (
+    !winner || winner.name !== superseded.reclaimWinnerName ||
+    !sameIdentity(winner.identity, superseded.reclaimWinner)
+  ) {
     fail("DURABLE_ROOT_RECLAIM_WINNER_USE_IDENTITY_MISMATCH", superseded.token);
   }
   if (winner.bodySha256 !== superseded.reclaimWinnerSha256) {
@@ -1612,8 +1710,19 @@ function retireSupersededWitness(lock: PublishLockV1): void {
       (release && lock.supersededWitness.release && !sameIdentity(release.identity, lock.supersededWitness.release))) {
     fail("DURABLE_ROOT_OWNER_RELEASE_RETIRE_MISMATCH", token);
   }
-  removeExactLockName(lock, PUBLISH_LOCK_RECLAIM_NAME, winner.identity);
-  fs.fsyncSync(lock.fd);
+  const winnerChain = readReclaimWinnerChain(lock);
+  const terminalWinner = winnerChain[winnerChain.length - 1];
+  if (
+    !terminalWinner || terminalWinner.name !== winner.name ||
+    !sameIdentity(terminalWinner.identity, winner.identity) ||
+    terminalWinner.bodySha256 !== winner.bodySha256
+  ) {
+    fail("DURABLE_ROOT_RECLAIM_WINNER_RETIRE_CHANGED", token);
+  }
+  for (const generation of [...winnerChain].reverse()) {
+    removeExactLockName(lock, generation.name, generation.identity);
+    fs.fsyncSync(lock.fd);
+  }
   if (release) {
     removeExactLockName(lock, ownerReleaseName(token), release.identity);
     fs.fsyncSync(lock.fd);

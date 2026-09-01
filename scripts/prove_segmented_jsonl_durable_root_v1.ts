@@ -428,7 +428,7 @@ function runDurableRootChildMode(): never {
   let crashBoundaries = 0;
 
   fsMutable.openSync = ((file: fs.PathLike, flags: fs.OpenMode, mode?: fs.Mode) => {
-    const descriptorWinner = /^\/proc\/self\/fd\/([0-9]+)\/reclaim-winner\.v1$/.exec(String(file));
+    const descriptorWinner = /^\/proc\/self\/fd\/([0-9]+)\/reclaim-winner(?:-successor-[0-9a-f]{64})?\.v1$/.exec(String(file));
     if (acquisitionFaults === 0 && descriptorWinner && fs.existsSync(ownerPath)) {
       const descriptorAuthority = fs.realpathSync(`/proc/self/fd/${descriptorWinner[1]}`);
       const currentOwner = JSON.parse(fs.readFileSync(ownerPath, "utf8")) as { token: string };
@@ -446,7 +446,7 @@ function runDurableRootChildMode(): never {
   }) as typeof fsMutable.openSync;
 
   fsMutable.unlinkSync = ((file: fs.PathLike) => {
-    const descriptorWinner = /^\/proc\/self\/fd\/([0-9]+)\/reclaim-winner\.v1$/.exec(String(file));
+    const descriptorWinner = /^\/proc\/self\/fd\/([0-9]+)\/reclaim-winner(?:-successor-[0-9a-f]{64})?\.v1$/.exec(String(file));
     if (acquisitionFaults === 1 && crashBoundaries === 0 && descriptorWinner) {
       const descriptorAuthority = fs.realpathSync(`/proc/self/fd/${descriptorWinner[1]}`);
       const restoredOwner = fs.statSync(ownerPath, { bigint: true } as any);
