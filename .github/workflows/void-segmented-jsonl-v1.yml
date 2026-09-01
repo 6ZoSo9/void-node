@@ -494,16 +494,138 @@ jobs:
             }).length;
           }
 
-          const topologyDurableRootRealProcessMutantFamilies = [
-            'durableRootChildADeadBranchMutant',
-            'durableRootChildBInlineSubstitutionMutant',
-            'durableRootCrashModeSubstitutionMutant',
-            'durableRootRecovererResidueOmissionMutant',
-            'durableRootResidueConstantFalseMutant',
-            'durableRootResidueDeadGuardMutant',
-            'durableRootResidueEarlyReturnMutant',
-            'durableRootChildBResidueInjectionDeletionMutant',
+          const topologyDurableRootRealProcessMutantSpecs = [
+            [
+              'durableRootChildADeadBranchMutant',
+              'c381a4c6c08360a6da6ff5e251e460858436f7be1aba582c0829eabfd6e10671',
+              '/durable_root_real_process_childA_not_top_level_try/',
+              'durable_root_real_process_child_a_dead_branch_mutant_not_applied',
+            ],
+            [
+              'durableRootChildBInlineSubstitutionMutant',
+              'd62a6132d12a0546083fcf78e0c4d70c92fc6eb28a403025249fb8fb4247f667',
+              '/durable_root_real_process_childB_not_spawn_sync/',
+              'durable_root_real_process_child_b_inline_substitution_mutant_not_applied',
+            ],
+            [
+              'durableRootCrashModeSubstitutionMutant',
+              '658f1598043c61b0564d67952b55b12086ebc0c3e01488f217a60cb73a9daf52',
+              '/durable_root_real_process_marker_missing/',
+              'durable_root_real_process_crash_mode_substitution_mutant_not_applied',
+            ],
+            [
+              'durableRootRecovererResidueOmissionMutant',
+              'cf71cd049890c962d2c8e45a34c4dc067e7430b713dac1fdb213f71d3268a6f2',
+              '/durable_root_real_process_owned_token_array_not_exact/',
+              'durable_root_real_process_recoverer_residue_omission_mutant_not_applied',
+            ],
+            [
+              'durableRootResidueConstantFalseMutant',
+              'dea48a7861e8b79a29f65c797eb98cd13d7109c25c95bcd552f01d9b0db1cd7e',
+              '/durable_root_real_process_(residue_falsifier|zero_residue)_predicate_not_exact/',
+              'durable_root_real_process_residue_constant_false_mutant_not_applied',
+            ],
+            [
+              'durableRootResidueDeadGuardMutant',
+              '274e1e8aca17a3915cc29678e6dce9423eef1f6ac79e789e7eb524cc494f7ffc',
+              '/durable_root_real_process_(residue_falsifier|zero_residue)_token_use_not_exact/',
+              'durable_root_real_process_residue_dead_guard_mutant_not_applied',
+            ],
+            [
+              'durableRootResidueEarlyReturnMutant',
+              'ea84a675cf4b5ff58627ffb6947f64f160a4483bb74ab9aba6c3c03a36f37905',
+              '/durable_root_real_process_(residue_falsifier|zero_residue)_token_use_not_exact/',
+              'durable_root_real_process_residue_early_return_mutant_not_applied',
+            ],
+            [
+              'durableRootChildBResidueInjectionDeletionMutant',
+              '9d40b1ce2e2d5f58d80722d433b152d2ef2f73cbe5cdf0c960d81a7d02122955',
+              '/durable_root_real_process_child_b_residue_write_not_exact/',
+              'durable_root_real_process_residue_injection_deletion_mutant_not_applied',
+            ],
           ];
+          const topologyDurableRootRealProcessMutantFamilies =
+            topologyDurableRootRealProcessMutantSpecs.map(([family]) => family);
+
+          function topologyDurableRootRealProcessFamilyAuthorityCount(sourceFile) {
+            const declarations = new Map();
+            const rejections = new Map();
+            const familySet = new Set(topologyDurableRootRealProcessMutantFamilies);
+            for (const [statementIndex, statement] of sourceFile.statements.entries()) {
+              if (
+                ts.isVariableStatement(statement) &&
+                (statement.declarationList.flags & ts.NodeFlags.Const) !== 0 &&
+                statement.declarationList.declarations.length === 1
+              ) {
+                const declaration = statement.declarationList.declarations[0];
+                if (
+                  ts.isIdentifier(declaration.name) &&
+                  familySet.has(declaration.name.text) &&
+                  declaration.initializer
+                ) {
+                  if (declarations.has(declaration.name.text)) return 0;
+                  declarations.set(declaration.name.text, {
+                    digest: createHash('sha256')
+                      .update(declaration.initializer.getText(sourceFile))
+                      .digest('hex'),
+                    statementIndex,
+                  });
+                }
+              }
+              if (
+                !ts.isExpressionStatement(statement) ||
+                !ts.isCallExpression(statement.expression) ||
+                !ts.isIdentifier(statement.expression.expression) ||
+                statement.expression.expression.text !== 'assertThrows'
+              ) continue;
+              const args = statement.expression.arguments;
+              if (
+                args.length !== 2 ||
+                !ts.isArrowFunction(args[0]) ||
+                args[0].parameters.length !== 0 ||
+                !ts.isCallExpression(args[0].body) ||
+                !ts.isIdentifier(args[0].body.expression) ||
+                args[0].body.expression.text !== 'auditDurableRootRealProcessRecoveryEvidence' ||
+                args[0].body.arguments.length !== 1 ||
+                !ts.isIdentifier(args[0].body.arguments[0]) ||
+                !familySet.has(args[0].body.arguments[0].text) ||
+                !ts.isRegularExpressionLiteral(args[1])
+              ) continue;
+              const family = args[0].body.arguments[0].text;
+              if (rejections.has(family)) return 0;
+              rejections.set(family, {
+                expected: args[1].getText(sourceFile),
+                statementIndex,
+              });
+            }
+            if (
+              declarations.size !== topologyDurableRootRealProcessMutantSpecs.length ||
+              rejections.size !== topologyDurableRootRealProcessMutantSpecs.length ||
+              new Set(
+                topologyDurableRootRealProcessMutantSpecs.map(([, digest]) => digest),
+              ).size !== topologyDurableRootRealProcessMutantSpecs.length
+            ) return 0;
+            let previousRejectionIndex = -1;
+            for (const [family, digest, expected, appliedMarker] of
+              topologyDurableRootRealProcessMutantSpecs) {
+              const declaration = declarations.get(family);
+              const rejection = rejections.get(family);
+              if (
+                declaration?.digest !== digest ||
+                rejection?.expected !== expected ||
+                rejection.statementIndex !== declaration.statementIndex + 2 ||
+                rejection.statementIndex <= previousRejectionIndex
+              ) return 0;
+              const applied = sourceFile.statements[declaration.statementIndex + 1];
+              if (
+                !applied ||
+                applied.getText(sourceFile) !==
+                  `assert.notEqual(\n  ${family},\n  durableRootProof,\n  "${appliedMarker}",\n);`
+              ) return 0;
+              previousRejectionIndex = rejection.statementIndex;
+            }
+            return 1;
+          }
 
           function topologyTopLevelDurableRootRealProcessAssertionCount(sourceFile) {
             return sourceFile.statements.filter((statement) => {
@@ -682,6 +804,11 @@ jobs:
               topologyDurableRootRealProcessCounterAuthorityCount(sourceFile),
               1,
               'focused_durable_root_real_process_mutant_counter_authority_not_exact',
+            );
+            assert.equal(
+              topologyDurableRootRealProcessFamilyAuthorityCount(sourceFile),
+              1,
+              'focused_durable_root_real_process_mutant_payload_or_rejection_not_exact',
             );
             assert.equal(
               topologyExecutableRegexIndex(source, /\bif\s*\(\s*false\s*\)\s*\{/),
@@ -884,6 +1011,67 @@ jobs:
               edits.length,
               8,
               'focused_topology_measurement_generic_payload_edit_count',
+            );
+            let mutant = source;
+            for (const edit of edits.sort((left, right) => right.start - left.start)) {
+              mutant = mutant.slice(0, edit.start) + edit.replacement + mutant.slice(edit.end);
+            }
+            return mutant;
+          }
+
+          function durableRootRealProcessFamilyAuthorityMutant(
+            source,
+            family,
+            replacementPayload,
+            replacementExpected,
+          ) {
+            const sourceFile = topologySourceFile(
+              source,
+              'focused_durable_root_real_process_family_mutant_parse_failed',
+            );
+            const edits = [];
+            for (const statement of sourceFile.statements) {
+              if (ts.isVariableStatement(statement)) {
+                for (const declaration of statement.declarationList.declarations) {
+                  if (
+                    ts.isIdentifier(declaration.name) &&
+                    declaration.name.text === family &&
+                    declaration.initializer
+                  ) {
+                    edits.push({
+                      start: declaration.initializer.getStart(sourceFile),
+                      end: declaration.initializer.end,
+                      replacement: replacementPayload,
+                    });
+                  }
+                }
+              }
+              if (
+                !ts.isExpressionStatement(statement) ||
+                !ts.isCallExpression(statement.expression) ||
+                !ts.isIdentifier(statement.expression.expression) ||
+                statement.expression.expression.text !== 'assertThrows'
+              ) continue;
+              const args = statement.expression.arguments;
+              if (
+                args.length === 2 &&
+                ts.isArrowFunction(args[0]) &&
+                ts.isCallExpression(args[0].body) &&
+                args[0].body.arguments.length === 1 &&
+                args[0].body.arguments[0].getText(sourceFile) === family &&
+                ts.isRegularExpressionLiteral(args[1])
+              ) {
+                edits.push({
+                  start: args[1].getStart(sourceFile),
+                  end: args[1].end,
+                  replacement: replacementExpected,
+                });
+              }
+            }
+            assert.equal(
+              edits.length,
+              2,
+              'focused_durable_root_real_process_family_mutant_edit_count_not_exact',
             );
             let mutant = source;
             for (const edit of edits.sort((left, right) => right.start - left.start)) {
@@ -1708,6 +1896,25 @@ jobs:
           console.log(
             `focused_durable_root_real_process_counter_authority_mutants_executed=${durableRootCounterAuthorityMutantsExecuted}`,
           );
+          const durableRootChildAEmptyPayloadWidenedRejection =
+            durableRootRealProcessFamilyAuthorityMutant(
+              topologyText,
+              'durableRootChildADeadBranchMutant',
+              '""',
+              '/./',
+            );
+          assert.notEqual(
+            durableRootChildAEmptyPayloadWidenedRejection,
+            topologyText,
+            'focused_durable_root_real_process_empty_payload_widened_rejection_mutant_not_applied',
+          );
+          assert.throws(
+            () => auditTopologyMeasurementMutantExecution(
+              durableRootChildAEmptyPayloadWidenedRejection,
+            ),
+            /focused_durable_root_real_process_mutant_payload_or_rejection_not_exact/,
+          );
+          console.log('focused_durable_root_real_process_payload_rejection_falsifier_rejected=true');
           const weakenedReconstructionMeasurementMutantCount = topologyText.replace(
             [
               'assert.equal(',
