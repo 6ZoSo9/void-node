@@ -16,8 +16,8 @@ const PROOF_PATH = "scripts/prove_segmented_jsonl_ci_topology_v1.mjs";
 const SEGSTORE_PROOF_PATH = "scripts/prove_segmented_jsonl_v1.ts";
 const DURABLE_ROOT_SOURCE_PATH = "src/storage/segmented_jsonl_durable_root_v1.ts";
 const DURABLE_ROOT_PROOF_PATH = "scripts/prove_segmented_jsonl_durable_root_v1.ts";
-const DURABLE_ROOT_SOURCE_BLOB_SHA1 = "5e92878651b58258a39be09efb756d3391235e7c";
-const DURABLE_ROOT_PROOF_BLOB_SHA1 = "b852f4bafeb884f71336519b4649e0588e846ea6";
+const DURABLE_ROOT_SOURCE_BLOB_SHA1 = "6db71e3f4b9e25678aba5f49b450ad68b6096120";
+const DURABLE_ROOT_PROOF_BLOB_SHA1 = "93b97bb120ffb478a61ae2e237c58fe931d834f3";
 const STORAGE_SOURCES = [
   "src/storage/segmented_jsonl_v1.ts",
   "src/storage/segmented_jsonl_snapshot_authority_v1.ts",
@@ -114,9 +114,23 @@ function auditDurableRootReclaimWinnerDigestEvidence(source, proof) {
     "reclaimWinnerClaimantIsLive(existingWinner)",
     "DURABLE_ROOT_ABANDONED_RECLAIM_WINNER_CHANGED",
     "DURABLE_ROOT_ABANDONED_RECLAIM_WINNER_OWNER_CHANGED",
+    "stale_owner_sha256",
+    "stale_witness_sha256",
+    "assertPublishLockFileExactBytes(",
+    "DURABLE_ROOT_ABANDONED_RECLAIM_WINNER_OWNER_BYTES_CHANGED",
+    "DURABLE_ROOT_ABANDONED_RECLAIM_WINNER_WITNESS_BYTES_CHANGED",
+    "DURABLE_ROOT_ABANDONED_RECLAIM_WINNER_PREDECESSOR_BYTES_MISMATCH",
     "return replaceAbandonedReclaimWinner(",
   ]) {
     assert.ok(source.includes(marker), `durable_root_abandoned_reclaim_source_marker_missing:${marker}`);
+  }
+  for (const marker of [
+    "const exactBytePredecessorToken =",
+    "DURABLE_ROOT_RECLAIM_WINNER_BINDING_MISMATCH",
+    "exact-byte predecessor rejection must preserve the abandoned winner",
+    "durable_root_reclaim_predecessor_exact_bytes_bound=true",
+  ]) {
+    assert.ok(proof.includes(marker), `durable_root_abandoned_reclaim_exact_bytes_proof_marker_missing:${marker}`);
   }
 }
 

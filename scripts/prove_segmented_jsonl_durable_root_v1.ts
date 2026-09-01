@@ -127,7 +127,11 @@ function writeReclaimWinnerForProof(
   claimantIdentity: { bootId: string; pid: number; startTicks: string } | null = null,
 ): void {
   const owner = fs.statSync(path.join(lockDir, "owner.v1.json"), { bigint: true } as any);
-  const witness = fs.statSync(ownerWitnessPathForProof(lockDir, staleToken), { bigint: true } as any);
+  const ownerPath = path.join(lockDir, "owner.v1.json");
+  const witnessPath = ownerWitnessPathForProof(lockDir, staleToken);
+  const witness = fs.statSync(witnessPath, { bigint: true } as any);
+  const ownerSha256 = sha256(fs.readFileSync(ownerPath));
+  const witnessSha256 = sha256(fs.readFileSync(witnessPath));
   assert.equal(owner.dev, witness.dev);
   assert.equal(owner.ino, witness.ino);
   fs.writeFileSync(
@@ -141,8 +145,10 @@ function writeReclaimWinnerForProof(
       stale_owner_token: staleToken,
       stale_owner_dev: String(owner.dev),
       stale_owner_ino: String(owner.ino),
+      stale_owner_sha256: ownerSha256,
       stale_witness_dev: String(witness.dev),
       stale_witness_ino: String(witness.ino),
+      stale_witness_sha256: witnessSha256,
     }) + "\n",
     { flag: "wx", mode: 0o600 },
   );
@@ -152,7 +158,11 @@ function writeReclaimWinnerForProof(
 function rewriteReclaimWinnerForProof(lockDir: string, staleToken: string, claimantToken: string): void {
   const winnerPath = path.join(lockDir, "reclaim-winner.v1");
   const owner = fs.statSync(path.join(lockDir, "owner.v1.json"), { bigint: true } as any);
-  const witness = fs.statSync(ownerWitnessPathForProof(lockDir, staleToken), { bigint: true } as any);
+  const ownerPath = path.join(lockDir, "owner.v1.json");
+  const witnessPath = ownerWitnessPathForProof(lockDir, staleToken);
+  const witness = fs.statSync(witnessPath, { bigint: true } as any);
+  const ownerSha256 = sha256(fs.readFileSync(ownerPath));
+  const witnessSha256 = sha256(fs.readFileSync(witnessPath));
   assert.equal(owner.dev, witness.dev);
   assert.equal(owner.ino, witness.ino);
   const body = Buffer.from(JSON.stringify({
@@ -164,8 +174,10 @@ function rewriteReclaimWinnerForProof(lockDir: string, staleToken: string, claim
     stale_owner_token: staleToken,
     stale_owner_dev: String(owner.dev),
     stale_owner_ino: String(owner.ino),
+    stale_owner_sha256: ownerSha256,
     stale_witness_dev: String(witness.dev),
     stale_witness_ino: String(witness.ino),
+    stale_witness_sha256: witnessSha256,
   }) + "\n", "utf8");
   const noFollow = (fs.constants as typeof fs.constants & { O_NOFOLLOW?: number }).O_NOFOLLOW || 0;
   const fd = fs.openSync(winnerPath, fs.constants.O_WRONLY | fs.constants.O_TRUNC | noFollow);
@@ -1027,6 +1039,58 @@ try {
   fs.unlinkSync(reclaimPath);
   removePublishOwnerForProof(publishLockDir, staleClaimToken);
 
+  const exactBytePredecessorToken = "2a".repeat(16);
+  writePublishOwner(publishLockDir, 99999999, "1", exactBytePredecessorToken);
+  writeReclaimWinnerForProof(
+    publishLockDir,
+    exactBytePredecessorToken,
+    "3a".repeat(16),
+    { bootId: processBootId(), pid: 99999998, startTicks: "1" },
+  );
+  const exactByteWitnessPath = ownerWitnessPathForProof(
+    publishLockDir,
+    exactBytePredecessorToken,
+  );
+  const exactByteOwnerBefore = fs.statSync(ownerPath, { bigint: true } as any);
+  const exactByteWitnessBefore = fs.statSync(exactByteWitnessPath, { bigint: true } as any);
+  const exactByteWinnerBefore = fs.statSync(reclaimPath, { bigint: true } as any);
+  const exactByteWinnerBytesBefore = fs.readFileSync(reclaimPath);
+  fs.writeFileSync(
+    ownerPath,
+    JSON.stringify({
+      v: 1,
+      boot_id: processBootId(),
+      pid: 99999997,
+      start_ticks: "2",
+      token: exactBytePredecessorToken,
+      state: "held",
+    }) + "\n",
+    { mode: 0o600 },
+  );
+  const exactByteOwnerFd = fs.openSync(ownerPath, "r");
+  try { fs.fsyncSync(exactByteOwnerFd); } finally { fs.closeSync(exactByteOwnerFd); }
+  fsyncDirectory(publishLockDir);
+  const exactByteOwnerMutated = fs.statSync(ownerPath, { bigint: true } as any);
+  const exactByteWitnessMutated = fs.statSync(exactByteWitnessPath, { bigint: true } as any);
+  assert.equal(exactByteOwnerMutated.dev, exactByteOwnerBefore.dev);
+  assert.equal(exactByteOwnerMutated.ino, exactByteOwnerBefore.ino);
+  assert.equal(exactByteWitnessMutated.dev, exactByteWitnessBefore.dev);
+  assert.equal(exactByteWitnessMutated.ino, exactByteWitnessBefore.ino);
+  expectFailure(
+    () => publishSegmentedJsonlDurableRootV1(durableDir, r2Input),
+    "DURABLE_ROOT_RECLAIM_WINNER_BINDING_MISMATCH",
+  );
+  const exactByteWinnerAfter = fs.statSync(reclaimPath, { bigint: true } as any);
+  assert.equal(exactByteWinnerAfter.dev, exactByteWinnerBefore.dev);
+  assert.equal(exactByteWinnerAfter.ino, exactByteWinnerBefore.ino);
+  assert.deepEqual(
+    fs.readFileSync(reclaimPath),
+    exactByteWinnerBytesBefore,
+    "exact-byte predecessor rejection must preserve the abandoned winner",
+  );
+  fs.unlinkSync(reclaimPath);
+  removePublishOwnerForProof(publishLockDir, exactBytePredecessorToken);
+
   const staleUnlinkedToken = "24".repeat(16);
   writePublishOwner(publishLockDir, 99999999, "1", staleUnlinkedToken);
   writeReclaimWinnerForProof(publishLockDir, staleUnlinkedToken, "34".repeat(16));
@@ -1196,6 +1260,7 @@ try {
   console.log("durable_root_abandoned_reclaim_winner_fresh_process_converges=true");
   console.log("durable_root_reclaim_winner_claimant_mismatch_preserved=true");
   console.log("durable_root_reclaim_winner_same_inode_rewrite_rejected=true");
+  console.log("durable_root_reclaim_predecessor_exact_bytes_bound=true");
   console.log("durable_root_reclaim_winner_owner_unlink_requires_exact_claimant=true");
   console.log("durable_root_owner_release_immutable_marker=true");
   console.log("durable_root_live_released_owner_stage_recovery=true");

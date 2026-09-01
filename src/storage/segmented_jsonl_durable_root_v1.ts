@@ -102,6 +102,7 @@ type PublishLockFileV1 = {
   identity: SlotIdentityV1;
   owner: PublishLockOwnerV1 | null;
   links: number;
+  bodySha256: string | null;
 };
 type ReclaimWinnerV1 = {
   v: 1;
@@ -112,8 +113,10 @@ type ReclaimWinnerV1 = {
   stale_owner_token: string;
   stale_owner_dev: string;
   stale_owner_ino: string;
+  stale_owner_sha256: string;
   stale_witness_dev: string;
   stale_witness_ino: string;
+  stale_witness_sha256: string;
 };
 type ReclaimWinnerReadV1 = { identity: SlotIdentityV1; value: ReclaimWinnerV1; bodySha256: string };
 type PublishLockOwnerReleaseV1 = {
@@ -317,13 +320,13 @@ function readPublishLockFile(lock: DirectoryAuthorityV1, name: string): PublishL
     const links = Number(before.nlink);
     const identity = slotIdentityFromStatAllowLinks(before, stablePath, [1, 2]);
     if (Number(before.size) <= 0 || Number(before.size) > 2048) {
-      return { identity, owner: null, links };
+      return { identity, owner: null, links, bodySha256: null };
     }
     const body = Buffer.alloc(Number(before.size));
     let off = 0;
     while (off < body.length) {
       const n = fs.readSync(fd, body, off, body.length - off, off);
-      if (n <= 0) return { identity, owner: null, links };
+      if (n <= 0) return { identity, owner: null, links, bodySha256: null };
       off += n;
     }
     const after = fs.fstatSync(fd, { bigint: true } as any);
@@ -331,7 +334,12 @@ function readPublishLockFile(lock: DirectoryAuthorityV1, name: string): PublishL
     if (!sameIdentity(identity, afterIdentity) || before.size !== after.size || links !== Number(after.nlink)) {
       fail("DURABLE_ROOT_PUBLISH_LOCK_FILE_CHANGED_DURING_READ", name);
     }
-    return { identity, owner: parsePublishLockOwner(body.toString("utf8")), links };
+    return {
+      identity,
+      owner: parsePublishLockOwner(body.toString("utf8")),
+      links,
+      bodySha256: sha256(body),
+    };
   } finally {
     if (fd >= 0) fs.closeSync(fd);
   }
@@ -451,7 +459,8 @@ function parseReclaimWinner(text: string): ReclaimWinnerV1 | null {
   if (!value || typeof value !== "object") return null;
   const expected = [
     "v", "claimant_boot_id", "claimant_pid", "claimant_start_ticks", "claimant_token",
-    "stale_owner_token", "stale_owner_dev", "stale_owner_ino", "stale_witness_dev", "stale_witness_ino",
+    "stale_owner_token", "stale_owner_dev", "stale_owner_ino", "stale_owner_sha256",
+    "stale_witness_dev", "stale_witness_ino", "stale_witness_sha256",
   ];
   if (Object.keys(value).sort().join(",") !== expected.sort().join(",")) return null;
   if (
@@ -464,8 +473,10 @@ function parseReclaimWinner(text: string): ReclaimWinnerV1 | null {
     typeof value.stale_owner_token !== "string" || !/^[0-9a-f]{32}$/.test(value.stale_owner_token) ||
     typeof value.stale_owner_dev !== "string" || !/^[0-9]+$/.test(value.stale_owner_dev) ||
     typeof value.stale_owner_ino !== "string" || !/^[0-9]+$/.test(value.stale_owner_ino) ||
+    typeof value.stale_owner_sha256 !== "string" || !/^[0-9a-f]{64}$/.test(value.stale_owner_sha256) ||
     typeof value.stale_witness_dev !== "string" || !/^[0-9]+$/.test(value.stale_witness_dev) ||
-    typeof value.stale_witness_ino !== "string" || !/^[0-9]+$/.test(value.stale_witness_ino)
+    typeof value.stale_witness_ino !== "string" || !/^[0-9]+$/.test(value.stale_witness_ino) ||
+    typeof value.stale_witness_sha256 !== "string" || !/^[0-9a-f]{64}$/.test(value.stale_witness_sha256)
   ) return null;
   return value as ReclaimWinnerV1;
 }
@@ -507,6 +518,13 @@ function publishReclaimWinner(
   staleOwner: PublishLockFileV1,
   staleWitness: PublishLockFileV1,
 ): ReclaimWinnerReadV1 {
+  const staleOwnerSha256 = staleOwner.bodySha256 ||
+    fail("DURABLE_ROOT_RECLAIM_OWNER_BYTES_INVALID", claimant.token);
+  const staleWitnessSha256 = staleWitness.bodySha256 ||
+    fail("DURABLE_ROOT_RECLAIM_WITNESS_BYTES_INVALID", claimant.token);
+  if (staleOwnerSha256 !== staleWitnessSha256) {
+    fail("DURABLE_ROOT_RECLAIM_PREDECESSOR_BYTES_MISMATCH", claimant.token);
+  }
   const value: ReclaimWinnerV1 = {
     v: 1,
     claimant_boot_id: claimant.boot_id,
@@ -516,8 +534,10 @@ function publishReclaimWinner(
     stale_owner_token: staleOwner.owner?.token || fail("DURABLE_ROOT_RECLAIM_OWNER_INVALID", "missing-token"),
     stale_owner_dev: staleOwner.identity.dev,
     stale_owner_ino: staleOwner.identity.ino,
+    stale_owner_sha256: staleOwnerSha256,
     stale_witness_dev: staleWitness.identity.dev,
     stale_witness_ino: staleWitness.identity.ino,
+    stale_witness_sha256: staleWitnessSha256,
   };
   let fd = -1;
   try {
@@ -544,7 +564,10 @@ function assertReclaimWinnerBinds(
   if (
     !owner.owner || value.stale_owner_token !== owner.owner.token ||
     value.stale_owner_dev !== owner.identity.dev || value.stale_owner_ino !== owner.identity.ino ||
+    value.stale_owner_sha256 !== owner.bodySha256 ||
     value.stale_witness_dev !== witness.identity.dev || value.stale_witness_ino !== witness.identity.ino ||
+    value.stale_witness_sha256 !== witness.bodySha256 ||
+    owner.bodySha256 !== witness.bodySha256 ||
     !sameIdentity(owner.identity, witness.identity)
   ) fail("DURABLE_ROOT_RECLAIM_WINNER_BINDING_MISMATCH", value.stale_owner_token);
 }
@@ -602,6 +625,11 @@ function replaceAbandonedReclaimWinner(
   if (owner.links !== 2 || witness.links !== 2 || !sameIdentity(owner.identity, witness.identity)) {
     fail("DURABLE_ROOT_ABANDONED_RECLAIM_WINNER_OWNER_MISMATCH", token);
   }
+  assertPublishLockFileExactBytes(
+    owner,
+    witness,
+    "DURABLE_ROOT_ABANDONED_RECLAIM_WINNER_PREDECESSOR_BYTES_MISMATCH",
+  );
   const winnerBefore = readReclaimWinner(lock) ||
     fail("DURABLE_ROOT_ABANDONED_RECLAIM_WINNER_MISSING", abandoned.value.claimant_token);
   assertReclaimWinnerExactBytes(
@@ -623,6 +651,21 @@ function replaceAbandonedReclaimWinner(
   ) {
     fail("DURABLE_ROOT_ABANDONED_RECLAIM_WINNER_OWNER_CHANGED", token);
   }
+  assertPublishLockFileExactBytes(
+    owner,
+    ownerBefore,
+    "DURABLE_ROOT_ABANDONED_RECLAIM_WINNER_OWNER_BYTES_CHANGED",
+  );
+  assertPublishLockFileExactBytes(
+    witness,
+    witnessBefore,
+    "DURABLE_ROOT_ABANDONED_RECLAIM_WINNER_WITNESS_BYTES_CHANGED",
+  );
+  assertPublishLockFileExactBytes(
+    ownerBefore,
+    witnessBefore,
+    "DURABLE_ROOT_ABANDONED_RECLAIM_WINNER_PREDECESSOR_BYTES_MISMATCH",
+  );
   const releaseBefore = readPublishLockOwnerRelease(lock, ownerBefore, witnessBefore);
   if (
     Boolean(releaseBefore) !== Boolean(release) ||
@@ -642,6 +685,21 @@ function replaceAbandonedReclaimWinner(
   ) {
     fail("DURABLE_ROOT_ABANDONED_RECLAIM_WINNER_OWNER_CHANGED", token);
   }
+  assertPublishLockFileExactBytes(
+    ownerBefore,
+    ownerAfter,
+    "DURABLE_ROOT_ABANDONED_RECLAIM_WINNER_OWNER_BYTES_CHANGED",
+  );
+  assertPublishLockFileExactBytes(
+    witnessBefore,
+    witnessAfter,
+    "DURABLE_ROOT_ABANDONED_RECLAIM_WINNER_WITNESS_BYTES_CHANGED",
+  );
+  assertPublishLockFileExactBytes(
+    ownerAfter,
+    witnessAfter,
+    "DURABLE_ROOT_ABANDONED_RECLAIM_WINNER_PREDECESSOR_BYTES_MISMATCH",
+  );
   const releaseAfter = readPublishLockOwnerRelease(lock, ownerAfter, witnessAfter);
   if (
     Boolean(releaseAfter) !== Boolean(releaseBefore) ||
@@ -665,6 +723,20 @@ function assertReclaimWinnerExactBytes(
     expected.bodySha256 !== observed.bodySha256
   ) {
     fail(code, `${expected.bodySha256}:${observed.bodySha256}`);
+  }
+}
+
+function assertPublishLockFileExactBytes(
+  expected: PublishLockFileV1,
+  observed: PublishLockFileV1,
+  code: string,
+): void {
+  if (
+    !expected.bodySha256 || !observed.bodySha256 ||
+    !sameIdentity(expected.identity, observed.identity) ||
+    expected.bodySha256 !== observed.bodySha256
+  ) {
+    fail(code, `${String(expected.bodySha256)}:${String(observed.bodySha256)}`);
   }
 }
 
@@ -1032,6 +1104,7 @@ function claimStalePublishOwner(
         identity: { dev: existingWinner.value.stale_owner_dev, ino: existingWinner.value.stale_owner_ino },
         owner: witness.owner,
         links: witness.links,
+        bodySha256: existingWinner.value.stale_owner_sha256,
       };
       assertReclaimWinnerBinds(existingWinner, reconstructedOwner, witness);
       assertReclaimWinnerClaimant(existingWinner, claimant);
@@ -1513,6 +1586,7 @@ function assertSupersededReclaimWinner(
     identity: superseded.identity,
     owner: witness.owner,
     links: witness.links,
+    bodySha256: witness.bodySha256,
   };
   assertReclaimWinnerBinds(winner, reconstructedOwner, witness);
   assertReclaimWinnerClaimant(winner, lock.owner);
@@ -1531,6 +1605,7 @@ function retireSupersededWitness(lock: PublishLockV1): void {
     identity,
     owner: witness.owner,
     links: witness.links,
+    bodySha256: witness.bodySha256,
   };
   const release = readPublishLockOwnerRelease(lock, reconstructedOwner, witness);
   if (Boolean(release) !== Boolean(lock.supersededWitness.release) ||
