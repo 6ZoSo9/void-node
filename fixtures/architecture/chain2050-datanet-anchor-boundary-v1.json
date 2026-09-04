@@ -1,0 +1,364 @@
+{
+  "acceptance_gates": [
+    "SOURCE_BINDINGS_EXACT",
+    "DUAL_USDC_RAIL_PROOF_GREEN",
+    "CHAIN_FACTS_AND_GAPS_EXPLICIT",
+    "NO_LOCAL_OVERRIDE_OF_FINALIZED_CHAIN",
+    "CHAIN_HASH_NOT_CONFUSED_WITH_BYTE_AVAILABILITY",
+    "PAYMENT_FULFILLMENT_CORRELATION_GAP_CLOSED_OR_BOUNDED",
+    "CHAIN2050_FINALITY_RULE_EXACT",
+    "DATANET_RETRIEVAL_REPAIR_PROOFS_GREEN",
+    "DISPOSABLE_INDEX_REBUILD_GREEN",
+    "INDEPENDENT_REVIEW_GREEN"
+  ],
+  "authority": {
+    "credential_key_wallet_signer_access": false,
+    "deployment_or_restart_authorized": false,
+    "inventory_funding_authorized": false,
+    "live_transaction_authorized": false,
+    "public_presale_enabled": false,
+    "ready_or_merge_authorized": false,
+    "source_only": true,
+    "source_owner_assigned": false,
+    "treasury_liquidity_or_funds_movement": false,
+    "validator_or_work_credit_mutation": false
+  },
+  "chain_owns": [
+    {
+      "authority": "SOURCE_PAYMENT_CHAIN",
+      "current_status": "CANONICAL_AFTER_RAIL_CONFIRMATION_POLICY",
+      "fact_id": "source_payment_identity",
+      "not_proven": "Economic activation, live receiver configuration, or hard finality.",
+      "source_claim": "Payment identity is chain plus transaction hash plus log index; Base and Ethereum USDC are separate rails."
+    },
+    {
+      "authority": "CHAIN_2050",
+      "current_status": "OBSERVABLE_AFTER_CONFIRMATION_AND_RECEIPT_REVALIDATION",
+      "fact_id": "chain2050_delivery_receipt",
+      "not_proven": "Accepted-checkpoint finality, fork choice, or payment-to-fulfillment correlation.",
+      "source_claim": "The delivery reconciler reads Chain-2050 chain ID, transaction receipt, and block number and verifies an exact VOID token transfer."
+    },
+    {
+      "authority": "CHAIN_2050_TARGET",
+      "current_status": "GAP_NOT_ON_CHAIN_CURRENT_SOURCE",
+      "fact_id": "payment_to_fulfillment_binding",
+      "not_proven": "One source payment to one Chain-2050 fulfillment as an on-chain invariant.",
+      "source_claim": "Current delivery calldata is an ordinary ERC-20 transfer to address and amount; the source payment identity is not encoded in that transfer."
+    },
+    {
+      "authority": "CHAIN_2050_TARGET",
+      "current_status": "GAP_NOT_ON_CHAIN_CURRENT_SOURCE",
+      "fact_id": "datanet_object_commitment",
+      "not_proven": "A finalized Chain-2050 object or manifest commitment.",
+      "source_claim": "Current field-object tooling creates and verifies SHA-256 content identities off-chain."
+    }
+  ],
+  "coordination": {
+    "doctrine": "CHAIN2050_CANONICAL_TRUTH_DATANET_BYTE_AVAILABILITY",
+    "issue": 1301,
+    "marker": "VOID_COORDINATION_CONTROL_PLANE_V510"
+  },
+  "datanet_owns": [
+    {
+      "authority": "BYTE_AVAILABILITY_ONLY",
+      "fact_id": "payload_bytes",
+      "required_property": "At least one verified replica can return the exact bytes committed by the accepted anchor."
+    },
+    {
+      "authority": "BYTE_AVAILABILITY_ONLY",
+      "fact_id": "replica_presence",
+      "required_property": "Replica claims remain availability evidence and cannot rewrite canonical object identity or ownership."
+    },
+    {
+      "authority": "BYTE_AVAILABILITY_ONLY",
+      "fact_id": "retrieval_routes",
+      "required_property": "A retrieval route is accepted only after exact content verification; stale or malicious peers have zero truth authority."
+    },
+    {
+      "authority": "BYTE_AVAILABILITY_ONLY",
+      "fact_id": "repair_state",
+      "required_property": "Repair may copy verified bytes to a new replica but cannot manufacture or replace the chain anchor."
+    },
+    {
+      "authority": "BYTE_AVAILABILITY_ONLY",
+      "fact_id": "publication_and_reconstruction",
+      "required_property": "Local publication is failure-atomic, create-only, exact-generation bound, and preserves foreign replacements."
+    }
+  ],
+  "evidence": {
+    "nimo_designated_host": {
+      "authority": "DESIGNATED_HOST_CAPABILITY_EVIDENCE_ONLY",
+      "block_size": 4096,
+      "captured_date": "2026-09-03",
+      "cryptographically_authenticated": false,
+      "filesystem": "ext4",
+      "passed_primitives": [
+        "O_TMPFILE",
+        "ANONYMOUS_INODE_WRITE_FSYNC",
+        "PROC_FD_CREATE_ONLY_PUBLICATION",
+        "PUBLISHED_INODE_EXACT",
+        "DIRECTORY_FSYNC",
+        "FOREIGN_DESTINATION_PRESERVED",
+        "AF_UNIX_SOCK_SEQPACKET",
+        "SO_PEERCRED",
+        "SCM_RIGHTS",
+        "MEMFD",
+        "PIDFD_OPEN"
+      ],
+      "status": "OPERATOR_ATTESTED_PRIMITIVES_GREEN",
+      "strict_process_isolation_green": false
+    },
+    "source_bindings": [
+      {
+        "claim_ids": [
+          "repository_authority_boundary"
+        ],
+        "git_blob_sha1": "4ec4d0bd5514d44deecdd1c3078dfc51ea36353d",
+        "path": "AGENTS.md"
+      },
+      {
+        "claim_ids": [
+          "source_payment_identity",
+          "dual_rail_policy_shape",
+          "exact_payment",
+          "presale_economics"
+        ],
+        "git_blob_sha1": "3773fab30bdf5f2c5d2c626333ed3e97b5320af5",
+        "path": "src/economic/buy_void_auto_fulfillment_v1.ts"
+      },
+      {
+        "claim_ids": [
+          "base_and_ethereum_policy_fixture",
+          "base_12_ethereum_24_confirmation_examples"
+        ],
+        "git_blob_sha1": "0432182cf2087ecff795ea3add2b38a3fee9ff77",
+        "path": "scripts/prove_buy_void_auto_fulfillment_v1.ts"
+      },
+      {
+        "claim_ids": [
+          "ordinary_erc20_transfer_delivery"
+        ],
+        "git_blob_sha1": "07d26bd23ba5694191db7e6d7a5d388e8165c80c",
+        "path": "src/economic/buy_void_delivery_sign_broadcast_adapter_v1.ts"
+      },
+      {
+        "claim_ids": [
+          "chain2050_receipt_query",
+          "confirmation_count",
+          "receipt_revalidation"
+        ],
+        "git_blob_sha1": "d769edb821cec543cf05e8425857114261561cc0",
+        "path": "src/economic/buy_void_erc20_delivery_receipt_reconciler_v1.ts"
+      },
+      {
+        "claim_ids": [
+          "finality_helper_current_limit"
+        ],
+        "git_blob_sha1": "91bc649bcc0b82f6e5a1b96088fad439d0e81104",
+        "path": "docs/security/live-canonical-chain-state-finality-api-boundary-v1.md"
+      },
+      {
+        "claim_ids": [
+          "accepted_checkpoint_operator_policy"
+        ],
+        "git_blob_sha1": "926cf8ec7de18bffd93499565cce9913f9d66eef",
+        "path": "docs/MAINNET0_CHECKPOINT_FINALITY_POLICY.md"
+      },
+      {
+        "claim_ids": [
+          "offchain_content_addressed_object"
+        ],
+        "git_blob_sha1": "00fc550229995a838c1af23aef045f5edfbfae4e",
+        "path": "tools/datanet-field-object-create-v1.mjs"
+      },
+      {
+        "claim_ids": [
+          "offchain_retrieval_hash_verification"
+        ],
+        "git_blob_sha1": "aa26ed91c6ad890ac590eb1d0a771e0ba59e8494",
+        "path": "tools/datanet-field-object-pull-v1.mjs"
+      }
+    ]
+  },
+  "finality": {
+    "chain2050_policy": "CONFIRMATION_PLUS_ACCEPTED_CHECKPOINT_OPERATOR_POLICY",
+    "current_limitation": "The repository has a finalized API/helper response-file boundary, but its own documentation says it is not an actual live route call, fork choice, or peer quorum.",
+    "fork_choice_bound": false,
+    "hard_finality_route_live": false,
+    "peer_quorum_bound": false,
+    "source_payment_policy": "CHAIN_SPECIFIC_CONFIRMATION_THRESHOLD"
+  },
+  "local_state_required": [
+    {
+      "authoritative_over_finalized_chain": false,
+      "classification": "BOUNDED_PRE_FINALIZATION",
+      "reason": "Current Chain-2050 ERC-20 transfer calldata does not carry the source payment identity.",
+      "retirement": "Retire only after source payment and Chain-2050 fulfillment are both accepted under their finality policies and a durable on-chain correlation anchor exists.",
+      "state_id": "unfinalized_cross_chain_fulfillment_correlation"
+    },
+    {
+      "authoritative_over_finalized_chain": false,
+      "classification": "BOUNDED_PRE_FINALIZATION",
+      "reason": "A process may lose the transport result after broadcast and must reconcile without blindly resending.",
+      "retirement": "Retire after the exact delivery transaction is proven confirmed/final or definitively not broadcast.",
+      "state_id": "broadcast_unknown_and_nonce_custody"
+    },
+    {
+      "authoritative_over_finalized_chain": false,
+      "classification": "REBUILDABLE_AVAILABILITY_INDEX",
+      "reason": "It accelerates lookup and repair but does not define object truth.",
+      "retirement": "May be discarded and rebuilt from accepted anchors plus verified peer inventory.",
+      "state_id": "datanet_replica_index"
+    },
+    {
+      "authoritative_over_finalized_chain": false,
+      "classification": "BOUNDED_BYTE_CUSTODY",
+      "reason": "Crash recovery must distinguish owned incomplete generations from foreign replacements.",
+      "retirement": "Retire after exact bytes and manifest generation are durable or an owned failed generation is safely recovered.",
+      "state_id": "datanet_local_publication_intent"
+    }
+  ],
+  "marker": "VOID_CHAIN2050_DATANET_ANCHOR_BOUNDARY_V1",
+  "presale": {
+    "economics": {
+      "exact_payment_required": true,
+      "finite_cap_void": "10000000",
+      "one_payment_may_not_be_reused": true,
+      "payment_confirmation_separate_from_fulfillment": true,
+      "void_per_usdc": "2",
+      "void_price_usd": "0.50"
+    },
+    "payment_rails": [
+      {
+        "asset": "USDC",
+        "asset_decimals": 6,
+        "current_status": "SOURCE_SUPPORTED_POLICY_NOT_LIVE_ACTIVATION",
+        "identity_fields": [
+          "source_chain",
+          "payment_transaction_hash",
+          "payment_log_index"
+        ],
+        "rail_id": "base_usdc",
+        "source_chain": "base"
+      },
+      {
+        "asset": "USDC",
+        "asset_decimals": 6,
+        "current_status": "SOURCE_SUPPORTED_POLICY_NOT_LIVE_ACTIVATION",
+        "identity_fields": [
+          "source_chain",
+          "payment_transaction_hash",
+          "payment_log_index"
+        ],
+        "rail_id": "ethereum_usdc",
+        "source_chain": "ethereum"
+      }
+    ]
+  },
+  "recovery_algorithm": [
+    {
+      "acceptance": "Use chain, transaction hash, and log index; require the configured rail confirmation/finality policy.",
+      "action": "QUERY_SOURCE_PAYMENT_CHAIN",
+      "step": 1
+    },
+    {
+      "acceptance": "Verify chain ID, token contract, fulfillment wallet, recipient, amount, transaction status, block identity, and current confirmation/finality policy.",
+      "action": "QUERY_CHAIN2050_DELIVERY",
+      "step": 2
+    },
+    {
+      "acceptance": "Until an on-chain correlation anchor exists, use only a bounded exact-identity unresolved record; never promote it above either chain.",
+      "action": "RESOLVE_CORRELATION_GAP",
+      "step": 3
+    },
+    {
+      "acceptance": "Reconstruct disposable object/replica indexes from accepted commitments and peer inventory.",
+      "action": "REBUILD_DATANET_INDEX",
+      "step": 4
+    },
+    {
+      "acceptance": "Hash exact received bytes and accept only a match to the accepted object or manifest commitment.",
+      "action": "RETRIEVE_AND_VERIFY_BYTES",
+      "step": 5
+    },
+    {
+      "acceptance": "Create-only publish verified replicas; a missing replica is availability loss, not a change in canonical truth.",
+      "action": "REPAIR_AVAILABILITY",
+      "step": 6
+    }
+  ],
+  "repository": "6ZoSo9/void-node",
+  "schema": "void_chain2050_datanet_anchor_boundary_v1",
+  "source_commit": "13e8fdbe6b7bdc933e171770cac3c626566f6ed6",
+  "v4_retain_delete": {
+    "conditional": [
+      {
+        "condition": "Retain only if a reviewed threat model proves byte-custody or unfinished-operation secrets require process isolation beyond ordinary least privilege.",
+        "mechanism_id": "DEDICATED_ROLE_UIDS_AND_STRICT_KERNEL_PROFILE"
+      },
+      {
+        "condition": "Retain only for a compact local Datanet availability checkpoint or unfinished-operation root, never as a competing chain ledger.",
+        "mechanism_id": "PAIRED_ROOT_A_B_SELECTOR"
+      },
+      {
+        "condition": "Retain in bounded form until Chain-2050 records a deterministic one-payment-to-one-fulfillment anchor.",
+        "mechanism_id": "LOCAL_PAYMENT_FULFILLMENT_CORRELATION"
+      }
+    ],
+    "delete": [
+      {
+        "mechanism_id": "LOCAL_FINALIZED_PAYMENT_LEDGER_AUTHORITY",
+        "reason": "Finalized payment facts belong to the source payment chain."
+      },
+      {
+        "mechanism_id": "LOCAL_FINALIZED_FULFILLMENT_LEDGER_AUTHORITY",
+        "reason": "Finalized delivery facts belong to Chain-2050."
+      },
+      {
+        "mechanism_id": "LOCAL_STATUS_OVERRIDE_OF_CHAIN",
+        "reason": "A local status cache may project chain truth but may never contradict or replace it."
+      },
+      {
+        "mechanism_id": "PRESALE_FULL_HISTORY_DUPLICATION_FOR_RECOVERY",
+        "reason": "Crash recovery should query accepted chain state instead of replaying an independent local economic history."
+      },
+      {
+        "mechanism_id": "V4_22_PETABYTE_THEORETICAL_ECONOMIC_ARCHIVE",
+        "reason": "The full payment-record cardinality belongs on the chains and must not remain a presale host-storage requirement."
+      }
+    ],
+    "retain": [
+      {
+        "mechanism_id": "FAILURE_ATOMIC_PUBLICATION",
+        "reason": "Prevent partial or ambiguous byte generations after crash.",
+        "scope": "DATANET_BYTES_AND_UNFINISHED_OPERATIONS"
+      },
+      {
+        "mechanism_id": "CREATE_ONLY_NO_REPLACE",
+        "reason": "Preserve foreign or concurrent generations instead of overwriting them.",
+        "scope": "DATANET_BYTES_AND_EVIDENCE"
+      },
+      {
+        "mechanism_id": "EXACT_BYTE_USE_COUPLING",
+        "reason": "The bytes verified must be the bytes consumed.",
+        "scope": "DATANET_RETRIEVAL_AND_CONSUMPTION"
+      },
+      {
+        "mechanism_id": "FOREIGN_GENERATION_PRESERVATION",
+        "reason": "Recovery cannot delete a replacement merely because an earlier pathname was owned.",
+        "scope": "DATANET_RECOVERY"
+      },
+      {
+        "mechanism_id": "CONTENT_ADDRESSED_MANIFESTS",
+        "reason": "Recovered bytes can be verified against an accepted commitment.",
+        "scope": "DATANET_OBJECTS"
+      },
+      {
+        "mechanism_id": "BOUNDED_UNFINISHED_OPERATION_LOG",
+        "reason": "Unknown broadcast and incomplete publication states still need finite crash recovery.",
+        "scope": "PRE_FINALIZATION_ONLY"
+      }
+    ]
+  },
+  "version": 1
+}
