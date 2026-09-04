@@ -15,6 +15,15 @@ function stateProjection(state) {
 export function computeBuyVoidChain2050PresaleStateSha256V1(state) {
   return domain("VOID_BUY_VOID_CHAIN2050_PRESALE_STATE_V1", stateProjection(state));
 }
+function genesisTransitionRoot() {
+  return domain("VOID_BUY_VOID_CHAIN2050_PRESALE_TRANSITION_ROOT_V1", {
+    genesis: true,
+    chain_id: "2050",
+    pool_id: C.pool_id,
+    policy_id: C.policy_id,
+    initial_inventory_void_atoms: C.initial_inventory_void_atoms,
+  });
+}
 export function root(previous, anchor) {
   return domain("VOID_BUY_VOID_CHAIN2050_PRESALE_TRANSITION_ROOT_V1", {
     previous_transition_root_sha256: previous,
@@ -29,10 +38,7 @@ export function createBuyVoidChain2050PresaleGenesisV1() {
     remaining_inventory_void_atoms: C.initial_inventory_void_atoms, fulfilled_void_atoms: "0",
     fulfillment_count: "0", state_sequence: "0", previous_state_sha256: null,
     last_fulfillment_anchor_sha256: null,
-    transition_root_sha256: domain("VOID_BUY_VOID_CHAIN2050_PRESALE_TRANSITION_ROOT_V1", {
-      genesis: true, chain_id: "2050", pool_id: C.pool_id, policy_id: C.policy_id,
-      initial_inventory_void_atoms: C.initial_inventory_void_atoms,
-    }), state_sha256: "",
+    transition_root_sha256: genesisTransitionRoot(), state_sha256: "",
   };
   state.state_sha256 = computeBuyVoidChain2050PresaleStateSha256V1(state);
   return Object.freeze(state);
@@ -54,12 +60,19 @@ export function validateBuyVoidChain2050PresaleStateV1(input) {
   if (count !== sequence) fail("STATE_SEQUENCE_COUNT_MISMATCH");
   const previous = input.previous_state_sha256 === null ? null : hex64(input.previous_state_sha256, "INVALID_PREVIOUS_STATE");
   const last = input.last_fulfillment_anchor_sha256 === null ? null : hex64(input.last_fulfillment_anchor_sha256, "INVALID_LAST_ANCHOR");
-  if ((sequence === 0n) !== (previous === null && last === null)) fail("STATE_PREDECESSOR_SHAPE");
+  const transitionRoot = hex64(input.transition_root_sha256, "INVALID_TRANSITION_ROOT");
+  if (sequence === 0n) {
+    if (previous !== null || last !== null) fail("STATE_PREDECESSOR_SHAPE");
+    if (remaining !== INITIAL || fulfilled !== 0n) fail("GENESIS_INVENTORY_SHAPE");
+    exact(transitionRoot, genesisTransitionRoot(), "GENESIS_TRANSITION_ROOT_MISMATCH");
+  } else {
+    if (previous === null || last === null) fail("STATE_PREDECESSOR_SHAPE");
+    if (remaining === INITIAL || fulfilled === 0n) fail("NON_GENESIS_INVENTORY_SHAPE");
+  }
   const normalized = {
     ...input, remaining_inventory_void_atoms: remaining.toString(), fulfilled_void_atoms: fulfilled.toString(),
     fulfillment_count: count.toString(), state_sequence: sequence.toString(), previous_state_sha256: previous,
-    last_fulfillment_anchor_sha256: last,
-    transition_root_sha256: hex64(input.transition_root_sha256, "INVALID_TRANSITION_ROOT"),
+    last_fulfillment_anchor_sha256: last, transition_root_sha256: transitionRoot,
     state_sha256: hex64(input.state_sha256, "INVALID_STATE_SHA"),
   };
   exact(normalized.state_sha256, computeBuyVoidChain2050PresaleStateSha256V1(normalized), "PRESALE_STATE_SHA256_MISMATCH");
@@ -96,6 +109,15 @@ export function validateBuyVoidChain2050FulfillmentRecordV1(input) {
   });
   exact(input.delivery_event_identity, deliveryIdentity, "DELIVERY_EVENT_IDENTITY_MISMATCH");
   exact(text(input.delivery_event_key_sha256).toLowerCase(), sha(deliveryIdentity), "DELIVERY_EVENT_KEY_MISMATCH");
+  const blockHeight = uint(input.chain2050_block_height, "INVALID_CHAIN2050_BLOCK_HEIGHT", { positive: true });
+  const checkpointHeight = uint(
+    input.chain2050_accepted_checkpoint_height,
+    "INVALID_CHAIN2050_ACCEPTED_CHECKPOINT_HEIGHT",
+    { positive: true },
+  );
+  if (checkpointHeight < blockHeight) {
+    fail("DELIVERY_NOT_BEHIND_ACCEPTED_CHECKPOINT", `${checkpointHeight}<${blockHeight}`);
+  }
   const normalized = {
     ...input, payment_key_sha256: sha(paymentIdentity), canonical_payment_identity: paymentIdentity,
     source_chain: chain, source_chain_id: sourceChainId(chain), source_transaction_hash: tx,
@@ -106,13 +128,9 @@ export function validateBuyVoidChain2050FulfillmentRecordV1(input) {
     delivery_event_key_sha256: sha(deliveryIdentity),
     chain2050_transaction_hash: hash32(input.chain2050_transaction_hash, "INVALID_CHAIN2050_TRANSACTION_HASH"),
     chain2050_log_index: uint(input.chain2050_log_index, "INVALID_CHAIN2050_LOG_INDEX", { max: MAX_U64 }).toString(),
-    chain2050_block_height: uint(input.chain2050_block_height, "INVALID_CHAIN2050_BLOCK_HEIGHT", { positive: true }).toString(),
+    chain2050_block_height: blockHeight.toString(),
     chain2050_block_hash: hash32(input.chain2050_block_hash, "INVALID_CHAIN2050_BLOCK_HASH"),
-    chain2050_accepted_checkpoint_height: uint(
-      input.chain2050_accepted_checkpoint_height,
-      "INVALID_CHAIN2050_ACCEPTED_CHECKPOINT_HEIGHT",
-      { positive: true },
-    ).toString(),
+    chain2050_accepted_checkpoint_height: checkpointHeight.toString(),
     chain2050_accepted_checkpoint_hash: hash32(
       input.chain2050_accepted_checkpoint_hash,
       "INVALID_CHAIN2050_ACCEPTED_CHECKPOINT_HASH",
