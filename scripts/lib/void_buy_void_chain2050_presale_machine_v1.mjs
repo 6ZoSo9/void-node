@@ -17,14 +17,26 @@ import {
 
 function sameFacts(record, payment, delivery) {
   return record.payment_key_sha256 === payment.payment_key_sha256 &&
+    record.canonical_payment_identity === payment.canonical_payment_identity &&
+    record.source_chain === payment.source_chain &&
+    record.source_chain_id === payment.source_chain_id &&
+    record.source_transaction_hash === payment.source_transaction_hash &&
+    record.source_log_index === payment.source_log_index &&
     record.source_policy_fingerprint_sha256 === payment.source_policy_fingerprint_sha256 &&
     record.source_finality_attestation_sha256 === payment.source_finality_attestation_sha256 &&
     record.payment_usdc_atoms === payment.payment_usdc_atoms &&
     record.delivery_address === payment.delivery_address &&
+    record.delivery_address === delivery.recipient_address &&
+    record.delivery_event_identity === delivery.delivery_event_identity &&
     record.delivery_event_key_sha256 === delivery.delivery_event_key_sha256 &&
     record.delivery_void_atoms === delivery.void_amount_atoms &&
+    record.chain2050_transaction_hash === delivery.transaction_hash &&
+    record.chain2050_log_index === delivery.log_index &&
     record.chain2050_block_height === delivery.block_height &&
     record.chain2050_block_hash === delivery.block_hash &&
+    record.chain2050_accepted_checkpoint_height === delivery.accepted_checkpoint_height &&
+    record.chain2050_accepted_checkpoint_hash === delivery.accepted_checkpoint_hash &&
+    record.chain2050_finality_policy_id === delivery.finality_policy_id &&
     record.chain2050_finality_attestation_sha256 === delivery.finality_attestation_sha256;
 }
 
@@ -63,6 +75,10 @@ export class BuyVoidChain2050PresaleReferenceMachineV1 {
       exact(hex64(input.expected_state_sha256, "INVALID_EXPECTED_STATE"), this.#state.state_sha256, "STALE_PRESALE_STATE_PRECONDITION");
       const payment = normalizeBuyVoidFinalizedSourcePaymentV1(input.source_payment);
       const delivery = normalizeChain2050FinalizedDeliveryV1(input.chain2050_delivery);
+      const paid = BigInt(payment.payment_usdc_atoms);
+      const delivered = BigInt(delivery.void_amount_atoms);
+      if (paid * 2n !== delivered) fail("PRESALE_RATE_MISMATCH");
+      exact(delivery.recipient_address, payment.delivery_address, "DELIVERY_RECIPIENT_MISMATCH");
       const prior = this.#payments.get(payment.payment_key_sha256);
       if (prior) {
         if (!sameFacts(prior, payment, delivery)) fail("PAYMENT_ALREADY_FULFILLED_CONFLICT");
@@ -70,10 +86,6 @@ export class BuyVoidChain2050PresaleReferenceMachineV1 {
           fulfillment: structuredClone(prior), state: this.state, transaction_authority_granted: false });
       }
       if (this.#deliveries.has(delivery.delivery_event_key_sha256)) fail("DELIVERY_EVENT_ALREADY_BOUND_TO_PAYMENT");
-      const paid = BigInt(payment.payment_usdc_atoms);
-      const delivered = BigInt(delivery.void_amount_atoms);
-      if (paid * 2n !== delivered) fail("PRESALE_RATE_MISMATCH");
-      exact(delivery.recipient_address, payment.delivery_address, "DELIVERY_RECIPIENT_MISMATCH");
       const remaining = BigInt(this.#state.remaining_inventory_void_atoms);
       if (delivered > remaining) fail("PRESALE_INVENTORY_EXHAUSTED");
       const sequence = BigInt(this.#state.state_sequence) + 1n;
@@ -90,6 +102,9 @@ export class BuyVoidChain2050PresaleReferenceMachineV1 {
         delivery_event_key_sha256: delivery.delivery_event_key_sha256,
         chain2050_transaction_hash: delivery.transaction_hash, chain2050_log_index: delivery.log_index,
         chain2050_block_height: delivery.block_height, chain2050_block_hash: delivery.block_hash,
+        chain2050_accepted_checkpoint_height: delivery.accepted_checkpoint_height,
+        chain2050_accepted_checkpoint_hash: delivery.accepted_checkpoint_hash,
+        chain2050_finality_policy_id: delivery.finality_policy_id,
         chain2050_finality_attestation_sha256: delivery.finality_attestation_sha256,
         previous_state_sha256: this.#state.state_sha256, state_sequence: sequence.toString(), fulfillment_anchor_sha256: "",
       };
