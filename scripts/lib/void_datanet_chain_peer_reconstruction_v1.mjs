@@ -516,17 +516,6 @@ export function planDatanetChainPeerReconstructionV1(request) {
     const validReplicaCount =
       (localClassification.valid ? 1 : 0) + validSources.length;
 
-    const repairRecipients = peerResults
-      .filter(
-        (peer) =>
-          peer.authenticated &&
-          peer.accepts_repair &&
-          !validSourcePeers.has(peer.peer_id),
-      )
-      .map((peer) => peer.peer_id)
-      .sort()
-      .slice(0, Math.max(0, policy.target_replica_count - validReplicaCount));
-
     const localValid = localClassification.valid;
     const selectedSource = localValid
       ? { kind: "local", id: "local", retrieval_generation: null }
@@ -552,6 +541,26 @@ export function planDatanetChainPeerReconstructionV1(request) {
       0,
       policy.target_replica_count - validReplicaCount,
     );
+    const plannedLocalReconstructionReplicaCount = localValid ? 0 : 1;
+    const projectedReplicaCountAfterLocalReconstruction =
+      validReplicaCount + plannedLocalReconstructionReplicaCount;
+    const remoteRepairReplicaCountRequired = Math.max(
+      0,
+      policy.target_replica_count -
+        projectedReplicaCountAfterLocalReconstruction,
+    );
+    const repairRecipients = peerResults
+      .filter(
+        (peer) =>
+          peer.authenticated &&
+          peer.accepts_repair &&
+          !validSourcePeers.has(peer.peer_id),
+      )
+      .map((peer) => peer.peer_id)
+      .sort()
+      .slice(0, remoteRepairReplicaCountRequired);
+    const projectedReplicaCountAfterPlan =
+      projectedReplicaCountAfterLocalReconstruction + repairRecipients.length;
     let status;
     if (!localValid) {
       status = "RECOVERABLE_LOCAL_RECONSTRUCTION_REQUIRED";
@@ -581,9 +590,18 @@ export function planDatanetChainPeerReconstructionV1(request) {
       target_replica_count: policy.target_replica_count,
       missing_replica_count: missingReplicas,
       local_reconstruction_required: !localValid,
+      planned_local_reconstruction_replica_count:
+        plannedLocalReconstructionReplicaCount,
+      projected_replica_count_after_local_reconstruction:
+        projectedReplicaCountAfterLocalReconstruction,
+      remote_repair_replica_count_required: remoteRepairReplicaCountRequired,
       repair_recipients: repairRecipients,
+      projected_replica_count_after_plan: projectedReplicaCountAfterPlan,
       repair_capacity_shortfall:
-        Math.max(0, missingReplicas - repairRecipients.length),
+        Math.max(
+          0,
+          remoteRepairReplicaCountRequired - repairRecipients.length,
+        ),
       chain_digest_selected_over_peer_majority: true,
       peer_majority_authority_used: false,
       availability_proven_for_this_evaluation: true,

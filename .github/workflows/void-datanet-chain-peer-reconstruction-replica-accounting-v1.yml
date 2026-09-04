@@ -1,0 +1,50 @@
+name: VOID DataNet reconstruction replica accounting v1
+
+on:
+  pull_request:
+    paths:
+      - "scripts/lib/void_datanet_chain_peer_reconstruction_v1.mjs"
+      - "scripts/prove_void_datanet_chain_peer_reconstruction_replica_accounting_v1.mjs"
+      - "docs/architecture/datanet-chain-peer-reconstruction-replica-accounting-v1.md"
+      - ".github/workflows/void-datanet-chain-peer-reconstruction-replica-accounting-v1.yml"
+  push:
+    branches: [main]
+    paths:
+      - "scripts/lib/void_datanet_chain_peer_reconstruction_v1.mjs"
+      - "scripts/prove_void_datanet_chain_peer_reconstruction_replica_accounting_v1.mjs"
+      - "docs/architecture/datanet-chain-peer-reconstruction-replica-accounting-v1.md"
+      - ".github/workflows/void-datanet-chain-peer-reconstruction-replica-accounting-v1.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: void-datanet-reconstruction-replica-accounting-v1-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  prove:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 6
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: ${{ matrix.node }}
+      - name: Check source and proof syntax
+        run: |
+          node --check scripts/lib/void_datanet_chain_peer_reconstruction_v1.mjs
+          node --check scripts/prove_void_datanet_chain_peer_reconstruction_replica_accounting_v1.mjs
+      - name: Prove exact post-reconstruction replica accounting
+        run: node scripts/prove_void_datanet_chain_peer_reconstruction_replica_accounting_v1.mjs
+      - name: Preserve original planner wall
+        run: node scripts/prove_void_datanet_chain_peer_reconstruction_v1.mjs
+      - name: Diff hygiene
+        run: git diff --check
