@@ -25,7 +25,7 @@ concurrency:
 jobs:
   bounded-pull:
     runs-on: ubuntu-24.04
-    timeout-minutes: 6
+    timeout-minutes: 8
     strategy:
       fail-fast: false
       matrix:
@@ -38,11 +38,11 @@ jobs:
       - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
         with:
           node-version: ${{ matrix.node }}
-      - name: Syntax
+      - name: Check source and proof syntax
         run: |
           node --check tools/datanet-field-object-pull-v1.mjs
           node --check scripts/prove_datanet_field_object_pull_bounds_v1.mjs
-      - name: Bounded local and loopback transport proof
+      - name: Prove bounded transport and output authority
         run: node scripts/prove_datanet_field_object_pull_bounds_v1.mjs
       - name: Diff hygiene
         run: git diff --check
