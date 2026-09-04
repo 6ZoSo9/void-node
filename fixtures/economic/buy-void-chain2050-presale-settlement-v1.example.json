@@ -105,10 +105,13 @@
     "chain2050_log_index": "3",
     "chain2050_block_height": "1951060",
     "chain2050_block_hash": "0x42d48e338a02996f07b99ec099edc2ef05c60b98dc930f1b97193d4a510c8c7a",
+    "chain2050_accepted_checkpoint_height": "1951100",
+    "chain2050_accepted_checkpoint_hash": "0x72991aa28fd77a86e1884f8bcfdb4afffa84af558735e428a220a3ea934dd5ef",
+    "chain2050_finality_policy_id": "mainnet0-checkpoint-finality-v1",
     "chain2050_finality_attestation_sha256": "0966dd8a26376f902aecb062675d03d4fbffef079969efbc5ecf2357ca0f7096",
     "previous_state_sha256": "205091e1ce1be96d6da33599ce19470cdf5556877feaab86e29768d1c630d27e",
     "state_sequence": "1",
-    "fulfillment_anchor_sha256": "7e909d3e9dad29dd3cd5a4eeca0967fe206f0e56d41c0cd0df8af73e79d09a9b"
+    "fulfillment_anchor_sha256": "0ea1a0d1a268c14763ce960fe84ac77c6dea2ff03339791888e6696a2977e7aa"
   },
   "next_state": {
     "schema": "void_buy_void_chain2050_presale_state_v1",
@@ -123,8 +126,8 @@
     "fulfillment_count": "1",
     "state_sequence": "1",
     "previous_state_sha256": "205091e1ce1be96d6da33599ce19470cdf5556877feaab86e29768d1c630d27e",
-    "last_fulfillment_anchor_sha256": "7e909d3e9dad29dd3cd5a4eeca0967fe206f0e56d41c0cd0df8af73e79d09a9b",
-    "transition_root_sha256": "33f2b3ef0f7e0cce5bfaeb184ddfd2471231a89335a0ca0a81253df6a8ec98aa",
-    "state_sha256": "7dcedf5140679acac7b05c9056d780889e035eaa0d13f14ef5e0826d02630f67"
+    "last_fulfillment_anchor_sha256": "0ea1a0d1a268c14763ce960fe84ac77c6dea2ff03339791888e6696a2977e7aa",
+    "transition_root_sha256": "efaf0879606ac0b8e1914e6ed9c6d036eaf84fb650ae40191809a17c9a9bee17",
+    "state_sha256": "a89bd80b37e5e91c664dbf37e9d4bcf894b477ee72dee101de72c1f98cef0b8a"
   }
 }
