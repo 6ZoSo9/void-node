@@ -1,0 +1,623 @@
+{
+  "$defs": {
+    "authority": {
+      "additionalProperties": false,
+      "properties": {
+        "credential_key_wallet_signer_access": {
+          "const": false
+        },
+        "deployment_or_restart_authorized": {
+          "const": false
+        },
+        "inventory_funding_authorized": {
+          "const": false
+        },
+        "live_transaction_authorized": {
+          "const": false
+        },
+        "public_presale_enabled": {
+          "const": false
+        },
+        "ready_or_merge_authorized": {
+          "const": false
+        },
+        "source_only": {
+          "const": true
+        },
+        "source_owner_assigned": {
+          "const": false
+        },
+        "treasury_liquidity_or_funds_movement": {
+          "const": false
+        },
+        "validator_or_work_credit_mutation": {
+          "const": false
+        }
+      },
+      "required": [
+        "source_only",
+        "source_owner_assigned",
+        "ready_or_merge_authorized",
+        "deployment_or_restart_authorized",
+        "credential_key_wallet_signer_access",
+        "live_transaction_authorized",
+        "inventory_funding_authorized",
+        "validator_or_work_credit_mutation",
+        "treasury_liquidity_or_funds_movement",
+        "public_presale_enabled"
+      ],
+      "type": "object"
+    },
+    "chainFact": {
+      "additionalProperties": false,
+      "properties": {
+        "authority": {
+          "enum": [
+            "SOURCE_PAYMENT_CHAIN",
+            "CHAIN_2050",
+            "CHAIN_2050_TARGET"
+          ]
+        },
+        "current_status": {
+          "enum": [
+            "CANONICAL_AFTER_RAIL_CONFIRMATION_POLICY",
+            "OBSERVABLE_AFTER_CONFIRMATION_AND_RECEIPT_REVALIDATION",
+            "GAP_NOT_ON_CHAIN_CURRENT_SOURCE"
+          ]
+        },
+        "fact_id": {
+          "enum": [
+            "source_payment_identity",
+            "chain2050_delivery_receipt",
+            "payment_to_fulfillment_binding",
+            "datanet_object_commitment"
+          ]
+        },
+        "not_proven": {
+          "maxLength": 400,
+          "minLength": 1,
+          "type": "string"
+        },
+        "source_claim": {
+          "maxLength": 600,
+          "minLength": 1,
+          "type": "string"
+        }
+      },
+      "required": [
+        "fact_id",
+        "authority",
+        "current_status",
+        "source_claim",
+        "not_proven"
+      ],
+      "type": "object"
+    },
+    "conditionalMechanism": {
+      "additionalProperties": false,
+      "properties": {
+        "condition": {
+          "maxLength": 600,
+          "minLength": 1,
+          "type": "string"
+        },
+        "mechanism_id": {
+          "pattern": "^[A-Z0-9_]+$",
+          "type": "string"
+        }
+      },
+      "required": [
+        "mechanism_id",
+        "condition"
+      ],
+      "type": "object"
+    },
+    "coordination": {
+      "additionalProperties": false,
+      "properties": {
+        "doctrine": {
+          "const": "CHAIN2050_CANONICAL_TRUTH_DATANET_BYTE_AVAILABILITY"
+        },
+        "issue": {
+          "const": 1301
+        },
+        "marker": {
+          "const": "VOID_COORDINATION_CONTROL_PLANE_V510"
+        }
+      },
+      "required": [
+        "issue",
+        "marker",
+        "doctrine"
+      ],
+      "type": "object"
+    },
+    "datanetFact": {
+      "additionalProperties": false,
+      "properties": {
+        "authority": {
+          "const": "BYTE_AVAILABILITY_ONLY"
+        },
+        "fact_id": {
+          "enum": [
+            "payload_bytes",
+            "replica_presence",
+            "retrieval_routes",
+            "repair_state",
+            "publication_and_reconstruction"
+          ]
+        },
+        "required_property": {
+          "maxLength": 500,
+          "minLength": 1,
+          "type": "string"
+        }
+      },
+      "required": [
+        "fact_id",
+        "authority",
+        "required_property"
+      ],
+      "type": "object"
+    },
+    "economics": {
+      "additionalProperties": false,
+      "properties": {
+        "exact_payment_required": {
+          "const": true
+        },
+        "finite_cap_void": {
+          "const": "10000000"
+        },
+        "one_payment_may_not_be_reused": {
+          "const": true
+        },
+        "payment_confirmation_separate_from_fulfillment": {
+          "const": true
+        },
+        "void_per_usdc": {
+          "const": "2"
+        },
+        "void_price_usd": {
+          "const": "0.50"
+        }
+      },
+      "required": [
+        "finite_cap_void",
+        "void_per_usdc",
+        "void_price_usd",
+        "exact_payment_required",
+        "one_payment_may_not_be_reused",
+        "payment_confirmation_separate_from_fulfillment"
+      ],
+      "type": "object"
+    },
+    "evidence": {
+      "additionalProperties": false,
+      "properties": {
+        "nimo_designated_host": {
+          "$ref": "#/$defs/nimoEvidence"
+        },
+        "source_bindings": {
+          "items": {
+            "$ref": "#/$defs/sourceBinding"
+          },
+          "maxItems": 9,
+          "minItems": 9,
+          "type": "array"
+        }
+      },
+      "required": [
+        "source_bindings",
+        "nimo_designated_host"
+      ],
+      "type": "object"
+    },
+    "finality": {
+      "additionalProperties": false,
+      "properties": {
+        "chain2050_policy": {
+          "const": "CONFIRMATION_PLUS_ACCEPTED_CHECKPOINT_OPERATOR_POLICY"
+        },
+        "current_limitation": {
+          "maxLength": 600,
+          "minLength": 1,
+          "type": "string"
+        },
+        "fork_choice_bound": {
+          "const": false
+        },
+        "hard_finality_route_live": {
+          "const": false
+        },
+        "peer_quorum_bound": {
+          "const": false
+        },
+        "source_payment_policy": {
+          "const": "CHAIN_SPECIFIC_CONFIRMATION_THRESHOLD"
+        }
+      },
+      "required": [
+        "source_payment_policy",
+        "chain2050_policy",
+        "hard_finality_route_live",
+        "fork_choice_bound",
+        "peer_quorum_bound",
+        "current_limitation"
+      ],
+      "type": "object"
+    },
+    "localState": {
+      "additionalProperties": false,
+      "properties": {
+        "authoritative_over_finalized_chain": {
+          "const": false
+        },
+        "classification": {
+          "enum": [
+            "BOUNDED_PRE_FINALIZATION",
+            "REBUILDABLE_AVAILABILITY_INDEX",
+            "BOUNDED_BYTE_CUSTODY"
+          ]
+        },
+        "reason": {
+          "maxLength": 500,
+          "minLength": 1,
+          "type": "string"
+        },
+        "retirement": {
+          "maxLength": 600,
+          "minLength": 1,
+          "type": "string"
+        },
+        "state_id": {
+          "enum": [
+            "unfinalized_cross_chain_fulfillment_correlation",
+            "broadcast_unknown_and_nonce_custody",
+            "datanet_replica_index",
+            "datanet_local_publication_intent"
+          ]
+        }
+      },
+      "required": [
+        "state_id",
+        "classification",
+        "authoritative_over_finalized_chain",
+        "retirement",
+        "reason"
+      ],
+      "type": "object"
+    },
+    "mechanism": {
+      "additionalProperties": false,
+      "properties": {
+        "mechanism_id": {
+          "pattern": "^[A-Z0-9_]+$",
+          "type": "string"
+        },
+        "reason": {
+          "maxLength": 500,
+          "minLength": 1,
+          "type": "string"
+        },
+        "scope": {
+          "pattern": "^[A-Z0-9_]+$",
+          "type": "string"
+        }
+      },
+      "required": [
+        "mechanism_id",
+        "reason"
+      ],
+      "type": "object"
+    },
+    "nimoEvidence": {
+      "additionalProperties": false,
+      "properties": {
+        "authority": {
+          "const": "DESIGNATED_HOST_CAPABILITY_EVIDENCE_ONLY"
+        },
+        "block_size": {
+          "const": 4096
+        },
+        "captured_date": {
+          "const": "2026-09-03"
+        },
+        "cryptographically_authenticated": {
+          "const": false
+        },
+        "filesystem": {
+          "const": "ext4"
+        },
+        "passed_primitives": {
+          "items": {
+            "pattern": "^[A-Z0-9_]+$",
+            "type": "string"
+          },
+          "maxItems": 11,
+          "minItems": 11,
+          "type": "array",
+          "uniqueItems": true
+        },
+        "status": {
+          "const": "OPERATOR_ATTESTED_PRIMITIVES_GREEN"
+        },
+        "strict_process_isolation_green": {
+          "const": false
+        }
+      },
+      "required": [
+        "status",
+        "captured_date",
+        "filesystem",
+        "block_size",
+        "passed_primitives",
+        "strict_process_isolation_green",
+        "cryptographically_authenticated",
+        "authority"
+      ],
+      "type": "object"
+    },
+    "paymentRail": {
+      "additionalProperties": false,
+      "properties": {
+        "asset": {
+          "const": "USDC"
+        },
+        "asset_decimals": {
+          "const": 6
+        },
+        "current_status": {
+          "const": "SOURCE_SUPPORTED_POLICY_NOT_LIVE_ACTIVATION"
+        },
+        "identity_fields": {
+          "const": [
+            "source_chain",
+            "payment_transaction_hash",
+            "payment_log_index"
+          ]
+        },
+        "rail_id": {
+          "enum": [
+            "base_usdc",
+            "ethereum_usdc"
+          ]
+        },
+        "source_chain": {
+          "enum": [
+            "base",
+            "ethereum"
+          ]
+        }
+      },
+      "required": [
+        "rail_id",
+        "source_chain",
+        "asset",
+        "asset_decimals",
+        "identity_fields",
+        "current_status"
+      ],
+      "type": "object"
+    },
+    "presale": {
+      "additionalProperties": false,
+      "properties": {
+        "economics": {
+          "$ref": "#/$defs/economics"
+        },
+        "payment_rails": {
+          "items": {
+            "$ref": "#/$defs/paymentRail"
+          },
+          "maxItems": 2,
+          "minItems": 2,
+          "type": "array",
+          "uniqueItems": true
+        }
+      },
+      "required": [
+        "payment_rails",
+        "economics"
+      ],
+      "type": "object"
+    },
+    "recoveryStep": {
+      "additionalProperties": false,
+      "properties": {
+        "acceptance": {
+          "maxLength": 600,
+          "minLength": 1,
+          "type": "string"
+        },
+        "action": {
+          "enum": [
+            "QUERY_SOURCE_PAYMENT_CHAIN",
+            "QUERY_CHAIN2050_DELIVERY",
+            "RESOLVE_CORRELATION_GAP",
+            "REBUILD_DATANET_INDEX",
+            "RETRIEVE_AND_VERIFY_BYTES",
+            "REPAIR_AVAILABILITY"
+          ]
+        },
+        "step": {
+          "maximum": 6,
+          "minimum": 1,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "step",
+        "action",
+        "acceptance"
+      ],
+      "type": "object"
+    },
+    "sourceBinding": {
+      "additionalProperties": false,
+      "properties": {
+        "claim_ids": {
+          "items": {
+            "pattern": "^[a-z0-9_]+$",
+            "type": "string"
+          },
+          "maxItems": 8,
+          "minItems": 1,
+          "type": "array",
+          "uniqueItems": true
+        },
+        "git_blob_sha1": {
+          "pattern": "^[0-9a-f]{40}$",
+          "type": "string"
+        },
+        "path": {
+          "maxLength": 300,
+          "minLength": 1,
+          "type": "string"
+        }
+      },
+      "required": [
+        "path",
+        "git_blob_sha1",
+        "claim_ids"
+      ],
+      "type": "object"
+    },
+    "v4Disposition": {
+      "additionalProperties": false,
+      "properties": {
+        "conditional": {
+          "items": {
+            "$ref": "#/$defs/conditionalMechanism"
+          },
+          "maxItems": 3,
+          "minItems": 3,
+          "type": "array"
+        },
+        "delete": {
+          "items": {
+            "$ref": "#/$defs/mechanism"
+          },
+          "maxItems": 5,
+          "minItems": 5,
+          "type": "array"
+        },
+        "retain": {
+          "items": {
+            "$ref": "#/$defs/mechanism"
+          },
+          "maxItems": 6,
+          "minItems": 6,
+          "type": "array"
+        }
+      },
+      "required": [
+        "retain",
+        "delete",
+        "conditional"
+      ],
+      "type": "object"
+    }
+  },
+  "$id": "https://voidchain.org/schemas/chain2050-datanet-anchor-boundary-v1.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "acceptance_gates": {
+      "items": {
+        "pattern": "^[A-Z0-9_]+$",
+        "type": "string"
+      },
+      "maxItems": 10,
+      "minItems": 10,
+      "type": "array",
+      "uniqueItems": true
+    },
+    "authority": {
+      "$ref": "#/$defs/authority"
+    },
+    "chain_owns": {
+      "items": {
+        "$ref": "#/$defs/chainFact"
+      },
+      "maxItems": 4,
+      "minItems": 4,
+      "type": "array"
+    },
+    "coordination": {
+      "$ref": "#/$defs/coordination"
+    },
+    "datanet_owns": {
+      "items": {
+        "$ref": "#/$defs/datanetFact"
+      },
+      "maxItems": 5,
+      "minItems": 5,
+      "type": "array"
+    },
+    "evidence": {
+      "$ref": "#/$defs/evidence"
+    },
+    "finality": {
+      "$ref": "#/$defs/finality"
+    },
+    "local_state_required": {
+      "items": {
+        "$ref": "#/$defs/localState"
+      },
+      "maxItems": 4,
+      "minItems": 4,
+      "type": "array"
+    },
+    "marker": {
+      "const": "VOID_CHAIN2050_DATANET_ANCHOR_BOUNDARY_V1"
+    },
+    "presale": {
+      "$ref": "#/$defs/presale"
+    },
+    "recovery_algorithm": {
+      "items": {
+        "$ref": "#/$defs/recoveryStep"
+      },
+      "maxItems": 6,
+      "minItems": 6,
+      "type": "array"
+    },
+    "repository": {
+      "const": "6ZoSo9/void-node"
+    },
+    "schema": {
+      "const": "void_chain2050_datanet_anchor_boundary_v1"
+    },
+    "source_commit": {
+      "pattern": "^[0-9a-f]{40}$",
+      "type": "string"
+    },
+    "v4_retain_delete": {
+      "$ref": "#/$defs/v4Disposition"
+    },
+    "version": {
+      "const": 1
+    }
+  },
+  "required": [
+    "schema",
+    "marker",
+    "version",
+    "repository",
+    "source_commit",
+    "coordination",
+    "presale",
+    "chain_owns",
+    "datanet_owns",
+    "local_state_required",
+    "v4_retain_delete",
+    "finality",
+    "recovery_algorithm",
+    "evidence",
+    "acceptance_gates",
+    "authority"
+  ],
+  "title": "VOID Chain-2050 / DataNet anchor boundary v1",
+  "type": "object"
+}
