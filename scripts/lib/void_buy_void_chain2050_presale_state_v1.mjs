@@ -1,7 +1,7 @@
 import {
   C, INITIAL, MAX_U64, STATE_KEYS, FULFILLMENT_KEYS, address, canonicalBuyVoidPaymentIdentityV1,
   canonicalChain2050DeliveryEventIdentityV1, domain, exact, hex64, hash32,
-  fail, keys, sha, sourceChain, sourceChainId, text, uint,
+  fail, keys, safeId, sha, sourceChain, sourceChainId, text, uint,
   VOID_BUY_VOID_CHAIN2050_PRESALE_CONSTANTS_V1,
   VOID_BUY_VOID_CHAIN2050_PRESALE_FULFILLMENT_V1,
   VOID_BUY_VOID_CHAIN2050_PRESALE_STATE_V1,
@@ -108,6 +108,19 @@ export function validateBuyVoidChain2050FulfillmentRecordV1(input) {
     chain2050_log_index: uint(input.chain2050_log_index, "INVALID_CHAIN2050_LOG_INDEX", { max: MAX_U64 }).toString(),
     chain2050_block_height: uint(input.chain2050_block_height, "INVALID_CHAIN2050_BLOCK_HEIGHT", { positive: true }).toString(),
     chain2050_block_hash: hash32(input.chain2050_block_hash, "INVALID_CHAIN2050_BLOCK_HASH"),
+    chain2050_accepted_checkpoint_height: uint(
+      input.chain2050_accepted_checkpoint_height,
+      "INVALID_CHAIN2050_ACCEPTED_CHECKPOINT_HEIGHT",
+      { positive: true },
+    ).toString(),
+    chain2050_accepted_checkpoint_hash: hash32(
+      input.chain2050_accepted_checkpoint_hash,
+      "INVALID_CHAIN2050_ACCEPTED_CHECKPOINT_HASH",
+    ),
+    chain2050_finality_policy_id: safeId(
+      input.chain2050_finality_policy_id,
+      "INVALID_CHAIN2050_FINALITY_POLICY_ID",
+    ),
     chain2050_finality_attestation_sha256: hex64(input.chain2050_finality_attestation_sha256, "INVALID_CHAIN2050_FINALITY_ATTESTATION"),
     previous_state_sha256: hex64(input.previous_state_sha256, "INVALID_PREVIOUS_STATE"),
     state_sequence: uint(input.state_sequence, "INVALID_FULFILLMENT_SEQUENCE", { positive: true }).toString(),
