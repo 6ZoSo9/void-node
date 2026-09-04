@@ -198,7 +198,12 @@ export function reconcileBuyVoidLocalFulfillmentProjectionV1({ chain_fulfillment
 export function classifyUnanchoredBuyVoidLocalClaimV1(localClaim) {
   if (!plain(localClaim)) return Object.freeze({ status: "hold_local_claim_invalid",
     chain_authoritative: true, automatic_delivery_authorized: false });
-  return Object.freeze({ status: "hold_local_claim_not_present_on_chain", chain_authoritative: true,
-    automatic_delivery_authorized: false,
-    local_claim_fingerprint_sha256: domain("VOID_BUY_VOID_UNANCHORED_LOCAL_CLAIM_V1", localClaim) });
+  try {
+    return Object.freeze({ status: "hold_local_claim_not_present_on_chain", chain_authoritative: true,
+      automatic_delivery_authorized: false,
+      local_claim_fingerprint_sha256: domain("VOID_BUY_VOID_UNANCHORED_LOCAL_CLAIM_V1", localClaim) });
+  } catch {
+    return Object.freeze({ status: "hold_local_claim_invalid",
+      chain_authoritative: true, automatic_delivery_authorized: false });
+  }
 }
