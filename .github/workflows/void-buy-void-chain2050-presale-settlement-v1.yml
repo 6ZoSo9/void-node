@@ -4,7 +4,7 @@ on:
   pull_request:
     paths:
       - "scripts/lib/void_buy_void_chain2050_presale_identity_v1.mjs"
-      - "scripts/lib/void_buy_void_chain2050-presale_state_v1.mjs"
+      - "scripts/lib/void_buy_void_chain2050_presale_state_v1.mjs"
       - "scripts/lib/void_buy_void_chain2050_presale_machine_v1.mjs"
       - "scripts/lib/void_buy_void_chain2050_presale_settlement_v1.mjs"
       - "scripts/prove_void_buy_void_chain2050_presale_settlement_v1.mjs"
@@ -17,11 +17,11 @@ on:
     branches: [main]
     paths:
       - "scripts/lib/void_buy_void_chain2050_presale_identity_v1.mjs"
-      - "scripts/lib/void_buy_void_chain2050-presale_state_v1.mjs"
+      - "scripts/lib/void_buy_void_chain2050_presale_state_v1.mjs"
       - "scripts/lib/void_buy_void_chain2050_presale_machine_v1.mjs"
       - "scripts/lib/void_buy_void_chain2050_presale_settlement_v1.mjs"
-      - "scripts/prove_void_buy_void_chain2050-presale_settlement_v1.mjs"
-      - "scripts/prove_void_buy_void_chain2050-presale_exact_duplicate_v1.mjs"
+      - "scripts/prove_void_buy_void_chain2050_presale_settlement_v1.mjs"
+      - "scripts/prove_void_buy_void_chain2050_presale_exact_duplicate_v1.mjs"
       - "schemas/buy-void-chain2050-presale-settlement-v1.schema.json"
       - "fixtures/economic/buy-void-chain2050-presale-settlement-v1.example.json"
       - "docs/architecture/buy-void-chain2050-presale-settlement-v1.md"
