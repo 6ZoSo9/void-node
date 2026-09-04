@@ -176,8 +176,10 @@ export const FULFILLMENT_KEYS = [
   "source_log_index", "source_policy_fingerprint_sha256", "source_finality_attestation_sha256",
   "payment_usdc_atoms", "delivery_address", "delivery_void_atoms", "delivery_event_identity",
   "delivery_event_key_sha256", "chain2050_transaction_hash", "chain2050_log_index",
-  "chain2050_block_height", "chain2050_block_hash", "chain2050_finality_attestation_sha256",
-  "previous_state_sha256", "state_sequence", "fulfillment_anchor_sha256",
+  "chain2050_block_height", "chain2050_block_hash", "chain2050_accepted_checkpoint_height",
+  "chain2050_accepted_checkpoint_hash", "chain2050_finality_policy_id",
+  "chain2050_finality_attestation_sha256", "previous_state_sha256", "state_sequence",
+  "fulfillment_anchor_sha256",
 ];
 
 export function normalizeBuyVoidFinalizedSourcePaymentV1(input) {
