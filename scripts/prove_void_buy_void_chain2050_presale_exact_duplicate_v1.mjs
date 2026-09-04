@@ -7,8 +7,12 @@ import { fileURLToPath } from "node:url";
 import {
   BuyVoidChain2050PresaleReferenceMachineV1,
   canonicalBuyVoidPaymentIdentityV1,
+  classifyUnanchoredBuyVoidLocalClaimV1,
+  computeBuyVoidChain2050PresaleStateSha256V1,
+  createBuyVoidChain2050PresaleGenesisV1,
   computeBuyVoidChain2050FulfillmentAnchorSha256V1,
   validateBuyVoidChain2050FulfillmentRecordV1,
+  validateBuyVoidChain2050PresaleStateV1,
 } from "./lib/void_buy_void_chain2050_presale_settlement_v1.mjs";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
@@ -187,11 +191,66 @@ pass("closed schema requires the complete finality tuple", () => {
   }
 });
 
-assert.equal(cases, 10);
+pass("genesis transition root is fixed", () => {
+  const genesis = structuredClone(createBuyVoidChain2050PresaleGenesisV1());
+  genesis.transition_root_sha256 = digest("alternate-genesis-root");
+  genesis.state_sha256 = computeBuyVoidChain2050PresaleStateSha256V1(genesis);
+  assert.throws(
+    () => validateBuyVoidChain2050PresaleStateV1(genesis),
+    (error) => error.code === "GENESIS_TRANSITION_ROOT_MISMATCH",
+  );
+});
+
+pass("non-genesis state requires both predecessor bindings", () => {
+  const machine = new BuyVoidChain2050PresaleReferenceMachineV1();
+  const next = structuredClone(machine.apply(candidate(machine)).state);
+  next.previous_state_sha256 = null;
+  next.state_sha256 = computeBuyVoidChain2050PresaleStateSha256V1(next);
+  assert.throws(
+    () => validateBuyVoidChain2050PresaleStateV1(next),
+    (error) => error.code === "STATE_PREDECESSOR_SHAPE",
+  );
+});
+
+pass("non-genesis state cannot claim zero fulfilled inventory", () => {
+  const state = structuredClone(createBuyVoidChain2050PresaleGenesisV1());
+  state.state_sequence = "1";
+  state.fulfillment_count = "1";
+  state.previous_state_sha256 = digest("previous");
+  state.last_fulfillment_anchor_sha256 = digest("anchor");
+  state.state_sha256 = computeBuyVoidChain2050PresaleStateSha256V1(state);
+  assert.throws(
+    () => validateBuyVoidChain2050PresaleStateV1(state),
+    (error) => error.code === "NON_GENESIS_INVENTORY_SHAPE",
+  );
+});
+
+pass("replayed fulfillment checkpoint cannot precede its block", () => {
+  const machine = new BuyVoidChain2050PresaleReferenceMachineV1();
+  const record = structuredClone(machine.apply(candidate(machine)).fulfillment);
+  record.chain2050_accepted_checkpoint_height = "1951059";
+  record.fulfillment_anchor_sha256 = computeBuyVoidChain2050FulfillmentAnchorSha256V1(record);
+  assert.throws(
+    () => validateBuyVoidChain2050FulfillmentRecordV1(record),
+    (error) => error.code === "DELIVERY_NOT_BEHIND_ACCEPTED_CHECKPOINT",
+  );
+});
+
+pass("malformed local claim remains a deterministic hold", () => {
+  const result = classifyUnanchoredBuyVoidLocalClaimV1({ nested: undefined });
+  assert.equal(result.status, "hold_local_claim_invalid");
+  assert.equal(result.automatic_delivery_authorized, false);
+});
+
+assert.equal(cases, 15);
 console.log("VOID_BUY_VOID_CHAIN2050_PRESALE_EXACT_DUPLICATE_V1_GREEN");
 console.log("complete_chain2050_finality_tuple_bound=true");
 console.log("recipient_drift_rejected=true");
 console.log("checkpoint_drift_rejected=true");
 console.log("finality_policy_drift_rejected=true");
 console.log("exact_duplicate_idempotent=true");
+console.log("genesis_root_fixed=true");
+console.log("state_predecessor_shape_closed=true");
+console.log("replay_checkpoint_order_enforced=true");
+console.log("malformed_local_claim_holds=true");
 console.log(`cases=${cases}`);
