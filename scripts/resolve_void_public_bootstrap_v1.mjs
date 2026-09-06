@@ -350,10 +350,7 @@ async function requestManifestOne(normalized, address) {
           if (settled) return;
           try {
             succeedOnce(
-              parseJsonBytes(
-                Buffer.concat(chunks, total),
-                "bootstrap manifest",
-              ),
+              parseJsonBytes(Buffer.concat(chunks, total), "bootstrap manifest"),
             );
           } catch (error) {
             failOnce(
