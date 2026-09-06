@@ -1,0 +1,51 @@
+name: VOID public bootstrap runtime live-admission renewal v1
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/void-public-bootstrap-runtime-live-admission-renewal-v1.yml"
+      - "docs/public/public-bootstrap-runtime-live-admission-renewal-v1.md"
+      - "scripts/prove_void_public_bootstrap_runtime_live_admission_renewal_v1.mjs"
+      - "scripts/prove_void_public_checkpoint_qualification_lifetime_v1.mjs"
+      - "scripts/resolve_void_public_bootstrap_v1.mjs"
+      - "scripts/lib/void_public_seed_qualification_v1.mjs"
+      - "tools/void-public-seed-client-adapter-v1.mjs"
+      - "run-void-node.sh"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  prove:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+    steps:
+      - name: Checkout exact source
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          fetch-depth: 2
+          persist-credentials: false
+
+      - name: Use supported Node.js major
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: ${{ matrix.node }}
+
+      - name: Syntax
+        run: |
+          node --check scripts/resolve_void_public_bootstrap_v1.mjs
+          node --check scripts/prove_void_public_bootstrap_runtime_live_admission_renewal_v1.mjs
+
+      - name: Runtime live-admission renewal proof
+        run: node scripts/prove_void_public_bootstrap_runtime_live_admission_renewal_v1.mjs
+
+      - name: Preserve checkpoint qualification lifetime proof
+        run: node scripts/prove_void_public_checkpoint_qualification_lifetime_v1.mjs
+
+      - name: Diff whitespace
+        run: git diff --check HEAD^ HEAD
