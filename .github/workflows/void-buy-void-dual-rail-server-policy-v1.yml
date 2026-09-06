@@ -4,6 +4,9 @@ on:
   pull_request:
     paths:
       - "scripts/lib/void_buy_void_dual_rail_server_policy_contract_v1.mjs"
+      - "scripts/lib/void_buy_void_dual_rail_authority_isolation_v1.mjs"
+      - "scripts/prove_void_buy_void_dual_rail_policy_snapshot_v1.mjs"
+      - "scripts/prove_void_buy_void_dual_rail_authority_isolation_v1.mjs"
       - "scripts/prove_void_buy_void_dual_rail_server_policy_contract_v1.mjs"
       - "schemas/buy-void-dual-rail-server-policy-v1.schema.json"
       - "fixtures/economic/buy-void-dual-rail-server-policy-v1.example.json"
@@ -13,6 +16,9 @@ on:
     branches: [main]
     paths:
       - "scripts/lib/void_buy_void_dual_rail_server_policy_contract_v1.mjs"
+      - "scripts/lib/void_buy_void_dual_rail_authority_isolation_v1.mjs"
+      - "scripts/prove_void_buy_void_dual_rail_policy_snapshot_v1.mjs"
+      - "scripts/prove_void_buy_void_dual_rail_authority_isolation_v1.mjs"
       - "scripts/prove_void_buy_void_dual_rail_server_policy_contract_v1.mjs"
       - "schemas/buy-void-dual-rail-server-policy-v1.schema.json"
       - "fixtures/economic/buy-void-dual-rail-server-policy-v1.example.json"
@@ -46,11 +52,18 @@ jobs:
         run: |
           node --check scripts/lib/void_buy_void_dual_rail_server_policy_contract_v1.mjs
           node --check scripts/prove_void_buy_void_dual_rail_server_policy_contract_v1.mjs
+          node --check scripts/lib/void_buy_void_dual_rail_authority_isolation_v1.mjs
+          node --check scripts/prove_void_buy_void_dual_rail_policy_snapshot_v1.mjs
+          node --check scripts/prove_void_buy_void_dual_rail_authority_isolation_v1.mjs
       - name: Parse machine-readable artifacts
         run: |
           node -e 'JSON.parse(require("node:fs").readFileSync("schemas/buy-void-dual-rail-server-policy-v1.schema.json","utf8"))'
           node -e 'JSON.parse(require("node:fs").readFileSync("fixtures/economic/buy-void-dual-rail-server-policy-v1.example.json","utf8"))'
       - name: Prove complete dual-rail policy and migration
         run: node scripts/prove_void_buy_void_dual_rail_server_policy_contract_v1.mjs
+      - name: Prove immutable policy admission and authority snapshots
+        run: node scripts/prove_void_buy_void_dual_rail_policy_snapshot_v1.mjs
+      - name: Prove mandatory authority isolation
+        run: node scripts/prove_void_buy_void_dual_rail_authority_isolation_v1.mjs
       - name: Diff hygiene
         run: git diff --check

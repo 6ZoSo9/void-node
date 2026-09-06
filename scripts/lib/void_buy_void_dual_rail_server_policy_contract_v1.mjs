@@ -1,17 +1,27 @@
 import crypto from "node:crypto";
 
+// Only module-owned literals and newly rebuilt policy trees enter this helper.
+// Never freeze a caller-owned environment or policy as a validation side effect.
+function freezeOwnedContract(value) {
+  if (value === null || typeof value !== "object" || Object.isFrozen(value)) {
+    return value;
+  }
+  for (const child of Object.values(value)) freezeOwnedContract(child);
+  return Object.freeze(value);
+}
+
 export const VOID_BUY_VOID_DUAL_RAIL_SERVER_POLICY_CONTRACT_V1 =
   "VOID_BUY_VOID_DUAL_RAIL_SERVER_POLICY_CONTRACT_V1";
 
 export const VOID_BUY_VOID_DUAL_RAIL_POLICY_HOLD_V1 =
   "DUAL_RAIL_POLICY_HOLD";
 
-export const VOID_BUY_VOID_DUAL_RAIL_ORDER_V1 = [
+export const VOID_BUY_VOID_DUAL_RAIL_ORDER_V1 = freezeOwnedContract([
   "base",
   "ethereum",
-];
+]);
 
-export const VOID_BUY_VOID_DUAL_RAIL_DEFINITIONS_V1 = {
+export const VOID_BUY_VOID_DUAL_RAIL_DEFINITIONS_V1 = freezeOwnedContract({
   base: {
     source_chain: "base",
     evm_chain_id: "8453",
@@ -20,9 +30,9 @@ export const VOID_BUY_VOID_DUAL_RAIL_DEFINITIONS_V1 = {
     source_chain: "ethereum",
     evm_chain_id: "1",
   },
-};
+});
 
-export const VOID_BUY_VOID_DUAL_RAIL_ENV_V1 = {
+export const VOID_BUY_VOID_DUAL_RAIL_ENV_V1 = freezeOwnedContract({
   base: {
     usdc_contract: "VOID_BUY_VOID_DUAL_RAIL_BASE_USDC_CONTRACT",
     receive_address: "VOID_BUY_VOID_DUAL_RAIL_BASE_RECEIVE_ADDRESS",
@@ -45,17 +55,17 @@ export const VOID_BUY_VOID_DUAL_RAIL_ENV_V1 = {
     finalized_reference_block:
       "VOID_BUY_VOID_DUAL_RAIL_ETHEREUM_FINALIZED_REFERENCE_BLOCK",
   },
-};
+});
 
-export const VOID_BUY_VOID_LEGACY_SINGLE_CHAIN_ENV_V1 = [
+export const VOID_BUY_VOID_LEGACY_SINGLE_CHAIN_ENV_V1 = freezeOwnedContract([
   "VOID_BUY_VOID_CRASH_CONSISTENT_SAGA_PAYMENT_CHAIN",
   "VOID_BUY_VOID_CRASH_CONSISTENT_SAGA_PAYMENT_USDC_CONTRACT",
   "VOID_BUY_VOID_CRASH_CONSISTENT_SAGA_PAYMENT_RECEIVE_ADDRESS",
   "VOID_BUY_VOID_CRASH_CONSISTENT_SAGA_PAYMENT_CURRENT_BLOCK_NUMBER",
   "VOID_BUY_VOID_CRASH_CONSISTENT_SAGA_PAYMENT_MIN_CONFIRMATIONS",
-];
+]);
 
-export const VOID_BUY_VOID_CANONICAL_PRESALE_ECONOMICS_DUAL_RAIL_V1 = {
+export const VOID_BUY_VOID_CANONICAL_PRESALE_ECONOMICS_DUAL_RAIL_V1 = freezeOwnedContract({
   marker: "VOID_BUY_VOID_CANONICAL_PRESALE_ECONOMICS_DUAL_RAIL_V1",
   canonical_presale_max_void: "10000000",
   rate_void_units_numerator: "2",
@@ -65,9 +75,9 @@ export const VOID_BUY_VOID_CANONICAL_PRESALE_ECONOMICS_DUAL_RAIL_V1 = {
   one_payment_one_fulfillment: true,
   no_hidden_minimum: true,
   no_hidden_per_buyer_throttle_below_remaining_inventory: true,
-};
+});
 
-export const VOID_BUY_VOID_DUAL_RAIL_SERVER_POLICY_AUTHORITY_V1 = {
+export const VOID_BUY_VOID_DUAL_RAIL_SERVER_POLICY_AUTHORITY_V1 = freezeOwnedContract({
   source_only_reference_contract: true,
   simultaneous_dual_rail_runtime_ready: false,
   source_chain_rpc_call: false,
@@ -85,7 +95,7 @@ export const VOID_BUY_VOID_DUAL_RAIL_SERVER_POLICY_AUTHORITY_V1 = {
   inventory_funding: false,
   public_presale_activation: false,
   money_movement: false,
-};
+});
 
 const ADDRESS = /^0x[0-9a-f]{40}$/;
 const TX_HASH = /^0x[0-9a-f]{64}$/;
@@ -380,7 +390,7 @@ function buildPolicy(rails) {
     one_payment_one_fulfillment: true,
   };
 
-  return {
+  return freezeOwnedContract({
     marker: VOID_BUY_VOID_DUAL_RAIL_SERVER_POLICY_CONTRACT_V1,
     version: 1,
     rails,
@@ -390,7 +400,7 @@ function buildPolicy(rails) {
     policy_id:
       `void-buy-void-dual-rail-policy-v1-${combinedStableSha256}`,
     authority: VOID_BUY_VOID_DUAL_RAIL_SERVER_POLICY_AUTHORITY_V1,
-  };
+  });
 }
 
 export function readBuyVoidDualRailServerPolicyContractV1(
@@ -414,11 +424,11 @@ export function readBuyVoidDualRailServerPolicyContractV1(
     );
     const policy = buildPolicy(rails);
     validateBuyVoidDualRailServerPolicyObjectV1(policy);
-    return {
+    return Object.freeze({
       ok: true,
       status: "configured",
       policy,
-    };
+    });
   } catch (error) {
     return held(text(error?.message) || "dual_rail_configuration_invalid");
   }
@@ -541,13 +551,13 @@ export function validateBuyVoidDualRailServerPolicyObjectV1(policy) {
   if (canonical(rebuilt) !== canonical(policy)) {
     throw new Error("policy_derived_fields_mismatch");
   }
-  return policy;
+  // Return the admitted canonical generation, not an alias to mutable input.
+  return rebuilt;
 }
 
-function railFromPolicy(policy, chainInput) {
-  validateBuyVoidDualRailServerPolicyObjectV1(policy);
+function railFromValidatedPolicy(validated, chainInput) {
   const chain = normalizeChain(chainInput);
-  const rail = policy.rails.find(
+  const rail = validated.rails.find(
     (candidate) => candidate.source_chain === chain,
   );
   if (!rail) throw new Error("payment_source_chain_not_advertised");
@@ -577,7 +587,8 @@ export function evaluateBuyVoidDualRailPaymentFinalityV1(
     EXACT_PAYMENT_OBSERVATION_KEYS,
     "payment_observation_unknown_or_missing_fields",
   );
-  const rail = railFromPolicy(policy, observation.source_chain);
+  const admittedPolicy = validateBuyVoidDualRailServerPolicyObjectV1(policy);
+  const rail = railFromValidatedPolicy(admittedPolicy, observation.source_chain);
   const chain = normalizeChain(observation.source_chain);
 
   if (text(observation.evm_chain_id) !== rail.evm_chain_id) {
@@ -640,7 +651,7 @@ export function evaluateBuyVoidDualRailPaymentFinalityV1(
   if (derivedConfirmations < minimum) {
     return held("payment_finality_threshold_not_met", [], {
       required_confirmations: minimum.toString(),
-      observed_confirmations: derivedConfirmations.toString(),
+      observed_confirmations: confirmations.raw,
     });
   }
 
@@ -660,10 +671,10 @@ export function evaluateBuyVoidDualRailPaymentFinalityV1(
     finalized_reference_block: observedReference.raw,
     confirmations_observed: confirmations.raw,
     finality_adapter_id: rail.finality.adapter_id,
-    policy_id: policy.policy_id,
+    policy_id: admittedPolicy.policy_id,
     stable_config_sha256:
-      policy.fingerprints.combined_stable_sha256,
-    observation_sha256: policy.fingerprints.observation_sha256,
+      admittedPolicy.fingerprints.combined_stable_sha256,
+    observation_sha256: admittedPolicy.fingerprints.observation_sha256,
     fulfillment_authority_granted: false,
     inventory_mutation_authority_granted: false,
     signing_or_broadcast_authority_granted: false,

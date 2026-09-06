@@ -269,6 +269,47 @@ The proof includes more than 100 distinct cases across:
 - documentation markers; and
 - immutable-action workflow topology.
 
+## Immutable policy admission and authority snapshots
+
+The V1 JSON shape and canonical fingerprints are unchanged. The JavaScript
+ownership contract is stricter: exported rail definitions, environment names,
+legacy migration names, canonical economics, and authority boundaries are deeply
+immutable. Newly configured policy trees and successful isolation reports are
+immutable too.
+
+Previously, `policy.economics` and `policy.authority` aliased writable module
+constants. A caller could change a returned rate to `200`, enlarge the cap, or
+flip an authority flag. A later reader rebuilt its policy against those poisoned
+constants and its own validator accepted it, even while the public summary
+continued to advertise 2 VOID per USDC and 10,000,000 VOID. The isolation report
+also exposed a writable shared boundary object. This was a defect in the draft
+reference contract, not evidence of a live transaction or production activation.
+
+`validateBuyVoidDualRailServerPolicyObjectV1()` now returns a detached, deeply
+immutable canonical reconstruction. Its return value is equal by content to a
+valid input, but is not the same object. Callers must consume that returned
+snapshot rather than validate an object and later keep using the original.
+Validation does not freeze or mutate the caller's input or environment.
+
+The authority-isolation guard checks and returns one admitted generation. The
+payment-finality evaluator likewise uses its admitted policy snapshot for both
+rail checks and result fingerprints. An observation accessor that rewrites the
+original policy after admission cannot splice a different policy ID or digest
+into an otherwise accepted result.
+
+The focused workflow retains the existing policy and authority-isolation proofs
+and runs `scripts/prove_void_buy_void_dual_rail_policy_snapshot_v1.mjs` on Node
+22/24/26. Its 40 cases cover economics/cap and authority poisoning, exported
+rail/environment/migration mutation, report boundary mutation, property and
+prototype replacement, detached validation, nested result mutation, legitimate
+configuration/observation changes, both payment rails, and the finality-result
+check/use boundary. The poisoning regression fails on the preceding source.
+
+This is an object-ownership and evidence-consistency repair, not a JavaScript
+sandbox or a finality oracle. It does not authenticate a caller-supplied RPC or
+finality claim, replace the required isolated-policy entry point, mount a runtime
+consumer, or authorize signing, inventory changes, deployment, or funds movement.
+
 ## Authority boundary
 
 This contract has:

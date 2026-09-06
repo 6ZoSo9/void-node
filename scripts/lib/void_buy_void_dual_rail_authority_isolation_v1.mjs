@@ -7,7 +7,7 @@ import {
 export const VOID_BUY_VOID_DUAL_RAIL_AUTHORITY_ISOLATION_V1 =
   "VOID_BUY_VOID_DUAL_RAIL_AUTHORITY_ISOLATION_V1";
 
-export const VOID_BUY_VOID_DUAL_RAIL_AUTHORITY_ISOLATION_BOUNDARY_V1 = {
+export const VOID_BUY_VOID_DUAL_RAIL_AUTHORITY_ISOLATION_BOUNDARY_V1 = Object.freeze({
   source_only_guard: true,
   base_rpc_identity_distinct_from_ethereum: true,
   base_finality_adapter_distinct_from_ethereum: true,
@@ -23,7 +23,7 @@ export const VOID_BUY_VOID_DUAL_RAIL_AUTHORITY_ISOLATION_BOUNDARY_V1 = {
   inventory_funding: false,
   public_presale_activation: false,
   money_movement: false,
-};
+});
 
 function hold(reason) {
   return {
@@ -34,8 +34,8 @@ function hold(reason) {
   };
 }
 
-export function assertBuyVoidDualRailAuthorityIsolationV1(policy) {
-  const validated = validateBuyVoidDualRailServerPolicyObjectV1(policy);
+// Consume only the detached immutable generation returned by policy admission.
+function isolationReport(validated) {
   const [base, ethereum] = validated.rails;
   if (base.rpc_identity === ethereum.rpc_identity) {
     throw new Error("dual_rail_rpc_identity_collision");
@@ -43,7 +43,7 @@ export function assertBuyVoidDualRailAuthorityIsolationV1(policy) {
   if (base.finality.adapter_id === ethereum.finality.adapter_id) {
     throw new Error("dual_rail_finality_adapter_collision");
   }
-  return {
+  return Object.freeze({
     marker: VOID_BUY_VOID_DUAL_RAIL_AUTHORITY_ISOLATION_V1,
     base_rpc_identity: base.rpc_identity,
     ethereum_rpc_identity: ethereum.rpc_identity,
@@ -53,12 +53,17 @@ export function assertBuyVoidDualRailAuthorityIsolationV1(policy) {
     stable_config_sha256:
       validated.fingerprints.combined_stable_sha256,
     boundary: VOID_BUY_VOID_DUAL_RAIL_AUTHORITY_ISOLATION_BOUNDARY_V1,
-  };
+  });
+}
+
+export function assertBuyVoidDualRailAuthorityIsolationV1(policy) {
+  return isolationReport(validateBuyVoidDualRailServerPolicyObjectV1(policy));
 }
 
 export function validateBuyVoidDualRailAuthorityIsolatedPolicyV1(policy) {
-  assertBuyVoidDualRailAuthorityIsolationV1(policy);
-  return validateBuyVoidDualRailServerPolicyObjectV1(policy);
+  const validated = validateBuyVoidDualRailServerPolicyObjectV1(policy);
+  isolationReport(validated);
+  return validated;
 }
 
 export function readBuyVoidDualRailAuthorityIsolatedPolicyV1(
@@ -67,13 +72,11 @@ export function readBuyVoidDualRailAuthorityIsolatedPolicyV1(
   const decision = readBuyVoidDualRailServerPolicyContractV1(env);
   if (!decision.ok) return decision;
   try {
-    const isolation = assertBuyVoidDualRailAuthorityIsolationV1(
-      decision.policy,
-    );
-    return {
+    const isolation = isolationReport(decision.policy);
+    return Object.freeze({
       ...decision,
       isolation,
-    };
+    });
   } catch (error) {
     const reason = String(error?.message || "dual_rail_authority_isolation_invalid");
     return hold(reason);
