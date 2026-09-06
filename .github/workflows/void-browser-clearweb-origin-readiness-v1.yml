@@ -15,6 +15,7 @@ on:
       - "public/public-node/agents/capabilities-v1.json"
       - "schemas/void-browser-clearweb-origin-readiness-v1.schema.json"
       - "scripts/prove_void_browser_clearweb_origin_readiness_v1.mjs"
+      - "scripts/prove_void_browser_clearweb_origin_response_bounds_v1.mjs"
   push:
     branches:
       - main
@@ -31,6 +32,7 @@ on:
       - "public/public-node/agents/capabilities-v1.json"
       - "schemas/void-browser-clearweb-origin-readiness-v1.schema.json"
       - "scripts/prove_void_browser_clearweb_origin_readiness_v1.mjs"
+      - "scripts/prove_void_browser_clearweb_origin_response_bounds_v1.mjs"
 
 permissions:
   contents: read
@@ -41,21 +43,28 @@ concurrency:
 
 jobs:
   source-proof:
+    name: source-proof (Node ${{ matrix.node }})
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        node: ["22", "24", "26"]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
         with:
-          fetch-depth: 1
+          persist-credentials: false
+          fetch-depth: 0
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
         with:
-          node-version: "22"
+          node-version: ${{ matrix.node }}
 
       - name: Validate source and schema
         run: |
           node --check ops/mainnet0/survey_void_browser_clearweb_origin_readiness_v1.mjs
           node --check scripts/prove_void_browser_clearweb_origin_readiness_v1.mjs
+          node --check scripts/prove_void_browser_clearweb_origin_response_bounds_v1.mjs
           python3 -m json.tool \
             schemas/void-browser-clearweb-origin-readiness-v1.schema.json \
             >/dev/null
@@ -81,6 +90,23 @@ jobs:
           grep -Fx "payment_authority=false" \
             /tmp/void-browser-clearweb-origin-readiness-v1.log
 
+      - name: Prove bounded response and teardown contract
+        run: |
+          node scripts/prove_void_browser_clearweb_origin_response_bounds_v1.mjs \
+            | tee /tmp/void-browser-clearweb-origin-response-bounds-v1.log
+          grep -Fx "VOID_BROWSER_CLEARWEB_ORIGIN_RESPONSE_BOUNDS_V1_PROOF_GREEN" \
+            /tmp/void-browser-clearweb-origin-response-bounds-v1.log
+          grep -Fx "declared_body_ceiling=true" \
+            /tmp/void-browser-clearweb-origin-response-bounds-v1.log
+          grep -Fx "streamed_body_ceiling=true" \
+            /tmp/void-browser-clearweb-origin-response-bounds-v1.log
+          grep -Fx "stalled_body_deadline=true" \
+            /tmp/void-browser-clearweb-origin-response-bounds-v1.log
+          grep -Fx "bounded_rejected_body_teardown=true" \
+            /tmp/void-browser-clearweb-origin-response-bounds-v1.log
+          grep -Fx "live_survey_performed=false" \
+            /tmp/void-browser-clearweb-origin-response-bounds-v1.log
+
       - name: Prove source without physical-host or network survey
         run: |
           EXPECTED_HEAD="$(git rev-parse HEAD)"
@@ -91,3 +117,6 @@ jobs:
             | tee /tmp/void-browser-clearweb-origin-readiness-source-v1.log
           grep -Fx "VOID_BROWSER_CLEARWEB_ORIGIN_READINESS_V1_SOURCE_PROOF=PASS" \
             /tmp/void-browser-clearweb-origin-readiness-source-v1.log
+
+      - name: Diff hygiene
+        run: git diff --check
