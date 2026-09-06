@@ -29,6 +29,9 @@ const DEFAULT_MANIFEST =
 const DEFAULT_TIMEOUT_MS = 12_000;
 const MAX_MANIFEST_BYTES = 1024 * 1024;
 const MAX_QUALIFICATION_AGE_MS = 2 * 60 * 60 * 1000;
+const RUNTIME_RENEWAL_SAMPLE_COUNT_V1 = 3;
+const RUNTIME_RENEWAL_INTERVAL_MS_V1 = 30_000;
+const RUNTIME_RENEWAL_MIN_SPAN_MS_V1 = 60_000;
 const ALLOW_LOOPBACK_FIXTURE =
   process.env.VOID_PUBLIC_BOOTSTRAP_ALLOW_LOOPBACK_FIXTURE === "1";
 const ALLOW_HOLD =
@@ -383,40 +386,158 @@ function parseTime(value, label) {
   return time;
 }
 
-function runtimeLiveAdmissionDeadlineAfterProbeV1(
-  nowMs,
-  expiresAtMs,
-  publishedQualificationNotAfterMs,
-) {
-  if (
-    Number.isSafeInteger(publishedQualificationNotAfterMs) &&
-    publishedQualificationNotAfterMs > nowMs
-  ) {
-    return Object.freeze({
-      not_after_ms: publishedQualificationNotAfterMs,
-      renewal_performed: false,
-    });
-  }
+function sleepRuntimeRenewalV1(delayMs) {
+  return new Promise((resolve) => setTimeout(resolve, delayMs));
+}
 
-  // A stale publication-time window is never extended by static verification.
-  // Only the normal exact-green live probe may mint a bounded local checkpoint
-  // authority deadline. This removes verify/live clock-boundary coupling while
-  // preserving a maximum two-hour runtime authority window and manifest expiry.
+function runtimeSampleObservedAtMsV1(sample, label) {
+  const value = Date.parse(String(sample?.observed_at || ""));
+  if (!Number.isFinite(value)) {
+    throw new Error(`${label} observed_at is invalid`);
+  }
+  return value;
+}
+
+function runtimeSampleLiveHeadV1(sample, label) {
+  const readyHead = assertSafeInteger(
+    sample?.ready_head,
+    `${label} ready_head`,
+    { min: 1 },
+  );
+  const head = assertSafeInteger(
+    sample?.head,
+    `${label} head`,
+    { min: 1 },
+  );
+  return Math.max(readyHead, head);
+}
+
+function runtimeDeadlineFromEvidenceV1(evidenceAtMs, expiresAtMs) {
   const notAfterMs = Math.min(
     expiresAtMs,
-    nowMs + MAX_QUALIFICATION_AGE_MS,
+    evidenceAtMs + MAX_QUALIFICATION_AGE_MS,
   );
   if (
     !Number.isSafeInteger(notAfterMs) ||
-    notAfterMs <= nowMs ||
-    notAfterMs > nowMs + MAX_QUALIFICATION_AGE_MS
+    notAfterMs <= Date.now() ||
+    notAfterMs > evidenceAtMs + MAX_QUALIFICATION_AGE_MS
   ) {
     throw new Error("runtime live-admission deadline is not live");
   }
+  return notAfterMs;
+}
+
+async function runtimeRenewEndpointV1(endpoint, expiresAtMs) {
+  const samples = [];
+  let previousHead = -Infinity;
+  let previousObservedAtMs = -Infinity;
+
+  for (
+    let index = 0;
+    index < RUNTIME_RENEWAL_SAMPLE_COUNT_V1;
+    index += 1
+  ) {
+    const sample = await probePublicSeedSample(endpoint.base, {
+      allowLoopbackFixture: ALLOW_LOOPBACK_FIXTURE,
+      timeoutMs: TIMEOUT_MS,
+    });
+    const label = `runtime renewal sample ${index + 1}`;
+    const observedAtMs = runtimeSampleObservedAtMsV1(sample, label);
+    if (observedAtMs < previousObservedAtMs) {
+      throw new Error("runtime renewal samples are not time ordered");
+    }
+    previousObservedAtMs = observedAtMs;
+
+    const liveHead = runtimeSampleLiveHeadV1(sample, label);
+    if (liveHead < endpoint.qualifiedHead) {
+      throw new Error(
+        `runtime renewal live head ${liveHead} is below published qualified head ${endpoint.qualifiedHead}`,
+      );
+    }
+    const sampleHead = assertSafeInteger(
+      sample.head,
+      `${label} head`,
+      { min: 1 },
+    );
+    if (sampleHead < previousHead) {
+      throw new Error("runtime renewal head regressed across samples");
+    }
+    previousHead = sampleHead;
+    samples.push(sample);
+
+    if (index + 1 < RUNTIME_RENEWAL_SAMPLE_COUNT_V1) {
+      await sleepRuntimeRenewalV1(RUNTIME_RENEWAL_INTERVAL_MS_V1);
+    }
+  }
+
+  const firstObservedAtMs = runtimeSampleObservedAtMsV1(
+    samples[0],
+    "runtime renewal first sample",
+  );
+  const lastObservedAtMs = runtimeSampleObservedAtMsV1(
+    samples[samples.length - 1],
+    "runtime renewal final sample",
+  );
+  const sampleSpanMs = lastObservedAtMs - firstObservedAtMs;
+  if (sampleSpanMs < RUNTIME_RENEWAL_MIN_SPAN_MS_V1) {
+    throw new Error(
+      `runtime renewal observation span is less than ${RUNTIME_RENEWAL_MIN_SPAN_MS_V1} ms`,
+    );
+  }
+
   return Object.freeze({
-    not_after_ms: notAfterMs,
-    renewal_performed: true,
+    base: endpoint.base,
+    qualificationId: endpoint.qualificationId,
+    qualificationNotAfterMs:
+      runtimeDeadlineFromEvidenceV1(lastObservedAtMs, expiresAtMs),
+    renewalPerformed: true,
+    sampleCount: samples.length,
+    sampleSpanMs,
+    liveHead: Math.max(
+      ...samples.map((sample, index) =>
+        runtimeSampleLiveHeadV1(
+          sample,
+          `runtime renewal sample ${index + 1}`,
+        ),
+      ),
+    ),
   });
+}
+
+async function admitLiveEndpointV1(endpoint, expiresAtMs) {
+  if (endpoint.publishedQualificationNotAfterMs > Date.now()) {
+    const sample = await probePublicSeedSample(endpoint.base, {
+      allowLoopbackFixture: ALLOW_LOOPBACK_FIXTURE,
+      timeoutMs: TIMEOUT_MS,
+    });
+    const liveHead = runtimeSampleLiveHeadV1(
+      sample,
+      "fresh publication live sample",
+    );
+    if (liveHead < endpoint.qualifiedHead) {
+      throw new Error(
+        `live head ${liveHead} is below published qualified head ${endpoint.qualifiedHead}`,
+      );
+    }
+
+    if (endpoint.publishedQualificationNotAfterMs > Date.now()) {
+      return Object.freeze({
+        base: endpoint.base,
+        qualificationId: endpoint.qualificationId,
+        qualificationNotAfterMs:
+          endpoint.publishedQualificationNotAfterMs,
+        renewalPerformed: false,
+        sampleCount: 1,
+        sampleSpanMs: 0,
+        liveHead,
+      });
+    }
+  }
+
+  // If the publication window was already stale, or expires while the
+  // one-sample fresh-path check is running, a complete 3-sample / >=60s
+  // runtime renewal is required. One sample never mints multi-hour authority.
+  return await runtimeRenewEndpointV1(endpoint, expiresAtMs);
 }
 
 function verifyManifestId(manifest) {
@@ -575,22 +696,23 @@ function validateManifest(rawManifest, nowMs = Date.now()) {
     (left, right) =>
       left.priority - right.priority || left.base.localeCompare(right.base),
   );
-  const publishedQualificationNotAfterMs = Math.min(
-    ...endpoints.map((endpoint) => endpoint.publishedQualificationNotAfterMs),
-  );
-  if (!Number.isSafeInteger(publishedQualificationNotAfterMs)) {
-    throw new Error("published seed qualification deadline is invalid");
-  }
-  const runtimeAdmissionRenewalRequired = endpoints.some(
-    (endpoint) => endpoint.runtimeAdmissionRenewalRequired,
+  const publishedQualificationBindings = endpoints.map(
+    (endpoint) =>
+      Object.freeze({
+        base: endpoint.base,
+        qualification_id: endpoint.qualificationId,
+        published_qualification_not_after_ms:
+          endpoint.publishedQualificationNotAfterMs,
+        qualified_head: endpoint.qualifiedHead,
+        priority: endpoint.priority,
+      }),
   );
   return Object.freeze({
     manifest,
     hold: false,
     endpoints,
     expiresAt,
-    publishedQualificationNotAfterMs,
-    runtimeAdmissionRenewalRequired,
+    publishedQualificationBindings,
   });
 }
 
@@ -660,18 +782,26 @@ async function main() {
         console.error("manifest_source=remote_https");
         console.error(`manifest=${manifestUrl}`);
         console.error(`manifest_id=${validated.manifest.manifest_id}`);
+        const renewalRequiredCount = validated.endpoints.filter(
+          (endpoint) => endpoint.runtimeAdmissionRenewalRequired,
+        ).length;
+        const freshPublishedDeadlines = validated.endpoints
+          .filter((endpoint) => !endpoint.runtimeAdmissionRenewalRequired)
+          .map((endpoint) => endpoint.publishedQualificationNotAfterMs);
+        const verifyQualificationNotAfterMs =
+          renewalRequiredCount === 0 && freshPublishedDeadlines.length > 0
+            ? Math.min(...freshPublishedDeadlines)
+            : "";
         console.error(
-          `published_qualification_not_after_ms=${validated.publishedQualificationNotAfterMs}`,
+          `published_qualification_bindings=${JSON.stringify(
+            validated.publishedQualificationBindings,
+          )}`,
         );
         console.error(
-          `qualification_not_after_ms=${
-            validated.runtimeAdmissionRenewalRequired
-              ? ""
-              : validated.publishedQualificationNotAfterMs
-          }`,
+          `qualification_not_after_ms=${verifyQualificationNotAfterMs}`,
         );
         console.error(
-          `runtime_live_admission_renewal_required=${validated.runtimeAdmissionRenewalRequired}`,
+          `runtime_live_admission_renewal_required_count=${renewalRequiredCount}`,
         );
         console.error("runtime_live_admission_deadline_activated=false");
         console.error("status=stable_https_seed");
@@ -683,64 +813,81 @@ async function main() {
         return;
       }
 
-      const live = [];
+      const liveAdmissions = [];
       for (const endpoint of validated.endpoints) {
-        if (live.length >= MAX_LIVE_SEEDS) break;
+        if (liveAdmissions.length >= MAX_LIVE_SEEDS) break;
         try {
-          const sample = await probePublicSeedSample(endpoint.base, {
-            allowLoopbackFixture: ALLOW_LOOPBACK_FIXTURE,
-            timeoutMs: TIMEOUT_MS,
-          });
-          const liveHead = Math.max(
-            Number(sample.ready_head),
-            Number(sample.head),
+          const admission = await admitLiveEndpointV1(
+            endpoint,
+            validated.expiresAt,
           );
-          if (!Number.isSafeInteger(liveHead) || liveHead < endpoint.qualifiedHead) {
-            throw new Error(
-              `live head ${liveHead} is below qualified head ${endpoint.qualifiedHead}`,
-            );
-          }
-          live.push(endpoint.base);
+          liveAdmissions.push(admission);
           console.error(
-            `seed_live=${endpoint.base} head=${liveHead} qualification_id=${endpoint.qualificationId}`,
+            `seed_live=${endpoint.base} head=${admission.liveHead} qualification_id=${endpoint.qualificationId} renewal_performed=${admission.renewalPerformed} sample_count=${admission.sampleCount} sample_span_ms=${admission.sampleSpanMs}`,
           );
         } catch (error) {
           errors.push(`${endpoint.base}: ${error?.message || String(error)}`);
         }
       }
-      if (live.length === 0) {
+      if (liveAdmissions.length === 0) {
         throw transportUnavailable(
           "no qualified manifest endpoint is currently exact-green",
         );
       }
 
-      const liveAdmission =
-        runtimeLiveAdmissionDeadlineAfterProbeV1(
-          Date.now(),
-          validated.expiresAt,
-          validated.publishedQualificationNotAfterMs,
+      const qualificationNotAfterMs = Math.min(
+        ...liveAdmissions.map(
+          (admission) => admission.qualificationNotAfterMs,
+        ),
+      );
+      if (
+        !Number.isSafeInteger(qualificationNotAfterMs) ||
+        qualificationNotAfterMs <= Date.now()
+      ) {
+        throw transportUnavailable(
+          "admitted public seed set has no live checkpoint-authority deadline",
         );
+      }
+      const renewedCount = liveAdmissions.filter(
+        (admission) => admission.renewalPerformed,
+      ).length;
+      const runtimeAdmissionBindings = liveAdmissions.map(
+        (admission) => ({
+          base: admission.base,
+          qualification_id: admission.qualificationId,
+          qualification_not_after_ms:
+            admission.qualificationNotAfterMs,
+          renewal_performed: admission.renewalPerformed,
+          sample_count: admission.sampleCount,
+          sample_span_ms: admission.sampleSpanMs,
+          live_head: admission.liveHead,
+        }),
+      );
 
       console.error(`marker=${MARKER}`);
       console.error("manifest_source=remote_https");
       console.error(`manifest=${manifestUrl}`);
       console.error(`manifest_id=${validated.manifest.manifest_id}`);
       console.error(
-        `published_qualification_not_after_ms=${validated.publishedQualificationNotAfterMs}`,
-      );
-      console.error(`qualification_not_after_ms=${liveAdmission.not_after_ms}`);
-      console.error(
-        `runtime_live_admission_renewal_required=${validated.runtimeAdmissionRenewalRequired}`,
+        `published_qualification_bindings=${JSON.stringify(
+          validated.publishedQualificationBindings,
+        )}`,
       );
       console.error(
-        `runtime_live_admission_renewal_performed=${liveAdmission.renewal_performed}`,
+        `runtime_admission_bindings=${JSON.stringify(runtimeAdmissionBindings)}`,
+      );
+      console.error(`qualification_not_after_ms=${qualificationNotAfterMs}`);
+      console.error(
+        `runtime_live_admission_renewed_count=${renewedCount}`,
       );
       console.error("runtime_live_admission_deadline_activated=true");
-      console.error(`live_seed_count=${live.length}`);
+      console.error(`live_seed_count=${liveAdmissions.length}`);
       console.error("tailnet_required=false");
       console.error("private_mutation_routes_exposed=false");
       console.error(`${MARKER}_GREEN`);
-      process.stdout.write(`${live.join(",")}\n`);
+      process.stdout.write(
+        `${liveAdmissions.map((admission) => admission.base).join(",")}\n`,
+      );
       return;
     } catch (error) {
       errors.push(`${manifestUrl}: ${error?.message || String(error)}`);

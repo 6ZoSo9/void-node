@@ -260,11 +260,11 @@ resolve_https_public_bootstrap_v1() {
   local manifest_override="$1"
   local verify_log live_log reverify_log local_hold_log
   local verify_output verify_rc verified_peers verified_manifest_id
-  local verified_published_qualification_not_after_ms
+  local verified_published_qualification_bindings
   local live_output live_rc live_manifest_id live_qualification_not_after_ms
-  local live_published_qualification_not_after_ms
+  local live_published_qualification_bindings
   local reverify_output reverify_rc reverify_manifest_id
-  local reverify_published_qualification_not_after_ms
+  local reverify_published_qualification_bindings
   local local_hold_output local_hold_rc
 
   verify_log="$RUNTIME_ROOT/public-bootstrap-https-verify.log"
@@ -321,12 +321,13 @@ resolve_https_public_bootstrap_v1() {
 
   verified_peers="$(last_output_line "$verify_output")"
   verified_manifest_id="$(log_value manifest_id "$verify_log")"
-  verified_published_qualification_not_after_ms="$(
-    log_value published_qualification_not_after_ms "$verify_log"
+  verified_published_qualification_bindings="$(
+    log_value published_qualification_bindings "$verify_log"
   )"
   test -n "$verified_manifest_id" || die "HTTPS bootstrap verification omitted manifest identity"
-  case "$verified_published_qualification_not_after_ms" in
-    ''|*[!0-9]*) die "HTTPS bootstrap verification omitted published qualification deadline" ;;
+  case "$verified_published_qualification_bindings" in
+    \[*\]) ;;
+    *) die "HTTPS bootstrap verification omitted published qualification bindings" ;;
   esac
   if test -z "$verified_peers"; then
     HTTPS_BOOTSTRAP_STATE="hold_no_stable_seed"
@@ -344,8 +345,8 @@ resolve_https_public_bootstrap_v1() {
   if test "$live_rc" -eq 0; then
     HTTPS_BOOTSTRAP_PEERS="$(last_output_line "$live_output")"
     live_manifest_id="$(log_value manifest_id "$live_log")"
-    live_published_qualification_not_after_ms="$(
-      log_value published_qualification_not_after_ms "$live_log"
+    live_published_qualification_bindings="$(
+      log_value published_qualification_bindings "$live_log"
     )"
     live_qualification_not_after_ms="$(
       log_value qualification_not_after_ms "$live_log"
@@ -355,7 +356,7 @@ resolve_https_public_bootstrap_v1() {
     esac
     if test -z "$HTTPS_BOOTSTRAP_PEERS" || \
        test "$live_manifest_id" != "$verified_manifest_id" || \
-       test "$live_published_qualification_not_after_ms" != "$verified_published_qualification_not_after_ms"; then
+       test "$live_published_qualification_bindings" != "$verified_published_qualification_bindings"; then
       cat "$verify_log" >&2 || true
       cat "$live_log" >&2 || true
       die "HTTPS bootstrap trust material changed between verification and live resolution"
@@ -383,13 +384,13 @@ resolve_https_public_bootstrap_v1() {
   reverify_rc=$?
   set -e
   reverify_manifest_id="$(log_value manifest_id "$reverify_log")"
-  reverify_published_qualification_not_after_ms="$(
-    log_value published_qualification_not_after_ms "$reverify_log"
+  reverify_published_qualification_bindings="$(
+    log_value published_qualification_bindings "$reverify_log"
   )"
   if test "$reverify_rc" -ne 0 || \
      test "$(last_output_line "$reverify_output")" != "$verified_peers" || \
      test "$reverify_manifest_id" != "$verified_manifest_id" || \
-     test "$reverify_published_qualification_not_after_ms" != "$verified_published_qualification_not_after_ms"; then
+     test "$reverify_published_qualification_bindings" != "$verified_published_qualification_bindings"; then
     cat "$verify_log" >&2 || true
     cat "$live_log" >&2 || true
     cat "$reverify_log" >&2 || true

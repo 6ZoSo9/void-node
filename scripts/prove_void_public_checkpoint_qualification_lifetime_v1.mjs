@@ -191,11 +191,11 @@ try {
   );
   assert.match(
     launcher,
-    /test "\$live_published_qualification_not_after_ms" != "\$verified_published_qualification_not_after_ms"/,
+    /test "\$live_published_qualification_bindings" != "\$verified_published_qualification_bindings"/,
   );
   assert.match(
     launcher,
-    /test "\$reverify_published_qualification_not_after_ms" != "\$verified_published_qualification_not_after_ms"/,
+    /test "\$reverify_published_qualification_bindings" != "\$verified_published_qualification_bindings"/,
   );
   assert.doesNotMatch(
     launcher,
