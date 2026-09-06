@@ -191,18 +191,22 @@ try {
   );
   assert.match(
     launcher,
-    /test "\$live_qualification_not_after_ms" != "\$verified_qualification_not_after_ms"/,
+    /test "\$live_published_qualification_not_after_ms" != "\$verified_published_qualification_not_after_ms"/,
   );
   assert.match(
     launcher,
-    /test "\$reverify_qualification_not_after_ms" != "\$verified_qualification_not_after_ms"/,
+    /test "\$reverify_published_qualification_not_after_ms" != "\$verified_published_qualification_not_after_ms"/,
+  );
+  assert.doesNotMatch(
+    launcher,
+    /test "\$live_qualification_not_after_ms" != "\$verified_qualification_not_after_ms"/,
   );
 
   console.log("resolver_verify_deadline_exact=true");
   console.log("resolver_live_deadline_exact=true");
-  console.log("verify_live_deadline_equal=true");
-  console.log("launcher_deadline_handoff_bound=true");
-  console.log("launcher_reverify_deadline_bound=true");
+  console.log("verify_live_deadline_equal_for_fresh_publication=true");
+  console.log("launcher_runtime_deadline_handoff_from_live_resolution=true");
+  console.log("launcher_published_binding_reverified=true");
   console.log("checkpoint_deadline_is_qualified_at_plus_two_hours=true");
   console.log("historical_range_authority_lifetime_unchanged=true");
   console.log(`${MARKER}_GREEN`);

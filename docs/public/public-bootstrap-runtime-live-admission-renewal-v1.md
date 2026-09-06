@@ -23,22 +23,34 @@ For every enabled HTTPS endpoint, publication-time evidence must satisfy:
 - `qualified_at <= generated_at`; and
 - `generated_at - qualified_at <= 2 hours`.
 
-If the published qualification is still inside its original two-hour window,
-behavior is unchanged.
+A manifest therefore cannot launder a qualification that was already stale when
+the manifest was created.
 
-If that window has aged out but the manifest remains unexpired, static
-verification marks runtime renewal as required. Normal resolution must still
-perform the existing DNS-pinned exact-green live probe. Only a successful live
-resolution activates the renewed local checkpoint-authority deadline.
+If the publication qualification is still inside its original two-hour window,
+normal live resolution preserves that original deadline.
 
-The renewed deadline is deterministic across the launcher's separate verify/live
-resolver calls, at most two hours ahead, and capped by manifest `expires_at`.
+If that publication window has aged out but the manifest remains unexpired,
+`--verify-only` validates immutable manifest/publication trust but **does not**
+mint a new runtime checkpoint-authority deadline. Normal resolution must then
+perform the existing DNS-pinned exact-green live probe. Only after that probe
+succeeds does the resolver mint a local runtime deadline:
+
+`min(live_probe_time + 2 hours, manifest.expires_at)`.
+
+The launcher compares immutable manifest identity and the published
+qualification deadline across verify/live/reverify. It obtains the runtime
+checkpoint deadline only from successful live resolution, so verify and live
+calls can cross a wall-clock boundary without appearing to be different trust
+material.
+
 The existing public-seed adapter's `qualification_expired` fail-closed behavior
-is unchanged.
+is unchanged. That deadline gates checkpoint discovery/manifest/segment
+authority; ordinary bounded `/blocks/range` historical catch-up remains outside
+that checkpoint-authority route class.
 
 ## Non-goals
 
 This does not extend an expired manifest, mutate or backdate published evidence,
-change the three-sample publication builder, weaken private-route rejection,
-make a seed consensus authority, solve the remaining N−1 bootstrap topology
-requirement, or deploy/restart any runtime.
+change the three-sample publication builder, weaken DNS pinning or gateway
+boundary checks, make a seed consensus authority, solve the remaining N−1
+bootstrap topology requirement, or deploy/restart any runtime.

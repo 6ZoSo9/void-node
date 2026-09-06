@@ -29,7 +29,6 @@ const DEFAULT_MANIFEST =
 const DEFAULT_TIMEOUT_MS = 12_000;
 const MAX_MANIFEST_BYTES = 1024 * 1024;
 const MAX_QUALIFICATION_AGE_MS = 2 * 60 * 60 * 1000;
-const RUNTIME_ADMISSION_BUCKET_MS = 60 * 60 * 1000;
 const ALLOW_LOOPBACK_FIXTURE =
   process.env.VOID_PUBLIC_BOOTSTRAP_ALLOW_LOOPBACK_FIXTURE === "1";
 const ALLOW_HOLD =
@@ -384,32 +383,28 @@ function parseTime(value, label) {
   return time;
 }
 
-function runtimeLiveAdmissionDeadlineV1(
+function runtimeLiveAdmissionDeadlineAfterProbeV1(
   nowMs,
   expiresAtMs,
   publishedQualificationNotAfterMs,
 ) {
-  if (publishedQualificationNotAfterMs > nowMs) {
+  if (
+    Number.isSafeInteger(publishedQualificationNotAfterMs) &&
+    publishedQualificationNotAfterMs > nowMs
+  ) {
     return Object.freeze({
       not_after_ms: publishedQualificationNotAfterMs,
-      renewal_required: false,
+      renewal_performed: false,
     });
   }
 
-  // Publication qualification proves the endpoint was admitted when the
-  // manifest was created. Once that two-hour publication window ages out,
-  // an unexpired manifest may be used only after the normal exact-green live
-  // probe succeeds. The launcher calls verify then live resolution separately,
-  // so use a deterministic UTC-hour bucket: both calls derive the same bounded
-  // checkpoint-authority deadline without writing local state. The resulting
-  // deadline is always >0 and at most two hours ahead, and never exceeds the
-  // manifest's own expiry.
-  const bucketStartMs =
-    Math.floor(nowMs / RUNTIME_ADMISSION_BUCKET_MS) *
-    RUNTIME_ADMISSION_BUCKET_MS;
+  // A stale publication-time window is never extended by static verification.
+  // Only the normal exact-green live probe may mint a bounded local checkpoint
+  // authority deadline. This removes verify/live clock-boundary coupling while
+  // preserving a maximum two-hour runtime authority window and manifest expiry.
   const notAfterMs = Math.min(
     expiresAtMs,
-    bucketStartMs + MAX_QUALIFICATION_AGE_MS,
+    nowMs + MAX_QUALIFICATION_AGE_MS,
   );
   if (
     !Number.isSafeInteger(notAfterMs) ||
@@ -420,7 +415,7 @@ function runtimeLiveAdmissionDeadlineV1(
   }
   return Object.freeze({
     not_after_ms: notAfterMs,
-    renewal_required: true,
+    renewal_performed: true,
   });
 }
 
@@ -553,11 +548,8 @@ function validateManifest(rawManifest, nowMs = Date.now()) {
     }
     const publishedQualificationNotAfterMs =
       qualifiedAt + MAX_QUALIFICATION_AGE_MS;
-    const runtimeAdmission = runtimeLiveAdmissionDeadlineV1(
-      nowMs,
-      expiresAt,
-      publishedQualificationNotAfterMs,
-    );
+    const runtimeAdmissionRenewalRequired =
+      publishedQualificationNotAfterMs <= nowMs;
     const qualifiedHead = assertSafeInteger(
       endpoint.qualified_head,
       "seed qualified_head",
@@ -573,8 +565,7 @@ function validateManifest(rawManifest, nowMs = Date.now()) {
       qualifiedHead,
       qualificationId: endpoint.qualification_id,
       publishedQualificationNotAfterMs,
-      qualificationNotAfterMs: runtimeAdmission.not_after_ms,
-      runtimeAdmissionRenewalRequired: runtimeAdmission.renewal_required,
+      runtimeAdmissionRenewalRequired,
     });
   }
   if (endpoints.length === 0) {
@@ -584,14 +575,11 @@ function validateManifest(rawManifest, nowMs = Date.now()) {
     (left, right) =>
       left.priority - right.priority || left.base.localeCompare(right.base),
   );
-  const qualificationNotAfterMs = Math.min(
-    ...endpoints.map((endpoint) => endpoint.qualificationNotAfterMs),
+  const publishedQualificationNotAfterMs = Math.min(
+    ...endpoints.map((endpoint) => endpoint.publishedQualificationNotAfterMs),
   );
-  if (
-    !Number.isSafeInteger(qualificationNotAfterMs) ||
-    qualificationNotAfterMs <= nowMs
-  ) {
-    throw new Error("seed qualification deadline is not live");
+  if (!Number.isSafeInteger(publishedQualificationNotAfterMs)) {
+    throw new Error("published seed qualification deadline is invalid");
   }
   const runtimeAdmissionRenewalRequired = endpoints.some(
     (endpoint) => endpoint.runtimeAdmissionRenewalRequired,
@@ -600,7 +588,8 @@ function validateManifest(rawManifest, nowMs = Date.now()) {
     manifest,
     hold: false,
     endpoints,
-    qualificationNotAfterMs,
+    expiresAt,
+    publishedQualificationNotAfterMs,
     runtimeAdmissionRenewalRequired,
   });
 }
@@ -671,7 +660,16 @@ async function main() {
         console.error("manifest_source=remote_https");
         console.error(`manifest=${manifestUrl}`);
         console.error(`manifest_id=${validated.manifest.manifest_id}`);
-        console.error(`qualification_not_after_ms=${validated.qualificationNotAfterMs}`);
+        console.error(
+          `published_qualification_not_after_ms=${validated.publishedQualificationNotAfterMs}`,
+        );
+        console.error(
+          `qualification_not_after_ms=${
+            validated.runtimeAdmissionRenewalRequired
+              ? ""
+              : validated.publishedQualificationNotAfterMs
+          }`,
+        );
         console.error(
           `runtime_live_admission_renewal_required=${validated.runtimeAdmissionRenewalRequired}`,
         );
@@ -716,16 +714,26 @@ async function main() {
         );
       }
 
+      const liveAdmission =
+        runtimeLiveAdmissionDeadlineAfterProbeV1(
+          Date.now(),
+          validated.expiresAt,
+          validated.publishedQualificationNotAfterMs,
+        );
+
       console.error(`marker=${MARKER}`);
       console.error("manifest_source=remote_https");
       console.error(`manifest=${manifestUrl}`);
       console.error(`manifest_id=${validated.manifest.manifest_id}`);
-      console.error(`qualification_not_after_ms=${validated.qualificationNotAfterMs}`);
+      console.error(
+        `published_qualification_not_after_ms=${validated.publishedQualificationNotAfterMs}`,
+      );
+      console.error(`qualification_not_after_ms=${liveAdmission.not_after_ms}`);
       console.error(
         `runtime_live_admission_renewal_required=${validated.runtimeAdmissionRenewalRequired}`,
       );
       console.error(
-        `runtime_live_admission_renewal_performed=${validated.runtimeAdmissionRenewalRequired}`,
+        `runtime_live_admission_renewal_performed=${liveAdmission.renewal_performed}`,
       );
       console.error("runtime_live_admission_deadline_activated=true");
       console.error(`live_seed_count=${live.length}`);

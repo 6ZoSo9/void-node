@@ -17,7 +17,6 @@ import {
 const MARKER =
   "VOID_PUBLIC_BOOTSTRAP_RUNTIME_LIVE_ADMISSION_RENEWAL_V1_PROOF";
 const MAX_AGE_MS = 2 * 60 * 60 * 1000;
-const FIXED_NOW_MS = Date.parse("2026-09-06T09:15:00.000Z");
 const root = process.cwd();
 
 async function freePort() {
@@ -75,7 +74,7 @@ function stableManifest(origin, {
   return objectWithId("voidpbm1_", body, "manifest_id");
 }
 
-function jsonResponse(res, status, body, { head = false, gateway = false } = {}) {
+function sendJson(res, status, body, { head = false, gateway = false } = {}) {
   const bytes = Buffer.from(`${JSON.stringify(body)}\n`);
   res.statusCode = status;
   res.setHeader("content-type", "application/json; charset=utf-8");
@@ -93,7 +92,21 @@ function logValue(stderr, key) {
   return rows[0].slice(key.length + 1);
 }
 
-async function runResolver(args, manifestUrl, preloadPath) {
+const tmp = fs.mkdtempSync(
+  path.join(os.tmpdir(), "void-runtime-live-admission-proof-"),
+);
+
+function preloadFor(label, nowMs) {
+  const target = path.join(tmp, `${label}.cjs`);
+  fs.writeFileSync(
+    target,
+    `"use strict"; Date.now = () => ${nowMs};\n`,
+    "utf8",
+  );
+  return target;
+}
+
+async function runResolver(args, manifestUrl, label, nowMs) {
   const child = spawn(
     process.execPath,
     ["scripts/resolve_void_public_bootstrap_v1.mjs", ...args],
@@ -101,7 +114,7 @@ async function runResolver(args, manifestUrl, preloadPath) {
       cwd: root,
       env: {
         ...process.env,
-        NODE_OPTIONS: `--require=${preloadPath}`,
+        NODE_OPTIONS: `--require=${preloadFor(label, nowMs)}`,
         VOID_PUBLIC_BOOTSTRAP_ALLOW_LOOPBACK_FIXTURE: "1",
         VOID_PUBLIC_BOOTSTRAP_MANIFEST_URL: manifestUrl,
         VOID_PUBLIC_BOOTSTRAP_TIMEOUT_MS: "5000",
@@ -122,29 +135,32 @@ async function runResolver(args, manifestUrl, preloadPath) {
 const port = await freePort();
 const origin = `http://127.0.0.1:${port}`;
 let activeManifest = null;
+let gatewayMode = "good";
 
 const server = http.createServer((req, res) => {
   const method = String(req.method || "GET").toUpperCase();
   const url = new URL(req.url || "/", origin);
 
   if (method === "GET" && url.pathname === "/manifest.json") {
-    jsonResponse(res, 200, activeManifest);
+    sendJson(res, 200, activeManifest);
     return;
   }
   if (
     (method === "GET" || method === "HEAD") &&
     url.pathname === "/__void/ready.json"
   ) {
-    jsonResponse(
+    sendJson(
       res,
       200,
-      { ready: true, head: 2000, gap: 0, txroot_live: 1 },
+      gatewayMode === "good"
+        ? { ready: true, head: 2000, gap: 0, txroot_live: 1 }
+        : { ready: false, head: 2000, gap: 1, txroot_live: 0 },
       { head: method === "HEAD", gateway: true },
     );
     return;
   }
   if (method === "GET" && url.pathname === "/blocks/latest/number2.json") {
-    jsonResponse(res, 200, { number: 2000 }, { gateway: true });
+    sendJson(res, 200, { number: 2000 }, { gateway: true });
     return;
   }
   if (
@@ -153,18 +169,18 @@ const server = http.createServer((req, res) => {
     url.searchParams.get("from") === "2000" &&
     url.searchParams.get("to") === "2000"
   ) {
-    jsonResponse(res, 200, [{ number: 2000 }], { gateway: true });
+    sendJson(res, 200, [{ number: 2000 }], { gateway: true });
     return;
   }
   if (method === "GET" && url.pathname === "/admin") {
-    jsonResponse(res, 404, { ok: false, error: "route_not_public" });
+    sendJson(res, 404, { ok: false, error: "route_not_public" });
     return;
   }
   if (method === "POST" && url.pathname === "/follower/start") {
-    jsonResponse(res, 405, { ok: false, error: "method_not_allowed" });
+    sendJson(res, 405, { ok: false, error: "method_not_allowed" });
     return;
   }
-  jsonResponse(res, 404, { ok: false, error: "route_not_public" });
+  sendJson(res, 404, { ok: false, error: "route_not_public" });
 });
 
 await new Promise((resolve, reject) => {
@@ -172,106 +188,147 @@ await new Promise((resolve, reject) => {
   server.listen(port, "127.0.0.1", resolve);
 });
 
-const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "void-runtime-admission-"));
-const preloadPath = path.join(tmp, "fixed-now.cjs");
-fs.writeFileSync(
-  preloadPath,
-  `"use strict"; Date.now = () => ${FIXED_NOW_MS};\n`,
-  "utf8",
-);
-
 try {
   const manifestUrl = `${origin}/manifest.json`;
 
-  const freshQualifiedAt = FIXED_NOW_MS - 30 * 60 * 1000;
+  const freshNow = Date.parse("2026-09-06T09:15:00.000Z");
+  const freshQualifiedAt = freshNow - 30 * 60 * 1000;
   activeManifest = stableManifest(origin, {
-    generatedAtMs: FIXED_NOW_MS - 29 * 60 * 1000,
+    generatedAtMs: freshNow - 29 * 60 * 1000,
     qualifiedAtMs: freshQualifiedAt,
-    expiresAtMs: FIXED_NOW_MS + 24 * 60 * 60 * 1000,
+    expiresAtMs: freshNow + 24 * 60 * 60 * 1000,
   });
   const freshVerify = await runResolver(
     ["--allow-hold", "--verify-only"],
     manifestUrl,
-    preloadPath,
+    "fresh-verify",
+    freshNow,
   );
   assert.equal(freshVerify.code, 0, freshVerify.stderr);
   assert.equal(freshVerify.stdout.trim(), origin);
+  const freshPublishedDeadline = freshQualifiedAt + MAX_AGE_MS;
+  assert.equal(
+    Number(logValue(
+      freshVerify.stderr,
+      "published_qualification_not_after_ms",
+    )),
+    freshPublishedDeadline,
+  );
   assert.equal(
     Number(logValue(freshVerify.stderr, "qualification_not_after_ms")),
-    freshQualifiedAt + MAX_AGE_MS,
+    freshPublishedDeadline,
   );
   assert.equal(
     logValue(freshVerify.stderr, "runtime_live_admission_renewal_required"),
     "false",
   );
 
-  activeManifest = stableManifest(origin, {
-    generatedAtMs: FIXED_NOW_MS - 3 * 60 * 60 * 1000,
-    qualifiedAtMs: FIXED_NOW_MS - 3 * 60 * 60 * 1000 - 30_000,
-    expiresAtMs: FIXED_NOW_MS + 24 * 60 * 60 * 1000,
-  });
-  const staleVerify = await runResolver(
-    ["--allow-hold", "--verify-only"],
-    manifestUrl,
-    preloadPath,
-  );
-  assert.equal(staleVerify.code, 0, staleVerify.stderr);
-  assert.equal(staleVerify.stdout.trim(), origin);
-  assert.equal(
-    logValue(staleVerify.stderr, "runtime_live_admission_renewal_required"),
-    "true",
-  );
-  assert.equal(
-    logValue(staleVerify.stderr, "runtime_live_admission_deadline_activated"),
-    "false",
-  );
-  assert.equal(
-    logValue(staleVerify.stderr, "live_seed_probe_performed"),
-    "false",
-  );
-  const verifyDeadline = Number(
-    logValue(staleVerify.stderr, "qualification_not_after_ms"),
-  );
-  assert.equal(
-    verifyDeadline,
-    Date.parse("2026-09-06T11:00:00.000Z"),
-  );
-
-  const staleLive = await runResolver(
+  const freshLive = await runResolver(
     ["--allow-hold"],
     manifestUrl,
-    preloadPath,
+    "fresh-live",
+    freshNow,
   );
-  assert.equal(staleLive.code, 0, staleLive.stderr);
-  assert.equal(staleLive.stdout.trim(), origin);
+  assert.equal(freshLive.code, 0, freshLive.stderr);
   assert.equal(
-    Number(logValue(staleLive.stderr, "qualification_not_after_ms")),
-    verifyDeadline,
+    Number(logValue(freshLive.stderr, "qualification_not_after_ms")),
+    freshPublishedDeadline,
   );
   assert.equal(
-    logValue(staleLive.stderr, "runtime_live_admission_renewal_required"),
+    logValue(freshLive.stderr, "runtime_live_admission_renewal_performed"),
+    "false",
+  );
+
+  const generatedAt = Date.parse("2026-09-06T06:00:00.000Z");
+  const qualifiedAt = generatedAt - 30_000;
+  const expiresAt = Date.parse("2026-09-07T06:00:00.000Z");
+  activeManifest = stableManifest(origin, {
+    generatedAtMs: generatedAt,
+    qualifiedAtMs: qualifiedAt,
+    expiresAtMs: expiresAt,
+  });
+  const verifyBeforeBoundary =
+    Date.parse("2026-09-06T09:59:59.900Z");
+  const liveAfterBoundary =
+    Date.parse("2026-09-06T10:00:00.100Z");
+
+  const agedVerify = await runResolver(
+    ["--allow-hold", "--verify-only"],
+    manifestUrl,
+    "aged-verify",
+    verifyBeforeBoundary,
+  );
+  assert.equal(agedVerify.code, 0, agedVerify.stderr);
+  assert.equal(agedVerify.stdout.trim(), origin);
+  assert.equal(
+    Number(logValue(
+      agedVerify.stderr,
+      "published_qualification_not_after_ms",
+    )),
+    qualifiedAt + MAX_AGE_MS,
+  );
+  assert.equal(
+    logValue(agedVerify.stderr, "qualification_not_after_ms"),
+    "",
+  );
+  assert.equal(
+    logValue(agedVerify.stderr, "runtime_live_admission_renewal_required"),
     "true",
   );
   assert.equal(
-    logValue(staleLive.stderr, "runtime_live_admission_renewal_performed"),
-    "true",
+    logValue(agedVerify.stderr, "runtime_live_admission_deadline_activated"),
+    "false",
+  );
+
+  gatewayMode = "good";
+  const agedLive = await runResolver(
+    ["--allow-hold"],
+    manifestUrl,
+    "aged-live",
+    liveAfterBoundary,
+  );
+  assert.equal(agedLive.code, 0, agedLive.stderr);
+  assert.equal(agedLive.stdout.trim(), origin);
+  assert.equal(
+    Number(logValue(
+      agedLive.stderr,
+      "published_qualification_not_after_ms",
+    )),
+    qualifiedAt + MAX_AGE_MS,
   );
   assert.equal(
-    logValue(staleLive.stderr, "runtime_live_admission_deadline_activated"),
+    Number(logValue(agedLive.stderr, "qualification_not_after_ms")),
+    liveAfterBoundary + MAX_AGE_MS,
+  );
+  assert.equal(
+    logValue(agedLive.stderr, "runtime_live_admission_renewal_performed"),
     "true",
   );
-  assert.match(staleLive.stderr, /seed_live=.*head=2000/);
+
+  gatewayMode = "bad_ready";
+  const failedLive = await runResolver(
+    ["--allow-hold"],
+    manifestUrl,
+    "aged-live-fail",
+    liveAfterBoundary,
+  );
+  assert.equal(failedLive.code, 3, failedLive.stderr);
+  assert.doesNotMatch(
+    failedLive.stderr,
+    /runtime_live_admission_deadline_activated=true/,
+  );
+  gatewayMode = "good";
 
   activeManifest = stableManifest(origin, {
-    generatedAtMs: FIXED_NOW_MS - 3 * 60 * 60 * 1000,
-    qualifiedAtMs:
-      FIXED_NOW_MS - 3 * 60 * 60 * 1000 - MAX_AGE_MS - 1,
-    expiresAtMs: FIXED_NOW_MS + 24 * 60 * 60 * 1000,
+    generatedAtMs: generatedAt,
+    qualifiedAtMs: generatedAt - MAX_AGE_MS - 1,
+    expiresAtMs: expiresAt,
   });
   const staleAtPublication = await runResolver(
     ["--allow-hold", "--verify-only"],
     manifestUrl,
-    preloadPath,
+    "stale-at-publication",
+    liveAfterBoundary,
   );
   assert.equal(staleAtPublication.code, 2, staleAtPublication.stderr);
   assert.match(
@@ -280,23 +337,36 @@ try {
   );
 
   activeManifest = stableManifest(origin, {
-    generatedAtMs: FIXED_NOW_MS - 4 * 60 * 60 * 1000,
-    qualifiedAtMs: FIXED_NOW_MS - 4 * 60 * 60 * 1000 - 30_000,
-    expiresAtMs: FIXED_NOW_MS - 1,
+    generatedAtMs: generatedAt,
+    qualifiedAtMs: qualifiedAt,
+    expiresAtMs: liveAfterBoundary - 1,
   });
   const expired = await runResolver(
     ["--allow-hold", "--verify-only"],
     manifestUrl,
-    preloadPath,
+    "expired",
+    liveAfterBoundary,
   );
   assert.equal(expired.code, 2, expired.stderr);
   assert.match(expired.stderr, /manifest is expired/);
 
+  const launcher = fs.readFileSync("run-void-node.sh", "utf8");
+  assert.match(
+    launcher,
+    /HTTPS_BOOTSTRAP_QUALIFICATION_NOT_AFTER_MS="\$live_qualification_not_after_ms"/,
+  );
+  assert.match(launcher, /live_published_qualification_not_after_ms/);
+  assert.match(launcher, /reverify_published_qualification_not_after_ms/);
+  assert.doesNotMatch(
+    launcher,
+    /test "\$live_qualification_not_after_ms" != "\$verified_qualification_not_after_ms"/,
+  );
+
   console.log("fresh_publication_deadline_preserved=true");
-  console.log("stale_published_qualification_verify_admitted=true");
-  console.log("stale_published_qualification_live_probe_required=true");
-  console.log("runtime_deadline_verify_live_equal=true");
-  console.log("runtime_deadline_bounded_two_hours=true");
+  console.log("stale_publication_verify_mints_no_runtime_deadline=true");
+  console.log("live_probe_mints_bounded_runtime_deadline=true");
+  console.log("verify_live_hour_boundary_race_removed=true");
+  console.log("failed_live_probe_mints_no_deadline=true");
   console.log("stale_at_publication_rejected=true");
   console.log("manifest_expiry_still_hard_stop=true");
   console.log("checkpoint_authority_adapter_contract_unchanged=true");

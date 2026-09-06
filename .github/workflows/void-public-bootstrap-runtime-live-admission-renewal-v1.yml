@@ -5,12 +5,12 @@ on:
     paths:
       - ".github/workflows/void-public-bootstrap-runtime-live-admission-renewal-v1.yml"
       - "docs/public/public-bootstrap-runtime-live-admission-renewal-v1.md"
+      - "run-void-node.sh"
       - "scripts/prove_void_public_bootstrap_runtime_live_admission_renewal_v1.mjs"
       - "scripts/prove_void_public_checkpoint_qualification_lifetime_v1.mjs"
       - "scripts/resolve_void_public_bootstrap_v1.mjs"
       - "scripts/lib/void_public_seed_qualification_v1.mjs"
       - "tools/void-public-seed-client-adapter-v1.mjs"
-      - "run-void-node.sh"
   workflow_dispatch:
 
 permissions:
@@ -38,8 +38,10 @@ jobs:
 
       - name: Syntax
         run: |
+          bash -n run-void-node.sh
           node --check scripts/resolve_void_public_bootstrap_v1.mjs
           node --check scripts/prove_void_public_bootstrap_runtime_live_admission_renewal_v1.mjs
+          node --check scripts/prove_void_public_checkpoint_qualification_lifetime_v1.mjs
 
       - name: Runtime live-admission renewal proof
         run: node scripts/prove_void_public_bootstrap_runtime_live_admission_renewal_v1.mjs
