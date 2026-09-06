@@ -398,7 +398,7 @@ function runtimeSampleObservedAtMsV1(sample, label) {
   return value;
 }
 
-function runtimeSampleLiveHeadV1(sample, label) {
+function runtimeSampleHeadsV1(sample, label) {
   const readyHead = assertSafeInteger(
     sample?.ready_head,
     `${label} ready_head`,
@@ -409,7 +409,26 @@ function runtimeSampleLiveHeadV1(sample, label) {
     `${label} head`,
     { min: 1 },
   );
-  return Math.max(readyHead, head);
+  return Object.freeze({
+    readyHead,
+    head,
+    conservativeHead: Math.min(readyHead, head),
+  });
+}
+
+function requireRuntimeHeadsAtOrAbovePublishedV1(
+  heads,
+  endpoint,
+  label,
+) {
+  if (
+    heads.readyHead < endpoint.qualifiedHead ||
+    heads.head < endpoint.qualifiedHead
+  ) {
+    throw new Error(
+      `${label} regressed below published qualified head ${endpoint.qualifiedHead}; ready_head=${heads.readyHead}; head=${heads.head}`,
+    );
+  }
 }
 
 function runtimeDeadlineFromEvidenceV1(evidenceAtMs, expiresAtMs) {
@@ -429,6 +448,7 @@ function runtimeDeadlineFromEvidenceV1(evidenceAtMs, expiresAtMs) {
 
 async function runtimeRenewEndpointV1(endpoint, expiresAtMs) {
   const samples = [];
+  let previousReadyHead = -Infinity;
   let previousHead = -Infinity;
   let previousObservedAtMs = -Infinity;
 
@@ -448,21 +468,22 @@ async function runtimeRenewEndpointV1(endpoint, expiresAtMs) {
     }
     previousObservedAtMs = observedAtMs;
 
-    const liveHead = runtimeSampleLiveHeadV1(sample, label);
-    if (liveHead < endpoint.qualifiedHead) {
+    const heads = runtimeSampleHeadsV1(sample, label);
+    requireRuntimeHeadsAtOrAbovePublishedV1(
+      heads,
+      endpoint,
+      label,
+    );
+    if (
+      heads.readyHead < previousReadyHead ||
+      heads.head < previousHead
+    ) {
       throw new Error(
-        `runtime renewal live head ${liveHead} is below published qualified head ${endpoint.qualifiedHead}`,
+        "runtime renewal readiness/head regressed across samples",
       );
     }
-    const sampleHead = assertSafeInteger(
-      sample.head,
-      `${label} head`,
-      { min: 1 },
-    );
-    if (sampleHead < previousHead) {
-      throw new Error("runtime renewal head regressed across samples");
-    }
-    previousHead = sampleHead;
+    previousReadyHead = heads.readyHead;
+    previousHead = heads.head;
     samples.push(sample);
 
     if (index + 1 < RUNTIME_RENEWAL_SAMPLE_COUNT_V1) {
@@ -493,14 +514,10 @@ async function runtimeRenewEndpointV1(endpoint, expiresAtMs) {
     renewalPerformed: true,
     sampleCount: samples.length,
     sampleSpanMs,
-    liveHead: Math.max(
-      ...samples.map((sample, index) =>
-        runtimeSampleLiveHeadV1(
-          sample,
-          `runtime renewal sample ${index + 1}`,
-        ),
-      ),
-    ),
+    liveHead: runtimeSampleHeadsV1(
+      samples[samples.length - 1],
+      "runtime renewal final sample",
+    ).conservativeHead,
   });
 }
 
@@ -510,15 +527,15 @@ async function admitLiveEndpointV1(endpoint, expiresAtMs) {
       allowLoopbackFixture: ALLOW_LOOPBACK_FIXTURE,
       timeoutMs: TIMEOUT_MS,
     });
-    const liveHead = runtimeSampleLiveHeadV1(
+    const heads = runtimeSampleHeadsV1(
       sample,
       "fresh publication live sample",
     );
-    if (liveHead < endpoint.qualifiedHead) {
-      throw new Error(
-        `live head ${liveHead} is below published qualified head ${endpoint.qualifiedHead}`,
-      );
-    }
+    requireRuntimeHeadsAtOrAbovePublishedV1(
+      heads,
+      endpoint,
+      "fresh publication live sample",
+    );
 
     if (endpoint.publishedQualificationNotAfterMs > Date.now()) {
       return Object.freeze({
@@ -529,7 +546,7 @@ async function admitLiveEndpointV1(endpoint, expiresAtMs) {
         renewalPerformed: false,
         sampleCount: 1,
         sampleSpanMs: 0,
-        liveHead,
+        liveHead: heads.conservativeHead,
       });
     }
   }
@@ -538,6 +555,32 @@ async function admitLiveEndpointV1(endpoint, expiresAtMs) {
   // one-sample fresh-path check is running, a complete 3-sample / >=60s
   // runtime renewal is required. One sample never mints multi-hour authority.
   return await runtimeRenewEndpointV1(endpoint, expiresAtMs);
+}
+
+async function attemptRuntimeAdmissionsV1(
+  endpoints,
+  expiresAtMs,
+) {
+  return await Promise.all(
+    endpoints.map(async (endpoint) => {
+      try {
+        return Object.freeze({
+          endpoint,
+          admission: await admitLiveEndpointV1(
+            endpoint,
+            expiresAtMs,
+          ),
+          error: null,
+        });
+      } catch (error) {
+        return Object.freeze({
+          endpoint,
+          admission: null,
+          error: error?.message || String(error),
+        });
+      }
+    }),
+  );
 }
 
 function verifyManifestId(manifest) {
@@ -813,22 +856,65 @@ async function main() {
         return;
       }
 
-      const liveAdmissions = [];
-      for (const endpoint of validated.endpoints) {
-        if (liveAdmissions.length >= MAX_LIVE_SEEDS) break;
-        try {
-          const admission = await admitLiveEndpointV1(
-            endpoint,
+      const currentlyFresh = validated.endpoints.filter(
+        (endpoint) => !endpoint.runtimeAdmissionRenewalRequired,
+      );
+      const firstWaveIncludesAll =
+        currentlyFresh.length < MAX_LIVE_SEEDS;
+      const firstWaveEndpoints = firstWaveIncludesAll
+        ? validated.endpoints
+        : currentlyFresh;
+
+      const attempts = [
+        ...await attemptRuntimeAdmissionsV1(
+          firstWaveEndpoints,
+          validated.expiresAt,
+        ),
+      ];
+
+      const firstWaveSuccessCount = attempts.filter(
+        (attempt) => attempt.admission !== null,
+      ).length;
+      if (
+        !firstWaveIncludesAll &&
+        firstWaveSuccessCount < MAX_LIVE_SEEDS
+      ) {
+        const staleFallbackEndpoints = validated.endpoints.filter(
+          (endpoint) => endpoint.runtimeAdmissionRenewalRequired,
+        );
+        attempts.push(
+          ...await attemptRuntimeAdmissionsV1(
+            staleFallbackEndpoints,
             validated.expiresAt,
-          );
-          liveAdmissions.push(admission);
-          console.error(
-            `seed_live=${endpoint.base} head=${admission.liveHead} qualification_id=${endpoint.qualificationId} renewal_performed=${admission.renewalPerformed} sample_count=${admission.sampleCount} sample_span_ms=${admission.sampleSpanMs}`,
-          );
-        } catch (error) {
-          errors.push(`${endpoint.base}: ${error?.message || String(error)}`);
-        }
+          ),
+        );
       }
+
+      const admissionByBase = new Map();
+      for (const attempt of attempts) {
+        if (attempt.admission === null) {
+          errors.push(
+            `${attempt.endpoint.base}: ${attempt.error}`,
+          );
+          continue;
+        }
+        admissionByBase.set(
+          attempt.endpoint.base,
+          attempt.admission,
+        );
+      }
+
+      const liveAdmissions = validated.endpoints
+        .map((endpoint) => admissionByBase.get(endpoint.base))
+        .filter(Boolean)
+        .slice(0, MAX_LIVE_SEEDS);
+
+      for (const admission of liveAdmissions) {
+        console.error(
+          `seed_live=${admission.base} head=${admission.liveHead} qualification_id=${admission.qualificationId} renewal_performed=${admission.renewalPerformed} sample_count=${admission.sampleCount} sample_span_ms=${admission.sampleSpanMs}`,
+        );
+      }
+
       if (liveAdmissions.length === 0) {
         throw transportUnavailable(
           "no qualified manifest endpoint is currently exact-green",

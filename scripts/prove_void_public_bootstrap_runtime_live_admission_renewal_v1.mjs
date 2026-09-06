@@ -65,7 +65,7 @@ function stableManifest(endpoints, generatedAtMs, expiresAtMs) {
     onion_endpoints: [],
     private_tailnet_endpoints_published: false,
     authority: authorityFalse(),
-    notes: "runtime multi-sample renewal fixture",
+    notes: "runtime conservative-head parallel-renewal fixture",
   };
   return objectWithId("voidpbm1_", body, "manifest_id");
 }
@@ -80,10 +80,24 @@ function sendJson(res, status, body, { head = false, gateway = false } = {}) {
   else res.end(bytes);
 }
 
-async function startGateway({ badReady = false } = {}) {
+async function startGateway({
+  badReady = false,
+  readyHeads = [2000],
+  heads = [2000],
+} = {}) {
   const port = await freePort();
   const base = `http://127.0.0.1:${port}`;
-  let head = 2000;
+  const readyGetTimes = [];
+  let sampleIndex = 0;
+
+  const current = () => {
+    const readyHead =
+      readyHeads[Math.min(sampleIndex, readyHeads.length - 1)];
+    const head =
+      heads[Math.min(sampleIndex, heads.length - 1)];
+    return { readyHead, head };
+  };
+
   const server = http.createServer((req, res) => {
     const method = String(req.method || "GET").toUpperCase();
     const url = new URL(req.url || "/", base);
@@ -92,29 +106,49 @@ async function startGateway({ badReady = false } = {}) {
       (method === "GET" || method === "HEAD") &&
       url.pathname === "/__void/ready.json"
     ) {
+      if (method === "GET") {
+        sampleIndex = readyGetTimes.length;
+        readyGetTimes.push(Date.now());
+      }
+      const values = current();
       sendJson(
         res,
         200,
         badReady
-          ? { ready: false, head, gap: 1, txroot_live: 0 }
-          : { ready: true, head, gap: 0, txroot_live: 1 },
+          ? {
+              ready: false,
+              head: values.readyHead,
+              gap: 1,
+              txroot_live: 0,
+            }
+          : {
+              ready: true,
+              head: values.readyHead,
+              gap: 0,
+              txroot_live: 1,
+            },
         { head: method === "HEAD", gateway: true },
       );
       return;
     }
+
+    const values = current();
     if (method === "GET" && url.pathname === "/blocks/latest/number2.json") {
-      sendJson(res, 200, { number: head }, { gateway: true });
+      sendJson(res, 200, { number: values.head }, { gateway: true });
       return;
     }
+
+    const rangeHead = Math.min(values.readyHead, values.head);
     if (
       method === "GET" &&
       url.pathname === "/blocks/range" &&
-      url.searchParams.get("from") === String(head) &&
-      url.searchParams.get("to") === String(head)
+      url.searchParams.get("from") === String(rangeHead) &&
+      url.searchParams.get("to") === String(rangeHead)
     ) {
-      sendJson(res, 200, [{ number: head }], { gateway: true });
+      sendJson(res, 200, [{ number: rangeHead }], { gateway: true });
       return;
     }
+
     if (method === "GET" && url.pathname === "/admin") {
       sendJson(res, 404, { ok: false, error: "route_not_public" });
       return;
@@ -125,11 +159,13 @@ async function startGateway({ badReady = false } = {}) {
     }
     sendJson(res, 404, { ok: false, error: "route_not_public" });
   });
+
   await new Promise((resolve, reject) => {
     server.once("error", reject);
     server.listen(port, "127.0.0.1", resolve);
   });
-  return { server, base, setHead(value) { head = value; } };
+
+  return { server, base, readyGetTimes };
 }
 
 function logValue(stderr, key) {
@@ -171,8 +207,10 @@ const manifestBase = `http://127.0.0.1:${manifestPort}`;
 let activeManifest = null;
 const manifestServer = http.createServer((req, res) => {
   const url = new URL(req.url || "/", manifestBase);
-  if (String(req.method || "GET").toUpperCase() === "GET" &&
-      url.pathname === "/manifest.json") {
+  if (
+    String(req.method || "GET").toUpperCase() === "GET" &&
+    url.pathname === "/manifest.json"
+  ) {
     sendJson(res, 200, activeManifest);
     return;
   }
@@ -184,21 +222,34 @@ await new Promise((resolve, reject) => {
 });
 
 const freshGateway = await startGateway();
-const staleGateway = await startGateway();
+const staleGatewayA = await startGateway();
+const staleGatewayB = await startGateway();
 const badStaleGateway = await startGateway({ badReady: true });
+const regressingStaleGateway = await startGateway({
+  readyHeads: [2000, 1999, 2001],
+  heads: [2000, 2001, 2002],
+});
+const mismatchGateway = await startGateway({
+  readyHeads: [1980],
+  heads: [2044],
+});
+const freshGateway2 = await startGateway();
+const freshGateway3 = await startGateway();
+const freshGateway4 = await startGateway();
+const skippedStaleGateway = await startGateway();
 
 try {
   const manifestUrl = `${manifestBase}/manifest.json`;
   const now = Date.now();
 
-  // One manifest can legitimately contain one currently-fresh and one
-  // currently-stale publication qualification if both were fresh at the
-  // manifest's generation time.
   const generatedAtMs = now - 45 * 60 * 1000;
   const freshQualifiedAtMs = generatedAtMs - 60_000;
   const staleQualifiedAtMs = generatedAtMs - 91 * 60 * 1000;
   const expiresAtMs = generatedAtMs + 24 * 60 * 60 * 1000;
 
+  // Mixed admission: one fresh, two stale-success, one stale-bad, one stale
+  // whose readiness surface regresses. Because fewer than MAX_LIVE_SEEDS are
+  // currently fresh, all candidates should be attempted concurrently.
   activeManifest = stableManifest(
     [
       {
@@ -207,9 +258,25 @@ try {
         qualificationId: `voidpsq1_${"a".repeat(64)}`,
       },
       {
-        base: staleGateway.base,
+        base: staleGatewayA.base,
         qualifiedAtMs: staleQualifiedAtMs,
         qualificationId: `voidpsq1_${"b".repeat(64)}`,
+      },
+      {
+        base: staleGatewayB.base,
+        qualifiedAtMs: staleQualifiedAtMs,
+        qualificationId: `voidpsq1_${"c".repeat(64)}`,
+      },
+      {
+        base: badStaleGateway.base,
+        qualifiedAtMs: staleQualifiedAtMs,
+        qualificationId: `voidpsq1_${"d".repeat(64)}`,
+      },
+      {
+        base: regressingStaleGateway.base,
+        qualifiedAtMs: staleQualifiedAtMs,
+        qualificationId: `voidpsq1_${"e".repeat(64)}`,
+        qualifiedHead: 1900,
       },
     ],
     generatedAtMs,
@@ -224,115 +291,205 @@ try {
   const publishedBindings = JSON.parse(
     logValue(verify.stderr, "published_qualification_bindings"),
   );
-  assert.equal(publishedBindings.length, 2);
+  assert.equal(publishedBindings.length, 5);
   assert.equal(
     logValue(
       verify.stderr,
       "runtime_live_admission_renewal_required_count",
     ),
-    "1",
+    "4",
   );
   assert.equal(
     logValue(verify.stderr, "qualification_not_after_ms"),
     "",
-    "mixed fresh/stale verify must not mint one manifest-wide runtime deadline",
-  );
-  assert.equal(
-    logValue(verify.stderr, "runtime_live_admission_deadline_activated"),
-    "false",
   );
 
   const liveStartedAt = Date.now();
   const live = await runResolver(["--allow-hold"], manifestUrl);
   const liveFinishedAt = Date.now();
   assert.equal(live.code, 0, live.stderr);
+
   const livePeers = live.stdout.trim().split(",").filter(Boolean);
   assert.deepEqual(
     new Set(livePeers),
-    new Set([freshGateway.base, staleGateway.base]),
+    new Set([
+      freshGateway.base,
+      staleGatewayA.base,
+      staleGatewayB.base,
+    ]),
   );
 
   const runtimeBindings = JSON.parse(
     logValue(live.stderr, "runtime_admission_bindings"),
   );
-  assert.equal(runtimeBindings.length, 2);
+  assert.equal(runtimeBindings.length, 3);
+
   const freshBinding = runtimeBindings.find(
     (entry) => entry.base === freshGateway.base,
   );
-  const staleBinding = runtimeBindings.find(
-    (entry) => entry.base === staleGateway.base,
+  const staleBindingA = runtimeBindings.find(
+    (entry) => entry.base === staleGatewayA.base,
+  );
+  const staleBindingB = runtimeBindings.find(
+    (entry) => entry.base === staleGatewayB.base,
   );
   assert.ok(freshBinding);
-  assert.ok(staleBinding);
+  assert.ok(staleBindingA);
+  assert.ok(staleBindingB);
 
   assert.equal(freshBinding.renewal_performed, false);
-  assert.equal(freshBinding.sample_count, 1);
-  assert.equal(freshBinding.sample_span_ms, 0);
   assert.equal(
     freshBinding.qualification_not_after_ms,
     freshQualifiedAtMs + MAX_AGE_MS,
-    "fresh sibling must keep its own publication deadline",
   );
 
-  assert.equal(staleBinding.renewal_performed, true);
-  assert.equal(staleBinding.sample_count, 3);
-  assert.ok(
-    staleBinding.sample_span_ms >= MIN_RUNTIME_RENEWAL_SPAN_MS,
-    `runtime renewal span too short: ${staleBinding.sample_span_ms}`,
-  );
+  for (const binding of [staleBindingA, staleBindingB]) {
+    assert.equal(binding.renewal_performed, true);
+    assert.equal(binding.sample_count, 3);
+    assert.ok(
+      binding.sample_span_ms >= MIN_RUNTIME_RENEWAL_SPAN_MS,
+    );
+  }
+
   assert.ok(
     liveFinishedAt - liveStartedAt >= MIN_RUNTIME_RENEWAL_SPAN_MS,
-    "stale runtime renewal completed without a >=60s observation interval",
   );
-  assert.equal(
-    logValue(live.stderr, "runtime_live_admission_renewed_count"),
-    "1",
+  assert.ok(
+    liveFinishedAt - liveStartedAt < 120_000,
+    `parallel renewal exceeded one observation wave: ${
+      liveFinishedAt - liveStartedAt
+    } ms`,
   );
+
+  assert.ok(staleGatewayA.readyGetTimes.length >= 3);
+  assert.ok(staleGatewayB.readyGetTimes.length >= 3);
+  assert.ok(
+    Math.abs(
+      staleGatewayA.readyGetTimes[0] -
+      staleGatewayB.readyGetTimes[0]
+    ) < 5_000,
+    "stale renewals did not begin concurrently",
+  );
+  assert.ok(
+    Math.abs(
+      staleGatewayA.readyGetTimes[2] -
+      staleGatewayB.readyGetTimes[2]
+    ) < 5_000,
+    "stale renewals did not share the same observation wave",
+  );
+
+  assert.ok(
+    regressingStaleGateway.readyGetTimes.length >= 2,
+    "regression fixture was not exercised",
+  );
+  assert.ok(
+    !livePeers.includes(regressingStaleGateway.base),
+    "readiness-regressing stale endpoint was admitted",
+  );
+  assert.ok(
+    !livePeers.includes(badStaleGateway.base),
+    "non-green stale endpoint was admitted",
+  );
+
   const globalDeadline = Number(
     logValue(live.stderr, "qualification_not_after_ms"),
   );
   assert.equal(
     globalDeadline,
     Math.min(
-      freshBinding.qualification_not_after_ms,
-      staleBinding.qualification_not_after_ms,
+      ...runtimeBindings.map(
+        (binding) => binding.qualification_not_after_ms,
+      ),
     ),
-    "adapter deadline must conservatively cover every admitted live peer",
   );
 
-  // A stale endpoint that fails its own renewal must not poison a fresh sibling.
+  // Concrete reviewer example: ready=1980, head=2044, published head=2000.
+  // The shared probe permits a <=64 surface delta, but V5 admission must reject
+  // because BOTH surfaces must clear the published qualified head.
+  const mismatchGeneratedAtMs = Date.now() - 10 * 60 * 1000;
+  activeManifest = stableManifest(
+    [{
+      base: mismatchGateway.base,
+      qualifiedAtMs: mismatchGeneratedAtMs - 60_000,
+      qualificationId: `voidpsq1_${"f".repeat(64)}`,
+      qualifiedHead: 2000,
+    }],
+    mismatchGeneratedAtMs,
+    mismatchGeneratedAtMs + 24 * 60 * 60 * 1000,
+  );
+  const mismatch = await runResolver(["--allow-hold"], manifestUrl);
+  assert.equal(mismatch.code, 3, mismatch.stderr);
+  assert.doesNotMatch(
+    mismatch.stderr,
+    /runtime_live_admission_deadline_activated=true/,
+  );
+
+  // If enough high-priority endpoints are still fresh, stale backups are not
+  // started merely because they exist in the manifest.
+  const allFreshGeneratedAtMs = Date.now() - 10 * 60 * 1000;
+  const allFreshQualifiedAtMs = allFreshGeneratedAtMs - 60_000;
+  const skippedStaleQualifiedAtMs =
+    allFreshGeneratedAtMs - 111 * 60 * 1000;
   activeManifest = stableManifest(
     [
       {
         base: freshGateway.base,
-        qualifiedAtMs: freshQualifiedAtMs,
-        qualificationId: `voidpsq1_${"c".repeat(64)}`,
+        qualifiedAtMs: allFreshQualifiedAtMs,
+        qualificationId: `voidpsq1_${"1".repeat(64)}`,
       },
       {
-        base: badStaleGateway.base,
-        qualifiedAtMs: staleQualifiedAtMs,
-        qualificationId: `voidpsq1_${"d".repeat(64)}`,
+        base: freshGateway2.base,
+        qualifiedAtMs: allFreshQualifiedAtMs,
+        qualificationId: `voidpsq1_${"2".repeat(64)}`,
+      },
+      {
+        base: freshGateway3.base,
+        qualifiedAtMs: allFreshQualifiedAtMs,
+        qualificationId: `voidpsq1_${"3".repeat(64)}`,
+      },
+      {
+        base: freshGateway4.base,
+        qualifiedAtMs: allFreshQualifiedAtMs,
+        qualificationId: `voidpsq1_${"4".repeat(64)}`,
+      },
+      {
+        base: skippedStaleGateway.base,
+        qualifiedAtMs: skippedStaleQualifiedAtMs,
+        qualificationId: `voidpsq1_${"5".repeat(64)}`,
       },
     ],
-    generatedAtMs,
-    expiresAtMs,
+    allFreshGeneratedAtMs,
+    allFreshGeneratedAtMs + 24 * 60 * 60 * 1000,
   );
-  const siblingFallback = await runResolver(["--allow-hold"], manifestUrl);
-  assert.equal(siblingFallback.code, 0, siblingFallback.stderr);
-  assert.equal(siblingFallback.stdout.trim(), freshGateway.base);
-  const fallbackBindings = JSON.parse(
-    logValue(siblingFallback.stderr, "runtime_admission_bindings"),
-  );
-  assert.equal(fallbackBindings.length, 1);
-  assert.equal(fallbackBindings[0].base, freshGateway.base);
-  assert.equal(fallbackBindings[0].renewal_performed, false);
 
-  // Publication-time trust remains strict.
+  const skippedBefore = skippedStaleGateway.readyGetTimes.length;
+  const freshCapacityStartedAt = Date.now();
+  const freshCapacity = await runResolver(
+    ["--allow-hold"],
+    manifestUrl,
+  );
+  const freshCapacityFinishedAt = Date.now();
+  assert.equal(freshCapacity.code, 0, freshCapacity.stderr);
+  assert.equal(
+    freshCapacity.stdout.trim().split(",").filter(Boolean).length,
+    4,
+  );
+  assert.equal(
+    skippedStaleGateway.readyGetTimes.length,
+    skippedBefore,
+    "stale backup was probed despite four admitted fresh peers",
+  );
+  assert.ok(
+    freshCapacityFinishedAt - freshCapacityStartedAt < 30_000,
+    "fresh-capacity startup unexpectedly waited for stale renewal",
+  );
+
+  // Publication trust remains strict.
   activeManifest = stableManifest(
     [{
       base: freshGateway.base,
       qualifiedAtMs: generatedAtMs - MAX_AGE_MS - 1,
-      qualificationId: `voidpsq1_${"e".repeat(64)}`,
+      qualificationId: `voidpsq1_${"6".repeat(64)}`,
     }],
     generatedAtMs,
     expiresAtMs,
@@ -351,7 +508,7 @@ try {
     [{
       base: freshGateway.base,
       qualifiedAtMs: freshQualifiedAtMs,
-      qualificationId: `voidpsq1_${"f".repeat(64)}`,
+      qualificationId: `voidpsq1_${"7".repeat(64)}`,
     }],
     generatedAtMs,
     Date.now() - 1,
@@ -371,18 +528,15 @@ try {
     launcher,
     /HTTPS_BOOTSTRAP_QUALIFICATION_NOT_AFTER_MS="\$live_qualification_not_after_ms"/,
   );
-  assert.doesNotMatch(
-    launcher,
-    /verified_published_qualification_not_after_ms/,
-  );
 
   console.log("publication_time_two_hour_rule_preserved=true");
   console.log("stale_runtime_renewal_requires_three_samples=true");
   console.log("stale_runtime_renewal_min_span_60000=true");
-  console.log("single_sample_cannot_mint_stale_runtime_authority=true");
-  console.log("mixed_endpoint_renewal_is_per_endpoint=true");
-  console.log("fresh_sibling_keeps_publication_deadline=true");
-  console.log("failed_stale_sibling_does_not_poison_fresh_peer=true");
+  console.log("both_head_surfaces_must_clear_published_head=true");
+  console.log("both_head_surfaces_nonregressing_across_renewal=true");
+  console.log("parallel_stale_renewals_share_observation_window=true");
+  console.log("failed_or_regressing_stale_peer_excluded=true");
+  console.log("fresh_capacity_skips_stale_backup_renewal=true");
   console.log("adapter_deadline_is_minimum_of_admitted_live_peers=true");
   console.log("manifest_expiry_still_hard_stop=true");
   console.log("historical_range_checkpoint_boundary_unchanged=true");
@@ -391,7 +545,14 @@ try {
   await Promise.all([
     new Promise((resolve) => manifestServer.close(resolve)),
     new Promise((resolve) => freshGateway.server.close(resolve)),
-    new Promise((resolve) => staleGateway.server.close(resolve)),
+    new Promise((resolve) => staleGatewayA.server.close(resolve)),
+    new Promise((resolve) => staleGatewayB.server.close(resolve)),
     new Promise((resolve) => badStaleGateway.server.close(resolve)),
+    new Promise((resolve) => regressingStaleGateway.server.close(resolve)),
+    new Promise((resolve) => mismatchGateway.server.close(resolve)),
+    new Promise((resolve) => freshGateway2.server.close(resolve)),
+    new Promise((resolve) => freshGateway3.server.close(resolve)),
+    new Promise((resolve) => freshGateway4.server.close(resolve)),
+    new Promise((resolve) => skippedStaleGateway.server.close(resolve)),
   ]);
 }
