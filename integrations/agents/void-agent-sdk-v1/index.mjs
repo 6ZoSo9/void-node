@@ -106,22 +106,14 @@ async function awaitWithinDeadline(operation, request, label) {
   }
 }
 
-async function settleCleanupWithinDeadline(cleanup, deadlineAt) {
+async function settleCleanupWithinTeardownWindow(cleanup) {
   if (!cleanup || typeof cleanup.then !== "function") return;
-  const remaining = Math.min(
-    RESPONSE_TEARDOWN_SETTLE_MAX_MS,
-    Math.max(0, deadlineAt - Date.now()),
-  );
-  if (remaining <= 0) {
-    void Promise.resolve(cleanup).catch(() => undefined);
-    return;
-  }
   let timer;
   try {
     await Promise.race([
       Promise.resolve(cleanup).catch(() => undefined),
       new Promise((resolve) => {
-        timer = setTimeout(resolve, remaining);
+        timer = setTimeout(resolve, RESPONSE_TEARDOWN_SETTLE_MAX_MS);
       }),
     ]);
   } finally {
@@ -137,12 +129,41 @@ async function abortAndCancelWithinDeadline(target, request) {
   } catch {
     return;
   }
-  await settleCleanupWithinDeadline(cleanup, request.deadlineAt);
+  await settleCleanupWithinTeardownWindow(cleanup);
+}
+
+function ownLateFetchResponse(fetchOperation, request) {
+  void Promise.resolve(fetchOperation).then(
+    (lateResponse) => abortAndCancelWithinDeadline(lateResponse?.body, request),
+    () => undefined,
+  ).catch(() => undefined);
 }
 
 async function rejectResponse(response, request, message) {
   await abortAndCancelWithinDeadline(response?.body, request);
   fail(message);
+}
+
+async function validateAcceptedResponseUrl(response, requestedHref, label, request) {
+  const finalUrlValue = response?.url;
+  const redirected = response?.redirected === true;
+  if (typeof finalUrlValue !== "string" || finalUrlValue.length === 0) {
+    await rejectResponse(response, request, `${label}_final_url_missing`);
+  }
+
+  let finalUrl;
+  try {
+    finalUrl = new URL(finalUrlValue);
+  } catch {
+    await rejectResponse(response, request, `${label}_final_url_invalid`);
+  }
+
+  if (finalUrl.href !== requestedHref) {
+    await rejectResponse(response, request, `${label}_final_url_mismatch`);
+  }
+  if (redirected) {
+    await rejectResponse(response, request, `${label}_redirected_response_rejected`);
+  }
 }
 
 async function readBoundedText(response, label, maxBytes, request) {
@@ -155,7 +176,13 @@ async function readBoundedText(response, label, maxBytes, request) {
     }
   }
 
-  const reader = response.body?.getReader?.();
+  let reader;
+  try {
+    reader = response.body?.getReader?.();
+  } catch {
+    await abortAndCancelWithinDeadline(response.body, request);
+    fail(`${label}_body_reader_unavailable`);
+  }
   if (!reader) {
     await abortAndCancelWithinDeadline(response.body, request);
     fail(`${label}_body_stream_unavailable`);
@@ -172,8 +199,17 @@ async function readBoundedText(response, label, maxBytes, request) {
         await abortAndCancelWithinDeadline(reader, request);
         throw error;
       }
+      if (!item || typeof item !== "object" || Array.isArray(item) ||
+          typeof item.done !== "boolean") {
+        await abortAndCancelWithinDeadline(reader, request);
+        fail(`${label}_body_read_result_invalid`);
+      }
       const { done, value } = item;
       if (done) break;
+      if (!(value instanceof Uint8Array)) {
+        await abortAndCancelWithinDeadline(reader, request);
+        fail(`${label}_body_chunk_invalid`);
+      }
       const chunk = Buffer.from(value);
       total += chunk.length;
       if (total > maxBytes) {
@@ -194,26 +230,38 @@ async function readBoundedText(response, label, maxBytes, request) {
 
 async function fetchJson(url, label, options) {
   const { fetchImpl, timeoutMs, maxResponseBytes } = options;
+  const requestedHref = url instanceof URL ? url.href : new URL(url).href;
   const controller = new AbortController();
   const request = {
     controller,
     deadlineAt: Date.now() + timeoutMs,
   };
-  const response = await awaitWithinDeadline(
-    Promise.resolve().then(() => fetchImpl(url, {
-      method: "GET",
-      redirect: "manual",
-      credentials: "omit",
-      cache: "no-store",
-      headers: {
-        accept: "application/json",
-        "user-agent": `void-agent-sdk/${VOID_AGENT_SDK_VERSION}`,
-      },
-      signal: controller.signal,
-    })),
-    request,
-    `${label}_fetch`,
-  );
+  const fetchOperation = Promise.resolve().then(() => fetchImpl(requestedHref, {
+    method: "GET",
+    redirect: "manual",
+    credentials: "omit",
+    cache: "no-store",
+    headers: {
+      accept: "application/json",
+      "user-agent": `void-agent-sdk/${VOID_AGENT_SDK_VERSION}`,
+    },
+    signal: controller.signal,
+  }));
+
+  let response;
+  try {
+    response = await awaitWithinDeadline(
+      fetchOperation,
+      request,
+      `${label}_fetch`,
+    );
+  } catch (error) {
+    if (error?.name === "TimeoutError" &&
+        error?.message === `${label}_fetch_deadline_exceeded`) {
+      ownLateFetchResponse(fetchOperation, request);
+    }
+    throw error;
+  }
 
   if (response.status >= 300 && response.status < 400) {
     await rejectResponse(response, request, `${label}_redirect_rejected`);
@@ -221,6 +269,7 @@ async function fetchJson(url, label, options) {
   if (!response.ok) {
     await rejectResponse(response, request, `${label}_http_${response.status}`);
   }
+  await validateAcceptedResponseUrl(response, requestedHref, label, request);
   const contentType = response.headers.get("content-type") ?? "";
   if (!contentType.toLowerCase().includes("json")) {
     await rejectResponse(response, request, `${label}_content_type_not_json`);
