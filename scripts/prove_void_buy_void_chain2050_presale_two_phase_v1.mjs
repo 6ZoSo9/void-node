@@ -25,6 +25,20 @@ const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const read = (p) => readFileSync(resolve(ROOT, p), "utf8");
 const digest = (v) => createHash("sha256").update(String(v)).digest("hex");
 const h32 = (v) => `0x${digest(v)}`;
+function chainAnchorPaymentKey(identity) {
+  const bytes = Buffer.from(identity, "utf8");
+  const length = Buffer.alloc(4);
+  length.writeUInt32BE(bytes.length, 0);
+  return createHash("sha256")
+    .update(
+      Buffer.concat([
+        Buffer.from("VOID_BUY_VOID_FULFILLMENT_ANCHOR_V1\0", "ascii"),
+        length,
+        bytes,
+      ]),
+    )
+    .digest("hex");
+}
 const A = `0x${"a".repeat(40)}`;
 const B = `0x${"b".repeat(40)}`;
 const MAX = BigInt(PRESALE.initial_inventory_void_atoms);
@@ -130,6 +144,17 @@ pass("genesis conservation", () => {
       BigInt(s.fulfilled_inventory_void_atoms),
     MAX,
   );
+});
+
+pass("payment key is byte-exact with #1463 chain-anchor contract", () => {
+  for (const [id, chain] of [[3, "base"], [4, "ethereum"], [5, "eth"]]) {
+    const p = payment(id, { chain });
+    assert.equal(
+      p.payment_key_sha256,
+      chainAnchorPaymentKey(p.canonical_payment_identity),
+      chain,
+    );
+  }
 });
 
 for (const [i, chain] of ["base","ethereum","eth"].entries()) {
@@ -322,6 +347,33 @@ pass("reservation and fulfillment anchors reject tamper", () => {
   changed.chain2050_block_hash = h32("tamper");
   assert.throws(() => validateFulfillmentV1(changed), (e) => e.code === "FULFILLMENT_ANCHOR_MISMATCH");
 });
+pass("standalone fulfillment rejects payment-key identity substitution", () => {
+  const m = new BuyVoidChain2050PresaleTwoPhaseReferenceMachineV1();
+  const c = m.confirmPayment(confirmInput(m, 41));
+  const f = m.recordFulfillment(fulfillInput(m, c.reservation, 41)).fulfillment;
+  const changed = structuredClone(f);
+  changed.payment_key_sha256 = "0".repeat(64);
+  changed.fulfillment_anchor_sha256 = computeFulfillmentAnchorSha256V1(changed);
+  assert.throws(
+    () => validateFulfillmentV1(changed),
+    (e) => e.code === "FULFILLMENT_PAYMENT_KEY_MISMATCH",
+  );
+});
+
+pass("replay binds fulfillment reservation anchor to the prior reservation", () => {
+  const m = new BuyVoidChain2050PresaleTwoPhaseReferenceMachineV1();
+  const c = m.confirmPayment(confirmInput(m, 42));
+  m.recordFulfillment(fulfillInput(m, c.reservation, 42));
+  const events = m.exportEvents({ limit: 10 });
+  events[1].record.reservation_anchor_sha256 = digest("foreign-reservation");
+  events[1].record.fulfillment_anchor_sha256 =
+    computeFulfillmentAnchorSha256V1(events[1].record);
+  assert.throws(
+    () => replayTwoPhasePresaleEventsV1(events),
+    (e) => e.code === "EVENT_REPLAY_FULFILLMENT_MISMATCH",
+  );
+});
+
 pass("state hash and conservation reject tamper", () => {
   const s = structuredClone(createGenesisStateV1());
   s.available_inventory_void_atoms = (MAX - 1n).toString();
@@ -405,7 +457,7 @@ pass("module has zero operational imports", () => {
   }
 });
 
-assert.ok(cases >= 145, `expected >=145 cases, observed ${cases}`);
+assert.ok(cases >= 152, `expected >=152 cases, observed ${cases}`);
 console.log(`${"VOID_BUY_VOID_CHAIN2050_PRESALE_TWO_PHASE_V1"}_GREEN`);
 console.log("payment_confirmation_separate_from_fulfillment=true");
 console.log("inventory_reserved_before_fulfillment=true");
@@ -416,6 +468,8 @@ console.log("ethereum_usdc=true");
 console.log("one_payment_one_reservation=true");
 console.log("one_payment_one_fulfillment=true");
 console.log("one_delivery_event_one_payment=true");
+console.log("chain_anchor_payment_key_exact=true");
+console.log("fulfillment_payment_key_self_validating=true");
+console.log("reservation_anchor_replay_bound=true");
 console.log("rpc_wallet_signer_broadcast_money=false");
 console.log(`cases=${cases}`);
-

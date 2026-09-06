@@ -59,7 +59,7 @@
     "source_transaction_hash": "0xc3d026b629c9b83c9b73ef7c7dfcb79fe0be75ccaddafe0789a0ddd5989ad999",
     "source_log_index": "7",
     "canonical_payment_identity": "voidpay1:base:0xc3d026b629c9b83c9b73ef7c7dfcb79fe0be75ccaddafe0789a0ddd5989ad999:7",
-    "payment_key_sha256": "65378ca41a2ab1d54914be26c5a986a1d59f057e9d8671112d391d4a94f60c0c",
+    "payment_key_sha256": "97b3bf2b7bab6f6ecf3a22dfcd1e2c62a6f083ee45b3b31d9b279a389b230709",
     "payer_address": "0x1111111111111111111111111111111111111111",
     "delivery_address": "0x1111111111111111111111111111111111111111",
     "payment_usdc_atoms": "1000000",
@@ -74,7 +74,7 @@
     "version": 1,
     "pool_id": "buy-void-presale-v1",
     "policy_id": "void-buy-void-presale-two-phase-v1",
-    "payment_key_sha256": "65378ca41a2ab1d54914be26c5a986a1d59f057e9d8671112d391d4a94f60c0c",
+    "payment_key_sha256": "97b3bf2b7bab6f6ecf3a22dfcd1e2c62a6f083ee45b3b31d9b279a389b230709",
     "canonical_payment_identity": "voidpay1:base:0xc3d026b629c9b83c9b73ef7c7dfcb79fe0be75ccaddafe0789a0ddd5989ad999:7",
     "source_chain": "base",
     "source_chain_id": "8453",
@@ -88,7 +88,7 @@
     "reserved_void_atoms": "2000000",
     "previous_state_sha256": "6b12784b2b5988a2f5d339037ec6ffb26edca00786ca2c122479724feee6b0b8",
     "state_sequence": "1",
-    "reservation_anchor_sha256": "c4642c28990af319096e9da51d0e04c806d235350e80bd613c26ebf10f45d4c1"
+    "reservation_anchor_sha256": "44fff639d174d0297968414667a389064ab34c485db87d44eb32501dd91605aa"
   },
   "reserved_state": {
     "schema": "void_buy_void_chain2050_presale_state_v2",
@@ -105,9 +105,9 @@
     "fulfilled_payment_count": "0",
     "state_sequence": "1",
     "previous_state_sha256": "6b12784b2b5988a2f5d339037ec6ffb26edca00786ca2c122479724feee6b0b8",
-    "last_transition_anchor_sha256": "c4642c28990af319096e9da51d0e04c806d235350e80bd613c26ebf10f45d4c1",
-    "transition_root_sha256": "b93e78efa036d5b1fa462d00db4712289131a01f49aad25b1ec723fc3c01bb80",
-    "state_sha256": "dc1df8ac58eb81c53f7e355c4513342ffc280088da4ac981f9671fa0fa49cbb4"
+    "last_transition_anchor_sha256": "44fff639d174d0297968414667a389064ab34c485db87d44eb32501dd91605aa",
+    "transition_root_sha256": "3258fdee4e12d139300e45dcc716c4e974286fc44fdb4aef559faafb740316e8",
+    "state_sha256": "378f084ec4ae1637990064bd26053a7bf4277a85eeb371f61b5a7c7d2823f31e"
   },
   "chain2050_delivery": {
     "schema": "void_chain2050_finalized_delivery_v1",
@@ -131,8 +131,8 @@
     "version": 1,
     "pool_id": "buy-void-presale-v1",
     "policy_id": "void-buy-void-presale-two-phase-v1",
-    "payment_key_sha256": "65378ca41a2ab1d54914be26c5a986a1d59f057e9d8671112d391d4a94f60c0c",
-    "reservation_anchor_sha256": "c4642c28990af319096e9da51d0e04c806d235350e80bd613c26ebf10f45d4c1",
+    "payment_key_sha256": "97b3bf2b7bab6f6ecf3a22dfcd1e2c62a6f083ee45b3b31d9b279a389b230709",
+    "reservation_anchor_sha256": "44fff639d174d0297968414667a389064ab34c485db87d44eb32501dd91605aa",
     "canonical_payment_identity": "voidpay1:base:0xc3d026b629c9b83c9b73ef7c7dfcb79fe0be75ccaddafe0789a0ddd5989ad999:7",
     "delivery_address": "0x1111111111111111111111111111111111111111",
     "delivery_void_atoms": "2000000",
@@ -146,9 +146,9 @@
     "chain2050_accepted_checkpoint_hash": "0xcf742a04b2676030587644127b93e6ba04174324080e95b80678a29dbc9a3d85",
     "chain2050_finality_policy_id": "mainnet0-checkpoint-finality-v1",
     "chain2050_finality_attestation_sha256": "475f3266bf2d0982c7ae165897cae2f3adeb22f19b9d8d534c9b21f0ec3eb575",
-    "previous_state_sha256": "dc1df8ac58eb81c53f7e355c4513342ffc280088da4ac981f9671fa0fa49cbb4",
+    "previous_state_sha256": "378f084ec4ae1637990064bd26053a7bf4277a85eeb371f61b5a7c7d2823f31e",
     "state_sequence": "2",
-    "fulfillment_anchor_sha256": "56c204409a8863fdc4e86cdb812b7fe1355dfb4109d2611a09a76abaaf51e035"
+    "fulfillment_anchor_sha256": "2f2e6be5d39e01e7c8cc24df247518e537dc66818e886fe2dc0b57f80130b9a6"
   },
   "final_state": {
     "schema": "void_buy_void_chain2050_presale_state_v2",
@@ -164,9 +164,9 @@
     "confirmed_payment_count": "1",
     "fulfilled_payment_count": "1",
     "state_sequence": "2",
-    "previous_state_sha256": "dc1df8ac58eb81c53f7e355c4513342ffc280088da4ac981f9671fa0fa49cbb4",
-    "last_transition_anchor_sha256": "56c204409a8863fdc4e86cdb812b7fe1355dfb4109d2611a09a76abaaf51e035",
-    "transition_root_sha256": "4545d6558f241e176b84e5d73f11ae78199da69f8da5b32a8a0531255f31371d",
-    "state_sha256": "1c04a6a8dcdcd64252d3bf6ceedb125d244687a174a84fc22952973000c3dd3b"
+    "previous_state_sha256": "378f084ec4ae1637990064bd26053a7bf4277a85eeb371f61b5a7c7d2823f31e",
+    "last_transition_anchor_sha256": "2f2e6be5d39e01e7c8cc24df247518e537dc66818e886fe2dc0b57f80130b9a6",
+    "transition_root_sha256": "2cef8615d6f7305261246ea611f8fee87df88766daedb6762a60a2f23ccd77e8",
+    "state_sha256": "4d405cc7b09d303b274bd8b28bdacdd32d616ea5a87fb715c8c22c4ff8e48fe0"
   }
 }

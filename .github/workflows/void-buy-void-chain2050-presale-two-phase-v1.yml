@@ -56,4 +56,3 @@ jobs:
         run: node scripts/prove_void_buy_void_chain2050_presale_two_phase_v1.mjs
       - name: Diff hygiene
         run: git diff --check
-

@@ -164,8 +164,24 @@ export function canonicalPaymentIdentityV1(input) {
   const log = uint(input.source_log_index, "INVALID_SOURCE_LOG_INDEX", { max: MAX_U64 }).toString();
   return `voidpay1:${c}:${tx}:${log}`;
 }
+function paymentKeyFromCanonicalIdentityV1(value) {
+  const identity = text(value);
+  const match = /^voidpay1:(base|ethereum):(0x[0-9a-f]{64}):(0|[1-9][0-9]*)$/.exec(identity);
+  if (!match) fail("INVALID_CANONICAL_PAYMENT_IDENTITY", identity || "empty");
+  uint(match[3], "INVALID_CANONICAL_PAYMENT_LOG_INDEX", { max: MAX_U64 });
+  const bytes = Buffer.from(identity, "utf8");
+  if (bytes.length > 512) fail("CANONICAL_PAYMENT_IDENTITY_TOO_LARGE");
+  const length = Buffer.alloc(4);
+  length.writeUInt32BE(bytes.length, 0);
+  return sha(Buffer.concat([
+    Buffer.from("VOID_BUY_VOID_FULFILLMENT_ANCHOR_V1\0", "ascii"),
+    length,
+    bytes,
+  ]));
+}
+
 export function canonicalPaymentKeySha256V1(input) {
-  return domain("VOID_BUY_VOID_PAYMENT_KEY_V1", { identity: canonicalPaymentIdentityV1(input) });
+  return paymentKeyFromCanonicalIdentityV1(canonicalPaymentIdentityV1(input));
 }
 export function canonicalDeliveryEventIdentityV1(input) {
   keys(input, ["chain_id","transaction_hash","log_index"], "DELIVERY_IDENTITY_SHAPE");
@@ -345,6 +361,11 @@ export function validateFulfillmentV1(input) {
   const identity = text(input.canonical_payment_identity);
   if (!/^voidpay1:(?:base|ethereum):0x[0-9a-f]{64}:(?:0|[1-9][0-9]*)$/.test(identity)) fail("INVALID_CANONICAL_PAYMENT_IDENTITY");
   const paymentKey = hex64(input.payment_key_sha256, "INVALID_PAYMENT_KEY");
+  exact(
+    paymentKey,
+    paymentKeyFromCanonicalIdentityV1(identity),
+    "FULFILLMENT_PAYMENT_KEY_MISMATCH",
+  );
   const reservationAnchor = hex64(input.reservation_anchor_sha256, "INVALID_RESERVATION_ANCHOR");
   const deliveryIdentity = canonicalDeliveryEventIdentityV1({
     chain_id: "2050", transaction_hash: input.chain2050_transaction_hash, log_index: input.chain2050_log_index,
@@ -637,4 +658,3 @@ export function replayTwoPhasePresaleEventsV1(events, { maxEvents = 100000 } = {
     event_count: String(events.length), state: m.state, authority: AUTHORITY,
   });
 }
-

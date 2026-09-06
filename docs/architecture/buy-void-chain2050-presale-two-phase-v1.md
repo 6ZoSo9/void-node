@@ -45,11 +45,24 @@ payment record. The canonical payment identity remains:
 voidpay1:<base|ethereum>:<transaction_hash>:<log_index>
 ```
 
+The payment key is byte-identical to the canonical #1463 chain-anchor key:
+
+```text
+SHA256(
+  "VOID_BUY_VOID_FULFILLMENT_ANCHOR_V1\0" ||
+  U32BE(byte_length(canonical_payment_identity)) ||
+  canonical_payment_identity
+)
+```
+
+The older plain SHA-256 identity digest remains compatibility evidence only; it
+is not the payment-key authority used by this reference generation.
+
 Before any fulfillment may be accepted, the transition:
 
 1. binds the exact expected prior Chain-2050 presale-state hash;
 2. validates the closed finalized source-payment record;
-3. derives a domain-separated payment key;
+3. derives the exact length-framed #1463 chain-anchor payment key;
 4. computes the exact `2:1` VOID reservation;
 5. rejects if `required_void > available_void`;
 6. creates one immutable payment reservation;
@@ -90,6 +103,11 @@ The fulfillment transition requires:
 
 Only then does the model move the amount from `reserved` to `fulfilled`.
 `available` does not change during fulfillment.
+
+A standalone fulfillment record re-derives its payment key from its canonical
+payment identity and rejects substitution. Its reservation-anchor digest is
+context-bound: replay and the eventual Chain-2050 implementation must match that
+digest against the already-recorded reservation for the same payment key.
 
 An exact duplicate finalized delivery converges without another mutation.
 A changed delivery, checkpoint, finality policy, finality attestation, amount, or
@@ -179,4 +197,3 @@ merge, deployment, production configuration, RPC access, credentials, keys,
 wallets, signers, inventory funding, transaction construction/signing/broadcast,
 public presale activation, treasury/liquidity mutation, validators, Work Credits,
 or funds movement.
-
