@@ -240,7 +240,14 @@ function logValue(stderr, key) {
   return rows[0].slice(key.length + 1);
 }
 
-async function runResolver(args, manifestUrl) {
+async function runResolver(
+  args,
+  manifestUrl,
+  {
+    timeoutMs = "5000",
+    watchdogMs = null,
+  } = {},
+) {
   const { spawn } = await import("node:child_process");
   const child = spawn(
     process.execPath,
@@ -251,7 +258,7 @@ async function runResolver(args, manifestUrl) {
         ...process.env,
         VOID_PUBLIC_BOOTSTRAP_ALLOW_LOOPBACK_FIXTURE: "1",
         VOID_PUBLIC_BOOTSTRAP_MANIFEST_URL: manifestUrl,
-        VOID_PUBLIC_BOOTSTRAP_TIMEOUT_MS: "5000",
+        VOID_PUBLIC_BOOTSTRAP_TIMEOUT_MS: String(timeoutMs),
       },
       stdio: ["ignore", "pipe", "pipe"],
     },
@@ -262,8 +269,19 @@ async function runResolver(args, manifestUrl) {
   child.stderr.setEncoding("utf8");
   child.stdout.on("data", (chunk) => { stdout += chunk; });
   child.stderr.on("data", (chunk) => { stderr += chunk; });
-  const [code] = await once(child, "exit");
-  return { code, stdout, stderr };
+
+  let watchdog = null;
+  let watchdogFired = false;
+  if (watchdogMs !== null) {
+    watchdog = setTimeout(() => {
+      watchdogFired = true;
+      child.kill("SIGKILL");
+    }, watchdogMs);
+  }
+
+  const [code, signal] = await once(child, "exit");
+  if (watchdog !== null) clearTimeout(watchdog);
+  return { code, signal, watchdogFired, stdout, stderr };
 }
 
 const manifestPort = await freePort();
@@ -276,6 +294,21 @@ const manifestServer = http.createServer((req, res) => {
     url.pathname === "/manifest.json"
   ) {
     sendJson(res, 200, activeManifest);
+    return;
+  }
+  if (
+    String(req.method || "GET").toUpperCase() === "GET" &&
+    url.pathname === "/slow-manifest.json"
+  ) {
+    res.statusCode = 200;
+    res.setHeader("content-type", "application/json; charset=utf-8");
+    res.write(" ");
+    const trickle = setInterval(() => {
+      if (!res.destroyed) res.write(" ");
+    }, 200);
+    const clear = () => clearInterval(trickle);
+    req.once("close", clear);
+    res.once("close", clear);
     return;
   }
   sendJson(res, 404, { ok: false, error: "route_not_public" });
@@ -304,6 +337,34 @@ const skippedStaleGateway = await startGateway();
 
 try {
   const manifestUrl = `${manifestBase}/manifest.json`;
+
+  // A response that trickles bytes often enough to avoid socket inactivity
+  // timeout must still hit the resolver's total manifest wall.
+  const slowManifestStartedAt = Date.now();
+  const slowManifest = await runResolver(
+    ["--allow-hold"],
+    `${manifestBase}/slow-manifest.json`,
+    {
+      timeoutMs: "1000",
+      watchdogMs: 5000,
+    },
+  );
+  const slowManifestElapsedMs = Date.now() - slowManifestStartedAt;
+  assert.equal(
+    slowManifest.watchdogFired,
+    false,
+    "slow manifest escaped the resolver's application-level total deadline",
+  );
+  assert.equal(slowManifest.code, 3, slowManifest.stderr);
+  assert.match(
+    slowManifest.stderr,
+    /manifest request total deadline exceeded after 1000 ms/,
+  );
+  assert.ok(
+    slowManifestElapsedMs >= 700 && slowManifestElapsedMs < 4000,
+    `slow manifest total deadline was not bounded: ${slowManifestElapsedMs} ms`,
+  );
+
   const now = Date.now();
 
   const generatedAtMs = now - 45 * 60 * 1000;
@@ -600,6 +661,7 @@ try {
   console.log("both_head_surfaces_nonregressing_across_renewal=true");
   console.log("parallel_stale_renewals_share_observation_window=true");
   console.log("dns_lookup_hard_deadline_enforced=true");
+  console.log("manifest_http_total_deadline_enforced=true");
   console.log("manifest_and_runtime_dns_use_bounded_lookup=true");
   console.log("fresh_capacity_precedes_stale_priority_by_design=true");
   console.log("failed_or_regressing_stale_peer_excluded=true");

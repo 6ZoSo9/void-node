@@ -231,14 +231,28 @@ async function requestManifestOne(normalized, address) {
   const transport = normalized.url.protocol === "https:" ? https : http;
   return await new Promise((resolve, reject) => {
     let settled = false;
+    let totalDeadline = null;
+    const clearTotalDeadline = () => {
+      if (totalDeadline !== null) {
+        clearTimeout(totalDeadline);
+        totalDeadline = null;
+      }
+    };
     const failOnce = (error) => {
       if (settled) return;
       settled = true;
+      clearTotalDeadline();
       if (error?.exitCode === EXIT_TRUST_INVALID || error?.exitCode === EXIT_TRANSPORT_UNAVAILABLE) {
         reject(error);
         return;
       }
       reject(transportUnavailable(error?.message || String(error)));
+    };
+    const succeedOnce = (value) => {
+      if (settled) return;
+      settled = true;
+      clearTotalDeadline();
+      resolve(value);
     };
 
     const request = transport.request(
@@ -334,12 +348,31 @@ async function requestManifestOne(normalized, address) {
         response.on("error", failOnce);
         response.on("end", () => {
           if (settled) return;
-          settled = true;
-          resolve(parseJsonBytes(Buffer.concat(chunks, total), "bootstrap manifest"));
+          try {
+            succeedOnce(
+              parseJsonBytes(
+                Buffer.concat(chunks, total),
+                "bootstrap manifest",
+              ),
+            );
+          } catch (error) {
+            failOnce(
+              terminalManifestError(
+                error?.message || "bootstrap manifest JSON parse failed",
+              ),
+            );
+          }
         });
       },
     );
 
+    totalDeadline = setTimeout(() => {
+      request.destroy(
+        new Error(
+          `manifest request total deadline exceeded after ${TIMEOUT_MS} ms`,
+        ),
+      );
+    }, TIMEOUT_MS);
     request.setTimeout(TIMEOUT_MS, () => {
       request.destroy(new Error(`manifest request timed out after ${TIMEOUT_MS} ms`));
     });

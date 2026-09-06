@@ -74,9 +74,12 @@ lookup for both manifest resolution and every live-admission seed probe.
 Production lookup uses Node's cancellable c-ares `Resolver`, with one resolver
 try, an internal query timeout below the application wall, and an outer hard
 deadline equal to `VOID_PUBLIC_BOOTSTRAP_TIMEOUT_MS`. The outer deadline calls
-`resolver.cancel()` and rejects the endpoint as unavailable. HTTP requests remain
+`resolver.cancel()` and rejects the endpoint as unavailable. HTTP seed-probe requests remain
 pinned to the resulting public addresses and retain their existing bounded
-request deadlines.
+request deadlines. Manifest HTTP fetches also have an application-level total
+deadline in addition to the socket inactivity timeout, so a server cannot keep
+bootstrap resolution open indefinitely by trickling bytes below the response-size
+cap.
 
 This is resolver-local on purpose: the shared qualification library and persisted
 qualification-receipt contract are not redefined by this PR. Within #1468,
@@ -84,11 +87,12 @@ however, every DNS operation that can participate in a `Promise.all` admission
 wave is finite, so one hostile or broken hostname cannot hold successful siblings
 forever.
 
-The manifest remains capped at eight endpoints, each probe has a finite number of
-DNS/HTTP stages, stale renewal has exactly three samples and two finite sleep
-intervals, and there are at most two sequential admission waves. The resulting
-worst case may still be slow under repeated timeouts, but it is finite and does
-not multiply the 60-second observation span linearly by peer count.
+The manifest remains capped at eight endpoints, manifest fetch has bounded DNS
+and total HTTP walls, each seed probe has a finite number of DNS/HTTP stages,
+stale renewal has exactly three samples and two finite sleep intervals, and
+there are at most two sequential admission waves. The resulting worst case may
+still be slow under repeated timeouts, but it is finite and does not multiply
+the 60-second observation span linearly by peer count.
 
 ### Freshness-first capacity policy
 
