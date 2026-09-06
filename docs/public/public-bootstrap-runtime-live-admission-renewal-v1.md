@@ -10,7 +10,7 @@ still named healthy public endpoints.
 Runtime renewal must therefore be possible without weakening the evidence that
 backs checkpoint authority.
 
-## V5 contract
+## V6 contract
 
 ### Publication-time trust
 
@@ -61,11 +61,48 @@ candidates are probed first. Stale backups are attempted concurrently only if
 the fresh wave does not produce enough admitted peers. This avoids imposing a
 60-second stale-backup delay when four healthy fresh peers are already usable.
 
-The manifest remains capped at eight endpoints and the resolver retains bounded
-per-request timeouts. V5 removes the previous N-times-60-second sequential stale
-renewal multiplication; a fallback stale wave can still occur if an apparently
-fresh first wave fails, which is deliberate failover behavior rather than an
-unbounded per-peer loop.
+The manifest remains capped at eight endpoints. V6 removes the previous
+N-times-60-second sequential stale-renewal multiplication; a fallback stale wave
+can still occur if an apparently fresh first wave fails.
+
+### Bounded DNS and finite parallel waves
+
+Parallel admission must not turn one slow endpoint into an unbounded wait for
+every healthy sibling. The resolver therefore injects a dedicated bounded DNS
+lookup for both manifest resolution and every live-admission seed probe.
+
+Production lookup uses Node's cancellable c-ares `Resolver`, with one resolver
+try, an internal query timeout below the application wall, and an outer hard
+deadline equal to `VOID_PUBLIC_BOOTSTRAP_TIMEOUT_MS`. The outer deadline calls
+`resolver.cancel()` and rejects the endpoint as unavailable. HTTP requests remain
+pinned to the resulting public addresses and retain their existing bounded
+request deadlines.
+
+This is resolver-local on purpose: the shared qualification library and persisted
+qualification-receipt contract are not redefined by this PR. Within #1468,
+however, every DNS operation that can participate in a `Promise.all` admission
+wave is finite, so one hostile or broken hostname cannot hold successful siblings
+forever.
+
+The manifest remains capped at eight endpoints, each probe has a finite number of
+DNS/HTTP stages, stale renewal has exactly three samples and two finite sleep
+intervals, and there are at most two sequential admission waves. The resulting
+worst case may still be slow under repeated timeouts, but it is finite and does
+not multiply the 60-second observation span linearly by peer count.
+
+### Freshness-first capacity policy
+
+When at least `MAX_LIVE_SEEDS` endpoints remain inside their publication window,
+V6 intentionally probes that fresh capacity before spending a new >=60-second
+renewal interval on stale backups. A stale endpoint with a numerically better
+manifest priority therefore does not force renewal merely to displace already
+usable fresh capacity.
+
+`priority` remains the deterministic ordering used when selecting among endpoints
+that were actually admitted. It is a preference within eligible/admitted
+capacity, not a requirement to renew stale peers before using enough
+publication-fresh peers. This freshness-first rule is explicit policy rather than
+an accidental side effect of the wave optimization.
 
 ### Renewed authority
 

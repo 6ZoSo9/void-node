@@ -11,12 +11,76 @@ import {
   NETWORK,
   objectWithId,
 } from "./lib/void_public_seed_qualification_v1.mjs";
+import {
+  lookupDnsRecordsBoundedV1,
+} from "./lib/void_public_bootstrap_bounded_dns_v1.mjs";
 
 const MARKER =
   "VOID_PUBLIC_BOOTSTRAP_RUNTIME_LIVE_ADMISSION_RENEWAL_V1_PROOF";
 const MAX_AGE_MS = 2 * 60 * 60 * 1000;
 const MIN_RUNTIME_RENEWAL_SPAN_MS = 60_000;
 const root = process.cwd();
+
+// Finding G regression: one unresolved DNS participant must have a finite,
+// cancellable application deadline rather than holding Promise.all forever.
+let hangingDnsCancelCalls = 0;
+const hangingDnsStartedAt = Date.now();
+await assert.rejects(
+  lookupDnsRecordsBoundedV1("hang.invalid.example", {
+    timeoutMs: 150,
+    resolverFactory: () => ({
+      resolve4() {
+        return new Promise(() => {});
+      },
+      resolve6() {
+        return new Promise(() => {});
+      },
+      cancel() {
+        hangingDnsCancelCalls += 1;
+      },
+    }),
+  }),
+  /DNS lookup timed out after 150 ms/,
+);
+const hangingDnsElapsedMs = Date.now() - hangingDnsStartedAt;
+assert.ok(
+  hangingDnsElapsedMs >= 100 && hangingDnsElapsedMs < 2_000,
+  `bounded DNS timeout escaped its wall-clock bound: ${hangingDnsElapsedMs} ms`,
+);
+assert.ok(hangingDnsCancelCalls >= 1, "bounded DNS timeout did not cancel resolver");
+
+const oneFamilyDns = await lookupDnsRecordsBoundedV1(
+  "one-family.invalid.example",
+  {
+    timeoutMs: 500,
+    resolverFactory: () => ({
+      async resolve4() {
+        return ["1.1.1.1"];
+      },
+      async resolve6() {
+        const error = new Error("no AAAA records");
+        error.code = "ENODATA";
+        throw error;
+      },
+      cancel() {},
+    }),
+  },
+);
+assert.deepEqual(oneFamilyDns, [{ address: "1.1.1.1", family: 4 }]);
+
+const resolverSourceForDnsBound = fs.readFileSync(
+  "scripts/resolve_void_public_bootstrap_v1.mjs",
+  "utf8",
+);
+assert.equal(
+  (
+    resolverSourceForDnsBound.match(
+      /lookup: boundedPublicBootstrapLookupV1/g,
+    ) || []
+  ).length,
+  3,
+  "manifest + stale-renewal + fresh-path DNS are not all hard-bounded",
+);
 
 async function freePort() {
   const server = net.createServer();
@@ -535,6 +599,9 @@ try {
   console.log("both_head_surfaces_must_clear_published_head=true");
   console.log("both_head_surfaces_nonregressing_across_renewal=true");
   console.log("parallel_stale_renewals_share_observation_window=true");
+  console.log("dns_lookup_hard_deadline_enforced=true");
+  console.log("manifest_and_runtime_dns_use_bounded_lookup=true");
+  console.log("fresh_capacity_precedes_stale_priority_by_design=true");
   console.log("failed_or_regressing_stale_peer_excluded=true");
   console.log("fresh_capacity_skips_stale_backup_renewal=true");
   console.log("adapter_deadline_is_minimum_of_admitted_live_peers=true");

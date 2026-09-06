@@ -4,6 +4,7 @@ import http from "node:http";
 import https from "node:https";
 import net from "node:net";
 import process from "node:process";
+import { lookupDnsRecordsBoundedV1 } from "./lib/void_public_bootstrap_bounded_dns_v1.mjs";
 import {
   BOOTSTRAP_SCHEMA,
   CHAIN_ID,
@@ -168,6 +169,17 @@ const MAX_LIVE_SEEDS = positiveInteger(
   1,
   8,
 );
+
+async function boundedPublicBootstrapLookupV1(hostname, options = {}) {
+  if (options?.all !== true) {
+    throw new Error(
+      "bounded public bootstrap DNS lookup requires all=true",
+    );
+  }
+  return await lookupDnsRecordsBoundedV1(hostname, {
+    timeoutMs: TIMEOUT_MS,
+  });
+}
 
 function normalizeManifestUrl(raw) {
   let url;
@@ -347,6 +359,7 @@ async function fetchManifest(rawUrl) {
   let addresses;
   try {
     addresses = await resolvePublicDns(normalized.hostname, {
+      lookup: boundedPublicBootstrapLookupV1,
       allowLoopbackFixture: normalized.loopbackFixture,
     });
   } catch (error) {
@@ -458,6 +471,7 @@ async function runtimeRenewEndpointV1(endpoint, expiresAtMs) {
     index += 1
   ) {
     const sample = await probePublicSeedSample(endpoint.base, {
+      lookup: boundedPublicBootstrapLookupV1,
       allowLoopbackFixture: ALLOW_LOOPBACK_FIXTURE,
       timeoutMs: TIMEOUT_MS,
     });
@@ -524,6 +538,7 @@ async function runtimeRenewEndpointV1(endpoint, expiresAtMs) {
 async function admitLiveEndpointV1(endpoint, expiresAtMs) {
   if (endpoint.publishedQualificationNotAfterMs > Date.now()) {
     const sample = await probePublicSeedSample(endpoint.base, {
+      lookup: boundedPublicBootstrapLookupV1,
       allowLoopbackFixture: ALLOW_LOOPBACK_FIXTURE,
       timeoutMs: TIMEOUT_MS,
     });
