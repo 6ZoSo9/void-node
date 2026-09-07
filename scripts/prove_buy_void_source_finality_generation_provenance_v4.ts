@@ -5,11 +5,11 @@ import http from "node:http";
 
 import {
   observeBuyVoidSourceFinalityGenerationProvenanceV4,
-  verifyBuyVoidSourceFinalityRuntimeSourceGenerationV4,
+  verifyBuyVoidSourceFinalityRuntimeSourceFilesV4,
   VOID_BUY_VOID_SOURCE_FINALITY_GENERATION_PROVENANCE_AUTHORITY_V4,
   VOID_BUY_VOID_SOURCE_FINALITY_GENERATION_PROVENANCE_V4,
-  VOID_BUY_VOID_SOURCE_FINALITY_REVIEWED_GENERATION_SHA256_V4,
   VOID_BUY_VOID_SOURCE_FINALITY_REVIEWED_RUNTIME_SOURCES_V4,
+  VOID_BUY_VOID_SOURCE_FINALITY_REVIEWED_SOURCE_FILES_SHA256_V4,
 } from "../src/economic/buy_void_source_finality_generation_provenance_v4.js";
 import {
   VOID_BUY_VOID_CANONICAL_PRESALE_ECONOMICS_V2,
@@ -221,17 +221,17 @@ async function test(name: string, fn: () => Promise<void> | void) {
   console.log(`PASS ${name}`);
 }
 
-await test("runtime source verifier binds the exact five reviewed Git blobs", () => {
-  const result = verifyBuyVoidSourceFinalityRuntimeSourceGenerationV4();
+await test("runtime source-file verifier binds the exact five reviewed Git blobs", () => {
+  const result = verifyBuyVoidSourceFinalityRuntimeSourceFilesV4();
   if (!result.ok) throw new Error(result.reason);
-  assert.equal(result.source_generation_verified, true);
+  assert.equal(result.reviewed_source_files_verified, true);
   assert.equal(result.verified_source_file_count, "5");
   assert.equal(result.verification_mode, "runtime_git_blob_identity_v1");
   assert.equal(
-    result.reviewed_source_generation_sha256,
-    VOID_BUY_VOID_SOURCE_FINALITY_REVIEWED_GENERATION_SHA256_V4,
+    result.reviewed_source_files_sha256,
+    VOID_BUY_VOID_SOURCE_FINALITY_REVIEWED_SOURCE_FILES_SHA256_V4,
   );
-  assert.match(result.reviewed_source_generation_sha256, /^[0-9a-f]{64}$/);
+  assert.match(result.reviewed_source_files_sha256, /^[0-9a-f]{64}$/);
 });
 
 await test("independent proof recomputes every reviewed runtime Git blob", () => {
@@ -245,18 +245,18 @@ await test("independent proof recomputes every reviewed runtime Git blob", () =>
   }
 });
 
-await test("V4 verifies source generation before returning successful finality", async () => {
+await test("V4 checks reviewed source files before dynamically entering V3", async () => {
   const harness = await createHarness();
   try {
     const result = await observeBuyVoidSourceFinalityGenerationProvenanceV4(
       input(harness.url),
     );
     if (!result.ok) throw new Error(result.reason);
-    assert.equal(result.status, "source_finality_generation_provenance_verified");
+    assert.equal(result.status, "source_finality_reviewed_source_files_verified");
     assert.equal(result.marker, VOID_BUY_VOID_SOURCE_FINALITY_GENERATION_PROVENANCE_V4);
     assert.equal(result.version, 4);
-    assert.equal(result.source_generation_verified, true);
-    assert.equal(result.reviewed_source_generation_verified, true);
+    assert.equal(result.reviewed_source_files_verified, true);
+    assert.equal(result.source_generation_verified, false);
     assert.equal(result.deployed_artifact_generation_verified, false);
     assert.equal(result.authenticated_transport_identity_verified, true);
     assert.equal(result.total_operation_deadline_verified, true);
@@ -266,7 +266,7 @@ await test("V4 verifies source generation before returning successful finality",
     assert.equal(result.provider_quorum_verified, false);
     assert.equal(result.production_source_finality_authority_ready, false);
     assert.equal(result.verified_source_file_count, "5");
-    assert.equal(result.source_generation_verification_mode, "runtime_git_blob_identity_v1");
+    assert.equal(result.source_file_verification_mode, "runtime_git_blob_identity_v1");
     assert.equal(result.transaction_hash, TX);
     assert.equal(result.receipt_block_hash, RECEIPT_HASH);
     assert.equal(result.finalized_reference_block_hash, FINAL_HASH);
@@ -282,11 +282,10 @@ await test("caller cannot inject a generation manifest or provenance assertion",
     const value = input(harness.url);
     value.source_generation = {
       source_generation_verified: true,
-      reviewed_source_generation_sha256: "f".repeat(64),
+      reviewed_source_files_sha256: "f".repeat(64),
     };
     const result = await observeBuyVoidSourceFinalityGenerationProvenanceV4(value);
     assert.equal(result.ok, false);
-    if (result.ok) throw new Error("caller generation injection unexpectedly passed");
     assert.equal(
       result.reason,
       "source_finality_v3_source_finality_composition_input_shape",
@@ -310,11 +309,12 @@ await test("transport-policy failure still occurs before any RPC", async () => {
   }
 });
 
-await test("authority remains source-only and fail-closed for unreviewed production gates", () => {
+await test("authority preserves the deployed-generation HOLD", () => {
   const authority = VOID_BUY_VOID_SOURCE_FINALITY_GENERATION_PROVENANCE_AUTHORITY_V4;
   assert.equal(authority.caller_generation_assertion_accepted, false);
-  assert.equal(authority.source_generation_verification_required, true);
-  assert.equal(authority.source_generation_verified_on_success, true);
+  assert.equal(authority.reviewed_source_files_verification_required, true);
+  assert.equal(authority.reviewed_source_files_verified_on_success, true);
+  assert.equal(authority.source_generation_verified_on_success, false);
   assert.equal(authority.deployed_artifact_generation_verified, false);
   assert.equal(authority.remote_provider_identity_verified, false);
   assert.equal(authority.ancestry_verified, false);
@@ -332,11 +332,19 @@ await test("authority remains source-only and fail-closed for unreviewed product
   assert.equal(authority.money_movement, false);
 });
 
-await test("source contains no caller provenance parameter, runtime route, or source mutation", () => {
+await test("source verifies files before dynamic V3 entry and contains no source mutation", () => {
   const source = fs.readFileSync(
     "src/economic/buy_void_source_finality_generation_provenance_v4.ts",
     "utf8",
   );
+  const verifyIndex = source.indexOf(
+    "const sourceFiles = verifyBuyVoidSourceFinalityRuntimeSourceFilesV4()",
+  );
+  const importIndex = source.indexOf(
+    'await import("./buy_void_source_finality_authenticated_composition_v3.js")',
+  );
+  assert.ok(verifyIndex >= 0);
+  assert.ok(importIndex > verifyIndex);
   assert.equal(source.includes("process.env"), false);
   assert.equal(source.includes("app.post("), false);
   assert.equal(source.includes("listen("), false);
@@ -344,6 +352,7 @@ await test("source contains no caller provenance parameter, runtime route, or so
   assert.equal(source.includes("unlink"), false);
   assert.equal(source.includes("rename"), false);
   assert.equal(source.includes("caller_generation_assertion_accepted: true"), false);
+  assert.equal(source.includes("source_generation_verified_on_success: true"), false);
   assert.equal(source.includes("deployed_artifact_generation_verified: true"), false);
   assert.equal(source.includes("production_source_finality_authority_ready: true"), false);
 });
@@ -353,7 +362,8 @@ console.log(JSON.stringify({
   cases_passed: passed,
   cases_total: passed,
   reviewed_source_file_count: 5,
-  source_generation_verified_on_success: true,
+  reviewed_source_files_verified_on_success: true,
+  source_generation_verified_on_success: false,
   caller_generation_assertion_accepted: false,
   deployed_artifact_generation_verified: false,
   authenticated_transport_identity_verified: true,
