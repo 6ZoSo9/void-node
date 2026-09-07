@@ -51,7 +51,7 @@ export const VOID_BUY_VOID_SOURCE_FINALITY_AUTHENTICATED_COMPOSITION_AUTHORITY_V
 export const VOID_BUY_VOID_SOURCE_FINALITY_AUTHENTICATED_UPSTREAM_V3 =
   Object.freeze({
     pr_1471_head_sha: "036c34a479d8dacbfd663fcb610adabbd0008428",
-    pr_1472_head_sha: "28f47db9e5c4f0064112591eb75b4ef747946c8c",
+    pr_1472_head_sha: "70a12eeb30c5beb2f05e789bab9e75b57cc50e4d",
     expected_rpc_call_count: 10,
   });
 
