@@ -142,6 +142,13 @@ bounded sequence of `payment_confirmed` and `fulfillment_recorded` reference
 events. Each event must reproduce its exact record and resulting state digest.
 This is a reference for chain reconstruction, not a local ledger authority.
 
+The helper's default replay ceiling is `100,000` events and its explicit hard
+ceiling is `1,000,000`. Those are proof/reference resource bounds, **not** a
+claim that one process can replay the full theoretical presale domain. A
+production Chain-2050 implementation must use chain-native state and bounded
+indexed/checkpointed or paged reconstruction so correctness does not depend on
+feeding lifetime purchase history through this helper.
+
 ## Source-chain and Chain-2050 finality boundary
 
 The reference accepts closed finalized evidence objects but does not itself
@@ -152,6 +159,14 @@ finality-adapter identity.
 A future sensitive `contracts/mainnet/` implementation must bind those verified
 inputs to actual Chain-2050 authorization. Caller-written JSON is never sufficient
 authority.
+
+In this reference generation, `source_policy_fingerprint_sha256` and
+`source_finality_attestation_sha256` are opaque commitments: the state machine
+checks their closed shape and exact reuse/replay consistency, but does not define
+or authenticate their preimages. Before production authority exists, a separately
+reviewed adapter contract must define the deterministic mapping from #1463's
+admitted policy/finality output to those two commitments, including exactly which
+policy generation and finality evidence are hashed.
 
 The current Chain-2050 delivery remains a plain ERC-20 transfer. Until the
 two-phase state/event surface exists on-chain, local correlation and reservation
