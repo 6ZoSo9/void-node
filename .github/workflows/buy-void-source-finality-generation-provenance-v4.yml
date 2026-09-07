@@ -1,4 +1,4 @@
-name: VOID Buy VOID source-finality generation provenance v4
+name: VOID Buy VOID reviewed source files v4
 
 on:
   pull_request:
@@ -6,6 +6,7 @@ on:
       - "src/economic/buy_void_source_finality_generation_provenance_v4.ts"
       - "scripts/prove_buy_void_source_finality_generation_provenance_v4.ts"
       - "docs/architecture/buy-void-source-finality-generation-provenance-v4.md"
+      - "docs/architecture/buy-void-source-finality-generation-provenance-v4-review-checklist.md"
       - ".github/workflows/buy-void-source-finality-generation-provenance-v4.yml"
   workflow_dispatch:
 
@@ -52,7 +53,7 @@ jobs:
             src/economic/buy_void_source_finality_generation_provenance_v4.ts \
             scripts/prove_buy_void_source_finality_generation_provenance_v4.ts
 
-      - name: Prove source-generation provenance V4
+      - name: Prove reviewed source-file binding V4
         run: ./node_modules/.bin/tsx scripts/prove_buy_void_source_finality_generation_provenance_v4.ts
 
       - name: Preserve V3 authenticated composition
