@@ -6,6 +6,10 @@ export const ECONOMICS_MARKER = "VOID_BUY_VOID_CANONICAL_PRESALE_ECONOMICS_DUAL_
 export const VERIFIED_PAYMENT_UPSTREAM_MARKER = "VOID_BUY_VOID_VERIFIED_PAYMENT_V2";
 export const FINALIZED_PAYMENT_MARKER = "VOID_BUY_VOID_FINALIZED_SOURCE_PAYMENT_V1";
 export const FINALITY_ATTESTATION_MARKER = "VOID_BUY_VOID_SOURCE_FINALITY_ATTESTATION_V1";
+export const FINALITY_ATTESTATION_MARKER_V2 =
+  "VOID_BUY_VOID_SOURCE_FINALITY_ATTESTATION_V2";
+export const SOURCE_FINALITY_BLOCK_EVIDENCE_MARKER_V1 =
+  "VOID_BUY_VOID_SOURCE_CHAIN_FINALITY_RPC_ADAPTER_V1";
 
 export const UPSTREAM_BINDINGS_V1 = Object.freeze({
   main_base_sha: "090cd3ef1d60852f614c29cb7aee9ebdacde3e1b",
@@ -116,6 +120,24 @@ const FINALITY_ADMISSION_KEYS = [
   "transaction_hash",
 ];
 const HANDOFF_INPUT_KEYS = [
+  "finality_admission",
+  "policy_generation",
+  "verified_payment",
+];
+const SOURCE_FINALITY_BLOCK_EVIDENCE_KEYS_V2 = [
+  "evm_chain_id",
+  "finalized_reference_block",
+  "finalized_reference_block_hash",
+  "finalized_tag",
+  "marker",
+  "provider_consistency_verified",
+  "receipt_block_hash",
+  "receipt_block_number",
+  "schema",
+  "source_chain",
+];
+const HANDOFF_INPUT_KEYS_V2 = [
+  "block_evidence",
   "finality_admission",
   "policy_generation",
   "verified_payment",
@@ -451,6 +473,74 @@ export function normalizeFinalityAdmissionV1(input) {
   });
 }
 
+export function normalizeSourceFinalityBlockEvidenceV2(input) {
+  keys(
+    input,
+    SOURCE_FINALITY_BLOCK_EVIDENCE_KEYS_V2,
+    "SOURCE_FINALITY_BLOCK_EVIDENCE_SHAPE_V2",
+  );
+  exact(
+    input.schema,
+    "void_buy_void_source_chain_finality_block_evidence_v1",
+    "SOURCE_FINALITY_BLOCK_EVIDENCE_SCHEMA_V2",
+  );
+  exact(
+    input.marker,
+    SOURCE_FINALITY_BLOCK_EVIDENCE_MARKER_V1,
+    "SOURCE_FINALITY_BLOCK_EVIDENCE_MARKER_V2",
+  );
+  const chain = sourceChain(input.source_chain);
+  exact(
+    text(input.evm_chain_id),
+    sourceChainId(chain),
+    "SOURCE_FINALITY_BLOCK_EVIDENCE_CHAIN_ID_V2",
+  );
+  const receipt = uint(
+    input.receipt_block_number,
+    "SOURCE_FINALITY_BLOCK_EVIDENCE_RECEIPT_BLOCK_V2",
+    { positive: true },
+  );
+  const reference = uint(
+    input.finalized_reference_block,
+    "SOURCE_FINALITY_BLOCK_EVIDENCE_REFERENCE_BLOCK_V2",
+    { positive: true },
+  );
+  if (reference < receipt) {
+    fail(
+      "SOURCE_FINALITY_BLOCK_EVIDENCE_REFERENCE_BEFORE_RECEIPT_V2",
+      `${reference}<${receipt}`,
+    );
+  }
+  exact(
+    input.finalized_tag,
+    "finalized",
+    "SOURCE_FINALITY_BLOCK_EVIDENCE_TAG_V2",
+  );
+  exact(
+    input.provider_consistency_verified,
+    true,
+    "SOURCE_FINALITY_BLOCK_EVIDENCE_CONSISTENCY_V2",
+  );
+  return Object.freeze({
+    schema: input.schema,
+    marker: SOURCE_FINALITY_BLOCK_EVIDENCE_MARKER_V1,
+    source_chain: chain,
+    evm_chain_id: sourceChainId(chain),
+    receipt_block_number: receipt.toString(),
+    receipt_block_hash: hash32(
+      input.receipt_block_hash,
+      "SOURCE_FINALITY_BLOCK_EVIDENCE_RECEIPT_HASH_V2",
+    ),
+    finalized_reference_block: reference.toString(),
+    finalized_reference_block_hash: hash32(
+      input.finalized_reference_block_hash,
+      "SOURCE_FINALITY_BLOCK_EVIDENCE_REFERENCE_HASH_V2",
+    ),
+    finalized_tag: "finalized",
+    provider_consistency_verified: true,
+  });
+}
+
 export function sourceFinalityAttestationPreimageV1(finalityInput) {
   const finality = normalizeFinalityAdmissionV1(finalityInput);
   return Object.freeze({
@@ -476,6 +566,71 @@ export function sourceFinalityAttestationSha256V1(finalityInput) {
   return framedDomainHash(
     FINALITY_ATTESTATION_MARKER,
     sourceFinalityAttestationPreimageV1(finalityInput),
+  );
+}
+
+export function sourceFinalityAttestationPreimageV2(
+  finalityInput,
+  blockEvidenceInput,
+) {
+  const finality = normalizeFinalityAdmissionV1(finalityInput);
+  const evidence =
+    normalizeSourceFinalityBlockEvidenceV2(blockEvidenceInput);
+  exact(
+    evidence.source_chain,
+    finality.source_chain,
+    "SOURCE_FINALITY_V2_SOURCE_CHAIN_MISMATCH",
+  );
+  exact(
+    evidence.evm_chain_id,
+    finality.evm_chain_id,
+    "SOURCE_FINALITY_V2_CHAIN_ID_MISMATCH",
+  );
+  exact(
+    evidence.receipt_block_number,
+    finality.receipt_block_number,
+    "SOURCE_FINALITY_V2_RECEIPT_BLOCK_MISMATCH",
+  );
+  exact(
+    evidence.finalized_reference_block,
+    finality.finalized_reference_block,
+    "SOURCE_FINALITY_V2_REFERENCE_BLOCK_MISMATCH",
+  );
+  return Object.freeze({
+    schema: "void_buy_void_source_finality_attestation_preimage_v2",
+    marker: FINALITY_ATTESTATION_MARKER_V2,
+    version: 2,
+    source_chain: finality.source_chain,
+    evm_chain_id: finality.evm_chain_id,
+    canonical_payment_identity: finality.payment_identity,
+    transaction_hash: finality.transaction_hash,
+    log_index: finality.log_index,
+    receipt_block_number: finality.receipt_block_number,
+    receipt_block_hash: evidence.receipt_block_hash,
+    finalized_reference_block: finality.finalized_reference_block,
+    finalized_reference_block_hash:
+      evidence.finalized_reference_block_hash,
+    finalized_tag: evidence.finalized_tag,
+    provider_consistency_verified:
+      evidence.provider_consistency_verified,
+    confirmations_observed: finality.confirmations_observed,
+    finality_adapter_id: finality.finality_adapter_id,
+    policy_id: finality.policy_id,
+    stable_config_sha256: finality.stable_config_sha256,
+    observation_sha256: finality.observation_sha256,
+  });
+}
+
+export function sourceFinalityAttestationSha256V2(
+  finalityInput,
+  blockEvidenceInput,
+) {
+  return framedDomainHash(
+    FINALITY_ATTESTATION_MARKER_V2,
+    sourceFinalityAttestationPreimageV2(
+      finalityInput,
+      blockEvidenceInput,
+    ),
   );
 }
 
@@ -539,6 +694,26 @@ export function buildFinalizedSourcePaymentHandoffV1(input) {
       sourceFinalityAttestationSha256V1(finality),
     finality_status: "finalized",
     exact_payment_verified: true,
+  });
+}
+
+export function buildFinalizedSourcePaymentHandoffV2(input) {
+  keys(input, HANDOFF_INPUT_KEYS_V2, "HANDOFF_INPUT_SHAPE_V2");
+
+  const v1Projection = buildFinalizedSourcePaymentHandoffV1({
+    policy_generation: input.policy_generation,
+    verified_payment: input.verified_payment,
+    finality_admission: input.finality_admission,
+  });
+
+  const v2Attestation = sourceFinalityAttestationSha256V2(
+    input.finality_admission,
+    input.block_evidence,
+  );
+
+  return Object.freeze({
+    ...v1Projection,
+    source_finality_attestation_sha256: v2Attestation,
   });
 }
 

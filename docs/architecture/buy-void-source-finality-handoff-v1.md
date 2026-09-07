@@ -143,3 +143,49 @@ Chain-2050 settlement implementation.
 
 This adapter grants no economic or operational authority and does not alter those
 responsibilities.
+## Hash-bound V2 successor
+
+The reviewed V1 attestation remains unchanged for provenance and compatibility.
+V1 binds the receipt and finalized-reference **heights**, but not the exact block
+hashes at those heights.
+
+A production source-finality adapter can observe exact block hashes, so a
+stronger handoff generation is now defined without rewriting V1:
+
+```text
+VOID_BUY_VOID_SOURCE_FINALITY_ATTESTATION_V2
+```
+
+V2 requires a closed source-finality block-evidence object containing:
+
+- exact source chain and EVM chain ID;
+- receipt block number and `0x`-prefixed 32-byte receipt block hash;
+- finalized-reference block number and exact `0x`-prefixed 32-byte block hash;
+- `finalized_tag = "finalized"`; and
+- `provider_consistency_verified = true`.
+
+The evidence heights must exactly equal the V1-admitted finality heights for the
+same payment. The V2 finality-attestation preimage retains every V1 finality
+field and additionally binds:
+
+```text
+receipt_block_hash
+finalized_reference_block_hash
+finalized_tag
+provider_consistency_verified
+```
+
+The V2 digest is domain-separated and length-framed exactly like V1, under the
+new V2 marker. `buildFinalizedSourcePaymentHandoffV2()` preserves the exact
+canonical payment identity, payment-key algorithm, policy fingerprint and #1465
+finalized-source-payment field shape; only the finality-attestation digest is
+upgraded to the hash-bound V2 generation.
+
+Caller-written block evidence is still not production authority. A later live
+adapter must authenticate/acquire this evidence through its reviewed
+server-controlled RPC/finality boundary before V2 may be used for production
+settlement authorization.
+
+V1 remains valid as the independently reviewed reference generation, but once
+hash-bearing live finality evidence is available, production integration must
+prefer V2 rather than discarding the exact block hashes.
