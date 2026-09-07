@@ -5,7 +5,7 @@ import { execFileSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 
 const MARKER = "VOID_BUY_VOID_SOURCE_FINALITY_COMPILED_ARTIFACT_ATTESTATION_V1";
-const SOURCE_STACK_HEAD = "628f718154e888bde2eb7d1389bce2bcd9461d66";
+const SOURCE_STACK_HEAD = "f0fd6fb9afff43986d7f0b87e9aac3750d4e4f34";
 const EXPECTED_TYPESCRIPT_VERSION = "5.9.3";
 const MANIFEST_PATH = "docs/architecture/buy-void-source-finality-compiled-artifact-attestation-v1.json";
 const DERIVATION_NODE_MAJORS = Object.freeze([22, 24, 26]);
@@ -201,7 +201,14 @@ function expectedManifest(lockedTypeScript, artifacts, artifactSetSha256) {
 function verifyManifest(expected) {
   const bytes = readRegularFile(MANIFEST_PATH, 1024 * 1024);
   const expectedBytes = Buffer.from(`${JSON.stringify(expected, null, 2)}\n`, "utf8");
-  if (!bytes.equals(expectedBytes)) fail("compiled_artifact_attestation_manifest_mismatch");
+  if (!bytes.equals(expectedBytes)) {
+    console.log(`${MARKER}_DERIVATION_ONLY`);
+    console.log(`node_major=${process.versions.node.split(".")[0]}`);
+    console.log(`compiled_artifact_generation_verified=false`);
+    console.log(`deployed_artifact_generation_verified=false`);
+    console.log(`candidate_manifest_json=${JSON.stringify(expected)}`);
+    fail("compiled_artifact_attestation_manifest_mismatch");
+  }
   const parsed = JSON.parse(bytes.toString("utf8"));
   if (canonical(parsed) !== canonical(expected)) fail("compiled_artifact_attestation_manifest_noncanonical");
   return Object.freeze({ manifest: parsed, sha256: sha256(bytes) });
