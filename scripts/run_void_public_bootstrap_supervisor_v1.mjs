@@ -1,8 +1,16 @@
 #!/usr/bin/env node
 import childProcess from "node:child_process";
 import crypto from "node:crypto";
+import path from "node:path";
 import process from "node:process";
 import { createPublicSeedClientAdapterV1 } from "../tools/void-public-seed-client-adapter-v1.mjs";
+import {
+  openCheckpointGenerationForRestoreResultV1,
+  runPublicCheckpointRestorePreNodeV1,
+} from "./lib/void_public_checkpoint_restore_supervisor_v1.mjs";
+import {
+  closeSelectedCheckpointGenerationV1,
+} from "./lib/void_public_checkpoint_restore_activation_v1.mjs";
 
 const MARKER = "VOID_PUBLIC_BOOTSTRAP_SUPERVISOR_V1";
 const AUTHORITY_MESSAGE_SCHEMA = "void_public_bootstrap_adapter_authority_message_v1";
@@ -34,16 +42,56 @@ async function main() {
     },
   });
 
-  const nodeEntry = String(process.env.VOID_PUBLIC_BOOTSTRAP_NODE_ENTRY || "dist/index.js");
-  const child = childProcess.spawn(process.execPath, [nodeEntry], {
-    env: {
-      ...process.env,
-      VOID_FOLLOWER_AUTOSTART_PEERS: adapter.base,
-      VOID_FOLLOWER_AUTOSTART_PEER: adapter.base,
-      VOID_PUBLIC_BOOTSTRAP_CLIENT_ADAPTER_ACTIVE: "1",
-    },
-    stdio: ["inherit", "inherit", "inherit", "ipc"],
+  const restoreResult = await runPublicCheckpointRestorePreNodeV1({
+    adapterBase: adapter.base,
+    authorityGeneration,
+    authoritySequence,
+    authoritySecret,
   });
+
+  const logicalDataDir = path.resolve(
+    String(process.env.DATA_DIR || "data"),
+  );
+  const selected =
+    openCheckpointGenerationForRestoreResultV1({
+      dataDir: logicalDataDir,
+      restoreResult,
+    });
+
+  const nodeEntry = String(process.env.VOID_PUBLIC_BOOTSTRAP_NODE_ENTRY || "dist/index.js");
+  const childEnv = {
+    ...process.env,
+    VOID_FOLLOWER_AUTOSTART_PEERS: adapter.base,
+    VOID_FOLLOWER_AUTOSTART_PEER: adapter.base,
+    VOID_PUBLIC_BOOTSTRAP_CLIENT_ADAPTER_ACTIVE: "1",
+  };
+  const childStdio = ["inherit", "inherit", "inherit", "ipc"];
+
+  if (selected) {
+    childEnv.DATA_DIR = selected.childRoot;
+    childEnv.VOID_SEGSTORE_INHERITED_DATA_AUTHORITY_V1 = "1";
+    childEnv.VOID_SEGSTORE_INHERITED_DATA_FD_V1 =
+      String(selected.childFd);
+    childEnv.VOID_SEGSTORE_INHERITED_DATA_DEV_V1 =
+      selected.device;
+    childEnv.VOID_SEGSTORE_INHERITED_DATA_INO_V1 =
+      selected.inode;
+    childEnv.VOID_SEGSTORE_INHERITED_DATA_CONTENT_SEAL_V1 =
+      selected.contentSeal;
+    childStdio.push(selected.fd);
+  }
+
+  let child;
+  try {
+    child = childProcess.spawn(process.execPath, [nodeEntry], {
+      env: childEnv,
+      stdio: childStdio,
+    });
+  } finally {
+    if (selected) {
+      closeSelectedCheckpointGenerationV1(selected);
+    }
+  }
 
   let stopping = false;
   let authoritySent = false;
@@ -128,6 +176,10 @@ async function main() {
   console.log("historical_authority_secret_exposed=false");
   console.log("tailnet_required=false");
   console.log("direct_remote_fetch_from_node=false");
+  console.log(`checkpoint_selector_active=${selected ? "true" : "false"}`);
+  console.log(`checkpoint_generation_fd_inherited=${selected ? "true" : "false"}`);
+  console.log(`checkpoint_selection_ipc_bound=${restoreResult.selection ? "true" : "false"}`);
+  console.log(`checkpoint_content_seal_bound=${selected ? "true" : "false"}`);
   console.log("wallet_authority=false");
   console.log("signer_authority=false");
   console.log("validator_authority=false");

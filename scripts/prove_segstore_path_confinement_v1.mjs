@@ -9,6 +9,10 @@ import * as path from "node:path";
 import { autoRepairDataDir } from "../dist/chain/auto_repair.js";
 import { blockHash, computeRoots } from "../dist/chain/block.js";
 import { SegStore } from "../dist/chain/seg_store.js";
+import {
+  computeVoidSegStoreContentSealV1,
+  registerVoidSegStoreProcFdRootV1,
+} from "../dist/chain/segstore_path_confinement_v1.js";
 
 const MARKER = "VOID_SEGSTORE_PATH_CONFINEMENT_V1_PROOF_GREEN";
 const ZERO_HASH = "0".repeat(64);
@@ -252,7 +256,158 @@ async function proveWalDirectoryAndRecordSymlinksRejected() {
   }
 }
 
+
+async function proveExplicitRegisteredProcFdRoot() {
+  const root = newRoot("proc-fd-root");
+  let fd = null;
+  let unregister = null;
+  try {
+    const block0 = makeBlock(0);
+    const store = new SegStore(root, { sparseEvery: 16 });
+    store.saveBlock(block0);
+
+    fd = fs.openSync(
+      root,
+      fs.constants.O_RDONLY |
+        fs.constants.O_DIRECTORY |
+        fs.constants.O_NOFOLLOW,
+    );
+    const fdRoot = `/proc/self/fd/${fd}`;
+
+    await expectConfinementReject(
+      () => autoRepairDataDir(fdRoot, { sparseEvery: 16, dryRun: true }),
+      "unregistered proc-fd root",
+    );
+
+    unregister = registerVoidSegStoreProcFdRootV1(fdRoot);
+    const dry = await autoRepairDataDir(fdRoot, {
+      sparseEvery: 16,
+      dryRun: true,
+    });
+    assert.equal(dry.head, 0);
+    assert.equal(dry.mutationsApplied, false);
+
+    const meta = path.join(
+      root,
+      "segments",
+      "00000000",
+      "meta.json",
+    );
+    const metaReal = `${meta}.real`;
+    fs.renameSync(meta, metaReal);
+    const outside = outsideFixture(root, "proc-fd-meta-sentinel");
+    fs.symlinkSync(outside.file, meta, "file");
+
+    await expectConfinementReject(
+      () => autoRepairDataDir(fdRoot, { sparseEvery: 16, dryRun: true }),
+      "registered proc-fd child symlink",
+    );
+    assertOutsideUnchanged(outside, "registered proc-fd child symlink");
+
+    fs.unlinkSync(meta);
+    fs.renameSync(metaReal, meta);
+
+    unregister();
+    unregister = null;
+    await expectConfinementReject(
+      () => autoRepairDataDir(fdRoot, { sparseEvery: 16, dryRun: true }),
+      "unregistered proc-fd root after unregister",
+    );
+  } finally {
+    if (unregister) unregister();
+    if (fd !== null) fs.closeSync(fd);
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+}
+
+async function proveInheritedProcFdRoot() {
+  const root = newRoot("inherited-proc-fd-root");
+  let fd = null;
+  const envKeys = [
+    "VOID_SEGSTORE_INHERITED_DATA_AUTHORITY_V1",
+    "VOID_SEGSTORE_INHERITED_DATA_FD_V1",
+    "VOID_SEGSTORE_INHERITED_DATA_DEV_V1",
+    "VOID_SEGSTORE_INHERITED_DATA_INO_V1",
+    "VOID_SEGSTORE_INHERITED_DATA_CONTENT_SEAL_V1",
+  ];
+  const prior = new Map(
+    envKeys.map((key) => [key, process.env[key]]),
+  );
+  try {
+    const block0 = makeBlock(0);
+    const normal = new SegStore(root, { sparseEvery: 16 });
+    normal.saveBlock(block0);
+
+    fd = fs.openSync(
+      root,
+      fs.constants.O_RDONLY |
+        fs.constants.O_DIRECTORY |
+        fs.constants.O_NOFOLLOW,
+    );
+    const stat = fs.fstatSync(fd, { bigint: true });
+    const fdRoot = `/proc/self/fd/${fd}`;
+
+    process.env.VOID_SEGSTORE_INHERITED_DATA_AUTHORITY_V1 = "1";
+    process.env.VOID_SEGSTORE_INHERITED_DATA_FD_V1 =
+      String(fd);
+    process.env.VOID_SEGSTORE_INHERITED_DATA_DEV_V1 =
+      String(stat.dev);
+    process.env.VOID_SEGSTORE_INHERITED_DATA_INO_V1 =
+      String(stat.ino);
+
+    const unregisterSealRoot =
+      registerVoidSegStoreProcFdRootV1(fdRoot);
+    let contentSeal;
+    try {
+      contentSeal = computeVoidSegStoreContentSealV1(fdRoot);
+    } finally {
+      unregisterSealRoot();
+    }
+    process.env.VOID_SEGSTORE_INHERITED_DATA_CONTENT_SEAL_V1 =
+      contentSeal;
+
+    const inherited = new SegStore(fdRoot, {
+      sparseEvery: 16,
+    });
+    assert.equal(inherited.loadHeadNumber(), 0);
+    assert.deepEqual(inherited.loadBlock(0), block0);
+
+    process.env.VOID_SEGSTORE_INHERITED_DATA_CONTENT_SEAL_V1 =
+      "0".repeat(64);
+    await expectConfinementReject(
+      () => Promise.resolve(new SegStore(fdRoot)),
+      "inherited proc-fd content seal mismatch",
+    );
+    process.env.VOID_SEGSTORE_INHERITED_DATA_CONTENT_SEAL_V1 =
+      contentSeal;
+
+    process.env.VOID_SEGSTORE_INHERITED_DATA_INO_V1 =
+      String(stat.ino + 1n);
+    await expectConfinementReject(
+      () => Promise.resolve(new SegStore(fdRoot)),
+      "inherited proc-fd identity mismatch",
+    );
+
+    process.env.VOID_SEGSTORE_INHERITED_DATA_INO_V1 =
+      String(stat.ino);
+    delete process.env.VOID_SEGSTORE_INHERITED_DATA_AUTHORITY_V1;
+    await expectConfinementReject(
+      () => Promise.resolve(new SegStore(fdRoot)),
+      "inherited proc-fd authority absent",
+    );
+  } finally {
+    for (const [key, value] of prior) {
+      if (value === undefined) delete process.env[key];
+      else process.env[key] = value;
+    }
+    if (fd !== null) fs.closeSync(fd);
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+}
+
 await proveNormalStoreAndRepairRemainFunctional();
+await proveInheritedProcFdRoot();
+await proveExplicitRegisteredProcFdRoot();
 await proveRootSymlinkRejected();
 await proveSegmentsDirectorySymlinkRejected();
 await proveCanonicalSegmentSymlinkRejected();
@@ -264,6 +419,15 @@ await proveWalDirectoryAndRecordSymlinksRejected();
 console.log("normal_store_append_load_preserved=true");
 console.log("normal_torn_tail_repair_preserved=true");
 console.log("dry_run_truth_preserved=true");
+console.log("proc_fd_root_unregistered_accepted=false");
+console.log("inherited_proc_fd_runtime_store_green=true");
+console.log("inherited_proc_fd_content_seal_green=true");
+console.log("inherited_proc_fd_content_seal_mismatch_rejected=true");
+console.log("inherited_proc_fd_identity_mismatch_rejected=true");
+console.log("inherited_proc_fd_authority_absent_rejected=true");
+console.log("proc_fd_root_explicit_registration_green=true");
+console.log("proc_fd_root_child_symlink_accepted=false");
+console.log("proc_fd_root_unregister_restores_rejection=true");
 console.log("data_root_symlink_accepted=false");
 console.log("segments_symlink_accepted=false");
 console.log("canonical_segment_symlink_accepted=false");
