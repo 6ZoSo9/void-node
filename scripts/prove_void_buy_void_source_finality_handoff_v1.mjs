@@ -9,16 +9,22 @@ import {
   AUTHORITY_V1,
   CANONICAL_ECONOMICS_V1,
   FINALITY_ATTESTATION_MARKER,
+  FINALITY_ATTESTATION_MARKER_V2,
+  SOURCE_FINALITY_BLOCK_EVIDENCE_MARKER_V1,
   MARKER,
   POLICY_MARKER,
   UPSTREAM_BINDINGS_V1,
   buildFinalizedSourcePaymentHandoffV1,
+  buildFinalizedSourcePaymentHandoffV2,
   deriveSourcePolicyCommitmentsV1,
   normalizeFinalityAdmissionV1,
   normalizePolicyGenerationV1,
+  normalizeSourceFinalityBlockEvidenceV2,
   normalizeVerifiedPaymentBindingV1,
   sourceFinalityAttestationPreimageV1,
+  sourceFinalityAttestationPreimageV2,
   sourceFinalityAttestationSha256V1,
+  sourceFinalityAttestationSha256V2,
   validateFinalizedSourcePaymentProjectionV1,
 } from "./lib/void_buy_void_source_finality_handoff_v1.mjs";
 
@@ -39,6 +45,10 @@ const BASE_PAYER = `0x${"c3".repeat(20)}`;
 const ETH_USDC = `0x${"d4".repeat(20)}`;
 const ETH_RECEIVE = `0x${"e5".repeat(20)}`;
 const ETH_PAYER = `0x${"f6".repeat(20)}`;
+const BASE_RECEIPT_BLOCK_HASH = `0x${"31".repeat(32)}`;
+const BASE_FINALIZED_BLOCK_HASH = `0x${"32".repeat(32)}`;
+const ETH_RECEIPT_BLOCK_HASH = `0x${"41".repeat(32)}`;
+const ETH_FINALIZED_BLOCK_HASH = `0x${"42".repeat(32)}`;
 
 function clone(value) {
   return structuredClone(value);
@@ -168,12 +178,52 @@ function ethFinality(policy = policyGeneration(), overrides = {}) {
     ...overrides,
   };
 }
+function baseBlockEvidence(overrides = {}) {
+  return {
+    schema: "void_buy_void_source_chain_finality_block_evidence_v1",
+    marker: SOURCE_FINALITY_BLOCK_EVIDENCE_MARKER_V1,
+    source_chain: "base",
+    evm_chain_id: "8453",
+    receipt_block_number: "989",
+    receipt_block_hash: BASE_RECEIPT_BLOCK_HASH,
+    finalized_reference_block: "1000",
+    finalized_reference_block_hash: BASE_FINALIZED_BLOCK_HASH,
+    finalized_tag: "finalized",
+    provider_consistency_verified: true,
+    ...overrides,
+  };
+}
+function ethBlockEvidence(overrides = {}) {
+  return {
+    schema: "void_buy_void_source_chain_finality_block_evidence_v1",
+    marker: SOURCE_FINALITY_BLOCK_EVIDENCE_MARKER_V1,
+    source_chain: "ethereum",
+    evm_chain_id: "1",
+    receipt_block_number: "1937",
+    receipt_block_hash: ETH_RECEIPT_BLOCK_HASH,
+    finalized_reference_block: "2000",
+    finalized_reference_block_hash: ETH_FINALIZED_BLOCK_HASH,
+    finalized_tag: "finalized",
+    provider_consistency_verified: true,
+    ...overrides,
+  };
+}
+
 function baseInput(overrides = {}) {
   const policy = overrides.policy_generation || policyGeneration();
   return {
     policy_generation: policy,
     verified_payment: overrides.verified_payment || baseVerified(),
     finality_admission: overrides.finality_admission || baseFinality(policy),
+  };
+}
+
+function baseInputV2(overrides = {}) {
+  const v1 = baseInput(overrides);
+  return {
+    ...v1,
+    block_evidence:
+      overrides.block_evidence || baseBlockEvidence(),
   };
 }
 
@@ -323,6 +373,218 @@ test("attestation changes when receipt block changes", () => {
     sourceFinalityAttestationSha256V1(input.finality_admission),
     sourceFinalityAttestationSha256V1(changed),
   );
+});
+
+test("V1 attestation remains the reviewed height-only generation", () => {
+  const input = baseInput();
+  const preimage =
+    sourceFinalityAttestationPreimageV1(
+      input.finality_admission,
+    );
+  assert.equal(preimage.marker, FINALITY_ATTESTATION_MARKER);
+  assert.equal(
+    Object.prototype.hasOwnProperty.call(
+      preimage,
+      "receipt_block_hash",
+    ),
+    false,
+  );
+  assert.equal(
+    Object.prototype.hasOwnProperty.call(
+      preimage,
+      "finalized_reference_block_hash",
+    ),
+    false,
+  );
+});
+
+test("V2 block evidence is closed and hash-bound", () => {
+  const evidence =
+    normalizeSourceFinalityBlockEvidenceV2(
+      baseBlockEvidence(),
+    );
+  assert.equal(
+    evidence.receipt_block_hash,
+    BASE_RECEIPT_BLOCK_HASH,
+  );
+  assert.equal(
+    evidence.finalized_reference_block_hash,
+    BASE_FINALIZED_BLOCK_HASH,
+  );
+  assert.equal(evidence.finalized_tag, "finalized");
+  assert.equal(evidence.provider_consistency_verified, true);
+
+  const unknown = {
+    ...baseBlockEvidence(),
+    unreviewed: true,
+  };
+  expectCode(
+    () => normalizeSourceFinalityBlockEvidenceV2(unknown),
+    "SOURCE_FINALITY_BLOCK_EVIDENCE_SHAPE_V2",
+  );
+});
+
+test("V2 attestation preimage binds receipt and finalized hashes", () => {
+  const input = baseInputV2();
+  const preimage = sourceFinalityAttestationPreimageV2(
+    input.finality_admission,
+    input.block_evidence,
+  );
+  assert.equal(
+    preimage.marker,
+    FINALITY_ATTESTATION_MARKER_V2,
+  );
+  assert.equal(preimage.version, 2);
+  assert.equal(
+    preimage.receipt_block_hash,
+    BASE_RECEIPT_BLOCK_HASH,
+  );
+  assert.equal(
+    preimage.finalized_reference_block_hash,
+    BASE_FINALIZED_BLOCK_HASH,
+  );
+  assert.equal(preimage.finalized_tag, "finalized");
+  assert.equal(
+    preimage.provider_consistency_verified,
+    true,
+  );
+});
+
+test("V2 handoff preserves payment key and policy fingerprint", () => {
+  const input = baseInputV2();
+  const v1 = buildFinalizedSourcePaymentHandoffV1({
+    policy_generation: input.policy_generation,
+    verified_payment: input.verified_payment,
+    finality_admission: input.finality_admission,
+  });
+  const v2 = buildFinalizedSourcePaymentHandoffV2(input);
+  validateFinalizedSourcePaymentProjectionV1(v2);
+  assert.equal(
+    v2.canonical_payment_identity,
+    v1.canonical_payment_identity,
+  );
+  assert.equal(
+    v2.payment_key_sha256,
+    v1.payment_key_sha256,
+  );
+  assert.equal(
+    v2.source_policy_fingerprint_sha256,
+    v1.source_policy_fingerprint_sha256,
+  );
+  assert.notEqual(
+    v2.source_finality_attestation_sha256,
+    v1.source_finality_attestation_sha256,
+  );
+});
+
+test("V2 finality digest changes on receipt block hash change", () => {
+  const input = baseInputV2();
+  const changed = {
+    ...input.block_evidence,
+    receipt_block_hash: `0x${"51".repeat(32)}`,
+  };
+  assert.notEqual(
+    sourceFinalityAttestationSha256V2(
+      input.finality_admission,
+      input.block_evidence,
+    ),
+    sourceFinalityAttestationSha256V2(
+      input.finality_admission,
+      changed,
+    ),
+  );
+});
+
+test("V2 finality digest changes on finalized block hash change", () => {
+  const input = baseInputV2();
+  const changed = {
+    ...input.block_evidence,
+    finalized_reference_block_hash:
+      `0x${"52".repeat(32)}`,
+  };
+  assert.notEqual(
+    sourceFinalityAttestationSha256V2(
+      input.finality_admission,
+      input.block_evidence,
+    ),
+    sourceFinalityAttestationSha256V2(
+      input.finality_admission,
+      changed,
+    ),
+  );
+});
+
+test("V2 rejects block evidence source-chain mismatch", () => {
+  const input = baseInputV2({
+    block_evidence: {
+      ...baseBlockEvidence(),
+      source_chain: "ethereum",
+      evm_chain_id: "1",
+    },
+  });
+  expectCode(
+    () => buildFinalizedSourcePaymentHandoffV2(input),
+    "SOURCE_FINALITY_V2_SOURCE_CHAIN_MISMATCH",
+  );
+});
+
+test("V2 rejects receipt-height mismatch", () => {
+  const input = baseInputV2({
+    block_evidence: {
+      ...baseBlockEvidence(),
+      receipt_block_number: "988",
+    },
+  });
+  expectCode(
+    () => buildFinalizedSourcePaymentHandoffV2(input),
+    "SOURCE_FINALITY_V2_RECEIPT_BLOCK_MISMATCH",
+  );
+});
+
+test("V2 rejects finalized-reference-height mismatch", () => {
+  const input = baseInputV2({
+    block_evidence: {
+      ...baseBlockEvidence(),
+      finalized_reference_block: "1001",
+    },
+  });
+  expectCode(
+    () => buildFinalizedSourcePaymentHandoffV2(input),
+    "SOURCE_FINALITY_V2_REFERENCE_BLOCK_MISMATCH",
+  );
+});
+
+test("V2 requires finalized tag and provider consistency", () => {
+  expectCode(
+    () =>
+      normalizeSourceFinalityBlockEvidenceV2({
+        ...baseBlockEvidence(),
+        finalized_tag: "latest",
+      }),
+    "SOURCE_FINALITY_BLOCK_EVIDENCE_TAG_V2",
+  );
+  expectCode(
+    () =>
+      normalizeSourceFinalityBlockEvidenceV2({
+        ...baseBlockEvidence(),
+        provider_consistency_verified: false,
+      }),
+    "SOURCE_FINALITY_BLOCK_EVIDENCE_CONSISTENCY_V2",
+  );
+});
+
+test("V2 Ethereum handoff remains #1465-shape compatible", () => {
+  const policy = policyGeneration();
+  const result = buildFinalizedSourcePaymentHandoffV2({
+    policy_generation: policy,
+    verified_payment: ethVerified(),
+    finality_admission: ethFinality(policy),
+    block_evidence: ethBlockEvidence(),
+  });
+  validateFinalizedSourcePaymentProjectionV1(result);
+  assert.equal(result.source_chain, "ethereum");
+  assert.equal(result.source_chain_id, "1");
+  assert.equal(result.payment_usdc_atoms, "2500000");
 });
 
 test("handoff rejects verified USDC contract outside admitted rail", () => {
@@ -498,6 +760,11 @@ console.log(JSON.stringify({
   cases_total: tests.length,
   policy_fingerprint_mapping: "stable_config_sha256",
   finality_attestation_domain: FINALITY_ATTESTATION_MARKER,
+  hash_bound_finality_attestation_domain:
+    FINALITY_ATTESTATION_MARKER_V2,
+  receipt_block_hash_bound_v2: true,
+  finalized_reference_block_hash_bound_v2: true,
+  v1_attestation_behavior_preserved: true,
   pr_1463_finality_log_index_bound: UPSTREAM_BINDINGS_V1.pr_1463_finality_log_index_bound,
   pr_1465_payment_log_index_bound: UPSTREAM_BINDINGS_V1.pr_1465_payment_log_index_bound,
   live_rpc_authenticated: false,
