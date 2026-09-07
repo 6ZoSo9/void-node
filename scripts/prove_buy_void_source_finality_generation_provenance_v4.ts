@@ -232,7 +232,7 @@ async function test(name: string, fn: () => Promise<void> | void) {
 
 await test("runtime source-file verifier binds the exact five reviewed Git blobs", () => {
   const result = verifyBuyVoidSourceFinalityRuntimeSourceFilesV4();
-  if (!result.ok) throw new Error(result.reason);
+  if (result.ok === false) throw new Error(result.reason);
   assert.equal(result.reviewed_source_files_verified, true);
   assert.equal(result.verified_source_file_count, "5");
   assert.equal(result.verification_mode, "runtime_git_blob_identity_v1");
@@ -272,7 +272,7 @@ await test("V4 checks reviewed source files before dynamically entering V3", asy
     const result = await observeBuyVoidSourceFinalityGenerationProvenanceV4(
       input(harness.url),
     );
-    if (!result.ok) throw new Error(result.reason);
+    if (result.ok === false) throw new Error(result.reason);
     assert.equal(result.status, "source_finality_reviewed_source_files_verified");
     assert.equal(
       result.marker,
@@ -312,7 +312,7 @@ await test("caller cannot inject a generation manifest or provenance assertion",
       reviewed_source_files_sha256: "f".repeat(64),
     };
     const result = await observeBuyVoidSourceFinalityGenerationProvenanceV4(value);
-    if (result.ok) {
+    if (result.ok === true) {
       throw new Error("caller generation injection unexpectedly passed");
     }
     assert.equal(
