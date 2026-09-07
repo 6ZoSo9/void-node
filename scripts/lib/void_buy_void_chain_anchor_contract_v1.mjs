@@ -160,6 +160,7 @@ const ADDRESS = /^0x[0-9a-f]{40}$/;
 const SHA256 = /^[0-9a-f]{64}$/;
 const FINALITY_REFERENCE = /^voidfinal1_[0-9a-f]{64}$/;
 const OBJECT_ID = /^[A-Za-z0-9._:-]{1,160}$/;
+const MAX_U64 = (1n << 64n) - 1n;
 
 const FULFILLMENT_ANCHOR_KEYS = Object.freeze([
   "schema",
@@ -340,16 +341,17 @@ export function canonicalPaymentIdentityV1(input) {
     "payment_transaction_hash",
   );
   const logIndex = canonicalUint(value.log_index, "payment_log_index");
+  if (BigInt(logIndex) > MAX_U64) fail("payment_log_index_invalid");
   return `voidpay1:${sourceChain}:${transactionHash}:${logIndex}`;
 }
 
 export function paymentIdentitySha256V1(canonicalPaymentIdentity) {
   const identity = String(canonicalPaymentIdentity ?? "");
-  if (
-    !/^voidpay1:(?:base|ethereum):0x[0-9a-f]{64}:(?:0|[1-9][0-9]*)$/.test(
+  const match =
+    /^voidpay1:(?:base|ethereum):0x[0-9a-f]{64}:(0|[1-9][0-9]*)$/.exec(
       identity,
-    )
-  ) {
+    );
+  if (!match || BigInt(match[1]) > MAX_U64) {
     fail("canonical_payment_identity_invalid");
   }
   return sha256Hex(Buffer.from(identity, "utf8"));

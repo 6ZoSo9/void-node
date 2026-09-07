@@ -21,6 +21,9 @@ The canonical payment identity remains:
 voidpay1:<source_chain>:<source_transaction_hash>:<source_log_index>
 ```
 
+`source_log_index` is canonical unsigned 64-bit decimal: `0` through
+`18446744073709551615`, with no leading-zero alternate encoding.
+
 The source payment chain owns truth about its finalized USDC transfer. Chain-2050
 owns truth about finalized VOID delivery and presale inventory only when those
 facts are actually represented in Chain-2050 state. DataNet owns availability of

@@ -236,7 +236,14 @@ test("payment identity rejects malformed transaction and log index", () => {
       }),
     /payment_transaction_hash_invalid/,
   );
-  for (const value of ["-1", "01", "1.0", "", Number.MAX_SAFE_INTEGER + 1]) {
+  for (const value of [
+    "-1",
+    "01",
+    "1.0",
+    "",
+    Number.MAX_SAFE_INTEGER + 1,
+    "18446744073709551616",
+  ]) {
     assert.throws(
       () =>
         canonicalPaymentIdentityV1({
@@ -247,6 +254,30 @@ test("payment identity rejects malformed transaction and log index", () => {
       /payment_log_index_invalid/,
     );
   }
+});
+
+test("payment log index admits exact uint64 maximum", () => {
+  const maximum = "18446744073709551615";
+  const identity = canonicalPaymentIdentityV1({
+    source_chain: "base",
+    transaction_hash: BASE_PAYMENT_TX,
+    log_index: maximum,
+  });
+  assert.equal(identity, `voidpay1:base:${BASE_PAYMENT_TX}:${maximum}`);
+  assert.match(paymentIdentitySha256V1(identity), /^[0-9a-f]{64}$/);
+  assert.match(fulfillmentAnchorKeySha256V1(identity), /^[0-9a-f]{64}$/);
+});
+
+test("preformatted payment identity rejects log index above uint64", () => {
+  const overflow = `voidpay1:base:${BASE_PAYMENT_TX}:18446744073709551616`;
+  assert.throws(
+    () => paymentIdentitySha256V1(overflow),
+    /canonical_payment_identity_invalid/,
+  );
+  assert.throws(
+    () => fulfillmentAnchorKeySha256V1(overflow),
+    /canonical_payment_identity_invalid/,
+  );
 });
 
 test("fulfillment anchor key is domain separated", () => {
