@@ -1,0 +1,58 @@
+name: VOID Buy VOID Chain-2050 two-phase presale v1
+
+on:
+  pull_request:
+    paths:
+      - "scripts/lib/void_buy_void_chain2050_presale_two_phase_v1.mjs"
+      - "scripts/prove_void_buy_void_chain2050_presale_two_phase_v1.mjs"
+      - "schemas/buy-void-chain2050-presale-two-phase-v1.schema.json"
+      - "fixtures/economic/buy-void-chain2050-presale-two-phase-v1.example.json"
+      - "docs/architecture/buy-void-chain2050-presale-two-phase-v1.md"
+      - ".github/workflows/void-buy-void-chain2050-presale-two-phase-v1.yml"
+  push:
+    branches: [main]
+    paths:
+      - "scripts/lib/void_buy_void_chain2050_presale_two_phase_v1.mjs"
+      - "scripts/prove_void_buy_void_chain2050_presale_two_phase_v1.mjs"
+      - "schemas/buy-void-chain2050-presale-two-phase-v1.schema.json"
+      - "fixtures/economic/buy-void-chain2050-presale-two-phase-v1.example.json"
+      - "docs/architecture/buy-void-chain2050-presale-two-phase-v1.md"
+      - ".github/workflows/void-buy-void-chain2050-presale-two-phase-v1.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: void-buy-void-chain2050-presale-two-phase-v1-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  prove:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+    steps:
+      - name: Check out exact source
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Set up Node
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: ${{ matrix.node }}
+      - name: Syntax
+        run: |
+          node --check scripts/lib/void_buy_void_chain2050_presale_two_phase_v1.mjs
+          node --check scripts/prove_void_buy_void_chain2050_presale_two_phase_v1.mjs
+      - name: Parse machine-readable artifacts
+        run: |
+          node -e 'JSON.parse(require("node:fs").readFileSync("schemas/buy-void-chain2050-presale-two-phase-v1.schema.json","utf8"))'
+          node -e 'JSON.parse(require("node:fs").readFileSync("fixtures/economic/buy-void-chain2050-presale-two-phase-v1.example.json","utf8"))'
+      - name: Prove payment reservation and separate fulfillment
+        run: node scripts/prove_void_buy_void_chain2050_presale_two_phase_v1.mjs
+      - name: Diff hygiene
+        run: git diff --check
