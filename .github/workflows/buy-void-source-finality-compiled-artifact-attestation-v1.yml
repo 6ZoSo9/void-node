@@ -47,6 +47,7 @@ jobs:
 
       - name: Derive source-finality compiled artifact identities
         run: |
+          set -euo pipefail
           node scripts/prove_buy_void_source_finality_compiled_artifact_attestation_v1.mjs \
             | tee "buy-void-source-finality-compiled-artifact-attestation-node-${{ matrix.node }}.log"
 
