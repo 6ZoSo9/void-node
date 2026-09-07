@@ -1,5 +1,8 @@
 #!/usr/bin/env node
 
+import { performance } from "node:perf_hooks";
+import { resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
 import { readBoundedTextOwned } from "./wc-public-response-teardown-v1.mjs";
 
@@ -9,9 +12,16 @@ const GATEWAY_MARKER = "VOID_PUBLIC_EARN_GATEWAY_V1";
 const CLAIM_MARKER = "VOID_WC_PUBLIC_TICKET_CLAIM_V1";
 const CLAIM_ROUTE = "/wc/public-earning-pilot-v1/claim-ticket";
 const CLAIM_METHOD = "POST";
+const DISCOVERY_PATH = "/.well-known/void-public-node.json";
 const DEFAULT_TIMEOUT_MS = 5000;
 const DEFAULT_EXPECTED_AWARD_WC = 3;
 const MAX_RESPONSE_BYTES = 64 * 1024;
+const MAX_CANDIDATE_PATHS = 24;
+const MAX_DISCOVERY_STRUCTURE_DEPTH = 64;
+const MAX_DISCOVERY_VISITED_NODES = 4096;
+// Discovery caller-visible lifetime is bounded by one monotonic deadline.
+// Rejection cleanup is initiated and consumed, but receives no fresh caller wait.
+const DISCOVERY_REJECTION_TEARDOWN_WAIT_MS = 0;
 
 function fail(message, details = {}) {
   process.stdout.write(JSON.stringify({
@@ -49,32 +59,56 @@ function asObject(value) {
     : null;
 }
 
-function walk(value, visitor, path = []) {
-  visitor(value, path);
-  if (Array.isArray(value)) {
-    for (let index = 0; index < value.length; index += 1) walk(value[index], visitor, [...path, String(index)]);
-    return;
+function clockFromHooks(hooks = {}) {
+  if (!hooks || typeof hooks !== "object" || Array.isArray(hooks)) {
+    throw new Error("discovery hooks must be a plain object");
   }
-  const object = asObject(value);
-  if (!object) return;
-  for (const [key, child] of Object.entries(object)) walk(child, visitor, [...path, key]);
+  if (hooks.nowFn === undefined) return () => performance.now();
+  if (hooks.allowTestClockOverride !== true || typeof hooks.nowFn !== "function") {
+    throw new Error("clock override is test-only and requires allowTestClockOverride=true");
+  }
+  return hooks.nowFn;
 }
 
-function findFirstScalar(value, wantedKeys, type) {
-  const normalized = new Set(wantedKeys.map((key) => key.toLowerCase()));
-  let found;
-  walk(value, (candidate, path) => {
-    if (found !== undefined || path.length === 0) return;
-    const last = path[path.length - 1]?.toLowerCase();
-    if (!last || !normalized.has(last)) return;
-    if (type === "number") {
-      const number = strictEvidenceNumber(candidate);
-      if (number !== null) found = number;
-      return;
+function assertDeadlineOpenV1(deadlineMs, nowFn) {
+  if (!Number.isFinite(deadlineMs) || nowFn() >= deadlineMs) {
+    throw new Error("discovery_deadline_exceeded");
+  }
+}
+
+function walkWithAuthorityV1(value, visitor, deadlineMs, nowFn) {
+  const stack = [{ value, key: null, depth: 0 }];
+  let visited = 0;
+  while (stack.length > 0) {
+    assertDeadlineOpenV1(deadlineMs, nowFn);
+    const current = stack.pop();
+    visited += 1;
+    if (
+      current.depth > MAX_DISCOVERY_STRUCTURE_DEPTH ||
+      visited > MAX_DISCOVERY_VISITED_NODES
+    ) {
+      throw new Error("discovery_structure_budget_exceeded");
     }
-    if (typeof candidate === type) found = candidate;
-  });
-  return found;
+    visitor(current.value, current.key);
+    if (Array.isArray(current.value)) {
+      for (let index = current.value.length - 1; index >= 0; index -= 1) {
+        stack.push({
+          value: current.value[index],
+          key: String(index),
+          depth: current.depth + 1,
+        });
+      }
+      continue;
+    }
+    const object = asObject(current.value);
+    if (!object) continue;
+    const entries = Object.entries(object);
+    for (let index = entries.length - 1; index >= 0; index -= 1) {
+      const [key, child] = entries[index];
+      stack.push({ value: child, key, depth: current.depth + 1 });
+    }
+  }
+  assertDeadlineOpenV1(deadlineMs, nowFn);
 }
 
 function normalizeHttpHostname(hostname) {
@@ -125,14 +159,45 @@ function normalizePath(raw, origin) {
   return `${parsed.pathname}${parsed.search}`;
 }
 
-function collectDiscoveryPaths(value, origin) {
-  const paths = new Set();
-  walk(value, (candidate) => {
-    if (typeof candidate !== "string") return;
-    const normalized = normalizePath(candidate, origin);
-    if (normalized) paths.add(normalized);
-  });
-  return [...paths];
+function normalizeDiscoveryDocumentWithClockV1(value, origin, deadlineMs, nowFn) {
+  walkWithAuthorityV1(value, () => {}, deadlineMs, nowFn);
+  const topLevel = asObject(value);
+  if (!topLevel) {
+    return { topLevel: null, candidatePaths: [] };
+  }
+
+  const candidatePaths = [];
+  if (Object.prototype.hasOwnProperty.call(topLevel, "candidate_paths")) {
+    if (!Array.isArray(topLevel.candidate_paths)) {
+      throw new Error("discovery_candidate_paths_invalid");
+    }
+    const seen = new Set();
+    for (const raw of topLevel.candidate_paths) {
+      assertDeadlineOpenV1(deadlineMs, nowFn);
+      if (typeof raw !== "string") {
+        throw new Error("discovery_candidate_paths_invalid");
+      }
+      const normalized = normalizePath(raw, origin);
+      if (!normalized) {
+        throw new Error("discovery_candidate_path_invalid");
+      }
+      if (!seen.has(normalized)) {
+        seen.add(normalized);
+        candidatePaths.push(normalized);
+      }
+    }
+  }
+  assertDeadlineOpenV1(deadlineMs, nowFn);
+  return { topLevel, candidatePaths };
+}
+
+export function normalizeDiscoveryDocumentV1(value, origin, deadlineMs, hooks = {}) {
+  return normalizeDiscoveryDocumentWithClockV1(
+    value,
+    origin,
+    deadlineMs,
+    clockFromHooks(hooks),
+  );
 }
 
 function findClaimPath(value, origin) {
@@ -159,14 +224,54 @@ async function readBoundedText(response, maximum, abort) {
   return readBoundedTextOwned(response, {
     maximumBytes: maximum,
     abort,
+    teardownMs: DISCOVERY_REJECTION_TEARDOWN_WAIT_MS,
   });
 }
 
-async function fetchJson(origin, path, timeoutMs) {
+function remainingBudgetMs(deadlineMs, nowFn = () => performance.now()) {
+  return Math.max(0, Math.ceil(deadlineMs - nowFn()));
+}
+
+export async function fetchDiscoveryJsonV1(origin, path, deadlineMs, hooks = {}) {
+  if (!hooks || typeof hooks !== "object" || Array.isArray(hooks)) {
+    throw new Error("discovery hooks must be a plain object");
+  }
+  let fetchImpl = globalThis.fetch;
+  if (hooks.fetchImpl !== undefined) {
+    if (hooks.allowTestFetchOverride !== true || typeof hooks.fetchImpl !== "function") {
+      throw new Error("fetch override is test-only and requires allowTestFetchOverride=true");
+    }
+    fetchImpl = hooks.fetchImpl;
+  }
+  if (typeof fetchImpl !== "function") {
+    throw new Error("fetch implementation is unavailable");
+  }
+  const nowFn = hooks.nowFn === undefined ? () => performance.now() : clockFromHooks(hooks);
+  const remainingMs = remainingBudgetMs(deadlineMs, nowFn);
+  if (remainingMs <= 0) {
+    return {
+      path,
+      status: null,
+      ok: false,
+      content_type: null,
+      body: null,
+      error: "discovery_deadline_exceeded",
+    };
+  }
+
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  let abortKind = null;
+  const timer = setTimeout(
+    () => {
+      if (abortKind === null) abortKind = "deadline";
+      if (!controller.signal.aborted) {
+        controller.abort(new Error("discovery_deadline_exceeded"));
+      }
+    },
+    remainingMs,
+  );
   try {
-    const response = await fetch(new URL(path, origin), {
+    const response = await fetchImpl(new URL(path, origin), {
       method: "GET",
       headers: { accept: "application/json", "user-agent": "void-wc-public-opportunity-discovery-v1" },
       redirect: "error",
@@ -177,6 +282,7 @@ async function fetchJson(origin, path, timeoutMs) {
       response,
       MAX_RESPONSE_BYTES,
       (reason) => {
+        if (abortKind === null) abortKind = "rejection";
         if (!controller.signal.aborted) controller.abort(reason);
       },
     );
@@ -184,15 +290,41 @@ async function fetchJson(origin, path, timeoutMs) {
     if (contentType.includes("json") || /^[\s]*[{[]/u.test(text)) {
       try { body = JSON.parse(text); } catch { body = null; }
     }
-    return { path, status: response.status, ok: response.ok, content_type: contentType.split(";", 1)[0], body };
+    return {
+      path,
+      status: response.status,
+      ok: response.ok,
+      content_type: contentType.split(";", 1)[0],
+      body,
+    };
   } catch (error) {
-    return { path, status: null, ok: false, content_type: null, body: null, error: error instanceof Error ? error.message : "request_error" };
-  } finally { clearTimeout(timer); }
+    return {
+      path,
+      status: null,
+      ok: false,
+      content_type: null,
+      body: null,
+      error: abortKind === "deadline"
+        ? "discovery_deadline_exceeded"
+        : error instanceof Error
+          ? error.message
+          : "request_error",
+    };
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 function summarizeAttempt(attempt) {
-  const marker = findFirstScalar(attempt.body, ["marker"], "string");
-  return { path: attempt.path, http_status: attempt.status, json: attempt.body !== null, marker: marker ?? null, error: attempt.error ?? null };
+  const body = asObject(attempt.body);
+  const marker = typeof body?.marker === "string" ? body.marker : null;
+  return {
+    path: attempt.path,
+    http_status: attempt.status,
+    json: attempt.body !== null,
+    marker,
+    error: attempt.error ?? null,
+  };
 }
 
 function directBoolean(object, keys) {
@@ -244,13 +376,24 @@ function claimRouteNoDirectAward(safety, publicClaim) {
   );
 }
 
-function analyze(body, sourcePath, origin, expectedAwardWc, attempts, sharedGatewayContract = null) {
-  const topLevel = asObject(body);
+function analyzeNormalizedDiscoveryWithClockV1(
+  normalized,
+  sourcePath,
+  origin,
+  expectedAwardWc,
+  attempts,
+  deadlineMs,
+  nowFn,
+) {
+  assertDeadlineOpenV1(deadlineMs, nowFn);
+  const topLevel = normalized?.topLevel;
   if (!topLevel) return null;
 
   const topLevelMarker = typeof topLevel.marker === "string" ? topLevel.marker : "";
   const gateway = topLevelMarker === GATEWAY_MARKER ? topLevel : null;
-  const localGatewayContract = extractGatewayContract(topLevel) ?? sharedGatewayContract;
+  // Positive capability truth is self-contained per admitted HTTP response.
+  // Same-origin response history is not a generation/authentication primitive.
+  const localGatewayContract = extractGatewayContract(topLevel);
   const gatewayPilot = asObject(gateway?.pilot_status);
   const pilot =
     (gatewayPilot?.marker === PILOT_MARKER ? gatewayPilot : null) ??
@@ -357,6 +500,8 @@ function analyze(body, sourcePath, origin, expectedAwardWc, attempts, sharedGate
     publicAwardBoundaryConfirmed
       ? "available"
       : "hold";
+
+  assertDeadlineOpenV1(deadlineMs, nowFn);
   return {
     marker: MARKER,
     status: "green",
@@ -368,8 +513,20 @@ function analyze(body, sourcePath, origin, expectedAwardWc, attempts, sharedGate
       exact_identity: gatewayIdentityConfirmed,
     },
     gateway_compatible: gatewayCompatible,
-    participant: { node_required: false, public_status_only: true, next_tool: "ops/mainnet0/wc-public-ticket-claim-v1.sh", next_document: "docs/public/wc-public-ticket-claim-v1.md" },
-    pilot: { marker: pilot?.marker ?? null, coordinator_enabled: coordinatorEnabled, executor_enabled: executorEnabled, fixed_award_wc: fixedAwardWc, expected_fixed_award_wc: expectedAwardWc, fixed_award_matches: awardMatches },
+    participant: {
+      node_required: false,
+      public_status_only: true,
+      next_tool: "ops/mainnet0/wc-public-ticket-claim-v1.sh",
+      next_document: "docs/public/wc-public-ticket-claim-v1.md",
+    },
+    pilot: {
+      marker: pilot?.marker ?? null,
+      coordinator_enabled: coordinatorEnabled,
+      executor_enabled: executorEnabled,
+      fixed_award_wc: fixedAwardWc,
+      expected_fixed_award_wc: expectedAwardWc,
+      fixed_award_matches: awardMatches,
+    },
     public_claim: {
       marker: claimMarker ?? null,
       configured: claimConfigured,
@@ -400,9 +557,47 @@ function analyze(body, sourcePath, origin, expectedAwardWc, attempts, sharedGate
   };
 }
 
-function emitResult(result, requireAvailable) {
+export function analyzeDiscoveryBodyV1(
+  body,
+  sourcePath,
+  origin,
+  expectedAwardWc,
+  attempts,
+  deadlineMs,
+  hooks = {},
+) {
+  const nowFn = clockFromHooks(hooks);
+  const normalized = normalizeDiscoveryDocumentWithClockV1(
+    body,
+    origin,
+    deadlineMs,
+    nowFn,
+  );
+  return analyzeNormalizedDiscoveryWithClockV1(
+    normalized,
+    sourcePath,
+    origin,
+    expectedAwardWc,
+    attempts,
+    deadlineMs,
+    nowFn,
+  );
+}
+
+function emitResult(result, requireAvailable, deadlineMs, nowFn) {
+  assertDeadlineOpenV1(deadlineMs, nowFn);
   process.stdout.write(JSON.stringify(result, null, 2) + "\n");
   if (requireAvailable && result.opportunity_state !== "available") process.exitCode = 2;
+}
+
+function failDeadline(origin, candidates, timeoutMs, attempts) {
+  fail("discovery_deadline_exceeded", {
+    base_origin: origin,
+    candidate_count: candidates.size,
+    maximum_candidate_paths: MAX_CANDIDATE_PATHS,
+    logical_timeout_ms: timeoutMs,
+    attempts: attempts.map(summarizeAttempt),
+  });
 }
 
 async function main() {
@@ -424,53 +619,159 @@ async function main() {
   const origin = sanitizeBase(values.base);
   const timeoutMs = safeNumber(values["timeout-ms"]);
   const expectedAwardWc = safeNumber(values["expected-award-wc"]);
-  if (!timeoutMs || timeoutMs < 250 || timeoutMs > 30000) throw new Error("--timeout-ms must be between 250 and 30000");
-  if (expectedAwardWc !== DEFAULT_EXPECTED_AWARD_WC) throw new Error("--expected-award-wc must equal canonical fixed award 3");
-  const defaultCandidates = ["/__void/public-earn-gateway-v1/status.json", "/wc/public-earning-pilot-v1/status", "/public-node/public-earn-gateway-v1.json", "/public-node/work-credits/public-earn-status-v1.json", "/public-node/earn/status-v1.json", "/public/earn/status-v1", "/public/earn/status", "/wc/public/earning/status", "/wc/public/status"];
+  if (!timeoutMs || timeoutMs < 250 || timeoutMs > 30000) {
+    throw new Error("--timeout-ms must be between 250 and 30000");
+  }
+  if (expectedAwardWc !== DEFAULT_EXPECTED_AWARD_WC) {
+    throw new Error("--expected-award-wc must equal canonical fixed award 3");
+  }
+
+  const defaultCandidates = [
+    "/__void/public-earn-gateway-v1/status.json",
+    "/wc/public-earning-pilot-v1/status",
+    "/public-node/public-earn-gateway-v1.json",
+    "/public-node/work-credits/public-earn-status-v1.json",
+    "/public-node/earn/status-v1.json",
+    "/public/earn/status-v1",
+    "/public/earn/status",
+    "/wc/public/earning/status",
+    "/wc/public/status",
+  ];
   const attempts = [];
   let firstHold = null;
-  let gatewayContract = null;
-  const discovery = await fetchJson(origin, "/.well-known/void-public-node.json", timeoutMs);
+  let deadlineExceeded = false;
+  const nowFn = () => performance.now();
+  const deadlineMs = nowFn() + timeoutMs;
+
+  const discovery = await fetchDiscoveryJsonV1(origin, DISCOVERY_PATH, deadlineMs);
   attempts.push(discovery);
-  if (discovery.ok && discovery.body) gatewayContract = extractGatewayContract(discovery.body) ?? gatewayContract;
-  const candidates = new Set();
+  if (discovery.error === "discovery_deadline_exceeded" || nowFn() >= deadlineMs) {
+    const emptyCandidates = new Set(defaultCandidates);
+    failDeadline(origin, emptyCandidates, timeoutMs, attempts);
+    return;
+  }
+
+  let discoveryNormalized = null;
+  if (discovery.ok && discovery.body) {
+    discoveryNormalized = normalizeDiscoveryDocumentWithClockV1(
+      discovery.body,
+      origin,
+      deadlineMs,
+      nowFn,
+    );
+  }
+
+  // Canonical fallbacks receive scheduling priority. Caller-configured paths are
+  // next. Only explicitly admitted server-advertised candidate_paths run after
+  // those two classes. The complete union is still capped before any AVAILABLE.
+  const candidates = new Set(defaultCandidates);
   for (const raw of values.path) {
+    assertDeadlineOpenV1(deadlineMs, nowFn);
     const normalized = normalizePath(raw, origin);
     if (!normalized) throw new Error(`unsafe or non-read discovery path: ${raw}`);
     candidates.add(normalized);
   }
-  if (discovery.ok && discovery.body) {
-    for (const path of collectDiscoveryPaths(discovery.body, origin)) candidates.add(path);
-    const discoveryAnalysis = analyze(discovery.body, discovery.path, origin, expectedAwardWc, attempts, gatewayContract);
+  for (const path of discoveryNormalized?.candidatePaths ?? []) candidates.add(path);
+
+  // VOID_WC_DISCOVERY_COMPLETE_CANDIDATE_AUTHORITY_BEFORE_AVAILABLE_V1
+  if (candidates.size > MAX_CANDIDATE_PATHS) {
+    fail("candidate path limit exceeded", {
+      base_origin: origin,
+      candidate_count: candidates.size,
+      maximum_candidate_paths: MAX_CANDIDATE_PATHS,
+      logical_timeout_ms: timeoutMs,
+      attempts: attempts.map(summarizeAttempt),
+    });
+    return;
+  }
+
+  assertDeadlineOpenV1(deadlineMs, nowFn);
+  if (discoveryNormalized) {
+    const discoveryAnalysis = analyzeNormalizedDiscoveryWithClockV1(
+      discoveryNormalized,
+      discovery.path,
+      origin,
+      expectedAwardWc,
+      attempts,
+      deadlineMs,
+      nowFn,
+    );
     if (discoveryAnalysis?.opportunity_state === "available") {
-      emitResult(discoveryAnalysis, values["require-available"]);
+      emitResult(discoveryAnalysis, values["require-available"], deadlineMs, nowFn);
       return;
     }
-    if (discoveryAnalysis) firstHold = { body: discovery.body, path: discovery.path };
+    if (discoveryAnalysis) firstHold = discoveryAnalysis;
   }
-  for (const path of defaultCandidates) candidates.add(path);
+
   for (const path of candidates) {
     if (path === discovery.path) continue;
-    const attempt = await fetchJson(origin, path, timeoutMs);
+    if (remainingBudgetMs(deadlineMs, nowFn) <= 0) {
+      attempts.push({
+        path,
+        status: null,
+        ok: false,
+        content_type: null,
+        body: null,
+        error: "discovery_deadline_exceeded",
+      });
+      deadlineExceeded = true;
+      break;
+    }
+
+    const attempt = await fetchDiscoveryJsonV1(origin, path, deadlineMs);
     attempts.push(attempt);
+    if (attempt.error === "discovery_deadline_exceeded" || nowFn() >= deadlineMs) {
+      deadlineExceeded = true;
+      break;
+    }
     if (!attempt.ok || !attempt.body) continue;
-    gatewayContract = extractGatewayContract(attempt.body) ?? gatewayContract;
-    const result = analyze(attempt.body, attempt.path, origin, expectedAwardWc, attempts, gatewayContract);
+
+    const normalized = normalizeDiscoveryDocumentWithClockV1(
+      attempt.body,
+      origin,
+      deadlineMs,
+      nowFn,
+    );
+    const result = analyzeNormalizedDiscoveryWithClockV1(
+      normalized,
+      attempt.path,
+      origin,
+      expectedAwardWc,
+      attempts,
+      deadlineMs,
+      nowFn,
+    );
     if (!result) continue;
     if (result.opportunity_state === "available") {
-      emitResult(result, values["require-available"]);
+      emitResult(result, values["require-available"], deadlineMs, nowFn);
       return;
     }
-    if (!firstHold) firstHold = { body: attempt.body, path: attempt.path };
+    if (!firstHold) firstHold = result;
   }
+
+  if (deadlineExceeded || nowFn() >= deadlineMs) {
+    failDeadline(origin, candidates, timeoutMs, attempts);
+    return;
+  }
+
   if (firstHold) {
-    const result = analyze(firstHold.body, firstHold.path, origin, expectedAwardWc, attempts, gatewayContract);
-    if (result) {
-      emitResult(result, values["require-available"]);
-      return;
-    }
+    firstHold.attempts = attempts.map(summarizeAttempt);
+    emitResult(firstHold, values["require-available"], deadlineMs, nowFn);
+    return;
   }
-  fail("compatible public earning gateway not discovered", { base_origin: origin, attempts: attempts.map(summarizeAttempt) });
+
+  fail("compatible public earning gateway not discovered", {
+    base_origin: origin,
+    candidate_count: candidates.size,
+    maximum_candidate_paths: MAX_CANDIDATE_PATHS,
+    logical_timeout_ms: timeoutMs,
+    attempts: attempts.map(summarizeAttempt),
+  });
 }
 
-main().catch((error) => { fail(error instanceof Error ? error.message : "unexpected error"); });
+const isMain = process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url);
+if (isMain) {
+  main().catch((error) => {
+    fail(error instanceof Error ? error.message : "unexpected error");
+  });
+}
