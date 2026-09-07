@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { execFileSync } from "node:child_process";
 import crypto from "node:crypto";
 import fs from "node:fs";
 import http from "node:http";
@@ -132,10 +133,11 @@ async function createHarness(): Promise<Harness> {
   return {
     url: `http://127.0.0.1:${address.port}/`,
     requestCount: () => count,
-    close: () => new Promise<void>((resolve, reject) => {
-      server.close((error) => error ? reject(error) : resolve());
-      server.closeAllConnections();
-    }),
+    close: () =>
+      new Promise<void>((resolve, reject) => {
+        server.close((error) => (error ? reject(error) : resolve()));
+        server.closeAllConnections();
+      }),
   };
 }
 
@@ -214,6 +216,13 @@ function gitBlobSha1(bytes: Buffer): string {
     .digest("hex");
 }
 
+function git(args: string[]): string {
+  return execFileSync("git", args, {
+    encoding: "utf8",
+    stdio: ["ignore", "pipe", "pipe"],
+  }).trim();
+}
+
 let passed = 0;
 async function test(name: string, fn: () => Promise<void> | void) {
   await fn();
@@ -234,8 +243,20 @@ await test("runtime source-file verifier binds the exact five reviewed Git blobs
   assert.match(result.reviewed_source_files_sha256, /^[0-9a-f]{64}$/);
 });
 
-await test("independent proof recomputes every reviewed runtime Git blob", () => {
+await test("manifest maps every reviewed path to the recorded blob in its recorded commit", () => {
   assert.equal(VOID_BUY_VOID_SOURCE_FINALITY_REVIEWED_RUNTIME_SOURCES_V4.length, 5);
+  for (const record of VOID_BUY_VOID_SOURCE_FINALITY_REVIEWED_RUNTIME_SOURCES_V4) {
+    assert.match(record.source_commit_sha, /^[0-9a-f]{40}$/);
+    assert.match(record.git_blob_sha1, /^[0-9a-f]{40}$/);
+    git(["cat-file", "-e", `${record.source_commit_sha}^{commit}`]);
+    const listing = git(["ls-tree", record.source_commit_sha, "--", record.path]);
+    const match = listing.match(/^\d+\s+blob\s+([0-9a-f]{40})\t/m);
+    assert.ok(match, `missing reviewed blob: ${record.path}@${record.source_commit_sha}`);
+    assert.equal(match[1], record.git_blob_sha1, record.path);
+  }
+});
+
+await test("independent proof recomputes every reviewed runtime Git blob", () => {
   for (const record of VOID_BUY_VOID_SOURCE_FINALITY_REVIEWED_RUNTIME_SOURCES_V4) {
     const bytes = fs.readFileSync(record.path);
     assert.equal(gitBlobSha1(bytes), record.git_blob_sha1, record.path);
@@ -253,7 +274,10 @@ await test("V4 checks reviewed source files before dynamically entering V3", asy
     );
     if (!result.ok) throw new Error(result.reason);
     assert.equal(result.status, "source_finality_reviewed_source_files_verified");
-    assert.equal(result.marker, VOID_BUY_VOID_SOURCE_FINALITY_GENERATION_PROVENANCE_V4);
+    assert.equal(
+      result.marker,
+      VOID_BUY_VOID_SOURCE_FINALITY_GENERATION_PROVENANCE_V4,
+    );
     assert.equal(result.version, 4);
     assert.equal(result.reviewed_source_files_verified, true);
     assert.equal(result.source_generation_verified, false);
@@ -266,7 +290,10 @@ await test("V4 checks reviewed source files before dynamically entering V3", asy
     assert.equal(result.provider_quorum_verified, false);
     assert.equal(result.production_source_finality_authority_ready, false);
     assert.equal(result.verified_source_file_count, "5");
-    assert.equal(result.source_file_verification_mode, "runtime_git_blob_identity_v1");
+    assert.equal(
+      result.source_file_verification_mode,
+      "runtime_git_blob_identity_v1",
+    );
     assert.equal(result.transaction_hash, TX);
     assert.equal(result.receipt_block_hash, RECEIPT_HASH);
     assert.equal(result.finalized_reference_block_hash, FINAL_HASH);
@@ -310,7 +337,8 @@ await test("transport-policy failure still occurs before any RPC", async () => {
 });
 
 await test("authority preserves the deployed-generation HOLD", () => {
-  const authority = VOID_BUY_VOID_SOURCE_FINALITY_GENERATION_PROVENANCE_AUTHORITY_V4;
+  const authority =
+    VOID_BUY_VOID_SOURCE_FINALITY_GENERATION_PROVENANCE_AUTHORITY_V4;
   assert.equal(authority.caller_generation_assertion_accepted, false);
   assert.equal(authority.reviewed_source_files_verification_required, true);
   assert.equal(authority.reviewed_source_files_verified_on_success, true);
@@ -354,31 +382,41 @@ await test("source verifies files before dynamic V3 entry and contains no source
   assert.equal(source.includes("caller_generation_assertion_accepted: true"), false);
   assert.equal(source.includes("source_generation_verified_on_success: true"), false);
   assert.equal(source.includes("deployed_artifact_generation_verified: true"), false);
-  assert.equal(source.includes("production_source_finality_authority_ready: true"), false);
+  assert.equal(
+    source.includes("production_source_finality_authority_ready: true"),
+    false,
+  );
 });
 
-console.log(JSON.stringify({
-  marker: "VOID_BUY_VOID_SOURCE_FINALITY_GENERATION_PROVENANCE_V4_GREEN",
-  cases_passed: passed,
-  cases_total: passed,
-  reviewed_source_file_count: 5,
-  reviewed_source_files_verified_on_success: true,
-  source_generation_verified_on_success: false,
-  caller_generation_assertion_accepted: false,
-  deployed_artifact_generation_verified: false,
-  authenticated_transport_identity_verified: true,
-  total_operation_deadline_verified: true,
-  remote_provider_identity_verified: false,
-  ancestry_verified: false,
-  provider_quorum_verified: false,
-  production_source_finality_authority_ready: false,
-  external_rpc_executed_by_proof: false,
-  loopback_rpc_only: true,
-  wallet_access: false,
-  signing: false,
-  transaction_broadcast: false,
-  inventory_mutation: false,
-  chain2050_mutation: false,
-  money_movement: false,
-}, null, 2));
+console.log(
+  JSON.stringify(
+    {
+      marker: "VOID_BUY_VOID_SOURCE_FINALITY_GENERATION_PROVENANCE_V4_GREEN",
+      cases_passed: passed,
+      cases_total: passed,
+      reviewed_source_file_count: 5,
+      reviewed_source_files_verified_on_success: true,
+      recorded_commit_to_blob_mapping_verified: true,
+      source_generation_verified_on_success: false,
+      caller_generation_assertion_accepted: false,
+      deployed_artifact_generation_verified: false,
+      authenticated_transport_identity_verified: true,
+      total_operation_deadline_verified: true,
+      remote_provider_identity_verified: false,
+      ancestry_verified: false,
+      provider_quorum_verified: false,
+      production_source_finality_authority_ready: false,
+      external_rpc_executed_by_proof: false,
+      loopback_rpc_only: true,
+      wallet_access: false,
+      signing: false,
+      transaction_broadcast: false,
+      inventory_mutation: false,
+      chain2050_mutation: false,
+      money_movement: false,
+    },
+    null,
+    2,
+  ),
+);
 console.log("VOID_BUY_VOID_SOURCE_FINALITY_GENERATION_PROVENANCE_V4_GREEN");
