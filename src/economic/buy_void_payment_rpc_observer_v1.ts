@@ -19,6 +19,7 @@ export const VOID_BUY_VOID_PAYMENT_RPC_OBSERVER_AUTHORITY_V1 = {
     "eth_chainId",
     "eth_getTransactionReceipt",
     "eth_blockNumber",
+    "eth_getBlockByNumber",
   ],
   wallet_access: false,
   signing: false,
@@ -39,7 +40,8 @@ const MAX_RESPONSE_BYTES = 1_048_576;
 export type BuyVoidPaymentRpcMethodV1 =
   | "eth_chainId"
   | "eth_getTransactionReceipt"
-  | "eth_blockNumber";
+  | "eth_blockNumber"
+  | "eth_getBlockByNumber";
 
 export type BuyVoidPaymentRpcCallV1 = {
   method: BuyVoidPaymentRpcMethodV1;

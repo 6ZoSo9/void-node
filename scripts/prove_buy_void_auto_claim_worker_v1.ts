@@ -200,7 +200,12 @@ async function main(): Promise<void> {
   );
   assert.deepEqual(
     VOID_BUY_VOID_PAYMENT_RPC_OBSERVER_AUTHORITY_V1.allowed_rpc_methods,
-    ["eth_chainId", "eth_getTransactionReceipt", "eth_blockNumber"],
+    [
+      "eth_chainId",
+      "eth_getTransactionReceipt",
+      "eth_blockNumber",
+      "eth_getBlockByNumber",
+    ],
   );
   assert.equal(
     VOID_BUY_VOID_PAYMENT_RPC_OBSERVER_AUTHORITY_V1.rpc_read,
