@@ -88,26 +88,55 @@ type TransportMetadataV3 = {
   module_owned_transport: true;
 };
 
-export type BuyVoidSourceFinalityAuthenticatedReadyV3 = Omit<
-  BuyVoidSourceFinalityAuthorityV2Result,
-  | "schema"
-  | "marker"
-  | "version"
-  | "status"
-  | "authenticated_transport_identity_verified"
-  | "total_operation_deadline_verified"
-  | "production_source_finality_authority_ready"
-> & {
+export type BuyVoidSourceFinalityAuthenticatedReadyV3 = {
+  ok: true;
+  status: "source_finality_authenticated_composed";
   schema: "void_buy_void_source_finality_authenticated_composition_v3";
   marker: typeof VOID_BUY_VOID_SOURCE_FINALITY_AUTHENTICATED_COMPOSITION_V3;
   version: 3;
-  status: "source_finality_authenticated_composed";
+  source_chain: "base" | "ethereum";
+  evm_chain_id: "8453" | "1";
+  transaction_hash: string;
+  log_index: string;
+  canonical_payment_identity: string;
+  payment_key_sha256: string;
+  payer_address: string;
+  receive_address: string;
+  delivery_address: string;
+  usdc_contract: string;
+  payment_asset: "USDC";
+  payment_usdc_atoms: string;
+  receipt_block_number: string;
+  receipt_block_hash: string;
+  finalized_reference_block: string;
+  finalized_reference_block_hash: string;
+  confirmations_observed: string;
+  finalized_tag: "finalized";
+  rpc_identity: string;
+  rpc_url_fingerprint_sha256: string;
+  finality_adapter_id: string;
+  min_confirmations: string;
+  policy_id: string;
+  stable_config_sha256: string;
+  observation_sha256: string;
+  source_finality_attestation_sha256: string;
+  expected_source_generation_sha256: string;
+  provider_consistency_verified: true;
+  same_provider_consistency_verified: true;
   authenticated_transport_identity_verified: true;
   remote_provider_identity_verified: false;
   total_operation_deadline_verified: true;
   observation_generated_in_composition: true;
   source_generation_verified: false;
+  ancestry_verified: false;
+  provider_quorum_verified: false;
   production_source_finality_authority_ready: false;
+  wallet_access: false;
+  signing: false;
+  transaction_construction: false;
+  transaction_broadcast: false;
+  inventory_mutation: false;
+  money_movement: false;
   total_timeout_ms: string;
   expected_rpc_call_count: "10";
   observed_rpc_call_count: "10";
