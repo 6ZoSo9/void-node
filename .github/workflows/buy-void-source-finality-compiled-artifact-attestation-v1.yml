@@ -40,7 +40,18 @@ jobs:
         run: npm run build
 
       - name: Derive source-finality compiled artifact identities
-        run: node scripts/prove_buy_void_source_finality_compiled_artifact_attestation_v1.mjs
+        run: |
+          node scripts/prove_buy_void_source_finality_compiled_artifact_attestation_v1.mjs \
+            | tee "buy-void-source-finality-compiled-artifact-attestation-node-${{ matrix.node }}.log"
+
+      - name: Upload derivation evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: buy-void-source-finality-compiled-artifact-attestation-node-${{ matrix.node }}-${{ github.sha }}
+          path: buy-void-source-finality-compiled-artifact-attestation-node-${{ matrix.node }}.log
+          if-no-files-found: error
+          retention-days: 1
 
       - name: Preserve reviewed source-file V4 proof
         run: ./node_modules/.bin/tsx scripts/prove_buy_void_source_finality_generation_provenance_v4.ts
