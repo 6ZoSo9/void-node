@@ -246,7 +246,6 @@ await test("module-owned loopback transport completes exact source-finality comp
       input(harness.url),
     );
     assert.equal(result.ok, true);
-    if (result.ok === false) return;
     assert.equal(result.status, "source_finality_authenticated_composed");
     assert.equal(result.authenticated_transport_identity_verified, true);
     assert.equal(result.total_operation_deadline_verified, true);
@@ -271,7 +270,6 @@ await test("total deadline stops a cumulative multi-call operation", async () =>
       input(harness.url, "60"),
     );
     assert.equal(result.ok, false);
-    if (result.ok === true) return;
     assert.equal(result.reason, "source_finality_total_deadline_exceeded");
     assert.ok(harness.request_count() < 10);
   } finally {
@@ -300,7 +298,6 @@ await test("caller transport injection is rejected by closed composition input",
     value.transport = { call: async () => null };
     const result = await observeBuyVoidSourceFinalityAuthenticatedCompositionV3(value);
     assert.equal(result.ok, false);
-    if (result.ok === true) return;
     assert.equal(result.reason, "source_finality_composition_input_shape");
     assert.equal(harness.request_count(), 0);
   } finally {
@@ -341,7 +338,6 @@ await test("result binds module transport identity and composition policy digest
       input(harness.url),
     );
     assert.equal(result.ok, true);
-    if (result.ok === false) return;
     assert.match(result.transport_identity_sha256, /^[0-9a-f]{64}$/);
     assert.match(result.composition_policy_sha256, /^[0-9a-f]{64}$/);
     assert.equal(result.total_timeout_ms, "5000");
@@ -358,7 +354,6 @@ await test("candidate retains no wallet signing transaction inventory or money a
       input(harness.url),
     );
     assert.equal(result.ok, true);
-    if (result.ok === false) return;
     assert.equal(result.wallet_access, false);
     assert.equal(result.signing, false);
     assert.equal(result.transaction_construction, false);
