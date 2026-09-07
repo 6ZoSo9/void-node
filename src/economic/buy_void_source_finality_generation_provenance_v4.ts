@@ -356,7 +356,7 @@ export async function observeBuyVoidSourceFinalityGenerationProvenanceV4(
     status: "source_finality_reviewed_source_files_verified",
     reviewed_source_files_verified: true,
     source_generation_verified: false,
-    deployed_artifact_generation_verified: false,
+    deployed_artifact_generation_verified: false as const,
     production_source_finality_authority_ready: false,
     reviewed_source_files_sha256: sourceFiles.reviewed_source_files_sha256,
     verified_source_file_count: sourceFiles.verified_source_file_count,
