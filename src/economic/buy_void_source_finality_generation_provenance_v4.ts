@@ -82,6 +82,10 @@ export const VOID_BUY_VOID_SOURCE_FINALITY_REVIEWED_RUNTIME_SOURCES_V4 =
 
 const MAX_SOURCE_FILE_BYTES = 2 * 1024 * 1024;
 const GIT_OBJECT_ID = /^[0-9a-f]{40}$/;
+const SOURCE_MODULE_SUFFIX =
+  "/src/economic/buy_void_source_finality_generation_provenance_v4.ts";
+const COMPILED_MODULE_SUFFIX =
+  "/dist/economic/buy_void_source_finality_generation_provenance_v4.js";
 
 function canonical(value: unknown): string {
   if (value === null) return "null";
@@ -125,6 +129,18 @@ function sourceFilename(record: SourceGenerationRecordV4): string | null {
   return name;
 }
 
+function reviewedSourceDirectoryUrlV4(): URL | null {
+  const moduleUrl = new URL(import.meta.url);
+  const modulePath = fileURLToPath(moduleUrl).replace(/\\/g, "/");
+  if (modulePath.endsWith(SOURCE_MODULE_SUFFIX)) {
+    return new URL("./", moduleUrl);
+  }
+  if (modulePath.endsWith(COMPILED_MODULE_SUFFIX)) {
+    return new URL("../../src/economic/", moduleUrl);
+  }
+  return null;
+}
+
 export const VOID_BUY_VOID_SOURCE_FINALITY_REVIEWED_SOURCE_FILES_SHA256_V4 =
   sha256Canonical({
     marker: VOID_BUY_VOID_SOURCE_FINALITY_GENERATION_PROVENANCE_V4,
@@ -153,6 +169,15 @@ export type BuyVoidSourceFinalityRuntimeFilesDecisionV4 =
 
 export function verifyBuyVoidSourceFinalityRuntimeSourceFilesV4():
   BuyVoidSourceFinalityRuntimeFilesDecisionV4 {
+  const sourceDirectoryUrl = reviewedSourceDirectoryUrlV4();
+  if (!sourceDirectoryUrl) {
+    return {
+      ok: false,
+      reviewed_source_files_verified: false,
+      reason: "source_files_module_location_invalid",
+    };
+  }
+
   const seen = new Set<string>();
   const noFollow =
     typeof fs.constants.O_NOFOLLOW === "number" ? fs.constants.O_NOFOLLOW : 0;
@@ -180,7 +205,7 @@ export function verifyBuyVoidSourceFinalityRuntimeSourceFilesV4():
       };
     }
 
-    const sourceUrl = new URL(`./${name}`, import.meta.url);
+    const sourceUrl = new URL(name, sourceDirectoryUrl);
     const sourcePath = fileURLToPath(sourceUrl);
     let descriptor: number | null = null;
 
