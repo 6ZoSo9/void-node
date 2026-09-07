@@ -13,11 +13,12 @@ No caller-supplied transport or caller-supplied finalized-payment/finality objec
 
 ## Exact stack
 
-- repository main: `0cb5832f88eab7c9a1678328e546f2a307b71530`
-- #1471 exact source-finality adapter: `036c34a479d8dacbfd663fcb610adabbd0008428`
-- #1472 exact repaired authority candidate: `28f47db9e5c4f0064112591eb75b4ef747946c8c`
+- current repository main after #1472 merge: `5659e9246c32833ee75e844e883b284369b71d44`
+- #1471 exact source-finality adapter semantic generation: `036c34a479d8dacbfd663fcb610adabbd0008428`
+- #1472 repaired authority semantic generation: `70a12eeb30c5beb2f05e789bab9e75b57cc50e4d`
+- #1472 final proof-only head before merge: `f7fb86e80d6c3d1444081348cfd20ee911fa303b`
 
-The V3 source pins the expected #1471/#1472 stack and current #1471 success-path RPC count of ten.
+The V3 source pins the semantic #1471/#1472 source generations and current #1471 success-path RPC count of ten. The later #1472 proof-only commit is preserved in stack history but is not substituted for the semantic source-generation identity.
 
 ## Module-owned transport identity
 
@@ -109,7 +110,7 @@ composition_policy_sha256
 
 `transport_identity_sha256` binds the module-owned transport origin, source chain, EVM chain ID, configured RPC identity, and normalized RPC URL fingerprint.
 
-`composition_policy_sha256` additionally binds the total timeout, expected #1471/#1472 generation tuple, transport identity digest, and #1472 stable-policy digest.
+`composition_policy_sha256` additionally binds the total timeout, expected #1471/#1472 semantic-generation tuple, transport identity digest, and #1472 stable-policy digest.
 
 ## Remaining negative truth
 
@@ -145,6 +146,8 @@ It proves:
 - the total timeout has a finite hard maximum;
 - transport/composition digests are bound; and
 - wallet, signer, transaction, inventory, Chain-2050 and money authority remain absent.
+
+The dedicated workflow also preserves the repaired #1472 proof, including malformed rail-order rejection, before repository build acceptance.
 
 ## Authority boundary
 

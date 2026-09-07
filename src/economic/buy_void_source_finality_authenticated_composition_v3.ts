@@ -51,7 +51,7 @@ export const VOID_BUY_VOID_SOURCE_FINALITY_AUTHENTICATED_COMPOSITION_AUTHORITY_V
 export const VOID_BUY_VOID_SOURCE_FINALITY_AUTHENTICATED_UPSTREAM_V3 =
   Object.freeze({
     pr_1471_head_sha: "036c34a479d8dacbfd663fcb610adabbd0008428",
-    pr_1472_head_sha: "28f47db9e5c4f0064112591eb75b4ef747946c8c",
+    pr_1472_head_sha: "70a12eeb30c5beb2f05e789bab9e75b57cc50e4d",
     expected_rpc_call_count: 10,
   });
 
@@ -446,6 +446,23 @@ function createModuleOwnedDeadlineTransportV3(normalized: {
           (response) => {
             const chunks: Buffer[] = [];
             let size = 0;
+            response.on("aborted", () => {
+              finishReject(new Error("source_finality_rpc_response_aborted"));
+            });
+            response.on("error", (error) => {
+              finishReject(
+                error instanceof Error
+                  ? error
+                  : new Error("source_finality_rpc_response_error"),
+              );
+            });
+            response.on("close", () => {
+              if (!response.complete) {
+                finishReject(
+                  new Error("source_finality_rpc_response_premature_close"),
+                );
+              }
+            });
             response.on("data", (chunk: Buffer | string) => {
               const value = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
               size += value.byteLength;
@@ -501,10 +518,14 @@ function createModuleOwnedDeadlineTransportV3(normalized: {
 
         hardTimer = setTimeout(() => {
           metadata.deadline_exceeded = true;
-          request.destroy(new Error("source_finality_total_deadline_exceeded"));
+          const error = new Error("source_finality_total_deadline_exceeded");
+          finishReject(error);
+          request.destroy(error);
         }, Math.max(1, Math.ceil(remaining)));
         request.on("timeout", () => {
-          request.destroy(new Error("source_finality_rpc_call_timeout"));
+          const error = new Error("source_finality_rpc_call_timeout");
+          finishReject(error);
+          request.destroy(error);
         });
         request.on("error", (error) => {
           finishReject(error instanceof Error ? error : new Error("source_finality_rpc_error"));
