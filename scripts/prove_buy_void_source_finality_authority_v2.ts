@@ -200,6 +200,15 @@ test("rail order is closed", () => {
   mustFail("rail order", () => normalizeBuyVoidSourceFinalityStaticPolicyV2(p));
 });
 
+test("rail order rejects join-equivalent malformed arrays", () => {
+  const joined: any = policy();
+  joined.rail_order = ["base,ethereum"];
+  mustFail("joined rail order", () => normalizeBuyVoidSourceFinalityStaticPolicyV2(joined));
+  const nested: any = policy();
+  nested.rail_order = [["base", "ethereum"]];
+  mustFail("nested rail order", () => normalizeBuyVoidSourceFinalityStaticPolicyV2(nested));
+});
+
 test("RPC identities must be isolated", () => {
   const p = policy(); p.rails[1].rpc_identity = p.rails[0].rpc_identity;
   mustFail("rpc isolation", () => normalizeBuyVoidSourceFinalityStaticPolicyV2(p));
