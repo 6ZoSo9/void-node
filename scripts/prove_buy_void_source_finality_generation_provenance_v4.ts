@@ -312,7 +312,9 @@ await test("caller cannot inject a generation manifest or provenance assertion",
       reviewed_source_files_sha256: "f".repeat(64),
     };
     const result = await observeBuyVoidSourceFinalityGenerationProvenanceV4(value);
-    assert.equal(result.ok, false);
+    if (result.ok) {
+      throw new Error("caller generation injection unexpectedly passed");
+    }
     assert.equal(
       result.reason,
       "source_finality_v3_source_finality_composition_input_shape",
@@ -329,7 +331,9 @@ await test("transport-policy failure still occurs before any RPC", async () => {
     const value = input(harness.url);
     value.policy.source_finality_policy.rpc_url_fingerprint_sha256 = "f".repeat(64);
     const result = await observeBuyVoidSourceFinalityGenerationProvenanceV4(value);
-    assert.equal(result.ok, false);
+    if (result.ok) {
+      throw new Error("bad RPC fingerprint unexpectedly passed");
+    }
     assert.equal(harness.requestCount(), 0);
   } finally {
     await harness.close();
