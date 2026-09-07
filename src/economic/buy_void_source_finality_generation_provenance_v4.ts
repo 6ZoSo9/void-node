@@ -1,5 +1,6 @@
 import crypto from "node:crypto";
 import fs from "node:fs";
+import { performance } from "node:perf_hooks";
 import { fileURLToPath } from "node:url";
 
 import type { BuyVoidRequestV1 } from "./buy_void_auto_fulfillment_v1.js";
@@ -55,13 +56,13 @@ export const VOID_BUY_VOID_SOURCE_FINALITY_REVIEWED_RUNTIME_SOURCES_V4 =
   Object.freeze([
     Object.freeze({
       path: "src/economic/buy_void_source_finality_authenticated_composition_v3.ts",
-      source_commit_sha: "d72569a749e47243eeed1a9b61a5e9caa06dcc3f",
-      git_blob_sha1: "8ce99ed9f5d76aabbe9e3bbf107ba94f4d60f6f9",
+      source_commit_sha: "3ab4b2ace3f3cf5a8d6f33ef9a0b21926be46962",
+      git_blob_sha1: "a3dbe4d0fed3034d3ca2c0b3704a758d7c776090",
     }),
     Object.freeze({
       path: "src/economic/buy_void_source_finality_authority_v2.ts",
-      source_commit_sha: "28f47db9e5c4f0064112591eb75b4ef747946c8c",
-      git_blob_sha1: "48a1bd50dce144ccbd33dcb2b9f43f58b14754e1",
+      source_commit_sha: "70a12eeb30c5beb2f05e789bab9e75b57cc50e4d",
+      git_blob_sha1: "64953050d74bc0bc6d1e6948ae992d6143edca99",
     }),
     Object.freeze({
       path: "src/economic/buy_void_source_chain_finality_rpc_adapter_v1.ts",
@@ -81,6 +82,7 @@ export const VOID_BUY_VOID_SOURCE_FINALITY_REVIEWED_RUNTIME_SOURCES_V4 =
   ] as const satisfies readonly SourceGenerationRecordV4[]);
 
 const MAX_SOURCE_FILE_BYTES = 2 * 1024 * 1024;
+const MAX_TOTAL_TIMEOUT_MS = 120_000;
 const GIT_OBJECT_ID = /^[0-9a-f]{40}$/;
 const SOURCE_MODULE_SUFFIX =
   "/src/economic/buy_void_source_finality_generation_provenance_v4.ts";
@@ -117,6 +119,25 @@ function sha256Canonical(value: unknown): string {
 function gitBlobSha1(bytes: Buffer): string {
   const header = Buffer.from(`blob ${bytes.length}\0`, "utf8");
   return crypto.createHash("sha1").update(header).update(bytes).digest("hex");
+}
+
+function parseTotalTimeoutMsV4(value: unknown): number | null {
+  const raw = String(value ?? "").trim();
+  if (!/^[1-9][0-9]*$/.test(raw)) return null;
+  const parsed = Number(raw);
+  if (
+    !Number.isSafeInteger(parsed) ||
+    parsed <= 0 ||
+    parsed > MAX_TOTAL_TIMEOUT_MS
+  ) {
+    return null;
+  }
+  return parsed;
+}
+
+function remainingTotalTimeoutMsV4(deadlineAtMonotonicMs: number): number {
+  const remaining = Math.floor(deadlineAtMonotonicMs - performance.now());
+  return Number.isSafeInteger(remaining) && remaining > 0 ? remaining : 0;
 }
 
 function sourceFilename(record: SourceGenerationRecordV4): string | null {
@@ -340,26 +361,72 @@ export async function observeBuyVoidSourceFinalityGenerationProvenanceV4(
     policy: BuyVoidSourceFinalityAuthenticatedCompositionPolicyV3;
   },
 ): Promise<BuyVoidSourceFinalityGenerationDecisionV4> {
+  const totalTimeoutMs = parseTotalTimeoutMsV4(
+    (input as any)?.policy?.total_timeout_ms,
+  );
+  if (totalTimeoutMs === null) {
+    return held("source_finality_total_timeout_invalid");
+  }
+  const deadlineAtMonotonicMs = performance.now() + totalTimeoutMs;
+
   const sourceFiles = verifyBuyVoidSourceFinalityRuntimeSourceFilesV4();
   if (sourceFiles.ok === false) {
     return held(sourceFiles.reason);
   }
 
+  let remainingTimeoutMs = remainingTotalTimeoutMsV4(deadlineAtMonotonicMs);
+  if (remainingTimeoutMs === 0) {
+    return held("source_finality_total_deadline_exceeded");
+  }
+
   let v3: typeof import("./buy_void_source_finality_authenticated_composition_v3.js");
+  let importTimedOut = false;
+  let importTimer: NodeJS.Timeout | null = null;
   try {
-    v3 = await import("./buy_void_source_finality_authenticated_composition_v3.js");
+    v3 = await Promise.race([
+      import("./buy_void_source_finality_authenticated_composition_v3.js"),
+      new Promise<never>((_resolve, reject) => {
+        importTimer = setTimeout(() => {
+          importTimedOut = true;
+          reject(new Error("source_finality_v3_import_deadline_exceeded"));
+        }, remainingTimeoutMs);
+      }),
+    ]);
   } catch {
+    if (
+      importTimedOut ||
+      remainingTotalTimeoutMsV4(deadlineAtMonotonicMs) === 0
+    ) {
+      return held("source_finality_total_deadline_exceeded");
+    }
     return held("source_finality_v3_import_failed");
+  } finally {
+    if (importTimer) clearTimeout(importTimer);
   }
 
   if (v3.VOID_BUY_VOID_SOURCE_FINALITY_AUTHENTICATED_COMPOSITION_V3 !== EXPECTED_V3_MARKER) {
     return held("source_finality_v3_marker_mismatch");
   }
 
+  remainingTimeoutMs = remainingTotalTimeoutMsV4(deadlineAtMonotonicMs);
+  if (remainingTimeoutMs === 0) {
+    return held("source_finality_total_deadline_exceeded");
+  }
+
   const composed =
-    await v3.observeBuyVoidSourceFinalityAuthenticatedCompositionV3(input);
+    await v3.observeBuyVoidSourceFinalityAuthenticatedCompositionV3({
+      ...input,
+      policy: {
+        ...input.policy,
+        total_timeout_ms: String(remainingTimeoutMs),
+      },
+    });
   if (composed.ok === false) {
     return held(`source_finality_v3_${composed.reason}`);
+  }
+
+  if (remainingTotalTimeoutMsV4(deadlineAtMonotonicMs) === 0) {
+    return held("source_finality_total_deadline_exceeded");
   }
 
   if (
@@ -386,5 +453,6 @@ export async function observeBuyVoidSourceFinalityGenerationProvenanceV4(
     reviewed_source_files_sha256: sourceFiles.reviewed_source_files_sha256,
     verified_source_file_count: sourceFiles.verified_source_file_count,
     source_file_verification_mode: sourceFiles.verification_mode,
+    total_timeout_ms: String(totalTimeoutMs),
   };
 }
