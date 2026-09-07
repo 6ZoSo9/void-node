@@ -5,6 +5,11 @@ on:
     paths:
       - "src/economic/buy_void_source_finality_authenticated_composition_v3.ts"
       - "scripts/prove_buy_void_source_finality_authenticated_composition_v3.ts"
+      - "scripts/prove_buy_void_source_finality_authenticated_composition_v3_truncated_response.ts"
+      - "src/economic/buy_void_source_chain_finality_rpc_adapter_v1.ts"
+      - "scripts/prove_buy_void_source_chain_finality_rpc_adapter_v1.ts"
+      - "src/economic/buy_void_source_finality_authority_v2.ts"
+      - "scripts/prove_buy_void_source_finality_authority_v2.ts"
       - "docs/architecture/buy-void-source-finality-authenticated-composition-v3.md"
       - ".github/workflows/buy-void-source-finality-authenticated-composition-v3.yml"
   workflow_dispatch:
@@ -56,10 +61,14 @@ jobs:
             --downlevelIteration \
             --skipLibCheck \
             src/economic/buy_void_source_finality_authenticated_composition_v3.ts \
-            scripts/prove_buy_void_source_finality_authenticated_composition_v3.ts
+            scripts/prove_buy_void_source_finality_authenticated_composition_v3.ts \
+            scripts/prove_buy_void_source_finality_authenticated_composition_v3_truncated_response.ts
 
       - name: Prove authenticated source-finality composition
         run: ./node_modules/.bin/tsx scripts/prove_buy_void_source_finality_authenticated_composition_v3.ts
+
+      - name: Prove truncated RPC response fails closed
+        run: ./node_modules/.bin/tsx scripts/prove_buy_void_source_finality_authenticated_composition_v3_truncated_response.ts
 
       - name: Preserve #1471 finalized-source observation behavior
         run: ./node_modules/.bin/tsx scripts/prove_buy_void_source_chain_finality_rpc_adapter_v1.ts
