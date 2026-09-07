@@ -3,7 +3,7 @@
   "marker": "VOID_BUY_VOID_SOURCE_FINALITY_COMPILED_ARTIFACT_ATTESTATION_V1",
   "version": 1,
   "repository": "6ZoSo9/void-node",
-  "source_stack_head": "628f718154e888bde2eb7d1389bce2bcd9461d66",
+  "source_stack_head": "f0fd6fb9afff43986d7f0b87e9aac3750d4e4f34",
   "compiler": {
     "typescript_version": "5.9.3",
     "package_lock_git_blob_sha1": "b57e9018e9aee19340b4fe43d2282208116ec2f8"
@@ -18,8 +18,8 @@
   "artifacts": [
     {
       "path": "dist/economic/buy_void_source_finality_generation_provenance_v4.js",
-      "bytes": 10420,
-      "sha256": "3db8fb295b7e0825232eec1479beab3dbcae5c0fa9a71e22ad0c37a2c30f62d3"
+      "bytes": 11276,
+      "sha256": "2ef8f2a13591d5535a564d402f60d13c477ac00c6f2c3f83306df033828bd15a"
     },
     {
       "path": "dist/economic/buy_void_source_finality_authenticated_composition_v3.js",
@@ -47,7 +47,7 @@
       "sha256": "0494e4a1d64cdcf5bcbab81a5585406f7a4d34ad9c16d64dcada5063c765057b"
     }
   ],
-  "compiled_artifact_set_sha256": "d59a7ef8e8fa16e432e1ddd157a3dfebab7aa148e04842ccafe4b1720454a0ab",
+  "compiled_artifact_set_sha256": "acf85d2f928ac4e303428df5c5e3f5aa9b4bbdfa0e367c6c9088514dce7206b8",
   "derivation_node_majors": [
     22,
     24,

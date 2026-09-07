@@ -10,7 +10,7 @@ It does **not** claim that any deployed or executing runtime is using those byte
 
 The attestation is bound to exact #1474 source-stack head:
 
-`628f718154e888bde2eb7d1389bce2bcd9461d66`
+`f0fd6fb9afff43986d7f0b87e9aac3750d4e4f34`
 
 The lane must remain pathwise unchanged from that generation for:
 
@@ -60,7 +60,7 @@ The proof rejects a relative runtime import that escapes that exact set and reje
 
 Node 22, 24 and 26 independently built the exact reviewed source stack and produced byte-identical values for all six artifacts. Their canonical aggregate artifact-set SHA-256 is:
 
-`d59a7ef8e8fa16e432e1ddd157a3dfebab7aa148e04842ccafe4b1720454a0ab`
+`acf85d2f928ac4e303428df5c5e3f5aa9b4bbdfa0e367c6c9088514dce7206b8`
 
 The derivation generation remained non-accepting and reported:
 
@@ -68,6 +68,8 @@ The derivation generation remained non-accepting and reported:
 compiled_artifact_generation_verified=false
 deployed_artifact_generation_verified=false
 ```
+
+The workflow derivation pipeline runs under explicit `set -euo pipefail`, so a nonzero proof exit cannot be masked by the evidence `tee` stage.
 
 ### Generation 2 — locked attestation
 
