@@ -223,6 +223,20 @@ function git(args: string[]): string {
   }).trim();
 }
 
+function gitObjectExists(revision: string): boolean {
+  try {
+    git(["cat-file", "-e", revision]);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+const repositoryIsShallow =
+  git(["rev-parse", "--is-shallow-repository"]) === "true";
+let recordedCommitTreeChecksExecuted = 0;
+let recordedCommitToBlobMappingVerified = false;
+
 let passed = 0;
 async function test(name: string, fn: () => Promise<void> | void) {
   await fn();
@@ -243,16 +257,38 @@ await test("runtime source-file verifier binds the exact five reviewed Git blobs
   assert.match(result.reviewed_source_files_sha256, /^[0-9a-f]{64}$/);
 });
 
-await test("manifest maps every reviewed path to the recorded blob in its recorded commit", () => {
+await test("manifest verifies recorded commit/blob mappings when commit objects are available", () => {
   assert.equal(VOID_BUY_VOID_SOURCE_FINALITY_REVIEWED_RUNTIME_SOURCES_V4.length, 5);
+  let unavailableReviewedRecords = 0;
   for (const record of VOID_BUY_VOID_SOURCE_FINALITY_REVIEWED_RUNTIME_SOURCES_V4) {
     assert.match(record.source_commit_sha, /^[0-9a-f]{40}$/);
     assert.match(record.git_blob_sha1, /^[0-9a-f]{40}$/);
-    git(["cat-file", "-e", `${record.source_commit_sha}^{commit}`]);
+    if (!gitObjectExists(`${record.source_commit_sha}^{commit}`)) {
+      assert.equal(
+        repositoryIsShallow,
+        true,
+        `missing reviewed commit object in non-shallow repository: ${record.source_commit_sha}`,
+      );
+      unavailableReviewedRecords += 1;
+      continue;
+    }
     const listing = git(["ls-tree", record.source_commit_sha, "--", record.path]);
     const match = listing.match(/^\d+\s+blob\s+([0-9a-f]{40})\t/m);
     assert.ok(match, `missing reviewed blob: ${record.path}@${record.source_commit_sha}`);
     assert.equal(match[1], record.git_blob_sha1, record.path);
+    recordedCommitTreeChecksExecuted += 1;
+  }
+  assert.equal(
+    recordedCommitTreeChecksExecuted + unavailableReviewedRecords,
+    VOID_BUY_VOID_SOURCE_FINALITY_REVIEWED_RUNTIME_SOURCES_V4.length,
+  );
+  recordedCommitToBlobMappingVerified =
+    recordedCommitTreeChecksExecuted ===
+    VOID_BUY_VOID_SOURCE_FINALITY_REVIEWED_RUNTIME_SOURCES_V4.length;
+  if (!recordedCommitToBlobMappingVerified) {
+    console.log(
+      `INFO historical commit-tree mapping unavailable in shallow checkout for ${unavailableReviewedRecords} reviewed records`,
+    );
   }
 });
 
@@ -400,7 +436,11 @@ console.log(
       cases_total: passed,
       reviewed_source_file_count: 5,
       reviewed_source_files_verified_on_success: true,
-      recorded_commit_to_blob_mapping_verified: true,
+      repository_is_shallow: repositoryIsShallow,
+      recorded_commit_tree_checks_executed: recordedCommitTreeChecksExecuted,
+      recorded_commit_to_blob_mapping_verified:
+        recordedCommitToBlobMappingVerified,
+      recorded_commit_to_blob_mapping_full_history_required: true,
       source_generation_verified_on_success: false,
       caller_generation_assertion_accepted: false,
       deployed_artifact_generation_verified: false,
