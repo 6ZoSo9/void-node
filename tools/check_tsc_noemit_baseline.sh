@@ -4,6 +4,8 @@ set -euo pipefail
 ROOT="$(git rev-parse --show-toplevel)"
 cd "$ROOT"
 
+node scripts/prove_segmented_jsonl_ci_topology_v1.mjs
+
 BASELINE_FILE="${VOID_TSC_NOEMIT_BASELINE_FILE:-fixtures/ops/ci-baselines/tsc-noemit-v1.json}"
 TMP="$(mktemp)"
 trap 'rm -f "$TMP"' EXIT
