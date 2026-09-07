@@ -65,6 +65,8 @@ Therefore the current source proves all of the following:
 - A Chain-2050 VOID transfer can be observed and validated.
 - The Chain-2050 transfer itself does **not** currently contain the source
   payment identity.
+- Chain-2050 does **not** currently contain a payment-keyed presale reservation
+  that consumes finite capacity before fulfillment.
 - The payment-to-fulfillment correlation is currently assembled off-chain.
 - Confirmation depth is implemented, but a complete live Chain-2050
   route/fork-choice/finality authority is not yet implemented.
@@ -101,16 +103,21 @@ threshold must never become authority.
 ### Chain-2050
 
 Current Chain-2050 can be queried for an exact VOID transfer receipt. To become
-the complete presale anchor of truth, Chain-2050 still needs three source-backed
+the complete presale anchor of truth, Chain-2050 still needs four source-backed
 successors:
 
-1. **Payment-keyed fulfillment anchor.** The same state transition that
-   authorizes or records a fulfillment must consume one deterministic payment
-   key and reject reuse.
-2. **Finite presale inventory state.** Remaining presale capacity must be
-   derived from Chain-2050 state rather than a local counter that can disagree
-   after recovery.
-3. **DataNet content commitment.** DataNet objects or generations that need
+1. **Payment-keyed inventory reservation.** A finalized source payment must
+   consume one deterministic payment key and move the exact purchase amount
+   from `available` to `reserved` on Chain-2050 before delivery may be signed
+   or broadcast. This makes oversubscription fail before fulfillment. This is the required
+**reservation before fulfillment** ordering.
+2. **Payment-keyed fulfillment anchor.** Fulfillment must reference that exact
+   reservation, reject payment-key or delivery-event reuse, and move the exact
+   amount from `reserved` to `fulfilled`.
+3. **Finite presale inventory state.** Chain-2050 must expose
+   `available + reserved + fulfilled = 10,000,000 VOID`; local counters cannot
+   override it after recovery.
+4. **DataNet content commitment.** DataNet objects or generations that need
    canonical identity must have a Chain-2050 commitment containing at least the
    object identity and expected content digest.
 
@@ -128,29 +135,45 @@ The length frame prevents concatenation ambiguity. The contract module also
 retains the existing plain SHA-256 of the canonical payment identity for
 compatibility with current Buy VOID records.
 
-A future fulfillment state transition should atomically enforce the semantic
-equivalent of:
+The payment key is consumed first by the reservation transition and then
+referenced by fulfillment. A future Chain-2050 implementation should enforce the
+semantic equivalent of:
 
 ```text
+# Phase 1: finalized source payment -> reservation
+require(reservation_by_payment_key[payment_key] is absent)
+require(available_inventory >= void_amount)
+reservation_by_payment_key[payment_key] =
+  (void_amount, delivery_address, source_evidence_digest)
+available_inventory -= void_amount
+reserved_inventory += void_amount
+emit payment-keyed reservation evidence
+
+# Phase 2: reservation -> fulfillment
+require(reservation_by_payment_key[payment_key] exists)
 require(fulfillment_by_payment_key[payment_key] is absent)
-require(remaining_inventory >= void_amount)
+require(delivery matches exact reservation)
 fulfillment_by_payment_key[payment_key] = fulfillment_digest
-remaining_inventory -= void_amount
-transfer VOID to delivery_address
+reserved_inventory -= void_amount
+fulfilled_inventory += void_amount
 emit payment-keyed fulfillment evidence
 ```
+
+If VOID delivery remains an external ERC-20 transfer rather than occurring
+inside the settlement transition, the exact Chain-2050 reservation must be
+finalized **before** the runtime signs or broadcasts that delivery.
 
 This document deliberately does not select a deployment address, contract
 implementation, upgrade authority, signer, or activation procedure.
 
 ### Cross-chain qualification
 
-A Chain-2050 anchor makes the correlation immutable and duplicate-resistant, but
-it does not by itself trustlessly prove a Base or Ethereum receipt. Until a
-reviewed light-client, bridge, or proof system exists, a bounded authorized
-payment verifier must still validate the source-chain receipt before proposing
-the Chain-2050 anchor. That verifier is an input authority boundary, not an
-alternate final ledger.
+The Chain-2050 reservation and fulfillment anchors make the correlation
+immutable and duplicate-resistant, but they do not by themselves trustlessly
+prove a Base or Ethereum receipt. Until a reviewed light-client, bridge, or
+proof system exists, a bounded authorized payment verifier must still validate
+the source-chain receipt before proposing the Chain-2050 reservation. That
+verifier is an input authority boundary, not an alternate final ledger.
 
 ## DATANET_OWNS
 
@@ -183,7 +206,7 @@ Only bounded unfinished work remains authoritative locally:
 - pre-broadcast nonce and submission intent
 - a broadcast whose receipt is unknown
 - temporary payment-to-delivery correlation until the payment-keyed
-  Chain-2050 anchor exists
+  Chain-2050 reservation exists
 - incomplete DataNet publication or repair intent
 
 The local record must be keyed deterministically, replay-safe, bounded, and
@@ -195,6 +218,7 @@ record becomes evidence or cache data and cannot redefine the outcome.
 The following must be reconstructible:
 
 - finalized payment index
+- finalized reservation index
 - finalized fulfillment index
 - purchase-status projection
 - DataNet peer-route cache
@@ -221,6 +245,7 @@ These are DataNet and unresolved-operation correctness mechanisms.
 ### Delete where the mechanism duplicates finalized chain truth
 
 - local finalized-payment ledger authority
+- local finalized-reservation ledger authority
 - local finalized-fulfillment ledger authority
 - local inventory truth that can override Chain-2050
 - local purchase status treated as canonical
@@ -232,6 +257,14 @@ This is a semantic deletion decision. It does not authorize deleting any
 existing branch, file, deployment, or operator data.
 
 ## Recovery decision table
+
+The executable recovery helper below describes the current pre-successor source,
+where Chain-2050 still has no reservation surface. Under the successor design,
+`READY_FOR_BOUNDED_PREPARATION` may prepare or verify a reservation proposal but
+does **not** authorize signing or broadcasting a VOID delivery. Delivery
+signing/broadcast must remain held until the exact payment-keyed Chain-2050
+reservation is finalized. #1465 owns the two-phase state-transition reference;
+this boundary contract intentionally does not duplicate that state machine.
 
 | Source payment | Chain-2050 delivery | Payment-keyed anchor | Result |
 |---|---|---|---|
@@ -259,7 +292,8 @@ The module provides:
 
 - exact Base/Ethereum source-chain normalization
 - canonical payment identity
-- domain-separated fulfillment anchor key
+- domain-separated payment/fulfillment anchor key
+- explicit reservation-before-fulfillment successor boundary
 - closed fulfillment-anchor validation
 - one-payment/one-fulfillment and one-delivery-event/one-payment checks
 - recovery decisions where finalized chain truth outranks local cache
@@ -274,6 +308,9 @@ The focused proof must pass on Node 22, 24, and 26 and prove:
 
 - both payment rails
 - canonical identities and domain separation
+- payment confirmation separated from fulfillment
+- Chain-2050 reservation before delivery
+- available/reserved/fulfilled inventory conservation
 - duplicate/conflict rejection
 - local-cache precedence
 - chain-truth versus byte-availability separation

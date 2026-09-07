@@ -41,6 +41,7 @@ export const CHAIN_OWNS_V1 = Object.freeze([
 ]);
 
 export const REQUIRED_CHAIN_SUCCESSOR_V1 = Object.freeze([
+  "payment_keyed_chain2050_inventory_reservation",
   "payment_keyed_chain2050_fulfillment_anchor",
   "finite_chain2050_presale_inventory_state",
   "chain2050_datanet_content_commitment",
@@ -59,12 +60,13 @@ export const LOCAL_STATE_REQUIRED_V1 = Object.freeze([
   "bounded_source_payment_observation_before_finality",
   "bounded_prebroadcast_nonce_and_submission_intent",
   "unknown_broadcast_receipt_reconciliation",
-  "temporary_payment_to_delivery_correlation_until_chain_anchor_exists",
+  "temporary_payment_to_delivery_correlation_until_chain_reservation_exists",
   "incomplete_datanet_publication_and_repair_intent",
 ]);
 
 export const DISPOSABLE_LOCAL_STATE_V1 = Object.freeze([
   "finalized_payment_index",
+  "finalized_reservation_index",
   "finalized_fulfillment_index",
   "purchase_status_projection",
   "datanet_retrieval_route_cache",
@@ -83,6 +85,7 @@ export const V4_RETAIN_V1 = Object.freeze([
 
 export const V4_DELETE_V1 = Object.freeze([
   "local_finalized_payment_ledger_authority",
+  "local_finalized_reservation_ledger_authority",
   "local_finalized_fulfillment_ledger_authority",
   "local_inventory_truth_override",
   "local_purchase_status_as_canonical_truth",
@@ -94,6 +97,9 @@ export const V4_DELETE_V1 = Object.freeze([
 export const HOSTED_EVIDENCE_GATES_V1 = Object.freeze([
   "dual_payment_rail_identity",
   "payment_anchor_domain_separation",
+  "payment_confirmation_separate_from_fulfillment",
+  "reservation_before_fulfillment",
+  "inventory_conservation_available_reserved_fulfilled",
   "one_payment_one_fulfillment",
   "one_delivery_event_one_payment",
   "local_cache_never_overrides_finalized_chain",
@@ -926,7 +932,7 @@ export function validateChainAnchorContractPacketV1(input) {
       value.delivery.current_transaction_shape !==
         "plain_erc20_transfer" ||
       value.delivery.required_successor !==
-        "payment_keyed_fulfillment_anchor"
+        "payment_reservation_then_payment_keyed_fulfillment"
     ) {
       fail("delivery_contract_mismatch");
     }
@@ -935,6 +941,7 @@ export function validateChainAnchorContractPacketV1(input) {
       value.current_source_state,
       [
         "dual_usdc_payment_rails_recognized",
+        "on_chain_payment_reservation_present",
         "on_chain_payment_to_fulfillment_anchor_present",
         "on_chain_finite_inventory_state_present",
         "chain2050_live_route_fork_choice_finality_present",
@@ -945,6 +952,8 @@ export function validateChainAnchorContractPacketV1(input) {
     if (
       value.current_source_state.dual_usdc_payment_rails_recognized !==
         true ||
+      value.current_source_state
+        .on_chain_payment_reservation_present !== false ||
       value.current_source_state
         .on_chain_payment_to_fulfillment_anchor_present !== false ||
       value.current_source_state

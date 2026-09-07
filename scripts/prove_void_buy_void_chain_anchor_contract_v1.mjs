@@ -261,6 +261,22 @@ test("fulfillment anchor key is domain separated", () => {
   );
 });
 
+test("chain successor requires reservation before fulfillment", () => {
+  assert.deepEqual(REQUIRED_CHAIN_SUCCESSOR_V1, [
+    "payment_keyed_chain2050_inventory_reservation",
+    "payment_keyed_chain2050_fulfillment_anchor",
+    "finite_chain2050_presale_inventory_state",
+    "chain2050_datanet_content_commitment",
+  ]);
+  for (const gate of [
+    "payment_confirmation_separate_from_fulfillment",
+    "reservation_before_fulfillment",
+    "inventory_conservation_available_reserved_fulfilled",
+  ]) {
+    assert.ok(HOSTED_EVIDENCE_GATES_V1.includes(gate), gate);
+  }
+});
+
 test("Base fulfillment anchor validates", () => {
   const decision = validateFulfillmentAnchorV1(baseAnchor);
   assert.equal(decision.ok, true);
@@ -634,6 +650,14 @@ test("example packet rejects false current anchor claims", () => {
   assert.equal(decision.reason, "current_source_state_mismatch");
 });
 
+test("example packet rejects false current reservation claims", () => {
+  const mutated = clone(fixture);
+  mutated.current_source_state.on_chain_payment_reservation_present = true;
+  const decision = validateChainAnchorContractPacketV1(mutated);
+  assert.equal(decision.ok, false);
+  assert.equal(decision.reason, "current_source_state_mismatch");
+});
+
 test("example packet cannot grant authority", () => {
   const mutated = clone(fixture);
   mutated.authority.transaction_broadcast = true;
@@ -739,6 +763,8 @@ test("architecture document states the negative evidence", () => {
     "## DATANET_OWNS",
     "## LOCAL_STATE_REQUIRED",
     "## V4_RETAIN_DELETE",
+    "payment-keyed inventory reservation",
+    "reservation before fulfillment",
     "payment-keyed fulfillment anchor",
     "A digest is not availability.",
     "does not activate a payment rail",
@@ -820,6 +846,7 @@ console.log(
       delivery_chain_id: "2050",
       hosted_cases_passed: passed,
       hosted_cases_total: tests.length,
+      current_on_chain_payment_reservation: false,
       current_on_chain_payment_fulfillment_anchor: false,
       current_on_chain_finite_inventory_state: false,
       current_live_route_fork_choice_finality: false,
