@@ -3,15 +3,16 @@ import fs from "node:fs";
 import { fileURLToPath } from "node:url";
 
 import type { BuyVoidRequestV1 } from "./buy_void_auto_fulfillment_v1.js";
-import {
-  observeBuyVoidSourceFinalityAuthenticatedCompositionV3,
-  VOID_BUY_VOID_SOURCE_FINALITY_AUTHENTICATED_COMPOSITION_V3,
-  type BuyVoidSourceFinalityAuthenticatedCompositionPolicyV3,
-  type BuyVoidSourceFinalityAuthenticatedReadyV3,
+import type {
+  BuyVoidSourceFinalityAuthenticatedCompositionPolicyV3,
+  BuyVoidSourceFinalityAuthenticatedReadyV3,
 } from "./buy_void_source_finality_authenticated_composition_v3.js";
 
 export const VOID_BUY_VOID_SOURCE_FINALITY_GENERATION_PROVENANCE_V4 =
   "VOID_BUY_VOID_SOURCE_FINALITY_GENERATION_PROVENANCE_V4";
+
+const EXPECTED_V3_MARKER =
+  "VOID_BUY_VOID_SOURCE_FINALITY_AUTHENTICATED_COMPOSITION_V3";
 
 export const VOID_BUY_VOID_SOURCE_FINALITY_GENERATION_PROVENANCE_AUTHORITY_V4 =
   Object.freeze({
@@ -19,8 +20,9 @@ export const VOID_BUY_VOID_SOURCE_FINALITY_GENERATION_PROVENANCE_AUTHORITY_V4 =
     runtime_source_filesystem_read: true,
     runtime_source_filesystem_write: false,
     caller_generation_assertion_accepted: false,
-    source_generation_verification_required: true,
-    source_generation_verified_on_success: true,
+    reviewed_source_files_verification_required: true,
+    reviewed_source_files_verified_on_success: true,
+    source_generation_verified_on_success: false,
     deployed_artifact_generation_verified: false,
     authenticated_transport_identity_verified: true,
     remote_provider_identity_verified: false,
@@ -123,7 +125,7 @@ function sourceFilename(record: SourceGenerationRecordV4): string | null {
   return name;
 }
 
-export const VOID_BUY_VOID_SOURCE_FINALITY_REVIEWED_GENERATION_SHA256_V4 =
+export const VOID_BUY_VOID_SOURCE_FINALITY_REVIEWED_SOURCE_FILES_SHA256_V4 =
   sha256Canonical({
     marker: VOID_BUY_VOID_SOURCE_FINALITY_GENERATION_PROVENANCE_V4,
     version: 4,
@@ -131,26 +133,26 @@ export const VOID_BUY_VOID_SOURCE_FINALITY_REVIEWED_GENERATION_SHA256_V4 =
     sources: VOID_BUY_VOID_SOURCE_FINALITY_REVIEWED_RUNTIME_SOURCES_V4,
   });
 
-export type BuyVoidSourceFinalityRuntimeGenerationVerifiedV4 = {
+export type BuyVoidSourceFinalityRuntimeFilesVerifiedV4 = {
   ok: true;
-  source_generation_verified: true;
-  reviewed_source_generation_sha256: string;
+  reviewed_source_files_verified: true;
+  reviewed_source_files_sha256: string;
   verified_source_file_count: "5";
   verification_mode: "runtime_git_blob_identity_v1";
 };
 
-export type BuyVoidSourceFinalityRuntimeGenerationHeldV4 = {
+export type BuyVoidSourceFinalityRuntimeFilesHeldV4 = {
   ok: false;
-  source_generation_verified: false;
+  reviewed_source_files_verified: false;
   reason: string;
 };
 
-export type BuyVoidSourceFinalityRuntimeGenerationDecisionV4 =
-  | BuyVoidSourceFinalityRuntimeGenerationVerifiedV4
-  | BuyVoidSourceFinalityRuntimeGenerationHeldV4;
+export type BuyVoidSourceFinalityRuntimeFilesDecisionV4 =
+  | BuyVoidSourceFinalityRuntimeFilesVerifiedV4
+  | BuyVoidSourceFinalityRuntimeFilesHeldV4;
 
-export function verifyBuyVoidSourceFinalityRuntimeSourceGenerationV4():
-  BuyVoidSourceFinalityRuntimeGenerationDecisionV4 {
+export function verifyBuyVoidSourceFinalityRuntimeSourceFilesV4():
+  BuyVoidSourceFinalityRuntimeFilesDecisionV4 {
   const seen = new Set<string>();
   const noFollow =
     typeof fs.constants.O_NOFOLLOW === "number" ? fs.constants.O_NOFOLLOW : 0;
@@ -163,8 +165,8 @@ export function verifyBuyVoidSourceFinalityRuntimeSourceGenerationV4():
     ) {
       return {
         ok: false,
-        source_generation_verified: false,
-        reason: "source_generation_manifest_invalid",
+        reviewed_source_files_verified: false,
+        reason: "source_files_manifest_invalid",
       };
     }
     seen.add(record.path);
@@ -173,8 +175,8 @@ export function verifyBuyVoidSourceFinalityRuntimeSourceGenerationV4():
     if (!name) {
       return {
         ok: false,
-        source_generation_verified: false,
-        reason: "source_generation_manifest_path_invalid",
+        reviewed_source_files_verified: false,
+        reason: "source_files_manifest_path_invalid",
       };
     }
 
@@ -187,8 +189,8 @@ export function verifyBuyVoidSourceFinalityRuntimeSourceGenerationV4():
       if (!pathname.isFile() || pathname.isSymbolicLink()) {
         return {
           ok: false,
-          source_generation_verified: false,
-          reason: "source_generation_path_not_regular_file",
+          reviewed_source_files_verified: false,
+          reason: "source_files_path_not_regular_file",
         };
       }
 
@@ -202,8 +204,8 @@ export function verifyBuyVoidSourceFinalityRuntimeSourceGenerationV4():
       ) {
         return {
           ok: false,
-          source_generation_verified: false,
-          reason: "source_generation_file_identity_invalid",
+          reviewed_source_files_verified: false,
+          reason: "source_files_identity_invalid",
         };
       }
 
@@ -218,23 +220,23 @@ export function verifyBuyVoidSourceFinalityRuntimeSourceGenerationV4():
       ) {
         return {
           ok: false,
-          source_generation_verified: false,
-          reason: "source_generation_file_changed_during_verification",
+          reviewed_source_files_verified: false,
+          reason: "source_files_changed_during_verification",
         };
       }
 
       if (gitBlobSha1(bytes) !== record.git_blob_sha1) {
         return {
           ok: false,
-          source_generation_verified: false,
-          reason: "source_generation_git_blob_mismatch",
+          reviewed_source_files_verified: false,
+          reason: "source_files_git_blob_mismatch",
         };
       }
     } catch {
       return {
         ok: false,
-        source_generation_verified: false,
-        reason: "source_generation_file_unavailable",
+        reviewed_source_files_verified: false,
+        reason: "source_files_unavailable",
       };
     } finally {
       if (descriptor !== null) {
@@ -250,16 +252,16 @@ export function verifyBuyVoidSourceFinalityRuntimeSourceGenerationV4():
   if (seen.size !== VOID_BUY_VOID_SOURCE_FINALITY_REVIEWED_RUNTIME_SOURCES_V4.length) {
     return {
       ok: false,
-      source_generation_verified: false,
-      reason: "source_generation_manifest_cardinality_mismatch",
+      reviewed_source_files_verified: false,
+      reason: "source_files_manifest_cardinality_mismatch",
     };
   }
 
   return {
     ok: true,
-    source_generation_verified: true,
-    reviewed_source_generation_sha256:
-      VOID_BUY_VOID_SOURCE_FINALITY_REVIEWED_GENERATION_SHA256_V4,
+    reviewed_source_files_verified: true,
+    reviewed_source_files_sha256:
+      VOID_BUY_VOID_SOURCE_FINALITY_REVIEWED_SOURCE_FILES_SHA256_V4,
     verified_source_file_count: "5",
     verification_mode: "runtime_git_blob_identity_v1",
   };
@@ -277,14 +279,14 @@ export type BuyVoidSourceFinalityGenerationReadyV4 = Omit<
   schema: "void_buy_void_source_finality_generation_provenance_v4";
   marker: typeof VOID_BUY_VOID_SOURCE_FINALITY_GENERATION_PROVENANCE_V4;
   version: 4;
-  status: "source_finality_generation_provenance_verified";
-  source_generation_verified: true;
-  reviewed_source_generation_verified: true;
+  status: "source_finality_reviewed_source_files_verified";
+  reviewed_source_files_verified: true;
+  source_generation_verified: false;
   deployed_artifact_generation_verified: false;
   production_source_finality_authority_ready: false;
-  reviewed_source_generation_sha256: string;
+  reviewed_source_files_sha256: string;
   verified_source_file_count: "5";
-  source_generation_verification_mode: "runtime_git_blob_identity_v1";
+  source_file_verification_mode: "runtime_git_blob_identity_v1";
 };
 
 export type BuyVoidSourceFinalityGenerationHeldV4 = {
@@ -313,20 +315,30 @@ export async function observeBuyVoidSourceFinalityGenerationProvenanceV4(
     policy: BuyVoidSourceFinalityAuthenticatedCompositionPolicyV3;
   },
 ): Promise<BuyVoidSourceFinalityGenerationDecisionV4> {
-  const generation = verifyBuyVoidSourceFinalityRuntimeSourceGenerationV4();
-  if (!generation.ok) {
-    return held(generation.reason);
+  const sourceFiles = verifyBuyVoidSourceFinalityRuntimeSourceFilesV4();
+  if (!sourceFiles.ok) {
+    return held(sourceFiles.reason);
   }
 
-  const composed = await observeBuyVoidSourceFinalityAuthenticatedCompositionV3(
-    input,
-  );
+  let v3: typeof import("./buy_void_source_finality_authenticated_composition_v3.js");
+  try {
+    v3 = await import("./buy_void_source_finality_authenticated_composition_v3.js");
+  } catch {
+    return held("source_finality_v3_import_failed");
+  }
+
+  if (v3.VOID_BUY_VOID_SOURCE_FINALITY_AUTHENTICATED_COMPOSITION_V3 !== EXPECTED_V3_MARKER) {
+    return held("source_finality_v3_marker_mismatch");
+  }
+
+  const composed =
+    await v3.observeBuyVoidSourceFinalityAuthenticatedCompositionV3(input);
   if (!composed.ok) {
     return held(`source_finality_v3_${composed.reason}`);
   }
 
   if (
-    composed.marker !== VOID_BUY_VOID_SOURCE_FINALITY_AUTHENTICATED_COMPOSITION_V3 ||
+    composed.marker !== EXPECTED_V3_MARKER ||
     composed.authenticated_transport_identity_verified !== true ||
     composed.total_operation_deadline_verified !== true ||
     composed.observation_generated_in_composition !== true ||
@@ -341,14 +353,13 @@ export async function observeBuyVoidSourceFinalityGenerationProvenanceV4(
     schema: "void_buy_void_source_finality_generation_provenance_v4",
     marker: VOID_BUY_VOID_SOURCE_FINALITY_GENERATION_PROVENANCE_V4,
     version: 4,
-    status: "source_finality_generation_provenance_verified",
-    source_generation_verified: true,
-    reviewed_source_generation_verified: true,
+    status: "source_finality_reviewed_source_files_verified",
+    reviewed_source_files_verified: true,
+    source_generation_verified: false,
     deployed_artifact_generation_verified: false,
     production_source_finality_authority_ready: false,
-    reviewed_source_generation_sha256:
-      generation.reviewed_source_generation_sha256,
-    verified_source_file_count: generation.verified_source_file_count,
-    source_generation_verification_mode: generation.verification_mode,
+    reviewed_source_files_sha256: sourceFiles.reviewed_source_files_sha256,
+    verified_source_file_count: sourceFiles.verified_source_file_count,
+    source_file_verification_mode: sourceFiles.verification_mode,
   };
 }
