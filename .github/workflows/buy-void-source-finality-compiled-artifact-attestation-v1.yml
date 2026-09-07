@@ -22,11 +22,17 @@ jobs:
         node: [22, 24, 26]
 
     steps:
-      - name: Check out exact source
+      - name: Check out exact PR head
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
         with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 0
           persist-credentials: false
+
+      - name: Verify exact checkout identity
+        env:
+          EXPECTED_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD_SHA"
 
       - name: Set up Node
         uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
@@ -48,7 +54,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
-          name: buy-void-source-finality-compiled-artifact-attestation-node-${{ matrix.node }}-${{ github.sha }}
+          name: buy-void-source-finality-compiled-artifact-attestation-node-${{ matrix.node }}-${{ github.event.pull_request.head.sha || github.sha }}
           path: buy-void-source-finality-compiled-artifact-attestation-node-${{ matrix.node }}.log
           if-no-files-found: error
           retention-days: 1
