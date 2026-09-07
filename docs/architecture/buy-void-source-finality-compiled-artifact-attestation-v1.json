@@ -1,0 +1,60 @@
+{
+  "schema": "void_buy_void_source_finality_compiled_artifact_attestation_v1",
+  "marker": "VOID_BUY_VOID_SOURCE_FINALITY_COMPILED_ARTIFACT_ATTESTATION_V1",
+  "version": 1,
+  "repository": "6ZoSo9/void-node",
+  "source_stack_head": "628f718154e888bde2eb7d1389bce2bcd9461d66",
+  "compiler": {
+    "typescript_version": "5.9.3",
+    "package_lock_git_blob_sha1": "b57e9018e9aee19340b4fe43d2282208116ec2f8"
+  },
+  "build": {
+    "command": "npm run build",
+    "package_json_git_blob_sha1": "f1887071e7cea9769fed4cf5090812bb4b782a0c",
+    "tsconfig_build_git_blob_sha1": "d43e7f3fa03d20159f7b92aca4c8a56e738cd2fb"
+  },
+  "entry_artifact": "dist/economic/buy_void_source_finality_generation_provenance_v4.js",
+  "artifact_count": 6,
+  "artifacts": [
+    {
+      "path": "dist/economic/buy_void_source_finality_generation_provenance_v4.js",
+      "bytes": 10420,
+      "sha256": "3db8fb295b7e0825232eec1479beab3dbcae5c0fa9a71e22ad0c37a2c30f62d3"
+    },
+    {
+      "path": "dist/economic/buy_void_source_finality_authenticated_composition_v3.js",
+      "bytes": 18060,
+      "sha256": "c2b10b8b70efd678ccca49636dfb15d857cb5a6b225661a26994e56f1a8be772"
+    },
+    {
+      "path": "dist/economic/buy_void_source_finality_authority_v2.js",
+      "bytes": 18915,
+      "sha256": "d40f97f447c20838323d9b68ef88185411bddbc434263d43fb600cf6950c36e7"
+    },
+    {
+      "path": "dist/economic/buy_void_source_chain_finality_rpc_adapter_v1.js",
+      "bytes": 19804,
+      "sha256": "3c5bb3d9952d1b5a537e74ebb759320d1c134c6a9b49dd242edb41c23cab7fe2"
+    },
+    {
+      "path": "dist/economic/buy_void_payment_rpc_observer_v1.js",
+      "bytes": 12270,
+      "sha256": "d8ed50dc2f68947f2a9c0758e0f4fa2ab3b4bb368f4f5f851d3b0984c3012b89"
+    },
+    {
+      "path": "dist/economic/buy_void_verified_payment_v2.js",
+      "bytes": 8409,
+      "sha256": "0494e4a1d64cdcf5bcbab81a5585406f7a4d34ad9c16d64dcada5063c765057b"
+    }
+  ],
+  "compiled_artifact_set_sha256": "d59a7ef8e8fa16e432e1ddd157a3dfebab7aa148e04842ccafe4b1720454a0ab",
+  "derivation_node_majors": [
+    22,
+    24,
+    26
+  ],
+  "compiled_artifact_generation_verified": true,
+  "deployed_artifact_generation_verified": false,
+  "runtime_mount_authority": false,
+  "production_source_finality_authority_ready": false
+}

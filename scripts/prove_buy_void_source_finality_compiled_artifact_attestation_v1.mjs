@@ -7,6 +7,8 @@ import { fileURLToPath } from "node:url";
 const MARKER = "VOID_BUY_VOID_SOURCE_FINALITY_COMPILED_ARTIFACT_ATTESTATION_V1";
 const SOURCE_STACK_HEAD = "628f718154e888bde2eb7d1389bce2bcd9461d66";
 const EXPECTED_TYPESCRIPT_VERSION = "5.9.3";
+const MANIFEST_PATH = "docs/architecture/buy-void-source-finality-compiled-artifact-attestation-v1.json";
+const DERIVATION_NODE_MAJORS = Object.freeze([22, 24, 26]);
 const EXPECTED_INPUT_BLOBS = Object.freeze({
   "package.json": "f1887071e7cea9769fed4cf5090812bb4b782a0c",
   "package-lock.json": "b57e9018e9aee19340b4fe43d2282208116ec2f8",
@@ -62,14 +64,6 @@ function readRegularFile(relativePath, maxBytes = MAX_ARTIFACT_BYTES) {
   const bytes = fs.readFileSync(absolute);
   if (bytes.length !== stat.size) fail(`short_read:${relativePath}`);
   return bytes;
-}
-
-function git(...args) {
-  return execFileSync("git", args, {
-    cwd: ROOT,
-    encoding: "utf8",
-    stdio: ["ignore", "pipe", "pipe"],
-  }).trim();
 }
 
 function assertSourceStackUnchanged() {
@@ -176,6 +170,43 @@ function deriveArtifactSet() {
   return records;
 }
 
+function expectedManifest(lockedTypeScript, artifacts, artifactSetSha256) {
+  return Object.freeze({
+    schema: "void_buy_void_source_finality_compiled_artifact_attestation_v1",
+    marker: MARKER,
+    version: 1,
+    repository: "6ZoSo9/void-node",
+    source_stack_head: SOURCE_STACK_HEAD,
+    compiler: Object.freeze({
+      typescript_version: lockedTypeScript,
+      package_lock_git_blob_sha1: EXPECTED_INPUT_BLOBS["package-lock.json"],
+    }),
+    build: Object.freeze({
+      command: "npm run build",
+      package_json_git_blob_sha1: EXPECTED_INPUT_BLOBS["package.json"],
+      tsconfig_build_git_blob_sha1: EXPECTED_INPUT_BLOBS["tsconfig.build.json"],
+    }),
+    entry_artifact: ARTIFACT_PATHS[0],
+    artifact_count: artifacts.length,
+    artifacts,
+    compiled_artifact_set_sha256: artifactSetSha256,
+    derivation_node_majors: DERIVATION_NODE_MAJORS,
+    compiled_artifact_generation_verified: true,
+    deployed_artifact_generation_verified: false,
+    runtime_mount_authority: false,
+    production_source_finality_authority_ready: false,
+  });
+}
+
+function verifyManifest(expected) {
+  const bytes = readRegularFile(MANIFEST_PATH, 1024 * 1024);
+  const expectedBytes = Buffer.from(`${JSON.stringify(expected, null, 2)}\n`, "utf8");
+  if (!bytes.equals(expectedBytes)) fail("compiled_artifact_attestation_manifest_mismatch");
+  const parsed = JSON.parse(bytes.toString("utf8"));
+  if (canonical(parsed) !== canonical(expected)) fail("compiled_artifact_attestation_manifest_noncanonical");
+  return Object.freeze({ manifest: parsed, sha256: sha256(bytes) });
+}
+
 const lockedTypeScript = verifyBuildInputs();
 const artifacts = deriveArtifactSet();
 const artifactSetSha256 = sha256(Buffer.from(canonical({
@@ -184,33 +215,10 @@ const artifactSetSha256 = sha256(Buffer.from(canonical({
   typescript_version: lockedTypeScript,
   artifacts,
 }), "utf8"));
+const expected = expectedManifest(lockedTypeScript, artifacts, artifactSetSha256);
+const attestation = verifyManifest(expected);
 
-const derivation = Object.freeze({
-  schema: "void_buy_void_source_finality_compiled_artifact_attestation_derivation_v1",
-  marker: MARKER,
-  version: 1,
-  repository: "6ZoSo9/void-node",
-  source_stack_head: SOURCE_STACK_HEAD,
-  compiler: Object.freeze({
-    typescript_version: lockedTypeScript,
-    package_lock_git_blob_sha1: EXPECTED_INPUT_BLOBS["package-lock.json"],
-  }),
-  build: Object.freeze({
-    command: "npm run build",
-    package_json_git_blob_sha1: EXPECTED_INPUT_BLOBS["package.json"],
-    tsconfig_build_git_blob_sha1: EXPECTED_INPUT_BLOBS["tsconfig.build.json"],
-  }),
-  entry_artifact: ARTIFACT_PATHS[0],
-  artifact_count: artifacts.length,
-  artifacts,
-  compiled_artifact_set_sha256: artifactSetSha256,
-  compiled_artifact_generation_verified: false,
-  deployed_artifact_generation_verified: false,
-  runtime_mount_authority: false,
-  production_source_finality_authority_ready: false,
-});
-
-console.log(`${MARKER}_DERIVATION_GREEN`);
+console.log(`${MARKER}_LOCKED_GREEN`);
 console.log(`node_major=${process.versions.node.split(".")[0]}`);
 console.log(`typescript_version=${lockedTypeScript}`);
 console.log(`artifact_count=${artifacts.length}`);
@@ -218,6 +226,11 @@ for (const artifact of artifacts) {
   console.log(`artifact=${artifact.path};bytes=${artifact.bytes};sha256=${artifact.sha256}`);
 }
 console.log(`compiled_artifact_set_sha256=${artifactSetSha256}`);
-console.log(`compiled_artifact_generation_verified=false`);
+console.log(`manifest_path=${MANIFEST_PATH}`);
+console.log(`manifest_sha256=${attestation.sha256}`);
+console.log(`derivation_node_majors=${DERIVATION_NODE_MAJORS.join(",")}`);
+console.log(`compiled_artifact_generation_verified=true`);
 console.log(`deployed_artifact_generation_verified=false`);
-console.log(`artifact_manifest_json=${JSON.stringify(derivation)}`);
+console.log(`runtime_mount_authority=false`);
+console.log(`production_source_finality_authority_ready=false`);
+console.log(`artifact_manifest_json=${JSON.stringify(attestation.manifest)}`);
