@@ -1,0 +1,91 @@
+{
+  "schema": "void_buy_void_dual_rail_server_policy_fixture_v1",
+  "policy": {
+    "marker": "VOID_BUY_VOID_DUAL_RAIL_SERVER_POLICY_CONTRACT_V1",
+    "version": 1,
+    "rails": [
+      {
+        "source_chain": "base",
+        "evm_chain_id": "8453",
+        "usdc_contract": "0x1111111111111111111111111111111111111111",
+        "receive_address": "0x2222222222222222222222222222222222222222",
+        "rpc_identity": "base-mainnet-rpc-policy-v1",
+        "finality": {
+          "adapter_id": "base-finality-adapter-v1",
+          "min_confirmations": "12",
+          "finalized_reference_block": "1000"
+        }
+      },
+      {
+        "source_chain": "ethereum",
+        "evm_chain_id": "1",
+        "usdc_contract": "0x3333333333333333333333333333333333333333",
+        "receive_address": "0x4444444444444444444444444444444444444444",
+        "rpc_identity": "ethereum-mainnet-rpc-policy-v1",
+        "finality": {
+          "adapter_id": "ethereum-finality-adapter-v1",
+          "min_confirmations": "24",
+          "finalized_reference_block": "2000"
+        }
+      }
+    ],
+    "economics": {
+      "marker": "VOID_BUY_VOID_CANONICAL_PRESALE_ECONOMICS_DUAL_RAIL_V1",
+      "canonical_presale_max_void": "10000000",
+      "rate_void_units_numerator": "2",
+      "rate_void_units_denominator": "1",
+      "accepted_payment_asset": "USDC",
+      "exact_payment_required": true,
+      "one_payment_one_fulfillment": true,
+      "no_hidden_minimum": true,
+      "no_hidden_per_buyer_throttle_below_remaining_inventory": true
+    },
+    "fingerprints": {
+      "base_stable_sha256": "55c6a999ec3b34a2484d1227a3037f29084d8bb0e2c74b139bd2c257f7b01603",
+      "ethereum_stable_sha256": "27dd5d851ab85da95b8e43205f10e4ff1f5744185e9f9b17bbc22ea8313f9784",
+      "combined_stable_sha256": "8c3039cc4220522266b35326e71cbff3a2e0be80b4eaf948de67f98a31e3bf0f",
+      "observation_sha256": "baacf3f970efa7d54439b7b22450c33867c50d23c7673ffdc488cd033289dd8c"
+    },
+    "public_summary": {
+      "advertised_chains": [
+        "base",
+        "ethereum"
+      ],
+      "evm_chain_ids": {
+        "base": "8453",
+        "ethereum": "1"
+      },
+      "min_confirmations_by_chain": {
+        "base": "12",
+        "ethereum": "24"
+      },
+      "stable_config_sha256": "8c3039cc4220522266b35326e71cbff3a2e0be80b4eaf948de67f98a31e3bf0f",
+      "observation_sha256": "baacf3f970efa7d54439b7b22450c33867c50d23c7673ffdc488cd033289dd8c",
+      "accepted_payment_asset": "USDC",
+      "canonical_presale_max_void": "10000000",
+      "rate_void_per_usdc": "2",
+      "exact_payment_required": true,
+      "one_payment_one_fulfillment": true
+    },
+    "policy_id": "void-buy-void-dual-rail-policy-v1-8c3039cc4220522266b35326e71cbff3a2e0be80b4eaf948de67f98a31e3bf0f",
+    "authority": {
+      "source_only_reference_contract": true,
+      "simultaneous_dual_rail_runtime_ready": false,
+      "source_chain_rpc_call": false,
+      "source_chain_finality_authority": false,
+      "chain2050_state_transition": false,
+      "chain2050_inventory_mutation": false,
+      "chain2050_fulfillment_anchor_mutation": false,
+      "filesystem_read": false,
+      "filesystem_write": false,
+      "credential_access": false,
+      "wallet_access": false,
+      "signing": false,
+      "transaction_construction": false,
+      "transaction_broadcast": false,
+      "inventory_funding": false,
+      "public_presale_activation": false,
+      "money_movement": false
+    }
+  }
+}
