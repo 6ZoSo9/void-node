@@ -316,7 +316,7 @@ export async function observeBuyVoidSourceFinalityGenerationProvenanceV4(
   },
 ): Promise<BuyVoidSourceFinalityGenerationDecisionV4> {
   const sourceFiles = verifyBuyVoidSourceFinalityRuntimeSourceFilesV4();
-  if (!sourceFiles.ok) {
+  if (sourceFiles.ok === false) {
     return held(sourceFiles.reason);
   }
 
@@ -333,7 +333,7 @@ export async function observeBuyVoidSourceFinalityGenerationProvenanceV4(
 
   const composed =
     await v3.observeBuyVoidSourceFinalityAuthenticatedCompositionV3(input);
-  if (!composed.ok) {
+  if (composed.ok === false) {
     return held(`source_finality_v3_${composed.reason}`);
   }
 
