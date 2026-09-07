@@ -42,6 +42,7 @@ export const VOID_BUY_VOID_SOURCE_FINALITY_AUTHORITY_BOUNDARY_V2 = Object.freeze
   ancestry_verified: false,
   provider_quorum_verified: false,
   production_source_finality_authority_ready: false,
+  source_generation_verified: false,
   wallet_access: false,
   signing: false,
   transaction_construction: false,
@@ -102,7 +103,8 @@ export type BuyVoidSourceFinalityAuthorityV2Result = {
   stable_config_sha256: string;
   observation_sha256: string;
   source_finality_attestation_sha256: string;
-  source_generation_sha256: string;
+  expected_source_generation_sha256: string;
+  source_generation_verified: false;
   provider_consistency_verified: true;
   same_provider_consistency_verified: true;
   authenticated_transport_identity_verified: false;
@@ -131,7 +133,11 @@ function fail(code: string, detail = ""): never {
 }
 
 function plain(value: unknown): value is Record<string, unknown> {
-  return !!value && typeof value === "object" && !Array.isArray(value);
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return false;
+  }
+  const proto = Object.getPrototypeOf(value);
+  return proto === Object.prototype || proto === null;
 }
 
 function exactKeys(value: unknown, expected: readonly string[], code: string): void {
@@ -210,6 +216,80 @@ const RAIL_KEYS = [
   "rpc_identity", "rpc_url_fingerprint_sha256", "source_chain", "usdc_contract",
 ] as const;
 
+const OBSERVED_KEYS = [
+  "ancestry_verified",
+  "block_evidence",
+  "evm_chain_id",
+  "finality_adapter_id",
+  "finality_observation_for_1463",
+  "inventory_mutation",
+  "marker",
+  "min_confirmations",
+  "money_movement",
+  "ok",
+  "production_source_finality_authority_ready",
+  "provider_quorum_verified",
+  "rpc_identity",
+  "rpc_url_fingerprint_sha256",
+  "same_provider_consistency_verified",
+  "signing",
+  "source_chain",
+  "status",
+  "transaction_broadcast",
+  "transaction_construction",
+  "verified_payment_event",
+  "wallet_access",
+] as const;
+
+const PAYMENT_EVENT_KEYS = [
+  "marker",
+  "operator_status",
+  "payment_identity_input_complete",
+  "payment_verified",
+  "payment_verifier",
+  "request_id",
+  "schema",
+  "tx_hash",
+] as const;
+
+const PAYMENT_VERIFIER_KEYS = [
+  "amount_units",
+  "block_number",
+  "chain",
+  "confirmations",
+  "delivery_address",
+  "from_address",
+  "log_index",
+  "receive_address",
+  "requested_units",
+  "transaction_hash",
+  "usdc_contract",
+] as const;
+
+const FINALITY_OBSERVATION_KEYS = [
+  "confirmations_observed",
+  "evm_chain_id",
+  "finality_adapter_id",
+  "log_index",
+  "observed_finalized_reference_block",
+  "receipt_block_number",
+  "source_chain",
+  "transaction_hash",
+] as const;
+
+const BLOCK_EVIDENCE_KEYS = [
+  "evm_chain_id",
+  "finalized_reference_block",
+  "finalized_reference_block_hash",
+  "finalized_tag",
+  "marker",
+  "provider_consistency_verified",
+  "receipt_block_hash",
+  "receipt_block_number",
+  "schema",
+  "source_chain",
+] as const;
+
 function normalizeRail(input: unknown, expected: "base" | "ethereum"): BuyVoidSourceFinalityStaticRailV2 {
   exactKeys(input, RAIL_KEYS, "STATIC_RAIL_SHAPE");
   const r = input as Record<string, unknown>;
@@ -268,8 +348,15 @@ export function buildBuyVoidSourceFinalityAuthorityV2(input: {
 }): BuyVoidSourceFinalityAuthorityV2Result {
   exactKeys(input, ["observed", "policy_generation"], "AUTHORITY_INPUT_SHAPE");
   const policy = normalizeBuyVoidSourceFinalityStaticPolicyV2(input.policy_generation);
-  const o = input.observed as any;
-  if (o?.ok !== true || o.status !== "source_chain_finality_observed" || o.marker !== VOID_BUY_VOID_SOURCE_CHAIN_FINALITY_RPC_ADAPTER_V1) fail("OBSERVED_AUTHORITY_INVALID");
+  const o = input.observed as unknown as Record<string, unknown>;
+  exactKeys(o, OBSERVED_KEYS, "OBSERVED_AUTHORITY_SHAPE");
+  if (
+    o.ok !== true ||
+    o.status !== "source_chain_finality_observed" ||
+    o.marker !== VOID_BUY_VOID_SOURCE_CHAIN_FINALITY_RPC_ADAPTER_V1
+  ) {
+    fail("OBSERVED_AUTHORITY_INVALID");
+  }
   if (o.same_provider_consistency_verified !== true || o.ancestry_verified !== false || o.provider_quorum_verified !== false || o.production_source_finality_authority_ready !== false) fail("OBSERVED_AUTHORITY_BOUNDARY_MISMATCH");
   for (const k of ["wallet_access", "signing", "transaction_construction", "transaction_broadcast", "inventory_mutation", "money_movement"]) {
     if (o[k] !== false) fail("OBSERVED_FORBIDDEN_AUTHORITY", k);
@@ -285,9 +372,21 @@ export function buildBuyVoidSourceFinalityAuthorityV2(input: {
   const minimum = uint(o.min_confirmations, "OBSERVED_MIN_CONFIRMATIONS_INVALID", true, MAX_CONFIRMATIONS);
   if (rail.rpc_identity !== rpcIdentity || rail.rpc_url_fingerprint_sha256 !== rpcFingerprint || rail.finality_adapter_id !== adapterId || rail.min_confirmations !== minimum.toString()) fail("POLICY_OBSERVATION_STATIC_BINDING_MISMATCH");
 
-  const event = o.verified_payment_event as any;
-  if (event?.schema !== "void_buy_void_verified_payment_event_v2" || event.marker !== VOID_BUY_VOID_VERIFIED_PAYMENT_V2 || event.payment_verified !== true || event.payment_identity_input_complete !== true) fail("VERIFIED_PAYMENT_INVALID");
-  const p = event.payment_verifier as any;
+  const event =
+    o.verified_payment_event as unknown as Record<string, unknown>;
+  exactKeys(event, PAYMENT_EVENT_KEYS, "VERIFIED_PAYMENT_EVENT_SHAPE");
+  if (
+    event.schema !== "void_buy_void_verified_payment_event_v2" ||
+    event.marker !== VOID_BUY_VOID_VERIFIED_PAYMENT_V2 ||
+    event.operator_status !== "payment_verified" ||
+    event.payment_verified !== true ||
+    event.payment_identity_input_complete !== true
+  ) {
+    fail("VERIFIED_PAYMENT_INVALID");
+  }
+  const p =
+    event.payment_verifier as unknown as Record<string, unknown>;
+  exactKeys(p, PAYMENT_VERIFIER_KEYS, "PAYMENT_VERIFIER_SHAPE");
   const tx = hash32(p?.transaction_hash, "PAYMENT_TX_INVALID");
   if (hash32(event.tx_hash, "PAYMENT_EVENT_TX_INVALID") !== tx) fail("PAYMENT_EVENT_TX_MISMATCH");
   if (chain(p.chain) !== c) fail("PAYMENT_CHAIN_MISMATCH");
@@ -302,16 +401,43 @@ export function buildBuyVoidSourceFinalityAuthorityV2(input: {
   const requested = uint(p.requested_units, "PAYMENT_REQUESTED_INVALID", true);
   if (amount !== requested || usdc !== rail.usdc_contract || receive !== rail.receive_address) fail("PAYMENT_POLICY_BINDING_MISMATCH");
 
-  const f = o.finality_observation_for_1463 as any;
-  if (chain(f.source_chain) !== c || text(f.evm_chain_id) !== cid || hash32(f.transaction_hash, "FINALITY_TX_INVALID") !== tx || uint(f.log_index, "FINALITY_LOG_INVALID", false, MAX_U32).toString() !== logIndex || uint(f.receipt_block_number, "FINALITY_RECEIPT_INVALID", true) !== receiptBlock || safeId(f.finality_adapter_id, "FINALITY_ADAPTER_INVALID") !== adapterId) fail("FINALITY_PAYMENT_BINDING_MISMATCH");
+  const f =
+    o.finality_observation_for_1463 as unknown as Record<string, unknown>;
+  exactKeys(f, FINALITY_OBSERVATION_KEYS, "FINALITY_OBSERVATION_SHAPE");
+  if (
+    chain(f.source_chain) !== c ||
+    text(f.evm_chain_id) !== cid ||
+    hash32(f.transaction_hash, "FINALITY_TX_INVALID") !== tx ||
+    uint(f.log_index, "FINALITY_LOG_INVALID", false, MAX_U32).toString() !==
+      logIndex ||
+    uint(f.receipt_block_number, "FINALITY_RECEIPT_INVALID", true) !==
+      receiptBlock ||
+    safeId(f.finality_adapter_id, "FINALITY_ADAPTER_INVALID") !== adapterId
+  ) {
+    fail("FINALITY_PAYMENT_BINDING_MISMATCH");
+  }
   const finalizedReference = uint(f.observed_finalized_reference_block, "FINALIZED_REFERENCE_INVALID", true);
   if (finalizedReference < receiptBlock) fail("RECEIPT_NOT_FINALIZED");
   const confirmations = uint(f.confirmations_observed, "FINALITY_CONFIRMATIONS_INVALID", true);
   const derived = finalizedReference - receiptBlock + 1n;
   if (confirmations !== derived || confirmations < minimum) fail("FINALITY_CONFIRMATION_POLICY_MISMATCH");
 
-  const b = o.block_evidence as any;
-  if (b?.schema !== "void_buy_void_source_chain_finality_block_evidence_v1" || b.marker !== VOID_BUY_VOID_SOURCE_CHAIN_FINALITY_RPC_ADAPTER_V1 || chain(b.source_chain) !== c || text(b.evm_chain_id) !== cid || uint(b.receipt_block_number, "BLOCK_RECEIPT_INVALID", true) !== receiptBlock || uint(b.finalized_reference_block, "BLOCK_REFERENCE_INVALID", true) !== finalizedReference || b.finalized_tag !== "finalized" || b.provider_consistency_verified !== true) fail("BLOCK_EVIDENCE_BINDING_MISMATCH");
+  const b = o.block_evidence as unknown as Record<string, unknown>;
+  exactKeys(b, BLOCK_EVIDENCE_KEYS, "BLOCK_EVIDENCE_SHAPE");
+  if (
+    b.schema !== "void_buy_void_source_chain_finality_block_evidence_v1" ||
+    b.marker !== VOID_BUY_VOID_SOURCE_CHAIN_FINALITY_RPC_ADAPTER_V1 ||
+    chain(b.source_chain) !== c ||
+    text(b.evm_chain_id) !== cid ||
+    uint(b.receipt_block_number, "BLOCK_RECEIPT_INVALID", true) !==
+      receiptBlock ||
+    uint(b.finalized_reference_block, "BLOCK_REFERENCE_INVALID", true) !==
+      finalizedReference ||
+    b.finalized_tag !== "finalized" ||
+    b.provider_consistency_verified !== true
+  ) {
+    fail("BLOCK_EVIDENCE_BINDING_MISMATCH");
+  }
   const receiptHash = hash32(b.receipt_block_hash, "RECEIPT_HASH_INVALID");
   const finalizedHash = hash32(b.finalized_reference_block_hash, "FINALIZED_HASH_INVALID");
 
@@ -321,7 +447,7 @@ export function buildBuyVoidSourceFinalityAuthorityV2(input: {
   const observation = {
     stable_config_sha256: policy.stable_config_sha256,
     policy_id: policy.policy_id,
-    source_generation_sha256: sourceGeneration,
+    expected_source_generation_sha256: sourceGeneration,
     source_chain: c,
     evm_chain_id: cid,
     transaction_hash: tx,
@@ -381,7 +507,8 @@ export function buildBuyVoidSourceFinalityAuthorityV2(input: {
     stable_config_sha256: policy.stable_config_sha256,
     observation_sha256: observationSha,
     source_finality_attestation_sha256: attestation,
-    source_generation_sha256: sourceGeneration,
+    expected_source_generation_sha256: sourceGeneration,
+    source_generation_verified: false,
     provider_consistency_verified: true,
     same_provider_consistency_verified: true,
     authenticated_transport_identity_verified: false,

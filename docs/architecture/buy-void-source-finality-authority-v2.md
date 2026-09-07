@@ -58,6 +58,22 @@ The observation digest and the V2 finality-attestation digest change when the fi
 
 This removes the `payment_mixed_policy_observation_generation` architecture seam without weakening the observed hash binding.
 
+## Source-generation provenance
+
+The candidate pins the reviewed upstream SHA tuple and emits its digest as
+`expected_source_generation_sha256`. That is an expected-generation binding, not
+proof that an arbitrary caller-supplied observation was actually emitted by that
+generation.
+
+Until an authenticated composition boundary supplies the #1471 result, every
+candidate therefore also emits:
+
+```text
+source_generation_verified=false
+```
+
+This keeps source-version expectation separate from provenance authentication.
+
 ## Current authority boundary
 
 This candidate intentionally does **not** claim production source-finality authority yet.
@@ -67,6 +83,7 @@ The #1471 generation being consumed proves same-provider consistency and exact r
 ```text
 authenticated_transport_identity_verified=false
 total_operation_deadline_verified=false
+source_generation_verified=false
 ancestry_verified=false
 provider_quorum_verified=false
 production_source_finality_authority_ready=false

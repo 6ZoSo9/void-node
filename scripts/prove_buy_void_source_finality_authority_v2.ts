@@ -290,6 +290,84 @@ test("canonical payment identity and key are deterministic", () => {
   assert.match(a.payment_key_sha256, /^[0-9a-f]{64}$/);
 });
 
+test("unknown top-level #1471 observation field fails closed", () => {
+  const o = observedBase();
+  o.unexpected = true;
+  mustFail("top-level unknown field", () =>
+    buildBuyVoidSourceFinalityAuthorityV2({
+      policy_generation: policy(),
+      observed: o,
+    }),
+  );
+});
+
+test("unknown verified-payment event field fails closed", () => {
+  const o = observedBase();
+  o.verified_payment_event.unexpected = true;
+  mustFail("payment event unknown field", () =>
+    buildBuyVoidSourceFinalityAuthorityV2({
+      policy_generation: policy(),
+      observed: o,
+    }),
+  );
+});
+
+test("unknown payment-verifier field fails closed", () => {
+  const o = observedBase();
+  o.verified_payment_event.payment_verifier.unexpected = true;
+  mustFail("payment verifier unknown field", () =>
+    buildBuyVoidSourceFinalityAuthorityV2({
+      policy_generation: policy(),
+      observed: o,
+    }),
+  );
+});
+
+test("unknown finality-observation field fails closed", () => {
+  const o = observedBase();
+  o.finality_observation_for_1463.unexpected = true;
+  mustFail("finality observation unknown field", () =>
+    buildBuyVoidSourceFinalityAuthorityV2({
+      policy_generation: policy(),
+      observed: o,
+    }),
+  );
+});
+
+test("unknown block-evidence field fails closed", () => {
+  const o = observedBase();
+  o.block_evidence.unexpected = true;
+  mustFail("block evidence unknown field", () =>
+    buildBuyVoidSourceFinalityAuthorityV2({
+      policy_generation: policy(),
+      observed: o,
+    }),
+  );
+});
+
+test("payment operator status must remain exact", () => {
+  const o = observedBase();
+  o.verified_payment_event.operator_status = "something_else";
+  mustFail("payment status", () =>
+    buildBuyVoidSourceFinalityAuthorityV2({
+      policy_generation: policy(),
+      observed: o,
+    }),
+  );
+});
+
+test("source generation is expected but not yet provenance-verified", () => {
+  const r = buildBuyVoidSourceFinalityAuthorityV2({
+    policy_generation: policy(),
+    observed: observedBase(),
+  });
+  assert.match(
+    r.expected_source_generation_sha256,
+    /^[0-9a-f]{64}$/,
+  );
+  assert.equal(r.source_generation_verified, false);
+});
+
 test("unclosed V515 gates remain hard false", () => {
   const r = buildBuyVoidSourceFinalityAuthorityV2({ policy_generation: policy(), observed: observedBase() });
   assert.equal(r.authenticated_transport_identity_verified, false);
@@ -330,6 +408,7 @@ console.log(JSON.stringify({
   rpc_url_fingerprint_bound: true,
   authenticated_transport_identity_verified: false,
   total_operation_deadline_verified: false,
+  source_generation_verified: false,
   ancestry_verified: false,
   provider_quorum_verified: false,
   production_source_finality_authority_ready: false,
