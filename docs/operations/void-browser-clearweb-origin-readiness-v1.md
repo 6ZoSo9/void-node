@@ -44,22 +44,27 @@ they stream and are rejected at the first byte beyond the ceiling.
 
 The per-request deadline owns both response acquisition and body consumption.
 A custom fetch implementation that ignores `AbortSignal` cannot keep the caller
-pending past that deadline. One unresolved acquisition for the same exact
-method/URL is quarantined until it actually settles; if it later yields a live
-response after the caller-visible deadline, that response receives one bounded
-cleanup attempt before the quarantine is released. This prevents repeated
-retries from accumulating unowned acquisition generations.
+pending past that deadline. One lease for each exact `(fetchImpl, method, URL)`
+spans acquisition, body access, reads and cleanup. Same-key retries are rejected
+while that generation lacks a real terminal; unrelated keys remain usable.
 
-Body-reader acquisition is also inside the owned rejection boundary. A locked
-or throwing body reader aborts the request and receives the same bounded
-best-effort response cleanup as other terminal rejections. Once a body read
-reaches the request deadline, the primary `request deadline exceeded` result is
-preserved while cancellation receives a separate explicit 250 ms teardown
-terminal; it does not inherit a zero-length slice of the already-expired request
-budget. Cleanup rejection or non-settlement cannot replace the primary HOLD.
-HEAD responses retain no body bytes. These bounds change evidence collection
-only; they grant no browser, signing, deployment, payment, credential, or
-runtime authority.
+EOF, an asynchronously rejected read, successful cancellation, or a reader's
+closed terminal can establish termination. Every read and cancellation already
+started must also settle before the lease releases. A cleanup attempt, rejected
+cancellation, or the separate 250 ms caller-visible cleanup deadline cannot
+release an unresolved generation. Late fetch responses enter that same lease
+and cleanup contract. Cleanup failure never replaces the primary HOLD.
+
+Body access is snapshotted once inside the ownership boundary. A throwing body,
+getReader or read accessor leaves ownership held unless safely reachable cleanup
+or another observed terminal actually settles. A synchronous reader-call failure
+alone does not establish termination. Unknown/nonterminal custom transports may
+remain quarantined indefinitely; caller completion stays bounded.
+
+Successful HEAD requires the standard Fetch `body === null` contract. A
+nonstandard present body is rejected and receives the same bounded cleanup and
+retained ownership as GET. These bounds change evidence collection only; they
+grant no browser, signing, deployment, payment, credential, or runtime authority.
 
 ## CI versus live survey
 

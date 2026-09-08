@@ -262,3 +262,55 @@ td { color: var(--void-text-secondary); }
 :focus-visible {
   outline-color: var(--void-text-primary);
 }
+
+/* VOID_PARTICIPANT_PRODUCT_LANGUAGE_VISUAL_V1
+ * Temporary presentation bridge while the Wave-2/3/4 semantic manifests are
+ * owned by #1307. No DOM, route, adapter, account, or authority behavior changes.
+ */
+.prototype-banner > span:first-child,
+.prototype-banner > span:last-child,
+.brand-product,
+[data-home-view] .page-header__copy h1,
+[data-home-view] .page-header__copy > p {
+  font-size: 0;
+}
+
+.prototype-banner > span:first-child::after {
+  content: "VOID / PARTICIPANT";
+  font-size: var(--void-text-11);
+}
+
+.prototype-banner > span:last-child::after {
+  content: "NETWORK · ACCOUNT · ACTIVITY";
+  font-size: var(--void-text-11);
+}
+
+.brand-product::after {
+  content: "Participant";
+  font-size: var(--void-text-11);
+}
+
+[data-home-view] .page-header__copy h1::after {
+  content: "Home";
+  display: block;
+  font-size: clamp(2.5rem, 5vw, 4.75rem);
+  line-height: 0.95;
+  letter-spacing: -0.07em;
+}
+
+[data-home-view] .page-header__copy > p {
+  line-height: 0;
+}
+
+[data-home-view] .page-header__copy > p::after {
+  content: "Your network, account, and activity.";
+  display: block;
+  font-size: var(--void-text-14);
+  line-height: 1.65;
+}
+
+@media (max-width: 860px) {
+  [data-home-view] .page-header__copy h1::after {
+    font-size: clamp(2.25rem, 12vw, 3.5rem);
+  }
+}

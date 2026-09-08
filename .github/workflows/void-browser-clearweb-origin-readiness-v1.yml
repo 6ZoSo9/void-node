@@ -62,6 +62,7 @@ jobs:
 
       - name: Validate source and schema
         run: |
+          set -euo pipefail
           node --check ops/mainnet0/survey_void_browser_clearweb_origin_readiness_v1.mjs
           node --check scripts/prove_void_browser_clearweb_origin_readiness_v1.mjs
           node --check scripts/prove_void_browser_clearweb_origin_response_bounds_v1.mjs
@@ -71,6 +72,7 @@ jobs:
 
       - name: Prove fail-closed readiness contract
         run: |
+          set -euo pipefail
           node scripts/prove_void_browser_clearweb_origin_readiness_v1.mjs \
             | tee /tmp/void-browser-clearweb-origin-readiness-v1.log
           grep -Fx "VOID_BROWSER_CLEARWEB_ORIGIN_READINESS_V1_PROOF_GREEN" \
@@ -92,6 +94,7 @@ jobs:
 
       - name: Prove bounded response and teardown contract
         run: |
+          set -euo pipefail
           node scripts/prove_void_browser_clearweb_origin_response_bounds_v1.mjs \
             | tee /tmp/void-browser-clearweb-origin-response-bounds-v1.log
           grep -Fx "VOID_BROWSER_CLEARWEB_ORIGIN_RESPONSE_BOUNDS_V1_PROOF_GREEN" \
@@ -104,11 +107,16 @@ jobs:
             /tmp/void-browser-clearweb-origin-response-bounds-v1.log
           grep -Fx "bounded_rejected_body_teardown=true" \
             /tmp/void-browser-clearweb-origin-response-bounds-v1.log
+          grep -Fx "response_generation_lifetime_cases=8" \
+            /tmp/void-browser-clearweb-origin-response-bounds-v1.log
+          grep -Fx "same_key_retries_quarantined_until_terminal=true" \
+            /tmp/void-browser-clearweb-origin-response-bounds-v1.log
           grep -Fx "live_survey_performed=false" \
             /tmp/void-browser-clearweb-origin-response-bounds-v1.log
 
       - name: Prove source without physical-host or network survey
         run: |
+          set -euo pipefail
           EXPECTED_HEAD="$(git rev-parse HEAD)"
           node ops/mainnet0/survey_void_browser_clearweb_origin_readiness_v1.mjs \
             source \

@@ -2,7 +2,7 @@
 
 (() => {
   const MARKER = "VOID_CANONICAL_PRODUCER_SELF_HTTP_GUARD_V1";
-  const LEGACY_SOURCE_BLOB_SHA = "7ab484fd21aae9e259fe4d9733b35216b9e12ea3";
+  const LEGACY_SOURCE_BLOB_SHA = "f8b734ebb2d9a4d2e8ed321447ab6d20149ab002";
   if (globalThis.__voidCanonicalSelfHttpGuardV1?.installed) return;
 
   const originalFetch = globalThis.fetch;
@@ -251,7 +251,7 @@
       self &&
       method === "POST" &&
       url.pathname === "/__void/metrics/proposer.commit-direct.v2fs/commit" &&
-      url.search === "?empty=1";
+      url.search === "?empty=0";
     const intervention = self && method === "POST" && interventionPaths.has(url.pathname);
 
     return { url, method, self, autoprop, intervention };

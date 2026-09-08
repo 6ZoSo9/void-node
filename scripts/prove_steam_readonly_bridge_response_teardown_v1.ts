@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import {
   executeSteamReadonlyRequest,
+  prepareSteamReadonlyRequest,
   SteamReadonlyBridgeError,
 } from "../src/integrations/steam_readonly_bridge_v1.js";
 
@@ -15,6 +16,20 @@ const input = {
   operation: "player_summaries" as const,
   steamids: ["76561198000000000"],
 };
+
+const expectedUrl = prepareSteamReadonlyRequest(input, env).url.href;
+
+function withProvenance<T extends Response>(
+  response: T,
+  url = expectedUrl,
+  redirected = false,
+): T {
+  Object.defineProperties(response, {
+    url: { value: url },
+    redirected: { value: redirected },
+  });
+  return response;
+}
 
 async function expectCode(
   code: string,
@@ -75,20 +90,219 @@ function responseWithReaderFailure(options: {
     },
   } as unknown as ReadableStreamDefaultReader<Uint8Array>;
 
-  return {
+  return withProvenance({
     ok: true,
     status: 200,
     headers: new Headers({ "content-type": "application/json" }),
     body: {
       getReader: () => reader,
     },
-  } as unknown as Response;
+  } as unknown as Response);
 }
+
+async function expectProvenanceRejected(options: {
+  url?: unknown;
+  redirected?: unknown;
+}): Promise<void> {
+  let bodyReadCalls = 0;
+  let cancelCalls = 0;
+  const response = {
+    ok: true,
+    status: 200,
+    headers: new Headers({ "content-type": "application/json" }),
+    url: options.url,
+    redirected: options.redirected,
+    body: {
+      getReader() {
+        bodyReadCalls += 1;
+        throw new Error("provenance rejection must precede body evidence");
+      },
+      cancel() {
+        cancelCalls += 1;
+        return new Promise<void>(() => undefined);
+      },
+    },
+  } as unknown as Response;
+
+  const elapsed = await expectCode(
+    "upstream_response_provenance_invalid",
+    async () => response,
+  );
+  assert.equal(bodyReadCalls, 0);
+  assert.equal(cancelCalls, 1);
+  assert.ok(elapsed < 900, `provenance teardown stalled ${elapsed}ms`);
+}
+
+await expectProvenanceRejected({
+  url: "https://example.invalid/ISteamUser/GetPlayerSummaries/v2/?steamids=76561198000000000",
+  redirected: false,
+});
+await expectProvenanceRejected({
+  url: "https://partner.steam-api.com/ISteamUser/GetPlayerSummaries/v1/?steamids=76561198000000000",
+  redirected: false,
+});
+await expectProvenanceRejected({
+  url: "https://partner.steam-api.com/ISteamUser/GetPlayerSummaries/v2/?steamids=76561198000000001",
+  redirected: false,
+});
+await expectProvenanceRejected({ url: "", redirected: false });
+await expectProvenanceRejected({ url: "not a url", redirected: false });
+await expectProvenanceRejected({ url: expectedUrl, redirected: true });
+
+const unreachableElapsed = await expectCode(
+  "upstream_unreachable",
+  async () => {
+    throw new Error("synthetic pre-deadline fetch failure");
+  },
+);
+assert.ok(
+  unreachableElapsed < 900,
+  `ordinary fetch rejection stalled ${unreachableElapsed}ms`,
+);
+
+let quarantinedFetchCalls = 0;
+let quarantinedFetchOutstanding = 0;
+let quarantinedFetchMaxOutstanding = 0;
+let quarantinedLateCancelCalls = 0;
+let resolveFirstQuarantinedFetch: (response: Response) => void = () => undefined;
+const firstQuarantinedFetch = new Promise<Response>((resolve) => {
+  resolveFirstQuarantinedFetch = resolve;
+});
+const recoveredBody = JSON.stringify({ response: { players: [] } });
+const quarantinedFetchImpl: typeof fetch = async () => {
+  quarantinedFetchCalls += 1;
+  quarantinedFetchOutstanding += 1;
+  quarantinedFetchMaxOutstanding = Math.max(
+    quarantinedFetchMaxOutstanding,
+    quarantinedFetchOutstanding,
+  );
+  try {
+    if (quarantinedFetchCalls === 1) {
+      return await firstQuarantinedFetch;
+    }
+    return withProvenance(new Response(recoveredBody, {
+      status: 200,
+      headers: {
+        "content-type": "application/json",
+        "content-length": String(Buffer.byteLength(recoveredBody)),
+      },
+    }));
+  } finally {
+    quarantinedFetchOutstanding -= 1;
+  }
+};
+const neverSettlingFetchElapsed = await expectCode(
+  "upstream_timeout",
+  quarantinedFetchImpl,
+  {
+    ...env,
+    VOID_STEAM_READONLY_TIMEOUT_MS: "500",
+  },
+);
+assert.equal(quarantinedFetchCalls, 1);
+assert.equal(quarantinedFetchOutstanding, 1);
+assert.equal(quarantinedFetchMaxOutstanding, 1);
+assert.ok(
+  neverSettlingFetchElapsed >= 450 && neverSettlingFetchElapsed < 1500,
+  `never-settling fetch escaped deadline ${neverSettlingFetchElapsed}ms`,
+);
+
+const repeatedFetchStarted = Date.now();
+await Promise.all([
+  expectCode("upstream_timeout", quarantinedFetchImpl, {
+    ...env,
+    VOID_STEAM_READONLY_TIMEOUT_MS: "500",
+  }),
+  expectCode("upstream_timeout", quarantinedFetchImpl, {
+    ...env,
+    VOID_STEAM_READONLY_TIMEOUT_MS: "500",
+  }),
+  expectCode("upstream_timeout", quarantinedFetchImpl, {
+    ...env,
+    VOID_STEAM_READONLY_TIMEOUT_MS: "500",
+  }),
+]);
+const repeatedFetchElapsed = Date.now() - repeatedFetchStarted;
+assert.equal(quarantinedFetchCalls, 1);
+assert.equal(quarantinedFetchOutstanding, 1);
+assert.equal(quarantinedFetchMaxOutstanding, 1);
+assert.ok(
+  repeatedFetchElapsed >= 450 && repeatedFetchElapsed < 1500,
+  `quarantined fetch retries escaped deadline ${repeatedFetchElapsed}ms`,
+);
+
+resolveFirstQuarantinedFetch(withProvenance(new Response(
+  bodyWithCancel({
+    cancel: () => {
+      quarantinedLateCancelCalls += 1;
+      return new Promise<void>(() => undefined);
+    },
+  }),
+  {
+    status: 200,
+    headers: { "content-type": "application/json" },
+  },
+)));
+await new Promise<void>((resolve) => {
+  setTimeout(resolve, 350);
+});
+assert.equal(quarantinedFetchOutstanding, 0);
+assert.equal(quarantinedLateCancelCalls, 1);
+
+const recoveredAfterQuarantine = await executeSteamReadonlyRequest(input, {
+  env,
+  fetch_impl: quarantinedFetchImpl,
+});
+assert.equal(recoveredAfterQuarantine.ok, true);
+assert.equal(quarantinedFetchCalls, 2);
+assert.equal(quarantinedFetchOutstanding, 0);
+assert.equal(quarantinedFetchMaxOutstanding, 1);
+
+let lateFetchResolveCalls = 0;
+let lateFetchCancelCalls = 0;
+const lateFetchResponse = withProvenance({
+  ok: true,
+  status: 200,
+  headers: new Headers({ "content-type": "application/json" }),
+  body: {
+    cancel() {
+      lateFetchCancelCalls += 1;
+      return new Promise<void>(() => undefined);
+    },
+  },
+} as unknown as Response);
+const lateFetchElapsed = await expectCode(
+  "upstream_timeout",
+  async () => {
+    await new Promise<void>((resolve) => {
+      setTimeout(resolve, 1200);
+    });
+    lateFetchResolveCalls += 1;
+    return lateFetchResponse;
+  },
+  {
+    ...env,
+    VOID_STEAM_READONLY_TIMEOUT_MS: "500",
+  },
+);
+assert.ok(
+  lateFetchElapsed >= 450 && lateFetchElapsed < 1000,
+  `late fetch response replaced timeout truth ${lateFetchElapsed}ms`,
+);
+await new Promise<void>((resolve) => {
+  setTimeout(resolve, 1000);
+});
+assert.equal(lateFetchResolveCalls, 1);
+assert.equal(lateFetchCancelCalls, 1);
+await new Promise<void>((resolve) => {
+  setTimeout(resolve, 300);
+});
+assert.equal(lateFetchCancelCalls, 1);
 
 let declaredCancelCalls = 0;
 const declaredElapsed = await expectCode(
   "response_too_large",
-  async () => new Response(
+  async () => withProvenance(new Response(
     bodyWithCancel({
       cancel: () => {
         declaredCancelCalls += 1;
@@ -102,7 +316,7 @@ const declaredElapsed = await expectCode(
         "content-length": "17000",
       },
     },
-  ),
+  )),
 );
 assert.equal(declaredCancelCalls, 1);
 assert.ok(declaredElapsed < 900, `declared oversize stalled ${declaredElapsed}ms`);
@@ -110,7 +324,7 @@ assert.ok(declaredElapsed < 900, `declared oversize stalled ${declaredElapsed}ms
 let malformedCancelCalls = 0;
 const malformedElapsed = await expectCode(
   "response_content_length_invalid",
-  async () => new Response(
+  async () => withProvenance(new Response(
     bodyWithCancel({
       cancel: () => {
         malformedCancelCalls += 1;
@@ -124,7 +338,7 @@ const malformedElapsed = await expectCode(
         "content-length": "not-a-byte-count",
       },
     },
-  ),
+  )),
 );
 assert.equal(malformedCancelCalls, 1);
 assert.ok(malformedElapsed < 900, `malformed length stalled ${malformedElapsed}ms`);
@@ -132,7 +346,7 @@ assert.ok(malformedElapsed < 900, `malformed length stalled ${malformedElapsed}m
 let streamedCancelCalls = 0;
 const streamedElapsed = await expectCode(
   "response_too_large",
-  async () => new Response(
+  async () => withProvenance(new Response(
     bodyWithCancel({
       chunk_bytes: 17000,
       cancel: () => {
@@ -146,7 +360,7 @@ const streamedElapsed = await expectCode(
         "content-type": "application/json",
       },
     },
-  ),
+  )),
 );
 assert.equal(streamedCancelCalls, 1);
 assert.ok(streamedElapsed < 900, `streamed oversize stalled ${streamedElapsed}ms`);
@@ -154,7 +368,7 @@ assert.ok(streamedElapsed < 900, `streamed oversize stalled ${streamedElapsed}ms
 let statusCancelCalls = 0;
 const statusElapsed = await expectCode(
   "upstream_http_503",
-  async () => new Response(
+  async () => withProvenance(new Response(
     bodyWithCancel({
       cancel: () => {
         statusCancelCalls += 1;
@@ -165,7 +379,7 @@ const statusElapsed = await expectCode(
       status: 503,
       headers: { "content-type": "application/json" },
     },
-  ),
+  )),
 );
 assert.equal(statusCancelCalls, 1);
 assert.ok(statusElapsed < 900, `non-2xx teardown stalled ${statusElapsed}ms`);
@@ -173,7 +387,7 @@ assert.ok(statusElapsed < 900, `non-2xx teardown stalled ${statusElapsed}ms`);
 let contentTypeCancelCalls = 0;
 const contentTypeElapsed = await expectCode(
   "upstream_content_type_invalid",
-  async () => new Response(
+  async () => withProvenance(new Response(
     bodyWithCancel({
       cancel: () => {
         contentTypeCancelCalls += 1;
@@ -184,10 +398,49 @@ const contentTypeElapsed = await expectCode(
       status: 200,
       headers: { "content-type": "text/plain" },
     },
-  ),
+  )),
 );
 assert.equal(contentTypeCancelCalls, 1);
 assert.ok(contentTypeElapsed < 900, `content-type teardown stalled ${contentTypeElapsed}ms`);
+
+let bodyReaderAcquireCalls = 0;
+let bodyReaderAcquireCancelCalls = 0;
+let bodyReaderAcquireAbortObserved = false;
+const bodyReaderAcquireResponse = withProvenance({
+  ok: true,
+  status: 200,
+  headers: new Headers({ "content-type": "application/json" }),
+  body: {
+    getReader() {
+      bodyReaderAcquireCalls += 1;
+      throw new TypeError("synthetic locked response body");
+    },
+    cancel() {
+      bodyReaderAcquireCancelCalls += 1;
+      return new Promise<void>(() => undefined);
+    },
+  },
+} as unknown as Response);
+const bodyReaderAcquireElapsed = await expectCode(
+  "upstream_unreachable",
+  async (_url, init) => {
+    init?.signal?.addEventListener(
+      "abort",
+      () => {
+        bodyReaderAcquireAbortObserved = true;
+      },
+      { once: true },
+    );
+    return bodyReaderAcquireResponse;
+  },
+);
+assert.equal(bodyReaderAcquireCalls, 1);
+assert.equal(bodyReaderAcquireCancelCalls, 1);
+assert.equal(bodyReaderAcquireAbortObserved, true);
+assert.ok(
+  bodyReaderAcquireElapsed < 900,
+  `body-reader acquisition teardown stalled ${bodyReaderAcquireElapsed}ms`,
+);
 
 let admittedNeverCancelCalls = 0;
 const admittedNeverElapsed = await expectCode(
@@ -242,64 +495,146 @@ assert.ok(
   `deadline-triggered read failure stalled ${timeoutReadElapsed}ms`,
 );
 
-let neverSettlingReadCalls = 0;
-let neverSettlingCancelCalls = 0;
-const neverSettlingReader = {
-  async read() {
-    neverSettlingReadCalls += 1;
-    return await new Promise<never>(() => undefined);
+let quarantinedReadFetchCalls = 0;
+let quarantinedReadCalls = 0;
+let quarantinedOutstandingReads = 0;
+let quarantinedMaxOutstandingReads = 0;
+let quarantinedReadCancelCalls = 0;
+let resolveQuarantinedRead: (value: { done: true; value?: Uint8Array }) => void =
+  () => undefined;
+const firstQuarantinedRead = new Promise<{ done: true; value?: Uint8Array }>(
+  (resolve) => {
+    resolveQuarantinedRead = resolve;
+  },
+);
+const quarantinedReadReader = {
+  read() {
+    quarantinedReadCalls += 1;
+    quarantinedOutstandingReads += 1;
+    quarantinedMaxOutstandingReads = Math.max(
+      quarantinedMaxOutstandingReads,
+      quarantinedOutstandingReads,
+    );
+    return firstQuarantinedRead.finally(() => {
+      quarantinedOutstandingReads -= 1;
+    });
   },
   cancel() {
-    neverSettlingCancelCalls += 1;
+    quarantinedReadCancelCalls += 1;
     return new Promise<void>(() => undefined);
   },
 } as unknown as ReadableStreamDefaultReader<Uint8Array>;
-const neverSettlingResponse = {
+const quarantinedReadResponse = withProvenance({
   ok: true,
   status: 200,
   headers: new Headers({ "content-type": "application/json" }),
   body: {
-    getReader: () => neverSettlingReader,
+    getReader: () => quarantinedReadReader,
   },
-} as unknown as Response;
-const neverSettlingElapsed = await expectCode(
-  "upstream_timeout",
-  async () => neverSettlingResponse,
-  {
-    ...env,
-    VOID_STEAM_READONLY_TIMEOUT_MS: "500",
-  },
-);
-assert.equal(neverSettlingReadCalls, 1);
-assert.equal(neverSettlingCancelCalls, 1);
-assert.ok(
-  neverSettlingElapsed >= 450 && neverSettlingElapsed < 1500,
-  `never-settling admitted read escaped deadline ${neverSettlingElapsed}ms`,
-);
-
+} as unknown as Response);
 const validBody = JSON.stringify({ response: { players: [] } });
-const valid = await executeSteamReadonlyRequest(input, {
-  env,
-  fetch_impl: async () => new Response(validBody, {
+const quarantinedReadFetchImpl: typeof fetch = async () => {
+  quarantinedReadFetchCalls += 1;
+  if (quarantinedReadFetchCalls === 1) {
+    return quarantinedReadResponse;
+  }
+  return withProvenance(new Response(validBody, {
     status: 200,
     headers: {
       "content-type": "application/json",
       "content-length": String(Buffer.byteLength(validBody)),
     },
-  }),
-});
-assert.equal(valid.ok, true);
-assert.equal(valid.received_bytes, Buffer.byteLength(validBody));
+  }));
+};
 
+const quarantinedReadElapsed = await expectCode(
+  "upstream_timeout",
+  quarantinedReadFetchImpl,
+  {
+    ...env,
+    VOID_STEAM_READONLY_TIMEOUT_MS: "500",
+  },
+);
+assert.equal(quarantinedReadFetchCalls, 1);
+assert.equal(quarantinedReadCalls, 1);
+assert.equal(quarantinedOutstandingReads, 1);
+assert.equal(quarantinedMaxOutstandingReads, 1);
+assert.equal(quarantinedReadCancelCalls, 1);
+assert.ok(
+  quarantinedReadElapsed >= 450 && quarantinedReadElapsed < 1500,
+  `never-settling admitted read escaped deadline ${quarantinedReadElapsed}ms`,
+);
+
+const repeatedReadStarted = Date.now();
+await Promise.all([
+  expectCode("upstream_timeout", quarantinedReadFetchImpl, {
+    ...env,
+    VOID_STEAM_READONLY_TIMEOUT_MS: "500",
+  }),
+  expectCode("upstream_timeout", quarantinedReadFetchImpl, {
+    ...env,
+    VOID_STEAM_READONLY_TIMEOUT_MS: "500",
+  }),
+  expectCode("upstream_timeout", quarantinedReadFetchImpl, {
+    ...env,
+    VOID_STEAM_READONLY_TIMEOUT_MS: "500",
+  }),
+]);
+const repeatedReadElapsed = Date.now() - repeatedReadStarted;
+assert.equal(quarantinedReadFetchCalls, 1);
+assert.equal(quarantinedReadCalls, 1);
+assert.equal(quarantinedOutstandingReads, 1);
+assert.equal(quarantinedMaxOutstandingReads, 1);
+assert.equal(quarantinedReadCancelCalls, 1);
+assert.ok(
+  repeatedReadElapsed >= 450 && repeatedReadElapsed < 1500,
+  `quarantined admitted-read retries escaped deadline ${repeatedReadElapsed}ms`,
+);
+
+resolveQuarantinedRead({ done: true });
+await new Promise<void>((resolve) => {
+  setTimeout(resolve, 20);
+});
+assert.equal(quarantinedOutstandingReads, 0);
+assert.equal(quarantinedReadCancelCalls, 1);
+
+const recoveredAfterReadQuarantine = await executeSteamReadonlyRequest(input, {
+  env,
+  fetch_impl: quarantinedReadFetchImpl,
+});
+assert.equal(recoveredAfterReadQuarantine.ok, true);
+assert.equal(recoveredAfterReadQuarantine.received_bytes, Buffer.byteLength(validBody));
+assert.equal(quarantinedReadFetchCalls, 2);
+assert.equal(quarantinedReadCalls, 1);
+assert.equal(quarantinedMaxOutstandingReads, 1);
+assert.equal(quarantinedReadCancelCalls, 1);
+
+console.log("custom_fetch_final_url_exact_match_required=true");
+console.log("custom_fetch_redirected_response_rejected=true");
+console.log("custom_fetch_provenance_rejection_precedes_body_read=true");
+console.log("custom_fetch_provenance_cleanup_bounded=true");
+console.log("ordinary_fetch_rejection_preserved=true");
+console.log("deadline_terminates_never_settling_fetch=true");
+console.log("custom_fetch_unsettled_acquisition_generation_bounded=true");
+console.log("custom_fetch_quarantine_releases_after_settlement=true");
+console.log("late_fetch_response_timeout_truth_preserved=true");
+console.log("late_fetch_response_cleanup_bounded=true");
+console.log("late_fetch_response_cleanup_exactly_once=true");
 console.log("declared_oversize_cancel_bounded=true");
 console.log("malformed_content_length_fail_closed=true");
 console.log("streamed_oversize_cancel_bounded=true");
 console.log("non_2xx_body_teardown_bounded=true");
 console.log("wrong_content_type_body_teardown_bounded=true");
+console.log("body_reader_acquisition_failure_owned=true");
+console.log("body_reader_acquisition_cleanup_bounded=true");
 console.log("admitted_read_failure_cancel_bounded=true");
 console.log("admitted_read_failure_primary_error_preserved=true");
 console.log("deadline_triggered_read_failure_preserved=true");
 console.log("deadline_terminates_never_settling_admitted_read=true");
 console.log("never_settling_admitted_read_cleanup_bounded=true");
+console.log("timed_out_admitted_read_generation_bounded=true");
+console.log("timed_out_admitted_read_retries_do_not_spawn_fetches=true");
+console.log("admitted_read_quarantine_releases_after_settlement=true");
+console.log("admitted_read_late_settlement_cleanup_exactly_once=true");
 console.log("primary_rejection_preserved=true");
 console.log("VOID_STEAM_READONLY_BRIDGE_RESPONSE_TEARDOWN_V1_GREEN");

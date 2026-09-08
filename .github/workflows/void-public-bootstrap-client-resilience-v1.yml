@@ -9,16 +9,38 @@ on:
       - "scripts/resolve_void_public_bootstrap_v1.mjs"
       - "scripts/run_void_public_bootstrap_supervisor_v1.mjs"
       - "scripts/prove_void_public_bootstrap_client_resilience_v1.mjs"
+      - "scripts/prove_follower_legacy_v2fs_and_duplicate_dial_v1.mjs"
+      - "scripts/prove_mainnet0_historical_public_bootstrap_v1.mjs"
+      - "scripts/prove_follower_preserve_canonical_txroot_v1.mjs"
+      - "src/index.ts"
+      - "src/util/txroot.ts"
+      - "scripts/prove_follower_legacy_empty_tx_root_v1.mjs"
+      - "scripts/prove_follower_low_catchup_pull_limit_v1.mjs"
+      - "scripts/prove_void_public_seed_numeric_evidence_v1.mjs"
       - "scripts/prove_void_public_bootstrap_client_closed_response_v1.mjs"
       - "scripts/prove_void_public_seed_tls_servername_v1.mjs"
+      - "scripts/ci_diff_hygiene_v1.sh"
+      - "scripts/prove_ci_diff_hygiene_v1.mjs"
       - "scripts/lib/void_public_seed_client_transport_v1.mjs"
       - "scripts/lib/void_public_seed_qualification_v1.mjs"
       - "scripts/lib/void_public_seed_common_v1.mjs"
       - "scripts/lib/void_public_seed_probe_v1.mjs"
       - "scripts/lib/void_public_seed_receipt_v1.mjs"
       - "src/http/follower_routes.ts"
+      - "src/node_core.ts"
+      - "src/chain/seg_store.ts"
+      - "src/chain/legacy_commit_direct_v2fs_v1.ts"
+      - "src/chain/mainnet0_historical_compat_v1.ts"
+      - "src/http/follower_legacy_v2fs_authority_v1.ts"
+      - "src/http/follower_verified_public_bootstrap_authority_v1.ts"
+      - "src/types/p2p.ts"
+      - "src/p2p/auth_v1.ts"
+      - "src/p2p/authenticated_duplicate_arbitration_v1.ts"
+      - "src/p2p/authenticated_reconnect_backoff_v1.ts"
+      - "src/chain/receipts.ts"
       - "tools/void-public-seed-client-adapter-v1.mjs"
       - "docs/public/public-bootstrap-client-resilience-v1.md"
+      - "docs/public/mainnet0-historical-public-bootstrap-compat-v1.md"
   push:
     branches: [main]
     paths:
@@ -28,17 +50,48 @@ on:
       - "scripts/resolve_void_public_bootstrap_v1.mjs"
       - "scripts/run_void_public_bootstrap_supervisor_v1.mjs"
       - "scripts/prove_void_public_bootstrap_client_resilience_v1.mjs"
+      - "scripts/prove_follower_legacy_v2fs_and_duplicate_dial_v1.mjs"
+      - "scripts/prove_mainnet0_historical_public_bootstrap_v1.mjs"
+      - "scripts/prove_follower_preserve_canonical_txroot_v1.mjs"
+      - "src/index.ts"
+      - "src/util/txroot.ts"
+      - "scripts/prove_follower_legacy_empty_tx_root_v1.mjs"
+      - "scripts/prove_follower_low_catchup_pull_limit_v1.mjs"
+      - "scripts/prove_void_public_seed_numeric_evidence_v1.mjs"
       - "scripts/prove_void_public_bootstrap_client_closed_response_v1.mjs"
       - "scripts/prove_void_public_seed_tls_servername_v1.mjs"
+      - "scripts/ci_diff_hygiene_v1.sh"
+      - "scripts/prove_ci_diff_hygiene_v1.mjs"
       - "scripts/lib/void_public_seed_client_transport_v1.mjs"
       - "scripts/lib/void_public_seed_qualification_v1.mjs"
       - "scripts/lib/void_public_seed_common_v1.mjs"
       - "scripts/lib/void_public_seed_probe_v1.mjs"
       - "scripts/lib/void_public_seed_receipt_v1.mjs"
       - "src/http/follower_routes.ts"
+      - "src/node_core.ts"
+      - "src/chain/seg_store.ts"
+      - "src/chain/legacy_commit_direct_v2fs_v1.ts"
+      - "src/chain/mainnet0_historical_compat_v1.ts"
+      - "src/http/follower_legacy_v2fs_authority_v1.ts"
+      - "src/http/follower_verified_public_bootstrap_authority_v1.ts"
+      - "src/types/p2p.ts"
+      - "src/p2p/auth_v1.ts"
+      - "src/p2p/authenticated_duplicate_arbitration_v1.ts"
+      - "src/p2p/authenticated_reconnect_backoff_v1.ts"
+      - "src/chain/receipts.ts"
       - "tools/void-public-seed-client-adapter-v1.mjs"
       - "docs/public/public-bootstrap-client-resilience-v1.md"
+      - "docs/public/mainnet0-historical-public-bootstrap-compat-v1.md"
   workflow_dispatch:
+    inputs:
+      expected_source_sha:
+        description: Exact source SHA to verify
+        required: true
+        type: string
+      expected_base_sha:
+        description: Exact committed-range base SHA
+        required: true
+        type: string
 
 permissions:
   contents: read
@@ -57,12 +110,13 @@ jobs:
     timeout-minutes: 5
     steps:
       - name: Checkout exact source
-        uses: actions/checkout@v6
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
         with:
+          fetch-depth: 1
           persist-credentials: false
 
       - name: Use supported Node.js major
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
         with:
           node-version: ${{ matrix.node }}
 
@@ -72,24 +126,81 @@ jobs:
           node --check scripts/resolve_void_public_bootstrap_v1.mjs
           node --check scripts/run_void_public_bootstrap_supervisor_v1.mjs
           node --check scripts/prove_void_public_bootstrap_client_resilience_v1.mjs
+          node --check scripts/prove_follower_legacy_v2fs_and_duplicate_dial_v1.mjs
+          node --check scripts/prove_mainnet0_historical_public_bootstrap_v1.mjs
+          node --check scripts/prove_follower_preserve_canonical_txroot_v1.mjs
+          node --check scripts/prove_follower_legacy_empty_tx_root_v1.mjs
+          node --check scripts/prove_follower_low_catchup_pull_limit_v1.mjs
+          node --check scripts/prove_void_public_seed_numeric_evidence_v1.mjs
           node --check scripts/prove_void_public_bootstrap_client_closed_response_v1.mjs
           node --check scripts/prove_void_public_seed_tls_servername_v1.mjs
           node --check scripts/lib/void_public_seed_client_transport_v1.mjs
           node scripts/prove_void_public_seed_tls_servername_v1.mjs
+          node scripts/prove_void_public_seed_numeric_evidence_v1.mjs
           node --check tools/void-public-seed-client-adapter-v1.mjs
-          node -e 'const m=require("./public/bootstrap/v1.json"); if(m.status!=="hold_no_stable_seed"||m.sync_endpoints.length!==0) process.exit(1)'
+          node - <<'NODE'
+          const manifest = require("./public/bootstrap/v1.json");
+          const fail = (message) => { throw new Error(message); };
+          if (manifest.schema !== "void_public_bootstrap_v1") fail("bootstrap schema mismatch");
+          if (manifest.network !== "VOID Network" || Number(manifest.chain_id) !== 2050) {
+            fail("bootstrap network or chain mismatch");
+          }
+          if (manifest.private_tailnet_endpoints_published !== false) {
+            fail("bootstrap publishes private Tailnet endpoints");
+          }
+          const authority = Object.values(manifest.authority || {});
+          if (authority.length === 0 || authority.some((value) => value !== false)) {
+            fail("bootstrap authority boundary mismatch");
+          }
+          if (!Array.isArray(manifest.sync_endpoints)) fail("bootstrap sync_endpoints missing");
+          if (manifest.status === "hold_no_stable_seed") {
+            if (manifest.sync_endpoints.length !== 0) fail("hold manifest publishes sync endpoints");
+          } else if (manifest.status === "stable_https_seed") {
+            if (manifest.sync_endpoints.length < 1) fail("stable manifest has no sync endpoints");
+            for (const endpoint of manifest.sync_endpoints) {
+              if (
+                endpoint.transport !== "https" ||
+                endpoint.enabled !== true ||
+                endpoint.temporary !== false ||
+                typeof endpoint.base !== "string" ||
+                !endpoint.base.startsWith("https://")
+              ) {
+                fail("stable manifest endpoint boundary mismatch");
+              }
+            }
+          } else {
+            fail(`unsupported bootstrap status ${manifest.status}`);
+          }
+          console.log(`canonical_manifest_status=${manifest.status}`);
+          console.log("canonical_manifest_state_supported=true");
+          NODE
 
   prove:
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
       - name: Checkout exact source
-        uses: actions/checkout@v6
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
         with:
+          fetch-depth: 1
           persist-credentials: false
 
+      - name: Bind exact manual-dispatch source
+        if: github.event_name == 'workflow_dispatch'
+        env:
+          EXPECTED_SOURCE_SHA: ${{ inputs.expected_source_sha }}
+          EXPECTED_BASE_SHA: ${{ inputs.expected_base_sha }}
+        run: |
+          set -euo pipefail
+          [[ "$EXPECTED_SOURCE_SHA" =~ ^[0-9a-f]{40}$ ]]
+          [[ "$EXPECTED_BASE_SHA" =~ ^[0-9a-f]{40}$ ]]
+          test "$GITHUB_SHA" = "$EXPECTED_SOURCE_SHA"
+          test "$(git rev-parse HEAD)" = "$EXPECTED_SOURCE_SHA"
+          echo "manual_dispatch_source_bound=true"
+          echo "manual_dispatch_base_bound=true"
+
       - name: Use Node.js 24 LTS
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
         with:
           node-version: "24"
 
@@ -102,13 +213,124 @@ jobs:
       - name: Build runtime artifacts
         run: npm run build
 
+      - name: Prove shallow committed-range diff hygiene contract
+        run: node scripts/prove_ci_diff_hygiene_v1.mjs
+
       - name: Prove public bootstrap client resilience
         run: |
+          set -euo pipefail
+          canonical="$PWD/public/bootstrap/v1.json"
+          backup="$RUNNER_TEMP/void-public-bootstrap-client-resilience-canonical-$GITHUB_RUN_ID-$GITHUB_JOB.json"
+          cp "$canonical" "$backup"
+          restore_canonical() {
+            cp "$backup" "$canonical"
+          }
+          trap restore_canonical EXIT
+
+          node --input-type=module <<'NODE'
+          import fs from "node:fs";
+          import { objectWithId } from "./scripts/lib/void_public_seed_qualification_v1.mjs";
+          const body = {
+            schema: "void_public_bootstrap_v1",
+            network: "VOID Network",
+            chain_id: 2050,
+            status: "hold_no_stable_seed",
+            generated_at: "2026-08-06T09:23:00.000Z",
+            sync_endpoints: [],
+            onion_endpoints: [],
+            private_tailnet_endpoints_published: false,
+            authority: {
+              private_routes_exposed: false,
+              wallet_authority: false,
+              signer_authority: false,
+              validator_authority: false,
+              treasury_authority: false,
+              work_credit_authority: false,
+              money_movement_authority: false,
+            },
+            notes: "Isolated client-resilience hold fixture; independent of canonical publication state.",
+          };
+          const hold = objectWithId("voidpbm1_", body, "manifest_id");
+          fs.writeFileSync(
+            "public/bootstrap/v1.json",
+            `${JSON.stringify(hold, null, 2)}\n`,
+            { mode: 0o600 },
+          );
+          NODE
+
           npx --no-install tsx scripts/prove_void_public_bootstrap_client_resilience_v1.mjs
+          node scripts/prove_follower_legacy_v2fs_and_duplicate_dial_v1.mjs
+          node scripts/prove_mainnet0_historical_public_bootstrap_v1.mjs
+          node scripts/prove_follower_preserve_canonical_txroot_v1.mjs
+          node scripts/prove_follower_legacy_empty_tx_root_v1.mjs
+          npx --no-install tsx scripts/prove_follower_low_catchup_pull_limit_v1.mjs
+          node scripts/prove_void_public_seed_numeric_evidence_v1.mjs
           npx --no-install tsx scripts/prove_void_public_bootstrap_client_closed_response_v1.mjs
+
+          restore_canonical
+          cmp -s "$backup" "$canonical"
+          rm -f "$backup"
+          trap - EXIT
+          echo 'client_resilience_fixture_isolated=true'
+          echo 'repository_manifest_state_independent=true'
 
       - name: Confirm compiled catch-up boundary
         run: |
           grep -F 'VOID_PUBLIC_BOOTSTRAP_CATCHUP_PROGRESS' dist/http/follower_routes.js
           grep -F 'VOID_PUBLIC_BOOTSTRAP_CLIENT_ADAPTER_ACTIVE' dist/http/follower_routes.js
           grep -F 'VOID_FOLLOWER_CATCHUP_PULL_LIMIT' dist/http/follower_routes.js
+          grep -F 'VOID_FOLLOWER_PULL_TIMEOUT_MS' dist/node_core.js
+          grep -F 'AbortSignal.timeout' dist/node_core.js
+          grep -F 'VOID_FOLLOWER_RESPONSE_BOUND_V1' dist/node_core.js
+          grep -F 'VOID_FOLLOWER_LEGACY_V2FS_ORIGINS' dist/node_core.js
+          grep -F 'saveAuthorizedLegacyCommitDirectV2fs' dist/chain/seg_store.js
+          grep -F 'saveAuthorizedMainnet0GenesisMinimalV1' dist/chain/seg_store.js
+          grep -F 'saveAuthorizedMainnet0HistoricalLegacyV2fs' dist/chain/seg_store.js
+          grep -F 'mainnet0_historical_v2fs_genesis_forbidden' dist/chain/mainnet0_historical_compat_v1.js
+          grep -F 'VOID_PUBLIC_SEED_RESPONSE_AUTHORITY_SCHEMA_V1' dist/http/follower_verified_public_bootstrap_authority_v1.js
+          grep -F 'verifiedPublicBootstrapChallengeStillLiveV1' dist/http/follower_verified_public_bootstrap_authority_v1.js
+          grep -F 'VOID_PUBLIC_BOOTSTRAP_HISTORICAL_RESPONSE_AUTHORITY_V1' dist/node_core.js
+          grep -F 'proposer.commit-direct.v2fs' dist/chain/legacy_commit_direct_v2fs_v1.js
+          grep -F 'VOID_LEGACY_EMPTY_TX_ROOT_V1' dist/chain/legacy_commit_direct_v2fs_v1.js
+          grep -F 'decideAuthenticatedDuplicateConnectionV1' dist/node_core.js
+          grep -F 'decideVoidP2PAuthenticatedReconnectV1' dist/node_core.js
+          grep -F 'VOID_P2P_AUTHENTICATED_DUPLICATE_STALE_CLOSE_V1_IGNORED' dist/node_core.js
+          grep -F 'authenticatedAtMonotonicMs' dist/node_core.js
+          node --input-type=module <<'NODE'
+          import assert from "node:assert/strict";
+          import fs from "node:fs";
+          const source = fs.readFileSync("dist/index.js", "utf8");
+          const start = source.indexOf("(function installTxRootSealHook()");
+          const end = source.indexOf("// ------------- [ADD] light shim to include txRoot", start);
+          assert.notEqual(start, -1, "compiled txRoot metrics hook start missing");
+          assert.notEqual(end, -1, "compiled txRoot metrics hook end missing");
+          const hook = source.slice(start, end);
+          assert.equal(/\bb\.txRoot\s*=/.test(hook), false, "compiled metrics hook rewrites b.txRoot");
+          assert.equal(/computeTxRoot\s*\(\s*txs\s*\)/.test(hook), false, "compiled metrics hook derives txRoot");
+          console.log("compiled_metrics_hook_txroot_mutation=false");
+          NODE
+
+      - name: Diff hygiene across committed change range
+        if: github.event_name != 'workflow_dispatch'
+        env:
+          CI_DIFF_EVENT_NAME: ${{ github.event_name }}
+          CI_DIFF_PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          CI_DIFF_PUSH_BEFORE_SHA: ${{ github.event.before }}
+          CI_DIFF_CURRENT_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+          CI_DIFF_CHECKOUT_SHA: ${{ github.sha }}
+          CI_DIFF_BASE_REMOTE: ${{ github.server_url }}/${{ github.repository }}.git
+          CI_DIFF_HEAD_REMOTE: ${{ github.server_url }}/${{ github.event.pull_request.head.repo.full_name || github.repository }}.git
+        run: bash scripts/ci_diff_hygiene_v1.sh
+
+      - name: Diff hygiene across committed change range (manual dispatch)
+        if: github.event_name == 'workflow_dispatch'
+        env:
+          CI_DIFF_EVENT_NAME: push
+          CI_DIFF_PUSH_BEFORE_SHA: ${{ inputs.expected_base_sha }}
+          CI_DIFF_CURRENT_SHA: ${{ inputs.expected_source_sha }}
+          CI_DIFF_CHECKOUT_SHA: ${{ github.sha }}
+          CI_DIFF_BASE_REMOTE: ${{ github.server_url }}/${{ github.repository }}.git
+        run: |
+          set -euo pipefail
+          test "$GITHUB_SHA" = "$CI_DIFF_CURRENT_SHA"
+          bash scripts/ci_diff_hygiene_v1.sh

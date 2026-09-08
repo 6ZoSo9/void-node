@@ -10,6 +10,7 @@ const MARKER = "VOID_WC_PUBLIC_OPPORTUNITY_DISCOVERY_V1_PROOF_GREEN";
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(HERE, "..");
 const TOOL = resolve(ROOT, "tools/wc-public-opportunity-discovery-v1.mjs");
+const CLAIM_ROUTE = "/wc/public-earning-pilot-v1/claim-ticket";
 
 function run(args) {
   return new Promise((resolveRun, rejectRun) => {
@@ -36,8 +37,26 @@ function run(args) {
   });
 }
 
-async function fixture(mode) {
+function claimSafety() {
+  return {
+    public_ticket_issue: true,
+    public_signed_ticket_claim: true,
+    claim_executor_key_possession_required: true,
+    claim_server_selected_work: true,
+    participant_selected_award: false,
+    submission_response_canonical_accounting: true,
+  };
+}
+
+async function fixture(mode, fixedAwardWc = 3, options = {}) {
   const requests = [];
+  const {
+    responseStatus = 200,
+    omitAward = false,
+    omitCoordinator = false,
+    omitBoundary = false,
+    injectMetadata = false,
+  } = options;
 
   const server = createServer((request, response) => {
     requests.push({
@@ -49,34 +68,48 @@ async function fixture(mode) {
       response.writeHead(200, { "content-type": "application/json" });
       response.end(JSON.stringify({
         marker: "VOID_PUBLIC_NODE_DISCOVERY_FIXTURE_V1",
-        public_routes_award_wc: false,
       }));
       return;
     }
 
     if (request.url === "/__void/public-earn-gateway-v1/status.json") {
-      response.writeHead(200, { "content-type": "application/json" });
+      const safety = claimSafety();
+      if (mode === "unknown" || omitBoundary) {
+        delete safety.submission_response_canonical_accounting;
+      }
+      response.writeHead(responseStatus, { "content-type": "application/json" });
       response.end(JSON.stringify({
         marker: "VOID_PUBLIC_EARN_GATEWAY_V1",
         pilot_status: {
           marker: "VOID_WC_PUBLIC_EARNING_PILOT_V1",
-          coordinator_enabled: mode !== "hold",
+          coordinator_enabled: omitCoordinator ? undefined : mode !== "hold",
           executor_enabled: false,
-          fixed_award_wc: 3,
+          fixed_award_wc: omitAward ? undefined : fixedAwardWc,
         },
         public_claim: {
+          marker: "VOID_WC_PUBLIC_TICKET_CLAIM_V1",
           enabled: mode !== "hold",
+          available: mode !== "hold",
           method: "POST",
-          path: "/public/earn/claim-v1",
-          fixed_award_wc: 3,
+          public_route: CLAIM_ROUTE,
+          fixed_award_wc: omitAward ? undefined : fixedAwardWc,
+          server_selected_work: true,
+          proof_of_executor_key_possession_required: true,
+          signed_claim_timestamp_required: true,
+          claim_nonce_replay_protection: true,
+          participant_selected_award: false,
         },
-        ...(mode === "unknown"
-          ? {}
-          : {
-              audit_assertions: {
-                public_routes_award_wc: false,
+        safety,
+        ...(injectMetadata
+          ? {
+              metadata: {
+                coordinator_enabled: true,
+                fixed_award_wc: 3,
+                submission_response_canonical_accounting: true,
+                participant_selected_award: false,
               },
-            }),
+            }
+          : {}),
       }));
       return;
     }
@@ -118,19 +151,29 @@ try {
   assert.equal(body.status, "green");
   assert.equal(body.opportunity_state, "available");
   assert.equal(body.participant.node_required, false);
+  assert.equal(body.gateway.marker, "VOID_PUBLIC_EARN_GATEWAY_V1");
+  assert.equal(body.gateway.exact_identity, true);
   assert.equal(body.pilot.marker, "VOID_WC_PUBLIC_EARNING_PILOT_V1");
   assert.equal(body.pilot.coordinator_enabled, true);
+  assert.equal(body.pilot.executor_enabled, false);
   assert.equal(body.pilot.fixed_award_wc, 3);
   assert.equal(body.pilot.fixed_award_matches, true);
+  assert.equal(body.public_claim.marker, "VOID_WC_PUBLIC_TICKET_CLAIM_V1");
   assert.equal(body.public_claim.configured, true);
   assert.equal(body.public_claim.enabled, true);
+  assert.equal(body.public_claim.available, true);
   assert.equal(body.public_claim.method, "POST");
-  assert.equal(body.public_claim.path, "/public/earn/claim-v1");
+  assert.equal(body.public_claim.path, CLAIM_ROUTE);
+  assert.equal(body.public_claim.proof_of_executor_key_possession_required, true);
+  assert.equal(body.public_claim.signed_claim_timestamp_required, true);
+  assert.equal(body.public_claim.claim_nonce_replay_protection, true);
   assert.equal(body.safety.read_only, true);
   assert.deepEqual(body.safety.http_methods_used, ["GET"]);
-  assert.equal(body.safety.public_routes_award_wc, false);
+  assert.equal(body.safety.public_claim_route_no_direct_award, true);
   assert.equal(body.safety.public_award_boundary_confirmed, true);
   assert.equal(body.safety.public_award_boundary_safe, true);
+  assert.equal(body.safety.claim_executor_key_possession_required, true);
+  assert.equal(body.safety.public_claim_authentication_replay_confirmed, true);
   assert.equal(body.safety.mutation_attempted, false);
   assert.equal(body.safety.ticket_issuance_attempted, false);
   assert.equal(body.safety.wc_award_attempted, false);
@@ -140,10 +183,92 @@ try {
   assert.ok(available.requests.some(
     (entry) => entry.url === "/__void/public-earn-gateway-v1/status.json",
   ));
-  assert.ok(!available.requests.some((entry) => entry.url === "/public/earn/claim-v1"));
+  assert.ok(!available.requests.some((entry) => entry.url === CLAIM_ROUTE));
   assert.ok(!available.requests.some((entry) => entry.url === "/private/wc/award"));
 } finally {
   await available.close();
+}
+
+for (const [label, wrongTypeAward] of [
+  ["string", "3"],
+  ["boolean", true],
+  ["null", null],
+]) {
+  const wrongType = await fixture("available", wrongTypeAward);
+  try {
+    const result = await run([
+      "--base", wrongType.base,
+      "--require-available",
+      "--expected-award-wc", "3",
+    ]);
+
+    assert.equal(result.code, 2, `${label}: ${result.stderr || result.stdout}`);
+    const body = JSON.parse(result.stdout);
+    assert.equal(body.opportunity_state, "hold", label);
+    assert.equal(body.pilot.fixed_award_wc, null, label);
+    assert.equal(body.pilot.fixed_award_matches, false, label);
+    assert.match(body.reason, /fixed_award_mismatch_or_missing/u, label);
+    assert.equal(body.safety.mutation_attempted, false, label);
+    assert.equal(body.safety.ticket_issuance_attempted, false, label);
+    assert.equal(body.safety.wc_award_attempted, false, label);
+  } finally {
+    await wrongType.close();
+  }
+}
+
+for (const [label, options] of [
+  ["award_splice", { omitAward: true, injectMetadata: true }],
+  ["coordinator_splice", { omitCoordinator: true, injectMetadata: true }],
+  ["award_boundary_splice", { omitBoundary: true, injectMetadata: true }],
+]) {
+  const spliced = await fixture("available", 3, options);
+  try {
+    const result = await run([
+      "--base", spliced.base,
+      "--require-available",
+    ]);
+    assert.equal(result.code, 2, `${label}: ${result.stderr || result.stdout}`);
+    const body = JSON.parse(result.stdout);
+    assert.equal(body.opportunity_state, "hold", label);
+    assert.equal(body.safety.mutation_attempted, false, label);
+    assert.equal(body.safety.ticket_issuance_attempted, false, label);
+    assert.equal(body.safety.wc_award_attempted, false, label);
+    if (label === "award_splice") {
+      assert.equal(body.pilot.fixed_award_wc, null, label);
+      assert.equal(body.pilot.fixed_award_matches, false, label);
+    }
+    if (label === "coordinator_splice") {
+      assert.equal(body.pilot.coordinator_enabled, null, label);
+    }
+    if (label === "award_boundary_splice") {
+      assert.equal(body.safety.public_claim_route_no_direct_award, false, label);
+      assert.equal(body.safety.public_award_boundary_confirmed, false, label);
+    }
+  } finally {
+    await spliced.close();
+  }
+}
+
+for (const status of [404, 500]) {
+  const nonSuccess = await fixture("available", 3, { responseStatus: status });
+  try {
+    const result = await run([
+      "--base", nonSuccess.base,
+      "--require-available",
+    ]);
+    assert.equal(result.code, 2, `${status}: ${result.stderr || result.stdout}`);
+    const body = JSON.parse(result.stdout);
+    assert.equal(body.opportunity_state, "unavailable", String(status));
+    assert.match(body.reason, /compatible public earning gateway not discovered/u);
+    assert.equal(body.safety.mutation_attempted, false);
+    assert.equal(body.safety.ticket_issuance_attempted, false);
+    assert.equal(body.safety.wc_award_attempted, false);
+    assert.ok(body.attempts.some(
+      (entry) => entry.path === "/__void/public-earn-gateway-v1/status.json" && entry.http_status === status,
+    ));
+  } finally {
+    await nonSuccess.close();
+  }
 }
 
 const hold = await fixture("hold");
@@ -154,6 +279,7 @@ try {
   assert.equal(normalBody.opportunity_state, "hold");
   assert.equal(normalBody.pilot.coordinator_enabled, false);
   assert.equal(normalBody.public_claim.enabled, false);
+  assert.equal(normalBody.public_claim.available, false);
   assert.equal(normalBody.safety.mutation_attempted, false);
 
   const required = await run([
@@ -165,11 +291,10 @@ try {
   assert.equal(requiredBody.opportunity_state, "hold");
 
   assert.ok(hold.requests.every((entry) => entry.method === "GET"));
-  assert.ok(!hold.requests.some((entry) => entry.url === "/public/earn/claim-v1"));
+  assert.ok(!hold.requests.some((entry) => entry.url === CLAIM_ROUTE));
 } finally {
   await hold.close();
 }
-
 
 const unknown = await fixture("unknown");
 try {
@@ -177,10 +302,11 @@ try {
   assert.equal(normal.code, 0, normal.stderr || normal.stdout);
   const normalBody = JSON.parse(normal.stdout);
   assert.equal(normalBody.opportunity_state, "hold");
-  assert.match(normalBody.reason, /public_award_boundary_unconfirmed/u);
+  assert.match(normalBody.reason, /public_claim_award_boundary_unconfirmed/u);
   assert.equal(normalBody.pilot.coordinator_enabled, true);
   assert.equal(normalBody.public_claim.enabled, true);
-  assert.equal(normalBody.safety.public_routes_award_wc, null);
+  assert.equal(normalBody.public_claim.available, true);
+  assert.equal(normalBody.safety.public_claim_route_no_direct_award, false);
   assert.equal(normalBody.safety.public_award_boundary_confirmed, false);
   assert.equal(normalBody.safety.public_award_boundary_safe, false);
   assert.equal(normalBody.safety.mutation_attempted, false);
@@ -195,7 +321,7 @@ try {
 
   assert.ok(unknown.requests.every((entry) => entry.method === "GET"));
   assert.ok(!unknown.requests.some(
-    (entry) => entry.url === "/public/earn/claim-v1",
+    (entry) => entry.url === CLAIM_ROUTE,
   ));
 } finally {
   await unknown.close();

@@ -303,207 +303,165 @@ function awaitWithinOwnedDeadline(promise, signal) {
   });
 }
 
-async function readChunkWithDeadline(reader, signal) {
-  return await awaitWithinOwnedDeadline(
-    Promise.resolve().then(() => reader.read()),
-    signal,
-  );
-}
-
-async function settleRejectedBody(response, reader, controller, _deadlineAt, reason) {
-  if (!controller.signal.aborted) controller.abort(reason);
-  let cancellation;
-  try {
-    if (reader && typeof reader.cancel === "function") {
-      cancellation = Promise.resolve(reader.cancel(reason));
-    } else if (response?.body && typeof response.body.cancel === "function") {
-      cancellation = Promise.resolve(response.body.cancel(reason));
-    }
-  } catch {
-    return;
-  }
-  if (!cancellation) return;
-  let timer = null;
-  try {
-    await Promise.race([
-      cancellation.catch(() => undefined),
-      new Promise((resolve) => {
-        timer = setTimeout(resolve, MAXIMUM_BODY_TEARDOWN_SETTLEMENT_MS);
-      }),
-    ]);
-  } finally {
-    if (timer !== null) clearTimeout(timer);
-  }
-}
-
-function fetchAcquisitionRegistry(fetchImpl) {
+function beginResponseGeneration(fetchImpl, url, method, label) {
   let registry = activeFetchAcquisitions.get(fetchImpl);
   if (!registry) {
     registry = new Map();
     activeFetchAcquisitions.set(fetchImpl, registry);
   }
-  return registry;
+  const key = `${method} ${url}`;
+  if (registry.has(key)) fail(`${label} fetch acquisition is quarantined`);
+  const lease = {
+    response: null, body: undefined, bodyObserved: false, reader: null,
+    terminal: false, pending: 0, cleanup: null,
+    releaseIfTerminal() {
+      if (!lease.terminal || lease.pending !== 0 || registry.get(key) !== lease) return;
+      registry.delete(key);
+      if (registry.size === 0) activeFetchAcquisitions.delete(fetchImpl);
+    },
+    finish() {
+      lease.terminal = true;
+      lease.releaseIfTerminal();
+    },
+    track(operation, terminalOnSuccess, terminalOnFailure = false) {
+      lease.pending += 1;
+      return Promise.resolve().then(operation).then(
+        (value) => {
+          lease.pending -= 1;
+          if (terminalOnSuccess(value)) lease.terminal = true;
+          lease.releaseIfTerminal();
+          return value;
+        },
+        (error) => {
+          lease.pending -= 1;
+          if (typeof terminalOnFailure === "function" ? terminalOnFailure() : terminalOnFailure) lease.terminal = true;
+          lease.releaseIfTerminal();
+          throw error;
+        },
+      );
+    },
+  };
+  registry.set(key, lease);
+  return lease;
 }
 
-async function acquireResponseWithDeadline(fetchImpl, url, init, controller, label) {
-  const registry = fetchAcquisitionRegistry(fetchImpl);
-  const key = `${init.method} ${url}`;
-  if (registry.has(key)) {
-    fail(`${label} fetch acquisition is quarantined`);
+function observeBody(lease) {
+  if (!lease.bodyObserved) {
+    // Snapshot once. A throwing accessor leaves an unknown, quarantined body.
+    lease.bodyObserved = true;
+    lease.body = lease.response.body;
+    if (lease.body === null) lease.finish();
   }
+  return lease.body;
+}
 
-  const acquisition = Promise.resolve().then(() => fetchImpl(url, init));
-  const lease = { acquisition };
-  registry.set(key, lease);
-
-  const release = () => {
-    if (registry.get(key) !== lease) return;
-    registry.delete(key);
-    if (registry.size === 0) activeFetchAcquisitions.delete(fetchImpl);
-  };
-
-  acquisition.then(
-    async (response) => {
-      if (!controller.signal.aborted) return;
+async function settleRejectedBody(lease, controller, reason) {
+  if (!controller.signal.aborted) controller.abort(reason);
+  // Do not create a new cancellation operation after a fully settled terminal.
+  if (lease.terminal && lease.pending === 0) return;
+  if (!lease.cleanup) {
+    lease.cleanup = (async () => {
       try {
-        await settleRejectedBody(
-          response,
-          null,
-          controller,
-          0,
-          requestDeadlineError(controller.signal),
-        );
+        const body = observeBody(lease);
+        const target = lease.reader || body;
+        const cancel = target?.cancel;
+        if (typeof cancel !== "function") return;
+        await lease.track(() => cancel.call(target, reason), () => true);
       } catch {
-        // The caller-visible request deadline is already terminal.
+        // Failure/unknown cancellation is not a body terminal witness.
+      }
+    })();
+  }
+  let timer;
+  try {
+    await Promise.race([
+      lease.cleanup,
+      new Promise((resolve) => {
+        timer = setTimeout(resolve, MAXIMUM_BODY_TEARDOWN_SETTLEMENT_MS);
+      }),
+    ]);
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+async function acquireResponseWithDeadline(fetchImpl, url, init, controller, lease) {
+  const acquisition = Promise.resolve().then(() => fetchImpl(url, init));
+  acquisition.then(
+    (response) => {
+      lease.response = response;
+      if (controller.signal.aborted) {
+        return settleRejectedBody(lease, controller, requestDeadlineError(controller.signal));
       }
     },
-    () => undefined,
-  ).finally(release).catch(() => undefined);
-
-  try {
-    const response = await awaitWithinOwnedDeadline(acquisition, controller.signal);
-    release();
-    return response;
-  } catch (error) {
-    if (!controller.signal.aborted) release();
-    throw error;
-  }
+    () => lease.finish(), // No Response was produced by the settled acquisition.
+  ).catch(() => undefined);
+  return await awaitWithinOwnedDeadline(acquisition, controller.signal);
 }
 
-async function parseContentLengthWithOwnedTeardown(
-  response,
-  controller,
-  deadlineAt,
-  label,
-) {
-  try {
-    return parseContentLength(response, label);
-  } catch (error) {
-    await settleRejectedBody(
-      response,
-      null,
-      controller,
-      deadlineAt,
-      error,
-    );
-    throw error;
-  }
-}
-
-async function readBoundedGetBody(response, maximum, controller, deadlineAt, label) {
-  const contentLength = await parseContentLengthWithOwnedTeardown(
-    response,
-    controller,
-    deadlineAt,
-    label,
-  );
+async function readBoundedGetBody(lease, maximum, controller, label) {
+  const body = observeBody(lease);
+  const contentLength = parseContentLength(lease.response, label);
   if (contentLength !== null && contentLength > maximum) {
-    const primary = new Hold(`${label} exceeds maximum response size`);
-    await settleRejectedBody(response, null, controller, deadlineAt, primary);
-    throw primary;
+    fail(`${label} exceeds maximum response size`);
   }
-  if (!response.body || typeof response.body.getReader !== "function") {
-    const primary = new Hold(`${label} body is not stream-readable`);
-    await settleRejectedBody(response, null, controller, deadlineAt, primary);
-    throw primary;
+  if (!body || typeof body.getReader !== "function") {
+    fail(`${label} body is not stream-readable`);
   }
-
-  let reader;
   try {
-    reader = response.body.getReader();
+    lease.reader = body.getReader();
   } catch {
-    const primary = new Hold(`${label} body reader is unavailable`);
-    await settleRejectedBody(response, null, controller, deadlineAt, primary);
-    throw primary;
+    fail(`${label} body reader is unavailable`);
   }
-
+  const reader = lease.reader;
+  // Observe a reader's closed terminal without waiting for it on the caller path.
+  // It never releases unresolved reads/cancellation tracked by this generation.
+  try {
+    const closed = reader.closed;
+    if (closed && typeof closed.then === "function") {
+      Promise.resolve(closed).then(() => lease.finish(), () => lease.finish());
+    }
+  } catch { /* An unavailable closed witness cannot release ownership. */ }
+  const readMethod = reader.read;
+  if (typeof readMethod !== "function") fail(`${label} body reader is unavailable`);
   const chunks = [];
   let total = 0;
-  try {
-    while (true) {
-      const part = await readChunkWithDeadline(reader, controller.signal);
-      if (part.done) break;
-      if (!(part.value instanceof Uint8Array)) {
-        throw new Error("response stream yielded a non-byte chunk");
-      }
-      total += part.value.byteLength;
-      if (total > maximum) {
-        const primary = new Hold(`${label} exceeds maximum response size`);
-        await settleRejectedBody(response, reader, controller, deadlineAt, primary);
-        throw primary;
-      }
-      chunks.push(Buffer.from(part.value));
-    }
-    return Buffer.concat(chunks, total);
-  } catch (error) {
-    if (!(error instanceof Hold && /exceeds maximum response size/.test(error.message))) {
-      await settleRejectedBody(response, reader, controller, deadlineAt, error);
-    }
-    throw error;
+  while (true) {
+    let readReturned = false;
+    const read = lease.track(() => {
+      const operation = readMethod.call(reader);
+      readReturned = true;
+      return operation;
+    }, (part) => part?.done === true, () => readReturned);
+    const part = await awaitWithinOwnedDeadline(read, controller.signal);
+    if (part.done === true) break;
+    if (!(part.value instanceof Uint8Array)) throw new Error("response stream yielded a non-byte chunk");
+    total += part.value.byteLength;
+    if (total > maximum) fail(`${label} exceeds maximum response size`);
+    chunks.push(Buffer.from(part.value));
   }
+  return Buffer.concat(chunks, total);
 }
 
 async function boundedRequest(url, method, fetchImpl, maximum, timeoutMs) {
-  const controller = new AbortController();
-  const deadlineAt = Date.now() + timeoutMs;
-  const timeout = setTimeout(
-    () => controller.abort(new Error("request deadline exceeded")),
-    timeoutMs,
-  );
   const label = `${method} ${url}`;
+  const lease = beginResponseGeneration(fetchImpl, url, method, label);
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(new Error("request deadline exceeded")), timeoutMs);
   try {
-    const response = await acquireResponseWithDeadline(
-      fetchImpl,
-      url,
-      {
-        method,
-        cache: "no-store",
-        redirect: "manual",
-        credentials: "omit",
-        headers: {
-          accept: "application/json",
-          "cache-control": "no-cache",
-        },
-        signal: controller.signal,
-      },
-      controller,
-      label,
-    );
+    const response = await acquireResponseWithDeadline(fetchImpl, url, {
+      method, cache: "no-store", redirect: "manual", credentials: "omit",
+      headers: { accept: "application/json", "cache-control": "no-cache" },
+      signal: controller.signal,
+    }, controller, lease);
+    observeBody(lease);
     let body;
     if (method === "GET") {
-      body = await readBoundedGetBody(response, maximum, controller, deadlineAt, label);
+      body = await readBoundedGetBody(lease, maximum, controller, label);
     } else {
-      const contentLength = await parseContentLengthWithOwnedTeardown(
-        response,
-        controller,
-        deadlineAt,
-        label,
-      );
-      if (contentLength !== null && contentLength > maximum) {
-        const primary = new Hold(`${label} exceeds maximum response size`);
-        await settleRejectedBody(response, null, controller, deadlineAt, primary);
-        throw primary;
-      }
+      const contentLength = parseContentLength(response, label);
+      if (contentLength !== null && contentLength > maximum) fail(`${label} exceeds maximum response size`);
+      if (lease.body !== null) fail(`${label} HEAD response must have a null body`);
       body = Buffer.alloc(0);
     }
     return Object.freeze({
@@ -516,6 +474,7 @@ async function boundedRequest(url, method, fetchImpl, maximum, timeoutMs) {
       body,
     });
   } catch (error) {
+    if (lease.response !== null) await settleRejectedBody(lease, controller, error);
     if (error instanceof Hold) throw error;
     fail(`${label} failed: ${error.message}`);
   } finally {

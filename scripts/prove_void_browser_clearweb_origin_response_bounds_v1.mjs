@@ -82,6 +82,7 @@ function validResponse(url, init) {
   );
   return response(url, {
     status: isBinding ? 404 : 200,
+    bodyMissing: isHead,
     chunks: isHead ? [] : [new Uint8Array([123, 125])],
     headers: isHead ? { "content-length": "2" } : {},
   }).response;
@@ -315,9 +316,14 @@ async function expectFirstHeadHold(candidate, options, pattern) {
 {
   let calls = 0;
   let resolveFirst;
+  let finishCancel;
   const late = response(`${ORIGIN}/.well-known/void-agent-discovery.json`, {
     cancelNeverSettles: true,
   });
+  late.response.body.cancel = () => {
+    late.stats.body_cancel_calls += 1;
+    return new Promise(resolve => { finishCancel = resolve; });
+  };
   const fetchImpl = async (url, init) => {
     calls += 1;
     if (calls === 1) {
@@ -350,6 +356,12 @@ async function expectFirstHeadHold(candidate, options, pattern) {
   await new Promise((resolve) => setTimeout(resolve, 400));
   assert.equal(late.stats.body_cancel_calls, 1);
 
+  for (let retry = 0; retry < 3; retry += 1) {
+    await assert.rejects(() => collectRouteEvidence(ORIGIN, {fetchImpl, maximum: MAXIMUM, timeoutMs: 40}), /quarantined/);
+  }
+  assert.equal(calls, 1);
+  finishCancel();
+  await new Promise(resolve => setImmediate(resolve));
   const recovered = await collectRouteEvidence(ORIGIN, {
     fetchImpl,
     maximum: MAXIMUM,
@@ -375,6 +387,72 @@ async function expectFirstHeadHold(candidate, options, pattern) {
   assert.equal(evidence.routes.well_known.head.body.length, 0);
   assert.equal(evidence.bindingPath.get.status, 404);
 }
+
+// One lifetime mechanism covers acquired reads, malformed HEAD bodies and
+// accessor failures. Cleanup's caller deadline is never a resource terminal.
+let lifetimeCases = 0;
+for (const mode of ["read-eof", "read-reject", "head", "body-getter", "reader-getter", "read-method-getter", "read-call-throw", "cancel-reject"]) {
+  let finishRead, failRead, finishCancel;
+  let badCalls = 0, cancelCalls = 0, bodyGets = 0;
+  const read = new Promise((resolve, reject) => { finishRead = resolve; failRead = reject; });
+  // Only admitted reads are used; keep unused rejecting promises out of fixtures.
+  const cancel = new Promise(resolve => { finishCancel = resolve; });
+  const candidate = response(`${ORIGIN}/.well-known/void-agent-discovery.json`).response;
+  const reader = {
+    read: () => read,
+    cancel: () => { cancelCalls += 1; return mode === "cancel-reject" ? Promise.reject(new Error("cancel failed")) : cancel; },
+  };
+  candidate.body = {
+    getReader: () => reader,
+    cancel: () => { cancelCalls += 1; return cancel; },
+  };
+  if (mode === "body-getter") Object.defineProperty(candidate, "body", {get() {bodyGets += 1; throw new Error("body accessor failed");}});
+  if (mode === "reader-getter") Object.defineProperty(candidate.body, "getReader", {get() {throw new Error("reader accessor failed");}});
+  if (mode === "read-method-getter") Object.defineProperty(reader, "read", {get() {throw new Error("read accessor failed");}});
+  if (mode === "read-call-throw") reader.read = () => {throw new Error("read accessor failed");};
+  const badMethod = mode === "head" ? "HEAD" : "GET";
+  const fetchImpl = async (url, init) => {
+    if (url === `${ORIGIN}/.well-known/void-agent-discovery.json` && init.method === badMethod) {
+      badCalls += 1;
+      if (badCalls === 1) return candidate;
+    }
+    return validResponse(url, init);
+  };
+  const options = {fetchImpl, maximum: MAXIMUM, timeoutMs: 40};
+  const pattern = mode === "head" ? /HEAD response must have a null body/ : (mode.includes("getter") || mode === "read-call-throw") ? /accessor failed/ : /request deadline exceeded/;
+  await assert.rejects(() => collectRouteEvidence(ORIGIN, options), pattern);
+  async function held() {
+    for (let retry = 0; retry < 3; retry += 1) await assert.rejects(() => collectRouteEvidence(ORIGIN, options), /quarantined/);
+    assert.equal(badCalls, 1, `${mode}: replacement generation started`);
+  }
+  await held();
+  await collectRouteEvidence("https://unrelated.example", options);
+  if (mode === "body-getter") {
+    assert.equal(bodyGets, 1, "throwing body accessor was rediscovered during cleanup");
+    assert.equal(cancelCalls, 0);
+  } else {
+    assert.equal(cancelCalls, 1);
+    if (mode === "read-eof" || mode === "read-reject") {
+      finishCancel();
+      await new Promise(resolve => setImmediate(resolve));
+      await held(); // Successful cancel does not abandon an unresolved read.
+      if (mode === "read-eof") finishRead({done: true});
+      else failRead(new Error("actual read terminal"));
+    } else if (mode === "cancel-reject") {
+      failRead(new Error("actual read terminal"));
+    } else finishCancel();
+    await new Promise(resolve => setImmediate(resolve));
+    const recovered = await collectRouteEvidence(ORIGIN, options);
+    assert.equal(recovered.routes.well_known.get.body.toString(), "{}");
+    assert.equal(badCalls, 2, `${mode}: recovery must admit one fresh generation`);
+  }
+  lifetimeCases += 1;
+}
+console.log(`response_generation_lifetime_cases=${lifetimeCases}`);
+console.log("same_key_retries_quarantined_until_terminal=true");
+console.log("unrelated_keys_remain_usable=true");
+console.log("standard_head_null_body_required=true");
+console.log("throwing_body_accessors_preserve_ownership=true");
 
 console.log("VOID_BROWSER_CLEARWEB_ORIGIN_RESPONSE_BOUNDS_V1_PROOF_GREEN");
 console.log("declared_body_ceiling=true");

@@ -3,6 +3,7 @@
 import fs from "node:fs";
 import http from "node:http";
 import path from "node:path";
+import { readBoundedBytesOwned } from "../../tools/wc-public-response-teardown-v1.mjs";
 
 const UPSTREAM = (process.env.VOID_SEED_UPSTREAM || "http://127.0.0.1:4100").replace(/\/+$/, "");
 const EARN_UPSTREAM = (process.env.VOID_EARN_COORDINATOR_UPSTREAM || "").replace(/\/+$/, "");
@@ -72,6 +73,251 @@ const EARN_REQUEST_TIMEOUT_MS = boundedInteger(
   1_000,
   120_000,
 );
+
+// VOID_PUBLIC_SEED_DATANET_STATIC_V1
+const PUBLIC_DATANET_STATIC_MARKER =
+  "VOID_PUBLIC_SEED_DATANET_STATIC_V1";
+const PUBLIC_DATANET_STATIC_MAX_BYTES = 512 * 1024;
+const PUBLIC_DATANET_STATIC_READ_CHUNK_BYTES = 64 * 1024;
+const PUBLIC_DATANET_STATIC_ROOT = path.resolve(
+  process.env.VOID_PUBLIC_DATANET_STATIC_ROOT ||
+    path.join(process.cwd(), "public/public-node/datanet"),
+);
+const PUBLIC_DATANET_STATIC_ROUTES = new Map([
+  [
+    "/public-node/datanet/field-replication-status-card-v1.json",
+    {
+      file: "field-replication-status-card-v1.json",
+      contentType: "application/json; charset=utf-8",
+    },
+  ],
+  [
+    "/public-node/datanet/field-replication-status-card-v1.html",
+    {
+      file: "field-replication-status-card-v1.html",
+      contentType: "text/html; charset=utf-8",
+    },
+  ],
+  [
+    "/public-node/datanet/index.json",
+    {
+      file: "index.json",
+      contentType: "application/json; charset=utf-8",
+    },
+  ],
+]);
+const PUBLIC_DATANET_STATIC_DIR_OPEN_FLAGS =
+  fs.constants.O_RDONLY |
+  Number(fs.constants.O_DIRECTORY || 0) |
+  Number(fs.constants.O_NOFOLLOW || 0) |
+  Number(fs.constants.O_NONBLOCK || 0);
+const PUBLIC_DATANET_STATIC_FILE_OPEN_FLAGS =
+  fs.constants.O_RDONLY |
+  Number(fs.constants.O_NOFOLLOW || 0) |
+  Number(fs.constants.O_NONBLOCK || 0);
+
+function publicDataNetStaticFdPathV1(parentHandle, childName) {
+  if (
+    typeof childName !== "string" ||
+    childName.length === 0 ||
+    childName === "." ||
+    childName === ".." ||
+    childName.includes(path.sep) ||
+    childName.includes("\0")
+  ) {
+    throw new Error("public_datanet_static_invalid_component");
+  }
+  return `/proc/self/fd/${parentHandle.fd}/${childName}`;
+}
+
+async function openPublicDataNetStaticRootV1() {
+  const rootPath = path.parse(PUBLIC_DATANET_STATIC_ROOT).root;
+  let handle = await fs.promises.open(
+    rootPath,
+    PUBLIC_DATANET_STATIC_DIR_OPEN_FLAGS,
+  );
+  try {
+    for (const component of PUBLIC_DATANET_STATIC_ROOT
+      .slice(rootPath.length)
+      .split(path.sep)
+      .filter(Boolean)) {
+      const next = await fs.promises.open(
+        publicDataNetStaticFdPathV1(handle, component),
+        PUBLIC_DATANET_STATIC_DIR_OPEN_FLAGS,
+      );
+      const nextStat = await next.stat({ bigint: true });
+      if (!nextStat.isDirectory()) {
+        await next.close();
+        throw new Error("public_datanet_static_root_not_directory");
+      }
+      await handle.close();
+      handle = next;
+    }
+    const stat = await handle.stat({ bigint: true });
+    if (!stat.isDirectory()) {
+      throw new Error("public_datanet_static_root_not_directory");
+    }
+    return { handle, stat };
+  } catch (error) {
+    try {
+      await handle.close();
+    } catch (closeError) {
+      void closeError;
+    }
+    throw error;
+  }
+}
+
+const PUBLIC_DATANET_STATIC_ROOT_AUTHORITY =
+  await openPublicDataNetStaticRootV1();
+
+async function assertPublicDataNetStaticRootPathPinnedV1() {
+  const current = await openPublicDataNetStaticRootV1();
+  try {
+    if (
+      current.stat.dev !== PUBLIC_DATANET_STATIC_ROOT_AUTHORITY.stat.dev ||
+      current.stat.ino !== PUBLIC_DATANET_STATIC_ROOT_AUTHORITY.stat.ino
+    ) {
+      throw new Error("public_datanet_static_root_generation_changed");
+    }
+  } finally {
+    await current.handle.close();
+  }
+}
+
+async function readPublicDataNetStaticFileV1(fileName) {
+  if (!Array.from(PUBLIC_DATANET_STATIC_ROUTES.values()).some(
+    (route) => route.file === fileName,
+  )) {
+    throw new Error("public_datanet_static_file_not_allowlisted");
+  }
+
+  await assertPublicDataNetStaticRootPathPinnedV1();
+  const handle = await fs.promises.open(
+    publicDataNetStaticFdPathV1(
+      PUBLIC_DATANET_STATIC_ROOT_AUTHORITY.handle,
+      fileName,
+    ),
+    PUBLIC_DATANET_STATIC_FILE_OPEN_FLAGS,
+  );
+
+  try {
+    const before = await handle.stat({ bigint: true });
+    if (!before.isFile()) {
+      throw new Error("public_datanet_static_not_regular");
+    }
+    if (
+      before.size < 0n ||
+      before.size > BigInt(PUBLIC_DATANET_STATIC_MAX_BYTES)
+    ) {
+      throw new Error("public_datanet_static_size_invalid");
+    }
+
+    const body = Buffer.allocUnsafe(PUBLIC_DATANET_STATIC_MAX_BYTES + 1);
+    let bodyLength = 0;
+    while (bodyLength < body.length) {
+      const requestLength = Math.min(
+        body.length - bodyLength,
+        PUBLIC_DATANET_STATIC_READ_CHUNK_BYTES,
+      );
+      const { bytesRead } = await handle.read(
+        body,
+        bodyLength,
+        requestLength,
+        bodyLength,
+      );
+      if (!Number.isSafeInteger(bytesRead) || bytesRead < 0) {
+        throw new Error("public_datanet_static_read_invalid");
+      }
+      if (bytesRead === 0) break;
+      bodyLength += bytesRead;
+    }
+    if (bodyLength > PUBLIC_DATANET_STATIC_MAX_BYTES) {
+      throw new Error("public_datanet_static_size_invalid");
+    }
+
+    const after = await handle.stat({ bigint: true });
+    if (
+      before.dev !== after.dev ||
+      before.ino !== after.ino ||
+      before.size !== after.size ||
+      before.mtimeNs !== after.mtimeNs ||
+      before.ctimeNs !== after.ctimeNs ||
+      BigInt(bodyLength) !== before.size
+    ) {
+      throw new Error("public_datanet_static_generation_changed");
+    }
+
+    await assertPublicDataNetStaticRootPathPinnedV1();
+    return body.subarray(0, bodyLength);
+  } finally {
+    await handle.close();
+  }
+}
+
+async function servePublicDataNetStaticV1(req, res, url) {
+  const route = PUBLIC_DATANET_STATIC_ROUTES.get(url.pathname);
+  if (!route) return false;
+
+  const method = String(req.method || "GET").toUpperCase();
+  if (method !== "GET" && method !== "HEAD") {
+    writeText(
+      req,
+      res,
+      405,
+      "method_not_allowed\n",
+      {
+        allow: "GET, HEAD",
+        "x-void-public-datanet-static": "v1",
+      },
+    );
+    return true;
+  }
+
+  if (url.search || url.hash) {
+    writeText(
+      req,
+      res,
+      400,
+      "query_not_allowed\n",
+      { "x-void-public-datanet-static": "v1" },
+    );
+    return true;
+  }
+
+  let body;
+  try {
+    body = await readPublicDataNetStaticFileV1(route.file);
+  } catch (_error) {
+    writeJson(
+      req,
+      res,
+      503,
+      {
+        ok: false,
+        marker: PUBLIC_DATANET_STATIC_MARKER,
+        error: "public_datanet_static_unavailable",
+      },
+      { "x-void-public-datanet-static": "v1" },
+    );
+    return true;
+  }
+
+  res.writeHead(200, {
+    "content-type": route.contentType,
+    "content-length": String(body.length),
+    "cache-control": "no-store",
+    "x-content-type-options": "nosniff",
+    "x-void-public-seed-adapter": "v1",
+    "x-void-public-datanet-static": "v1",
+  });
+  if (method === "HEAD") {
+    res.end();
+  } else {
+    res.end(body);
+  }
+  return true;
+}
 
 const exactAllow = new Set([
   "/wc-proofs/latest",
@@ -215,6 +461,24 @@ function safeFiniteNumber(value) {
   return Number.isFinite(parsed) ? parsed : null;
 }
 
+function strictFiniteNumber(value) {
+  return typeof value === "number" && Number.isFinite(value) ? value : null;
+}
+
+function strictSafeInteger(value, minimum = 0) {
+  return (
+    typeof value === "number" &&
+    Number.isSafeInteger(value) &&
+    value >= minimum
+  )
+    ? value
+    : null;
+}
+
+function strictPositiveSafeInteger(value) {
+  return strictSafeInteger(value, 1);
+}
+
 // VOID_PUBLIC_EARN_GATEWAY_CAPABILITY_FORWARDING_V1
 function validatedEarnCapabilityAuthorization(value) {
   if (typeof value !== "string") return null;
@@ -303,19 +567,41 @@ function filteredHeaders(source, extra = {}) {
   return output;
 }
 
-async function boundedResponseBody(response, maximum) {
-  const body = Buffer.from(await response.arrayBuffer());
-  if (body.length > maximum) throw new Error("upstream_response_too_large");
-  return body;
+async function boundedResponseBody(response, maximum, abort) {
+  return readBoundedBytesOwned(response, {
+    maximumBytes: maximum,
+    abort,
+    trimContentLength: false,
+    invalidContentLengthError: "upstream_response_invalid_content_length",
+    bodyTooLargeError: "upstream_response_too_large",
+    invalidChunkError: "upstream_response_invalid_chunk",
+    bodyUnavailableError: "upstream_response_body_unavailable",
+    bodyUnavailableAsEmpty: true,
+  });
 }
 
 async function fetchWithTimeout(url, options, timeoutMs) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
-  try {
-    return await fetch(url, { ...options, signal: controller.signal, redirect: "manual" });
-  } finally {
+  let released = false;
+  const abort = (reason) => {
+    if (!controller.signal.aborted) controller.abort(reason);
+  };
+  const release = () => {
+    if (released) return;
+    released = true;
     clearTimeout(timer);
+  };
+  try {
+    const response = await fetch(url, {
+      ...options,
+      signal: controller.signal,
+      redirect: "manual",
+    });
+    return { response, abort, release };
+  } catch (error) {
+    release();
+    throw error;
   }
 }
 
@@ -326,6 +612,7 @@ function publicReadUpstream(url) {
 }
 
 async function proxyRead(req, res, url) {
+  if (await servePublicDataNetStaticV1(req, res, url)) return;
   const readUpstream = publicReadUpstream(url);
   if (!readUpstream) {
     writeJson(req, res, 503, {
@@ -343,34 +630,46 @@ async function proxyRead(req, res, url) {
     ? publicDataNetFetchUpstreamSearch(url.search)
     : url.search;
   const upstreamUrl = `${readUpstream}${url.pathname}${upstreamSearch}`;
-  const response = await fetchWithTimeout(
+  const request = await fetchWithTimeout(
     upstreamUrl,
     { method: req.method },
     EARN_REQUEST_TIMEOUT_MS,
   );
-  const body = req.method === "HEAD" ? Buffer.alloc(0) : await boundedResponseBody(response, PROXY_MAX_RESPONSE_BYTES);
-  res.writeHead(response.status, filteredHeaders(response.headers));
-  if (req.method === "HEAD") return res.end();
-  res.end(body);
+  try {
+    const { response } = request;
+    const body = req.method === "HEAD"
+      ? Buffer.alloc(0)
+      : await boundedResponseBody(response, PROXY_MAX_RESPONSE_BYTES, request.abort);
+    res.writeHead(response.status, filteredHeaders(response.headers));
+    if (req.method === "HEAD") return res.end();
+    res.end(body);
+  } finally {
+    request.release();
+  }
 }
 
 async function fetchEarnJson(pathname, search = "") {
   if (!publicEarnEnabled()) {
     return { status: 503, body: { ok: false, error: "public_earn_gateway_disabled" } };
   }
-  const response = await fetchWithTimeout(
+  const request = await fetchWithTimeout(
     `${EARN_UPSTREAM}${pathname}${search}`,
     { method: "GET", headers: { accept: "application/json" } },
     EARN_REQUEST_TIMEOUT_MS,
   );
-  const raw = await boundedResponseBody(response, EARN_MAX_RESPONSE_BYTES);
-  let body;
   try {
-    body = JSON.parse(raw.toString("utf8"));
-  } catch {
-    body = { ok: false, error: "invalid_coordinator_json" };
+    const { response } = request;
+    const raw = await boundedResponseBody(response, EARN_MAX_RESPONSE_BYTES, request.abort);
+    let body;
+    try {
+      body = JSON.parse(raw.toString("utf8"));
+    } catch (_error) {
+      body = { ok: false, error: "invalid_coordinator_json" };
+    }
+    return { status: response.status, body };
+  } finally {
+    request.release();
   }
-  return { status: response.status, body };
 }
 
 function sanitizeCoordinatorHealth(value) {
@@ -383,6 +682,7 @@ function sanitizeCoordinatorHealth(value) {
 }
 
 function sanitizePilotStatus(value) {
+  const gateway = gatewayStatus();
   const capability = value && typeof value.capability === "object" ? value.capability : {};
   const caps = value && typeof value.caps === "object" ? value.caps : {};
   const publicClaim =
@@ -390,23 +690,33 @@ function sanitizePilotStatus(value) {
   return {
     ok: value?.ok === true,
     marker: safeString(value?.marker, 96),
-    gateway_marker: "VOID_PUBLIC_EARN_GATEWAY_V1",
+    gateway_marker: gateway.marker,
+    // Publish one response-local capability snapshot; clients must not borrow
+    // this authority from a separately fetched gateway response.
+    gateway_contract: {
+      marker: gateway.marker,
+      routes: { claim_ticket: gateway.routes.claim_ticket },
+      methods: { claim_ticket: gateway.methods.claim_ticket },
+      safety: {
+        claim_executor_key_possession_required: gateway.safety.claim_executor_key_possession_required,
+      },
+    },
     coordinator_enabled: safeBoolean(value?.coordinator_enabled),
     executor_enabled: safeBoolean(value?.executor_enabled),
     task_class: safeString(value?.task_class, 96),
-    fixed_award_wc: safeFiniteNumber(value?.fixed_award_wc),
+    fixed_award_wc: strictFiniteNumber(value?.fixed_award_wc),
     caps: {
-      account_total: safeFiniteNumber(caps.account_total) ?? 0,
+      account_total: strictSafeInteger(caps.account_total),
       account_limit:
-        safeFiniteNumber(caps.account_limit) ??
-        safeFiniteNumber(caps.per_account),
-      global_limit: safeFiniteNumber(caps.global),
+        strictPositiveSafeInteger(caps.account_limit) ??
+        strictPositiveSafeInteger(caps.per_account),
+      global_limit: strictPositiveSafeInteger(caps.global),
       global_active:
-        safeFiniteNumber(caps.global_active) ??
-        safeFiniteNumber(caps.active_issued),
+        strictSafeInteger(caps.global_active) ??
+        strictSafeInteger(caps.active_issued),
       global_consumed:
-        safeFiniteNumber(caps.global_consumed) ??
-        safeFiniteNumber(caps.consumed),
+        strictSafeInteger(caps.global_consumed) ??
+        strictSafeInteger(caps.consumed),
     },
     capability: {
       account_bound: safeBoolean(capability.account_bound),
@@ -429,9 +739,9 @@ function sanitizePilotStatus(value) {
       marker: safeString(publicClaim.marker, 96),
       enabled: safeBoolean(publicClaim.enabled),
       available: safeBoolean(publicClaim.available),
-      public_route: gatewayStatus().routes.claim_ticket,
+      public_route: gateway.routes.claim_ticket,
       task_class: safeString(publicClaim.task_class, 96),
-      fixed_award_wc: safeFiniteNumber(publicClaim.fixed_award_wc),
+      fixed_award_wc: strictFiniteNumber(publicClaim.fixed_award_wc),
       transport_mode: safeString(publicClaim.transport_mode, 32),
       server_selected_work: safeBoolean(publicClaim.server_selected_work),
       proof_of_executor_key_possession_required: safeBoolean(
@@ -449,16 +759,16 @@ function sanitizePilotStatus(value) {
       one_active_ticket_per_executor: safeBoolean(
         publicClaim.one_active_ticket_per_executor,
       ),
-      ticket_ttl_ms: safeFiniteNumber(publicClaim.ticket_ttl_ms),
-      cooldown_ms: safeFiniteNumber(publicClaim.cooldown_ms),
-      max_claims_per_account_24h: safeFiniteNumber(
+      ticket_ttl_ms: strictPositiveSafeInteger(publicClaim.ticket_ttl_ms),
+      cooldown_ms: strictPositiveSafeInteger(publicClaim.cooldown_ms),
+      max_claims_per_account_24h: strictPositiveSafeInteger(
         publicClaim.max_claims_per_account_24h,
       ),
-      max_claims_per_executor_24h: safeFiniteNumber(
+      max_claims_per_executor_24h: strictPositiveSafeInteger(
         publicClaim.max_claims_per_executor_24h,
       ),
-      global_active_cap: safeFiniteNumber(publicClaim.global_active_cap),
-      global_claims_per_24h: safeFiniteNumber(
+      global_active_cap: strictPositiveSafeInteger(publicClaim.global_active_cap),
+      global_claims_per_24h: strictPositiveSafeInteger(
         publicClaim.global_claims_per_24h,
       ),
       work_available: safeBoolean(publicClaim.work_available),
@@ -468,8 +778,8 @@ function sanitizePilotStatus(value) {
       participant_selected_award: false,
       money_movement: false,
     },
-    routes: gatewayStatus().routes,
-    safety: gatewayStatus().safety,
+    routes: gateway.routes,
+    safety: gateway.safety,
   };
 }
 
@@ -649,7 +959,7 @@ async function proxyEarnClaim(req, res) {
   let parsedBody;
   try {
     parsedBody = JSON.parse(body.toString("utf8"));
-  } catch {
+  } catch (_error) {
     writeJson(req, res, 400, { ok: false, error: "invalid_json" });
     return;
   }
@@ -658,7 +968,7 @@ async function proxyEarnClaim(req, res) {
     return;
   }
 
-  const response = await fetchWithTimeout(
+  const request = await fetchWithTimeout(
     `${EARN_UPSTREAM}${EARN_CLAIM_PATH}`,
     {
       method: "POST",
@@ -672,17 +982,26 @@ async function proxyEarnClaim(req, res) {
     },
     EARN_REQUEST_TIMEOUT_MS,
   );
-  const responseBody = await boundedResponseBody(response, EARN_MAX_RESPONSE_BYTES);
-  res.writeHead(
-    response.status,
-    filteredHeaders(response.headers, {
-      "cache-control": "no-store",
-      "x-content-type-options": "nosniff",
-      "x-void-public-earn-gateway": "v1",
-      "x-void-public-ticket-claim": "v1",
-    }),
-  );
-  res.end(responseBody);
+  try {
+    const { response } = request;
+    const responseBody = await boundedResponseBody(
+      response,
+      EARN_MAX_RESPONSE_BYTES,
+      request.abort,
+    );
+    res.writeHead(
+      response.status,
+      filteredHeaders(response.headers, {
+        "cache-control": "no-store",
+        "x-content-type-options": "nosniff",
+        "x-void-public-earn-gateway": "v1",
+        "x-void-public-ticket-claim": "v1",
+      }),
+    );
+    res.end(responseBody);
+  } finally {
+    request.release();
+  }
 }
 
 async function proxyEarnSubmit(req, res) {
@@ -725,7 +1044,7 @@ async function proxyEarnSubmit(req, res) {
   let parsedBody;
   try {
     parsedBody = JSON.parse(body.toString("utf8"));
-  } catch {
+  } catch (_error) {
     writeJson(req, res, 400, { ok: false, error: "invalid_json" });
     return;
   }
@@ -739,7 +1058,7 @@ async function proxyEarnSubmit(req, res) {
     return;
   }
 
-  const response = await fetchWithTimeout(
+  const request = await fetchWithTimeout(
     `${EARN_UPSTREAM}${EARN_SUBMIT_PATH}`,
     {
       method: "POST",
@@ -754,22 +1073,31 @@ async function proxyEarnSubmit(req, res) {
     },
     EARN_REQUEST_TIMEOUT_MS,
   );
-  const responseBody = await boundedResponseBody(response, EARN_MAX_RESPONSE_BYTES);
-  res.writeHead(
-    response.status,
-    filteredHeaders(response.headers, {
-      "cache-control": "no-store",
-      "x-void-public-earn-gateway": "v1",
-    }),
-  );
-  res.end(responseBody);
+  try {
+    const { response } = request;
+    const responseBody = await boundedResponseBody(
+      response,
+      EARN_MAX_RESPONSE_BYTES,
+      request.abort,
+    );
+    res.writeHead(
+      response.status,
+      filteredHeaders(response.headers, {
+        "cache-control": "no-store",
+        "x-void-public-earn-gateway": "v1",
+      }),
+    );
+    res.end(responseBody);
+  } finally {
+    request.release();
+  }
 }
 
 function serveShellScript(req, res, file, filename, unavailable) {
   let stat;
   try {
     stat = fs.statSync(file);
-  } catch {
+  } catch (_error) {
     writeText(req, res, 404, `${unavailable}\n`);
     return;
   }
@@ -814,7 +1142,7 @@ function serveNoNodeClient(req, res) {
   let stat;
   try {
     stat = fs.statSync(EARN_NO_NODE_CLIENT_FILE);
-  } catch (error) {
+  } catch (_error) {
     writeText(req, res, 404, "no_node_client_unavailable\n");
     return;
   }

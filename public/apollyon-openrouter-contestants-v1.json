@@ -1,0 +1,206 @@
+{
+  "marker": "VOID_APOLLYON_OPENROUTER_CONTESTANT_REGISTRY_V1",
+  "version": 1,
+  "reviewed_at_utc": "2026-08-24T09:20:00.000Z",
+  "default_model": "stealth/ox-alpha",
+  "contestants": [
+    {
+      "model": "stealth/ox-alpha",
+      "status": "qualified",
+      "scored_trial_eligible": false,
+      "zero_price_required": true,
+      "min_context_length": 1048576,
+      "max_tokens_cap": 32768,
+      "retention_class": "prompts_and_completions_retained_not_used_for_training_per_provider_disclosure",
+      "provider_policy": {
+        "allow_fallbacks": false,
+        "require_parameters": true,
+        "data_collection": null,
+        "zdr": false,
+        "only": []
+      },
+      "privacy_class": "retained_public_only",
+      "canonical_slug": "stealth/ox-alpha"
+    },
+    {
+      "model": "deepseek/deepseek-v4-flash:free",
+      "status": "quarantined",
+      "scored_trial_eligible": false,
+      "zero_price_required": true,
+      "min_context_length": 1048576,
+      "max_tokens_cap": 32768,
+      "retention_class": "catalog_absent_2026_08_24_requalification_required",
+      "provider_policy": {
+        "allow_fallbacks": false,
+        "require_parameters": true,
+        "data_collection": "deny",
+        "zdr": true,
+        "only": []
+      },
+      "privacy_class": "zdr_public_or_sanitized",
+      "canonical_slug": null
+    },
+    {
+      "model": "deepseek/deepseek-r1:free",
+      "status": "quarantined",
+      "scored_trial_eligible": false,
+      "zero_price_required": true,
+      "min_context_length": 163840,
+      "max_tokens_cap": 32768,
+      "retention_class": "catalog_absent_2026_08_24_requalification_required",
+      "provider_policy": {
+        "allow_fallbacks": false,
+        "require_parameters": true,
+        "data_collection": "deny",
+        "zdr": true,
+        "only": []
+      },
+      "privacy_class": "zdr_public_or_sanitized",
+      "canonical_slug": null
+    },
+    {
+      "model": "deepseek/deepseek-chat:free",
+      "status": "quarantined",
+      "scored_trial_eligible": false,
+      "zero_price_required": true,
+      "min_context_length": 131072,
+      "max_tokens_cap": 32768,
+      "retention_class": "catalog_absent_2026_08_24_requalification_required",
+      "provider_policy": {
+        "allow_fallbacks": false,
+        "require_parameters": true,
+        "data_collection": "deny",
+        "zdr": true,
+        "only": []
+      },
+      "privacy_class": "zdr_public_or_sanitized",
+      "canonical_slug": null
+    },
+    {
+      "model": "deepseek/deepseek-r1-0528-qwen3-8b:free",
+      "status": "quarantined",
+      "scored_trial_eligible": false,
+      "zero_price_required": true,
+      "min_context_length": 131072,
+      "max_tokens_cap": 32768,
+      "retention_class": "catalog_absent_2026_08_24_requalification_required",
+      "provider_policy": {
+        "allow_fallbacks": false,
+        "require_parameters": true,
+        "data_collection": "deny",
+        "zdr": true,
+        "only": []
+      },
+      "privacy_class": "zdr_public_or_sanitized",
+      "canonical_slug": null
+    },
+    {
+      "model": "z-ai/glm-5.2:free",
+      "status": "qualification_only",
+      "scored_trial_eligible": false,
+      "zero_price_required": true,
+      "min_context_length": 256000,
+      "max_tokens_cap": 32768,
+      "retention_class": "catalog_zero_price_free_agentic_reasoning_requires_zdr_and_data_collection_deny_routing",
+      "provider_policy": {
+        "allow_fallbacks": false,
+        "require_parameters": true,
+        "data_collection": "deny",
+        "zdr": true,
+        "only": []
+      },
+      "privacy_class": "zdr_public_or_sanitized",
+      "canonical_slug": "z-ai/glm-5.2-20260616"
+    },
+    {
+      "model": "cohere/north-mini-code:free",
+      "status": "qualified",
+      "scored_trial_eligible": false,
+      "zero_price_required": true,
+      "min_context_length": 256000,
+      "max_tokens_cap": 32768,
+      "retention_class": "qualified_public_source_only_provider_retention_or_training_allowed",
+      "provider_policy": {
+        "allow_fallbacks": false,
+        "require_parameters": true,
+        "data_collection": "allow",
+        "zdr": false,
+        "only": []
+      },
+      "privacy_class": "retained_public_only",
+      "canonical_slug": "cohere/north-mini-code-20260617"
+    },
+    {
+      "model": "poolside/laguna-s-2.1:free",
+      "status": "qualified",
+      "scored_trial_eligible": false,
+      "zero_price_required": true,
+      "min_context_length": 262144,
+      "max_tokens_cap": 32768,
+      "retention_class": "qualified_public_source_only_provider_retention_or_training_allowed",
+      "provider_policy": {
+        "allow_fallbacks": false,
+        "require_parameters": true,
+        "data_collection": "allow",
+        "zdr": false,
+        "only": []
+      },
+      "privacy_class": "retained_public_only",
+      "canonical_slug": "poolside/laguna-s-2.1-20260720"
+    },
+    {
+      "model": "thinkingmachines/inkling:free",
+      "status": "quarantined",
+      "scored_trial_eligible": false,
+      "zero_price_required": true,
+      "min_context_length": 262144,
+      "max_tokens_cap": 32768,
+      "retention_class": "agentic_harness_required_plain_chat_transport_incompatible_2026_08_24",
+      "provider_policy": {
+        "allow_fallbacks": false,
+        "require_parameters": true,
+        "data_collection": "allow",
+        "zdr": false,
+        "only": []
+      },
+      "privacy_class": "retained_public_only",
+      "canonical_slug": "thinkingmachines/inkling-20260715"
+    },
+    {
+      "model": "nvidia/nemotron-3.5-lightning:free",
+      "status": "qualification_only",
+      "scored_trial_eligible": false,
+      "zero_price_required": true,
+      "min_context_length": 1000000,
+      "max_tokens_cap": 32768,
+      "retention_class": "public_source_only_provider_retention_or_training_allowed",
+      "provider_policy": {
+        "allow_fallbacks": false,
+        "require_parameters": true,
+        "data_collection": "allow",
+        "zdr": false,
+        "only": []
+      },
+      "privacy_class": "retained_public_only",
+      "canonical_slug": "nvidia/nemotron-3.5-lightning-20260807"
+    },
+    {
+      "model": "dots-studio/dots-3-note-preview:free",
+      "status": "qualification_only",
+      "scored_trial_eligible": false,
+      "zero_price_required": true,
+      "min_context_length": 512000,
+      "max_tokens_cap": 32768,
+      "retention_class": "public_source_only_provider_retention_or_training_allowed",
+      "provider_policy": {
+        "allow_fallbacks": false,
+        "require_parameters": true,
+        "data_collection": "allow",
+        "zdr": false,
+        "only": []
+      },
+      "privacy_class": "retained_public_only",
+      "canonical_slug": "dots-studio/dots-3-note-preview-20260813"
+    }
+  ]
+}

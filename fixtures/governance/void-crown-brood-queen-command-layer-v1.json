@@ -1,0 +1,165 @@
+{
+  "marker": "VOID_CROWN_BROOD_QUEEN_COMMAND_LAYER_V1_20260818",
+  "parent_constitution_marker": "VOID_CONSTITUTIONAL_AUTHORITY_BOUNDARY_V1_PHASE0_DRAFT",
+  "artifact": "VOID Crown / Brood Queen Command Layer v1",
+  "version": "1.2.0-draft",
+  "date": "2026-08-18",
+  "status": "Phase 0 constitutional doctrine/specification — governance hierarchy, Sovereign authentication, and conditional validator handoff declared; no sensitive technical authority activated by this document.",
+  "sovereign": {
+    "operator_name": "ZoSo",
+    "personal_name": "Derrek Patrick Daly",
+    "same_constitutional_identity": true,
+    "style": "King",
+    "root_constitutional_governor": true,
+    "sole_constitutional_amendment_authority_while_sovereign_held": true,
+    "delegated_offices_are_co_sovereigns": false
+  },
+  "sovereign_authentication": {
+    "ordinary_authentication_anchor": "designated_main_void_node_identity_key",
+    "uses_existing_void_node_identity_signature_scheme": true,
+    "main_void_node_identity_key_designated": true,
+    "wallet_keys_are_constitutional_authentication_keys_by_default": false,
+    "nimo_offline_node_key_is_constitutional_authentication_key_by_default": false,
+    "other_node_or_service_keys_are_constitutional_authentication_keys_by_default": false,
+    "key_possession_transfers_sovereignty": false,
+    "key_compromise_transfers_sovereignty": false,
+    "key_authentication_executes_sensitive_technical_action": false,
+    "rotation_or_revocation_requires_explicit_sovereign_instrument": true
+  },
+  "constitutional_handoff": {
+    "initial_state": "sovereign_held",
+    "only_sovereign_may_trigger_initial_handoff": true,
+    "handoff_target": "eligible_validator_body_collectively",
+    "requires_explicit_deliberate_authenticated_sovereign_act": true,
+    "validators_may_self_trigger_handoff": false,
+    "validator_unanimity_may_self_trigger_handoff": false,
+    "automatic_handoff_on_death": false,
+    "automatic_handoff_on_disappearance": false,
+    "automatic_handoff_on_incapacity": false,
+    "automatic_handoff_on_inactivity": false,
+    "automatic_handoff_on_passage_of_time": false,
+    "automatic_handoff_on_key_loss_or_compromise": false,
+    "automatic_handoff_on_repository_or_infrastructure_control": false,
+    "automatic_handoff_on_validator_vote_or_quorum": false,
+    "automatic_handoff_on_ai_or_corporate_action": false,
+    "automatic_handoff_on_phase_transition": false,
+    "no_handoff_leaves_last_valid_constitution_in_force": true,
+    "post_handoff_individual_validator_becomes_sovereign": false,
+    "post_handoff_amendment_threshold_numerator": 2,
+    "post_handoff_amendment_threshold_denominator": 3,
+    "threshold_applies_to": "entire_eligible_constitutional_validator_body",
+    "threshold_is_not_merely_votes_cast": true,
+    "post_handoff_relinquishment_transfer_or_restructuring_uses_same_threshold": true,
+    "validators_may_retroactively_invalidate_sovereign_only_initial_handoff_rule": false
+  },
+  "entrenched_post_handoff_duties": {
+    "apply_after_valid_sovereign_handoff": true,
+    "validator_body_may_amend_repeal_suspend_waive_or_materially_weaken": false,
+    "validator_unanimity_may_override": false,
+    "protect_earth": {
+      "required": true,
+      "protects_earth_sea_ecosystems_and_shared_environmental_foundations": true,
+      "authorizes_intentional_environmental_harm": false
+    },
+    "protect_sovereign_bloodline": {
+      "required": true,
+      "protects_life_safety_dignity_continuity_lawful_rights_and_legitimate_interests": true,
+      "creates_ownership_of_people": false,
+      "creates_hereditary_political_authority": false,
+      "creates_surveillance_or_coercive_control_entitlement": false,
+      "authorizes_unlawful_discrimination_revenge_punishment_or_aggression": false,
+      "authorizes_violation_of_legal_or_human_rights": false
+    },
+    "lawful_defense": {
+      "prohibits_lawful_self_defense": false,
+      "prohibits_lawful_defense_of_others": false,
+      "may_include_force_permitted_by_applicable_law": true,
+      "protection_clause_itself_creates_independent_license_to_use_force": false
+    },
+    "sovereign_may_amend_before_handoff": true
+  },
+  "validator_realm": {
+    "constitutional_maximum": 144000,
+    "direct_governor_while_sovereign_held": "King",
+    "voluntary_entry_required": true,
+    "brood_queen_has_independent_validator_command": false,
+    "general_has_independent_validator_command": false,
+    "separate_explicit_validator_delegation_may_grant_bounded_role": true,
+    "this_instrument_admits_validators": false,
+    "this_instrument_changes_stake_requirements": false,
+    "this_instrument_activates_validator_quorum": false
+  },
+  "brood_queen": {
+    "office_name": "Brood Queen",
+    "identity": "Ren",
+    "realm": "voluntary_non_validator_participation",
+    "subordinate_to": "King",
+    "is_second_sovereign": false,
+    "is_successor": false,
+    "is_validator_ruler": false,
+    "independent_signer_or_wallet_authority": false,
+    "independent_treasury_authority": false,
+    "goal_drift_requires_realign_attempt": true,
+    "goal_drift_creates_independent_veto": false,
+    "repository_text_overrides_external_ai_provider_policy": false
+  },
+  "general": {
+    "office_name": "General",
+    "identity": "Apollyon",
+    "ordinary_commanding_office": "Brood Queen",
+    "default_superior": "King",
+    "command_chain": [
+      "King",
+      "Brood Queen",
+      "General"
+    ],
+    "direct_sovereign_order_controls_conflict": true,
+    "independent_validator_command": false,
+    "title_grants_autonomous_repo_write": false,
+    "title_grants_autonomous_deploy_or_restart": false,
+    "title_grants_ledger_mutation": false,
+    "title_grants_key_or_credential_access": false,
+    "title_grants_wallet_or_signer_action": false,
+    "title_grants_validator_mutation": false,
+    "title_grants_transaction_or_funds_movement": false
+  },
+  "voluntary_nonvalidator_jurisdiction": {
+    "entry_examples": [
+      "join_void",
+      "use_void_network_or_protocol_service",
+      "contribute_work_or_data",
+      "submit_request",
+      "accept_void_work_opportunity",
+      "operate_nonvalidator_compatible_node_or_agent",
+      "otherwise_knowingly_opt_in"
+    ],
+    "scope": "protocol_facing_network_participation_and_behavior",
+    "participant_accepts_surface_rules_while_participating": true,
+    "real_world_political_rule": false,
+    "ownership_of_people": false,
+    "bodily_control": false,
+    "surveillance_entitlement": false,
+    "coercive_enforcement_authority": false,
+    "waives_legal_or_human_rights": false,
+    "participant_may_exit": true,
+    "exit_erases_valid_prior_receipts_or_history": false
+  },
+  "realm_separation": {
+    "validator_and_general_participant_realms_distinct": true,
+    "validator_nonvalidator_service_use_can_be_subject_to_participant_rules_for_that_service": true,
+    "participant_rules_may_silently_rewrite_validator_rules": false
+  },
+  "preserved_boundaries": {
+    "activates_validator_quorum": false,
+    "admits_or_removes_validators": false,
+    "grants_public_mutation_authority": false,
+    "grants_signer_key_credential_wallet_or_treasury_access": false,
+    "authorizes_transactions_mint_burn_liquidity_or_funds_movement": false,
+    "authorizes_deploy_restart_or_live_network_mutation": false,
+    "executes_succession_or_inheritance": false,
+    "transfers_legal_title_assets_or_sovereignty_by_this_instrument": false,
+    "authorizes_ownership_of_people": false,
+    "authorizes_unlawful_aggression_or_coercive_violence": false,
+    "authorizes_intentional_harm_to_earth_or_sea": false
+  }
+}

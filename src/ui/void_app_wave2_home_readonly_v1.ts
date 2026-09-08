@@ -1,5 +1,12 @@
 import "./void_app_wave3_wallet_readonly_v1.js";
 import os from "node:os";
+import {
+  evaluateVoidUiWave2HomeOperationalEvidenceV1,
+  fetchVoidUiWave2HomeSourceJsonV1,
+  resolveVoidUiWave2HomeSourceBaseV1,
+  type VoidUiWave2HomeSourceResultV1,
+  VoidUiWave2HomeSnapshotBuildOwnerV1,
+} from "./void_app_wave2_home_source_fetch_v1.js";
 
 const G: any = globalThis as any;
 const INSTALL_MARK = "__void_app_wave2_home_readonly_v1";
@@ -7,12 +14,7 @@ const HOME_ROUTE = "/__void/ui/wave2/home.json";
 const STATUS_ROUTE = "/__void/ui/wave2-home-v1/status.json";
 const ROUTE_MARKER = "VOID_UI_WAVE2_HOME_READONLY_V1";
 
-type SourceResult = {
-  ok: boolean;
-  status: number;
-  body: any;
-  error?: string;
-};
+type SourceResult = VoidUiWave2HomeSourceResultV1;
 
 type HomeSnapshot = {
   ok: true;
@@ -30,7 +32,7 @@ type HomeSnapshot = {
     health: "healthy" | "degraded";
     ready: boolean;
     chain_head: number | null;
-    peer_count: number;
+    peer_count: number | null;
     expected_peer_count: 2;
   };
   account: {
@@ -67,6 +69,9 @@ if (!G[INSTALL_MARK]) {
     mounted_at_ms: 0,
   };
 
+  const snapshotBuildOwner =
+    new VoidUiWave2HomeSnapshotBuildOwnerV1<HomeSnapshot>();
+
   const isLoopback = (req: any): boolean => {
     const raw = String(
       req?.socket?.remoteAddress ||
@@ -92,79 +97,17 @@ if (!G[INSTALL_MARK]) {
 
   const sourceBase = (): string => {
     const fallback = `http://127.0.0.1:${Number(process.env.HTTP_PORT || 4100)}`;
-    const candidate = String(
-      process.env.VOID_UI_HOME_SOURCE_BASE || fallback
-    ).trim();
-
-    try {
-      const parsed = new URL(candidate);
-      const allowedHost =
-        parsed.hostname === "127.0.0.1" ||
-        parsed.hostname === "localhost" ||
-        parsed.hostname === "::1";
-
-      if (
-        parsed.protocol !== "http:" ||
-        !allowedHost ||
-        (parsed.pathname !== "/" && parsed.pathname !== "") ||
-        parsed.search ||
-        parsed.hash ||
-        parsed.username ||
-        parsed.password
-      ) {
-        return fallback;
-      }
-
-      return `${parsed.protocol}//${parsed.host}`;
-    } catch {
-      return fallback;
-    }
+    return resolveVoidUiWave2HomeSourceBaseV1(
+      String(process.env.VOID_UI_HOME_SOURCE_BASE || fallback),
+      fallback
+    );
   };
 
   const fetchJson = async (
     base: string,
     route: string
-  ): Promise<SourceResult> => {
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 2500);
-    timeout.unref?.();
-
-    try {
-      const response = await fetch(`${base}${route}`, {
-        method: "GET",
-        headers: {
-          Accept: "application/json",
-          "User-Agent": "void-ui-wave2-home-readonly-v1",
-          "Cache-Control": "no-store",
-        },
-        signal: controller.signal,
-      });
-
-      const text = await response.text();
-      let body: any = null;
-
-      try {
-        body = text ? JSON.parse(text) : null;
-      } catch {
-        body = null;
-      }
-
-      return {
-        ok: response.ok,
-        status: response.status,
-        body,
-      };
-    } catch (error) {
-      return {
-        ok: false,
-        status: 0,
-        body: null,
-        error: error instanceof Error ? error.message : String(error),
-      };
-    } finally {
-      clearTimeout(timeout);
-    }
-  };
+  ): Promise<SourceResult> =>
+    fetchVoidUiWave2HomeSourceJsonV1(base, route);
 
   const nodeIdentity = (): HomeSnapshot["node"] => {
     const hostname = os.hostname();
@@ -185,25 +128,6 @@ if (!G[INSTALL_MARK]) {
     return { hostname, label: hostname, role: "local" };
   };
 
-  const chainHead = (body: any): number | null => {
-    const value =
-      body?.number ??
-      body?.height ??
-      body?.head ??
-      body?.latest ??
-      null;
-
-    const number = Number(value);
-    return Number.isFinite(number) ? number : null;
-  };
-
-  const peerCount = (body: any): number => {
-    if (Array.isArray(body)) return body.length;
-    if (Array.isArray(body?.connected)) return body.connected.length;
-    if (Array.isArray(body?.peers)) return body.peers.length;
-    return 0;
-  };
-
   const buildSnapshot = async (): Promise<HomeSnapshot> => {
     const base = sourceBase();
 
@@ -214,31 +138,12 @@ if (!G[INSTALL_MARK]) {
       fetchJson(base, "/p2p/peers"),
     ]);
 
-    const sourceAvailability =
-      health.status === 200 &&
-      ready.status === 200 &&
-      head.status === 200 &&
-      peers.status === 200;
-
-    const readyBody =
-      ready.body !== null &&
-      typeof ready.body === "object" &&
-      !Array.isArray(ready.body)
-        ? (ready.body as Record<string, unknown>)
-        : {};
-
-    const readyReasons = Array.isArray(readyBody.reasons)
-      ? readyBody.reasons.filter(
-          (reason): reason is string =>
-            typeof reason === "string" && reason.length > 0
-        )
-      : [];
-
-    const operationalReady =
-      sourceAvailability &&
-      readyBody.ready === true &&
-      readyBody.txroot_live === 1 &&
-      readyReasons.length === 0;
+    const evidence = evaluateVoidUiWave2HomeOperationalEvidenceV1({
+      health,
+      ready,
+      head,
+      peers,
+    });
 
     return {
       ok: true,
@@ -249,10 +154,10 @@ if (!G[INSTALL_MARK]) {
       source_base: base,
       node: nodeIdentity(),
       network: {
-        health: operationalReady ? "healthy" : "degraded",
-        ready: operationalReady,
-        chain_head: chainHead(head.body),
-        peer_count: peerCount(peers.body),
+        health: evidence.operational_ready ? "healthy" : "degraded",
+        ready: evidence.operational_ready,
+        chain_head: evidence.chain_head,
+        peer_count: evidence.peer_count,
         expected_peer_count: 2,
       },
       account: {
@@ -282,6 +187,9 @@ if (!G[INSTALL_MARK]) {
       },
     };
   };
+
+  const buildSnapshotCoalesced = (): Promise<HomeSnapshot> =>
+    snapshotBuildOwner.getOrStart(buildSnapshot);
 
   const mount = (): void => {
     const state = G[INSTALL_MARK];
@@ -340,7 +248,7 @@ if (!G[INSTALL_MARK]) {
 
     app.get(HOME_ROUTE, async (_req: any, res: any) => {
       securityHeaders(res);
-      return res.status(200).json(await buildSnapshot());
+      return res.status(200).json(await buildSnapshotCoalesced());
     });
 
     app.get(STATUS_ROUTE, (_req: any, res: any) => {
