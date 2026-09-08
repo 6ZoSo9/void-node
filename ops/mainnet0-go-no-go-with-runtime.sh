@@ -37,7 +37,7 @@ git status --short || true
 
 echo
 echo "=== [1] required main runtime proposer proof ==="
-make prove-main-runtime-autoprop
+MODE=idle make prove-main-runtime-autoprop
 
 echo
 echo "=== [2] required Alienware follower autostart proof ==="

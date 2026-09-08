@@ -8,6 +8,14 @@ on:
       - "scripts/prove_void_ai_agent_bootstrap_response_bounds_v1.mjs"
       - "docs/public/ai-agent-bootstrap-client-v1.md"
       - ".github/workflows/void-ai-agent-bootstrap-response-bounds-v1.yml"
+      - "public/.well-known/void-network-authenticity.json"
+      - "public/public-node/agents/discovery-v1.json"
+      - "public/.well-known/void-agent-capabilities.json"
+      - "public/.well-known/void-agent-authentication.json"
+      - "public/public-node/agents/first-contact-v1.json"
+      - "fixtures/external-opportunity/agent-intake-capability-v1.example.json"
+      - "schemas/void-ai-agent-bootstrap-client-v1.schema.json"
+      - "examples/void-ai-agent-bootstrap-client-v1.example.json"
   push:
     branches: [main]
     paths:
@@ -16,6 +24,14 @@ on:
       - "scripts/prove_void_ai_agent_bootstrap_response_bounds_v1.mjs"
       - "docs/public/ai-agent-bootstrap-client-v1.md"
       - ".github/workflows/void-ai-agent-bootstrap-response-bounds-v1.yml"
+      - "public/.well-known/void-network-authenticity.json"
+      - "public/public-node/agents/discovery-v1.json"
+      - "public/.well-known/void-agent-capabilities.json"
+      - "public/.well-known/void-agent-authentication.json"
+      - "public/public-node/agents/first-contact-v1.json"
+      - "fixtures/external-opportunity/agent-intake-capability-v1.example.json"
+      - "schemas/void-ai-agent-bootstrap-client-v1.schema.json"
+      - "examples/void-ai-agent-bootstrap-client-v1.example.json"
 
 permissions:
   contents: read
@@ -30,14 +46,19 @@ jobs:
       matrix:
         node: [22, 24, 26]
     steps:
-      - name: Checkout integration state
+      - name: Checkout exact source
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
         with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
           persist-credentials: false
       - name: Setup Node
         uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
         with:
           node-version: ${{ matrix.node }}
+      - name: Assert exact source head
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
       - name: Verify executable client mode
         run: |
           test "$(git ls-files -s -- tools/void-ai-agent-bootstrap-client-v1.mjs | awk '{print $1}')" = "100755"

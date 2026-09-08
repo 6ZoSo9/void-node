@@ -99,6 +99,7 @@ export function createDataNetRequestOwnerV1({
 
   let activeRequest = null;
   let startQueue = Promise.resolve();
+  let latestStartSerial = 0;
 
   const acquireStartSlot = async (sourceSignal) => {
     const predecessor = startQueue;
@@ -114,6 +115,12 @@ export function createDataNetRequestOwnerV1({
     }
 
     return releaseSlot;
+  };
+
+  const assertLatestStart = (serial) => {
+    if (serial !== latestStartSerial) {
+      throw new Error('DataNet request superseded before transport start');
+    }
   };
 
   const release = (request) => {
@@ -442,6 +449,7 @@ export function createDataNetRequestOwnerV1({
       return fetchImpl(input, init);
     }
 
+    const startSerial = ++latestStartSerial;
     const releaseStartSlot = await acquireStartSlot(init?.signal);
     let controller;
     let request;
@@ -449,11 +457,13 @@ export function createDataNetRequestOwnerV1({
     let rawFetch;
 
     try {
+      assertLatestStart(startSerial);
       if (activeRequest) {
         const priorRequest = activeRequest;
         abortRequest(priorRequest, 'DataNet request superseded');
         await waitForPriorRelease(priorRequest, init?.signal);
       }
+      assertLatestStart(startSerial);
 
       controller = new AbortController();
       let resolveReleased;
@@ -533,7 +543,10 @@ export function createDataNetRequestOwnerV1({
     return prevalidateResponse(request, response, requestedHref);
   };
 
-  const abort = (reason = 'DataNet request superseded') => abortRequest(activeRequest, reason);
+  const abort = (reason = 'DataNet request superseded') => {
+    latestStartSerial += 1;
+    return abortRequest(activeRequest, reason);
+  };
 
   return Object.freeze({
     fetch,

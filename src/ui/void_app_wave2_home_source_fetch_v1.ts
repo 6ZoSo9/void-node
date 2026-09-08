@@ -280,7 +280,9 @@ type VoidUiWave2HomeStreamReadResultV1 = Awaited<
 
 const readWithinSignal = async (
   reader: ReadableStreamDefaultReader<Uint8Array>,
-  signal: AbortSignal
+  signal: AbortSignal,
+  onBodyTerminal: (() => void) | undefined,
+  observePendingRead: (pending: Promise<VoidUiWave2HomeStreamReadResultV1>) => void
 ): Promise<VoidUiWave2HomeStreamReadResultV1> => {
   if (signal.aborted) {
     throw sourceDeadlineError(signal);
@@ -307,9 +309,26 @@ const readWithinSignal = async (
       onAbort = () => rejectOnce(sourceDeadlineError(signal));
 
       signal.addEventListener("abort", onAbort, { once: true });
-      Promise.resolve()
-        .then(() => reader.read())
-        .then(resolveOnce, rejectOnce);
+      let pending: Promise<VoidUiWave2HomeStreamReadResultV1>;
+      try {
+        pending = Promise.resolve(reader.read());
+      } catch (error) {
+        // A throwing accessor/call is not an observed stream terminal.
+        rejectOnce(error);
+        return;
+      }
+      observePendingRead(pending);
+      void pending.then(
+        (value) => {
+          // Observe the exact read even after the caller's deadline won.
+          if (value?.done === true) notifySuccessfulTerminal(onBodyTerminal);
+          resolveOnce(value);
+        },
+        (error) => {
+          notifySuccessfulTerminal(onBodyTerminal);
+          rejectOnce(error);
+        }
+      );
     }
   );
 };
@@ -468,6 +487,16 @@ export async function readVoidUiWave2HomeBoundedTextV1(
   let totalBytes = 0;
   let text = "";
   let cancellationAttempted = false;
+  const pendingReads = new Set<Promise<VoidUiWave2HomeStreamReadResultV1>>();
+  const observePendingRead = (
+    pending: Promise<VoidUiWave2HomeStreamReadResultV1>
+  ): void => {
+    pendingReads.add(pending);
+    void pending.then(
+      () => { pendingReads.delete(pending); },
+      () => { pendingReads.delete(pending); }
+    );
+  };
 
   const cancelReaderBounded = async (reason: unknown): Promise<void> => {
     if (cancellationAttempted) return;
@@ -481,7 +510,9 @@ export async function readVoidUiWave2HomeBoundedTextV1(
 
   try {
     while (true) {
-      const { done, value } = await readWithinSignal(reader, signal);
+      const { done, value } = await readWithinSignal(
+        reader, signal, onBodyTerminal, observePendingRead
+      );
       if (done) break;
       if (!(value instanceof Uint8Array)) {
         throw new Error("source_body_chunk_invalid");
@@ -502,11 +533,17 @@ export async function readVoidUiWave2HomeBoundedTextV1(
     await cancelReaderBounded(error);
     throw error;
   } finally {
-    try {
-      reader.releaseLock();
-    } catch {
-      // Reader cleanup is best effort only.
-    }
+    const releaseLock = (): void => {
+      try {
+        reader.releaseLock();
+      } catch {
+        // Reader cleanup is best effort only.
+      }
+    };
+    // releaseLock() rejects pending native reads. Do not manufacture a
+    // terminal witness by releasing while an exact read is still outstanding.
+    if (pendingReads.size === 0) releaseLock();
+    else void Promise.allSettled([...pendingReads]).then(releaseLock);
   }
 }
 

@@ -65,9 +65,151 @@ const assertQuarantinedRetries = async (input: {
   }
 };
 
+async function proveReadTerminals(): Promise<void> {
+  const base = "http://127.0.0.1:4100";
+  const key = "/health";
+  const nativeOwner = new VoidUiWave2HomeSourceAcquisitionOwnerV1();
+  const nativeError = await fetchVoidUiWave2HomeSourceJsonV1(base, key, {
+    acquisitionOwner: nativeOwner,
+    fetchImpl: async () => new Response(new ReadableStream<Uint8Array>({
+      pull(controller) { controller.error(new Error("upstream_reset")); },
+    })),
+  });
+  assert.equal(nativeError.error, "upstream_reset");
+  assert.equal(nativeOwner.hasPending(key), false, "native read rejection must retire ownership");
+  assert.equal((await fetchVoidUiWave2HomeSourceJsonV1(base, key, {
+    acquisitionOwner: nativeOwner,
+    fetchImpl: async () => new Response('{"ok":true}'),
+  })).ok, true);
+
+  for (const mode of ["eof", "reject", "chunk", "cancel-first", "read-first", "call-throw", "getter-throw"] as const) {
+    class CountingOwner extends VoidUiWave2HomeSourceAcquisitionOwnerV1 {
+      finishes = 0;
+      override finish(value: string): void {
+        if (value === key) this.finishes += 1;
+        super.finish(value);
+      }
+    }
+    const owner = new CountingOwner();
+    let resolveRead!: (value: ReadableStreamReadResult<Uint8Array>) => void;
+    let rejectRead!: (error: Error) => void;
+    const read = new Promise<ReadableStreamReadResult<Uint8Array>>((resolve, reject) => {
+      resolveRead = resolve;
+      rejectRead = reject;
+    });
+    const cancel = deferred();
+    let fetches = 0;
+    let releases = 0;
+    let reads = 0;
+    const reader = {
+      read() {
+        reads += 1;
+        if (mode === "call-throw") throw new Error("read_call_failed");
+        return read;
+      },
+      cancel: () => cancel.promise,
+      releaseLock() { releases += 1; },
+    };
+    if (mode === "getter-throw") Object.defineProperty(reader, "read", {
+      get() { throw new Error("read_getter_failed"); },
+    });
+    const started = Date.now();
+    const failed = await fetchVoidUiWave2HomeSourceJsonV1(base, key, {
+      timeoutMs: 30,
+      acquisitionOwner: owner,
+      fetchImpl: async () => {
+        fetches += 1;
+        return { headers: new Headers(), body: { getReader: () => reader } } as unknown as Response;
+      },
+    });
+    assert.equal(failed.ok, false, mode);
+    assert.equal(failed.error, mode === "call-throw" ? "read_call_failed" :
+      mode === "getter-throw" ? "read_getter_failed" : "source_deadline_exceeded");
+    assert.ok(Date.now() - started < 30 + VOID_UI_WAVE2_HOME_SOURCE_TEARDOWN_MS_V1 + 250);
+    assert.equal(reads, mode === "getter-throw" ? 0 : 1);
+    assert.equal(releases, mode.endsWith("throw") ? 1 : 0, "pending read must retain its lock");
+    await assertQuarantinedRetries({ owner, key, attempts: 3,
+      onUnexpectedFetch: () => { fetches += 1; } });
+    assert.equal(fetches, 1);
+    assert.equal((await fetchVoidUiWave2HomeSourceJsonV1(base, "/other", {
+      acquisitionOwner: owner, fetchImpl: async () => new Response("{}"),
+    })).ok, true);
+
+    if (mode === "cancel-first" || mode.endsWith("throw")) cancel.resolve();
+    else if (mode === "reject") rejectRead(new Error("late_upstream_reset"));
+    else resolveRead(mode === "chunk" ?
+      { done: false, value: new Uint8Array([32]) } : { done: true, value: undefined });
+    await sleep(0);
+    if (mode === "chunk") {
+      assert.equal(owner.hasPending(key), true, "late data is not terminal");
+      await assertQuarantinedRetries({ owner, key, attempts: 3,
+        onUnexpectedFetch: () => { fetches += 1; } });
+      assert.equal(fetches, 1);
+      cancel.resolve();
+      await sleep(0);
+    }
+    assert.equal(owner.hasPending(key), false, mode);
+    assert.equal(owner.finishes, 1, mode);
+
+    // Admit a successor before the other predecessor terminal arrives.
+    // A duplicate finish must not delete this successor's key.
+    const successor = deferred();
+    const recovery = fetchVoidUiWave2HomeSourceJsonV1(base, key, {
+      timeoutMs: 500, acquisitionOwner: owner,
+      fetchImpl: async () => { fetches += 1; await successor.promise; return new Response("{}"); },
+    });
+    await sleep(0);
+    assert.equal(owner.hasPending(key), true);
+    if (mode === "cancel-first") resolveRead({ done: true, value: undefined });
+    else cancel.resolve();
+    await sleep(0);
+    assert.equal(owner.finishes, 1, "late predecessor terminal must be exact-once");
+    assert.equal(owner.hasPending(key), true, "successor must remain owned");
+    successor.resolve();
+    assert.equal((await recovery).ok, true);
+    assert.equal(fetches, 2);
+    assert.equal(owner.finishes, 2);
+  }
+  // Native releaseLock rejects pending reads even if the stream is still live.
+  // Suppress cancellation's immediate close to exercise that exact platform seam.
+  for (const mode of ["close", "error"] as const) {
+    const owner = new VoidUiWave2HomeSourceAcquisitionOwnerV1();
+    let controller!: ReadableStreamDefaultController<Uint8Array>;
+    const stream = new ReadableStream<Uint8Array>({ start(value) { controller = value; } });
+    const getReader = stream.getReader.bind(stream);
+    Object.defineProperty(stream, "getReader", { value: () => {
+      const reader = getReader();
+      reader.cancel = () => new Promise<void>(() => {});
+      return reader;
+    } });
+    const failed = await fetchVoidUiWave2HomeSourceJsonV1(base, key, {
+      timeoutMs: 30, acquisitionOwner: owner,
+      fetchImpl: async () => new Response(stream),
+    });
+    assert.equal(failed.error, "source_deadline_exceeded");
+    assert.equal(stream.locked, true, "timeout must not manufacture a native read rejection");
+    await assertQuarantinedRetries({ owner, key, attempts: 3,
+      onUnexpectedFetch: () => assert.fail("native live stream admitted a replacement") });
+    if (mode === "close") controller.close();
+    else controller.error(new Error("late_native_reset"));
+    await sleep(0);
+    assert.equal(stream.locked, false);
+    assert.equal(owner.hasPending(key), false);
+    assert.equal((await fetchVoidUiWave2HomeSourceJsonV1(base, key, {
+      acquisitionOwner: owner, fetchImpl: async () => new Response("{}"),
+    })).ok, true);
+  }
+  console.log("read_terminal_recovery_cases=10");
+  console.log("pending_read_lock_retained=true");
+}
+
 async function main(): Promise<void> {
-  const proofKeepAlive = setTimeout(() => {}, 10_000);
+  const proofKeepAlive = setTimeout(() => {
+    console.error("Home teardown proof did not reach its terminal assertions");
+    process.exitCode = 1;
+  }, 10_000);
   try {
+    await proveReadTerminals();
     const snapshotOwner =
       new VoidUiWave2HomeSnapshotBuildOwnerV1<VoidUiWave2HomeSourceResultV1>();
 
@@ -165,18 +307,22 @@ async function main(): Promise<void> {
         acquisitionKey: "/health",
         fetchImpl: async () => {
           stalledFetchCalls += 1;
-          return new Response(
-            new ReadableStream<Uint8Array>({
-              pull() {
+          // Unlike native cancel(), this transport does not immediately
+          // resolve an outstanding read as EOF when cleanup begins.
+          return {
+            headers: new Headers(),
+            body: { getReader: () => ({
+              read() {
                 stalledReadStarted = true;
+                return new Promise(() => {});
               },
               async cancel() {
                 stalledCancelAttempts += 1;
                 await stalledGate.promise;
               },
-            }),
-            { status: 200 }
-          );
+              releaseLock() {},
+            }) },
+          } as unknown as Response;
         },
       }
     );
