@@ -8,11 +8,13 @@ It does **not** claim that any deployed or executing runtime is using those byte
 
 ## Reviewed source generation
 
-The attestation is bound to exact #1474 source-stack head:
+The current attestation derivation is bound to the accepted exact #1474 source-stack head:
 
-`f0fd6fb9afff43986d7f0b87e9aac3750d4e4f34`
+`9202f3ce11664873f2316b08cbdbe2b98fd77fb4`
 
-The lane must remain pathwise unchanged from that generation for:
+#1474 merged to `main` as `83a6f5c2d6737b397898f1a6c5ceb0ec9ac0498f`. The #1475 branch is synchronized with that merged generation before deriving new compiled identities.
+
+The lane must remain pathwise unchanged from the accepted #1474 source generation for:
 
 - `src/**`;
 - `package.json`;
@@ -21,7 +23,9 @@ The lane must remain pathwise unchanged from that generation for:
 - `scripts/copy_void_runtime_js_v1.mjs`; and
 - `scripts/retire_saveblock_periodic_rewriters_v1.mjs`.
 
-The reviewed build inputs are additionally bound to exact Git blob identities:
+The workflow triggers on those same bound inputs as well as the attestation proof, manifest, documentation, and workflow itself, so later input drift cannot silently bypass the focused gate.
+
+The reviewed build inputs remain bound to exact Git blob identities:
 
 - `package.json`: `f1887071e7cea9769fed4cf5090812bb4b782a0c`;
 - `package-lock.json`: `b57e9018e9aee19340b4fe43d2282208116ec2f8`;
@@ -54,34 +58,44 @@ The V4 source-finality entry artifact has a closed relative-runtime-import graph
 
 The proof rejects a relative runtime import that escapes that exact set and rejects an expected member that is not reachable from the V4 entry artifact.
 
-## Two-generation acceptance process
+## Superseded compiled generation
 
-### Generation 1 — independent derivation
-
-Node 22, 24 and 26 independently built the exact reviewed source stack and produced byte-identical values for all six artifacts. Their canonical aggregate artifact-set SHA-256 is:
+The previous locked generation was bound to #1474 source-stack head `f0fd6fb9afff43986d7f0b87e9aac3750d4e4f34` and reported aggregate compiled artifact-set SHA-256:
 
 `acf85d2f928ac4e303428df5c5e3f5aa9b4bbdfa0e367c6c9088514dce7206b8`
 
-The derivation generation remained non-accepting and reported:
+That value is historical only and is **not accepted as current evidence** because V4/V3/V2 source bytes changed before #1474 reached its accepted head.
+
+## Current two-generation acceptance process
+
+### Generation 1 — independent derivation
+
+The proof is now bound to accepted #1474 head `9202f3ce11664873f2316b08cbdbe2b98fd77fb4`, while the committed JSON manifest is deliberately left on the superseded generation.
+
+Node 22, 24 and 26 must independently build the current source stack. Each job is expected to fail specifically with `compiled_artifact_attestation_manifest_mismatch` after emitting `candidate_manifest_json` and uploading its derivation log. All six artifact byte lengths, six SHA-256 identities, and the aggregate artifact-set SHA-256 must agree across all three Node majors before any new manifest is committed.
+
+This derivation pipeline runs under explicit `set -euo pipefail`, so a nonzero proof exit cannot be masked by the evidence `tee` stage.
+
+During this derivation generation:
 
 ```text
 compiled_artifact_generation_verified=false
 deployed_artifact_generation_verified=false
+runtime_mount_authority=false
+production_source_finality_authority_ready=false
 ```
-
-The workflow derivation pipeline runs under explicit `set -euo pipefail`, so a nonzero proof exit cannot be masked by the evidence `tee` stage.
 
 ### Generation 2 — locked attestation
 
-The agreed identities are committed in:
+Only after all three derivations agree may the current identities replace the superseded manifest in:
 
 `docs/architecture/buy-void-source-finality-compiled-artifact-attestation-v1.json`
 
-The proof now recomputes the closed artifact set from a fresh production build and requires byte-for-byte equality with the canonical committed manifest, including metadata, artifact paths, byte lengths, six SHA-256 identities, aggregate SHA-256, source-stack identity, compiler/build inputs, and the Node-major derivation set `[22, 24, 26]`.
+The proof must then recompute the closed artifact set from fresh production builds and require byte-for-byte equality with the committed manifest, including metadata, artifact paths, byte lengths, six SHA-256 identities, aggregate SHA-256, source-stack identity, compiler/build inputs, and Node-major derivation set `[22, 24, 26]`.
 
-Any manifest drift or compiled-byte drift fails closed. Only a fresh exact-head Node 22/24/26 matrix plus proportionate broader CI can establish repository-level compiled-artifact reproducibility for this locked generation.
+Any manifest drift or compiled-byte drift fails closed. Acceptance requires a fresh exact-head Node 22/24/26 locked matrix plus repository CI on that same SHA.
 
-A successful locked proof reports:
+A successful locked proof may report:
 
 ```text
 compiled_artifact_generation_verified=true
@@ -90,25 +104,16 @@ runtime_mount_authority=false
 production_source_finality_authority_ready=false
 ```
 
-## Truth boundary after the locked generation
+## Truth boundary
 
-A successful locked attestation may establish only repository build reproducibility for this exact reviewed source-finality compiled closure. It does not convert that result into a deployment claim.
+Repository-level compiled reproducibility does not establish deployed or executing runtime identity. A later deployment/runtime gate must independently prove that the exact bytes about to execute equal the reviewed compiled-artifact attestation before activation.
 
-The later runtime/deployment gate must independently verify that the exact bytes about to execute equal the reviewed compiled-artifact attestation before activation.
-
-Therefore this lane does not authorize or claim:
-
-- deployed artifact identity;
-- current running-process identity;
-- runtime route mounting;
-- live Base/Ethereum RPC;
-- Chain-2050 mutation;
-- inventory reservation/funding;
-- wallet/signer access;
-- transaction construction/signing/broadcast;
-- public presale activation; or
-- money movement.
+This lane does not authorize or claim deployment, runtime route mounting, live Base/Ethereum RPC, Chain-2050 mutation, inventory reservation/funding, wallet/signer access, transaction construction/signing/broadcast, public presale activation, or money movement.
 
 ## Lifecycle state
 
-Keep Draft. The locked manifest and exact-enforcement proof still require fresh exact-head Node 22/24/26 and broader CI before independent review. No Ready transition, merge, deployment, runtime activation, or presale activation is authorized by this artifact lane alone.
+Keep Draft.
+
+Current state:
+
+`CURRENT_MAIN_SYNCHRONIZED / ACCEPTED_V4_SOURCE_BOUND / MANIFEST_INTENTIONALLY_STALE / NODE_22_24_26_REDERIVATION_PENDING / PIPEFAIL_FAIL_CLOSED / NO_MERGE_OR_RUNTIME_AUTHORIZATION`
