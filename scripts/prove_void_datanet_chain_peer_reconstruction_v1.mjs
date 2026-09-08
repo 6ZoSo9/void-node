@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import assert from "node:assert/strict";
+import crypto from "node:crypto";
 import { readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -73,6 +74,28 @@ function referencePlanOrHold(input) {
   const result = evaluate(input);
   assertOperationalHold(result);
   return result.reference_plan ?? result;
+}
+
+// Count hashing of the supplied payloads, excluding commitment/metadata hashes.
+// Restore the shared crypto entry point even if evaluation or an assertion fails.
+function evaluateWithPayloadHashCount(input) {
+  const payloads = new Set([input.local.payload, ...input.peers.map((p) => p.payload)]);
+  let payloadHashUpdates = 0;
+  const originalCreateHash = crypto.createHash;
+  crypto.createHash = function (...args) {
+    const hash = originalCreateHash.apply(this, args);
+    const originalUpdate = hash.update;
+    hash.update = function (value, ...rest) {
+      if (payloads.has(value)) payloadHashUpdates += 1;
+      return originalUpdate.call(this, value, ...rest);
+    };
+    return hash;
+  };
+  try {
+    return { decision: evaluate(input), payloadHashUpdates };
+  } finally {
+    crypto.createHash = originalCreateHash;
+  }
 }
 
 function check(name, fn) {
@@ -498,6 +521,50 @@ check("committed object policy bound", () => {
   );
 });
 
+for (const kind of ["local", "peer"]) {
+  for (const mismatchedIdentity of [false, true]) {
+    check(`oversized ${kind} payload rejected before hashing, mismatched identity ${mismatchedIdentity}`, () => {
+      const oversized = Buffer.alloc(PAYLOAD.length + 1);
+      const identity = mismatchedIdentity ? { object_id: "foreign-object" } : {};
+      const input = request({
+        local: kind === "local" ? localPresent(oversized, identity) : localAbsent(),
+        peers: kind === "peer"
+          ? [peer("peer-alpha"), peer("peer-oversized", oversized, identity)]
+          : [peer("peer-alpha")],
+        policy: {
+          ...VOID_DATANET_RECONSTRUCTION_DEFAULT_POLICY_V1,
+          max_object_bytes: PAYLOAD.length,
+          max_total_candidate_bytes: PAYLOAD.length * 4,
+        },
+      });
+      const { decision, payloadHashUpdates } = evaluateWithPayloadHashCount(input);
+      assert.equal(payloadHashUpdates, 0, "size rejection must precede all payload hashing");
+      assertOperationalHold(decision);
+      assert.equal(decision.reason, `${kind}_payload_bytes_exceed_policy_bound`);
+      assert.equal(Object.hasOwn(decision, "reference_plan"), false);
+      assert.equal(decision.detail.observed, PAYLOAD.length + 1);
+      assert.equal(decision.detail.maximum, PAYLOAD.length);
+      if (kind === "peer") assert.equal(decision.detail.peer_id, "peer-oversized");
+    });
+  }
+
+  check(`exact per-object and aggregate boundary admits ${kind} reference bytes`, () => {
+    const input = request({
+      local: kind === "local" ? localPresent() : localAbsent(),
+      peers: kind === "peer" ? [peer("peer-alpha")] : [],
+      policy: {
+        ...VOID_DATANET_RECONSTRUCTION_DEFAULT_POLICY_V1,
+        max_object_bytes: PAYLOAD.length,
+        max_total_candidate_bytes: PAYLOAD.length,
+      },
+    });
+    const { decision, payloadHashUpdates } = evaluateWithPayloadHashCount(input);
+    assertOperationalHold(decision);
+    assert.equal(decision.reference_plan.selected_candidate.kind, kind);
+    assert.equal(payloadHashUpdates, 1);
+  });
+}
+
 for (const [field, value, reason] of [
   ["max_object_bytes", 0, "policy_invalid_max_object_bytes"],
   ["max_object_bytes", 268435457, "policy_max_object_bytes_exceeds_absolute_bound"],
@@ -796,7 +863,7 @@ check("source paths nonempty", () => {
   }
 });
 
-assert.equal(cases, 143);
+assert.equal(cases, 149);
 console.log("VOID_DATANET_CHAIN_PEER_RECONSTRUCTION_V1_GREEN");
 console.log("reference_commitment_required=true");
 console.log("reference_digest_overrides_peer_majority=true");
@@ -805,6 +872,7 @@ console.log("caller_authentication_claim_is_not_verification=true");
 console.log("local_cache_override=false");
 console.log("deterministic_repair_plan=true");
 console.log("bounded_peer_and_byte_work=true");
+console.log("oversized_candidate_rejected_before_payload_hash=true");
 console.log("durable_future_availability_claim=false");
 console.log("network_filesystem_repair_chain_mutation=false");
 console.log("shared_authority_poisoning_rejected=true");

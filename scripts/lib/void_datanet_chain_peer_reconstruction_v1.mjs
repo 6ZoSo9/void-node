@@ -499,8 +499,26 @@ export function planDatanetChainPeerReconstructionV1(request) {
       candidateIds.add(candidateId);
     }
 
+    // Bound actual candidate buffers, not only the reference's claimed size.
+    // Complete all byte-budget checks before hashing any supplied payload.
     let totalCandidateBytes = local.payload?.length ?? 0;
-    for (const peer of peers) totalCandidateBytes += peer.payload?.length ?? 0;
+    if (totalCandidateBytes > policy.max_object_bytes) {
+      return hold("local_payload_bytes_exceed_policy_bound", {
+        observed: totalCandidateBytes,
+        maximum: policy.max_object_bytes,
+      });
+    }
+    for (const peer of peers) {
+      const candidateBytes = peer.payload?.length ?? 0;
+      if (candidateBytes > policy.max_object_bytes) {
+        return hold("peer_payload_bytes_exceed_policy_bound", {
+          peer_id: peer.peer_id,
+          observed: candidateBytes,
+          maximum: policy.max_object_bytes,
+        });
+      }
+      totalCandidateBytes += candidateBytes;
+    }
     if (totalCandidateBytes > policy.max_total_candidate_bytes) {
       return hold("total_candidate_bytes_exceed_policy_bound", {
         observed: totalCandidateBytes,

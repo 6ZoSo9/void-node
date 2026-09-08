@@ -133,6 +133,16 @@ a caller target of three and a target ceiling of 16. Absolute ceilings remain
 Unknown fields, malformed IDs, duplicate peers, inconsistent generations and
 noncanonical numeric inputs remain rejected.
 
+The per-object limit applies to every supplied local and peer Buffer as well as
+the reference's claimed byte length. All candidate and aggregate byte budgets
+are checked before any supplied payload is hashed, including candidates with
+wrong object or commitment identities. An oversized local or peer Buffer
+returns `local_payload_bytes_exceed_policy_bound` or
+`peer_payload_bytes_exceed_policy_bound`, with observed/maximum byte counts and
+no reference plan. Exact-limit inputs remain valid reference candidates.
+These checks bound work inside the planner; callers have already acquired the
+Buffers and must separately bound acquisition and allocation.
+
 The existing commitment has nine input fields: chain ID, object ID, digest,
 byte length, checkpoint height/hash/ID and transaction hash/log index. Its
 self-derived ID and uint32 log-index bound are unchanged; neither authenticates
@@ -143,7 +153,10 @@ the referenced chain event.
 The primary proof retains reference-digest, malformed-input, resource-bound,
 deterministic-selection and cross-call-poisoning checks. It adds direct
 operational-HOLD adversaries for all five review surfaces, injected verifier
-claims and immutable metadata. The four-case supplemental proof preserves the
+claims and immutable metadata. Payload-hash instrumentation verifies that
+oversized local/peer candidates, including wrong-identity candidates, cause
+zero payload hashing; exact per-object/aggregate limits remain accepted for
+reference evaluation. The four-case supplemental proof preserves the
 local-copy-before-remote-demand equations.
 
 Both workflows run Node 22/24/26 and explicitly bind the exact source checkout.
