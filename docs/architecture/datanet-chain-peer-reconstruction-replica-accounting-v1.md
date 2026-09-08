@@ -55,3 +55,13 @@ No byte is copied, published, readmitted or repaired. A projected local copy is
 not a custody receipt. Peer IDs are not independent physical failure domains.
 A requested target is not a release policy. The five runtime verification and
 custody prerequisites remain separate, as does independent review of the repair.
+
+## Byte-ingress migration
+
+The four accounting equations now run through the canonical UTF-8 Buffer API.
+Proof-owned candidates are serialized with base64 payloads; live objects are not
+passed to the public planner. The same pinned workflow executes the current
+head's receipt runner and its 63-case ingress proof on Node 22/24/26. See the
+[ingress contract and recovery experiment](datanet-chain-peer-reconstruction-v1.md#bounded-byte-ingress).
+Reference-only HOLD and all publication/repair authority boundaries remain in
+force; this hosted proof does not establish designated-host recovery.

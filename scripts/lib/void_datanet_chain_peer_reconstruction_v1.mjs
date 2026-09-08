@@ -1,4 +1,80 @@
 import crypto from "node:crypto";
+import { TextDecoder, types } from "node:util";
+
+export const VOID_DATANET_RECONSTRUCTION_INGRESS_V1 = Object.freeze({
+  encoding: "canonical-utf8-json-buffer", max_request_bytes: 65536,
+  max_nodes: 4096, max_depth: 6, max_byte_length: "268435456",
+  max_checkpoint_height: "18446744073709551615", max_log_index: "4294967295",
+});
+const reasons = new WeakMap();
+function invalid(reason) {
+  const error = new Error(reason);
+  reasons.set(error, reason.split(":", 1)[0]);
+  return error;
+}
+const typedArray = Object.getPrototypeOf(Uint8Array.prototype);
+const byteLengthOf = Object.getOwnPropertyDescriptor(typedArray, "byteLength").get;
+const backingOf = Object.getOwnPropertyDescriptor(typedArray, "buffer").get;
+const resizableOf = Object.getOwnPropertyDescriptor(ArrayBuffer.prototype, "resizable").get;
+const copyBytes = Uint8Array.prototype.set;
+const decoder = new TextDecoder("utf-8", { fatal: true, ignoreBOM: true });
+
+// Never inspect a caller graph. Brand checks do not execute Proxy traps. For
+// real Buffers, use internal-slot getters and copy bytes without instance hooks.
+function parseEnvelope(input) {
+  if (typeof input !== "object" || input === null || types.isProxy(input) ||
+      !types.isUint8Array(input) || Object.getPrototypeOf(input) !== Buffer.prototype) {
+    throw invalid("ingress_requires_plain_buffer");
+  }
+  const backing = backingOf.call(input);
+  if (types.isSharedArrayBuffer(backing) || resizableOf.call(backing)) {
+    throw invalid("ingress_mutable_backing_store");
+  }
+  const length = byteLengthOf.call(input);
+  if (length === 0 || length > 65536) throw invalid("ingress_request_byte_bound");
+  const owned = Buffer.alloc(length);
+  copyBytes.call(owned, input);
+  let encoded, value;
+  try { encoded = decoder.decode(owned); value = JSON.parse(encoded); }
+  catch { throw invalid("ingress_invalid_utf8_json"); }
+  // JSON.parse creates inert records. Bound traversal and every scalar before
+  // schema regexes, canonicalization, sorting or any reference hashing.
+  const pending = [[value, 0, ""]];
+  let nodes = 0;
+  while (pending.length) {
+    const [item, depth, key] = pending.pop();
+    if (++nodes > 4096 || depth > 6) throw invalid("ingress_structure_bound");
+    if (typeof item === "string") {
+      const decimal = {
+        byte_length: [9, "commitment_invalid_byte_length"],
+        checkpoint_height: [20, "commitment_invalid_checkpoint_height"],
+        commitment_log_index: [10, "commitment_invalid_log_index"],
+      }[key];
+      if (decimal && item.length > decimal[0]) throw invalid(decimal[1]);
+      const maximum = key === "payload" ? 65536 : 160;
+      if (item.length > maximum || Buffer.byteLength(item, "utf8") > maximum) {
+        throw invalid("ingress_scalar_byte_bound");
+      }
+    } else if (typeof item === "number") {
+      if (!Number.isSafeInteger(item) || Object.is(item, -0)) throw invalid("ingress_noncanonical_number");
+    } else if (Array.isArray(item)) {
+      if (item.length > 256) throw invalid("ingress_structure_bound");
+      for (let i = item.length - 1; i >= 0; i--) pending.push([item[i], depth + 1, ""]);
+    } else if (item !== null && typeof item === "object") {
+      const keys = Object.keys(item);
+      if (keys.length > 13) throw invalid("ingress_structure_bound");
+      let previous = "";
+      for (const name of keys) {
+        if (name.length > 40 || name <= previous) throw invalid("ingress_noncanonical_keys");
+        previous = name;
+        pending.push([item[name], depth + 1, name]);
+      }
+    }
+  }
+  // Insertion order was checked without sorting. Exact roundtrip also rejects
+  // duplicate keys, whitespace, alternate escapes and number spellings.
+  return { value, encoded };
+}
 
 export const VOID_DATANET_CHAIN_PEER_RECONSTRUCTION_V1 =
   "VOID_DATANET_CHAIN_PEER_RECONSTRUCTION_V1";
@@ -47,7 +123,8 @@ const SAFE_ID = /^[A-Za-z0-9][A-Za-z0-9._:-]{1,159}$/;
 const SHA256 = /^[0-9a-f]{64}$/;
 const TX_HASH = /^0x[0-9a-f]{64}$/;
 const UINT = /^(0|[1-9][0-9]*)$/;
-const MAX_U32 = 0xffff_ffffn;
+const MAX_U32 = "4294967295";
+const MAX_U64 = "18446744073709551615";
 const EXACT_COMMITMENT_INPUT_KEYS = [
   "accepted_checkpoint_id",
   "byte_length",
@@ -95,20 +172,19 @@ const EXACT_REQUEST_KEYS = [
 ];
 
 function text(value) {
-  return String(value ?? "").trim();
+  if (typeof value !== "string" || value.length > 160 || Buffer.byteLength(value) > 160) {
+    throw invalid("invalid_scalar_type_or_size");
+  }
+  return value;
 }
 
 function exactKeys(value, expected, code) {
   if (!value || typeof value !== "object" || Array.isArray(value)) {
-    throw new Error(`${code}:not_object`);
+    throw invalid(`${code}:not_object`);
   }
-  const actual = Object.keys(value).sort();
-  const wanted = [...expected].sort();
-  if (
-    actual.length !== wanted.length ||
-    actual.some((key, index) => key !== wanted[index])
-  ) {
-    throw new Error(`${code}:${actual.join(",")}`);
+  const actual = Object.keys(value);
+  if (actual.length !== expected.length || actual.some(key => !expected.includes(key))) {
+    throw invalid(code);
   }
 }
 
@@ -118,7 +194,7 @@ function canonical(value) {
     return JSON.stringify(value);
   }
   if (typeof value === "number") {
-    if (!Number.isSafeInteger(value)) throw new Error("non_canonical_number");
+    if (!Number.isSafeInteger(value)) throw invalid("non_canonical_number");
     return String(value);
   }
   if (Array.isArray(value)) {
@@ -130,7 +206,7 @@ function canonical(value) {
       .map((key) => `${JSON.stringify(key)}:${canonical(value[key])}`)
       .join(",")}}`;
   }
-  throw new Error(`non_canonical_value:${typeof value}`);
+  throw invalid(`non_canonical_value:${typeof value}`);
 }
 
 function sha256(value) {
@@ -143,49 +219,50 @@ function hashObject(value) {
 
 function safeId(value, code) {
   const normalized = text(value);
-  if (!SAFE_ID.test(normalized)) throw new Error(code);
+  if (!SAFE_ID.test(normalized)) throw invalid(code);
   return normalized;
 }
 
 function hash64(value, code) {
-  const normalized = text(value).toLowerCase();
-  if (!SHA256.test(normalized)) throw new Error(code);
+  const normalized = text(value);
+  if (!SHA256.test(normalized)) throw invalid(code);
   return normalized;
 }
 
 function transactionHash(value, code) {
-  const normalized = text(value).toLowerCase();
-  if (!TX_HASH.test(normalized)) throw new Error(code);
+  const normalized = text(value);
+  if (!TX_HASH.test(normalized)) throw invalid(code);
   return normalized;
 }
 
-function uint(value, code, maximum = null) {
-  const normalized = text(value);
-  if (!UINT.test(normalized)) throw new Error(code);
-  let parsed;
-  try {
-    parsed = BigInt(normalized);
-  } catch {
-    throw new Error(code);
+function uint(value, code, maximum = MAX_U64) {
+  // All limits are decimal strings: compare length/value before any conversion.
+  if (typeof value !== "string" || value.length > maximum.length ||
+      !UINT.test(value) || (value.length === maximum.length && value > maximum)) {
+    throw invalid(code);
   }
-  if (maximum !== null && parsed > maximum) throw new Error(code);
-  return { normalized, parsed };
+  return { normalized: value };
 }
 
 function positiveSafeInteger(value, code) {
-  if (!Number.isSafeInteger(value) || value <= 0) throw new Error(code);
+  if (!Number.isSafeInteger(value) || value <= 0) throw invalid(code);
   return value;
 }
 
 function boolean(value, code) {
-  if (value !== true && value !== false) throw new Error(code);
+  if (value !== true && value !== false) throw invalid(code);
   return value;
 }
 
 function bytesOrNull(value, code) {
   if (value === null) return null;
-  if (!Buffer.isBuffer(value)) throw new Error(code);
-  return value;
+  if (typeof value !== "string" || value.length > 65536 || value.length % 4 !== 0 ||
+      !/^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/.test(value)) {
+    throw invalid(code);
+  }
+  const bytes = Buffer.from(value, "base64");
+  if (bytes.toString("base64") !== value) throw invalid(code);
+  return bytes;
 }
 
 function hold(reason, detail = undefined) {
@@ -229,15 +306,15 @@ function normalizedCommitmentInput(input) {
     "commitment_input_unknown_or_missing_fields",
   );
   if (text(input.chain_id) !== "2050") {
-    throw new Error("commitment_wrong_chain_id");
+    throw invalid("commitment_wrong_chain_id");
   }
   const objectId = safeId(input.object_id, "commitment_invalid_object_id");
   const contentSha256 = hash64(
     input.content_sha256,
     "commitment_invalid_content_sha256",
   );
-  const byteLength = uint(input.byte_length, "commitment_invalid_byte_length");
-  if (byteLength.parsed <= 0n) throw new Error("commitment_invalid_byte_length");
+  const byteLength = uint(input.byte_length, "commitment_invalid_byte_length", "268435456");
+  if (byteLength.normalized === "0") throw invalid("commitment_invalid_byte_length");
   const checkpointHeight = uint(
     input.checkpoint_height,
     "commitment_invalid_checkpoint_height",
@@ -273,7 +350,7 @@ function normalizedCommitmentInput(input) {
   };
 }
 
-export function createDatanetChainCommitmentV1(input) {
+function createCommitment(input) {
   const normalized = normalizedCommitmentInput(input);
   const commitmentDigest = hashObject({
     domain: "void:datanet:chain2050:content-commitment:v1",
@@ -289,23 +366,23 @@ export function createDatanetChainCommitmentV1(input) {
 
 // Structural/self-derived identity validation only; no chain event or finality
 // verification is performed. Planner results remain operational HOLD.
-export function validateDatanetChainCommitmentV1(commitment) {
+function validateCommitment(commitment) {
   exactKeys(
     commitment,
     EXACT_COMMITMENT_KEYS,
     "commitment_unknown_or_missing_fields",
   );
   if (commitment.marker !== VOID_DATANET_CHAIN_COMMITMENT_V1) {
-    throw new Error("commitment_marker_mismatch");
+    throw invalid("commitment_marker_mismatch");
   }
-  if (commitment.version !== 1) throw new Error("commitment_version_mismatch");
-  const rebuilt = createDatanetChainCommitmentV1(
+  if (commitment.version !== 1) throw invalid("commitment_version_mismatch");
+  const rebuilt = createCommitment(
     Object.fromEntries(
       EXACT_COMMITMENT_INPUT_KEYS.map((key) => [key, commitment[key]]),
     ),
   );
   if (canonical(rebuilt) !== canonical(commitment)) {
-    throw new Error("commitment_derived_identity_mismatch");
+    throw invalid("commitment_derived_identity_mismatch");
   }
   return rebuilt;
 }
@@ -335,25 +412,25 @@ function normalizePolicy(policyInput = VOID_DATANET_RECONSTRUCTION_DEFAULT_POLIC
     ),
   };
   if (policy.max_object_bytes > 268_435_456) {
-    throw new Error("policy_max_object_bytes_exceeds_absolute_bound");
+    throw invalid("policy_max_object_bytes_exceeds_absolute_bound");
   }
   if (policy.max_total_candidate_bytes > 1_073_741_824) {
-    throw new Error("policy_total_candidate_bytes_exceeds_absolute_bound");
+    throw invalid("policy_total_candidate_bytes_exceeds_absolute_bound");
   }
   if (policy.max_total_candidate_bytes < policy.max_object_bytes) {
-    throw new Error("policy_total_candidate_bytes_below_object_bound");
+    throw invalid("policy_total_candidate_bytes_below_object_bound");
   }
   if (policy.max_peer_candidates > 256) {
-    throw new Error("policy_peer_candidates_exceeds_absolute_bound");
+    throw invalid("policy_peer_candidates_exceeds_absolute_bound");
   }
   if (policy.max_target_replica_count > 64) {
-    throw new Error("policy_replica_ceiling_exceeds_absolute_bound");
+    throw invalid("policy_replica_ceiling_exceeds_absolute_bound");
   }
   if (policy.target_replica_count > policy.max_target_replica_count) {
-    throw new Error("policy_target_replica_count_exceeds_ceiling");
+    throw invalid("policy_target_replica_count_exceeds_ceiling");
   }
   if (policy.target_replica_count > policy.max_peer_candidates + 1) {
-    throw new Error("policy_target_replica_count_unreachable");
+    throw invalid("policy_target_replica_count_unreachable");
   }
   return policy;
 }
@@ -363,7 +440,7 @@ function normalizeLocal(local) {
   const present = boolean(local.present, "local_present_not_boolean");
   const payload = bytesOrNull(local.payload, "local_payload_not_buffer_or_null");
   if (present !== (payload !== null)) {
-    throw new Error("local_presence_payload_mismatch");
+    throw invalid("local_presence_payload_mismatch");
   }
   return {
     present,
@@ -401,6 +478,42 @@ function normalizePeer(peer) {
     ),
     payload: bytesOrNull(peer.payload, "peer_payload_not_buffer_or_null"),
   };
+}
+
+function preflightCommitment(commitment) {
+  exactKeys(commitment, EXACT_COMMITMENT_KEYS, "commitment_unknown_or_missing_fields");
+  if (commitment.marker !== VOID_DATANET_CHAIN_COMMITMENT_V1) throw invalid("commitment_marker_mismatch");
+  if (commitment.version !== 1) throw invalid("commitment_version_mismatch");
+  safeId(commitment.commitment_id, "commitment_invalid_commitment_id");
+  normalizedCommitmentInput(Object.fromEntries(
+    EXACT_COMMITMENT_INPUT_KEYS.map(key => [key, commitment[key]]),
+  ));
+}
+
+function preflightRequest(request) {
+  exactKeys(request, EXACT_REQUEST_KEYS, "request_unknown_or_missing_fields");
+  preflightCommitment(request.commitment);
+  const policy = normalizePolicy(request.policy);
+  normalizeLocal(request.local);
+  if (!Array.isArray(request.peers)) throw invalid("peers_not_array");
+  if (request.peers.length > policy.max_peer_candidates) throw invalid("peer_candidate_count_exceeds_policy_bound");
+  for (const peer of request.peers) normalizePeer(peer);
+}
+
+// Builders/structural validators use the same byte boundary. No exported
+// function accepts a live object graph; all record-consuming helpers are private.
+export function createDatanetChainCommitmentV1(input) {
+  const { value: record, encoded } = parseEnvelope(input);
+  normalizedCommitmentInput(record);
+  if (JSON.stringify(record) !== encoded) throw invalid("ingress_noncanonical_json");
+  return createCommitment(record);
+}
+
+export function validateDatanetChainCommitmentV1(input) {
+  const { value: record, encoded } = parseEnvelope(input);
+  preflightCommitment(record);
+  if (JSON.stringify(record) !== encoded) throw invalid("ingress_noncanonical_json");
+  return validateCommitment(record);
 }
 
 function classifyPayload(commitment, objectId, commitmentId, payload) {
@@ -460,13 +573,16 @@ function canonicalCandidateId(peer) {
   });
 }
 
-export function planDatanetChainPeerReconstructionV1(request) {
+export function planDatanetChainPeerReconstructionV1(input) {
   try {
+    const { value: request, encoded } = parseEnvelope(input);
+    preflightRequest(request);
+    if (JSON.stringify(request) !== encoded) throw invalid("ingress_noncanonical_json");
     exactKeys(request, EXACT_REQUEST_KEYS, "request_unknown_or_missing_fields");
-    const commitment = validateDatanetChainCommitmentV1(request.commitment);
+    const commitment = validateCommitment(request.commitment);
     const policy = normalizePolicy(request.policy);
-    const committedBytes = BigInt(commitment.byte_length);
-    if (committedBytes > BigInt(policy.max_object_bytes)) {
+    const committedBytes = Number(commitment.byte_length);
+    if (committedBytes > policy.max_object_bytes) {
       return hold("chain_committed_object_exceeds_policy_bound", {
         committed_byte_length: commitment.byte_length,
         max_object_bytes: String(policy.max_object_bytes),
@@ -474,7 +590,7 @@ export function planDatanetChainPeerReconstructionV1(request) {
     }
     const local = normalizeLocal(request.local);
     if (!Array.isArray(request.peers)) {
-      throw new Error("peers_not_array");
+      throw invalid("peers_not_array");
     }
     if (request.peers.length > policy.max_peer_candidates) {
       return hold("peer_candidate_count_exceeds_policy_bound", {
@@ -665,7 +781,6 @@ export function planDatanetChainPeerReconstructionV1(request) {
       reference_plan: referencePlan,
     });
   } catch (error) {
-    const message = text(error?.message);
-    return hold(message ? message.split(":", 1)[0] : "reconstruction_request_invalid");
+    return hold(reasons.get(error) ?? "reconstruction_request_invalid");
   }
 }

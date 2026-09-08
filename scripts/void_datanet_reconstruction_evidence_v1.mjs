@@ -11,6 +11,7 @@ export const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 export const PLANNER = "scripts/prove_void_datanet_chain_peer_reconstruction_v1.mjs";
 export const ACCOUNTING = "scripts/prove_void_datanet_chain_peer_reconstruction_replica_accounting_v1.mjs";
 export const EVIDENCE_PROOF = "scripts/prove_void_datanet_reconstruction_evidence_v1.mjs";
+export const INGRESS_PROOF = "scripts/prove_void_datanet_reconstruction_ingress_v1.mjs";
 export const RUNNER = "scripts/void_datanet_reconstruction_evidence_v1.mjs";
 export const WORKFLOWS = Object.freeze({
   planner: ".github/workflows/void-datanet-chain-peer-reconstruction-v1.yml",
@@ -24,7 +25,7 @@ export const SOURCE_PATHS = Object.freeze([
   "docs/architecture/datanet-chain-peer-reconstruction-v1.md",
   "docs/architecture/datanet-chain-peer-reconstruction-replica-accounting-v1.md",
   "scripts/lib/void_datanet_chain_peer_reconstruction_v1.mjs",
-  PLANNER, ACCOUNTING, RUNNER, EVIDENCE_PROOF,
+  PLANNER, ACCOUNTING, RUNNER, EVIDENCE_PROOF, INGRESS_PROOF,
 ].sort());
 export const MEMBERS = Object.freeze(["planner", "accounting"].flatMap(lane =>
   [22, 24, 26].map(major => Object.freeze({ lane, major }))));
@@ -67,7 +68,7 @@ export function decode(text, maximum = MAX_RECEIPT_BYTES) {
 export function commandSet(lane) {
   assert.ok(Object.hasOwn(WORKFLOWS, lane), "unknown_lane");
   const syntax = SOURCE_PATHS.filter(p => p.endsWith(".mjs")).map(p => ({ program: "node", args: ["--check", p] }));
-  const proofs = [PLANNER, ...(lane === "accounting" ? [ACCOUNTING] : []), EVIDENCE_PROOF];
+  const proofs = [PLANNER, ...(lane === "accounting" ? [ACCOUNTING] : []), INGRESS_PROOF, EVIDENCE_PROOF];
   return [...syntax, ...proofs.map(p => ({ program: "node", args: [p, "--case-manifest"] })),
     { program: "git", args: ["diff", "--check", "HEAD"] }];
 }
@@ -90,7 +91,7 @@ export function commandRecord(command, stdout, stderr = "", status = 0) {
   assert.equal(status, 0, "command_failed");
   assert.equal(stderr, "", "unexpected_command_stderr");
   assert.ok(Buffer.byteLength(stdout) <= 65536, "command_output_bound");
-  const suite = { [PLANNER]: "planner", [ACCOUNTING]: "accounting", [EVIDENCE_PROOF]: "evidence" }[command.args[0]];
+  const suite = { [PLANNER]: "planner", [ACCOUNTING]: "accounting", [EVIDENCE_PROOF]: "evidence", [INGRESS_PROOF]: "ingress" }[command.args[0]];
   const manifest = suite ? caseManifest(stdout, suite) : null;
   if (!suite) assert.equal(stdout, "", "unexpected_check_output");
   return { ...command, exit_code: 0, stdout, stderr, output_sha256: digest(canonical({ stdout, stderr })), case_manifest: manifest };

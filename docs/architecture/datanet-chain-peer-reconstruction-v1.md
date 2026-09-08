@@ -13,8 +13,8 @@ The V510 partition remains: Chain-2050 owns finalized facts actually proven by
 the chain; DataNet owns byte availability and custody; local projections are
 disposable or bounded. A digest does not establish finality or retained bytes.
 
-This helper receives caller-created commitment fields and already-acquired
-in-memory Buffers. It compares byte length and SHA-256, rejects a forged majority
+This helper receives a bounded canonical UTF-8 JSON Buffer containing
+unverified commitment fields and base64-encoded candidate bytes. It compares byte length and SHA-256, rejects a forged majority
 against the supplied reference digest, and computes deterministic hypothetical
 copy counts. A peer majority never establishes truth.
 
@@ -25,8 +25,11 @@ execution, network call, filesystem operation, signer access or funds action.
 
 ## Deliberate result migration
 
-The input shape and commitment encoding remain unchanged. The exported helper
-names retain their existing v1 names; the planner result has `result_version=2`.
+The exported helper names retain their existing v1 names and the planner result
+has `result_version=2`. Byte ingress deliberately replaces the raw-object API
+for all three exported functions. Commitment digest encoding is unchanged.
+Callers must serialize their owned fixtures before calling; no production helper
+is provided that traverses an untrusted object graph.
 
 Every public planner result now has:
 
@@ -117,7 +120,8 @@ increments an admitted local replica count or reports a completed repair.
 All planner-result metadata is detached and deeply frozen, including HOLD details,
 reference commitments, policies, selected-candidate bindings and arrays.
 Module-owned authority/default-policy objects remain frozen. Caller-owned
-policies and Buffers are not frozen, and no Buffer is returned or retained.
+input Buffers are not frozen, and no Buffer is returned or retained. Admission
+copies the bounded bytes through internal slots before decoding them.
 
 The immutable snapshot records what the reference evaluation compared. A caller
 can mutate or replace its bytes after return; the old snapshot stays an
@@ -140,13 +144,107 @@ wrong object or commitment identities. An oversized local or peer Buffer
 returns `local_payload_bytes_exceed_policy_bound` or
 `peer_payload_bytes_exceed_policy_bound`, with observed/maximum byte counts and
 no reference plan. Exact-limit inputs remain valid reference candidates.
-These checks bound work inside the planner; callers have already acquired the
-Buffers and must separately bound acquisition and allocation.
+The additional 65,536-byte encoded-envelope ceiling limits the inline reference
+inputs well below the policy ceilings. Callers must still bound acquisition and
+producer allocation before invoking this source-only helper.
 
 The existing commitment has nine input fields: chain ID, object ID, digest,
 byte length, checkpoint height/hash/ID and transaction hash/log index. Its
 self-derived ID and uint32 log-index bound are unchanged; neither authenticates
 the referenced chain event.
+
+## Bounded byte ingress
+
+Marker: `VOID_DATANET_RECONSTRUCTION_INGRESS_V1` (exported frozen limits).
+
+`planDatanetChainPeerReconstructionV1` accepts only a plain Node Buffer containing
+one canonical UTF-8 JSON request, between one and **65,536 bytes**, with no BOM,
+trailing newline or whitespace. Ordinary objects, functions, strings, boxed
+values, Uint8Arrays, subclasses, Proxy/revoked-Proxy values, forged Buffers and
+shared/resizable backing stores are rejected before caller properties are read.
+Real Buffer instance getters and coercion hooks are bypassed using intrinsic
+typed-array slot access and copying. This assumes trusted Node intrinsics; it is
+not containment of code already executing elsewhere in the process.
+
+`createDatanetChainCommitmentV1` and `validateDatanetChainCommitmentV1` also accept
+canonical JSON Buffers for their respective closed records; malformed inputs
+throw module-owned errors. The public planner converts admission failures into
+one bounded operational HOLD with no reference plan. Error handling never reads
+an unknown thrown object's `message` or coerces it.
+
+The request still has exactly `commitment`, `local`, `peers`, and `policy`.
+Within local/peer records, `payload` is now canonical padded base64 or null;
+it is decoded into a private Buffer. Policy must be supplied explicitly as the
+existing closed numeric record; JSON has no `undefined` default shortcut.
+Object keys must be lexicographically ordered. Exact JSON roundtrip rejects
+duplicate keys, alternate escapes, noncanonical numbers and extra bytes.
+Closed schemas reject every unknown field. Traversal is iterative, at most
+4,096 JSON nodes and depth six, with at most 256 array elements and 13 record
+fields. The existing 64/256 peer limits remain usable within the byte envelope.
+
+| Scalar | Admission bound |
+| --- | --- |
+| Chain ID | Exact string `2050` |
+| Byte length | Canonical positive decimal string, at most nine digits, maximum `268435456` |
+| Checkpoint height | Canonical unsigned decimal string, at most 20 digits, maximum `18446744073709551615` |
+| Log index | Canonical unsigned decimal string, at most 10 digits, maximum `4294967295` |
+| IDs | Existing 2–160 ASCII-character allowlist; no trimming or coercion |
+| Digests / transaction hashes | Exact lowercase 64 hex digits / `0x` plus 64 hex digits |
+| Other string scalars | At most 160 UTF-8 bytes before schema checks |
+| Payload text | At most 65,536 ASCII base64 bytes, further constrained by total encoded request size |
+
+Scalar type/byte/digit ceilings precede regexes and canonicalization. Decimal
+maximum checks compare bounded strings; **no BigInt operation remains**. Every
+request record is admitted before commitment or candidate hashing. Ingress
+rejection performs no hash or sort. Later reference evaluation can hash before
+rejecting a self-derived commitment mismatch or a payload mismatch; those are
+semantic reference checks, not claims of zero-work byte rejection.
+
+## Supervised ingress recovery proof
+
+`scripts/prove_void_datanet_reconstruction_ingress_v1.mjs` implements the 36-case
+Darwin experiment against the historical raw helper and this byte successor.
+The raw control is read from commit `717aa6b83549c8f3547c97c0300660643df80d00` and
+its Git blob is checked against `1e7cd0b3372dbffe53d62e4766de9826301e7122` before
+loading it in a temporary child fixture. It is never a public/runtime adapter.
+The verifier therefore needs that historical Git object, as available in a full
+checkout; a shallow checkout missing the object fails closed.
+
+Each runtime executes 36 cases × two profiles × attack/fresh recovery = **144
+supervised processes**, plus two independent fresh baseline processes. Across
+Node 22/24/26 this is **432 attack/recovery processes plus six baselines per
+matrix**. Both receipt lanes repeat the same set; replay does not add distinct
+cases. The 24 object cases cover Proxy traps at all five record positions,
+getters, coercion, thrown-object message access and two non-returning hooks.
+The 12 scalar/envelope cases cover exact/cap-plus-one sizes, digit ceilings,
+noncanonical decimal forms and one million digits. Raw controls must reproduce
+callbacks, both supervisor kills and million-digit regex/BigInt execution or
+the proof fails. Non-returning fixtures execute only in sacrificial children.
+
+Every candidate is immediately followed by a fresh-process clean control whose
+canonical HOLD digest must equal the independent baseline. Counters belong to
+the parent/individual child and survive child termination without resetting the
+parent's cumulative 144-process/25-second experiment bounds. The supervisor
+uses a 700 ms raw deadline and requires termination within one second; successor
+execution and supervisor-observed wall time must stay within 250 ms. RSS growth
+uses current RSS and the process high-water mark against the pre-execution RSS,
+with an 8 MiB ceiling. Fixture construction and module warmup precede ready.
+
+The successor must execute zero callbacks and no BigInt calls. All rejected
+experiment cases must have no reference plan, hash calls or sorts. The declared
+512-operation experiment metric counts intercepted `RegExp.test`, `Object.keys`,
+`Buffer.byteLength` and `Number.isSafeInteger` calls; it is not a count of V8
+instructions or every internal scalar traversal. The parser separately enforces
+its 4,096-node bound. Exact-maximum valid envelope result digests must agree
+between profiles and are replay-bound across runtime receipts.
+
+Twenty-seven additional focused cases check Buffer brands/backing stores,
+instance hooks, revoked proxies, builder boundaries, malformed/noncanonical
+UTF-8 JSON/base64, exact integer maximum-plus-one rejection, and usable 64/256
+peer requests. The helper imports only crypto/util and has no filesystem,
+network or repair entrypoint. Test child processes establish bounded execution
+of these fixtures, **not production process isolation or designated-host
+acceptance**. Darwin's identical Ubuntu/ext4 host run remains outstanding.
 
 ## Verification and remaining gates
 
@@ -165,8 +263,8 @@ the repository Actions reference guard. The runner verifies that this pinned
 workflow blob equals the accounting workflow in the current source generation.
 Both matrices run Node 22/24/26 and bind the
 exact source checkout. The aggregate depends on both matrices. The original
-seven paths plus the evidence runner and its adversarial proof are the complete
-nine-file source set; all nine trigger the parent workflow on PRs and main
+seven paths plus the evidence runner, its adversarial proof and the ingress
+proof are the complete ten-file source set; all ten trigger the parent workflow on PRs and main
 pushes. Accounting is now `workflow_call` only, so all six members share one
 run ID and attempt. This deliberately replaces two independent workflow runs.
 
@@ -177,7 +275,7 @@ runner; the in-memory planner does not import it. Each matrix job executes the
 closed syntax/proof/diff command set and emits one canonical JSON receipt.
 Each receipt binds:
 
-- exact source head and tree, nine sorted path/blob/mode entries, and the
+- exact source head and tree, ten sorted path/blob/mode entries, and the
   corresponding workflow entry;
 - repository, run ID, attempt, event, workflow-definition commit, logical
   GitHub job ID and matrix coordinate;
@@ -241,9 +339,10 @@ gate, and neither a complete bundle nor Nimo's 11/11 primitive receipt grants
 runtime capability, custody/isolation proof, release acceptance or funds
 authority. Nimo evidence cannot substitute for any matrix member.
 
-The primary and accounting suites retain 149 and four cases. The evidence suite
-adds 62 schema, substitution, matrix, filesystem, dependency and workflow cases,
-for 215 distinct cases. Replaying suites in several jobs adds no distinct cases.
+The primary and accounting suites retain 149 and four cases, with owned fixtures
+serialized through the new byte API. The evidence suite adds 62 schema,
+substitution, matrix, filesystem, dependency and workflow cases. The ingress
+suite adds 63 cases, for 278 distinct cases. Replaying suites in several jobs adds no distinct cases.
 Case-name manifests are emitted by `--case-manifest` only after checks succeed;
 their identities are derived from the executed cases, not a duplicated list.
 

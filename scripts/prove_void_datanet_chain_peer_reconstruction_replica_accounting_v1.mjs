@@ -3,9 +3,21 @@ import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import {
   VOID_DATANET_RECONSTRUCTION_DEFAULT_POLICY_V1,
-  createDatanetChainCommitmentV1,
-  planDatanetChainPeerReconstructionV1,
+  createDatanetChainCommitmentV1 as rawCreate,
+  planDatanetChainPeerReconstructionV1 as rawEvaluate,
 } from "./lib/void_datanet_chain_peer_reconstruction_v1.mjs";
+
+
+// Serialize only proof-owned fixtures. Untrusted objects go directly to raw APIs.
+function fixtureJson(value) {
+  if (Buffer.isBuffer(value)) return JSON.stringify(value.toString("base64"));
+  if (value === null || typeof value !== "object") return JSON.stringify(value);
+  if (Array.isArray(value)) return `[${value.map(fixtureJson).join(",")}]`;
+  return `{${Object.keys(value).sort().map(k => `${JSON.stringify(k)}:${fixtureJson(value[k])}`).join(",")}}`;
+}
+const wire = value => Buffer.from(fixtureJson(value), "utf8");
+const createDatanetChainCommitmentV1 = value => rawCreate(wire(value));
+const planDatanetChainPeerReconstructionV1 = value => rawEvaluate(wire(value));
 
 const PAYLOAD = Buffer.from(
   "VOID_DATANET_CHAIN_PEER_RECONSTRUCTION_CONTROL\n",

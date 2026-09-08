@@ -9,9 +9,9 @@ import {
   VOID_DATANET_CHAIN_PEER_RECONSTRUCTION_V1,
   VOID_DATANET_RECONSTRUCTION_AUTHORITY_V1,
   VOID_DATANET_RECONSTRUCTION_DEFAULT_POLICY_V1,
-  createDatanetChainCommitmentV1,
-  planDatanetChainPeerReconstructionV1 as evaluate,
-  validateDatanetChainCommitmentV1,
+  createDatanetChainCommitmentV1 as rawCreate,
+  planDatanetChainPeerReconstructionV1 as rawEvaluate,
+  validateDatanetChainCommitmentV1 as rawValidate,
 } from "./lib/void_datanet_chain_peer_reconstruction_v1.mjs";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
@@ -31,6 +31,19 @@ const WORKFLOW_PATH = resolve(
   ROOT,
   ".github/workflows/void-datanet-chain-peer-reconstruction-v1.yml",
 );
+
+
+// Serialize only proof-owned fixtures. Untrusted objects go directly to raw APIs.
+function fixtureJson(value) {
+  if (Buffer.isBuffer(value)) return JSON.stringify(value.toString("base64"));
+  if (value === null || typeof value !== "object") return JSON.stringify(value);
+  if (Array.isArray(value)) return `[${value.map(fixtureJson).join(",")}]`;
+  return `{${Object.keys(value).sort().map(k => `${JSON.stringify(k)}:${fixtureJson(value[k])}`).join(",")}}`;
+}
+const wire = value => Buffer.from(fixtureJson(value), "utf8");
+const createDatanetChainCommitmentV1 = value => rawCreate(wire(value));
+const validateDatanetChainCommitmentV1 = value => rawValidate(wire(value));
+const evaluate = value => rawEvaluate(wire(value));
 
 const PAYLOAD = Buffer.from("VOID_DATANET_CHAIN_PEER_RECONSTRUCTION_CONTROL\n", "utf8");
 const WRONG = Buffer.from("VOID_DATANET_CHAIN_PEER_RECONSTRUCTION_FORGED!\n", "utf8");
@@ -88,7 +101,7 @@ function evaluateWithPayloadHashCount(input) {
     const hash = originalCreateHash.apply(this, args);
     const originalUpdate = hash.update;
     hash.update = function (value, ...rest) {
-      if (payloads.has(value)) payloadHashUpdates += 1;
+      if (Buffer.isBuffer(value) && [...payloads].some(p => Buffer.isBuffer(p) && p.equals(value))) payloadHashUpdates += 1;
       return originalUpdate.call(this, value, ...rest);
     };
     return hash;
@@ -700,11 +713,11 @@ check("returned authority cannot poison later decisions", () => {
 
 check("exported defaults and snapshots cannot poison future defaults", () => {
   assert.equal(Reflect.set(VOID_DATANET_RECONSTRUCTION_DEFAULT_POLICY_V1, "target_replica_count", 1), false);
-  const first = evaluate(request({ policy: undefined }));
+  const first = evaluate(request({ policy: VOID_DATANET_RECONSTRUCTION_DEFAULT_POLICY_V1 }));
   assertOperationalHold(first);
   assert.equal(first.reference_plan.requested_policy.target_replica_count, 3);
   assert.equal(Reflect.set(first.reference_plan.requested_policy, "target_replica_count", 1), false);
-  const later = evaluate(request({ policy: undefined }));
+  const later = evaluate(request({ policy: VOID_DATANET_RECONSTRUCTION_DEFAULT_POLICY_V1 }));
   assertOperationalHold(later);
   assert.equal(later.reference_plan.requested_copy_target, 3);
 });

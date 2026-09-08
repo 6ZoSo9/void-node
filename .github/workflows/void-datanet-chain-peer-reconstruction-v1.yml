@@ -11,6 +11,7 @@ on:
       - "scripts/prove_void_datanet_chain_peer_reconstruction_replica_accounting_v1.mjs"
       - "scripts/prove_void_datanet_chain_peer_reconstruction_v1.mjs"
       - "scripts/prove_void_datanet_reconstruction_evidence_v1.mjs"
+      - "scripts/prove_void_datanet_reconstruction_ingress_v1.mjs"
       - "scripts/void_datanet_reconstruction_evidence_v1.mjs"
   push:
     branches: [main]
@@ -23,6 +24,7 @@ on:
       - "scripts/prove_void_datanet_chain_peer_reconstruction_replica_accounting_v1.mjs"
       - "scripts/prove_void_datanet_chain_peer_reconstruction_v1.mjs"
       - "scripts/prove_void_datanet_reconstruction_evidence_v1.mjs"
+      - "scripts/prove_void_datanet_reconstruction_ingress_v1.mjs"
       - "scripts/void_datanet_reconstruction_evidence_v1.mjs"
 
 permissions:

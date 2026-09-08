@@ -5,7 +5,7 @@ import { mkdtempSync, mkdirSync, readFileSync, renameSync, rmSync, symlinkSync, 
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
-  ACCOUNTING, ACCOUNTING_DEFINITION_SHA, AUTHORITY, EVIDENCE_PROOF, MEMBERS, PLANNER, ROOT, RUNNER, SOURCE_PATHS, WORKFLOWS,
+  ACCOUNTING, ACCOUNTING_DEFINITION_SHA, AUTHORITY, EVIDENCE_PROOF, INGRESS_PROOF, MEMBERS, PLANNER, ROOT, RUNNER, SOURCE_PATHS, WORKFLOWS,
   artifactName, caseManifest, commandRecord, commandSet, decode, digest, encode,
   makeBundle, makeReceipt, readMembers, validateReceipts, verifyBundle,
 } from "./void_datanet_reconstruction_evidence_v1.mjs";
@@ -23,7 +23,7 @@ function output(suite) {
   return `cases=1\ncase_manifest_json=${JSON.stringify({ schema: "VOID_DATANET_CASE_MANIFEST_V1", suite, case_names: ["synthetic receipt validation control"] })}\n`;
 }
 const commands = Object.fromEntries(["planner", "accounting"].map(lane => [lane, commandSet(lane).map(c => {
-  const suite = { [PLANNER]: "planner", [ACCOUNTING]: "accounting", [EVIDENCE_PROOF]: "evidence" }[c.args[0]];
+  const suite = { [PLANNER]: "planner", [ACCOUNTING]: "accounting", [EVIDENCE_PROOF]: "evidence", [INGRESS_PROOF]: "ingress" }[c.args[0]];
   return commandRecord(c, suite ? output(suite) : "");
 })]));
 const expected = { source, run, commands };
@@ -184,6 +184,7 @@ check("all command vectors preserve syntax and accounting coverage", () => {
     for (const path of SOURCE_PATHS.filter(p => p.endsWith(".mjs"))) assert.ok(vector.some(c => c.program === "node" && c.args[0] === "--check" && c.args[1] === path));
     assert.ok(vector.some(c => c.args[0] === PLANNER));
     assert.ok(vector.some(c => c.args[0] === EVIDENCE_PROOF));
+    assert.ok(vector.some(c => c.args[0] === INGRESS_PROOF));
     assert.ok(vector.some(c => c.program === "git" && c.args.join(" ") === "diff --check HEAD"));
   }
   assert.ok(commandSet("accounting").some(c => c.args[0] === ACCOUNTING));
