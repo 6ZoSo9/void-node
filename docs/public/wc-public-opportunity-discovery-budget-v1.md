@@ -112,3 +112,30 @@ VOID_WC_PUBLIC_OPPORTUNITY_DISCOVERY_BUDGET_V1_PROOF_GREEN
 This is source/proof/docs/CI work only. It does not claim a ticket, dispatch
 work, write Work Credits, access wallets or signers, submit transactions,
 activate a runtime, or move funds.
+
+## Response-local pilot compatibility and timing evidence
+
+A top-level pilot response can be available only when it includes its own
+`gateway_contract`: exact gateway marker, canonical claim route, POST method,
+and required key-possession security fact. This object belongs to that same
+HTTP response. Missing or contradictory local identity evidence cannot be
+filled by an earlier gateway response. The nested-provenance proof includes
+eight such missing/conflicting cases with a valid prior gateway still present.
+
+Both the real CLI and the proof call `runDiscoveryCliV1`. The test child imports
+the module, waits through deliberate 650 ms setup delays for the timing cases,
+and only then starts its monotonic operation clock. It reports duration after
+the shared entry point finishes its participant-visible terminal. Parent time
+is only a ten-second hang watchdog, never the 300 ms discovery-budget metric.
+The deterministic post-body clock-crossing falsifier remains in place.
+
+The focused workflow runs the nested-provenance regression and watches that
+proof, preserving shallow credentialless checkout and committed-range hygiene.
+
+The seed adapter now embeds its exact gateway capability snapshot in each
+sanitized pilot response. The composition regression checks that actual wire
+object alongside every existing numeric, availability and safety falsifier.
+Canonical fallback ordering is unchanged. A later pilot diagnostic can replace
+an earlier route-only HOLD as a whole result; fields are never composed across
+responses. The focused workflow executes both migrated integration proofs, and
+the broader discovery workflow remains required.

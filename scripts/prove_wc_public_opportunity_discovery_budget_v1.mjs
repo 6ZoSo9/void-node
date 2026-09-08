@@ -6,7 +6,7 @@ import { performance } from "node:perf_hooks";
 import { spawn } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
 import {
   analyzeDiscoveryBodyV1,
@@ -26,18 +26,29 @@ const MAX_CANDIDATE_PATHS = 24;
 const RESPONSE_LIMIT = 64 * 1024;
 const DEFAULT_CANDIDATE_COUNT = 9;
 
-function runTool(base, timeoutMs, extraArgs = []) {
+function runTool(base, timeoutMs, extraArgs = [], setupDelayMs = 0) {
   return new Promise((resolveRun, rejectRun) => {
-    const child = spawn(process.execPath, [
-      TOOL,
-      "--base", base,
-      "--timeout-ms", String(timeoutMs),
-      "--require-available",
-      ...extraArgs,
-    ], {
+    // Import/startup/setup is outside the semantic operation clock. The same
+    // exported CLI entry point owns argument parsing, operation and terminal.
+    const childCode = `
+      import { performance } from "node:perf_hooks";
+      import { runDiscoveryCliV1 } from ${JSON.stringify(pathToFileURL(TOOL).href)};
+      await new Promise(resolve => setTimeout(resolve, ${setupDelayMs}));
+      const started = performance.now();
+      await runDiscoveryCliV1(${JSON.stringify([
+        "--base", base, "--timeout-ms", String(timeoutMs),
+        "--require-available", ...extraArgs,
+      ])});
+      process.stderr.write("operation_ms=" + (performance.now() - started) + "\\n");
+    `;
+    const child = spawn(process.execPath, ["--input-type=module", "-e", childCode], {
       cwd: ROOT,
       stdio: ["ignore", "pipe", "pipe"],
     });
+    const watchdog = setTimeout(() => {
+      child.kill("SIGKILL");
+      rejectRun(new Error("discovery child exceeded 10-second hang watchdog"));
+    }, 10_000);
 
     let stdout = "";
     let stderr = "";
@@ -45,8 +56,16 @@ function runTool(base, timeoutMs, extraArgs = []) {
     child.stderr.setEncoding("utf8");
     child.stdout.on("data", (chunk) => { stdout += chunk; });
     child.stderr.on("data", (chunk) => { stderr += chunk; });
-    child.on("error", rejectRun);
-    child.on("close", (code) => resolveRun({ code, stdout, stderr }));
+    child.on("error", error => { clearTimeout(watchdog); rejectRun(error); });
+    child.on("close", (code) => {
+      clearTimeout(watchdog);
+      const operationMs = Number(/^operation_ms=([0-9.]+)$/m.exec(stderr)?.[1]);
+      if (!Number.isFinite(operationMs)) {
+        rejectRun(new Error(`missing operation duration: ${stderr}`));
+        return;
+      }
+      resolveRun({ code, stdout, stderr, operationMs });
+    });
   });
 }
 
@@ -246,10 +265,9 @@ function availableGateway(candidatePaths = []) {
     response.end(JSON.stringify({ error: "not_found" }));
   });
 
-  const started = performance.now();
   try {
-    const result = await runTool(base, 500);
-    const elapsedMs = performance.now() - started;
+    const result = await runTool(base, 500, [], 650);
+    const elapsedMs = result.operationMs;
     assert.equal(result.code, 0, result.stderr || result.stdout);
     assert.equal(JSON.parse(result.stdout).opportunity_state, "available");
     assert.deepEqual(requests, [WELL_KNOWN, CANONICAL_GATEWAY]);
@@ -356,10 +374,9 @@ function availableGateway(candidatePaths = []) {
     response.end(JSON.stringify({ error: "not_found" }));
   });
 
-  const started = performance.now();
   try {
-    const result = await runTool(base, 300);
-    const elapsedMs = performance.now() - started;
+    const result = await runTool(base, 300, [], 650);
+    const elapsedMs = result.operationMs;
     assert.equal(result.code, 2, result.stderr || result.stdout);
     const body = JSON.parse(result.stdout);
     assert.equal(body.reason, "discovery_deadline_exceeded");
@@ -573,6 +590,9 @@ for (const fixture of [
     "tools/wc-public-response-teardown-v1.mjs",
     "scripts/prove_wc_public_opportunity_discovery_v1.mjs",
     "scripts/prove_wc_public_opportunity_discovery_budget_v1.mjs",
+    "scripts/prove_wc_public_opportunity_nested_contract_provenance_v1.mjs",
+    "scripts/prove_wc_public_opportunity_adapter_composition_v1.mjs",
+    "ops/public/public-seed-adapter-v1.mjs",
   ]) {
     assert.ok(workflow.includes(token), `workflow missing ${token}`);
   }
@@ -583,6 +603,7 @@ for (const fixture of [
 console.log(MARKER);
 console.log(`maximum_candidate_paths=${MAX_CANDIDATE_PATHS}`);
 console.log("shared_logical_deadline=true");
+console.log("child_setup_excluded_from_operation_clock=true");
 console.log("early_available_cap_bypass_closed=true");
 console.log("deadline_teardown_does_not_extend_budget=true");
 console.log("primary_rejection_truth_preserved=true");

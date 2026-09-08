@@ -393,7 +393,9 @@ function analyzeNormalizedDiscoveryWithClockV1(
   const gateway = topLevelMarker === GATEWAY_MARKER ? topLevel : null;
   // Positive capability truth is self-contained per admitted HTTP response.
   // Same-origin response history is not a generation/authentication primitive.
-  const localGatewayContract = extractGatewayContract(topLevel);
+  const localGatewayContract = extractGatewayContract(
+    topLevelMarker === PILOT_MARKER ? asObject(topLevel.gateway_contract) : topLevel,
+  );
   const gatewayPilot = asObject(gateway?.pilot_status);
   const pilot =
     (gatewayPilot?.marker === PILOT_MARKER ? gatewayPilot : null) ??
@@ -446,7 +448,9 @@ function analyzeNormalizedDiscoveryWithClockV1(
   const gatewayMarker = gateway?.marker ?? pilotGatewayMarker ?? localGatewayContract?.marker ?? null;
   const gatewayIdentityConfirmed = gateway
     ? gateway.marker === GATEWAY_MARKER
-    : pilotGatewayMarker === GATEWAY_MARKER && localGatewayContract?.marker === GATEWAY_MARKER;
+    : pilotGatewayMarker === GATEWAY_MARKER &&
+      localGatewayContract?.marker === GATEWAY_MARKER &&
+      localGatewayContract.claim_executor_key_possession_required === true;
   const claimIdentityConfirmed = claimMarker === CLAIM_MARKER && claimMethod === CLAIM_METHOD;
   const executorRoleConfirmed = executorEnabled === false;
   const gatewayKeyKeys = ["claim_executor_key_possession_required"];
@@ -600,8 +604,9 @@ function failDeadline(origin, candidates, timeoutMs, attempts) {
   });
 }
 
-async function main() {
+async function main(args) {
   const { values } = parseArgs({
+    args,
     options: {
       base: { type: "string" },
       path: { type: "string", multiple: true, default: [] },
@@ -746,7 +751,11 @@ async function main() {
       emitResult(result, values["require-available"], deadlineMs, nowFn);
       return;
     }
-    if (!firstHold) firstHold = result;
+    // Prefer a response's own pilot diagnostic over a route-only advertisement;
+    // replace the whole result rather than composing facts across responses.
+    if (!firstHold || (firstHold.pilot?.marker !== PILOT_MARKER && result.pilot?.marker === PILOT_MARKER)) {
+      firstHold = result;
+    }
   }
 
   if (deadlineExceeded || nowFn() >= deadlineMs) {
@@ -769,9 +778,14 @@ async function main() {
   });
 }
 
-const isMain = process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url);
-if (isMain) {
-  main().catch((error) => {
+// The CLI and in-process callers share the same terminal/error handling.
+export async function runDiscoveryCliV1(args = process.argv.slice(2)) {
+  try {
+    await main(args);
+  } catch (error) {
     fail(error instanceof Error ? error.message : "unexpected error");
-  });
+  }
 }
+
+const isMain = process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url);
+if (isMain) await runDiscoveryCliV1();

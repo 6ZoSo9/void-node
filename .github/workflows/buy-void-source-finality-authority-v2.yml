@@ -1,0 +1,79 @@
+name: VOID Buy VOID SourceFinalityAuthorityV2 candidate
+
+on:
+  pull_request:
+    paths:
+      - "src/economic/buy_void_source_finality_authority_v2.ts"
+      - "scripts/prove_buy_void_source_finality_authority_v2.ts"
+      - "docs/architecture/buy-void-source-finality-authority-v2.md"
+      - ".github/workflows/buy-void-source-finality-authority-v2.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  prove:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+
+    steps:
+      - name: Check out exact PR head
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Verify exact checkout identity
+        shell: bash
+        env:
+          EXPECTED_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD_SHA"
+
+      - name: Set up Node
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: ${{ matrix.node }}
+
+      - name: Install locked dependencies
+        run: npm ci --ignore-scripts
+
+      - name: Focused TypeScript
+        run: |
+          ./node_modules/.bin/tsc \
+            --noEmit \
+            --target ES2022 \
+            --module NodeNext \
+            --moduleResolution NodeNext \
+            --lib ES2022 \
+            --types node \
+            --esModuleInterop \
+            --allowSyntheticDefaultImports \
+            --downlevelIteration \
+            --skipLibCheck \
+            src/economic/buy_void_source_finality_authority_v2.ts \
+            scripts/prove_buy_void_source_finality_authority_v2.ts
+
+      - name: Prove SourceFinalityAuthorityV2 candidate
+        run: ./node_modules/.bin/tsx scripts/prove_buy_void_source_finality_authority_v2.ts
+
+      - name: Repository build
+        run: npm run build
+
+      - name: Committed-range diff hygiene
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          if [ -n "${BASE_SHA:-}" ] && [ -n "${HEAD_SHA:-}" ]; then
+            git diff --check "$BASE_SHA" "$HEAD_SHA"
+          else
+            git diff --check HEAD^ HEAD
+          fi
