@@ -5,7 +5,7 @@ import { execFileSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 
 const MARKER = "VOID_BUY_VOID_SOURCE_FINALITY_COMPILED_ARTIFACT_ATTESTATION_V1";
-const SOURCE_STACK_HEAD = "f0fd6fb9afff43986d7f0b87e9aac3750d4e4f34";
+const SOURCE_STACK_HEAD = "9202f3ce11664873f2316b08cbdbe2b98fd77fb4";
 const EXPECTED_TYPESCRIPT_VERSION = "5.9.3";
 const MANIFEST_PATH = "docs/architecture/buy-void-source-finality-compiled-artifact-attestation-v1.json";
 const DERIVATION_NODE_MAJORS = Object.freeze([22, 24, 26]);
