@@ -56,7 +56,7 @@ function pilot() {
 
 function gatewayEnvelope() {
   return {
-    marker: GATEWAY_MARKER,
+    ...gatewayContract(),
     pilot_status: pilot(),
     public_claim: claim(),
     safety: safety(),
@@ -66,6 +66,7 @@ function gatewayEnvelope() {
 function pilotEnvelope() {
   return {
     ...pilot(),
+    gateway_contract: gatewayContract(),
     public_claim: claim(),
     safety: safety(),
   };
@@ -106,6 +107,7 @@ function runDiscovery(origin) {
 }
 
 let payload = null;
+let servePriorGateway = false;
 let observedMethods = [];
 const server = http.createServer((request, response) => {
   observedMethods.push(request.method ?? null);
@@ -115,7 +117,7 @@ const server = http.createServer((request, response) => {
     response.end(JSON.stringify(payload));
     return;
   }
-  if (request.url === gatewayPath) {
+  if (request.url === gatewayPath && servePriorGateway) {
     response.statusCode = 200;
     response.end(JSON.stringify(gatewayContract()));
     return;
@@ -134,8 +136,9 @@ try {
   assert(address && typeof address === "object");
   const origin = `http://127.0.0.1:${address.port}`;
 
-  async function runCase(nextPayload) {
+  async function runCase(nextPayload, priorGateway = false) {
     payload = nextPayload;
+    servePriorGateway = priorGateway;
     observedMethods = [];
     const outcome = await runDiscovery(origin);
     assert.deepEqual(new Set(observedMethods), new Set(["GET"]));
@@ -176,6 +179,23 @@ try {
     ["pilot_happy", pilotEnvelope()],
   ]) {
     assertAvailable(await runCase(envelope), label);
+  }
+
+  // Complete authority must travel with this response. The earlier gateway
+  // response is deliberately valid and must not rescue any missing local fact.
+  for (const [label, mutation] of [
+    ["missing_contract", v => { delete v.gateway_contract; }],
+    ["wrong_marker", v => { v.gateway_contract.marker += "_ALT"; }],
+    ["missing_route", v => { delete v.gateway_contract.routes; }],
+    ["wrong_route", v => { v.gateway_contract.routes.claim_ticket += "-alt"; }],
+    ["missing_method", v => { delete v.gateway_contract.methods; }],
+    ["wrong_method", v => { v.gateway_contract.methods.claim_ticket = ["GET"]; }],
+    ["missing_key_proof", v => { delete v.gateway_contract.safety; }],
+    ["key_proof_false", v => { v.gateway_contract.safety.claim_executor_key_possession_required = false; }],
+  ]) {
+    const outcome = await runCase(mutate(pilotEnvelope(), mutation), true);
+    assert.equal(outcome.code, 2, label);
+    assert.notEqual(outcome.result.opportunity_state, "available", label);
   }
 
   for (const [label, mutation] of [
@@ -332,6 +352,7 @@ try {
   }
 
   process.stdout.write("wc-public-opportunity nested contract provenance proof passed\n");
+  process.stdout.write("response_local_gateway_contract_required=true\n");
 } finally {
   await new Promise((resolve) => server.close(resolve));
 }
