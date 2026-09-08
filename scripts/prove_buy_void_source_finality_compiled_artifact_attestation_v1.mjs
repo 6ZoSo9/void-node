@@ -24,6 +24,15 @@ const ARTIFACT_PATHS = Object.freeze([
   "dist/economic/buy_void_verified_payment_v2.js",
 ]);
 
+const REVIEWED_SOURCE_PATHS = Object.freeze([
+  "src/economic/buy_void_source_finality_generation_provenance_v4.ts",
+  "src/economic/buy_void_source_finality_authenticated_composition_v3.ts",
+  "src/economic/buy_void_source_finality_authority_v2.ts",
+  "src/economic/buy_void_source_chain_finality_rpc_adapter_v1.ts",
+  "src/economic/buy_void_payment_rpc_observer_v1.ts",
+  "src/economic/buy_void_verified_payment_v2.ts",
+]);
+
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const MAX_ARTIFACT_BYTES = 2 * 1024 * 1024;
 const SHA1 = /^[0-9a-f]{40}$/;
@@ -66,7 +75,19 @@ function readRegularFile(relativePath, maxBytes = MAX_ARTIFACT_BYTES) {
   return bytes;
 }
 
-function assertSourceStackUnchanged() {
+function assertAttestedSourceClosureUnchanged() {
+  if (REVIEWED_SOURCE_PATHS.length !== ARTIFACT_PATHS.length) {
+    fail("reviewed_source_artifact_path_cardinality_mismatch");
+  }
+  for (let index = 0; index < ARTIFACT_PATHS.length; index += 1) {
+    const expectedSourcePath = ARTIFACT_PATHS[index]
+      .replace(/^dist\//, "src/")
+      .replace(/\.js$/, ".ts");
+    if (REVIEWED_SOURCE_PATHS[index] !== expectedSourcePath) {
+      fail("reviewed_source_artifact_path_mapping_mismatch");
+    }
+  }
+
   try {
     execFileSync("git", ["merge-base", "--is-ancestor", SOURCE_STACK_HEAD, "HEAD"], {
       cwd: ROOT,
@@ -77,7 +98,7 @@ function assertSourceStackUnchanged() {
   }
 
   const watched = [
-    "src",
+    ...REVIEWED_SOURCE_PATHS,
     "package.json",
     "package-lock.json",
     "tsconfig.build.json",
@@ -90,12 +111,12 @@ function assertSourceStackUnchanged() {
       stdio: "ignore",
     });
   } catch {
-    fail("compiled_build_input_drift_from_reviewed_v4_head");
+    fail("compiled_attested_source_closure_or_build_input_drift_from_reviewed_v4_head");
   }
 }
 
 function verifyBuildInputs() {
-  assertSourceStackUnchanged();
+  assertAttestedSourceClosureUnchanged();
 
   for (const [relativePath, expectedBlob] of Object.entries(EXPECTED_INPUT_BLOBS)) {
     if (!SHA1.test(expectedBlob)) fail(`invalid_expected_blob:${relativePath}`);
