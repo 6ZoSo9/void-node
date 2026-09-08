@@ -17,6 +17,10 @@ const CAPABILITY_ID = /^[a-z0-9][a-z0-9._-]{0,127}$/;
 const DEFAULT_WANTED = ["public_discovery", "capability_negotiation"];
 const RESPONSE_TEARDOWN_SETTLE_MAX_MS = 250;
 const transportGenerations = new WeakMap();
+const typedArrayPrototype = Object.getPrototypeOf(Uint8Array.prototype);
+const typedArrayByteLength = Object.getOwnPropertyDescriptor(typedArrayPrototype, "byteLength").get;
+const typedArrayByteOffset = Object.getOwnPropertyDescriptor(typedArrayPrototype, "byteOffset").get;
+const typedArrayBuffer = Object.getOwnPropertyDescriptor(typedArrayPrototype, "buffer").get;
 
 function fail(message) {
   throw new Error(message);
@@ -273,6 +277,29 @@ function ownedReaderRead(reader, request, label) {
   return operation;
 }
 
+function copyBoundedChunk(value, remainingBytes, label) {
+  if (!(value instanceof Uint8Array)) fail(`${label}_body_chunk_invalid`);
+  let size;
+  let offset;
+  let buffer;
+  try {
+    // Read actual storage bounds, never caller-shadowed length/buffer fields.
+    size = typedArrayByteLength.call(value);
+    offset = typedArrayByteOffset.call(value);
+    buffer = typedArrayBuffer.call(value);
+  } catch {
+    fail(`${label}_body_chunk_invalid`);
+  }
+  if (size === 0) fail(`${label}_body_zero_progress`);
+  if (size > remainingBytes) fail(`${label}_body_too_large`);
+  try {
+    // A fresh fixed-length view excludes hostile array-like accessors during copy.
+    return Buffer.from(new Uint8Array(buffer, offset, size));
+  } catch {
+    fail(`${label}_body_chunk_invalid`);
+  }
+}
+
 async function readBoundedText(response, label, maxBytes, request, metadata) {
   const declared = metadata.declaredLength;
   if (declared !== null) {
@@ -296,10 +323,8 @@ async function readBoundedText(response, label, maxBytes, request, metadata) {
         typeof item.done !== "boolean") fail(`${label}_body_read_result_invalid`);
     const { done, value } = item;
     if (done) break;
-    if (!(value instanceof Uint8Array)) fail(`${label}_body_chunk_invalid`);
-    const chunk = Buffer.from(value);
+    const chunk = copyBoundedChunk(value, maxBytes - total, label);
     total += chunk.length;
-    if (total > maxBytes) fail(`${label}_body_too_large`);
     chunks.push(chunk);
   }
   return Buffer.concat(chunks, total).toString("utf8");

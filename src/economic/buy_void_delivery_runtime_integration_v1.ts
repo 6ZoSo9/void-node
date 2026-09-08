@@ -17,6 +17,11 @@ import {
   readBuyVoidErc20ExecutionCompositionPolicyV1,
   runBuyVoidErc20ExecutionCompositionV1,
 } from "./buy_void_erc20_execution_composition_v1.js";
+import {
+  VOID_BUY_VOID_SOURCE_FINALITY_EXECUTION_PREFLIGHT_AUTHORITY_V1,
+  VOID_BUY_VOID_SOURCE_FINALITY_EXECUTION_PREFLIGHT_V1,
+  runBuyVoidSourceFinalityExecutionPreflightV1,
+} from "./buy_void_source_finality_execution_preflight_v1.js";
 
 export const VOID_BUY_VOID_DELIVERY_RUNTIME_INTEGRATION_V1 =
   "VOID_BUY_VOID_DELIVERY_RUNTIME_INTEGRATION_V1";
@@ -38,6 +43,11 @@ export const VOID_BUY_VOID_DELIVERY_RUNTIME_AUTHORITY_V1 = {
   durable_submission_guard_required: true,
   signer_dependency_injected: true,
   broadcaster_dependency_injected: true,
+  source_finality_preflight_required_before_dependency_use: true,
+  source_finality_preflight_cached_per_command: true,
+  source_finality_failure_prevents_signer_access: true,
+  source_finality_failure_prevents_broadcast_call: true,
+  reconciliation_without_signer_or_broadcaster_remains_available: true,
   coherent_pending_planner_reused: true,
   canonical_planner_policy_validation_required: true,
   max_amount_fulfillment_unit_binding_required: true,
@@ -163,6 +173,50 @@ function externalDependencies(): ExternalDependenciesV1 | null {
   return { signer: value.signer, broadcaster: value.broadcaster };
 }
 
+function sourceFinalityGuardedDependencies(
+  rootDir: string,
+  attemptId: string,
+  dependencies: ExternalDependenciesV1,
+): ExternalDependenciesV1 {
+  let preflightPromise: ReturnType<
+    typeof runBuyVoidSourceFinalityExecutionPreflightV1
+  > | null = null;
+
+  const requirePreflight = async (): Promise<void> => {
+    preflightPromise ||= runBuyVoidSourceFinalityExecutionPreflightV1({
+      root_dir: rootDir,
+      attempt_id: attemptId,
+    });
+    const decision = await preflightPromise;
+    if (decision.ok !== true) {
+      throw new Error(
+        `buy_void_source_finality_preflight_held:${decision.reason}`,
+      );
+    }
+  };
+
+  return {
+    signer: {
+      get_address: async () => {
+        await requirePreflight();
+        return dependencies.signer.get_address();
+      },
+      sign_transaction: async (transaction) => {
+        await requirePreflight();
+        return dependencies.signer.sign_transaction(transaction);
+      },
+    },
+    broadcaster: {
+      broadcast_signed_transaction: async (rawSignedTransaction) => {
+        await requirePreflight();
+        return dependencies.broadcaster.broadcast_signed_transaction(
+          rawSignedTransaction,
+        );
+      },
+    },
+  };
+}
+
 function decisionStatus(decision: any): number {
   if (decision?.ok === true) return 200;
   const reason = String(decision?.reason || "");
@@ -175,7 +229,7 @@ function decisionStatus(decision: any): number {
   ) return 409;
   if (
     reason.includes("not_configured") || reason.includes("dependency_required") ||
-    reason.includes("disabled")
+    reason.includes("disabled") || reason.includes("source_finality")
   ) return 503;
   return 400;
 }
@@ -183,7 +237,7 @@ function decisionStatus(decision: any): number {
 export function buyVoidDeliveryRuntimeStatusV1(): Record<string, unknown> {
   const policy = readBuyVoidErc20ExecutionCompositionPolicyV1();
   const dependencies = externalDependencies();
-  const active = enabled() && policy.ok === true && dependencies !== null;
+  const capabilityConfigured = enabled() && policy.ok === true && dependencies !== null;
   return {
     marker: VOID_BUY_VOID_DELIVERY_RUNTIME_INTEGRATION_V1,
     version: 1,
@@ -208,9 +262,18 @@ export function buyVoidDeliveryRuntimeStatusV1(): Record<string, unknown> {
         : null,
     signer_configured: dependencies !== null,
     broadcaster_configured: dependencies !== null,
+    capability_configured: capabilityConfigured,
+    authorization_scope: "per_attempt_command",
+    authorization_status: "not_evaluated",
     submission_guard_configured: true,
-    adapter_marker: VOID_BUY_VOID_DELIVERY_SIGN_BROADCAST_ADAPTER_V1,
+    source_finality_preflight_marker:
+      VOID_BUY_VOID_SOURCE_FINALITY_EXECUTION_PREFLIGHT_V1,
+    source_finality_preflight_required_before_dependency_use: true,
+    source_finality_preflight_cached_per_command: true,
+    source_finality_preflight_authority:
+      VOID_BUY_VOID_SOURCE_FINALITY_EXECUTION_PREFLIGHT_AUTHORITY_V1,
     submission_guard_marker: VOID_BUY_VOID_DELIVERY_SUBMISSION_GUARD_V1,
+    adapter_marker: VOID_BUY_VOID_DELIVERY_SIGN_BROADCAST_ADAPTER_V1,
     execution_composition_marker: VOID_BUY_VOID_ERC20_EXECUTION_COMPOSITION_V1,
     server_derived_transaction_plan: true,
     caller_supplied_transaction_plan: false,
@@ -220,10 +283,14 @@ export function buyVoidDeliveryRuntimeStatusV1(): Record<string, unknown> {
     execution_composition_authority:
       VOID_BUY_VOID_ERC20_EXECUTION_COMPOSITION_AUTHORITY_V1,
     effective_authority: {
-      signing: active,
-      transaction_broadcast: active,
-      money_movement: active,
+      // This route selects no attempt and performs no preflight. Configuration
+      // alone cannot establish authority for any payment or delivery.
+      signing: false,
+      transaction_broadcast: false,
+      money_movement: false,
+      production_source_finality_authority_ready: false,
       rpc_call: enabled() && policy.ok === true,
+      source_finality_preflight_required: true,
       private_key_input: false,
       raw_signed_transaction_input: false,
       caller_supplied_transaction_plan: false,
@@ -296,15 +363,24 @@ export async function handleBuyVoidDeliveryRuntimeCommandV1(req: any, res: any):
   }
   const attemptId = String(body.attempt_id || "").trim().toLowerCase();
   const external = externalDependencies();
+  const rootDir = buyVoidDeliveryRuntimeRootDirV1();
+  const guardedExternal = external
+    ? sourceFinalityGuardedDependencies(rootDir, attemptId, external)
+    : null;
   const decision = await runBuyVoidErc20ExecutionCompositionV1({
-    root_dir: buyVoidDeliveryRuntimeRootDirV1(),
+    root_dir: rootDir,
     attempt_id: attemptId,
     apply,
     ...(apply
       ? { confirmation: VOID_BUY_VOID_ERC20_EXECUTION_COMPOSITION_CONFIRMATION_V1 }
       : {}),
     policy: policy.policy,
-    dependencies: external ? { signer: external.signer, broadcaster: external.broadcaster } : {},
+    dependencies: guardedExternal
+      ? {
+          signer: guardedExternal.signer,
+          broadcaster: guardedExternal.broadcaster,
+        }
+      : {},
   });
   return res.status(decisionStatus(decision)).json({
     marker: VOID_BUY_VOID_DELIVERY_RUNTIME_INTEGRATION_V1,
@@ -316,6 +392,9 @@ export async function handleBuyVoidDeliveryRuntimeCommandV1(req: any, res: any):
     policy_server_controlled: true,
     server_derived_transaction_plan: true,
     caller_supplied_transaction_plan: false,
+    source_finality_preflight_required_before_dependency_use: true,
+    source_finality_preflight_marker:
+      VOID_BUY_VOID_SOURCE_FINALITY_EXECUTION_PREFLIGHT_V1,
     decision,
     raw_signed_transaction_returned: false,
     automatic_retry_allowed: false,

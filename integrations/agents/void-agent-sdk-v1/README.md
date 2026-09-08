@@ -87,6 +87,12 @@ the exact requested final URL and JSON content type can contribute capability
 evidence. Contradictions, invalid values and throwing accessors fail closed and
 enter bounded cleanup while preserving the primary error.
 
+Each nonterminal body chunk must make byte progress and fit the remaining
+response budget before the SDK copies it. Admission uses the typed array's
+actual storage bounds, so shadowed `length`, `byteLength`, `byteOffset` or
+`buffer` properties cannot bypass the limit. Oversized and empty chunks reject
+through the same owned cleanup path; accepted subarray offsets are preserved.
+
 ## Fail-closed behavior
 
 The SDK rejects:

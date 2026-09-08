@@ -1,3 +1,4 @@
+import { Buffer } from "node:buffer";
 import {
   discoverVoidAgentV1,
 } from "../integrations/agents/void-agent-sdk-v1/index.mjs";
@@ -970,6 +971,85 @@ await expectRejectWithin("native read error", () => discoverVoidAgentV1({ baseUr
 nativeHealthy = true;
 assertCondition((await discoverVoidAgentV1({ baseUrl: "https://native.example", fetchImpl: nativeFetch })).status === "ready_read_only",
   "native errored body permanently quarantined the origin");
+// Inspect actual SDK copy calls, not only its eventual oversize error. Small
+// fixtures suffice to expose copying before admission and empty-chunk progress.
+const actualByteLength = Object.getOwnPropertyDescriptor(
+  Object.getPrototypeOf(Uint8Array.prototype), "byteLength",
+).get;
+let shadowReads = 0;
+function shadowStorage(value) {
+  for (const field of ["length", "byteLength", "byteOffset", "buffer"]) {
+    Object.defineProperty(value, field, { get() { shadowReads++; throw new Error("shadow_storage_read"); } });
+  }
+  return value;
+}
+const chunkCases = [
+  ["oversize", [new Uint8Array(4096)], "body_too_large", 0],
+  ["cumulative", [new Uint8Array(768), new Uint8Array(512)], "body_too_large", 768],
+  ["empty", [new Uint8Array(0), new Uint8Array(1)], "body_zero_progress", 0],
+  ["shadowed_oversize", [shadowStorage(new Uint8Array(4096))], "body_too_large", 0],
+  ["shadowed_empty", [shadowStorage(new Uint8Array(0))], "body_zero_progress", 0],
+  ["proxy_chunk", [new Proxy(new Uint8Array(4), {})], "body_chunk_invalid", 0],
+];
+for (const [name, chunks, reason, expectedCopyBytes] of chunkCases) {
+  let reads = 0;
+  let cancels = 0;
+  let releases = 0;
+  let healthy = false;
+  let copied = 0;
+  const fetchImpl = async url => healthy ? healthyResponse(url) : {
+    status: 200, ok: true, redirected: false, url,
+    headers: new Headers({ "content-type": "application/json" }),
+    body: { getReader: () => ({
+      read: async () => reads < chunks.length ? { done: false, value: chunks[reads++] } : { done: true },
+      cancel: async () => { cancels++; },
+      releaseLock() { releases++; },
+    }) },
+  };
+  const originalFrom = Buffer.from;
+  Buffer.from = function(value, ...args) {
+    if (value instanceof Uint8Array) copied += actualByteLength.call(value);
+    return originalFrom(value, ...args);
+  };
+  try {
+    await expectRejectWithin(name, () => discoverVoidAgentV1({
+      baseUrl: "https://chunk.example", fetchImpl, maxResponseBytes: 1024,
+    }), reason);
+  } finally { Buffer.from = originalFrom; }
+  assertCondition(copied === expectedCopyBytes, `${name}: bytes copied before admission: ${copied}`);
+  assertCondition(reads === (name === "cumulative" ? 2 : 1), `${name}: read after rejection`);
+  assertCondition(cancels === 1 && releases === 1, `${name}: cleanup not owned once`);
+  healthy = true;
+  assertCondition((await discoverVoidAgentV1({ baseUrl: "https://chunk.example", fetchImpl })).status === "ready_read_only",
+    `${name}: terminal chunk rejection did not recover`);
+}
+// Positive control: nonzero offsets and hostile own properties must neither
+// alter the accepted bytes nor turn a legitimate three-stage report into HOLD.
+let offsetResponses = 0;
+const offsetFetch = async url => {
+  const bytes = new TextEncoder().encode(await healthyResponse(url).text());
+  const storage = new Uint8Array(bytes.length + 13);
+  storage.set(bytes, 7);
+  const chunk = shadowStorage(storage.subarray(7, 7 + bytes.length));
+  let read = false;
+  offsetResponses++;
+  return { status: 200, ok: true, redirected: false, url,
+    headers: new Headers({ "content-type": "application/json" }),
+    body: { getReader: () => ({
+      read: async () => read ? { done: true } : (read = true, { done: false, value: chunk }),
+      cancel: async () => { throw new Error("positive_chunk_unexpected_cancel"); },
+      releaseLock() {},
+    }) },
+  };
+};
+assertCondition((await discoverVoidAgentV1({ baseUrl: "https://offset.example", fetchImpl: offsetFetch })).status === "ready_read_only",
+  "subarray storage bounds changed accepted bytes");
+assertCondition(offsetResponses === 3 && shadowReads === 0, "caller-shadowed storage metadata was read");
+console.log(`precopy_chunk_admission_cases=${chunkCases.length + 1}`);
+console.log("oversize_chunks_rejected_before_copy=true");
+console.log("zero_progress_chunks_rejected_before_copy=true");
+console.log("intrinsic_chunk_storage_bounds_preserved=true");
+console.log("chunk_rejection_cleanup_and_recovery=true");
 await drainObservers();
 process.removeListener("unhandledRejection", recordUnhandled);
 assertCondition(unhandled.length === 0, `unhandled late rejections: ${unhandled.length}`);
