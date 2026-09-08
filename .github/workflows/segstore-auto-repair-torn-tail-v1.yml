@@ -5,12 +5,14 @@ on:
     paths:
       - "src/chain/auto_repair.ts"
       - "scripts/prove_segstore_auto_repair_torn_tail_v1.mjs"
+      - "scripts/prove_segstore_auto_repair_chunked_scan_v1.mjs"
       - ".github/workflows/segstore-auto-repair-torn-tail-v1.yml"
   push:
     branches: [main]
     paths:
       - "src/chain/auto_repair.ts"
       - "scripts/prove_segstore_auto_repair_torn_tail_v1.mjs"
+      - "scripts/prove_segstore_auto_repair_chunked_scan_v1.mjs"
       - ".github/workflows/segstore-auto-repair-torn-tail-v1.yml"
   workflow_dispatch:
 
@@ -48,7 +50,9 @@ jobs:
         run: npm ci --ignore-scripts --no-audit --no-fund
 
       - name: Check proof syntax
-        run: node --check scripts/prove_segstore_auto_repair_torn_tail_v1.mjs
+        run: |
+          node --check scripts/prove_segstore_auto_repair_torn_tail_v1.mjs
+          node --check scripts/prove_segstore_auto_repair_chunked_scan_v1.mjs
 
       - name: Typecheck repository
         run: npm run typecheck
@@ -58,6 +62,9 @@ jobs:
 
       - name: Prove torn-tail auto-repair invariants
         run: node scripts/prove_segstore_auto_repair_torn_tail_v1.mjs
+
+      - name: Prove bounded chunked auto-repair scan
+        run: node scripts/prove_segstore_auto_repair_chunked_scan_v1.mjs
 
       - name: Diff hygiene
         run: git diff --check

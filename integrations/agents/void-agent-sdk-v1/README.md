@@ -64,6 +64,29 @@ console.log(report.report_id);
 Tests may inject a custom `fetchImpl`; production callers normally use Node's
 built-in `fetch`.
 
+Use one stable transport function for retries. Each transport/origin admits one
+request generation at a time. An overlapping call, or a retry while an earlier
+fetch, body read or cancellation remains unresolved, fails before another fetch
+with `*_transport_generation_unsettled`. Other origins and independent transport
+functions remain isolated. Creating a new wrapper does not prove that an old
+transport has released its resources.
+
+The request uses a monotonic deadline; rejection cleanup has its own maximum
+250 ms caller wait. Expiry of either wait does not release an unresolved resource.
+In particular, successful custom `cancel()` cannot release a still-pending raw
+`read()`. Detached observers consume late outcomes and retire the exact generation
+only after all issued operations settle and EOF, stream error or successful
+cancellation establishes body termination. Late bytes never become a successful
+discovery report. A transport that never settles stays unavailable for that
+origin; native stream errors can recover on a later call without resetting the SDK.
+
+Custom response metadata is snapshotted once before body admission. HTTP status
+must be an integer from 100 through 599, `ok` must be a boolean exactly matching
+2xx status, and redirect evidence must be a boolean. Only successful status with
+the exact requested final URL and JSON content type can contribute capability
+evidence. Contradictions, invalid values and throwing accessors fail closed and
+enter bounded cleanup while preserving the primary error.
+
 ## Fail-closed behavior
 
 The SDK rejects:

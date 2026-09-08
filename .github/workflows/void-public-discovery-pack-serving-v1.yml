@@ -6,12 +6,32 @@ on:
       - ".github/workflows/void-public-discovery-pack-serving-v1.yml"
       - "ops/public/void-public-app-composition-gateway-v1.mjs"
       - "scripts/prove_void_public_discovery_pack_serving_v1.mjs"
+      - "scripts/prove_public_app_composition_gateway_v1.mjs"
+      - "scripts/prove_official_network_authenticity_composition_gateway_v1.mjs"
+      - "scripts/prove_official_network_composition_workflow_dependency_closure_v1.mjs"
+      - "scripts/check_void_ci_cost_boundary_v1.py"
+      - "public/.well-known/void-agent-discovery.json"
+      - "public/.well-known/void-agent-discovery.schema.json"
+      - "public/.well-known/void-network-authenticity.json"
+      - "public/.well-known/void-network-authenticity.schema.json"
+      - "public/.well-known/void-public-node.json"
+      - "public/.well-known/void-public-node.schema.json"
   push:
     branches: [main]
     paths:
       - ".github/workflows/void-public-discovery-pack-serving-v1.yml"
       - "ops/public/void-public-app-composition-gateway-v1.mjs"
       - "scripts/prove_void_public_discovery_pack_serving_v1.mjs"
+      - "scripts/prove_public_app_composition_gateway_v1.mjs"
+      - "scripts/prove_official_network_authenticity_composition_gateway_v1.mjs"
+      - "scripts/prove_official_network_composition_workflow_dependency_closure_v1.mjs"
+      - "scripts/check_void_ci_cost_boundary_v1.py"
+      - "public/.well-known/void-agent-discovery.json"
+      - "public/.well-known/void-agent-discovery.schema.json"
+      - "public/.well-known/void-network-authenticity.json"
+      - "public/.well-known/void-network-authenticity.schema.json"
+      - "public/.well-known/void-public-node.json"
+      - "public/.well-known/void-public-node.schema.json"
 
 permissions:
   contents: read
@@ -34,6 +54,7 @@ jobs:
         run: |
           node --check ops/public/void-public-app-composition-gateway-v1.mjs
           node --check scripts/prove_void_public_discovery_pack_serving_v1.mjs
+          node --check scripts/prove_official_network_composition_workflow_dependency_closure_v1.mjs
       - name: Prove exact static discovery serving
         run: |
           node scripts/prove_void_public_discovery_pack_serving_v1.mjs | tee /tmp/void-public-discovery-pack-serving-v1.log
@@ -43,6 +64,7 @@ jobs:
           grep -Fx 'incomplete_pack_fails_startup=true' /tmp/void-public-discovery-pack-serving-v1.log
       - name: Re-prove composition safety boundaries
         run: |
+          node scripts/prove_official_network_composition_workflow_dependency_closure_v1.mjs
           node scripts/prove_public_app_composition_gateway_v1.mjs
           node scripts/prove_official_network_authenticity_composition_gateway_v1.mjs
       - name: Enforce repository CI cost boundary

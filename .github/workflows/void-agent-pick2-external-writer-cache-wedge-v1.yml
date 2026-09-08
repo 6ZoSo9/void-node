@@ -1,0 +1,56 @@
+name: VOID Agent Pick2 External Writer Cache Wedge v1
+
+on:
+  pull_request:
+    paths:
+      - "src/economic/wc_public_earning_pilot_v1.ts"
+      - "src/economic/wc_public_remote_truth_jsonl_index_v1.ts"
+      - "src/http/agent_pick2_jsonl_semantic_index_v1.ts"
+      - "scripts/prove_agent_pick2_external_writer_cache_wedge_v1.ts"
+      - "scripts/prove_wc_public_earning_pilot_v1.ts"
+      - "scripts/prove_wc_public_earning_pilot_runtime_v1.ts"
+      - ".github/workflows/void-agent-pick2-external-writer-cache-wedge-v1.yml"
+      - "package.json"
+      - "package-lock.json"
+  push:
+    branches:
+      - main
+    paths:
+      - "src/economic/wc_public_earning_pilot_v1.ts"
+      - "src/economic/wc_public_remote_truth_jsonl_index_v1.ts"
+      - "src/http/agent_pick2_jsonl_semantic_index_v1.ts"
+      - "scripts/prove_agent_pick2_external_writer_cache_wedge_v1.ts"
+      - "scripts/prove_wc_public_earning_pilot_v1.ts"
+      - "scripts/prove_wc_public_earning_pilot_runtime_v1.ts"
+      - ".github/workflows/void-agent-pick2-external-writer-cache-wedge-v1.yml"
+      - "package.json"
+      - "package-lock.json"
+
+permissions:
+  contents: read
+
+jobs:
+  node22-real-size:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout exact integration state
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: 22
+      - name: Install behavioral-proof runtime dependencies
+        run: npm ci --no-audit --no-fund
+      - name: Prove real-size external writer stays O(delta)
+        env:
+          VOID_PICK2_EXTERNAL_WRITER_REAL_SIZE: "1"
+        run: ./node_modules/.bin/tsx scripts/prove_agent_pick2_external_writer_cache_wedge_v1.ts
+      - name: Prove WC public earning runtime
+        run: ./node_modules/.bin/tsx scripts/prove_wc_public_earning_pilot_runtime_v1.ts
+      - name: Prove WC public earning source contract
+        run: ./node_modules/.bin/tsx scripts/prove_wc_public_earning_pilot_v1.ts
+      - name: Typecheck
+        run: npm run typecheck

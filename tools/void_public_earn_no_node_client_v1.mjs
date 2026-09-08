@@ -17,6 +17,7 @@ export const CLAIM_ROUTE = "/wc/public-earning-pilot-v1/claim-ticket";
 export const SUBMIT_ROUTE = "/wc/public-earning-pilot-v1/submit-result";
 export const STATUS_ROUTE = "/wc/public-earning-pilot-v1/status";
 export const ACCOUNTING_MODE = "capability_bound_submission_response_v1";
+export const MAX_CONTROL_RESPONSE_BYTES = 64 * 1024;
 const CLAIM_DOMAIN = "void:mainnet-0:wc-public-ticket-claim-v1";
 const RESULT_DOMAIN = "void:mainnet-0:wc-public-earning-pilot-v1";
 const DEFAULT_STATE_DIR = path.join(
@@ -90,6 +91,32 @@ function exactKeys(value, expected) {
 
 function sha256(value) {
   return crypto.createHash("sha256").update(value).digest("hex");
+}
+
+const PUBLIC_WORK_POSSESSION_DOMAIN_V1 =
+  "VOID_WC_PUBLIC_DATASET_POSSESSION_HMAC_V1";
+
+function publicWorkPossessionProof(
+  capabilityToken,
+  ticketId,
+  bytes,
+) {
+  const token = String(capabilityToken || "");
+  const ticket = String(ticketId || "");
+  if (!token || !/^[0-9a-f]{32}$/.test(ticket)) {
+    fail("useful_work_possession_invalid");
+  }
+  return crypto
+    .createHmac(
+      "sha256",
+      Buffer.from(token, "utf8"),
+    )
+    .update(PUBLIC_WORK_POSSESSION_DOMAIN_V1, "utf8")
+    .update(Buffer.from([0]))
+    .update(ticket, "utf8")
+    .update(Buffer.from([0]))
+    .update(Buffer.from(bytes))
+    .digest("hex");
 }
 
 function nodeIdFromPubPEM(pubPEM) {
@@ -456,12 +483,87 @@ function redact(value, secrets = []) {
   return value;
 }
 
+async function readResponseTextBounded(
+  response,
+  maxBytes = MAX_CONTROL_RESPONSE_BYTES,
+) {
+  const contentLength = String(
+    response.headers.get("content-length") || "",
+  ).trim();
+  if (contentLength) {
+    if (!/^\d+$/.test(contentLength)) {
+      fail(
+        "response_content_length_invalid",
+        "server returned an invalid content-length",
+      );
+    }
+    if (BigInt(contentLength) > BigInt(maxBytes)) {
+      fail(
+        "response_too_large",
+        "server response exceeded the control-response byte limit",
+        { max_bytes: maxBytes },
+      );
+    }
+  }
+
+  const reader = response.body?.getReader?.();
+  if (!reader) {
+    fail(
+      "response_body_unreadable",
+      "server response body is not stream-readable",
+    );
+  }
+
+  const chunks = [];
+  let bytes = 0;
+  try {
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      if (!(value instanceof Uint8Array)) {
+        fail(
+          "response_body_chunk_invalid",
+          "server response produced an invalid body chunk",
+        );
+      }
+      bytes += value.byteLength;
+      if (bytes > maxBytes) {
+        try {
+          await reader.cancel();
+        } catch (error) {
+          visibleBestEffortFailure(
+            "control-response-cancel",
+            error,
+          );
+        }
+        fail(
+          "response_too_large",
+          "server response exceeded the control-response byte limit",
+          { max_bytes: maxBytes },
+        );
+      }
+      chunks.push(Buffer.from(value));
+    }
+  } finally {
+    try {
+      reader.releaseLock();
+    } catch (error) {
+      visibleBestEffortFailure(
+        "control-response-reader-release",
+        error,
+      );
+    }
+  }
+
+  return Buffer.concat(chunks, bytes).toString("utf8");
+}
+
 async function requestJson(url, init = {}, timeoutMs = 30_000, secrets = []) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
     const response = await fetch(url, { ...init, signal: controller.signal, redirect: "error" });
-    const text = await response.text();
+    const text = await readResponseTextBounded(response);
     for (const secret of secrets) {
       if (secret && text.includes(secret)) fail("secret_reflection_detected");
     }
@@ -606,7 +708,13 @@ async function fetchAndVerifyDataset(ticket, coordinatorBase, publicClaim, expli
       if (raw.length > maxBytes) fail("dataset_too_large");
       const rawHash = sha256(raw);
       if (rawHash === ticket.expected_input_hash) {
-        return { url, bytes: raw.length, fetchedHash: rawHash, representation: "raw" };
+        return {
+          url,
+          bytes: raw.length,
+          fetchedHash: rawHash,
+          representation: "raw",
+          content: raw,
+        };
       }
       const contentType = String(response.headers.get("content-type") || "");
       if (contentType.includes("json") || /^[\s\r\n]*[\[{]/.test(raw.toString("utf8", 0, Math.min(raw.length, 32)))) {
@@ -616,7 +724,13 @@ async function fetchAndVerifyDataset(ticket, coordinatorBase, publicClaim, expli
             if (candidate.length > maxBytes) continue;
             const digest = sha256(candidate);
             if (digest === ticket.expected_input_hash) {
-              return { url, bytes: candidate.length, fetchedHash: digest, representation: "json-content" };
+              return {
+                url,
+                bytes: candidate.length,
+                fetchedHash: digest,
+                representation: "json-content",
+                content: candidate,
+              };
             }
           }
         } catch (error) {
@@ -883,7 +997,11 @@ async function runOnce(options) {
       dataset_id: ticket.dataset_id,
       fetched_bytes: dataset.bytes,
     };
-    const outputHash = sha256(Buffer.from(JSON.stringify(output), "utf8"));
+    const outputHash = publicWorkPossessionProof(
+      capabilityToken,
+      ticket.ticket_id,
+      dataset.content,
+    );
     const signedResult = signResult(
       {
         ticket_id: ticket.ticket_id,

@@ -1,3 +1,5 @@
+import './network-live.js';
+
 const ACCOUNT_STORAGE_KEY = 'void.ui.wave3.wallet.account.v1';
 const ACCOUNT_PATTERN = /^[A-Za-z0-9._:-]{1,128}$/;
 

@@ -67,7 +67,7 @@ const wellKnownPath = "/.well-known/void-agent-discovery.json";
 const canonicalPath = "/public-node/agents/discovery-v1.json";
 const catalogPath = "/public-node/agents/capability-negotiation-v1.json";
 const supportedNodeMajors = [22, 24, 26];
-const reviewedSourceMain = "5bbe57b9617465a1631a47e1899286e8e7fd3536";
+const reviewedSourceMain = "67e85c3e2abe99753ec784f31e96f0448da12cc1";
 const manifestTopLevelKeys = [
   "marker",
   "version",

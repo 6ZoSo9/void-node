@@ -697,6 +697,292 @@ assertCondition(
   `repeated teardown terminals were not bounded: ${repeatedElapsedMs}ms`,
 );
 
+function healthyResponse(url) {
+  const wellKnownPath = "/.well-known/void-agent-discovery.json";
+  const canonicalPath = "/public-node/agents/discovery-v1.json";
+  const catalogPath = "/public-node/agents/capability-negotiation-v1.json";
+const wellKnown = {
+  marker: "VOID_AI_AGENT_WELL_KNOWN_ENTRYPOINT_V1",
+  version: 1,
+  network: { name: "VOID Mainnet-0", chain_id: 2050 },
+  canonical_discovery: canonicalPath,
+  authority: {
+    mutation_authority_granted: false,
+    credentials_required: false,
+  },
+  safety: {
+    same_origin_only: true,
+    follow_redirects: false,
+  },
+};
+
+const canonical = {
+  marker: "VOID_AI_AGENT_DISCOVERY_CONTRACT_WALL_V1",
+  protocol: "void-agent-discovery/1",
+  version: 1,
+  network: { name: "VOID Mainnet-0", chain_id: 2050 },
+  entrypoints: { capability_negotiation: catalogPath },
+  capabilities: [
+    {
+      id: "capability_negotiation",
+      state: "live",
+      authority: "read_only",
+      discovery: catalogPath,
+    },
+  ],
+  authority: { mutation_authority_granted: false },
+};
+
+const catalog = {
+  marker: "VOID_AI_AGENT_CAPABILITY_NEGOTIATION_V1",
+  protocol: "void-agent-capability-negotiation/1",
+  version: 1,
+  network: { name: "VOID Mainnet-0", chain_id: 2050 },
+  negotiation: {
+    mode: "client_side_intersection",
+    request_submission_enabled: false,
+    default_result: "not_granted",
+  },
+  authority: {
+    mutation_authority_granted: false,
+    authentication_active: false,
+    signed_request_envelopes_active: false,
+    payment_submission_active: false,
+    work_credit_awards_active: false,
+    buy_void_automatic_fulfillment_active: false,
+  },
+  safety: {
+    same_origin_only: true,
+    follow_redirects: false,
+    send_credentials: false,
+    unknown_capability_result: "not_granted",
+    ambiguous_capability_result: "not_granted",
+  },
+  capabilities: [
+    {
+      id: "public_discovery",
+      state: "live",
+      enabled: true,
+      access: "anonymous",
+      authority: "read_only",
+      http_methods: ["GET", "HEAD"],
+      paths: [wellKnownPath, canonicalPath],
+    },
+    {
+      id: "capability_negotiation",
+      state: "live",
+      enabled: true,
+      access: "anonymous",
+      authority: "read_only",
+      http_methods: ["GET"],
+      paths: [catalogPath],
+    },
+  ],
+};
+
+  const document = new Map([[wellKnownPath, wellKnown], [canonicalPath, canonical], [catalogPath, catalog]]).get(new URL(url).pathname);
+  assertCondition(document !== undefined, `unexpected healthy request ${url}`);
+  return bindResponseUrl(new Response(JSON.stringify(document), {
+    headers: { "content-type": "application/json" },
+  }), url);
+}
+function deferred() {
+  let resolve;
+  let reject;
+  const promise = new Promise((a, b) => { resolve = a; reject = b; });
+  return { promise, resolve, reject };
+}
+async function drainObservers() { await new Promise(resolve => setImmediate(resolve)); }
+
+const unhandled = [];
+const recordUnhandled = error => unhandled.push(error);
+process.on("unhandledRejection", recordUnhandled);
+let metadataCases = 0;
+let lifetimeCases = 0;
+const metadataMutants = [
+  ["500_true", { status: 500, ok: true }, "response_ok_status_mismatch"],
+  ["200_false", { status: 200, ok: false }, "response_ok_status_mismatch"],
+  ...["200", NaN, Infinity, -Infinity, 200.5, 0, 99, 600, null, true, {}, new Number(200)].map((status, i) =>
+    [`status_${i}`, { status, ok: true }, "response_status_invalid"]),
+  ...["true", 1, null, undefined, {}, new Boolean(true)].map((ok, i) =>
+    [`ok_${i}`, { status: 200, ok }, "response_ok_status_mismatch"]),
+  ["http_500", { status: 500, ok: false }, "http_500"],
+  ["redirect", { status: 302, ok: false }, "redirect_rejected"],
+  ...["status", "ok", "url", "redirected", "headers"].map(field =>
+    [`throws_${field}`, field, "response_metadata_unavailable"]),
+];
+// Bad metadata at every discovery stage must reject before that body's first read.
+for (const stage of [0, 1, 2]) {
+  for (const [name, mutation, reason] of metadataMutants) {
+    let fetches = 0;
+    let reads = 0;
+    let cancels = 0;
+    let acquisitions = 0;
+    const fetchImpl = async url => {
+      const current = fetches++;
+      if (current !== stage) return healthyResponse(url);
+      const response = {
+        status: 200, ok: true, url, redirected: false,
+        headers: new Headers({ "content-type": "application/json" }),
+        body: {
+          getReader() { acquisitions++; return { read() { reads++; return Promise.resolve({ done: true }); } }; },
+          cancel() { cancels++; return Promise.resolve(); },
+        },
+      };
+      if (typeof mutation === "string") {
+        Object.defineProperty(response, mutation, { get() { throw new Error(`hostile_${mutation}`); } });
+      } else Object.assign(response, mutation);
+      return response;
+    };
+    await expectRejectWithin(`${stage}/${name}`, () => discoverVoidAgentV1({
+      baseUrl: "https://metadata.example", timeoutMs: 100, fetchImpl,
+    }), reason);
+    assertCondition(fetches === stage + 1 && acquisitions === 0 && reads === 0 && cancels === 1,
+      `${stage}/${name}: metadata crossed body authority or skipped teardown`);
+    metadataCases++;
+  }
+}
+// Getter values are admitted once; a later contradictory read cannot change truth.
+let statusReads = 0;
+let okReads = 0;
+const snapshotReport = await discoverVoidAgentV1({
+  baseUrl: "https://snapshot.example",
+  fetchImpl: async url => {
+    const response = healthyResponse(url);
+    Object.defineProperty(response, "status", { get() { statusReads++; return 200; } });
+    Object.defineProperty(response, "ok", { get() { okReads++; return true; } });
+    return response;
+  },
+});
+assertCondition(snapshotReport.status === "ready_read_only" && statusReads === 3 && okReads === 3,
+  "metadata was not snapshotted exactly once per response");
+
+for (const cancelKind of ["resolve", "reject", "pending"]) {
+  for (const lateKind of ["eof", "reject", "chunk", "invalid"]) {
+    const pendingRead = deferred();
+    const pendingCancel = deferred();
+    let fetches = 0;
+    let reads = 0;
+    let outstanding = 0;
+    let maximum = 0;
+    let cancels = 0;
+    let healthy = false;
+    const fetchImpl = async url => {
+      fetches++;
+      if (healthy || new URL(url).hostname === "healthy.example") return healthyResponse(url);
+      return {
+        status: 200, ok: true, url, redirected: false,
+        headers: new Headers({ "content-type": "application/json" }),
+        body: { getReader() { return {
+          read() {
+            reads++; outstanding++; maximum = Math.max(maximum, outstanding);
+            return pendingRead.promise.finally(() => { outstanding--; });
+          },
+          cancel() {
+            cancels++;
+            if (cancelKind === "resolve") return Promise.resolve();
+            if (cancelKind === "reject") return Promise.reject(new Error("cancel_rejected"));
+            return pendingCancel.promise;
+          },
+          releaseLock() {},
+        }; } },
+      };
+    };
+    const options = { baseUrl: "https://lifetime.example", timeoutMs: 100, fetchImpl };
+    await expectRejectWithin(`${cancelKind}/${lateKind}:initial`, () => discoverVoidAgentV1(options),
+      "well_known_discovery_body_deadline_exceeded");
+    for (let retry = 0; retry < 3; retry++) {
+      await expectRejectWithin(`${cancelKind}/${lateKind}:retry`, () => discoverVoidAgentV1(options),
+        "transport_generation_unsettled");
+    }
+    assertCondition(fetches === 1 && reads === 1 && outstanding === 1 && maximum === 1 && cancels === 1,
+      `${cancelKind}/${lateKind}: unresolved read generations accumulated`);
+    const otherOrigin = await discoverVoidAgentV1({ ...options, baseUrl: "https://healthy.example" });
+    assertCondition(otherOrigin.status === "ready_read_only", "one quarantined origin blocked another");
+    healthy = true;
+    if (lateKind === "reject") pendingRead.reject(new Error("late_read_rejected"));
+    else if (lateKind === "eof") pendingRead.resolve({ done: true });
+    else if (lateKind === "chunk") pendingRead.resolve({ done: false, value: new Uint8Array([123]) });
+    else pendingRead.resolve({ done: "false" });
+    await drainObservers();
+    assertCondition(outstanding === 0, "late read was not observed");
+    if (cancelKind === "pending") {
+      await expectRejectWithin("pending cancellation retains generation", () => discoverVoidAgentV1(options),
+        "transport_generation_unsettled");
+      pendingCancel.resolve();
+      await drainObservers();
+    }
+    if (cancelKind === "reject" && ["chunk", "invalid"].includes(lateKind)) {
+      await expectRejectWithin("nonterminal late bytes preserve quarantine", () => discoverVoidAgentV1(options),
+        "transport_generation_unsettled");
+    } else {
+      const recovery = await discoverVoidAgentV1(options);
+      assertCondition(recovery.status === "ready_read_only", "late terminal did not permit clean recovery");
+      assertCondition(Object.values(recovery.authority).every(v => v === false), "recovery gained authority");
+    }
+    assertCondition(reads === 1 && cancels === 1 && maximum === 1, "late outcome reused hostile bytes or cleanup");
+    lifetimeCases++;
+  }
+}
+
+// Fetch itself and detached late cancellation retain the same transport lease.
+for (const lateKind of ["response", "rejection"]) {
+  const pendingFetch = deferred();
+  const pendingCancel = deferred();
+  let fetches = 0;
+  let cancels = 0;
+  let healthy = false;
+  const fetchImpl = async url => {
+    fetches++;
+    return healthy ? healthyResponse(url) : pendingFetch.promise;
+  };
+  const options = { baseUrl: "https://fetch-owner.example", timeoutMs: 100, fetchImpl };
+  await expectRejectWithin("fetch lifetime", () => discoverVoidAgentV1(options), "fetch_deadline_exceeded");
+  for (let retry = 0; retry < 3; retry++) {
+    await expectRejectWithin("fetch retries quarantined", () => discoverVoidAgentV1(options), "transport_generation_unsettled");
+  }
+  assertCondition(fetches === 1, "unresolved fetch generations accumulated");
+  healthy = true;
+  if (lateKind === "response") {
+    pendingFetch.resolve({ body: { cancel() { cancels++; return pendingCancel.promise; } } });
+    await drainObservers();
+    for (let retry = 0; retry < 3; retry++) {
+      await expectRejectWithin("late cancellation retains origin", () => discoverVoidAgentV1(options), "transport_generation_unsettled");
+    }
+    assertCondition(cancels === 1 && fetches === 1, "late response cleanup leaked generations");
+    pendingCancel.resolve();
+  } else pendingFetch.reject(new Error("late_fetch_rejected"));
+  await drainObservers();
+  const recovered = await discoverVoidAgentV1(options);
+  assertCondition(recovered.status === "ready_read_only" && fetches === 4, "late fetch did not release exactly once");
+  lifetimeCases++;
+}
+
+// Real stream-error termination recovers even when native cancellation rejects.
+let nativeHealthy = false;
+const nativeFetch = async url => {
+  if (nativeHealthy) return healthyResponse(url);
+  return bindResponseUrl(new Response(new ReadableStream({
+    pull(controller) { controller.error(new Error("native_read_error")); },
+  }), { headers: { "content-type": "application/json" } }), url);
+};
+await expectRejectWithin("native read error", () => discoverVoidAgentV1({ baseUrl: "https://native.example", fetchImpl: nativeFetch }), "native_read_error");
+nativeHealthy = true;
+assertCondition((await discoverVoidAgentV1({ baseUrl: "https://native.example", fetchImpl: nativeFetch })).status === "ready_read_only",
+  "native errored body permanently quarantined the origin");
+await drainObservers();
+process.removeListener("unhandledRejection", recordUnhandled);
+assertCondition(unhandled.length === 0, `unhandled late rejections: ${unhandled.length}`);
+console.log(`exact_response_metadata_cases=${metadataCases}`);
+console.log(`transport_generation_cases=${lifetimeCases + 1}`);
+console.log("max_unresolved_reads_per_transport_origin=1");
+console.log("cancel_success_does_not_retire_unresolved_read=true");
+console.log("late_read_and_cleanup_generation_observed=true");
+console.log("quarantine_isolated_by_transport_and_origin=true");
+console.log("native_body_error_recovery=true");
+console.log("response_metadata_rejected_before_body_admission=true");
+console.log("unhandled_late_rejections=0");
+
 console.log("stream_oversize_primary_error_preserved=true");
 console.log("declared_oversize_primary_error_preserved=true");
 console.log("response_teardown_owned_until_bounded_terminal=true");
