@@ -444,11 +444,35 @@ export class BuyVoidChain2050PresaleTwoPhaseReferenceMachineV1 {
     const v = this.#fulfillments.get(hex64(key, "INVALID_PAYMENT_KEY"));
     return v ? structuredClone(v) : null;
   }
-  getPurchaseStatus(key) {
-    const k = hex64(key, "INVALID_PAYMENT_KEY");
-    if (this.#fulfillments.has(k)) return "FULFILLED";
-    if (this.#reservations.has(k)) return "CONFIRMED_RESERVED";
-    return "UNSEEN";
+  getPurchaseStatus(canonicalIdentity) {
+    // A reference projection has no authenticated chain query or completeness
+    // proof. Neither a local hit nor a miss can establish finalized chain truth.
+    if (typeof canonicalIdentity !== "string" || canonicalIdentity.length > 512 ||
+        canonicalIdentity !== canonicalIdentity.trim()) {
+      fail("INVALID_CANONICAL_PAYMENT_IDENTITY");
+    }
+    const key = paymentKeyFromCanonicalIdentityV1(canonicalIdentity);
+    const referenceState = this.#fulfillments.has(key) ? "FULFILLED"
+      : this.#reservations.has(key) ? "CONFIRMED_RESERVED" : "UNKNOWN";
+    return Object.freeze({
+      schema: "void_buy_void_reference_purchase_status_v1",
+      canonical_payment_identity: canonicalIdentity,
+      payment_key_sha256: key,
+      chain_status: Object.freeze({
+        state: "UNKNOWN",
+        reason: "REFERENCE_ONLY_NO_FINALITY_VERIFIER",
+        finalized_checkpoint: null,
+      }),
+      datanet_availability: "NOT_CHECKED",
+      local_cache_status: Object.freeze({
+        state: referenceState === "UNKNOWN" ? "MISS" : "HIT",
+        reference_purchase_state: referenceState,
+        reference_state_sha256: this.#state.state_sha256,
+        reference_state_sequence: this.#state.state_sequence,
+        completeness: "UNVERIFIED",
+      }),
+      economic_authority: false,
+    });
   }
   exportEvents({ offset = 0, limit = 100 } = {}) {
     if (!Number.isSafeInteger(offset) || offset < 0) fail("INVALID_EVENT_OFFSET");

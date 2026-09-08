@@ -163,7 +163,7 @@ for (const [i, chain] of ["base","ethereum","eth"].entries()) {
     const c = m.confirmPayment(confirmInput(m, 10+i, { chain }));
     assert.equal(c.ok, true);
     assert.equal(c.status, "confirmed_reserved");
-    assert.equal(m.getPurchaseStatus(c.reservation.payment_key_sha256), "CONFIRMED_RESERVED");
+    assert.equal(m.getPurchaseStatus(c.reservation.canonical_payment_identity).local_cache_status.reference_purchase_state, "CONFIRMED_RESERVED");
     assert.equal(c.state.fulfilled_inventory_void_atoms, "0");
     assert.equal(c.state.reserved_inventory_void_atoms, "2000000");
     assert.equal(c.state.available_inventory_void_atoms, (MAX - 2_000_000n).toString());
@@ -262,7 +262,7 @@ pass("fulfillment consumes reserved not available inventory", () => {
   assert.equal(f.state.available_inventory_void_atoms, availableAfterConfirm);
   assert.equal(f.state.reserved_inventory_void_atoms, "0");
   assert.equal(f.state.fulfilled_inventory_void_atoms, "2000000");
-  assert.equal(m.getPurchaseStatus(c.reservation.payment_key_sha256), "FULFILLED");
+  assert.equal(m.getPurchaseStatus(c.reservation.canonical_payment_identity).local_cache_status.reference_purchase_state, "FULFILLED");
 });
 pass("fulfillment preview is non-mutating", () => {
   const m = new BuyVoidChain2050PresaleTwoPhaseReferenceMachineV1();
@@ -280,7 +280,7 @@ pass("wrong delivery amount holds without releasing reservation", () => {
   assert.equal(f.ok, false);
   assert.equal(f.reason, "DELIVERY_AMOUNT_MISMATCH");
   assert.deepEqual(m.state, before);
-  assert.equal(m.getPurchaseStatus(c.reservation.payment_key_sha256), "CONFIRMED_RESERVED");
+  assert.equal(m.getPurchaseStatus(c.reservation.canonical_payment_identity).local_cache_status.reference_purchase_state, "CONFIRMED_RESERVED");
 });
 pass("wrong delivery recipient holds", () => {
   const m = new BuyVoidChain2050PresaleTwoPhaseReferenceMachineV1();
@@ -429,6 +429,61 @@ pass("replay rejects resulting-state substitution", () => {
       assert.equal(expectedAvailable + expectedReserved + expectedFulfilled, MAX);
     });
   }
+}
+
+function assertUnknownChain(status, identity, referenceState) {
+  const shape = JSON.parse(read("schemas/buy-void-chain2050-presale-two-phase-v1.schema.json")).$defs.purchaseStatus;
+  assert.deepEqual(Object.keys(status).sort(), [...shape.required].sort());
+  for (const field of ["chain_status", "local_cache_status"]) {
+    assert.deepEqual(Object.keys(status[field]).sort(), [...shape.properties[field].required].sort());
+  }
+  assert.equal(status.schema, "void_buy_void_reference_purchase_status_v1");
+  assert.equal(status.canonical_payment_identity, identity);
+  assert.equal(status.payment_key_sha256, chainAnchorPaymentKey(identity));
+  assert.deepEqual(status.chain_status, {
+    state: "UNKNOWN", reason: "REFERENCE_ONLY_NO_FINALITY_VERIFIER", finalized_checkpoint: null,
+  });
+  assert.equal(status.datanet_availability, "NOT_CHECKED");
+  assert.equal(status.local_cache_status.completeness, "UNVERIFIED");
+  assert.equal(status.local_cache_status.reference_purchase_state, referenceState);
+  assert.equal(status.local_cache_status.state, referenceState === "UNKNOWN" ? "MISS" : "HIT");
+  assert.equal(status.economic_authority, false);
+  assert.equal(Object.isFrozen(status.chain_status), true);
+  assert.equal(Object.isFrozen(status.local_cache_status), true);
+}
+pass("fresh cache miss is unknown, never chain absence", () => {
+  const m = new BuyVoidChain2050PresaleTwoPhaseReferenceMachineV1();
+  const identity = payment(2001).canonical_payment_identity;
+  assertUnknownChain(m.getPurchaseStatus(identity), identity, "UNKNOWN");
+});
+pass("partial replay and full reference history remain nonfinal", () => {
+  const m = new BuyVoidChain2050PresaleTwoPhaseReferenceMachineV1();
+  const c = m.confirmPayment(confirmInput(m, 2002));
+  const id = c.reservation.canonical_payment_identity;
+  const reserved = m.getPurchaseStatus(id);
+  assertUnknownChain(reserved, id, "CONFIRMED_RESERVED");
+  const f = m.recordFulfillment(fulfillInput(m, c.reservation, 2002));
+  assert.equal(f.ok, true);
+  const full = m.getPurchaseStatus(id);
+  assertUnknownChain(full, id, "FULFILLED");
+  assert.notEqual(full.local_cache_status.reference_state_sha256, reserved.local_cache_status.reference_state_sha256);
+  // A stale snapshot remains explicitly local, even after the machine advances.
+  assertUnknownChain(reserved, id, "CONFIRMED_RESERVED");
+  const partial = replayTwoPhasePresaleEventsV1(m.exportEvents({limit:1}));
+  assert.equal(partial.event_count, "1");
+  assertUnknownChain(new BuyVoidChain2050PresaleTwoPhaseReferenceMachineV1().getPurchaseStatus(id), id, "UNKNOWN");
+  assert.equal(partial.state.fulfilled_payment_count, "0");
+  // Caller-written finalized checkpoint/availability fields cannot promote status.
+  assert.throws(() => m.getPurchaseStatus({canonical_payment_identity:id, finalized_checkpoint:"forged", datanet_availability:"AVAILABLE"}));
+  assertUnknownChain(m.getPurchaseStatus(id), id, "FULFILLED");
+});
+for (const invalid of [null, {}, [], "0".repeat(64), " "+payment(2003).canonical_payment_identity,
+  payment(2003).canonical_payment_identity+" ", payment(2003).canonical_payment_identity.replace(/:[0-9]+$/,":01"),
+  payment(2003).canonical_payment_identity.replace(/:[0-9]+$/,":18446744073709551616")]) {
+  pass("status rejects noncanonical identity "+String(invalid), () => {
+    const m = new BuyVoidChain2050PresaleTwoPhaseReferenceMachineV1();
+    assert.throws(() => m.getPurchaseStatus(invalid));
+  });
 }
 
 pass("schema, fixture, docs, workflow are bound", () => {

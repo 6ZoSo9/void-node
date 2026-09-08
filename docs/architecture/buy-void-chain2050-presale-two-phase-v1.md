@@ -212,3 +212,33 @@ merge, deployment, production configuration, RPC access, credentials, keys,
 wallets, signers, inventory funding, transaction construction/signing/broadcast,
 public presale activation, treasury/liquidity mutation, validators, Work Credits,
 or funds movement.
+
+
+## Non-authoritative purchase-status query
+
+`getPurchaseStatus(canonicalPaymentIdentity)` now accepts the canonical identity
+string and re-derives its payment key. It returns the closed `purchaseStatus`
+object defined in the existing schema. Passing a hash alone, a noncanonical
+identity, or a caller-supplied evidence object is rejected.
+
+The three information sources are separate:
+
+- `chain_status` is always `UNKNOWN`, with reason
+  `REFERENCE_ONLY_NO_FINALITY_VERIFIER` and a null finalized checkpoint.
+- `datanet_availability` is `NOT_CHECKED`; this reference makes no availability query.
+- `local_cache_status` reports a reference-only HIT/MISS, local reference purchase
+  state, exact reference state hash/sequence, and `completeness=UNVERIFIED`.
+
+A fresh instance or truncated history cannot establish chain absence. A local
+reservation/fulfillment, a stale reference snapshot, or caller-written finalized
+records cannot establish authenticated positive chain status either. The output
+therefore keeps `economic_authority=false` for both local hits and misses.
+No chain/RPC availability result or DataNet byte evidence is invented. A future
+production status adapter must verify canonical finality and projection completeness
+before exposing positive or absent chain status; that adapter is not implemented here.
+
+This intentionally changes the unmerged reference helper's old key-to-bare-string
+API. Repository consumers were limited to its proof script and are updated together.
+Reservation, fulfillment, duplicate handling, inventory conservation, and replay
+transition semantics are unchanged. The focused workflow now checks out and binds
+the exact PR head rather than relying on GitHub's synthetic merge checkout.

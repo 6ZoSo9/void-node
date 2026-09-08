@@ -31,6 +31,123 @@
     "final_state": { "$ref": "#/$defs/state" }
   },
   "$defs": {
+    "purchaseStatus": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema",
+        "canonical_payment_identity",
+        "payment_key_sha256",
+        "chain_status",
+        "datanet_availability",
+        "local_cache_status",
+        "economic_authority"
+      ],
+      "properties": {
+        "schema": {
+          "const": "void_buy_void_reference_purchase_status_v1"
+        },
+        "canonical_payment_identity": {
+          "type": "string",
+          "maxLength": 512,
+          "pattern": "^voidpay1:(base|ethereum):0x[0-9a-f]{64}:(0|[1-9][0-9]*)$"
+        },
+        "payment_key_sha256": {
+          "$ref": "#/$defs/hex64"
+        },
+        "chain_status": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "state",
+            "reason",
+            "finalized_checkpoint"
+          ],
+          "properties": {
+            "state": {
+              "const": "UNKNOWN"
+            },
+            "reason": {
+              "const": "REFERENCE_ONLY_NO_FINALITY_VERIFIER"
+            },
+            "finalized_checkpoint": {
+              "type": "null"
+            }
+          }
+        },
+        "datanet_availability": {
+          "const": "NOT_CHECKED"
+        },
+        "local_cache_status": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "state",
+            "reference_purchase_state",
+            "reference_state_sha256",
+            "reference_state_sequence",
+            "completeness"
+          ],
+          "properties": {
+            "state": {
+              "enum": [
+                "HIT",
+                "MISS"
+              ]
+            },
+            "reference_purchase_state": {
+              "enum": [
+                "UNKNOWN",
+                "CONFIRMED_RESERVED",
+                "FULFILLED"
+              ]
+            },
+            "reference_state_sha256": {
+              "$ref": "#/$defs/hex64"
+            },
+            "reference_state_sequence": {
+              "type": "string",
+              "pattern": "^(0|[1-9][0-9]*)$"
+            },
+            "completeness": {
+              "const": "UNVERIFIED"
+            }
+          },
+          "allOf": [
+            {
+              "if": {
+                "properties": {
+                  "state": {
+                    "const": "MISS"
+                  }
+                }
+              },
+              "then": {
+                "properties": {
+                  "reference_purchase_state": {
+                    "const": "UNKNOWN"
+                  }
+                }
+              },
+              "else": {
+                "properties": {
+                  "reference_purchase_state": {
+                    "enum": [
+                      "CONFIRMED_RESERVED",
+                      "FULFILLED"
+                    ]
+                  }
+                }
+              }
+            }
+          ]
+        },
+        "economic_authority": {
+          "const": false
+        }
+      }
+    },
+
     "hash32": { "type": "string", "pattern": "^0x[0-9a-f]{64}$" },
     "hex64": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
     "address": { "type": "string", "pattern": "^0x[0-9a-f]{40}$" },
