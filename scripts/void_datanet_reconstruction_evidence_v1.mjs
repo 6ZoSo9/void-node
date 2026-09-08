@@ -16,6 +16,9 @@ export const WORKFLOWS = Object.freeze({
   planner: ".github/workflows/void-datanet-chain-peer-reconstruction-v1.yml",
   accounting: ".github/workflows/void-datanet-chain-peer-reconstruction-replica-accounting-v1.yml",
 });
+// Immutable reusable-workflow reference accepted by the repository Actions
+// guard. Its accounting workflow blob must equal the current source entry.
+export const ACCOUNTING_DEFINITION_SHA = "e210cee3cfb52afa5038b0972b7b5419a0c37769";
 export const SOURCE_PATHS = Object.freeze([
   ...Object.values(WORKFLOWS),
   "docs/architecture/datanet-chain-peer-reconstruction-v1.md",
@@ -123,7 +126,8 @@ export function makeReceipt(source, run, lane, runtime, commands) {
   const workflow = source.entries.find(e => e.path === WORKFLOWS[lane]);
   return {
     schema: "VOID_DATANET_JOB_RECEIPT_V1", source, run,
-    job: { logical_id: lane, matrix_key: `${lane}-node-${runtime.major}`, workflow },
+    job: { logical_id: lane, matrix_key: `${lane}-node-${runtime.major}`, workflow,
+      workflow_definition_sha: lane === "accounting" ? ACCOUNTING_DEFINITION_SHA : run.workflow_sha },
     runtime, commands, terminal: "PASS_REFERENCE_PROOFS", authority: AUTHORITY,
   };
 }
@@ -190,6 +194,8 @@ export function sourceSnapshot(head, workflowSha) {
   const source = { head, tree: git(["rev-parse", "HEAD^{tree}"]), entries: entriesAt(head) };
   validSource(source);
   assert.deepEqual(entriesAt(workflowSha), source.entries, "workflow_definition_source_mismatch");
+  assert.equal(git(["rev-parse", `${ACCOUNTING_DEFINITION_SHA}:${WORKFLOWS.accounting}`]),
+    source.entries.find(e => e.path === WORKFLOWS.accounting).blob, "pinned_accounting_workflow_mismatch");
   for (const e of source.entries) {
     const path = resolve(ROOT, e.path), stat = lstatSync(path);
     assert.ok(stat.isFile() && !stat.isSymbolicLink(), "source_not_regular");

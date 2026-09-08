@@ -160,7 +160,10 @@ reference evaluation. The four-case supplemental proof preserves the
 local-copy-before-remote-demand equations.
 
 The parent workflow runs the planner matrix and calls the accounting workflow
-at the same definition commit. Both matrices run Node 22/24/26 and bind the
+at immutable commit `e210cee3cfb52afa5038b0972b7b5419a0c37769`, as required by
+the repository Actions reference guard. The runner verifies that this pinned
+workflow blob equals the accounting workflow in the current source generation.
+Both matrices run Node 22/24/26 and bind the
 exact source checkout. The aggregate depends on both matrices. The original
 seven paths plus the evidence runner and its adversarial proof are the complete
 nine-file source set; all nine trigger the parent workflow on PRs and main
@@ -188,7 +191,10 @@ Each receipt binds:
 Job identity is the GitHub logical job ID plus its matrix coordinate within
 the bound run/attempt; it is not represented as a numeric Actions job ID.
 Receipts record exact patch versions and require both lanes for each major to
-agree. The workflow source entries must also match the definition commit.
+agree. The workflow source entries must also match the caller's definition commit.
+Each job separately binds its actual workflow-definition commit; the accounting
+callee pin is carried alongside its unchanged blob identity. Any future change
+to that callee file requires a new immutable pin before receipts can pass.
 The runner verifies a clean checkout and exact on-disk blobs/modes before and
 after execution. Failed commands, signals, timeouts or unexpected stderr cannot
 produce a passing receipt. Command output is limited to 64 KiB.
@@ -236,8 +242,8 @@ runtime capability, custody/isolation proof, release acceptance or funds
 authority. Nimo evidence cannot substitute for any matrix member.
 
 The primary and accounting suites retain 149 and four cases. The evidence suite
-adds 60 schema, substitution, matrix, filesystem, dependency and workflow cases,
-for 213 distinct cases. Replaying suites in several jobs adds no distinct cases.
+adds 62 schema, substitution, matrix, filesystem, dependency and workflow cases,
+for 215 distinct cases. Replaying suites in several jobs adds no distinct cases.
 Case-name manifests are emitted by `--case-manifest` only after checks succeed;
 their identities are derived from the executed cases, not a duplicated list.
 

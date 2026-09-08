@@ -71,7 +71,7 @@ jobs:
           retention-days: 30
 
   accounting:
-    uses: ./.github/workflows/void-datanet-chain-peer-reconstruction-replica-accounting-v1.yml
+    uses: 6ZoSo9/void-node/.github/workflows/void-datanet-chain-peer-reconstruction-replica-accounting-v1.yml@e210cee3cfb52afa5038b0972b7b5419a0c37769
     with:
       source_sha: ${{ github.event.pull_request.head.sha || github.sha }}
       definition_sha: ${{ github.workflow_sha }}

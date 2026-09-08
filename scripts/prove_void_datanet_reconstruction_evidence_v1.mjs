@@ -5,7 +5,7 @@ import { mkdtempSync, mkdirSync, readFileSync, renameSync, rmSync, symlinkSync, 
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
-  ACCOUNTING, AUTHORITY, EVIDENCE_PROOF, MEMBERS, PLANNER, ROOT, RUNNER, SOURCE_PATHS, WORKFLOWS,
+  ACCOUNTING, ACCOUNTING_DEFINITION_SHA, AUTHORITY, EVIDENCE_PROOF, MEMBERS, PLANNER, ROOT, RUNNER, SOURCE_PATHS, WORKFLOWS,
   artifactName, caseManifest, commandRecord, commandSet, decode, digest, encode,
   makeBundle, makeReceipt, readMembers, validateReceipts, verifyBundle,
 } from "./void_datanet_reconstruction_evidence_v1.mjs";
@@ -32,6 +32,10 @@ const texts = receipts.map(encode);
 
 check("complete six-member matrix accepted", () => assert.equal(validateReceipts(texts, expected).length, 6));
 check("member arrival order is immaterial", () => assert.deepEqual(validateReceipts([...texts].reverse(), expected), receipts));
+check("caller and pinned callee definition identities are distinct and bound", () => {
+  assert.equal(receipts[0].job.workflow_definition_sha, run.workflow_sha);
+  assert.equal(receipts[3].job.workflow_definition_sha, ACCOUNTING_DEFINITION_SHA);
+});
 check("bundle is portable and preserves full receipts", () => {
   const bundle = makeBundle(texts, expected, runtime(24));
   assert.deepEqual(verifyBundle(encode(bundle), expected), bundle);
@@ -54,6 +58,7 @@ for (const [name, mutate] of [
   ["missing source entry", r => { r.source.entries.pop(); }],
   ["substituted workflow blob", r => { r.job.workflow.blob = "e".repeat(40); }],
   ["substituted workflow path", r => { r.job.workflow.path = WORKFLOWS.accounting; }],
+  ["substituted workflow definition", r => { r.job.workflow_definition_sha = "e".repeat(40); }],
   ["stale run", r => { r.run.id = "122"; }],
   ["stale attempt", r => { r.run.attempt = "2"; }],
   ["different repository", r => { r.run.repository = "other/repository"; }],
@@ -160,7 +165,7 @@ try {
 check("all source and evidence inputs trigger the parent workflow", () => {
   const workflow = readFileSync(join(ROOT, WORKFLOWS.planner), "utf8");
   for (const path of SOURCE_PATHS) assert.equal(workflow.split(`- "${path}"`).length - 1, 2, path);
-  for (const text of ["needs: [planner, accounting]", "if: ${{ always() }}", "merge-multiple: false", "if-no-files-found: error", `uses: ./${WORKFLOWS.accounting}`]) assert.ok(workflow.includes(text), text);
+  for (const text of ["needs: [planner, accounting]", "if: ${{ always() }}", "merge-multiple: false", "if-no-files-found: error", `uses: 6ZoSo9/void-node/${WORKFLOWS.accounting}@${ACCOUNTING_DEFINITION_SHA}`]) assert.ok(workflow.includes(text), text);
   assert.match(workflow, /actions\/upload-artifact@[0-9a-f]{40}/);
   assert.match(workflow, /actions\/download-artifact@[0-9a-f]{40}/);
 });
