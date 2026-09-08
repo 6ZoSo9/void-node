@@ -1750,6 +1750,83 @@ assert.equal(readFileSync(ownedAside, "utf8"), outputContent);
 const freshOutput = path.join(postFsyncParent, "fresh-result.json");
 assert.equal(writeBootstrapOutputFileV1(freshOutput, outputContent), freshOutput);
 
+// A pinned parent can survive displacement while the requested pathname now
+// names a foreign generation. Publication evidence must observe that pathname.
+const displacedParent = path.join(outputDirectory, "post-fsync-displacement");
+const retainedParent = `${displacedParent}.retained`;
+const displacedPath = path.join(displacedParent, "result.json");
+mkdirSync(displacedParent, { mode: 0o700 });
+let displacedForeignBefore;
+let displacedFailure;
+try {
+  writeBootstrapOutputFileV1(displacedPath, outputContent, {
+    afterOutputFsync() {
+      renameSync(displacedParent, retainedParent);
+      mkdirSync(displacedParent, { mode: 0o700 });
+      writeFileSync(displacedPath, "FOREIGN", { mode: 0o600 });
+      displacedForeignBefore = statSync(displacedPath, { bigint: true });
+    },
+  });
+  assert.fail("displaced parent must not report success");
+} catch (error) {
+  displacedFailure = error;
+}
+assert.match(displacedFailure.message, /output parent path changed generation/);
+assert.equal(displacedFailure.outputPublication.state, "unconfirmed");
+assert.equal(displacedFailure.outputPublication.candidate_at_output_path, false);
+assert.equal(displacedFailure.outputPublication.candidate_identity.ino,
+  String(statSync(path.join(retainedParent, "result.json")).ino));
+assert.notEqual(displacedFailure.outputPublication.candidate_identity.ino,
+  String(displacedForeignBefore.ino));
+assert.deepEqual(statSync(displacedPath, { bigint: true }), displacedForeignBefore);
+assert.throws(() => writeBootstrapOutputFileV1(displacedPath, outputContent),
+  /output path already exists/);
+assert.deepEqual(statSync(displacedPath, { bigint: true }), displacedForeignBefore);
+assert.equal(readFileSync(displacedPath, "utf8"), "FOREIGN");
+assert.equal(readFileSync(path.join(retainedParent, "result.json"), "utf8"), outputContent);
+
+// The link destination is always a single leaf, even if an existing or late
+// foreign directory (or symlink to one) occupies it. No destination/3 effect.
+for (const targetKind of ["directory", "symlink-directory"]) {
+  for (const timing of ["existing", "after-fsync"]) {
+    const parent = path.join(outputDirectory, `foreign-${targetKind}-${timing}`);
+    mkdirSync(parent, { mode: 0o700 });
+    const outputPath = path.join(parent, "result.json");
+    const foreignDirectory = targetKind === "directory" ? outputPath : path.join(parent, "foreign-directory");
+    const sentinel = path.join(foreignDirectory, "sentinel");
+    let targetBefore;
+    let directoryBefore;
+    let sentinelBefore;
+    function installForeignDestination() {
+      mkdirSync(foreignDirectory, { mode: 0o700 });
+      writeFileSync(sentinel, "FOREIGN", { mode: 0o600 });
+      if (targetKind === "symlink-directory") symlinkSync(foreignDirectory, outputPath);
+      assert.deepEqual(fs.readdirSync(foreignDirectory), ["sentinel"]);
+      targetBefore = fs.lstatSync(outputPath, { bigint: true });
+      directoryBefore = statSync(foreignDirectory, { bigint: true });
+      sentinelBefore = statSync(sentinel, { bigint: true });
+    }
+    if (timing === "existing") installForeignDestination();
+    let failure;
+    try {
+      writeBootstrapOutputFileV1(outputPath, outputContent,
+        timing === "after-fsync" ? { afterOutputFsync: installForeignDestination } : null);
+      assert.fail(`${targetKind}/${timing} must reject the occupied leaf`);
+    } catch (error) {
+      failure = error;
+    }
+    assert.match(failure.message, /output path already exists/);
+    assert.equal(failure.outputPublication.candidate_at_output_path, false);
+    assert.deepEqual(fs.lstatSync(outputPath, { bigint: true }), targetBefore);
+    assert.deepEqual(statSync(foreignDirectory, { bigint: true }), directoryBefore);
+    assert.deepEqual(statSync(sentinel, { bigint: true }), sentinelBefore);
+    assert.deepEqual(fs.readdirSync(foreignDirectory), ["sentinel"]);
+    assert.equal(readFileSync(sentinel, "utf8"), "FOREIGN");
+  }
+}
+console.log("displaced_parent_publication_observes_requested_path=true");
+console.log("foreign_directory_destinations_never_receive_candidate=true");
+
 const symlinkParentTarget = path.join(
   outputDirectory,
   "symlink-parent-target",

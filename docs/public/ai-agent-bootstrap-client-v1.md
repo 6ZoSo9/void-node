@@ -106,11 +106,16 @@ foreign replacement—at the final path; the client reports failure and never
 deletes it. A writer error after a link attempt carries `outputPublication`
 (and CLI stderr `output_publication=`) with state `unconfirmed`, the retained
 candidate's device/inode/generation witness when readable, an observed
-`candidate_at_output_path` boolean, and `retry=new_output_path_required`.
+`candidate_at_output_path` boolean from the requested absolute pathname at the
+time of observation (not the retained parent descriptor), and
+`retry=new_output_path_required`.
 This observation is not deletion, adoption, availability or successful-commit
 authority. Same-path retries always reject an existing name, including the
 original interrupted candidate; use a new path. A foreign replacement remains
-byte- and inode-exact. Inspect it or choose a new output path rather than treating a failed
+byte- and inode-exact. The link helper treats the destination as one leaf name;
+an existing directory or symlink to a directory is rejected without publishing
+inside it, including when it appears after candidate data fsync.
+Inspect it or choose a new output path rather than treating a failed
 call as publication success. Once the exact file, final-name entry, and parent
 namespace are durable and revalidated, a late close report cannot turn the
 committed create-only result into a false failure. This Linux source contract

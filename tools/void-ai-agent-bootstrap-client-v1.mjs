@@ -1527,6 +1527,7 @@ function publishUnnamedOutputStageV1(
     EXACT_LINK_EXECUTABLE,
     [
       "-L",
+      "--no-target-directory",
       "--",
       procFdPathV1(3),
       procFdPathV1(4, leaf),
@@ -1834,7 +1835,7 @@ export function writeBootstrapOutputFileV1(
       let candidateAtOutputPath = false;
       try {
         candidateIdentity = outputGenerationWitnessV1(fstatSync(descriptor, { bigint: true }));
-        const current = outputGenerationWitnessV1(lstatSync(boundOutput, { bigint: true }));
+        const current = outputGenerationWitnessV1(lstatSync(resolved, { bigint: true }));
         candidateAtOutputPath = sameOutputGenerationV1(candidateIdentity, current);
       } catch {
         // Keep the primary failure and classify uncertain publication honestly.
