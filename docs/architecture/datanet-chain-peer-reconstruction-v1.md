@@ -2,6 +2,30 @@
 
 Marker: `VOID_DATANET_CHAIN_PEER_RECONSTRUCTION_V1`
 
+## Review status and shared-contract repair
+
+The current review verdict is **HOLD**. The existing planner and replica
+accounting proofs establish bounded reference behavior; they do not close the
+five independent findings on caller-asserted peer authentication, unverified
+Chain-2050 commitments, independent custody domains, verified-byte publication
+handoff, and caller-controlled replica targets. A successful reference result
+must not be consumed as release-level availability or publication authority.
+
+The current-main review also reproduced cross-call metadata poisoning: changing
+`authority.repair_execution` or `authority.money_movement` on one returned result
+changed the same flags in later results. No execution occurred, but the nested
+authority report then contradicted the top-level false execution flags.
+
+The flat module-owned authority and default-policy objects are now frozen.
+Caller-owned policies and payload buffers retain their existing behavior; this
+repair does not authenticate inputs, enforce a release replica minimum, make
+result objects immutable, or bind bytes to publication. Two regressions prove
+that a returned authority reference cannot poison later decisions and that
+neither exported defaults nor an earlier returned policy can alter future
+defaults. The planner proof now has 130 cases, plus four replica-accounting
+cases: **134 distinct checked-in cases**. Fresh independent repair review is
+still required; the five existing HOLDs remain open.
+
 Status: source-only deterministic planner and adversarial proof. It does not
 contact a peer, read or write a filesystem, execute repair, or mutate
 Chain-2050.

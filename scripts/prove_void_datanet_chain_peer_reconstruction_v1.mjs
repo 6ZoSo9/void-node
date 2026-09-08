@@ -582,6 +582,35 @@ check("default policy exact", () => {
   });
 });
 
+check("returned authority cannot poison later decisions", () => {
+  const first = planDatanetChainPeerReconstructionV1(request());
+  assert.equal(first.ok, true);
+  for (const key of ["repair_execution", "money_movement", "network_call", "filesystem_write"]) {
+    assert.equal(Reflect.set(first.authority, key, true), false, key);
+    assert.equal(Reflect.set(VOID_DATANET_RECONSTRUCTION_AUTHORITY_V1, key, true), false, key);
+  }
+  const later = planDatanetChainPeerReconstructionV1(request());
+  assert.equal(later.ok, true);
+  for (const key of ["repair_execution", "money_movement", "network_call", "filesystem_write"]) {
+    assert.equal(first.authority[key], false, key);
+    assert.equal(later.authority[key], false, key);
+  }
+  assert.equal(later.repair_execution_authority_granted, false);
+});
+
+check("exported defaults and returned policy cannot poison future defaults", () => {
+  assert.equal(Reflect.set(VOID_DATANET_RECONSTRUCTION_DEFAULT_POLICY_V1, "target_replica_count", 1), false);
+  const first = planDatanetChainPeerReconstructionV1(request({ policy: undefined }));
+  assert.equal(first.ok, true);
+  assert.equal(first.policy.target_replica_count, 3);
+  first.policy.target_replica_count = 1;
+  const later = planDatanetChainPeerReconstructionV1(request({ policy: undefined }));
+  assert.equal(later.ok, true);
+  assert.equal(later.policy.target_replica_count, 3);
+  assert.equal(later.target_replica_count, 3);
+  assert.equal(VOID_DATANET_RECONSTRUCTION_DEFAULT_POLICY_V1.target_replica_count, 3);
+});
+
 check("documentation doctrine", () => {
   const doc = readFileSync(DOC_PATH, "utf8");
   for (const marker of [
@@ -636,4 +665,6 @@ console.log("deterministic_repair_plan=true");
 console.log("bounded_peer_and_byte_work=true");
 console.log("durable_future_availability_claim=false");
 console.log("network_filesystem_repair_chain_mutation=false");
+console.log("shared_authority_poisoning_rejected=true");
+console.log("exported_default_policy_poisoning_rejected=true");
 console.log(`cases=${cases}`);

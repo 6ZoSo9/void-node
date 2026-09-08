@@ -7,7 +7,9 @@ export const VOID_DATANET_CHAIN_COMMITMENT_V1 =
 export const VOID_DATANET_RECONSTRUCTION_HOLD_V1 =
   "DATANET_RECONSTRUCTION_HOLD";
 
-export const VOID_DATANET_RECONSTRUCTION_AUTHORITY_V1 = {
+// These flat, module-owned contracts are shared across calls. A returned
+// authority reference must never let one caller poison a later decision.
+export const VOID_DATANET_RECONSTRUCTION_AUTHORITY_V1 = Object.freeze({
   source_only_planner: true,
   chain2050_commitment_input_required: true,
   peer_majority_is_truth_authority: false,
@@ -26,15 +28,15 @@ export const VOID_DATANET_RECONSTRUCTION_AUTHORITY_V1 = {
   transaction_construction: false,
   transaction_broadcast: false,
   money_movement: false,
-};
+});
 
-export const VOID_DATANET_RECONSTRUCTION_DEFAULT_POLICY_V1 = {
+export const VOID_DATANET_RECONSTRUCTION_DEFAULT_POLICY_V1 = Object.freeze({
   max_object_bytes: 67_108_864,
   max_total_candidate_bytes: 268_435_456,
   max_peer_candidates: 64,
   target_replica_count: 3,
   max_target_replica_count: 16,
-};
+});
 
 const SAFE_ID = /^[A-Za-z0-9][A-Za-z0-9._:-]{1,159}$/;
 const SHA256 = /^[0-9a-f]{64}$/;
