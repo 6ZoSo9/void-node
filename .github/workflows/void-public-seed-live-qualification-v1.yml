@@ -87,10 +87,13 @@ jobs:
           }
           NODE
           printf 'source_sha=%s\n' "$(git rev-parse HEAD)" > qualification-output/source.txt
-          sha256sum qualification-output/qualification.json \
-            qualification-output/public-bootstrap-v1.json \
-            qualification-output/source.txt \
-            > qualification-output/SHA256SUMS
+          (
+            cd qualification-output
+            sha256sum qualification.json \
+              public-bootstrap-v1.json \
+              source.txt \
+              > SHA256SUMS
+          )
           echo 'VOID_PUBLIC_SEED_LIVE_QUALIFICATION_V1_GREEN'
           echo 'manifest_published=false'
           echo 'services_deployed=false'

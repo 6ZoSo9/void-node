@@ -1,5 +1,7 @@
 #!/usr/bin/env node
 import assert from "node:assert/strict";
+import fs from "node:fs";
+import { syncBuiltinESMExports } from "node:module";
 import { spawnSync } from "node:child_process";
 import {
   chmodSync,
@@ -1593,6 +1595,7 @@ const nestedOutputPath = path.join(
   "nested",
   "bootstrap.json",
 );
+mkdirSync(path.dirname(nestedOutputPath), { recursive: true, mode: 0o700 });
 assert.equal(
   writeBootstrapOutputFileV1(
     nestedOutputPath,
@@ -1605,7 +1608,7 @@ assert.equal(
   outputContent,
 );
 
-function assertCreatedParentFsyncRetryV1(
+function assertExistingParentFsyncRetryV1(
   relativeParentParts,
 ) {
   const outputParent = path.join(
@@ -1616,6 +1619,7 @@ function assertCreatedParentFsyncRetryV1(
     outputParent,
     "bootstrap.json",
   );
+  mkdirSync(outputParent, { recursive: true, mode: 0o700 });
   const durabilityComponent = relativeParentParts[0];
   let injected = false;
   let retryFsyncObserved = false;
@@ -1623,7 +1627,7 @@ function assertCreatedParentFsyncRetryV1(
     beforeOutputParentEntryFsync({ component, created }) {
       if (
         component === durabilityComponent &&
-        created &&
+        !created &&
         !injected
       ) {
         injected = true;
@@ -1675,13 +1679,76 @@ function assertCreatedParentFsyncRetryV1(
   );
 }
 
-assertCreatedParentFsyncRetryV1([
+assertExistingParentFsyncRetryV1([
   "retry-direct-parent",
 ]);
-assertCreatedParentFsyncRetryV1([
+assertExistingParentFsyncRetryV1([
   "retry-nested-ancestor",
   "nested-parent",
 ]);
+
+// Any mkdir by the production writer would expose the original exact
+// post-create/pre-open substitution boundary. The repaired writer never calls it.
+for (const depth of [1, 2]) {
+  const base = path.join(outputDirectory, `missing-parent-${depth}`);
+  const target = depth === 1 ? base : path.join(base, "nested");
+  let creationCalls = 0;
+  const originalMkdir = fs.mkdirSync;
+  fs.mkdirSync = function (directory, options) {
+    creationCalls += 1;
+    const result = originalMkdir(directory, options);
+    renameSync(directory, `${directory}.displaced`);
+    originalMkdir(directory, { mode: 0o700 });
+    writeFileSync(path.join(directory, "foreign-sentinel"), "FOREIGN");
+    return result;
+  };
+  syncBuiltinESMExports();
+  try {
+    assert.throws(() => writeBootstrapOutputFileV1(path.join(target, "result.json"), outputContent),
+      /output parent must already exist/);
+    assert.equal(creationCalls, 0);
+    assert.throws(() => statSync(base), /ENOENT/);
+  } finally {
+    fs.mkdirSync = originalMkdir;
+    syncBuiltinESMExports();
+  }
+}
+
+// Authority can widen after data fsync but before the link effect. This is
+// fail-before-success, with observable unconfirmed residue and no delete right.
+const postFsyncParent = path.join(outputDirectory, "post-fsync-widening");
+mkdirSync(postFsyncParent, { mode: 0o700 });
+const postFsyncPath = path.join(postFsyncParent, "result.json");
+let publicationFailure;
+try {
+  writeBootstrapOutputFileV1(postFsyncPath, outputContent, {
+    afterOutputFsync() { chmodSync(postFsyncParent, 0o777); },
+  });
+  assert.fail("post-fsync widening must not report success");
+} catch (error) {
+  publicationFailure = error;
+}
+assert.match(publicationFailure.message, /output parent write authority invalid/);
+assert.equal(publicationFailure.outputPublication.state, "unconfirmed");
+assert.equal(publicationFailure.outputPublication.candidate_at_output_path, true);
+assert.equal(publicationFailure.outputPublication.candidate_identity.ino, String(statSync(postFsyncPath).ino));
+assert.equal(readFileSync(postFsyncPath, "utf8"), outputContent);
+chmodSync(postFsyncParent, 0o700); // Test restores its own fixture authority.
+assert.throws(() => writeBootstrapOutputFileV1(postFsyncPath, outputContent), /output path already exists/);
+const ownedAside = path.join(postFsyncParent, "owned-aside.json");
+renameSync(postFsyncPath, ownedAside);
+writeFileSync(postFsyncPath, "FOREIGN", { mode: 0o600 });
+const foreignBefore = statSync(postFsyncPath, { bigint: true });
+let retryFailure;
+try { writeBootstrapOutputFileV1(postFsyncPath, outputContent); }
+catch (error) { retryFailure = error; }
+assert.match(retryFailure.message, /output path already exists/);
+assert.equal(retryFailure.outputPublication.candidate_at_output_path, false);
+assert.deepEqual(statSync(postFsyncPath, { bigint: true }), foreignBefore);
+assert.equal(readFileSync(postFsyncPath, "utf8"), "FOREIGN");
+assert.equal(readFileSync(ownedAside, "utf8"), outputContent);
+const freshOutput = path.join(postFsyncParent, "fresh-result.json");
+assert.equal(writeBootstrapOutputFileV1(freshOutput, outputContent), freshOutput);
 
 const symlinkParentTarget = path.join(
   outputDirectory,
@@ -2097,6 +2164,24 @@ for (const result of [
   assert.equal(result.safety.wc_ledger_write_performed, false);
 }
 
+// Natural file reads in either executed proof must schedule this exact wall.
+const workflowText = readFileSync(new URL("../.github/workflows/void-ai-agent-bootstrap-response-bounds-v1.yml", import.meta.url), "utf8");
+const proofTexts = [readFileSync(import.meta.url.startsWith("file:") ? new URL(import.meta.url) : import.meta.url, "utf8"),
+  readFileSync(new URL("./prove_void_ai_agent_bootstrap_client_v1.mjs", import.meta.url), "utf8")];
+const naturalDependencies = new Set(proofTexts.flatMap(text =>
+  [...text.matchAll(/new URL\(\s*"\.\.\/((?:public|fixtures|schemas|examples)\/[^"]+)"/g)].map(match => match[1])));
+assert.equal(naturalDependencies.size, 8);
+const pullTrigger = workflowText.split("  pull_request:")[1].split("  push:")[0];
+const pushTrigger = workflowText.split("  push:")[1].split("permissions:")[0];
+for (const dependency of naturalDependencies) {
+  for (const trigger of [pullTrigger, pushTrigger]) {
+    assert.ok(trigger.includes(JSON.stringify(dependency)), `missing trigger dependency ${dependency}`);
+  }
+}
+assert.ok(workflowText.includes("ref: ${{ github.event.pull_request.head.sha || github.sha }}"));
+assert.ok(workflowText.includes("Assert exact source head"));
+console.log("natural_fixture_dependencies_trigger_bound=true");
+
 console.log("VOID_AI_AGENT_BOOTSTRAP_RESPONSE_BOUNDS_V1_PROOF_GREEN");
 console.log("bound_controls_strictly_typed=true");
 console.log("cli_bound_tokens_canonical_decimal=true");
@@ -2138,8 +2223,11 @@ console.log("output_symlink_not_followed=true");
 console.log("output_descriptor_bound=true");
 console.log("output_parent_namespace_bound=true");
 console.log("output_parent_owner_mode_authority_bound=true");
-console.log("output_created_parent_retry_durability_bound=true");
-console.log("output_nested_ancestor_retry_durability_bound=true");
+console.log("output_runtime_directory_creation_absent=true");
+console.log("output_post_link_hold_reports_candidate_identity=true");
+console.log("output_foreign_retry_generation_preserved=true");
+console.log("output_existing_parent_retry_durability_bound=true");
+console.log("output_existing_nested_ancestor_retry_durability_bound=true");
 console.log("output_shared_writable_parent_rejected=true");
 console.log("output_same_inode_permission_widening_held=true");
 console.log("output_writable_ancestor_widening_held=true");

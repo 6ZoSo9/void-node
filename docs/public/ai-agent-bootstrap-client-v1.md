@@ -62,23 +62,24 @@ node tools/void-ai-agent-bootstrap-client-v1.mjs \
 ```
 
 `--output` refuses an existing final path, including a symbolic link. Every
-output-parent component is created or opened relative to an already-pinned
+output-parent component must already exist and is opened relative to an already-pinned
 directory descriptor with no-follow semantics. The final parent must be owned
 by the current effective UID and have no group/other write bits. Every retained
 ancestor must be owned by either that UID or root and must be non-writable by
 group/other, except for an owner-trusted sticky directory such as `/tmp`. The
 walk snapshots exact device/inode/UID/GID/mode authority for every component and
 requires that complete chain again throughout publication. A pre-existing
-shared-writable parent or same-inode permission widening fails before final-name
-publication.
+shared-writable parent fails before final-name publication. Authority widening
+after staging can be detected after the link; it always fails before success,
+but does not promise zero publication for that interleaving.
 
-Every directory component's containing parent is synchronized before the
-component is admitted, whether that component was just created or already
-existed. If a first attempt creates a direct parent or nested ancestor and its
-containing-parent synchronization fails or has unknown durability, an exact
-retry must synchronize that same containing parent successfully before it can
-descend through the existing component. A visible directory left by a failed
-attempt is therefore not silently promoted into durable output authority.
+The writer never creates output directories. Missing direct or nested parents
+HOLD with `output parent must already exist; trusted provisioning required`.
+Provision them in a trusted setup context before calling the CLI. The default
+stdout-only invocation needs no output-directory setup. Existing components'
+containing directories are synchronized on every admission, including retries;
+an earlier fsync failure does not become durable authority merely because the
+path is still visible.
 
 Content is first written into an unnamed Linux `O_TMPFILE` inode held by one
 descriptor, forced to mode `0600`, and synchronized. `/usr/bin/ln -L` receives
@@ -102,7 +103,14 @@ before success is returned. A symlinked component, concurrent parent
 replacement, or leaf swap/restore across the parent-fsync epoch fails closed.
 An ambiguous post-link failure may leave the exact candidate—or a concurrent
 foreign replacement—at the final path; the client reports failure and never
-deletes it. Inspect it or choose a new output path rather than treating a failed
+deletes it. A writer error after a link attempt carries `outputPublication`
+(and CLI stderr `output_publication=`) with state `unconfirmed`, the retained
+candidate's device/inode/generation witness when readable, an observed
+`candidate_at_output_path` boolean, and `retry=new_output_path_required`.
+This observation is not deletion, adoption, availability or successful-commit
+authority. Same-path retries always reject an existing name, including the
+original interrupted candidate; use a new path. A foreign replacement remains
+byte- and inode-exact. Inspect it or choose a new output path rather than treating a failed
 call as publication success. Once the exact file, final-name entry, and parent
 namespace are durable and revalidated, a late close report cannot turn the
 committed create-only result into a false failure. This Linux source contract
@@ -193,3 +201,12 @@ promise of paid work, Work Credits, settlement, or execution.
 - `examples/void-ai-agent-bootstrap-client-v1.example.json`
 - `.github/workflows/void-ai-agent-bootstrap-client-v1.yml`
 - `.github/workflows/void-ai-agent-bootstrap-response-bounds-v1.yml`
+
+## Proof dependency coverage
+
+The existing Response Bounds workflow binds the eight natural authenticity,
+discovery, capability, authentication, First Contact, intake, schema and example
+inputs read by its two proofs. The proof checks both pull-request and push
+trigger lists from those actual file reads. The workflow checks out and asserts
+the exact PR head on Node 22/24/26. The MCP integration workflow retains its
+bounded lane classification and admits this existing dependency workflow.

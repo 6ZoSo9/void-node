@@ -12,7 +12,6 @@ import {
   fstatSync,
   fsyncSync,
   lstatSync,
-  mkdirSync,
   openSync,
   writeFileSync,
 } from "node:fs";
@@ -1566,7 +1565,7 @@ function publishUnnamedOutputStageV1(
 
 function openPinnedOutputParentV1(
   parent,
-  { createMissing = true, testHooks = null } = {},
+  { testHooks = null } = {},
 ) {
   let procStat;
   try {
@@ -1611,7 +1610,7 @@ function openPinnedOutputParentV1(
       }
       const bound = procFdPathV1(fd, part);
       let next;
-      let created = false;
+      const created = false;
       try {
         next = openSync(
           bound,
@@ -1625,18 +1624,8 @@ function openPinnedOutputParentV1(
             "output parent must contain only real directories",
           );
         }
-        if (!createMissing) {
-          throw new Error(
-            "output parent path changed generation",
-          );
-        }
-        mkdirSync(bound, { mode: 0o700 });
-        created = true;
-        next = openSync(
-          bound,
-          constants.O_RDONLY |
-            constants.O_DIRECTORY |
-            Number(constants.O_NOFOLLOW || 0),
+        throw new Error(
+          "output parent must already exist; trusted provisioning required",
         );
       }
       try {
@@ -1706,7 +1695,7 @@ function openPinnedOutputParentV1(
 function assertPinnedOutputParentV1(pinned) {
   const current = openPinnedOutputParentV1(
     pinned.absolute,
-    { createMissing: false },
+    {},
   );
   try {
     if (
@@ -1754,6 +1743,7 @@ export function writeBootstrapOutputFileV1(
   const boundOutput = procFdPathV1(pinned.fd, leaf);
   let descriptor;
   let published = false;
+  let linkAttempted = false;
   try {
     testHooks?.afterParentPinned?.({
       parent,
@@ -1786,6 +1776,7 @@ export function writeBootstrapOutputFileV1(
       parent,
       resolved,
     });
+    linkAttempted = true;
     publishUnnamedOutputStageV1(
       descriptor,
       pinned.fd,
@@ -1834,6 +1825,28 @@ export function writeBootstrapOutputFileV1(
     }
     assertPinnedOutputParentV1(pinned);
     published = true;
+  } catch (error) {
+    const failure = error instanceof Error ? error : new Error(String(error));
+    if (linkAttempted && descriptor !== undefined) {
+      // This is an observation of our retained candidate, never authority to
+      // adopt or delete whatever currently occupies the output pathname.
+      let candidateIdentity = null;
+      let candidateAtOutputPath = false;
+      try {
+        candidateIdentity = outputGenerationWitnessV1(fstatSync(descriptor, { bigint: true }));
+        const current = outputGenerationWitnessV1(lstatSync(boundOutput, { bigint: true }));
+        candidateAtOutputPath = sameOutputGenerationV1(candidateIdentity, current);
+      } catch {
+        // Keep the primary failure and classify uncertain publication honestly.
+      }
+      failure.outputPublication = Object.freeze({
+        state: "unconfirmed",
+        candidate_identity: candidateIdentity,
+        candidate_at_output_path: candidateAtOutputPath,
+        retry: "new_output_path_required",
+      });
+    }
+    throw failure;
   } finally {
     if (!published) {
       try {
@@ -2191,6 +2204,9 @@ if (import.meta.url === invokedPath) {
           : String(error)
       }\n`,
     );
+    if (error?.outputPublication) {
+      process.stderr.write(`output_publication=${JSON.stringify(error.outputPublication)}\n`);
+    }
     process.exitCode = 2;
   });
 }

@@ -70,8 +70,25 @@ const PUBLIC_UTILITY_CANONICALIZATION_BOUNDARY = [
   "scripts/prove_void_ai_agent_first_contact_v1.mjs",
   "tools/void-ai-agent-first-contact-v1.mjs",
 ];
+const OFFICIAL_NETWORK_AUTHENTICITY_VERIFICATION_BOUNDARY = [
+  ".github/workflows/void-ai-agent-first-contact-v1.yml",
+  ".github/workflows/void-ai-agent-provenance-unfiltered-v1.yml",
+  "docs/public/ai-agent-first-contact-v1.md",
+  "scripts/prove_void_ai_agent_first_contact_v1.mjs",
+  "tools/void-ai-agent-first-contact-v1.mjs",
+];
+const COMMITTED_RANGE_DIFF_HYGIENE_REPAIR_BOUNDARY = [
+  ".github/workflows/void-ai-agent-first-contact-v1.yml",
+  ".github/workflows/void-ai-agent-provenance-unfiltered-v1.yml",
+  "scripts/prove_void_ai_agent_first_contact_v1.mjs",
+];
 const ALLOWED_BOUNDARY = [
-  ...new Set([...ORIGINAL_BOUNDARY, ...COMPOSITION_BOUNDARY]),
+  ...new Set([
+    ...ORIGINAL_BOUNDARY,
+    ...COMPOSITION_BOUNDARY,
+    ...OFFICIAL_NETWORK_AUTHENTICITY_VERIFICATION_BOUNDARY,
+    ...COMMITTED_RANGE_DIFF_HYGIENE_REPAIR_BOUNDARY,
+  ]),
 ];
 const AUTHENTICITY_ROUTE = "/.well-known/void-network-authenticity.json";
 const MANIFEST_PATH = join(
@@ -90,10 +107,31 @@ const PUBLIC_UTILITY_PATH = join(
   ROOT,
   "public/public-node/agents/public-utility-v1.json",
 );
+const OFFICIAL_AUTHENTICITY_PATH = join(
+  ROOT,
+  "public/.well-known/void-network-authenticity.json",
+);
+const DISCOVERY_CONTRACT_PATH = join(
+  ROOT,
+  "public/.well-known/void-agent-discovery.json",
+);
+const AUTHENTICATION_CONTRACT_PATH = join(
+  ROOT,
+  "public/.well-known/void-agent-authentication.json",
+);
 
 const manifest = JSON.parse(await readFile(MANIFEST_PATH, "utf8"));
 const publicUtility = JSON.parse(
   await readFile(PUBLIC_UTILITY_PATH, "utf8"),
+);
+const officialAuthenticity = JSON.parse(
+  await readFile(OFFICIAL_AUTHENTICITY_PATH, "utf8"),
+);
+const discoveryContract = JSON.parse(
+  await readFile(DISCOVERY_CONTRACT_PATH, "utf8"),
+);
+const authenticationContract = JSON.parse(
+  await readFile(AUTHENTICATION_CONTRACT_PATH, "utf8"),
 );
 const capabilitiesCatalog = JSON.parse(
   await readFile(
@@ -274,75 +312,12 @@ assert.equal(
 const fixtures = new Map([
   [manifest.entrypoints.first_contact, manifest],
   [manifest.entrypoints.public_utility, publicUtility],
-  [
-    manifest.entrypoints.well_known_discovery,
-    {
-      marker: "VOID_AI_AGENT_WELL_KNOWN_ENTRYPOINT_V1",
-      protocol: "void-agent-discovery-well-known/1",
-      network: {
-        name: "VOID Mainnet-0",
-        chain_id: 2050,
-      },
-      canonical_discovery: "/public-node/agents/discovery-v1.json",
-      network_authenticity:
-        manifest.entrypoints.official_authenticity,
-      authority: {
-        default: "read_only",
-        mutation_authority_granted: false,
-        credentials_required: false,
-      },
-      safety: {
-        same_origin_only: true,
-        follow_redirects: false,
-      },
-    },
-  ],
+  [manifest.entrypoints.well_known_discovery, discoveryContract],
   [
     manifest.entrypoints.official_authenticity,
-    {
-      marker: "VOID_OFFICIAL_NETWORK_AUTHENTICITY_WELL_KNOWN_V1",
-      protocol: "void-network-authenticity/1",
-      status: "public_verification_available",
-      network: {
-        name: "VOID Mainnet-0",
-        chain_id: 2050,
-      },
-      authority: {
-        verification_only: true,
-        mutation_authority_granted: false,
-        runtime_authority_granted: false,
-        economic_authority_granted: false,
-      },
-      safety: {
-        credentials_required: false,
-        follow_redirects: false,
-      },
-    },
+    officialAuthenticity,
   ],
-  [
-    manifest.entrypoints.authentication,
-    {
-      marker: "VOID_AI_AGENT_AUTHENTICATION_WELL_KNOWN_V1",
-      protocol: "void-agent-authentication-well-known/1",
-      contract_published: true,
-      canonical_authentication_contract:
-        "/public-node/agents/authentication-v1.json",
-      network: {
-        name: "VOID Mainnet-0",
-        chain_id: 2050,
-      },
-      authenticated_routes_active: false,
-      verifier_runtime_active: false,
-      mutation_authority_granted: false,
-      safety: {
-        same_origin_only: true,
-        follow_redirects: false,
-        send_credentials_now: false,
-        send_signed_envelopes_now: false,
-        treat_unknown_as: "not_granted",
-      },
-    },
-  ],
+  [manifest.entrypoints.authentication, authenticationContract],
   [manifest.entrypoints.capabilities, capabilitiesCatalog],
   [publicUtility.entries[2].path, datanetReceipt],
   [manifest.entrypoints.agent_intake, agentIntakeCapability],
@@ -1027,6 +1002,198 @@ try {
     false,
   );
 
+  const unsignedClone = {
+    marker: "VOID_OFFICIAL_NETWORK_AUTHENTICITY_WELL_KNOWN_V1",
+    protocol: "void-network-authenticity/1",
+    status: "public_verification_available",
+    network: {
+      name: "VOID Mainnet-0",
+      chain_id: 2050,
+    },
+    authority: {
+      verification_only: true,
+      mutation_authority_granted: false,
+      runtime_authority_granted: false,
+      economic_authority_granted: false,
+    },
+    safety: {
+      credentials_required: false,
+      follow_redirects: false,
+    },
+  };
+  const missingSignature = structuredClone(officialAuthenticity);
+  delete missingSignature.verification.signature_base64;
+  const forgedSignature = structuredClone(officialAuthenticity);
+  forgedSignature.verification.signature_base64 =
+    `${forgedSignature.verification.signature_base64[0] === "A" ? "B" : "A"}${forgedSignature.verification.signature_base64.slice(1)}`;
+  const wrongKey = structuredClone(officialAuthenticity);
+  wrongKey.verification.public_key_pem =
+    "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEAejYyFziUrf8A2eRhz9/LJMM2SsMFvrEqVN1iC7m/G4g=\n-----END PUBLIC KEY-----\n";
+  const wrongPayloadDigest = structuredClone(officialAuthenticity);
+  wrongPayloadDigest.verification.payload_sha256 =
+    "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff";
+  const wrongGenesis = structuredClone(officialAuthenticity);
+  wrongGenesis.network.genesis_sha256 =
+    "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff";
+  const wrongCheckpoint = structuredClone(officialAuthenticity);
+  wrongCheckpoint.admission.checkpoint_commit =
+    "ffffffffffffffffffffffffffffffffffffffff";
+  const staleAdmission = structuredClone(officialAuthenticity);
+  staleAdmission.admission.status = "stale";
+
+  for (const [label, hostileAuthenticity] of [
+    ["unsigned_same_origin_clone", unsignedClone],
+    ["missing_signature", missingSignature],
+    ["forged_signature", forgedSignature],
+    ["wrong_public_key", wrongKey],
+    ["wrong_payload_digest", wrongPayloadDigest],
+    ["wrong_genesis", wrongGenesis],
+    ["wrong_checkpoint", wrongCheckpoint],
+    ["stale_admission", staleAdmission],
+  ]) {
+    const hostile = await runClient(
+      ["--base-url", baseUrl],
+      [[manifest.entrypoints.official_authenticity, hostileAuthenticity]],
+    );
+    assert.equal(hostile.code, 2, `${label}: ${hostile.stderr}`);
+    const hostileReport = JSON.parse(hostile.stdout);
+    assert.equal(hostileReport.status, "partial_read_only", label);
+    assert.equal(hostileReport.official_network_verified, false, label);
+    assert.equal(
+      hostileReport.checks.network_binding_consistent,
+      false,
+      label,
+    );
+    assert.deepEqual(
+      hostileReport.observed_capabilities,
+      {
+        paid_work_observed: false,
+        work_credit_earning_observed: false,
+      },
+      label,
+    );
+  }
+
+
+  const assertRequiredContractRejected = async ({
+    label,
+    entrypoint,
+    document,
+    check,
+    officialNetworkVerified,
+    omittedAction,
+  }) => {
+    const hostile = await runClient(
+      ["--base-url", baseUrl],
+      [[entrypoint, document]],
+    );
+    assert.equal(hostile.code, 2, `${label}: ${hostile.stderr}`);
+    const hostileReport = JSON.parse(hostile.stdout);
+    assert.equal(hostileReport.status, "partial_read_only", label);
+    assert.equal(hostileReport.checks[check], false, label);
+    assert.equal(
+      hostileReport.official_network_verified,
+      officialNetworkVerified,
+      label,
+    );
+    assert.deepEqual(
+      hostileReport.observed_capabilities,
+      {
+        paid_work_observed: false,
+        work_credit_earning_observed: false,
+      },
+      label,
+    );
+    if (omittedAction) {
+      assert.equal(
+        hostileReport.next_actions.some(
+          (action) => action.id === omittedAction,
+        ),
+        false,
+        label,
+      );
+    }
+  };
+
+  const discoveryWithExtraTopLevel = structuredClone(discoveryContract);
+  discoveryWithExtraTopLevel.unreviewed_extension = true;
+  const discoverySendingSecrets = structuredClone(discoveryContract);
+  discoverySendingSecrets.safety.send_secrets = true;
+  const discoverySendingWalletMaterial = structuredClone(discoveryContract);
+  discoverySendingWalletMaterial.safety.send_wallet_material = true;
+  const discoveryWithWalletAuthority = structuredClone(discoveryContract);
+  discoveryWithWalletAuthority.authority.wallet_authority_granted = true;
+  const discoveryWithTypedSafetyForgery = structuredClone(discoveryContract);
+  discoveryWithTypedSafetyForgery.safety.send_operator_keys = "false";
+  for (const [label, document] of [
+    ["discovery_extra_top_level", discoveryWithExtraTopLevel],
+    ["discovery_send_secrets", discoverySendingSecrets],
+    ["discovery_send_wallet_material", discoverySendingWalletMaterial],
+    ["discovery_wallet_authority", discoveryWithWalletAuthority],
+    ["discovery_wrong_typed_safety", discoveryWithTypedSafetyForgery],
+  ]) {
+    await assertRequiredContractRejected({
+      label,
+      entrypoint: manifest.entrypoints.well_known_discovery,
+      document,
+      check: "network_binding_consistent",
+      officialNetworkVerified: false,
+    });
+  }
+
+  const authenticationWithExtraTopLevel =
+    structuredClone(authenticationContract);
+  authenticationWithExtraTopLevel.wallet_authority_granted = true;
+  const authenticationWithoutSchema =
+    structuredClone(authenticationContract);
+  delete authenticationWithoutSchema.$schema;
+  for (const [label, document] of [
+    ["authentication_extra_top_level", authenticationWithExtraTopLevel],
+    ["authentication_missing_schema", authenticationWithoutSchema],
+  ]) {
+    await assertRequiredContractRejected({
+      label,
+      entrypoint: manifest.entrypoints.authentication,
+      document,
+      check: "authentication_contract_found",
+      officialNetworkVerified: true,
+      omittedAction: "inspect_authentication",
+    });
+  }
+
+  const capabilitiesAwardingWorkCredit =
+    structuredClone(capabilitiesCatalog);
+  capabilitiesAwardingWorkCredit.authority.work_credit_awards_active = true;
+  const capabilitiesAcceptingPayment =
+    structuredClone(capabilitiesCatalog);
+  capabilitiesAcceptingPayment.authority.payment_submission_active = true;
+  const capabilitiesWithActiveVerifier =
+    structuredClone(capabilitiesCatalog);
+  capabilitiesWithActiveVerifier.next_contract.verifier_runtime_active = true;
+  const capabilitiesAllowingUnsignedMutation =
+    structuredClone(capabilitiesCatalog);
+  capabilitiesAllowingUnsignedMutation.safety
+    .mutation_without_separate_signed_capability = "allowed";
+  const capabilitiesWithExtraTopLevel =
+    structuredClone(capabilitiesCatalog);
+  capabilitiesWithExtraTopLevel.unreviewed_extension = true;
+  for (const [label, document] of [
+    ["capabilities_work_credit_awards_active", capabilitiesAwardingWorkCredit],
+    ["capabilities_payment_submission_active", capabilitiesAcceptingPayment],
+    ["capabilities_verifier_runtime_active", capabilitiesWithActiveVerifier],
+    ["capabilities_unsigned_mutation_allowed", capabilitiesAllowingUnsignedMutation],
+    ["capabilities_extra_top_level", capabilitiesWithExtraTopLevel],
+  ]) {
+    await assertRequiredContractRejected({
+      label,
+      entrypoint: manifest.entrypoints.capabilities,
+      document,
+      check: "capabilities_loaded",
+      officialNetworkVerified: true,
+      omittedAction: "inspect_capabilities",
+    });
+  }
+
   const decoyContracts = await runClient(
     ["--base-url", baseUrl],
     [
@@ -1061,6 +1228,52 @@ try {
   assert.equal(
     decoyContractsReport.next_actions.some(
       (action) => action.id === "inspect_capabilities",
+    ),
+    false,
+  );
+
+  const unverifiedCommercialSignals = structuredClone(capabilitiesCatalog);
+  unverifiedCommercialSignals.unreviewed_signals = {
+    paid_work_enabled: true,
+    work_credit_earning_enabled: "live",
+    nested: {
+      capability: "paid_work",
+      status: "available",
+    },
+  };
+  const unverifiedCommercialSignalsResult = await runClient(
+    ["--base-url", baseUrl],
+    [
+      [
+        manifest.entrypoints.capabilities,
+        unverifiedCommercialSignals,
+      ],
+    ],
+  );
+  assert.equal(
+    unverifiedCommercialSignalsResult.code,
+    2,
+    unverifiedCommercialSignalsResult.stderr,
+  );
+  const unverifiedCommercialSignalsReport = JSON.parse(
+    unverifiedCommercialSignalsResult.stdout,
+  );
+  assert.equal(
+    unverifiedCommercialSignalsReport.checks.capabilities_loaded,
+    false,
+  );
+  assert.deepEqual(
+    unverifiedCommercialSignalsReport.observed_capabilities,
+    {
+      paid_work_observed: false,
+      work_credit_earning_observed: false,
+    },
+  );
+  assert.equal(
+    unverifiedCommercialSignalsReport.next_actions.some(
+      (action) =>
+        action.id === "review_observed_paid_work_capability" ||
+        action.id === "review_observed_work_credit_capability",
     ),
     false,
   );
@@ -1259,6 +1472,8 @@ if (workingBoundary.length > 0) {
     FIRST_CONTACT_MANIFEST_INTEGRITY_REPAIR_BOUNDARY,
     PUBLIC_UTILITY_PROVENANCE_BOUNDARY,
     PUBLIC_UTILITY_CANONICALIZATION_BOUNDARY,
+    OFFICIAL_NETWORK_AUTHENTICITY_VERIFICATION_BOUNDARY,
+    COMMITTED_RANGE_DIFF_HYGIENE_REPAIR_BOUNDARY,
   ].some(
     (boundary) =>
       JSON.stringify(workingBoundary) ===
@@ -1322,6 +1537,8 @@ console.log(`boundary_composition_commit=${boundaryCompositionCommit}`);
 console.log("first_contact_marker=VOID_AI_AGENT_FIRST_CONTACT_V1");
 console.log("client_marker=VOID_AI_AGENT_FIRST_CONTACT_CLIENT_V1");
 console.log("official_network_verified=true");
+console.log("required_readiness_contracts_exact=true");
+console.log("authority_widening_adversaries_rejected=12");
 console.log("connection_mode=read_only");
 console.log("get_only_client=true");
 console.log("paid_work_promised=false");
