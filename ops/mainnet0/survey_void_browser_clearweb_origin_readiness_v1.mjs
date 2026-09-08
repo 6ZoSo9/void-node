@@ -126,16 +126,48 @@ function readRegular(root, relative) {
   return fs.readFileSync(resolved);
 }
 
+const REVIEWED_GIT = "/usr/bin/git";
+const GIT_READ_ENV = Object.freeze({
+  PATH: "/usr/bin:/bin", LC_ALL: "C", LANG: "C",
+  GIT_CONFIG_NOSYSTEM: "1", GIT_CONFIG_SYSTEM: "/dev/null",
+  GIT_CONFIG_GLOBAL: "/dev/null", GIT_NO_REPLACE_OBJECTS: "1",
+  GIT_NO_LAZY_FETCH: "1", GIT_ALLOW_PROTOCOL: "file",
+  GIT_OPTIONAL_LOCKS: "0", GIT_TERMINAL_PROMPT: "0",
+});
+
+function assertGitEnvironment() {
+  if (Object.keys(process.env).some((key) => key.startsWith("GIT_"))) {
+    fail("ambient Git overrides are not admitted");
+  }
+  const executable = fs.lstatSync(REVIEWED_GIT);
+  if (!executable.isFile() || executable.uid !== 0 || (executable.mode & 0o022) !== 0) {
+    fail("reviewed Git executable is not a protected system file");
+  }
+  // Reject a shadowing program without executing it. Invocation below is always
+  // absolute; a fixed child environment also excludes loader/program overrides.
+  let selected = null;
+  for (const entry of (process.env.PATH || "").split(path.delimiter)) {
+    const candidate = path.resolve(entry || ".", "git");
+    try {
+      fs.accessSync(candidate, fs.constants.X_OK);
+      if (fs.statSync(candidate).isFile()) { selected = fs.realpathSync(candidate); break; }
+    } catch { continue; }
+  }
+  if (selected !== REVIEWED_GIT) fail("PATH does not select the reviewed Git executable");
+}
+
 function git(repoRoot, ...args) {
   try {
-    return execFileSync("git", ["-C", repoRoot, ...args], {
-      encoding: "utf8",
-      env: { ...process.env, LC_ALL: "C" },
-      stdio: ["ignore", "pipe", "pipe"],
+    return execFileSync(REVIEWED_GIT, [
+      "--no-replace-objects", "-c", "core.fsmonitor=false",
+      "-c", "core.hooksPath=/dev/null", "-c", "core.untrackedCache=false",
+      "-C", repoRoot, ...args,
+    ], {
+      encoding: "utf8", env: GIT_READ_ENV, timeout: 10_000,
+      maxBuffer: 4 * 1024 * 1024, stdio: ["ignore", "pipe", "pipe"],
     }).trim();
-  } catch (error) {
-    const detail = error?.stderr?.toString().trim() || error.message;
-    fail(`read-only Git inspection failed: ${detail}`);
+  } catch {
+    fail("read-only Git inspection failed");
   }
 }
 
@@ -186,11 +218,16 @@ export function assertPhysicalHost(observedHost) {
   });
 }
 
-function verifyRepository(repoRoot, expectedHead, requireRemoteMain) {
+export function verifyRepository(repoRoot, expectedHead, requireRemoteMain) {
+  assertGitEnvironment();
   const root = fs.realpathSync(repoRoot);
   if (!SHA40.test(expectedHead)) {
     fail("expected head must be a full lowercase 40-character Git SHA");
   }
+  if (fs.realpathSync(git(root, "rev-parse", "--show-toplevel")) !== root) {
+    fail("Git worktree does not match selected repository root");
+  }
+  if (git(root, "rev-parse", "--show-object-format") !== "sha1") fail("unsupported Git object format");
   if (git(root, "status", "--porcelain=v1", "--untracked-files=all")) {
     fail(`repository is not clean: ${root}`);
   }
@@ -209,7 +246,21 @@ function verifyRepository(repoRoot, expectedHead, requireRemoteMain) {
   }
   const files = {};
   for (const relative of REQUIRED_SOURCE_PATHS) {
-    files[relative] = readRegular(root, relative);
+    const bytes = readRegular(root, relative);
+    const entry = git(root, "ls-tree", "-z", expectedHead, "--", relative);
+    const match = /^(100644|100755) blob ([0-9a-f]{40})\t([^\0]+)\0$/.exec(entry);
+    const blob = createHash("sha1").update(`blob ${bytes.length}\0`).update(bytes).digest("hex");
+    if (!match || match[3] !== relative || match[2] !== blob) {
+      fail(`required source differs from selected commit: ${relative}`);
+    }
+    const mode = fs.statSync(path.join(root, relative)).mode;
+    if (Boolean(mode & 0o111) !== (match[1] === "100755")) fail(`required source mode mismatch: ${relative}`);
+    files[relative] = bytes;
+  }
+  if (git(root, "rev-parse", "HEAD") !== head
+      || git(root, "status", "--porcelain=v1", "--untracked-files=all")
+      || (requireRemoteMain && git(root, "rev-parse", "refs/remotes/origin/main") !== head)) {
+    fail("repository identity changed during source capture");
   }
   return Object.freeze({ root, head, files });
 }

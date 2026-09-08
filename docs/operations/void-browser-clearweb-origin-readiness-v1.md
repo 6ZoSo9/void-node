@@ -66,6 +66,28 @@ nonstandard present body is rejected and receives the same bounded cleanup and
 retained ownership as GET. These bounds change evidence collection only; they
 grant no browser, signing, deployment, payment, credential, or runtime authority.
 
+## Git provenance boundary
+
+Authoritative Git inspection uses the protected system executable `/usr/bin/git`
+on the reviewed Ubuntu/Linux profile. A different executable selected by PATH
+is rejected without invocation. Every ambient `GIT_*` environment override is
+rejected before repository inspection; child Git receives a fixed environment
+with global/system configuration, replacement objects and lazy fetching disabled.
+The system Git installation and operating system remain trusted; this is not
+binary attestation against a compromised host.
+
+Git's resolved worktree must equal the selected physical repository root.
+Each required file's captured bytes and executable mode must match its entry in
+the independently selected commit tree. Clean status alone is insufficient:
+`assume-unchanged` cannot conceal substituted source bytes. HEAD, cleanliness and,
+for live surveys, origin/main are checked again after the source snapshot.
+Git reads have a ten-second deadline and four-MiB output ceiling.
+
+Twenty synthetic provenance cases cover two repositories, repository/object/
+namespace/config/program overrides, PATH shadowing, local worktree redirection,
+hidden modified source, and recovery to the exact committed bytes. These tests
+create disposable repositories only; they do not run a live network survey.
+
 ## CI versus live survey
 
 GitHub Actions runs only deterministic source/adversarial proofs. It intentionally

@@ -77,6 +77,12 @@ jobs:
             | tee /tmp/void-browser-clearweb-origin-readiness-v1.log
           grep -Fx "VOID_BROWSER_CLEARWEB_ORIGIN_READINESS_V1_PROOF_GREEN" \
             /tmp/void-browser-clearweb-origin-readiness-v1.log
+          grep -Fx "repository_provenance_cases=20" \
+            /tmp/void-browser-clearweb-origin-readiness-v1.log
+          grep -Fx "git_environment_and_executable_bound=true" \
+            /tmp/void-browser-clearweb-origin-readiness-v1.log
+          grep -Fx "source_bytes_bound_to_selected_commit=true" \
+            /tmp/void-browser-clearweb-origin-readiness-v1.log
           grep -Fx "precision_physical_host_required=true" \
             /tmp/void-browser-clearweb-origin-readiness-v1.log
           grep -Fx "ci_physical_presence_skipped=true" \
