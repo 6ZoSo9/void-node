@@ -927,7 +927,7 @@ for (const cancelKind of ["resolve", "reject", "pending"]) {
 }
 
 // Fetch itself and detached late cancellation retain the same transport lease.
-for (const lateKind of ["response", "rejection"]) {
+for (const lateKind of ["response", "rejection", "null_body"]) {
   const pendingFetch = deferred();
   const pendingCancel = deferred();
   let fetches = 0;
@@ -952,6 +952,8 @@ for (const lateKind of ["response", "rejection"]) {
     }
     assertCondition(cancels === 1 && fetches === 1, "late response cleanup leaked generations");
     pendingCancel.resolve();
+  } else if (lateKind === "null_body") {
+    pendingFetch.resolve(new Response(null, { status: 204 }));
   } else pendingFetch.reject(new Error("late_fetch_rejected"));
   await drainObservers();
   const recovered = await discoverVoidAgentV1(options);
@@ -1050,6 +1052,91 @@ console.log("oversize_chunks_rejected_before_copy=true");
 console.log("zero_progress_chunks_rejected_before_copy=true");
 console.log("intrinsic_chunk_storage_bounds_preserved=true");
 console.log("chunk_rejection_cleanup_and_recovery=true");
+
+// Timer callbacks can be delayed by synchronous work. A late fulfillment must
+// fail admission even when its promise continuation runs before the timer.
+function fulfillAfterDeadline(value) {
+  return new Promise(resolve => setTimeout(() => {
+    const until = performance.now() + 125;
+    while (performance.now() < until) { /* Bounded event-loop stall. */ }
+    resolve(value);
+  }, 10));
+}
+const deadlinePaths = [
+  "/.well-known/void-agent-discovery.json",
+  "/public-node/agents/discovery-v1.json",
+  "/public-node/agents/capability-negotiation-v1.json",
+];
+const deadlineLabels = ["well_known_discovery", "canonical_discovery", "capability_catalog"];
+let deadlineAdmissionCases = 0;
+for (const [stage, targetPath] of deadlinePaths.entries()) {
+  const targetUrl = `https://deadline.example${targetPath}`;
+  const bytes = new TextEncoder().encode(await healthyResponse(targetUrl).text());
+  for (const lateKind of ["fetch", "chunk", "eof"]) {
+    let healthy = false;
+    let fetches = 0;
+    let reads = 0;
+    let cancels = 0;
+    let releases = 0;
+    let acquisitions = 0;
+    let statusReads = 0;
+    let lateChunkCopies = 0;
+    let targetSignal;
+    const fetchImpl = (url, init) => {
+      fetches++;
+      if (healthy || new URL(url).pathname !== targetPath) return healthyResponse(url);
+      targetSignal = init.signal;
+      const cancel = async () => { cancels++; };
+      const response = {
+        get status() { statusReads++; return 200; },
+        ok: true, redirected: false, url,
+        headers: new Headers({ "content-type": "application/json" }),
+        body: {
+          cancel,
+          getReader() {
+            acquisitions++;
+            return {
+              read() {
+                const item = reads++ === 0 ? { done: false, value: bytes } : { done: true };
+                return ((lateKind === "chunk" && !item.done) || (lateKind === "eof" && item.done))
+                  ? fulfillAfterDeadline(item) : Promise.resolve(item);
+              },
+              cancel,
+              releaseLock() { releases++; },
+            };
+          },
+        },
+      };
+      return lateKind === "fetch" ? fulfillAfterDeadline(response) : response;
+    };
+    const originalFrom = Buffer.from;
+    Buffer.from = function(value, ...args) {
+      if (lateKind === "chunk" && value instanceof Uint8Array && value.buffer === bytes.buffer) lateChunkCopies++;
+      return originalFrom(value, ...args);
+    };
+    try {
+      await expectRejectWithin(`late ${lateKind} stage ${stage}`, () => discoverVoidAgentV1({
+        baseUrl: "https://deadline.example", timeoutMs: 100, fetchImpl,
+      }), `${deadlineLabels[stage]}_${lateKind === "fetch" ? "fetch" : "body"}_deadline_exceeded`);
+    } finally { Buffer.from = originalFrom; }
+    await drainObservers();
+    assertCondition(fetches === stage + 1 && targetSignal?.aborted === true,
+      `late ${lateKind} stage ${stage}: advanced discovery or failed to abort`);
+    assertCondition(cancels === 1 && releases === (lateKind === "fetch" ? 0 : 1),
+      `late ${lateKind} stage ${stage}: cleanup not owned once`);
+    assertCondition(statusReads === (lateKind === "fetch" ? 0 : 1) &&
+      acquisitions === (lateKind === "fetch" ? 0 : 1) &&
+      reads === (lateKind === "fetch" ? 0 : lateKind === "chunk" ? 1 : 2) && lateChunkCopies === 0,
+    `late ${lateKind} stage ${stage}: late result admitted`);
+    healthy = true;
+    assertCondition((await discoverVoidAgentV1({ baseUrl: "https://deadline.example", fetchImpl })).status === "ready_read_only",
+      `late ${lateKind} stage ${stage}: terminal generation did not recover`);
+    deadlineAdmissionCases++;
+  }
+}
+console.log(`post_settlement_deadline_cases=${deadlineAdmissionCases}`);
+console.log("expired_fulfillments_rejected_before_admission=true");
+console.log("late_null_body_fetch_releases_settled_generation=true");
 await drainObservers();
 process.removeListener("unhandledRejection", recordUnhandled);
 assertCondition(unhandled.length === 0, `unhandled late rejections: ${unhandled.length}`);

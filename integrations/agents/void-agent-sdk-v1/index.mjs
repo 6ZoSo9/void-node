@@ -131,7 +131,7 @@ async function awaitWithinDeadline(operation, request, label) {
   }
   let timer;
   try {
-    return await Promise.race([
+    const result = await Promise.race([
       Promise.resolve(operation),
       new Promise((_, reject) => {
         timer = setTimeout(() => {
@@ -141,6 +141,14 @@ async function awaitWithinDeadline(operation, request, label) {
         }, remaining);
       }),
     ]);
+    // A fulfilled promise may run before an expired timer after an event-loop
+    // stall. Timer ordering is not evidence that this result met the deadline.
+    if (performance.now() >= request.deadlineAt) {
+      const error = timeoutError(label);
+      if (!request.controller.signal.aborted) request.controller.abort(error);
+      throw error;
+    }
+    return result;
   } finally {
     if (timer) clearTimeout(timer);
   }
@@ -164,7 +172,10 @@ function observeBody(response, request) {
   if (!request.bodyObserved) {
     request.bodyObserved = true;
     request.body = response.body;
-    if (request.body === null) request.bodyTerminal = true;
+    if (request.body === null) {
+      request.bodyTerminal = true;
+      request.releaseIfTerminal();
+    }
   }
   return request.body;
 }

@@ -15,16 +15,16 @@
       "sha256": "0d777083a94876e2c28e81b4b66cf99e9bc93887726d53e45ee71725fdc8ffe0"
     },
     "README.md": {
-      "bytes": 4372,
-      "sha256": "229a9f72c39566b7a914500d1a026418febf7c810858bcd80af222b02ab7adf3"
+      "bytes": 4663,
+      "sha256": "dc59d135eb005a6f67f012abd7592f3c88dea5357be75c866f161dbc16c38777"
     },
     "cli.mjs": {
       "bytes": 3391,
       "sha256": "246a49d0aac444743efedd3165a015059dd8a2c4b327b1fa95f1a590f53d085b"
     },
     "index.mjs": {
-      "bytes": 22514,
-      "sha256": "7b11bbedfd7ff305f3a5201dcd1aba15401e156628ff488ce1ccb53d8f4d66e6"
+      "bytes": 22945,
+      "sha256": "45677205f6a5299ca70cffb7ff28882cab80b9b1abd9b6d579822cd0ef0693f0"
     },
     "package.json": {
       "bytes": 645,
