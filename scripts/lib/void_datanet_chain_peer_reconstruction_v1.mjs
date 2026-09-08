@@ -13,8 +13,13 @@ export const VOID_DATANET_RECONSTRUCTION_AUTHORITY_V1 = Object.freeze({
   source_only_planner: true,
   chain2050_commitment_input_required: true,
   peer_majority_is_truth_authority: false,
-  chain_digest_overrides_peer_claims: true,
-  one_exact_authenticated_source_sufficient_for_reconstruction: true,
+  reference_digest_overrides_peer_claims: true,
+  peer_authentication_verified: false,
+  chain_finality_verified: false,
+  independent_custody_verified: false,
+  replication_policy_verified: false,
+  selected_bytes_custody_bound: false,
+  publication_readmission_verified: false,
   local_cache_can_override_chain: false,
   network_call: false,
   filesystem_read: false,
@@ -184,14 +189,37 @@ function bytesOrNull(value, code) {
 }
 
 function hold(reason, detail = undefined) {
-  return {
+  return freezeOwnedResult({
     ok: false,
+    marker: VOID_DATANET_CHAIN_PEER_RECONSTRUCTION_V1,
+    result_version: 2,
     status: VOID_DATANET_RECONSTRUCTION_HOLD_V1,
     reason,
     ...(detail ? { detail } : {}),
+    evidence_scope: "UNVERIFIED_REFERENCE_INPUTS",
+    verified_independent_replica_count: 0,
+    availability_proven_for_this_evaluation: false,
+    durable_future_availability_proven: false,
+    chain_digest_selected_over_peer_majority: false,
+    reconstruction_authority_granted: false,
+    publication_authority_granted: false,
+    local_replica_admission_authority_granted: false,
+    retirement_authority_granted: false,
+    repair_execution_authority_granted: false,
     network_or_filesystem_authority_granted: false,
     chain_or_peer_mutation_authority_granted: false,
-  };
+    authority: VOID_DATANET_RECONSTRUCTION_AUTHORITY_V1,
+  });
+}
+
+// Only detached JSON-shaped values created by this module enter this helper.
+// Payload Buffers and caller-owned objects are never frozen or returned.
+function freezeOwnedResult(value) {
+  if (value && typeof value === "object" && !Object.isFrozen(value)) {
+    for (const child of Object.values(value)) freezeOwnedResult(child);
+    Object.freeze(value);
+  }
+  return value;
 }
 
 function normalizedCommitmentInput(input) {
@@ -259,6 +287,8 @@ export function createDatanetChainCommitmentV1(input) {
   };
 }
 
+// Structural/self-derived identity validation only; no chain event or finality
+// verification is performed. Planner results remain operational HOLD.
 export function validateDatanetChainCommitmentV1(commitment) {
   exactKeys(
     commitment,
@@ -417,7 +447,7 @@ function classifyPayload(commitment, objectId, commitmentId, payload) {
   }
   return {
     valid: true,
-    reason: "chain_commitment_match",
+    reason: "reference_commitment_match",
     observed_byte_length: payload.length,
     observed_sha256: observedSha256,
   };
@@ -491,25 +521,23 @@ export function planDatanetChainPeerReconstructionV1(request) {
         peer.commitment_id,
         peer.payload,
       );
-      const admittedSource = peer.authenticated && payloadClassification.valid;
       return {
         peer_id: peer.peer_id,
-        authenticated: peer.authenticated,
-        accepts_repair: peer.accepts_repair,
+        caller_authenticated_claim: peer.authenticated,
+        caller_accepts_repair_claim: peer.accepts_repair,
+        peer_authentication_verified: false,
         retrieval_generation: peer.retrieval_generation,
         payload_present: peer.payload !== null,
-        payload_valid_against_chain: payloadClassification.valid,
-        admitted_reconstruction_source: admittedSource,
-        reason: !peer.authenticated && payloadClassification.valid
-          ? "unauthenticated_exact_payload_not_authoritative_source"
-          : payloadClassification.reason,
+        payload_matches_reference: payloadClassification.valid,
+        reference_candidate: payloadClassification.valid,
+        reason: payloadClassification.reason,
         observed_byte_length: payloadClassification.observed_byte_length,
         observed_sha256: payloadClassification.observed_sha256,
       };
     });
 
     const validSources = peerResults
-      .filter((peer) => peer.admitted_reconstruction_source)
+      .filter((peer) => peer.reference_candidate)
       .sort((left, right) =>
         left.peer_id.localeCompare(right.peer_id) ||
         left.retrieval_generation.localeCompare(right.retrieval_generation),
@@ -530,10 +558,10 @@ export function planDatanetChainPeerReconstructionV1(request) {
         : null;
 
     if (!selectedSource) {
-      return hold("payload_unavailable_from_authenticated_exact_sources", {
+      return hold("no_payload_matches_reference_commitment", {
         object_id: commitment.object_id,
         commitment_id: commitment.commitment_id,
-        peer_results: peerResults,
+        reference_candidate_results: peerResults,
         local_result: localClassification,
         peer_majority_authority_used: false,
       });
@@ -554,8 +582,7 @@ export function planDatanetChainPeerReconstructionV1(request) {
     const repairRecipients = peerResults
       .filter(
         (peer) =>
-          peer.authenticated &&
-          peer.accepts_repair &&
+          peer.caller_accepts_repair_claim &&
           !validSourcePeers.has(peer.peer_id),
       )
       .map((peer) => peer.peer_id)
@@ -565,54 +592,60 @@ export function planDatanetChainPeerReconstructionV1(request) {
       projectedReplicaCountAfterLocalReconstruction + repairRecipients.length;
     let status;
     if (!localValid) {
-      status = "RECOVERABLE_LOCAL_RECONSTRUCTION_REQUIRED";
+      status = "REFERENCE_LOCAL_COPY_NEEDED";
     } else if (missingReplicas > 0) {
-      status = "AVAILABLE_REPAIR_REQUIRED";
+      status = "REFERENCE_MORE_COPIES_REQUESTED";
     } else {
-      status = "AVAILABLE_TARGET_REPLICAS_MET";
+      status = "REFERENCE_CALLER_COPY_TARGET_MET";
     }
 
-    return {
-      ok: true,
-      marker: VOID_DATANET_CHAIN_PEER_RECONSTRUCTION_V1,
+    const referencePlan = {
+      evaluated: true,
+      evidence_scope: "UNVERIFIED_REFERENCE_INPUTS",
       status,
-      commitment,
-      policy,
-      selected_source: selectedSource,
+      reference_commitment: commitment,
+      requested_policy: policy,
+      reference_policy_sha256: hashObject(policy),
+      selected_candidate: {
+        ...selectedSource,
+        commitment_id: commitment.commitment_id,
+        content_sha256: commitment.content_sha256,
+        byte_length: commitment.byte_length,
+        bytes_retained: false,
+        requires_reacquisition_and_reverification: true,
+      },
       local_result: {
         present: local.present,
-        valid_against_chain: localClassification.valid,
+        matches_reference: localClassification.valid,
         reason: localClassification.reason,
         observed_byte_length: localClassification.observed_byte_length,
         observed_sha256: localClassification.observed_sha256,
       },
-      peer_results: peerResults,
-      authenticated_exact_source_count: validSources.length,
-      valid_replica_count: validReplicaCount,
-      target_replica_count: policy.target_replica_count,
-      missing_replica_count: missingReplicas,
-      local_reconstruction_required: !localValid,
-      planned_local_reconstruction_replica_count:
+      reference_candidate_results: peerResults,
+      reference_peer_candidate_count: validSources.length,
+      reference_copy_count: validReplicaCount,
+      requested_copy_target: policy.target_replica_count,
+      missing_reference_copies: missingReplicas,
+      reference_local_copy_needed: !localValid,
+      hypothetical_local_copy_count:
         plannedLocalReconstructionReplicaCount,
-      projected_replica_count_after_local_reconstruction:
+      projected_reference_copies_after_local:
         projectedReplicaCountAfterLocalReconstruction,
-      remote_repair_replica_count_required: remoteRepairReplicaCountRequired,
-      repair_recipients: repairRecipients,
-      projected_replica_count_after_plan: projectedReplicaCountAfterPlan,
-      repair_capacity_shortfall:
+      remote_reference_copies_requested: remoteRepairReplicaCountRequired,
+      candidate_repair_recipients: repairRecipients,
+      projected_reference_copies_after_plan: projectedReplicaCountAfterPlan,
+      reference_repair_shortfall:
         Math.max(
           0,
           remoteRepairReplicaCountRequired - repairRecipients.length,
         ),
-      chain_digest_selected_over_peer_majority: true,
+      reference_digest_selected_over_peer_majority: true,
       peer_majority_authority_used: false,
-      availability_proven_for_this_evaluation: true,
-      durable_future_availability_proven: false,
-      repair_execution_authority_granted: false,
-      network_or_filesystem_authority_granted: false,
-      chain_or_peer_mutation_authority_granted: false,
-      authority: VOID_DATANET_RECONSTRUCTION_AUTHORITY_V1,
     };
+    return freezeOwnedResult({
+      ...hold("reference_inputs_not_independently_verified"),
+      reference_plan: referencePlan,
+    });
   } catch (error) {
     const message = text(error?.message);
     return hold(message ? message.split(":", 1)[0] : "reconstruction_request_invalid");

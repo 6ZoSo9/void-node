@@ -1,312 +1,157 @@
-# DataNet Chain-2050 plus peer reconstruction v1
+# DataNet reference reconstruction result v2
 
 Marker: `VOID_DATANET_CHAIN_PEER_RECONSTRUCTION_V1`
 
-## Review status and shared-contract repair
+Status: source-only, reference-only planner. Result version 2 repairs unsupported
+claims in #1464. Independent review of this exact repair is still required.
+No authenticated availability, publication, repair or runtime capability is
+implemented by this change.
 
-The current review verdict is **HOLD**. The existing planner and replica
-accounting proofs establish bounded reference behavior; they do not close the
-five independent findings on caller-asserted peer authentication, unverified
-Chain-2050 commitments, independent custody domains, verified-byte publication
-handoff, and caller-controlled replica targets. A successful reference result
-must not be consumed as release-level availability or publication authority.
+## Responsibility and limits
 
-The current-main review also reproduced cross-call metadata poisoning: changing
-`authority.repair_execution` or `authority.money_movement` on one returned result
-changed the same flags in later results. No execution occurred, but the nested
-authority report then contradicted the top-level false execution flags.
+The V510 partition remains: Chain-2050 owns finalized facts actually proven by
+the chain; DataNet owns byte availability and custody; local projections are
+disposable or bounded. A digest does not establish finality or retained bytes.
 
-The flat module-owned authority and default-policy objects are now frozen.
-Caller-owned policies and payload buffers retain their existing behavior; this
-repair does not authenticate inputs, enforce a release replica minimum, make
-result objects immutable, or bind bytes to publication. Two regressions prove
-that a returned authority reference cannot poison later decisions and that
-neither exported defaults nor an earlier returned policy can alter future
-defaults. The planner proof now has 130 cases, plus four replica-accounting
-cases: **134 distinct checked-in cases**. Fresh independent repair review is
-still required; the five existing HOLDs remain open.
+This helper receives caller-created commitment fields and already-acquired
+in-memory Buffers. It compares byte length and SHA-256, rejects a forged majority
+against the supplied reference digest, and computes deterministic hypothetical
+copy counts. A peer majority never establishes truth.
 
-Status: source-only deterministic planner and adversarial proof. It does not
-contact a peer, read or write a filesystem, execute repair, or mutate
-Chain-2050.
+It does not verify a Chain-2050 event, canonical membership, checkpoint policy,
+peer authentication, independent custody, replication policy or durable
+publication. It does not prove durable future availability. There is no repair
+execution, network call, filesystem operation, signer access or funds action.
 
-## Purpose
+## Deliberate result migration
 
-`VOID_COORDINATION_CONTROL_PLANE_V510` separates canonical truth from byte
-availability:
+The input shape and commitment encoding remain unchanged. The exported helper
+names retain their existing v1 names; the planner result has `result_version=2`.
 
-- **Chain-2050** is the anchor of finalized commitments where current source
-  actually records them.
-- **DataNet** retains, retrieves, replicates, and repairs the payload bytes
-  referenced by those commitments.
-- local indexes and status projections are disposable when they can be rebuilt
-  from finalized chain state plus surviving peers.
+Every public planner result now has:
 
-This contract makes the recovery decision executable without making a local
-ledger or a peer vote authoritative.
-
-## Required Chain-2050 commitment
-
-Every reconstruction request begins with one closed commitment object bound to:
-
-- Chain ID `2050`;
-- object ID;
-- exact content SHA-256;
-- exact byte length;
-- accepted checkpoint height;
-- accepted checkpoint block hash;
-- accepted-checkpoint policy ID;
-- commitment transaction hash; and
-- commitment log index.
-
-The module derives a domain-separated commitment identity:
-
-```text
-voiddncommit1_<sha256>
+```json
+{
+  "ok": false,
+  "result_version": 2,
+  "status": "DATANET_RECONSTRUCTION_HOLD",
+  "evidence_scope": "UNVERIFIED_REFERENCE_INPUTS",
+  "verified_independent_replica_count": 0,
+  "availability_proven_for_this_evaluation": false,
+  "durable_future_availability_proven": false,
+  "chain_digest_selected_over_peer_majority": false,
+  "reconstruction_authority_granted": false,
+  "publication_authority_granted": false,
+  "local_replica_admission_authority_granted": false,
+  "retirement_authority_granted": false,
+  "repair_execution_authority_granted": false,
+  "network_or_filesystem_authority_granted": false,
+  "chain_or_peer_mutation_authority_granted": false
+}
 ```
 
-Any changed field changes that identity. A malformed, extended, or
-self-inconsistent commitment fails closed.
+The excerpt omits the module marker, reason, authority object and optional
+reference-plan/detail fields. The authority object independently reports all
+six verification/custody capabilities false.
 
-This is a **reference input contract**. The module does not claim that the
-current live chain already exposes this exact object or that supplied
-checkpoint evidence is independently authenticated. A later integration must
-bind it to the exact reviewed Chain-2050 route/state/event and finality rule.
+A valid reference evaluation adds `reference_plan` and reason
+`reference_inputs_not_independently_verified`. Invalid input or no matching
+payload returns the same operational HOLD boundary, with a specific reason
+and no plan. An operational consumer must never treat the existence of a
+reference plan, a reference status, or a matching digest as approval.
 
-## Chain digest, not peer majority
+Legacy top-level `selected_source`, `valid_replica_count`, and successful
+availability statuses are removed. The caller scan found only the two focused
+proofs consuming this helper; they migrate with it. There is no runtime
+consumer to migrate in this repository.
 
-Peer count is availability evidence, not truth authority.
+## Five reviewed claim surfaces
 
-For each local or peer payload, the planner computes the actual byte length and
-SHA-256 and compares both to the Chain-2050 commitment. A peer-provided digest
-is not accepted in place of hashing the bytes.
+| Review surface | Repaired reference behavior | Still required for runtime use |
+| --- | --- | --- |
+| Peer authentication | `authenticated` is recorded only as `caller_authenticated_claim`. Toggling it does not change candidate selection. Every candidate reports `peer_authentication_verified=false`. No `admitted_reconstruction_source` is emitted. | An independently verified peer/session/trust-policy/retrieval generation. |
+| Finalized commitment | `createDatanetChainCommitmentV1` and `validateDatanetChainCommitmentV1` check syntax and self-derived identity only. Invented, earlier or conflicting checkpoint references all remain operational HOLD. | A source-backed event/state binding, canonical finalized membership and current checkpoint policy. |
+| Independent custody | `reference_copy_count` counts matching supplied observations. Aliases may refer to the same Buffer or volume; no independence is inferred. `verified_independent_replica_count` remains zero. | Authenticated possession, independent custody domains and designated-host loss/recovery evidence. |
+| Verified-byte handoff | The selected candidate binds reference commitment ID, digest and length in an immutable metadata snapshot. `bytes_retained=false`; reacquisition and verification are required. It is never a publication/readmission token. | Exact bytes coupled to authenticated acquisition, failure-atomic publication, fsync/readback and readmission. |
+| Replica policy | The caller-selected target is a request for hypothetical copies. Even a target of one produces only `REFERENCE_CALLER_COPY_TARGET_MET`, inside an operational HOLD. The policy digest is a reference fingerprint, not approval. | An independently admitted policy generation and authorized independent-custody floor. |
 
-Consequences:
+These are source-interface demotions, not implementation of the missing
+verifiers or custody operations. The original review findings require
+independent reassessment; this document does not mark their complete runtime
+closure criteria satisfied.
 
-- a forged majority cannot override one exact chain commitment;
-- one exact authenticated source is sufficient to make reconstruction
-  possible;
-- ten, one hundred, or the maximum admitted number of identical wrong peers do
-  not make wrong bytes canonical;
-- an unauthenticated peer with exact bytes is not selected as an authoritative
-  reconstruction source; and
-- a local cache with the wrong object, generation, length, or bytes loses to the
-  chain commitment.
+## Reference-plan fields and accounting
 
-The planner records `peer_majority_authority_used=false` on every successful
-result.
+The nested plan has `evaluated=true`, the same unverified evidence scope,
+`reference_commitment`, `requested_policy`, and `reference_policy_sha256`.
+Its statuses are:
 
-## Peer candidate contract
+- `REFERENCE_LOCAL_COPY_NEEDED`: local bytes do not match and a matching peer
+  observation exists.
+- `REFERENCE_MORE_COPIES_REQUESTED`: local bytes match but the caller's
+  requested count is not met.
+- `REFERENCE_CALLER_COPY_TARGET_MET`: the supplied matching observations
+  meet the caller's requested count, without proving independent retention.
 
-Each candidate has exactly:
+Candidates are selected by matching reference digest/length and object/
+commitment identity, then sorted by peer ID and retrieval generation. Caller
+authentication claims do not admit or exclude reference bytes. Repair-recipient
+labels are hypothetical choices from `caller_accepts_repair_claim`, never
+authenticated or executable routing instructions.
 
-```text
-peer_id
-authenticated
-accepts_repair
-object_id
-commitment_id
-retrieval_generation
-payload
-```
+The repaired accounting remains:
 
-`payload` is either a Node.js `Buffer` or `null`. The pure planner is intended
-to sit behind a separately bounded retrieval layer such as the field-object
-pull transport; it does not perform network acquisition itself.
+1. Count matching local/peer observations as `reference_copy_count`.
+2. If local bytes do not match, include one `hypothetical_local_copy_count`.
+3. Calculate `projected_reference_copies_after_local`.
+4. Derive `remote_reference_copies_requested` against `requested_copy_target`.
+5. Truncate `candidate_repair_recipients` to that demand.
+6. Report `projected_reference_copies_after_plan` and
+   `reference_repair_shortfall`.
 
-Peer IDs must be unique. Retrieval generations are bound into deterministic
-candidate identities. Mixed object or commitment generations are rejected.
+`missing_reference_copies` is the pre-plan deficit. None of these values
+increments an admitted local replica count or reports a completed repair.
 
-Authenticated peers may be classified as:
+## Metadata and byte ownership
 
-- exact reconstruction source;
-- payload absent;
-- object mismatch;
-- commitment-generation mismatch;
-- byte-length mismatch; or
-- content-digest mismatch.
+All planner-result metadata is detached and deeply frozen, including HOLD details,
+reference commitments, policies, selected-candidate bindings and arrays.
+Module-owned authority/default-policy objects remain frozen. Caller-owned
+policies and Buffers are not frozen, and no Buffer is returned or retained.
 
-Unauthenticated exact bytes remain non-authoritative input and cannot satisfy
-reconstruction availability.
+The immutable snapshot records what the reference evaluation compared. A caller
+can mutate or replace its bytes after return; the old snapshot stays an
+operational HOLD. Re-evaluation rejects changed bytes against the reference.
+The digest/length binding is useful for later comparison, but it is not an
+authenticated acquisition receipt or a custody capability.
 
-## Local state contract
+## Bounds preserved
 
-Local state is exactly one of:
+Defaults remain 64 MiB per object, 256 MiB aggregate candidate bytes, 64 peers,
+a caller target of three and a target ceiling of 16. Absolute ceilings remain
+256 MiB per object, 1 GiB aggregate, 256 peers and a target ceiling of 64.
+Unknown fields, malformed IDs, duplicate peers, inconsistent generations and
+noncanonical numeric inputs remain rejected.
 
-- absent: `present=false`, null identity/generation/payload; or
-- present: `present=true` with a `Buffer` and stated object/commitment identity.
+The existing commitment has nine input fields: chain ID, object ID, digest,
+byte length, checkpoint height/hash/ID and transaction hash/log index. Its
+self-derived ID and uint32 log-index bound are unchanged; neither authenticates
+the referenced chain event.
 
-The planner independently hashes present local bytes. A local record does not
-become valid because it says it belongs to the current commitment.
+## Verification and remaining gates
 
-When local bytes are absent or invalid and an authenticated exact peer exists,
-the result is:
+The primary proof retains reference-digest, malformed-input, resource-bound,
+deterministic-selection and cross-call-poisoning checks. It adds direct
+operational-HOLD adversaries for all five review surfaces, injected verifier
+claims and immutable metadata. The four-case supplemental proof preserves the
+local-copy-before-remote-demand equations.
 
-```text
-RECOVERABLE_LOCAL_RECONSTRUCTION_REQUIRED
-```
+Both workflows run Node 22/24/26 and explicitly bind the exact source checkout.
+Proof output gives the actual case counts; repeated execution of the primary
+proof in the accounting workflow is not additional distinct coverage.
 
-When local bytes are exact but the target replica count is not met, the result
-is:
-
-```text
-AVAILABLE_REPAIR_REQUIRED
-```
-
-When the local copy and enough exact authenticated peer copies exist, the
-result is:
-
-```text
-AVAILABLE_TARGET_REPLICAS_MET
-```
-
-When no authenticated exact source exists, the result is:
-
-```text
-DATANET_RECONSTRUCTION_HOLD
-payload_unavailable_from_authenticated_exact_sources
-```
-
-## Deterministic source selection
-
-When several exact authenticated peers are available, source selection is
-stable:
-
-1. local exact bytes are preferred;
-2. otherwise peers are ordered by `peer_id`;
-3. ties are ordered by retrieval generation; and
-4. the first exact source is selected.
-
-The planner does not copy the selected bytes, open a destination, or grant
-repair authority. It only returns the source identity and a bounded plan.
-
-## Repair planning
-
-The default target is three exact replicas, including the local copy when it is
-valid. The planner selects repair recipients only from authenticated candidates
-that explicitly advertise `accepts_repair=true` and do not already hold exact
-bytes.
-
-Recipients are sorted by peer ID and truncated to the missing replica count.
-The result reports any remaining repair-capacity shortfall.
-
-This is **no repair execution**. The planner cannot write to local storage,
-contact a peer, upload bytes, authorize a remote mutation, or declare that a
-planned repair completed.
-
-## Resource ceilings
-
-Default policy:
-
-```text
-max_object_bytes=67108864
-max_total_candidate_bytes=268435456
-max_peer_candidates=64
-target_replica_count=3
-max_target_replica_count=16
-```
-
-Absolute admission ceilings are also enforced:
-
-- object bytes: 256 MiB;
-- total candidate bytes: 1 GiB;
-- peer candidates: 256; and
-- target-replica ceiling: 64.
-
-The total-candidate bound includes local and peer payload buffers. The target
-must be reachable from the admitted local-plus-peer population.
-
-## Truthful availability claims
-
-A successful evaluation proves only that at least one exact payload was present
-in the supplied bounded evaluation generation. It explicitly states:
-
-```text
-availability_proven_for_this_evaluation=true
-durable_future_availability_proven=false
-```
-
-It does not prove durable future availability. It does not prove that a peer
-will remain online, that a planned repair was executed, that another node can
-retrieve the object later, or that a chain commitment can recreate bytes after
-all replicas are lost.
-
-## Forged-majority adversary
-
-The focused proof constructs twelve authenticated peers with forged bytes and
-one authenticated peer with exact bytes. The exact peer is selected despite the
-12-to-1 vote against it because the Chain-2050 digest, not peer majority,
-defines the expected content.
-
-A second control supplies only forged peers and requires a HOLD. Thirty-two
-additional byte-level mutations prove that no single forged candidate becomes
-a source merely because it is authenticated or appears before the exact peer.
-
-## Relationship to #1352 and #1462
-
-This lane does not modify the ownerless #1352 segmented-store branch. It defines
-the small pure reconstruction decision that a later reviewed DataNet storage
-implementation can consume.
-
-#1462 owns bounded field-object acquisition and private receipt publication.
-This planner begins after candidate bytes have already been acquired into
-bounded memory. It does not duplicate transport, namespace, or publication
-logic.
-
-The eventual integration sequence is:
-
-```text
-source-backed finalized Chain-2050 commitment
-        ↓
-bounded peer/local byte acquisition
-        ↓
-this chain-digest reconstruction decision
-        ↓
-separately authorized failure-atomic local publication
-        ↓
-separately authorized replica repair
-        ↓
-post-repair retrieval and commitment verification
-```
-
-## Executable proof
-
-The proof contains at least 125 cases covering:
-
-- deterministic commitment creation and validation;
-- malformed and tampered commitment fields;
-- wrong Chain-2050 identity;
-- exact local and peer controls;
-- local corruption recovery;
-- exact-source deterministic selection;
-- forged-majority rejection;
-- unauthenticated exact-byte rejection;
-- stale object and commitment generations;
-- same-length byte corruption;
-- peer/local closed-shape and type failures;
-- duplicate peers;
-- peer-count, object-byte, aggregate-byte, and replica-policy limits;
-- deterministic repair recipients and capacity shortfall;
-- negative authority flags;
-- documentation/source topology; and
-- Node 22/24/26 workflow binding.
-
-## Authority boundary
-
-The module and proof grant:
-
-```text
-no network call
-no filesystem read or write
-no peer mutation
-no repair execution
-no Chain-2050 mutation
-no credential access
-no wallet or signer access
-no transaction construction or broadcast
-no money movement
-```
-
-Source publication, review, merge, runtime integration, actual peer retrieval,
-actual reconstruction publication, repair execution, deployment, restart, and
-all economic or chain mutations remain separate gates.
+#1462 remains bounded acquisition, not peer or finality verification. #1352 and
+#1314 remain frozen under coordination. Future verifier, custody, policy and
+publication integration must follow the accepted Boundary successor and its
+independent review and designated-host requirements. No Ready/merge or
+operational authority is granted here.

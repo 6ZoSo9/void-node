@@ -9,7 +9,7 @@ import {
   VOID_DATANET_RECONSTRUCTION_AUTHORITY_V1,
   VOID_DATANET_RECONSTRUCTION_DEFAULT_POLICY_V1,
   createDatanetChainCommitmentV1,
-  planDatanetChainPeerReconstructionV1,
+  planDatanetChainPeerReconstructionV1 as evaluate,
   validateDatanetChainCommitmentV1,
 } from "./lib/void_datanet_chain_peer_reconstruction_v1.mjs";
 
@@ -37,6 +37,43 @@ const SHA = "3d29e7a976352a10ad149979e7ef297384eec1d32ac9feb4f0a2d36a6815b8a0";
 const CHECKPOINT_HASH = `0x${"a".repeat(64)}`;
 const COMMITMENT_TX = `0x${"b".repeat(64)}`;
 let cases = 0;
+
+// This raw API check deliberately precedes the reference-algorithm checks.
+// The old result must not remain usable as a successful availability gate.
+const unverifiedResult = evaluate(request());
+assert.equal(unverifiedResult.ok, false, "raw caller evidence must remain HOLD");
+assert.equal(unverifiedResult.status, "DATANET_RECONSTRUCTION_HOLD");
+assert.equal(unverifiedResult.availability_proven_for_this_evaluation, false);
+
+function assertOperationalHold(result) {
+  assert.equal(result.ok, false);
+  assert.equal(result.status, "DATANET_RECONSTRUCTION_HOLD");
+  assert.equal(result.result_version, 2);
+  assert.equal(result.evidence_scope, "UNVERIFIED_REFERENCE_INPUTS");
+  assert.equal(result.verified_independent_replica_count, 0);
+  for (const key of [
+    "availability_proven_for_this_evaluation", "durable_future_availability_proven",
+    "chain_digest_selected_over_peer_majority", "reconstruction_authority_granted",
+    "publication_authority_granted", "local_replica_admission_authority_granted",
+    "retirement_authority_granted", "repair_execution_authority_granted",
+    "network_or_filesystem_authority_granted", "chain_or_peer_mutation_authority_granted",
+  ]) assert.equal(result[key], false, key);
+  for (const key of [
+    "peer_authentication_verified", "chain_finality_verified", "independent_custody_verified",
+    "replication_policy_verified", "selected_bytes_custody_bound", "publication_readmission_verified",
+    "repair_execution", "money_movement",
+  ]) assert.equal(result.authority[key], false, key);
+  assert.equal(Object.hasOwn(result, "selected_source"), false);
+  assert.equal(Object.hasOwn(result, "valid_replica_count"), false);
+}
+
+// Algorithm assertions below inspect only explicitly non-authoritative plans.
+// Every call first checks the real public result's operational HOLD boundary.
+function referencePlanOrHold(input) {
+  const result = evaluate(input);
+  assertOperationalHold(result);
+  return result.reference_plan ?? result;
+}
 
 function check(name, fn) {
   try {
@@ -117,7 +154,7 @@ function request(overrides = {}) {
 }
 
 function expectHold(input, reason) {
-  const decision = planDatanetChainPeerReconstructionV1(input);
+  const decision = referencePlanOrHold(input);
   assert.equal(decision.ok, false, JSON.stringify(decision));
   assert.equal(decision.status, "DATANET_RECONSTRUCTION_HOLD");
   assert.equal(decision.reason, reason);
@@ -220,43 +257,48 @@ for (const [name, mutate] of [
   });
 }
 
-check("one authenticated exact peer reconstructs", () => {
-  const decision = planDatanetChainPeerReconstructionV1(request());
-  assert.equal(decision.ok, true);
-  assert.equal(decision.status, "RECOVERABLE_LOCAL_RECONSTRUCTION_REQUIRED");
-  assert.deepEqual(decision.selected_source, {
+check("one exact peer supplies a reference candidate", () => {
+  const decision = referencePlanOrHold(request());
+  assert.equal(decision.evaluated, true);
+  assert.equal(decision.status, "REFERENCE_LOCAL_COPY_NEEDED");
+  assert.deepEqual(decision.selected_candidate, {
     kind: "peer",
     id: "peer-alpha",
     retrieval_generation: "peer-alpha-retrieval-v1",
+    commitment_id: commitment().commitment_id,
+    content_sha256: SHA,
+    byte_length: String(PAYLOAD.length),
+    bytes_retained: false,
+    requires_reacquisition_and_reverification: true,
   });
-  assert.equal(decision.local_reconstruction_required, true);
+  assert.equal(decision.reference_local_copy_needed, true);
   assert.equal(decision.peer_majority_authority_used, false);
 });
 
-check("healthy target replicas", () => {
-  const decision = planDatanetChainPeerReconstructionV1(
+check("caller reference copy target met", () => {
+  const decision = referencePlanOrHold(
     request({
       local: localPresent(),
       peers: [peer("peer-alpha"), peer("peer-bravo")],
     }),
   );
-  assert.equal(decision.ok, true);
-  assert.equal(decision.status, "AVAILABLE_TARGET_REPLICAS_MET");
-  assert.equal(decision.valid_replica_count, 3);
-  assert.equal(decision.missing_replica_count, 0);
+  assert.equal(decision.evaluated, true);
+  assert.equal(decision.status, "REFERENCE_CALLER_COPY_TARGET_MET");
+  assert.equal(decision.reference_copy_count, 3);
+  assert.equal(decision.missing_reference_copies, 0);
 });
 
 check("local valid but repair required", () => {
-  const decision = planDatanetChainPeerReconstructionV1(
+  const decision = referencePlanOrHold(
     request({ local: localPresent(), peers: [] }),
   );
-  assert.equal(decision.ok, true);
-  assert.equal(decision.status, "AVAILABLE_REPAIR_REQUIRED");
-  assert.equal(decision.repair_capacity_shortfall, 2);
+  assert.equal(decision.evaluated, true);
+  assert.equal(decision.status, "REFERENCE_MORE_COPIES_REQUESTED");
+  assert.equal(decision.reference_repair_shortfall, 2);
 });
 
 check("deterministic repair recipients", () => {
-  const decision = planDatanetChainPeerReconstructionV1(
+  const decision = referencePlanOrHold(
     request({
       local: localPresent(),
       peers: [
@@ -266,15 +308,14 @@ check("deterministic repair recipients", () => {
       ],
     }),
   );
-  assert.deepEqual(decision.repair_recipients, ["peer-alpha", "peer-bravo"]);
-  assert.equal(decision.repair_execution_authority_granted, false);
+  assert.deepEqual(decision.candidate_repair_recipients, ["peer-alpha", "peer-bravo"]);
 });
 
-check("forged majority cannot override chain", () => {
+check("forged majority cannot override reference digest", () => {
   const forged = Array.from({ length: 12 }, (_, index) =>
     peer(`forged-peer-${String(index).padStart(2, "0")}`, WRONG),
   );
-  const decision = planDatanetChainPeerReconstructionV1(
+  const decision = referencePlanOrHold(
     request({
       peers: [...forged, peer("honest-peer")],
       policy: {
@@ -284,12 +325,12 @@ check("forged majority cannot override chain", () => {
       },
     }),
   );
-  assert.equal(decision.ok, true);
-  assert.equal(decision.selected_source.id, "honest-peer");
-  assert.equal(decision.authenticated_exact_source_count, 1);
-  assert.equal(decision.chain_digest_selected_over_peer_majority, true);
+  assert.equal(decision.evaluated, true);
+  assert.equal(decision.selected_candidate.id, "honest-peer");
+  assert.equal(decision.reference_peer_candidate_count, 1);
+  assert.equal(decision.reference_digest_selected_over_peer_majority, true);
   assert.equal(
-    decision.peer_results.filter((candidate) => candidate.payload_valid_against_chain).length,
+    decision.reference_candidate_results.filter((candidate) => candidate.payload_matches_reference).length,
     1,
   );
 });
@@ -307,27 +348,24 @@ check("all forged peers hold", () => {
         max_total_candidate_bytes: 4096,
       },
     }),
-    "payload_unavailable_from_authenticated_exact_sources",
+    "no_payload_matches_reference_commitment",
   );
 });
 
-check("unauthenticated exact payload is not source", () => {
-  const decision = expectHold(
-    request({ peers: [peer("peer-alpha", PAYLOAD, { authenticated: false })] }),
-    "payload_unavailable_from_authenticated_exact_sources",
-  );
-  assert.equal(
-    decision.detail.peer_results[0].reason,
-    "unauthenticated_exact_payload_not_authoritative_source",
-  );
+check("unverified peer bytes remain reference candidates only", () => {
+  const result = evaluate(request({ peers: [peer("peer-alpha", PAYLOAD, { authenticated: false })] }));
+  assertOperationalHold(result);
+  assert.equal(result.reference_plan.selected_candidate.id, "peer-alpha");
+  assert.equal(result.reference_plan.reference_candidate_results[0].caller_authenticated_claim, false);
+  assert.equal(result.reference_plan.reference_candidate_results[0].peer_authentication_verified, false);
 });
 
 check("lexicographically deterministic source", () => {
-  const decision = planDatanetChainPeerReconstructionV1(
+  const decision = referencePlanOrHold(
     request({ peers: [peer("peer-zulu"), peer("peer-alpha"), peer("peer-mike")] }),
   );
-  assert.equal(decision.ok, true);
-  assert.equal(decision.selected_source.id, "peer-alpha");
+  assert.equal(decision.evaluated, true);
+  assert.equal(decision.selected_candidate.id, "peer-alpha");
 });
 
 for (const [name, overrides, expectedReason] of [
@@ -339,9 +377,9 @@ for (const [name, overrides, expectedReason] of [
   check(`peer ${name} rejected`, () => {
     const decision = expectHold(
       request({ peers: [peer("peer-alpha", PAYLOAD, overrides)] }),
-      "payload_unavailable_from_authenticated_exact_sources",
+      "no_payload_matches_reference_commitment",
     );
-    assert.equal(decision.detail.peer_results[0].reason, expectedReason);
+    assert.equal(decision.detail.reference_candidate_results[0].reason, expectedReason);
   });
 }
 
@@ -350,34 +388,34 @@ check("same-length forged bytes rejected", () => {
   forged[0] ^= 0xff;
   const decision = expectHold(
     request({ peers: [peer("peer-alpha", forged)] }),
-    "payload_unavailable_from_authenticated_exact_sources",
+    "no_payload_matches_reference_commitment",
   );
-  assert.equal(decision.detail.peer_results[0].reason, "content_sha256_mismatch");
+  assert.equal(decision.detail.reference_candidate_results[0].reason, "content_sha256_mismatch");
 });
 
 for (let index = 0; index < 32; index += 1) {
-  check(`forged peer ${index} cannot become authority`, () => {
+  check(`forged peer ${index} cannot match reference digest`, () => {
     const forged = Buffer.from(PAYLOAD);
     forged[index % forged.length] ^= (index + 1) & 0xff;
-    const decision = planDatanetChainPeerReconstructionV1(
+    const decision = referencePlanOrHold(
       request({
         peers: [peer(`forged-peer-${index}`, forged), peer("exact-peer")],
       }),
     );
-    assert.equal(decision.ok, true);
-    assert.equal(decision.selected_source.id, "exact-peer");
+    assert.equal(decision.evaluated, true);
+    assert.equal(decision.selected_candidate.id, "exact-peer");
     assert.equal(decision.peer_majority_authority_used, false);
   });
 }
 
 check("local corruption repaired from peer", () => {
-  const decision = planDatanetChainPeerReconstructionV1(
+  const decision = referencePlanOrHold(
     request({ local: localPresent(WRONG) }),
   );
-  assert.equal(decision.ok, true);
-  assert.equal(decision.status, "RECOVERABLE_LOCAL_RECONSTRUCTION_REQUIRED");
-  assert.equal(decision.local_result.valid_against_chain, false);
-  assert.equal(decision.selected_source.kind, "peer");
+  assert.equal(decision.evaluated, true);
+  assert.equal(decision.status, "REFERENCE_LOCAL_COPY_NEEDED");
+  assert.equal(decision.local_result.matches_reference, false);
+  assert.equal(decision.selected_candidate.kind, "peer");
 });
 
 for (const [name, local, reason] of [
@@ -545,7 +583,7 @@ check("peers must be array", () => {
 });
 
 for (let index = 0; index < 12; index += 1) {
-  check(`exact source remains authoritative across peer order ${index}`, () => {
+  check(`exact reference candidate stable across peer order ${index}`, () => {
     const left = peer(`wrong-left-${index}`, Buffer.from(WRONG));
     const exact = peer(`exact-source-${index}`);
     const right = peer(`wrong-right-${index}`, Buffer.from(WRONG));
@@ -554,22 +592,20 @@ for (let index = 0; index < 12; index += 1) {
       : index % 3 === 1
         ? [exact, right, left]
         : [right, left, exact];
-    const decision = planDatanetChainPeerReconstructionV1(
+    const decision = referencePlanOrHold(
       request({ peers: candidates }),
     );
-    assert.equal(decision.ok, true);
-    assert.equal(decision.selected_source.id, `exact-source-${index}`);
-    assert.equal(decision.authenticated_exact_source_count, 1);
+    assert.equal(decision.evaluated, true);
+    assert.equal(decision.selected_candidate.id, `exact-source-${index}`);
+    assert.equal(decision.reference_peer_candidate_count, 1);
     assert.equal(decision.peer_majority_authority_used, false);
   });
 }
 
 check("authority remains negative", () => {
-  const decision = planDatanetChainPeerReconstructionV1(request());
-  assert.equal(decision.ok, true);
-  assert.deepEqual(decision.authority, VOID_DATANET_RECONSTRUCTION_AUTHORITY_V1);
-  assert.equal(decision.durable_future_availability_proven, false);
-  assert.equal(decision.repair_execution_authority_granted, false);
+  const result = evaluate(request());
+  assertOperationalHold(result);
+  assert.deepEqual(result.authority, VOID_DATANET_RECONSTRUCTION_AUTHORITY_V1);
 });
 
 check("default policy exact", () => {
@@ -583,40 +619,146 @@ check("default policy exact", () => {
 });
 
 check("returned authority cannot poison later decisions", () => {
-  const first = planDatanetChainPeerReconstructionV1(request());
-  assert.equal(first.ok, true);
+  const first = evaluate(request());
   for (const key of ["repair_execution", "money_movement", "network_call", "filesystem_write"]) {
     assert.equal(Reflect.set(first.authority, key, true), false, key);
     assert.equal(Reflect.set(VOID_DATANET_RECONSTRUCTION_AUTHORITY_V1, key, true), false, key);
   }
-  const later = planDatanetChainPeerReconstructionV1(request());
-  assert.equal(later.ok, true);
-  for (const key of ["repair_execution", "money_movement", "network_call", "filesystem_write"]) {
-    assert.equal(first.authority[key], false, key);
-    assert.equal(later.authority[key], false, key);
-  }
-  assert.equal(later.repair_execution_authority_granted, false);
+  assertOperationalHold(first);
+  assertOperationalHold(evaluate(request()));
 });
 
-check("exported defaults and returned policy cannot poison future defaults", () => {
+check("exported defaults and snapshots cannot poison future defaults", () => {
   assert.equal(Reflect.set(VOID_DATANET_RECONSTRUCTION_DEFAULT_POLICY_V1, "target_replica_count", 1), false);
-  const first = planDatanetChainPeerReconstructionV1(request({ policy: undefined }));
-  assert.equal(first.ok, true);
-  assert.equal(first.policy.target_replica_count, 3);
-  first.policy.target_replica_count = 1;
-  const later = planDatanetChainPeerReconstructionV1(request({ policy: undefined }));
-  assert.equal(later.ok, true);
-  assert.equal(later.policy.target_replica_count, 3);
-  assert.equal(later.target_replica_count, 3);
-  assert.equal(VOID_DATANET_RECONSTRUCTION_DEFAULT_POLICY_V1.target_replica_count, 3);
+  const first = evaluate(request({ policy: undefined }));
+  assertOperationalHold(first);
+  assert.equal(first.reference_plan.requested_policy.target_replica_count, 3);
+  assert.equal(Reflect.set(first.reference_plan.requested_policy, "target_replica_count", 1), false);
+  const later = evaluate(request({ policy: undefined }));
+  assertOperationalHold(later);
+  assert.equal(later.reference_plan.requested_copy_target, 3);
+});
+
+check("authentication boolean cannot elevate a reference candidate", () => {
+  const results = [false, true].map((authenticated) =>
+    evaluate(request({ peers: [peer("peer-alpha", PAYLOAD, { authenticated })] })),
+  );
+  for (const result of results) {
+    assertOperationalHold(result);
+    const candidate = result.reference_plan.reference_candidate_results[0];
+    assert.equal(candidate.peer_authentication_verified, false);
+    assert.equal(Object.hasOwn(candidate, "admitted_reconstruction_source"), false);
+  }
+  assert.deepEqual(results[0].reference_plan.selected_candidate, results[1].reference_plan.selected_candidate);
+});
+
+for (const [name, overrides] of [
+  ["invented finalized event", { checkpoint_height: "999999999", accepted_checkpoint_id: "invented-policy-v1" }],
+  ["earlier checkpoint", { checkpoint_height: "1" }],
+  ["conflicting checkpoint", { checkpoint_block_hash: `0x${"f".repeat(64)}` }],
+]) {
+  check(`${name} cannot become finalized truth`, () => {
+    const c = commitment(overrides);
+    const result = evaluate(request({
+      commitment: c,
+      peers: [peer("peer-alpha", PAYLOAD, { commitment_id: c.commitment_id })],
+    }));
+    assertOperationalHold(result);
+    assert.equal(result.reference_plan.evaluated, true);
+    assert.equal(result.reference_plan.reference_commitment.commitment_id, c.commitment_id);
+  });
+}
+
+check("shared-buffer aliases are only non-independent reference observations", () => {
+  const result = evaluate(request({ peers: [peer("alias-a"), peer("alias-b"), peer("alias-c")] }));
+  assertOperationalHold(result);
+  assert.equal(result.reference_plan.reference_copy_count, 3);
+  assert.equal(result.reference_plan.projected_reference_copies_after_local, 4);
+  assert.equal(result.verified_independent_replica_count, 0);
+  assert.equal(result.authority.independent_custody_verified, false);
+});
+
+check("target one cannot satisfy release availability", () => {
+  const result = evaluate(request({ local: localPresent(), peers: [], policy: {
+    max_object_bytes: PAYLOAD.length,
+    max_total_candidate_bytes: PAYLOAD.length,
+    max_peer_candidates: 1,
+    target_replica_count: 1,
+    max_target_replica_count: 1,
+  } }));
+  assertOperationalHold(result);
+  assert.equal(result.reference_plan.status, "REFERENCE_CALLER_COPY_TARGET_MET");
+  assert.equal(result.reference_plan.reference_copy_count, 1);
+  assert.equal(result.reference_plan.requested_copy_target, 1);
+  assert.equal(result.authority.replication_policy_verified, false);
+});
+
+check("changed bytes cannot use an old plan as publication or readmission authority", () => {
+  const bytes = Buffer.from(PAYLOAD);
+  const input = request({ peers: [peer("peer-alpha", bytes)] });
+  const before = evaluate(input);
+  assertOperationalHold(before);
+  const snapshot = JSON.stringify(before);
+  const selected = before.reference_plan.selected_candidate;
+  assert.equal(selected.content_sha256, SHA);
+  assert.equal(selected.byte_length, String(PAYLOAD.length));
+  assert.equal(selected.bytes_retained, false);
+  assert.equal(selected.requires_reacquisition_and_reverification, true);
+  bytes[0] ^= 0xff;
+  assert.equal(JSON.stringify(before), snapshot);
+  assertOperationalHold(before);
+  const after = evaluate(input);
+  assertOperationalHold(after);
+  assert.equal(after.reason, "no_payload_matches_reference_commitment");
+  assert.equal(Object.hasOwn(after, "reference_plan"), false);
+});
+
+for (const [name, mutate, reason] of [
+  ["request finality receipt", (r) => { r.finality_verified = true; }, "request_unknown_or_missing_fields"],
+  ["commitment verifier receipt", (r) => { r.commitment.verifier_result = { verified: true }; }, "commitment_unknown_or_missing_fields"],
+  ["peer authentication envelope", (r) => { r.peers[0].authentication_envelope = { verified: true }; }, "peer_unknown_or_missing_fields"],
+  ["local custody receipt", (r) => { r.local.custody_domain = "trusted-volume"; }, "local_unknown_or_missing_fields"],
+  ["policy approval", (r) => { r.policy.approved = true; }, "policy_unknown_or_missing_fields"],
+]) {
+  check(`caller-injected ${name} cannot bypass HOLD`, () => {
+    const input = request();
+    mutate(input);
+    const result = evaluate(input);
+    assertOperationalHold(result);
+    assert.equal(result.reason, reason);
+    assert.equal(Object.hasOwn(result, "reference_plan"), false);
+  });
+}
+
+check("returned snapshots are detached immutable metadata without byte custody", () => {
+  const input = request();
+  const result = evaluate(input);
+  const snapshot = JSON.stringify(result);
+  assert.equal(Reflect.set(result, "ok", true), false);
+  assert.equal(Reflect.set(result.reference_plan.selected_candidate, "id", "forged-peer"), false);
+  assert.equal(Reflect.set(result.reference_plan.requested_policy, "target_replica_count", 1), false);
+  assert.equal(Reflect.set(result.reference_plan.reference_commitment, "content_sha256", "0".repeat(64)), false);
+  input.policy.target_replica_count = 1;
+  input.peers[0].peer_id = "changed-caller-peer";
+  assert.equal(Object.isFrozen(input), false);
+  assert.equal(Object.isFrozen(input.policy), false);
+  assert.equal(JSON.stringify(result), snapshot);
+  assertOperationalHold(result);
+  function inspect(value) {
+    if (!value || typeof value !== "object") return;
+    assert.equal(Buffer.isBuffer(value), false);
+    assert.equal(Object.isFrozen(value), true);
+    for (const child of Object.values(value)) inspect(child);
+  }
+  inspect(result);
 });
 
 check("documentation doctrine", () => {
-  const doc = readFileSync(DOC_PATH, "utf8");
+  const doc = readFileSync(DOC_PATH, "utf8").replace(/\s+/g, " ");
   for (const marker of [
     "Chain-2050",
     "peer majority",
-    "one exact authenticated source",
+    "reference-only",
     "forged majority",
     "availability",
     "does not prove durable future availability",
@@ -654,12 +796,12 @@ check("source paths nonempty", () => {
   }
 });
 
-assert.ok(cases >= 125, `expected at least 125 cases, observed ${cases}`);
+assert.equal(cases, 143);
 console.log("VOID_DATANET_CHAIN_PEER_RECONSTRUCTION_V1_GREEN");
-console.log("chain2050_commitment_required=true");
-console.log("chain_digest_overrides_peer_majority=true");
+console.log("reference_commitment_required=true");
+console.log("reference_digest_overrides_peer_majority=true");
 console.log("forged_peer_majority_rejected=true");
-console.log("one_exact_authenticated_source_sufficient=true");
+console.log("caller_authentication_claim_is_not_verification=true");
 console.log("local_cache_override=false");
 console.log("deterministic_repair_plan=true");
 console.log("bounded_peer_and_byte_work=true");
@@ -667,4 +809,9 @@ console.log("durable_future_availability_claim=false");
 console.log("network_filesystem_repair_chain_mutation=false");
 console.log("shared_authority_poisoning_rejected=true");
 console.log("exported_default_policy_poisoning_rejected=true");
+console.log("unverified_inputs_always_operational_hold=true");
+console.log("independent_custody_not_inferred_from_aliases=true");
+console.log("caller_target_not_release_availability=true");
+console.log("mutable_bytes_not_publication_authority=true");
+console.log("reference_result_metadata_detached_immutable=true");
 console.log(`cases=${cases}`);

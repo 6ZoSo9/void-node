@@ -1,61 +1,49 @@
-# DataNet reconstruction replica accounting v1
+# DataNet reference copy accounting v2
 
 Marker: `VOID_DATANET_CHAIN_PEER_RECONSTRUCTION_REPLICA_ACCOUNTING_V1`
 
-Status: source/proof correction for the pure planner in #1464. No network,
-filesystem, peer, repair, or Chain-2050 mutation authority is added.
+This is the four-case accounting proof for #1464's reference-only result.
+The public result always remains `DATANET_RECONSTRUCTION_HOLD` with `ok=false`.
+Its nested counts describe hypothetical copies, not independently verified
+replicas or completed publication.
 
-## Defect
+## Preserved correction
 
-The first planner generation counted only replicas already valid at evaluation
-time when calculating remote repair demand. When the local copy was absent or
-corrupt but an exact authenticated peer could reconstruct it, the planned local
-copy was omitted from projected replica accounting.
+The original defect omitted a planned local copy when computing remote demand.
+For a target of three with one matching peer, a hypothetical local copy brings
+the projected count to two, leaving one remote copy to request.
 
-For a target of three replicas and one exact source peer, that could report two
-remote repairs and a shortfall of two even though the plan itself would first
-create one exact local replica. The real remaining remote demand is one.
-
-## Corrected order
-
-Replica planning now uses this exact sequence:
-
-1. count exact replicas present at evaluation time;
-2. select an exact authenticated reconstruction source;
-3. when local bytes are invalid, credit exactly one planned local
-   reconstruction replica;
-4. calculate the remaining remote repair count against the target;
-5. select no more repair recipients than that remaining count; and
-6. report projected replicas and any true recipient-capacity shortfall.
-
-New result fields are:
+The calculation remains:
 
 ```text
-planned_local_reconstruction_replica_count
-projected_replica_count_after_local_reconstruction
-remote_repair_replica_count_required
-projected_replica_count_after_plan
-repair_capacity_shortfall
+projected_reference_copies_after_local
+  = reference_copy_count + hypothetical_local_copy_count
+remote_reference_copies_requested
+  = max(0, requested_copy_target - projected_reference_copies_after_local)
+projected_reference_copies_after_plan
+  = projected_reference_copies_after_local + candidate_repair_recipients.length
+reference_repair_shortfall
+  = max(0, remote_reference_copies_requested - candidate_repair_recipients.length)
 ```
 
-`missing_replica_count` remains the deficit at evaluation time. It is not
-silently relabeled as post-plan deficit.
+`missing_reference_copies` remains the pre-plan deficit. The deliberate v2 result
+migration replaces old replica/availability names; the main architecture
+document defines the complete boundary.
 
-## Executable falsifiers
+## Four retained cases
 
-The supplemental proof requires:
+- One matching peer plus one recipient projects three reference copies.
+- One matching peer plus two recipients selects only one recipient.
+- One matching peer without a recipient reports one remaining shortfall.
+- Two matching peers plus a hypothetical local copy need no remote recipient.
 
-- one exact peer plus one repair recipient projects exactly three replicas;
-- one exact peer plus two eligible recipients selects only one, preventing a
-  false double repair;
-- one exact peer without a recipient reports one true shortfall, not two; and
-- two exact peers plus the reconstructed local copy require zero remote repair.
+Each case checks the actual public operational HOLD and zero verified
+independent replicas before inspecting the nested reference calculation.
+The caller's authentication and repair-acceptance flags are unverified claims.
 
-These four cases supplement the original 128-case planner proof for a combined
-132-case focused contract.
+## Limits
 
-## Authority boundary
-
-The corrected counts are a plan only. They do not copy bytes, create the local
-replica, contact a recipient, execute repair, prove post-repair retrieval, or
-prove durable future availability.
+No byte is copied, published, readmitted or repaired. A projected local copy is
+not a custody receipt. Peer IDs are not independent physical failure domains.
+A requested target is not a release policy. The five runtime verification and
+custody prerequisites remain separate, as does independent review of the repair.

@@ -5,15 +5,21 @@ on:
     paths:
       - "scripts/lib/void_datanet_chain_peer_reconstruction_v1.mjs"
       - "scripts/prove_void_datanet_chain_peer_reconstruction_v1.mjs"
+      - "scripts/prove_void_datanet_chain_peer_reconstruction_replica_accounting_v1.mjs"
       - "docs/architecture/datanet-chain-peer-reconstruction-v1.md"
+      - "docs/architecture/datanet-chain-peer-reconstruction-replica-accounting-v1.md"
       - ".github/workflows/void-datanet-chain-peer-reconstruction-v1.yml"
+      - ".github/workflows/void-datanet-chain-peer-reconstruction-replica-accounting-v1.yml"
   push:
     branches: [main]
     paths:
       - "scripts/lib/void_datanet_chain_peer_reconstruction_v1.mjs"
       - "scripts/prove_void_datanet_chain_peer_reconstruction_v1.mjs"
+      - "scripts/prove_void_datanet_chain_peer_reconstruction_replica_accounting_v1.mjs"
       - "docs/architecture/datanet-chain-peer-reconstruction-v1.md"
+      - "docs/architecture/datanet-chain-peer-reconstruction-replica-accounting-v1.md"
       - ".github/workflows/void-datanet-chain-peer-reconstruction-v1.yml"
+      - ".github/workflows/void-datanet-chain-peer-reconstruction-replica-accounting-v1.yml"
 
 permissions:
   contents: read
@@ -33,8 +39,13 @@ jobs:
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 0
           persist-credentials: false
+      - name: Bind exact checkout
+        env:
+          EXPECTED_SOURCE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: test "$(git rev-parse HEAD)" = "$EXPECTED_SOURCE_SHA"
       - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
         with:
           node-version: ${{ matrix.node }}
@@ -42,7 +53,7 @@ jobs:
         run: |
           node --check scripts/lib/void_datanet_chain_peer_reconstruction_v1.mjs
           node --check scripts/prove_void_datanet_chain_peer_reconstruction_v1.mjs
-      - name: Prove chain-anchored peer reconstruction
+      - name: Prove reference planning and operational HOLD
         run: node scripts/prove_void_datanet_chain_peer_reconstruction_v1.mjs
       - name: Diff hygiene
         run: git diff --check

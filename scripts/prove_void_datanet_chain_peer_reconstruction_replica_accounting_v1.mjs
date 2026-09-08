@@ -79,8 +79,12 @@ function plan(peers) {
     peers,
     policy: { ...VOID_DATANET_RECONSTRUCTION_DEFAULT_POLICY_V1 },
   });
-  assert.equal(decision.ok, true, JSON.stringify(decision));
-  return decision;
+  assert.equal(decision.ok, false, JSON.stringify(decision));
+  assert.equal(decision.status, "DATANET_RECONSTRUCTION_HOLD");
+  assert.equal(decision.repair_execution_authority_granted, false);
+  assert.equal(decision.verified_independent_replica_count, 0);
+  assert.equal(decision.reference_plan.evaluated, true);
+  return decision.reference_plan;
 }
 
 check("reconstructed local copy counts before remote repair", () => {
@@ -88,14 +92,14 @@ check("reconstructed local copy counts before remote repair", () => {
     exactPeer("peer-source"),
     emptyRepairPeer("peer-repair"),
   ]);
-  assert.equal(decision.valid_replica_count, 1);
-  assert.equal(decision.missing_replica_count, 2);
-  assert.equal(decision.planned_local_reconstruction_replica_count, 1);
-  assert.equal(decision.projected_replica_count_after_local_reconstruction, 2);
-  assert.equal(decision.remote_repair_replica_count_required, 1);
-  assert.deepEqual(decision.repair_recipients, ["peer-repair"]);
-  assert.equal(decision.projected_replica_count_after_plan, 3);
-  assert.equal(decision.repair_capacity_shortfall, 0);
+  assert.equal(decision.reference_copy_count, 1);
+  assert.equal(decision.missing_reference_copies, 2);
+  assert.equal(decision.hypothetical_local_copy_count, 1);
+  assert.equal(decision.projected_reference_copies_after_local, 2);
+  assert.equal(decision.remote_reference_copies_requested, 1);
+  assert.deepEqual(decision.candidate_repair_recipients, ["peer-repair"]);
+  assert.equal(decision.projected_reference_copies_after_plan, 3);
+  assert.equal(decision.reference_repair_shortfall, 0);
 });
 
 check("local reconstruction prevents false double repair", () => {
@@ -104,20 +108,20 @@ check("local reconstruction prevents false double repair", () => {
     emptyRepairPeer("peer-repair-b"),
     emptyRepairPeer("peer-repair-a"),
   ]);
-  assert.equal(decision.remote_repair_replica_count_required, 1);
-  assert.deepEqual(decision.repair_recipients, ["peer-repair-a"]);
-  assert.equal(decision.projected_replica_count_after_plan, 3);
-  assert.equal(decision.repair_capacity_shortfall, 0);
+  assert.equal(decision.remote_reference_copies_requested, 1);
+  assert.deepEqual(decision.candidate_repair_recipients, ["peer-repair-a"]);
+  assert.equal(decision.projected_reference_copies_after_plan, 3);
+  assert.equal(decision.reference_repair_shortfall, 0);
 });
 
 check("one exact source leaves one real capacity shortfall", () => {
   const decision = plan([exactPeer("peer-source")]);
-  assert.equal(decision.valid_replica_count, 1);
-  assert.equal(decision.planned_local_reconstruction_replica_count, 1);
-  assert.equal(decision.remote_repair_replica_count_required, 1);
-  assert.deepEqual(decision.repair_recipients, []);
-  assert.equal(decision.projected_replica_count_after_plan, 2);
-  assert.equal(decision.repair_capacity_shortfall, 1);
+  assert.equal(decision.reference_copy_count, 1);
+  assert.equal(decision.hypothetical_local_copy_count, 1);
+  assert.equal(decision.remote_reference_copies_requested, 1);
+  assert.deepEqual(decision.candidate_repair_recipients, []);
+  assert.equal(decision.projected_reference_copies_after_plan, 2);
+  assert.equal(decision.reference_repair_shortfall, 1);
 });
 
 check("two exact peers plus reconstructed local copy meet target", () => {
@@ -125,13 +129,13 @@ check("two exact peers plus reconstructed local copy meet target", () => {
     exactPeer("peer-alpha"),
     exactPeer("peer-bravo"),
   ]);
-  assert.equal(decision.valid_replica_count, 2);
-  assert.equal(decision.planned_local_reconstruction_replica_count, 1);
-  assert.equal(decision.projected_replica_count_after_local_reconstruction, 3);
-  assert.equal(decision.remote_repair_replica_count_required, 0);
-  assert.deepEqual(decision.repair_recipients, []);
-  assert.equal(decision.projected_replica_count_after_plan, 3);
-  assert.equal(decision.repair_capacity_shortfall, 0);
+  assert.equal(decision.reference_copy_count, 2);
+  assert.equal(decision.hypothetical_local_copy_count, 1);
+  assert.equal(decision.projected_reference_copies_after_local, 3);
+  assert.equal(decision.remote_reference_copies_requested, 0);
+  assert.deepEqual(decision.candidate_repair_recipients, []);
+  assert.equal(decision.projected_reference_copies_after_plan, 3);
+  assert.equal(decision.reference_repair_shortfall, 0);
 });
 
 assert.equal(cases, 4);
@@ -140,6 +144,6 @@ console.log(
 );
 console.log("local_reconstruction_counted_before_remote_repair=true");
 console.log("false_double_repair_prevented=true");
-console.log("repair_capacity_shortfall_exact=true");
+console.log("reference_repair_shortfall_exact=true");
 console.log("repair_execution_authority=false");
 console.log(`cases=${cases}`);
