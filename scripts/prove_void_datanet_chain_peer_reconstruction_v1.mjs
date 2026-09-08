@@ -38,6 +38,8 @@ const SHA = "3d29e7a976352a10ad149979e7ef297384eec1d32ac9feb4f0a2d36a6815b8a0";
 const CHECKPOINT_HASH = `0x${"a".repeat(64)}`;
 const COMMITMENT_TX = `0x${"b".repeat(64)}`;
 let cases = 0;
+const caseNames = [];
+assert.ok(process.argv.length === 2 || (process.argv.length === 3 && process.argv[2] === "--case-manifest"));
 
 // This raw API check deliberately precedes the reference-algorithm checks.
 // The old result must not remain usable as a successful availability gate.
@@ -102,6 +104,7 @@ function check(name, fn) {
   try {
     fn();
     cases += 1;
+    caseNames.push(name);
   } catch (error) {
     error.message = `${name}: ${error.message}`;
     throw error;
@@ -847,9 +850,9 @@ check("workflow topology", () => {
     "permissions:",
     "contents: read",
     "persist-credentials: false",
-    "node --check scripts/lib/void_datanet_chain_peer_reconstruction_v1.mjs",
-    "node scripts/prove_void_datanet_chain_peer_reconstruction_v1.mjs",
-    "git diff --check",
+    "node scripts/void_datanet_reconstruction_evidence_v1.mjs emit planner",
+    "needs: [planner, accounting]",
+    "node scripts/void_datanet_reconstruction_evidence_v1.mjs aggregate",
   ]) {
     assert.ok(workflow.includes(marker), marker);
   }
@@ -883,3 +886,8 @@ console.log("caller_target_not_release_availability=true");
 console.log("mutable_bytes_not_publication_authority=true");
 console.log("reference_result_metadata_detached_immutable=true");
 console.log(`cases=${cases}`);
+if (process.argv[2] === "--case-manifest") {
+  console.log("case_manifest_json=" + JSON.stringify({
+    schema: "VOID_DATANET_CASE_MANIFEST_V1", suite: "planner", case_names: caseNames,
+  }));
+}

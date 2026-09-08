@@ -13,11 +13,14 @@ const PAYLOAD = Buffer.from(
 );
 const CONTENT_SHA256 = createHash("sha256").update(PAYLOAD).digest("hex");
 let cases = 0;
+const caseNames = [];
+assert.ok(process.argv.length === 2 || (process.argv.length === 3 && process.argv[2] === "--case-manifest"));
 
 function check(name, fn) {
   try {
     fn();
     cases += 1;
+    caseNames.push(name);
   } catch (error) {
     error.message = `${name}: ${error.message}`;
     throw error;
@@ -147,3 +150,8 @@ console.log("false_double_repair_prevented=true");
 console.log("reference_repair_shortfall_exact=true");
 console.log("repair_execution_authority=false");
 console.log(`cases=${cases}`);
+if (process.argv[2] === "--case-manifest") {
+  console.log("case_manifest_json=" + JSON.stringify({
+    schema: "VOID_DATANET_CASE_MANIFEST_V1", suite: "accounting", case_names: caseNames,
+  }));
+}
