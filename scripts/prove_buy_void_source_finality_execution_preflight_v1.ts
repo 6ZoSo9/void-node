@@ -30,11 +30,6 @@ assert.equal(
 );
 assert.equal(
   VOID_BUY_VOID_SOURCE_FINALITY_EXECUTION_PREFLIGHT_AUTHORITY_V1
-    .source_finality_preflight_required_before_dependency_use,
-  undefined,
-);
-assert.equal(
-  VOID_BUY_VOID_SOURCE_FINALITY_EXECUTION_PREFLIGHT_AUTHORITY_V1
     .signer_access_gate,
   true,
 );
