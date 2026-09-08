@@ -233,6 +233,81 @@ for (const currentV4Hold of [
   );
 }
 
+// Regression for configured capability being misreported as effective authority.
+// Synthetic dependencies only; no wallet, RPC, listener, or capability is used.
+const statusEnv: Record<string, string> = {
+  VOID_BUY_VOID_DELIVERY_RUNTIME_INTEGRATION_ENABLED: "1",
+  VOID_BUY_VOID_DELIVERY_CHAIN_ID: "2050",
+  VOID_BUY_VOID_DELIVERY_TOKEN_ADDRESS: "0x" + "2".repeat(40),
+  VOID_BUY_VOID_DELIVERY_WALLET_ADDRESS: "0x" + "1".repeat(40),
+  VOID_BUY_VOID_DELIVERY_MAX_AMOUNT_UNITS: "10000000000000",
+  VOID_BUY_VOID_DELIVERY_MAX_GAS_LIMIT: "100000",
+  VOID_BUY_VOID_DELIVERY_MAX_FEE_PER_GAS_WEI: "3000000000",
+  VOID_BUY_VOID_DELIVERY_MAX_PRIORITY_FEE_PER_GAS_WEI:
+    "1000000000",
+  VOID_BUY_VOID_ERC20_EXECUTION_RPC_URL:
+    "http://127.0.0.1:8545/",
+  VOID_BUY_VOID_DELIVERY_GAS_LIMIT_MULTIPLIER_BPS: "12000",
+  VOID_BUY_VOID_DELIVERY_FEE_MULTIPLIER_BPS: "20000",
+  VOID_BUY_VOID_DELIVERY_MIN_CONFIRMATIONS: "3",
+  VOID_BUY_VOID_DELIVERY_RPC_TIMEOUT_MS: "5000",
+  VOID_BUY_VOID_DELIVERY_RPC_MAX_RESPONSE_BYTES: "65536",
+  VOID_BUY_VOID_CRASH_CONSISTENT_SAGA_PAYMENT_CHAIN: "base",
+  VOID_BUY_VOID_CRASH_CONSISTENT_SAGA_PAYMENT_USDC_CONTRACT:
+    "0x" + "4".repeat(40),
+  VOID_BUY_VOID_CRASH_CONSISTENT_SAGA_PAYMENT_RECEIVE_ADDRESS:
+    "0x" + "3".repeat(40),
+  VOID_BUY_VOID_CRASH_CONSISTENT_SAGA_PAYMENT_CURRENT_BLOCK_NUMBER:
+    "105",
+  VOID_BUY_VOID_CRASH_CONSISTENT_SAGA_PAYMENT_MIN_CONFIRMATIONS:
+    "3",
+  VOID_BUY_VOID_CRASH_CONSISTENT_SAGA_RATE_VOID_UNITS_NUMERATOR:
+    "2",
+  VOID_BUY_VOID_CRASH_CONSISTENT_SAGA_RATE_VOID_UNITS_DENOMINATOR:
+    "1",
+  VOID_BUY_VOID_CRASH_CONSISTENT_SAGA_INVENTORY_POLICY_VERSION:
+    "presale-v1",
+  VOID_BUY_VOID_INVENTORY_POOL_ID: "buy-void-presale-v1",
+  VOID_BUY_VOID_CRASH_CONSISTENT_SAGA_POOL_CAPACITY_VOID_UNITS:
+    "10000000000000",
+  VOID_BUY_VOID_CRASH_CONSISTENT_SAGA_MAX_RESERVATION_VOID_UNITS:
+    "10000000000000",
+  VOID_BUY_VOID_NATIVE_DELIVERY_WALLET_ADDRESS: "0x" + "1".repeat(40),
+};
+const savedEnv = Object.fromEntries(Object.keys(statusEnv).map(k => [k, process.env[k]]));
+const state = globalThis as any;
+const dependencyKey = "__void_buy_void_delivery_runtime_dependencies_v1";
+const savedDependencies = state[dependencyKey];
+let capabilityCalls = 0;
+const forbiddenCapability = async () => { capabilityCalls++; throw new Error("unexpected_capability_use"); };
+try {
+  Object.assign(process.env, statusEnv);
+  state[dependencyKey] = {
+    signer: { get_address: forbiddenCapability, sign_transaction: forbiddenCapability },
+    broadcaster: { broadcast_signed_transaction: forbiddenCapability },
+  };
+  const { buyVoidDeliveryRuntimeStatusV1 } = await import("../src/economic/buy_void_delivery_runtime_integration_v1.js");
+  for (const enabledValue of ["0", "1"]) {
+    process.env.VOID_BUY_VOID_DELIVERY_RUNTIME_INTEGRATION_ENABLED = enabledValue;
+    const status: any = buyVoidDeliveryRuntimeStatusV1();
+    assert.equal(status.policy_configured, true);
+    assert.equal(status.signer_configured, true);
+    assert.equal(status.broadcaster_configured, true);
+    assert.equal(status.capability_configured, enabledValue === "1");
+    assert.equal(status.authorization_scope, "per_attempt_command");
+    assert.equal(status.authorization_status, "not_evaluated");
+    for (const key of ["signing", "transaction_broadcast", "money_movement", "production_source_finality_authority_ready"]) {
+      assert.equal(status.effective_authority[key], false, `status must not authorize ${key}`);
+    }
+  }
+  assert.equal(capabilityCalls, 0);
+} finally {
+  for (const [key, value] of Object.entries(savedEnv)) {
+    if (value === undefined) delete process.env[key]; else process.env[key] = value;
+  }
+  if (savedDependencies === undefined) delete state[dependencyKey]; else state[dependencyKey] = savedDependencies;
+}
+
 console.log(
   "VOID_BUY_VOID_SOURCE_FINALITY_EXECUTION_PREFLIGHT_V1_PROOF_GREEN",
 );

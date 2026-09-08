@@ -237,7 +237,7 @@ function decisionStatus(decision: any): number {
 export function buyVoidDeliveryRuntimeStatusV1(): Record<string, unknown> {
   const policy = readBuyVoidErc20ExecutionCompositionPolicyV1();
   const dependencies = externalDependencies();
-  const active = enabled() && policy.ok === true && dependencies !== null;
+  const capabilityConfigured = enabled() && policy.ok === true && dependencies !== null;
   return {
     marker: VOID_BUY_VOID_DELIVERY_RUNTIME_INTEGRATION_V1,
     version: 1,
@@ -262,6 +262,9 @@ export function buyVoidDeliveryRuntimeStatusV1(): Record<string, unknown> {
         : null,
     signer_configured: dependencies !== null,
     broadcaster_configured: dependencies !== null,
+    capability_configured: capabilityConfigured,
+    authorization_scope: "per_attempt_command",
+    authorization_status: "not_evaluated",
     submission_guard_configured: true,
     source_finality_preflight_marker:
       VOID_BUY_VOID_SOURCE_FINALITY_EXECUTION_PREFLIGHT_V1,
@@ -280,9 +283,12 @@ export function buyVoidDeliveryRuntimeStatusV1(): Record<string, unknown> {
     execution_composition_authority:
       VOID_BUY_VOID_ERC20_EXECUTION_COMPOSITION_AUTHORITY_V1,
     effective_authority: {
-      signing: active,
-      transaction_broadcast: active,
-      money_movement: active,
+      // This route selects no attempt and performs no preflight. Configuration
+      // alone cannot establish authority for any payment or delivery.
+      signing: false,
+      transaction_broadcast: false,
+      money_movement: false,
+      production_source_finality_authority_ready: false,
       rpc_call: enabled() && policy.ok === true,
       source_finality_preflight_required: true,
       private_key_input: false,
