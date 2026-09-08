@@ -682,6 +682,7 @@ function sanitizeCoordinatorHealth(value) {
 }
 
 function sanitizePilotStatus(value) {
+  const gateway = gatewayStatus();
   const capability = value && typeof value.capability === "object" ? value.capability : {};
   const caps = value && typeof value.caps === "object" ? value.caps : {};
   const publicClaim =
@@ -689,7 +690,17 @@ function sanitizePilotStatus(value) {
   return {
     ok: value?.ok === true,
     marker: safeString(value?.marker, 96),
-    gateway_marker: "VOID_PUBLIC_EARN_GATEWAY_V1",
+    gateway_marker: gateway.marker,
+    // Publish one response-local capability snapshot; clients must not borrow
+    // this authority from a separately fetched gateway response.
+    gateway_contract: {
+      marker: gateway.marker,
+      routes: { claim_ticket: gateway.routes.claim_ticket },
+      methods: { claim_ticket: gateway.methods.claim_ticket },
+      safety: {
+        claim_executor_key_possession_required: gateway.safety.claim_executor_key_possession_required,
+      },
+    },
     coordinator_enabled: safeBoolean(value?.coordinator_enabled),
     executor_enabled: safeBoolean(value?.executor_enabled),
     task_class: safeString(value?.task_class, 96),
@@ -728,7 +739,7 @@ function sanitizePilotStatus(value) {
       marker: safeString(publicClaim.marker, 96),
       enabled: safeBoolean(publicClaim.enabled),
       available: safeBoolean(publicClaim.available),
-      public_route: gatewayStatus().routes.claim_ticket,
+      public_route: gateway.routes.claim_ticket,
       task_class: safeString(publicClaim.task_class, 96),
       fixed_award_wc: strictFiniteNumber(publicClaim.fixed_award_wc),
       transport_mode: safeString(publicClaim.transport_mode, 32),
@@ -767,8 +778,8 @@ function sanitizePilotStatus(value) {
       participant_selected_award: false,
       money_movement: false,
     },
-    routes: gatewayStatus().routes,
-    safety: gatewayStatus().safety,
+    routes: gateway.routes,
+    safety: gateway.safety,
   };
 }
 
