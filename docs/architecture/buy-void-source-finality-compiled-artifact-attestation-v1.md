@@ -12,18 +12,28 @@ The current attestation derivation is bound to the accepted exact #1474 source-s
 
 `9202f3ce11664873f2316b08cbdbe2b98fd77fb4`
 
-#1474 merged to `main` as `83a6f5c2d6737b397898f1a6c5ceb0ec9ac0498f`. The #1475 branch is synchronized with that merged generation before deriving new compiled identities.
+#1474 merged to `main` as `83a6f5c2d6737b397898f1a6c5ceb0ec9ac0498f`. The #1475 branch was synchronized with that merged generation before deriving the accepted compiled identities.
 
-The lane must remain pathwise unchanged from the accepted #1474 source generation for:
+The **attested runtime source closure** must remain pathwise unchanged from the accepted #1474 source generation for these six source files:
 
-- `src/**`;
+1. `src/economic/buy_void_source_finality_generation_provenance_v4.ts`
+2. `src/economic/buy_void_source_finality_authenticated_composition_v3.ts`
+3. `src/economic/buy_void_source_finality_authority_v2.ts`
+4. `src/economic/buy_void_source_chain_finality_rpc_adapter_v1.ts`
+5. `src/economic/buy_void_payment_rpc_observer_v1.ts`
+6. `src/economic/buy_void_verified_payment_v2.ts`
+
+The following build inputs must also remain unchanged:
+
 - `package.json`;
 - `package-lock.json`;
 - `tsconfig.build.json`;
 - `scripts/copy_void_runtime_js_v1.mjs`; and
 - `scripts/retire_saveblock_periodic_rewriters_v1.mjs`.
 
-The workflow triggers on those same bound inputs as well as the attestation proof, manifest, documentation, and workflow itself, so later input drift cannot silently bypass the focused gate.
+The workflow intentionally continues to trigger conservatively on any `src/**` change. Source changes **outside** the six-file attested closure are permitted only when the locked repository build still succeeds and the proof re-derives the exact same six emitted byte identities, closed runtime-import graph, aggregate digest, compiler/build metadata, and committed manifest. A change to any of the six reviewed source files or any pinned build input fails closed before artifact acceptance.
+
+This distinction prevents an unrelated reverse consumer from invalidating an otherwise byte-identical historical source-finality artifact generation while preserving exact identity for every source file that contributes to the attested runtime closure.
 
 The reviewed build inputs remain bound to exact Git blob identities:
 
@@ -66,17 +76,15 @@ The previous locked generation was bound to #1474 source-stack head `f0fd6fb9aff
 
 That value is historical only and is **not accepted as current evidence** because V4/V3/V2 source bytes changed before #1474 reached its accepted head.
 
-## Current two-generation acceptance process
+## Two-generation acceptance process
 
 ### Generation 1 — independent derivation
 
-The proof is now bound to accepted #1474 head `9202f3ce11664873f2316b08cbdbe2b98fd77fb4`, while the committed JSON manifest is deliberately left on the superseded generation.
+The proof is bound to accepted #1474 head `9202f3ce11664873f2316b08cbdbe2b98fd77fb4`. During a new derivation generation, Node 22, 24 and 26 independently build the current source stack and emit candidate identities before a replacement manifest is accepted.
 
-Node 22, 24 and 26 must independently build the current source stack. Each job is expected to fail specifically with `compiled_artifact_attestation_manifest_mismatch` after emitting `candidate_manifest_json` and uploading its derivation log. All six artifact byte lengths, six SHA-256 identities, and the aggregate artifact-set SHA-256 must agree across all three Node majors before any new manifest is committed.
+All six artifact byte lengths, six SHA-256 identities, and the aggregate artifact-set SHA-256 must agree across all three Node majors before any new manifest is committed. The derivation pipeline runs under explicit `set -euo pipefail`, so a nonzero proof exit cannot be masked by the evidence `tee` stage.
 
-This derivation pipeline runs under explicit `set -euo pipefail`, so a nonzero proof exit cannot be masked by the evidence `tee` stage.
-
-During this derivation generation:
+During a derivation generation:
 
 ```text
 compiled_artifact_generation_verified=false
@@ -87,11 +95,11 @@ production_source_finality_authority_ready=false
 
 ### Generation 2 — locked attestation
 
-Only after all three derivations agree may the current identities replace the superseded manifest in:
+Only after all three derivations agree may current identities be accepted in:
 
 `docs/architecture/buy-void-source-finality-compiled-artifact-attestation-v1.json`
 
-The proof must then recompute the closed artifact set from fresh production builds and require byte-for-byte equality with the committed manifest, including metadata, artifact paths, byte lengths, six SHA-256 identities, aggregate SHA-256, source-stack identity, compiler/build inputs, and Node-major derivation set `[22, 24, 26]`.
+The proof recomputes the closed artifact set from fresh production builds and requires byte-for-byte equality with the committed manifest, including metadata, artifact paths, byte lengths, six SHA-256 identities, aggregate SHA-256, source-stack identity, compiler/build inputs, and Node-major derivation set `[22, 24, 26]`.
 
 Any manifest drift or compiled-byte drift fails closed. Acceptance requires a fresh exact-head Node 22/24/26 locked matrix plus repository CI on that same SHA.
 
@@ -112,8 +120,8 @@ This lane does not authorize or claim deployment, runtime route mounting, live B
 
 ## Lifecycle state
 
-Keep Draft.
+The accepted #1475 manifest and compiled byte identities remain immutable evidence for the reviewed V4 closure. Later unrelated source changes may preserve that generation only through a fresh locked build that proves the same closure sources, build inputs, emitted bytes, graph, manifest and aggregate remain exact.
 
 Current state:
 
-`CURRENT_MAIN_SYNCHRONIZED / ACCEPTED_V4_SOURCE_BOUND / MANIFEST_INTENTIONALLY_STALE / NODE_22_24_26_REDERIVATION_PENDING / PIPEFAIL_FAIL_CLOSED / NO_MERGE_OR_RUNTIME_AUTHORIZATION`
+`ACCEPTED_V4_SOURCE_BOUND / LOCKED_MANIFEST_CURRENT / EXACT_CLOSURE_PRESERVATION / NO_DEPLOYED_ARTIFACT_OR_RUNTIME_AUTHORITY`
