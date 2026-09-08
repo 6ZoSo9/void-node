@@ -409,7 +409,8 @@ await test("source verifies files before dynamic V3 entry and contains no source
     "const sourceFiles = verifyBuyVoidSourceFinalityRuntimeSourceFilesV4()",
   );
   const importIndex = source.indexOf(
-    'await import("./buy_void_source_finality_authenticated_composition_v3.js")',
+    'import("./buy_void_source_finality_authenticated_composition_v3.js"),',
+    verifyIndex,
   );
   assert.ok(verifyIndex >= 0);
   assert.ok(importIndex > verifyIndex);

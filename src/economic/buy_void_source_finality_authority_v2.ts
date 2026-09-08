@@ -313,7 +313,14 @@ export function normalizeBuyVoidSourceFinalityStaticPolicyV2(input: BuyVoidSourc
   if (input.schema !== "void_buy_void_source_finality_static_policy_v2") fail("STATIC_POLICY_SCHEMA_MISMATCH");
   if (input.marker !== VOID_BUY_VOID_SOURCE_FINALITY_STATIC_POLICY_V2) fail("STATIC_POLICY_MARKER_MISMATCH");
   if (input.version !== 2) fail("STATIC_POLICY_VERSION_MISMATCH");
-  if (!Array.isArray(input.rail_order) || input.rail_order.join(",") !== "base,ethereum") fail("STATIC_POLICY_RAIL_ORDER_MISMATCH");
+  if (
+    !Array.isArray(input.rail_order) ||
+    input.rail_order.length !== 2 ||
+    input.rail_order[0] !== "base" ||
+    input.rail_order[1] !== "ethereum"
+  ) {
+    fail("STATIC_POLICY_RAIL_ORDER_MISMATCH");
+  }
   if (!Array.isArray(input.rails) || input.rails.length !== 2) fail("STATIC_POLICY_REQUIRES_TWO_RAILS");
   if (canonical(input.economics) !== canonical(VOID_BUY_VOID_CANONICAL_PRESALE_ECONOMICS_V2)) fail("STATIC_POLICY_ECONOMICS_MISMATCH");
   const rails = [normalizeRail(input.rails[0], "base"), normalizeRail(input.rails[1], "ethereum")] as const;
