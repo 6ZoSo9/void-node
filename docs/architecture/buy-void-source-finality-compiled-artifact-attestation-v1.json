@@ -3,7 +3,7 @@
   "marker": "VOID_BUY_VOID_SOURCE_FINALITY_COMPILED_ARTIFACT_ATTESTATION_V1",
   "version": 1,
   "repository": "6ZoSo9/void-node",
-  "source_stack_head": "f0fd6fb9afff43986d7f0b87e9aac3750d4e4f34",
+  "source_stack_head": "9202f3ce11664873f2316b08cbdbe2b98fd77fb4",
   "compiler": {
     "typescript_version": "5.9.3",
     "package_lock_git_blob_sha1": "b57e9018e9aee19340b4fe43d2282208116ec2f8"
@@ -18,18 +18,18 @@
   "artifacts": [
     {
       "path": "dist/economic/buy_void_source_finality_generation_provenance_v4.js",
-      "bytes": 11276,
-      "sha256": "2ef8f2a13591d5535a564d402f60d13c477ac00c6f2c3f83306df033828bd15a"
+      "bytes": 13490,
+      "sha256": "b92c4fd3f10277cf2ac28dcf9bb906f9544741820d832c1ee21aa9272a42655f"
     },
     {
       "path": "dist/economic/buy_void_source_finality_authenticated_composition_v3.js",
-      "bytes": 18060,
-      "sha256": "c2b10b8b70efd678ccca49636dfb15d857cb5a6b225661a26994e56f1a8be772"
+      "bytes": 18892,
+      "sha256": "0d023868f4a4ab95fe1276c8d1a7e891dd5c419844e0ed2aac8d3bce15b72f42"
     },
     {
       "path": "dist/economic/buy_void_source_finality_authority_v2.js",
-      "bytes": 18915,
-      "sha256": "d40f97f447c20838323d9b68ef88185411bddbc434263d43fb600cf6950c36e7"
+      "bytes": 19002,
+      "sha256": "239bfb3a8c0d2fa986986e961512660c6212818aa5769753d90f592490502c4b"
     },
     {
       "path": "dist/economic/buy_void_source_chain_finality_rpc_adapter_v1.js",
@@ -47,7 +47,7 @@
       "sha256": "0494e4a1d64cdcf5bcbab81a5585406f7a4d34ad9c16d64dcada5063c765057b"
     }
   ],
-  "compiled_artifact_set_sha256": "acf85d2f928ac4e303428df5c5e3f5aa9b4bbdfa0e367c6c9088514dce7206b8",
+  "compiled_artifact_set_sha256": "98aaf70a7aa4e45a38e38ab5679a163f58be4211cb4fa81284e1596666ff00d3",
   "derivation_node_majors": [
     22,
     24,
