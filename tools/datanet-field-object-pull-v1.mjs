@@ -8,7 +8,6 @@ import {
   fstatSync,
   fsyncSync,
   lstatSync,
-  mkdirSync,
   openSync,
   readSync,
   writeSync,
@@ -213,38 +212,32 @@ function openPinnedDirectory(path, exactPrivate, label) {
   }
 }
 
-function openOrCreatePinnedChildDirectory(
-  parent,
-  component,
-  lexicalPath,
-  label,
-) {
-  const path = procChildPath(parent.fd, component);
-  let created = false;
+function openExistingPinnedChildDirectory(parent, component, lexicalPath, label) {
+  let child;
   try {
-    lstatSync(path, { bigint: true });
+    child = openPinnedDirectory(procChildPath(parent.fd, component), true, label);
   } catch (error) {
-    if (error?.code !== "ENOENT") throw error;
-    mkdirSync(path, { mode: PRIVATE_DIRECTORY_MODE });
-    fsyncSync(parent.fd);
-    created = true;
+    if (error?.code === "ENOENT") {
+      throw Object.assign(
+        new Error(`${label} must already exist as an admitted private directory`),
+        { code: "OUTPUT_DIRECTORY_REQUIRED" },
+      );
+    }
+    throw error;
   }
-
-  const child = openPinnedDirectory(path, true, label);
-  const lexical = lstatSync(lexicalPath, { bigint: true });
-  if (!sameObjectIdentity(statIdentity(lexical), child.identity)) {
+  try {
+    const lexical = lstatSync(lexicalPath, { bigint: true });
+    if (!sameObjectIdentity(statIdentity(lexical), child.identity)) {
+      throw Object.assign(
+        new Error(`${label} lexical generation does not match pinned generation`),
+        { code: "OUTPUT_PARENT_GENERATION_CHANGED" },
+      );
+    }
+    return child;
+  } catch (error) {
     closeSync(child.fd);
-    throw Object.assign(
-      new Error(`${label} lexical generation does not match pinned generation`),
-      { code: "OUTPUT_PARENT_GENERATION_CHANGED" },
-    );
+    throw error;
   }
-
-  if (created) {
-    fsyncSync(child.fd);
-    fsyncSync(parent.fd);
-  }
-  return child;
 }
 
 function assertPinnedDirectory(path, pinned, exactPrivate, label) {
@@ -271,52 +264,44 @@ function acquireOutputNamespace() {
   const cwd = openPinnedDirectory(".", false, "working directory");
   let root = null;
   let family = null;
-  let run = null;
-  const stamp = new Date().toISOString().replace(/[:.]/g, "-");
-  const runComponent = `${stamp}-${process.pid}-${randomBytes(16).toString("hex")}`;
+  const generation = randomBytes(16).toString("hex");
+  const objectLeaf = `${generation}.object.txt`;
+  const receiptLeaf = `${generation}.receipt.json`;
   const rootPath = OUTPUT_ROOT_COMPONENT;
   const familyPath = join(rootPath, OUTPUT_FAMILY_COMPONENT);
-  const runPath = join(familyPath, runComponent);
 
   try {
-    root = openOrCreatePinnedChildDirectory(
+    root = openExistingPinnedChildDirectory(
       cwd,
       OUTPUT_ROOT_COMPONENT,
       rootPath,
       "output root",
     );
-    family = openOrCreatePinnedChildDirectory(
+    family = openExistingPinnedChildDirectory(
       root,
       OUTPUT_FAMILY_COMPONENT,
       familyPath,
       "output family",
     );
-    run = openOrCreatePinnedChildDirectory(
-      family,
-      runComponent,
-      runPath,
-      "output run directory",
-    );
 
     assertPinnedDirectory(".", cwd, false, "working directory");
     assertPinnedDirectory(rootPath, root, true, "output root");
     assertPinnedDirectory(familyPath, family, true, "output family");
-    assertPinnedDirectory(runPath, run, true, "output run directory");
     fsyncSync(family.fd);
 
     return {
       cwd,
       root,
       family,
-      run,
       rootPath,
       familyPath,
-      runPath,
-      objectPath: join(runPath, "object.txt"),
-      receiptPath: join(runPath, "receipt.json"),
+      objectLeaf,
+      receiptLeaf,
+      objectPath: join(familyPath, objectLeaf),
+      receiptPath: join(familyPath, receiptLeaf),
     };
   } catch (error) {
-    for (const entry of [run, family, root, cwd]) {
+    for (const entry of [family, root, cwd]) {
       if (entry?.fd !== undefined) {
         try {
           closeSync(entry.fd);
@@ -331,7 +316,6 @@ function acquireOutputNamespace() {
 
 function closeOutputNamespace(namespace) {
   for (const entry of [
-    namespace?.run,
     namespace?.family,
     namespace?.root,
     namespace?.cwd,
@@ -359,12 +343,6 @@ function assertOutputNamespace(namespace) {
     namespace.family,
     true,
     "output family",
-  );
-  assertPinnedDirectory(
-    namespace.runPath,
-    namespace.run,
-    true,
-    "output run directory",
   );
 }
 
@@ -407,7 +385,7 @@ function readExact(fd, length) {
 
 function publishPinnedFile(namespace, leaf, bytes) {
   assertOutputNamespace(namespace);
-  const procPath = procChildPath(namespace.run.fd, leaf);
+  const procPath = procChildPath(namespace.family.fd, leaf);
   let fd = null;
   try {
     fd = openSync(
@@ -443,11 +421,11 @@ function publishPinnedFile(namespace, leaf, bytes) {
         { code: "OUTPUT_LEAF_READBACK_MISMATCH" },
       );
     }
-    fsyncSync(namespace.run.fd);
+    fsyncSync(namespace.family.fd);
     assertOutputNamespace(namespace);
 
     const lexicalPath =
-      leaf === "object.txt" ? namespace.objectPath : namespace.receiptPath;
+      leaf === namespace.objectLeaf ? namespace.objectPath : namespace.receiptPath;
     const lexical = lstatSync(lexicalPath, { bigint: true });
     if (!sameFileGeneration(statIdentity(lexical), committedIdentity)) {
       throw Object.assign(
@@ -845,7 +823,7 @@ try {
   assertOutputNamespace(namespace);
 
   const body = result.body || Buffer.alloc(0);
-  publishPinnedFile(namespace, "object.txt", body);
+  publishPinnedFile(namespace, namespace.objectLeaf, body);
 
   const actual = createHash("sha256").update(body).digest("hex");
   const match = result.ok && actual === expected;
@@ -868,6 +846,8 @@ try {
     dangerous_paths_touched: false,
     output_namespace_bound: true,
     output_namespace_policy: {
+      existing_directories_only: true,
+      random_create_only_leaves: true,
       descriptor_relative_publication: true,
       no_follow_parent_traversal: true,
       current_uid_owned: true,
@@ -887,9 +867,8 @@ try {
     `${JSON.stringify(receipt, null, 2)}\n`,
     "utf8",
   );
-  publishPinnedFile(namespace, "receipt.json", receiptBytes);
+  publishPinnedFile(namespace, namespace.receiptLeaf, receiptBytes);
   assertOutputNamespace(namespace);
-  fsyncSync(namespace.run.fd);
   fsyncSync(namespace.family.fd);
 
   console.log(receipt.marker);

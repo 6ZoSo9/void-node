@@ -4,6 +4,7 @@ on:
   pull_request:
     paths:
       - "tools/datanet-field-object-pull-v1.mjs"
+      - "tools/check_datanet_field_object_exchange_v1.sh"
       - "scripts/prove_datanet_field_object_pull_bounds_v1.mjs"
       - "docs/public/datanet-field-object-pull-bounds-v1.md"
       - ".github/workflows/datanet-field-object-pull-bounds-v1.yml"
@@ -11,6 +12,7 @@ on:
     branches: [main]
     paths:
       - "tools/datanet-field-object-pull-v1.mjs"
+      - "tools/check_datanet_field_object_exchange_v1.sh"
       - "scripts/prove_datanet_field_object_pull_bounds_v1.mjs"
       - "docs/public/datanet-field-object-pull-bounds-v1.md"
       - ".github/workflows/datanet-field-object-pull-bounds-v1.yml"
@@ -33,16 +35,23 @@ jobs:
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 0
           persist-credentials: false
       - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
         with:
           node-version: ${{ matrix.node }}
+      - name: Assert exact source head
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
       - name: Check source and proof syntax
         run: |
           node --check tools/datanet-field-object-pull-v1.mjs
           node --check scripts/prove_datanet_field_object_pull_bounds_v1.mjs
       - name: Prove bounded transport and output authority
         run: node scripts/prove_datanet_field_object_pull_bounds_v1.mjs
+      - name: Prove existing exchange caller
+        run: bash tools/check_datanet_field_object_exchange_v1.sh
       - name: Diff hygiene
         run: git diff --check

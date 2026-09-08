@@ -29,7 +29,7 @@ The puller enforces three independent limits:
   - default: 30 seconds
   - accepted range: 100 ms through 120 seconds
 
-Invalid control text fails before output-directory creation or source I/O.
+Invalid control text fails before output acquisition or source I/O.
 
 The expected digest must be exactly 64 lowercase or uppercase hexadecimal
 characters, optionally prefixed by `sha256:`. It is normalized to lowercase
@@ -96,56 +96,53 @@ count, modification time, and change time. A symlink leaf is never followed.
 
 ## Output namespace authority
 
-Create-only mode bits on `object.txt` and `receipt.json` are not sufficient if
-an intermediate output directory can redirect publication. The puller
-therefore acquires the complete evidence namespace before source I/O.
+The puller admits **existing** private output directories before source I/O.
+It never creates, deletes, or changes permissions on directories. This removes
+the `mkdir -> open` interval in which a newly created directory could be
+replaced and the replacement mistakenly adopted as the created generation.
 
-The namespace is:
+Before invoking the puller, an operator must provision and admit both
+`.void-field-trial` and `.void-field-trial/datanet-field-object-pull` beneath
+the selected working directory. Both must be real, current-UID-owned mode
+`0700` directories. Provisioning must occur in a trusted setup context; it is
+not performed or attested by this CLI. An absent component produces
+`OUTPUT_DIRECTORY_REQUIRED` before source I/O and without creating anything.
+Existing unsafe components are rejected; the CLI never repairs their modes.
 
-```text
-<working-directory>/
-  .void-field-trial/
-    datanet-field-object-pull/
-      <timestamp>-<pid>-<128-bit-random-generation>/
-        object.txt
-        receipt.json
-```
+Successful invocations publish two files directly in the admitted family:
+
+- `.void-field-trial/datanet-field-object-pull/<128-bit-random>.object.txt`
+- `.void-field-trial/datanet-field-object-pull/<128-bit-random>.receipt.json`
+
+This deliberately replaces the previous per-run directory layout. Consumers
+must use the `receipt=` stdout value and the receipt's `object_path` rather
+than assume a fixed `object.txt` name or enumerate run directories. The CLI
+arguments and transport limits are unchanged.
 
 The output contract is:
 
-- the working directory is opened and retained as a directory descriptor;
-- it must be current-UID-owned and not group/other writable;
-- each fixed child component is looked up through the retained parent
-  descriptor using `/proc/self/fd`;
-- every child is opened with `O_DIRECTORY | O_NOFOLLOW`;
-- fixed and run directories must be current-UID-owned mode `0700`;
-- lexical and pinned device/inode identities must match;
-- the run directory has a 128-bit random generation suffix;
-- all directory descriptors remain open through publication;
-- each leaf is opened through the retained run-directory descriptor with
-  `O_CREAT | O_EXCL | O_NOFOLLOW`;
-- each leaf is current-UID-owned, mode `0600`, single-link, exact-size, fsynced,
-  and byte-for-byte read back from the same descriptor;
-- the run and containing family directories are fsynced;
-- every retained directory and both lexical leaf names are revalidated before
-  success.
+- retain a current-UID-owned, non-group/other-writable working-directory fd;
+- admit each existing child through its retained parent via `/proc/self/fd`,
+  using `O_DIRECTORY | O_NOFOLLOW` and lstat/open device/inode equality;
+- require child UID and exact private mode, plus lexical/pinned identity equality;
+- retain all admitted directory descriptors through publication;
+- publish random leaves relative to the family fd with
+  `O_CREAT | O_EXCL | O_NOFOLLOW`, with no replacement or collision retry;
+- require mode `0600`, current UID, one link, exact size, file fsync, and exact
+  same-descriptor readback, then fsync the family directory;
+- revalidate directory generations and published lexical leaf identity.
 
-A pre-existing output-root or output-family symlink fails before source I/O. A
-group/other-writable evidence parent also fails before source I/O.
+A replaced acquired directory produces `OUTPUT_NAMESPACE_CHANGED`; descriptor
+relative writes cannot be redirected into its replacement. A random leaf
+collision produces HOLD without deleting, chmodding, or overwriting that
+foreign leaf. If the second publication fails, the invocation's own object
+file can remain without a receipt; consumers must require the successful
+receipt terminal. This is not atomic publication of a pair of files.
 
-If an acquired run directory is renamed and replaced while a source request is
-in flight, the operation reports `VOID_DATANET_FIELD_OBJECT_PULL_V1_HOLD` with
-`OUTPUT_NAMESPACE_CHANGED`. It publishes neither object nor receipt into the
-replacement generation.
-
-Only after this authority wall passes may the receipt state:
-
-```json
-{
-  "dangerous_paths_touched": false,
-  "output_namespace_bound": true
-}
-```
+Only this admitted publication path can emit `dangerous_paths_touched=false`
+and `output_namespace_bound=true`. These assertions concern this invocation's
+output operations, not exclusive custody against an arbitrary same-UID process
+or external directory provisioning.
 
 ## Receipt
 
@@ -160,7 +157,7 @@ A completed pull writes:
 - the relative object evidence pathname; and
 - the closed output-namespace policy.
 
-A transport failure still produces a private zero-byte `object.txt` and a
+A transport failure still produces a private zero-byte `<generation>.object.txt` and a
 private failure receipt when the output namespace itself remains safe. An
 unsafe or changed output namespace produces a process-level HOLD and no receipt
 path.
@@ -170,7 +167,7 @@ path.
 `scripts/prove_datanet_field_object_pull_bounds_v1.mjs` drives the real CLI in
 disposable directories against local files and a loopback HTTP server.
 
-The 24 cases cover:
+The 29 cases cover:
 
 1. valid local pathname pull;
 2. valid `file:` URL pull;
@@ -194,11 +191,26 @@ The 24 cases cover:
 20. invalid limit rejection before output/source I/O;
 21. output-root symlink rejection before source I/O;
 22. output-family symlink rejection before source I/O;
-23. unsafe output-parent mode rejection before source I/O; and
-24. in-flight run-directory replacement with zero replacement-tree writes.
+23. unsafe output-parent mode rejection before source I/O;
+24. in-flight admitted-family replacement with zero replacement-tree writes;
+25–26. missing root/family HOLD, with a preload poised to replace any runtime
+       created directory immediately after mkdir and before open;
+27. repeated successful pulls create only distinct file pairs, with the same
+    mkdir replacement interposer proving no runtime run-directory creation;
+28–29. deterministic object/receipt name collisions preserve foreign bytes,
+       inode, mode, links and timestamps without a success receipt.
+
+The test-only preloads interpose Node builtins in child processes; the CLI has
+no production attack hook. Since directory creation is eliminated, the missing
+component tests require HOLD and prove the replacement hook is never reached.
+The existing-directory control proves successful operation without any mkdir.
 
 The proof creates and removes only disposable local state and contacts no
-production peer.
+production peer. The existing `tools/check_datanet_field_object_exchange_v1.sh`
+smoke test now provisions its private fixture explicitly and runs both create
+and pull there; it no longer writes fixture objects into the checkout or uses
+a shared `/tmp` shell environment file. The focused workflow runs both proofs
+on Node 22/24/26 and verifies that checkout matches the exact PR head.
 
 ## DataNet and Chain-2050 boundary
 

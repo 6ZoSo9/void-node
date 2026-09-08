@@ -39,9 +39,14 @@ function counted() {
   cases += 1;
 }
 
-function createCase(name) {
+function createCase(name, provision = true) {
   const dir = join(scratch, name);
   mkdirSync(dir, { recursive: false, mode: 0o700 });
+  if (provision) {
+    const root = join(dir, ".void-field-trial");
+    mkdirSync(root, { mode: 0o700 });
+    mkdirSync(join(root, "datanet-field-object-pull"), { mode: 0o700 });
+  }
   return dir;
 }
 
@@ -448,7 +453,7 @@ try {
   }
 
   {
-    const cwd = createCase("invalid-limit-before-output");
+    const cwd = createCase("invalid-limit-before-output", false);
     const before = requestCount;
     const run = await runCli(cwd, `${base}/ok`, SMALL_HASH, {
       VOID_PULL_MAX_BYTES: "0",
@@ -462,7 +467,7 @@ try {
   }
 
   {
-    const cwd = createCase("output-root-symlink");
+    const cwd = createCase("output-root-symlink", false);
     const foreign = join(cwd, "foreign");
     mkdirSync(foreign, { mode: 0o700 });
     symlinkSync(foreign, join(cwd, ".void-field-trial"));
@@ -475,7 +480,7 @@ try {
   }
 
   {
-    const cwd = createCase("output-family-symlink");
+    const cwd = createCase("output-family-symlink", false);
     const root = join(cwd, ".void-field-trial");
     const foreign = join(cwd, "foreign");
     mkdirSync(root, { mode: 0o700 });
@@ -490,7 +495,7 @@ try {
   }
 
   {
-    const cwd = createCase("unsafe-output-root-mode");
+    const cwd = createCase("unsafe-output-root-mode", false);
     const root = join(cwd, ".void-field-trial");
     mkdirSync(root, { mode: 0o700 });
     chmodSync(root, 0o777);
@@ -502,7 +507,7 @@ try {
   }
 
   {
-    const cwd = createCase("run-directory-replacement");
+    const cwd = createCase("family-directory-replacement");
     const launched = spawnCli(cwd, `${base}/gate`, SMALL_HASH);
     const family = join(
       cwd,
@@ -511,21 +516,13 @@ try {
     );
 
     const deadline = Date.now() + 4_000;
-    let names = [];
-    while (Date.now() < deadline) {
-      try {
-        names = allChildren(family);
-      } catch {
-        names = [];
-      }
-      if (names.length === 1 && releaseGate) break;
+    while (Date.now() < deadline && !releaseGate) {
       await new Promise((resolveWait) => setTimeout(resolveWait, 10));
     }
-    assert.equal(names.length, 1, "run directory was not created");
     assert.ok(releaseGate, "gate request was not acquired");
 
-    const selected = join(family, names[0]);
-    const displaced = join(family, "displaced-original");
+    const selected = family;
+    const displaced = join(cwd, "displaced-original");
     renameSync(selected, displaced);
     mkdirSync(selected, { mode: 0o700 });
     releaseGate();
@@ -537,7 +534,82 @@ try {
     counted();
   }
 
-  assert.equal(cases, 24);
+  // Interpose at the original mkdir -> open boundary without adding a
+  // production hook. If any runtime mkdir returns, replace that exact child.
+  const mkdirAttack = join(scratch, "mkdir-attack.cjs");
+  writeFileSync(mkdirAttack, `
+    const fs = require("node:fs");
+    const { syncBuiltinESMExports } = require("node:module");
+    const original = fs.mkdirSync;
+    fs.mkdirSync = function(path, options) {
+      const result = original.call(this, path, options);
+      fs.renameSync(path, String(path) + ".displaced");
+      original.call(this, path, { mode: 0o700 });
+      fs.writeFileSync(String(path) + "/foreign-sentinel", "FOREIGN", { mode: 0o600 });
+      fs.writeFileSync(process.env.ATTACK_MARKER, "mkdir replacement executed");
+      return result;
+    };
+    syncBuiltinESMExports();
+  `);
+  for (const missing of ["root", "family"]) {
+    const cwd = createCase(`missing-${missing}`, false);
+    if (missing === "family") mkdirSync(join(cwd, ".void-field-trial"), { mode: 0o700 });
+    const marker = join(cwd, "attack-marker");
+    const before = requestCount;
+    const run = await runCli(cwd, `${base}/ok`, SMALL_HASH, {
+      NODE_OPTIONS: `--require=${mkdirAttack}`,
+      ATTACK_MARKER: marker,
+    });
+    assertHold(run, "OUTPUT_DIRECTORY_REQUIRED");
+    assert.equal(requestCount, before);
+    assert.deepEqual(allChildren(cwd), missing === "root" ? [] : [".void-field-trial"]);
+    if (missing === "family") assert.deepEqual(allChildren(join(cwd, ".void-field-trial")), []);
+    counted();
+  }
+  {
+    const cwd = createCase("no-runtime-run-directory");
+    const marker = join(cwd, "attack-marker");
+    const first = await runCli(cwd, `${base}/ok`, SMALL_HASH, {
+      NODE_OPTIONS: `--require=${mkdirAttack}`, ATTACK_MARKER: marker,
+    });
+    assertGreen(first);
+    const second = await runCli(cwd, `${base}/ok`, SMALL_HASH, {
+      NODE_OPTIONS: `--require=${mkdirAttack}`, ATTACK_MARKER: marker,
+    });
+    assertGreen(second);
+    assert.deepEqual(allChildren(cwd), [".void-field-trial"]);
+    const family = join(cwd, ".void-field-trial", "datanet-field-object-pull");
+    const leaves = allChildren(family);
+    assert.equal(leaves.length, 4);
+    for (const leaf of leaves) {
+      assert.match(leaf, /^[a-f0-9]{32}\.(object\.txt|receipt\.json)$/);
+      assert.ok(lstatSync(join(family, leaf)).isFile());
+    }
+    assert.notEqual(receiptFromRun(cwd, first).path, receiptFromRun(cwd, second).path);
+    counted();
+  }
+  const fixedRandom = join(scratch, "fixed-random.cjs");
+  writeFileSync(fixedRandom, `
+    const crypto = require("node:crypto");
+    crypto.randomBytes = (size) => Buffer.alloc(size);
+    require("node:module").syncBuiltinESMExports();
+  `);
+  for (const suffix of ["object.txt", "receipt.json"]) {
+    const cwd = createCase(`collision-${suffix}`);
+    const family = join(cwd, ".void-field-trial", "datanet-field-object-pull");
+    const foreign = join(family, `${"0".repeat(32)}.${suffix}`);
+    writeFileSync(foreign, "FOREIGN", { mode: 0o600 });
+    const before = lstatSync(foreign, { bigint: true });
+    const run = await runCli(cwd, `${base}/ok`, SMALL_HASH, {
+      NODE_OPTIONS: `--require=${fixedRandom}`,
+    });
+    assertHold(run, "EEXIST");
+    assert.deepEqual(lstatSync(foreign, { bigint: true }), before);
+    assert.equal(readFileSync(foreign, "utf8"), "FOREIGN");
+    counted();
+  }
+
+  assert.equal(cases, 29);
   console.log("VOID_DATANET_FIELD_OBJECT_PULL_BOUNDS_V1_GREEN");
   console.log("local_pinned_read=true");
   console.log("local_symlink_rejected=true");
@@ -553,6 +625,8 @@ try {
   console.log("output_parent_symlink_rejected_before_source_io=true");
   console.log("output_parent_replacement_zero_foreign_writes=true");
   console.log("unsafe_output_parent_rejected_before_source_io=true");
+  console.log("runtime_directory_creation_absent=true");
+  console.log("create_only_collision_preserves_foreign_generation=true");
   console.log(`cases=${cases}`);
 } finally {
   for (const timer of activeIntervals) clearInterval(timer);
