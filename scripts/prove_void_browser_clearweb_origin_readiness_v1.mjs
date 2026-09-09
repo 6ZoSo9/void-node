@@ -3,6 +3,8 @@
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
+import os from "node:os";
+import { execFileSync } from "node:child_process";
 
 import {
   MARKER,
@@ -13,6 +15,7 @@ import {
   canonicalClearwebOrigin,
   evaluateClearwebOriginReadiness,
   holdReceipt,
+  verifyRepository,
 } from "../ops/mainnet0/survey_void_browser_clearweb_origin_readiness_v1.mjs";
 
 const ROOT = process.cwd();
@@ -64,6 +67,7 @@ const REQUIRED_CONTEXT = [
   "ops/mainnet0/survey_void_browser_clearweb_origin_readiness_v1.mjs",
   "schemas/void-browser-clearweb-origin-readiness-v1.schema.json",
   "scripts/prove_void_browser_clearweb_origin_readiness_v1.mjs",
+  "scripts/prove_void_browser_clearweb_origin_response_bounds_v1.mjs",
 ];
 const NOW = Date.parse("2026-08-01T17:45:00.000Z");
 const OBSERVED_AT = new Date(NOW).toISOString();
@@ -316,6 +320,76 @@ for (const required of [
 ]) {
   assert.ok(documentation.includes(required), `documentation missing: ${required}`);
 }
+
+// Synthetic Git repositories only; no live survey or remote Git operation.
+let provenanceCases = 0;
+const fixtureRoot = fs.mkdtempSync(path.join(os.tmpdir(), "void-browser-provenance-"));
+const fixtureEnv = {PATH: "/usr/bin:/bin", LC_ALL: "C", GIT_CONFIG_NOSYSTEM: "1", GIT_CONFIG_GLOBAL: "/dev/null", GIT_CONFIG_SYSTEM: "/dev/null"};
+const fixtureGit = (root, ...args) => execFileSync("/usr/bin/git", ["-C", root, ...args], {env: fixtureEnv, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"]}).trim();
+const paths = [...new Set([...REQUIRED_CONTEXT,
+  ".github/workflows/void-browser-clearweb-origin-readiness-v1.yml",
+  "docs/operations/void-browser-clearweb-origin-readiness-v1.md",
+  "integrations/browser/void-browser-agent-access-kit-v1/core.mjs",
+  "integrations/browser/void-browser-agent-access-kit-v1/manifest.json",
+])];
+const savedEnvironment = {...process.env};
+try {
+  for (const key of Object.keys(process.env)) if (key.startsWith("GIT_")) delete process.env[key];
+  process.env.PATH = "/usr/bin:/bin";
+  const repositories = ["a", "b"].map(name => {
+    const root = path.join(fixtureRoot, name); fs.mkdirSync(root);
+    fixtureGit(root, "init", "--quiet");
+    fixtureGit(root, "config", "user.name", "Source proof fixture");
+    fixtureGit(root, "config", "user.email", "fixture@example.invalid");
+    for (const relative of paths) {
+      const target = path.join(root, relative); fs.mkdirSync(path.dirname(target), {recursive: true});
+      fs.copyFileSync(path.join(ROOT, relative), target);
+      fs.chmodSync(target, fs.statSync(path.join(ROOT, relative)).mode & 0o777);
+    }
+    fs.writeFileSync(path.join(root, "fixture-identity"), name);
+    fixtureGit(root, "add", "--", ...paths, "fixture-identity");
+    fixtureGit(root, "commit", "--quiet", "-m", "Synthetic source generation");
+    return {root, head: fixtureGit(root, "rev-parse", "HEAD")};
+  });
+  const [a, b] = repositories;
+  assert.notEqual(a.head, b.head);
+  assert.equal(verifyRepository(a.root, a.head, false).head, a.head); provenanceCases += 1;
+  assert.throws(() => verifyRepository(a.root, b.head, false), /repository head mismatch/); provenanceCases += 1;
+  process.env.GIT_DIR = path.join(b.root, ".git"); process.env.GIT_WORK_TREE = b.root;
+  assert.throws(() => verifyRepository(a.root, b.head, false), /ambient Git overrides/); provenanceCases += 1;
+  delete process.env.GIT_DIR; delete process.env.GIT_WORK_TREE;
+  for (const key of ["GIT_COMMON_DIR", "GIT_INDEX_FILE", "GIT_OBJECT_DIRECTORY", "GIT_ALTERNATE_OBJECT_DIRECTORIES", "GIT_NAMESPACE", "GIT_CONFIG_COUNT", "GIT_CONFIG_PARAMETERS", "GIT_CONFIG_GLOBAL", "GIT_CONFIG_SYSTEM", "GIT_EXEC_PATH", "GIT_REPLACE_REF_BASE", "GIT_CONFIG", "GIT_SHALLOW_FILE"]) {
+    process.env[key] = "untrusted-fixture-override";
+    assert.throws(() => verifyRepository(a.root, a.head, false), /ambient Git overrides/, key);
+    delete process.env[key]; provenanceCases += 1;
+  }
+  const bin = path.join(fixtureRoot, "bin"); fs.mkdirSync(bin);
+  const marker = path.join(fixtureRoot, "shadow-executed");
+  const fakeGit = path.join(bin, "git");
+  fs.writeFileSync(fakeGit, `#!/bin/sh\ntouch '${marker}'\nexit 0\n`, {mode: 0o755});
+  process.env.PATH = `${bin}:/usr/bin:/bin`;
+  assert.throws(() => verifyRepository(a.root, a.head, false), /PATH does not select/);
+  assert.equal(fs.existsSync(marker), false); provenanceCases += 1;
+  process.env.PATH = "/usr/bin:/bin";
+  fixtureGit(a.root, "config", "core.worktree", b.root);
+  assert.throws(() => verifyRepository(a.root, a.head, false), /Git worktree does not match/); provenanceCases += 1;
+  fixtureGit(a.root, "config", "--unset", "core.worktree");
+  const target = paths[0];
+  fixtureGit(a.root, "update-index", "--assume-unchanged", "--", target);
+  fs.appendFileSync(path.join(a.root, target), "\n");
+  assert.equal(fixtureGit(a.root, "status", "--porcelain"), "");
+  assert.throws(() => verifyRepository(a.root, a.head, false), /required source differs from selected commit/); provenanceCases += 1;
+  fs.copyFileSync(path.join(ROOT, target), path.join(a.root, target));
+  fixtureGit(a.root, "update-index", "--no-assume-unchanged", "--", target);
+  assert.equal(verifyRepository(a.root, a.head, false).head, a.head); provenanceCases += 1;
+} finally {
+  for (const key of Object.keys(process.env)) if (!(key in savedEnvironment)) delete process.env[key];
+  Object.assign(process.env, savedEnvironment);
+  fs.rmSync(fixtureRoot, {recursive: true, force: true});
+}
+console.log(`repository_provenance_cases=${provenanceCases}`);
+console.log("git_environment_and_executable_bound=true");
+console.log("source_bytes_bound_to_selected_commit=true");
 
 console.log(`${MARKER}_PROOF_GREEN`);
 console.log("ready_scope_offline_signing_only=true");
