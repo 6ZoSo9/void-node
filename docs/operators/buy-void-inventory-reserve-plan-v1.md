@@ -21,6 +21,89 @@ It still does **not** deliver VOID.
 The inventory journal derives a deterministic pool key from the configured
 `pool_id` and stores immutable reservation records beneath that pool.
 
+Every reservation and paid-unreservable liability is now committed through a
+recoverable transaction spanning two distinct local authority trees.
+
+The mutable projection tree remains beneath
+`buy-void-inventory-reservation-v1/` and contains the local history index,
+expectations, reservations, and paid-unreservable obligations. A separate sibling
+authority, `buy-void-inventory-history-anchor-v1/`, is outside that journal
+subtree and retains the committed tail.
+
+Creation uses this order:
+
+1. atomically persist/fsync one exact pending-creation transaction in the anchor
+   authority;
+2. append/fsync the local history-index entry;
+3. create/fsync the expectation projection;
+4. create/fsync the reservation or obligation projection;
+5. append/fsync the separate anchor entry — the commit point;
+6. remove the pending transaction.
+
+If a process stops before the anchor commit, the next apply may roll forward only
+that exact pending transaction. Torn local-index/anchor tails are recoverable only
+when the torn bytes are a prefix of the exact pending entry. Preview/read remains
+fail-closed while a pending transaction exists.
+
+After the anchor commit, missing, renamed, malformed or substituted projections
+remain corruption and HOLD; they are not silently recreated. The local index and
+separate anchor must match sequence-for-sequence on kind, pool, record ID,
+fingerprint, and local index-entry SHA.
+
+A pool lock is now an atomically-created private regular owner file in the
+separate anchor authority. It binds PID, Linux process-start ticks, boot ID, and
+nonce, so PID reuse is not mistaken for the recorded owner. Reclamation first
+hard-links the observed inode into a generation-specific fence. A separate
+exclusive owner object serializes the fence-compare/public-name-delete window,
+so two reclaimers cannot both validate an old inode and let a delayed unlink
+remove a replacement lock. Reclaim ownership is a monotonic, generation-bound
+chain carrying the exact Linux process-instance identity. A live or identity-
+unknown reclaimer remains non-stealable; after an exact reclaimer process dies,
+one contender can exclusively publish the next generation and safely resume
+the still-fenced lock generation without deleting a replacement. A live external
+process instance remains busy unless
+its exact nonce-bound durable release terminal proves that logical ownership
+ended. A dead, PID-reused, same-process abandoned, or durably released lock is
+recoverable without manual reclaim-owner deletion. Exact readback plus an exact
+process-local generation/nonce retry identity resolves uncertain publication
+even when repeated parent-directory resync attempts fail before storage
+recovers. If physical release
+fails, another process can reclaim through the inode fence while the original
+process remains alive; without the release terminal, a live owner is
+non-stealable.
+The process-instance evidence is Linux `/proc` authority; if that evidence cannot
+be read or validated, mutation fails closed rather than guessing ownership.
+
+All durability-authoritative directories and files must be current-UID owned,
+private mode, regular/non-symlink objects. First-use directory creation fsyncs
+each parent namespace. Existing-path retries re-fsync publication directories.
+Each transaction opens the configured root one component at a time with
+directory/no-follow descriptors, verifies that the public root still identifies
+the pinned inode, and performs descendant work through that pinned
+`/proc/self/fd` namespace. Every durability-critical leaf read, create, link,
+unlink, append, repair, directory scan, and fsync additionally pins its exact
+private parent directory until the operation completes and rechecks that the
+public descendant still names the pinned generation. A configured-root or lower
+descendant generation change before or during the operation HOLDs; replacement
+trees are never consumed as durability evidence or used as publication
+authority.
+Single JSON records are bounded to 1 MiB; index and anchor JSONL are scanned in
+64 KiB chunks with 64 MiB aggregate and 256 KiB line limits while file identity
+is stable. Durable numeric/string/identity fields keep exact JSON runtime types,
+and type-sensitive fingerprints prevent values such as `"100"` and `100` from
+aliasing.
+
+The separate anchor detects coherent rollback of the journal subtree: truncating
+the local index by a valid suffix while deleting the matching expectation and
+record suffix leaves an anchor/index mismatch and HOLDs before capacity can
+reopen or liability can disappear.
+
+This contract does not claim protection against a coordinated rollback that also
+rewinds the separate anchor authority itself.
+
+Existing nonempty history without the required anchor lineage is not silently
+adopted; it remains held for explicit reviewed migration.
+
 Each reservation binds:
 
 - pool ID and inventory-policy version;
@@ -41,9 +124,9 @@ minus
 sum of every valid immutable reservation in the pool
 ```
 
-A pool-scoped exclusive lock serializes reservation writes. The implementation
-fails closed when the lock is already present. It does not automatically break
-a stale lock.
+A pool-scoped exclusive owner lock serializes reservation writes. A lock whose
+owner PID is still alive remains busy; a valid lock left by a dead process is
+reclaimed before the next mutation.
 
 The reservation is duplicate-safe. Replaying the same exact fulfillment intent
 returns the existing reservation. Reusing a payment, request, payment identity,
