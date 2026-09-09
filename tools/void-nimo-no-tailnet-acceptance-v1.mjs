@@ -13,6 +13,10 @@ const DEFAULT_HTTP_BASE = "http://127.0.0.1:4100";
 const MAX_MANIFEST_BYTES = 1024 * 1024;
 const TARGET_SAMPLE_COUNT = 3;
 const TARGET_SAMPLE_INTERVAL_MS = 1000;
+const HTTP_MAX_BYTES = 2 * 1024 * 1024;
+const HTTP_MAX_READS = 1024;
+const HTTP_DEADLINE_MS = 10_000;
+const HTTP_CLEANUP_MS = 250;
 const NETWORK_ENV_KEYS = Object.freeze([
   "BOOTSTRAP_ADDRS",
   "VOID_FOLLOWER_AUTOSTART_PEERS",
@@ -343,17 +347,90 @@ function revalidateLocalBinding(binding) {
       current.target_head !== binding.target_head) fail("bootstrap target generation changed during observation");
 }
 
-async function fetchJson(url, maxBytes = 2 * 1024 * 1024) {
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 10_000);
+async function cancelBodyBounded(body) {
+  if (!body) return;
+  let timer;
   try {
-    const response = await fetch(url, { redirect: "error", signal: controller.signal });
-    if (!response.ok) fail(`${url} returned HTTP ${response.status}`);
-    const bytes = Buffer.from(await response.arrayBuffer());
-    if (bytes.length > maxBytes) fail(`${url} exceeded response ceiling`);
-    return JSON.parse(bytes.toString("utf8"));
+    await Promise.race([
+      Promise.resolve().then(() => body.cancel()).catch(() => undefined),
+      new Promise(resolve => { timer = setTimeout(resolve, HTTP_CLEANUP_MS); }),
+    ]);
   } finally {
     clearTimeout(timer);
+  }
+}
+
+async function fetchJson(url) {
+  const controller = new AbortController();
+  const expiresAt = performance.now() + HTTP_DEADLINE_MS;
+  let timer, response, reader, complete = false;
+  const deadline = new Promise((_, reject) => {
+    timer = setTimeout(() => {
+      reject(new Error("HTTP request deadline exceeded"));
+      controller.abort();
+    }, HTTP_DEADLINE_MS);
+  });
+  const checkDeadline = () => {
+    if (performance.now() >= expiresAt || controller.signal.aborted) fail("HTTP request deadline exceeded");
+  };
+  const withinDeadline = async operation => {
+    const value = await Promise.race([operation, deadline]);
+    checkDeadline();
+    return value;
+  };
+  try {
+    response = await Promise.race([fetch(url, {
+      redirect: "error", signal: controller.signal,
+      headers: { accept: "application/json", "accept-encoding": "identity" },
+    }), deadline]);
+    checkDeadline();
+    if (response.status !== 200 || response.redirected) fail("HTTP evidence requires unredirected status 200");
+    const mediaType = response.headers.get("content-type") || "";
+    if (!/^application\/json(?:\s*;\s*charset\s*=\s*(?:utf-8|"utf-8"))?$/i.test(mediaType.trim())) {
+      fail("HTTP evidence requires application/json with optional UTF-8 charset");
+    }
+    const encoding = response.headers.get("content-encoding");
+    if (encoding !== null && encoding.toLowerCase() !== "identity") fail("HTTP content encoding is unsupported");
+    const length = response.headers.get("content-length");
+    let declared;
+    if (length !== null) {
+      if (!/^(0|[1-9][0-9]{0,6})$/.test(length)) fail("HTTP content length is noncanonical");
+      declared = Number(length);
+      if (declared < 1 || declared > HTTP_MAX_BYTES) fail("HTTP declared length exceeds response ceiling or is empty");
+    }
+    const transfer = response.headers.get("transfer-encoding");
+    if (transfer !== null && (transfer.toLowerCase() !== "chunked" || length !== null)) {
+      fail("HTTP transfer framing is ambiguous or unsupported");
+    }
+    if (!response.body) fail("HTTP evidence body is missing");
+    reader = response.body.getReader();
+    // One fixed retention buffer; chunks are checked before copying. The fetch
+    // implementation owns its incoming chunk/socket buffers, outside this cap.
+    const bytes = Buffer.alloc(HTTP_MAX_BYTES);
+    let total = 0, eof = false;
+    for (let reads = 0; reads < HTTP_MAX_READS; reads += 1) {
+      checkDeadline();
+      const { value, done } = await withinDeadline(reader.read());
+      if (done) { eof = true; break; }
+      if (!(value instanceof Uint8Array)) fail("HTTP body chunk is not bytes");
+      if (value.byteLength > HTTP_MAX_BYTES - total) fail("HTTP streamed body exceeded response ceiling");
+      if (declared !== undefined && value.byteLength > declared - total) fail("HTTP body exceeds declared length");
+      bytes.set(value, total);
+      total += value.byteLength;
+    }
+    if (!eof) fail("HTTP body exceeded read ceiling");
+    if (total === 0 || (declared !== undefined && total !== declared)) fail("HTTP body length mismatch or empty body");
+    const text = new TextDecoder("utf-8", { fatal: true, ignoreBOM: true }).decode(bytes.subarray(0, total));
+    const parsed = JSON.parse(text);
+    checkDeadline();
+    complete = true;
+    return parsed;
+  } finally {
+    clearTimeout(timer);
+    controller.abort();
+    if (!complete) await cancelBodyBounded(reader || response?.body);
+    try { reader?.releaseLock(); }
+    catch (error) { if (complete) throw error; }
   }
 }
 

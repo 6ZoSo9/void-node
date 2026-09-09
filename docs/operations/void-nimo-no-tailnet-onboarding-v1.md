@@ -46,11 +46,45 @@ The local file read is capped at 1 MiB and 64 reads; each resolver subprocess ha
 a 60-second deadline. These are cooperative observations, not an atomic snapshot
 or hostile namespace custody. An unobserved change-and-restore is not excluded.
 
-This closes only the target-observation source seam. Public authenticated P2P
+The source repairs cover target observations and bounded HTTP acquisition. Public authenticated P2P
 introduction, fresh-state/session provenance, the actual node's runtime/config
-and follower-range identity, continuous no-Tailnet evidence, strict bounded HTTP
-admission and real-node orchestration remain separate open requirements. The
+and follower-range identity, continuous no-Tailnet evidence, canonical peer-record
+schema admission and real-node orchestration remain separate open requirements. The
 restricted synchronization gateway must expose only its existing read contract.
+
+## Bounded HTTP evidence acquisition
+
+The former reader called `arrayBuffer()` before checking its 2 MiB ceiling. The
+proof executes that exact predecessor and observes 2,097,153 bytes retained before
+HOLD. Rejection after whole-body buffering did not enforce an acquisition limit.
+
+The current reader admits only unredirected HTTP 200 JSON responses. It requires
+`application/json` with an optional UTF-8 charset, identity or absent content
+encoding, and an absent or canonical positive decimal content length no larger
+than 2,097,152 bytes. Declared oversize, malformed length, compressed bodies and
+conflicting/unsupported transfer framing are rejected before acquiring a reader.
+An undeclared length is allowed; chunked transfer must not also declare a length.
+
+One fixed 2 MiB retention buffer replaces whole-body buffering. Each byte chunk
+is counted before copying; the first chunk exceeding the remaining capacity or
+declared length causes HOLD without another read. At most 1,024 read calls,
+including EOF, are permitted, so endless empty or tiny chunks cannot run forever.
+EOF and an exact declared-length match are required. Invalid UTF-8, a JSON BOM,
+empty/truncated bodies and invalid JSON syntax return HOLD.
+
+A monotonic 10-second total request deadline covers headers and all body reads;
+it is not renewed for each chunk and cannot be extended by wall-clock rollback.
+Pending headers/reads race that deadline independently of cooperative abort.
+Every owned response is aborted on retirement; failures cancel the body/reader
+with a separate 250 ms cleanup allowance and release any acquired reader lock.
+Cancellation rejection, exceptions or a cancellation promise that never settles
+cannot convert rejection into success or leave the CLI awaiting cleanup forever.
+
+The byte ceiling describes the reader's retained body buffer. It is not a bound
+on fetch/socket buffers, an incoming chunk allocated by the transport, decoded
+strings, parsed objects, total process RSS or operating-system scheduling. The
+existing peer-record schema and local runtime/session authority HOLDS are not
+closed by successful HTTP acquisition.
 
 ## Future operator sequence after independent acceptance
 
@@ -127,6 +161,15 @@ inside Node VM modules, with process/filesystem/resolver/HTTP boundaries simulat
 It reproduces the historical false green and runs 40 current CLI cases, including
 all three observations, changed/re-pinned manifest content, missing/duplicate/
 mixed resolver IDs, end-of-interval expiry and the maximum multi-seed target.
+It separately runs 55 HTTP admission cases: 48 HOLD adversaries and seven
+target-observation-only controls. Those cases measure reads, body copies,
+cancellation, lock release and timer retirement through the actual CLI. They
+cover exact byte/read ceilings, first-byte overflow, declared-length mismatch,
+malformed framing/encoding, split UTF-8 codepoints, stalled headers/body/cleanup,
+late headers and wall-clock rollback. The deadline tests advance a virtual
+monotonic clock while checking the real requested timer values; they do not
+claim measured wall-clock network performance. Both exact predecessor sources
+are independently hash-pinned in the proof.
 No test starts a node or makes a real network request. Node 22/24/26 execute this
 wall on the exact candidate integrated with current main. Workflow triggers cover
 the target checker, canonical resolver, seed helpers, manifest and engine inputs;

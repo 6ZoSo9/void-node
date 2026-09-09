@@ -205,13 +205,15 @@ assert.match(workflowText, /prove_void_nimo_no_tailnet_acceptance_v1\.mjs/);
 // substituted; no production function is rewritten or replaced by an oracle.
 async function runCli(sourceText, options = {}) {
   const output = [], errors = [], trace = [], waits = [];
-  let clock = proofNow, opened = 0, resolverCalls = 0, requestCount = 0, exitCode = 0;
+  const http = [], httpTimers = [], allocations = [];
+  let largestRetained = 0;
+  let clock = proofNow, wallShift = 0, opened = 0, resolverCalls = 0, requestCount = 0, exitCode = 0;
   const files = new Map(), timers = new Set();
   const manifest = options.manifest || stable;
   const raw = Buffer.from(JSON.stringify(manifest, null, 2) + "\n");
   const file = `${process.cwd()}/tools/void-nimo-no-tailnet-acceptance-v1.mjs`;
   const stop = new Error("hermetic CLI exit");
-  class Clock extends Date { static now() { return clock; } }
+  class Clock extends Date { static now() { return clock + wallShift; } }
   const fixtureFs = {
     constants: fs.constants,
     readFileSync(name) { // exact predecessor API
@@ -269,8 +271,9 @@ async function runCli(sourceText, options = {}) {
     if (resolverCalls === 2 && options.expireAtFinalResolver) clock = Date.parse(manifest.expires_at);
     return result("https://seed.voidchain.org\n", lines.join("\n"), options.resolverStatus || 0);
   } };
-  const fetch = async url => {
+  const fetch = async (url, settings) => {
     assert.equal(new URL(url).origin, "http://127.0.0.1:4100");
+    assert.equal(settings.redirect, "error");
     const route = new URL(url).pathname, index = Math.floor(requestCount / 4);
     requestCount += 1;
     const observed = (options.heads || [1951058, 1951058, 1951058])[index];
@@ -281,12 +284,89 @@ async function runCli(sourceText, options = {}) {
     } else if (route === "/blocks/latest/number2.json") body = { number: options.latestHead ?? observed };
     else if (route === "/p2p/peers") body = options.peers || { connected: [{ id: "peer" }], verifiedPeers: [{ node_id: "peer" }] };
     else throw new Error(`unexpected HTTP route ${route}`);
-    return new Response(JSON.stringify(body));
+    const spec = requestCount === (options.http?.atRequest || 1) ? (options.http || {}) : {};
+    const record = { request: requestCount, reads: 0, acquired_bytes: 0, reader_acquired: 0,
+      cancelled: 0, released: 0, aborted: false, array_buffer_calls: 0, array_buffer_bytes: 0 };
+    http.push(record);
+    settings.signal.addEventListener("abort", () => { record.aborted = true; }, { once: true });
+    if (spec.stallHeaders) return new Promise(() => {});
+    const payload = spec.raw ?? Buffer.from(JSON.stringify(body));
+    const headers = new Headers({ "content-type": "application/json", ...spec.headers });
+    for (const name of spec.omitHeaders || []) headers.delete(name);
+    const scripted = spec.chunks || spec.raw || spec.stallReadAt || spec.emptyReads || spec.readErrorAt || spec.invalidChunk;
+    const native = scripted ? undefined : new Response(payload).body;
+    let nativeReader, chunkIndex = 0;
+    const chunks = spec.chunks || [payload];
+    const cancel = () => {
+      record.cancelled += 1;
+      if (spec.cancel === "stall") return new Promise(() => {});
+      if (spec.cancel === "throw") throw new Error("fixture cancellation threw");
+      if (spec.cancel === "reject") return Promise.reject(new Error("fixture cancellation rejected"));
+      return nativeReader ? nativeReader.cancel() : native?.cancel();
+    };
+    const bodyStream = {
+      cancel,
+      getReader() {
+        record.reader_acquired += 1;
+        nativeReader = native?.getReader();
+        return { cancel,
+          releaseLock() { record.released += 1; nativeReader?.releaseLock(); },
+          async read() {
+            record.reads += 1;
+            if (spec.advancePerRead) clock += spec.advancePerRead;
+            if (spec.wallClockRollback) wallShift -= 60_000;
+            if (record.reads === spec.stallReadAt) return new Promise(() => {});
+            if (record.reads === spec.readErrorAt) throw new Error("fixture body read failed");
+            if (spec.emptyReads) return { done: false, value: new Uint8Array() };
+            if (spec.invalidChunk) return { done: false, value: "not bytes" };
+            const row = nativeReader ? await nativeReader.read() :
+              chunkIndex < chunks.length ? { done: false, value: chunks[chunkIndex++] } : { done: true };
+            if (!row.done) record.acquired_bytes += row.value.byteLength;
+            return row;
+          },
+        };
+      },
+    };
+    if (spec.advanceAtHeaders) clock += spec.advanceAtHeaders;
+    return {
+      status: spec.status || 200, ok: (spec.status || 200) >= 200 && (spec.status || 200) < 300,
+      redirected: spec.redirected || false, headers, body: spec.missingBody ? null : bodyStream,
+      async arrayBuffer() { // predecessor only: measure its post-retention check
+        record.array_buffer_calls += 1;
+        const bytes = Buffer.concat(chunks);
+        record.array_buffer_bytes += bytes.length;
+        return bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength);
+      },
+    };
   };
-  const context = vm.createContext({ Buffer, URL, Date: Clock, structuredClone, AbortController, fetch,
+  const observedBuffer = new Proxy(Buffer, { get(target, key) {
+    if (key !== "alloc") return Reflect.get(target, key);
+    return size => {
+      allocations.push(size);
+      const buffer = Buffer.alloc(size);
+      buffer.set = (chunk, offset = 0) => {
+        largestRetained = Math.max(largestRetained, offset + chunk.byteLength);
+        return Uint8Array.prototype.set.call(buffer, chunk, offset);
+      };
+      return buffer;
+    };
+  } });
+  const context = vm.createContext({ Buffer: observedBuffer, Uint8Array, TextDecoder,
+    URL, Date: Clock, performance: { now: () => clock - proofNow }, structuredClone, AbortController, fetch,
     setTimeout(callback, delay) {
       if (delay === 1000) { clock += delay; waits.push(delay); }
-      const timer = setTimeout(callback, delay === 1000 ? 0 : delay); timers.add(timer); return timer;
+      if (delay === 10_000 || delay === 250) httpTimers.push(delay);
+      const targetRequest = options.http?.atRequest || 1;
+      const accelerated = options.fastHttpDeadlines && (
+        (delay === 10_000 && requestCount + 1 === targetRequest &&
+          (options.http.stallHeaders || options.http.stallReadAt)) ||
+        (delay === 250 && requestCount === targetRequest && options.http.cancel === "stall"));
+      const timer = setTimeout(() => {
+        timers.delete(timer);
+        if (accelerated) clock += delay;
+        callback();
+      }, delay === 1000 ? 0 : accelerated ? 5 : delay);
+      timers.add(timer); return timer;
     },
     clearTimeout(timer) { clearTimeout(timer); timers.delete(timer); },
     console: { log: value => output.push(String(value)), error: value => errors.push(String(value)) },
@@ -317,9 +397,14 @@ async function runCli(sourceText, options = {}) {
   });
   try { await entry.evaluate(); }
   catch (error) { if (error !== stop) throw error; }
-  finally { for (const timer of timers) clearTimeout(timer); }
+  finally {
+    const leaked = timers.size;
+    for (const timer of timers) clearTimeout(timer);
+    assert.equal(leaked, 0, "CLI timer leaked");
+  }
   assert.equal(files.size, 0, "manifest descriptor leaked");
-  return { output, errors, exitCode, opened, resolverCalls, requestCount, waits, trace };
+  return { output, errors, exitCode, opened, resolverCalls, requestCount, waits, trace,
+    http, httpTimers, allocations, largestRetained, elapsed: clock - proofNow };
 }
 
 const legacy = spawnSync("/usr/bin/git", ["--no-replace-objects", "show",
@@ -404,6 +489,156 @@ assert.equal(cases.length, 40);
 assert.equal(new Set(cases.map(row => row.id)).size, cases.length);
 console.log(canonicalJson({ marker: "VOID_NIMO_QUALIFIED_TARGET_CLI_PROOF_V1", node: process.version,
   historical_false_green_reproduced: true, case_count: cases.length, cases,
+  real_network_requests: 0, node_started: false, runtime_session_bound: false, public_onboarding_accepted: false }));
+
+// HTTP admission controls remain a separate closed population from the 40
+// target-generation cases above. All execute the unchanged CLI entry path.
+const HTTP_LIMIT = 2 * 1024 * 1024;
+const healthBytes = Buffer.from('{"ok":true}');
+const paddedHealth = size => Buffer.concat([healthBytes, Buffer.alloc(size - healthBytes.length, 0x20)]);
+const oversized = paddedHealth(HTTP_LIMIT + 1);
+const httpPredecessor = spawnSync("/usr/bin/git", ["--no-replace-objects", "show",
+  "8f112ec2273f18b387bdc1142412671b3660c6d1:tools/void-nimo-no-tailnet-acceptance-v1.mjs"],
+  { encoding: "utf8", timeout: 10_000, maxBuffer: 64 * 1024 });
+assert.equal(httpPredecessor.status, 0);
+assert.equal(sha256Hex(httpPredecessor.stdout), "901d1cba902b5668b29899e4341a386d2a9c0118e60788170b94f1849ae1e80b");
+const historicalBody = await runCli(httpPredecessor.stdout, { http: { raw: oversized } });
+assert.equal(historicalBody.exitCode, 2);
+assert.match(historicalBody.errors.join("\n"), /exceeded response ceiling/);
+assert.equal(historicalBody.http[0].array_buffer_bytes, HTTP_LIMIT + 1,
+  "predecessor must retain oversized body before rejecting it");
+
+const httpCases = [];
+function boundedHttp(r) {
+  assert(r.allocations.every(size => size <= HTTP_LIMIT), "oversized retention allocation");
+  assert(r.largestRetained <= HTTP_LIMIT, "chunk copied beyond retention ceiling");
+  for (const row of r.http) {
+    assert.equal(row.array_buffer_calls, 0, "whole-body acquisition returned");
+    assert.equal(row.released, row.reader_acquired, "reader lock leaked");
+    assert.equal(row.aborted, true, "request signal not retired");
+    assert(row.reads <= 1024, "read count exceeded");
+  }
+}
+async function rejectHttp(id, spec, reason, expected = {}, options = {}) {
+  const r = await runCli(toolText, { http: spec, ...options });
+  assert.equal(r.exitCode, 2, `${id}: ${r.errors.join("\n")}`);
+  assert.equal(r.output.some(line => line.endsWith("_GREEN")), false, id);
+  assert.match(r.errors.join("\n"), reason, id);
+  assert.equal(r.requestCount, spec.atRequest || 1, "read continued after rejection");
+  boundedHttp(r);
+  const last = r.http.at(-1);
+  assert.equal(last.cancelled, spec.stallHeaders || spec.missingBody ? 0 : 1, "rejection cancellation count");
+  for (const [key, value] of Object.entries(expected)) assert.equal(last[key], value, `${id}: ${key}`);
+  httpCases.push({ id, observed: "HOLD", reads: last.reads, retained_bytes: r.largestRetained,
+    cancelled: last.cancelled, released: last.released });
+  return r;
+}
+async function acceptHttp(id, spec, expected = {}) {
+  const r = await runCli(toolText, { http: spec });
+  assert.equal(r.exitCode, 0, `${id}: ${r.errors.join("\n")}`);
+  assert(r.output.includes(GREEN));
+  assert(r.output.includes("public_onboarding_accepted=false"));
+  assert(r.output.includes("runtime_session_bound=false"));
+  assert.equal(r.requestCount, 12); assert.equal(r.resolverCalls, 2);
+  assert.deepEqual(r.waits, [1000, 1000]);
+  boundedHttp(r);
+  assert(r.http.every(row => row.reader_acquired === 1 && row.cancelled === 0));
+  for (const [key, value] of Object.entries(expected)) assert.equal(r.http[0][key], value, `${id}: ${key}`);
+  httpCases.push({ id, observed: "TARGET_OBSERVATIONS_ONLY", reads: r.http[0].reads,
+    retained_bytes: r.largestRetained, cancelled: 0, released: 1 });
+}
+await rejectHttp("declared-oversize-before-read", { headers: { "content-length": String(HTTP_LIMIT + 1) } },
+  /declared length exceeds/, { reads: 0, reader_acquired: 0, acquired_bytes: 0 });
+for (const [id, value] of [["negative", "-1"], ["fractional", "1.5"], ["exponent", "2e6"],
+  ["hex", "0x10"], ["leading-zero", "011"], ["duplicate", "11, 11"], ["unsafe", "9007199254740992"]]) {
+  await rejectHttp(`declared-length-${id}`, { headers: { "content-length": value } },
+    /content length is noncanonical/, { reads: 0, reader_acquired: 0 });
+}
+await rejectHttp("declared-empty", { headers: { "content-length": "0" } }, /declared length/, { reads: 0 });
+await rejectHttp("single-chunk-over-ceiling", { raw: oversized }, /streamed body exceeded/,
+  { reads: 1, acquired_bytes: HTTP_LIMIT + 1 });
+assert.equal(httpCases.at(-1).retained_bytes, 0, "oversized first chunk was retained");
+await rejectHttp("stream-over-ceiling-stops-at-first-extra-byte",
+  { chunks: [paddedHealth(HTTP_LIMIT), Buffer.from(" "), Buffer.from("must never be read")] },
+  /streamed body exceeded/, { reads: 2, acquired_bytes: HTTP_LIMIT + 1 });
+assert.equal(httpCases.at(-1).retained_bytes, HTTP_LIMIT);
+await rejectHttp("body-over-declared-length", { raw: healthBytes, headers: { "content-length": "10" } },
+  /body exceeds declared/, { reads: 1 });
+await rejectHttp("body-shorter-than-declared", { raw: healthBytes, headers: { "content-length": "12" } },
+  /body length mismatch/, { reads: 2 });
+for (const [id, spec, reads] of [
+  ["headers-stall", { stallHeaders: true }, 0],
+  ["first-body-read-stall", { stallReadAt: 1 }, 1],
+  ["body-stall-after-prefix", { chunks: [Buffer.from('{"ok":')], stallReadAt: 2 }, 2],
+]) {
+  const r = await rejectHttp(id, spec, /HTTP request deadline exceeded/, { reads }, { fastHttpDeadlines: true });
+  assert.equal(r.elapsed, 10_000); assert(r.httpTimers.includes(10_000));
+}
+await rejectHttp("slow-drip-crosses-total-deadline",
+  { chunks: [Buffer.from(" "), Buffer.from(" "), healthBytes], advancePerRead: 4000 },
+  /HTTP request deadline exceeded/, { reads: 3 });
+await rejectHttp("wall-clock-rollback-cannot-extend-deadline",
+  { chunks: [Buffer.from(" "), Buffer.from(" "), healthBytes], advancePerRead: 4000, wallClockRollback: true },
+  /HTTP request deadline exceeded/, { reads: 3 });
+await rejectHttp("headers-arrive-at-deadline-and-body-is-cancelled", { advanceAtHeaders: 10_000 },
+  /HTTP request deadline exceeded/, { reads: 0, reader_acquired: 0 });
+const fullTimeout = await rejectHttp("read-and-cleanup-both-stall", { stallReadAt: 1, cancel: "stall" },
+  /HTTP request deadline exceeded/, { reads: 1 }, { fastHttpDeadlines: true });
+assert.equal(fullTimeout.elapsed, 10_250);
+await rejectHttp("empty-chunk-stream-hits-read-ceiling", { emptyReads: true }, /exceeded read ceiling/, { reads: 1024 });
+await rejectHttp("missing-eof-at-read-ceiling", { chunks: Array.from({ length: 1024 }, () => Buffer.from(" ")) },
+  /exceeded read ceiling/, { reads: 1024 });
+await rejectHttp("truncated-json", { raw: Buffer.from('{"ok":') }, /JSON|Unexpected|position/);
+await rejectHttp("invalid-utf8", { raw: Buffer.from([0xff]) }, /encoded data|encoding/);
+await rejectHttp("json-bom-rejected", { raw: Buffer.concat([Buffer.from([0xef, 0xbb, 0xbf]), healthBytes]) }, /JSON|Unexpected/);
+await rejectHttp("non-json-body", { raw: Buffer.from("<html>broken</html>") }, /JSON|Unexpected/);
+await rejectHttp("empty-body", { raw: Buffer.alloc(0) }, /length mismatch or empty/);
+await rejectHttp("body-read-error", { readErrorAt: 1 }, /fixture body read failed/, { reads: 1 });
+await rejectHttp("body-error-after-prefix", { chunks: [Buffer.from('{"ok":')], readErrorAt: 2 },
+  /fixture body read failed/, { reads: 2 });
+await rejectHttp("missing-body", { missingBody: true }, /body is missing/, { reads: 0 });
+await rejectHttp("non-byte-chunk", { invalidChunk: true }, /chunk is not bytes/, { reads: 1 });
+for (const status of [206, 302, 500]) {
+  await rejectHttp(`status-${status}-before-read`, { status }, /unredirected status 200/, { reads: 0 });
+}
+await rejectHttp("redirected-response", { redirected: true }, /unredirected status 200/, { reads: 0 });
+for (const [id, value] of [["html", "text/html"], ["wrong-charset", "application/json; charset=utf-16"],
+  ["duplicate", "application/json, application/json"]]) {
+  await rejectHttp(`media-type-${id}`, { headers: { "content-type": value } }, /requires application\/json/, { reads: 0 });
+}
+await rejectHttp("media-type-missing", { omitHeaders: ["content-type"] }, /requires application\/json/, { reads: 0 });
+await rejectHttp("compressed-evidence", { headers: { "content-encoding": "gzip" } }, /encoding is unsupported/, { reads: 0 });
+await rejectHttp("duplicate-content-encoding", { headers: { "content-encoding": "identity, identity" } }, /encoding is unsupported/, { reads: 0 });
+await rejectHttp("conflicting-transfer-framing", { headers: { "content-length": "11", "transfer-encoding": "chunked" } },
+  /transfer framing/, { reads: 0 });
+await rejectHttp("unsupported-transfer-framing", { headers: { "transfer-encoding": "gzip" } }, /transfer framing/, { reads: 0 });
+for (const [id, spec] of [["header-rejection", { status: 500 }], ["body-rejection", { raw: oversized }]]) {
+  const r = await rejectHttp(`cancel-stall-${id}`, { ...spec, cancel: "stall" },
+    /status 200|streamed body exceeded/, {}, { fastHttpDeadlines: true });
+  assert.equal(r.elapsed, 250); assert(r.httpTimers.includes(250));
+}
+for (const cancel of ["throw", "reject"]) {
+  await rejectHttp(`cancel-${cancel}-preserves-hold`, { raw: oversized, cancel }, /streamed body exceeded/);
+}
+await rejectHttp("third-observation-body-stall", { atRequest: 9, stallReadAt: 1 },
+  /HTTP request deadline exceeded/, { reads: 1 }, { fastHttpDeadlines: true });
+for (const size of [HTTP_LIMIT - 1, HTTP_LIMIT]) {
+  await acceptHttp(`unknown-length-${size}-bytes`, { raw: paddedHealth(size) }, { reads: 2, acquired_bytes: size });
+}
+await acceptHttp("exact-ceiling-declared-body", { raw: paddedHealth(HTTP_LIMIT), headers: { "content-length": String(HTTP_LIMIT) } },
+  { reads: 2, acquired_bytes: HTTP_LIMIT });
+const unicodeHealth = Buffer.from('{"ok":true,"label":"€"}');
+const split = unicodeHealth.indexOf(Buffer.from("€")) + 1;
+await acceptHttp("utf8-codepoint-split-across-chunks", { chunks: [unicodeHealth.subarray(0, split), unicodeHealth.subarray(split)] }, { reads: 3 });
+await acceptHttp("eof-at-exact-read-ceiling", { chunks: [...Array.from({ length: 1022 }, () => Buffer.alloc(0)), healthBytes] }, { reads: 1024 });
+await acceptHttp("json-utf8-identity-headers", { headers: { "content-type": 'Application/JSON; charset="UTF-8"', "content-encoding": "identity" } });
+await acceptHttp("chunked-without-declared-length", { headers: { "transfer-encoding": "chunked" } });
+assert.equal(httpCases.length, 55);
+assert.equal(new Set(httpCases.map(row => row.id)).size, httpCases.length);
+console.log(canonicalJson({ marker: "VOID_NIMO_HTTP_ADMISSION_CLI_PROOF_V1", node: process.version,
+  predecessor_overretention_reproduced: true, predecessor_retained_bytes: HTTP_LIMIT + 1,
+  retention_ceiling_bytes: HTTP_LIMIT, read_ceiling: 1024, request_deadline_ms: 10_000,
+  rejection_cleanup_ms: 250, case_count: httpCases.length, cases: httpCases,
   real_network_requests: 0, node_started: false, runtime_session_bound: false, public_onboarding_accepted: false }));
 
 console.log("VOID_NIMO_NO_TAILNET_ACCEPTANCE_V1_PROOF_GREEN");
