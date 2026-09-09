@@ -66,12 +66,31 @@ def main():
         def loose(kind,oid,data):
             path=root/'.git/objects'/oid[:2]/oid[2:]; path.parent.mkdir(exist_ok=True)
             path.write_bytes(zlib.compress(kind.encode()+b' '+str(len(data)).encode()+b'\0'+data))
-        loose('commit',args.head,commit+b'corrupt object control\n')
+        # Give Git exactly one object source. A shared clone can prefer a valid
+        # packed/alternate copy over a corrupt loose duplicate at the same OID.
+        objects={('commit',args.head):commit}; entries={}
+        for name in E.PATHS:
+            oid=source['tree']
+            for part in name.split('/'):
+                if oid not in entries:
+                    objects[('tree',oid)]=git(root,'cat-file','tree',oid)
+                    entries[oid]=E.tree_entries(root,oid)
+                _,oid=entries[oid][part.encode()]
+            objects[('blob',oid)]=git(root,'cat-file','blob',oid)
+        E.require(not list((root/'.git/objects/pack').glob('*.pack')),'fixture unexpectedly has local packs')
+        for (kind,oid),data in objects.items(): loose(kind,oid,data)
+        (root/'.git/objects/info/alternates').unlink()
+        E.require(E.source_identity(root,args.head)==source,'isolated object fixture baseline differs')
+        corrupt_commit=commit+b'corrupt object control\n'
+        loose('commit',args.head,corrupt_commit)
+        E.require(git(root,'cat-file','commit',args.head)==corrupt_commit,'commit corruption was not observed')
         reject('raw_commit_identity',lambda:E.source_identity(root,args.head))
         reject('bootstrap_raw_commit_identity',lambda:M.git_blob_at_head(root,args.head,names[1]))
         loose('commit',args.head,commit)
         tree_data=git(root,'cat-file','tree',source['tree'])
-        loose('tree',source['tree'],tree_data[:-1]+bytes([tree_data[-1]^1]))
+        corrupt_tree=tree_data[:-1]+bytes([tree_data[-1]^1])
+        loose('tree',source['tree'],corrupt_tree)
+        E.require(git(root,'cat-file','tree',source['tree'])==corrupt_tree,'tree corruption was not observed')
         reject('raw_tree_identity',lambda:E.source_identity(root,args.head))
         reject('bootstrap_raw_tree_identity',lambda:M.git_blob_at_head(root,args.head,names[1]))
 
