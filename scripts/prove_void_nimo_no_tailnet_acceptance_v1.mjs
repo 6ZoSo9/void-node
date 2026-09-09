@@ -276,7 +276,7 @@ async function runCli(sourceText, options = {}) {
   };
   const fixtureProcess = {
     argv: [process.execPath, file, options.mode || "--post-sync"],
-    execPath: process.execPath, env: {}, cwd: () => process.cwd(),
+    execPath: process.execPath, env: options.environment || {}, cwd: () => process.cwd(),
     exit(code) { exitCode = code; throw stop; },
   };
   const result = (stdout = "", stderr = "", status = 0) => ({ stdout, stderr, status });
@@ -307,7 +307,7 @@ async function runCli(sourceText, options = {}) {
     return result("https://seed.voidchain.org\n", lines.join("\n"), options.resolverStatus || 0);
   } };
   const fetch = async (url, settings) => {
-    assert.equal(new URL(url).origin, "http://127.0.0.1:4100");
+    assert.equal(new URL(url).origin, options.expectedOrigin || "http://127.0.0.1:4100");
     assert.equal(settings.redirect, "error");
     const route = new URL(url).pathname, index = Math.floor(requestCount / 4);
     requestCount += 1;
@@ -789,6 +789,104 @@ console.log(canonicalJson({ marker: "VOID_NIMO_PEER_SCHEMA_CLI_PROOF_V1", node: 
   predecessor_malformed_peer_false_green_reproduced: true, producer_projection_executed: true,
   producer_sources: peerSourceIdentities, case_count: peerCases.length, cases: peerCases,
   real_network_requests: 0, node_started: false, runtime_session_bound: false, public_onboarding_accepted: false }));
+
+// Bind the fixed endpoint profile to the committed ordinary startup default.
+// This inspects shell source only; it does not execute startup or load .env.
+const startupPath = "run-void-node.sh";
+const startupBytes = fs.readFileSync(startupPath);
+const startupHead = spawnSync("/usr/bin/git", ["--no-replace-objects", "show", `HEAD:${startupPath}`],
+  { timeout: 10_000, maxBuffer: 2 * 1024 * 1024 });
+assert.equal(startupHead.status, 0);
+assert(startupBytes.equals(startupHead.stdout), "startup source differs from HEAD");
+assert.equal(startupBytes.toString("utf8").split('export HTTP_PORT="${HTTP_PORT:-4100}"').length - 1, 1,
+  "canonical HTTP default changed; reassess the fixed endpoint profile");
+assert.equal(workflowText.split(`'${startupPath}'`).length - 1, 2);
+const startupIdentity = { path: startupPath, sha256: sha256Hex(startupBytes),
+  git_blob: crypto.createHash("sha1").update(Buffer.from(`blob ${startupBytes.length}\0`)).update(startupBytes).digest("hex") };
+const originPredecessor = spawnSync("/usr/bin/git", ["--no-replace-objects", "show",
+  "5271688c084e2f35c0648c75d5962c00a5c06b7f:tools/void-nimo-no-tailnet-acceptance-v1.mjs"],
+  { encoding: "utf8", timeout: 10_000, maxBuffer: 64 * 1024 });
+assert.equal(originPredecessor.status, 0);
+assert.equal(sha256Hex(originPredecessor.stdout), "af2dc30eadf98079aea6d529672f23c2ae562e9e9317f9dbe10d49583c54e4f8");
+const remoteOrigin = "https://foreign-responder.example";
+const historicalOrigin = await runCli(originPredecessor.stdout, {
+  environment: { VOID_NIMO_LOCAL_HTTP_BASE: remoteOrigin }, expectedOrigin: remoteOrigin,
+});
+assert.equal(historicalOrigin.exitCode, 0);
+assert(historicalOrigin.output.includes(GREEN), "remote-responder false green not reproduced");
+assert.equal(historicalOrigin.requestCount, 12);
+boundedHttp(historicalOrigin);
+
+const originCases = [];
+async function rejectOrigin(id, environment, proxy = false, mode = "--post-sync") {
+  const r = await runCli(toolText, { environment, mode });
+  assert.equal(r.exitCode, 2, id);
+  assert.deepEqual(r.output, [], id);
+  assert.deepEqual(r.errors, ["VOID_NIMO_NO_TAILNET_ACCEPTANCE_V1_HOLD: " + (proxy ?
+    "local HTTP observations require HTTP proxy environment keys to be absent" :
+    "VOID_NIMO_LOCAL_HTTP_BASE must be exactly http://127.0.0.1:4100 or absent")], id);
+  assert.equal(r.requestCount, 0, id); assert.equal(r.resolverCalls, 0, id);
+  assert.equal(r.opened, 0, id); assert.equal(r.trace.length, 0, id);
+  assert.equal(r.allocations.length, 0, id); assert.equal(r.httpTimers.length, 0, id);
+  originCases.push({ id, observed: "HOLD", http_requests: 0, resolver_calls: 0, child_processes: 0 });
+}
+for (const [id, value] of [
+  ["foreign-perfect-responder", remoteOrigin], ["remote-http", "http://foreign-responder.example"],
+  ["lan", "http://192.168.1.50:4100"], ["tailnet", "http://100.64.0.1:4100"],
+  ["localhost-dns", "http://localhost:4100"], ["host-suffix", "http://127.0.0.1.example:4100"],
+  ["ipv6-loopback", "http://[::1]:4100"], ["mapped-ipv4", "http://[::ffff:127.0.0.1]:4100"],
+  ["short-ipv4", "http://127.1:4100"], ["integer-ipv4", "http://2130706433:4100"],
+  ["hex-ipv4", "http://0x7f000001:4100"], ["octal-ipv4", "http://0177.0.0.1:4100"],
+  ["other-loopback", "http://127.0.0.2:4100"], ["wildcard", "http://0.0.0.0:4100"],
+  ["custom-port", "http://127.0.0.1:4101"], ["missing-port", "http://127.0.0.1"],
+  ["padded-port", "http://127.0.0.1:04100"], ["https-loopback", "https://127.0.0.1:4100"],
+  ["trailing-slash", "http://127.0.0.1:4100/"], ["path", "http://127.0.0.1:4100/health"],
+  ["dot-path", "http://127.0.0.1:4100/a/.."], ["query", "http://127.0.0.1:4100?x=1"],
+  ["fragment", "http://127.0.0.1:4100#x"], ["userinfo", "http://fixture-user@127.0.0.1:4100"],
+  ["userinfo-host-trick", "http://127.0.0.1:4100@foreign-responder.example"],
+  ["encoded-host", "http://%31%32%37.0.0.1:4100"], ["uppercase-scheme", "HTTP://127.0.0.1:4100"],
+  ["leading-space", " http://127.0.0.1:4100"], ["trailing-space", "http://127.0.0.1:4100 "],
+  ["trailing-newline", "http://127.0.0.1:4100\n"], ["empty-override", ""],
+]) await rejectOrigin(id, { VOID_NIMO_LOCAL_HTTP_BASE: value });
+for (const key of ["HTTP_PROXY", "HTTPS_PROXY", "ALL_PROXY", "http_proxy", "https_proxy", "all_proxy"]) {
+  await rejectOrigin(`proxy-empty-${key}`, { [key]: "" }, true);
+  const environment = { NO_PROXY: "*", no_proxy: "127.0.0.1" };
+  Object.defineProperty(environment, key, { enumerable: true,
+    get() { throw new Error("proxy value must never be read"); } });
+  await rejectOrigin(`proxy-presence-without-value-read-${key}`, environment, true);
+}
+await rejectOrigin("preflight-foreign-responder", { VOID_NIMO_LOCAL_HTTP_BASE: remoteOrigin }, false, "--preflight");
+await rejectOrigin("preflight-proxy-present", { HTTPS_PROXY: "" }, true, "--preflight");
+for (const [id, environment, mode] of [
+  ["absent-override", {}, "--post-sync"],
+  ["exact-canonical-override", { VOID_NIMO_LOCAL_HTTP_BASE: "http://127.0.0.1:4100" }, "--post-sync"],
+  ["no-proxy-bypass-list-alone", { NO_PROXY: "*", no_proxy: "127.0.0.1" }, "--post-sync"],
+  ["preflight-canonical-origin", {}, "--preflight"],
+]) {
+  const r = await runCli(toolText, { environment, mode });
+  assert.equal(r.exitCode, 0, `${id}: ${r.errors.join("\n")}`);
+  assert(r.output.includes("local_http_base=http://127.0.0.1:4100"));
+  assert(r.output.includes("local_http_process_bound=false"));
+  const preflightOnly = mode === "--preflight";
+  assert(r.output.includes(preflightOnly ? "VOID_NIMO_NO_TAILNET_PREFLIGHT_V1_GREEN" : GREEN));
+  assert.equal(r.requestCount, preflightOnly ? 0 : 12);
+  assert.equal(r.resolverCalls, preflightOnly ? 1 : 2);
+  if (!preflightOnly) {
+    for (const key of ["runtime_session_bound", "fresh_join_proven", "public_onboarding_accepted"])
+      assert(r.output.includes(`${key}=false`));
+    boundedHttp(r);
+  }
+  originCases.push({ id, observed: preflightOnly ? "PREFLIGHT_ONLY" : "TARGET_OBSERVATIONS_ONLY",
+    http_requests: r.requestCount, resolver_calls: r.resolverCalls });
+}
+assert.equal(originCases.length, 49);
+assert.equal(new Set(originCases.map(row => row.id)).size, originCases.length);
+console.log(canonicalJson({ marker: "VOID_NIMO_LOCAL_HTTP_ORIGIN_CLI_PROOF_V1", node: process.version,
+  predecessor_remote_responder_false_green_reproduced: true, predecessor_http_requests: 12,
+  canonical_http_base: "http://127.0.0.1:4100", startup_source: startupIdentity,
+  case_count: originCases.length, cases: originCases, proxy_values_read: 0,
+  real_network_requests: 0, node_started: false, local_http_process_bound: false,
+  runtime_session_bound: false, public_onboarding_accepted: false }));
 
 console.log("VOID_NIMO_NO_TAILNET_ACCEPTANCE_V1_PROOF_GREEN");
 console.log("tailscale_required=false");

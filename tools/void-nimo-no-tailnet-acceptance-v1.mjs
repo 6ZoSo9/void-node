@@ -10,6 +10,9 @@ export const VOID_NIMO_NO_TAILNET_ACCEPTANCE_V1 =
 
 const HOLD_EXIT = 2;
 const DEFAULT_HTTP_BASE = "http://127.0.0.1:4100";
+const HTTP_PROXY_ENV_KEYS = Object.freeze([
+  "HTTP_PROXY", "HTTPS_PROXY", "ALL_PROXY", "http_proxy", "https_proxy", "all_proxy",
+]);
 const MAX_MANIFEST_BYTES = 1024 * 1024;
 const TARGET_SAMPLE_COUNT = 3;
 const TARGET_SAMPLE_INTERVAL_MS = 1000;
@@ -37,6 +40,21 @@ function plainObject(value, label) {
 
 function fail(message) {
   throw new Error(message);
+}
+
+function canonicalLocalHttpBase(environment) {
+  // Compare the original spelling; URL normalization must not admit aliases,
+  // userinfo, alternate ports or paths. Empty overrides are invalid, not defaults.
+  if (Object.hasOwn(environment, "VOID_NIMO_LOCAL_HTTP_BASE") &&
+      environment.VOID_NIMO_LOCAL_HTTP_BASE !== DEFAULT_HTTP_BASE) {
+    fail("VOID_NIMO_LOCAL_HTTP_BASE must be exactly http://127.0.0.1:4100 or absent");
+  }
+  // Inspect presence only: proxy values can contain credentials. Do not copy,
+  // parse or log them, and do not depend on runtime-specific NO_PROXY behavior.
+  if (HTTP_PROXY_ENV_KEYS.some(key => Object.hasOwn(environment, key))) {
+    fail("local HTTP observations require HTTP proxy environment keys to be absent");
+  }
+  return DEFAULT_HTTP_BASE;
 }
 
 function positiveHead(value, label) {
@@ -500,6 +518,7 @@ async function fetchJson(url) {
 }
 
 async function preflight() {
+  const base = canonicalLocalHttpBase(process.env);
   const source = assertRepoLease();
   const machine = assertMachineNoTailnetProduction();
   const manifest = localManifest();
@@ -507,6 +526,8 @@ async function preflight() {
   revalidateLocalBinding(manifest);
 
   console.log("=== VOID NIMO NO-TAILNET PREFLIGHT V1 ===");
+  console.log(`local_http_base=${base}`);
+  console.log("local_http_process_bound=false");
   console.log(`source_head=${source}`);
   console.log(`tailscale_binary_present=${machine.tailscale_binary_present}`);
   console.log(`tailscaled_process_present=${machine.tailscaled_process_present}`);
@@ -521,13 +542,13 @@ async function preflight() {
 }
 
 async function postSync() {
+  const base = canonicalLocalHttpBase(process.env);
   const source = assertRepoLease();
   const machine = assertMachineNoTailnetProduction();
   const manifest = localManifest();
   runCanonicalResolver(manifest);
   revalidateLocalBinding(manifest);
 
-  const base = String(process.env.VOID_NIMO_LOCAL_HTTP_BASE || DEFAULT_HTTP_BASE).replace(/\/$/, "");
   const observations = [];
   for (let index = 0; index < TARGET_SAMPLE_COUNT; index += 1) {
     if (index > 0) await new Promise(resolve => setTimeout(resolve, TARGET_SAMPLE_INTERVAL_MS));
@@ -548,6 +569,8 @@ async function postSync() {
   const { head, ...peers } = observations.at(-1);
 
   console.log("=== VOID NIMO NO-TAILNET POST-SYNC V1 ===");
+  console.log(`local_http_base=${base}`);
+  console.log("local_http_process_bound=false");
   console.log(`source_head=${source}`);
   console.log(`tailscale_binary_present=${machine.tailscale_binary_present}`);
   console.log(`tailnet_address_present=${machine.tailnet_address_present}`);

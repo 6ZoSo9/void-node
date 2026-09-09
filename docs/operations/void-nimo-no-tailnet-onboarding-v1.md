@@ -46,11 +46,42 @@ The local file read is capped at 1 MiB and 64 reads; each resolver subprocess ha
 a 60-second deadline. These are cooperative observations, not an atomic snapshot
 or hostile namespace custody. An unobserved change-and-restore is not excluded.
 
-The source repairs cover target observations, bounded HTTP acquisition and peer-record admission. Public authenticated P2P
+The source repairs cover target observations, bounded HTTP acquisition, peer-record admission and canonical local HTTP origin admission. Public authenticated P2P
 introduction, fresh-state/session provenance, the actual node's runtime/config
 and follower-range identity, continuous no-Tailnet evidence and real-node orchestration
 remain separate open requirements. The
 restricted synchronization gateway must expose only its existing read contract.
+
+## Canonical local HTTP origin
+
+Both CLI modes admit only the exact origin `http://127.0.0.1:4100`, matching the
+ordinary startup script's default HTTP port. `VOID_NIMO_LOCAL_HTTP_BASE` may be
+absent or contain that exact string. All other spellings return HOLD before any
+child process, resolver call, manifest read or HTTP request. This includes empty
+overrides, a trailing slash, alternate ports, URL paths/query/fragment/userinfo,
+DNS names, numeric address aliases, IPv6 and remote or private-network hosts.
+Custom HTTP ports, including 4101, are outside this fixed acceptance profile.
+
+`HTTP_PROXY`, `HTTPS_PROXY`, `ALL_PROXY` and their lowercase counterparts must
+also be absent, even if empty or paired with `NO_PROXY`. Only key presence is
+checked; proxy values are never read, copied or printed. A bypass list alone
+does not supply a proxy and is allowed. The checker does not change environment
+or network configuration. Rejection messages never echo the supplied URL.
+
+The proof reproduces the exact predecessor's observation success from a
+simulated foreign HTTPS responder supplying otherwise valid JSON at all four
+routes. The successor rejects that origin before I/O. It also binds the profile
+to the committed `run-void-node.sh` default and makes that source a workflow
+trigger; it does not execute startup or load the node's environment.
+
+This closes caller-selected URL origins and conventional environment proxy
+steering within the normal checker process. It does not authenticate the
+listener on port 4100, bind a PID/socket/source/configuration, exclude a replaced
+fetch dispatcher or host-level routing interference, or prove one uninterrupted
+node generation across the samples. A synthetic process on the admitted port
+can still supply structurally valid snapshots. Successful output therefore
+includes the admitted `local_http_base` and `local_http_process_bound=false`;
+runtime/session/public-onboarding acceptance remains false.
 
 ## Bounded HTTP evidence acquisition
 
@@ -192,11 +223,12 @@ Every successful target observation also states:
 
 ```text
 runtime_session_bound=false
+local_http_process_bound=false
 fresh_join_proven=false
 public_onboarding_accepted=false
 ```
 
-The focused proof executes both exact predecessor and current CLI orchestration
+The focused proof executes exact historical predecessors and current CLI orchestration
 inside Node VM modules, with process/filesystem/resolver/HTTP boundaries simulated.
 It reproduces the historical false green and runs 40 current CLI cases, including
 all three observations, changed/re-pinned manifest content, missing/duplicate/
@@ -217,10 +249,17 @@ connected/cache lists, exact count ceilings, later-sample failures, valid inboun
 and relay records, and the actual producer's exclusion of unidentified peers.
 Its exact predecessor CLI is separately hash-pinned and reproduces the malformed
 peer false green. The target and HTTP populations remain 40 and 55 respectively.
+Origin admission adds 49 CLI cases: 45 HOLDs, three observation-only controls and
+one preflight-only control. Every rejected case checks zero HTTP requests,
+resolver calls, manifest opens, child processes and body/timer allocations.
+Proxy accessor traps prove that key-presence rejection does not read values,
+including when bypass lists are present. Its fourth independently hash-pinned
+predecessor reproduces the foreign-responder false green. The total is 265
+current CLI cases per runtime; process/session identity remains unproven.
 No test starts a node or makes a real network request. Node 22/24/26 execute this
 wall on the exact candidate integrated with current main. Workflow triggers cover
 the target checker, canonical resolver, seed helpers, manifest, engine inputs and
-the five peer producer/contract sources;
+the five peer producer/contract sources and ordinary startup script;
 this does not close the separate real-node/P2P dependency-orchestration gate.
 
 ## Why HTTPS sync and P2P are separate gates
