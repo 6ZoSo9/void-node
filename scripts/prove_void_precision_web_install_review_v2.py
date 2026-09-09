@@ -186,8 +186,12 @@ def run_controls(head,emit):
             if path=='/__void/frontdoor/status.json':
                 count['n']+=1; value=M.strict(body); value['read_only']=False; body=M.canonical(value)
             return code,media,body
-        f.replace('fetch',fetch); reject('wrong_read_only_is_terminal',lambda:applied(f))
+        f.replace('fetch',fetch)
+        try: applied(f)
+        except (RuntimeError,ValueError,KeyError,OSError): pass
+        else: raise RuntimeError('negative control admitted: wrong_read_only_is_terminal')
         E.require(count['n']==1,'malformed readiness was retried')
+        checks.append('wrong_read_only_is_terminal')
     fixture(malformed)
     E.require(E.source_identity(ROOT,head)==source and E.runtime_identity()==runtime,'review source/runtime drift')
     E.require(checks==E.review_vector(),'review vector differs')
