@@ -68,7 +68,10 @@ export function processCensus(pid, expectedStart = null) {
     return { ...base, argv, executable, descriptors: descriptors.sort((a, b) => a.fd - b.fd), sockets };
   } catch (error) {
     if (error.code !== "ENOENT" && error.code !== "ESRCH") throw error;
-    const after = statIdentity(pid, base.start_ticks); assert(!after.alive, "unstable live census"); return after;
+    const after = statIdentity(pid, base.start_ticks);
+    // Linux tears down exe/fd tables before the task becomes a zombie. Keep
+    // that interval alive; it cannot satisfy retirement or a complete census.
+    return after.alive ? { ...after, transitioning: true } : after;
   }
 }
 export function artifactRead(file, limit = 256 * 1024) {

@@ -75,7 +75,7 @@ function startParent(label, selectedCut) {
       const type = message.fixture;
       assert(["child", "adapter", "authority-material", "phase", "armed", "entry-started", "acquired-data", "acquired-listeners"].includes(type));
       if (type === "authority-material") {
-        assert.equal(state.secret, null); assert(/^[0-9a-f]{64}$/.test(message.secret)); assert(/^[0-9a-f]{32}$/.test(message.authority));
+        assert(state.secret === null, "duplicate fixture authority"); assert(/^[0-9a-f]{64}$/.test(message.secret)); assert(/^[0-9a-f]{32}$/.test(message.authority));
         state.secret = message.secret; state.authority = message.authority;
       } else {
         state.events.push(type);
