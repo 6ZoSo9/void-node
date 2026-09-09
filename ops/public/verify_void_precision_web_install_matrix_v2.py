@@ -52,6 +52,16 @@ def negatives(raw,digest,source):
     row=copy.deepcopy(original); row['extra']='not admitted'; rejects(row)
     row=copy.deepcopy(original); row['cases'][0]['recovery_ticks']=65
     row['terminal_root']=E.sha(E.canonical(row['cases'])); rejects(row)
+    row=copy.deepcopy(original)
+    row['cases'][0]['terminals']['primary']['successor']={'result':'ENABLE_LINKS_OBSERVED_AT_EXACT_SAMPLE',
+                                                       'current_enablement_authority':False}
+    row['terminal_root']=E.sha(E.canonical(row['cases'])); rejects(row)
+    row=copy.deepcopy(original); first=row['cases'][0]
+    key=next(k for k in first['primary_census'] if k.endswith('unrelated.marker'))
+    del first['primary_census'][key]; first['recovery_census']=copy.deepcopy(first['primary_census'])
+    first['primary_census_sha256']=E.sha(E.canonical(first['primary_census']))
+    first['recovery_census_sha256']=first['primary_census_sha256']
+    row['terminal_root']=E.sha(E.canonical(row['cases'])); rejects(row)
     # Self-consistent forged observations must still fail the external byte pin.
     row=copy.deepcopy(original)
     first=row['cases'][0]

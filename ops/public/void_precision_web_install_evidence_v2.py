@@ -23,6 +23,7 @@ PATHS=sorted([
     'ops/public/void_precision_web_install_evidence_v2.py',
     'ops/public/verify_void_precision_web_install_matrix_v2.py',CONTRACT,SCHEMA,
     'scripts/prove_void_precision_web_install_v2.py','scripts/precision_web_install_fixture_v2.py',
+    'scripts/prove_void_precision_web_install_review_v2.py',
     FIXTURE+'void-precision-web-install-v1_1.py',FIXTURE+'prove_void_precision_web_install_v1_1.py',
     FIXTURE+'link-cases.json',FIXTURE+'recovery-cases.json',
     '.github/workflows/void-precision-web-install-v2.yml','docs/operators/void-precision-web-install-v2.md',
@@ -74,11 +75,28 @@ def read(path,limit=LIMIT):
 
 
 def git(root,*args):
-    p=subprocess.run(['/usr/bin/git','-C',str(root),*args],stdin=subprocess.DEVNULL,
+    p=subprocess.run(['/usr/bin/git','--no-replace-objects','-C',str(root),*args],stdin=subprocess.DEVNULL,
         stdout=subprocess.PIPE,stderr=subprocess.PIPE,timeout=15,check=False,
-        env={'PATH':'/usr/bin:/bin','HOME':str(Path.home()),'LANG':'C','GIT_CONFIG_NOSYSTEM':'1','GIT_CONFIG_GLOBAL':'/dev/null'})
+        env={'PATH':'/usr/bin:/bin','HOME':str(Path.home()),'LANG':'C','GIT_CONFIG_NOSYSTEM':'1',
+             'GIT_CONFIG_GLOBAL':'/dev/null','GIT_NO_REPLACE_OBJECTS':'1','GIT_TERMINAL_PROMPT':'0'})
     require(p.returncode==0 and len(p.stdout)<=LIMIT,'Git source lookup failed')
     return p.stdout
+
+
+def git_object(root,kind,oid):
+    data=git(root,'cat-file',kind,oid)
+    require(hashlib.sha1(kind.encode()+b' '+str(len(data)).encode()+b'\0'+data).hexdigest()==oid,
+            'Git raw object identity differs')
+    return data
+
+
+def tree_entries(root,oid):
+    data=git_object(root,'tree',oid); offset=0; entries={}
+    while offset<len(data):
+        end=data.index(b'\0',offset); mode,name=data[offset:end].split(b' ',1)
+        require(name not in entries and end+21<=len(data),'malformed source tree')
+        entries[name]=(mode.decode(),data[end+1:end+21].hex()); offset=end+21
+    return entries
 
 
 def source_identity(root,head):
@@ -86,13 +104,23 @@ def source_identity(root,head):
     require(re.fullmatch('[a-f0-9]{40}',head),'explicit full source head required')
     require(git(root,'rev-parse','HEAD').decode().strip()==head,'checkout head differs')
     require(git(root,'rev-parse','--show-toplevel').decode().strip()==str(root),'checkout root differs')
-    tree=git(root,'rev-parse',head+'^{tree}').decode().strip()
+    commit=git_object(root,'commit',head)
+    match=re.match(rb'tree ([a-f0-9]{40})\n',commit)
+    require(match is not None,'commit root tree missing')
+    tree=match[1].decode(); trees={}
     rows=git(root,'ls-tree','-r','-z',head,'--',*PATHS).split(b'\0')
     identities={}
     for row in rows:
         if not row: continue
         meta,name=row.split(b'\t',1); mode,kind,blob=meta.decode().split(); name=name.decode()
         require(name in PATHS and kind=='blob' and mode in ('100644','100755'),'source tree member shape')
+        oid=tree
+        for index,part in enumerate(name.split('/')):
+            if oid not in trees: trees[oid]=tree_entries(root,oid)
+            require(part.encode() in trees[oid],'raw tree member missing')
+            raw_mode,oid=trees[oid][part.encode()]
+            if index<len(name.split('/'))-1: require(raw_mode=='40000','raw tree ancestor type differs')
+        require((raw_mode,oid)==(mode,blob),'resolved member differs from raw source chain')
         path=root/name
         require(not any(p.is_symlink() for p in [path,*path.parents] if p!=root.parent),'source symlink')
         data=read(path)
@@ -153,6 +181,42 @@ def schema_check(value,schema):
         for item in value: schema_check(item,schema['items'])
 
 
+def case_observations(row):
+    """Closed outcomes and protected-entry facts, also checked on receipt replay."""
+    primary=row['terminals']['primary'].get('successor',{})
+    if row['primary_exit']==-9:
+        require(primary=={},'killed primary supplied terminal')
+    else:
+        require(set(primary)=={'result','reason','current_enablement_authority'}
+                and primary['result']=='PARTIAL_OR_UNCERTAIN'
+                and isinstance(primary['reason'],str) and primary['current_enablement_authority'] is False,
+                'primary terminal violates interrupted schedule')
+    recovery=row['terminals']['recovery']['successor']
+    expected='PARTIAL_OR_UNCERTAIN'
+    if row['id'].startswith('recovery-sampled-') and row['id'].endswith('-same'):
+        expected=('ALREADY_OBSERVED_AT_REVALIDATED_SAMPLE' if '-exact-' in row['id']
+                  else 'CONTRADICTED_COMPLETE_QUARANTINED')
+    require(recovery.get('result')==expected and recovery.get('current_enablement_authority') is False
+            and set(recovery)<={'marker','result','plan_sha256','mutations','current_enablement_authority',
+                               'reason','sample_sha256'},'recovery terminal violates schedule')
+    if expected=='ALREADY_OBSERVED_AT_REVALIDATED_SAMPLE':
+        samples=[e for e in row['journal_census']['successor'] if e['event']=='sampled']
+        require(len(samples)==1 and recovery.get('sample_sha256')==samples[0]['sample_sha256'],
+                'recovery terminal lacks matching durable sample')
+    require(row['protected_before']==row['protected_after'] and row['protected_before'],
+            'primary changed protected entries')
+    for path,observed in row['protected_before'].items():
+        key=str(Path(path).relative_to(row['fixture_home']))
+        require(row['primary_census'].get(key)==observed,'primary census lost protected entry')
+    for profile,evidence in row['mutation_evidence'].items():
+        meta=row['plan_generations'][profile]
+        # Census keys are relative to the common fixture home recorded by producer.
+        prefix=str(Path(meta['target']).relative_to(row['fixture_home'])/'default.target.wants')
+        for name,observed in evidence['protected_census'].items():
+            key=prefix if name=='.' else str(Path(prefix)/name)
+            require(row['primary_census'].get(key)==observed,'primary census contradicts injected residue')
+
+
 def member(raw,expected_sha,source,root):
     require(re.fullmatch('[a-f0-9]{64}',expected_sha) and sha(raw)==expected_sha,'external member digest mismatch')
     data=strict(raw); schema_check(data,strict(read(root/SCHEMA)))
@@ -167,6 +231,7 @@ def member(raw,expected_sha,source,root):
             and data['real_systemctl_calls']==0 and data['recovery_mutations']==0,'matrix totals invalid')
     require(data['terminal_root']==sha(canonical(data['cases'])),'terminal root mismatch')
     for row in data['cases']:
+        case_observations(row)
         require(row['source_head']==source['head'] and row['runtime']==data['runtime'],'mixed case generation/runtime')
         require(row['processes']==2 and 0<row['recovery_ticks']<=64 and row['recovery_mutations']==0,'case recovery bound')
         require(row['passed'] is True and row['primary_exit'] in (0,-9) and row['recovery_exit']==0,'case process status')

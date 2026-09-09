@@ -61,6 +61,7 @@ jobs:
         env:
           PYTHON: ${{ steps.py310.outputs.python-path }}
         run: |
+          "$PYTHON" -I -B scripts/prove_void_precision_web_install_review_v2.py --head "$EXPECTED_HEAD"
           "$PYTHON" -I -B scripts/prove_void_precision_web_install_v2.py --head "$EXPECTED_HEAD" --output "$MATRIX_DIR/python310.json"
           sha256sum "$MATRIX_DIR/python310.json" | awk '{print "receipt_sha256=" $1}' >> "$GITHUB_OUTPUT"
       - name: Python 3.11 natural recovery matrix
@@ -68,6 +69,7 @@ jobs:
         env:
           PYTHON: ${{ steps.py311.outputs.python-path }}
         run: |
+          "$PYTHON" -I -B scripts/prove_void_precision_web_install_review_v2.py --head "$EXPECTED_HEAD"
           "$PYTHON" -I -B scripts/prove_void_precision_web_install_v2.py --head "$EXPECTED_HEAD" --output "$MATRIX_DIR/python311.json"
           sha256sum "$MATRIX_DIR/python311.json" | awk '{print "receipt_sha256=" $1}' >> "$GITHUB_OUTPUT"
       - name: Python 3.12 natural recovery matrix
@@ -75,6 +77,7 @@ jobs:
         env:
           PYTHON: ${{ steps.py312.outputs.python-path }}
         run: |
+          "$PYTHON" -I -B scripts/prove_void_precision_web_install_review_v2.py --head "$EXPECTED_HEAD"
           "$PYTHON" -I -B scripts/prove_void_precision_web_install_v2.py --head "$EXPECTED_HEAD" --output "$MATRIX_DIR/python312.json"
           sha256sum "$MATRIX_DIR/python312.json" | awk '{print "receipt_sha256=" $1}' >> "$GITHUB_OUTPUT"
       - name: Verify independently retained member digests and complete aggregate

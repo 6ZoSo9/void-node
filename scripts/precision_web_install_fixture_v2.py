@@ -49,7 +49,20 @@ def main():
     original=L['M']
     successor=load(root/'ops/public/void_precision_web_install_v2.py','installer_successor')
     successor.OPERATION_SOURCE=source
-    original_write=os.write; original_fsync=os.fsync; original_readlink=os.readlink
+    successor.OPERATION_RUNTIME=runtime
+    original_write=os.write; original_fsync=os.fsync; original_readlink=os.readlink; original_open=os.open
+    opening={'dir_fd':None}
+    def pathname(path,dir_fd=None):
+        if isinstance(path,int): return original_readlink('/proc/self/fd/'+str(path))
+        path=os.fsdecode(path)
+        if os.path.isabs(path): return os.path.abspath(path)
+        parent=(os.getcwd() if dir_fd in (None,-1) else original_readlink('/proc/self/fd/'+str(dir_fd)))
+        return os.path.abspath(os.path.join(parent,path))
+    def opened(path,flags,mode=0o777,*,dir_fd=None):
+        old=opening['dir_fd']; opening['dir_fd']=dir_fd
+        try: return original_open(path,flags,mode,dir_fd=dir_fd)
+        finally: opening['dir_fd']=old
+    os.open=opened
     audit_enabled=False
     def audit(event,values):
         if event in ('subprocess.Popen','os.system','os.exec','os.posix_spawn','socket.bind'):
@@ -59,7 +72,14 @@ def main():
         if event=='open':
             flags=values[2]; mutation=isinstance(flags,int) and bool(flags&(os.O_WRONLY|os.O_RDWR|os.O_CREAT|os.O_TRUNC))
         if mutation:
-            rpc('audit',event=event)
+            if event=='open': paths=[pathname(values[0],opening['dir_fd'])]
+            elif event in ('os.link','os.rename'):
+                paths=[pathname(values[0],values[2]),pathname(values[1],values[3])]
+            elif event=='os.symlink': paths=[pathname(values[1],values[2])]
+            elif event in ('os.mkdir','os.chmod'): paths=[pathname(values[0],values[2])]
+            elif event in ('os.remove','os.rmdir'): paths=[pathname(values[0],values[1])]
+            else: paths=[pathname(values[0])]
+            rpc('audit',event=event,paths=paths)
     sys.addaudithook(audit)
     for profile in cfg['profiles']:
         module=original if profile=='legacy' else successor
@@ -112,7 +132,7 @@ def main():
                     if item.get('event') in ('progress','sampled') and 'cut' in item:
                         pending[fd]=item['cut']
                 except (ValueError,UnicodeError): pass
-            if args.phase=='recovery': rpc('audit',event='os.write')
+            if args.phase=='recovery': rpc('audit',event='os.write',paths=[pathname(fd)])
             return count
         def fsync(fd):
             original_fsync(fd)

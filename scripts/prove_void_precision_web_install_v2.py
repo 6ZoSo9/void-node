@@ -58,7 +58,20 @@ class Supervisor:
         self.metadata={}; self.states={}; self.profile=None; self.terminals={}; self.mutations={}
         self.audits=[]; self.manager_commands=[]; self.cut_fired=set(); self.real_calls=0
         self.initial_units={}; self.initial_links={}; self.sample_checks={}
+        self.protected={}
         self.home=root/'home'; self.home.mkdir(mode=0o700)
+
+    def protect(self,path):
+        for relative,row in census(path).items():
+            self.protected[str(path if relative=='.' else path/relative)]=row
+
+    def protected_now(self):
+        return {path:census(Path(path)).get('.',{'type':'missing'}) for path in self.protected}
+
+    def verify_protected(self):
+        observed=self.protected_now()
+        E.require(observed==self.protected,'primary changed protected entries')
+        return observed
 
     def manager(self,args):
         state=self.states[self.profile]; meta=self.metadata[self.profile]
@@ -110,7 +123,9 @@ class Supervisor:
             for key in before:
                 if key not in ('.',name): E.require(before[key]==after[key],'unrelated entry changed')
             self.mutations[self.profile]={'entry':name,'expected_target':'../'+name,'before':before.get(name),
-                'after':after.get(name,{'type':'missing'}),'parent_before':parent,'parent_after':after['.'],'fsynced':True}
+                'after':after.get(name,{'type':'missing'}),'parent_before':parent,'parent_after':after['.'],
+                'protected_census':after,'fsynced':True}
+            self.protect(directory)
         finally: os.close(fd)
 
     def cut(self,request,process):
@@ -189,6 +204,7 @@ class Supervisor:
                         wants=Path(request['target'])/'default.target.wants'
                         wants.mkdir(parents=True,mode=0o700)
                         with (wants/'unrelated.marker').open('xb') as stream: stream.write(b'preserve-unrelated')
+                        self.protect(wants/'unrelated.marker')
                     elif kind=='plan':
                         E.require(phase=='primary','recovery published plan')
                         meta=self.metadata[self.profile]; meta.update({k:request[k] for k in ('filename','digest','nonce')})
@@ -196,8 +212,19 @@ class Supervisor:
                         E.require(E.sha(raw)==meta['digest'] and json.loads(raw)['nonce']==meta['nonce'],'plan census differs')
                     elif kind=='manager': value=self.manager(request['args'])
                     elif kind=='audit':
-                        self.audits.append({'phase':phase,'profile':self.profile,'event':request['event']})
+                        self.audits.append({'phase':phase,'profile':self.profile,'event':request['event'],
+                                            'paths':request['paths']})
                         E.require(phase=='primary','recovery syscall mutation')
+                        for path in request['paths']:
+                            mutation_path=Path(path)
+                            E.require(mutation_path.is_absolute() and (mutation_path.parent.resolve()/mutation_path.name).is_relative_to(self.home),
+                                      'primary mutation outside fixture home')
+                            E.require(not any(mutation_path==Path(guarded) or Path(guarded).is_relative_to(mutation_path)
+                                              or mutation_path.is_relative_to(Path(guarded))
+                                              for guarded in self.protected), 'primary mutation targets protected entry')
+                        if request['event']=='os.remove':
+                            E.require(all(Path(p).name.startswith('.new-') for p in request['paths']),
+                                      'primary unlink outside temporary publication cleanup')
                     elif kind=='forbidden':
                         self.real_calls+=1; raise RuntimeError('worker attempted real process/listener')
                     elif kind=='cut':
@@ -266,6 +293,7 @@ class Supervisor:
 def run_case(home,source,runtime,case,termination):
     s=Supervisor(home,source,runtime,case,termination)
     primary_exit,_=s.run('primary')
+    protected_after=s.verify_protected()
     E.require('successor' in s.cut_fired,'required successor cutpoint not reached')
     legacy=False
     if case['id'].startswith('link-') and termination=='natural':
@@ -299,15 +327,19 @@ def run_case(home,source,runtime,case,termination):
     if case['id'].startswith('recovery-') and case['cut']=='sampled' and case['intent']=='same':
         expected='ALREADY_OBSERVED_AT_REVALIDATED_SAMPLE' if case['residue']=='exact' else 'CONTRADICTED_COMPLETE_QUARANTINED'
     E.require(recovered==expected,'recovery classification mismatch: '+recovered+' expected '+expected)
-    return {'id':case['id']+('-'+termination if case['id'].startswith('link-') else ''),
+    row={'id':case['id']+('-'+termination if case['id'].startswith('link-') else ''),
         'source_head':source['head'],'runtime':runtime,'processes':2,'primary_exit':primary_exit,'recovery_exit':recovery_exit,
         'recovery_ticks':ticks,'recovery_mutations':0,'legacy_false_green':legacy,'successor_false_green':False,
         'mutation_observed':bool(s.mutations),'mutation_fsynced':all(x['fsynced'] for x in s.mutations.values()),
         'mutation_evidence':s.mutations,'primary_census_sha256':E.sha(E.canonical(before)),
         'recovery_census_sha256':E.sha(E.canonical(after)),'manager_commands':s.manager_commands,
         'primary_census':before,'recovery_census':after,'journal_census':journals,'sample_checks':s.sample_checks,
+        'fixture_home':str(s.home),'protected_before':s.protected,'protected_after':protected_after,
+        'primary_mutation_audit':s.audits,
         'syscall_counts':{'primary':audit_count,'recovery':len(s.audits)-audit_count},
         'plan_generations':s.metadata,'terminals':s.terminals,'passed':True}
+    E.case_observations(row)
+    return row
 
 
 def main():

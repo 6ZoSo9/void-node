@@ -37,6 +37,7 @@ STATE = BUNDLE.parent / 'installation-v1'
 NAMES = ['void-web-recovery-' + n + '-v2-0390ccb559e9.service' for n in ['adapter', 'composition', 'frontdoor']]
 MARKER = 'VOID_PRECISION_WEB_INSTALL_V2'
 OPERATION_SOURCE = None
+OPERATION_RUNTIME = None
 PROPS = ['Id','LoadState','ActiveState','SubState','FragmentPath','DropInPaths','MainPID','InvocationID']
 LIMIT = 4 * 1024 * 1024
 
@@ -52,6 +53,41 @@ def canonical(value):
 
 def sha(data):
     return hashlib.sha256(data).hexdigest()
+
+
+def git_blob_at_head(checkout, head, path):
+    """Verify raw commit/tree/blob identities before executing helper source."""
+    require(re.fullmatch('[a-f0-9]{40}', head), 'explicit full source head required')
+    def obj(kind, oid):
+        p = subprocess.run(['/usr/bin/git', '--no-replace-objects', '-C', str(checkout),
+                            'cat-file', kind, oid], stdin=subprocess.DEVNULL,
+                           stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=15, check=False,
+                           env={'PATH':'/usr/bin:/bin','LANG':'C','HOME':str(Path.home()),
+                                'GIT_CONFIG_NOSYSTEM':'1','GIT_CONFIG_GLOBAL':'/dev/null',
+                                'GIT_NO_REPLACE_OBJECTS':'1','GIT_TERMINAL_PROMPT':'0'})
+        data = p.stdout
+        require(p.returncode == 0 and len(data) <= LIMIT, 'Git object lookup failed')
+        require(hashlib.sha1(kind.encode()+b' '+str(len(data)).encode()+b'\0'+data).hexdigest()==oid,
+                'Git raw object identity differs')
+        return data
+    commit = obj('commit', head)
+    match = re.match(rb'tree ([a-f0-9]{40})\n', commit)
+    require(match is not None, 'commit root tree missing')
+    oid = match[1].decode()
+    parts = path.split('/')
+    require(parts and all(p not in ('','.', '..') for p in parts), 'invalid source member')
+    for index, part in enumerate(parts):
+        data = obj('tree', oid); offset = 0; entries = {}
+        while offset < len(data):
+            end = data.index(b'\0', offset)
+            mode, name = data[offset:end].split(b' ', 1)
+            require(name not in entries and end+21 <= len(data), 'malformed source tree')
+            entries[name] = (mode, data[end+1:end+21].hex()); offset = end+21
+        require(part.encode() in entries, 'source tree member missing')
+        mode, oid = entries[part.encode()]
+        require(mode in ((b'100644',b'100755') if index==len(parts)-1 else (b'40000',)),
+                'source tree member type differs')
+    return obj('blob', oid)
 
 
 def strict(data):
@@ -255,7 +291,8 @@ def target_snapshot():
 def plan(context):
     return {'marker':MARKER,'action':'install_start_verify_enable_three_loopback_web_units',
             'head':HEAD,'tree':TREE,'receipt_sha256':RECEIPT_SHA,'aggregate_sha256':AGGREGATE_SHA,
-            'installer_sha256':sha(Path(__file__).read_bytes()),'installer_source':OPERATION_SOURCE,'created_at':int(time.time()),
+            'installer_sha256':sha(Path(__file__).read_bytes()),'installer_source':OPERATION_SOURCE,
+            'installer_runtime':OPERATION_RUNTIME,'created_at':int(time.time()),
             'nonce':secrets.token_hex(16), 'target':str(TARGET),'target_snapshot':target_snapshot(),
             'units':{name:sha(data) for name,data in context['units'].items()},'live_node':node_guard(),
             'automatic_rollback':False,'funnel_changed':False,'dns_changed':False,'funds_action':False}
@@ -273,6 +310,10 @@ def fetch(port, path, method='GET'):
         return response.status, response.getheader('Content-Type',''), data
     finally:
         connection.close(); signal.setitimer(signal.ITIMER_REAL,0); signal.signal(signal.SIGALRM,old)
+
+
+class NotReady(RuntimeError):
+    """Canonical readiness observation that may be retried within startup bounds."""
 
 
 def probes(index, context):
@@ -293,8 +334,11 @@ def probes(index, context):
         row = next(r for r in context['receipt']['manifest'] if r['path'] == 'source/public/void-public-frontdoor-v1/index.html')
         checked(8083,'/',row['sha256'])
         ready = strict(checked(8083,'/__void/frontdoor/status.json'))
-        require(ready == {'marker':'VOID_PUBLIC_FRONTDOOR_V1','ready':True,'listener_ready':True,
-            'read_only':True,'upstream_ready':True,'bind':'127.0.0.1','port':8083,'upstream':'http://127.0.0.1:8082'}, 'frontdoor is not canonical/ready/read-only')
+        canonical_ready = {'marker':'VOID_PUBLIC_FRONTDOOR_V1','ready':True,'listener_ready':True,
+            'read_only':True,'upstream_ready':True,'bind':'127.0.0.1','port':8083,'upstream':'http://127.0.0.1:8082'}
+        if canonical(ready) == canonical(dict(canonical_ready,ready=False,upstream_ready=False)):
+            raise NotReady('canonical frontdoor upstream is not ready')
+        require(canonical(ready) == canonical(canonical_ready), 'frontdoor is not canonical/ready/read-only')
         checked(8083,'/app/')
         for row in expected[1:]:
             if row['port'] == 4100: checked(8083,row['path'],row['sha256'])
@@ -354,7 +398,7 @@ def entry(directory, name, link=False):
     return result
 
 
-def sample(target, wants, context, expected):
+def sample(target, wants, context, expected, record):
     """A sequential trusted-operator observation, never a namespace custody grant."""
     target.current(); wants.current()
     names=sorted(n for n in os.listdir(wants.fd) if n.startswith('void-web-recovery-') and n.endswith('.service'))
@@ -371,6 +415,14 @@ def sample(target, wants, context, expected):
         require(current['type']=='symlink' and current['target']=='../'+name
                 and current['generation']['links']==1 and current['generation']['uid']==os.getuid(),
                 'enable-entry shape differs: '+canonical(current).decode())
+        require(observed['units'][name].get('sha256') == record['units'][name]
+                == sha(context['units'][name]), 'sample unit differs from confirmed plan')
+        p = observed['services'][name]
+        require(p['Id']==name and p['LoadState']=='loaded' and p['ActiveState']=='active'
+                and p['SubState']=='running' and p['FragmentPath']==str(TARGET/name)
+                and not p['DropInPaths'] and p['MainPID'].isdigit() and int(p['MainPID'])>0
+                and re.fullmatch('[a-f0-9]{32}',p['InvocationID']), 'sample service differs from operation')
+    require(observed['live_node']==record['live_node'], 'sample live node differs from confirmed plan')
     for field in ('units','links','services','live_node'):
         require(observed[field]==expected[field], 'sample generation mismatch: '+field+'; expected='+
                 canonical(expected[field]).decode()+'; observed='+canonical(observed[field]).decode())
@@ -379,6 +431,8 @@ def sample(target, wants, context, expected):
 
 def validate_record(record, context, fresh):
     require(isinstance(record,dict) and OPERATION_SOURCE is not None,'installer source admission required')
+    require(OPERATION_RUNTIME is not None and record.get('installer_runtime')==OPERATION_RUNTIME,
+            'installer runtime generation mismatch')
     require(record.get('installer_source')==OPERATION_SOURCE
             and record.get('installer_sha256')==sha(Path(__file__).read_bytes()),'installer generation mismatch')
     require(record.get('marker')==MARKER and record.get('head')==HEAD and record.get('tree')==TREE
@@ -441,7 +495,7 @@ def apply(record, context, state, plan_sha):
             for _ in range(75):
                 invocation=loaded(unit,True)
                 try: evidence=probes(index,context); break
-                except (OSError,http.client.HTTPException):
+                except (OSError,http.client.HTTPException,NotReady):
                     if time.monotonic()>=deadline: raise
                     time.sleep(0.2)
             else: raise RuntimeError('startup probe attempt bound')
@@ -466,7 +520,7 @@ def apply(record, context, state, plan_sha):
         event('progress',cut='verified')
         # The named sample follows the legacy readlink/listener/guard cutpoints.
         # Later namespace changes cannot retroactively make this a custody grant.
-        observed=sample(target,wants,context,expected)
+        observed=sample(target,wants,context,expected,record)
         digest=sha(canonical(observed))
         event('sampled',cut='sampled',sample=observed,sample_sha256=digest,
               claim='ENABLE_LINKS_OBSERVED_AT_EXACT_SAMPLE',authority=False)
@@ -507,7 +561,7 @@ def recover(record, context, state, plan_sha):
         require(saved['claim']=='ENABLE_LINKS_OBSERVED_AT_EXACT_SAMPLE' and saved['authority'] is False
                 and sha(canonical(saved['sample']))==saved['sample_sha256'],'invalid recorded sample')
         target=Directory(TARGET); wants=Directory(TARGET/'default.target.wants')
-        current=sample(target,wants,context,saved['sample'])
+        current=sample(target,wants,context,saved['sample'],record)
         require(current==saved['sample'],'sample parents/generation differ')
         listeners(3)
         result.update(result='ALREADY_OBSERVED_AT_REVALIDATED_SAMPLE',sample_sha256=saved['sample_sha256'])
@@ -520,7 +574,7 @@ def recover(record, context, state, plan_sha):
 
 
 def main():
-    global OPERATION_SOURCE
+    global OPERATION_SOURCE, OPERATION_RUNTIME
     parser=argparse.ArgumentParser(description=__doc__)
     group=parser.add_mutually_exclusive_group(required=True)
     group.add_argument('--plan',action='store_true')
@@ -534,16 +588,13 @@ def main():
     helper=Path(__file__).with_name('void_precision_web_install_evidence_v2.py')
     require(re.fullmatch('[a-f0-9]{40}',args.source_head),'explicit full installer head required')
     checkout=Path(__file__).resolve().parents[2]
-    admitted=subprocess.run(['/usr/bin/git','-C',str(checkout),'cat-file','blob',
-        args.source_head+':ops/public/void_precision_web_install_evidence_v2.py'],
-        stdin=subprocess.DEVNULL,stdout=subprocess.PIPE,stderr=subprocess.PIPE,timeout=15,check=False,
-        env={'PATH':'/usr/bin:/bin','LANG':'C','HOME':str(Path.home()),
-             'GIT_CONFIG_NOSYSTEM':'1','GIT_CONFIG_GLOBAL':'/dev/null'})
-    require(admitted.returncode==0 and len(admitted.stdout)<=LIMIT and not helper.is_symlink()
-            and helper.read_bytes()==admitted.stdout,'installer evidence helper differs from explicit Git source')
+    admitted=git_blob_at_head(checkout,args.source_head,'ops/public/void_precision_web_install_evidence_v2.py')
+    require(not helper.is_symlink() and helper.read_bytes()==admitted,
+            'installer evidence helper differs from explicit Git source')
     scope={'__name__':'installer_source_evidence','__file__':str(helper)}
-    exec(compile(admitted.stdout,str(helper),'exec'),scope)
+    exec(compile(admitted,str(helper),'exec'),scope)
     OPERATION_SOURCE=scope['source_identity'](checkout,args.source_head)
+    OPERATION_RUNTIME=scope['runtime_identity']()
     require(socket.gethostname().lower()=='zoso-precision-tower-7810' and str(Path.home())=='/home/zoso'
             and os.getuid()!=0,'run only as zoso on Precision')
     os.umask(0o077)

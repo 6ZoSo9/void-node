@@ -58,6 +58,27 @@ Git blob IDs and actual file bytes/modes. Exact legacy SHA-256 values remain
 and `565fef0d890332a849ce2851e2b2700b054bf5b2789c2a9fdcd194b2572ab1c5` (proof).
 All 41 original case IDs are closed in the contract and executed naturally.
 
+Source lookup disables Git replacement objects and independently hashes the raw
+commit and every traversed tree. The helper is admitted through that raw chain
+before its definitions execute. Local replace refs cannot reinterpret the
+reviewed head. Operator plans also bind the Python executable path/version/hash.
+
+The supervisor freezes protected unrelated entries and the complete post-fault
+enable-directory census before the primary continues. Primary exit must preserve
+them. Mutation audit records carry paths; recovery mutations, writes outside the
+fixture home, protected-entry mutations and non-temporary unlink are rejected.
+Closed per-schedule terminal checks reject V2 success or any enable-authority
+claim in these interrupted schedules, and receipt replay checks the same facts.
+The separate review regression proof demonstrates rejection of the reviewers'
+false-success and deleted-residue controls; these extra controls are not counted
+in the 1,512-process matrix below.
+
+A canonical transient frontdoor not-ready response uses the bounded startup
+retry window. Wrong identity, malformed readiness and body mismatches remain
+terminal. Recovery compares unit bytes and service/node facts to the confirmed
+plan, in addition to the saved sample; a fabricated sample cannot redefine the
+admitted unit payload. These checks do not establish hostile operator custody.
+
 | Population per Python runtime | Primary/recovery pairs | Processes |
 |---|---:|---:|
 | 3 entries × 4 mutations × 4 post-verification cuts × 2 terminations | 96 | 192 |
