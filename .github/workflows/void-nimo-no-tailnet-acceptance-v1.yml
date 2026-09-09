@@ -8,6 +8,8 @@ on:
       - 'scripts/prove_void_nimo_no_tailnet_acceptance_v1.mjs'
       - 'scripts/prove_void_nimo_execution_session_v1.mjs'
       - 'scripts/verify_void_nimo_execution_session_v1.mjs'
+      - 'scripts/lib/void_nimo_node_process_observation_v1.mjs'
+      - 'scripts/prove_void_nimo_node_process_observation_v1.mjs'
       - 'scripts/fixtures/nimo-execution-session-v1/**'
       - 'tools/void-nimo-no-tailnet-acceptance-v1.mjs'
       - 'run-void-node.sh'
@@ -36,6 +38,8 @@ on:
       - 'scripts/prove_void_nimo_no_tailnet_acceptance_v1.mjs'
       - 'scripts/prove_void_nimo_execution_session_v1.mjs'
       - 'scripts/verify_void_nimo_execution_session_v1.mjs'
+      - 'scripts/lib/void_nimo_node_process_observation_v1.mjs'
+      - 'scripts/prove_void_nimo_node_process_observation_v1.mjs'
       - 'scripts/fixtures/nimo-execution-session-v1/**'
       - 'tools/void-nimo-no-tailnet-acceptance-v1.mjs'
       - 'run-void-node.sh'
@@ -93,6 +97,10 @@ jobs:
           node --check scripts/fixtures/nimo-execution-session-v1/child.mjs
           node --check scripts/fixtures/nimo-execution-session-v1/forge.cjs
           node --check scripts/fixtures/nimo-execution-session-v1/forge.mjs
+          node --check scripts/run_void_public_bootstrap_supervisor_v1.mjs
+          node --check scripts/lib/void_nimo_node_process_observation_v1.mjs
+          node --check scripts/prove_void_nimo_node_process_observation_v1.mjs
+          node --check scripts/fixtures/nimo-execution-session-v1/node-http.mjs
       - name: Focused proof
         run: node --experimental-vm-modules scripts/prove_void_nimo_no_tailnet_acceptance_v1.mjs
       - name: Supervised loopback and recovery experiment
@@ -117,6 +125,17 @@ jobs:
           else
             git diff --check HEAD^ HEAD
           fi
+      - name: Node process and socket ownership integration
+        # Separate from the 51-child dispatcher experiment and its aggregate.
+        # This proof executes disposable HTTP fixtures, not dist/index.js.
+        run: node scripts/prove_void_nimo_node_process_observation_v1.mjs "$RUNNER_TEMP/nimo-node-process-${{ matrix.node-version }}.json"
+      - name: Upload node observation evidence
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: nimo-node-process-${{ matrix.node-version }}
+          path: ${{ runner.temp }}/nimo-node-process-${{ matrix.node-version }}.json
+          if-no-files-found: error
+          retention-days: 14
   aggregate:
     name: Verify execution recovery aggregate
     needs: prove

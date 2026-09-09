@@ -457,3 +457,72 @@ private_configuration_required=false
 ```
 
 The renewed manifest removes the old no-stable-seed prerequisite only. This operational definition of done still requires separately captured Nimo/session/public-P2P evidence and independent acceptance; the target-observation marker cannot supply it.
+# HTTPS supervisor node-process observation integration
+
+The HTTPS supervisor has an optional diagnostic selected by
+`VOID_NIMO_NODE_PROCESS_OBSERVATION_V1=1`. Absent or `0` preserves the normal
+startup path without loading the diagnostic. This source change is not an
+operator launch instruction or a deployment. Tor and multipath integration
+remain separate work.
+
+The diagnostic is prepared before the existing direct-child spawn and observes
+that exact child. It leaves checkpoint selection, data-directory authority,
+inherited descriptors and the existing historical HMAC channel alone. It
+records the Node executable, node-entry bytes, PID/parent/start ticks, network
+namespace, and a small public subset of launch configuration. Preparation
+rejects loader environment keys and an HTTP port other than 4100. It never
+reads `.env`, keys, `/proc/<pid>/environ`, other processes' configuration, or
+descriptor contents/file-path targets.
+
+After startup it waits up to 120 readiness attempts for the qualified target,
+then runs the same three-sample target/peer validator used by the ordinary CLI.
+The parent uses native HTTP rather than mutable global fetch. Before sending a
+request it matches the accepted connection's exact tuple and socket inode to a
+socket descriptor owned by its node child. The child must also own one matching
+listener. The listener inode remains fixed across the observation; ownership,
+process identity, selected parent launch settings, source files, entry bytes and
+manifest are rechecked through body terminal and the final observation.
+
+Each HTTP operation has a ten-second deadline, 16 KiB headers, a 2 MiB body and
+1,024 body reads. The diagnostic requires status 200, length-framed UTF-8 JSON and
+a connection held open through terminal ownership verification. Chunked or
+closing connections HOLD in this narrow profile. Procfs input and descriptor
+enumeration are bounded; unreadable or excessive state HOLDs. The complete
+diagnostic has a 180-second deadline and a 132-response ceiling. These are
+application limits, not hard real-time kernel scheduling guarantees.
+
+Child exit/error, adapter closure or supervisor shutdown invalidates the
+diagnostic. A failed diagnostic emits a fixed HOLD and does not kill, restart or
+reconfigure the node. Its context cannot be reused for a replacement process.
+
+| Receipt claim | Meaning |
+| --- | --- |
+| `child_process_and_socket_bound=true` | These response connections belong to this directly spawned process and listener generation under the cooperative kernel profile. |
+| `node_entry_bytes_bound=true` | The named entry file's bytes stayed equal; this does not establish their build derivation. |
+| `selected_launch_configuration_bound=true` | HTTP port, derived adapter origins and selected follower numeric settings were retained at the parent boundary. |
+| `compiled_source_derivation_bound=false` | No complete compiled-module closure/build attestation was admitted. |
+| `runtime_configuration_bound=false` | Effective node configuration and all discovery/follower inputs were not attested. |
+| `runtime_session_bound=false` | A complete fresh synchronization session and its provenance were not established. |
+| `public_onboarding_accepted=false` | No external Nimo acceptance is inferred. |
+
+The JSON result is a snapshot from the owning supervisor, not a reusable
+authorization credential. Its hashes are not signatures. This profile trusts
+parent startup and the host kernel; it does not exclude hostile same-UID FD
+sharing, dynamic-linker manipulation or privileged namespace changes. Continuous
+no-Tailnet routing, authenticated public peer provenance, fresh-state custody and
+the node's effective follower/synchronization identity remain open gates.
+
+The focused proof separately exercises disposable HTTP child processes, including
+foreign listeners, same-PID listener rebinding, child exit, entry/configuration
+changes, invalidation, malformed responses and a fresh successful reconstruction.
+It also executes the actual supervisor source with controlled process/adapter
+boundaries to check default-off behavior, prepare-before-spawn ordering and
+failure isolation. This is separate from the existing 51-child dispatcher
+experiment. No actual VOID node, key, data directory or public seed is opened.
+
+Coordination: PR #1458 at `b4702aaeaa51f76df06e9381209e0b209b8151a6`
+also edits the HTTPS supervisor for checkpoint restore. This ordinary source
+overlap is Amber. The observation hooks are outside checkpoint preparation and
+child environment/stdio construction; a combined-source reconciliation check is
+required before merge. No checkpoint or chain-storage implementation is copied
+or modified by this lane.

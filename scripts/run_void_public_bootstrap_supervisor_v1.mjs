@@ -35,6 +35,12 @@ async function main() {
   });
 
   const nodeEntry = String(process.env.VOID_PUBLIC_BOOTSTRAP_NODE_ENTRY || "dist/index.js");
+  // Optional diagnostic, prepared before the child executes. Keep this outside
+  // checkpoint selection and inherited descriptor construction (#1458).
+  const nodeObservation = process.env.VOID_NIMO_NODE_PROCESS_OBSERVATION_V1 === undefined ||
+    process.env.VOID_NIMO_NODE_PROCESS_OBSERVATION_V1 === "0" ? null :
+    (await import("./lib/void_nimo_node_process_observation_v1.mjs"))
+      .prepareNimoNodeProcessObservationV1({ nodeEntry, adapterBase: adapter.base });
   const child = childProcess.spawn(process.execPath, [nodeEntry], {
     env: {
       ...process.env,
@@ -49,7 +55,13 @@ async function main() {
   let authoritySent = false;
   let invalidationSent = false;
 
+  nodeObservation?.observe(child).then(
+    receipt => console.log(JSON.stringify(receipt)),
+    () => console.error(`${MARKER}_NIMO_NODE_PROCESS_OBSERVATION_HOLD`),
+  );
+
   const invalidateChildAuthority = () => {
+    nodeObservation?.invalidate();
     if (invalidationSent || !child.connected) return;
     invalidationSent = true;
     child.send({

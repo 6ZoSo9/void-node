@@ -547,6 +547,25 @@ async function preflight() {
   console.log("VOID_NIMO_NO_TAILNET_PREFLIGHT_V1_GREEN");
 }
 
+// Shared by the ordinary observation CLI and the supervisor that owns a node
+// child. The caller owns acquisition/provenance; these checks alone grant none.
+export async function collectQualifiedTargetObservationsV1({ readJson, targetHead, boundary }) {
+  const observations = [];
+  for (let index = 0; index < TARGET_SAMPLE_COUNT; index += 1) {
+    if (index > 0) await new Promise(resolve => setTimeout(resolve, TARGET_SAMPLE_INTERVAL_MS));
+    await boundary();
+    const health = plainObject(await readJson("/health"), "health snapshot");
+    if (health.ok !== true) fail("local health is not green");
+    const ready = await readJson("/__void/ready.json");
+    const latest = await readJson("/blocks/latest/number2.json");
+    const head = validateQualifiedTargetSnapshotV1(ready, latest, targetHead);
+    const peers = validatePeersSnapshotV1(await readJson("/p2p/peers"));
+    await boundary();
+    observations.push(Object.freeze({ head, ...peers }));
+  }
+  return observations;
+}
+
 async function postSync() {
   assertNoManualBootstrapOverridesV1(process.env);
   const base = canonicalLocalHttpBase(process.env);
@@ -556,19 +575,10 @@ async function postSync() {
   runCanonicalResolver(manifest);
   revalidateLocalBinding(manifest);
 
-  const observations = [];
-  for (let index = 0; index < TARGET_SAMPLE_COUNT; index += 1) {
-    if (index > 0) await new Promise(resolve => setTimeout(resolve, TARGET_SAMPLE_INTERVAL_MS));
-    revalidateLocalBinding(manifest);
-    const health = plainObject(await fetchJson(`${base}/health`), "health snapshot");
-    if (health.ok !== true) fail("local health is not green");
-    const ready = await fetchJson(`${base}/__void/ready.json`);
-    const latest = await fetchJson(`${base}/blocks/latest/number2.json`);
-    const head = validateQualifiedTargetSnapshotV1(ready, latest, manifest.target_head);
-    const peers = validatePeersSnapshotV1(await fetchJson(`${base}/p2p/peers`));
-    revalidateLocalBinding(manifest);
-    observations.push(Object.freeze({ head, ...peers }));
-  }
+  const observations = await collectQualifiedTargetObservationsV1({
+    readJson: route => fetchJson(`${base}${route}`), targetHead: manifest.target_head,
+    boundary: () => revalidateLocalBinding(manifest),
+  });
   runCanonicalResolver(manifest);
   revalidateLocalBinding(manifest);
   if (assertRepoLease() !== source) fail("repository generation changed during observation");
