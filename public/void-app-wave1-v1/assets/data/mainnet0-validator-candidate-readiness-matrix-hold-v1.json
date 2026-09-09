@@ -1,0 +1,101 @@
+{
+  "kind": "mainnet0_validator_candidate_readiness_matrix",
+  "marker": "VOID_MAINNET0_VALIDATOR_CANDIDATE_READINESS_MATRIX_HOLD_V1",
+  "version": 1,
+  "status": "sealed_public_safe_read_only_candidate_readiness_matrix",
+  "route": "/public-node/validators/mainnet0-validator-candidate-readiness-matrix-hold-v1.json",
+  "source_previous_lane_root_final_seal_route": "/public-node/mainnet0-validator-root-to-reviewer-audit-final-seal-entrypoint-closeout-discovery-closeout-root-link-final-seal-hold-v1.json",
+  "source_previous_lane_root_final_seal_marker": "VOID_MAINNET0_VALIDATOR_ROOT_TO_REVIEWER_AUDIT_FINAL_SEAL_ENTRYPOINT_CLOSEOUT_DISCOVERY_CLOSEOUT_ROOT_LINK_FINAL_SEAL_HOLD_V1",
+  "candidate_readiness": {
+    "purpose": "public-safe definition-only matrix for future Mainnet-0 validator candidate readiness review",
+    "candidate_registration_open": false,
+    "candidate_intake_open": false,
+    "public_submit_enabled": false,
+    "wallet_connect_enabled": false,
+    "stake_lock_enabled": false,
+    "active_validator_admission_enabled": false,
+    "validator_set_write_enabled": false,
+    "minimum_public_candidate_stake_policy_void": 10000,
+    "matrix_item_count": 8,
+    "matrix_items": [
+      {
+        "id": "public_node_identity",
+        "requirement": "Candidate has a public node identity surface ready for reviewer discovery.",
+        "public_evidence_expected": "public node identity route or equivalent reviewer-readable metadata",
+        "status": "definition_only_not_collecting_submissions"
+      },
+      {
+        "id": "operator_contact_review_path",
+        "requirement": "Candidate has an operator contact or reviewer coordination path defined outside this record.",
+        "public_evidence_expected": "reviewer coordination route or contact policy reference",
+        "status": "definition_only_not_collecting_submissions"
+      },
+      {
+        "id": "reachability_evidence",
+        "requirement": "Candidate can produce read-only reachability evidence before any validator intake opens.",
+        "public_evidence_expected": "timestamped reachability proof or status card",
+        "status": "definition_only_not_collecting_submissions"
+      },
+      {
+        "id": "hardware_network_baseline",
+        "requirement": "Candidate can disclose a basic hardware/network baseline for review.",
+        "public_evidence_expected": "read-only baseline summary; no secrets",
+        "status": "definition_only_not_collecting_submissions"
+      },
+      {
+        "id": "key_control_attestation",
+        "requirement": "Candidate can later attest key control without exposing keys or signer material.",
+        "public_evidence_expected": "public-safe attestation envelope only",
+        "status": "definition_only_not_collecting_submissions"
+      },
+      {
+        "id": "minimum_candidate_stake_policy_awareness",
+        "requirement": "Candidate acknowledges the public candidate stake policy before any future stake-lock flow exists.",
+        "public_evidence_expected": "policy awareness only; no stake lock in this record",
+        "policy_reference_min_public_candidate_stake_void": 10000,
+        "status": "definition_only_not_locking_stake"
+      },
+      {
+        "id": "safety_boundary_acceptance",
+        "requirement": "Candidate understands that this matrix does not create admission, activation, or validator-set writes.",
+        "public_evidence_expected": "boundary acceptance text in future reviewer packet",
+        "status": "definition_only_not_accepting_intake"
+      },
+      {
+        "id": "reviewer_evidence_pack_readiness",
+        "requirement": "Candidate can later assemble a reviewer evidence pack from public-safe read-only records.",
+        "public_evidence_expected": "reviewer evidence pack route after a future intake lane exists",
+        "status": "definition_only_not_collecting_submissions"
+      }
+    ]
+  },
+  "readiness_assertions": {
+    "matrix_present": true,
+    "source_previous_lane_final_seal_present": true,
+    "candidate_registration_open": false,
+    "candidate_intake_open": false,
+    "public_submit_enabled": false,
+    "wallet_connect_enabled": false,
+    "stake_lock_enabled": false,
+    "active_validator_admission_enabled": false,
+    "validator_set_write_enabled": false,
+    "public_safe_read_only": true
+  },
+  "boundary": {
+    "public_safe": true,
+    "read_only": true,
+    "candidate_readiness_matrix_only": true,
+    "definition_only": true,
+    "public_validator_submit": false,
+    "candidate_registration_open": false,
+    "candidate_intake": false,
+    "stake_lock": false,
+    "wallet_connect": false,
+    "active_validator_admission": false,
+    "epoch_activation": false,
+    "validator_set_write": false,
+    "validator_runtime_truth_write": false,
+    "runtime_mutation_route": false,
+    "mutation_handler": false
+  }
+}
