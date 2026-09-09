@@ -11,9 +11,12 @@ import json
 import os
 from pathlib import Path
 import runpy
+import selectors
+import signal
 import subprocess
 import sys
 import tempfile
+import time
 from unittest.mock import patch
 import zlib
 
@@ -26,13 +29,18 @@ def load(path,name):
     return module
 
 
-def main():
-    parser=argparse.ArgumentParser(); parser.add_argument('--head',required=True)
-    args=parser.parse_args()
+def run_controls(head,emit):
     S=load(ROOT/'scripts/prove_void_precision_web_install_v2.py','review_supervisor')
-    E=S.E; source=E.source_identity(ROOT,args.head); runtime=E.runtime_identity()
+    E=S.E; source=E.source_identity(ROOT,head); runtime=E.runtime_identity()
+    emit('source_bound',{'source':source,'runtime':runtime})
     M=load(ROOT/'ops/public/void_precision_web_install_v2.py','review_installer')
-    checks=[]
+    class Outcomes(list):
+        def append(self,name):
+            E.require(len(self)<16 and name==E.REVIEW_CONTROLS[len(self)][0],'control order or cardinality differs')
+            row=E.review_vector()[len(self)]
+            super().append(row)
+            emit(name,row)
+    checks=Outcomes()
     def reject(name,operation):
         try: operation()
         except (RuntimeError,ValueError,KeyError,OSError): checks.append(name)
@@ -48,27 +56,27 @@ def main():
         base=Path(temp); root=base/'source'
         subprocess.run(['/usr/bin/git','clone','--shared','--no-checkout',str(ROOT),str(root)],
                        env=env,check=True,stdout=subprocess.PIPE,stderr=subprocess.PIPE,timeout=30)
-        git(root,'checkout','--detach',args.head)
+        git(root,'checkout','--detach',head)
         names=['ops/public/void_precision_web_install_v2.py','ops/public/void_precision_web_install_evidence_v2.py']
         originals={n:(root/n).read_bytes() for n in names}
         for name in names: (root/name).write_bytes(originals[name]+b'\n# inert replacement-ref control\n')
         git(root,'add','--',*names)
         tree=git(root,'write-tree').decode().strip()
-        replacement=git(root,'commit-tree',tree,'-p',args.head,data=b'review fixture\n').decode().strip()
-        git(root,'replace',args.head,replacement)
-        reject('replace_ref_altered_checkout',lambda:E.source_identity(root,args.head))
-        E.require(M.git_blob_at_head(root,args.head,names[1])==originals[names[1]],'bootstrap followed replacement')
+        replacement=git(root,'commit-tree',tree,'-p',head,data=b'review fixture\n').decode().strip()
+        git(root,'replace',head,replacement)
+        reject('replace_ref_altered_checkout',lambda:E.source_identity(root,head))
+        E.require(M.git_blob_at_head(root,head,names[1])==originals[names[1]],'bootstrap followed replacement')
         checks.append('bootstrap_ignores_replace_ref')
         for name,data in originals.items(): (root/name).write_bytes(data)
-        E.require(E.source_identity(root,args.head)==source,'replacement changed legitimate source identity')
+        E.require(E.source_identity(root,head)==source,'replacement changed legitimate source identity')
         checks.append('original_source_under_replace_ref')
-        commit=git(root,'cat-file','commit',args.head)
+        commit=git(root,'cat-file','commit',head)
         def loose(kind,oid,data):
             path=root/'.git/objects'/oid[:2]/oid[2:]; path.parent.mkdir(exist_ok=True)
             path.write_bytes(zlib.compress(kind.encode()+b' '+str(len(data)).encode()+b'\0'+data))
         # Give Git exactly one object source. A shared clone can prefer a valid
         # packed/alternate copy over a corrupt loose duplicate at the same OID.
-        objects={('commit',args.head):commit}; entries={}
+        objects={('commit',head):commit}; entries={}
         for name in E.PATHS:
             oid=source['tree']
             for part in name.split('/'):
@@ -80,19 +88,19 @@ def main():
         E.require(not list((root/'.git/objects/pack').glob('*.pack')),'fixture unexpectedly has local packs')
         for (kind,oid),data in objects.items(): loose(kind,oid,data)
         (root/'.git/objects/info/alternates').unlink()
-        E.require(E.source_identity(root,args.head)==source,'isolated object fixture baseline differs')
+        E.require(E.source_identity(root,head)==source,'isolated object fixture baseline differs')
         corrupt_commit=commit+b'corrupt object control\n'
-        loose('commit',args.head,corrupt_commit)
-        E.require(git(root,'cat-file','commit',args.head)==corrupt_commit,'commit corruption was not observed')
-        reject('raw_commit_identity',lambda:E.source_identity(root,args.head))
-        reject('bootstrap_raw_commit_identity',lambda:M.git_blob_at_head(root,args.head,names[1]))
-        loose('commit',args.head,commit)
+        loose('commit',head,corrupt_commit)
+        E.require(git(root,'cat-file','commit',head)==corrupt_commit,'commit corruption was not observed')
+        reject('raw_commit_identity',lambda:E.source_identity(root,head))
+        reject('bootstrap_raw_commit_identity',lambda:M.git_blob_at_head(root,head,names[1]))
+        loose('commit',head,commit)
         tree_data=git(root,'cat-file','tree',source['tree'])
         corrupt_tree=tree_data[:-1]+bytes([tree_data[-1]^1])
         loose('tree',source['tree'],corrupt_tree)
         E.require(git(root,'cat-file','tree',source['tree'])==corrupt_tree,'tree corruption was not observed')
-        reject('raw_tree_identity',lambda:E.source_identity(root,args.head))
-        reject('bootstrap_raw_tree_identity',lambda:M.git_blob_at_head(root,args.head,names[1]))
+        reject('raw_tree_identity',lambda:E.source_identity(root,head))
+        reject('bootstrap_raw_tree_identity',lambda:M.git_blob_at_head(root,head,names[1]))
 
         case=next(c for c in E.manifests(ROOT)[0] if c['id']=='link-0-wrong_target-after_guard')
         work=base/'baseline'; work.mkdir()
@@ -181,9 +189,110 @@ def main():
         f.replace('fetch',fetch); reject('wrong_read_only_is_terminal',lambda:applied(f))
         E.require(count['n']==1,'malformed readiness was retried')
     fixture(malformed)
-    E.require(E.source_identity(ROOT,args.head)==source,'review proof source drift')
+    E.require(E.source_identity(ROOT,head)==source and E.runtime_identity()==runtime,'review source/runtime drift')
+    E.require(checks==E.review_vector(),'review vector differs')
+    emit('controls_complete',{'outcome_root':E.sha(E.canonical(checks))})
+    return E,source,runtime,list(checks)
+
+
+def evidence():
+    return load(ROOT/'ops/public/void_precision_web_install_evidence_v2.py','portable_review_evidence')
+
+
+def supervise(source,runtime,output,purpose='nominal',kill_at=None):
+    """One producer, closed ACK protocol, 64 transitions and 60 wall seconds.
+
+    Each checkpoint waits for its supervisor before continuing, making crash
+    cuts operative. No output, journal or prior stdout supplies a control result.
+    Diagnostic reconstruction receipts cannot enter the nominal aggregate.
+    """
+    E=evidence(); output=Path(output)
+    E.require(purpose in ('nominal','reconstruction-control'),'unknown review purpose')
+    E.require(kill_at is None or purpose=='reconstruction-control' and kill_at in E.REVIEW_CUTS,
+              'unknown or nominal crash schedule')
+    if os.path.lexists(output):
+        return {'result':'HOLD','ticks':1,'producer_exit':None,'control_ids':[],
+                'reason':'preexisting_destination'}
+    E.require(output.parent.is_dir() and not output.parent.is_symlink(),'review output directory missing or symbolic')
+    p=subprocess.Popen([runtime['executable'],'-I','-B',str(ROOT/E.REVIEW),'--head',source['head'],
+        '--output',str(output),'--producer','--purpose',purpose],
+        cwd=ROOT,stdin=subprocess.PIPE,stdout=subprocess.PIPE,stderr=subprocess.PIPE,
+        env={'PATH':'/usr/bin:/bin','HOME':str(Path.home()),'LANG':'C'},start_new_session=True)
+    selector=selectors.DefaultSelector()
+    selector.register(p.stdout,selectors.EVENT_READ,'out'); selector.register(p.stderr,selectors.EVENT_READ,'err')
+    buffer=bytearray(); errors=bytearray(); total=0; ticks=0; cuts=[]; controls=[]; killed=False
+    deadline=time.monotonic()+60
+    try:
+        while selector.get_map():
+            E.require(time.monotonic()<deadline,'review producer absolute deadline')
+            for key,_ in selector.select(min(0.1,max(0,deadline-time.monotonic()))):
+                chunk=os.read(key.fileobj.fileno(),65536)
+                if not chunk:
+                    selector.unregister(key.fileobj); continue
+                total+=len(chunk); E.require(total<=256*1024,'review producer output bound')
+                if key.data=='err': errors.extend(chunk); continue
+                buffer.extend(chunk)
+                while b'\n' in buffer:
+                    line,_,tail=buffer.partition(b'\n'); buffer=bytearray(tail)
+                    event=E.strict(bytes(line)+b'\n'); ticks+=1
+                    E.require(ticks<=64 and set(event)=={'checkpoint','value'},'review protocol shape/budget')
+                    cut=event['checkpoint']; value=event['value']
+                    E.require(len(cuts)<len(E.REVIEW_CUTS) and cut==E.REVIEW_CUTS[len(cuts)],'review checkpoint set/order')
+                    if cut=='source_bound': E.require(value=={'source':source,'runtime':runtime},'review producer generation/runtime drift')
+                    elif cut in dict(E.REVIEW_CONTROLS):
+                        E.require(value==E.review_vector()[len(controls)],'review control verdict differs')
+                        controls.append(value)
+                    elif cut=='controls_complete':
+                        E.require(controls==E.review_vector() and value=={'outcome_root':E.sha(E.canonical(controls))},
+                                  'review completion root differs')
+                    else: E.require(value is None,'publication checkpoint carried authority')
+                    cuts.append(cut)
+                    if cut==kill_at:
+                        # Cuts occur between completed controls. Any natural fixture
+                        # children have already exited at these declared checkpoints.
+                        os.killpg(p.pid,signal.SIGKILL); killed=True
+                    else:
+                        p.stdin.write(b'next\n'); p.stdin.flush()
+        code=p.wait(timeout=max(0.1,deadline-time.monotonic())); ticks+=1
+        E.require(ticks<=64 and not buffer,'review exit budget/partial protocol')
+        if killed:
+            E.require(code==-signal.SIGKILL and cuts[-1]==kill_at,'crash cut was not observed')
+            return {'result':'HOLD','ticks':ticks,'producer_exit':code,
+                    'control_ids':[row['id'] for row in controls],'reason':'supervised_crash'}
+        E.require(code==0,'review producer failed: '+errors.decode(errors='replace'))
+        E.require(cuts==E.REVIEW_CUTS and controls==E.review_vector(),'review producer omitted checkpoints')
+        raw=E.read(output)
+        E.review_member(raw,E.sha(raw),source,ROOT,purpose)
+        E.require(E.source_identity(ROOT,source['head'])==source and E.runtime_identity()==runtime,
+                  'post-producer source/runtime drift')
+        return {'result':'COMPLETE','ticks':ticks,'producer_exit':code,
+                'control_ids':[row['id'] for row in controls],'receipt_sha256':E.sha(raw)}
+    finally:
+        if p.poll() is None: os.killpg(p.pid,signal.SIGKILL); p.wait(timeout=5)
+        selector.close(); p.stdin.close(); p.stdout.close(); p.stderr.close()
+
+
+def main():
+    parser=argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--head',required=True); parser.add_argument('--output',type=Path,required=True)
+    parser.add_argument('--producer',action='store_true',help=argparse.SUPPRESS)
+    parser.add_argument('--purpose',choices=['nominal','reconstruction-control'],default='nominal',help=argparse.SUPPRESS)
+    args=parser.parse_args(); E=evidence()
+    if args.producer:
+        E.require(not os.path.lexists(args.output),'review destination already exists')
+        def emit(name,value=None):
+            sys.stdout.buffer.write(E.canonical({'checkpoint':name,'value':value})); sys.stdout.buffer.flush()
+            E.require(sys.stdin.buffer.readline(16)==b'next\n','review supervisor acknowledgement missing')
+        _,source,runtime,controls=run_controls(args.head,emit)
+        row=E.review_receipt(source,runtime,controls,ROOT,args.purpose)
+        raw=E.canonical(row); E.review_member(raw,E.sha(raw),source,ROOT,args.purpose)
+        E.publish_receipt(args.output,raw,emit)
+        return
+    source=E.source_identity(ROOT,args.head); runtime=E.runtime_identity()
+    result=supervise(source,runtime,args.output,args.purpose)
+    E.require(result['result']=='COMPLETE','review receipt HOLD: '+result.get('reason','unknown'))
     print(json.dumps({'marker':'VOID_PRECISION_INSTALL_REVIEW_REGRESSIONS_V2','source_head':args.head,
-        'runtime':runtime,'checks':checks,'count':len(checks),'host_execution':False,
+        'runtime':runtime,**result,'count':16,'host_execution':False,'installation_authorized':False,
         'independent_acceptance':False},sort_keys=True))
 
 

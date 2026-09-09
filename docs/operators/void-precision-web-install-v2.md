@@ -109,7 +109,7 @@ populations fail admission.
 
 Receipts bind source head/tree/closure, runtime executable/version/hash, exact
 preparation identities, case IDs, parent observations, process exits and terminal
-roots. The aggregate requires three externally supplied raw receipt digests;
+roots. The aggregate requires six externally supplied raw receipt digests;
 CI captures them after each successful producer step and supplies them to the
 separate aggregate step. The CI runner, workflow and supervisor remain trusted.
 A digest is not a signature: supplying a forged receipt *and* replacing the
@@ -119,6 +119,81 @@ stale/mixed-runtime/mixed-head/mixed-artifact or substituted source/case inputs.
 
 The workflow uses the interpreter path returned by each pinned setup-python
 action, as documented by [actions/setup-python](https://github.com/actions/setup-python/blob/main/docs/advanced-usage.md#python-path).
+
+## Portable review controls and reconstruction
+
+The review of `4f2c593a8a959b862023da1614f268d8c0fec0bd` found that the
+16 repair controls ran on each Python runtime but produced only stdout. That
+generation's four-file artifact remains historical natural-matrix evidence;
+it cannot supply this generation's missing review receipt edge. This repair
+addresses Grace #5156993822, Shannon #5157083155 and Darwin #5157362313 without
+changing installer behavior, accepted preparation, or the natural population.
+The same 18 source paths remain the admitted closure.
+
+Each of three nominal review producer processes now executes the original 16
+controls in the closed order in `REVIEW_CONTROLS`. Its supervisor acknowledges
+each observed result only after the check runs. A canonical, create-only receipt
+binds the full source generation, actual executable/version/SHA-256, separate
+production/supervisor/review-fixture blob and byte identities, receipt schema
+definition, control-set root, and all 16 expected/observed verdicts. Missing,
+duplicate, skipped or unexpected outcomes must be zero. Host execution,
+installation authorization and independent acceptance remain false.
+
+| Canonical artifact members | Count | Evidence |
+|---|---:|---|
+| `python310.json`, `python311.json`, `python312.json` | 3 | Original 1,512 natural processes and 144 legacy false greens |
+| `python310-review.json`, `python311-review.json`, `python312-review.json` | 3 | Three nominal producers, 48 observed review outcomes |
+| `aggregate.json` | 1 | Six member pins, rejection outcomes and reconstruction observations |
+
+The aggregate admits exactly six ordered members; natural and review receipts
+must name the same source and exact runtime identities. Independent workflow
+steps retain all six SHA-256 values and the aggregate SHA-256. A separate replay
+step checks those pins, canonical bytes, closed aggregate content and exactly
+seven files before upload. Missing/partial/noncanonical output, unsuccessful
+producer exit, preexisting destinations, unexpected files and aggregate/member
+mismatch fail the job. A fresh run must be attempt 1; reruns cannot contribute
+evidence to this generation. A failed generation needs a new reviewed source
+head and fresh hosted artifact.
+
+The existing 27 natural rejection controls remain. Exactly **32 additional
+review-DAG rejection controls** exercise the aggregate's review admission edge:
+16 individual control omissions/verdict mutations; three missing runtimes;
+three duplicate runtimes; mixed head, tree, source, runtime executable identity,
+stale control root, reordered controls, an externally re-pinned noncanonical
+member, natural/review generation mixing, and production/review identity reuse;
+plus an unexpected seventh runtime member. The review's enumerated categories
+sum to 31; the explicit extra-member case closes its requested total of 32.
+Seven separately counted I/O/replay guards cover missing, partial, noncanonical,
+preexisting, extra-file, aggregate-pin and aggregate-member failures. Re-pinning
+invalid bytes does not bypass semantic checks; hashes remain trusted inputs,
+not signatures or protection against replacing the whole trusted evidence chain.
+
+Review production has 24 acknowledged cutpoints: source binding, each of the
+16 completed controls, the final control root, and six publication transitions
+(`before_create`, `after_write`, `after_file_fsync`, `after_link`, `after_unlink`,
+`after_directory_fsync`). Publication writes and fsyncs a private staging file,
+links it to an absent destination, unlinks staging, and fsyncs the directory.
+A killed writer can leave staging, a multiply linked destination, or complete
+bytes without a successful producer exit. None admits a nominal receipt.
+Existing destinations receive deterministic HOLD without overwrite or cleanup.
+
+For every cut, a diagnostic producer is killed while awaiting acknowledgment.
+Another producer in a fresh directory reconstructs evidence by executing the
+exact source/runtime and all controls again. It consumes no old receipt, journal
+or cached stdout. The 24 crashes and 24 fresh reconstructions are **48 additional
+diagnostic producer processes**, separate from both the three nominal review
+producers and the 1,512-process natural population. Their receipts carry
+`purpose=reconstruction-control`, cannot enter nominal admission, and are
+embedded with parent-observed exits and ticks in the aggregate. The aggregate's
+retained external digest covers this diagnostic report.
+
+Every review producer has a 64-transition bound and a separate 60-second absolute
+deadline. Normal completion takes 25 transitions; all declared crash cuts return
+HOLD within that bound. Cuts occur between completed controls, after any natural
+fixture children have exited. The claim is a cooperative hosted process boundary,
+not hostile process isolation or custody. A successful closed artifact replay
+emits `PORTABLE_REPAIR_CONTROL_RECEIPT_RECOVERY_GREEN`; independent topology,
+security and exact-generation review remain separate.
 
 ## Scope limits
 

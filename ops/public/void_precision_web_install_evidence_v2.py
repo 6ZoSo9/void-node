@@ -10,6 +10,7 @@ import json
 import os
 from pathlib import Path
 import re
+import secrets
 import stat
 import subprocess
 import sys
@@ -18,6 +19,29 @@ ROOT=Path(__file__).resolve().parents[2]
 FIXTURE='scripts/fixtures/precision-web-install-v2/'
 CONTRACT='ops/public/precision-web-install-v2-contract.json'
 SCHEMA='ops/public/precision-web-install-v2-receipt.schema.json'
+REVIEW='scripts/prove_void_precision_web_install_review_v2.py'
+REVIEW_MARKER='VOID_PRECISION_INSTALL_REVIEW_MEMBER_V2'
+REVIEW_CONTROLS=[
+    ('replace_ref_altered_checkout','REJECTED'),
+    ('bootstrap_ignores_replace_ref','ACCEPTED'),
+    ('original_source_under_replace_ref','ACCEPTED'),
+    ('raw_commit_identity','REJECTED'),
+    ('bootstrap_raw_commit_identity','REJECTED'),
+    ('raw_tree_identity','REJECTED'),
+    ('bootstrap_raw_tree_identity','REJECTED'),
+    ('natural_wrong_target_baseline','ACCEPTED'),
+    ('v2_false_success','REJECTED'),
+    ('enable_authority','REJECTED'),
+    ('primary_deleted_foreign_and_unrelated','REJECTED'),
+    ('receipt_deleted_protected_entry','REJECTED'),
+    ('transient_readiness_then_success','ACCEPTED'),
+    ('operator_runtime_drift','PARTIAL_OR_UNCERTAIN'),
+    ('journal_cannot_redefine_unit_payload','CONTRADICTED_COMPLETE_QUARANTINED'),
+    ('wrong_read_only_is_terminal','REJECTED')]
+PUBLICATION_CUTS=['before_create','after_write','after_file_fsync','after_link',
+                  'after_unlink','after_directory_fsync']
+REVIEW_CUTS=['source_bound',*[name for name,_ in REVIEW_CONTROLS],
+             'controls_complete',*PUBLICATION_CUTS]
 PATHS=sorted([
     'ops/public/void_precision_web_install_v2.py',
     'ops/public/void_precision_web_install_evidence_v2.py',
@@ -165,7 +189,7 @@ def manifests(root):
 
 def schema_check(value,schema):
     """Closed subset used by the committed schema; unknown keywords reject."""
-    require(set(schema)<={'type','properties','required','additionalProperties','items','enum','const'},'schema keyword')
+    require(set(schema)<={'type','properties','required','additionalProperties','items','enum','const','$defs'},'schema keyword')
     kind=schema.get('type')
     types={'object':dict,'array':list,'string':str,'integer':int,'boolean':bool}
     if kind: require(type(value) is types[kind],'receipt schema type')
@@ -248,3 +272,77 @@ def member(raw,expected_sha,source,root):
             require(row['sample_checks']=={'unit_identities_verified':3,'link_identities_verified':3,
                 'service_identities_verified':3,'manager_mutations_verified':5},'sample not independently checked')
     return data
+
+
+def review_vector():
+    return [{'id':name,'expected':verdict,'observed':verdict} for name,verdict in REVIEW_CONTROLS]
+
+
+def review_bindings(source,root):
+    definition=strict(read(root/SCHEMA))['$defs']['review_member']
+    identities=source['members']
+    paths={'production':'ops/public/void_precision_web_install_v2.py',
+           'supervisor':'scripts/prove_void_precision_web_install_v2.py','review_fixture':REVIEW}
+    return {
+        'receipt_schema':{'path':SCHEMA,'definition':'$defs/review_member',
+            **identities[SCHEMA],'definition_sha256':sha(canonical(definition))},
+        'identities':{role:{'path':path,**identities[path]} for role,path in paths.items()},
+        'control_set_root':sha(canonical([{'id':n,'expected':v} for n,v in REVIEW_CONTROLS]))}
+
+
+def review_receipt(source,runtime,controls,root,purpose='nominal'):
+    require(controls==review_vector(),'review outcomes incomplete or altered')
+    return {'marker':REVIEW_MARKER,'source':source,'runtime':runtime,
+        **review_bindings(source,root),'purpose':purpose,'controls':controls,
+        'control_count':16,'expected_outcomes_observed':16,'missing':0,'duplicates':0,
+        'unexpected_admission':0,'skipped':0,'outcome_root':sha(canonical(controls)),
+        'host_execution':False,'installation_authorized':False,'independent_acceptance':False}
+
+
+def review_member(raw,expected_sha,source,root,purpose='nominal'):
+    require(re.fullmatch('[a-f0-9]{64}',expected_sha) and sha(raw)==expected_sha,'external review digest mismatch')
+    data=strict(raw)
+    schema_check(data,strict(read(root/SCHEMA))['$defs']['review_member'])
+    require(data['source']==source and len(source['members'])==18,'mixed review source generation')
+    runtime=data['runtime']
+    require(runtime['minor'] in ('3.10','3.11','3.12') and Path(runtime['executable']).is_absolute()
+            and re.fullmatch(re.escape(runtime['minor'])+r'\.\d+',runtime['version'])
+            and re.fullmatch('[a-f0-9]{64}',runtime['sha256']),'review runtime identity invalid')
+    require(data==review_receipt(source,runtime,review_vector(),root,purpose),'review member binding differs')
+    require(len({v['blob'] for v in data['identities'].values()})==3
+            and len({v['sha256'] for v in data['identities'].values()})==3,'production/supervisor/review identity reuse')
+    return data
+
+
+def publish_receipt(output,raw,checkpoint=lambda name:None):
+    """Atomic complete bytes, create-only destination; no resumption or overwrite.
+
+    Named staging is owned by this invocation. Crashes may leave staging or a
+    complete destination, neither of which supplies authority to a later run.
+    Only successful producer exit plus retained external pins admits evidence.
+    """
+    output=Path(output)
+    require(output.name not in ('','.','..') and output.parent.resolve()==output.parent,
+            'receipt output parent must be an explicit real directory')
+    parent=os.open(output.parent,os.O_RDONLY|os.O_DIRECTORY|os.O_NOFOLLOW)
+    staging='.receipt-'+secrets.token_hex(16); fd=None; created=False
+    try:
+        require(output.name not in os.listdir(parent),'receipt destination already exists')
+        checkpoint('before_create')
+        fd=os.open(staging,os.O_WRONLY|os.O_CREAT|os.O_EXCL|os.O_NOFOLLOW,0o600,dir_fd=parent)
+        created=True
+        with os.fdopen(fd,'wb',closefd=False) as stream:
+            stream.write(raw); stream.flush()
+            checkpoint('after_write')
+            os.fsync(fd); checkpoint('after_file_fsync')
+        os.link(staging,output.name,src_dir_fd=parent,dst_dir_fd=parent,follow_symlinks=False)
+        checkpoint('after_link')
+        os.unlink(staging,dir_fd=parent); created=False
+        checkpoint('after_unlink')
+        os.fsync(parent); checkpoint('after_directory_fsync')
+    finally:
+        try:
+            if fd is not None: os.close(fd)
+            # Never remove a destination, including a complete one after fsync failure.
+            if created: os.unlink(staging,dir_fd=parent)
+        finally: os.close(parent)
