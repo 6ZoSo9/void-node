@@ -10,6 +10,9 @@ on:
       - "docs/public/btc-void-native-atomic-market-v1.md"
       - "scripts/prove_void_btc_void_market_maker_reserve_policy_v1.mjs"
       - "tools/void-btc-void-market-maker-reserve-policy-v1.mjs"
+      - "tools/void-btc-void-bounded-stdin-v1.mjs"
+      - "scripts/lib/prove_void_btc_void_bounded_stdin_v1.mjs"
+      - "tools/void-btc-void-atomic-settlement-state-invariants-v1.mjs"
   push:
     branches:
       - main
@@ -21,6 +24,9 @@ on:
       - "docs/public/btc-void-native-atomic-market-v1.md"
       - "scripts/prove_void_btc_void_market_maker_reserve_policy_v1.mjs"
       - "tools/void-btc-void-market-maker-reserve-policy-v1.mjs"
+      - "tools/void-btc-void-bounded-stdin-v1.mjs"
+      - "scripts/lib/prove_void_btc_void_bounded_stdin_v1.mjs"
+      - "tools/void-btc-void-atomic-settlement-state-invariants-v1.mjs"
 
 permissions:
   contents: read
@@ -33,11 +39,11 @@ jobs:
       matrix:
         node-version: [22, 24, 26]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
           fetch-depth: 0
           persist-credentials: false
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
         with:
           node-version: ${{ matrix.node-version }}
       - run: |

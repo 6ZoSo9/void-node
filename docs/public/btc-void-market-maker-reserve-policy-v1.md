@@ -20,6 +20,13 @@ same-lot buyback ceiling is **100 VOID for 0.99 BTC** before any separately
 declared native-Bitcoin network-fee reserve. No USD value is calculated for
 either asset. A partial buyback uses the same native BTC-per-VOID lot ratio.
 
+The source-sale envelope accepts at most Bitcoin `MAX_MONEY`
+(`2,100,000,000,000,000` satoshis) and VOID's complete maximum supply
+(`666,666,666,000,000,000,000,000,000` atomic units). Each exact ceiling is
+valid; one unit above either native-asset ceiling fails before a buyback lot is
+derived. The reserve policy imports these versioned limits from the atomic
+settlement contract so the two market stages cannot silently diverge.
+
 The machine-readable request schema has no fiat or oracle field. Inputs such as
 `usd_price`, `usd_value_cents`, a stablecoin quote, or an external market price
 are unknown fields and fail closed.

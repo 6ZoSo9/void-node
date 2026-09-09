@@ -4,8 +4,12 @@ import assert from "node:assert/strict";
 import crypto from "node:crypto";
 import fs from "node:fs";
 
+import { proveBtcVoidBoundedStdinV1 } from "./lib/prove_void_btc_void_bounded_stdin_v1.mjs";
+
 import {
+  BITCOIN_MAX_MONEY_SATOSHIS_V1,
   VOID_BTC_VOID_V1_MINIMUM_SPREAD_BPS,
+  VOID_MAX_SUPPLY_ATOMS_V1,
   VOID_PREMINE_PURPOSE_VAULT_TARGET_V1,
   canonicalJson,
   deriveBtcVoidBuybackLotV1,
@@ -276,6 +280,50 @@ assert.equal(
   "100000000000000000000",
 );
 
+const nativeSupplyCeilings = deriveBtcVoidBuybackLotV1(
+  request({
+    settlement: {
+      btc_received_sats: BITCOIN_MAX_MONEY_SATOSHIS_V1,
+      void_sold_atomic: VOID_MAX_SUPPLY_ATOMS_V1,
+    },
+    policy: {
+      bitcoin_network_fee_reserve_sats: "0",
+    },
+  }),
+);
+assert.equal(
+  nativeSupplyCeilings.source.settlement.btc_received_sats,
+  BITCOIN_MAX_MONEY_SATOSHIS_V1,
+);
+assert.equal(
+  nativeSupplyCeilings.source.settlement.void_sold_atomic,
+  VOID_MAX_SUPPLY_ATOMS_V1,
+);
+for (const [field, maximum, error] of [
+  [
+    "btc_received_sats",
+    BITCOIN_MAX_MONEY_SATOSHIS_V1,
+    /exceeds Bitcoin MAX_MONEY/,
+  ],
+  [
+    "void_sold_atomic",
+    VOID_MAX_SUPPLY_ATOMS_V1,
+    /exceeds VOID maximum supply/,
+  ],
+]) {
+  assert.throws(
+    () =>
+      deriveBtcVoidBuybackLotV1(
+        request({
+          settlement: {
+            [field]: (BigInt(maximum) + 1n).toString(),
+          },
+        }),
+      ),
+    error,
+  );
+}
+
 const reordered = {
   policy: structuredClone(original.policy),
   settlement: structuredClone(original.settlement),
@@ -539,13 +587,37 @@ const workflowDoc = fs.readFileSync(
   "utf8",
 );
 for (const expected of [
+  "uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6",
+  "uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6",
   "node --check tools/void-btc-void-market-maker-reserve-policy-v1.mjs",
   "node --check scripts/prove_void_btc_void_market_maker_reserve_policy_v1.mjs",
   "node scripts/prove_void_btc_void_market_maker_reserve_policy_v1.mjs",
 ]) {
-  assert.ok(workflowDoc.includes(expected), `workflow missing ${expected}`);
+  assert.equal(
+    workflowDoc.split(expected).length - 1,
+    1,
+    `workflow must contain exactly one ${expected}`,
+  );
 }
+assert.equal(
+  workflowDoc.split(
+    '      - "tools/void-btc-void-atomic-settlement-state-invariants-v1.mjs"',
+  ).length - 1,
+  2,
+  "reserve-policy workflow must track its imported native-ceiling source",
+);
+assert.doesNotMatch(
+  workflowDoc,
+  /uses:\s+actions\/(?:checkout|setup-node)@v\d+/,
+  "workflow must not use mutable Action tags",
+);
 assert.equal(workflowDoc.includes("market_maker-reserve_policy"), false);
+
+await proveBtcVoidBoundedStdinV1({
+  cliPath: "tools/void-btc-void-market-maker-reserve-policy-v1.mjs",
+  validInput: JSON.stringify(request()),
+  holdMarker: "VOID_BTC_VOID_MARKET_MAKER_RESERVE_POLICY_V1_HOLD",
+});
 
 process.stdout.write(
   JSON.stringify({

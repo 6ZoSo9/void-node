@@ -3,6 +3,8 @@
 import crypto from "node:crypto";
 import { pathToFileURL } from "node:url";
 
+import { readBtcVoidBoundedStdinV1 } from "./void-btc-void-bounded-stdin-v1.mjs";
+
 import {
   VOID_BTC_VOID_MARKET_MAKER_RESERVE_POLICY_V1,
   canonicalJson,
@@ -266,17 +268,10 @@ export function evaluateBtcVoidBuybackLotJournalTransitionV1(raw) {
 }
 
 async function readBoundedStdin() {
-  const chunks = [];
-  let bytes = 0;
-  for await (const chunk of process.stdin) {
-    bytes += chunk.length;
-    if (bytes > MAX_STDIN_BYTES) {
-      throw new Error("stdin exceeds 1048576 bytes");
-    }
-    chunks.push(chunk);
-  }
-  if (bytes === 0) throw new Error("stdin JSON is required");
-  return Buffer.concat(chunks).toString("utf8");
+  return readBtcVoidBoundedStdinV1({
+    stream: process.stdin,
+    maxBytes: MAX_STDIN_BYTES,
+  });
 }
 
 async function main() {
