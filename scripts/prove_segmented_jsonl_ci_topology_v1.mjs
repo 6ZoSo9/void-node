@@ -1,0 +1,3786 @@
+#!/usr/bin/env node
+
+import assert, { throws as assertThrows } from "node:assert/strict";
+import { spawnSync } from "node:child_process";
+import { createHash } from "node:crypto";
+import ts from "typescript";
+import { readFileSync } from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+
+const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+const FOCUSED_PATH = ".github/workflows/void-segmented-jsonl-v1.yml";
+const CI_PATH = ".github/workflows/ci.yml";
+const BASELINE_PATH = "tools/check_tsc_noemit_baseline.sh";
+const PROOF_PATH = "scripts/prove_segmented_jsonl_ci_topology_v1.mjs";
+const SEGSTORE_PROOF_PATH = "scripts/prove_segmented_jsonl_v1.ts";
+const DURABLE_ROOT_SOURCE_PATH = "src/storage/segmented_jsonl_durable_root_v1.ts";
+const DURABLE_ROOT_PROOF_PATH = "scripts/prove_segmented_jsonl_durable_root_v1.ts";
+const DURABLE_ROOT_SOURCE_BLOB_SHA1 = "0f7d07544e6e4cbc27ffd549d1489d0990575fd5";
+const DURABLE_ROOT_PROOF_BLOB_SHA1 = "f7337cbba1c074c62c1c7acc740c303f04b96f90";
+const STORAGE_SOURCES = [
+  "src/storage/segmented_jsonl_v1.ts",
+  "src/storage/segmented_jsonl_snapshot_authority_v1.ts",
+  "src/storage/segmented_jsonl_materialized_authority_v1.ts",
+  "src/storage/segmented_jsonl_checkpoint_materialized_authority_v1.ts",
+  "src/storage/segmented_jsonl_durable_root_v1.ts",
+];
+const SEMANTIC_PROOFS = [
+  "scripts/prove_segmented_jsonl_v1.ts",
+  "scripts/prove_segmented_jsonl_record_delimiter_ceiling_v1.ts",
+  "scripts/prove_segmented_jsonl_manifest_publish_ceiling_v1.ts",
+  "scripts/prove_segmented_jsonl_parent_namespace_v1.ts",
+  "scripts/prove_segmented_jsonl_terminal_generation_v1.ts",
+  "scripts/prove_segmented_jsonl_builder_record_vector_heap_v1.ts",
+  "scripts/prove_segmented_jsonl_snapshot_authority_v1.ts",
+  "scripts/prove_segmented_jsonl_materialized_authority_v1.ts",
+  "scripts/prove_segmented_jsonl_checkpoint_append_only_v1.ts",
+  "scripts/prove_segmented_jsonl_checkpoint_bounded_consumer_v1.ts",
+  "scripts/prove_segmented_jsonl_checkpoint_admission_bound_v1.ts",
+  "scripts/prove_segmented_jsonl_checkpoint_chain_lifetime_bound_v1.ts",
+  "scripts/prove_segmented_jsonl_post_durable_close_v1.ts",
+  "scripts/prove_segmented_jsonl_durable_root_v1.ts",
+];
+const TRIGGER_DEPENDENCIES = [
+  ...STORAGE_SOURCES,
+  ...SEMANTIC_PROOFS,
+  FOCUSED_PATH,
+  "scripts/ci_diff_hygiene_v1.sh",
+  "scripts/prove_ci_diff_hygiene_v1.mjs",
+  PROOF_PATH,
+  BASELINE_PATH,
+  CI_PATH,
+  "package.json",
+  "package-lock.json",
+  "tsconfig.json",
+  "tsconfig.build.json",
+];
+
+function exactLineCount(source, exact) {
+  return source.split("\n").filter((line) => line === exact).length;
+}
+
+function gitBlobSha1(source) {
+  return createHash("sha1")
+    .update(`blob ${Buffer.byteLength(source, "utf8")}\0`)
+    .update(source, "utf8")
+    .digest("hex");
+}
+
+function auditDurableRootReclaimWinnerDigestEvidence(source, proof) {
+  assert.equal(
+    gitBlobSha1(source),
+    DURABLE_ROOT_SOURCE_BLOB_SHA1,
+    "durable_root_reclaim_winner_digest_source_blob_not_exact",
+  );
+  assert.equal(
+    gitBlobSha1(proof),
+    DURABLE_ROOT_PROOF_BLOB_SHA1,
+    "durable_root_reclaim_winner_digest_proof_blob_not_exact",
+  );
+  const restoreStart = source.indexOf("function restoreFailedReclaimClaim(");
+  const restoreEnd = source.indexOf("\nfunction claimStalePublishOwner(", restoreStart);
+  assert.ok(restoreStart >= 0 && restoreEnd > restoreStart, "durable_root_failed_acquire_restore_body_missing");
+  const restoreBody = source.slice(restoreStart, restoreEnd);
+  for (const marker of [
+    "openRetainedOwnerWitnessForRollback(",
+    "linkExactFdCreateOnly(",
+    "assertRetainedOwnerWitnessForRollback(retained, 2);",
+    "winnerBeforeRetirement.name,",
+  ]) {
+    assert.ok(restoreBody.includes(marker), `durable_root_failed_acquire_restore_marker_missing:${marker}`);
+  }
+  assert.ok(
+    restoreBody.indexOf("linkExactFdCreateOnly(") <
+      restoreBody.indexOf("removeExactLockName(\n      lock,\n      winnerBeforeRetirement.name,"),
+    "durable_root_failed_acquire_owner_must_precede_winner_retirement",
+  );
+  for (const marker of [
+    "const descriptorReclaimMatch =",
+    "/^\\/proc\\/self\\/fd\\/([0-9]+)\\/reclaim-winner(?:-successor-[0-9a-f]{64})?\\.v1$/.exec(String(file));",
+    "acquisitionRecheckInjectionCount += 1;",
+    "failedAcquireSuccessorToken = currentOwner.token;",
+    "snapshotPublishLock(),",
+    "failedAcquireLockBefore,",
+    "durable_root_failed_acquire_descriptor_fault_count=1",
+    "durable_root_failed_acquire_lock_namespace_restored=true",
+    "const abandonedRollbackToken =",
+    "durable_root_abandoned_reclaim_winner_fresh_process_converges=true",
+  ]) {
+    assert.ok(proof.includes(marker), `durable_root_failed_acquire_proof_marker_missing:${marker}`);
+  }
+  for (const marker of [
+    "function replaceAbandonedReclaimWinner(",
+    "reclaimWinnerClaimantIsLive(existingWinner)",
+    "DURABLE_ROOT_ABANDONED_RECLAIM_WINNER_CHANGED",
+    "DURABLE_ROOT_ABANDONED_RECLAIM_WINNER_OWNER_CHANGED",
+    "stale_owner_sha256",
+    "stale_witness_sha256",
+    "assertPublishLockFileExactBytes(",
+    "DURABLE_ROOT_ABANDONED_RECLAIM_WINNER_OWNER_BYTES_CHANGED",
+    "DURABLE_ROOT_ABANDONED_RECLAIM_WINNER_WITNESS_BYTES_CHANGED",
+    "DURABLE_ROOT_ABANDONED_RECLAIM_WINNER_PREDECESSOR_BYTES_MISMATCH",
+    "function readReclaimWinnerChain(",
+    "reclaimWinnerSuccessorName(predecessor.bodySha256)",
+    "const overflow = readReclaimWinnerNamed(",
+    "function assertReclaimWinnerSuccessorCapacity(",
+    "assertReclaimWinnerSuccessorCapacity(lock, predecessor);",
+    "assertReclaimWinnerSuccessorCapacity(lock, terminal);",
+    "DURABLE_ROOT_ABANDONED_RECLAIM_WINNER_SUCCESSOR_NOT_ADVANCED",
+    "function publishReclaimWinnerRetirement(",
+    "function reconstructReclaimWinnerStaleAuthority(",
+    "function claimAfterReclaimWinnerTerminal(",
+    "readReclaimWinnerRetirement(lock, existingWinner)",
+    "function bindLiveReclaimWinnerToCurrentClaimant(",
+    "claimant.token = value.claimant_token;",
+    "bindLiveReclaimWinnerToCurrentClaimant(existingWinner, claimant);",
+    "reclaimWinnerBelongsToClaimant(existingWinner, ownerFile.owner)",
+    "return replaceAbandonedReclaimWinner(",
+  ]) {
+    assert.ok(source.includes(marker), `durable_root_abandoned_reclaim_source_marker_missing:${marker}`);
+  }
+  const replacementStart = source.indexOf("function replaceAbandonedReclaimWinner(");
+  const replacementEnd = source.indexOf("\nfunction assertReclaimWinnerExactBytes(", replacementStart);
+  assert.ok(replacementStart >= 0 && replacementEnd > replacementStart, "durable_root_abandoned_reclaim_replacement_body_missing");
+  assert.equal(
+    source.slice(replacementStart, replacementEnd).includes("removeExactLockName("),
+    false,
+    "durable_root_abandoned_reclaim_destructive_compare_delete_present",
+  );
+  const retirementStart = source.indexOf("function retireSupersededWitness(");
+  const retirementEnd = source.indexOf("\nfunction assertStagePredecessor(", retirementStart);
+  assert.ok(retirementStart >= 0 && retirementEnd > retirementStart, "durable_root_reclaim_retirement_body_missing");
+  const retirementBody = source.slice(retirementStart, retirementEnd);
+  assert.ok(
+    retirementBody.includes("publishReclaimWinnerRetirement(lock, terminalWinner);"),
+    "durable_root_reclaim_retirement_marker_publish_missing",
+  );
+  assert.equal(
+    retirementBody.includes("removeExactLockName(lock, generation.name"),
+    false,
+    "durable_root_reclaim_retirement_generation_delete_present",
+  );
+  for (const marker of [
+    "const exactBytePredecessorToken =",
+    "DURABLE_ROOT_RECLAIM_WINNER_BINDING_MISMATCH",
+    "exact-byte predecessor rejection must preserve the abandoned winner",
+    "durable_root_reclaim_predecessor_exact_bytes_bound=true",
+    'env: childEnvironment("crash_after_successor_owner_durable"),',
+    "fresh recoverer must append one exact transition successor",
+    "fresh recovery must preserve the crashed claimant's root winner bytes exactly",
+    "nested transition recovery must retain the exact earlier predecessor witness authority",
+    "durable_root_reclaim_chain_retirement_append_only=true",
+    "63-generation boundary must recursively account every persistent lock name and inode",
+    "the 64th create-only successor must remain readable and recoverable",
+    "65th attempt must fail before publishing a successor or mutating any existing namespace generation",
+    "DURABLE_ROOT_RECLAIM_WINNER_SUCCESSOR_CHAIN_LIMIT:64",
+    "durable_root_reclaim_chain_64_terminal_readable=true",
+    "durable_root_reclaim_chain_65th_attempt_prepublication_hold=true",
+    "durable_root_reclaim_lifetime_bound_names=",
+    "durable_root_reclaim_lifetime_bound_inodes=",
+    "durable_root_reclaim_lifetime_bound_name_bytes=",
+    "durable_root_reclaim_lifetime_bound_inode_bytes=",
+    'DURABLE_ROOT_CHILD_MODE === "reject_precreated_retirement_marker"',
+    "precreated retirement marker must not mutate owner-present live claimant authority",
+    "precreated retirement marker must not mutate owner-absent live claimant authority",
+    "durable_root_reclaim_retirement_marker_live_claimant_bound=true",
+    "durable_root_successor_owner_crash_fresh_process_converges=true",
+  ]) {
+    assert.ok(proof.includes(marker), `durable_root_abandoned_reclaim_exact_bytes_proof_marker_missing:${marker}`);
+  }
+}
+
+function auditDurableRootRealProcessRecoveryEvidence(proof) {
+  const parsed = ts.createSourceFile(
+    DURABLE_ROOT_PROOF_PATH,
+    proof,
+    ts.ScriptTarget.Latest,
+    true,
+    ts.ScriptKind.TS,
+  );
+  const spawnDeclarations = new Map();
+  const visit = node => {
+    if (
+      ts.isVariableDeclaration(node) &&
+      ts.isIdentifier(node.name) &&
+      (node.name.text === "childA" || node.name.text === "childB")
+    ) {
+      assert.equal(
+        spawnDeclarations.has(node.name.text),
+        false,
+        `durable_root_real_process_${node.name.text}_declaration_not_exact`,
+      );
+      spawnDeclarations.set(node.name.text, node);
+    }
+    ts.forEachChild(node, visit);
+  };
+  visit(parsed);
+  for (const name of ["childA", "childB"]) {
+    const declaration = spawnDeclarations.get(name);
+    assert.ok(declaration, `durable_root_real_process_${name}_missing`);
+    assert.ok(
+      declaration.initializer &&
+      ts.isCallExpression(declaration.initializer) &&
+      ts.isPropertyAccessExpression(declaration.initializer.expression) &&
+      ts.isIdentifier(declaration.initializer.expression.expression) &&
+      declaration.initializer.expression.expression.text === "childProcess" &&
+      declaration.initializer.expression.name.text === "spawnSync",
+      `durable_root_real_process_${name}_not_spawn_sync`,
+    );
+    const declarationList = declaration.parent;
+    const statement = declarationList.parent;
+    const block = statement.parent;
+    const tryStatement = block.parent;
+    assert.ok(ts.isVariableDeclarationList(declarationList));
+    assert.ok(ts.isVariableStatement(statement));
+    assert.ok(ts.isBlock(block));
+    assert.ok(
+      ts.isTryStatement(tryStatement) &&
+      tryStatement.tryBlock === block &&
+      ts.isSourceFile(tryStatement.parent),
+      `durable_root_real_process_${name}_not_top_level_try`,
+    );
+  }
+  const exactPropertyAccess = (node, objectName, propertyName) =>
+    ts.isPropertyAccessExpression(node) &&
+    ts.isIdentifier(node.expression) &&
+    node.expression.text === objectName &&
+    node.name.text === propertyName;
+  const assertTopLevelTryCall = (call, marker) => {
+    const statement = call.parent;
+    const block = statement.parent;
+    const tryStatement = block.parent;
+    assert.ok(ts.isExpressionStatement(statement), `${marker}_not_expression_statement`);
+    assert.ok(ts.isBlock(block), `${marker}_not_block`);
+    assert.ok(
+      ts.isTryStatement(tryStatement) &&
+      tryStatement.tryBlock === block &&
+      ts.isSourceFile(tryStatement.parent),
+      `${marker}_not_top_level_try`,
+    );
+  };
+  const assertTopLevelTryDeclaration = (declaration, marker) => {
+    const declarationList = declaration.parent;
+    const statement = declarationList.parent;
+    const block = statement.parent;
+    const tryStatement = block.parent;
+    assert.ok(ts.isVariableDeclarationList(declarationList), `${marker}_not_declaration_list`);
+    assert.ok(ts.isVariableStatement(statement), `${marker}_not_variable_statement`);
+    assert.ok(ts.isBlock(block), `${marker}_not_block`);
+    assert.ok(
+      ts.isTryStatement(tryStatement) &&
+      tryStatement.tryBlock === block &&
+      ts.isSourceFile(tryStatement.parent),
+      `${marker}_not_top_level_try`,
+    );
+  };
+  const ownedTokenDeclarations = [];
+  const childBResidueNameDeclarations = [];
+  const childBResiduePathDeclarations = [];
+  const childBResidueWriteCalls = [];
+  const childBResidueUnlinkCalls = [];
+  const residueAssertions = new Map();
+  const residueMessages = new Set([
+    "child B owned-residue falsifier must be detected before zero-residue success",
+    "child B, child A, and predecessor generations must leave zero owned residue",
+  ]);
+  const visitResidueAuthority = node => {
+    if (
+      ts.isVariableDeclaration(node) &&
+      ts.isIdentifier(node.name) &&
+      node.name.text === "abandonedRollbackOwnedTokens"
+    ) {
+      ownedTokenDeclarations.push(node);
+    }
+    if (
+      ts.isVariableDeclaration(node) &&
+      ts.isIdentifier(node.name) &&
+      node.name.text === "abandonedRollbackChildBResidueFalsifierName"
+    ) {
+      childBResidueNameDeclarations.push(node);
+    }
+    if (
+      ts.isVariableDeclaration(node) &&
+      ts.isIdentifier(node.name) &&
+      node.name.text === "abandonedRollbackChildBResidueFalsifierPath"
+    ) {
+      childBResiduePathDeclarations.push(node);
+    }
+    if (
+      ts.isCallExpression(node) &&
+      exactPropertyAccess(node.expression, "fs", "writeFileSync") &&
+      node.arguments.length === 3 &&
+      ts.isIdentifier(node.arguments[0]) &&
+      node.arguments[0].text === "abandonedRollbackChildBResidueFalsifierPath"
+    ) {
+      childBResidueWriteCalls.push(node);
+    }
+    if (
+      ts.isCallExpression(node) &&
+      exactPropertyAccess(node.expression, "fs", "unlinkSync") &&
+      node.arguments.length === 1 &&
+      ts.isIdentifier(node.arguments[0]) &&
+      node.arguments[0].text === "abandonedRollbackChildBResidueFalsifierPath"
+    ) {
+      childBResidueUnlinkCalls.push(node);
+    }
+    if (
+      ts.isCallExpression(node) &&
+      ts.isPropertyAccessExpression(node.expression) &&
+      ts.isIdentifier(node.expression.expression) &&
+      node.expression.expression.text === "assert" &&
+      node.expression.name.text === "deepEqual" &&
+      node.arguments.length === 3 &&
+      ts.isStringLiteral(node.arguments[2]) &&
+      residueMessages.has(node.arguments[2].text)
+    ) {
+      assert.equal(
+        residueAssertions.has(node.arguments[2].text),
+        false,
+        `durable_root_real_process_residue_assertion_not_exact:${node.arguments[2].text}`,
+      );
+      residueAssertions.set(node.arguments[2].text, node);
+    }
+    ts.forEachChild(node, visitResidueAuthority);
+  };
+  visitResidueAuthority(parsed);
+  assert.equal(
+    ownedTokenDeclarations.length,
+    1,
+    "durable_root_real_process_owned_token_declaration_not_exact",
+  );
+  const ownedTokenDeclaration = ownedTokenDeclarations[0];
+  assert.ok(
+    ownedTokenDeclaration.initializer &&
+    ts.isArrayLiteralExpression(ownedTokenDeclaration.initializer) &&
+    ownedTokenDeclaration.initializer.elements.length === 3 &&
+    exactPropertyAccess(ownedTokenDeclaration.initializer.elements[0], "childATrace", "claimant_token") &&
+    exactPropertyAccess(ownedTokenDeclaration.initializer.elements[1], "childBResult", "claimant_token") &&
+    ts.isIdentifier(ownedTokenDeclaration.initializer.elements[2]) &&
+    ownedTokenDeclaration.initializer.elements[2].text === "abandonedRollbackToken",
+    "durable_root_real_process_owned_token_array_not_exact",
+  );
+  assertTopLevelTryDeclaration(
+    ownedTokenDeclaration,
+    "durable_root_real_process_owned_token_declaration",
+  );
+  assert.equal(
+    childBResidueNameDeclarations.length,
+    1,
+    "durable_root_real_process_child_b_residue_name_declaration_not_exact",
+  );
+  const childBResidueNameDeclaration = childBResidueNameDeclarations[0];
+  assert.ok(
+    childBResidueNameDeclaration.initializer &&
+    ts.isTemplateExpression(childBResidueNameDeclaration.initializer) &&
+    childBResidueNameDeclaration.initializer.head.text === "proof-owned-residue-" &&
+    childBResidueNameDeclaration.initializer.templateSpans.length === 1 &&
+    exactPropertyAccess(
+      childBResidueNameDeclaration.initializer.templateSpans[0].expression,
+      "childBResult",
+      "claimant_token",
+    ) &&
+    childBResidueNameDeclaration.initializer.templateSpans[0].literal.text === ".v1",
+    "durable_root_real_process_child_b_residue_name_not_exact",
+  );
+  assertTopLevelTryDeclaration(
+    childBResidueNameDeclaration,
+    "durable_root_real_process_child_b_residue_name_declaration",
+  );
+  assert.equal(
+    childBResiduePathDeclarations.length,
+    1,
+    "durable_root_real_process_child_b_residue_path_declaration_not_exact",
+  );
+  const childBResiduePathDeclaration = childBResiduePathDeclarations[0];
+  assert.ok(
+    childBResiduePathDeclaration.initializer &&
+    ts.isCallExpression(childBResiduePathDeclaration.initializer) &&
+    exactPropertyAccess(childBResiduePathDeclaration.initializer.expression, "path", "join") &&
+    childBResiduePathDeclaration.initializer.arguments.length === 2 &&
+    ts.isIdentifier(childBResiduePathDeclaration.initializer.arguments[0]) &&
+    childBResiduePathDeclaration.initializer.arguments[0].text === "publishLockDir" &&
+    ts.isIdentifier(childBResiduePathDeclaration.initializer.arguments[1]) &&
+    childBResiduePathDeclaration.initializer.arguments[1].text ===
+      "abandonedRollbackChildBResidueFalsifierName",
+    "durable_root_real_process_child_b_residue_path_not_exact",
+  );
+  assertTopLevelTryDeclaration(
+    childBResiduePathDeclaration,
+    "durable_root_real_process_child_b_residue_path_declaration",
+  );
+  assert.equal(
+    childBResidueWriteCalls.length,
+    1,
+    "durable_root_real_process_child_b_residue_write_not_exact",
+  );
+  assert.ok(
+    ts.isStringLiteral(childBResidueWriteCalls[0].arguments[1]) &&
+    childBResidueWriteCalls[0].arguments[1].text === "owned\n" &&
+    ts.isObjectLiteralExpression(childBResidueWriteCalls[0].arguments[2]),
+    "durable_root_real_process_child_b_residue_write_arguments_not_exact",
+  );
+  assertTopLevelTryCall(
+    childBResidueWriteCalls[0],
+    "durable_root_real_process_child_b_residue_write",
+  );
+  assert.equal(
+    childBResidueUnlinkCalls.length,
+    1,
+    "durable_root_real_process_child_b_residue_unlink_not_exact",
+  );
+  assertTopLevelTryCall(
+    childBResidueUnlinkCalls[0],
+    "durable_root_real_process_child_b_residue_unlink",
+  );
+  const auditResidueFilter = (node, marker) => {
+    assert.ok(
+      ts.isCallExpression(node) &&
+      ts.isPropertyAccessExpression(node.expression) &&
+      node.expression.name.text === "filter" &&
+      ts.isCallExpression(node.expression.expression) &&
+      exactPropertyAccess(node.expression.expression.expression, "fs", "readdirSync") &&
+      node.expression.expression.arguments.length === 1 &&
+      ts.isIdentifier(node.expression.expression.arguments[0]) &&
+      node.expression.expression.arguments[0].text === "publishLockDir" &&
+      node.arguments.length === 1 &&
+      ts.isArrowFunction(node.arguments[0]) &&
+      node.arguments[0].parameters.length === 1 &&
+      ts.isIdentifier(node.arguments[0].parameters[0].name) &&
+      node.arguments[0].parameters[0].name.text === "name",
+      `${marker}_filter_shape_not_exact`,
+    );
+    const filterBody = node.arguments[0].body;
+    assert.ok(
+      ts.isCallExpression(filterBody) &&
+      ts.isPropertyAccessExpression(filterBody.expression) &&
+      ts.isIdentifier(filterBody.expression.expression) &&
+      filterBody.expression.expression.text === "abandonedRollbackOwnedTokens" &&
+      filterBody.expression.name.text === "some" &&
+      filterBody.arguments.length === 1 &&
+      ts.isArrowFunction(filterBody.arguments[0]) &&
+      filterBody.arguments[0].parameters.length === 1 &&
+      ts.isIdentifier(filterBody.arguments[0].parameters[0].name) &&
+      filterBody.arguments[0].parameters[0].name.text === "token",
+      `${marker}_predicate_not_exact`,
+    );
+    const someBody = filterBody.arguments[0].body;
+    assert.ok(
+      ts.isCallExpression(someBody) &&
+      ts.isPropertyAccessExpression(someBody.expression) &&
+      ts.isIdentifier(someBody.expression.expression) &&
+      someBody.expression.expression.text === "name" &&
+      someBody.expression.name.text === "includes" &&
+      someBody.arguments.length === 1 &&
+      ts.isIdentifier(someBody.arguments[0]) &&
+      someBody.arguments[0].text === "token",
+      `${marker}_token_use_not_exact`,
+    );
+  };
+  assert.equal(
+    residueAssertions.size,
+    2,
+    "durable_root_real_process_residue_assertion_count_not_exact",
+  );
+  const residueFalsifierAssertion = residueAssertions.get(
+    "child B owned-residue falsifier must be detected before zero-residue success",
+  );
+  const zeroResidueAssertion = residueAssertions.get(
+    "child B, child A, and predecessor generations must leave zero owned residue",
+  );
+  assert.ok(residueFalsifierAssertion && zeroResidueAssertion);
+  assertTopLevelTryCall(
+    residueFalsifierAssertion,
+    "durable_root_real_process_residue_falsifier_assertion",
+  );
+  assertTopLevelTryCall(
+    zeroResidueAssertion,
+    "durable_root_real_process_zero_residue_assertion",
+  );
+  auditResidueFilter(
+    residueFalsifierAssertion.arguments[0],
+    "durable_root_real_process_residue_falsifier",
+  );
+  auditResidueFilter(
+    zeroResidueAssertion.arguments[0],
+    "durable_root_real_process_zero_residue",
+  );
+  assert.ok(
+    ts.isArrayLiteralExpression(residueFalsifierAssertion.arguments[1]) &&
+    residueFalsifierAssertion.arguments[1].elements.length === 1 &&
+    ts.isIdentifier(residueFalsifierAssertion.arguments[1].elements[0]) &&
+    residueFalsifierAssertion.arguments[1].elements[0].text ===
+      "abandonedRollbackChildBResidueFalsifierName",
+    "durable_root_real_process_residue_falsifier_expected_value_not_exact",
+  );
+  assert.ok(
+    ts.isArrayLiteralExpression(zeroResidueAssertion.arguments[1]) &&
+    zeroResidueAssertion.arguments[1].elements.length === 0,
+    "durable_root_real_process_zero_residue_expected_value_not_exact",
+  );
+  assert.ok(
+    ownedTokenDeclaration.pos < childBResidueNameDeclaration.pos &&
+    childBResidueNameDeclaration.pos < childBResiduePathDeclaration.pos &&
+    childBResiduePathDeclaration.pos < childBResidueWriteCalls[0].pos &&
+    childBResidueWriteCalls[0].pos < residueFalsifierAssertion.pos &&
+    residueFalsifierAssertion.pos < childBResidueUnlinkCalls[0].pos &&
+    childBResidueUnlinkCalls[0].pos < zeroResidueAssertion.pos,
+    "durable_root_real_process_residue_authority_order_not_exact",
+  );
+  for (const marker of [
+    'VOID_DURABLE_ROOT_CHILD_MODE: mode,',
+    'env: childEnvironment("crash_after_owner_restore"),',
+    'assert.equal(childA.status, null,',
+    'assert.equal(childA.signal, "SIGKILL",',
+    'env: childEnvironment("recover_abandoned_winner"),',
+    'assert.equal(childB.signal, null,',
+    'assert.equal(childB.status, 0,',
+    'assert.notEqual(childBResult.pid, childATrace.pid,',
+    'claimant_token: recovererClaimantToken,',
+    'assert.notEqual(childBResult.claimant_token, childATrace.claimant_token,',
+    'const abandonedRollbackOwnedTokens = [\n    childATrace.claimant_token,\n    childBResult.claimant_token,\n    abandonedRollbackToken,\n  ];',
+    'const abandonedRollbackChildBResidueFalsifierName =\n    `proof-owned-residue-${childBResult.claimant_token}.v1`;',
+    'fs.writeFileSync(abandonedRollbackChildBResidueFalsifierPath, "owned\\n", { flag: "wx", mode: 0o600 });',
+    'child B owned-residue falsifier must be detected before zero-residue success',
+    'assert.equal(abandonedRollbackWinnerValue.claimant_pid, childATrace.pid);',
+    'assert.equal(abandonedRollbackWinnerValue.claimant_start_ticks, childATrace.start_ticks);',
+    'foreign-generation witness identity must remain exact across child recovery',
+    'foreign-generation witness bytes must remain exact across child recovery',
+    'child B, child A, and predecessor generations must leave zero owned residue',
+    'durable_root_abandoned_reclaim_child_a_signal=SIGKILL',
+    'durable_root_abandoned_reclaim_child_processes_executed=2',
+    'durable_root_abandoned_reclaim_real_pid_start_bound=true',
+    'durable_root_abandoned_reclaim_foreign_generation_preserved=true',
+    'durable_root_abandoned_reclaim_owned_residue=0',
+  ]) {
+    assert.ok(proof.includes(marker), `durable_root_real_process_marker_missing:${marker}`);
+  }
+}
+
+function workflowOnRange(source) {
+  const lines = source.split("\n");
+  const onRoots = [];
+  for (let index = 0; index < lines.length; index += 1) {
+    if (lines[index] === "on:") onRoots.push(index);
+  }
+  assert.equal(onRoots.length, 1, `focused_on_root_count:${onRoots.length}`);
+  const start = onRoots[0];
+  let end = lines.length;
+  for (let index = start + 1; index < lines.length; index += 1) {
+    if (/^\S/.test(lines[index])) {
+      end = index;
+      break;
+    }
+  }
+  return { lines, start, end };
+}
+
+function workflowEventRange(source, eventName) {
+  const root = workflowOnRange(source);
+  const eventLine = `  ${eventName}:`;
+  const matches = [];
+  for (let index = root.start + 1; index < root.end; index += 1) {
+    if (root.lines[index] === eventLine) matches.push(index);
+  }
+  assert.equal(matches.length, 1, `focused_${eventName}_event_count:${matches.length}`);
+  const start = matches[0];
+  let end = root.end;
+  for (let index = start + 1; index < root.end; index += 1) {
+    if (/^  \S/.test(root.lines[index])) {
+      end = index;
+      break;
+    }
+  }
+  return { lines: root.lines, start, end };
+}
+
+function parseWorkflowMappingKey(line, indentation, marker) {
+  const prefix = " ".repeat(indentation);
+  if (!line.startsWith(prefix) || line.startsWith(`${prefix} `)) return null;
+  const candidate = line.slice(indentation);
+  if (candidate === "" || candidate.startsWith("#")) return null;
+  for (const pattern of [
+    /^([A-Za-z0-9_-]+):/,
+    /^"([A-Za-z0-9_-]+)":/,
+    /^'([A-Za-z0-9_-]+)':/,
+  ]) {
+    const match = pattern.exec(candidate);
+    if (match) return match[1];
+  }
+  assert.fail(`${marker}:${candidate}`);
+}
+
+function workflowEventMappingKeys(source, eventName) {
+  const event = workflowEventRange(source, eventName);
+  const keys = [];
+  for (let index = event.start + 1; index < event.end; index += 1) {
+    const key = parseWorkflowMappingKey(
+      event.lines[index],
+      4,
+      `focused_${eventName}_mapping_key_not_exact`,
+    );
+    if (key !== null) keys.push(key);
+  }
+  return keys;
+}
+
+function parseWorkflowSequenceScalar(line, marker) {
+  let match = /^      - "([^"]+)"$/.exec(line);
+  if (match) return match[1];
+  match = /^      - '([^']+)'$/.exec(line);
+  if (match) return match[1];
+  match = /^      - ([^"'#][^#]*?)\s*$/.exec(line);
+  assert.ok(match, `${marker}:${line.trim()}`);
+  return match[1];
+}
+
+function workflowEventSequenceEntries(source, eventName, sequenceName) {
+  const event = workflowEventRange(source, eventName);
+  const sequenceLine = `    ${sequenceName}:`;
+  const matches = [];
+  for (let index = event.start + 1; index < event.end; index += 1) {
+    if (event.lines[index] === sequenceLine) matches.push(index);
+  }
+  assert.equal(
+    matches.length,
+    1,
+    `focused_${eventName}_${sequenceName}_count:${matches.length}`,
+  );
+  const start = matches[0];
+  let end = event.end;
+  for (let index = start + 1; index < event.end; index += 1) {
+    if (/^    \S/.test(event.lines[index])) {
+      end = index;
+      break;
+    }
+  }
+  const entries = [];
+  for (let index = start + 1; index < end; index += 1) {
+    const line = event.lines[index];
+    if (line.trim() === "" || /^\s*#/.test(line)) continue;
+    entries.push(
+      parseWorkflowSequenceScalar(
+        line,
+        `focused_${eventName}_${sequenceName}_scalar_not_exact`,
+      ),
+    );
+  }
+  return entries;
+}
+
+function workflowEventPathEntries(source, eventName) {
+  const entries = workflowEventSequenceEntries(source, eventName, "paths");
+  for (const entry of entries) {
+    assert.ok(
+      !entry.startsWith("!"),
+      `focused_${eventName}_negative_path_pattern:${entry}`,
+    );
+  }
+  return entries;
+}
+
+function auditFocusedEventContract(source) {
+  assert.deepEqual(
+    workflowEventMappingKeys(source, "pull_request"),
+    ["paths"],
+    "focused_pull_request_mapping_keys_not_exact",
+  );
+  assert.deepEqual(
+    workflowEventMappingKeys(source, "push"),
+    ["branches", "paths"],
+    "focused_push_mapping_keys_not_exact",
+  );
+  assert.deepEqual(
+    workflowEventSequenceEntries(source, "push", "branches"),
+    ["main"],
+    "focused_push_main_branch_not_exact",
+  );
+}
+
+function workflowProofJobRange(source) {
+  const lines = source.split("\n");
+  const jobsRoots = [];
+  for (let index = 0; index < lines.length; index += 1) {
+    if (lines[index] === "jobs:") jobsRoots.push(index);
+  }
+  assert.equal(jobsRoots.length, 1, `focused_jobs_root_count:${jobsRoots.length}`);
+  const matches = [];
+  for (let index = jobsRoots[0] + 1; index < lines.length; index += 1) {
+    if (lines[index] === "  proof:") matches.push(index);
+  }
+  assert.equal(matches.length, 1, `focused_proof_job_count:${matches.length}`);
+  const start = matches[0];
+  let end = lines.length;
+  for (let index = start + 1; index < lines.length; index += 1) {
+    if (/^  \S/.test(lines[index])) {
+      end = index;
+      break;
+    }
+  }
+  return { lines, start, end };
+}
+
+function workflowMappingKeysInRange(lines, start, end, indentation, marker) {
+  const keys = [];
+  for (let index = start + 1; index < end; index += 1) {
+    const key = parseWorkflowMappingKey(lines[index], indentation, marker);
+    if (key !== null) keys.push(key);
+  }
+  return keys;
+}
+
+function workflowChildMappingRange(lines, parentStart, parentEnd, parentLine, indentation, marker) {
+  const matches = [];
+  for (let index = parentStart + 1; index < parentEnd; index += 1) {
+    if (lines[index] === parentLine) matches.push(index);
+  }
+  assert.equal(matches.length, 1, `${marker}_count:${matches.length}`);
+  const start = matches[0];
+  let end = parentEnd;
+  for (let index = start + 1; index < parentEnd; index += 1) {
+    if (parseWorkflowMappingKey(lines[index], indentation, `${marker}_sibling_key_not_exact`) !== null) {
+      end = index;
+      break;
+    }
+  }
+  return { lines, start, end };
+}
+
+function auditFocusedStrategyContract(source) {
+  const job = workflowProofJobRange(source);
+  assert.deepEqual(
+    workflowMappingKeysInRange(
+      job.lines,
+      job.start,
+      job.end,
+      4,
+      "focused_proof_job_mapping_key_not_exact",
+    ),
+    ["name", "runs-on", "timeout-minutes", "strategy", "steps"],
+    "focused_proof_job_mapping_keys_not_exact",
+  );
+  const strategy = workflowChildMappingRange(
+    job.lines,
+    job.start,
+    job.end,
+    "    strategy:",
+    4,
+    "focused_strategy",
+  );
+  assert.deepEqual(
+    workflowMappingKeysInRange(
+      strategy.lines,
+      strategy.start,
+      strategy.end,
+      6,
+      "focused_strategy_mapping_key_not_exact",
+    ),
+    ["fail-fast", "matrix"],
+    "focused_strategy_mapping_keys_not_exact",
+  );
+  assert.equal(
+    strategy.lines.slice(strategy.start + 1, strategy.end).filter((line) => line === "      fail-fast: false").length,
+    1,
+    "focused_fail_fast_not_exact",
+  );
+  const matrix = workflowChildMappingRange(
+    strategy.lines,
+    strategy.start,
+    strategy.end,
+    "      matrix:",
+    6,
+    "focused_matrix",
+  );
+  assert.deepEqual(
+    workflowMappingKeysInRange(
+      matrix.lines,
+      matrix.start,
+      matrix.end,
+      8,
+      "focused_matrix_mapping_key_not_exact",
+    ),
+    ["node"],
+    "focused_matrix_mapping_keys_not_exact",
+  );
+  assert.equal(
+    matrix.lines.slice(matrix.start + 1, matrix.end).filter((line) => line === "        node: [22, 24, 26]").length,
+    1,
+    "focused_node_matrix_not_exact",
+  );
+}
+
+function auditFocusedRootContract(source) {
+  const lines = source.split("\n");
+  const keys = [];
+  for (const line of lines) {
+    const key = parseWorkflowMappingKey(line, 0, "focused_root_mapping_key_not_exact");
+    if (key !== null) keys.push(key);
+  }
+  assert.deepEqual(
+    keys,
+    ["name", "on", "permissions", "concurrency", "jobs"],
+    "focused_root_mapping_keys_not_exact",
+  );
+}
+
+function workflowStepRanges(source) {
+  const job = workflowProofJobRange(source);
+  const stepMarkers = [];
+  for (let i = job.start; i < job.end; i += 1) {
+    if (job.lines[i] === "    steps:") stepMarkers.push(i);
+  }
+  assert.equal(stepMarkers.length, 1, "focused_steps_mapping_count");
+  const starts = [];
+  for (let i = stepMarkers[0] + 1; i < job.end; i += 1) {
+    if (/^      - /.test(job.lines[i])) starts.push(i);
+  }
+  return starts.map((start, index) => {
+    const match = /^      - name: (.+)$/.exec(job.lines[start]);
+    assert.ok(match, `focused_step_name_not_exact:${start}`);
+    return {
+      lines: job.lines,
+      start,
+      end: starts[index + 1] ?? job.end,
+      name: match[1],
+    };
+  });
+}
+
+function workflowStepMappingKeys(step) {
+  const keys = ["name"];
+  for (let i = step.start + 1; i < step.end; i += 1) {
+    const key = parseWorkflowMappingKey(
+      step.lines[i],
+      8,
+      `focused_step_mapping_key_not_exact:${step.name}`,
+    );
+    if (key !== null) keys.push(key);
+  }
+  return keys;
+}
+
+function auditFocusedStepContract(source) {
+  const expected = [
+    ["Checkout exact revision", ["name", "uses", "with"]],
+    ["Use Node.js ${{ matrix.node }}", ["name", "uses", "with"]],
+    ["Install reviewed dependencies", ["name", "run"]],
+    ["Prove independent SegStore CI topology", ["name", "run"]],
+    ["Prove focused workflow dependency closure", ["name", "run"]],
+    ["Syntax", ["name", "run"]],
+    ["Prove segmented JSONL store", ["name", "run"]],
+    ["Prove delimiter-inclusive segment ceiling", ["name", "run"]],
+    ["Prove writer-reader manifest publication ceiling", ["name", "run"]],
+    ["Prove retained parent namespace authority", ["name", "run"]],
+    ["Prove manifest framing and terminal tree generation authority", ["name", "run"]],
+    ["Prove builder record-vector heap bound", ["name", "run"]],
+    ["Prove content-addressed snapshot and checkpoint authority", ["name", "run"]],
+    ["Prove exact materialized snapshot generation authority", ["name", "run"]],
+    ["Prove materialized append-only checkpoint continuity", ["name", "run"]],
+    ["Prove bounded append-only checkpoint consumption", ["name", "run"]],
+    ["Prove checkpoint admission bound", ["name", "run"]],
+    ["Prove checkpoint chain lifetime bound", ["name", "run"]],
+    ["Prove post-durable close terminal truth", ["name", "run"]],
+    ["Prove bounded durable checkpoint/root consumer authority", ["name", "run"]],
+    ["Repository typecheck", ["name", "if", "run"]],
+    ["Repository build", ["name", "if", "run"]],
+    ["Prove committed-range diff hygiene contract", ["name", "run"]],
+    ["Committed-range diff hygiene", ["name", "if", "env", "run"]],
+  ];
+  const steps = workflowStepRanges(source);
+  assert.equal(steps.length, expected.length, "focused_step_count_not_exact");
+  for (let i = 0; i < expected.length; i += 1) {
+    const [name, keys] = expected[i];
+    assert.equal(steps[i].name, name, `focused_step_name_not_exact:${i}`);
+    assert.deepEqual(
+      workflowStepMappingKeys(steps[i]),
+      keys,
+      `focused_step_mapping_keys_not_exact:${name}`,
+    );
+  }
+}
+
+function workflowNamedStepLines(source, stepName) {
+  const matches = workflowStepRanges(source).filter((step) => step.name === stepName);
+  assert.equal(matches.length, 1, `focused_named_step_count:${stepName}:${matches.length}`);
+  const lines = matches[0].lines.slice(matches[0].start, matches[0].end);
+  while (lines.at(-1) === "") lines.pop();
+  return lines;
+}
+
+function auditFocusedCriticalStepBlocks(source) {
+  const exactStep = (stepName, expected, marker) => {
+    assert.deepEqual(workflowNamedStepLines(source, stepName), expected, marker);
+  };
+  exactStep("Checkout exact revision", [
+    "      - name: Checkout exact revision",
+    "        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6",
+    "        with:",
+    "          fetch-depth: 1",
+    "          persist-credentials: false",
+  ], "focused_checkout_block_not_exact");
+  exactStep("Use Node.js ${{ matrix.node }}", [
+    "      - name: Use Node.js ${{ matrix.node }}",
+    "        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6",
+    "        with:",
+    "          node-version: ${{ matrix.node }}",
+  ], "focused_setup_node_block_not_exact");
+  exactStep("Install reviewed dependencies", [
+    "      - name: Install reviewed dependencies",
+    "        run: |",
+    "          test \"$(node -p 'process.versions.node.split(\".\")[0]')\" = \"${{ matrix.node }}\"",
+    "          npm ci",
+  ], "focused_runtime_major_assertion_not_exact");
+  const topologyProofBlobSha1 = gitBlobSha1(readFileSync(path.join(ROOT, PROOF_PATH), "utf8"));
+  exactStep("Prove independent SegStore CI topology", [
+    "      - name: Prove independent SegStore CI topology",
+    "        run: |",
+    `          test "$(git hash-object scripts/prove_segmented_jsonl_ci_topology_v1.mjs)" = "${topologyProofBlobSha1}"`,
+    "          node scripts/prove_segmented_jsonl_ci_topology_v1.mjs",
+  ], "focused_topology_preflight_block_not_exact");
+  assert.ok(
+    source.indexOf("      - name: Prove independent SegStore CI topology") <
+      source.indexOf("      - name: Prove focused workflow dependency closure"),
+    "focused_topology_preflight_order_not_exact",
+  );
+  const hygieneBlock = [
+    "      - name: Committed-range diff hygiene",
+    "        if: github.event_name == 'pull_request' || github.event_name == 'push'",
+    "        env:",
+    "          CI_DIFF_EVENT_NAME: ${{ github.event_name }}",
+    "          CI_DIFF_PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}",
+    "          CI_DIFF_PUSH_BEFORE_SHA: ${{ github.event.before }}",
+    "          CI_DIFF_CURRENT_SHA: ${{ github.event.pull_request.head.sha || github.sha }}",
+    "          CI_DIFF_CHECKOUT_SHA: ${{ github.sha }}",
+    "          CI_DIFF_BASE_REMOTE: ${{ github.server_url }}/${{ github.repository }}.git",
+    "          CI_DIFF_HEAD_REMOTE: ${{ github.server_url }}/${{ github.event.pull_request.head.repo.full_name || github.repository }}.git",
+    "        run: bash scripts/ci_diff_hygiene_v1.sh",
+  ];
+  assert.deepEqual(
+    workflowNamedStepLines(source, "Committed-range diff hygiene"),
+    hygieneBlock,
+    "focused_hygiene_block_not_exact",
+  );
+}
+function rejectFailureTolerance(source, marker) {
+  assert.ok(
+    !/^\s*(?:continue-on-error|"continue-on-error"|'continue-on-error')\s*:/m.test(source),
+    marker,
+  );
+}
+
+function auditFocused(source) {
+  rejectFailureTolerance(source, "focused_failure_tolerance_present");
+  const inlineAuditBody = workflowNamedStepLines(
+    source,
+    "Prove focused workflow dependency closure",
+  ).join("\n");
+  const inlineNodeSource = workflowInlineNodeSource(inlineAuditBody);
+  assert.equal(
+    topLevelCallCount(
+      inlineNodeSource,
+      "auditTopologyMeasurementMutantExecution",
+      "focused_inline_node_parse_failed",
+    ),
+    1,
+    "focused_topology_measurement_mutant_caller_not_top_level",
+  );
+  assert.equal(
+    topLevelCallCount(
+      inlineNodeSource,
+      "auditTopologyRepositoryCiPreTypecheckEvidence",
+      "focused_inline_node_parse_failed",
+    ),
+    1,
+    "focused_topology_repository_ci_pre_typecheck_caller_not_top_level",
+  );
+  assert.equal(
+    topLevelCallCount(
+      inlineNodeSource,
+      "auditTopologyDurableRootAuditAuthority",
+      "focused_inline_node_parse_failed",
+    ),
+    1,
+    "focused_durable_root_audit_caller_not_top_level",
+  );
+  rejectLiteralFalseGuard(
+    inlineAuditBody,
+    "focused_topology_measurement_mutant_caller_literal_false_guard",
+  );
+  requireBodyMarkers(
+    inlineAuditBody,
+    [
+      "function topologyExecutableRegexIndex(source, pattern) {",
+      "const ts = require('typescript');",
+      "const { createHash } = require('node:crypto');",
+      "function focusedGitBlobSha1(source) {",
+      "const topologyBlobSha1 = focusedGitBlobSha1(topologyText);",
+      "assert.equal(topologyBlobSha1, EXPECTED_TOPOLOGY_BLOB_SHA1, 'focused_topology_blob_not_exact');",
+      "function topologyTopLevelVariableDeclarationCount(sourceFile, name, initializer) {",
+      "function topologyMeasurementPayloadDigest(sourceFile, element) {",
+      "function topologyNamedThrowsImportCount(sourceFile) {",
+      "function topologyRejectionAuthorityMutationCount(sourceFile) {",
+      "function genericMeasurementPayloadMutant(source) {",
+      "function topologyTopLevelRepositoryCiPreTypecheckEvidenceCount(sourceFile) {",
+      "function auditTopologyRepositoryCiPreTypecheckEvidence(source) {",
+      "function topologyTopLevelDurableRootAuditCallCount(sourceFile) {",
+      "function topologyDurableRootAuditFunctionCount(sourceFile) {",
+      "function auditTopologyDurableRootAuditAuthority(source) {",
+      "auditTopologyDurableRootAuditAuthority(topologyText);",
+      "let durableRootAuditMutantsExecuted = 0;",
+      "const unreachableDurableRootAuditCaller = topologyText.replace(",
+      "const deletedDurableRootAuditBody = topologyText.replace(",
+      "console.log(`focused_durable_root_audit_mutants_executed=${durableRootAuditMutantsExecuted}`);",
+      "console.log('focused_topology_measurement_mutant_payload_digests_bound=true');",
+      "console.log('focused_topology_measurement_rejection_authority_immutable=true');",
+      "console.log('focused_topology_measurement_mutant_values_distinct=true');",
+      "console.log('focused_repository_ci_pre_typecheck_evidence_top_level=true');",
+      "console.log('focused_repository_ci_pre_typecheck_dead_block_rejected=true');",
+      "'focused_topology_measurement_mutant_literal_false_guard',",
+      "const unreachableTopologyMeasurementMutantExecution = topologyText",
+      "() => auditTopologyMeasurementMutantExecution(unreachableTopologyMeasurementMutantExecution),",
+      "const genericPayloadTopologyMeasurementMutants =",
+      "const mutableRejectionTopologyMeasurementMutants =",
+      "const unreachableRepositoryCiPreTypecheckEvidence = topologyText",
+      "() => auditTopologyRepositoryCiPreTypecheckEvidence(",
+    ],
+    "focused_topology_measurement_reachability_wall_not_bound",
+  );
+  for (const [line, marker] of [
+    [
+      "          const topologyPath = 'scripts/prove_segmented_jsonl_ci_topology_v1.mjs';",
+      "focused_topology_measurement_path_not_bound",
+    ],
+    [
+      "          const topologyText = fs.readFileSync(topologyPath, 'utf8');",
+      "focused_topology_measurement_source_not_bound",
+    ],
+    [
+      "          auditTopologyMeasurementMutantExecution(topologyText);",
+      "focused_topology_measurement_mutant_caller_not_bound",
+    ],
+    [
+      "          auditTopologyRepositoryCiPreTypecheckEvidence(topologyText);",
+      "focused_topology_repository_ci_pre_typecheck_caller_not_bound",
+    ],
+    [
+      "          auditTopologyDurableRootAuditAuthority(topologyText);",
+      "focused_durable_root_audit_caller_not_bound",
+    ],
+    [
+      "          function focusedGitBlobSha1(source) {",
+      "focused_topology_blob_helper_not_bound",
+    ],
+    [
+      "          const topologyBlobSha1 = focusedGitBlobSha1(topologyText);",
+      "focused_topology_blob_call_not_bound",
+    ],
+    [
+      "          assert.equal(topologyBlobSha1, EXPECTED_TOPOLOGY_BLOB_SHA1, 'focused_topology_blob_not_exact');",
+      "focused_topology_blob_assertion_not_bound",
+    ],
+  ]) {
+    assert.equal(exactLineCount(source, line), 1, marker);
+  }
+  const topologyBlobPins = source
+    .split("\n")
+    .filter((line) => /^          const EXPECTED_TOPOLOGY_BLOB_SHA1 = '[0-9a-f]{40}';$/.test(line));
+  assert.equal(topologyBlobPins.length, 1, "focused_topology_blob_pin_not_exact");
+  auditFocusedInlineRuntimeTerminalGuard(inlineNodeSource);
+  auditFocusedRootContract(source);
+  auditFocusedStepContract(source);
+  auditFocusedCriticalStepBlocks(source);
+  auditFocusedEventContract(source);
+  auditFocusedStrategyContract(source);
+  auditFocusedDurableRootAuditMutantExecution(inlineNodeSource);
+  const pullRequestPaths = workflowEventPathEntries(source, "pull_request");
+  const pushPaths = workflowEventPathEntries(source, "push");
+  for (const dependency of TRIGGER_DEPENDENCIES) {
+    const pullRequestCount = pullRequestPaths.filter((pathEntry) => pathEntry === dependency).length;
+    const pushCount = pushPaths.filter((pathEntry) => pathEntry === dependency).length;
+    assert.equal(
+      pullRequestCount,
+      1,
+      `focused_pull_request_trigger_count:${dependency}:${pullRequestCount}`,
+    );
+    assert.equal(pushCount, 1, `focused_push_trigger_count:${dependency}:${pushCount}`);
+  }
+  for (const dependency of [...STORAGE_SOURCES, ...SEMANTIC_PROOFS]) {
+    assert.ok(
+      source.includes(`node --experimental-strip-types --check ${dependency}`),
+      `focused_syntax_not_invoked:${dependency}`,
+    );
+  }
+  for (const proofPath of SEMANTIC_PROOFS) {
+    assert.equal(
+      exactLineCount(source, `        run: npx --no-install tsx ${proofPath}`),
+      1,
+      `focused_proof_not_terminal:${proofPath}`,
+    );
+  }
+  assert.equal(
+    exactLineCount(source, "      - name: Prove focused workflow dependency closure"),
+    1,
+    "focused_inline_audit_step_count",
+  );
+  assert.equal(exactLineCount(source, "        node: [22, 24, 26]"), 1, "focused_node_matrix_not_exact");
+  assert.equal(exactLineCount(source, "        if: matrix.node == 24"), 2, "focused_node24_gate_count");
+  assert.equal(exactLineCount(source, "        run: npm run typecheck"), 1, "focused_typecheck_not_terminal");
+  assert.equal(exactLineCount(source, "        run: npm run build"), 1, "focused_build_not_terminal");
+  assert.equal(
+    exactLineCount(source, `          node --check ${PROOF_PATH}`),
+    1,
+    "focused_topology_syntax_not_terminal",
+  );
+  assert.equal(
+    exactLineCount(source, `          bash -n ${BASELINE_PATH}`),
+    1,
+    "focused_baseline_syntax_not_terminal",
+  );
+  assert.equal(
+    exactLineCount(source, `          node ${PROOF_PATH}`),
+    1,
+    "focused_topology_proof_not_terminal",
+  );
+  assert.equal(
+    exactLineCount(source, "        run: node scripts/prove_ci_diff_hygiene_v1.mjs"),
+    1,
+    "focused_shared_proof_not_terminal",
+  );
+  assert.equal(
+    exactLineCount(source, "        run: bash scripts/ci_diff_hygiene_v1.sh"),
+    1,
+    "focused_diff_hygiene_not_terminal",
+  );
+}
+
+function functionSlice(source, startMarker, endMarker, marker) {
+  const start = source.indexOf(startMarker);
+  const end = source.indexOf(endMarker, start + startMarker.length);
+  assert.ok(start >= 0 && end > start, marker);
+  return source.slice(start, end);
+}
+
+function executableCodeMask(source) {
+  const mask = new Uint8Array(source.length);
+  mask.fill(1);
+  let state = "code";
+
+  for (let index = 0; index < source.length; index += 1) {
+    const char = source[index];
+    const next = source[index + 1];
+
+    if (state === "code") {
+      if (char === "/" && next === "/") {
+        mask[index] = 0;
+        mask[index + 1] = 0;
+        index += 1;
+        state = "line-comment";
+      } else if (char === "/" && next === "*") {
+        mask[index] = 0;
+        mask[index + 1] = 0;
+        index += 1;
+        state = "block-comment";
+      } else if (char === "'" || char === '"' || char === "`") {
+        mask[index] = 0;
+        state = char === "'" ? "single-quote" : char === '"' ? "double-quote" : "template";
+      }
+      continue;
+    }
+
+    if (state === "line-comment") {
+      mask[index] = 0;
+      if (char === "\n") {
+        mask[index] = 1;
+        state = "code";
+      }
+      continue;
+    }
+
+    if (state === "block-comment") {
+      mask[index] = 0;
+      if (char === "*" && next === "/") {
+        mask[index + 1] = 0;
+        index += 1;
+        state = "code";
+      }
+      continue;
+    }
+
+    mask[index] = 0;
+    if (char === "\\" && index + 1 < source.length) {
+      mask[index + 1] = 0;
+      index += 1;
+      continue;
+    }
+    if (
+      (state === "single-quote" && char === "'") ||
+      (state === "double-quote" && char === '"') ||
+      (state === "template" && char === "`")
+    ) {
+      state = "code";
+    }
+  }
+
+  return mask;
+}
+
+function rangeHasExecutableCode(mask, start, length) {
+  for (let index = start; index < start + length; index += 1) {
+    if (mask[index] === 1) return true;
+  }
+  return false;
+}
+
+function executableExactLineCount(source, exact) {
+  const mask = executableCodeMask(source);
+  const lines = source.split("\n");
+  let offset = 0;
+  let count = 0;
+  for (const line of lines) {
+    if (line === exact && rangeHasExecutableCode(mask, offset, line.length)) count += 1;
+    offset += line.length + 1;
+  }
+  return count;
+}
+
+function executableMarkerIndex(body, required, fromIndex = 0) {
+  const mask = executableCodeMask(body);
+  let index = body.indexOf(required, fromIndex);
+  while (index >= 0) {
+    if (rangeHasExecutableCode(mask, index, required.length)) return index;
+    index = body.indexOf(required, index + 1);
+  }
+  return -1;
+}
+
+function executableRegexIndex(body, pattern) {
+  const flags = pattern.flags.includes("g") ? pattern.flags : `${pattern.flags}g`;
+  const matcher = new RegExp(pattern.source, flags);
+  const mask = executableCodeMask(body);
+  for (let match = matcher.exec(body); match; match = matcher.exec(body)) {
+    if (rangeHasExecutableCode(mask, match.index, match[0].length)) return match.index;
+    if (match[0].length === 0) matcher.lastIndex += 1;
+  }
+  return -1;
+}
+
+function requireBodyMarkers(body, markers, marker) {
+  for (const required of markers) {
+    assert.ok(executableMarkerIndex(body, required) >= 0, `${marker}:${required}`);
+  }
+}
+
+function rejectEarlyTrueReturn(body, lastRequired, marker) {
+  const firstReturn = executableRegexIndex(body, /\breturn\s+true\s*;/);
+  const lastRequiredAt = executableMarkerIndex(body, lastRequired);
+  assert.ok(firstReturn > lastRequiredAt && lastRequiredAt >= 0, marker);
+}
+
+function rejectLiteralFalseGuard(body, marker) {
+  assert.equal(executableRegexIndex(body, /\bif\s*\(\s*false\s*\)\s*\{/), -1, marker);
+}
+
+function parseJavaScriptSource(source, fileName, marker) {
+  const parsed = ts.createSourceFile(fileName, source, ts.ScriptTarget.Latest, true, ts.ScriptKind.JS);
+  assert.equal(parsed.parseDiagnostics.length, 0, marker);
+  return parsed;
+}
+
+function workflowInlineNodeSource(stepBody) {
+  const lines = stepBody.split("\n");
+  const start = lines.indexOf("          node <<'NODE'");
+  const end = lines.indexOf("          NODE", start + 1);
+  assert.ok(start >= 0 && end > start, "focused_inline_node_heredoc_missing");
+  const body = lines.slice(start + 1, end);
+  for (const line of body) {
+    assert.ok(line === "" || line.startsWith("          "), "focused_inline_node_indent_not_exact");
+  }
+  return body.map((line) => line.slice(10)).join("\n");
+}
+
+function topLevelCallCount(source, calleeName, marker) {
+  const parsed = parseJavaScriptSource(source, "focused-inline-audit.js", marker);
+  return parsed.statements.filter((statement) =>
+    ts.isExpressionStatement(statement) &&
+    ts.isCallExpression(statement.expression) &&
+    ts.isIdentifier(statement.expression.expression) &&
+    statement.expression.expression.text === calleeName
+  ).length;
+}
+
+function successfulTerminationPrimitiveCount(source, marker) {
+  const parsed = parseJavaScriptSource(source, "focused-inline-audit.js", marker);
+  let count = 0;
+  const visit = (node) => {
+    if (ts.isIdentifier(node) && (node.text === "exit" || node.text === "reallyExit")) {
+      count += 1;
+    }
+    if (
+      ts.isElementAccessExpression(node) &&
+      ts.isStringLiteral(node.argumentExpression) &&
+      (node.argumentExpression.text === "exit" || node.argumentExpression.text === "reallyExit")
+    ) {
+      count += 1;
+    }
+    ts.forEachChild(node, visit);
+  };
+  visit(parsed);
+  return count;
+}
+
+function focusedInlineUnwrapExpression(node) {
+  let current = node;
+  while (ts.isParenthesizedExpression(current)) current = current.expression;
+  return current;
+}
+
+function focusedInlineAssignmentTargetContainsCounter(node) {
+  const target = focusedInlineUnwrapExpression(node);
+  if (
+    ts.isIdentifier(target) &&
+    target.text === "focusedInlineAuditTerminalsExecuted"
+  ) return true;
+  let containsCounter = false;
+  ts.forEachChild(target, (child) => {
+    if (focusedInlineAssignmentTargetContainsCounter(child)) containsCounter = true;
+  });
+  return containsCounter;
+}
+
+function focusedInlineAuditCounterWriteCount(sourceFile) {
+  let writes = 0;
+  const visit = (node) => {
+    if (
+      ts.isBinaryExpression(node) &&
+      node.operatorToken.kind >= ts.SyntaxKind.FirstAssignment &&
+      node.operatorToken.kind <= ts.SyntaxKind.LastAssignment &&
+      focusedInlineAssignmentTargetContainsCounter(node.left)
+    ) writes += 1;
+    if (
+      (ts.isPrefixUnaryExpression(node) || ts.isPostfixUnaryExpression(node)) &&
+      focusedInlineAssignmentTargetContainsCounter(node.operand)
+    ) writes += 1;
+    if (
+      ts.isDeleteExpression(node) &&
+      focusedInlineAssignmentTargetContainsCounter(node.expression)
+    ) writes += 1;
+    ts.forEachChild(node, visit);
+  };
+  visit(sourceFile);
+  return writes;
+}
+
+function focusedInlineDynamicCodeEvaluationCount(sourceFile) {
+  let evaluations = 0;
+  const visit = (node) => {
+    if (ts.isCallExpression(node)) {
+      const callee = focusedInlineUnwrapExpression(node.expression);
+      if (ts.isIdentifier(callee) && callee.text === "eval") evaluations += 1;
+    }
+    ts.forEachChild(node, visit);
+  };
+  visit(sourceFile);
+  return evaluations;
+}
+
+function auditFocusedInlineRuntimeTerminalGuard(source) {
+  const parsed = parseJavaScriptSource(
+    source,
+    "focused-inline-audit.js",
+    "focused_inline_node_parse_failed",
+  );
+  const statements = parsed.statements.map((statement, index) => ({
+    index,
+    statement,
+    text: statement.getText(parsed).replace(/\s+/g, " "),
+  }));
+  const expectedImportPrefix = [
+    "const assert = require('node:assert/strict');",
+    "const { createHash } = require('node:crypto');",
+    "const fs = require('node:fs');",
+    "const ts = require('typescript');",
+  ];
+  for (let index = 0; index < expectedImportPrefix.length; index += 1) {
+    assert.equal(
+      statements[index]?.text,
+      expectedImportPrefix[index],
+      `focused_inline_import_prefix_not_exact:${index}`,
+    );
+  }
+  const one = (marker, predicate) => {
+    const matches = statements.filter(({ text, statement }) => predicate(text, statement));
+    assert.equal(matches.length, 1, marker);
+    return matches[0].index;
+  };
+  const counter = one(
+    "focused_inline_audit_terminal_counter_not_top_level",
+    (text) => text === "let focusedInlineAuditTerminalsExecuted = 0;",
+  );
+  const expectedTerminationLockdown = "(() => { const focusedNativeProcessExit = Reflect.get(process, 'exit').bind(process); Object.defineProperties(process, { 'exit': { value(code = 0) { if (focusedInlineAuditTerminalsExecuted !== 4) { throw new Error('focused_inline_audit_premature_exit'); } return focusedNativeProcessExit(code); }, writable: false, configurable: false, }, 'reallyExit': { value() { throw new Error('focused_inline_audit_really_exit_forbidden'); }, writable: false, configurable: false, }, }); })();";
+  const terminationLockdown = one(
+    "focused_inline_termination_lockdown_scope_not_exact",
+    (text) => text === expectedTerminationLockdown,
+  );
+  const exitGuard = one(
+    "focused_inline_audit_exit_guard_not_top_level",
+    (text) =>
+      text.startsWith("process.on('exit', () => {") &&
+      text.includes("focusedInlineAuditTerminalsExecuted !== 4") &&
+      text.includes("process.exitCode = 1;"),
+  );
+  const auditFunction = one(
+    "focused_inline_audit_function_not_top_level",
+    (_text, statement) =>
+      ts.isFunctionDeclaration(statement) && statement.name?.text === "audit",
+  );
+  const auditCalls = [
+    "audit",
+    "auditTopologyMeasurementMutantExecution",
+    "auditTopologyRepositoryCiPreTypecheckEvidence",
+    "auditTopologyDurableRootAuditAuthority",
+  ].map((callee) => one(
+    `focused_inline_audit_call_not_top_level:${callee}`,
+    (text) => text.startsWith(`${callee}(`),
+  ));
+  const increments = statements
+    .filter(({ text }) => text === "focusedInlineAuditTerminalsExecuted += 1;")
+    .map(({ index }) => index);
+  assert.equal(increments.length, 4, "focused_inline_audit_terminal_increment_count");
+  assert.equal(
+    focusedInlineAuditCounterWriteCount(parsed),
+    4,
+    "focused_inline_audit_counter_write_count_not_exact",
+  );
+  assert.equal(
+    focusedInlineDynamicCodeEvaluationCount(parsed),
+    0,
+    "focused_inline_dynamic_code_evaluation_not_forbidden",
+  );
+  const countAssertion = one(
+    "focused_inline_audit_terminal_assertion_not_top_level",
+    (text) =>
+      text.startsWith("assert.equal( focusedInlineAuditTerminalsExecuted, 4,") &&
+      text.includes("'focused_inline_audit_terminal_count_not_exact'"),
+  );
+  const terminal = one(
+    "focused_inline_audit_terminal_not_top_level",
+    (text) =>
+      text ===
+      "console.log(\`focused_inline_audit_terminals_executed=\${focusedInlineAuditTerminalsExecuted}\`);",
+  );
+  assert.equal(
+    counter,
+    expectedImportPrefix.length,
+    "focused_inline_import_prefix_counter_order",
+  );
+  assert.equal(
+    terminationLockdown,
+    counter + 1,
+    "focused_inline_termination_lockdown_order",
+  );
+  assert.equal(
+    exitGuard,
+    terminationLockdown + 1,
+    "focused_inline_audit_exit_guard_order",
+  );
+  for (let index = 0; index < auditCalls.length; index += 1) {
+    const expectedCall = index === 0 ? auditFunction + 1 : increments[index - 1] + 1;
+    assert.equal(auditCalls[index], expectedCall, `focused_inline_audit_call_order:${index}`);
+    assert.equal(increments[index], auditCalls[index] + 1, `focused_inline_audit_increment_order:${index}`);
+  }
+  assert.equal(countAssertion, increments[3] + 1, "focused_inline_audit_count_assertion_order");
+  assert.equal(terminal, countAssertion + 1, "focused_inline_audit_terminal_order");
+  assert.equal(
+    successfulTerminationPrimitiveCount(source, "focused_inline_node_parse_failed"),
+    0,
+    "focused_inline_successful_termination_primitive",
+  );
+}
+function auditFocusedDurableRootAuditMutantExecution(source) {
+  const parsed = parseJavaScriptSource(source, "focused-inline-audit.js", "focused_inline_node_parse_failed");
+  const statements = parsed.statements.map((statement, index) => ({
+    index,
+    text: statement.getText(parsed).replace(/\s+/g, " "),
+  }));
+  const one = (marker, predicate) => {
+    const matches = statements.filter(({ text }) => predicate(text));
+    assert.equal(matches.length, 1, marker);
+    return matches[0].index;
+  };
+  const counter = one(
+    "focused_durable_root_audit_counter_not_top_level",
+    (text) => text === "let durableRootAuditMutantsExecuted = 0;",
+  );
+  const callerMutant = one(
+    "focused_durable_root_audit_caller_mutant_not_top_level",
+    (text) => text.startsWith("const unreachableDurableRootAuditCaller = topologyText.replace("),
+  );
+  const callerApplied = one(
+    "focused_durable_root_audit_caller_applied_assertion_not_top_level",
+    (text) => text.startsWith("assert.notEqual( unreachableDurableRootAuditCaller, topologyText,") &&
+      text.includes("'focused_durable_root_audit_caller_mutant_not_applied'"),
+  );
+  const callerRejected = one(
+    "focused_durable_root_audit_caller_rejection_assertion_not_top_level",
+    (text) => text.startsWith("assert.throws(") &&
+      text.includes("auditTopologyDurableRootAuditAuthority(unreachableDurableRootAuditCaller)") &&
+      text.includes("/focused_durable_root_audit_caller_not_top_level/"),
+  );
+  const bodyMutant = one(
+    "focused_durable_root_audit_body_mutant_not_top_level",
+    (text) => text.startsWith("const deletedDurableRootAuditBody = topologyText.replace("),
+  );
+  const bodyApplied = one(
+    "focused_durable_root_audit_body_applied_assertion_not_top_level",
+    (text) => text.startsWith("assert.notEqual( deletedDurableRootAuditBody, topologyText,") &&
+      text.includes("'focused_durable_root_audit_body_mutant_not_applied'"),
+  );
+  const bodyRejected = one(
+    "focused_durable_root_audit_body_rejection_assertion_not_top_level",
+    (text) => text.startsWith("assert.throws(") &&
+      text.includes("auditTopologyDurableRootAuditAuthority(deletedDurableRootAuditBody)") &&
+      text.includes("/focused_durable_root_audit_function_not_exact/"),
+  );
+  const increments = statements.filter(
+    ({ text }) => text === "durableRootAuditMutantsExecuted += 1;",
+  );
+  assert.equal(
+    increments.length,
+    2,
+    "focused_durable_root_audit_increment_count_not_exact",
+  );
+  const countAssertion = one(
+    "focused_durable_root_audit_count_assertion_not_top_level",
+    (text) => text.startsWith("assert.equal( durableRootAuditMutantsExecuted, 2,") &&
+      text.includes("'focused_durable_root_audit_mutant_count_not_exact'"),
+  );
+  const derivedTerminal = one(
+    "focused_durable_root_audit_derived_terminal_not_top_level",
+    (text) => text === "console.log(`focused_durable_root_audit_mutants_executed=${durableRootAuditMutantsExecuted}`);",
+  );
+  assert.deepEqual(
+    [
+      counter,
+      callerMutant,
+      callerApplied,
+      callerRejected,
+      increments[0].index,
+      bodyMutant,
+      bodyApplied,
+      bodyRejected,
+      increments[1].index,
+      countAssertion,
+      derivedTerminal,
+    ],
+    [
+      counter,
+      counter + 1,
+      counter + 2,
+      counter + 3,
+      counter + 4,
+      counter + 5,
+      counter + 6,
+      counter + 7,
+      counter + 8,
+      counter + 9,
+      counter + 10,
+    ],
+    "focused_durable_root_audit_execution_order_not_exact",
+  );
+}
+
+const topologyMeasurementMutantSpecs = [
+  ["literal_false_helper", "01b7909c2fbdf782c5a797f0c72ea20ad059804f2fd5fe5bbdd8f370913152c5"],
+  ["hard_coded_helper", "e209c85c901e02d3ca3cfa499649f92f28179c0805ea6b61cef3820978c9e4c8"],
+  ["deleted_production_reconstruction", "4034ba385bce11ddb053d67567cbc562970ce61e33a6bdad378e130fb67af62f"],
+  ["deleted_source_read_accounting", "4e4015548a57b53e9286df826018f73ed0564ea6d35c98f3fb92c5e265d01292"],
+  ["preloaded_measurement_results", "ead2799cc67ed087e8a46f953d26562118f61eee924ebaa3809e6a9e57fa936e"],
+  ["literal_pass_terminals", "7ace875f1748c20652dd9296d3e3304c09cee778573763f52ceb1a825c889078"],
+  ["deleted_acceptance_assertions", "5a64addd25204e52b7ef0c1e2797317510cea4cdce98f913641252eddee0f8f9"],
+  ["weakened_acceptance_expectations", "c89326a819d7dc076f3484283346f3735cf6c6ae52b897712c9b861017c478bb"],
+];
+
+function topologyMeasurementPayloadDigest(sourceFile, element) {
+  return createHash("sha256")
+    .update(
+      `${element.elements[1].getText(sourceFile)}\n---EXPECTED---\n${element.elements[2].getText(sourceFile)}`,
+    )
+    .digest("hex");
+}
+
+function topologyTopLevelMeasurementArrayCount(sourceFile) {
+  return sourceFile.statements.filter((statement) => {
+    if (!ts.isVariableStatement(statement)) return false;
+    if (statement.declarationList.declarations.length !== 1) return false;
+    const declaration = statement.declarationList.declarations[0];
+    if (
+      !ts.isIdentifier(declaration.name) ||
+      declaration.name.text !== "reconstructionMeasurementMutants" ||
+      !declaration.initializer ||
+      !ts.isArrayLiteralExpression(declaration.initializer) ||
+      declaration.initializer.elements.length !== topologyMeasurementMutantSpecs.length
+    ) return false;
+    const specs = declaration.initializer.elements.map((element) => {
+      if (!ts.isArrayLiteralExpression(element) || element.elements.length !== 3) return null;
+      const family = element.elements[0];
+      if (!ts.isStringLiteral(family)) return null;
+      return [family.text, topologyMeasurementPayloadDigest(sourceFile, element)];
+    });
+    return (
+      specs.every(
+        (spec, index) =>
+          spec !== null &&
+          spec[0] === topologyMeasurementMutantSpecs[index][0] &&
+          spec[1] === topologyMeasurementMutantSpecs[index][1],
+      ) &&
+      new Set(specs.map((spec) => spec?.[0])).size === topologyMeasurementMutantSpecs.length
+    );
+  }).length;
+}
+
+function topologyNamedThrowsImportCount(sourceFile) {
+  return sourceFile.statements.filter((statement) => {
+    if (
+      !ts.isImportDeclaration(statement) ||
+      !ts.isStringLiteral(statement.moduleSpecifier) ||
+      statement.moduleSpecifier.text !== "node:assert/strict"
+    ) return false;
+    const clause = statement.importClause;
+    if (
+      !clause ||
+      !clause.name ||
+      clause.name.text !== "assert" ||
+      !clause.namedBindings ||
+      !ts.isNamedImports(clause.namedBindings) ||
+      clause.namedBindings.elements.length !== 1
+    ) return false;
+    const imported = clause.namedBindings.elements[0];
+    return (
+      imported.propertyName?.text === "throws" &&
+      imported.name.text === "assertThrows"
+    );
+  }).length;
+}
+
+function topologyRejectionAuthorityMutationCount(sourceFile) {
+  let count = 0;
+  const isAuthority = (node) =>
+    (ts.isIdentifier(node) && node.text === "assertThrows") ||
+    (
+      ts.isPropertyAccessExpression(node) &&
+      ts.isIdentifier(node.expression) &&
+      node.expression.text === "assert" &&
+      node.name.text === "throws"
+    );
+  const visit = (node) => {
+    if (
+      ts.isBinaryExpression(node) &&
+      node.operatorToken.kind >= ts.SyntaxKind.FirstAssignment &&
+      node.operatorToken.kind <= ts.SyntaxKind.LastAssignment &&
+      isAuthority(node.left)
+    ) count += 1;
+    if (
+      (ts.isPrefixUnaryExpression(node) || ts.isPostfixUnaryExpression(node)) &&
+      isAuthority(node.operand)
+    ) count += 1;
+    if (ts.isDeleteExpression(node) && isAuthority(node.expression)) count += 1;
+    if (ts.isCallExpression(node) && node.arguments.length > 0) {
+      const callee = node.expression.getText(sourceFile);
+      const target = node.arguments[0];
+      if (
+        ["Object.defineProperty", "Reflect.defineProperty", "Object.assign"].includes(callee) &&
+        (
+          isAuthority(target) ||
+          (ts.isIdentifier(target) && target.text === "assert")
+        )
+      ) count += 1;
+    }
+    ts.forEachChild(node, visit);
+  };
+  visit(sourceFile);
+  return count;
+}
+
+function topologyTopLevelMeasurementSetCount(sourceFile) {
+  return sourceFile.statements.filter((statement) => {
+    if (!ts.isVariableStatement(statement)) return false;
+    if (statement.declarationList.declarations.length !== 1) return false;
+    const declaration = statement.declarationList.declarations[0];
+    return (
+      ts.isIdentifier(declaration.name) &&
+      declaration.name.text === "reconstructionMeasurementMutantValues" &&
+      declaration.initializer?.getText(sourceFile) === [
+        "new Set(",
+        "  reconstructionMeasurementMutants.map(([, mutant]) => mutant),",
+        ")",
+      ].join("\n")
+    );
+  }).length;
+}
+
+function topologyTopLevelMeasurementDistinctAssertionCount(sourceFile) {
+  return sourceFile.statements.filter((statement) => {
+    if (!ts.isExpressionStatement(statement)) return false;
+    const text = statement.getText(sourceFile);
+    return (
+      text.startsWith("assert.equal(") &&
+      text.includes("reconstructionMeasurementMutantValues.size, 8,") &&
+      text.includes("segstore_reconstruction_measurement_mutant_values_not_unique")
+    );
+  }).length;
+}
+
+function topologyTopLevelMeasurementLoopCount(sourceFile) {
+  return sourceFile.statements.filter((statement) => {
+    if (!ts.isForOfStatement(statement) || !ts.isBlock(statement.statement)) return false;
+    const body = statement.statement.statements;
+    return (
+      statement.initializer.getText(sourceFile) === "const [family, mutant, expected]" &&
+      statement.expression.getText(sourceFile) === "reconstructionMeasurementMutants" &&
+      body.length === 3 &&
+      body[1].getText(sourceFile) ===
+        "assertThrows(() => auditSegstoreProof(mutant), expected);" &&
+      body[2].getText(sourceFile) ===
+        "reconstructionMeasurementMutantsExecuted += 1;"
+    );
+  }).length;
+}
+
+function auditTopologyMeasurementMutantAuthority(source) {
+  const sourceFile = parseJavaScriptSource(
+    source,
+    "segstore-topology-authority.mjs",
+    "topology_measurement_mutant_parse_failed",
+  );
+  assert.equal(
+    topologyTopLevelMeasurementArrayCount(sourceFile),
+    1,
+    "topology_measurement_mutant_payload_digest_not_exact",
+  );
+  assert.equal(
+    topologyNamedThrowsImportCount(sourceFile),
+    1,
+    "topology_measurement_named_throws_import_not_exact",
+  );
+  assert.equal(
+    topologyRejectionAuthorityMutationCount(sourceFile),
+    0,
+    "topology_measurement_rejection_authority_mutated",
+  );
+  assert.equal(
+    topologyTopLevelMeasurementSetCount(sourceFile),
+    1,
+    "topology_measurement_mutant_value_set_not_exact",
+  );
+  assert.equal(
+    topologyTopLevelMeasurementDistinctAssertionCount(sourceFile),
+    1,
+    "topology_measurement_mutant_distinct_assertion_not_exact",
+  );
+  assert.equal(
+    topologyTopLevelMeasurementLoopCount(sourceFile),
+    1,
+    "topology_measurement_mutant_loop_authority_not_exact",
+  );
+}
+
+function genericMeasurementPayloadMutant(source) {
+  const sourceFile = parseJavaScriptSource(
+    source,
+    "segstore-topology-generic-payload.mjs",
+    "topology_measurement_generic_payload_parse_failed",
+  );
+  const edits = [];
+  for (const statement of sourceFile.statements) {
+    if (!ts.isVariableStatement(statement)) continue;
+    for (const declaration of statement.declarationList.declarations) {
+      if (
+        !ts.isIdentifier(declaration.name) ||
+        declaration.name.text !== "reconstructionMeasurementMutants" ||
+        !declaration.initializer ||
+        !ts.isArrayLiteralExpression(declaration.initializer)
+      ) continue;
+      for (const element of declaration.initializer.elements) {
+        assert.ok(
+          ts.isArrayLiteralExpression(element) && element.elements.length === 3,
+          "topology_measurement_generic_payload_tuple_not_exact",
+        );
+        edits.push({
+          start: element.elements[1].getStart(sourceFile),
+          end: element.elements[2].end,
+          replacement: '"not-the-segstore-proof", /.*/',
+        });
+      }
+    }
+  }
+  assert.equal(edits.length, 8, "topology_measurement_generic_payload_edit_count");
+  let mutant = source;
+  for (const edit of edits.sort((left, right) => right.start - left.start)) {
+    mutant = mutant.slice(0, edit.start) + edit.replacement + mutant.slice(edit.end);
+  }
+  return mutant;
+}
+
+function auditSegstoreProof(source) {
+  assert.equal(
+    executableExactLineCount(source, "  const existingEquivalentReusePrecedesOutputAllocation ="),
+    1,
+    "segstore_zero_allocation_adversary_not_bound",
+  );
+  assert.equal(
+    executableExactLineCount(source, "    proveExistingEquivalentReusePrecedesOutputAllocation("),
+    1,
+    "segstore_zero_allocation_call_not_bound",
+  );
+  assert.equal(
+    executableExactLineCount(source, "  const reconstructionSourceAliasRejected = proveReconstructionRejectsSourceAlias(store);"),
+    1,
+    "segstore_source_alias_adversary_not_bound",
+  );
+  assert.equal(
+    executableExactLineCount(source, "        existingEquivalentReusePrecedesOutputAllocation,"),
+    1,
+    "segstore_zero_allocation_terminal_not_derived",
+  );
+  assert.equal(
+    executableExactLineCount(source, "      reconstruction_source_alias_rejected: reconstructionSourceAliasRejected,"),
+    1,
+    "segstore_source_alias_terminal_not_derived",
+  );
+  assert.equal(
+    exactLineCount(source, "      existing_equivalent_reuse_precedes_output_allocation: true,"),
+    0,
+    "segstore_zero_allocation_literal_terminal_present",
+  );
+  assert.equal(
+    exactLineCount(source, "      reconstruction_source_alias_rejected: true,"),
+    0,
+    "segstore_source_alias_literal_terminal_present",
+  );
+
+  const zeroAllocationBody = functionSlice(
+    source,
+    "function proveExistingEquivalentReusePrecedesOutputAllocation(",
+    "type ExactFileObservationV1 =",
+    "segstore_zero_allocation_body_missing",
+  );
+  requireBodyMarkers(
+    zeroAllocationBody,
+    [
+      "const published = reconstructSegmentedJsonlV1ToFile(storePath, outputPath);",
+      "if ((flags & 0o20200000) === 0o20200000) {",
+      'error.code = "ENOSPC";',
+      "const recovered = reconstructSegmentedJsonlV1ToFile(storePath, outputPath);",
+      "assert.equal(recovered.reused_existing, true);",
+      'assert.equal(recovered.publication_terminal, "EXISTING_EQUIVALENT_UNOWNED");',
+      "outputAllocationAttempted,",
+      "assert.equal(durable.ino, survivor.ino);",
+      "assert.deepEqual(fs.readFileSync(outputPath), expectedBytes);",
+    ],
+    "segstore_zero_allocation_body_not_bound",
+  );
+  rejectEarlyTrueReturn(
+    zeroAllocationBody,
+    "assert.deepEqual(fs.readFileSync(outputPath), expectedBytes);",
+    "segstore_zero_allocation_early_true_return",
+  );
+  rejectLiteralFalseGuard(
+    zeroAllocationBody,
+    "segstore_zero_allocation_literal_false_guard",
+  );
+
+  const generationHelperBody = functionSlice(
+    source,
+    "function assertExactFileObservationUnchangedV1(",
+    "function proveReconstructionRejectsSourceAlias(",
+    "segstore_generation_helper_body_missing",
+  );
+  requireBodyMarkers(
+    generationHelperBody,
+    [
+      'assert.equal(after.dev, before.dev, "alias source generation changed:dev");',
+      'assert.equal(after.ino, before.ino, "alias source generation changed:ino");',
+      'assert.equal(after.size, before.size, "alias source generation changed:size");',
+      'assert.equal(after.mtimeNs, before.mtimeNs, "alias source generation changed:mtimeNs");',
+      'assert.equal(after.ctimeNs, before.ctimeNs, "alias source generation changed:ctimeNs");',
+      'assert.equal(after.mode, before.mode, "alias source generation changed:mode");',
+      'assert.equal(after.nlink, before.nlink, "alias source generation changed:nlink");',
+    ],
+    "segstore_generation_helper_not_bound",
+  );
+
+  const sourceAliasBody = functionSlice(
+    source,
+    "function proveReconstructionRejectsSourceAlias(",
+    "function matchesOpenedTarget(",
+    "segstore_source_alias_body_missing",
+  );
+  requireBodyMarkers(
+    sourceAliasBody,
+    [
+      "() => reconstructSegmentedJsonlV1ToFile(storePath, activePath),",
+      '"RECONSTRUCT_OUTPUT_ALIASES_SOURCE",',
+      "assertExactFileObservationUnchangedV1(before, after);",
+      "assert.deepEqual(fs.readFileSync(activePath), beforeBytes);",
+      "verifySegmentedJsonlV1(storePath);",
+      "fs.chmodSync(mutationWitness, 0o400);",
+      "fs.chmodSync(mutationWitness, 0o600);",
+      "assert.notEqual(mutationAfter.ctimeNs, mutationBefore.ctimeNs);",
+      "() => assertExactFileObservationUnchangedV1(mutationBefore, mutationAfter),",
+      "/alias source generation changed:ctimeNs/,",
+      "fs.unlinkSync(mutationWitness);",
+    ],
+    "segstore_source_alias_body_not_bound",
+  );
+  rejectEarlyTrueReturn(
+    sourceAliasBody,
+    "fs.unlinkSync(mutationWitness);",
+    "segstore_source_alias_early_true_return",
+  );
+  rejectLiteralFalseGuard(
+    sourceAliasBody,
+    "segstore_source_alias_literal_false_guard",
+  );
+
+  const measurementBody = functionSlice(
+    source,
+    "function measureReconstructionSourceReadsV1(",
+    "function proveUncertainExactFdLinkConverges(",
+    "segstore_reconstruction_measurement_body_missing",
+  );
+  requireBodyMarkers(
+    measurementBody,
+    [
+      "const manifest = readSegmentedJsonlManifestV1(storePath);",
+      "const trackedFds = new Set<number>();",
+      "const originalOpenSync = (mutableFs as any).openSync;",
+      "const originalReadSync = (mutableFs as any).readSync;",
+      "const originalCloseSync = (mutableFs as any).closeSync;",
+      "let sourceBytesRead = 0;",
+      "if (sourceGenerations.has(`${stat.dev}:${stat.ino}`)) trackedFds.add(fd);",
+      "if (trackedFds.has(Number(args[0])) && Number(count) > 0) sourceBytesRead += Number(count);",
+      "const result = reconstructSegmentedJsonlV1ToFile(storePath, outputPath);",
+      "return { sourceBytesRead, reusedExisting: result.reused_existing };",
+      "(mutableFs as any).openSync = originalOpenSync;",
+      "(mutableFs as any).readSync = originalReadSync;",
+      "(mutableFs as any).closeSync = originalCloseSync;",
+    ],
+    "segstore_reconstruction_measurement_body_not_bound",
+  );
+  rejectLiteralFalseGuard(
+    measurementBody,
+    "segstore_reconstruction_measurement_literal_false_guard",
+  );
+  assert.equal(
+    executableExactLineCount(
+      source,
+      '  const newOutputPasses = measureReconstructionSourceReadsV1(store, reconstructionPassOutput);',
+    ),
+    1,
+    "segstore_reconstruction_new_output_measurement_call_not_bound",
+  );
+  assert.equal(
+    executableExactLineCount(
+      source,
+      '  const existingOutputPasses = measureReconstructionSourceReadsV1(store, reconstructionPassOutput);',
+    ),
+    1,
+    "segstore_reconstruction_survivor_measurement_call_not_bound",
+  );
+  const measurementAcceptanceBody = functionSlice(
+    source,
+    "  const newOutputPasses = measureReconstructionSourceReadsV1(store, reconstructionPassOutput);",
+    '  const wrongModeOutput = path.join(tmp, "reconstruct-equivalent-wrong-mode.jsonl");',
+    "segstore_reconstruction_measurement_acceptance_missing",
+  );
+  requireBodyMarkers(
+    measurementAcceptanceBody,
+    [
+      "assert.equal(newOutputPasses.reusedExisting, false);",
+      "assert.equal(\n    newOutputPasses.sourceBytesRead,\n    body.length * 2,",
+      "assert.equal(existingOutputPasses.reusedExisting, true);",
+      "assert.equal(\n    existingOutputPasses.sourceBytesRead,\n    body.length,",
+      "assert.equal(Number.isSafeInteger(reconstructionNewOutputSourcePasses), true);",
+      "assert.equal(Number.isSafeInteger(reconstructionExactSurvivorSourcePasses), true);",
+      "assert.equal(\n    reconstructionNewOutputSourcePasses,\n    2,",
+      "assert.equal(\n    reconstructionExactSurvivorSourcePasses,\n    1,",
+    ],
+    "segstore_reconstruction_measurement_acceptance_not_bound",
+  );
+  rejectLiteralFalseGuard(
+    measurementAcceptanceBody,
+    "segstore_reconstruction_measurement_acceptance_literal_false_guard",
+  );
+  for (const [line, marker] of [
+    [
+      "    newOutputPasses.sourceBytesRead / body.length;",
+      "segstore_reconstruction_new_output_measurement_result_not_bound",
+    ],
+    [
+      "    existingOutputPasses.sourceBytesRead / body.length;",
+      "segstore_reconstruction_survivor_measurement_result_not_bound",
+    ],
+    [
+      "      reconstruction_new_output_source_passes: reconstructionNewOutputSourcePasses,",
+      "segstore_reconstruction_new_output_terminal_not_derived",
+    ],
+    [
+      "      reconstruction_exact_survivor_source_passes: reconstructionExactSurvivorSourcePasses,",
+      "segstore_reconstruction_survivor_terminal_not_derived",
+    ],
+  ]) {
+    assert.equal(executableExactLineCount(source, line), 1, marker);
+  }
+  assert.equal(
+    exactLineCount(source, "      reconstruction_new_output_source_passes: 2,"),
+    0,
+    "segstore_reconstruction_new_output_literal_terminal_present",
+  );
+  assert.equal(
+    exactLineCount(source, "      reconstruction_exact_survivor_source_passes: 1,"),
+    0,
+    "segstore_reconstruction_survivor_literal_terminal_present",
+  );
+}
+
+function auditBaseline(source) {
+  assert.deepEqual(
+    source.split("\n").slice(0, 8),
+    [
+      "#!/usr/bin/env bash",
+      "set -euo pipefail",
+      "",
+      'ROOT="$(git rev-parse --show-toplevel)"',
+      'cd "$ROOT"',
+      "",
+      `node ${PROOF_PATH}`,
+      "",
+    ],
+    "baseline_topology_proof_prefix_not_exact",
+  );
+}
+
+function auditCi(source) {
+  const lines = source.split("\n");
+  const jobsRoots = lines.flatMap((line, index) => line === "jobs:" ? [index] : []);
+  assert.equal(jobsRoots.length, 1, "ci_jobs_root_count_not_exact");
+  const jobKeys = [];
+  for (let index = jobsRoots[0] + 1; index < lines.length; index += 1) {
+    const key = parseWorkflowMappingKey(lines[index], 2, "ci_job_mapping_key_not_exact");
+    if (key !== null) jobKeys.push(key);
+  }
+  assert.deepEqual(jobKeys, ["build"], "ci_job_keys_not_exact");
+  const buildStarts = lines.flatMap((line, index) => line === "  build:" ? [index] : []);
+  assert.equal(buildStarts.length, 1, "ci_build_job_count_not_exact");
+  let buildEnd = lines.length;
+  for (let index = buildStarts[0] + 1; index < lines.length; index += 1) {
+    if (/^  \S/.test(lines[index])) {
+      buildEnd = index;
+      break;
+    }
+  }
+  const expectedBuild = [
+    "  build:",
+    "    runs-on: ubuntu-latest",
+    "    steps:",
+    "      - name: Checkout",
+    "        uses: actions/checkout@v6",
+    "        with:",
+    "          fetch-depth: 0",
+    "      - name: Use Node.js",
+    "        uses: actions/setup-node@v6",
+    "        with:",
+    "          node-version: '22.x'",
+    "          cache: 'npm'",
+    "      - name: Install",
+    "        run: npm ci",
+    "      - name: Typecheck (no emit)",
+    "        run: |",
+    '          test "$(git hash-object tools/check_tsc_noemit_baseline.sh)" = "$(git rev-parse "${GITHUB_SHA}:tools/check_tsc_noemit_baseline.sh")"',
+    '          test "$(git hash-object scripts/prove_segmented_jsonl_ci_topology_v1.mjs)" = "$(git rev-parse "${GITHUB_SHA}:scripts/prove_segmented_jsonl_ci_topology_v1.mjs")"',
+    '          test "$(git hash-object .github/workflows/ci.yml)" = "$(git rev-parse "${GITHUB_SHA}:.github/workflows/ci.yml")"',
+    "          bash tools/check_tsc_noemit_baseline.sh",
+    "      - name: Check public node operator trial terminal final seal",
+    "        run: bash tools/check_public_node_operator_trial_terminal_final_seal_v1.sh",
+    "      - name: Check public node operator trial lane final seal",
+    "        run: bash tools/check_public_node_operator_trial_lane_final_seal_v1.sh",
+    "",
+  ];
+  assert.deepEqual(
+    lines.slice(buildStarts[0], buildEnd),
+    expectedBuild,
+    "ci_build_job_body_not_exact",
+  );
+  const name = "      - name: Typecheck (no emit)";
+  const starts = lines.flatMap((line, index) => line === name ? [index] : []);
+  assert.equal(starts.length, 1, "ci_baseline_step_count_not_exact");
+  let end = starts[0] + 1;
+  while (end < lines.length && !lines[end].startsWith("      - name: ")) end += 1;
+  assert.deepEqual(
+    lines.slice(starts[0], end),
+    expectedBuild.slice(14, 20),
+    "ci_baseline_step_not_exact",
+  );
+  rejectFailureTolerance(source, "ci_failure_tolerance_present");
+}
+
+function wrapFocusedDurableRootAuditMutantBlock(source, opener) {
+  const lines = source.split("\n");
+  const startLine = "          let durableRootAuditMutantsExecuted = 0;";
+  const endLine = "          console.log(`focused_durable_root_audit_mutants_executed=${durableRootAuditMutantsExecuted}`);";
+  const start = lines.indexOf(startLine);
+  const end = lines.indexOf(endLine, start + 1);
+  assert.ok(start >= 0 && end > start, "focused_durable_root_audit_mutant_block_missing");
+  const wrapped = lines.slice(start, end + 1).map((line) => `  ${line}`);
+  lines.splice(start, end - start + 1, `          ${opener}`, ...wrapped, "          }");
+  return lines.join("\n");
+}
+const focusedBase = readFileSync(path.join(ROOT, FOCUSED_PATH), "utf8");
+const focusedTerminationLockdownDescriptorConstructionChild =
+  process.env.VOID_FOCUSED_TERMINATION_LOCKDOWN_DESCRIPTOR_CONSTRUCTION_MUTANT === "1";
+const focusedSuccessfulTerminationAliasChild =
+  process.env.VOID_FOCUSED_SUCCESSFUL_TERMINATION_ALIAS_MUTANT === "1";
+const focusedInlineAuditCounterStdinChild =
+  process.env.VOID_FOCUSED_INLINE_AUDIT_COUNTER_STDIN_MUTANT === "1";
+const focusedInlineAuditCounterEvalStdinChild =
+  process.env.VOID_FOCUSED_INLINE_AUDIT_COUNTER_EVAL_STDIN_MUTANT === "1";
+const focusedInlineAuditCounterParenthesizedEvalStdinChild =
+  process.env.VOID_FOCUSED_INLINE_AUDIT_COUNTER_PARENTHESIZED_EVAL_STDIN_MUTANT === "1";
+const focusedInlineAuditCounterDestructuringStdinChild =
+  process.env.VOID_FOCUSED_INLINE_AUDIT_COUNTER_DESTRUCTURING_STDIN_MUTANT === "1";
+const focusedExternalMutantChildSelected =
+  Number(focusedTerminationLockdownDescriptorConstructionChild) +
+  Number(focusedSuccessfulTerminationAliasChild) +
+  Number(focusedInlineAuditCounterStdinChild) +
+  Number(focusedInlineAuditCounterEvalStdinChild) +
+  Number(focusedInlineAuditCounterParenthesizedEvalStdinChild) +
+  Number(focusedInlineAuditCounterDestructuringStdinChild);
+assert.ok(
+  focusedExternalMutantChildSelected <= 1,
+  "focused_external_mutant_child_selector_not_exclusive",
+);
+function focusedTerminationLockdownDescriptorConstructionMutant(source) {
+  const from = [
+    "              'exit': {",
+    "                value(code = 0) {",
+  ].join("\n");
+  const to = [
+    "            'exit': {",
+    "              [process['really' + 'Exit'](0)]: true,",
+    "              value(code = 0) {",
+  ].join("\n");
+  const mutant = source.replace(from, to);
+  assert.notEqual(
+    mutant,
+    source,
+    "focused_termination_lockdown_descriptor_construction_mutant_not_applied",
+  );
+  return mutant;
+}
+function focusedSuccessfulTerminationAliasMutant(source) {
+  const mutant = source
+    .replace(
+      "          let focusedInlineAuditTerminalsExecuted = 0;",
+      "          const halt = Reflect.get(process, 'really' + 'Exit').bind(process);\n" +
+        "          let focusedInlineAuditTerminalsExecuted = 0;",
+    )
+    .replace(
+      "          const workflowPath = '.github/workflows/void-segmented-jsonl-v1.yml';",
+      "          halt(0);\n" +
+        "          const workflowPath = '.github/workflows/void-segmented-jsonl-v1.yml';",
+    );
+  assert.notEqual(
+    mutant,
+    source,
+    "focused_successful_termination_alias_mutant_not_applied",
+  );
+  return mutant;
+}
+function focusedInlineAuditCounterStdinMutant(source) {
+  const mutant = source.replace(
+    "          const workflowPath = '.github/workflows/void-segmented-jsonl-v1.yml';",
+    [
+      "          if (__filename === '[stdin]') {",
+      "            focusedInlineAuditTerminalsExecuted = 4;",
+      "            Reflect.get(process, String.fromCharCode(101, 120, 105, 116))(0);",
+      "          }",
+      "          const workflowPath = '.github/workflows/void-segmented-jsonl-v1.yml';",
+    ].join("\n"),
+  );
+  assert.notEqual(
+    mutant,
+    source,
+    "focused_inline_audit_counter_stdin_mutant_not_applied",
+  );
+  return mutant;
+}
+function focusedInlineAuditCounterEvalStdinMutant(source) {
+  const mutant = source.replace(
+    "          const workflowPath = '.github/workflows/void-segmented-jsonl-v1.yml';",
+    [
+      "          if (__filename === '[stdin]') {",
+      "            eval('focusedInlineAuditTerminalsExecuted = 4');",
+      "            Reflect.get(process, String.fromCharCode(101, 120, 105, 116))(0);",
+      "          }",
+      "          const workflowPath = '.github/workflows/void-segmented-jsonl-v1.yml';",
+    ].join("\n"),
+  );
+  assert.notEqual(
+    mutant,
+    source,
+    "focused_inline_audit_counter_eval_stdin_mutant_not_applied",
+  );
+  return mutant;
+}
+function focusedInlineAuditCounterParenthesizedEvalStdinMutant(source) {
+  const mutant = source.replace(
+    "          const workflowPath = '.github/workflows/void-segmented-jsonl-v1.yml';",
+    [
+      "          if (__filename === '[stdin]') {",
+      "            (eval)('focusedInlineAuditTerminalsExecuted = 4');",
+      "            Reflect.get(process, String.fromCharCode(101, 120, 105, 116))(0);",
+      "          }",
+      "          const workflowPath = '.github/workflows/void-segmented-jsonl-v1.yml';",
+    ].join("\n"),
+  );
+  assert.notEqual(
+    mutant,
+    source,
+    "focused_inline_audit_counter_parenthesized_eval_stdin_mutant_not_applied",
+  );
+  return mutant;
+}
+function focusedInlineAuditCounterDestructuringStdinMutant(source) {
+  const mutant = source.replace(
+    "          const workflowPath = '.github/workflows/void-segmented-jsonl-v1.yml';",
+    [
+      "          if (__filename === '[stdin]') {",
+      "            [focusedInlineAuditTerminalsExecuted] = [4];",
+      "            Reflect.get(process, String.fromCharCode(101, 120, 105, 116))(0);",
+      "          }",
+      "          const workflowPath = '.github/workflows/void-segmented-jsonl-v1.yml';",
+    ].join("\n"),
+  );
+  assert.notEqual(
+    mutant,
+    source,
+    "focused_inline_audit_counter_destructuring_stdin_mutant_not_applied",
+  );
+  return mutant;
+}
+function assertFocusedExternalChildRejected(execution, expectedTerminal, marker) {
+  assert.equal(execution.error, undefined, `${marker}_spawn_error`);
+  assert.equal(execution.signal, null, `${marker}_signal_not_null`);
+  assert.equal(Number.isInteger(execution.status), true, `${marker}_status_not_integer`);
+  assert.equal(execution.status, 1, `${marker}_status_not_exact_nonzero`);
+  const output = `${execution.stderr || ""}\n${execution.stdout || ""}`;
+  assert.match(output, expectedTerminal, `${marker}_rejection_terminal_missing`);
+  assert.doesNotMatch(
+    output,
+    /focused_inline_audit_terminals_executed=4/,
+    `${marker}_success_terminal_present`,
+  );
+}
+const focused = focusedTerminationLockdownDescriptorConstructionChild
+  ? focusedTerminationLockdownDescriptorConstructionMutant(focusedBase)
+  : focusedSuccessfulTerminationAliasChild
+    ? focusedSuccessfulTerminationAliasMutant(focusedBase)
+    : focusedInlineAuditCounterStdinChild
+      ? focusedInlineAuditCounterStdinMutant(focusedBase)
+      : focusedInlineAuditCounterEvalStdinChild
+        ? focusedInlineAuditCounterEvalStdinMutant(focusedBase)
+        : focusedInlineAuditCounterParenthesizedEvalStdinChild
+          ? focusedInlineAuditCounterParenthesizedEvalStdinMutant(focusedBase)
+          : focusedInlineAuditCounterDestructuringStdinChild
+            ? focusedInlineAuditCounterDestructuringStdinMutant(focusedBase)
+            : focusedBase;
+const baseline = readFileSync(path.join(ROOT, BASELINE_PATH), "utf8");
+const ci = readFileSync(path.join(ROOT, CI_PATH), "utf8");
+const segstoreProof = readFileSync(path.join(ROOT, SEGSTORE_PROOF_PATH), "utf8");
+const topologyProof = readFileSync(path.join(ROOT, PROOF_PATH), "utf8");
+const durableRootSource = readFileSync(path.join(ROOT, DURABLE_ROOT_SOURCE_PATH), "utf8");
+const durableRootProof = readFileSync(path.join(ROOT, DURABLE_ROOT_PROOF_PATH), "utf8");
+auditFocused(focused);
+if (!focusedExternalMutantChildSelected) {
+  const descriptorConstructionMutant =
+    focusedTerminationLockdownDescriptorConstructionMutant(focused);
+  assert.throws(
+    () => auditFocused(descriptorConstructionMutant),
+    /focused_inline_termination_lockdown_scope_not_exact/,
+    "focused_termination_lockdown_descriptor_construction_mutant_not_rejected",
+  );
+  const descriptorConstructionExecution = spawnSync(
+    process.execPath,
+    [PROOF_PATH],
+    {
+      cwd: ROOT,
+      encoding: "utf8",
+      timeout: 120_000,
+      env: {
+        ...process.env,
+        VOID_FOCUSED_TERMINATION_LOCKDOWN_DESCRIPTOR_CONSTRUCTION_MUTANT: "1",
+      },
+    },
+  );
+  assertFocusedExternalChildRejected(
+    descriptorConstructionExecution,
+    /focused_inline_termination_lockdown_scope_not_exact/,
+    "focused_termination_lockdown_descriptor_construction_child",
+  );
+  console.log("focused_termination_lockdown_descriptor_construction_mutant_executed=true");
+}
+let focusedExternalTerminationChildrenExecuted = 0;
+let focusedExternalFailureModeFalsifiersExecuted = 0;
+if (!focusedExternalMutantChildSelected) {
+  const externalMutants = [
+    {
+      name: "successful_termination_alias",
+      env: "VOID_FOCUSED_SUCCESSFUL_TERMINATION_ALIAS_MUTANT",
+      mutant: focusedSuccessfulTerminationAliasMutant(focused),
+      terminal: /focused_inline_import_prefix_not_exact|focused_inline_import_prefix_counter_order/,
+    },
+    {
+      name: "inline_audit_counter_stdin",
+      env: "VOID_FOCUSED_INLINE_AUDIT_COUNTER_STDIN_MUTANT",
+      mutant: focusedInlineAuditCounterStdinMutant(focused),
+      terminal: /focused_inline_audit_counter_write_count_not_exact/,
+    },
+    {
+      name: "inline_audit_counter_eval_stdin",
+      env: "VOID_FOCUSED_INLINE_AUDIT_COUNTER_EVAL_STDIN_MUTANT",
+      mutant: focusedInlineAuditCounterEvalStdinMutant(focused),
+      terminal: /focused_inline_dynamic_code_evaluation_not_forbidden/,
+    },
+    {
+      name: "inline_audit_counter_parenthesized_eval_stdin",
+      env: "VOID_FOCUSED_INLINE_AUDIT_COUNTER_PARENTHESIZED_EVAL_STDIN_MUTANT",
+      mutant: focusedInlineAuditCounterParenthesizedEvalStdinMutant(focused),
+      terminal: /focused_inline_dynamic_code_evaluation_not_forbidden/,
+    },
+    {
+      name: "inline_audit_counter_destructuring_stdin",
+      env: "VOID_FOCUSED_INLINE_AUDIT_COUNTER_DESTRUCTURING_STDIN_MUTANT",
+      mutant: focusedInlineAuditCounterDestructuringStdinMutant(focused),
+      terminal: /focused_inline_audit_counter_write_count_not_exact/,
+    },
+  ];
+  for (const { name, env, mutant, terminal } of externalMutants) {
+    assert.throws(
+      () => auditFocused(mutant),
+      terminal,
+      `focused_${name}_mutant_not_rejected`,
+    );
+    const execution = spawnSync(
+      process.execPath,
+      [PROOF_PATH],
+      {
+        cwd: ROOT,
+        encoding: "utf8",
+        timeout: 120_000,
+        env: {
+          ...process.env,
+          [env]: "1",
+        },
+      },
+    );
+    assertFocusedExternalChildRejected(
+      execution,
+      terminal,
+      `focused_${name}_child`,
+    );
+    focusedExternalTerminationChildrenExecuted += 1;
+  }
+
+  const spawnErrorExecution = spawnSync(
+    path.join(ROOT, ".void-nonexistent-external-child"),
+    [],
+    { cwd: ROOT, encoding: "utf8" },
+  );
+  assert.throws(
+    () => assertFocusedExternalChildRejected(
+      spawnErrorExecution,
+      /never_matches/,
+      "focused_external_spawn_error_falsifier",
+    ),
+    /focused_external_spawn_error_falsifier_spawn_error/,
+    "focused_external_spawn_error_falsifier_not_rejected",
+  );
+  focusedExternalFailureModeFalsifiersExecuted += 1;
+
+  const timeoutExecution = spawnSync(
+    process.execPath,
+    ["-e", "Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 10_000);"],
+    { cwd: ROOT, encoding: "utf8", timeout: 50 },
+  );
+  assert.throws(
+    () => assertFocusedExternalChildRejected(
+      timeoutExecution,
+      /never_matches/,
+      "focused_external_timeout_falsifier",
+    ),
+    /focused_external_timeout_falsifier_(spawn_error|signal_not_null|status_not_integer)/,
+    "focused_external_timeout_falsifier_not_rejected",
+  );
+  focusedExternalFailureModeFalsifiersExecuted += 1;
+
+  const signalExecution = spawnSync(
+    process.execPath,
+    ["-e", "process.kill(process.pid, 'SIGTERM');"],
+    { cwd: ROOT, encoding: "utf8", timeout: 120_000 },
+  );
+  assert.throws(
+    () => assertFocusedExternalChildRejected(
+      signalExecution,
+      /never_matches/,
+      "focused_external_signal_falsifier",
+    ),
+    /focused_external_signal_falsifier_(signal_not_null|status_not_integer)/,
+    "focused_external_signal_falsifier_not_rejected",
+  );
+  focusedExternalFailureModeFalsifiersExecuted += 1;
+}
+assert.equal(
+  focusedExternalTerminationChildrenExecuted,
+  5,
+  "focused_external_termination_child_count_not_exact",
+);
+assert.equal(
+  focusedExternalFailureModeFalsifiersExecuted,
+  3,
+  "focused_external_failure_mode_falsifier_count_not_exact",
+);
+let focusedSuccessfulTerminationMutantsExecuted = 0;
+for (const [name, primitive] of [
+  ["process_exit_zero", "process.exit(0);"],
+  ["process_really_exit_zero", "process.reallyExit(0);"],
+]) {
+  const mutant = focused.replace(
+    "          audit(text);",
+    `          ${primitive}\n          audit(text);`,
+  );
+  assert.notEqual(mutant, focused, `focused_${name}_mutant_not_applied`);
+  assert.throws(
+    () => auditFocused(mutant),
+    /focused_inline_audit_call_order:0/,
+    `focused_${name}_mutant_not_rejected`,
+  );
+  focusedSuccessfulTerminationMutantsExecuted += 1;
+}
+const computedReallyExitMutant = focused.replace(
+  "          audit(text);",
+  "          process['really' + 'Exit'](0);\n          audit(text);",
+);
+assert.notEqual(
+  computedReallyExitMutant,
+  focused,
+  "focused_computed_really_exit_mutant_not_applied",
+);
+assert.throws(
+  () => auditFocused(computedReallyExitMutant),
+  /focused_inline_audit_call_order:0/,
+  "focused_computed_really_exit_mutant_static_terminal_not_rejected",
+);
+const computedReallyExitInlineSource = workflowInlineNodeSource(
+  workflowNamedStepLines(
+    computedReallyExitMutant,
+    "Prove focused workflow dependency closure",
+  ).join("\n"),
+);
+const computedReallyExitExecution = spawnSync(
+  process.execPath,
+  ["-e", computedReallyExitInlineSource],
+  {
+    cwd: ROOT,
+    encoding: "utf8",
+    timeout: 120_000,
+  },
+);
+assert.notEqual(
+  computedReallyExitExecution.status,
+  0,
+  "focused_computed_really_exit_mutant_terminated_successfully",
+);
+assert.match(
+  `${computedReallyExitExecution.stderr || ""}\n${computedReallyExitExecution.stdout || ""}`,
+  /focused_inline_audit_really_exit_forbidden/,
+  "focused_computed_really_exit_mutant_not_guard_rejected",
+);
+focusedSuccessfulTerminationMutantsExecuted += 1;
+const successfulTerminationAliasMutant =
+  focusedSuccessfulTerminationAliasMutant(focused);
+assert.throws(
+  () => auditFocused(successfulTerminationAliasMutant),
+  /focused_inline_import_prefix_not_exact|focused_inline_import_prefix_counter_order/,
+  "focused_successful_termination_alias_mutant_not_rejected",
+);
+focusedSuccessfulTerminationMutantsExecuted += 1;
+assert.equal(
+  focusedSuccessfulTerminationMutantsExecuted,
+  4,
+  "focused_successful_termination_mutant_count_not_exact",
+);
+let focusedDurableRootAuditReachabilityMutantsExecuted = 0;
+for (const [name, opener] of [
+  ["if_zero", "if (0) {"],
+  ["if_not_true", "if (!true) {"],
+  ["dead_function", "function unreachableDurableRootAuditMutants() {"],
+]) {
+  const mutant = wrapFocusedDurableRootAuditMutantBlock(focused, opener);
+  assert.notEqual(mutant, focused, `focused_durable_root_audit_${name}_mutant_not_applied`);
+  assert.throws(
+    () => auditFocused(mutant),
+    /focused_durable_root_audit_counter_not_top_level/,
+    `focused_durable_root_audit_${name}_mutant_not_rejected`,
+  );
+  focusedDurableRootAuditReachabilityMutantsExecuted += 1;
+}
+assert.equal(
+  focusedDurableRootAuditReachabilityMutantsExecuted,
+  3,
+  "focused_durable_root_audit_reachability_mutant_count_not_exact",
+);
+auditSegstoreProof(segstoreProof);
+auditBaseline(baseline);
+auditCi(ci);
+auditTopologyMeasurementMutantAuthority(topologyProof);
+auditDurableRootReclaimWinnerDigestEvidence(durableRootSource, durableRootProof);
+auditDurableRootRealProcessRecoveryEvidence(durableRootProof);
+let durableRootReclaimWinnerDigestMutantsExecuted = 0;
+const durableRootDigestSourceDeletionMutant = durableRootSource.replace(
+  "type ReclaimWinnerReadV1 = { name: string; identity: SlotIdentityV1; value: ReclaimWinnerV1; bodySha256: string };",
+  "type ReclaimWinnerReadV1 = { name: string; identity: SlotIdentityV1; value: ReclaimWinnerV1 };",
+);
+assert.notEqual(
+  durableRootDigestSourceDeletionMutant,
+  durableRootSource,
+  "durable_root_reclaim_winner_digest_source_mutant_not_applied",
+);
+assertThrows(
+  () => auditDurableRootReclaimWinnerDigestEvidence(
+    durableRootDigestSourceDeletionMutant,
+    durableRootProof,
+  ),
+  /durable_root_reclaim_winner_digest_source_blob_not_exact/,
+);
+durableRootReclaimWinnerDigestMutantsExecuted += 1;
+const durableRootDigestProofDeletionMutant = durableRootProof.replace(
+  '  console.log("durable_root_reclaim_winner_same_inode_rewrite_rejected=true");',
+  "",
+);
+assert.notEqual(
+  durableRootDigestProofDeletionMutant,
+  durableRootProof,
+  "durable_root_reclaim_winner_digest_proof_mutant_not_applied",
+);
+assertThrows(
+  () => auditDurableRootReclaimWinnerDigestEvidence(
+    durableRootSource,
+    durableRootDigestProofDeletionMutant,
+  ),
+  /durable_root_reclaim_winner_digest_proof_blob_not_exact/,
+);
+durableRootReclaimWinnerDigestMutantsExecuted += 1;
+assert.equal(
+  durableRootReclaimWinnerDigestMutantsExecuted,
+  2,
+  "durable_root_reclaim_winner_digest_mutant_count_not_exact",
+);
+let durableRootRealProcessMutantsExecuted = 0;
+const durableRootChildADeadBranchMutant = durableRootProof
+  .replace(
+    "  const childA = childProcess.spawnSync(process.execPath, childArgs, {",
+    "  if (0) {\n  const childA = childProcess.spawnSync(process.execPath, childArgs, {",
+  )
+  .replace(
+    "  assert.equal(childA.signal, \"SIGKILL\", `child A must cross a real SIGKILL boundary: ${childA.stderr}`);",
+    "  assert.equal(childA.signal, \"SIGKILL\", `child A must cross a real SIGKILL boundary: ${childA.stderr}`);\n  }",
+  );
+assert.notEqual(
+  durableRootChildADeadBranchMutant,
+  durableRootProof,
+  "durable_root_real_process_child_a_dead_branch_mutant_not_applied",
+);
+assertThrows(
+  () => auditDurableRootRealProcessRecoveryEvidence(durableRootChildADeadBranchMutant),
+  /durable_root_real_process_childA_not_top_level_try/,
+);
+durableRootRealProcessMutantsExecuted += 1;
+const durableRootChildBInlineSubstitutionMutant = durableRootProof.replace(
+  "  const childB = childProcess.spawnSync(process.execPath, childArgs, {",
+  "  const childB = ({ status: 0, signal: null, stdout: '{}', stderr: '', error: undefined } as any);",
+);
+assert.notEqual(
+  durableRootChildBInlineSubstitutionMutant,
+  durableRootProof,
+  "durable_root_real_process_child_b_inline_substitution_mutant_not_applied",
+);
+assertThrows(
+  () => auditDurableRootRealProcessRecoveryEvidence(durableRootChildBInlineSubstitutionMutant),
+  /durable_root_real_process_childB_not_spawn_sync/,
+);
+durableRootRealProcessMutantsExecuted += 1;
+const durableRootCrashModeSubstitutionMutant = durableRootProof.replace(
+  'env: childEnvironment("crash_after_owner_restore"),',
+  'env: childEnvironment("recover_abandoned_winner"),',
+);
+assert.notEqual(
+  durableRootCrashModeSubstitutionMutant,
+  durableRootProof,
+  "durable_root_real_process_crash_mode_substitution_mutant_not_applied",
+);
+assertThrows(
+  () => auditDurableRootRealProcessRecoveryEvidence(durableRootCrashModeSubstitutionMutant),
+  /durable_root_real_process_marker_missing/,
+);
+durableRootRealProcessMutantsExecuted += 1;
+const durableRootRecovererResidueOmissionMutant = durableRootProof.replace(
+  "    childATrace.claimant_token,\n    childBResult.claimant_token,\n    abandonedRollbackToken,",
+  "    childATrace.claimant_token,\n    abandonedRollbackToken,",
+);
+assert.notEqual(
+  durableRootRecovererResidueOmissionMutant,
+  durableRootProof,
+  "durable_root_real_process_recoverer_residue_omission_mutant_not_applied",
+);
+assertThrows(
+  () => auditDurableRootRealProcessRecoveryEvidence(durableRootRecovererResidueOmissionMutant),
+  /durable_root_real_process_owned_token_array_not_exact/,
+);
+durableRootRealProcessMutantsExecuted += 1;
+const durableRootResidueConstantFalseMutant = durableRootProof.replaceAll(
+  "abandonedRollbackOwnedTokens.some(token => name.includes(token))",
+  "false && abandonedRollbackOwnedTokens.some(token => name.includes(token))",
+);
+assert.notEqual(
+  durableRootResidueConstantFalseMutant,
+  durableRootProof,
+  "durable_root_real_process_residue_constant_false_mutant_not_applied",
+);
+assertThrows(
+  () => auditDurableRootRealProcessRecoveryEvidence(durableRootResidueConstantFalseMutant),
+  /durable_root_real_process_(residue_falsifier|zero_residue)_predicate_not_exact/,
+);
+durableRootRealProcessMutantsExecuted += 1;
+const durableRootResidueDeadGuardMutant = durableRootProof.replaceAll(
+  "abandonedRollbackOwnedTokens.some(token => name.includes(token))",
+  "abandonedRollbackOwnedTokens.some(token => { if (0) return name.includes(token); return false; })",
+);
+assert.notEqual(
+  durableRootResidueDeadGuardMutant,
+  durableRootProof,
+  "durable_root_real_process_residue_dead_guard_mutant_not_applied",
+);
+assertThrows(
+  () => auditDurableRootRealProcessRecoveryEvidence(durableRootResidueDeadGuardMutant),
+  /durable_root_real_process_(residue_falsifier|zero_residue)_token_use_not_exact/,
+);
+durableRootRealProcessMutantsExecuted += 1;
+const durableRootResidueEarlyReturnMutant = durableRootProof.replaceAll(
+  "abandonedRollbackOwnedTokens.some(token => name.includes(token))",
+  "abandonedRollbackOwnedTokens.some(token => { return false; return name.includes(token); })",
+);
+assert.notEqual(
+  durableRootResidueEarlyReturnMutant,
+  durableRootProof,
+  "durable_root_real_process_residue_early_return_mutant_not_applied",
+);
+assertThrows(
+  () => auditDurableRootRealProcessRecoveryEvidence(durableRootResidueEarlyReturnMutant),
+  /durable_root_real_process_(residue_falsifier|zero_residue)_token_use_not_exact/,
+);
+durableRootRealProcessMutantsExecuted += 1;
+const durableRootChildBResidueInjectionDeletionMutant = durableRootProof.replace(
+  '  fs.writeFileSync(abandonedRollbackChildBResidueFalsifierPath, "owned\\n", { flag: "wx", mode: 0o600 });\n',
+  "",
+);
+assert.notEqual(
+  durableRootChildBResidueInjectionDeletionMutant,
+  durableRootProof,
+  "durable_root_real_process_residue_injection_deletion_mutant_not_applied",
+);
+assertThrows(
+  () => auditDurableRootRealProcessRecoveryEvidence(durableRootChildBResidueInjectionDeletionMutant),
+  /durable_root_real_process_child_b_residue_write_not_exact/,
+);
+durableRootRealProcessMutantsExecuted += 1;
+assert.equal(
+  durableRootRealProcessMutantsExecuted,
+  8,
+  "durable_root_real_process_mutant_count_not_exact",
+);
+const genericMeasurementPayloads = genericMeasurementPayloadMutant(topologyProof);
+assert.notEqual(
+  genericMeasurementPayloads,
+  topologyProof,
+  "topology_measurement_generic_payload_mutant_not_applied",
+);
+assertThrows(
+  () => auditTopologyMeasurementMutantAuthority(genericMeasurementPayloads),
+  /topology_measurement_mutant_payload_digest_not_exact/,
+);
+const mutableMeasurementRejectionMarker =
+  "let reconstructionMeasurementMutantsExecuted = 0;";
+const mutableMeasurementRejectionAt =
+  topologyProof.lastIndexOf(mutableMeasurementRejectionMarker);
+assert.ok(
+  mutableMeasurementRejectionAt >= 0,
+  "topology_measurement_mutable_rejection_target_missing",
+);
+const mutableMeasurementRejectionAuthority =
+  topologyProof.slice(0, mutableMeasurementRejectionAt) +
+  "let reconstructionMeasurementMutantsExecuted = 0;\nassert.throws = () => {};" +
+  topologyProof.slice(
+    mutableMeasurementRejectionAt + mutableMeasurementRejectionMarker.length,
+  );
+assert.notEqual(
+  mutableMeasurementRejectionAuthority,
+  topologyProof,
+  "topology_measurement_mutable_rejection_mutant_not_applied",
+);
+assertThrows(
+  () => auditTopologyMeasurementMutantAuthority(mutableMeasurementRejectionAuthority),
+  /topology_measurement_rejection_authority_mutated/,
+);
+
+const deadScalarTriggerPath = "src/storage/segmented_jsonl_v1.ts";
+const deadScalarTriggerLine = `      - "${deadScalarTriggerPath}"\n`;
+assert.equal(
+  focused.split("\n").filter((line) => line === deadScalarTriggerLine.trimEnd()).length,
+  2,
+  "focused_dead_scalar_trigger_fixture_count",
+);
+const deadScalarTriggerMutant = focused
+  .replaceAll(deadScalarTriggerLine, "")
+  .replace(
+    "permissions:",
+    `env:
+  GRACE_TRIGGER_DECOY: |
+      - "${deadScalarTriggerPath}"
+      - "${deadScalarTriggerPath}"
+
+permissions:`,
+  );
+assert.notEqual(deadScalarTriggerMutant, focused, "focused_dead_scalar_trigger_mutant_not_applied");
+assert.throws(
+  () => auditFocused(deadScalarTriggerMutant),
+  /focused_root_mapping_keys_not_exact|focused_pull_request_trigger_count|focused_push_trigger_count/,
+);
+
+const nameBlockScalarTriggerMutant = TRIGGER_DEPENDENCIES.reduce(
+  (source, dependency) => source.replaceAll(`      - "${dependency}"\n`, ""),
+  focused,
+).replace(
+  "name: VOID Segmented JSONL V1",
+  `name: |
+  pull_request:
+    paths:
+${TRIGGER_DEPENDENCIES.map((dependency) => `      - "${dependency}"`).join("\n")}
+  push:
+    paths:
+${TRIGGER_DEPENDENCIES.map((dependency) => `      - "${dependency}"`).join("\n")}`,
+);
+assert.notEqual(
+  nameBlockScalarTriggerMutant,
+  focused,
+  "focused_name_block_scalar_trigger_mutant_not_applied",
+);
+for (const dependency of TRIGGER_DEPENDENCIES) {
+  assert.equal(
+    exactLineCount(nameBlockScalarTriggerMutant, `      - "${dependency}"`),
+    2,
+    `focused_name_block_scalar_global_decoy_count:${dependency}`,
+  );
+}
+assert.equal(
+  workflowEventPathEntries(nameBlockScalarTriggerMutant, "pull_request").length,
+  0,
+  "focused_name_block_scalar_live_pull_request_not_empty",
+);
+assert.equal(
+  workflowEventPathEntries(nameBlockScalarTriggerMutant, "push").length,
+  0,
+  "focused_name_block_scalar_live_push_not_empty",
+);
+assert.throws(
+  () => auditFocused(nameBlockScalarTriggerMutant),
+  /focused_pull_request_trigger_count|focused_push_trigger_count/,
+);
+
+
+const checkoutScalarDecoy = focused
+  .replace(
+    [
+      "      - name: Checkout exact revision",
+      "        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6",
+      "        with:",
+      "          fetch-depth: 1",
+      "          persist-credentials: false",
+    ].join("\n"),
+    [
+      "      - name: Checkout exact revision",
+      "        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6",
+      "        with:",
+      "          fetch-depth: 0",
+      "          persist-credentials: true",
+      "          ref: c87df8a2f60290a9579c79dfd0a4a91798b38313",
+    ].join("\n"),
+  )
+  .replace(
+    "name: VOID Segmented JSONL V1",
+    [
+      "name: |6",
+      "      - name: Checkout exact revision",
+      "        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6",
+      "        with:",
+      "          fetch-depth: 1",
+      "          persist-credentials: false",
+    ].join("\n"),
+  );
+assert.notEqual(checkoutScalarDecoy, focused, "focused_checkout_scalar_decoy_mutant_not_applied");
+assert.throws(
+  () => auditFocused(checkoutScalarDecoy),
+  /focused_checkout_block_not_exact/,
+);
+
+const criticalIdentityMutants = [
+  ["checkout_ref_replay", "          persist-credentials: false\n", "          persist-credentials: false\n          ref: c87df8a2f60290a9579c79dfd0a4a91798b38313\n"],
+  ["setup_constant_node", "          node-version: ${{ matrix.node }}", "          node-version: 22"],
+  ["runtime_major_assertion_deleted", "          test \"$(node -p 'process.versions.node.split(\".\")[0]')\" = \"${{ matrix.node }}\"\n", ""],
+  ["hygiene_event_replay", "          CI_DIFF_EVENT_NAME: ${{ github.event_name }}", "          CI_DIFF_EVENT_NAME: pull_request"],
+  ["hygiene_checkout_replay", "          CI_DIFF_CHECKOUT_SHA: ${{ github.sha }}", "          CI_DIFF_CHECKOUT_SHA: c87df8a2f60290a9579c79dfd0a4a91798b38313"],
+];
+for (const [family, from, to] of criticalIdentityMutants) {
+  const mutant = focused.replace(from, to);
+  assert.notEqual(mutant, focused, `focused_critical_identity_mutant_not_applied:${family}`);
+  assert.throws(() => auditFocused(mutant), /focused_(checkout_block|setup_node_block|runtime_major_assertion|hygiene_block)_not_exact/);
+}
+const negativePathMutants = [
+  ["single_quoted_exact", `      - '!${deadScalarTriggerPath}'`],
+  ["double_quoted_exact", `      - \"!${deadScalarTriggerPath}\"`],
+  ["single_quoted_glob", "      - '!src/storage/**'"],
+  ["double_quoted_glob", '      - "!src/storage/**"'],
+];
+for (const [family, negativeEntry] of negativePathMutants) {
+  const mutant = focused.replaceAll(
+    deadScalarTriggerLine,
+    `${deadScalarTriggerLine}${negativeEntry}\n`,
+  );
+  assert.notEqual(mutant, focused, `focused_negative_path_mutant_not_applied:${family}`);
+  assert.throws(
+    () => auditFocused(mutant),
+    /focused_(pull_request|push)_negative_path_pattern/,
+  );
+}
+
+const pullRequestFilterMutants = [
+  ["branches_ignore_block", "    branches-ignore:\n      - main\n"],
+  ["negative_branches_block", "    branches:\n      - \"!main\"\n"],
+  ["types_opened_flow", "    types: [opened]\n"],
+  ["types_without_synchronize_flow", "    types: [opened, reopened]\n"],
+  ["types_without_synchronize_block", "    types:\n      - opened\n      - reopened\n"],
+  ["types_single_quoted", "    types: 'opened'\n"],
+  ["types_double_quoted_key", "    \"types\": [opened]\n"],
+  ["types_single_quoted_key", "    'types': [opened]\n"],
+  ["branches_ignore_double_quoted_key", "    \"branches-ignore\": [main]\n"],
+  ["branches_ignore_single_quoted_key", "    'branches-ignore': [main]\n"],
+  ["types_escaped_double_key", "    \"ty\\x70es\": [opened]\n"],
+  ["duplicate_semantic_key", "    types: [opened, synchronize, reopened]\n    \"types\": [opened]\n"],
+];
+for (const [family, filter] of pullRequestFilterMutants) {
+  const mutant = focused.replace("  pull_request:\n", `  pull_request:\n${filter}`);
+  assert.notEqual(mutant, focused, `focused_pull_request_filter_mutant_not_applied:${family}`);
+  assert.throws(() => auditFocused(mutant), /focused_pull_request_mapping_keys?_not_exact/);
+}
+
+const matrixSuppressionMutants = [
+  ["exclude_block", "        exclude:\n          - node: 26\n"],
+  ["exclude_flow", "        exclude: [{ node: 26 }]\n"],
+  ["exclude_double_quoted_key", "        \"exclude\": [{ node: 26 }]\n"],
+  ["exclude_single_quoted_key", "        'exclude': [{ node: 26 }]\n"],
+  ["include_block", "        include:\n          - node: 28\n"],
+  ["alternate_axis", "        os: [ubuntu-latest]\n"],
+  ["max_parallel", "      max-parallel: 1\n"],
+  ["job_if", "    if: ${{ false }}\n"],
+];
+for (const [family, addition] of matrixSuppressionMutants) {
+  const target = "        node: [22, 24, 26]\n";
+  const mutant = focused.replace(target, `${target}${addition}`);
+  assert.notEqual(mutant, focused, `focused_matrix_mutant_not_applied:${family}`);
+  assert.throws(
+    () => auditFocused(mutant),
+    /focused_(matrix|strategy|proof_job)_mapping/,
+  );
+}
+
+function proveFocusedStepExecutionModifierRejection(source, auditFn) {
+  const target = "      - name: Prove delimiter-inclusive segment ceiling\n";
+  const mutations = [
+    ["false_if", "        if: ${{ false }}\n"],
+    ["custom_shell", "        shell: \"true {0}\"\n"],
+    ["working_directory", "        working-directory: scripts\n"],
+    ["escaped_continue_on_error", "        \"continue-on-\\u0065rror\": ${{ true }}\n"],
+  ];
+  for (const [family, addition] of mutations) {
+    const mutant = source.replace(target, `${target}${addition}`);
+    assert.notEqual(mutant, source, `focused_step_modifier_mutant_not_applied:${family}`);
+    assert.throws(
+      () => auditFn(mutant),
+      /focused_step_mapping_key_not_exact|focused_step_mapping_keys_not_exact/,
+    );
+  }
+
+  const workflowDefaults = source.replace(
+    "permissions:\n",
+    "defaults:\n  run:\n    shell: \"true {0}\"\n\npermissions:\n",
+  );
+  assert.notEqual(workflowDefaults, source, "focused_workflow_defaults_mutant_not_applied");
+  assert.throws(() => auditFn(workflowDefaults), /focused_root_mapping_keys_not_exact/);
+
+  const jobDefaults = source.replace(
+    "    steps:\n",
+    "    defaults:\n      run:\n        shell: \"true {0}\"\n    steps:\n",
+  );
+  assert.notEqual(jobDefaults, source, "focused_job_defaults_mutant_not_applied");
+  assert.throws(() => auditFn(jobDefaults), /focused_proof_job_mapping_keys_not_exact/);
+}
+
+proveFocusedStepExecutionModifierRejection(focused, auditFocused);
+const failureToleranceMutants = [
+  ["literal_true", "    continue-on-error: true\n"],
+  ["quoted_true", "    continue-on-error: 'true'\n"],
+  ["expression_true", "    continue-on-error: ${{ true }}\n"],
+  ["expression_from_json_true", "    continue-on-error: ${{ fromJSON('true') }}\n"],
+  ["double_quoted_key", "    \"continue-on-error\": true\n"],
+  ["single_quoted_key", "    'continue-on-error': true\n"],
+];
+for (const [family, addition] of failureToleranceMutants) {
+  const mutant = focused.replace("  proof:\n", `  proof:\n${addition}`);
+  assert.notEqual(mutant, focused, `focused_failure_tolerance_mutant_not_applied:${family}`);
+  assert.throws(() => auditFocused(mutant), /focused_failure_tolerance_present/);
+}
+
+const withoutInlineAudit = focused.replace(
+  /\n      - name: Prove focused workflow dependency closure\n[\s\S]*?(?=\n      - name: Syntax\n)/,
+  "\n",
+);
+assert.notEqual(withoutInlineAudit, focused, "inline_audit_mutant_not_applied");
+assert.throws(
+  () => auditFocused(withoutInlineAudit),
+  /focused_named_step_count|focused_step_count_not_exact|focused_inline_audit_step_count|focused_topology_measurement_(path|source|mutant_caller)_not_bound|focused_topology_repository_ci_pre_typecheck_caller_not_bound/,
+);
+
+const withoutTopologyMeasurementMutantCaller = focused.replace(
+  "          auditTopologyMeasurementMutantExecution(topologyText);\n",
+  "",
+);
+assert.notEqual(
+  withoutTopologyMeasurementMutantCaller,
+  focused,
+  "focused_topology_measurement_mutant_caller_mutant_not_applied",
+);
+assert.throws(
+  () => auditFocused(withoutTopologyMeasurementMutantCaller),
+  /focused_topology_measurement_mutant_caller_not_bound|focused_topology_measurement_mutant_caller_not_top_level/,
+);
+
+const unreachableTopologyMeasurementMutantCaller = focused.replace(
+  "          auditTopologyMeasurementMutantExecution(topologyText);\n",
+  [
+    "          if (false) {",
+    "          auditTopologyMeasurementMutantExecution(topologyText);",
+    "          }",
+    "",
+  ].join("\n"),
+);
+assert.notEqual(
+  unreachableTopologyMeasurementMutantCaller,
+  focused,
+  "focused_topology_measurement_mutant_caller_literal_false_mutant_not_applied",
+);
+assert.throws(
+  () => auditFocused(unreachableTopologyMeasurementMutantCaller),
+  /focused_topology_measurement_mutant_caller_literal_false_guard|focused_topology_measurement_mutant_caller_not_top_level/,
+);
+
+for (const [family, guard] of [
+  ["if_zero", "          if (0) {"],
+  ["if_not_true", "          if (!true) {"],
+]) {
+  const unreachableEquivalentCaller = focused.replace(
+    "          auditTopologyMeasurementMutantExecution(topologyText);\n",
+    [
+      guard,
+      "          auditTopologyMeasurementMutantExecution(topologyText);",
+      "          }",
+      "",
+    ].join("\n"),
+  );
+  assert.notEqual(
+    unreachableEquivalentCaller,
+    focused,
+    `focused_topology_measurement_mutant_caller_${family}_mutant_not_applied`,
+  );
+  assert.throws(
+    () => auditFocused(unreachableEquivalentCaller),
+    /focused_topology_measurement_mutant_caller_not_top_level/,
+  );
+}
+
+const earlyReturnTopologyMeasurementMutantCaller = focused.replace(
+  "          auditTopologyMeasurementMutantExecution(topologyText);\n",
+  [
+    "          (function () {",
+    "          return;",
+    "          auditTopologyMeasurementMutantExecution(topologyText);",
+    "          })();",
+    "",
+  ].join("\n"),
+);
+assert.notEqual(
+  earlyReturnTopologyMeasurementMutantCaller,
+  focused,
+  "focused_topology_measurement_mutant_caller_early_return_mutant_not_applied",
+);
+assert.throws(
+  () => auditFocused(earlyReturnTopologyMeasurementMutantCaller),
+  /focused_topology_measurement_mutant_caller_not_top_level/,
+);
+
+const withoutRepositoryCiPreTypecheckCaller = focused.replace(
+  "          auditTopologyRepositoryCiPreTypecheckEvidence(topologyText);\n",
+  "",
+);
+assert.notEqual(
+  withoutRepositoryCiPreTypecheckCaller,
+  focused,
+  "focused_topology_repository_ci_pre_typecheck_caller_mutant_not_applied",
+);
+assert.throws(
+  () => auditFocused(withoutRepositoryCiPreTypecheckCaller),
+  /focused_topology_repository_ci_pre_typecheck_caller_not_bound|focused_topology_repository_ci_pre_typecheck_caller_not_top_level/,
+);
+
+for (const [family, guard] of [
+  ["if_false", "          if (false) {"],
+  ["if_zero", "          if (0) {"],
+  ["if_not_true", "          if (!true) {"],
+]) {
+  const unreachableRepositoryCiPreTypecheckCaller = focused.replace(
+    "          auditTopologyRepositoryCiPreTypecheckEvidence(topologyText);\n",
+    [
+      guard,
+      "          auditTopologyRepositoryCiPreTypecheckEvidence(topologyText);",
+      "          }",
+      "",
+    ].join("\n"),
+  );
+  assert.notEqual(
+    unreachableRepositoryCiPreTypecheckCaller,
+    focused,
+    `focused_topology_repository_ci_pre_typecheck_caller_${family}_mutant_not_applied`,
+  );
+  assert.throws(
+    () => auditFocused(unreachableRepositoryCiPreTypecheckCaller),
+    /focused_topology_repository_ci_pre_typecheck_caller_not_top_level|focused_topology_measurement_mutant_caller_literal_false_guard/,
+  );
+}
+
+const withoutSemanticProof = focused.replace(
+  "        run: npx --no-install tsx scripts/prove_segmented_jsonl_v1.ts",
+  "        run: node --experimental-strip-types --check scripts/prove_segmented_jsonl_v1.ts",
+);
+assert.throws(() => auditFocused(withoutSemanticProof), /focused_proof_not_terminal/);
+
+const tolerantFocusedStep = focused.replace(
+  "      - name: Prove segmented JSONL store\n        run:",
+  "      - name: Prove segmented JSONL store\n        continue-on-error: true\n        run:",
+);
+assert.throws(() => auditFocused(tolerantFocusedStep), /focused_failure_tolerance_present/);
+
+const tolerantFocusedJob = focused.replace(
+  "  proof:\n    name:",
+  "  proof:\n    continue-on-error: true\n    name:",
+);
+assert.throws(() => auditFocused(tolerantFocusedJob), /focused_failure_tolerance_present/);
+
+const tolerantTypecheck = focused.replace(
+  "      - name: Repository typecheck\n        if:",
+  "      - name: Repository typecheck\n        continue-on-error: true\n        if:",
+);
+assert.throws(() => auditFocused(tolerantTypecheck), /focused_failure_tolerance_present/);
+
+const withoutZeroAllocationAdversary = segstoreProof.replace(
+  "    proveExistingEquivalentReusePrecedesOutputAllocation(",
+  "    deletedExistingEquivalentReusePrecedesOutputAllocation(",
+);
+assert.throws(
+  () => auditSegstoreProof(withoutZeroAllocationAdversary),
+  /segstore_zero_allocation_call_not_bound/,
+);
+
+const commentedZeroAllocationCall = segstoreProof.replace(
+  "    proveExistingEquivalentReusePrecedesOutputAllocation(",
+  "    deletedExistingEquivalentReusePrecedesOutputAllocation(",
+).replace(
+  "  const existingEquivalentReusePrecedesOutputAllocation =",
+  `/*
+    proveExistingEquivalentReusePrecedesOutputAllocation(
+*/
+  const existingEquivalentReusePrecedesOutputAllocation =`,
+);
+assert.notEqual(
+  commentedZeroAllocationCall,
+  segstoreProof,
+  "zero_allocation_commented_call_mutant_not_applied",
+);
+assert.throws(
+  () => auditSegstoreProof(commentedZeroAllocationCall),
+  /segstore_zero_allocation_call_not_bound/,
+);
+
+const literalZeroAllocationTerminal = segstoreProof.replace(
+  "        existingEquivalentReusePrecedesOutputAllocation,",
+  "      existing_equivalent_reuse_precedes_output_allocation: true,",
+);
+assert.throws(
+  () => auditSegstoreProof(literalZeroAllocationTerminal),
+  /segstore_zero_allocation_terminal_not_derived|segstore_zero_allocation_literal_terminal_present/,
+);
+
+const withoutSourceAliasAdversary = segstoreProof.replace(
+  "  const reconstructionSourceAliasRejected = proveReconstructionRejectsSourceAlias(store);",
+  "  const deletedReconstructionSourceAliasRejected = proveReconstructionRejectsSourceAlias(store);",
+);
+assert.throws(
+  () => auditSegstoreProof(withoutSourceAliasAdversary),
+  /segstore_source_alias_adversary_not_bound/,
+);
+
+const commentedSourceAliasBinding = segstoreProof.replace(
+  "  const reconstructionSourceAliasRejected = proveReconstructionRejectsSourceAlias(store);",
+  "  const deletedReconstructionSourceAliasRejected = proveReconstructionRejectsSourceAlias(store);",
+).replace(
+  "  const existingEquivalentReusePrecedesOutputAllocation =",
+  `/*
+  const reconstructionSourceAliasRejected = proveReconstructionRejectsSourceAlias(store);
+*/
+  const existingEquivalentReusePrecedesOutputAllocation =`,
+);
+assert.notEqual(
+  commentedSourceAliasBinding,
+  segstoreProof,
+  "source_alias_commented_binding_mutant_not_applied",
+);
+assert.throws(
+  () => auditSegstoreProof(commentedSourceAliasBinding),
+  /segstore_source_alias_adversary_not_bound/,
+);
+
+const literalSourceAliasTerminal = segstoreProof.replace(
+  "      reconstruction_source_alias_rejected: reconstructionSourceAliasRejected,",
+  "      reconstruction_source_alias_rejected: true,",
+);
+assert.throws(
+  () => auditSegstoreProof(literalSourceAliasTerminal),
+  /segstore_source_alias_terminal_not_derived|segstore_source_alias_literal_terminal_present/,
+);
+
+const noOpZeroAllocationBody = segstoreProof.replace(
+  /function proveExistingEquivalentReusePrecedesOutputAllocation\([\s\S]*?type ExactFileObservationV1 =/,
+  `function proveExistingEquivalentReusePrecedesOutputAllocation(
+  storePath: string,
+  outputPath: string,
+  expectedBytes: Buffer,
+): boolean {
+  void storePath;
+  void outputPath;
+  void expectedBytes;
+  return true;
+}
+
+type ExactFileObservationV1 =`,
+);
+assert.notEqual(noOpZeroAllocationBody, segstoreProof, "zero_allocation_noop_mutant_not_applied");
+assert.throws(
+  () => auditSegstoreProof(noOpZeroAllocationBody),
+  /segstore_zero_allocation_body_not_bound/,
+);
+
+const earlyZeroAllocationReturn = segstoreProof.replace(
+  "): boolean {\n  const published = reconstructSegmentedJsonlV1ToFile(storePath, outputPath);",
+  "): boolean {\n  return true;\n  const published = reconstructSegmentedJsonlV1ToFile(storePath, outputPath);",
+);
+assert.notEqual(earlyZeroAllocationReturn, segstoreProof, "zero_allocation_early_return_mutant_not_applied");
+assert.throws(
+  () => auditSegstoreProof(earlyZeroAllocationReturn),
+  /segstore_zero_allocation_early_true_return/,
+);
+
+function wrapFunctionBodyInLiteralFalse(source, startMarker, endMarker, marker) {
+  const start = source.indexOf(startMarker);
+  const end = source.indexOf(endMarker, start + startMarker.length);
+  assert.ok(start >= 0 && end > start, `${marker}_slice_missing`);
+  const openBrace = source.indexOf("{", start + startMarker.length);
+  const closeBrace = source.lastIndexOf("}", end);
+  assert.ok(openBrace > start && closeBrace > openBrace, `${marker}_body_missing`);
+  return (
+    source.slice(0, openBrace + 1) +
+    "\n  if (false) {" +
+    source.slice(openBrace + 1, closeBrace) +
+    "\n  }\n  return true;\n" +
+    source.slice(closeBrace)
+  );
+}
+
+function wrapFunctionBodyInLiteralFalseWithFallback(
+  source,
+  startMarker,
+  endMarker,
+  fallback,
+  marker,
+) {
+  const start = source.indexOf(startMarker);
+  const end = source.indexOf(endMarker, start + startMarker.length);
+  assert.ok(start >= 0 && end > start, `${marker}_slice_missing`);
+  const openBrace = source.indexOf("{", start + startMarker.length);
+  const closeBrace = source.lastIndexOf("}", end);
+  assert.ok(openBrace > start && closeBrace > openBrace, `${marker}_body_missing`);
+  return (
+    source.slice(0, openBrace + 1) +
+    "\n  if (false) {" +
+    source.slice(openBrace + 1, closeBrace) +
+    "\n  }\n" +
+    fallback +
+    "\n" +
+    source.slice(closeBrace)
+  );
+}
+
+const literalFalseZeroAllocationBody = wrapFunctionBodyInLiteralFalse(
+  segstoreProof,
+  "function proveExistingEquivalentReusePrecedesOutputAllocation(",
+  "type ExactFileObservationV1 =",
+  "zero_allocation_literal_false",
+);
+assert.notEqual(
+  literalFalseZeroAllocationBody,
+  segstoreProof,
+  "zero_allocation_literal_false_mutant_not_applied",
+);
+assert.throws(
+  () => auditSegstoreProof(literalFalseZeroAllocationBody),
+  /segstore_zero_allocation_literal_false_guard/,
+);
+
+const literalFalseSourceAliasBody = wrapFunctionBodyInLiteralFalse(
+  segstoreProof,
+  "function proveReconstructionRejectsSourceAlias(",
+  "function matchesOpenedTarget(",
+  "source_alias_literal_false",
+);
+assert.notEqual(
+  literalFalseSourceAliasBody,
+  segstoreProof,
+  "source_alias_literal_false_mutant_not_applied",
+);
+assert.throws(
+  () => auditSegstoreProof(literalFalseSourceAliasBody),
+  /segstore_source_alias_literal_false_guard/,
+);
+
+const noOpGenerationHelper = segstoreProof.replace(
+  /function assertExactFileObservationUnchangedV1\([\s\S]*?function proveReconstructionRejectsSourceAlias\(/,
+  `function assertExactFileObservationUnchangedV1(
+  before: ExactFileObservationV1,
+  after: ExactFileObservationV1,
+): void {
+  void before;
+  void after;
+}
+
+function proveReconstructionRejectsSourceAlias(`,
+);
+assert.notEqual(noOpGenerationHelper, segstoreProof, "generation_helper_noop_mutant_not_applied");
+assert.throws(
+  () => auditSegstoreProof(noOpGenerationHelper),
+  /segstore_generation_helper_not_bound/,
+);
+
+const noOpSourceAliasBody = segstoreProof.replace(
+  /function proveReconstructionRejectsSourceAlias\([\s\S]*?function matchesOpenedTarget\(/,
+  `function proveReconstructionRejectsSourceAlias(storePath: string): boolean {
+  void storePath;
+  return true;
+}
+
+function matchesOpenedTarget(`,
+);
+assert.notEqual(noOpSourceAliasBody, segstoreProof, "source_alias_noop_mutant_not_applied");
+assert.throws(
+  () => auditSegstoreProof(noOpSourceAliasBody),
+  /segstore_source_alias_body_not_bound/,
+);
+
+const earlySourceAliasReturn = segstoreProof.replace(
+  "function proveReconstructionRejectsSourceAlias(storePath: string): boolean {\n",
+  "function proveReconstructionRejectsSourceAlias(storePath: string): boolean {\n  return true;\n",
+);
+assert.notEqual(earlySourceAliasReturn, segstoreProof, "source_alias_early_return_mutant_not_applied");
+assert.throws(
+  () => auditSegstoreProof(earlySourceAliasReturn),
+  /segstore_source_alias_early_true_return/,
+);
+
+const zeroAllocationDecoyMarkers = [
+  "const published = reconstructSegmentedJsonlV1ToFile(storePath, outputPath);",
+  "if ((flags & 0o20200000) === 0o20200000) {",
+  'error.code = "ENOSPC";',
+  "const recovered = reconstructSegmentedJsonlV1ToFile(storePath, outputPath);",
+  "assert.equal(recovered.reused_existing, true);",
+  'assert.equal(recovered.publication_terminal, "EXISTING_EQUIVALENT_UNOWNED");',
+  "outputAllocationAttempted,",
+  "assert.equal(durable.ino, survivor.ino);",
+  "assert.deepEqual(fs.readFileSync(outputPath), expectedBytes);",
+];
+
+const sourceAliasDecoyMarkers = [
+  "() => reconstructSegmentedJsonlV1ToFile(storePath, activePath),",
+  '"RECONSTRUCT_OUTPUT_ALIASES_SOURCE",',
+  "assertExactFileObservationUnchangedV1(before, after);",
+  "assert.deepEqual(fs.readFileSync(activePath), beforeBytes);",
+  "verifySegmentedJsonlV1(storePath);",
+  "fs.chmodSync(mutationWitness, 0o400);",
+  "fs.chmodSync(mutationWitness, 0o600);",
+  "assert.notEqual(mutationAfter.ctimeNs, mutationBefore.ctimeNs);",
+  "() => assertExactFileObservationUnchangedV1(mutationBefore, mutationAfter),",
+  "/alias source generation changed:ctimeNs/,",
+  "fs.unlinkSync(mutationWitness);",
+];
+
+function blockCommentDecoy(markers) {
+  return `/*\n${markers.join("\n")}\n*/`;
+}
+
+function stringLiteralDecoy(markers) {
+  return markers
+    .map((required) => `'${required.replaceAll("\\", "\\\\").replaceAll("'", "\\'")}';`)
+    .join("\n");
+}
+
+function templateLiteralDecoy(markers) {
+  const body = markers
+    .join("\n")
+    .replaceAll("\\", "\\\\")
+    .replaceAll("`", "\\`")
+    .replaceAll("${", "\\${");
+  return `\`\n${body}\n\`;`;
+}
+
+function zeroAllocationDecoyProof(decoyBody) {
+  return segstoreProof.replace(
+    /function proveExistingEquivalentReusePrecedesOutputAllocation\([\s\S]*?type ExactFileObservationV1 =/,
+    `function proveExistingEquivalentReusePrecedesOutputAllocation(
+  storePath: string,
+  outputPath: string,
+  expectedBytes: Buffer,
+): boolean {
+  void storePath;
+  void outputPath;
+  void expectedBytes;
+  ${decoyBody}
+  return true;
+}
+
+type ExactFileObservationV1 =`,
+  );
+}
+
+function sourceAliasDecoyProof(decoyBody) {
+  return segstoreProof.replace(
+    /function proveReconstructionRejectsSourceAlias\([\s\S]*?function matchesOpenedTarget\(/,
+    `function proveReconstructionRejectsSourceAlias(storePath: string): boolean {
+  void storePath;
+  ${decoyBody}
+  return true;
+}
+
+function matchesOpenedTarget(`,
+  );
+}
+
+let decoyMutantFamiliesExecuted = 0;
+for (const [name, decoy] of [
+  ["block_comment", blockCommentDecoy],
+  ["string_literal", stringLiteralDecoy],
+  ["template_literal", templateLiteralDecoy],
+]) {
+  const zeroAllocationDecoy = zeroAllocationDecoyProof(decoy(zeroAllocationDecoyMarkers));
+  assert.notEqual(
+    zeroAllocationDecoy,
+    segstoreProof,
+    `zero_allocation_${name}_decoy_mutant_not_applied`,
+  );
+  assert.throws(
+    () => auditSegstoreProof(zeroAllocationDecoy),
+    /segstore_zero_allocation_body_not_bound/,
+  );
+
+  const sourceAliasDecoy = sourceAliasDecoyProof(decoy(sourceAliasDecoyMarkers));
+  assert.notEqual(sourceAliasDecoy, segstoreProof, `source_alias_${name}_decoy_mutant_not_applied`);
+  assert.throws(
+    () => auditSegstoreProof(sourceAliasDecoy),
+    /segstore_source_alias_body_not_bound/,
+  );
+  decoyMutantFamiliesExecuted += 1;
+}
+assert.equal(
+  decoyMutantFamiliesExecuted,
+  3,
+  "segstore_decoy_mutant_execution_count",
+);
+
+const reconstructionMeasurementMutants = [
+  [
+    "literal_false_helper",
+    wrapFunctionBodyInLiteralFalseWithFallback(
+      segstoreProof,
+      "function measureReconstructionSourceReadsV1(",
+      "function proveUncertainExactFdLinkConverges(",
+      [
+        "  const manifest = readSegmentedJsonlManifestV1(storePath);",
+        "  const reusedExisting = fs.existsSync(outputPath);",
+        "  return {",
+        "    sourceBytesRead: manifest.total_bytes * (reusedExisting ? 1 : 2),",
+        "    reusedExisting,",
+        "  };",
+      ].join("\n"),
+      "segstore_reconstruction_measurement_literal_false",
+    ),
+    /segstore_reconstruction_measurement_literal_false_guard/,
+  ],
+  [
+    "hard_coded_helper",
+    segstoreProof.replace(
+      functionSlice(
+        segstoreProof,
+        "function measureReconstructionSourceReadsV1(",
+        "function proveUncertainExactFdLinkConverges(",
+        "segstore_reconstruction_measurement_mutant_source_missing",
+      ),
+      `function measureReconstructionSourceReadsV1(
+  storePath: string,
+  outputPath: string,
+): { sourceBytesRead: number; reusedExisting: boolean } {
+  void outputPath;
+  const manifest = readSegmentedJsonlManifestV1(storePath);
+  const call = (measureReconstructionSourceReadsV1 as any).callCount ?? 0;
+  (measureReconstructionSourceReadsV1 as any).callCount = call + 1;
+  return call === 0
+    ? { sourceBytesRead: manifest.total_bytes * 2, reusedExisting: false }
+    : { sourceBytesRead: manifest.total_bytes, reusedExisting: true };
+}
+
+`,
+    ),
+    /segstore_reconstruction_measurement_body_not_bound/,
+  ],
+  [
+    "deleted_production_reconstruction",
+    segstoreProof.replace(
+      "    const result = reconstructSegmentedJsonlV1ToFile(storePath, outputPath);",
+      "    const result = { reused_existing: false };",
+    ),
+    /segstore_reconstruction_measurement_body_not_bound/,
+  ],
+  [
+    "deleted_source_read_accounting",
+    segstoreProof.replace(
+      "      if (trackedFds.has(Number(args[0])) && Number(count) > 0) sourceBytesRead += Number(count);",
+      "      void count;",
+    ),
+    /segstore_reconstruction_measurement_body_not_bound/,
+  ],
+  [
+    "preloaded_measurement_results",
+    segstoreProof
+      .replace(
+        "  const newOutputPasses = measureReconstructionSourceReadsV1(store, reconstructionPassOutput);",
+        "  const newOutputPasses = { sourceBytesRead: body.length * 2, reusedExisting: false };",
+      )
+      .replace(
+        "  const existingOutputPasses = measureReconstructionSourceReadsV1(store, reconstructionPassOutput);",
+        "  const existingOutputPasses = { sourceBytesRead: body.length, reusedExisting: true };",
+      ),
+    /segstore_reconstruction_(new_output|survivor)_measurement_call_not_bound/,
+  ],
+  [
+    "literal_pass_terminals",
+    segstoreProof
+      .replace(
+        "      reconstruction_new_output_source_passes: reconstructionNewOutputSourcePasses,",
+        "      reconstruction_new_output_source_passes: 2,",
+      )
+      .replace(
+        "      reconstruction_exact_survivor_source_passes: reconstructionExactSurvivorSourcePasses,",
+        "      reconstruction_exact_survivor_source_passes: 1,",
+      ),
+    /segstore_reconstruction_(new_output|survivor)_(terminal_not_derived|literal_terminal_present)/,
+  ],
+  [
+    "deleted_acceptance_assertions",
+    segstoreProof
+      .replace(
+        [
+          "  assert.equal(",
+          "    newOutputPasses.sourceBytesRead,",
+          "    body.length * 2,",
+          '    "new reconstruction must read each admitted source byte exactly twice",',
+          "  );",
+          "",
+        ].join("\n"),
+        "",
+      )
+      .replace(
+        [
+          "  assert.equal(",
+          "    existingOutputPasses.sourceBytesRead,",
+          "    body.length,",
+          '    "exact-survivor recovery must read each admitted source byte exactly once",',
+          "  );",
+          "",
+        ].join("\n"),
+        "",
+      )
+      .replace(
+        [
+          "  assert.equal(",
+          "    reconstructionNewOutputSourcePasses,",
+          "    2,",
+          '    "new reconstruction source-pass terminal must equal exactly two",',
+          "  );",
+          "",
+        ].join("\n"),
+        "",
+      )
+      .replace(
+        [
+          "  assert.equal(",
+          "    reconstructionExactSurvivorSourcePasses,",
+          "    1,",
+          '    "exact-survivor source-pass terminal must equal exactly one",',
+          "  );",
+          "",
+        ].join("\n"),
+        "",
+      ),
+    /segstore_reconstruction_measurement_acceptance_not_bound/,
+  ],
+  [
+    "weakened_acceptance_expectations",
+    segstoreProof
+      .replace(
+        "    newOutputPasses.sourceBytesRead,\n    body.length * 2,",
+        "    newOutputPasses.sourceBytesRead,\n    body.length * 3,",
+      )
+      .replace(
+        "    existingOutputPasses.sourceBytesRead,\n    body.length,",
+        "    existingOutputPasses.sourceBytesRead,\n    body.length * 2,",
+      )
+      .replace(
+        "    reconstructionNewOutputSourcePasses,\n    2,",
+        "    reconstructionNewOutputSourcePasses,\n    3,",
+      )
+      .replace(
+        "    reconstructionExactSurvivorSourcePasses,\n    1,",
+        "    reconstructionExactSurvivorSourcePasses,\n    2,",
+      ),
+    /segstore_reconstruction_measurement_acceptance_not_bound/,
+  ],
+];
+
+const reconstructionMeasurementMutantValues = new Set(
+  reconstructionMeasurementMutants.map(([, mutant]) => mutant),
+);
+assert.equal(
+  reconstructionMeasurementMutantValues.size, 8,
+  "segstore_reconstruction_measurement_mutant_values_not_unique",
+);
+
+let reconstructionMeasurementMutantsExecuted = 0;
+for (const [family, mutant, expected] of reconstructionMeasurementMutants) {
+  assert.notEqual(
+    mutant,
+    segstoreProof,
+    `segstore_reconstruction_measurement_mutant_not_applied:${family}`,
+  );
+  assertThrows(() => auditSegstoreProof(mutant), expected);
+  reconstructionMeasurementMutantsExecuted += 1;
+}
+assert.equal(
+  reconstructionMeasurementMutantsExecuted,
+  8,
+  "segstore_reconstruction_measurement_mutant_execution_count",
+);
+
+const withoutBaselineInvocation = baseline.replace(`node ${PROOF_PATH}`, `node --check ${PROOF_PATH}`);
+assert.throws(
+  () => auditBaseline(withoutBaselineInvocation),
+  /baseline_topology_proof_prefix_not_exact/,
+);
+
+const deadBaselineInvocation = baseline.replace(
+  `node ${PROOF_PATH}`,
+  `if false; then\nnode ${PROOF_PATH}\nfi`,
+);
+assert.notEqual(deadBaselineInvocation, baseline, "baseline_dead_topology_mutant_not_applied");
+assert.throws(
+  () => auditBaseline(deadBaselineInvocation),
+  /baseline_topology_proof_prefix_not_exact/,
+);
+
+const withoutCiCaller = ci.replace(
+  `          bash ${BASELINE_PATH}`,
+  `          bash -n ${BASELINE_PATH}`,
+);
+assertThrows(
+  () => auditCi(withoutCiCaller),
+  /ci_build_job_body_not_exact|ci_baseline_step_not_exact/,
+);
+
+const skippedCiCaller = ci.replace(
+  "      - name: Typecheck (no emit)\n        run:",
+  "      - name: Typecheck (no emit)\n        if: ${{ false }}\n        run:",
+);
+assert.notEqual(skippedCiCaller, ci, "ci_skipped_baseline_mutant_not_applied");
+assertThrows(
+  () => auditCi(skippedCiCaller),
+  /ci_build_job_body_not_exact|ci_baseline_step_not_exact/,
+);
+
+const skippedCiBuildJob = ci.replace(
+  "  build:\n    runs-on:",
+  "  build:\n    if: ${{ false }}\n    runs-on:",
+);
+assert.notEqual(skippedCiBuildJob, ci, "ci_skipped_build_job_mutant_not_applied");
+assertThrows(
+  () => auditCi(skippedCiBuildJob),
+  /ci_build_job_keys_not_exact|ci_build_job_body_not_exact/,
+);
+
+const quotedSkippedCiBuildJob = ci.replace(
+  "  build:\n    runs-on:",
+  '  build:\n    "if": ${{ false }}\n    runs-on:',
+);
+assert.notEqual(
+  quotedSkippedCiBuildJob,
+  ci,
+  "ci_quoted_skipped_build_job_mutant_not_applied",
+);
+assertThrows(
+  () => auditCi(quotedSkippedCiBuildJob),
+  /ci_build_job_keys_not_exact|ci_build_job_body_not_exact/,
+);
+
+const preTypecheckBaselineReplacement = ci.replace(
+  "      - name: Typecheck (no emit)",
+  [
+    "      - name: Replace topology baseline after checkout",
+    "        run: |",
+    "          printf '#!/usr/bin/env bash\\nexit 0\\n' > tools/check_tsc_noemit_baseline.sh",
+    "      - name: Typecheck (no emit)",
+  ].join("\n"),
+);
+assert.notEqual(
+  preTypecheckBaselineReplacement,
+  ci,
+  "ci_pre_typecheck_replacement_mutant_not_applied",
+);
+assertThrows(
+  () => auditCi(preTypecheckBaselineReplacement),
+  /ci_build_job_body_not_exact/,
+);
+
+const tolerantCiCaller = ci.replace(
+  "      - name: Typecheck (no emit)\n        run:",
+  "      - name: Typecheck (no emit)\n        continue-on-error: true\n        run:",
+);
+assertThrows(
+  () => auditCi(tolerantCiCaller),
+  /ci_build_job_body_not_exact|ci_baseline_step_not_exact|ci_failure_tolerance_present/,
+);
+
+console.log("VOID_SEGMENTED_JSONL_CI_TOPOLOGY_V1_GREEN");
+console.log("durable_root_failed_acquire_descriptor_fault_bound=true");
+console.log("durable_root_failed_acquire_restore_order_bound=true");
+console.log("focused_durable_root_audit_caller_bound=true");
+console.log("focused_durable_root_audit_body_bound=true");
+console.log("focused_durable_root_audit_mutants_executed=2");
+console.log("durable_root_reclaim_winner_digest_source_blob_bound=true");
+console.log("durable_root_reclaim_winner_digest_proof_blob_bound=true");
+console.log("durable_root_reclaim_winner_digest_paired_reversion_rejected=true");
+console.log(`durable_root_reclaim_winner_digest_mutants_executed=${durableRootReclaimWinnerDigestMutantsExecuted}`);
+console.log("focused_trigger_closure_bound=true");
+console.log("focused_trigger_dead_scalar_relocation_rejected=true");
+console.log("focused_trigger_name_block_scalar_decoy_rejected=true");
+console.log("focused_negative_path_patterns_rejected=true");
+console.log("focused_pull_request_branch_filters_rejected=true");
+console.log("focused_pull_request_activity_narrowing_rejected=true");
+console.log("focused_push_main_branch_bound=true");
+console.log("focused_semantic_proofs_terminal=true");
+console.log("focused_failure_tolerance_rejected=true");
+console.log("independent_repository_ci_caller_bound=true");
+console.log("repository_ci_complete_step_topology_bound=true");
+console.log("repository_ci_use_time_blob_identity_bound=true");
+console.log("repository_ci_pre_typecheck_replacement_rejected=true");
+console.log("repository_ci_failure_tolerance_rejected=true");
+console.log("topology_proof_self_deletion_rejected=true");
+console.log("segstore_acceptance_terminal_call_deletion_rejected=true");
+console.log("segstore_commented_outer_binding_rejected=true");
+console.log("segstore_terminal_literal_true_rejected=true");
+console.log("segstore_adversary_body_noop_rejected=true");
+console.log("segstore_adversary_early_return_rejected=true");
+console.log("segstore_literal_false_guard_rejected=true");
+console.log("segstore_dead_comment_marker_decoys_rejected=true");
+console.log("segstore_string_literal_marker_decoys_rejected=true");
+console.log("segstore_template_literal_marker_decoys_rejected=true");
+console.log(`segstore_decoy_mutant_families_executed=${decoyMutantFamiliesExecuted}`);
+console.log("segstore_reconstruction_measurement_helper_bound=true");
+console.log("segstore_reconstruction_measurement_production_call_bound=true");
+console.log("segstore_reconstruction_measurement_read_accounting_bound=true");
+console.log("segstore_reconstruction_measurement_result_terminals_bound=true");
+console.log("segstore_reconstruction_measurement_acceptance_assertions_bound=true");
+console.log("segstore_reconstruction_measurement_literal_false_guard_rejected=true");
+console.log("segstore_reconstruction_measurement_mutant_caller_bound=true");
+console.log("segstore_reconstruction_measurement_mutant_block_literal_false_guard_rejected=true");
+console.log("segstore_reconstruction_measurement_mutant_payload_digests_bound=true");
+console.log("segstore_reconstruction_measurement_rejection_authority_immutable=true");
+console.log("segstore_reconstruction_measurement_mutant_values_distinct=true");
+console.log("focused_topology_measurement_mutant_caller_literal_false_guard_rejected=true");
+console.log("focused_topology_measurement_mutant_caller_ast_top_level_bound=true");
+console.log("repository_ci_baseline_step_exact=true");
+console.log("repository_ci_build_job_control_exact=true");
+console.log("repository_ci_quoted_build_control_rejected=true");
+console.log("baseline_topology_proof_prefix_exact=true");
+console.log(`segstore_reconstruction_measurement_mutants_executed=${reconstructionMeasurementMutantsExecuted}`);
+console.log("segstore_exact_generation_helper_noop_rejected=true");
+
+console.log(`focused_durable_root_audit_reachability_mutants_executed=${focusedDurableRootAuditReachabilityMutantsExecuted}`);
+console.log(`durable_root_real_process_mutants_executed=${durableRootRealProcessMutantsExecuted}`);
+console.log("durable_root_real_process_child_a_b_top_level_bound=true");
+console.log("durable_root_real_process_crash_mode_bound=true");
+console.log("durable_root_real_process_residue_filter_ast_bound=true");
+console.log("durable_root_real_process_child_b_residue_falsifier_bound=true");
+console.log(`focused_successful_termination_mutants_executed=${focusedSuccessfulTerminationMutantsExecuted}`);
+console.log(`focused_external_termination_children_executed=${focusedExternalTerminationChildrenExecuted}`);
+console.log(`focused_external_failure_mode_falsifiers_executed=${focusedExternalFailureModeFalsifiersExecuted}`);
+console.log("focused_successful_termination_alias_child_rejected=true");
+console.log("focused_inline_audit_counter_stdin_child_rejected=true");
+console.log("focused_inline_audit_counter_eval_stdin_child_rejected=true");
+console.log("focused_inline_audit_counter_parenthesized_eval_stdin_child_rejected=true");
+console.log("focused_inline_audit_counter_destructuring_stdin_child_rejected=true");
+console.log("focused_inline_dynamic_code_parentheses_normalized=true");
+console.log("focused_inline_assignment_target_counter_writes_recursive=true");
+console.log("focused_external_child_status_semantics_exact=true");
+console.log("focused_inline_dynamic_code_evaluation_forbidden=true");
+console.log("focused_inline_audit_counter_writes_exact=true");
+console.log("focused_inline_successful_termination_rejected=true");

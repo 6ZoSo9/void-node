@@ -100,7 +100,16 @@ fi
 git cat-file -e "${BASE_SHA}^{commit}" 2>/dev/null \
   || hold "base_commit_unavailable_after_fetch:${BASE_SHA}"
 
-git diff --check "${BASE_SHA}..${CURRENT_SHA}"
+if [[ "$EVENT_NAME" == "pull_request" ]]; then
+  # Hygiene belongs to the integrated PR delta, not a comparison between the
+  # current base tree and a possibly diverged raw PR-head tree. The synthetic
+  # checkout already binds both exact parents above and includes conflict
+  # resolution, so base..checkout rejects PR/integration whitespace without
+  # falsely attributing main-only divergence to the PR.
+  git diff --check "${BASE_SHA}..${CHECKOUT_SHA}"
+else
+  git diff --check "${BASE_SHA}..${CURRENT_SHA}"
+fi
 
 printf '%s_GREEN\n' "$MARKER"
 printf 'event=%s\n' "$EVENT_NAME"
