@@ -14,6 +14,7 @@ on:
       - 'scripts/prove_buy_void_enforcement_*'
       - 'scripts/prove_buy_void_source_finality_execution_preflight_v1.ts'
       - 'docs/architecture/buy-void-enforcement-artifact-attestation-v1.*'
+      - 'docs/architecture/buy-void-enforcement-build-generation-v2.md'
       - '.github/workflows/buy-void-enforcement-artifact-attestation-v1.yml'
   workflow_dispatch:
 
@@ -29,6 +30,30 @@ defaults:
     shell: bash
 
 jobs:
+  historical:
+    name: preserve reviewed historical V1 proof
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: 029af8d02d0d3ff1f9481830c06aa340e9f67be0
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: 24
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Reproduce the unchanged historical source and artifact contract
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = 029af8d02d0d3ff1f9481830c06aa340e9f67be0
+          npm run typecheck
+          npm run build
+          node scripts/prove_buy_void_enforcement_artifact_attestation_v1.mjs
+          python3 scripts/prove_buy_void_enforcement_image_identity_v1.py --self-test
+          git diff --exit-code
+
   compiled:
     name: enforcement closure / Node ${{ matrix.node }}
     runs-on: ubuntu-24.04
@@ -55,14 +80,25 @@ jobs:
           node-version: ${{ matrix.node }}
       - run: npm ci --ignore-scripts --no-audit --no-fund
       - name: Build and prove exact locked enforcement closure
+        env:
+          EXPECTED_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
         run: |
           set -euo pipefail
+          node scripts/prove_buy_void_enforcement_build_generation_v2.mjs snapshot \
+            --expected-head "$EXPECTED_HEAD_SHA" > "$RUNNER_TEMP/enforcement-build-source.json"
           npm run typecheck
           npm run build
           node --import tsx scripts/prove_buy_void_source_finality_execution_preflight_v1.ts
-          node scripts/prove_buy_void_enforcement_artifact_attestation_v1.mjs --derive > enforcement-candidate.json
-          cmp enforcement-candidate.json docs/architecture/buy-void-enforcement-artifact-attestation-v1.json
-          node scripts/prove_buy_void_enforcement_artifact_attestation_v1.mjs | tee enforcement-proof.log
+          node scripts/prove_buy_void_enforcement_build_generation_v2.mjs derive \
+            --expected-head "$EXPECTED_HEAD_SHA" --snapshot "$RUNNER_TEMP/enforcement-build-source.json" \
+            > "$RUNNER_TEMP/enforcement-build-generation.json"
+          node scripts/prove_buy_void_enforcement_build_generation_v2.mjs verify \
+            --expected-head "$EXPECTED_HEAD_SHA" --snapshot "$RUNNER_TEMP/enforcement-build-source.json" \
+            --record "$RUNNER_TEMP/enforcement-build-generation.json" | tee "$RUNNER_TEMP/enforcement-proof.log"
+          node scripts/prove_buy_void_enforcement_build_generation_adversaries_v2.mjs \
+            | tee "$RUNNER_TEMP/enforcement-generation-adversaries.log"
+          grep -qx 'VOID_BUY_VOID_ENFORCEMENT_BUILD_GENERATION_V2_GREEN' "$RUNNER_TEMP/enforcement-proof.log"
+          grep -qx 'VOID_BUY_VOID_ENFORCEMENT_BUILD_GENERATION_ADVERSARIES_V2_GREEN' "$RUNNER_TEMP/enforcement-generation-adversaries.log"
           node scripts/prove_buy_void_source_finality_compiled_artifact_attestation_v1.mjs
           python3 scripts/prove_buy_void_enforcement_image_identity_v1.py --self-test
           git diff --exit-code
@@ -71,14 +107,16 @@ jobs:
         with:
           name: enforcement-node-${{ matrix.node }}-${{ github.event.pull_request.head.sha || github.sha }}
           path: |
-            enforcement-candidate.json
-            enforcement-proof.log
+            ${{ runner.temp }}/enforcement-build-source.json
+            ${{ runner.temp }}/enforcement-build-generation.json
+            ${{ runner.temp }}/enforcement-proof.log
+            ${{ runner.temp }}/enforcement-generation-adversaries.log
           if-no-files-found: error
           retention-days: 7
 
   packaged:
     name: stopped image enforcement and content identity
-    needs: compiled
+    needs: [historical, compiled]
     runs-on: ubuntu-24.04
     timeout-minutes: 35
     steps:
@@ -97,6 +135,8 @@ jobs:
           set -euo pipefail
           test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD_SHA"
           test -z "$(git status --porcelain=v1)"
+          node scripts/prove_buy_void_enforcement_build_generation_v2.mjs snapshot \
+            --expected-head "$EXPECTED_HEAD_SHA" > "$RUNNER_TEMP/enforcement-build-source.json"
           # Build before installing host dependencies or writing evidence into context.
           docker build --iidfile "$RUNNER_TEMP/enforcement-image-id" \
             --label "org.opencontainers.image.revision=$EXPECTED_HEAD_SHA" .
@@ -112,30 +152,47 @@ jobs:
           docker inspect "$CID" > "$RUNNER_TEMP/enforcement-container-after.json"
           cmp "$RUNNER_TEMP/enforcement-container-before.json" "$RUNNER_TEMP/enforcement-container-after.json"
       - run: npm ci --ignore-scripts --no-audit --no-fund
+      - uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0
+        with:
+          pattern: enforcement-node-*-${{ github.event.pull_request.head.sha || github.sha }}
+          path: ${{ runner.temp }}/enforcement-node-records
+          merge-multiple: false
       - name: Verify enforcement bytes, historical preservation, and image identity
         env:
           EXPECTED_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
         run: |
           set -euo pipefail
           npm run build
-          node scripts/prove_buy_void_enforcement_artifact_attestation_v1.mjs \
-            --packaged-root "$RUNNER_TEMP/enforcement-root" | tee enforcement-package-proof.log
+          node scripts/prove_buy_void_enforcement_build_generation_v2.mjs derive \
+            --expected-head "$EXPECTED_HEAD_SHA" --snapshot "$RUNNER_TEMP/enforcement-build-source.json" \
+            --packaged-root "$RUNNER_TEMP/enforcement-root" > "$RUNNER_TEMP/enforcement-build-generation.json"
+          for major in 22 24 26; do
+            cmp "$RUNNER_TEMP/enforcement-build-generation.json" \
+              "$RUNNER_TEMP/enforcement-node-records/enforcement-node-$major-$EXPECTED_HEAD_SHA/enforcement-build-generation.json"
+          done
+          node scripts/prove_buy_void_enforcement_build_generation_v2.mjs verify \
+            --expected-head "$EXPECTED_HEAD_SHA" --snapshot "$RUNNER_TEMP/enforcement-build-source.json" \
+            --record "$RUNNER_TEMP/enforcement-build-generation.json" \
+            --packaged-root "$RUNNER_TEMP/enforcement-root" | tee "$RUNNER_TEMP/enforcement-package-proof.log"
+          grep -qx 'VOID_BUY_VOID_ENFORCEMENT_BUILD_GENERATION_V2_GREEN' "$RUNNER_TEMP/enforcement-package-proof.log"
           node scripts/prove_buy_void_source_finality_packaged_compiled_artifact_attestation_v1.mjs \
-            --packaged-root "$RUNNER_TEMP/enforcement-root" | tee historical-package-proof.log
+            --packaged-root "$RUNNER_TEMP/enforcement-root" | tee "$RUNNER_TEMP/historical-package-proof.log"
           python3 scripts/prove_buy_void_enforcement_image_identity_v1.py \
             --archive "$RUNNER_TEMP/enforcement-image.tar" \
             --manifest docs/architecture/buy-void-enforcement-artifact-attestation-v1.json \
             --image-id "$(cat "$RUNNER_TEMP/enforcement-image-id")" \
             --container-inspect "$RUNNER_TEMP/enforcement-container-after.json" \
-            --checkout-head "$EXPECTED_HEAD_SHA" | tee enforcement-image-identity.json
+            --checkout-head "$EXPECTED_HEAD_SHA" | tee "$RUNNER_TEMP/enforcement-image-identity.json"
           git diff --exit-code
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         if: always()
         with:
           name: enforcement-package-${{ github.event.pull_request.head.sha || github.sha }}
           path: |
-            enforcement-package-proof.log
-            historical-package-proof.log
-            enforcement-image-identity.json
+            ${{ runner.temp }}/enforcement-build-source.json
+            ${{ runner.temp }}/enforcement-build-generation.json
+            ${{ runner.temp }}/enforcement-package-proof.log
+            ${{ runner.temp }}/historical-package-proof.log
+            ${{ runner.temp }}/enforcement-image-identity.json
           if-no-files-found: error
           retention-days: 7
